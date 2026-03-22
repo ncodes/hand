@@ -25,7 +25,7 @@ const (
 func NewCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "doctor",
-		Usage: "run startup diagnostics",
+		Usage: "Run startup diagnostics",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			cfg, err := config.Load(cmd.String("env-file"), cmd.String("config"))
 			if err == nil {

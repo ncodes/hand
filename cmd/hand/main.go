@@ -58,9 +58,9 @@ func main() {
 func newCommand() *cli.Command {
 	var cmd *cli.Command
 	cmd = &cli.Command{
-		Name:        "agent",
-		Usage:       "run and manage the agent",
-		Description: "Agent is a personal assistant that works and exists for you.",
+		Name:        "hand",
+		Usage:       "Run and manage your Hand daemon",
+		Description: "Hand is a personal assistant that works and exists for you.",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "env-file",
