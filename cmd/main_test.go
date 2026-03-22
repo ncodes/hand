@@ -35,7 +35,7 @@ log:
 `), 0o600))
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath})
+	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "up"})
 	require.NoError(t, err)
 
 	cfg := config.Get()
@@ -75,7 +75,7 @@ log:
 
 	require.NoError(t, config.PreloadEnvFile(envPath))
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath})
+	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "up"})
 	require.NoError(t, err)
 
 	cfg := config.Get()
@@ -101,7 +101,7 @@ log:
 `), 0o600))
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath})
+	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "up"})
 	require.EqualError(t, err, "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
 }
 
@@ -120,7 +120,7 @@ log:
 `), 0o600))
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath})
+	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "up"})
 	require.NoError(t, err)
 
 	cfg := config.Get()
@@ -144,7 +144,7 @@ log:
 `), 0o600))
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "--model.router", "openrouter"})
+	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "--model.router", "openrouter", "up"})
 	require.NoError(t, err)
 
 	cfg := config.Get()
@@ -190,6 +190,7 @@ log:
 		"--model.base-url", "https://flag.example/v1",
 		"--log.level", "debug",
 		"--log.no-color=true",
+		"up",
 	})
 	require.NoError(t, err)
 
@@ -200,6 +201,33 @@ log:
 	require.Equal(t, "https://flag.example/v1", cfg.ModelBaseURL)
 	require.Equal(t, "debug", cfg.LogLevel)
 	require.True(t, cfg.LogNoColor)
+}
+
+func TestUpCommandRunsExplicitly(t *testing.T) {
+	clearEnvKeys(t, "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	resetGlobals(t)
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+model:
+  name: config-model
+  router: openrouter
+  key: config-key
+  baseUrl: https://config.example/v1
+log:
+  level: info
+`), 0o600))
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "up"})
+	require.NoError(t, err)
+
+	cfg := config.Get()
+	require.Equal(t, "config-model", cfg.Model)
+	require.Equal(t, "openrouter", cfg.ModelRouter)
+	require.Equal(t, "config-key", cfg.ModelKey)
+	require.Equal(t, "https://config.example/v1", cfg.ModelBaseURL)
 }
 
 func TestResolveEnvFilePrefersFlag(t *testing.T) {
@@ -225,6 +253,15 @@ func TestResolveEnvFileUsesDefaultWhenUnset(t *testing.T) {
 	require.Equal(t, ".env", resolveEnvFile([]string{"agent"}))
 }
 
+func TestRootCommandShowsHelp(t *testing.T) {
+	clearEnvKeys(t, "AGENT_ENV_FILE")
+	resetGlobals(t)
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{"agent"})
+	require.NoError(t, err)
+}
+
 func TestCommandRejectsUnsupportedRouter(t *testing.T) {
 	clearEnvKeys(t, "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
@@ -240,7 +277,7 @@ model:
 `), 0o600))
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath})
+	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "up"})
 	require.EqualError(t, err, "model router must be one of: none, openrouter")
 }
 
@@ -260,7 +297,7 @@ log:
 `), 0o600))
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath})
+	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "up"})
 	require.NoError(t, err)
 
 	cfg := config.Get()

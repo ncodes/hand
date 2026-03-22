@@ -6,15 +6,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/openai/openai-go/v3/option"
 	"github.com/rs/zerolog/log"
 	altsrc "github.com/urfave/cli-altsrc/v3"
 	"github.com/urfave/cli-altsrc/v3/yaml"
 	cli "github.com/urfave/cli/v3"
 
-	"github.com/wandxy/agent/internal/agent"
+	upcmd "github.com/wandxy/agent/cmd/up"
 	"github.com/wandxy/agent/internal/config"
-	"github.com/wandxy/agent/internal/models"
 	"github.com/wandxy/agent/pkg/logutils"
 )
 
@@ -43,10 +41,11 @@ func main() {
 }
 
 func newCommand() *cli.Command {
-	cmd := &cli.Command{
+	var cmd *cli.Command
+	cmd = &cli.Command{
 		Name:        "agent",
-		Usage:       "start the agent runtime",
-		Description: "Loads configuration from a YAML file, environment variables, and flags. Precedence is flags > environment > config file.",
+		Usage:       "run and manage the agent",
+		Description: "Agent is a personal assistant that works and exists for you.",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "env-file",
@@ -120,44 +119,11 @@ func newCommand() *cli.Command {
 				),
 			},
 		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			cfg := &config.Config{
-				Model:        cmd.String("model"),
-				ModelRouter:  cmd.String("model.router"),
-				ModelKey:     cmd.String("model.key"),
-				ModelBaseURL: cmd.String("model.base-url"),
-				LogLevel:     cmd.String("log.level"),
-				LogNoColor:   cmd.Bool("log.no-color"),
-			}
-			cfg.Normalize()
-			if err := cfg.Validate(); err != nil {
-				return err
-			}
-
-			config.Set(cfg)
-			_ = logutils.ConfigureLogger("agent", cfg.LogNoColor)
-			logutils.SetLogLevel(cfg.LogLevel)
-
-			log.Info().
-				Str("model", cfg.Model).
-				Str("modelRouter", cfg.ModelRouter).
-				Str("modelBaseURL", cfg.ModelBaseURL).
-				Str("logLevel", cfg.LogLevel).
-				Bool("logNoColor", cfg.LogNoColor).
-				Msg("configuration loaded")
-
-			clientOptions := make([]option.RequestOption, 0, 1)
-			if cfg.ModelBaseURL != "" {
-				clientOptions = append(clientOptions, option.WithBaseURL(cfg.ModelBaseURL))
-			}
-
-			modelClient, err := models.NewOpenAIClient(cfg.ModelKey, clientOptions...)
-			if err != nil {
-				return err
-			}
-
-			app := agent.NewAgent(cfg, modelClient)
-			return app.Run(ctx)
+		Commands: []*cli.Command{
+			upcmd.NewCommand(),
+		},
+		Action: func(context.Context, *cli.Command) error {
+			return cli.ShowAppHelp(cmd)
 		},
 	}
 	return cmd
