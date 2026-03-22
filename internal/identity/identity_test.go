@@ -9,7 +9,7 @@ import (
 	"github.com/wandxy/hand/internal/context"
 )
 
-func TestGetBaseIdentity_ReturnsInstruction(t *testing.T) {
+func TestGetBaseIdentity_ReturnsInstructionValue(t *testing.T) {
 	instruction := GetBaseIdentity("Wandxie")
 
 	require.IsType(t, context.Instruction{}, instruction)

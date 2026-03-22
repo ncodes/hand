@@ -37,7 +37,7 @@ func (s *chatRunnerStub) Chat(_ context.Context, msg string) (string, error) {
 	return s.reply, s.chatErr
 }
 
-func TestCommandUsesConfigFileValues(t *testing.T) {
+func TestNewCommand_UsesConfigFileValues(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
@@ -69,7 +69,7 @@ log:
 	require.True(t, cfg.LogNoColor)
 }
 
-func TestCommandUsesEnvOverConfigFile(t *testing.T) {
+func TestNewCommand_UsesEnvOverConfigFile(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
@@ -112,7 +112,7 @@ log:
 	require.False(t, cfg.LogNoColor)
 }
 
-func TestCommandDefaultsRouterWhenEmpty(t *testing.T) {
+func TestNewCommand_DefaultsRouterWhenEmpty(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
@@ -131,7 +131,7 @@ log:
 	require.EqualError(t, err, "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
 }
 
-func TestCommandDefaultsBaseURLWhenRouterIsImplicit(t *testing.T) {
+func TestNewCommand_DefaultsBaseURLWhenRouterIsImplicit(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
@@ -155,7 +155,7 @@ log:
 	require.Equal(t, "https://openrouter.ai/api/v1", cfg.ModelBaseURL)
 }
 
-func TestCommandUsesMappedBaseURLWhenRouterSetAndBaseURLUnset(t *testing.T) {
+func TestNewCommand_UsesMappedBaseURLWhenRouterSetAndBaseURLUnset(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
@@ -180,7 +180,7 @@ log:
 	require.Equal(t, "https://openrouter.ai/api/v1", cfg.ModelBaseURL)
 }
 
-func TestCommandFlagsOverrideEnvAndConfig(t *testing.T) {
+func TestNewCommand_FlagsOverrideEnvAndConfig(t *testing.T) {
 	clearEnvKeys(t, "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
@@ -235,7 +235,7 @@ log:
 	require.True(t, cfg.LogNoColor)
 }
 
-func TestUpCommandRunsExplicitly(t *testing.T) {
+func TestNewCommand_RunsUpCommandExplicitly(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
@@ -287,7 +287,7 @@ func TestResolveEnvFileUsesDefaultWhenUnset(t *testing.T) {
 	require.Equal(t, ".env", resolveEnvFile([]string{"agent"}))
 }
 
-func TestRootCommandShowsHelp(t *testing.T) {
+func TestNewCommand_RootActionShowsHelp(t *testing.T) {
 	clearEnvKeys(t, "AGENT_ENV_FILE")
 	resetGlobals(t)
 
@@ -296,7 +296,7 @@ func TestRootCommandShowsHelp(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestRootCommandTreatsUnknownArgsAsChat(t *testing.T) {
+func TestNewCommand_RootActionTreatsUnknownArgsAsChat(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
@@ -331,7 +331,7 @@ func TestRootCommandTreatsUnknownArgsAsChat(t *testing.T) {
 	require.Equal(t, "hello back\n", output.String())
 }
 
-func TestCommandRejectsUnsupportedRouter(t *testing.T) {
+func TestNewCommand_RejectsUnsupportedRouter(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
@@ -351,7 +351,7 @@ model:
 	require.EqualError(t, err, "model router must be one of: none, openrouter")
 }
 
-func TestCommandUsesDirectClientWhenRouterIsNone(t *testing.T) {
+func TestNewCommand_UsesDirectClientWhenRouterIsNone(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 

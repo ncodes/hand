@@ -81,7 +81,7 @@ func TestPreloadEnvFile_IgnoresMissingFile(t *testing.T) {
 	require.NoError(t, PreloadEnvFile("missing.env"))
 }
 
-func TestGet_ReturnsDefaultsWhenUnset(t *testing.T) {
+func TestGet_ReturnsDefaultsWhenConfigIsUnset(t *testing.T) {
 	original := Get()
 	Set(nil)
 	t.Cleanup(func() {
@@ -96,7 +96,7 @@ func TestGet_ReturnsDefaultsWhenUnset(t *testing.T) {
 	require.Empty(t, cfg.ModelBaseURL)
 }
 
-func TestSet_StoresConfig(t *testing.T) {
+func TestSet_StoresConfigGlobally(t *testing.T) {
 	original := Get()
 	t.Cleanup(func() {
 		Set(original)
@@ -107,7 +107,7 @@ func TestSet_StoresConfig(t *testing.T) {
 	require.Same(t, cfg, Get())
 }
 
-func TestConfigValidate_RequiresKey(t *testing.T) {
+func TestConfig_ValidateRequiresKey(t *testing.T) {
 	cfg := &Config{
 		Name:     "test-agent",
 		Model:    defaultModel,
@@ -118,7 +118,7 @@ func TestConfigValidate_RequiresKey(t *testing.T) {
 	require.Equal(t, supportedRouters[defaultModelRouter], cfg.ModelBaseURL)
 }
 
-func TestConfigValidate_NormalizesFields(t *testing.T) {
+func TestConfig_ValidateNormalizesFields(t *testing.T) {
 	cfg := &Config{
 		Name:        "  Test Agent  ",
 		Model:       "  test-model  ",
@@ -136,19 +136,19 @@ func TestConfigValidate_NormalizesFields(t *testing.T) {
 	require.Equal(t, "warn", cfg.LogLevel)
 }
 
-func TestConfigValidate_RequiresName(t *testing.T) {
+func TestConfig_ValidateRequiresName(t *testing.T) {
 	err := (&Config{Model: defaultModel, ModelKey: "test-key", LogLevel: "info"}).Validate()
 	require.EqualError(t, err, "name is required; set NAME, provide it in config, or use --name")
 }
 
-func TestConfigValidate_DefaultsModelWhenEmpty(t *testing.T) {
+func TestConfig_ValidateDefaultsModelWhenEmpty(t *testing.T) {
 	cfg := &Config{Name: "test-agent", ModelKey: "test-key", LogLevel: "info"}
 
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, defaultModel, cfg.Model)
 }
 
-func TestConfigValidate_RejectsUnsupportedRouter(t *testing.T) {
+func TestConfig_ValidateRejectsUnsupportedRouter(t *testing.T) {
 	err := (&Config{
 		Name:         "test-agent",
 		Model:        defaultModel,
@@ -160,7 +160,7 @@ func TestConfigValidate_RejectsUnsupportedRouter(t *testing.T) {
 	require.EqualError(t, err, "model router must be one of: none, openrouter")
 }
 
-func TestConfigValidate_RejectsInvalidLogLevel(t *testing.T) {
+func TestConfig_ValidateRejectsInvalidLogLevel(t *testing.T) {
 	err := (&Config{
 		Name:        "test-agent",
 		Model:       defaultModel,
@@ -171,7 +171,7 @@ func TestConfigValidate_RejectsInvalidLogLevel(t *testing.T) {
 	require.EqualError(t, err, "log level must be one of debug, info, warn, or error; use --log.level")
 }
 
-func TestConfigValidate_AllowsEmptyRouterAndLogLevel(t *testing.T) {
+func TestConfig_ValidateAllowsEmptyRouterAndLogLevel(t *testing.T) {
 	err := (&Config{
 		Name:     "test-agent",
 		Model:    defaultModel,
@@ -180,7 +180,7 @@ func TestConfigValidate_AllowsEmptyRouterAndLogLevel(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestConfigNormalize_DefaultsRouterWhenEmpty(t *testing.T) {
+func TestConfig_NormalizeDefaultsRouterWhenEmpty(t *testing.T) {
 	cfg := &Config{
 		Model:    defaultModel,
 		LogLevel: "info",
@@ -190,12 +190,12 @@ func TestConfigNormalize_DefaultsRouterWhenEmpty(t *testing.T) {
 	require.Equal(t, supportedRouters[defaultModelRouter], cfg.ModelBaseURL)
 }
 
-func TestConfigNormalize_IgnoresNilReceiver(t *testing.T) {
+func TestConfig_NormalizeIgnoresNilReceiver(t *testing.T) {
 	var cfg *Config
 	cfg.Normalize()
 }
 
-func TestConfigNormalize_DefaultsModelAndLogLevel(t *testing.T) {
+func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	cfg := &Config{}
 	cfg.Normalize()
 	require.Empty(t, cfg.Name)
@@ -205,7 +205,7 @@ func TestConfigNormalize_DefaultsModelAndLogLevel(t *testing.T) {
 	require.Equal(t, "info", cfg.LogLevel)
 }
 
-func TestConfigNormalize_UsesMappedBaseURLWhenRouterWasExplicitlySet(t *testing.T) {
+func TestConfig_NormalizeUsesMappedBaseURLWhenRouterWasExplicitlySet(t *testing.T) {
 	cfg := &Config{
 		Model:       defaultModel,
 		ModelRouter: defaultModelRouter,
@@ -216,7 +216,7 @@ func TestConfigNormalize_UsesMappedBaseURLWhenRouterWasExplicitlySet(t *testing.
 	require.Equal(t, supportedRouters[defaultModelRouter], cfg.ModelBaseURL)
 }
 
-func TestConfigNormalize_LeavesBaseURLUnsetForNoneRouter(t *testing.T) {
+func TestConfig_NormalizeLeavesBaseURLUnsetForNoneRouter(t *testing.T) {
 	cfg := &Config{
 		Model:       defaultModel,
 		ModelRouter: "none",
@@ -228,7 +228,7 @@ func TestConfigNormalize_LeavesBaseURLUnsetForNoneRouter(t *testing.T) {
 	require.Equal(t, "", cfg.ModelBaseURL)
 }
 
-func TestConfigNormalize_TrimsAndLowercasesFields(t *testing.T) {
+func TestConfig_NormalizeTrimsAndLowercasesFields(t *testing.T) {
 	cfg := &Config{
 		Name:         "  Test Agent  ",
 		Model:        "  test-model  ",

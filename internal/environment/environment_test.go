@@ -10,7 +10,7 @@ import (
 	"github.com/wandxy/hand/internal/identity"
 )
 
-func TestNewEnvironment_InitializesFields(t *testing.T) {
+func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 	baseCtx := gctx.WithValue(gctx.Background(), "requestID", "req-123")
 	cfg := &config.Config{Name: "Test Agent"}
 
@@ -22,7 +22,7 @@ func TestNewEnvironment_InitializesFields(t *testing.T) {
 	require.Empty(t, env.ctx.GetInstructions())
 }
 
-func TestEnvironmentPrepare_AddsBaseIdentityInstruction(t *testing.T) {
+func TestEnvironment_PrepareAddsBaseIdentityInstruction(t *testing.T) {
 	cfg := &config.Config{Name: "Test Agent"}
 	env := NewEnvironment(gctx.Background(), cfg)
 

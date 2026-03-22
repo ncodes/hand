@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestInstructionsString_JoinsValuesWithNewLines(t *testing.T) {
+func TestInstructions_StringJoinsValuesWithNewLines(t *testing.T) {
 	instructions := Instructions{
 		{Value: "first"},
 		{Value: "second"},
@@ -17,7 +17,7 @@ func TestInstructionsString_JoinsValuesWithNewLines(t *testing.T) {
 	require.Equal(t, "first\nsecond\nthird", instructions.String())
 }
 
-func TestInstructionsMarshalJSON_EncodesJoinedString(t *testing.T) {
+func TestInstructions_MarshalJSONEncodesJoinedString(t *testing.T) {
 	instructions := Instructions{
 		{Value: "first"},
 		{Value: "second"},
@@ -29,7 +29,7 @@ func TestInstructionsMarshalJSON_EncodesJoinedString(t *testing.T) {
 	require.JSONEq(t, `"first\nsecond"`, string(data))
 }
 
-func TestInstructionsUnmarshalJSON_DecodesStringArray(t *testing.T) {
+func TestInstructions_UnmarshalJSONDecodesStringArray(t *testing.T) {
 	var instructions Instructions
 
 	err := instructions.UnmarshalJSON([]byte(`["first","second"]`))
@@ -41,7 +41,7 @@ func TestInstructionsUnmarshalJSON_DecodesStringArray(t *testing.T) {
 	}, instructions)
 }
 
-func TestInstructionsUnmarshalJSON_RejectsInvalidShape(t *testing.T) {
+func TestInstructions_UnmarshalJSONRejectsInvalidShape(t *testing.T) {
 	var instructions Instructions
 
 	err := instructions.UnmarshalJSON([]byte(`"first"`))
@@ -49,7 +49,7 @@ func TestInstructionsUnmarshalJSON_RejectsInvalidShape(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestInstructionsJSON_RoundTripUsesMarshalAndUnmarshalImplementations(t *testing.T) {
+func TestInstructions_JSONRoundTripUsesMarshalAndUnmarshalImplementations(t *testing.T) {
 	original := Instructions{
 		{Value: "first"},
 		{Value: "second"},

@@ -55,7 +55,7 @@ func TestNewOpenAIClient_OmitsAPIKeyOptionWhenEmpty(t *testing.T) {
 	require.Equal(t, 1, optCount)
 }
 
-func TestOpenAIClientChat_RequiresClient(t *testing.T) {
+func TestOpenAIClient_ChatRequiresClient(t *testing.T) {
 	var nilClient *OpenAIClient
 	_, err := nilClient.Chat(context.Background(), GenerateRequest{})
 	require.EqualError(t, err, "model client is required")
@@ -65,7 +65,7 @@ func TestOpenAIClientChat_RequiresClient(t *testing.T) {
 	require.EqualError(t, err, "model client is required")
 }
 
-func TestOpenAIClientChat_RequiresModel(t *testing.T) {
+func TestOpenAIClient_ChatRequiresModel(t *testing.T) {
 	client := &OpenAIClient{
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			t.Fatal("completion call should not happen")
@@ -77,7 +77,7 @@ func TestOpenAIClientChat_RequiresModel(t *testing.T) {
 	require.EqualError(t, err, "model is required")
 }
 
-func TestOpenAIClientChat_RequiresInput(t *testing.T) {
+func TestOpenAIClient_ChatRequiresInput(t *testing.T) {
 	client := &OpenAIClient{
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			t.Fatal("completion call should not happen")
@@ -89,7 +89,7 @@ func TestOpenAIClientChat_RequiresInput(t *testing.T) {
 	require.EqualError(t, err, "input is required")
 }
 
-func TestOpenAIClientChat_ReturnsAPIError(t *testing.T) {
+func TestOpenAIClient_ChatReturnsAPIError(t *testing.T) {
 	expectedErr := errors.New("upstream failed")
 	client := &OpenAIClient{
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
@@ -104,7 +104,7 @@ func TestOpenAIClientChat_ReturnsAPIError(t *testing.T) {
 	require.ErrorIs(t, err, expectedErr)
 }
 
-func TestOpenAIClientChat_ReturnsErrorWhenNoChoices(t *testing.T) {
+func TestOpenAIClient_ChatReturnsErrorWhenNoChoices(t *testing.T) {
 	client := &OpenAIClient{
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			return &openai.ChatCompletion{
@@ -122,7 +122,7 @@ func TestOpenAIClientChat_ReturnsErrorWhenNoChoices(t *testing.T) {
 	require.EqualError(t, err, `chat completion response "resp_123" contained no choices`)
 }
 
-func TestOpenAIClientChat_ReturnsResponseAndBuildsRequest(t *testing.T) {
+func TestOpenAIClient_ChatReturnsResponseAndBuildsRequest(t *testing.T) {
 	var captured openai.ChatCompletionNewParams
 	client := &OpenAIClient{
 		createChatCompletion: func(_ context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {

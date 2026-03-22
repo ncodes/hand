@@ -9,7 +9,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 )
 
-func TestNewContext_InitializesFields(t *testing.T) {
+func TestNewContext_InitializesDependencies(t *testing.T) {
 	baseCtx := gctx.WithValue(gctx.Background(), "requestID", "req-123")
 	cfg := &config.Config{Name: "Test Agent"}
 
@@ -20,7 +20,7 @@ func TestNewContext_InitializesFields(t *testing.T) {
 	require.Empty(t, ctx.instructions)
 }
 
-func TestContextAddInstruction_AppendsInstructions(t *testing.T) {
+func TestContext_AddInstructionAppendsInstructions(t *testing.T) {
 	ctx := NewContext(gctx.Background(), &config.Config{Name: "Test Agent"})
 
 	ctx.AddInstruction(Instruction{Value: "first"})

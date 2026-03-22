@@ -19,7 +19,7 @@ func init() {
 	logutils.SetOutput(io.Discard)
 }
 
-func TestNewCommand_UsesFlagsToBuildConfig(t *testing.T) {
+func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	original := config.Get()
 	originalNewAgentRunner := newAgentRunner
 	t.Cleanup(func() {
