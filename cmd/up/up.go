@@ -2,6 +2,7 @@ package up
 
 import (
 	"context"
+	"errors"
 
 	"github.com/openai/openai-go/v3/option"
 	"github.com/rs/zerolog/log"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/diagnostics"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -54,13 +56,11 @@ func NewCommand() *cli.Command {
 			if cmd.IsSet("debug.requests") {
 				cfg.DebugRequests = cmd.Bool("debug.requests")
 			}
-			if err := cfg.Validate(); err != nil {
-				return err
+			report := diagnostics.Build(cmd.String("env-file"), cmd.String("config"), cfg, nil)
+			if report.HasFailures() {
+				return errors.New(report.FirstFailure())
 			}
-			auth, err := cfg.ResolveModelAuth()
-			if err != nil {
-				return err
-			}
+			auth, _ := cfg.ResolveModelAuth()
 
 			config.Set(cfg)
 			_ = logutils.ConfigureLogger("hand", cfg.LogNoColor)

@@ -295,6 +295,22 @@ func TestNewCommand_RootActionShowsHelp(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	resetGlobals(t)
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{
+		"agent",
+		"--name", "flag-agent",
+		"--model", "flag-model",
+		"--model.router", "openrouter",
+		"--model.key", "flag-key",
+		"doctor",
+	})
+	require.NoError(t, err)
+}
+
 func TestNewCommand_RootActionTreatsUnknownArgsAsChat(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)

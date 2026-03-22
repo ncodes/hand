@@ -59,7 +59,7 @@ Tasks:
 - [x] Implement provider-specific auth resolution and validation
 - [x] Define a normalized model client interface
 - [x] Add structured logging and request debug dumps
-- [ ] Add startup diagnostics/doctor checks
+- [x] Add startup diagnostics/doctor checks
 
 Proposed package boundaries:
 - `cmd/hand`: the top-level CLI entrypoint, root command wiring, config bootstrap, and process lifecycle startup

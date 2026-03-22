@@ -16,8 +16,9 @@ The long-term dream for Hand is a personal agent that can understand your workfl
 1. Copy one of the provided examples:
    - `cp example.env .env`
    - `cp example.yaml config.yaml`
-2. Uncomment the values you want to use and replace the placeholder model key.
-3. Set at least `NAME`, `MODEL`, `MODEL_ROUTER`, and `MODEL_KEY`.
+2. Uncomment the values you want to use and replace the placeholder key values.
+3. Set at least `NAME`, `MODEL`, `MODEL_ROUTER`, and one auth value:
+   `MODEL_KEY`, `OPENAI_API_KEY`, or `OPENROUTER_API_KEY`.
 4. Run the agent:
 
 ```bash
@@ -56,6 +57,8 @@ Env equivalents:
 - `MODEL`
 - `MODEL_ROUTER`
 - `MODEL_KEY`
+- `OPENAI_API_KEY`
+- `OPENROUTER_API_KEY`
 - `MODEL_BASE_URL`
 - `LOG_LEVEL`
 - `LOG_NO_COLOR`
@@ -75,13 +78,16 @@ Current config direction:
 Typical model settings:
 - `model.name`: provider model slug such as `qwen/qwen3.5-27b`
 - `model.router`: router type such as `openrouter` or `none`
-- `model.key`: provider or router API key
+- `model.key`: generic provider or router API key fallback
+- `model.openaiApiKey`: provider-specific OpenAI API key
+- `model.openrouterApiKey`: provider-specific OpenRouter API key
 - `model.baseUrl`: explicit provider base URL when needed
 - `debug.requests`: emits sanitized model request dumps at debug level
 
 ## Commands
 
 - `hand up`: prepare and start the runtime
+- `hand doctor`: run startup diagnostics and readiness checks
 - `hand "<message>"`: send a single chat message
 
 ## Development
@@ -104,7 +110,7 @@ Foundation:
 - [x] Implement provider-specific auth resolution and validation
 - [x] Define a normalized model client interface
 - [x] Add structured logging and request debug dumps
-- [ ] Add startup diagnostics and doctor checks
+- [x] Add startup diagnostics and doctor checks
 
 Agent Runtime:
 - [ ] Implement message model and conversation state

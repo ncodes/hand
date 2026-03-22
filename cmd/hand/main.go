@@ -12,9 +12,11 @@ import (
 	"github.com/rs/zerolog/log"
 	cli "github.com/urfave/cli/v3"
 
+	doctorcmd "github.com/wandxy/hand/cmd/doctor"
 	upcmd "github.com/wandxy/hand/cmd/up"
 	"github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/diagnostics"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -118,6 +120,7 @@ func newCommand() *cli.Command {
 			},
 		},
 		Commands: []*cli.Command{
+			doctorcmd.NewCommand(),
 			upcmd.NewCommand(),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -130,6 +133,7 @@ func newCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
+
 			if cmd.IsSet("name") {
 				cfg.Name = cmd.String("name")
 			}
@@ -154,12 +158,10 @@ func newCommand() *cli.Command {
 			if cmd.IsSet("debug.requests") {
 				cfg.DebugRequests = cmd.Bool("debug.requests")
 			}
-			if err := cfg.Validate(); err != nil {
-				return err
-			}
-			auth, err := cfg.ResolveModelAuth()
-			if err != nil {
-				return err
+
+			report := diagnostics.Build(cmd.String("env-file"), cmd.String("config"), cfg, nil)
+			if report.HasFailures() {
+				return errors.New(report.FirstFailure())
 			}
 
 			config.Set(cfg)
@@ -171,6 +173,7 @@ func newCommand() *cli.Command {
 				clientOptions = append(clientOptions, option.WithBaseURL(cfg.ModelBaseURL))
 			}
 
+			auth, _ := cfg.ResolveModelAuth()
 			modelClient, err := models.NewOpenAIClient(auth.APIKey, clientOptions...)
 			if err != nil {
 				return err
