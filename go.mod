@@ -1,4 +1,4 @@
-module github.com/wandxy/agent
+module github.com/wandxy/hand
 
 go 1.26.1
 

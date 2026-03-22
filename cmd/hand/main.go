@@ -3,27 +3,42 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"strings"
 
+	"github.com/openai/openai-go/v3/option"
 	"github.com/rs/zerolog/log"
 	altsrc "github.com/urfave/cli-altsrc/v3"
 	"github.com/urfave/cli-altsrc/v3/yaml"
 	cli "github.com/urfave/cli/v3"
 
-	upcmd "github.com/wandxy/agent/cmd/up"
-	"github.com/wandxy/agent/internal/config"
-	"github.com/wandxy/agent/pkg/logutils"
+	upcmd "github.com/wandxy/hand/cmd/up"
+	"github.com/wandxy/hand/internal/agent"
+	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/pkg/logutils"
 )
 
 func init() {
-	_ = logutils.InitLogger("agent")
+	_ = logutils.InitLogger("hand")
 }
 
 var (
-	envFile    = ".env"
-	configFile = "config.yaml"
+	envFile              = ".env"
+	configFile           = "config.yaml"
+	rootOutput io.Writer = os.Stdout
 )
+
+type chatRunner interface {
+	Run(context.Context) error
+	Chat(context.Context, string) (string, error)
+}
+
+var newChatAgent = func(ctx context.Context, cfg *config.Config, modelClient models.Client) chatRunner {
+	return agent.NewAgent(ctx, cfg, modelClient)
+}
 
 func main() {
 	envFile = resolveEnvFile(os.Args)
@@ -49,7 +64,7 @@ func newCommand() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "env-file",
-				Usage:       "load environment overrides from this .env file",
+				Usage:       "Load environment overrides from this .env file",
 				Value:       ".env",
 				Destination: &envFile,
 				Sources: cli.NewValueSourceChain(
@@ -59,7 +74,7 @@ func newCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:        "config",
 				Aliases:     []string{"c"},
-				Usage:       "read base settings from this YAML config file",
+				Usage:       "Read base settings from this YAML config file",
 				Value:       "config.yaml",
 				Destination: &configFile,
 				Sources: cli.NewValueSourceChain(
@@ -67,8 +82,17 @@ func newCommand() *cli.Command {
 				),
 			},
 			&cli.StringFlag{
+				Name:  "name",
+				Usage: "The name of your hand",
+				Value: config.Get().Name,
+				Sources: cli.NewValueSourceChain(
+					cli.EnvVar("NAME"),
+					yaml.YAML("name", altsrc.NewStringPtrSourcer(&configFile)),
+				),
+			},
+			&cli.StringFlag{
 				Name:  "model.router",
-				Usage: "model router identifier",
+				Usage: "Model router identifier",
 				Value: config.Get().ModelRouter,
 				Sources: cli.NewValueSourceChain(
 					cli.EnvVar("MODEL_ROUTER"),
@@ -77,7 +101,7 @@ func newCommand() *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:  "model.key",
-				Usage: "authentication key for the selected model router",
+				Usage: "Authentication key for the selected model router",
 				Sources: cli.NewValueSourceChain(
 					cli.EnvVar("MODEL_KEY"),
 					yaml.YAML("model.key", altsrc.NewStringPtrSourcer(&configFile)),
@@ -85,7 +109,7 @@ func newCommand() *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:  "model",
-				Usage: "model slug to send to the provider, for example openai/gpt-4o-mini",
+				Usage: "Model slug to send to the provider, for example openai/gpt-4o-mini",
 				Value: config.Get().Model,
 				Sources: cli.NewValueSourceChain(
 					cli.EnvVar("MODEL"),
@@ -94,7 +118,7 @@ func newCommand() *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:  "model.base-url",
-				Usage: "base URL for the model provider API",
+				Usage: "Base URL for the model provider API",
 				Value: config.Get().ModelBaseURL,
 				Sources: cli.NewValueSourceChain(
 					cli.EnvVar("MODEL_BASE_URL"),
@@ -103,7 +127,7 @@ func newCommand() *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:  "log.level",
-				Usage: "set the minimum log level: debug, info, warn, or error",
+				Usage: "Set the minimum log level: debug, info, warn, or error",
 				Value: config.Get().LogLevel,
 				Sources: cli.NewValueSourceChain(
 					cli.EnvVar("LOG_LEVEL"),
@@ -112,7 +136,7 @@ func newCommand() *cli.Command {
 			},
 			&cli.BoolFlag{
 				Name:  "log.no-color",
-				Usage: "emit plain log output without ANSI color codes",
+				Usage: "Emit plain log output without ANSI color codes",
 				Sources: cli.NewValueSourceChain(
 					cli.EnvVar("LOG_NO_COLOR"),
 					yaml.YAML("log.noColor", altsrc.NewStringPtrSourcer(&configFile)),
@@ -122,8 +146,51 @@ func newCommand() *cli.Command {
 		Commands: []*cli.Command{
 			upcmd.NewCommand(),
 		},
-		Action: func(context.Context, *cli.Command) error {
-			return cli.ShowAppHelp(cmd)
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			message := strings.TrimSpace(strings.Join(cmd.Args().Slice(), " "))
+			if message == "" {
+				return cli.ShowAppHelp(cmd)
+			}
+
+			cfg := &config.Config{
+				Name:         cmd.String("name"),
+				Model:        cmd.String("model"),
+				ModelRouter:  cmd.String("model.router"),
+				ModelKey:     cmd.String("model.key"),
+				ModelBaseURL: cmd.String("model.base-url"),
+				LogLevel:     cmd.String("log.level"),
+				LogNoColor:   cmd.Bool("log.no-color"),
+			}
+			if err := cfg.Validate(); err != nil {
+				return err
+			}
+
+			config.Set(cfg)
+			_ = logutils.ConfigureLogger("hand", cfg.LogNoColor)
+			logutils.SetLogLevel(cfg.LogLevel)
+
+			clientOptions := make([]option.RequestOption, 0, 1)
+			if cfg.ModelBaseURL != "" {
+				clientOptions = append(clientOptions, option.WithBaseURL(cfg.ModelBaseURL))
+			}
+
+			modelClient, err := models.NewOpenAIClient(cfg.ModelKey, clientOptions...)
+			if err != nil {
+				return err
+			}
+
+			app := newChatAgent(ctx, cfg, modelClient)
+			if err := app.Run(ctx); err != nil {
+				return err
+			}
+
+			reply, err := app.Chat(ctx, message)
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintln(rootOutput, reply)
+			return err
 		},
 	}
 	return cmd

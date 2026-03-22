@@ -11,6 +11,7 @@ import (
 )
 
 type Config struct {
+	Name         string
 	Model        string
 	ModelRouter  string
 	ModelKey     string
@@ -70,6 +71,7 @@ func (c *Config) Normalize() {
 		return
 	}
 
+	c.Name = strings.TrimSpace(c.Name)
 	c.Model = strings.TrimSpace(c.Model)
 	c.ModelRouter = strings.TrimSpace(strings.ToLower(c.ModelRouter))
 	c.ModelKey = strings.TrimSpace(c.ModelKey)
@@ -95,7 +97,17 @@ func (c *Config) Normalize() {
 	}
 }
 
-func (c Config) Validate() error {
+func (c *Config) Validate() error {
+	if c == nil {
+		return errors.New("config is required")
+	}
+
+	c.Normalize()
+
+	if strings.TrimSpace(c.Name) == "" {
+		return errors.New("name is required; set NAME, provide it in config, or use --name")
+	}
+
 	if strings.TrimSpace(c.Model) == "" {
 		return errors.New("model is required; set MODEL, provide it in config, or use --model")
 	}

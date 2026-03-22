@@ -9,7 +9,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/wandxy/agent/internal/config"
+	"github.com/wandxy/hand/internal/config"
 )
 
 var loggerMu sync.Mutex

@@ -10,9 +10,9 @@ import (
 	"github.com/urfave/cli-altsrc/v3/yaml"
 	cli "github.com/urfave/cli/v3"
 
-	"github.com/wandxy/agent/internal/config"
-	"github.com/wandxy/agent/internal/models"
-	"github.com/wandxy/agent/pkg/logutils"
+	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/pkg/logutils"
 )
 
 func init() {
@@ -39,6 +39,7 @@ func TestNewCommand_UsesFlagsToBuildConfig(t *testing.T) {
 	cmd := newRootCommandForTest(&configFile)
 	require.NoError(t, cmd.Run(context.Background(), []string{
 		"agent",
+		"--name", "flag-agent",
 		"--model", "flag-model",
 		"--model.router", "openrouter",
 		"--model.key", "flag-key",
@@ -49,6 +50,7 @@ func TestNewCommand_UsesFlagsToBuildConfig(t *testing.T) {
 	}))
 
 	cfg := config.Get()
+	require.Equal(t, "flag-agent", cfg.Name)
 	require.Equal(t, "flag-model", cfg.Model)
 	require.Equal(t, "openrouter", cfg.ModelRouter)
 	require.Equal(t, "flag-key", cfg.ModelKey)
@@ -63,6 +65,7 @@ func TestNewCommand_ReturnsValidationError(t *testing.T) {
 	cmd := newRootCommandForTest(&configFile)
 	err := cmd.Run(context.Background(), []string{
 		"agent",
+		"--name", "flag-agent",
 		"--model", "",
 		"--model.router", "openrouter",
 		"--model.key", "",
@@ -76,6 +79,14 @@ func newRootCommandForTest(configFile *string) *cli.Command {
 		Name:           "agent",
 		DefaultCommand: "up",
 		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "name",
+				Value: config.Get().Name,
+				Sources: cli.NewValueSourceChain(
+					cli.EnvVar("NAME"),
+					yaml.YAML("name", altsrc.NewStringPtrSourcer(configFile)),
+				),
+			},
 			&cli.StringFlag{
 				Name:  "model.router",
 				Value: config.Get().ModelRouter,

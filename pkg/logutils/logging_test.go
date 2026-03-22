@@ -11,7 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/agent/internal/config"
+	"github.com/wandxy/hand/internal/config"
 )
 
 func TestSetOutput_SetsCustomWriterAndDefaultsToStderr(t *testing.T) {

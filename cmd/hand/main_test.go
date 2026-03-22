@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
@@ -9,21 +10,41 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/agent/internal/config"
-	"github.com/wandxy/agent/pkg/logutils"
+	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/pkg/logutils"
 )
 
 func init() {
 	logutils.SetOutput(io.Discard)
 }
 
+type chatRunnerStub struct {
+	runCalled bool
+	chatInput string
+	reply     string
+	runErr    error
+	chatErr   error
+}
+
+func (s *chatRunnerStub) Run(context.Context) error {
+	s.runCalled = true
+	return s.runErr
+}
+
+func (s *chatRunnerStub) Chat(_ context.Context, msg string) (string, error) {
+	s.chatInput = msg
+	return s.reply, s.chatErr
+}
+
 func TestCommandUsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
 model:
   name: config-model
   router: openrouter
@@ -39,6 +60,7 @@ log:
 	require.NoError(t, err)
 
 	cfg := config.Get()
+	require.Equal(t, "config-agent", cfg.Name)
 	require.Equal(t, "openrouter", cfg.ModelRouter)
 	require.Equal(t, "config-key", cfg.ModelKey)
 	require.Equal(t, "config-model", cfg.Model)
@@ -48,13 +70,14 @@ log:
 }
 
 func TestCommandUsesEnvOverConfigFile(t *testing.T) {
-	clearEnvKeys(t, "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(envPath, []byte(`
+NAME=env-agent
 MODEL=env-model
 MODEL_ROUTER=openrouter
 MODEL_KEY=env-key
@@ -63,6 +86,7 @@ LOG_LEVEL=warn
 LOG_NO_COLOR=false
 `), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
 model:
   name: config-model
   router: openrouter
@@ -79,6 +103,7 @@ log:
 	require.NoError(t, err)
 
 	cfg := config.Get()
+	require.Equal(t, "env-agent", cfg.Name)
 	require.Equal(t, "openrouter", cfg.ModelRouter)
 	require.Equal(t, "env-key", cfg.ModelKey)
 	require.Equal(t, "env-model", cfg.Model)
@@ -88,12 +113,13 @@ log:
 }
 
 func TestCommandDefaultsRouterWhenEmpty(t *testing.T) {
-	clearEnvKeys(t, "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
 model:
   name: config-model
 log:
@@ -106,12 +132,13 @@ log:
 }
 
 func TestCommandDefaultsBaseURLWhenRouterIsImplicit(t *testing.T) {
-	clearEnvKeys(t, "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
 model:
   name: config-model
   key: config-key
@@ -129,12 +156,13 @@ log:
 }
 
 func TestCommandUsesMappedBaseURLWhenRouterSetAndBaseURLUnset(t *testing.T) {
-	clearEnvKeys(t, "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
 model:
   name: config-model
   router: openrouter
@@ -161,6 +189,7 @@ func TestCommandFlagsOverrideEnvAndConfig(t *testing.T) {
 	configPath := filepath.Join(dir, "config.yaml")
 
 	require.NoError(t, os.WriteFile(envPath, []byte(`
+NAME=env-agent
 MODEL=env-model
 MODEL_ROUTER=openrouter
 MODEL_KEY=env-key
@@ -169,6 +198,7 @@ LOG_LEVEL=warn
 LOG_NO_COLOR=false
 `), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
 model:
   name: config-model
   router: openrouter
@@ -184,6 +214,7 @@ log:
 	err := cmd.Run(context.Background(), []string{
 		"agent",
 		"--config", configPath,
+		"--name", "flag-agent",
 		"--model", "flag-model",
 		"--model.router", "openrouter",
 		"--model.key", "flag-key",
@@ -195,6 +226,7 @@ log:
 	require.NoError(t, err)
 
 	cfg := config.Get()
+	require.Equal(t, "flag-agent", cfg.Name)
 	require.Equal(t, "openrouter", cfg.ModelRouter)
 	require.Equal(t, "flag-key", cfg.ModelKey)
 	require.Equal(t, "flag-model", cfg.Model)
@@ -204,12 +236,13 @@ log:
 }
 
 func TestUpCommandRunsExplicitly(t *testing.T) {
-	clearEnvKeys(t, "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
 model:
   name: config-model
   router: openrouter
@@ -224,6 +257,7 @@ log:
 	require.NoError(t, err)
 
 	cfg := config.Get()
+	require.Equal(t, "config-agent", cfg.Name)
 	require.Equal(t, "config-model", cfg.Model)
 	require.Equal(t, "openrouter", cfg.ModelRouter)
 	require.Equal(t, "config-key", cfg.ModelKey)
@@ -262,13 +296,49 @@ func TestRootCommandShowsHelp(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestRootCommandTreatsUnknownArgsAsChat(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	resetGlobals(t)
+
+	originalNewChatAgent := newChatAgent
+	originalRootOutput := rootOutput
+	t.Cleanup(func() {
+		newChatAgent = originalNewChatAgent
+		rootOutput = originalRootOutput
+	})
+
+	var output bytes.Buffer
+	rootOutput = &output
+
+	stub := &chatRunnerStub{reply: "hello back"}
+	newChatAgent = func(context.Context, *config.Config, models.Client) chatRunner {
+		return stub
+	}
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{
+		"agent",
+		"--name", "flag-agent",
+		"--model", "flag-model",
+		"--model.router", "none",
+		"--model.key", "flag-key",
+		"hello",
+		"world",
+	})
+	require.NoError(t, err)
+	require.True(t, stub.runCalled)
+	require.Equal(t, "hello world", stub.chatInput)
+	require.Equal(t, "hello back\n", output.String())
+}
+
 func TestCommandRejectsUnsupportedRouter(t *testing.T) {
-	clearEnvKeys(t, "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
 model:
   name: config-model
   router: anthropic
@@ -282,12 +352,13 @@ model:
 }
 
 func TestCommandUsesDirectClientWhenRouterIsNone(t *testing.T) {
-	clearEnvKeys(t, "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
 model:
   name: config-model
   router: none

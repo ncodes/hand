@@ -7,10 +7,10 @@ import (
 	"github.com/rs/zerolog/log"
 	cli "github.com/urfave/cli/v3"
 
-	"github.com/wandxy/agent/internal/agent"
-	"github.com/wandxy/agent/internal/config"
-	"github.com/wandxy/agent/internal/models"
-	"github.com/wandxy/agent/pkg/logutils"
+	"github.com/wandxy/hand/internal/agent"
+	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/pkg/logutils"
 )
 
 type runner interface {
@@ -18,7 +18,7 @@ type runner interface {
 }
 
 var newAgentRunner = func(cfg *config.Config, modelClient models.Client) runner {
-	return agent.NewAgent(cfg, modelClient)
+	return agent.NewAgent(context.Background(), cfg, modelClient)
 }
 
 func NewCommand() *cli.Command {
@@ -27,6 +27,7 @@ func NewCommand() *cli.Command {
 		Usage: "start the agent runtime",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			cfg := &config.Config{
+				Name:         cmd.String("name"),
 				Model:        cmd.String("model"),
 				ModelRouter:  cmd.String("model.router"),
 				ModelKey:     cmd.String("model.key"),
@@ -34,16 +35,16 @@ func NewCommand() *cli.Command {
 				LogLevel:     cmd.String("log.level"),
 				LogNoColor:   cmd.Bool("log.no-color"),
 			}
-			cfg.Normalize()
 			if err := cfg.Validate(); err != nil {
 				return err
 			}
 
 			config.Set(cfg)
-			_ = logutils.ConfigureLogger("agent", cfg.LogNoColor)
+			_ = logutils.ConfigureLogger("hand", cfg.LogNoColor)
 			logutils.SetLogLevel(cfg.LogLevel)
 
 			log.Info().
+				Str("name", cfg.Name).
 				Str("model", cfg.Model).
 				Str("modelRouter", cfg.ModelRouter).
 				Str("modelBaseURL", cfg.ModelBaseURL).
