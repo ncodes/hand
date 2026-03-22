@@ -1,0 +1,11 @@
+# name: "Daemon"
+
+# model:
+#   name: "qwen/qwen3.5-27b"
+#   router: "openrouter"
+#   key: "replace-with-your-model-key"
+#   baseUrl: "https://openrouter.ai/api/v1"
+
+# log:
+#   level: "info"
+#   noColor: false

@@ -97,9 +97,8 @@ log:
   noColor: true
 `), 0o600))
 
-	require.NoError(t, config.PreloadEnvFile(envPath))
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "up"})
+	err := cmd.Run(context.Background(), []string{"agent", "--env-file", envPath, "--config", configPath, "up"})
 	require.NoError(t, err)
 
 	cfg := config.Get()
@@ -209,10 +208,10 @@ log:
   noColor: true
 `), 0o600))
 
-	require.NoError(t, config.PreloadEnvFile(envPath))
 	cmd := newCommand()
 	err := cmd.Run(context.Background(), []string{
 		"agent",
+		"--env-file", envPath,
 		"--config", configPath,
 		"--name", "flag-agent",
 		"--model", "flag-model",

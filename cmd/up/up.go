@@ -26,14 +26,30 @@ func NewCommand() *cli.Command {
 		Name:  "up",
 		Usage: "start the agent runtime",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			cfg := &config.Config{
-				Name:         cmd.String("name"),
-				Model:        cmd.String("model"),
-				ModelRouter:  cmd.String("model.router"),
-				ModelKey:     cmd.String("model.key"),
-				ModelBaseURL: cmd.String("model.base-url"),
-				LogLevel:     cmd.String("log.level"),
-				LogNoColor:   cmd.Bool("log.no-color"),
+			cfg, err := config.Load(cmd.String("env-file"), cmd.String("config"))
+			if err != nil {
+				return err
+			}
+			if cmd.IsSet("name") {
+				cfg.Name = cmd.String("name")
+			}
+			if cmd.IsSet("model") {
+				cfg.Model = cmd.String("model")
+			}
+			if cmd.IsSet("model.router") {
+				cfg.ModelRouter = cmd.String("model.router")
+			}
+			if cmd.IsSet("model.key") {
+				cfg.ModelKey = cmd.String("model.key")
+			}
+			if cmd.IsSet("model.base-url") {
+				cfg.ModelBaseURL = cmd.String("model.base-url")
+			}
+			if cmd.IsSet("log.level") {
+				cfg.LogLevel = cmd.String("log.level")
+			}
+			if cmd.IsSet("log.no-color") {
+				cfg.LogNoColor = cmd.Bool("log.no-color")
 			}
 			if err := cfg.Validate(); err != nil {
 				return err

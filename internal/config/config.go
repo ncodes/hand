@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/joho/godotenv"
+	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
@@ -35,6 +36,20 @@ const (
 	defaultModelRouter = "openrouter"
 )
 
+type fileConfig struct {
+	Name  string `yaml:"name"`
+	Model struct {
+		Name    string `yaml:"name"`
+		Router  string `yaml:"router"`
+		Key     string `yaml:"key"`
+		BaseURL string `yaml:"baseUrl"`
+	} `yaml:"model"`
+	Log struct {
+		Level   string `yaml:"level"`
+		NoColor bool   `yaml:"noColor"`
+	} `yaml:"log"`
+}
+
 func PreloadEnvFile(path string) error {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -46,6 +61,22 @@ func PreloadEnvFile(path string) error {
 	}
 
 	return nil
+}
+
+func Load(envPath, configPath string) (*Config, error) {
+	if err := PreloadEnvFile(envPath); err != nil {
+		return nil, err
+	}
+
+	cfg, err := loadConfigFile(configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	applyEnvOverrides(cfg)
+	cfg.Normalize()
+
+	return cfg, nil
 }
 
 func Get() *Config {
@@ -64,6 +95,64 @@ func Set(cfg *Config) {
 	configMu.Lock()
 	defer configMu.Unlock()
 	globalConfig = cfg
+}
+
+func loadConfigFile(path string) (*Config, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		path = "config.yaml"
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &Config{}, nil
+		}
+		return nil, fmt.Errorf("failed to read config file %q: %w", path, err)
+	}
+
+	var raw fileConfig
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse config file %q: %w", path, err)
+	}
+
+	return &Config{
+		Name:         raw.Name,
+		Model:        raw.Model.Name,
+		ModelRouter:  raw.Model.Router,
+		ModelKey:     raw.Model.Key,
+		ModelBaseURL: raw.Model.BaseURL,
+		LogLevel:     raw.Log.Level,
+		LogNoColor:   raw.Log.NoColor,
+	}, nil
+}
+
+func applyEnvOverrides(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+
+	if value := strings.TrimSpace(os.Getenv("NAME")); value != "" {
+		cfg.Name = value
+	}
+	if value := strings.TrimSpace(os.Getenv("MODEL")); value != "" {
+		cfg.Model = value
+	}
+	if value := strings.TrimSpace(os.Getenv("MODEL_ROUTER")); value != "" {
+		cfg.ModelRouter = value
+	}
+	if value := strings.TrimSpace(os.Getenv("MODEL_KEY")); value != "" {
+		cfg.ModelKey = value
+	}
+	if value := strings.TrimSpace(os.Getenv("MODEL_BASE_URL")); value != "" {
+		cfg.ModelBaseURL = value
+	}
+	if value := strings.TrimSpace(os.Getenv("LOG_LEVEL")); value != "" {
+		cfg.LogLevel = value
+	}
+	if value := strings.TrimSpace(strings.ToLower(os.Getenv("LOG_NO_COLOR"))); value != "" {
+		cfg.LogNoColor = value == "1" || value == "true" || value == "yes"
+	}
 }
 
 func (c *Config) Normalize() {

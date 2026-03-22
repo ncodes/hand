@@ -10,8 +10,6 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 	"github.com/rs/zerolog/log"
-	altsrc "github.com/urfave/cli-altsrc/v3"
-	"github.com/urfave/cli-altsrc/v3/yaml"
 	cli "github.com/urfave/cli/v3"
 
 	upcmd "github.com/wandxy/hand/cmd/up"
@@ -85,62 +83,34 @@ func newCommand() *cli.Command {
 				Name:  "name",
 				Usage: "The name of your hand",
 				Value: config.Get().Name,
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("NAME"),
-					yaml.YAML("name", altsrc.NewStringPtrSourcer(&configFile)),
-				),
 			},
 			&cli.StringFlag{
 				Name:  "model.router",
 				Usage: "Model router identifier",
 				Value: config.Get().ModelRouter,
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("MODEL_ROUTER"),
-					yaml.YAML("model.router", altsrc.NewStringPtrSourcer(&configFile)),
-				),
 			},
 			&cli.StringFlag{
 				Name:  "model.key",
 				Usage: "Authentication key for the selected model router",
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("MODEL_KEY"),
-					yaml.YAML("model.key", altsrc.NewStringPtrSourcer(&configFile)),
-				),
 			},
 			&cli.StringFlag{
 				Name:  "model",
 				Usage: "Model slug to send to the provider, for example openai/gpt-4o-mini",
 				Value: config.Get().Model,
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("MODEL"),
-					yaml.YAML("model.name", altsrc.NewStringPtrSourcer(&configFile)),
-				),
 			},
 			&cli.StringFlag{
 				Name:  "model.base-url",
 				Usage: "Base URL for the model provider API",
 				Value: config.Get().ModelBaseURL,
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("MODEL_BASE_URL"),
-					yaml.YAML("model.baseUrl", altsrc.NewStringPtrSourcer(&configFile)),
-				),
 			},
 			&cli.StringFlag{
 				Name:  "log.level",
 				Usage: "Set the minimum log level: debug, info, warn, or error",
 				Value: config.Get().LogLevel,
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("LOG_LEVEL"),
-					yaml.YAML("log.level", altsrc.NewStringPtrSourcer(&configFile)),
-				),
 			},
 			&cli.BoolFlag{
 				Name:  "log.no-color",
 				Usage: "Emit plain log output without ANSI color codes",
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("LOG_NO_COLOR"),
-					yaml.YAML("log.noColor", altsrc.NewStringPtrSourcer(&configFile)),
-				),
 			},
 		},
 		Commands: []*cli.Command{
@@ -152,14 +122,30 @@ func newCommand() *cli.Command {
 				return cli.ShowAppHelp(cmd)
 			}
 
-			cfg := &config.Config{
-				Name:         cmd.String("name"),
-				Model:        cmd.String("model"),
-				ModelRouter:  cmd.String("model.router"),
-				ModelKey:     cmd.String("model.key"),
-				ModelBaseURL: cmd.String("model.base-url"),
-				LogLevel:     cmd.String("log.level"),
-				LogNoColor:   cmd.Bool("log.no-color"),
+			cfg, err := config.Load(cmd.String("env-file"), cmd.String("config"))
+			if err != nil {
+				return err
+			}
+			if cmd.IsSet("name") {
+				cfg.Name = cmd.String("name")
+			}
+			if cmd.IsSet("model") {
+				cfg.Model = cmd.String("model")
+			}
+			if cmd.IsSet("model.router") {
+				cfg.ModelRouter = cmd.String("model.router")
+			}
+			if cmd.IsSet("model.key") {
+				cfg.ModelKey = cmd.String("model.key")
+			}
+			if cmd.IsSet("model.base-url") {
+				cfg.ModelBaseURL = cmd.String("model.base-url")
+			}
+			if cmd.IsSet("log.level") {
+				cfg.LogLevel = cmd.String("log.level")
+			}
+			if cmd.IsSet("log.no-color") {
+				cfg.LogNoColor = cmd.Bool("log.no-color")
 			}
 			if err := cfg.Validate(); err != nil {
 				return err

@@ -81,6 +81,99 @@ func TestPreloadEnvFile_IgnoresMissingFile(t *testing.T) {
 	require.NoError(t, PreloadEnvFile("missing.env"))
 }
 
+func TestLoad_UsesConfigFileValues(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: config-model
+  router: openrouter
+  key: config-key
+  baseUrl: https://config.example/v1
+log:
+  level: error
+  noColor: true
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+
+	require.NoError(t, err)
+	require.Equal(t, "config-agent", cfg.Name)
+	require.Equal(t, "config-model", cfg.Model)
+	require.Equal(t, "openrouter", cfg.ModelRouter)
+	require.Equal(t, "config-key", cfg.ModelKey)
+	require.Equal(t, "https://config.example/v1", cfg.ModelBaseURL)
+	require.Equal(t, "error", cfg.LogLevel)
+	require.True(t, cfg.LogNoColor)
+}
+
+func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
+
+	dir := t.TempDir()
+	envPath := filepath.Join(dir, ".env")
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(envPath, []byte(`
+NAME=env-agent
+MODEL=env-model
+MODEL_ROUTER=openrouter
+MODEL_KEY=env-key
+MODEL_BASE_URL=https://env.example/v1
+LOG_LEVEL=warn
+LOG_NO_COLOR=false
+`), 0o600))
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: config-model
+  router: openrouter
+  key: config-key
+  baseUrl: https://config.example/v1
+log:
+  level: error
+  noColor: true
+`), 0o600))
+
+	cfg, err := Load(envPath, configPath)
+
+	require.NoError(t, err)
+	require.Equal(t, "env-agent", cfg.Name)
+	require.Equal(t, "env-model", cfg.Model)
+	require.Equal(t, "openrouter", cfg.ModelRouter)
+	require.Equal(t, "env-key", cfg.ModelKey)
+	require.Equal(t, "https://env.example/v1", cfg.ModelBaseURL)
+	require.Equal(t, "warn", cfg.LogLevel)
+	require.False(t, cfg.LogNoColor)
+}
+
+func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
+
+	cfg, err := Load("", filepath.Join(t.TempDir(), "missing.yaml"))
+
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.Equal(t, defaultModel, cfg.Model)
+	require.Equal(t, defaultModelRouter, cfg.ModelRouter)
+	require.Equal(t, "info", cfg.LogLevel)
+}
+
+func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("name: [\n"), 0o600))
+
+	_, err := Load("", configPath)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `failed to parse config file`)
+}
+
 func TestGet_ReturnsDefaultsWhenConfigIsUnset(t *testing.T) {
 	original := Get()
 	Set(nil)
