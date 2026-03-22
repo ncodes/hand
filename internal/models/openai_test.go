@@ -1,6 +1,7 @@
 package models
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,8 @@ import (
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -163,6 +166,47 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsRequest(t *testing.T) {
 	require.Contains(t, rawText, `"content":"be concise"`)
 	require.Contains(t, rawText, `"role":"user"`)
 	require.Contains(t, rawText, `"content":"hello"`)
+}
+
+func TestOpenAIClient_ChatLogsRequestDebugDumpWhenEnabled(t *testing.T) {
+	originalLogger := log.Logger
+	originalLevel := zerolog.GlobalLevel()
+	t.Cleanup(func() {
+		log.Logger = originalLogger
+		zerolog.SetGlobalLevel(originalLevel)
+	})
+
+	buf := &bytes.Buffer{}
+	log.Logger = zerolog.New(buf)
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+
+	client := &OpenAIClient{
+		createChatCompletion: func(_ context.Context, _ openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+			return &openai.ChatCompletion{
+				ID:    "resp_123",
+				Model: "returned-model",
+				Choices: []openai.ChatCompletionChoice{
+					{
+						Message: openai.ChatCompletionMessage{Content: "hello back"},
+					},
+				},
+			}, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:         "test-model",
+		Input:         "hello",
+		Instructions:  "be concise",
+		DebugRequests: true,
+	})
+
+	require.NoError(t, err)
+	output := buf.String()
+	require.Contains(t, output, "model request debug dump")
+	require.Contains(t, output, `"provider":"openai-compatible"`)
+	require.Contains(t, output, `"model":"test-model"`)
+	require.Contains(t, output, `"content":"hello"`)
 }
 
 func TestBuildMessages_WithoutInstructions(t *testing.T) {

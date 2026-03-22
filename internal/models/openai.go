@@ -2,12 +2,14 @@ package models
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/rs/zerolog/log"
 )
 
 type OpenAIClient struct {
@@ -57,6 +59,9 @@ func (c *OpenAIClient) Chat(ctx context.Context, req GenerateRequest) (*Generate
 	if req.Temperature > 0 {
 		params.Temperature = openai.Float(req.Temperature)
 	}
+	if req.DebugRequests {
+		logRequestDebugDump(params)
+	}
 
 	resp, err := c.createChatCompletion(ctx, params)
 	if err != nil {
@@ -83,4 +88,17 @@ func buildMessages(req GenerateRequest) []openai.ChatCompletionMessageParamUnion
 	messages = append(messages, openai.UserMessage(strings.TrimSpace(req.Input)))
 
 	return messages
+}
+
+func logRequestDebugDump(params openai.ChatCompletionNewParams) {
+	raw, err := json.Marshal(params)
+	if err != nil {
+		log.Debug().Err(err).Msg("failed to marshal model request debug dump")
+		return
+	}
+
+	log.Debug().
+		Str("provider", "openai-compatible").
+		RawJSON("request", raw).
+		Msg("model request debug dump")
 }

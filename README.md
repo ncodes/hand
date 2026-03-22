@@ -49,6 +49,7 @@ Config file values:
 - `model.baseUrl`
 - `log.level`
 - `log.noColor`
+- `debug.requests`
 
 Env equivalents:
 - `NAME`
@@ -58,6 +59,7 @@ Env equivalents:
 - `MODEL_BASE_URL`
 - `LOG_LEVEL`
 - `LOG_NO_COLOR`
+- `DEBUG_REQUESTS`
 
 ### Model Configuration
 
@@ -75,6 +77,7 @@ Typical model settings:
 - `model.router`: router type such as `openrouter` or `none`
 - `model.key`: provider or router API key
 - `model.baseUrl`: explicit provider base URL when needed
+- `debug.requests`: emits sanitized model request dumps at debug level
 
 ## Commands
 
@@ -100,7 +103,7 @@ Foundation:
 - [x] Implement config file loading plus env overrides
 - [x] Implement provider-specific auth resolution and validation
 - [x] Define a normalized model client interface
-- [ ] Add structured logging and request debug dumps
+- [x] Add structured logging and request debug dumps
 - [ ] Add startup diagnostics and doctor checks
 
 Agent Runtime:

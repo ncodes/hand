@@ -12,6 +12,7 @@ type GenerateRequest struct {
 	Instructions    string
 	MaxOutputTokens int64
 	Temperature     float64
+	DebugRequests   bool
 }
 
 type GenerateResponse struct {

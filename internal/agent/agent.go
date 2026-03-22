@@ -44,9 +44,10 @@ func (c *Agent) Chat(ctx context.Context, msg string) (string, error) {
 
 	instructions := c.env.GetInstructions()
 	resp, err := c.modelClient.Chat(ctx, models.GenerateRequest{
-		Model:        c.cfg.Model,
-		Input:        msg,
-		Instructions: instructions.String(),
+		Model:         c.cfg.Model,
+		Input:         msg,
+		Instructions:  instructions.String(),
+		DebugRequests: c.cfg.DebugRequests,
 	})
 	if err != nil {
 		return "", err

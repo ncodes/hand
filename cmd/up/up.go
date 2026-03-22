@@ -51,6 +51,9 @@ func NewCommand() *cli.Command {
 			if cmd.IsSet("log.no-color") {
 				cfg.LogNoColor = cmd.Bool("log.no-color")
 			}
+			if cmd.IsSet("debug.requests") {
+				cfg.DebugRequests = cmd.Bool("debug.requests")
+			}
 			if err := cfg.Validate(); err != nil {
 				return err
 			}

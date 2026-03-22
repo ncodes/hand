@@ -9,3 +9,6 @@
 # log:
 #   level: "info"
 #   noColor: false
+
+# debug:
+#   requests: false

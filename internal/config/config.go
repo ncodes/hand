@@ -21,6 +21,7 @@ type Config struct {
 	ModelBaseURL     string
 	LogLevel         string
 	LogNoColor       bool
+	DebugRequests    bool
 }
 
 type ModelAuth struct {
@@ -58,6 +59,9 @@ type fileConfig struct {
 		Level   string `yaml:"level"`
 		NoColor bool   `yaml:"noColor"`
 	} `yaml:"log"`
+	Debug struct {
+		Requests bool `yaml:"requests"`
+	} `yaml:"debug"`
 }
 
 func PreloadEnvFile(path string) error {
@@ -136,6 +140,7 @@ func loadConfigFile(path string) (*Config, error) {
 		ModelBaseURL:     raw.Model.BaseURL,
 		LogLevel:         raw.Log.Level,
 		LogNoColor:       raw.Log.NoColor,
+		DebugRequests:    raw.Debug.Requests,
 	}, nil
 }
 
@@ -170,6 +175,9 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := strings.TrimSpace(strings.ToLower(os.Getenv("LOG_NO_COLOR"))); value != "" {
 		cfg.LogNoColor = value == "1" || value == "true" || value == "yes"
+	}
+	if value := strings.TrimSpace(strings.ToLower(os.Getenv("DEBUG_REQUESTS"))); value != "" {
+		cfg.DebugRequests = value == "1" || value == "true" || value == "yes"
 	}
 }
 

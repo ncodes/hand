@@ -9,7 +9,7 @@ import (
 )
 
 func TestPreloadEnvFile_LoadsValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -23,6 +23,7 @@ OPENROUTER_API_KEY=openrouter-env-key
 MODEL_BASE_URL=https://env.example/v1
 LOG_LEVEL=warn
 LOG_NO_COLOR=true
+DEBUG_REQUESTS=true
 `), 0o600))
 
 	require.NoError(t, PreloadEnvFile(envPath))
@@ -35,6 +36,7 @@ LOG_NO_COLOR=true
 	require.Equal(t, "https://env.example/v1", os.Getenv("MODEL_BASE_URL"))
 	require.Equal(t, "warn", os.Getenv("LOG_LEVEL"))
 	require.Equal(t, "true", os.Getenv("LOG_NO_COLOR"))
+	require.Equal(t, "true", os.Getenv("DEBUG_REQUESTS"))
 }
 
 func TestPreloadEnvFile_DoesNotOverrideShellEnv(t *testing.T) {
@@ -86,7 +88,7 @@ func TestPreloadEnvFile_IgnoresMissingFile(t *testing.T) {
 }
 
 func TestLoad_UsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -100,6 +102,8 @@ model:
 log:
   level: error
   noColor: true
+debug:
+  requests: true
 `), 0o600))
 
 	cfg, err := Load("", configPath)
@@ -112,10 +116,11 @@ log:
 	require.Equal(t, "https://config.example/v1", cfg.ModelBaseURL)
 	require.Equal(t, "error", cfg.LogLevel)
 	require.True(t, cfg.LogNoColor)
+	require.True(t, cfg.DebugRequests)
 }
 
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -128,6 +133,7 @@ MODEL_KEY=env-key
 MODEL_BASE_URL=https://env.example/v1
 LOG_LEVEL=warn
 LOG_NO_COLOR=false
+DEBUG_REQUESTS=false
 `), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
@@ -139,6 +145,8 @@ model:
 log:
   level: error
   noColor: true
+debug:
+  requests: true
 `), 0o600))
 
 	cfg, err := Load(envPath, configPath)
@@ -151,10 +159,11 @@ log:
 	require.Equal(t, "https://env.example/v1", cfg.ModelBaseURL)
 	require.Equal(t, "warn", cfg.LogLevel)
 	require.False(t, cfg.LogNoColor)
+	require.False(t, cfg.DebugRequests)
 }
 
 func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	cfg, err := Load("", filepath.Join(t.TempDir(), "missing.yaml"))
 
@@ -166,7 +175,7 @@ func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
 }
 
 func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")

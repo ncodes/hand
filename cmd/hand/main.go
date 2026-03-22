@@ -112,6 +112,10 @@ func newCommand() *cli.Command {
 				Name:  "log.no-color",
 				Usage: "Emit plain log output without ANSI color codes",
 			},
+			&cli.BoolFlag{
+				Name:  "debug.requests",
+				Usage: "Log sanitized model request payloads at debug level",
+			},
 		},
 		Commands: []*cli.Command{
 			upcmd.NewCommand(),
@@ -146,6 +150,9 @@ func newCommand() *cli.Command {
 			}
 			if cmd.IsSet("log.no-color") {
 				cfg.LogNoColor = cmd.Bool("log.no-color")
+			}
+			if cmd.IsSet("debug.requests") {
+				cfg.DebugRequests = cmd.Bool("debug.requests")
 			}
 			if err := cfg.Validate(); err != nil {
 				return err
