@@ -27,7 +27,12 @@ go run ./cmd/hand up
 You can also send a direct prompt through the root command:
 
 ```bash
-go run ./cmd/hand --name Daemon --model qwen/qwen3.5-27b --model.router openrouter --model.key "$MODEL_KEY" "hello"
+go run ./cmd/hand \
+  --name Daemon \
+  --model qwen/qwen3.5-27b \
+  --model.router openrouter \
+  --model.key "$MODEL_KEY" \
+  "hello"
 ```
 
 ## Config
@@ -54,16 +59,36 @@ Env equivalents:
 - `LOG_LEVEL`
 - `LOG_NO_COLOR`
 
+### Model Configuration
+
+Supported `model.router` values:
+- `openrouter`: routes model requests through the OpenRouter API
+- `none`: bypasses router configuration and uses the official OpenAI client with its default base URL (https://api.openai.com/v1). This sends requests directly to the OpenAI API.
+
+Current config direction:
+- put stable defaults in `config.yaml`
+- use `.env` for local secrets and machine-specific values
+- use CLI flags for one-off overrides
+
+Typical model settings:
+- `model.name`: provider model slug such as `qwen/qwen3.5-27b`
+- `model.router`: router type such as `openrouter` or `none`
+- `model.key`: provider or router API key
+- `model.baseUrl`: explicit provider base URL when needed
+
 ## Commands
 
 - `hand up`: prepare and start the runtime
-- `hand "<message>"`: prepare the agent and send a single chat message
+- `hand "<message>"`: send a single chat message
 
 ## Development
 
 ```bash
+# Build and install the binary
 make build
 make install
+
+# Run the tests
 make lint
 go test ./...
 ```
