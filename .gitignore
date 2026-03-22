@@ -1,3 +1,14 @@
 build/
 coverage.out
 *.coverprofile
+
+.env
+.env.*
+
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+.DS_Store
