@@ -12,13 +12,21 @@ import (
 )
 
 type Config struct {
-	Name         string
-	Model        string
-	ModelRouter  string
-	ModelKey     string
-	ModelBaseURL string
-	LogLevel     string
-	LogNoColor   bool
+	Name             string
+	Model            string
+	ModelRouter      string
+	ModelKey         string
+	OpenAIAPIKey     string
+	OpenRouterAPIKey string
+	ModelBaseURL     string
+	LogLevel         string
+	LogNoColor       bool
+}
+
+type ModelAuth struct {
+	Router  string
+	APIKey  string
+	BaseURL string
 }
 
 var (
@@ -39,10 +47,12 @@ const (
 type fileConfig struct {
 	Name  string `yaml:"name"`
 	Model struct {
-		Name    string `yaml:"name"`
-		Router  string `yaml:"router"`
-		Key     string `yaml:"key"`
-		BaseURL string `yaml:"baseUrl"`
+		Name             string `yaml:"name"`
+		Router           string `yaml:"router"`
+		Key              string `yaml:"key"`
+		OpenAIAPIKey     string `yaml:"openaiApiKey"`
+		OpenRouterAPIKey string `yaml:"openrouterApiKey"`
+		BaseURL          string `yaml:"baseUrl"`
 	} `yaml:"model"`
 	Log struct {
 		Level   string `yaml:"level"`
@@ -117,13 +127,15 @@ func loadConfigFile(path string) (*Config, error) {
 	}
 
 	return &Config{
-		Name:         raw.Name,
-		Model:        raw.Model.Name,
-		ModelRouter:  raw.Model.Router,
-		ModelKey:     raw.Model.Key,
-		ModelBaseURL: raw.Model.BaseURL,
-		LogLevel:     raw.Log.Level,
-		LogNoColor:   raw.Log.NoColor,
+		Name:             raw.Name,
+		Model:            raw.Model.Name,
+		ModelRouter:      raw.Model.Router,
+		ModelKey:         raw.Model.Key,
+		OpenAIAPIKey:     raw.Model.OpenAIAPIKey,
+		OpenRouterAPIKey: raw.Model.OpenRouterAPIKey,
+		ModelBaseURL:     raw.Model.BaseURL,
+		LogLevel:         raw.Log.Level,
+		LogNoColor:       raw.Log.NoColor,
 	}, nil
 }
 
@@ -143,6 +155,12 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := strings.TrimSpace(os.Getenv("MODEL_KEY")); value != "" {
 		cfg.ModelKey = value
+	}
+	if value := strings.TrimSpace(os.Getenv("OPENAI_API_KEY")); value != "" {
+		cfg.OpenAIAPIKey = value
+	}
+	if value := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")); value != "" {
+		cfg.OpenRouterAPIKey = value
 	}
 	if value := strings.TrimSpace(os.Getenv("MODEL_BASE_URL")); value != "" {
 		cfg.ModelBaseURL = value
@@ -164,6 +182,8 @@ func (c *Config) Normalize() {
 	c.Model = strings.TrimSpace(c.Model)
 	c.ModelRouter = strings.TrimSpace(strings.ToLower(c.ModelRouter))
 	c.ModelKey = strings.TrimSpace(c.ModelKey)
+	c.OpenAIAPIKey = strings.TrimSpace(c.OpenAIAPIKey)
+	c.OpenRouterAPIKey = strings.TrimSpace(c.OpenRouterAPIKey)
 	c.ModelBaseURL = strings.TrimSpace(c.ModelBaseURL)
 	c.LogLevel = strings.TrimSpace(strings.ToLower(c.LogLevel))
 
@@ -206,8 +226,8 @@ func (c *Config) Validate() error {
 			return errors.New(`model router must be one of: none, openrouter`)
 		}
 	}
-	if strings.TrimSpace(c.ModelKey) == "" {
-		return errors.New("model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+	if _, err := c.ResolveModelAuth(); err != nil {
+		return err
 	}
 
 	switch strings.TrimSpace(strings.ToLower(c.LogLevel)) {
@@ -216,4 +236,42 @@ func (c *Config) Validate() error {
 	default:
 		return errors.New("log level must be one of debug, info, warn, or error; use --log.level")
 	}
+}
+
+func (c *Config) ResolveModelAuth() (ModelAuth, error) {
+	if c == nil {
+		return ModelAuth{}, errors.New("config is required")
+	}
+
+	c.Normalize()
+
+	auth := ModelAuth{
+		Router:  c.ModelRouter,
+		BaseURL: c.ModelBaseURL,
+	}
+
+	switch c.ModelRouter {
+	case "openrouter":
+		auth.APIKey = firstNonEmpty(c.OpenRouterAPIKey, c.ModelKey)
+	case "none":
+		auth.APIKey = firstNonEmpty(c.OpenAIAPIKey, c.ModelKey)
+	default:
+		auth.APIKey = c.ModelKey
+	}
+
+	if strings.TrimSpace(auth.APIKey) == "" {
+		return ModelAuth{}, errors.New("model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+	}
+
+	return auth, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+
+	return ""
 }

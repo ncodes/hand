@@ -9,7 +9,7 @@ import (
 )
 
 func TestPreloadEnvFile_LoadsValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -18,6 +18,8 @@ NAME=env-agent
 MODEL=env-model
 MODEL_ROUTER=openrouter
 MODEL_KEY=env-key
+OPENAI_API_KEY=openai-env-key
+OPENROUTER_API_KEY=openrouter-env-key
 MODEL_BASE_URL=https://env.example/v1
 LOG_LEVEL=warn
 LOG_NO_COLOR=true
@@ -28,6 +30,8 @@ LOG_NO_COLOR=true
 	require.Equal(t, "env-model", os.Getenv("MODEL"))
 	require.Equal(t, "openrouter", os.Getenv("MODEL_ROUTER"))
 	require.Equal(t, "env-key", os.Getenv("MODEL_KEY"))
+	require.Equal(t, "openai-env-key", os.Getenv("OPENAI_API_KEY"))
+	require.Equal(t, "openrouter-env-key", os.Getenv("OPENROUTER_API_KEY"))
 	require.Equal(t, "https://env.example/v1", os.Getenv("MODEL_BASE_URL"))
 	require.Equal(t, "warn", os.Getenv("LOG_LEVEL"))
 	require.Equal(t, "true", os.Getenv("LOG_NO_COLOR"))
@@ -82,7 +86,7 @@ func TestPreloadEnvFile_IgnoresMissingFile(t *testing.T) {
 }
 
 func TestLoad_UsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -111,7 +115,7 @@ log:
 }
 
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -150,7 +154,7 @@ log:
 }
 
 func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
 
 	cfg, err := Load("", filepath.Join(t.TempDir(), "missing.yaml"))
 
@@ -162,7 +166,7 @@ func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
 }
 
 func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -209,6 +213,64 @@ func TestConfig_ValidateRequiresKey(t *testing.T) {
 	require.EqualError(t, cfg.Validate(), "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
 	require.Equal(t, defaultModelRouter, cfg.ModelRouter)
 	require.Equal(t, supportedRouters[defaultModelRouter], cfg.ModelBaseURL)
+}
+
+func TestConfig_ResolveModelAuthUsesOpenRouterSpecificKey(t *testing.T) {
+	cfg := &Config{
+		Name:             "test-agent",
+		Model:            defaultModel,
+		ModelRouter:      "openrouter",
+		OpenRouterAPIKey: "openrouter-key",
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+
+	require.NoError(t, err)
+	require.Equal(t, "openrouter", auth.Router)
+	require.Equal(t, "openrouter-key", auth.APIKey)
+	require.Equal(t, supportedRouters["openrouter"], auth.BaseURL)
+}
+
+func TestConfig_ResolveModelAuthUsesOpenAISpecificKey(t *testing.T) {
+	cfg := &Config{
+		Name:         "test-agent",
+		Model:        defaultModel,
+		ModelRouter:  "none",
+		OpenAIAPIKey: "openai-key",
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+
+	require.NoError(t, err)
+	require.Equal(t, "none", auth.Router)
+	require.Equal(t, "openai-key", auth.APIKey)
+	require.Empty(t, auth.BaseURL)
+}
+
+func TestConfig_ResolveModelAuthFallsBackToModelKey(t *testing.T) {
+	cfg := &Config{
+		Name:        "test-agent",
+		Model:       defaultModel,
+		ModelRouter: "openrouter",
+		ModelKey:    "generic-key",
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+
+	require.NoError(t, err)
+	require.Equal(t, "generic-key", auth.APIKey)
+}
+
+func TestConfig_ValidateAllowsProviderSpecificAuthWithoutModelKey(t *testing.T) {
+	cfg := &Config{
+		Name:             "test-agent",
+		Model:            defaultModel,
+		ModelRouter:      "openrouter",
+		OpenRouterAPIKey: "openrouter-key",
+		LogLevel:         "info",
+	}
+
+	require.NoError(t, cfg.Validate())
 }
 
 func TestConfig_ValidateNormalizesFields(t *testing.T) {

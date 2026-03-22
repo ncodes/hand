@@ -98,7 +98,7 @@ go test ./...
 Foundation:
 - [x] Define package boundaries for runtime, tools, UI, storage, and integrations
 - [x] Implement config file loading plus env overrides
-- [ ] Implement provider auth resolution
+- [x] Implement provider-specific auth resolution and validation
 - [x] Define a normalized model client interface
 - [ ] Add structured logging and request debug dumps
 - [ ] Add startup diagnostics and doctor checks

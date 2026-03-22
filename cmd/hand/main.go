@@ -150,6 +150,10 @@ func newCommand() *cli.Command {
 			if err := cfg.Validate(); err != nil {
 				return err
 			}
+			auth, err := cfg.ResolveModelAuth()
+			if err != nil {
+				return err
+			}
 
 			config.Set(cfg)
 			_ = logutils.ConfigureLogger("hand", cfg.LogNoColor)
@@ -160,7 +164,7 @@ func newCommand() *cli.Command {
 				clientOptions = append(clientOptions, option.WithBaseURL(cfg.ModelBaseURL))
 			}
 
-			modelClient, err := models.NewOpenAIClient(cfg.ModelKey, clientOptions...)
+			modelClient, err := models.NewOpenAIClient(auth.APIKey, clientOptions...)
 			if err != nil {
 				return err
 			}
