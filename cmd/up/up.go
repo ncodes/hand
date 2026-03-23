@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -30,8 +33,62 @@ type runner interface {
 	Run(context.Context) error
 }
 
+const (
+	handBadge = "██   ██  █████  ███    ██ ██████\n██   ██ ██   ██ ████   ██ ██   ██\n███████ ███████ ██ ██  ██ ██   ██\n██   ██ ██   ██ ██  ██ ██ ██   ██\n██   ██ ██   ██ ██   ████ ██████\n"
+	colorGray = "\x1b[90m"
+	colorReset = "\x1b[0m"
+)
+
+var startupOutput io.Writer = os.Stdout
+
 var newAgentRunner = func(ctx context.Context, cfg *config.Config, modelClient models.Client) runner {
 	return agent.NewAgent(ctx, cfg, modelClient)
+}
+
+func renderStartupPanel(cfg *config.Config) string {
+	if cfg == nil {
+		return handBadge
+	}
+
+	logStyle := "color"
+	debugRequests := "disabled"
+	if cfg.LogNoColor {
+		logStyle = "plain"
+	}
+	if cfg.DebugRequests {
+		debugRequests = "enabled"
+	}
+
+	lines := []string{
+		styleStartup(handBadge, cfg.LogNoColor),
+		styleStartup("Hand daemon", cfg.LogNoColor),
+		styleStartup(handcli.AppDescription, cfg.LogNoColor),
+		"",
+		fmt.Sprintf("%s %s", styleLabel("Instance", cfg.LogNoColor), cfg.Name),
+		fmt.Sprintf("%s %s", styleLabel("Model", cfg.LogNoColor), cfg.Model),
+		fmt.Sprintf("%s %s", styleLabel("Router", cfg.LogNoColor), cfg.ModelRouter),
+		fmt.Sprintf("%s %s", styleLabel("RPC", cfg.LogNoColor), fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort)),
+		fmt.Sprintf("%s %s", styleLabel("Logs", cfg.LogNoColor), fmt.Sprintf("%s (%s)", cfg.LogLevel, logStyle)),
+		fmt.Sprintf("%s %s", styleLabel("Debug requests", cfg.LogNoColor), debugRequests),
+		"",
+		styleStartup("Ready to accept RPC connections.", cfg.LogNoColor),
+	}
+
+	return strings.Join(lines, "\n") + "\n"
+}
+
+func styleStartup(value string, noColor bool) string {
+	if noColor {
+		return value
+	}
+	return colorGray + value + colorReset
+}
+
+func styleLabel(value string, noColor bool) string {
+	if noColor {
+		return value + ":"
+	}
+	return colorGray + value + ":" + colorReset
 }
 
 var serveRPC = func(ctx context.Context, cfg *config.Config) error {
@@ -115,14 +172,22 @@ func NewCommand() *cli.Command {
 			_ = logutils.ConfigureLogger("hand", cfg.LogNoColor)
 			logutils.SetLogLevel(cfg.LogLevel)
 
+			if _, err := fmt.Fprint(startupOutput, renderStartupPanel(cfg)); err != nil {
+				return err
+			}
+
 			log.Info().
 				Str("name", cfg.Name).
 				Str("model", cfg.Model).
-				Str("modelRouter", cfg.ModelRouter).
-				Str("modelBaseURL", cfg.ModelBaseURL).
-				Str("logLevel", cfg.LogLevel).
-				Bool("logNoColor", cfg.LogNoColor).
-				Msg("configuration loaded")
+				Str("router", cfg.ModelRouter).
+				Msg("Configuration loaded")
+
+			log.Info().
+				Str("service", "hand").
+				Str("rpcAddress", cfg.RPCAddress).
+				Int("rpcPort", cfg.RPCPort).
+				Str("rpcEndpoint", fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort)).
+				Msg("Starting Hand services")
 
 			clientOptions := make([]option.RequestOption, 0, 1)
 			if cfg.ModelBaseURL != "" {

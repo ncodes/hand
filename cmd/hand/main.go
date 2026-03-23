@@ -61,7 +61,7 @@ func newCommand() *cli.Command {
 	cmd = &cli.Command{
 		Name:        "hand",
 		Usage:       "Run and manage your Hand daemon",
-		Description: "Hand is a personal assistant that works and exists for you.",
+		Description: handcli.AppDescription,
 		Flags:       handcli.RootFlags(&envFile, &configFile),
 		Commands: []*cli.Command{
 			doctorcmd.NewCommand(),

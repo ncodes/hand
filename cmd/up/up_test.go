@@ -1,6 +1,7 @@
 package up
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"testing"
@@ -22,15 +23,22 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	original := config.Get()
 	originalNewAgentRunner := newAgentRunner
 	originalServeGRPC := serveRPC
+	originalStartupOutput := startupOutput
 	t.Cleanup(func() {
 		config.Set(original)
 		newAgentRunner = originalNewAgentRunner
 		serveRPC = originalServeGRPC
+		startupOutput = originalStartupOutput
+		logutils.SetOutput(io.Discard)
 	})
 	config.Set(nil)
 	configFile := ""
 	runCalled := false
 	serveCalled := false
+	startupBuffer := &bytes.Buffer{}
+	logBuffer := &bytes.Buffer{}
+	startupOutput = startupBuffer
+	logutils.SetOutput(logBuffer)
 	newAgentRunner = func(_ context.Context, cfg *config.Config, modelClient models.Client) runner {
 		return runnerFunc(func(context.Context) error {
 			runCalled = true
@@ -55,7 +63,6 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 		"--rpc.address", "0.0.0.0",
 		"--rpc.port", "6000",
 		"--log.level", "debug",
-		"--log.no-color=true",
 		"up",
 	}))
 
@@ -68,9 +75,43 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Equal(t, "0.0.0.0", cfg.RPCAddress)
 	require.Equal(t, 6000, cfg.RPCPort)
 	require.Equal(t, "debug", cfg.LogLevel)
-	require.True(t, cfg.LogNoColor)
+	require.False(t, cfg.LogNoColor)
 	require.True(t, runCalled)
 	require.True(t, serveCalled)
+	require.Contains(t, startupBuffer.String(), "\x1b[90m██   ██  █████  ███    ██ ██████")
+	require.Contains(t, startupBuffer.String(), "Hand daemon")
+	require.Contains(t, startupBuffer.String(), handcli.AppDescription)
+	require.Contains(t, startupBuffer.String(), "Instance")
+	require.Contains(t, startupBuffer.String(), "flag-agent")
+	require.Contains(t, startupBuffer.String(), "RPC")
+	require.Contains(t, startupBuffer.String(), "0.0.0.0:6000")
+	require.Contains(t, startupBuffer.String(), "Debug requests")
+	require.Contains(t, startupBuffer.String(), "disabled")
+	require.Contains(t, logBuffer.String(), "Configuration loaded")
+	require.Contains(t, logBuffer.String(), "Starting Hand services")
+	require.Contains(t, logBuffer.String(), "name=flag-agent")
+	require.Contains(t, logBuffer.String(), "model=flag-model")
+	require.Contains(t, logBuffer.String(), "router=openrouter")
+	require.Contains(t, logBuffer.String(), "rpcEndpoint=0.0.0.0:6000")
+}
+
+func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
+	output := renderStartupPanel(&config.Config{
+		Name:          "daemon",
+		Model:         "test-model",
+		ModelRouter:   "openrouter",
+		RPCAddress:    "127.0.0.1",
+		RPCPort:       50051,
+		LogLevel:      "info",
+		LogNoColor:    true,
+		DebugRequests: true,
+	})
+
+	require.NotContains(t, output, "\x1b[90m")
+	require.Contains(t, output, "Hand daemon")
+	require.Contains(t, output, "Instance: daemon")
+	require.Contains(t, output, "Debug requests: enabled")
+	require.Contains(t, output, "Ready to accept RPC connections.")
 }
 
 func TestNewCommand_ReturnsValidationError(t *testing.T) {

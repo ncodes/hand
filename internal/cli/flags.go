@@ -8,6 +8,8 @@ import (
 	"github.com/wandxy/hand/internal/config"
 )
 
+const AppDescription = "Hand is a personal assistant that works and exists for you."
+
 func RootFlags(envFile, configFile *string) []cli.Flag {
 	flags := []cli.Flag{
 		&cli.StringFlag{
