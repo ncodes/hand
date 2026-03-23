@@ -238,6 +238,121 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsRequest(t *testing.T) {
 	require.Contains(t, rawText, `"content":"previous reply"`)
 }
 
+func TestOpenAIClient_ChatReturnsToolCalls(t *testing.T) {
+	client := &OpenAIClient{
+		createChatCompletion: func(_ context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+			raw, err := json.Marshal(params)
+			require.NoError(t, err)
+			require.Contains(t, string(raw), `"name":"time"`)
+
+			return &openai.ChatCompletion{
+				ID:    "resp_123",
+				Model: "returned-model",
+				Choices: []openai.ChatCompletionChoice{
+					{
+						Message: openai.ChatCompletionMessage{
+							ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
+								{
+									ID:   "call-1",
+									Type: "function",
+									Function: openai.ChatCompletionMessageFunctionToolCallFunction{
+										Name:      "time",
+										Arguments: "{}",
+									},
+								},
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	resp, err := client.Chat(context.Background(), GenerateRequest{
+		Model: "test-model",
+		Messages: []handctx.Message{
+			{Role: handctx.RoleUser, Content: "what time is it?"},
+		},
+		Tools: []ToolDefinition{{
+			Name:        "time",
+			Description: "Returns the current time.",
+			InputSchema: map[string]any{"type": "object"},
+		}},
+	})
+
+	require.NoError(t, err)
+	require.True(t, resp.RequiresToolCalls)
+	require.Equal(t, []ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}, resp.ToolCalls)
+}
+
+func TestOpenAIClient_ChatRejectsToolCallWithoutIDInResponse(t *testing.T) {
+	client := &OpenAIClient{
+		createChatCompletion: func(_ context.Context, _ openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+			return &openai.ChatCompletion{
+				ID:    "resp_123",
+				Model: "returned-model",
+				Choices: []openai.ChatCompletionChoice{
+					{
+						Message: openai.ChatCompletionMessage{
+							ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
+								{
+									Function: openai.ChatCompletionMessageFunctionToolCallFunction{
+										Name:      "time",
+										Arguments: "{}",
+									},
+								},
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model: "test-model",
+		Messages: []handctx.Message{
+			{Role: handctx.RoleUser, Content: "what time is it?"},
+		},
+	})
+
+	require.EqualError(t, err, "tool call id is required")
+}
+
+func TestOpenAIClient_ChatRejectsToolCallWithoutNameInResponse(t *testing.T) {
+	client := &OpenAIClient{
+		createChatCompletion: func(_ context.Context, _ openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+			return &openai.ChatCompletion{
+				ID:    "resp_123",
+				Model: "returned-model",
+				Choices: []openai.ChatCompletionChoice{
+					{
+						Message: openai.ChatCompletionMessage{
+							ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
+								{
+									ID: "call-1",
+									Function: openai.ChatCompletionMessageFunctionToolCallFunction{
+										Arguments: "{}",
+									},
+								},
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model: "test-model",
+		Messages: []handctx.Message{
+			{Role: handctx.RoleUser, Content: "what time is it?"},
+		},
+	})
+
+	require.EqualError(t, err, "tool call name is required")
+}
+
 func TestOpenAIClient_ChatLogsRequestDebugDumpWhenEnabled(t *testing.T) {
 	originalLogger := log.Logger
 	originalLevel := zerolog.GlobalLevel()
@@ -304,9 +419,10 @@ func TestLogRequestDebugDump_LogsMarshalError(t *testing.T) {
 }
 
 func TestBuildMessages_WithoutInstructions(t *testing.T) {
-	messages := buildMessages(GenerateRequest{
+	messages, err := buildMessages(GenerateRequest{
 		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "  hello  "}},
 	})
+	require.NoError(t, err)
 	require.Len(t, messages, 1)
 
 	raw, err := json.Marshal(messages)
@@ -318,14 +434,15 @@ func TestBuildMessages_WithoutInstructions(t *testing.T) {
 }
 
 func TestBuildMessages_WithInstructions(t *testing.T) {
-	messages := buildMessages(GenerateRequest{
+	messages, err := buildMessages(GenerateRequest{
 		Instructions: "  be concise  ",
 		Messages: []handctx.Message{
 			{Role: handctx.RoleUser, Content: "hello"},
 			{Role: handctx.RoleAssistant, Content: "done"},
-			{Role: handctx.RoleTool, Content: "tool output"},
+			{Role: handctx.RoleTool, Content: "tool output", ToolCallID: "tool"},
 		},
 	})
+	require.NoError(t, err)
 	require.Len(t, messages, 4)
 
 	raw, err := json.Marshal(messages)
@@ -342,11 +459,12 @@ func TestBuildMessages_WithInstructions(t *testing.T) {
 }
 
 func TestBuildMessages_WithDeveloperMessageInConversation(t *testing.T) {
-	messages := buildMessages(GenerateRequest{
+	messages, err := buildMessages(GenerateRequest{
 		Messages: []handctx.Message{
 			{Role: handctx.RoleDeveloper, Content: "extra instruction"},
 		},
 	})
+	require.NoError(t, err)
 
 	raw, err := json.Marshal(messages)
 	require.NoError(t, err)
@@ -354,15 +472,85 @@ func TestBuildMessages_WithDeveloperMessageInConversation(t *testing.T) {
 	require.Contains(t, string(raw), `"content":"extra instruction"`)
 }
 
-func TestNormalizeMessages_TrimsContentAndRole(t *testing.T) {
-	messages, err := normalizeMessages([]handctx.Message{
-		{Role: handctx.Role(" User "), Content: "  hello  "},
-		{Role: handctx.Role(" assistant "), Content: "  hi  "},
+func TestBuildMessages_WithAssistantToolCalls(t *testing.T) {
+	messages, err := buildMessages(GenerateRequest{
+		Messages: []handctx.Message{{
+			Role:      handctx.RoleAssistant,
+			ToolCalls: []handctx.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
+		}},
+	})
+	require.NoError(t, err)
+
+	raw, err := json.Marshal(messages)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"tool_calls"`)
+	require.Contains(t, string(raw), `"id":"call-1"`)
+	require.Contains(t, string(raw), `"name":"time"`)
+	require.NotContains(t, string(raw), `"content":""`)
+}
+
+func TestBuildMessages_WithAssistantToolCallsAndContent(t *testing.T) {
+	messages, err := buildMessages(GenerateRequest{
+		Messages: []handctx.Message{{
+			Role:      handctx.RoleAssistant,
+			Content:   "calling tool",
+			ToolCalls: []handctx.ToolCall{{ID: "call-1", Name: "time", Input: "  {}  "}},
+		}},
+	})
+	require.NoError(t, err)
+
+	raw, err := json.Marshal(messages)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"content":"calling tool"`)
+	require.Contains(t, string(raw), `"arguments":"{}"`)
+}
+
+func TestBuildMessages_RejectsToolMessageWithoutToolCallID(t *testing.T) {
+	_, err := buildMessages(GenerateRequest{
+		Messages: []handctx.Message{{
+			Role:    handctx.RoleTool,
+			Content: "tool output",
+		}},
 	})
 
+	require.EqualError(t, err, "tool call id is required")
+}
+
+func TestBuildMessages_RejectsToolCallWithoutID(t *testing.T) {
+	_, err := buildMessages(GenerateRequest{
+		Messages: []handctx.Message{{
+			Role:      handctx.RoleAssistant,
+			ToolCalls: []handctx.ToolCall{{Name: "time", Input: "{}"}},
+		}},
+	})
+
+	require.EqualError(t, err, "tool call id is required")
+}
+
+func TestBuildMessages_RejectsToolCallWithoutName(t *testing.T) {
+	_, err := buildMessages(GenerateRequest{
+		Messages: []handctx.Message{{
+			Role:      handctx.RoleAssistant,
+			ToolCalls: []handctx.ToolCall{{ID: "call-1", Input: "{}"}},
+		}},
+	})
+
+	require.EqualError(t, err, "tool call name is required")
+}
+
+func TestBuildMessages_TrimsContentAndRole(t *testing.T) {
+	messages, err := buildMessages(GenerateRequest{
+		Messages: []handctx.Message{
+			{Role: handctx.Role(" User "), Content: "  hello  "},
+			{Role: handctx.Role(" assistant "), Content: "  hi  "},
+		},
+	})
 	require.NoError(t, err)
-	require.Equal(t, []handctx.Message{
-		{Role: handctx.RoleUser, Content: "hello"},
-		{Role: handctx.RoleAssistant, Content: "hi"},
-	}, messages)
+
+	raw, err := json.Marshal(messages)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"role":"user"`)
+	require.Contains(t, string(raw), `"content":"hello"`)
+	require.Contains(t, string(raw), `"role":"assistant"`)
+	require.Contains(t, string(raw), `"content":"hi"`)
 }

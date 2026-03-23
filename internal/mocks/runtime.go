@@ -1,0 +1,127 @@
+package mocks
+
+import (
+	"context"
+	"errors"
+
+	handcontext "github.com/wandxy/hand/internal/context"
+	"github.com/wandxy/hand/internal/environment"
+	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/internal/tools"
+)
+
+type ModelClientStub struct {
+	Requests  []models.GenerateRequest
+	Responses []*models.GenerateResponse
+	Err       error
+	CallCount int
+}
+
+func (s *ModelClientStub) Chat(_ context.Context, req models.GenerateRequest) (*models.GenerateResponse, error) {
+	s.Requests = append(s.Requests, req)
+	if s.Err != nil {
+		return nil, s.Err
+	}
+	if s.CallCount >= len(s.Responses) {
+		return nil, errors.New("missing stubbed response")
+	}
+	response := s.Responses[s.CallCount]
+	s.CallCount++
+	return response, nil
+}
+
+type EnvironmentStub struct {
+	PrepareErr    error
+	RuntimeContext environment.Context
+	ToolRegistry   environment.ToolRegistry
+}
+
+func (s *EnvironmentStub) Prepare() error {
+	return s.PrepareErr
+}
+
+func (s *EnvironmentStub) Context() environment.Context {
+	return s.RuntimeContext
+}
+
+func (s *EnvironmentStub) Tools() environment.ToolRegistry {
+	return s.ToolRegistry
+}
+
+type ContextStub struct {
+	Instructions        handcontext.Instructions
+	Messages            []handcontext.Message
+	Conversation        handcontext.Conversation
+	AddUserMessageErr   error
+	AddAssistantMsgErr  error
+	AddMessageErr       error
+	AddMessageErrOnCall int
+	AddMessageCallCount int
+}
+
+func (s *ContextStub) GetInstructions() handcontext.Instructions {
+	return s.Instructions
+}
+
+func (s *ContextStub) AddMessage(message handcontext.Message) error {
+	s.AddMessageCallCount++
+	if s.AddMessageErrOnCall > 0 && s.AddMessageCallCount == s.AddMessageErrOnCall {
+		return s.AddMessageErr
+	}
+	if s.AddMessageErr != nil && s.AddMessageErrOnCall == 0 {
+		return s.AddMessageErr
+	}
+	s.Messages = append(s.Messages, message)
+	_ = s.Conversation.Append(message)
+	return nil
+}
+
+func (s *ContextStub) AddUserMessage(content string) error {
+	if s.AddUserMessageErr != nil {
+		return s.AddUserMessageErr
+	}
+	message, err := handcontext.NewMessage(handcontext.RoleUser, content)
+	if err != nil {
+		return err
+	}
+	s.Messages = append(s.Messages, message)
+	_ = s.Conversation.Append(message)
+	return nil
+}
+
+func (s *ContextStub) AddAssistantMessage(content string) error {
+	if s.AddAssistantMsgErr != nil {
+		return s.AddAssistantMsgErr
+	}
+	message, err := handcontext.NewMessage(handcontext.RoleAssistant, content)
+	if err != nil {
+		return err
+	}
+	s.Messages = append(s.Messages, message)
+	_ = s.Conversation.Append(message)
+	return nil
+}
+
+func (s *ContextStub) GetMessages() []handcontext.Message {
+	out := make([]handcontext.Message, len(s.Messages))
+	copy(out, s.Messages)
+	return out
+}
+
+func (s *ContextStub) GetConversation() handcontext.Conversation {
+	return s.Conversation
+}
+
+type ToolRegistryStub struct {
+	Definitions []tools.Definition
+	Result      tools.Result
+	Err         error
+}
+
+func (s *ToolRegistryStub) List() []tools.Definition {
+	return s.Definitions
+}
+
+func (s *ToolRegistryStub) Invoke(context.Context, tools.Call) (tools.Result, error) {
+	return s.Result, s.Err
+}

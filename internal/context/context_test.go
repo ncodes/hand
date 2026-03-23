@@ -49,3 +49,21 @@ func TestContext_MessageAndConversationAccessorsUseConversationState(t *testing.
 	messages[0].Content = "changed"
 	require.Equal(t, "hello", ctx.GetMessages()[0].Content)
 }
+
+func TestContext_AddMessageUsesConversationState(t *testing.T) {
+	ctx := NewContext(gctx.Background(), &config.Config{Name: "Test Agent"})
+
+	require.NoError(t, ctx.AddMessage(Message{
+		Role:       RoleTool,
+		Content:    "tool output",
+		ToolCallID: "call-1",
+		Name:       "time",
+	}))
+
+	messages := ctx.GetMessages()
+	require.Len(t, messages, 1)
+	require.Equal(t, RoleTool, messages[0].Role)
+	require.Equal(t, "tool output", messages[0].Content)
+	require.Equal(t, "call-1", messages[0].ToolCallID)
+	require.Equal(t, "time", messages[0].Name)
+}

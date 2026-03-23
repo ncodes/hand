@@ -2,13 +2,16 @@ package environment
 
 import (
 	gctx "context"
+	stdctx "context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/context"
+	handctx "github.com/wandxy/hand/internal/context"
 	"github.com/wandxy/hand/internal/identity"
+	"github.com/wandxy/hand/internal/tools"
 )
 
 func TestNewEnvironment_InitializesDependencies(t *testing.T) {
@@ -19,9 +22,9 @@ func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 
 	require.Same(t, baseCtx, env.ctx)
 	require.Same(t, cfg, env.cfg)
-	require.NotNil(t, env.hctx)
-	require.Empty(t, env.hctx.GetInstructions())
-	require.True(t, env.hctx.GetConversation().Empty())
+	require.NotNil(t, env.handCtx)
+	require.Empty(t, env.handCtx.GetInstructions())
+	require.True(t, env.handCtx.GetConversation().Empty())
 }
 
 func TestEnvironment_PrepareAddsBaseIdentityInstruction(t *testing.T) {
@@ -31,8 +34,51 @@ func TestEnvironment_PrepareAddsBaseIdentityInstruction(t *testing.T) {
 	err := env.Prepare()
 
 	require.NoError(t, err)
-	require.Len(t, env.hctx.GetInstructions(), 1)
-	require.Equal(t, identity.GetBaseIdentity(cfg.Name), env.hctx.GetInstructions()[0])
+	require.Len(t, env.handCtx.GetInstructions(), 1)
+	require.Equal(t, identity.GetBaseIdentity(cfg.Name), env.handCtx.GetInstructions()[0])
+}
+
+func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent"})
+
+	require.NoError(t, env.Prepare())
+
+	tools := env.Tools()
+	require.NotNil(t, tools)
+
+	definitions := tools.List()
+	require.Len(t, definitions, 1)
+	require.Equal(t, "time", definitions[0].Name)
+}
+
+type failingRegistry struct {
+	err error
+}
+
+func (r failingRegistry) Register(tools.Definition) error {
+	return r.err
+}
+
+func (failingRegistry) Get(string) (tools.Definition, bool) {
+	return tools.Definition{}, false
+}
+
+func (failingRegistry) List() []tools.Definition {
+	return nil
+}
+
+func (failingRegistry) Invoke(stdctx.Context, tools.Call) (tools.Result, error) {
+	return tools.Result{}, nil
+}
+
+func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent"})
+	env.tools = failingRegistry{err: errors.New("register failed")}
+
+	err := env.Prepare()
+
+	require.EqualError(t, err, "register failed")
+	require.Empty(t, env.handCtx.GetInstructions())
 }
 
 func TestEnvironment_ContextUsesContextState(t *testing.T) {
@@ -44,8 +90,8 @@ func TestEnvironment_ContextUsesContextState(t *testing.T) {
 
 	messages := runtimeContext.GetMessages()
 	require.Len(t, messages, 2)
-	require.Equal(t, context.RoleUser, messages[0].Role)
-	require.Equal(t, context.RoleAssistant, messages[1].Role)
+	require.Equal(t, handctx.RoleUser, messages[0].Role)
+	require.Equal(t, handctx.RoleAssistant, messages[1].Role)
 
 	conversation := runtimeContext.GetConversation()
 	require.Len(t, conversation.Messages(), 2)

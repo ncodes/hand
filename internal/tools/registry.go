@@ -2,118 +2,46 @@ package tools
 
 import (
 	"context"
-	"errors"
-	"sort"
-	"strings"
-	"sync"
 )
 
+// Call is the normalized tool invocation request.
 type Call struct {
 	Name   string
 	Input  string
 	Source string
 }
 
+// Result is the normalized output returned by a tool invocation.
 type Result struct {
 	Output string
 	Error  string
 }
 
+// Handler executes a tool call.
 type Handler interface {
 	Invoke(context.Context, Call) (Result, error)
 }
 
+// HandlerFunc adapts a function to the Handler interface.
 type HandlerFunc func(context.Context, Call) (Result, error)
 
+// Invoke executes the tool call.
 func (f HandlerFunc) Invoke(ctx context.Context, call Call) (Result, error) {
 	return f(ctx, call)
 }
 
+// Definition describes a tool and its execution contract.
 type Definition struct {
-	Name        string
-	Description string
-	Handler     Handler
+	Name        string         // Stable identifier used to reference the tool
+	Description string         // Explains what the tool does for model and operator use
+	InputSchema map[string]any // Describes the accepted tool input shape
+	Handler     Handler        // Executes the tool call
 }
 
+// Registry stores tool definitions and dispatches tool calls.
 type Registry interface {
 	Register(Definition) error
 	Get(string) (Definition, bool)
 	List() []Definition
 	Invoke(context.Context, Call) (Result, error)
-}
-
-type InMemoryRegistry struct {
-	mu          sync.RWMutex
-	definitions map[string]Definition
-}
-
-func NewRegistry() *InMemoryRegistry {
-	return &InMemoryRegistry{
-		definitions: make(map[string]Definition),
-	}
-}
-
-func (r *InMemoryRegistry) Register(def Definition) error {
-	if r == nil {
-		return errors.New("tool registry is required")
-	}
-
-	def.Name = strings.TrimSpace(def.Name)
-	if def.Name == "" {
-		return errors.New("tool name is required")
-	}
-	if def.Handler == nil {
-		return errors.New("tool handler is required")
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if _, exists := r.definitions[def.Name]; exists {
-		return errors.New("tool is already registered")
-	}
-
-	r.definitions[def.Name] = def
-	return nil
-}
-
-func (r *InMemoryRegistry) Get(name string) (Definition, bool) {
-	if r == nil {
-		return Definition{}, false
-	}
-
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	def, ok := r.definitions[strings.TrimSpace(name)]
-	return def, ok
-}
-
-func (r *InMemoryRegistry) List() []Definition {
-	if r == nil {
-		return nil
-	}
-
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	definitions := make([]Definition, 0, len(r.definitions))
-	for _, def := range r.definitions {
-		definitions = append(definitions, def)
-	}
-
-	sort.Slice(definitions, func(i, j int) bool {
-		return definitions[i].Name < definitions[j].Name
-	})
-
-	return definitions
-}
-
-func (r *InMemoryRegistry) Invoke(ctx context.Context, call Call) (Result, error) {
-	def, ok := r.Get(call.Name)
-	if !ok {
-		return Result{}, errors.New("tool is not registered")
-	}
-
-	return def.Handler.Invoke(ctx, call)
 }

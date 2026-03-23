@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRegistry_RegisterAndGet(t *testing.T) {
-	registry := NewRegistry()
+func TestInMemoryRegistry_RegisterAndGet(t *testing.T) {
+	registry := NewInMemoryRegistry()
 	definition := Definition{
 		Name: "echo",
 		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
@@ -23,8 +23,8 @@ func TestRegistry_RegisterAndGet(t *testing.T) {
 	require.Equal(t, "echo", loaded.Name)
 }
 
-func TestRegistry_InvokeCallsHandler(t *testing.T) {
-	registry := NewRegistry()
+func TestInMemoryRegistry_InvokeCallsHandler(t *testing.T) {
+	registry := NewInMemoryRegistry()
 	require.NoError(t, registry.Register(Definition{
 		Name: "echo",
 		Handler: HandlerFunc(func(_ context.Context, call Call) (Result, error) {
@@ -38,8 +38,8 @@ func TestRegistry_InvokeCallsHandler(t *testing.T) {
 	require.Equal(t, "hello", result.Output)
 }
 
-func TestRegistry_ListReturnsSortedDefinitions(t *testing.T) {
-	registry := NewRegistry()
+func TestInMemoryRegistry_ListReturnsSortedDefinitions(t *testing.T) {
+	registry := NewInMemoryRegistry()
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) {
 		return Result{}, nil
 	})
@@ -54,15 +54,15 @@ func TestRegistry_ListReturnsSortedDefinitions(t *testing.T) {
 	require.Equal(t, "zeta", definitions[1].Name)
 }
 
-func TestRegistry_RejectsInvalidDefinitions(t *testing.T) {
-	registry := NewRegistry()
+func TestInMemoryRegistry_RejectsInvalidDefinitions(t *testing.T) {
+	registry := NewInMemoryRegistry()
 
 	require.EqualError(t, registry.Register(Definition{}), "tool name is required")
 	require.EqualError(t, registry.Register(Definition{Name: "echo"}), "tool handler is required")
 }
 
-func TestRegistry_RejectsDuplicateTools(t *testing.T) {
-	registry := NewRegistry()
+func TestInMemoryRegistry_RejectsDuplicateTools(t *testing.T) {
+	registry := NewInMemoryRegistry()
 	handler := HandlerFunc(func(context.Context, Call) (Result, error) {
 		return Result{}, nil
 	})
@@ -71,10 +71,53 @@ func TestRegistry_RejectsDuplicateTools(t *testing.T) {
 	require.EqualError(t, registry.Register(Definition{Name: "echo", Handler: handler}), "tool is already registered")
 }
 
-func TestRegistry_InvokeRejectsUnknownTool(t *testing.T) {
-	registry := NewRegistry()
+func TestInMemoryRegistry_InvokeRejectsUnknownTool(t *testing.T) {
+	registry := NewInMemoryRegistry()
 
 	_, err := registry.Invoke(context.Background(), Call{Name: "missing"})
 
 	require.EqualError(t, err, "tool is not registered")
+}
+
+func TestInMemoryRegistry_RejectsNilRegistry(t *testing.T) {
+	var registry *InMemoryRegistry
+
+	err := registry.Register(Definition{
+		Name: "echo",
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			return Result{}, nil
+		}),
+	})
+
+	require.EqualError(t, err, "tool registry is required")
+}
+
+func TestInMemoryRegistry_GetHandlesNilRegistry(t *testing.T) {
+	var registry *InMemoryRegistry
+
+	definition, ok := registry.Get("echo")
+
+	require.False(t, ok)
+	require.Equal(t, Definition{}, definition)
+}
+
+func TestInMemoryRegistry_ListHandlesNilRegistry(t *testing.T) {
+	var registry *InMemoryRegistry
+
+	require.Nil(t, registry.List())
+}
+
+func TestInMemoryRegistry_GetTrimsName(t *testing.T) {
+	registry := NewInMemoryRegistry()
+	require.NoError(t, registry.Register(Definition{
+		Name: "echo",
+		Handler: HandlerFunc(func(context.Context, Call) (Result, error) {
+			return Result{}, nil
+		}),
+	}))
+
+	definition, ok := registry.Get("  echo  ")
+
+	require.True(t, ok)
+	require.Equal(t, "echo", definition.Name)
 }

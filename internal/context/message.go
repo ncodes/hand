@@ -18,7 +18,16 @@ const (
 type Message struct {
 	Role      Role
 	Content   string
+	Name      string
+	ToolCallID string
+	ToolCalls []ToolCall
 	CreatedAt time.Time
+}
+
+type ToolCall struct {
+	ID    string
+	Name  string
+	Input string
 }
 
 func NewMessage(role Role, content string) (Message, error) {
@@ -33,9 +42,9 @@ func NewMessage(role Role, content string) (Message, error) {
 	}
 
 	return Message{
-		Role:      normalizedRole,
-		Content:   trimmedContent,
-		CreatedAt: time.Now().UTC(),
+		Role:       normalizedRole,
+		Content:    trimmedContent,
+		CreatedAt:  time.Now().UTC(),
 	}, nil
 }
 
@@ -46,17 +55,58 @@ func normalizeMessage(message Message) (Message, error) {
 	}
 
 	content := strings.TrimSpace(message.Content)
-	if content == "" {
+	toolCalls, err := normalizeToolCalls(message.ToolCalls)
+	if err != nil {
+		return Message{}, err
+	}
+	toolCallID := strings.TrimSpace(message.ToolCallID)
+	name := strings.TrimSpace(message.Name)
+
+	if content == "" && !(role == RoleAssistant && len(toolCalls) > 0) {
 		return Message{}, errors.New("message content is required")
+	}
+	if role == RoleTool && toolCallID == "" {
+		return Message{}, errors.New("tool call id is required")
 	}
 
 	normalized := Message{
-		Role:      role,
-		Content:   content,
-		CreatedAt: message.CreatedAt.UTC(),
+		Role:       role,
+		Content:    content,
+		Name:       name,
+		ToolCallID: toolCallID,
+		ToolCalls:  toolCalls,
+		CreatedAt:  message.CreatedAt.UTC(),
 	}
 	if normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = time.Now().UTC()
+	}
+
+	return normalized, nil
+}
+
+func normalizeToolCalls(toolCalls []ToolCall) ([]ToolCall, error) {
+	if len(toolCalls) == 0 {
+		return nil, nil
+	}
+
+	normalized := make([]ToolCall, 0, len(toolCalls))
+	for _, toolCall := range toolCalls {
+		id := strings.TrimSpace(toolCall.ID)
+		name := strings.TrimSpace(toolCall.Name)
+		input := strings.TrimSpace(toolCall.Input)
+
+		if id == "" {
+			return nil, errors.New("tool call id is required")
+		}
+		if name == "" {
+			return nil, errors.New("tool call name is required")
+		}
+
+		normalized = append(normalized, ToolCall{
+			ID:    id,
+			Name:  name,
+			Input: input,
+		})
 	}
 
 	return normalized, nil
