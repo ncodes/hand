@@ -9,6 +9,7 @@ import (
 
 	cli "github.com/urfave/cli/v3"
 
+	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/diagnostics"
 )
@@ -29,30 +30,7 @@ func NewCommand() *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			cfg, err := config.Load(cmd.String("env-file"), cmd.String("config"))
 			if err == nil {
-				if cmd.IsSet("name") {
-					cfg.Name = cmd.String("name")
-				}
-				if cmd.IsSet("model") {
-					cfg.Model = cmd.String("model")
-				}
-				if cmd.IsSet("model.router") {
-					cfg.ModelRouter = cmd.String("model.router")
-				}
-				if cmd.IsSet("model.key") {
-					cfg.ModelKey = cmd.String("model.key")
-				}
-				if cmd.IsSet("model.base-url") {
-					cfg.ModelBaseURL = cmd.String("model.base-url")
-				}
-				if cmd.IsSet("log.level") {
-					cfg.LogLevel = cmd.String("log.level")
-				}
-				if cmd.IsSet("log.no-color") {
-					cfg.LogNoColor = cmd.Bool("log.no-color")
-				}
-				if cmd.IsSet("debug.requests") {
-					cfg.DebugRequests = cmd.Bool("debug.requests")
-				}
+				handcli.ApplyConfigOverrides(cmd, cfg)
 			}
 
 			report := diagnostics.Build(cmd.String("env-file"), cmd.String("config"), cfg, err)

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	cli "github.com/urfave/cli/v3"
 
-	"github.com/wandxy/hand/internal/config"
+	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -29,7 +29,7 @@ func TestNewCommand_PrintsPassingReport(t *testing.T) {
 
 	cmd := newRootCommandForTest()
 	err := cmd.Run(context.Background(), []string{
-		"agent",
+		"hand",
 		"--name", "flag-agent",
 		"--model", "flag-model",
 		"--model.router", "openrouter",
@@ -52,7 +52,7 @@ func TestNewCommand_PrintsFailureReport(t *testing.T) {
 
 	cmd := newRootCommandForTest()
 	err := cmd.Run(context.Background(), []string{
-		"agent",
+		"hand",
 		"--name", "flag-agent",
 		"--model", "flag-model",
 		"doctor",
@@ -73,7 +73,7 @@ func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
 
 	cmd := newRootCommandForTest()
 	err := cmd.Run(context.Background(), []string{
-		"agent",
+		"hand",
 		"--name", "flag-agent",
 		"--model", "flag-model",
 		"--model.router", "openrouter",
@@ -87,20 +87,12 @@ func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
 }
 
 func newRootCommandForTest() *cli.Command {
+	envFile := ".env"
+	configFile := "config.yaml"
+
 	return &cli.Command{
-		Name: "agent",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "env-file", Value: ".env"},
-			&cli.StringFlag{Name: "config", Value: "config.yaml"},
-			&cli.StringFlag{Name: "name", Value: config.Get().Name},
-			&cli.StringFlag{Name: "model.router", Value: config.Get().ModelRouter},
-			&cli.StringFlag{Name: "model.key"},
-			&cli.StringFlag{Name: "model", Value: config.Get().Model},
-			&cli.StringFlag{Name: "model.base-url", Value: config.Get().ModelBaseURL},
-			&cli.StringFlag{Name: "log.level", Value: config.Get().LogLevel},
-			&cli.BoolFlag{Name: "log.no-color"},
-			&cli.BoolFlag{Name: "debug.requests"},
-		},
+		Name:  "hand",
+		Flags: handcli.RootFlags(&envFile, &configFile),
 		Commands: []*cli.Command{
 			NewCommand(),
 		},

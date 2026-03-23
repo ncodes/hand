@@ -3,15 +3,26 @@ package up
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/openai/openai-go/v3/option"
 	"github.com/rs/zerolog/log"
 	cli "github.com/urfave/cli/v3"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/wandxy/hand/internal/agent"
+	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/diagnostics"
 	"github.com/wandxy/hand/internal/models"
+	rpc "github.com/wandxy/hand/internal/rpc"
+	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -19,8 +30,69 @@ type runner interface {
 	Run(context.Context) error
 }
 
-var newAgentRunner = func(cfg *config.Config, modelClient models.Client) runner {
-	return agent.NewAgent(context.Background(), cfg, modelClient)
+var newAgentRunner = func(ctx context.Context, cfg *config.Config, modelClient models.Client) runner {
+	return agent.NewAgent(ctx, cfg, modelClient)
+}
+
+var serveRPC = func(ctx context.Context, cfg *config.Config) error {
+	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort))
+	if err != nil {
+		return err
+	}
+	defer lis.Close()
+
+	grpcSrv := grpc.NewServer()
+	healthcheck := health.NewServer()
+	handpb.RegisterHandServiceServer(grpcSrv, rpc.NewService())
+	healthpb.RegisterHealthServer(grpcSrv, healthcheck)
+	healthcheck.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+
+	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- grpcSrv.Serve(lis)
+	}()
+
+	log.Info().
+		Str("rpcAddress", cfg.RPCAddress).
+		Int("rpcPort", cfg.RPCPort).
+		Msg("Starting RPC server")
+
+	select {
+	case err := <-serverErr:
+		if errors.Is(err, grpc.ErrServerStopped) {
+			return nil
+		}
+		return err
+	case <-sigCtx.Done():
+		log.Info().Msg("Received shutdown signal")
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	stopped := make(chan struct{})
+	go func() {
+		grpcSrv.GracefulStop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+	case <-shutdownCtx.Done():
+		log.Warn().Msg("RPC graceful shutdown timed out, forcing stop")
+		grpcSrv.Stop()
+		<-stopped
+	}
+
+	if err := <-serverErr; err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+		return err
+	}
+
+	log.Info().Msg("RPC server stopped")
+	return nil
 }
 
 func NewCommand() *cli.Command {
@@ -32,30 +104,7 @@ func NewCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			if cmd.IsSet("name") {
-				cfg.Name = cmd.String("name")
-			}
-			if cmd.IsSet("model") {
-				cfg.Model = cmd.String("model")
-			}
-			if cmd.IsSet("model.router") {
-				cfg.ModelRouter = cmd.String("model.router")
-			}
-			if cmd.IsSet("model.key") {
-				cfg.ModelKey = cmd.String("model.key")
-			}
-			if cmd.IsSet("model.base-url") {
-				cfg.ModelBaseURL = cmd.String("model.base-url")
-			}
-			if cmd.IsSet("log.level") {
-				cfg.LogLevel = cmd.String("log.level")
-			}
-			if cmd.IsSet("log.no-color") {
-				cfg.LogNoColor = cmd.Bool("log.no-color")
-			}
-			if cmd.IsSet("debug.requests") {
-				cfg.DebugRequests = cmd.Bool("debug.requests")
-			}
+			handcli.ApplyConfigOverrides(cmd, cfg)
 			report := diagnostics.Build(cmd.String("env-file"), cmd.String("config"), cfg, nil)
 			if report.HasFailures() {
 				return errors.New(report.FirstFailure())
@@ -85,8 +134,12 @@ func NewCommand() *cli.Command {
 				return err
 			}
 
-			app := newAgentRunner(cfg, modelClient)
-			return app.Run(ctx)
+			app := newAgentRunner(ctx, cfg, modelClient)
+			if err := app.Run(ctx); err != nil {
+				return err
+			}
+
+			return serveRPC(ctx, cfg)
 		},
 	}
 }

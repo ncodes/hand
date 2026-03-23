@@ -15,6 +15,7 @@ import (
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
 	upcmd "github.com/wandxy/hand/cmd/up"
 	"github.com/wandxy/hand/internal/agent"
+	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/diagnostics"
 	"github.com/wandxy/hand/internal/models"
@@ -61,64 +62,7 @@ func newCommand() *cli.Command {
 		Name:        "hand",
 		Usage:       "Run and manage your Hand daemon",
 		Description: "Hand is a personal assistant that works and exists for you.",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "env-file",
-				Usage:       "Load environment overrides from this .env file",
-				Value:       ".env",
-				Destination: &envFile,
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("AGENT_ENV_FILE"),
-				),
-			},
-			&cli.StringFlag{
-				Name:        "config",
-				Aliases:     []string{"c"},
-				Usage:       "Read base settings from this YAML config file",
-				Value:       "config.yaml",
-				Destination: &configFile,
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("AGENT_CONFIG"),
-				),
-			},
-			&cli.StringFlag{
-				Name:  "name",
-				Usage: "The name of your hand",
-				Value: config.Get().Name,
-			},
-			&cli.StringFlag{
-				Name:  "model.router",
-				Usage: "Model router identifier",
-				Value: config.Get().ModelRouter,
-			},
-			&cli.StringFlag{
-				Name:  "model.key",
-				Usage: "Authentication key for the selected model router",
-			},
-			&cli.StringFlag{
-				Name:  "model",
-				Usage: "Model slug to send to the provider, for example openai/gpt-4o-mini",
-				Value: config.Get().Model,
-			},
-			&cli.StringFlag{
-				Name:  "model.base-url",
-				Usage: "Base URL for the model provider API",
-				Value: config.Get().ModelBaseURL,
-			},
-			&cli.StringFlag{
-				Name:  "log.level",
-				Usage: "Set the minimum log level: debug, info, warn, or error",
-				Value: config.Get().LogLevel,
-			},
-			&cli.BoolFlag{
-				Name:  "log.no-color",
-				Usage: "Emit plain log output without ANSI color codes",
-			},
-			&cli.BoolFlag{
-				Name:  "debug.requests",
-				Usage: "Log sanitized model request payloads at debug level",
-			},
-		},
+		Flags:       handcli.RootFlags(&envFile, &configFile),
 		Commands: []*cli.Command{
 			doctorcmd.NewCommand(),
 			upcmd.NewCommand(),
@@ -133,31 +77,7 @@ func newCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-
-			if cmd.IsSet("name") {
-				cfg.Name = cmd.String("name")
-			}
-			if cmd.IsSet("model") {
-				cfg.Model = cmd.String("model")
-			}
-			if cmd.IsSet("model.router") {
-				cfg.ModelRouter = cmd.String("model.router")
-			}
-			if cmd.IsSet("model.key") {
-				cfg.ModelKey = cmd.String("model.key")
-			}
-			if cmd.IsSet("model.base-url") {
-				cfg.ModelBaseURL = cmd.String("model.base-url")
-			}
-			if cmd.IsSet("log.level") {
-				cfg.LogLevel = cmd.String("log.level")
-			}
-			if cmd.IsSet("log.no-color") {
-				cfg.LogNoColor = cmd.Bool("log.no-color")
-			}
-			if cmd.IsSet("debug.requests") {
-				cfg.DebugRequests = cmd.Bool("debug.requests")
-			}
+			handcli.ApplyConfigOverrides(cmd, cfg)
 
 			report := diagnostics.Build(cmd.String("env-file"), cmd.String("config"), cfg, nil)
 			if report.HasFailures() {

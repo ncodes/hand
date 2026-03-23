@@ -6,10 +6,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	altsrc "github.com/urfave/cli-altsrc/v3"
-	"github.com/urfave/cli-altsrc/v3/yaml"
 	cli "github.com/urfave/cli/v3"
 
+	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/pkg/logutils"
@@ -22,28 +21,39 @@ func init() {
 func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	original := config.Get()
 	originalNewAgentRunner := newAgentRunner
+	originalServeGRPC := serveRPC
 	t.Cleanup(func() {
 		config.Set(original)
 		newAgentRunner = originalNewAgentRunner
+		serveRPC = originalServeGRPC
 	})
 	config.Set(nil)
 	configFile := ""
 	runCalled := false
-	newAgentRunner = func(cfg *config.Config, modelClient models.Client) runner {
+	serveCalled := false
+	newAgentRunner = func(_ context.Context, cfg *config.Config, modelClient models.Client) runner {
 		return runnerFunc(func(context.Context) error {
 			runCalled = true
 			return nil
 		})
 	}
+	serveRPC = func(ctx context.Context, cfg *config.Config) error {
+		serveCalled = true
+		require.Equal(t, "0.0.0.0", cfg.RPCAddress)
+		require.Equal(t, 6000, cfg.RPCPort)
+		return nil
+	}
 
 	cmd := newRootCommandForTest(&configFile)
 	require.NoError(t, cmd.Run(context.Background(), []string{
-		"agent",
+		"hand",
 		"--name", "flag-agent",
 		"--model", "flag-model",
 		"--model.router", "openrouter",
 		"--model.key", "flag-key",
 		"--model.base-url", "https://flag.example/v1",
+		"--rpc.address", "0.0.0.0",
+		"--rpc.port", "6000",
 		"--log.level", "debug",
 		"--log.no-color=true",
 		"up",
@@ -55,16 +65,28 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Equal(t, "openrouter", cfg.ModelRouter)
 	require.Equal(t, "flag-key", cfg.ModelKey)
 	require.Equal(t, "https://flag.example/v1", cfg.ModelBaseURL)
+	require.Equal(t, "0.0.0.0", cfg.RPCAddress)
+	require.Equal(t, 6000, cfg.RPCPort)
 	require.Equal(t, "debug", cfg.LogLevel)
 	require.True(t, cfg.LogNoColor)
 	require.True(t, runCalled)
+	require.True(t, serveCalled)
 }
 
 func TestNewCommand_ReturnsValidationError(t *testing.T) {
+	originalServeGRPC := serveRPC
+	t.Cleanup(func() {
+		serveRPC = originalServeGRPC
+	})
+	serveRPC = func(context.Context, *config.Config) error {
+		t.Fatal("serveGRPC should not be called on validation failure")
+		return nil
+	}
+
 	configFile := ""
 	cmd := newRootCommandForTest(&configFile)
 	err := cmd.Run(context.Background(), []string{
-		"agent",
+		"hand",
 		"--name", "flag-agent",
 		"--model", "",
 		"--model.router", "openrouter",
@@ -76,64 +98,9 @@ func TestNewCommand_ReturnsValidationError(t *testing.T) {
 
 func newRootCommandForTest(configFile *string) *cli.Command {
 	return &cli.Command{
-		Name:           "agent",
+		Name:           "hand",
 		DefaultCommand: "up",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "name",
-				Value: config.Get().Name,
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("NAME"),
-					yaml.YAML("name", altsrc.NewStringPtrSourcer(configFile)),
-				),
-			},
-			&cli.StringFlag{
-				Name:  "model.router",
-				Value: config.Get().ModelRouter,
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("MODEL_ROUTER"),
-					yaml.YAML("model.router", altsrc.NewStringPtrSourcer(configFile)),
-				),
-			},
-			&cli.StringFlag{
-				Name: "model.key",
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("MODEL_KEY"),
-					yaml.YAML("model.key", altsrc.NewStringPtrSourcer(configFile)),
-				),
-			},
-			&cli.StringFlag{
-				Name:  "model",
-				Value: config.Get().Model,
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("MODEL"),
-					yaml.YAML("model.name", altsrc.NewStringPtrSourcer(configFile)),
-				),
-			},
-			&cli.StringFlag{
-				Name:  "model.base-url",
-				Value: config.Get().ModelBaseURL,
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("MODEL_BASE_URL"),
-					yaml.YAML("model.baseUrl", altsrc.NewStringPtrSourcer(configFile)),
-				),
-			},
-			&cli.StringFlag{
-				Name:  "log.level",
-				Value: config.Get().LogLevel,
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("LOG_LEVEL"),
-					yaml.YAML("log.level", altsrc.NewStringPtrSourcer(configFile)),
-				),
-			},
-			&cli.BoolFlag{
-				Name: "log.no-color",
-				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("LOG_NO_COLOR"),
-					yaml.YAML("log.noColor", altsrc.NewStringPtrSourcer(configFile)),
-				),
-			},
-		},
+		Flags:          handcli.RootFlags(nil, configFile),
 		Commands: []*cli.Command{
 			NewCommand(),
 		},
