@@ -6,16 +6,26 @@ import (
 	"strings"
 
 	"github.com/wandxy/hand/internal/config"
+	handctx "github.com/wandxy/hand/internal/context"
 	"github.com/wandxy/hand/internal/environment"
 	"github.com/wandxy/hand/internal/models"
 )
+
+type runtimeEnvironment interface {
+	Prepare() error
+	Context() environment.Context
+}
+
+var newRuntimeEnvironment = func(ctx context.Context, cfg *config.Config) runtimeEnvironment {
+	return environment.NewEnvironment(ctx, cfg)
+}
 
 // Agent is the main agent struct.
 type Agent struct {
 	ctx         context.Context
 	cfg         *config.Config
 	modelClient models.Client
-	env         *environment.Environment
+	env         runtimeEnvironment
 }
 
 // NewAgent creates a new agent with the given configuration and model client.
@@ -29,11 +39,11 @@ func NewAgent(ctx context.Context, cfg *config.Config, modelClient models.Client
 
 // Chat processes a user message and returns a response.
 func (c *Agent) Chat(ctx context.Context, msg string) (string, error) {
-	if c.env == nil {
-		return "", errors.New("environment has not been initialized")
-	}
 	if c == nil {
 		return "", errors.New("agent is required")
+	}
+	if c.env == nil {
+		return "", errors.New("environment has not been initialized")
 	}
 	if c.modelClient == nil {
 		return "", errors.New("model client is required")
@@ -41,15 +51,23 @@ func (c *Agent) Chat(ctx context.Context, msg string) (string, error) {
 	if strings.TrimSpace(msg) == "" {
 		return "", errors.New("message is required")
 	}
+    
+	handCtx := c.env.Context()
+	if err := handCtx.AddUserMessage(msg); err != nil {
+		return "", err
+	}
 
-	instructions := c.env.GetInstructions()
+	instructions := handCtx.GetInstructions()
 	resp, err := c.modelClient.Chat(ctx, models.GenerateRequest{
 		Model:         c.cfg.Model,
-		Input:         msg,
 		Instructions:  instructions.String(),
+		Messages:      handCtx.GetMessages(),
 		DebugRequests: c.cfg.DebugRequests,
 	})
 	if err != nil {
+		return "", err
+	}
+	if err := handCtx.AddAssistantMessage(resp.OutputText); err != nil {
 		return "", err
 	}
 
@@ -57,11 +75,29 @@ func (c *Agent) Chat(ctx context.Context, msg string) (string, error) {
 }
 
 func (c *Agent) Run(context.Context) error {
-	c.env = environment.NewEnvironment(c.ctx, c.cfg)
+	if c == nil {
+		return errors.New("agent is required")
+	}
+	if c.cfg == nil {
+		return errors.New("config is required")
+	}
+
+	c.env = newRuntimeEnvironment(c.ctx, c.cfg)
 
 	if err := c.env.Prepare(); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (c *Agent) Conversation() handctx.Conversation {
+	if c == nil {
+		return handctx.NewConversation()
+	}
+	if c.env == nil {
+		return handctx.NewConversation()
+	}
+
+	return c.env.Context().GetConversation()
 }

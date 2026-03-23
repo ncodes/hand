@@ -18,6 +18,7 @@ func TestNewContext_InitializesDependencies(t *testing.T) {
 	require.Same(t, cfg, ctx.cfg)
 	require.Same(t, baseCtx, ctx.ctx)
 	require.Empty(t, ctx.instructions)
+	require.True(t, ctx.conversation.Empty())
 }
 
 func TestContext_AddInstructionAppendsInstructions(t *testing.T) {
@@ -30,4 +31,21 @@ func TestContext_AddInstructionAppendsInstructions(t *testing.T) {
 		{Value: "first"},
 		{Value: "second"},
 	}, ctx.GetInstructions())
+}
+
+func TestContext_MessageAndConversationAccessorsUseConversationState(t *testing.T) {
+	ctx := NewContext(gctx.Background(), &config.Config{Name: "Test Agent"})
+
+	require.NoError(t, ctx.AddUserMessage("hello"))
+	require.NoError(t, ctx.AddAssistantMessage("hi"))
+
+	messages := ctx.GetMessages()
+	require.Len(t, messages, 2)
+	require.Equal(t, RoleUser, messages[0].Role)
+	require.Equal(t, RoleAssistant, messages[1].Role)
+
+	conversation := ctx.GetConversation()
+	require.Len(t, conversation.Messages(), 2)
+	messages[0].Content = "changed"
+	require.Equal(t, "hello", ctx.GetMessages()[0].Content)
 }

@@ -103,7 +103,7 @@ How it improves the clone:
 - Once this exists, every new component becomes additive instead of hypothetical.
 
 Tasks:
-- [ ] Implement message model and conversation state
+- [x] Implement message model and conversation state
 - [ ] Implement the synchronous tool-calling loop
 - [ ] Add max-iteration and shared-budget logic
 - [ ] Add interrupt/cancel support

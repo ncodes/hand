@@ -1,26 +1,34 @@
 package environment
 
 import (
-	gctx "context"
+	"context"
 
 	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/context"
+	handctx "github.com/wandxy/hand/internal/context"
 	"github.com/wandxy/hand/internal/identity"
 )
 
 // Environment holds the agent's runtime dependencies, including config and initialized context.
 type Environment struct {
-	gctx gctx.Context
+	ctx  context.Context
 	cfg  *config.Config
-	ctx  *context.Context
+	hctx *handctx.Context
+}
+
+type Context interface {
+	GetInstructions() handctx.Instructions
+	AddUserMessage(string) error
+	AddAssistantMessage(string) error
+	GetMessages() []handctx.Message
+	GetConversation() handctx.Conversation
 }
 
 // NewEnvironment creates the agent environment from the application context and config.
-func NewEnvironment(ctx gctx.Context, cfg *config.Config) *Environment {
+func NewEnvironment(ctx context.Context, cfg *config.Config) *Environment {
 	return &Environment{
-		gctx: ctx,
+		ctx:  ctx,
 		cfg:  cfg,
-		ctx:  context.NewContext(ctx, cfg),
+		hctx: handctx.NewContext(ctx, cfg),
 	}
 }
 
@@ -31,11 +39,10 @@ func (e *Environment) Prepare() error {
 
 // prepareIdentity prepares the identity of the agent.
 func (e *Environment) prepareIdentity() error {
-	e.ctx.AddInstruction(identity.GetBaseIdentity(e.cfg.Name))
+	e.hctx.AddInstruction(identity.GetBaseIdentity(e.cfg.Name))
 	return nil
 }
 
-// GetInstructions returns the instructions for the environment.
-func (e *Environment) GetInstructions() context.Instructions {
-	return e.ctx.GetInstructions()
+func (e *Environment) Context() Context {
+	return e.hctx
 }

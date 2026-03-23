@@ -10,7 +10,11 @@ import (
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/rs/zerolog/log"
+
+	handctx "github.com/wandxy/hand/internal/context"
 )
+
+var jsonMarshal = json.Marshal
 
 type OpenAIClient struct {
 	createChatCompletion func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error)
@@ -44,9 +48,14 @@ func (c *OpenAIClient) Chat(ctx context.Context, req GenerateRequest) (*Generate
 	if strings.TrimSpace(req.Model) == "" {
 		return nil, errors.New("model is required")
 	}
-	if strings.TrimSpace(req.Input) == "" {
-		return nil, errors.New("input is required")
+	if len(req.Messages) == 0 {
+		return nil, errors.New("messages are required")
 	}
+	messages, err := normalizeMessages(req.Messages)
+	if err != nil {
+		return nil, err
+	}
+	req.Messages = messages
 
 	params := openai.ChatCompletionNewParams{
 		Model:    openai.ChatModel(strings.TrimSpace(req.Model)),
@@ -79,19 +88,55 @@ func (c *OpenAIClient) Chat(ctx context.Context, req GenerateRequest) (*Generate
 }
 
 func buildMessages(req GenerateRequest) []openai.ChatCompletionMessageParamUnion {
-	messages := make([]openai.ChatCompletionMessageParamUnion, 0, 2)
+	messages := make([]openai.ChatCompletionMessageParamUnion, 0, len(req.Messages)+1)
 	instructions := strings.TrimSpace(req.Instructions)
 	if instructions != "" {
 		messages = append(messages, openai.DeveloperMessage(instructions))
 	}
 
-	messages = append(messages, openai.UserMessage(strings.TrimSpace(req.Input)))
+	for _, message := range req.Messages {
+		switch message.Role {
+		case handctx.RoleDeveloper:
+			messages = append(messages, openai.DeveloperMessage(strings.TrimSpace(message.Content)))
+		case handctx.RoleUser:
+			messages = append(messages, openai.UserMessage(strings.TrimSpace(message.Content)))
+		case handctx.RoleAssistant:
+			messages = append(messages, openai.AssistantMessage(strings.TrimSpace(message.Content)))
+		case handctx.RoleTool:
+			messages = append(messages, openai.ToolMessage(strings.TrimSpace(message.Content), "tool"))
+		}
+	}
 
 	return messages
 }
 
+func normalizeMessages(messages []handctx.Message) ([]handctx.Message, error) {
+	normalized := make([]handctx.Message, 0, len(messages))
+	for _, message := range messages {
+		role := handctx.Role(strings.TrimSpace(strings.ToLower(string(message.Role))))
+		content := strings.TrimSpace(message.Content)
+
+		if content == "" {
+			return nil, errors.New("message content is required")
+		}
+
+		switch role {
+		case handctx.RoleDeveloper, handctx.RoleUser, handctx.RoleAssistant, handctx.RoleTool:
+			normalized = append(normalized, handctx.Message{
+				Role:      role,
+				Content:   content,
+				CreatedAt: message.CreatedAt,
+			})
+		default:
+			return nil, errors.New("message role must be one of developer, user, assistant, or tool")
+		}
+	}
+
+	return normalized, nil
+}
+
 func logRequestDebugDump(params openai.ChatCompletionNewParams) {
-	raw, err := json.Marshal(params)
+	raw, err := jsonMarshal(params)
 	if err != nil {
 		log.Debug().Err(err).Msg("failed to marshal model request debug dump")
 		return

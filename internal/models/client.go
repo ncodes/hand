@@ -1,6 +1,10 @@
 package models
 
-import "context"
+import (
+	"context"
+
+	handctx "github.com/wandxy/hand/internal/context"
+)
 
 type Client interface {
 	Chat(ctx context.Context, req GenerateRequest) (*GenerateResponse, error)
@@ -8,8 +12,8 @@ type Client interface {
 
 type GenerateRequest struct {
 	Model           string
-	Input           string
 	Instructions    string
+	Messages        []handctx.Message
 	MaxOutputTokens int64
 	Temperature     float64
 	DebugRequests   bool

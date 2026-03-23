@@ -113,7 +113,7 @@ Foundation:
 - [x] Add startup diagnostics and doctor checks
 
 Agent Runtime:
-- [ ] Implement message model and conversation state
+- [x] Implement message model and conversation state
 - [ ] Implement the synchronous tool-calling loop
 - [ ] Add max-iteration and shared-budget logic
 - [ ] Add interrupt and cancel support

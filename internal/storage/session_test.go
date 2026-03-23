@@ -6,11 +6,18 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	handcontext "github.com/wandxy/hand/internal/context"
 )
 
 func TestMemorySessionStore_SaveAndGet(t *testing.T) {
 	store := NewSessionStore()
-	session := Session{ID: "session-1"}
+	session := Session{
+		ID: "session-1",
+		Messages: []handcontext.Message{
+			{Role: handcontext.RoleUser, Content: "hello", CreatedAt: time.Now().UTC()},
+		},
+	}
 
 	require.NoError(t, store.Save(context.Background(), session))
 
@@ -18,6 +25,8 @@ func TestMemorySessionStore_SaveAndGet(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "session-1", loaded.ID)
+	require.Len(t, loaded.Messages, 1)
+	require.Equal(t, handcontext.RoleUser, loaded.Messages[0].Role)
 	require.False(t, loaded.UpdatedAt.IsZero())
 }
 

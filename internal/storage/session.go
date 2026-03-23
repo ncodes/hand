@@ -7,17 +7,13 @@ import (
 	"strings"
 	"sync"
 	"time"
-)
 
-type Message struct {
-	Role      string
-	Content   string
-	CreatedAt time.Time
-}
+	handctx "github.com/wandxy/hand/internal/context"
+)
 
 type Session struct {
 	ID        string
-	Messages  []Message
+	Messages  []handctx.Message
 	UpdatedAt time.Time
 }
 
