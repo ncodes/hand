@@ -138,7 +138,7 @@ func normalizeMessages(messages []handctx.Message) ([]handctx.Message, error) {
 func logRequestDebugDump(params openai.ChatCompletionNewParams) {
 	raw, err := jsonMarshal(params)
 	if err != nil {
-		log.Debug().Err(err).Msg("failed to marshal model request debug dump")
+		log.Debug().Err(err).Msg("Failed to marshal model request debug dump")
 		return
 	}
 

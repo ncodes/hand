@@ -300,7 +300,7 @@ func TestLogRequestDebugDump_LogsMarshalError(t *testing.T) {
 
 	logRequestDebugDump(openai.ChatCompletionNewParams{})
 
-	require.Contains(t, buf.String(), "failed to marshal model request debug dump")
+	require.Contains(t, buf.String(), "Failed to marshal model request debug dump")
 }
 
 func TestBuildMessages_WithoutInstructions(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -19,6 +20,8 @@ type Config struct {
 	OpenAIAPIKey     string
 	OpenRouterAPIKey string
 	ModelBaseURL     string
+	RPCAddress       string
+	RPCPort          int
 	LogLevel         string
 	LogNoColor       bool
 	DebugRequests    bool
@@ -62,6 +65,10 @@ type fileConfig struct {
 	Debug struct {
 		Requests bool `yaml:"requests"`
 	} `yaml:"debug"`
+	RPC struct {
+		Address string `yaml:"address"`
+		Port    int    `yaml:"port"`
+	} `yaml:"rpc"`
 }
 
 func PreloadEnvFile(path string) error {
@@ -138,6 +145,8 @@ func loadConfigFile(path string) (*Config, error) {
 		OpenAIAPIKey:     raw.Model.OpenAIAPIKey,
 		OpenRouterAPIKey: raw.Model.OpenRouterAPIKey,
 		ModelBaseURL:     raw.Model.BaseURL,
+		RPCAddress:       raw.RPC.Address,
+		RPCPort:          raw.RPC.Port,
 		LogLevel:         raw.Log.Level,
 		LogNoColor:       raw.Log.NoColor,
 		DebugRequests:    raw.Debug.Requests,
@@ -169,6 +178,14 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := strings.TrimSpace(os.Getenv("MODEL_BASE_URL")); value != "" {
 		cfg.ModelBaseURL = value
+	}
+	if value := strings.TrimSpace(os.Getenv("RPC_ADDRESS")); value != "" {
+		cfg.RPCAddress = value
+	}
+	if value := strings.TrimSpace(os.Getenv("RPC_PORT")); value != "" {
+		if port, err := strconv.Atoi(value); err == nil {
+			cfg.RPCPort = port
+		}
 	}
 	if value := strings.TrimSpace(os.Getenv("LOG_LEVEL")); value != "" {
 		cfg.LogLevel = value
@@ -206,6 +223,12 @@ func (c *Config) Normalize() {
 	if c.LogLevel == "" {
 		c.LogLevel = "info"
 	}
+	if c.RPCAddress == "" {
+		c.RPCAddress = "127.0.0.1"
+	}
+	if c.RPCPort == 0 {
+		c.RPCPort = 50051
+	}
 
 	if c.ModelBaseURL == "" {
 		if mappedBaseURL, ok := supportedRouters[c.ModelRouter]; ok {
@@ -236,6 +259,12 @@ func (c *Config) Validate() error {
 	}
 	if _, err := c.ResolveModelAuth(); err != nil {
 		return err
+	}
+	if strings.TrimSpace(c.RPCAddress) == "" {
+		return errors.New("rpc address is required; set RPC_ADDRESS, provide it in config, or use --rpc.address")
+	}
+	if c.RPCPort <= 0 {
+		return errors.New("rpc port must be greater than zero; set RPC_PORT, provide it in config, or use --rpc.port")
 	}
 
 	switch strings.TrimSpace(strings.ToLower(c.LogLevel)) {

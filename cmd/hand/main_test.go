@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -56,7 +58,12 @@ log:
 `), 0o600))
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "up"})
+	err := cmd.Run(canceledContext(), []string{
+		"hand",
+		"--config", configPath,
+		"--rpc.port", nextTestPort(t),
+		"up",
+	})
 	require.NoError(t, err)
 
 	cfg := config.Get()
@@ -98,7 +105,13 @@ log:
 `), 0o600))
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--env-file", envPath, "--config", configPath, "up"})
+	err := cmd.Run(canceledContext(), []string{
+		"hand",
+		"--env-file", envPath,
+		"--config", configPath,
+		"--rpc.port", nextTestPort(t),
+		"up",
+	})
 	require.NoError(t, err)
 
 	cfg := config.Get()
@@ -126,7 +139,12 @@ log:
 `), 0o600))
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "up"})
+	err := cmd.Run(canceledContext(), []string{
+		"hand",
+		"--config", configPath,
+		"--rpc.port", nextTestPort(t),
+		"up",
+	})
 	require.EqualError(t, err, "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
 }
 
@@ -146,7 +164,12 @@ log:
 `), 0o600))
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "up"})
+	err := cmd.Run(canceledContext(), []string{
+		"hand",
+		"--config", configPath,
+		"--rpc.port", nextTestPort(t),
+		"up",
+	})
 	require.NoError(t, err)
 
 	cfg := config.Get()
@@ -171,7 +194,13 @@ log:
 `), 0o600))
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "--model.router", "openrouter", "up"})
+	err := cmd.Run(canceledContext(), []string{
+		"hand",
+		"--config", configPath,
+		"--rpc.port", nextTestPort(t),
+		"--model.router", "openrouter",
+		"up",
+	})
 	require.NoError(t, err)
 
 	cfg := config.Get()
@@ -209,8 +238,8 @@ log:
 `), 0o600))
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{
-		"agent",
+	err := cmd.Run(canceledContext(), []string{
+		"hand",
 		"--env-file", envPath,
 		"--config", configPath,
 		"--name", "flag-agent",
@@ -218,6 +247,7 @@ log:
 		"--model.router", "openrouter",
 		"--model.key", "flag-key",
 		"--model.base-url", "https://flag.example/v1",
+		"--rpc.port", nextTestPort(t),
 		"--log.level", "debug",
 		"--log.no-color=true",
 		"up",
@@ -252,7 +282,12 @@ log:
 `), 0o600))
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "up"})
+	err := cmd.Run(canceledContext(), []string{
+		"agent",
+		"--config", configPath,
+		"--rpc.port", nextTestPort(t),
+		"up",
+	})
 	require.NoError(t, err)
 
 	cfg := config.Get()
@@ -267,8 +302,8 @@ func TestResolveEnvFilePrefersFlag(t *testing.T) {
 	clearEnvKeys(t, "AGENT_ENV_FILE")
 	resetGlobals(t)
 
-	require.Equal(t, "/tmp/test.env", resolveEnvFile([]string{"agent", "--env-file", "/tmp/test.env"}))
-	require.Equal(t, "/tmp/test2.env", resolveEnvFile([]string{"agent", "--env-file=/tmp/test2.env"}))
+	require.Equal(t, "/tmp/test.env", resolveEnvFile([]string{"hand", "--env-file", "/tmp/test.env"}))
+	require.Equal(t, "/tmp/test2.env", resolveEnvFile([]string{"hand", "--env-file=/tmp/test2.env"}))
 }
 
 func TestResolveEnvFilePrefersEnvVar(t *testing.T) {
@@ -276,14 +311,14 @@ func TestResolveEnvFilePrefersEnvVar(t *testing.T) {
 	resetGlobals(t)
 
 	t.Setenv("AGENT_ENV_FILE", "/tmp/from-env.env")
-	require.Equal(t, "/tmp/from-env.env", resolveEnvFile([]string{"agent", "--env-file", "/tmp/ignored.env"}))
+	require.Equal(t, "/tmp/from-env.env", resolveEnvFile([]string{"hand", "--env-file", "/tmp/ignored.env"}))
 }
 
 func TestResolveEnvFileUsesDefaultWhenUnset(t *testing.T) {
 	clearEnvKeys(t, "AGENT_ENV_FILE")
 	resetGlobals(t)
 
-	require.Equal(t, ".env", resolveEnvFile([]string{"agent"}))
+	require.Equal(t, ".env", resolveEnvFile([]string{"hand"}))
 }
 
 func TestNewCommand_RootActionShowsHelp(t *testing.T) {
@@ -291,7 +326,7 @@ func TestNewCommand_RootActionShowsHelp(t *testing.T) {
 	resetGlobals(t)
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent"})
+	err := cmd.Run(context.Background(), []string{"hand"})
 	require.NoError(t, err)
 }
 
@@ -301,7 +336,7 @@ func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
 
 	cmd := newCommand()
 	err := cmd.Run(context.Background(), []string{
-		"agent",
+		"hand",
 		"--name", "flag-agent",
 		"--model", "flag-model",
 		"--model.router", "openrouter",
@@ -332,7 +367,7 @@ func TestNewCommand_RootActionTreatsUnknownArgsAsChat(t *testing.T) {
 
 	cmd := newCommand()
 	err := cmd.Run(context.Background(), []string{
-		"agent",
+		"hand",
 		"--name", "flag-agent",
 		"--model", "flag-model",
 		"--model.router", "none",
@@ -362,7 +397,12 @@ model:
 `), 0o600))
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "up"})
+	err := cmd.Run(canceledContext(), []string{
+		"hand",
+		"--config", configPath,
+		"--rpc.port", nextTestPort(t),
+		"up",
+	})
 	require.EqualError(t, err, "model router must be one of: none, openrouter")
 }
 
@@ -383,7 +423,12 @@ log:
 `), 0o600))
 
 	cmd := newCommand()
-	err := cmd.Run(context.Background(), []string{"agent", "--config", configPath, "up"})
+	err := cmd.Run(canceledContext(), []string{
+		"hand",
+		"--config", configPath,
+		"--rpc.port", nextTestPort(t),
+		"up",
+	})
 	require.NoError(t, err)
 
 	cfg := config.Get()
@@ -421,4 +466,21 @@ func resetGlobals(t *testing.T) {
 	envFile = ".env"
 	configFile = "config.yaml"
 	config.Set(nil)
+}
+
+func canceledContext() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	return ctx
+}
+
+func nextTestPort(t *testing.T) string {
+	t.Helper()
+
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer lis.Close()
+
+	port := lis.Addr().(*net.TCPAddr).Port
+	return strconv.Itoa(port)
 }

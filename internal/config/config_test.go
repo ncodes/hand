@@ -9,7 +9,7 @@ import (
 )
 
 func TestPreloadEnvFile_LoadsValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -21,6 +21,8 @@ MODEL_KEY=env-key
 OPENAI_API_KEY=openai-env-key
 OPENROUTER_API_KEY=openrouter-env-key
 MODEL_BASE_URL=https://env.example/v1
+RPC_ADDRESS=0.0.0.0
+RPC_PORT=6000
 LOG_LEVEL=warn
 LOG_NO_COLOR=true
 DEBUG_REQUESTS=true
@@ -34,6 +36,8 @@ DEBUG_REQUESTS=true
 	require.Equal(t, "openai-env-key", os.Getenv("OPENAI_API_KEY"))
 	require.Equal(t, "openrouter-env-key", os.Getenv("OPENROUTER_API_KEY"))
 	require.Equal(t, "https://env.example/v1", os.Getenv("MODEL_BASE_URL"))
+	require.Equal(t, "0.0.0.0", os.Getenv("RPC_ADDRESS"))
+	require.Equal(t, "6000", os.Getenv("RPC_PORT"))
 	require.Equal(t, "warn", os.Getenv("LOG_LEVEL"))
 	require.Equal(t, "true", os.Getenv("LOG_NO_COLOR"))
 	require.Equal(t, "true", os.Getenv("DEBUG_REQUESTS"))
@@ -88,7 +92,7 @@ func TestPreloadEnvFile_IgnoresMissingFile(t *testing.T) {
 }
 
 func TestLoad_UsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -99,6 +103,9 @@ model:
   router: openrouter
   key: config-key
   baseUrl: https://config.example/v1
+rpc:
+  address: 0.0.0.0
+  port: 6000
 log:
   level: error
   noColor: true
@@ -114,13 +121,15 @@ debug:
 	require.Equal(t, "openrouter", cfg.ModelRouter)
 	require.Equal(t, "config-key", cfg.ModelKey)
 	require.Equal(t, "https://config.example/v1", cfg.ModelBaseURL)
+	require.Equal(t, "0.0.0.0", cfg.RPCAddress)
+	require.Equal(t, 6000, cfg.RPCPort)
 	require.Equal(t, "error", cfg.LogLevel)
 	require.True(t, cfg.LogNoColor)
 	require.True(t, cfg.DebugRequests)
 }
 
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -131,6 +140,8 @@ MODEL=env-model
 MODEL_ROUTER=openrouter
 MODEL_KEY=env-key
 MODEL_BASE_URL=https://env.example/v1
+RPC_ADDRESS=127.0.0.1
+RPC_PORT=7000
 LOG_LEVEL=warn
 LOG_NO_COLOR=false
 DEBUG_REQUESTS=false
@@ -142,6 +153,9 @@ model:
   router: openrouter
   key: config-key
   baseUrl: https://config.example/v1
+rpc:
+  address: 0.0.0.0
+  port: 6000
 log:
   level: error
   noColor: true
@@ -157,13 +171,15 @@ debug:
 	require.Equal(t, "openrouter", cfg.ModelRouter)
 	require.Equal(t, "env-key", cfg.ModelKey)
 	require.Equal(t, "https://env.example/v1", cfg.ModelBaseURL)
+	require.Equal(t, "127.0.0.1", cfg.RPCAddress)
+	require.Equal(t, 7000, cfg.RPCPort)
 	require.Equal(t, "warn", cfg.LogLevel)
 	require.False(t, cfg.LogNoColor)
 	require.False(t, cfg.DebugRequests)
 }
 
 func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	cfg, err := Load("", filepath.Join(t.TempDir(), "missing.yaml"))
 
@@ -171,11 +187,13 @@ func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
 	require.NotNil(t, cfg)
 	require.Equal(t, defaultModel, cfg.Model)
 	require.Equal(t, defaultModelRouter, cfg.ModelRouter)
+	require.Equal(t, "127.0.0.1", cfg.RPCAddress)
+	require.Equal(t, 50051, cfg.RPCPort)
 	require.Equal(t, "info", cfg.LogLevel)
 }
 
 func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -200,6 +218,8 @@ func TestGet_ReturnsDefaultsWhenConfigIsUnset(t *testing.T) {
 	require.Equal(t, "info", cfg.LogLevel)
 	require.Empty(t, cfg.ModelRouter)
 	require.Empty(t, cfg.ModelBaseURL)
+	require.Empty(t, cfg.RPCAddress)
+	require.Zero(t, cfg.RPCPort)
 }
 
 func TestSet_StoresConfigGlobally(t *testing.T) {
@@ -344,6 +364,34 @@ func TestConfig_ValidateAllowsEmptyRouterAndLogLevel(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestConfig_ValidateRejectsEmptyRPCAddress(t *testing.T) {
+	cfg := &Config{
+		Name:        "test-agent",
+		Model:       defaultModel,
+		ModelRouter: "none",
+		ModelKey:    "test-key",
+		RPCAddress:  "   ",
+		RPCPort:     50051,
+		LogLevel:    "info",
+	}
+
+	require.EqualError(t, cfg.Validate(), "rpc address is required; set RPC_ADDRESS, provide it in config, or use --rpc.address")
+}
+
+func TestConfig_ValidateRejectsInvalidRPCPort(t *testing.T) {
+	cfg := &Config{
+		Name:        "test-agent",
+		Model:       defaultModel,
+		ModelRouter: "none",
+		ModelKey:    "test-key",
+		RPCAddress:  "127.0.0.1",
+		RPCPort:     -1,
+		LogLevel:    "info",
+	}
+
+	require.EqualError(t, cfg.Validate(), "rpc port must be greater than zero; set RPC_PORT, provide it in config, or use --rpc.port")
+}
+
 func TestConfig_NormalizeDefaultsRouterWhenEmpty(t *testing.T) {
 	cfg := &Config{
 		Model:    defaultModel,
@@ -366,6 +414,8 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	require.Equal(t, defaultModel, cfg.Model)
 	require.Equal(t, defaultModelRouter, cfg.ModelRouter)
 	require.Equal(t, supportedRouters[defaultModelRouter], cfg.ModelBaseURL)
+	require.Equal(t, "127.0.0.1", cfg.RPCAddress)
+	require.Equal(t, 50051, cfg.RPCPort)
 	require.Equal(t, "info", cfg.LogLevel)
 }
 

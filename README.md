@@ -19,11 +19,13 @@ The long-term dream for Hand is a personal agent that can understand your workfl
 2. Uncomment the values you want to use and replace the placeholder key values.
 3. Set at least `NAME`, `MODEL`, `MODEL_ROUTER`, and one auth value:
    `MODEL_KEY`, `OPENAI_API_KEY`, or `OPENROUTER_API_KEY`.
-4. Run the agent:
+4. Start the daemon:
 
 ```bash
 go run ./cmd/hand up
 ```
+
+The `up` command prepares the runtime and starts the gRPC service.
 
 You can also send a direct prompt through the root command:
 
@@ -48,6 +50,8 @@ Config file values:
 - `model.router`
 - `model.key`
 - `model.baseUrl`
+- `rpc.address`
+- `rpc.port`
 - `log.level`
 - `log.noColor`
 - `debug.requests`
@@ -60,6 +64,8 @@ Env equivalents:
 - `OPENAI_API_KEY`
 - `OPENROUTER_API_KEY`
 - `MODEL_BASE_URL`
+- `RPC_ADDRESS`
+- `RPC_PORT`
 - `LOG_LEVEL`
 - `LOG_NO_COLOR`
 - `DEBUG_REQUESTS`
@@ -82,24 +88,38 @@ Typical model settings:
 - `model.openaiApiKey`: provider-specific OpenAI API key
 - `model.openrouterApiKey`: provider-specific OpenRouter API key
 - `model.baseUrl`: explicit provider base URL when needed
+- `rpc.address`: interface the daemon binds to
+- `rpc.port`: port the daemon binds to
 - `debug.requests`: emits sanitized model request dumps at debug level
 
 ## Commands
 
-- `hand up`: prepare and start the runtime
+- `hand up`: prepare the runtime and start the gRPC daemon
 - `hand doctor`: run startup diagnostics and readiness checks
 - `hand "<message>"`: send a single chat message
+
+## gRPC
+
+The daemon exposes a gRPC service defined in [internal/rpc/proto/hand.proto](./internal/rpc/proto/hand.proto).
+
+Current RPC surface:
+- `HandService/Echo`: returns the provided message
+
+The generated Go stubs live under [internal/rpc/proto](./internal/rpc/proto), and the service implementation lives in [internal/rpc/service.go](./internal/rpc/service.go).
 
 ## Development
 
 ```bash
+# Generate protobuf stubs
+make build-proto
+
 # Build and install the binary
 make build
 make install
 
 # Run the tests
 make lint
-go test ./...
+make test
 ```
 
 ## TODOs

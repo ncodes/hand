@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package hand.v1;
+
+option go_package = "github.com/wandxy/hand/internal/rpc/proto;handpb";
+
+service HandService {
+  rpc Echo(EchoRequest) returns (EchoResponse);
+}
+
+message EchoRequest {
+  string message = 1;
+}
+
+message EchoResponse {
+  string message = 1;
+}

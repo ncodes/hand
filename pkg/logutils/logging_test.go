@@ -43,10 +43,10 @@ func TestConfigureLogger_DefaultsProgramNameAndWritesLog(t *testing.T) {
 	logger := ConfigureLogger("   ", true)
 	require.NotNil(t, logger)
 
-	log.Info().Msg("hello")
+	log.Info().Msg("Hello")
 
 	output := buf.String()
-	require.Contains(t, output, "hello")
+	require.Contains(t, output, "Hello")
 	require.Contains(t, output, "program=agent")
 	require.NotContains(t, output, "\x1b[")
 }
@@ -68,7 +68,7 @@ func TestInitLogger_UsesCurrentNoColorSetting(t *testing.T) {
 	logger := InitLogger("svc")
 	require.NotNil(t, logger)
 
-	log.Info().Msg("hello")
+	log.Info().Msg("Hello")
 	output := buf.String()
 	require.Contains(t, output, "program=svc")
 	require.NotContains(t, output, "\x1b[")
@@ -91,7 +91,7 @@ func TestGetLogger_UsesCurrentNoColorSetting(t *testing.T) {
 	logger := GetLogger("svc")
 	require.NotNil(t, logger)
 
-	log.Info().Msg("hello")
+	log.Info().Msg("Hello")
 	rawOutput := buf.String()
 	output := stripANSI(rawOutput)
 	require.Contains(t, output, "program=svc")
@@ -169,11 +169,11 @@ func TestConfigureLogger_UsesConfiguredOutputWriter(t *testing.T) {
 		done <- string(buf[:n])
 	}()
 
-	log.Info().Msg("pipe-test")
+	log.Info().Msg("Pipe-test")
 	_ = writer.Close()
 
 	output := <-done
-	require.Contains(t, output, "pipe-test")
+	require.Contains(t, output, "Pipe-test")
 	require.Contains(t, output, "program=svc")
 }
 

@@ -8,6 +8,10 @@
 #   openrouterApiKey: "replace-with-your-openrouter-key"
 #   baseUrl: "https://openrouter.ai/api/v1"
 
+# rpc:
+#   address: "127.0.0.1"
+#   port: 50051
+
 # log:
 #   level: "info"
 #   noColor: false
