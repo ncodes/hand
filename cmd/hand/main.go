@@ -8,17 +8,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/openai/openai-go/v3/option"
 	"github.com/rs/zerolog/log"
 	cli "github.com/urfave/cli/v3"
 
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
 	upcmd "github.com/wandxy/hand/cmd/up"
-	"github.com/wandxy/hand/internal/agent"
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/diagnostics"
-	"github.com/wandxy/hand/internal/models"
+	rpc "github.com/wandxy/hand/internal/rpc"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -33,12 +30,12 @@ var (
 )
 
 type chatRunner interface {
-	Run(context.Context) error
 	Chat(context.Context, string) (string, error)
+	Close() error
 }
 
-var newChatAgent = func(ctx context.Context, cfg *config.Config, modelClient models.Client) chatRunner {
-	return agent.NewAgent(ctx, cfg, modelClient)
+var newChatClient = func(ctx context.Context, cfg *config.Config) (chatRunner, error) {
+	return rpc.NewClient(ctx, cfg)
 }
 
 func main() {
@@ -79,32 +76,17 @@ func newCommand() *cli.Command {
 			}
 			handcli.ApplyConfigOverrides(cmd, cfg)
 
-			report := diagnostics.Build(cmd.String("env-file"), cmd.String("config"), cfg, nil)
-			if report.HasFailures() {
-				return errors.New(report.FirstFailure())
-			}
-
 			config.Set(cfg)
 			_ = logutils.ConfigureLogger("hand", cfg.LogNoColor)
 			logutils.SetLogLevel(cfg.LogLevel)
 
-			clientOptions := make([]option.RequestOption, 0, 1)
-			if cfg.ModelBaseURL != "" {
-				clientOptions = append(clientOptions, option.WithBaseURL(cfg.ModelBaseURL))
-			}
-
-			auth, _ := cfg.ResolveModelAuth()
-			modelClient, err := models.NewOpenAIClient(auth.APIKey, clientOptions...)
+			client, err := newChatClient(ctx, cfg)
 			if err != nil {
 				return err
 			}
+			defer client.Close()
 
-			app := newChatAgent(ctx, cfg, modelClient)
-			if err := app.Run(ctx); err != nil {
-				return err
-			}
-
-			reply, err := app.Chat(ctx, message)
+			reply, err := client.Chat(ctx, message)
 			if err != nil {
 				return err
 			}

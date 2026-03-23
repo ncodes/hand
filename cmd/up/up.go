@@ -29,19 +29,20 @@ import (
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
-type runner interface {
+type agentRunner interface {
 	Run(context.Context) error
+	Chat(context.Context, string) (string, error)
 }
 
 const (
-	handBadge = "██   ██  █████  ███    ██ ██████\n██   ██ ██   ██ ████   ██ ██   ██\n███████ ███████ ██ ██  ██ ██   ██\n██   ██ ██   ██ ██  ██ ██ ██   ██\n██   ██ ██   ██ ██   ████ ██████\n"
-	colorGray = "\x1b[90m"
+	handBadge  = "██   ██  █████  ███    ██ ██████\n██   ██ ██   ██ ████   ██ ██   ██\n███████ ███████ ██ ██  ██ ██   ██\n██   ██ ██   ██ ██  ██ ██ ██   ██\n██   ██ ██   ██ ██   ████ ██████\n"
+	colorGray  = "\x1b[90m"
 	colorReset = "\x1b[0m"
 )
 
 var startupOutput io.Writer = os.Stdout
 
-var newAgentRunner = func(ctx context.Context, cfg *config.Config, modelClient models.Client) runner {
+var newAgentRunner = func(ctx context.Context, cfg *config.Config, modelClient models.Client) agentRunner {
 	return agent.NewAgent(ctx, cfg, modelClient)
 }
 
@@ -91,7 +92,7 @@ func styleLabel(value string, noColor bool) string {
 	return colorGray + value + ":" + colorReset
 }
 
-var serveRPC = func(ctx context.Context, cfg *config.Config) error {
+var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) error {
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort))
 	if err != nil {
 		return err
@@ -100,7 +101,7 @@ var serveRPC = func(ctx context.Context, cfg *config.Config) error {
 
 	grpcSrv := grpc.NewServer()
 	healthcheck := health.NewServer()
-	handpb.RegisterHandServiceServer(grpcSrv, rpc.NewService())
+	handpb.RegisterHandServiceServer(grpcSrv, rpc.NewService(agent))
 	healthpb.RegisterHealthServer(grpcSrv, healthcheck)
 	healthcheck.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 
@@ -199,12 +200,12 @@ func NewCommand() *cli.Command {
 				return err
 			}
 
-			app := newAgentRunner(ctx, cfg, modelClient)
-			if err := app.Run(ctx); err != nil {
+			agent := newAgentRunner(ctx, cfg, modelClient)
+			if err := agent.Run(ctx); err != nil {
 				return err
 			}
 
-			return serveRPC(ctx, cfg)
+			return serveRPC(ctx, cfg, agent)
 		},
 	}
 }

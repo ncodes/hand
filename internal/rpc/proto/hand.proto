@@ -5,13 +5,13 @@ package hand.v1;
 option go_package = "github.com/wandxy/hand/internal/rpc/proto;handpb";
 
 service HandService {
-  rpc Echo(EchoRequest) returns (EchoResponse);
+  rpc Chat(ChatRequest) returns (ChatResponse);
 }
 
-message EchoRequest {
+message ChatRequest {
   string message = 1;
 }
 
-message EchoResponse {
+message ChatResponse {
   string message = 1;
 }

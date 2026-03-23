@@ -19,14 +19,14 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	HandService_Echo_FullMethodName = "/hand.v1.HandService/Echo"
+	HandService_Chat_FullMethodName = "/hand.v1.HandService/Chat"
 )
 
 // HandServiceClient is the client API for HandService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type HandServiceClient interface {
-	Echo(ctx context.Context, in *EchoRequest, opts ...grpc.CallOption) (*EchoResponse, error)
+	Chat(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (*ChatResponse, error)
 }
 
 type handServiceClient struct {
@@ -37,10 +37,10 @@ func NewHandServiceClient(cc grpc.ClientConnInterface) HandServiceClient {
 	return &handServiceClient{cc}
 }
 
-func (c *handServiceClient) Echo(ctx context.Context, in *EchoRequest, opts ...grpc.CallOption) (*EchoResponse, error) {
+func (c *handServiceClient) Chat(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (*ChatResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(EchoResponse)
-	err := c.cc.Invoke(ctx, HandService_Echo_FullMethodName, in, out, cOpts...)
+	out := new(ChatResponse)
+	err := c.cc.Invoke(ctx, HandService_Chat_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (c *handServiceClient) Echo(ctx context.Context, in *EchoRequest, opts ...g
 // All implementations must embed UnimplementedHandServiceServer
 // for forward compatibility.
 type HandServiceServer interface {
-	Echo(context.Context, *EchoRequest) (*EchoResponse, error)
+	Chat(context.Context, *ChatRequest) (*ChatResponse, error)
 	mustEmbedUnimplementedHandServiceServer()
 }
 
@@ -62,8 +62,8 @@ type HandServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedHandServiceServer struct{}
 
-func (UnimplementedHandServiceServer) Echo(context.Context, *EchoRequest) (*EchoResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method Echo not implemented")
+func (UnimplementedHandServiceServer) Chat(context.Context, *ChatRequest) (*ChatResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Chat not implemented")
 }
 func (UnimplementedHandServiceServer) mustEmbedUnimplementedHandServiceServer() {}
 func (UnimplementedHandServiceServer) testEmbeddedByValue()                     {}
@@ -86,20 +86,20 @@ func RegisterHandServiceServer(s grpc.ServiceRegistrar, srv HandServiceServer) {
 	s.RegisterService(&HandService_ServiceDesc, srv)
 }
 
-func _HandService_Echo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(EchoRequest)
+func _HandService_Chat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChatRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(HandServiceServer).Echo(ctx, in)
+		return srv.(HandServiceServer).Chat(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: HandService_Echo_FullMethodName,
+		FullMethod: HandService_Chat_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HandServiceServer).Echo(ctx, req.(*EchoRequest))
+		return srv.(HandServiceServer).Chat(ctx, req.(*ChatRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -112,8 +112,8 @@ var HandService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*HandServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Echo",
-			Handler:    _HandService_Echo_Handler,
+			MethodName: "Chat",
+			Handler:    _HandService_Chat_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

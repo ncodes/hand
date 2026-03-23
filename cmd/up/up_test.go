@@ -45,10 +45,11 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 			return nil
 		})
 	}
-	serveRPC = func(ctx context.Context, cfg *config.Config) error {
+	serveRPC = func(ctx context.Context, cfg *config.Config, app runner) error {
 		serveCalled = true
 		require.Equal(t, "0.0.0.0", cfg.RPCAddress)
 		require.Equal(t, 6000, cfg.RPCPort)
+		require.NotNil(t, app)
 		return nil
 	}
 
@@ -119,7 +120,7 @@ func TestNewCommand_ReturnsValidationError(t *testing.T) {
 	t.Cleanup(func() {
 		serveRPC = originalServeGRPC
 	})
-	serveRPC = func(context.Context, *config.Config) error {
+	serveRPC = func(context.Context, *config.Config, runner) error {
 		t.Fatal("serveGRPC should not be called on validation failure")
 		return nil
 	}
@@ -152,4 +153,8 @@ type runnerFunc func(context.Context) error
 
 func (f runnerFunc) Run(ctx context.Context) error {
 	return f(ctx)
+}
+
+func (f runnerFunc) Chat(context.Context, string) (string, error) {
+	return "", nil
 }

@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,35 +10,65 @@ import (
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 )
 
+type chatterStub struct {
+	message string
+	reply   string
+	err     error
+}
+
+func (s *chatterStub) Chat(_ context.Context, message string) (string, error) {
+	s.message = message
+	return s.reply, s.err
+}
+
 func TestNewService_ReturnsService(t *testing.T) {
-	require.NotNil(t, NewService())
+	require.NotNil(t, NewService(nil))
 }
 
-func TestService_EchoReturnsMessage(t *testing.T) {
-	svc := NewService()
+func TestService_ChatReturnsMessage(t *testing.T) {
+	stub := &chatterStub{reply: "hello back"}
+	svc := NewService(stub)
 
-	resp, err := svc.Echo(context.Background(), &handpb.EchoRequest{Message: "hello"})
+	resp, err := svc.Chat(context.Background(), &handpb.ChatRequest{Message: "hello"})
 
 	require.NoError(t, err)
-	require.Equal(t, "hello", resp.Message)
+	require.Equal(t, "hello", stub.message)
+	require.Equal(t, "hello back", resp.Message)
 }
 
-func TestService_EchoHandlesNilRequest(t *testing.T) {
-	svc := NewService()
+func TestService_ChatReturnsHandlerError(t *testing.T) {
+	stub := &chatterStub{err: errors.New("boom")}
+	svc := NewService(stub)
 
-	resp, err := svc.Echo(context.Background(), nil)
+	resp, err := svc.Chat(context.Background(), &handpb.ChatRequest{Message: "hello"})
 
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.Empty(t, resp.Message)
+	require.EqualError(t, err, "boom")
+	require.Nil(t, resp)
 }
 
-func TestService_EchoHandlesNilReceiver(t *testing.T) {
+func TestService_ChatRejectsNilRequest(t *testing.T) {
+	svc := NewService(&chatterStub{})
+
+	resp, err := svc.Chat(context.Background(), nil)
+
+	require.EqualError(t, err, "chat request is required")
+	require.Nil(t, resp)
+}
+
+func TestService_ChatRejectsMissingHandler(t *testing.T) {
+	svc := NewService(nil)
+
+	resp, err := svc.Chat(context.Background(), &handpb.ChatRequest{Message: "hello"})
+
+	require.EqualError(t, err, "chat handler is required")
+	require.Nil(t, resp)
+}
+
+func TestService_ChatRejectsNilReceiver(t *testing.T) {
 	var svc *Service
 
-	resp, err := svc.Echo(context.Background(), &handpb.EchoRequest{Message: "hello"})
+	resp, err := svc.Chat(context.Background(), &handpb.ChatRequest{Message: "hello"})
 
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.Empty(t, resp.Message)
+	require.EqualError(t, err, "service is required")
+	require.Nil(t, resp)
 }

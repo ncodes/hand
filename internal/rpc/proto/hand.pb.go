@@ -21,27 +21,27 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type EchoRequest struct {
+type ChatRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *EchoRequest) Reset() {
-	*x = EchoRequest{}
+func (x *ChatRequest) Reset() {
+	*x = ChatRequest{}
 	mi := &file_internal_rpc_proto_hand_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *EchoRequest) String() string {
+func (x *ChatRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*EchoRequest) ProtoMessage() {}
+func (*ChatRequest) ProtoMessage() {}
 
-func (x *EchoRequest) ProtoReflect() protoreflect.Message {
+func (x *ChatRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_internal_rpc_proto_hand_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -53,39 +53,39 @@ func (x *EchoRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EchoRequest.ProtoReflect.Descriptor instead.
-func (*EchoRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ChatRequest.ProtoReflect.Descriptor instead.
+func (*ChatRequest) Descriptor() ([]byte, []int) {
 	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *EchoRequest) GetMessage() string {
+func (x *ChatRequest) GetMessage() string {
 	if x != nil {
 		return x.Message
 	}
 	return ""
 }
 
-type EchoResponse struct {
+type ChatResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *EchoResponse) Reset() {
-	*x = EchoResponse{}
+func (x *ChatResponse) Reset() {
+	*x = ChatResponse{}
 	mi := &file_internal_rpc_proto_hand_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *EchoResponse) String() string {
+func (x *ChatResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*EchoResponse) ProtoMessage() {}
+func (*ChatResponse) ProtoMessage() {}
 
-func (x *EchoResponse) ProtoReflect() protoreflect.Message {
+func (x *ChatResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_internal_rpc_proto_hand_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -97,12 +97,12 @@ func (x *EchoResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EchoResponse.ProtoReflect.Descriptor instead.
-func (*EchoResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ChatResponse.ProtoReflect.Descriptor instead.
+func (*ChatResponse) Descriptor() ([]byte, []int) {
 	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *EchoResponse) GetMessage() string {
+func (x *ChatResponse) GetMessage() string {
 	if x != nil {
 		return x.Message
 	}
@@ -114,12 +114,12 @@ var File_internal_rpc_proto_hand_proto protoreflect.FileDescriptor
 const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\n" +
 	"\x1dinternal/rpc/proto/hand.proto\x12\ahand.v1\"'\n" +
-	"\vEchoRequest\x12\x18\n" +
+	"\vChatRequest\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\"(\n" +
-	"\fEchoResponse\x12\x18\n" +
+	"\fChatResponse\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage2B\n" +
 	"\vHandService\x123\n" +
-	"\x04Echo\x12\x14.hand.v1.EchoRequest\x1a\x15.hand.v1.EchoResponseB2Z0github.com/wandxy/hand/internal/rpc/proto;handpbb\x06proto3"
+	"\x04Chat\x12\x14.hand.v1.ChatRequest\x1a\x15.hand.v1.ChatResponseB2Z0github.com/wandxy/hand/internal/rpc/proto;handpbb\x06proto3"
 
 var (
 	file_internal_rpc_proto_hand_proto_rawDescOnce sync.Once
@@ -135,12 +135,12 @@ func file_internal_rpc_proto_hand_proto_rawDescGZIP() []byte {
 
 var file_internal_rpc_proto_hand_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_internal_rpc_proto_hand_proto_goTypes = []any{
-	(*EchoRequest)(nil),  // 0: hand.v1.EchoRequest
-	(*EchoResponse)(nil), // 1: hand.v1.EchoResponse
+	(*ChatRequest)(nil),  // 0: hand.v1.ChatRequest
+	(*ChatResponse)(nil), // 1: hand.v1.ChatResponse
 }
 var file_internal_rpc_proto_hand_proto_depIdxs = []int32{
-	0, // 0: hand.v1.HandService.Echo:input_type -> hand.v1.EchoRequest
-	1, // 1: hand.v1.HandService.Echo:output_type -> hand.v1.EchoResponse
+	0, // 0: hand.v1.HandService.Chat:input_type -> hand.v1.ChatRequest
+	1, // 1: hand.v1.HandService.Chat:output_type -> hand.v1.ChatResponse
 	1, // [1:2] is the sub-list for method output_type
 	0, // [0:1] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name

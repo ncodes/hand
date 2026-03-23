@@ -11,9 +11,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -22,21 +23,21 @@ func init() {
 }
 
 type chatRunnerStub struct {
-	runCalled bool
 	chatInput string
 	reply     string
-	runErr    error
 	chatErr   error
-}
-
-func (s *chatRunnerStub) Run(context.Context) error {
-	s.runCalled = true
-	return s.runErr
+	closeErr  error
+	closed    bool
 }
 
 func (s *chatRunnerStub) Chat(_ context.Context, msg string) (string, error) {
 	s.chatInput = msg
 	return s.reply, s.chatErr
+}
+
+func (s *chatRunnerStub) Close() error {
+	s.closed = true
+	return s.closeErr
 }
 
 func TestNewCommand_UsesConfigFileValues(t *testing.T) {
@@ -350,10 +351,10 @@ func TestNewCommand_RootActionTreatsUnknownArgsAsChat(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
-	originalNewChatAgent := newChatAgent
+	originalNewChatClient := newChatClient
 	originalRootOutput := rootOutput
 	t.Cleanup(func() {
-		newChatAgent = originalNewChatAgent
+		newChatClient = originalNewChatClient
 		rootOutput = originalRootOutput
 	})
 
@@ -361,24 +362,45 @@ func TestNewCommand_RootActionTreatsUnknownArgsAsChat(t *testing.T) {
 	rootOutput = &output
 
 	stub := &chatRunnerStub{reply: "hello back"}
-	newChatAgent = func(context.Context, *config.Config, models.Client) chatRunner {
-		return stub
+	newChatClient = func(context.Context, *config.Config) (chatRunner, error) {
+		return stub, nil
 	}
 
 	cmd := newCommand()
 	err := cmd.Run(context.Background(), []string{
 		"hand",
 		"--name", "flag-agent",
-		"--model", "flag-model",
-		"--model.router", "none",
-		"--model.key", "flag-key",
+		"--rpc.address", "127.0.0.1",
+		"--rpc.port", "50051",
 		"hello",
 		"world",
 	})
 	require.NoError(t, err)
-	require.True(t, stub.runCalled)
 	require.Equal(t, "hello world", stub.chatInput)
+	require.True(t, stub.closed)
 	require.Equal(t, "hello back\n", output.String())
+}
+
+func TestNewCommand_RootActionReturnsRPCError(t *testing.T) {
+	clearEnvKeys(t, "NAME", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	resetGlobals(t)
+
+	originalNewChatClient := newChatClient
+	t.Cleanup(func() {
+		newChatClient = originalNewChatClient
+	})
+
+	newChatClient = func(context.Context, *config.Config) (chatRunner, error) {
+		return nil, status.Error(codes.Unavailable, "connection refused")
+	}
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--name", "flag-agent",
+		"hello",
+	})
+	require.EqualError(t, err, "rpc error: code = Unavailable desc = connection refused")
 }
 
 func TestNewCommand_RejectsUnsupportedRouter(t *testing.T) {
