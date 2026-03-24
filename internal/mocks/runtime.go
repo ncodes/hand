@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/wandxy/hand/internal/config"
 	handcontext "github.com/wandxy/hand/internal/context"
 	"github.com/wandxy/hand/internal/environment"
 	"github.com/wandxy/hand/internal/models"
@@ -13,12 +14,17 @@ import (
 type ModelClientStub struct {
 	Requests  []models.GenerateRequest
 	Responses []*models.GenerateResponse
+	Errors    []error
 	Err       error
 	CallCount int
 }
 
 func (s *ModelClientStub) Chat(_ context.Context, req models.GenerateRequest) (*models.GenerateResponse, error) {
 	s.Requests = append(s.Requests, req)
+	if s.CallCount < len(s.Errors) && s.Errors[s.CallCount] != nil {
+		s.CallCount++
+		return nil, s.Errors[s.CallCount-1]
+	}
 	if s.Err != nil {
 		return nil, s.Err
 	}
@@ -31,9 +37,10 @@ func (s *ModelClientStub) Chat(_ context.Context, req models.GenerateRequest) (*
 }
 
 type EnvironmentStub struct {
-	PrepareErr    error
-	RuntimeContext environment.Context
-	ToolRegistry   environment.ToolRegistry
+	PrepareErr      error
+	RuntimeContext  environment.Context
+	ToolRegistry    environment.ToolRegistry
+	IterationBudget environment.IterationBudget
 }
 
 func (s *EnvironmentStub) Prepare() error {
@@ -46,6 +53,13 @@ func (s *EnvironmentStub) Context() environment.Context {
 
 func (s *EnvironmentStub) Tools() environment.ToolRegistry {
 	return s.ToolRegistry
+}
+
+func (s *EnvironmentStub) NewIterationBudget() environment.IterationBudget {
+	if s.IterationBudget.Remaining() <= 0 {
+		return environment.NewIterationBudget(config.DefaultMaxIterations)
+	}
+	return s.IterationBudget
 }
 
 type ContextStub struct {

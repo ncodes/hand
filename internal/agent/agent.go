@@ -10,6 +10,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	handctx "github.com/wandxy/hand/internal/context"
 	"github.com/wandxy/hand/internal/environment"
+	"github.com/wandxy/hand/internal/instruction"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/tools"
 )
@@ -20,13 +21,12 @@ type runtimeEnvironment interface {
 	Prepare() error
 	Context() environment.Context
 	Tools() environment.ToolRegistry
+	NewIterationBudget() environment.IterationBudget
 }
 
 var newRuntimeEnvironment = func(ctx context.Context, cfg *config.Config) runtimeEnvironment {
 	return environment.NewEnvironment(ctx, cfg)
 }
-
-const maxToolIterations = 8
 
 // Agent is the runtime agent.
 // It coordinates runtime state, model calls, and synchronous tool execution.
@@ -51,6 +51,9 @@ func (c *Agent) Chat(ctx context.Context, msg string) (string, error) {
 	if c == nil {
 		return "", errors.New("agent is required")
 	}
+	if c.cfg == nil {
+		return "", errors.New("config is required")
+	}
 	if c.env == nil {
 		return "", errors.New("environment has not been initialized")
 	}
@@ -63,13 +66,25 @@ func (c *Agent) Chat(ctx context.Context, msg string) (string, error) {
 	if strings.TrimSpace(msg) == "" {
 		return "", errors.New("message is required")
 	}
+	ctx = normalizeContext(ctx)
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 
 	handCtx := c.env.Context()
+	if handCtx == nil {
+		return "", errors.New("runtime context is required")
+	}
 	if err := handCtx.AddUserMessage(msg); err != nil {
 		return "", err
 	}
 
-	for range maxToolIterations {
+	budget := c.env.NewIterationBudget()
+	for budget.Consume() {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+
 		resp, err := c.modelClient.Chat(ctx, models.GenerateRequest{
 			Model:         c.cfg.Model,
 			Instructions:  handCtx.GetInstructions().String(),
@@ -79,6 +94,9 @@ func (c *Agent) Chat(ctx context.Context, msg string) (string, error) {
 		})
 		if err != nil {
 			return "", err
+		}
+		if resp == nil {
+			return "", errors.New("model response is required")
 		}
 
 		if !resp.RequiresToolCalls {
@@ -102,13 +120,16 @@ func (c *Agent) Chat(ctx context.Context, msg string) (string, error) {
 		}
 
 		for _, toolCall := range resp.ToolCalls {
+			if err := ctx.Err(); err != nil {
+				return "", err
+			}
 			if err := handCtx.AddMessage(c.invokeTool(ctx, toolCall)); err != nil {
 				return "", err
 			}
 		}
 	}
 
-	return "", fmt.Errorf("tool loop exceeded %d iterations", maxToolIterations)
+	return c.summaryFallback(ctx, budget, handCtx)
 }
 
 func (c *Agent) Run(context.Context) error {
@@ -189,6 +210,50 @@ func (c *Agent) invokeTool(ctx context.Context, toolCall models.ToolCall) handct
 		ToolCallID: toolCall.ID,
 		Content:    content,
 	}
+}
+
+func (c *Agent) summaryFallback(
+	ctx context.Context,
+	budget environment.IterationBudget,
+	handCtx environment.Context,
+) (string, error) {
+	ctx = normalizeContext(ctx)
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+
+	instructions := instruction.
+		BuildBase(c.cfg.Name).
+		Chain(instruction.BuildSummary(budget.Remaining())...)
+
+	resp, err := c.modelClient.Chat(ctx, models.GenerateRequest{
+		Model:         c.cfg.Model,
+		Instructions:  instructions.String(),
+		Messages:      handCtx.GetMessages(),
+		Tools:         nil,
+		DebugRequests: c.cfg.DebugRequests,
+	})
+	if err != nil {
+		return "", fmt.Errorf("iteration limit reached and summary failed: %w", err)
+	}
+	if resp == nil {
+		return "", errors.New("model response is required")
+	}
+	if resp.RequiresToolCalls {
+		return "", fmt.Errorf("iteration limit reached and summary requested more tools")
+	}
+	if err := handCtx.AddAssistantMessage(resp.OutputText); err != nil {
+		return "", err
+	}
+
+	return resp.OutputText, nil
+}
+
+func normalizeContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
 }
 
 func toContextToolCalls(toolCalls []models.ToolCall) []handctx.ToolCall {

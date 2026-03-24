@@ -10,7 +10,7 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	handctx "github.com/wandxy/hand/internal/context"
-	"github.com/wandxy/hand/internal/identity"
+	instructionpkg "github.com/wandxy/hand/internal/instruction"
 	"github.com/wandxy/hand/internal/tools"
 )
 
@@ -27,7 +27,7 @@ func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 	require.True(t, env.handCtx.GetConversation().Empty())
 }
 
-func TestEnvironment_PrepareAddsBaseIdentityInstruction(t *testing.T) {
+func TestEnvironment_PrepareAddsBaseInstruction(t *testing.T) {
 	cfg := &config.Config{Name: "Test Agent"}
 	env := NewEnvironment(gctx.Background(), cfg)
 
@@ -35,7 +35,7 @@ func TestEnvironment_PrepareAddsBaseIdentityInstruction(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, env.handCtx.GetInstructions(), 1)
-	require.Equal(t, identity.GetBaseIdentity(cfg.Name), env.handCtx.GetInstructions()[0])
+	require.Equal(t, instructionpkg.BuildBase(cfg.Name).First(), env.handCtx.GetInstructions()[0])
 }
 
 func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
@@ -97,4 +97,13 @@ func TestEnvironment_ContextUsesContextState(t *testing.T) {
 	require.Len(t, conversation.Messages(), 2)
 	messages[0].Content = "changed"
 	require.Equal(t, "hello", runtimeContext.GetMessages()[0].Content)
+}
+
+func TestEnvironment_NewIterationBudgetUsesConfigValue(t *testing.T) {
+	env := NewEnvironment(gctx.Background(), &config.Config{MaxIterations: 12})
+	require.Equal(t, 12, env.NewIterationBudget().Remaining())
+}
+
+func TestEnvironment_NewIterationBudgetUsesDefaultWhenUnset(t *testing.T) {
+	require.Equal(t, config.DefaultMaxIterations, (&Environment{}).NewIterationBudget().Remaining())
 }

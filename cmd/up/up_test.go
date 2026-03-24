@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -39,13 +40,13 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	logBuffer := &bytes.Buffer{}
 	startupOutput = startupBuffer
 	logutils.SetOutput(logBuffer)
-	newAgentRunner = func(_ context.Context, cfg *config.Config, modelClient models.Client) runner {
+	newAgentRunner = func(_ context.Context, cfg *config.Config, modelClient models.Client) agentRunner {
 		return runnerFunc(func(context.Context) error {
 			runCalled = true
 			return nil
 		})
 	}
-	serveRPC = func(ctx context.Context, cfg *config.Config, app runner) error {
+	serveRPC = func(ctx context.Context, cfg *config.Config, app agentRunner) error {
 		serveCalled = true
 		require.Equal(t, "0.0.0.0", cfg.RPCAddress)
 		require.Equal(t, 6000, cfg.RPCPort)
@@ -88,12 +89,13 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, startupBuffer.String(), "0.0.0.0:6000")
 	require.Contains(t, startupBuffer.String(), "Debug requests")
 	require.Contains(t, startupBuffer.String(), "disabled")
-	require.Contains(t, logBuffer.String(), "Configuration loaded")
-	require.Contains(t, logBuffer.String(), "Starting Hand services")
-	require.Contains(t, logBuffer.String(), "name=flag-agent")
-	require.Contains(t, logBuffer.String(), "model=flag-model")
-	require.Contains(t, logBuffer.String(), "router=openrouter")
-	require.Contains(t, logBuffer.String(), "rpcEndpoint=0.0.0.0:6000")
+	logOutput := stripANSI(logBuffer.String())
+	require.Contains(t, logOutput, "Configuration loaded")
+	require.Contains(t, logOutput, "Starting Hand services")
+	require.Contains(t, logOutput, "name=flag-agent")
+	require.Contains(t, logOutput, "model=flag-model")
+	require.Contains(t, logOutput, "router=openrouter")
+	require.Contains(t, logOutput, "rpcEndpoint=0.0.0.0:6000")
 }
 
 func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
@@ -120,7 +122,7 @@ func TestNewCommand_ReturnsValidationError(t *testing.T) {
 	t.Cleanup(func() {
 		serveRPC = originalServeGRPC
 	})
-	serveRPC = func(context.Context, *config.Config, runner) error {
+	serveRPC = func(context.Context, *config.Config, agentRunner) error {
 		t.Fatal("serveGRPC should not be called on validation failure")
 		return nil
 	}
@@ -157,4 +159,10 @@ func (f runnerFunc) Run(ctx context.Context) error {
 
 func (f runnerFunc) Chat(context.Context, string) (string, error) {
 	return "", nil
+}
+
+var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripANSI(value string) string {
+	return ansiPattern.ReplaceAllString(value, "")
 }

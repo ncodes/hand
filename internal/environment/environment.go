@@ -5,7 +5,7 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	handctx "github.com/wandxy/hand/internal/context"
-	"github.com/wandxy/hand/internal/identity"
+	instructionpkg "github.com/wandxy/hand/internal/instruction"
 	"github.com/wandxy/hand/internal/tools"
 	nativetools "github.com/wandxy/hand/internal/tools/native"
 )
@@ -48,16 +48,15 @@ func (e *Environment) Prepare() error {
 	if err := e.prepareTools(); err != nil {
 		return err
 	}
-	return e.prepareIdentity()
+	return e.prepareInstructions()
 }
 
 func (e *Environment) prepareTools() error {
 	return nativetools.Register(e.tools)
 }
 
-// prepareIdentity prepares the identity of the agent.
-func (e *Environment) prepareIdentity() error {
-	e.handCtx.AddInstruction(identity.GetBaseIdentity(e.cfg.Name))
+func (e *Environment) prepareInstructions() error {
+	e.handCtx.AddInstruction(instructionpkg.BuildBase(e.cfg.Name).First())
 	return nil
 }
 
@@ -69,4 +68,12 @@ func (e *Environment) Context() Context {
 // Tools returns the tool registry exposed by the environment.
 func (e *Environment) Tools() ToolRegistry {
 	return e.tools
+}
+
+// NewIterationBudget creates a new iteration budget with the given limit.
+func (e *Environment) NewIterationBudget() IterationBudget {
+	if e == nil || e.cfg == nil || e.cfg.MaxIterations <= 0 {
+		return NewIterationBudget(config.DefaultMaxIterations)
+	}
+	return NewIterationBudget(e.cfg.MaxIterations)
 }

@@ -13,6 +13,45 @@ type Instruction struct {
 // Instructions is a list of instructions for the agent.
 type Instructions []Instruction
 
+// First returns the first instruction in the list.
+func (i Instructions) First() Instruction {
+	if len(i) == 0 {
+		return Instruction{}
+	}
+	return i[0]
+}
+
+// NewInstructions creates a new Instructions list from a variadic list of values.
+func NewInstructions(values ...string) Instructions {
+	instructions := make(Instructions, 0, len(values))
+	for _, value := range values {
+		instructions = instructions.ChainValue(value)
+	}
+	return instructions
+}
+
+func (i Instructions) Chain(instructions ...Instruction) Instructions {
+	chained := make(Instructions, 0, len(i)+len(instructions))
+	chained = append(chained, i...)
+
+	for _, instruction := range instructions {
+		if strings.TrimSpace(instruction.Value) == "" {
+			continue
+		}
+		chained = append(chained, Instruction{Value: strings.TrimSpace(instruction.Value)})
+	}
+
+	return chained
+}
+
+func (i Instructions) ChainValue(values ...string) Instructions {
+	instructions := make([]Instruction, 0, len(values))
+	for _, value := range values {
+		instructions = append(instructions, Instruction{Value: value})
+	}
+	return i.Chain(instructions...)
+}
+
 // String returns the instructions as a string.
 func (i Instructions) String() string {
 	values := make([]string, 0, len(i))

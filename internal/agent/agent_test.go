@@ -9,6 +9,7 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	handcontext "github.com/wandxy/hand/internal/context"
+	"github.com/wandxy/hand/internal/environment"
 	"github.com/wandxy/hand/internal/mocks"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/tools"
@@ -150,6 +151,19 @@ func TestAgent_ChatRejectsNilAgent(t *testing.T) {
 	require.EqualError(t, err, "agent is required")
 }
 
+func TestAgent_ChatRejectsMissingConfig(t *testing.T) {
+	agent := &Agent{
+		modelClient: &mocks.ModelClientStub{},
+		env: &mocks.EnvironmentStub{
+			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
+			ToolRegistry:   tools.NewInMemoryRegistry(),
+		},
+	}
+
+	_, err := agent.Chat(context.Background(), "hello")
+	require.EqualError(t, err, "config is required")
+}
+
 func TestAgent_ChatRejectsUninitializedEnvironment(t *testing.T) {
 	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", Model: "test-model"}, &mocks.ModelClientStub{})
 
@@ -209,6 +223,50 @@ func TestAgent_ChatRejectsEmptyMessage(t *testing.T) {
 
 	_, err := agent.Chat(context.Background(), "   ")
 	require.EqualError(t, err, "message is required")
+}
+
+func TestAgent_ChatReturnsContextErrorBeforeAppendingUserMessage(t *testing.T) {
+	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", Model: "test-model"}, &mocks.ModelClientStub{})
+	originalFactory := newRuntimeEnvironment
+	t.Cleanup(func() {
+		newRuntimeEnvironment = originalFactory
+	})
+	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
+		return &mocks.EnvironmentStub{
+			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
+			ToolRegistry:   tools.NewInMemoryRegistry(),
+		}
+	}
+	require.NoError(t, agent.Run(context.Background()))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := agent.Chat(ctx, "hello")
+	require.ErrorIs(t, err, context.Canceled)
+	require.True(t, agent.Conversation().Empty())
+}
+
+func TestAgent_ChatUsesBackgroundWhenContextIsNil(t *testing.T) {
+	client := &mocks.ModelClientStub{
+		Responses: []*models.GenerateResponse{{OutputText: "hello back"}},
+	}
+	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", Model: "test-model"}, client)
+	originalFactory := newRuntimeEnvironment
+	t.Cleanup(func() {
+		newRuntimeEnvironment = originalFactory
+	})
+	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
+		return &mocks.EnvironmentStub{
+			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
+			ToolRegistry:   tools.NewInMemoryRegistry(),
+		}
+	}
+	require.NoError(t, agent.Run(context.Background()))
+
+	reply, err := agent.Chat(nil, "hello")
+	require.NoError(t, err)
+	require.Equal(t, "hello back", reply)
 }
 
 func TestAgent_ChatReturnsUserAppendError(t *testing.T) {
@@ -320,13 +378,38 @@ func TestAgent_ChatReturnsAssistantAppendError(t *testing.T) {
 	require.EqualError(t, err, "append assistant failed")
 }
 
+func TestAgent_ChatRejectsNilModelResponse(t *testing.T) {
+	client := &mocks.ModelClientStub{
+		Responses: []*models.GenerateResponse{nil},
+	}
+	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", Model: "test-model"}, client)
+	originalFactory := newRuntimeEnvironment
+	t.Cleanup(func() {
+		newRuntimeEnvironment = originalFactory
+	})
+	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
+		return &mocks.EnvironmentStub{
+			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
+			ToolRegistry:   tools.NewInMemoryRegistry(),
+		}
+	}
+	require.NoError(t, agent.Run(context.Background()))
+
+	_, err := agent.Chat(context.Background(), "hello")
+	require.EqualError(t, err, "model response is required")
+}
+
 func TestAgent_ChatRejectsMissingToolCallsWhenRequested(t *testing.T) {
 	client := &mocks.ModelClientStub{
 		Responses: []*models.GenerateResponse{{
 			RequiresToolCalls: true,
 		}},
 	}
-	agent := newTestAgent(t, client, func() (tools.Registry, error) {
+	agent := newTestAgent(t, &config.Config{
+		Name:          "Test Agent",
+		Model:         "test-model",
+		DebugRequests: false,
+	}, client, func() (tools.Registry, error) {
 		return tools.NewInMemoryRegistry(), nil
 	})
 
@@ -404,7 +487,11 @@ func TestAgent_ChatExecutesToolAndReturnsFinalAnswer(t *testing.T) {
 			},
 		},
 	}
-	agent := newTestAgent(t, client, func() (tools.Registry, error) {
+	agent := newTestAgent(t, &config.Config{
+		Name:          "Test Agent",
+		Model:         "test-model",
+		DebugRequests: false,
+	}, client, func() (tools.Registry, error) {
 		registry := tools.NewInMemoryRegistry()
 		require.NoError(t, registry.Register(tools.Definition{
 			Name:        "time",
@@ -437,7 +524,11 @@ func TestAgent_ChatExecutesMultipleSequentialToolCalls(t *testing.T) {
 			{OutputText: "done"},
 		},
 	}
-	agent := newTestAgent(t, client, func() (tools.Registry, error) {
+	agent := newTestAgent(t, &config.Config{
+		Name:          "Test Agent",
+		Model:         "test-model",
+		DebugRequests: false,
+	}, client, func() (tools.Registry, error) {
 		registry := tools.NewInMemoryRegistry()
 		require.NoError(t, registry.Register(tools.Definition{
 			Name:        "time",
@@ -464,7 +555,11 @@ func TestAgent_ChatConvertsMissingToolIntoToolMessage(t *testing.T) {
 			{OutputText: "fallback"},
 		},
 	}
-	agent := newTestAgent(t, client, func() (tools.Registry, error) {
+	agent := newTestAgent(t, &config.Config{
+		Name:          "Test Agent",
+		Model:         "test-model",
+		DebugRequests: false,
+	}, client, func() (tools.Registry, error) {
 		return tools.NewInMemoryRegistry(), nil
 	})
 
@@ -476,16 +571,61 @@ func TestAgent_ChatConvertsMissingToolIntoToolMessage(t *testing.T) {
 	require.Contains(t, client.Requests[1].Messages[2].Content, `"error":"tool is not registered"`)
 }
 
-func TestAgent_ChatRejectsIterationOverflow(t *testing.T) {
-	responses := make([]*models.GenerateResponse, 0, maxToolIterations)
-	for index := 0; index < maxToolIterations; index++ {
-		responses = append(responses, &models.GenerateResponse{
-			ToolCalls:         []models.ToolCall{{ID: "call", Name: "time", Input: "{}"}},
-			RequiresToolCalls: true,
-		})
+func TestAgent_ChatUsesSummaryFallbackWhenIterationBudgetIsExhausted(t *testing.T) {
+	client := &mocks.ModelClientStub{
+		Responses: []*models.GenerateResponse{
+			{
+				ToolCalls:         []models.ToolCall{{ID: "call", Name: "time", Input: "{}"}},
+				RequiresToolCalls: true,
+			},
+			{
+				OutputText: "summary",
+			},
+		},
 	}
-	client := &mocks.ModelClientStub{Responses: responses}
-	agent := newTestAgent(t, client, func() (tools.Registry, error) {
+	agent := newTestAgent(t, &config.Config{
+		Name:          "Test Agent",
+		Model:         "test-model",
+		MaxIterations: 1,
+		DebugRequests: false,
+	}, client, func() (tools.Registry, error) {
+		registry := tools.NewInMemoryRegistry()
+		require.NoError(t, registry.Register(tools.Definition{
+			Name:        "time",
+			Description: "Returns time",
+			Handler: tools.HandlerFunc(func(context.Context, tools.Call) (tools.Result, error) {
+				return tools.Result{Output: "2026-03-23T00:00:00Z"}, nil
+			}),
+		}))
+		return registry, nil
+	})
+
+	reply, err := agent.Chat(context.Background(), "loop forever")
+
+	require.NoError(t, err)
+	require.Equal(t, "summary", reply)
+	require.Len(t, client.Requests, 2)
+	require.Nil(t, client.Requests[1].Tools)
+	require.Contains(t, client.Requests[1].Instructions, "The maximum number of tool-calling iterations has been reached.")
+	require.Contains(t, client.Requests[1].Instructions, "Remaining iteration budget: 0.")
+}
+
+func TestAgent_ChatReturnsSummaryFailureWhenFallbackCallFails(t *testing.T) {
+	client := &mocks.ModelClientStub{
+		Responses: []*models.GenerateResponse{
+			{
+				ToolCalls:         []models.ToolCall{{ID: "call", Name: "time", Input: "{}"}},
+				RequiresToolCalls: true,
+			},
+		},
+		Errors: []error{nil, errors.New("summary failed")},
+	}
+	agent := newTestAgent(t, &config.Config{
+		Name:          "Test Agent",
+		Model:         "test-model",
+		MaxIterations: 1,
+		DebugRequests: false,
+	}, client, func() (tools.Registry, error) {
 		registry := tools.NewInMemoryRegistry()
 		require.NoError(t, registry.Register(tools.Definition{
 			Name:        "time",
@@ -499,7 +639,73 @@ func TestAgent_ChatRejectsIterationOverflow(t *testing.T) {
 
 	_, err := agent.Chat(context.Background(), "loop forever")
 
-	require.EqualError(t, err, "tool loop exceeded 8 iterations")
+	require.EqualError(t, err, "iteration limit reached and summary failed: summary failed")
+}
+
+func TestAgent_ChatRejectsSummaryFallbackThatRequestsMoreTools(t *testing.T) {
+	client := &mocks.ModelClientStub{
+		Responses: []*models.GenerateResponse{
+			{
+				ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
+				RequiresToolCalls: true,
+			},
+			{
+				ToolCalls:         []models.ToolCall{{ID: "call-2", Name: "time", Input: "{}"}},
+				RequiresToolCalls: true,
+			},
+		},
+	}
+	agent := newTestAgent(t, &config.Config{
+		Name:          "Test Agent",
+		Model:         "test-model",
+		MaxIterations: 1,
+		DebugRequests: false,
+	}, client, func() (tools.Registry, error) {
+		registry := tools.NewInMemoryRegistry()
+		require.NoError(t, registry.Register(tools.Definition{
+			Name:        "time",
+			Description: "Returns time",
+			Handler: tools.HandlerFunc(func(context.Context, tools.Call) (tools.Result, error) {
+				return tools.Result{Output: "2026-03-23T00:00:00Z"}, nil
+			}),
+		}))
+		return registry, nil
+	})
+
+	_, err := agent.Chat(context.Background(), "loop forever")
+
+	require.EqualError(t, err, "iteration limit reached and summary requested more tools")
+}
+
+func TestAgent_ChatReturnsContextErrorBeforeToolInvocation(t *testing.T) {
+	client := &mocks.ModelClientStub{
+		Responses: []*models.GenerateResponse{{
+			ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
+			RequiresToolCalls: true,
+		}},
+	}
+	agent := newTestAgent(t, &config.Config{
+		Name:          "Test Agent",
+		Model:         "test-model",
+		MaxIterations: 1,
+		DebugRequests: false,
+	}, client, func() (tools.Registry, error) {
+		registry := tools.NewInMemoryRegistry()
+		require.NoError(t, registry.Register(tools.Definition{
+			Name:        "time",
+			Description: "Returns time",
+			Handler: tools.HandlerFunc(func(context.Context, tools.Call) (tools.Result, error) {
+				return tools.Result{Output: "2026-03-23T00:00:00Z"}, nil
+			}),
+		}))
+		return registry, nil
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := agent.Chat(ctx, "loop forever")
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestAgent_ConversationReturnsEmptyForUninitializedAgent(t *testing.T) {
@@ -579,7 +785,54 @@ func TestToContextToolCallsReturnsNilWhenEmpty(t *testing.T) {
 	require.Nil(t, toContextToolCalls(nil))
 }
 
-func newTestAgent(t *testing.T, client *mocks.ModelClientStub, registryFactory func() (tools.Registry, error)) *Agent {
+func TestAgent_SummaryFallbackReturnsContextError(t *testing.T) {
+	agent := &Agent{
+		cfg:         &config.Config{Name: "Test Agent", Model: "test-model"},
+		modelClient: &mocks.ModelClientStub{},
+	}
+	handCtx := handcontext.NewContext(context.Background(), &config.Config{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := agent.summaryFallback(ctx, environment.NewIterationBudget(0), handCtx)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestAgent_SummaryFallbackReturnsAssistantAppendError(t *testing.T) {
+	client := &mocks.ModelClientStub{
+		Responses: []*models.GenerateResponse{{OutputText: "   "}},
+	}
+	agent := &Agent{
+		cfg:         &config.Config{Name: "Test Agent", Model: "test-model"},
+		modelClient: client,
+	}
+	handCtx := &mocks.ContextStub{
+		Instructions: handcontext.Instructions{{Value: "system prompt"}},
+		Conversation: handcontext.NewConversation(),
+	}
+
+	_, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), handCtx)
+	require.EqualError(t, err, "message content is required")
+}
+
+func TestAgent_SummaryFallbackRejectsNilModelResponse(t *testing.T) {
+	agent := &Agent{
+		cfg:         &config.Config{Name: "Test Agent", Model: "test-model"},
+		modelClient: &mocks.ModelClientStub{Responses: []*models.GenerateResponse{nil}},
+	}
+	handCtx := handcontext.NewContext(context.Background(), &config.Config{})
+
+	_, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), handCtx)
+	require.EqualError(t, err, "model response is required")
+}
+
+func newTestAgent(
+	t *testing.T,
+	cfg *config.Config,
+	client *mocks.ModelClientStub,
+	registryFactory func() (tools.Registry, error),
+) *Agent {
 	t.Helper()
 
 	originalFactory := newRuntimeEnvironment
@@ -591,17 +844,18 @@ func newTestAgent(t *testing.T, client *mocks.ModelClientStub, registryFactory f
 		runtimeContext.AddInstruction(handcontext.Instruction{Value: "system prompt"})
 		registry, err := registryFactory()
 		require.NoError(t, err)
+		budget := environment.NewIterationBudget(config.DefaultMaxIterations)
+		if cfg != nil && cfg.MaxIterations > 0 {
+			budget = environment.NewIterationBudget(cfg.MaxIterations)
+		}
 		return &mocks.EnvironmentStub{
-			RuntimeContext: runtimeContext,
-			ToolRegistry:   registry,
+			RuntimeContext:  runtimeContext,
+			ToolRegistry:    registry,
+			IterationBudget: budget,
 		}
 	}
 
-	agent := NewAgent(context.Background(), &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		DebugRequests: false,
-	}, client)
+	agent := NewAgent(context.Background(), cfg, client)
 	require.NoError(t, agent.Run(context.Background()))
 	return agent
 }

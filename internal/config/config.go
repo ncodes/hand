@@ -22,6 +22,7 @@ type Config struct {
 	ModelBaseURL     string
 	RPCAddress       string
 	RPCPort          int
+	MaxIterations    int
 	LogLevel         string
 	LogNoColor       bool
 	DebugRequests    bool
@@ -44,8 +45,10 @@ var (
 )
 
 const (
-	defaultModel       = "openai/gpt-4o-mini"
-	defaultModelRouter = "openrouter"
+	defaultModel         = "openai/gpt-4o-mini"
+	defaultModelRouter   = "openrouter"
+	DefaultMaxIterations = 90
+	defaultMaxIterations = DefaultMaxIterations
 )
 
 type fileConfig struct {
@@ -69,6 +72,9 @@ type fileConfig struct {
 		Address string `yaml:"address"`
 		Port    int    `yaml:"port"`
 	} `yaml:"rpc"`
+	Agent struct {
+		MaxIterations int `yaml:"maxIterations"`
+	} `yaml:"agent"`
 }
 
 func PreloadEnvFile(path string) error {
@@ -105,8 +111,9 @@ func Get() *Config {
 	defer configMu.RUnlock()
 	if globalConfig == nil {
 		return &Config{
-			Model:    defaultModel,
-			LogLevel: "info",
+			Model:         defaultModel,
+			MaxIterations: defaultMaxIterations,
+			LogLevel:      "info",
 		}
 	}
 	return globalConfig
@@ -147,6 +154,7 @@ func loadConfigFile(path string) (*Config, error) {
 		ModelBaseURL:     raw.Model.BaseURL,
 		RPCAddress:       raw.RPC.Address,
 		RPCPort:          raw.RPC.Port,
+		MaxIterations:    raw.Agent.MaxIterations,
 		LogLevel:         raw.Log.Level,
 		LogNoColor:       raw.Log.NoColor,
 		DebugRequests:    raw.Debug.Requests,
@@ -185,6 +193,11 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("RPC_PORT")); value != "" {
 		if port, err := strconv.Atoi(value); err == nil {
 			cfg.RPCPort = port
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("MAX_ITERATIONS")); value != "" {
+		if maxIterations, err := strconv.Atoi(value); err == nil {
+			cfg.MaxIterations = maxIterations
 		}
 	}
 	if value := strings.TrimSpace(os.Getenv("LOG_LEVEL")); value != "" {
@@ -229,6 +242,9 @@ func (c *Config) Normalize() {
 	if c.RPCPort == 0 {
 		c.RPCPort = 50051
 	}
+	if c.MaxIterations == 0 {
+		c.MaxIterations = defaultMaxIterations
+	}
 
 	if c.ModelBaseURL == "" {
 		if mappedBaseURL, ok := supportedRouters[c.ModelRouter]; ok {
@@ -265,6 +281,9 @@ func (c *Config) Validate() error {
 	}
 	if c.RPCPort <= 0 {
 		return errors.New("rpc port must be greater than zero; set RPC_PORT, provide it in config, or use --rpc.port")
+	}
+	if c.MaxIterations <= 0 {
+		return errors.New("max iterations must be greater than zero; set MAX_ITERATIONS, provide it in config, or use --max-iterations")
 	}
 
 	switch strings.TrimSpace(strings.ToLower(c.LogLevel)) {
