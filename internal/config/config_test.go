@@ -9,7 +9,7 @@ import (
 )
 
 func TestPreloadEnvFile_LoadsValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -23,6 +23,7 @@ OPENROUTER_API_KEY=openrouter-env-key
 MODEL_BASE_URL=https://env.example/v1
 RPC_ADDRESS=0.0.0.0
 RPC_PORT=6000
+MAX_ITERATIONS=45
 LOG_LEVEL=warn
 LOG_NO_COLOR=true
 DEBUG_REQUESTS=true
@@ -38,6 +39,7 @@ DEBUG_REQUESTS=true
 	require.Equal(t, "https://env.example/v1", os.Getenv("MODEL_BASE_URL"))
 	require.Equal(t, "0.0.0.0", os.Getenv("RPC_ADDRESS"))
 	require.Equal(t, "6000", os.Getenv("RPC_PORT"))
+	require.Equal(t, "45", os.Getenv("MAX_ITERATIONS"))
 	require.Equal(t, "warn", os.Getenv("LOG_LEVEL"))
 	require.Equal(t, "true", os.Getenv("LOG_NO_COLOR"))
 	require.Equal(t, "true", os.Getenv("DEBUG_REQUESTS"))
@@ -92,7 +94,7 @@ func TestPreloadEnvFile_IgnoresMissingFile(t *testing.T) {
 }
 
 func TestLoad_UsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -106,6 +108,8 @@ model:
 rpc:
   address: 0.0.0.0
   port: 6000
+agent:
+  maxIterations: 45
 log:
   level: error
   noColor: true
@@ -123,13 +127,14 @@ debug:
 	require.Equal(t, "https://config.example/v1", cfg.ModelBaseURL)
 	require.Equal(t, "0.0.0.0", cfg.RPCAddress)
 	require.Equal(t, 6000, cfg.RPCPort)
+	require.Equal(t, 45, cfg.MaxIterations)
 	require.Equal(t, "error", cfg.LogLevel)
 	require.True(t, cfg.LogNoColor)
 	require.True(t, cfg.DebugRequests)
 }
 
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -142,6 +147,7 @@ MODEL_KEY=env-key
 MODEL_BASE_URL=https://env.example/v1
 RPC_ADDRESS=127.0.0.1
 RPC_PORT=7000
+MAX_ITERATIONS=55
 LOG_LEVEL=warn
 LOG_NO_COLOR=false
 DEBUG_REQUESTS=false
@@ -156,6 +162,8 @@ model:
 rpc:
   address: 0.0.0.0
   port: 6000
+agent:
+  maxIterations: 45
 log:
   level: error
   noColor: true
@@ -173,13 +181,42 @@ debug:
 	require.Equal(t, "https://env.example/v1", cfg.ModelBaseURL)
 	require.Equal(t, "127.0.0.1", cfg.RPCAddress)
 	require.Equal(t, 7000, cfg.RPCPort)
+	require.Equal(t, 55, cfg.MaxIterations)
 	require.Equal(t, "warn", cfg.LogLevel)
 	require.False(t, cfg.LogNoColor)
 	require.False(t, cfg.DebugRequests)
 }
 
+func TestLoad_IgnoresInvalidMaxIterationsEnvOverride(t *testing.T) {
+	clearEnvKeys(t, "MAX_ITERATIONS")
+
+	dir := t.TempDir()
+	envPath := filepath.Join(dir, ".env")
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(envPath, []byte("MAX_ITERATIONS=invalid\n"), 0o600))
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: config-model
+  router: openrouter
+  key: config-key
+rpc:
+  address: 127.0.0.1
+  port: 50051
+agent:
+  maxIterations: 45
+log:
+  level: info
+`), 0o600))
+
+	cfg, err := Load(envPath, configPath)
+
+	require.NoError(t, err)
+	require.Equal(t, 45, cfg.MaxIterations)
+}
+
 func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	cfg, err := Load("", filepath.Join(t.TempDir(), "missing.yaml"))
 
@@ -189,11 +226,12 @@ func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
 	require.Equal(t, defaultModelRouter, cfg.ModelRouter)
 	require.Equal(t, "127.0.0.1", cfg.RPCAddress)
 	require.Equal(t, 50051, cfg.RPCPort)
+	require.Equal(t, defaultMaxIterations, cfg.MaxIterations)
 	require.Equal(t, "info", cfg.LogLevel)
 }
 
 func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -220,6 +258,7 @@ func TestGet_ReturnsDefaultsWhenConfigIsUnset(t *testing.T) {
 	require.Empty(t, cfg.ModelBaseURL)
 	require.Empty(t, cfg.RPCAddress)
 	require.Zero(t, cfg.RPCPort)
+	require.Equal(t, defaultMaxIterations, cfg.MaxIterations)
 }
 
 func TestSet_StoresConfigGlobally(t *testing.T) {
@@ -392,6 +431,21 @@ func TestConfig_ValidateRejectsInvalidRPCPort(t *testing.T) {
 	require.EqualError(t, cfg.Validate(), "rpc port must be greater than zero; set RPC_PORT, provide it in config, or use --rpc.port")
 }
 
+func TestConfig_ValidateRejectsInvalidMaxIterations(t *testing.T) {
+	cfg := &Config{
+		Name:          "test-agent",
+		Model:         defaultModel,
+		ModelRouter:   "none",
+		ModelKey:      "test-key",
+		RPCAddress:    "127.0.0.1",
+		RPCPort:       50051,
+		MaxIterations: -1,
+		LogLevel:      "info",
+	}
+
+	require.EqualError(t, cfg.Validate(), "max iterations must be greater than zero; set MAX_ITERATIONS, provide it in config, or use --max-iterations")
+}
+
 func TestConfig_NormalizeDefaultsRouterWhenEmpty(t *testing.T) {
 	cfg := &Config{
 		Model:    defaultModel,
@@ -416,6 +470,7 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	require.Equal(t, supportedRouters[defaultModelRouter], cfg.ModelBaseURL)
 	require.Equal(t, "127.0.0.1", cfg.RPCAddress)
 	require.Equal(t, 50051, cfg.RPCPort)
+	require.Equal(t, defaultMaxIterations, cfg.MaxIterations)
 	require.Equal(t, "info", cfg.LogLevel)
 }
 

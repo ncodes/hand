@@ -46,6 +46,11 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Usage: "Bind port for the RPC service",
 			Value: config.Get().RPCPort,
 		},
+		&cli.IntFlag{
+			Name:  "max-iterations",
+			Usage: "Maximum model iterations allowed in a tool-calling loop",
+			Value: config.Get().MaxIterations,
+		},
 		&cli.StringFlag{
 			Name:  "log.level",
 			Usage: "Set the minimum log level: debug, info, warn, or error",
@@ -121,6 +126,9 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("rpc.port") {
 		cfg.RPCPort = cmd.Int("rpc.port")
+	}
+	if cmd.IsSet("max-iterations") {
+		cfg.MaxIterations = cmd.Int("max-iterations")
 	}
 	if cmd.IsSet("log.level") {
 		cfg.LogLevel = strings.TrimSpace(cmd.String("log.level"))
