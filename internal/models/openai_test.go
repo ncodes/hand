@@ -7,30 +7,42 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/responses"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 
 	handctx "github.com/wandxy/hand/internal/context"
+	"github.com/wandxy/hand/pkg/logutils"
 )
 
 func TestNewOpenAIClient_IncludesAPIKeyOptionWhenProvided(t *testing.T) {
-	originalFactory := newOpenAICompletionCaller
+	originalCompletionFactory := newOpenAICompletionCaller
+	originalResponseFactory := newOpenAIResponseCaller
 	t.Cleanup(func() {
-		newOpenAICompletionCaller = originalFactory
+		newOpenAICompletionCaller = originalCompletionFactory
+		newOpenAIResponseCaller = originalResponseFactory
 	})
 
-	called := 0
-	optCount := 0
+	completionCalls := 0
+	responseCalls := 0
+	completionOptCount := 0
+	responseOptCount := 0
 	newOpenAICompletionCaller = func(opts ...option.RequestOption) func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
-		called++
-		optCount = len(opts)
+		completionCalls++
+		completionOptCount = len(opts)
 		return func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+			return nil, nil
+		}
+	}
+	newOpenAIResponseCaller = func(opts ...option.RequestOption) func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+		responseCalls++
+		responseOptCount = len(opts)
+		return func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
 			return nil, nil
 		}
 	}
@@ -38,20 +50,31 @@ func TestNewOpenAIClient_IncludesAPIKeyOptionWhenProvided(t *testing.T) {
 	client, err := NewOpenAIClient(" test-key ", option.WithBaseURL("https://example.com/v1"))
 	require.NoError(t, err)
 	require.NotNil(t, client)
-	require.Equal(t, 1, called)
-	require.Equal(t, 2, optCount)
+	require.Equal(t, 1, completionCalls)
+	require.Equal(t, 1, responseCalls)
+	require.Equal(t, 2, completionOptCount)
+	require.Equal(t, 2, responseOptCount)
 }
 
 func TestNewOpenAIClient_OmitsAPIKeyOptionWhenEmpty(t *testing.T) {
-	originalFactory := newOpenAICompletionCaller
+	originalCompletionFactory := newOpenAICompletionCaller
+	originalResponseFactory := newOpenAIResponseCaller
 	t.Cleanup(func() {
-		newOpenAICompletionCaller = originalFactory
+		newOpenAICompletionCaller = originalCompletionFactory
+		newOpenAIResponseCaller = originalResponseFactory
 	})
 
-	optCount := 0
+	completionOptCount := 0
+	responseOptCount := 0
 	newOpenAICompletionCaller = func(opts ...option.RequestOption) func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
-		optCount = len(opts)
+		completionOptCount = len(opts)
 		return func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+			return nil, nil
+		}
+	}
+	newOpenAIResponseCaller = func(opts ...option.RequestOption) func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+		responseOptCount = len(opts)
+		return func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
 			return nil, nil
 		}
 	}
@@ -59,7 +82,8 @@ func TestNewOpenAIClient_OmitsAPIKeyOptionWhenEmpty(t *testing.T) {
 	client, err := NewOpenAIClient("   ", option.WithBaseURL("https://example.com/v1"))
 	require.NoError(t, err)
 	require.NotNil(t, client)
-	require.Equal(t, 1, optCount)
+	require.Equal(t, 1, completionOptCount)
+	require.Equal(t, 1, responseOptCount)
 }
 
 func TestNewOpenAICompletionCaller_UsesSDKClient(t *testing.T) {
@@ -71,11 +95,7 @@ func TestNewOpenAICompletionCaller_UsesSDKClient(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	caller := newOpenAICompletionCaller(
-		option.WithBaseURL(server.URL),
-		option.WithAPIKey("test-key"),
-	)
-
+	caller := newOpenAICompletionCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test-key"))
 	resp, err := caller(context.Background(), openai.ChatCompletionNewParams{
 		Model:    openai.ChatModel("test-model"),
 		Messages: []openai.ChatCompletionMessageParamUnion{openai.UserMessage("hello")},
@@ -85,79 +105,118 @@ func TestNewOpenAICompletionCaller_UsesSDKClient(t *testing.T) {
 	require.Equal(t, "resp_123", resp.ID)
 }
 
+func TestNewOpenAIResponseCaller_UsesSDKClient(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/responses", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","output":[{"id":"msg_123","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"hello back","annotations":[]}]}],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"completed","text":{"format":{"type":"text"}}}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	caller := newOpenAIResponseCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test-key"))
+	resp, err := caller(context.Background(), responses.ResponseNewParams{
+		Model: "gpt-5.1",
+		Input: responses.ResponseNewParamsInputUnion{OfString: openai.String("hello")},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "resp_123", resp.ID)
+	require.Equal(t, "hello back", resp.OutputText())
+}
+
 func TestOpenAIClient_ChatRequiresClient(t *testing.T) {
 	var nilClient *OpenAIClient
 	_, err := nilClient.Chat(context.Background(), GenerateRequest{})
 	require.EqualError(t, err, "model client is required")
+}
 
+func TestOpenAIClient_ChatRejectsInvalidAPIMode(t *testing.T) {
 	client := &OpenAIClient{}
-	_, err = client.Chat(context.Background(), GenerateRequest{})
-	require.EqualError(t, err, "model client is required")
-}
-
-func TestOpenAIClient_ChatRejectsInvalidMessageRole(t *testing.T) {
-	client := &OpenAIClient{
-		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
-			t.Fatal("completion call should not happen")
-			return nil, nil
-		},
-	}
-
 	_, err := client.Chat(context.Background(), GenerateRequest{
-		Model: "test-model",
-		Messages: []handctx.Message{
-			{Role: handctx.Role("invalid"), Content: "hello"},
-		},
+		Model:    "test-model",
+		APIMode:  "invalid",
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
 	})
-	require.EqualError(t, err, "message role must be one of developer, user, assistant, or tool")
-}
-
-func TestOpenAIClient_ChatRejectsEmptyMessageContent(t *testing.T) {
-	client := &OpenAIClient{
-		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
-			t.Fatal("completion call should not happen")
-			return nil, nil
-		},
-	}
-
-	_, err := client.Chat(context.Background(), GenerateRequest{
-		Model: "test-model",
-		Messages: []handctx.Message{
-			{Role: handctx.RoleUser, Content: "   "},
-		},
-	})
-	require.EqualError(t, err, "message content is required")
+	require.EqualError(t, err, "model api mode must be one of: chat-completions, responses")
 }
 
 func TestOpenAIClient_ChatRequiresModel(t *testing.T) {
-	client := &OpenAIClient{
-		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
-			t.Fatal("completion call should not happen")
-			return nil, nil
-		},
-	}
+	client := &OpenAIClient{}
 
 	_, err := client.Chat(context.Background(), GenerateRequest{
-		Messages: []handctx.Message{
-			{Role: handctx.RoleUser, Content: "hello"},
-		},
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model is required")
 }
 
 func TestOpenAIClient_ChatRequiresMessages(t *testing.T) {
-	client := &OpenAIClient{
-		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
-			t.Fatal("completion call should not happen")
-			return nil, nil
-		},
-	}
+	client := &OpenAIClient{}
 
 	_, err := client.Chat(context.Background(), GenerateRequest{Model: "test-model"})
 	require.EqualError(t, err, "messages are required")
 }
 
-func TestOpenAIClient_ChatReturnsAPIError(t *testing.T) {
+func TestOpenAIClient_ChatRequiresSelectedModeHandler(t *testing.T) {
+	client := &OpenAIClient{}
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "test-model",
+		APIMode:  APIModeResponses,
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	})
+	require.EqualError(t, err, "model client is required")
+}
+
+func TestOpenAIClient_ChatRequiresChatCompletionsHandler(t *testing.T) {
+	client := &OpenAIClient{createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+		return &responses.Response{}, nil
+	}}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "test-model",
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	})
+	require.EqualError(t, err, "model client is required")
+}
+
+func TestOpenAIClient_ChatRejectsInvalidMessageRole(t *testing.T) {
+	client := &OpenAIClient{}
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "test-model",
+		Messages: []handctx.Message{{Role: handctx.Role("invalid"), Content: "hello"}},
+	})
+	require.EqualError(t, err, "message role must be one of user, assistant, or tool; developer messages must be provided via instructions")
+}
+
+func TestOpenAIClient_ChatRejectsEmptyMessageContent(t *testing.T) {
+	client := &OpenAIClient{}
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "test-model",
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "   "}},
+	})
+	require.EqualError(t, err, "message content is required")
+}
+
+func TestOpenAIClient_ChatRejectsDeveloperMessageInConversation(t *testing.T) {
+	client := &OpenAIClient{}
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "test-model",
+		Messages: []handctx.Message{{Role: handctx.RoleDeveloper, Content: "system"}},
+	})
+	require.EqualError(t, err, "developer messages must be provided via instructions")
+}
+
+func TestOpenAIClient_ChatRejectsBlankToolDefinitionName(t *testing.T) {
+	client := &OpenAIClient{}
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "test-model",
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Tools:    []ToolDefinition{{Name: "   "}},
+	})
+	require.EqualError(t, err, "tool name is required")
+}
+
+func TestOpenAIClient_ChatReturnsAPIErrorChatCompletions(t *testing.T) {
 	expectedErr := errors.New("upstream failed")
 	client := &OpenAIClient{
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
@@ -172,14 +231,10 @@ func TestOpenAIClient_ChatReturnsAPIError(t *testing.T) {
 	require.ErrorIs(t, err, expectedErr)
 }
 
-func TestOpenAIClient_ChatReturnsErrorWhenNoChoices(t *testing.T) {
+func TestOpenAIClient_ChatRequiresChatCompletionsResponse(t *testing.T) {
 	client := &OpenAIClient{
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
-			return &openai.ChatCompletion{
-				ID:      "resp_123",
-				Model:   "test-model",
-				Choices: []openai.ChatCompletionChoice{},
-			}, nil
+			return nil, nil
 		},
 	}
 
@@ -187,10 +242,10 @@ func TestOpenAIClient_ChatReturnsErrorWhenNoChoices(t *testing.T) {
 		Model:    "test-model",
 		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
 	})
-	require.EqualError(t, err, `chat completion response "resp_123" contained no choices`)
+	require.EqualError(t, err, "model response is required")
 }
 
-func TestOpenAIClient_ChatReturnsResponseAndBuildsRequest(t *testing.T) {
+func TestOpenAIClient_ChatReturnsResponseAndBuildsChatCompletionsRequest(t *testing.T) {
 	var captured openai.ChatCompletionNewParams
 	client := &OpenAIClient{
 		createChatCompletion: func(_ context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
@@ -198,11 +253,9 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsRequest(t *testing.T) {
 			return &openai.ChatCompletion{
 				ID:    "resp_123",
 				Model: "returned-model",
-				Choices: []openai.ChatCompletionChoice{
-					{
-						Message: openai.ChatCompletionMessage{Content: "hello back"},
-					},
-				},
+				Choices: []openai.ChatCompletionChoice{{
+					Message: openai.ChatCompletionMessage{Content: "hello back"},
+				}},
 			}, nil
 		},
 	}
@@ -218,11 +271,7 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsRequest(t *testing.T) {
 		Temperature:     0.7,
 	})
 	require.NoError(t, err)
-	require.Equal(t, &GenerateResponse{
-		ID:         "resp_123",
-		Model:      "returned-model",
-		OutputText: "hello back",
-	}, resp)
+	require.Equal(t, &GenerateResponse{ID: "resp_123", Model: "returned-model", OutputText: "hello back"}, resp)
 
 	raw, err := json.Marshal(captured)
 	require.NoError(t, err)
@@ -238,7 +287,7 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsRequest(t *testing.T) {
 	require.Contains(t, rawText, `"content":"previous reply"`)
 }
 
-func TestOpenAIClient_ChatReturnsToolCalls(t *testing.T) {
+func TestOpenAIClient_ChatReturnsToolCallsFromChatCompletions(t *testing.T) {
 	client := &OpenAIClient{
 		createChatCompletion: func(_ context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			raw, err := json.Marshal(params)
@@ -248,112 +297,336 @@ func TestOpenAIClient_ChatReturnsToolCalls(t *testing.T) {
 			return &openai.ChatCompletion{
 				ID:    "resp_123",
 				Model: "returned-model",
-				Choices: []openai.ChatCompletionChoice{
-					{
-						Message: openai.ChatCompletionMessage{
-							ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
-								{
-									ID:   "call-1",
-									Type: "function",
-									Function: openai.ChatCompletionMessageFunctionToolCallFunction{
-										Name:      "time",
-										Arguments: "{}",
-									},
-								},
-							},
+				Choices: []openai.ChatCompletionChoice{{
+					Message: openai.ChatCompletionMessage{ToolCalls: []openai.ChatCompletionMessageToolCallUnion{{
+						ID:   "call-1",
+						Type: "function",
+						Function: openai.ChatCompletionMessageFunctionToolCallFunction{
+							Name:      "time",
+							Arguments: "{}",
 						},
-					},
-				},
+					}}},
+				}},
 			}, nil
 		},
 	}
 
 	resp, err := client.Chat(context.Background(), GenerateRequest{
-		Model: "test-model",
-		Messages: []handctx.Message{
-			{Role: handctx.RoleUser, Content: "what time is it?"},
-		},
-		Tools: []ToolDefinition{{
-			Name:        "time",
-			Description: "Returns the current time.",
-			InputSchema: map[string]any{"type": "object"},
-		}},
+		Model:    "test-model",
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "what time is it?"}},
+		Tools:    []ToolDefinition{{Name: "time", Description: "Returns the current time.", InputSchema: map[string]any{"type": "object"}}},
 	})
-
 	require.NoError(t, err)
 	require.True(t, resp.RequiresToolCalls)
 	require.Equal(t, []ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}, resp.ToolCalls)
 }
 
-func TestOpenAIClient_ChatRejectsToolCallWithoutIDInResponse(t *testing.T) {
+func TestOpenAIClient_ChatRejectsChatCompletionToolCallWithoutID(t *testing.T) {
 	client := &OpenAIClient{
-		createChatCompletion: func(_ context.Context, _ openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			return &openai.ChatCompletion{
-				ID:    "resp_123",
-				Model: "returned-model",
-				Choices: []openai.ChatCompletionChoice{
-					{
-						Message: openai.ChatCompletionMessage{
-							ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
-								{
-									Function: openai.ChatCompletionMessageFunctionToolCallFunction{
-										Name:      "time",
-										Arguments: "{}",
-									},
-								},
-							},
-						},
-					},
-				},
+				Choices: []openai.ChatCompletionChoice{{
+					Message: openai.ChatCompletionMessage{ToolCalls: []openai.ChatCompletionMessageToolCallUnion{{
+						Function: openai.ChatCompletionMessageFunctionToolCallFunction{Name: "time", Arguments: "{}"},
+					}}},
+				}},
 			}, nil
 		},
 	}
 
 	_, err := client.Chat(context.Background(), GenerateRequest{
-		Model: "test-model",
-		Messages: []handctx.Message{
-			{Role: handctx.RoleUser, Content: "what time is it?"},
-		},
+		Model:    "test-model",
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
 	})
-
 	require.EqualError(t, err, "tool call id is required")
 }
 
-func TestOpenAIClient_ChatRejectsToolCallWithoutNameInResponse(t *testing.T) {
+func TestOpenAIClient_ChatRejectsChatCompletionToolCallWithoutName(t *testing.T) {
 	client := &OpenAIClient{
-		createChatCompletion: func(_ context.Context, _ openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			return &openai.ChatCompletion{
-				ID:    "resp_123",
-				Model: "returned-model",
-				Choices: []openai.ChatCompletionChoice{
-					{
-						Message: openai.ChatCompletionMessage{
-							ToolCalls: []openai.ChatCompletionMessageToolCallUnion{
-								{
-									ID: "call-1",
-									Function: openai.ChatCompletionMessageFunctionToolCallFunction{
-										Arguments: "{}",
-									},
-								},
-							},
-						},
-					},
-				},
+				Choices: []openai.ChatCompletionChoice{{
+					Message: openai.ChatCompletionMessage{ToolCalls: []openai.ChatCompletionMessageToolCallUnion{{
+						ID:       "call-1",
+						Function: openai.ChatCompletionMessageFunctionToolCallFunction{Arguments: "{}"},
+					}}},
+				}},
 			}, nil
 		},
 	}
 
 	_, err := client.Chat(context.Background(), GenerateRequest{
-		Model: "test-model",
-		Messages: []handctx.Message{
-			{Role: handctx.RoleUser, Content: "what time is it?"},
-		},
+		Model:    "test-model",
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
 	})
-
 	require.EqualError(t, err, "tool call name is required")
 }
 
-func TestOpenAIClient_ChatLogsRequestDebugDumpWhenEnabled(t *testing.T) {
+func TestOpenAIClient_ChatRejectsChatCompletionResponseWithoutChoices(t *testing.T) {
+	client := &OpenAIClient{
+		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+			return &openai.ChatCompletion{ID: "resp_123"}, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "test-model",
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	})
+	require.EqualError(t, err, `chat completion response "resp_123" contained no choices`)
+}
+
+func TestOpenAIClient_ChatReturnsResponseAndBuildsResponsesRequest(t *testing.T) {
+	var captured responses.ResponseNewParams
+	client := &OpenAIClient{
+		createResponse: func(_ context.Context, params responses.ResponseNewParams) (*responses.Response, error) {
+			captured = params
+			return &responses.Response{
+				ID:    "resp_456",
+				Model: "gpt-5.1",
+				Output: []responses.ResponseOutputItemUnion{{
+					Type: "message",
+					Content: []responses.ResponseOutputMessageContentUnion{{
+						Type: "output_text",
+						Text: "hello from responses",
+					}},
+				}},
+			}, nil
+		},
+	}
+
+	resp, err := client.Chat(context.Background(), GenerateRequest{
+		Model:        "gpt-5.1",
+		APIMode:      APIModeResponses,
+		Instructions: "  be concise  ",
+		Messages: []handctx.Message{
+			{Role: handctx.RoleUser, Content: "  hello  "},
+			{Role: handctx.RoleAssistant, Content: "calling tool", ToolCalls: []handctx.ToolCall{{ID: "call-1", Name: "time", Input: " {} "}}},
+			{Role: handctx.RoleTool, Content: `{"output":"2026-03-24T00:00:00Z"}`, ToolCallID: "call-1"},
+		},
+		Tools:           []ToolDefinition{{Name: "time", Description: "Returns the current time.", InputSchema: map[string]any{"type": "object"}}},
+		MaxOutputTokens: 111,
+		Temperature:     0.5,
+	})
+	require.NoError(t, err)
+	require.Equal(t, &GenerateResponse{ID: "resp_456", Model: "gpt-5.1", OutputText: "hello from responses"}, resp)
+
+	logutils.PrettyPrintJSON(captured, "<<")
+	raw, err := json.Marshal(captured)
+	require.NoError(t, err)
+	rawText := string(raw)
+	require.Contains(t, rawText, `"model":"gpt-5.1"`)
+	require.Contains(t, rawText, `"instructions":"be concise"`)
+	require.Contains(t, rawText, `"max_output_tokens":111`)
+	require.Contains(t, rawText, `"temperature":0.5`)
+	require.Contains(t, rawText, `"type":"message"`)
+	require.Contains(t, rawText, `"type":"input_text"`)
+	require.Contains(t, rawText, `"type":"function_call"`)
+	require.Contains(t, rawText, `"type":"function_call_output"`)
+	require.Contains(t, rawText, `"call_id":"call-1"`)
+	require.Contains(t, rawText, `"name":"time"`)
+}
+
+func TestOpenAIClient_ChatReturnsToolCallsFromResponses(t *testing.T) {
+	client := &OpenAIClient{
+		createResponse: func(_ context.Context, params responses.ResponseNewParams) (*responses.Response, error) {
+			raw, err := json.Marshal(params)
+			require.NoError(t, err)
+			require.Contains(t, string(raw), `"type":"function"`)
+
+			return &responses.Response{
+				ID:     "resp_789",
+				Model:  "gpt-5.1",
+				Output: []responses.ResponseOutputItemUnion{responseOutputItemFromJSON(t, `{"type":"function_call","call_id":"call-1","name":"time","arguments":"{}"}`)},
+			}, nil
+		},
+	}
+
+	resp, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "gpt-5.1",
+		APIMode:  APIModeResponses,
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "what time is it?"}},
+		Tools:    []ToolDefinition{{Name: "time", Description: "Returns the current time.", InputSchema: map[string]any{"type": "object"}}},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.RequiresToolCalls)
+	require.Equal(t, []ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}, resp.ToolCalls)
+}
+
+func TestOpenAIClient_ChatReturnsResponseErrorResponses(t *testing.T) {
+	expectedErr := errors.New("upstream failed")
+	client := &OpenAIClient{
+		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+			return nil, expectedErr
+		},
+	}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "gpt-5.1",
+		APIMode:  APIModeResponses,
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	})
+	require.ErrorIs(t, err, expectedErr)
+}
+
+func TestOpenAIClient_ChatRequiresResponsesResponse(t *testing.T) {
+	client := &OpenAIClient{
+		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+			return nil, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "gpt-5.1",
+		APIMode:  APIModeResponses,
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	})
+	require.EqualError(t, err, "model response is required")
+}
+
+func TestOpenAIClient_ChatRejectsResponseToolCallWithoutID(t *testing.T) {
+	client := &OpenAIClient{
+		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+			return &responses.Response{Output: []responses.ResponseOutputItemUnion{
+				responseOutputItemFromJSON(t, `{"type":"function_call","name":"time","arguments":"{}"}`),
+			}}, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "gpt-5.1",
+		APIMode:  APIModeResponses,
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	})
+	require.EqualError(t, err, "tool call id is required")
+}
+
+func TestOpenAIClient_ChatRejectsResponseToolCallWithoutName(t *testing.T) {
+	client := &OpenAIClient{
+		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+			return &responses.Response{Output: []responses.ResponseOutputItemUnion{
+				responseOutputItemFromJSON(t, `{"type":"function_call","call_id":"call-1","arguments":"{}"}`),
+			}}, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "gpt-5.1",
+		APIMode:  APIModeResponses,
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	})
+	require.EqualError(t, err, "tool call name is required")
+}
+
+func TestOpenAIClient_ChatReturnsResponsesFailureError(t *testing.T) {
+	client := &OpenAIClient{
+		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+			return &responses.Response{
+				Status: responses.ResponseStatusFailed,
+				Error:  responses.ResponseError{Message: "provider failed"},
+			}, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "gpt-5.1",
+		APIMode:  APIModeResponses,
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	})
+	require.EqualError(t, err, "provider failed")
+}
+
+func TestOpenAIClient_ChatReturnsResponsesIncompleteErrorWithoutUsableOutput(t *testing.T) {
+	client := &OpenAIClient{
+		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+			return &responses.Response{
+				Status:            responses.ResponseStatusIncomplete,
+				IncompleteDetails: responses.ResponseIncompleteDetails{Reason: "max_output_tokens"},
+			}, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "gpt-5.1",
+		APIMode:  APIModeResponses,
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	})
+	require.EqualError(t, err, "response incomplete: max_output_tokens")
+}
+
+func TestOpenAIClient_ChatReturnsResponsesIncompleteSuccessWithText(t *testing.T) {
+	client := &OpenAIClient{
+		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+			return &responses.Response{
+				ID:     "resp_123",
+				Model:  "gpt-5.1",
+				Status: responses.ResponseStatusIncomplete,
+				Output: []responses.ResponseOutputItemUnion{{
+					Type: "message",
+					Content: []responses.ResponseOutputMessageContentUnion{{
+						Type: "output_text",
+						Text: "partial answer",
+					}},
+				}},
+			}, nil
+		},
+	}
+
+	resp, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "gpt-5.1",
+		APIMode:  APIModeResponses,
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "partial answer", resp.OutputText)
+}
+
+func TestOpenAIClient_ChatRejectsUnexpectedResponsesStatus(t *testing.T) {
+	client := &OpenAIClient{
+		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+			return &responses.Response{Status: responses.ResponseStatusInProgress}, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "gpt-5.1",
+		APIMode:  APIModeResponses,
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	})
+	require.EqualError(t, err, "response status is in_progress")
+}
+
+func TestOpenAIClient_ChatReturnsResponsesFailureErrorWithoutProviderMessage(t *testing.T) {
+	client := &OpenAIClient{
+		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+			return &responses.Response{Status: responses.ResponseStatusFailed}, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "gpt-5.1",
+		APIMode:  APIModeResponses,
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	})
+	require.EqualError(t, err, "response failed")
+}
+
+func TestOpenAIClient_ChatReturnsResponsesIncompleteErrorWithUnknownReason(t *testing.T) {
+	client := &OpenAIClient{
+		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+			return &responses.Response{Status: responses.ResponseStatusIncomplete}, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "gpt-5.1",
+		APIMode:  APIModeResponses,
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	})
+	require.EqualError(t, err, "response incomplete: unknown")
+}
+
+func TestOpenAIClient_ChatLogsRequestDebugDumpForChatCompletions(t *testing.T) {
 	originalLogger := log.Logger
 	originalLevel := zerolog.GlobalLevel()
 	t.Cleanup(func() {
@@ -369,31 +642,51 @@ func TestOpenAIClient_ChatLogsRequestDebugDumpWhenEnabled(t *testing.T) {
 		createChatCompletion: func(_ context.Context, _ openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			return &openai.ChatCompletion{
 				ID:    "resp_123",
-				Model: "returned-model",
-				Choices: []openai.ChatCompletionChoice{
-					{
-						Message: openai.ChatCompletionMessage{Content: "hello back"},
-					},
-				},
+				Model: "test-model",
+				Choices: []openai.ChatCompletionChoice{{
+					Message: openai.ChatCompletionMessage{Content: "hello back"},
+				}},
 			}, nil
 		},
 	}
 
 	_, err := client.Chat(context.Background(), GenerateRequest{
-		Model:        "test-model",
-		Instructions: "be concise",
-		Messages: []handctx.Message{
-			{Role: handctx.RoleUser, Content: "hello"},
-		},
+		Model:         "test-model",
+		Messages:      []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
 		DebugRequests: true,
 	})
+	require.NoError(t, err)
+	output := buf.String()
+	require.Contains(t, output, `"mode":"chat-completions"`)
+	require.Contains(t, output, `"content":"hello"`)
+}
 
+func TestOpenAIClient_ChatLogsRequestDebugDumpWhenEnabled(t *testing.T) {
+	originalLogger := log.Logger
+	originalLevel := zerolog.GlobalLevel()
+	t.Cleanup(func() {
+		log.Logger = originalLogger
+		zerolog.SetGlobalLevel(originalLevel)
+	})
+
+	buf := &bytes.Buffer{}
+	log.Logger = zerolog.New(buf)
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+
+	client := &OpenAIClient{
+		createResponse: func(_ context.Context, _ responses.ResponseNewParams) (*responses.Response, error) {
+			return &responses.Response{ID: "resp_123", Model: "gpt-5.1", Output: []responses.ResponseOutputItemUnion{{Type: "message", Content: []responses.ResponseOutputMessageContentUnion{{Type: "output_text", Text: "hello back"}}}}}, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{Model: "gpt-5.1", APIMode: APIModeResponses, Instructions: "be concise", Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}}, DebugRequests: true})
 	require.NoError(t, err)
 	output := buf.String()
 	require.Contains(t, output, "model request debug dump")
 	require.Contains(t, output, `"provider":"openai-compatible"`)
-	require.Contains(t, output, `"model":"test-model"`)
-	require.Contains(t, output, `"content":"hello"`)
+	require.Contains(t, output, `"mode":"responses"`)
+	require.Contains(t, output, `"model":"gpt-5.1"`)
+	require.Contains(t, output, `"text":"hello"`)
 }
 
 func TestLogRequestDebugDump_LogsMarshalError(t *testing.T) {
@@ -413,144 +706,145 @@ func TestLogRequestDebugDump_LogsMarshalError(t *testing.T) {
 		return nil, errors.New("marshal failed")
 	}
 
-	logRequestDebugDump(openai.ChatCompletionNewParams{})
-
+	logRequestDebugDump(APIModeResponses, responses.ResponseNewParams{})
 	require.Contains(t, buf.String(), "Failed to marshal model request debug dump")
 }
 
-func TestBuildMessages_WithoutInstructions(t *testing.T) {
-	messages, err := buildMessages(GenerateRequest{
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "  hello  "}},
-	})
+func TestNormalizeGenerateRequestDefaultsAPIMode(t *testing.T) {
+	normalized, err := normalizeGenerateRequest(GenerateRequest{Model: "test-model", Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}}})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-
-	raw, err := json.Marshal(messages)
-	require.NoError(t, err)
-	rawText := string(raw)
-	require.NotContains(t, rawText, `"role":"developer"`)
-	require.Contains(t, rawText, `"role":"user"`)
-	require.Contains(t, rawText, `"content":"hello"`)
+	require.Equal(t, APIModeChatCompletions, normalized.APIMode)
 }
 
-func TestBuildMessages_WithInstructions(t *testing.T) {
-	messages, err := buildMessages(GenerateRequest{
-		Instructions: "  be concise  ",
-		Messages: []handctx.Message{
-			{Role: handctx.RoleUser, Content: "hello"},
-			{Role: handctx.RoleAssistant, Content: "done"},
-			{Role: handctx.RoleTool, Content: "tool output", ToolCallID: "tool"},
-		},
-	})
-	require.NoError(t, err)
-	require.Len(t, messages, 4)
-
-	raw, err := json.Marshal(messages)
-	require.NoError(t, err)
-	rawText := string(raw)
-	require.True(t, strings.Index(rawText, `"role":"developer"`) < strings.Index(rawText, `"role":"user"`))
-	require.Contains(t, rawText, `"content":"be concise"`)
-	require.Contains(t, rawText, `"content":"hello"`)
-	require.Contains(t, rawText, `"role":"assistant"`)
-	require.Contains(t, rawText, `"content":"done"`)
-	require.Contains(t, rawText, `"role":"tool"`)
-	require.Contains(t, rawText, `"content":"tool output"`)
-	require.Contains(t, rawText, `"tool_call_id":"tool"`)
-}
-
-func TestBuildMessages_WithDeveloperMessageInConversation(t *testing.T) {
-	messages, err := buildMessages(GenerateRequest{
-		Messages: []handctx.Message{
-			{Role: handctx.RoleDeveloper, Content: "extra instruction"},
-		},
-	})
-	require.NoError(t, err)
-
-	raw, err := json.Marshal(messages)
-	require.NoError(t, err)
-	require.Contains(t, string(raw), `"role":"developer"`)
-	require.Contains(t, string(raw), `"content":"extra instruction"`)
-}
-
-func TestBuildMessages_WithAssistantToolCalls(t *testing.T) {
-	messages, err := buildMessages(GenerateRequest{
+func TestBuildChatCompletionsRequestIncludesPlainAssistantMessage(t *testing.T) {
+	params := buildChatCompletionsRequest(normalizedGenerateRequest{
+		Model: "test-model",
 		Messages: []handctx.Message{{
-			Role:      handctx.RoleAssistant,
-			ToolCalls: []handctx.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
+			Role:    handctx.RoleAssistant,
+			Content: "hello back",
 		}},
 	})
-	require.NoError(t, err)
 
-	raw, err := json.Marshal(messages)
+	raw, err := json.Marshal(params)
 	require.NoError(t, err)
-	require.Contains(t, string(raw), `"tool_calls"`)
-	require.Contains(t, string(raw), `"id":"call-1"`)
-	require.Contains(t, string(raw), `"name":"time"`)
-	require.NotContains(t, string(raw), `"content":""`)
+	require.Contains(t, string(raw), `"role":"assistant"`)
+	require.Contains(t, string(raw), `"content":"hello back"`)
 }
 
-func TestBuildMessages_WithAssistantToolCallsAndContent(t *testing.T) {
-	messages, err := buildMessages(GenerateRequest{
+func TestBuildChatCompletionsRequestIncludesAssistantToolCallContent(t *testing.T) {
+	params := buildChatCompletionsRequest(normalizedGenerateRequest{
+		Model: "test-model",
 		Messages: []handctx.Message{{
 			Role:      handctx.RoleAssistant,
 			Content:   "calling tool",
-			ToolCalls: []handctx.ToolCall{{ID: "call-1", Name: "time", Input: "  {}  "}},
+			ToolCalls: []handctx.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
 		}},
 	})
-	require.NoError(t, err)
 
-	raw, err := json.Marshal(messages)
+	raw, err := json.Marshal(params)
 	require.NoError(t, err)
 	require.Contains(t, string(raw), `"content":"calling tool"`)
-	require.Contains(t, string(raw), `"arguments":"{}"`)
+	require.Contains(t, string(raw), `"tool_calls"`)
 }
 
-func TestBuildMessages_RejectsToolMessageWithoutToolCallID(t *testing.T) {
-	_, err := buildMessages(GenerateRequest{
-		Messages: []handctx.Message{{
-			Role:    handctx.RoleTool,
-			Content: "tool output",
-		}},
+func TestBuildChatCompletionsRequestIncludesToolMessages(t *testing.T) {
+	params := buildChatCompletionsRequest(normalizedGenerateRequest{
+		Model:        "test-model",
+		Instructions: "be concise",
+		Messages: []handctx.Message{
+			{Role: handctx.RoleAssistant, ToolCalls: []handctx.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}},
+			{Role: handctx.RoleTool, Content: `{"output":"2026-03-24T00:00:00Z"}`, ToolCallID: "call-1"},
+		},
+		Tools: []ToolDefinition{{Name: "time", Description: "Returns time", InputSchema: map[string]any{"type": "object"}}},
 	})
+	raw, err := json.Marshal(params)
+	require.NoError(t, err)
+	rawText := string(raw)
+	require.Contains(t, rawText, `"role":"developer"`)
+	require.Contains(t, rawText, `"tool_calls"`)
+	require.Contains(t, rawText, `"tool_call_id":"call-1"`)
+	require.Contains(t, rawText, `"tools"`)
+}
 
+func TestNormalizeMessagesAcceptsAssistantToolCallWithoutContent(t *testing.T) {
+	messages, err := normalizeMessages([]handctx.Message{{
+		Role:      handctx.RoleAssistant,
+		ToolCalls: []handctx.ToolCall{{ID: "call-1", Name: "time", Input: " {} "}},
+	}})
+	require.NoError(t, err)
+	require.Equal(t, []handctx.Message{{
+		Role:      handctx.RoleAssistant,
+		ToolCalls: []handctx.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
+	}}, messages)
+}
+
+func TestNormalizeMessagesPropagatesToolCallNormalizationError(t *testing.T) {
+	_, err := normalizeMessages([]handctx.Message{{
+		Role:      handctx.RoleAssistant,
+		ToolCalls: []handctx.ToolCall{{Name: "time", Input: "{}"}},
+	}})
 	require.EqualError(t, err, "tool call id is required")
 }
 
-func TestBuildMessages_RejectsToolCallWithoutID(t *testing.T) {
-	_, err := buildMessages(GenerateRequest{
-		Messages: []handctx.Message{{
-			Role:      handctx.RoleAssistant,
-			ToolCalls: []handctx.ToolCall{{Name: "time", Input: "{}"}},
-		}},
-	})
+func TestNormalizeMessagesTrimsName(t *testing.T) {
+	messages, err := normalizeMessages([]handctx.Message{{
+		Role:       handctx.RoleTool,
+		Content:    `{"output":"ok"}`,
+		Name:       " time ",
+		ToolCallID: "call-1",
+	}})
+	require.NoError(t, err)
+	require.Equal(t, "time", messages[0].Name)
+}
 
+func TestNormalizeMessagesRequiresToolCallIDForToolMessages(t *testing.T) {
+	_, err := normalizeMessages([]handctx.Message{{
+		Role:    handctx.RoleTool,
+		Content: `{"output":"ok"}`,
+	}})
 	require.EqualError(t, err, "tool call id is required")
 }
 
-func TestBuildMessages_RejectsToolCallWithoutName(t *testing.T) {
-	_, err := buildMessages(GenerateRequest{
-		Messages: []handctx.Message{{
-			Role:      handctx.RoleAssistant,
-			ToolCalls: []handctx.ToolCall{{ID: "call-1", Input: "{}"}},
-		}},
-	})
+func TestNormalizeToolCallsRejectsMissingID(t *testing.T) {
+	_, err := normalizeToolCalls([]handctx.ToolCall{{Name: "time", Input: "{}"}})
+	require.EqualError(t, err, "tool call id is required")
+}
 
+func TestNormalizeToolCallsRejectsMissingName(t *testing.T) {
+	_, err := normalizeToolCalls([]handctx.ToolCall{{ID: "call-1", Input: "{}"}})
 	require.EqualError(t, err, "tool call name is required")
 }
 
-func TestBuildMessages_TrimsContentAndRole(t *testing.T) {
-	messages, err := buildMessages(GenerateRequest{
-		Messages: []handctx.Message{
-			{Role: handctx.Role(" User "), Content: "  hello  "},
-			{Role: handctx.Role(" assistant "), Content: "  hi  "},
-		},
-	})
+func TestNormalizeToolCallsReturnsNilWhenEmpty(t *testing.T) {
+	toolCalls, err := normalizeToolCalls(nil)
 	require.NoError(t, err)
+	require.Nil(t, toolCalls)
+}
 
-	raw, err := json.Marshal(messages)
+func TestExtractChatCompletionsToolCallsReturnsNilWhenEmpty(t *testing.T) {
+	toolCalls, err := extractChatCompletionsToolCalls(nil)
 	require.NoError(t, err)
-	require.Contains(t, string(raw), `"role":"user"`)
-	require.Contains(t, string(raw), `"content":"hello"`)
-	require.Contains(t, string(raw), `"role":"assistant"`)
-	require.Contains(t, string(raw), `"content":"hi"`)
+	require.Nil(t, toolCalls)
+}
+
+func TestExtractChatCompletionsToolCallsRejectsMissingID(t *testing.T) {
+	_, err := extractChatCompletionsToolCalls([]openai.ChatCompletionMessageToolCallUnion{{
+		Function: openai.ChatCompletionMessageFunctionToolCallFunction{Name: "time", Arguments: "{}"},
+	}})
+	require.EqualError(t, err, "tool call id is required")
+}
+
+func TestExtractChatCompletionsToolCallsRejectsMissingName(t *testing.T) {
+	_, err := extractChatCompletionsToolCalls([]openai.ChatCompletionMessageToolCallUnion{{
+		ID:       "call-1",
+		Function: openai.ChatCompletionMessageFunctionToolCallFunction{Arguments: "{}"},
+	}})
+	require.EqualError(t, err, "tool call name is required")
+}
+
+func responseOutputItemFromJSON(t *testing.T, raw string) responses.ResponseOutputItemUnion {
+	t.Helper()
+	var item responses.ResponseOutputItemUnion
+	require.NoError(t, json.Unmarshal([]byte(raw), &item))
+	return item
 }

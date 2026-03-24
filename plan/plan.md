@@ -68,7 +68,7 @@ Proposed package boundaries:
 - `internal/agent`: the high-level runtime coordinator that prepares the environment, owns the conversation loop, and orchestrates model/tool interactions
 - `internal/context`: prompt assembly inputs, instruction layers, conversation state primitives, and shared runtime context values
 - `internal/environment`: runtime environment preparation and backend-neutral execution context composition
-- `internal/identity`: base identity and built-in instruction templates
+- `internal/instruction`: base instruction builders and built-in instruction templates
 - `internal/models`: provider-agnostic model interface plus provider-specific client adapters
 - `internal/tools`: tool registry contracts, tool dispatch, tool result normalization, and built-in tool implementations
 - `internal/storage`: persisted sessions, memory records, config snapshots, indexing, and search persistence
@@ -104,10 +104,10 @@ How it improves the clone:
 
 Tasks:
 - [x] Implement message model and conversation state
-- [ ] Implement the synchronous tool-calling loop
-- [ ] Add max-iteration and shared-budget logic
-- [ ] Add interrupt/cancel support
-- [ ] Add request normalization for different API modes
+- [x] Implement the synchronous tool-calling loop
+- [x] Add max-iteration and shared-budget logic
+- [x] Add interrupt/cancel support
+- [x] Add request normalization for different API modes
 - [ ] Add session log persistence for debugging
 
 Acceptance:

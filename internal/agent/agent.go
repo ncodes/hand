@@ -87,6 +87,7 @@ func (c *Agent) Chat(ctx context.Context, msg string) (string, error) {
 
 		resp, err := c.modelClient.Chat(ctx, models.GenerateRequest{
 			Model:         c.cfg.Model,
+			APIMode:       c.cfg.ModelAPIMode,
 			Instructions:  handCtx.GetInstructions().String(),
 			Messages:      handCtx.GetMessages(),
 			Tools:         c.toolDefinitions(),
@@ -228,6 +229,7 @@ func (c *Agent) summaryFallback(
 
 	resp, err := c.modelClient.Chat(ctx, models.GenerateRequest{
 		Model:         c.cfg.Model,
+		APIMode:       c.cfg.ModelAPIMode,
 		Instructions:  instructions.String(),
 		Messages:      handCtx.GetMessages(),
 		Tools:         nil,

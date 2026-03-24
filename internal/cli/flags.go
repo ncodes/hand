@@ -37,6 +37,11 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value: config.Get().ModelBaseURL,
 		},
 		&cli.StringFlag{
+			Name:  "model.api-mode",
+			Usage: "Provider API mode: chat-completions or responses",
+			Value: config.Get().ModelAPIMode,
+		},
+		&cli.StringFlag{
 			Name:  "rpc.address",
 			Usage: "Bind address for the RPC service",
 			Value: config.Get().RPCAddress,
@@ -120,6 +125,9 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("model.base-url") {
 		cfg.ModelBaseURL = strings.TrimSpace(cmd.String("model.base-url"))
+	}
+	if cmd.IsSet("model.api-mode") {
+		cfg.ModelAPIMode = strings.TrimSpace(cmd.String("model.api-mode"))
 	}
 	if cmd.IsSet("rpc.address") {
 		cfg.RPCAddress = strings.TrimSpace(cmd.String("rpc.address"))

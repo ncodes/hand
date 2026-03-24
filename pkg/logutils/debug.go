@@ -31,6 +31,14 @@ func PrettyJSON(v any) string {
 	return buf.String()
 }
 
-func PrettyPrint(v any) {
-	pretty.Println(PrettyJSON(v))
+func PrettyPrintJSON(v ...any) {
+	var values []any
+	for _, val := range v {
+		values = append(values, PrettyJSON(val))
+	}
+	pretty.Println(values...)
+}
+
+func PrettyPrint(v ...any) {
+	pretty.Println(v...)
 }

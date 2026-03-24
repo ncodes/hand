@@ -20,6 +20,7 @@ type Config struct {
 	OpenAIAPIKey     string
 	OpenRouterAPIKey string
 	ModelBaseURL     string
+	ModelAPIMode     string
 	RPCAddress       string
 	RPCPort          int
 	MaxIterations    int
@@ -47,6 +48,7 @@ var (
 const (
 	defaultModel         = "openai/gpt-4o-mini"
 	defaultModelRouter   = "openrouter"
+	DefaultModelAPIMode  = "chat-completions"
 	DefaultMaxIterations = 90
 	defaultMaxIterations = DefaultMaxIterations
 )
@@ -60,6 +62,7 @@ type fileConfig struct {
 		OpenAIAPIKey     string `yaml:"openaiApiKey"`
 		OpenRouterAPIKey string `yaml:"openrouterApiKey"`
 		BaseURL          string `yaml:"baseUrl"`
+		APIMode          string `yaml:"apiMode"`
 	} `yaml:"model"`
 	Log struct {
 		Level   string `yaml:"level"`
@@ -112,6 +115,7 @@ func Get() *Config {
 	if globalConfig == nil {
 		return &Config{
 			Model:         defaultModel,
+			ModelAPIMode:  DefaultModelAPIMode,
 			MaxIterations: defaultMaxIterations,
 			LogLevel:      "info",
 		}
@@ -152,6 +156,7 @@ func loadConfigFile(path string) (*Config, error) {
 		OpenAIAPIKey:     raw.Model.OpenAIAPIKey,
 		OpenRouterAPIKey: raw.Model.OpenRouterAPIKey,
 		ModelBaseURL:     raw.Model.BaseURL,
+		ModelAPIMode:     raw.Model.APIMode,
 		RPCAddress:       raw.RPC.Address,
 		RPCPort:          raw.RPC.Port,
 		MaxIterations:    raw.Agent.MaxIterations,
@@ -186,6 +191,9 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := strings.TrimSpace(os.Getenv("MODEL_BASE_URL")); value != "" {
 		cfg.ModelBaseURL = value
+	}
+	if value := strings.TrimSpace(os.Getenv("MODEL_API_MODE")); value != "" {
+		cfg.ModelAPIMode = value
 	}
 	if value := strings.TrimSpace(os.Getenv("RPC_ADDRESS")); value != "" {
 		cfg.RPCAddress = value
@@ -223,6 +231,7 @@ func (c *Config) Normalize() {
 	c.OpenAIAPIKey = strings.TrimSpace(c.OpenAIAPIKey)
 	c.OpenRouterAPIKey = strings.TrimSpace(c.OpenRouterAPIKey)
 	c.ModelBaseURL = strings.TrimSpace(c.ModelBaseURL)
+	c.ModelAPIMode = strings.TrimSpace(strings.ToLower(c.ModelAPIMode))
 	c.LogLevel = strings.TrimSpace(strings.ToLower(c.LogLevel))
 
 	if c.Model == "" {
@@ -231,6 +240,10 @@ func (c *Config) Normalize() {
 
 	if c.ModelRouter == "" {
 		c.ModelRouter = defaultModelRouter
+	}
+
+	if c.ModelAPIMode == "" {
+		c.ModelAPIMode = DefaultModelAPIMode
 	}
 
 	if c.LogLevel == "" {
@@ -283,7 +296,18 @@ func (c *Config) Validate() error {
 		return errors.New("rpc port must be greater than zero; set RPC_PORT, provide it in config, or use --rpc.port")
 	}
 	if c.MaxIterations <= 0 {
-		return errors.New("max iterations must be greater than zero; set MAX_ITERATIONS, provide it in config, or use --max-iterations")
+		return errors.New("max iterations must be greater than zero; set MAX_ITERATIONS, provide it in config, " +
+			"or use --max-iterations")
+	}
+
+	switch c.ModelAPIMode {
+	case DefaultModelAPIMode, "responses":
+	default:
+		return errors.New("model api mode must be one of: chat-completions, responses; use --model.api-mode")
+	}
+	if c.ModelAPIMode == "responses" && c.ModelRouter == "openrouter" {
+		return errors.New("model api mode 'responses' is only supported with model router 'none'; " +
+			"use --model.router 'none' or --model.api-mode 'chat-completions'")
 	}
 
 	switch strings.TrimSpace(strings.ToLower(c.LogLevel)) {

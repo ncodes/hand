@@ -134,10 +134,10 @@ Foundation:
 
 Agent Runtime:
 - [x] Implement message model and conversation state
-- [ ] Implement the synchronous tool-calling loop
-- [ ] Add max-iteration and shared-budget logic
+- [x] Implement the synchronous tool-calling loop
+- [x] Add max-iteration and shared-budget logic
 - [ ] Add interrupt and cancel support
-- [ ] Add request normalization for different API modes
+- [x] Add request normalization for different API modes
 - [ ] Add session log persistence for debugging
 - [ ] Expand prompt assembly and context injection layers
 

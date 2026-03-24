@@ -73,7 +73,7 @@ func TestAgent_ChatAppendsConversationAcrossTurns(t *testing.T) {
 			{OutputText: "still here"},
 		},
 	}
-	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", Model: "test-model"}, client)
+	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", Model: "test-model", ModelAPIMode: models.APIModeResponses}, client)
 	originalFactory := newRuntimeEnvironment
 	t.Cleanup(func() {
 		newRuntimeEnvironment = originalFactory
@@ -98,6 +98,7 @@ func TestAgent_ChatAppendsConversationAcrossTurns(t *testing.T) {
 	require.Equal(t, "still here", reply)
 
 	require.Len(t, client.Requests, 2)
+	require.Equal(t, models.APIModeResponses, client.Requests[0].APIMode)
 	require.Equal(t, "system prompt", client.Requests[0].Instructions)
 	require.Equal(t, []handcontext.Message{{Role: handcontext.RoleUser, Content: "hello", CreatedAt: client.Requests[0].Messages[0].CreatedAt}}, client.Requests[0].Messages)
 
@@ -119,8 +120,9 @@ func TestAgent_ChatDoesNotAppendAssistantWhenModelFails(t *testing.T) {
 		Err: errors.New("upstream failed"),
 	}
 	agent := NewAgent(context.Background(), &config.Config{
-		Name:  "Test Agent",
-		Model: "test-model",
+		Name:         "Test Agent",
+		Model:        "test-model",
+		ModelAPIMode: models.APIModeResponses,
 	}, client)
 	originalFactory := newRuntimeEnvironment
 	t.Cleanup(func() {

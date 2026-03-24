@@ -9,7 +9,7 @@ import (
 )
 
 func TestPreloadEnvFile_LoadsValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -94,7 +94,7 @@ func TestPreloadEnvFile_IgnoresMissingFile(t *testing.T) {
 }
 
 func TestLoad_UsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -134,7 +134,7 @@ debug:
 }
 
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -188,7 +188,7 @@ debug:
 }
 
 func TestLoad_IgnoresInvalidMaxIterationsEnvOverride(t *testing.T) {
-	clearEnvKeys(t, "MAX_ITERATIONS")
+	clearEnvKeys(t, "MAX_ITERATIONS", "MODEL_API_MODE")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -216,7 +216,7 @@ log:
 }
 
 func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	cfg, err := Load("", filepath.Join(t.TempDir(), "missing.yaml"))
 
@@ -231,7 +231,7 @@ func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
 }
 
 func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -530,4 +530,82 @@ func clearEnvKeys(t *testing.T, keys ...string) {
 		}
 		_ = os.Unsetenv(key)
 	}
+}
+
+func TestLoad_UsesModelAPIModeFromConfig(t *testing.T) {
+	clearEnvKeys(t, "MODEL_API_MODE")
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: config-model
+  router: none
+  key: config-key
+  apiMode: responses
+rpc:
+  address: 127.0.0.1
+  port: 50051
+log:
+  level: info
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, "responses", cfg.ModelAPIMode)
+}
+
+func TestLoad_UsesModelAPIModeFromEnvOverride(t *testing.T) {
+	clearEnvKeys(t, "MODEL_API_MODE")
+
+	dir := t.TempDir()
+	envPath := filepath.Join(dir, ".env")
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(envPath, []byte("MODEL_API_MODE=responses\n"), 0o600))
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: config-model
+  router: none
+  key: config-key
+  apiMode: chat-completions
+rpc:
+  address: 127.0.0.1
+  port: 50051
+log:
+  level: info
+`), 0o600))
+
+	cfg, err := Load(envPath, configPath)
+	require.NoError(t, err)
+	require.Equal(t, "responses", cfg.ModelAPIMode)
+}
+
+func TestConfig_ValidateRejectsInvalidAPIMode(t *testing.T) {
+	err := (&Config{
+		Name:         "test-agent",
+		Model:        defaultModel,
+		ModelRouter:  "none",
+		ModelAPIMode: "invalid",
+		ModelKey:     "test-key",
+		RPCAddress:   "127.0.0.1",
+		RPCPort:      50051,
+		LogLevel:     "info",
+	}).Validate()
+	require.EqualError(t, err, "model api mode must be one of: chat-completions, responses; use --model.api-mode")
+}
+
+func TestConfig_ValidateRejectsResponsesModeWithOpenRouter(t *testing.T) {
+	err := (&Config{
+		Name:         "test-agent",
+		Model:        defaultModel,
+		ModelRouter:  "openrouter",
+		ModelAPIMode: "responses",
+		ModelKey:     "test-key",
+		RPCAddress:   "127.0.0.1",
+		RPCPort:      50051,
+		LogLevel:     "info",
+	}).Validate()
+	require.EqualError(t, err, "model api mode 'responses' is only supported with model router 'none'; use --model.router 'none' or --model.api-mode 'chat-completions'")
 }
