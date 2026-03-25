@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/wandxy/hand/internal/guardrails"
+	"github.com/wandxy/hand/pkg/promptio"
 )
 
 const maxContentLength = 15000
@@ -287,36 +287,7 @@ func depth(root, path string) int {
 }
 
 func truncate(content string) string {
-	if len(content) <= maxContentLength {
-		return content
-	}
-
-	marker := "\n\n[... workspace rules truncated ...]\n\n"
-	available := maxContentLength - len(marker)
-	if available <= 0 {
-		return marker
-	}
-
-	headLength := available / 2
-	tailLength := available - headLength
-
-	head := content[:headLength]
-	if !utf8.ValidString(head) {
-		for len(head) > 0 && !utf8.ValidString(head) {
-			head = head[:len(head)-1]
-		}
-	}
-
-	tailStart := len(content) - tailLength
-	tail := content[tailStart:]
-	if !utf8.ValidString(tail) {
-		for tailStart < len(content) && !utf8.ValidString(tail) {
-			tailStart++
-			tail = content[tailStart:]
-		}
-	}
-
-	return head + marker + tail
+	return promptio.TruncateMiddle(content, maxContentLength, "\n\n[... workspace rules truncated ...]\n\n")
 }
 
 func toFileSet(files []string) map[string]struct{} {

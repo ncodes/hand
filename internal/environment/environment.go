@@ -10,6 +10,7 @@ import (
 	"github.com/wandxy/hand/internal/datadir"
 	"github.com/wandxy/hand/internal/guardrails"
 	instructionpkg "github.com/wandxy/hand/internal/instruction"
+	"github.com/wandxy/hand/internal/personality"
 	"github.com/wandxy/hand/internal/tools"
 	nativetools "github.com/wandxy/hand/internal/tools/native"
 	"github.com/wandxy/hand/internal/trace"
@@ -17,6 +18,7 @@ import (
 )
 
 var loadWorkspaceRules = workspace.Load
+var loadPersonality = personality.Load
 
 type Environment struct {
 	ctx     context.Context
@@ -71,16 +73,26 @@ func (e *Environment) prepareTools() error {
 }
 
 func (e *Environment) prepareInstructions() error {
+
+	// build base instructions
 	for _, instruction := range instructionpkg.BuildBase(e.cfg.Name) {
 		e.handCtx.AddInstruction(instruction)
 	}
 
+	// load personality overlay
+	personalityOverlay, err := loadPersonality()
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to load personality overlays")
+	} else if personalityOverlay.Found {
+		e.handCtx.AddInstruction(handctx.Instruction{Value: personalityOverlay.Content})
+	}
+
+	// load workspace rules
 	workspaceRules, err := loadWorkspaceRules(e.cfg.RulesFiles...)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to load workspace rules")
 		return nil
 	}
-
 	if workspaceRules.Found {
 		e.handCtx.AddInstruction(handctx.Instruction{Value: workspaceRules.Content})
 	}

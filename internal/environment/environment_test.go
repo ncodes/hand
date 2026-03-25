@@ -13,6 +13,7 @@ import (
 	handctx "github.com/wandxy/hand/internal/context"
 	"github.com/wandxy/hand/internal/datadir"
 	instructionpkg "github.com/wandxy/hand/internal/instruction"
+	"github.com/wandxy/hand/internal/personality"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/workspace"
 )
@@ -32,10 +33,15 @@ func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 }
 
 func TestEnvironment_PrepareAddsFullBaseInstructionStack(t *testing.T) {
+	previousPersonality := loadPersonality
 	previous := loadWorkspaceRules
 	t.Cleanup(func() {
+		loadPersonality = previousPersonality
 		loadWorkspaceRules = previous
 	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
 		return workspace.Result{}, nil
 	}
@@ -51,10 +57,15 @@ func TestEnvironment_PrepareAddsFullBaseInstructionStack(t *testing.T) {
 }
 
 func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
+	previousPersonality := loadPersonality
 	previous := loadWorkspaceRules
 	t.Cleanup(func() {
+		loadPersonality = previousPersonality
 		loadWorkspaceRules = previous
 	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
 	loadWorkspaceRules = func(files ...string) (workspace.Result, error) {
 		require.Equal(t, []string{"hand.md"}, files)
 		return workspace.Result{
@@ -74,11 +85,64 @@ func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
 	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-1].Value)
 }
 
+func TestEnvironment_PrepareAppendsPersonalityBeforeWorkspaceRules(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{Found: true, Content: "## SOUL.md\npersona"}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{Found: true, Content: "## AGENTS.md\nrepo rules"}, nil
+	}
+
+	dir := t.TempDir()
+	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
+	env := NewEnvironment(gctx.Background(), cfg)
+
+	require.NoError(t, env.Prepare())
+
+	instructions := env.handCtx.GetInstructions()
+	require.Len(t, instructions, len(instructionpkg.BuildBase(cfg.Name))+2)
+	require.Equal(t, "## SOUL.md\npersona", instructions[len(instructions)-2].Value)
+	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-1].Value)
+}
+
+func TestEnvironment_PrepareIgnoresPersonalityLoadError(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, errors.New("personality failed")
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
+	dir := t.TempDir()
+	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
+	env := NewEnvironment(gctx.Background(), cfg)
+
+	require.NoError(t, env.Prepare())
+	require.Equal(t, instructionpkg.BuildBase(cfg.Name), env.handCtx.GetInstructions())
+}
+
 func TestEnvironment_PrepareIgnoresWorkspaceRuleLoadError(t *testing.T) {
+	previousPersonality := loadPersonality
 	previous := loadWorkspaceRules
 	t.Cleanup(func() {
+		loadPersonality = previousPersonality
 		loadWorkspaceRules = previous
 	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
 		return workspace.Result{}, errors.New("cwd failed")
 	}
@@ -92,10 +156,15 @@ func TestEnvironment_PrepareIgnoresWorkspaceRuleLoadError(t *testing.T) {
 }
 
 func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) {
+	previousPersonality := loadPersonality
 	previous := loadWorkspaceRules
 	t.Cleanup(func() {
+		loadPersonality = previousPersonality
 		loadWorkspaceRules = previous
 	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
 		return workspace.Result{}, nil
 	}
@@ -112,10 +181,15 @@ func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) 
 }
 
 func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
+	previousPersonality := loadPersonality
 	previous := loadWorkspaceRules
 	t.Cleanup(func() {
+		loadPersonality = previousPersonality
 		loadWorkspaceRules = previous
 	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
 		return workspace.Result{}, nil
 	}
@@ -131,10 +205,15 @@ func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
 }
 
 func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
+	previousPersonality := loadPersonality
 	previous := loadWorkspaceRules
 	t.Cleanup(func() {
+		loadPersonality = previousPersonality
 		loadWorkspaceRules = previous
 	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
 		return workspace.Result{}, nil
 	}
@@ -226,6 +305,22 @@ func TestNewEnvironment_ReturnsNoopTraceSessionWhenDisabled(t *testing.T) {
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
 
 	session := env.NewTraceSession()
+	require.Equal(t, "", session.ID())
+}
+
+func TestEnvironment_NewTraceSessionNilEnvironment(t *testing.T) {
+	var env *Environment
+
+	session := env.NewTraceSession()
+
+	require.Equal(t, "", session.ID())
+}
+
+func TestEnvironment_NewTraceSessionNilTraceFactory(t *testing.T) {
+	env := &Environment{}
+
+	session := env.NewTraceSession()
+
 	require.Equal(t, "", session.ID())
 }
 
