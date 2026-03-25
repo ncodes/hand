@@ -108,7 +108,7 @@ Tasks:
 - [x] Add max-iteration and shared-budget logic
 - [x] Add interrupt/cancel support
 - [x] Add request normalization for different API modes
-- [ ] Add session log persistence for debugging
+- [x] Add session log persistence for debugging
 
 Acceptance:
 - A user prompt can trigger tools, consume tool results, and return a final answer reliably.
@@ -129,7 +129,7 @@ How it improves the clone:
 - Makes project-specific and user-specific adaptation possible without code changes.
 
 Tasks:
-- [ ] Implement default identity/base instructions
+- [x] Implement default identity/base instructions
 - [ ] Add support for `AGENTS.md`-style workspace rules
 - [ ] Add support for personality file overlays
 - [ ] Add support for ephemeral/system prompt overrides

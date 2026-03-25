@@ -30,7 +30,7 @@ func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 	require.True(t, env.handCtx.GetConversation().Empty())
 }
 
-func TestEnvironment_PrepareAddsBaseInstruction(t *testing.T) {
+func TestEnvironment_PrepareAddsFullBaseInstructionStack(t *testing.T) {
 	dir := t.TempDir()
 	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
 	env := NewEnvironment(gctx.Background(), cfg)
@@ -38,8 +38,30 @@ func TestEnvironment_PrepareAddsBaseInstruction(t *testing.T) {
 	err := env.Prepare()
 
 	require.NoError(t, err)
-	require.Len(t, env.handCtx.GetInstructions(), 1)
-	require.Equal(t, instructionpkg.BuildBase(cfg.Name).First(), env.handCtx.GetInstructions()[0])
+	require.Equal(t, instructionpkg.BuildBase(cfg.Name), env.handCtx.GetInstructions())
+}
+
+func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) {
+	dir := t.TempDir()
+	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
+	env := NewEnvironment(gctx.Background(), cfg)
+
+	require.NoError(t, env.Prepare())
+
+	instructions := env.handCtx.GetInstructions()
+	require.Contains(t, instructions[0].Value, "Test Agent is the user's personal agent")
+	require.Contains(t, instructions[2].Value, "Use tools when they materially improve correctness or allow real action")
+}
+
+func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	cfg := &config.Config{DebugTraceDir: dir}
+	env := NewEnvironment(gctx.Background(), cfg)
+
+	require.NoError(t, env.Prepare())
+
+	instructions := env.handCtx.GetInstructions()
+	require.Contains(t, instructions[0].Value, "Hand is the user's personal agent")
 }
 
 func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {

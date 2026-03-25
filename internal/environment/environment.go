@@ -66,7 +66,9 @@ func (e *Environment) prepareTools() error {
 }
 
 func (e *Environment) prepareInstructions() error {
-	e.handCtx.AddInstruction(instructionpkg.BuildBase(e.cfg.Name).First())
+	for _, instruction := range instructionpkg.BuildBase(e.cfg.Name) {
+		e.handCtx.AddInstruction(instruction)
+	}
 	return nil
 }
 
