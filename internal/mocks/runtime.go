@@ -9,6 +9,7 @@ import (
 	"github.com/wandxy/hand/internal/environment"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/hand/internal/trace"
 )
 
 type ModelClientStub struct {
@@ -41,6 +42,7 @@ type EnvironmentStub struct {
 	RuntimeContext  environment.Context
 	ToolRegistry    environment.ToolRegistry
 	IterationBudget environment.IterationBudget
+	TraceSession    trace.Session
 }
 
 func (s *EnvironmentStub) Prepare() error {
@@ -60,6 +62,13 @@ func (s *EnvironmentStub) NewIterationBudget() environment.IterationBudget {
 		return environment.NewIterationBudget(config.DefaultMaxIterations)
 	}
 	return s.IterationBudget
+}
+
+func (s *EnvironmentStub) NewTraceSession() trace.Session {
+	if s.TraceSession == nil {
+		return trace.NoopSession()
+	}
+	return s.TraceSession
 }
 
 type ContextStub struct {
@@ -138,4 +147,22 @@ func (s *ToolRegistryStub) List() []tools.Definition {
 
 func (s *ToolRegistryStub) Invoke(context.Context, tools.Call) (tools.Result, error) {
 	return s.Result, s.Err
+}
+
+type TraceSessionStub struct {
+	SessionID string
+	Events    []trace.Event
+	Closed    bool
+}
+
+func (s *TraceSessionStub) ID() string {
+	return s.SessionID
+}
+
+func (s *TraceSessionStub) Record(eventType string, payload any) {
+	s.Events = append(s.Events, trace.Event{Type: eventType, Payload: payload})
+}
+
+func (s *TraceSessionStub) Close() {
+	s.Closed = true
 }

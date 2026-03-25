@@ -69,6 +69,15 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Name:  "debug.requests",
 			Usage: "Log sanitized model request payloads at debug level",
 		},
+		&cli.BoolFlag{
+			Name:  "debug.traces",
+			Usage: "Persist sanitized per-session trace events for debugging",
+		},
+		&cli.StringFlag{
+			Name:  "debug.trace-dir",
+			Usage: "Directory for persisted debug trace files",
+			Value: config.Get().DebugTraceDir,
+		},
 	}
 
 	if envFile != nil {
@@ -146,5 +155,11 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("debug.requests") {
 		cfg.DebugRequests = cmd.Bool("debug.requests")
+	}
+	if cmd.IsSet("debug.traces") {
+		cfg.DebugTraces = cmd.Bool("debug.traces")
+	}
+	if cmd.IsSet("debug.trace-dir") {
+		cfg.DebugTraceDir = strings.TrimSpace(cmd.String("debug.trace-dir"))
 	}
 }

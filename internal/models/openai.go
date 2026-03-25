@@ -14,9 +14,11 @@ import (
 	"github.com/rs/zerolog/log"
 
 	handctx "github.com/wandxy/hand/internal/context"
+	"github.com/wandxy/hand/internal/guardrails"
 )
 
 var jsonMarshal = json.Marshal
+var debugRedactor = guardrails.NewRedactor()
 
 type OpenAIClient struct {
 	createChatCompletion func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error)
@@ -479,7 +481,7 @@ func extractChatCompletionsToolCalls(toolCalls []openai.ChatCompletionMessageToo
 }
 
 func logRequestDebugDump(mode string, params any) {
-	raw, err := jsonMarshal(params)
+	raw, err := jsonMarshal(debugRedactor.Sanitize(params))
 	if err != nil {
 		log.Debug().Err(err).Msg("Failed to marshal model request debug dump")
 		return

@@ -797,7 +797,7 @@ func TestAgent_SummaryFallbackReturnsContextError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := agent.summaryFallback(ctx, environment.NewIterationBudget(0), handCtx)
+	_, err := agent.summaryFallback(ctx, environment.NewIterationBudget(0), handCtx, &mocks.TraceSessionStub{})
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -814,7 +814,7 @@ func TestAgent_SummaryFallbackReturnsAssistantAppendError(t *testing.T) {
 		Conversation: handcontext.NewConversation(),
 	}
 
-	_, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), handCtx)
+	_, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), handCtx, &mocks.TraceSessionStub{})
 	require.EqualError(t, err, "message content is required")
 }
 
@@ -825,7 +825,7 @@ func TestAgent_SummaryFallbackRejectsNilModelResponse(t *testing.T) {
 	}
 	handCtx := handcontext.NewContext(context.Background(), &config.Config{})
 
-	_, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), handCtx)
+	_, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), handCtx, &mocks.TraceSessionStub{})
 	require.EqualError(t, err, "model response is required")
 }
 
@@ -854,10 +854,75 @@ func newTestAgent(
 			RuntimeContext:  runtimeContext,
 			ToolRegistry:    registry,
 			IterationBudget: budget,
+			TraceSession:    &mocks.TraceSessionStub{},
 		}
 	}
 
 	agent := NewAgent(context.Background(), cfg, client)
 	require.NoError(t, agent.Run(context.Background()))
 	return agent
+}
+
+func TestAgent_ChatRecordsTraceEventsOnSuccess(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{Responses: []*models.GenerateResponse{{OutputText: "hello back"}}}
+	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", Model: "test-model"}, client)
+
+	originalFactory := newRuntimeEnvironment
+	t.Cleanup(func() {
+		newRuntimeEnvironment = originalFactory
+	})
+	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
+		return &mocks.EnvironmentStub{
+			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
+			ToolRegistry:   tools.NewInMemoryRegistry(),
+			TraceSession:   traceSession,
+		}
+	}
+
+	require.NoError(t, agent.Run(context.Background()))
+
+	reply, err := agent.Chat(context.Background(), "hello")
+	require.NoError(t, err)
+	require.Equal(t, "hello back", reply)
+
+	require.True(t, traceSession.Closed)
+	expectedEvents := []string{"user.message.accepted", "model.request", "model.response", "final.assistant.response"}
+	actualEvents := []string{traceSession.Events[0].Type, traceSession.Events[1].Type, traceSession.Events[2].Type, traceSession.Events[3].Type}
+	require.Equal(t, expectedEvents, actualEvents)
+}
+
+func TestAgent_ChatRecordsTraceFailure(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{Err: errors.New("upstream failed")}
+	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", Model: "test-model"}, client)
+	originalFactory := newRuntimeEnvironment
+	t.Cleanup(func() {
+		newRuntimeEnvironment = originalFactory
+	})
+	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
+		return &mocks.EnvironmentStub{
+			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
+			ToolRegistry:   tools.NewInMemoryRegistry(),
+			TraceSession:   traceSession,
+		}
+	}
+	require.NoError(t, agent.Run(context.Background()))
+
+	_, err := agent.Chat(context.Background(), "hello")
+	require.EqualError(t, err, "upstream failed")
+	require.Equal(t, "session.failed", traceSession.Events[len(traceSession.Events)-1].Type)
+}
+
+func TestAgent_SummaryFallbackRecordsTraceEvent(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{Responses: []*models.GenerateResponse{{OutputText: "summary"}}}
+	agent := &Agent{cfg: &config.Config{Name: "Test Agent", Model: "test-model"}, modelClient: client}
+	handCtx := handcontext.NewContext(context.Background(), &config.Config{})
+
+	reply, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), handCtx, traceSession)
+	require.NoError(t, err)
+	require.Equal(t, "summary", reply)
+	require.Equal(t, "summary.fallback.started", traceSession.Events[0].Type)
+	require.Equal(t, "final.assistant.response", traceSession.Events[len(traceSession.Events)-1].Type)
 }

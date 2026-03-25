@@ -609,3 +609,65 @@ func TestConfig_ValidateRejectsResponsesModeWithOpenRouter(t *testing.T) {
 	}).Validate()
 	require.EqualError(t, err, "model api mode 'responses' is only supported with model router 'none'; use --model.router 'none' or --model.api-mode 'chat-completions'")
 }
+
+func TestLoad_UsesDebugTraceSettingsFromConfig(t *testing.T) {
+	clearEnvKeys(t, "DEBUG_TRACES", "DEBUG_TRACE_DIR")
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: config-model
+  router: none
+  key: config-key
+rpc:
+  address: 127.0.0.1
+  port: 50051
+log:
+  level: info
+debug:
+  traces: true
+  traceDir: /tmp/hand-traces
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+	require.NoError(t, err)
+	require.True(t, cfg.DebugTraces)
+	require.Equal(t, "/tmp/hand-traces", cfg.DebugTraceDir)
+}
+
+func TestLoad_UsesDebugTraceSettingsFromEnvOverride(t *testing.T) {
+	clearEnvKeys(t, "DEBUG_TRACES", "DEBUG_TRACE_DIR")
+
+	dir := t.TempDir()
+	envPath := filepath.Join(dir, ".env")
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(envPath, []byte("DEBUG_TRACES=true\nDEBUG_TRACE_DIR=/tmp/env-traces\n"), 0o600))
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: config-model
+  router: none
+  key: config-key
+rpc:
+  address: 127.0.0.1
+  port: 50051
+log:
+  level: info
+debug:
+  traces: false
+  traceDir: /tmp/config-traces
+`), 0o600))
+
+	cfg, err := Load(envPath, configPath)
+	require.NoError(t, err)
+	require.True(t, cfg.DebugTraces)
+	require.Equal(t, "/tmp/env-traces", cfg.DebugTraceDir)
+}
+
+func TestConfig_NormalizeDefaultsDebugTraceDir(t *testing.T) {
+	cfg := &Config{}
+	cfg.Normalize()
+	require.Equal(t, DefaultDebugTraceDir, cfg.DebugTraceDir)
+}

@@ -848,3 +848,26 @@ func responseOutputItemFromJSON(t *testing.T, raw string) responses.ResponseOutp
 	require.NoError(t, json.Unmarshal([]byte(raw), &item))
 	return item
 }
+
+func TestLogRequestDebugDumpRedactsSensitiveFields(t *testing.T) {
+	originalLogger := log.Logger
+	originalLevel := zerolog.GlobalLevel()
+	t.Cleanup(func() {
+		log.Logger = originalLogger
+		zerolog.SetGlobalLevel(originalLevel)
+	})
+
+	buf := &bytes.Buffer{}
+	log.Logger = zerolog.New(buf)
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+
+	logRequestDebugDump(APIModeResponses, map[string]any{
+		"authorization": "Bearer secret-token",
+		"nested":        map[string]any{"api_key": "sk-secret-key"},
+	})
+
+	output := buf.String()
+	require.Contains(t, output, `"authorization":"[REDACTED]"`)
+	require.Contains(t, output, `"api_key":"[REDACTED]"`)
+	require.NotContains(t, output, "secret-token")
+}

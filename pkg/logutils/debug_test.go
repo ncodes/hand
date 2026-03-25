@@ -32,5 +32,5 @@ func TestPrettyPrint_WritesToStdout(t *testing.T) {
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, r)
 	require.NoError(t, err)
-	require.Contains(t, buf.String(), "\"x\": 1")
+	require.Contains(t, buf.String(), `"x": int(1)`)
 }

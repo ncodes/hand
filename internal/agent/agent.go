@@ -13,6 +13,7 @@ import (
 	"github.com/wandxy/hand/internal/instruction"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/hand/internal/trace"
 )
 
 var jsonMarshal = json.Marshal
@@ -22,14 +23,13 @@ type runtimeEnvironment interface {
 	Context() environment.Context
 	Tools() environment.ToolRegistry
 	NewIterationBudget() environment.IterationBudget
+	NewTraceSession() trace.Session
 }
 
 var newRuntimeEnvironment = func(ctx context.Context, cfg *config.Config) runtimeEnvironment {
 	return environment.NewEnvironment(ctx, cfg)
 }
 
-// Agent is the runtime agent.
-// It coordinates runtime state, model calls, and synchronous tool execution.
 type Agent struct {
 	ctx         context.Context
 	cfg         *config.Config
@@ -37,16 +37,10 @@ type Agent struct {
 	env         runtimeEnvironment
 }
 
-// NewAgent creates a new agent with the given configuration and model client.
 func NewAgent(ctx context.Context, cfg *config.Config, modelClient models.Client) *Agent {
-	return &Agent{
-		ctx:         ctx,
-		cfg:         cfg,
-		modelClient: modelClient,
-	}
+	return &Agent{ctx: ctx, cfg: cfg, modelClient: modelClient}
 }
 
-// Chat processes a user message and returns a response.
 func (c *Agent) Chat(ctx context.Context, msg string) (string, error) {
 	if c == nil {
 		return "", errors.New("agent is required")
@@ -66,6 +60,7 @@ func (c *Agent) Chat(ctx context.Context, msg string) (string, error) {
 	if strings.TrimSpace(msg) == "" {
 		return "", errors.New("message is required")
 	}
+
 	ctx = normalizeContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -75,62 +70,84 @@ func (c *Agent) Chat(ctx context.Context, msg string) (string, error) {
 	if handCtx == nil {
 		return "", errors.New("runtime context is required")
 	}
+
+	trace := c.env.NewTraceSession()
+	defer trace.Close()
+
 	if err := handCtx.AddUserMessage(msg); err != nil {
+		trace.Record("session.failed", map[string]any{"error": err.Error()})
 		return "", err
 	}
+	trace.Record("user.message.accepted", map[string]any{"message": msg})
 
 	budget := c.env.NewIterationBudget()
 	for budget.Consume() {
 		if err := ctx.Err(); err != nil {
+			trace.Record("session.failed", map[string]any{"error": err.Error()})
 			return "", err
 		}
 
-		resp, err := c.modelClient.Chat(ctx, models.GenerateRequest{
+		request := models.GenerateRequest{
 			Model:         c.cfg.Model,
 			APIMode:       c.cfg.ModelAPIMode,
 			Instructions:  handCtx.GetInstructions().String(),
 			Messages:      handCtx.GetMessages(),
 			Tools:         c.toolDefinitions(),
 			DebugRequests: c.cfg.DebugRequests,
-		})
+		}
+		trace.Record("model.request", request)
+
+		resp, err := c.modelClient.Chat(ctx, request)
 		if err != nil {
+			trace.Record("session.failed", map[string]any{"error": err.Error()})
 			return "", err
 		}
 		if resp == nil {
-			return "", errors.New("model response is required")
+			err = errors.New("model response is required")
+			trace.Record("session.failed", map[string]any{"error": err.Error()})
+			return "", err
 		}
+		trace.Record("model.response", resp)
 
 		if !resp.RequiresToolCalls {
 			if err := handCtx.AddAssistantMessage(resp.OutputText); err != nil {
+				trace.Record("session.failed", map[string]any{"error": err.Error()})
 				return "", err
 			}
+			trace.Record("final.assistant.response", map[string]any{"message": resp.OutputText})
 			return resp.OutputText, nil
 		}
 
 		if len(resp.ToolCalls) == 0 {
-			return "", errors.New("model requested tool execution without tool calls")
+			err = errors.New("model requested tool execution without tool calls")
+			trace.Record("session.failed", map[string]any{"error": err.Error()})
+			return "", err
 		}
 
-		assistantMessage := handctx.Message{
-			Role:      handctx.RoleAssistant,
-			Content:   strings.TrimSpace(resp.OutputText),
-			ToolCalls: toContextToolCalls(resp.ToolCalls),
-		}
+		assistantMessage := handctx.Message{Role: handctx.RoleAssistant, Content: strings.TrimSpace(resp.OutputText), ToolCalls: toContextToolCalls(resp.ToolCalls)}
 		if err := handCtx.AddMessage(assistantMessage); err != nil {
+			trace.Record("session.failed", map[string]any{"error": err.Error()})
 			return "", err
 		}
 
 		for _, toolCall := range resp.ToolCalls {
 			if err := ctx.Err(); err != nil {
+				trace.Record("session.failed", map[string]any{"error": err.Error()})
 				return "", err
 			}
-			if err := handCtx.AddMessage(c.invokeTool(ctx, toolCall)); err != nil {
+
+			trace.Record("tool.invocation.started", toolCall)
+			toolMessage := c.invokeTool(ctx, toolCall)
+			trace.Record("tool.invocation.completed", toolMessage)
+
+			if err := handCtx.AddMessage(toolMessage); err != nil {
+				trace.Record("session.failed", map[string]any{"error": err.Error()})
 				return "", err
 			}
 		}
 	}
 
-	return c.summaryFallback(ctx, budget, handCtx)
+	return c.summaryFallback(ctx, budget, handCtx, trace)
 }
 
 func (c *Agent) Run(context.Context) error {
@@ -150,13 +167,9 @@ func (c *Agent) Run(context.Context) error {
 }
 
 func (c *Agent) Conversation() handctx.Conversation {
-	if c == nil {
+	if c == nil || c.env == nil {
 		return handctx.NewConversation()
 	}
-	if c.env == nil {
-		return handctx.NewConversation()
-	}
-
 	return c.env.Context().GetConversation()
 }
 
@@ -178,15 +191,9 @@ func (c *Agent) toolDefinitions() []models.ToolDefinition {
 }
 
 func (c *Agent) invokeTool(ctx context.Context, toolCall models.ToolCall) handctx.Message {
-	result := map[string]string{
-		"name": toolCall.Name,
-	}
+	result := map[string]string{"name": toolCall.Name}
 
-	toolResult, err := c.env.Tools().Invoke(ctx, tools.Call{
-		Name:   toolCall.Name,
-		Input:  toolCall.Input,
-		Source: "model",
-	})
+	toolResult, err := c.env.Tools().Invoke(ctx, tools.Call{Name: toolCall.Name, Input: toolCall.Input, Source: "model"})
 	if err != nil {
 		result["error"] = err.Error()
 	}
@@ -205,49 +212,55 @@ func (c *Agent) invokeTool(ctx context.Context, toolCall models.ToolCall) handct
 		content = string(raw)
 	}
 
-	return handctx.Message{
-		Role:       handctx.RoleTool,
-		Name:       toolCall.Name,
-		ToolCallID: toolCall.ID,
-		Content:    content,
-	}
+	return handctx.Message{Role: handctx.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: content}
 }
 
-func (c *Agent) summaryFallback(
-	ctx context.Context,
-	budget environment.IterationBudget,
-	handCtx environment.Context,
-) (string, error) {
+func (c *Agent) summaryFallback(ctx context.Context, budget environment.IterationBudget, handCtx environment.Context, trace trace.Session) (string, error) {
 	ctx = normalizeContext(ctx)
 	if err := ctx.Err(); err != nil {
+		trace.Record("session.failed", map[string]any{"error": err.Error()})
 		return "", err
 	}
 
-	instructions := instruction.
-		BuildBase(c.cfg.Name).
-		Chain(instruction.BuildSummary(budget.Remaining())...)
-
-	resp, err := c.modelClient.Chat(ctx, models.GenerateRequest{
+	instructions := instruction.BuildBase(c.cfg.Name).Chain(instruction.BuildSummary(budget.Remaining())...)
+	request := models.GenerateRequest{
 		Model:         c.cfg.Model,
 		APIMode:       c.cfg.ModelAPIMode,
 		Instructions:  instructions.String(),
 		Messages:      handCtx.GetMessages(),
 		Tools:         nil,
 		DebugRequests: c.cfg.DebugRequests,
-	})
+	}
+
+	trace.Record("summary.fallback.started", map[string]any{"remaining_iterations": budget.Remaining()})
+	trace.Record("model.request", request)
+
+	resp, err := c.modelClient.Chat(ctx, request)
 	if err != nil {
-		return "", fmt.Errorf("iteration limit reached and summary failed: %w", err)
+		wrapped := fmt.Errorf("iteration limit reached and summary failed: %w", err)
+		trace.Record("session.failed", map[string]any{"error": wrapped.Error()})
+		return "", wrapped
 	}
 	if resp == nil {
-		return "", errors.New("model response is required")
-	}
-	if resp.RequiresToolCalls {
-		return "", fmt.Errorf("iteration limit reached and summary requested more tools")
-	}
-	if err := handCtx.AddAssistantMessage(resp.OutputText); err != nil {
+		err = errors.New("model response is required")
+		trace.Record("session.failed", map[string]any{"error": err.Error()})
 		return "", err
 	}
 
+	trace.Record("model.response", resp)
+
+	if resp.RequiresToolCalls {
+		err = fmt.Errorf("iteration limit reached and summary requested more tools")
+		trace.Record("session.failed", map[string]any{"error": err.Error()})
+		return "", err
+	}
+
+	if err := handCtx.AddAssistantMessage(resp.OutputText); err != nil {
+		trace.Record("session.failed", map[string]any{"error": err.Error()})
+		return "", err
+	}
+
+	trace.Record("final.assistant.response", map[string]any{"message": resp.OutputText})
 	return resp.OutputText, nil
 }
 
@@ -265,11 +278,7 @@ func toContextToolCalls(toolCalls []models.ToolCall) []handctx.ToolCall {
 
 	normalized := make([]handctx.ToolCall, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
-		normalized = append(normalized, handctx.ToolCall{
-			ID:    toolCall.ID,
-			Name:  toolCall.Name,
-			Input: toolCall.Input,
-		})
+		normalized = append(normalized, handctx.ToolCall{ID: toolCall.ID, Name: toolCall.Name, Input: toolCall.Input})
 	}
 	return normalized
 }

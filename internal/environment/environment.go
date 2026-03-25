@@ -5,17 +5,19 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	handctx "github.com/wandxy/hand/internal/context"
+	"github.com/wandxy/hand/internal/guardrails"
 	instructionpkg "github.com/wandxy/hand/internal/instruction"
 	"github.com/wandxy/hand/internal/tools"
 	nativetools "github.com/wandxy/hand/internal/tools/native"
+	"github.com/wandxy/hand/internal/trace"
 )
 
-// Environment holds the agent's runtime dependencies, including config and initialized context.
 type Environment struct {
 	ctx     context.Context
 	cfg     *config.Config
 	handCtx *handctx.Context
 	tools   tools.Registry
+	traces  trace.Factory
 }
 
 type Context interface {
@@ -32,18 +34,25 @@ type ToolRegistry interface {
 	Invoke(context.Context, tools.Call) (tools.Result, error)
 }
 
-// NewEnvironment creates the agent environment from the application context and config.
 func NewEnvironment(ctx context.Context, cfg *config.Config) *Environment {
 	registry := tools.NewInMemoryRegistry()
+	traceFactory := trace.NoopFactory()
+	if cfg != nil && cfg.DebugTraces {
+		traceDir := cfg.DebugTraceDir
+		if traceDir == "" {
+			traceDir = config.DefaultDebugTraceDir
+		}
+		traceFactory = trace.NewFactory(traceDir, guardrails.NewRedactor())
+	}
 	return &Environment{
 		ctx:     ctx,
 		cfg:     cfg,
 		handCtx: handctx.NewContext(ctx, cfg),
 		tools:   registry,
+		traces:  traceFactory,
 	}
 }
 
-// Prepare prepares the environment for the agent to run.
 func (e *Environment) Prepare() error {
 	if err := e.prepareTools(); err != nil {
 		return err
@@ -60,20 +69,30 @@ func (e *Environment) prepareInstructions() error {
 	return nil
 }
 
-// Context returns the runtime context exposed by the environment.
 func (e *Environment) Context() Context {
 	return e.handCtx
 }
 
-// Tools returns the tool registry exposed by the environment.
 func (e *Environment) Tools() ToolRegistry {
 	return e.tools
 }
 
-// NewIterationBudget creates a new iteration budget with the given limit.
 func (e *Environment) NewIterationBudget() IterationBudget {
 	if e == nil || e.cfg == nil || e.cfg.MaxIterations <= 0 {
 		return NewIterationBudget(config.DefaultMaxIterations)
 	}
 	return NewIterationBudget(e.cfg.MaxIterations)
+}
+
+func (e *Environment) NewTraceSession() trace.Session {
+	if e == nil || e.traces == nil {
+		return trace.NoopSession()
+	}
+	metadata := trace.Metadata{Source: "agent"}
+	if e.cfg != nil {
+		metadata.AgentName = e.cfg.Name
+		metadata.Model = e.cfg.Model
+		metadata.APIMode = e.cfg.ModelAPIMode
+	}
+	return e.traces.NewSession(e.ctx, metadata)
 }

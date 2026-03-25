@@ -16,7 +16,8 @@ import (
 
 func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 	baseCtx := gctx.WithValue(gctx.Background(), "requestID", "req-123")
-	cfg := &config.Config{Name: "Test Agent"}
+	dir := t.TempDir()
+	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
 
 	env := NewEnvironment(baseCtx, cfg)
 
@@ -28,7 +29,8 @@ func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 }
 
 func TestEnvironment_PrepareAddsBaseInstruction(t *testing.T) {
-	cfg := &config.Config{Name: "Test Agent"}
+	dir := t.TempDir()
+	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	err := env.Prepare()
@@ -39,7 +41,8 @@ func TestEnvironment_PrepareAddsBaseInstruction(t *testing.T) {
 }
 
 func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent"})
+	dir := t.TempDir()
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
 
 	require.NoError(t, env.Prepare())
 
@@ -72,7 +75,8 @@ func (failingRegistry) Invoke(stdctx.Context, tools.Call) (tools.Result, error) 
 }
 
 func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent"})
+	dir := t.TempDir()
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
 	env.tools = failingRegistry{err: errors.New("register failed")}
 
 	err := env.Prepare()
@@ -82,7 +86,8 @@ func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
 }
 
 func TestEnvironment_ContextUsesContextState(t *testing.T) {
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent"})
+	dir := t.TempDir()
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
 	runtimeContext := env.Context()
 
 	require.NoError(t, runtimeContext.AddUserMessage("hello"))
@@ -100,10 +105,37 @@ func TestEnvironment_ContextUsesContextState(t *testing.T) {
 }
 
 func TestEnvironment_NewIterationBudgetUsesConfigValue(t *testing.T) {
-	env := NewEnvironment(gctx.Background(), &config.Config{MaxIterations: 12})
+	dir := t.TempDir()
+	env := NewEnvironment(gctx.Background(), &config.Config{MaxIterations: 12, DebugTraceDir: dir})
 	require.Equal(t, 12, env.NewIterationBudget().Remaining())
 }
 
 func TestEnvironment_NewIterationBudgetUsesDefaultWhenUnset(t *testing.T) {
 	require.Equal(t, config.DefaultMaxIterations, (&Environment{}).NewIterationBudget().Remaining())
+}
+
+func TestNewEnvironment_ConfiguresTraceFactoryWhenEnabled(t *testing.T) {
+	dir := t.TempDir()
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Model: "gpt-5.1", ModelAPIMode: "responses", DebugTraces: true, DebugTraceDir: dir})
+
+	session := env.NewTraceSession()
+	require.NotEmpty(t, session.ID())
+	session.Close()
+}
+
+func TestNewEnvironment_ReturnsNoopTraceSessionWhenDisabled(t *testing.T) {
+	dir := t.TempDir()
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
+
+	session := env.NewTraceSession()
+	require.Equal(t, "", session.ID())
+}
+
+func TestNewEnvironment_UsesDefaultTraceDirWhenEnabledWithoutConfiguredDir(t *testing.T) {
+	dir := t.TempDir()
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraces: true, DebugTraceDir: dir})
+
+	session := env.NewTraceSession()
+	require.NotEmpty(t, session.ID())
+	session.Close()
 }

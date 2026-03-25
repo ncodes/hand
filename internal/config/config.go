@@ -27,6 +27,8 @@ type Config struct {
 	LogLevel         string
 	LogNoColor       bool
 	DebugRequests    bool
+	DebugTraces      bool
+	DebugTraceDir    string
 }
 
 type ModelAuth struct {
@@ -50,6 +52,7 @@ const (
 	defaultModelRouter   = "openrouter"
 	DefaultModelAPIMode  = "chat-completions"
 	DefaultMaxIterations = 90
+	DefaultDebugTraceDir = ".hand/traces"
 	defaultMaxIterations = DefaultMaxIterations
 )
 
@@ -69,7 +72,9 @@ type fileConfig struct {
 		NoColor bool   `yaml:"noColor"`
 	} `yaml:"log"`
 	Debug struct {
-		Requests bool `yaml:"requests"`
+		Requests bool   `yaml:"requests"`
+		Traces   bool   `yaml:"traces"`
+		TraceDir string `yaml:"traceDir"`
 	} `yaml:"debug"`
 	RPC struct {
 		Address string `yaml:"address"`
@@ -118,6 +123,7 @@ func Get() *Config {
 			ModelAPIMode:  DefaultModelAPIMode,
 			MaxIterations: defaultMaxIterations,
 			LogLevel:      "info",
+			DebugTraceDir: DefaultDebugTraceDir,
 		}
 	}
 	return globalConfig
@@ -163,6 +169,8 @@ func loadConfigFile(path string) (*Config, error) {
 		LogLevel:         raw.Log.Level,
 		LogNoColor:       raw.Log.NoColor,
 		DebugRequests:    raw.Debug.Requests,
+		DebugTraces:      raw.Debug.Traces,
+		DebugTraceDir:    raw.Debug.TraceDir,
 	}, nil
 }
 
@@ -217,6 +225,12 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(strings.ToLower(os.Getenv("DEBUG_REQUESTS"))); value != "" {
 		cfg.DebugRequests = value == "1" || value == "true" || value == "yes"
 	}
+	if value := strings.TrimSpace(strings.ToLower(os.Getenv("DEBUG_TRACES"))); value != "" {
+		cfg.DebugTraces = value == "1" || value == "true" || value == "yes"
+	}
+	if value := strings.TrimSpace(os.Getenv("DEBUG_TRACE_DIR")); value != "" {
+		cfg.DebugTraceDir = value
+	}
 }
 
 func (c *Config) Normalize() {
@@ -233,6 +247,7 @@ func (c *Config) Normalize() {
 	c.ModelBaseURL = strings.TrimSpace(c.ModelBaseURL)
 	c.ModelAPIMode = strings.TrimSpace(strings.ToLower(c.ModelAPIMode))
 	c.LogLevel = strings.TrimSpace(strings.ToLower(c.LogLevel))
+	c.DebugTraceDir = strings.TrimSpace(c.DebugTraceDir)
 
 	if c.Model == "" {
 		c.Model = defaultModel
@@ -257,6 +272,9 @@ func (c *Config) Normalize() {
 	}
 	if c.MaxIterations == 0 {
 		c.MaxIterations = defaultMaxIterations
+	}
+	if c.DebugTraceDir == "" {
+		c.DebugTraceDir = DefaultDebugTraceDir
 	}
 
 	if c.ModelBaseURL == "" {
