@@ -59,6 +59,10 @@ func renderStartupPanel(cfg *config.Config) string {
 	if cfg.DebugRequests {
 		debugRequests = "enabled"
 	}
+	traceStatus := "disabled"
+	if cfg.DebugTraces {
+		traceStatus = fmt.Sprintf("enabled (%s)", cfg.DebugTraceDir)
+	}
 
 	lines := []string{
 		styleStartup(handBadge, cfg.LogNoColor),
@@ -71,6 +75,7 @@ func renderStartupPanel(cfg *config.Config) string {
 		fmt.Sprintf("%s %s", styleLabel("RPC", cfg.LogNoColor), fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort)),
 		fmt.Sprintf("%s %s", styleLabel("Logs", cfg.LogNoColor), fmt.Sprintf("%s (%s)", cfg.LogLevel, logStyle)),
 		fmt.Sprintf("%s %s", styleLabel("Debug requests", cfg.LogNoColor), debugRequests),
+		fmt.Sprintf("%s %s", styleLabel("Traces", cfg.LogNoColor), traceStatus),
 		"",
 		styleStartup("Ready to accept RPC connections.", cfg.LogNoColor),
 	}
@@ -181,6 +186,8 @@ func NewCommand() *cli.Command {
 				Str("name", cfg.Name).
 				Str("model", cfg.Model).
 				Str("router", cfg.ModelRouter).
+				Bool("debugTraces", cfg.DebugTraces).
+				Str("debugTraceDir", cfg.DebugTraceDir).
 				Msg("Configuration loaded")
 
 			log.Info().
@@ -188,6 +195,8 @@ func NewCommand() *cli.Command {
 				Str("rpcAddress", cfg.RPCAddress).
 				Int("rpcPort", cfg.RPCPort).
 				Str("rpcEndpoint", fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort)).
+				Bool("debugTraces", cfg.DebugTraces).
+				Str("debugTraceDir", cfg.DebugTraceDir).
 				Msg("Starting Hand services")
 
 			clientOptions := make([]option.RequestOption, 0, 1)

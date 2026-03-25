@@ -64,6 +64,8 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 		"--model.base-url", "https://flag.example/v1",
 		"--rpc.address", "0.0.0.0",
 		"--rpc.port", "6000",
+		"--debug.traces",
+		"--debug.trace-dir", "/tmp/hand-traces",
 		"--log.level", "debug",
 		"up",
 	}))
@@ -76,6 +78,8 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Equal(t, "https://flag.example/v1", cfg.ModelBaseURL)
 	require.Equal(t, "0.0.0.0", cfg.RPCAddress)
 	require.Equal(t, 6000, cfg.RPCPort)
+	require.True(t, cfg.DebugTraces)
+	require.Equal(t, "/tmp/hand-traces", cfg.DebugTraceDir)
 	require.Equal(t, "debug", cfg.LogLevel)
 	require.False(t, cfg.LogNoColor)
 	require.True(t, runCalled)
@@ -89,6 +93,8 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, startupBuffer.String(), "0.0.0.0:6000")
 	require.Contains(t, startupBuffer.String(), "Debug requests")
 	require.Contains(t, startupBuffer.String(), "disabled")
+	require.Contains(t, startupBuffer.String(), "Traces")
+	require.Contains(t, startupBuffer.String(), "enabled (/tmp/hand-traces)")
 	logOutput := stripANSI(logBuffer.String())
 	require.Contains(t, logOutput, "Configuration loaded")
 	require.Contains(t, logOutput, "Starting Hand services")
@@ -96,6 +102,8 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, logOutput, "model=flag-model")
 	require.Contains(t, logOutput, "router=openrouter")
 	require.Contains(t, logOutput, "rpcEndpoint=0.0.0.0:6000")
+	require.Contains(t, logOutput, "debugTraces=true")
+	require.Contains(t, logOutput, "debugTraceDir=/tmp/hand-traces")
 }
 
 func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
@@ -108,12 +116,15 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 		LogLevel:      "info",
 		LogNoColor:    true,
 		DebugRequests: true,
+		DebugTraces:   true,
+		DebugTraceDir: "/tmp/hand-traces",
 	})
 
 	require.NotContains(t, output, "\x1b[90m")
 	require.Contains(t, output, "Hand daemon")
 	require.Contains(t, output, "Instance: daemon")
 	require.Contains(t, output, "Debug requests: enabled")
+	require.Contains(t, output, "Traces: enabled (/tmp/hand-traces)")
 	require.Contains(t, output, "Ready to accept RPC connections.")
 }
 
