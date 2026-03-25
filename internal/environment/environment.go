@@ -3,6 +3,8 @@ package environment
 import (
 	"context"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/wandxy/hand/internal/config"
 	handctx "github.com/wandxy/hand/internal/context"
 	"github.com/wandxy/hand/internal/datadir"
@@ -11,7 +13,10 @@ import (
 	"github.com/wandxy/hand/internal/tools"
 	nativetools "github.com/wandxy/hand/internal/tools/native"
 	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/hand/internal/workspace"
 )
+
+var loadWorkspaceRules = workspace.Load
 
 type Environment struct {
 	ctx     context.Context
@@ -69,6 +74,17 @@ func (e *Environment) prepareInstructions() error {
 	for _, instruction := range instructionpkg.BuildBase(e.cfg.Name) {
 		e.handCtx.AddInstruction(instruction)
 	}
+
+	workspaceRules, err := loadWorkspaceRules()
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to load workspace rules")
+		return nil
+	}
+
+	if workspaceRules.Found {
+		e.handCtx.AddInstruction(handctx.Instruction{Value: workspaceRules.Content})
+	}
+
 	return nil
 }
 

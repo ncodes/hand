@@ -14,6 +14,7 @@ import (
 	"github.com/wandxy/hand/internal/datadir"
 	instructionpkg "github.com/wandxy/hand/internal/instruction"
 	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/hand/internal/workspace"
 )
 
 func TestNewEnvironment_InitializesDependencies(t *testing.T) {
@@ -31,6 +32,14 @@ func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 }
 
 func TestEnvironment_PrepareAddsFullBaseInstructionStack(t *testing.T) {
+	previous := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadWorkspaceRules = previous
+	})
+	loadWorkspaceRules = func() (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
 	dir := t.TempDir()
 	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
 	env := NewEnvironment(gctx.Background(), cfg)
@@ -41,7 +50,55 @@ func TestEnvironment_PrepareAddsFullBaseInstructionStack(t *testing.T) {
 	require.Equal(t, instructionpkg.BuildBase(cfg.Name), env.handCtx.GetInstructions())
 }
 
+func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
+	previous := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadWorkspaceRules = previous
+	})
+	loadWorkspaceRules = func() (workspace.Result, error) {
+		return workspace.Result{
+			Found:   true,
+			Content: "## AGENTS.md\nrepo rules",
+		}, nil
+	}
+
+	dir := t.TempDir()
+	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
+	env := NewEnvironment(gctx.Background(), cfg)
+
+	require.NoError(t, env.Prepare())
+
+	instructions := env.handCtx.GetInstructions()
+	require.Len(t, instructions, len(instructionpkg.BuildBase(cfg.Name))+1)
+	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-1].Value)
+}
+
+func TestEnvironment_PrepareIgnoresWorkspaceRuleLoadError(t *testing.T) {
+	previous := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadWorkspaceRules = previous
+	})
+	loadWorkspaceRules = func() (workspace.Result, error) {
+		return workspace.Result{}, errors.New("cwd failed")
+	}
+
+	dir := t.TempDir()
+	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
+	env := NewEnvironment(gctx.Background(), cfg)
+
+	require.NoError(t, env.Prepare())
+	require.Equal(t, instructionpkg.BuildBase(cfg.Name), env.handCtx.GetInstructions())
+}
+
 func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) {
+	previous := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadWorkspaceRules = previous
+	})
+	loadWorkspaceRules = func() (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
 	dir := t.TempDir()
 	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
 	env := NewEnvironment(gctx.Background(), cfg)
@@ -54,6 +111,14 @@ func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) 
 }
 
 func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
+	previous := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadWorkspaceRules = previous
+	})
+	loadWorkspaceRules = func() (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
 	dir := t.TempDir()
 	cfg := &config.Config{DebugTraceDir: dir}
 	env := NewEnvironment(gctx.Background(), cfg)
@@ -65,6 +130,14 @@ func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
 }
 
 func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
+	previous := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadWorkspaceRules = previous
+	})
+	loadWorkspaceRules = func() (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
 

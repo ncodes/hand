@@ -13,5 +13,5 @@ config.yaml
 *~
 
 .DS_Store
-plan/
+.plan/
 .hand/
