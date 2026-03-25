@@ -36,7 +36,7 @@ func TestEnvironment_PrepareAddsFullBaseInstructionStack(t *testing.T) {
 	t.Cleanup(func() {
 		loadWorkspaceRules = previous
 	})
-	loadWorkspaceRules = func() (workspace.Result, error) {
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
 		return workspace.Result{}, nil
 	}
 
@@ -55,7 +55,8 @@ func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
 	t.Cleanup(func() {
 		loadWorkspaceRules = previous
 	})
-	loadWorkspaceRules = func() (workspace.Result, error) {
+	loadWorkspaceRules = func(files ...string) (workspace.Result, error) {
+		require.Equal(t, []string{"hand.md"}, files)
 		return workspace.Result{
 			Found:   true,
 			Content: "## AGENTS.md\nrepo rules",
@@ -63,7 +64,7 @@ func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
+	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir, RulesFiles: []string{"hand.md"}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	require.NoError(t, env.Prepare())
@@ -78,7 +79,7 @@ func TestEnvironment_PrepareIgnoresWorkspaceRuleLoadError(t *testing.T) {
 	t.Cleanup(func() {
 		loadWorkspaceRules = previous
 	})
-	loadWorkspaceRules = func() (workspace.Result, error) {
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
 		return workspace.Result{}, errors.New("cwd failed")
 	}
 
@@ -95,7 +96,7 @@ func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) 
 	t.Cleanup(func() {
 		loadWorkspaceRules = previous
 	})
-	loadWorkspaceRules = func() (workspace.Result, error) {
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
 		return workspace.Result{}, nil
 	}
 
@@ -115,7 +116,7 @@ func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
 	t.Cleanup(func() {
 		loadWorkspaceRules = previous
 	})
-	loadWorkspaceRules = func() (workspace.Result, error) {
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
 		return workspace.Result{}, nil
 	}
 
@@ -134,7 +135,7 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	t.Cleanup(func() {
 		loadWorkspaceRules = previous
 	})
-	loadWorkspaceRules = func() (workspace.Result, error) {
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
 		return workspace.Result{}, nil
 	}
 

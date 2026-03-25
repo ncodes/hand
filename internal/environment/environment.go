@@ -75,7 +75,7 @@ func (e *Environment) prepareInstructions() error {
 		e.handCtx.AddInstruction(instruction)
 	}
 
-	workspaceRules, err := loadWorkspaceRules()
+	workspaceRules, err := loadWorkspaceRules(e.cfg.RulesFiles...)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to load workspace rules")
 		return nil

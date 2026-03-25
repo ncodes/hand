@@ -15,19 +15,15 @@ import (
 const maxContentLength = 15000
 
 var (
-	supportedRuleFiles = map[string]struct{}{
-		"agents.md": {},
-		"hand.md":   {},
-		"claude.md": {},
-	}
-	skippedDirectories = map[string]struct{}{
+	defaultInstructionFiles = []string{"agents.md", "hand.md"}
+	skippedDirectories      = map[string]struct{}{
 		"node_modules": {},
 		"__pycache__":  {},
 		"venv":         {},
 		".venv":        {},
 		".git":         {},
 		".gocache":     {},
-		"plan":         {},
+		".plan":        {},
 	}
 	getwd = os.Getwd
 )
@@ -37,20 +33,47 @@ type Result struct {
 	Found   bool
 }
 
-func Load() (Result, error) {
+func DefaultInstructionFiles() []string {
+	files := make([]string, len(defaultInstructionFiles))
+	copy(files, defaultInstructionFiles)
+	return files
+}
+
+func NormalizeRulePaths(files []string) []string {
+	normalized := make([]string, 0, len(files))
+	seen := make(map[string]struct{}, len(files))
+
+	for _, file := range files {
+		path := strings.TrimSpace(file)
+		if path == "" {
+			continue
+		}
+		path = filepath.Clean(path)
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		normalized = append(normalized, path)
+	}
+
+	return normalized
+}
+
+func Load(files ...string) (Result, error) {
 	root, err := getwd()
 	if err != nil {
 		return Result{}, fmt.Errorf("resolve workspace root: %w", err)
 	}
 
-	return LoadFromRoot(root)
+	return LoadFromRoot(root, files...)
 }
 
-func LoadFromRoot(root string) (Result, error) {
+func LoadFromRoot(root string, files ...string) (Result, error) {
 	root = strings.TrimSpace(root)
 	if root == "" {
 		return Result{}, nil
 	}
+	files = NormalizeRulePaths(files)
 
 	info, err := os.Stat(root)
 	if err != nil {
@@ -64,18 +87,17 @@ func LoadFromRoot(root string) (Result, error) {
 		return Result{}, nil
 	}
 
-	enabled, err := hasTopLevelRules(root)
+	defaultPaths, err := collectDefaultRuleFiles(root)
 	if err != nil {
 		return Result{}, err
-	}
-	if !enabled {
-		return Result{}, nil
 	}
 
-	paths, err := collectRuleFiles(root)
+	configuredPaths, err := collectConfiguredRuleFiles(root, files)
 	if err != nil {
 		return Result{}, err
 	}
+
+	paths := mergePaths(defaultPaths, configuredPaths)
 	if len(paths) == 0 {
 		return Result{}, nil
 	}
@@ -87,13 +109,13 @@ func LoadFromRoot(root string) (Result, error) {
 			return Result{}, fmt.Errorf("read workspace rule %q: %w", path, err)
 		}
 
-		relativePath, err := filepath.Rel(root, path)
+		displayPath, err := displayPath(root, path)
 		if err != nil {
 			return Result{}, fmt.Errorf("resolve workspace rule path %q: %w", path, err)
 		}
 
-		scanned := guardrails.SafetyScan(string(content), filepath.ToSlash(relativePath))
-		sections = append(sections, fmt.Sprintf("## %s\n%s", filepath.ToSlash(relativePath), scanned.Content))
+		scanned := guardrails.SafetyScan(string(content), displayPath)
+		sections = append(sections, fmt.Sprintf("## %s\n%s", displayPath, scanned.Content))
 	}
 
 	return Result{
@@ -108,6 +130,7 @@ func hasTopLevelRules(root string) (bool, error) {
 		return false, fmt.Errorf("read workspace root %q: %w", root, err)
 	}
 
+	supportedRuleFiles := toFileSet(DefaultInstructionFiles())
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -120,8 +143,60 @@ func hasTopLevelRules(root string) (bool, error) {
 	return false, nil
 }
 
-func collectRuleFiles(root string) ([]string, error) {
+func collectDefaultRuleFiles(root string) ([]string, error) {
+	enabled, err := hasTopLevelRules(root)
+	if err != nil {
+		return nil, err
+	}
+	if !enabled {
+		return nil, nil
+	}
+
+	return collectRuleFiles(root, DefaultInstructionFiles())
+}
+
+func collectConfiguredRuleFiles(root string, files []string) ([]string, error) {
+	if len(files) == 0 {
+		return nil, nil
+	}
+
+	paths := make([]string, 0, len(files))
+	seen := make(map[string]struct{}, len(files))
+	for _, configuredPath := range files {
+		resolvedPath := configuredPath
+		if !filepath.IsAbs(resolvedPath) {
+			resolvedPath = filepath.Join(root, resolvedPath)
+		}
+		resolvedPath = filepath.Clean(resolvedPath)
+
+		info, err := os.Stat(resolvedPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("stat configured rule file %q: %w", configuredPath, err)
+		}
+		if info.IsDir() {
+			continue
+		}
+
+		absolutePath, err := filepath.Abs(resolvedPath)
+		if err == nil {
+			resolvedPath = absolutePath
+		}
+		if _, ok := seen[resolvedPath]; ok {
+			continue
+		}
+		seen[resolvedPath] = struct{}{}
+		paths = append(paths, resolvedPath)
+	}
+
+	return paths, nil
+}
+
+func collectRuleFiles(root string, files []string) ([]string, error) {
 	paths := make([]string, 0)
+	supportedRuleFiles := toFileSet(files)
 
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
@@ -167,6 +242,42 @@ func collectRuleFiles(root string) ([]string, error) {
 	return paths, nil
 }
 
+func mergePaths(groups ...[]string) []string {
+	merged := make([]string, 0)
+	seen := make(map[string]struct{})
+
+	for _, group := range groups {
+		for _, path := range group {
+			key := path
+			if absolutePath, err := filepath.Abs(path); err == nil {
+				key = absolutePath
+			}
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			merged = append(merged, path)
+		}
+	}
+
+	return merged
+}
+
+func displayPath(root, path string) (string, error) {
+	relativePath, err := filepath.Rel(root, path)
+	if err != nil {
+		return "", err
+	}
+	relativePath = filepath.ToSlash(relativePath)
+	if relativePath == "." {
+		return filepath.ToSlash(path), nil
+	}
+	if strings.HasPrefix(relativePath, "../") {
+		return filepath.ToSlash(path), nil
+	}
+	return relativePath, nil
+}
+
 func depth(root, path string) int {
 	relative, err := filepath.Rel(root, path)
 	if err != nil {
@@ -206,4 +317,12 @@ func truncate(content string) string {
 	}
 
 	return head + marker + tail
+}
+
+func toFileSet(files []string) map[string]struct{} {
+	supported := make(map[string]struct{}, len(files))
+	for _, file := range files {
+		supported[file] = struct{}{}
+	}
+	return supported
 }

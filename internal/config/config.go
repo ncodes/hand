@@ -12,6 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/wandxy/hand/internal/datadir"
+	"github.com/wandxy/hand/internal/workspace"
 )
 
 type Config struct {
@@ -31,6 +32,7 @@ type Config struct {
 	DebugRequests    bool
 	DebugTraces      bool
 	DebugTraceDir    string
+	RulesFiles       []string
 }
 
 type ModelAuth struct {
@@ -84,6 +86,9 @@ type fileConfig struct {
 	Agent struct {
 		MaxIterations int `yaml:"maxIterations"`
 	} `yaml:"agent"`
+	Rules struct {
+		Files []string `yaml:"files"`
+	} `yaml:"rules"`
 }
 
 func PreloadEnvFile(path string) error {
@@ -172,6 +177,7 @@ func loadConfigFile(path string) (*Config, error) {
 		DebugRequests:    raw.Debug.Requests,
 		DebugTraces:      raw.Debug.Traces,
 		DebugTraceDir:    raw.Debug.TraceDir,
+		RulesFiles:       raw.Rules.Files,
 	}, nil
 }
 
@@ -232,6 +238,9 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("DEBUG_TRACE_DIR")); value != "" {
 		cfg.DebugTraceDir = value
 	}
+	if value := strings.TrimSpace(os.Getenv("RULES_FILES")); value != "" {
+		cfg.RulesFiles = splitAndTrimCSV(value)
+	}
 }
 
 func (c *Config) Normalize() {
@@ -249,6 +258,7 @@ func (c *Config) Normalize() {
 	c.ModelAPIMode = strings.TrimSpace(strings.ToLower(c.ModelAPIMode))
 	c.LogLevel = strings.TrimSpace(strings.ToLower(c.LogLevel))
 	c.DebugTraceDir = strings.TrimSpace(c.DebugTraceDir)
+	c.RulesFiles = workspace.NormalizeRulePaths(c.RulesFiles)
 
 	if c.Model == "" {
 		c.Model = defaultModel
@@ -283,6 +293,23 @@ func (c *Config) Normalize() {
 			c.ModelBaseURL = mappedBaseURL
 		}
 	}
+}
+
+func splitAndTrimCSV(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	parts := strings.Split(value, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		values = append(values, trimmed)
+	}
+	return values
 }
 
 func (c *Config) Validate() error {

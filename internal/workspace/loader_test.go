@@ -25,7 +25,7 @@ func TestLoadFromRoot_ReturnsEmptyWhenTopLevelRuleMissing(t *testing.T) {
 }
 
 func TestLoadFromRoot_LoadsSupportedTopLevelFiles(t *testing.T) {
-	testCases := []string{"AGENTS.md", "agents.md", "hand.md", "claude.md"}
+	testCases := []string{"AGENTS.md", "agents.md", "hand.md"}
 
 	for _, name := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -47,7 +47,7 @@ func TestLoadFromRoot_LoadsNestedRulesShallowFirst(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("root"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "services", "api"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "services", "hand.md"), []byte("services"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "services", "api", "claude.md"), []byte("api"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "services", "api", "agents.md"), []byte("api"), 0o644))
 
 	result, err := LoadFromRoot(root)
 
@@ -55,7 +55,7 @@ func TestLoadFromRoot_LoadsNestedRulesShallowFirst(t *testing.T) {
 	require.True(t, result.Found)
 	rootIndex := strings.Index(result.Content, "## AGENTS.md")
 	serviceIndex := strings.Index(result.Content, "## services/hand.md")
-	apiIndex := strings.Index(result.Content, "## services/api/claude.md")
+	apiIndex := strings.Index(result.Content, "## services/api/agents.md")
 	require.NotEqual(t, -1, rootIndex)
 	require.NotEqual(t, -1, serviceIndex)
 	require.NotEqual(t, -1, apiIndex)
@@ -71,7 +71,6 @@ func TestLoadFromRoot_SkipsHiddenAndJunkDirectories(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "__pycache__"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(root, ".git", "hand.md"), []byte("hidden"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "node_modules", "hand.md"), []byte("junk"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "__pycache__", "claude.md"), []byte("junk"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "pkg"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "pkg", "hand.md"), []byte("pkg"), 0o644))
 
@@ -82,7 +81,6 @@ func TestLoadFromRoot_SkipsHiddenAndJunkDirectories(t *testing.T) {
 	require.Contains(t, result.Content, "## pkg/hand.md")
 	require.NotContains(t, result.Content, ".git/hand.md")
 	require.NotContains(t, result.Content, "node_modules/hand.md")
-	require.NotContains(t, result.Content, "__pycache__/claude.md")
 }
 
 func TestLoadFromRoot_AppliesSafetyScanPerFile(t *testing.T) {
@@ -159,4 +157,47 @@ func TestLoad_ReturnsGetwdError(t *testing.T) {
 	require.EqualError(t, err, "resolve workspace root: cwd failed")
 	require.False(t, result.Found)
 	require.Empty(t, result.Content)
+}
+
+func TestLoadFromRoot_UsesConfiguredWorkspaceInstructionFiles(t *testing.T) {
+	root := t.TempDir()
+	externalDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(externalDir, "rules.md"), []byte("external rules"), 0o644))
+
+	result, err := LoadFromRoot(root, filepath.Join(externalDir, "rules.md"))
+
+	require.NoError(t, err)
+	require.True(t, result.Found)
+	require.Contains(t, result.Content, "## "+filepath.ToSlash(filepath.Join(externalDir, "rules.md")))
+	require.Contains(t, result.Content, "external rules")
+}
+
+func TestLoadFromRoot_LoadsConfiguredRuleFilesAlongsideWorkspaceDefaults(t *testing.T) {
+	root := t.TempDir()
+	externalDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("root"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(externalDir, "rules.md"), []byte("external rules"), 0o644))
+
+	result, err := LoadFromRoot(root, filepath.Join(externalDir, "rules.md"))
+
+	require.NoError(t, err)
+	require.True(t, result.Found)
+	require.Contains(t, result.Content, "## AGENTS.md")
+	require.Contains(t, result.Content, "## "+filepath.ToSlash(filepath.Join(externalDir, "rules.md")))
+}
+
+func TestLoadFromRoot_IgnoresMissingConfiguredRuleFiles(t *testing.T) {
+	root := t.TempDir()
+
+	result, err := LoadFromRoot(root, filepath.Join(root, "missing.md"))
+
+	require.NoError(t, err)
+	require.False(t, result.Found)
+	require.Empty(t, result.Content)
+}
+
+func TestNormalizeRulePaths_PreservesCaseAndDeduplicatesCleanedPaths(t *testing.T) {
+	paths := NormalizeRulePaths([]string{" ./Hand.md ", "Hand.md", "/tmp/Rules.md", "/tmp/Rules.md", ""})
+
+	require.Equal(t, []string{"Hand.md", "/tmp/Rules.md"}, paths)
 }

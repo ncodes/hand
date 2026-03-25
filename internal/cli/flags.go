@@ -78,6 +78,11 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Usage: "Directory for persisted debug trace files",
 			Value: config.Get().DebugTraceDir,
 		},
+		&cli.StringFlag{
+			Name:  "rules.files",
+			Usage: "Comma-separated rule file paths to load in addition to workspace defaults",
+			Value: strings.Join(config.Get().RulesFiles, ","),
+		},
 	}
 
 	if envFile != nil {
@@ -162,4 +167,24 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	if cmd.IsSet("debug.trace-dir") {
 		cfg.DebugTraceDir = strings.TrimSpace(cmd.String("debug.trace-dir"))
 	}
+	if cmd.IsSet("rules.files") {
+		cfg.RulesFiles = configSplitAndTrimCSV(cmd.String("rules.files"))
+	}
+}
+
+func configSplitAndTrimCSV(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	parts := strings.Split(value, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		values = append(values, trimmed)
+	}
+	return values
 }
