@@ -10,6 +10,8 @@ import (
 
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
+
+	"github.com/wandxy/hand/internal/datadir"
 )
 
 type Config struct {
@@ -52,7 +54,6 @@ const (
 	defaultModelRouter   = "openrouter"
 	DefaultModelAPIMode  = "chat-completions"
 	DefaultMaxIterations = 90
-	DefaultDebugTraceDir = ".hand/traces"
 	defaultMaxIterations = DefaultMaxIterations
 )
 
@@ -123,7 +124,7 @@ func Get() *Config {
 			ModelAPIMode:  DefaultModelAPIMode,
 			MaxIterations: defaultMaxIterations,
 			LogLevel:      "info",
-			DebugTraceDir: DefaultDebugTraceDir,
+			DebugTraceDir: datadir.DebugTraceDir(),
 		}
 	}
 	return globalConfig
@@ -274,7 +275,7 @@ func (c *Config) Normalize() {
 		c.MaxIterations = defaultMaxIterations
 	}
 	if c.DebugTraceDir == "" {
-		c.DebugTraceDir = DefaultDebugTraceDir
+		c.DebugTraceDir = datadir.DebugTraceDir()
 	}
 
 	if c.ModelBaseURL == "" {

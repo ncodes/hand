@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/wandxy/hand/internal/datadir"
 )
 
 func TestPreloadEnvFile_LoadsValues(t *testing.T) {
@@ -669,5 +671,15 @@ debug:
 func TestConfig_NormalizeDefaultsDebugTraceDir(t *testing.T) {
 	cfg := &Config{}
 	cfg.Normalize()
-	require.Equal(t, DefaultDebugTraceDir, cfg.DebugTraceDir)
+	require.Equal(t, datadir.DebugTraceDir(), cfg.DebugTraceDir)
+}
+
+func TestConfig_NormalizeDefaultsDebugTraceDirFromHandHome(t *testing.T) {
+	clearEnvKeys(t, "HAND_HOME")
+	t.Setenv("HAND_HOME", "/tmp/hand-home")
+
+	cfg := &Config{}
+	cfg.Normalize()
+
+	require.Equal(t, "/tmp/hand-home/traces", cfg.DebugTraceDir)
 }

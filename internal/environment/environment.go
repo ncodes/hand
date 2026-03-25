@@ -5,6 +5,7 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	handctx "github.com/wandxy/hand/internal/context"
+	"github.com/wandxy/hand/internal/datadir"
 	"github.com/wandxy/hand/internal/guardrails"
 	instructionpkg "github.com/wandxy/hand/internal/instruction"
 	"github.com/wandxy/hand/internal/tools"
@@ -40,7 +41,7 @@ func NewEnvironment(ctx context.Context, cfg *config.Config) *Environment {
 	if cfg != nil && cfg.DebugTraces {
 		traceDir := cfg.DebugTraceDir
 		if traceDir == "" {
-			traceDir = config.DefaultDebugTraceDir
+			traceDir = datadir.DebugTraceDir()
 		}
 		traceFactory = trace.NewFactory(traceDir, guardrails.NewRedactor())
 	}

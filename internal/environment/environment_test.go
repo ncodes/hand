@@ -4,12 +4,14 @@ import (
 	gctx "context"
 	stdctx "context"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
 	handctx "github.com/wandxy/hand/internal/context"
+	"github.com/wandxy/hand/internal/datadir"
 	instructionpkg "github.com/wandxy/hand/internal/instruction"
 	"github.com/wandxy/hand/internal/tools"
 )
@@ -132,10 +134,12 @@ func TestNewEnvironment_ReturnsNoopTraceSessionWhenDisabled(t *testing.T) {
 }
 
 func TestNewEnvironment_UsesDefaultTraceDirWhenEnabledWithoutConfiguredDir(t *testing.T) {
-	dir := t.TempDir()
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraces: true, DebugTraceDir: dir})
+	home := t.TempDir()
+	t.Setenv("HAND_HOME", home)
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraces: true})
 
 	session := env.NewTraceSession()
 	require.NotEmpty(t, session.ID())
 	session.Close()
+	require.FileExists(t, filepath.Join(datadir.DebugTraceDir(), session.ID()+".jsonl"))
 }
