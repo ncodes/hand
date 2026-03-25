@@ -85,7 +85,6 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.True(t, runCalled)
 	require.True(t, serveCalled)
 	require.Contains(t, startupBuffer.String(), "\x1b[90m██   ██  █████  ███    ██ ██████")
-	require.Contains(t, startupBuffer.String(), "Hand daemon")
 	require.Contains(t, startupBuffer.String(), handcli.AppDescription)
 	require.Contains(t, startupBuffer.String(), "Instance")
 	require.Contains(t, startupBuffer.String(), "flag-agent")
@@ -95,6 +94,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, startupBuffer.String(), "disabled")
 	require.Contains(t, startupBuffer.String(), "Traces")
 	require.Contains(t, startupBuffer.String(), "enabled (/tmp/hand-traces)")
+	require.Contains(t, startupBuffer.String(), "enabled (/tmp/hand-traces)\n\n")
 	logOutput := stripANSI(logBuffer.String())
 	require.Contains(t, logOutput, "Configuration loaded")
 	require.Contains(t, logOutput, "Starting Hand services")
@@ -104,6 +104,8 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, logOutput, "rpcEndpoint=0.0.0.0:6000")
 	require.Contains(t, logOutput, "debugTraces=true")
 	require.Contains(t, logOutput, "debugTraceDir=/tmp/hand-traces")
+	require.NotContains(t, logOutput, "service=hand")
+	require.NotContains(t, logOutput, "rpcAddress=0.0.0.0 rpcEndpoint=0.0.0.0:6000 rpcPort=6000")
 }
 
 func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
@@ -121,11 +123,10 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	})
 
 	require.NotContains(t, output, "\x1b[90m")
-	require.Contains(t, output, "Hand daemon")
 	require.Contains(t, output, "Instance: daemon")
 	require.Contains(t, output, "Debug requests: enabled")
 	require.Contains(t, output, "Traces: enabled (/tmp/hand-traces)")
-	require.Contains(t, output, "Ready to accept RPC connections.")
+	require.NotContains(t, output, "Ready to accept RPC connections.")
 }
 
 func TestNewCommand_ReturnsValidationError(t *testing.T) {

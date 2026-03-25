@@ -66,7 +66,6 @@ func renderStartupPanel(cfg *config.Config) string {
 
 	lines := []string{
 		styleStartup(handBadge, cfg.LogNoColor),
-		styleStartup("Hand daemon", cfg.LogNoColor),
 		styleStartup(handcli.AppDescription, cfg.LogNoColor),
 		"",
 		fmt.Sprintf("%s %s", styleLabel("Instance", cfg.LogNoColor), cfg.Name),
@@ -76,8 +75,6 @@ func renderStartupPanel(cfg *config.Config) string {
 		fmt.Sprintf("%s %s", styleLabel("Logs", cfg.LogNoColor), fmt.Sprintf("%s (%s)", cfg.LogLevel, logStyle)),
 		fmt.Sprintf("%s %s", styleLabel("Debug requests", cfg.LogNoColor), debugRequests),
 		fmt.Sprintf("%s %s", styleLabel("Traces", cfg.LogNoColor), traceStatus),
-		"",
-		styleStartup("Ready to accept RPC connections.", cfg.LogNoColor),
 	}
 
 	return strings.Join(lines, "\n") + "\n"
@@ -121,7 +118,7 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) 
 	log.Info().
 		Str("rpcAddress", cfg.RPCAddress).
 		Int("rpcPort", cfg.RPCPort).
-		Msg("Starting RPC server")
+		Msg("RPC server listening")
 
 	select {
 	case err := <-serverErr:
@@ -181,23 +178,23 @@ func NewCommand() *cli.Command {
 			if _, err := fmt.Fprint(startupOutput, renderStartupPanel(cfg)); err != nil {
 				return err
 			}
+			if _, err := fmt.Fprintln(startupOutput); err != nil {
+				return err
+			}
 
 			log.Info().
 				Str("name", cfg.Name).
 				Str("model", cfg.Model).
 				Str("router", cfg.ModelRouter).
-				Bool("debugTraces", cfg.DebugTraces).
-				Str("debugTraceDir", cfg.DebugTraceDir).
 				Msg("Configuration loaded")
 
-			log.Info().
-				Str("service", "hand").
-				Str("rpcAddress", cfg.RPCAddress).
-				Int("rpcPort", cfg.RPCPort).
+			startupLog := log.Info().
 				Str("rpcEndpoint", fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort)).
-				Bool("debugTraces", cfg.DebugTraces).
-				Str("debugTraceDir", cfg.DebugTraceDir).
-				Msg("Starting Hand services")
+				Bool("debugTraces", cfg.DebugTraces)
+			if cfg.DebugTraces {
+				startupLog = startupLog.Str("debugTraceDir", cfg.DebugTraceDir)
+			}
+			startupLog.Msg("Starting Hand services")
 
 			clientOptions := make([]option.RequestOption, 0, 1)
 			if cfg.ModelBaseURL != "" {
