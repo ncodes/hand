@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 
+	"github.com/wandxy/hand/internal/agent"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 )
 
 type chatter interface {
-	Chat(context.Context, string) (string, error)
+	Chat(context.Context, string, agent.ChatOptions) (string, error)
 }
 
 // Service is the RPC service that wraps the chatter interface.
@@ -34,7 +35,7 @@ func (s *Service) Chat(ctx context.Context, req *handpb.ChatRequest) (*handpb.Ch
 		return nil, errors.New("chat request is required")
 	}
 
-	reply, err := s.chatter.Chat(ctx, req.Message)
+	reply, err := s.chatter.Chat(ctx, req.Message, agent.ChatOptions{Instruct: req.Instruct})
 	if err != nil {
 		return nil, err
 	}

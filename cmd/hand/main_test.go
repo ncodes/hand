@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/wandxy/hand/internal/config"
+	rpc "github.com/wandxy/hand/internal/rpc"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -24,14 +25,16 @@ func init() {
 
 type chatRunnerStub struct {
 	chatInput string
+	instruct  string
 	reply     string
 	chatErr   error
 	closeErr  error
 	closed    bool
 }
 
-func (s *chatRunnerStub) Chat(_ context.Context, msg string) (string, error) {
+func (s *chatRunnerStub) Chat(_ context.Context, msg string, opts rpc.ChatOptions) (string, error) {
 	s.chatInput = msg
+	s.instruct = opts.Instruct
 	return s.reply, s.chatErr
 }
 
@@ -377,8 +380,70 @@ func TestNewCommand_RootActionTreatsUnknownArgsAsChat(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "hello world", stub.chatInput)
+	require.Empty(t, stub.instruct)
 	require.True(t, stub.closed)
 	require.Equal(t, "hello back\n", output.String())
+}
+
+func TestNewCommand_RootActionForwardsInstruct(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	resetGlobals(t)
+
+	originalNewChatClient := newChatClient
+	t.Cleanup(func() {
+		newChatClient = originalNewChatClient
+	})
+
+	stub := &chatRunnerStub{reply: "hello back"}
+	newChatClient = func(context.Context, *config.Config) (chatRunner, error) {
+		return stub, nil
+	}
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--name", "flag-agent",
+		"--instruct", "be terse",
+		"hello",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "be terse", stub.instruct)
+}
+
+func TestNewCommand_RootActionDoesNotForwardConfiguredInstruct(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	resetGlobals(t)
+
+	originalNewChatClient := newChatClient
+	t.Cleanup(func() {
+		newChatClient = originalNewChatClient
+	})
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: config-model
+  router: openrouter
+  key: config-key
+agent:
+  instruct: be terse
+`), 0o600))
+
+	stub := &chatRunnerStub{reply: "hello back"}
+	newChatClient = func(context.Context, *config.Config) (chatRunner, error) {
+		return stub, nil
+	}
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--config", configPath,
+		"hello",
+	})
+	require.NoError(t, err)
+	require.Empty(t, stub.instruct)
 }
 
 func TestNewCommand_RootActionReturnsRPCError(t *testing.T) {

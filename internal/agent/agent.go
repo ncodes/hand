@@ -18,6 +18,12 @@ import (
 
 var jsonMarshal = json.Marshal
 
+const requestInstructInstructionName = "request.instruct"
+
+type ChatOptions struct {
+	Instruct string
+}
+
 type runtimeEnvironment interface {
 	Prepare() error
 	Context() environment.Context
@@ -41,7 +47,7 @@ func NewAgent(ctx context.Context, cfg *config.Config, modelClient models.Client
 	return &Agent{ctx: ctx, cfg: cfg, modelClient: modelClient}
 }
 
-func (c *Agent) Chat(ctx context.Context, msg string) (string, error) {
+func (c *Agent) Chat(ctx context.Context, msg string, opts ChatOptions) (string, error) {
 	if c == nil {
 		return "", errors.New("agent is required")
 	}
@@ -69,6 +75,11 @@ func (c *Agent) Chat(ctx context.Context, msg string) (string, error) {
 	handCtx := c.env.Context()
 	if handCtx == nil {
 		return "", errors.New("runtime context is required")
+	}
+	instruct := strings.TrimSpace(opts.Instruct)
+	if instruct != "" {
+		handCtx.SetInstruction(handctx.Instruction{Name: requestInstructInstructionName, Value: instruct})
+		defer handCtx.RemoveInstruction(requestInstructInstructionName)
 	}
 
 	trace := c.env.NewTraceSession()
@@ -222,7 +233,7 @@ func (c *Agent) summaryFallback(ctx context.Context, budget environment.Iteratio
 		return "", err
 	}
 
-	instructions := instruction.BuildBase(c.cfg.Name).Chain(instruction.BuildSummary(budget.Remaining())...)
+	instructions := handCtx.GetInstructions().Chain(instruction.BuildSummary(budget.Remaining())...)
 	request := models.GenerateRequest{
 		Model:         c.cfg.Model,
 		APIMode:       c.cfg.ModelAPIMode,

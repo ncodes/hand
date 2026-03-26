@@ -7,6 +7,7 @@ import (
 
 // Instruction represents a single instruction for the agent.
 type Instruction struct {
+	Name  string
 	Value string
 }
 
@@ -38,7 +39,10 @@ func (i Instructions) Chain(instructions ...Instruction) Instructions {
 		if strings.TrimSpace(instruction.Value) == "" {
 			continue
 		}
-		chained = append(chained, Instruction{Value: strings.TrimSpace(instruction.Value)})
+		chained = append(chained, Instruction{
+			Name:  strings.TrimSpace(instruction.Name),
+			Value: strings.TrimSpace(instruction.Value),
+		})
 	}
 
 	return chained
@@ -77,4 +81,32 @@ func (i *Instructions) UnmarshalJSON(data []byte) error {
 		(*i)[idx] = Instruction{Value: value}
 	}
 	return nil
+}
+
+func (i Instructions) GetByName(name string) (Instruction, bool) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Instruction{}, false
+	}
+	for _, instruction := range i {
+		if instruction.Name == name {
+			return instruction, true
+		}
+	}
+	return Instruction{}, false
+}
+
+func (i Instructions) WithoutName(name string) Instructions {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return i
+	}
+	filtered := make(Instructions, 0, len(i))
+	for _, instruction := range i {
+		if instruction.Name == name {
+			continue
+		}
+		filtered = append(filtered, instruction)
+	}
+	return filtered
 }

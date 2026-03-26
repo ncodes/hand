@@ -11,7 +11,9 @@ import (
 )
 
 func TestPreloadEnvFile_LoadsValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS", "RULES_FILES")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
+		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL",
+		"LOG_NO_COLOR", "DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -30,6 +32,7 @@ LOG_LEVEL=warn
 LOG_NO_COLOR=true
 DEBUG_REQUESTS=true
 RULES_FILES=hand.md,custom.md
+INSTRUCT=be terse
 `), 0o600))
 
 	require.NoError(t, PreloadEnvFile(envPath))
@@ -47,6 +50,7 @@ RULES_FILES=hand.md,custom.md
 	require.Equal(t, "true", os.Getenv("LOG_NO_COLOR"))
 	require.Equal(t, "true", os.Getenv("DEBUG_REQUESTS"))
 	require.Equal(t, "hand.md,custom.md", os.Getenv("RULES_FILES"))
+	require.Equal(t, "be terse", os.Getenv("INSTRUCT"))
 }
 
 func TestPreloadEnvFile_DoesNotOverrideShellEnv(t *testing.T) {
@@ -98,7 +102,9 @@ func TestPreloadEnvFile_IgnoresMissingFile(t *testing.T) {
 }
 
 func TestLoad_UsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS", "RULES_FILES")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
+		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
+		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -114,6 +120,7 @@ rpc:
   port: 6000
 agent:
   maxIterations: 45
+  instruct: be terse
 log:
   level: error
   noColor: true
@@ -140,10 +147,13 @@ rules:
 	require.True(t, cfg.LogNoColor)
 	require.True(t, cfg.DebugRequests)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.RulesFiles)
+	require.Equal(t, "be terse", cfg.Instruct)
 }
 
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS", "RULES_FILES")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
+		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
+		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -161,6 +171,7 @@ LOG_LEVEL=warn
 LOG_NO_COLOR=false
 DEBUG_REQUESTS=false
 RULES_FILES=hand.md,custom.md
+INSTRUCT=be terse
 `), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
@@ -174,6 +185,7 @@ rpc:
   port: 6000
 agent:
   maxIterations: 45
+  instruct: be formal
 log:
   level: error
   noColor: true
@@ -199,6 +211,7 @@ rules:
 	require.False(t, cfg.LogNoColor)
 	require.False(t, cfg.DebugRequests)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.RulesFiles)
+	require.Equal(t, "be terse", cfg.Instruct)
 }
 
 func TestConfigNormalize_LeavesRulesFilesEmptyWhenUnset(t *testing.T) {
@@ -215,6 +228,14 @@ func TestConfigNormalize_NormalizesRulesFiles(t *testing.T) {
 	cfg.Normalize()
 
 	require.Equal(t, []string{"Hand.md", "custom.md"}, cfg.RulesFiles)
+}
+
+func TestConfigNormalize_TrimsInstruct(t *testing.T) {
+	cfg := &Config{Instruct: "  be terse  "}
+
+	cfg.Normalize()
+
+	require.Equal(t, "be terse", cfg.Instruct)
 }
 
 func TestLoad_IgnoresInvalidMaxIterationsEnvOverride(t *testing.T) {

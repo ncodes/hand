@@ -120,6 +120,22 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 	return flags
 }
 
+func RequestInstructFlag() cli.Flag {
+	return &cli.StringFlag{
+		Name:  "instruct",
+		Usage: "Per-request instruction appended after workspace rules and cleared when the response finishes",
+		Value: config.Get().Instruct,
+	}
+}
+
+func PersistentInstructFlag() cli.Flag {
+	return &cli.StringFlag{
+		Name:  "instruct",
+		Usage: "Server instruction appended after workspace rules and kept until the process exits",
+		Value: config.Get().Instruct,
+	}
+}
+
 func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	if cfg == nil || cmd == nil {
 		return
@@ -169,6 +185,9 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("rules.files") {
 		cfg.RulesFiles = configSplitAndTrimCSV(cmd.String("rules.files"))
+	}
+	if cmd.IsSet("instruct") {
+		cfg.Instruct = strings.TrimSpace(cmd.String("instruct"))
 	}
 }
 

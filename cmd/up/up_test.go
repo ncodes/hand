@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	cli "github.com/urfave/cli/v3"
 
+	"github.com/wandxy/hand/internal/agent"
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/models"
@@ -169,7 +170,7 @@ func (f runnerFunc) Run(ctx context.Context) error {
 	return f(ctx)
 }
 
-func (f runnerFunc) Chat(context.Context, string) (string, error) {
+func (f runnerFunc) Chat(context.Context, string, agent.ChatOptions) (string, error) {
 	return "", nil
 }
 

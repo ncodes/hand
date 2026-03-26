@@ -3,6 +3,7 @@ package mocks
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/wandxy/hand/internal/config"
 	handcontext "github.com/wandxy/hand/internal/context"
@@ -84,6 +85,32 @@ type ContextStub struct {
 
 func (s *ContextStub) GetInstructions() handcontext.Instructions {
 	return s.Instructions
+}
+
+func (s *ContextStub) SetInstruction(instruction handcontext.Instruction) {
+	instruction.Name = strings.TrimSpace(instruction.Name)
+	instruction.Value = strings.TrimSpace(instruction.Value)
+	if instruction.Name == "" {
+		s.Instructions = append(s.Instructions, instruction)
+		return
+	}
+	for idx, existing := range s.Instructions {
+		if existing.Name == instruction.Name {
+			if instruction.Value == "" {
+				s.Instructions = append(s.Instructions[:idx], s.Instructions[idx+1:]...)
+				return
+			}
+			s.Instructions[idx] = instruction
+			return
+		}
+	}
+	if instruction.Value != "" {
+		s.Instructions = append(s.Instructions, instruction)
+	}
+}
+
+func (s *ContextStub) RemoveInstruction(name string) {
+	s.Instructions = s.Instructions.WithoutName(name)
 }
 
 func (s *ContextStub) AddMessage(message handcontext.Message) error {

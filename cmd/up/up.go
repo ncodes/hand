@@ -31,11 +31,11 @@ import (
 
 type agentRunner interface {
 	Run(context.Context) error
-	Chat(context.Context, string) (string, error)
+	Chat(context.Context, string, agent.ChatOptions) (string, error)
 }
 
 const (
-	handBadge  = "██   ██  █████  ███    ██ ██████\n██   ██ ██   ██ ████   ██ ██   ██\n███████ ███████ ██ ██  ██ ██   ██\n██   ██ ██   ██ ██  ██ ██ ██   ██\n██   ██ ██   ██ ██   ████ ██████\n"
+	handBadge  = "██   ██  █████  ███    ██ ██████\n███████ ██   ██ ████   ██ ██   ██\n██   ██ ███████ ██ ██  ██ ██   ██\n██   ██ ██   ██ ██  ████ ██████"
 	colorGray  = "\x1b[90m"
 	colorReset = "\x1b[0m"
 )
@@ -159,6 +159,7 @@ func NewCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "up",
 		Usage: "start the agent runtime",
+		Flags: []cli.Flag{handcli.PersistentInstructFlag()},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			cfg, err := config.Load(cmd.String("env-file"), cmd.String("config"))
 			if err != nil {

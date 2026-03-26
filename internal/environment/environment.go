@@ -17,8 +17,12 @@ import (
 	"github.com/wandxy/hand/internal/workspace"
 )
 
-var loadWorkspaceRules = workspace.Load
-var loadPersonality = personality.Load
+var (
+	loadWorkspaceRules = workspace.Load
+	loadPersonality    = personality.Load
+)
+
+const configInstructInstructionName = "config.instruct"
 
 type Environment struct {
 	ctx     context.Context
@@ -30,6 +34,8 @@ type Environment struct {
 
 type Context interface {
 	GetInstructions() handctx.Instructions
+	SetInstruction(handctx.Instruction)
+	RemoveInstruction(string)
 	AddMessage(handctx.Message) error
 	AddUserMessage(string) error
 	AddAssistantMessage(string) error
@@ -95,6 +101,11 @@ func (e *Environment) prepareInstructions() error {
 	}
 	if workspaceRules.Found {
 		e.handCtx.AddInstruction(handctx.Instruction{Value: workspaceRules.Content})
+	}
+
+	// load config-level instruct
+	if e.cfg != nil && e.cfg.Instruct != "" {
+		e.handCtx.SetInstruction(handctx.Instruction{Name: configInstructInstructionName, Value: e.cfg.Instruct})
 	}
 
 	return nil

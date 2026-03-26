@@ -123,3 +123,20 @@ func TestInstructions_FirstReturnsFirstInstruction(t *testing.T) {
 	instructions := Instructions{{Value: "first"}, {Value: "second"}}
 	require.Equal(t, Instruction{Value: "first"}, instructions.First())
 }
+
+func TestInstructions_GetByNameReturnsNamedInstruction(t *testing.T) {
+	instructions := Instructions{{Value: "first"}, {Name: "request.instruct", Value: "be terse"}}
+
+	instruction, ok := instructions.GetByName("request.instruct")
+
+	require.True(t, ok)
+	require.Equal(t, Instruction{Name: "request.instruct", Value: "be terse"}, instruction)
+}
+
+func TestInstructions_WithoutNameRemovesMatchingInstruction(t *testing.T) {
+	instructions := Instructions{{Value: "first"}, {Name: "request.instruct", Value: "be terse"}}
+
+	filtered := instructions.WithoutName("request.instruct")
+
+	require.Equal(t, Instructions{{Value: "first"}}, filtered)
+}

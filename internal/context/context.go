@@ -2,6 +2,7 @@ package context
 
 import (
 	gctx "context"
+	"strings"
 
 	"github.com/wandxy/hand/internal/config"
 )
@@ -27,6 +28,32 @@ func NewContext(ctx gctx.Context, cfg *config.Config) *Context {
 // AddInstruction adds a new instruction to the context.
 func (c *Context) AddInstruction(instruction Instruction) {
 	c.instructions = append(c.instructions, instruction)
+}
+
+func (c *Context) SetInstruction(instruction Instruction) {
+	instruction.Name = strings.TrimSpace(instruction.Name)
+	instruction.Value = strings.TrimSpace(instruction.Value)
+	if instruction.Name == "" {
+		c.AddInstruction(instruction)
+		return
+	}
+	for idx, existing := range c.instructions {
+		if existing.Name == instruction.Name {
+			if instruction.Value == "" {
+				c.instructions = append(c.instructions[:idx], c.instructions[idx+1:]...)
+				return
+			}
+			c.instructions[idx] = instruction
+			return
+		}
+	}
+	if instruction.Value != "" {
+		c.instructions = append(c.instructions, instruction)
+	}
+}
+
+func (c *Context) RemoveInstruction(name string) {
+	c.instructions = c.instructions.WithoutName(name)
 }
 
 // GetInstructions returns the instructions for the context.

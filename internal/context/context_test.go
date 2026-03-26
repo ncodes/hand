@@ -33,6 +33,35 @@ func TestContext_AddInstructionAppendsInstructions(t *testing.T) {
 	}, ctx.GetInstructions())
 }
 
+func TestContext_SetInstructionReplacesNamedInstruction(t *testing.T) {
+	ctx := NewContext(gctx.Background(), &config.Config{Name: "Test Agent"})
+
+	ctx.SetInstruction(Instruction{Name: "request.instruct", Value: "first"})
+	ctx.SetInstruction(Instruction{Name: "request.instruct", Value: "second"})
+
+	require.Equal(t, Instructions{{Name: "request.instruct", Value: "second"}}, ctx.GetInstructions())
+}
+
+func TestContext_RemoveInstructionDeletesNamedInstruction(t *testing.T) {
+	ctx := NewContext(gctx.Background(), &config.Config{Name: "Test Agent"})
+
+	ctx.SetInstruction(Instruction{Name: "request.instruct", Value: "be terse"})
+	ctx.AddInstruction(Instruction{Value: "base"})
+	ctx.RemoveInstruction("request.instruct")
+
+	require.Equal(t, Instructions{{Value: "base"}}, ctx.GetInstructions())
+}
+
+// Remove instruction by unknown name
+func TestContext_RemoveInstructionByUnknownNameDoesNothing(t *testing.T) {
+	ctx := NewContext(gctx.Background(), &config.Config{Name: "Test Agent"})
+
+	ctx.SetInstruction(Instruction{Name: "request.instruct", Value: "be terse"})
+	ctx.RemoveInstruction("unknown.instruct")
+
+	require.Equal(t, Instructions{{Name: "request.instruct", Value: "be terse"}}, ctx.GetInstructions())
+}
+
 func TestContext_MessageAndConversationAccessorsUseConversationState(t *testing.T) {
 	ctx := NewContext(gctx.Background(), &config.Config{Name: "Test Agent"})
 

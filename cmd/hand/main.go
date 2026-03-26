@@ -30,7 +30,7 @@ var (
 )
 
 type chatRunner interface {
-	Chat(context.Context, string) (string, error)
+	Chat(context.Context, string, rpc.ChatOptions) (string, error)
 	Close() error
 }
 
@@ -59,7 +59,7 @@ func newCommand() *cli.Command {
 		Name:        "hand",
 		Usage:       "Run and manage your Hand daemon",
 		Description: handcli.AppDescription,
-		Flags:       handcli.RootFlags(&envFile, &configFile),
+		Flags:       append(handcli.RootFlags(&envFile, &configFile), handcli.RequestInstructFlag()),
 		Commands: []*cli.Command{
 			doctorcmd.NewCommand(),
 			upcmd.NewCommand(),
@@ -86,7 +86,12 @@ func newCommand() *cli.Command {
 			}
 			defer client.Close()
 
-			reply, err := client.Chat(ctx, message)
+			instruct := ""
+			if cmd.IsSet("instruct") {
+				instruct = cfg.Instruct
+			}
+
+			reply, err := client.Chat(ctx, message, rpc.ChatOptions{Instruct: instruct})
 			if err != nil {
 				return err
 			}

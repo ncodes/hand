@@ -89,11 +89,11 @@ func TestAgent_ChatAppendsConversationAcrossTurns(t *testing.T) {
 
 	require.NoError(t, agent.Run(context.Background()))
 
-	reply, err := agent.Chat(context.Background(), "hello")
+	reply, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.NoError(t, err)
 	require.Equal(t, "hello back", reply)
 
-	reply, err = agent.Chat(context.Background(), "again")
+	reply, err = agent.Chat(context.Background(), "again", ChatOptions{})
 	require.NoError(t, err)
 	require.Equal(t, "still here", reply)
 
@@ -113,6 +113,38 @@ func TestAgent_ChatAppendsConversationAcrossTurns(t *testing.T) {
 	conversation := agent.Conversation()
 	require.Len(t, conversation.Messages(), 4)
 	require.Equal(t, "still here", conversation.Messages()[3].Content)
+}
+
+func TestAgent_Chat_AppendsRequestInstructLast(t *testing.T) {
+	client := &mocks.ModelClientStub{
+		Responses: []*models.GenerateResponse{{OutputText: "hello back"}},
+	}
+	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", Model: "test-model"}, client)
+	originalFactory := newRuntimeEnvironment
+	t.Cleanup(func() {
+		newRuntimeEnvironment = originalFactory
+	})
+	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
+		runtimeContext := handcontext.NewContext(context.Background(), &config.Config{})
+		runtimeContext.AddInstruction(handcontext.Instruction{Value: "base"})
+		runtimeContext.SetInstruction(handcontext.Instruction{Name: "config.instruct", Value: "configured temporary"})
+		return &mocks.EnvironmentStub{
+			RuntimeContext: runtimeContext,
+			ToolRegistry:   tools.NewInMemoryRegistry(),
+		}
+	}
+
+	require.NoError(t, agent.Run(context.Background()))
+
+	reply, err := agent.Chat(context.Background(), "hello", ChatOptions{Instruct: "request temporary"})
+
+	require.NoError(t, err)
+	require.Equal(t, "hello back", reply)
+	require.Equal(t, "base\nconfigured temporary\nrequest temporary", client.Requests[0].Instructions)
+	require.Equal(t, handcontext.Instructions{
+		{Value: "base"},
+		{Name: "config.instruct", Value: "configured temporary"},
+	}, agent.env.Context().GetInstructions())
 }
 
 func TestAgent_ChatDoesNotAppendAssistantWhenModelFails(t *testing.T) {
@@ -137,7 +169,7 @@ func TestAgent_ChatDoesNotAppendAssistantWhenModelFails(t *testing.T) {
 
 	require.NoError(t, agent.Run(context.Background()))
 
-	_, err := agent.Chat(context.Background(), "hello")
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.EqualError(t, err, "upstream failed")
 
 	conversation := agent.Conversation()
@@ -149,7 +181,7 @@ func TestAgent_ChatDoesNotAppendAssistantWhenModelFails(t *testing.T) {
 func TestAgent_ChatRejectsNilAgent(t *testing.T) {
 	var agent *Agent
 
-	_, err := agent.Chat(context.Background(), "hello")
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.EqualError(t, err, "agent is required")
 }
 
@@ -162,14 +194,14 @@ func TestAgent_ChatRejectsMissingConfig(t *testing.T) {
 		},
 	}
 
-	_, err := agent.Chat(context.Background(), "hello")
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.EqualError(t, err, "config is required")
 }
 
 func TestAgent_ChatRejectsUninitializedEnvironment(t *testing.T) {
 	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", Model: "test-model"}, &mocks.ModelClientStub{})
 
-	_, err := agent.Chat(context.Background(), "hello")
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.EqualError(t, err, "environment has not been initialized")
 }
 
@@ -187,7 +219,7 @@ func TestAgent_ChatRejectsMissingModelClient(t *testing.T) {
 	}
 	require.NoError(t, agent.Run(context.Background()))
 
-	_, err := agent.Chat(context.Background(), "hello")
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.EqualError(t, err, "model client is required")
 }
 
@@ -205,7 +237,7 @@ func TestAgent_ChatRejectsMissingToolRegistry(t *testing.T) {
 	}
 	require.NoError(t, agent.Run(context.Background()))
 
-	_, err := agent.Chat(context.Background(), "hello")
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.EqualError(t, err, "tool registry is required")
 }
 
@@ -223,7 +255,7 @@ func TestAgent_ChatRejectsEmptyMessage(t *testing.T) {
 	}
 	require.NoError(t, agent.Run(context.Background()))
 
-	_, err := agent.Chat(context.Background(), "   ")
+	_, err := agent.Chat(context.Background(), "   ", ChatOptions{})
 	require.EqualError(t, err, "message is required")
 }
 
@@ -244,7 +276,7 @@ func TestAgent_ChatReturnsContextErrorBeforeAppendingUserMessage(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := agent.Chat(ctx, "hello")
+	_, err := agent.Chat(ctx, "hello", ChatOptions{})
 	require.ErrorIs(t, err, context.Canceled)
 	require.True(t, agent.Conversation().Empty())
 }
@@ -266,7 +298,7 @@ func TestAgent_ChatUsesBackgroundWhenContextIsNil(t *testing.T) {
 	}
 	require.NoError(t, agent.Run(context.Background()))
 
-	reply, err := agent.Chat(nil, "hello")
+	reply, err := agent.Chat(nil, "hello", ChatOptions{})
 	require.NoError(t, err)
 	require.Equal(t, "hello back", reply)
 }
@@ -285,7 +317,7 @@ func TestAgent_ChatReturnsUserAppendError(t *testing.T) {
 	}
 	require.NoError(t, agent.Run(context.Background()))
 
-	_, err := agent.Chat(context.Background(), "hello")
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.EqualError(t, err, "append user failed")
 }
 
@@ -311,7 +343,7 @@ func TestAgent_ConversationReturnsCopy(t *testing.T) {
 	}
 
 	require.NoError(t, agent.Run(context.Background()))
-	_, err := agent.Chat(context.Background(), "hello")
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.NoError(t, err)
 
 	conversation := agent.Conversation()
@@ -351,7 +383,7 @@ func TestAgent_ChatReturnsAssistantAppendErrorForEmptyOutput(t *testing.T) {
 
 	require.NoError(t, agent.Run(context.Background()))
 
-	_, err := agent.Chat(context.Background(), "hello")
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.EqualError(t, err, "message content is required")
 }
 
@@ -376,7 +408,7 @@ func TestAgent_ChatReturnsAssistantAppendError(t *testing.T) {
 	}
 	require.NoError(t, agent.Run(context.Background()))
 
-	_, err := agent.Chat(context.Background(), "hello")
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.EqualError(t, err, "append assistant failed")
 }
 
@@ -397,7 +429,7 @@ func TestAgent_ChatRejectsNilModelResponse(t *testing.T) {
 	}
 	require.NoError(t, agent.Run(context.Background()))
 
-	_, err := agent.Chat(context.Background(), "hello")
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.EqualError(t, err, "model response is required")
 }
 
@@ -415,7 +447,7 @@ func TestAgent_ChatRejectsMissingToolCallsWhenRequested(t *testing.T) {
 		return tools.NewInMemoryRegistry(), nil
 	})
 
-	_, err := agent.Chat(context.Background(), "hello")
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.EqualError(t, err, "model requested tool execution without tool calls")
 }
 
@@ -441,7 +473,7 @@ func TestAgent_ChatReturnsAssistantToolCallAppendError(t *testing.T) {
 	}
 	require.NoError(t, agent.Run(context.Background()))
 
-	_, err := agent.Chat(context.Background(), "hello")
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.EqualError(t, err, "append message failed")
 }
 
@@ -473,7 +505,7 @@ func TestAgent_ChatReturnsToolResultAppendError(t *testing.T) {
 	}
 	require.NoError(t, agent.Run(context.Background()))
 
-	_, err := agent.Chat(context.Background(), "hello")
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.EqualError(t, err, "append tool result failed")
 }
 
@@ -505,7 +537,7 @@ func TestAgent_ChatExecutesToolAndReturnsFinalAnswer(t *testing.T) {
 		return registry, nil
 	})
 
-	reply, err := agent.Chat(context.Background(), "what time is it?")
+	reply, err := agent.Chat(context.Background(), "what time is it?", ChatOptions{})
 
 	require.NoError(t, err)
 	require.Equal(t, "The current time is 2026-03-23T00:00:00Z", reply)
@@ -542,7 +574,7 @@ func TestAgent_ChatExecutesMultipleSequentialToolCalls(t *testing.T) {
 		return registry, nil
 	})
 
-	reply, err := agent.Chat(context.Background(), "loop")
+	reply, err := agent.Chat(context.Background(), "loop", ChatOptions{})
 
 	require.NoError(t, err)
 	require.Equal(t, "done", reply)
@@ -565,7 +597,7 @@ func TestAgent_ChatConvertsMissingToolIntoToolMessage(t *testing.T) {
 		return tools.NewInMemoryRegistry(), nil
 	})
 
-	reply, err := agent.Chat(context.Background(), "use a missing tool")
+	reply, err := agent.Chat(context.Background(), "use a missing tool", ChatOptions{})
 
 	require.NoError(t, err)
 	require.Equal(t, "fallback", reply)
@@ -602,7 +634,7 @@ func TestAgent_ChatUsesSummaryFallbackWhenIterationBudgetIsExhausted(t *testing.
 		return registry, nil
 	})
 
-	reply, err := agent.Chat(context.Background(), "loop forever")
+	reply, err := agent.Chat(context.Background(), "loop forever", ChatOptions{})
 
 	require.NoError(t, err)
 	require.Equal(t, "summary", reply)
@@ -639,7 +671,7 @@ func TestAgent_ChatReturnsSummaryFailureWhenFallbackCallFails(t *testing.T) {
 		return registry, nil
 	})
 
-	_, err := agent.Chat(context.Background(), "loop forever")
+	_, err := agent.Chat(context.Background(), "loop forever", ChatOptions{})
 
 	require.EqualError(t, err, "iteration limit reached and summary failed: summary failed")
 }
@@ -674,7 +706,7 @@ func TestAgent_ChatRejectsSummaryFallbackThatRequestsMoreTools(t *testing.T) {
 		return registry, nil
 	})
 
-	_, err := agent.Chat(context.Background(), "loop forever")
+	_, err := agent.Chat(context.Background(), "loop forever", ChatOptions{})
 
 	require.EqualError(t, err, "iteration limit reached and summary requested more tools")
 }
@@ -706,7 +738,7 @@ func TestAgent_ChatReturnsContextErrorBeforeToolInvocation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := agent.Chat(ctx, "loop forever")
+	_, err := agent.Chat(ctx, "loop forever", ChatOptions{})
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -882,7 +914,7 @@ func TestAgent_ChatRecordsTraceEventsOnSuccess(t *testing.T) {
 
 	require.NoError(t, agent.Run(context.Background()))
 
-	reply, err := agent.Chat(context.Background(), "hello")
+	reply, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.NoError(t, err)
 	require.Equal(t, "hello back", reply)
 
@@ -909,7 +941,7 @@ func TestAgent_ChatRecordsTraceFailure(t *testing.T) {
 	}
 	require.NoError(t, agent.Run(context.Background()))
 
-	_, err := agent.Chat(context.Background(), "hello")
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
 	require.EqualError(t, err, "upstream failed")
 	require.Equal(t, "session.failed", traceSession.Events[len(traceSession.Events)-1].Type)
 }
@@ -925,4 +957,23 @@ func TestAgent_SummaryFallbackRecordsTraceEvent(t *testing.T) {
 	require.Equal(t, "summary", reply)
 	require.Equal(t, "summary.fallback.started", traceSession.Events[0].Type)
 	require.Equal(t, "final.assistant.response", traceSession.Events[len(traceSession.Events)-1].Type)
+}
+
+func TestAgent_SummaryFallback_UsesExistingInstructionsAndInstruct(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{Responses: []*models.GenerateResponse{{OutputText: "summary"}}}
+	agent := &Agent{cfg: &config.Config{Name: "Test Agent", Model: "test-model"}, modelClient: client}
+	handCtx := &mocks.ContextStub{
+		Instructions: handcontext.Instructions{{Value: "persona"}, {Value: "workspace rules"}, {Name: "request.instruct", Value: "be terse"}},
+		Conversation: handcontext.NewConversation(),
+	}
+
+	reply, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), handCtx, traceSession)
+
+	require.NoError(t, err)
+	require.Equal(t, "summary", reply)
+	require.Contains(t, client.Requests[0].Instructions, "persona")
+	require.Contains(t, client.Requests[0].Instructions, "workspace rules")
+	require.Contains(t, client.Requests[0].Instructions, "be terse")
+	require.Contains(t, client.Requests[0].Instructions, "The maximum number of tool-calling iterations has been reached.")
 }

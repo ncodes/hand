@@ -33,6 +33,7 @@ type Config struct {
 	DebugTraces      bool
 	DebugTraceDir    string
 	RulesFiles       []string
+	Instruct         string
 }
 
 type ModelAuth struct {
@@ -84,7 +85,8 @@ type fileConfig struct {
 		Port    int    `yaml:"port"`
 	} `yaml:"rpc"`
 	Agent struct {
-		MaxIterations int `yaml:"maxIterations"`
+		MaxIterations int    `yaml:"maxIterations"`
+		Instruct      string `yaml:"instruct"`
 	} `yaml:"agent"`
 	Rules struct {
 		Files []string `yaml:"files"`
@@ -178,6 +180,7 @@ func loadConfigFile(path string) (*Config, error) {
 		DebugTraces:      raw.Debug.Traces,
 		DebugTraceDir:    raw.Debug.TraceDir,
 		RulesFiles:       raw.Rules.Files,
+		Instruct:         raw.Agent.Instruct,
 	}, nil
 }
 
@@ -241,6 +244,9 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("RULES_FILES")); value != "" {
 		cfg.RulesFiles = splitAndTrimCSV(value)
 	}
+	if value := strings.TrimSpace(os.Getenv("INSTRUCT")); value != "" {
+		cfg.Instruct = value
+	}
 }
 
 func (c *Config) Normalize() {
@@ -259,6 +265,7 @@ func (c *Config) Normalize() {
 	c.LogLevel = strings.TrimSpace(strings.ToLower(c.LogLevel))
 	c.DebugTraceDir = strings.TrimSpace(c.DebugTraceDir)
 	c.RulesFiles = workspace.NormalizeRulePaths(c.RulesFiles)
+	c.Instruct = strings.TrimSpace(c.Instruct)
 
 	if c.Model == "" {
 		c.Model = defaultModel

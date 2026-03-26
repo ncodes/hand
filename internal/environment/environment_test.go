@@ -111,6 +111,30 @@ func TestEnvironment_PrepareAppendsPersonalityBeforeWorkspaceRules(t *testing.T)
 	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-1].Value)
 }
 
+func TestEnvironment_PrepareAppendsInstructAfterWorkspaceRules(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{Found: true, Content: "## SOUL.md\npersona"}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{Found: true, Content: "## AGENTS.md\nrepo rules"}, nil
+	}
+
+	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir(), Instruct: "be terse"}
+	env := NewEnvironment(gctx.Background(), cfg)
+
+	require.NoError(t, env.Prepare())
+
+	instructions := env.handCtx.GetInstructions()
+	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-2].Value)
+	require.Equal(t, "be terse", instructions[len(instructions)-1].Value)
+}
+
 func TestEnvironment_PrepareIgnoresPersonalityLoadError(t *testing.T) {
 	previousPersonality := loadPersonality
 	previousWorkspace := loadWorkspaceRules

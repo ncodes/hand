@@ -10,6 +10,7 @@ service HandService {
 
 message ChatRequest {
   string message = 1;
+  string instruct = 2;
 }
 
 message ChatResponse {

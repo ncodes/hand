@@ -7,17 +7,20 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/agent"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 )
 
 type chatterStub struct {
-	message string
-	reply   string
-	err     error
+	message  string
+	instruct string
+	reply    string
+	err      error
 }
 
-func (s *chatterStub) Chat(_ context.Context, message string) (string, error) {
+func (s *chatterStub) Chat(_ context.Context, message string, opts agent.ChatOptions) (string, error) {
 	s.message = message
+	s.instruct = opts.Instruct
 	return s.reply, s.err
 }
 
@@ -29,10 +32,11 @@ func TestService_ChatReturnsMessage(t *testing.T) {
 	stub := &chatterStub{reply: "hello back"}
 	svc := NewService(stub)
 
-	resp, err := svc.Chat(context.Background(), &handpb.ChatRequest{Message: "hello"})
+	resp, err := svc.Chat(context.Background(), &handpb.ChatRequest{Message: "hello", Instruct: "be terse"})
 
 	require.NoError(t, err)
 	require.Equal(t, "hello", stub.message)
+	require.Equal(t, "be terse", stub.instruct)
 	require.Equal(t, "hello back", resp.Message)
 }
 

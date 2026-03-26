@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -16,6 +17,10 @@ type Client struct {
 	client handpb.HandServiceClient
 }
 
+type ChatOptions struct {
+	Instruct string
+}
+
 // NewClient creates a new RPC client.
 func NewClient(ctx context.Context, cfg *config.Config) (*Client, error) {
 	if cfg == nil {
@@ -23,7 +28,7 @@ func NewClient(ctx context.Context, cfg *config.Config) (*Client, error) {
 	}
 
 	target := fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort)
-	conn, err := grpc.DialContext(ctx, target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
@@ -35,8 +40,8 @@ func NewClient(ctx context.Context, cfg *config.Config) (*Client, error) {
 }
 
 // Chat sends a chat message to the RPC server and returns the response.
-func (c *Client) Chat(ctx context.Context, message string) (string, error) {
-	resp, err := c.client.Chat(ctx, &handpb.ChatRequest{Message: message})
+func (c *Client) Chat(ctx context.Context, message string, opts ChatOptions) (string, error) {
+	resp, err := c.client.Chat(ctx, &handpb.ChatRequest{Message: message, Instruct: strings.TrimSpace(opts.Instruct)})
 	if err != nil {
 		return "", err
 	}
