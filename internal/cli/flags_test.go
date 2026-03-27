@@ -39,3 +39,24 @@ func TestApplyConfigOverrides_AppliesInstruct(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "be terse", cfg.Instruct)
 }
+
+func TestApplyConfigOverrides_AppliesPlatformAndCapabilities(t *testing.T) {
+	cfg := &config.Config{}
+	var cmd *cli.Command
+	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd.Action = func(context.Context, *cli.Command) error {
+		ApplyConfigOverrides(cmd, cfg)
+		return nil
+	}
+
+	err := cmd.Run(context.Background(), []string{"hand", "--platform", "desktop", "--cap.fs=false", "--cap.browser"})
+
+	require.NoError(t, err)
+	cfg.Normalize()
+	require.Equal(t, "desktop", cfg.Platform)
+	require.False(t, boolValue(cfg.CapFilesystem))
+	require.True(t, boolValue(cfg.CapNetwork))
+	require.True(t, boolValue(cfg.CapExec))
+	require.True(t, boolValue(cfg.CapMemory))
+	require.True(t, boolValue(cfg.CapBrowser))
+}

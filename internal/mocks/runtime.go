@@ -42,6 +42,7 @@ type EnvironmentStub struct {
 	PrepareErr      error
 	RuntimeContext  environment.Context
 	ToolRegistry    environment.ToolRegistry
+	Policy          tools.Policy
 	IterationBudget environment.IterationBudget
 	TraceSession    trace.Session
 }
@@ -56,6 +57,10 @@ func (s *EnvironmentStub) Context() environment.Context {
 
 func (s *EnvironmentStub) Tools() environment.ToolRegistry {
 	return s.ToolRegistry
+}
+
+func (s *EnvironmentStub) ToolPolicy() tools.Policy {
+	return s.Policy
 }
 
 func (s *EnvironmentStub) NewIterationBudget() environment.IterationBudget {
@@ -163,13 +168,34 @@ func (s *ContextStub) GetConversation() handcontext.Conversation {
 }
 
 type ToolRegistryStub struct {
-	Definitions []tools.Definition
-	Result      tools.Result
-	Err         error
+	Definitions    []tools.Definition
+	Groups         []tools.Group
+	LastToolPolicy tools.Policy
+	Result         tools.Result
+	Err            error
+	ResolveErr     error
 }
 
 func (s *ToolRegistryStub) List() []tools.Definition {
 	return s.Definitions
+}
+
+func (s *ToolRegistryStub) GetGroup(name string) (tools.Group, bool) {
+	for _, group := range s.Groups {
+		if group.Name == name {
+			return group, true
+		}
+	}
+	return tools.Group{}, false
+}
+
+func (s *ToolRegistryStub) ListGroups() []tools.Group {
+	return s.Groups
+}
+
+func (s *ToolRegistryStub) Resolve(opts tools.Policy) ([]tools.Definition, error) {
+	s.LastToolPolicy = opts
+	return s.Definitions, s.ResolveErr
 }
 
 func (s *ToolRegistryStub) Invoke(context.Context, tools.Call) (tools.Result, error) {

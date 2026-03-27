@@ -15,6 +15,14 @@
 
 # agent:
 #   maxIterations: 90
+#   cap:
+#     fs: true
+#     net: true
+#     exec: true
+#     mem: true
+#     browser: false
+
+# platform: "cli"
 
 # log:
 #   level: "info"

@@ -2,46 +2,89 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 )
 
-// Call is the normalized tool invocation request.
+type Registry interface {
+	Register(Definition) error
+	RegisterGroup(Group) error
+	Get(string) (Definition, bool)
+	GetGroup(string) (Group, bool)
+	List() []Definition
+	ListGroups() []Group
+	Resolve(Policy) ([]Definition, error)
+	Invoke(context.Context, Call) (Result, error)
+}
+
 type Call struct {
 	Name   string
 	Input  string
 	Source string
 }
 
-// Result is the normalized output returned by a tool invocation.
 type Result struct {
 	Output string
 	Error  string
 }
 
-// Handler executes a tool call.
 type Handler interface {
 	Invoke(context.Context, Call) (Result, error)
 }
 
-// HandlerFunc adapts a function to the Handler interface.
 type HandlerFunc func(context.Context, Call) (Result, error)
 
-// Invoke executes the tool call.
 func (f HandlerFunc) Invoke(ctx context.Context, call Call) (Result, error) {
 	return f(ctx, call)
 }
 
-// Definition describes a tool and its execution contract.
-type Definition struct {
-	Name        string         // Stable identifier used to reference the tool
-	Description string         // Explains what the tool does for model and operator use
-	InputSchema map[string]any // Describes the accepted tool input shape
-	Handler     Handler        // Executes the tool call
+type Capabilities struct {
+	Filesystem bool
+	Network    bool
+	Exec       bool
+	Browser    bool
+	Memory     bool
 }
 
-// Registry stores tool definitions and dispatches tool calls.
-type Registry interface {
-	Register(Definition) error
-	Get(string) (Definition, bool)
-	List() []Definition
-	Invoke(context.Context, Call) (Result, error)
+func (c Capabilities) Supports(required Capabilities) bool {
+	return (!required.Filesystem || c.Filesystem) &&
+		(!required.Network || c.Network) &&
+		(!required.Exec || c.Exec) &&
+		(!required.Browser || c.Browser) &&
+		(!required.Memory || c.Memory)
+}
+
+type Group struct {
+	Name     string
+	Tools    []string
+	Includes []string
+}
+
+type Policy struct {
+	GroupNames   []string
+	Capabilities Capabilities
+	Platform     string
+}
+
+type Error struct {
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	Retryable bool   `json:"retryable,omitempty"`
+}
+
+func (e Error) String() string {
+	raw, err := json.Marshal(e)
+	if err != nil {
+		return `{"code":"tool_error","message":"failed to encode tool error"}`
+	}
+	return string(raw)
+}
+
+type Definition struct {
+	Name        string
+	Description string
+	InputSchema map[string]any
+	Groups      []string
+	Requires    Capabilities
+	Platforms   []string
+	Handler     Handler
 }

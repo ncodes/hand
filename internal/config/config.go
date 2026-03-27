@@ -34,6 +34,12 @@ type Config struct {
 	DebugTraceDir    string
 	RulesFiles       []string
 	Instruct         string
+	Platform         string
+	CapFilesystem    *bool
+	CapNetwork       *bool
+	CapExec          *bool
+	CapMemory        *bool
+	CapBrowser       *bool
 }
 
 type ModelAuth struct {
@@ -71,23 +77,37 @@ type fileConfig struct {
 		BaseURL          string `yaml:"baseUrl"`
 		APIMode          string `yaml:"apiMode"`
 	} `yaml:"model"`
+
 	Log struct {
 		Level   string `yaml:"level"`
 		NoColor bool   `yaml:"noColor"`
 	} `yaml:"log"`
+
 	Debug struct {
 		Requests bool   `yaml:"requests"`
 		Traces   bool   `yaml:"traces"`
 		TraceDir string `yaml:"traceDir"`
 	} `yaml:"debug"`
+
 	RPC struct {
 		Address string `yaml:"address"`
 		Port    int    `yaml:"port"`
 	} `yaml:"rpc"`
+
 	Agent struct {
 		MaxIterations int    `yaml:"maxIterations"`
 		Instruct      string `yaml:"instruct"`
+		Cap           struct {
+			Filesystem *bool `yaml:"fs"`
+			Network    *bool `yaml:"net"`
+			Exec       *bool `yaml:"exec"`
+			Memory     *bool `yaml:"mem"`
+			Browser    *bool `yaml:"browser"`
+		} `yaml:"cap"`
 	} `yaml:"agent"`
+
+	Platform string `yaml:"platform"`
+
 	Rules struct {
 		Files []string `yaml:"files"`
 	} `yaml:"rules"`
@@ -132,6 +152,12 @@ func Get() *Config {
 			MaxIterations: defaultMaxIterations,
 			LogLevel:      "info",
 			DebugTraceDir: datadir.DebugTraceDir(),
+			Platform:      "cli",
+			CapFilesystem: new(true),
+			CapNetwork:    new(true),
+			CapExec:       new(true),
+			CapMemory:     new(true),
+			CapBrowser:    new(false),
 		}
 	}
 	return globalConfig
@@ -181,6 +207,12 @@ func loadConfigFile(path string) (*Config, error) {
 		DebugTraceDir:    raw.Debug.TraceDir,
 		RulesFiles:       raw.Rules.Files,
 		Instruct:         raw.Agent.Instruct,
+		Platform:         raw.Platform,
+		CapFilesystem:    raw.Agent.Cap.Filesystem,
+		CapNetwork:       raw.Agent.Cap.Network,
+		CapExec:          raw.Agent.Cap.Exec,
+		CapMemory:        raw.Agent.Cap.Memory,
+		CapBrowser:       raw.Agent.Cap.Browser,
 	}, nil
 }
 
@@ -247,6 +279,24 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("INSTRUCT")); value != "" {
 		cfg.Instruct = value
 	}
+	if value := strings.TrimSpace(os.Getenv("PLATFORM")); value != "" {
+		cfg.Platform = value
+	}
+	if value, ok := parseOptionalBoolEnv("AGENT_CAP_FS"); ok {
+		cfg.CapFilesystem = new(value)
+	}
+	if value, ok := parseOptionalBoolEnv("AGENT_CAP_NET"); ok {
+		cfg.CapNetwork = new(value)
+	}
+	if value, ok := parseOptionalBoolEnv("AGENT_CAP_EXEC"); ok {
+		cfg.CapExec = new(value)
+	}
+	if value, ok := parseOptionalBoolEnv("AGENT_CAP_MEM"); ok {
+		cfg.CapMemory = new(value)
+	}
+	if value, ok := parseOptionalBoolEnv("AGENT_CAP_BROWSER"); ok {
+		cfg.CapBrowser = new(value)
+	}
 }
 
 func (c *Config) Normalize() {
@@ -266,6 +316,7 @@ func (c *Config) Normalize() {
 	c.DebugTraceDir = strings.TrimSpace(c.DebugTraceDir)
 	c.RulesFiles = workspace.NormalizeRulePaths(c.RulesFiles)
 	c.Instruct = strings.TrimSpace(c.Instruct)
+	c.Platform = strings.TrimSpace(strings.ToLower(c.Platform))
 
 	if c.Model == "" {
 		c.Model = defaultModel
@@ -294,6 +345,24 @@ func (c *Config) Normalize() {
 	if c.DebugTraceDir == "" {
 		c.DebugTraceDir = datadir.DebugTraceDir()
 	}
+	if c.Platform == "" {
+		c.Platform = "cli"
+	}
+	if c.CapFilesystem == nil {
+		c.CapFilesystem = new(true)
+	}
+	if c.CapNetwork == nil {
+		c.CapNetwork = new(true)
+	}
+	if c.CapExec == nil {
+		c.CapExec = new(true)
+	}
+	if c.CapMemory == nil {
+		c.CapMemory = new(true)
+	}
+	if c.CapBrowser == nil {
+		c.CapBrowser = new(false)
+	}
 
 	if c.ModelBaseURL == "" {
 		if mappedBaseURL, ok := supportedRouters[c.ModelRouter]; ok {
@@ -317,6 +386,21 @@ func splitAndTrimCSV(value string) []string {
 		values = append(values, trimmed)
 	}
 	return values
+}
+
+func parseOptionalBoolEnv(key string) (bool, bool) {
+	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	if value == "" {
+		return false, false
+	}
+	return value == "1" || value == "true" || value == "yes", true
+}
+
+func boolValue(value *bool) bool {
+	if value == nil {
+		return false
+	}
+	return *value
 }
 
 func (c *Config) Validate() error {

@@ -28,6 +28,7 @@ type runtimeEnvironment interface {
 	Prepare() error
 	Context() environment.Context
 	Tools() environment.ToolRegistry
+	ToolPolicy() tools.Policy
 	NewIterationBudget() environment.IterationBudget
 	NewTraceSession() trace.Session
 }
@@ -98,12 +99,18 @@ func (c *Agent) Chat(ctx context.Context, msg string, opts ChatOptions) (string,
 			return "", err
 		}
 
+		toolDefinitions, err := c.toolDefinitions()
+		if err != nil {
+			trace.Record("session.failed", map[string]any{"error": err.Error()})
+			return "", err
+		}
+
 		request := models.GenerateRequest{
 			Model:         c.cfg.Model,
 			APIMode:       c.cfg.ModelAPIMode,
 			Instructions:  handCtx.GetInstructions().String(),
 			Messages:      handCtx.GetMessages(),
-			Tools:         c.toolDefinitions(),
+			Tools:         toolDefinitions,
 			DebugRequests: c.cfg.DebugRequests,
 		}
 		trace.Record("model.request", request)
@@ -184,12 +191,15 @@ func (c *Agent) Conversation() handctx.Conversation {
 	return c.env.Context().GetConversation()
 }
 
-func (c *Agent) toolDefinitions() []models.ToolDefinition {
+func (c *Agent) toolDefinitions() ([]models.ToolDefinition, error) {
 	if c == nil || c.env == nil || c.env.Tools() == nil {
-		return nil
+		return nil, nil
 	}
 
-	definitions := c.env.Tools().List()
+	definitions, err := c.env.Tools().Resolve(c.env.ToolPolicy())
+	if err != nil {
+		return nil, err
+	}
 	toolsList := make([]models.ToolDefinition, 0, len(definitions))
 	for _, definition := range definitions {
 		toolsList = append(toolsList, models.ToolDefinition{
@@ -198,18 +208,22 @@ func (c *Agent) toolDefinitions() []models.ToolDefinition {
 			InputSchema: definition.InputSchema,
 		})
 	}
-	return toolsList
+	return toolsList, nil
 }
 
 func (c *Agent) invokeTool(ctx context.Context, toolCall models.ToolCall) handctx.Message {
-	result := map[string]string{"name": toolCall.Name}
+	result := map[string]any{"name": toolCall.Name}
 
-	toolResult, err := c.env.Tools().Invoke(ctx, tools.Call{Name: toolCall.Name, Input: toolCall.Input, Source: "model"})
+	toolResult, err := c.env.Tools().Invoke(ctx, tools.Call{
+		Name:   toolCall.Name,
+		Input:  toolCall.Input,
+		Source: "model",
+	})
 	if err != nil {
 		result["error"] = err.Error()
 	}
 	if strings.TrimSpace(toolResult.Error) != "" {
-		result["error"] = strings.TrimSpace(toolResult.Error)
+		result["error"] = normalizeToolError(strings.TrimSpace(toolResult.Error))
 	}
 	if strings.TrimSpace(toolResult.Output) != "" {
 		result["output"] = strings.TrimSpace(toolResult.Output)
@@ -224,6 +238,16 @@ func (c *Agent) invokeTool(ctx context.Context, toolCall models.ToolCall) handct
 	}
 
 	return handctx.Message{Role: handctx.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: content}
+}
+
+func normalizeToolError(raw string) any {
+	var toolErr tools.Error
+	if err := json.Unmarshal([]byte(raw), &toolErr); err == nil &&
+		strings.TrimSpace(toolErr.Code) != "" &&
+		strings.TrimSpace(toolErr.Message) != "" {
+		return toolErr
+	}
+	return raw
 }
 
 func (c *Agent) summaryFallback(ctx context.Context, budget environment.IterationBudget, handCtx environment.Context, trace trace.Session) (string, error) {

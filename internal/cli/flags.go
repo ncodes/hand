@@ -83,6 +83,36 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Usage: "Comma-separated rule file paths to load in addition to workspace defaults",
 			Value: strings.Join(config.Get().RulesFiles, ","),
 		},
+		&cli.StringFlag{
+			Name:  "platform",
+			Usage: "Active runtime platform used for tool filtering",
+			Value: config.Get().Platform,
+		},
+		&cli.BoolFlag{
+			Name:  "cap.fs",
+			Usage: "Enable filesystem tool capability filtering",
+			Value: boolValue(config.Get().CapFilesystem),
+		},
+		&cli.BoolFlag{
+			Name:  "cap.net",
+			Usage: "Enable network tool capability filtering",
+			Value: boolValue(config.Get().CapNetwork),
+		},
+		&cli.BoolFlag{
+			Name:  "cap.exec",
+			Usage: "Enable exec tool capability filtering",
+			Value: boolValue(config.Get().CapExec),
+		},
+		&cli.BoolFlag{
+			Name:  "cap.mem",
+			Usage: "Enable memory tool capability filtering",
+			Value: boolValue(config.Get().CapMemory),
+		},
+		&cli.BoolFlag{
+			Name:  "cap.browser",
+			Usage: "Enable browser tool capability filtering",
+			Value: boolValue(config.Get().CapBrowser),
+		},
 	}
 
 	if envFile != nil {
@@ -189,6 +219,24 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	if cmd.IsSet("instruct") {
 		cfg.Instruct = strings.TrimSpace(cmd.String("instruct"))
 	}
+	if cmd.IsSet("platform") {
+		cfg.Platform = strings.TrimSpace(cmd.String("platform"))
+	}
+	if cmd.IsSet("cap.fs") {
+		cfg.CapFilesystem = new(cmd.Bool("cap.fs"))
+	}
+	if cmd.IsSet("cap.net") {
+		cfg.CapNetwork = new(cmd.Bool("cap.net"))
+	}
+	if cmd.IsSet("cap.exec") {
+		cfg.CapExec = new(cmd.Bool("cap.exec"))
+	}
+	if cmd.IsSet("cap.mem") {
+		cfg.CapMemory = new(cmd.Bool("cap.mem"))
+	}
+	if cmd.IsSet("cap.browser") {
+		cfg.CapBrowser = new(cmd.Bool("cap.browser"))
+	}
 }
 
 func configSplitAndTrimCSV(value string) []string {
@@ -206,4 +254,11 @@ func configSplitAndTrimCSV(value string) []string {
 		values = append(values, trimmed)
 	}
 	return values
+}
+
+func boolValue(value *bool) bool {
+	if value == nil {
+		return false
+	}
+	return *value
 }

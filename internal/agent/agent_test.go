@@ -598,11 +598,11 @@ func TestAgent_ChatConvertsMissingToolIntoToolMessage(t *testing.T) {
 	})
 
 	reply, err := agent.Chat(context.Background(), "use a missing tool", ChatOptions{})
-
 	require.NoError(t, err)
 	require.Equal(t, "fallback", reply)
 	require.Len(t, client.Requests, 2)
-	require.Contains(t, client.Requests[1].Messages[2].Content, `"error":"tool is not registered"`)
+	require.Contains(t, client.Requests[1].Messages[2].Content, `tool_not_registered`)
+	require.Contains(t, client.Requests[1].Messages[2].Content, `tool is not registered`)
 }
 
 func TestAgent_ChatUsesSummaryFallbackWhenIterationBudgetIsExhausted(t *testing.T) {
@@ -751,13 +751,19 @@ func TestAgent_ConversationReturnsEmptyForUninitializedAgent(t *testing.T) {
 
 func TestAgent_ToolDefinitionsReturnNilWithoutEnvironment(t *testing.T) {
 	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent"}, &mocks.ModelClientStub{})
-	require.Nil(t, agent.toolDefinitions())
+	definitions, err := agent.toolDefinitions()
+	require.NoError(t, err)
+	require.Nil(t, definitions)
 }
 
 func TestAgent_ToolDefinitionsReturnDefinitionsFromEnvironment(t *testing.T) {
 	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent"}, &mocks.ModelClientStub{})
 	agent.env = &mocks.EnvironmentStub{
 		RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
+		Policy: tools.Policy{
+			Capabilities: tools.Capabilities{Filesystem: true},
+			Platform:     "cli",
+		},
 		ToolRegistry: &mocks.ToolRegistryStub{
 			Definitions: []tools.Definition{{
 				Name:        "time",
@@ -767,11 +773,47 @@ func TestAgent_ToolDefinitionsReturnDefinitionsFromEnvironment(t *testing.T) {
 		},
 	}
 
+	definitions, err := agent.toolDefinitions()
+	require.NoError(t, err)
 	require.Equal(t, []models.ToolDefinition{{
 		Name:        "time",
 		Description: "Returns time",
 		InputSchema: map[string]any{"type": "object"},
-	}}, agent.toolDefinitions())
+	}}, definitions)
+	require.Equal(t, tools.Policy{
+		Capabilities: tools.Capabilities{Filesystem: true},
+		Platform:     "cli",
+	}, agent.env.(*mocks.EnvironmentStub).ToolRegistry.(*mocks.ToolRegistryStub).LastToolPolicy)
+}
+
+func TestAgent_ToolDefinitionsReturnResolveError(t *testing.T) {
+	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent"}, &mocks.ModelClientStub{})
+	agent.env = &mocks.EnvironmentStub{
+		RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
+		ToolRegistry: &mocks.ToolRegistryStub{
+			ResolveErr: errors.New("resolve failed"),
+		},
+	}
+
+	definitions, err := agent.toolDefinitions()
+	require.Nil(t, definitions)
+	require.EqualError(t, err, "resolve failed")
+}
+
+func TestAgent_ChatReturnsResolveError(t *testing.T) {
+	client := &mocks.ModelClientStub{}
+	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", Model: "test-model"}, client)
+	agent.env = &mocks.EnvironmentStub{
+		RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
+		ToolRegistry: &mocks.ToolRegistryStub{
+			ResolveErr: errors.New("resolve failed"),
+		},
+	}
+
+	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
+
+	require.EqualError(t, err, "resolve failed")
+	require.Empty(t, client.Requests)
 }
 
 func TestAgent_InvokeToolIncludesRegistryAndToolErrors(t *testing.T) {
@@ -779,7 +821,7 @@ func TestAgent_InvokeToolIncludesRegistryAndToolErrors(t *testing.T) {
 	agent.env = &mocks.EnvironmentStub{
 		RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
 		ToolRegistry: &mocks.ToolRegistryStub{
-			Result: tools.Result{Error: "tool failed", Output: "ignored"},
+			Result: tools.Result{Error: tools.Error{Code: "tool_failed", Message: "tool failed"}.String(), Output: "ignored"},
 			Err:    errors.New("invoke failed"),
 		},
 	}
@@ -789,8 +831,22 @@ func TestAgent_InvokeToolIncludesRegistryAndToolErrors(t *testing.T) {
 	require.Equal(t, handcontext.RoleTool, message.Role)
 	require.Equal(t, "time", message.Name)
 	require.Equal(t, "call-1", message.ToolCallID)
-	require.Contains(t, message.Content, `"error":"tool failed"`)
+	require.Contains(t, message.Content, `"error":{"code":"tool_failed","message":"tool failed"}`)
 	require.Contains(t, message.Content, `"output":"ignored"`)
+}
+
+func TestAgent_InvokeToolPreservesPlainStringErrors(t *testing.T) {
+	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent"}, &mocks.ModelClientStub{})
+	agent.env = &mocks.EnvironmentStub{
+		RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
+		ToolRegistry: &mocks.ToolRegistryStub{
+			Result: tools.Result{Error: "plain failure"},
+		},
+	}
+
+	message := agent.invokeTool(context.Background(), models.ToolCall{ID: "call-1", Name: "time", Input: "{}"})
+
+	require.Contains(t, message.Content, `"error":"plain failure"`)
 }
 
 func TestAgent_InvokeToolHandlesMarshalError(t *testing.T) {

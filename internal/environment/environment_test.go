@@ -253,6 +253,10 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	definitions := tools.List()
 	require.Len(t, definitions, 1)
 	require.Equal(t, "time", definitions[0].Name)
+	require.Equal(t, []string{"core"}, definitions[0].Groups)
+	groups := tools.ListGroups()
+	require.Len(t, groups, 1)
+	require.Equal(t, "core", groups[0].Name)
 }
 
 type failingRegistry struct {
@@ -267,8 +271,24 @@ func (failingRegistry) Get(string) (tools.Definition, bool) {
 	return tools.Definition{}, false
 }
 
+func (failingRegistry) RegisterGroup(tools.Group) error {
+	return nil
+}
+
+func (failingRegistry) GetGroup(string) (tools.Group, bool) {
+	return tools.Group{}, false
+}
+
 func (failingRegistry) List() []tools.Definition {
 	return nil
+}
+
+func (failingRegistry) ListGroups() []tools.Group {
+	return nil
+}
+
+func (failingRegistry) Resolve(tools.Policy) ([]tools.Definition, error) {
+	return nil, nil
 }
 
 func (failingRegistry) Invoke(stdctx.Context, tools.Call) (tools.Result, error) {
@@ -313,6 +333,43 @@ func TestEnvironment_NewIterationBudgetUsesConfigValue(t *testing.T) {
 
 func TestEnvironment_NewIterationBudgetUsesDefaultWhenUnset(t *testing.T) {
 	require.Equal(t, config.DefaultMaxIterations, (&Environment{}).NewIterationBudget().Remaining())
+}
+
+func TestEnvironment_ToolPolicyUsesCLIPlatformAndLocalCapabilities(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Normalize()
+	env := NewEnvironment(gctx.Background(), cfg)
+
+	opts := env.ToolPolicy()
+
+	require.Equal(t, "cli", opts.Platform)
+	require.True(t, opts.Capabilities.Filesystem)
+	require.True(t, opts.Capabilities.Network)
+	require.True(t, opts.Capabilities.Exec)
+	require.True(t, opts.Capabilities.Memory)
+	require.False(t, opts.Capabilities.Browser)
+}
+
+func TestEnvironment_ToolPolicyUsesConfigValues(t *testing.T) {
+	cfg := &config.Config{
+		Platform:      "desktop",
+		CapFilesystem: new(false),
+		CapNetwork:    new(false),
+		CapExec:       new(true),
+		CapMemory:     new(false),
+		CapBrowser:    new(true),
+	}
+	cfg.Normalize()
+	env := NewEnvironment(gctx.Background(), cfg)
+
+	opts := env.ToolPolicy()
+
+	require.Equal(t, "desktop", opts.Platform)
+	require.False(t, opts.Capabilities.Filesystem)
+	require.False(t, opts.Capabilities.Network)
+	require.True(t, opts.Capabilities.Exec)
+	require.False(t, opts.Capabilities.Memory)
+	require.True(t, opts.Capabilities.Browser)
 }
 
 func TestNewEnvironment_ConfiguresTraceFactoryWhenEnabled(t *testing.T) {

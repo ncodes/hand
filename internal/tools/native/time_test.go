@@ -48,8 +48,24 @@ func (failingRegistry) Get(string) (tools.Definition, bool) {
 	return tools.Definition{}, false
 }
 
+func (failingRegistry) RegisterGroup(tools.Group) error {
+	return nil
+}
+
+func (failingRegistry) GetGroup(string) (tools.Group, bool) {
+	return tools.Group{}, false
+}
+
 func (failingRegistry) List() []tools.Definition {
 	return nil
+}
+
+func (failingRegistry) ListGroups() []tools.Group {
+	return nil
+}
+
+func (failingRegistry) Resolve(tools.Policy) ([]tools.Definition, error) {
+	return nil, nil
 }
 
 func (failingRegistry) Invoke(context.Context, tools.Call) (tools.Result, error) {

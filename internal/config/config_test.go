@@ -13,7 +13,8 @@ import (
 func TestPreloadEnvFile_LoadsValues(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL",
-		"LOG_NO_COLOR", "DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT")
+		"LOG_NO_COLOR", "DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET",
+		"AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -33,6 +34,12 @@ LOG_NO_COLOR=true
 DEBUG_REQUESTS=true
 RULES_FILES=hand.md,custom.md
 INSTRUCT=be terse
+PLATFORM=desktop
+AGENT_CAP_FS=false
+AGENT_CAP_NET=false
+AGENT_CAP_EXEC=false
+AGENT_CAP_MEM=false
+AGENT_CAP_BROWSER=true
 `), 0o600))
 
 	require.NoError(t, PreloadEnvFile(envPath))
@@ -51,6 +58,12 @@ INSTRUCT=be terse
 	require.Equal(t, "true", os.Getenv("DEBUG_REQUESTS"))
 	require.Equal(t, "hand.md,custom.md", os.Getenv("RULES_FILES"))
 	require.Equal(t, "be terse", os.Getenv("INSTRUCT"))
+	require.Equal(t, "desktop", os.Getenv("PLATFORM"))
+	require.Equal(t, "false", os.Getenv("AGENT_CAP_FS"))
+	require.Equal(t, "false", os.Getenv("AGENT_CAP_NET"))
+	require.Equal(t, "false", os.Getenv("AGENT_CAP_EXEC"))
+	require.Equal(t, "false", os.Getenv("AGENT_CAP_MEM"))
+	require.Equal(t, "true", os.Getenv("AGENT_CAP_BROWSER"))
 }
 
 func TestPreloadEnvFile_DoesNotOverrideShellEnv(t *testing.T) {
@@ -104,7 +117,7 @@ func TestPreloadEnvFile_IgnoresMissingFile(t *testing.T) {
 func TestLoad_UsesConfigFileValues(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
-		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT")
+		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -121,6 +134,13 @@ rpc:
 agent:
   maxIterations: 45
   instruct: be terse
+  cap:
+    fs: false
+    net: false
+    exec: false
+    mem: false
+    browser: true
+platform: desktop
 log:
   level: error
   noColor: true
@@ -148,12 +168,18 @@ rules:
 	require.True(t, cfg.DebugRequests)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.RulesFiles)
 	require.Equal(t, "be terse", cfg.Instruct)
+	require.Equal(t, "desktop", cfg.Platform)
+	require.False(t, boolValue(cfg.CapFilesystem))
+	require.False(t, boolValue(cfg.CapNetwork))
+	require.False(t, boolValue(cfg.CapExec))
+	require.False(t, boolValue(cfg.CapMemory))
+	require.True(t, boolValue(cfg.CapBrowser))
 }
 
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
-		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT")
+		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -172,6 +198,12 @@ LOG_NO_COLOR=false
 DEBUG_REQUESTS=false
 RULES_FILES=hand.md,custom.md
 INSTRUCT=be terse
+PLATFORM=editor
+AGENT_CAP_FS=true
+AGENT_CAP_NET=true
+AGENT_CAP_EXEC=true
+AGENT_CAP_MEM=true
+AGENT_CAP_BROWSER=false
 `), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
@@ -186,6 +218,13 @@ rpc:
 agent:
   maxIterations: 45
   instruct: be formal
+  cap:
+    fs: false
+    net: false
+    exec: false
+    mem: false
+    browser: true
+platform: desktop
 log:
   level: error
   noColor: true
@@ -212,6 +251,12 @@ rules:
 	require.False(t, cfg.DebugRequests)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.RulesFiles)
 	require.Equal(t, "be terse", cfg.Instruct)
+	require.Equal(t, "editor", cfg.Platform)
+	require.True(t, boolValue(cfg.CapFilesystem))
+	require.True(t, boolValue(cfg.CapNetwork))
+	require.True(t, boolValue(cfg.CapExec))
+	require.True(t, boolValue(cfg.CapMemory))
+	require.False(t, boolValue(cfg.CapBrowser))
 }
 
 func TestConfigNormalize_LeavesRulesFilesEmptyWhenUnset(t *testing.T) {
@@ -278,6 +323,12 @@ func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
 	require.Equal(t, "127.0.0.1", cfg.RPCAddress)
 	require.Equal(t, 50051, cfg.RPCPort)
 	require.Equal(t, defaultMaxIterations, cfg.MaxIterations)
+	require.Equal(t, "cli", cfg.Platform)
+	require.True(t, boolValue(cfg.CapFilesystem))
+	require.True(t, boolValue(cfg.CapNetwork))
+	require.True(t, boolValue(cfg.CapExec))
+	require.True(t, boolValue(cfg.CapMemory))
+	require.False(t, boolValue(cfg.CapBrowser))
 	require.Equal(t, "info", cfg.LogLevel)
 }
 
@@ -310,6 +361,12 @@ func TestGet_ReturnsDefaultsWhenConfigIsUnset(t *testing.T) {
 	require.Empty(t, cfg.RPCAddress)
 	require.Zero(t, cfg.RPCPort)
 	require.Equal(t, defaultMaxIterations, cfg.MaxIterations)
+	require.Equal(t, "cli", cfg.Platform)
+	require.True(t, boolValue(cfg.CapFilesystem))
+	require.True(t, boolValue(cfg.CapNetwork))
+	require.True(t, boolValue(cfg.CapExec))
+	require.True(t, boolValue(cfg.CapMemory))
+	require.False(t, boolValue(cfg.CapBrowser))
 }
 
 func TestSet_StoresConfigGlobally(t *testing.T) {
@@ -518,11 +575,47 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	require.Empty(t, cfg.Name)
 	require.Equal(t, defaultModel, cfg.Model)
 	require.Equal(t, defaultModelRouter, cfg.ModelRouter)
+	require.Equal(t, "cli", cfg.Platform)
+	require.True(t, boolValue(cfg.CapFilesystem))
+	require.True(t, boolValue(cfg.CapNetwork))
+	require.True(t, boolValue(cfg.CapExec))
+	require.True(t, boolValue(cfg.CapMemory))
+	require.False(t, boolValue(cfg.CapBrowser))
 	require.Equal(t, supportedRouters[defaultModelRouter], cfg.ModelBaseURL)
 	require.Equal(t, "127.0.0.1", cfg.RPCAddress)
 	require.Equal(t, 50051, cfg.RPCPort)
 	require.Equal(t, defaultMaxIterations, cfg.MaxIterations)
 	require.Equal(t, "info", cfg.LogLevel)
+}
+
+func TestConfig_NormalizePreservesExplicitFalseCapabilities(t *testing.T) {
+	cfg := &Config{
+		CapFilesystem: new(false),
+		CapNetwork:    new(false),
+		CapExec:       new(false),
+		CapMemory:     new(false),
+		CapBrowser:    new(false),
+	}
+
+	cfg.Normalize()
+
+	require.False(t, boolValue(cfg.CapFilesystem))
+	require.False(t, boolValue(cfg.CapNetwork))
+	require.False(t, boolValue(cfg.CapExec))
+	require.False(t, boolValue(cfg.CapMemory))
+	require.False(t, boolValue(cfg.CapBrowser))
+}
+
+func TestConfig_NormalizeDefaultsUnsetCapabilitiesIndividually(t *testing.T) {
+	cfg := &Config{CapFilesystem: new(false)}
+
+	cfg.Normalize()
+
+	require.False(t, boolValue(cfg.CapFilesystem))
+	require.True(t, boolValue(cfg.CapNetwork))
+	require.True(t, boolValue(cfg.CapExec))
+	require.True(t, boolValue(cfg.CapMemory))
+	require.False(t, boolValue(cfg.CapBrowser))
 }
 
 func TestConfig_NormalizeUsesMappedBaseURLWhenRouterWasExplicitlySet(t *testing.T) {

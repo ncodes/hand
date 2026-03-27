@@ -44,10 +44,38 @@ type Context interface {
 }
 
 type ToolRegistry interface {
+	GetGroup(string) (tools.Group, bool)
 	List() []tools.Definition
+	ListGroups() []tools.Group
+	Resolve(tools.Policy) ([]tools.Definition, error)
 	Invoke(context.Context, tools.Call) (tools.Result, error)
 }
 
+func (e *Environment) ToolPolicy() tools.Policy {
+	if e == nil || e.cfg == nil {
+		return tools.Policy{
+			Capabilities: tools.Capabilities{
+				Filesystem: true,
+				Network:    true,
+				Exec:       true,
+				Memory:     true,
+			},
+			Platform: "cli",
+		}
+	}
+	return tools.Policy{
+		Capabilities: tools.Capabilities{
+			Filesystem: *e.cfg.CapFilesystem,
+			Network:    *e.cfg.CapNetwork,
+			Exec:       *e.cfg.CapExec,
+			Memory:     *e.cfg.CapMemory,
+			Browser:    *e.cfg.CapBrowser,
+		},
+		Platform: e.cfg.Platform,
+	}
+}
+
+// NewEnvironment creates a new environment with the given context and configuration.
 func NewEnvironment(ctx context.Context, cfg *config.Config) *Environment {
 	registry := tools.NewInMemoryRegistry()
 	traceFactory := trace.NoopFactory()
