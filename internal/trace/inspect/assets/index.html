@@ -640,7 +640,8 @@
       selectedDetail: null,
       autoRefresh: true,
       refreshTimer: null,
-      lastSeenEventCountBySession: {}
+      lastSeenEventCountBySession: {},
+      sessionsSignature: ""
     };
 
     const sessionList = document.getElementById("session-list");
@@ -716,6 +717,30 @@
           selectSession(id);
         });
       }
+    }
+
+    function updateSessionsIfChanged(sessions) {
+      const nextSessions = sessions || [];
+      const signature = JSON.stringify(nextSessions.map((session) => [
+        session.id,
+        session.started_at,
+        session.final_status,
+        session.model,
+        session.agent_name,
+        session.event_count
+      ]));
+
+      state.sessions = nextSessions;
+      if (!state.selectedId && state.sessions.length) {
+        state.selectedId = location.hash ? decodeURIComponent(location.hash.slice(1)) : state.sessions[0].id;
+      }
+
+      if (state.sessionsSignature === signature) {
+        return;
+      }
+
+      state.sessionsSignature = signature;
+      renderSessions();
     }
 
     function renderSummary(detail) {
@@ -824,6 +849,50 @@
       `;
     }
 
+    function renderEventMarkup(event) {
+      const eventClasses = ["event"];
+      let body = "";
+      if (event.started_metadata) {
+        body = `<pre>${escapeHTML(JSON.stringify(event.started_metadata, null, 2))}</pre>`;
+      } else if (event.user_message) {
+        eventClasses.push("event-user-message");
+        body = `<pre>${escapeHTML(event.user_message.message)}</pre>`;
+      } else if (event.model_request) {
+        body = renderRequest(event.model_request, event.index);
+      } else if (event.model_response) {
+        eventClasses.push("event-model-response");
+        body = renderResponse(event.model_response, event.index);
+      } else if (event.tool_invocation) {
+        body = renderToolInvocation(event.tool_invocation, event.index);
+      } else if (event.final_response) {
+        body = `<pre>${escapeHTML(event.final_response.message)}</pre>`;
+      } else if (event.failure) {
+        body = `<div class="error">${escapeHTML(event.failure.error)}</div>`;
+      } else if (event.summary_fallback) {
+        body = `<pre>${escapeHTML(event.summary_fallback.payload || "")}</pre>`;
+      } else if (event.generic_payload_raw) {
+        body = `<pre>${escapeHTML(event.generic_payload_raw)}</pre>`;
+      }
+
+      return `
+        <article class="${eventClasses.join(" ")}" data-event-index="${escapeHTML(String(event.index))}">
+          <div class="event-header">
+            <div class="event-heading">
+              <div class="event-type">${escapeHTML(event.type)}</div>
+              <div class="event-meta">
+                <span class="event-index">${escapeHTML(eventBadge(event))}</span>
+              </div>
+            </div>
+            <div class="event-time">${escapeHTML(fmtTime(event.timestamp))}</div>
+          </div>
+          <div class="event-body">
+            ${body}
+            ${detailDisclosure(`event:${event.index}:raw`, "Raw Event JSON", `<pre>${escapeHTML(event.raw)}</pre>`)}
+          </div>
+        </article>
+      `;
+    }
+
     function snapshotOpenDetails() {
       const openState = {};
       for (const detail of timeline.querySelectorAll("details[data-detail-key]")) {
@@ -849,51 +918,35 @@
         return;
       }
 
-      timeline.innerHTML = `<div class="timeline">${
-        detail.timeline.map((event) => {
-          const eventClasses = ["event"];
-          let body = "";
-          if (event.started_metadata) {
-            body = `<pre>${escapeHTML(JSON.stringify(event.started_metadata, null, 2))}</pre>`;
-          } else if (event.user_message) {
-            eventClasses.push("event-user-message");
-            body = `<pre>${escapeHTML(event.user_message.message)}</pre>`;
-          } else if (event.model_request) {
-            body = renderRequest(event.model_request, event.index);
-          } else if (event.model_response) {
-            eventClasses.push("event-model-response");
-            body = renderResponse(event.model_response, event.index);
-          } else if (event.tool_invocation) {
-            body = renderToolInvocation(event.tool_invocation, event.index);
-          } else if (event.final_response) {
-            body = `<pre>${escapeHTML(event.final_response.message)}</pre>`;
-          } else if (event.failure) {
-            body = `<div class="error">${escapeHTML(event.failure.error)}</div>`;
-          } else if (event.summary_fallback) {
-            body = `<pre>${escapeHTML(event.summary_fallback.payload || "")}</pre>`;
-          } else if (event.generic_payload_raw) {
-            body = `<pre>${escapeHTML(event.generic_payload_raw)}</pre>`;
-          }
+      const existingContainer = timeline.querySelector(".timeline");
+      if (!existingContainer) {
+        timeline.innerHTML = '<div class="timeline"></div>';
+      }
 
-          return `
-            <article class="${eventClasses.join(" ")}" data-event-index="${escapeHTML(String(event.index))}">
-              <div class="event-header">
-                <div class="event-heading">
-                  <div class="event-type">${escapeHTML(event.type)}</div>
-                  <div class="event-meta">
-                    <span class="event-index">${escapeHTML(eventBadge(event))}</span>
-                  </div>
-                </div>
-                <div class="event-time">${escapeHTML(fmtTime(event.timestamp))}</div>
-              </div>
-              <div class="event-body">
-                ${body}
-                ${detailDisclosure(`event:${event.index}:raw`, "Raw Event JSON", `<pre>${escapeHTML(event.raw)}</pre>`)}
-              </div>
-            </article>
-          `;
-        }).join("")
-      }</div>`;
+      const container = timeline.querySelector(".timeline");
+      const expectedIndexes = new Set();
+
+      for (const event of detail.timeline) {
+        const index = String(event.index);
+        expectedIndexes.add(index);
+        const markup = renderEventMarkup(event).trim();
+        const existingEvent = container.querySelector(`[data-event-index="${escapeHTML(index)}"]`);
+        if (!existingEvent) {
+          container.insertAdjacentHTML("beforeend", markup);
+          continue;
+        }
+        if (existingEvent.outerHTML !== markup) {
+          existingEvent.outerHTML = markup;
+        }
+      }
+
+      for (const node of Array.from(container.querySelectorAll("[data-event-index]"))) {
+        const index = node.getAttribute("data-event-index");
+        if (index && !expectedIndexes.has(index)) {
+          node.remove();
+        }
+      }
+
       restoreOpenDetails(previousOpenState);
     }
 
@@ -983,20 +1036,19 @@
       }
 
       const payload = await response.json();
-      state.sessions = payload.sessions || [];
-      if (!state.selectedId && state.sessions.length) {
-        state.selectedId = location.hash ? decodeURIComponent(location.hash.slice(1)) : state.sessions[0].id;
-      }
-      renderSessions();
+      updateSessionsIfChanged(payload.sessions || []);
     }
 
     async function loadSession(id, options = {}) {
       const { silent = false, shouldBeep = false } = options;
       const previousOpenState = snapshotOpenDetails();
+      const selectedChanged = state.selectedId !== id;
 
       state.selectedId = id;
       location.hash = encodeURIComponent(id);
-      renderSessions();
+      if (selectedChanged) {
+        renderSessions();
+      }
 
       if (!silent) {
         heroTitle.textContent = "Loading session...";
