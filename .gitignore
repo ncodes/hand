@@ -16,5 +16,4 @@ config.yaml
 .plan/
 .hand/
 
-bubbletutorial
-agenttest
+example_projects/

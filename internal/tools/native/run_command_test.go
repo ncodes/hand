@@ -12,6 +12,16 @@ import (
 	"github.com/wandxy/hand/internal/tools"
 )
 
+type runCommandPayload struct {
+	ExitCode         int     `json:"exit_code"`
+	Stdout           string  `json:"stdout"`
+	Stderr           string  `json:"stderr"`
+	TimedOut         bool    `json:"timed_out"`
+	TimeoutSeconds   int     `json:"timeout_seconds"`
+	ElapsedSeconds   float64 `json:"elapsed_seconds"`
+	RemainingSeconds float64 `json:"remaining_seconds"`
+}
+
 func TestRunCommand_ToolRunsCommand(t *testing.T) {
 	root := t.TempDir()
 	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
@@ -19,17 +29,16 @@ func TestRunCommand_ToolRunsCommand(t *testing.T) {
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "run_command", Input: `{"command":"printf","args":["hello"]}`})
 
 	require.NoError(t, err)
-	var payload struct {
-		ExitCode int    `json:"exit_code"`
-		Stdout   string `json:"stdout"`
-		Stderr   string `json:"stderr"`
-		TimedOut bool   `json:"timed_out"`
-	}
+	var payload runCommandPayload
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
 	require.Equal(t, 0, payload.ExitCode)
 	require.Equal(t, "hello", payload.Stdout)
 	require.Empty(t, payload.Stderr)
 	require.False(t, payload.TimedOut)
+	require.Equal(t, 30, payload.TimeoutSeconds)
+	require.GreaterOrEqual(t, payload.ElapsedSeconds, 0.0)
+	require.GreaterOrEqual(t, payload.RemainingSeconds, 0.0)
+	require.LessOrEqual(t, payload.RemainingSeconds, float64(payload.TimeoutSeconds))
 }
 
 func TestRunCommand_ToolRejectsInvalidJSONInput(t *testing.T) {
@@ -153,13 +162,13 @@ func TestRunCommand_ToolTimesOut(t *testing.T) {
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "run_command", Input: `{"command":"sleep","args":["2"],"timeout_seconds":1}`})
 
 	require.NoError(t, err)
-	var payload struct {
-		ExitCode int  `json:"exit_code"`
-		TimedOut bool `json:"timed_out"`
-	}
+	var payload runCommandPayload
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
 	require.Equal(t, -1, payload.ExitCode)
 	require.True(t, payload.TimedOut)
+	require.Equal(t, 1, payload.TimeoutSeconds)
+	require.GreaterOrEqual(t, payload.ElapsedSeconds, 0.0)
+	require.Equal(t, 0.0, payload.RemainingSeconds)
 }
 
 func TestRunCommand_ToolPassesEnvironmentVariables(t *testing.T) {
@@ -172,15 +181,14 @@ func TestRunCommand_ToolPassesEnvironmentVariables(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	var payload struct {
-		ExitCode int    `json:"exit_code"`
-		Stdout   string `json:"stdout"`
-		TimedOut bool   `json:"timed_out"`
-	}
+	var payload runCommandPayload
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
 	require.Equal(t, 0, payload.ExitCode)
 	require.Equal(t, "visible", payload.Stdout)
 	require.False(t, payload.TimedOut)
+	require.Equal(t, 30, payload.TimeoutSeconds)
+	require.GreaterOrEqual(t, payload.ElapsedSeconds, 0.0)
+	require.GreaterOrEqual(t, payload.RemainingSeconds, 0.0)
 }
 
 func TestRunCommand_ToolReturnsNonZeroExitCode(t *testing.T) {
@@ -190,13 +198,29 @@ func TestRunCommand_ToolReturnsNonZeroExitCode(t *testing.T) {
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "run_command", Input: `{"command":"false"}`})
 
 	require.NoError(t, err)
-	var payload struct {
-		ExitCode int  `json:"exit_code"`
-		TimedOut bool `json:"timed_out"`
-	}
+	var payload runCommandPayload
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
 	require.Equal(t, 1, payload.ExitCode)
 	require.False(t, payload.TimedOut)
+	require.Equal(t, 30, payload.TimeoutSeconds)
+	require.GreaterOrEqual(t, payload.ElapsedSeconds, 0.0)
+	require.GreaterOrEqual(t, payload.RemainingSeconds, 0.0)
+}
+
+func TestRunCommand_ToolReportsClampedTimeout(t *testing.T) {
+	root := t.TempDir()
+	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{Name: "run_command", Input: `{"command":"printf","args":["hello"],"timeout_seconds":999}`})
+
+	require.NoError(t, err)
+	var payload runCommandPayload
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Equal(t, 120, payload.TimeoutSeconds)
+	require.False(t, payload.TimedOut)
+	require.GreaterOrEqual(t, payload.ElapsedSeconds, 0.0)
+	require.GreaterOrEqual(t, payload.RemainingSeconds, 0.0)
+	require.LessOrEqual(t, payload.RemainingSeconds, float64(payload.TimeoutSeconds))
 }
 
 func TestRunCommand_ToolSupportsContextCancellation(t *testing.T) {

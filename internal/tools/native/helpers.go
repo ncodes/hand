@@ -110,6 +110,18 @@ func withTimeoutSeconds(value int) int {
 	return value
 }
 
+func joinStrings(parts ...string) string {
+	filtered := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		filtered = append(filtered, part)
+	}
+	return strings.Join(filtered, " ")
+}
+
 func objectSchema(properties map[string]any, required ...string) map[string]any {
 	schema := map[string]any{
 		"type":                 "object",

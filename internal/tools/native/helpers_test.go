@@ -70,6 +70,10 @@ func TestWithTimeoutSeconds_ClampsToSupportedRange(t *testing.T) {
 	require.Equal(t, 12, withTimeoutSeconds(12))
 }
 
+func TestJoinStrings_JoinsNonEmptyParts(t *testing.T) {
+	require.Equal(t, "first second third", joinStrings("first", " ", "second", "", "third"))
+}
+
 func TestDecodeInput_UsesEmptyObjectWhenInputIsBlank(t *testing.T) {
 	var target struct {
 		Name string `json:"name"`

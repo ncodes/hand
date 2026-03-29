@@ -27,10 +27,14 @@ func RunCommandDefinition(dependencies envtypes.Runtime) tools.Definition {
 	}
 
 	return tools.Definition{
-		Name:        "run_command",
-		Description: "Run a short-lived, non-interactive command once and return stdout, stderr, exit code, and timeout status.",
-		Groups:      []string{"core"},
-		Requires:    tools.Capabilities{Exec: true},
+		Name: "run_command",
+		Description: joinStrings(
+			"Run a short-lived, non-interactive command.",
+			"Default timeout 30s, max 120s.",
+			"Kills the process (main/child/background) on timeout.",
+		),
+		Groups:   []string{"core"},
+		Requires: tools.Capabilities{Exec: true},
 		InputSchema: objectSchema(map[string]any{
 			"command": stringSchema("Command to run. Uses the shell when args are omitted."),
 			"args": map[string]any{
@@ -48,7 +52,10 @@ func RunCommandDefinition(dependencies envtypes.Runtime) tools.Definition {
 					"type": "string",
 				},
 			},
-			"timeout_seconds": integerSchema("Timeout in seconds."),
+			"timeout_seconds": integerSchema(joinStrings(
+				"Timeout in seconds. Default 30. Max 120.",
+				"Terminates the command/processes when reached.",
+			)),
 		}, "command"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
@@ -106,6 +113,7 @@ func RunCommandDefinition(dependencies envtypes.Runtime) tools.Definition {
 			cmd.Stdout = &stdout
 			cmd.Stderr = &stderr
 
+			startedAt := time.Now()
 			if err := cmd.Start(); err != nil {
 				return toolError("command_failed", err.Error()), nil
 			}
@@ -122,13 +130,17 @@ func RunCommandDefinition(dependencies envtypes.Runtime) tools.Definition {
 				err = <-done
 			}
 
+			elapsedSeconds := time.Since(startedAt).Seconds()
+
 			if runCtx.Err() == context.DeadlineExceeded {
-				return encodeOutput(map[string]any{
-					"exit_code": -1,
-					"stdout":    trimOutput(stdout.String(), maxOutputBytes),
-					"stderr":    trimOutput(stderr.String(), maxOutputBytes),
-					"timed_out": true,
-				})
+				return encodeOutput(runCommandOutput(
+					-1,
+					trimOutput(stdout.String(), maxOutputBytes),
+					trimOutput(stderr.String(), maxOutputBytes),
+					true,
+					timeout,
+					elapsedSeconds,
+				))
 			}
 
 			if runCtx.Err() == context.Canceled {
@@ -144,13 +156,35 @@ func RunCommandDefinition(dependencies envtypes.Runtime) tools.Definition {
 				}
 			}
 
-			return encodeOutput(map[string]any{
-				"exit_code": exitCode,
-				"stdout":    trimOutput(stdout.String(), maxOutputBytes),
-				"stderr":    trimOutput(stderr.String(), maxOutputBytes),
-				"timed_out": false,
-			})
+			return encodeOutput(runCommandOutput(
+				exitCode,
+				trimOutput(stdout.String(), maxOutputBytes),
+				trimOutput(stderr.String(), maxOutputBytes),
+				false,
+				timeout,
+				elapsedSeconds,
+			))
 		}),
+	}
+}
+
+func runCommandOutput(exitCode int, stdout, stderr string, timedOut bool, timeoutSeconds int, elapsedSeconds float64) map[string]any {
+	remainingSeconds := 0.0
+	if !timedOut {
+		remainingSeconds = float64(timeoutSeconds) - elapsedSeconds
+		if remainingSeconds < 0 {
+			remainingSeconds = 0
+		}
+	}
+
+	return map[string]any{
+		"exit_code":         exitCode,
+		"stdout":            stdout,
+		"stderr":            stderr,
+		"timed_out":         timedOut,
+		"timeout_seconds":   timeoutSeconds,
+		"elapsed_seconds":   elapsedSeconds,
+		"remaining_seconds": remainingSeconds,
 	}
 }
 
