@@ -12,6 +12,7 @@ import (
 	cli "github.com/urfave/cli/v3"
 
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
+	tracecmd "github.com/wandxy/hand/cmd/trace"
 	upcmd "github.com/wandxy/hand/cmd/up"
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
@@ -62,6 +63,7 @@ func newCommand() *cli.Command {
 		Flags:       append(handcli.RootFlags(&envFile, &configFile), handcli.RequestInstructFlag()),
 		Commands: []*cli.Command{
 			doctorcmd.NewCommand(),
+			tracecmd.NewCommand(),
 			upcmd.NewCommand(),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
