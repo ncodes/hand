@@ -69,6 +69,30 @@ func TestListFiles_ToolListsDirectoryNonRecursivelyAndSkipsHiddenEntries(t *test
 	require.Equal(t, "dir", payload.Entries[1].Type)
 }
 
+func TestListFiles_ToolDefaultsToNonRecursiveListing(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "alpha.txt"), []byte("alpha"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "nested", "child"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "nested", "child", "beta.txt"), []byte("beta"), 0o644))
+	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{Name: "list_files", Input: `{"path":"."}`})
+
+	require.NoError(t, err)
+	var payload struct {
+		Entries []struct {
+			Path string `json:"path"`
+			Type string `json:"type"`
+		} `json:"entries"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Len(t, payload.Entries, 2)
+	require.Equal(t, "alpha.txt", payload.Entries[0].Path)
+	require.Equal(t, "file", payload.Entries[0].Type)
+	require.Equal(t, "nested", payload.Entries[1].Path)
+	require.Equal(t, "dir", payload.Entries[1].Type)
+}
+
 func TestListFiles_ToolIncludesHiddenEntriesWhenRequested(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(root, ".hidden"), 0o755))

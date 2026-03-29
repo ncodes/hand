@@ -32,7 +32,7 @@ func ListFilesDefinition(dependencies envtypes.Runtime) tools.Definition {
 		Requires:    tools.Capabilities{Filesystem: true},
 		InputSchema: objectSchema(map[string]any{
 			"path":           stringSchema("Path relative to an allowed workspace root. Defaults to the workspace root when omitted."),
-			"recursive":      booleanSchema("When true, list directory contents recursively. Defaults to true."),
+			"recursive":      booleanSchema("When true, list directory contents recursively. Defaults to false."),
 			"include_hidden": booleanSchema("When true, include hidden files and directories in the results."),
 			"max_entries":    integerSchema("Maximum number of entries to return. Values outside the supported range are clamped."),
 		}),
@@ -47,7 +47,7 @@ func ListFilesDefinition(dependencies envtypes.Runtime) tools.Definition {
 				return fileError(err), nil
 			}
 
-			recursive := true
+			recursive := false
 			if req.Recursive != nil {
 				recursive = *req.Recursive
 			}

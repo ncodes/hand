@@ -28,27 +28,27 @@ func RunCommandDefinition(dependencies envtypes.Runtime) tools.Definition {
 
 	return tools.Definition{
 		Name:        "run_command",
-		Description: "Run a non-interactive command once and return stdout, stderr, exit code, and timeout status.",
+		Description: "Run a short-lived, non-interactive command once and return stdout, stderr, exit code, and timeout status.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Exec: true},
 		InputSchema: objectSchema(map[string]any{
-			"command": stringSchema("Command to execute. When args are omitted, the command string is passed to the platform shell."),
+			"command": stringSchema("Command to run. Uses the shell when args are omitted."),
 			"args": map[string]any{
 				"type":        "array",
-				"description": "Argument list passed directly to the command. When provided, shell wrapping is skipped.",
+				"description": "Arguments passed directly to the command.",
 				"items": map[string]any{
 					"type": "string",
 				},
 			},
-			"cwd": stringSchema("Working directory relative to an allowed workspace root. Defaults to the first allowed root."),
+			"cwd": stringSchema("Working directory relative to an allowed workspace root."),
 			"env": map[string]any{
 				"type":        "object",
-				"description": "Environment variables to append or override for the command.",
+				"description": "Environment variable overrides.",
 				"additionalProperties": map[string]any{
 					"type": "string",
 				},
 			},
-			"timeout_seconds": integerSchema("Execution timeout in seconds. Values outside the supported range are clamped."),
+			"timeout_seconds": integerSchema("Timeout in seconds."),
 		}, "command"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
@@ -86,7 +86,12 @@ func RunCommandDefinition(dependencies envtypes.Runtime) tools.Definition {
 			runCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 			defer cancel()
 
-			cmd := buildCommand(runCtx, req.Command, req.Args)
+			if err := runCtx.Err(); err != nil {
+				return toolError("command_failed", err.Error()), nil
+			}
+
+			cmd := buildCommand(context.Background(), req.Command, req.Args)
+			configureCommandProcess(cmd)
 
 			cmd.Dir = resolved.Absolute
 			cmd.Env = os.Environ()
@@ -101,7 +106,22 @@ func RunCommandDefinition(dependencies envtypes.Runtime) tools.Definition {
 			cmd.Stdout = &stdout
 			cmd.Stderr = &stderr
 
-			err = cmd.Run()
+			if err := cmd.Start(); err != nil {
+				return toolError("command_failed", err.Error()), nil
+			}
+
+			done := make(chan error, 1)
+			go func() {
+				done <- cmd.Wait()
+			}()
+
+			select {
+			case err = <-done:
+			case <-runCtx.Done():
+				terminateCommandProcess(cmd)
+				err = <-done
+			}
+
 			if runCtx.Err() == context.DeadlineExceeded {
 				return encodeOutput(map[string]any{
 					"exit_code": -1,
@@ -109,6 +129,10 @@ func RunCommandDefinition(dependencies envtypes.Runtime) tools.Definition {
 					"stderr":    trimOutput(stderr.String(), maxOutputBytes),
 					"timed_out": true,
 				})
+			}
+
+			if runCtx.Err() == context.Canceled {
+				return toolError("command_failed", runCtx.Err().Error()), nil
 			}
 
 			exitCode := 0
