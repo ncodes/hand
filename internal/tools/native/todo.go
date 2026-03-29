@@ -17,7 +17,21 @@ func TodoDefinition(dependencies envtypes.Runtime) tools.Definition {
 		Name:        "todo",
 		Description: "Manage the in-memory todo list for the current session.",
 		Groups:      []string{"core"},
-		InputSchema: map[string]any{"type": "object"},
+		InputSchema: objectSchema(map[string]any{
+			"action": map[string]any{
+				"type":        "string",
+				"description": "Todo operation to perform. Supported values are list, replace, and clear. Defaults to list when omitted.",
+				"enum":        []string{"list", "replace", "clear"},
+			},
+			"items": map[string]any{
+				"type":        "array",
+				"description": "Todo items to store when action is replace.",
+				"items": objectSchema(map[string]any{
+					"text": stringSchema("Todo item text."),
+					"done": booleanSchema("Whether the todo item is completed."),
+				}, "text", "done"),
+			},
+		}),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
 			if result := decodeInput(call, &req); result.Error != "" {

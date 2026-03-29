@@ -31,7 +31,25 @@ func RunCommandDefinition(dependencies envtypes.Runtime) tools.Definition {
 		Description: "Run a non-interactive command once and return stdout, stderr, exit code, and timeout status.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Exec: true},
-		InputSchema: map[string]any{"type": "object"},
+		InputSchema: objectSchema(map[string]any{
+			"command": stringSchema("Command to execute. When args are omitted, the command string is passed to the platform shell."),
+			"args": map[string]any{
+				"type":        "array",
+				"description": "Argument list passed directly to the command. When provided, shell wrapping is skipped.",
+				"items": map[string]any{
+					"type": "string",
+				},
+			},
+			"cwd": stringSchema("Working directory relative to an allowed workspace root. Defaults to the first allowed root."),
+			"env": map[string]any{
+				"type":        "object",
+				"description": "Environment variables to append or override for the command.",
+				"additionalProperties": map[string]any{
+					"type": "string",
+				},
+			},
+			"timeout_seconds": integerSchema("Execution timeout in seconds. Values outside the supported range are clamped."),
+		}, "command"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
 			if result := decodeInput(call, &req); result.Error != "" {

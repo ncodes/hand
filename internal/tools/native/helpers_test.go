@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	envtypes "github.com/wandxy/hand/internal/environment/types"
+	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
 )
 
@@ -101,4 +103,44 @@ func TestEncodeOutput_ReturnsMarshalError(t *testing.T) {
 	_, err := encodeOutput(map[string]any{"bad": make(chan int)})
 
 	require.Error(t, err)
+}
+
+func TestNativeToolDefinitions_AdvertiseArgumentDescriptions(t *testing.T) {
+	root := t.TempDir()
+	dependencies := &testDependencies{
+		filePolicy:    guardrails.FilesystemPolicy{Roots: guardrails.NormalizeRoots([]string{root})},
+		commandPolicy: guardrails.CommandPolicy{}.Normalize(),
+		todos:         []envtypes.TodoItem{{Text: "ship", Done: false}},
+	}
+
+	definitions := []tools.Definition{
+		TimeDefinition(),
+		ListFilesDefinition(dependencies),
+		ReadFileDefinition(dependencies),
+		SearchFilesDefinition(dependencies),
+		WriteFileDefinition(dependencies),
+		PatchDefinition(dependencies),
+		TodoDefinition(dependencies),
+		RunCommandDefinition(dependencies),
+	}
+
+	for _, definition := range definitions {
+		t.Run(definition.Name, func(t *testing.T) {
+			require.Equal(t, "object", definition.InputSchema["type"])
+			require.Equal(t, false, definition.InputSchema["additionalProperties"])
+
+			properties, _ := definition.InputSchema["properties"].(map[string]any)
+			if definition.Name == "time" {
+				require.Nil(t, properties)
+				return
+			}
+
+			require.NotEmpty(t, properties)
+			for name, property := range properties {
+				field, ok := property.(map[string]any)
+				require.True(t, ok, name)
+				require.NotEmpty(t, field["description"], name)
+			}
+		})
+	}
 }

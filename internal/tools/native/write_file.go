@@ -24,7 +24,11 @@ func WriteFileDefinition(dependencies envtypes.Runtime) tools.Definition {
 		Description: "Create or overwrite a text file under an allowed workspace root.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Filesystem: true},
-		InputSchema: map[string]any{"type": "object"},
+		InputSchema: objectSchema(map[string]any{
+			"path":        stringSchema("Path to the file relative to an allowed workspace root."),
+			"content":     stringSchema("Text content to write to the target file."),
+			"create_dirs": booleanSchema("When true, create missing parent directories before writing. Defaults to true."),
+		}, "path", "content"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
 			if result := decodeInput(call, &req); result.Error != "" {

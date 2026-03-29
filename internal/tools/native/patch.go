@@ -17,10 +17,8 @@ import (
 
 func PatchDefinition(dependencies envtypes.Runtime) tools.Definition {
 	type input struct {
-		// Patch is the unified diff payload to apply.
 		Patch string `json:"patch"`
-		// Strip removes leading path components like git's -p flag.
-		Strip int `json:"strip"`
+		Strip int    `json:"strip"`
 	}
 
 	return tools.Definition{
@@ -28,7 +26,10 @@ func PatchDefinition(dependencies envtypes.Runtime) tools.Definition {
 		Description: "Apply a unified diff patch under allowed workspace roots.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Filesystem: true},
-		InputSchema: map[string]any{"type": "object"},
+		InputSchema: objectSchema(map[string]any{
+			"patch": stringSchema("Unified diff patch content to apply."),
+			"strip": integerSchema("Number of leading path components to strip from file paths, similar to git apply -p."),
+		}, "patch"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
 			if result := decodeInput(call, &req); result.Error != "" {

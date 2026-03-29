@@ -44,7 +44,13 @@ func SearchFilesDefinition(dependencies envtypes.Runtime) tools.Definition {
 		Description: "Search file contents under an allowed workspace root.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Filesystem: true},
-		InputSchema: map[string]any{"type": "object"},
+		InputSchema: objectSchema(map[string]any{
+			"pattern":        stringSchema("Text or pattern to search for within files."),
+			"path":           stringSchema("Path relative to an allowed workspace root to search within. Defaults to the workspace root when omitted."),
+			"case_sensitive": booleanSchema("When true, match text using case-sensitive search."),
+			"include_hidden": booleanSchema("When true, include hidden files and directories in the search."),
+			"max_results":    integerSchema("Maximum number of matches to return. Values outside the supported range are clamped."),
+		}, "pattern"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
 			if result := decodeInput(call, &req); result.Error != "" {

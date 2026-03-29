@@ -30,7 +30,12 @@ func ListFilesDefinition(dependencies envtypes.Runtime) tools.Definition {
 		Description: "List files and directories under an allowed workspace root.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Filesystem: true},
-		InputSchema: map[string]any{"type": "object"},
+		InputSchema: objectSchema(map[string]any{
+			"path":           stringSchema("Path relative to an allowed workspace root. Defaults to the workspace root when omitted."),
+			"recursive":      booleanSchema("When true, list directory contents recursively. Defaults to true."),
+			"include_hidden": booleanSchema("When true, include hidden files and directories in the results."),
+			"max_entries":    integerSchema("Maximum number of entries to return. Values outside the supported range are clamped."),
+		}),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
 			if result := decodeInput(call, &req); result.Error != "" {

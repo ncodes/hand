@@ -17,7 +17,9 @@ func ReadFileDefinition(dependencies envtypes.Runtime) tools.Definition {
 		Description: "Read a text file from an allowed workspace root.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Filesystem: true},
-		InputSchema: map[string]any{"type": "object"},
+		InputSchema: objectSchema(map[string]any{
+			"path": stringSchema("Path to the text file relative to an allowed workspace root."),
+		}, "path"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
 			if result := decodeInput(call, &req); result.Error != "" {
