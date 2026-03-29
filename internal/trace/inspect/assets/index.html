@@ -23,6 +23,8 @@
       --accent: #2f6fb2;
       --accent-strong: #1f4f82;
       --accent-soft: rgba(47, 111, 178, 0.12);
+      --user-border: rgba(57, 120, 194, 0.55);
+      --response-border: rgba(47, 114, 88, 0.55);
       --ok: #2f7258;
       --warn: #946726;
       --bad: #a64040;
@@ -50,6 +52,8 @@
         --accent: #7ab3ea;
         --accent-strong: #b8d5f6;
         --accent-soft: rgba(122, 179, 234, 0.16);
+        --user-border: rgba(122, 179, 234, 0.58);
+        --response-border: rgba(124, 201, 167, 0.52);
         --ok: #7cc9a7;
         --warn: #ddb56c;
         --bad: #eb9a9a;
@@ -73,6 +77,8 @@
         --accent: #7ab3ea;
         --accent-strong: #b8d5f6;
         --accent-soft: rgba(122, 179, 234, 0.16);
+        --user-border: rgba(122, 179, 234, 0.58);
+        --response-border: rgba(124, 201, 167, 0.52);
         --ok: #7cc9a7;
         --warn: #ddb56c;
         --bad: #eb9a9a;
@@ -385,6 +391,22 @@
       transform: translateY(-1px);
       box-shadow: var(--shadow-strong);
       border-color: color-mix(in srgb, var(--accent) 24%, var(--line) 76%);
+    }
+
+    .event.event-user-message {
+      border-color: var(--user-border);
+    }
+
+    .event.event-user-message:hover {
+      border-color: color-mix(in srgb, var(--user-border) 78%, var(--accent) 22%);
+    }
+
+    .event.event-model-response {
+      border-color: var(--response-border);
+    }
+
+    .event.event-model-response:hover {
+      border-color: color-mix(in srgb, var(--response-border) 78%, var(--accent) 22%);
     }
 
     .event-header {
@@ -829,14 +851,17 @@
 
       timeline.innerHTML = `<div class="timeline">${
         detail.timeline.map((event) => {
+          const eventClasses = ["event"];
           let body = "";
           if (event.started_metadata) {
             body = `<pre>${escapeHTML(JSON.stringify(event.started_metadata, null, 2))}</pre>`;
           } else if (event.user_message) {
+            eventClasses.push("event-user-message");
             body = `<pre>${escapeHTML(event.user_message.message)}</pre>`;
           } else if (event.model_request) {
             body = renderRequest(event.model_request, event.index);
           } else if (event.model_response) {
+            eventClasses.push("event-model-response");
             body = renderResponse(event.model_response, event.index);
           } else if (event.tool_invocation) {
             body = renderToolInvocation(event.tool_invocation, event.index);
@@ -851,7 +876,7 @@
           }
 
           return `
-            <article class="event" data-event-index="${escapeHTML(String(event.index))}">
+            <article class="${eventClasses.join(" ")}" data-event-index="${escapeHTML(String(event.index))}">
               <div class="event-header">
                 <div class="event-heading">
                   <div class="event-type">${escapeHTML(event.type)}</div>
