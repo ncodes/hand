@@ -335,15 +335,24 @@ func extractChatCompletionsResponse(resp *openai.ChatCompletion) (*GenerateRespo
 		return nil, fmt.Errorf("chat completion response %q contained no choices", resp.ID)
 	}
 
-	toolCalls, err := extractChatCompletionsToolCalls(resp.Choices[0].Message.ToolCalls)
+	message := resp.Choices[0].Message
+	toolCalls, err := extractChatCompletionsToolCalls(message.ToolCalls)
 	if err != nil {
 		return nil, err
+	}
+
+	outputText := strings.TrimSpace(message.Content)
+	if outputText == "" {
+		outputText = strings.TrimSpace(message.Refusal)
+	}
+	if outputText == "" && len(toolCalls) == 0 {
+		return nil, errors.New("model returned empty response")
 	}
 
 	return &GenerateResponse{
 		ID:                resp.ID,
 		Model:             resp.Model,
-		OutputText:        strings.TrimSpace(resp.Choices[0].Message.Content),
+		OutputText:        outputText,
 		ToolCalls:         toolCalls,
 		RequiresToolCalls: len(toolCalls) > 0,
 	}, nil

@@ -376,6 +376,47 @@ func TestOpenAIClient_ChatRejectsChatCompletionResponseWithoutChoices(t *testing
 	require.EqualError(t, err, `chat completion response "resp_123" contained no choices`)
 }
 
+func TestOpenAIClient_ChatRejectsEmptyChatCompletionResponse(t *testing.T) {
+	client := &OpenAIClient{
+		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+			return &openai.ChatCompletion{
+				ID:    "resp_empty",
+				Model: "returned-model",
+				Choices: []openai.ChatCompletionChoice{{
+					Message: openai.ChatCompletionMessage{},
+				}},
+			}, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "test-model",
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	})
+	require.EqualError(t, err, "model returned empty response")
+}
+
+func TestOpenAIClient_ChatUsesRefusalAsOutputText(t *testing.T) {
+	client := &OpenAIClient{
+		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+			return &openai.ChatCompletion{
+				ID:    "resp_refusal",
+				Model: "returned-model",
+				Choices: []openai.ChatCompletionChoice{{
+					Message: openai.ChatCompletionMessage{Refusal: "I can't do that."},
+				}},
+			}, nil
+		},
+	}
+
+	resp, err := client.Chat(context.Background(), GenerateRequest{
+		Model:    "test-model",
+		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, &GenerateResponse{ID: "resp_refusal", Model: "returned-model", OutputText: "I can't do that."}, resp)
+}
+
 func TestOpenAIClient_ChatReturnsResponseAndBuildsResponsesRequest(t *testing.T) {
 	var captured responses.ResponseNewParams
 	client := &OpenAIClient{
