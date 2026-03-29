@@ -14,6 +14,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	doctorcmd "github.com/wandxy/hand/cmd/doctor"
+	upcmd "github.com/wandxy/hand/cmd/up"
 	"github.com/wandxy/hand/internal/config"
 	rpc "github.com/wandxy/hand/internal/rpc"
 	"github.com/wandxy/hand/pkg/logutils"
@@ -330,6 +332,8 @@ func TestNewCommand_RootActionShowsHelp(t *testing.T) {
 	resetGlobals(t)
 
 	cmd := newCommand()
+	cmd.Writer = io.Discard
+	cmd.ErrWriter = io.Discard
 	err := cmd.Run(context.Background(), []string{"hand"})
 	require.NoError(t, err)
 }
@@ -544,14 +548,22 @@ func resetGlobals(t *testing.T) {
 	t.Helper()
 	originalEnvFile := envFile
 	originalConfigFile := configFile
+	originalRootOutput := rootOutput
+	originalDoctorOutput := doctorcmd.SetOutput(io.Discard)
+	originalStartupOutput := upcmd.SetOutput(io.Discard)
 	originalConfig := config.Get()
 	t.Cleanup(func() {
 		envFile = originalEnvFile
 		configFile = originalConfigFile
+		rootOutput = originalRootOutput
+		doctorcmd.SetOutput(originalDoctorOutput)
+		upcmd.SetOutput(originalStartupOutput)
 		config.Set(originalConfig)
 	})
 	envFile = ".env"
 	configFile = "config.yaml"
+	rootOutput = io.Discard
+	logutils.SetOutput(io.Discard)
 	config.Set(nil)
 }
 

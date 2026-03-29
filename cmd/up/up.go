@@ -42,6 +42,16 @@ const (
 
 var startupOutput io.Writer = os.Stdout
 
+func SetOutput(w io.Writer) io.Writer {
+	previous := startupOutput
+	if w == nil {
+		startupOutput = io.Discard
+		return previous
+	}
+	startupOutput = w
+	return previous
+}
+
 var newAgentRunner = func(ctx context.Context, cfg *config.Config, modelClient models.Client) agentRunner {
 	return agent.NewAgent(ctx, cfg, modelClient)
 }
@@ -158,7 +168,7 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) 
 func NewCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "up",
-		Usage: "start the agent runtime",
+		Usage: "Start the agent runtime",
 		Flags: []cli.Flag{handcli.PersistentInstructFlag()},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			cfg, err := config.Load(cmd.String("env-file"), cmd.String("config"))

@@ -16,6 +16,16 @@ import (
 
 var doctorOutput io.Writer = os.Stdout
 
+func SetOutput(w io.Writer) io.Writer {
+	previous := doctorOutput
+	if w == nil {
+		doctorOutput = io.Discard
+		return previous
+	}
+	doctorOutput = w
+	return previous
+}
+
 const (
 	colorReset  = "\x1b[0m"
 	colorGreen  = "\x1b[32m"
