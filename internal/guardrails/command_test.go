@@ -50,6 +50,36 @@ func TestEvaluateCommand_BuiltInRegexPatternsRequireApproval(t *testing.T) {
 			reason:  "recursive world-writable permissions command",
 		},
 		{
+			name:    "chmod 0777",
+			command: "chmod",
+			args:    []string{"0777", "/tmp/file"},
+			reason:  "world-writable permissions command",
+		},
+		{
+			name:    "chmod symbolic world writable",
+			command: "chmod",
+			args:    []string{"a+rwx", "/tmp/file"},
+			reason:  "world-writable permissions command",
+		},
+		{
+			name:    "chmod short recursive 777",
+			command: "chmod",
+			args:    []string{"-R", "777", "/tmp/tree"},
+			reason:  "recursive world-writable permissions command",
+		},
+		{
+			name:    "chmod recursive 0777",
+			command: "chmod",
+			args:    []string{"--recursive", "0777", "/tmp/tree"},
+			reason:  "recursive world-writable permissions command",
+		},
+		{
+			name:    "chmod recursive symbolic world writable",
+			command: "chmod",
+			args:    []string{"-R", "a+rwx", "/tmp/tree"},
+			reason:  "recursive world-writable permissions command",
+		},
+		{
 			name:    "chown recursive root",
 			command: "chown",
 			args:    []string{"--recursive", "root", "/tmp/tree"},
@@ -108,15 +138,49 @@ func TestEvaluateCommand_BuiltInRegexPatternsRequireApproval(t *testing.T) {
 			reason:  "system service disable command",
 		},
 		{
+			name:    "sudo systemctl disable",
+			command: "sudo systemctl disable sshd",
+			reason:  "system service disable command",
+		},
+		{
+			name:    "systemctl now disable",
+			command: "systemctl --now disable sshd",
+			reason:  "system service disable command",
+		},
+		{
 			name:    "kill all",
 			command: "kill",
 			args:    []string{"-9", "-1"},
 			reason:  "kill all processes command",
 		},
 		{
+			name:    "kill all with KILL",
+			command: "kill",
+			args:    []string{"-KILL", "-1"},
+			reason:  "kill all processes command",
+		},
+		{
+			name:    "kill all with signal flag",
+			command: "kill",
+			args:    []string{"-s", "KILL", "-1"},
+			reason:  "kill all processes command",
+		},
+		{
 			name:    "pkill -9",
 			command: "pkill",
 			args:    []string{"-9", "python"},
+			reason:  "force kill processes command",
+		},
+		{
+			name:    "pkill KILL",
+			command: "pkill",
+			args:    []string{"-KILL", "python"},
+			reason:  "force kill processes command",
+		},
+		{
+			name:    "pkill signal KILL",
+			command: "pkill",
+			args:    []string{"--signal", "KILL", "python"},
 			reason:  "force kill processes command",
 		},
 		{

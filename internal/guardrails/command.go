@@ -42,11 +42,11 @@ var builtInApprovalPatterns = []dangerousCommandPattern{
 	},
 	{
 		reason:  "world-writable permissions command",
-		pattern: regexp.MustCompile(`^chmod 777( |$)`),
+		pattern: regexp.MustCompile(`^chmod (?:777|0777|a\+rwx)( |$)`),
 	},
 	{
 		reason:  "recursive world-writable permissions command",
-		pattern: regexp.MustCompile(`^chmod --recursive\b.*\b777\b`),
+		pattern: regexp.MustCompile(`^chmod (?:-[^ ]*R|--recursive\b).*(?:\b777\b|\b0777\b|a\+rwx\b)`),
 	},
 	{
 		reason:  "recursive chown to root command",
@@ -92,15 +92,15 @@ var builtInApprovalPatterns = []dangerousCommandPattern{
 	},
 	{
 		reason:  "system service disable command",
-		pattern: regexp.MustCompile(`^systemctl (stop|disable|mask)( |$)`),
+		pattern: regexp.MustCompile(`^(?:sudo )?systemctl(?: --[^ ]+)* (stop|disable|mask)( |$)`),
 	},
 	{
 		reason:  "kill all processes command",
-		pattern: regexp.MustCompile(`^kill -9 -1$`),
+		pattern: regexp.MustCompile(`^kill (?:-9|-KILL|-s KILL) -1$`),
 	},
 	{
 		reason:  "force kill processes command",
-		pattern: regexp.MustCompile(`^pkill -9\b`),
+		pattern: regexp.MustCompile(`^pkill (?:-9|-KILL|--signal(?:=| )9|--signal(?:=| )KILL)\b`),
 	},
 	{
 		reason: "fork bomb command",
