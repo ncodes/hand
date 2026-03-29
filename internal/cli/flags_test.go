@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -59,4 +60,34 @@ func TestApplyConfigOverrides_AppliesPlatformAndCapabilities(t *testing.T) {
 	require.True(t, boolValue(cfg.CapExec))
 	require.True(t, boolValue(cfg.CapMemory))
 	require.True(t, boolValue(cfg.CapBrowser))
+}
+
+func TestApplyConfigOverrides_AppliesFilesystemRootsAndExecRules(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	cfg := &config.Config{}
+	var cmd *cli.Command
+	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd.Action = func(context.Context, *cli.Command) error {
+		ApplyConfigOverrides(cmd, cfg)
+		return nil
+	}
+
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--agent.fs.roots", "./workspace,./nested",
+		"--agent.exec.allow", "git status",
+		"--agent.exec.ask", "git push",
+		"--agent.exec.deny", "git reset --hard",
+	})
+
+	require.NoError(t, err)
+	cfg.Normalize()
+	require.Equal(t, []string{
+		filepath.Join(dir, "workspace"),
+		filepath.Join(dir, "nested"),
+	}, cfg.FSRoots)
+	require.Equal(t, []string{"git status"}, cfg.ExecAllow)
+	require.Equal(t, []string{"git push"}, cfg.ExecAsk)
+	require.Equal(t, []string{"git reset --hard"}, cfg.ExecDeny)
 }

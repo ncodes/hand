@@ -30,6 +30,7 @@ type Environment struct {
 	handCtx *handctx.Context
 	tools   tools.Registry
 	traces  trace.Factory
+	runtime *Runtime
 }
 
 type Context interface {
@@ -103,7 +104,32 @@ func (e *Environment) Prepare() error {
 }
 
 func (e *Environment) prepareTools() error {
-	return nativetools.Register(e.tools)
+	if e.runtime == nil {
+		e.runtime = NewRuntime(e.fileRoots(), e.commandPolicy())
+	}
+
+	if err := e.tools.RegisterGroup(tools.Group{Name: "core"}); err != nil {
+		return err
+	}
+
+	definitions := []tools.Definition{
+		nativetools.TimeDefinition(),
+		nativetools.ListFilesDefinition(e.runtime),
+		nativetools.ReadFileDefinition(e.runtime),
+		nativetools.SearchFilesDefinition(e.runtime),
+		nativetools.WriteFileDefinition(e.runtime),
+		nativetools.PatchDefinition(e.runtime),
+		nativetools.TodoDefinition(e.runtime),
+		nativetools.RunCommandDefinition(e.runtime),
+	}
+
+	for _, definition := range definitions {
+		if err := e.tools.Register(definition); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (e *Environment) prepareInstructions() error {
@@ -165,4 +191,22 @@ func (e *Environment) NewTraceSession() trace.Session {
 		metadata.APIMode = e.cfg.ModelAPIMode
 	}
 	return e.traces.NewSession(e.ctx, metadata)
+}
+
+func (e *Environment) fileRoots() []string {
+	if e == nil || e.cfg == nil || len(e.cfg.FSRoots) == 0 {
+		return guardrails.NormalizeRoots(nil)
+	}
+	return guardrails.NormalizeRoots(e.cfg.FSRoots)
+}
+
+func (e *Environment) commandPolicy() guardrails.CommandPolicy {
+	if e == nil || e.cfg == nil {
+		return guardrails.CommandPolicy{}
+	}
+	return guardrails.CommandPolicy{
+		Allow: e.cfg.ExecAllow,
+		Ask:   e.cfg.ExecAsk,
+		Deny:  e.cfg.ExecDeny,
+	}.Normalize()
 }

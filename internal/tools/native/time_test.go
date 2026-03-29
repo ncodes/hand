@@ -2,7 +2,6 @@ package native
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -11,71 +10,29 @@ import (
 	"github.com/wandxy/hand/internal/tools"
 )
 
-func TestRegister_RegistersTimeTool(t *testing.T) {
+func TestTimeDefinition_DeclaresObjectInputSchema(t *testing.T) {
+	definition := TimeDefinition()
+
+	require.Equal(t, "time", definition.Name)
+	require.Equal(t, map[string]any{
+		"type": "object",
+	}, definition.InputSchema)
+}
+
+func TestTimeDefinition_HandlerReturnsRFC3339Time(t *testing.T) {
 	originalNow := now
 	t.Cleanup(func() {
 		now = originalNow
 	})
 	now = func() time.Time {
-		return time.Date(2026, time.March, 23, 0, 0, 0, 0, time.UTC)
+		return time.Date(2026, time.March, 28, 1, 2, 3, 0, time.FixedZone("WAT", 3600))
 	}
 
-	registry := tools.NewInMemoryRegistry()
-	require.NoError(t, Register(registry))
+	definition := TimeDefinition()
+	result, err := definition.Handler.Invoke(context.Background(), tools.Call{Name: "time"})
 
-	definition, ok := registry.Get("time")
-	require.True(t, ok)
-	require.Equal(t, "Returns the current server time in RFC3339 format.", definition.Description)
-
-	result, err := registry.Invoke(context.Background(), tools.Call{Name: "time"})
 	require.NoError(t, err)
-	require.Equal(t, "2026-03-23T00:00:00Z", result.Output)
-}
-
-func TestRegister_HandlesNilRegistry(t *testing.T) {
-	require.NoError(t, Register(nil))
-}
-
-type failingRegistry struct {
-	err error
-}
-
-func (r failingRegistry) Register(tools.Definition) error {
-	return r.err
-}
-
-func (failingRegistry) Get(string) (tools.Definition, bool) {
-	return tools.Definition{}, false
-}
-
-func (failingRegistry) RegisterGroup(tools.Group) error {
-	return nil
-}
-
-func (failingRegistry) GetGroup(string) (tools.Group, bool) {
-	return tools.Group{}, false
-}
-
-func (failingRegistry) List() []tools.Definition {
-	return nil
-}
-
-func (failingRegistry) ListGroups() []tools.Group {
-	return nil
-}
-
-func (failingRegistry) Resolve(tools.Policy) ([]tools.Definition, error) {
-	return nil, nil
-}
-
-func (failingRegistry) Invoke(context.Context, tools.Call) (tools.Result, error) {
-	return tools.Result{}, nil
-}
-
-func TestRegister_PropagatesRegisterError(t *testing.T) {
-	expectedErr := errors.New("register failed")
-
-	err := Register(failingRegistry{err: expectedErr})
-
-	require.ErrorIs(t, err, expectedErr)
+	require.Equal(t, "2026-03-28T00:02:03Z", result.Output)
+	require.Empty(t, result.Error)
+	require.Equal(t, []string{"core"}, definition.Groups)
 }

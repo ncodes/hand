@@ -88,6 +88,11 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Usage: "Active runtime platform used for tool filtering",
 			Value: config.Get().Platform,
 		},
+		&cli.StringFlag{
+			Name:  "agent.fs.roots",
+			Usage: "Comma-separated filesystem roots allowed for file tools",
+			Value: strings.Join(config.Get().FSRoots, ","),
+		},
 		&cli.BoolFlag{
 			Name:  "cap.fs",
 			Usage: "Enable filesystem tool capability filtering",
@@ -112,6 +117,21 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Name:  "cap.browser",
 			Usage: "Enable browser tool capability filtering",
 			Value: boolValue(config.Get().CapBrowser),
+		},
+		&cli.StringFlag{
+			Name:  "agent.exec.allow",
+			Usage: "Comma-separated allowed command prefixes",
+			Value: strings.Join(config.Get().ExecAllow, ","),
+		},
+		&cli.StringFlag{
+			Name:  "agent.exec.ask",
+			Usage: "Comma-separated command prefixes that require approval",
+			Value: strings.Join(config.Get().ExecAsk, ","),
+		},
+		&cli.StringFlag{
+			Name:  "agent.exec.deny",
+			Usage: "Comma-separated denied command prefixes",
+			Value: strings.Join(config.Get().ExecDeny, ","),
 		},
 	}
 
@@ -222,6 +242,9 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	if cmd.IsSet("platform") {
 		cfg.Platform = strings.TrimSpace(cmd.String("platform"))
 	}
+	if cmd.IsSet("agent.fs.roots") {
+		cfg.FSRoots = configSplitAndTrimCSV(cmd.String("agent.fs.roots"))
+	}
 	if cmd.IsSet("cap.fs") {
 		cfg.CapFilesystem = new(cmd.Bool("cap.fs"))
 	}
@@ -236,6 +259,15 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("cap.browser") {
 		cfg.CapBrowser = new(cmd.Bool("cap.browser"))
+	}
+	if cmd.IsSet("agent.exec.allow") {
+		cfg.ExecAllow = configSplitAndTrimCSV(cmd.String("agent.exec.allow"))
+	}
+	if cmd.IsSet("agent.exec.ask") {
+		cfg.ExecAsk = configSplitAndTrimCSV(cmd.String("agent.exec.ask"))
+	}
+	if cmd.IsSet("agent.exec.deny") {
+		cfg.ExecDeny = configSplitAndTrimCSV(cmd.String("agent.exec.deny"))
 	}
 }
 

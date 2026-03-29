@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -12,7 +13,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/wandxy/hand/internal/datadir"
-	"github.com/wandxy/hand/internal/workspace"
 )
 
 type Config struct {
@@ -40,6 +40,10 @@ type Config struct {
 	CapExec          *bool
 	CapMemory        *bool
 	CapBrowser       *bool
+	FSRoots          []string
+	ExecAllow        []string
+	ExecAsk          []string
+	ExecDeny         []string
 }
 
 type ModelAuth struct {
@@ -97,7 +101,15 @@ type fileConfig struct {
 	Agent struct {
 		MaxIterations int    `yaml:"maxIterations"`
 		Instruct      string `yaml:"instruct"`
-		Cap           struct {
+		FS            struct {
+			Roots []string `yaml:"roots"`
+		} `yaml:"fs"`
+		Exec struct {
+			Allow []string `yaml:"allow"`
+			Ask   []string `yaml:"ask"`
+			Deny  []string `yaml:"deny"`
+		} `yaml:"exec"`
+		Cap struct {
 			Filesystem *bool `yaml:"fs"`
 			Network    *bool `yaml:"net"`
 			Exec       *bool `yaml:"exec"`
@@ -158,6 +170,7 @@ func Get() *Config {
 			CapExec:       new(true),
 			CapMemory:     new(true),
 			CapBrowser:    new(false),
+			FSRoots:       defaultFSRoots(),
 		}
 	}
 	return globalConfig
@@ -174,6 +187,7 @@ func loadConfigFile(path string) (*Config, error) {
 	if path == "" {
 		path = "config.yaml"
 	}
+	baseDir := filepath.Dir(path)
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -213,6 +227,10 @@ func loadConfigFile(path string) (*Config, error) {
 		CapExec:          raw.Agent.Cap.Exec,
 		CapMemory:        raw.Agent.Cap.Memory,
 		CapBrowser:       raw.Agent.Cap.Browser,
+		FSRoots:          resolvePathsFromBase(raw.Agent.FS.Roots, baseDir),
+		ExecAllow:        raw.Agent.Exec.Allow,
+		ExecAsk:          raw.Agent.Exec.Ask,
+		ExecDeny:         raw.Agent.Exec.Deny,
 	}, nil
 }
 
@@ -282,6 +300,9 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("PLATFORM")); value != "" {
 		cfg.Platform = value
 	}
+	if value := strings.TrimSpace(os.Getenv("AGENT_FS_ROOTS")); value != "" {
+		cfg.FSRoots = splitAndTrimCSV(value)
+	}
 	if value, ok := parseOptionalBoolEnv("AGENT_CAP_FS"); ok {
 		cfg.CapFilesystem = new(value)
 	}
@@ -296,6 +317,15 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value, ok := parseOptionalBoolEnv("AGENT_CAP_BROWSER"); ok {
 		cfg.CapBrowser = new(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("AGENT_EXEC_ALLOW")); value != "" {
+		cfg.ExecAllow = splitAndTrimCSV(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("AGENT_EXEC_ASK")); value != "" {
+		cfg.ExecAsk = splitAndTrimCSV(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("AGENT_EXEC_DENY")); value != "" {
+		cfg.ExecDeny = splitAndTrimCSV(value)
 	}
 }
 
@@ -314,9 +344,13 @@ func (c *Config) Normalize() {
 	c.ModelAPIMode = strings.TrimSpace(strings.ToLower(c.ModelAPIMode))
 	c.LogLevel = strings.TrimSpace(strings.ToLower(c.LogLevel))
 	c.DebugTraceDir = strings.TrimSpace(c.DebugTraceDir)
-	c.RulesFiles = workspace.NormalizeRulePaths(c.RulesFiles)
+	c.RulesFiles = normalizeRulePaths(c.RulesFiles)
 	c.Instruct = strings.TrimSpace(c.Instruct)
 	c.Platform = strings.TrimSpace(strings.ToLower(c.Platform))
+	c.FSRoots = normalizeFSRoots(c.FSRoots)
+	c.ExecAllow = dedupeAndTrim(c.ExecAllow)
+	c.ExecAsk = dedupeAndTrim(c.ExecAsk)
+	c.ExecDeny = dedupeAndTrim(c.ExecDeny)
 
 	if c.Model == "" {
 		c.Model = defaultModel
@@ -363,6 +397,9 @@ func (c *Config) Normalize() {
 	if c.CapBrowser == nil {
 		c.CapBrowser = new(false)
 	}
+	if len(c.FSRoots) == 0 {
+		c.FSRoots = defaultFSRoots()
+	}
 
 	if c.ModelBaseURL == "" {
 		if mappedBaseURL, ok := supportedRouters[c.ModelRouter]; ok {
@@ -386,6 +423,71 @@ func splitAndTrimCSV(value string) []string {
 		values = append(values, trimmed)
 	}
 	return values
+}
+
+func dedupeAndTrim(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
+}
+
+func normalizeFSRoots(values []string) []string {
+	values = dedupeAndTrim(values)
+	if len(values) == 0 {
+		return nil
+	}
+	roots := make([]string, 0, len(values))
+	for _, value := range values {
+		abs, err := filepath.Abs(value)
+		if err != nil {
+			roots = append(roots, filepath.Clean(value))
+			continue
+		}
+		roots = append(roots, filepath.Clean(abs))
+	}
+	return dedupeAndTrim(roots)
+}
+
+func resolvePathsFromBase(values []string, baseDir string) []string {
+	values = dedupeAndTrim(values)
+	if len(values) == 0 {
+		return nil
+	}
+	baseDir = strings.TrimSpace(baseDir)
+	if baseDir == "" {
+		return values
+	}
+	resolved := make([]string, 0, len(values))
+	for _, value := range values {
+		if filepath.IsAbs(value) {
+			resolved = append(resolved, value)
+			continue
+		}
+		resolved = append(resolved, filepath.Join(baseDir, value))
+	}
+	return resolved
+}
+
+func defaultFSRoots() []string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return []string{"."}
+	}
+	return []string{filepath.Clean(cwd)}
 }
 
 func parseOptionalBoolEnv(key string) (bool, bool) {
@@ -491,4 +593,24 @@ func firstNonEmpty(values ...string) string {
 	}
 
 	return ""
+}
+
+func normalizeRulePaths(files []string) []string {
+	normalized := make([]string, 0, len(files))
+	seen := make(map[string]struct{}, len(files))
+
+	for _, file := range files {
+		path := strings.TrimSpace(file)
+		if path == "" {
+			continue
+		}
+		path = filepath.Clean(path)
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		normalized = append(normalized, path)
+	}
+
+	return normalized
 }

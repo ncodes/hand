@@ -825,3 +825,86 @@ func TestConfig_NormalizeDefaultsDebugTraceDirFromHandHome(t *testing.T) {
 
 	require.Equal(t, "/tmp/hand-home/traces", cfg.DebugTraceDir)
 }
+
+func TestLoad_UsesFilesystemRootsAndExecRulesFromConfig(t *testing.T) {
+	clearEnvKeys(t, "AGENT_FS_ROOTS", "AGENT_EXEC_ALLOW", "AGENT_EXEC_ASK", "AGENT_EXEC_DENY")
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: config-model
+  router: none
+  key: config-key
+rpc:
+  address: 127.0.0.1
+  port: 50051
+log:
+  level: info
+agent:
+  fs:
+    roots:
+      - .
+      - ./nested
+  exec:
+    allow:
+      - git status
+    ask:
+      - git push
+    deny:
+      - git reset --hard
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		filepath.Join(dir),
+		filepath.Join(dir, "nested"),
+	}, cfg.FSRoots)
+	require.Equal(t, []string{"git status"}, cfg.ExecAllow)
+	require.Equal(t, []string{"git push"}, cfg.ExecAsk)
+	require.Equal(t, []string{"git reset --hard"}, cfg.ExecDeny)
+}
+
+func TestLoad_UsesFilesystemRootsAndExecRulesFromEnv(t *testing.T) {
+	clearEnvKeys(t, "AGENT_FS_ROOTS", "AGENT_EXEC_ALLOW", "AGENT_EXEC_ASK", "AGENT_EXEC_DENY")
+	dir := t.TempDir()
+	t.Chdir(dir)
+	envPath := filepath.Join(dir, ".env")
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(envPath, []byte("AGENT_FS_ROOTS=.,./nested\nAGENT_EXEC_ALLOW=git status\nAGENT_EXEC_ASK=git push\nAGENT_EXEC_DENY=git reset --hard\n"), 0o600))
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: config-model
+  router: none
+  key: config-key
+rpc:
+  address: 127.0.0.1
+  port: 50051
+log:
+  level: info
+`), 0o600))
+
+	cfg, err := Load(envPath, configPath)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		filepath.Join(dir),
+		filepath.Join(dir, "nested"),
+	}, cfg.FSRoots)
+	require.Equal(t, []string{"git status"}, cfg.ExecAllow)
+	require.Equal(t, []string{"git push"}, cfg.ExecAsk)
+	require.Equal(t, []string{"git reset --hard"}, cfg.ExecDeny)
+}
+
+func TestConfig_NormalizeDefaultsFilesystemRootsToCWD(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	cfg := &Config{}
+	cfg.Normalize()
+
+	require.Equal(t, []string{dir}, cfg.FSRoots)
+}

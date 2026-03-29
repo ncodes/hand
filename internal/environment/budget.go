@@ -23,5 +23,3 @@ func (b *IterationBudget) Consume() bool {
 func (b IterationBudget) Remaining() int {
 	return b.remaining
 }
-
-

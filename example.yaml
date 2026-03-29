@@ -15,6 +15,13 @@
 
 # agent:
 #   maxIterations: 90
+#   fs:
+#     roots:
+#       - "."
+#   exec:
+#     allow: []
+#     ask: []
+#     deny: []
 #   cap:
 #     fs: true
 #     net: true

@@ -12,6 +12,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	handctx "github.com/wandxy/hand/internal/context"
 	"github.com/wandxy/hand/internal/datadir"
+	"github.com/wandxy/hand/internal/guardrails"
 	instructionpkg "github.com/wandxy/hand/internal/instruction"
 	"github.com/wandxy/hand/internal/personality"
 	"github.com/wandxy/hand/internal/tools"
@@ -251,9 +252,20 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	require.NotNil(t, tools)
 
 	definitions := tools.List()
-	require.Len(t, definitions, 1)
-	require.Equal(t, "time", definitions[0].Name)
-	require.Equal(t, []string{"core"}, definitions[0].Groups)
+	require.Len(t, definitions, 8)
+	require.Equal(t, []string{"list_files", "patch", "read_file", "run_command", "search_files", "time", "todo", "write_file"}, []string{
+		definitions[0].Name,
+		definitions[1].Name,
+		definitions[2].Name,
+		definitions[3].Name,
+		definitions[4].Name,
+		definitions[5].Name,
+		definitions[6].Name,
+		definitions[7].Name,
+	})
+	for _, definition := range definitions {
+		require.Equal(t, []string{"core"}, definition.Groups)
+	}
 	groups := tools.ListGroups()
 	require.Len(t, groups, 1)
 	require.Equal(t, "core", groups[0].Name)
@@ -350,6 +362,32 @@ func TestEnvironment_ToolPolicyUsesCLIPlatformAndLocalCapabilities(t *testing.T)
 	require.False(t, opts.Capabilities.Browser)
 }
 
+func TestEnvironment_ToolPolicyUsesDefaultsForNilEnvironment(t *testing.T) {
+	var env *Environment
+
+	opts := env.ToolPolicy()
+
+	require.Equal(t, "cli", opts.Platform)
+	require.True(t, opts.Capabilities.Filesystem)
+	require.True(t, opts.Capabilities.Network)
+	require.True(t, opts.Capabilities.Exec)
+	require.True(t, opts.Capabilities.Memory)
+	require.False(t, opts.Capabilities.Browser)
+}
+
+func TestEnvironment_ToolPolicyUsesDefaultsForNilConfig(t *testing.T) {
+	env := &Environment{}
+
+	opts := env.ToolPolicy()
+
+	require.Equal(t, "cli", opts.Platform)
+	require.True(t, opts.Capabilities.Filesystem)
+	require.True(t, opts.Capabilities.Network)
+	require.True(t, opts.Capabilities.Exec)
+	require.True(t, opts.Capabilities.Memory)
+	require.False(t, opts.Capabilities.Browser)
+}
+
 func TestEnvironment_ToolPolicyUsesConfigValues(t *testing.T) {
 	cfg := &config.Config{
 		Platform:      "desktop",
@@ -370,6 +408,37 @@ func TestEnvironment_ToolPolicyUsesConfigValues(t *testing.T) {
 	require.True(t, opts.Capabilities.Exec)
 	require.False(t, opts.Capabilities.Memory)
 	require.True(t, opts.Capabilities.Browser)
+}
+
+func TestEnvironment_FileRootsUsesDefaultsForNilEnvironment(t *testing.T) {
+	var env *Environment
+
+	require.Equal(t, guardrails.NormalizeRoots(nil), env.fileRoots())
+}
+
+func TestEnvironment_FileRootsUsesDefaultsForNilConfig(t *testing.T) {
+	env := &Environment{}
+
+	require.Equal(t, guardrails.NormalizeRoots(nil), env.fileRoots())
+}
+
+func TestEnvironment_FileRootsUsesConfiguredRoots(t *testing.T) {
+	root := t.TempDir()
+	env := &Environment{cfg: &config.Config{FSRoots: []string{root, filepath.Join(root, ".")}}}
+
+	require.Equal(t, []string{root}, env.fileRoots())
+}
+
+func TestEnvironment_CommandPolicyUsesDefaultsForNilEnvironment(t *testing.T) {
+	var env *Environment
+
+	require.Equal(t, guardrails.CommandPolicy{}, env.commandPolicy())
+}
+
+func TestEnvironment_CommandPolicyUsesDefaultsForNilConfig(t *testing.T) {
+	env := &Environment{}
+
+	require.Equal(t, guardrails.CommandPolicy{}, env.commandPolicy())
 }
 
 func TestNewEnvironment_ConfiguresTraceFactoryWhenEnabled(t *testing.T) {
