@@ -90,7 +90,7 @@ func (c *Agent) Chat(ctx context.Context, msg string, opts ChatOptions) (string,
 		return "", errors.New("tool registry is required")
 	}
 
-	session, err := c.manager.ResolveChatSession(ctx, opts.SessionID)
+	session, err := c.manager.ResolveSession(ctx, opts.SessionID)
 	if err != nil {
 		return "", err
 	}
@@ -243,7 +243,7 @@ func (c *Agent) Run(context.Context) error {
 	if err := c.ensureSessionManager(); err != nil {
 		return err
 	}
-	if err := c.manager.StartMaintenanceWorker(c.ctx, time.Minute); err != nil {
+	if err := c.manager.Start(c.ctx); err != nil {
 		return err
 	}
 

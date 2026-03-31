@@ -62,7 +62,7 @@ func NewManager(store Store, defaultIdleExpiry, archiveRetention time.Duration) 
 	}, nil
 }
 
-func (m *Manager) ResolveChatSession(ctx context.Context, requestedID string) (Session, error) {
+func (m *Manager) ResolveSession(ctx context.Context, requestedID string) (Session, error) {
 	if m == nil {
 		return Session{}, errors.New("session manager is required")
 	}
@@ -76,6 +76,9 @@ func (m *Manager) ResolveChatSession(ctx context.Context, requestedID string) (S
 
 	if id == DefaultSessionID {
 		return m.resolveDefaultSession(ctx, now)
+	}
+	if err := validateSessionID(id); err != nil {
+		return Session{}, err
 	}
 
 	session, ok, err := m.store.Get(ctx, id)
@@ -103,7 +106,11 @@ func (m *Manager) runMaintenance(ctx context.Context) error {
 	return m.clearIdleDefaultSession(ctx, now)
 }
 
-func (m *Manager) StartMaintenanceWorker(ctx context.Context, interval time.Duration) error {
+func (m *Manager) Start(ctx context.Context) error {
+	return m.startMaintenanceWorker(ctx, time.Minute)
+}
+
+func (m *Manager) startMaintenanceWorker(ctx context.Context, interval time.Duration) error {
 	if m == nil {
 		return errors.New("session manager is required")
 	}
@@ -114,6 +121,10 @@ func (m *Manager) StartMaintenanceWorker(ctx context.Context, interval time.Dura
 
 	if ctx == nil || ctx.Err() != nil {
 		ctx = context.Background()
+	}
+
+	if _, err := m.resolveDefaultSession(ctx, m.now().UTC()); err != nil {
+		return err
 	}
 
 	if err := m.runMaintenance(ctx); err != nil {
@@ -174,6 +185,15 @@ func (m *Manager) CreateSession(ctx context.Context, id string) (Session, error)
 	}
 
 	id = strings.TrimSpace(id)
+	if id == "" {
+		generatedID, err := NewSessionID()
+		if err != nil {
+			return Session{}, err
+		}
+		id = generatedID
+	} else if err := validateSessionID(id); err != nil {
+		return Session{}, err
+	}
 
 	if _, ok, err := m.store.Get(ctx, id); err != nil {
 		return Session{}, err
@@ -207,7 +227,13 @@ func (m *Manager) DeleteSession(ctx context.Context, id string) error {
 		return errors.New("session manager is required")
 	}
 
-	return m.store.Delete(ctx, strings.TrimSpace(id))
+	id = strings.TrimSpace(id)
+	if id != "" {
+		if err := validateSessionID(id); err != nil {
+			return err
+		}
+	}
+	return m.store.Delete(ctx, id)
 }
 
 func (m *Manager) UseSession(ctx context.Context, id string) error {
@@ -220,6 +246,8 @@ func (m *Manager) UseSession(ctx context.Context, id string) error {
 		if _, err := m.resolveDefaultSession(ctx, m.now().UTC()); err != nil {
 			return err
 		}
+	} else if err := validateSessionID(id); err != nil {
+		return err
 	}
 
 	return m.store.SetCurrent(ctx, id)

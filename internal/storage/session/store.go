@@ -7,9 +7,11 @@ import (
 	"time"
 
 	handctx "github.com/wandxy/hand/internal/context"
+	"github.com/wandxy/hand/pkg/nanoid"
 )
 
 const DefaultSessionID = "default"
+const SessionIDPrefix = "ses_"
 
 type Session struct {
 	CreatedAt time.Time
@@ -92,10 +94,28 @@ type Store interface {
 	DeleteExpiredArchives(ctx context.Context, now time.Time) error
 }
 
+func NewSessionID() (string, error) {
+	return nanoid.Generate(SessionIDPrefix)
+}
+
+func validateSessionID(id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("session id is required")
+	}
+	if id == DefaultSessionID {
+		return nil
+	}
+	if !strings.HasPrefix(id, SessionIDPrefix) || nanoid.ValidateID(id) != nil {
+		return errors.New("session id must be a valid ses_ nanoid")
+	}
+	return nil
+}
+
 func normalizeSession(session Session) (Session, error) {
 	session.ID = strings.TrimSpace(session.ID)
-	if session.ID == "" {
-		return Session{}, errors.New("session id is required")
+	if err := validateSessionID(session.ID); err != nil {
+		return Session{}, err
 	}
 	if session.CreatedAt.IsZero() {
 		session.CreatedAt = time.Now().UTC()
@@ -116,8 +136,11 @@ func normalizeCreateArchive(archive ArchivedSession) (ArchivedSession, error) {
 		return ArchivedSession{}, errors.New("archive id is required")
 	}
 	archive.SourceSessionID = strings.TrimSpace(archive.SourceSessionID)
-	if archive.SourceSessionID == "" {
-		return ArchivedSession{}, errors.New("source session id is required")
+	if err := validateSessionID(archive.SourceSessionID); err != nil {
+		if err.Error() == "session id is required" {
+			return ArchivedSession{}, errors.New("source session id is required")
+		}
+		return ArchivedSession{}, err
 	}
 	if archive.ArchivedAt.IsZero() {
 		archive.ArchivedAt = time.Now().UTC()

@@ -94,8 +94,8 @@ func (s *MemoryStore) Delete(_ context.Context, id string) error {
 	}
 
 	id = strings.TrimSpace(id)
-	if id == "" {
-		return errors.New("session id is required")
+	if err := validateSessionID(id); err != nil {
+		return err
 	}
 	if id == DefaultSessionID {
 		return errors.New("default session cannot be deleted")
@@ -123,8 +123,8 @@ func (s *MemoryStore) AppendMessages(_ context.Context, id string, messages []ha
 	}
 
 	id = strings.TrimSpace(id)
-	if id == "" {
-		return errors.New("session id is required")
+	if err := validateSessionID(id); err != nil {
+		return err
 	}
 	if len(messages) == 0 {
 		return nil
@@ -155,6 +155,11 @@ func (s *MemoryStore) GetMessages(_ context.Context, id string, opts MessageQuer
 	if id == "" {
 		return nil, nil
 	}
+	if !opts.Archived {
+		if err := validateSessionID(id); err != nil {
+			return nil, err
+		}
+	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -177,6 +182,11 @@ func (s *MemoryStore) GetMessage(_ context.Context, id string, index int, opts M
 	}
 	if index < 0 {
 		return handctx.Message{}, false, nil
+	}
+	if !opts.Archived {
+		if err := validateSessionID(id); err != nil {
+			return handctx.Message{}, false, err
+		}
 	}
 
 	s.mu.RLock()
@@ -322,8 +332,10 @@ func (s *MemoryStore) ClearMessages(_ context.Context, id string, opts MessageQu
 	}
 
 	id = strings.TrimSpace(id)
-	if id == "" {
-		return errors.New("session id is required")
+	if !opts.Archived {
+		if err := validateSessionID(id); err != nil {
+			return err
+		}
 	}
 
 	s.mu.Lock()
@@ -355,8 +367,8 @@ func (s *MemoryStore) SetCurrent(_ context.Context, id string) error {
 	}
 
 	id = strings.TrimSpace(id)
-	if id == "" {
-		return errors.New("session id is required")
+	if err := validateSessionID(id); err != nil {
+		return err
 	}
 
 	s.mu.Lock()

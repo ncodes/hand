@@ -119,10 +119,14 @@ func (s *SQLiteStore) Save(ctx context.Context, session Session) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
 	}
+	session.ID = strings.TrimSpace(session.ID)
+	if err := validateSessionID(session.ID); err != nil {
+		return err
+	}
 
 	if session.CreatedAt.IsZero() {
 		var existing sqliteRecord
-		if err := s.db.WithContext(ctx).First(&existing, "id = ?", strings.TrimSpace(session.ID)).Error; err == nil {
+		if err := s.db.WithContext(ctx).First(&existing, "id = ?", session.ID).Error; err == nil {
 			session.CreatedAt = existing.CreatedAt
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
@@ -156,6 +160,9 @@ func (s *SQLiteStore) Get(ctx context.Context, id string) (Session, bool, error)
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return Session{}, false, nil
+	}
+	if err := validateSessionID(id); err != nil {
+		return Session{}, false, err
 	}
 
 	var record sqliteRecord
@@ -209,8 +216,8 @@ func (s *SQLiteStore) Delete(ctx context.Context, id string) error {
 	}
 
 	id = strings.TrimSpace(id)
-	if id == "" {
-		return errors.New("session id is required")
+	if err := validateSessionID(id); err != nil {
+		return err
 	}
 	if id == DefaultSessionID {
 		return errors.New("default session cannot be deleted")
@@ -248,8 +255,8 @@ func (s *SQLiteStore) AppendMessages(ctx context.Context, id string, messages []
 	}
 
 	id = strings.TrimSpace(id)
-	if id == "" {
-		return errors.New("session id is required")
+	if err := validateSessionID(id); err != nil {
+		return err
 	}
 
 	if len(messages) == 0 {
@@ -296,6 +303,11 @@ func (s *SQLiteStore) GetMessages(
 	if id == "" {
 		return nil, nil
 	}
+	if !opts.Archived {
+		if err := validateSessionID(id); err != nil {
+			return nil, err
+		}
+	}
 
 	if opts.Archived {
 		var records []sqliteArchivedMessageRecord
@@ -328,6 +340,11 @@ func (s *SQLiteStore) GetMessage(
 	id = strings.TrimSpace(id)
 	if id == "" || index < 0 {
 		return handctx.Message{}, false, nil
+	}
+	if !opts.Archived {
+		if err := validateSessionID(id); err != nil {
+			return handctx.Message{}, false, err
+		}
 	}
 
 	if opts.Archived {
@@ -442,8 +459,10 @@ func (s *SQLiteStore) ClearMessages(ctx context.Context, id string, opts Message
 	}
 
 	id = strings.TrimSpace(id)
-	if id == "" {
-		return errors.New("session id is required")
+	if !opts.Archived {
+		if err := validateSessionID(id); err != nil {
+			return err
+		}
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -560,8 +579,8 @@ func (s *SQLiteStore) SetCurrent(ctx context.Context, id string) error {
 	}
 
 	id = strings.TrimSpace(id)
-	if id == "" {
-		return errors.New("session id is required")
+	if err := validateSessionID(id); err != nil {
+		return err
 	}
 
 	_, ok, err := s.Get(ctx, id)
