@@ -12,7 +12,7 @@ func TestInMemoryMemoryStore_SaveAndGet(t *testing.T) {
 	store := NewMemoryStore()
 	entry := MemoryEntry{Key: "workspace", Value: "wandxy"}
 
-	require.NoError(t, store.Save(context.Background(), entry))
+	require.NoError(t, store.Upsert(context.Background(), entry))
 
 	loaded, ok, err := store.Get(context.Background(), "workspace")
 	require.NoError(t, err)
@@ -36,8 +36,8 @@ func TestInMemoryMemoryStore_ListOrdersNewestFirst(t *testing.T) {
 	older := time.Now().UTC().Add(-time.Minute)
 	newer := time.Now().UTC()
 
-	require.NoError(t, store.Save(context.Background(), MemoryEntry{Key: "older", UpdatedAt: older}))
-	require.NoError(t, store.Save(context.Background(), MemoryEntry{Key: "newer", UpdatedAt: newer}))
+	require.NoError(t, store.Upsert(context.Background(), MemoryEntry{Key: "older", UpdatedAt: older}))
+	require.NoError(t, store.Upsert(context.Background(), MemoryEntry{Key: "newer", UpdatedAt: newer}))
 
 	memories, err := store.List(context.Background())
 
@@ -51,8 +51,8 @@ func TestInMemoryMemoryStore_ListOrdersByKeyWhenTimesMatch(t *testing.T) {
 	store := NewMemoryStore()
 	now := time.Now().UTC()
 
-	require.NoError(t, store.Save(context.Background(), MemoryEntry{Key: "zeta", UpdatedAt: now}))
-	require.NoError(t, store.Save(context.Background(), MemoryEntry{Key: "alpha", UpdatedAt: now}))
+	require.NoError(t, store.Upsert(context.Background(), MemoryEntry{Key: "zeta", UpdatedAt: now}))
+	require.NoError(t, store.Upsert(context.Background(), MemoryEntry{Key: "alpha", UpdatedAt: now}))
 
 	memories, err := store.List(context.Background())
 
@@ -65,13 +65,13 @@ func TestInMemoryMemoryStore_ListOrdersByKeyWhenTimesMatch(t *testing.T) {
 func TestInMemoryMemoryStore_SaveRejectsMissingKey(t *testing.T) {
 	store := NewMemoryStore()
 
-	require.EqualError(t, store.Save(context.Background(), MemoryEntry{}), "memory key is required")
+	require.EqualError(t, store.Upsert(context.Background(), MemoryEntry{}), "memory key is required")
 }
 
 func TestInMemoryMemoryStore_NilReceiverErrors(t *testing.T) {
 	var store *InMemoryMemoryStore
 
-	require.EqualError(t, store.Save(context.Background(), MemoryEntry{Key: "workspace"}), "memory store is required")
+	require.EqualError(t, store.Upsert(context.Background(), MemoryEntry{Key: "workspace"}), "memory store is required")
 
 	loaded, ok, err := store.Get(context.Background(), "workspace")
 	require.EqualError(t, err, "memory store is required")

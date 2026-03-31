@@ -32,7 +32,7 @@ func NewMemoryStore() *InMemoryMemoryStore {
 	}
 }
 
-func (s *InMemoryMemoryStore) Save(_ context.Context, entry MemoryEntry) error {
+func (s *InMemoryMemoryStore) Upsert(_ context.Context, entry MemoryEntry) error {
 	if s == nil {
 		return errors.New("memory store is required")
 	}
