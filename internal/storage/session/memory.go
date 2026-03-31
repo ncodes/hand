@@ -38,6 +38,7 @@ func (s *MemoryStore) Save(_ context.Context, session Session) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if existing, ok := s.sessions[strings.TrimSpace(session.ID)]; ok && session.CreatedAt.IsZero() {
 		session.CreatedAt = existing.CreatedAt
 	}
@@ -120,6 +121,7 @@ func (s *MemoryStore) AppendMessages(_ context.Context, id string, messages []ha
 	if s == nil {
 		return errors.New("session store is required")
 	}
+
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return errors.New("session id is required")
@@ -135,10 +137,12 @@ func (s *MemoryStore) AppendMessages(_ context.Context, id string, messages []ha
 	if !ok {
 		return errors.New("session not found")
 	}
+
 	copied := cloneMessages(messages)
 	s.messages[id] = append(s.messages[id], copied...)
 	session.UpdatedAt = time.Now().UTC()
 	s.sessions[id] = session
+
 	return nil
 }
 
@@ -146,6 +150,7 @@ func (s *MemoryStore) GetMessages(_ context.Context, id string, opts MessageQuer
 	if s == nil {
 		return nil, errors.New("session store is required")
 	}
+
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil, nil
@@ -153,9 +158,11 @@ func (s *MemoryStore) GetMessages(_ context.Context, id string, opts MessageQuer
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	if opts.Archived {
 		return cloneMessages(s.archiveMessages[id]), nil
 	}
+
 	return cloneMessages(s.messages[id]), nil
 }
 
@@ -163,6 +170,7 @@ func (s *MemoryStore) GetMessage(_ context.Context, id string, index int, opts M
 	if s == nil {
 		return handctx.Message{}, false, errors.New("session store is required")
 	}
+
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return handctx.Message{}, false, nil
@@ -180,9 +188,11 @@ func (s *MemoryStore) GetMessage(_ context.Context, id string, index int, opts M
 	} else {
 		messages = s.messages[id]
 	}
+
 	if index >= len(messages) {
 		return handctx.Message{}, false, nil
 	}
+
 	return cloneMessages(messages[index : index+1])[0], true, nil
 }
 
@@ -198,10 +208,15 @@ func (s *MemoryStore) CreateArchive(_ context.Context, archive ArchivedSession) 
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if normalized.SourceSessionID != "" {
-		s.archiveMessages[normalized.ID] = cloneMessages(s.messages[normalized.SourceSessionID])
+
+	sourceMessages := s.messages[normalized.SourceSessionID]
+	if len(sourceMessages) == 0 {
+		return errors.New("source session has no messages")
 	}
+
+	s.archiveMessages[normalized.ID] = cloneMessages(sourceMessages)
 	s.archives[normalized.ID] = normalized
+
 	return nil
 }
 
@@ -262,6 +277,7 @@ func (s *MemoryStore) DeleteExpiredArchives(_ context.Context, now time.Time) er
 	}
 
 	now = now.UTC()
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -287,6 +303,7 @@ func (s *MemoryStore) ClearMessages(_ context.Context, id string, opts MessageQu
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if opts.Archived {
 		if _, ok := s.archives[id]; !ok {
 			return errors.New("archive not found")
@@ -299,9 +316,11 @@ func (s *MemoryStore) ClearMessages(_ context.Context, id string, opts MessageQu
 	if !ok {
 		return errors.New("session not found")
 	}
+
 	delete(s.messages, id)
 	session.UpdatedAt = time.Now().UTC()
 	s.sessions[id] = session
+
 	return nil
 }
 
@@ -317,10 +336,13 @@ func (s *MemoryStore) SetCurrent(_ context.Context, id string) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if _, ok := s.sessions[id]; !ok {
 		return errors.New("session not found")
 	}
+
 	s.currentSession = id
+
 	return nil
 }
 
@@ -331,8 +353,10 @@ func (s *MemoryStore) Current(_ context.Context) (string, bool, error) {
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	if strings.TrimSpace(s.currentSession) == "" {
 		return "", false, nil
 	}
+
 	return s.currentSession, true, nil
 }

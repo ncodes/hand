@@ -358,14 +358,21 @@ func (s *SQLiteStore) CreateArchive(ctx context.Context, archive ArchivedSession
 		return err
 	}
 
-	record := sqliteArchiveRecord{
-		ID:              archive.ID,
-		SourceSessionID: archive.SourceSessionID,
-		ArchivedAt:      archive.ArchivedAt,
-		ExpiresAt:       archive.ExpiresAt,
-	}
-
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var source []sqliteMessageRecord
+		if err := tx.Where("session_id = ?", archive.SourceSessionID).Order("sequence asc").Find(&source).Error; err != nil {
+			return err
+		}
+		if len(source) == 0 {
+			return errors.New("source session has no messages")
+		}
+
+		record := sqliteArchiveRecord{
+			ID:              archive.ID,
+			SourceSessionID: archive.SourceSessionID,
+			ArchivedAt:      archive.ArchivedAt,
+			ExpiresAt:       archive.ExpiresAt,
+		}
 		if err := tx.Save(&record).Error; err != nil {
 			return err
 		}
@@ -374,16 +381,7 @@ func (s *SQLiteStore) CreateArchive(ctx context.Context, archive ArchivedSession
 			return err
 		}
 
-		var source []sqliteMessageRecord
-		if err := tx.Where("session_id = ?", archive.SourceSessionID).Order("sequence asc").Find(&source).Error; err != nil {
-			return err
-		}
-
 		records := encodeArchivedMessages(archive.ID, decodeSessionMessages(source))
-		if len(records) == 0 {
-			return nil
-		}
-
 		return tx.Create(&records).Error
 	})
 }

@@ -272,8 +272,12 @@ func Test_SQLiteStore_DeleteArchives(t *testing.T) {
 	require.EqualError(t, store.DeleteArchives(context.Background(), ""), "archive id is required")
 	require.EqualError(t, store.DeleteArchives(context.Background(), "missing"), "archive not found")
 	require.NoError(t, store.Save(context.Background(), Session{ID: "project-a", UpdatedAt: now}))
+	require.NoError(t, store.Save(context.Background(), Session{ID: "project-b", UpdatedAt: now}))
 	require.NoError(t, store.AppendMessages(context.Background(), "project-a", []handctx.Message{
 		{Role: handctx.RoleUser, Content: "hello", CreatedAt: now},
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), "project-b", []handctx.Message{
+		{Role: handctx.RoleAssistant, Content: "world", CreatedAt: now.Add(time.Second)},
 	}))
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
 		ID:              "archive-a",
@@ -502,14 +506,15 @@ func Test_SQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
 
-		require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		err = store.CreateArchive(context.Background(), ArchivedSession{
 			ID:              "archive-empty",
 			SourceSessionID: DefaultSessionID,
 			ArchivedAt:      now,
 			ExpiresAt:       now.Add(time.Hour),
-		}))
+		})
+		require.EqualError(t, err, "source session has no messages")
 		var count int64
-		require.NoError(t, store.db.Model(&sqliteArchivedMessageRecord{}).Where("archive_id = ?", "archive-empty").Count(&count).Error)
+		require.NoError(t, store.db.Model(&sqliteArchiveRecord{}).Where("id = ?", "archive-empty").Count(&count).Error)
 		require.Zero(t, count)
 	})
 

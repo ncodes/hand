@@ -209,6 +209,10 @@ func Test_MemoryStore_ArchiveLifecycleAndFiltering(t *testing.T) {
 func Test_MemoryStore_ListArchivesOrdersByIDWhenTimesMatch(t *testing.T) {
 	store := NewStore()
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handcontext.Message{
+		{Role: handcontext.RoleUser, Content: "hello", CreatedAt: now},
+	}))
 
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
 		ID:              "zeta",
@@ -238,8 +242,12 @@ func Test_MemoryStore_DeleteArchives(t *testing.T) {
 	require.EqualError(t, store.DeleteArchives(context.Background(), ""), "archive id is required")
 	require.EqualError(t, store.DeleteArchives(context.Background(), "missing"), "archive not found")
 	require.NoError(t, store.Save(context.Background(), Session{ID: "project-a", UpdatedAt: now}))
+	require.NoError(t, store.Save(context.Background(), Session{ID: "project-b", UpdatedAt: now}))
 	require.NoError(t, store.AppendMessages(context.Background(), "project-a", []handcontext.Message{
 		{Role: handcontext.RoleUser, Content: "hello", CreatedAt: now},
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), "project-b", []handcontext.Message{
+		{Role: handcontext.RoleAssistant, Content: "world", CreatedAt: now.Add(time.Second)},
 	}))
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
 		ID:              "archive-a",
@@ -314,6 +322,12 @@ func Test_MemoryStore_ArchiveValidation(t *testing.T) {
 	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{}), "archive id is required")
 	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{ID: "archive-1", ExpiresAt: expiresAt}), "source session id is required")
 	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{ID: "archive-1", SourceSessionID: DefaultSessionID}), "archive expiry is required")
+	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              "archive-1",
+		SourceSessionID: DefaultSessionID,
+		ArchivedAt:      time.Date(2026, 3, 31, 11, 0, 0, 0, time.UTC),
+		ExpiresAt:       expiresAt,
+	}), "source session has no messages")
 }
 
 func Test_MemoryStore_MessageEdgeCases(t *testing.T) {
