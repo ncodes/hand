@@ -17,7 +17,7 @@ import (
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
 	upcmd "github.com/wandxy/hand/cmd/up"
 	"github.com/wandxy/hand/internal/config"
-	rpc "github.com/wandxy/hand/internal/rpc"
+	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -28,15 +28,17 @@ func init() {
 type chatRunnerStub struct {
 	chatInput string
 	instruct  string
+	sessionID string
 	reply     string
 	chatErr   error
 	closeErr  error
 	closed    bool
 }
 
-func (s *chatRunnerStub) Chat(_ context.Context, msg string, opts rpc.ChatOptions) (string, error) {
+func (s *chatRunnerStub) Chat(_ context.Context, msg string, opts rpcclient.ChatOptions) (string, error) {
 	s.chatInput = msg
 	s.instruct = opts.Instruct
+	s.sessionID = opts.SessionID
 	return s.reply, s.chatErr
 }
 
@@ -385,6 +387,7 @@ func TestNewCommand_RootActionTreatsUnknownArgsAsChat(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "hello world", stub.chatInput)
 	require.Empty(t, stub.instruct)
+	require.Empty(t, stub.sessionID)
 	require.True(t, stub.closed)
 	require.Equal(t, "hello back\n", output.String())
 }
@@ -412,6 +415,31 @@ func TestNewCommand_RootActionForwardsInstruct(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "be terse", stub.instruct)
+}
+
+func TestNewCommand_RootActionForwardsSessionID(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	resetGlobals(t)
+
+	originalNewChatClient := newChatClient
+	t.Cleanup(func() {
+		newChatClient = originalNewChatClient
+	})
+
+	stub := &chatRunnerStub{reply: "hello back"}
+	newChatClient = func(context.Context, *config.Config) (chatRunner, error) {
+		return stub, nil
+	}
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--name", "flag-agent",
+		"--session", "project-a",
+		"hello",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "project-a", stub.sessionID)
 }
 
 func TestNewCommand_RootActionDoesNotForwardConfiguredInstruct(t *testing.T) {
@@ -565,6 +593,7 @@ func resetGlobals(t *testing.T) {
 	rootOutput = io.Discard
 	logutils.SetOutput(io.Discard)
 	config.Set(nil)
+	t.Setenv("HAND_HOME", t.TempDir())
 }
 
 func canceledContext() context.Context {

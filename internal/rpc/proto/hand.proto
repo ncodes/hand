@@ -6,13 +6,52 @@ option go_package = "github.com/wandxy/hand/internal/rpc/proto;handpb";
 
 service HandService {
   rpc Chat(ChatRequest) returns (ChatResponse);
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  rpc UseSession(UseSessionRequest) returns (UseSessionResponse);
+  rpc CurrentSession(CurrentSessionRequest) returns (CurrentSessionResponse);
 }
 
 message ChatRequest {
   string message = 1;
   string instruct = 2;
+  string session_id = 3;
 }
 
 message ChatResponse {
   string message = 1;
+}
+
+message SessionSummary {
+  string session_id = 1;
+  int64 updated_at_unix = 2;
+  int32 message_count = 3;
+}
+
+message CreateSessionRequest {
+  string session_id = 1;
+}
+
+message CreateSessionResponse {
+  SessionSummary session = 1;
+}
+
+message ListSessionsRequest {}
+
+message ListSessionsResponse {
+  repeated SessionSummary sessions = 1;
+}
+
+message UseSessionRequest {
+  string session_id = 1;
+}
+
+message UseSessionResponse {
+  string session_id = 1;
+}
+
+message CurrentSessionRequest {}
+
+message CurrentSessionResponse {
+  string session_id = 1;
 }

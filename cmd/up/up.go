@@ -26,12 +26,17 @@ import (
 	"github.com/wandxy/hand/internal/models"
 	rpc "github.com/wandxy/hand/internal/rpc"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
+	sessionstore "github.com/wandxy/hand/internal/storage/session"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
 type agentRunner interface {
 	Run(context.Context) error
 	Chat(context.Context, string, agent.ChatOptions) (string, error)
+	CreateSession(context.Context, string) (sessionstore.Session, error)
+	ListSessions(context.Context) ([]sessionstore.Session, error)
+	UseSession(context.Context, string) error
+	CurrentSession(context.Context) (string, error)
 }
 
 const (

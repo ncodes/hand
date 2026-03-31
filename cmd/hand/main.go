@@ -12,11 +12,12 @@ import (
 	cli "github.com/urfave/cli/v3"
 
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
+	sessioncmd "github.com/wandxy/hand/cmd/session"
 	tracecmd "github.com/wandxy/hand/cmd/trace"
 	upcmd "github.com/wandxy/hand/cmd/up"
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
-	rpc "github.com/wandxy/hand/internal/rpc"
+	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -31,12 +32,15 @@ var (
 )
 
 type chatRunner interface {
-	Chat(context.Context, string, rpc.ChatOptions) (string, error)
+	Chat(context.Context, string, rpcclient.ChatOptions) (string, error)
 	Close() error
 }
 
 var newChatClient = func(ctx context.Context, cfg *config.Config) (chatRunner, error) {
-	return rpc.NewClient(ctx, cfg)
+	return rpcclient.NewClient(ctx, rpcclient.Options{
+		Address: cfg.RPCAddress,
+		Port:    cfg.RPCPort,
+	})
 }
 
 func main() {
@@ -63,6 +67,7 @@ func newCommand() *cli.Command {
 		Flags:       append(handcli.RootFlags(&envFile, &configFile), handcli.RequestInstructFlag()),
 		Commands: []*cli.Command{
 			doctorcmd.NewCommand(),
+			sessioncmd.NewCommand(),
 			tracecmd.NewCommand(),
 			upcmd.NewCommand(),
 		},
@@ -93,7 +98,10 @@ func newCommand() *cli.Command {
 				instruct = cfg.Instruct
 			}
 
-			reply, err := client.Chat(ctx, message, rpc.ChatOptions{Instruct: instruct})
+			reply, err := client.Chat(ctx, message, rpcclient.ChatOptions{
+				Instruct:  instruct,
+				SessionID: strings.TrimSpace(cmd.String("session")),
+			})
 			if err != nil {
 				return err
 			}

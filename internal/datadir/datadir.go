@@ -39,3 +39,7 @@ func DebugTraceDir() string {
 func StateDBPath() string {
 	return filepath.Join(DataDir(), "state.db")
 }
+
+func SessionDBPath() string {
+	return filepath.Join(DataDir(), "session.db")
+}

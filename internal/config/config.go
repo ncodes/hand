@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
@@ -16,34 +17,37 @@ import (
 )
 
 type Config struct {
-	Name             string
-	Model            string
-	ModelRouter      string
-	ModelKey         string
-	OpenAIAPIKey     string
-	OpenRouterAPIKey string
-	ModelBaseURL     string
-	ModelAPIMode     string
-	RPCAddress       string
-	RPCPort          int
-	MaxIterations    int
-	LogLevel         string
-	LogNoColor       bool
-	DebugRequests    bool
-	DebugTraces      bool
-	DebugTraceDir    string
-	RulesFiles       []string
-	Instruct         string
-	Platform         string
-	CapFilesystem    *bool
-	CapNetwork       *bool
-	CapExec          *bool
-	CapMemory        *bool
-	CapBrowser       *bool
-	FSRoots          []string
-	ExecAllow        []string
-	ExecAsk          []string
-	ExecDeny         []string
+	Name                     string
+	Model                    string
+	ModelRouter              string
+	ModelKey                 string
+	OpenAIAPIKey             string
+	OpenRouterAPIKey         string
+	ModelBaseURL             string
+	ModelAPIMode             string
+	RPCAddress               string
+	RPCPort                  int
+	MaxIterations            int
+	LogLevel                 string
+	LogNoColor               bool
+	DebugRequests            bool
+	DebugTraces              bool
+	DebugTraceDir            string
+	RulesFiles               []string
+	Instruct                 string
+	Platform                 string
+	CapFilesystem            *bool
+	CapNetwork               *bool
+	CapExec                  *bool
+	CapMemory                *bool
+	CapBrowser               *bool
+	FSRoots                  []string
+	ExecAllow                []string
+	ExecAsk                  []string
+	ExecDeny                 []string
+	SessionBackend           string
+	SessionDefaultIdleExpiry time.Duration
+	SessionArchiveRetention  time.Duration
 }
 
 type ModelAuth struct {
@@ -109,6 +113,11 @@ type fileConfig struct {
 			Ask   []string `yaml:"ask"`
 			Deny  []string `yaml:"deny"`
 		} `yaml:"exec"`
+		Session struct {
+			Backend           string `yaml:"backend"`
+			DefaultIdleExpiry string `yaml:"defaultIdleExpiry"`
+			ArchiveRetention  string `yaml:"archiveRetention"`
+		} `yaml:"session"`
 		Cap struct {
 			Filesystem *bool `yaml:"fs"`
 			Network    *bool `yaml:"net"`
@@ -159,18 +168,21 @@ func Get() *Config {
 	defer configMu.RUnlock()
 	if globalConfig == nil {
 		return &Config{
-			Model:         defaultModel,
-			ModelAPIMode:  DefaultModelAPIMode,
-			MaxIterations: defaultMaxIterations,
-			LogLevel:      "info",
-			DebugTraceDir: datadir.DebugTraceDir(),
-			Platform:      "cli",
-			CapFilesystem: new(true),
-			CapNetwork:    new(true),
-			CapExec:       new(true),
-			CapMemory:     new(true),
-			CapBrowser:    new(false),
-			FSRoots:       defaultFSRoots(),
+			Model:                    defaultModel,
+			ModelAPIMode:             DefaultModelAPIMode,
+			MaxIterations:            defaultMaxIterations,
+			LogLevel:                 "info",
+			DebugTraceDir:            datadir.DebugTraceDir(),
+			Platform:                 "cli",
+			CapFilesystem:            new(true),
+			CapNetwork:               new(true),
+			CapExec:                  new(true),
+			CapMemory:                new(true),
+			CapBrowser:               new(false),
+			FSRoots:                  defaultFSRoots(),
+			SessionBackend:           "sqlite",
+			SessionDefaultIdleExpiry: 24 * time.Hour,
+			SessionArchiveRetention:  30 * 24 * time.Hour,
 		}
 	}
 	return globalConfig
@@ -203,34 +215,37 @@ func loadConfigFile(path string) (*Config, error) {
 	}
 
 	return &Config{
-		Name:             raw.Name,
-		Model:            raw.Model.Name,
-		ModelRouter:      raw.Model.Router,
-		ModelKey:         raw.Model.Key,
-		OpenAIAPIKey:     raw.Model.OpenAIAPIKey,
-		OpenRouterAPIKey: raw.Model.OpenRouterAPIKey,
-		ModelBaseURL:     raw.Model.BaseURL,
-		ModelAPIMode:     raw.Model.APIMode,
-		RPCAddress:       raw.RPC.Address,
-		RPCPort:          raw.RPC.Port,
-		MaxIterations:    raw.Agent.MaxIterations,
-		LogLevel:         raw.Log.Level,
-		LogNoColor:       raw.Log.NoColor,
-		DebugRequests:    raw.Debug.Requests,
-		DebugTraces:      raw.Debug.Traces,
-		DebugTraceDir:    raw.Debug.TraceDir,
-		RulesFiles:       raw.Rules.Files,
-		Instruct:         raw.Agent.Instruct,
-		Platform:         raw.Platform,
-		CapFilesystem:    raw.Agent.Cap.Filesystem,
-		CapNetwork:       raw.Agent.Cap.Network,
-		CapExec:          raw.Agent.Cap.Exec,
-		CapMemory:        raw.Agent.Cap.Memory,
-		CapBrowser:       raw.Agent.Cap.Browser,
-		FSRoots:          resolvePathsFromBase(raw.Agent.FS.Roots, baseDir),
-		ExecAllow:        raw.Agent.Exec.Allow,
-		ExecAsk:          raw.Agent.Exec.Ask,
-		ExecDeny:         raw.Agent.Exec.Deny,
+		Name:                     raw.Name,
+		Model:                    raw.Model.Name,
+		ModelRouter:              raw.Model.Router,
+		ModelKey:                 raw.Model.Key,
+		OpenAIAPIKey:             raw.Model.OpenAIAPIKey,
+		OpenRouterAPIKey:         raw.Model.OpenRouterAPIKey,
+		ModelBaseURL:             raw.Model.BaseURL,
+		ModelAPIMode:             raw.Model.APIMode,
+		RPCAddress:               raw.RPC.Address,
+		RPCPort:                  raw.RPC.Port,
+		MaxIterations:            raw.Agent.MaxIterations,
+		LogLevel:                 raw.Log.Level,
+		LogNoColor:               raw.Log.NoColor,
+		DebugRequests:            raw.Debug.Requests,
+		DebugTraces:              raw.Debug.Traces,
+		DebugTraceDir:            raw.Debug.TraceDir,
+		RulesFiles:               raw.Rules.Files,
+		Instruct:                 raw.Agent.Instruct,
+		Platform:                 raw.Platform,
+		CapFilesystem:            raw.Agent.Cap.Filesystem,
+		CapNetwork:               raw.Agent.Cap.Network,
+		CapExec:                  raw.Agent.Cap.Exec,
+		CapMemory:                raw.Agent.Cap.Memory,
+		CapBrowser:               raw.Agent.Cap.Browser,
+		FSRoots:                  resolvePathsFromBase(raw.Agent.FS.Roots, baseDir),
+		ExecAllow:                raw.Agent.Exec.Allow,
+		ExecAsk:                  raw.Agent.Exec.Ask,
+		ExecDeny:                 raw.Agent.Exec.Deny,
+		SessionBackend:           raw.Agent.Session.Backend,
+		SessionDefaultIdleExpiry: parseDurationOrZero(raw.Agent.Session.DefaultIdleExpiry),
+		SessionArchiveRetention:  parseDurationOrZero(raw.Agent.Session.ArchiveRetention),
 	}, nil
 }
 
@@ -327,6 +342,15 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("AGENT_EXEC_DENY")); value != "" {
 		cfg.ExecDeny = splitAndTrimCSV(value)
 	}
+	if value := strings.TrimSpace(os.Getenv("AGENT_SESSION_BACKEND")); value != "" {
+		cfg.SessionBackend = value
+	}
+	if value := strings.TrimSpace(os.Getenv("AGENT_SESSION_DEFAULT_IDLE_EXPIRY")); value != "" {
+		cfg.SessionDefaultIdleExpiry = parseDurationOrZero(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("AGENT_SESSION_ARCHIVE_RETENTION")); value != "" {
+		cfg.SessionArchiveRetention = parseDurationOrZero(value)
+	}
 }
 
 func (c *Config) Normalize() {
@@ -351,6 +375,7 @@ func (c *Config) Normalize() {
 	c.ExecAllow = dedupeAndTrim(c.ExecAllow)
 	c.ExecAsk = dedupeAndTrim(c.ExecAsk)
 	c.ExecDeny = dedupeAndTrim(c.ExecDeny)
+	c.SessionBackend = strings.TrimSpace(strings.ToLower(c.SessionBackend))
 
 	if c.Model == "" {
 		c.Model = defaultModel
@@ -399,6 +424,15 @@ func (c *Config) Normalize() {
 	}
 	if len(c.FSRoots) == 0 {
 		c.FSRoots = defaultFSRoots()
+	}
+	if c.SessionBackend == "" {
+		c.SessionBackend = "sqlite"
+	}
+	if c.SessionDefaultIdleExpiry <= 0 {
+		c.SessionDefaultIdleExpiry = 24 * time.Hour
+	}
+	if c.SessionArchiveRetention <= 0 {
+		c.SessionArchiveRetention = 30 * 24 * time.Hour
 	}
 
 	if c.ModelBaseURL == "" {
@@ -498,6 +532,14 @@ func parseOptionalBoolEnv(key string) (bool, bool) {
 	return value == "1" || value == "true" || value == "yes", true
 }
 
+func parseDurationOrZero(value string) time.Duration {
+	parsed, err := time.ParseDuration(strings.TrimSpace(value))
+	if err != nil {
+		return 0
+	}
+	return parsed
+}
+
 func boolValue(value *bool) bool {
 	if value == nil {
 		return false
@@ -547,6 +589,9 @@ func (c *Config) Validate() error {
 	if c.ModelAPIMode == "responses" && c.ModelRouter == "openrouter" {
 		return errors.New("model api mode 'responses' is only supported with model router 'none'; " +
 			"use --model.router 'none' or --model.api-mode 'chat-completions'")
+	}
+	if c.SessionBackend != "memory" && c.SessionBackend != "sqlite" {
+		return errors.New("session backend must be one of: memory, sqlite")
 	}
 
 	switch strings.TrimSpace(strings.ToLower(c.LogLevel)) {

@@ -5,11 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -30,6 +29,7 @@ func TestNewCommand_ShowsHelpWithoutSubcommand(t *testing.T) {
 func TestViewCommand_ServesTraceViewerAndPrintsURL(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceSession(t, dir, "session")
+	listenAddr := reserveListenAddress(t)
 
 	var logs bytes.Buffer
 	restoreLogs(t, &logs)
@@ -37,10 +37,11 @@ func TestViewCommand_ServesTraceViewerAndPrintsURL(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- NewCommand().Run(ctx, []string{"trace", "view", "--trace-dir", dir, "--listen", "127.0.0.1:0"})
+		errCh <- NewCommand().Run(ctx, []string{"trace", "view", "--trace-dir", dir, "--listen", listenAddr})
 	}()
 
-	url := waitForURL(t, &logs)
+	url := "http://" + listenAddr
+	waitForServer(t, url+"/api/sessions")
 	resp, err := http.Get(url + "/api/sessions")
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -53,6 +54,7 @@ func TestViewCommand_ServesTraceViewerAndPrintsURL(t *testing.T) {
 func TestViewCommand_UsesExplicitTraceDir(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceSession(t, dir, "session")
+	listenAddr := reserveListenAddress(t)
 
 	var logs bytes.Buffer
 	restoreLogs(t, &logs)
@@ -63,11 +65,12 @@ func TestViewCommand_UsesExplicitTraceDir(t *testing.T) {
 		errCh <- NewCommand().Run(ctx, []string{
 			"trace", "view",
 			"--trace-dir", dir,
-			"--listen", "127.0.0.1:0",
+			"--listen", listenAddr,
 		})
 	}()
 
-	url := waitForURL(t, &logs)
+	url := "http://" + listenAddr
+	waitForServer(t, url+"/api/sessions/session")
 	resp, err := http.Get(url + "/api/sessions/session")
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -83,6 +86,7 @@ func TestViewCommand_UsesDefaultTraceDirFallback(t *testing.T) {
 	traceDir := filepath.Join(home, "traces")
 	require.NoError(t, os.MkdirAll(traceDir, 0o755))
 	writeTraceSession(t, traceDir, "session")
+	listenAddr := reserveListenAddress(t)
 
 	var logs bytes.Buffer
 	restoreLogs(t, &logs)
@@ -90,10 +94,11 @@ func TestViewCommand_UsesDefaultTraceDirFallback(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- NewCommand().Run(ctx, []string{"trace", "view", "--listen", "127.0.0.1:0"})
+		errCh <- NewCommand().Run(ctx, []string{"trace", "view", "--listen", listenAddr})
 	}()
 
-	url := waitForURL(t, &logs)
+	url := "http://" + listenAddr
+	waitForServer(t, url+"/api/sessions")
 	resp, err := http.Get(url + "/api/sessions")
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -119,6 +124,7 @@ func TestViewCommand_ReturnsMissingDirectoryError(t *testing.T) {
 func TestViewCommand_LogsResolvedArguments(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceSession(t, dir, "session")
+	listenAddr := reserveListenAddress(t)
 
 	var logs bytes.Buffer
 	restoreLogs(t, &logs)
@@ -126,13 +132,14 @@ func TestViewCommand_LogsResolvedArguments(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- NewCommand().Run(ctx, []string{"trace", "view", "--trace-dir", dir, "--listen", "127.0.0.1:0"})
+		errCh <- NewCommand().Run(ctx, []string{"trace", "view", "--trace-dir", dir, "--listen", listenAddr})
 	}()
 
-	url := waitForURL(t, &logs)
+	url := "http://" + listenAddr
+	waitForServer(t, url+"/api/sessions")
 	require.Contains(t, logs.String(), "Starting trace viewer")
 	require.Contains(t, logs.String(), dir)
-	require.Contains(t, logs.String(), "listen=127.0.0.1:0")
+	require.Contains(t, logs.String(), "listen="+listenAddr)
 
 	resp, err := http.Get(url + "/api/sessions")
 	require.NoError(t, err)
@@ -148,6 +155,7 @@ func TestViewCommand_LogsResolvedArguments(t *testing.T) {
 func TestViewCommand_RequiresBasicAuthWhenConfigured(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceSession(t, dir, "session")
+	listenAddr := reserveListenAddress(t)
 
 	var logs bytes.Buffer
 	restoreLogs(t, &logs)
@@ -158,13 +166,14 @@ func TestViewCommand_RequiresBasicAuthWhenConfigured(t *testing.T) {
 		errCh <- NewCommand().Run(ctx, []string{
 			"trace", "view",
 			"--trace-dir", dir,
-			"--listen", "127.0.0.1:0",
+			"--listen", listenAddr,
 			"--username", "viewer",
 			"--password", "secret",
 		})
 	}()
 
-	url := waitForURL(t, &logs)
+	url := "http://" + listenAddr
+	waitForServer(t, url+"/api/sessions")
 
 	req, err := http.NewRequest(http.MethodGet, url+"/api/sessions", nil)
 	require.NoError(t, err)
@@ -198,19 +207,27 @@ func TestViewCommand_RejectsPartialBasicAuthConfiguration(t *testing.T) {
 	require.EqualError(t, err, "trace viewer basic auth requires both username and password")
 }
 
-func waitForURL(t *testing.T, logs *bytes.Buffer) string {
+func reserveListenAddress(t *testing.T) string {
 	t.Helper()
-	urlPattern := regexp.MustCompile(`url=(http://\S+)`)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := listener.Addr().String()
+	require.NoError(t, listener.Close())
+	return addr
+}
+
+func waitForServer(t *testing.T, url string) {
+	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		value := strings.TrimSpace(logs.String())
-		if matches := urlPattern.FindStringSubmatch(value); len(matches) == 2 {
-			return matches[1]
+		resp, err := http.Get(url)
+		if err == nil {
+			resp.Body.Close()
+			return
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	t.Fatal("timed out waiting for server URL")
-	return ""
+	t.Fatalf("timed out waiting for server %s", url)
 }
 
 func writeTraceSession(t *testing.T, dir, id string) {
@@ -235,6 +252,7 @@ func writeTraceSession(t *testing.T, dir, id string) {
 
 func restoreLogs(t *testing.T, out io.Writer) {
 	t.Helper()
+	t.Setenv("LOG_NO_COLOR", "true")
 	logutils.SetOutput(out)
 	t.Cleanup(func() {
 		logutils.SetOutput(os.Stderr)

@@ -74,9 +74,8 @@ func (c *Agent) Chat(ctx context.Context, msg string, opts ChatOptions) (string,
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-
-	if err := c.ensureSessionManager(); err != nil {
-		return "", err
+	if !c.initialized || c.manager == nil {
+		return "", errors.New("environment has not been initialized")
 	}
 
 	runtimeEnv := c.env

@@ -25,6 +25,7 @@ type ChatRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
 	Instruct      string                 `protobuf:"bytes,2,opt,name=instruct,proto3" json:"instruct,omitempty"`
+	SessionId     string                 `protobuf:"bytes,3,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -73,6 +74,13 @@ func (x *ChatRequest) GetInstruct() string {
 	return ""
 }
 
+func (x *ChatRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
 type ChatResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
@@ -117,18 +125,444 @@ func (x *ChatResponse) GetMessage() string {
 	return ""
 }
 
+type SessionSummary struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	UpdatedAtUnix int64                  `protobuf:"varint,2,opt,name=updated_at_unix,json=updatedAtUnix,proto3" json:"updated_at_unix,omitempty"`
+	MessageCount  int32                  `protobuf:"varint,3,opt,name=message_count,json=messageCount,proto3" json:"message_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SessionSummary) Reset() {
+	*x = SessionSummary{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SessionSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SessionSummary) ProtoMessage() {}
+
+func (x *SessionSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SessionSummary.ProtoReflect.Descriptor instead.
+func (*SessionSummary) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SessionSummary) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *SessionSummary) GetUpdatedAtUnix() int64 {
+	if x != nil {
+		return x.UpdatedAtUnix
+	}
+	return 0
+}
+
+func (x *SessionSummary) GetMessageCount() int32 {
+	if x != nil {
+		return x.MessageCount
+	}
+	return 0
+}
+
+type CreateSessionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateSessionRequest) Reset() {
+	*x = CreateSessionRequest{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateSessionRequest) ProtoMessage() {}
+
+func (x *CreateSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateSessionRequest.ProtoReflect.Descriptor instead.
+func (*CreateSessionRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *CreateSessionRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type CreateSessionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Session       *SessionSummary        `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateSessionResponse) Reset() {
+	*x = CreateSessionResponse{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateSessionResponse) ProtoMessage() {}
+
+func (x *CreateSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateSessionResponse.ProtoReflect.Descriptor instead.
+func (*CreateSessionResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *CreateSessionResponse) GetSession() *SessionSummary {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+type ListSessionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSessionsRequest) Reset() {
+	*x = ListSessionsRequest{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSessionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSessionsRequest) ProtoMessage() {}
+
+func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSessionsRequest.ProtoReflect.Descriptor instead.
+func (*ListSessionsRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{5}
+}
+
+type ListSessionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sessions      []*SessionSummary      `protobuf:"bytes,1,rep,name=sessions,proto3" json:"sessions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSessionsResponse) Reset() {
+	*x = ListSessionsResponse{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSessionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSessionsResponse) ProtoMessage() {}
+
+func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSessionsResponse.ProtoReflect.Descriptor instead.
+func (*ListSessionsResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ListSessionsResponse) GetSessions() []*SessionSummary {
+	if x != nil {
+		return x.Sessions
+	}
+	return nil
+}
+
+type UseSessionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UseSessionRequest) Reset() {
+	*x = UseSessionRequest{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UseSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UseSessionRequest) ProtoMessage() {}
+
+func (x *UseSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UseSessionRequest.ProtoReflect.Descriptor instead.
+func (*UseSessionRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *UseSessionRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type UseSessionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UseSessionResponse) Reset() {
+	*x = UseSessionResponse{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UseSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UseSessionResponse) ProtoMessage() {}
+
+func (x *UseSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UseSessionResponse.ProtoReflect.Descriptor instead.
+func (*UseSessionResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *UseSessionResponse) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type CurrentSessionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CurrentSessionRequest) Reset() {
+	*x = CurrentSessionRequest{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CurrentSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CurrentSessionRequest) ProtoMessage() {}
+
+func (x *CurrentSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CurrentSessionRequest.ProtoReflect.Descriptor instead.
+func (*CurrentSessionRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{9}
+}
+
+type CurrentSessionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CurrentSessionResponse) Reset() {
+	*x = CurrentSessionResponse{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CurrentSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CurrentSessionResponse) ProtoMessage() {}
+
+func (x *CurrentSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CurrentSessionResponse.ProtoReflect.Descriptor instead.
+func (*CurrentSessionResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *CurrentSessionResponse) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
 var File_internal_rpc_proto_hand_proto protoreflect.FileDescriptor
 
 const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\n" +
-	"\x1dinternal/rpc/proto/hand.proto\x12\ahand.v1\"C\n" +
+	"\x1dinternal/rpc/proto/hand.proto\x12\ahand.v1\"b\n" +
 	"\vChatRequest\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12\x1a\n" +
-	"\binstruct\x18\x02 \x01(\tR\binstruct\"(\n" +
+	"\binstruct\x18\x02 \x01(\tR\binstruct\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x03 \x01(\tR\tsessionId\"(\n" +
 	"\fChatResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage2B\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"|\n" +
+	"\x0eSessionSummary\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12&\n" +
+	"\x0fupdated_at_unix\x18\x02 \x01(\x03R\rupdatedAtUnix\x12#\n" +
+	"\rmessage_count\x18\x03 \x01(\x05R\fmessageCount\"5\n" +
+	"\x14CreateSessionRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"J\n" +
+	"\x15CreateSessionResponse\x121\n" +
+	"\asession\x18\x01 \x01(\v2\x17.hand.v1.SessionSummaryR\asession\"\x15\n" +
+	"\x13ListSessionsRequest\"K\n" +
+	"\x14ListSessionsResponse\x123\n" +
+	"\bsessions\x18\x01 \x03(\v2\x17.hand.v1.SessionSummaryR\bsessions\"2\n" +
+	"\x11UseSessionRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"3\n" +
+	"\x12UseSessionResponse\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"\x17\n" +
+	"\x15CurrentSessionRequest\"7\n" +
+	"\x16CurrentSessionResponse\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId2\xf9\x02\n" +
 	"\vHandService\x123\n" +
-	"\x04Chat\x12\x14.hand.v1.ChatRequest\x1a\x15.hand.v1.ChatResponseB2Z0github.com/wandxy/hand/internal/rpc/proto;handpbb\x06proto3"
+	"\x04Chat\x12\x14.hand.v1.ChatRequest\x1a\x15.hand.v1.ChatResponse\x12N\n" +
+	"\rCreateSession\x12\x1d.hand.v1.CreateSessionRequest\x1a\x1e.hand.v1.CreateSessionResponse\x12K\n" +
+	"\fListSessions\x12\x1c.hand.v1.ListSessionsRequest\x1a\x1d.hand.v1.ListSessionsResponse\x12E\n" +
+	"\n" +
+	"UseSession\x12\x1a.hand.v1.UseSessionRequest\x1a\x1b.hand.v1.UseSessionResponse\x12Q\n" +
+	"\x0eCurrentSession\x12\x1e.hand.v1.CurrentSessionRequest\x1a\x1f.hand.v1.CurrentSessionResponseB2Z0github.com/wandxy/hand/internal/rpc/proto;handpbb\x06proto3"
 
 var (
 	file_internal_rpc_proto_hand_proto_rawDescOnce sync.Once
@@ -142,19 +576,38 @@ func file_internal_rpc_proto_hand_proto_rawDescGZIP() []byte {
 	return file_internal_rpc_proto_hand_proto_rawDescData
 }
 
-var file_internal_rpc_proto_hand_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_internal_rpc_proto_hand_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_internal_rpc_proto_hand_proto_goTypes = []any{
-	(*ChatRequest)(nil),  // 0: hand.v1.ChatRequest
-	(*ChatResponse)(nil), // 1: hand.v1.ChatResponse
+	(*ChatRequest)(nil),            // 0: hand.v1.ChatRequest
+	(*ChatResponse)(nil),           // 1: hand.v1.ChatResponse
+	(*SessionSummary)(nil),         // 2: hand.v1.SessionSummary
+	(*CreateSessionRequest)(nil),   // 3: hand.v1.CreateSessionRequest
+	(*CreateSessionResponse)(nil),  // 4: hand.v1.CreateSessionResponse
+	(*ListSessionsRequest)(nil),    // 5: hand.v1.ListSessionsRequest
+	(*ListSessionsResponse)(nil),   // 6: hand.v1.ListSessionsResponse
+	(*UseSessionRequest)(nil),      // 7: hand.v1.UseSessionRequest
+	(*UseSessionResponse)(nil),     // 8: hand.v1.UseSessionResponse
+	(*CurrentSessionRequest)(nil),  // 9: hand.v1.CurrentSessionRequest
+	(*CurrentSessionResponse)(nil), // 10: hand.v1.CurrentSessionResponse
 }
 var file_internal_rpc_proto_hand_proto_depIdxs = []int32{
-	0, // 0: hand.v1.HandService.Chat:input_type -> hand.v1.ChatRequest
-	1, // 1: hand.v1.HandService.Chat:output_type -> hand.v1.ChatResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	2,  // 0: hand.v1.CreateSessionResponse.session:type_name -> hand.v1.SessionSummary
+	2,  // 1: hand.v1.ListSessionsResponse.sessions:type_name -> hand.v1.SessionSummary
+	0,  // 2: hand.v1.HandService.Chat:input_type -> hand.v1.ChatRequest
+	3,  // 3: hand.v1.HandService.CreateSession:input_type -> hand.v1.CreateSessionRequest
+	5,  // 4: hand.v1.HandService.ListSessions:input_type -> hand.v1.ListSessionsRequest
+	7,  // 5: hand.v1.HandService.UseSession:input_type -> hand.v1.UseSessionRequest
+	9,  // 6: hand.v1.HandService.CurrentSession:input_type -> hand.v1.CurrentSessionRequest
+	1,  // 7: hand.v1.HandService.Chat:output_type -> hand.v1.ChatResponse
+	4,  // 8: hand.v1.HandService.CreateSession:output_type -> hand.v1.CreateSessionResponse
+	6,  // 9: hand.v1.HandService.ListSessions:output_type -> hand.v1.ListSessionsResponse
+	8,  // 10: hand.v1.HandService.UseSession:output_type -> hand.v1.UseSessionResponse
+	10, // 11: hand.v1.HandService.CurrentSession:output_type -> hand.v1.CurrentSessionResponse
+	7,  // [7:12] is the sub-list for method output_type
+	2,  // [2:7] is the sub-list for method input_type
+	2,  // [2:2] is the sub-list for extension type_name
+	2,  // [2:2] is the sub-list for extension extendee
+	0,  // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_internal_rpc_proto_hand_proto_init() }
@@ -168,7 +621,7 @@ func file_internal_rpc_proto_hand_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_rpc_proto_hand_proto_rawDesc), len(file_internal_rpc_proto_hand_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

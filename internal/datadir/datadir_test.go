@@ -70,7 +70,9 @@ func TestProjectPaths_DeriveFromProjectHomeDir(t *testing.T) {
 		userHomeDir = originalUserHomeDir
 	}()
 
+	require.Equal(t, filepath.Join("/Users/me", ".hand"), HomeDir())
 	require.Equal(t, filepath.Join("/Users/me", ".hand", "data"), DataDir())
 	require.Equal(t, filepath.Join("/Users/me", ".hand", "traces"), DebugTraceDir())
 	require.Equal(t, filepath.Join("/Users/me", ".hand", "data", "state.db"), StateDBPath())
+	require.Equal(t, filepath.Join("/Users/me", ".hand", "data", "session.db"), SessionDBPath())
 }

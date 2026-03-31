@@ -133,6 +133,25 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Usage: "Comma-separated denied command prefixes",
 			Value: strings.Join(config.Get().ExecDeny, ","),
 		},
+		&cli.StringFlag{
+			Name:  "session.backend",
+			Usage: "Session persistence backend: memory or sqlite",
+			Value: config.Get().SessionBackend,
+		},
+		&cli.DurationFlag{
+			Name:  "session.default-idle-expiry",
+			Usage: "Idle duration before the default session is archived and cleared",
+			Value: config.Get().SessionDefaultIdleExpiry,
+		},
+		&cli.DurationFlag{
+			Name:  "session.archive-retention",
+			Usage: "How long archived default-session conversations are retained before deletion",
+			Value: config.Get().SessionArchiveRetention,
+		},
+		&cli.StringFlag{
+			Name:  "session",
+			Usage: "Session id to use for this chat request; defaults to the persistent default session",
+		},
 	}
 
 	if envFile != nil {
@@ -268,6 +287,15 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("agent.exec.deny") {
 		cfg.ExecDeny = configSplitAndTrimCSV(cmd.String("agent.exec.deny"))
+	}
+	if cmd.IsSet("session.backend") {
+		cfg.SessionBackend = strings.TrimSpace(cmd.String("session.backend"))
+	}
+	if cmd.IsSet("session.default-idle-expiry") {
+		cfg.SessionDefaultIdleExpiry = cmd.Duration("session.default-idle-expiry")
+	}
+	if cmd.IsSet("session.archive-retention") {
+		cfg.SessionArchiveRetention = cmd.Duration("session.archive-retention")
 	}
 }
 

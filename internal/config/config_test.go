@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -897,6 +898,58 @@ log:
 	require.Equal(t, []string{"git status"}, cfg.ExecAllow)
 	require.Equal(t, []string{"git push"}, cfg.ExecAsk)
 	require.Equal(t, []string{"git reset --hard"}, cfg.ExecDeny)
+}
+
+func TestLoad_UsesSessionSettingsFromConfig(t *testing.T) {
+	clearEnvKeys(t, "AGENT_SESSION_BACKEND", "AGENT_SESSION_DEFAULT_IDLE_EXPIRY", "AGENT_SESSION_ARCHIVE_RETENTION")
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+agent:
+  session:
+    backend: memory
+    defaultIdleExpiry: 2h
+    archiveRetention: 168h
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+
+	require.NoError(t, err)
+	require.Equal(t, "memory", cfg.SessionBackend)
+	require.Equal(t, 2*time.Hour, cfg.SessionDefaultIdleExpiry)
+	require.Equal(t, 168*time.Hour, cfg.SessionArchiveRetention)
+}
+
+func TestConfigNormalize_DefaultsSessionSettings(t *testing.T) {
+	cfg := &Config{}
+
+	cfg.Normalize()
+
+	require.Equal(t, "sqlite", cfg.SessionBackend)
+	require.Equal(t, 24*time.Hour, cfg.SessionDefaultIdleExpiry)
+	require.Equal(t, 30*24*time.Hour, cfg.SessionArchiveRetention)
+}
+
+func TestConfigValidate_RejectsInvalidSessionSettings(t *testing.T) {
+	cfg := &Config{
+		Name:                     "daemon",
+		Model:                    "model",
+		ModelRouter:              "openrouter",
+		ModelKey:                 "key",
+		ModelBaseURL:             "https://example.com",
+		ModelAPIMode:             DefaultModelAPIMode,
+		RPCAddress:               "127.0.0.1",
+		RPCPort:                  50051,
+		MaxIterations:            1,
+		LogLevel:                 "info",
+		SessionBackend:           "bogus",
+		SessionDefaultIdleExpiry: 0,
+		SessionArchiveRetention:  0,
+	}
+
+	err := cfg.Validate()
+	require.EqualError(t, err, "session backend must be one of: memory, sqlite")
 }
 
 func TestConfig_NormalizeDefaultsFilesystemRootsToCWD(t *testing.T) {

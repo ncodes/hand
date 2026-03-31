@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	cli "github.com/urfave/cli/v3"
@@ -90,4 +91,26 @@ func TestApplyConfigOverrides_AppliesFilesystemRootsAndExecRules(t *testing.T) {
 	require.Equal(t, []string{"git status"}, cfg.ExecAllow)
 	require.Equal(t, []string{"git push"}, cfg.ExecAsk)
 	require.Equal(t, []string{"git reset --hard"}, cfg.ExecDeny)
+}
+
+func TestApplyConfigOverrides_AppliesSessionSettings(t *testing.T) {
+	cfg := &config.Config{}
+	var cmd *cli.Command
+	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd.Action = func(context.Context, *cli.Command) error {
+		ApplyConfigOverrides(cmd, cfg)
+		return nil
+	}
+
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--session.backend", "memory",
+		"--session.default-idle-expiry", "2h",
+		"--session.archive-retention", "72h",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "memory", cfg.SessionBackend)
+	require.Equal(t, 2*time.Hour, cfg.SessionDefaultIdleExpiry)
+	require.Equal(t, 72*time.Hour, cfg.SessionArchiveRetention)
 }
