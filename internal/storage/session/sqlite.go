@@ -425,7 +425,7 @@ func (s *SQLiteStore) ClearMessages(ctx context.Context, id string, opts Message
 	})
 }
 
-func (s *SQLiteStore) GetArchives(ctx context.Context, sourceSessionID string) ([]ArchivedSession, error) {
+func (s *SQLiteStore) ListArchives(ctx context.Context, sourceSessionID string) ([]ArchivedSession, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("session store is required")
 	}

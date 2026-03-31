@@ -218,7 +218,7 @@ func (m *Manager) DeleteSession(ctx context.Context, id string) error {
 		return errors.New("default session cannot be deleted")
 	}
 
-	archives, err := m.store.GetArchives(ctx, id)
+	archives, err := m.store.ListArchives(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -241,7 +241,7 @@ func (m *Manager) DeleteSessionArchives(ctx context.Context, id string) error {
 		return errors.New("session id is required")
 	}
 
-	archives, err := m.store.GetArchives(ctx, id)
+	archives, err := m.store.ListArchives(ctx, id)
 	if err != nil {
 		return err
 	}

@@ -74,9 +74,9 @@ type Store interface {
 	// archive message contents from the referenced session.
 	CreateArchive(context.Context, ArchivedSession) error
 
-	// GetArchives returns archive metadata, optionally filtered by source session id.
+	// ListArchives returns archive metadata, optionally filtered by source session id.
 	// It does not return archived messages.
-	GetArchives(context.Context, string) ([]ArchivedSession, error)
+	ListArchives(context.Context, string) ([]ArchivedSession, error)
 
 	// DeleteArchives removes archive metadata and archived messages for a single archive id.
 	DeleteArchives(context.Context, string) error

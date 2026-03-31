@@ -25,7 +25,7 @@ type managerStoreStub struct {
 	getMessagesFunc           func(context.Context, string, MessageQueryOptions) ([]handctx.Message, error)
 	clearMessagesFunc         func(context.Context, string, MessageQueryOptions) error
 	createArchiveFunc         func(context.Context, ArchivedSession) error
-	getArchivesFunc           func(context.Context, string) ([]ArchivedSession, error)
+	ListArchivesFunc          func(context.Context, string) ([]ArchivedSession, error)
 	deleteArchivesFunc        func(context.Context, string) error
 	deleteExpiredArchivesFunc func(context.Context, time.Time) error
 }
@@ -65,9 +65,9 @@ func (s *managerStoreStub) CreateArchive(ctx context.Context, archive ArchivedSe
 	return nil
 }
 
-func (s *managerStoreStub) GetArchives(ctx context.Context, sourceSessionID string) ([]ArchivedSession, error) {
-	if s.getArchivesFunc != nil {
-		return s.getArchivesFunc(ctx, sourceSessionID)
+func (s *managerStoreStub) ListArchives(ctx context.Context, sourceSessionID string) ([]ArchivedSession, error) {
+	if s.ListArchivesFunc != nil {
+		return s.ListArchivesFunc(ctx, sourceSessionID)
 	}
 	return nil, nil
 }
@@ -154,7 +154,7 @@ func Test_Manager_RunMaintenanceArchivesExpiredDefault(t *testing.T) {
 	err = manager.runMaintenance(context.Background())
 	require.NoError(t, err)
 
-	archives, err := store.GetArchives(context.Background(), DefaultSessionID)
+	archives, err := store.ListArchives(context.Background(), DefaultSessionID)
 	require.NoError(t, err)
 	require.Len(t, archives, 1)
 	messages, err := store.GetMessages(context.Background(), archives[0].ID, MessageQueryOptions{Archived: true})
@@ -301,7 +301,7 @@ func Test_Manager_DeleteSessionAndArchives(t *testing.T) {
 	}))
 
 	require.NoError(t, manager.DeleteSessionArchives(context.Background(), "project-a"))
-	archives, err := store.GetArchives(context.Background(), "project-a")
+	archives, err := store.ListArchives(context.Background(), "project-a")
 	require.NoError(t, err)
 	require.Empty(t, archives)
 
@@ -317,7 +317,7 @@ func Test_Manager_DeleteSessionAndArchives(t *testing.T) {
 	_, ok, err := store.Get(context.Background(), "project-a")
 	require.NoError(t, err)
 	require.False(t, ok)
-	archives, err = store.GetArchives(context.Background(), "project-a")
+	archives, err = store.ListArchives(context.Background(), "project-a")
 	require.NoError(t, err)
 	require.Empty(t, archives)
 	current, err := manager.CurrentSession(context.Background())
@@ -360,7 +360,7 @@ func Test_Manager_ResolveDefaultSessionKeepsActiveMessagesBeforeExpiry(t *testin
 	require.Len(t, messages, 1)
 	require.Equal(t, "still-active", messages[0].Content)
 
-	archives, err := store.GetArchives(context.Background(), DefaultSessionID)
+	archives, err := store.ListArchives(context.Background(), DefaultSessionID)
 	require.NoError(t, err)
 	require.Empty(t, archives)
 }
@@ -386,7 +386,7 @@ func Test_Manager_ResolveChatSessionDoesNotRunMaintenance(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 
-	archives, err := store.GetArchives(context.Background(), DefaultSessionID)
+	archives, err := store.ListArchives(context.Background(), DefaultSessionID)
 	require.NoError(t, err)
 	require.Empty(t, archives)
 }
@@ -412,7 +412,7 @@ func Test_Manager_StartMaintenanceWorkerRunsMaintenance(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, messages)
 
-	archives, err := store.GetArchives(context.Background(), DefaultSessionID)
+	archives, err := store.ListArchives(context.Background(), DefaultSessionID)
 	require.NoError(t, err)
 	require.Len(t, archives, 1)
 }
@@ -537,7 +537,7 @@ func Test_Manager_ErrorBranchesAndWorkerTick(t *testing.T) {
 
 	t.Run("delete session validation and errors", func(t *testing.T) {
 		manager, err := NewManager(&managerStoreStub{
-			getArchivesFunc: func(context.Context, string) ([]ArchivedSession, error) {
+			ListArchivesFunc: func(context.Context, string) ([]ArchivedSession, error) {
 				return []ArchivedSession{{ID: "archive-1"}}, nil
 			},
 			deleteArchivesFunc: func(context.Context, string) error {
@@ -551,7 +551,7 @@ func Test_Manager_ErrorBranchesAndWorkerTick(t *testing.T) {
 		require.EqualError(t, manager.DeleteSession(context.Background(), "project-a"), "delete archives failed")
 
 		manager, err = NewManager(&managerStoreStub{
-			getArchivesFunc: func(context.Context, string) ([]ArchivedSession, error) {
+			ListArchivesFunc: func(context.Context, string) ([]ArchivedSession, error) {
 				return nil, errors.New("get archives failed")
 			},
 		}, time.Hour, 24*time.Hour)
@@ -560,7 +560,7 @@ func Test_Manager_ErrorBranchesAndWorkerTick(t *testing.T) {
 		require.EqualError(t, manager.DeleteSession(context.Background(), "project-a"), "get archives failed")
 
 		manager, err = NewManager(&managerStoreStub{
-			getArchivesFunc: func(context.Context, string) ([]ArchivedSession, error) {
+			ListArchivesFunc: func(context.Context, string) ([]ArchivedSession, error) {
 				return nil, nil
 			},
 			deleteFunc: func(context.Context, string) error {
@@ -574,7 +574,7 @@ func Test_Manager_ErrorBranchesAndWorkerTick(t *testing.T) {
 
 	t.Run("delete session archives validation and errors", func(t *testing.T) {
 		manager, err := NewManager(&managerStoreStub{
-			getArchivesFunc: func(context.Context, string) ([]ArchivedSession, error) {
+			ListArchivesFunc: func(context.Context, string) ([]ArchivedSession, error) {
 				return []ArchivedSession{{ID: "archive-1"}}, nil
 			},
 			deleteArchivesFunc: func(context.Context, string) error {
@@ -587,7 +587,7 @@ func Test_Manager_ErrorBranchesAndWorkerTick(t *testing.T) {
 		require.EqualError(t, manager.DeleteSessionArchives(context.Background(), "project-a"), "delete archives failed")
 
 		manager, err = NewManager(&managerStoreStub{
-			getArchivesFunc: func(context.Context, string) ([]ArchivedSession, error) {
+			ListArchivesFunc: func(context.Context, string) ([]ArchivedSession, error) {
 				return nil, errors.New("get archives failed")
 			},
 		}, time.Hour, 24*time.Hour)
@@ -756,7 +756,7 @@ func Test_SQLiteStore_ArchiveLifecycleAndCurrentSelection(t *testing.T) {
 	require.Equal(t, "one", messages[0].Content)
 	require.Equal(t, "two", messages[1].Content)
 
-	archives, err := store.GetArchives(context.Background(), "project-b")
+	archives, err := store.ListArchives(context.Background(), "project-b")
 	require.NoError(t, err)
 	require.Len(t, archives, 2)
 	require.Equal(t, "archive-active", archives[0].ID)
@@ -767,7 +767,7 @@ func Test_SQLiteStore_ArchiveLifecycleAndCurrentSelection(t *testing.T) {
 
 	require.NoError(t, store.DeleteExpiredArchives(context.Background(), now))
 
-	archives, err = store.GetArchives(context.Background(), "project-b")
+	archives, err = store.ListArchives(context.Background(), "project-b")
 	require.NoError(t, err)
 	require.Len(t, archives, 1)
 	require.Equal(t, "archive-active", archives[0].ID)
@@ -836,7 +836,7 @@ func Test_SQLiteStore_BlankCurrentStateAndNilReceiverErrors(t *testing.T) {
 	_, err = nilStore.List(context.Background())
 	require.EqualError(t, err, "session store is required")
 	require.EqualError(t, nilStore.CreateArchive(context.Background(), ArchivedSession{ID: "archive-1"}), "session store is required")
-	_, err = nilStore.GetArchives(context.Background(), "")
+	_, err = nilStore.ListArchives(context.Background(), "")
 	require.EqualError(t, err, "session store is required")
 	_, err = nilStore.GetMessages(context.Background(), "", MessageQueryOptions{})
 	require.EqualError(t, err, "session store is required")

@@ -234,7 +234,7 @@ func Test_SQLiteStore_ArchiveLifecycle(t *testing.T) {
 		ExpiresAt:       now.Add(time.Hour),
 	}))
 
-	archives, err := store.GetArchives(context.Background(), "")
+	archives, err := store.ListArchives(context.Background(), "")
 	require.NoError(t, err)
 	require.Len(t, archives, 2)
 	require.Equal(t, "archive-new", archives[0].ID)
@@ -251,14 +251,14 @@ func Test_SQLiteStore_ArchiveLifecycle(t *testing.T) {
 	require.False(t, ok)
 	require.Equal(t, handctx.Message{}, message)
 
-	filtered, err := store.GetArchives(context.Background(), "project-a")
+	filtered, err := store.ListArchives(context.Background(), "project-a")
 	require.NoError(t, err)
 	require.Len(t, filtered, 1)
 	require.Equal(t, "archive-new", filtered[0].ID)
 
 	require.NoError(t, store.DeleteExpiredArchives(context.Background(), now))
 
-	archives, err = store.GetArchives(context.Background(), "")
+	archives, err = store.ListArchives(context.Background(), "")
 	require.NoError(t, err)
 	require.Len(t, archives, 1)
 	require.Equal(t, "archive-new", archives[0].ID)
@@ -294,13 +294,13 @@ func Test_SQLiteStore_DeleteArchives(t *testing.T) {
 
 	require.NoError(t, store.DeleteArchives(context.Background(), "archive-a"))
 
-	archives, err := store.GetArchives(context.Background(), "project-a")
+	archives, err := store.ListArchives(context.Background(), "project-a")
 	require.NoError(t, err)
 	require.Empty(t, archives)
 	messages, err := store.GetMessages(context.Background(), "archive-a", MessageQueryOptions{Archived: true})
 	require.NoError(t, err)
 	require.Nil(t, messages)
-	otherArchives, err := store.GetArchives(context.Background(), "project-b")
+	otherArchives, err := store.ListArchives(context.Background(), "project-b")
 	require.NoError(t, err)
 	require.Len(t, otherArchives, 1)
 }
@@ -323,7 +323,7 @@ func Test_SQLiteStore_NilReceiverErrors(t *testing.T) {
 	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{ID: "archive-1"}), "session store is required")
 	require.EqualError(t, store.DeleteArchives(context.Background(), "archive-1"), "session store is required")
 
-	archives, err := store.GetArchives(context.Background(), "")
+	archives, err := store.ListArchives(context.Background(), "")
 	require.EqualError(t, err, "session store is required")
 	require.Nil(t, archives)
 	messages, err := store.GetMessages(context.Background(), "", MessageQueryOptions{})
@@ -571,7 +571,7 @@ func Test_SQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, store.db.Migrator().DropTable(&sqliteArchiveRecord{}))
 
-		_, err = store.GetArchives(context.Background(), "")
+		_, err = store.ListArchives(context.Background(), "")
 		require.Error(t, err)
 	})
 
@@ -595,7 +595,7 @@ func Test_SQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, store.db.Exec("INSERT INTO session_archives (id, source_session_id, archived_at, expires_at, created_at) VALUES (?, ?, ?, ?, ?)", "archive-1", "", now, now.Add(time.Hour), now).Error)
 
-		_, err = store.GetArchives(context.Background(), "")
+		_, err = store.ListArchives(context.Background(), "")
 		require.Error(t, err)
 	})
 

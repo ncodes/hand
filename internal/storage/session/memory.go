@@ -220,7 +220,7 @@ func (s *MemoryStore) CreateArchive(_ context.Context, archive ArchivedSession) 
 	return nil
 }
 
-func (s *MemoryStore) GetArchives(_ context.Context, sourceSessionID string) ([]ArchivedSession, error) {
+func (s *MemoryStore) ListArchives(_ context.Context, sourceSessionID string) ([]ArchivedSession, error) {
 	if s == nil {
 		return nil, errors.New("session store is required")
 	}
