@@ -71,7 +71,9 @@ type Store interface {
 
 	// CreateArchive persists archive metadata and snapshots messages from the source session.
 	// Callers provide archive metadata only; implementations are responsible for materializing
-	// archive message contents from the referenced session.
+	// archive message contents from the referenced session. Archive creation always clears the
+	// source session's live messages after the snapshot is created successfully. When the source
+	// session is not the default session, it also removes the live session metadata.
 	CreateArchive(ctx context.Context, archive ArchivedSession) error
 
 	// GetArchive returns archive metadata for a single archive id.

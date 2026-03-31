@@ -209,9 +209,11 @@ func Test_SQLiteStore_ArchiveLifecycle(t *testing.T) {
 	require.NoError(t, err)
 
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+
 	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{}), "archive id is required")
 	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{ID: "archive-1", ExpiresAt: now}), "source session id is required")
 	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{ID: "archive-1", SourceSessionID: DefaultSessionID}), "archive expiry is required")
+
 	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
 	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handctx.Message{
 		{Role: handctx.RoleUser, Content: "old", CreatedAt: now.Add(-2 * time.Hour)},
@@ -220,6 +222,7 @@ func Test_SQLiteStore_ArchiveLifecycle(t *testing.T) {
 	require.NoError(t, store.AppendMessages(context.Background(), "project-a", []handctx.Message{
 		{Role: handctx.RoleAssistant, Content: "new", CreatedAt: now},
 	}))
+	require.NoError(t, store.SetCurrent(context.Background(), "project-a"))
 
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
 		ID:              "archive-old",
@@ -239,13 +242,16 @@ func Test_SQLiteStore_ArchiveLifecycle(t *testing.T) {
 	require.Len(t, archives, 2)
 	require.Equal(t, "archive-new", archives[0].ID)
 	require.Equal(t, "archive-old", archives[1].ID)
+
 	messages, err := store.GetMessages(context.Background(), "archive-new", MessageQueryOptions{Archived: true})
 	require.NoError(t, err)
 	require.Equal(t, "new", messages[0].Content)
+
 	message, ok, err := store.GetMessage(context.Background(), "archive-new", 0, MessageQueryOptions{Archived: true})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "new", message.Content)
+
 	message, ok, err = store.GetMessage(context.Background(), "archive-new", 1, MessageQueryOptions{Archived: true})
 	require.NoError(t, err)
 	require.False(t, ok)
@@ -255,6 +261,29 @@ func Test_SQLiteStore_ArchiveLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, filtered, 1)
 	require.Equal(t, "archive-new", filtered[0].ID)
+
+	defaultSession, ok, err := store.Get(context.Background(), DefaultSessionID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, DefaultSessionID, defaultSession.ID)
+
+	defaultMessages, err := store.GetMessages(context.Background(), DefaultSessionID, MessageQueryOptions{})
+	require.NoError(t, err)
+	require.Nil(t, defaultMessages)
+
+	session, ok, err := store.Get(context.Background(), "project-a")
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Equal(t, Session{}, session)
+
+	liveMessages, err := store.GetMessages(context.Background(), "project-a", MessageQueryOptions{})
+	require.NoError(t, err)
+	require.Nil(t, liveMessages)
+
+	current, ok, err := store.Current(context.Background())
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Empty(t, current)
 
 	require.NoError(t, store.DeleteExpiredArchives(context.Background(), now))
 

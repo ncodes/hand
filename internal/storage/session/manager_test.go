@@ -306,6 +306,11 @@ func Test_Manager_DeleteSessionKeepsArchives(t *testing.T) {
 		ArchivedAt:      time.Date(2026, 3, 30, 13, 0, 0, 0, time.UTC),
 		ExpiresAt:       time.Date(2026, 4, 1, 13, 0, 0, 0, time.UTC),
 	}))
+	_, err = manager.CreateSession(context.Background(), "project-a")
+	require.NoError(t, err)
+	require.NoError(t, manager.AppendMessages(context.Background(), "project-a", []handctx.Message{
+		{Role: handctx.RoleUser, Content: "hello-again", CreatedAt: time.Date(2026, 3, 30, 13, 30, 0, 0, time.UTC)},
+	}))
 
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
 		ID:              "archive-2",
@@ -313,6 +318,8 @@ func Test_Manager_DeleteSessionKeepsArchives(t *testing.T) {
 		ArchivedAt:      time.Date(2026, 3, 30, 14, 0, 0, 0, time.UTC),
 		ExpiresAt:       time.Date(2026, 4, 1, 14, 0, 0, 0, time.UTC),
 	}))
+	_, err = manager.CreateSession(context.Background(), "project-a")
+	require.NoError(t, err)
 	require.NoError(t, manager.UseSession(context.Background(), "project-a"))
 	require.NoError(t, manager.DeleteSession(context.Background(), "project-a"))
 
@@ -701,6 +708,10 @@ func Test_SQLiteStore_ArchiveLifecycleAndCurrentSelection(t *testing.T) {
 		ArchivedAt:      now.Add(-time.Hour),
 		ExpiresAt:       now.Add(-time.Minute),
 	}))
+	require.NoError(t, store.Save(context.Background(), Session{ID: "project-b", UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), "project-b", []handctx.Message{
+		{Role: handctx.RoleUser, Content: "three", CreatedAt: now.Add(2 * time.Second)},
+	}))
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
 		ID:              "archive-active",
 		SourceSessionID: "project-b",
@@ -710,12 +721,10 @@ func Test_SQLiteStore_ArchiveLifecycleAndCurrentSelection(t *testing.T) {
 
 	sessions, err := store.List(context.Background())
 	require.NoError(t, err)
-	require.Len(t, sessions, 1)
+	require.Empty(t, sessions)
 	messages, err := store.GetMessages(context.Background(), "project-b", MessageQueryOptions{})
 	require.NoError(t, err)
-	require.Len(t, messages, 2)
-	require.Equal(t, "one", messages[0].Content)
-	require.Equal(t, "two", messages[1].Content)
+	require.Nil(t, messages)
 
 	archives, err := store.ListArchives(context.Background(), "project-b")
 	require.NoError(t, err)
@@ -723,8 +732,8 @@ func Test_SQLiteStore_ArchiveLifecycleAndCurrentSelection(t *testing.T) {
 	require.Equal(t, "archive-active", archives[0].ID)
 	messages, err = store.GetMessages(context.Background(), "archive-active", MessageQueryOptions{Archived: true})
 	require.NoError(t, err)
-	require.Len(t, messages, 2)
-	require.Equal(t, "one", messages[0].Content)
+	require.Len(t, messages, 1)
+	require.Equal(t, "three", messages[0].Content)
 
 	require.NoError(t, store.DeleteExpiredArchives(context.Background(), now))
 

@@ -217,6 +217,14 @@ func (s *MemoryStore) CreateArchive(_ context.Context, archive ArchivedSession) 
 	s.archiveMessages[normalized.ID] = cloneMessages(sourceMessages)
 	s.archives[normalized.ID] = normalized
 
+	delete(s.messages, normalized.SourceSessionID)
+	if normalized.SourceSessionID != DefaultSessionID {
+		delete(s.sessions, normalized.SourceSessionID)
+		if s.currentSession == normalized.SourceSessionID {
+			s.currentSession = ""
+		}
+	}
+
 	return nil
 }
 

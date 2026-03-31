@@ -233,7 +233,8 @@ func (s *SQLiteStore) Delete(ctx context.Context, id string) error {
 			return err
 		}
 
-		if err := tx.Where("key = ? AND value = ?", currentSessionStateKey, id).Delete(&sqliteStateRecord{}).Error; err != nil {
+		if err := tx.Where("key = ? AND value = ?", currentSessionStateKey, id).
+			Delete(&sqliteStateRecord{}).Error; err != nil {
 			return err
 		}
 
@@ -265,7 +266,8 @@ func (s *SQLiteStore) AppendMessages(ctx context.Context, id string, messages []
 		}
 
 		var nextSequence int64
-		if err := tx.Model(&sqliteMessageRecord{}).Where("session_id = ?", id).Count(&nextSequence).Error; err != nil {
+		if err := tx.Model(&sqliteMessageRecord{}).Where("session_id = ?", id).
+			Count(&nextSequence).Error; err != nil {
 			return err
 		}
 
@@ -297,14 +299,16 @@ func (s *SQLiteStore) GetMessages(
 
 	if opts.Archived {
 		var records []sqliteArchivedMessageRecord
-		if err := s.db.WithContext(ctx).Where("archive_id = ?", id).Order("sequence asc").Find(&records).Error; err != nil {
+		if err := s.db.WithContext(ctx).Where("archive_id = ?", id).Order("sequence asc").
+			Find(&records).Error; err != nil {
 			return nil, err
 		}
 		return decodeArchivedMessages(records), nil
 	}
 
 	var records []sqliteMessageRecord
-	if err := s.db.WithContext(ctx).Where("session_id = ?", id).Order("sequence asc").Find(&records).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("session_id = ?", id).Order("sequence asc").
+		Find(&records).Error; err != nil {
 		return nil, err
 	}
 
@@ -328,7 +332,8 @@ func (s *SQLiteStore) GetMessage(
 
 	if opts.Archived {
 		var record sqliteArchivedMessageRecord
-		if err := s.db.WithContext(ctx).Where("archive_id = ? AND sequence = ?", id, index).First(&record).Error; err != nil {
+		if err := s.db.WithContext(ctx).Where("archive_id = ? AND sequence = ?", id, index).
+			First(&record).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return handctx.Message{}, false, nil
 			}
@@ -338,7 +343,8 @@ func (s *SQLiteStore) GetMessage(
 	}
 
 	var record sqliteMessageRecord
-	if err := s.db.WithContext(ctx).Where("session_id = ? AND sequence = ?", id, index).First(&record).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("session_id = ? AND sequence = ?", id, index).
+		First(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return handctx.Message{}, false, nil
 		}
@@ -360,7 +366,8 @@ func (s *SQLiteStore) CreateArchive(ctx context.Context, archive ArchivedSession
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var source []sqliteMessageRecord
-		if err := tx.Where("session_id = ?", archive.SourceSessionID).Order("sequence asc").Find(&source).Error; err != nil {
+		if err := tx.Where("session_id = ?", archive.SourceSessionID).Order("sequence asc").
+			Find(&source).Error; err != nil {
 			return err
 		}
 		if len(source) == 0 {
@@ -382,7 +389,24 @@ func (s *SQLiteStore) CreateArchive(ctx context.Context, archive ArchivedSession
 		}
 
 		records := encodeArchivedMessages(archive.ID, decodeSessionMessages(source))
-		return tx.Create(&records).Error
+		if err := tx.Create(&records).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Where("session_id = ?", archive.SourceSessionID).Delete(&sqliteMessageRecord{}).Error; err != nil {
+			return err
+		}
+
+		if archive.SourceSessionID == DefaultSessionID {
+			return nil
+		}
+
+		if err := tx.Where("id = ?", archive.SourceSessionID).Delete(&sqliteRecord{}).Error; err != nil {
+			return err
+		}
+
+		return tx.Where("key = ? AND value = ?", currentSessionStateKey, archive.SourceSessionID).
+			Delete(&sqliteStateRecord{}).Error
 	})
 }
 
@@ -513,7 +537,8 @@ func (s *SQLiteStore) DeleteExpiredArchives(ctx context.Context, now time.Time) 
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var ids []string
-		if err := tx.Model(&sqliteArchiveRecord{}).Where("expires_at <= ?", now.UTC()).Pluck("id", &ids).Error; err != nil {
+		if err := tx.Model(&sqliteArchiveRecord{}).Where("expires_at <= ?", now.UTC()).
+			Pluck("id", &ids).Error; err != nil {
 			return err
 		}
 
