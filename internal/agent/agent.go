@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/wandxy/hand/internal/config"
 	handctx "github.com/wandxy/hand/internal/context"
 	"github.com/wandxy/hand/internal/environment"
 	"github.com/wandxy/hand/internal/instruction"
 	"github.com/wandxy/hand/internal/models"
+	sessionstore "github.com/wandxy/hand/internal/storage/session"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 )
@@ -21,7 +23,8 @@ var jsonMarshal = json.Marshal
 const requestInstructInstructionName = "request.instruct"
 
 type ChatOptions struct {
-	Instruct string
+	Instruct  string
+	SessionID string
 }
 
 type runtimeEnvironment interface {
@@ -42,6 +45,8 @@ type Agent struct {
 	cfg         *config.Config
 	modelClient models.Client
 	env         runtimeEnvironment
+	manager     *sessionstore.Manager
+	initialized bool
 }
 
 func NewAgent(ctx context.Context, cfg *config.Config, modelClient models.Client) *Agent {
@@ -55,14 +60,11 @@ func (c *Agent) Chat(ctx context.Context, msg string, opts ChatOptions) (string,
 	if c.cfg == nil {
 		return "", errors.New("config is required")
 	}
-	if c.env == nil {
+	if !c.initialized && c.env == nil {
 		return "", errors.New("environment has not been initialized")
 	}
 	if c.modelClient == nil {
 		return "", errors.New("model client is required")
-	}
-	if c.env.Tools() == nil {
-		return "", errors.New("tool registry is required")
 	}
 	if strings.TrimSpace(msg) == "" {
 		return "", errors.New("message is required")
@@ -73,26 +75,66 @@ func (c *Agent) Chat(ctx context.Context, msg string, opts ChatOptions) (string,
 		return "", err
 	}
 
-	handCtx := c.env.Context()
+	if err := c.ensureSessionManager(); err != nil {
+		return "", err
+	}
+
+	runtimeEnv := c.env
+	if c.initialized || runtimeEnv == nil {
+		runtimeEnv = newRuntimeEnvironment(c.ctx, c.cfg)
+		if err := runtimeEnv.Prepare(); err != nil {
+			return "", err
+		}
+	}
+	if runtimeEnv.Tools() == nil {
+		return "", errors.New("tool registry is required")
+	}
+
+	session, err := c.manager.ResolveChatSession(ctx, opts.SessionID)
+	if err != nil {
+		return "", err
+	}
+
+	handCtx := runtimeEnv.Context()
 	if handCtx == nil {
 		return "", errors.New("runtime context is required")
 	}
+	messages, err := c.manager.GetMessages(ctx, session.ID, sessionstore.MessageQueryOptions{})
+	if err != nil {
+		return "", err
+	}
+	for _, message := range messages {
+		if err := handCtx.AddMessage(message); err != nil {
+			return "", err
+		}
+	}
+	c.env = runtimeEnv
+
 	instruct := strings.TrimSpace(opts.Instruct)
 	if instruct != "" {
 		handCtx.SetInstruction(handctx.Instruction{Name: requestInstructInstructionName, Value: instruct})
 		defer handCtx.RemoveInstruction(requestInstructInstructionName)
 	}
 
-	trace := c.env.NewTraceSession()
+	appendSessionMessages := func(messages []handctx.Message) error {
+		return c.manager.AppendMessages(ctx, session.ID, messages)
+	}
+
+	trace := runtimeEnv.NewTraceSession()
 	defer trace.Close()
 
 	if err := handCtx.AddUserMessage(msg); err != nil {
 		trace.Record("session.failed", map[string]any{"error": err.Error()})
 		return "", err
 	}
+	currentMessages := handCtx.GetMessages()
+	if err := appendSessionMessages(currentMessages[len(currentMessages)-1:]); err != nil {
+		trace.Record("session.failed", map[string]any{"error": err.Error()})
+		return "", err
+	}
 	trace.Record("user.message.accepted", map[string]any{"message": msg})
 
-	budget := c.env.NewIterationBudget()
+	budget := runtimeEnv.NewIterationBudget()
 	for budget.Consume() {
 		if err := ctx.Err(); err != nil {
 			trace.Record("session.failed", map[string]any{"error": err.Error()})
@@ -132,6 +174,11 @@ func (c *Agent) Chat(ctx context.Context, msg string, opts ChatOptions) (string,
 				trace.Record("session.failed", map[string]any{"error": err.Error()})
 				return "", err
 			}
+			currentMessages := handCtx.GetMessages()
+			if err := appendSessionMessages(currentMessages[len(currentMessages)-1:]); err != nil {
+				trace.Record("session.failed", map[string]any{"error": err.Error()})
+				return "", err
+			}
 			trace.Record("final.assistant.response", map[string]any{"message": resp.OutputText})
 			return resp.OutputText, nil
 		}
@@ -147,6 +194,10 @@ func (c *Agent) Chat(ctx context.Context, msg string, opts ChatOptions) (string,
 			trace.Record("session.failed", map[string]any{"error": err.Error()})
 			return "", err
 		}
+		if err := appendSessionMessages([]handctx.Message{assistantMessage}); err != nil {
+			trace.Record("session.failed", map[string]any{"error": err.Error()})
+			return "", err
+		}
 
 		for _, toolCall := range resp.ToolCalls {
 			if err := ctx.Err(); err != nil {
@@ -155,17 +206,30 @@ func (c *Agent) Chat(ctx context.Context, msg string, opts ChatOptions) (string,
 			}
 
 			trace.Record("tool.invocation.started", toolCall)
-			toolMessage := c.invokeTool(ctx, toolCall)
+			toolMessage := c.invokeToolWithEnvironment(ctx, runtimeEnv, toolCall)
 			trace.Record("tool.invocation.completed", toolMessage)
 
 			if err := handCtx.AddMessage(toolMessage); err != nil {
 				trace.Record("session.failed", map[string]any{"error": err.Error()})
 				return "", err
 			}
+			if err := appendSessionMessages([]handctx.Message{toolMessage}); err != nil {
+				trace.Record("session.failed", map[string]any{"error": err.Error()})
+				return "", err
+			}
 		}
 	}
 
-	return c.summaryFallback(ctx, budget, handCtx, trace)
+	reply, err := c.summaryFallback(ctx, budget, handCtx, trace)
+	if err != nil {
+		return "", err
+	}
+	currentMessages = handCtx.GetMessages()
+	if err := appendSessionMessages(currentMessages[len(currentMessages)-1:]); err != nil {
+		trace.Record("session.failed", map[string]any{"error": err.Error()})
+		return "", err
+	}
+	return reply, nil
 }
 
 func (c *Agent) Run(context.Context) error {
@@ -176,10 +240,18 @@ func (c *Agent) Run(context.Context) error {
 		return errors.New("config is required")
 	}
 
+	if err := c.ensureSessionManager(); err != nil {
+		return err
+	}
+	if err := c.manager.StartMaintenanceWorker(c.ctx, time.Minute); err != nil {
+		return err
+	}
+
 	c.env = newRuntimeEnvironment(c.ctx, c.cfg)
 	if err := c.env.Prepare(); err != nil {
 		return err
 	}
+	c.initialized = true
 
 	return nil
 }
@@ -212,9 +284,18 @@ func (c *Agent) toolDefinitions() ([]models.ToolDefinition, error) {
 }
 
 func (c *Agent) invokeTool(ctx context.Context, toolCall models.ToolCall) handctx.Message {
-	result := map[string]any{"name": toolCall.Name}
+	return c.invokeToolWithEnvironment(ctx, c.env, toolCall)
+}
 
-	toolResult, err := c.env.Tools().Invoke(ctx, tools.Call{
+func (c *Agent) invokeToolWithEnvironment(ctx context.Context, runtimeEnv runtimeEnvironment, toolCall models.ToolCall) handctx.Message {
+	result := map[string]any{"name": toolCall.Name}
+	if runtimeEnv == nil || runtimeEnv.Tools() == nil {
+		result["error"] = "tool registry is required"
+		raw, _ := jsonMarshal(result)
+		return handctx.Message{Role: handctx.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: string(raw)}
+	}
+
+	toolResult, err := runtimeEnv.Tools().Invoke(ctx, tools.Call{
 		Name:   toolCall.Name,
 		Input:  toolCall.Input,
 		Source: "model",
@@ -238,6 +319,80 @@ func (c *Agent) invokeTool(ctx context.Context, toolCall models.ToolCall) handct
 	}
 
 	return handctx.Message{Role: handctx.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: content}
+}
+
+func (c *Agent) CreateSession(ctx context.Context, id string) (sessionstore.Session, error) {
+	if c == nil {
+		return sessionstore.Session{}, errors.New("agent is required")
+	}
+	if !c.initialized || c.manager == nil {
+		return sessionstore.Session{}, errors.New("environment has not been initialized")
+	}
+	return c.manager.CreateSession(normalizeContext(ctx), id)
+}
+
+func (c *Agent) ListSessions(ctx context.Context) ([]sessionstore.Session, error) {
+	if c == nil {
+		return nil, errors.New("agent is required")
+	}
+	if !c.initialized || c.manager == nil {
+		return nil, errors.New("environment has not been initialized")
+	}
+	return c.manager.ListSessions(normalizeContext(ctx))
+}
+
+func (c *Agent) UseSession(ctx context.Context, id string) error {
+	if c == nil {
+		return errors.New("agent is required")
+	}
+	if !c.initialized || c.manager == nil {
+		return errors.New("environment has not been initialized")
+	}
+	return c.manager.UseSession(normalizeContext(ctx), id)
+}
+
+func (c *Agent) CurrentSession(ctx context.Context) (string, error) {
+	if c == nil {
+		return "", errors.New("agent is required")
+	}
+	if !c.initialized || c.manager == nil {
+		return "", errors.New("environment has not been initialized")
+	}
+	return c.manager.CurrentSession(normalizeContext(ctx))
+}
+
+func (c *Agent) ensureSessionManager() error {
+	if c == nil {
+		return errors.New("agent is required")
+	}
+	if c.cfg == nil {
+		return errors.New("config is required")
+	}
+	if c.manager != nil {
+		return nil
+	}
+
+	store, err := sessionstore.OpenStore(c.cfg)
+	if err != nil {
+		return err
+	}
+	manager, err := sessionstore.NewManager(
+		store,
+		durationOrDefault(c.cfg.SessionDefaultIdleExpiry, 24*time.Hour),
+		durationOrDefault(c.cfg.SessionArchiveRetention, 30*24*time.Hour),
+	)
+	if err != nil {
+		return err
+	}
+	c.manager = manager
+	return nil
+}
+
+func durationOrDefault(value, fallback time.Duration) time.Duration {
+	if value > 0 {
+		return value
+	}
+	return fallback
 }
 
 func normalizeToolError(raw string) any {
