@@ -17,6 +17,7 @@ type managerStoreStub struct {
 	getFunc                   func(context.Context, string) (Session, bool, error)
 	listFunc                  func(context.Context) ([]Session, error)
 	saveFunc                  func(context.Context, Session) error
+	deleteFunc                func(context.Context, string) error
 	setCurrentFunc            func(context.Context, string) error
 	currentFunc               func(context.Context) (string, bool, error)
 	appendMessagesFunc        func(context.Context, string, []handctx.Message) error
@@ -25,6 +26,7 @@ type managerStoreStub struct {
 	clearMessagesFunc         func(context.Context, string, MessageQueryOptions) error
 	createArchiveFunc         func(context.Context, ArchivedSession) error
 	getArchivesFunc           func(context.Context, string) ([]ArchivedSession, error)
+	deleteArchivesFunc        func(context.Context, string) error
 	deleteExpiredArchivesFunc func(context.Context, time.Time) error
 }
 
@@ -49,6 +51,13 @@ func (s *managerStoreStub) List(ctx context.Context) ([]Session, error) {
 	return nil, nil
 }
 
+func (s *managerStoreStub) Delete(ctx context.Context, id string) error {
+	if s.deleteFunc != nil {
+		return s.deleteFunc(ctx, id)
+	}
+	return nil
+}
+
 func (s *managerStoreStub) CreateArchive(ctx context.Context, archive ArchivedSession) error {
 	if s.createArchiveFunc != nil {
 		return s.createArchiveFunc(ctx, archive)
@@ -61,6 +70,13 @@ func (s *managerStoreStub) GetArchives(ctx context.Context, sourceSessionID stri
 		return s.getArchivesFunc(ctx, sourceSessionID)
 	}
 	return nil, nil
+}
+
+func (s *managerStoreStub) DeleteArchives(ctx context.Context, archiveID string) error {
+	if s.deleteArchivesFunc != nil {
+		return s.deleteArchivesFunc(ctx, archiveID)
+	}
+	return nil
 }
 
 func (s *managerStoreStub) DeleteExpiredArchives(ctx context.Context, now time.Time) error {
@@ -205,6 +221,8 @@ func Test_NewManager_ValidationAndNilManagerErrors(t *testing.T) {
 	require.EqualError(t, err, "session manager is required")
 
 	require.EqualError(t, manager.UseSession(context.Background(), DefaultSessionID), "session manager is required")
+	require.EqualError(t, manager.DeleteSession(context.Background(), DefaultSessionID), "session manager is required")
+	require.EqualError(t, manager.DeleteSessionArchives(context.Background(), DefaultSessionID), "session manager is required")
 
 	current, err := manager.CurrentSession(context.Background())
 	require.EqualError(t, err, "session manager is required")
@@ -263,6 +281,48 @@ func Test_Manager_CreateUseAndResolveErrors(t *testing.T) {
 	require.EqualError(t, err, "session not found")
 
 	require.EqualError(t, manager.UseSession(context.Background(), "missing"), "session not found")
+}
+
+func Test_Manager_DeleteSessionAndArchives(t *testing.T) {
+	store := NewStore()
+	manager, err := NewManager(store, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	_, err = manager.CreateSession(context.Background(), "project-a")
+	require.NoError(t, err)
+	require.NoError(t, manager.AppendMessages(context.Background(), "project-a", []handctx.Message{
+		{Role: handctx.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)},
+	}))
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              "archive-1",
+		SourceSessionID: "project-a",
+		ArchivedAt:      time.Date(2026, 3, 30, 13, 0, 0, 0, time.UTC),
+		ExpiresAt:       time.Date(2026, 4, 1, 13, 0, 0, 0, time.UTC),
+	}))
+
+	require.NoError(t, manager.DeleteSessionArchives(context.Background(), "project-a"))
+	archives, err := store.GetArchives(context.Background(), "project-a")
+	require.NoError(t, err)
+	require.Empty(t, archives)
+
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              "archive-2",
+		SourceSessionID: "project-a",
+		ArchivedAt:      time.Date(2026, 3, 30, 14, 0, 0, 0, time.UTC),
+		ExpiresAt:       time.Date(2026, 4, 1, 14, 0, 0, 0, time.UTC),
+	}))
+	require.NoError(t, manager.UseSession(context.Background(), "project-a"))
+	require.NoError(t, manager.DeleteSession(context.Background(), "project-a"))
+
+	_, ok, err := store.Get(context.Background(), "project-a")
+	require.NoError(t, err)
+	require.False(t, ok)
+	archives, err = store.GetArchives(context.Background(), "project-a")
+	require.NoError(t, err)
+	require.Empty(t, archives)
+	current, err := manager.CurrentSession(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, DefaultSessionID, current)
 }
 
 func Test_Manager_CurrentSessionUsesStoredSelection(t *testing.T) {
@@ -473,6 +533,67 @@ func Test_Manager_ErrorBranchesAndWorkerTick(t *testing.T) {
 
 		err = manager.UseSession(context.Background(), DefaultSessionID)
 		require.EqualError(t, err, "get failed")
+	})
+
+	t.Run("delete session validation and errors", func(t *testing.T) {
+		manager, err := NewManager(&managerStoreStub{
+			getArchivesFunc: func(context.Context, string) ([]ArchivedSession, error) {
+				return []ArchivedSession{{ID: "archive-1"}}, nil
+			},
+			deleteArchivesFunc: func(context.Context, string) error {
+				return errors.New("delete archives failed")
+			},
+		}, time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		require.EqualError(t, manager.DeleteSession(context.Background(), ""), "session id is required")
+		require.EqualError(t, manager.DeleteSession(context.Background(), DefaultSessionID), "default session cannot be deleted")
+		require.EqualError(t, manager.DeleteSession(context.Background(), "project-a"), "delete archives failed")
+
+		manager, err = NewManager(&managerStoreStub{
+			getArchivesFunc: func(context.Context, string) ([]ArchivedSession, error) {
+				return nil, errors.New("get archives failed")
+			},
+		}, time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		require.EqualError(t, manager.DeleteSession(context.Background(), "project-a"), "get archives failed")
+
+		manager, err = NewManager(&managerStoreStub{
+			getArchivesFunc: func(context.Context, string) ([]ArchivedSession, error) {
+				return nil, nil
+			},
+			deleteFunc: func(context.Context, string) error {
+				return errors.New("delete failed")
+			},
+		}, time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		require.EqualError(t, manager.DeleteSession(context.Background(), "project-a"), "delete failed")
+	})
+
+	t.Run("delete session archives validation and errors", func(t *testing.T) {
+		manager, err := NewManager(&managerStoreStub{
+			getArchivesFunc: func(context.Context, string) ([]ArchivedSession, error) {
+				return []ArchivedSession{{ID: "archive-1"}}, nil
+			},
+			deleteArchivesFunc: func(context.Context, string) error {
+				return errors.New("delete archives failed")
+			},
+		}, time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		require.EqualError(t, manager.DeleteSessionArchives(context.Background(), ""), "session id is required")
+		require.EqualError(t, manager.DeleteSessionArchives(context.Background(), "project-a"), "delete archives failed")
+
+		manager, err = NewManager(&managerStoreStub{
+			getArchivesFunc: func(context.Context, string) ([]ArchivedSession, error) {
+				return nil, errors.New("get archives failed")
+			},
+		}, time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		require.EqualError(t, manager.DeleteSessionArchives(context.Background(), "project-a"), "get archives failed")
 	})
 
 	t.Run("current session error", func(t *testing.T) {

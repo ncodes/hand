@@ -205,6 +205,55 @@ func (m *Manager) ListSessions(ctx context.Context) ([]Session, error) {
 	return m.store.List(ctx)
 }
 
+func (m *Manager) DeleteSession(ctx context.Context, id string) error {
+	if m == nil {
+		return errors.New("session manager is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("session id is required")
+	}
+	if id == DefaultSessionID {
+		return errors.New("default session cannot be deleted")
+	}
+
+	archives, err := m.store.GetArchives(ctx, id)
+	if err != nil {
+		return err
+	}
+	for _, archive := range archives {
+		if err := m.store.DeleteArchives(ctx, archive.ID); err != nil {
+			return err
+		}
+	}
+
+	return m.store.Delete(ctx, id)
+}
+
+func (m *Manager) DeleteSessionArchives(ctx context.Context, id string) error {
+	if m == nil {
+		return errors.New("session manager is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("session id is required")
+	}
+
+	archives, err := m.store.GetArchives(ctx, id)
+	if err != nil {
+		return err
+	}
+	for _, archive := range archives {
+		if err := m.store.DeleteArchives(ctx, archive.ID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (m *Manager) UseSession(ctx context.Context, id string) error {
 	if m == nil {
 		return errors.New("session manager is required")

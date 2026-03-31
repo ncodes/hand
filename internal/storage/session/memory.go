@@ -87,6 +87,35 @@ func (s *MemoryStore) List(context.Context) ([]Session, error) {
 	return sessions, nil
 }
 
+func (s *MemoryStore) Delete(_ context.Context, id string) error {
+	if s == nil {
+		return errors.New("session store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("session id is required")
+	}
+	if id == DefaultSessionID {
+		return errors.New("default session cannot be deleted")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.sessions[id]; !ok {
+		return errors.New("session not found")
+	}
+
+	delete(s.sessions, id)
+	delete(s.messages, id)
+	if s.currentSession == id {
+		s.currentSession = ""
+	}
+
+	return nil
+}
+
 func (s *MemoryStore) AppendMessages(_ context.Context, id string, messages []handctx.Message) error {
 	if s == nil {
 		return errors.New("session store is required")
@@ -202,6 +231,29 @@ func (s *MemoryStore) GetArchives(_ context.Context, sourceSessionID string) ([]
 	})
 
 	return archives, nil
+}
+
+func (s *MemoryStore) DeleteArchives(_ context.Context, archiveID string) error {
+	if s == nil {
+		return errors.New("session store is required")
+	}
+
+	archiveID = strings.TrimSpace(archiveID)
+	if archiveID == "" {
+		return errors.New("archive id is required")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.archives[archiveID]; !ok {
+		return errors.New("archive not found")
+	}
+
+	delete(s.archives, archiveID)
+	delete(s.archiveMessages, archiveID)
+
+	return nil
 }
 
 func (s *MemoryStore) DeleteExpiredArchives(_ context.Context, now time.Time) error {

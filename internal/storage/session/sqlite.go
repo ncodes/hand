@@ -203,6 +203,44 @@ func (s *SQLiteStore) List(ctx context.Context) ([]Session, error) {
 	return sessions, nil
 }
 
+func (s *SQLiteStore) Delete(ctx context.Context, id string) error {
+	if s == nil || s.db == nil {
+		return errors.New("session store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("session id is required")
+	}
+	if id == DefaultSessionID {
+		return errors.New("default session cannot be deleted")
+	}
+
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var session sqliteRecord
+		if err := tx.First(&session, "id = ?", id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("session not found")
+			}
+			return err
+		}
+
+		if err := tx.Where("session_id = ?", id).Delete(&sqliteMessageRecord{}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Delete(&session).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Where("key = ? AND value = ?", currentSessionStateKey, id).Delete(&sqliteStateRecord{}).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
 func (s *SQLiteStore) AppendMessages(ctx context.Context, id string, messages []handctx.Message) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
@@ -415,6 +453,33 @@ func (s *SQLiteStore) GetArchives(ctx context.Context, sourceSessionID string) (
 	}
 
 	return archives, nil
+}
+
+func (s *SQLiteStore) DeleteArchives(ctx context.Context, archiveID string) error {
+	if s == nil || s.db == nil {
+		return errors.New("session store is required")
+	}
+
+	archiveID = strings.TrimSpace(archiveID)
+	if archiveID == "" {
+		return errors.New("archive id is required")
+	}
+
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var archive sqliteArchiveRecord
+		if err := tx.First(&archive, "id = ?", archiveID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("archive not found")
+			}
+			return err
+		}
+
+		if err := tx.Where("archive_id = ?", archiveID).Delete(&sqliteArchivedMessageRecord{}).Error; err != nil {
+			return err
+		}
+
+		return tx.Delete(&archive).Error
+	})
 }
 
 func (s *SQLiteStore) DeleteExpiredArchives(ctx context.Context, now time.Time) error {

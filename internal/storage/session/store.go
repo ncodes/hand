@@ -42,6 +42,10 @@ type Store interface {
 	// It does not include session messages.
 	List(context.Context) ([]Session, error)
 
+	// Delete removes session metadata and live session messages for a session id.
+	// Implementations must reject deletion of the default session.
+	Delete(context.Context, string) error
+
 	// SetCurrent stores the selected live session id.
 	// Implementations should reject unknown session ids.
 	SetCurrent(context.Context, string) error
@@ -73,6 +77,9 @@ type Store interface {
 	// GetArchives returns archive metadata, optionally filtered by source session id.
 	// It does not return archived messages.
 	GetArchives(context.Context, string) ([]ArchivedSession, error)
+
+	// DeleteArchives removes archive metadata and archived messages for a single archive id.
+	DeleteArchives(context.Context, string) error
 
 	// DeleteExpiredArchives removes archive metadata and archived messages whose expiry is
 	// at or before the provided time.

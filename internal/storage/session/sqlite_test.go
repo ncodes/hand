@@ -175,6 +175,35 @@ func Test_SQLiteStore_ListOrdersTiesByID(t *testing.T) {
 	require.Equal(t, "zeta", sessions[1].ID)
 }
 
+func Test_SQLiteStore_Delete(t *testing.T) {
+	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+	require.EqualError(t, store.Delete(context.Background(), ""), "session id is required")
+	require.EqualError(t, store.Delete(context.Background(), DefaultSessionID), "default session cannot be deleted")
+	require.EqualError(t, store.Delete(context.Background(), "missing"), "session not found")
+	require.NoError(t, store.Save(context.Background(), Session{ID: "project-a", UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), "project-a", []handctx.Message{
+		{Role: handctx.RoleUser, Content: "hello", CreatedAt: now},
+	}))
+	require.NoError(t, store.SetCurrent(context.Background(), "project-a"))
+
+	require.NoError(t, store.Delete(context.Background(), "project-a"))
+
+	session, ok, err := store.Get(context.Background(), "project-a")
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Equal(t, Session{}, session)
+	messages, err := store.GetMessages(context.Background(), "project-a", MessageQueryOptions{})
+	require.NoError(t, err)
+	require.Nil(t, messages)
+	current, ok, err := store.Current(context.Background())
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Empty(t, current)
+}
+
 func Test_SQLiteStore_ArchiveLifecycle(t *testing.T) {
 	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)
@@ -235,10 +264,48 @@ func Test_SQLiteStore_ArchiveLifecycle(t *testing.T) {
 	require.Equal(t, "archive-new", archives[0].ID)
 }
 
+func Test_SQLiteStore_DeleteArchives(t *testing.T) {
+	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+	require.EqualError(t, store.DeleteArchives(context.Background(), ""), "archive id is required")
+	require.EqualError(t, store.DeleteArchives(context.Background(), "missing"), "archive not found")
+	require.NoError(t, store.Save(context.Background(), Session{ID: "project-a", UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), "project-a", []handctx.Message{
+		{Role: handctx.RoleUser, Content: "hello", CreatedAt: now},
+	}))
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              "archive-a",
+		SourceSessionID: "project-a",
+		ArchivedAt:      now,
+		ExpiresAt:       now.Add(time.Hour),
+	}))
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              "archive-b",
+		SourceSessionID: "project-b",
+		ArchivedAt:      now.Add(time.Minute),
+		ExpiresAt:       now.Add(time.Hour),
+	}))
+
+	require.NoError(t, store.DeleteArchives(context.Background(), "archive-a"))
+
+	archives, err := store.GetArchives(context.Background(), "project-a")
+	require.NoError(t, err)
+	require.Empty(t, archives)
+	messages, err := store.GetMessages(context.Background(), "archive-a", MessageQueryOptions{Archived: true})
+	require.NoError(t, err)
+	require.Nil(t, messages)
+	otherArchives, err := store.GetArchives(context.Background(), "project-b")
+	require.NoError(t, err)
+	require.Len(t, otherArchives, 1)
+}
+
 func Test_SQLiteStore_NilReceiverErrors(t *testing.T) {
 	var store *SQLiteStore
 
 	require.EqualError(t, store.Save(context.Background(), Session{ID: "project-a"}), "session store is required")
+	require.EqualError(t, store.Delete(context.Background(), "project-a"), "session store is required")
 
 	session, ok, err := store.Get(context.Background(), "project-a")
 	require.EqualError(t, err, "session store is required")
@@ -250,6 +317,7 @@ func Test_SQLiteStore_NilReceiverErrors(t *testing.T) {
 	require.Nil(t, sessions)
 
 	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{ID: "archive-1"}), "session store is required")
+	require.EqualError(t, store.DeleteArchives(context.Background(), "archive-1"), "session store is required")
 
 	archives, err := store.GetArchives(context.Background(), "")
 	require.EqualError(t, err, "session store is required")
