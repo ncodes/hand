@@ -25,6 +25,7 @@ type managerStoreStub struct {
 	getMessagesFunc           func(context.Context, string, MessageQueryOptions) ([]handctx.Message, error)
 	clearMessagesFunc         func(context.Context, string, MessageQueryOptions) error
 	createArchiveFunc         func(context.Context, ArchivedSession) error
+	getArchiveFunc            func(context.Context, string) (ArchivedSession, bool, error)
 	ListArchivesFunc          func(context.Context, string) ([]ArchivedSession, error)
 	deleteArchivesFunc        func(context.Context, string) error
 	deleteExpiredArchivesFunc func(context.Context, time.Time) error
@@ -63,6 +64,13 @@ func (s *managerStoreStub) CreateArchive(ctx context.Context, archive ArchivedSe
 		return s.createArchiveFunc(ctx, archive)
 	}
 	return nil
+}
+
+func (s *managerStoreStub) GetArchive(ctx context.Context, id string) (ArchivedSession, bool, error) {
+	if s.getArchiveFunc != nil {
+		return s.getArchiveFunc(ctx, id)
+	}
+	return ArchivedSession{}, false, nil
 }
 
 func (s *managerStoreStub) ListArchives(ctx context.Context, sourceSessionID string) ([]ArchivedSession, error) {

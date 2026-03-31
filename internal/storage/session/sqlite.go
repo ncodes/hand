@@ -386,6 +386,32 @@ func (s *SQLiteStore) CreateArchive(ctx context.Context, archive ArchivedSession
 	})
 }
 
+func (s *SQLiteStore) GetArchive(ctx context.Context, id string) (ArchivedSession, bool, error) {
+	if s == nil || s.db == nil {
+		return ArchivedSession{}, false, errors.New("session store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return ArchivedSession{}, false, nil
+	}
+
+	var record sqliteArchiveRecord
+	if err := s.db.WithContext(ctx).First(&record, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ArchivedSession{}, false, nil
+		}
+		return ArchivedSession{}, false, err
+	}
+
+	archive, err := decodeArchiveRecord(record)
+	if err != nil {
+		return ArchivedSession{}, false, err
+	}
+
+	return archive, true, nil
+}
+
 func (s *SQLiteStore) ClearMessages(ctx context.Context, id string, opts MessageQueryOptions) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")

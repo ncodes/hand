@@ -220,6 +220,23 @@ func (s *MemoryStore) CreateArchive(_ context.Context, archive ArchivedSession) 
 	return nil
 }
 
+func (s *MemoryStore) GetArchive(_ context.Context, id string) (ArchivedSession, bool, error) {
+	if s == nil {
+		return ArchivedSession{}, false, errors.New("session store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return ArchivedSession{}, false, nil
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	archive, ok := s.archives[id]
+	return cloneCreateArchive(archive), ok, nil
+}
+
 func (s *MemoryStore) ListArchives(_ context.Context, sourceSessionID string) ([]ArchivedSession, error) {
 	if s == nil {
 		return nil, errors.New("session store is required")
