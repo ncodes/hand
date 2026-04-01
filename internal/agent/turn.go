@@ -15,19 +15,31 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 )
 
+// Turn executes a single response turn against a resolved session.
 type Turn struct {
-	ctx             context.Context
-	cfg             *config.Config
-	modelClient     models.Client
-	sessionManager  *sessionstore.Manager
-	invokeToolFn    func(context.Context, executionEnvironment, models.ToolCall) handmsg.Message
-	runtimeEnv      executionEnvironment
-	instructions    instruct.Instructions
-	sessionHistory  []handmsg.Message
+	// ctx is the request context used for session writes during the turn.
+	ctx context.Context
+	// cfg provides model and execution settings for the turn.
+	cfg *config.Config
+	// modelClient executes model requests for the turn.
+	modelClient models.Client
+	// sessionManager resolves sessions and persists turn messages.
+	sessionManager *sessionstore.Manager
+	// invokeToolFn performs tool execution for requested tool calls.
+	invokeToolFn func(context.Context, executionEnvironment, models.ToolCall) handmsg.Message
+	// runtimeEnv supplies tools, instructions, tracing, and iteration budget.
+	runtimeEnv executionEnvironment
+	// instructions is the request-scoped instruction set sent to the model.
+	instructions instruct.Instructions
+	// sessionHistory contains persisted messages loaded before the turn starts.
+	sessionHistory []handmsg.Message
+	// emittedMessages contains messages produced during the current turn.
 	emittedMessages []handmsg.Message
-	sessionID       string
+	// sessionID identifies the session being read from and written to.
+	sessionID string
 }
 
+// NewTurn constructs a Turn with the dependencies needed for one response turn.
 func NewTurn(
 	cfg *config.Config,
 	modelClient models.Client,
@@ -84,6 +96,7 @@ func (r *Turn) loadTurnContext(ctx context.Context, opts RespondOptions) error {
 	return nil
 }
 
+// Run executes the turn and returns the assistant reply.
 func (r *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string, error) {
 	if err := r.loadTurnContext(ctx, opts); err != nil {
 		return "", err
@@ -329,6 +342,7 @@ func (r *Turn) requestMessages() []handmsg.Message {
 	return messages
 }
 
+// TurnMessages returns the messages emitted during the turn.
 func (r *Turn) TurnMessages() []handmsg.Message {
 	if len(r.emittedMessages) == 0 {
 		return nil
