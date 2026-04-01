@@ -7,13 +7,13 @@ import (
 
 	"github.com/wandxy/hand/internal/agent"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
-	sessionstore "github.com/wandxy/hand/internal/storage/session"
+	sessionstore "github.com/wandxy/hand/internal/session"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type chatter interface {
-	Chat(context.Context, string, agent.ChatOptions) (string, error)
+	Respond(context.Context, string, agent.RespondOptions) (string, error)
 	CreateSession(context.Context, string) (sessionstore.Session, error)
 	ListSessions(context.Context) ([]sessionstore.Session, error)
 	UseSession(context.Context, string) error
@@ -43,7 +43,7 @@ func (s *Service) Chat(ctx context.Context, req *handpb.ChatRequest) (*handpb.Ch
 		return nil, status.Error(codes.InvalidArgument, "chat request is required")
 	}
 
-	reply, err := s.chatter.Chat(ctx, req.Message, agent.ChatOptions{Instruct: req.Instruct, SessionID: req.SessionId})
+	reply, err := s.chatter.Respond(ctx, req.Message, agent.RespondOptions{Instruct: req.Instruct, SessionID: req.SessionId})
 	if err != nil {
 		return nil, grpcError(err)
 	}

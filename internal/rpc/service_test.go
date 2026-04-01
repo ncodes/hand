@@ -11,7 +11,7 @@ import (
 
 	"github.com/wandxy/hand/internal/agent"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
-	sessionstore "github.com/wandxy/hand/internal/storage/session"
+	sessionstore "github.com/wandxy/hand/internal/session"
 )
 
 type chatterStub struct {
@@ -25,7 +25,7 @@ type chatterStub struct {
 	current   string
 }
 
-func (s *chatterStub) Chat(_ context.Context, message string, opts agent.ChatOptions) (string, error) {
+func (s *chatterStub) Respond(_ context.Context, message string, opts agent.RespondOptions) (string, error) {
 	s.message = message
 	s.instruct = opts.Instruct
 	s.sessionID = opts.SessionID

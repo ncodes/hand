@@ -1,20 +1,17 @@
-package context
+package instructions
 
 import (
 	"encoding/json"
 	"strings"
 )
 
-// Instruction represents a single instruction for the agent.
 type Instruction struct {
 	Name  string
 	Value string
 }
 
-// Instructions is a list of instructions for the agent.
 type Instructions []Instruction
 
-// First returns the first instruction in the list.
 func (i Instructions) First() Instruction {
 	if len(i) == 0 {
 		return Instruction{}
@@ -22,8 +19,7 @@ func (i Instructions) First() Instruction {
 	return i[0]
 }
 
-// NewInstructions creates a new Instructions list from a variadic list of values.
-func NewInstructions(values ...string) Instructions {
+func New(values ...string) Instructions {
 	instructions := make(Instructions, 0, len(values))
 	for _, value := range values {
 		instructions = instructions.ChainValue(value)
@@ -34,7 +30,6 @@ func NewInstructions(values ...string) Instructions {
 func (i Instructions) Chain(instructions ...Instruction) Instructions {
 	chained := make(Instructions, 0, len(i)+len(instructions))
 	chained = append(chained, i...)
-
 	for _, instruction := range instructions {
 		if strings.TrimSpace(instruction.Value) == "" {
 			continue
@@ -44,7 +39,6 @@ func (i Instructions) Chain(instructions ...Instruction) Instructions {
 			Value: strings.TrimSpace(instruction.Value),
 		})
 	}
-
 	return chained
 }
 
@@ -56,7 +50,6 @@ func (i Instructions) ChainValue(values ...string) Instructions {
 	return i.Chain(instructions...)
 }
 
-// String returns the instructions as a string.
 func (i Instructions) String() string {
 	values := make([]string, 0, len(i))
 	for _, instruction := range i {
@@ -65,12 +58,10 @@ func (i Instructions) String() string {
 	return strings.Join(values, "\n")
 }
 
-// MarshalJSON returns the instructions as a JSON string.
 func (i Instructions) MarshalJSON() ([]byte, error) {
 	return json.Marshal(i.String())
 }
 
-// UnmarshalJSON unmarshals the instructions from a JSON string.
 func (i *Instructions) UnmarshalJSON(data []byte) error {
 	var values []string
 	if err := json.Unmarshal(data, &values); err != nil {

@@ -26,13 +26,13 @@ import (
 	"github.com/wandxy/hand/internal/models"
 	rpc "github.com/wandxy/hand/internal/rpc"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
-	sessionstore "github.com/wandxy/hand/internal/storage/session"
+	sessionstore "github.com/wandxy/hand/internal/session"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
 type agentRunner interface {
-	Run(context.Context) error
-	Chat(context.Context, string, agent.ChatOptions) (string, error)
+	Start(context.Context) error
+	Respond(context.Context, string, agent.RespondOptions) (string, error)
 	CreateSession(context.Context, string) (sessionstore.Session, error)
 	ListSessions(context.Context) ([]sessionstore.Session, error)
 	UseSession(context.Context, string) error
@@ -223,7 +223,7 @@ func NewCommand() *cli.Command {
 			}
 
 			agent := newAgentRunner(ctx, cfg, modelClient)
-			if err := agent.Run(ctx); err != nil {
+			if err := agent.Start(ctx); err != nil {
 				return err
 			}
 

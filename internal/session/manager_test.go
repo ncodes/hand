@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	handctx "github.com/wandxy/hand/internal/context"
+	handmsg "github.com/wandxy/hand/internal/messages"
 )
 
 type managerStoreStub struct {
@@ -19,9 +19,9 @@ type managerStoreStub struct {
 	deleteFunc                func(context.Context, string) error
 	setCurrentFunc            func(context.Context, string) error
 	currentFunc               func(context.Context) (string, bool, error)
-	appendMessagesFunc        func(context.Context, string, []handctx.Message) error
-	getMessageFunc            func(context.Context, string, int, MessageQueryOptions) (handctx.Message, bool, error)
-	getMessagesFunc           func(context.Context, string, MessageQueryOptions) ([]handctx.Message, error)
+	appendMessagesFunc        func(context.Context, string, []handmsg.Message) error
+	getMessageFunc            func(context.Context, string, int, MessageQueryOptions) (handmsg.Message, bool, error)
+	getMessagesFunc           func(context.Context, string, MessageQueryOptions) ([]handmsg.Message, error)
 	clearMessagesFunc         func(context.Context, string, MessageQueryOptions) error
 	createArchiveFunc         func(context.Context, ArchivedSession) error
 	getArchiveFunc            func(context.Context, string) (ArchivedSession, bool, error)
@@ -107,21 +107,21 @@ func (s *managerStoreStub) Current(ctx context.Context) (string, bool, error) {
 	return "", false, nil
 }
 
-func (s *managerStoreStub) AppendMessages(ctx context.Context, id string, messages []handctx.Message) error {
+func (s *managerStoreStub) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
 	if s.appendMessagesFunc != nil {
 		return s.appendMessagesFunc(ctx, id, messages)
 	}
 	return nil
 }
 
-func (s *managerStoreStub) GetMessage(ctx context.Context, id string, index int, opts MessageQueryOptions) (handctx.Message, bool, error) {
+func (s *managerStoreStub) GetMessage(ctx context.Context, id string, index int, opts MessageQueryOptions) (handmsg.Message, bool, error) {
 	if s.getMessageFunc != nil {
 		return s.getMessageFunc(ctx, id, index, opts)
 	}
-	return handctx.Message{}, false, nil
+	return handmsg.Message{}, false, nil
 }
 
-func (s *managerStoreStub) GetMessages(ctx context.Context, id string, opts MessageQueryOptions) ([]handctx.Message, error) {
+func (s *managerStoreStub) GetMessages(ctx context.Context, id string, opts MessageQueryOptions) ([]handmsg.Message, error) {
 	if s.getMessagesFunc != nil {
 		return s.getMessagesFunc(ctx, id, opts)
 	}
@@ -149,8 +149,8 @@ func Test_Manager_RunMaintenanceArchivesExpiredDefault(t *testing.T) {
 	store := NewStore()
 	expiredAt := time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: expiredAt}))
-	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handctx.Message{
-		{Role: handctx.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
 	}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: expiredAt}))
 
@@ -261,8 +261,8 @@ func Test_Manager_CreateSaveListAndResolveNonDefaultSession(t *testing.T) {
 	require.False(t, created.CreatedAt.IsZero())
 
 	require.EqualError(t, manager.AppendMessages(context.Background(), "", nil), "session id is required")
-	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []handctx.Message{
-		{Role: handctx.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)},
+	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)},
 	}))
 
 	resolved, err := manager.ResolveSession(context.Background(), testSessionA)
@@ -315,8 +315,8 @@ func Test_Manager_DeleteSessionKeepsArchives(t *testing.T) {
 
 	_, err = manager.CreateSession(context.Background(), testSessionA)
 	require.NoError(t, err)
-	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []handctx.Message{
-		{Role: handctx.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)},
+	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)},
 	}))
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
 		ID:              "archive-1",
@@ -326,8 +326,8 @@ func Test_Manager_DeleteSessionKeepsArchives(t *testing.T) {
 	}))
 	_, err = manager.CreateSession(context.Background(), testSessionA)
 	require.NoError(t, err)
-	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []handctx.Message{
-		{Role: handctx.RoleUser, Content: "hello-again", CreatedAt: time.Date(2026, 3, 30, 13, 30, 0, 0, time.UTC)},
+	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello-again", CreatedAt: time.Date(2026, 3, 30, 13, 30, 0, 0, time.UTC)},
 	}))
 
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
@@ -372,8 +372,8 @@ func Test_Manager_ResolveDefaultSessionKeepsActiveMessagesBeforeExpiry(t *testin
 	store := NewStore()
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handctx.Message{
-		{Role: handctx.RoleUser, Content: "still-active", CreatedAt: now.Add(-5 * time.Minute)},
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "still-active", CreatedAt: now.Add(-5 * time.Minute)},
 	}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
 
@@ -398,8 +398,8 @@ func Test_Manager_ResolveChatSessionDoesNotRunMaintenance(t *testing.T) {
 	store := NewStore()
 	expiredAt := time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: expiredAt}))
-	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handctx.Message{
-		{Role: handctx.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
 	}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: expiredAt}))
 
@@ -424,8 +424,8 @@ func Test_Manager_StartRunsMaintenance(t *testing.T) {
 	store := NewStore()
 	expiredAt := time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: expiredAt}))
-	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handctx.Message{
-		{Role: handctx.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
 	}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: expiredAt}))
 
@@ -646,7 +646,7 @@ func Test_Manager_ErrorBranchesAndWorkerTick(t *testing.T) {
 				getFunc: func(context.Context, string) (Session, bool, error) {
 					return Session{ID: DefaultSessionID, UpdatedAt: now.Add(-2 * time.Hour)}, true, nil
 				},
-				getMessagesFunc: func(context.Context, string, MessageQueryOptions) ([]handctx.Message, error) {
+				getMessagesFunc: func(context.Context, string, MessageQueryOptions) ([]handmsg.Message, error) {
 					return nil, errors.New("messages failed")
 				},
 			}, time.Hour, 24*time.Hour)
@@ -661,8 +661,8 @@ func Test_Manager_ErrorBranchesAndWorkerTick(t *testing.T) {
 				getFunc: func(context.Context, string) (Session, bool, error) {
 					return Session{ID: DefaultSessionID, UpdatedAt: now.Add(-2 * time.Hour)}, true, nil
 				},
-				getMessagesFunc: func(context.Context, string, MessageQueryOptions) ([]handctx.Message, error) {
-					return []handctx.Message{{Role: handctx.RoleUser, Content: "hello", CreatedAt: now.Add(-3 * time.Hour)}}, nil
+				getMessagesFunc: func(context.Context, string, MessageQueryOptions) ([]handmsg.Message, error) {
+					return []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now.Add(-3 * time.Hour)}}, nil
 				},
 				createArchiveFunc: func(context.Context, ArchivedSession) error {
 					return errors.New("archive failed")
@@ -679,8 +679,8 @@ func Test_Manager_ErrorBranchesAndWorkerTick(t *testing.T) {
 				getFunc: func(context.Context, string) (Session, bool, error) {
 					return Session{ID: DefaultSessionID, UpdatedAt: now.Add(-2 * time.Hour)}, true, nil
 				},
-				getMessagesFunc: func(context.Context, string, MessageQueryOptions) ([]handctx.Message, error) {
-					return []handctx.Message{{Role: handctx.RoleUser, Content: "hello", CreatedAt: now.Add(-3 * time.Hour)}}, nil
+				getMessagesFunc: func(context.Context, string, MessageQueryOptions) ([]handmsg.Message, error) {
+					return []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now.Add(-3 * time.Hour)}}, nil
 				},
 				clearMessagesFunc: func(context.Context, string, MessageQueryOptions) error {
 					return errors.New("clear failed")
@@ -697,8 +697,8 @@ func Test_Manager_ErrorBranchesAndWorkerTick(t *testing.T) {
 				getFunc: func(context.Context, string) (Session, bool, error) {
 					return Session{ID: DefaultSessionID, UpdatedAt: now.Add(-2 * time.Hour)}, true, nil
 				},
-				getMessagesFunc: func(context.Context, string, MessageQueryOptions) ([]handctx.Message, error) {
-					return []handctx.Message{{Role: handctx.RoleUser, Content: "hello", CreatedAt: now.Add(-3 * time.Hour)}}, nil
+				getMessagesFunc: func(context.Context, string, MessageQueryOptions) ([]handmsg.Message, error) {
+					return []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now.Add(-3 * time.Hour)}}, nil
 				},
 				saveFunc: func(context.Context, Session) error {
 					return errors.New("save failed")

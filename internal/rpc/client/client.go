@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
-	sessionstore "github.com/wandxy/hand/internal/storage/session"
+	sessionstore "github.com/wandxy/hand/internal/session"
 )
 
 type Client struct {
@@ -18,7 +18,7 @@ type Client struct {
 	client handpb.HandServiceClient
 }
 
-type ChatOptions struct {
+type RespondOptions struct {
 	Instruct  string
 	SessionID string
 }
@@ -50,7 +50,7 @@ func NewClient(ctx context.Context, opts Options) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Chat(ctx context.Context, message string, opts ChatOptions) (string, error) {
+func (c *Client) Respond(ctx context.Context, message string, opts RespondOptions) (string, error) {
 	resp, err := c.client.Chat(ctx, &handpb.ChatRequest{
 		Message:   message,
 		Instruct:  strings.TrimSpace(opts.Instruct),

@@ -13,8 +13,8 @@ import (
 	"github.com/openai/openai-go/v3/shared"
 	"github.com/rs/zerolog/log"
 
-	handctx "github.com/wandxy/hand/internal/context"
 	"github.com/wandxy/hand/internal/guardrails"
+	handmsg "github.com/wandxy/hand/internal/messages"
 )
 
 var jsonMarshal = json.Marshal
@@ -49,7 +49,7 @@ type normalizedGenerateRequest struct {
 	Model           string
 	APIMode         string
 	Instructions    string
-	Messages        []handctx.Message
+	Messages        []handmsg.Message
 	Tools           []ToolDefinition
 	MaxOutputTokens int64
 	Temperature     float64
@@ -71,7 +71,7 @@ func NewOpenAIClient(apiKey string, opts ...option.RequestOption) (*OpenAIClient
 }
 
 // Chat sends a chat message to the configured OpenAI-compatible API mode and returns the normalized response.
-func (c *OpenAIClient) Chat(ctx context.Context, req GenerateRequest) (*GenerateResponse, error) {
+func (c *OpenAIClient) Chat(ctx context.Context, req Request) (*Response, error) {
 	if c == nil {
 		return nil, errors.New("model client is required")
 	}
@@ -120,7 +120,7 @@ func (c *OpenAIClient) Chat(ctx context.Context, req GenerateRequest) (*Generate
 	return extractChatCompletionsResponse(resp)
 }
 
-func normalizeGenerateRequest(req GenerateRequest) (normalizedGenerateRequest, error) {
+func normalizeGenerateRequest(req Request) (normalizedGenerateRequest, error) {
 	model := strings.TrimSpace(req.Model)
 	if model == "" {
 		return normalizedGenerateRequest{}, errors.New("model is required")
@@ -158,10 +158,10 @@ func normalizeGenerateRequest(req GenerateRequest) (normalizedGenerateRequest, e
 	}, nil
 }
 
-func normalizeMessages(messages []handctx.Message) ([]handctx.Message, error) {
-	normalized := make([]handctx.Message, 0, len(messages))
+func normalizeMessages(messages []handmsg.Message) ([]handmsg.Message, error) {
+	normalized := make([]handmsg.Message, 0, len(messages))
 	for _, message := range messages {
-		role := handctx.Role(strings.TrimSpace(strings.ToLower(string(message.Role))))
+		role := handmsg.Role(strings.TrimSpace(strings.ToLower(string(message.Role))))
 		content := strings.TrimSpace(message.Content)
 		toolCallID := strings.TrimSpace(message.ToolCallID)
 		toolCalls, err := normalizeToolCalls(message.ToolCalls)
@@ -170,20 +170,20 @@ func normalizeMessages(messages []handctx.Message) ([]handctx.Message, error) {
 		}
 
 		switch role {
-		case handctx.RoleDeveloper:
+		case handmsg.RoleDeveloper:
 			return nil, errors.New("developer messages must be provided via instructions")
-		case handctx.RoleUser, handctx.RoleAssistant, handctx.RoleTool:
+		case handmsg.RoleUser, handmsg.RoleAssistant, handmsg.RoleTool:
 		default:
 			return nil, errors.New("message role must be one of user, assistant, or tool; developer messages must be provided via instructions")
 		}
-		if content == "" && !(role == handctx.RoleAssistant && len(toolCalls) > 0) {
+		if content == "" && !(role == handmsg.RoleAssistant && len(toolCalls) > 0) {
 			return nil, errors.New("message content is required")
 		}
-		if role == handctx.RoleTool && toolCallID == "" {
+		if role == handmsg.RoleTool && toolCallID == "" {
 			return nil, errors.New("tool call id is required")
 		}
 
-		normalized = append(normalized, handctx.Message{
+		normalized = append(normalized, handmsg.Message{
 			Role:       role,
 			Content:    content,
 			Name:       strings.TrimSpace(message.Name),
@@ -223,9 +223,9 @@ func buildChatCompletionsRequest(req normalizedGenerateRequest) openai.ChatCompl
 
 	for _, message := range req.Messages {
 		switch message.Role {
-		case handctx.RoleUser:
+		case handmsg.RoleUser:
 			messages = append(messages, openai.UserMessage(message.Content))
-		case handctx.RoleAssistant:
+		case handmsg.RoleAssistant:
 			if len(message.ToolCalls) == 0 {
 				messages = append(messages, openai.AssistantMessage(message.Content))
 				continue
@@ -251,7 +251,7 @@ func buildChatCompletionsRequest(req normalizedGenerateRequest) openai.ChatCompl
 				}
 			}
 			messages = append(messages, openai.ChatCompletionMessageParamUnion{OfAssistant: &assistant})
-		case handctx.RoleTool:
+		case handmsg.RoleTool:
 			messages = append(messages, openai.ToolMessage(message.Content, message.ToolCallID))
 		}
 	}
@@ -279,7 +279,7 @@ func buildResponsesRequest(req normalizedGenerateRequest) responses.ResponseNewP
 
 	for _, message := range req.Messages {
 		switch message.Role {
-		case handctx.RoleDeveloper, handctx.RoleUser:
+		case handmsg.RoleDeveloper, handmsg.RoleUser:
 			items = append(items, responses.ResponseInputItemParamOfInputMessage(
 				responses.ResponseInputMessageContentListParam{
 					{
@@ -288,7 +288,7 @@ func buildResponsesRequest(req normalizedGenerateRequest) responses.ResponseNewP
 				},
 				string(message.Role),
 			))
-		case handctx.RoleAssistant:
+		case handmsg.RoleAssistant:
 			if message.Content != "" {
 				assistantIndex++
 				items = append(items, responses.ResponseInputItemParamOfOutputMessage(
@@ -305,7 +305,7 @@ func buildResponsesRequest(req normalizedGenerateRequest) responses.ResponseNewP
 			for _, toolCall := range message.ToolCalls {
 				items = append(items, responses.ResponseInputItemParamOfFunctionCall(toolCall.Input, toolCall.ID, toolCall.Name))
 			}
-		case handctx.RoleTool:
+		case handmsg.RoleTool:
 			items = append(items, responses.ResponseInputItemParamOfFunctionCallOutput(message.ToolCallID, message.Content))
 		}
 	}
@@ -330,7 +330,7 @@ func buildResponsesRequest(req normalizedGenerateRequest) responses.ResponseNewP
 	return params
 }
 
-func extractChatCompletionsResponse(resp *openai.ChatCompletion) (*GenerateResponse, error) {
+func extractChatCompletionsResponse(resp *openai.ChatCompletion) (*Response, error) {
 	if len(resp.Choices) == 0 {
 		return nil, fmt.Errorf("chat completion response %q contained no choices", resp.ID)
 	}
@@ -349,7 +349,7 @@ func extractChatCompletionsResponse(resp *openai.ChatCompletion) (*GenerateRespo
 		return nil, errors.New("model returned empty response")
 	}
 
-	return &GenerateResponse{
+	return &Response{
 		ID:                resp.ID,
 		Model:             resp.Model,
 		OutputText:        outputText,
@@ -358,7 +358,7 @@ func extractChatCompletionsResponse(resp *openai.ChatCompletion) (*GenerateRespo
 	}, nil
 }
 
-func extractResponsesResponse(resp *responses.Response) (*GenerateResponse, error) {
+func extractResponsesResponse(resp *responses.Response) (*Response, error) {
 	var toolCalls []ToolCall
 	for _, item := range resp.Output {
 		if item.Type != "function_call" {
@@ -401,7 +401,7 @@ func extractResponsesResponse(resp *responses.Response) (*GenerateResponse, erro
 		return nil, fmt.Errorf("response status is %s", resp.Status)
 	}
 
-	return &GenerateResponse{
+	return &Response{
 		ID:                resp.ID,
 		Model:             string(resp.Model),
 		OutputText:        outputText,
@@ -410,12 +410,12 @@ func extractResponsesResponse(resp *responses.Response) (*GenerateResponse, erro
 	}, nil
 }
 
-func normalizeToolCalls(toolCalls []handctx.ToolCall) ([]handctx.ToolCall, error) {
+func normalizeToolCalls(toolCalls []handmsg.ToolCall) ([]handmsg.ToolCall, error) {
 	if len(toolCalls) == 0 {
 		return nil, nil
 	}
 
-	normalized := make([]handctx.ToolCall, 0, len(toolCalls))
+	normalized := make([]handmsg.ToolCall, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
 		id := strings.TrimSpace(toolCall.ID)
 		name := strings.TrimSpace(toolCall.Name)
@@ -425,7 +425,7 @@ func normalizeToolCalls(toolCalls []handctx.ToolCall) ([]handctx.ToolCall, error
 		if name == "" {
 			return nil, errors.New("tool call name is required")
 		}
-		normalized = append(normalized, handctx.ToolCall{
+		normalized = append(normalized, handmsg.ToolCall{
 			ID:    id,
 			Name:  name,
 			Input: strings.TrimSpace(toolCall.Input),

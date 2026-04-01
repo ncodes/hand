@@ -3,11 +3,11 @@ package models
 import (
 	"context"
 
-	handctx "github.com/wandxy/hand/internal/context"
+	handmsg "github.com/wandxy/hand/internal/messages"
 )
 
 type Client interface {
-	Chat(ctx context.Context, req GenerateRequest) (*GenerateResponse, error)
+	Chat(ctx context.Context, req Request) (*Response, error)
 }
 
 const (
@@ -15,18 +15,18 @@ const (
 	APIModeResponses       = "responses"
 )
 
-type GenerateRequest struct {
+type Request struct {
 	Model           string
 	APIMode         string
 	Instructions    string
-	Messages        []handctx.Message
+	Messages        []handmsg.Message
 	Tools           []ToolDefinition
 	MaxOutputTokens int64
 	Temperature     float64
 	DebugRequests   bool
 }
 
-type GenerateResponse struct {
+type Response struct {
 	ID                string
 	Model             string
 	OutputText        string

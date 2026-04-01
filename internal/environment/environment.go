@@ -2,14 +2,14 @@ package environment
 
 import (
 	"context"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 
 	"github.com/wandxy/hand/internal/config"
-	handctx "github.com/wandxy/hand/internal/context"
 	"github.com/wandxy/hand/internal/datadir"
 	"github.com/wandxy/hand/internal/guardrails"
-	instructionpkg "github.com/wandxy/hand/internal/instruction"
+	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/personality"
 	"github.com/wandxy/hand/internal/tools"
 	nativetools "github.com/wandxy/hand/internal/tools/native"
@@ -25,23 +25,12 @@ var (
 const configInstructInstructionName = "config.instruct"
 
 type Environment struct {
-	ctx     context.Context
-	cfg     *config.Config
-	handCtx *handctx.Context
-	tools   tools.Registry
-	traces  trace.Factory
-	runtime *Runtime
-}
-
-type Context interface {
-	GetInstructions() handctx.Instructions
-	SetInstruction(handctx.Instruction)
-	RemoveInstruction(string)
-	AddMessage(handctx.Message) error
-	AddUserMessage(string) error
-	AddAssistantMessage(string) error
-	GetMessages() []handctx.Message
-	GetConversation() handctx.Conversation
+	ctx          context.Context
+	cfg          *config.Config
+	instructions instructions.Instructions
+	tools        tools.Registry
+	traces       trace.Factory
+	runtime      *Runtime
 }
 
 type ToolRegistry interface {
@@ -64,6 +53,7 @@ func (e *Environment) ToolPolicy() tools.Policy {
 			Platform: "cli",
 		}
 	}
+
 	return tools.Policy{
 		Capabilities: tools.Capabilities{
 			Filesystem: *e.cfg.CapFilesystem,
@@ -80,6 +70,7 @@ func (e *Environment) ToolPolicy() tools.Policy {
 func NewEnvironment(ctx context.Context, cfg *config.Config) *Environment {
 	registry := tools.NewInMemoryRegistry()
 	traceFactory := trace.NoopFactory()
+
 	if cfg != nil && cfg.DebugTraces {
 		traceDir := cfg.DebugTraceDir
 		if traceDir == "" {
@@ -87,12 +78,13 @@ func NewEnvironment(ctx context.Context, cfg *config.Config) *Environment {
 		}
 		traceFactory = trace.NewFactory(traceDir, guardrails.NewRedactor())
 	}
+
 	return &Environment{
-		ctx:     ctx,
-		cfg:     cfg,
-		handCtx: handctx.NewContext(ctx, cfg),
-		tools:   registry,
-		traces:  traceFactory,
+		ctx:          ctx,
+		cfg:          cfg,
+		instructions: instructions.Instructions{},
+		tools:        registry,
+		traces:       traceFactory,
 	}
 }
 
@@ -100,6 +92,7 @@ func (e *Environment) Prepare() error {
 	if err := e.prepareTools(); err != nil {
 		return err
 	}
+
 	return e.prepareInstructions()
 }
 
@@ -133,40 +126,42 @@ func (e *Environment) prepareTools() error {
 }
 
 func (e *Environment) prepareInstructions() error {
-
-	// build base instructions
-	for _, instruction := range instructionpkg.BuildBase(e.cfg.Name) {
-		e.handCtx.AddInstruction(instruction)
+	for _, instruction := range instructions.BuildBase(e.cfg.Name) {
+		e.addInstruction(instruction)
 	}
 
-	// load personality overlay
 	personalityOverlay, err := loadPersonality()
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to load personality overlays")
 	} else if personalityOverlay.Found {
-		e.handCtx.AddInstruction(handctx.Instruction{Value: personalityOverlay.Content})
+		e.addInstruction(instructions.Instruction{Value: personalityOverlay.Content})
 	}
 
-	// load workspace rules
 	workspaceRules, err := loadWorkspaceRules(e.cfg.RulesFiles...)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to load workspace rules")
 		return nil
 	}
+
 	if workspaceRules.Found {
-		e.handCtx.AddInstruction(handctx.Instruction{Value: workspaceRules.Content})
+		e.addInstruction(instructions.Instruction{Value: workspaceRules.Content})
 	}
 
-	// load config-level instruct
 	if e.cfg != nil && e.cfg.Instruct != "" {
-		e.handCtx.SetInstruction(handctx.Instruction{Name: configInstructInstructionName, Value: e.cfg.Instruct})
+		e.setInstruction(instructions.Instruction{Name: configInstructInstructionName, Value: e.cfg.Instruct})
 	}
 
 	return nil
 }
 
-func (e *Environment) Context() Context {
-	return e.handCtx
+func (e *Environment) Instructions() instructions.Instructions {
+	if e == nil {
+		return nil
+	}
+
+	copied := make(instructions.Instructions, len(e.instructions))
+	copy(copied, e.instructions)
+	return copied
 }
 
 func (e *Environment) Tools() ToolRegistry {
@@ -177,6 +172,7 @@ func (e *Environment) NewIterationBudget() IterationBudget {
 	if e == nil || e.cfg == nil || e.cfg.MaxIterations <= 0 {
 		return NewIterationBudget(config.DefaultMaxIterations)
 	}
+
 	return NewIterationBudget(e.cfg.MaxIterations)
 }
 
@@ -184,12 +180,14 @@ func (e *Environment) NewTraceSession() trace.Session {
 	if e == nil || e.traces == nil {
 		return trace.NoopSession()
 	}
+
 	metadata := trace.Metadata{Source: "agent"}
 	if e.cfg != nil {
 		metadata.AgentName = e.cfg.Name
 		metadata.Model = e.cfg.Model
 		metadata.APIMode = e.cfg.ModelAPIMode
 	}
+
 	return e.traces.NewSession(e.ctx, metadata)
 }
 
@@ -197,6 +195,7 @@ func (e *Environment) fileRoots() []string {
 	if e == nil || e.cfg == nil || len(e.cfg.FSRoots) == 0 {
 		return guardrails.NormalizeRoots(nil)
 	}
+
 	return guardrails.NormalizeRoots(e.cfg.FSRoots)
 }
 
@@ -204,9 +203,42 @@ func (e *Environment) commandPolicy() guardrails.CommandPolicy {
 	if e == nil || e.cfg == nil {
 		return guardrails.CommandPolicy{}
 	}
+
 	return guardrails.CommandPolicy{
 		Allow: e.cfg.ExecAllow,
 		Ask:   e.cfg.ExecAsk,
 		Deny:  e.cfg.ExecDeny,
 	}.Normalize()
+}
+
+func (e *Environment) addInstruction(instruction instructions.Instruction) {
+	e.instructions = append(e.instructions, instruction)
+}
+
+func (e *Environment) setInstruction(instruction instructions.Instruction) {
+	instruction.Name = strings.TrimSpace(instruction.Name)
+	instruction.Value = strings.TrimSpace(instruction.Value)
+
+	if instruction.Name == "" {
+		e.addInstruction(instruction)
+		return
+	}
+
+	for idx, existing := range e.instructions {
+		if existing.Name != instruction.Name {
+			continue
+		}
+
+		if instruction.Value == "" {
+			e.instructions = append(e.instructions[:idx], e.instructions[idx+1:]...)
+			return
+		}
+
+		e.instructions[idx] = instruction
+		return
+	}
+
+	if instruction.Value != "" {
+		e.instructions = append(e.instructions, instruction)
+	}
 }

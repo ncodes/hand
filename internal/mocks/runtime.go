@@ -3,25 +3,24 @@ package mocks
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/wandxy/hand/internal/config"
-	handcontext "github.com/wandxy/hand/internal/context"
 	"github.com/wandxy/hand/internal/environment"
+	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 )
 
 type ModelClientStub struct {
-	Requests  []models.GenerateRequest
-	Responses []*models.GenerateResponse
+	Requests  []models.Request
+	Responses []*models.Response
 	Errors    []error
 	Err       error
 	CallCount int
 }
 
-func (s *ModelClientStub) Chat(_ context.Context, req models.GenerateRequest) (*models.GenerateResponse, error) {
+func (s *ModelClientStub) Chat(_ context.Context, req models.Request) (*models.Response, error) {
 	s.Requests = append(s.Requests, req)
 	if s.CallCount < len(s.Errors) && s.Errors[s.CallCount] != nil {
 		s.CallCount++
@@ -39,20 +38,20 @@ func (s *ModelClientStub) Chat(_ context.Context, req models.GenerateRequest) (*
 }
 
 type EnvironmentStub struct {
-	PrepareErr      error
-	RuntimeContext  environment.Context
-	ToolRegistry    environment.ToolRegistry
-	Policy          tools.Policy
-	IterationBudget environment.IterationBudget
-	TraceSession    trace.Session
+	PrepareErr       error
+	InstructionsList instruct.Instructions
+	ToolRegistry     environment.ToolRegistry
+	Policy           tools.Policy
+	IterationBudget  environment.IterationBudget
+	TraceSession     trace.Session
 }
 
 func (s *EnvironmentStub) Prepare() error {
 	return s.PrepareErr
 }
 
-func (s *EnvironmentStub) Context() environment.Context {
-	return s.RuntimeContext
+func (s *EnvironmentStub) Instructions() instruct.Instructions {
+	return s.InstructionsList
 }
 
 func (s *EnvironmentStub) Tools() environment.ToolRegistry {
@@ -75,96 +74,6 @@ func (s *EnvironmentStub) NewTraceSession() trace.Session {
 		return trace.NoopSession()
 	}
 	return s.TraceSession
-}
-
-type ContextStub struct {
-	Instructions        handcontext.Instructions
-	Messages            []handcontext.Message
-	Conversation        handcontext.Conversation
-	AddUserMessageErr   error
-	AddAssistantMsgErr  error
-	AddMessageErr       error
-	AddMessageErrOnCall int
-	AddMessageCallCount int
-}
-
-func (s *ContextStub) GetInstructions() handcontext.Instructions {
-	return s.Instructions
-}
-
-func (s *ContextStub) SetInstruction(instruction handcontext.Instruction) {
-	instruction.Name = strings.TrimSpace(instruction.Name)
-	instruction.Value = strings.TrimSpace(instruction.Value)
-	if instruction.Name == "" {
-		s.Instructions = append(s.Instructions, instruction)
-		return
-	}
-	for idx, existing := range s.Instructions {
-		if existing.Name == instruction.Name {
-			if instruction.Value == "" {
-				s.Instructions = append(s.Instructions[:idx], s.Instructions[idx+1:]...)
-				return
-			}
-			s.Instructions[idx] = instruction
-			return
-		}
-	}
-	if instruction.Value != "" {
-		s.Instructions = append(s.Instructions, instruction)
-	}
-}
-
-func (s *ContextStub) RemoveInstruction(name string) {
-	s.Instructions = s.Instructions.WithoutName(name)
-}
-
-func (s *ContextStub) AddMessage(message handcontext.Message) error {
-	s.AddMessageCallCount++
-	if s.AddMessageErrOnCall > 0 && s.AddMessageCallCount == s.AddMessageErrOnCall {
-		return s.AddMessageErr
-	}
-	if s.AddMessageErr != nil && s.AddMessageErrOnCall == 0 {
-		return s.AddMessageErr
-	}
-	s.Messages = append(s.Messages, message)
-	_ = s.Conversation.Append(message)
-	return nil
-}
-
-func (s *ContextStub) AddUserMessage(content string) error {
-	if s.AddUserMessageErr != nil {
-		return s.AddUserMessageErr
-	}
-	message, err := handcontext.NewMessage(handcontext.RoleUser, content)
-	if err != nil {
-		return err
-	}
-	s.Messages = append(s.Messages, message)
-	_ = s.Conversation.Append(message)
-	return nil
-}
-
-func (s *ContextStub) AddAssistantMessage(content string) error {
-	if s.AddAssistantMsgErr != nil {
-		return s.AddAssistantMsgErr
-	}
-	message, err := handcontext.NewMessage(handcontext.RoleAssistant, content)
-	if err != nil {
-		return err
-	}
-	s.Messages = append(s.Messages, message)
-	_ = s.Conversation.Append(message)
-	return nil
-}
-
-func (s *ContextStub) GetMessages() []handcontext.Message {
-	out := make([]handcontext.Message, len(s.Messages))
-	copy(out, s.Messages)
-	return out
-}
-
-func (s *ContextStub) GetConversation() handcontext.Conversation {
-	return s.Conversation
 }
 
 type ToolRegistryStub struct {

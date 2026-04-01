@@ -35,7 +35,7 @@ type chatRunnerStub struct {
 	closed    bool
 }
 
-func (s *chatRunnerStub) Chat(_ context.Context, msg string, opts rpcclient.ChatOptions) (string, error) {
+func (s *chatRunnerStub) Respond(_ context.Context, msg string, opts rpcclient.RespondOptions) (string, error) {
 	s.chatInput = msg
 	s.instruct = opts.Instruct
 	s.sessionID = opts.SessionID

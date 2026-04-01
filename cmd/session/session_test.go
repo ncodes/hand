@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
-	sessionstore "github.com/wandxy/hand/internal/storage/session"
+	sessionstore "github.com/wandxy/hand/internal/session"
 )
 
 type runnerStub struct {

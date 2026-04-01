@@ -48,22 +48,22 @@ func (s *handServiceClientStub) CurrentSession(context.Context, *handpb.CurrentS
 	return s.currentResp, s.err
 }
 
-func TestClient_ChatSendsInstruct(t *testing.T) {
+func TestClient_RespondSendsInstruct(t *testing.T) {
 	stub := &handServiceClientStub{resp: &handpb.ChatResponse{Message: "hello back"}}
 	client := &Client{client: stub}
 
-	reply, err := client.Chat(context.Background(), "hello", ChatOptions{Instruct: "be terse"})
+	reply, err := client.Respond(context.Background(), "hello", RespondOptions{Instruct: "be terse"})
 
 	require.NoError(t, err)
 	require.Equal(t, "hello back", reply)
 	require.Equal(t, &handpb.ChatRequest{Message: "hello", Instruct: "be terse"}, stub.req)
 }
 
-func TestClient_ChatSendsSessionID(t *testing.T) {
+func TestClient_RespondSendsSessionID(t *testing.T) {
 	stub := &handServiceClientStub{resp: &handpb.ChatResponse{Message: "hello back"}}
 	client := &Client{client: stub}
 
-	_, err := client.Chat(context.Background(), "hello", ChatOptions{SessionID: "project-a"})
+	_, err := client.Respond(context.Background(), "hello", RespondOptions{SessionID: "project-a"})
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", stub.req.GetSessionId())

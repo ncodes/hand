@@ -15,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	handctx "github.com/wandxy/hand/internal/context"
+	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	handtrace "github.com/wandxy/hand/internal/trace"
 )
@@ -45,13 +45,13 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			SessionID: "20260329T002738.170520000Z-4fca4857",
 			Type:      "model.request",
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 38, 171759000, time.UTC),
-			Payload: models.GenerateRequest{
+			Payload: models.Request{
 				Model:        "qwen/qwen3.5-27b",
 				APIMode:      "chat-completions",
 				Instructions: "Daemon is the user's personal agent.",
-				Messages: []handctx.Message{
+				Messages: []handmsg.Message{
 					{
-						Role:      handctx.RoleUser,
+						Role:      handmsg.RoleUser,
 						Content:   "List files in the root",
 						CreatedAt: time.Date(2026, 3, 29, 0, 27, 38, 171668000, time.UTC),
 					},
@@ -65,7 +65,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			SessionID: "20260329T002738.170520000Z-4fca4857",
 			Type:      "model.response",
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 41, 430260000, time.UTC),
-			Payload: models.GenerateResponse{
+			Payload: models.Response{
 				ID:                "gen-1",
 				Model:             "qwen/qwen3.5-27b-20260224",
 				RequiresToolCalls: true,
@@ -76,10 +76,10 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			SessionID: "20260329T002738.170520000Z-4fca4857",
 			Type:      "model.request",
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 45, 171759000, time.UTC),
-			Payload: models.GenerateRequest{
+			Payload: models.Request{
 				Model:       "qwen/qwen3.5-27b",
 				APIMode:     "chat-completions",
-				Messages:    []handctx.Message{{Role: handctx.RoleTool, Content: `{"entries":[]}`}},
+				Messages:    []handmsg.Message{{Role: handmsg.RoleTool, Content: `{"entries":[]}`}},
 				Temperature: 0,
 			},
 		},
@@ -87,7 +87,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			SessionID: "20260329T002738.170520000Z-4fca4857",
 			Type:      "model.response",
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 46, 430260000, time.UTC),
-			Payload: models.GenerateResponse{
+			Payload: models.Response{
 				ID:         "gen-2",
 				Model:      "qwen/qwen3.5-27b-20260224",
 				OutputText: "Here are the files and directories in the root.",
@@ -103,8 +103,8 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			SessionID: "20260329T002738.170520000Z-4fca4857",
 			Type:      "tool.invocation.completed",
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 41, 447625000, time.UTC),
-			Payload: handctx.Message{
-				Role:       handctx.RoleTool,
+			Payload: handmsg.Message{
+				Role:       handmsg.RoleTool,
 				Name:       "list_files",
 				ToolCallID: "call-1",
 				Content:    `{"name":"list_files","output":"{\"entries\":[]}"}`,
@@ -468,7 +468,7 @@ func Test_Utility_Helpers(t *testing.T) {
 		ID:    "call-1",
 		Name:  "list_files",
 		Input: "{}",
-	}}, buildToolCallViewsFromContext([]handctx.ToolCall{{
+	}}, buildToolCallViewsFromContext([]handmsg.ToolCall{{
 		ID:    "call-1",
 		Name:  "list_files",
 		Input: "{}",
@@ -619,7 +619,7 @@ func Test_ApplyEvent_PreservesSummaryAndFallsBackToGenericPayload(t *testing.T) 
 	}
 	timelineEvent := TimelineEvent{}
 
-	requestPayload, err := json.Marshal(models.GenerateRequest{
+	requestPayload, err := json.Marshal(models.Request{
 		Model:   "new-model",
 		APIMode: "chat-completions",
 	})

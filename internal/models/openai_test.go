@@ -16,7 +16,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 
-	handctx "github.com/wandxy/hand/internal/context"
+	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -127,16 +127,16 @@ func TestNewOpenAIResponseCaller_UsesSDKClient(t *testing.T) {
 
 func TestOpenAIClient_ChatRequiresClient(t *testing.T) {
 	var nilClient *OpenAIClient
-	_, err := nilClient.Chat(context.Background(), GenerateRequest{})
+	_, err := nilClient.Chat(context.Background(), Request{})
 	require.EqualError(t, err, "model client is required")
 }
 
 func TestOpenAIClient_ChatRejectsInvalidAPIMode(t *testing.T) {
 	client := &OpenAIClient{}
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "test-model",
 		APIMode:  "invalid",
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model api mode must be one of: chat-completions, responses")
 }
@@ -144,8 +144,8 @@ func TestOpenAIClient_ChatRejectsInvalidAPIMode(t *testing.T) {
 func TestOpenAIClient_ChatRequiresModel(t *testing.T) {
 	client := &OpenAIClient{}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+	_, err := client.Chat(context.Background(), Request{
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model is required")
 }
@@ -153,16 +153,16 @@ func TestOpenAIClient_ChatRequiresModel(t *testing.T) {
 func TestOpenAIClient_ChatRequiresMessages(t *testing.T) {
 	client := &OpenAIClient{}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{Model: "test-model"})
+	_, err := client.Chat(context.Background(), Request{Model: "test-model"})
 	require.EqualError(t, err, "messages are required")
 }
 
 func TestOpenAIClient_ChatRequiresSelectedModeHandler(t *testing.T) {
 	client := &OpenAIClient{}
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "test-model",
 		APIMode:  APIModeResponses,
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model client is required")
 }
@@ -172,45 +172,45 @@ func TestOpenAIClient_ChatRequiresChatCompletionsHandler(t *testing.T) {
 		return &responses.Response{}, nil
 	}}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model client is required")
 }
 
 func TestOpenAIClient_ChatRejectsInvalidMessageRole(t *testing.T) {
 	client := &OpenAIClient{}
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handctx.Message{{Role: handctx.Role("invalid"), Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.Role("invalid"), Content: "hello"}},
 	})
 	require.EqualError(t, err, "message role must be one of user, assistant, or tool; developer messages must be provided via instructions")
 }
 
 func TestOpenAIClient_ChatRejectsEmptyMessageContent(t *testing.T) {
 	client := &OpenAIClient{}
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "   "}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "   "}},
 	})
 	require.EqualError(t, err, "message content is required")
 }
 
 func TestOpenAIClient_ChatRejectsDeveloperMessageInConversation(t *testing.T) {
 	client := &OpenAIClient{}
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handctx.Message{{Role: handctx.RoleDeveloper, Content: "system"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleDeveloper, Content: "system"}},
 	})
 	require.EqualError(t, err, "developer messages must be provided via instructions")
 }
 
 func TestOpenAIClient_ChatRejectsBlankToolDefinitionName(t *testing.T) {
 	client := &OpenAIClient{}
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 		Tools:    []ToolDefinition{{Name: "   "}},
 	})
 	require.EqualError(t, err, "tool name is required")
@@ -224,9 +224,9 @@ func TestOpenAIClient_ChatReturnsAPIErrorChatCompletions(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.ErrorIs(t, err, expectedErr)
 }
@@ -238,9 +238,9 @@ func TestOpenAIClient_ChatRequiresChatCompletionsResponse(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model response is required")
 }
@@ -260,18 +260,18 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsChatCompletionsRequest(t *test
 		},
 	}
 
-	resp, err := client.Chat(context.Background(), GenerateRequest{
+	resp, err := client.Chat(context.Background(), Request{
 		Model:        "test-model",
 		Instructions: "  be concise  ",
-		Messages: []handctx.Message{
-			{Role: handctx.RoleUser, Content: "  hello  "},
-			{Role: handctx.RoleAssistant, Content: " previous reply "},
+		Messages: []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "  hello  "},
+			{Role: handmsg.RoleAssistant, Content: " previous reply "},
 		},
 		MaxOutputTokens: 123,
 		Temperature:     0.7,
 	})
 	require.NoError(t, err)
-	require.Equal(t, &GenerateResponse{ID: "resp_123", Model: "returned-model", OutputText: "hello back"}, resp)
+	require.Equal(t, &Response{ID: "resp_123", Model: "returned-model", OutputText: "hello back"}, resp)
 
 	raw, err := json.Marshal(captured)
 	require.NoError(t, err)
@@ -311,9 +311,9 @@ func TestOpenAIClient_ChatReturnsToolCallsFromChatCompletions(t *testing.T) {
 		},
 	}
 
-	resp, err := client.Chat(context.Background(), GenerateRequest{
+	resp, err := client.Chat(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "what time is it?"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "what time is it?"}},
 		Tools:    []ToolDefinition{{Name: "time", Description: "Returns the current time.", InputSchema: map[string]any{"type": "object"}}},
 	})
 	require.NoError(t, err)
@@ -334,9 +334,9 @@ func TestOpenAIClient_ChatRejectsChatCompletionToolCallWithoutID(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "tool call id is required")
 }
@@ -355,9 +355,9 @@ func TestOpenAIClient_ChatRejectsChatCompletionToolCallWithoutName(t *testing.T)
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "tool call name is required")
 }
@@ -369,9 +369,9 @@ func TestOpenAIClient_ChatRejectsChatCompletionResponseWithoutChoices(t *testing
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, `chat completion response "resp_123" contained no choices`)
 }
@@ -389,9 +389,9 @@ func TestOpenAIClient_ChatRejectsEmptyChatCompletionResponse(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model returned empty response")
 }
@@ -409,12 +409,12 @@ func TestOpenAIClient_ChatUsesRefusalAsOutputText(t *testing.T) {
 		},
 	}
 
-	resp, err := client.Chat(context.Background(), GenerateRequest{
+	resp, err := client.Chat(context.Background(), Request{
 		Model:    "test-model",
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.NoError(t, err)
-	require.Equal(t, &GenerateResponse{ID: "resp_refusal", Model: "returned-model", OutputText: "I can't do that."}, resp)
+	require.Equal(t, &Response{ID: "resp_refusal", Model: "returned-model", OutputText: "I can't do that."}, resp)
 }
 
 func TestOpenAIClient_ChatReturnsResponseAndBuildsResponsesRequest(t *testing.T) {
@@ -436,21 +436,21 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsResponsesRequest(t *testing.T)
 		},
 	}
 
-	resp, err := client.Chat(context.Background(), GenerateRequest{
+	resp, err := client.Chat(context.Background(), Request{
 		Model:        "gpt-5.1",
 		APIMode:      APIModeResponses,
 		Instructions: "  be concise  ",
-		Messages: []handctx.Message{
-			{Role: handctx.RoleUser, Content: "  hello  "},
-			{Role: handctx.RoleAssistant, Content: "calling tool", ToolCalls: []handctx.ToolCall{{ID: "call-1", Name: "time", Input: " {} "}}},
-			{Role: handctx.RoleTool, Content: `{"output":"2026-03-24T00:00:00Z"}`, ToolCallID: "call-1"},
+		Messages: []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "  hello  "},
+			{Role: handmsg.RoleAssistant, Content: "calling tool", ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: " {} "}}},
+			{Role: handmsg.RoleTool, Content: `{"output":"2026-03-24T00:00:00Z"}`, ToolCallID: "call-1"},
 		},
 		Tools:           []ToolDefinition{{Name: "time", Description: "Returns the current time.", InputSchema: map[string]any{"type": "object"}}},
 		MaxOutputTokens: 111,
 		Temperature:     0.5,
 	})
 	require.NoError(t, err)
-	require.Equal(t, &GenerateResponse{ID: "resp_456", Model: "gpt-5.1", OutputText: "hello from responses"}, resp)
+	require.Equal(t, &Response{ID: "resp_456", Model: "gpt-5.1", OutputText: "hello from responses"}, resp)
 
 	logutils.PrettyPrintJSON(captured, "<<")
 	raw, err := json.Marshal(captured)
@@ -483,10 +483,10 @@ func TestOpenAIClient_ChatReturnsToolCallsFromResponses(t *testing.T) {
 		},
 	}
 
-	resp, err := client.Chat(context.Background(), GenerateRequest{
+	resp, err := client.Chat(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "what time is it?"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "what time is it?"}},
 		Tools:    []ToolDefinition{{Name: "time", Description: "Returns the current time.", InputSchema: map[string]any{"type": "object"}}},
 	})
 	require.NoError(t, err)
@@ -502,10 +502,10 @@ func TestOpenAIClient_ChatReturnsResponseErrorResponses(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.ErrorIs(t, err, expectedErr)
 }
@@ -517,10 +517,10 @@ func TestOpenAIClient_ChatRequiresResponsesResponse(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model response is required")
 }
@@ -534,10 +534,10 @@ func TestOpenAIClient_ChatRejectsResponseToolCallWithoutID(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "tool call id is required")
 }
@@ -551,10 +551,10 @@ func TestOpenAIClient_ChatRejectsResponseToolCallWithoutName(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "tool call name is required")
 }
@@ -569,10 +569,10 @@ func TestOpenAIClient_ChatReturnsResponsesFailureError(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "provider failed")
 }
@@ -587,10 +587,10 @@ func TestOpenAIClient_ChatReturnsResponsesIncompleteErrorWithoutUsableOutput(t *
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "response incomplete: max_output_tokens")
 }
@@ -613,10 +613,10 @@ func TestOpenAIClient_ChatReturnsResponsesIncompleteSuccessWithText(t *testing.T
 		},
 	}
 
-	resp, err := client.Chat(context.Background(), GenerateRequest{
+	resp, err := client.Chat(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.NoError(t, err)
 	require.Equal(t, "partial answer", resp.OutputText)
@@ -629,10 +629,10 @@ func TestOpenAIClient_ChatRejectsUnexpectedResponsesStatus(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "response status is in_progress")
 }
@@ -644,10 +644,10 @@ func TestOpenAIClient_ChatReturnsResponsesFailureErrorWithoutProviderMessage(t *
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "response failed")
 }
@@ -659,10 +659,10 @@ func TestOpenAIClient_ChatReturnsResponsesIncompleteErrorWithUnknownReason(t *te
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
-		Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "response incomplete: unknown")
 }
@@ -691,9 +691,9 @@ func TestOpenAIClient_ChatLogsRequestDebugDumpForChatCompletions(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{
+	_, err := client.Chat(context.Background(), Request{
 		Model:         "test-model",
-		Messages:      []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}},
+		Messages:      []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 		DebugRequests: true,
 	})
 	require.NoError(t, err)
@@ -720,7 +720,7 @@ func TestOpenAIClient_ChatLogsRequestDebugDumpWhenEnabled(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), GenerateRequest{Model: "gpt-5.1", APIMode: APIModeResponses, Instructions: "be concise", Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}}, DebugRequests: true})
+	_, err := client.Chat(context.Background(), Request{Model: "gpt-5.1", APIMode: APIModeResponses, Instructions: "be concise", Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}, DebugRequests: true})
 	require.NoError(t, err)
 	output := buf.String()
 	require.Contains(t, output, "model request debug dump")
@@ -752,7 +752,7 @@ func TestLogRequestDebugDump_LogsMarshalError(t *testing.T) {
 }
 
 func TestNormalizeGenerateRequestDefaultsAPIMode(t *testing.T) {
-	normalized, err := normalizeGenerateRequest(GenerateRequest{Model: "test-model", Messages: []handctx.Message{{Role: handctx.RoleUser, Content: "hello"}}})
+	normalized, err := normalizeGenerateRequest(Request{Model: "test-model", Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}})
 	require.NoError(t, err)
 	require.Equal(t, APIModeChatCompletions, normalized.APIMode)
 }
@@ -760,8 +760,8 @@ func TestNormalizeGenerateRequestDefaultsAPIMode(t *testing.T) {
 func TestBuildChatCompletionsRequestIncludesPlainAssistantMessage(t *testing.T) {
 	params := buildChatCompletionsRequest(normalizedGenerateRequest{
 		Model: "test-model",
-		Messages: []handctx.Message{{
-			Role:    handctx.RoleAssistant,
+		Messages: []handmsg.Message{{
+			Role:    handmsg.RoleAssistant,
 			Content: "hello back",
 		}},
 	})
@@ -775,10 +775,10 @@ func TestBuildChatCompletionsRequestIncludesPlainAssistantMessage(t *testing.T) 
 func TestBuildChatCompletionsRequestIncludesAssistantToolCallContent(t *testing.T) {
 	params := buildChatCompletionsRequest(normalizedGenerateRequest{
 		Model: "test-model",
-		Messages: []handctx.Message{{
-			Role:      handctx.RoleAssistant,
+		Messages: []handmsg.Message{{
+			Role:      handmsg.RoleAssistant,
 			Content:   "calling tool",
-			ToolCalls: []handctx.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
+			ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
 		}},
 	})
 
@@ -792,9 +792,9 @@ func TestBuildChatCompletionsRequestIncludesToolMessages(t *testing.T) {
 	params := buildChatCompletionsRequest(normalizedGenerateRequest{
 		Model:        "test-model",
 		Instructions: "be concise",
-		Messages: []handctx.Message{
-			{Role: handctx.RoleAssistant, ToolCalls: []handctx.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}},
-			{Role: handctx.RoleTool, Content: `{"output":"2026-03-24T00:00:00Z"}`, ToolCallID: "call-1"},
+		Messages: []handmsg.Message{
+			{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}},
+			{Role: handmsg.RoleTool, Content: `{"output":"2026-03-24T00:00:00Z"}`, ToolCallID: "call-1"},
 		},
 		Tools: []ToolDefinition{{Name: "time", Description: "Returns time", InputSchema: map[string]any{"type": "object"}}},
 	})
@@ -808,28 +808,28 @@ func TestBuildChatCompletionsRequestIncludesToolMessages(t *testing.T) {
 }
 
 func TestNormalizeMessagesAcceptsAssistantToolCallWithoutContent(t *testing.T) {
-	messages, err := normalizeMessages([]handctx.Message{{
-		Role:      handctx.RoleAssistant,
-		ToolCalls: []handctx.ToolCall{{ID: "call-1", Name: "time", Input: " {} "}},
+	messages, err := normalizeMessages([]handmsg.Message{{
+		Role:      handmsg.RoleAssistant,
+		ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: " {} "}},
 	}})
 	require.NoError(t, err)
-	require.Equal(t, []handctx.Message{{
-		Role:      handctx.RoleAssistant,
-		ToolCalls: []handctx.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
+	require.Equal(t, []handmsg.Message{{
+		Role:      handmsg.RoleAssistant,
+		ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
 	}}, messages)
 }
 
 func TestNormalizeMessagesPropagatesToolCallNormalizationError(t *testing.T) {
-	_, err := normalizeMessages([]handctx.Message{{
-		Role:      handctx.RoleAssistant,
-		ToolCalls: []handctx.ToolCall{{Name: "time", Input: "{}"}},
+	_, err := normalizeMessages([]handmsg.Message{{
+		Role:      handmsg.RoleAssistant,
+		ToolCalls: []handmsg.ToolCall{{Name: "time", Input: "{}"}},
 	}})
 	require.EqualError(t, err, "tool call id is required")
 }
 
 func TestNormalizeMessagesTrimsName(t *testing.T) {
-	messages, err := normalizeMessages([]handctx.Message{{
-		Role:       handctx.RoleTool,
+	messages, err := normalizeMessages([]handmsg.Message{{
+		Role:       handmsg.RoleTool,
 		Content:    `{"output":"ok"}`,
 		Name:       " time ",
 		ToolCallID: "call-1",
@@ -839,20 +839,20 @@ func TestNormalizeMessagesTrimsName(t *testing.T) {
 }
 
 func TestNormalizeMessagesRequiresToolCallIDForToolMessages(t *testing.T) {
-	_, err := normalizeMessages([]handctx.Message{{
-		Role:    handctx.RoleTool,
+	_, err := normalizeMessages([]handmsg.Message{{
+		Role:    handmsg.RoleTool,
 		Content: `{"output":"ok"}`,
 	}})
 	require.EqualError(t, err, "tool call id is required")
 }
 
 func TestNormalizeToolCallsRejectsMissingID(t *testing.T) {
-	_, err := normalizeToolCalls([]handctx.ToolCall{{Name: "time", Input: "{}"}})
+	_, err := normalizeToolCalls([]handmsg.ToolCall{{Name: "time", Input: "{}"}})
 	require.EqualError(t, err, "tool call id is required")
 }
 
 func TestNormalizeToolCallsRejectsMissingName(t *testing.T) {
-	_, err := normalizeToolCalls([]handctx.ToolCall{{ID: "call-1", Input: "{}"}})
+	_, err := normalizeToolCalls([]handmsg.ToolCall{{ID: "call-1", Input: "{}"}})
 	require.EqualError(t, err, "tool call name is required")
 }
 

@@ -1,4 +1,4 @@
-package context
+package messages
 
 import (
 	"errors"
@@ -16,12 +16,12 @@ const (
 )
 
 type Message struct {
-	Role      Role
-	Content   string
-	Name      string
+	Role       Role
+	Content    string
+	Name       string
 	ToolCallID string
-	ToolCalls []ToolCall
-	CreatedAt time.Time
+	ToolCalls  []ToolCall
+	CreatedAt  time.Time
 }
 
 type ToolCall struct {
@@ -30,7 +30,7 @@ type ToolCall struct {
 	Input string
 }
 
-func NewMessage(role Role, content string) (Message, error) {
+func New(role Role, content string) (Message, error) {
 	normalizedRole, err := normalizeRole(role)
 	if err != nil {
 		return Message{}, err
@@ -42,29 +42,35 @@ func NewMessage(role Role, content string) (Message, error) {
 	}
 
 	return Message{
-		Role:       normalizedRole,
-		Content:    trimmedContent,
-		CreatedAt:  time.Now().UTC(),
+		Role:      normalizedRole,
+		Content:   trimmedContent,
+		CreatedAt: time.Now().UTC(),
 	}, nil
 }
 
-func normalizeMessage(message Message) (Message, error) {
+func NewMessage(role Role, content string) (Message, error) {
+	return New(role, content)
+}
+
+func Normalize(message Message) (Message, error) {
 	role, err := normalizeRole(message.Role)
 	if err != nil {
 		return Message{}, err
 	}
 
-	content := strings.TrimSpace(message.Content)
 	toolCalls, err := normalizeToolCalls(message.ToolCalls)
 	if err != nil {
 		return Message{}, err
 	}
+    
 	toolCallID := strings.TrimSpace(message.ToolCallID)
 	name := strings.TrimSpace(message.Name)
+    content := strings.TrimSpace(message.Content)
 
 	if content == "" && !(role == RoleAssistant && len(toolCalls) > 0) {
 		return Message{}, errors.New("message content is required")
 	}
+
 	if role == RoleTool && toolCallID == "" {
 		return Message{}, errors.New("tool call id is required")
 	}
@@ -77,11 +83,16 @@ func normalizeMessage(message Message) (Message, error) {
 		ToolCalls:  toolCalls,
 		CreatedAt:  message.CreatedAt.UTC(),
 	}
+
 	if normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = time.Now().UTC()
 	}
 
 	return normalized, nil
+}
+
+func NormalizeMessage(message Message) (Message, error) {
+	return Normalize(message)
 }
 
 func normalizeToolCalls(toolCalls []ToolCall) ([]ToolCall, error) {
@@ -98,15 +109,12 @@ func normalizeToolCalls(toolCalls []ToolCall) ([]ToolCall, error) {
 		if id == "" {
 			return nil, errors.New("tool call id is required")
 		}
+
 		if name == "" {
 			return nil, errors.New("tool call name is required")
 		}
 
-		normalized = append(normalized, ToolCall{
-			ID:    id,
-			Name:  name,
-			Input: input,
-		})
+		normalized = append(normalized, ToolCall{ID: id, Name: name, Input: input})
 	}
 
 	return normalized, nil

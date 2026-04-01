@@ -13,7 +13,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	handctx "github.com/wandxy/hand/internal/context"
+	handmsg "github.com/wandxy/hand/internal/messages"
 )
 
 const currentSessionStateKey = "current_session"
@@ -249,7 +249,7 @@ func (s *SQLiteStore) Delete(ctx context.Context, id string) error {
 	})
 }
 
-func (s *SQLiteStore) AppendMessages(ctx context.Context, id string, messages []handctx.Message) error {
+func (s *SQLiteStore) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
 	}
@@ -294,7 +294,7 @@ func (s *SQLiteStore) GetMessages(
 	ctx context.Context,
 	id string,
 	opts MessageQueryOptions,
-) ([]handctx.Message, error) {
+) ([]handmsg.Message, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("session store is required")
 	}
@@ -332,18 +332,18 @@ func (s *SQLiteStore) GetMessage(
 	id string,
 	index int,
 	opts MessageQueryOptions,
-) (handctx.Message, bool, error) {
+) (handmsg.Message, bool, error) {
 	if s == nil || s.db == nil {
-		return handctx.Message{}, false, errors.New("session store is required")
+		return handmsg.Message{}, false, errors.New("session store is required")
 	}
 
 	id = strings.TrimSpace(id)
 	if id == "" || index < 0 {
-		return handctx.Message{}, false, nil
+		return handmsg.Message{}, false, nil
 	}
 	if !opts.Archived {
 		if err := validateSessionID(id); err != nil {
-			return handctx.Message{}, false, err
+			return handmsg.Message{}, false, err
 		}
 	}
 
@@ -352,9 +352,9 @@ func (s *SQLiteStore) GetMessage(
 		if err := s.db.WithContext(ctx).Where("archive_id = ? AND sequence = ?", id, index).
 			First(&record).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return handctx.Message{}, false, nil
+				return handmsg.Message{}, false, nil
 			}
-			return handctx.Message{}, false, err
+			return handmsg.Message{}, false, err
 		}
 		return decodeArchivedMessages([]sqliteArchivedMessageRecord{record})[0], true, nil
 	}
@@ -363,9 +363,9 @@ func (s *SQLiteStore) GetMessage(
 	if err := s.db.WithContext(ctx).Where("session_id = ? AND sequence = ?", id, index).
 		First(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return handctx.Message{}, false, nil
+			return handmsg.Message{}, false, nil
 		}
-		return handctx.Message{}, false, err
+		return handmsg.Message{}, false, err
 	}
 
 	return decodeSessionMessages([]sqliteMessageRecord{record})[0], true, nil
@@ -657,11 +657,11 @@ func sessionFromRecord(createdAt time.Time, id string, updatedAt time.Time) (Ses
 	return session, nil
 }
 
-func encodeSessionMessages(sessionID string, messages []handctx.Message) []sqliteMessageRecord {
+func encodeSessionMessages(sessionID string, messages []handmsg.Message) []sqliteMessageRecord {
 	return encodeSessionMessagesWithOffset(sessionID, messages, 0)
 }
 
-func encodeSessionMessagesWithOffset(sessionID string, messages []handctx.Message, offset int) []sqliteMessageRecord {
+func encodeSessionMessagesWithOffset(sessionID string, messages []handmsg.Message, offset int) []sqliteMessageRecord {
 	if len(messages) == 0 {
 		return nil
 	}
@@ -682,7 +682,7 @@ func encodeSessionMessagesWithOffset(sessionID string, messages []handctx.Messag
 	return records
 }
 
-func encodeArchivedMessages(archiveID string, messages []handctx.Message) []sqliteArchivedMessageRecord {
+func encodeArchivedMessages(archiveID string, messages []handmsg.Message) []sqliteArchivedMessageRecord {
 	if len(messages) == 0 {
 		return nil
 	}
@@ -703,15 +703,15 @@ func encodeArchivedMessages(archiveID string, messages []handctx.Message) []sqli
 	return records
 }
 
-func decodeSessionMessages(records []sqliteMessageRecord) []handctx.Message {
+func decodeSessionMessages(records []sqliteMessageRecord) []handmsg.Message {
 	if len(records) == 0 {
 		return nil
 	}
 
-	messages := make([]handctx.Message, 0, len(records))
+	messages := make([]handmsg.Message, 0, len(records))
 	for _, record := range records {
-		messages = append(messages, handctx.Message{
-			Role:       handctx.Role(record.Role),
+		messages = append(messages, handmsg.Message{
+			Role:       handmsg.Role(record.Role),
 			Name:       record.Name,
 			Content:    record.Content,
 			ToolCallID: record.ToolCallID,
@@ -722,15 +722,15 @@ func decodeSessionMessages(records []sqliteMessageRecord) []handctx.Message {
 	return messages
 }
 
-func decodeArchivedMessages(records []sqliteArchivedMessageRecord) []handctx.Message {
+func decodeArchivedMessages(records []sqliteArchivedMessageRecord) []handmsg.Message {
 	if len(records) == 0 {
 		return nil
 	}
 
-	messages := make([]handctx.Message, 0, len(records))
+	messages := make([]handmsg.Message, 0, len(records))
 	for _, record := range records {
-		messages = append(messages, handctx.Message{
-			Role:       handctx.Role(record.Role),
+		messages = append(messages, handmsg.Message{
+			Role:       handmsg.Role(record.Role),
 			Name:       record.Name,
 			Content:    record.Content,
 			ToolCallID: record.ToolCallID,

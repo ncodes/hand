@@ -12,7 +12,7 @@ import (
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	sessionstore "github.com/wandxy/hand/internal/storage/session"
+	sessionstore "github.com/wandxy/hand/internal/session"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 

@@ -8,16 +8,16 @@ import (
 	"sync"
 	"time"
 
-	handctx "github.com/wandxy/hand/internal/context"
+	handmsg "github.com/wandxy/hand/internal/messages"
 )
 
 // MemoryStore implements the SessionStore interface using in-memory storage.
 type MemoryStore struct {
 	mu              sync.RWMutex
 	sessions        map[string]Session
-	messages        map[string][]handctx.Message
+	messages        map[string][]handmsg.Message
 	archives        map[string]ArchivedSession
-	archiveMessages map[string][]handctx.Message
+	archiveMessages map[string][]handmsg.Message
 	currentSession  string
 }
 
@@ -25,9 +25,9 @@ type MemoryStore struct {
 func NewStore() *MemoryStore {
 	return &MemoryStore{
 		sessions:        make(map[string]Session),
-		messages:        make(map[string][]handctx.Message),
+		messages:        make(map[string][]handmsg.Message),
 		archives:        make(map[string]ArchivedSession),
-		archiveMessages: make(map[string][]handctx.Message),
+		archiveMessages: make(map[string][]handmsg.Message),
 	}
 }
 
@@ -117,7 +117,7 @@ func (s *MemoryStore) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (s *MemoryStore) AppendMessages(_ context.Context, id string, messages []handctx.Message) error {
+func (s *MemoryStore) AppendMessages(_ context.Context, id string, messages []handmsg.Message) error {
 	if s == nil {
 		return errors.New("session store is required")
 	}
@@ -146,7 +146,7 @@ func (s *MemoryStore) AppendMessages(_ context.Context, id string, messages []ha
 	return nil
 }
 
-func (s *MemoryStore) GetMessages(_ context.Context, id string, opts MessageQueryOptions) ([]handctx.Message, error) {
+func (s *MemoryStore) GetMessages(_ context.Context, id string, opts MessageQueryOptions) ([]handmsg.Message, error) {
 	if s == nil {
 		return nil, errors.New("session store is required")
 	}
@@ -171,28 +171,28 @@ func (s *MemoryStore) GetMessages(_ context.Context, id string, opts MessageQuer
 	return cloneMessages(s.messages[id]), nil
 }
 
-func (s *MemoryStore) GetMessage(_ context.Context, id string, index int, opts MessageQueryOptions) (handctx.Message, bool, error) {
+func (s *MemoryStore) GetMessage(_ context.Context, id string, index int, opts MessageQueryOptions) (handmsg.Message, bool, error) {
 	if s == nil {
-		return handctx.Message{}, false, errors.New("session store is required")
+		return handmsg.Message{}, false, errors.New("session store is required")
 	}
 
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return handctx.Message{}, false, nil
+		return handmsg.Message{}, false, nil
 	}
 	if index < 0 {
-		return handctx.Message{}, false, nil
+		return handmsg.Message{}, false, nil
 	}
 	if !opts.Archived {
 		if err := validateSessionID(id); err != nil {
-			return handctx.Message{}, false, err
+			return handmsg.Message{}, false, err
 		}
 	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var messages []handctx.Message
+	var messages []handmsg.Message
 	if opts.Archived {
 		messages = s.archiveMessages[id]
 	} else {
@@ -200,7 +200,7 @@ func (s *MemoryStore) GetMessage(_ context.Context, id string, index int, opts M
 	}
 
 	if index >= len(messages) {
-		return handctx.Message{}, false, nil
+		return handmsg.Message{}, false, nil
 	}
 
 	return cloneMessages(messages[index : index+1])[0], true, nil

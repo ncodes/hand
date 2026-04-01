@@ -10,10 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
-	handctx "github.com/wandxy/hand/internal/context"
 	"github.com/wandxy/hand/internal/datadir"
 	"github.com/wandxy/hand/internal/guardrails"
-	instructionpkg "github.com/wandxy/hand/internal/instruction"
+	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/personality"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/workspace"
@@ -28,9 +27,7 @@ func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 
 	require.Same(t, baseCtx, env.ctx)
 	require.Same(t, cfg, env.cfg)
-	require.NotNil(t, env.handCtx)
-	require.Empty(t, env.handCtx.GetInstructions())
-	require.True(t, env.handCtx.GetConversation().Empty())
+	require.Empty(t, env.Instructions())
 }
 
 func TestEnvironment_PrepareAddsFullBaseInstructionStack(t *testing.T) {
@@ -54,7 +51,7 @@ func TestEnvironment_PrepareAddsFullBaseInstructionStack(t *testing.T) {
 	err := env.Prepare()
 
 	require.NoError(t, err)
-	require.Equal(t, instructionpkg.BuildBase(cfg.Name), env.handCtx.GetInstructions())
+	require.Equal(t, instruct.BuildBase(cfg.Name), env.Instructions())
 }
 
 func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
@@ -81,8 +78,8 @@ func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
 
 	require.NoError(t, env.Prepare())
 
-	instructions := env.handCtx.GetInstructions()
-	require.Len(t, instructions, len(instructionpkg.BuildBase(cfg.Name))+1)
+	instructions := env.Instructions()
+	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+1)
 	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-1].Value)
 }
 
@@ -106,8 +103,8 @@ func TestEnvironment_PrepareAppendsPersonalityBeforeWorkspaceRules(t *testing.T)
 
 	require.NoError(t, env.Prepare())
 
-	instructions := env.handCtx.GetInstructions()
-	require.Len(t, instructions, len(instructionpkg.BuildBase(cfg.Name))+2)
+	instructions := env.Instructions()
+	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+2)
 	require.Equal(t, "## SOUL.md\npersona", instructions[len(instructions)-2].Value)
 	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-1].Value)
 }
@@ -131,7 +128,7 @@ func TestEnvironment_PrepareAppendsInstructAfterWorkspaceRules(t *testing.T) {
 
 	require.NoError(t, env.Prepare())
 
-	instructions := env.handCtx.GetInstructions()
+	instructions := env.Instructions()
 	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-2].Value)
 	require.Equal(t, "be terse", instructions[len(instructions)-1].Value)
 }
@@ -155,7 +152,7 @@ func TestEnvironment_PrepareIgnoresPersonalityLoadError(t *testing.T) {
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	require.NoError(t, env.Prepare())
-	require.Equal(t, instructionpkg.BuildBase(cfg.Name), env.handCtx.GetInstructions())
+	require.Equal(t, instruct.BuildBase(cfg.Name), env.Instructions())
 }
 
 func TestEnvironment_PrepareIgnoresWorkspaceRuleLoadError(t *testing.T) {
@@ -177,7 +174,7 @@ func TestEnvironment_PrepareIgnoresWorkspaceRuleLoadError(t *testing.T) {
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	require.NoError(t, env.Prepare())
-	require.Equal(t, instructionpkg.BuildBase(cfg.Name), env.handCtx.GetInstructions())
+	require.Equal(t, instruct.BuildBase(cfg.Name), env.Instructions())
 }
 
 func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) {
@@ -200,7 +197,7 @@ func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) 
 
 	require.NoError(t, env.Prepare())
 
-	instructions := env.handCtx.GetInstructions()
+	instructions := env.Instructions()
 	require.Contains(t, instructions[0].Value, "Test Agent is the user's personal agent")
 	require.Contains(t, instructions[2].Value, "Use tools when they materially improve correctness or allow real action")
 }
@@ -225,7 +222,7 @@ func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
 
 	require.NoError(t, env.Prepare())
 
-	instructions := env.handCtx.GetInstructions()
+	instructions := env.Instructions()
 	require.Contains(t, instructions[0].Value, "Hand is the user's personal agent")
 }
 
@@ -307,6 +304,42 @@ func (failingRegistry) Invoke(stdctx.Context, tools.Call) (tools.Result, error) 
 	return tools.Result{}, nil
 }
 
+type failingGroupRegistry struct {
+	err error
+}
+
+func (failingGroupRegistry) Register(tools.Definition) error {
+	return nil
+}
+
+func (failingGroupRegistry) Get(string) (tools.Definition, bool) {
+	return tools.Definition{}, false
+}
+
+func (r failingGroupRegistry) RegisterGroup(tools.Group) error {
+	return r.err
+}
+
+func (failingGroupRegistry) GetGroup(string) (tools.Group, bool) {
+	return tools.Group{}, false
+}
+
+func (failingGroupRegistry) List() []tools.Definition {
+	return nil
+}
+
+func (failingGroupRegistry) ListGroups() []tools.Group {
+	return nil
+}
+
+func (failingGroupRegistry) Resolve(tools.Policy) ([]tools.Definition, error) {
+	return nil, nil
+}
+
+func (failingGroupRegistry) Invoke(stdctx.Context, tools.Call) (tools.Result, error) {
+	return tools.Result{}, nil
+}
+
 func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
@@ -315,26 +348,96 @@ func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
 	err := env.Prepare()
 
 	require.EqualError(t, err, "register failed")
-	require.Empty(t, env.handCtx.GetInstructions())
+	require.Empty(t, env.Instructions())
 }
 
-func TestEnvironment_ContextUsesContextState(t *testing.T) {
+func TestEnvironment_PrepareReturnsToolGroupRegistrationError(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
-	runtimeContext := env.Context()
+	env.tools = failingGroupRegistry{err: errors.New("group failed")}
 
-	require.NoError(t, runtimeContext.AddUserMessage("hello"))
-	require.NoError(t, runtimeContext.AddAssistantMessage("hi"))
+	err := env.Prepare()
 
-	messages := runtimeContext.GetMessages()
-	require.Len(t, messages, 2)
-	require.Equal(t, handctx.RoleUser, messages[0].Role)
-	require.Equal(t, handctx.RoleAssistant, messages[1].Role)
+	require.EqualError(t, err, "group failed")
+	require.Empty(t, env.Instructions())
+}
 
-	conversation := runtimeContext.GetConversation()
-	require.Len(t, conversation.Messages(), 2)
-	messages[0].Content = "changed"
-	require.Equal(t, "hello", runtimeContext.GetMessages()[0].Content)
+func TestEnvironment_PrepareToolsPreservesExistingRuntime(t *testing.T) {
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
+	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{})
+	env.runtime = runtime
+
+	require.NoError(t, env.prepareTools())
+	require.Same(t, runtime, env.runtime)
+}
+
+func TestEnvironment_InstructionsReturnsCopy(t *testing.T) {
+	dir := t.TempDir()
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
+	env.instructions = append(env.instructions, instruct.Instruction{Value: "hello"})
+	instructions := env.Instructions()
+	require.Len(t, instructions, 1)
+	instructions[0].Value = "changed"
+	require.Equal(t, "hello", env.Instructions()[0].Value)
+}
+
+func TestEnvironment_InstructionsReturnsNilForNilEnvironment(t *testing.T) {
+	var env *Environment
+	require.Nil(t, env.Instructions())
+}
+
+func TestEnvironment_SetInstructionAddsUnnamedInstruction(t *testing.T) {
+	env := &Environment{}
+
+	env.setInstruction(instruct.Instruction{Value: "  hello  "})
+
+	require.Equal(t, instruct.Instructions{{Value: "hello"}}, env.instructions)
+}
+
+func TestEnvironment_SetInstructionUpdatesExistingNamedInstruction(t *testing.T) {
+	env := &Environment{
+		instructions: instruct.Instructions{{Name: configInstructInstructionName, Value: "old"}},
+	}
+
+	env.setInstruction(instruct.Instruction{Name: configInstructInstructionName, Value: "  new  "})
+
+	require.Equal(t, instruct.Instructions{{Name: configInstructInstructionName, Value: "new"}}, env.instructions)
+}
+
+func TestEnvironment_SetInstructionRemovesExistingNamedInstructionWhenEmpty(t *testing.T) {
+	env := &Environment{
+		instructions: instruct.Instructions{
+			{Value: "base"},
+			{Name: configInstructInstructionName, Value: "old"},
+		},
+	}
+
+	env.setInstruction(instruct.Instruction{Name: configInstructInstructionName, Value: "   "})
+
+	require.Equal(t, instruct.Instructions{{Value: "base"}}, env.instructions)
+}
+
+func TestEnvironment_SetInstructionAppendsNewNamedInstructionWhenMissing(t *testing.T) {
+	env := &Environment{
+		instructions: instruct.Instructions{{Value: "base"}},
+	}
+
+	env.setInstruction(instruct.Instruction{Name: configInstructInstructionName, Value: "  new  "})
+
+	require.Equal(t, instruct.Instructions{
+		{Value: "base"},
+		{Name: configInstructInstructionName, Value: "new"},
+	}, env.instructions)
+}
+
+func TestEnvironment_SetInstructionSkipsEmptyNewNamedInstruction(t *testing.T) {
+	env := &Environment{
+		instructions: instruct.Instructions{{Value: "base"}},
+	}
+
+	env.setInstruction(instruct.Instruction{Name: configInstructInstructionName, Value: "   "})
+
+	require.Equal(t, instruct.Instructions{{Value: "base"}}, env.instructions)
 }
 
 func TestEnvironment_NewIterationBudgetUsesConfigValue(t *testing.T) {

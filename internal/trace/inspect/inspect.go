@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	handctx "github.com/wandxy/hand/internal/context"
+	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	handtrace "github.com/wandxy/hand/internal/trace"
 )
@@ -348,7 +348,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 			return
 		}
 	case "model.request":
-		var payload models.GenerateRequest
+		var payload models.Request
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.ModelRequest = buildRequestView(payload)
 			if detail.Summary.Model == "" {
@@ -360,7 +360,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 			return
 		}
 	case "model.response":
-		var payload models.GenerateResponse
+		var payload models.Response
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.ModelResponse = buildResponseView(payload)
 			return
@@ -377,7 +377,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 			return
 		}
 	case "tool.invocation.completed":
-		var payload handctx.Message
+		var payload handmsg.Message
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.ToolInvocation = &ToolInvocationView{
 				Phase:      "completed",
@@ -410,7 +410,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 	timelineEvent.GenericPayloadRaw = compactJSON(event.Payload)
 }
 
-func buildRequestView(payload models.GenerateRequest) *ModelRequestView {
+func buildRequestView(payload models.Request) *ModelRequestView {
 	messages := make([]MessageView, 0, len(payload.Messages))
 	metrics := RequestMetrics{
 		InstructionChars: len(payload.Instructions),
@@ -454,7 +454,7 @@ func buildRequestView(payload models.GenerateRequest) *ModelRequestView {
 	}
 }
 
-func buildResponseView(payload models.GenerateResponse) *ModelResponseView {
+func buildResponseView(payload models.Response) *ModelResponseView {
 	return &ModelResponseView{
 		ID:                payload.ID,
 		Model:             payload.Model,
@@ -479,7 +479,7 @@ func buildToolCallViews(toolCalls []models.ToolCall) []ToolCallView {
 	return views
 }
 
-func buildToolCallViewsFromContext(toolCalls []handctx.ToolCall) []ToolCallView {
+func buildToolCallViewsFromContext(toolCalls []handmsg.ToolCall) []ToolCallView {
 	if len(toolCalls) == 0 {
 		return nil
 	}

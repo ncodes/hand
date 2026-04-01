@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	handctx "github.com/wandxy/hand/internal/context"
+	handmsg "github.com/wandxy/hand/internal/messages"
 )
 
 func Test_SQLiteStore_NewStoreValidationAndSchema(t *testing.T) {
@@ -62,9 +62,9 @@ func Test_SQLiteStore_SessionLifecycle(t *testing.T) {
 
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handctx.Message{
-		{Role: handctx.RoleUser, Content: "first", CreatedAt: now},
-		{Role: handctx.RoleAssistant, Name: "bot", Content: "second", ToolCallID: "call-1", CreatedAt: now.Add(time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "first", CreatedAt: now},
+		{Role: handmsg.RoleAssistant, Name: "bot", Content: "second", ToolCallID: "call-1", CreatedAt: now.Add(time.Second)},
 	}))
 	require.NoError(t, store.Save(context.Background(), Session{
 		ID:        testSessionA,
@@ -99,8 +99,8 @@ func Test_SQLiteStore_SessionLifecycle(t *testing.T) {
 	require.Equal(t, "first", messagesAgain[0].Content)
 
 	require.NoError(t, store.ClearMessages(context.Background(), testSessionB, MessageQueryOptions{}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handctx.Message{
-		{Role: handctx.RoleAssistant, Content: "replacement", CreatedAt: now.Add(2 * time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
+		{Role: handmsg.RoleAssistant, Content: "replacement", CreatedAt: now.Add(2 * time.Second)},
 	}))
 
 	sessions, err = store.List(context.Background())
@@ -184,8 +184,8 @@ func Test_SQLiteStore_Delete(t *testing.T) {
 	require.EqualError(t, store.Delete(context.Background(), DefaultSessionID), "default session cannot be deleted")
 	require.EqualError(t, store.Delete(context.Background(), testMissingSession), "session not found")
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handctx.Message{
-		{Role: handctx.RoleUser, Content: "hello", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
 	}))
 	require.NoError(t, store.SetCurrent(context.Background(), testSessionA))
 
@@ -215,12 +215,12 @@ func Test_SQLiteStore_ArchiveLifecycle(t *testing.T) {
 	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{ID: "archive-1", SourceSessionID: DefaultSessionID}), "archive expiry is required")
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handctx.Message{
-		{Role: handctx.RoleUser, Content: "old", CreatedAt: now.Add(-2 * time.Hour)},
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "old", CreatedAt: now.Add(-2 * time.Hour)},
 	}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handctx.Message{
-		{Role: handctx.RoleAssistant, Content: "new", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleAssistant, Content: "new", CreatedAt: now},
 	}))
 	require.NoError(t, store.SetCurrent(context.Background(), testSessionA))
 
@@ -255,7 +255,7 @@ func Test_SQLiteStore_ArchiveLifecycle(t *testing.T) {
 	message, ok, err = store.GetMessage(context.Background(), "archive-new", 1, MessageQueryOptions{Archived: true})
 	require.NoError(t, err)
 	require.False(t, ok)
-	require.Equal(t, handctx.Message{}, message)
+	require.Equal(t, handmsg.Message{}, message)
 
 	filtered, err := store.ListArchives(context.Background(), testSessionA)
 	require.NoError(t, err)
@@ -310,8 +310,8 @@ func Test_SQLiteStore_GetArchive(t *testing.T) {
 	require.Equal(t, ArchivedSession{}, archive)
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handctx.Message{
-		{Role: handctx.RoleUser, Content: "hello", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
 	}))
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
 		ID:              "archive-a",
@@ -338,11 +338,11 @@ func Test_SQLiteStore_DeleteArchives(t *testing.T) {
 	require.EqualError(t, store.DeleteArchives(context.Background(), testMissingSession), "archive not found")
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handctx.Message{
-		{Role: handctx.RoleUser, Content: "hello", CreatedAt: now},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
 	}))
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handctx.Message{
-		{Role: handctx.RoleAssistant, Content: "world", CreatedAt: now.Add(time.Second)},
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
+		{Role: handmsg.RoleAssistant, Content: "world", CreatedAt: now.Add(time.Second)},
 	}))
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
 		ID:              "archive-a",
@@ -401,7 +401,7 @@ func Test_SQLiteStore_NilReceiverErrors(t *testing.T) {
 	message, ok, err := store.GetMessage(context.Background(), "", 0, MessageQueryOptions{})
 	require.EqualError(t, err, "session store is required")
 	require.False(t, ok)
-	require.Equal(t, handctx.Message{}, message)
+	require.Equal(t, handmsg.Message{}, message)
 	require.EqualError(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}), "session store is required")
 
 	require.EqualError(t, store.DeleteExpiredArchives(context.Background(), time.Now().UTC()), "session store is required")
@@ -421,15 +421,15 @@ func Test_SQLiteStore_MessageEncodingHelpers(t *testing.T) {
 	require.Nil(t, decodeSessionMessages(nil))
 	require.Nil(t, decodeArchivedMessages(nil))
 
-	sessionRecords := encodeSessionMessages("session-1", []handctx.Message{
-		{Role: handctx.RoleUser, Name: "user", Content: "hello", ToolCallID: "call-1", CreatedAt: now},
+	sessionRecords := encodeSessionMessages("session-1", []handmsg.Message{
+		{Role: handmsg.RoleUser, Name: "user", Content: "hello", ToolCallID: "call-1", CreatedAt: now},
 	})
 	require.Len(t, sessionRecords, 1)
 	require.Equal(t, "session-1", sessionRecords[0].SessionID)
 	require.Equal(t, 0, sessionRecords[0].Sequence)
 
-	archiveRecords := encodeArchivedMessages("archive-1", []handctx.Message{
-		{Role: handctx.RoleAssistant, Name: "assistant", Content: "world", ToolCallID: "call-2", CreatedAt: now.Add(time.Second)},
+	archiveRecords := encodeArchivedMessages("archive-1", []handmsg.Message{
+		{Role: handmsg.RoleAssistant, Name: "assistant", Content: "world", ToolCallID: "call-2", CreatedAt: now.Add(time.Second)},
 	})
 	require.Len(t, archiveRecords, 1)
 	require.Equal(t, "archive-1", archiveRecords[0].ArchiveID)
@@ -437,7 +437,7 @@ func Test_SQLiteStore_MessageEncodingHelpers(t *testing.T) {
 
 	decodedSession := decodeSessionMessages(sessionRecords)
 	require.Len(t, decodedSession, 1)
-	require.Equal(t, handctx.RoleUser, decodedSession[0].Role)
+	require.Equal(t, handmsg.RoleUser, decodedSession[0].Role)
 	require.Equal(t, "user", decodedSession[0].Name)
 	require.Equal(t, "hello", decodedSession[0].Content)
 	require.Equal(t, "call-1", decodedSession[0].ToolCallID)
@@ -445,7 +445,7 @@ func Test_SQLiteStore_MessageEncodingHelpers(t *testing.T) {
 
 	decodedArchive := decodeArchivedMessages(archiveRecords)
 	require.Len(t, decodedArchive, 1)
-	require.Equal(t, handctx.RoleAssistant, decodedArchive[0].Role)
+	require.Equal(t, handmsg.RoleAssistant, decodedArchive[0].Role)
 	require.Equal(t, "assistant", decodedArchive[0].Name)
 	require.Equal(t, "world", decodedArchive[0].Content)
 	require.Equal(t, "call-2", decodedArchive[0].ToolCallID)
@@ -566,7 +566,7 @@ func Test_SQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 		require.NoError(t, store.db.Exec("CREATE TRIGGER fail_session_message_insert BEFORE INSERT ON session_messages BEGIN SELECT RAISE(FAIL, 'boom'); END;").Error)
 
-		err = store.AppendMessages(context.Background(), testSessionA, []handctx.Message{{Role: handctx.RoleUser, Content: "hello", CreatedAt: now}})
+		err = store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}})
 		require.Error(t, err)
 	})
 
@@ -591,7 +591,7 @@ func Test_SQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 		store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
 		require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handctx.Message{{Role: handctx.RoleUser, Content: "hello", CreatedAt: now}}))
+		require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
 		require.NoError(t, store.db.Migrator().DropTable(&sqliteArchivedMessageRecord{}))
 
 		err = store.CreateArchive(context.Background(), ArchivedSession{
@@ -607,7 +607,7 @@ func Test_SQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 		store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
 		require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handctx.Message{{Role: handctx.RoleUser, Content: "hello", CreatedAt: now}}))
+		require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
 		require.NoError(t, store.db.Migrator().DropTable(&sqliteArchiveRecord{}))
 
 		err = store.CreateArchive(context.Background(), ArchivedSession{
@@ -623,7 +623,7 @@ func Test_SQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 		store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
 		require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handctx.Message{{Role: handctx.RoleUser, Content: "hello", CreatedAt: now}}))
+		require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
 		require.NoError(t, store.db.Exec("CREATE TRIGGER fail_archive_message_insert BEFORE INSERT ON archived_session_messages BEGIN SELECT RAISE(FAIL, 'boom'); END;").Error)
 
 		err = store.CreateArchive(context.Background(), ArchivedSession{

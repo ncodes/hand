@@ -14,7 +14,7 @@ import (
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/models"
-	sessionstore "github.com/wandxy/hand/internal/storage/session"
+	sessionstore "github.com/wandxy/hand/internal/session"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -167,11 +167,11 @@ func newRootCommandForTest(configFile *string) *cli.Command {
 
 type runnerFunc func(context.Context) error
 
-func (f runnerFunc) Run(ctx context.Context) error {
+func (f runnerFunc) Start(ctx context.Context) error {
 	return f(ctx)
 }
 
-func (f runnerFunc) Chat(context.Context, string, agent.ChatOptions) (string, error) {
+func (f runnerFunc) Respond(context.Context, string, agent.RespondOptions) (string, error) {
 	return "", nil
 }
 

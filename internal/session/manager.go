@@ -9,19 +9,20 @@ import (
 	"time"
 
 	"github.com/wandxy/hand/internal/config"
-	handctx "github.com/wandxy/hand/internal/context"
 	"github.com/wandxy/hand/internal/datadir"
+	handmsg "github.com/wandxy/hand/internal/messages"
+	"github.com/wandxy/hand/internal/storage"
 )
 
 type Manager struct {
-	store             Store
+	store             storage.SessionStore
 	defaultIdleExpiry time.Duration
 	archiveRetention  time.Duration
 	now               func() time.Time
 	workerOnce        sync.Once
 }
 
-func OpenStore(cfg *config.Config) (Store, error) {
+func OpenStore(cfg *config.Config) (storage.SessionStore, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
@@ -41,7 +42,7 @@ func OpenStore(cfg *config.Config) (Store, error) {
 	}
 }
 
-func NewManager(store Store, defaultIdleExpiry, archiveRetention time.Duration) (*Manager, error) {
+func NewManager(store storage.SessionStore, defaultIdleExpiry, archiveRetention time.Duration) (*Manager, error) {
 	if store == nil {
 		return nil, errors.New("session store is required")
 	}
@@ -150,7 +151,7 @@ func (m *Manager) startMaintenanceWorker(ctx context.Context, interval time.Dura
 	return nil
 }
 
-func (m *Manager) AppendMessages(ctx context.Context, id string, messages []handctx.Message) error {
+func (m *Manager) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
 	if m == nil {
 		return errors.New("session manager is required")
 	}
@@ -163,7 +164,7 @@ func (m *Manager) AppendMessages(ctx context.Context, id string, messages []hand
 	return m.store.AppendMessages(ctx, id, cloneMessages(messages))
 }
 
-func (m *Manager) GetMessages(ctx context.Context, id string, opts MessageQueryOptions) ([]handctx.Message, error) {
+func (m *Manager) GetMessages(ctx context.Context, id string, opts MessageQueryOptions) ([]handmsg.Message, error) {
 	if m == nil {
 		return nil, errors.New("session manager is required")
 	}
@@ -171,9 +172,9 @@ func (m *Manager) GetMessages(ctx context.Context, id string, opts MessageQueryO
 	return m.store.GetMessages(ctx, strings.TrimSpace(id), opts)
 }
 
-func (m *Manager) GetMessage(ctx context.Context, id string, index int, opts MessageQueryOptions) (handctx.Message, bool, error) {
+func (m *Manager) GetMessage(ctx context.Context, id string, index int, opts MessageQueryOptions) (handmsg.Message, bool, error) {
 	if m == nil {
-		return handctx.Message{}, false, errors.New("session manager is required")
+		return handmsg.Message{}, false, errors.New("session manager is required")
 	}
 
 	return m.store.GetMessage(ctx, strings.TrimSpace(id), index, opts)

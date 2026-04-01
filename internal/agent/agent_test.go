@@ -4,14 +4,17 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
-	handcontext "github.com/wandxy/hand/internal/context"
 	"github.com/wandxy/hand/internal/environment"
+	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/mocks"
 	"github.com/wandxy/hand/internal/models"
+	sessionstore "github.com/wandxy/hand/internal/session"
+	"github.com/wandxy/hand/internal/storage"
 	"github.com/wandxy/hand/internal/tools"
 )
 
@@ -24,315 +27,128 @@ func testSessionConfig(cfg *config.Config) *config.Config {
 	return &cloned
 }
 
-func TestAgent_RunInitializesConversationState(t *testing.T) {
+func TestAgent_StartInitializesConversationState(t *testing.T) {
 	originalFactory := newRuntimeEnvironment
 	t.Cleanup(func() {
 		newRuntimeEnvironment = originalFactory
 	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
+	newRuntimeEnvironment = func(context.Context, *config.Config) executionEnvironment {
 		return &mocks.EnvironmentStub{
-			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
-			ToolRegistry:   tools.NewInMemoryRegistry(),
+			InstructionsList: nil,
+			ToolRegistry:     tools.NewInMemoryRegistry(),
 		}
 	}
 
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), &mocks.ModelClientStub{})
 
-	require.NoError(t, agent.Run(context.Background()))
-	require.True(t, agent.Conversation().Empty())
+	require.NoError(t, agent.Start(context.Background()))
+	require.Empty(t, agent.TurnMessages())
 }
 
-func TestAgent_RunRejectsNilAgent(t *testing.T) {
+func TestAgent_StartRejectsNilAgent(t *testing.T) {
 	var agent *Agent
 
-	err := agent.Run(context.Background())
+	err := agent.Start(context.Background())
 	require.EqualError(t, err, "agent is required")
 }
 
-func TestAgent_RunRejectsNilConfig(t *testing.T) {
+func TestAgent_StartRejectsNilConfig(t *testing.T) {
 	agent := NewAgent(context.Background(), nil, &mocks.ModelClientStub{})
 
-	err := agent.Run(context.Background())
+	err := agent.Start(context.Background())
 	require.EqualError(t, err, "config is required")
 }
 
-func TestAgent_RunReturnsEnvironmentPrepareError(t *testing.T) {
+func TestAgent_StartReturnsEnvironmentPrepareError(t *testing.T) {
 	originalFactory := newRuntimeEnvironment
 	t.Cleanup(func() {
 		newRuntimeEnvironment = originalFactory
 	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
+	newRuntimeEnvironment = func(context.Context, *config.Config) executionEnvironment {
 		return &mocks.EnvironmentStub{
-			PrepareErr:     errors.New("prepare failed"),
-			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
-			ToolRegistry:   tools.NewInMemoryRegistry(),
+			PrepareErr:       errors.New("prepare failed"),
+			InstructionsList: nil,
+			ToolRegistry:     tools.NewInMemoryRegistry(),
 		}
 	}
 
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), &mocks.ModelClientStub{})
 
-	err := agent.Run(context.Background())
+	err := agent.Start(context.Background())
 	require.EqualError(t, err, "prepare failed")
 }
 
-func TestAgent_ChatAppendsConversationAcrossTurns(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{
-			{OutputText: "hello back"},
-			{OutputText: "still here"},
+func TestNewRuntimeEnvironmentReturnsEnvironment(t *testing.T) {
+	env := newRuntimeEnvironment(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}))
+	require.NotNil(t, env)
+}
+
+func TestAgent_StartUsesProvidedContext(t *testing.T) {
+	originalFactory := newRuntimeEnvironment
+	t.Cleanup(func() {
+		newRuntimeEnvironment = originalFactory
+	})
+
+	type contextKey string
+	const key contextKey = "request_id"
+
+	var captured context.Context
+	newRuntimeEnvironment = func(ctx context.Context, _ *config.Config) executionEnvironment {
+		captured = ctx
+		return &mocks.EnvironmentStub{
+			InstructionsList: nil,
+			ToolRegistry:     tools.NewInMemoryRegistry(),
+		}
+	}
+
+	ctx := context.WithValue(context.Background(), key, "start-ctx")
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), &mocks.ModelClientStub{})
+
+	require.NoError(t, agent.Start(ctx))
+	require.Same(t, ctx, captured)
+	require.Same(t, ctx, agent.ctx)
+}
+
+func TestAgent_StartReturnsEnsureSessionManagerError(t *testing.T) {
+	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", SessionBackend: "invalid"}, &mocks.ModelClientStub{})
+
+	err := agent.Start(context.Background())
+	require.EqualError(t, err, "session backend must be one of: memory, sqlite")
+}
+
+func TestAgent_StartReturnsManagerStartError(t *testing.T) {
+	originalFactory := newRuntimeEnvironment
+	t.Cleanup(func() {
+		newRuntimeEnvironment = originalFactory
+	})
+	newRuntimeEnvironment = func(context.Context, *config.Config) executionEnvironment {
+		return &mocks.EnvironmentStub{
+			InstructionsList: nil,
+			ToolRegistry:     tools.NewInMemoryRegistry(),
+		}
+	}
+
+	manager, err := sessionstore.NewManager(&sessionStoreStub{
+		getFn: func(context.Context, string) (sessionstore.Session, bool, error) {
+			return sessionstore.Session{}, false, errors.New("resolve failed")
 		},
-	}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model", ModelAPIMode: models.APIModeResponses}), client)
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		runtimeContext := handcontext.NewContext(context.Background(), &config.Config{})
-		runtimeContext.AddInstruction(handcontext.Instruction{Value: "system prompt"})
-		return &mocks.EnvironmentStub{
-			RuntimeContext: runtimeContext,
-			ToolRegistry:   tools.NewInMemoryRegistry(),
-		}
-	}
-
-	require.NoError(t, agent.Run(context.Background()))
-
-	reply, err := agent.Chat(context.Background(), "hello", ChatOptions{})
+	}, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
-	require.Equal(t, "hello back", reply)
 
-	reply, err = agent.Chat(context.Background(), "again", ChatOptions{})
-	require.NoError(t, err)
-	require.Equal(t, "still here", reply)
-
-	require.Len(t, client.Requests, 2)
-	require.Equal(t, models.APIModeResponses, client.Requests[0].APIMode)
-	require.Equal(t, "system prompt", client.Requests[0].Instructions)
-	require.Equal(t, []handcontext.Message{{Role: handcontext.RoleUser, Content: "hello", CreatedAt: client.Requests[0].Messages[0].CreatedAt}}, client.Requests[0].Messages)
-
-	require.Len(t, client.Requests[1].Messages, 3)
-	require.Equal(t, handcontext.RoleUser, client.Requests[1].Messages[0].Role)
-	require.Equal(t, "hello", client.Requests[1].Messages[0].Content)
-	require.Equal(t, handcontext.RoleAssistant, client.Requests[1].Messages[1].Role)
-	require.Equal(t, "hello back", client.Requests[1].Messages[1].Content)
-	require.Equal(t, handcontext.RoleUser, client.Requests[1].Messages[2].Role)
-	require.Equal(t, "again", client.Requests[1].Messages[2].Content)
-
-	conversation := agent.Conversation()
-	require.Len(t, conversation.Messages(), 4)
-	require.Equal(t, "still here", conversation.Messages()[3].Content)
-}
-
-func TestAgent_Chat_AppendsRequestInstructLast(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{{OutputText: "hello back"}},
-	}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		runtimeContext := handcontext.NewContext(context.Background(), &config.Config{})
-		runtimeContext.AddInstruction(handcontext.Instruction{Value: "base"})
-		runtimeContext.SetInstruction(handcontext.Instruction{Name: "config.instruct", Value: "configured temporary"})
-		return &mocks.EnvironmentStub{
-			RuntimeContext: runtimeContext,
-			ToolRegistry:   tools.NewInMemoryRegistry(),
-		}
-	}
-
-	require.NoError(t, agent.Run(context.Background()))
-
-	reply, err := agent.Chat(context.Background(), "hello", ChatOptions{Instruct: "request temporary"})
-
-	require.NoError(t, err)
-	require.Equal(t, "hello back", reply)
-	require.Equal(t, "base\nconfigured temporary\nrequest temporary", client.Requests[0].Instructions)
-	require.Equal(t, handcontext.Instructions{
-		{Value: "base"},
-		{Name: "config.instruct", Value: "configured temporary"},
-	}, agent.env.Context().GetInstructions())
-}
-
-func TestAgent_ChatDoesNotAppendAssistantWhenModelFails(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Err: errors.New("upstream failed"),
-	}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{
-		Name:         "Test Agent",
-		Model:        "test-model",
-		ModelAPIMode: models.APIModeResponses,
-	}), client)
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		return &mocks.EnvironmentStub{
-			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
-			ToolRegistry:   tools.NewInMemoryRegistry(),
-		}
-	}
-
-	require.NoError(t, agent.Run(context.Background()))
-
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
-	require.EqualError(t, err, "upstream failed")
-
-	conversation := agent.Conversation()
-	require.Len(t, conversation.Messages(), 1)
-	require.Equal(t, handcontext.RoleUser, conversation.Messages()[0].Role)
-	require.Equal(t, "hello", conversation.Messages()[0].Content)
-}
-
-func TestAgent_ChatRejectsNilAgent(t *testing.T) {
-	var agent *Agent
-
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
-	require.EqualError(t, err, "agent is required")
-}
-
-func TestAgent_ChatRejectsMissingConfig(t *testing.T) {
 	agent := &Agent{
+		ctx:         context.Background(),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent"}),
 		modelClient: &mocks.ModelClientStub{},
-		env: &mocks.EnvironmentStub{
-			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
-			ToolRegistry:   tools.NewInMemoryRegistry(),
-		},
+		manager:     manager,
 	}
 
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
-	require.EqualError(t, err, "config is required")
+	err = agent.Start(context.Background())
+	require.EqualError(t, err, "resolve failed")
 }
 
-func TestAgent_ChatRejectsUninitializedEnvironment(t *testing.T) {
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), &mocks.ModelClientStub{})
-
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
-	require.EqualError(t, err, "environment has not been initialized")
-}
-
-func TestAgent_ChatRejectsMissingModelClient(t *testing.T) {
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), nil)
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		return &mocks.EnvironmentStub{
-			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
-			ToolRegistry:   tools.NewInMemoryRegistry(),
-		}
-	}
-	require.NoError(t, agent.Run(context.Background()))
-
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
-	require.EqualError(t, err, "model client is required")
-}
-
-func TestAgent_ChatRejectsMissingToolRegistry(t *testing.T) {
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), &mocks.ModelClientStub{})
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		return &mocks.EnvironmentStub{
-			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
-			ToolRegistry:   nil,
-		}
-	}
-	require.NoError(t, agent.Run(context.Background()))
-
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
-	require.EqualError(t, err, "tool registry is required")
-}
-
-func TestAgent_ChatRejectsEmptyMessage(t *testing.T) {
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), &mocks.ModelClientStub{})
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		return &mocks.EnvironmentStub{
-			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
-			ToolRegistry:   tools.NewInMemoryRegistry(),
-		}
-	}
-	require.NoError(t, agent.Run(context.Background()))
-
-	_, err := agent.Chat(context.Background(), "   ", ChatOptions{})
-	require.EqualError(t, err, "message is required")
-}
-
-func TestAgent_ChatReturnsContextErrorBeforeAppendingUserMessage(t *testing.T) {
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), &mocks.ModelClientStub{})
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		return &mocks.EnvironmentStub{
-			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
-			ToolRegistry:   tools.NewInMemoryRegistry(),
-		}
-	}
-	require.NoError(t, agent.Run(context.Background()))
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	_, err := agent.Chat(ctx, "hello", ChatOptions{})
-	require.ErrorIs(t, err, context.Canceled)
-	require.True(t, agent.Conversation().Empty())
-}
-
-func TestAgent_ChatUsesBackgroundWhenContextIsNil(t *testing.T) {
+func TestAgent_TurnMessagesReturnsCopy(t *testing.T) {
 	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{{OutputText: "hello back"}},
-	}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		return &mocks.EnvironmentStub{
-			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
-			ToolRegistry:   tools.NewInMemoryRegistry(),
-		}
-	}
-	require.NoError(t, agent.Run(context.Background()))
-
-	reply, err := agent.Chat(nil, "hello", ChatOptions{})
-	require.NoError(t, err)
-	require.Equal(t, "hello back", reply)
-}
-
-func TestAgent_ChatReturnsUserAppendError(t *testing.T) {
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), &mocks.ModelClientStub{})
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		return &mocks.EnvironmentStub{
-			RuntimeContext: &mocks.ContextStub{AddUserMessageErr: errors.New("append user failed")},
-			ToolRegistry:   tools.NewInMemoryRegistry(),
-		}
-	}
-	require.NoError(t, agent.Run(context.Background()))
-
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
-	require.EqualError(t, err, "append user failed")
-}
-
-func TestAgent_ConversationReturnsCopy(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{
+		Responses: []*models.Response{
 			{OutputText: "hello back"},
 		},
 	}
@@ -344,431 +160,46 @@ func TestAgent_ConversationReturnsCopy(t *testing.T) {
 	t.Cleanup(func() {
 		newRuntimeEnvironment = originalFactory
 	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
+	newRuntimeEnvironment = func(context.Context, *config.Config) executionEnvironment {
 		return &mocks.EnvironmentStub{
-			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
-			ToolRegistry:   tools.NewInMemoryRegistry(),
+			InstructionsList: nil,
+			ToolRegistry:     tools.NewInMemoryRegistry(),
 		}
 	}
 
-	require.NoError(t, agent.Run(context.Background()))
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
+	require.NoError(t, agent.Start(context.Background()))
+	_, err := agent.Respond(context.Background(), "hello", RespondOptions{})
 	require.NoError(t, err)
 
-	conversation := agent.Conversation()
-	messages := conversation.Messages()
+	messages := agent.TurnMessages()
 	messages[0].Content = "changed"
 
-	require.Equal(t, "hello", agent.Conversation().Messages()[0].Content)
+	require.Equal(t, "hello", agent.TurnMessages()[0].Content)
 }
 
-func TestAgent_ConversationReturnsEmptyForNilAgent(t *testing.T) {
+func TestAgent_TurnMessagesReturnsEmptyForNilAgent(t *testing.T) {
 	var agent *Agent
 
-	conversation := agent.Conversation()
-	require.True(t, conversation.Empty())
+	require.Nil(t, agent.TurnMessages())
 }
 
-func TestAgent_ChatReturnsAssistantAppendErrorForEmptyOutput(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{
-			{OutputText: "   "},
-		},
-	}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{
-		Name:  "Test Agent",
-		Model: "test-model",
-	}), client)
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		return &mocks.EnvironmentStub{
-			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
-			ToolRegistry:   tools.NewInMemoryRegistry(),
-		}
-	}
-
-	require.NoError(t, agent.Run(context.Background()))
-
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
-	require.EqualError(t, err, "message content is required")
-}
-
-func TestAgent_ChatReturnsAssistantAppendError(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{
-			{OutputText: "hello back"},
-		},
-	}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		ctx := &mocks.ContextStub{
-			Instructions:       handcontext.Instructions{{Value: "system prompt"}},
-			AddAssistantMsgErr: errors.New("append assistant failed"),
-			Conversation:       handcontext.NewConversation(),
-		}
-		return &mocks.EnvironmentStub{RuntimeContext: ctx, ToolRegistry: tools.NewInMemoryRegistry()}
-	}
-	require.NoError(t, agent.Run(context.Background()))
-
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
-	require.EqualError(t, err, "append assistant failed")
-}
-
-func TestAgent_ChatRejectsNilModelResponse(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{nil},
-	}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		return &mocks.EnvironmentStub{
-			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
-			ToolRegistry:   tools.NewInMemoryRegistry(),
-		}
-	}
-	require.NoError(t, agent.Run(context.Background()))
-
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
-	require.EqualError(t, err, "model response is required")
-}
-
-func TestAgent_ChatRejectsMissingToolCallsWhenRequested(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{{
-			RequiresToolCalls: true,
-		}},
-	}
-	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		DebugRequests: false,
-	}, client, func() (tools.Registry, error) {
-		return tools.NewInMemoryRegistry(), nil
-	})
-
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
-	require.EqualError(t, err, "model requested tool execution without tool calls")
-}
-
-func TestAgent_ChatReturnsAssistantToolCallAppendError(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{{
-			ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
-			RequiresToolCalls: true,
-		}},
-	}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		ctx := &mocks.ContextStub{
-			Instructions:  handcontext.Instructions{{Value: "system prompt"}},
-			Conversation:  handcontext.NewConversation(),
-			AddMessageErr: errors.New("append message failed"),
-		}
-		return &mocks.EnvironmentStub{RuntimeContext: ctx, ToolRegistry: tools.NewInMemoryRegistry()}
-	}
-	require.NoError(t, agent.Run(context.Background()))
-
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
-	require.EqualError(t, err, "append message failed")
-}
-
-func TestAgent_ChatReturnsToolResultAppendError(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{{
-			ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
-			RequiresToolCalls: true,
-		}},
-	}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		ctx := &mocks.ContextStub{
-			Instructions:        handcontext.Instructions{{Value: "system prompt"}},
-			Conversation:        handcontext.NewConversation(),
-			AddMessageErr:       errors.New("append tool result failed"),
-			AddMessageErrOnCall: 2,
-		}
-		return &mocks.EnvironmentStub{
-			RuntimeContext: ctx,
-			ToolRegistry: &mocks.ToolRegistryStub{
-				Result: tools.Result{Output: "2026-03-23T00:00:00Z"},
-			},
-		}
-	}
-	require.NoError(t, agent.Run(context.Background()))
-
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
-	require.EqualError(t, err, "append tool result failed")
-}
-
-func TestAgent_ChatExecutesToolAndReturnsFinalAnswer(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{
-			{
-				ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
-				RequiresToolCalls: true,
-			},
-			{
-				OutputText: "The current time is 2026-03-23T00:00:00Z",
-			},
-		},
-	}
-	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		DebugRequests: false,
-	}, client, func() (tools.Registry, error) {
-		registry := tools.NewInMemoryRegistry()
-		require.NoError(t, registry.Register(tools.Definition{
-			Name:        "time",
-			Description: "Returns time",
-			Handler: tools.HandlerFunc(func(context.Context, tools.Call) (tools.Result, error) {
-				return tools.Result{Output: "2026-03-23T00:00:00Z"}, nil
-			}),
-		}))
-		return registry, nil
-	})
-
-	reply, err := agent.Chat(context.Background(), "what time is it?", ChatOptions{})
-
-	require.NoError(t, err)
-	require.Equal(t, "The current time is 2026-03-23T00:00:00Z", reply)
-	require.Len(t, client.Requests, 2)
-	require.Len(t, client.Requests[0].Tools, 1)
-	require.Len(t, client.Requests[1].Messages, 3)
-	require.Equal(t, handcontext.RoleAssistant, client.Requests[1].Messages[1].Role)
-	require.Len(t, client.Requests[1].Messages[1].ToolCalls, 1)
-	require.Equal(t, handcontext.RoleTool, client.Requests[1].Messages[2].Role)
-	require.Contains(t, client.Requests[1].Messages[2].Content, `"output":"2026-03-23T00:00:00Z"`)
-}
-
-func TestAgent_ChatExecutesMultipleSequentialToolCalls(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{
-			{ToolCalls: []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}, RequiresToolCalls: true},
-			{ToolCalls: []models.ToolCall{{ID: "call-2", Name: "time", Input: "{}"}}, RequiresToolCalls: true},
-			{OutputText: "done"},
-		},
-	}
-	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		DebugRequests: false,
-	}, client, func() (tools.Registry, error) {
-		registry := tools.NewInMemoryRegistry()
-		require.NoError(t, registry.Register(tools.Definition{
-			Name:        "time",
-			Description: "Returns time",
-			Handler: tools.HandlerFunc(func(context.Context, tools.Call) (tools.Result, error) {
-				return tools.Result{Output: "2026-03-23T00:00:00Z"}, nil
-			}),
-		}))
-		return registry, nil
-	})
-
-	reply, err := agent.Chat(context.Background(), "loop", ChatOptions{})
-
-	require.NoError(t, err)
-	require.Equal(t, "done", reply)
-	require.Len(t, client.Requests, 3)
-	require.Len(t, agent.Conversation().Messages(), 6)
-}
-
-func TestAgent_ChatConvertsMissingToolIntoToolMessage(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{
-			{ToolCalls: []models.ToolCall{{ID: "call-1", Name: "missing", Input: "{}"}}, RequiresToolCalls: true},
-			{OutputText: "fallback"},
-		},
-	}
-	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		DebugRequests: false,
-	}, client, func() (tools.Registry, error) {
-		return tools.NewInMemoryRegistry(), nil
-	})
-
-	reply, err := agent.Chat(context.Background(), "use a missing tool", ChatOptions{})
-	require.NoError(t, err)
-	require.Equal(t, "fallback", reply)
-	require.Len(t, client.Requests, 2)
-	require.Contains(t, client.Requests[1].Messages[2].Content, `tool_not_registered`)
-	require.Contains(t, client.Requests[1].Messages[2].Content, `tool is not registered`)
-}
-
-func TestAgent_ChatUsesSummaryFallbackWhenIterationBudgetIsExhausted(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{
-			{
-				ToolCalls:         []models.ToolCall{{ID: "call", Name: "time", Input: "{}"}},
-				RequiresToolCalls: true,
-			},
-			{
-				OutputText: "summary",
-			},
-		},
-	}
-	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		MaxIterations: 1,
-		DebugRequests: false,
-	}, client, func() (tools.Registry, error) {
-		registry := tools.NewInMemoryRegistry()
-		require.NoError(t, registry.Register(tools.Definition{
-			Name:        "time",
-			Description: "Returns time",
-			Handler: tools.HandlerFunc(func(context.Context, tools.Call) (tools.Result, error) {
-				return tools.Result{Output: "2026-03-23T00:00:00Z"}, nil
-			}),
-		}))
-		return registry, nil
-	})
-
-	reply, err := agent.Chat(context.Background(), "loop forever", ChatOptions{})
-
-	require.NoError(t, err)
-	require.Equal(t, "summary", reply)
-	require.Len(t, client.Requests, 2)
-	require.Nil(t, client.Requests[1].Tools)
-	require.Contains(t, client.Requests[1].Instructions, "The maximum number of tool-calling iterations has been reached.")
-	require.Contains(t, client.Requests[1].Instructions, "Remaining iteration budget: 0.")
-}
-
-func TestAgent_ChatReturnsSummaryFailureWhenFallbackCallFails(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{
-			{
-				ToolCalls:         []models.ToolCall{{ID: "call", Name: "time", Input: "{}"}},
-				RequiresToolCalls: true,
-			},
-		},
-		Errors: []error{nil, errors.New("summary failed")},
-	}
-	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		MaxIterations: 1,
-		DebugRequests: false,
-	}, client, func() (tools.Registry, error) {
-		registry := tools.NewInMemoryRegistry()
-		require.NoError(t, registry.Register(tools.Definition{
-			Name:        "time",
-			Description: "Returns time",
-			Handler: tools.HandlerFunc(func(context.Context, tools.Call) (tools.Result, error) {
-				return tools.Result{Output: "2026-03-23T00:00:00Z"}, nil
-			}),
-		}))
-		return registry, nil
-	})
-
-	_, err := agent.Chat(context.Background(), "loop forever", ChatOptions{})
-
-	require.EqualError(t, err, "iteration limit reached and summary failed: summary failed")
-}
-
-func TestAgent_ChatRejectsSummaryFallbackThatRequestsMoreTools(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{
-			{
-				ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
-				RequiresToolCalls: true,
-			},
-			{
-				ToolCalls:         []models.ToolCall{{ID: "call-2", Name: "time", Input: "{}"}},
-				RequiresToolCalls: true,
-			},
-		},
-	}
-	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		MaxIterations: 1,
-		DebugRequests: false,
-	}, client, func() (tools.Registry, error) {
-		registry := tools.NewInMemoryRegistry()
-		require.NoError(t, registry.Register(tools.Definition{
-			Name:        "time",
-			Description: "Returns time",
-			Handler: tools.HandlerFunc(func(context.Context, tools.Call) (tools.Result, error) {
-				return tools.Result{Output: "2026-03-23T00:00:00Z"}, nil
-			}),
-		}))
-		return registry, nil
-	})
-
-	_, err := agent.Chat(context.Background(), "loop forever", ChatOptions{})
-
-	require.EqualError(t, err, "iteration limit reached and summary requested more tools")
-}
-
-func TestAgent_ChatReturnsContextErrorBeforeToolInvocation(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{{
-			ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
-			RequiresToolCalls: true,
-		}},
-	}
-	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		MaxIterations: 1,
-		DebugRequests: false,
-	}, client, func() (tools.Registry, error) {
-		registry := tools.NewInMemoryRegistry()
-		require.NoError(t, registry.Register(tools.Definition{
-			Name:        "time",
-			Description: "Returns time",
-			Handler: tools.HandlerFunc(func(context.Context, tools.Call) (tools.Result, error) {
-				return tools.Result{Output: "2026-03-23T00:00:00Z"}, nil
-			}),
-		}))
-		return registry, nil
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	_, err := agent.Chat(ctx, "loop forever", ChatOptions{})
-	require.ErrorIs(t, err, context.Canceled)
-}
-
-func TestAgent_ConversationReturnsEmptyForUninitializedAgent(t *testing.T) {
+func TestAgent_TurnMessagesReturnsEmptyForUninitializedAgent(t *testing.T) {
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), &mocks.ModelClientStub{})
 
-	conversation := agent.Conversation()
-	require.True(t, conversation.Empty())
+	require.Nil(t, agent.TurnMessages())
 }
 
-func TestAgent_ToolDefinitionsReturnNilWithoutEnvironment(t *testing.T) {
+func TestAgent_AvailableToolDefinitionsReturnNilWithoutEnvironment(t *testing.T) {
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), &mocks.ModelClientStub{})
-	definitions, err := agent.toolDefinitions()
+	definitions, err := agent.availableToolDefinitions()
 	require.NoError(t, err)
 	require.Nil(t, definitions)
 }
 
-func TestAgent_ToolDefinitionsReturnDefinitionsFromEnvironment(t *testing.T) {
+func TestAgent_AvailableToolDefinitionsReturnDefinitionsFromEnvironment(t *testing.T) {
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), &mocks.ModelClientStub{})
 	agent.env = &mocks.EnvironmentStub{
-		RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
+		InstructionsList: nil,
 		Policy: tools.Policy{
 			Capabilities: tools.Capabilities{Filesystem: true},
 			Platform:     "cli",
@@ -782,7 +213,7 @@ func TestAgent_ToolDefinitionsReturnDefinitionsFromEnvironment(t *testing.T) {
 		},
 	}
 
-	definitions, err := agent.toolDefinitions()
+	definitions, err := agent.availableToolDefinitions()
 	require.NoError(t, err)
 	require.Equal(t, []models.ToolDefinition{{
 		Name:        "time",
@@ -795,47 +226,24 @@ func TestAgent_ToolDefinitionsReturnDefinitionsFromEnvironment(t *testing.T) {
 	}, agent.env.(*mocks.EnvironmentStub).ToolRegistry.(*mocks.ToolRegistryStub).LastToolPolicy)
 }
 
-func TestAgent_ToolDefinitionsReturnResolveError(t *testing.T) {
+func TestAgent_AvailableToolDefinitionsReturnResolveError(t *testing.T) {
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), &mocks.ModelClientStub{})
 	agent.env = &mocks.EnvironmentStub{
-		RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
+		InstructionsList: nil,
 		ToolRegistry: &mocks.ToolRegistryStub{
 			ResolveErr: errors.New("resolve failed"),
 		},
 	}
 
-	definitions, err := agent.toolDefinitions()
+	definitions, err := agent.availableToolDefinitions()
 	require.Nil(t, definitions)
 	require.EqualError(t, err, "resolve failed")
-}
-
-func TestAgent_ChatReturnsResolveError(t *testing.T) {
-	client := &mocks.ModelClientStub{}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		return &mocks.EnvironmentStub{
-			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
-			ToolRegistry: &mocks.ToolRegistryStub{
-				ResolveErr: errors.New("resolve failed"),
-			},
-		}
-	}
-	require.NoError(t, agent.Run(context.Background()))
-
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
-
-	require.EqualError(t, err, "resolve failed")
-	require.Empty(t, client.Requests)
 }
 
 func TestAgent_InvokeToolIncludesRegistryAndToolErrors(t *testing.T) {
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), &mocks.ModelClientStub{})
 	agent.env = &mocks.EnvironmentStub{
-		RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
+		InstructionsList: nil,
 		ToolRegistry: &mocks.ToolRegistryStub{
 			Result: tools.Result{Error: tools.Error{Code: "tool_failed", Message: "tool failed"}.String(), Output: "ignored"},
 			Err:    errors.New("invoke failed"),
@@ -844,7 +252,7 @@ func TestAgent_InvokeToolIncludesRegistryAndToolErrors(t *testing.T) {
 
 	message := agent.invokeTool(context.Background(), models.ToolCall{ID: "call-1", Name: "time", Input: "{}"})
 
-	require.Equal(t, handcontext.RoleTool, message.Role)
+	require.Equal(t, handmsg.RoleTool, message.Role)
 	require.Equal(t, "time", message.Name)
 	require.Equal(t, "call-1", message.ToolCallID)
 	require.Contains(t, message.Content, `"error":{"code":"tool_failed","message":"tool failed"}`)
@@ -854,7 +262,7 @@ func TestAgent_InvokeToolIncludesRegistryAndToolErrors(t *testing.T) {
 func TestAgent_InvokeToolPreservesPlainStringErrors(t *testing.T) {
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), &mocks.ModelClientStub{})
 	agent.env = &mocks.EnvironmentStub{
-		RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
+		InstructionsList: nil,
 		ToolRegistry: &mocks.ToolRegistryStub{
 			Result: tools.Result{Error: "plain failure"},
 		},
@@ -876,7 +284,7 @@ func TestAgent_InvokeToolHandlesMarshalError(t *testing.T) {
 
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), &mocks.ModelClientStub{})
 	agent.env = &mocks.EnvironmentStub{
-		RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
+		InstructionsList: nil,
 		ToolRegistry: &mocks.ToolRegistryStub{
 			Result: tools.Result{Output: "2026-03-23T00:00:00Z"},
 		},
@@ -887,165 +295,363 @@ func TestAgent_InvokeToolHandlesMarshalError(t *testing.T) {
 	require.Equal(t, `{"name":"time","error":"marshal failed"}`, message.Content)
 }
 
-func TestToContextToolCallsReturnsNilWhenEmpty(t *testing.T) {
-	require.Nil(t, toContextToolCalls(nil))
+func TestAgent_InvokeToolReturnsRegistryRequiredWithoutRuntimeEnvironment(t *testing.T) {
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), &mocks.ModelClientStub{})
+
+	message := agent.invokeToolWithEnvironment(context.Background(), nil, models.ToolCall{ID: "call-1", Name: "time", Input: "{}"})
+
+	require.Contains(t, message.Content, `"error":"tool registry is required"`)
 }
 
-func TestAgent_SummaryFallbackReturnsContextError(t *testing.T) {
+func TestAgent_SessionMethodsRejectUninitializedAgent(t *testing.T) {
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), &mocks.ModelClientStub{})
+
+	_, err := agent.CreateSession(context.Background(), "")
+	require.EqualError(t, err, "environment has not been initialized")
+
+	_, err = agent.ListSessions(context.Background())
+	require.EqualError(t, err, "environment has not been initialized")
+
+	err = agent.UseSession(context.Background(), sessionstore.DefaultSessionID)
+	require.EqualError(t, err, "environment has not been initialized")
+
+	_, err = agent.CurrentSession(context.Background())
+	require.EqualError(t, err, "environment has not been initialized")
+}
+
+func TestAgent_SessionMethodsRejectNilAgent(t *testing.T) {
+	var agent *Agent
+
+	_, err := agent.CreateSession(context.Background(), "")
+	require.EqualError(t, err, "agent is required")
+
+	_, err = agent.ListSessions(context.Background())
+	require.EqualError(t, err, "agent is required")
+
+	err = agent.UseSession(context.Background(), sessionstore.DefaultSessionID)
+	require.EqualError(t, err, "agent is required")
+
+	_, err = agent.CurrentSession(context.Background())
+	require.EqualError(t, err, "agent is required")
+}
+
+func TestAgent_SessionLifecycleMethods(t *testing.T) {
+	manager, err := sessionstore.NewManager(sessionstore.NewStore(), time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
 	agent := &Agent{
-		cfg:         &config.Config{Name: "Test Agent", Model: "test-model"},
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent"}),
 		modelClient: &mocks.ModelClientStub{},
+		manager:     manager,
+		initialized: true,
 	}
-	handCtx := handcontext.NewContext(context.Background(), &config.Config{})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+	created, err := agent.CreateSession(context.Background(), "")
+	require.NoError(t, err)
+	require.NotEmpty(t, created.ID)
 
-	_, err := agent.summaryFallback(ctx, environment.NewIterationBudget(0), handCtx, &mocks.TraceSessionStub{})
-	require.ErrorIs(t, err, context.Canceled)
+	sessions, err := agent.ListSessions(context.Background())
+	require.NoError(t, err)
+	require.NotEmpty(t, sessions)
+
+	err = agent.UseSession(context.Background(), created.ID)
+	require.NoError(t, err)
+
+	current, err := agent.CurrentSession(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, created.ID, current)
 }
 
-func TestAgent_SummaryFallbackReturnsAssistantAppendError(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.GenerateResponse{{OutputText: "   "}},
-	}
+func TestAgent_RespondRejectsMissingManagerWhenInitialized(t *testing.T) {
 	agent := &Agent{
-		cfg:         &config.Config{Name: "Test Agent", Model: "test-model"},
-		modelClient: client,
-	}
-	handCtx := &mocks.ContextStub{
-		Instructions: handcontext.Instructions{{Value: "system prompt"}},
-		Conversation: handcontext.NewConversation(),
+		ctx:         context.Background(),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		modelClient: &mocks.ModelClientStub{},
+		env: &mocks.EnvironmentStub{
+			InstructionsList: nil,
+			ToolRegistry:     tools.NewInMemoryRegistry(),
+		},
+		initialized: true,
 	}
 
-	_, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), handCtx, &mocks.TraceSessionStub{})
-	require.EqualError(t, err, "message content is required")
+	_, err := agent.Respond(context.Background(), "hello", RespondOptions{})
+	require.EqualError(t, err, "environment has not been initialized")
 }
 
-func TestAgent_SummaryFallbackRejectsNilModelResponse(t *testing.T) {
-	agent := &Agent{
-		cfg:         &config.Config{Name: "Test Agent", Model: "test-model"},
-		modelClient: &mocks.ModelClientStub{Responses: []*models.GenerateResponse{nil}},
-	}
-	handCtx := handcontext.NewContext(context.Background(), &config.Config{})
-
-	_, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), handCtx, &mocks.TraceSessionStub{})
-	require.EqualError(t, err, "model response is required")
-}
-
-func newTestAgent(
-	t *testing.T,
-	cfg *config.Config,
-	client *mocks.ModelClientStub,
-	registryFactory func() (tools.Registry, error),
-) *Agent {
-	t.Helper()
-
+func TestAgent_RespondReturnsRecreatedEnvironmentPrepareError(t *testing.T) {
 	originalFactory := newRuntimeEnvironment
 	t.Cleanup(func() {
 		newRuntimeEnvironment = originalFactory
 	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		runtimeContext := handcontext.NewContext(context.Background(), &config.Config{})
-		runtimeContext.AddInstruction(handcontext.Instruction{Value: "system prompt"})
-		registry, err := registryFactory()
-		require.NoError(t, err)
-		budget := environment.NewIterationBudget(config.DefaultMaxIterations)
-		if cfg != nil && cfg.MaxIterations > 0 {
-			budget = environment.NewIterationBudget(cfg.MaxIterations)
-		}
+	newRuntimeEnvironment = func(context.Context, *config.Config) executionEnvironment {
 		return &mocks.EnvironmentStub{
-			RuntimeContext:  runtimeContext,
-			ToolRegistry:    registry,
-			IterationBudget: budget,
-			TraceSession:    &mocks.TraceSessionStub{},
+			PrepareErr:       errors.New("prepare failed"),
+			InstructionsList: nil,
+			ToolRegistry:     tools.NewInMemoryRegistry(),
 		}
 	}
 
-	agent := NewAgent(context.Background(), testSessionConfig(cfg), client)
-	require.NoError(t, agent.Run(context.Background()))
-	return agent
+	manager := mustSessionManager(t)
+	agent := &Agent{
+		ctx:         context.Background(),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		modelClient: &mocks.ModelClientStub{},
+		manager:     manager,
+		initialized: true,
+		env: &mocks.EnvironmentStub{
+			InstructionsList: nil,
+			ToolRegistry:     tools.NewInMemoryRegistry(),
+		},
+	}
+
+	_, err := agent.Respond(context.Background(), "hello", RespondOptions{})
+	require.EqualError(t, err, "prepare failed")
 }
 
-func TestAgent_ChatRecordsTraceEventsOnSuccess(t *testing.T) {
-	traceSession := &mocks.TraceSessionStub{}
-	client := &mocks.ModelClientStub{Responses: []*models.GenerateResponse{{OutputText: "hello back"}}}
+func TestAgent_RespondUsesProvidedContextForExecutionEnvironment(t *testing.T) {
+	originalFactory := newRuntimeEnvironment
+	t.Cleanup(func() {
+		newRuntimeEnvironment = originalFactory
+	})
+
+	type contextKey string
+	const key contextKey = "request_id"
+
+	var captured []context.Context
+	newRuntimeEnvironment = func(ctx context.Context, _ *config.Config) executionEnvironment {
+		captured = append(captured, ctx)
+		return &mocks.EnvironmentStub{
+			InstructionsList: nil,
+			ToolRegistry:     tools.NewInMemoryRegistry(),
+		}
+	}
+
+	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "hello back"}}}
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
+	startCtx := context.WithValue(context.Background(), key, "start-ctx")
+	runCtx := context.WithValue(context.Background(), key, "run-ctx")
 
-	originalFactory := newRuntimeEnvironment
-	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
-	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		return &mocks.EnvironmentStub{
-			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
-			ToolRegistry:   tools.NewInMemoryRegistry(),
-			TraceSession:   traceSession,
-		}
-	}
+	require.NoError(t, agent.Start(startCtx))
 
-	require.NoError(t, agent.Run(context.Background()))
-
-	reply, err := agent.Chat(context.Background(), "hello", ChatOptions{})
+	reply, err := agent.Respond(runCtx, "hello", RespondOptions{})
 	require.NoError(t, err)
 	require.Equal(t, "hello back", reply)
-
-	require.True(t, traceSession.Closed)
-	expectedEvents := []string{"user.message.accepted", "model.request", "model.response", "final.assistant.response"}
-	actualEvents := []string{traceSession.Events[0].Type, traceSession.Events[1].Type, traceSession.Events[2].Type, traceSession.Events[3].Type}
-	require.Equal(t, expectedEvents, actualEvents)
+	require.Len(t, captured, 2)
+	require.Same(t, startCtx, captured[0])
+	require.Same(t, runCtx, captured[1])
 }
 
-func TestAgent_ChatRecordsTraceFailure(t *testing.T) {
-	traceSession := &mocks.TraceSessionStub{}
-	client := &mocks.ModelClientStub{Err: errors.New("upstream failed")}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
-	originalFactory := newRuntimeEnvironment
+func TestAgent_EnsureSessionManagerRejectsNilAgent(t *testing.T) {
+	var agent *Agent
+
+	err := agent.ensureSessionManager()
+	require.EqualError(t, err, "agent is required")
+}
+
+func TestAgent_EnsureSessionManagerRejectsNilConfig(t *testing.T) {
+	agent := &Agent{}
+
+	err := agent.ensureSessionManager()
+	require.EqualError(t, err, "config is required")
+}
+
+func TestAgent_EnsureSessionManagerReturnsExistingManager(t *testing.T) {
+	manager := mustSessionManager(t)
+	agent := &Agent{cfg: testSessionConfig(&config.Config{Name: "Test Agent"}), manager: manager}
+
+	err := agent.ensureSessionManager()
+	require.NoError(t, err)
+	require.Same(t, manager, agent.manager)
+}
+
+func TestAgent_EnsureSessionManagerReturnsOpenStoreError(t *testing.T) {
+	originalOpen := openSessionStore
 	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
+		openSessionStore = originalOpen
 	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) runtimeEnvironment {
-		return &mocks.EnvironmentStub{
-			RuntimeContext: handcontext.NewContext(context.Background(), &config.Config{}),
-			ToolRegistry:   tools.NewInMemoryRegistry(),
-			TraceSession:   traceSession,
-		}
-	}
-	require.NoError(t, agent.Run(context.Background()))
-
-	_, err := agent.Chat(context.Background(), "hello", ChatOptions{})
-	require.EqualError(t, err, "upstream failed")
-	require.Equal(t, "session.failed", traceSession.Events[len(traceSession.Events)-1].Type)
-}
-
-func TestAgent_SummaryFallbackRecordsTraceEvent(t *testing.T) {
-	traceSession := &mocks.TraceSessionStub{}
-	client := &mocks.ModelClientStub{Responses: []*models.GenerateResponse{{OutputText: "summary"}}}
-	agent := &Agent{cfg: &config.Config{Name: "Test Agent", Model: "test-model"}, modelClient: client}
-	handCtx := handcontext.NewContext(context.Background(), &config.Config{})
-
-	reply, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), handCtx, traceSession)
-	require.NoError(t, err)
-	require.Equal(t, "summary", reply)
-	require.Equal(t, "summary.fallback.started", traceSession.Events[0].Type)
-	require.Equal(t, "final.assistant.response", traceSession.Events[len(traceSession.Events)-1].Type)
-}
-
-func TestAgent_SummaryFallback_UsesExistingInstructionsAndInstruct(t *testing.T) {
-	traceSession := &mocks.TraceSessionStub{}
-	client := &mocks.ModelClientStub{Responses: []*models.GenerateResponse{{OutputText: "summary"}}}
-	agent := &Agent{cfg: &config.Config{Name: "Test Agent", Model: "test-model"}, modelClient: client}
-	handCtx := &mocks.ContextStub{
-		Instructions: handcontext.Instructions{{Value: "persona"}, {Value: "workspace rules"}, {Name: "request.instruct", Value: "be terse"}},
-		Conversation: handcontext.NewConversation(),
+	openSessionStore = func(*config.Config) (storage.SessionStore, error) {
+		return nil, errors.New("open store failed")
 	}
 
-	reply, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), handCtx, traceSession)
+	agent := &Agent{cfg: testSessionConfig(&config.Config{Name: "Test Agent"})}
+	err := agent.ensureSessionManager()
+	require.EqualError(t, err, "open store failed")
+}
 
+func TestAgent_EnsureSessionManagerReturnsNewManagerError(t *testing.T) {
+	originalOpen := openSessionStore
+	originalNewManager := newSessionManager
+	t.Cleanup(func() {
+		openSessionStore = originalOpen
+		newSessionManager = originalNewManager
+	})
+	openSessionStore = func(*config.Config) (storage.SessionStore, error) {
+		return sessionstore.NewStore(), nil
+	}
+	newSessionManager = func(storage.SessionStore, time.Duration, time.Duration) (*sessionstore.Manager, error) {
+		return nil, errors.New("new manager failed")
+	}
+
+	agent := &Agent{cfg: testSessionConfig(&config.Config{Name: "Test Agent"})}
+	err := agent.ensureSessionManager()
+	require.EqualError(t, err, "new manager failed")
+}
+
+func TestDurationOrDefault(t *testing.T) {
+	require.Equal(t, 5*time.Second, durationOrDefault(5*time.Second, time.Second))
+	require.Equal(t, time.Second, durationOrDefault(0, time.Second))
+}
+
+func TestAgent_SummaryFallbackReturnsModelError(t *testing.T) {
+	agent := &Agent{
+		cfg:         &config.Config{Name: "Test Agent", Model: "test-model"},
+		modelClient: &mocks.ModelClientStub{Err: errors.New("summary failed")},
+	}
+
+	_, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), nil, nil, &mocks.TraceSessionStub{})
+	require.EqualError(t, err, "iteration limit reached and summary failed: summary failed")
+}
+
+func TestAgent_SummaryFallbackRejectsToolRequests(t *testing.T) {
+	agent := &Agent{
+		cfg: &config.Config{Name: "Test Agent", Model: "test-model"},
+		modelClient: &mocks.ModelClientStub{Responses: []*models.Response{{
+			ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
+			RequiresToolCalls: true,
+		}}},
+	}
+
+	_, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), nil, nil, &mocks.TraceSessionStub{})
+	require.EqualError(t, err, "iteration limit reached and summary requested more tools")
+}
+
+func mustSessionManager(t *testing.T) *sessionstore.Manager {
+	t.Helper()
+
+	manager, err := sessionstore.NewManager(sessionstore.NewStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
-	require.Equal(t, "summary", reply)
-	require.Contains(t, client.Requests[0].Instructions, "persona")
-	require.Contains(t, client.Requests[0].Instructions, "workspace rules")
-	require.Contains(t, client.Requests[0].Instructions, "be terse")
-	require.Contains(t, client.Requests[0].Instructions, "The maximum number of tool-calling iterations has been reached.")
+	return manager
+}
+
+type sessionStoreStub struct {
+	saveFn           func(context.Context, sessionstore.Session) error
+	getFn            func(context.Context, string) (sessionstore.Session, bool, error)
+	listFn           func(context.Context) ([]sessionstore.Session, error)
+	deleteFn         func(context.Context, string) error
+	setCurrentFn     func(context.Context, string) error
+	currentFn        func(context.Context) (string, bool, error)
+	appendMessagesFn func(context.Context, string, []handmsg.Message) error
+	getMessageFn     func(context.Context, string, int, sessionstore.MessageQueryOptions) (handmsg.Message, bool, error)
+	getMessagesFn    func(context.Context, string, sessionstore.MessageQueryOptions) ([]handmsg.Message, error)
+	clearMessagesFn  func(context.Context, string, sessionstore.MessageQueryOptions) error
+	createArchiveFn  func(context.Context, sessionstore.ArchivedSession) error
+	getArchiveFn     func(context.Context, string) (sessionstore.ArchivedSession, bool, error)
+	listArchivesFn   func(context.Context, string) ([]sessionstore.ArchivedSession, error)
+	deleteArchivesFn func(context.Context, string) error
+	deleteExpiredFn  func(context.Context, time.Time) error
+}
+
+func (s *sessionStoreStub) Save(ctx context.Context, session sessionstore.Session) error {
+	if s.saveFn != nil {
+		return s.saveFn(ctx, session)
+	}
+	return nil
+}
+
+func (s *sessionStoreStub) Get(ctx context.Context, id string) (sessionstore.Session, bool, error) {
+	if s.getFn != nil {
+		return s.getFn(ctx, id)
+	}
+	return sessionstore.Session{}, false, nil
+}
+
+func (s *sessionStoreStub) List(ctx context.Context) ([]sessionstore.Session, error) {
+	if s.listFn != nil {
+		return s.listFn(ctx)
+	}
+	return nil, nil
+}
+
+func (s *sessionStoreStub) Delete(ctx context.Context, id string) error {
+	if s.deleteFn != nil {
+		return s.deleteFn(ctx, id)
+	}
+	return nil
+}
+
+func (s *sessionStoreStub) SetCurrent(ctx context.Context, id string) error {
+	if s.setCurrentFn != nil {
+		return s.setCurrentFn(ctx, id)
+	}
+	return nil
+}
+
+func (s *sessionStoreStub) Current(ctx context.Context) (string, bool, error) {
+	if s.currentFn != nil {
+		return s.currentFn(ctx)
+	}
+	return "", false, nil
+}
+
+func (s *sessionStoreStub) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
+	if s.appendMessagesFn != nil {
+		return s.appendMessagesFn(ctx, id, messages)
+	}
+	return nil
+}
+
+func (s *sessionStoreStub) GetMessage(ctx context.Context, id string, index int, opts sessionstore.MessageQueryOptions) (handmsg.Message, bool, error) {
+	if s.getMessageFn != nil {
+		return s.getMessageFn(ctx, id, index, opts)
+	}
+	return handmsg.Message{}, false, nil
+}
+
+func (s *sessionStoreStub) GetMessages(ctx context.Context, id string, opts sessionstore.MessageQueryOptions) ([]handmsg.Message, error) {
+	if s.getMessagesFn != nil {
+		return s.getMessagesFn(ctx, id, opts)
+	}
+	return nil, nil
+}
+
+func (s *sessionStoreStub) ClearMessages(ctx context.Context, id string, opts sessionstore.MessageQueryOptions) error {
+	if s.clearMessagesFn != nil {
+		return s.clearMessagesFn(ctx, id, opts)
+	}
+	return nil
+}
+
+func (s *sessionStoreStub) CreateArchive(ctx context.Context, archive sessionstore.ArchivedSession) error {
+	if s.createArchiveFn != nil {
+		return s.createArchiveFn(ctx, archive)
+	}
+	return nil
+}
+
+func (s *sessionStoreStub) GetArchive(ctx context.Context, id string) (sessionstore.ArchivedSession, bool, error) {
+	if s.getArchiveFn != nil {
+		return s.getArchiveFn(ctx, id)
+	}
+	return sessionstore.ArchivedSession{}, false, nil
+}
+
+func (s *sessionStoreStub) ListArchives(ctx context.Context, sourceSessionID string) ([]sessionstore.ArchivedSession, error) {
+	if s.listArchivesFn != nil {
+		return s.listArchivesFn(ctx, sourceSessionID)
+	}
+	return nil, nil
+}
+
+func (s *sessionStoreStub) DeleteArchives(ctx context.Context, archiveID string) error {
+	if s.deleteArchivesFn != nil {
+		return s.deleteArchivesFn(ctx, archiveID)
+	}
+	return nil
+}
+
+func (s *sessionStoreStub) DeleteExpiredArchives(ctx context.Context, now time.Time) error {
+	if s.deleteExpiredFn != nil {
+		return s.deleteExpiredFn(ctx, now)
+	}
+	return nil
 }

@@ -32,7 +32,7 @@ var (
 )
 
 type chatRunner interface {
-	Chat(context.Context, string, rpcclient.ChatOptions) (string, error)
+	Respond(context.Context, string, rpcclient.RespondOptions) (string, error)
 	Close() error
 }
 
@@ -98,7 +98,7 @@ func newCommand() *cli.Command {
 				instruct = cfg.Instruct
 			}
 
-			reply, err := client.Chat(ctx, message, rpcclient.ChatOptions{
+			reply, err := client.Respond(ctx, message, rpcclient.RespondOptions{
 				Instruct:  instruct,
 				SessionID: strings.TrimSpace(cmd.String("session")),
 			})
