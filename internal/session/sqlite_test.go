@@ -143,6 +143,33 @@ func Test_SQLiteStore_SessionLifecycle(t *testing.T) {
 	require.Empty(t, current)
 }
 
+func Test_SQLiteStore_MessageRoundTripPreservesAssistantToolCalls(t *testing.T) {
+	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{
+			Role:      handmsg.RoleAssistant,
+			ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: `{"zone":"utc"}`}},
+			CreatedAt: now,
+		},
+	}))
+
+	messages, err := store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Empty(t, messages[0].Content)
+	require.Equal(t, []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: `{"zone":"utc"}`}}, messages[0].ToolCalls)
+
+	message, ok, err := store.GetMessage(context.Background(), testSessionA, 0, MessageQueryOptions{})
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Empty(t, message.Content)
+	require.Equal(t, []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: `{"zone":"utc"}`}}, message.ToolCalls)
+}
+
 func Test_SQLiteStore_GetPreservesZeroUpdatedAt(t *testing.T) {
 	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)

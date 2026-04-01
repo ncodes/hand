@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/wandxy/hand/internal/mocks"
 	"github.com/wandxy/hand/internal/models"
 	sessionstore "github.com/wandxy/hand/internal/session"
+	"github.com/wandxy/hand/internal/storage"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -986,6 +988,64 @@ func TestAgent_RespondConvertsMissingToolIntoToolMessage(t *testing.T) {
 	logutils.PrettyPrint(client.Requests)
 	require.Contains(t, client.Requests[1].Messages[2].Content, `tool_not_registered`)
 	require.Contains(t, client.Requests[1].Messages[2].Content, `tool is not registered`)
+}
+
+func TestAgent_RespondPreservesAssistantToolCallsAcrossSQLiteBackedTurns(t *testing.T) {
+	client := &mocks.ModelClientStub{
+		Responses: []*models.Response{
+			{ToolCalls: []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}, RequiresToolCalls: true},
+			{OutputText: "first reply"},
+			{OutputText: "second reply"},
+		},
+	}
+
+	originalRuntimeFactory := newRuntimeEnvironment
+	originalOpenStore := openSessionStore
+	t.Cleanup(func() {
+		newRuntimeEnvironment = originalRuntimeFactory
+		openSessionStore = originalOpenStore
+	})
+
+	newRuntimeEnvironment = func(context.Context, *config.Config) executionEnvironment {
+		registry := tools.NewInMemoryRegistry()
+		require.NoError(t, registry.Register(tools.Definition{
+			Name:        "time",
+			Description: "Returns time",
+			Handler: tools.HandlerFunc(func(context.Context, tools.Call) (tools.Result, error) {
+				return tools.Result{Output: "2026-03-23T00:00:00Z"}, nil
+			}),
+		}))
+		return &mocks.EnvironmentStub{
+			InstructionsList: instruct.Instructions{{Value: "system prompt"}},
+			ToolRegistry:     registry,
+			IterationBudget:  environment.NewIterationBudget(config.DefaultMaxIterations),
+			TraceSession:     &mocks.TraceSessionStub{},
+		}
+	}
+
+	openSessionStore = func(*config.Config) (storage.SessionStore, error) {
+		return sessionstore.NewSQLiteStore(filepath.Join(t.TempDir(), "session.db"))
+	}
+
+	agent := NewAgent(context.Background(), &config.Config{
+		Name:           "Test Agent",
+		Model:          "test-model",
+		SessionBackend: "sqlite",
+	}, client)
+	require.NoError(t, agent.Start(context.Background()))
+
+	reply, err := agent.Respond(context.Background(), "what time is it?", RespondOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "first reply", reply)
+
+	reply, err = agent.Respond(context.Background(), "and again?", RespondOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "second reply", reply)
+	require.Len(t, client.Requests, 3)
+	require.Len(t, client.Requests[2].Messages, 5)
+	require.Equal(t, handmsg.RoleAssistant, client.Requests[2].Messages[1].Role)
+	require.Len(t, client.Requests[2].Messages[1].ToolCalls, 1)
+	require.Equal(t, "call-1", client.Requests[2].Messages[1].ToolCalls[0].ID)
 }
 
 func TestAgent_RespondUsesSummaryFallbackWhenIterationBudgetIsExhausted(t *testing.T) {

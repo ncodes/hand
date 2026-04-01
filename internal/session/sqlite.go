@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 )
@@ -58,6 +60,7 @@ type sqliteMessageRecord struct {
 	Role       string
 	Name       string
 	Content    string
+	ToolCalls  string `gorm:"type:text"`
 	ToolCallID string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
@@ -74,6 +77,7 @@ type sqliteArchivedMessageRecord struct {
 	Role       string
 	Name       string
 	Content    string
+	ToolCalls  string `gorm:"type:text"`
 	ToolCallID string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
@@ -97,7 +101,9 @@ func NewSQLiteStore(path string) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("failed to create session db directory: %w", err)
 	}
 
-	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open session db: %w", err)
 	}
@@ -674,6 +680,7 @@ func encodeSessionMessagesWithOffset(sessionID string, messages []handmsg.Messag
 			Role:       string(message.Role),
 			Name:       message.Name,
 			Content:    message.Content,
+			ToolCalls:  encodeToolCalls(message.ToolCalls),
 			ToolCallID: message.ToolCallID,
 			CreatedAt:  message.CreatedAt,
 		})
@@ -695,6 +702,7 @@ func encodeArchivedMessages(archiveID string, messages []handmsg.Message) []sqli
 			Role:       string(message.Role),
 			Name:       message.Name,
 			Content:    message.Content,
+			ToolCalls:  encodeToolCalls(message.ToolCalls),
 			ToolCallID: message.ToolCallID,
 			CreatedAt:  message.CreatedAt,
 		})
@@ -714,6 +722,7 @@ func decodeSessionMessages(records []sqliteMessageRecord) []handmsg.Message {
 			Role:       handmsg.Role(record.Role),
 			Name:       record.Name,
 			Content:    record.Content,
+			ToolCalls:  decodeToolCalls(record.ToolCalls),
 			ToolCallID: record.ToolCallID,
 			CreatedAt:  record.CreatedAt,
 		})
@@ -733,10 +742,38 @@ func decodeArchivedMessages(records []sqliteArchivedMessageRecord) []handmsg.Mes
 			Role:       handmsg.Role(record.Role),
 			Name:       record.Name,
 			Content:    record.Content,
+			ToolCalls:  decodeToolCalls(record.ToolCalls),
 			ToolCallID: record.ToolCallID,
 			CreatedAt:  record.CreatedAt,
 		})
 	}
 
 	return messages
+}
+
+func encodeToolCalls(toolCalls []handmsg.ToolCall) string {
+	if len(toolCalls) == 0 {
+		return ""
+	}
+
+	raw, err := json.Marshal(toolCalls)
+	if err != nil {
+		return ""
+	}
+
+	return string(raw)
+}
+
+func decodeToolCalls(value string) []handmsg.ToolCall {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+
+	var toolCalls []handmsg.ToolCall
+	if err := json.Unmarshal([]byte(value), &toolCalls); err != nil {
+		return nil
+	}
+
+	return toolCalls
 }

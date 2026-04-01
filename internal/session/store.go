@@ -90,6 +90,13 @@ func cloneMessages(messages []handmsg.Message) []handmsg.Message {
 		return nil
 	}
 	out := make([]handmsg.Message, len(messages))
-	copy(out, messages)
+	for i, message := range messages {
+		cloned := message
+		if len(message.ToolCalls) > 0 {
+			cloned.ToolCalls = make([]handmsg.ToolCall, len(message.ToolCalls))
+			copy(cloned.ToolCalls, message.ToolCalls)
+		}
+		out[i] = cloned
+	}
 	return out
 }
