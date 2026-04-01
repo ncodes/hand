@@ -261,19 +261,19 @@ rules:
 	require.False(t, boolValue(cfg.CapBrowser))
 }
 
-func TestConfigNormalize_LeavesRulesFilesEmptyWhenUnset(t *testing.T) {
+func TestConfig_NormalizeLeavesRulesFilesEmptyWhenUnset(t *testing.T) {
 	cfg := &Config{}
 	cfg.Normalize()
 	require.Empty(t, cfg.RulesFiles)
 }
 
-func TestConfigNormalize_NormalizesRulesFiles(t *testing.T) {
+func TestConfig_NormalizeNormalizesRulesFiles(t *testing.T) {
 	cfg := &Config{RulesFiles: []string{" ./Hand.md ", "custom.md", "Hand.md", ""}}
 	cfg.Normalize()
 	require.Equal(t, []string{"Hand.md", "custom.md"}, cfg.RulesFiles)
 }
 
-func TestConfigNormalize_TrimsInstruct(t *testing.T) {
+func TestConfig_NormalizeTrimsInstruct(t *testing.T) {
 	cfg := &Config{Instruct: "  be terse  "}
 	cfg.Normalize()
 	require.Equal(t, "be terse", cfg.Instruct)
@@ -913,7 +913,7 @@ agent:
 	require.Equal(t, 168*time.Hour, cfg.SessionArchiveRetention)
 }
 
-func TestConfigNormalize_DefaultsSessionSettings(t *testing.T) {
+func TestConfig_NormalizeDefaultsSessionSettings(t *testing.T) {
 	cfg := &Config{}
 	cfg.Normalize()
 	require.Equal(t, "sqlite", cfg.SessionBackend)
@@ -921,7 +921,7 @@ func TestConfigNormalize_DefaultsSessionSettings(t *testing.T) {
 	require.Equal(t, 30*24*time.Hour, cfg.SessionArchiveRetention)
 }
 
-func TestConfigValidate_RejectsInvalidSessionSettings(t *testing.T) {
+func TestConfig_ValidateRejectsInvalidSessionSettings(t *testing.T) {
 	cfg := &Config{
 		Name:                     "daemon",
 		Model:                    "model",
@@ -948,4 +948,61 @@ func TestConfig_NormalizeDefaultsFilesystemRootsToCWD(t *testing.T) {
 	cfg := &Config{}
 	cfg.Normalize()
 	require.Equal(t, []string{dir}, cfg.FSRoots)
+}
+
+func TestLoad_UsesCompactionSettingsFromConfig(t *testing.T) {
+	clearEnvKeys(t, "MODEL_CONTEXT_LENGTH", "AGENT_COMPACTION_ENABLED", "AGENT_COMPACTION_TRIGGER_PERCENT", "AGENT_COMPACTION_WARN_PERCENT")
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+model:
+  contextLength: 64000
+agent:
+  compaction:
+    enabled: false
+    triggerPercent: 0.7
+    warnPercent: 0.9
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, 64000, cfg.ModelContextLength)
+	require.False(t, boolValue(cfg.CompactionEnabled))
+	require.Equal(t, 0.7, cfg.CompactionTriggerPercent)
+	require.Equal(t, 0.9, cfg.CompactionWarnPercent)
+}
+
+func TestConfig_NormalizeDefaultsCompactionSettings(t *testing.T) {
+	cfg := &Config{}
+	cfg.Normalize()
+	require.Equal(t, defaultContextLength, cfg.ModelContextLength)
+	require.True(t, boolValue(cfg.CompactionEnabled))
+	require.Equal(t, 0.85, cfg.CompactionTriggerPercent)
+	require.Equal(t, 0.95, cfg.CompactionWarnPercent)
+}
+
+func TestConfig_ValidateRejectsInvalidCompactionSettings(t *testing.T) {
+	cfg := &Config{
+		Name:                     "daemon",
+		Model:                    "model",
+		ModelContextLength:       128000,
+		ModelRouter:              "openrouter",
+		ModelKey:                 "key",
+		ModelBaseURL:             "https://example.com",
+		ModelAPIMode:             DefaultModelAPIMode,
+		RPCAddress:               "127.0.0.1",
+		RPCPort:                  50051,
+		MaxIterations:            1,
+		LogLevel:                 "info",
+		SessionBackend:           "memory",
+		SessionDefaultIdleExpiry: time.Hour,
+		SessionArchiveRetention:  24 * time.Hour,
+		CompactionEnabled:        new(true),
+		CompactionTriggerPercent: 0.96,
+		CompactionWarnPercent:    0.95,
+	}
+
+	err := cfg.Validate()
+	require.EqualError(t, err, "compaction warn percent must be greater than or equal to compaction trigger percent")
 }

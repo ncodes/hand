@@ -8,9 +8,10 @@ import (
 )
 
 type Session struct {
-	CreatedAt time.Time
-	ID        string
-	UpdatedAt time.Time
+	CreatedAt        time.Time
+	ID               string
+	LastPromptTokens int
+	UpdatedAt        time.Time
 }
 
 type ArchivedSession struct {

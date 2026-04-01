@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/environment"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/mocks"
 	"github.com/wandxy/hand/internal/models"
@@ -490,28 +489,6 @@ func TestAgent_EnsureSessionManagerReturnsNewManagerError(t *testing.T) {
 func TestDurationOrDefault(t *testing.T) {
 	require.Equal(t, 5*time.Second, durationOrDefault(5*time.Second, time.Second))
 	require.Equal(t, time.Second, durationOrDefault(0, time.Second))
-}
-
-func TestAgent_SummaryFallbackReturnsModelError(t *testing.T) {
-	agent := &Agent{
-		cfg:         &config.Config{Name: "Test Agent", Model: "test-model"},
-		modelClient: &mocks.ModelClientStub{Err: errors.New("summary failed")},
-	}
-	_, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), nil, nil, &mocks.TraceSessionStub{})
-	require.EqualError(t, err, "iteration limit reached and summary failed: summary failed")
-}
-
-func TestAgent_SummaryFallbackRejectsToolRequests(t *testing.T) {
-	agent := &Agent{
-		cfg: &config.Config{Name: "Test Agent", Model: "test-model"},
-		modelClient: &mocks.ModelClientStub{Responses: []*models.Response{{
-			ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
-			RequiresToolCalls: true,
-		}}},
-	}
-
-	_, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), nil, nil, &mocks.TraceSessionStub{})
-	require.EqualError(t, err, "iteration limit reached and summary requested more tools")
 }
 
 func mustSessionManager(t *testing.T) *sessionstore.Manager {

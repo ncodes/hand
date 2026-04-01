@@ -315,62 +315,6 @@ func normalizeToolError(raw string) any {
 	return raw
 }
 
-func (c *Agent) summaryFallback(
-	ctx context.Context,
-	budget environment.IterationBudget,
-	instructions instruct.Instructions,
-	messages []handmsg.Message,
-	trace trace.Session,
-) (string, error) {
-	ctx = normalizeContext(ctx)
-	if err := ctx.Err(); err != nil {
-		trace.Record("session.failed", map[string]any{"error": err.Error()})
-		return "", err
-	}
-
-	instructions = instructions.Chain(instruct.BuildSummary(budget.Remaining())...)
-	request := models.Request{
-		Model:         c.cfg.Model,
-		APIMode:       c.cfg.ModelAPIMode,
-		Instructions:  instructions.String(),
-		Messages:      messages,
-		Tools:         nil,
-		DebugRequests: c.cfg.DebugRequests,
-	}
-
-	trace.Record("summary.fallback.started", map[string]any{"remaining_iterations": budget.Remaining()})
-	trace.Record("model.request", request)
-
-	resp, err := c.modelClient.Chat(ctx, request)
-	if err != nil {
-		wrapped := fmt.Errorf("iteration limit reached and summary failed: %w", err)
-		trace.Record("session.failed", map[string]any{"error": wrapped.Error()})
-		return "", wrapped
-	}
-
-	if resp == nil {
-		err = errors.New("model response is required")
-		trace.Record("session.failed", map[string]any{"error": err.Error()})
-		return "", err
-	}
-
-	trace.Record("model.response", resp)
-
-	if resp.RequiresToolCalls {
-		err = fmt.Errorf("iteration limit reached and summary requested more tools")
-		trace.Record("session.failed", map[string]any{"error": err.Error()})
-		return "", err
-	}
-
-	if _, err := handmsg.NewMessage(handmsg.RoleAssistant, resp.OutputText); err != nil {
-		trace.Record("session.failed", map[string]any{"error": err.Error()})
-		return "", err
-	}
-
-	trace.Record("final.assistant.response", map[string]any{"message": resp.OutputText})
-	return resp.OutputText, nil
-}
-
 func normalizeContext(ctx context.Context) context.Context {
 	if ctx == nil {
 		return context.Background()

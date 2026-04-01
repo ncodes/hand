@@ -116,7 +116,7 @@ var builtInApprovalPatterns = []dangerousCommandPattern{
 	},
 	{
 		reason:  "overwrite system file via tee",
-		pattern: regexp.MustCompile(`\btee\b.*(/etc/|/dev/sd|\.ssh/|\.hermes/\.env)`),
+		pattern: regexp.MustCompile(`\btee\b.*(/etc/|/dev/sd|\.ssh/|\.hand/\.env)`),
 	},
 	{
 		reason:  "xargs with rm command",

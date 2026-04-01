@@ -287,6 +287,51 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsChatCompletionsRequest(t *test
 	require.Contains(t, rawText, `"content":"previous reply"`)
 }
 
+func TestExtractChatCompletionsResponse_IncludesUsage(t *testing.T) {
+	resp, err := extractChatCompletionsResponse(&openai.ChatCompletion{
+		ID:    "resp_123",
+		Model: "gpt-test",
+		Choices: []openai.ChatCompletionChoice{{
+			Message: openai.ChatCompletionMessage{Content: "hello"},
+		}},
+		Usage: openai.CompletionUsage{
+			PromptTokens:     12,
+			CompletionTokens: 7,
+			TotalTokens:      19,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 12, resp.PromptTokens)
+	require.Equal(t, 7, resp.CompletionTokens)
+	require.Equal(t, 19, resp.TotalTokens)
+}
+
+func TestExtractResponsesResponse_IncludesUsage(t *testing.T) {
+	resp, err := extractResponsesResponse(&responses.Response{
+		ID:     "resp_123",
+		Model:  "gpt-test",
+		Status: responses.ResponseStatusCompleted,
+		Output: []responses.ResponseOutputItemUnion{{
+			Type:    "message",
+			ID:      "msg_123",
+			Role:    "assistant",
+			Status:  "completed",
+			Content: []responses.ResponseOutputMessageContentUnion{{Type: "output_text", Text: "hello"}},
+		}},
+		Usage: responses.ResponseUsage{
+			InputTokens:  10,
+			OutputTokens: 5,
+			TotalTokens:  15,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 10, resp.PromptTokens)
+	require.Equal(t, 5, resp.CompletionTokens)
+	require.Equal(t, 15, resp.TotalTokens)
+}
+
 func TestOpenAIClient_ChatReturnsToolCallsFromChatCompletions(t *testing.T) {
 	client := &OpenAIClient{
 		createChatCompletion: func(_ context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {

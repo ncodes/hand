@@ -181,6 +181,31 @@ func (m *Manager) GetMessage(ctx context.Context, id string, index int, opts Mes
 	return m.store.GetMessage(ctx, strings.TrimSpace(id), index, opts)
 }
 
+func (m *Manager) UpdateLastPromptTokens(ctx context.Context, id string, promptTokens int) error {
+	if m == nil {
+		return errors.New("session manager is required")
+	}
+	if promptTokens <= 0 {
+		return nil
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("session id is required")
+	}
+
+	session, ok, err := m.store.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errors.New("session not found")
+	}
+
+	session.LastPromptTokens = promptTokens
+	return m.store.Save(ctx, session)
+}
+
 func (m *Manager) CreateSession(ctx context.Context, id string) (Session, error) {
 	if m == nil {
 		return Session{}, errors.New("session manager is required")

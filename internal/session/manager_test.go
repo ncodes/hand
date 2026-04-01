@@ -150,7 +150,7 @@ func (s *managerStoreStub) ClearMessages(ctx context.Context, id string, opts Me
 	return nil
 }
 
-func Test_Manager_ResolveChatSessionCreatesDefault(t *testing.T) {
+func TestManager_ResolveChatSessionCreatesDefault(t *testing.T) {
 	manager, err := NewManager(NewStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
@@ -160,14 +160,17 @@ func Test_Manager_ResolveChatSessionCreatesDefault(t *testing.T) {
 	require.Equal(t, DefaultSessionID, session.ID)
 }
 
-func Test_Manager_RunMaintenanceArchivesExpiredDefault(t *testing.T) {
+func TestManager_RunMaintenanceArchivesExpiredDefault(t *testing.T) {
 	store := NewStore()
 	expiredAt := time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC)
-	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: expiredAt}))
-	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
+	store.sessions[DefaultSessionID] = Session{
+		ID:        DefaultSessionID,
+		CreatedAt: expiredAt.Add(-time.Hour),
+		UpdatedAt: expiredAt,
+	}
+	store.messages[DefaultSessionID] = []handmsg.Message{
 		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
-	}))
-	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: expiredAt}))
+	}
 
 	manager, err := NewManager(store, time.Hour, 48*time.Hour)
 	require.NoError(t, err)
@@ -189,7 +192,7 @@ func Test_Manager_RunMaintenanceArchivesExpiredDefault(t *testing.T) {
 	require.Empty(t, liveMessages)
 }
 
-func Test_Manager_CurrentSessionDefaultsToDefault(t *testing.T) {
+func TestManager_CurrentSessionDefaultsToDefault(t *testing.T) {
 	manager, err := NewManager(NewStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
@@ -199,7 +202,7 @@ func Test_Manager_CurrentSessionDefaultsToDefault(t *testing.T) {
 	require.Equal(t, DefaultSessionID, current)
 }
 
-func Test_Manager_StartResolvesDefaultSession(t *testing.T) {
+func TestManager_StartResolvesDefaultSession(t *testing.T) {
 	store := NewStore()
 	manager, err := NewManager(store, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -213,7 +216,7 @@ func Test_Manager_StartResolvesDefaultSession(t *testing.T) {
 	require.Equal(t, DefaultSessionID, session.ID)
 }
 
-func Test_Manager_UseSessionUsesResolvedDefaultSession(t *testing.T) {
+func TestManager_UseSessionUsesResolvedDefaultSession(t *testing.T) {
 	store := NewStore()
 	manager, err := NewManager(store, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -228,7 +231,7 @@ func Test_Manager_UseSessionUsesResolvedDefaultSession(t *testing.T) {
 	require.Equal(t, DefaultSessionID, current)
 }
 
-func Test_NewManager_ValidationAndNilManagerErrors(t *testing.T) {
+func TestNewManager_ValidationAndNilManagerErrors(t *testing.T) {
 	_, err := NewManager(nil, time.Hour, 24*time.Hour)
 	require.EqualError(t, err, "session store is required")
 
@@ -265,7 +268,7 @@ func Test_NewManager_ValidationAndNilManagerErrors(t *testing.T) {
 	require.Empty(t, current)
 }
 
-func Test_Manager_CreateSaveListAndResolveNonDefaultSession(t *testing.T) {
+func TestManager_CreateSaveListAndResolveNonDefaultSession(t *testing.T) {
 	store := NewStore()
 	manager, err := NewManager(store, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -299,7 +302,7 @@ func Test_Manager_CreateSaveListAndResolveNonDefaultSession(t *testing.T) {
 	require.Equal(t, testSessionA, sessions[1].ID)
 }
 
-func Test_Manager_CreateUseAndResolveErrors(t *testing.T) {
+func TestManager_CreateUseAndResolveErrors(t *testing.T) {
 	store := NewStore()
 	manager, err := NewManager(store, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -323,7 +326,7 @@ func Test_Manager_CreateUseAndResolveErrors(t *testing.T) {
 	require.EqualError(t, manager.UseSession(context.Background(), testMissingSession), "session not found")
 }
 
-func Test_Manager_DeleteSessionKeepsArchives(t *testing.T) {
+func TestManager_DeleteSessionKeepsArchives(t *testing.T) {
 	store := NewStore()
 	manager, err := NewManager(store, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -369,7 +372,7 @@ func Test_Manager_DeleteSessionKeepsArchives(t *testing.T) {
 	require.Equal(t, DefaultSessionID, current)
 }
 
-func Test_Manager_CurrentSessionUsesStoredSelection(t *testing.T) {
+func TestManager_CurrentSessionUsesStoredSelection(t *testing.T) {
 	store := NewStore()
 	manager, err := NewManager(store, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -383,7 +386,7 @@ func Test_Manager_CurrentSessionUsesStoredSelection(t *testing.T) {
 	require.Equal(t, testSessionA, current)
 }
 
-func Test_Manager_ResolveDefaultSessionKeepsActiveMessagesBeforeExpiry(t *testing.T) {
+func TestManager_ResolveDefaultSessionKeepsActiveMessagesBeforeExpiry(t *testing.T) {
 	store := NewStore()
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
@@ -409,7 +412,7 @@ func Test_Manager_ResolveDefaultSessionKeepsActiveMessagesBeforeExpiry(t *testin
 	require.Empty(t, archives)
 }
 
-func Test_Manager_ResolveChatSessionDoesNotRunMaintenance(t *testing.T) {
+func TestManager_ResolveChatSessionDoesNotRunMaintenance(t *testing.T) {
 	store := NewStore()
 	expiredAt := time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: expiredAt}))
@@ -435,14 +438,17 @@ func Test_Manager_ResolveChatSessionDoesNotRunMaintenance(t *testing.T) {
 	require.Empty(t, archives)
 }
 
-func Test_Manager_StartRunsMaintenance(t *testing.T) {
+func TestManager_StartRunsMaintenance(t *testing.T) {
 	store := NewStore()
 	expiredAt := time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC)
-	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: expiredAt}))
-	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
+	store.sessions[DefaultSessionID] = Session{
+		ID:        DefaultSessionID,
+		CreatedAt: expiredAt.Add(-time.Hour),
+		UpdatedAt: expiredAt,
+	}
+	store.messages[DefaultSessionID] = []handmsg.Message{
 		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
-	}))
-	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: expiredAt}))
+	}
 
 	manager, err := NewManager(store, time.Hour, 48*time.Hour)
 	require.NoError(t, err)
@@ -461,7 +467,7 @@ func Test_Manager_StartRunsMaintenance(t *testing.T) {
 	require.Len(t, archives, 1)
 }
 
-func Test_Manager_ErrorBranchesAndWorkerTick(t *testing.T) {
+func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 	t.Run("resolve non-default get error", func(t *testing.T) {
 		manager, err := NewManager(&managerStoreStub{
 			getFunc: func(context.Context, string) (Session, bool, error) {
@@ -723,4 +729,37 @@ func Test_Manager_ErrorBranchesAndWorkerTick(t *testing.T) {
 			require.EqualError(t, manager.clearIdleDefaultSession(context.Background(), now), "save failed")
 		})
 	})
+}
+
+func TestManager_UpdateLastPromptTokens(t *testing.T) {
+	var saved Session
+
+	manager, err := NewManager(&managerStoreStub{
+		getFunc: func(context.Context, string) (Session, bool, error) {
+			return Session{ID: testSessionA, UpdatedAt: time.Now().UTC()}, true, nil
+		},
+		saveFunc: func(_ context.Context, session Session) error {
+			saved = session
+			return nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	require.NoError(t, manager.UpdateLastPromptTokens(context.Background(), testSessionA, 42))
+	require.Equal(t, 42, saved.LastPromptTokens)
+}
+
+func TestManager_UpdateLastPromptTokensReturnsSaveError(t *testing.T) {
+	manager, err := NewManager(&managerStoreStub{
+		getFunc: func(context.Context, string) (Session, bool, error) {
+			return Session{ID: testSessionA, UpdatedAt: time.Now().UTC()}, true, nil
+		},
+		saveFunc: func(context.Context, Session) error {
+			return errors.New("save failed")
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	err = manager.UpdateLastPromptTokens(context.Background(), testSessionA, 42)
+	require.EqualError(t, err, "save failed")
 }

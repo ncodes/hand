@@ -10,7 +10,7 @@ import (
 	handmsg "github.com/wandxy/hand/internal/messages"
 )
 
-func TestBuilderBuildReturnsSessionHistoryThenEmittedMessages(t *testing.T) {
+func TestBuilder_BuildReturnsSessionHistoryThenEmittedMessages(t *testing.T) {
 	builder := New()
 	now := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
 
@@ -25,7 +25,7 @@ func TestBuilderBuildReturnsSessionHistoryThenEmittedMessages(t *testing.T) {
 	}, messages)
 }
 
-func TestBuilderBuildClonesReturnedMessages(t *testing.T) {
+func TestBuilder_BuildClonesReturnedMessages(t *testing.T) {
 	builder := New()
 	input := Input{
 		SessionHistory: []handmsg.Message{{
@@ -43,7 +43,7 @@ func TestBuilderBuildClonesReturnedMessages(t *testing.T) {
 	require.Equal(t, "hello", input.EmittedMessages[0].Content)
 }
 
-func TestBuilderBuildReturnsOnlyEmittedMessagesWhenHistoryEmpty(t *testing.T) {
+func TestBuilder_BuildReturnsOnlyEmittedMessagesWhenHistoryEmpty(t *testing.T) {
 	builder := New()
 	messages := builder.Build(Input{
 		EmittedMessages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
@@ -51,7 +51,7 @@ func TestBuilderBuildReturnsOnlyEmittedMessagesWhenHistoryEmpty(t *testing.T) {
 	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}, messages)
 }
 
-func TestBuilderBuildReturnsOnlySessionHistoryWhenEmittedMessagesEmpty(t *testing.T) {
+func TestBuilder_BuildReturnsOnlySessionHistoryWhenEmittedMessagesEmpty(t *testing.T) {
 	builder := New()
 	messages := builder.Build(Input{
 		SessionHistory: []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "hello"}},
@@ -59,7 +59,7 @@ func TestBuilderBuildReturnsOnlySessionHistoryWhenEmittedMessagesEmpty(t *testin
 	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "hello"}}, messages)
 }
 
-func TestBuilderBuildIgnoresNilOrEmptySummaryAndPinnedState(t *testing.T) {
+func TestBuilder_BuildIgnoresNilOrEmptySummaryAndPinnedState(t *testing.T) {
 	builder := New()
 
 	withNil := builder.Build(Input{
@@ -76,7 +76,7 @@ func TestBuilderBuildIgnoresNilOrEmptySummaryAndPinnedState(t *testing.T) {
 	require.Equal(t, withNil, withEmpty)
 }
 
-func TestBuilderBuildIgnoresPopulatedSummaryAndPinnedStateInPhaseOne(t *testing.T) {
+func TestBuilder_BuildIgnoresPopulatedSummaryAndPinnedState(t *testing.T) {
 	builder := New()
 
 	baseline := builder.Build(Input{

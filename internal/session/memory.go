@@ -39,13 +39,26 @@ func (s *MemoryStore) Save(_ context.Context, session Session) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if existing, ok := s.sessions[strings.TrimSpace(session.ID)]; ok && session.CreatedAt.IsZero() {
-		session.CreatedAt = existing.CreatedAt
+	session.ID = strings.TrimSpace(session.ID)
+	if err := validateSessionID(session.ID); err != nil {
+		return err
 	}
 
-	session, err := normalizeSession(session)
-	if err != nil {
-		return err
+	if existing, ok := s.sessions[session.ID]; ok {
+		session.CreatedAt = existing.CreatedAt
+		session.UpdatedAt = time.Now().UTC()
+	}
+
+	if session.CreatedAt.IsZero() {
+		session.CreatedAt = time.Now().UTC()
+	} else {
+		session.CreatedAt = session.CreatedAt.UTC()
+	}
+
+	if session.UpdatedAt.IsZero() {
+		session.UpdatedAt = time.Now().UTC()
+	} else {
+		session.UpdatedAt = session.UpdatedAt.UTC()
 	}
 
 	s.sessions[session.ID] = session

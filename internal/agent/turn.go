@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/wandxy/hand/internal/agent/compaction"
 	ctxbuilder "github.com/wandxy/hand/internal/agent/context"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/environment"
@@ -40,6 +41,8 @@ type Turn struct {
 	emittedMessages []handmsg.Message
 	// sessionID identifies the session being read from and written to.
 	sessionID string
+	// lastPromptTokens stores the most recent actual prompt token count for the session.
+	lastPromptTokens int
 }
 
 // NewTurn constructs a Turn with the dependencies needed for one response turn.
@@ -96,6 +99,7 @@ func (r *Turn) loadTurnContext(ctx context.Context, opts RespondOptions) error {
 	r.sessionHistory = messages
 	r.emittedMessages = nil
 	r.sessionID = session.ID
+	r.lastPromptTokens = session.LastPromptTokens
 
 	return nil
 }
@@ -152,6 +156,8 @@ func (r *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			Tools:         availableToolDefinitions,
 			DebugRequests: r.cfg.DebugRequests,
 		}
+
+		recordPreflightCompactionTrace(traceSession, r.cfg, request, r.lastPromptTokens)
 		traceSession.Record("model.request", request)
 
 		resp, err := r.modelClient.Chat(ctx, request)
@@ -167,6 +173,9 @@ func (r *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		}
 
 		traceSession.Record("model.response", resp)
+		if err := r.recordPostflightUsage(traceSession, resp); err != nil {
+			return "", err
+		}
 
 		if !resp.RequiresToolCalls {
 			assistantMessage, err := handmsg.NewMessage(handmsg.RoleAssistant, resp.OutputText)
@@ -300,6 +309,7 @@ func (r *Turn) summaryFallback(ctx context.Context, budget environment.Iteration
 	}
 
 	traceSession.Record("summary.fallback.started", map[string]any{"remaining_iterations": budget.Remaining()})
+	recordPreflightCompactionTrace(traceSession, r.cfg, request, r.lastPromptTokens)
 	traceSession.Record("model.request", request)
 
 	resp, err := r.modelClient.Chat(ctx, request)
@@ -316,6 +326,9 @@ func (r *Turn) summaryFallback(ctx context.Context, budget environment.Iteration
 	}
 
 	traceSession.Record("model.response", resp)
+	if err := r.recordPostflightUsage(traceSession, resp); err != nil {
+		return "", err
+	}
 
 	if resp.RequiresToolCalls {
 		err = fmt.Errorf("iteration limit reached and summary requested more tools")
@@ -349,6 +362,27 @@ func (r *Turn) requestMessages() []handmsg.Message {
 		SessionHistory:  r.sessionHistory,
 		EmittedMessages: r.emittedMessages,
 	})
+}
+
+func (r *Turn) recordPostflightUsage(traceSession trace.Session, resp *models.Response) error {
+	if r == nil || resp == nil || resp.PromptTokens <= 0 {
+		return nil
+	}
+
+	r.lastPromptTokens = resp.PromptTokens
+	if err := r.sessionManager.UpdateLastPromptTokens(r.ctx, r.sessionID, resp.PromptTokens); err != nil {
+		traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+		return err
+	}
+
+	traceSession.Record("context.postflight.usage_recorded", map[string]any{
+		"source":            compaction.ActualSource,
+		"prompt_tokens":     resp.PromptTokens,
+		"completion_tokens": resp.CompletionTokens,
+		"total_tokens":      resp.TotalTokens,
+	})
+
+	return nil
 }
 
 // TurnMessages returns the messages emitted during the turn.

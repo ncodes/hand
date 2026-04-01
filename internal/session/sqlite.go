@@ -21,9 +21,10 @@ import (
 const currentSessionStateKey = "current_session"
 
 type sqliteRecord struct {
-	CreatedAt time.Time
-	ID        string `gorm:"primaryKey"`
-	UpdatedAt time.Time
+	CreatedAt        time.Time
+	ID               string `gorm:"primaryKey"`
+	LastPromptTokens int
+	UpdatedAt        time.Time
 }
 
 func (sqliteRecord) TableName() string {
@@ -131,24 +132,31 @@ func (s *SQLiteStore) Save(ctx context.Context, session Session) error {
 		return err
 	}
 
-	if session.CreatedAt.IsZero() {
-		var existing sqliteRecord
-		if err := s.db.WithContext(ctx).First(&existing, "id = ?", session.ID).Error; err == nil {
-			session.CreatedAt = existing.CreatedAt
-		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
-		}
-	}
-
-	session, err := normalizeSession(session)
-	if err != nil {
+	var existing sqliteRecord
+	if err := s.db.WithContext(ctx).First(&existing, "id = ?", session.ID).Error; err == nil {
+		session.CreatedAt = existing.CreatedAt
+		session.UpdatedAt = time.Now().UTC()
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
 
+	if session.CreatedAt.IsZero() {
+		session.CreatedAt = time.Now().UTC()
+	} else {
+		session.CreatedAt = session.CreatedAt.UTC()
+	}
+
+	if session.UpdatedAt.IsZero() {
+		session.UpdatedAt = time.Now().UTC()
+	} else {
+		session.UpdatedAt = session.UpdatedAt.UTC()
+	}
+
 	record := sqliteRecord{
-		CreatedAt: session.CreatedAt,
-		ID:        session.ID,
-		UpdatedAt: session.UpdatedAt,
+		CreatedAt:        session.CreatedAt,
+		ID:               session.ID,
+		LastPromptTokens: session.LastPromptTokens,
+		UpdatedAt:        session.UpdatedAt,
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -183,9 +191,16 @@ func (s *SQLiteStore) Get(ctx context.Context, id string) (Session, bool, error)
 		return Session{}, false, err
 	}
 
-	session, err := sessionFromRecord(record.CreatedAt, record.ID, record.UpdatedAt)
-	if err != nil {
-		return Session{}, false, err
+	session := Session{
+		CreatedAt:        record.CreatedAt,
+		ID:               record.ID,
+		LastPromptTokens: record.LastPromptTokens,
+	}
+	if !record.CreatedAt.IsZero() {
+		session.CreatedAt = record.CreatedAt.UTC()
+	}
+	if !record.UpdatedAt.IsZero() {
+		session.UpdatedAt = record.UpdatedAt.UTC()
 	}
 
 	return session, true, nil
@@ -649,7 +664,7 @@ func (s *SQLiteStore) Current(ctx context.Context) (string, bool, error) {
 }
 
 func decodeSessionRecord(record sqliteRecord) (Session, error) {
-	return sessionFromRecord(record.CreatedAt, record.ID, record.UpdatedAt)
+	return sessionFromRecord(record.CreatedAt, record.ID, record.LastPromptTokens, record.UpdatedAt)
 }
 
 func decodeArchiveRecord(record sqliteArchiveRecord) (ArchivedSession, error) {
@@ -661,15 +676,16 @@ func decodeArchiveRecord(record sqliteArchiveRecord) (ArchivedSession, error) {
 	})
 }
 
-func sessionFromRecord(createdAt time.Time, id string, updatedAt time.Time) (Session, error) {
+func sessionFromRecord(createdAt time.Time, id string, lastPromptTokens int, updatedAt time.Time) (Session, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return Session{}, errors.New("session id is required")
 	}
 
 	session := Session{
-		CreatedAt: createdAt,
-		ID:        id,
+		CreatedAt:        createdAt,
+		ID:               id,
+		LastPromptTokens: lastPromptTokens,
 	}
 
 	if !createdAt.IsZero() {
@@ -776,10 +792,7 @@ func encodeToolCalls(toolCalls []handmsg.ToolCall) string {
 		return ""
 	}
 
-	raw, err := json.Marshal(toolCalls)
-	if err != nil {
-		return ""
-	}
+	raw, _ := json.Marshal(toolCalls)
 
 	return string(raw)
 }

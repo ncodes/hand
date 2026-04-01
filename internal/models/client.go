@@ -32,6 +32,9 @@ type Response struct {
 	OutputText        string
 	ToolCalls         []ToolCall
 	RequiresToolCalls bool
+	PromptTokens      int
+	CompletionTokens  int
+	TotalTokens       int
 }
 
 type ToolDefinition struct {

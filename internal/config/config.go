@@ -19,6 +19,7 @@ import (
 type Config struct {
 	Name                     string
 	Model                    string
+	ModelContextLength       int
 	ModelRouter              string
 	ModelKey                 string
 	OpenAIAPIKey             string
@@ -48,6 +49,9 @@ type Config struct {
 	SessionBackend           string
 	SessionDefaultIdleExpiry time.Duration
 	SessionArchiveRetention  time.Duration
+	CompactionEnabled        *bool
+	CompactionTriggerPercent float64
+	CompactionWarnPercent    float64
 }
 
 type ModelAuth struct {
@@ -68,6 +72,7 @@ var (
 
 const (
 	defaultModel         = "openai/gpt-4o-mini"
+	defaultContextLength = 128000
 	defaultModelRouter   = "openrouter"
 	DefaultModelAPIMode  = "chat-completions"
 	DefaultMaxIterations = 90
@@ -78,6 +83,7 @@ type fileConfig struct {
 	Name  string `yaml:"name"`
 	Model struct {
 		Name             string `yaml:"name"`
+		ContextLength    int    `yaml:"contextLength"`
 		Router           string `yaml:"router"`
 		Key              string `yaml:"key"`
 		OpenAIAPIKey     string `yaml:"openaiApiKey"`
@@ -118,6 +124,11 @@ type fileConfig struct {
 			DefaultIdleExpiry string `yaml:"defaultIdleExpiry"`
 			ArchiveRetention  string `yaml:"archiveRetention"`
 		} `yaml:"session"`
+		Compaction struct {
+			Enabled        *bool   `yaml:"enabled"`
+			TriggerPercent float64 `yaml:"triggerPercent"`
+			WarnPercent    float64 `yaml:"warnPercent"`
+		} `yaml:"compaction"`
 		Cap struct {
 			Filesystem *bool `yaml:"fs"`
 			Network    *bool `yaml:"net"`
@@ -170,6 +181,7 @@ func Get() *Config {
 	if globalConfig == nil {
 		return &Config{
 			Model:                    defaultModel,
+			ModelContextLength:       defaultContextLength,
 			ModelAPIMode:             DefaultModelAPIMode,
 			MaxIterations:            defaultMaxIterations,
 			LogLevel:                 "info",
@@ -184,6 +196,9 @@ func Get() *Config {
 			SessionBackend:           "sqlite",
 			SessionDefaultIdleExpiry: 24 * time.Hour,
 			SessionArchiveRetention:  30 * 24 * time.Hour,
+			CompactionEnabled:        new(true),
+			CompactionTriggerPercent: 0.85,
+			CompactionWarnPercent:    0.95,
 		}
 	}
 
@@ -220,6 +235,7 @@ func loadConfigFile(path string) (*Config, error) {
 	return &Config{
 		Name:                     raw.Name,
 		Model:                    raw.Model.Name,
+		ModelContextLength:       raw.Model.ContextLength,
 		ModelRouter:              raw.Model.Router,
 		ModelKey:                 raw.Model.Key,
 		OpenAIAPIKey:             raw.Model.OpenAIAPIKey,
@@ -249,6 +265,9 @@ func loadConfigFile(path string) (*Config, error) {
 		SessionBackend:           raw.Agent.Session.Backend,
 		SessionDefaultIdleExpiry: parseDurationOrZero(raw.Agent.Session.DefaultIdleExpiry),
 		SessionArchiveRetention:  parseDurationOrZero(raw.Agent.Session.ArchiveRetention),
+		CompactionEnabled:        raw.Agent.Compaction.Enabled,
+		CompactionTriggerPercent: raw.Agent.Compaction.TriggerPercent,
+		CompactionWarnPercent:    raw.Agent.Compaction.WarnPercent,
 	}, nil
 }
 
@@ -262,6 +281,11 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := strings.TrimSpace(os.Getenv("MODEL")); value != "" {
 		cfg.Model = value
+	}
+	if value := strings.TrimSpace(os.Getenv("MODEL_CONTEXT_LENGTH")); value != "" {
+		if contextLength, err := strconv.Atoi(value); err == nil {
+			cfg.ModelContextLength = contextLength
+		}
 	}
 	if value := strings.TrimSpace(os.Getenv("MODEL_ROUTER")); value != "" {
 		cfg.ModelRouter = value
@@ -354,6 +378,19 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("AGENT_SESSION_ARCHIVE_RETENTION")); value != "" {
 		cfg.SessionArchiveRetention = parseDurationOrZero(value)
 	}
+	if value, ok := parseOptionalBoolEnv("AGENT_COMPACTION_ENABLED"); ok {
+		cfg.CompactionEnabled = new(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("AGENT_COMPACTION_TRIGGER_PERCENT")); value != "" {
+		if percent, err := strconv.ParseFloat(value, 64); err == nil {
+			cfg.CompactionTriggerPercent = percent
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("AGENT_COMPACTION_WARN_PERCENT")); value != "" {
+		if percent, err := strconv.ParseFloat(value, 64); err == nil {
+			cfg.CompactionWarnPercent = percent
+		}
+	}
 }
 
 func (c *Config) Normalize() {
@@ -382,6 +419,9 @@ func (c *Config) Normalize() {
 
 	if c.Model == "" {
 		c.Model = defaultModel
+	}
+	if c.ModelContextLength <= 0 {
+		c.ModelContextLength = defaultContextLength
 	}
 
 	if c.ModelRouter == "" {
@@ -441,6 +481,15 @@ func (c *Config) Normalize() {
 	}
 	if c.SessionArchiveRetention <= 0 {
 		c.SessionArchiveRetention = 30 * 24 * time.Hour
+	}
+	if c.CompactionEnabled == nil {
+		c.CompactionEnabled = new(true)
+	}
+	if c.CompactionTriggerPercent <= 0 {
+		c.CompactionTriggerPercent = 0.85
+	}
+	if c.CompactionWarnPercent <= 0 {
+		c.CompactionWarnPercent = 0.95
 	}
 
 	if c.ModelBaseURL == "" {
@@ -574,6 +623,9 @@ func (c *Config) Validate() error {
 	if strings.TrimSpace(c.Model) == "" {
 		return errors.New("model is required; set MODEL, provide it in config, or use --model")
 	}
+	if c.ModelContextLength <= 0 {
+		return errors.New("model context length must be greater than zero")
+	}
 
 	if router := strings.TrimSpace(strings.ToLower(c.ModelRouter)); router != "" {
 		if _, ok := supportedRouters[router]; !ok {
@@ -611,6 +663,15 @@ func (c *Config) Validate() error {
 
 	if c.SessionBackend != "memory" && c.SessionBackend != "sqlite" {
 		return errors.New("session backend must be one of: memory, sqlite")
+	}
+	if c.CompactionTriggerPercent <= 0 || c.CompactionTriggerPercent >= 1 {
+		return errors.New("compaction trigger percent must be greater than zero and less than one")
+	}
+	if c.CompactionWarnPercent <= 0 || c.CompactionWarnPercent >= 1 {
+		return errors.New("compaction warn percent must be greater than zero and less than one")
+	}
+	if c.CompactionWarnPercent < c.CompactionTriggerPercent {
+		return errors.New("compaction warn percent must be greater than or equal to compaction trigger percent")
 	}
 
 	switch strings.TrimSpace(strings.ToLower(c.LogLevel)) {

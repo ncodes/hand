@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -216,6 +217,42 @@ func TestTurn_RunReturnsContextErrorAtLoopStart(t *testing.T) {
 		},
 	).Run(ctx, "hello", RespondOptions{})
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestTurn_RunReturnsPromptTokenPersistenceError(t *testing.T) {
+	manager, err := sessionstore.NewManager(&sessionStoreStub{
+		getFn: func(context.Context, string) (sessionstore.Session, bool, error) {
+			return sessionstore.Session{ID: sessionstore.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		},
+		getMessagesFn: func(context.Context, string, sessionstore.MessageQueryOptions) ([]handmsg.Message, error) {
+			return nil, nil
+		},
+		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
+			return nil
+		},
+		saveFn: func(context.Context, sessionstore.Session) error {
+			return errors.New("save failed")
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	turn := NewTurn(
+		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		&mocks.ModelClientStub{Responses: []*models.Response{{
+			OutputText:   "reply",
+			PromptTokens: 42,
+		}}},
+		manager,
+		nil,
+		&mocks.EnvironmentStub{
+			InstructionsList: nil,
+			ToolRegistry:     tools.NewInMemoryRegistry(),
+			TraceSession:     &mocks.TraceSessionStub{},
+		},
+	)
+
+	_, err = turn.Run(context.Background(), "hello", RespondOptions{})
+	require.EqualError(t, err, "save failed")
 }
 
 func TestTurn_RunReturnsAppendSessionErrorAfterAssistantResponse(t *testing.T) {
@@ -465,6 +502,13 @@ func TestTurn_SummaryFallbackRejectsToolRequests(t *testing.T) {
 	require.EqualError(t, err, "iteration limit reached and summary requested more tools")
 }
 
+func TestTurn_SummaryFallbackReturnsModelError(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{Err: errors.New("summary failed")})
+	_, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	require.EqualError(t, err, "iteration limit reached and summary failed: summary failed")
+}
+
 func TestTurn_SummaryFallbackReturnsContextError(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{})
@@ -496,6 +540,7 @@ func TestTurn_SummaryFallbackUsesExistingInstructions(t *testing.T) {
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "summary"}}}
 	turn, _ := newTestTurnHarness(t, instruct.Instructions{
 		{Value: "persona"},
+		{Value: "workspace rules"},
 		{Name: requestInstructionName, Value: "be terse"},
 	}, tools.NewInMemoryRegistry(), client)
 
@@ -503,8 +548,149 @@ func TestTurn_SummaryFallbackUsesExistingInstructions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "summary", reply)
 	require.Contains(t, client.Requests[0].Instructions, "persona")
+	require.Contains(t, client.Requests[0].Instructions, "workspace rules")
 	require.Contains(t, client.Requests[0].Instructions, "be terse")
 	require.Contains(t, client.Requests[0].Instructions, "Remaining iteration budget: 0.")
+}
+
+func TestTurn_SummaryFallbackReturnsPromptTokenPersistenceError(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	manager, err := sessionstore.NewManager(&sessionStoreStub{
+		getFn: func(context.Context, string) (sessionstore.Session, bool, error) {
+			return sessionstore.Session{ID: sessionstore.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		},
+		getMessagesFn: func(context.Context, string, sessionstore.MessageQueryOptions) ([]handmsg.Message, error) {
+			return nil, nil
+		},
+		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
+			return nil
+		},
+		saveFn: func(context.Context, sessionstore.Session) error {
+			return errors.New("save failed")
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	turn := NewTurn(
+		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		&mocks.ModelClientStub{Responses: []*models.Response{{
+			OutputText:   "summary",
+			PromptTokens: 42,
+		}}},
+		manager,
+		nil,
+		&mocks.EnvironmentStub{
+			InstructionsList: nil,
+			ToolRegistry:     tools.NewInMemoryRegistry(),
+			TraceSession:     traceSession,
+		},
+	)
+	require.NoError(t, turn.loadTurnContext(context.Background(), RespondOptions{}))
+
+	_, err = turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	require.EqualError(t, err, "save failed")
+}
+
+func TestTurn_SummaryFallbackRecordsTraceEvent(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "summary"}}}
+	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
+
+	reply, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	require.NoError(t, err)
+	require.Equal(t, "summary", reply)
+	require.Equal(t, "summary.fallback.started", traceSession.Events[0].Type)
+	require.Equal(t, "context.preflight", traceSession.Events[1].Type)
+
+	payload, ok := traceSession.Events[1].Payload.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "estimated", payload["source"])
+	require.Equal(t, "final.assistant.response", traceSession.Events[len(traceSession.Events)-1].Type)
+}
+
+func TestTurn_SummaryFallbackSkipsCompactionTraceWhenDisabled(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "summary"}}}
+	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
+	turn.cfg = testSessionConfig(&config.Config{
+		Name:              "Test Agent",
+		Model:             "test-model",
+		CompactionEnabled: new(false),
+	})
+
+	reply, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	require.NoError(t, err)
+	require.Equal(t, "summary", reply)
+	require.Equal(t, "summary.fallback.started", traceSession.Events[0].Type)
+	require.Equal(t, "model.request", traceSession.Events[1].Type)
+
+	eventTypes := make([]string, 0, len(traceSession.Events))
+	for _, event := range traceSession.Events {
+		eventTypes = append(eventTypes, event.Type)
+	}
+	require.NotContains(t, eventTypes, "context.preflight")
+	require.NotContains(t, eventTypes, "context.compaction.triggered")
+	require.NotContains(t, eventTypes, "context.compaction.warning")
+}
+
+func TestTurn_SummaryFallbackRecordsEstimatedPreflightPayload(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "summary"}}}
+	turn, _ := newTestTurnHarness(t, instruct.Instructions{{Value: "persona"}}, tools.NewInMemoryRegistry(), client)
+	turn.cfg = testSessionConfig(&config.Config{
+		Name:                     "Test Agent",
+		Model:                    "test-model",
+		ModelContextLength:       1000,
+		CompactionTriggerPercent: 0.5,
+		CompactionWarnPercent:    0.8,
+	})
+	turn.sessionHistory = []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}
+
+	reply, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	require.NoError(t, err)
+	require.Equal(t, "summary", reply)
+	require.Equal(t, "context.preflight", traceSession.Events[1].Type)
+
+	payload, ok := traceSession.Events[1].Payload.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "estimated", payload["source"])
+	require.Equal(t, 1000, payload["context_limit"])
+	require.Greater(t, payload["prompt_tokens"].(int), 0)
+}
+
+func TestTurn_SummaryFallbackRecordsTriggerAndWarningWhenThresholdExceeded(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "summary"}}}
+	turn, _ := newTestTurnHarness(t, instruct.Instructions{{Value: strings.Repeat("a", 80)}}, tools.NewInMemoryRegistry(), client)
+	turn.cfg = testSessionConfig(&config.Config{
+		Name:                     "Test Agent",
+		Model:                    "test-model",
+		ModelContextLength:       100,
+		CompactionTriggerPercent: 0.5,
+		CompactionWarnPercent:    0.6,
+	})
+	turn.sessionHistory = []handmsg.Message{{Role: handmsg.RoleUser, Content: strings.Repeat("b", 300)}}
+
+	reply, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	require.NoError(t, err)
+	require.Equal(t, "summary", reply)
+
+	eventTypes := make([]string, 0, len(traceSession.Events))
+	for _, event := range traceSession.Events {
+		eventTypes = append(eventTypes, event.Type)
+	}
+	require.Contains(t, eventTypes, "context.preflight")
+	require.Contains(t, eventTypes, "context.compaction.triggered")
+	require.Contains(t, eventTypes, "context.compaction.warning")
+}
+
+func TestTurn_RecordPostflightUsageReturnsNilForMissingResponseData(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	turn := &Turn{}
+
+	require.NoError(t, turn.recordPostflightUsage(traceSession, nil))
+	require.NoError(t, turn.recordPostflightUsage(traceSession, &models.Response{}))
+	require.Empty(t, traceSession.Events)
 }
 
 func TestTurn_TurnMessagesReturnsCopy(t *testing.T) {
@@ -1223,47 +1409,6 @@ func TestToContextToolCalls_ReturnsNilWhenEmpty(t *testing.T) {
 	require.Nil(t, toContextToolCalls(nil))
 }
 
-func TestAgent_SummaryFallbackReturnsContextError(t *testing.T) {
-	agent := &Agent{
-		cfg:         &config.Config{Name: "Test Agent", Model: "test-model"},
-		modelClient: &mocks.ModelClientStub{},
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	_, err := agent.summaryFallback(ctx, environment.NewIterationBudget(0), nil, nil, &mocks.TraceSessionStub{})
-	require.ErrorIs(t, err, context.Canceled)
-}
-
-func TestAgent_SummaryFallbackReturnsAssistantAppendError(t *testing.T) {
-	client := &mocks.ModelClientStub{
-		Responses: []*models.Response{{OutputText: "   "}},
-	}
-	agent := &Agent{
-		cfg:         &config.Config{Name: "Test Agent", Model: "test-model"},
-		modelClient: client,
-	}
-
-	_, err := agent.summaryFallback(
-		context.Background(),
-		environment.NewIterationBudget(0),
-		instruct.Instructions{{Value: "system prompt"}},
-		nil,
-		&mocks.TraceSessionStub{},
-	)
-	require.EqualError(t, err, "message content is required")
-}
-
-func TestAgent_SummaryFallbackRejectsNilModelResponse(t *testing.T) {
-	agent := &Agent{
-		cfg:         &config.Config{Name: "Test Agent", Model: "test-model"},
-		modelClient: &mocks.ModelClientStub{Responses: []*models.Response{nil}},
-	}
-	_, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), nil, nil, &mocks.TraceSessionStub{})
-	require.EqualError(t, err, "model response is required")
-}
-
 func TestAgent_RespondRecordsTraceEventsOnSuccess(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "hello back"}}}
@@ -1288,9 +1433,12 @@ func TestAgent_RespondRecordsTraceEventsOnSuccess(t *testing.T) {
 	require.Equal(t, "hello back", reply)
 
 	require.True(t, traceSession.Closed)
-	expectedEvents := []string{"user.message.accepted", "model.request", "model.response", "final.assistant.response"}
-	actualEvents := []string{traceSession.Events[0].Type, traceSession.Events[1].Type, traceSession.Events[2].Type, traceSession.Events[3].Type}
+	expectedEvents := []string{"user.message.accepted", "context.preflight", "model.request", "model.response", "final.assistant.response"}
+	actualEvents := []string{traceSession.Events[0].Type, traceSession.Events[1].Type, traceSession.Events[2].Type, traceSession.Events[3].Type, traceSession.Events[4].Type}
 	require.Equal(t, expectedEvents, actualEvents)
+	payload, ok := traceSession.Events[1].Payload.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "estimated", payload["source"])
 }
 
 func TestAgent_RespondRecordsTraceFailure(t *testing.T) {
@@ -1315,39 +1463,112 @@ func TestAgent_RespondRecordsTraceFailure(t *testing.T) {
 	require.Equal(t, "session.failed", traceSession.Events[len(traceSession.Events)-1].Type)
 }
 
-func TestAgent_SummaryFallbackRecordsTraceEvent(t *testing.T) {
-	traceSession := &mocks.TraceSessionStub{}
-	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "summary"}}}
-	agent := &Agent{cfg: &config.Config{Name: "Test Agent", Model: "test-model"}, modelClient: client}
+func TestTurn_RunStoresActualPromptTokensForFutureTurns(t *testing.T) {
+	client := &mocks.ModelClientStub{Responses: []*models.Response{{
+		OutputText:   "hello back",
+		PromptTokens: 4321,
+	}}}
+	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
 
-	reply, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), nil, nil, traceSession)
+	reply, err := turn.Run(context.Background(), "hello", RespondOptions{})
 	require.NoError(t, err)
-	require.Equal(t, "summary", reply)
-	require.Equal(t, "summary.fallback.started", traceSession.Events[0].Type)
-	require.Equal(t, "final.assistant.response", traceSession.Events[len(traceSession.Events)-1].Type)
+	require.Equal(t, "hello back", reply)
+
+	session, err := manager.ResolveSession(context.Background(), "")
+	require.NoError(t, err)
+	require.Equal(t, 4321, session.LastPromptTokens)
 }
 
-func TestAgent_SummaryFallback_UsesExistingInstructionsAndInstruct(t *testing.T) {
+func TestTurn_RunReusesActualPromptTokensDuringPreflight(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
-	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "summary"}}}
-	agent := &Agent{cfg: &config.Config{Name: "Test Agent", Model: "test-model"}, modelClient: client}
-	reply, err := agent.summaryFallback(
-		context.Background(),
-		environment.NewIterationBudget(0),
-		instruct.Instructions{
-			{Value: "persona"},
-			{Value: "workspace rules"},
-			{Name: "request.instruct", Value: "be terse"}},
+	manager := mustNewSessionManager(t)
+	session, err := manager.ResolveSession(context.Background(), "")
+	require.NoError(t, err)
+	require.NoError(t, manager.UpdateLastPromptTokens(context.Background(), session.ID, 2048))
+
+	turn := NewTurn(
+		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		&mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}},
+		manager,
 		nil,
-		traceSession,
+		&mocks.EnvironmentStub{
+			ToolRegistry: tools.NewInMemoryRegistry(),
+			TraceSession: traceSession,
+		},
 	)
 
+	_, err = turn.Run(context.Background(), "hello", RespondOptions{})
 	require.NoError(t, err)
-	require.Equal(t, "summary", reply)
-	require.Contains(t, client.Requests[0].Instructions, "persona")
-	require.Contains(t, client.Requests[0].Instructions, "workspace rules")
-	require.Contains(t, client.Requests[0].Instructions, "be terse")
-	require.Contains(t, client.Requests[0].Instructions, "The maximum number of tool-calling iterations has been reached.")
+	require.Equal(t, "context.preflight", traceSession.Events[1].Type)
+	payload, ok := traceSession.Events[1].Payload.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, 2048, payload["prompt_tokens"])
+	require.Equal(t, "actual", payload["source"])
+}
+
+func TestTurn_RunUsesEstimatedPromptTokensWhenRequestGrowsPastStoredActual(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	manager := mustNewSessionManager(t)
+	session, err := manager.ResolveSession(context.Background(), "")
+	require.NoError(t, err)
+	require.NoError(t, manager.UpdateLastPromptTokens(context.Background(), session.ID, 50))
+
+	turn := NewTurn(
+		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model", ModelContextLength: 1000}),
+		&mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}},
+		manager,
+		nil,
+		&mocks.EnvironmentStub{
+			ToolRegistry: tools.NewInMemoryRegistry(),
+			TraceSession: traceSession,
+		},
+	)
+
+	_, err = turn.Run(context.Background(), strings.Repeat("a", 800), RespondOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "context.preflight", traceSession.Events[1].Type)
+	payload, ok := traceSession.Events[1].Payload.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "estimated", payload["source"])
+	require.Greater(t, payload["prompt_tokens"].(int), 50)
+}
+
+func TestTurn_RunRecordsCompactionTriggerAndWarningWithoutMutatingHistory(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	cfg := testSessionConfig(&config.Config{
+		Name:                     "Test Agent",
+		Model:                    "test-model",
+		ModelContextLength:       100,
+		CompactionEnabled:        new(true),
+		CompactionTriggerPercent: 0.5,
+		CompactionWarnPercent:    0.6,
+	})
+	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{
+		Responses: []*models.Response{{OutputText: "reply"}},
+	})
+	turn.cfg = cfg
+	turn.runtimeEnv = &mocks.EnvironmentStub{
+		ToolRegistry: tools.NewInMemoryRegistry(),
+		TraceSession: traceSession,
+	}
+
+	message := strings.Repeat("a", 400)
+	reply, err := turn.Run(context.Background(), message, RespondOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "reply", reply)
+
+	eventTypes := make([]string, 0, len(traceSession.Events))
+	for _, event := range traceSession.Events {
+		eventTypes = append(eventTypes, event.Type)
+	}
+	require.Contains(t, eventTypes, "context.compaction.triggered")
+	require.Contains(t, eventTypes, "context.compaction.warning")
+
+	messages, err := manager.GetMessages(context.Background(), turn.sessionID, sessionstore.MessageQueryOptions{})
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, message, messages[0].Content)
+	require.Equal(t, "reply", messages[1].Content)
 }
 
 func newTestAgent(

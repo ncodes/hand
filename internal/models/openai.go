@@ -361,6 +361,9 @@ func extractChatCompletionsResponse(resp *openai.ChatCompletion) (*Response, err
 		OutputText:        outputText,
 		ToolCalls:         toolCalls,
 		RequiresToolCalls: len(toolCalls) > 0,
+		PromptTokens:      int(resp.Usage.PromptTokens),
+		CompletionTokens:  int(resp.Usage.CompletionTokens),
+		TotalTokens:       int(resp.Usage.TotalTokens),
 	}, nil
 }
 
@@ -415,6 +418,9 @@ func extractResponsesResponse(resp *responses.Response) (*Response, error) {
 		OutputText:        outputText,
 		ToolCalls:         toolCalls,
 		RequiresToolCalls: len(toolCalls) > 0,
+		PromptTokens:      int(resp.Usage.InputTokens),
+		CompletionTokens:  int(resp.Usage.OutputTokens),
+		TotalTokens:       int(resp.Usage.TotalTokens),
 	}, nil
 }
 
