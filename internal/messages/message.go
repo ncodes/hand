@@ -62,10 +62,10 @@ func Normalize(message Message) (Message, error) {
 	if err != nil {
 		return Message{}, err
 	}
-    
+
 	toolCallID := strings.TrimSpace(message.ToolCallID)
 	name := strings.TrimSpace(message.Name)
-    content := strings.TrimSpace(message.Content)
+	content := strings.TrimSpace(message.Content)
 
 	if content == "" && !(role == RoleAssistant && len(toolCalls) > 0) {
 		return Message{}, errors.New("message content is required")
@@ -93,6 +93,24 @@ func Normalize(message Message) (Message, error) {
 
 func NormalizeMessage(message Message) (Message, error) {
 	return Normalize(message)
+}
+
+func CloneMessages(messages []Message) []Message {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	cloned := make([]Message, len(messages))
+	for i, message := range messages {
+		copyMessage := message
+		if len(message.ToolCalls) > 0 {
+			copyMessage.ToolCalls = make([]ToolCall, len(message.ToolCalls))
+			copy(copyMessage.ToolCalls, message.ToolCalls)
+		}
+		cloned[i] = copyMessage
+	}
+
+	return cloned
 }
 
 func normalizeToolCalls(toolCalls []ToolCall) ([]ToolCall, error) {

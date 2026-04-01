@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	ctxbuilder "github.com/wandxy/hand/internal/agent/context"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/environment"
 	instruct "github.com/wandxy/hand/internal/instructions"
@@ -29,6 +30,8 @@ type Turn struct {
 	invokeToolFn func(context.Context, executionEnvironment, models.ToolCall) handmsg.Message
 	// runtimeEnv supplies tools, instructions, tracing, and iteration budget.
 	runtimeEnv executionEnvironment
+	// contextBuilder assembles the model-visible message context for the turn.
+	contextBuilder *ctxbuilder.Builder
 	// instructions is the request-scoped instruction set sent to the model.
 	instructions instruct.Instructions
 	// sessionHistory contains persisted messages loaded before the turn starts.
@@ -53,6 +56,7 @@ func NewTurn(
 		sessionManager: sessionManager,
 		invokeToolFn:   invokeToolFn,
 		runtimeEnv:     runtimeEnv,
+		contextBuilder: ctxbuilder.New(),
 	}
 }
 
@@ -336,10 +340,15 @@ func (r *Turn) summaryFallback(ctx context.Context, budget environment.Iteration
 }
 
 func (r *Turn) requestMessages() []handmsg.Message {
-	messages := make([]handmsg.Message, 0, len(r.sessionHistory)+len(r.emittedMessages))
-	messages = append(messages, r.sessionHistory...)
-	messages = append(messages, r.emittedMessages...)
-	return messages
+	builder := r.contextBuilder
+	if builder == nil {
+		builder = ctxbuilder.New()
+	}
+
+	return builder.Build(ctxbuilder.Input{
+		SessionHistory:  r.sessionHistory,
+		EmittedMessages: r.emittedMessages,
+	})
 }
 
 // TurnMessages returns the messages emitted during the turn.

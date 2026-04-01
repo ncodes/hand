@@ -531,6 +531,31 @@ func TestTurn_TurnMessagesReturnsNilWhenEmpty(t *testing.T) {
 	require.Nil(t, turn.TurnMessages())
 }
 
+func TestTurn_RequestMessagesReturnsSessionHistoryThenEmittedMessages(t *testing.T) {
+	turn := &Turn{
+		sessionHistory:  []handmsg.Message{{Role: handmsg.RoleUser, Content: "before"}},
+		emittedMessages: []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "after"}},
+	}
+
+	messages := turn.requestMessages()
+
+	require.Equal(t, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "before"},
+		{Role: handmsg.RoleAssistant, Content: "after"},
+	}, messages)
+}
+
+func TestTurn_RequestMessagesDefaultsBuilderWhenUnset(t *testing.T) {
+	turn := &Turn{
+		sessionHistory: []handmsg.Message{{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}}},
+	}
+
+	messages := turn.requestMessages()
+	messages[0].ToolCalls[0].Name = "changed"
+
+	require.Equal(t, "time", turn.sessionHistory[0].ToolCalls[0].Name)
+}
+
 func TestSetInstruction_SkipsBlankUnnamedInstruction(t *testing.T) {
 	original := instruct.Instructions{{Value: "base"}}
 

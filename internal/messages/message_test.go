@@ -118,3 +118,26 @@ func TestNormalize_RejectsToolCallWithoutName(t *testing.T) {
 	_, err := Normalize(Message{Role: RoleAssistant, ToolCalls: []ToolCall{{ID: "call-1"}}})
 	require.EqualError(t, err, "tool call name is required")
 }
+
+func TestCloneMessagesReturnsNilWhenEmpty(t *testing.T) {
+	require.Nil(t, CloneMessages(nil))
+	require.Nil(t, CloneMessages([]Message{}))
+}
+
+func TestCloneMessagesDeepCopiesToolCalls(t *testing.T) {
+	now := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
+	original := []Message{{
+		Role:      RoleAssistant,
+		Content:   "hello",
+		ToolCalls: []ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
+		CreatedAt: now,
+	}}
+
+	cloned := CloneMessages(original)
+	cloned[0].Content = "changed"
+	cloned[0].ToolCalls[0].Name = "changed"
+
+	require.Equal(t, "hello", original[0].Content)
+	require.Equal(t, "time", original[0].ToolCalls[0].Name)
+	require.Equal(t, now, cloned[0].CreatedAt)
+}
