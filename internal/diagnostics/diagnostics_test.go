@@ -33,7 +33,6 @@ func TestBuild_ReturnsPassingReportForValidConfig(t *testing.T) {
 
 func TestBuild_ReturnsLoadFailureWhenConfigLoadFails(t *testing.T) {
 	report := Build(".env", "config.yaml", nil, os.ErrPermission)
-
 	require.True(t, report.HasFailures())
 	require.Contains(t, report.Summary(), "config load")
 	require.Contains(t, report.Summary(), "permission denied")
@@ -121,7 +120,6 @@ func TestBuild_WarnsForMissingOptionalFiles(t *testing.T) {
 
 func TestBuild_ReturnsFailureWhenConfigIsNil(t *testing.T) {
 	report := Build(".env", "config.yaml", nil, nil)
-
 	require.True(t, report.HasFailures())
 	require.Equal(t, "config is required", report.FirstFailure())
 	require.Contains(t, report.Summary(), "config load: config is required")
@@ -156,7 +154,6 @@ func TestReport_FirstFailureReturnsFirstFailureOnly(t *testing.T) {
 
 func TestFileCheck_WarnsWhenPathNotSet(t *testing.T) {
 	check := fileCheck("env file", "   ", true)
-
 	require.Equal(t, Check{
 		Name:    "env file",
 		Status:  StatusWarn,
@@ -197,7 +194,6 @@ func TestFileCheck_FailsForUnexpectedStatError(t *testing.T) {
 
 func TestBaseURLCheck_PassesWhenEmpty(t *testing.T) {
 	check := baseURLCheck("   ")
-
 	require.Equal(t, Check{
 		Name:    "model base URL",
 		Status:  StatusPass,
@@ -207,7 +203,6 @@ func TestBaseURLCheck_PassesWhenEmpty(t *testing.T) {
 
 func TestBaseURLCheck_PassesForValidAbsoluteURL(t *testing.T) {
 	check := baseURLCheck("https://example.com/v1")
-
 	require.Equal(t, Check{
 		Name:    "model base URL",
 		Status:  StatusPass,

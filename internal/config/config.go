@@ -166,6 +166,7 @@ func Load(envPath, configPath string) (*Config, error) {
 func Get() *Config {
 	configMu.RLock()
 	defer configMu.RUnlock()
+
 	if globalConfig == nil {
 		return &Config{
 			Model:                    defaultModel,
@@ -185,6 +186,7 @@ func Get() *Config {
 			SessionArchiveRetention:  30 * 24 * time.Hour,
 		}
 	}
+
 	return globalConfig
 }
 
@@ -206,6 +208,7 @@ func loadConfigFile(path string) (*Config, error) {
 		if os.IsNotExist(err) {
 			return &Config{}, nil
 		}
+
 		return nil, fmt.Errorf("failed to read config file %q: %w", path, err)
 	}
 
@@ -395,6 +398,7 @@ func (c *Config) Normalize() {
 	if c.RPCAddress == "" {
 		c.RPCAddress = "127.0.0.1"
 	}
+
 	if c.RPCPort == 0 {
 		c.RPCPort = 50051
 	}
@@ -407,6 +411,7 @@ func (c *Config) Normalize() {
 	if c.Platform == "" {
 		c.Platform = "cli"
 	}
+
 	if c.CapFilesystem == nil {
 		c.CapFilesystem = new(true)
 	}
@@ -422,12 +427,15 @@ func (c *Config) Normalize() {
 	if c.CapBrowser == nil {
 		c.CapBrowser = new(false)
 	}
+
 	if len(c.FSRoots) == 0 {
 		c.FSRoots = defaultFSRoots()
 	}
+
 	if c.SessionBackend == "" {
 		c.SessionBackend = "sqlite"
 	}
+
 	if c.SessionDefaultIdleExpiry <= 0 {
 		c.SessionDefaultIdleExpiry = 24 * time.Hour
 	}
@@ -456,6 +464,7 @@ func splitAndTrimCSV(value string) []string {
 		}
 		values = append(values, trimmed)
 	}
+
 	return values
 }
 
@@ -463,6 +472,7 @@ func dedupeAndTrim(values []string) []string {
 	if len(values) == 0 {
 		return nil
 	}
+
 	seen := make(map[string]struct{}, len(values))
 	out := make([]string, 0, len(values))
 	for _, value := range values {
@@ -476,6 +486,7 @@ func dedupeAndTrim(values []string) []string {
 		seen[trimmed] = struct{}{}
 		out = append(out, trimmed)
 	}
+
 	return out
 }
 
@@ -493,6 +504,7 @@ func normalizeFSRoots(values []string) []string {
 		}
 		roots = append(roots, filepath.Clean(abs))
 	}
+
 	return dedupeAndTrim(roots)
 }
 
@@ -513,6 +525,7 @@ func resolvePathsFromBase(values []string, baseDir string) []string {
 		}
 		resolved = append(resolved, filepath.Join(baseDir, value))
 	}
+
 	return resolved
 }
 
@@ -567,15 +580,19 @@ func (c *Config) Validate() error {
 			return errors.New(`model router must be one of: none, openrouter`)
 		}
 	}
+
 	if _, err := c.ResolveModelAuth(); err != nil {
 		return err
 	}
+
 	if strings.TrimSpace(c.RPCAddress) == "" {
 		return errors.New("rpc address is required; set RPC_ADDRESS, provide it in config, or use --rpc.address")
 	}
+
 	if c.RPCPort <= 0 {
 		return errors.New("rpc port must be greater than zero; set RPC_PORT, provide it in config, or use --rpc.port")
 	}
+
 	if c.MaxIterations <= 0 {
 		return errors.New("max iterations must be greater than zero; set MAX_ITERATIONS, provide it in config, " +
 			"or use --max-iterations")
@@ -586,10 +603,12 @@ func (c *Config) Validate() error {
 	default:
 		return errors.New("model api mode must be one of: chat-completions, responses; use --model.api-mode")
 	}
+
 	if c.ModelAPIMode == "responses" && c.ModelRouter == "openrouter" {
 		return errors.New("model api mode 'responses' is only supported with model router 'none'; " +
 			"use --model.router 'none' or --model.api-mode 'chat-completions'")
 	}
+
 	if c.SessionBackend != "memory" && c.SessionBackend != "sqlite" {
 		return errors.New("session backend must be one of: memory, sqlite")
 	}
@@ -636,7 +655,6 @@ func firstNonEmpty(values ...string) string {
 			return trimmed
 		}
 	}
-
 	return ""
 }
 

@@ -51,6 +51,7 @@ func registerTestRuntime(t *testing.T, root string, policy guardrails.CommandPol
 	} {
 		require.NoError(t, registry.Register(definition))
 	}
+
 	return registry
 }
 

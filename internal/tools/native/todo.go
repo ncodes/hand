@@ -13,6 +13,7 @@ func TodoDefinition(dependencies envtypes.Runtime) tools.Definition {
 		Action string              `json:"action"`
 		Items  []envtypes.TodoItem `json:"items"`
 	}
+
 	return tools.Definition{
 		Name:        "todo",
 		Description: "Manage the in-memory todo list for the current session.",
@@ -37,6 +38,7 @@ func TodoDefinition(dependencies envtypes.Runtime) tools.Definition {
 			if result := decodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
+
 			switch strings.TrimSpace(req.Action) {
 			case "", "list":
 				return encodeOutput(map[string]any{"items": dependencies.ListTodos()})

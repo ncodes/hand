@@ -23,6 +23,7 @@ func Generate(prefix string, length ...int) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	if err := validatePrefix(prefix); err != nil {
 		return "", err
 	}
@@ -40,6 +41,7 @@ func MustGenerate(prefix string, length ...int) string {
 	if err != nil {
 		panic(err)
 	}
+
 	return id
 }
 
@@ -76,6 +78,7 @@ func MustFromSeed(prefix string, seed string, fallback string) string {
 	if err != nil {
 		panic(err)
 	}
+
 	return id
 }
 
@@ -103,6 +106,7 @@ func ValidateID(id string) error {
 	if len(suffix) != DefaultLength {
 		return fmt.Errorf("prefixed nanoid suffix must be %d characters", DefaultLength)
 	}
+
 	for i := 0; i < len(suffix); i++ {
 		if !strings.ContainsRune(Alphabet, rune(suffix[i])) {
 			return fmt.Errorf("prefixed nanoid suffix must be alphanumeric")
@@ -131,12 +135,15 @@ func resolveLength(length []int) (int, error) {
 	if len(length) == 0 {
 		return DefaultLength, nil
 	}
+
 	if len(length) > 1 {
 		return 0, fmt.Errorf("nanoid length accepts at most one value")
 	}
+
 	if length[0] <= 0 {
 		return 0, fmt.Errorf("nanoid length must be greater than zero")
 	}
+
 	return length[0], nil
 }
 
@@ -144,8 +151,10 @@ func validatePrefix(prefix string) error {
 	if prefix == "" {
 		return nil
 	}
+
 	if !prefixPattern.MatchString(prefix) {
 		return fmt.Errorf("nanoid prefix must be alphanumeric with a single trailing underscore")
 	}
+
 	return nil
 }

@@ -59,12 +59,14 @@ func sanitizeValue(value any) any {
 			}
 			sanitized[key] = sanitizeValue(item)
 		}
+
 		return sanitized
 	case []any:
 		sanitized := make([]any, 0, len(val))
 		for _, item := range val {
 			sanitized = append(sanitized, sanitizeValue(item))
 		}
+
 		return sanitized
 	case string:
 		return sanitizeString(val)
@@ -75,6 +77,7 @@ func sanitizeValue(value any) any {
 		for _, item := range val {
 			sanitized = append(sanitized, sanitizeString(item))
 		}
+
 		return sanitized
 	default:
 		raw, err := json.Marshal(val)
@@ -85,6 +88,7 @@ func sanitizeValue(value any) any {
 		if err := jsonUnmarshal(raw, &normalized); err != nil {
 			return sanitizeString(string(raw))
 		}
+
 		return sanitizeValue(normalized)
 	}
 }
@@ -171,6 +175,7 @@ func maskToken(token string) string {
 	if len(token) < 18 {
 		return "***"
 	}
+
 	return token[:6] + "..." + token[len(token)-4:]
 }
 
@@ -178,6 +183,7 @@ func redactPhone(phone string) string {
 	if len(phone) <= 8 {
 		return phone[:2] + "****" + phone[len(phone)-2:]
 	}
+
 	return phone[:4] + "****" + phone[len(phone)-4:]
 }
 

@@ -45,21 +45,17 @@ func TestBuilderBuildClonesReturnedMessages(t *testing.T) {
 
 func TestBuilderBuildReturnsOnlyEmittedMessagesWhenHistoryEmpty(t *testing.T) {
 	builder := New()
-
 	messages := builder.Build(Input{
 		EmittedMessages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
-
 	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}, messages)
 }
 
 func TestBuilderBuildReturnsOnlySessionHistoryWhenEmittedMessagesEmpty(t *testing.T) {
 	builder := New()
-
 	messages := builder.Build(Input{
 		SessionHistory: []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "hello"}},
 	})
-
 	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "hello"}}, messages)
 }
 

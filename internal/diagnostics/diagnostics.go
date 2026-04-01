@@ -94,7 +94,6 @@ func (r Report) HasFailures() bool {
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -119,7 +118,6 @@ func (r Report) FirstFailure() string {
 			return check.Message
 		}
 	}
-
 	return ""
 }
 
@@ -142,6 +140,7 @@ func fileCheck(name, path string, optional bool) Check {
 				Message: fmt.Sprintf("%q is a directory", trimmed),
 			}
 		}
+
 		return Check{
 			Name:    name,
 			Status:  StatusPass,

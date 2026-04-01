@@ -313,6 +313,7 @@ func configSplitAndTrimCSV(value string) []string {
 		}
 		values = append(values, trimmed)
 	}
+
 	return values
 }
 

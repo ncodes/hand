@@ -344,9 +344,7 @@ func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
 	env.tools = failingRegistry{err: errors.New("register failed")}
-
 	err := env.Prepare()
-
 	require.EqualError(t, err, "register failed")
 	require.Empty(t, env.Instructions())
 }
@@ -355,9 +353,7 @@ func TestEnvironment_PrepareReturnsToolGroupRegistrationError(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
 	env.tools = failingGroupRegistry{err: errors.New("group failed")}
-
 	err := env.Prepare()
-
 	require.EqualError(t, err, "group failed")
 	require.Empty(t, env.Instructions())
 }
@@ -366,7 +362,6 @@ func TestEnvironment_PrepareToolsPreservesExistingRuntime(t *testing.T) {
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
 	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{})
 	env.runtime = runtime
-
 	require.NoError(t, env.prepareTools())
 	require.Same(t, runtime, env.runtime)
 }
@@ -388,9 +383,7 @@ func TestEnvironment_InstructionsReturnsNilForNilEnvironment(t *testing.T) {
 
 func TestEnvironment_SetInstructionAddsUnnamedInstruction(t *testing.T) {
 	env := &Environment{}
-
 	env.setInstruction(instruct.Instruction{Value: "  hello  "})
-
 	require.Equal(t, instruct.Instructions{{Value: "hello"}}, env.instructions)
 }
 
@@ -398,9 +391,7 @@ func TestEnvironment_SetInstructionUpdatesExistingNamedInstruction(t *testing.T)
 	env := &Environment{
 		instructions: instruct.Instructions{{Name: configInstructInstructionName, Value: "old"}},
 	}
-
 	env.setInstruction(instruct.Instruction{Name: configInstructInstructionName, Value: "  new  "})
-
 	require.Equal(t, instruct.Instructions{{Name: configInstructInstructionName, Value: "new"}}, env.instructions)
 }
 
@@ -434,9 +425,7 @@ func TestEnvironment_SetInstructionSkipsEmptyNewNamedInstruction(t *testing.T) {
 	env := &Environment{
 		instructions: instruct.Instructions{{Value: "base"}},
 	}
-
 	env.setInstruction(instruct.Instruction{Name: configInstructInstructionName, Value: "   "})
-
 	require.Equal(t, instruct.Instructions{{Value: "base"}}, env.instructions)
 }
 
@@ -515,39 +504,33 @@ func TestEnvironment_ToolPolicyUsesConfigValues(t *testing.T) {
 
 func TestEnvironment_FileRootsUsesDefaultsForNilEnvironment(t *testing.T) {
 	var env *Environment
-
 	require.Equal(t, guardrails.NormalizeRoots(nil), env.fileRoots())
 }
 
 func TestEnvironment_FileRootsUsesDefaultsForNilConfig(t *testing.T) {
 	env := &Environment{}
-
 	require.Equal(t, guardrails.NormalizeRoots(nil), env.fileRoots())
 }
 
 func TestEnvironment_FileRootsUsesConfiguredRoots(t *testing.T) {
 	root := t.TempDir()
 	env := &Environment{cfg: &config.Config{FSRoots: []string{root, filepath.Join(root, ".")}}}
-
 	require.Equal(t, []string{root}, env.fileRoots())
 }
 
 func TestEnvironment_CommandPolicyUsesDefaultsForNilEnvironment(t *testing.T) {
 	var env *Environment
-
 	require.Equal(t, guardrails.CommandPolicy{}, env.commandPolicy())
 }
 
 func TestEnvironment_CommandPolicyUsesDefaultsForNilConfig(t *testing.T) {
 	env := &Environment{}
-
 	require.Equal(t, guardrails.CommandPolicy{}, env.commandPolicy())
 }
 
 func TestNewEnvironment_ConfiguresTraceFactoryWhenEnabled(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Model: "gpt-5.1", ModelAPIMode: "responses", DebugTraces: true, DebugTraceDir: dir})
-
 	session := env.NewTraceSession()
 	require.NotEmpty(t, session.ID())
 	session.Close()
@@ -556,24 +539,19 @@ func TestNewEnvironment_ConfiguresTraceFactoryWhenEnabled(t *testing.T) {
 func TestNewEnvironment_ReturnsNoopTraceSessionWhenDisabled(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
-
 	session := env.NewTraceSession()
 	require.Equal(t, "", session.ID())
 }
 
 func TestEnvironment_NewTraceSessionNilEnvironment(t *testing.T) {
 	var env *Environment
-
 	session := env.NewTraceSession()
-
 	require.Equal(t, "", session.ID())
 }
 
 func TestEnvironment_NewTraceSessionNilTraceFactory(t *testing.T) {
 	env := &Environment{}
-
 	session := env.NewTraceSession()
-
 	require.Equal(t, "", session.ID())
 }
 

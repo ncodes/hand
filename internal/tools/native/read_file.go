@@ -12,6 +12,7 @@ func ReadFileDefinition(dependencies envtypes.Runtime) tools.Definition {
 	type input struct {
 		Path string `json:"path"`
 	}
+
 	return tools.Definition{
 		Name:        "read_file",
 		Description: "Read a text file from an allowed workspace root.",
@@ -25,14 +26,17 @@ func ReadFileDefinition(dependencies envtypes.Runtime) tools.Definition {
 			if result := decodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
+
 			resolved, err := dependencies.FilePolicy().Resolve(req.Path)
 			if err != nil {
 				return fileError(err), nil
 			}
+
 			content, err := guardrails.ReadTextFile(resolved.Absolute, maxReadBytes)
 			if err != nil {
 				return fileError(err), nil
 			}
+
 			return encodeOutput(map[string]any{
 				"path":    normalizedDisplayPath(resolved.Relative),
 				"content": string(content),

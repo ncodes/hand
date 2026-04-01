@@ -71,6 +71,7 @@ func renderStartupPanel(cfg *config.Config) string {
 	if cfg.LogNoColor {
 		logStyle = "plain"
 	}
+
 	if cfg.DebugRequests {
 		debugRequests = "enabled"
 	}
@@ -140,6 +141,7 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) 
 		if errors.Is(err, grpc.ErrServerStopped) {
 			return nil
 		}
+
 		return err
 	case <-sigCtx.Done():
 		log.Info().Msg("Received shutdown signal")
@@ -180,6 +182,7 @@ func NewCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
+
 			handcli.ApplyConfigOverrides(cmd, cfg)
 			report := diagnostics.Build(cmd.String("env-file"), cmd.String("config"), cfg, nil)
 			if report.HasFailures() {

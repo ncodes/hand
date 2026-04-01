@@ -29,6 +29,7 @@ func NormalizeRoots(roots []string) []string {
 	if len(roots) == 0 {
 		return nil
 	}
+
 	seen := make(map[string]struct{}, len(roots))
 	out := make([]string, 0, len(roots))
 	for _, root := range roots {
@@ -47,6 +48,7 @@ func NormalizeRoots(roots []string) []string {
 		seen[abs] = struct{}{}
 		out = append(out, abs)
 	}
+
 	return out
 }
 
@@ -85,6 +87,7 @@ func (p FilesystemPolicy) Resolve(path string) (ResolvedPath, error) {
 			if rel == "." {
 				rel = ""
 			}
+
 			return ResolvedPath{
 				Root:     root,
 				Absolute: candidate,
@@ -104,6 +107,7 @@ func firstRootCandidate(roots []string, path string) string {
 			return next
 		}
 	}
+
 	return candidate
 }
 
@@ -117,22 +121,27 @@ func ReadTextFile(path string, maxBytes int64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if info.IsDir() {
 		return nil, fs.ErrInvalid
 	}
 	if maxBytes > 0 && info.Size() > maxBytes {
 		return nil, errors.New("file exceeds size limit")
 	}
+
 	content, err := readPath(path)
 	if err != nil {
 		return nil, err
 	}
+
 	if maxBytes > 0 && int64(len(content)) > maxBytes {
 		return nil, errors.New("file exceeds size limit")
 	}
+
 	if IsBinary(content) {
 		return nil, errors.New("file is not text")
 	}
+
 	return content, nil
 }
 
@@ -140,9 +149,11 @@ func IsBinary(content []byte) bool {
 	if len(content) == 0 {
 		return false
 	}
+
 	if bytesContainsNUL(content) {
 		return true
 	}
+
 	return !utf8.Valid(content)
 }
 
@@ -160,5 +171,6 @@ func withinRoot(root, candidate string) bool {
 	if err != nil {
 		return false
 	}
+
 	return rel == "." || (!strings.HasPrefix(rel, "..") && rel != "..")
 }

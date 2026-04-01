@@ -92,7 +92,6 @@ func (e *Environment) Prepare() error {
 	if err := e.prepareTools(); err != nil {
 		return err
 	}
-
 	return e.prepareInstructions()
 }
 
@@ -158,7 +157,6 @@ func (e *Environment) Instructions() instructions.Instructions {
 	if e == nil {
 		return nil
 	}
-
 	copied := make(instructions.Instructions, len(e.instructions))
 	copy(copied, e.instructions)
 	return copied
@@ -172,7 +170,6 @@ func (e *Environment) NewIterationBudget() IterationBudget {
 	if e == nil || e.cfg == nil || e.cfg.MaxIterations <= 0 {
 		return NewIterationBudget(config.DefaultMaxIterations)
 	}
-
 	return NewIterationBudget(e.cfg.MaxIterations)
 }
 
@@ -195,7 +192,6 @@ func (e *Environment) fileRoots() []string {
 	if e == nil || e.cfg == nil || len(e.cfg.FSRoots) == 0 {
 		return guardrails.NormalizeRoots(nil)
 	}
-
 	return guardrails.NormalizeRoots(e.cfg.FSRoots)
 }
 

@@ -219,6 +219,7 @@ func Test_Store_ListSessions_SortsOlderSessionsAfterNewerOnComparatorReversePath
 			for _, id := range ids {
 				entries = append(entries, mustDirEntry(t, filepath.Join(dir, id+".jsonl")))
 			}
+
 			return entries, nil
 		}
 
@@ -381,6 +382,7 @@ func Test_Store_ValidateAndResolveSessionPath(t *testing.T) {
 		if path == dir {
 			return nil, fs.ErrPermission
 		}
+
 		return os.Stat(path)
 	}
 	require.ErrorContains(t, NewStore(dir).Validate(), "failed to access trace directory")
@@ -435,6 +437,7 @@ func Test_Store_ListSessions_IgnoresNonJSONLAndGetSessionErrors(t *testing.T) {
 		if path == sessionPath {
 			return nil, fs.ErrPermission
 		}
+
 		return os.Stat(path)
 	}
 	_, err = store.GetSession("session")
@@ -446,6 +449,7 @@ func Test_Store_ListSessions_IgnoresNonJSONLAndGetSessionErrors(t *testing.T) {
 		if path == sessionPath {
 			return nil, fs.ErrInvalid
 		}
+
 		return os.Stat(path)
 	}
 	_, err = store.ListSessions()
@@ -456,6 +460,7 @@ func Test_Store_ListSessions_IgnoresNonJSONLAndGetSessionErrors(t *testing.T) {
 		if path == sessionPath {
 			return nil, fs.ErrInvalid
 		}
+
 		return os.Open(path)
 	}
 	_, err = store.ListSessions()
@@ -670,6 +675,7 @@ func Test_App_Handler_HandleSessionPermissionAndInternalErrors(t *testing.T) {
 		if path == sessionPath {
 			return nil, fs.ErrPermission
 		}
+
 		return os.Stat(path)
 	}
 
@@ -683,6 +689,7 @@ func Test_App_Handler_HandleSessionPermissionAndInternalErrors(t *testing.T) {
 		if path == sessionPath {
 			return nil, fs.ErrInvalid
 		}
+
 		return os.Stat(path)
 	}
 
@@ -750,6 +757,7 @@ func (r *failingReader) Read(p []byte) (int, error) {
 		p[0] = '\n'
 		return 1, nil
 	}
+
 	return 0, fs.ErrInvalid
 }
 

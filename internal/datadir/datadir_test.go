@@ -15,6 +15,7 @@ func TestProjectHomeDir_UsesHANDHOME(t *testing.T) {
 		if key == "HAND_HOME" {
 			return "/tmp/custom-hand"
 		}
+
 		return ""
 	}
 	userHomeDir = func() (string, error) {

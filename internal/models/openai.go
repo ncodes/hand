@@ -98,6 +98,7 @@ func (c *OpenAIClient) Chat(ctx context.Context, req Request) (*Response, error)
 		if resp == nil {
 			return nil, errors.New("model response is required")
 		}
+
 		return extractResponsesResponse(resp)
 	}
 
@@ -117,6 +118,7 @@ func (c *OpenAIClient) Chat(ctx context.Context, req Request) (*Response, error)
 	if resp == nil {
 		return nil, errors.New("model response is required")
 	}
+
 	return extractChatCompletionsResponse(resp)
 }
 
@@ -125,6 +127,7 @@ func normalizeGenerateRequest(req Request) (normalizedGenerateRequest, error) {
 	if model == "" {
 		return normalizedGenerateRequest{}, errors.New("model is required")
 	}
+
 	if len(req.Messages) == 0 {
 		return normalizedGenerateRequest{}, errors.New("messages are required")
 	}
@@ -176,6 +179,7 @@ func normalizeMessages(messages []handmsg.Message) ([]handmsg.Message, error) {
 		default:
 			return nil, errors.New("message role must be one of user, assistant, or tool; developer messages must be provided via instructions")
 		}
+
 		if content == "" && !(role == handmsg.RoleAssistant && len(toolCalls) > 0) {
 			return nil, errors.New("message content is required")
 		}
@@ -192,6 +196,7 @@ func normalizeMessages(messages []handmsg.Message) ([]handmsg.Message, error) {
 			CreatedAt:  message.CreatedAt,
 		})
 	}
+
 	return normalized, nil
 }
 
@@ -212,6 +217,7 @@ func normalizeToolDefinitions(definitions []ToolDefinition) ([]ToolDefinition, e
 			InputSchema: definition.InputSchema,
 		})
 	}
+
 	return normalized, nil
 }
 
@@ -388,6 +394,7 @@ func extractResponsesResponse(resp *responses.Response) (*Response, error) {
 		if message == "" {
 			message = "response failed"
 		}
+
 		return nil, errors.New(message)
 	case responses.ResponseStatusIncomplete:
 		if outputText == "" && len(toolCalls) == 0 {
@@ -395,6 +402,7 @@ func extractResponsesResponse(resp *responses.Response) (*Response, error) {
 			if reason == "" {
 				reason = "unknown"
 			}
+
 			return nil, fmt.Errorf("response incomplete: %s", reason)
 		}
 	default:
@@ -445,6 +453,7 @@ func buildChatCompletionsTools(definitions []ToolDefinition) []openai.ChatComple
 			Strict:      openai.Bool(true),
 		}))
 	}
+
 	return tools
 }
 
@@ -460,6 +469,7 @@ func buildResponsesTools(definitions []ToolDefinition) []responses.ToolUnionPara
 			},
 		})
 	}
+
 	return tools
 }
 

@@ -19,6 +19,5 @@ func TestNewIterationBudgetConsumesDownToZero(t *testing.T) {
 
 func TestIterationBudgetConsumeRejectsNilReceiver(t *testing.T) {
 	var budget *IterationBudget
-
 	require.False(t, budget.Consume())
 }

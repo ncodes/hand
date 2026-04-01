@@ -125,6 +125,7 @@ func (s *SQLiteStore) Save(ctx context.Context, session Session) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
 	}
+
 	session.ID = strings.TrimSpace(session.ID)
 	if err := validateSessionID(session.ID); err != nil {
 		return err
@@ -154,6 +155,7 @@ func (s *SQLiteStore) Save(ctx context.Context, session Session) error {
 		if err := tx.Save(&record).Error; err != nil {
 			return err
 		}
+
 		return nil
 	})
 }
@@ -167,6 +169,7 @@ func (s *SQLiteStore) Get(ctx context.Context, id string) (Session, bool, error)
 	if id == "" {
 		return Session{}, false, nil
 	}
+
 	if err := validateSessionID(id); err != nil {
 		return Session{}, false, err
 	}
@@ -176,6 +179,7 @@ func (s *SQLiteStore) Get(ctx context.Context, id string) (Session, bool, error)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return Session{}, false, nil
 		}
+
 		return Session{}, false, err
 	}
 
@@ -210,6 +214,7 @@ func (s *SQLiteStore) List(ctx context.Context) ([]Session, error) {
 		if sessions[i].UpdatedAt.Equal(sessions[j].UpdatedAt) {
 			return sessions[i].ID < sessions[j].ID
 		}
+
 		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
 	})
 
@@ -225,6 +230,7 @@ func (s *SQLiteStore) Delete(ctx context.Context, id string) error {
 	if err := validateSessionID(id); err != nil {
 		return err
 	}
+
 	if id == DefaultSessionID {
 		return errors.New("default session cannot be deleted")
 	}
@@ -235,6 +241,7 @@ func (s *SQLiteStore) Delete(ctx context.Context, id string) error {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("session not found")
 			}
+
 			return err
 		}
 
@@ -275,6 +282,7 @@ func (s *SQLiteStore) AppendMessages(ctx context.Context, id string, messages []
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("session not found")
 			}
+
 			return err
 		}
 
@@ -309,6 +317,7 @@ func (s *SQLiteStore) GetMessages(
 	if id == "" {
 		return nil, nil
 	}
+
 	if !opts.Archived {
 		if err := validateSessionID(id); err != nil {
 			return nil, err
@@ -321,6 +330,7 @@ func (s *SQLiteStore) GetMessages(
 			Find(&records).Error; err != nil {
 			return nil, err
 		}
+
 		return decodeArchivedMessages(records), nil
 	}
 
@@ -347,6 +357,7 @@ func (s *SQLiteStore) GetMessage(
 	if id == "" || index < 0 {
 		return handmsg.Message{}, false, nil
 	}
+
 	if !opts.Archived {
 		if err := validateSessionID(id); err != nil {
 			return handmsg.Message{}, false, err
@@ -360,8 +371,10 @@ func (s *SQLiteStore) GetMessage(
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return handmsg.Message{}, false, nil
 			}
+
 			return handmsg.Message{}, false, err
 		}
+
 		return decodeArchivedMessages([]sqliteArchivedMessageRecord{record})[0], true, nil
 	}
 
@@ -371,6 +384,7 @@ func (s *SQLiteStore) GetMessage(
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return handmsg.Message{}, false, nil
 		}
+
 		return handmsg.Message{}, false, err
 	}
 
@@ -448,6 +462,7 @@ func (s *SQLiteStore) GetArchive(ctx context.Context, id string) (ArchivedSessio
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ArchivedSession{}, false, nil
 		}
+
 		return ArchivedSession{}, false, err
 	}
 
@@ -478,8 +493,10 @@ func (s *SQLiteStore) ClearMessages(ctx context.Context, id string, opts Message
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return errors.New("archive not found")
 				}
+
 				return err
 			}
+
 			return tx.Where("archive_id = ?", id).Delete(&sqliteArchivedMessageRecord{}).Error
 		}
 
@@ -488,6 +505,7 @@ func (s *SQLiteStore) ClearMessages(ctx context.Context, id string, opts Message
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("session not found")
 			}
+
 			return err
 		}
 
@@ -544,6 +562,7 @@ func (s *SQLiteStore) DeleteArchives(ctx context.Context, archiveID string) erro
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("archive not found")
 			}
+
 			return err
 		}
 
@@ -617,6 +636,7 @@ func (s *SQLiteStore) Current(ctx context.Context) (string, bool, error) {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", false, nil
 		}
+
 		return "", false, err
 	}
 

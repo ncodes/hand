@@ -8,7 +8,6 @@ import (
 
 func TestEvaluateCommand_BuiltInDangerousPatternRequiresApproval(t *testing.T) {
 	eval := EvaluateCommand(CommandPolicy{Allow: []string{"rm -rf /"}}, "rm", []string{"-rf", "/"})
-
 	require.Equal(t, CommandApprovalRequired, eval.Decision)
 	require.Equal(t, "dangerous destructive command", eval.Reason)
 }
@@ -260,7 +259,6 @@ func TestEvaluateCommand_ConfiguredDenyWinsOverAllow(t *testing.T) {
 		Allow: []string{"git status"},
 		Deny:  []string{"git status"},
 	}, "git", []string{"status"})
-
 	require.Equal(t, CommandDenied, eval.Decision)
 	require.Equal(t, "git status", eval.Rule)
 }
@@ -269,7 +267,6 @@ func TestEvaluateCommand_ConfiguredDenyWinsOverBuiltInApproval(t *testing.T) {
 	eval := EvaluateCommand(CommandPolicy{
 		Deny: []string{"rm -rf /"},
 	}, "rm", []string{"-rf", "/"})
-
 	require.Equal(t, CommandDenied, eval.Decision)
 	require.Equal(t, "rm -rf /", eval.Rule)
 }
@@ -278,7 +275,6 @@ func TestEvaluateCommand_AskReturnsApprovalRequired(t *testing.T) {
 	eval := EvaluateCommand(CommandPolicy{
 		Ask: []string{"git push"},
 	}, "git", []string{"push", "origin", "main"})
-
 	require.Equal(t, CommandApprovalRequired, eval.Decision)
 	require.Equal(t, "git push", eval.Rule)
 }
@@ -287,20 +283,17 @@ func TestEvaluateCommand_AllowReturnsAllowedWithRule(t *testing.T) {
 	eval := EvaluateCommand(CommandPolicy{
 		Allow: []string{"git status"},
 	}, "git", []string{"status", "--short"})
-
 	require.Equal(t, CommandAllowed, eval.Decision)
 	require.Equal(t, "git status", eval.Rule)
 }
 
 func TestEvaluateCommand_UnmatchedCommandsAreAllowedByDefault(t *testing.T) {
 	eval := EvaluateCommand(CommandPolicy{}, "go", []string{"test", "./..."})
-
 	require.Equal(t, CommandAllowed, eval.Decision)
 }
 
 func TestEvaluateCommand_EmptyCommandIsDenied(t *testing.T) {
 	eval := EvaluateCommand(CommandPolicy{}, "   ", nil)
-
 	require.Equal(t, CommandDenied, eval.Decision)
 	require.Equal(t, "empty command", eval.Reason)
 }
@@ -320,20 +313,17 @@ func TestNormalizeCommandRules_TrimsDeduplicatesAndSkipsInvalidEntries(t *testin
 
 func TestCommandTokens_WithArgsTrimsAndSkipsBlankEntries(t *testing.T) {
 	tokens := commandTokens("  git  ", []string{"  status  ", "", "   ", "origin"})
-
 	require.Equal(t, []string{"git", "status", "origin"}, tokens)
 }
 
 func TestNormalizeTokens_RemovesEmptyValues(t *testing.T) {
 	normalized := normalizeTokens([]string{"", " git ", "   ", "\t", "status"})
-
 	require.Equal(t, []string{"git", "status"}, normalized)
 }
 
 func TestMatchCommandRule_RequiresPrefixMatch(t *testing.T) {
 	rule := matchCommandRule([]string{"git push", "", "git status"}, []string{"git", "commit"})
 	require.Empty(t, rule)
-
 	rule = matchCommandRule([]string{"git push", "git status"}, []string{"git", "status", "--short"})
 	require.Equal(t, "git status", rule)
 }

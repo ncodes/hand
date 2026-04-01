@@ -309,7 +309,6 @@ log:
 func TestResolveEnvFilePrefersFlag(t *testing.T) {
 	clearEnvKeys(t, "AGENT_ENV_FILE")
 	resetGlobals(t)
-
 	require.Equal(t, "/tmp/test.env", resolveEnvFile([]string{"hand", "--env-file", "/tmp/test.env"}))
 	require.Equal(t, "/tmp/test2.env", resolveEnvFile([]string{"hand", "--env-file=/tmp/test2.env"}))
 }
@@ -317,7 +316,6 @@ func TestResolveEnvFilePrefersFlag(t *testing.T) {
 func TestResolveEnvFilePrefersEnvVar(t *testing.T) {
 	clearEnvKeys(t, "AGENT_ENV_FILE")
 	resetGlobals(t)
-
 	t.Setenv("AGENT_ENV_FILE", "/tmp/from-env.env")
 	require.Equal(t, "/tmp/from-env.env", resolveEnvFile([]string{"hand", "--env-file", "/tmp/ignored.env"}))
 }
@@ -325,7 +323,6 @@ func TestResolveEnvFilePrefersEnvVar(t *testing.T) {
 func TestResolveEnvFileUsesDefaultWhenUnset(t *testing.T) {
 	clearEnvKeys(t, "AGENT_ENV_FILE")
 	resetGlobals(t)
-
 	require.Equal(t, ".env", resolveEnvFile([]string{"hand"}))
 }
 
@@ -604,11 +601,9 @@ func canceledContext() context.Context {
 
 func nextTestPort(t *testing.T) string {
 	t.Helper()
-
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer lis.Close()
-
 	port := lis.Addr().(*net.TCPAddr).Port
 	return strconv.Itoa(port)
 }

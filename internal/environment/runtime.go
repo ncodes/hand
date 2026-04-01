@@ -31,6 +31,7 @@ func NewRuntime(roots []string, policy guardrails.CommandPolicy) *Runtime {
 		}
 		roots = []string{filepath.Clean(cwd)}
 	}
+
 	return &Runtime{
 		filePolicy:    guardrails.FilesystemPolicy{Roots: guardrails.NormalizeRoots(roots)},
 		commandPolicy: policy.Normalize(),

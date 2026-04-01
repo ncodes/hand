@@ -76,6 +76,7 @@ func newViewCommand() *cli.Command {
 			if err := app.Validate(); err != nil {
 				return err
 			}
+
 			username := strings.TrimSpace(cmd.String("username"))
 			password := cmd.String("password")
 			if (username == "") != (password == "") {
@@ -128,6 +129,7 @@ func serve(ctx context.Context, app *inspect.App, traceDir string, listenAddr st
 		if err == nil || err == http.ErrServerClosed {
 			return nil
 		}
+
 		return err
 	case <-ctx.Done():
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -137,6 +139,7 @@ func serve(ctx context.Context, app *inspect.App, traceDir string, listenAddr st
 		if err == nil || err == http.ErrServerClosed {
 			return nil
 		}
+
 		return err
 	}
 }

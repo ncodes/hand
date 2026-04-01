@@ -58,5 +58,6 @@ func bytesTrimSpace(value []byte) string {
 	for end > start && (value[end-1] == ' ' || value[end-1] == '\n' || value[end-1] == '\t' || value[end-1] == '\r') {
 		end--
 	}
+
 	return string(value[start:end])
 }

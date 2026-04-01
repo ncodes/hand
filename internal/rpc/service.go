@@ -135,6 +135,7 @@ func grpcError(err error) error {
 	if err == nil {
 		return nil
 	}
+
 	if _, ok := status.FromError(err); ok {
 		return err
 	}

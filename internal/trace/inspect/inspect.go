@@ -168,16 +168,20 @@ func (s *Store) Validate() error {
 	if s == nil || strings.TrimSpace(s.directory) == "" {
 		return errors.New("trace directory is required")
 	}
+
 	info, err := statPath(s.directory)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("trace directory %q does not exist", s.directory)
 		}
+
 		return fmt.Errorf("failed to access trace directory %q: %w", s.directory, err)
 	}
+
 	if !info.IsDir() {
 		return fmt.Errorf("trace directory %q is not a directory", s.directory)
 	}
+
 	return nil
 }
 
@@ -209,8 +213,10 @@ func (s *Store) ListSessions() ([]SessionSummary, error) {
 			if a.StartedAt.After(b.StartedAt) {
 				return -1
 			}
+
 			return 1
 		}
+
 		return strings.Compare(b.ID, a.ID)
 	})
 
@@ -231,6 +237,7 @@ func (s *Store) GetSession(id string) (SessionDetail, error) {
 		if os.IsNotExist(err) {
 			return SessionDetail{}, os.ErrNotExist
 		}
+
 		return SessionDetail{}, err
 	}
 
@@ -243,12 +250,15 @@ func resolveSessionPath(directory, id string) (string, error) {
 	if directory == "" || id == "" {
 		return "", os.ErrNotExist
 	}
+
 	if strings.Contains(id, "/") || strings.Contains(id, `\`) {
 		return "", os.ErrNotExist
 	}
+
 	if filepath.Base(id) != id || id == "." || id == ".." {
 		return "", os.ErrNotExist
 	}
+
 	return filepath.Join(directory, id+".jsonl"), nil
 }
 
@@ -339,6 +349,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 				Source:    payload.Source,
 				TraceDir:  payload.TraceDir,
 			}
+
 			return
 		}
 	case "user.message.accepted":
@@ -357,6 +368,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 			if detail.Summary.APIMode == "" {
 				detail.Summary.APIMode = payload.APIMode
 			}
+
 			return
 		}
 	case "model.response":
@@ -374,6 +386,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 				Name:  payload.Name,
 				Input: payload.Input,
 			}
+
 			return
 		}
 	case "tool.invocation.completed":
@@ -386,6 +399,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 				ToolCallID: payload.ToolCallID,
 				ID:         payload.ToolCallID,
 			}
+
 			return
 		}
 	case "final.assistant.response":
@@ -468,6 +482,7 @@ func buildToolCallViews(toolCalls []models.ToolCall) []ToolCallView {
 	if len(toolCalls) == 0 {
 		return nil
 	}
+
 	views := make([]ToolCallView, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
 		views = append(views, ToolCallView{
@@ -476,6 +491,7 @@ func buildToolCallViews(toolCalls []models.ToolCall) []ToolCallView {
 			Input: toolCall.Input,
 		})
 	}
+
 	return views
 }
 
@@ -483,6 +499,7 @@ func buildToolCallViewsFromContext(toolCalls []handmsg.ToolCall) []ToolCallView 
 	if len(toolCalls) == 0 {
 		return nil
 	}
+
 	views := make([]ToolCallView, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
 		views = append(views, ToolCallView{
@@ -491,6 +508,7 @@ func buildToolCallViewsFromContext(toolCalls []handmsg.ToolCall) []ToolCallView 
 			Input: toolCall.Input,
 		})
 	}
+
 	return views
 }
 
@@ -536,9 +554,11 @@ func compactJSON(value []byte) string {
 	if len(bytes.TrimSpace(value)) == 0 {
 		return ""
 	}
+
 	var out bytes.Buffer
 	if err := json.Compact(&out, value); err != nil {
 		return strings.TrimSpace(string(value))
 	}
+
 	return out.String()
 }

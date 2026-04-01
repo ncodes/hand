@@ -16,6 +16,7 @@ func (i Instructions) First() Instruction {
 	if len(i) == 0 {
 		return Instruction{}
 	}
+
 	return i[0]
 }
 
@@ -24,6 +25,7 @@ func New(values ...string) Instructions {
 	for _, value := range values {
 		instructions = instructions.ChainValue(value)
 	}
+
 	return instructions
 }
 
@@ -39,6 +41,7 @@ func (i Instructions) Chain(instructions ...Instruction) Instructions {
 			Value: strings.TrimSpace(instruction.Value),
 		})
 	}
+
 	return chained
 }
 
@@ -47,6 +50,7 @@ func (i Instructions) ChainValue(values ...string) Instructions {
 	for _, value := range values {
 		instructions = append(instructions, Instruction{Value: value})
 	}
+
 	return i.Chain(instructions...)
 }
 
@@ -55,6 +59,7 @@ func (i Instructions) String() string {
 	for _, instruction := range i {
 		values = append(values, instruction.Value)
 	}
+
 	return strings.Join(values, "\n")
 }
 
@@ -71,6 +76,7 @@ func (i *Instructions) UnmarshalJSON(data []byte) error {
 	for idx, value := range values {
 		(*i)[idx] = Instruction{Value: value}
 	}
+
 	return nil
 }
 
@@ -84,6 +90,7 @@ func (i Instructions) GetByName(name string) (Instruction, bool) {
 			return instruction, true
 		}
 	}
+
 	return Instruction{}, false
 }
 
@@ -99,5 +106,6 @@ func (i Instructions) WithoutName(name string) Instructions {
 		}
 		filtered = append(filtered, instruction)
 	}
+
 	return filtered
 }

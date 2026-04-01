@@ -76,6 +76,7 @@ func (e Error) String() string {
 	if err != nil {
 		return `{"code":"tool_error","message":"failed to encode tool error"}`
 	}
+
 	return string(raw)
 }
 

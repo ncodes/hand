@@ -38,6 +38,7 @@ func decodeInput(call tools.Call, target any) tools.Result {
 	if err := json.Unmarshal([]byte(call.Input), target); err != nil {
 		return toolError("invalid_input", "invalid tool input")
 	}
+
 	return tools.Result{}
 }
 
@@ -46,6 +47,7 @@ func encodeOutput(value any) (tools.Result, error) {
 	if err != nil {
 		return tools.Result{}, err
 	}
+
 	return tools.Result{Output: string(raw)}, nil
 }
 
@@ -57,6 +59,7 @@ func fileError(err error) tools.Result {
 	if err == nil {
 		return tools.Result{}
 	}
+
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		return toolError("not_found", "path not found")
@@ -83,6 +86,7 @@ func hiddenPath(path string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -90,6 +94,7 @@ func normalizedDisplayPath(path string) string {
 	if path == "" {
 		return "."
 	}
+
 	return filepath.ToSlash(path)
 }
 
@@ -97,6 +102,7 @@ func trimOutput(value string, limit int) string {
 	if len(value) <= limit {
 		return value
 	}
+
 	return value[:limit]
 }
 
@@ -107,6 +113,7 @@ func withTimeoutSeconds(value int) int {
 	if value > maxTimeout {
 		return maxTimeout
 	}
+
 	return value
 }
 
@@ -119,6 +126,7 @@ func joinStrings(parts ...string) string {
 		}
 		filtered = append(filtered, part)
 	}
+
 	return strings.Join(filtered, " ")
 }
 
@@ -133,6 +141,7 @@ func objectSchema(properties map[string]any, required ...string) map[string]any 
 	if len(required) > 0 {
 		schema["required"] = required
 	}
+
 	return schema
 }
 

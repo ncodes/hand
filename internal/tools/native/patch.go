@@ -50,6 +50,7 @@ func PatchDefinition(dependencies envtypes.Runtime) tools.Definition {
 				if strings.Contains(err.Error(), "delete") || strings.Contains(err.Error(), "rename") || strings.Contains(err.Error(), "binary") {
 					return toolError("invalid_input", err.Error()), nil
 				}
+
 				return toolError("internal_error", err.Error()), nil
 			}
 
@@ -66,6 +67,7 @@ func applyUnifiedDiff(policy guardrails.FilesystemPolicy, raw string, strip int)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	if len(files) == 0 {
 		return nil, nil, errors.New("invalid patch")
 	}
@@ -103,6 +105,7 @@ func applyUnifiedDiff(policy guardrails.FilesystemPolicy, raw string, strip int)
 			if errors.Is(err, &gitdiff.Conflict{}) {
 				return nil, nil, errors.New("patch conflict: hunk does not apply cleanly")
 			}
+
 			return nil, nil, err
 		}
 
@@ -128,6 +131,7 @@ func patchSourceBytes(file *gitdiff.File, absolutePath string) ([]byte, error) {
 	if file.IsNew || file.OldName == "/dev/null" {
 		return nil, nil
 	}
+
 	return guardrails.ReadTextFile(absolutePath, maxReadBytes)
 }
 
@@ -143,5 +147,6 @@ func stripPath(path string, strip int) string {
 	if strip >= len(parts) {
 		return parts[len(parts)-1]
 	}
+
 	return filepath.FromSlash(strings.Join(parts[strip:], "/"))
 }

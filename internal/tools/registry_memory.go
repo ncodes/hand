@@ -35,6 +35,7 @@ func (r *InMemoryRegistry) Register(def Definition) error {
 	if def.Name == "" {
 		return errors.New("tool name is required")
 	}
+
 	if def.Handler == nil {
 		return errors.New("tool handler is required")
 	}
@@ -184,6 +185,7 @@ func (r *InMemoryRegistry) Invoke(ctx context.Context, call Call) (Result, error
 	if strings.TrimSpace(result.Error) != "" {
 		result.Error = normalizeResultError(strings.TrimSpace(result.Error))
 	}
+
 	return result, nil
 }
 
@@ -254,6 +256,7 @@ func filterDefinitions(definitions []Definition, opts Policy) []Definition {
 		}
 		filtered = append(filtered, def)
 	}
+
 	return filtered
 }
 
@@ -261,6 +264,7 @@ func matchesPlatform(platforms []string, platform string) bool {
 	if len(platforms) == 0 {
 		return true
 	}
+
 	return slices.Contains(platforms, platform)
 }
 
@@ -268,6 +272,7 @@ func normalizeNames(values []string) []string {
 	if len(values) == 0 {
 		return nil
 	}
+
 	seen := make(map[string]struct{}, len(values))
 	normalized := make([]string, 0, len(values))
 	for _, value := range values {
@@ -292,5 +297,6 @@ func normalizeResultError(raw string) string {
 		strings.TrimSpace(toolErr.Message) != "" {
 		return raw
 	}
+
 	return Error{Code: "tool_failed", Message: raw}.String()
 }

@@ -53,7 +53,6 @@ func TestTurn_LoadTurnContextRejectsNilExecutionEnvironment(t *testing.T) {
 
 func TestTurn_LoadTurnContextRejectsNilTurn(t *testing.T) {
 	var turn *Turn
-
 	err := turn.loadTurnContext(context.Background(), RespondOptions{})
 	require.EqualError(t, err, "agent is required")
 }
@@ -153,14 +152,12 @@ func TestTurn_LoadTurnContextReturnsGetMessagesError(t *testing.T) {
 
 func TestTurn_RunReturnsLoadTurnContextError(t *testing.T) {
 	turn := &Turn{}
-
 	_, err := turn.Run(context.Background(), "hello", RespondOptions{})
 	require.EqualError(t, err, "config is required")
 }
 
 func TestTurn_RunRejectsEmptyUserMessage(t *testing.T) {
 	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{})
-
 	_, err := turn.Run(context.Background(), "   ", RespondOptions{})
 	require.EqualError(t, err, "message content is required")
 }
@@ -235,6 +232,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterAssistantResponse(t *testing.T) {
 			if appendCalls == 2 {
 				return errors.New("append assistant failed")
 			}
+
 			return nil
 		},
 	}, time.Hour, 24*time.Hour)
@@ -267,6 +265,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterAssistantToolCall(t *testing.T) {
 			if appendCalls == 2 {
 				return errors.New("append tool call failed")
 			}
+
 			return nil
 		},
 	}, time.Hour, 24*time.Hour)
@@ -315,6 +314,7 @@ func TestTurn_RunReturnsContextErrorBeforeToolInvocation(t *testing.T) {
 			if appendCalls == 2 {
 				cancel()
 			}
+
 			return nil
 		},
 	}, time.Hour, 24*time.Hour)
@@ -369,6 +369,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterToolResult(t *testing.T) {
 			if appendCalls == 3 {
 				return errors.New("append tool result failed")
 			}
+
 			return nil
 		},
 	}, time.Hour, 24*time.Hour)
@@ -404,6 +405,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterSummaryFallback(t *testing.T) {
 			if appendCalls == 4 {
 				return errors.New("append summary failed")
 			}
+
 			return nil
 		},
 	}, time.Hour, 24*time.Hour)
@@ -437,7 +439,6 @@ func TestTurn_AvailableToolDefinitionsReturnResolveError(t *testing.T) {
 	turn, _ := newTestTurnHarness(t, nil, &mocks.ToolRegistryStub{
 		ResolveErr: errors.New("resolve failed"),
 	}, &mocks.ModelClientStub{})
-
 	definitions, err := turn.availableToolDefinitions()
 	require.Nil(t, definitions)
 	require.EqualError(t, err, "resolve failed")
@@ -445,7 +446,6 @@ func TestTurn_AvailableToolDefinitionsReturnResolveError(t *testing.T) {
 
 func TestTurn_InvokeToolReturnsFallbackWithoutInvoker(t *testing.T) {
 	turn := &Turn{}
-
 	message := turn.invokeTool(context.Background(), models.ToolCall{ID: "call-1", Name: "time"})
 	require.Equal(t, handmsg.RoleTool, message.Role)
 	require.Equal(t, "time", message.Name)
@@ -468,10 +468,8 @@ func TestTurn_SummaryFallbackRejectsToolRequests(t *testing.T) {
 func TestTurn_SummaryFallbackReturnsContextError(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{})
-
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-
 	_, err := turn.summaryFallback(ctx, environment.NewIterationBudget(0), traceSession)
 	require.ErrorIs(t, err, context.Canceled)
 }
@@ -480,7 +478,6 @@ func TestTurn_SummaryFallbackReturnsAssistantAppendError(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "   "}}}
 	turn, _ := newTestTurnHarness(t, instruct.Instructions{{Value: "persona"}}, tools.NewInMemoryRegistry(), client)
-
 	_, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
 	require.EqualError(t, err, "message content is required")
 }
@@ -490,7 +487,6 @@ func TestTurn_SummaryFallbackRejectsNilModelResponse(t *testing.T) {
 	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{
 		Responses: []*models.Response{nil},
 	})
-
 	_, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
 	require.EqualError(t, err, "model response is required")
 }
@@ -527,7 +523,6 @@ func TestTurn_TurnMessagesReturnsCopy(t *testing.T) {
 
 func TestTurn_TurnMessagesReturnsNilWhenEmpty(t *testing.T) {
 	turn := &Turn{}
-
 	require.Nil(t, turn.TurnMessages())
 }
 
@@ -549,23 +544,19 @@ func TestTurn_RequestMessagesDefaultsBuilderWhenUnset(t *testing.T) {
 	turn := &Turn{
 		sessionHistory: []handmsg.Message{{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}}},
 	}
-
 	messages := turn.requestMessages()
 	messages[0].ToolCalls[0].Name = "changed"
-
 	require.Equal(t, "time", turn.sessionHistory[0].ToolCalls[0].Name)
 }
 
 func TestSetInstruction_SkipsBlankUnnamedInstruction(t *testing.T) {
 	original := instruct.Instructions{{Value: "base"}}
-
 	updated := setInstruction(original, instruct.Instruction{Value: "   "})
 	require.Equal(t, original, updated)
 }
 
 func TestSetInstruction_AppendsUnnamedInstruction(t *testing.T) {
 	original := instruct.Instructions{{Value: "base"}}
-
 	updated := setInstruction(original, instruct.Instruction{Value: " extra "})
 	require.Equal(t, instruct.Instructions{{Value: "base"}, {Value: "extra"}}, updated)
 }
@@ -575,7 +566,6 @@ func TestSetInstruction_RemovesNamedInstruction(t *testing.T) {
 		{Value: "base"},
 		{Name: "request.instruct", Value: "temporary"},
 	}
-
 	updated := setInstruction(original, instruct.Instruction{Name: " request.instruct ", Value: "   "})
 	require.Equal(t, instruct.Instructions{{Value: "base"}}, updated)
 }
@@ -599,14 +589,12 @@ func TestSetInstruction_UpdatesNamedInstructionWithoutMutatingInput(t *testing.T
 
 func TestSetInstruction_IgnoresEmptyMissingNamedInstruction(t *testing.T) {
 	original := instruct.Instructions{{Value: "base"}}
-
 	updated := setInstruction(original, instruct.Instruction{Name: "request.instruct", Value: "   "})
 	require.Equal(t, original, updated)
 }
 
 func TestSetInstruction_AppendsMissingNamedInstruction(t *testing.T) {
 	original := instruct.Instructions{{Value: "base"}}
-
 	updated := setInstruction(original, instruct.Instruction{Name: " request.instruct ", Value: " temporary "})
 	require.Equal(t, instruct.Instructions{
 		{Value: "base"},
@@ -729,7 +717,6 @@ func TestAgent_RespondDoesNotAppendAssistantWhenModelFails(t *testing.T) {
 
 func TestAgent_RespondRejectsNilAgent(t *testing.T) {
 	var agent *Agent
-
 	_, err := agent.Respond(context.Background(), "hello", RespondOptions{})
 	require.EqualError(t, err, "agent is required")
 }
@@ -749,7 +736,6 @@ func TestAgent_RespondRejectsMissingConfig(t *testing.T) {
 
 func TestAgent_RespondRejectsUninitializedEnvironment(t *testing.T) {
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), &mocks.ModelClientStub{})
-
 	_, err := agent.Respond(context.Background(), "hello", RespondOptions{})
 	require.EqualError(t, err, "environment has not been initialized")
 }
@@ -1274,7 +1260,6 @@ func TestAgent_SummaryFallbackRejectsNilModelResponse(t *testing.T) {
 		cfg:         &config.Config{Name: "Test Agent", Model: "test-model"},
 		modelClient: &mocks.ModelClientStub{Responses: []*models.Response{nil}},
 	}
-
 	_, err := agent.summaryFallback(context.Background(), environment.NewIterationBudget(0), nil, nil, &mocks.TraceSessionStub{})
 	require.EqualError(t, err, "model response is required")
 }
@@ -1384,6 +1369,7 @@ func newTestAgent(
 		if cfg != nil && cfg.MaxIterations > 0 {
 			budget = environment.NewIterationBudget(cfg.MaxIterations)
 		}
+
 		return &mocks.EnvironmentStub{
 			InstructionsList: instruct.Instructions{{Value: "system prompt"}},
 			ToolRegistry:     registry,
@@ -1428,7 +1414,6 @@ func newTestTurnHarness(
 
 func mustNewSessionManager(t *testing.T) *sessionstore.Manager {
 	t.Helper()
-
 	manager, err := sessionstore.NewManager(sessionstore.NewStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 	return manager

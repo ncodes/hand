@@ -81,6 +81,7 @@ func newCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
+
 			handcli.ApplyConfigOverrides(cmd, cfg)
 
 			config.Set(cfg)
@@ -110,6 +111,7 @@ func newCommand() *cli.Command {
 			return err
 		},
 	}
+
 	return cmd
 }
 

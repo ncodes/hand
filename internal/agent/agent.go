@@ -75,6 +75,7 @@ func (c *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 	if c.modelClient == nil {
 		return "", errors.New("model client is required")
 	}
+
 	if strings.TrimSpace(msg) == "" {
 		return "", errors.New("message is required")
 	}
@@ -99,6 +100,7 @@ func (c *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 	if runtimeEnv.Tools() == nil {
 		return "", errors.New("tool registry is required")
 	}
+
 	c.env = runtimeEnv
 
 	turn := NewTurn(c.cfg, c.modelClient, c.manager, c.invokeToolWithEnvironment, runtimeEnv)
@@ -309,6 +311,7 @@ func normalizeToolError(raw string) any {
 		strings.TrimSpace(toolErr.Message) != "" {
 		return toolErr
 	}
+
 	return raw
 }
 
@@ -384,5 +387,6 @@ func toContextToolCalls(toolCalls []models.ToolCall) []handmsg.ToolCall {
 	for _, toolCall := range toolCalls {
 		normalized = append(normalized, handmsg.ToolCall{ID: toolCall.ID, Name: toolCall.Name, Input: toolCall.Input})
 	}
+
 	return normalized
 }

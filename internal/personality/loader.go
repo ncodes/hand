@@ -90,11 +90,14 @@ func loadFile(path, workspaceRoot string, seenPaths map[string]struct{}) (string
 		if os.IsNotExist(err) {
 			return "", false, nil
 		}
+
 		return "", false, fmt.Errorf("stat personality file %q: %w", path, err)
 	}
+
 	if info.IsDir() {
 		return "", false, nil
 	}
+
 	seenPaths[path] = struct{}{}
 
 	content, err := readFile(path)

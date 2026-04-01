@@ -87,6 +87,7 @@ func NewCommand() *cli.Command {
 							return err
 						}
 					}
+
 					return nil
 				},
 			},
@@ -136,6 +137,7 @@ func sessionClient(ctx context.Context, cmd *cli.Command) (runner, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	handcli.ApplyConfigOverrides(cmd, cfg)
 
 	config.Set(cfg)

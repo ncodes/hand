@@ -356,7 +356,6 @@ func (r *Turn) TurnMessages() []handmsg.Message {
 	if len(r.emittedMessages) == 0 {
 		return nil
 	}
-
 	messages := make([]handmsg.Message, len(r.emittedMessages))
 	copy(messages, r.emittedMessages)
 	return messages
@@ -374,6 +373,7 @@ func setInstruction(instructions instruct.Instructions, instruction instruct.Ins
 		if instruction.Value == "" {
 			return instructions
 		}
+
 		return append(instructions, instruction)
 	}
 

@@ -45,21 +45,17 @@ func TestNewRuntime_FallsBackWhenGetwdFails(t *testing.T) {
 func TestNewRuntime_NormalizesConfiguredRoots(t *testing.T) {
 	dir := t.TempDir()
 	root := filepath.Join(dir, "workspace")
-
 	runtime := NewRuntime([]string{root, filepath.Join(root, ".")}, guardrails.CommandPolicy{})
-
 	require.Equal(t, []string{root}, runtime.FilePolicy().Roots)
 }
 
 func TestRuntime_FilePolicyHandlesNilReceiver(t *testing.T) {
 	var runtime *Runtime
-
 	require.Equal(t, guardrails.NormalizeRoots(nil), runtime.FilePolicy().Roots)
 }
 
 func TestRuntime_CommandPolicyHandlesNilReceiver(t *testing.T) {
 	var runtime *Runtime
-
 	require.Equal(t, guardrails.CommandPolicy{}.Normalize(), runtime.CommandPolicy())
 }
 
@@ -79,9 +75,7 @@ func TestMemoryTodoStore_ReturnsDefensiveCopies(t *testing.T) {
 func TestMemoryTodoStore_ClearRemovesItems(t *testing.T) {
 	store := &MemoryTodoStore{}
 	store.Replace([]envtypes.TodoItem{{Text: "first", Done: false}})
-
 	cleared := store.Clear()
-
 	require.Nil(t, cleared)
 	require.Empty(t, store.List())
 }
@@ -103,7 +97,6 @@ func TestRuntime_TodoMethodsDelegateToStore(t *testing.T) {
 func TestRuntime_TodoMethodsHandleNilReceiver(t *testing.T) {
 	var runtime *Runtime
 	items := []envtypes.TodoItem{{Text: "first", Done: false}}
-
 	require.Nil(t, runtime.ListTodos())
 	require.Equal(t, items, runtime.ReplaceTodos(items))
 	require.Nil(t, runtime.ClearTodos())

@@ -318,6 +318,7 @@ func TestLoadFromRoot_WorkspaceSoulReadError(t *testing.T) {
 		if path == workspacePath {
 			return nil, errors.New("read failed")
 		}
+
 		return os.ReadFile(path)
 	}
 
@@ -345,6 +346,7 @@ func TestLoadFromRoot_GlobalSoulReadError(t *testing.T) {
 		if path == globalPath {
 			return nil, errors.New("read failed")
 		}
+
 		return os.ReadFile(path)
 	}
 

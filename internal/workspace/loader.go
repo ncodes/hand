@@ -73,6 +73,7 @@ func LoadFromRoot(root string, files ...string) (Result, error) {
 	if root == "" {
 		return Result{}, nil
 	}
+
 	files = NormalizeRulePaths(files)
 
 	info, err := os.Stat(root)
@@ -80,6 +81,7 @@ func LoadFromRoot(root string, files ...string) (Result, error) {
 		if os.IsNotExist(err) {
 			return Result{}, nil
 		}
+
 		return Result{}, fmt.Errorf("stat workspace root %q: %w", root, err)
 	}
 
@@ -148,6 +150,7 @@ func collectDefaultRuleFiles(root string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if !enabled {
 		return nil, nil
 	}
@@ -174,6 +177,7 @@ func collectConfiguredRuleFiles(root string, files []string) ([]string, error) {
 			if os.IsNotExist(err) {
 				continue
 			}
+
 			return nil, fmt.Errorf("stat configured rule file %q: %w", configuredPath, err)
 		}
 		if info.IsDir() {
@@ -215,18 +219,21 @@ func collectRuleFiles(root string, files []string) ([]string, error) {
 			if _, skip := skippedDirectories[name]; skip {
 				return filepath.SkipDir
 			}
+
 			return nil
 		}
 
 		if _, ok := supportedRuleFiles[strings.ToLower(entry.Name())]; ok {
 			paths = append(paths, path)
 		}
+
 		return nil
 	})
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
 		}
+
 		return nil, fmt.Errorf("walk workspace root %q: %w", root, err)
 	}
 
@@ -236,6 +243,7 @@ func collectRuleFiles(root string, files []string) ([]string, error) {
 		if leftDepth != rightDepth {
 			return leftDepth - rightDepth
 		}
+
 		return strings.Compare(filepath.ToSlash(left), filepath.ToSlash(right))
 	})
 
@@ -275,6 +283,7 @@ func displayPath(root, path string) (string, error) {
 	if strings.HasPrefix(relativePath, "../") {
 		return filepath.ToSlash(path), nil
 	}
+
 	return relativePath, nil
 }
 
@@ -283,6 +292,7 @@ func depth(root, path string) int {
 	if err != nil {
 		return 0
 	}
+
 	return strings.Count(filepath.ToSlash(relative), "/")
 }
 
@@ -295,5 +305,6 @@ func toFileSet(files []string) map[string]struct{} {
 	for _, file := range files {
 		supported[file] = struct{}{}
 	}
+
 	return supported
 }

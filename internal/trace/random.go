@@ -12,5 +12,6 @@ func randomSuffix() string {
 	if _, err := readRandom(bytes); err != nil {
 		return "trace"
 	}
+
 	return hex.EncodeToString(bytes)
 }

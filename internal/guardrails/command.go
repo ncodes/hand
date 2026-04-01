@@ -222,6 +222,7 @@ func commandTokens(command string, args []string) []string {
 			}
 			tokens = append(tokens, trimmed)
 		}
+
 		return normalizeTokens(tokens)
 	}
 
@@ -287,6 +288,5 @@ func isForkBombCommand(joined string) bool {
 			return true
 		}
 	}
-
 	return false
 }

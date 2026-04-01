@@ -78,6 +78,7 @@ func (m *Manager) ResolveSession(ctx context.Context, requestedID string) (Sessi
 	if id == DefaultSessionID {
 		return m.resolveDefaultSession(ctx, now)
 	}
+
 	if err := validateSessionID(id); err != nil {
 		return Session{}, err
 	}
@@ -234,6 +235,7 @@ func (m *Manager) DeleteSession(ctx context.Context, id string) error {
 			return err
 		}
 	}
+
 	return m.store.Delete(ctx, id)
 }
 
@@ -282,6 +284,7 @@ func (m *Manager) resolveDefaultSession(ctx context.Context, now time.Time) (Ses
 		if err := m.store.Save(ctx, session); err != nil {
 			return Session{}, err
 		}
+
 		return session, nil
 	}
 
@@ -293,6 +296,7 @@ func (m *Manager) clearIdleDefaultSession(ctx context.Context, now time.Time) er
 	if err != nil {
 		return err
 	}
+
 	if !ok {
 		return nil
 	}

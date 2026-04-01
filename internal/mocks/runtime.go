@@ -26,9 +26,11 @@ func (s *ModelClientStub) Chat(_ context.Context, req models.Request) (*models.R
 		s.CallCount++
 		return nil, s.Errors[s.CallCount-1]
 	}
+
 	if s.Err != nil {
 		return nil, s.Err
 	}
+
 	if s.CallCount >= len(s.Responses) {
 		return nil, errors.New("missing stubbed response")
 	}
@@ -66,6 +68,7 @@ func (s *EnvironmentStub) NewIterationBudget() environment.IterationBudget {
 	if s.IterationBudget.Remaining() <= 0 {
 		return environment.NewIterationBudget(config.DefaultMaxIterations)
 	}
+
 	return s.IterationBudget
 }
 
@@ -73,6 +76,7 @@ func (s *EnvironmentStub) NewTraceSession() trace.Session {
 	if s.TraceSession == nil {
 		return trace.NoopSession()
 	}
+
 	return s.TraceSession
 }
 
@@ -95,6 +99,7 @@ func (s *ToolRegistryStub) GetGroup(name string) (tools.Group, bool) {
 			return group, true
 		}
 	}
+
 	return tools.Group{}, false
 }
 

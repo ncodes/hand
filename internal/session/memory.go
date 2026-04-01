@@ -82,6 +82,7 @@ func (s *MemoryStore) List(context.Context) ([]Session, error) {
 		if sessions[i].UpdatedAt.Equal(sessions[j].UpdatedAt) {
 			return sessions[i].ID < sessions[j].ID
 		}
+
 		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
 	})
 
@@ -97,6 +98,7 @@ func (s *MemoryStore) Delete(_ context.Context, id string) error {
 	if err := validateSessionID(id); err != nil {
 		return err
 	}
+
 	if id == DefaultSessionID {
 		return errors.New("default session cannot be deleted")
 	}
@@ -126,6 +128,7 @@ func (s *MemoryStore) AppendMessages(_ context.Context, id string, messages []ha
 	if err := validateSessionID(id); err != nil {
 		return err
 	}
+
 	if len(messages) == 0 {
 		return nil
 	}
@@ -155,6 +158,7 @@ func (s *MemoryStore) GetMessages(_ context.Context, id string, opts MessageQuer
 	if id == "" {
 		return nil, nil
 	}
+
 	if !opts.Archived {
 		if err := validateSessionID(id); err != nil {
 			return nil, err
@@ -180,9 +184,11 @@ func (s *MemoryStore) GetMessage(_ context.Context, id string, index int, opts M
 	if id == "" {
 		return handmsg.Message{}, false, nil
 	}
+
 	if index < 0 {
 		return handmsg.Message{}, false, nil
 	}
+
 	if !opts.Archived {
 		if err := validateSessionID(id); err != nil {
 			return handmsg.Message{}, false, err
@@ -277,6 +283,7 @@ func (s *MemoryStore) ListArchives(_ context.Context, sourceSessionID string) ([
 		if archives[i].ArchivedAt.Equal(archives[j].ArchivedAt) {
 			return archives[i].ID < archives[j].ID
 		}
+
 		return archives[i].ArchivedAt.After(archives[j].ArchivedAt)
 	})
 

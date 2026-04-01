@@ -41,12 +41,14 @@ func (s *InMemoryMemoryStore) Upsert(_ context.Context, entry MemoryEntry) error
 	if entry.Key == "" {
 		return errors.New("memory key is required")
 	}
+
 	if entry.UpdatedAt.IsZero() {
 		entry.UpdatedAt = time.Now().UTC()
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.memories[entry.Key] = entry
 	return nil
 }
@@ -80,6 +82,7 @@ func (s *InMemoryMemoryStore) List(context.Context) ([]MemoryEntry, error) {
 		if memories[i].UpdatedAt.Equal(memories[j].UpdatedAt) {
 			return memories[i].Key < memories[j].Key
 		}
+
 		return memories[i].UpdatedAt.After(memories[j].UpdatedAt)
 	})
 

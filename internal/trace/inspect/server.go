@@ -30,6 +30,7 @@ func (a *App) SetBasicAuth(username, password string) {
 	if a == nil {
 		return
 	}
+
 	a.username = strings.TrimSpace(username)
 	a.password = password
 }
@@ -38,6 +39,7 @@ func (a *App) Validate() error {
 	if a == nil || a.store == nil {
 		return errors.New("trace app is required")
 	}
+
 	return a.store.Validate()
 }
 
@@ -49,6 +51,7 @@ func (a *App) Handler() http.Handler {
 	if !a.requiresAuth() {
 		return mux
 	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if a.authorized(r) {
 			mux.ServeHTTP(w, r)
@@ -63,6 +66,7 @@ func (a *App) requiresAuth() bool {
 	if a == nil {
 		return false
 	}
+
 	return a.username != "" || a.password != ""
 }
 
@@ -70,13 +74,16 @@ func (a *App) authorized(r *http.Request) bool {
 	if a == nil || !a.requiresAuth() {
 		return true
 	}
+
 	username, password, ok := r.BasicAuth()
 	if !ok {
 		return false
 	}
+
 	if subtle.ConstantTimeCompare([]byte(username), []byte(a.username)) != 1 {
 		return false
 	}
+
 	return subtle.ConstantTimeCompare([]byte(password), []byte(a.password)) == 1
 }
 

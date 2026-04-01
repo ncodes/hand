@@ -95,6 +95,7 @@ func TestPreloadEnvFile_UsesDefaultPathWhenEmpty(t *testing.T) {
 		if len(filenames) > 0 {
 			calledWith = filenames[0]
 		}
+
 		return nil
 	}
 
@@ -262,25 +263,19 @@ rules:
 
 func TestConfigNormalize_LeavesRulesFilesEmptyWhenUnset(t *testing.T) {
 	cfg := &Config{}
-
 	cfg.Normalize()
-
 	require.Empty(t, cfg.RulesFiles)
 }
 
 func TestConfigNormalize_NormalizesRulesFiles(t *testing.T) {
 	cfg := &Config{RulesFiles: []string{" ./Hand.md ", "custom.md", "Hand.md", ""}}
-
 	cfg.Normalize()
-
 	require.Equal(t, []string{"Hand.md", "custom.md"}, cfg.RulesFiles)
 }
 
 func TestConfigNormalize_TrimsInstruct(t *testing.T) {
 	cfg := &Config{Instruct: "  be terse  "}
-
 	cfg.Normalize()
-
 	require.Equal(t, "be terse", cfg.Instruct)
 }
 
@@ -475,7 +470,6 @@ func TestConfig_ValidateRequiresName(t *testing.T) {
 
 func TestConfig_ValidateDefaultsModelWhenEmpty(t *testing.T) {
 	cfg := &Config{Name: "test-agent", ModelKey: "test-key", LogLevel: "info"}
-
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, defaultModel, cfg.Model)
 }
@@ -820,10 +814,8 @@ func TestConfig_NormalizeDefaultsDebugTraceDir(t *testing.T) {
 func TestConfig_NormalizeDefaultsDebugTraceDirFromHandHome(t *testing.T) {
 	clearEnvKeys(t, "HAND_HOME")
 	t.Setenv("HAND_HOME", "/tmp/hand-home")
-
 	cfg := &Config{}
 	cfg.Normalize()
-
 	require.Equal(t, "/tmp/hand-home/traces", cfg.DebugTraceDir)
 }
 
@@ -923,9 +915,7 @@ agent:
 
 func TestConfigNormalize_DefaultsSessionSettings(t *testing.T) {
 	cfg := &Config{}
-
 	cfg.Normalize()
-
 	require.Equal(t, "sqlite", cfg.SessionBackend)
 	require.Equal(t, 24*time.Hour, cfg.SessionDefaultIdleExpiry)
 	require.Equal(t, 30*24*time.Hour, cfg.SessionArchiveRetention)
@@ -955,9 +945,7 @@ func TestConfigValidate_RejectsInvalidSessionSettings(t *testing.T) {
 func TestConfig_NormalizeDefaultsFilesystemRootsToCWD(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
-
 	cfg := &Config{}
 	cfg.Normalize()
-
 	require.Equal(t, []string{dir}, cfg.FSRoots)
 }

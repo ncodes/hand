@@ -34,6 +34,7 @@ func (s *managerStoreStub) Save(ctx context.Context, session Session) error {
 	if s.saveFunc != nil {
 		return s.saveFunc(ctx, session)
 	}
+
 	return nil
 }
 
@@ -41,6 +42,7 @@ func (s *managerStoreStub) Get(ctx context.Context, id string) (Session, bool, e
 	if s.getFunc != nil {
 		return s.getFunc(ctx, id)
 	}
+
 	return Session{}, false, nil
 }
 
@@ -48,6 +50,7 @@ func (s *managerStoreStub) List(ctx context.Context) ([]Session, error) {
 	if s.listFunc != nil {
 		return s.listFunc(ctx)
 	}
+
 	return nil, nil
 }
 
@@ -55,6 +58,7 @@ func (s *managerStoreStub) Delete(ctx context.Context, id string) error {
 	if s.deleteFunc != nil {
 		return s.deleteFunc(ctx, id)
 	}
+
 	return nil
 }
 
@@ -62,6 +66,7 @@ func (s *managerStoreStub) CreateArchive(ctx context.Context, archive ArchivedSe
 	if s.createArchiveFunc != nil {
 		return s.createArchiveFunc(ctx, archive)
 	}
+
 	return nil
 }
 
@@ -69,6 +74,7 @@ func (s *managerStoreStub) GetArchive(ctx context.Context, id string) (ArchivedS
 	if s.getArchiveFunc != nil {
 		return s.getArchiveFunc(ctx, id)
 	}
+
 	return ArchivedSession{}, false, nil
 }
 
@@ -76,6 +82,7 @@ func (s *managerStoreStub) ListArchives(ctx context.Context, sourceSessionID str
 	if s.ListArchivesFunc != nil {
 		return s.ListArchivesFunc(ctx, sourceSessionID)
 	}
+
 	return nil, nil
 }
 
@@ -83,6 +90,7 @@ func (s *managerStoreStub) DeleteArchives(ctx context.Context, archiveID string)
 	if s.deleteArchivesFunc != nil {
 		return s.deleteArchivesFunc(ctx, archiveID)
 	}
+
 	return nil
 }
 
@@ -90,6 +98,7 @@ func (s *managerStoreStub) DeleteExpiredArchives(ctx context.Context, now time.T
 	if s.deleteExpiredArchivesFunc != nil {
 		return s.deleteExpiredArchivesFunc(ctx, now)
 	}
+
 	return nil
 }
 
@@ -97,6 +106,7 @@ func (s *managerStoreStub) SetCurrent(ctx context.Context, id string) error {
 	if s.setCurrentFunc != nil {
 		return s.setCurrentFunc(ctx, id)
 	}
+
 	return nil
 }
 
@@ -104,6 +114,7 @@ func (s *managerStoreStub) Current(ctx context.Context) (string, bool, error) {
 	if s.currentFunc != nil {
 		return s.currentFunc(ctx)
 	}
+
 	return "", false, nil
 }
 
@@ -111,6 +122,7 @@ func (s *managerStoreStub) AppendMessages(ctx context.Context, id string, messag
 	if s.appendMessagesFunc != nil {
 		return s.appendMessagesFunc(ctx, id, messages)
 	}
+
 	return nil
 }
 
@@ -118,6 +130,7 @@ func (s *managerStoreStub) GetMessage(ctx context.Context, id string, index int,
 	if s.getMessageFunc != nil {
 		return s.getMessageFunc(ctx, id, index, opts)
 	}
+
 	return handmsg.Message{}, false, nil
 }
 
@@ -125,6 +138,7 @@ func (s *managerStoreStub) GetMessages(ctx context.Context, id string, opts Mess
 	if s.getMessagesFunc != nil {
 		return s.getMessagesFunc(ctx, id, opts)
 	}
+
 	return nil, nil
 }
 
@@ -132,6 +146,7 @@ func (s *managerStoreStub) ClearMessages(ctx context.Context, id string, opts Me
 	if s.clearMessagesFunc != nil {
 		return s.clearMessagesFunc(ctx, id, opts)
 	}
+
 	return nil
 }
 

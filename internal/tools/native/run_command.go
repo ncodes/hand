@@ -86,6 +86,7 @@ func RunCommandDefinition(dependencies envtypes.Runtime) tools.Definition {
 				if eval.Rule != "" {
 					message = "command requires approval: " + eval.Rule
 				}
+
 				return toolError("approval_required", message), nil
 			}
 

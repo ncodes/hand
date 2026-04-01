@@ -28,6 +28,7 @@ func PrettyJSON(v any) string {
 	if err := json.Indent(&buf, raw, "", "  "); err != nil {
 		return string(raw)
 	}
+
 	return buf.String()
 }
 

@@ -70,6 +70,7 @@ func NewFactory(directory string, redactor guardrails.Redactor) *JSONLFactory {
 	if redactor == nil {
 		redactor = guardrails.NewRedactor()
 	}
+
 	return &JSONLFactory{
 		directory: strings.TrimSpace(directory),
 		redactor:  redactor,
@@ -119,6 +120,7 @@ func (s *jsonlSession) ID() string {
 	if s == nil {
 		return ""
 	}
+
 	return s.id
 }
 
@@ -126,8 +128,10 @@ func (s *jsonlSession) Record(eventType string, payload any) {
 	if s == nil || s.noop {
 		return
 	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if s.closed {
 		return
 	}
@@ -149,11 +153,14 @@ func (s *jsonlSession) Close() {
 	if s == nil || s.noop {
 		return
 	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if s.closed {
 		return
 	}
+
 	s.closed = true
 	if err := s.file.Close(); err != nil {
 		log.Warn().Err(err).Str("tracePath", s.path).Msg("Failed to close trace session file")

@@ -146,6 +146,7 @@ func searchWithRipgrep(
 		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
 			return nil, nil
 		}
+
 		return nil, err
 	}
 
@@ -206,6 +207,7 @@ func searchWithGo(
 					return filepath.SkipDir
 				}
 			}
+
 			return nil
 		}
 
