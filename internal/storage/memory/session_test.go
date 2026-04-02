@@ -1,4 +1,4 @@
-package session
+package memory
 
 import (
 	"context"
@@ -8,10 +8,26 @@ import (
 	"github.com/stretchr/testify/require"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
+	base "github.com/wandxy/hand/internal/storage"
+	"github.com/wandxy/hand/pkg/nanoid"
+)
+
+const DefaultSessionID = base.DefaultSessionID
+const SessionIDPrefix = base.SessionIDPrefix
+
+var (
+	testSessionA       = nanoid.MustFromSeed(SessionIDPrefix, "project-a", "SessionTestSeedValue123")
+	testSessionB       = nanoid.MustFromSeed(SessionIDPrefix, "project-b", "SessionTestSeedValue123")
+	testSessionOne     = nanoid.MustFromSeed(SessionIDPrefix, "session-1", "SessionTestSeedValue123")
+	testSessionOlder   = nanoid.MustFromSeed(SessionIDPrefix, "older", "SessionTestSeedValue123")
+	testSessionNewer   = nanoid.MustFromSeed(SessionIDPrefix, "newer", "SessionTestSeedValue123")
+	testSessionAlpha   = nanoid.MustFromSeed(SessionIDPrefix, "alpha", "SessionTestSeedValue123")
+	testSessionZeta    = nanoid.MustFromSeed(SessionIDPrefix, "zeta", "SessionTestSeedValue123")
+	testMissingSession = nanoid.MustFromSeed(SessionIDPrefix, "missing", "SessionTestSeedValue123")
 )
 
 func TestMemoryStore_SaveAndGet(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 	session := Session{ID: testSessionOne}
 
 	require.NoError(t, store.Save(context.Background(), session))
@@ -36,7 +52,7 @@ func TestMemoryStore_SaveAndGet(t *testing.T) {
 }
 
 func TestMemoryStore_GetReturnsFalseWhenMissing(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 
 	loaded, ok, err := store.Get(context.Background(), testMissingSession)
 
@@ -46,7 +62,7 @@ func TestMemoryStore_GetReturnsFalseWhenMissing(t *testing.T) {
 }
 
 func TestMemoryStore_ListOrdersNewestFirst(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 	older := time.Now().UTC().Add(-time.Minute)
 	newer := time.Now().UTC()
 
@@ -62,7 +78,7 @@ func TestMemoryStore_ListOrdersNewestFirst(t *testing.T) {
 }
 
 func TestMemoryStore_ListOrdersByIDWhenTimesMatch(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 	now := time.Now().UTC()
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionZeta, UpdatedAt: now}))
@@ -77,7 +93,7 @@ func TestMemoryStore_ListOrdersByIDWhenTimesMatch(t *testing.T) {
 }
 
 func TestMemoryStore_Delete(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 	now := time.Now().UTC()
 
 	require.EqualError(t, store.Delete(context.Background(), ""), "session id is required")
@@ -105,19 +121,19 @@ func TestMemoryStore_Delete(t *testing.T) {
 }
 
 func TestMemoryStore_SaveRejectsMissingID(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 
 	require.EqualError(t, store.Save(context.Background(), Session{}), "session id is required")
 }
 
 func TestMemoryStore_SaveRejectsInvalidSessionID(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 
 	require.EqualError(t, store.Save(context.Background(), Session{ID: "ses_invalid"}), "session id must be a valid ses_ nanoid")
 }
 
 func TestMemoryStore_NilReceiverErrors(t *testing.T) {
-	var store *MemoryStore
+	var store *SessionStore
 
 	require.EqualError(t, store.Save(context.Background(), Session{ID: "session-1"}), "session store is required")
 	require.EqualError(t, store.Delete(context.Background(), "session-1"), "session store is required")
@@ -133,7 +149,7 @@ func TestMemoryStore_NilReceiverErrors(t *testing.T) {
 	require.Nil(t, listed)
 
 	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{ID: "archive-1", SourceSessionID: DefaultSessionID, ExpiresAt: time.Now().UTC()}), "session store is required")
-	require.EqualError(t, store.DeleteArchives(context.Background(), "archive-1"), "session store is required")
+	require.EqualError(t, store.DeleteArchive(context.Background(), "archive-1"), "session store is required")
 	archive, ok, err := store.GetArchive(context.Background(), "archive-1")
 	require.EqualError(t, err, "session store is required")
 	require.False(t, ok)
@@ -161,7 +177,7 @@ func TestMemoryStore_NilReceiverErrors(t *testing.T) {
 }
 
 func TestMemoryStore_ArchiveLifecycleAndFiltering(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID}))
@@ -246,7 +262,7 @@ func TestMemoryStore_ArchiveLifecycleAndFiltering(t *testing.T) {
 }
 
 func TestMemoryStore_GetArchive(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 
 	archive, ok, err := store.GetArchive(context.Background(), "")
@@ -280,7 +296,7 @@ func TestMemoryStore_GetArchive(t *testing.T) {
 }
 
 func TestMemoryStore_ListArchivesOrdersByIDWhenTimesMatch(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
 	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
@@ -311,12 +327,12 @@ func TestMemoryStore_ListArchivesOrdersByIDWhenTimesMatch(t *testing.T) {
 	require.Equal(t, "zeta", archives[1].ID)
 }
 
-func TestMemoryStore_DeleteArchives(t *testing.T) {
-	store := NewStore()
+func TestMemoryStore_DeleteArchive(t *testing.T) {
+	store := NewSessionStore()
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 
-	require.EqualError(t, store.DeleteArchives(context.Background(), ""), "archive id is required")
-	require.EqualError(t, store.DeleteArchives(context.Background(), testMissingSession), "archive not found")
+	require.EqualError(t, store.DeleteArchive(context.Background(), ""), "archive id is required")
+	require.EqualError(t, store.DeleteArchive(context.Background(), testMissingSession), "archive not found")
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
 	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
@@ -338,7 +354,7 @@ func TestMemoryStore_DeleteArchives(t *testing.T) {
 		ExpiresAt:       now.Add(time.Hour),
 	}))
 
-	require.NoError(t, store.DeleteArchives(context.Background(), "archive-a"))
+	require.NoError(t, store.DeleteArchive(context.Background(), "archive-a"))
 
 	archives, err := store.ListArchives(context.Background(), testSessionA)
 	require.NoError(t, err)
@@ -352,7 +368,7 @@ func TestMemoryStore_DeleteArchives(t *testing.T) {
 }
 
 func TestMemoryStore_SetCurrentAndCloneMessages(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 	message := handmsg.Message{Role: handmsg.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)}
 	session := Session{ID: testSessionA}
 
@@ -392,7 +408,7 @@ func TestMemoryStore_SetCurrentAndCloneMessages(t *testing.T) {
 }
 
 func TestMemoryStore_ArchiveValidation(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 	expiresAt := time.Date(2026, 3, 31, 12, 0, 0, 0, time.UTC)
 
 	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{}), "archive id is required")
@@ -407,7 +423,7 @@ func TestMemoryStore_ArchiveValidation(t *testing.T) {
 }
 
 func TestMemoryStore_MessageEdgeCases(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 
 	require.EqualError(t, store.AppendMessages(context.Background(), "", []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}), "session id is required")
@@ -448,7 +464,7 @@ func TestMemoryStore_MessageEdgeCases(t *testing.T) {
 }
 
 func TestMemoryStore_SaveUpdatesLastPromptTokens(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 	now := time.Now().UTC()
 
 	require.NoError(t, store.Save(context.Background(), Session{
@@ -469,7 +485,7 @@ func TestMemoryStore_SaveUpdatesLastPromptTokens(t *testing.T) {
 }
 
 func TestMemoryStore_SaveTrimsIDBeforeExistingSessionLookup(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 	now := time.Now().UTC()
 
 	require.NoError(t, store.Save(context.Background(), Session{
@@ -490,7 +506,7 @@ func TestMemoryStore_SaveTrimsIDBeforeExistingSessionLookup(t *testing.T) {
 }
 
 func TestMemoryStore_SavePreservesExistingCreatedAtAndAllowsPromptTokenOverwrite(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 	originalCreatedAt := time.Now().UTC().Add(-time.Hour)
 	updatedAt := time.Now().UTC()
 
@@ -515,7 +531,7 @@ func TestMemoryStore_SavePreservesExistingCreatedAtAndAllowsPromptTokenOverwrite
 }
 
 func TestMemoryStore_SaveRefreshesUpdatedAtOnUpdate(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 	originalUpdatedAt := time.Now().UTC().Add(-time.Hour)
 
 	require.NoError(t, store.Save(context.Background(), Session{
@@ -535,7 +551,7 @@ func TestMemoryStore_SaveRefreshesUpdatedAtOnUpdate(t *testing.T) {
 }
 
 func TestMemoryStore_SaveTrimsIDOnCreate(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: "  " + testSessionA + "  "}))
 
@@ -548,7 +564,7 @@ func TestMemoryStore_SaveTrimsIDOnCreate(t *testing.T) {
 }
 
 func TestMemoryStore_GetMessagesRejectsInvalidLiveID(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 
 	messages, err := store.GetMessages(context.Background(), "ses_invalid", MessageQueryOptions{})
 
@@ -557,10 +573,16 @@ func TestMemoryStore_GetMessagesRejectsInvalidLiveID(t *testing.T) {
 }
 
 func TestMemoryStore_GetMessagesAllowsArchivedLookupWithoutSessionIDValidation(t *testing.T) {
-	store := NewStore()
-	store.archiveMessages["archive-invalid"] = []handmsg.Message{
+	store := NewSessionStore()
+	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID}))
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
 		{Role: handmsg.RoleAssistant, Content: "archived"},
-	}
+	}))
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              "archive-invalid",
+		SourceSessionID: DefaultSessionID,
+		ExpiresAt:       time.Now().UTC().Add(time.Hour),
+	}))
 
 	messages, err := store.GetMessages(context.Background(), "archive-invalid", MessageQueryOptions{Archived: true})
 
@@ -570,7 +592,7 @@ func TestMemoryStore_GetMessagesAllowsArchivedLookupWithoutSessionIDValidation(t
 }
 
 func TestMemoryStore_GetMessageRejectsInvalidLiveID(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 
 	message, ok, err := store.GetMessage(context.Background(), "ses_invalid", 0, MessageQueryOptions{})
 
@@ -580,10 +602,16 @@ func TestMemoryStore_GetMessageRejectsInvalidLiveID(t *testing.T) {
 }
 
 func TestMemoryStore_GetMessageAllowsArchivedLookupWithoutSessionIDValidation(t *testing.T) {
-	store := NewStore()
-	store.archiveMessages["archive-invalid"] = []handmsg.Message{
+	store := NewSessionStore()
+	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID}))
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
 		{Role: handmsg.RoleAssistant, Content: "archived"},
-	}
+	}))
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              "archive-invalid",
+		SourceSessionID: DefaultSessionID,
+		ExpiresAt:       time.Now().UTC().Add(time.Hour),
+	}))
 
 	message, ok, err := store.GetMessage(context.Background(), "archive-invalid", 0, MessageQueryOptions{Archived: true})
 
@@ -593,7 +621,7 @@ func TestMemoryStore_GetMessageAllowsArchivedLookupWithoutSessionIDValidation(t 
 }
 
 func TestMemoryStore_ClearMessagesClearsLiveMessagesAndRefreshesUpdatedAt(t *testing.T) {
-	store := NewStore()
+	store := NewSessionStore()
 	originalUpdatedAt := time.Now().UTC().Add(-time.Hour)
 
 	require.NoError(t, store.Save(context.Background(), Session{

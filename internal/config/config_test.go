@@ -889,13 +889,14 @@ log:
 }
 
 func TestLoad_UsesSessionSettingsFromConfig(t *testing.T) {
-	clearEnvKeys(t, "AGENT_SESSION_BACKEND", "AGENT_SESSION_DEFAULT_IDLE_EXPIRY", "AGENT_SESSION_ARCHIVE_RETENTION")
+	clearEnvKeys(t, "AGENT_STORAGE_BACKEND", "AGENT_SESSION_DEFAULT_IDLE_EXPIRY", "AGENT_SESSION_ARCHIVE_RETENTION")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
-session:
+storage:
   backend: memory
+session:
   defaultIdleExpiry: 2h
   archiveRetention: 168h
 `), 0o600))
@@ -903,7 +904,7 @@ session:
 	cfg, err := Load("", configPath)
 
 	require.NoError(t, err)
-	require.Equal(t, "memory", cfg.SessionBackend)
+	require.Equal(t, "memory", cfg.StorageBackend)
 	require.Equal(t, 2*time.Hour, cfg.SessionDefaultIdleExpiry)
 	require.Equal(t, 168*time.Hour, cfg.SessionArchiveRetention)
 }
@@ -911,7 +912,7 @@ session:
 func TestConfig_NormalizeDefaultsSessionSettings(t *testing.T) {
 	cfg := &Config{}
 	cfg.Normalize()
-	require.Equal(t, "sqlite", cfg.SessionBackend)
+	require.Equal(t, "sqlite", cfg.StorageBackend)
 	require.Equal(t, 24*time.Hour, cfg.SessionDefaultIdleExpiry)
 	require.Equal(t, 30*24*time.Hour, cfg.SessionArchiveRetention)
 }
@@ -928,13 +929,13 @@ func TestConfig_ValidateRejectsInvalidSessionSettings(t *testing.T) {
 		RPCPort:                  50051,
 		MaxIterations:            1,
 		LogLevel:                 "info",
-		SessionBackend:           "bogus",
+		StorageBackend:           "bogus",
 		SessionDefaultIdleExpiry: 0,
 		SessionArchiveRetention:  0,
 	}
 
 	err := cfg.Validate()
-	require.EqualError(t, err, "session backend must be one of: memory, sqlite")
+	require.EqualError(t, err, "storage backend must be one of: memory, sqlite")
 }
 
 func TestConfig_NormalizeDefaultsFilesystemRootsToCWD(t *testing.T) {
@@ -989,7 +990,7 @@ func TestConfig_ValidateRejectsInvalidCompactionSettings(t *testing.T) {
 		RPCPort:                  50051,
 		MaxIterations:            1,
 		LogLevel:                 "info",
-		SessionBackend:           "memory",
+		StorageBackend:           "memory",
 		SessionDefaultIdleExpiry: time.Hour,
 		SessionArchiveRetention:  24 * time.Hour,
 		CompactionEnabled:        new(true),

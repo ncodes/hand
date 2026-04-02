@@ -14,7 +14,7 @@ import (
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/models"
-	sessionstore "github.com/wandxy/hand/internal/session"
+	"github.com/wandxy/hand/internal/storage"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -175,11 +175,11 @@ func (f runnerFunc) Respond(context.Context, string, agent.RespondOptions) (stri
 	return "", nil
 }
 
-func (f runnerFunc) CreateSession(context.Context, string) (sessionstore.Session, error) {
-	return sessionstore.Session{}, nil
+func (f runnerFunc) CreateSession(context.Context, string) (storage.Session, error) {
+	return storage.Session{}, nil
 }
 
-func (f runnerFunc) ListSessions(context.Context) ([]sessionstore.Session, error) {
+func (f runnerFunc) ListSessions(context.Context) ([]storage.Session, error) {
 	return nil, nil
 }
 
@@ -188,7 +188,7 @@ func (f runnerFunc) UseSession(context.Context, string) error {
 }
 
 func (f runnerFunc) CurrentSession(context.Context) (string, error) {
-	return sessionstore.DefaultSessionID, nil
+	return storage.DefaultSessionID, nil
 }
 
 var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)

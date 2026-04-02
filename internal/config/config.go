@@ -46,7 +46,7 @@ type Config struct {
 	ExecAllow                []string
 	ExecAsk                  []string
 	ExecDeny                 []string
-	SessionBackend           string
+	StorageBackend           string
 	SessionDefaultIdleExpiry time.Duration
 	SessionArchiveRetention  time.Duration
 	CompactionEnabled        *bool
@@ -119,8 +119,10 @@ type fileConfig struct {
 		Ask   []string `yaml:"ask"`
 		Deny  []string `yaml:"deny"`
 	} `yaml:"exec"`
+	Storage struct {
+		Backend string `yaml:"backend"`
+	} `yaml:"storage"`
 	Session struct {
-		Backend           string `yaml:"backend"`
 		DefaultIdleExpiry string `yaml:"defaultIdleExpiry"`
 		ArchiveRetention  string `yaml:"archiveRetention"`
 	} `yaml:"session"`
@@ -190,7 +192,7 @@ func Get() *Config {
 			CapMemory:                new(true),
 			CapBrowser:               new(false),
 			FSRoots:                  defaultFSRoots(),
-			SessionBackend:           "sqlite",
+			StorageBackend:           "sqlite",
 			SessionDefaultIdleExpiry: 24 * time.Hour,
 			SessionArchiveRetention:  30 * 24 * time.Hour,
 			CompactionEnabled:        new(true),
@@ -259,7 +261,7 @@ func loadConfigFile(path string) (*Config, error) {
 		ExecAllow:                raw.Exec.Allow,
 		ExecAsk:                  raw.Exec.Ask,
 		ExecDeny:                 raw.Exec.Deny,
-		SessionBackend:           raw.Session.Backend,
+		StorageBackend:           raw.Storage.Backend,
 		SessionDefaultIdleExpiry: parseDurationOrZero(raw.Session.DefaultIdleExpiry),
 		SessionArchiveRetention:  parseDurationOrZero(raw.Session.ArchiveRetention),
 		CompactionEnabled:        raw.Compaction.Enabled,
@@ -366,8 +368,8 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("AGENT_EXEC_DENY")); value != "" {
 		cfg.ExecDeny = splitAndTrimCSV(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("AGENT_SESSION_BACKEND")); value != "" {
-		cfg.SessionBackend = value
+	if value := strings.TrimSpace(os.Getenv("AGENT_STORAGE_BACKEND")); value != "" {
+		cfg.StorageBackend = value
 	}
 	if value := strings.TrimSpace(os.Getenv("AGENT_SESSION_DEFAULT_IDLE_EXPIRY")); value != "" {
 		cfg.SessionDefaultIdleExpiry = parseDurationOrZero(value)
@@ -412,7 +414,7 @@ func (c *Config) Normalize() {
 	c.ExecAllow = dedupeAndTrim(c.ExecAllow)
 	c.ExecAsk = dedupeAndTrim(c.ExecAsk)
 	c.ExecDeny = dedupeAndTrim(c.ExecDeny)
-	c.SessionBackend = strings.TrimSpace(strings.ToLower(c.SessionBackend))
+	c.StorageBackend = strings.TrimSpace(strings.ToLower(c.StorageBackend))
 
 	if c.Model == "" {
 		c.Model = defaultModel
@@ -469,8 +471,8 @@ func (c *Config) Normalize() {
 		c.FSRoots = defaultFSRoots()
 	}
 
-	if c.SessionBackend == "" {
-		c.SessionBackend = "sqlite"
+	if c.StorageBackend == "" {
+		c.StorageBackend = "sqlite"
 	}
 
 	if c.SessionDefaultIdleExpiry <= 0 {
@@ -658,8 +660,8 @@ func (c *Config) Validate() error {
 			"use --model.router 'none' or --model.api-mode 'chat-completions'")
 	}
 
-	if c.SessionBackend != "memory" && c.SessionBackend != "sqlite" {
-		return errors.New("session backend must be one of: memory, sqlite")
+	if c.StorageBackend != "memory" && c.StorageBackend != "sqlite" {
+		return errors.New("storage backend must be one of: memory, sqlite")
 	}
 	if c.CompactionTriggerPercent <= 0 || c.CompactionTriggerPercent >= 1 {
 		return errors.New("compaction trigger percent must be greater than zero and less than one")

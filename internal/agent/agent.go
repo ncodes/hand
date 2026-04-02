@@ -14,6 +14,8 @@ import (
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	sessionstore "github.com/wandxy/hand/internal/session"
+	"github.com/wandxy/hand/internal/storage"
+	storagefactory "github.com/wandxy/hand/internal/storage/factory"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 )
@@ -41,7 +43,7 @@ var newRuntimeEnvironment = func(ctx context.Context, cfg *config.Config) execut
 	return environment.NewEnvironment(ctx, cfg)
 }
 
-var openSessionStore = sessionstore.OpenStore
+var openSessionStore = storagefactory.OpenSessionStore
 
 var newSessionManager = sessionstore.NewManager
 
@@ -217,20 +219,20 @@ func (c *Agent) invokeToolWithEnvironment(ctx context.Context, runtimeEnv execut
 }
 
 // CreateSession creates a new session or returns the existing one for the id.
-func (c *Agent) CreateSession(ctx context.Context, id string) (sessionstore.Session, error) {
+func (c *Agent) CreateSession(ctx context.Context, id string) (storage.Session, error) {
 	if c == nil {
-		return sessionstore.Session{}, errors.New("agent is required")
+		return storage.Session{}, errors.New("agent is required")
 	}
 
 	if !c.initialized || c.manager == nil {
-		return sessionstore.Session{}, errors.New("environment has not been initialized")
+		return storage.Session{}, errors.New("environment has not been initialized")
 	}
 
 	return c.manager.CreateSession(normalizeContext(ctx), id)
 }
 
 // ListSessions returns the known sessions.
-func (c *Agent) ListSessions(ctx context.Context) ([]sessionstore.Session, error) {
+func (c *Agent) ListSessions(ctx context.Context) ([]storage.Session, error) {
 	if c == nil {
 		return nil, errors.New("agent is required")
 	}

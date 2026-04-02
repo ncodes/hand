@@ -8,10 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/datadir"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/storage"
+	common "github.com/wandxy/hand/internal/storage/common"
 )
 
 type Manager struct {
@@ -22,25 +21,7 @@ type Manager struct {
 	workerOnce        sync.Once
 }
 
-func OpenStore(cfg *config.Config) (storage.SessionStore, error) {
-	if cfg == nil {
-		return nil, errors.New("config is required")
-	}
-
-	backend := strings.TrimSpace(strings.ToLower(cfg.SessionBackend))
-	if backend == "" {
-		backend = "sqlite"
-	}
-
-	switch backend {
-	case "sqlite":
-		return NewSQLiteStore(datadir.SessionDBPath())
-	case "memory":
-		return NewStore(), nil
-	default:
-		return nil, errors.New("session backend must be one of: memory, sqlite")
-	}
-}
+var generateSessionID = storage.NewSessionID
 
 func NewManager(store storage.SessionStore, defaultIdleExpiry, archiveRetention time.Duration) (*Manager, error) {
 	if store == nil {
@@ -63,33 +44,33 @@ func NewManager(store storage.SessionStore, defaultIdleExpiry, archiveRetention 
 	}, nil
 }
 
-func (m *Manager) ResolveSession(ctx context.Context, requestedID string) (Session, error) {
+func (m *Manager) ResolveSession(ctx context.Context, id string) (storage.Session, error) {
 	if m == nil {
-		return Session{}, errors.New("session manager is required")
+		return storage.Session{}, errors.New("session manager is required")
 	}
 
 	now := m.now().UTC()
 
-	id := strings.TrimSpace(requestedID)
+	id = strings.TrimSpace(id)
 	if id == "" {
-		id = DefaultSessionID
+		id = storage.DefaultSessionID
 	}
 
-	if id == DefaultSessionID {
+	if id == storage.DefaultSessionID {
 		return m.resolveDefaultSession(ctx, now)
 	}
 
-	if err := validateSessionID(id); err != nil {
-		return Session{}, err
+	if err := common.ValidateSessionID(id); err != nil {
+		return storage.Session{}, err
 	}
 
 	session, ok, err := m.store.Get(ctx, id)
 	if err != nil {
-		return Session{}, err
+		return storage.Session{}, err
 	}
 
 	if !ok {
-		return Session{}, errors.New("session not found")
+		return storage.Session{}, errors.New("session not found")
 	}
 
 	return session, nil
@@ -162,10 +143,10 @@ func (m *Manager) AppendMessages(ctx context.Context, id string, messages []hand
 		return errors.New("session id is required")
 	}
 
-	return m.store.AppendMessages(ctx, id, cloneMessages(messages))
+	return m.store.AppendMessages(ctx, id, common.CloneMessages(messages))
 }
 
-func (m *Manager) GetMessages(ctx context.Context, id string, opts MessageQueryOptions) ([]handmsg.Message, error) {
+func (m *Manager) GetMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
 	if m == nil {
 		return nil, errors.New("session manager is required")
 	}
@@ -173,7 +154,7 @@ func (m *Manager) GetMessages(ctx context.Context, id string, opts MessageQueryO
 	return m.store.GetMessages(ctx, strings.TrimSpace(id), opts)
 }
 
-func (m *Manager) GetMessage(ctx context.Context, id string, index int, opts MessageQueryOptions) (handmsg.Message, bool, error) {
+func (m *Manager) GetMessage(ctx context.Context, id string, index int, opts storage.MessageQueryOptions) (handmsg.Message, bool, error) {
 	if m == nil {
 		return handmsg.Message{}, false, errors.New("session manager is required")
 	}
@@ -206,38 +187,38 @@ func (m *Manager) UpdateLastPromptTokens(ctx context.Context, id string, promptT
 	return m.store.Save(ctx, session)
 }
 
-func (m *Manager) CreateSession(ctx context.Context, id string) (Session, error) {
+func (m *Manager) CreateSession(ctx context.Context, id string) (storage.Session, error) {
 	if m == nil {
-		return Session{}, errors.New("session manager is required")
+		return storage.Session{}, errors.New("session manager is required")
 	}
 
 	id = strings.TrimSpace(id)
 	if id == "" {
-		generatedID, err := NewSessionID()
+		generatedID, err := generateSessionID()
 		if err != nil {
-			return Session{}, err
+			return storage.Session{}, err
 		}
 		id = generatedID
-	} else if err := validateSessionID(id); err != nil {
-		return Session{}, err
+	} else if err := common.ValidateSessionID(id); err != nil {
+		return storage.Session{}, err
 	}
 
 	if _, ok, err := m.store.Get(ctx, id); err != nil {
-		return Session{}, err
+		return storage.Session{}, err
 	} else if ok {
-		return Session{}, errors.New("session already exists")
+		return storage.Session{}, errors.New("session already exists")
 	}
 
 	now := m.now().UTC()
-	session := Session{CreatedAt: now, ID: id, UpdatedAt: now}
+	session := storage.Session{CreatedAt: now, ID: id, UpdatedAt: now}
 	if err := m.store.Save(ctx, session); err != nil {
-		return Session{}, err
+		return storage.Session{}, err
 	}
 
 	return session, nil
 }
 
-func (m *Manager) ListSessions(ctx context.Context) ([]Session, error) {
+func (m *Manager) ListSessions(ctx context.Context) ([]storage.Session, error) {
 	if m == nil {
 		return nil, errors.New("session manager is required")
 	}
@@ -256,7 +237,7 @@ func (m *Manager) DeleteSession(ctx context.Context, id string) error {
 
 	id = strings.TrimSpace(id)
 	if id != "" {
-		if err := validateSessionID(id); err != nil {
+		if err := common.ValidateSessionID(id); err != nil {
 			return err
 		}
 	}
@@ -270,11 +251,11 @@ func (m *Manager) UseSession(ctx context.Context, id string) error {
 	}
 
 	id = strings.TrimSpace(id)
-	if id == DefaultSessionID {
+	if id == storage.DefaultSessionID {
 		if _, err := m.resolveDefaultSession(ctx, m.now().UTC()); err != nil {
 			return err
 		}
-	} else if err := validateSessionID(id); err != nil {
+	} else if err := common.ValidateSessionID(id); err != nil {
 		return err
 	}
 
@@ -295,19 +276,19 @@ func (m *Manager) CurrentSession(ctx context.Context) (string, error) {
 		return id, nil
 	}
 
-	return DefaultSessionID, nil
+	return storage.DefaultSessionID, nil
 }
 
-func (m *Manager) resolveDefaultSession(ctx context.Context, now time.Time) (Session, error) {
-	session, ok, err := m.store.Get(ctx, DefaultSessionID)
+func (m *Manager) resolveDefaultSession(ctx context.Context, now time.Time) (storage.Session, error) {
+	session, ok, err := m.store.Get(ctx, storage.DefaultSessionID)
 	if err != nil {
-		return Session{}, err
+		return storage.Session{}, err
 	}
 
 	if !ok {
-		session = Session{ID: DefaultSessionID, UpdatedAt: now}
+		session = storage.Session{ID: storage.DefaultSessionID, UpdatedAt: now}
 		if err := m.store.Save(ctx, session); err != nil {
-			return Session{}, err
+			return storage.Session{}, err
 		}
 
 		return session, nil
@@ -317,7 +298,7 @@ func (m *Manager) resolveDefaultSession(ctx context.Context, now time.Time) (Ses
 }
 
 func (m *Manager) clearIdleDefaultSession(ctx context.Context, now time.Time) error {
-	session, ok, err := m.store.Get(ctx, DefaultSessionID)
+	session, ok, err := m.store.Get(ctx, storage.DefaultSessionID)
 	if err != nil {
 		return err
 	}
@@ -326,13 +307,13 @@ func (m *Manager) clearIdleDefaultSession(ctx context.Context, now time.Time) er
 		return nil
 	}
 
-	messages, err := m.store.GetMessages(ctx, session.ID, MessageQueryOptions{})
+	messages, err := m.store.GetMessages(ctx, session.ID, storage.MessageQueryOptions{})
 	if err != nil {
 		return err
 	}
 
 	if len(messages) > 0 && !session.UpdatedAt.IsZero() && !session.UpdatedAt.Add(m.defaultIdleExpiry).After(now) {
-		archive := ArchivedSession{
+		archive := storage.ArchivedSession{
 			ID:              fmt.Sprintf("%s-%s", session.ID, now.Format("20060102T150405.000000000Z")),
 			SourceSessionID: session.ID,
 			ArchivedAt:      now,
@@ -343,7 +324,7 @@ func (m *Manager) clearIdleDefaultSession(ctx context.Context, now time.Time) er
 			return err
 		}
 
-		if err := m.store.ClearMessages(ctx, session.ID, MessageQueryOptions{}); err != nil {
+		if err := m.store.ClearMessages(ctx, session.ID, storage.MessageQueryOptions{}); err != nil {
 			return err
 		}
 

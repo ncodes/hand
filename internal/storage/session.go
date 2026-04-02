@@ -5,7 +5,15 @@ import (
 	"time"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
+	"github.com/wandxy/hand/pkg/nanoid"
 )
+
+const DefaultSessionID = "default"
+const SessionIDPrefix = "ses_"
+
+func NewSessionID() (string, error) {
+	return nanoid.Generate(SessionIDPrefix)
+}
 
 type Session struct {
 	CreatedAt        time.Time
@@ -39,6 +47,6 @@ type SessionStore interface {
 	CreateArchive(ctx context.Context, archive ArchivedSession) error
 	GetArchive(ctx context.Context, id string) (ArchivedSession, bool, error)
 	ListArchives(ctx context.Context, sourceSessionID string) ([]ArchivedSession, error)
-	DeleteArchives(ctx context.Context, archiveID string) error
+	DeleteArchive(ctx context.Context, archiveID string) error
 	DeleteExpiredArchives(ctx context.Context, now time.Time) error
 }

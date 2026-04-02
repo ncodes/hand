@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
-	sessionstore "github.com/wandxy/hand/internal/session"
+	"github.com/wandxy/hand/internal/storage"
 )
 
 type Client struct {
@@ -63,26 +63,26 @@ func (c *Client) Respond(ctx context.Context, message string, opts RespondOption
 	return resp.Message, nil
 }
 
-func (c *Client) CreateSession(ctx context.Context, id string) (sessionstore.Session, error) {
+func (c *Client) CreateSession(ctx context.Context, id string) (storage.Session, error) {
 	resp, err := c.client.CreateSession(ctx, &handpb.CreateSessionRequest{SessionId: strings.TrimSpace(id)})
 	if err != nil {
-		return sessionstore.Session{}, err
+		return storage.Session{}, err
 	}
 
 	if resp.GetSession() == nil {
-		return sessionstore.Session{}, nil
+		return storage.Session{}, nil
 	}
 
 	return fromSessionSummary(resp.GetSession()), nil
 }
 
-func (c *Client) ListSessions(ctx context.Context) ([]sessionstore.Session, error) {
+func (c *Client) ListSessions(ctx context.Context) ([]storage.Session, error) {
 	resp, err := c.client.ListSessions(ctx, &handpb.ListSessionsRequest{})
 	if err != nil {
 		return nil, err
 	}
 
-	sessions := make([]sessionstore.Session, 0, len(resp.GetSessions()))
+	sessions := make([]storage.Session, 0, len(resp.GetSessions()))
 	for _, session := range resp.GetSessions() {
 		sessions = append(sessions, fromSessionSummary(session))
 	}
@@ -112,12 +112,12 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func fromSessionSummary(summary *handpb.SessionSummary) sessionstore.Session {
+func fromSessionSummary(summary *handpb.SessionSummary) storage.Session {
 	if summary == nil {
-		return sessionstore.Session{}
+		return storage.Session{}
 	}
 
-	return sessionstore.Session{
+	return storage.Session{
 		ID:        summary.GetSessionId(),
 		UpdatedAt: time.Unix(summary.GetUpdatedAtUnix(), 0).UTC(),
 	}

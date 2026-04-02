@@ -8,19 +8,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
-	sessionstore "github.com/wandxy/hand/internal/session"
+	"github.com/wandxy/hand/internal/storage"
 )
 
 type runnerStub struct {
 	usedSessionID string
 }
 
-func (s *runnerStub) CreateSession(context.Context, string) (sessionstore.Session, error) {
-	return sessionstore.Session{ID: "project-a"}, nil
+func (s *runnerStub) CreateSession(context.Context, string) (storage.Session, error) {
+	return storage.Session{ID: "project-a"}, nil
 }
 
-func (s *runnerStub) ListSessions(context.Context) ([]sessionstore.Session, error) {
-	return []sessionstore.Session{{ID: "default"}, {ID: "project-a"}}, nil
+func (s *runnerStub) ListSessions(context.Context) ([]storage.Session, error) {
+	return []storage.Session{{ID: "default"}, {ID: "project-a"}}, nil
 }
 
 func (s *runnerStub) UseSession(_ context.Context, id string) error {
@@ -29,7 +29,7 @@ func (s *runnerStub) UseSession(_ context.Context, id string) error {
 }
 
 func (s *runnerStub) CurrentSession(context.Context) (string, error) {
-	return sessionstore.DefaultSessionID, nil
+	return storage.DefaultSessionID, nil
 }
 
 func (s *runnerStub) Close() error {
@@ -99,7 +99,7 @@ func TestNewCommandSessionCurrentCallsRPC(t *testing.T) {
 	err := NewCommand().Run(context.Background(), []string{"session", "current"})
 
 	require.NoError(t, err)
-	require.Equal(t, sessionstore.DefaultSessionID+"\n", output.String())
+	require.Equal(t, storage.DefaultSessionID+"\n", output.String())
 }
 
 func TestNewCommandSessionUseCallsRPC(t *testing.T) {

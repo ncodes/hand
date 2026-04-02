@@ -18,6 +18,8 @@ import (
 	"github.com/wandxy/hand/internal/models"
 	sessionstore "github.com/wandxy/hand/internal/session"
 	"github.com/wandxy/hand/internal/storage"
+	storagememory "github.com/wandxy/hand/internal/storage/memory"
+	storagesqlite "github.com/wandxy/hand/internal/storage/sqlite"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -104,8 +106,8 @@ func TestTurn_LoadTurnContextRejectsMissingModelClient(t *testing.T) {
 
 func TestTurn_LoadTurnContextReturnsResolveError(t *testing.T) {
 	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (sessionstore.Session, bool, error) {
-			return sessionstore.Session{}, false, errors.New("resolve failed")
+		getFn: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{}, false, errors.New("resolve failed")
 		},
 	}, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -127,10 +129,10 @@ func TestTurn_LoadTurnContextReturnsResolveError(t *testing.T) {
 
 func TestTurn_LoadTurnContextReturnsGetMessagesError(t *testing.T) {
 	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (sessionstore.Session, bool, error) {
-			return sessionstore.Session{ID: sessionstore.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		getFn: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, sessionstore.MessageQueryOptions) ([]handmsg.Message, error) {
+		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, errors.New("get messages failed")
 		},
 	}, time.Hour, 24*time.Hour)
@@ -165,10 +167,10 @@ func TestTurn_RunRejectsEmptyUserMessage(t *testing.T) {
 
 func TestTurn_RunReturnsAppendSessionErrorAfterUserMessage(t *testing.T) {
 	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (sessionstore.Session, bool, error) {
-			return sessionstore.Session{ID: sessionstore.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		getFn: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, sessionstore.MessageQueryOptions) ([]handmsg.Message, error) {
+		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
 		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
@@ -193,10 +195,10 @@ func TestTurn_RunReturnsAppendSessionErrorAfterUserMessage(t *testing.T) {
 func TestTurn_RunReturnsContextErrorAtLoopStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (sessionstore.Session, bool, error) {
-			return sessionstore.Session{ID: sessionstore.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		getFn: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, sessionstore.MessageQueryOptions) ([]handmsg.Message, error) {
+		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
 		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
@@ -221,16 +223,16 @@ func TestTurn_RunReturnsContextErrorAtLoopStart(t *testing.T) {
 
 func TestTurn_RunReturnsPromptTokenPersistenceError(t *testing.T) {
 	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (sessionstore.Session, bool, error) {
-			return sessionstore.Session{ID: sessionstore.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		getFn: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, sessionstore.MessageQueryOptions) ([]handmsg.Message, error) {
+		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
 		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
 			return nil
 		},
-		saveFn: func(context.Context, sessionstore.Session) error {
+		saveFn: func(context.Context, storage.Session) error {
 			return errors.New("save failed")
 		},
 	}, time.Hour, 24*time.Hour)
@@ -258,10 +260,10 @@ func TestTurn_RunReturnsPromptTokenPersistenceError(t *testing.T) {
 func TestTurn_RunReturnsAppendSessionErrorAfterAssistantResponse(t *testing.T) {
 	appendCalls := 0
 	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (sessionstore.Session, bool, error) {
-			return sessionstore.Session{ID: sessionstore.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		getFn: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, sessionstore.MessageQueryOptions) ([]handmsg.Message, error) {
+		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
 		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
@@ -291,10 +293,10 @@ func TestTurn_RunReturnsAppendSessionErrorAfterAssistantResponse(t *testing.T) {
 func TestTurn_RunReturnsAppendSessionErrorAfterAssistantToolCall(t *testing.T) {
 	appendCalls := 0
 	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (sessionstore.Session, bool, error) {
-			return sessionstore.Session{ID: sessionstore.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		getFn: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, sessionstore.MessageQueryOptions) ([]handmsg.Message, error) {
+		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
 		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
@@ -340,10 +342,10 @@ func TestTurn_RunReturnsContextErrorBeforeToolInvocation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	appendCalls := 0
 	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (sessionstore.Session, bool, error) {
-			return sessionstore.Session{ID: sessionstore.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		getFn: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, sessionstore.MessageQueryOptions) ([]handmsg.Message, error) {
+		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
 		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
@@ -395,10 +397,10 @@ func TestTurn_RunReturnsToolMessageNormalizationError(t *testing.T) {
 func TestTurn_RunReturnsAppendSessionErrorAfterToolResult(t *testing.T) {
 	appendCalls := 0
 	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (sessionstore.Session, bool, error) {
-			return sessionstore.Session{ID: sessionstore.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		getFn: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, sessionstore.MessageQueryOptions) ([]handmsg.Message, error) {
+		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
 		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
@@ -431,10 +433,10 @@ func TestTurn_RunReturnsAppendSessionErrorAfterToolResult(t *testing.T) {
 func TestTurn_RunReturnsAppendSessionErrorAfterSummaryFallback(t *testing.T) {
 	appendCalls := 0
 	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (sessionstore.Session, bool, error) {
-			return sessionstore.Session{ID: sessionstore.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		getFn: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, sessionstore.MessageQueryOptions) ([]handmsg.Message, error) {
+		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
 		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
@@ -556,16 +558,16 @@ func TestTurn_SummaryFallbackUsesExistingInstructions(t *testing.T) {
 func TestTurn_SummaryFallbackReturnsPromptTokenPersistenceError(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (sessionstore.Session, bool, error) {
-			return sessionstore.Session{ID: sessionstore.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		getFn: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, sessionstore.MessageQueryOptions) ([]handmsg.Message, error) {
+		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
 		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
 			return nil
 		},
-		saveFn: func(context.Context, sessionstore.Session) error {
+		saveFn: func(context.Context, storage.Session) error {
 			return errors.New("save failed")
 		},
 	}, time.Hour, 24*time.Hour)
@@ -1221,13 +1223,13 @@ func TestAgent_RespondPreservesAssistantToolCallsAcrossSQLiteBackedTurns(t *test
 	}
 
 	openSessionStore = func(*config.Config) (storage.SessionStore, error) {
-		return sessionstore.NewSQLiteStore(filepath.Join(t.TempDir(), "session.db"))
+		return storagesqlite.NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 	}
 
 	agent := NewAgent(context.Background(), &config.Config{
 		Name:           "Test Agent",
 		Model:          "test-model",
-		SessionBackend: "sqlite",
+		StorageBackend: "sqlite",
 	}, client)
 	require.NoError(t, agent.Start(context.Background()))
 
@@ -1564,7 +1566,7 @@ func TestTurn_RunRecordsCompactionTriggerAndWarningWithoutMutatingHistory(t *tes
 	require.Contains(t, eventTypes, "context.compaction.triggered")
 	require.Contains(t, eventTypes, "context.compaction.warning")
 
-	messages, err := manager.GetMessages(context.Background(), turn.sessionID, sessionstore.MessageQueryOptions{})
+	messages, err := manager.GetMessages(context.Background(), turn.sessionID, storage.MessageQueryOptions{})
 	require.NoError(t, err)
 	require.Len(t, messages, 2)
 	require.Equal(t, message, messages[0].Content)
@@ -1635,7 +1637,7 @@ func newTestTurnHarness(
 
 func mustNewSessionManager(t *testing.T) *sessionstore.Manager {
 	t.Helper()
-	manager, err := sessionstore.NewManager(sessionstore.NewStore(), time.Hour, 24*time.Hour)
+	manager, err := sessionstore.NewManager(storagememory.NewSessionStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 	return manager
 }

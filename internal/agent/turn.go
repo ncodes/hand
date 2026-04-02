@@ -14,6 +14,7 @@ import (
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	sessionstore "github.com/wandxy/hand/internal/session"
+	"github.com/wandxy/hand/internal/storage"
 	"github.com/wandxy/hand/internal/trace"
 )
 
@@ -89,7 +90,7 @@ func (r *Turn) loadTurnContext(ctx context.Context, opts RespondOptions) error {
 		return err
 	}
 
-	messages, err := r.sessionManager.GetMessages(ctx, session.ID, sessionstore.MessageQueryOptions{})
+	messages, err := r.sessionManager.GetMessages(ctx, session.ID, storage.MessageQueryOptions{})
 	if err != nil {
 		return err
 	}

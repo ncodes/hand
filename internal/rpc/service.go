@@ -7,15 +7,15 @@ import (
 
 	"github.com/wandxy/hand/internal/agent"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
-	sessionstore "github.com/wandxy/hand/internal/session"
+	"github.com/wandxy/hand/internal/storage"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type chatter interface {
 	Respond(context.Context, string, agent.RespondOptions) (string, error)
-	CreateSession(context.Context, string) (sessionstore.Session, error)
-	ListSessions(context.Context) ([]sessionstore.Session, error)
+	CreateSession(context.Context, string) (storage.Session, error)
+	ListSessions(context.Context) ([]storage.Session, error)
 	UseSession(context.Context, string) error
 	CurrentSession(context.Context) (string, error)
 }
@@ -159,7 +159,7 @@ func grpcError(err error) error {
 	}
 }
 
-func sessionSummary(session sessionstore.Session) *handpb.SessionSummary {
+func sessionSummary(session storage.Session) *handpb.SessionSummary {
 	return &handpb.SessionSummary{
 		SessionId:     session.ID,
 		UpdatedAtUnix: session.UpdatedAt.Unix(),

@@ -1,4 +1,4 @@
-package session
+package memory
 
 import (
 	"context"
@@ -9,10 +9,15 @@ import (
 	"time"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
+	base "github.com/wandxy/hand/internal/storage"
+	common "github.com/wandxy/hand/internal/storage/common"
 )
 
-// MemoryStore implements the SessionStore interface using in-memory storage.
-type MemoryStore struct {
+type Session = base.Session
+type ArchivedSession = base.ArchivedSession
+type MessageQueryOptions = base.MessageQueryOptions
+
+type SessionStore struct {
 	mu              sync.RWMutex
 	sessions        map[string]Session
 	messages        map[string][]handmsg.Message
@@ -21,9 +26,8 @@ type MemoryStore struct {
 	currentSession  string
 }
 
-// NewStore creates a new in-memory session store.
-func NewStore() *MemoryStore {
-	return &MemoryStore{
+func NewSessionStore() *SessionStore {
+	return &SessionStore{
 		sessions:        make(map[string]Session),
 		messages:        make(map[string][]handmsg.Message),
 		archives:        make(map[string]ArchivedSession),
@@ -31,7 +35,7 @@ func NewStore() *MemoryStore {
 	}
 }
 
-func (s *MemoryStore) Save(_ context.Context, session Session) error {
+func (s *SessionStore) Save(_ context.Context, session Session) error {
 	if s == nil {
 		return errors.New("session store is required")
 	}
@@ -40,7 +44,7 @@ func (s *MemoryStore) Save(_ context.Context, session Session) error {
 	defer s.mu.Unlock()
 
 	session.ID = strings.TrimSpace(session.ID)
-	if err := validateSessionID(session.ID); err != nil {
+	if err := common.ValidateSessionID(session.ID); err != nil {
 		return err
 	}
 
@@ -62,11 +66,10 @@ func (s *MemoryStore) Save(_ context.Context, session Session) error {
 	}
 
 	s.sessions[session.ID] = session
-
 	return nil
 }
 
-func (s *MemoryStore) Get(_ context.Context, id string) (Session, bool, error) {
+func (s *SessionStore) Get(_ context.Context, id string) (Session, bool, error) {
 	if s == nil {
 		return Session{}, false, errors.New("session store is required")
 	}
@@ -75,10 +78,10 @@ func (s *MemoryStore) Get(_ context.Context, id string) (Session, bool, error) {
 	defer s.mu.RUnlock()
 
 	session, ok := s.sessions[strings.TrimSpace(id)]
-	return cloneSession(session), ok, nil
+	return session, ok, nil
 }
 
-func (s *MemoryStore) List(context.Context) ([]Session, error) {
+func (s *SessionStore) List(context.Context) ([]Session, error) {
 	if s == nil {
 		return nil, errors.New("session store is required")
 	}
@@ -88,7 +91,7 @@ func (s *MemoryStore) List(context.Context) ([]Session, error) {
 
 	sessions := make([]Session, 0, len(s.sessions))
 	for _, session := range s.sessions {
-		sessions = append(sessions, cloneSession(session))
+		sessions = append(sessions, session)
 	}
 
 	sort.Slice(sessions, func(i, j int) bool {
@@ -102,17 +105,17 @@ func (s *MemoryStore) List(context.Context) ([]Session, error) {
 	return sessions, nil
 }
 
-func (s *MemoryStore) Delete(_ context.Context, id string) error {
+func (s *SessionStore) Delete(_ context.Context, id string) error {
 	if s == nil {
 		return errors.New("session store is required")
 	}
 
 	id = strings.TrimSpace(id)
-	if err := validateSessionID(id); err != nil {
+	if err := common.ValidateSessionID(id); err != nil {
 		return err
 	}
 
-	if id == DefaultSessionID {
+	if id == base.DefaultSessionID {
 		return errors.New("default session cannot be deleted")
 	}
 
@@ -132,13 +135,13 @@ func (s *MemoryStore) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (s *MemoryStore) AppendMessages(_ context.Context, id string, messages []handmsg.Message) error {
+func (s *SessionStore) AppendMessages(_ context.Context, id string, messages []handmsg.Message) error {
 	if s == nil {
 		return errors.New("session store is required")
 	}
 
 	id = strings.TrimSpace(id)
-	if err := validateSessionID(id); err != nil {
+	if err := common.ValidateSessionID(id); err != nil {
 		return err
 	}
 
@@ -162,7 +165,11 @@ func (s *MemoryStore) AppendMessages(_ context.Context, id string, messages []ha
 	return nil
 }
 
-func (s *MemoryStore) GetMessages(_ context.Context, id string, opts MessageQueryOptions) ([]handmsg.Message, error) {
+func (s *SessionStore) GetMessages(
+	_ context.Context,
+	id string,
+	opts MessageQueryOptions,
+) ([]handmsg.Message, error) {
 	if s == nil {
 		return nil, errors.New("session store is required")
 	}
@@ -173,7 +180,7 @@ func (s *MemoryStore) GetMessages(_ context.Context, id string, opts MessageQuer
 	}
 
 	if !opts.Archived {
-		if err := validateSessionID(id); err != nil {
+		if err := common.ValidateSessionID(id); err != nil {
 			return nil, err
 		}
 	}
@@ -188,22 +195,18 @@ func (s *MemoryStore) GetMessages(_ context.Context, id string, opts MessageQuer
 	return cloneMessages(s.messages[id]), nil
 }
 
-func (s *MemoryStore) GetMessage(_ context.Context, id string, index int, opts MessageQueryOptions) (handmsg.Message, bool, error) {
+func (s *SessionStore) GetMessage(_ context.Context, id string, index int, opts MessageQueryOptions) (handmsg.Message, bool, error) {
 	if s == nil {
 		return handmsg.Message{}, false, errors.New("session store is required")
 	}
 
 	id = strings.TrimSpace(id)
-	if id == "" {
-		return handmsg.Message{}, false, nil
-	}
-
-	if index < 0 {
+	if id == "" || index < 0 {
 		return handmsg.Message{}, false, nil
 	}
 
 	if !opts.Archived {
-		if err := validateSessionID(id); err != nil {
+		if err := common.ValidateSessionID(id); err != nil {
 			return handmsg.Message{}, false, err
 		}
 	}
@@ -225,12 +228,12 @@ func (s *MemoryStore) GetMessage(_ context.Context, id string, index int, opts M
 	return cloneMessages(messages[index : index+1])[0], true, nil
 }
 
-func (s *MemoryStore) CreateArchive(_ context.Context, archive ArchivedSession) error {
+func (s *SessionStore) CreateArchive(_ context.Context, archive ArchivedSession) error {
 	if s == nil {
 		return errors.New("session store is required")
 	}
 
-	normalized, err := normalizeCreateArchive(archive)
+	normalized, err := common.NormalizeCreateArchive(archive)
 	if err != nil {
 		return err
 	}
@@ -247,7 +250,7 @@ func (s *MemoryStore) CreateArchive(_ context.Context, archive ArchivedSession) 
 	s.archives[normalized.ID] = normalized
 
 	delete(s.messages, normalized.SourceSessionID)
-	if normalized.SourceSessionID != DefaultSessionID {
+	if normalized.SourceSessionID != base.DefaultSessionID {
 		delete(s.sessions, normalized.SourceSessionID)
 		if s.currentSession == normalized.SourceSessionID {
 			s.currentSession = ""
@@ -257,7 +260,7 @@ func (s *MemoryStore) CreateArchive(_ context.Context, archive ArchivedSession) 
 	return nil
 }
 
-func (s *MemoryStore) GetArchive(_ context.Context, id string) (ArchivedSession, bool, error) {
+func (s *SessionStore) GetArchive(_ context.Context, id string) (ArchivedSession, bool, error) {
 	if s == nil {
 		return ArchivedSession{}, false, errors.New("session store is required")
 	}
@@ -271,10 +274,10 @@ func (s *MemoryStore) GetArchive(_ context.Context, id string) (ArchivedSession,
 	defer s.mu.RUnlock()
 
 	archive, ok := s.archives[id]
-	return cloneCreateArchive(archive), ok, nil
+	return archive, ok, nil
 }
 
-func (s *MemoryStore) ListArchives(_ context.Context, sourceSessionID string) ([]ArchivedSession, error) {
+func (s *SessionStore) ListArchives(_ context.Context, sourceSessionID string) ([]ArchivedSession, error) {
 	if s == nil {
 		return nil, errors.New("session store is required")
 	}
@@ -289,7 +292,7 @@ func (s *MemoryStore) ListArchives(_ context.Context, sourceSessionID string) ([
 		if sourceSessionID != "" && archive.SourceSessionID != sourceSessionID {
 			continue
 		}
-		archives = append(archives, cloneCreateArchive(archive))
+		archives = append(archives, archive)
 	}
 
 	sort.Slice(archives, func(i, j int) bool {
@@ -303,7 +306,7 @@ func (s *MemoryStore) ListArchives(_ context.Context, sourceSessionID string) ([
 	return archives, nil
 }
 
-func (s *MemoryStore) DeleteArchives(_ context.Context, archiveID string) error {
+func (s *SessionStore) DeleteArchive(_ context.Context, archiveID string) error {
 	if s == nil {
 		return errors.New("session store is required")
 	}
@@ -322,11 +325,10 @@ func (s *MemoryStore) DeleteArchives(_ context.Context, archiveID string) error 
 
 	delete(s.archives, archiveID)
 	delete(s.archiveMessages, archiveID)
-
 	return nil
 }
 
-func (s *MemoryStore) DeleteExpiredArchives(_ context.Context, now time.Time) error {
+func (s *SessionStore) DeleteExpiredArchives(_ context.Context, now time.Time) error {
 	if s == nil {
 		return errors.New("session store is required")
 	}
@@ -346,14 +348,14 @@ func (s *MemoryStore) DeleteExpiredArchives(_ context.Context, now time.Time) er
 	return nil
 }
 
-func (s *MemoryStore) ClearMessages(_ context.Context, id string, opts MessageQueryOptions) error {
+func (s *SessionStore) ClearMessages(_ context.Context, id string, opts MessageQueryOptions) error {
 	if s == nil {
 		return errors.New("session store is required")
 	}
 
 	id = strings.TrimSpace(id)
 	if !opts.Archived {
-		if err := validateSessionID(id); err != nil {
+		if err := common.ValidateSessionID(id); err != nil {
 			return err
 		}
 	}
@@ -377,17 +379,16 @@ func (s *MemoryStore) ClearMessages(_ context.Context, id string, opts MessageQu
 	delete(s.messages, id)
 	session.UpdatedAt = time.Now().UTC()
 	s.sessions[id] = session
-
 	return nil
 }
 
-func (s *MemoryStore) SetCurrent(_ context.Context, id string) error {
+func (s *SessionStore) SetCurrent(_ context.Context, id string) error {
 	if s == nil {
 		return errors.New("session store is required")
 	}
 
 	id = strings.TrimSpace(id)
-	if err := validateSessionID(id); err != nil {
+	if err := common.ValidateSessionID(id); err != nil {
 		return err
 	}
 
@@ -399,11 +400,10 @@ func (s *MemoryStore) SetCurrent(_ context.Context, id string) error {
 	}
 
 	s.currentSession = id
-
 	return nil
 }
 
-func (s *MemoryStore) Current(_ context.Context) (string, bool, error) {
+func (s *SessionStore) Current(_ context.Context) (string, bool, error) {
 	if s == nil {
 		return "", false, errors.New("session store is required")
 	}
@@ -416,4 +416,7 @@ func (s *MemoryStore) Current(_ context.Context) (string, bool, error) {
 	}
 
 	return s.currentSession, true, nil
+}
+func cloneMessages(messages []handmsg.Message) []handmsg.Message {
+	return common.CloneMessages(messages)
 }

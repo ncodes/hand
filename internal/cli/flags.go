@@ -154,9 +154,9 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:   "session.backend",
-			Usage:  "Session persistence backend: memory or sqlite",
-			Value:  config.Get().SessionBackend,
+			Name:   "storage.backend",
+			Usage:  "Storage backend: memory or sqlite",
+			Value:  config.Get().StorageBackend,
 			Hidden: true,
 		},
 		&cli.DurationFlag{
@@ -311,8 +311,8 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	if cmd.IsSet("exec.deny") {
 		cfg.ExecDeny = configSplitAndTrimCSV(cmd.String("exec.deny"))
 	}
-	if cmd.IsSet("session.backend") {
-		cfg.SessionBackend = strings.TrimSpace(cmd.String("session.backend"))
+	if cmd.IsSet("storage.backend") {
+		cfg.StorageBackend = strings.TrimSpace(cmd.String("storage.backend"))
 	}
 	if cmd.IsSet("session.default-idle-expiry") {
 		cfg.SessionDefaultIdleExpiry = cmd.Duration("session.default-idle-expiry")

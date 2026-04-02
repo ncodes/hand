@@ -1,4 +1,4 @@
-package session
+package sqlite
 
 import (
 	"context"
@@ -16,9 +16,15 @@ import (
 	"gorm.io/gorm/logger"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
+	base "github.com/wandxy/hand/internal/storage"
+	common "github.com/wandxy/hand/internal/storage/common"
 )
 
 const currentSessionStateKey = "current_session"
+
+type Session = base.Session
+type ArchivedSession = base.ArchivedSession
+type MessageQueryOptions = base.MessageQueryOptions
 
 type sqliteRecord struct {
 	CreatedAt        time.Time
@@ -88,11 +94,43 @@ func (sqliteArchivedMessageRecord) TableName() string {
 	return "archived_session_messages"
 }
 
-type SQLiteStore struct {
+type SessionStore struct {
 	db *gorm.DB
 }
 
-func NewSQLiteStore(path string) (*SQLiteStore, error) {
+func NewSessionStore(path string) (*SessionStore, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil, errors.New("session sqlite path is required")
+	}
+
+	backend, err := gormOpenSQLite(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return backend, nil
+}
+
+func NewSessionStoreFromDB(db *gorm.DB) (*SessionStore, error) {
+	if db == nil {
+		return nil, errors.New("session db is required")
+	}
+
+	if err := db.AutoMigrate(
+		&sqliteRecord{},
+		&sqliteArchiveRecord{},
+		&sqliteStateRecord{},
+		&sqliteMessageRecord{},
+		&sqliteArchivedMessageRecord{},
+	); err != nil {
+		return nil, fmt.Errorf("failed to migrate session db: %w", err)
+	}
+
+	return &SessionStore{db: db}, nil
+}
+
+func gormOpenSQLite(path string) (*SessionStore, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return nil, errors.New("session sqlite path is required")
@@ -109,26 +147,16 @@ func NewSQLiteStore(path string) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("failed to open session db: %w", err)
 	}
 
-	if err := db.AutoMigrate(
-		&sqliteRecord{},
-		&sqliteArchiveRecord{},
-		&sqliteStateRecord{},
-		&sqliteMessageRecord{},
-		&sqliteArchivedMessageRecord{},
-	); err != nil {
-		return nil, fmt.Errorf("failed to migrate session db: %w", err)
-	}
-
-	return &SQLiteStore{db: db}, nil
+	return NewSessionStoreFromDB(db)
 }
 
-func (s *SQLiteStore) Save(ctx context.Context, session Session) error {
+func (s *SessionStore) Save(ctx context.Context, session Session) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
 	}
 
 	session.ID = strings.TrimSpace(session.ID)
-	if err := validateSessionID(session.ID); err != nil {
+	if err := common.ValidateSessionID(session.ID); err != nil {
 		return err
 	}
 
@@ -168,7 +196,7 @@ func (s *SQLiteStore) Save(ctx context.Context, session Session) error {
 	})
 }
 
-func (s *SQLiteStore) Get(ctx context.Context, id string) (Session, bool, error) {
+func (s *SessionStore) Get(ctx context.Context, id string) (Session, bool, error) {
 	if s == nil || s.db == nil {
 		return Session{}, false, errors.New("session store is required")
 	}
@@ -178,7 +206,7 @@ func (s *SQLiteStore) Get(ctx context.Context, id string) (Session, bool, error)
 		return Session{}, false, nil
 	}
 
-	if err := validateSessionID(id); err != nil {
+	if err := common.ValidateSessionID(id); err != nil {
 		return Session{}, false, err
 	}
 
@@ -206,7 +234,7 @@ func (s *SQLiteStore) Get(ctx context.Context, id string) (Session, bool, error)
 	return session, true, nil
 }
 
-func (s *SQLiteStore) List(ctx context.Context) ([]Session, error) {
+func (s *SessionStore) List(ctx context.Context) ([]Session, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("session store is required")
 	}
@@ -236,17 +264,17 @@ func (s *SQLiteStore) List(ctx context.Context) ([]Session, error) {
 	return sessions, nil
 }
 
-func (s *SQLiteStore) Delete(ctx context.Context, id string) error {
+func (s *SessionStore) Delete(ctx context.Context, id string) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
 	}
 
 	id = strings.TrimSpace(id)
-	if err := validateSessionID(id); err != nil {
+	if err := common.ValidateSessionID(id); err != nil {
 		return err
 	}
 
-	if id == DefaultSessionID {
+	if id == base.DefaultSessionID {
 		return errors.New("default session cannot be deleted")
 	}
 
@@ -277,13 +305,13 @@ func (s *SQLiteStore) Delete(ctx context.Context, id string) error {
 	})
 }
 
-func (s *SQLiteStore) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
+func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
 	}
 
 	id = strings.TrimSpace(id)
-	if err := validateSessionID(id); err != nil {
+	if err := common.ValidateSessionID(id); err != nil {
 		return err
 	}
 
@@ -319,7 +347,7 @@ func (s *SQLiteStore) AppendMessages(ctx context.Context, id string, messages []
 	})
 }
 
-func (s *SQLiteStore) GetMessages(
+func (s *SessionStore) GetMessages(
 	ctx context.Context,
 	id string,
 	opts MessageQueryOptions,
@@ -334,7 +362,7 @@ func (s *SQLiteStore) GetMessages(
 	}
 
 	if !opts.Archived {
-		if err := validateSessionID(id); err != nil {
+		if err := common.ValidateSessionID(id); err != nil {
 			return nil, err
 		}
 	}
@@ -358,7 +386,7 @@ func (s *SQLiteStore) GetMessages(
 	return decodeSessionMessages(records), nil
 }
 
-func (s *SQLiteStore) GetMessage(
+func (s *SessionStore) GetMessage(
 	ctx context.Context,
 	id string,
 	index int,
@@ -374,7 +402,7 @@ func (s *SQLiteStore) GetMessage(
 	}
 
 	if !opts.Archived {
-		if err := validateSessionID(id); err != nil {
+		if err := common.ValidateSessionID(id); err != nil {
 			return handmsg.Message{}, false, err
 		}
 	}
@@ -406,12 +434,12 @@ func (s *SQLiteStore) GetMessage(
 	return decodeSessionMessages([]sqliteMessageRecord{record})[0], true, nil
 }
 
-func (s *SQLiteStore) CreateArchive(ctx context.Context, archive ArchivedSession) error {
+func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSession) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
 	}
 
-	archive, err := normalizeCreateArchive(archive)
+	archive, err := common.NormalizeCreateArchive(archive)
 	if err != nil {
 		return err
 	}
@@ -449,7 +477,7 @@ func (s *SQLiteStore) CreateArchive(ctx context.Context, archive ArchivedSession
 			return err
 		}
 
-		if archive.SourceSessionID == DefaultSessionID {
+		if archive.SourceSessionID == base.DefaultSessionID {
 			return nil
 		}
 
@@ -462,7 +490,7 @@ func (s *SQLiteStore) CreateArchive(ctx context.Context, archive ArchivedSession
 	})
 }
 
-func (s *SQLiteStore) GetArchive(ctx context.Context, id string) (ArchivedSession, bool, error) {
+func (s *SessionStore) GetArchive(ctx context.Context, id string) (ArchivedSession, bool, error) {
 	if s == nil || s.db == nil {
 		return ArchivedSession{}, false, errors.New("session store is required")
 	}
@@ -489,14 +517,14 @@ func (s *SQLiteStore) GetArchive(ctx context.Context, id string) (ArchivedSessio
 	return archive, true, nil
 }
 
-func (s *SQLiteStore) ClearMessages(ctx context.Context, id string, opts MessageQueryOptions) error {
+func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts MessageQueryOptions) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
 	}
 
 	id = strings.TrimSpace(id)
 	if !opts.Archived {
-		if err := validateSessionID(id); err != nil {
+		if err := common.ValidateSessionID(id); err != nil {
 			return err
 		}
 	}
@@ -533,7 +561,7 @@ func (s *SQLiteStore) ClearMessages(ctx context.Context, id string, opts Message
 	})
 }
 
-func (s *SQLiteStore) ListArchives(ctx context.Context, sourceSessionID string) ([]ArchivedSession, error) {
+func (s *SessionStore) ListArchives(ctx context.Context, sourceSessionID string) ([]ArchivedSession, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("session store is required")
 	}
@@ -561,7 +589,7 @@ func (s *SQLiteStore) ListArchives(ctx context.Context, sourceSessionID string) 
 	return archives, nil
 }
 
-func (s *SQLiteStore) DeleteArchives(ctx context.Context, archiveID string) error {
+func (s *SessionStore) DeleteArchive(ctx context.Context, archiveID string) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
 	}
@@ -589,7 +617,7 @@ func (s *SQLiteStore) DeleteArchives(ctx context.Context, archiveID string) erro
 	})
 }
 
-func (s *SQLiteStore) DeleteExpiredArchives(ctx context.Context, now time.Time) error {
+func (s *SessionStore) DeleteExpiredArchives(ctx context.Context, now time.Time) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
 	}
@@ -613,13 +641,13 @@ func (s *SQLiteStore) DeleteExpiredArchives(ctx context.Context, now time.Time) 
 	})
 }
 
-func (s *SQLiteStore) SetCurrent(ctx context.Context, id string) error {
+func (s *SessionStore) SetCurrent(ctx context.Context, id string) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
 	}
 
 	id = strings.TrimSpace(id)
-	if err := validateSessionID(id); err != nil {
+	if err := common.ValidateSessionID(id); err != nil {
 		return err
 	}
 
@@ -641,7 +669,7 @@ func (s *SQLiteStore) SetCurrent(ctx context.Context, id string) error {
 	return s.db.WithContext(ctx).Save(&record).Error
 }
 
-func (s *SQLiteStore) Current(ctx context.Context) (string, bool, error) {
+func (s *SessionStore) Current(ctx context.Context) (string, bool, error) {
 	if s == nil || s.db == nil {
 		return "", false, errors.New("session store is required")
 	}
@@ -668,7 +696,7 @@ func decodeSessionRecord(record sqliteRecord) (Session, error) {
 }
 
 func decodeArchiveRecord(record sqliteArchiveRecord) (ArchivedSession, error) {
-	return normalizeCreateArchive(ArchivedSession{
+	return common.NormalizeCreateArchive(ArchivedSession{
 		ID:              record.ID,
 		SourceSessionID: record.SourceSessionID,
 		ArchivedAt:      record.ArchivedAt,

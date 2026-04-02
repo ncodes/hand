@@ -14,6 +14,7 @@ import (
 	"github.com/wandxy/hand/internal/models"
 	sessionstore "github.com/wandxy/hand/internal/session"
 	"github.com/wandxy/hand/internal/storage"
+	storagememory "github.com/wandxy/hand/internal/storage/memory"
 	"github.com/wandxy/hand/internal/tools"
 )
 
@@ -22,7 +23,7 @@ func testSessionConfig(cfg *config.Config) *config.Config {
 		return nil
 	}
 	cloned := *cfg
-	cloned.SessionBackend = "memory"
+	cloned.StorageBackend = "memory"
 	return &cloned
 }
 
@@ -107,9 +108,9 @@ func TestAgent_StartUsesProvidedContext(t *testing.T) {
 }
 
 func TestAgent_StartReturnsEnsureSessionManagerError(t *testing.T) {
-	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", SessionBackend: "invalid"}, &mocks.ModelClientStub{})
+	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", StorageBackend: "invalid"}, &mocks.ModelClientStub{})
 	err := agent.Start(context.Background())
-	require.EqualError(t, err, "session backend must be one of: memory, sqlite")
+	require.EqualError(t, err, "storage backend must be one of: memory, sqlite")
 }
 
 func TestAgent_StartReturnsManagerStartError(t *testing.T) {
@@ -125,8 +126,8 @@ func TestAgent_StartReturnsManagerStartError(t *testing.T) {
 	}
 
 	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (sessionstore.Session, bool, error) {
-			return sessionstore.Session{}, false, errors.New("resolve failed")
+		getFn: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{}, false, errors.New("resolve failed")
 		},
 	}, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -304,7 +305,7 @@ func TestAgent_SessionMethodsRejectUninitializedAgent(t *testing.T) {
 	_, err = agent.ListSessions(context.Background())
 	require.EqualError(t, err, "environment has not been initialized")
 
-	err = agent.UseSession(context.Background(), sessionstore.DefaultSessionID)
+	err = agent.UseSession(context.Background(), storage.DefaultSessionID)
 	require.EqualError(t, err, "environment has not been initialized")
 
 	_, err = agent.CurrentSession(context.Background())
@@ -320,7 +321,7 @@ func TestAgent_SessionMethodsRejectNilAgent(t *testing.T) {
 	_, err = agent.ListSessions(context.Background())
 	require.EqualError(t, err, "agent is required")
 
-	err = agent.UseSession(context.Background(), sessionstore.DefaultSessionID)
+	err = agent.UseSession(context.Background(), storage.DefaultSessionID)
 	require.EqualError(t, err, "agent is required")
 
 	_, err = agent.CurrentSession(context.Background())
@@ -328,7 +329,7 @@ func TestAgent_SessionMethodsRejectNilAgent(t *testing.T) {
 }
 
 func TestAgent_SessionLifecycleMethods(t *testing.T) {
-	manager, err := sessionstore.NewManager(sessionstore.NewStore(), time.Hour, 24*time.Hour)
+	manager, err := sessionstore.NewManager(storagememory.NewSessionStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
 	agent := &Agent{
@@ -475,7 +476,7 @@ func TestAgent_EnsureSessionManagerReturnsNewManagerError(t *testing.T) {
 		newSessionManager = originalNewManager
 	})
 	openSessionStore = func(*config.Config) (storage.SessionStore, error) {
-		return sessionstore.NewStore(), nil
+		return storagememory.NewSessionStore(), nil
 	}
 	newSessionManager = func(storage.SessionStore, time.Duration, time.Duration) (*sessionstore.Manager, error) {
 		return nil, errors.New("new manager failed")
@@ -493,44 +494,44 @@ func TestDurationOrDefault(t *testing.T) {
 
 func mustSessionManager(t *testing.T) *sessionstore.Manager {
 	t.Helper()
-	manager, err := sessionstore.NewManager(sessionstore.NewStore(), time.Hour, 24*time.Hour)
+	manager, err := sessionstore.NewManager(storagememory.NewSessionStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 	return manager
 }
 
 type sessionStoreStub struct {
-	saveFn           func(context.Context, sessionstore.Session) error
-	getFn            func(context.Context, string) (sessionstore.Session, bool, error)
-	listFn           func(context.Context) ([]sessionstore.Session, error)
+	saveFn           func(context.Context, storage.Session) error
+	getFn            func(context.Context, string) (storage.Session, bool, error)
+	listFn           func(context.Context) ([]storage.Session, error)
 	deleteFn         func(context.Context, string) error
 	setCurrentFn     func(context.Context, string) error
 	currentFn        func(context.Context) (string, bool, error)
 	appendMessagesFn func(context.Context, string, []handmsg.Message) error
-	getMessageFn     func(context.Context, string, int, sessionstore.MessageQueryOptions) (handmsg.Message, bool, error)
-	getMessagesFn    func(context.Context, string, sessionstore.MessageQueryOptions) ([]handmsg.Message, error)
-	clearMessagesFn  func(context.Context, string, sessionstore.MessageQueryOptions) error
-	createArchiveFn  func(context.Context, sessionstore.ArchivedSession) error
-	getArchiveFn     func(context.Context, string) (sessionstore.ArchivedSession, bool, error)
-	listArchivesFn   func(context.Context, string) ([]sessionstore.ArchivedSession, error)
-	deleteArchivesFn func(context.Context, string) error
+	getMessageFn     func(context.Context, string, int, storage.MessageQueryOptions) (handmsg.Message, bool, error)
+	getMessagesFn    func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
+	clearMessagesFn  func(context.Context, string, storage.MessageQueryOptions) error
+	createArchiveFn  func(context.Context, storage.ArchivedSession) error
+	getArchiveFn     func(context.Context, string) (storage.ArchivedSession, bool, error)
+	listArchivesFn   func(context.Context, string) ([]storage.ArchivedSession, error)
+	deleteArchiveFn  func(context.Context, string) error
 	deleteExpiredFn  func(context.Context, time.Time) error
 }
 
-func (s *sessionStoreStub) Save(ctx context.Context, session sessionstore.Session) error {
+func (s *sessionStoreStub) Save(ctx context.Context, session storage.Session) error {
 	if s.saveFn != nil {
 		return s.saveFn(ctx, session)
 	}
 	return nil
 }
 
-func (s *sessionStoreStub) Get(ctx context.Context, id string) (sessionstore.Session, bool, error) {
+func (s *sessionStoreStub) Get(ctx context.Context, id string) (storage.Session, bool, error) {
 	if s.getFn != nil {
 		return s.getFn(ctx, id)
 	}
-	return sessionstore.Session{}, false, nil
+	return storage.Session{}, false, nil
 }
 
-func (s *sessionStoreStub) List(ctx context.Context) ([]sessionstore.Session, error) {
+func (s *sessionStoreStub) List(ctx context.Context) ([]storage.Session, error) {
 	if s.listFn != nil {
 		return s.listFn(ctx)
 	}
@@ -565,51 +566,51 @@ func (s *sessionStoreStub) AppendMessages(ctx context.Context, id string, messag
 	return nil
 }
 
-func (s *sessionStoreStub) GetMessage(ctx context.Context, id string, index int, opts sessionstore.MessageQueryOptions) (handmsg.Message, bool, error) {
+func (s *sessionStoreStub) GetMessage(ctx context.Context, id string, index int, opts storage.MessageQueryOptions) (handmsg.Message, bool, error) {
 	if s.getMessageFn != nil {
 		return s.getMessageFn(ctx, id, index, opts)
 	}
 	return handmsg.Message{}, false, nil
 }
 
-func (s *sessionStoreStub) GetMessages(ctx context.Context, id string, opts sessionstore.MessageQueryOptions) ([]handmsg.Message, error) {
+func (s *sessionStoreStub) GetMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
 	if s.getMessagesFn != nil {
 		return s.getMessagesFn(ctx, id, opts)
 	}
 	return nil, nil
 }
 
-func (s *sessionStoreStub) ClearMessages(ctx context.Context, id string, opts sessionstore.MessageQueryOptions) error {
+func (s *sessionStoreStub) ClearMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) error {
 	if s.clearMessagesFn != nil {
 		return s.clearMessagesFn(ctx, id, opts)
 	}
 	return nil
 }
 
-func (s *sessionStoreStub) CreateArchive(ctx context.Context, archive sessionstore.ArchivedSession) error {
+func (s *sessionStoreStub) CreateArchive(ctx context.Context, archive storage.ArchivedSession) error {
 	if s.createArchiveFn != nil {
 		return s.createArchiveFn(ctx, archive)
 	}
 	return nil
 }
 
-func (s *sessionStoreStub) GetArchive(ctx context.Context, id string) (sessionstore.ArchivedSession, bool, error) {
+func (s *sessionStoreStub) GetArchive(ctx context.Context, id string) (storage.ArchivedSession, bool, error) {
 	if s.getArchiveFn != nil {
 		return s.getArchiveFn(ctx, id)
 	}
-	return sessionstore.ArchivedSession{}, false, nil
+	return storage.ArchivedSession{}, false, nil
 }
 
-func (s *sessionStoreStub) ListArchives(ctx context.Context, sourceSessionID string) ([]sessionstore.ArchivedSession, error) {
+func (s *sessionStoreStub) ListArchives(ctx context.Context, sourceSessionID string) ([]storage.ArchivedSession, error) {
 	if s.listArchivesFn != nil {
 		return s.listArchivesFn(ctx, sourceSessionID)
 	}
 	return nil, nil
 }
 
-func (s *sessionStoreStub) DeleteArchives(ctx context.Context, archiveID string) error {
-	if s.deleteArchivesFn != nil {
-		return s.deleteArchivesFn(ctx, archiveID)
+func (s *sessionStoreStub) DeleteArchive(ctx context.Context, archiveID string) error {
+	if s.deleteArchiveFn != nil {
+		return s.deleteArchiveFn(ctx, archiveID)
 	}
 	return nil
 }

@@ -11,7 +11,7 @@ import (
 
 	"github.com/wandxy/hand/internal/agent"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
-	sessionstore "github.com/wandxy/hand/internal/session"
+	"github.com/wandxy/hand/internal/storage"
 )
 
 type chatterStub struct {
@@ -20,8 +20,8 @@ type chatterStub struct {
 	sessionID string
 	reply     string
 	err       error
-	created   sessionstore.Session
-	listed    []sessionstore.Session
+	created   storage.Session
+	listed    []storage.Session
 	current   string
 }
 
@@ -32,11 +32,11 @@ func (s *chatterStub) Respond(_ context.Context, message string, opts agent.Resp
 	return s.reply, s.err
 }
 
-func (s *chatterStub) CreateSession(context.Context, string) (sessionstore.Session, error) {
+func (s *chatterStub) CreateSession(context.Context, string) (storage.Session, error) {
 	return s.created, s.err
 }
 
-func (s *chatterStub) ListSessions(context.Context) ([]sessionstore.Session, error) {
+func (s *chatterStub) ListSessions(context.Context) ([]storage.Session, error) {
 	return s.listed, s.err
 }
 
@@ -107,7 +107,7 @@ func TestService_ChatRejectsNilReceiver(t *testing.T) {
 }
 
 func TestService_CreateSessionReturnsSummary(t *testing.T) {
-	stub := &chatterStub{created: sessionstore.Session{ID: "project-a"}}
+	stub := &chatterStub{created: storage.Session{ID: "project-a"}}
 	svc := NewService(stub)
 
 	resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{SessionId: "project-a"})
@@ -155,7 +155,7 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 }
 
 func TestService_ListSessionsReturnsItems(t *testing.T) {
-	stub := &chatterStub{listed: []sessionstore.Session{{ID: "default"}, {ID: "project-a"}}}
+	stub := &chatterStub{listed: []storage.Session{{ID: "default"}, {ID: "project-a"}}}
 	svc := NewService(stub)
 
 	resp, err := svc.ListSessions(context.Background(), &handpb.ListSessionsRequest{})
@@ -252,12 +252,12 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 }
 
 func TestService_CurrentSessionReturnsValue(t *testing.T) {
-	svc := NewService(&chatterStub{current: sessionstore.DefaultSessionID})
+	svc := NewService(&chatterStub{current: storage.DefaultSessionID})
 
 	resp, err := svc.CurrentSession(context.Background(), &handpb.CurrentSessionRequest{})
 
 	require.NoError(t, err)
-	require.Equal(t, sessionstore.DefaultSessionID, resp.GetSessionId())
+	require.Equal(t, storage.DefaultSessionID, resp.GetSessionId())
 }
 
 func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {

@@ -12,13 +12,13 @@ import (
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	sessionstore "github.com/wandxy/hand/internal/session"
+	"github.com/wandxy/hand/internal/storage"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
 type runner interface {
-	CreateSession(context.Context, string) (sessionstore.Session, error)
-	ListSessions(context.Context) ([]sessionstore.Session, error)
+	CreateSession(context.Context, string) (storage.Session, error)
+	ListSessions(context.Context) ([]storage.Session, error)
 	UseSession(context.Context, string) error
 	CurrentSession(context.Context) (string, error)
 	Close() error
