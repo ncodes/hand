@@ -18,13 +18,15 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value: config.Get().Name,
 		},
 		&cli.StringFlag{
-			Name:  "model.router",
-			Usage: "Model router identifier",
-			Value: config.Get().ModelRouter,
+			Name:   "model.router",
+			Usage:  "Model router identifier",
+			Value:  config.Get().ModelRouter,
+			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:  "model.key",
-			Usage: "Authentication key for the selected model router",
+			Name:   "model.key",
+			Usage:  "Authentication key for the selected model router",
+			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:  "model",
@@ -32,29 +34,34 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value: config.Get().Model,
 		},
 		&cli.StringFlag{
-			Name:  "model.base-url",
-			Usage: "Base URL for the model provider API",
-			Value: config.Get().ModelBaseURL,
+			Name:   "model.base-url",
+			Usage:  "Base URL for the model provider API",
+			Value:  config.Get().ModelBaseURL,
+			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:  "model.api-mode",
-			Usage: "Provider API mode: chat-completions or responses",
-			Value: config.Get().ModelAPIMode,
+			Name:   "model.api-mode",
+			Usage:  "Provider API mode: chat-completions or responses",
+			Value:  config.Get().ModelAPIMode,
+			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:  "rpc.address",
-			Usage: "Bind address for the RPC service",
-			Value: config.Get().RPCAddress,
+			Name:   "rpc.address",
+			Usage:  "Bind address for the RPC service",
+			Value:  config.Get().RPCAddress,
+			Hidden: true,
 		},
 		&cli.IntFlag{
-			Name:  "rpc.port",
-			Usage: "Bind port for the RPC service",
-			Value: config.Get().RPCPort,
+			Name:   "rpc.port",
+			Usage:  "Bind port for the RPC service",
+			Value:  config.Get().RPCPort,
+			Hidden: true,
 		},
 		&cli.IntFlag{
-			Name:  "max-iterations",
-			Usage: "Maximum model iterations allowed in a tool-calling loop",
-			Value: config.Get().MaxIterations,
+			Name:   "max-iterations",
+			Usage:  "Maximum model iterations allowed in a tool-calling loop",
+			Value:  config.Get().MaxIterations,
+			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:  "log.level",
@@ -62,8 +69,9 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value: config.Get().LogLevel,
 		},
 		&cli.BoolFlag{
-			Name:  "log.no-color",
-			Usage: "Emit plain log output without ANSI color codes",
+			Name:   "log.no-color",
+			Usage:  "Emit plain log output without ANSI color codes",
+			Hidden: true,
 		},
 		&cli.BoolFlag{
 			Name:  "debug.requests",
@@ -74,79 +82,94 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Usage: "Persist sanitized per-session trace events for debugging",
 		},
 		&cli.StringFlag{
-			Name:  "debug.trace-dir",
-			Usage: "Directory for persisted debug trace files",
-			Value: config.Get().DebugTraceDir,
+			Name:   "debug.trace-dir",
+			Usage:  "Directory for persisted debug trace files",
+			Value:  config.Get().DebugTraceDir,
+			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:  "rules.files",
-			Usage: "Comma-separated rule file paths to load in addition to workspace defaults",
-			Value: strings.Join(config.Get().RulesFiles, ","),
+			Name:   "rules.files",
+			Usage:  "Comma-separated rule file paths to load in addition to workspace defaults",
+			Value:  strings.Join(config.Get().RulesFiles, ","),
+			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:  "platform",
-			Usage: "Active runtime platform used for tool filtering",
-			Value: config.Get().Platform,
+			Name:   "platform",
+			Usage:  "Active runtime platform used for tool filtering",
+			Value:  config.Get().Platform,
+			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:  "agent.fs.roots",
-			Usage: "Comma-separated filesystem roots allowed for file tools",
-			Value: strings.Join(config.Get().FSRoots, ","),
+			Name:   "fs.roots",
+			Usage:  "Comma-separated filesystem roots allowed for file tools",
+			Value:  strings.Join(config.Get().FSRoots, ","),
+			Hidden: true,
 		},
 		&cli.BoolFlag{
-			Name:  "cap.fs",
-			Usage: "Enable filesystem tool capability filtering",
-			Value: boolValue(config.Get().CapFilesystem),
+			Name:   "cap.fs",
+			Usage:  "Enable filesystem tool capability filtering",
+			Value:  boolValue(config.Get().CapFilesystem),
+			Hidden: true,
 		},
 		&cli.BoolFlag{
-			Name:  "cap.net",
-			Usage: "Enable network tool capability filtering",
-			Value: boolValue(config.Get().CapNetwork),
+			Name:   "cap.net",
+			Usage:  "Enable network tool capability filtering",
+			Value:  boolValue(config.Get().CapNetwork),
+			Hidden: true,
 		},
 		&cli.BoolFlag{
-			Name:  "cap.exec",
-			Usage: "Enable exec tool capability filtering",
-			Value: boolValue(config.Get().CapExec),
+			Name:   "cap.exec",
+			Usage:  "Enable exec tool capability filtering",
+			Value:  boolValue(config.Get().CapExec),
+			Hidden: true,
 		},
 		&cli.BoolFlag{
-			Name:  "cap.mem",
-			Usage: "Enable memory tool capability filtering",
-			Value: boolValue(config.Get().CapMemory),
+			Name:   "cap.mem",
+			Usage:  "Enable memory tool capability filtering",
+			Value:  boolValue(config.Get().CapMemory),
+			Hidden: true,
 		},
 		&cli.BoolFlag{
-			Name:  "cap.browser",
-			Usage: "Enable browser tool capability filtering",
-			Value: boolValue(config.Get().CapBrowser),
+			Name:   "cap.browser",
+			Usage:  "Enable browser tool capability filtering",
+			Value:  boolValue(config.Get().CapBrowser),
+			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:  "agent.exec.allow",
-			Usage: "Comma-separated allowed command prefixes",
-			Value: strings.Join(config.Get().ExecAllow, ","),
+			Name:   "exec.allow",
+			Usage:  "Comma-separated allowed command prefixes",
+			Value:  strings.Join(config.Get().ExecAllow, ","),
+			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:  "agent.exec.ask",
-			Usage: "Comma-separated command prefixes that require approval",
-			Value: strings.Join(config.Get().ExecAsk, ","),
+			Name:   "exec.ask",
+			Usage:  "Comma-separated command prefixes that require approval",
+			Value:  strings.Join(config.Get().ExecAsk, ","),
+			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:  "agent.exec.deny",
-			Usage: "Comma-separated denied command prefixes",
-			Value: strings.Join(config.Get().ExecDeny, ","),
+			Name:   "exec.deny",
+			Usage:  "Comma-separated denied command prefixes",
+			Value:  strings.Join(config.Get().ExecDeny, ","),
+			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:  "session.backend",
-			Usage: "Session persistence backend: memory or sqlite",
-			Value: config.Get().SessionBackend,
+			Name:   "session.backend",
+			Usage:  "Session persistence backend: memory or sqlite",
+			Value:  config.Get().SessionBackend,
+			Hidden: true,
 		},
 		&cli.DurationFlag{
-			Name:  "session.default-idle-expiry",
-			Usage: "Idle duration before the default session is archived and cleared",
-			Value: config.Get().SessionDefaultIdleExpiry,
+			Name:   "session.default-idle-expiry",
+			Usage:  "Idle duration before the default session is archived and cleared",
+			Value:  config.Get().SessionDefaultIdleExpiry,
+			Hidden: true,
 		},
 		&cli.DurationFlag{
-			Name:  "session.archive-retention",
-			Usage: "How long archived default-session conversations are retained before deletion",
-			Value: config.Get().SessionArchiveRetention,
+			Name:   "session.archive-retention",
+			Usage:  "How long archived default-session conversations are retained before deletion",
+			Value:  config.Get().SessionArchiveRetention,
+			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:  "session",
@@ -261,8 +284,8 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	if cmd.IsSet("platform") {
 		cfg.Platform = strings.TrimSpace(cmd.String("platform"))
 	}
-	if cmd.IsSet("agent.fs.roots") {
-		cfg.FSRoots = configSplitAndTrimCSV(cmd.String("agent.fs.roots"))
+	if cmd.IsSet("fs.roots") {
+		cfg.FSRoots = configSplitAndTrimCSV(cmd.String("fs.roots"))
 	}
 	if cmd.IsSet("cap.fs") {
 		cfg.CapFilesystem = new(cmd.Bool("cap.fs"))
@@ -279,14 +302,14 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	if cmd.IsSet("cap.browser") {
 		cfg.CapBrowser = new(cmd.Bool("cap.browser"))
 	}
-	if cmd.IsSet("agent.exec.allow") {
-		cfg.ExecAllow = configSplitAndTrimCSV(cmd.String("agent.exec.allow"))
+	if cmd.IsSet("exec.allow") {
+		cfg.ExecAllow = configSplitAndTrimCSV(cmd.String("exec.allow"))
 	}
-	if cmd.IsSet("agent.exec.ask") {
-		cfg.ExecAsk = configSplitAndTrimCSV(cmd.String("agent.exec.ask"))
+	if cmd.IsSet("exec.ask") {
+		cfg.ExecAsk = configSplitAndTrimCSV(cmd.String("exec.ask"))
 	}
-	if cmd.IsSet("agent.exec.deny") {
-		cfg.ExecDeny = configSplitAndTrimCSV(cmd.String("agent.exec.deny"))
+	if cmd.IsSet("exec.deny") {
+		cfg.ExecDeny = configSplitAndTrimCSV(cmd.String("exec.deny"))
 	}
 	if cmd.IsSet("session.backend") {
 		cfg.SessionBackend = strings.TrimSpace(cmd.String("session.backend"))

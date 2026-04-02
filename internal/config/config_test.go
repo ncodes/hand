@@ -133,15 +133,14 @@ model:
 rpc:
   address: 0.0.0.0
   port: 6000
-agent:
-  maxIterations: 45
-  instruct: be terse
-  cap:
-    fs: false
-    net: false
-    exec: false
-    mem: false
-    browser: true
+maxIterations: 45
+instruct: be terse
+cap:
+  fs: false
+  net: false
+  exec: false
+  mem: false
+  browser: true
 platform: desktop
 log:
   level: error
@@ -217,15 +216,14 @@ model:
 rpc:
   address: 0.0.0.0
   port: 6000
-agent:
-  maxIterations: 45
-  instruct: be formal
-  cap:
-    fs: false
-    net: false
-    exec: false
-    mem: false
-    browser: true
+maxIterations: 45
+instruct: be formal
+cap:
+  fs: false
+  net: false
+  exec: false
+  mem: false
+  browser: true
 platform: desktop
 log:
   level: error
@@ -295,8 +293,7 @@ model:
 rpc:
   address: 127.0.0.1
   port: 50051
-agent:
-  maxIterations: 45
+maxIterations: 45
 log:
   level: info
 `), 0o600))
@@ -834,18 +831,17 @@ rpc:
   port: 50051
 log:
   level: info
-agent:
-  fs:
-    roots:
-      - .
-      - ./nested
-  exec:
-    allow:
-      - git status
-    ask:
-      - git push
-    deny:
-      - git reset --hard
+fs:
+  roots:
+    - .
+    - ./nested
+exec:
+  allow:
+    - git status
+  ask:
+    - git push
+  deny:
+    - git reset --hard
 `), 0o600))
 
 	cfg, err := Load("", configPath)
@@ -898,11 +894,10 @@ func TestLoad_UsesSessionSettingsFromConfig(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
-agent:
-  session:
-    backend: memory
-    defaultIdleExpiry: 2h
-    archiveRetention: 168h
+session:
+  backend: memory
+  defaultIdleExpiry: 2h
+  archiveRetention: 168h
 `), 0o600))
 
 	cfg, err := Load("", configPath)
@@ -958,11 +953,10 @@ func TestLoad_UsesCompactionSettingsFromConfig(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 model:
   contextLength: 64000
-agent:
-  compaction:
-    enabled: false
-    triggerPercent: 0.7
-    warnPercent: 0.9
+compaction:
+  enabled: false
+  triggerPercent: 0.7
+  warnPercent: 0.9
 `), 0o600))
 
 	cfg, err := Load("", configPath)

@@ -456,8 +456,7 @@ model:
   name: config-model
   router: openrouter
   key: config-key
-agent:
-  instruct: be terse
+instruct: be terse
 `), 0o600))
 
 	stub := &chatRunnerStub{reply: "hello back"}

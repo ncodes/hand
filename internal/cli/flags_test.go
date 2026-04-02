@@ -76,10 +76,10 @@ func TestApplyConfigOverrides_AppliesFilesystemRootsAndExecRules(t *testing.T) {
 
 	err := cmd.Run(context.Background(), []string{
 		"hand",
-		"--agent.fs.roots", "./workspace,./nested",
-		"--agent.exec.allow", "git status",
-		"--agent.exec.ask", "git push",
-		"--agent.exec.deny", "git reset --hard",
+		"--fs.roots", "./workspace,./nested",
+		"--exec.allow", "git status",
+		"--exec.ask", "git push",
+		"--exec.deny", "git reset --hard",
 	})
 
 	require.NoError(t, err)

@@ -80,8 +80,11 @@ const (
 )
 
 type fileConfig struct {
-	Name  string `yaml:"name"`
-	Model struct {
+	Name          string `yaml:"name"`
+	Instruct      string `yaml:"instruct"`
+	Platform      string `yaml:"platform"`
+	MaxIterations int    `yaml:"maxIterations"`
+	Model         struct {
 		Name             string `yaml:"name"`
 		ContextLength    int    `yaml:"contextLength"`
 		Router           string `yaml:"router"`
@@ -108,37 +111,31 @@ type fileConfig struct {
 		Port    int    `yaml:"port"`
 	} `yaml:"rpc"`
 
-	Agent struct {
-		MaxIterations int    `yaml:"maxIterations"`
-		Instruct      string `yaml:"instruct"`
-		FS            struct {
-			Roots []string `yaml:"roots"`
-		} `yaml:"fs"`
-		Exec struct {
-			Allow []string `yaml:"allow"`
-			Ask   []string `yaml:"ask"`
-			Deny  []string `yaml:"deny"`
-		} `yaml:"exec"`
-		Session struct {
-			Backend           string `yaml:"backend"`
-			DefaultIdleExpiry string `yaml:"defaultIdleExpiry"`
-			ArchiveRetention  string `yaml:"archiveRetention"`
-		} `yaml:"session"`
-		Compaction struct {
-			Enabled        *bool   `yaml:"enabled"`
-			TriggerPercent float64 `yaml:"triggerPercent"`
-			WarnPercent    float64 `yaml:"warnPercent"`
-		} `yaml:"compaction"`
-		Cap struct {
-			Filesystem *bool `yaml:"fs"`
-			Network    *bool `yaml:"net"`
-			Exec       *bool `yaml:"exec"`
-			Memory     *bool `yaml:"mem"`
-			Browser    *bool `yaml:"browser"`
-		} `yaml:"cap"`
-	} `yaml:"agent"`
-
-	Platform string `yaml:"platform"`
+	FS struct {
+		Roots []string `yaml:"roots"`
+	} `yaml:"fs"`
+	Exec struct {
+		Allow []string `yaml:"allow"`
+		Ask   []string `yaml:"ask"`
+		Deny  []string `yaml:"deny"`
+	} `yaml:"exec"`
+	Session struct {
+		Backend           string `yaml:"backend"`
+		DefaultIdleExpiry string `yaml:"defaultIdleExpiry"`
+		ArchiveRetention  string `yaml:"archiveRetention"`
+	} `yaml:"session"`
+	Compaction struct {
+		Enabled        *bool   `yaml:"enabled"`
+		TriggerPercent float64 `yaml:"triggerPercent"`
+		WarnPercent    float64 `yaml:"warnPercent"`
+	} `yaml:"compaction"`
+	Cap struct {
+		Filesystem *bool `yaml:"fs"`
+		Network    *bool `yaml:"net"`
+		Exec       *bool `yaml:"exec"`
+		Memory     *bool `yaml:"mem"`
+		Browser    *bool `yaml:"browser"`
+	} `yaml:"cap"`
 
 	Rules struct {
 		Files []string `yaml:"files"`
@@ -244,30 +241,30 @@ func loadConfigFile(path string) (*Config, error) {
 		ModelAPIMode:             raw.Model.APIMode,
 		RPCAddress:               raw.RPC.Address,
 		RPCPort:                  raw.RPC.Port,
-		MaxIterations:            raw.Agent.MaxIterations,
+		MaxIterations:            raw.MaxIterations,
 		LogLevel:                 raw.Log.Level,
 		LogNoColor:               raw.Log.NoColor,
 		DebugRequests:            raw.Debug.Requests,
 		DebugTraces:              raw.Debug.Traces,
 		DebugTraceDir:            raw.Debug.TraceDir,
 		RulesFiles:               raw.Rules.Files,
-		Instruct:                 raw.Agent.Instruct,
+		Instruct:                 raw.Instruct,
 		Platform:                 raw.Platform,
-		CapFilesystem:            raw.Agent.Cap.Filesystem,
-		CapNetwork:               raw.Agent.Cap.Network,
-		CapExec:                  raw.Agent.Cap.Exec,
-		CapMemory:                raw.Agent.Cap.Memory,
-		CapBrowser:               raw.Agent.Cap.Browser,
-		FSRoots:                  resolvePathsFromBase(raw.Agent.FS.Roots, baseDir),
-		ExecAllow:                raw.Agent.Exec.Allow,
-		ExecAsk:                  raw.Agent.Exec.Ask,
-		ExecDeny:                 raw.Agent.Exec.Deny,
-		SessionBackend:           raw.Agent.Session.Backend,
-		SessionDefaultIdleExpiry: parseDurationOrZero(raw.Agent.Session.DefaultIdleExpiry),
-		SessionArchiveRetention:  parseDurationOrZero(raw.Agent.Session.ArchiveRetention),
-		CompactionEnabled:        raw.Agent.Compaction.Enabled,
-		CompactionTriggerPercent: raw.Agent.Compaction.TriggerPercent,
-		CompactionWarnPercent:    raw.Agent.Compaction.WarnPercent,
+		CapFilesystem:            raw.Cap.Filesystem,
+		CapNetwork:               raw.Cap.Network,
+		CapExec:                  raw.Cap.Exec,
+		CapMemory:                raw.Cap.Memory,
+		CapBrowser:               raw.Cap.Browser,
+		FSRoots:                  resolvePathsFromBase(raw.FS.Roots, baseDir),
+		ExecAllow:                raw.Exec.Allow,
+		ExecAsk:                  raw.Exec.Ask,
+		ExecDeny:                 raw.Exec.Deny,
+		SessionBackend:           raw.Session.Backend,
+		SessionDefaultIdleExpiry: parseDurationOrZero(raw.Session.DefaultIdleExpiry),
+		SessionArchiveRetention:  parseDurationOrZero(raw.Session.ArchiveRetention),
+		CompactionEnabled:        raw.Compaction.Enabled,
+		CompactionTriggerPercent: raw.Compaction.TriggerPercent,
+		CompactionWarnPercent:    raw.Compaction.WarnPercent,
 	}, nil
 }
 

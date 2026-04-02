@@ -13,21 +13,20 @@
 #   address: "127.0.0.1"
 #   port: 50051
 
-# agent:
-#   maxIterations: 90
-#   fs:
-#     roots:
-#       - "."
-#   exec:
-#     allow: []
-#     ask: []
-#     deny: []
-#   cap:
-#     fs: true
-#     net: true
-#     exec: true
-#     mem: true
-#     browser: false
+# maxIterations: 90
+# fs:
+#   roots:
+#     - "."
+# exec:
+#   allow: []
+#   ask: []
+#   deny: []
+# cap:
+#   fs: true
+#   net: true
+#   exec: true
+#   mem: true
+#   browser: false
 
 # platform: "cli"
 
