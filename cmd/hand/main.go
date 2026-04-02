@@ -31,6 +31,45 @@ var (
 	rootOutput io.Writer = os.Stdout
 )
 
+const rootHelpTemplate = `NAME:
+   {{template "helpNameTemplate" .}}
+
+USAGE:
+   {{if .UsageText}}{{wrap .UsageText 3}}{{else}}{{.FullName}} {{if .VisibleFlags}}[global options]{{end}}{{if .VisibleCommands}} [command [command options]]{{end}}{{if .ArgsUsage}} {{.ArgsUsage}}{{else}}{{if .Arguments}} [arguments...]{{end}}{{end}}{{end}}{{if .Version}}{{if not .HideVersion}}
+
+VERSION:
+   {{.Version}}{{end}}{{end}}{{if .Description}}
+
+DESCRIPTION:
+   {{template "descriptionTemplate" .}}{{end}}
+{{- if len .Authors}}
+
+AUTHOR{{template "authorsTemplate" .}}{{end}}{{if .VisibleCommands}}
+
+COMMANDS:{{template "visibleCommandCategoryTemplate" .}}{{end}}{{if .VisibleFlagCategories}}
+
+GLOBAL OPTIONS:{{template "visibleFlagCategoryTemplate" .}}{{else if .VisibleFlags}}
+
+GLOBAL OPTIONS:{{template "visibleFlagTemplate" .}}{{end}}
+
+EXAMPLES:
+   Start the agent runtime:
+      hand up
+      hand --config ./config.yaml --debug.traces up
+
+   Chat with the agent:
+      hand "summarize the failing tests"
+      hand --session ses_abc123 --instruct "be brief" "continue from the last debugging step"
+
+   Start the trace viewer:
+      hand trace view
+      hand --config ./config.yaml trace view --listen 127.0.0.1:9090
+{{if .Copyright}}
+
+COPYRIGHT:
+   {{template "copyrightTemplate" .}}{{end}}
+`
+
 type chatRunner interface {
 	Respond(context.Context, string, rpcclient.RespondOptions) (string, error)
 	Close() error
@@ -61,10 +100,11 @@ func main() {
 func newCommand() *cli.Command {
 	var cmd *cli.Command
 	cmd = &cli.Command{
-		Name:        "hand",
-		Usage:       "Run and manage your Hand daemon",
-		Description: handcli.AppDescription,
-		Flags:       append(handcli.RootFlags(&envFile, &configFile), handcli.RequestInstructFlag()),
+		Name:                          "hand",
+		Usage:                         "Run and manage your Hand daemon",
+		Description:                   handcli.AppDescription,
+		CustomRootCommandHelpTemplate: rootHelpTemplate,
+		Flags:                         append(handcli.RootFlags(&envFile, &configFile), handcli.RequestInstructFlag()),
 		Commands: []*cli.Command{
 			doctorcmd.NewCommand(),
 			sessioncmd.NewCommand(),

@@ -330,11 +330,19 @@ func TestNewCommand_RootActionShowsHelp(t *testing.T) {
 	clearEnvKeys(t, "AGENT_ENV_FILE")
 	resetGlobals(t)
 
+	var output bytes.Buffer
 	cmd := newCommand()
-	cmd.Writer = io.Discard
-	cmd.ErrWriter = io.Discard
+	cmd.Writer = &output
+	cmd.ErrWriter = &output
 	err := cmd.Run(context.Background(), []string{"hand"})
 	require.NoError(t, err)
+	require.Contains(t, output.String(), "EXAMPLES:")
+	require.Contains(t, output.String(), "hand up")
+	require.Contains(t, output.String(), "hand --config ./config.yaml --debug.traces up")
+	require.Contains(t, output.String(), `hand "summarize the failing tests"`)
+	require.Contains(t, output.String(), `hand --session ses_abc123 --instruct "be brief" "continue from the last debugging step"`)
+	require.Contains(t, output.String(), "hand trace view")
+	require.Contains(t, output.String(), "hand --config ./config.yaml trace view --listen 127.0.0.1:9090")
 }
 
 func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
