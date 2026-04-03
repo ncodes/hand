@@ -187,9 +187,12 @@ func TestBuildSummary_OmitsBudgetWarningWhenNotLow(t *testing.T) {
 
 func TestBuildSessionSummary_ReturnsStructuredSummaryInstructions(t *testing.T) {
 	instructions := BuildSessionSummary()
-	require.Len(t, instructions, 3)
-	require.Equal(t, "Summarize the provided chat history into a structured JSON object.", instructions[0].Value)
-	require.Contains(t, instructions[1].Value, `"session_summary": "required concise summary"`)
-	require.Contains(t, instructions[1].Value, `"next_actions": ["next action"]`)
-	require.Equal(t, "Do not include markdown fences or extra commentary.", instructions[2].Value)
+	require.Len(t, instructions, 6)
+	require.Equal(t, "Create a structured handoff summary of the provided chat history for another assistant that will continue the work.", instructions[0].Value)
+	require.Equal(t, "Capture the current progress and important decisions made so far.", instructions[1].Value)
+	require.Equal(t, "Preserve important context, hard constraints, user preferences, and any critical examples or references needed to continue without redoing work.", instructions[2].Value)
+	require.Equal(t, "Make the remaining work explicit through unresolved questions and concrete next actions.", instructions[3].Value)
+	require.Contains(t, instructions[4].Value, `"session_summary": "required concise summary"`)
+	require.Contains(t, instructions[4].Value, `"next_actions": ["next action"]`)
+	require.Equal(t, "Do not include markdown fences or extra commentary.", instructions[5].Value)
 }

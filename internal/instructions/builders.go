@@ -32,7 +32,10 @@ func BuildSummary(iterationsLeft int) Instructions {
 
 func BuildSessionSummary() Instructions {
 	return New(
-		"Summarize the provided chat history into a structured JSON object.",
+		"Create a structured handoff summary of the provided chat history for another assistant that will continue the work.",
+		"Capture the current progress and important decisions made so far.",
+		"Preserve important context, hard constraints, user preferences, and any critical examples or references needed to continue without redoing work.",
+		"Make the remaining work explicit through unresolved questions and concrete next actions.",
 		`Return JSON only with this exact shape:
 {
   "session_summary": "required concise summary",
