@@ -19,26 +19,31 @@ const SessionIDPrefix = base.SessionIDPrefix
 const ArchiveIDPrefix = base.ArchiveIDPrefix
 
 var (
-	testSessionA       = nanoid.MustFromSeed(SessionIDPrefix, "project-a", "SessionTestSeedValue123")
-	testSessionB       = nanoid.MustFromSeed(SessionIDPrefix, "project-b", "SessionTestSeedValue123")
-	testMissingSession = nanoid.MustFromSeed(SessionIDPrefix, "missing", "SessionTestSeedValue123")
-	testSessionAlpha   = nanoid.MustFromSeed(SessionIDPrefix, "alpha", "SessionTestSeedValue123")
-	testSessionZeta    = nanoid.MustFromSeed(SessionIDPrefix, "zeta", "SessionTestSeedValue123")
-	testSessionZero    = nanoid.MustFromSeed(SessionIDPrefix, "project-zero", "SessionTestSeedValue123")
-	testArchiveOne     = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-1", "SessionTestSeedValue123")
-	testArchiveOld     = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-old", "SessionTestSeedValue123")
-	testArchiveNew     = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-new", "SessionTestSeedValue123")
-	testArchiveA       = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-a", "SessionTestSeedValue123")
-	testArchiveAlpha   = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-alpha", "SessionTestSeedValue123")
-	testArchiveB       = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-b", "SessionTestSeedValue123")
-	testArchiveEmpty   = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-empty", "SessionTestSeedValue123")
-	testArchiveBad     = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-bad", "SessionTestSeedValue123")
-	testArchiveFuture  = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-future", "SessionTestSeedValue123")
-	testArchiveExpired = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-expired", "SessionTestSeedValue123")
-	testArchiveClear   = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-clear", "SessionTestSeedValue123")
-	testArchiveMissing = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-missing", "SessionTestSeedValue123")
-	testArchiveSummary = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-summary", "SessionTestSeedValue123")
-	testArchiveZeta    = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-zeta", "SessionTestSeedValue123")
+	testSessionA            = nanoid.MustFromSeed(SessionIDPrefix, "project-a", "SessionTestSeedValue123")
+	testSessionB            = nanoid.MustFromSeed(SessionIDPrefix, "project-b", "SessionTestSeedValue123")
+	testMissingSession      = nanoid.MustFromSeed(SessionIDPrefix, "missing", "SessionTestSeedValue123")
+	testSessionAlpha        = nanoid.MustFromSeed(SessionIDPrefix, "alpha", "SessionTestSeedValue123")
+	testSessionZeta         = nanoid.MustFromSeed(SessionIDPrefix, "zeta", "SessionTestSeedValue123")
+	testSessionZero         = nanoid.MustFromSeed(SessionIDPrefix, "project-zero", "SessionTestSeedValue123")
+	testArchiveOne          = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-1", "SessionTestSeedValue123")
+	testArchiveOld          = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-old", "SessionTestSeedValue123")
+	testArchiveNew          = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-new", "SessionTestSeedValue123")
+	testArchiveA            = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-a", "SessionTestSeedValue123")
+	testArchiveAlpha        = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-alpha", "SessionTestSeedValue123")
+	testArchiveB            = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-b", "SessionTestSeedValue123")
+	testArchiveEmpty        = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-empty", "SessionTestSeedValue123")
+	testArchiveBad          = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-bad", "SessionTestSeedValue123")
+	testArchiveFuture       = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-future", "SessionTestSeedValue123")
+	testArchiveExpired      = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-expired", "SessionTestSeedValue123")
+	testArchiveClear        = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-clear", "SessionTestSeedValue123")
+	testArchiveMissing      = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-missing", "SessionTestSeedValue123")
+	testArchiveSummary      = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-summary", "SessionTestSeedValue123")
+	testArchiveSourceError  = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-source-error", "SessionTestSeedValue123")
+	testArchiveDeleteError  = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-delete-error", "SessionTestSeedValue123")
+	testArchiveSessionError = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-session-delete-error", "SessionTestSeedValue123")
+	testArchiveStateError   = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-state-delete-error", "SessionTestSeedValue123")
+	testArchiveSummaryError = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-summary-error", "SessionTestSeedValue123")
+	testArchiveZeta         = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-zeta", "SessionTestSeedValue123")
 )
 
 func TestSQLiteStore_NewStoreValidationAndSchema(t *testing.T) {
@@ -461,6 +466,9 @@ func TestSQLiteStore_NilReceiverErrors(t *testing.T) {
 	require.EqualError(t, err, "session store is required")
 	require.False(t, ok)
 	require.Equal(t, handmsg.Message{}, message)
+	count, err := store.CountMessages(context.Background(), DefaultSessionID, MessageQueryOptions{})
+	require.EqualError(t, err, "session store is required")
+	require.Zero(t, count)
 	require.EqualError(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}), "session store is required")
 	require.EqualError(t, store.SaveSummary(context.Background(), SessionSummary{SessionID: testSessionA, SessionSummary: "summary"}), "session store is required")
 	summary, ok, err := store.GetSummary(context.Background(), testSessionA)
@@ -905,6 +913,130 @@ func TestSQLiteStore_GetMessagesEdgeCases(t *testing.T) {
 	messages, err = store.GetMessages(context.Background(), "ses_invalid", MessageQueryOptions{})
 	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
 	require.Nil(t, messages)
+
+	messages, err = store.GetMessages(context.Background(), "archive_invalid", MessageQueryOptions{Archived: true})
+	require.EqualError(t, err, "archive id must be a valid arc_ nanoid")
+	require.Nil(t, messages)
+}
+
+func TestSQLiteStore_GetMessagesSupportsOffsetAndLimit(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "one", CreatedAt: now},
+		{Role: handmsg.RoleUser, Content: "two", CreatedAt: now},
+		{Role: handmsg.RoleUser, Content: "three", CreatedAt: now},
+		{Role: handmsg.RoleUser, Content: "four", CreatedAt: now},
+	}))
+
+	messages, err := store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{Offset: 1, Limit: 2})
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, "two", messages[0].Content)
+	require.Equal(t, "three", messages[1].Content)
+
+	messages, err = store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{Offset: -1, Limit: 2})
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, "one", messages[0].Content)
+	require.Equal(t, "two", messages[1].Content)
+
+	messages, err = store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{Offset: 99})
+	require.NoError(t, err)
+	require.Nil(t, messages)
+
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              testArchiveA,
+		SourceSessionID: testSessionA,
+		ArchivedAt:      now,
+		ExpiresAt:       now.Add(time.Hour),
+	}))
+	messages, err = store.GetMessages(context.Background(), testArchiveA, MessageQueryOptions{Offset: 0, Limit: 2, Archived: true})
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, "one", messages[0].Content)
+	require.Equal(t, "two", messages[1].Content)
+
+	messages, err = store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{})
+	require.NoError(t, err)
+	require.Nil(t, messages)
+}
+
+func TestSQLiteStore_CountMessagesSupportsLiveAndArchivedQueries(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "one", CreatedAt: now},
+		{Role: handmsg.RoleUser, Content: "two", CreatedAt: now},
+		{Role: handmsg.RoleUser, Content: "three", CreatedAt: now},
+	}))
+
+	count, err := store.CountMessages(context.Background(), DefaultSessionID, MessageQueryOptions{Offset: 1, Limit: 1})
+	require.NoError(t, err)
+	require.Equal(t, 3, count)
+
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              testArchiveA,
+		SourceSessionID: DefaultSessionID,
+		ArchivedAt:      now,
+		ExpiresAt:       now.Add(time.Hour),
+	}))
+
+	count, err = store.CountMessages(context.Background(), testArchiveA, MessageQueryOptions{Archived: true, Offset: 1, Limit: 1})
+	require.NoError(t, err)
+	require.Equal(t, 3, count)
+}
+
+func TestSQLiteStore_CountMessagesEdgeCases(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	count, err := store.CountMessages(context.Background(), "", MessageQueryOptions{})
+	require.NoError(t, err)
+	require.Zero(t, count)
+
+	count, err = store.CountMessages(context.Background(), "ses_invalid", MessageQueryOptions{})
+	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
+	require.Zero(t, count)
+
+	count, err = store.CountMessages(context.Background(), "archive_invalid", MessageQueryOptions{Archived: true})
+	require.EqualError(t, err, "archive id must be a valid arc_ nanoid")
+	require.Zero(t, count)
+}
+
+func TestSQLiteStore_CountMessagesReturnsQueryErrors(t *testing.T) {
+	now := time.Date(2026, 4, 2, 10, 0, 0, 0, time.UTC)
+
+	t.Run("live query error", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.db.Migrator().DropTable(&messageModel{}))
+
+		_, err = store.CountMessages(context.Background(), testSessionA, MessageQueryOptions{})
+		require.Error(t, err)
+	})
+
+	t.Run("archived query error", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+		require.NoError(t, store.db.Create(&archiveModel{
+			ID:              testArchiveA,
+			SourceSessionID: DefaultSessionID,
+			ArchivedAt:      now,
+			ExpiresAt:       now.Add(time.Hour),
+		}).Error)
+		require.NoError(t, store.db.Migrator().DropTable(&archivedMessageModel{}))
+
+		_, err = store.CountMessages(context.Background(), testArchiveA, MessageQueryOptions{Archived: true})
+		require.Error(t, err)
+	})
 }
 
 func TestSQLiteStore_GetMessageEdgeCases(t *testing.T) {
@@ -926,6 +1058,11 @@ func TestSQLiteStore_GetMessageEdgeCases(t *testing.T) {
 	require.False(t, ok)
 	require.Equal(t, handmsg.Message{}, message)
 
+	message, ok, err = store.GetMessage(context.Background(), "archive_invalid", 0, MessageQueryOptions{Archived: true})
+	require.EqualError(t, err, "archive id must be a valid arc_ nanoid")
+	require.False(t, ok)
+	require.Equal(t, handmsg.Message{}, message)
+
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
 	message, ok, err = store.GetMessage(context.Background(), testSessionA, 0, MessageQueryOptions{})
 	require.NoError(t, err)
@@ -943,7 +1080,7 @@ func TestSQLiteStore_CreateArchiveErrorBranches(t *testing.T) {
 		require.NoError(t, store.db.Migrator().DropTable(&messageModel{}))
 
 		err = store.CreateArchive(context.Background(), ArchivedSession{
-			ID:              "archive-source-error",
+			ID:              testArchiveSourceError,
 			SourceSessionID: DefaultSessionID,
 			ArchivedAt:      now,
 			ExpiresAt:       now.Add(time.Hour),
@@ -959,7 +1096,7 @@ func TestSQLiteStore_CreateArchiveErrorBranches(t *testing.T) {
 		require.NoError(t, store.db.Exec("CREATE TRIGGER fail_session_message_delete BEFORE DELETE ON session_messages BEGIN SELECT RAISE(FAIL, 'boom'); END;").Error)
 
 		err = store.CreateArchive(context.Background(), ArchivedSession{
-			ID:              "archive-delete-error",
+			ID:              testArchiveDeleteError,
 			SourceSessionID: DefaultSessionID,
 			ArchivedAt:      now,
 			ExpiresAt:       now.Add(time.Hour),
@@ -975,7 +1112,7 @@ func TestSQLiteStore_CreateArchiveErrorBranches(t *testing.T) {
 		require.NoError(t, store.db.Exec("CREATE TRIGGER fail_session_delete BEFORE DELETE ON sessions BEGIN SELECT RAISE(FAIL, 'boom'); END;").Error)
 
 		err = store.CreateArchive(context.Background(), ArchivedSession{
-			ID:              "archive-session-delete-error",
+			ID:              testArchiveSessionError,
 			SourceSessionID: testSessionA,
 			ArchivedAt:      now,
 			ExpiresAt:       now.Add(time.Hour),
@@ -992,7 +1129,7 @@ func TestSQLiteStore_CreateArchiveErrorBranches(t *testing.T) {
 		require.NoError(t, store.db.Migrator().DropTable(&stateModel{}))
 
 		err = store.CreateArchive(context.Background(), ArchivedSession{
-			ID:              "archive-state-delete-error",
+			ID:              testArchiveStateError,
 			SourceSessionID: testSessionA,
 			ArchivedAt:      now,
 			ExpiresAt:       now.Add(time.Hour),
@@ -1023,6 +1160,14 @@ func TestSQLiteStore_GetArchiveErrorBranches(t *testing.T) {
 
 		_, _, err = store.GetArchive(context.Background(), testArchiveBad)
 		require.Error(t, err)
+	})
+
+	t.Run("validation error", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+
+		_, _, err = store.GetArchive(context.Background(), "archive_invalid")
+		require.EqualError(t, err, "archive id must be a valid arc_ nanoid")
 	})
 }
 
@@ -1063,6 +1208,14 @@ func TestSQLiteStore_ClearMessagesEdgeCases(t *testing.T) {
 
 		err = store.ClearMessages(context.Background(), testArchiveClear, MessageQueryOptions{Archived: true})
 		require.Error(t, err)
+	})
+
+	t.Run("archived validation error", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+
+		err = store.ClearMessages(context.Background(), "archive_invalid", MessageQueryOptions{Archived: true})
+		require.EqualError(t, err, "archive id must be a valid arc_ nanoid")
 	})
 }
 
@@ -1421,7 +1574,7 @@ func TestSQLiteStore_CreateArchiveReturnsSummaryCleanupError(t *testing.T) {
 	require.NoError(t, store.db.Migrator().DropTable(&summaryModel{}))
 
 	err = store.CreateArchive(context.Background(), ArchivedSession{
-		ID:              "archive-summary-error",
+		ID:              testArchiveSummaryError,
 		SourceSessionID: testSessionA,
 		ArchivedAt:      now,
 		ExpiresAt:       now.Add(time.Hour),

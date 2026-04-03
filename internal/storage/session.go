@@ -48,6 +48,8 @@ type SessionSummary struct {
 
 type MessageQueryOptions struct {
 	Archived bool
+	Limit    int
+	Offset   int
 }
 
 type SessionStore interface {
@@ -63,6 +65,7 @@ type SessionStore interface {
 
 	// Message operations
 	AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error
+	CountMessages(ctx context.Context, id string, opts MessageQueryOptions) (int, error)
 	GetMessage(ctx context.Context, id string, index int, opts MessageQueryOptions) (handmsg.Message, bool, error)
 	GetMessages(ctx context.Context, id string, opts MessageQueryOptions) ([]handmsg.Message, error)
 	ClearMessages(ctx context.Context, id string, opts MessageQueryOptions) error

@@ -126,6 +126,8 @@ func TestNewManager_ValidationAndNilManagerErrors(t *testing.T) {
 	require.EqualError(t, manager.Start(context.Background()), "session manager is required")
 
 	require.EqualError(t, manager.AppendMessages(context.Background(), storage.DefaultSessionID, nil), "session manager is required")
+	_, err = manager.CountMessages(context.Background(), storage.DefaultSessionID, storage.MessageQueryOptions{})
+	require.EqualError(t, err, "session manager is required")
 	_, _, err = manager.GetMessage(context.Background(), storage.DefaultSessionID, 0, storage.MessageQueryOptions{})
 	require.EqualError(t, err, "session manager is required")
 	_, err = manager.GetMessages(context.Background(), storage.DefaultSessionID, storage.MessageQueryOptions{})
@@ -144,6 +146,29 @@ func TestNewManager_ValidationAndNilManagerErrors(t *testing.T) {
 	current, err := manager.CurrentSession(context.Background())
 	require.EqualError(t, err, "session manager is required")
 	require.Empty(t, current)
+}
+
+func TestManager_CountMessages_ForwardsToStore(t *testing.T) {
+	var capturedID string
+	var capturedOpts storage.MessageQueryOptions
+	manager, err := NewManager(&storagemock.SessionStore{
+		CountMessagesFunc: func(_ context.Context, id string, opts storage.MessageQueryOptions) (int, error) {
+			capturedID = id
+			capturedOpts = opts
+			return 7, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	count, err := manager.CountMessages(context.Background(), "  "+testSessionA+"  ", storage.MessageQueryOptions{
+		Archived: true,
+		Limit:    2,
+		Offset:   3,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 7, count)
+	require.Equal(t, testSessionA, capturedID)
+	require.Equal(t, storage.MessageQueryOptions{Archived: true, Limit: 2, Offset: 3}, capturedOpts)
 }
 
 func TestManager_CreateSaveListAndResolveNonDefaultSession(t *testing.T) {

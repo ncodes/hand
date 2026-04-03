@@ -195,10 +195,38 @@ func (s *SessionStore) GetMessages(
 	defer s.mu.RUnlock()
 
 	if opts.Archived {
-		return cloneMessages(s.archiveMessages[id]), nil
+		return queryMessages(s.archiveMessages[id], opts), nil
 	}
 
-	return cloneMessages(s.messages[id]), nil
+	return queryMessages(s.messages[id], opts), nil
+}
+
+func (s *SessionStore) CountMessages(_ context.Context, id string, opts MessageQueryOptions) (int, error) {
+	if s == nil {
+		return 0, errors.New("session store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return 0, nil
+	}
+
+	if !opts.Archived {
+		if err := common.ValidateSessionID(id); err != nil {
+			return 0, err
+		}
+	} else if err := common.ValidateArchiveID(id); err != nil {
+		return 0, err
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if opts.Archived {
+		return len(s.archiveMessages[id]), nil
+	}
+
+	return len(s.messages[id]), nil
 }
 
 func (s *SessionStore) GetMessage(_ context.Context, id string, index int, opts MessageQueryOptions) (handmsg.Message, bool, error) {
@@ -499,4 +527,18 @@ func (s *SessionStore) Current(_ context.Context) (string, bool, error) {
 
 func cloneMessages(messages []handmsg.Message) []handmsg.Message {
 	return common.CloneMessages(messages)
+}
+
+func queryMessages(messages []handmsg.Message, opts MessageQueryOptions) []handmsg.Message {
+	offset := max(opts.Offset, 0)
+	if offset >= len(messages) {
+		return nil
+	}
+
+	end := len(messages)
+	if opts.Limit > 0 && offset+opts.Limit < end {
+		end = offset + opts.Limit
+	}
+
+	return cloneMessages(messages[offset:end])
 }

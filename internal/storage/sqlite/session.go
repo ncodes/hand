@@ -391,10 +391,15 @@ func (s *SessionStore) GetMessages(
 		return nil, err
 	}
 
+	offset := max(opts.Offset, 0)
+
 	if opts.Archived {
 		var records []archivedMessageModel
-		if err := s.db.WithContext(ctx).Where("archive_id = ?", id).Order("sequence asc").
-			Find(&records).Error; err != nil {
+		query := s.db.WithContext(ctx).Where("archive_id = ?", id).Order("sequence asc").Offset(offset)
+		if opts.Limit > 0 {
+			query = query.Limit(opts.Limit)
+		}
+		if err := query.Find(&records).Error; err != nil {
 			return nil, err
 		}
 
@@ -402,12 +407,56 @@ func (s *SessionStore) GetMessages(
 	}
 
 	var records []messageModel
-	if err := s.db.WithContext(ctx).Where("session_id = ?", id).Order("sequence asc").
-		Find(&records).Error; err != nil {
+	query := s.db.WithContext(ctx).Where("session_id = ?", id).Order("sequence asc").Offset(offset)
+	if opts.Limit > 0 {
+		query = query.Limit(opts.Limit)
+	}
+	if err := query.Find(&records).Error; err != nil {
 		return nil, err
 	}
 
 	return decodeSessionMessages(records), nil
+}
+
+func (s *SessionStore) CountMessages(
+	ctx context.Context,
+	id string,
+	opts MessageQueryOptions,
+) (int, error) {
+	if s == nil || s.db == nil {
+		return 0, errors.New("session store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return 0, nil
+	}
+
+	if !opts.Archived {
+		if err := common.ValidateSessionID(id); err != nil {
+			return 0, err
+		}
+	} else if err := common.ValidateArchiveID(id); err != nil {
+		return 0, err
+	}
+
+	var count int64
+	if opts.Archived {
+		if err := s.db.WithContext(ctx).
+			Model(&archivedMessageModel{}).
+			Where("archive_id = ?", id).Count(&count).Error; err != nil {
+			return 0, err
+		}
+		return int(count), nil
+	}
+
+	if err := s.db.WithContext(ctx).
+		Model(&messageModel{}).
+		Where("session_id = ?", id).Count(&count).Error; err != nil {
+		return 0, err
+	}
+
+	return int(count), nil
 }
 
 func (s *SessionStore) GetMessage(

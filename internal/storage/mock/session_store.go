@@ -19,6 +19,7 @@ type SessionStore struct {
 	SetCurrentFunc            func(context.Context, string) error
 	CurrentFunc               func(context.Context) (string, bool, error)
 	AppendMessagesFunc        func(context.Context, string, []handmsg.Message) error
+	CountMessagesFunc         func(context.Context, string, storage.MessageQueryOptions) (int, error)
 	GetMessageFunc            func(context.Context, string, int, storage.MessageQueryOptions) (handmsg.Message, bool, error)
 	GetMessagesFunc           func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
 	ClearMessagesFunc         func(context.Context, string, storage.MessageQueryOptions) error
@@ -147,6 +148,14 @@ func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages [
 	}
 
 	return nil
+}
+
+func (s *SessionStore) CountMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) (int, error) {
+	if s.CountMessagesFunc != nil {
+		return s.CountMessagesFunc(ctx, id, opts)
+	}
+
+	return 0, nil
 }
 
 func (s *SessionStore) GetMessage(ctx context.Context, id string, index int, opts storage.MessageQueryOptions) (handmsg.Message, bool, error) {

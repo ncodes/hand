@@ -80,7 +80,12 @@ func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input 
 		return nil
 	}
 
-	if len(input.SessionHistory) <= RecentSessionTail {
+	totalCount, err := s.summaryStore.CountMessages(ctx, input.SessionID, storage.MessageQueryOptions{})
+	if err != nil {
+		return err
+	}
+
+	if totalCount <= RecentSessionTail {
 		return nil
 	}
 
@@ -89,7 +94,7 @@ func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input 
 		return nil
 	}
 
-	sourceEndOffset := len(input.SessionHistory) - RecentSessionTail
+	sourceEndOffset := totalCount - RecentSessionTail
 	if memory.Summary != nil && memory.Summary.SourceEndOffset >= sourceEndOffset {
 		return nil
 	}
@@ -104,7 +109,7 @@ func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input 
 		}
 	}
 
-	payload := summaryTracePayload(input.SessionID, sourceEndOffset, len(input.SessionHistory), requestedAt)
+	payload := summaryTracePayload(input.SessionID, sourceEndOffset, totalCount, requestedAt)
 	input.TraceSession.Record("context.summary.requested", payload)
 
 	summaryMessages := make([]handmsg.Message, 0, sourceEndOffset+1)
@@ -120,10 +125,19 @@ func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input 
 		startOffset = memory.Summary.SourceEndOffset
 	}
 
-	summaryMessages = append(
-		summaryMessages,
-		handmsg.CloneMessages(input.SessionHistory[startOffset:sourceEndOffset])...,
-	)
+	limit := sourceEndOffset - startOffset
+	if limit > 0 {
+		messages, err := s.summaryStore.GetMessages(ctx, input.SessionID, storage.MessageQueryOptions{
+			Limit:  limit,
+			Offset: startOffset,
+		})
+		if err != nil {
+			failedPayload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
+			input.TraceSession.Record("context.summary.failed", failedPayload)
+			return err
+		}
+		summaryMessages = append(summaryMessages, handmsg.CloneMessages(messages)...)
+	}
 
 	resp, err := s.modelClient.Chat(ctx, models.Request{
 		Model:         s.model,
@@ -156,7 +170,7 @@ func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input 
 	summary, err := parseSummary(
 		input.SessionID,
 		sourceEndOffset,
-		len(input.SessionHistory),
+		totalCount,
 		resp.OutputText,
 		requestedAt,
 	)

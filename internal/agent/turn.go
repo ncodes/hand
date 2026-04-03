@@ -45,6 +45,8 @@ type Turn struct {
 	emittedMessages []handmsg.Message
 	// memory contains persisted memory state used in active context assembly.
 	memory *agentmemory.Memory
+	// sessionHistoryOffset is the absolute persisted offset represented by sessionHistory[0].
+	sessionHistoryOffset int
 	// sessionID identifies the session being read from and written to.
 	sessionID string
 	// lastPromptTokens stores the most recent actual prompt token count for the session.
@@ -101,12 +103,17 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 		return err
 	}
 
-	messages, err := t.sessionManager.GetMessages(ctx, session.ID, storage.MessageQueryOptions{})
+	memory, err := t.memoryService.Load(ctx, session.ID)
 	if err != nil {
 		return err
 	}
 
-	memory, err := t.memoryService.Load(ctx, session.ID)
+	tailOffset := 0
+	if memory != nil && memory.Summary != nil {
+		tailOffset = max(memory.Summary.SourceEndOffset, 0)
+	}
+
+	messages, err := t.sessionManager.GetMessages(ctx, session.ID, storage.MessageQueryOptions{Offset: tailOffset})
 	if err != nil {
 		return err
 	}
@@ -116,6 +123,7 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 	t.sessionHistory = messages
 	t.emittedMessages = nil
 	t.memory = memory
+	t.sessionHistoryOffset = tailOffset
 	t.sessionID = session.ID
 	t.lastPromptTokens = session.LastPromptTokens
 	t.summaryRefreshAttempted = false
@@ -181,10 +189,10 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			_ = t.memoryService.MaybeRefreshMemory(ctx, t.memory, agentmemory.RefreshInput{
 				LastPromptTokens: t.lastPromptTokens,
 				Request:          request,
-				SessionHistory:   t.sessionHistory,
 				SessionID:        t.sessionID,
 				TraceSession:     traceSession,
 			})
+			t.trimSessionHistoryToSummary()
 		}
 
 		request.Messages = t.Context()
@@ -282,6 +290,27 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 	}
 
 	return reply, nil
+}
+
+func (t *Turn) trimSessionHistoryToSummary() {
+	if t == nil || t.memory == nil || t.memory.Summary == nil {
+		return
+	}
+
+	targetOffset := max(t.memory.Summary.SourceEndOffset, 0)
+	if targetOffset <= t.sessionHistoryOffset {
+		return
+	}
+
+	delta := targetOffset - t.sessionHistoryOffset
+	if delta >= len(t.sessionHistory) {
+		t.sessionHistory = nil
+		t.sessionHistoryOffset = targetOffset
+		return
+	}
+
+	t.sessionHistory = handmsg.CloneMessages(t.sessionHistory[delta:])
+	t.sessionHistoryOffset = targetOffset
 }
 
 func (t *Turn) appendSessionMessages(messages []handmsg.Message) error {

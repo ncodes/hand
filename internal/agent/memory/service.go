@@ -13,6 +13,8 @@ import (
 )
 
 type SummaryStore interface {
+	CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error)
+	GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
 	GetSummary(context.Context, string) (storage.SessionSummary, bool, error)
 	SaveSummary(context.Context, storage.SessionSummary) error
 }
@@ -31,7 +33,6 @@ type Service struct {
 type RefreshInput struct {
 	LastPromptTokens int
 	Request          models.Request
-	SessionHistory   []handmsg.Message
 	SessionID        string
 	TraceSession     traceRecorder
 }

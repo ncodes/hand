@@ -86,10 +86,10 @@ func TestMemory_Recall(t *testing.T) {
 
 	require.Len(t, recall.PrefixMessages, 1)
 	require.Equal(t, handmsg.RoleDeveloper, recall.PrefixMessages[0].Role)
-	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "recent"}}, recall.SessionHistory)
+	require.Equal(t, history, recall.SessionHistory)
 }
 
-func TestMemory_Recall_DefaultsForNilAndOutOfRangeSummary(t *testing.T) {
+func TestMemory_Recall_DefaultsForNilAndPreservesHistoryWithSummary(t *testing.T) {
 	history := []handmsg.Message{{Role: handmsg.RoleUser, Content: "history"}}
 
 	recall := (*Memory)(nil).Recall(history)
@@ -98,5 +98,5 @@ func TestMemory_Recall_DefaultsForNilAndOutOfRangeSummary(t *testing.T) {
 
 	recall = (&Memory{Summary: &SummaryState{SourceEndOffset: 99, SessionSummary: "Older work"}}).Recall(history)
 	require.Len(t, recall.PrefixMessages, 1)
-	require.Empty(t, recall.SessionHistory)
+	require.Equal(t, history, recall.SessionHistory)
 }

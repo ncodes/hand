@@ -176,6 +176,9 @@ func TestMemoryStore_NilReceiverErrors(t *testing.T) {
 	require.EqualError(t, err, "session store is required")
 	require.False(t, ok)
 	require.Equal(t, handmsg.Message{}, message)
+	count, err := store.CountMessages(context.Background(), DefaultSessionID, MessageQueryOptions{})
+	require.EqualError(t, err, "session store is required")
+	require.Zero(t, count)
 
 	require.EqualError(t, store.DeleteExpiredArchives(context.Background(), time.Now().UTC()), "session store is required")
 	require.EqualError(t, store.ClearMessages(context.Background(), DefaultSessionID, MessageQueryOptions{}), "session store is required")
@@ -602,6 +605,94 @@ func TestMemoryStore_GetMessagesAllowsArchivedLookupWithoutSessionIDValidation(t
 	require.Equal(t, "archived", messages[0].Content)
 }
 
+func TestMemoryStore_GetMessagesSupportsOffsetAndLimit(t *testing.T) {
+	store := NewSessionStore()
+	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "one", CreatedAt: now},
+		{Role: handmsg.RoleUser, Content: "two", CreatedAt: now},
+		{Role: handmsg.RoleUser, Content: "three", CreatedAt: now},
+		{Role: handmsg.RoleUser, Content: "four", CreatedAt: now},
+	}))
+
+	messages, err := store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{Offset: 1, Limit: 2})
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, "two", messages[0].Content)
+	require.Equal(t, "three", messages[1].Content)
+
+	messages, err = store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{Offset: -1, Limit: 2})
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, "one", messages[0].Content)
+	require.Equal(t, "two", messages[1].Content)
+
+	messages, err = store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{Offset: 99})
+	require.NoError(t, err)
+	require.Nil(t, messages)
+
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              testArchiveA,
+		SourceSessionID: testSessionA,
+		ArchivedAt:      now,
+		ExpiresAt:       now.Add(time.Hour),
+	}))
+	messages, err = store.GetMessages(context.Background(), testArchiveA, MessageQueryOptions{Offset: 0, Limit: 2, Archived: true})
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, "one", messages[0].Content)
+	require.Equal(t, "two", messages[1].Content)
+
+	messages, err = store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{})
+	require.NoError(t, err)
+	require.Nil(t, messages)
+}
+
+func TestMemoryStore_CountMessagesSupportsLiveAndArchivedQueries(t *testing.T) {
+	store := NewSessionStore()
+	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "one", CreatedAt: now},
+		{Role: handmsg.RoleUser, Content: "two", CreatedAt: now},
+		{Role: handmsg.RoleUser, Content: "three", CreatedAt: now},
+	}))
+
+	count, err := store.CountMessages(context.Background(), DefaultSessionID, MessageQueryOptions{Offset: 1, Limit: 1})
+	require.NoError(t, err)
+	require.Equal(t, 3, count)
+
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              testArchiveA,
+		SourceSessionID: DefaultSessionID,
+		ArchivedAt:      now,
+		ExpiresAt:       now.Add(time.Hour),
+	}))
+
+	count, err = store.CountMessages(context.Background(), testArchiveA, MessageQueryOptions{Archived: true, Offset: 1, Limit: 1})
+	require.NoError(t, err)
+	require.Equal(t, 3, count)
+}
+
+func TestMemoryStore_CountMessagesEdgeCases(t *testing.T) {
+	store := NewSessionStore()
+
+	count, err := store.CountMessages(context.Background(), "", MessageQueryOptions{})
+	require.NoError(t, err)
+	require.Zero(t, count)
+
+	count, err = store.CountMessages(context.Background(), "ses_invalid", MessageQueryOptions{})
+	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
+	require.Zero(t, count)
+
+	count, err = store.CountMessages(context.Background(), "archive_invalid", MessageQueryOptions{Archived: true})
+	require.EqualError(t, err, "archive id must be a valid arc_ nanoid")
+	require.Zero(t, count)
+}
+
 func TestMemoryStore_GetMessageRejectsInvalidLiveID(t *testing.T) {
 	store := NewSessionStore()
 
@@ -629,6 +720,26 @@ func TestMemoryStore_GetMessageAllowsArchivedLookupWithoutSessionIDValidation(t 
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "archived", message.Content)
+}
+
+func TestMemoryStore_ArchiveLookupsRejectInvalidArchiveID(t *testing.T) {
+	store := NewSessionStore()
+
+	messages, err := store.GetMessages(context.Background(), "archive_invalid", MessageQueryOptions{Archived: true})
+	require.EqualError(t, err, "archive id must be a valid arc_ nanoid")
+	require.Nil(t, messages)
+
+	message, ok, err := store.GetMessage(context.Background(), "archive_invalid", 0, MessageQueryOptions{Archived: true})
+	require.EqualError(t, err, "archive id must be a valid arc_ nanoid")
+	require.False(t, ok)
+	require.Equal(t, handmsg.Message{}, message)
+
+	archive, ok, err := store.GetArchive(context.Background(), "archive_invalid")
+	require.EqualError(t, err, "archive id must be a valid arc_ nanoid")
+	require.False(t, ok)
+	require.Equal(t, ArchivedSession{}, archive)
+
+	require.EqualError(t, store.ClearMessages(context.Background(), "archive_invalid", MessageQueryOptions{Archived: true}), "archive id must be a valid arc_ nanoid")
 }
 
 func TestMemoryStore_ClearMessagesClearsLiveMessagesAndRefreshesUpdatedAt(t *testing.T) {

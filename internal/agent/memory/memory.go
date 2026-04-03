@@ -67,11 +67,6 @@ func (m *Memory) RenderSummaryMessage() (handmsg.Message, bool) {
 }
 
 func (m *Memory) Recall(sessionHistory []handmsg.Message) Recall {
-	start := 0
-	if m != nil && m.Summary != nil {
-		start = min(max(m.Summary.SourceEndOffset, 0), len(sessionHistory))
-	}
-
 	prefixMessages := make([]handmsg.Message, 0, 1)
 	if summaryMessage, ok := m.RenderSummaryMessage(); ok {
 		prefixMessages = append(prefixMessages, summaryMessage)
@@ -79,6 +74,6 @@ func (m *Memory) Recall(sessionHistory []handmsg.Message) Recall {
 
 	return Recall{
 		PrefixMessages: prefixMessages,
-		SessionHistory: sessionHistory[start:],
+		SessionHistory: handmsg.CloneMessages(sessionHistory),
 	}
 }

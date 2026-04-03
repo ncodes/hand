@@ -779,7 +779,6 @@ func TestTurn_RequestMessagesIncludesPersistedSummaryBeforeUnsummarizedHistory(t
 			},
 		},
 		sessionHistory: []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "old"},
 			{Role: handmsg.RoleAssistant, Content: "recent-1"},
 			{Role: handmsg.RoleUser, Content: "recent-2"},
 		},
@@ -796,6 +795,68 @@ func TestTurn_RequestMessagesIncludesPersistedSummaryBeforeUnsummarizedHistory(t
 	require.Equal(t, "recent-1", messages[1].Content)
 	require.Equal(t, "recent-2", messages[2].Content)
 	require.Equal(t, "new", messages[3].Content)
+}
+
+func TestTurn_TrimSessionHistoryToSummary_TrimsRelativeToLoadedOffset(t *testing.T) {
+	turn := &Turn{
+		memory: &memory.Memory{
+			Summary: &memory.SummaryState{SourceEndOffset: 5},
+		},
+		sessionHistory: []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "m3"},
+			{Role: handmsg.RoleUser, Content: "m4"},
+			{Role: handmsg.RoleUser, Content: "m5"},
+			{Role: handmsg.RoleUser, Content: "m6"},
+		},
+		sessionHistoryOffset: 2,
+	}
+
+	turn.trimSessionHistoryToSummary()
+
+	require.Equal(t, 5, turn.sessionHistoryOffset)
+	require.Equal(t, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "m6"},
+	}, turn.sessionHistory)
+}
+
+func TestTurn_TrimSessionHistoryToSummary_NoopsWhenSummaryDoesNotAdvanceOffset(t *testing.T) {
+	turn := &Turn{
+		memory: &memory.Memory{
+			Summary: &memory.SummaryState{SourceEndOffset: 2},
+		},
+		sessionHistory: []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "m2"},
+			{Role: handmsg.RoleUser, Content: "m3"},
+		},
+		sessionHistoryOffset: 2,
+	}
+
+	turn.trimSessionHistoryToSummary()
+
+	require.Equal(t, 2, turn.sessionHistoryOffset)
+	require.Equal(t, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "m2"},
+		{Role: handmsg.RoleUser, Content: "m3"},
+	}, turn.sessionHistory)
+}
+
+func TestTurn_TrimSessionHistoryToSummary_ClearsHistoryWhenSummaryConsumesAllLoadedMessages(t *testing.T) {
+	turn := &Turn{
+		memory: &memory.Memory{
+			Summary: &memory.SummaryState{SourceEndOffset: 5},
+		},
+		sessionHistory: []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "m2"},
+			{Role: handmsg.RoleUser, Content: "m3"},
+			{Role: handmsg.RoleUser, Content: "m4"},
+		},
+		sessionHistoryOffset: 2,
+	}
+
+	turn.trimSessionHistoryToSummary()
+
+	require.Equal(t, 5, turn.sessionHistoryOffset)
+	require.Nil(t, turn.sessionHistory)
 }
 
 func TestTurn_LoadLoadsPersistedSummary(t *testing.T) {
@@ -817,6 +878,43 @@ func TestTurn_LoadLoadsPersistedSummary(t *testing.T) {
 	require.NotNil(t, turn.memory.Summary)
 	require.Equal(t, "Older work", turn.memory.Summary.SessionSummary)
 	require.Equal(t, "Finish phase 3", turn.memory.Summary.CurrentTask)
+}
+
+func TestTurn_LoadLoadsOnlyUnsummarizedTailWhenSummaryExists(t *testing.T) {
+	var capturedOpts storage.MessageQueryOptions
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		},
+		GetSummaryFunc: func(context.Context, string) (storage.SessionSummary, bool, error) {
+			return storage.SessionSummary{
+				SessionID:       storage.DefaultSessionID,
+				SourceEndOffset: 3,
+				SessionSummary:  "Older work",
+			}, true, nil
+		},
+		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
+			capturedOpts = opts
+			return []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "tail"}}, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	turn := NewTurn(
+		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		&mocks.ModelClientStub{},
+		manager,
+		nil,
+		&mocks.EnvironmentStub{
+			InstructionsList: nil,
+			ToolRegistry:     tools.NewInMemoryRegistry(),
+		},
+	)
+
+	err = turn.load(context.Background(), RespondOptions{})
+	require.NoError(t, err)
+	require.Equal(t, 3, capturedOpts.Offset)
+	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "tail"}}, turn.sessionHistory)
 }
 
 func TestTurn_RunGeneratesAndAppliesStructuredSummaryWhenCompactionTriggers(t *testing.T) {
@@ -863,15 +961,15 @@ func TestTurn_RunGeneratesAndAppliesStructuredSummaryWhenCompactionTriggers(t *t
 	require.Equal(t, "reply", reply)
 	require.Len(t, client.Requests, 2)
 	require.Nil(t, client.Requests[0].Tools)
-	require.Len(t, client.Requests[0].Messages, 2)
+	require.Len(t, client.Requests[0].Messages, 3)
 	require.Equal(t, handmsg.RoleDeveloper, client.Requests[1].Messages[0].Role)
-	require.Len(t, client.Requests[1].Messages, 10)
+	require.Len(t, client.Requests[1].Messages, 9)
 
 	summary, ok, err := manager.GetSummary(context.Background(), session.ID)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "Older work", summary.SessionSummary)
-	require.Equal(t, 2, summary.SourceEndOffset)
+	require.Equal(t, 3, summary.SourceEndOffset)
 
 	persisted, err := manager.GetMessages(context.Background(), session.ID, storage.MessageQueryOptions{})
 	require.NoError(t, err)
@@ -905,8 +1003,8 @@ func TestTurn_RunSkipsSummaryGenerationWhenHistoryIsTooShort(t *testing.T) {
 
 	session, err := manager.Resolve(context.Background(), "")
 	require.NoError(t, err)
-	history := make([]handmsg.Message, 0, 8)
-	for range 8 {
+	history := make([]handmsg.Message, 0, 7)
+	for range 7 {
 		history = append(history, handmsg.Message{Role: handmsg.RoleUser, Content: strings.Repeat("a", 40), CreatedAt: time.Now().UTC()})
 	}
 	require.NoError(t, manager.AppendMessages(context.Background(), session.ID, history))
@@ -1056,14 +1154,14 @@ func TestTurn_RunRefreshesSummaryIncrementally(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "reply", reply)
 	require.Len(t, client.Requests, 2)
-	require.Len(t, client.Requests[0].Messages, 3)
+	require.Len(t, client.Requests[0].Messages, 4)
 	require.Equal(t, handmsg.RoleDeveloper, client.Requests[0].Messages[0].Role)
 
 	summary, ok, err := manager.GetSummary(context.Background(), session.ID)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "Updated summary", summary.SessionSummary)
-	require.Equal(t, 4, summary.SourceEndOffset)
+	require.Equal(t, 5, summary.SourceEndOffset)
 }
 
 func TestSetInstruction_SkipsBlankUnnamedInstruction(t *testing.T) {
