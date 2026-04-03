@@ -21,7 +21,7 @@ func compactionEvaluator(cfg *config.Config) *compaction.Evaluator {
 	}
 
 	return compaction.NewEvaluator(
-		cfg.ModelContextLength,
+		cfg.ContextLength,
 		cfg.CompactionTriggerPercent,
 		cfg.CompactionWarnPercent,
 	)

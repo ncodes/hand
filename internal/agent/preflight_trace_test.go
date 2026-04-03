@@ -15,7 +15,7 @@ func TestRecordPreflightCompactionTrace_EmitsUnifiedPreflightEvent(t *testing.T)
 	recordPreflightCompactionTrace(
 		traceSession,
 		&config.Config{
-			ModelContextLength:       1000,
+			ContextLength:            1000,
 			CompactionTriggerPercent: 0.5,
 			CompactionWarnPercent:    0.8,
 		},
@@ -39,7 +39,7 @@ func TestRecordPreflightCompactionTrace_SkipsEventsWhenDisabled(t *testing.T) {
 	recordPreflightCompactionTrace(
 		traceSession,
 		&config.Config{
-			ModelContextLength:       1000,
+			ContextLength:            1000,
 			CompactionEnabled:        new(false),
 			CompactionTriggerPercent: 0.5,
 			CompactionWarnPercent:    0.8,

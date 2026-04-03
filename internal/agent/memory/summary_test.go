@@ -966,7 +966,7 @@ func TestSummaryCompactionEnabled_DefaultsAndUsesConfiguredValue(t *testing.T) {
 func TestSummaryCompactionEvaluator_UsesConfigValues(t *testing.T) {
 	require.NotNil(t, summaryCompactionEvaluator(nil))
 	require.NotNil(t, summaryCompactionEvaluator(&config.Config{
-		ModelContextLength:       100,
+		ContextLength:            100,
 		CompactionTriggerPercent: 0.5,
 		CompactionWarnPercent:    0.8,
 	}))
@@ -976,7 +976,7 @@ func summaryTestConfig(enabled bool) *config.Config {
 	return &config.Config{
 		Name:                     "Test Agent",
 		Model:                    "test-model",
-		ModelContextLength:       100,
+		ContextLength:            100,
 		CompactionEnabled:        &enabled,
 		CompactionTriggerPercent: 0.5,
 		CompactionWarnPercent:    0.8,

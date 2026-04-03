@@ -1,6 +1,11 @@
 package config
 
 import (
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,6 +15,22 @@ import (
 
 	"github.com/wandxy/hand/internal/datadir"
 )
+
+func stubModelMetadataResolver(t *testing.T, fn func(context.Context, *Config, ModelAuth) (ModelMetadata, error)) {
+	t.Helper()
+
+	original := resolveModelMeta
+	resolveModelMeta = fn
+	t.Cleanup(func() {
+		resolveModelMeta = original
+	})
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
 
 func TestPreloadEnvFile_LoadsValues(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
@@ -114,6 +135,20 @@ func TestPreloadEnvFile_IgnoresMissingFile(t *testing.T) {
 	}
 
 	require.NoError(t, PreloadEnvFile("missing.env"))
+}
+
+func TestLoad_ReturnsPreloadEnvFileError(t *testing.T) {
+	originalLoadDotEnv := loadDotEnv
+	t.Cleanup(func() {
+		loadDotEnv = originalLoadDotEnv
+	})
+
+	loadDotEnv = func(...string) error {
+		return errors.New("boom")
+	}
+
+	_, err := Load("broken.env", "")
+	require.EqualError(t, err, `failed to load env file "broken.env": boom`)
 }
 
 func TestLoad_UsesConfigFileValues(t *testing.T) {
@@ -259,6 +294,113 @@ rules:
 	require.False(t, boolValue(cfg.CapBrowser))
 }
 
+func TestLoad_UsesOpenRouterModelMetadataWhenContextLengthIsUnset(t *testing.T) {
+	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{Exists: true, ContextLength: 222222}, nil
+	})
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: openai/gpt-4o-mini
+  router: openrouter
+  key: config-key
+rpc:
+  address: 127.0.0.1
+  port: 50051
+log:
+  level: info
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, 222222, cfg.ContextLength)
+}
+
+func TestLoad_UsesProviderMetadataWhenConfiguredContextLengthIsTooLarge(t *testing.T) {
+	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{Exists: true, ContextLength: 64000}, nil
+	})
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: gpt-4.1-nano
+  router: none
+  key: config-key
+  contextLength: 999999
+rpc:
+  address: 127.0.0.1
+  port: 50051
+log:
+  level: info
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, 64000, cfg.ContextLength)
+}
+
+func TestLoad_PreservesSmallerConfiguredContextLengthThanProviderMetadata(t *testing.T) {
+	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{Exists: true, ContextLength: 128000}, nil
+	})
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: gpt-4.1-nano
+  router: none
+  key: config-key
+  contextLength: 32000
+rpc:
+  address: 127.0.0.1
+  port: 50051
+log:
+  level: info
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, 32000, cfg.ContextLength)
+}
+
+func TestLoad_SkipsProviderModelMetadataWhenVerificationIsDisabled(t *testing.T) {
+	called := false
+	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		called = true
+		return ModelMetadata{Exists: true, ContextLength: 64000}, nil
+	})
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: openai/gpt-4o-mini
+  router: openrouter
+  key: config-key
+  verifyModel: false
+rpc:
+  address: 127.0.0.1
+  port: 50051
+log:
+  level: info
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+	require.NoError(t, err)
+	require.False(t, called)
+	require.Equal(t, defaultContextLength, cfg.ContextLength)
+	require.False(t, boolValueDefault(cfg.VerifyModel, true))
+}
+
 func TestConfig_NormalizeLeavesRulesFilesEmptyWhenUnset(t *testing.T) {
 	cfg := &Config{}
 	cfg.Normalize()
@@ -275,6 +417,48 @@ func TestConfig_NormalizeTrimsInstruct(t *testing.T) {
 	cfg := &Config{Instruct: "  be terse  "}
 	cfg.Normalize()
 	require.Equal(t, "be terse", cfg.Instruct)
+}
+
+func TestFetchOpenRouterModelMetadata(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/models", r.URL.Path)
+		require.Equal(t, "Bearer openrouter-key", r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte(`{"data":[{"id":"openai/gpt-4o-mini","context_length":555555}]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	meta, err := fetchOpenRouterModelMetadata(
+		context.Background(),
+		server.URL,
+		"openai/gpt-4o-mini",
+		"openrouter-key",
+	)
+	require.NoError(t, err)
+	require.True(t, meta.Exists)
+	require.Equal(t, 555555, meta.ContextLength)
+}
+
+func TestFetchOpenAIModelMetadata(t *testing.T) {
+	originalHTTPClient := httpClient
+	originalModelDocsBaseURL := modelDocsBaseURL
+	t.Cleanup(func() {
+		httpClient = originalHTTPClient
+		modelDocsBaseURL = originalModelDocsBaseURL
+	})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/api/docs/models/gpt-4.1-nano", r.URL.Path)
+		_, _ = w.Write([]byte(`<html><body><p>1,047,576 context window</p></body></html>`))
+	}))
+	t.Cleanup(server.Close)
+
+	httpClient = server.Client()
+	modelDocsBaseURL = server.URL + "/api/docs/models"
+
+	meta, err := fetchOpenAIModelMetadata(context.Background(), "openai/gpt-4.1-nano")
+	require.NoError(t, err)
+	require.True(t, meta.Exists)
+	require.Equal(t, 1047576, meta.ContextLength)
 }
 
 func TestLoad_IgnoresInvalidMaxIterationsEnvOverride(t *testing.T) {
@@ -338,6 +522,20 @@ func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
 	require.Contains(t, err.Error(), `failed to parse config file`)
 }
 
+func TestLoadConfigFile_UsesDefaultPathWhenEmpty(t *testing.T) {
+	cfg, err := loadConfigFile("")
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+}
+
+func TestLoadConfigFile_ReturnsReadError(t *testing.T) {
+	dir := t.TempDir()
+
+	_, err := loadConfigFile(dir)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `failed to read config file`)
+}
+
 func TestGet_ReturnsDefaultsWhenConfigIsUnset(t *testing.T) {
 	original := Get()
 	Set(nil)
@@ -384,6 +582,11 @@ func TestConfig_ValidateRequiresKey(t *testing.T) {
 	require.Equal(t, supportedRouters[defaultModelRouter], cfg.ModelBaseURL)
 }
 
+func TestConfig_ValidateNilConfig(t *testing.T) {
+	var cfg *Config
+	require.EqualError(t, cfg.Validate(), "config is required")
+}
+
 func TestConfig_ResolveModelAuthUsesOpenRouterSpecificKey(t *testing.T) {
 	cfg := &Config{
 		Name:             "test-agent",
@@ -416,6 +619,22 @@ func TestConfig_ResolveModelAuthUsesOpenAISpecificKey(t *testing.T) {
 	require.Empty(t, auth.BaseURL)
 }
 
+func TestConfig_ResolveModelAuthAcceptsOpenAIRouterAlias(t *testing.T) {
+	cfg := &Config{
+		Name:         "test-agent",
+		Model:        defaultModel,
+		ModelRouter:  "openai",
+		OpenAIAPIKey: "openai-key",
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+
+	require.NoError(t, err)
+	require.Equal(t, "none", auth.Router)
+	require.Equal(t, "openai-key", auth.APIKey)
+	require.Empty(t, auth.BaseURL)
+}
+
 func TestConfig_ResolveModelAuthFallsBackToModelKey(t *testing.T) {
 	cfg := &Config{
 		Name:        "test-agent",
@@ -431,6 +650,10 @@ func TestConfig_ResolveModelAuthFallsBackToModelKey(t *testing.T) {
 }
 
 func TestConfig_ValidateAllowsProviderSpecificAuthWithoutModelKey(t *testing.T) {
+	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{Exists: true}, nil
+	})
+
 	cfg := &Config{
 		Name:             "test-agent",
 		Model:            defaultModel,
@@ -443,9 +666,13 @@ func TestConfig_ValidateAllowsProviderSpecificAuthWithoutModelKey(t *testing.T) 
 }
 
 func TestConfig_ValidateNormalizesFields(t *testing.T) {
+	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{Exists: true}, nil
+	})
+
 	cfg := &Config{
 		Name:        "  Test Agent  ",
-		Model:       "  test-model  ",
+		Model:       "  openai/test-model  ",
 		ModelRouter: " OpenRouter ",
 		ModelKey:    "  test-key  ",
 		LogLevel:    " WARN ",
@@ -453,7 +680,7 @@ func TestConfig_ValidateNormalizesFields(t *testing.T) {
 
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, "Test Agent", cfg.Name)
-	require.Equal(t, "test-model", cfg.Model)
+	require.Equal(t, "openai/test-model", cfg.Model)
 	require.Equal(t, "openrouter", cfg.ModelRouter)
 	require.Equal(t, "test-key", cfg.ModelKey)
 	require.Equal(t, supportedRouters["openrouter"], cfg.ModelBaseURL)
@@ -471,6 +698,40 @@ func TestConfig_ValidateDefaultsModelWhenEmpty(t *testing.T) {
 	require.Equal(t, defaultModel, cfg.Model)
 }
 
+func TestConfig_ValidateRejectsModelWithoutOwnerPrefix(t *testing.T) {
+	err := (&Config{
+		Name:        "test-agent",
+		Model:       "gpt-4o-mini",
+		ModelRouter: "none",
+		ModelKey:    "test-key",
+		RPCAddress:  "127.0.0.1",
+		RPCPort:     50051,
+		LogLevel:    "info",
+	}).Validate()
+
+	require.EqualError(t, err, "model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
+}
+
+func TestConfig_ValidateRejectsModelWithEmptyOwnerOrName(t *testing.T) {
+	cases := []string{"/gpt-4o-mini", "openai/", "openai/gpt-4o-mini/extra"}
+
+	for _, model := range cases {
+		t.Run(model, func(t *testing.T) {
+			err := (&Config{
+				Name:        "test-agent",
+				Model:       model,
+				ModelRouter: "none",
+				ModelKey:    "test-key",
+				RPCAddress:  "127.0.0.1",
+				RPCPort:     50051,
+				LogLevel:    "info",
+			}).Validate()
+
+			require.EqualError(t, err, "model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
+		})
+	}
+}
+
 func TestConfig_ValidateRejectsUnsupportedRouter(t *testing.T) {
 	err := (&Config{
 		Name:         "test-agent",
@@ -481,6 +742,60 @@ func TestConfig_ValidateRejectsUnsupportedRouter(t *testing.T) {
 		LogLevel:     "info",
 	}).Validate()
 	require.EqualError(t, err, "model router must be one of: none, openrouter")
+}
+
+func TestConfig_ValidateRejectsUnknownOpenRouterModel(t *testing.T) {
+	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{}, nil
+	})
+
+	err := (&Config{
+		Name:        "test-agent",
+		Model:       "openai/gpt-unknown",
+		ModelRouter: "openrouter",
+		ModelKey:    "test-key",
+		RPCAddress:  "127.0.0.1",
+		RPCPort:     50051,
+		LogLevel:    "info",
+	}).Validate()
+
+	require.EqualError(t, err, `model "openai/gpt-unknown" is not available on openrouter`)
+}
+
+func TestConfig_ValidateReturnsOpenRouterLookupFailure(t *testing.T) {
+	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{}, errors.New(`failed to verify openrouter model "openai/gpt-4o-mini": lookup failed`)
+	})
+
+	err := (&Config{
+		Name:        "test-agent",
+		Model:       defaultModel,
+		ModelRouter: "openrouter",
+		ModelKey:    "test-key",
+		RPCAddress:  "127.0.0.1",
+		RPCPort:     50051,
+		LogLevel:    "info",
+	}).Validate()
+
+	require.EqualError(t, err, `failed to verify openrouter model "openai/gpt-4o-mini": lookup failed`)
+}
+
+func TestConfig_ValidateRejectsUnknownOpenAIModel(t *testing.T) {
+	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{}, nil
+	})
+
+	err := (&Config{
+		Name:        "test-agent",
+		Model:       "openai/gpt-unknown",
+		ModelRouter: "none",
+		ModelKey:    "test-key",
+		RPCAddress:  "127.0.0.1",
+		RPCPort:     50051,
+		LogLevel:    "info",
+	}).Validate()
+
+	require.EqualError(t, err, `model "openai/gpt-unknown" is not available on openai`)
 }
 
 func TestConfig_ValidateRejectsInvalidLogLevel(t *testing.T) {
@@ -546,6 +861,46 @@ func TestConfig_ValidateRejectsInvalidMaxIterations(t *testing.T) {
 	require.EqualError(t, cfg.Validate(), "max iterations must be greater than zero; set MAX_ITERATIONS, provide it in config, or use --max-iterations")
 }
 
+func TestConfig_ValidateRejectsCompactionThresholdsAboveOrEqualOne(t *testing.T) {
+	err := (&Config{
+		Name:                     "test-agent",
+		Model:                    defaultModel,
+		ModelRouter:              "none",
+		ModelKey:                 "test-key",
+		RPCAddress:               "127.0.0.1",
+		RPCPort:                  50051,
+		MaxIterations:            1,
+		LogLevel:                 "info",
+		StorageBackend:           "memory",
+		SessionDefaultIdleExpiry: time.Hour,
+		SessionArchiveRetention:  24 * time.Hour,
+		CompactionEnabled:        new(true),
+		CompactionTriggerPercent: 1,
+		CompactionWarnPercent:    1,
+	}).Validate()
+
+	require.EqualError(t, err, "compaction trigger percent must be greater than zero and less than one")
+
+	err = (&Config{
+		Name:                     "test-agent",
+		Model:                    defaultModel,
+		ModelRouter:              "none",
+		ModelKey:                 "test-key",
+		RPCAddress:               "127.0.0.1",
+		RPCPort:                  50051,
+		MaxIterations:            1,
+		LogLevel:                 "info",
+		StorageBackend:           "memory",
+		SessionDefaultIdleExpiry: time.Hour,
+		SessionArchiveRetention:  24 * time.Hour,
+		CompactionEnabled:        new(true),
+		CompactionTriggerPercent: 0.9,
+		CompactionWarnPercent:    1,
+	}).Validate()
+
+	require.EqualError(t, err, "compaction warn percent must be greater than zero and less than one")
+}
+
 func TestConfig_NormalizeDefaultsRouterWhenEmpty(t *testing.T) {
 	cfg := &Config{
 		Model:    defaultModel,
@@ -578,6 +933,7 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	require.Equal(t, 50051, cfg.RPCPort)
 	require.Equal(t, defaultMaxIterations, cfg.MaxIterations)
 	require.Equal(t, "info", cfg.LogLevel)
+	require.True(t, boolValueDefault(cfg.VerifyModel, true))
 }
 
 func TestConfig_NormalizePreservesExplicitFalseCapabilities(t *testing.T) {
@@ -633,6 +989,18 @@ func TestConfig_NormalizeLeavesBaseURLUnsetForNoneRouter(t *testing.T) {
 	require.Equal(t, "", cfg.ModelBaseURL)
 }
 
+func TestConfig_NormalizeMapsOpenAIRouterAliasToNone(t *testing.T) {
+	cfg := &Config{
+		Model:       defaultModel,
+		ModelRouter: "openai",
+		ModelKey:    "test-key",
+		LogLevel:    "info",
+	}
+	cfg.Normalize()
+	require.Equal(t, "none", cfg.ModelRouter)
+	require.Equal(t, "", cfg.ModelBaseURL)
+}
+
 func TestConfig_NormalizeTrimsAndLowercasesFields(t *testing.T) {
 	cfg := &Config{
 		Name:         "  Test Agent  ",
@@ -649,6 +1017,405 @@ func TestConfig_NormalizeTrimsAndLowercasesFields(t *testing.T) {
 	require.Equal(t, "test-key", cfg.ModelKey)
 	require.Equal(t, "https://example.com/v1", cfg.ModelBaseURL)
 	require.Equal(t, "warn", cfg.LogLevel)
+}
+
+func TestConfig_VerifyModelEnabledUsesFallbacks(t *testing.T) {
+	var cfg *Config
+	require.True(t, cfg.VerifyModelEnabled())
+
+	cfg = &Config{}
+	require.True(t, cfg.VerifyModelEnabled())
+
+	cfg.VerifyModel = new(false)
+	require.False(t, cfg.VerifyModelEnabled())
+}
+
+func TestHelpers_SplitAndDedupeCSVAndBools(t *testing.T) {
+	require.Nil(t, splitAndTrimCSV(""))
+	require.Equal(t, []string{"a", "b"}, splitAndTrimCSV(" a, ,b ,,"))
+
+	require.Nil(t, dedupeAndTrim(nil))
+	require.Equal(t, []string{"a", "b"}, dedupeAndTrim([]string{" a ", "", "b", "a"}))
+
+	require.False(t, boolValue(nil))
+	require.True(t, boolValue(new(true)))
+	require.True(t, boolValueDefault(nil, true))
+	require.False(t, boolValueDefault(new(false), true))
+}
+
+func TestResolvePathsFromBase_HandlesEmptyAndAbsolute(t *testing.T) {
+	require.Nil(t, resolvePathsFromBase(nil, "/tmp"))
+	require.Equal(t, []string{"a", "b"}, resolvePathsFromBase([]string{"a", "b"}, ""))
+
+	abs := filepath.Join(string(os.PathSeparator), "tmp", "x")
+	require.Equal(t, []string{abs, filepath.Join("/base", "rel")},
+		resolvePathsFromBase([]string{abs, "rel"}, "/base"))
+}
+
+func TestDefaultFSRootsAndNormalizeFSRootsFallbackWhenGetwdFails(t *testing.T) {
+	originalGetwd := getwd
+	t.Cleanup(func() {
+		getwd = originalGetwd
+	})
+
+	getwd = func() (string, error) {
+		return "", errors.New("cwd missing")
+	}
+
+	require.Equal(t, []string{"."}, defaultFSRoots())
+	require.Equal(t, []string{"."}, normalizeFSRoots([]string{"."}))
+}
+
+func TestNormalizeFSRoots_PreservesAbsoluteRoots(t *testing.T) {
+	abs := filepath.Join(string(os.PathSeparator), "tmp", "workspace")
+	require.Equal(t, []string{abs}, normalizeFSRoots([]string{abs}))
+}
+
+func TestResolveModelMetadataFromProvider_NilConfig(t *testing.T) {
+	meta, err := resolveModelMetadataFromProvider(context.Background(), nil, ModelAuth{})
+	require.NoError(t, err)
+	require.Equal(t, ModelMetadata{}, meta)
+}
+
+func TestResolveModelAuth_CoversDefaultBranchAndNilReceiver(t *testing.T) {
+	var cfg *Config
+	_, err := cfg.ResolveModelAuth()
+	require.EqualError(t, err, "config is required")
+
+	cfg = &Config{
+		ModelRouter: "custom",
+		ModelKey:    "key",
+	}
+	auth, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "key", auth.APIKey)
+}
+
+func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
+	clearEnvKeys(t,
+		"MODEL_CONTEXT_LENGTH", "MODEL_VERIFY_MODEL", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
+		"AGENT_STORAGE_BACKEND", "AGENT_SESSION_DEFAULT_IDLE_EXPIRY", "AGENT_SESSION_ARCHIVE_RETENTION",
+		"AGENT_COMPACTION_ENABLED", "AGENT_COMPACTION_TRIGGER_PERCENT", "AGENT_COMPACTION_WARN_PERCENT",
+	)
+
+	cfg := &Config{}
+	applyEnvOverrides(nil)
+
+	t.Setenv("MODEL_CONTEXT_LENGTH", "64000")
+	t.Setenv("MODEL_VERIFY_MODEL", "false")
+	t.Setenv("OPENAI_API_KEY", "openai-key")
+	t.Setenv("OPENROUTER_API_KEY", "openrouter-key")
+	t.Setenv("AGENT_STORAGE_BACKEND", "memory")
+	t.Setenv("AGENT_SESSION_DEFAULT_IDLE_EXPIRY", "2h")
+	t.Setenv("AGENT_SESSION_ARCHIVE_RETENTION", "48h")
+	t.Setenv("AGENT_COMPACTION_ENABLED", "false")
+	t.Setenv("AGENT_COMPACTION_TRIGGER_PERCENT", "0.5")
+	t.Setenv("AGENT_COMPACTION_WARN_PERCENT", "0.8")
+
+	applyEnvOverrides(cfg)
+
+	require.Equal(t, 64000, cfg.ContextLength)
+	require.False(t, boolValue(cfg.VerifyModel))
+	require.Equal(t, "openai-key", cfg.OpenAIAPIKey)
+	require.Equal(t, "openrouter-key", cfg.OpenRouterAPIKey)
+	require.Equal(t, "memory", cfg.StorageBackend)
+	require.Equal(t, 2*time.Hour, cfg.SessionDefaultIdleExpiry)
+	require.Equal(t, 48*time.Hour, cfg.SessionArchiveRetention)
+	require.False(t, boolValue(cfg.CompactionEnabled))
+	require.Equal(t, 0.5, cfg.CompactionTriggerPercent)
+	require.Equal(t, 0.8, cfg.CompactionWarnPercent)
+}
+
+func TestApplyProviderModelMetadata_CoversEarlyReturns(t *testing.T) {
+	original := resolveModelMeta
+	t.Cleanup(func() {
+		resolveModelMeta = original
+	})
+
+	applyProviderModelMetadata(context.Background(), nil, 0)
+
+	cfg := &Config{VerifyModel: new(false)}
+	applyProviderModelMetadata(context.Background(), cfg, 0)
+
+	cfg = &Config{VerifyModel: new(true)}
+	applyProviderModelMetadata(context.Background(), cfg, 0)
+
+	resolveModelMeta = func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{}, errors.New("boom")
+	}
+	cfg = &Config{
+		Model:       defaultModel,
+		VerifyModel: new(true),
+		ModelRouter: "none",
+		ModelKey:    "test-key",
+	}
+	cfg.Normalize()
+	applyProviderModelMetadata(context.Background(), cfg, 0)
+
+	resolveModelMeta = func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{Exists: true}, nil
+	}
+	applyProviderModelMetadata(context.Background(), cfg, 0)
+	require.Equal(t, defaultContextLength, cfg.ContextLength)
+}
+
+func TestFetchOpenRouterModelMetadata_CoversRemainingBranches(t *testing.T) {
+	t.Run("empty_base_url", func(t *testing.T) {
+		meta, err := fetchOpenRouterModelMetadata(context.Background(), "", "", "")
+		require.NoError(t, err)
+		require.Equal(t, ModelMetadata{}, meta)
+	})
+
+	t.Run("invalid_base_url", func(t *testing.T) {
+		meta, err := fetchOpenRouterModelMetadata(context.Background(), "://bad", "openai/gpt-4o-mini", "")
+		require.Error(t, err)
+		require.Equal(t, ModelMetadata{}, meta)
+	})
+
+	t.Run("network_error", func(t *testing.T) {
+		originalHTTPClient := httpClient
+		t.Cleanup(func() {
+			httpClient = originalHTTPClient
+		})
+
+		httpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, errors.New("network down")
+		})}
+		meta, err := fetchOpenRouterModelMetadata(context.Background(), "", "openai/gpt-4o-mini", "")
+		require.EqualError(t, err, `Get "https://openrouter.ai/api/v1/models": network down`)
+		require.Equal(t, ModelMetadata{}, meta)
+	})
+
+	t.Run("non_200_status", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		}))
+		t.Cleanup(server.Close)
+
+		_, err := fetchOpenRouterModelMetadata(context.Background(), server.URL, "openai/gpt-4o-mini", "")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "openrouter models lookup returned 418 I'm a teapot")
+	})
+
+	t.Run("invalid_json_response", func(t *testing.T) {
+		badJSONServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(`{`))
+		}))
+		t.Cleanup(badJSONServer.Close)
+		meta, err := fetchOpenRouterModelMetadata(context.Background(), badJSONServer.URL, "openai/gpt-4o-mini", "")
+		require.Error(t, err)
+		require.Equal(t, ModelMetadata{}, meta)
+	})
+
+	t.Run("read_error", func(t *testing.T) {
+		originalHTTPClient := httpClient
+		t.Cleanup(func() {
+			httpClient = originalHTTPClient
+		})
+
+		httpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Body:       io.NopCloser(errReader{}),
+				Header:     make(http.Header),
+			}, nil
+		})}
+		meta, err := fetchOpenRouterModelMetadata(context.Background(), "", "openai/gpt-4o-mini", "")
+		require.EqualError(t, err, "forced read error")
+		require.Equal(t, ModelMetadata{}, meta)
+	})
+
+	t.Run("model_not_found", func(t *testing.T) {
+		notFoundServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(`{"data":[{"id":"openai/other","context_length":1}]}`))
+		}))
+		t.Cleanup(notFoundServer.Close)
+		meta, err := fetchOpenRouterModelMetadata(context.Background(), notFoundServer.URL, "openai/gpt-4o-mini", "")
+		require.NoError(t, err)
+		require.Equal(t, ModelMetadata{}, meta)
+	})
+}
+
+func TestFetchOpenAIModelMetadata_CoversRemainingBranches(t *testing.T) {
+	t.Run("empty_model", func(t *testing.T) {
+		meta, err := fetchOpenAIModelMetadata(context.Background(), "")
+		require.NoError(t, err)
+		require.Equal(t, ModelMetadata{}, meta)
+	})
+
+	t.Run("transport_error", func(t *testing.T) {
+		originalHTTPClient := httpClient
+		t.Cleanup(func() {
+			httpClient = originalHTTPClient
+		})
+
+		httpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, errors.New("transport failed")
+		})}
+		meta, err := fetchOpenAIModelMetadataCandidate(context.Background(), "gpt-4o-mini")
+		require.EqualError(t, err, `Get "https://developers.openai.com/api/docs/models/gpt-4o-mini": transport failed`)
+		require.Equal(t, ModelMetadata{}, meta)
+	})
+
+	t.Run("bad_base_url", func(t *testing.T) {
+		originalModelDocsBaseURL := modelDocsBaseURL
+		t.Cleanup(func() {
+			modelDocsBaseURL = originalModelDocsBaseURL
+		})
+
+		modelDocsBaseURL = "://bad"
+		meta, err := fetchOpenAIModelMetadataCandidate(context.Background(), "gpt-4o-mini")
+		require.Error(t, err)
+		require.Equal(t, ModelMetadata{}, meta)
+	})
+
+	t.Run("various_http_responses", func(t *testing.T) {
+		originalHTTPClient := httpClient
+		originalModelDocsBaseURL := modelDocsBaseURL
+		t.Cleanup(func() {
+			httpClient = originalHTTPClient
+			modelDocsBaseURL = originalModelDocsBaseURL
+		})
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/api/docs/models/missing":
+				w.WriteHeader(http.StatusNotFound)
+			case "/api/docs/models/status":
+				w.WriteHeader(http.StatusBadGateway)
+			case "/api/docs/models/no-window":
+				_, _ = w.Write([]byte(`<html>exists</html>`))
+			case "/api/docs/models/comment-window":
+				_, _ = w.Write([]byte(`<div>128,000<!-- --> context window</div></div><div c`))
+			case "/api/docs/models/bad-window":
+				_, _ = w.Write([]byte(`<html>123,456 context window</html>`))
+			case "/api/docs/models/fallback-2025-04-14":
+				w.WriteHeader(http.StatusNotFound)
+			case "/api/docs/models/fallback":
+				_, _ = w.Write([]byte(`<html><p>8,192 context window</p></html>`))
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+		t.Cleanup(server.Close)
+		httpClient = server.Client()
+		modelDocsBaseURL = server.URL + "/api/docs/models"
+
+		meta, err := fetchOpenAIModelMetadataCandidate(context.Background(), "missing")
+		require.NoError(t, err)
+		require.Equal(t, ModelMetadata{}, meta)
+
+		meta, err = fetchOpenAIModelMetadataCandidate(context.Background(), "status")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "openai model docs lookup returned 502 Bad Gateway")
+
+		meta, err = fetchOpenAIModelMetadataCandidate(context.Background(), "no-window")
+		require.NoError(t, err)
+		require.Equal(t, ModelMetadata{Exists: true}, meta)
+
+		meta, err = fetchOpenAIModelMetadataCandidate(context.Background(), "comment-window")
+		require.NoError(t, err)
+		require.Equal(t, ModelMetadata{Exists: true, ContextLength: 128000}, meta)
+
+		meta, err = fetchOpenAIModelMetadata(context.Background(), "openai/fallback-2025-04-14")
+		require.NoError(t, err)
+		require.Equal(t, ModelMetadata{Exists: true, ContextLength: 8192}, meta)
+
+		meta, err = fetchOpenAIModelMetadata(context.Background(), "openai/absent")
+		require.NoError(t, err)
+		require.Equal(t, ModelMetadata{}, meta)
+
+		meta, err = fetchOpenAIModelMetadataCandidate(context.Background(), "bad-window")
+		require.NoError(t, err)
+		require.Equal(t, ModelMetadata{Exists: true, ContextLength: 123456}, meta)
+	})
+
+	t.Run("read_error", func(t *testing.T) {
+		originalHTTPClient := httpClient
+		originalModelDocsBaseURL := modelDocsBaseURL
+		t.Cleanup(func() {
+			httpClient = originalHTTPClient
+			modelDocsBaseURL = originalModelDocsBaseURL
+		})
+
+		httpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Body:       io.NopCloser(errReader{}),
+				Header:     make(http.Header),
+			}, nil
+		})}
+		modelDocsBaseURL = "https://developers.openai.com/api/docs/models"
+
+		meta, err := fetchOpenAIModelMetadataCandidate(context.Background(), "gpt-4o-mini")
+		require.EqualError(t, err, "forced read error")
+		require.Equal(t, ModelMetadata{}, meta)
+	})
+}
+
+func TestOpenAIModelCandidatesAndSnapshotTrim(t *testing.T) {
+	require.Nil(t, openAIModelDocCandidates(""))
+	require.False(t, isValidModelSlug(""))
+	require.Equal(t, []string{"gpt-4.1-2025-04-14", "gpt-4.1"},
+		openAIModelDocCandidates("openai/gpt-4.1-2025-04-14"))
+	require.Equal(t, "gpt-4.1", trimOpenAISnapshotSuffix("gpt-4.1-2025-04-14"))
+	require.Equal(t, "gpt-4.1-preview", trimOpenAISnapshotSuffix("gpt-4.1-preview"))
+	require.Equal(t, "gpt-4.1-2025-4-14", trimOpenAISnapshotSuffix("gpt-4.1-2025-4-14"))
+	require.Equal(t, "gpt-4.1-202x-04-14", trimOpenAISnapshotSuffix("gpt-4.1-202x-04-14"))
+	require.Equal(t, "gpt-4.1-2025-0x-14", trimOpenAISnapshotSuffix("gpt-4.1-2025-0x-14"))
+	require.Equal(t, "gpt-4.1-2025-04-1x", trimOpenAISnapshotSuffix("gpt-4.1-2025-04-1x"))
+}
+
+func TestFetchOpenAIModelMetadata_ReturnsCandidateError(t *testing.T) {
+	originalModelDocsBaseURL := modelDocsBaseURL
+	t.Cleanup(func() {
+		modelDocsBaseURL = originalModelDocsBaseURL
+	})
+
+	modelDocsBaseURL = "://bad"
+
+	meta, err := fetchOpenAIModelMetadata(context.Background(), "openai/gpt-4o-mini")
+	require.Error(t, err)
+	require.Equal(t, ModelMetadata{}, meta)
+}
+
+func TestFetchOpenAIModelMetadataCandidate_ReturnsContextParseError(t *testing.T) {
+	originalHTTPClient := httpClient
+	originalModelDocsBaseURL := modelDocsBaseURL
+	t.Cleanup(func() {
+		httpClient = originalHTTPClient
+		modelDocsBaseURL = originalModelDocsBaseURL
+	})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<html><p>999999999999999999999999999999 context window</p></html>`))
+	}))
+	t.Cleanup(server.Close)
+
+	httpClient = server.Client()
+	modelDocsBaseURL = server.URL + "/api/docs/models"
+
+	meta, err := fetchOpenAIModelMetadataCandidate(context.Background(), "overflow")
+	require.Error(t, err)
+	require.Equal(t, ModelMetadata{}, meta)
+}
+
+func TestFetchOpenAIModelMetadataCandidate_EmptyModel(t *testing.T) {
+	meta, err := fetchOpenAIModelMetadataCandidate(context.Background(), "")
+	require.NoError(t, err)
+	require.Equal(t, ModelMetadata{}, meta)
+}
+
+func TestNormalizeRulePaths_EmptyInput(t *testing.T) {
+	require.Empty(t, normalizeRulePaths(nil))
+}
+
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) {
+	return 0, errors.New("forced read error")
 }
 
 func clearEnvKeys(t *testing.T, keys ...string) {
@@ -920,7 +1687,7 @@ func TestConfig_NormalizeDefaultsSessionSettings(t *testing.T) {
 func TestConfig_ValidateRejectsInvalidSessionSettings(t *testing.T) {
 	cfg := &Config{
 		Name:                     "daemon",
-		Model:                    "model",
+		Model:                    "openai/model",
 		ModelRouter:              "openrouter",
 		ModelKey:                 "key",
 		ModelBaseURL:             "https://example.com",
@@ -962,7 +1729,7 @@ compaction:
 
 	cfg, err := Load("", configPath)
 	require.NoError(t, err)
-	require.Equal(t, 64000, cfg.ModelContextLength)
+	require.Equal(t, 64000, cfg.ContextLength)
 	require.False(t, boolValue(cfg.CompactionEnabled))
 	require.Equal(t, 0.7, cfg.CompactionTriggerPercent)
 	require.Equal(t, 0.9, cfg.CompactionWarnPercent)
@@ -971,7 +1738,7 @@ compaction:
 func TestConfig_NormalizeDefaultsCompactionSettings(t *testing.T) {
 	cfg := &Config{}
 	cfg.Normalize()
-	require.Equal(t, defaultContextLength, cfg.ModelContextLength)
+	require.Equal(t, defaultContextLength, cfg.ContextLength)
 	require.True(t, boolValue(cfg.CompactionEnabled))
 	require.Equal(t, 0.85, cfg.CompactionTriggerPercent)
 	require.Equal(t, 0.95, cfg.CompactionWarnPercent)
@@ -980,8 +1747,8 @@ func TestConfig_NormalizeDefaultsCompactionSettings(t *testing.T) {
 func TestConfig_ValidateRejectsInvalidCompactionSettings(t *testing.T) {
 	cfg := &Config{
 		Name:                     "daemon",
-		Model:                    "model",
-		ModelContextLength:       128000,
+		Model:                    "openai/model",
+		ContextLength:            128000,
 		ModelRouter:              "openrouter",
 		ModelKey:                 "key",
 		ModelBaseURL:             "https://example.com",

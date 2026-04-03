@@ -672,7 +672,7 @@ func TestTurn_SummaryFallbackRecordsEstimatedPreflightPayload(t *testing.T) {
 	turn.cfg = testSessionConfig(&config.Config{
 		Name:                     "Test Agent",
 		Model:                    "test-model",
-		ModelContextLength:       1000,
+		ContextLength:            1000,
 		CompactionTriggerPercent: 0.5,
 		CompactionWarnPercent:    0.8,
 	})
@@ -697,7 +697,7 @@ func TestTurn_SummaryFallbackRecordsTriggerAndWarningWhenThresholdExceeded(t *te
 	turn.cfg = testSessionConfig(&config.Config{
 		Name:                     "Test Agent",
 		Model:                    "test-model",
-		ModelContextLength:       100,
+		ContextLength:            100,
 		CompactionTriggerPercent: 0.5,
 		CompactionWarnPercent:    0.6,
 	})
@@ -937,7 +937,7 @@ func TestTurn_RunGeneratesAndAppliesStructuredSummaryWhenCompactionTriggers(t *t
 	turn.cfg = testSessionConfig(&config.Config{
 		Name:                     "Test Agent",
 		Model:                    "test-model",
-		ModelContextLength:       100,
+		ContextLength:            100,
 		CompactionEnabled:        new(true),
 		CompactionTriggerPercent: 0.5,
 		CompactionWarnPercent:    0.8,
@@ -1006,7 +1006,7 @@ func TestTurn_RunSkipsSummaryGenerationWhenHistoryIsTooShort(t *testing.T) {
 	turn.cfg = testSessionConfig(&config.Config{
 		Name:                     "Test Agent",
 		Model:                    "test-model",
-		ModelContextLength:       100,
+		ContextLength:            100,
 		CompactionEnabled:        new(true),
 		CompactionTriggerPercent: 0.1,
 		CompactionWarnPercent:    0.2,
@@ -1044,7 +1044,7 @@ func TestTurn_RunContinuesWhenSummaryParsingFails(t *testing.T) {
 	turn.cfg = testSessionConfig(&config.Config{
 		Name:                     "Test Agent",
 		Model:                    "test-model",
-		ModelContextLength:       100,
+		ContextLength:            100,
 		CompactionEnabled:        new(true),
 		CompactionTriggerPercent: 0.5,
 		CompactionWarnPercent:    0.8,
@@ -1099,7 +1099,7 @@ func TestTurn_RunSkipsSummaryGenerationWhenCompactionIsDisabled(t *testing.T) {
 	turn.cfg = testSessionConfig(&config.Config{
 		Name:                     "Test Agent",
 		Model:                    "test-model",
-		ModelContextLength:       100,
+		ContextLength:            100,
 		CompactionEnabled:        new(false),
 		CompactionTriggerPercent: 0.1,
 		CompactionWarnPercent:    0.2,
@@ -1151,7 +1151,7 @@ func TestTurn_RunRefreshesSummaryIncrementally(t *testing.T) {
 	turn.cfg = testSessionConfig(&config.Config{
 		Name:                     "Test Agent",
 		Model:                    "test-model",
-		ModelContextLength:       100,
+		ContextLength:            100,
 		CompactionEnabled:        new(true),
 		CompactionTriggerPercent: 0.5,
 		CompactionWarnPercent:    0.8,
@@ -1964,7 +1964,7 @@ func TestTurn_RunUsesEstimatedPromptTokensWhenRequestGrowsPastStoredActual(t *te
 	require.NoError(t, manager.UpdateLastPromptTokens(context.Background(), session.ID, 50))
 
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model", ModelContextLength: 1000}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model", ContextLength: 1000}),
 		&mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}},
 		manager,
 		nil,
@@ -1988,7 +1988,7 @@ func TestTurn_RunRecordsCompactionTriggerAndWarningWithoutMutatingHistory(t *tes
 	cfg := testSessionConfig(&config.Config{
 		Name:                     "Test Agent",
 		Model:                    "test-model",
-		ModelContextLength:       100,
+		ContextLength:            100,
 		CompactionEnabled:        new(true),
 		CompactionTriggerPercent: 0.5,
 		CompactionWarnPercent:    0.6,

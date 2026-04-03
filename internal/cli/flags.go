@@ -45,6 +45,12 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value:  config.Get().ModelAPIMode,
 			Hidden: true,
 		},
+		&cli.BoolFlag{
+			Name:   "model.verify-model",
+			Usage:  "Verify model existence and clamp configured context length against provider metadata",
+			Value:  config.Get().VerifyModelEnabled(),
+			Hidden: true,
+		},
 		&cli.StringFlag{
 			Name:   "rpc.address",
 			Usage:  "Bind address for the RPC service",
@@ -250,6 +256,9 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("model.api-mode") {
 		cfg.ModelAPIMode = strings.TrimSpace(cmd.String("model.api-mode"))
+	}
+	if cmd.IsSet("model.verify-model") {
+		cfg.VerifyModel = new(cmd.Bool("model.verify-model"))
 	}
 	if cmd.IsSet("rpc.address") {
 		cfg.RPCAddress = strings.TrimSpace(cmd.String("rpc.address"))

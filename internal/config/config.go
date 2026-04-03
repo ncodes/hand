@@ -1,10 +1,15 @@
 package config
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,7 +24,8 @@ import (
 type Config struct {
 	Name                     string
 	Model                    string
-	ModelContextLength       int
+	ContextLength            int
+	VerifyModel              *bool
 	ModelRouter              string
 	ModelKey                 string
 	OpenAIAPIKey             string
@@ -60,15 +66,26 @@ type ModelAuth struct {
 	BaseURL string
 }
 
+type ModelMetadata struct {
+	Exists        bool
+	ContextLength int
+}
+
 var (
 	globalConfig     *Config
 	configMu         sync.RWMutex
 	loadDotEnv       = godotenv.Load
+	getwd            = os.Getwd
+	httpClient       = &http.Client{Timeout: 5 * time.Second}
+	modelDocsBaseURL = "https://developers.openai.com/api/docs/models"
+	resolveModelMeta = resolveModelMetadataFromProvider
 	supportedRouters = map[string]string{
 		"openrouter": "https://openrouter.ai/api/v1",
 		"none":       "",
 	}
 )
+
+var contextWindowPatternOAI = regexp.MustCompile(`([0-9][0-9,]*)(?:\s|<!--[^>]*-->)+context window`)
 
 const (
 	defaultModel         = "openai/gpt-4o-mini"
@@ -84,9 +101,11 @@ type fileConfig struct {
 	Instruct      string `yaml:"instruct"`
 	Platform      string `yaml:"platform"`
 	MaxIterations int    `yaml:"maxIterations"`
-	Model         struct {
+
+	Model struct {
 		Name             string `yaml:"name"`
 		ContextLength    int    `yaml:"contextLength"`
+		VerifyModel      *bool  `yaml:"verifyModel"`
 		Router           string `yaml:"router"`
 		Key              string `yaml:"key"`
 		OpenAIAPIKey     string `yaml:"openaiApiKey"`
@@ -114,23 +133,28 @@ type fileConfig struct {
 	FS struct {
 		Roots []string `yaml:"roots"`
 	} `yaml:"fs"`
+
 	Exec struct {
 		Allow []string `yaml:"allow"`
 		Ask   []string `yaml:"ask"`
 		Deny  []string `yaml:"deny"`
 	} `yaml:"exec"`
+
 	Storage struct {
 		Backend string `yaml:"backend"`
 	} `yaml:"storage"`
+
 	Session struct {
 		DefaultIdleExpiry string `yaml:"defaultIdleExpiry"`
 		ArchiveRetention  string `yaml:"archiveRetention"`
 	} `yaml:"session"`
+
 	Compaction struct {
 		Enabled        *bool   `yaml:"enabled"`
 		TriggerPercent float64 `yaml:"triggerPercent"`
 		WarnPercent    float64 `yaml:"warnPercent"`
 	} `yaml:"compaction"`
+
 	Cap struct {
 		Filesystem *bool `yaml:"fs"`
 		Network    *bool `yaml:"net"`
@@ -168,7 +192,9 @@ func Load(envPath, configPath string) (*Config, error) {
 	}
 
 	applyEnvOverrides(cfg)
+	requestedContextLength := cfg.ContextLength
 	cfg.Normalize()
+	applyProviderModelMetadata(context.Background(), cfg, requestedContextLength)
 
 	return cfg, nil
 }
@@ -180,7 +206,8 @@ func Get() *Config {
 	if globalConfig == nil {
 		return &Config{
 			Model:                    defaultModel,
-			ModelContextLength:       defaultContextLength,
+			ContextLength:            defaultContextLength,
+			VerifyModel:              new(true),
 			ModelAPIMode:             DefaultModelAPIMode,
 			MaxIterations:            defaultMaxIterations,
 			LogLevel:                 "info",
@@ -234,7 +261,8 @@ func loadConfigFile(path string) (*Config, error) {
 	return &Config{
 		Name:                     raw.Name,
 		Model:                    raw.Model.Name,
-		ModelContextLength:       raw.Model.ContextLength,
+		ContextLength:            raw.Model.ContextLength,
+		VerifyModel:              raw.Model.VerifyModel,
 		ModelRouter:              raw.Model.Router,
 		ModelKey:                 raw.Model.Key,
 		OpenAIAPIKey:             raw.Model.OpenAIAPIKey,
@@ -283,8 +311,11 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := strings.TrimSpace(os.Getenv("MODEL_CONTEXT_LENGTH")); value != "" {
 		if contextLength, err := strconv.Atoi(value); err == nil {
-			cfg.ModelContextLength = contextLength
+			cfg.ContextLength = contextLength
 		}
+	}
+	if value := strings.TrimSpace(strings.ToLower(os.Getenv("MODEL_VERIFY_MODEL"))); value != "" {
+		cfg.VerifyModel = new(value == "1" || value == "true" || value == "yes")
 	}
 	if value := strings.TrimSpace(os.Getenv("MODEL_ROUTER")); value != "" {
 		cfg.ModelRouter = value
@@ -344,6 +375,7 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("AGENT_FS_ROOTS")); value != "" {
 		cfg.FSRoots = splitAndTrimCSV(value)
 	}
+
 	if value, ok := parseOptionalBoolEnv("AGENT_CAP_FS"); ok {
 		cfg.CapFilesystem = new(value)
 	}
@@ -359,6 +391,7 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("AGENT_CAP_BROWSER"); ok {
 		cfg.CapBrowser = new(value)
 	}
+
 	if value := strings.TrimSpace(os.Getenv("AGENT_EXEC_ALLOW")); value != "" {
 		cfg.ExecAllow = splitAndTrimCSV(value)
 	}
@@ -368,6 +401,7 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("AGENT_EXEC_DENY")); value != "" {
 		cfg.ExecDeny = splitAndTrimCSV(value)
 	}
+
 	if value := strings.TrimSpace(os.Getenv("AGENT_STORAGE_BACKEND")); value != "" {
 		cfg.StorageBackend = value
 	}
@@ -377,6 +411,7 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("AGENT_SESSION_ARCHIVE_RETENTION")); value != "" {
 		cfg.SessionArchiveRetention = parseDurationOrZero(value)
 	}
+
 	if value, ok := parseOptionalBoolEnv("AGENT_COMPACTION_ENABLED"); ok {
 		cfg.CompactionEnabled = new(value)
 	}
@@ -400,6 +435,9 @@ func (c *Config) Normalize() {
 	c.Name = strings.TrimSpace(c.Name)
 	c.Model = strings.TrimSpace(c.Model)
 	c.ModelRouter = strings.TrimSpace(strings.ToLower(c.ModelRouter))
+	if c.ModelRouter == "openai" {
+		c.ModelRouter = "none"
+	}
 	c.ModelKey = strings.TrimSpace(c.ModelKey)
 	c.OpenAIAPIKey = strings.TrimSpace(c.OpenAIAPIKey)
 	c.OpenRouterAPIKey = strings.TrimSpace(c.OpenRouterAPIKey)
@@ -419,8 +457,11 @@ func (c *Config) Normalize() {
 	if c.Model == "" {
 		c.Model = defaultModel
 	}
-	if c.ModelContextLength <= 0 {
-		c.ModelContextLength = defaultContextLength
+	if c.VerifyModel == nil {
+		c.VerifyModel = new(true)
+	}
+	if c.ContextLength <= 0 {
+		c.ContextLength = defaultContextLength
 	}
 
 	if c.ModelRouter == "" {
@@ -498,6 +539,14 @@ func (c *Config) Normalize() {
 	}
 }
 
+func (c *Config) VerifyModelEnabled() bool {
+	if c == nil {
+		return true
+	}
+
+	return boolValueDefault(c.VerifyModel, true)
+}
+
 func splitAndTrimCSV(value string) []string {
 	if strings.TrimSpace(value) == "" {
 		return nil
@@ -543,14 +592,20 @@ func normalizeFSRoots(values []string) []string {
 	if len(values) == 0 {
 		return nil
 	}
+
 	roots := make([]string, 0, len(values))
 	for _, value := range values {
-		abs, err := filepath.Abs(value)
+		if filepath.IsAbs(value) {
+			roots = append(roots, filepath.Clean(value))
+			continue
+		}
+
+		cwd, err := getwd()
 		if err != nil {
 			roots = append(roots, filepath.Clean(value))
 			continue
 		}
-		roots = append(roots, filepath.Clean(abs))
+		roots = append(roots, filepath.Clean(filepath.Join(cwd, value)))
 	}
 
 	return dedupeAndTrim(roots)
@@ -561,10 +616,12 @@ func resolvePathsFromBase(values []string, baseDir string) []string {
 	if len(values) == 0 {
 		return nil
 	}
+
 	baseDir = strings.TrimSpace(baseDir)
 	if baseDir == "" {
 		return values
 	}
+
 	resolved := make([]string, 0, len(values))
 	for _, value := range values {
 		if filepath.IsAbs(value) {
@@ -578,7 +635,7 @@ func resolvePathsFromBase(values []string, baseDir string) []string {
 }
 
 func defaultFSRoots() []string {
-	cwd, err := os.Getwd()
+	cwd, err := getwd()
 	if err != nil {
 		return []string{"."}
 	}
@@ -608,6 +665,14 @@ func boolValue(value *bool) bool {
 	return *value
 }
 
+func boolValueDefault(value *bool, fallback bool) bool {
+	if value == nil {
+		return fallback
+	}
+
+	return *value
+}
+
 func (c *Config) Validate() error {
 	if c == nil {
 		return errors.New("config is required")
@@ -619,11 +684,8 @@ func (c *Config) Validate() error {
 		return errors.New("name is required; set NAME, provide it in config, or use --name")
 	}
 
-	if strings.TrimSpace(c.Model) == "" {
-		return errors.New("model is required; set MODEL, provide it in config, or use --model")
-	}
-	if c.ModelContextLength <= 0 {
-		return errors.New("model context length must be greater than zero")
+	if !isValidModelSlug(c.Model) {
+		return errors.New("model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
 	}
 
 	if router := strings.TrimSpace(strings.ToLower(c.ModelRouter)); router != "" {
@@ -632,7 +694,8 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	if _, err := c.ResolveModelAuth(); err != nil {
+	auth, err := c.ResolveModelAuth()
+	if err != nil {
 		return err
 	}
 
@@ -663,14 +726,25 @@ func (c *Config) Validate() error {
 	if c.StorageBackend != "memory" && c.StorageBackend != "sqlite" {
 		return errors.New("storage backend must be one of: memory, sqlite")
 	}
-	if c.CompactionTriggerPercent <= 0 || c.CompactionTriggerPercent >= 1 {
+
+	if c.CompactionTriggerPercent >= 1 {
 		return errors.New("compaction trigger percent must be greater than zero and less than one")
 	}
-	if c.CompactionWarnPercent <= 0 || c.CompactionWarnPercent >= 1 {
+	if c.CompactionWarnPercent >= 1 {
 		return errors.New("compaction warn percent must be greater than zero and less than one")
 	}
 	if c.CompactionWarnPercent < c.CompactionTriggerPercent {
 		return errors.New("compaction warn percent must be greater than or equal to compaction trigger percent")
+	}
+
+	if c.VerifyModelEnabled() {
+		meta, err := resolveModelMeta(context.Background(), c, auth)
+		if err != nil {
+			return err
+		}
+		if !meta.Exists {
+			return unknownModelError(auth.Router, c.Model)
+		}
 	}
 
 	switch strings.TrimSpace(strings.ToLower(c.LogLevel)) {
@@ -736,4 +810,227 @@ func normalizeRulePaths(files []string) []string {
 	}
 
 	return normalized
+}
+
+func isValidModelSlug(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+
+	owner, name, ok := strings.Cut(value, "/")
+	if !ok {
+		return false
+	}
+
+	owner = strings.TrimSpace(owner)
+	name = strings.TrimSpace(name)
+	return owner != "" && name != "" && !strings.Contains(name, "/")
+}
+
+func applyProviderModelMetadata(ctx context.Context, cfg *Config, requestedContextLength int) {
+	if cfg == nil {
+		return
+	}
+	if !cfg.VerifyModelEnabled() {
+		return
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+	if err != nil {
+		return
+	}
+
+	meta, err := resolveModelMeta(ctx, cfg, auth)
+	if err != nil || !meta.Exists || meta.ContextLength <= 0 {
+		return
+	}
+
+	if requestedContextLength <= 0 || requestedContextLength > meta.ContextLength {
+		cfg.ContextLength = meta.ContextLength
+	}
+}
+
+func resolveModelMetadataFromProvider(ctx context.Context, cfg *Config, auth ModelAuth) (ModelMetadata, error) {
+	if cfg == nil {
+		return ModelMetadata{}, nil
+	}
+
+	switch strings.TrimSpace(strings.ToLower(auth.Router)) {
+	case "openrouter":
+		return fetchOpenRouterModelMetadata(ctx, auth.BaseURL, cfg.Model, auth.APIKey)
+	default:
+		return fetchOpenAIModelMetadata(ctx, cfg.Model)
+	}
+}
+
+func fetchOpenRouterModelMetadata(ctx context.Context, baseURL, model, apiKey string) (ModelMetadata, error) {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return ModelMetadata{}, nil
+	}
+
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if baseURL == "" {
+		baseURL = supportedRouters["openrouter"]
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/models", nil)
+	if err != nil {
+		return ModelMetadata{}, err
+	}
+
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return ModelMetadata{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ModelMetadata{}, fmt.Errorf("failed to verify openrouter model %q: "+
+			"openrouter models lookup returned %s", model, resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ModelMetadata{}, err
+	}
+
+	type openRouterModel struct {
+		ID            string `json:"id"`
+		ContextLength int    `json:"context_length"`
+	}
+
+	var wrapped struct {
+		Data []openRouterModel `json:"data"`
+	}
+	if err := json.Unmarshal(body, &wrapped); err != nil {
+		return ModelMetadata{}, err
+	}
+
+	for _, item := range wrapped.Data {
+		if strings.TrimSpace(item.ID) == model {
+			return ModelMetadata{
+				Exists:        true,
+				ContextLength: item.ContextLength,
+			}, nil
+		}
+	}
+
+	return ModelMetadata{}, nil
+}
+
+func fetchOpenAIModelMetadata(ctx context.Context, model string) (ModelMetadata, error) {
+	for _, candidate := range openAIModelDocCandidates(model) {
+		meta, err := fetchOpenAIModelMetadataCandidate(ctx, candidate)
+		if err != nil {
+			return ModelMetadata{}, err
+		}
+		fmt.Println(meta)
+		if meta.Exists {
+			return meta, nil
+		}
+	}
+
+	return ModelMetadata{}, nil
+}
+
+func fetchOpenAIModelMetadataCandidate(ctx context.Context, model string) (ModelMetadata, error) {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return ModelMetadata{}, nil
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(modelDocsBaseURL, "/")+"/"+model, nil)
+	if err != nil {
+		return ModelMetadata{}, err
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return ModelMetadata{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return ModelMetadata{}, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return ModelMetadata{}, fmt.Errorf("failed to verify openai model %q: openai model docs lookup returned %s", model, resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ModelMetadata{}, err
+	}
+
+	match := contextWindowPatternOAI.FindStringSubmatch(string(body))
+	if len(match) != 2 {
+		return ModelMetadata{Exists: true}, nil
+	}
+
+	contextLength, err := strconv.Atoi(strings.ReplaceAll(match[1], ",", ""))
+	if err != nil {
+		return ModelMetadata{}, err
+	}
+
+	return ModelMetadata{
+		Exists:        true,
+		ContextLength: contextLength,
+	}, nil
+}
+
+func unknownModelError(router, model string) error {
+	switch strings.TrimSpace(strings.ToLower(router)) {
+	case "openrouter":
+		return fmt.Errorf("model %q is not available on openrouter", model)
+	default:
+		return fmt.Errorf("model %q is not available on openai", model)
+	}
+}
+
+func openAIModelDocCandidates(model string) []string {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return nil
+	}
+
+	if prefix, suffix, ok := strings.Cut(model, "/"); ok && strings.EqualFold(prefix, "openai") {
+		model = strings.TrimSpace(suffix)
+	}
+
+	candidates := []string{model}
+	if base := trimOpenAISnapshotSuffix(model); base != model {
+		candidates = append(candidates, base)
+	}
+
+	return dedupeAndTrim(candidates)
+}
+
+func trimOpenAISnapshotSuffix(model string) string {
+	parts := strings.Split(strings.TrimSpace(model), "-")
+	if len(parts) < 4 {
+		return model
+	}
+
+	last := len(parts) - 1
+	if len(parts[last-2]) != 4 || len(parts[last-1]) != 2 || len(parts[last]) != 2 {
+		return model
+	}
+
+	if _, err := strconv.Atoi(parts[last-2]); err != nil {
+		return model
+	}
+	if _, err := strconv.Atoi(parts[last-1]); err != nil {
+		return model
+	}
+	if _, err := strconv.Atoi(parts[last]); err != nil {
+		return model
+	}
+
+	return strings.Join(parts[:last-2], "-")
 }

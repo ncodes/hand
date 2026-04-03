@@ -1,19 +1,23 @@
 # name: "Daemon"
+# maxIterations: 90
+# instruct: ""
+# platform: "cli"
 
 # model:
-#   name: "qwen/qwen3.5-27b"
+#   name: "openai/gpt-4o-mini"
+#   contextLength: 128000
+#   verifyModel: true
 #   router: "openrouter"
+#   apiMode: "chat-completions"
+#   baseUrl: "https://openrouter.ai/api/v1"
 #   key: "replace-with-your-model-key"
 #   openaiApiKey: "replace-with-your-openai-key"
 #   openrouterApiKey: "replace-with-your-openrouter-key"
-#   baseUrl: "https://openrouter.ai/api/v1"
-#   apiMode: "chat-completions"
 
 # rpc:
 #   address: "127.0.0.1"
 #   port: 50051
 
-# maxIterations: 90
 # fs:
 #   roots:
 #     - "."
@@ -21,14 +25,21 @@
 #   allow: []
 #   ask: []
 #   deny: []
+# storage:
+#   backend: "sqlite"
+# session:
+#   defaultIdleExpiry: "24h"
+#   archiveRetention: "720h"
+# compaction:
+#   enabled: true
+#   triggerPercent: 0.85
+#   warnPercent: 0.95
 # cap:
 #   fs: true
 #   net: true
 #   exec: true
 #   mem: true
 #   browser: false
-
-# platform: "cli"
 
 # log:
 #   level: "info"
