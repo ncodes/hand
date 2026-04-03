@@ -13,10 +13,12 @@ import (
 )
 
 type SummaryStore interface {
-	CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error)
-	GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
+	Get(context.Context, string) (storage.Session, bool, error)
+	Save(context.Context, storage.Session) error
 	GetSummary(context.Context, string) (storage.SessionSummary, bool, error)
 	SaveSummary(context.Context, storage.SessionSummary) error
+	GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
+	CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error)
 }
 
 type Service struct {

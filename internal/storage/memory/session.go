@@ -53,6 +53,9 @@ func (s *SessionStore) Save(_ context.Context, session Session) error {
 
 	if existing, ok := s.sessions[session.ID]; ok {
 		session.CreatedAt = existing.CreatedAt
+		if session.Compaction == (base.SessionCompaction{}) {
+			session.Compaction = existing.Compaction
+		}
 		session.UpdatedAt = time.Now().UTC()
 	}
 
@@ -292,6 +295,9 @@ func (s *SessionStore) CreateArchive(_ context.Context, archive ArchivedSession)
 		if s.currentSession == normalized.SourceSessionID {
 			s.currentSession = ""
 		}
+	} else if session, ok := s.sessions[normalized.SourceSessionID]; ok {
+		session.Compaction = base.SessionCompaction{}
+		s.sessions[normalized.SourceSessionID] = session
 	}
 
 	return nil
@@ -421,6 +427,7 @@ func (s *SessionStore) ClearMessages(_ context.Context, id string, opts MessageQ
 
 	delete(s.messages, id)
 	delete(s.summaries, id)
+	session.Compaction = base.SessionCompaction{}
 	session.UpdatedAt = time.Now().UTC()
 	s.sessions[id] = session
 	return nil

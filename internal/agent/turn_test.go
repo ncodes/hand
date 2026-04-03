@@ -971,6 +971,14 @@ func TestTurn_RunGeneratesAndAppliesStructuredSummaryWhenCompactionTriggers(t *t
 	require.Equal(t, "Older work", summary.SessionSummary)
 	require.Equal(t, 3, summary.SourceEndOffset)
 
+	compactionSession, ok, err := manager.Get(context.Background(), session.ID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, storage.CompactionStatusSucceeded, compactionSession.Compaction.Status)
+	require.Equal(t, 3, compactionSession.Compaction.TargetOffset)
+	require.Equal(t, 11, compactionSession.Compaction.TargetMessageCount)
+	require.Empty(t, compactionSession.Compaction.LastError)
+
 	persisted, err := manager.GetMessages(context.Background(), session.ID, storage.MessageQueryOptions{})
 	require.NoError(t, err)
 	require.Len(t, persisted, 12)
@@ -982,6 +990,9 @@ func TestTurn_RunGeneratesAndAppliesStructuredSummaryWhenCompactionTriggers(t *t
 	require.Contains(t, eventTypes, "context.summary.requested")
 	require.Contains(t, eventTypes, "context.summary.saved")
 	require.Contains(t, eventTypes, "context.summary.applied")
+	require.Contains(t, eventTypes, "context.compaction.pending")
+	require.Contains(t, eventTypes, "context.compaction.running")
+	require.Contains(t, eventTypes, "context.compaction.succeeded")
 }
 
 func TestTurn_RunSkipsSummaryGenerationWhenHistoryIsTooShort(t *testing.T) {
@@ -1058,12 +1069,23 @@ func TestTurn_RunContinuesWhenSummaryParsingFails(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 
+	compactionSession, ok, err := manager.Get(context.Background(), session.ID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, storage.CompactionStatusFailed, compactionSession.Compaction.Status)
+	require.Equal(t, 3, compactionSession.Compaction.TargetOffset)
+	require.Equal(t, 11, compactionSession.Compaction.TargetMessageCount)
+	require.NotEmpty(t, compactionSession.Compaction.LastError)
+
 	eventTypes := make([]string, 0, len(traceSession.Events))
 	for _, event := range traceSession.Events {
 		eventTypes = append(eventTypes, event.Type)
 	}
 	require.Contains(t, eventTypes, "context.summary.failed")
 	require.NotContains(t, eventTypes, "context.summary.saved")
+	require.Contains(t, eventTypes, "context.compaction.pending")
+	require.Contains(t, eventTypes, "context.compaction.running")
+	require.Contains(t, eventTypes, "context.compaction.failed")
 }
 
 func TestTurn_RunSkipsSummaryGenerationWhenCompactionIsDisabled(t *testing.T) {

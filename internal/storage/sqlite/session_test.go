@@ -864,6 +864,136 @@ func TestSQLiteStore_SaveRefreshesUpdatedAtOnUpdate(t *testing.T) {
 	require.True(t, session.UpdatedAt.After(originalUpdatedAt))
 }
 
+func TestSQLiteStore_SaveRoundTripsCompactionMetadata(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{
+		ID: testSessionA,
+		Compaction: base.SessionCompaction{
+			CompletedAt:        now.Add(3 * time.Minute),
+			FailedAt:           now.Add(2 * time.Minute),
+			LastError:          "failed before retry",
+			RequestedAt:        now,
+			StartedAt:          now.Add(time.Minute),
+			Status:             base.CompactionStatusFailed,
+			TargetMessageCount: 12,
+			TargetOffset:       4,
+		},
+		UpdatedAt: now,
+	}))
+
+	session, ok, err := store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, base.CompactionStatusFailed, session.Compaction.Status)
+	require.Equal(t, "failed before retry", session.Compaction.LastError)
+	require.Equal(t, 12, session.Compaction.TargetMessageCount)
+	require.Equal(t, 4, session.Compaction.TargetOffset)
+	require.Equal(t, now, session.Compaction.RequestedAt)
+	require.Equal(t, now.Add(time.Minute), session.Compaction.StartedAt)
+	require.Equal(t, now.Add(2*time.Minute), session.Compaction.FailedAt)
+	require.Equal(t, now.Add(3*time.Minute), session.Compaction.CompletedAt)
+
+	sessions, err := store.List(context.Background())
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	require.Equal(t, session.Compaction, sessions[0].Compaction)
+}
+
+func TestSQLiteStore_SavePreservesExistingCompactionMetadataOnPartialUpdate(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{
+		ID: testSessionA,
+		Compaction: base.SessionCompaction{
+			LastError:          "failed before retry",
+			RequestedAt:        now,
+			Status:             base.CompactionStatusFailed,
+			TargetMessageCount: 12,
+			TargetOffset:       4,
+		},
+		UpdatedAt: now,
+	}))
+
+	require.NoError(t, store.Save(context.Background(), Session{
+		ID:        testSessionA,
+		UpdatedAt: now.Add(time.Minute),
+	}))
+
+	session, ok, err := store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, base.CompactionStatusFailed, session.Compaction.Status)
+	require.Equal(t, "failed before retry", session.Compaction.LastError)
+	require.Equal(t, 12, session.Compaction.TargetMessageCount)
+	require.Equal(t, 4, session.Compaction.TargetOffset)
+}
+
+func TestSQLiteStore_ClearMessagesClearsCompactionMetadata(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{
+		ID: testSessionA,
+		Compaction: base.SessionCompaction{
+			Status:             base.CompactionStatusRunning,
+			TargetMessageCount: 12,
+			TargetOffset:       4,
+		},
+		UpdatedAt: now,
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
+	require.NoError(t, store.SaveSummary(context.Background(), SessionSummary{
+		SessionID:      testSessionA,
+		SessionSummary: "Older work",
+	}))
+
+	require.NoError(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}))
+
+	session, ok, err := store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, base.SessionCompaction{}, session.Compaction)
+}
+
+func TestSQLiteStore_CreateArchiveClearsDefaultSessionCompactionMetadata(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{
+		ID: DefaultSessionID,
+		Compaction: base.SessionCompaction{
+			Status:             base.CompactionStatusSucceeded,
+			TargetMessageCount: 12,
+			TargetOffset:       4,
+		},
+		UpdatedAt: now,
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
+	require.NoError(t, store.SaveSummary(context.Background(), SessionSummary{
+		SessionID:      DefaultSessionID,
+		SessionSummary: "Older work",
+	}))
+
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              testArchiveSummary,
+		SourceSessionID: DefaultSessionID,
+		ArchivedAt:      now,
+		ExpiresAt:       now.Add(time.Hour),
+	}))
+
+	session, ok, err := store.Get(context.Background(), DefaultSessionID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, base.SessionCompaction{}, session.Compaction)
+}
+
 func TestSQLiteStore_SaveTrimsIDOnCreate(t *testing.T) {
 	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)

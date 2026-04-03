@@ -69,6 +69,40 @@ func TestManager_RunMaintenanceArchivesExpiredDefault(t *testing.T) {
 	require.Empty(t, liveMessages)
 }
 
+func TestManager_RunMaintenanceClearsDefaultSessionCompactionMetadata(t *testing.T) {
+	store := storagememory.NewSessionStore()
+	expiredAt := time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), storage.Session{
+		ID: storage.DefaultSessionID,
+		Compaction: storage.SessionCompaction{
+			Status:             storage.CompactionStatusRunning,
+			RequestedAt:        expiredAt.Add(-30 * time.Minute),
+			StartedAt:          expiredAt.Add(-29 * time.Minute),
+			TargetMessageCount: 9,
+			TargetOffset:       1,
+		},
+		CreatedAt: expiredAt.Add(-time.Hour),
+		UpdatedAt: expiredAt,
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
+	}))
+	defaultSession, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	manager, err := NewManager(store, time.Hour, 48*time.Hour)
+	require.NoError(t, err)
+	manager.now = func() time.Time { return defaultSession.UpdatedAt.Add(2 * time.Hour) }
+
+	require.NoError(t, manager.runMaintenance(context.Background()))
+
+	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, storage.SessionCompaction{}, session.Compaction)
+}
+
 func TestManager_CurrentSessionDefaultsToDefault(t *testing.T) {
 	manager, err := NewManager(storagememory.NewSessionStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -128,6 +162,9 @@ func TestNewManager_ValidationAndNilManagerErrors(t *testing.T) {
 	require.EqualError(t, manager.AppendMessages(context.Background(), storage.DefaultSessionID, nil), "session manager is required")
 	_, err = manager.CountMessages(context.Background(), storage.DefaultSessionID, storage.MessageQueryOptions{})
 	require.EqualError(t, err, "session manager is required")
+	require.EqualError(t, manager.Save(context.Background(), storage.Session{}), "session manager is required")
+	_, _, err = manager.Get(context.Background(), storage.DefaultSessionID)
+	require.EqualError(t, err, "session manager is required")
 	_, _, err = manager.GetMessage(context.Background(), storage.DefaultSessionID, 0, storage.MessageQueryOptions{})
 	require.EqualError(t, err, "session manager is required")
 	_, err = manager.GetMessages(context.Background(), storage.DefaultSessionID, storage.MessageQueryOptions{})
@@ -169,6 +206,75 @@ func TestManager_CountMessages_ForwardsToStore(t *testing.T) {
 	require.Equal(t, 7, count)
 	require.Equal(t, testSessionA, capturedID)
 	require.Equal(t, storage.MessageQueryOptions{Archived: true, Limit: 2, Offset: 3}, capturedOpts)
+}
+
+func TestManager_Save_ForwardsToStore(t *testing.T) {
+	expected := storage.Session{
+		ID: testSessionA,
+		Compaction: storage.SessionCompaction{
+			Status:       storage.CompactionStatusSucceeded,
+			TargetOffset: 3,
+		},
+		LastPromptTokens: 42,
+	}
+
+	var captured storage.Session
+	manager, err := NewManager(&storagemock.SessionStore{
+		SaveFunc: func(_ context.Context, session storage.Session) error {
+			captured = session
+			return nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	require.NoError(t, manager.Save(context.Background(), expected))
+	require.Equal(t, expected, captured)
+}
+
+func TestManager_Save_ReturnsStoreError(t *testing.T) {
+	manager, err := NewManager(&storagemock.SessionStore{
+		SaveFunc: func(context.Context, storage.Session) error {
+			return errors.New("save failed")
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	err = manager.Save(context.Background(), storage.Session{ID: testSessionA})
+	require.EqualError(t, err, "save failed")
+}
+
+func TestManager_Get_TrimsIDAndReturnsStoreResult(t *testing.T) {
+	expected := storage.Session{
+		ID:               testSessionA,
+		LastPromptTokens: 9,
+	}
+
+	var capturedID string
+	manager, err := NewManager(&storagemock.SessionStore{
+		GetFunc: func(_ context.Context, id string) (storage.Session, bool, error) {
+			capturedID = id
+			return expected, true, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	session, ok, err := manager.Get(context.Background(), "  "+testSessionA+"  ")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, expected, session)
+	require.Equal(t, testSessionA, capturedID)
+}
+
+func TestManager_Get_ReturnsStoreError(t *testing.T) {
+	manager, err := NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{}, false, errors.New("get failed")
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	_, _, err = manager.Get(context.Background(), testSessionA)
+	require.EqualError(t, err, "get failed")
 }
 
 func TestManager_CreateSaveListAndResolveNonDefaultSession(t *testing.T) {

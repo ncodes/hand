@@ -28,10 +28,18 @@ type MessageQueryOptions = base.MessageQueryOptions
 type SessionSummary = base.SessionSummary
 
 type sessionModel struct {
-	CreatedAt        time.Time
-	ID               string `gorm:"primaryKey"`
-	LastPromptTokens int
-	UpdatedAt        time.Time
+	ID                           string `gorm:"primaryKey"`
+	CreatedAt                    time.Time
+	UpdatedAt                    time.Time
+	LastPromptTokens             int
+	CompactionStatus             string
+	CompactionRequestedAt        time.Time
+	CompactionStartedAt          time.Time
+	CompactionCompletedAt        time.Time
+	CompactionFailedAt           time.Time
+	CompactionLastError          string
+	CompactionTargetMessageCount int
+	CompactionTargetOffset       int
 }
 
 func (sessionModel) TableName() string {
@@ -179,8 +187,21 @@ func (s *SessionStore) Save(ctx context.Context, session Session) error {
 	}
 
 	var existing sessionModel
+
 	if err := s.db.WithContext(ctx).First(&existing, "id = ?", session.ID).Error; err == nil {
 		session.CreatedAt = existing.CreatedAt
+		if session.Compaction == (base.SessionCompaction{}) {
+			session.Compaction = base.SessionCompaction{
+				CompletedAt:        existing.CompactionCompletedAt,
+				FailedAt:           existing.CompactionFailedAt,
+				LastError:          existing.CompactionLastError,
+				RequestedAt:        existing.CompactionRequestedAt,
+				StartedAt:          existing.CompactionStartedAt,
+				Status:             base.SessionCompactionStatus(existing.CompactionStatus),
+				TargetMessageCount: existing.CompactionTargetMessageCount,
+				TargetOffset:       existing.CompactionTargetOffset,
+			}
+		}
 		session.UpdatedAt = time.Now().UTC()
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
@@ -199,18 +220,22 @@ func (s *SessionStore) Save(ctx context.Context, session Session) error {
 	}
 
 	record := sessionModel{
-		CreatedAt:        session.CreatedAt,
-		ID:               session.ID,
-		LastPromptTokens: session.LastPromptTokens,
-		UpdatedAt:        session.UpdatedAt,
+		CreatedAt:                    session.CreatedAt,
+		CompactionCompletedAt:        session.Compaction.CompletedAt,
+		CompactionFailedAt:           session.Compaction.FailedAt,
+		CompactionLastError:          session.Compaction.LastError,
+		CompactionRequestedAt:        session.Compaction.RequestedAt,
+		CompactionStartedAt:          session.Compaction.StartedAt,
+		CompactionStatus:             string(session.Compaction.Status),
+		CompactionTargetMessageCount: session.Compaction.TargetMessageCount,
+		CompactionTargetOffset:       session.Compaction.TargetOffset,
+		ID:                           session.ID,
+		LastPromptTokens:             session.LastPromptTokens,
+		UpdatedAt:                    session.UpdatedAt,
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(&record).Error; err != nil {
-			return err
-		}
-
-		return nil
+		return tx.Save(&record).Error
 	})
 }
 
@@ -237,16 +262,9 @@ func (s *SessionStore) Get(ctx context.Context, id string) (Session, bool, error
 		return Session{}, false, err
 	}
 
-	session := Session{
-		CreatedAt:        record.CreatedAt,
-		ID:               record.ID,
-		LastPromptTokens: record.LastPromptTokens,
-	}
-	if !record.CreatedAt.IsZero() {
-		session.CreatedAt = record.CreatedAt.UTC()
-	}
-	if !record.UpdatedAt.IsZero() {
-		session.UpdatedAt = record.UpdatedAt.UTC()
+	session, err := decodeSessionRecord(record)
+	if err != nil {
+		return Session{}, false, err
 	}
 
 	return session, true, nil
@@ -637,7 +655,18 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 		}
 
 		if archive.SourceSessionID == base.DefaultSessionID {
-			return nil
+			return tx.Model(&sessionModel{}).
+				Where("id = ?", archive.SourceSessionID).
+				Updates(map[string]any{
+					"compaction_completed_at":         time.Time{},
+					"compaction_failed_at":            time.Time{},
+					"compaction_last_error":           "",
+					"compaction_requested_at":         time.Time{},
+					"compaction_started_at":           time.Time{},
+					"compaction_status":               "",
+					"compaction_target_message_count": 0,
+					"compaction_target_offset":        0,
+				}).Error
 		}
 
 		if err := tx.Where("id = ?", archive.SourceSessionID).Delete(&sessionModel{}).Error; err != nil {
@@ -725,6 +754,14 @@ func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts Messag
 			return err
 		}
 
+		session.CompactionCompletedAt = time.Time{}
+		session.CompactionFailedAt = time.Time{}
+		session.CompactionLastError = ""
+		session.CompactionRequestedAt = time.Time{}
+		session.CompactionStartedAt = time.Time{}
+		session.CompactionStatus = ""
+		session.CompactionTargetMessageCount = 0
+		session.CompactionTargetOffset = 0
 		session.UpdatedAt = time.Now().UTC()
 		return tx.Save(&session).Error
 	})
@@ -860,10 +897,6 @@ func (s *SessionStore) Current(ctx context.Context) (string, bool, error) {
 	return value, true, nil
 }
 
-func decodeSessionRecord(record sessionModel) (Session, error) {
-	return sessionFromRecord(record.CreatedAt, record.ID, record.LastPromptTokens, record.UpdatedAt)
-}
-
 func decodeSummaryRecord(record summaryModel) (SessionSummary, error) {
 	return common.NormalizeSessionSummary(SessionSummary{
 		SessionID:          record.SessionID,
@@ -887,24 +920,34 @@ func decodeArchiveRecord(record archiveModel) (ArchivedSession, error) {
 	})
 }
 
-func sessionFromRecord(createdAt time.Time, id string, lastPromptTokens int, updatedAt time.Time) (Session, error) {
-	id = strings.TrimSpace(id)
+func decodeSessionRecord(record sessionModel) (Session, error) {
+	id := strings.TrimSpace(record.ID)
 	if id == "" {
 		return Session{}, errors.New("session id is required")
 	}
 
 	session := Session{
-		CreatedAt:        createdAt,
+		CreatedAt: record.CreatedAt,
+		Compaction: base.SessionCompaction{
+			CompletedAt:        record.CompactionCompletedAt,
+			FailedAt:           record.CompactionFailedAt,
+			LastError:          record.CompactionLastError,
+			RequestedAt:        record.CompactionRequestedAt,
+			StartedAt:          record.CompactionStartedAt,
+			Status:             base.SessionCompactionStatus(record.CompactionStatus),
+			TargetMessageCount: record.CompactionTargetMessageCount,
+			TargetOffset:       record.CompactionTargetOffset,
+		},
 		ID:               id,
-		LastPromptTokens: lastPromptTokens,
+		LastPromptTokens: record.LastPromptTokens,
 	}
 
-	if !createdAt.IsZero() {
-		session.CreatedAt = createdAt.UTC()
+	if !record.CreatedAt.IsZero() {
+		session.CreatedAt = record.CreatedAt.UTC()
 	}
 
-	if !updatedAt.IsZero() {
-		session.UpdatedAt = updatedAt.UTC()
+	if !record.UpdatedAt.IsZero() {
+		session.UpdatedAt = record.UpdatedAt.UTC()
 	}
 
 	return session, nil

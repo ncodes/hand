@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"strings"
 	"time"
@@ -19,6 +20,17 @@ import (
 )
 
 const RecentSessionTail = 8
+
+const (
+	tEvtFailed              = "context.compaction.failed"
+	tEvtSummaryRequested    = "context.summary.requested"
+	tEvtSummarySaved        = "context.summary.saved"
+	tEvtSummaryFailed       = "context.summary.failed"
+	tEvtSummaryApplied      = "context.summary.applied"
+	tEvtCompactionPending   = "context.compaction.pending"
+	tEvtCompactionRunning   = "context.compaction.running"
+	tEvtCompactionSucceeded = "context.compaction.succeeded"
+)
 
 type SummaryState struct {
 	SessionID          string
@@ -38,6 +50,12 @@ type summaryPayload struct {
 	Discoveries    []string `json:"discoveries"`
 	OpenQuestions  []string `json:"open_questions"`
 	NextActions    []string `json:"next_actions"`
+}
+
+type refreshPlan struct {
+	RequestedAt        time.Time
+	TargetMessageCount int
+	TargetOffset       int
 }
 
 func SummaryFromStorage(summary storage.SessionSummary) *SummaryState {
@@ -82,6 +100,11 @@ func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input 
 
 	totalCount, err := s.summaryStore.CountMessages(ctx, input.SessionID, storage.MessageQueryOptions{})
 	if err != nil {
+		input.TraceSession.Record(tEvtFailed, compactionTracePayload(
+			input.SessionID,
+			storage.SessionCompaction{Status: storage.CompactionStatusFailed},
+			err.Error()),
+		)
 		return err
 	}
 
@@ -89,43 +112,125 @@ func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input 
 		return nil
 	}
 
+	targetOffset := totalCount - RecentSessionTail
+
+	plan := refreshPlan{
+		RequestedAt:        s.currentTime(),
+		TargetMessageCount: totalCount,
+		TargetOffset:       targetOffset,
+	}
+
+	if memory.Summary != nil && memory.Summary.SourceEndOffset >= targetOffset {
+		session, ok, err := s.summaryStore.Get(ctx, input.SessionID)
+		if err != nil {
+			input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+				Status:             storage.CompactionStatusFailed,
+				TargetMessageCount: totalCount,
+				TargetOffset:       targetOffset,
+			}, err.Error()))
+			return err
+		}
+		if !ok {
+			err = errors.New("session not found")
+			input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+				Status:             storage.CompactionStatusFailed,
+				TargetMessageCount: totalCount,
+				TargetOffset:       targetOffset,
+			}, err.Error()))
+			return err
+		}
+
+		return s.reconcileCompactionSucceeded(ctx, &session, plan, input.TraceSession)
+	}
+
 	estimate := s.evaluator.Evaluate(input.Request, input.LastPromptTokens)
 	if !estimate.Triggered() {
 		return nil
 	}
 
-	sourceEndOffset := totalCount - RecentSessionTail
-	if memory.Summary != nil && memory.Summary.SourceEndOffset >= sourceEndOffset {
-		return nil
+	session, ok, err := s.summaryStore.Get(ctx, input.SessionID)
+	if err != nil {
+		input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+			Status:             storage.CompactionStatusFailed,
+			TargetMessageCount: totalCount,
+			TargetOffset:       targetOffset,
+		}, err.Error()))
+		return err
+	}
+	if !ok {
+		err = errors.New("session not found")
+		input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+			Status:             storage.CompactionStatusFailed,
+			TargetMessageCount: totalCount,
+			TargetOffset:       targetOffset,
+		}, err.Error()))
+		return err
 	}
 
-	requestedAt := time.Now().UTC()
-	if s.now != nil {
-		requestedAt = s.now()
-		if requestedAt.IsZero() {
-			requestedAt = time.Now().UTC()
-		} else {
-			requestedAt = requestedAt.UTC()
+	// TODO: Currently no need for pending compaction transition. Left here for when async compaction is implemented.
+	if err := s.transitionCompactionPending(ctx, &session, plan, input.TraceSession); err != nil {
+		input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+			Status:             storage.CompactionStatusFailed,
+			TargetMessageCount: plan.TargetMessageCount,
+			TargetOffset:       plan.TargetOffset,
+		}, err.Error()))
+		return err
+	}
+
+	if err := s.transitionCompactionRunning(ctx, &session, plan, input.TraceSession); err != nil {
+		input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+			RequestedAt:        plan.RequestedAt,
+			Status:             storage.CompactionStatusFailed,
+			TargetMessageCount: plan.TargetMessageCount,
+			TargetOffset:       plan.TargetOffset,
+		}, err.Error()))
+		return err
+	}
+
+	if err := s.refreshSummary(ctx, memory, input, plan); err != nil {
+		if transErr := s.transitionCompactionFailed(ctx, &session, plan, err, input.TraceSession); transErr != nil {
+			wrapped := fmt.Errorf("mark compaction failed: %w", transErr)
+			input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+				RequestedAt:        plan.RequestedAt,
+				StartedAt:          session.Compaction.StartedAt,
+				Status:             storage.CompactionStatusFailed,
+				TargetMessageCount: plan.TargetMessageCount,
+				TargetOffset:       plan.TargetOffset,
+			}, wrapped.Error()))
+			return wrapped
 		}
+		return err
 	}
 
-	payload := summaryTracePayload(input.SessionID, sourceEndOffset, totalCount, requestedAt)
-	input.TraceSession.Record("context.summary.requested", payload)
+	if err := s.transitionCompactionSucceeded(ctx, &session, plan, input.TraceSession); err != nil {
+		input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+			RequestedAt:        plan.RequestedAt,
+			StartedAt:          session.Compaction.StartedAt,
+			Status:             storage.CompactionStatusFailed,
+			TargetMessageCount: plan.TargetMessageCount,
+			TargetOffset:       plan.TargetOffset,
+		}, err.Error()))
+		return err
+	}
 
-	summaryMessages := make([]handmsg.Message, 0, sourceEndOffset+1)
+	return nil
+}
 
-	// Include the existing summary message if it exists.
+func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input RefreshInput, plan refreshPlan) error {
+	payload := summaryTracePayload(input.SessionID, plan.TargetOffset, plan.TargetMessageCount, plan.RequestedAt)
+	input.TraceSession.Record(tEvtSummaryRequested, payload)
+
+	summaryMessages := make([]handmsg.Message, 0, plan.TargetOffset+1)
 	if summaryMessage, ok := memory.RenderSummaryMessage(); ok {
 		summaryMessages = append(summaryMessages, summaryMessage)
 	}
 
-	// Skip messages already covered by the existing summary.
 	startOffset := 0
 	if memory.Summary != nil && memory.Summary.SourceEndOffset > startOffset {
 		startOffset = memory.Summary.SourceEndOffset
 	}
 
-	limit := sourceEndOffset - startOffset
+	limit := plan.TargetOffset - startOffset
 	if limit > 0 {
 		messages, err := s.summaryStore.GetMessages(ctx, input.SessionID, storage.MessageQueryOptions{
 			Limit:  limit,
@@ -133,7 +238,7 @@ func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input 
 		})
 		if err != nil {
 			failedPayload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
-			input.TraceSession.Record("context.summary.failed", failedPayload)
+			input.TraceSession.Record(tEvtSummaryFailed, failedPayload)
 			return err
 		}
 		summaryMessages = append(summaryMessages, handmsg.CloneMessages(messages)...)
@@ -149,52 +254,210 @@ func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input 
 	})
 	if err != nil {
 		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
-		input.TraceSession.Record("context.summary.failed", payload)
+		input.TraceSession.Record(tEvtSummaryFailed, payload)
 		return err
 	}
 
 	if resp == nil {
 		err = errors.New("model response is required")
 		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
-		input.TraceSession.Record("context.summary.failed", payload)
+		input.TraceSession.Record(tEvtSummaryFailed, payload)
 		return err
 	}
 
 	if resp.RequiresToolCalls {
 		err = errors.New("summary requested tool calls")
 		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
-		input.TraceSession.Record("context.summary.failed", payload)
+		input.TraceSession.Record(tEvtSummaryFailed, payload)
 		return err
 	}
 
 	summary, err := parseSummary(
 		input.SessionID,
-		sourceEndOffset,
-		totalCount,
+		plan.TargetOffset,
+		plan.TargetMessageCount,
 		resp.OutputText,
-		requestedAt,
+		plan.RequestedAt,
 	)
 	if err != nil {
 		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
-		input.TraceSession.Record("context.summary.failed", payload)
+		input.TraceSession.Record(tEvtSummaryFailed, payload)
+		return err
+	}
+
+	summaryRecord := common.CloneSessionSummary(storage.SessionSummary{
+		SessionID:          summary.SessionID,
+		SourceEndOffset:    summary.SourceEndOffset,
+		SourceMessageCount: summary.SourceMessageCount,
+		UpdatedAt:          summary.UpdatedAt,
+		SessionSummary:     summary.SessionSummary,
+		CurrentTask:        summary.CurrentTask,
+		Discoveries:        summary.Discoveries,
+		OpenQuestions:      summary.OpenQuestions,
+		NextActions:        summary.NextActions,
+	})
+
+	if err := s.summaryStore.SaveSummary(ctx, summaryRecord); err != nil {
+		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
+		input.TraceSession.Record(tEvtSummaryFailed, payload)
 		return err
 	}
 
 	memory.Summary = summary
-	if err := s.summaryStore.SaveSummary(ctx, memory.SummaryToStorage()); err != nil {
-		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
-		input.TraceSession.Record("context.summary.failed", payload)
-		return err
-	}
 
-	payload = summaryTracePayload(
+	input.TraceSession.Record(tEvtSummarySaved, summaryTracePayload(
 		memory.Summary.SessionID,
 		memory.Summary.SourceEndOffset,
 		memory.Summary.SourceMessageCount,
 		memory.Summary.UpdatedAt,
-	)
-	input.TraceSession.Record("context.summary.saved", payload)
+	))
+
 	return nil
+}
+
+func (s *Service) transitionCompactionPending(
+	ctx context.Context,
+	session *storage.Session,
+	plan refreshPlan,
+	recorder traceRecorder,
+) error {
+	if session == nil {
+		return errors.New("session is required")
+	}
+
+	session.Compaction = storage.SessionCompaction{
+		RequestedAt:        plan.RequestedAt,
+		Status:             storage.CompactionStatusPending,
+		TargetMessageCount: plan.TargetMessageCount,
+		TargetOffset:       plan.TargetOffset,
+	}
+
+	if err := s.summaryStore.Save(ctx, *session); err != nil {
+		return err
+	}
+
+	recorder.Record(tEvtCompactionPending, compactionTracePayload(session.ID, session.Compaction, ""))
+	return nil
+}
+
+func (s *Service) transitionCompactionRunning(
+	ctx context.Context,
+	session *storage.Session,
+	plan refreshPlan,
+	recorder traceRecorder,
+) error {
+	if session == nil {
+		return errors.New("session is required")
+	}
+
+	session.Compaction.StartedAt = s.currentTime()
+	session.Compaction.Status = storage.CompactionStatusRunning
+	session.Compaction.TargetMessageCount = plan.TargetMessageCount
+	session.Compaction.TargetOffset = plan.TargetOffset
+
+	if err := s.summaryStore.Save(ctx, *session); err != nil {
+		return err
+	}
+
+	recorder.Record(tEvtCompactionRunning, compactionTracePayload(session.ID, session.Compaction, ""))
+	return nil
+}
+
+func (s *Service) transitionCompactionSucceeded(
+	ctx context.Context,
+	session *storage.Session,
+	plan refreshPlan,
+	recorder traceRecorder,
+) error {
+	if session == nil {
+		return errors.New("session is required")
+	}
+
+	session.Compaction.CompletedAt = s.currentTime()
+	session.Compaction.FailedAt = time.Time{}
+	session.Compaction.LastError = ""
+	session.Compaction.Status = storage.CompactionStatusSucceeded
+	session.Compaction.TargetMessageCount = plan.TargetMessageCount
+	session.Compaction.TargetOffset = plan.TargetOffset
+
+	if err := s.summaryStore.Save(ctx, *session); err != nil {
+		return err
+	}
+
+	recorder.Record(tEvtCompactionSucceeded, compactionTracePayload(session.ID, session.Compaction, ""))
+	return nil
+}
+
+func (s *Service) reconcileCompactionSucceeded(
+	ctx context.Context,
+	session *storage.Session,
+	plan refreshPlan,
+	recorder traceRecorder,
+) error {
+	if session == nil {
+		return errors.New("session is required")
+	}
+
+	if session.Compaction.Status == storage.CompactionStatusSucceeded &&
+		session.Compaction.TargetOffset >= plan.TargetOffset &&
+		session.Compaction.TargetMessageCount >= plan.TargetMessageCount {
+		return nil
+	}
+
+	if err := s.transitionCompactionSucceeded(ctx, session, plan, recorder); err != nil {
+		recorder.Record(tEvtFailed, compactionTracePayload(session.ID, storage.SessionCompaction{
+			RequestedAt:        session.Compaction.RequestedAt,
+			StartedAt:          session.Compaction.StartedAt,
+			Status:             storage.CompactionStatusFailed,
+			TargetMessageCount: plan.TargetMessageCount,
+			TargetOffset:       plan.TargetOffset,
+		}, err.Error()))
+		return err
+	}
+
+	return nil
+}
+
+func (s *Service) transitionCompactionFailed(
+	ctx context.Context,
+	session *storage.Session,
+	plan refreshPlan,
+	cause error,
+	recorder traceRecorder,
+) error {
+	if session == nil {
+		return errors.New("session is required")
+	}
+
+	session.Compaction.CompletedAt = time.Time{}
+	session.Compaction.FailedAt = s.currentTime()
+	session.Compaction.LastError = strings.TrimSpace(cause.Error())
+	session.Compaction.Status = storage.CompactionStatusFailed
+	session.Compaction.TargetMessageCount = plan.TargetMessageCount
+	session.Compaction.TargetOffset = plan.TargetOffset
+
+	if err := s.summaryStore.Save(ctx, *session); err != nil {
+		return err
+	}
+
+	recorder.Record(tEvtFailed, compactionTracePayload(
+		session.ID,
+		session.Compaction,
+		session.Compaction.LastError,
+	))
+
+	return nil
+}
+
+func (s *Service) currentTime() time.Time {
+	if s != nil && s.now != nil {
+		now := s.now()
+		if !now.IsZero() {
+			return now.UTC()
+		}
+	}
+
+	return time.Now().UTC()
 }
 
 func (m *Memory) RecordSummaryApplied(traceSession trace.Session) {
@@ -206,14 +469,12 @@ func (m *Memory) RecordSummaryApplied(traceSession trace.Session) {
 		return
 	}
 
-	traceSession.Record(
-		"context.summary.applied",
-		summaryTracePayload(
-			m.Summary.SessionID,
-			m.Summary.SourceEndOffset,
-			m.Summary.SourceMessageCount,
-			m.Summary.UpdatedAt,
-		),
+	traceSession.Record(tEvtSummaryApplied, summaryTracePayload(
+		m.Summary.SessionID,
+		m.Summary.SourceEndOffset,
+		m.Summary.SourceMessageCount,
+		m.Summary.UpdatedAt,
+	),
 	)
 }
 
@@ -265,7 +526,12 @@ func stripMarkdownFence(raw string) string {
 	return strings.TrimSpace(raw)
 }
 
-func summaryTracePayload(sessionID string, sourceEndOffset, sourceMessageCount int, updatedAt time.Time) map[string]any {
+func summaryTracePayload(
+	sessionID string,
+	sourceEndOffset,
+	sourceMessageCount int,
+	updatedAt time.Time,
+) map[string]any {
 	return map[string]any{
 		"session_id":           sessionID,
 		"source_end_offset":    sourceEndOffset,
@@ -279,6 +545,32 @@ func mergeSummaryTracePayload(base map[string]any, extra map[string]any) map[str
 	maps.Copy(merged, base)
 	maps.Copy(merged, extra)
 	return merged
+}
+
+func compactionTracePayload(sessionID string, state storage.SessionCompaction, failure string) map[string]any {
+	payload := map[string]any{
+		"session_id":           sessionID,
+		"status":               state.Status,
+		"target_message_count": state.TargetMessageCount,
+		"target_offset":        state.TargetOffset,
+	}
+	if !state.RequestedAt.IsZero() {
+		payload["requested_at"] = state.RequestedAt
+	}
+	if !state.StartedAt.IsZero() {
+		payload["started_at"] = state.StartedAt
+	}
+	if !state.CompletedAt.IsZero() {
+		payload["completed_at"] = state.CompletedAt
+	}
+	if !state.FailedAt.IsZero() {
+		payload["failed_at"] = state.FailedAt
+	}
+	if strings.TrimSpace(failure) != "" {
+		payload["error"] = strings.TrimSpace(failure)
+	}
+
+	return payload
 }
 
 func renderSummaryList(title string, values []string) string {

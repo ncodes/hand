@@ -146,6 +146,22 @@ func (m *Manager) AppendMessages(ctx context.Context, id string, messages []hand
 	return m.store.AppendMessages(ctx, id, common.CloneMessages(messages))
 }
 
+func (m *Manager) Save(ctx context.Context, session storage.Session) error {
+	if m == nil {
+		return errors.New("session manager is required")
+	}
+
+	return m.store.Save(ctx, session)
+}
+
+func (m *Manager) Get(ctx context.Context, id string) (storage.Session, bool, error) {
+	if m == nil {
+		return storage.Session{}, false, errors.New("session manager is required")
+	}
+
+	return m.store.Get(ctx, strings.TrimSpace(id))
+}
+
 func (m *Manager) GetMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
 	if m == nil {
 		return nil, errors.New("session manager is required")
@@ -211,6 +227,7 @@ func (m *Manager) UpdateLastPromptTokens(ctx context.Context, id string, promptT
 	if err != nil {
 		return err
 	}
+
 	if !ok {
 		return errors.New("session not found")
 	}
@@ -243,6 +260,7 @@ func (m *Manager) CreateSession(ctx context.Context, id string) (storage.Session
 
 	now := m.now().UTC()
 	session := storage.Session{CreatedAt: now, ID: id, UpdatedAt: now}
+
 	if err := m.store.Save(ctx, session); err != nil {
 		return storage.Session{}, err
 	}
@@ -365,7 +383,9 @@ func (m *Manager) clearIdleDefaultSession(ctx context.Context, now time.Time) er
 			return err
 		}
 
+		session.Compaction = storage.SessionCompaction{}
 		session.UpdatedAt = now
+
 		if err := m.store.Save(ctx, session); err != nil {
 			return err
 		}

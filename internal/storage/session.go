@@ -22,9 +22,30 @@ func NewArchiveID() (string, error) {
 
 type Session struct {
 	CreatedAt        time.Time
+	Compaction       SessionCompaction
 	ID               string
 	LastPromptTokens int
 	UpdatedAt        time.Time
+}
+
+type SessionCompactionStatus string
+
+const (
+	CompactionStatusPending   SessionCompactionStatus = "pending"
+	CompactionStatusRunning   SessionCompactionStatus = "running"
+	CompactionStatusSucceeded SessionCompactionStatus = "succeeded"
+	CompactionStatusFailed    SessionCompactionStatus = "failed"
+)
+
+type SessionCompaction struct {
+	CompletedAt        time.Time
+	FailedAt           time.Time
+	LastError          string
+	RequestedAt        time.Time
+	StartedAt          time.Time
+	Status             SessionCompactionStatus
+	TargetMessageCount int
+	TargetOffset       int
 }
 
 type ArchivedSession struct {

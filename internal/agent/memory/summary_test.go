@@ -83,7 +83,52 @@ func TestService_MaybeRefreshMemory_SkipsWhenCompactionIsDisabled(t *testing.T) 
 	require.Zero(t, client.CallCount)
 }
 
+func TestService_MaybeRefreshMemory_DoesNotTransitionCompactionWhenRefreshIsNotNeeded(t *testing.T) {
+	cases := []struct {
+		name    string
+		cfg     *config.Config
+		history []handmsg.Message
+		memory  *Memory
+		request models.Request
+	}{
+		{
+			name:    "history too short",
+			cfg:     summaryTestConfig(true),
+			history: summaryTestHistory(RecentSessionTail),
+			memory:  &Memory{},
+			request: summaryTriggerRequest(),
+		},
+		{
+			name:    "estimate does not trigger",
+			cfg:     summaryTestConfig(true),
+			history: summaryTestHistory(10),
+			memory:  &Memory{},
+			request: models.Request{Instructions: "small"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := summaryTestStore(tc.history)
+			service := summaryTestService(tc.cfg, &mocks.ModelClientStub{}, store)
+
+			err := service.MaybeRefreshMemory(context.Background(), tc.memory, RefreshInput{
+				Request:      tc.request,
+				SessionID:    storage.DefaultSessionID,
+				TraceSession: &mocks.TraceSessionStub{},
+			})
+			require.NoError(t, err)
+
+			session, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Equal(t, storage.SessionCompaction{}, session.Compaction)
+		})
+	}
+}
+
 func TestService_MaybeRefreshMemory_ReturnsCountMessagesError(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
 	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return 0, errors.New("count failed")
@@ -93,10 +138,47 @@ func TestService_MaybeRefreshMemory_ReturnsCountMessagesError(t *testing.T) {
 	err := service.MaybeRefreshMemory(context.Background(), &Memory{}, RefreshInput{
 		Request:      summaryTriggerRequest(),
 		SessionID:    storage.DefaultSessionID,
-		TraceSession: &mocks.TraceSessionStub{},
+		TraceSession: traceSession,
 	})
 
 	require.EqualError(t, err, "count failed")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+}
+
+func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenLoadingSessionFails(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	store := summaryTestStore(summaryTestHistory(10))
+	store.GetFunc = func(context.Context, string) (storage.Session, bool, error) {
+		return storage.Session{}, false, errors.New("get session failed")
+	}
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
+
+	err := service.MaybeRefreshMemory(context.Background(), &Memory{}, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+
+	require.EqualError(t, err, "get session failed")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+}
+
+func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenSessionIsMissing(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	store := summaryTestStore(summaryTestHistory(10))
+	store.GetFunc = func(context.Context, string) (storage.Session, bool, error) {
+		return storage.Session{}, false, nil
+	}
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
+
+	err := service.MaybeRefreshMemory(context.Background(), &Memory{}, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+
+	require.EqualError(t, err, "session not found")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
 }
 
 func TestService_MaybeRefreshMemory_SkipsWhenHistoryIsTooShort(t *testing.T) {
@@ -156,6 +238,136 @@ func TestService_MaybeRefreshMemory_SkipsWhenExistingSummaryAlreadyCoversTargetO
 	})
 	require.NoError(t, err)
 	require.Zero(t, client.CallCount)
+}
+
+func TestService_MaybeRefreshMemory_ReconcilesStaleRunningStateWhenSummaryAlreadyCoversTarget(t *testing.T) {
+	store := summaryTestStore(summaryTestHistory(10))
+	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	session.Compaction = storage.SessionCompaction{
+		RequestedAt:        time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC),
+		StartedAt:          time.Date(2026, 4, 3, 9, 1, 0, 0, time.UTC),
+		Status:             storage.CompactionStatusRunning,
+		TargetMessageCount: 10,
+		TargetOffset:       2,
+	}
+	require.NoError(t, store.Save(context.Background(), session))
+
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
+	mem := &Memory{Summary: &SummaryState{
+		SessionID:          storage.DefaultSessionID,
+		SourceEndOffset:    99,
+		SourceMessageCount: 99,
+		SessionSummary:     "covered",
+	}}
+	traceSession := &mocks.TraceSessionStub{}
+
+	err = service.MaybeRefreshMemory(context.Background(), mem, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+	require.NoError(t, err)
+
+	session, ok, err = store.Get(context.Background(), storage.DefaultSessionID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, storage.CompactionStatusSucceeded, session.Compaction.Status)
+	require.Equal(t, 2, session.Compaction.TargetOffset)
+	require.Equal(t, 10, session.Compaction.TargetMessageCount)
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.succeeded")
+}
+
+func TestService_MaybeRefreshMemory_ReconcilesCoveredSummaryWithoutTriggeringEstimate(t *testing.T) {
+	store := summaryTestStore(summaryTestHistory(10))
+	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	session.Compaction = storage.SessionCompaction{
+		RequestedAt:        time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC),
+		StartedAt:          time.Date(2026, 4, 3, 9, 1, 0, 0, time.UTC),
+		Status:             storage.CompactionStatusRunning,
+		TargetMessageCount: 10,
+		TargetOffset:       2,
+	}
+	require.NoError(t, store.Save(context.Background(), session))
+
+	client := &mocks.ModelClientStub{}
+	service := summaryTestService(summaryTestConfig(true), client, store)
+	mem := &Memory{Summary: &SummaryState{
+		SessionID:          storage.DefaultSessionID,
+		SourceEndOffset:    99,
+		SourceMessageCount: 99,
+		SessionSummary:     "covered",
+	}}
+	traceSession := &mocks.TraceSessionStub{}
+
+	err = service.MaybeRefreshMemory(context.Background(), mem, RefreshInput{
+		Request:      models.Request{Instructions: "small"},
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+	require.NoError(t, err)
+	require.Zero(t, client.CallCount)
+
+	session, ok, err = store.Get(context.Background(), storage.DefaultSessionID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, storage.CompactionStatusSucceeded, session.Compaction.Status)
+	require.Equal(t, 2, session.Compaction.TargetOffset)
+	require.Equal(t, 10, session.Compaction.TargetMessageCount)
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.succeeded")
+}
+
+func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenCoveredSummarySessionLoadFails(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{
+		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
+			return 10, nil
+		},
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{}, false, errors.New("get covered session failed")
+		},
+	})
+
+	err := service.MaybeRefreshMemory(context.Background(), &Memory{Summary: &SummaryState{
+		SessionID:       storage.DefaultSessionID,
+		SourceEndOffset: 99,
+		SessionSummary:  "covered",
+	}}, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+
+	require.EqualError(t, err, "get covered session failed")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+}
+
+func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenCoveredSummarySessionIsMissing(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{
+		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
+			return 10, nil
+		},
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{}, false, nil
+		},
+	})
+
+	err := service.MaybeRefreshMemory(context.Background(), &Memory{Summary: &SummaryState{
+		SessionID:       storage.DefaultSessionID,
+		SourceEndOffset: 99,
+		SessionSummary:  "covered",
+	}}, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+
+	require.EqualError(t, err, "session not found")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
 }
 
 func TestService_MaybeRefreshMemory_RecordsFailureWhenModelCallFails(t *testing.T) {
@@ -235,7 +447,15 @@ func TestService_MaybeRefreshMemory_RecordsFailureWhenModelReturnsInvalidSummary
 
 func TestService_MaybeRefreshMemory_RecordsFailureWhenSavingSummaryFails(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
-	mem := &Memory{}
+	mem := &Memory{
+		Summary: &SummaryState{
+			SessionID:          storage.DefaultSessionID,
+			SourceEndOffset:    1,
+			SourceMessageCount: 9,
+			UpdatedAt:          time.Date(2026, 4, 2, 8, 0, 0, 0, time.UTC),
+			SessionSummary:     "Earlier work",
+		},
+	}
 	store := summaryTestStore(summaryTestHistory(10))
 	store.SaveSummaryFunc = func(context.Context, storage.SessionSummary) error {
 		return errors.New("save summary failed")
@@ -249,7 +469,98 @@ func TestService_MaybeRefreshMemory_RecordsFailureWhenSavingSummaryFails(t *test
 	})
 	require.EqualError(t, err, "save summary failed")
 
+	require.NotNil(t, mem.Summary)
+	require.Equal(t, "Earlier work", mem.Summary.SessionSummary)
+	require.Equal(t, 1, mem.Summary.SourceEndOffset)
 	requireSummaryEvent(t, traceSession.Events, "context.summary.failed")
+}
+
+func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenPendingTransitionFails(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	store := summaryTestStore(summaryTestHistory(10))
+	store.SaveFunc = func(context.Context, storage.Session) error {
+		return errors.New("save pending failed")
+	}
+
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
+	err := service.MaybeRefreshMemory(context.Background(), &Memory{}, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+	require.EqualError(t, err, "save pending failed")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+}
+
+func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenLifecycleSaveFails(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	store := summaryTestStore(summaryTestHistory(10))
+	saveCalls := 0
+	store.SaveFunc = func(_ context.Context, saved storage.Session) error {
+		saveCalls++
+		if saveCalls == 2 {
+			return errors.New("save running failed")
+		}
+		return nil
+	}
+
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
+	err := service.MaybeRefreshMemory(context.Background(), &Memory{}, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+	require.EqualError(t, err, "save running failed")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.pending")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+}
+
+func TestService_MaybeRefreshMemory_ReturnsWrappedErrorWhenMarkingCompactionFailedFails(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	store := summaryTestStore(summaryTestHistory(10))
+	saveCalls := 0
+	store.SaveFunc = func(_ context.Context, saved storage.Session) error {
+		saveCalls++
+		if saveCalls == 3 {
+			return errors.New("save failed state failed")
+		}
+		return nil
+	}
+
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{Err: errors.New("summary failed")}, store)
+	err := service.MaybeRefreshMemory(context.Background(), &Memory{}, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+	require.EqualError(t, err, "mark compaction failed: save failed state failed")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+}
+
+func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenSucceededTransitionFails(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	store := summaryTestStore(summaryTestHistory(10))
+	saveCalls := 0
+	store.SaveFunc = func(_ context.Context, saved storage.Session) error {
+		saveCalls++
+		if saveCalls == 3 {
+			return errors.New("save succeeded failed")
+		}
+		return nil
+	}
+
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{
+		Responses: []*models.Response{{
+			OutputText: `{"session_summary":"Older work","current_task":"","discoveries":[],"open_questions":[],"next_actions":[]}`,
+		}},
+	}, store)
+	err := service.MaybeRefreshMemory(context.Background(), &Memory{}, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+	require.EqualError(t, err, "save succeeded failed")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
 }
 
 func TestService_MaybeRefreshMemory_SavesSummaryAndRecordsTrace(t *testing.T) {
@@ -308,8 +619,64 @@ func TestService_MaybeRefreshMemory_SavesSummaryAndRecordsTrace(t *testing.T) {
 
 	require.NotNil(t, mem.Summary)
 	require.Equal(t, saved.SessionSummary, mem.Summary.SessionSummary)
+	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, storage.CompactionStatusSucceeded, session.Compaction.Status)
+	require.Equal(t, 2, session.Compaction.TargetOffset)
+	require.Equal(t, 10, session.Compaction.TargetMessageCount)
+	require.Empty(t, session.Compaction.LastError)
 	requireSummaryEvent(t, traceSession.Events, "context.summary.requested")
 	requireSummaryEvent(t, traceSession.Events, "context.summary.saved")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.pending")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.running")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.succeeded")
+}
+
+func TestService_MaybeRefreshMemory_MarksCompactionFailedAndRetries(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	store := summaryTestStore(summaryTestHistory(10))
+	client := &mocks.ModelClientStub{Err: errors.New("summary failed")}
+	service := summaryTestService(summaryTestConfig(true), client, store)
+	mem := &Memory{}
+
+	err := service.MaybeRefreshMemory(context.Background(), mem, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+	require.EqualError(t, err, "summary failed")
+
+	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, storage.CompactionStatusFailed, session.Compaction.Status)
+	require.Equal(t, "summary failed", session.Compaction.LastError)
+	require.Equal(t, 2, session.Compaction.TargetOffset)
+	require.Equal(t, 10, session.Compaction.TargetMessageCount)
+
+	client.Err = nil
+	client.Responses = []*models.Response{{
+		OutputText: `{"session_summary":"Older work","current_task":"","discoveries":[],"open_questions":[],"next_actions":[]}`,
+	}}
+
+	err = service.MaybeRefreshMemory(context.Background(), mem, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: &mocks.TraceSessionStub{},
+	})
+	require.NoError(t, err)
+
+	session, ok, err = store.Get(context.Background(), storage.DefaultSessionID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, storage.CompactionStatusSucceeded, session.Compaction.Status)
+	require.Empty(t, session.Compaction.LastError)
+	require.False(t, session.Compaction.CompletedAt.IsZero())
+
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.pending")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.running")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
 }
 
 func TestService_MaybeRefreshMemory_FallsBackWhenClockReturnsZero(t *testing.T) {
@@ -330,6 +697,148 @@ func TestService_MaybeRefreshMemory_FallsBackWhenClockReturnsZero(t *testing.T) 
 
 	require.NotNil(t, mem.Summary)
 	require.False(t, mem.Summary.UpdatedAt.IsZero())
+}
+
+func TestService_TransitionCompactionPending(t *testing.T) {
+	plan := refreshPlan{
+		RequestedAt:        time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC),
+		TargetMessageCount: 10,
+		TargetOffset:       2,
+	}
+
+	t.Run("nil session", func(t *testing.T) {
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{})
+		err := service.transitionCompactionPending(context.Background(), nil, plan, &mocks.TraceSessionStub{})
+		require.EqualError(t, err, "session is required")
+	})
+
+	t.Run("save error", func(t *testing.T) {
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{
+			SaveFunc: func(context.Context, storage.Session) error {
+				return errors.New("save failed")
+			},
+		})
+		err := service.transitionCompactionPending(context.Background(), &storage.Session{ID: storage.DefaultSessionID}, plan, &mocks.TraceSessionStub{})
+		require.EqualError(t, err, "save failed")
+	})
+}
+
+func TestService_TransitionCompactionRunning(t *testing.T) {
+	plan := refreshPlan{
+		RequestedAt:        time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC),
+		TargetMessageCount: 10,
+		TargetOffset:       2,
+	}
+
+	t.Run("nil session", func(t *testing.T) {
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{})
+		err := service.transitionCompactionRunning(context.Background(), nil, plan, &mocks.TraceSessionStub{})
+		require.EqualError(t, err, "session is required")
+	})
+}
+
+func TestService_TransitionCompactionSucceeded(t *testing.T) {
+	plan := refreshPlan{
+		RequestedAt:        time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC),
+		TargetMessageCount: 10,
+		TargetOffset:       2,
+	}
+
+	t.Run("nil session", func(t *testing.T) {
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{})
+		err := service.transitionCompactionSucceeded(context.Background(), nil, plan, &mocks.TraceSessionStub{})
+		require.EqualError(t, err, "session is required")
+	})
+
+	t.Run("save error", func(t *testing.T) {
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{
+			SaveFunc: func(context.Context, storage.Session) error {
+				return errors.New("save failed")
+			},
+		})
+		session := &storage.Session{
+			ID: storage.DefaultSessionID,
+			Compaction: storage.SessionCompaction{
+				LastError: "old",
+				FailedAt:  time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC),
+			},
+		}
+		err := service.transitionCompactionSucceeded(context.Background(), session, plan, &mocks.TraceSessionStub{})
+		require.EqualError(t, err, "save failed")
+	})
+}
+
+func TestService_ReconcileCompactionSucceeded(t *testing.T) {
+	plan := refreshPlan{
+		RequestedAt:        time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC),
+		TargetMessageCount: 10,
+		TargetOffset:       2,
+	}
+
+	t.Run("nil session", func(t *testing.T) {
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{})
+		err := service.reconcileCompactionSucceeded(context.Background(), nil, plan, &mocks.TraceSessionStub{})
+		require.EqualError(t, err, "session is required")
+	})
+
+	t.Run("already reconciled", func(t *testing.T) {
+		traceSession := &mocks.TraceSessionStub{}
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{})
+		session := &storage.Session{
+			ID: storage.DefaultSessionID,
+			Compaction: storage.SessionCompaction{
+				Status:             storage.CompactionStatusSucceeded,
+				TargetMessageCount: 10,
+				TargetOffset:       2,
+			},
+		}
+		require.NoError(t, service.reconcileCompactionSucceeded(context.Background(), session, plan, traceSession))
+		require.Empty(t, traceSession.Events)
+	})
+
+	t.Run("save error records failure", func(t *testing.T) {
+		traceSession := &mocks.TraceSessionStub{}
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{
+			SaveFunc: func(context.Context, storage.Session) error {
+				return errors.New("save failed")
+			},
+		})
+		session := &storage.Session{
+			ID: storage.DefaultSessionID,
+			Compaction: storage.SessionCompaction{
+				RequestedAt: time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC),
+				StartedAt:   time.Date(2026, 4, 3, 9, 1, 0, 0, time.UTC),
+			},
+		}
+		err := service.reconcileCompactionSucceeded(context.Background(), session, plan, traceSession)
+		require.EqualError(t, err, "save failed")
+		requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+	})
+}
+
+func TestService_TransitionCompactionFailed(t *testing.T) {
+	plan := refreshPlan{
+		RequestedAt:        time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC),
+		TargetMessageCount: 10,
+		TargetOffset:       2,
+	}
+
+	t.Run("nil session", func(t *testing.T) {
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{})
+		err := service.transitionCompactionFailed(context.Background(), nil, plan, errors.New("summary failed"), &mocks.TraceSessionStub{})
+		require.EqualError(t, err, "session is required")
+	})
+
+	t.Run("save error", func(t *testing.T) {
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{
+			SaveFunc: func(context.Context, storage.Session) error {
+				return errors.New("save failed")
+			},
+		})
+		session := &storage.Session{ID: storage.DefaultSessionID}
+		err := service.transitionCompactionFailed(context.Background(), session, plan, errors.New(" summary failed "), &mocks.TraceSessionStub{})
+		require.EqualError(t, err, "save failed")
+	})
 }
 
 func TestMemory_RecordSummaryApplied_ReturnsWhenUnavailable(t *testing.T) {
@@ -486,7 +995,7 @@ func summaryTriggerRequest() models.Request {
 
 func summaryTestHistory(count int) []handmsg.Message {
 	history := make([]handmsg.Message, 0, count)
-	for i := 0; i < count; i++ {
+	for range count {
 		history = append(history, handmsg.Message{
 			Role:      handmsg.RoleUser,
 			Content:   "history",
@@ -502,7 +1011,15 @@ func summaryTestService(cfg *config.Config, client models.Client, store SummaryS
 }
 
 func summaryTestStore(history []handmsg.Message) *storagemock.SessionStore {
+	session := storage.Session{ID: storage.DefaultSessionID}
 	return &storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return session, true, nil
+		},
+		SaveFunc: func(_ context.Context, saved storage.Session) error {
+			session = saved
+			return nil
+		},
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return len(history), nil
 		},
