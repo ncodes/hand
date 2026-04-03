@@ -12,6 +12,11 @@ type Memory struct {
 	Summary *SummaryState
 }
 
+type Recall struct {
+	PrefixMessages []handmsg.Message
+	SessionHistory []handmsg.Message
+}
+
 func (m *Memory) SummaryToStorage() storage.SessionSummary {
 	if m == nil || m.Summary == nil {
 		return storage.SessionSummary{}
@@ -59,4 +64,21 @@ func (m *Memory) RenderSummaryMessage() (handmsg.Message, bool) {
 		Role:    handmsg.RoleDeveloper,
 		Content: strings.Join(sections, "\n\n"),
 	}, true
+}
+
+func (m *Memory) Recall(sessionHistory []handmsg.Message) Recall {
+	start := 0
+	if m != nil && m.Summary != nil {
+		start = min(max(m.Summary.SourceEndOffset, 0), len(sessionHistory))
+	}
+
+	prefixMessages := make([]handmsg.Message, 0, 1)
+	if summaryMessage, ok := m.RenderSummaryMessage(); ok {
+		prefixMessages = append(prefixMessages, summaryMessage)
+	}
+
+	return Recall{
+		PrefixMessages: prefixMessages,
+		SessionHistory: sessionHistory[start:],
+	}
 }

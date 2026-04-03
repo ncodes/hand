@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/agent/memory"
 	handmsg "github.com/wandxy/hand/internal/messages"
 )
 
@@ -59,70 +58,22 @@ func TestBuilder_BuildReturnsOnlySessionHistoryWhenEmittedMessagesEmpty(t *testi
 	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "hello"}}, messages)
 }
 
-func TestBuilder_BuildIgnoresNilOrEmptySummary(t *testing.T) {
+func TestBuilder_BuildIncludesPrefixMessages(t *testing.T) {
 	builder := New()
-
-	withNil := builder.Build(Input{
-		SessionHistory:  []handmsg.Message{{Role: handmsg.RoleUser, Content: "history"}},
-		EmittedMessages: []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "emitted"}},
-	})
-	withEmpty := builder.Build(Input{
-		SessionHistory:  []handmsg.Message{{Role: handmsg.RoleUser, Content: "history"}},
-		EmittedMessages: []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "emitted"}},
-		Memory:          &memory.Memory{Summary: &memory.SummaryState{}},
-	})
-
-	require.Equal(t, withNil, withEmpty)
-}
-
-func TestBuilder_BuildUsesPopulatedSummary(t *testing.T) {
-	builder := New()
-
-	withState := builder.Build(Input{
-		SessionHistory: []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "history-1"},
-			{Role: handmsg.RoleAssistant, Content: "history-2"},
-			{Role: handmsg.RoleUser, Content: "history-3"},
-		},
-		EmittedMessages: []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "emitted"}},
-		Memory: &memory.Memory{
-			Summary: &memory.SummaryState{
-				SessionID:          "ses_summary",
-				SourceEndOffset:    2,
-				SourceMessageCount: 3,
-				SessionSummary:     "Older context",
-				CurrentTask:        "Fix tests",
-				Discoveries:        []string{"one"},
-				OpenQuestions:      []string{"two"},
-				NextActions:        []string{"three"},
-			},
-		},
-	})
-
-	require.Len(t, withState, 3)
-	require.Equal(t, handmsg.RoleDeveloper, withState[0].Role)
-	require.Contains(t, withState[0].Content, "Session Summary:\nOlder context")
-	require.Contains(t, withState[0].Content, "Current Task:\nFix tests")
-	require.Contains(t, withState[0].Content, "Discoveries:\n- one")
-	require.Contains(t, withState[0].Content, "Open Questions:\n- two")
-	require.Contains(t, withState[0].Content, "Next Actions:\n- three")
-	require.Equal(t, "history-3", withState[1].Content)
-	require.Equal(t, "emitted", withState[2].Content)
-}
-
-func TestBuilder_BuildClampsSummaryOffsetToSessionHistoryLength(t *testing.T) {
-	builder := New()
-
 	messages := builder.Build(Input{
-		SessionHistory: []handmsg.Message{{Role: handmsg.RoleUser, Content: "history"}},
-		Memory: &memory.Memory{Summary: &memory.SummaryState{
-			SessionID:          "ses_summary",
-			SourceEndOffset:    5,
-			SourceMessageCount: 1,
-			SessionSummary:     "Older context",
-		}},
+		PrefixMessages:  []handmsg.Message{{Role: handmsg.RoleDeveloper, Content: "summary"}},
+		SessionHistory:  []handmsg.Message{{Role: handmsg.RoleUser, Content: "history"}},
+		EmittedMessages: []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "emitted"}},
 	})
 
-	require.Len(t, messages, 1)
-	require.Equal(t, handmsg.RoleDeveloper, messages[0].Role)
+	require.Equal(t, []handmsg.Message{
+		{Role: handmsg.RoleDeveloper, Content: "summary"},
+		{Role: handmsg.RoleUser, Content: "history"},
+		{Role: handmsg.RoleAssistant, Content: "emitted"},
+	}, messages)
+}
+
+func TestBuilder_BuildReturnsNilWhenAllInputsEmpty(t *testing.T) {
+	builder := New()
+	require.Nil(t, builder.Build(Input{}))
 }

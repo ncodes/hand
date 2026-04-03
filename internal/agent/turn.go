@@ -29,6 +29,8 @@ type Turn struct {
 	modelClient models.Client
 	// sessionManager resolves sessions and persists turn messages.
 	sessionManager *sessionstore.Manager
+	// memoryService loads and refreshes persisted memory state for the turn.
+	memoryService *agentmemory.Service
 	// invokeToolFn performs tool execution for requested tool calls.
 	invokeToolFn func(context.Context, executionEnvironment, models.ToolCall) handmsg.Message
 	// runtimeEnv supplies tools, instructions, tracing, and iteration budget.
@@ -90,6 +92,10 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 		return errors.New("session manager is required")
 	}
 
+	if t.memoryService == nil {
+		t.memoryService = agentmemory.NewService(t.cfg, t.modelClient, t.sessionManager)
+	}
+
 	session, err := t.sessionManager.Resolve(ctx, opts.SessionID)
 	if err != nil {
 		return err
@@ -100,7 +106,7 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 		return err
 	}
 
-	summary, _, err := t.sessionManager.GetSummary(ctx, session.ID)
+	memory, err := t.memoryService.Load(ctx, session.ID)
 	if err != nil {
 		return err
 	}
@@ -109,7 +115,7 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 	t.instructions = t.runtimeEnv.Instructions()
 	t.sessionHistory = messages
 	t.emittedMessages = nil
-	t.memory = &agentmemory.Memory{Summary: agentmemory.SummaryFromStorage(summary)}
+	t.memory = memory
 	t.sessionID = session.ID
 	t.lastPromptTokens = session.LastPromptTokens
 	t.summaryRefreshAttempted = false
@@ -172,14 +178,11 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 		if !t.summaryRefreshAttempted {
 			t.summaryRefreshAttempted = true
-			_ = t.memory.MaybeRefreshSummary(ctx, agentmemory.SummaryRefreshInput{
-				Config:           t.cfg,
+			_ = t.memoryService.MaybeRefreshMemory(ctx, t.memory, agentmemory.RefreshInput{
 				LastPromptTokens: t.lastPromptTokens,
-				ModelClient:      t.modelClient,
 				Request:          request,
 				SessionHistory:   t.sessionHistory,
 				SessionID:        t.sessionID,
-				SummaryStore:     t.sessionManager,
 				TraceSession:     traceSession,
 			})
 		}
@@ -388,10 +391,12 @@ func (t *Turn) Context() []handmsg.Message {
 		builder = ctxbuilder.New()
 	}
 
+	recall := t.memory.Recall(t.sessionHistory)
+
 	return builder.Build(ctxbuilder.Input{
-		SessionHistory:  t.sessionHistory,
+		PrefixMessages:  recall.PrefixMessages,
+		SessionHistory:  recall.SessionHistory,
 		EmittedMessages: t.emittedMessages,
-		Memory:          t.memory,
 	})
 }
 

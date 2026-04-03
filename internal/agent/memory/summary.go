@@ -32,22 +32,6 @@ type SummaryState struct {
 	NextActions        []string
 }
 
-type SummaryStore interface {
-	SaveSummary(context.Context, storage.SessionSummary) error
-}
-
-type SummaryRefreshInput struct {
-	Config           *config.Config
-	LastPromptTokens int
-	ModelClient      models.Client
-	Now              func() time.Time
-	Request          models.Request
-	SessionHistory   []handmsg.Message
-	SessionID        string
-	SummaryStore     SummaryStore
-	TraceSession     trace.Session
-}
-
 type summaryPayload struct {
 	SessionSummary string   `json:"session_summary"`
 	CurrentTask    string   `json:"current_task"`
@@ -75,12 +59,24 @@ func SummaryFromStorage(summary storage.SessionSummary) *SummaryState {
 	}
 }
 
-func (m *Memory) MaybeRefreshSummary(ctx context.Context, input SummaryRefreshInput) error {
-	if m == nil || input.TraceSession == nil {
+func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input RefreshInput) error {
+	if memory == nil || input.TraceSession == nil {
 		return nil
 	}
 
-	if !summaryCompactionEnabled(input.Config) {
+	if s == nil {
+		return errors.New("memory service is required")
+	}
+
+	if s.modelClient == nil {
+		return errors.New("model client is required")
+	}
+
+	if s.summaryStore == nil {
+		return errors.New("summary store is required")
+	}
+
+	if !s.compactionOn {
 		return nil
 	}
 
@@ -88,19 +84,24 @@ func (m *Memory) MaybeRefreshSummary(ctx context.Context, input SummaryRefreshIn
 		return nil
 	}
 
-	estimate := summaryCompactionEvaluator(input.Config).Evaluate(input.Request, input.LastPromptTokens)
+	estimate := s.evaluator.Evaluate(input.Request, input.LastPromptTokens)
 	if !estimate.Triggered() {
 		return nil
 	}
 
 	sourceEndOffset := len(input.SessionHistory) - RecentSessionTail
-	if m.Summary != nil && m.Summary.SourceEndOffset >= sourceEndOffset {
+	if memory.Summary != nil && memory.Summary.SourceEndOffset >= sourceEndOffset {
 		return nil
 	}
 
 	requestedAt := time.Now().UTC()
-	if input.Now != nil {
-		requestedAt = input.Now().UTC()
+	if s.now != nil {
+		requestedAt = s.now()
+		if requestedAt.IsZero() {
+			requestedAt = time.Now().UTC()
+		} else {
+			requestedAt = requestedAt.UTC()
+		}
 	}
 
 	payload := summaryTracePayload(input.SessionID, sourceEndOffset, len(input.SessionHistory), requestedAt)
@@ -109,14 +110,14 @@ func (m *Memory) MaybeRefreshSummary(ctx context.Context, input SummaryRefreshIn
 	summaryMessages := make([]handmsg.Message, 0, sourceEndOffset+1)
 
 	// Include the existing summary message if it exists.
-	if summaryMessage, ok := m.RenderSummaryMessage(); ok {
+	if summaryMessage, ok := memory.RenderSummaryMessage(); ok {
 		summaryMessages = append(summaryMessages, summaryMessage)
 	}
 
 	// Skip messages already covered by the existing summary.
 	startOffset := 0
-	if m.Summary != nil && m.Summary.SourceEndOffset > startOffset {
-		startOffset = m.Summary.SourceEndOffset
+	if memory.Summary != nil && memory.Summary.SourceEndOffset > startOffset {
+		startOffset = memory.Summary.SourceEndOffset
 	}
 
 	summaryMessages = append(
@@ -124,13 +125,13 @@ func (m *Memory) MaybeRefreshSummary(ctx context.Context, input SummaryRefreshIn
 		handmsg.CloneMessages(input.SessionHistory[startOffset:sourceEndOffset])...,
 	)
 
-	resp, err := input.ModelClient.Chat(ctx, models.Request{
-		Model:         input.Config.Model,
-		APIMode:       input.Config.ModelAPIMode,
+	resp, err := s.modelClient.Chat(ctx, models.Request{
+		Model:         s.model,
+		APIMode:       s.apiMode,
 		Instructions:  instruct.BuildSessionSummary().String(),
 		Messages:      summaryMessages,
 		Tools:         nil,
-		DebugRequests: input.Config.DebugRequests,
+		DebugRequests: s.debugRequests,
 	})
 	if err != nil {
 		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
@@ -165,18 +166,18 @@ func (m *Memory) MaybeRefreshSummary(ctx context.Context, input SummaryRefreshIn
 		return err
 	}
 
-	m.Summary = summary
-	if err := input.SummaryStore.SaveSummary(ctx, m.SummaryToStorage()); err != nil {
+	memory.Summary = summary
+	if err := s.summaryStore.SaveSummary(ctx, memory.SummaryToStorage()); err != nil {
 		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
 		input.TraceSession.Record("context.summary.failed", payload)
 		return err
 	}
 
 	payload = summaryTracePayload(
-		m.Summary.SessionID,
-		m.Summary.SourceEndOffset,
-		m.Summary.SourceMessageCount,
-		m.Summary.UpdatedAt,
+		memory.Summary.SessionID,
+		memory.Summary.SourceEndOffset,
+		memory.Summary.SourceMessageCount,
+		memory.Summary.UpdatedAt,
 	)
 	input.TraceSession.Record("context.summary.saved", payload)
 	return nil
@@ -202,7 +203,13 @@ func (m *Memory) RecordSummaryApplied(traceSession trace.Session) {
 	)
 }
 
-func parseSummary(sessionID string, sourceEndOffset, sourceMessageCount int, raw string, updatedAt time.Time) (*SummaryState, error) {
+func parseSummary(
+	sessionID string,
+	sourceEndOffset,
+	sourceMessageCount int,
+	raw string,
+	updatedAt time.Time,
+) (*SummaryState, error) {
 	raw = strings.TrimSpace(stripMarkdownFence(raw))
 	if raw == "" {
 		return nil, errors.New("summary response is empty")
@@ -291,5 +298,9 @@ func summaryCompactionEvaluator(cfg *config.Config) *compaction.Evaluator {
 		return compaction.NewEvaluator(0, 0, 0)
 	}
 
-	return compaction.NewEvaluator(cfg.ModelContextLength, cfg.CompactionTriggerPercent, cfg.CompactionWarnPercent)
+	return compaction.NewEvaluator(
+		cfg.ModelContextLength,
+		cfg.CompactionTriggerPercent,
+		cfg.CompactionWarnPercent,
+	)
 }
