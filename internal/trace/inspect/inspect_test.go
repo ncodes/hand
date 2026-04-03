@@ -366,7 +366,7 @@ func Test_App_Handler_RequiresBasicAuthWhenConfigured(t *testing.T) {
 	require.Contains(t, authorizedRec.Body.String(), "\"sessions\"")
 }
 
-func Test_Store_ValidateAndResolveSessionPath(t *testing.T) {
+func Test_Store_ValidateAndResolvePath(t *testing.T) {
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "trace.jsonl")
 	require.NoError(t, os.WriteFile(filePath, []byte("{}\n"), 0o600))

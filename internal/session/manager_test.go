@@ -13,6 +13,7 @@ import (
 	"github.com/wandxy/hand/internal/storage"
 	common "github.com/wandxy/hand/internal/storage/common"
 	storagememory "github.com/wandxy/hand/internal/storage/memory"
+	storagemock "github.com/wandxy/hand/internal/storage/mock"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
@@ -21,149 +22,11 @@ var (
 	testMissingSession = nanoid.MustFromSeed(storage.SessionIDPrefix, "missing", "SessionTestSeedValue123")
 )
 
-type managerStoreStub struct {
-	getFunc                   func(context.Context, string) (storage.Session, bool, error)
-	listFunc                  func(context.Context) ([]storage.Session, error)
-	saveFunc                  func(context.Context, storage.Session) error
-	deleteFunc                func(context.Context, string) error
-	setCurrentFunc            func(context.Context, string) error
-	currentFunc               func(context.Context) (string, bool, error)
-	appendMessagesFunc        func(context.Context, string, []handmsg.Message) error
-	getMessageFunc            func(context.Context, string, int, storage.MessageQueryOptions) (handmsg.Message, bool, error)
-	getMessagesFunc           func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
-	clearMessagesFunc         func(context.Context, string, storage.MessageQueryOptions) error
-	createArchiveFunc         func(context.Context, storage.ArchivedSession) error
-	getArchiveFunc            func(context.Context, string) (storage.ArchivedSession, bool, error)
-	ListArchivesFunc          func(context.Context, string) ([]storage.ArchivedSession, error)
-	deleteArchiveFunc         func(context.Context, string) error
-	deleteExpiredArchivesFunc func(context.Context, time.Time) error
-}
-
-func (s *managerStoreStub) Save(ctx context.Context, session storage.Session) error {
-	if s.saveFunc != nil {
-		return s.saveFunc(ctx, session)
-	}
-
-	return nil
-}
-
-func (s *managerStoreStub) Get(ctx context.Context, id string) (storage.Session, bool, error) {
-	if s.getFunc != nil {
-		return s.getFunc(ctx, id)
-	}
-
-	return storage.Session{}, false, nil
-}
-
-func (s *managerStoreStub) List(ctx context.Context) ([]storage.Session, error) {
-	if s.listFunc != nil {
-		return s.listFunc(ctx)
-	}
-
-	return nil, nil
-}
-
-func (s *managerStoreStub) Delete(ctx context.Context, id string) error {
-	if s.deleteFunc != nil {
-		return s.deleteFunc(ctx, id)
-	}
-
-	return nil
-}
-
-func (s *managerStoreStub) CreateArchive(ctx context.Context, archive storage.ArchivedSession) error {
-	if s.createArchiveFunc != nil {
-		return s.createArchiveFunc(ctx, archive)
-	}
-
-	return nil
-}
-
-func (s *managerStoreStub) GetArchive(ctx context.Context, id string) (storage.ArchivedSession, bool, error) {
-	if s.getArchiveFunc != nil {
-		return s.getArchiveFunc(ctx, id)
-	}
-
-	return storage.ArchivedSession{}, false, nil
-}
-
-func (s *managerStoreStub) ListArchives(ctx context.Context, sourceSessionID string) ([]storage.ArchivedSession, error) {
-	if s.ListArchivesFunc != nil {
-		return s.ListArchivesFunc(ctx, sourceSessionID)
-	}
-
-	return nil, nil
-}
-
-func (s *managerStoreStub) DeleteArchive(ctx context.Context, archiveID string) error {
-	if s.deleteArchiveFunc != nil {
-		return s.deleteArchiveFunc(ctx, archiveID)
-	}
-
-	return nil
-}
-
-func (s *managerStoreStub) DeleteExpiredArchives(ctx context.Context, now time.Time) error {
-	if s.deleteExpiredArchivesFunc != nil {
-		return s.deleteExpiredArchivesFunc(ctx, now)
-	}
-
-	return nil
-}
-
-func (s *managerStoreStub) SetCurrent(ctx context.Context, id string) error {
-	if s.setCurrentFunc != nil {
-		return s.setCurrentFunc(ctx, id)
-	}
-
-	return nil
-}
-
-func (s *managerStoreStub) Current(ctx context.Context) (string, bool, error) {
-	if s.currentFunc != nil {
-		return s.currentFunc(ctx)
-	}
-
-	return "", false, nil
-}
-
-func (s *managerStoreStub) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
-	if s.appendMessagesFunc != nil {
-		return s.appendMessagesFunc(ctx, id, messages)
-	}
-
-	return nil
-}
-
-func (s *managerStoreStub) GetMessage(ctx context.Context, id string, index int, opts storage.MessageQueryOptions) (handmsg.Message, bool, error) {
-	if s.getMessageFunc != nil {
-		return s.getMessageFunc(ctx, id, index, opts)
-	}
-
-	return handmsg.Message{}, false, nil
-}
-
-func (s *managerStoreStub) GetMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
-	if s.getMessagesFunc != nil {
-		return s.getMessagesFunc(ctx, id, opts)
-	}
-
-	return nil, nil
-}
-
-func (s *managerStoreStub) ClearMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) error {
-	if s.clearMessagesFunc != nil {
-		return s.clearMessagesFunc(ctx, id, opts)
-	}
-
-	return nil
-}
-
 func TestManager_ResolveChatSessionCreatesDefault(t *testing.T) {
 	manager, err := NewManager(storagememory.NewSessionStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
-	session, err := manager.ResolveSession(context.Background(), "")
+	session, err := manager.Resolve(context.Background(), "")
 
 	require.NoError(t, err)
 	require.Equal(t, storage.DefaultSessionID, session.ID)
@@ -255,7 +118,7 @@ func TestNewManager_ValidationAndNilManagerErrors(t *testing.T) {
 
 	var manager *Manager
 
-	_, err = manager.ResolveSession(context.Background(), "")
+	_, err = manager.Resolve(context.Background(), "")
 	require.EqualError(t, err, "session manager is required")
 	require.EqualError(t, manager.runMaintenance(context.Background()), "session manager is required")
 	require.EqualError(t, manager.Start(context.Background()), "session manager is required")
@@ -296,7 +159,7 @@ func TestManager_CreateSaveListAndResolveNonDefaultSession(t *testing.T) {
 		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)},
 	}))
 
-	resolved, err := manager.ResolveSession(context.Background(), testSessionA)
+	resolved, err := manager.Resolve(context.Background(), testSessionA)
 	require.NoError(t, err)
 	require.Equal(t, testSessionA, resolved.ID)
 	messages, err := manager.GetMessages(context.Background(), testSessionA, storage.MessageQueryOptions{})
@@ -333,10 +196,10 @@ func TestManager_CreateUseAndResolveErrors(t *testing.T) {
 	_, err = manager.CreateSession(context.Background(), testSessionA)
 	require.EqualError(t, err, "session already exists")
 
-	_, err = manager.ResolveSession(context.Background(), testMissingSession)
+	_, err = manager.Resolve(context.Background(), testMissingSession)
 	require.EqualError(t, err, "session not found")
 
-	_, err = manager.ResolveSession(context.Background(), "project-a")
+	_, err = manager.Resolve(context.Background(), "project-a")
 	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
 
 	require.EqualError(t, manager.UseSession(context.Background(), "project-a"), "session id must be a valid ses_ nanoid")
@@ -416,7 +279,7 @@ func TestManager_ResolveDefaultSessionKeepsActiveMessagesBeforeExpiry(t *testing
 	require.NoError(t, err)
 	manager.now = func() time.Time { return now.Add(30 * time.Minute) }
 
-	session, err := manager.ResolveSession(context.Background(), "")
+	session, err := manager.Resolve(context.Background(), "")
 	require.NoError(t, err)
 	require.Equal(t, storage.DefaultSessionID, session.ID)
 	messages, err := manager.GetMessages(context.Background(), storage.DefaultSessionID, storage.MessageQueryOptions{})
@@ -442,7 +305,7 @@ func TestManager_ResolveChatSessionDoesNotRunMaintenance(t *testing.T) {
 	require.NoError(t, err)
 	manager.now = func() time.Time { return expiredAt.Add(2 * time.Hour) }
 
-	session, err := manager.ResolveSession(context.Background(), "")
+	session, err := manager.Resolve(context.Background(), "")
 	require.NoError(t, err)
 	require.Equal(t, storage.DefaultSessionID, session.ID)
 
@@ -489,20 +352,20 @@ func TestManager_StartRunsMaintenance(t *testing.T) {
 
 func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 	t.Run("resolve non-default get error", func(t *testing.T) {
-		manager, err := NewManager(&managerStoreStub{
-			getFunc: func(context.Context, string) (storage.Session, bool, error) {
+		manager, err := NewManager(&storagemock.SessionStore{
+			GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 				return storage.Session{}, false, errors.New("get failed")
 			},
 		}, time.Hour, 24*time.Hour)
 		require.NoError(t, err)
 
-		_, err = manager.ResolveSession(context.Background(), testSessionA)
+		_, err = manager.Resolve(context.Background(), testSessionA)
 		require.EqualError(t, err, "get failed")
 	})
 
 	t.Run("run maintenance delete error", func(t *testing.T) {
-		manager, err := NewManager(&managerStoreStub{
-			deleteExpiredArchivesFunc: func(context.Context, time.Time) error {
+		manager, err := NewManager(&storagemock.SessionStore{
+			DeleteExpiredArchivesFunc: func(context.Context, time.Time) error {
 				return errors.New("delete failed")
 			},
 		}, time.Hour, 24*time.Hour)
@@ -514,8 +377,8 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 
 	t.Run("start worker defaults interval", func(t *testing.T) {
 		var deleteCalls atomic.Int32
-		manager, err := NewManager(&managerStoreStub{
-			deleteExpiredArchivesFunc: func(context.Context, time.Time) error {
+		manager, err := NewManager(&storagemock.SessionStore{
+			DeleteExpiredArchivesFunc: func(context.Context, time.Time) error {
 				deleteCalls.Add(1)
 				return nil
 			},
@@ -528,8 +391,8 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 
 	t.Run("start worker runs ticker maintenance", func(t *testing.T) {
 		var deleteCalls atomic.Int32
-		manager, err := NewManager(&managerStoreStub{
-			deleteExpiredArchivesFunc: func(context.Context, time.Time) error {
+		manager, err := NewManager(&storagemock.SessionStore{
+			DeleteExpiredArchivesFunc: func(context.Context, time.Time) error {
 				deleteCalls.Add(1)
 				return nil
 			},
@@ -546,8 +409,8 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 	})
 
 	t.Run("start worker returns maintenance error", func(t *testing.T) {
-		manager, err := NewManager(&managerStoreStub{
-			deleteExpiredArchivesFunc: func(context.Context, time.Time) error {
+		manager, err := NewManager(&storagemock.SessionStore{
+			DeleteExpiredArchivesFunc: func(context.Context, time.Time) error {
 				return errors.New("delete failed")
 			},
 		}, time.Hour, 24*time.Hour)
@@ -558,8 +421,8 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 	})
 
 	t.Run("start worker returns default resolution error", func(t *testing.T) {
-		manager, err := NewManager(&managerStoreStub{
-			getFunc: func(context.Context, string) (storage.Session, bool, error) {
+		manager, err := NewManager(&storagemock.SessionStore{
+			GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 				return storage.Session{}, false, errors.New("get failed")
 			},
 		}, time.Hour, 24*time.Hour)
@@ -571,8 +434,8 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 
 	t.Run("start worker uses background when context is canceled", func(t *testing.T) {
 		var captured context.Context
-		manager, err := NewManager(&managerStoreStub{
-			getFunc: func(ctx context.Context, _ string) (storage.Session, bool, error) {
+		manager, err := NewManager(&storagemock.SessionStore{
+			GetFunc: func(ctx context.Context, _ string) (storage.Session, bool, error) {
 				captured = ctx
 				return storage.Session{}, false, nil
 			},
@@ -588,8 +451,8 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 	})
 
 	t.Run("create session get error", func(t *testing.T) {
-		manager, err := NewManager(&managerStoreStub{
-			getFunc: func(context.Context, string) (storage.Session, bool, error) {
+		manager, err := NewManager(&storagemock.SessionStore{
+			GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 				return storage.Session{}, false, errors.New("get failed")
 			},
 		}, time.Hour, 24*time.Hour)
@@ -608,7 +471,7 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 			return "", errors.New("generate failed")
 		}
 
-		manager, err := NewManager(&managerStoreStub{}, time.Hour, 24*time.Hour)
+		manager, err := NewManager(&storagemock.SessionStore{}, time.Hour, 24*time.Hour)
 		require.NoError(t, err)
 
 		_, err = manager.CreateSession(context.Background(), "")
@@ -616,8 +479,8 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 	})
 
 	t.Run("create session save error", func(t *testing.T) {
-		manager, err := NewManager(&managerStoreStub{
-			saveFunc: func(context.Context, storage.Session) error {
+		manager, err := NewManager(&storagemock.SessionStore{
+			SaveFunc: func(context.Context, storage.Session) error {
 				return errors.New("save failed")
 			},
 		}, time.Hour, 24*time.Hour)
@@ -628,8 +491,8 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 	})
 
 	t.Run("list sessions resolve default error", func(t *testing.T) {
-		manager, err := NewManager(&managerStoreStub{
-			getFunc: func(context.Context, string) (storage.Session, bool, error) {
+		manager, err := NewManager(&storagemock.SessionStore{
+			GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 				return storage.Session{}, false, errors.New("get failed")
 			},
 		}, time.Hour, 24*time.Hour)
@@ -640,8 +503,8 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 	})
 
 	t.Run("use default resolve error", func(t *testing.T) {
-		manager, err := NewManager(&managerStoreStub{
-			getFunc: func(context.Context, string) (storage.Session, bool, error) {
+		manager, err := NewManager(&storagemock.SessionStore{
+			GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 				return storage.Session{}, false, errors.New("get failed")
 			},
 		}, time.Hour, 24*time.Hour)
@@ -659,8 +522,8 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 		require.EqualError(t, manager.DeleteSession(context.Background(), storage.DefaultSessionID), "default session cannot be deleted")
 		require.EqualError(t, manager.DeleteSession(context.Background(), testSessionA), "session not found")
 
-		manager, err = NewManager(&managerStoreStub{
-			deleteFunc: func(context.Context, string) error {
+		manager, err = NewManager(&storagemock.SessionStore{
+			DeleteFunc: func(context.Context, string) error {
 				return errors.New("delete failed")
 			},
 		}, time.Hour, 24*time.Hour)
@@ -672,8 +535,8 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 	})
 
 	t.Run("current session error", func(t *testing.T) {
-		manager, err := NewManager(&managerStoreStub{
-			currentFunc: func(context.Context) (string, bool, error) {
+		manager, err := NewManager(&storagemock.SessionStore{
+			CurrentFunc: func(context.Context) (string, bool, error) {
 				return "", false, errors.New("current failed")
 			},
 		}, time.Hour, 24*time.Hour)
@@ -684,8 +547,8 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 	})
 
 	t.Run("resolve default save error", func(t *testing.T) {
-		manager, err := NewManager(&managerStoreStub{
-			saveFunc: func(context.Context, storage.Session) error {
+		manager, err := NewManager(&storagemock.SessionStore{
+			SaveFunc: func(context.Context, storage.Session) error {
 				return errors.New("save failed")
 			},
 		}, time.Hour, 24*time.Hour)
@@ -699,8 +562,8 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 		t.Run("get error", func(t *testing.T) {
 			now := time.Now().UTC()
 
-			manager, err := NewManager(&managerStoreStub{
-				getFunc: func(context.Context, string) (storage.Session, bool, error) {
+			manager, err := NewManager(&storagemock.SessionStore{
+				GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 					return storage.Session{}, false, errors.New("get failed")
 				},
 			}, time.Hour, 24*time.Hour)
@@ -711,7 +574,7 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 		t.Run("session not found - no-op", func(t *testing.T) {
 			now := time.Now().UTC()
 
-			manager, err := NewManager(&managerStoreStub{}, time.Hour, 24*time.Hour)
+			manager, err := NewManager(&storagemock.SessionStore{}, time.Hour, 24*time.Hour)
 			require.NoError(t, err)
 			require.NoError(t, manager.clearIdleDefaultSession(context.Background(), now))
 		})
@@ -719,11 +582,11 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 		t.Run("get messages error", func(t *testing.T) {
 			now := time.Now().UTC()
 
-			manager, err := NewManager(&managerStoreStub{
-				getFunc: func(context.Context, string) (storage.Session, bool, error) {
+			manager, err := NewManager(&storagemock.SessionStore{
+				GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 					return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: now.Add(-2 * time.Hour)}, true, nil
 				},
-				getMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+				GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 					return nil, errors.New("messages failed")
 				},
 			}, time.Hour, 24*time.Hour)
@@ -734,14 +597,14 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 		t.Run("create archive error", func(t *testing.T) {
 			now := time.Now().UTC()
 
-			manager, err := NewManager(&managerStoreStub{
-				getFunc: func(context.Context, string) (storage.Session, bool, error) {
+			manager, err := NewManager(&storagemock.SessionStore{
+				GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 					return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: now.Add(-2 * time.Hour)}, true, nil
 				},
-				getMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+				GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 					return []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now.Add(-3 * time.Hour)}}, nil
 				},
-				createArchiveFunc: func(context.Context, storage.ArchivedSession) error {
+				CreateArchiveFunc: func(context.Context, storage.ArchivedSession) error {
 					return errors.New("archive failed")
 				},
 			}, time.Hour, 24*time.Hour)
@@ -752,14 +615,14 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 		t.Run("clear messages error", func(t *testing.T) {
 			now := time.Now().UTC()
 
-			manager, err := NewManager(&managerStoreStub{
-				getFunc: func(context.Context, string) (storage.Session, bool, error) {
+			manager, err := NewManager(&storagemock.SessionStore{
+				GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 					return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: now.Add(-2 * time.Hour)}, true, nil
 				},
-				getMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+				GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 					return []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now.Add(-3 * time.Hour)}}, nil
 				},
-				clearMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) error {
+				ClearMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) error {
 					return errors.New("clear failed")
 				},
 			}, time.Hour, 24*time.Hour)
@@ -770,14 +633,14 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 		t.Run("save error", func(t *testing.T) {
 			now := time.Now().UTC()
 
-			manager, err := NewManager(&managerStoreStub{
-				getFunc: func(context.Context, string) (storage.Session, bool, error) {
+			manager, err := NewManager(&storagemock.SessionStore{
+				GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 					return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: now.Add(-2 * time.Hour)}, true, nil
 				},
-				getMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+				GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 					return []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now.Add(-3 * time.Hour)}}, nil
 				},
-				saveFunc: func(context.Context, storage.Session) error {
+				SaveFunc: func(context.Context, storage.Session) error {
 					return errors.New("save failed")
 				},
 			}, time.Hour, 24*time.Hour)
@@ -790,11 +653,11 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 func TestManager_UpdateLastPromptTokens(t *testing.T) {
 	var saved storage.Session
 
-	manager, err := NewManager(&managerStoreStub{
-		getFunc: func(context.Context, string) (storage.Session, bool, error) {
+	manager, err := NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: testSessionA, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		saveFunc: func(_ context.Context, session storage.Session) error {
+		SaveFunc: func(_ context.Context, session storage.Session) error {
 			saved = session
 			return nil
 		},
@@ -809,11 +672,11 @@ func TestManager_UpdateLastPromptTokens(t *testing.T) {
 }
 
 func TestManager_UpdateLastPromptTokensReturnsSaveError(t *testing.T) {
-	manager, err := NewManager(&managerStoreStub{
-		getFunc: func(context.Context, string) (storage.Session, bool, error) {
+	manager, err := NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: testSessionA, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		saveFunc: func(context.Context, storage.Session) error {
+		SaveFunc: func(context.Context, storage.Session) error {
 			return errors.New("save failed")
 		},
 	}, time.Hour, 24*time.Hour)
@@ -821,6 +684,114 @@ func TestManager_UpdateLastPromptTokensReturnsSaveError(t *testing.T) {
 
 	err = manager.UpdateLastPromptTokens(context.Background(), testSessionA, 42)
 	require.EqualError(t, err, "save failed")
+}
+
+func TestManager_SummaryLifecycleMethods(t *testing.T) {
+	t.Run("nil manager", func(t *testing.T) {
+		var manager *Manager
+
+		require.EqualError(t, manager.SaveSummary(context.Background(), storage.SessionSummary{}), "session manager is required")
+
+		summary, ok, err := manager.GetSummary(context.Background(), testSessionA)
+		require.EqualError(t, err, "session manager is required")
+		require.False(t, ok)
+		require.Equal(t, storage.SessionSummary{}, summary)
+
+		require.EqualError(t, manager.DeleteSummary(context.Background(), testSessionA), "session manager is required")
+	})
+
+	t.Run("save summary forwards to store", func(t *testing.T) {
+		expected := storage.SessionSummary{
+			SessionID:      testSessionA,
+			SessionSummary: "summary",
+		}
+
+		var captured storage.SessionSummary
+		manager, err := NewManager(&storagemock.SessionStore{
+			SaveSummaryFunc: func(_ context.Context, summary storage.SessionSummary) error {
+				captured = summary
+				return nil
+			},
+		}, time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		require.NoError(t, manager.SaveSummary(context.Background(), expected))
+		require.Equal(t, expected, captured)
+	})
+
+	t.Run("save summary returns store error", func(t *testing.T) {
+		manager, err := NewManager(&storagemock.SessionStore{
+			SaveSummaryFunc: func(context.Context, storage.SessionSummary) error {
+				return errors.New("save summary failed")
+			},
+		}, time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		err = manager.SaveSummary(context.Background(), storage.SessionSummary{})
+		require.EqualError(t, err, "save summary failed")
+	})
+
+	t.Run("get summary trims session id and returns result", func(t *testing.T) {
+		expected := storage.SessionSummary{
+			SessionID:      testSessionA,
+			SessionSummary: "summary",
+		}
+
+		var capturedID string
+		manager, err := NewManager(&storagemock.SessionStore{
+			GetSummaryFunc: func(_ context.Context, sessionID string) (storage.SessionSummary, bool, error) {
+				capturedID = sessionID
+				return expected, true, nil
+			},
+		}, time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		summary, ok, err := manager.GetSummary(context.Background(), "  "+testSessionA+"  ")
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, expected, summary)
+		require.Equal(t, testSessionA, capturedID)
+	})
+
+	t.Run("get summary returns store error", func(t *testing.T) {
+		manager, err := NewManager(&storagemock.SessionStore{
+			GetSummaryFunc: func(context.Context, string) (storage.SessionSummary, bool, error) {
+				return storage.SessionSummary{}, false, errors.New("get summary failed")
+			},
+		}, time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		summary, ok, err := manager.GetSummary(context.Background(), testSessionA)
+		require.EqualError(t, err, "get summary failed")
+		require.False(t, ok)
+		require.Equal(t, storage.SessionSummary{}, summary)
+	})
+
+	t.Run("delete summary trims session id", func(t *testing.T) {
+		var capturedID string
+		manager, err := NewManager(&storagemock.SessionStore{
+			DeleteSummaryFunc: func(_ context.Context, sessionID string) error {
+				capturedID = sessionID
+				return nil
+			},
+		}, time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		require.NoError(t, manager.DeleteSummary(context.Background(), "  "+testSessionA+"  "))
+		require.Equal(t, testSessionA, capturedID)
+	})
+
+	t.Run("delete summary returns store error", func(t *testing.T) {
+		manager, err := NewManager(&storagemock.SessionStore{
+			DeleteSummaryFunc: func(context.Context, string) error {
+				return errors.New("delete summary failed")
+			},
+		}, time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		err = manager.DeleteSummary(context.Background(), testSessionA)
+		require.EqualError(t, err, "delete summary failed")
+	})
 }
 
 func TestManager_UpdateLastPromptTokens_Errors(t *testing.T) {
@@ -833,8 +804,8 @@ func TestManager_UpdateLastPromptTokens_Errors(t *testing.T) {
 	})
 
 	t.Run("get error", func(t *testing.T) {
-		manager, err := NewManager(&managerStoreStub{
-			getFunc: func(context.Context, string) (storage.Session, bool, error) {
+		manager, err := NewManager(&storagemock.SessionStore{
+			GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 				return storage.Session{}, false, errors.New("get failed")
 			},
 		}, time.Hour, 24*time.Hour)
@@ -845,7 +816,7 @@ func TestManager_UpdateLastPromptTokens_Errors(t *testing.T) {
 	})
 
 	t.Run("session not found", func(t *testing.T) {
-		manager, err := NewManager(&managerStoreStub{}, time.Hour, 24*time.Hour)
+		manager, err := NewManager(&storagemock.SessionStore{}, time.Hour, 24*time.Hour)
 		require.NoError(t, err)
 
 		err = manager.UpdateLastPromptTokens(context.Background(), testSessionA, 42)

@@ -25,19 +25,20 @@ const currentSessionStateKey = "current_session"
 type Session = base.Session
 type ArchivedSession = base.ArchivedSession
 type MessageQueryOptions = base.MessageQueryOptions
+type SessionSummary = base.SessionSummary
 
-type sqliteRecord struct {
+type sessionModel struct {
 	CreatedAt        time.Time
 	ID               string `gorm:"primaryKey"`
 	LastPromptTokens int
 	UpdatedAt        time.Time
 }
 
-func (sqliteRecord) TableName() string {
+func (sessionModel) TableName() string {
 	return "sessions"
 }
 
-type sqliteArchiveRecord struct {
+type archiveModel struct {
 	ID              string    `gorm:"primaryKey"`
 	SourceSessionID string    `gorm:"index;not null"`
 	ArchivedAt      time.Time `gorm:"index"`
@@ -45,22 +46,38 @@ type sqliteArchiveRecord struct {
 	CreatedAt       time.Time
 }
 
-func (sqliteArchiveRecord) TableName() string {
+func (archiveModel) TableName() string {
 	return "session_archives"
 }
 
-type sqliteStateRecord struct {
+type stateModel struct {
 	Key       string `gorm:"primaryKey"`
 	Value     string `gorm:"not null"`
 	UpdatedAt time.Time
 	CreatedAt time.Time
 }
 
-func (sqliteStateRecord) TableName() string {
+func (stateModel) TableName() string {
 	return "session_state"
 }
 
-type sqliteMessageRecord struct {
+type summaryModel struct {
+	SessionID          string `gorm:"primaryKey"`
+	SourceEndOffset    int
+	SourceMessageCount int
+	UpdatedAt          time.Time
+	SessionSummary     string `gorm:"type:text"`
+	CurrentTask        string `gorm:"type:text"`
+	Discoveries        string `gorm:"type:text"`
+	OpenQuestions      string `gorm:"type:text"`
+	NextActions        string `gorm:"type:text"`
+}
+
+func (summaryModel) TableName() string {
+	return "session_summaries"
+}
+
+type messageModel struct {
 	ID         uint `gorm:"primaryKey"`
 	SessionID  string
 	Sequence   int `gorm:"index;not null"`
@@ -73,11 +90,11 @@ type sqliteMessageRecord struct {
 	UpdatedAt  time.Time
 }
 
-func (sqliteMessageRecord) TableName() string {
+func (messageModel) TableName() string {
 	return "session_messages"
 }
 
-type sqliteArchivedMessageRecord struct {
+type archivedMessageModel struct {
 	ID         uint `gorm:"primaryKey"`
 	ArchiveID  string
 	Sequence   int `gorm:"index;not null"`
@@ -90,7 +107,7 @@ type sqliteArchivedMessageRecord struct {
 	UpdatedAt  time.Time
 }
 
-func (sqliteArchivedMessageRecord) TableName() string {
+func (archivedMessageModel) TableName() string {
 	return "archived_session_messages"
 }
 
@@ -118,11 +135,12 @@ func NewSessionStoreFromDB(db *gorm.DB) (*SessionStore, error) {
 	}
 
 	if err := db.AutoMigrate(
-		&sqliteRecord{},
-		&sqliteArchiveRecord{},
-		&sqliteStateRecord{},
-		&sqliteMessageRecord{},
-		&sqliteArchivedMessageRecord{},
+		&sessionModel{},
+		&archiveModel{},
+		&stateModel{},
+		&summaryModel{},
+		&messageModel{},
+		&archivedMessageModel{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate session db: %w", err)
 	}
@@ -160,7 +178,7 @@ func (s *SessionStore) Save(ctx context.Context, session Session) error {
 		return err
 	}
 
-	var existing sqliteRecord
+	var existing sessionModel
 	if err := s.db.WithContext(ctx).First(&existing, "id = ?", session.ID).Error; err == nil {
 		session.CreatedAt = existing.CreatedAt
 		session.UpdatedAt = time.Now().UTC()
@@ -180,7 +198,7 @@ func (s *SessionStore) Save(ctx context.Context, session Session) error {
 		session.UpdatedAt = session.UpdatedAt.UTC()
 	}
 
-	record := sqliteRecord{
+	record := sessionModel{
 		CreatedAt:        session.CreatedAt,
 		ID:               session.ID,
 		LastPromptTokens: session.LastPromptTokens,
@@ -210,7 +228,7 @@ func (s *SessionStore) Get(ctx context.Context, id string) (Session, bool, error
 		return Session{}, false, err
 	}
 
-	var record sqliteRecord
+	var record sessionModel
 	if err := s.db.WithContext(ctx).First(&record, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return Session{}, false, nil
@@ -239,7 +257,7 @@ func (s *SessionStore) List(ctx context.Context) ([]Session, error) {
 		return nil, errors.New("session store is required")
 	}
 
-	var records []sqliteRecord
+	var records []sessionModel
 	if err := s.db.WithContext(ctx).Order("updated_at desc").Order("id asc").Find(&records).Error; err != nil {
 		return nil, err
 	}
@@ -279,7 +297,7 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var session sqliteRecord
+		var session sessionModel
 		if err := tx.First(&session, "id = ?", id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("session not found")
@@ -288,7 +306,11 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 			return err
 		}
 
-		if err := tx.Where("session_id = ?", id).Delete(&sqliteMessageRecord{}).Error; err != nil {
+		if err := tx.Where("session_id = ?", id).Delete(&messageModel{}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Where("session_id = ?", id).Delete(&summaryModel{}).Error; err != nil {
 			return err
 		}
 
@@ -297,7 +319,7 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 		}
 
 		if err := tx.Where("key = ? AND value = ?", currentSessionStateKey, id).
-			Delete(&sqliteStateRecord{}).Error; err != nil {
+			Delete(&stateModel{}).Error; err != nil {
 			return err
 		}
 
@@ -320,7 +342,7 @@ func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages [
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var record sqliteRecord
+		var record sessionModel
 		if err := tx.First(&record, "id = ?", id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("session not found")
@@ -330,7 +352,7 @@ func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages [
 		}
 
 		var nextSequence int64
-		if err := tx.Model(&sqliteMessageRecord{}).Where("session_id = ?", id).
+		if err := tx.Model(&messageModel{}).Where("session_id = ?", id).
 			Count(&nextSequence).Error; err != nil {
 			return err
 		}
@@ -368,7 +390,7 @@ func (s *SessionStore) GetMessages(
 	}
 
 	if opts.Archived {
-		var records []sqliteArchivedMessageRecord
+		var records []archivedMessageModel
 		if err := s.db.WithContext(ctx).Where("archive_id = ?", id).Order("sequence asc").
 			Find(&records).Error; err != nil {
 			return nil, err
@@ -377,7 +399,7 @@ func (s *SessionStore) GetMessages(
 		return decodeArchivedMessages(records), nil
 	}
 
-	var records []sqliteMessageRecord
+	var records []messageModel
 	if err := s.db.WithContext(ctx).Where("session_id = ?", id).Order("sequence asc").
 		Find(&records).Error; err != nil {
 		return nil, err
@@ -408,7 +430,7 @@ func (s *SessionStore) GetMessage(
 	}
 
 	if opts.Archived {
-		var record sqliteArchivedMessageRecord
+		var record archivedMessageModel
 		if err := s.db.WithContext(ctx).Where("archive_id = ? AND sequence = ?", id, index).
 			First(&record).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -418,10 +440,10 @@ func (s *SessionStore) GetMessage(
 			return handmsg.Message{}, false, err
 		}
 
-		return decodeArchivedMessages([]sqliteArchivedMessageRecord{record})[0], true, nil
+		return decodeArchivedMessages([]archivedMessageModel{record})[0], true, nil
 	}
 
-	var record sqliteMessageRecord
+	var record messageModel
 	if err := s.db.WithContext(ctx).Where("session_id = ? AND sequence = ?", id, index).
 		First(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -431,7 +453,87 @@ func (s *SessionStore) GetMessage(
 		return handmsg.Message{}, false, err
 	}
 
-	return decodeSessionMessages([]sqliteMessageRecord{record})[0], true, nil
+	return decodeSessionMessages([]messageModel{record})[0], true, nil
+}
+
+func (s *SessionStore) SaveSummary(ctx context.Context, summary SessionSummary) error {
+	if s == nil || s.db == nil {
+		return errors.New("session store is required")
+	}
+
+	normalized, err := common.NormalizeSessionSummary(summary)
+	if err != nil {
+		return err
+	}
+
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var session sessionModel
+		if err := tx.First(&session, "id = ?", normalized.SessionID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("session not found")
+			}
+
+			return err
+		}
+
+		record := summaryModel{
+			SessionID:          normalized.SessionID,
+			SourceEndOffset:    normalized.SourceEndOffset,
+			SourceMessageCount: normalized.SourceMessageCount,
+			UpdatedAt:          normalized.UpdatedAt,
+			SessionSummary:     normalized.SessionSummary,
+			CurrentTask:        normalized.CurrentTask,
+			Discoveries:        encodeStrings(normalized.Discoveries),
+			OpenQuestions:      encodeStrings(normalized.OpenQuestions),
+			NextActions:        encodeStrings(normalized.NextActions),
+		}
+
+		return tx.Save(&record).Error
+	})
+}
+
+func (s *SessionStore) GetSummary(ctx context.Context, sessionID string) (SessionSummary, bool, error) {
+	if s == nil || s.db == nil {
+		return SessionSummary{}, false, errors.New("session store is required")
+	}
+
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return SessionSummary{}, false, nil
+	}
+
+	if err := common.ValidateSessionID(sessionID); err != nil {
+		return SessionSummary{}, false, err
+	}
+
+	var record summaryModel
+	if err := s.db.WithContext(ctx).First(&record, "session_id = ?", sessionID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return SessionSummary{}, false, nil
+		}
+
+		return SessionSummary{}, false, err
+	}
+
+	summary, err := decodeSummaryRecord(record)
+	if err != nil {
+		return SessionSummary{}, false, err
+	}
+
+	return summary, true, nil
+}
+
+func (s *SessionStore) DeleteSummary(ctx context.Context, sessionID string) error {
+	if s == nil || s.db == nil {
+		return errors.New("session store is required")
+	}
+
+	sessionID = strings.TrimSpace(sessionID)
+	if err := common.ValidateSessionID(sessionID); err != nil {
+		return err
+	}
+
+	return s.db.WithContext(ctx).Where("session_id = ?", sessionID).Delete(&summaryModel{}).Error
 }
 
 func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSession) error {
@@ -445,7 +547,7 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var source []sqliteMessageRecord
+		var source []messageModel
 		if err := tx.Where("session_id = ?", archive.SourceSessionID).Order("sequence asc").
 			Find(&source).Error; err != nil {
 			return err
@@ -454,7 +556,7 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 			return errors.New("source session has no messages")
 		}
 
-		record := sqliteArchiveRecord{
+		record := archiveModel{
 			ID:              archive.ID,
 			SourceSessionID: archive.SourceSessionID,
 			ArchivedAt:      archive.ArchivedAt,
@@ -464,7 +566,7 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 			return err
 		}
 
-		if err := tx.Where("archive_id = ?", archive.ID).Delete(&sqliteArchivedMessageRecord{}).Error; err != nil {
+		if err := tx.Where("archive_id = ?", archive.ID).Delete(&archivedMessageModel{}).Error; err != nil {
 			return err
 		}
 
@@ -473,7 +575,11 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 			return err
 		}
 
-		if err := tx.Where("session_id = ?", archive.SourceSessionID).Delete(&sqliteMessageRecord{}).Error; err != nil {
+		if err := tx.Where("session_id = ?", archive.SourceSessionID).Delete(&messageModel{}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Where("session_id = ?", archive.SourceSessionID).Delete(&summaryModel{}).Error; err != nil {
 			return err
 		}
 
@@ -481,12 +587,12 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 			return nil
 		}
 
-		if err := tx.Where("id = ?", archive.SourceSessionID).Delete(&sqliteRecord{}).Error; err != nil {
+		if err := tx.Where("id = ?", archive.SourceSessionID).Delete(&sessionModel{}).Error; err != nil {
 			return err
 		}
 
 		return tx.Where("key = ? AND value = ?", currentSessionStateKey, archive.SourceSessionID).
-			Delete(&sqliteStateRecord{}).Error
+			Delete(&stateModel{}).Error
 	})
 }
 
@@ -500,7 +606,7 @@ func (s *SessionStore) GetArchive(ctx context.Context, id string) (ArchivedSessi
 		return ArchivedSession{}, false, nil
 	}
 
-	var record sqliteArchiveRecord
+	var record archiveModel
 	if err := s.db.WithContext(ctx).First(&record, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ArchivedSession{}, false, nil
@@ -531,7 +637,7 @@ func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts Messag
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if opts.Archived {
-			var archive sqliteArchiveRecord
+			var archive archiveModel
 			if err := tx.First(&archive, "id = ?", id).Error; err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return errors.New("archive not found")
@@ -540,10 +646,10 @@ func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts Messag
 				return err
 			}
 
-			return tx.Where("archive_id = ?", id).Delete(&sqliteArchivedMessageRecord{}).Error
+			return tx.Where("archive_id = ?", id).Delete(&archivedMessageModel{}).Error
 		}
 
-		var session sqliteRecord
+		var session sessionModel
 		if err := tx.First(&session, "id = ?", id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("session not found")
@@ -552,7 +658,11 @@ func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts Messag
 			return err
 		}
 
-		if err := tx.Where("session_id = ?", id).Delete(&sqliteMessageRecord{}).Error; err != nil {
+		if err := tx.Where("session_id = ?", id).Delete(&messageModel{}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Where("session_id = ?", id).Delete(&summaryModel{}).Error; err != nil {
 			return err
 		}
 
@@ -572,7 +682,7 @@ func (s *SessionStore) ListArchives(ctx context.Context, sourceSessionID string)
 		query = query.Where("source_session_id = ?", sourceSessionID)
 	}
 
-	var records []sqliteArchiveRecord
+	var records []archiveModel
 	if err := query.Find(&records).Error; err != nil {
 		return nil, err
 	}
@@ -600,7 +710,7 @@ func (s *SessionStore) DeleteArchive(ctx context.Context, archiveID string) erro
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var archive sqliteArchiveRecord
+		var archive archiveModel
 		if err := tx.First(&archive, "id = ?", archiveID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("archive not found")
@@ -609,7 +719,7 @@ func (s *SessionStore) DeleteArchive(ctx context.Context, archiveID string) erro
 			return err
 		}
 
-		if err := tx.Where("archive_id = ?", archiveID).Delete(&sqliteArchivedMessageRecord{}).Error; err != nil {
+		if err := tx.Where("archive_id = ?", archiveID).Delete(&archivedMessageModel{}).Error; err != nil {
 			return err
 		}
 
@@ -624,7 +734,7 @@ func (s *SessionStore) DeleteExpiredArchives(ctx context.Context, now time.Time)
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var ids []string
-		if err := tx.Model(&sqliteArchiveRecord{}).Where("expires_at <= ?", now.UTC()).
+		if err := tx.Model(&archiveModel{}).Where("expires_at <= ?", now.UTC()).
 			Pluck("id", &ids).Error; err != nil {
 			return err
 		}
@@ -633,11 +743,11 @@ func (s *SessionStore) DeleteExpiredArchives(ctx context.Context, now time.Time)
 			return nil
 		}
 
-		if err := tx.Where("archive_id IN ?", ids).Delete(&sqliteArchivedMessageRecord{}).Error; err != nil {
+		if err := tx.Where("archive_id IN ?", ids).Delete(&archivedMessageModel{}).Error; err != nil {
 			return err
 		}
 
-		return tx.Where("id IN ?", ids).Delete(&sqliteArchiveRecord{}).Error
+		return tx.Where("id IN ?", ids).Delete(&archiveModel{}).Error
 	})
 }
 
@@ -660,7 +770,7 @@ func (s *SessionStore) SetCurrent(ctx context.Context, id string) error {
 		return errors.New("session not found")
 	}
 
-	record := sqliteStateRecord{
+	record := stateModel{
 		Key:       currentSessionStateKey,
 		Value:     id,
 		UpdatedAt: time.Now().UTC(),
@@ -674,7 +784,7 @@ func (s *SessionStore) Current(ctx context.Context) (string, bool, error) {
 		return "", false, errors.New("session store is required")
 	}
 
-	var record sqliteStateRecord
+	var record stateModel
 	if err := s.db.WithContext(ctx).First(&record, "key = ?", currentSessionStateKey).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", false, nil
@@ -691,11 +801,25 @@ func (s *SessionStore) Current(ctx context.Context) (string, bool, error) {
 	return value, true, nil
 }
 
-func decodeSessionRecord(record sqliteRecord) (Session, error) {
+func decodeSessionRecord(record sessionModel) (Session, error) {
 	return sessionFromRecord(record.CreatedAt, record.ID, record.LastPromptTokens, record.UpdatedAt)
 }
 
-func decodeArchiveRecord(record sqliteArchiveRecord) (ArchivedSession, error) {
+func decodeSummaryRecord(record summaryModel) (SessionSummary, error) {
+	return common.NormalizeSessionSummary(SessionSummary{
+		SessionID:          record.SessionID,
+		SourceEndOffset:    record.SourceEndOffset,
+		SourceMessageCount: record.SourceMessageCount,
+		UpdatedAt:          record.UpdatedAt,
+		SessionSummary:     record.SessionSummary,
+		CurrentTask:        record.CurrentTask,
+		Discoveries:        decodeStrings(record.Discoveries),
+		OpenQuestions:      decodeStrings(record.OpenQuestions),
+		NextActions:        decodeStrings(record.NextActions),
+	})
+}
+
+func decodeArchiveRecord(record archiveModel) (ArchivedSession, error) {
 	return common.NormalizeCreateArchive(ArchivedSession{
 		ID:              record.ID,
 		SourceSessionID: record.SourceSessionID,
@@ -727,18 +851,18 @@ func sessionFromRecord(createdAt time.Time, id string, lastPromptTokens int, upd
 	return session, nil
 }
 
-func encodeSessionMessages(sessionID string, messages []handmsg.Message) []sqliteMessageRecord {
+func encodeSessionMessages(sessionID string, messages []handmsg.Message) []messageModel {
 	return encodeSessionMessagesWithOffset(sessionID, messages, 0)
 }
 
-func encodeSessionMessagesWithOffset(sessionID string, messages []handmsg.Message, offset int) []sqliteMessageRecord {
+func encodeSessionMessagesWithOffset(sessionID string, messages []handmsg.Message, offset int) []messageModel {
 	if len(messages) == 0 {
 		return nil
 	}
 
-	records := make([]sqliteMessageRecord, 0, len(messages))
+	records := make([]messageModel, 0, len(messages))
 	for i, message := range messages {
-		records = append(records, sqliteMessageRecord{
+		records = append(records, messageModel{
 			SessionID:  sessionID,
 			Sequence:   offset + i,
 			Role:       string(message.Role),
@@ -753,14 +877,14 @@ func encodeSessionMessagesWithOffset(sessionID string, messages []handmsg.Messag
 	return records
 }
 
-func encodeArchivedMessages(archiveID string, messages []handmsg.Message) []sqliteArchivedMessageRecord {
+func encodeArchivedMessages(archiveID string, messages []handmsg.Message) []archivedMessageModel {
 	if len(messages) == 0 {
 		return nil
 	}
 
-	records := make([]sqliteArchivedMessageRecord, 0, len(messages))
+	records := make([]archivedMessageModel, 0, len(messages))
 	for i, message := range messages {
-		records = append(records, sqliteArchivedMessageRecord{
+		records = append(records, archivedMessageModel{
 			ArchiveID:  archiveID,
 			Sequence:   i,
 			Role:       string(message.Role),
@@ -775,7 +899,7 @@ func encodeArchivedMessages(archiveID string, messages []handmsg.Message) []sqli
 	return records
 }
 
-func decodeSessionMessages(records []sqliteMessageRecord) []handmsg.Message {
+func decodeSessionMessages(records []messageModel) []handmsg.Message {
 	if len(records) == 0 {
 		return nil
 	}
@@ -795,7 +919,7 @@ func decodeSessionMessages(records []sqliteMessageRecord) []handmsg.Message {
 	return messages
 }
 
-func decodeArchivedMessages(records []sqliteArchivedMessageRecord) []handmsg.Message {
+func decodeArchivedMessages(records []archivedMessageModel) []handmsg.Message {
 	if len(records) == 0 {
 		return nil
 	}
@@ -823,6 +947,30 @@ func encodeToolCalls(toolCalls []handmsg.ToolCall) string {
 	raw, _ := json.Marshal(toolCalls)
 
 	return string(raw)
+}
+
+func encodeStrings(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+
+	raw, _ := json.Marshal(values)
+
+	return string(raw)
+}
+
+func decodeStrings(value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+
+	var values []string
+	if err := json.Unmarshal([]byte(value), &values); err != nil {
+		return nil
+	}
+
+	return values
 }
 
 func decodeToolCalls(value string) []handmsg.ToolCall {

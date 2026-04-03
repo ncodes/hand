@@ -16,11 +16,13 @@ import (
 type Session = base.Session
 type ArchivedSession = base.ArchivedSession
 type MessageQueryOptions = base.MessageQueryOptions
+type SessionSummary = base.SessionSummary
 
 type SessionStore struct {
 	mu              sync.RWMutex
 	sessions        map[string]Session
 	messages        map[string][]handmsg.Message
+	summaries       map[string]SessionSummary
 	archives        map[string]ArchivedSession
 	archiveMessages map[string][]handmsg.Message
 	currentSession  string
@@ -30,6 +32,7 @@ func NewSessionStore() *SessionStore {
 	return &SessionStore{
 		sessions:        make(map[string]Session),
 		messages:        make(map[string][]handmsg.Message),
+		summaries:       make(map[string]SessionSummary),
 		archives:        make(map[string]ArchivedSession),
 		archiveMessages: make(map[string][]handmsg.Message),
 	}
@@ -128,6 +131,7 @@ func (s *SessionStore) Delete(_ context.Context, id string) error {
 
 	delete(s.sessions, id)
 	delete(s.messages, id)
+	delete(s.summaries, id)
 	if s.currentSession == id {
 		s.currentSession = ""
 	}
@@ -250,6 +254,7 @@ func (s *SessionStore) CreateArchive(_ context.Context, archive ArchivedSession)
 	s.archives[normalized.ID] = normalized
 
 	delete(s.messages, normalized.SourceSessionID)
+	delete(s.summaries, normalized.SourceSessionID)
 	if normalized.SourceSessionID != base.DefaultSessionID {
 		delete(s.sessions, normalized.SourceSessionID)
 		if s.currentSession == normalized.SourceSessionID {
@@ -377,8 +382,72 @@ func (s *SessionStore) ClearMessages(_ context.Context, id string, opts MessageQ
 	}
 
 	delete(s.messages, id)
+	delete(s.summaries, id)
 	session.UpdatedAt = time.Now().UTC()
 	s.sessions[id] = session
+	return nil
+}
+
+func (s *SessionStore) SaveSummary(_ context.Context, summary SessionSummary) error {
+	if s == nil {
+		return errors.New("session store is required")
+	}
+
+	normalized, err := common.NormalizeSessionSummary(summary)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.sessions[normalized.SessionID]; !ok {
+		return errors.New("session not found")
+	}
+
+	s.summaries[normalized.SessionID] = common.CloneSessionSummary(normalized)
+	return nil
+}
+
+func (s *SessionStore) GetSummary(_ context.Context, sessionID string) (SessionSummary, bool, error) {
+	if s == nil {
+		return SessionSummary{}, false, errors.New("session store is required")
+	}
+
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return SessionSummary{}, false, nil
+	}
+
+	if err := common.ValidateSessionID(sessionID); err != nil {
+		return SessionSummary{}, false, err
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	summary, ok := s.summaries[sessionID]
+	if !ok {
+		return SessionSummary{}, false, nil
+	}
+
+	return common.CloneSessionSummary(summary), true, nil
+}
+
+func (s *SessionStore) DeleteSummary(_ context.Context, sessionID string) error {
+	if s == nil {
+		return errors.New("session store is required")
+	}
+
+	sessionID = strings.TrimSpace(sessionID)
+	if err := common.ValidateSessionID(sessionID); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.summaries, sessionID)
 	return nil
 }
 
@@ -417,6 +486,7 @@ func (s *SessionStore) Current(_ context.Context) (string, bool, error) {
 
 	return s.currentSession, true, nil
 }
+
 func cloneMessages(messages []handmsg.Message) []handmsg.Message {
 	return common.CloneMessages(messages)
 }

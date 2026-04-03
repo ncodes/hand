@@ -9,8 +9,7 @@ import (
 type Input struct {
 	SessionHistory  []messages.Message
 	EmittedMessages []messages.Message
-	Summary         *memory.SummaryState
-	Pinned          *memory.PinnedState
+	Memory          *memory.Memory
 }
 
 // Builder assembles the model-visible context for a turn.
@@ -23,13 +22,27 @@ func New() *Builder {
 
 // Build assembles the current turn context.
 func (b *Builder) Build(input Input) []messages.Message {
-	size := len(input.SessionHistory) + len(input.EmittedMessages)
+	sessionHistory := input.SessionHistory
+	if input.Memory != nil && input.Memory.Summary != nil {
+		start := min(max(input.Memory.Summary.SourceEndOffset, 0), len(sessionHistory))
+		sessionHistory = sessionHistory[start:]
+	}
+
+	size := len(sessionHistory) + len(input.EmittedMessages)
+	summaryMessage, ok := input.Memory.RenderSummaryMessage()
+	if ok {
+		size++
+	}
+
 	if size == 0 {
 		return nil
 	}
 
 	built := make([]messages.Message, 0, size)
-	built = append(built, messages.CloneMessages(input.SessionHistory)...)
+	if ok {
+		built = append(built, summaryMessage)
+	}
+	built = append(built, messages.CloneMessages(sessionHistory)...)
 	built = append(built, messages.CloneMessages(input.EmittedMessages)...)
 	return built
 }

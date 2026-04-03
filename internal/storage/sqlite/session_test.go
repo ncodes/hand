@@ -41,17 +41,19 @@ func TestSQLiteStore_NewStoreValidationAndSchema(t *testing.T) {
 
 	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)
-	require.Equal(t, "sessions", sqliteRecord{}.TableName())
-	require.Equal(t, "session_archives", sqliteArchiveRecord{}.TableName())
-	require.Equal(t, "session_state", sqliteStateRecord{}.TableName())
-	require.Equal(t, "session_messages", sqliteMessageRecord{}.TableName())
-	require.Equal(t, "archived_session_messages", sqliteArchivedMessageRecord{}.TableName())
-	require.True(t, store.db.Migrator().HasTable(&sqliteRecord{}))
-	require.True(t, store.db.Migrator().HasTable(&sqliteArchiveRecord{}))
-	require.True(t, store.db.Migrator().HasTable(&sqliteStateRecord{}))
-	require.True(t, store.db.Migrator().HasTable(&sqliteMessageRecord{}))
-	require.True(t, store.db.Migrator().HasTable(&sqliteArchivedMessageRecord{}))
-	require.False(t, store.db.Migrator().HasColumn(&sqliteRecord{}, "messages"))
+	require.Equal(t, "sessions", sessionModel{}.TableName())
+	require.Equal(t, "session_archives", archiveModel{}.TableName())
+	require.Equal(t, "session_state", stateModel{}.TableName())
+	require.Equal(t, "session_summaries", summaryModel{}.TableName())
+	require.Equal(t, "session_messages", messageModel{}.TableName())
+	require.Equal(t, "archived_session_messages", archivedMessageModel{}.TableName())
+	require.True(t, store.db.Migrator().HasTable(&sessionModel{}))
+	require.True(t, store.db.Migrator().HasTable(&archiveModel{}))
+	require.True(t, store.db.Migrator().HasTable(&stateModel{}))
+	require.True(t, store.db.Migrator().HasTable(&summaryModel{}))
+	require.True(t, store.db.Migrator().HasTable(&messageModel{}))
+	require.True(t, store.db.Migrator().HasTable(&archivedMessageModel{}))
+	require.False(t, store.db.Migrator().HasColumn(&sessionModel{}, "messages"))
 }
 
 func TestSQLiteStore_SessionLifecycle(t *testing.T) {
@@ -128,7 +130,7 @@ func TestSQLiteStore_SessionLifecycle(t *testing.T) {
 	require.Equal(t, "replacement", messages[0].Content)
 
 	var messageCount int64
-	require.NoError(t, store.db.Model(&sqliteMessageRecord{}).Where("session_id = ?", testSessionB).Count(&messageCount).Error)
+	require.NoError(t, store.db.Model(&messageModel{}).Where("session_id = ?", testSessionB).Count(&messageCount).Error)
 	require.EqualValues(t, 1, messageCount)
 
 	current, ok, err := store.Current(context.Background())
@@ -145,7 +147,7 @@ func TestSQLiteStore_SessionLifecycle(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, testSessionB, current)
 
-	require.NoError(t, store.db.Save(&sqliteStateRecord{
+	require.NoError(t, store.db.Save(&stateModel{
 		Key:       currentSessionStateKey,
 		Value:     "   ",
 		UpdatedAt: now,
@@ -445,6 +447,12 @@ func TestSQLiteStore_NilReceiverErrors(t *testing.T) {
 	require.False(t, ok)
 	require.Equal(t, handmsg.Message{}, message)
 	require.EqualError(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}), "session store is required")
+	require.EqualError(t, store.SaveSummary(context.Background(), SessionSummary{SessionID: testSessionA, SessionSummary: "summary"}), "session store is required")
+	summary, ok, err := store.GetSummary(context.Background(), testSessionA)
+	require.EqualError(t, err, "session store is required")
+	require.False(t, ok)
+	require.Equal(t, SessionSummary{}, summary)
+	require.EqualError(t, store.DeleteSummary(context.Background(), testSessionA), "session store is required")
 
 	require.EqualError(t, store.DeleteExpiredArchives(context.Background(), time.Now().UTC()), "session store is required")
 	require.EqualError(t, store.SetCurrent(context.Background(), DefaultSessionID), "session store is required")
@@ -497,12 +505,12 @@ func TestSQLiteStore_MessageEncodingHelpers(t *testing.T) {
 func TestSQLiteStore_DecodeRecordHelpers(t *testing.T) {
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 
-	session, err := decodeSessionRecord(sqliteRecord{ID: testSessionA, UpdatedAt: now})
+	session, err := decodeSessionRecord(sessionModel{ID: testSessionA, UpdatedAt: now})
 	require.NoError(t, err)
 	require.Equal(t, testSessionA, session.ID)
 	require.True(t, session.CreatedAt.IsZero())
 
-	archive, err := decodeArchiveRecord(sqliteArchiveRecord{
+	archive, err := decodeArchiveRecord(archiveModel{
 		ID:              "archive-1",
 		SourceSessionID: DefaultSessionID,
 		ArchivedAt:      now,
@@ -517,7 +525,7 @@ func TestSQLiteStore_MigrationFailsOnReadOnlyDatabase(t *testing.T) {
 	path := filepath.Join(dir, "session.db")
 	store, err := NewSessionStore(path)
 	require.NoError(t, err)
-	require.NoError(t, store.db.Migrator().DropTable(&sqliteStateRecord{}))
+	require.NoError(t, store.db.Migrator().DropTable(&stateModel{}))
 	sqlDB, err := store.db.DB()
 	require.NoError(t, err)
 	require.NoError(t, sqlDB.Close())
@@ -548,7 +556,7 @@ func TestSQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteMessageRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&messageModel{}))
 
 		err = store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{})
 		require.Error(t, err)
@@ -557,7 +565,7 @@ func TestSQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 	t.Run("save parent branch", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&sessionModel{}))
 
 		err = store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now})
 		require.Error(t, err)
@@ -566,7 +574,7 @@ func TestSQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 	t.Run("get first branch", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&sessionModel{}))
 
 		_, _, err = store.Get(context.Background(), testSessionA)
 		require.Error(t, err)
@@ -575,8 +583,8 @@ func TestSQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 	t.Run("get message branch", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Create(&sqliteRecord{ID: testSessionA, UpdatedAt: now}).Error)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteMessageRecord{}))
+		require.NoError(t, store.db.Create(&sessionModel{ID: testSessionA, UpdatedAt: now}).Error)
+		require.NoError(t, store.db.Migrator().DropTable(&messageModel{}))
 
 		_, err = store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{})
 		require.Error(t, err)
@@ -585,7 +593,7 @@ func TestSQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 	t.Run("list records branch", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&sessionModel{}))
 
 		_, err = store.List(context.Background())
 		require.Error(t, err)
@@ -594,8 +602,8 @@ func TestSQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 	t.Run("list messages branch", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Create(&sqliteRecord{ID: testSessionA, UpdatedAt: now}).Error)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteMessageRecord{}))
+		require.NoError(t, store.db.Create(&sessionModel{ID: testSessionA, UpdatedAt: now}).Error)
+		require.NoError(t, store.db.Migrator().DropTable(&messageModel{}))
 
 		_, err = store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{})
 		require.Error(t, err)
@@ -633,7 +641,7 @@ func TestSQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 		})
 		require.EqualError(t, err, "source session has no messages")
 		var count int64
-		require.NoError(t, store.db.Model(&sqliteArchiveRecord{}).Where("id = ?", "archive-empty").Count(&count).Error)
+		require.NoError(t, store.db.Model(&archiveModel{}).Where("id = ?", "archive-empty").Count(&count).Error)
 		require.Zero(t, count)
 	})
 
@@ -642,7 +650,7 @@ func TestSQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
 		require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteArchivedMessageRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&archivedMessageModel{}))
 
 		err = store.CreateArchive(context.Background(), ArchivedSession{
 			ID:              "archive-1",
@@ -658,7 +666,7 @@ func TestSQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
 		require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteArchiveRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&archiveModel{}))
 
 		err = store.CreateArchive(context.Background(), ArchivedSession{
 			ID:              "archive-1",
@@ -688,7 +696,7 @@ func TestSQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 	t.Run("list archives records branch", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteArchiveRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&archiveModel{}))
 
 		_, err = store.ListArchives(context.Background(), "")
 		require.Error(t, err)
@@ -697,13 +705,13 @@ func TestSQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 	t.Run("list archives messages branch", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Create(&sqliteArchiveRecord{
+		require.NoError(t, store.db.Create(&archiveModel{
 			ID:              "archive-1",
 			SourceSessionID: DefaultSessionID,
 			ArchivedAt:      now,
 			ExpiresAt:       now.Add(time.Hour),
 		}).Error)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteArchivedMessageRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&archivedMessageModel{}))
 
 		_, err = store.GetMessages(context.Background(), "archive-1", MessageQueryOptions{Archived: true})
 		require.Error(t, err)
@@ -721,7 +729,7 @@ func TestSQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 	t.Run("delete expired branch", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteArchiveRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&archiveModel{}))
 
 		err = store.DeleteExpiredArchives(context.Background(), now)
 		require.Error(t, err)
@@ -730,7 +738,7 @@ func TestSQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 	t.Run("set current get error", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&sessionModel{}))
 
 		err = store.SetCurrent(context.Background(), testSessionA)
 		require.Error(t, err)
@@ -739,7 +747,7 @@ func TestSQLiteStore_ErrorPathsFromBrokenTables(t *testing.T) {
 	t.Run("current query error", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteStateRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&stateModel{}))
 
 		_, _, err = store.Current(context.Background())
 		require.Error(t, err)
@@ -867,7 +875,7 @@ func TestSQLiteStore_AppendMessagesEdgeCases(t *testing.T) {
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
 	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, nil))
 
-	require.NoError(t, store.db.Migrator().DropTable(&sqliteMessageRecord{}))
+	require.NoError(t, store.db.Migrator().DropTable(&messageModel{}))
 	require.Error(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}))
 }
 
@@ -917,7 +925,7 @@ func TestSQLiteStore_CreateArchiveErrorBranches(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
 		require.NoError(t, store.Save(context.Background(), Session{ID: DefaultSessionID, UpdatedAt: now}))
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteMessageRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&messageModel{}))
 
 		err = store.CreateArchive(context.Background(), ArchivedSession{
 			ID:              "archive-source-error",
@@ -966,7 +974,7 @@ func TestSQLiteStore_CreateArchiveErrorBranches(t *testing.T) {
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
 		require.NoError(t, store.SetCurrent(context.Background(), testSessionA))
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteStateRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&stateModel{}))
 
 		err = store.CreateArchive(context.Background(), ArchivedSession{
 			ID:              "archive-state-delete-error",
@@ -984,7 +992,7 @@ func TestSQLiteStore_GetArchiveErrorBranches(t *testing.T) {
 	t.Run("query error", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteArchiveRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&archiveModel{}))
 
 		_, _, err = store.GetArchive(context.Background(), "archive-a")
 		require.Error(t, err)
@@ -1036,7 +1044,7 @@ func TestSQLiteStore_ClearMessagesEdgeCases(t *testing.T) {
 	t.Run("archived query error", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteArchiveRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&archiveModel{}))
 
 		err = store.ClearMessages(context.Background(), "archive-clear", MessageQueryOptions{Archived: true})
 		require.Error(t, err)
@@ -1049,7 +1057,7 @@ func TestSQLiteStore_DeleteErrorBranches(t *testing.T) {
 	t.Run("first query error", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&sessionModel{}))
 
 		err = store.Delete(context.Background(), testSessionA)
 		require.Error(t, err)
@@ -1081,7 +1089,7 @@ func TestSQLiteStore_DeleteErrorBranches(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 		require.NoError(t, store.SetCurrent(context.Background(), testSessionA))
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteStateRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&stateModel{}))
 
 		err = store.Delete(context.Background(), testSessionA)
 		require.Error(t, err)
@@ -1094,7 +1102,7 @@ func TestSQLiteStore_DeleteArchiveErrorBranches(t *testing.T) {
 	t.Run("first query error", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteArchiveRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&archiveModel{}))
 
 		err = store.DeleteArchive(context.Background(), "archive-a")
 		require.Error(t, err)
@@ -1175,7 +1183,7 @@ func TestSQLiteStore_SaveReturnsTransactionSaveError(t *testing.T) {
 func TestSQLiteStore_AppendMessagesReturnsLookupErrorWhenSessionsTableIsUnavailable(t *testing.T) {
 	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)
-	require.NoError(t, store.db.Migrator().DropTable(&sqliteRecord{}))
+	require.NoError(t, store.db.Migrator().DropTable(&sessionModel{}))
 
 	err = store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}})
 	require.Error(t, err)
@@ -1188,7 +1196,7 @@ func TestSQLiteStore_GetMessageReturnsQueryErrors(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteMessageRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&messageModel{}))
 
 		_, _, err = store.GetMessage(context.Background(), testSessionA, 0, MessageQueryOptions{})
 		require.Error(t, err)
@@ -1197,13 +1205,13 @@ func TestSQLiteStore_GetMessageReturnsQueryErrors(t *testing.T) {
 	t.Run("archived query error", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Create(&sqliteArchiveRecord{
+		require.NoError(t, store.db.Create(&archiveModel{
 			ID:              "archive-a",
 			SourceSessionID: DefaultSessionID,
 			ArchivedAt:      now,
 			ExpiresAt:       now.Add(time.Hour),
 		}).Error)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteArchivedMessageRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&archivedMessageModel{}))
 
 		_, _, err = store.GetMessage(context.Background(), "archive-a", 0, MessageQueryOptions{Archived: true})
 		require.Error(t, err)
@@ -1222,9 +1230,195 @@ func TestSQLiteStore_ClearMessagesReturnsMissingArchiveAndLiveLookupErrors(t *te
 	t.Run("live lookup error", func(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
-		require.NoError(t, store.db.Migrator().DropTable(&sqliteRecord{}))
+		require.NoError(t, store.db.Migrator().DropTable(&sessionModel{}))
 
 		err = store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{})
 		require.Error(t, err)
 	})
+}
+
+func TestSQLiteStore_SummaryRoundTripAndCleanup(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 4, 2, 10, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+
+	summary := SessionSummary{
+		SessionID:          testSessionA,
+		SourceEndOffset:    4,
+		SourceMessageCount: 12,
+		UpdatedAt:          now,
+		SessionSummary:     "Older work",
+		CurrentTask:        "Finish phase 3",
+		Discoveries:        []string{"one"},
+		OpenQuestions:      []string{"two"},
+		NextActions:        []string{"three"},
+	}
+	require.NoError(t, store.SaveSummary(context.Background(), summary))
+
+	loaded, ok, err := store.GetSummary(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, summary.SessionSummary, loaded.SessionSummary)
+	require.Equal(t, summary.CurrentTask, loaded.CurrentTask)
+	require.Equal(t, summary.Discoveries, loaded.Discoveries)
+
+	require.NoError(t, store.DeleteSummary(context.Background(), testSessionA))
+	_, ok, err = store.GetSummary(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	require.NoError(t, store.SaveSummary(context.Background(), summary))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              "archive-summary",
+		SourceSessionID: testSessionA,
+		ArchivedAt:      now,
+		ExpiresAt:       now.Add(time.Hour),
+	}))
+
+	_, ok, err = store.GetSummary(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestSQLiteStore_SummaryErrors(t *testing.T) {
+	now := time.Date(2026, 4, 2, 10, 0, 0, 0, time.UTC)
+
+	t.Run("save summary validation and write errors", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+
+		require.EqualError(t, store.SaveSummary(context.Background(), SessionSummary{}), "session id is required")
+		require.EqualError(t, store.SaveSummary(context.Background(), SessionSummary{
+			SessionID:      testMissingSession,
+			SessionSummary: "summary",
+		}), "session not found")
+
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.db.Migrator().DropTable(&summaryModel{}))
+
+		err = store.SaveSummary(context.Background(), SessionSummary{
+			SessionID:      testSessionA,
+			SessionSummary: "summary",
+		})
+		require.Error(t, err)
+	})
+
+	t.Run("save summary session lookup error", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+		require.NoError(t, store.db.Migrator().DropTable(&sessionModel{}))
+
+		err = store.SaveSummary(context.Background(), SessionSummary{
+			SessionID:      testSessionA,
+			SessionSummary: "summary",
+		})
+		require.Error(t, err)
+	})
+
+	t.Run("get summary validation and read errors", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+
+		summary, ok, err := store.GetSummary(context.Background(), "")
+		require.NoError(t, err)
+		require.False(t, ok)
+		require.Equal(t, SessionSummary{}, summary)
+
+		summary, ok, err = store.GetSummary(context.Background(), "ses_invalid")
+		require.EqualError(t, err, "session id must be a valid ses_ nanoid")
+		require.False(t, ok)
+		require.Equal(t, SessionSummary{}, summary)
+
+		summary, ok, err = store.GetSummary(context.Background(), testMissingSession)
+		require.NoError(t, err)
+		require.False(t, ok)
+		require.Equal(t, SessionSummary{}, summary)
+
+		require.NoError(t, store.db.Migrator().DropTable(&summaryModel{}))
+		_, _, err = store.GetSummary(context.Background(), testSessionA)
+		require.Error(t, err)
+	})
+
+	t.Run("get summary decode error", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+		require.NoError(t, store.db.Create(&summaryModel{
+			SessionID:          testSessionA,
+			SourceEndOffset:    3,
+			SourceMessageCount: 1,
+			UpdatedAt:          now,
+			SessionSummary:     "summary",
+		}).Error)
+
+		_, _, err = store.GetSummary(context.Background(), testSessionA)
+		require.EqualError(t, err, "summary source end offset cannot exceed source message count")
+	})
+
+	t.Run("delete summary validation and delete errors", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+
+		require.EqualError(t, store.DeleteSummary(context.Background(), ""), "session id is required")
+		require.EqualError(t, store.DeleteSummary(context.Background(), "ses_invalid"), "session id must be a valid ses_ nanoid")
+
+		require.NoError(t, store.db.Migrator().DropTable(&summaryModel{}))
+		err = store.DeleteSummary(context.Background(), testSessionA)
+		require.Error(t, err)
+	})
+}
+
+func TestSQLiteStore_SummaryDeleteCleanupErrors(t *testing.T) {
+	now := time.Date(2026, 4, 2, 10, 0, 0, 0, time.UTC)
+
+	t.Run("delete session summary cleanup error", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.db.Migrator().DropTable(&summaryModel{}))
+
+		err = store.Delete(context.Background(), testSessionA)
+		require.Error(t, err)
+	})
+
+	t.Run("clear messages summary cleanup error", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.db.Migrator().DropTable(&summaryModel{}))
+
+		err = store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{})
+		require.Error(t, err)
+	})
+}
+
+func TestSQLiteStore_CreateArchiveReturnsSummaryCleanupError(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 4, 2, 10, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+	}))
+	require.NoError(t, store.db.Migrator().DropTable(&summaryModel{}))
+
+	err = store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              "archive-summary-error",
+		SourceSessionID: testSessionA,
+		ArchivedAt:      now,
+		ExpiresAt:       now.Add(time.Hour),
+	})
+	require.Error(t, err)
+}
+
+func TestSQLiteStore_StringEncodingHelpers(t *testing.T) {
+	require.Equal(t, "", encodeStrings(nil))
+	require.Equal(t, `["one","two"]`, encodeStrings([]string{"one", "two"}))
+
+	require.Nil(t, decodeStrings(""))
+	require.Nil(t, decodeStrings("not-json"))
+	require.Equal(t, []string{"one", "two"}, decodeStrings(`["one","two"]`))
 }

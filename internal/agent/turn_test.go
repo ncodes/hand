@@ -10,30 +10,31 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/agent/memory"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/environment"
-	instruct "github.com/wandxy/hand/internal/instructions"
+	"github.com/wandxy/hand/internal/instructions"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/mocks"
 	"github.com/wandxy/hand/internal/models"
-	sessionstore "github.com/wandxy/hand/internal/session"
+	"github.com/wandxy/hand/internal/session"
 	"github.com/wandxy/hand/internal/storage"
 	storagememory "github.com/wandxy/hand/internal/storage/memory"
+	storagemock "github.com/wandxy/hand/internal/storage/mock"
 	storagesqlite "github.com/wandxy/hand/internal/storage/sqlite"
 	"github.com/wandxy/hand/internal/tools"
-	"github.com/wandxy/hand/pkg/logutils"
 )
 
-func TestTurn_LoadTurnContextLoadsPersistedHistoryWithoutHydratingRuntimeContext(t *testing.T) {
+func TestTurn_LoadLoadsPersistedHistoryWithoutHydratingRuntimeContext(t *testing.T) {
 	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{})
 
-	session, err := manager.ResolveSession(context.Background(), "")
+	session, err := manager.Resolve(context.Background(), "")
 	require.NoError(t, err)
 	require.NoError(t, manager.AppendMessages(context.Background(), session.ID, []handmsg.Message{
 		{Role: handmsg.RoleAssistant, Content: "previous reply", CreatedAt: time.Now().UTC()},
 	}))
 
-	err = turn.loadTurnContext(context.Background(), RespondOptions{})
+	err = turn.load(context.Background(), RespondOptions{})
 	require.NoError(t, err)
 	require.Equal(t, session.ID, turn.sessionID)
 	require.Empty(t, turn.emittedMessages)
@@ -41,7 +42,7 @@ func TestTurn_LoadTurnContextLoadsPersistedHistoryWithoutHydratingRuntimeContext
 	require.Equal(t, "previous reply", turn.sessionHistory[0].Content)
 }
 
-func TestTurn_LoadTurnContextRejectsNilExecutionEnvironment(t *testing.T) {
+func TestTurn_LoadRejectsNilExecutionEnvironment(t *testing.T) {
 	turn := NewTurn(
 		testSessionConfig(&config.Config{Name: "Test Agent"}),
 		&mocks.ModelClientStub{},
@@ -50,17 +51,17 @@ func TestTurn_LoadTurnContextRejectsNilExecutionEnvironment(t *testing.T) {
 		nil,
 	)
 
-	err := turn.loadTurnContext(context.Background(), RespondOptions{})
+	err := turn.load(context.Background(), RespondOptions{})
 	require.EqualError(t, err, "runtime environment is required")
 }
 
-func TestTurn_LoadTurnContextRejectsNilTurn(t *testing.T) {
+func TestTurn_LoadRejectsNilTurn(t *testing.T) {
 	var turn *Turn
-	err := turn.loadTurnContext(context.Background(), RespondOptions{})
+	err := turn.load(context.Background(), RespondOptions{})
 	require.EqualError(t, err, "agent is required")
 }
 
-func TestTurn_LoadTurnContextRejectsMissingManager(t *testing.T) {
+func TestTurn_LoadRejectsMissingManager(t *testing.T) {
 	turn := NewTurn(
 		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
 		&mocks.ModelClientStub{},
@@ -72,11 +73,11 @@ func TestTurn_LoadTurnContextRejectsMissingManager(t *testing.T) {
 		},
 	)
 
-	err := turn.loadTurnContext(context.Background(), RespondOptions{})
+	err := turn.load(context.Background(), RespondOptions{})
 	require.EqualError(t, err, "session manager is required")
 }
 
-func TestTurn_LoadTurnContextRejectsMissingConfig(t *testing.T) {
+func TestTurn_LoadRejectsMissingConfig(t *testing.T) {
 	turn := &Turn{
 		modelClient:    &mocks.ModelClientStub{},
 		sessionManager: mustNewSessionManager(t),
@@ -86,11 +87,11 @@ func TestTurn_LoadTurnContextRejectsMissingConfig(t *testing.T) {
 		},
 	}
 
-	err := turn.loadTurnContext(context.Background(), RespondOptions{})
+	err := turn.load(context.Background(), RespondOptions{})
 	require.EqualError(t, err, "config is required")
 }
 
-func TestTurn_LoadTurnContextRejectsMissingModelClient(t *testing.T) {
+func TestTurn_LoadRejectsMissingModelClient(t *testing.T) {
 	turn := &Turn{
 		cfg:            testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
 		sessionManager: mustNewSessionManager(t),
@@ -100,13 +101,13 @@ func TestTurn_LoadTurnContextRejectsMissingModelClient(t *testing.T) {
 		},
 	}
 
-	err := turn.loadTurnContext(context.Background(), RespondOptions{})
+	err := turn.load(context.Background(), RespondOptions{})
 	require.EqualError(t, err, "model client is required")
 }
 
-func TestTurn_LoadTurnContextReturnsResolveError(t *testing.T) {
-	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (storage.Session, bool, error) {
+func TestTurn_LoadReturnsResolveError(t *testing.T) {
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{}, false, errors.New("resolve failed")
 		},
 	}, time.Hour, 24*time.Hour)
@@ -123,16 +124,16 @@ func TestTurn_LoadTurnContextReturnsResolveError(t *testing.T) {
 		},
 	)
 
-	err = turn.loadTurnContext(context.Background(), RespondOptions{})
+	err = turn.load(context.Background(), RespondOptions{})
 	require.EqualError(t, err, "resolve failed")
 }
 
-func TestTurn_LoadTurnContextReturnsGetMessagesError(t *testing.T) {
-	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (storage.Session, bool, error) {
+func TestTurn_LoadReturnsGetMessagesError(t *testing.T) {
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, errors.New("get messages failed")
 		},
 	}, time.Hour, 24*time.Hour)
@@ -149,11 +150,40 @@ func TestTurn_LoadTurnContextReturnsGetMessagesError(t *testing.T) {
 		},
 	)
 
-	err = turn.loadTurnContext(context.Background(), RespondOptions{})
+	err = turn.load(context.Background(), RespondOptions{})
 	require.EqualError(t, err, "get messages failed")
 }
 
-func TestTurn_RunReturnsLoadTurnContextError(t *testing.T) {
+func TestTurn_LoadReturnsGetSummaryError(t *testing.T) {
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		},
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+			return nil, nil
+		},
+		GetSummaryFunc: func(context.Context, string) (storage.SessionSummary, bool, error) {
+			return storage.SessionSummary{}, false, errors.New("get summary failed")
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	turn := NewTurn(
+		testSessionConfig(&config.Config{Name: "Test Agent"}),
+		&mocks.ModelClientStub{},
+		manager,
+		nil,
+		&mocks.EnvironmentStub{
+			InstructionsList: nil,
+			ToolRegistry:     tools.NewInMemoryRegistry(),
+		},
+	)
+
+	err = turn.load(context.Background(), RespondOptions{})
+	require.EqualError(t, err, "get summary failed")
+}
+
+func TestTurn_RunReturnsLoadError(t *testing.T) {
 	turn := &Turn{}
 	_, err := turn.Run(context.Background(), "hello", RespondOptions{})
 	require.EqualError(t, err, "config is required")
@@ -166,14 +196,14 @@ func TestTurn_RunRejectsEmptyUserMessage(t *testing.T) {
 }
 
 func TestTurn_RunReturnsAppendSessionErrorAfterUserMessage(t *testing.T) {
-	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (storage.Session, bool, error) {
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
-		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
+		AppendMessagesFunc: func(context.Context, string, []handmsg.Message) error {
 			return errors.New("append failed")
 		},
 	}, time.Hour, 24*time.Hour)
@@ -194,14 +224,14 @@ func TestTurn_RunReturnsAppendSessionErrorAfterUserMessage(t *testing.T) {
 
 func TestTurn_RunReturnsContextErrorAtLoopStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (storage.Session, bool, error) {
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
-		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
+		AppendMessagesFunc: func(context.Context, string, []handmsg.Message) error {
 			cancel()
 			return nil
 		},
@@ -222,17 +252,17 @@ func TestTurn_RunReturnsContextErrorAtLoopStart(t *testing.T) {
 }
 
 func TestTurn_RunReturnsPromptTokenPersistenceError(t *testing.T) {
-	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (storage.Session, bool, error) {
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
-		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
+		AppendMessagesFunc: func(context.Context, string, []handmsg.Message) error {
 			return nil
 		},
-		saveFn: func(context.Context, storage.Session) error {
+		SaveFunc: func(context.Context, storage.Session) error {
 			return errors.New("save failed")
 		},
 	}, time.Hour, 24*time.Hour)
@@ -259,14 +289,14 @@ func TestTurn_RunReturnsPromptTokenPersistenceError(t *testing.T) {
 
 func TestTurn_RunReturnsAppendSessionErrorAfterAssistantResponse(t *testing.T) {
 	appendCalls := 0
-	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (storage.Session, bool, error) {
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
-		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
+		AppendMessagesFunc: func(context.Context, string, []handmsg.Message) error {
 			appendCalls++
 			if appendCalls == 2 {
 				return errors.New("append assistant failed")
@@ -292,14 +322,14 @@ func TestTurn_RunReturnsAppendSessionErrorAfterAssistantResponse(t *testing.T) {
 
 func TestTurn_RunReturnsAppendSessionErrorAfterAssistantToolCall(t *testing.T) {
 	appendCalls := 0
-	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (storage.Session, bool, error) {
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
-		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
+		AppendMessagesFunc: func(context.Context, string, []handmsg.Message) error {
 			appendCalls++
 			if appendCalls == 2 {
 				return errors.New("append tool call failed")
@@ -341,14 +371,14 @@ func TestTurn_RunReturnsAssistantToolCallNormalizationError(t *testing.T) {
 func TestTurn_RunReturnsContextErrorBeforeToolInvocation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	appendCalls := 0
-	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (storage.Session, bool, error) {
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
-		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
+		AppendMessagesFunc: func(context.Context, string, []handmsg.Message) error {
 			appendCalls++
 			if appendCalls == 2 {
 				cancel()
@@ -396,14 +426,14 @@ func TestTurn_RunReturnsToolMessageNormalizationError(t *testing.T) {
 
 func TestTurn_RunReturnsAppendSessionErrorAfterToolResult(t *testing.T) {
 	appendCalls := 0
-	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (storage.Session, bool, error) {
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
-		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
+		AppendMessagesFunc: func(context.Context, string, []handmsg.Message) error {
 			appendCalls++
 			if appendCalls == 3 {
 				return errors.New("append tool result failed")
@@ -432,14 +462,14 @@ func TestTurn_RunReturnsAppendSessionErrorAfterToolResult(t *testing.T) {
 
 func TestTurn_RunReturnsAppendSessionErrorAfterSummaryFallback(t *testing.T) {
 	appendCalls := 0
-	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (storage.Session, bool, error) {
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
-		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
+		AppendMessagesFunc: func(context.Context, string, []handmsg.Message) error {
 			appendCalls++
 			if appendCalls == 4 {
 				return errors.New("append summary failed")
@@ -498,7 +528,7 @@ func TestTurn_SummaryFallbackRejectsToolRequests(t *testing.T) {
 		ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
 		RequiresToolCalls: true,
 	}}}
-	turn, _ := newTestTurnHarness(t, instruct.Instructions{{Value: "persona"}}, tools.NewInMemoryRegistry(), client)
+	turn, _ := newTestTurnHarness(t, instructions.Instructions{{Value: "persona"}}, tools.NewInMemoryRegistry(), client)
 
 	_, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
 	require.EqualError(t, err, "iteration limit reached and summary requested more tools")
@@ -523,7 +553,7 @@ func TestTurn_SummaryFallbackReturnsContextError(t *testing.T) {
 func TestTurn_SummaryFallbackReturnsAssistantAppendError(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "   "}}}
-	turn, _ := newTestTurnHarness(t, instruct.Instructions{{Value: "persona"}}, tools.NewInMemoryRegistry(), client)
+	turn, _ := newTestTurnHarness(t, instructions.Instructions{{Value: "persona"}}, tools.NewInMemoryRegistry(), client)
 	_, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
 	require.EqualError(t, err, "message content is required")
 }
@@ -540,7 +570,7 @@ func TestTurn_SummaryFallbackRejectsNilModelResponse(t *testing.T) {
 func TestTurn_SummaryFallbackUsesExistingInstructions(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "summary"}}}
-	turn, _ := newTestTurnHarness(t, instruct.Instructions{
+	turn, _ := newTestTurnHarness(t, instructions.Instructions{
 		{Value: "persona"},
 		{Value: "workspace rules"},
 		{Name: requestInstructionName, Value: "be terse"},
@@ -557,17 +587,17 @@ func TestTurn_SummaryFallbackUsesExistingInstructions(t *testing.T) {
 
 func TestTurn_SummaryFallbackReturnsPromptTokenPersistenceError(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
-	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (storage.Session, bool, error) {
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
-		getMessagesFn: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, nil
 		},
-		appendMessagesFn: func(context.Context, string, []handmsg.Message) error {
+		AppendMessagesFunc: func(context.Context, string, []handmsg.Message) error {
 			return nil
 		},
-		saveFn: func(context.Context, storage.Session) error {
+		SaveFunc: func(context.Context, storage.Session) error {
 			return errors.New("save failed")
 		},
 	}, time.Hour, 24*time.Hour)
@@ -587,7 +617,7 @@ func TestTurn_SummaryFallbackReturnsPromptTokenPersistenceError(t *testing.T) {
 			TraceSession:     traceSession,
 		},
 	)
-	require.NoError(t, turn.loadTurnContext(context.Background(), RespondOptions{}))
+	require.NoError(t, turn.load(context.Background(), RespondOptions{}))
 
 	_, err = turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
 	require.EqualError(t, err, "save failed")
@@ -638,7 +668,7 @@ func TestTurn_SummaryFallbackSkipsCompactionTraceWhenDisabled(t *testing.T) {
 func TestTurn_SummaryFallbackRecordsEstimatedPreflightPayload(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "summary"}}}
-	turn, _ := newTestTurnHarness(t, instruct.Instructions{{Value: "persona"}}, tools.NewInMemoryRegistry(), client)
+	turn, _ := newTestTurnHarness(t, instructions.Instructions{{Value: "persona"}}, tools.NewInMemoryRegistry(), client)
 	turn.cfg = testSessionConfig(&config.Config{
 		Name:                     "Test Agent",
 		Model:                    "test-model",
@@ -663,7 +693,7 @@ func TestTurn_SummaryFallbackRecordsEstimatedPreflightPayload(t *testing.T) {
 func TestTurn_SummaryFallbackRecordsTriggerAndWarningWhenThresholdExceeded(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "summary"}}}
-	turn, _ := newTestTurnHarness(t, instruct.Instructions{{Value: strings.Repeat("a", 80)}}, tools.NewInMemoryRegistry(), client)
+	turn, _ := newTestTurnHarness(t, instructions.Instructions{{Value: strings.Repeat("a", 80)}}, tools.NewInMemoryRegistry(), client)
 	turn.cfg = testSessionConfig(&config.Config{
 		Name:                     "Test Agent",
 		Model:                    "test-model",
@@ -702,7 +732,7 @@ func TestTurn_TurnMessagesReturnsCopy(t *testing.T) {
 		},
 	}
 
-	messages := turn.TurnMessages()
+	messages := turn.Messages()
 	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}, messages)
 
 	messages[0].Content = "changed"
@@ -711,7 +741,7 @@ func TestTurn_TurnMessagesReturnsCopy(t *testing.T) {
 
 func TestTurn_TurnMessagesReturnsNilWhenEmpty(t *testing.T) {
 	turn := &Turn{}
-	require.Nil(t, turn.TurnMessages())
+	require.Nil(t, turn.Messages())
 }
 
 func TestTurn_RequestMessagesReturnsSessionHistoryThenEmittedMessages(t *testing.T) {
@@ -720,7 +750,7 @@ func TestTurn_RequestMessagesReturnsSessionHistoryThenEmittedMessages(t *testing
 		emittedMessages: []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "after"}},
 	}
 
-	messages := turn.requestMessages()
+	messages := turn.Context()
 
 	require.Equal(t, []handmsg.Message{
 		{Role: handmsg.RoleUser, Content: "before"},
@@ -732,59 +762,358 @@ func TestTurn_RequestMessagesDefaultsBuilderWhenUnset(t *testing.T) {
 	turn := &Turn{
 		sessionHistory: []handmsg.Message{{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}}},
 	}
-	messages := turn.requestMessages()
+	messages := turn.Context()
 	messages[0].ToolCalls[0].Name = "changed"
 	require.Equal(t, "time", turn.sessionHistory[0].ToolCalls[0].Name)
 }
 
+func TestTurn_RequestMessagesIncludesPersistedSummaryBeforeUnsummarizedHistory(t *testing.T) {
+	turn := &Turn{
+		memory: &memory.Memory{
+			Summary: &memory.SummaryState{
+				SessionID:          storage.DefaultSessionID,
+				SourceEndOffset:    1,
+				SourceMessageCount: 3,
+				SessionSummary:     "Older context",
+				CurrentTask:        "Fix tests",
+			},
+		},
+		sessionHistory: []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "old"},
+			{Role: handmsg.RoleAssistant, Content: "recent-1"},
+			{Role: handmsg.RoleUser, Content: "recent-2"},
+		},
+		emittedMessages: []handmsg.Message{
+			{Role: handmsg.RoleAssistant, Content: "new"},
+		},
+	}
+
+	messages := turn.Context()
+
+	require.Len(t, messages, 4)
+	require.Equal(t, handmsg.RoleDeveloper, messages[0].Role)
+	require.Contains(t, messages[0].Content, "Session Summary:\nOlder context")
+	require.Equal(t, "recent-1", messages[1].Content)
+	require.Equal(t, "recent-2", messages[2].Content)
+	require.Equal(t, "new", messages[3].Content)
+}
+
+func TestTurn_LoadLoadsPersistedSummary(t *testing.T) {
+	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{})
+
+	session, err := manager.Resolve(context.Background(), "")
+	require.NoError(t, err)
+	require.NoError(t, manager.SaveSummary(context.Background(), storage.SessionSummary{
+		SessionID:          session.ID,
+		SourceEndOffset:    2,
+		SourceMessageCount: 10,
+		SessionSummary:     "Older work",
+		CurrentTask:        "Finish phase 3",
+	}))
+
+	err = turn.load(context.Background(), RespondOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, turn.memory)
+	require.NotNil(t, turn.memory.Summary)
+	require.Equal(t, "Older work", turn.memory.Summary.SessionSummary)
+	require.Equal(t, "Finish phase 3", turn.memory.Summary.CurrentTask)
+}
+
+func TestTurn_RunGeneratesAndAppliesStructuredSummaryWhenCompactionTriggers(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{Responses: []*models.Response{
+		{OutputText: `{
+			"session_summary": "Older work",
+			"current_task": "Fix tests",
+			"discoveries": ["one"],
+			"open_questions": ["two"],
+			"next_actions": ["three"]
+		}`},
+		{OutputText: "reply"},
+	}}
+	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
+	turn.runtimeEnv = &mocks.EnvironmentStub{
+		ToolRegistry: tools.NewInMemoryRegistry(),
+		TraceSession: traceSession,
+	}
+	turn.cfg = testSessionConfig(&config.Config{
+		Name:                     "Test Agent",
+		Model:                    "test-model",
+		ModelContextLength:       100,
+		CompactionEnabled:        new(true),
+		CompactionTriggerPercent: 0.5,
+		CompactionWarnPercent:    0.8,
+	})
+
+	session, err := manager.Resolve(context.Background(), "")
+	require.NoError(t, err)
+
+	history := make([]handmsg.Message, 0, 10)
+	for range 10 {
+		history = append(history, handmsg.Message{
+			Role:      handmsg.RoleUser,
+			Content:   strings.Repeat("a", 40),
+			CreatedAt: time.Now().UTC(),
+		})
+	}
+	require.NoError(t, manager.AppendMessages(context.Background(), session.ID, history))
+
+	reply, err := turn.Run(context.Background(), "hello", RespondOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "reply", reply)
+	require.Len(t, client.Requests, 2)
+	require.Nil(t, client.Requests[0].Tools)
+	require.Len(t, client.Requests[0].Messages, 2)
+	require.Equal(t, handmsg.RoleDeveloper, client.Requests[1].Messages[0].Role)
+	require.Len(t, client.Requests[1].Messages, 10)
+
+	summary, ok, err := manager.GetSummary(context.Background(), session.ID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "Older work", summary.SessionSummary)
+	require.Equal(t, 2, summary.SourceEndOffset)
+
+	persisted, err := manager.GetMessages(context.Background(), session.ID, storage.MessageQueryOptions{})
+	require.NoError(t, err)
+	require.Len(t, persisted, 12)
+
+	eventTypes := make([]string, 0, len(traceSession.Events))
+	for _, event := range traceSession.Events {
+		eventTypes = append(eventTypes, event.Type)
+	}
+	require.Contains(t, eventTypes, "context.summary.requested")
+	require.Contains(t, eventTypes, "context.summary.saved")
+	require.Contains(t, eventTypes, "context.summary.applied")
+}
+
+func TestTurn_RunSkipsSummaryGenerationWhenHistoryIsTooShort(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}}
+	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
+	turn.runtimeEnv = &mocks.EnvironmentStub{
+		ToolRegistry: tools.NewInMemoryRegistry(),
+		TraceSession: traceSession,
+	}
+	turn.cfg = testSessionConfig(&config.Config{
+		Name:                     "Test Agent",
+		Model:                    "test-model",
+		ModelContextLength:       100,
+		CompactionEnabled:        new(true),
+		CompactionTriggerPercent: 0.1,
+		CompactionWarnPercent:    0.2,
+	})
+
+	session, err := manager.Resolve(context.Background(), "")
+	require.NoError(t, err)
+	history := make([]handmsg.Message, 0, 8)
+	for range 8 {
+		history = append(history, handmsg.Message{Role: handmsg.RoleUser, Content: strings.Repeat("a", 40), CreatedAt: time.Now().UTC()})
+	}
+	require.NoError(t, manager.AppendMessages(context.Background(), session.ID, history))
+
+	reply, err := turn.Run(context.Background(), "hello", RespondOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "reply", reply)
+	require.Len(t, client.Requests, 1)
+
+	_, ok, err := manager.GetSummary(context.Background(), session.ID)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestTurn_RunContinuesWhenSummaryParsingFails(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{Responses: []*models.Response{
+		{OutputText: `not-json`},
+		{OutputText: "reply"},
+	}}
+	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
+	turn.runtimeEnv = &mocks.EnvironmentStub{
+		ToolRegistry: tools.NewInMemoryRegistry(),
+		TraceSession: traceSession,
+	}
+	turn.cfg = testSessionConfig(&config.Config{
+		Name:                     "Test Agent",
+		Model:                    "test-model",
+		ModelContextLength:       100,
+		CompactionEnabled:        new(true),
+		CompactionTriggerPercent: 0.5,
+		CompactionWarnPercent:    0.8,
+	})
+
+	session, err := manager.Resolve(context.Background(), "")
+	require.NoError(t, err)
+	history := make([]handmsg.Message, 0, 10)
+	for range 10 {
+		history = append(history, handmsg.Message{Role: handmsg.RoleUser, Content: strings.Repeat("a", 40), CreatedAt: time.Now().UTC()})
+	}
+	require.NoError(t, manager.AppendMessages(context.Background(), session.ID, history))
+
+	reply, err := turn.Run(context.Background(), "hello", RespondOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "reply", reply)
+	require.Len(t, client.Requests, 2)
+	require.NotEmpty(t, client.Requests[1].Messages)
+	require.NotEqual(t, handmsg.RoleDeveloper, client.Requests[1].Messages[0].Role)
+
+	_, ok, err := manager.GetSummary(context.Background(), session.ID)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	eventTypes := make([]string, 0, len(traceSession.Events))
+	for _, event := range traceSession.Events {
+		eventTypes = append(eventTypes, event.Type)
+	}
+	require.Contains(t, eventTypes, "context.summary.failed")
+	require.NotContains(t, eventTypes, "context.summary.saved")
+}
+
+func TestTurn_RunSkipsSummaryGenerationWhenCompactionIsDisabled(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}}
+	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
+	turn.runtimeEnv = &mocks.EnvironmentStub{
+		ToolRegistry: tools.NewInMemoryRegistry(),
+		TraceSession: traceSession,
+	}
+	turn.cfg = testSessionConfig(&config.Config{
+		Name:                     "Test Agent",
+		Model:                    "test-model",
+		ModelContextLength:       100,
+		CompactionEnabled:        new(false),
+		CompactionTriggerPercent: 0.1,
+		CompactionWarnPercent:    0.2,
+	})
+
+	session, err := manager.Resolve(context.Background(), "")
+	require.NoError(t, err)
+	history := make([]handmsg.Message, 0, 10)
+	for i := 0; i < 10; i++ {
+		history = append(history, handmsg.Message{Role: handmsg.RoleUser, Content: strings.Repeat("a", 40), CreatedAt: time.Now().UTC()})
+	}
+	require.NoError(t, manager.AppendMessages(context.Background(), session.ID, history))
+
+	reply, err := turn.Run(context.Background(), "hello", RespondOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "reply", reply)
+	require.Len(t, client.Requests, 1)
+
+	_, ok, err := manager.GetSummary(context.Background(), session.ID)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	eventTypes := make([]string, 0, len(traceSession.Events))
+	for _, event := range traceSession.Events {
+		eventTypes = append(eventTypes, event.Type)
+	}
+	require.NotContains(t, eventTypes, "context.summary.requested")
+	require.NotContains(t, eventTypes, "context.summary.saved")
+	require.NotContains(t, eventTypes, "context.summary.failed")
+}
+
+func TestTurn_RunRefreshesSummaryIncrementally(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{Responses: []*models.Response{
+		{OutputText: `{
+			"session_summary": "Updated summary",
+			"current_task": "Fix tests",
+			"discoveries": ["delta"],
+			"open_questions": [],
+			"next_actions": []
+		}`},
+		{OutputText: "reply"},
+	}}
+	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
+	turn.runtimeEnv = &mocks.EnvironmentStub{
+		ToolRegistry: tools.NewInMemoryRegistry(),
+		TraceSession: traceSession,
+	}
+	turn.cfg = testSessionConfig(&config.Config{
+		Name:                     "Test Agent",
+		Model:                    "test-model",
+		ModelContextLength:       100,
+		CompactionEnabled:        new(true),
+		CompactionTriggerPercent: 0.5,
+		CompactionWarnPercent:    0.8,
+	})
+
+	session, err := manager.Resolve(context.Background(), "")
+	require.NoError(t, err)
+	history := make([]handmsg.Message, 0, 12)
+	for range 12 {
+		history = append(history, handmsg.Message{Role: handmsg.RoleUser, Content: strings.Repeat("a", 40), CreatedAt: time.Now().UTC()})
+	}
+	require.NoError(t, manager.AppendMessages(context.Background(), session.ID, history))
+	require.NoError(t, manager.SaveSummary(context.Background(), storage.SessionSummary{
+		SessionID:          session.ID,
+		SourceEndOffset:    2,
+		SourceMessageCount: 10,
+		SessionSummary:     "Older summary",
+		CurrentTask:        "Initial task",
+	}))
+
+	reply, err := turn.Run(context.Background(), "hello", RespondOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "reply", reply)
+	require.Len(t, client.Requests, 2)
+	require.Len(t, client.Requests[0].Messages, 3)
+	require.Equal(t, handmsg.RoleDeveloper, client.Requests[0].Messages[0].Role)
+
+	summary, ok, err := manager.GetSummary(context.Background(), session.ID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "Updated summary", summary.SessionSummary)
+	require.Equal(t, 4, summary.SourceEndOffset)
+}
+
 func TestSetInstruction_SkipsBlankUnnamedInstruction(t *testing.T) {
-	original := instruct.Instructions{{Value: "base"}}
-	updated := setInstruction(original, instruct.Instruction{Value: "   "})
+	original := instructions.Instructions{{Value: "base"}}
+	updated := setInstruction(original, instructions.Instruction{Value: "   "})
 	require.Equal(t, original, updated)
 }
 
 func TestSetInstruction_AppendsUnnamedInstruction(t *testing.T) {
-	original := instruct.Instructions{{Value: "base"}}
-	updated := setInstruction(original, instruct.Instruction{Value: " extra "})
-	require.Equal(t, instruct.Instructions{{Value: "base"}, {Value: "extra"}}, updated)
+	original := instructions.Instructions{{Value: "base"}}
+	updated := setInstruction(original, instructions.Instruction{Value: " extra "})
+	require.Equal(t, instructions.Instructions{{Value: "base"}, {Value: "extra"}}, updated)
 }
 
 func TestSetInstruction_RemovesNamedInstruction(t *testing.T) {
-	original := instruct.Instructions{
+	original := instructions.Instructions{
 		{Value: "base"},
 		{Name: "request.instruct", Value: "temporary"},
 	}
-	updated := setInstruction(original, instruct.Instruction{Name: " request.instruct ", Value: "   "})
-	require.Equal(t, instruct.Instructions{{Value: "base"}}, updated)
+	updated := setInstruction(original, instructions.Instruction{Name: " request.instruct ", Value: "   "})
+	require.Equal(t, instructions.Instructions{{Value: "base"}}, updated)
 }
 
 func TestSetInstruction_UpdatesNamedInstructionWithoutMutatingInput(t *testing.T) {
-	original := instruct.Instructions{
+	original := instructions.Instructions{
 		{Value: "base"},
 		{Name: "request.instruct", Value: "temporary"},
 	}
 
-	updated := setInstruction(original, instruct.Instruction{Name: " request.instruct ", Value: " updated "})
-	require.Equal(t, instruct.Instructions{
+	updated := setInstruction(original, instructions.Instruction{Name: " request.instruct ", Value: " updated "})
+	require.Equal(t, instructions.Instructions{
 		{Value: "base"},
 		{Name: "request.instruct", Value: "updated"},
 	}, updated)
-	require.Equal(t, instruct.Instructions{
+	require.Equal(t, instructions.Instructions{
 		{Value: "base"},
 		{Name: "request.instruct", Value: "temporary"},
 	}, original)
 }
 
 func TestSetInstruction_IgnoresEmptyMissingNamedInstruction(t *testing.T) {
-	original := instruct.Instructions{{Value: "base"}}
-	updated := setInstruction(original, instruct.Instruction{Name: "request.instruct", Value: "   "})
+	original := instructions.Instructions{{Value: "base"}}
+	updated := setInstruction(original, instructions.Instruction{Name: "request.instruct", Value: "   "})
 	require.Equal(t, original, updated)
 }
 
 func TestSetInstruction_AppendsMissingNamedInstruction(t *testing.T) {
-	original := instruct.Instructions{{Value: "base"}}
-	updated := setInstruction(original, instruct.Instruction{Name: " request.instruct ", Value: " temporary "})
-	require.Equal(t, instruct.Instructions{
+	original := instructions.Instructions{{Value: "base"}}
+	updated := setInstruction(original, instructions.Instruction{Name: " request.instruct ", Value: " temporary "})
+	require.Equal(t, instructions.Instructions{
 		{Value: "base"},
 		{Name: "request.instruct", Value: "temporary"},
 	}, updated)
@@ -805,7 +1134,7 @@ func TestAgent_RespondAppendsConversationAcrossTurns(t *testing.T) {
 	})
 	newRuntimeEnvironment = func(context.Context, *config.Config) executionEnvironment {
 		return &mocks.EnvironmentStub{
-			InstructionsList: instruct.Instructions{{Value: "system prompt"}},
+			InstructionsList: instructions.Instructions{{Value: "system prompt"}},
 			ToolRegistry:     tools.NewInMemoryRegistry(),
 		}
 	}
@@ -851,7 +1180,7 @@ func TestAgent_RespondAppendsRequestInstructLast(t *testing.T) {
 	})
 	newRuntimeEnvironment = func(context.Context, *config.Config) executionEnvironment {
 		return &mocks.EnvironmentStub{
-			InstructionsList: instruct.Instructions{
+			InstructionsList: instructions.Instructions{
 				{Value: "base"},
 				{Name: "config.instruct", Value: "configured temporary"},
 			},
@@ -866,7 +1195,7 @@ func TestAgent_RespondAppendsRequestInstructLast(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "hello back", reply)
 	require.Equal(t, "base\nconfigured temporary\nrequest temporary", client.Requests[0].Instructions)
-	require.Equal(t, instruct.Instructions{
+	require.Equal(t, instructions.Instructions{
 		{Value: "base"},
 		{Name: "config.instruct", Value: "configured temporary"},
 	}, agent.env.Instructions())
@@ -1184,7 +1513,6 @@ func TestAgent_RespondConvertsMissingToolIntoToolMessage(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "fallback", reply)
 	require.Len(t, client.Requests, 2)
-	logutils.PrettyPrint(client.Requests)
 	require.Contains(t, client.Requests[1].Messages[2].Content, `tool_not_registered`)
 	require.Contains(t, client.Requests[1].Messages[2].Content, `tool is not registered`)
 }
@@ -1215,7 +1543,7 @@ func TestAgent_RespondPreservesAssistantToolCallsAcrossSQLiteBackedTurns(t *test
 			}),
 		}))
 		return &mocks.EnvironmentStub{
-			InstructionsList: instruct.Instructions{{Value: "system prompt"}},
+			InstructionsList: instructions.Instructions{{Value: "system prompt"}},
 			ToolRegistry:     registry,
 			IterationBudget:  environment.NewIterationBudget(config.DefaultMaxIterations),
 			TraceSession:     &mocks.TraceSessionStub{},
@@ -1476,7 +1804,7 @@ func TestTurn_RunStoresActualPromptTokensForFutureTurns(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "hello back", reply)
 
-	session, err := manager.ResolveSession(context.Background(), "")
+	session, err := manager.Resolve(context.Background(), "")
 	require.NoError(t, err)
 	require.Equal(t, 4321, session.LastPromptTokens)
 }
@@ -1484,7 +1812,7 @@ func TestTurn_RunStoresActualPromptTokensForFutureTurns(t *testing.T) {
 func TestTurn_RunReusesActualPromptTokensDuringPreflight(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	manager := mustNewSessionManager(t)
-	session, err := manager.ResolveSession(context.Background(), "")
+	session, err := manager.Resolve(context.Background(), "")
 	require.NoError(t, err)
 	require.NoError(t, manager.UpdateLastPromptTokens(context.Background(), session.ID, 2048))
 
@@ -1511,7 +1839,7 @@ func TestTurn_RunReusesActualPromptTokensDuringPreflight(t *testing.T) {
 func TestTurn_RunUsesEstimatedPromptTokensWhenRequestGrowsPastStoredActual(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	manager := mustNewSessionManager(t)
-	session, err := manager.ResolveSession(context.Background(), "")
+	session, err := manager.Resolve(context.Background(), "")
 	require.NoError(t, err)
 	require.NoError(t, manager.UpdateLastPromptTokens(context.Background(), session.ID, 50))
 
@@ -1594,7 +1922,7 @@ func newTestAgent(
 		}
 
 		return &mocks.EnvironmentStub{
-			InstructionsList: instruct.Instructions{{Value: "system prompt"}},
+			InstructionsList: instructions.Instructions{{Value: "system prompt"}},
 			ToolRegistry:     registry,
 			IterationBudget:  budget,
 			TraceSession:     &mocks.TraceSessionStub{},
@@ -1608,10 +1936,10 @@ func newTestAgent(
 
 func newTestTurnHarness(
 	t *testing.T,
-	instructions instruct.Instructions,
+	instructions instructions.Instructions,
 	registry environment.ToolRegistry,
 	client *mocks.ModelClientStub,
-) (*Turn, *sessionstore.Manager) {
+) (*Turn, *session.Manager) {
 	t.Helper()
 
 	manager := mustNewSessionManager(t)
@@ -1627,7 +1955,7 @@ func newTestTurnHarness(
 		nil,
 		runtimeEnv,
 	)
-	session, err := manager.ResolveSession(context.Background(), "")
+	session, err := manager.Resolve(context.Background(), "")
 	require.NoError(t, err)
 	turn.ctx = context.Background()
 	turn.instructions = runtimeEnv.Instructions()
@@ -1635,9 +1963,9 @@ func newTestTurnHarness(
 	return turn, manager
 }
 
-func mustNewSessionManager(t *testing.T) *sessionstore.Manager {
+func mustNewSessionManager(t *testing.T) *session.Manager {
 	t.Helper()
-	manager, err := sessionstore.NewManager(storagememory.NewSessionStore(), time.Hour, 24*time.Hour)
+	manager, err := session.NewManager(storagememory.NewSessionStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 	return manager
 }

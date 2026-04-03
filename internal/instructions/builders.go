@@ -29,3 +29,18 @@ func BuildSummary(iterationsLeft int) Instructions {
 	)
 	return instructions
 }
+
+func BuildSessionSummary() Instructions {
+	return New(
+		"Summarize the provided chat history into a structured JSON object.",
+		`Return JSON only with this exact shape:
+{
+  "session_summary": "required concise summary",
+  "current_task": "current task or empty string",
+  "discoveries": ["important discovery"],
+  "open_questions": ["open question"],
+  "next_actions": ["next action"]
+}`,
+		"Do not include markdown fences or extra commentary.",
+	)
+}

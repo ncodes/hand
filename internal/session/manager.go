@@ -44,7 +44,7 @@ func NewManager(store storage.SessionStore, defaultIdleExpiry, archiveRetention 
 	}, nil
 }
 
-func (m *Manager) ResolveSession(ctx context.Context, id string) (storage.Session, error) {
+func (m *Manager) Resolve(ctx context.Context, id string) (storage.Session, error) {
 	if m == nil {
 		return storage.Session{}, errors.New("session manager is required")
 	}
@@ -160,6 +160,30 @@ func (m *Manager) GetMessage(ctx context.Context, id string, index int, opts sto
 	}
 
 	return m.store.GetMessage(ctx, strings.TrimSpace(id), index, opts)
+}
+
+func (m *Manager) SaveSummary(ctx context.Context, summary storage.SessionSummary) error {
+	if m == nil {
+		return errors.New("session manager is required")
+	}
+
+	return m.store.SaveSummary(ctx, summary)
+}
+
+func (m *Manager) GetSummary(ctx context.Context, sessionID string) (storage.SessionSummary, bool, error) {
+	if m == nil {
+		return storage.SessionSummary{}, false, errors.New("session manager is required")
+	}
+
+	return m.store.GetSummary(ctx, strings.TrimSpace(sessionID))
+}
+
+func (m *Manager) DeleteSummary(ctx context.Context, sessionID string) error {
+	if m == nil {
+		return errors.New("session manager is required")
+	}
+
+	return m.store.DeleteSummary(ctx, strings.TrimSpace(sessionID))
 }
 
 func (m *Manager) UpdateLastPromptTokens(ctx context.Context, id string, promptTokens int) error {

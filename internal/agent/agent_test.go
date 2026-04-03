@@ -15,6 +15,7 @@ import (
 	sessionstore "github.com/wandxy/hand/internal/session"
 	"github.com/wandxy/hand/internal/storage"
 	storagememory "github.com/wandxy/hand/internal/storage/memory"
+	storagemock "github.com/wandxy/hand/internal/storage/mock"
 	"github.com/wandxy/hand/internal/tools"
 )
 
@@ -125,8 +126,8 @@ func TestAgent_StartReturnsManagerStartError(t *testing.T) {
 		}
 	}
 
-	manager, err := sessionstore.NewManager(&sessionStoreStub{
-		getFn: func(context.Context, string) (storage.Session, bool, error) {
+	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{}, false, errors.New("resolve failed")
 		},
 	}, time.Hour, 24*time.Hour)
@@ -497,127 +498,4 @@ func mustSessionManager(t *testing.T) *sessionstore.Manager {
 	manager, err := sessionstore.NewManager(storagememory.NewSessionStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 	return manager
-}
-
-type sessionStoreStub struct {
-	saveFn           func(context.Context, storage.Session) error
-	getFn            func(context.Context, string) (storage.Session, bool, error)
-	listFn           func(context.Context) ([]storage.Session, error)
-	deleteFn         func(context.Context, string) error
-	setCurrentFn     func(context.Context, string) error
-	currentFn        func(context.Context) (string, bool, error)
-	appendMessagesFn func(context.Context, string, []handmsg.Message) error
-	getMessageFn     func(context.Context, string, int, storage.MessageQueryOptions) (handmsg.Message, bool, error)
-	getMessagesFn    func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
-	clearMessagesFn  func(context.Context, string, storage.MessageQueryOptions) error
-	createArchiveFn  func(context.Context, storage.ArchivedSession) error
-	getArchiveFn     func(context.Context, string) (storage.ArchivedSession, bool, error)
-	listArchivesFn   func(context.Context, string) ([]storage.ArchivedSession, error)
-	deleteArchiveFn  func(context.Context, string) error
-	deleteExpiredFn  func(context.Context, time.Time) error
-}
-
-func (s *sessionStoreStub) Save(ctx context.Context, session storage.Session) error {
-	if s.saveFn != nil {
-		return s.saveFn(ctx, session)
-	}
-	return nil
-}
-
-func (s *sessionStoreStub) Get(ctx context.Context, id string) (storage.Session, bool, error) {
-	if s.getFn != nil {
-		return s.getFn(ctx, id)
-	}
-	return storage.Session{}, false, nil
-}
-
-func (s *sessionStoreStub) List(ctx context.Context) ([]storage.Session, error) {
-	if s.listFn != nil {
-		return s.listFn(ctx)
-	}
-	return nil, nil
-}
-
-func (s *sessionStoreStub) Delete(ctx context.Context, id string) error {
-	if s.deleteFn != nil {
-		return s.deleteFn(ctx, id)
-	}
-	return nil
-}
-
-func (s *sessionStoreStub) SetCurrent(ctx context.Context, id string) error {
-	if s.setCurrentFn != nil {
-		return s.setCurrentFn(ctx, id)
-	}
-	return nil
-}
-
-func (s *sessionStoreStub) Current(ctx context.Context) (string, bool, error) {
-	if s.currentFn != nil {
-		return s.currentFn(ctx)
-	}
-	return "", false, nil
-}
-
-func (s *sessionStoreStub) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
-	if s.appendMessagesFn != nil {
-		return s.appendMessagesFn(ctx, id, messages)
-	}
-	return nil
-}
-
-func (s *sessionStoreStub) GetMessage(ctx context.Context, id string, index int, opts storage.MessageQueryOptions) (handmsg.Message, bool, error) {
-	if s.getMessageFn != nil {
-		return s.getMessageFn(ctx, id, index, opts)
-	}
-	return handmsg.Message{}, false, nil
-}
-
-func (s *sessionStoreStub) GetMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
-	if s.getMessagesFn != nil {
-		return s.getMessagesFn(ctx, id, opts)
-	}
-	return nil, nil
-}
-
-func (s *sessionStoreStub) ClearMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) error {
-	if s.clearMessagesFn != nil {
-		return s.clearMessagesFn(ctx, id, opts)
-	}
-	return nil
-}
-
-func (s *sessionStoreStub) CreateArchive(ctx context.Context, archive storage.ArchivedSession) error {
-	if s.createArchiveFn != nil {
-		return s.createArchiveFn(ctx, archive)
-	}
-	return nil
-}
-
-func (s *sessionStoreStub) GetArchive(ctx context.Context, id string) (storage.ArchivedSession, bool, error) {
-	if s.getArchiveFn != nil {
-		return s.getArchiveFn(ctx, id)
-	}
-	return storage.ArchivedSession{}, false, nil
-}
-
-func (s *sessionStoreStub) ListArchives(ctx context.Context, sourceSessionID string) ([]storage.ArchivedSession, error) {
-	if s.listArchivesFn != nil {
-		return s.listArchivesFn(ctx, sourceSessionID)
-	}
-	return nil, nil
-}
-
-func (s *sessionStoreStub) DeleteArchive(ctx context.Context, archiveID string) error {
-	if s.deleteArchiveFn != nil {
-		return s.deleteArchiveFn(ctx, archiveID)
-	}
-	return nil
-}
-
-func (s *sessionStoreStub) DeleteExpiredArchives(ctx context.Context, now time.Time) error {
-	if s.deleteExpiredFn != nil {
-		return s.deleteExpiredFn(ctx, now)
-	}
-	return nil
 }

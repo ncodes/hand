@@ -107,7 +107,7 @@ func (c *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 
 	turn := NewTurn(c.cfg, c.modelClient, c.manager, c.invokeToolWithEnvironment, runtimeEnv)
 	reply, err := turn.Run(ctx, msg, opts)
-	c.turnMessages = turn.TurnMessages()
+	c.turnMessages = turn.Messages()
 
 	return reply, err
 }

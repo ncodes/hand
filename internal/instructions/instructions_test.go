@@ -184,3 +184,12 @@ func TestBuildSummary_OmitsBudgetWarningWhenNotLow(t *testing.T) {
 		{Value: "The maximum number of tool-calling iterations has been reached. Summarize completed work so far and do not call any more tools."},
 	}, BuildSummary(6))
 }
+
+func TestBuildSessionSummary_ReturnsStructuredSummaryInstructions(t *testing.T) {
+	instructions := BuildSessionSummary()
+	require.Len(t, instructions, 3)
+	require.Equal(t, "Summarize the provided chat history into a structured JSON object.", instructions[0].Value)
+	require.Contains(t, instructions[1].Value, `"session_summary": "required concise summary"`)
+	require.Contains(t, instructions[1].Value, `"next_actions": ["next action"]`)
+	require.Equal(t, "Do not include markdown fences or extra commentary.", instructions[2].Value)
+}

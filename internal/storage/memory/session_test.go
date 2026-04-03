@@ -643,3 +643,94 @@ func TestMemoryStore_ClearMessagesClearsLiveMessagesAndRefreshesUpdatedAt(t *tes
 	require.True(t, ok)
 	require.True(t, session.UpdatedAt.After(originalUpdatedAt))
 }
+
+func TestMemoryStore_SummaryRoundTripAndCleanup(t *testing.T) {
+	store := NewSessionStore()
+	now := time.Date(2026, 4, 2, 10, 0, 0, 0, time.UTC)
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+
+	summary := SessionSummary{
+		SessionID:          testSessionA,
+		SourceEndOffset:    4,
+		SourceMessageCount: 12,
+		UpdatedAt:          now,
+		SessionSummary:     "Older work",
+		CurrentTask:        "Finish phase 3",
+		Discoveries:        []string{"one"},
+		OpenQuestions:      []string{"two"},
+		NextActions:        []string{"three"},
+	}
+
+	require.NoError(t, store.SaveSummary(context.Background(), summary))
+
+	loaded, ok, err := store.GetSummary(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, summary.SessionSummary, loaded.SessionSummary)
+	require.Equal(t, summary.CurrentTask, loaded.CurrentTask)
+	require.Equal(t, summary.Discoveries, loaded.Discoveries)
+
+	loaded.Discoveries[0] = "changed"
+	loadedAgain, ok, err := store.GetSummary(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "one", loadedAgain.Discoveries[0])
+
+	require.NoError(t, store.DeleteSummary(context.Background(), testSessionA))
+	_, ok, err = store.GetSummary(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	require.NoError(t, store.SaveSummary(context.Background(), summary))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              "archive-summary",
+		SourceSessionID: testSessionA,
+		ArchivedAt:      now,
+		ExpiresAt:       now.Add(time.Hour),
+	}))
+
+	_, ok, err = store.GetSummary(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestMemoryStore_SummaryErrors(t *testing.T) {
+	var nilStore *SessionStore
+
+	require.EqualError(t, nilStore.SaveSummary(context.Background(), SessionSummary{}), "session store is required")
+
+	summary, ok, err := nilStore.GetSummary(context.Background(), testSessionA)
+	require.EqualError(t, err, "session store is required")
+	require.False(t, ok)
+	require.Equal(t, SessionSummary{}, summary)
+
+	require.EqualError(t, nilStore.DeleteSummary(context.Background(), testSessionA), "session store is required")
+
+	store := NewSessionStore()
+
+	require.EqualError(t, store.SaveSummary(context.Background(), SessionSummary{}), "session id is required")
+	require.EqualError(t, store.SaveSummary(context.Background(), SessionSummary{
+		SessionID:      testMissingSession,
+		SessionSummary: "summary",
+	}), "session not found")
+
+	summary, ok, err = store.GetSummary(context.Background(), "")
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Equal(t, SessionSummary{}, summary)
+
+	summary, ok, err = store.GetSummary(context.Background(), "ses_invalid")
+	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
+	require.False(t, ok)
+	require.Equal(t, SessionSummary{}, summary)
+
+	summary, ok, err = store.GetSummary(context.Background(), testMissingSession)
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Equal(t, SessionSummary{}, summary)
+
+	require.EqualError(t, store.DeleteSummary(context.Background(), ""), "session id is required")
+	require.EqualError(t, store.DeleteSummary(context.Background(), "ses_invalid"), "session id must be a valid ses_ nanoid")
+}
