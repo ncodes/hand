@@ -187,6 +187,8 @@ func (s *SessionStore) GetMessages(
 		if err := common.ValidateSessionID(id); err != nil {
 			return nil, err
 		}
+	} else if err := common.ValidateArchiveID(id); err != nil {
+		return nil, err
 	}
 
 	s.mu.RLock()
@@ -213,6 +215,8 @@ func (s *SessionStore) GetMessage(_ context.Context, id string, index int, opts 
 		if err := common.ValidateSessionID(id); err != nil {
 			return handmsg.Message{}, false, err
 		}
+	} else if err := common.ValidateArchiveID(id); err != nil {
+		return handmsg.Message{}, false, err
 	}
 
 	s.mu.RLock()
@@ -275,6 +279,10 @@ func (s *SessionStore) GetArchive(_ context.Context, id string) (ArchivedSession
 		return ArchivedSession{}, false, nil
 	}
 
+	if err := common.ValidateArchiveID(id); err != nil {
+		return ArchivedSession{}, false, err
+	}
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -317,8 +325,8 @@ func (s *SessionStore) DeleteArchive(_ context.Context, archiveID string) error 
 	}
 
 	archiveID = strings.TrimSpace(archiveID)
-	if archiveID == "" {
-		return errors.New("archive id is required")
+	if err := common.ValidateArchiveID(archiveID); err != nil {
+		return err
 	}
 
 	s.mu.Lock()
@@ -363,6 +371,8 @@ func (s *SessionStore) ClearMessages(_ context.Context, id string, opts MessageQ
 		if err := common.ValidateSessionID(id); err != nil {
 			return err
 		}
+	} else if err := common.ValidateArchiveID(id); err != nil {
+		return err
 	}
 
 	s.mu.Lock()

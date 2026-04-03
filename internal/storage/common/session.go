@@ -27,10 +27,23 @@ func ValidateSessionID(id string) error {
 	return nil
 }
 
+func ValidateArchiveID(id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("archive id is required")
+	}
+
+	if !strings.HasPrefix(id, storage.ArchiveIDPrefix) || nanoid.ValidateID(id) != nil {
+		return errors.New("archive id must be a valid arc_ nanoid")
+	}
+
+	return nil
+}
+
 func NormalizeCreateArchive(archive storage.ArchivedSession) (storage.ArchivedSession, error) {
 	archive.ID = strings.TrimSpace(archive.ID)
-	if archive.ID == "" {
-		return storage.ArchivedSession{}, errors.New("archive id is required")
+	if err := ValidateArchiveID(archive.ID); err != nil {
+		return storage.ArchivedSession{}, err
 	}
 
 	archive.SourceSessionID = strings.TrimSpace(archive.SourceSessionID)

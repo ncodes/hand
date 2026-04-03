@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +21,7 @@ type Manager struct {
 }
 
 var generateSessionID = storage.NewSessionID
+var generateArchiveID = storage.NewArchiveID
 
 func NewManager(store storage.SessionStore, defaultIdleExpiry, archiveRetention time.Duration) (*Manager, error) {
 	if store == nil {
@@ -337,8 +337,13 @@ func (m *Manager) clearIdleDefaultSession(ctx context.Context, now time.Time) er
 	}
 
 	if len(messages) > 0 && !session.UpdatedAt.IsZero() && !session.UpdatedAt.Add(m.defaultIdleExpiry).After(now) {
+		archiveID, err := generateArchiveID()
+		if err != nil {
+			return err
+		}
+
 		archive := storage.ArchivedSession{
-			ID:              fmt.Sprintf("%s-%s", session.ID, now.Format("20060102T150405.000000000Z")),
+			ID:              archiveID,
 			SourceSessionID: session.ID,
 			ArchivedAt:      now,
 			ExpiresAt:       now.Add(m.archiveRetention),

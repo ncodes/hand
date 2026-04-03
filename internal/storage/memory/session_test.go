@@ -14,6 +14,7 @@ import (
 
 const DefaultSessionID = base.DefaultSessionID
 const SessionIDPrefix = base.SessionIDPrefix
+const ArchiveIDPrefix = base.ArchiveIDPrefix
 
 var (
 	testSessionA       = nanoid.MustFromSeed(SessionIDPrefix, "project-a", "SessionTestSeedValue123")
@@ -24,6 +25,16 @@ var (
 	testSessionAlpha   = nanoid.MustFromSeed(SessionIDPrefix, "alpha", "SessionTestSeedValue123")
 	testSessionZeta    = nanoid.MustFromSeed(SessionIDPrefix, "zeta", "SessionTestSeedValue123")
 	testMissingSession = nanoid.MustFromSeed(SessionIDPrefix, "missing", "SessionTestSeedValue123")
+	testArchiveOne     = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-1", "SessionTestSeedValue123")
+	testArchiveOld     = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-old", "SessionTestSeedValue123")
+	testArchiveNew     = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-new", "SessionTestSeedValue123")
+	testArchiveA       = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-a", "SessionTestSeedValue123")
+	testArchiveB       = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-b", "SessionTestSeedValue123")
+	testArchiveAlpha   = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-alpha", "SessionTestSeedValue123")
+	testArchiveInvalid = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-invalid", "SessionTestSeedValue123")
+	testArchiveMissing = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-missing", "SessionTestSeedValue123")
+	testArchiveSummary = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-summary", "SessionTestSeedValue123")
+	testArchiveZeta    = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-zeta", "SessionTestSeedValue123")
 )
 
 func TestMemoryStore_SaveAndGet(t *testing.T) {
@@ -148,9 +159,9 @@ func TestMemoryStore_NilReceiverErrors(t *testing.T) {
 	require.EqualError(t, err, "session store is required")
 	require.Nil(t, listed)
 
-	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{ID: "archive-1", SourceSessionID: DefaultSessionID, ExpiresAt: time.Now().UTC()}), "session store is required")
-	require.EqualError(t, store.DeleteArchive(context.Background(), "archive-1"), "session store is required")
-	archive, ok, err := store.GetArchive(context.Background(), "archive-1")
+	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{ID: testArchiveOne, SourceSessionID: DefaultSessionID, ExpiresAt: time.Now().UTC()}), "session store is required")
+	require.EqualError(t, store.DeleteArchive(context.Background(), testArchiveOne), "session store is required")
+	archive, ok, err := store.GetArchive(context.Background(), testArchiveOne)
 	require.EqualError(t, err, "session store is required")
 	require.False(t, ok)
 	require.Equal(t, ArchivedSession{}, archive)
@@ -192,13 +203,13 @@ func TestMemoryStore_ArchiveLifecycleAndFiltering(t *testing.T) {
 	require.NoError(t, store.SetCurrent(context.Background(), testSessionA))
 
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
-		ID:              "archive-old",
+		ID:              testArchiveOld,
 		SourceSessionID: DefaultSessionID,
 		ArchivedAt:      now.Add(-2 * time.Hour),
 		ExpiresAt:       now.Add(-time.Hour),
 	}))
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
-		ID:              "archive-new",
+		ID:              testArchiveNew,
 		SourceSessionID: testSessionA,
 		ArchivedAt:      now,
 		ExpiresAt:       now.Add(time.Hour),
@@ -207,20 +218,20 @@ func TestMemoryStore_ArchiveLifecycleAndFiltering(t *testing.T) {
 	archives, err := store.ListArchives(context.Background(), "")
 	require.NoError(t, err)
 	require.Len(t, archives, 2)
-	require.Equal(t, "archive-new", archives[0].ID)
-	require.Equal(t, "archive-old", archives[1].ID)
+	require.Equal(t, testArchiveNew, archives[0].ID)
+	require.Equal(t, testArchiveOld, archives[1].ID)
 
-	messages, err := store.GetMessages(context.Background(), "archive-new", MessageQueryOptions{Archived: true})
+	messages, err := store.GetMessages(context.Background(), testArchiveNew, MessageQueryOptions{Archived: true})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	require.Equal(t, "new", messages[0].Content)
 
-	message, ok, err := store.GetMessage(context.Background(), "archive-new", 0, MessageQueryOptions{Archived: true})
+	message, ok, err := store.GetMessage(context.Background(), testArchiveNew, 0, MessageQueryOptions{Archived: true})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "new", message.Content)
 
-	message, ok, err = store.GetMessage(context.Background(), "archive-new", 1, MessageQueryOptions{Archived: true})
+	message, ok, err = store.GetMessage(context.Background(), testArchiveNew, 1, MessageQueryOptions{Archived: true})
 	require.NoError(t, err)
 	require.False(t, ok)
 	require.Equal(t, handmsg.Message{}, message)
@@ -228,7 +239,7 @@ func TestMemoryStore_ArchiveLifecycleAndFiltering(t *testing.T) {
 	filtered, err := store.ListArchives(context.Background(), testSessionA)
 	require.NoError(t, err)
 	require.Len(t, filtered, 1)
-	require.Equal(t, "archive-new", filtered[0].ID)
+	require.Equal(t, testArchiveNew, filtered[0].ID)
 
 	defaultSession, ok, err := store.Get(context.Background(), DefaultSessionID)
 	require.NoError(t, err)
@@ -258,7 +269,7 @@ func TestMemoryStore_ArchiveLifecycleAndFiltering(t *testing.T) {
 	archives, err = store.ListArchives(context.Background(), "")
 	require.NoError(t, err)
 	require.Len(t, archives, 1)
-	require.Equal(t, "archive-new", archives[0].ID)
+	require.Equal(t, testArchiveNew, archives[0].ID)
 }
 
 func TestMemoryStore_GetArchive(t *testing.T) {
@@ -270,7 +281,7 @@ func TestMemoryStore_GetArchive(t *testing.T) {
 	require.False(t, ok)
 	require.Equal(t, ArchivedSession{}, archive)
 
-	archive, ok, err = store.GetArchive(context.Background(), testMissingSession)
+	archive, ok, err = store.GetArchive(context.Background(), testArchiveMissing)
 	require.NoError(t, err)
 	require.False(t, ok)
 	require.Equal(t, ArchivedSession{}, archive)
@@ -280,16 +291,16 @@ func TestMemoryStore_GetArchive(t *testing.T) {
 		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
 	}))
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
-		ID:              "archive-a",
+		ID:              testArchiveA,
 		SourceSessionID: testSessionA,
 		ArchivedAt:      now,
 		ExpiresAt:       now.Add(time.Hour),
 	}))
 
-	archive, ok, err = store.GetArchive(context.Background(), "archive-a")
+	archive, ok, err = store.GetArchive(context.Background(), testArchiveA)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, "archive-a", archive.ID)
+	require.Equal(t, testArchiveA, archive.ID)
 	require.Equal(t, testSessionA, archive.SourceSessionID)
 	require.Equal(t, now, archive.ArchivedAt)
 	require.Equal(t, now.Add(time.Hour), archive.ExpiresAt)
@@ -304,7 +315,7 @@ func TestMemoryStore_ListArchivesOrdersByIDWhenTimesMatch(t *testing.T) {
 	}))
 
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
-		ID:              "zeta",
+		ID:              testArchiveZeta,
 		SourceSessionID: DefaultSessionID,
 		ArchivedAt:      now,
 		ExpiresAt:       now.Add(time.Hour),
@@ -313,7 +324,7 @@ func TestMemoryStore_ListArchivesOrdersByIDWhenTimesMatch(t *testing.T) {
 		{Role: handmsg.RoleAssistant, Content: "hello-again", CreatedAt: now.Add(time.Second)},
 	}))
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
-		ID:              "alpha",
+		ID:              testArchiveAlpha,
 		SourceSessionID: DefaultSessionID,
 		ArchivedAt:      now,
 		ExpiresAt:       now.Add(time.Hour),
@@ -323,8 +334,8 @@ func TestMemoryStore_ListArchivesOrdersByIDWhenTimesMatch(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, archives, 2)
-	require.Equal(t, "alpha", archives[0].ID)
-	require.Equal(t, "zeta", archives[1].ID)
+	require.Equal(t, testArchiveAlpha, archives[0].ID)
+	require.Equal(t, testArchiveZeta, archives[1].ID)
 }
 
 func TestMemoryStore_DeleteArchive(t *testing.T) {
@@ -332,7 +343,7 @@ func TestMemoryStore_DeleteArchive(t *testing.T) {
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 
 	require.EqualError(t, store.DeleteArchive(context.Background(), ""), "archive id is required")
-	require.EqualError(t, store.DeleteArchive(context.Background(), testMissingSession), "archive not found")
+	require.EqualError(t, store.DeleteArchive(context.Background(), testArchiveMissing), "archive not found")
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
 	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
@@ -342,24 +353,24 @@ func TestMemoryStore_DeleteArchive(t *testing.T) {
 		{Role: handmsg.RoleAssistant, Content: "world", CreatedAt: now.Add(time.Second)},
 	}))
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
-		ID:              "archive-a",
+		ID:              testArchiveA,
 		SourceSessionID: testSessionA,
 		ArchivedAt:      now,
 		ExpiresAt:       now.Add(time.Hour),
 	}))
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
-		ID:              "archive-b",
+		ID:              testArchiveB,
 		SourceSessionID: testSessionB,
 		ArchivedAt:      now.Add(time.Minute),
 		ExpiresAt:       now.Add(time.Hour),
 	}))
 
-	require.NoError(t, store.DeleteArchive(context.Background(), "archive-a"))
+	require.NoError(t, store.DeleteArchive(context.Background(), testArchiveA))
 
 	archives, err := store.ListArchives(context.Background(), testSessionA)
 	require.NoError(t, err)
 	require.Empty(t, archives)
-	messages, err := store.GetMessages(context.Background(), "archive-a", MessageQueryOptions{Archived: true})
+	messages, err := store.GetMessages(context.Background(), testArchiveA, MessageQueryOptions{Archived: true})
 	require.NoError(t, err)
 	require.Nil(t, messages)
 	otherArchives, err := store.ListArchives(context.Background(), testSessionB)
@@ -412,10 +423,10 @@ func TestMemoryStore_ArchiveValidation(t *testing.T) {
 	expiresAt := time.Date(2026, 3, 31, 12, 0, 0, 0, time.UTC)
 
 	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{}), "archive id is required")
-	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{ID: "archive-1", ExpiresAt: expiresAt}), "source session id is required")
-	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{ID: "archive-1", SourceSessionID: DefaultSessionID}), "archive expiry is required")
+	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{ID: testArchiveOne, ExpiresAt: expiresAt}), "source session id is required")
+	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{ID: testArchiveOne, SourceSessionID: DefaultSessionID}), "archive expiry is required")
 	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{
-		ID:              "archive-1",
+		ID:              testArchiveOne,
 		SourceSessionID: DefaultSessionID,
 		ArchivedAt:      time.Date(2026, 3, 31, 11, 0, 0, 0, time.UTC),
 		ExpiresAt:       expiresAt,
@@ -446,19 +457,19 @@ func TestMemoryStore_MessageEdgeCases(t *testing.T) {
 
 	require.EqualError(t, store.ClearMessages(context.Background(), "", MessageQueryOptions{}), "session id is required")
 	require.EqualError(t, store.ClearMessages(context.Background(), testMissingSession, MessageQueryOptions{}), "session not found")
-	require.EqualError(t, store.ClearMessages(context.Background(), "archive-missing", MessageQueryOptions{Archived: true}), "archive not found")
+	require.EqualError(t, store.ClearMessages(context.Background(), testArchiveMissing, MessageQueryOptions{Archived: true}), "archive not found")
 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
-		ID:              "archive-a",
+		ID:              testArchiveA,
 		SourceSessionID: testSessionA,
 		ArchivedAt:      now,
 		ExpiresAt:       now.Add(time.Hour),
 	}))
-	require.NoError(t, store.ClearMessages(context.Background(), "archive-a", MessageQueryOptions{Archived: true}))
+	require.NoError(t, store.ClearMessages(context.Background(), testArchiveA, MessageQueryOptions{Archived: true}))
 
-	archivedMessages, err := store.GetMessages(context.Background(), "archive-a", MessageQueryOptions{Archived: true})
+	archivedMessages, err := store.GetMessages(context.Background(), testArchiveA, MessageQueryOptions{Archived: true})
 	require.NoError(t, err)
 	require.Nil(t, archivedMessages)
 }
@@ -579,12 +590,12 @@ func TestMemoryStore_GetMessagesAllowsArchivedLookupWithoutSessionIDValidation(t
 		{Role: handmsg.RoleAssistant, Content: "archived"},
 	}))
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
-		ID:              "archive-invalid",
+		ID:              testArchiveInvalid,
 		SourceSessionID: DefaultSessionID,
 		ExpiresAt:       time.Now().UTC().Add(time.Hour),
 	}))
 
-	messages, err := store.GetMessages(context.Background(), "archive-invalid", MessageQueryOptions{Archived: true})
+	messages, err := store.GetMessages(context.Background(), testArchiveInvalid, MessageQueryOptions{Archived: true})
 
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
@@ -608,12 +619,12 @@ func TestMemoryStore_GetMessageAllowsArchivedLookupWithoutSessionIDValidation(t 
 		{Role: handmsg.RoleAssistant, Content: "archived"},
 	}))
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
-		ID:              "archive-invalid",
+		ID:              testArchiveInvalid,
 		SourceSessionID: DefaultSessionID,
 		ExpiresAt:       time.Now().UTC().Add(time.Hour),
 	}))
 
-	message, ok, err := store.GetMessage(context.Background(), "archive-invalid", 0, MessageQueryOptions{Archived: true})
+	message, ok, err := store.GetMessage(context.Background(), testArchiveInvalid, 0, MessageQueryOptions{Archived: true})
 
 	require.NoError(t, err)
 	require.True(t, ok)
@@ -685,7 +696,7 @@ func TestMemoryStore_SummaryRoundTripAndCleanup(t *testing.T) {
 	require.NoError(t, store.SaveSummary(context.Background(), summary))
 	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now}}))
 	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
-		ID:              "archive-summary",
+		ID:              testArchiveSummary,
 		SourceSessionID: testSessionA,
 		ArchivedAt:      now,
 		ExpiresAt:       now.Add(time.Hour),

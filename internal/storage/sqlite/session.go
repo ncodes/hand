@@ -387,6 +387,8 @@ func (s *SessionStore) GetMessages(
 		if err := common.ValidateSessionID(id); err != nil {
 			return nil, err
 		}
+	} else if err := common.ValidateArchiveID(id); err != nil {
+		return nil, err
 	}
 
 	if opts.Archived {
@@ -427,6 +429,8 @@ func (s *SessionStore) GetMessage(
 		if err := common.ValidateSessionID(id); err != nil {
 			return handmsg.Message{}, false, err
 		}
+	} else if err := common.ValidateArchiveID(id); err != nil {
+		return handmsg.Message{}, false, err
 	}
 
 	if opts.Archived {
@@ -606,6 +610,10 @@ func (s *SessionStore) GetArchive(ctx context.Context, id string) (ArchivedSessi
 		return ArchivedSession{}, false, nil
 	}
 
+	if err := common.ValidateArchiveID(id); err != nil {
+		return ArchivedSession{}, false, err
+	}
+
 	var record archiveModel
 	if err := s.db.WithContext(ctx).First(&record, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -633,6 +641,8 @@ func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts Messag
 		if err := common.ValidateSessionID(id); err != nil {
 			return err
 		}
+	} else if err := common.ValidateArchiveID(id); err != nil {
+		return err
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -705,8 +715,8 @@ func (s *SessionStore) DeleteArchive(ctx context.Context, archiveID string) erro
 	}
 
 	archiveID = strings.TrimSpace(archiveID)
-	if archiveID == "" {
-		return errors.New("archive id is required")
+	if err := common.ValidateArchiveID(archiveID); err != nil {
+		return err
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

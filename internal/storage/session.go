@@ -10,9 +10,14 @@ import (
 
 const DefaultSessionID = "default"
 const SessionIDPrefix = "ses_"
+const ArchiveIDPrefix = "arc_"
 
 func NewSessionID() (string, error) {
 	return nanoid.Generate(SessionIDPrefix)
+}
+
+func NewArchiveID() (string, error) {
+	return nanoid.Generate(ArchiveIDPrefix)
 }
 
 type Session struct {

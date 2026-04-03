@@ -20,6 +20,8 @@ import (
 var (
 	testSessionA       = nanoid.MustFromSeed(storage.SessionIDPrefix, "project-a", "SessionTestSeedValue123")
 	testMissingSession = nanoid.MustFromSeed(storage.SessionIDPrefix, "missing", "SessionTestSeedValue123")
+	testArchiveOne     = nanoid.MustFromSeed(storage.ArchiveIDPrefix, "archive-1", "SessionTestSeedValue123")
+	testArchiveTwo     = nanoid.MustFromSeed(storage.ArchiveIDPrefix, "archive-2", "SessionTestSeedValue123")
 )
 
 func TestManager_ResolveChatSessionCreatesDefault(t *testing.T) {
@@ -217,7 +219,7 @@ func TestManager_DeleteSessionKeepsArchives(t *testing.T) {
 		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)},
 	}))
 	require.NoError(t, store.CreateArchive(context.Background(), storage.ArchivedSession{
-		ID:              "archive-1",
+		ID:              testArchiveOne,
 		SourceSessionID: testSessionA,
 		ArchivedAt:      time.Date(2026, 3, 30, 13, 0, 0, 0, time.UTC),
 		ExpiresAt:       time.Date(2026, 4, 1, 13, 0, 0, 0, time.UTC),
@@ -229,7 +231,7 @@ func TestManager_DeleteSessionKeepsArchives(t *testing.T) {
 	}))
 
 	require.NoError(t, store.CreateArchive(context.Background(), storage.ArchivedSession{
-		ID:              "archive-2",
+		ID:              testArchiveTwo,
 		SourceSessionID: testSessionA,
 		ArchivedAt:      time.Date(2026, 3, 30, 14, 0, 0, 0, time.UTC),
 		ExpiresAt:       time.Date(2026, 4, 1, 14, 0, 0, 0, time.UTC),
@@ -245,8 +247,8 @@ func TestManager_DeleteSessionKeepsArchives(t *testing.T) {
 	archives, err := store.ListArchives(context.Background(), testSessionA)
 	require.NoError(t, err)
 	require.Len(t, archives, 2)
-	require.Equal(t, "archive-2", archives[0].ID)
-	require.Equal(t, "archive-1", archives[1].ID)
+	require.Equal(t, testArchiveTwo, archives[0].ID)
+	require.Equal(t, testArchiveOne, archives[1].ID)
 	current, err := manager.CurrentSession(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, storage.DefaultSessionID, current)

@@ -14,6 +14,8 @@ import (
 var (
 	testSessionID        = nanoid.MustFromSeed(storage.SessionIDPrefix, "project-a", "SessionUtilTestSeedValue123")
 	testArchiveSessionID = nanoid.MustFromSeed(storage.SessionIDPrefix, "archive-source", "SessionUtilTestSeedValue123")
+	testArchiveID        = nanoid.MustFromSeed(storage.ArchiveIDPrefix, "archive-a", "SessionUtilTestSeedValue123")
+	testArchiveIDAlt     = nanoid.MustFromSeed(storage.ArchiveIDPrefix, "archive-b", "SessionUtilTestSeedValue123")
 )
 
 func TestValidateSessionID(t *testing.T) {
@@ -36,6 +38,22 @@ func TestValidateSessionID(t *testing.T) {
 	})
 }
 
+func TestValidateArchiveID(t *testing.T) {
+	t.Run("rejects empty id", func(t *testing.T) {
+		err := ValidateArchiveID("   ")
+		require.EqualError(t, err, "archive id is required")
+	})
+
+	t.Run("rejects invalid id", func(t *testing.T) {
+		err := ValidateArchiveID("archive_invalid")
+		require.EqualError(t, err, "archive id must be a valid arc_ nanoid")
+	})
+
+	t.Run("accepts valid generated id", func(t *testing.T) {
+		require.NoError(t, ValidateArchiveID(testArchiveID))
+	})
+}
+
 func TestNormalizeCreateArchive(t *testing.T) {
 	t.Run("rejects missing archive id", func(t *testing.T) {
 		archive, err := NormalizeCreateArchive(storage.ArchivedSession{})
@@ -45,7 +63,7 @@ func TestNormalizeCreateArchive(t *testing.T) {
 
 	t.Run("rejects missing source session id", func(t *testing.T) {
 		archive, err := NormalizeCreateArchive(storage.ArchivedSession{
-			ID:        "archive-a",
+			ID:        testArchiveID,
 			ExpiresAt: time.Now().UTC().Add(time.Hour),
 		})
 		require.EqualError(t, err, "source session id is required")
@@ -54,7 +72,7 @@ func TestNormalizeCreateArchive(t *testing.T) {
 
 	t.Run("rejects invalid source session id", func(t *testing.T) {
 		archive, err := NormalizeCreateArchive(storage.ArchivedSession{
-			ID:              "archive-a",
+			ID:              testArchiveID,
 			SourceSessionID: "ses_invalid",
 			ExpiresAt:       time.Now().UTC().Add(time.Hour),
 		})
@@ -64,7 +82,7 @@ func TestNormalizeCreateArchive(t *testing.T) {
 
 	t.Run("rejects missing expiry", func(t *testing.T) {
 		archive, err := NormalizeCreateArchive(storage.ArchivedSession{
-			ID:              "archive-a",
+			ID:              testArchiveID,
 			SourceSessionID: testArchiveSessionID,
 		})
 		require.EqualError(t, err, "archive expiry is required")
@@ -75,12 +93,12 @@ func TestNormalizeCreateArchive(t *testing.T) {
 		expiresAt := time.Now().Add(2 * time.Hour)
 
 		archive, err := NormalizeCreateArchive(storage.ArchivedSession{
-			ID:              "archive-a",
+			ID:              testArchiveID,
 			SourceSessionID: "  " + storage.DefaultSessionID + "  ",
 			ExpiresAt:       expiresAt,
 		})
 		require.NoError(t, err)
-		require.Equal(t, "archive-a", archive.ID)
+		require.Equal(t, testArchiveID, archive.ID)
 		require.Equal(t, storage.DefaultSessionID, archive.SourceSessionID)
 		require.False(t, archive.ArchivedAt.IsZero())
 		require.Equal(t, time.UTC, archive.ArchivedAt.Location())
@@ -93,13 +111,13 @@ func TestNormalizeCreateArchive(t *testing.T) {
 		expiresAt := time.Date(2026, 4, 3, 14, 0, 0, 0, location)
 
 		archive, err := NormalizeCreateArchive(storage.ArchivedSession{
-			ID:              "archive-b",
+			ID:              testArchiveIDAlt,
 			SourceSessionID: "  " + testArchiveSessionID + "  ",
 			ArchivedAt:      archivedAt,
 			ExpiresAt:       expiresAt,
 		})
 		require.NoError(t, err)
-		require.Equal(t, "archive-b", archive.ID)
+		require.Equal(t, testArchiveIDAlt, archive.ID)
 		require.Equal(t, testArchiveSessionID, archive.SourceSessionID)
 		require.Equal(t, archivedAt.UTC(), archive.ArchivedAt)
 		require.Equal(t, expiresAt.UTC(), archive.ExpiresAt)
