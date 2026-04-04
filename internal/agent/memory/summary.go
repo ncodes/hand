@@ -78,6 +78,10 @@ func SummaryFromStorage(summary storage.SessionSummary) *SummaryState {
 }
 
 func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input RefreshInput) error {
+	return s.refreshMemory(ctx, memory, input, false)
+}
+
+func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input RefreshInput, force bool) error {
 	if memory == nil || input.TraceSession == nil {
 		return nil
 	}
@@ -94,7 +98,7 @@ func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input 
 		return errors.New("summary store is required")
 	}
 
-	if !s.compactionOn {
+	if !force && !s.compactionOn {
 		return nil
 	}
 
@@ -120,7 +124,7 @@ func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input 
 		TargetOffset:       targetOffset,
 	}
 
-	if memory.Summary != nil && memory.Summary.SourceEndOffset >= targetOffset {
+	if !force && memory.Summary != nil && memory.Summary.SourceEndOffset >= targetOffset {
 		session, ok, err := s.summaryStore.Get(ctx, input.SessionID)
 		if err != nil {
 			input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
@@ -143,9 +147,11 @@ func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input 
 		return s.reconcileCompactionSucceeded(ctx, &session, plan, input.TraceSession)
 	}
 
-	estimate := s.evaluator.Evaluate(input.Request, input.LastPromptTokens)
-	if !estimate.Triggered() {
-		return nil
+	if !force {
+		estimate := s.evaluator.Evaluate(input.Request, input.LastPromptTokens)
+		if !estimate.Triggered() {
+			return nil
+		}
 	}
 
 	session, ok, err := s.summaryStore.Get(ctx, input.SessionID)
@@ -214,6 +220,67 @@ func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input 
 	}
 
 	return nil
+}
+
+func (s *Service) CompactSession(
+	ctx context.Context,
+	session storage.Session,
+	traceSession traceRecorder,
+) (*SummaryState, error) {
+	if s == nil {
+		return nil, errors.New("memory service is required")
+	}
+
+	if s.modelClient == nil {
+		return nil, errors.New("model client is required")
+	}
+
+	if s.summaryStore == nil {
+		return nil, errors.New("summary store is required")
+	}
+
+	if traceSession == nil {
+		return nil, errors.New("trace session is required")
+	}
+
+	memory, err := s.Load(ctx, session.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	totalCount, err := s.summaryStore.CountMessages(ctx, session.ID, storage.MessageQueryOptions{})
+	if err != nil {
+		traceSession.Record(tEvtFailed, compactionTracePayload(
+			session.ID,
+			storage.SessionCompaction{Status: storage.CompactionStatusFailed},
+			err.Error()),
+		)
+		return nil, err
+	}
+
+	if totalCount <= RecentSessionTail {
+		err = errors.New("session history is too short to compact")
+		traceSession.Record(tEvtFailed, compactionTracePayload(
+			session.ID,
+			storage.SessionCompaction{Status: storage.CompactionStatusFailed},
+			err.Error()),
+		)
+		return nil, err
+	}
+
+	if err := s.refreshMemory(ctx, memory, RefreshInput{
+		LastPromptTokens: session.LastPromptTokens,
+		SessionID:        session.ID,
+		TraceSession:     traceSession,
+	}, true); err != nil {
+		return nil, err
+	}
+
+	if memory.Summary == nil {
+		return nil, errors.New("session summary is required")
+	}
+
+	return memory.Summary, nil
 }
 
 func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input RefreshInput, plan refreshPlan) error {

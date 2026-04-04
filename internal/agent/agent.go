@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
+	memory "github.com/wandxy/hand/internal/agent/memory"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/environment"
-	instruct "github.com/wandxy/hand/internal/instructions"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	sessionstore "github.com/wandxy/hand/internal/session"
@@ -24,22 +24,45 @@ var jsonMarshal = json.Marshal
 
 const requestInstructionName = "request.instruct"
 
-// RespondOptions configures a single response turn.
+type ServiceAPI interface {
+	Respond(context.Context, string, RespondOptions) (string, error)
+	CreateSession(context.Context, string) (storage.Session, error)
+	ListSessions(context.Context) ([]storage.Session, error)
+	UseSession(context.Context, string) error
+	CurrentSession(context.Context) (string, error)
+	CompactSession(context.Context, string) (CompactSessionResult, error)
+	SessionContextStatus(context.Context, string) (SessionContextStatus, error)
+}
+
 type RespondOptions struct {
 	Instruct  string
 	SessionID string
 }
 
-type executionEnvironment interface {
-	Prepare() error
-	Instructions() instruct.Instructions
-	Tools() environment.ToolRegistry
-	ToolPolicy() tools.Policy
-	NewIterationBudget() environment.IterationBudget
-	NewTraceSession() trace.Session
+type CompactSessionResult struct {
+	SessionID            string
+	SourceEndOffset      int
+	SourceMessageCount   int
+	UpdatedAt            time.Time
+	CurrentContextLength int
+	TotalContextLength   int
 }
 
-var newRuntimeEnvironment = func(ctx context.Context, cfg *config.Config) executionEnvironment {
+type SessionContextStatus struct {
+	SessionID        string
+	Offset           int
+	Size             int
+	Length           int
+	Used             int
+	Remaining        int
+	UsedPct          float64
+	RemainingPct     float64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	CompactionStatus string
+}
+
+var newRuntimeEnvironment = func(ctx context.Context, cfg *config.Config) environment.Environment {
 	return environment.NewEnvironment(ctx, cfg)
 }
 
@@ -52,8 +75,8 @@ type Agent struct {
 	ctx          context.Context
 	cfg          *config.Config
 	modelClient  models.Client
-	env          executionEnvironment
-	manager      *sessionstore.Manager
+	env          environment.Environment
+	sessionMgr   *sessionstore.Manager
 	turnMessages []handmsg.Message
 	initialized  bool
 }
@@ -63,18 +86,47 @@ func NewAgent(ctx context.Context, cfg *config.Config, modelClient models.Client
 	return &Agent{ctx: ctx, cfg: cfg, modelClient: modelClient}
 }
 
-// Respond executes a single user turn and returns the assistant reply.
-func (c *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (string, error) {
-	if c == nil {
+func (a *Agent) Start(ctx context.Context) error {
+	if a == nil {
+		return errors.New("agent is required")
+	}
+	if a.cfg == nil {
+		return errors.New("config is required")
+	}
+
+	ctx = normalizeContext(ctx)
+	a.ctx = ctx
+
+	if err := a.ensureSessionManager(); err != nil {
+		return err
+	}
+
+	if err := a.sessionMgr.Start(ctx); err != nil {
+		return err
+	}
+
+	a.env = newRuntimeEnvironment(ctx, a.cfg)
+	if err := a.env.Prepare(); err != nil {
+		return err
+	}
+
+	a.turnMessages = nil
+	a.initialized = true
+
+	return nil
+}
+
+func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (string, error) {
+	if a == nil {
 		return "", errors.New("agent is required")
 	}
-	if c.cfg == nil {
+	if a.cfg == nil {
 		return "", errors.New("config is required")
 	}
-	if !c.initialized && c.env == nil {
+	if !a.initialized && a.env == nil {
 		return "", errors.New("environment has not been initialized")
 	}
-	if c.modelClient == nil {
+	if a.modelClient == nil {
 		return "", errors.New("model client is required")
 	}
 
@@ -87,13 +139,13 @@ func (c *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 		return "", err
 	}
 
-	if !c.initialized || c.manager == nil {
+	if !a.initialized || a.sessionMgr == nil {
 		return "", errors.New("environment has not been initialized")
 	}
 
-	runtimeEnv := c.env
-	if c.initialized || runtimeEnv == nil {
-		runtimeEnv = newRuntimeEnvironment(ctx, c.cfg)
+	runtimeEnv := a.env
+	if a.initialized || runtimeEnv == nil {
+		runtimeEnv = newRuntimeEnvironment(ctx, a.cfg)
 		if err := runtimeEnv.Prepare(); err != nil {
 			return "", err
 		}
@@ -103,63 +155,31 @@ func (c *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 		return "", errors.New("tool registry is required")
 	}
 
-	c.env = runtimeEnv
+	a.env = runtimeEnv
 
-	turn := NewTurn(c.cfg, c.modelClient, c.manager, c.invokeToolWithEnvironment, runtimeEnv)
+	turn := NewTurn(a.cfg, a.modelClient, a.sessionMgr, a.invokeToolWithEnvironment, runtimeEnv)
 	reply, err := turn.Run(ctx, msg, opts)
-	c.turnMessages = turn.Messages()
+	a.turnMessages = turn.Messages()
 
 	return reply, err
 }
 
-// Start initializes the agent runtime and session manager.
-func (c *Agent) Start(ctx context.Context) error {
-	if c == nil {
-		return errors.New("agent is required")
-	}
-	if c.cfg == nil {
-		return errors.New("config is required")
-	}
-
-	ctx = normalizeContext(ctx)
-	c.ctx = ctx
-
-	if err := c.ensureSessionManager(); err != nil {
-		return err
-	}
-
-	if err := c.manager.Start(ctx); err != nil {
-		return err
-	}
-
-	c.env = newRuntimeEnvironment(ctx, c.cfg)
-	if err := c.env.Prepare(); err != nil {
-		return err
-	}
-
-	c.turnMessages = nil
-	c.initialized = true
-
-	return nil
-}
-
-// TurnMessages returns the messages emitted during the most recent turn.
-func (c *Agent) TurnMessages() []handmsg.Message {
-	if c == nil || len(c.turnMessages) == 0 {
+func (a *Agent) TurnMessages() []handmsg.Message {
+	if a == nil || len(a.turnMessages) == 0 {
 		return nil
 	}
 
-	messages := make([]handmsg.Message, len(c.turnMessages))
-	copy(messages, c.turnMessages)
+	messages := make([]handmsg.Message, len(a.turnMessages))
+	copy(messages, a.turnMessages)
 	return messages
 }
 
-func (c *Agent) availableToolDefinitions() ([]models.ToolDefinition, error) {
-	if c == nil || c.env == nil || c.env.Tools() == nil {
+func (a *Agent) availableToolDefinitions() ([]models.ToolDefinition, error) {
+	if a == nil || a.env == nil || a.env.Tools() == nil {
 		return nil, nil
 	}
 
-	definitions, err := c.env.Tools().Resolve(c.env.ToolPolicy())
+	definitions, err := a.env.Tools().Resolve(a.env.ToolPolicy())
 	if err != nil {
 		return nil, err
 	}
@@ -176,11 +196,11 @@ func (c *Agent) availableToolDefinitions() ([]models.ToolDefinition, error) {
 	return toolsList, nil
 }
 
-func (c *Agent) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
-	return c.invokeToolWithEnvironment(ctx, c.env, toolCall)
+func (a *Agent) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
+	return a.invokeToolWithEnvironment(ctx, a.env, toolCall)
 }
 
-func (c *Agent) invokeToolWithEnvironment(ctx context.Context, runtimeEnv executionEnvironment, toolCall models.ToolCall) handmsg.Message {
+func (a *Agent) invokeToolWithEnvironment(ctx context.Context, runtimeEnv environment.Environment, toolCall models.ToolCall) handmsg.Message {
 	result := map[string]any{"name": toolCall.Name}
 
 	if runtimeEnv == nil || runtimeEnv.Tools() == nil {
@@ -218,84 +238,169 @@ func (c *Agent) invokeToolWithEnvironment(ctx context.Context, runtimeEnv execut
 	return handmsg.Message{Role: handmsg.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: content}
 }
 
-// CreateSession creates a new session or returns the existing one for the id.
-func (c *Agent) CreateSession(ctx context.Context, id string) (storage.Session, error) {
-	if c == nil {
+func (a *Agent) CreateSession(ctx context.Context, id string) (storage.Session, error) {
+	if a == nil {
 		return storage.Session{}, errors.New("agent is required")
 	}
 
-	if !c.initialized || c.manager == nil {
+	if !a.initialized || a.sessionMgr == nil {
 		return storage.Session{}, errors.New("environment has not been initialized")
 	}
 
-	return c.manager.CreateSession(normalizeContext(ctx), id)
+	return a.sessionMgr.CreateSession(normalizeContext(ctx), id)
 }
 
-// ListSessions returns the known sessions.
-func (c *Agent) ListSessions(ctx context.Context) ([]storage.Session, error) {
-	if c == nil {
+func (a *Agent) ListSessions(ctx context.Context) ([]storage.Session, error) {
+	if a == nil {
 		return nil, errors.New("agent is required")
 	}
 
-	if !c.initialized || c.manager == nil {
+	if !a.initialized || a.sessionMgr == nil {
 		return nil, errors.New("environment has not been initialized")
 	}
 
-	return c.manager.ListSessions(normalizeContext(ctx))
+	return a.sessionMgr.ListSessions(normalizeContext(ctx))
 }
 
-// UseSession marks the named session as the current session.
-func (c *Agent) UseSession(ctx context.Context, id string) error {
-	if c == nil {
+func (a *Agent) UseSession(ctx context.Context, id string) error {
+	if a == nil {
 		return errors.New("agent is required")
 	}
 
-	if !c.initialized || c.manager == nil {
+	if !a.initialized || a.sessionMgr == nil {
 		return errors.New("environment has not been initialized")
 	}
 
-	return c.manager.UseSession(normalizeContext(ctx), id)
+	return a.sessionMgr.UseSession(normalizeContext(ctx), id)
 }
 
-// CurrentSession returns the id of the current session.
-func (c *Agent) CurrentSession(ctx context.Context) (string, error) {
-	if c == nil {
+func (a *Agent) CurrentSession(ctx context.Context) (string, error) {
+	if a == nil {
 		return "", errors.New("agent is required")
 	}
 
-	if !c.initialized || c.manager == nil {
+	if !a.initialized || a.sessionMgr == nil {
 		return "", errors.New("environment has not been initialized")
 	}
 
-	return c.manager.CurrentSession(normalizeContext(ctx))
+	return a.sessionMgr.CurrentSession(normalizeContext(ctx))
 }
 
-func (c *Agent) ensureSessionManager() error {
-	if c == nil {
+func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionResult, error) {
+	if a == nil {
+		return CompactSessionResult{}, errors.New("agent is required")
+	}
+	if a.cfg == nil {
+		return CompactSessionResult{}, errors.New("config is required")
+	}
+	if !a.initialized || a.sessionMgr == nil {
+		return CompactSessionResult{}, errors.New("environment has not been initialized")
+	}
+	if a.modelClient == nil {
+		return CompactSessionResult{}, errors.New("model client is required")
+	}
+
+	session, err := a.sessionMgr.Resolve(normalizeContext(ctx), id)
+	if err != nil {
+		return CompactSessionResult{}, err
+	}
+
+	traceSession := trace.NoopSession()
+	if a.env != nil {
+		traceSession = a.env.NewTraceSession()
+	}
+	defer traceSession.Close()
+
+	memoryService := memory.NewService(a.cfg, a.modelClient, a.sessionMgr)
+	summary, err := memoryService.CompactSession(normalizeContext(ctx), session, traceSession)
+	if err != nil {
+		return CompactSessionResult{}, err
+	}
+
+	return CompactSessionResult{
+		SessionID:            summary.SessionID,
+		SourceEndOffset:      summary.SourceEndOffset,
+		SourceMessageCount:   summary.SourceMessageCount,
+		UpdatedAt:            summary.UpdatedAt,
+		CurrentContextLength: session.LastPromptTokens,
+		TotalContextLength:   a.cfg.ModelContextLength,
+	}, nil
+}
+
+func (a *Agent) SessionContextStatus(ctx context.Context, id string) (SessionContextStatus, error) {
+	if a == nil {
+		return SessionContextStatus{}, errors.New("agent is required")
+	}
+	if a.cfg == nil {
+		return SessionContextStatus{}, errors.New("config is required")
+	}
+	if !a.initialized || a.sessionMgr == nil {
+		return SessionContextStatus{}, errors.New("environment has not been initialized")
+	}
+
+	session, err := a.sessionMgr.Resolve(normalizeContext(ctx), id)
+	if err != nil {
+		return SessionContextStatus{}, err
+	}
+
+	summary, _, err := a.sessionMgr.GetSummary(normalizeContext(ctx), session.ID)
+	if err != nil {
+		return SessionContextStatus{}, err
+	}
+
+	total := max(a.cfg.ModelContextLength, 0)
+	used := max(session.LastPromptTokens, 0)
+	remaining := max(total-used, 0)
+
+	status := SessionContextStatus{
+		SessionID:        session.ID,
+		Offset:           max(summary.SourceEndOffset, 0),
+		Size:             max(summary.SourceMessageCount, 0),
+		Length:           total,
+		Used:             used,
+		Remaining:        remaining,
+		CreatedAt:        session.CreatedAt,
+		UpdatedAt:        session.UpdatedAt,
+		CompactionStatus: string(session.Compaction.Status),
+	}
+	if total > 0 {
+		status.UsedPct = float64(used) / float64(total)
+		status.RemainingPct = float64(remaining) / float64(total)
+	}
+
+	return status, nil
+}
+
+func (a *Agent) GetSession(ctx context.Context, id string) (SessionContextStatus, error) {
+	return a.SessionContextStatus(ctx, id)
+}
+
+func (a *Agent) ensureSessionManager() error {
+	if a == nil {
 		return errors.New("agent is required")
 	}
-	if c.cfg == nil {
+	if a.cfg == nil {
 		return errors.New("config is required")
 	}
-	if c.manager != nil {
+	if a.sessionMgr != nil {
 		return nil
 	}
 
-	store, err := openSessionStore(c.cfg)
+	store, err := openSessionStore(a.cfg)
 	if err != nil {
 		return err
 	}
 
 	manager, err := newSessionManager(
 		store,
-		durationOrDefault(c.cfg.SessionDefaultIdleExpiry, 24*time.Hour),
-		durationOrDefault(c.cfg.SessionArchiveRetention, 30*24*time.Hour),
+		durationOrDefault(a.cfg.SessionDefaultIdleExpiry, 24*time.Hour),
+		durationOrDefault(a.cfg.SessionArchiveRetention, 30*24*time.Hour),
 	)
 	if err != nil {
 		return err
 	}
 
-	c.manager = manager
+	a.sessionMgr = manager
 	return nil
 }
 

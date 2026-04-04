@@ -2,6 +2,8 @@
 
 # model:
 #   name: "qwen/qwen3.5-27b"
+#   contextLength: 128000
+#   verifyContextLength: true
 #   router: "openrouter"
 #   key: "replace-with-your-model-key"
 #   openaiApiKey: "replace-with-your-openai-key"
@@ -21,6 +23,15 @@
 #   allow: []
 #   ask: []
 #   deny: []
+# storage:
+#   backend: "sqlite"
+# session:
+#   defaultIdleExpiry: "24h"
+#   archiveRetention: "720h"
+# compaction:
+#   enabled: true
+#   triggerPercent: 0.85
+#   warnPercent: 0.95
 # cap:
 #   fs: true
 #   net: true

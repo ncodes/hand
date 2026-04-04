@@ -6,63 +6,57 @@ import (
 	"strings"
 
 	"github.com/wandxy/hand/internal/agent"
+	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	"github.com/wandxy/hand/internal/storage"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type chatter interface {
-	Respond(context.Context, string, agent.RespondOptions) (string, error)
-	CreateSession(context.Context, string) (storage.Session, error)
-	ListSessions(context.Context) ([]storage.Session, error)
-	UseSession(context.Context, string) error
-	CurrentSession(context.Context) (string, error)
-}
-
-// Service is the RPC service that wraps the chatter interface.
+// Service is the RPC service that wraps the agent-facing service interface.
 type Service struct {
 	handpb.UnimplementedHandServiceServer
-	chatter chatter
+	api agent.ServiceAPI
 }
 
-// NewService creates a new RPC service that wraps the chatter interface.
-func NewService(chatter chatter) *Service {
-	return &Service{chatter: chatter}
+// NewService creates a new RPC service that wraps the shared service interface.
+func NewService(api agent.ServiceAPI) *Service {
+	return &Service{api: api}
 }
 
-// Chat handles a chat request and returns a chat response.
-func (s *Service) Chat(ctx context.Context, req *handpb.ChatRequest) (*handpb.ChatResponse, error) {
+// Respond handles a respond request and returns a response.
+func (s *Service) Respond(ctx context.Context, req *handpb.RespondRequest) (*handpb.RespondResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
-	if s.chatter == nil {
+	if s.api == nil {
 		return nil, status.Error(codes.Internal, "chat handler is required")
 	}
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "chat request is required")
+		return nil, status.Error(codes.InvalidArgument, "respond request is required")
 	}
 
-	reply, err := s.chatter.Respond(ctx, req.Message, agent.RespondOptions{Instruct: req.Instruct, SessionID: req.SessionId})
+	reply, err := s.api.Respond(ctx, req.Message, rpcclient.RespondOptions{Instruct: req.Instruct, SessionID: req.GetId()})
 	if err != nil {
 		return nil, grpcError(err)
 	}
 
-	return &handpb.ChatResponse{Message: reply}, nil
+	return &handpb.RespondResponse{Message: reply}, nil
 }
 
 func (s *Service) CreateSession(ctx context.Context, req *handpb.CreateSessionRequest) (*handpb.CreateSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
-	if s.chatter == nil {
+	if s.api == nil {
 		return nil, status.Error(codes.Internal, "chat handler is required")
 	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "create session request is required")
 	}
 
-	session, err := s.chatter.CreateSession(ctx, req.SessionId)
+	session, err := s.api.CreateSession(ctx, req.GetId())
 	if err != nil {
 		return nil, grpcError(err)
 	}
@@ -74,14 +68,14 @@ func (s *Service) ListSessions(ctx context.Context, req *handpb.ListSessionsRequ
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
-	if s.chatter == nil {
+	if s.api == nil {
 		return nil, status.Error(codes.Internal, "chat handler is required")
 	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "list sessions request is required")
 	}
 
-	sessions, err := s.chatter.ListSessions(ctx)
+	sessions, err := s.api.ListSessions(ctx)
 	if err != nil {
 		return nil, grpcError(err)
 	}
@@ -98,37 +92,102 @@ func (s *Service) UseSession(ctx context.Context, req *handpb.UseSessionRequest)
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
-	if s.chatter == nil {
+	if s.api == nil {
 		return nil, status.Error(codes.Internal, "chat handler is required")
 	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "use session request is required")
 	}
 
-	if err := s.chatter.UseSession(ctx, req.SessionId); err != nil {
+	if err := s.api.UseSession(ctx, req.GetId()); err != nil {
 		return nil, grpcError(err)
 	}
 
-	return &handpb.UseSessionResponse{SessionId: req.SessionId}, nil
+	return &handpb.UseSessionResponse{Id: req.GetId()}, nil
 }
 
 func (s *Service) CurrentSession(ctx context.Context, req *handpb.CurrentSessionRequest) (*handpb.CurrentSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
-	if s.chatter == nil {
+	if s.api == nil {
 		return nil, status.Error(codes.Internal, "chat handler is required")
 	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "current session request is required")
 	}
 
-	id, err := s.chatter.CurrentSession(ctx)
+	id, err := s.api.CurrentSession(ctx)
 	if err != nil {
 		return nil, grpcError(err)
 	}
 
-	return &handpb.CurrentSessionResponse{SessionId: id}, nil
+	return &handpb.CurrentSessionResponse{Id: id}, nil
+}
+
+func (s *Service) CompactSession(
+	ctx context.Context,
+	req *handpb.CompactSessionRequest,
+) (*handpb.CompactSessionResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return nil, status.Error(codes.Internal, "chat handler is required")
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "compact session request is required")
+	}
+
+	result, err := s.api.CompactSession(ctx, req.GetId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+
+	return &handpb.CompactSessionResponse{
+		Id:                   result.SessionID,
+		SourceEndOffset:      int32(result.SourceEndOffset),
+		SourceMessageCount:   int32(result.SourceMessageCount),
+		UpdatedAt:            timestamppb.New(result.UpdatedAt),
+		CurrentContextLength: int32(result.CurrentContextLength),
+		TotalContextLength:   int32(result.TotalContextLength),
+	}, nil
+}
+
+func (s *Service) GetSession(ctx context.Context, req *handpb.GetSessionRequest) (*handpb.GetSessionResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return nil, status.Error(codes.Internal, "chat handler is required")
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "get session request is required")
+	}
+	if req.GetContext() == nil {
+		return nil, status.Error(codes.InvalidArgument, "get session request context is required")
+	}
+
+	result, err := s.api.SessionContextStatus(ctx, req.GetContext().GetId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+
+	return &handpb.GetSessionResponse{
+		Id:               result.SessionID,
+		Size:             int32(result.Size),
+		CreatedAt:        timestamppb.New(result.CreatedAt),
+		UpdatedAt:        timestamppb.New(result.UpdatedAt),
+		CompactionStatus: result.CompactionStatus,
+		Context: &handpb.GetSessionResponse_Context{
+			Offset:       int32(result.Offset),
+			Length:       int32(result.Length),
+			Used:         int32(result.Used),
+			Remaining:    int32(result.Remaining),
+			UsedPct:      result.UsedPct,
+			RemainingPct: result.RemainingPct,
+		},
+	}, nil
 }
 
 func grpcError(err error) error {
@@ -161,7 +220,7 @@ func grpcError(err error) error {
 
 func sessionSummary(session storage.Session) *handpb.SessionSummary {
 	return &handpb.SessionSummary{
-		SessionId:     session.ID,
+		Id:            session.ID,
 		UpdatedAtUnix: session.UpdatedAt.Unix(),
 	}
 }

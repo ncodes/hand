@@ -699,6 +699,103 @@ func TestService_MaybeRefreshMemory_FallsBackWhenClockReturnsZero(t *testing.T) 
 	require.False(t, mem.Summary.UpdatedAt.IsZero())
 }
 
+func TestService_CompactSession_ReturnsValidationErrors(t *testing.T) {
+	sess := storage.Session{ID: storage.DefaultSessionID}
+	traceSession := &mocks.TraceSessionStub{}
+
+	t.Run("nil_service", func(t *testing.T) {
+		_, err := (*Service)(nil).CompactSession(context.Background(), sess, traceSession)
+		require.EqualError(t, err, "memory service is required")
+	})
+
+	t.Run("nil_model_client", func(t *testing.T) {
+		svc := NewService(summaryTestConfig(true), nil, &storagemock.SessionStore{})
+		_, err := svc.CompactSession(context.Background(), sess, traceSession)
+		require.EqualError(t, err, "model client is required")
+	})
+
+	t.Run("nil_summary_store", func(t *testing.T) {
+		svc := NewService(summaryTestConfig(true), &mocks.ModelClientStub{}, nil)
+		_, err := svc.CompactSession(context.Background(), sess, traceSession)
+		require.EqualError(t, err, "summary store is required")
+	})
+
+	t.Run("nil_trace_session", func(t *testing.T) {
+		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, summaryTestStore(summaryTestHistory(10)))
+		_, err := svc.CompactSession(context.Background(), sess, nil)
+		require.EqualError(t, err, "trace session is required")
+	})
+}
+
+func TestService_CompactSession_ReturnsLoadError(t *testing.T) {
+	store := summaryTestStore(summaryTestHistory(10))
+	store.GetSummaryFunc = func(context.Context, string) (storage.SessionSummary, bool, error) {
+		return storage.SessionSummary{}, false, errors.New("load summary failed")
+	}
+	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
+	traceSession := &mocks.TraceSessionStub{}
+
+	_, err := svc.CompactSession(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
+	require.EqualError(t, err, "load summary failed")
+}
+
+func TestService_CompactSession_ReturnsCountMessagesError(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	store := summaryTestStore(summaryTestHistory(10))
+	store.CountMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) (int, error) {
+		return 0, errors.New("count failed")
+	}
+	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
+
+	_, err := svc.CompactSession(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
+	require.EqualError(t, err, "count failed")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+}
+
+func TestService_CompactSession_ReturnsHistoryTooShort(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, summaryTestStore(summaryTestHistory(RecentSessionTail)))
+
+	_, err := svc.CompactSession(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
+	require.EqualError(t, err, "session history is too short to compact")
+	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+}
+
+func TestService_CompactSession_ReturnsRefreshError(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	store := summaryTestStore(summaryTestHistory(10))
+	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{Err: errors.New("chat failed")}, store)
+
+	_, err := svc.CompactSession(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
+	require.EqualError(t, err, "chat failed")
+}
+
+func TestService_CompactSession_ReturnsSummary(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	store := summaryTestStore(summaryTestHistory(10))
+	client := &mocks.ModelClientStub{
+		Responses: []*models.Response{{
+			OutputText: `{"session_summary":"Compacted","current_task":"t","discoveries":["d"],"open_questions":["q"],"next_actions":["n"]}`,
+		}},
+	}
+	svc := summaryTestService(summaryTestConfig(true), client, store)
+
+	out, err := svc.CompactSession(context.Background(), storage.Session{
+		ID:               storage.DefaultSessionID,
+		LastPromptTokens: 50,
+	}, traceSession)
+
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	require.Equal(t, storage.DefaultSessionID, out.SessionID)
+	require.Equal(t, "Compacted", out.SessionSummary)
+	require.Equal(t, 2, out.SourceEndOffset)
+	require.Equal(t, 10, out.SourceMessageCount)
+	require.Equal(t, 1, client.CallCount)
+	requireSummaryEvent(t, traceSession.Events, "context.summary.requested")
+	requireSummaryEvent(t, traceSession.Events, "context.summary.saved")
+}
+
 func TestService_TransitionCompactionPending(t *testing.T) {
 	plan := refreshPlan{
 		RequestedAt:        time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC),

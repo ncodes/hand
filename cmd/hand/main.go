@@ -70,12 +70,7 @@ COPYRIGHT:
    {{template "copyrightTemplate" .}}{{end}}
 `
 
-type chatRunner interface {
-	Respond(context.Context, string, rpcclient.RespondOptions) (string, error)
-	Close() error
-}
-
-var newChatClient = func(ctx context.Context, cfg *config.Config) (chatRunner, error) {
+var newChatClient = func(ctx context.Context, cfg *config.Config) (rpcclient.ChatClient, error) {
 	return rpcclient.NewClient(ctx, rpcclient.Options{
 		Address: cfg.RPCAddress,
 		Port:    cfg.RPCPort,

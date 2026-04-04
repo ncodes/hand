@@ -45,6 +45,12 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value:  config.Get().ModelAPIMode,
 			Hidden: true,
 		},
+		&cli.BoolFlag{
+			Name:   "model.verify-context-length",
+			Usage:  "Verify and clamp configured model context length against provider metadata",
+			Value:  config.Get().VerifyContextLengthEnabled(),
+			Hidden: true,
+		},
 		&cli.StringFlag{
 			Name:   "rpc.address",
 			Usage:  "Bind address for the RPC service",
@@ -250,6 +256,9 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("model.api-mode") {
 		cfg.ModelAPIMode = strings.TrimSpace(cmd.String("model.api-mode"))
+	}
+	if cmd.IsSet("model.verify-context-length") {
+		cfg.ModelVerifyContextLength = new(cmd.Bool("model.verify-context-length"))
 	}
 	if cmd.IsSet("rpc.address") {
 		cfg.RPCAddress = strings.TrimSpace(cmd.String("rpc.address"))

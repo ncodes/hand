@@ -1,6 +1,9 @@
 package config
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -259,6 +262,133 @@ rules:
 	require.False(t, boolValue(cfg.CapBrowser))
 }
 
+func TestLoad_UsesOpenRouterModelMetadataWhenContextLengthIsUnset(t *testing.T) {
+	originalResolveModelMeta := resolveModelMeta
+	t.Cleanup(func() {
+		resolveModelMeta = originalResolveModelMeta
+	})
+
+	resolveModelMeta = func(context.Context, *Config) (int, bool, error) {
+		return 222222, true, nil
+	}
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: openai/gpt-4o-mini
+  router: openrouter
+  key: config-key
+rpc:
+  address: 127.0.0.1
+  port: 50051
+log:
+  level: info
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, 222222, cfg.ModelContextLength)
+}
+
+func TestLoad_UsesProviderMetadataWhenConfiguredContextLengthIsTooLarge(t *testing.T) {
+	originalResolveModelMeta := resolveModelMeta
+	t.Cleanup(func() {
+		resolveModelMeta = originalResolveModelMeta
+	})
+
+	resolveModelMeta = func(context.Context, *Config) (int, bool, error) {
+		return 64000, true, nil
+	}
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: gpt-4.1-nano
+  router: none
+  key: config-key
+  contextLength: 999999
+rpc:
+  address: 127.0.0.1
+  port: 50051
+log:
+  level: info
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, 64000, cfg.ModelContextLength)
+}
+
+func TestLoad_PreservesSmallerConfiguredContextLengthThanProviderMetadata(t *testing.T) {
+	originalResolveModelMeta := resolveModelMeta
+	t.Cleanup(func() {
+		resolveModelMeta = originalResolveModelMeta
+	})
+
+	resolveModelMeta = func(context.Context, *Config) (int, bool, error) {
+		return 128000, true, nil
+	}
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: gpt-4.1-nano
+  router: none
+  key: config-key
+  contextLength: 32000
+rpc:
+  address: 127.0.0.1
+  port: 50051
+log:
+  level: info
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, 32000, cfg.ModelContextLength)
+}
+
+func TestLoad_SkipsProviderModelMetadataWhenVerificationIsDisabled(t *testing.T) {
+	originalResolveModelMeta := resolveModelMeta
+	t.Cleanup(func() {
+		resolveModelMeta = originalResolveModelMeta
+	})
+
+	called := false
+	resolveModelMeta = func(context.Context, *Config) (int, bool, error) {
+		called = true
+		return 64000, true, nil
+	}
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: openai/gpt-4o-mini
+  router: openrouter
+  key: config-key
+  verifyContextLength: false
+rpc:
+  address: 127.0.0.1
+  port: 50051
+log:
+  level: info
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+	require.NoError(t, err)
+	require.False(t, called)
+	require.Equal(t, defaultContextLength, cfg.ModelContextLength)
+	require.False(t, boolValueDefault(cfg.ModelVerifyContextLength, true))
+}
+
 func TestConfig_NormalizeLeavesRulesFilesEmptyWhenUnset(t *testing.T) {
 	cfg := &Config{}
 	cfg.Normalize()
@@ -275,6 +405,49 @@ func TestConfig_NormalizeTrimsInstruct(t *testing.T) {
 	cfg := &Config{Instruct: "  be terse  "}
 	cfg.Normalize()
 	require.Equal(t, "be terse", cfg.Instruct)
+}
+
+func TestFetchOpenRouterContextLength(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/models", r.URL.Path)
+		require.Equal(t, "Bearer openrouter-key", r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte(`{"data":[{"id":"openai/gpt-4o-mini","context_length":555555}]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	contextLength, ok, err := fetchOpenRouterContextLength(
+		context.Background(),
+		server.URL,
+		"openai/gpt-4o-mini",
+		"openrouter-key",
+		"",
+	)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, 555555, contextLength)
+}
+
+func TestFetchOpenAIContextLength(t *testing.T) {
+	originalHTTPClient := httpClient
+	originalModelDocsBaseURL := modelDocsBaseURL
+	t.Cleanup(func() {
+		httpClient = originalHTTPClient
+		modelDocsBaseURL = originalModelDocsBaseURL
+	})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/api/docs/models/gpt-4.1-nano", r.URL.Path)
+		_, _ = w.Write([]byte(`<html><body><p>1,047,576 context window</p></body></html>`))
+	}))
+	t.Cleanup(server.Close)
+
+	httpClient = server.Client()
+	modelDocsBaseURL = server.URL + "/api/docs/models"
+
+	contextLength, ok, err := fetchOpenAIContextLength(context.Background(), "openai/gpt-4.1-nano")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, 1047576, contextLength)
 }
 
 func TestLoad_IgnoresInvalidMaxIterationsEnvOverride(t *testing.T) {
@@ -445,7 +618,7 @@ func TestConfig_ValidateAllowsProviderSpecificAuthWithoutModelKey(t *testing.T) 
 func TestConfig_ValidateNormalizesFields(t *testing.T) {
 	cfg := &Config{
 		Name:        "  Test Agent  ",
-		Model:       "  test-model  ",
+		Model:       "  openai/test-model  ",
 		ModelRouter: " OpenRouter ",
 		ModelKey:    "  test-key  ",
 		LogLevel:    " WARN ",
@@ -453,7 +626,7 @@ func TestConfig_ValidateNormalizesFields(t *testing.T) {
 
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, "Test Agent", cfg.Name)
-	require.Equal(t, "test-model", cfg.Model)
+	require.Equal(t, "openai/test-model", cfg.Model)
 	require.Equal(t, "openrouter", cfg.ModelRouter)
 	require.Equal(t, "test-key", cfg.ModelKey)
 	require.Equal(t, supportedRouters["openrouter"], cfg.ModelBaseURL)
@@ -469,6 +642,41 @@ func TestConfig_ValidateDefaultsModelWhenEmpty(t *testing.T) {
 	cfg := &Config{Name: "test-agent", ModelKey: "test-key", LogLevel: "info"}
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, defaultModel, cfg.Model)
+}
+
+func TestConfig_ValidateAllowsModelWithoutOwnerPrefix(t *testing.T) {
+	cfg := &Config{
+		Name:        "test-agent",
+		Model:       "gpt-4o-mini",
+		ModelRouter: "none",
+		ModelKey:    "test-key",
+		RPCAddress:  "127.0.0.1",
+		RPCPort:     50051,
+		LogLevel:    "info",
+	}
+
+	require.NoError(t, cfg.Validate())
+	require.Equal(t, "gpt-4o-mini", cfg.Model)
+}
+
+func TestConfig_ValidateRejectsModelWithEmptyOwnerOrName(t *testing.T) {
+	cases := []string{"/gpt-4o-mini", "openai/", "openai/gpt-4o-mini/extra"}
+
+	for _, model := range cases {
+		t.Run(model, func(t *testing.T) {
+			err := (&Config{
+				Name:        "test-agent",
+				Model:       model,
+				ModelRouter: "none",
+				ModelKey:    "test-key",
+				RPCAddress:  "127.0.0.1",
+				RPCPort:     50051,
+				LogLevel:    "info",
+			}).Validate()
+
+			require.EqualError(t, err, "model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
+		})
+	}
 }
 
 func TestConfig_ValidateRejectsUnsupportedRouter(t *testing.T) {
@@ -578,6 +786,7 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	require.Equal(t, 50051, cfg.RPCPort)
 	require.Equal(t, defaultMaxIterations, cfg.MaxIterations)
 	require.Equal(t, "info", cfg.LogLevel)
+	require.True(t, boolValueDefault(cfg.ModelVerifyContextLength, true))
 }
 
 func TestConfig_NormalizePreservesExplicitFalseCapabilities(t *testing.T) {
@@ -920,7 +1129,7 @@ func TestConfig_NormalizeDefaultsSessionSettings(t *testing.T) {
 func TestConfig_ValidateRejectsInvalidSessionSettings(t *testing.T) {
 	cfg := &Config{
 		Name:                     "daemon",
-		Model:                    "model",
+		Model:                    "openai/model",
 		ModelRouter:              "openrouter",
 		ModelKey:                 "key",
 		ModelBaseURL:             "https://example.com",
@@ -980,7 +1189,7 @@ func TestConfig_NormalizeDefaultsCompactionSettings(t *testing.T) {
 func TestConfig_ValidateRejectsInvalidCompactionSettings(t *testing.T) {
 	cfg := &Config{
 		Name:                     "daemon",
-		Model:                    "model",
+		Model:                    "openai/model",
 		ModelContextLength:       128000,
 		ModelRouter:              "openrouter",
 		ModelKey:                 "key",

@@ -1,10 +1,15 @@
 package config
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,6 +25,7 @@ type Config struct {
 	Name                     string
 	Model                    string
 	ModelContextLength       int
+	ModelVerifyContextLength *bool
 	ModelRouter              string
 	ModelKey                 string
 	OpenAIAPIKey             string
@@ -64,11 +70,16 @@ var (
 	globalConfig     *Config
 	configMu         sync.RWMutex
 	loadDotEnv       = godotenv.Load
+	httpClient       = &http.Client{Timeout: 5 * time.Second}
+	modelDocsBaseURL = "https://developers.openai.com/api/docs/models"
+	resolveModelMeta = resolveModelContextLengthFromProvider
 	supportedRouters = map[string]string{
 		"openrouter": "https://openrouter.ai/api/v1",
 		"none":       "",
 	}
 )
+
+var contextWindowPatternOAI = regexp.MustCompile(`([0-9][0-9,]*) context window`)
 
 const (
 	defaultModel         = "openai/gpt-4o-mini"
@@ -85,14 +96,15 @@ type fileConfig struct {
 	Platform      string `yaml:"platform"`
 	MaxIterations int    `yaml:"maxIterations"`
 	Model         struct {
-		Name             string `yaml:"name"`
-		ContextLength    int    `yaml:"contextLength"`
-		Router           string `yaml:"router"`
-		Key              string `yaml:"key"`
-		OpenAIAPIKey     string `yaml:"openaiApiKey"`
-		OpenRouterAPIKey string `yaml:"openrouterApiKey"`
-		BaseURL          string `yaml:"baseUrl"`
-		APIMode          string `yaml:"apiMode"`
+		Name                string `yaml:"name"`
+		ContextLength       int    `yaml:"contextLength"`
+		VerifyContextLength *bool  `yaml:"verifyContextLength"`
+		Router              string `yaml:"router"`
+		Key                 string `yaml:"key"`
+		OpenAIAPIKey        string `yaml:"openaiApiKey"`
+		OpenRouterAPIKey    string `yaml:"openrouterApiKey"`
+		BaseURL             string `yaml:"baseUrl"`
+		APIMode             string `yaml:"apiMode"`
 	} `yaml:"model"`
 
 	Log struct {
@@ -168,7 +180,9 @@ func Load(envPath, configPath string) (*Config, error) {
 	}
 
 	applyEnvOverrides(cfg)
+	requestedContextLength := cfg.ModelContextLength
 	cfg.Normalize()
+	applyProviderModelMetadata(context.Background(), cfg, requestedContextLength)
 
 	return cfg, nil
 }
@@ -181,6 +195,7 @@ func Get() *Config {
 		return &Config{
 			Model:                    defaultModel,
 			ModelContextLength:       defaultContextLength,
+			ModelVerifyContextLength: new(true),
 			ModelAPIMode:             DefaultModelAPIMode,
 			MaxIterations:            defaultMaxIterations,
 			LogLevel:                 "info",
@@ -235,6 +250,7 @@ func loadConfigFile(path string) (*Config, error) {
 		Name:                     raw.Name,
 		Model:                    raw.Model.Name,
 		ModelContextLength:       raw.Model.ContextLength,
+		ModelVerifyContextLength: raw.Model.VerifyContextLength,
 		ModelRouter:              raw.Model.Router,
 		ModelKey:                 raw.Model.Key,
 		OpenAIAPIKey:             raw.Model.OpenAIAPIKey,
@@ -285,6 +301,10 @@ func applyEnvOverrides(cfg *Config) {
 		if contextLength, err := strconv.Atoi(value); err == nil {
 			cfg.ModelContextLength = contextLength
 		}
+	}
+	if value := strings.TrimSpace(strings.ToLower(os.Getenv("MODEL_VERIFY_CONTEXT_LENGTH"))); value != "" {
+		enabled := value == "1" || value == "true" || value == "yes"
+		cfg.ModelVerifyContextLength = &enabled
 	}
 	if value := strings.TrimSpace(os.Getenv("MODEL_ROUTER")); value != "" {
 		cfg.ModelRouter = value
@@ -419,6 +439,9 @@ func (c *Config) Normalize() {
 	if c.Model == "" {
 		c.Model = defaultModel
 	}
+	if c.ModelVerifyContextLength == nil {
+		c.ModelVerifyContextLength = new(true)
+	}
 	if c.ModelContextLength <= 0 {
 		c.ModelContextLength = defaultContextLength
 	}
@@ -496,6 +519,14 @@ func (c *Config) Normalize() {
 			c.ModelBaseURL = mappedBaseURL
 		}
 	}
+}
+
+func (c *Config) VerifyContextLengthEnabled() bool {
+	if c == nil {
+		return true
+	}
+
+	return boolValueDefault(c.ModelVerifyContextLength, true)
 }
 
 func splitAndTrimCSV(value string) []string {
@@ -608,6 +639,14 @@ func boolValue(value *bool) bool {
 	return *value
 }
 
+func boolValueDefault(value *bool, fallback bool) bool {
+	if value == nil {
+		return fallback
+	}
+
+	return *value
+}
+
 func (c *Config) Validate() error {
 	if c == nil {
 		return errors.New("config is required")
@@ -621,6 +660,9 @@ func (c *Config) Validate() error {
 
 	if strings.TrimSpace(c.Model) == "" {
 		return errors.New("model is required; set MODEL, provide it in config, or use --model")
+	}
+	if !isValidModelSlug(c.Model) {
+		return errors.New("model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
 	}
 	if c.ModelContextLength <= 0 {
 		return errors.New("model context length must be greater than zero")
@@ -736,4 +778,205 @@ func normalizeRulePaths(files []string) []string {
 	}
 
 	return normalized
+}
+
+func isValidModelSlug(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+
+	owner, name, ok := strings.Cut(value, "/")
+	if !ok {
+		return true
+	}
+
+	owner = strings.TrimSpace(owner)
+	name = strings.TrimSpace(name)
+	return owner != "" && name != "" && !strings.Contains(name, "/")
+}
+
+func applyProviderModelMetadata(ctx context.Context, cfg *Config, requestedContextLength int) {
+	if cfg == nil {
+		return
+	}
+	if !cfg.VerifyContextLengthEnabled() {
+		return
+	}
+
+	contextLength, ok, err := resolveModelMeta(ctx, cfg)
+	if err != nil || !ok || contextLength <= 0 {
+		return
+	}
+
+	if requestedContextLength <= 0 || requestedContextLength > contextLength {
+		cfg.ModelContextLength = contextLength
+	}
+}
+
+func resolveModelContextLengthFromProvider(ctx context.Context, cfg *Config) (int, bool, error) {
+	if cfg == nil {
+		return 0, false, nil
+	}
+
+	switch strings.TrimSpace(strings.ToLower(cfg.ModelRouter)) {
+	case "openrouter":
+		return fetchOpenRouterContextLength(ctx, cfg.ModelBaseURL, cfg.Model, cfg.OpenRouterAPIKey, cfg.ModelKey)
+	default:
+		return fetchOpenAIContextLength(ctx, cfg.Model)
+	}
+}
+
+func fetchOpenRouterContextLength(ctx context.Context, baseURL, model, openRouterAPIKey, modelKey string) (int, bool, error) {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return 0, false, nil
+	}
+
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if baseURL == "" {
+		baseURL = supportedRouters["openrouter"]
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/models", nil)
+	if err != nil {
+		return 0, false, err
+	}
+
+	if apiKey := firstNonEmpty(openRouterAPIKey, modelKey); apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return 0, false, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, false, fmt.Errorf("openrouter models lookup returned %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, false, err
+	}
+
+	type openRouterModel struct {
+		ID            string `json:"id"`
+		ContextLength int    `json:"context_length"`
+	}
+
+	var wrapped struct {
+		Data []openRouterModel `json:"data"`
+	}
+	if err := json.Unmarshal(body, &wrapped); err != nil {
+		return 0, false, err
+	}
+
+	for _, item := range wrapped.Data {
+		if strings.TrimSpace(item.ID) == model && item.ContextLength > 0 {
+			return item.ContextLength, true, nil
+		}
+	}
+
+	return 0, false, nil
+}
+
+func fetchOpenAIContextLength(ctx context.Context, model string) (int, bool, error) {
+	for _, candidate := range openAIModelDocCandidates(model) {
+		contextLength, ok, err := fetchOpenAIContextLengthCandidate(ctx, candidate)
+		if err != nil {
+			return 0, false, err
+		}
+		if ok {
+			return contextLength, true, nil
+		}
+	}
+
+	return 0, false, nil
+}
+
+func fetchOpenAIContextLengthCandidate(ctx context.Context, model string) (int, bool, error) {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return 0, false, nil
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(modelDocsBaseURL, "/")+"/"+model, nil)
+	if err != nil {
+		return 0, false, err
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return 0, false, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return 0, false, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return 0, false, fmt.Errorf("openai model docs lookup returned %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, false, err
+	}
+
+	match := contextWindowPatternOAI.FindStringSubmatch(string(body))
+	if len(match) != 2 {
+		return 0, false, nil
+	}
+
+	contextLength, err := strconv.Atoi(strings.ReplaceAll(match[1], ",", ""))
+	if err != nil {
+		return 0, false, err
+	}
+
+	return contextLength, true, nil
+}
+
+func openAIModelDocCandidates(model string) []string {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return nil
+	}
+
+	if prefix, suffix, ok := strings.Cut(model, "/"); ok && strings.EqualFold(prefix, "openai") {
+		model = strings.TrimSpace(suffix)
+	}
+
+	candidates := []string{model}
+	if base := trimOpenAISnapshotSuffix(model); base != model {
+		candidates = append(candidates, base)
+	}
+
+	return dedupeAndTrim(candidates)
+}
+
+func trimOpenAISnapshotSuffix(model string) string {
+	parts := strings.Split(strings.TrimSpace(model), "-")
+	if len(parts) < 4 {
+		return model
+	}
+
+	last := len(parts) - 1
+	if len(parts[last-2]) != 4 || len(parts[last-1]) != 2 || len(parts[last]) != 2 {
+		return model
+	}
+
+	if _, err := strconv.Atoi(parts[last-2]); err != nil {
+		return model
+	}
+	if _, err := strconv.Atoi(parts[last-1]); err != nil {
+		return model
+	}
+	if _, err := strconv.Atoi(parts[last]); err != nil {
+		return model
+	}
+
+	return strings.Join(parts[:last-2], "-")
 }
