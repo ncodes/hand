@@ -46,14 +46,15 @@ var newOpenAIResponseCaller = func(opts ...option.RequestOption) func(
 }
 
 type normalizedGenerateRequest struct {
-	Model           string
-	APIMode         string
-	Instructions    string
-	Messages        []handmsg.Message
-	Tools           []ToolDefinition
-	MaxOutputTokens int64
-	Temperature     float64
-	DebugRequests   bool
+	Model            string
+	APIMode          string
+	Instructions     string
+	Messages         []handmsg.Message
+	Tools            []ToolDefinition
+	StructuredOutput *StructuredOutput
+	MaxOutputTokens  int64
+	Temperature      float64
+	DebugRequests    bool
 }
 
 // NewOpenAIClient creates a new OpenAI client.
@@ -150,15 +151,34 @@ func normalizeGenerateRequest(req Request) (normalizedGenerateRequest, error) {
 	}
 
 	return normalizedGenerateRequest{
-		Model:           model,
-		APIMode:         mode,
-		Instructions:    strings.TrimSpace(req.Instructions),
-		Messages:        messages,
-		Tools:           tools,
-		MaxOutputTokens: req.MaxOutputTokens,
-		Temperature:     req.Temperature,
-		DebugRequests:   req.DebugRequests,
+		Model:            model,
+		APIMode:          mode,
+		Instructions:     strings.TrimSpace(req.Instructions),
+		Messages:         messages,
+		Tools:            tools,
+		StructuredOutput: normalizeStructuredOutput(req.StructuredOutput),
+		MaxOutputTokens:  req.MaxOutputTokens,
+		Temperature:      req.Temperature,
+		DebugRequests:    req.DebugRequests,
 	}, nil
+}
+
+func normalizeStructuredOutput(value *StructuredOutput) *StructuredOutput {
+	if value == nil {
+		return nil
+	}
+
+	name := strings.TrimSpace(value.Name)
+	if name == "" || len(value.Schema) == 0 {
+		return nil
+	}
+
+	return &StructuredOutput{
+		Name:        name,
+		Description: strings.TrimSpace(value.Description),
+		Schema:      value.Schema,
+		Strict:      value.Strict,
+	}
 }
 
 func normalizeMessages(messages []handmsg.Message) ([]handmsg.Message, error) {
@@ -275,6 +295,18 @@ func buildChatCompletionsRequest(req normalizedGenerateRequest) openai.ChatCompl
 	if req.Temperature > 0 {
 		params.Temperature = openai.Float(req.Temperature)
 	}
+	if req.StructuredOutput != nil {
+		params.ResponseFormat = openai.ChatCompletionNewParamsResponseFormatUnion{
+			OfJSONSchema: &shared.ResponseFormatJSONSchemaParam{
+				JSONSchema: shared.ResponseFormatJSONSchemaJSONSchemaParam{
+					Name:        req.StructuredOutput.Name,
+					Description: openai.String(req.StructuredOutput.Description),
+					Schema:      req.StructuredOutput.Schema,
+					Strict:      openai.Bool(req.StructuredOutput.Strict),
+				},
+			},
+		}
+	}
 
 	return params
 }
@@ -331,6 +363,18 @@ func buildResponsesRequest(req normalizedGenerateRequest) responses.ResponseNewP
 	}
 	if req.Temperature > 0 {
 		params.Temperature = openai.Float(req.Temperature)
+	}
+	if req.StructuredOutput != nil {
+		params.Text = responses.ResponseTextConfigParam{
+			Format: responses.ResponseFormatTextConfigUnionParam{
+				OfJSONSchema: &responses.ResponseFormatTextJSONSchemaConfigParam{
+					Name:        req.StructuredOutput.Name,
+					Schema:      req.StructuredOutput.Schema,
+					Description: openai.String(req.StructuredOutput.Description),
+					Strict:      openai.Bool(req.StructuredOutput.Strict),
+				},
+			},
+		}
 	}
 
 	return params

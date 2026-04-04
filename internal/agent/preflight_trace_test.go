@@ -7,6 +7,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/mocks"
 	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/internal/trace"
 )
 
 func TestRecordPreflightCompactionTrace_EmitsUnifiedPreflightEvent(t *testing.T) {
@@ -24,7 +25,7 @@ func TestRecordPreflightCompactionTrace_EmitsUnifiedPreflightEvent(t *testing.T)
 	)
 
 	require.Len(t, traceSession.Events, 1)
-	require.Equal(t, "context.preflight", traceSession.Events[0].Type)
+	require.Equal(t, trace.EvtContextPreflight, traceSession.Events[0].Type)
 
 	payload, ok := traceSession.Events[0].Payload.(map[string]any)
 	require.True(t, ok)

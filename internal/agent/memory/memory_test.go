@@ -38,7 +38,7 @@ func TestMemory_SummaryToStorage_ClonesSummary(t *testing.T) {
 	require.Equal(t, "one", stored.Discoveries[0])
 }
 
-func TestMemory_RenderSummaryMessage(t *testing.T) {
+func TestMemory_RenderSummaryInstructions(t *testing.T) {
 	mem := &Memory{
 		Summary: &SummaryState{
 			SessionSummary: "Older work",
@@ -49,28 +49,27 @@ func TestMemory_RenderSummaryMessage(t *testing.T) {
 		},
 	}
 
-	message, ok := mem.RenderSummaryMessage()
+	message, ok := mem.RenderSummaryInstructions()
 	require.True(t, ok)
-	require.Equal(t, handmsg.RoleDeveloper, message.Role)
-	require.Contains(t, message.Content, "Session Summary:\nOlder work")
-	require.Contains(t, message.Content, "Current Task:\nFix tests")
-	require.Contains(t, message.Content, "Discoveries:\n- one")
-	require.Contains(t, message.Content, "Open Questions:\n- two")
-	require.Contains(t, message.Content, "Next Actions:\n- three")
+	require.Contains(t, message, "Session Summary:\nOlder work")
+	require.Contains(t, message, "Current Task:\nFix tests")
+	require.Contains(t, message, "Discoveries:\n- one")
+	require.Contains(t, message, "Open Questions:\n- two")
+	require.Contains(t, message, "Next Actions:\n- three")
 }
 
-func TestMemory_RenderSummaryMessage_ReturnsFalseWhenUnavailable(t *testing.T) {
-	message, ok := (*Memory)(nil).RenderSummaryMessage()
+func TestMemory_RenderSummaryInstructions_ReturnsFalseWhenUnavailable(t *testing.T) {
+	message, ok := (*Memory)(nil).RenderSummaryInstructions()
 	require.False(t, ok)
-	require.Equal(t, handmsg.Message{}, message)
+	require.Empty(t, message)
 
-	message, ok = (&Memory{}).RenderSummaryMessage()
+	message, ok = (&Memory{}).RenderSummaryInstructions()
 	require.False(t, ok)
-	require.Equal(t, handmsg.Message{}, message)
+	require.Empty(t, message)
 
-	message, ok = (&Memory{Summary: &SummaryState{SessionSummary: "   "}}).RenderSummaryMessage()
+	message, ok = (&Memory{Summary: &SummaryState{SessionSummary: "   "}}).RenderSummaryInstructions()
 	require.False(t, ok)
-	require.Equal(t, handmsg.Message{}, message)
+	require.Empty(t, message)
 }
 
 func TestMemory_Recall(t *testing.T) {
@@ -84,8 +83,7 @@ func TestMemory_Recall(t *testing.T) {
 		SessionSummary:  "Older work",
 	}}).Recall(history)
 
-	require.Len(t, recall.PrefixMessages, 1)
-	require.Equal(t, handmsg.RoleDeveloper, recall.PrefixMessages[0].Role)
+	require.Empty(t, recall.PrefixMessages)
 	require.Equal(t, history, recall.SessionHistory)
 }
 
@@ -97,6 +95,6 @@ func TestMemory_Recall_DefaultsForNilAndPreservesHistoryWithSummary(t *testing.T
 	require.Equal(t, history, recall.SessionHistory)
 
 	recall = (&Memory{Summary: &SummaryState{SourceEndOffset: 99, SessionSummary: "Older work"}}).Recall(history)
-	require.Len(t, recall.PrefixMessages, 1)
+	require.Empty(t, recall.PrefixMessages)
 	require.Equal(t, history, recall.SessionHistory)
 }

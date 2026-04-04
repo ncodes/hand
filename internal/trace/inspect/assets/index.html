@@ -849,6 +849,59 @@
       `;
     }
 
+    function renderContextEvent(contextEvent) {
+      const pills = [];
+      if (contextEvent.source) pills.push(`<span class="pill">Source: ${escapeHTML(contextEvent.source)}</span>`);
+      if (contextEvent.prompt_tokens) pills.push(`<span class="pill">Prompt Tokens: ${escapeHTML(String(contextEvent.prompt_tokens))}</span>`);
+      if (contextEvent.completion_tokens) pills.push(`<span class="pill">Completion Tokens: ${escapeHTML(String(contextEvent.completion_tokens))}</span>`);
+      if (contextEvent.total_tokens) pills.push(`<span class="pill">Total Tokens: ${escapeHTML(String(contextEvent.total_tokens))}</span>`);
+      if (contextEvent.context_limit) pills.push(`<span class="pill">Context Limit: ${escapeHTML(String(contextEvent.context_limit))}</span>`);
+      if (contextEvent.trigger_threshold) pills.push(`<span class="pill">Trigger Threshold: ${escapeHTML(String(contextEvent.trigger_threshold))}</span>`);
+      if (contextEvent.warn_threshold) pills.push(`<span class="pill">Warn Threshold: ${escapeHTML(String(contextEvent.warn_threshold))}</span>`);
+
+      return `<div class="stack"><div class="pill-row">${pills.join("")}</div></div>`;
+    }
+
+    function renderSummaryEvent(summaryEvent) {
+      return `
+        <div class="stack">
+          <div class="pill-row">
+            ${summaryEvent.session_id ? `<span class="pill">Session: ${escapeHTML(summaryEvent.session_id)}</span>` : ""}
+            <span class="pill">Source End Offset: ${escapeHTML(String(summaryEvent.source_end_offset || 0))}</span>
+            <span class="pill">Source Message Count: ${escapeHTML(String(summaryEvent.source_message_count || 0))}</span>
+            ${summaryEvent.updated_at ? `<span class="pill">Updated: ${escapeHTML(fmtTime(summaryEvent.updated_at))}</span>` : ""}
+          </div>
+          ${summaryEvent.error ? `<div class="error">${escapeHTML(summaryEvent.error)}</div>` : ""}
+        </div>
+      `;
+    }
+
+    function renderCompactionEvent(compactionEvent) {
+      const timings = [
+        ["Requested", compactionEvent.requested_at],
+        ["Started", compactionEvent.started_at],
+        ["Completed", compactionEvent.completed_at],
+        ["Failed", compactionEvent.failed_at]
+      ].filter(([, value]) => !!value);
+
+      return `
+        <div class="stack">
+          <div class="pill-row">
+            ${compactionEvent.session_id ? `<span class="pill">Session: ${escapeHTML(compactionEvent.session_id)}</span>` : ""}
+            ${compactionEvent.status ? `<span class="pill">Status: ${escapeHTML(compactionEvent.status)}</span>` : ""}
+            <span class="pill">Target Offset: ${escapeHTML(String(compactionEvent.target_offset || 0))}</span>
+            <span class="pill">Target Message Count: ${escapeHTML(String(compactionEvent.target_message_count || 0))}</span>
+          </div>
+          ${timings.length ? `
+            <div class="subgrid">
+              ${timings.map(([label, value]) => `<div class="subcard"><h3>${escapeHTML(label)}</h3><div>${escapeHTML(fmtTime(value))}</div></div>`).join("")}
+            </div>
+          ` : ""}
+          ${compactionEvent.error ? `<div class="error">${escapeHTML(compactionEvent.error)}</div>` : ""}
+        </div>
+      `;
+    }
+
     function renderEventMarkup(event) {
       const eventClasses = ["event"];
       let body = "";
@@ -870,6 +923,12 @@
         body = `<div class="error">${escapeHTML(event.failure.error)}</div>`;
       } else if (event.summary_fallback) {
         body = `<pre>${escapeHTML(event.summary_fallback.payload || "")}</pre>`;
+      } else if (event.context_event) {
+        body = renderContextEvent(event.context_event);
+      } else if (event.summary_event) {
+        body = renderSummaryEvent(event.summary_event);
+      } else if (event.compaction_event) {
+        body = renderCompactionEvent(event.compaction_event);
       } else if (event.generic_payload_raw) {
         body = `<pre>${escapeHTML(event.generic_payload_raw)}</pre>`;
       }

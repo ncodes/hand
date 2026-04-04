@@ -19,6 +19,7 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 )
 
+
 // Turn executes a single response turn against a resolved session.
 type Turn struct {
 	// ctx is the request context used for session writes during the turn.
@@ -33,8 +34,8 @@ type Turn struct {
 	memoryService *agentmemory.Service
 	// invokeToolFn performs tool execution for requested tool calls.
 	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message
-	// runtimeEnv supplies tools, instructions, tracing, and iteration budget.
-	runtimeEnv environment.Environment
+	// env supplies tools, instructions, tracing, and iteration budget.
+	env environment.Environment
 	// contextBuilder assembles the model-visible message context for the turn.
 	contextBuilder *ctxbuilder.Builder
 	// instructions is the request-scoped instruction set sent to the model.
@@ -68,7 +69,7 @@ func NewTurn(
 		modelClient:    modelClient,
 		sessionManager: sessionManager,
 		invokeToolFn:   invokeToolFn,
-		runtimeEnv:     runtimeEnv,
+		env:            runtimeEnv,
 		contextBuilder: ctxbuilder.New(),
 	}
 }
@@ -86,7 +87,7 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 		return errors.New("model client is required")
 	}
 
-	if t.runtimeEnv == nil {
+	if t.env == nil {
 		return errors.New("runtime environment is required")
 	}
 
@@ -119,7 +120,7 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 	}
 
 	t.ctx = ctx
-	t.instructions = t.runtimeEnv.Instructions()
+	t.instructions = t.env.Instructions()
 	t.sessionHistory = messages
 	t.emittedMessages = nil
 	t.memory = memory
@@ -145,40 +146,40 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		}()
 	}
 
-	traceSession := t.runtimeEnv.NewTraceSession()
+	traceSession := t.env.NewTraceSession()
 	defer traceSession.Close()
 
 	userMessage, err := handmsg.NewMessage(handmsg.RoleUser, msg)
 	if err != nil {
-		traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 		return "", err
 	}
 
 	t.emittedMessages = append(t.emittedMessages, userMessage)
 	if err := t.appendSessionMessages([]handmsg.Message{userMessage}); err != nil {
-		traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 		return "", err
 	}
 
-	traceSession.Record("user.message.accepted", map[string]any{"message": msg})
+	traceSession.Record(trace.EvtUserMessageAccepted, map[string]any{"message": msg})
 
-	budget := t.runtimeEnv.NewIterationBudget()
+	budget := t.env.NewIterationBudget()
 	for budget.Consume() {
 		if err := ctx.Err(); err != nil {
-			traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 			return "", err
 		}
 
 		availableToolDefinitions, err := t.availableToolDefinitions()
 		if err != nil {
-			traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 			return "", err
 		}
 
 		request := models.Request{
 			Model:         t.cfg.Model,
 			APIMode:       t.cfg.ModelAPIMode,
-			Instructions:  t.instructions.String(),
+			Instructions:  t.buildRequestInstructions(),
 			Messages:      t.Context(),
 			Tools:         availableToolDefinitions,
 			DebugRequests: t.cfg.DebugRequests,
@@ -195,24 +196,26 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			t.trimSessionHistoryToSummary()
 		}
 
+		// Refresh may persist a new session summary; rebuild instructions after it.
+		request.Instructions = t.buildRequestInstructions()
 		request.Messages = t.Context()
 		t.memory.RecordSummaryApplied(traceSession)
 		recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
-		traceSession.Record("model.request", request)
+		traceSession.Record(trace.EvtModelRequest, request)
 
 		resp, err := t.modelClient.Chat(ctx, request)
 		if err != nil {
-			traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 			return "", err
 		}
 
 		if resp == nil {
 			err = errors.New("model response is required")
-			traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 			return "", err
 		}
 
-		traceSession.Record("model.response", resp)
+		traceSession.Record(trace.EvtModelResponse, resp)
 		if err := t.recordPostflightUsage(traceSession, resp); err != nil {
 			return "", err
 		}
@@ -220,23 +223,23 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		if !resp.RequiresToolCalls {
 			assistantMessage, err := handmsg.NewMessage(handmsg.RoleAssistant, resp.OutputText)
 			if err != nil {
-				traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+				traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 				return "", err
 			}
 
 			t.emittedMessages = append(t.emittedMessages, assistantMessage)
 			if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
-				traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+				traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 				return "", err
 			}
 
-			traceSession.Record("final.assistant.response", map[string]any{"message": resp.OutputText})
+			traceSession.Record(trace.EvtFinalAssistantResponse, map[string]any{"message": resp.OutputText})
 			return resp.OutputText, nil
 		}
 
 		if len(resp.ToolCalls) == 0 {
 			err = errors.New("model requested tool execution without tool calls")
-			traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 			return "", err
 		}
 
@@ -248,37 +251,37 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 		assistantMessage, err = normalizeTurnMessage(assistantMessage)
 		if err != nil {
-			traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 			return "", err
 		}
 
 		t.emittedMessages = append(t.emittedMessages, assistantMessage)
 
 		if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
-			traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 			return "", err
 		}
 
 		for _, toolCall := range resp.ToolCalls {
 			if err := ctx.Err(); err != nil {
-				traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+				traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 				return "", err
 			}
 
-			traceSession.Record("tool.invocation.started", toolCall)
+			traceSession.Record(trace.EvtToolInvocationStarted, toolCall)
 			toolMessage := t.invokeTool(ctx, toolCall)
-			traceSession.Record("tool.invocation.completed", toolMessage)
+			traceSession.Record(trace.EvtToolInvocationCompleted, toolMessage)
 
 			toolMessage, err = normalizeTurnMessage(toolMessage)
 			if err != nil {
-				traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+				traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 				return "", err
 			}
 
 			t.emittedMessages = append(t.emittedMessages, toolMessage)
 
 			if err := t.appendSessionMessages([]handmsg.Message{toolMessage}); err != nil {
-				traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+				traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 				return "", err
 			}
 		}
@@ -318,11 +321,11 @@ func (t *Turn) appendSessionMessages(messages []handmsg.Message) error {
 }
 
 func (t *Turn) availableToolDefinitions() ([]models.ToolDefinition, error) {
-	if t == nil || t.runtimeEnv == nil || t.runtimeEnv.Tools() == nil {
+	if t == nil || t.env == nil || t.env.Tools() == nil {
 		return nil, nil
 	}
 
-	definitions, err := t.runtimeEnv.Tools().Resolve(t.runtimeEnv.ToolPolicy())
+	definitions, err := t.env.Tools().Resolve(t.env.ToolPolicy())
 	if err != nil {
 		return nil, err
 	}
@@ -349,69 +352,88 @@ func (t *Turn) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg
 		}
 	}
 
-	return t.invokeToolFn(ctx, t.runtimeEnv, toolCall)
+	return t.invokeToolFn(ctx, t.env, toolCall)
 }
 
 func (t *Turn) summaryFallback(ctx context.Context, budget environment.IterationBudget, traceSession trace.Session) (string, error) {
 	ctx = normalizeContext(ctx)
 	if err := ctx.Err(); err != nil {
-		traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 		return "", err
 	}
 
-	instructions := t.instructions.Chain(instruct.BuildSummary(budget.Remaining())...)
 	request := models.Request{
 		Model:         t.cfg.Model,
 		APIMode:       t.cfg.ModelAPIMode,
-		Instructions:  instructions.String(),
+		Instructions:  t.buildRequestInstructions(instruct.BuildSummary(budget.Remaining())),
 		Messages:      t.Context(),
 		Tools:         nil,
 		DebugRequests: t.cfg.DebugRequests,
 	}
 
-	traceSession.Record("summary.fallback.started", map[string]any{"remaining_iterations": budget.Remaining()})
+	traceSession.Record(trace.EvtSummaryFallbackStarted, map[string]any{"remaining_iterations": budget.Remaining()})
 	t.memory.RecordSummaryApplied(traceSession)
 	recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
-	traceSession.Record("model.request", request)
+	traceSession.Record(trace.EvtModelRequest, request)
 
 	resp, err := t.modelClient.Chat(ctx, request)
 	if err != nil {
 		wrapped := fmt.Errorf("iteration limit reached and summary failed: %w", err)
-		traceSession.Record("session.failed", map[string]any{"error": wrapped.Error()})
+		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": wrapped.Error()})
 		return "", wrapped
 	}
 
 	if resp == nil {
 		err = errors.New("model response is required")
-		traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 		return "", err
 	}
 
-	traceSession.Record("model.response", resp)
+	traceSession.Record(trace.EvtModelResponse, resp)
 	if err := t.recordPostflightUsage(traceSession, resp); err != nil {
 		return "", err
 	}
 
 	if resp.RequiresToolCalls {
 		err = fmt.Errorf("iteration limit reached and summary requested more tools")
-		traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 		return "", err
 	}
 
 	assistantMessage, err := handmsg.NewMessage(handmsg.RoleAssistant, resp.OutputText)
 	if err != nil {
-		traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 		return "", err
 	}
 
 	t.emittedMessages = append(t.emittedMessages, assistantMessage)
 	if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
-		traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 		return "", err
 	}
 
-	traceSession.Record("final.assistant.response", map[string]any{"message": resp.OutputText})
+	traceSession.Record(trace.EvtFinalAssistantResponse, map[string]any{"message": resp.OutputText})
 	return resp.OutputText, nil
+}
+
+// buildRequestInstructions builds the system prompt sent to the model: optional persisted session
+// summary, then the turn's base instructions, then any extra instruction blocks.
+func (t *Turn) buildRequestInstructions(extra ...instruct.Instructions) string {
+	if t == nil {
+		return ""
+	}
+
+	instructions := t.instructions
+	if t.memory != nil {
+		if summaryInstructions, ok := t.memory.RenderSummaryInstructions(); ok {
+			instructions = instruct.New(summaryInstructions).Append(instructions...)
+		}
+	}
+	for _, block := range extra {
+		instructions = instructions.Append(block...)
+	}
+
+	return instructions.String()
 }
 
 func (t *Turn) Context() []handmsg.Message {
@@ -436,11 +458,11 @@ func (t *Turn) recordPostflightUsage(traceSession trace.Session, resp *models.Re
 
 	t.lastPromptTokens = resp.PromptTokens
 	if err := t.sessionManager.UpdateLastPromptTokens(t.ctx, t.sessionID, resp.PromptTokens); err != nil {
-		traceSession.Record("session.failed", map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 		return err
 	}
 
-	traceSession.Record("context.postflight.usage_recorded", map[string]any{
+	traceSession.Record(trace.EvtContextPostflightUsage, map[string]any{
 		"source":            compaction.ActualSource,
 		"prompt_tokens":     resp.PromptTokens,
 		"completion_tokens": resp.CompletionTokens,

@@ -240,7 +240,7 @@ func writeTraceSession(t *testing.T, dir, id string) {
 	encoder := json.NewEncoder(file)
 	require.NoError(t, encoder.Encode(handtrace.Event{
 		SessionID: id,
-		Type:      "chat.started",
+		Type:      handtrace.EvtChatStarted,
 		Timestamp: time.Now().UTC(),
 		Payload: handtrace.Metadata{
 			AgentName: "Daemon",

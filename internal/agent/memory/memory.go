@@ -35,14 +35,14 @@ func (m *Memory) SummaryToStorage() storage.SessionSummary {
 	})
 }
 
-func (m *Memory) RenderSummaryMessage() (handmsg.Message, bool) {
+func (m *Memory) RenderSummaryInstructions() (string, bool) {
 	if m == nil || m.Summary == nil {
-		return handmsg.Message{}, false
+		return "", false
 	}
 
 	sessionSummary := strings.TrimSpace(m.Summary.SessionSummary)
 	if sessionSummary == "" {
-		return handmsg.Message{}, false
+		return "", false
 	}
 
 	var sections []string
@@ -60,20 +60,12 @@ func (m *Memory) RenderSummaryMessage() (handmsg.Message, bool) {
 		sections = append(sections, nextActions)
 	}
 
-	return handmsg.Message{
-		Role:    handmsg.RoleDeveloper,
-		Content: strings.Join(sections, "\n\n"),
-	}, true
+	return strings.Join(sections, "\n\n"), true
 }
 
 func (m *Memory) Recall(sessionHistory []handmsg.Message) Recall {
-	prefixMessages := make([]handmsg.Message, 0, 1)
-	if summaryMessage, ok := m.RenderSummaryMessage(); ok {
-		prefixMessages = append(prefixMessages, summaryMessage)
-	}
-
 	return Recall{
-		PrefixMessages: prefixMessages,
+		PrefixMessages: nil,
 		SessionHistory: handmsg.CloneMessages(sessionHistory),
 	}
 }

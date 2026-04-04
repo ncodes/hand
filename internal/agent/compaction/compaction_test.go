@@ -82,3 +82,40 @@ func TestEvaluator_ReportsWarningAtBoundary(t *testing.T) {
 	require.True(t, estimate.Warning())
 	require.True(t, estimate.Triggered())
 }
+
+func TestNewEvaluator_DefaultsInvalidInputs(t *testing.T) {
+	evaluator := NewEvaluator(0, 0, 0)
+
+	estimate := evaluator.Evaluate(models.Request{}, 0)
+	require.Equal(t, 128000, estimate.ContextLimit)
+	require.Equal(t, 108800, estimate.TriggerThreshold)
+	require.Equal(t, 121600, estimate.WarnThreshold)
+}
+
+func TestEstimateRequestRough_FallsBackToInstructionsWhenJSONMarshalFails(t *testing.T) {
+	req := models.Request{
+		Instructions: "hello",
+		Tools: []models.ToolDefinition{{
+			Name:        "bad_tool",
+			Description: "contains unsupported schema value",
+			InputSchema: map[string]any{"broken": func() {}},
+		}},
+	}
+
+	require.Equal(t, EstimateTextRough("hello"), EstimateRequestRough(req))
+}
+
+func TestEvaluator_NilReceiverUsesDefaults(t *testing.T) {
+	var evaluator *Evaluator
+
+	estimate := evaluator.Evaluate(models.Request{Instructions: "hello"}, 0)
+	require.Equal(t, EstimatedSource, estimate.Source)
+	require.Equal(t, EstimateRequestRough(models.Request{Instructions: "hello"}), estimate.PromptTokens)
+	require.Equal(t, 128000, estimate.ContextLimit)
+}
+
+func TestEstimate_WarningAndTriggeredRequirePositiveThresholds(t *testing.T) {
+	estimate := Estimate{PromptTokens: 10}
+	require.False(t, estimate.Warning())
+	require.False(t, estimate.Triggered())
+}

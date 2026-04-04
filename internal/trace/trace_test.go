@@ -27,7 +27,7 @@ func TestJSONLFactory_NewSessionCreatesSessionAndWritesEvents(t *testing.T) {
 
 	session := factory.NewSession(context.Background(), Metadata{AgentName: "hand", Model: "gpt-5.1", APIMode: "responses", Source: "agent"})
 	require.NotEmpty(t, session.ID())
-	session.Record("model.request", map[string]any{"authorization": "Bearer secret", "message": "hello"})
+	session.Record(EvtModelRequest, map[string]any{"authorization": "Bearer secret", "message": "hello"})
 	session.Close()
 
 	files, err := filepath.Glob(filepath.Join(dir, "*.jsonl"))
@@ -47,8 +47,8 @@ func TestJSONLFactory_NewSessionCreatesSessionAndWritesEvents(t *testing.T) {
 	}
 	require.NoError(t, scanner.Err())
 	require.Len(t, events, 2)
-	require.Equal(t, "chat.started", events[0].Type)
-	require.Equal(t, "model.request", events[1].Type)
+	require.Equal(t, EvtChatStarted, events[0].Type)
+	require.Equal(t, EvtModelRequest, events[1].Type)
 	payload := events[1].Payload.(map[string]any)
 	require.Equal(t, "[REDACTED]", payload["authorization"])
 	require.Equal(t, "hello", payload["message"])

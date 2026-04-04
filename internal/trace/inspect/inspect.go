@@ -61,6 +61,9 @@ type TimelineEvent struct {
 	Failure           *FailureView         `json:"failure,omitempty"`
 	SummaryFallback   *SummaryFallbackView `json:"summary_fallback,omitempty"`
 	StartedMetadata   *StartedMetadataView `json:"started_metadata,omitempty"`
+	ContextEvent      *ContextEventView    `json:"context_event,omitempty"`
+	SummaryEvent      *SummaryEventView    `json:"summary_event,omitempty"`
+	CompactionEvent   *CompactionEventView `json:"compaction_event,omitempty"`
 	GenericPayloadRaw string               `json:"generic_payload_raw,omitempty"`
 }
 
@@ -149,6 +152,36 @@ type SummaryFallbackView struct {
 	Payload string `json:"payload,omitempty"`
 }
 
+type ContextEventView struct {
+	Source           string `json:"source,omitempty"`
+	PromptTokens     int    `json:"prompt_tokens,omitempty"`
+	CompletionTokens int    `json:"completion_tokens,omitempty"`
+	TotalTokens      int    `json:"total_tokens,omitempty"`
+	ContextLimit     int    `json:"context_limit,omitempty"`
+	TriggerThreshold int    `json:"trigger_threshold,omitempty"`
+	WarnThreshold    int    `json:"warn_threshold,omitempty"`
+}
+
+type SummaryEventView struct {
+	SessionID          string    `json:"session_id,omitempty"`
+	SourceEndOffset    int       `json:"source_end_offset,omitempty"`
+	SourceMessageCount int       `json:"source_message_count,omitempty"`
+	UpdatedAt          time.Time `json:"updated_at,omitempty"`
+	Error              string    `json:"error,omitempty"`
+}
+
+type CompactionEventView struct {
+	SessionID          string    `json:"session_id,omitempty"`
+	Status             string    `json:"status,omitempty"`
+	TargetMessageCount int       `json:"target_message_count,omitempty"`
+	TargetOffset       int       `json:"target_offset,omitempty"`
+	RequestedAt        time.Time `json:"requested_at,omitempty"`
+	StartedAt          time.Time `json:"started_at,omitempty"`
+	CompletedAt        time.Time `json:"completed_at,omitempty"`
+	FailedAt           time.Time `json:"failed_at,omitempty"`
+	Error              string    `json:"error,omitempty"`
+}
+
 type rawEvent struct {
 	SessionID string          `json:"session_id"`
 	Type      string          `json:"type"`
@@ -158,6 +191,36 @@ type rawEvent struct {
 
 type userMessagePayload struct {
 	Message string `json:"message"`
+}
+
+type contextEventPayload struct {
+	Source           string `json:"source"`
+	PromptTokens     int    `json:"prompt_tokens"`
+	CompletionTokens int    `json:"completion_tokens"`
+	TotalTokens      int    `json:"total_tokens"`
+	ContextLimit     int    `json:"context_limit"`
+	TriggerThreshold int    `json:"trigger_threshold"`
+	WarnThreshold    int    `json:"warn_threshold"`
+}
+
+type summaryEventPayload struct {
+	SessionID          string    `json:"session_id"`
+	SourceEndOffset    int       `json:"source_end_offset"`
+	SourceMessageCount int       `json:"source_message_count"`
+	UpdatedAt          time.Time `json:"updated_at"`
+	Error              string    `json:"error"`
+}
+
+type compactionEventPayload struct {
+	SessionID          string    `json:"session_id"`
+	Status             string    `json:"status"`
+	TargetMessageCount int       `json:"target_message_count"`
+	TargetOffset       int       `json:"target_offset"`
+	RequestedAt        time.Time `json:"requested_at"`
+	StartedAt          time.Time `json:"started_at"`
+	CompletedAt        time.Time `json:"completed_at"`
+	FailedAt           time.Time `json:"failed_at"`
+	Error              string    `json:"error"`
 }
 
 func NewStore(directory string) *Store {
@@ -336,7 +399,7 @@ func LoadSessionFile(path string) (SessionDetail, error) {
 
 func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEvent) {
 	switch event.Type {
-	case "chat.started":
+	case handtrace.EvtChatStarted:
 		var payload handtrace.Metadata
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			detail.Summary.AgentName = payload.AgentName
@@ -352,13 +415,13 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 
 			return
 		}
-	case "user.message.accepted":
+	case handtrace.EvtUserMessageAccepted:
 		var payload userMessagePayload
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.UserMessage = &UserMessageView{Message: payload.Message}
 			return
 		}
-	case "model.request":
+	case handtrace.EvtModelRequest:
 		var payload models.Request
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.ModelRequest = buildRequestView(payload)
@@ -371,13 +434,13 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 
 			return
 		}
-	case "model.response":
+	case handtrace.EvtModelResponse:
 		var payload models.Response
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.ModelResponse = buildResponseView(payload)
 			return
 		}
-	case "tool.invocation.started":
+	case handtrace.EvtToolInvocationStarted:
 		var payload models.ToolCall
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.ToolInvocation = &ToolInvocationView{
@@ -389,7 +452,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 
 			return
 		}
-	case "tool.invocation.completed":
+	case handtrace.EvtToolInvocationCompleted:
 		var payload handmsg.Message
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.ToolInvocation = &ToolInvocationView{
@@ -402,23 +465,68 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 
 			return
 		}
-	case "final.assistant.response":
+	case handtrace.EvtFinalAssistantResponse:
 		var payload map[string]string
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.FinalResponse = &FinalResponseView{Message: strings.TrimSpace(payload["message"])}
 			detail.Summary.FinalStatus = "completed"
 			return
 		}
-	case "session.failed":
+	case handtrace.EvtSessionFailed:
 		var payload map[string]string
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.Failure = &FailureView{Error: strings.TrimSpace(payload["error"])}
 			detail.Summary.FinalStatus = "failed"
 			return
 		}
-	case "summary.fallback.started":
+	case handtrace.EvtSummaryFallbackStarted:
 		timelineEvent.SummaryFallback = &SummaryFallbackView{Payload: compactJSON(event.Payload)}
 		return
+	case handtrace.EvtContextPreflight, handtrace.EvtContextCompactionTriggered, handtrace.EvtContextCompactionWarning, handtrace.EvtContextPostflightUsage:
+		var payload contextEventPayload
+		if json.Unmarshal(event.Payload, &payload) == nil {
+			timelineEvent.ContextEvent = &ContextEventView{
+				Source:           payload.Source,
+				PromptTokens:     payload.PromptTokens,
+				CompletionTokens: payload.CompletionTokens,
+				TotalTokens:      payload.TotalTokens,
+				ContextLimit:     payload.ContextLimit,
+				TriggerThreshold: payload.TriggerThreshold,
+				WarnThreshold:    payload.WarnThreshold,
+			}
+
+			return
+		}
+	case handtrace.EvtSummaryRequested, handtrace.EvtSummarySaved, handtrace.EvtSummaryFailed, handtrace.EvtSummaryParseFailed, handtrace.EvtSummaryApplied:
+		var payload summaryEventPayload
+		if json.Unmarshal(event.Payload, &payload) == nil {
+			timelineEvent.SummaryEvent = &SummaryEventView{
+				SessionID:          payload.SessionID,
+				SourceEndOffset:    payload.SourceEndOffset,
+				SourceMessageCount: payload.SourceMessageCount,
+				UpdatedAt:          payload.UpdatedAt,
+				Error:              strings.TrimSpace(payload.Error),
+			}
+
+			return
+		}
+	case handtrace.EvtContextCompactionPending, handtrace.EvtContextCompactionRunning, handtrace.EvtContextCompactionSucceeded, handtrace.EvtContextCompactionFailed:
+		var payload compactionEventPayload
+		if json.Unmarshal(event.Payload, &payload) == nil {
+			timelineEvent.CompactionEvent = &CompactionEventView{
+				SessionID:          payload.SessionID,
+				Status:             payload.Status,
+				TargetMessageCount: payload.TargetMessageCount,
+				TargetOffset:       payload.TargetOffset,
+				RequestedAt:        payload.RequestedAt,
+				StartedAt:          payload.StartedAt,
+				CompletedAt:        payload.CompletedAt,
+				FailedAt:           payload.FailedAt,
+				Error:              strings.TrimSpace(payload.Error),
+			}
+
+			return
+		}
 	}
 
 	timelineEvent.GenericPayloadRaw = compactJSON(event.Payload)

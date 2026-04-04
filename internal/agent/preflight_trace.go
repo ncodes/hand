@@ -46,13 +46,13 @@ func recordPreflightCompactionTrace(
 		"warn_threshold":    estimate.WarnThreshold,
 	}
 
-	traceSession.Record("context.preflight", payload)
+	traceSession.Record(trace.EvtContextPreflight, payload)
 
 	if estimate.Triggered() {
-		traceSession.Record("context.compaction.triggered", payload)
+		traceSession.Record(trace.EvtContextCompactionTriggered, payload)
 	}
 
 	if estimate.Warning() {
-		traceSession.Record("context.compaction.warning", payload)
+		traceSession.Record(trace.EvtContextCompactionWarning, payload)
 	}
 }

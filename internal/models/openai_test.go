@@ -287,6 +287,43 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsChatCompletionsRequest(t *test
 	require.Contains(t, rawText, `"content":"previous reply"`)
 }
 
+func TestOpenAIClient_ChatBuildsChatCompletionsStructuredOutputRequest(t *testing.T) {
+	var captured openai.ChatCompletionNewParams
+	client := &OpenAIClient{
+		createChatCompletion: func(_ context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+			captured = params
+			return &openai.ChatCompletion{
+				ID:    "resp_123",
+				Model: "returned-model",
+				Choices: []openai.ChatCompletionChoice{{
+					Message: openai.ChatCompletionMessage{Content: `{"session_summary":"ok","current_task":"","discoveries":[],"open_questions":[],"next_actions":[]}`},
+				}},
+			}, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), Request{
+		Model:    "test-model",
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		StructuredOutput: &StructuredOutput{
+			Name:        "session_summary",
+			Description: "summary payload",
+			Strict:      true,
+			Schema:      map[string]any{"type": "object"},
+		},
+	})
+	require.NoError(t, err)
+
+	raw, err := json.Marshal(captured)
+	require.NoError(t, err)
+	rawText := string(raw)
+	require.Contains(t, rawText, `"response_format":{`)
+	require.Contains(t, rawText, `"type":"json_schema"`)
+	require.Contains(t, rawText, `"name":"session_summary"`)
+	require.Contains(t, rawText, `"description":"summary payload"`)
+	require.Contains(t, rawText, `"strict":true`)
+}
+
 func TestExtractChatCompletionsResponse_IncludesUsage(t *testing.T) {
 	resp, err := extractChatCompletionsResponse(&openai.ChatCompletion{
 		ID:    "resp_123",
@@ -511,6 +548,48 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsResponsesRequest(t *testing.T)
 	require.Contains(t, rawText, `"type":"function_call_output"`)
 	require.Contains(t, rawText, `"call_id":"call-1"`)
 	require.Contains(t, rawText, `"name":"time"`)
+}
+
+func TestOpenAIClient_ChatBuildsResponsesStructuredOutputRequest(t *testing.T) {
+	var captured responses.ResponseNewParams
+	client := &OpenAIClient{
+		createResponse: func(_ context.Context, params responses.ResponseNewParams) (*responses.Response, error) {
+			captured = params
+			return &responses.Response{
+				ID:    "resp_456",
+				Model: "gpt-5.1",
+				Output: []responses.ResponseOutputItemUnion{{
+					Type: "message",
+					Content: []responses.ResponseOutputMessageContentUnion{{
+						Type: "output_text",
+						Text: `{"session_summary":"ok","current_task":"","discoveries":[],"open_questions":[],"next_actions":[]}`,
+					}},
+				}},
+			}, nil
+		},
+	}
+
+	_, err := client.Chat(context.Background(), Request{
+		Model:    "gpt-5.1",
+		APIMode:  APIModeResponses,
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		StructuredOutput: &StructuredOutput{
+			Name:        "session_summary",
+			Description: "summary payload",
+			Strict:      true,
+			Schema:      map[string]any{"type": "object"},
+		},
+	})
+	require.NoError(t, err)
+
+	raw, err := json.Marshal(captured)
+	require.NoError(t, err)
+	rawText := string(raw)
+	require.Contains(t, rawText, `"text":{"format":{`)
+	require.Contains(t, rawText, `"type":"json_schema"`)
+	require.Contains(t, rawText, `"name":"session_summary"`)
+	require.Contains(t, rawText, `"description":"summary payload"`)
+	require.Contains(t, rawText, `"strict":true`)
 }
 
 func TestOpenAIClient_ChatReturnsToolCallsFromResponses(t *testing.T) {

@@ -25,11 +25,24 @@ var (
 const configInstructInstructionName = "config.instruct"
 
 type Environment interface {
+	// Prepare registers native tools and builds system instructions from config,
+	// personality overlays, workspace rules, and optional config instruct. Call once
+	// before using Instructions or Tools for a run.
 	Prepare() error
+
+	// Instructions returns a copy of the base prompts.
 	Instructions() instructions.Instructions
+
+	// Tools returns the registry for tools.
 	Tools() ToolRegistry
+
+	// ToolPolicy reflects configured capabilities and platform for resolving and gating tools.
 	ToolPolicy() tools.Policy
+
+	// NewIterationBudget creates the tool-calling iteration limit from config (max iterations).
 	NewIterationBudget() IterationBudget
+
+	// NewTraceSession opens a trace sink for this agent run when debug tracing is enabled.
 	NewTraceSession() trace.Session
 }
 

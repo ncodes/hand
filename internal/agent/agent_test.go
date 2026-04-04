@@ -553,9 +553,9 @@ func TestAgent_CompactSessionRefreshesSummary(t *testing.T) {
 		OutputText: `{"session_summary":"Earlier work","current_task":"Investigate compact","discoveries":["d1"],"open_questions":["q1"],"next_actions":["n1"]}`,
 	}}}
 	agent := newSessionOpsAgent(t, &config.Config{
-		Name:               "Test Agent",
-		Model:              "test-model",
-		ModelContextLength: 128000,
+		Name:          "Test Agent",
+		Model:         "test-model",
+		ContextLength: 128000,
 	}, client, &mocks.TraceSessionStub{})
 
 	session, err := agent.CreateSession(context.Background(), "ses_Z4VxN3E3h5cQH1sYq2k8a")
@@ -582,9 +582,9 @@ func TestAgent_CompactSessionRefreshesSummary(t *testing.T) {
 
 func TestAgent_SessionContextStatusUsesStoredPromptTokens(t *testing.T) {
 	agent := newSessionOpsAgent(t, &config.Config{
-		Name:               "Test Agent",
-		Model:              "test-model",
-		ModelContextLength: 128000,
+		Name:          "Test Agent",
+		Model:         "test-model",
+		ContextLength: 128000,
 	}, &mocks.ModelClientStub{}, nil)
 
 	session, err := agent.CreateSession(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
@@ -605,7 +605,7 @@ func TestAgent_SessionContextStatusUsesStoredPromptTokens(t *testing.T) {
 }
 
 func TestAgent_CompactSession_validationErrors(t *testing.T) {
-	cfg := testSessionConfig(&config.Config{Name: "Test Agent", Model: "m", ModelContextLength: 128000})
+	cfg := testSessionConfig(&config.Config{Name: "Test Agent", Model: "m", ContextLength: 128000})
 	manager := mustSessionManager(t)
 
 	t.Run("nil_agent", func(t *testing.T) {
@@ -642,7 +642,7 @@ func TestAgent_CompactSession_returnsResolveError(t *testing.T) {
 	require.NoError(t, err)
 
 	a := &Agent{
-		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Model: "m", ModelContextLength: 128000}),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Model: "m", ContextLength: 128000}),
 		modelClient: &mocks.ModelClientStub{},
 		sessionMgr:  manager,
 		initialized: true,
@@ -654,9 +654,9 @@ func TestAgent_CompactSession_returnsResolveError(t *testing.T) {
 
 func TestAgent_CompactSession_returnsMemoryErrorWhenHistoryTooShort(t *testing.T) {
 	a := newSessionOpsAgent(t, &config.Config{
-		Name:               "Test Agent",
-		Model:              "test-model",
-		ModelContextLength: 128000,
+		Name:          "Test Agent",
+		Model:         "test-model",
+		ContextLength: 128000,
 	}, &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "{}"}}}, nil)
 
 	session, err := a.CreateSession(context.Background(), "")
@@ -678,9 +678,9 @@ func TestAgent_CompactSession_withNilEnvironmentUsesNoopTrace(t *testing.T) {
 
 	a := &Agent{
 		cfg: testSessionConfig(&config.Config{
-			Name:               "Test Agent",
-			Model:              "test-model",
-			ModelContextLength: 128000,
+			Name:          "Test Agent",
+			Model:         "test-model",
+			ContextLength: 128000,
 		}),
 		modelClient: client,
 		sessionMgr:  manager,
@@ -701,7 +701,7 @@ func TestAgent_CompactSession_withNilEnvironmentUsesNoopTrace(t *testing.T) {
 }
 
 func TestAgent_SessionContextStatus_validationErrors(t *testing.T) {
-	cfg := testSessionConfig(&config.Config{Name: "Test Agent", ModelContextLength: 128000})
+	cfg := testSessionConfig(&config.Config{Name: "Test Agent", ContextLength: 128000})
 	manager := mustSessionManager(t)
 
 	t.Run("nil_agent", func(t *testing.T) {
@@ -732,7 +732,7 @@ func TestAgent_SessionContextStatus_returnsResolveError(t *testing.T) {
 	require.NoError(t, err)
 
 	a := &Agent{
-		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", ModelContextLength: 128000}),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", ContextLength: 128000}),
 		sessionMgr:  manager,
 		initialized: true,
 		modelClient: &mocks.ModelClientStub{},
@@ -740,6 +740,28 @@ func TestAgent_SessionContextStatus_returnsResolveError(t *testing.T) {
 
 	_, err = a.SessionContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
 	require.EqualError(t, err, "session not found")
+}
+
+func TestAgent_SessionContextStatus_returnsSummaryError(t *testing.T) {
+	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+		GetFunc: func(_ context.Context, id string) (storage.Session, bool, error) {
+			return storage.Session{ID: id}, true, nil
+		},
+		GetSummaryFunc: func(context.Context, string) (storage.SessionSummary, bool, error) {
+			return storage.SessionSummary{}, false, errors.New("summary load failed")
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	a := &Agent{
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", ContextLength: 128000}),
+		sessionMgr:  manager,
+		initialized: true,
+		modelClient: &mocks.ModelClientStub{},
+	}
+
+	_, err = a.SessionContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
+	require.EqualError(t, err, "summary load failed")
 }
 
 func TestAgent_SessionContextStatus_zeroTotalSkipsPercentages(t *testing.T) {
@@ -751,7 +773,7 @@ func TestAgent_SessionContextStatus_zeroTotalSkipsPercentages(t *testing.T) {
 	require.NoError(t, err)
 
 	a := &Agent{
-		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", ModelContextLength: 0}),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", ContextLength: 0}),
 		sessionMgr:  manager,
 		initialized: true,
 		modelClient: &mocks.ModelClientStub{},
@@ -778,8 +800,8 @@ func TestAgent_SessionContextStatus_clampsNegativeTotalsAndUsed(t *testing.T) {
 
 	a := &Agent{
 		cfg: testSessionConfig(&config.Config{
-			Name:               "Test Agent",
-			ModelContextLength: -500,
+			Name:          "Test Agent",
+			ContextLength: -500,
 		}),
 		sessionMgr:  manager,
 		initialized: true,
@@ -821,7 +843,7 @@ func TestAgent_GetSessionReturnsConcreteValues(t *testing.T) {
 	require.NoError(t, err)
 
 	a := &Agent{
-		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", ModelContextLength: 400}),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", ContextLength: 400}),
 		sessionMgr:  manager,
 		initialized: true,
 		modelClient: &mocks.ModelClientStub{},

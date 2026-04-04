@@ -25,7 +25,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 	writeTraceFile(t, dir, "20260329T002738.170520000Z-4fca4857", []any{
 		handtrace.Event{
 			SessionID: "20260329T002738.170520000Z-4fca4857",
-			Type:      "chat.started",
+			Type:      handtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 38, 171258000, time.UTC),
 			Payload: handtrace.Metadata{
 				AgentName: "Daemon",
@@ -37,13 +37,13 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 		},
 		handtrace.Event{
 			SessionID: "20260329T002738.170520000Z-4fca4857",
-			Type:      "user.message.accepted",
+			Type:      handtrace.EvtUserMessageAccepted,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 38, 171671000, time.UTC),
 			Payload:   map[string]any{"message": "List files in the root"},
 		},
 		handtrace.Event{
 			SessionID: "20260329T002738.170520000Z-4fca4857",
-			Type:      "model.request",
+			Type:      handtrace.EvtModelRequest,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 38, 171759000, time.UTC),
 			Payload: models.Request{
 				Model:        "qwen/qwen3.5-27b",
@@ -63,7 +63,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 		},
 		handtrace.Event{
 			SessionID: "20260329T002738.170520000Z-4fca4857",
-			Type:      "model.response",
+			Type:      handtrace.EvtModelResponse,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 41, 430260000, time.UTC),
 			Payload: models.Response{
 				ID:                "gen-1",
@@ -74,7 +74,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 		},
 		handtrace.Event{
 			SessionID: "20260329T002738.170520000Z-4fca4857",
-			Type:      "model.request",
+			Type:      handtrace.EvtModelRequest,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 45, 171759000, time.UTC),
 			Payload: models.Request{
 				Model:       "qwen/qwen3.5-27b",
@@ -85,7 +85,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 		},
 		handtrace.Event{
 			SessionID: "20260329T002738.170520000Z-4fca4857",
-			Type:      "model.response",
+			Type:      handtrace.EvtModelResponse,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 46, 430260000, time.UTC),
 			Payload: models.Response{
 				ID:         "gen-2",
@@ -95,13 +95,13 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 		},
 		handtrace.Event{
 			SessionID: "20260329T002738.170520000Z-4fca4857",
-			Type:      "tool.invocation.started",
+			Type:      handtrace.EvtToolInvocationStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 41, 430685000, time.UTC),
 			Payload:   models.ToolCall{ID: "call-1", Name: "list_files", Input: "{}"},
 		},
 		handtrace.Event{
 			SessionID: "20260329T002738.170520000Z-4fca4857",
-			Type:      "tool.invocation.completed",
+			Type:      handtrace.EvtToolInvocationCompleted,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 41, 447625000, time.UTC),
 			Payload: handmsg.Message{
 				Role:       handmsg.RoleTool,
@@ -113,7 +113,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 		},
 		handtrace.Event{
 			SessionID: "20260329T002738.170520000Z-4fca4857",
-			Type:      "final.assistant.response",
+			Type:      handtrace.EvtFinalAssistantResponse,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 47, 273707000, time.UTC),
 			Payload:   map[string]any{"message": "Here are the files and directories in the root."},
 		},
@@ -122,7 +122,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 	writeTraceFile(t, dir, "20260330T002738.170520000Z-failed", []any{
 		handtrace.Event{
 			SessionID: "20260330T002738.170520000Z-failed",
-			Type:      "chat.started",
+			Type:      handtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 30, 0, 27, 38, 171258000, time.UTC),
 			Payload: handtrace.Metadata{
 				AgentName: "Daemon",
@@ -133,7 +133,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 		},
 		handtrace.Event{
 			SessionID: "20260330T002738.170520000Z-failed",
-			Type:      "session.failed",
+			Type:      handtrace.EvtSessionFailed,
 			Timestamp: time.Date(2026, 3, 30, 0, 27, 39, 171258000, time.UTC),
 			Payload:   map[string]any{"error": "tool failed"},
 		},
@@ -178,10 +178,10 @@ func Test_Store_ListSessions_SortsTiesByIDDescending(t *testing.T) {
 	dir := t.TempDir()
 	timestamp := time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC)
 	writeTraceFile(t, dir, "aaa", []any{
-		handtrace.Event{SessionID: "aaa", Type: "chat.started", Timestamp: timestamp, Payload: handtrace.Metadata{AgentName: "A"}},
+		handtrace.Event{SessionID: "aaa", Type: handtrace.EvtChatStarted, Timestamp: timestamp, Payload: handtrace.Metadata{AgentName: "A"}},
 	})
 	writeTraceFile(t, dir, "zzz", []any{
-		handtrace.Event{SessionID: "zzz", Type: "chat.started", Timestamp: timestamp, Payload: handtrace.Metadata{AgentName: "Z"}},
+		handtrace.Event{SessionID: "zzz", Type: handtrace.EvtChatStarted, Timestamp: timestamp, Payload: handtrace.Metadata{AgentName: "Z"}},
 	})
 
 	summaries, err := NewStore(dir).ListSessions()
@@ -194,13 +194,13 @@ func Test_Store_ListSessions_SortsTiesByIDDescending(t *testing.T) {
 func Test_Store_ListSessions_SortsOlderSessionsAfterNewerOnComparatorReversePath(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "older", []any{
-		handtrace.Event{SessionID: "older", Type: "chat.started", Timestamp: time.Date(2026, 3, 28, 0, 0, 0, 0, time.UTC), Payload: handtrace.Metadata{AgentName: "Older"}},
+		handtrace.Event{SessionID: "older", Type: handtrace.EvtChatStarted, Timestamp: time.Date(2026, 3, 28, 0, 0, 0, 0, time.UTC), Payload: handtrace.Metadata{AgentName: "Older"}},
 	})
 	writeTraceFile(t, dir, "newer", []any{
-		handtrace.Event{SessionID: "newer", Type: "chat.started", Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC), Payload: handtrace.Metadata{AgentName: "Newer"}},
+		handtrace.Event{SessionID: "newer", Type: handtrace.EvtChatStarted, Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC), Payload: handtrace.Metadata{AgentName: "Newer"}},
 	})
 	writeTraceFile(t, dir, "newest", []any{
-		handtrace.Event{SessionID: "newest", Type: "chat.started", Timestamp: time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC), Payload: handtrace.Metadata{AgentName: "Newest"}},
+		handtrace.Event{SessionID: "newest", Type: handtrace.EvtChatStarted, Timestamp: time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC), Payload: handtrace.Metadata{AgentName: "Newest"}},
 	})
 
 	permutations := [][]string{
@@ -249,7 +249,7 @@ func Test_LoadSessionFile_RecordsSessionIDMismatchAndSummaryFallback(t *testing.
 	writeTraceFile(t, dir, "mismatch", []any{
 		handtrace.Event{
 			SessionID: "different",
-			Type:      "summary.fallback.started",
+			Type:      handtrace.EvtSummaryFallbackStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
 			Payload:   map[string]any{"remaining": 0},
 		},
@@ -268,7 +268,7 @@ func Test_LoadSessionFile_HandlesGenericPayloadsAndInvalidStructuredPayloads(t *
 	writeTraceFile(t, dir, "generic", []any{
 		handtrace.Event{
 			SessionID: "generic",
-			Type:      "chat.started",
+			Type:      handtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
 			Payload:   map[string]any{"agent_name": 99},
 		},
@@ -288,12 +288,84 @@ func Test_LoadSessionFile_HandlesGenericPayloadsAndInvalidStructuredPayloads(t *
 	require.Contains(t, detail.Timeline[1].GenericPayloadRaw, `"raw":true`)
 }
 
+func Test_LoadSessionFile_ParsesContextSummaryAndCompactionEvents(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 4, 4, 10, 0, 0, 0, time.UTC)
+	writeTraceFile(t, dir, "memory-events", []any{
+		handtrace.Event{
+			SessionID: "memory-events",
+			Type:      handtrace.EvtContextPreflight,
+			Timestamp: now,
+			Payload: map[string]any{
+				"source":            "estimate",
+				"prompt_tokens":     144,
+				"context_limit":     1000,
+				"trigger_threshold": 800,
+				"warn_threshold":    650,
+			},
+		},
+		handtrace.Event{
+			SessionID: "memory-events",
+			Type:      handtrace.EvtSummaryParseFailed,
+			Timestamp: now.Add(time.Second),
+			Payload: map[string]any{
+				"session_id":           "memory-events",
+				"source_end_offset":    14,
+				"source_message_count": 22,
+				"updated_at":           now.Add(time.Second),
+				"error":                "summary requested tool calls",
+			},
+		},
+		handtrace.Event{
+			SessionID: "memory-events",
+			Type:      handtrace.EvtContextCompactionRunning,
+			Timestamp: now.Add(2 * time.Second),
+			Payload: map[string]any{
+				"session_id":           "memory-events",
+				"status":               "running",
+				"target_message_count": 22,
+				"target_offset":        14,
+				"requested_at":         now,
+				"started_at":           now.Add(2 * time.Second),
+			},
+		},
+	})
+
+	detail, err := LoadSessionFile(filepath.Join(dir, "memory-events.jsonl"))
+
+	require.NoError(t, err)
+	require.Len(t, detail.Timeline, 3)
+	require.NotNil(t, detail.Timeline[0].ContextEvent)
+	require.Equal(t, "estimate", detail.Timeline[0].ContextEvent.Source)
+	require.Equal(t, 144, detail.Timeline[0].ContextEvent.PromptTokens)
+	require.Equal(t, 1000, detail.Timeline[0].ContextEvent.ContextLimit)
+	require.Equal(t, 800, detail.Timeline[0].ContextEvent.TriggerThreshold)
+	require.Equal(t, 650, detail.Timeline[0].ContextEvent.WarnThreshold)
+	require.Empty(t, detail.Timeline[0].GenericPayloadRaw)
+
+	require.NotNil(t, detail.Timeline[1].SummaryEvent)
+	require.Equal(t, "memory-events", detail.Timeline[1].SummaryEvent.SessionID)
+	require.Equal(t, 14, detail.Timeline[1].SummaryEvent.SourceEndOffset)
+	require.Equal(t, 22, detail.Timeline[1].SummaryEvent.SourceMessageCount)
+	require.Equal(t, "summary requested tool calls", detail.Timeline[1].SummaryEvent.Error)
+	require.Empty(t, detail.Timeline[1].GenericPayloadRaw)
+
+	require.NotNil(t, detail.Timeline[2].CompactionEvent)
+	require.Equal(t, "memory-events", detail.Timeline[2].CompactionEvent.SessionID)
+	require.Equal(t, "running", detail.Timeline[2].CompactionEvent.Status)
+	require.Equal(t, 22, detail.Timeline[2].CompactionEvent.TargetMessageCount)
+	require.Equal(t, 14, detail.Timeline[2].CompactionEvent.TargetOffset)
+	require.True(t, detail.Timeline[2].CompactionEvent.RequestedAt.Equal(now))
+	require.True(t, detail.Timeline[2].CompactionEvent.StartedAt.Equal(now.Add(2*time.Second)))
+	require.Empty(t, detail.Timeline[2].GenericPayloadRaw)
+}
+
 func Test_App_Handler_ServesIndexAndSessionEndpoints(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "session", []any{
 		handtrace.Event{
 			SessionID: "session",
-			Type:      "chat.started",
+			Type:      handtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
 			Payload: handtrace.Metadata{
 				AgentName: "Daemon",
@@ -338,7 +410,7 @@ func Test_App_Handler_RequiresBasicAuthWhenConfigured(t *testing.T) {
 	writeTraceFile(t, dir, "session", []any{
 		handtrace.Event{
 			SessionID: "session",
-			Type:      "chat.started",
+			Type:      handtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
 			Payload: handtrace.Metadata{
 				AgentName: "Daemon",
@@ -407,7 +479,7 @@ func Test_Store_ListSessions_IgnoresNonJSONLAndGetSessionErrors(t *testing.T) {
 	writeTraceFile(t, dir, "session", []any{
 		handtrace.Event{
 			SessionID: "session",
-			Type:      "chat.started",
+			Type:      handtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
 			Payload: handtrace.Metadata{
 				AgentName: "Daemon",
@@ -631,7 +703,7 @@ func Test_ApplyEvent_PreservesSummaryAndFallsBackToGenericPayload(t *testing.T) 
 	require.NoError(t, err)
 
 	applyEvent(&detail, &timelineEvent, rawEvent{
-		Type:    "model.request",
+		Type:    handtrace.EvtModelRequest,
 		Payload: requestPayload,
 	})
 	require.Equal(t, "existing-model", detail.Summary.Model)
@@ -640,7 +712,7 @@ func Test_ApplyEvent_PreservesSummaryAndFallsBackToGenericPayload(t *testing.T) 
 
 	timelineEvent = TimelineEvent{}
 	applyEvent(&detail, &timelineEvent, rawEvent{
-		Type:    "final.assistant.response",
+		Type:    handtrace.EvtFinalAssistantResponse,
 		Payload: []byte(`{"message":1}`),
 	})
 	require.Nil(t, timelineEvent.FinalResponse)
@@ -649,7 +721,7 @@ func Test_ApplyEvent_PreservesSummaryAndFallsBackToGenericPayload(t *testing.T) 
 	detail = SessionDetail{Summary: SessionSummary{FinalStatus: "incomplete"}}
 	timelineEvent = TimelineEvent{}
 	applyEvent(&detail, &timelineEvent, rawEvent{
-		Type:    "model.request",
+		Type:    handtrace.EvtModelRequest,
 		Payload: requestPayload,
 	})
 	require.Equal(t, "new-model", detail.Summary.Model)
@@ -661,7 +733,7 @@ func Test_App_Handler_HandleSessionPermissionAndInternalErrors(t *testing.T) {
 	writeTraceFile(t, dir, "session", []any{
 		handtrace.Event{
 			SessionID: "session",
-			Type:      "chat.started",
+			Type:      handtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
 			Payload: handtrace.Metadata{
 				AgentName: "Daemon",

@@ -323,7 +323,7 @@ func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionRe
 		SourceMessageCount:   summary.SourceMessageCount,
 		UpdatedAt:            summary.UpdatedAt,
 		CurrentContextLength: session.LastPromptTokens,
-		TotalContextLength:   a.cfg.ModelContextLength,
+		TotalContextLength:   a.cfg.ContextLength,
 	}, nil
 }
 
@@ -348,7 +348,7 @@ func (a *Agent) SessionContextStatus(ctx context.Context, id string) (SessionCon
 		return SessionContextStatus{}, err
 	}
 
-	total := max(a.cfg.ModelContextLength, 0)
+	total := max(a.cfg.ContextLength, 0)
 	used := max(session.LastPromptTokens, 0)
 	remaining := max(total-used, 0)
 

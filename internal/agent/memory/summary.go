@@ -21,16 +21,6 @@ import (
 
 const RecentSessionTail = 8
 
-const (
-	tEvtFailed              = "context.compaction.failed"
-	tEvtSummaryRequested    = "context.summary.requested"
-	tEvtSummarySaved        = "context.summary.saved"
-	tEvtSummaryFailed       = "context.summary.failed"
-	tEvtSummaryApplied      = "context.summary.applied"
-	tEvtCompactionPending   = "context.compaction.pending"
-	tEvtCompactionRunning   = "context.compaction.running"
-	tEvtCompactionSucceeded = "context.compaction.succeeded"
-)
 
 type SummaryState struct {
 	SessionID          string
@@ -50,6 +40,39 @@ type summaryPayload struct {
 	Discoveries    []string `json:"discoveries"`
 	OpenQuestions  []string `json:"open_questions"`
 	NextActions    []string `json:"next_actions"`
+}
+
+var summaryStructuredOutput = &models.StructuredOutput{
+	Name:        "session_summary",
+	Description: "Structured handoff summary for compacted conversation history.",
+	Strict:      true,
+	Schema: map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"session_summary": map[string]any{"type": "string"},
+			"current_task":    map[string]any{"type": "string"},
+			"discoveries": map[string]any{
+				"type":  "array",
+				"items": map[string]any{"type": "string"},
+			},
+			"open_questions": map[string]any{
+				"type":  "array",
+				"items": map[string]any{"type": "string"},
+			},
+			"next_actions": map[string]any{
+				"type":  "array",
+				"items": map[string]any{"type": "string"},
+			},
+		},
+		"required": []string{
+			"session_summary",
+			"current_task",
+			"discoveries",
+			"open_questions",
+			"next_actions",
+		},
+	},
 }
 
 type refreshPlan struct {
@@ -94,7 +117,7 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 		return errors.New("model client is required")
 	}
 
-	if s.summaryStore == nil {
+	if s.store == nil {
 		return errors.New("summary store is required")
 	}
 
@@ -102,9 +125,9 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 		return nil
 	}
 
-	totalCount, err := s.summaryStore.CountMessages(ctx, input.SessionID, storage.MessageQueryOptions{})
+	totalCount, err := s.store.CountMessages(ctx, input.SessionID, storage.MessageQueryOptions{})
 	if err != nil {
-		input.TraceSession.Record(tEvtFailed, compactionTracePayload(
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(
 			input.SessionID,
 			storage.SessionCompaction{Status: storage.CompactionStatusFailed},
 			err.Error()),
@@ -125,9 +148,9 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 	}
 
 	if !force && memory.Summary != nil && memory.Summary.SourceEndOffset >= targetOffset {
-		session, ok, err := s.summaryStore.Get(ctx, input.SessionID)
+		session, ok, err := s.store.Get(ctx, input.SessionID)
 		if err != nil {
-			input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+			input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
 				Status:             storage.CompactionStatusFailed,
 				TargetMessageCount: totalCount,
 				TargetOffset:       targetOffset,
@@ -136,7 +159,7 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 		}
 		if !ok {
 			err = errors.New("session not found")
-			input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+			input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
 				Status:             storage.CompactionStatusFailed,
 				TargetMessageCount: totalCount,
 				TargetOffset:       targetOffset,
@@ -154,9 +177,9 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 		}
 	}
 
-	session, ok, err := s.summaryStore.Get(ctx, input.SessionID)
+	session, ok, err := s.store.Get(ctx, input.SessionID)
 	if err != nil {
-		input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: totalCount,
 			TargetOffset:       targetOffset,
@@ -165,7 +188,7 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 	}
 	if !ok {
 		err = errors.New("session not found")
-		input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: totalCount,
 			TargetOffset:       targetOffset,
@@ -175,7 +198,7 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 
 	// TODO: Currently no need for pending compaction transition. Left here for when async compaction is implemented.
 	if err := s.transitionCompactionPending(ctx, &session, plan, input.TraceSession); err != nil {
-		input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: plan.TargetMessageCount,
 			TargetOffset:       plan.TargetOffset,
@@ -184,7 +207,7 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 	}
 
 	if err := s.transitionCompactionRunning(ctx, &session, plan, input.TraceSession); err != nil {
-		input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
 			RequestedAt:        plan.RequestedAt,
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: plan.TargetMessageCount,
@@ -196,7 +219,7 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 	if err := s.refreshSummary(ctx, memory, input, plan); err != nil {
 		if transErr := s.transitionCompactionFailed(ctx, &session, plan, err, input.TraceSession); transErr != nil {
 			wrapped := fmt.Errorf("mark compaction failed: %w", transErr)
-			input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+			input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
 				RequestedAt:        plan.RequestedAt,
 				StartedAt:          session.Compaction.StartedAt,
 				Status:             storage.CompactionStatusFailed,
@@ -209,7 +232,7 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 	}
 
 	if err := s.transitionCompactionSucceeded(ctx, &session, plan, input.TraceSession); err != nil {
-		input.TraceSession.Record(tEvtFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
 			RequestedAt:        plan.RequestedAt,
 			StartedAt:          session.Compaction.StartedAt,
 			Status:             storage.CompactionStatusFailed,
@@ -235,7 +258,7 @@ func (s *Service) CompactSession(
 		return nil, errors.New("model client is required")
 	}
 
-	if s.summaryStore == nil {
+	if s.store == nil {
 		return nil, errors.New("summary store is required")
 	}
 
@@ -248,9 +271,9 @@ func (s *Service) CompactSession(
 		return nil, err
 	}
 
-	totalCount, err := s.summaryStore.CountMessages(ctx, session.ID, storage.MessageQueryOptions{})
+	totalCount, err := s.store.CountMessages(ctx, session.ID, storage.MessageQueryOptions{})
 	if err != nil {
-		traceSession.Record(tEvtFailed, compactionTracePayload(
+		traceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(
 			session.ID,
 			storage.SessionCompaction{Status: storage.CompactionStatusFailed},
 			err.Error()),
@@ -260,7 +283,7 @@ func (s *Service) CompactSession(
 
 	if totalCount <= RecentSessionTail {
 		err = errors.New("session history is too short to compact")
-		traceSession.Record(tEvtFailed, compactionTracePayload(
+		traceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(
 			session.ID,
 			storage.SessionCompaction{Status: storage.CompactionStatusFailed},
 			err.Error()),
@@ -276,20 +299,17 @@ func (s *Service) CompactSession(
 		return nil, err
 	}
 
-	if memory.Summary == nil {
-		return nil, errors.New("session summary is required")
-	}
-
 	return memory.Summary, nil
 }
 
 func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input RefreshInput, plan refreshPlan) error {
 	payload := summaryTracePayload(input.SessionID, plan.TargetOffset, plan.TargetMessageCount, plan.RequestedAt)
-	input.TraceSession.Record(tEvtSummaryRequested, payload)
+	input.TraceSession.Record(trace.EvtSummaryRequested, payload)
 
-	summaryMessages := make([]handmsg.Message, 0, plan.TargetOffset+1)
-	if summaryMessage, ok := memory.RenderSummaryMessage(); ok {
-		summaryMessages = append(summaryMessages, summaryMessage)
+	summaryMessages := make([]handmsg.Message, 0, plan.TargetOffset)
+	instructions := instruct.BuildSessionSummary()
+	if summaryInstructions, ok := memory.RenderSummaryInstructions(); ok {
+		instructions = instruct.New(summaryInstructions).Append(instructions...)
 	}
 
 	startOffset := 0
@@ -299,43 +319,45 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 
 	limit := plan.TargetOffset - startOffset
 	if limit > 0 {
-		messages, err := s.summaryStore.GetMessages(ctx, input.SessionID, storage.MessageQueryOptions{
+		messages, err := s.store.GetMessages(ctx, input.SessionID, storage.MessageQueryOptions{
 			Limit:  limit,
 			Offset: startOffset,
 		})
 		if err != nil {
 			failedPayload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
-			input.TraceSession.Record(tEvtSummaryFailed, failedPayload)
+			input.TraceSession.Record(trace.EvtSummaryFailed, failedPayload)
 			return err
 		}
 		summaryMessages = append(summaryMessages, handmsg.CloneMessages(messages)...)
 	}
 
-	resp, err := s.modelClient.Chat(ctx, models.Request{
-		Model:         s.model,
-		APIMode:       s.apiMode,
-		Instructions:  instruct.BuildSessionSummary().String(),
-		Messages:      summaryMessages,
-		Tools:         nil,
-		DebugRequests: s.debugRequests,
-	})
+	request := models.Request{
+		Model:            s.model,
+		APIMode:          s.apiMode,
+		Instructions:     instructions.String(),
+		Messages:         summaryMessages,
+		Tools:            nil,
+		StructuredOutput: summaryStructuredOutput,
+		DebugRequests:    s.debugRequests,
+	}
+	resp, err := s.generateSummaryResponse(ctx, request)
 	if err != nil {
 		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
-		input.TraceSession.Record(tEvtSummaryFailed, payload)
+		input.TraceSession.Record(trace.EvtSummaryFailed, payload)
 		return err
 	}
 
 	if resp == nil {
 		err = errors.New("model response is required")
 		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
-		input.TraceSession.Record(tEvtSummaryFailed, payload)
+		input.TraceSession.Record(trace.EvtSummaryFailed, payload)
 		return err
 	}
 
 	if resp.RequiresToolCalls {
 		err = errors.New("summary requested tool calls")
 		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
-		input.TraceSession.Record(tEvtSummaryFailed, payload)
+		input.TraceSession.Record(trace.EvtSummaryFailed, payload)
 		return err
 	}
 
@@ -347,9 +369,28 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 		plan.RequestedAt,
 	)
 	if err != nil {
-		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
-		input.TraceSession.Record(tEvtSummaryFailed, payload)
-		return err
+		if errors.Is(err, errSummaryResponseEmpty) {
+			payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
+			input.TraceSession.Record(trace.EvtSummaryFailed, payload)
+			return err
+		}
+
+		input.TraceSession.Record(trace.EvtSummaryParseFailed, mergeSummaryTracePayload(payload, map[string]any{
+			"error": err.Error(),
+		}))
+
+		summary, err = fallbackSummary(
+			input.SessionID,
+			plan.TargetOffset,
+			plan.TargetMessageCount,
+			resp.OutputText,
+			plan.RequestedAt,
+		)
+		if err != nil {
+			payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
+			input.TraceSession.Record(trace.EvtSummaryFailed, payload)
+			return err
+		}
 	}
 
 	summaryRecord := common.CloneSessionSummary(storage.SessionSummary{
@@ -364,15 +405,15 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 		NextActions:        summary.NextActions,
 	})
 
-	if err := s.summaryStore.SaveSummary(ctx, summaryRecord); err != nil {
+	if err := s.store.SaveSummary(ctx, summaryRecord); err != nil {
 		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
-		input.TraceSession.Record(tEvtSummaryFailed, payload)
+		input.TraceSession.Record(trace.EvtSummaryFailed, payload)
 		return err
 	}
 
 	memory.Summary = summary
 
-	input.TraceSession.Record(tEvtSummarySaved, summaryTracePayload(
+	input.TraceSession.Record(trace.EvtSummarySaved, summaryTracePayload(
 		memory.Summary.SessionID,
 		memory.Summary.SourceEndOffset,
 		memory.Summary.SourceMessageCount,
@@ -380,6 +421,25 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 	))
 
 	return nil
+}
+
+func (s *Service) generateSummaryResponse(ctx context.Context, request models.Request) (*models.Response, error) {
+	if s == nil || s.modelClient == nil {
+		return nil, errors.New("model client is required")
+	}
+
+	resp, err := s.modelClient.Chat(ctx, request)
+	if err == nil {
+		return resp, nil
+	}
+
+	if request.StructuredOutput == nil {
+		return nil, err
+	}
+
+	fallback := request
+	fallback.StructuredOutput = nil
+	return s.modelClient.Chat(ctx, fallback)
 }
 
 func (s *Service) transitionCompactionPending(
@@ -399,11 +459,11 @@ func (s *Service) transitionCompactionPending(
 		TargetOffset:       plan.TargetOffset,
 	}
 
-	if err := s.summaryStore.Save(ctx, *session); err != nil {
+	if err := s.store.Save(ctx, *session); err != nil {
 		return err
 	}
 
-	recorder.Record(tEvtCompactionPending, compactionTracePayload(session.ID, session.Compaction, ""))
+	recorder.Record(trace.EvtContextCompactionPending, compactionTracePayload(session.ID, session.Compaction, ""))
 	return nil
 }
 
@@ -422,11 +482,11 @@ func (s *Service) transitionCompactionRunning(
 	session.Compaction.TargetMessageCount = plan.TargetMessageCount
 	session.Compaction.TargetOffset = plan.TargetOffset
 
-	if err := s.summaryStore.Save(ctx, *session); err != nil {
+	if err := s.store.Save(ctx, *session); err != nil {
 		return err
 	}
 
-	recorder.Record(tEvtCompactionRunning, compactionTracePayload(session.ID, session.Compaction, ""))
+	recorder.Record(trace.EvtContextCompactionRunning, compactionTracePayload(session.ID, session.Compaction, ""))
 	return nil
 }
 
@@ -447,11 +507,11 @@ func (s *Service) transitionCompactionSucceeded(
 	session.Compaction.TargetMessageCount = plan.TargetMessageCount
 	session.Compaction.TargetOffset = plan.TargetOffset
 
-	if err := s.summaryStore.Save(ctx, *session); err != nil {
+	if err := s.store.Save(ctx, *session); err != nil {
 		return err
 	}
 
-	recorder.Record(tEvtCompactionSucceeded, compactionTracePayload(session.ID, session.Compaction, ""))
+	recorder.Record(trace.EvtContextCompactionSucceeded, compactionTracePayload(session.ID, session.Compaction, ""))
 	return nil
 }
 
@@ -472,7 +532,7 @@ func (s *Service) reconcileCompactionSucceeded(
 	}
 
 	if err := s.transitionCompactionSucceeded(ctx, session, plan, recorder); err != nil {
-		recorder.Record(tEvtFailed, compactionTracePayload(session.ID, storage.SessionCompaction{
+		recorder.Record(trace.EvtContextCompactionFailed, compactionTracePayload(session.ID, storage.SessionCompaction{
 			RequestedAt:        session.Compaction.RequestedAt,
 			StartedAt:          session.Compaction.StartedAt,
 			Status:             storage.CompactionStatusFailed,
@@ -503,11 +563,11 @@ func (s *Service) transitionCompactionFailed(
 	session.Compaction.TargetMessageCount = plan.TargetMessageCount
 	session.Compaction.TargetOffset = plan.TargetOffset
 
-	if err := s.summaryStore.Save(ctx, *session); err != nil {
+	if err := s.store.Save(ctx, *session); err != nil {
 		return err
 	}
 
-	recorder.Record(tEvtFailed, compactionTracePayload(
+	recorder.Record(trace.EvtContextCompactionFailed, compactionTracePayload(
 		session.ID,
 		session.Compaction,
 		session.Compaction.LastError,
@@ -536,7 +596,7 @@ func (m *Memory) RecordSummaryApplied(traceSession trace.Session) {
 		return
 	}
 
-	traceSession.Record(tEvtSummaryApplied, summaryTracePayload(
+	traceSession.Record(trace.EvtSummaryApplied, summaryTracePayload(
 		m.Summary.SessionID,
 		m.Summary.SourceEndOffset,
 		m.Summary.SourceMessageCount,
@@ -552,9 +612,9 @@ func parseSummary(
 	raw string,
 	updatedAt time.Time,
 ) (*SummaryState, error) {
-	raw = strings.TrimSpace(stripMarkdownFence(raw))
+	raw = normalizedSummaryText(raw)
 	if raw == "" {
-		return nil, errors.New("summary response is empty")
+		return nil, errSummaryResponseEmpty
 	}
 
 	var payload summaryPayload
@@ -578,6 +638,38 @@ func parseSummary(
 	}
 
 	return summary, nil
+}
+
+var errSummaryResponseEmpty = errors.New("summary response is empty")
+
+func fallbackSummary(
+	sessionID string,
+	sourceEndOffset,
+	sourceMessageCount int,
+	raw string,
+	updatedAt time.Time,
+) (*SummaryState, error) {
+	raw = normalizedSummaryText(raw)
+	if raw == "" {
+		return nil, errSummaryResponseEmpty
+	}
+
+	summary := SummaryFromStorage(storage.SessionSummary{
+		SessionID:          sessionID,
+		SourceEndOffset:    sourceEndOffset,
+		SourceMessageCount: sourceMessageCount,
+		UpdatedAt:          updatedAt,
+		SessionSummary:     raw,
+	})
+	if summary == nil {
+		return nil, errors.New("session summary is required")
+	}
+
+	return summary, nil
+}
+
+func normalizedSummaryText(raw string) string {
+	return strings.TrimSpace(stripMarkdownFence(raw))
 }
 
 func stripMarkdownFence(raw string) string {

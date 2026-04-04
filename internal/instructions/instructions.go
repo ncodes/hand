@@ -23,35 +23,35 @@ func (i Instructions) First() Instruction {
 func New(values ...string) Instructions {
 	instructions := make(Instructions, 0, len(values))
 	for _, value := range values {
-		instructions = instructions.ChainValue(value)
+		instructions = instructions.AppendValue(value)
 	}
 
 	return instructions
 }
 
-func (i Instructions) Chain(instructions ...Instruction) Instructions {
-	chained := make(Instructions, 0, len(i)+len(instructions))
-	chained = append(chained, i...)
+func (i Instructions) Append(instructions ...Instruction) Instructions {
+	appended := make(Instructions, 0, len(i)+len(instructions))
+	appended = append(appended, i...)
 	for _, instruction := range instructions {
 		if strings.TrimSpace(instruction.Value) == "" {
 			continue
 		}
-		chained = append(chained, Instruction{
+		appended = append(appended, Instruction{
 			Name:  strings.TrimSpace(instruction.Name),
 			Value: strings.TrimSpace(instruction.Value),
 		})
 	}
 
-	return chained
+	return appended
 }
 
-func (i Instructions) ChainValue(values ...string) Instructions {
+func (i Instructions) AppendValue(values ...string) Instructions {
 	instructions := make([]Instruction, 0, len(values))
 	for _, value := range values {
 		instructions = append(instructions, Instruction{Value: value})
 	}
 
-	return i.Chain(instructions...)
+	return i.Append(instructions...)
 }
 
 func (i Instructions) String() string {

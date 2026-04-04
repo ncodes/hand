@@ -22,9 +22,9 @@ func BuildBase(name string) Instructions {
 func BuildSummary(iterationsLeft int) Instructions {
 	instructions := New()
 	if iterationsLeft <= 5 {
-		instructions = instructions.ChainValue(fmt.Sprintf("Remaining iteration budget: %d.", iterationsLeft))
+		instructions = instructions.AppendValue(fmt.Sprintf("Remaining iteration budget: %d.", iterationsLeft))
 	}
-	instructions = instructions.ChainValue(
+	instructions = instructions.AppendValue(
 		"The maximum number of tool-calling iterations has been reached. Summarize completed work so far and do not call any more tools.",
 	)
 	return instructions

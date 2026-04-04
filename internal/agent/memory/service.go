@@ -23,7 +23,7 @@ type SummaryStore interface {
 
 type Service struct {
 	modelClient   models.Client
-	summaryStore  SummaryStore
+	store         SummaryStore
 	evaluator     *compaction.Evaluator
 	compactionOn  bool
 	model         string
@@ -46,7 +46,7 @@ type traceRecorder interface {
 func NewService(cfg *config.Config, modelClient models.Client, summaryStore SummaryStore) *Service {
 	service := &Service{
 		modelClient:  modelClient,
-		summaryStore: summaryStore,
+		store:        summaryStore,
 		evaluator:    summaryCompactionEvaluator(cfg),
 		compactionOn: summaryCompactionEnabled(cfg),
 		now:          func() time.Time { return time.Now().UTC() },
@@ -66,11 +66,11 @@ func (s *Service) Load(ctx context.Context, sessionID string) (*Memory, error) {
 		return nil, errors.New("memory service is required")
 	}
 
-	if s.summaryStore == nil {
+	if s.store == nil {
 		return nil, errors.New("summary store is required")
 	}
 
-	summary, _, err := s.summaryStore.GetSummary(ctx, sessionID)
+	summary, _, err := s.store.GetSummary(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}

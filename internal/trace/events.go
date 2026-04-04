@@ -1,0 +1,26 @@
+package trace
+
+const (
+	EvtChatStarted                = "chat.started"
+	EvtSessionFailed              = "session.failed"
+	EvtUserMessageAccepted        = "user.message.accepted"
+	EvtModelRequest               = "model.request"
+	EvtModelResponse              = "model.response"
+	EvtFinalAssistantResponse     = "final.assistant.response"
+	EvtToolInvocationStarted      = "tool.invocation.started"
+	EvtToolInvocationCompleted    = "tool.invocation.completed"
+	EvtSummaryFallbackStarted     = "summary.fallback.started"
+	EvtContextPreflight           = "context.preflight"
+	EvtContextPostflightUsage     = "context.postflight.usage_recorded"
+	EvtContextCompactionTriggered = "context.compaction.triggered"
+	EvtContextCompactionWarning   = "context.compaction.warning"
+	EvtContextCompactionPending   = "context.compaction.pending"
+	EvtContextCompactionRunning   = "context.compaction.running"
+	EvtContextCompactionSucceeded = "context.compaction.succeeded"
+	EvtContextCompactionFailed    = "context.compaction.failed"
+	EvtSummaryRequested           = "context.summary.requested"
+	EvtSummarySaved               = "context.summary.saved"
+	EvtSummaryFailed              = "context.summary.failed"
+	EvtSummaryParseFailed         = "context.summary.parse_failed"
+	EvtSummaryApplied             = "context.summary.applied"
+)

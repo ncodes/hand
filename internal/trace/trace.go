@@ -112,7 +112,7 @@ func (f *JSONLFactory) NewSession(_ context.Context, metadata Metadata) Session 
 		path:     path,
 	}
 	metadata.TraceDir = f.directory
-	session.Record("chat.started", metadata)
+	session.Record(EvtChatStarted, metadata)
 	return session
 }
 

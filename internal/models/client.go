@@ -16,14 +16,22 @@ const (
 )
 
 type Request struct {
-	Model           string
-	APIMode         string
-	Instructions    string
-	Messages        []handmsg.Message
-	Tools           []ToolDefinition
-	MaxOutputTokens int64
-	Temperature     float64
-	DebugRequests   bool
+	Model            string
+	APIMode          string
+	Instructions     string
+	Messages         []handmsg.Message
+	Tools            []ToolDefinition
+	StructuredOutput *StructuredOutput
+	MaxOutputTokens  int64
+	Temperature      float64
+	DebugRequests    bool
+}
+
+type StructuredOutput struct {
+	Name        string
+	Description string
+	Schema      map[string]any
+	Strict      bool
 }
 
 type Response struct {

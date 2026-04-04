@@ -52,31 +52,31 @@ func TestInstructions_JSONRoundTripUsesMarshalAndUnmarshalImplementations(t *tes
 	require.JSONEq(t, `"first\nsecond"`, string(data))
 }
 
-func TestInstructions_ChainAppendsTrimmedInstruction(t *testing.T) {
+func TestInstructions_AppendAppendsTrimmedInstruction(t *testing.T) {
 	original := Instructions{{Value: "first"}}
-	chained := original.Chain(Instruction{Value: " second "})
+	appended := original.Append(Instruction{Value: " second "})
 	require.Equal(t, Instructions{{Value: "first"}}, original)
-	require.Equal(t, Instructions{{Value: "first"}, {Value: "second"}}, chained)
+	require.Equal(t, Instructions{{Value: "first"}, {Value: "second"}}, appended)
 }
 
-func TestInstructions_ChainSkipsEmptyInstruction(t *testing.T) {
+func TestInstructions_AppendSkipsEmptyInstruction(t *testing.T) {
 	original := Instructions{{Value: "first"}}
-	require.Equal(t, original, original.Chain(Instruction{Value: "   "}))
+	require.Equal(t, original, original.Append(Instruction{Value: "   "}))
 }
 
-func TestInstructions_ChainValueAppendsInstruction(t *testing.T) {
-	require.Equal(t, Instructions{{Value: "first"}}, Instructions{}.ChainValue(" first "))
+func TestInstructions_AppendValueAppendsInstruction(t *testing.T) {
+	require.Equal(t, Instructions{{Value: "first"}}, Instructions{}.AppendValue(" first "))
 }
 
-func TestInstructions_ChainValueAppendsMultipleInstructions(t *testing.T) {
-	require.Equal(t, Instructions{{Value: "first"}, {Value: "second"}}, Instructions{}.ChainValue(" first ", "   ", "second"))
+func TestInstructions_AppendValueAppendsMultipleInstructions(t *testing.T) {
+	require.Equal(t, Instructions{{Value: "first"}, {Value: "second"}}, Instructions{}.AppendValue(" first ", "   ", "second"))
 }
 
-func TestInstructions_ChainAppendsMultipleInstructions(t *testing.T) {
+func TestInstructions_AppendAppendsMultipleInstructions(t *testing.T) {
 	original := Instructions{{Value: "first"}}
-	chained := original.Chain(Instruction{Value: " second "}, Instruction{Value: "   "}, Instruction{Value: "third"})
+	appended := original.Append(Instruction{Value: " second "}, Instruction{Value: "   "}, Instruction{Value: "third"})
 	require.Equal(t, Instructions{{Value: "first"}}, original)
-	require.Equal(t, Instructions{{Value: "first"}, {Value: "second"}, {Value: "third"}}, chained)
+	require.Equal(t, Instructions{{Value: "first"}, {Value: "second"}, {Value: "third"}}, appended)
 }
 
 func TestInstructions_FirstReturnsZeroValueWhenEmpty(t *testing.T) {

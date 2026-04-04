@@ -23,6 +23,7 @@ import (
 	storagemock "github.com/wandxy/hand/internal/storage/mock"
 	storagesqlite "github.com/wandxy/hand/internal/storage/sqlite"
 	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/hand/internal/trace"
 )
 
 func TestTurn_LoadLoadsPersistedHistoryWithoutHydratingRuntimeContext(t *testing.T) {
@@ -81,7 +82,7 @@ func TestTurn_LoadRejectsMissingConfig(t *testing.T) {
 	turn := &Turn{
 		modelClient:    &mocks.ModelClientStub{},
 		sessionManager: mustNewSessionManager(t),
-		runtimeEnv: &mocks.EnvironmentStub{
+		env: &mocks.EnvironmentStub{
 			InstructionsList: nil,
 			ToolRegistry:     tools.NewInMemoryRegistry(),
 		},
@@ -95,7 +96,7 @@ func TestTurn_LoadRejectsMissingModelClient(t *testing.T) {
 	turn := &Turn{
 		cfg:            testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
 		sessionManager: mustNewSessionManager(t),
-		runtimeEnv: &mocks.EnvironmentStub{
+		env: &mocks.EnvironmentStub{
 			InstructionsList: nil,
 			ToolRegistry:     tools.NewInMemoryRegistry(),
 		},
@@ -631,13 +632,13 @@ func TestTurn_SummaryFallbackRecordsTraceEvent(t *testing.T) {
 	reply, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
 	require.NoError(t, err)
 	require.Equal(t, "summary", reply)
-	require.Equal(t, "summary.fallback.started", traceSession.Events[0].Type)
-	require.Equal(t, "context.preflight", traceSession.Events[1].Type)
+	require.Equal(t, trace.EvtSummaryFallbackStarted, traceSession.Events[0].Type)
+	require.Equal(t, trace.EvtContextPreflight, traceSession.Events[1].Type)
 
 	payload, ok := traceSession.Events[1].Payload.(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "estimated", payload["source"])
-	require.Equal(t, "final.assistant.response", traceSession.Events[len(traceSession.Events)-1].Type)
+	require.Equal(t, trace.EvtFinalAssistantResponse, traceSession.Events[len(traceSession.Events)-1].Type)
 }
 
 func TestTurn_SummaryFallbackSkipsCompactionTraceWhenDisabled(t *testing.T) {
@@ -653,16 +654,16 @@ func TestTurn_SummaryFallbackSkipsCompactionTraceWhenDisabled(t *testing.T) {
 	reply, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
 	require.NoError(t, err)
 	require.Equal(t, "summary", reply)
-	require.Equal(t, "summary.fallback.started", traceSession.Events[0].Type)
-	require.Equal(t, "model.request", traceSession.Events[1].Type)
+	require.Equal(t, trace.EvtSummaryFallbackStarted, traceSession.Events[0].Type)
+	require.Equal(t, trace.EvtModelRequest, traceSession.Events[1].Type)
 
 	eventTypes := make([]string, 0, len(traceSession.Events))
 	for _, event := range traceSession.Events {
 		eventTypes = append(eventTypes, event.Type)
 	}
-	require.NotContains(t, eventTypes, "context.preflight")
-	require.NotContains(t, eventTypes, "context.compaction.triggered")
-	require.NotContains(t, eventTypes, "context.compaction.warning")
+	require.NotContains(t, eventTypes, trace.EvtContextPreflight)
+	require.NotContains(t, eventTypes, trace.EvtContextCompactionTriggered)
+	require.NotContains(t, eventTypes, trace.EvtContextCompactionWarning)
 }
 
 func TestTurn_SummaryFallbackRecordsEstimatedPreflightPayload(t *testing.T) {
@@ -681,7 +682,7 @@ func TestTurn_SummaryFallbackRecordsEstimatedPreflightPayload(t *testing.T) {
 	reply, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
 	require.NoError(t, err)
 	require.Equal(t, "summary", reply)
-	require.Equal(t, "context.preflight", traceSession.Events[1].Type)
+	require.Equal(t, trace.EvtContextPreflight, traceSession.Events[1].Type)
 
 	payload, ok := traceSession.Events[1].Payload.(map[string]any)
 	require.True(t, ok)
@@ -711,9 +712,9 @@ func TestTurn_SummaryFallbackRecordsTriggerAndWarningWhenThresholdExceeded(t *te
 	for _, event := range traceSession.Events {
 		eventTypes = append(eventTypes, event.Type)
 	}
-	require.Contains(t, eventTypes, "context.preflight")
-	require.Contains(t, eventTypes, "context.compaction.triggered")
-	require.Contains(t, eventTypes, "context.compaction.warning")
+	require.Contains(t, eventTypes, trace.EvtContextPreflight)
+	require.Contains(t, eventTypes, trace.EvtContextCompactionTriggered)
+	require.Contains(t, eventTypes, trace.EvtContextCompactionWarning)
 }
 
 func TestTurn_RecordPostflightUsageReturnsNilForMissingResponseData(t *testing.T) {
@@ -789,12 +790,22 @@ func TestTurn_RequestMessagesIncludesPersistedSummaryBeforeUnsummarizedHistory(t
 
 	messages := turn.Context()
 
-	require.Len(t, messages, 4)
-	require.Equal(t, handmsg.RoleDeveloper, messages[0].Role)
-	require.Contains(t, messages[0].Content, "Session Summary:\nOlder context")
-	require.Equal(t, "recent-1", messages[1].Content)
-	require.Equal(t, "recent-2", messages[2].Content)
-	require.Equal(t, "new", messages[3].Content)
+	require.Len(t, messages, 3)
+	require.Equal(t, "recent-1", messages[0].Content)
+	require.Equal(t, "recent-2", messages[1].Content)
+	require.Equal(t, "new", messages[2].Content)
+	require.Contains(t, turn.buildRequestInstructions(), "Session Summary:\nOlder context")
+}
+
+func TestTurn_RequestInstructions_HandlesNilTurnAndAppendsExtra(t *testing.T) {
+	var turn *Turn
+	require.Equal(t, "", turn.buildRequestInstructions())
+
+	turn = &Turn{
+		instructions: instructions.New("base"),
+		memory:       &memory.Memory{},
+	}
+	require.Equal(t, "base\nextra", turn.buildRequestInstructions(instructions.New("extra")))
 }
 
 func TestTurn_TrimSessionHistoryToSummary_TrimsRelativeToLoadedOffset(t *testing.T) {
@@ -930,7 +941,7 @@ func TestTurn_RunGeneratesAndAppliesStructuredSummaryWhenCompactionTriggers(t *t
 		{OutputText: "reply"},
 	}}
 	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
-	turn.runtimeEnv = &mocks.EnvironmentStub{
+	turn.env = &mocks.EnvironmentStub{
 		ToolRegistry: tools.NewInMemoryRegistry(),
 		TraceSession: traceSession,
 	}
@@ -962,8 +973,8 @@ func TestTurn_RunGeneratesAndAppliesStructuredSummaryWhenCompactionTriggers(t *t
 	require.Len(t, client.Requests, 2)
 	require.Nil(t, client.Requests[0].Tools)
 	require.Len(t, client.Requests[0].Messages, 3)
-	require.Equal(t, handmsg.RoleDeveloper, client.Requests[1].Messages[0].Role)
-	require.Len(t, client.Requests[1].Messages, 9)
+	require.Contains(t, client.Requests[1].Instructions, "Session Summary:\nOlder work")
+	require.Len(t, client.Requests[1].Messages, 8)
 
 	summary, ok, err := manager.GetSummary(context.Background(), session.ID)
 	require.NoError(t, err)
@@ -987,19 +998,19 @@ func TestTurn_RunGeneratesAndAppliesStructuredSummaryWhenCompactionTriggers(t *t
 	for _, event := range traceSession.Events {
 		eventTypes = append(eventTypes, event.Type)
 	}
-	require.Contains(t, eventTypes, "context.summary.requested")
-	require.Contains(t, eventTypes, "context.summary.saved")
-	require.Contains(t, eventTypes, "context.summary.applied")
-	require.Contains(t, eventTypes, "context.compaction.pending")
-	require.Contains(t, eventTypes, "context.compaction.running")
-	require.Contains(t, eventTypes, "context.compaction.succeeded")
+	require.Contains(t, eventTypes, trace.EvtSummaryRequested)
+	require.Contains(t, eventTypes, trace.EvtSummarySaved)
+	require.Contains(t, eventTypes, trace.EvtSummaryApplied)
+	require.Contains(t, eventTypes, trace.EvtContextCompactionPending)
+	require.Contains(t, eventTypes, trace.EvtContextCompactionRunning)
+	require.Contains(t, eventTypes, trace.EvtContextCompactionSucceeded)
 }
 
 func TestTurn_RunSkipsSummaryGenerationWhenHistoryIsTooShort(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}}
 	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
-	turn.runtimeEnv = &mocks.EnvironmentStub{
+	turn.env = &mocks.EnvironmentStub{
 		ToolRegistry: tools.NewInMemoryRegistry(),
 		TraceSession: traceSession,
 	}
@@ -1037,7 +1048,7 @@ func TestTurn_RunContinuesWhenSummaryParsingFails(t *testing.T) {
 		{OutputText: "reply"},
 	}}
 	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
-	turn.runtimeEnv = &mocks.EnvironmentStub{
+	turn.env = &mocks.EnvironmentStub{
 		ToolRegistry: tools.NewInMemoryRegistry(),
 		TraceSession: traceSession,
 	}
@@ -1067,32 +1078,32 @@ func TestTurn_RunContinuesWhenSummaryParsingFails(t *testing.T) {
 
 	_, ok, err := manager.GetSummary(context.Background(), session.ID)
 	require.NoError(t, err)
-	require.False(t, ok)
+	require.True(t, ok)
 
 	compactionSession, ok, err := manager.Get(context.Background(), session.ID)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, storage.CompactionStatusFailed, compactionSession.Compaction.Status)
+	require.Equal(t, storage.CompactionStatusSucceeded, compactionSession.Compaction.Status)
 	require.Equal(t, 3, compactionSession.Compaction.TargetOffset)
 	require.Equal(t, 11, compactionSession.Compaction.TargetMessageCount)
-	require.NotEmpty(t, compactionSession.Compaction.LastError)
+	require.Empty(t, compactionSession.Compaction.LastError)
 
 	eventTypes := make([]string, 0, len(traceSession.Events))
 	for _, event := range traceSession.Events {
 		eventTypes = append(eventTypes, event.Type)
 	}
-	require.Contains(t, eventTypes, "context.summary.failed")
-	require.NotContains(t, eventTypes, "context.summary.saved")
-	require.Contains(t, eventTypes, "context.compaction.pending")
-	require.Contains(t, eventTypes, "context.compaction.running")
-	require.Contains(t, eventTypes, "context.compaction.failed")
+	require.Contains(t, eventTypes, trace.EvtSummaryParseFailed)
+	require.Contains(t, eventTypes, trace.EvtSummarySaved)
+	require.Contains(t, eventTypes, trace.EvtContextCompactionPending)
+	require.Contains(t, eventTypes, trace.EvtContextCompactionRunning)
+	require.Contains(t, eventTypes, trace.EvtContextCompactionSucceeded)
 }
 
 func TestTurn_RunSkipsSummaryGenerationWhenCompactionIsDisabled(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}}
 	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
-	turn.runtimeEnv = &mocks.EnvironmentStub{
+	turn.env = &mocks.EnvironmentStub{
 		ToolRegistry: tools.NewInMemoryRegistry(),
 		TraceSession: traceSession,
 	}
@@ -1126,9 +1137,9 @@ func TestTurn_RunSkipsSummaryGenerationWhenCompactionIsDisabled(t *testing.T) {
 	for _, event := range traceSession.Events {
 		eventTypes = append(eventTypes, event.Type)
 	}
-	require.NotContains(t, eventTypes, "context.summary.requested")
-	require.NotContains(t, eventTypes, "context.summary.saved")
-	require.NotContains(t, eventTypes, "context.summary.failed")
+	require.NotContains(t, eventTypes, trace.EvtSummaryRequested)
+	require.NotContains(t, eventTypes, trace.EvtSummarySaved)
+	require.NotContains(t, eventTypes, trace.EvtSummaryFailed)
 }
 
 func TestTurn_RunRefreshesSummaryIncrementally(t *testing.T) {
@@ -1144,7 +1155,7 @@ func TestTurn_RunRefreshesSummaryIncrementally(t *testing.T) {
 		{OutputText: "reply"},
 	}}
 	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
-	turn.runtimeEnv = &mocks.EnvironmentStub{
+	turn.env = &mocks.EnvironmentStub{
 		ToolRegistry: tools.NewInMemoryRegistry(),
 		TraceSession: traceSession,
 	}
@@ -1176,8 +1187,8 @@ func TestTurn_RunRefreshesSummaryIncrementally(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "reply", reply)
 	require.Len(t, client.Requests, 2)
-	require.Len(t, client.Requests[0].Messages, 4)
-	require.Equal(t, handmsg.RoleDeveloper, client.Requests[0].Messages[0].Role)
+	require.Len(t, client.Requests[0].Messages, 3)
+	require.Contains(t, client.Requests[0].Instructions, "Session Summary:\nOlder summary")
 
 	summary, ok, err := manager.GetSummary(context.Background(), session.ID)
 	require.NoError(t, err)
@@ -1883,7 +1894,13 @@ func TestAgent_RespondRecordsTraceEventsOnSuccess(t *testing.T) {
 	require.Equal(t, "hello back", reply)
 
 	require.True(t, traceSession.Closed)
-	expectedEvents := []string{"user.message.accepted", "context.preflight", "model.request", "model.response", "final.assistant.response"}
+	expectedEvents := []string{
+		trace.EvtUserMessageAccepted,
+		trace.EvtContextPreflight,
+		trace.EvtModelRequest,
+		trace.EvtModelResponse,
+		trace.EvtFinalAssistantResponse,
+	}
 	actualEvents := []string{traceSession.Events[0].Type, traceSession.Events[1].Type, traceSession.Events[2].Type, traceSession.Events[3].Type, traceSession.Events[4].Type}
 	require.Equal(t, expectedEvents, actualEvents)
 	payload, ok := traceSession.Events[1].Payload.(map[string]any)
@@ -1910,7 +1927,7 @@ func TestAgent_RespondRecordsTraceFailure(t *testing.T) {
 
 	_, err := agent.Respond(context.Background(), "hello", RespondOptions{})
 	require.EqualError(t, err, "upstream failed")
-	require.Equal(t, "session.failed", traceSession.Events[len(traceSession.Events)-1].Type)
+	require.Equal(t, trace.EvtSessionFailed, traceSession.Events[len(traceSession.Events)-1].Type)
 }
 
 func TestTurn_RunStoresActualPromptTokensForFutureTurns(t *testing.T) {
@@ -1949,7 +1966,7 @@ func TestTurn_RunReusesActualPromptTokensDuringPreflight(t *testing.T) {
 
 	_, err = turn.Run(context.Background(), "hello", RespondOptions{})
 	require.NoError(t, err)
-	require.Equal(t, "context.preflight", traceSession.Events[1].Type)
+	require.Equal(t, trace.EvtContextPreflight, traceSession.Events[1].Type)
 	payload, ok := traceSession.Events[1].Payload.(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, 2048, payload["prompt_tokens"])
@@ -1976,7 +1993,7 @@ func TestTurn_RunUsesEstimatedPromptTokensWhenRequestGrowsPastStoredActual(t *te
 
 	_, err = turn.Run(context.Background(), strings.Repeat("a", 800), RespondOptions{})
 	require.NoError(t, err)
-	require.Equal(t, "context.preflight", traceSession.Events[1].Type)
+	require.Equal(t, trace.EvtContextPreflight, traceSession.Events[1].Type)
 	payload, ok := traceSession.Events[1].Payload.(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "estimated", payload["source"])
@@ -1997,7 +2014,7 @@ func TestTurn_RunRecordsCompactionTriggerAndWarningWithoutMutatingHistory(t *tes
 		Responses: []*models.Response{{OutputText: "reply"}},
 	})
 	turn.cfg = cfg
-	turn.runtimeEnv = &mocks.EnvironmentStub{
+	turn.env = &mocks.EnvironmentStub{
 		ToolRegistry: tools.NewInMemoryRegistry(),
 		TraceSession: traceSession,
 	}
@@ -2011,8 +2028,8 @@ func TestTurn_RunRecordsCompactionTriggerAndWarningWithoutMutatingHistory(t *tes
 	for _, event := range traceSession.Events {
 		eventTypes = append(eventTypes, event.Type)
 	}
-	require.Contains(t, eventTypes, "context.compaction.triggered")
-	require.Contains(t, eventTypes, "context.compaction.warning")
+	require.Contains(t, eventTypes, trace.EvtContextCompactionTriggered)
+	require.Contains(t, eventTypes, trace.EvtContextCompactionWarning)
 
 	messages, err := manager.GetMessages(context.Background(), turn.sessionID, storage.MessageQueryOptions{})
 	require.NoError(t, err)

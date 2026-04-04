@@ -32,7 +32,7 @@ func TestService_MaybeRefreshMemory_ReturnsWhenMemoryOrTraceIsNil(t *testing.T) 
 func TestService_MaybeRefreshMemory_ReturnsErrorWhenServiceDependenciesMissing(t *testing.T) {
 	mem := &Memory{}
 	require.EqualError(t, (*Service)(nil).MaybeRefreshMemory(context.Background(), mem, RefreshInput{TraceSession: &mocks.TraceSessionStub{}}), "memory service is required")
-	require.EqualError(t, (&Service{summaryStore: &storagemock.SessionStore{}}).MaybeRefreshMemory(context.Background(), mem, RefreshInput{TraceSession: &mocks.TraceSessionStub{}}), "model client is required")
+	require.EqualError(t, (&Service{store: &storagemock.SessionStore{}}).MaybeRefreshMemory(context.Background(), mem, RefreshInput{TraceSession: &mocks.TraceSessionStub{}}), "model client is required")
 	require.EqualError(t, (&Service{modelClient: &mocks.ModelClientStub{}}).MaybeRefreshMemory(context.Background(), mem, RefreshInput{TraceSession: &mocks.TraceSessionStub{}}), "summary store is required")
 }
 
@@ -142,7 +142,7 @@ func TestService_MaybeRefreshMemory_ReturnsCountMessagesError(t *testing.T) {
 	})
 
 	require.EqualError(t, err, "count failed")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionFailed)
 }
 
 func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenLoadingSessionFails(t *testing.T) {
@@ -160,7 +160,7 @@ func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenLoadingSessionFa
 	})
 
 	require.EqualError(t, err, "get session failed")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionFailed)
 }
 
 func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenSessionIsMissing(t *testing.T) {
@@ -178,7 +178,7 @@ func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenSessionIsMissing
 	})
 
 	require.EqualError(t, err, "session not found")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionFailed)
 }
 
 func TestService_MaybeRefreshMemory_SkipsWhenHistoryIsTooShort(t *testing.T) {
@@ -276,7 +276,7 @@ func TestService_MaybeRefreshMemory_ReconcilesStaleRunningStateWhenSummaryAlread
 	require.Equal(t, storage.CompactionStatusSucceeded, session.Compaction.Status)
 	require.Equal(t, 2, session.Compaction.TargetOffset)
 	require.Equal(t, 10, session.Compaction.TargetMessageCount)
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.succeeded")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionSucceeded)
 }
 
 func TestService_MaybeRefreshMemory_ReconcilesCoveredSummaryWithoutTriggeringEstimate(t *testing.T) {
@@ -317,7 +317,7 @@ func TestService_MaybeRefreshMemory_ReconcilesCoveredSummaryWithoutTriggeringEst
 	require.Equal(t, storage.CompactionStatusSucceeded, session.Compaction.Status)
 	require.Equal(t, 2, session.Compaction.TargetOffset)
 	require.Equal(t, 10, session.Compaction.TargetMessageCount)
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.succeeded")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionSucceeded)
 }
 
 func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenCoveredSummarySessionLoadFails(t *testing.T) {
@@ -342,7 +342,7 @@ func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenCoveredSummarySe
 	})
 
 	require.EqualError(t, err, "get covered session failed")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionFailed)
 }
 
 func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenCoveredSummarySessionIsMissing(t *testing.T) {
@@ -367,7 +367,7 @@ func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenCoveredSummarySe
 	})
 
 	require.EqualError(t, err, "session not found")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionFailed)
 }
 
 func TestService_MaybeRefreshMemory_RecordsFailureWhenModelCallFails(t *testing.T) {
@@ -381,7 +381,7 @@ func TestService_MaybeRefreshMemory_RecordsFailureWhenModelCallFails(t *testing.
 	})
 	require.EqualError(t, err, "summary failed")
 
-	requireSummaryEvent(t, traceSession.Events, "context.summary.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryFailed)
 }
 
 func TestService_MaybeRefreshMemory_RecordsFailureWhenLoadingSummaryMessagesFails(t *testing.T) {
@@ -399,7 +399,7 @@ func TestService_MaybeRefreshMemory_RecordsFailureWhenLoadingSummaryMessagesFail
 	})
 
 	require.EqualError(t, err, "get messages failed")
-	requireSummaryEvent(t, traceSession.Events, "context.summary.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryFailed)
 }
 
 func TestService_MaybeRefreshMemory_RecordsFailureWhenModelReturnsNil(t *testing.T) {
@@ -413,7 +413,7 @@ func TestService_MaybeRefreshMemory_RecordsFailureWhenModelReturnsNil(t *testing
 	})
 	require.EqualError(t, err, "model response is required")
 
-	requireSummaryEvent(t, traceSession.Events, "context.summary.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryFailed)
 }
 
 func TestService_MaybeRefreshMemory_RecordsFailureWhenSummaryRequestsTools(t *testing.T) {
@@ -427,7 +427,61 @@ func TestService_MaybeRefreshMemory_RecordsFailureWhenSummaryRequestsTools(t *te
 	})
 	require.EqualError(t, err, "summary requested tool calls")
 
-	requireSummaryEvent(t, traceSession.Events, "context.summary.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryFailed)
+}
+
+func TestService_MaybeRefreshMemory_FallsBackWhenStructuredOutputRequestFails(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	mem := &Memory{}
+	client := &mocks.ModelClientStub{
+		Errors: []error{errors.New("structured outputs unsupported")},
+		Responses: []*models.Response{
+			nil,
+			{
+				OutputText: `{
+				"session_summary": "Older work",
+				"current_task": "Fix tests",
+				"discoveries": ["one"],
+				"open_questions": ["two"],
+				"next_actions": ["three"]
+			}`,
+			}},
+	}
+	service := summaryTestService(summaryTestConfig(true), client, summaryTestStore(summaryTestHistory(10)))
+
+	err := service.MaybeRefreshMemory(context.Background(), mem, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+	require.NoError(t, err)
+	require.Len(t, client.Requests, 2)
+	require.NotNil(t, client.Requests[0].StructuredOutput)
+	require.Nil(t, client.Requests[1].StructuredOutput)
+	require.NotNil(t, mem.Summary)
+	require.Equal(t, "Older work", mem.Summary.SessionSummary)
+}
+
+func TestService_generateSummaryResponse_ValidationAndFallbackPaths(t *testing.T) {
+	t.Run("nil_service", func(t *testing.T) {
+		resp, err := (*Service)(nil).generateSummaryResponse(context.Background(), models.Request{})
+		require.Nil(t, resp)
+		require.EqualError(t, err, "model client is required")
+	})
+
+	t.Run("nil_client", func(t *testing.T) {
+		service := summaryTestService(summaryTestConfig(true), nil, summaryTestStore(summaryTestHistory(10)))
+		resp, err := service.generateSummaryResponse(context.Background(), models.Request{})
+		require.Nil(t, resp)
+		require.EqualError(t, err, "model client is required")
+	})
+
+	t.Run("returns_original_error_without_structured_output", func(t *testing.T) {
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{Err: errors.New("chat failed")}, summaryTestStore(summaryTestHistory(10)))
+		resp, err := service.generateSummaryResponse(context.Background(), models.Request{})
+		require.Nil(t, resp)
+		require.EqualError(t, err, "chat failed")
+	})
 }
 
 func TestService_MaybeRefreshMemory_RecordsFailureWhenModelReturnsInvalidSummary(t *testing.T) {
@@ -439,10 +493,52 @@ func TestService_MaybeRefreshMemory_RecordsFailureWhenModelReturnsInvalidSummary
 		SessionID:    storage.DefaultSessionID,
 		TraceSession: traceSession,
 	})
-	require.Error(t, err)
+	require.NoError(t, err)
 
+	require.NotNil(t, mem.Summary)
+	require.Equal(t, "{", mem.Summary.SessionSummary)
+	require.Empty(t, mem.Summary.CurrentTask)
+	require.Nil(t, mem.Summary.Discoveries)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryParseFailed)
+	requireSummaryEventAbsent(t, traceSession.Events, trace.EvtSummaryFailed)
+}
+
+func TestService_MaybeRefreshMemory_RecordsFailureWhenModelReturnsEmptySummary(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	mem := &Memory{}
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{
+		Responses: []*models.Response{{OutputText: "```json\n \n```"}},
+	}, summaryTestStore(summaryTestHistory(10)))
+
+	err := service.MaybeRefreshMemory(context.Background(), mem, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+
+	require.EqualError(t, err, "summary response is empty")
 	require.Nil(t, mem.Summary)
-	requireSummaryEvent(t, traceSession.Events, "context.summary.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryFailed)
+	requireSummaryEventAbsent(t, traceSession.Events, trace.EvtSummaryParseFailed)
+}
+
+func TestService_MaybeRefreshMemory_RecordsFailureWhenFallbackSummaryConstructionFails(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	mem := &Memory{}
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{
+		Responses: []*models.Response{{OutputText: "not-json"}},
+	}, summaryTestStore(summaryTestHistory(10)))
+
+	err := service.MaybeRefreshMemory(context.Background(), mem, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    "", // empty session ID should be rejected
+		TraceSession: traceSession,
+	})
+
+	require.EqualError(t, err, "session summary is required")
+	require.Nil(t, mem.Summary)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryParseFailed)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryFailed)
 }
 
 func TestService_MaybeRefreshMemory_RecordsFailureWhenSavingSummaryFails(t *testing.T) {
@@ -472,7 +568,40 @@ func TestService_MaybeRefreshMemory_RecordsFailureWhenSavingSummaryFails(t *test
 	require.NotNil(t, mem.Summary)
 	require.Equal(t, "Earlier work", mem.Summary.SessionSummary)
 	require.Equal(t, 1, mem.Summary.SourceEndOffset)
-	requireSummaryEvent(t, traceSession.Events, "context.summary.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryFailed)
+}
+
+func TestService_MaybeRefreshMemory_RecordsParseFailureBeforeFallbackSaveFailure(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	mem := &Memory{
+		Summary: &SummaryState{
+			SessionID:          storage.DefaultSessionID,
+			SourceEndOffset:    1,
+			SourceMessageCount: 9,
+			UpdatedAt:          time.Date(2026, 4, 2, 8, 0, 0, 0, time.UTC),
+			SessionSummary:     "Earlier work",
+		},
+	}
+	store := summaryTestStore(summaryTestHistory(10))
+	store.SaveSummaryFunc = func(context.Context, storage.SessionSummary) error {
+		return errors.New("save summary failed")
+	}
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{
+		Responses: []*models.Response{{OutputText: "## Summary\nKeep moving"}},
+	}, store)
+
+	err := service.MaybeRefreshMemory(context.Background(), mem, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+
+	require.EqualError(t, err, "save summary failed")
+	require.NotNil(t, mem.Summary)
+	require.Equal(t, "Earlier work", mem.Summary.SessionSummary)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryParseFailed)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryFailed)
+	requireSummaryEventAbsent(t, traceSession.Events, trace.EvtSummarySaved)
 }
 
 func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenPendingTransitionFails(t *testing.T) {
@@ -489,7 +618,7 @@ func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenPendingTransitio
 		TraceSession: traceSession,
 	})
 	require.EqualError(t, err, "save pending failed")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionFailed)
 }
 
 func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenLifecycleSaveFails(t *testing.T) {
@@ -511,8 +640,8 @@ func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenLifecycleSaveFai
 		TraceSession: traceSession,
 	})
 	require.EqualError(t, err, "save running failed")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.pending")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionPending)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionFailed)
 }
 
 func TestService_MaybeRefreshMemory_ReturnsWrappedErrorWhenMarkingCompactionFailedFails(t *testing.T) {
@@ -534,7 +663,7 @@ func TestService_MaybeRefreshMemory_ReturnsWrappedErrorWhenMarkingCompactionFail
 		TraceSession: traceSession,
 	})
 	require.EqualError(t, err, "mark compaction failed: save failed state failed")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionFailed)
 }
 
 func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenSucceededTransitionFails(t *testing.T) {
@@ -560,7 +689,7 @@ func TestService_MaybeRefreshMemory_RecordsCompactionFailureWhenSucceededTransit
 		TraceSession: traceSession,
 	})
 	require.EqualError(t, err, "save succeeded failed")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionFailed)
 }
 
 func TestService_MaybeRefreshMemory_SavesSummaryAndRecordsTrace(t *testing.T) {
@@ -601,11 +730,10 @@ func TestService_MaybeRefreshMemory_SavesSummaryAndRecordsTrace(t *testing.T) {
 
 	require.Equal(t, 1, client.CallCount)
 	require.Len(t, client.Requests, 1)
-	require.Equal(t, instruct.BuildSessionSummary().String(), client.Requests[0].Instructions)
-	require.Len(t, client.Requests[0].Messages, 2)
-	require.Equal(t, handmsg.RoleDeveloper, client.Requests[0].Messages[0].Role)
-	require.Contains(t, client.Requests[0].Messages[0].Content, "Session Summary:\nEarlier work")
-	require.Equal(t, "history", client.Requests[0].Messages[1].Content)
+	require.Contains(t, client.Requests[0].Instructions, instruct.BuildSessionSummary().String())
+	require.Contains(t, client.Requests[0].Instructions, "Session Summary:\nEarlier work")
+	require.Len(t, client.Requests[0].Messages, 1)
+	require.Equal(t, "history", client.Requests[0].Messages[0].Content)
 
 	require.Equal(t, storage.DefaultSessionID, saved.SessionID)
 	require.Equal(t, 2, saved.SourceEndOffset)
@@ -626,11 +754,11 @@ func TestService_MaybeRefreshMemory_SavesSummaryAndRecordsTrace(t *testing.T) {
 	require.Equal(t, 2, session.Compaction.TargetOffset)
 	require.Equal(t, 10, session.Compaction.TargetMessageCount)
 	require.Empty(t, session.Compaction.LastError)
-	requireSummaryEvent(t, traceSession.Events, "context.summary.requested")
-	requireSummaryEvent(t, traceSession.Events, "context.summary.saved")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.pending")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.running")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.succeeded")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryRequested)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummarySaved)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionPending)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionRunning)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionSucceeded)
 }
 
 func TestService_MaybeRefreshMemory_MarksCompactionFailedAndRetries(t *testing.T) {
@@ -674,9 +802,9 @@ func TestService_MaybeRefreshMemory_MarksCompactionFailedAndRetries(t *testing.T
 	require.Empty(t, session.Compaction.LastError)
 	require.False(t, session.Compaction.CompletedAt.IsZero())
 
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.pending")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.running")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionPending)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionRunning)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionFailed)
 }
 
 func TestService_MaybeRefreshMemory_FallsBackWhenClockReturnsZero(t *testing.T) {
@@ -749,7 +877,7 @@ func TestService_CompactSession_ReturnsCountMessagesError(t *testing.T) {
 
 	_, err := svc.CompactSession(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
 	require.EqualError(t, err, "count failed")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionFailed)
 }
 
 func TestService_CompactSession_ReturnsHistoryTooShort(t *testing.T) {
@@ -758,7 +886,7 @@ func TestService_CompactSession_ReturnsHistoryTooShort(t *testing.T) {
 
 	_, err := svc.CompactSession(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
 	require.EqualError(t, err, "session history is too short to compact")
-	requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionFailed)
 }
 
 func TestService_CompactSession_ReturnsRefreshError(t *testing.T) {
@@ -792,8 +920,8 @@ func TestService_CompactSession_ReturnsSummary(t *testing.T) {
 	require.Equal(t, 2, out.SourceEndOffset)
 	require.Equal(t, 10, out.SourceMessageCount)
 	require.Equal(t, 1, client.CallCount)
-	requireSummaryEvent(t, traceSession.Events, "context.summary.requested")
-	requireSummaryEvent(t, traceSession.Events, "context.summary.saved")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryRequested)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummarySaved)
 }
 
 func TestService_TransitionCompactionPending(t *testing.T) {
@@ -909,7 +1037,7 @@ func TestService_ReconcileCompactionSucceeded(t *testing.T) {
 		}
 		err := service.reconcileCompactionSucceeded(context.Background(), session, plan, traceSession)
 		require.EqualError(t, err, "save failed")
-		requireSummaryEvent(t, traceSession.Events, "context.compaction.failed")
+		requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionFailed)
 	})
 }
 
@@ -966,7 +1094,7 @@ func TestMemory_RecordSummaryApplied_RecordsEvent(t *testing.T) {
 	mem.RecordSummaryApplied(traceSession)
 
 	require.Len(t, traceSession.Events, 1)
-	require.Equal(t, "context.summary.applied", traceSession.Events[0].Type)
+	require.Equal(t, trace.EvtSummaryApplied, traceSession.Events[0].Type)
 	require.Equal(t, map[string]any{
 		"session_id":           storage.DefaultSessionID,
 		"source_end_offset":    2,
@@ -1012,6 +1140,36 @@ func TestParseSummary_RejectsInvalidJSON(t *testing.T) {
 	summary, err := parseSummary(storage.DefaultSessionID, 1, 2, "{", time.Now().UTC())
 	require.Nil(t, summary)
 	require.Error(t, err)
+}
+
+func TestFallbackSummary_UsesRawTextAsSessionSummary(t *testing.T) {
+	summary, err := fallbackSummary(storage.DefaultSessionID, 1, 2, "## Summary\nKeep moving", time.Now().UTC())
+	require.NoError(t, err)
+	require.NotNil(t, summary)
+	require.Equal(t, "## Summary\nKeep moving", summary.SessionSummary)
+	require.Empty(t, summary.CurrentTask)
+	require.Nil(t, summary.Discoveries)
+	require.Nil(t, summary.OpenQuestions)
+	require.Nil(t, summary.NextActions)
+}
+
+func TestFallbackSummary_StripsMarkdownFenceBeforeUsingRawText(t *testing.T) {
+	summary, err := fallbackSummary(storage.DefaultSessionID, 1, 2, "```json\n## Summary\nKeep moving\n```", time.Now().UTC())
+	require.NoError(t, err)
+	require.NotNil(t, summary)
+	require.Equal(t, "## Summary\nKeep moving", summary.SessionSummary)
+}
+
+func TestFallbackSummary_RejectsEmptyRaw(t *testing.T) {
+	summary, err := fallbackSummary(storage.DefaultSessionID, 1, 2, "```json\n \n```", time.Now().UTC())
+	require.Nil(t, summary)
+	require.EqualError(t, err, "summary response is empty")
+}
+
+func TestFallbackSummary_RejectsMissingSessionID(t *testing.T) {
+	summary, err := fallbackSummary("", 1, 2, "plain text", time.Now().UTC())
+	require.Nil(t, summary)
+	require.EqualError(t, err, "session summary is required")
 }
 
 func TestParseSummary_RejectsMissingSessionSummary(t *testing.T) {
@@ -1143,4 +1301,13 @@ func requireSummaryEvent(t *testing.T, events []trace.Event, eventType string) {
 	}
 
 	require.Fail(t, "missing trace event", eventType)
+}
+
+func requireSummaryEventAbsent(t *testing.T, events []trace.Event, eventType string) {
+	t.Helper()
+	for _, event := range events {
+		if event.Type == eventType {
+			require.Fail(t, "unexpected trace event", eventType)
+		}
+	}
 }
