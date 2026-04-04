@@ -4,102 +4,71 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandxy/hand/internal/agent"
+	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	"github.com/wandxy/hand/internal/storage"
 )
-
-type chatterStub struct {
-	message   string
-	instruct  string
-	sessionID string
-	reply     string
-	err       error
-	created   storage.Session
-	listed    []storage.Session
-	current   string
-}
-
-func (s *chatterStub) Respond(_ context.Context, message string, opts agent.RespondOptions) (string, error) {
-	s.message = message
-	s.instruct = opts.Instruct
-	s.sessionID = opts.SessionID
-	return s.reply, s.err
-}
-
-func (s *chatterStub) CreateSession(context.Context, string) (storage.Session, error) {
-	return s.created, s.err
-}
-
-func (s *chatterStub) ListSessions(context.Context) ([]storage.Session, error) {
-	return s.listed, s.err
-}
-
-func (s *chatterStub) UseSession(context.Context, string) error {
-	return s.err
-}
-
-func (s *chatterStub) CurrentSession(context.Context) (string, error) {
-	return s.current, s.err
-}
 
 func TestNewService_ReturnsService(t *testing.T) {
 	require.NotNil(t, NewService(nil))
 }
 
-func TestService_ChatReturnsMessage(t *testing.T) {
-	stub := &chatterStub{reply: "hello back"}
+func TestService_RespondReturnsMessage(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
 	svc := NewService(stub)
 
-	resp, err := svc.Chat(context.Background(), &handpb.ChatRequest{Message: "hello", Instruct: "be terse"})
+	resp, err := svc.Respond(context.Background(), &handpb.RespondRequest{Message: "hello", Instruct: "be terse"})
 
 	require.NoError(t, err)
-	require.Equal(t, "hello", stub.message)
-	require.Equal(t, "be terse", stub.instruct)
-	require.Empty(t, stub.sessionID)
+	require.Equal(t, "hello", stub.ChatInput)
+	require.Equal(t, "be terse", stub.RespondOptions.Instruct)
+	require.Empty(t, stub.RespondOptions.SessionID)
 	require.Equal(t, "hello back", resp.Message)
 }
 
-func TestService_ChatReturnsHandlerError(t *testing.T) {
-	stub := &chatterStub{err: errors.New("boom")}
+func TestService_RespondReturnsHandlerError(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{RespondErr: errors.New("boom")}
 	svc := NewService(stub)
 
-	resp, err := svc.Chat(context.Background(), &handpb.ChatRequest{Message: "hello"})
+	resp, err := svc.Respond(context.Background(), &handpb.RespondRequest{Message: "hello"})
 
 	require.Equal(t, codes.Internal, status.Code(err))
 	require.Equal(t, "boom", status.Convert(err).Message())
 	require.Nil(t, resp)
 }
 
-func TestService_ChatRejectsNilRequest(t *testing.T) {
-	svc := NewService(&chatterStub{})
+func TestService_RespondRejectsNilRequest(t *testing.T) {
+	svc := NewService(&agentstub.AgentServiceStub{})
 
-	resp, err := svc.Chat(context.Background(), nil)
+	resp, err := svc.Respond(context.Background(), nil)
 
 	require.Equal(t, codes.InvalidArgument, status.Code(err))
-	require.Equal(t, "chat request is required", status.Convert(err).Message())
+	require.Equal(t, "respond request is required", status.Convert(err).Message())
 	require.Nil(t, resp)
 }
 
-func TestService_ChatRejectsMissingHandler(t *testing.T) {
+func TestService_RespondRejectsMissingHandler(t *testing.T) {
 	svc := NewService(nil)
 
-	resp, err := svc.Chat(context.Background(), &handpb.ChatRequest{Message: "hello"})
+	resp, err := svc.Respond(context.Background(), &handpb.RespondRequest{Message: "hello"})
 
 	require.Equal(t, codes.Internal, status.Code(err))
 	require.Equal(t, "chat handler is required", status.Convert(err).Message())
 	require.Nil(t, resp)
 }
 
-func TestService_ChatRejectsNilReceiver(t *testing.T) {
+func TestService_RespondRejectsNilReceiver(t *testing.T) {
 	var svc *Service
 
-	resp, err := svc.Chat(context.Background(), &handpb.ChatRequest{Message: "hello"})
+	resp, err := svc.Respond(context.Background(), &handpb.RespondRequest{Message: "hello"})
 
 	require.Equal(t, codes.Internal, status.Code(err))
 	require.Equal(t, "service is required", status.Convert(err).Message())
@@ -107,13 +76,13 @@ func TestService_ChatRejectsNilReceiver(t *testing.T) {
 }
 
 func TestService_CreateSessionReturnsSummary(t *testing.T) {
-	stub := &chatterStub{created: storage.Session{ID: "project-a"}}
+	stub := &agentstub.AgentServiceStub{CreatedSession: storage.Session{ID: "project-a"}}
 	svc := NewService(stub)
 
-	resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{SessionId: "project-a"})
+	resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{Id: "project-a"})
 
 	require.NoError(t, err)
-	require.Equal(t, "project-a", resp.GetSession().GetSessionId())
+	require.Equal(t, "project-a", resp.GetSession().GetId())
 }
 
 func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
@@ -136,7 +105,7 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		svc := NewService(&chatterStub{})
+		svc := NewService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.CreateSession(context.Background(), nil)
 
@@ -145,9 +114,9 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("handler error", func(t *testing.T) {
-		svc := NewService(&chatterStub{err: errors.New("session already exists")})
+		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session already exists")})
 
-		resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{SessionId: "project-a"})
+		resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{Id: "project-a"})
 
 		requireStatusError(t, err, codes.AlreadyExists, "session already exists")
 		require.Nil(t, resp)
@@ -155,15 +124,15 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 }
 
 func TestService_ListSessionsReturnsItems(t *testing.T) {
-	stub := &chatterStub{listed: []storage.Session{{ID: "default"}, {ID: "project-a"}}}
+	stub := &agentstub.AgentServiceStub{Sessions: []storage.Session{{ID: "default"}, {ID: "project-a"}}}
 	svc := NewService(stub)
 
 	resp, err := svc.ListSessions(context.Background(), &handpb.ListSessionsRequest{})
 
 	require.NoError(t, err)
 	require.Len(t, resp.GetSessions(), 2)
-	require.Equal(t, "default", resp.GetSessions()[0].GetSessionId())
-	require.Equal(t, "project-a", resp.GetSessions()[1].GetSessionId())
+	require.Equal(t, "default", resp.GetSessions()[0].GetId())
+	require.Equal(t, "project-a", resp.GetSessions()[1].GetId())
 }
 
 func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
@@ -186,7 +155,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		svc := NewService(&chatterStub{})
+		svc := NewService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.ListSessions(context.Background(), nil)
 
@@ -195,7 +164,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("handler error", func(t *testing.T) {
-		svc := NewService(&chatterStub{err: errors.New("boom")})
+		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("boom")})
 
 		resp, err := svc.ListSessions(context.Background(), &handpb.ListSessionsRequest{})
 
@@ -205,12 +174,12 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 }
 
 func TestService_UseSessionReturnsSessionID(t *testing.T) {
-	svc := NewService(&chatterStub{})
+	svc := NewService(&agentstub.AgentServiceStub{})
 
-	resp, err := svc.UseSession(context.Background(), &handpb.UseSessionRequest{SessionId: "project-a"})
+	resp, err := svc.UseSession(context.Background(), &handpb.UseSessionRequest{Id: "project-a"})
 
 	require.NoError(t, err)
-	require.Equal(t, "project-a", resp.GetSessionId())
+	require.Equal(t, "project-a", resp.GetId())
 }
 
 func TestService_UseSessionRejectsInvalidState(t *testing.T) {
@@ -233,7 +202,7 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		svc := NewService(&chatterStub{})
+		svc := NewService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.UseSession(context.Background(), nil)
 
@@ -242,9 +211,154 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("handler error", func(t *testing.T) {
-		svc := NewService(&chatterStub{err: errors.New("session not found")})
+		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
 
-		resp, err := svc.UseSession(context.Background(), &handpb.UseSessionRequest{SessionId: "project-a"})
+		resp, err := svc.UseSession(context.Background(), &handpb.UseSessionRequest{Id: "project-a"})
+
+		requireStatusError(t, err, codes.NotFound, "session not found")
+		require.Nil(t, resp)
+	})
+}
+
+func TestService_CompactSessionReturnsResult(t *testing.T) {
+	now := time.Unix(123, 0).UTC()
+	svc := NewService(&agentstub.AgentServiceStub{CompactResult: agent.CompactSessionResult{
+		SessionID:            "project-a",
+		SourceEndOffset:      12,
+		SourceMessageCount:   20,
+		UpdatedAt:            now,
+		CurrentContextLength: 4000,
+		TotalContextLength:   128000,
+	}})
+
+	resp, err := svc.CompactSession(context.Background(), &handpb.CompactSessionRequest{Id: "project-a"})
+
+	require.NoError(t, err)
+	require.Equal(t, "project-a", resp.GetId())
+	require.EqualValues(t, 12, resp.GetSourceEndOffset())
+	require.EqualValues(t, 20, resp.GetSourceMessageCount())
+	require.Equal(t, now, resp.GetUpdatedAt().AsTime().UTC())
+	require.EqualValues(t, 4000, resp.GetCurrentContextLength())
+	require.EqualValues(t, 128000, resp.GetTotalContextLength())
+}
+
+func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
+	t.Run("nil receiver", func(t *testing.T) {
+		var svc *Service
+
+		resp, err := svc.CompactSession(context.Background(), &handpb.CompactSessionRequest{})
+
+		requireStatusError(t, err, codes.Internal, "service is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("missing handler", func(t *testing.T) {
+		svc := NewService(nil)
+
+		resp, err := svc.CompactSession(context.Background(), &handpb.CompactSessionRequest{})
+
+		requireStatusError(t, err, codes.Internal, "chat handler is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("nil request", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{})
+
+		resp, err := svc.CompactSession(context.Background(), nil)
+
+		requireStatusError(t, err, codes.InvalidArgument, "compact session request is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("handler error", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
+
+		resp, err := svc.CompactSession(context.Background(), &handpb.CompactSessionRequest{Id: "project-a"})
+
+		requireStatusError(t, err, codes.NotFound, "session not found")
+		require.Nil(t, resp)
+	})
+}
+
+func TestService_GetSessionReturnsResult(t *testing.T) {
+	created := time.Date(2024, 3, 1, 12, 0, 0, 0, time.UTC)
+	updated := time.Date(2024, 3, 2, 15, 30, 0, 0, time.UTC)
+	svc := NewService(&agentstub.AgentServiceStub{StatusResult: agent.SessionContextStatus{
+		SessionID:        "project-a",
+		Offset:           12,
+		Size:             20,
+		Length:           128000,
+		Used:             64000,
+		Remaining:        64000,
+		UsedPct:          0.5,
+		RemainingPct:     0.5,
+		CreatedAt:        created,
+		UpdatedAt:        updated,
+		CompactionStatus: "running",
+	}})
+
+	resp, err := svc.GetSession(context.Background(), &handpb.GetSessionRequest{
+		Context: &handpb.GetSessionRequestContext{Id: "project-a"},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "project-a", resp.GetId())
+	require.NotNil(t, resp.GetContext())
+	require.EqualValues(t, 12, resp.GetContext().GetOffset())
+	require.EqualValues(t, 20, resp.GetSize())
+	require.EqualValues(t, 128000, resp.GetContext().GetLength())
+	require.EqualValues(t, 64000, resp.GetContext().GetUsed())
+	require.EqualValues(t, 64000, resp.GetContext().GetRemaining())
+	require.Equal(t, 0.5, resp.GetContext().GetUsedPct())
+	require.Equal(t, 0.5, resp.GetContext().GetRemainingPct())
+	require.Equal(t, timestamppb.New(created), resp.GetCreatedAt())
+	require.Equal(t, timestamppb.New(updated), resp.GetUpdatedAt())
+	require.Equal(t, "running", resp.GetCompactionStatus())
+}
+
+func TestService_GetSessionRejectsInvalidState(t *testing.T) {
+	t.Run("nil receiver", func(t *testing.T) {
+		var svc *Service
+
+		resp, err := svc.GetSession(context.Background(), &handpb.GetSessionRequest{})
+
+		requireStatusError(t, err, codes.Internal, "service is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("missing handler", func(t *testing.T) {
+		svc := NewService(nil)
+
+		resp, err := svc.GetSession(context.Background(), &handpb.GetSessionRequest{})
+
+		requireStatusError(t, err, codes.Internal, "chat handler is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("nil request", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{})
+
+		resp, err := svc.GetSession(context.Background(), nil)
+
+		requireStatusError(t, err, codes.InvalidArgument, "get session request is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("nil context", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{})
+
+		resp, err := svc.GetSession(context.Background(), &handpb.GetSessionRequest{})
+
+		requireStatusError(t, err, codes.InvalidArgument, "get session request context is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("handler error", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
+
+		resp, err := svc.GetSession(context.Background(), &handpb.GetSessionRequest{
+			Context: &handpb.GetSessionRequestContext{Id: "project-a"},
+		})
 
 		requireStatusError(t, err, codes.NotFound, "session not found")
 		require.Nil(t, resp)
@@ -252,12 +366,12 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 }
 
 func TestService_CurrentSessionReturnsValue(t *testing.T) {
-	svc := NewService(&chatterStub{current: storage.DefaultSessionID})
+	svc := NewService(&agentstub.AgentServiceStub{CurrentSessionID: storage.DefaultSessionID})
 
 	resp, err := svc.CurrentSession(context.Background(), &handpb.CurrentSessionRequest{})
 
 	require.NoError(t, err)
-	require.Equal(t, storage.DefaultSessionID, resp.GetSessionId())
+	require.Equal(t, storage.DefaultSessionID, resp.GetId())
 }
 
 func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {
@@ -280,7 +394,7 @@ func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		svc := NewService(&chatterStub{})
+		svc := NewService(&agentstub.AgentServiceStub{})
 
 		resp, err := svc.CurrentSession(context.Background(), nil)
 
@@ -289,7 +403,7 @@ func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {
 	})
 
 	t.Run("handler error", func(t *testing.T) {
-		svc := NewService(&chatterStub{err: errors.New("boom")})
+		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("boom")})
 
 		resp, err := svc.CurrentSession(context.Background(), &handpb.CurrentSessionRequest{})
 

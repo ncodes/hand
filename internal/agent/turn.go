@@ -32,9 +32,9 @@ type Turn struct {
 	// memoryService loads and refreshes persisted memory state for the turn.
 	memoryService *agentmemory.Service
 	// invokeToolFn performs tool execution for requested tool calls.
-	invokeToolFn func(context.Context, executionEnvironment, models.ToolCall) handmsg.Message
+	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message
 	// runtimeEnv supplies tools, instructions, tracing, and iteration budget.
-	runtimeEnv executionEnvironment
+	runtimeEnv environment.Environment
 	// contextBuilder assembles the model-visible message context for the turn.
 	contextBuilder *ctxbuilder.Builder
 	// instructions is the request-scoped instruction set sent to the model.
@@ -60,8 +60,8 @@ func NewTurn(
 	cfg *config.Config,
 	modelClient models.Client,
 	sessionManager *sessionstore.Manager,
-	invokeToolFn func(context.Context, executionEnvironment, models.ToolCall) handmsg.Message,
-	runtimeEnv executionEnvironment,
+	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message,
+	runtimeEnv environment.Environment,
 ) *Turn {
 	return &Turn{
 		cfg:            cfg,

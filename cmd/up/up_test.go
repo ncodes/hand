@@ -10,11 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 	cli "github.com/urfave/cli/v3"
 
-	"github.com/wandxy/hand/internal/agent"
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
+	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	"github.com/wandxy/hand/internal/models"
-	"github.com/wandxy/hand/internal/storage"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -27,6 +26,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	originalNewAgentRunner := newAgentRunner
 	originalServeGRPC := serveRPC
 	originalStartupOutput := startupOutput
+
 	t.Cleanup(func() {
 		config.Set(original)
 		newAgentRunner = originalNewAgentRunner
@@ -34,6 +34,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 		startupOutput = originalStartupOutput
 		logutils.SetOutput(io.Discard)
 	})
+
 	config.Set(nil)
 	configFile := ""
 	runCalled := false
@@ -42,12 +43,16 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	logBuffer := &bytes.Buffer{}
 	startupOutput = startupBuffer
 	logutils.SetOutput(logBuffer)
+
 	newAgentRunner = func(_ context.Context, cfg *config.Config, modelClient models.Client) agentRunner {
-		return runnerFunc(func(context.Context) error {
-			runCalled = true
-			return nil
-		})
+		return &agentstub.AgentRunnerStub{
+			StartFunc: func(context.Context) error {
+				runCalled = true
+				return nil
+			},
+		}
 	}
+
 	serveRPC = func(ctx context.Context, cfg *config.Config, app agentRunner) error {
 		serveCalled = true
 		require.Equal(t, "0.0.0.0", cfg.RPCAddress)
@@ -86,6 +91,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.False(t, cfg.LogNoColor)
 	require.True(t, runCalled)
 	require.True(t, serveCalled)
+
 	require.Contains(t, startupBuffer.String(), "\x1b[90m██   ██  █████  ███    ██ ██████")
 	require.Contains(t, startupBuffer.String(), handcli.AppDescription)
 	require.Contains(t, startupBuffer.String(), "Instance")
@@ -97,6 +103,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, startupBuffer.String(), "Traces")
 	require.Contains(t, startupBuffer.String(), "enabled (/tmp/hand-traces)")
 	require.Contains(t, startupBuffer.String(), "enabled (/tmp/hand-traces)\n\n")
+
 	logOutput := stripANSI(logBuffer.String())
 	require.Contains(t, logOutput, "Configuration loaded")
 	require.Contains(t, logOutput, "Starting Hand services")
@@ -133,9 +140,11 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 
 func TestNewCommand_ReturnsValidationError(t *testing.T) {
 	originalServeGRPC := serveRPC
+
 	t.Cleanup(func() {
 		serveRPC = originalServeGRPC
 	})
+
 	serveRPC = func(context.Context, *config.Config, agentRunner) error {
 		t.Fatal("serveGRPC should not be called on validation failure")
 		return nil
@@ -151,6 +160,7 @@ func TestNewCommand_ReturnsValidationError(t *testing.T) {
 		"--model.key", "",
 		"up",
 	})
+
 	require.EqualError(t, err, "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
 }
 
@@ -163,32 +173,6 @@ func newRootCommandForTest(configFile *string) *cli.Command {
 			NewCommand(),
 		},
 	}
-}
-
-type runnerFunc func(context.Context) error
-
-func (f runnerFunc) Start(ctx context.Context) error {
-	return f(ctx)
-}
-
-func (f runnerFunc) Respond(context.Context, string, agent.RespondOptions) (string, error) {
-	return "", nil
-}
-
-func (f runnerFunc) CreateSession(context.Context, string) (storage.Session, error) {
-	return storage.Session{}, nil
-}
-
-func (f runnerFunc) ListSessions(context.Context) ([]storage.Session, error) {
-	return nil, nil
-}
-
-func (f runnerFunc) UseSession(context.Context, string) error {
-	return nil
-}
-
-func (f runnerFunc) CurrentSession(context.Context) (string, error) {
-	return storage.DefaultSessionID, nil
 }
 
 var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)

@@ -19,22 +19,26 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	HandService_Chat_FullMethodName           = "/hand.v1.HandService/Chat"
+	HandService_Respond_FullMethodName        = "/hand.v1.HandService/Respond"
 	HandService_CreateSession_FullMethodName  = "/hand.v1.HandService/CreateSession"
 	HandService_ListSessions_FullMethodName   = "/hand.v1.HandService/ListSessions"
 	HandService_UseSession_FullMethodName     = "/hand.v1.HandService/UseSession"
 	HandService_CurrentSession_FullMethodName = "/hand.v1.HandService/CurrentSession"
+	HandService_CompactSession_FullMethodName = "/hand.v1.HandService/CompactSession"
+	HandService_GetSession_FullMethodName     = "/hand.v1.HandService/GetSession"
 )
 
 // HandServiceClient is the client API for HandService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type HandServiceClient interface {
-	Chat(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (*ChatResponse, error)
+	Respond(ctx context.Context, in *RespondRequest, opts ...grpc.CallOption) (*RespondResponse, error)
 	CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
 	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
 	UseSession(ctx context.Context, in *UseSessionRequest, opts ...grpc.CallOption) (*UseSessionResponse, error)
 	CurrentSession(ctx context.Context, in *CurrentSessionRequest, opts ...grpc.CallOption) (*CurrentSessionResponse, error)
+	CompactSession(ctx context.Context, in *CompactSessionRequest, opts ...grpc.CallOption) (*CompactSessionResponse, error)
+	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error)
 }
 
 type handServiceClient struct {
@@ -45,10 +49,10 @@ func NewHandServiceClient(cc grpc.ClientConnInterface) HandServiceClient {
 	return &handServiceClient{cc}
 }
 
-func (c *handServiceClient) Chat(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (*ChatResponse, error) {
+func (c *handServiceClient) Respond(ctx context.Context, in *RespondRequest, opts ...grpc.CallOption) (*RespondResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ChatResponse)
-	err := c.cc.Invoke(ctx, HandService_Chat_FullMethodName, in, out, cOpts...)
+	out := new(RespondResponse)
+	err := c.cc.Invoke(ctx, HandService_Respond_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -95,15 +99,37 @@ func (c *handServiceClient) CurrentSession(ctx context.Context, in *CurrentSessi
 	return out, nil
 }
 
+func (c *handServiceClient) CompactSession(ctx context.Context, in *CompactSessionRequest, opts ...grpc.CallOption) (*CompactSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompactSessionResponse)
+	err := c.cc.Invoke(ctx, HandService_CompactSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *handServiceClient) GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSessionResponse)
+	err := c.cc.Invoke(ctx, HandService_GetSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HandServiceServer is the server API for HandService service.
 // All implementations must embed UnimplementedHandServiceServer
 // for forward compatibility.
 type HandServiceServer interface {
-	Chat(context.Context, *ChatRequest) (*ChatResponse, error)
+	Respond(context.Context, *RespondRequest) (*RespondResponse, error)
 	CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
 	ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
 	UseSession(context.Context, *UseSessionRequest) (*UseSessionResponse, error)
 	CurrentSession(context.Context, *CurrentSessionRequest) (*CurrentSessionResponse, error)
+	CompactSession(context.Context, *CompactSessionRequest) (*CompactSessionResponse, error)
+	GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error)
 	mustEmbedUnimplementedHandServiceServer()
 }
 
@@ -114,8 +140,8 @@ type HandServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedHandServiceServer struct{}
 
-func (UnimplementedHandServiceServer) Chat(context.Context, *ChatRequest) (*ChatResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method Chat not implemented")
+func (UnimplementedHandServiceServer) Respond(context.Context, *RespondRequest) (*RespondResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Respond not implemented")
 }
 func (UnimplementedHandServiceServer) CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateSession not implemented")
@@ -128,6 +154,12 @@ func (UnimplementedHandServiceServer) UseSession(context.Context, *UseSessionReq
 }
 func (UnimplementedHandServiceServer) CurrentSession(context.Context, *CurrentSessionRequest) (*CurrentSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CurrentSession not implemented")
+}
+func (UnimplementedHandServiceServer) CompactSession(context.Context, *CompactSessionRequest) (*CompactSessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CompactSession not implemented")
+}
+func (UnimplementedHandServiceServer) GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSession not implemented")
 }
 func (UnimplementedHandServiceServer) mustEmbedUnimplementedHandServiceServer() {}
 func (UnimplementedHandServiceServer) testEmbeddedByValue()                     {}
@@ -150,20 +182,20 @@ func RegisterHandServiceServer(s grpc.ServiceRegistrar, srv HandServiceServer) {
 	s.RegisterService(&HandService_ServiceDesc, srv)
 }
 
-func _HandService_Chat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ChatRequest)
+func _HandService_Respond_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RespondRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(HandServiceServer).Chat(ctx, in)
+		return srv.(HandServiceServer).Respond(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: HandService_Chat_FullMethodName,
+		FullMethod: HandService_Respond_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HandServiceServer).Chat(ctx, req.(*ChatRequest))
+		return srv.(HandServiceServer).Respond(ctx, req.(*RespondRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -240,6 +272,42 @@ func _HandService_CurrentSession_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HandService_CompactSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompactSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HandServiceServer).CompactSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HandService_CompactSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HandServiceServer).CompactSession(ctx, req.(*CompactSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HandService_GetSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HandServiceServer).GetSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HandService_GetSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HandServiceServer).GetSession(ctx, req.(*GetSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HandService_ServiceDesc is the grpc.ServiceDesc for HandService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -248,8 +316,8 @@ var HandService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*HandServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Chat",
-			Handler:    _HandService_Chat_Handler,
+			MethodName: "Respond",
+			Handler:    _HandService_Respond_Handler,
 		},
 		{
 			MethodName: "CreateSession",
@@ -266,6 +334,14 @@ var HandService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CurrentSession",
 			Handler:    _HandService_CurrentSession_Handler,
+		},
+		{
+			MethodName: "CompactSession",
+			Handler:    _HandService_CompactSession_Handler,
+		},
+		{
+			MethodName: "GetSession",
+			Handler:    _HandService_GetSession_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

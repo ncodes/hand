@@ -17,34 +17,13 @@ import (
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
 	upcmd "github.com/wandxy/hand/cmd/up"
 	"github.com/wandxy/hand/internal/config"
+	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
 func init() {
 	logutils.SetOutput(io.Discard)
-}
-
-type chatRunnerStub struct {
-	chatInput string
-	instruct  string
-	sessionID string
-	reply     string
-	chatErr   error
-	closeErr  error
-	closed    bool
-}
-
-func (s *chatRunnerStub) Respond(_ context.Context, msg string, opts rpcclient.RespondOptions) (string, error) {
-	s.chatInput = msg
-	s.instruct = opts.Instruct
-	s.sessionID = opts.SessionID
-	return s.reply, s.chatErr
-}
-
-func (s *chatRunnerStub) Close() error {
-	s.closed = true
-	return s.closeErr
 }
 
 func TestNewCommand_UsesConfigFileValues(t *testing.T) {
@@ -375,8 +354,8 @@ func TestNewCommand_RootActionTreatsUnknownArgsAsChat(t *testing.T) {
 	var output bytes.Buffer
 	rootOutput = &output
 
-	stub := &chatRunnerStub{reply: "hello back"}
-	newChatClient = func(context.Context, *config.Config) (chatRunner, error) {
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+	newChatClient = func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
 		return stub, nil
 	}
 
@@ -390,10 +369,10 @@ func TestNewCommand_RootActionTreatsUnknownArgsAsChat(t *testing.T) {
 		"world",
 	})
 	require.NoError(t, err)
-	require.Equal(t, "hello world", stub.chatInput)
-	require.Empty(t, stub.instruct)
-	require.Empty(t, stub.sessionID)
-	require.True(t, stub.closed)
+	require.Equal(t, "hello world", stub.ChatInput)
+	require.Empty(t, stub.RespondOptions.Instruct)
+	require.Empty(t, stub.RespondOptions.SessionID)
+	require.True(t, stub.Closed)
 	require.Equal(t, "hello back\n", output.String())
 }
 
@@ -406,8 +385,8 @@ func TestNewCommand_RootActionForwardsInstruct(t *testing.T) {
 		newChatClient = originalNewChatClient
 	})
 
-	stub := &chatRunnerStub{reply: "hello back"}
-	newChatClient = func(context.Context, *config.Config) (chatRunner, error) {
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+	newChatClient = func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
 		return stub, nil
 	}
 
@@ -419,7 +398,7 @@ func TestNewCommand_RootActionForwardsInstruct(t *testing.T) {
 		"hello",
 	})
 	require.NoError(t, err)
-	require.Equal(t, "be terse", stub.instruct)
+	require.Equal(t, "be terse", stub.RespondOptions.Instruct)
 }
 
 func TestNewCommand_RootActionForwardsSessionID(t *testing.T) {
@@ -431,8 +410,8 @@ func TestNewCommand_RootActionForwardsSessionID(t *testing.T) {
 		newChatClient = originalNewChatClient
 	})
 
-	stub := &chatRunnerStub{reply: "hello back"}
-	newChatClient = func(context.Context, *config.Config) (chatRunner, error) {
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+	newChatClient = func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
 		return stub, nil
 	}
 
@@ -444,7 +423,7 @@ func TestNewCommand_RootActionForwardsSessionID(t *testing.T) {
 		"hello",
 	})
 	require.NoError(t, err)
-	require.Equal(t, "project-a", stub.sessionID)
+	require.Equal(t, "project-a", stub.RespondOptions.SessionID)
 }
 
 func TestNewCommand_RootActionDoesNotForwardConfiguredInstruct(t *testing.T) {
@@ -467,8 +446,8 @@ model:
 instruct: be terse
 `), 0o600))
 
-	stub := &chatRunnerStub{reply: "hello back"}
-	newChatClient = func(context.Context, *config.Config) (chatRunner, error) {
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+	newChatClient = func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
 		return stub, nil
 	}
 
@@ -479,7 +458,7 @@ instruct: be terse
 		"hello",
 	})
 	require.NoError(t, err)
-	require.Empty(t, stub.instruct)
+	require.Empty(t, stub.RespondOptions.Instruct)
 }
 
 func TestNewCommand_RootActionReturnsRPCError(t *testing.T) {
@@ -491,7 +470,7 @@ func TestNewCommand_RootActionReturnsRPCError(t *testing.T) {
 		newChatClient = originalNewChatClient
 	})
 
-	newChatClient = func(context.Context, *config.Config) (chatRunner, error) {
+	newChatClient = func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
 		return nil, status.Error(codes.Unavailable, "connection refused")
 	}
 

@@ -4,32 +4,36 @@ package hand.v1;
 
 option go_package = "github.com/wandxy/hand/internal/rpc/proto;handpb";
 
+import "google/protobuf/timestamp.proto";
+
 service HandService {
-  rpc Chat(ChatRequest) returns (ChatResponse);
+  rpc Respond(RespondRequest) returns (RespondResponse);
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
   rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
   rpc UseSession(UseSessionRequest) returns (UseSessionResponse);
   rpc CurrentSession(CurrentSessionRequest) returns (CurrentSessionResponse);
+  rpc CompactSession(CompactSessionRequest) returns (CompactSessionResponse);
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
 }
 
-message ChatRequest {
+message RespondRequest {
   string message = 1;
   string instruct = 2;
-  string session_id = 3;
+  string id = 3;
 }
 
-message ChatResponse {
+message RespondResponse {
   string message = 1;
 }
 
 message SessionSummary {
-  string session_id = 1;
+  string id = 1;
   int64 updated_at_unix = 2;
   int32 message_count = 3;
 }
 
 message CreateSessionRequest {
-  string session_id = 1;
+  string id = 1;
 }
 
 message CreateSessionResponse {
@@ -43,15 +47,54 @@ message ListSessionsResponse {
 }
 
 message UseSessionRequest {
-  string session_id = 1;
+  string id = 1;
 }
 
 message UseSessionResponse {
-  string session_id = 1;
+  string id = 1;
 }
 
 message CurrentSessionRequest {}
 
 message CurrentSessionResponse {
-  string session_id = 1;
+  string id = 1;
+}
+
+message CompactSessionRequest {
+  string id = 1;
+}
+
+message CompactSessionResponse {
+  string id = 1;
+  int32 source_end_offset = 2;
+  int32 source_message_count = 3;
+  google.protobuf.Timestamp updated_at = 4;
+  int32 current_context_length = 5;
+  int32 total_context_length = 6;
+}
+
+message GetSessionRequestContext {
+  string id = 1;
+}
+
+message GetSessionRequest {
+  GetSessionRequestContext context = 1;
+}
+
+message GetSessionResponse {
+  string id = 1;
+  Context context = 2;
+  int32 size = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+  string compaction_status = 6;
+
+  message Context {
+    int32 offset = 1;
+    int32 length = 2;
+    int32 used = 3;
+    int32 remaining = 4;
+    double used_pct = 5;
+    double remaining_pct = 6;
+  }
 }

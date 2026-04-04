@@ -24,7 +24,16 @@ var (
 
 const configInstructInstructionName = "config.instruct"
 
-type Environment struct {
+type Environment interface {
+	Prepare() error
+	Instructions() instructions.Instructions
+	Tools() ToolRegistry
+	ToolPolicy() tools.Policy
+	NewIterationBudget() IterationBudget
+	NewTraceSession() trace.Session
+}
+
+type environment struct {
 	ctx          context.Context
 	cfg          *config.Config
 	instructions instructions.Instructions
@@ -41,7 +50,7 @@ type ToolRegistry interface {
 	Invoke(context.Context, tools.Call) (tools.Result, error)
 }
 
-func (e *Environment) ToolPolicy() tools.Policy {
+func (e *environment) ToolPolicy() tools.Policy {
 	if e == nil || e.cfg == nil {
 		return tools.Policy{
 			Capabilities: tools.Capabilities{
@@ -66,8 +75,7 @@ func (e *Environment) ToolPolicy() tools.Policy {
 	}
 }
 
-// NewEnvironment creates a new environment with the given context and configuration.
-func NewEnvironment(ctx context.Context, cfg *config.Config) *Environment {
+func NewEnvironment(ctx context.Context, cfg *config.Config) Environment {
 	registry := tools.NewInMemoryRegistry()
 	traceFactory := trace.NoopFactory()
 
@@ -79,7 +87,7 @@ func NewEnvironment(ctx context.Context, cfg *config.Config) *Environment {
 		traceFactory = trace.NewFactory(traceDir, guardrails.NewRedactor())
 	}
 
-	return &Environment{
+	return &environment{
 		ctx:          ctx,
 		cfg:          cfg,
 		instructions: instructions.Instructions{},
@@ -88,14 +96,14 @@ func NewEnvironment(ctx context.Context, cfg *config.Config) *Environment {
 	}
 }
 
-func (e *Environment) Prepare() error {
+func (e *environment) Prepare() error {
 	if err := e.prepareTools(); err != nil {
 		return err
 	}
 	return e.prepareInstructions()
 }
 
-func (e *Environment) prepareTools() error {
+func (e *environment) prepareTools() error {
 	if e.runtime == nil {
 		e.runtime = NewRuntime(e.fileRoots(), e.commandPolicy())
 	}
@@ -124,7 +132,7 @@ func (e *Environment) prepareTools() error {
 	return nil
 }
 
-func (e *Environment) prepareInstructions() error {
+func (e *environment) prepareInstructions() error {
 	for _, instruction := range instructions.BuildBase(e.cfg.Name) {
 		e.addInstruction(instruction)
 	}
@@ -153,7 +161,7 @@ func (e *Environment) prepareInstructions() error {
 	return nil
 }
 
-func (e *Environment) Instructions() instructions.Instructions {
+func (e *environment) Instructions() instructions.Instructions {
 	if e == nil {
 		return nil
 	}
@@ -162,18 +170,18 @@ func (e *Environment) Instructions() instructions.Instructions {
 	return copied
 }
 
-func (e *Environment) Tools() ToolRegistry {
+func (e *environment) Tools() ToolRegistry {
 	return e.tools
 }
 
-func (e *Environment) NewIterationBudget() IterationBudget {
+func (e *environment) NewIterationBudget() IterationBudget {
 	if e == nil || e.cfg == nil || e.cfg.MaxIterations <= 0 {
 		return NewIterationBudget(config.DefaultMaxIterations)
 	}
 	return NewIterationBudget(e.cfg.MaxIterations)
 }
 
-func (e *Environment) NewTraceSession() trace.Session {
+func (e *environment) NewTraceSession() trace.Session {
 	if e == nil || e.traces == nil {
 		return trace.NoopSession()
 	}
@@ -188,14 +196,14 @@ func (e *Environment) NewTraceSession() trace.Session {
 	return e.traces.NewSession(e.ctx, metadata)
 }
 
-func (e *Environment) fileRoots() []string {
+func (e *environment) fileRoots() []string {
 	if e == nil || e.cfg == nil || len(e.cfg.FSRoots) == 0 {
 		return guardrails.NormalizeRoots(nil)
 	}
 	return guardrails.NormalizeRoots(e.cfg.FSRoots)
 }
 
-func (e *Environment) commandPolicy() guardrails.CommandPolicy {
+func (e *environment) commandPolicy() guardrails.CommandPolicy {
 	if e == nil || e.cfg == nil {
 		return guardrails.CommandPolicy{}
 	}
@@ -207,11 +215,11 @@ func (e *Environment) commandPolicy() guardrails.CommandPolicy {
 	}.Normalize()
 }
 
-func (e *Environment) addInstruction(instruction instructions.Instruction) {
+func (e *environment) addInstruction(instruction instructions.Instruction) {
 	e.instructions = append(e.instructions, instruction)
 }
 
-func (e *Environment) setInstruction(instruction instructions.Instruction) {
+func (e *environment) setInstruction(instruction instructions.Instruction) {
 	instruction.Name = strings.TrimSpace(instruction.Name)
 	instruction.Value = strings.TrimSpace(instruction.Value)
 
@@ -238,3 +246,5 @@ func (e *Environment) setInstruction(instruction instructions.Instruction) {
 		e.instructions = append(e.instructions, instruction)
 	}
 }
+
+var _ Environment = (*environment)(nil)

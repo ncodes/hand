@@ -24,9 +24,10 @@ func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
 
 	env := NewEnvironment(baseCtx, cfg)
+	h := env.(*environment)
 
-	require.Same(t, baseCtx, env.ctx)
-	require.Same(t, cfg, env.cfg)
+	require.Same(t, baseCtx, h.ctx)
+	require.Same(t, cfg, h.cfg)
 	require.Empty(t, env.Instructions())
 }
 
@@ -343,7 +344,7 @@ func (failingGroupRegistry) Invoke(stdctx.Context, tools.Call) (tools.Result, er
 func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
-	env.tools = failingRegistry{err: errors.New("register failed")}
+	env.(*environment).tools = failingRegistry{err: errors.New("register failed")}
 	err := env.Prepare()
 	require.EqualError(t, err, "register failed")
 	require.Empty(t, env.Instructions())
@@ -352,7 +353,7 @@ func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
 func TestEnvironment_PrepareReturnsToolGroupRegistrationError(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
-	env.tools = failingGroupRegistry{err: errors.New("group failed")}
+	env.(*environment).tools = failingGroupRegistry{err: errors.New("group failed")}
 	err := env.Prepare()
 	require.EqualError(t, err, "group failed")
 	require.Empty(t, env.Instructions())
@@ -360,16 +361,18 @@ func TestEnvironment_PrepareReturnsToolGroupRegistrationError(t *testing.T) {
 
 func TestEnvironment_PrepareToolsPreservesExistingRuntime(t *testing.T) {
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
+	h := env.(*environment)
 	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{})
-	env.runtime = runtime
-	require.NoError(t, env.prepareTools())
-	require.Same(t, runtime, env.runtime)
+	h.runtime = runtime
+	require.NoError(t, h.prepareTools())
+	require.Same(t, runtime, h.runtime)
 }
 
 func TestEnvironment_InstructionsReturnsCopy(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
-	env.instructions = append(env.instructions, instruct.Instruction{Value: "hello"})
+	h := env.(*environment)
+	h.instructions = append(h.instructions, instruct.Instruction{Value: "hello"})
 	instructions := env.Instructions()
 	require.Len(t, instructions, 1)
 	instructions[0].Value = "changed"
@@ -377,18 +380,18 @@ func TestEnvironment_InstructionsReturnsCopy(t *testing.T) {
 }
 
 func TestEnvironment_InstructionsReturnsNilForNilEnvironment(t *testing.T) {
-	var env *Environment
+	var env *environment
 	require.Nil(t, env.Instructions())
 }
 
 func TestEnvironment_SetInstructionAddsUnnamedInstruction(t *testing.T) {
-	env := &Environment{}
+	env := &environment{}
 	env.setInstruction(instruct.Instruction{Value: "  hello  "})
 	require.Equal(t, instruct.Instructions{{Value: "hello"}}, env.instructions)
 }
 
 func TestEnvironment_SetInstructionUpdatesExistingNamedInstruction(t *testing.T) {
-	env := &Environment{
+	env := &environment{
 		instructions: instruct.Instructions{{Name: configInstructInstructionName, Value: "old"}},
 	}
 	env.setInstruction(instruct.Instruction{Name: configInstructInstructionName, Value: "  new  "})
@@ -396,7 +399,7 @@ func TestEnvironment_SetInstructionUpdatesExistingNamedInstruction(t *testing.T)
 }
 
 func TestEnvironment_SetInstructionRemovesExistingNamedInstructionWhenEmpty(t *testing.T) {
-	env := &Environment{
+	env := &environment{
 		instructions: instruct.Instructions{
 			{Value: "base"},
 			{Name: configInstructInstructionName, Value: "old"},
@@ -409,7 +412,7 @@ func TestEnvironment_SetInstructionRemovesExistingNamedInstructionWhenEmpty(t *t
 }
 
 func TestEnvironment_SetInstructionAppendsNewNamedInstructionWhenMissing(t *testing.T) {
-	env := &Environment{
+	env := &environment{
 		instructions: instruct.Instructions{{Value: "base"}},
 	}
 
@@ -422,7 +425,7 @@ func TestEnvironment_SetInstructionAppendsNewNamedInstructionWhenMissing(t *test
 }
 
 func TestEnvironment_SetInstructionSkipsEmptyNewNamedInstruction(t *testing.T) {
-	env := &Environment{
+	env := &environment{
 		instructions: instruct.Instructions{{Value: "base"}},
 	}
 	env.setInstruction(instruct.Instruction{Name: configInstructInstructionName, Value: "   "})
@@ -436,7 +439,7 @@ func TestEnvironment_NewIterationBudgetUsesConfigValue(t *testing.T) {
 }
 
 func TestEnvironment_NewIterationBudgetUsesDefaultWhenUnset(t *testing.T) {
-	require.Equal(t, config.DefaultMaxIterations, (&Environment{}).NewIterationBudget().Remaining())
+	require.Equal(t, config.DefaultMaxIterations, (&environment{}).NewIterationBudget().Remaining())
 }
 
 func TestEnvironment_ToolPolicyUsesCLIPlatformAndLocalCapabilities(t *testing.T) {
@@ -455,7 +458,7 @@ func TestEnvironment_ToolPolicyUsesCLIPlatformAndLocalCapabilities(t *testing.T)
 }
 
 func TestEnvironment_ToolPolicyUsesDefaultsForNilEnvironment(t *testing.T) {
-	var env *Environment
+	var env *environment
 
 	opts := env.ToolPolicy()
 
@@ -468,7 +471,7 @@ func TestEnvironment_ToolPolicyUsesDefaultsForNilEnvironment(t *testing.T) {
 }
 
 func TestEnvironment_ToolPolicyUsesDefaultsForNilConfig(t *testing.T) {
-	env := &Environment{}
+	env := &environment{}
 
 	opts := env.ToolPolicy()
 
@@ -503,28 +506,28 @@ func TestEnvironment_ToolPolicyUsesConfigValues(t *testing.T) {
 }
 
 func TestEnvironment_FileRootsUsesDefaultsForNilEnvironment(t *testing.T) {
-	var env *Environment
+	var env *environment
 	require.Equal(t, guardrails.NormalizeRoots(nil), env.fileRoots())
 }
 
 func TestEnvironment_FileRootsUsesDefaultsForNilConfig(t *testing.T) {
-	env := &Environment{}
+	env := &environment{}
 	require.Equal(t, guardrails.NormalizeRoots(nil), env.fileRoots())
 }
 
 func TestEnvironment_FileRootsUsesConfiguredRoots(t *testing.T) {
 	root := t.TempDir()
-	env := &Environment{cfg: &config.Config{FSRoots: []string{root, filepath.Join(root, ".")}}}
+	env := &environment{cfg: &config.Config{FSRoots: []string{root, filepath.Join(root, ".")}}}
 	require.Equal(t, []string{root}, env.fileRoots())
 }
 
 func TestEnvironment_CommandPolicyUsesDefaultsForNilEnvironment(t *testing.T) {
-	var env *Environment
+	var env *environment
 	require.Equal(t, guardrails.CommandPolicy{}, env.commandPolicy())
 }
 
 func TestEnvironment_CommandPolicyUsesDefaultsForNilConfig(t *testing.T) {
-	env := &Environment{}
+	env := &environment{}
 	require.Equal(t, guardrails.CommandPolicy{}, env.commandPolicy())
 }
 
@@ -544,13 +547,13 @@ func TestNewEnvironment_ReturnsNoopTraceSessionWhenDisabled(t *testing.T) {
 }
 
 func TestEnvironment_NewTraceSessionNilEnvironment(t *testing.T) {
-	var env *Environment
+	var env *environment
 	session := env.NewTraceSession()
 	require.Equal(t, "", session.ID())
 }
 
 func TestEnvironment_NewTraceSessionNilTraceFactory(t *testing.T) {
-	env := &Environment{}
+	env := &environment{}
 	session := env.NewTraceSession()
 	require.Equal(t, "", session.ID())
 }

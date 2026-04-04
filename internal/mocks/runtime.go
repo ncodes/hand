@@ -39,6 +39,8 @@ func (s *ModelClientStub) Chat(_ context.Context, req models.Request) (*models.R
 	return response, nil
 }
 
+var _ environment.Environment = (*EnvironmentStub)(nil)
+
 type EnvironmentStub struct {
 	PrepareErr       error
 	InstructionsList instruct.Instructions
