@@ -74,7 +74,7 @@ func (s *EnvironmentStub) NewIterationBudget() environment.IterationBudget {
 	return s.IterationBudget
 }
 
-func (s *EnvironmentStub) NewTraceSession() trace.Session {
+func (s *EnvironmentStub) NewTraceSession(string) trace.Session {
 	if s.TraceSession == nil {
 		return trace.NoopSession()
 	}

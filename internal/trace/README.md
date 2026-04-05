@@ -1,17 +1,17 @@
 # trace
 
-The `trace` package records **structured agent session traces** as newline-delimited JSON ([JSON Lines](https://jsonlines.org/)). Each session maps to one file on disk; each line is one `Event` with a type string, UTC timestamp, session ID, and optional JSON payload.
+The `trace` package records **structured agent session traces** as newline-delimited JSON ([JSON Lines](https://jsonlines.org/)). Each **storage session** (the agent’s persisted chat session id, e.g. `ses_…`) maps to one file named `<traceDir>/<UTC>Z-<session_id>.jsonl` (UTC layout `20060102T150405.000000000Z`). Each line is one `Event` with a type string, UTC timestamp, storage session ID, and optional JSON payload.
 
 ## Purpose
 
-Traces support debugging and inspection of a single chat run: what was sent to the model, what came back, tool calls, compaction/summary activity, and failures. Payloads are passed through the project’s **redactor** (`guardrails.Redactor`) before encoding, so secrets in maps and structs can be scrubbed consistently.
+Traces support debugging and inspection of a conversation over time: what was sent to the model, what came back, tool calls, compaction/summary activity, and failures. Multiple user turns append to the same JSONL file for that session. Payloads are passed through the project’s **redactor** (`guardrails.Redactor`) before encoding, so secrets in maps and structs can be scrubbed consistently.
 
 ## Core types
 
 
 | Type       | Role                                                                                    |
 | ---------- | --------------------------------------------------------------------------------------- |
-| `Factory`  | Creates a `Session` for a run (`NewSession(ctx, Metadata)`).                            |
+| `Factory`  | Opens a `Session` for a storage session id (`OpenSession(ctx, sessionID, Metadata)`).   |
 | `Session`  | `ID()`, `Record(eventType, payload)`, `Close()`.                                        |
 | `Metadata` | First-event payload: `agent_name`, `model`, `api_mode`, `source`, optional `trace_dir`. |
 | `Event`    | JSON shape: `session_id`, `type`, `timestamp`, `payload`.                               |
@@ -19,8 +19,10 @@ Traces support debugging and inspection of a single chat run: what was sent to t
 
 ## Factories
 
-- `**NewFactory(directory, redactor)`** — If `directory` is non-empty and writable, each `NewSession` creates `<traceDir>/<UTC-timestamp>-<random>.jsonl`, writes `EvtChatStarted` with the given `Metadata`, and returns a real session. On failure or empty directory, returns a **noop** session (no file, `Record` is a no-op).
-- `**NoopFactory()`** / `**NoopSession()`** — For tests or when tracing is disabled; no I/O.
+- **`NewFactory(directory, redactor)`** — If `directory` is non-empty and writable, `OpenSession` looks for exactly one file matching `*<session_id>.jsonl`; if none exist, it creates `<UTC>Z-<session_id>.jsonl`. If more than one file matches, tracing is disabled for that session (noop). Opens append (creating the file if missing). If the file is **empty**, it writes `EvtChatStarted` once with the given `Metadata`. If the file **already has content**, `chat.started` is not written again. Invalid `session_id` values (empty, `..`, path separators) yield a **noop** session. On failure or empty trace directory, returns noop.
+- **`NoopFactory()`** / **`NoopSession()`** — For tests or when tracing is disabled; no I/O.
+
+Concurrent writes to the same path are serialized with a per-file lock so JSON lines are not interleaved.
 
 ## Event names
 
@@ -31,7 +33,7 @@ Event type strings are defined as constants in `events.go` (e.g. `EvtChatStarted
 
 | Constant           | Type string      | Meaning                                                                                                                   |
 | ------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `EvtChatStarted`   | `chat.started`   | Emitted automatically when a JSONL session starts. Payload: `Metadata` (agent, model, API mode, source, trace directory). |
+| `EvtChatStarted`   | `chat.started`   | Emitted automatically when the trace file is first created (empty file). Payload: `Metadata` (agent, model, API mode, source, trace directory). Not repeated on append to an existing file. |
 | `EvtSessionFailed` | `session.failed` | Unrecoverable or traced error. Payload is typically `{"error": "<message>"}`.                                             |
 
 

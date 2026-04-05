@@ -321,7 +321,7 @@ func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionRe
 
 	traceSession := trace.NoopSession()
 	if a.env != nil {
-		traceSession = a.env.NewTraceSession()
+		traceSession = a.env.NewTraceSession(session.ID)
 	}
 	defer traceSession.Close()
 

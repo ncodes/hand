@@ -314,15 +314,7 @@ func resolveSessionPath(directory, id string) (string, error) {
 		return "", os.ErrNotExist
 	}
 
-	if strings.Contains(id, "/") || strings.Contains(id, `\`) {
-		return "", os.ErrNotExist
-	}
-
-	if filepath.Base(id) != id || id == "." || id == ".." {
-		return "", os.ErrNotExist
-	}
-
-	return filepath.Join(directory, id+".jsonl"), nil
+	return handtrace.ResolveTraceFilePath(directory, id)
 }
 
 func LoadSessionFile(path string) (SessionDetail, error) {
@@ -331,10 +323,11 @@ func LoadSessionFile(path string) (SessionDetail, error) {
 		return SessionDetail{}, errors.New("trace session path is required")
 	}
 
-	fileID := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	fileStem := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	logicalID := handtrace.SessionIDFromTraceFilename(fileStem)
 	detail := SessionDetail{
 		Summary: SessionSummary{
-			ID:          fileID,
+			ID:          logicalID,
 			Path:        path,
 			FinalStatus: "incomplete",
 		},
@@ -371,11 +364,13 @@ func LoadSessionFile(path string) (SessionDetail, error) {
 		}
 
 		detail.Summary.EventCount++
-		if !event.Timestamp.IsZero() && (detail.Summary.StartedAt.IsZero() || event.Timestamp.Before(detail.Summary.StartedAt)) {
+		if !event.Timestamp.IsZero() && (detail.Summary.StartedAt.IsZero() ||
+			event.Timestamp.Before(detail.Summary.StartedAt)) {
 			detail.Summary.StartedAt = event.Timestamp
 		}
-		if event.SessionID != "" && event.SessionID != fileID {
-			detail.Warnings = append(detail.Warnings, fmt.Sprintf("event session id %q does not match file id %q", event.SessionID, fileID))
+		if event.SessionID != "" && event.SessionID != logicalID {
+			detail.Warnings = append(detail.Warnings, fmt.Sprintf("event session id %q does not match file id %q",
+				event.SessionID, logicalID))
 		}
 
 		timelineEvent := TimelineEvent{
@@ -482,7 +477,8 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 	case handtrace.EvtSummaryFallbackStarted:
 		timelineEvent.SummaryFallback = &SummaryFallbackView{Payload: compactJSON(event.Payload)}
 		return
-	case handtrace.EvtContextPreflight, handtrace.EvtContextCompactionTriggered, handtrace.EvtContextCompactionWarning, handtrace.EvtContextPostflightUsage:
+	case handtrace.EvtContextPreflight, handtrace.EvtContextCompactionTriggered,
+		handtrace.EvtContextCompactionWarning, handtrace.EvtContextPostflightUsage:
 		var payload contextEventPayload
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.ContextEvent = &ContextEventView{
@@ -497,7 +493,8 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 
 			return
 		}
-	case handtrace.EvtSummaryRequested, handtrace.EvtSummarySaved, handtrace.EvtSummaryFailed, handtrace.EvtSummaryParseFailed, handtrace.EvtSummaryApplied:
+	case handtrace.EvtSummaryRequested, handtrace.EvtSummarySaved, handtrace.EvtSummaryFailed,
+		handtrace.EvtSummaryParseFailed, handtrace.EvtSummaryApplied:
 		var payload summaryEventPayload
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.SummaryEvent = &SummaryEventView{
@@ -510,7 +507,8 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 
 			return
 		}
-	case handtrace.EvtContextCompactionPending, handtrace.EvtContextCompactionRunning, handtrace.EvtContextCompactionSucceeded, handtrace.EvtContextCompactionFailed:
+	case handtrace.EvtContextCompactionPending, handtrace.EvtContextCompactionRunning,
+		handtrace.EvtContextCompactionSucceeded, handtrace.EvtContextCompactionFailed:
 		var payload compactionEventPayload
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.CompactionEvent = &CompactionEventView{

@@ -24,7 +24,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "20260329T002738.170520000Z-4fca4857", []any{
 		handtrace.Event{
-			SessionID: "20260329T002738.170520000Z-4fca4857",
+			SessionID: "4fca4857",
 			Type:      handtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 38, 171258000, time.UTC),
 			Payload: handtrace.Metadata{
@@ -36,13 +36,13 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			},
 		},
 		handtrace.Event{
-			SessionID: "20260329T002738.170520000Z-4fca4857",
+			SessionID: "4fca4857",
 			Type:      handtrace.EvtUserMessageAccepted,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 38, 171671000, time.UTC),
 			Payload:   map[string]any{"message": "List files in the root"},
 		},
 		handtrace.Event{
-			SessionID: "20260329T002738.170520000Z-4fca4857",
+			SessionID: "4fca4857",
 			Type:      handtrace.EvtModelRequest,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 38, 171759000, time.UTC),
 			Payload: models.Request{
@@ -62,7 +62,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			},
 		},
 		handtrace.Event{
-			SessionID: "20260329T002738.170520000Z-4fca4857",
+			SessionID: "4fca4857",
 			Type:      handtrace.EvtModelResponse,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 41, 430260000, time.UTC),
 			Payload: models.Response{
@@ -73,7 +73,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			},
 		},
 		handtrace.Event{
-			SessionID: "20260329T002738.170520000Z-4fca4857",
+			SessionID: "4fca4857",
 			Type:      handtrace.EvtModelRequest,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 45, 171759000, time.UTC),
 			Payload: models.Request{
@@ -84,7 +84,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			},
 		},
 		handtrace.Event{
-			SessionID: "20260329T002738.170520000Z-4fca4857",
+			SessionID: "4fca4857",
 			Type:      handtrace.EvtModelResponse,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 46, 430260000, time.UTC),
 			Payload: models.Response{
@@ -94,13 +94,13 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			},
 		},
 		handtrace.Event{
-			SessionID: "20260329T002738.170520000Z-4fca4857",
+			SessionID: "4fca4857",
 			Type:      handtrace.EvtToolInvocationStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 41, 430685000, time.UTC),
 			Payload:   models.ToolCall{ID: "call-1", Name: "list_files", Input: "{}"},
 		},
 		handtrace.Event{
-			SessionID: "20260329T002738.170520000Z-4fca4857",
+			SessionID: "4fca4857",
 			Type:      handtrace.EvtToolInvocationCompleted,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 41, 447625000, time.UTC),
 			Payload: handmsg.Message{
@@ -112,7 +112,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			},
 		},
 		handtrace.Event{
-			SessionID: "20260329T002738.170520000Z-4fca4857",
+			SessionID: "4fca4857",
 			Type:      handtrace.EvtFinalAssistantResponse,
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 47, 273707000, time.UTC),
 			Payload:   map[string]any{"message": "Here are the files and directories in the root."},
@@ -121,7 +121,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 
 	writeTraceFile(t, dir, "20260330T002738.170520000Z-failed", []any{
 		handtrace.Event{
-			SessionID: "20260330T002738.170520000Z-failed",
+			SessionID: "failed",
 			Type:      handtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 30, 0, 27, 38, 171258000, time.UTC),
 			Payload: handtrace.Metadata{
@@ -132,7 +132,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			},
 		},
 		handtrace.Event{
-			SessionID: "20260330T002738.170520000Z-failed",
+			SessionID: "failed",
 			Type:      handtrace.EvtSessionFailed,
 			Timestamp: time.Date(2026, 3, 30, 0, 27, 39, 171258000, time.UTC),
 			Payload:   map[string]any{"error": "tool failed"},
@@ -144,13 +144,13 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, summaries, 2)
-	require.Equal(t, "20260330T002738.170520000Z-failed", summaries[0].ID)
+	require.Equal(t, "failed", summaries[0].ID)
 	require.Equal(t, "failed", summaries[0].FinalStatus)
-	require.Equal(t, "20260329T002738.170520000Z-4fca4857", summaries[1].ID)
+	require.Equal(t, "4fca4857", summaries[1].ID)
 	require.Equal(t, "completed", summaries[1].FinalStatus)
 	require.Equal(t, "Daemon", summaries[1].AgentName)
 
-	detail, err := store.GetSession("20260329T002738.170520000Z-4fca4857")
+	detail, err := store.GetSession("4fca4857")
 	require.NoError(t, err)
 	require.Empty(t, detail.LoadError)
 	require.Equal(t, "completed", detail.Summary.FinalStatus)
@@ -442,6 +442,7 @@ func Test_Store_ValidateAndResolvePath(t *testing.T) {
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "trace.jsonl")
 	require.NoError(t, os.WriteFile(filePath, []byte("{}\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "session.jsonl"), []byte("{}\n"), 0o600))
 
 	require.EqualError(t, (*Store)(nil).Validate(), "trace directory is required")
 	require.EqualError(t, NewStore(" ").Validate(), "trace directory is required")

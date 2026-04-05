@@ -151,7 +151,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		}()
 	}
 
-	traceSession := t.env.NewTraceSession()
+	traceSession := t.env.NewTraceSession(t.sessionID)
 	defer traceSession.Close()
 
 	userMessage, err := handmsg.NewMessage(handmsg.RoleUser, msg)

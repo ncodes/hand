@@ -42,8 +42,8 @@ type Environment interface {
 	// NewIterationBudget creates the tool-calling iteration limit from config (max iterations).
 	NewIterationBudget() IterationBudget
 
-	// NewTraceSession opens a trace sink for this agent run when debug tracing is enabled.
-	NewTraceSession() trace.Session
+	// NewTraceSession opens a trace sink for the given storage session when debug tracing is enabled.
+	NewTraceSession(sessionID string) trace.Session
 }
 
 type environment struct {
@@ -194,7 +194,7 @@ func (e *environment) NewIterationBudget() IterationBudget {
 	return NewIterationBudget(e.cfg.MaxIterations)
 }
 
-func (e *environment) NewTraceSession() trace.Session {
+func (e *environment) NewTraceSession(sessionID string) trace.Session {
 	if e == nil || e.traces == nil {
 		return trace.NoopSession()
 	}
@@ -206,7 +206,7 @@ func (e *environment) NewTraceSession() trace.Session {
 		metadata.APIMode = e.cfg.ModelAPIMode
 	}
 
-	return e.traces.NewSession(e.ctx, metadata)
+	return e.traces.OpenSession(e.ctx, sessionID, metadata)
 }
 
 func (e *environment) fileRoots() []string {

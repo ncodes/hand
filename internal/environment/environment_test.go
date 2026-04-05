@@ -533,28 +533,30 @@ func TestEnvironment_CommandPolicyUsesDefaultsForNilConfig(t *testing.T) {
 
 func TestNewEnvironment_ConfiguresTraceFactoryWhenEnabled(t *testing.T) {
 	dir := t.TempDir()
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Model: "gpt-5.1", ModelAPIMode: "responses", DebugTraces: true, DebugTraceDir: dir})
-	session := env.NewTraceSession()
-	require.NotEmpty(t, session.ID())
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Model: "gpt-5.1",
+		ModelAPIMode: "responses", DebugTraces: true, DebugTraceDir: dir})
+	const traceSessionID = "ses_test123"
+	session := env.NewTraceSession(traceSessionID)
+	require.Equal(t, traceSessionID, session.ID())
 	session.Close()
 }
 
 func TestNewEnvironment_ReturnsNoopTraceSessionWhenDisabled(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
-	session := env.NewTraceSession()
+	session := env.NewTraceSession("ses_test123")
 	require.Equal(t, "", session.ID())
 }
 
 func TestEnvironment_NewTraceSessionNilEnvironment(t *testing.T) {
 	var env *environment
-	session := env.NewTraceSession()
+	session := env.NewTraceSession("ses_test123")
 	require.Equal(t, "", session.ID())
 }
 
 func TestEnvironment_NewTraceSessionNilTraceFactory(t *testing.T) {
 	env := &environment{}
-	session := env.NewTraceSession()
+	session := env.NewTraceSession("ses_test123")
 	require.Equal(t, "", session.ID())
 }
 
@@ -563,8 +565,12 @@ func TestNewEnvironment_UsesDefaultTraceDirWhenEnabledWithoutConfiguredDir(t *te
 	t.Setenv("HAND_HOME", home)
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraces: true})
 
-	session := env.NewTraceSession()
-	require.NotEmpty(t, session.ID())
+	const traceSessionID = "ses_test123"
+	session := env.NewTraceSession(traceSessionID)
+	require.Equal(t, traceSessionID, session.ID())
 	session.Close()
-	require.FileExists(t, filepath.Join(datadir.DebugTraceDir(), session.ID()+".jsonl"))
+	matches, err := filepath.Glob(filepath.Join(datadir.DebugTraceDir(), "*"+traceSessionID+".jsonl"))
+	require.NoError(t, err)
+	require.Len(t, matches, 1)
+	require.FileExists(t, matches[0])
 }
