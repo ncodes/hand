@@ -265,6 +265,12 @@
       border-color: color-mix(in srgb, var(--warn) 28%, transparent);
     }
 
+    .badge.in_progress {
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+      border-color: color-mix(in srgb, var(--accent) 32%, transparent);
+    }
+
     .content {
       padding: 1.8rem;
       max-width: 1280px;
@@ -702,7 +708,7 @@
           <button class="session-button ${active}" data-session-id="${escapeHTML(session.id)}">
             <div class="session-top">
               <span class="badge ${escapeHTML(session.final_status || "incomplete")}">${escapeHTML(fmtStatus(session.final_status))}</span>
-              <span>${escapeHTML(fmtTime(session.started_at))}</span>
+              <span>${escapeHTML(fmtTime(session.updated_at || session.started_at))}</span>
             </div>
             <div class="session-model">${escapeHTML(model)}</div>
             <div class="session-id">${escapeHTML(session.id)}</div>
@@ -724,6 +730,7 @@
       const signature = JSON.stringify(nextSessions.map((session) => [
         session.id,
         session.started_at,
+        session.updated_at,
         session.final_status,
         session.model,
         session.agent_name,
@@ -747,6 +754,7 @@
       const cards = [
         ["Session", detail.summary.id],
         ["Started", fmtTime(detail.summary.started_at)],
+        ["Last updated", fmtTime(detail.summary.updated_at || detail.summary.started_at)],
         ["Agent", detail.summary.agent_name || "Unknown"],
         ["Model", detail.summary.model || "Unknown"],
         ["API Mode", detail.summary.api_mode || "Unknown"],

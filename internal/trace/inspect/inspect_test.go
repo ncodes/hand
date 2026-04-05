@@ -232,6 +232,47 @@ func Test_Store_ListSessions_SortsOlderSessionsAfterNewerOnComparatorReversePath
 	}
 }
 
+func Test_Store_ListSessions_OrdersByLastActivityNotSessionStart(t *testing.T) {
+	dir := t.TempDir()
+	// Started earlier but last event is newer — should sort above the session that started later.
+	writeTraceFile(t, dir, "a-long-session", []any{
+		handtrace.Event{
+			SessionID: "a-long-session",
+			Type:      handtrace.EvtChatStarted,
+			Timestamp: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+			Payload:   handtrace.Metadata{AgentName: "A"},
+		},
+		handtrace.Event{
+			SessionID: "a-long-session",
+			Type:      handtrace.EvtUserMessageAccepted,
+			Timestamp: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC),
+			Payload:   map[string]any{"message": "still going"},
+		},
+	})
+	writeTraceFile(t, dir, "b-recent-start", []any{
+		handtrace.Event{
+			SessionID: "b-recent-start",
+			Type:      handtrace.EvtChatStarted,
+			Timestamp: time.Date(2026, 3, 15, 0, 0, 0, 0, time.UTC),
+			Payload:   handtrace.Metadata{AgentName: "B"},
+		},
+		handtrace.Event{
+			SessionID: "b-recent-start",
+			Type:      handtrace.EvtFinalAssistantResponse,
+			Timestamp: time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC),
+			Payload:   map[string]any{"message": "done"},
+		},
+	})
+
+	summaries, err := NewStore(dir).ListSessions()
+	require.NoError(t, err)
+	require.Len(t, summaries, 2)
+	require.Equal(t, "a-long-session", summaries[0].ID)
+	require.True(t, summaries[0].UpdatedAt.Equal(time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)))
+	require.Equal(t, "b-recent-start", summaries[1].ID)
+	require.True(t, summaries[1].UpdatedAt.Equal(time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC)))
+}
+
 func Test_LoadSessionFile_SurfacesMalformedJSONAsLoadError(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "broken.jsonl")
@@ -286,6 +327,50 @@ func Test_LoadSessionFile_HandlesGenericPayloadsAndInvalidStructuredPayloads(t *
 	require.Empty(t, detail.Timeline[0].StartedMetadata)
 	require.Contains(t, detail.Timeline[0].GenericPayloadRaw, `"agent_name":99`)
 	require.Contains(t, detail.Timeline[1].GenericPayloadRaw, `"raw":true`)
+}
+
+func Test_LoadSessionFile_FinalStatusInProgressWhenUserMessageAfterCompletedTurn(t *testing.T) {
+	dir := t.TempDir()
+	writeTraceFile(t, dir, "20260101T000000.000000000Z-ses_turn", []any{
+		handtrace.Event{
+			SessionID: "ses_turn",
+			Type:      handtrace.EvtFinalAssistantResponse,
+			Timestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			Payload:   map[string]any{"message": "first reply"},
+		},
+		handtrace.Event{
+			SessionID: "ses_turn",
+			Type:      handtrace.EvtUserMessageAccepted,
+			Timestamp: time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC),
+			Payload:   map[string]any{"message": "second turn"},
+		},
+	})
+
+	detail, err := LoadSessionFile(filepath.Join(dir, "20260101T000000.000000000Z-ses_turn.jsonl"))
+	require.NoError(t, err)
+	require.Equal(t, "in_progress", detail.Summary.FinalStatus)
+}
+
+func Test_LoadSessionFile_FinalStatusCompletedWhenTurnEndsWithFinalResponse(t *testing.T) {
+	dir := t.TempDir()
+	writeTraceFile(t, dir, "20260101T000000.000000000Z-ses_done", []any{
+		handtrace.Event{
+			SessionID: "ses_done",
+			Type:      handtrace.EvtUserMessageAccepted,
+			Timestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			Payload:   map[string]any{"message": "hello"},
+		},
+		handtrace.Event{
+			SessionID: "ses_done",
+			Type:      handtrace.EvtFinalAssistantResponse,
+			Timestamp: time.Date(2026, 1, 1, 0, 1, 0, 0, time.UTC),
+			Payload:   map[string]any{"message": "hi"},
+		},
+	})
+
+	detail, err := LoadSessionFile(filepath.Join(dir, "20260101T000000.000000000Z-ses_done.jsonl"))
+	require.NoError(t, err)
+	require.Equal(t, "completed", detail.Summary.FinalStatus)
 }
 
 func Test_LoadSessionFile_ParsesContextSummaryAndCompactionEvents(t *testing.T) {

@@ -33,6 +33,7 @@ type SessionSummary struct {
 	ID          string    `json:"id"`
 	Path        string    `json:"path"`
 	StartedAt   time.Time `json:"started_at,omitempty"`
+	UpdatedAt   time.Time `json:"updated_at,omitempty"`
 	AgentName   string    `json:"agent_name,omitempty"`
 	Model       string    `json:"model,omitempty"`
 	APIMode     string    `json:"api_mode,omitempty"`
@@ -272,8 +273,8 @@ func (s *Store) ListSessions() ([]SessionSummary, error) {
 	}
 
 	slices.SortFunc(summaries, func(a, b SessionSummary) int {
-		if !a.StartedAt.Equal(b.StartedAt) {
-			if a.StartedAt.After(b.StartedAt) {
+		if !a.UpdatedAt.Equal(b.UpdatedAt) {
+			if a.UpdatedAt.After(b.UpdatedAt) {
 				return -1
 			}
 
@@ -360,6 +361,10 @@ func LoadSessionFile(path string) (SessionDetail, error) {
 			detail.LoadError = fmt.Sprintf("failed to parse line %d: %v", lineNo, err)
 			detail.Summary.LoadError = detail.LoadError
 			detail.Summary.FinalStatus = "load_error"
+			if detail.Summary.UpdatedAt.IsZero() {
+				detail.Summary.UpdatedAt = info.ModTime().UTC()
+			}
+
 			return detail, nil
 		}
 
@@ -367,6 +372,10 @@ func LoadSessionFile(path string) (SessionDetail, error) {
 		if !event.Timestamp.IsZero() && (detail.Summary.StartedAt.IsZero() ||
 			event.Timestamp.Before(detail.Summary.StartedAt)) {
 			detail.Summary.StartedAt = event.Timestamp
+		}
+		if !event.Timestamp.IsZero() && (detail.Summary.UpdatedAt.IsZero() ||
+			event.Timestamp.After(detail.Summary.UpdatedAt)) {
+			detail.Summary.UpdatedAt = event.Timestamp
 		}
 		if event.SessionID != "" && event.SessionID != logicalID {
 			detail.Warnings = append(detail.Warnings, fmt.Sprintf("event session id %q does not match file id %q",
@@ -385,6 +394,10 @@ func LoadSessionFile(path string) (SessionDetail, error) {
 
 	if err := scanner.Err(); err != nil {
 		return SessionDetail{}, err
+	}
+
+	if detail.Summary.UpdatedAt.IsZero() {
+		detail.Summary.UpdatedAt = info.ModTime().UTC()
 	}
 
 	pairToolInvocations(detail.Timeline)
@@ -414,6 +427,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 		var payload userMessagePayload
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.UserMessage = &UserMessageView{Message: payload.Message}
+			detail.Summary.FinalStatus = "in_progress"
 			return
 		}
 	case handtrace.EvtModelRequest:
