@@ -385,6 +385,7 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 		return err
 	}
 
+	summaryParsePath := "json"
 	summary, err := parseSummary(
 		input.SessionID,
 		plan.TargetOffset,
@@ -399,6 +400,7 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 			return err
 		}
 
+		summaryParsePath = "plain_text_fallback"
 		log.Warn().Str("session_id", input.SessionID).Err(err).Msg("structured summary parse failed, using fallback")
 
 		input.TraceSession.Record(trace.EvtSummaryParseFailed, mergeSummaryTracePayload(payload, map[string]any{
@@ -441,6 +443,7 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 
 	log.Info().
 		Str("session_id", memory.Summary.SessionID).
+		Str("summary_parse_path", summaryParsePath).
 		Int("summarized_from_offset", startOffset).
 		Int("source_end_offset", memory.Summary.SourceEndOffset).
 		Int("source_message_count", memory.Summary.SourceMessageCount).
@@ -465,6 +468,9 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 
 	resp, err := s.modelClient.Complete(ctx, request)
 	if err == nil {
+		memLog.Info().
+			Bool("structured_output_request", request.StructuredOutput != nil).
+			Msg("compaction summary model request completed")
 		return resp, nil
 	}
 
@@ -476,7 +482,16 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 
 	fallback := request
 	fallback.StructuredOutput = nil
-	return s.modelClient.Complete(ctx, fallback)
+	resp, err = s.modelClient.Complete(ctx, fallback)
+	if err != nil {
+		return nil, err
+	}
+    
+	memLog.Info().
+		Bool("structured_output_request", false).
+		Msg("compaction summary model request completed after unstructured retry")
+	
+        return resp, nil
 }
 
 func (s *Service) transitionCompactionPending(
