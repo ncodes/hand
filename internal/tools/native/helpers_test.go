@@ -135,7 +135,7 @@ func TestNativeToolDefinitions_AdvertiseArgumentDescriptions(t *testing.T) {
 
 			properties, _ := definition.InputSchema["properties"].(map[string]any)
 			if definition.Name == "time" {
-				require.Nil(t, properties)
+				require.Empty(t, properties)
 				return
 			}
 

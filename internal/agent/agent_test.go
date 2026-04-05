@@ -31,11 +31,11 @@ func testSessionConfig(cfg *config.Config) *config.Config {
 }
 
 func TestAgent_StartInitializesConversationState(t *testing.T) {
-	originalFactory := newRuntimeEnvironment
+	originalFactory := newEnvironment
 	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
+		newEnvironment = originalFactory
 	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) environment.Environment {
+	newEnvironment = func(context.Context, *config.Config) environment.Environment {
 		return &mocks.EnvironmentStub{
 			InstructionsList: nil,
 			ToolRegistry:     tools.NewInMemoryRegistry(),
@@ -61,11 +61,11 @@ func TestAgent_StartRejectsNilConfig(t *testing.T) {
 }
 
 func TestAgent_StartReturnsEnvironmentPrepareError(t *testing.T) {
-	originalFactory := newRuntimeEnvironment
+	originalFactory := newEnvironment
 	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
+		newEnvironment = originalFactory
 	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) environment.Environment {
+	newEnvironment = func(context.Context, *config.Config) environment.Environment {
 		return &mocks.EnvironmentStub{
 			PrepareErr:       errors.New("prepare failed"),
 			InstructionsList: nil,
@@ -80,21 +80,21 @@ func TestAgent_StartReturnsEnvironmentPrepareError(t *testing.T) {
 }
 
 func TestNewRuntimeEnvironmentReturnsEnvironment(t *testing.T) {
-	env := newRuntimeEnvironment(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}))
+	env := newEnvironment(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}))
 	require.NotNil(t, env)
 }
 
 func TestAgent_StartUsesProvidedContext(t *testing.T) {
-	originalFactory := newRuntimeEnvironment
+	originalFactory := newEnvironment
 	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
+		newEnvironment = originalFactory
 	})
 
 	type contextKey string
 	const key contextKey = "request_id"
 
 	var captured context.Context
-	newRuntimeEnvironment = func(ctx context.Context, _ *config.Config) environment.Environment {
+	newEnvironment = func(ctx context.Context, _ *config.Config) environment.Environment {
 		captured = ctx
 		return &mocks.EnvironmentStub{
 			InstructionsList: nil,
@@ -117,11 +117,11 @@ func TestAgent_StartReturnsEnsureSessionManagerError(t *testing.T) {
 }
 
 func TestAgent_StartReturnsManagerStartError(t *testing.T) {
-	originalFactory := newRuntimeEnvironment
+	originalFactory := newEnvironment
 	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
+		newEnvironment = originalFactory
 	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) environment.Environment {
+	newEnvironment = func(context.Context, *config.Config) environment.Environment {
 		return &mocks.EnvironmentStub{
 			InstructionsList: nil,
 			ToolRegistry:     tools.NewInMemoryRegistry(),
@@ -156,11 +156,11 @@ func TestAgent_TurnMessagesReturnsCopy(t *testing.T) {
 		Name:  "Test Agent",
 		Model: "test-model",
 	}), client)
-	originalFactory := newRuntimeEnvironment
+	originalFactory := newEnvironment
 	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
+		newEnvironment = originalFactory
 	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) environment.Environment {
+	newEnvironment = func(context.Context, *config.Config) environment.Environment {
 		return &mocks.EnvironmentStub{
 			InstructionsList: nil,
 			ToolRegistry:     tools.NewInMemoryRegistry(),
@@ -375,11 +375,11 @@ func TestAgent_RespondRejectsMissingManagerWhenInitialized(t *testing.T) {
 }
 
 func TestAgent_RespondReturnsRecreatedEnvironmentPrepareError(t *testing.T) {
-	originalFactory := newRuntimeEnvironment
+	originalFactory := newEnvironment
 	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
+		newEnvironment = originalFactory
 	})
-	newRuntimeEnvironment = func(context.Context, *config.Config) environment.Environment {
+	newEnvironment = func(context.Context, *config.Config) environment.Environment {
 		return &mocks.EnvironmentStub{
 			PrepareErr:       errors.New("prepare failed"),
 			InstructionsList: nil,
@@ -405,16 +405,16 @@ func TestAgent_RespondReturnsRecreatedEnvironmentPrepareError(t *testing.T) {
 }
 
 func TestAgent_RespondUsesProvidedContextForExecutionEnvironment(t *testing.T) {
-	originalFactory := newRuntimeEnvironment
+	originalFactory := newEnvironment
 	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
+		newEnvironment = originalFactory
 	})
 
 	type contextKey string
 	const key contextKey = "request_id"
 
 	var captured []context.Context
-	newRuntimeEnvironment = func(ctx context.Context, _ *config.Config) environment.Environment {
+	newEnvironment = func(ctx context.Context, _ *config.Config) environment.Environment {
 		captured = append(captured, ctx)
 		return &mocks.EnvironmentStub{
 			InstructionsList: nil,
@@ -510,10 +510,10 @@ func newSessionOpsAgent(
 ) *Agent {
 	t.Helper()
 
-	originalFactory := newRuntimeEnvironment
+	originalFactory := newEnvironment
 	originalStore := openSessionStore
 	t.Cleanup(func() {
-		newRuntimeEnvironment = originalFactory
+		newEnvironment = originalFactory
 		openSessionStore = originalStore
 	})
 
@@ -521,7 +521,7 @@ func newSessionOpsAgent(
 	openSessionStore = func(*config.Config) (storage.SessionStore, error) {
 		return store, nil
 	}
-	newRuntimeEnvironment = func(context.Context, *config.Config) environment.Environment {
+	newEnvironment = func(context.Context, *config.Config) environment.Environment {
 		return &mocks.EnvironmentStub{
 			InstructionsList: nil,
 			ToolRegistry:     tools.NewInMemoryRegistry(),

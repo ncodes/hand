@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/wandxy/hand/internal/agent/compaction"
 	"github.com/wandxy/hand/internal/config"
 	instruct "github.com/wandxy/hand/internal/instructions"
@@ -20,7 +22,6 @@ import (
 )
 
 const RecentSessionTail = 8
-
 
 type SummaryState struct {
 	SessionID          string
@@ -147,6 +148,11 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 		TargetOffset:       targetOffset,
 	}
 
+	existingSummaryEndOffset := 0
+	if memory.Summary != nil && memory.Summary.SourceEndOffset > existingSummaryEndOffset {
+		existingSummaryEndOffset = memory.Summary.SourceEndOffset
+	}
+
 	if !force && memory.Summary != nil && memory.Summary.SourceEndOffset >= targetOffset {
 		session, ok, err := s.store.Get(ctx, input.SessionID)
 		if err != nil {
@@ -196,7 +202,16 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 		return err
 	}
 
-	// TODO: Currently no need for pending compaction transition. Left here for when async compaction is implemented.
+	log.Info().
+		Str("session_id", input.SessionID).
+		Str("trigger_source", compactionTriggerSource(force)).
+		Int("existing_summary_end_offset", existingSummaryEndOffset).
+		Int("messages_to_summarize", max(plan.TargetOffset-existingSummaryEndOffset, 0)).
+		Int("tail_messages_retained", RecentSessionTail).
+		Int("target_offset", plan.TargetOffset).
+		Int("total_messages", plan.TargetMessageCount).
+		Msg("compaction plan created")
+
 	if err := s.transitionCompactionPending(ctx, &session, plan, input.TraceSession); err != nil {
 		input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
 			Status:             storage.CompactionStatusFailed,
@@ -331,6 +346,15 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 		summaryMessages = append(summaryMessages, handmsg.CloneMessages(messages)...)
 	}
 
+	log.Debug().
+		Str("session_id", input.SessionID).
+		Int("start_offset", startOffset).
+		Int("end_offset", plan.TargetOffset).
+		Int("existing_summary_end_offset", startOffset).
+		Int("messages_to_summarize", limit).
+		Int("summary_messages", len(summaryMessages)).
+		Msg("generating compaction summary")
+
 	request := models.Request{
 		Model:            s.model,
 		APIMode:          s.apiMode,
@@ -375,6 +399,8 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 			return err
 		}
 
+		log.Warn().Str("session_id", input.SessionID).Err(err).Msg("structured summary parse failed, using fallback")
+
 		input.TraceSession.Record(trace.EvtSummaryParseFailed, mergeSummaryTracePayload(payload, map[string]any{
 			"error": err.Error(),
 		}))
@@ -413,6 +439,15 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 
 	memory.Summary = summary
 
+	log.Info().
+		Str("session_id", memory.Summary.SessionID).
+		Int("summarized_from_offset", startOffset).
+		Int("source_end_offset", memory.Summary.SourceEndOffset).
+		Int("source_message_count", memory.Summary.SourceMessageCount).
+		Int("messages_summarized", max(memory.Summary.SourceEndOffset-startOffset, 0)).
+		Int("tail_messages_retained", max(memory.Summary.SourceMessageCount-memory.Summary.SourceEndOffset, 0)).
+		Msg("compaction summary saved")
+
 	input.TraceSession.Record(trace.EvtSummarySaved, summaryTracePayload(
 		memory.Summary.SessionID,
 		memory.Summary.SourceEndOffset,
@@ -428,7 +463,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 		return nil, errors.New("model client is required")
 	}
 
-	resp, err := s.modelClient.Chat(ctx, request)
+	resp, err := s.modelClient.Complete(ctx, request)
 	if err == nil {
 		return resp, nil
 	}
@@ -437,9 +472,11 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 		return nil, err
 	}
 
+	log.Warn().Err(err).Msg("structured summary request failed, retrying without structured output")
+
 	fallback := request
 	fallback.StructuredOutput = nil
-	return s.modelClient.Chat(ctx, fallback)
+	return s.modelClient.Complete(ctx, fallback)
 }
 
 func (s *Service) transitionCompactionPending(
@@ -487,6 +524,11 @@ func (s *Service) transitionCompactionRunning(
 	}
 
 	recorder.Record(trace.EvtContextCompactionRunning, compactionTracePayload(session.ID, session.Compaction, ""))
+	log.Debug().
+		Str("session_id", session.ID).
+		Int("target_offset", plan.TargetOffset).
+		Int("target_message_count", plan.TargetMessageCount).
+		Msg("compaction running")
 	return nil
 }
 
@@ -512,6 +554,11 @@ func (s *Service) transitionCompactionSucceeded(
 	}
 
 	recorder.Record(trace.EvtContextCompactionSucceeded, compactionTracePayload(session.ID, session.Compaction, ""))
+	log.Info().
+		Str("session_id", session.ID).
+		Int("target_offset", plan.TargetOffset).
+		Int("target_message_count", plan.TargetMessageCount).
+		Msg("compaction completed")
 	return nil
 }
 
@@ -567,13 +614,29 @@ func (s *Service) transitionCompactionFailed(
 		return err
 	}
 
+	log.Error().Str("session_id", session.ID).Str("cause", session.Compaction.LastError).Msg("compaction failed")
+
 	recorder.Record(trace.EvtContextCompactionFailed, compactionTracePayload(
 		session.ID,
 		session.Compaction,
 		session.Compaction.LastError,
 	))
+	log.Warn().
+		Str("session_id", session.ID).
+		Int("target_offset", plan.TargetOffset).
+		Int("target_message_count", plan.TargetMessageCount).
+		Str("error", session.Compaction.LastError).
+		Msg("compaction failed")
 
 	return nil
+}
+
+func compactionTriggerSource(force bool) string {
+	if force {
+		return "manual"
+	}
+
+	return "preflight_threshold_exceeded"
 }
 
 func (s *Service) currentTime() time.Time {

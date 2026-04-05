@@ -127,13 +127,13 @@ func TestNewOpenAIResponseCaller_UsesSDKClient(t *testing.T) {
 
 func TestOpenAIClient_ChatRequiresClient(t *testing.T) {
 	var nilClient *OpenAIClient
-	_, err := nilClient.Chat(context.Background(), Request{})
+	_, err := nilClient.Complete(context.Background(), Request{})
 	require.EqualError(t, err, "model client is required")
 }
 
 func TestOpenAIClient_ChatRejectsInvalidAPIMode(t *testing.T) {
 	client := &OpenAIClient{}
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		APIMode:  "invalid",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
@@ -144,7 +144,7 @@ func TestOpenAIClient_ChatRejectsInvalidAPIMode(t *testing.T) {
 func TestOpenAIClient_ChatRequiresModel(t *testing.T) {
 	client := &OpenAIClient{}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model is required")
@@ -153,13 +153,13 @@ func TestOpenAIClient_ChatRequiresModel(t *testing.T) {
 func TestOpenAIClient_ChatRequiresMessages(t *testing.T) {
 	client := &OpenAIClient{}
 
-	_, err := client.Chat(context.Background(), Request{Model: "test-model"})
+	_, err := client.Complete(context.Background(), Request{Model: "test-model"})
 	require.EqualError(t, err, "messages are required")
 }
 
 func TestOpenAIClient_ChatRequiresSelectedModeHandler(t *testing.T) {
 	client := &OpenAIClient{}
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		APIMode:  APIModeResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
@@ -172,7 +172,7 @@ func TestOpenAIClient_ChatRequiresChatCompletionsHandler(t *testing.T) {
 		return &responses.Response{}, nil
 	}}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
@@ -181,7 +181,7 @@ func TestOpenAIClient_ChatRequiresChatCompletionsHandler(t *testing.T) {
 
 func TestOpenAIClient_ChatRejectsInvalidMessageRole(t *testing.T) {
 	client := &OpenAIClient{}
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.Role("invalid"), Content: "hello"}},
 	})
@@ -190,7 +190,7 @@ func TestOpenAIClient_ChatRejectsInvalidMessageRole(t *testing.T) {
 
 func TestOpenAIClient_ChatRejectsEmptyMessageContent(t *testing.T) {
 	client := &OpenAIClient{}
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "   "}},
 	})
@@ -199,7 +199,7 @@ func TestOpenAIClient_ChatRejectsEmptyMessageContent(t *testing.T) {
 
 func TestOpenAIClient_ChatRejectsDeveloperMessageInConversation(t *testing.T) {
 	client := &OpenAIClient{}
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.RoleDeveloper, Content: "system"}},
 	})
@@ -208,7 +208,7 @@ func TestOpenAIClient_ChatRejectsDeveloperMessageInConversation(t *testing.T) {
 
 func TestOpenAIClient_ChatRejectsBlankToolDefinitionName(t *testing.T) {
 	client := &OpenAIClient{}
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 		Tools:    []ToolDefinition{{Name: "   "}},
@@ -224,7 +224,7 @@ func TestOpenAIClient_ChatReturnsAPIErrorChatCompletions(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
@@ -238,7 +238,7 @@ func TestOpenAIClient_ChatRequiresChatCompletionsResponse(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
@@ -260,7 +260,7 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsChatCompletionsRequest(t *test
 		},
 	}
 
-	resp, err := client.Chat(context.Background(), Request{
+	resp, err := client.Complete(context.Background(), Request{
 		Model:        "test-model",
 		Instructions: "  be concise  ",
 		Messages: []handmsg.Message{
@@ -302,7 +302,7 @@ func TestOpenAIClient_ChatBuildsChatCompletionsStructuredOutputRequest(t *testin
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 		StructuredOutput: &StructuredOutput{
@@ -393,7 +393,7 @@ func TestOpenAIClient_ChatReturnsToolCallsFromChatCompletions(t *testing.T) {
 		},
 	}
 
-	resp, err := client.Chat(context.Background(), Request{
+	resp, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "what time is it?"}},
 		Tools:    []ToolDefinition{{Name: "time", Description: "Returns the current time.", InputSchema: map[string]any{"type": "object"}}},
@@ -416,7 +416,7 @@ func TestOpenAIClient_ChatRejectsChatCompletionToolCallWithoutID(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
@@ -437,7 +437,7 @@ func TestOpenAIClient_ChatRejectsChatCompletionToolCallWithoutName(t *testing.T)
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
@@ -451,7 +451,7 @@ func TestOpenAIClient_ChatRejectsChatCompletionResponseWithoutChoices(t *testing
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
@@ -471,7 +471,7 @@ func TestOpenAIClient_ChatRejectsEmptyChatCompletionResponse(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
@@ -491,7 +491,7 @@ func TestOpenAIClient_ChatUsesRefusalAsOutputText(t *testing.T) {
 		},
 	}
 
-	resp, err := client.Chat(context.Background(), Request{
+	resp, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
@@ -518,7 +518,7 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsResponsesRequest(t *testing.T)
 		},
 	}
 
-	resp, err := client.Chat(context.Background(), Request{
+	resp, err := client.Complete(context.Background(), Request{
 		Model:        "gpt-5.1",
 		APIMode:      APIModeResponses,
 		Instructions: "  be concise  ",
@@ -569,7 +569,7 @@ func TestOpenAIClient_ChatBuildsResponsesStructuredOutputRequest(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
@@ -607,7 +607,7 @@ func TestOpenAIClient_ChatReturnsToolCallsFromResponses(t *testing.T) {
 		},
 	}
 
-	resp, err := client.Chat(context.Background(), Request{
+	resp, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "what time is it?"}},
@@ -626,7 +626,7 @@ func TestOpenAIClient_ChatReturnsResponseErrorResponses(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
@@ -641,7 +641,7 @@ func TestOpenAIClient_ChatRequiresResponsesResponse(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
@@ -658,7 +658,7 @@ func TestOpenAIClient_ChatRejectsResponseToolCallWithoutID(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
@@ -675,7 +675,7 @@ func TestOpenAIClient_ChatRejectsResponseToolCallWithoutName(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
@@ -693,7 +693,7 @@ func TestOpenAIClient_ChatReturnsResponsesFailureError(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
@@ -711,7 +711,7 @@ func TestOpenAIClient_ChatReturnsResponsesIncompleteErrorWithoutUsableOutput(t *
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
@@ -737,7 +737,7 @@ func TestOpenAIClient_ChatReturnsResponsesIncompleteSuccessWithText(t *testing.T
 		},
 	}
 
-	resp, err := client.Chat(context.Background(), Request{
+	resp, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
@@ -753,7 +753,7 @@ func TestOpenAIClient_ChatRejectsUnexpectedResponsesStatus(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
@@ -768,7 +768,7 @@ func TestOpenAIClient_ChatReturnsResponsesFailureErrorWithoutProviderMessage(t *
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
@@ -783,7 +783,7 @@ func TestOpenAIClient_ChatReturnsResponsesIncompleteErrorWithUnknownReason(t *te
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
@@ -815,7 +815,7 @@ func TestOpenAIClient_ChatLogsRequestDebugDumpForChatCompletions(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{
+	_, err := client.Complete(context.Background(), Request{
 		Model:         "test-model",
 		Messages:      []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 		DebugRequests: true,
@@ -844,7 +844,7 @@ func TestOpenAIClient_ChatLogsRequestDebugDumpWhenEnabled(t *testing.T) {
 		},
 	}
 
-	_, err := client.Chat(context.Background(), Request{Model: "gpt-5.1", APIMode: APIModeResponses, Instructions: "be concise", Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}, DebugRequests: true})
+	_, err := client.Complete(context.Background(), Request{Model: "gpt-5.1", APIMode: APIModeResponses, Instructions: "be concise", Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}, DebugRequests: true})
 	require.NoError(t, err)
 	output := buf.String()
 	require.Contains(t, output, "model request debug dump")
@@ -929,6 +929,87 @@ func TestBuildChatCompletionsRequestIncludesToolMessages(t *testing.T) {
 	require.Contains(t, rawText, `"tool_calls"`)
 	require.Contains(t, rawText, `"tool_call_id":"call-1"`)
 	require.Contains(t, rawText, `"tools"`)
+}
+
+func TestBuildChatCompletionsTools_NormalizesStrictObjectSchema(t *testing.T) {
+	tools := buildChatCompletionsTools([]ToolDefinition{{
+		Name:        "list_files",
+		Description: "List files",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path":           map[string]any{"type": "string"},
+				"include_hidden": map[string]any{"type": "boolean"},
+			},
+		},
+	}})
+
+	raw, err := json.Marshal(tools)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"required":["include_hidden","path"]`)
+}
+
+func TestBuildResponsesTools_NormalizesStrictObjectSchema(t *testing.T) {
+	tools := buildResponsesTools([]ToolDefinition{{
+		Name:        "list_files",
+		Description: "List files",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path":           map[string]any{"type": "string"},
+				"include_hidden": map[string]any{"type": "boolean"},
+			},
+		},
+	}})
+
+	raw, err := json.Marshal(tools)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"required":["include_hidden","path"]`)
+}
+
+func TestNormalizeStrictJSONSchema_RecursesWithoutMutatingInput(t *testing.T) {
+	input := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"config": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"recursive": map[string]any{"type": "boolean"},
+				},
+			},
+			"path": map[string]any{"type": "string"},
+		},
+	}
+
+	normalized := normalizeStrictJSONSchema(input)
+	require.Equal(t, []string{"config", "path"}, normalized["required"])
+
+	nested := normalized["properties"].(map[string]any)["config"].(map[string]any)
+	require.Equal(t, []string{"recursive"}, nested["required"])
+
+	_, ok := input["required"]
+	require.False(t, ok)
+}
+
+func TestNormalizeStrictJSONSchema_DropsFreeformObjectProperties(t *testing.T) {
+	input := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"command": map[string]any{"type": "string"},
+			"env": map[string]any{
+				"type": "object",
+				"additionalProperties": map[string]any{
+					"type": "string",
+				},
+			},
+		},
+	}
+
+	normalized := normalizeStrictJSONSchema(input)
+	properties := normalized["properties"].(map[string]any)
+	require.Contains(t, properties, "command")
+	require.NotContains(t, properties, "env")
+	require.Equal(t, []string{"command"}, normalized["required"])
 }
 
 func TestNormalizeMessagesAcceptsAssistantToolCallWithoutContent(t *testing.T) {

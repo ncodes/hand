@@ -19,7 +19,7 @@ func TestBuild_ReturnsPassingReportForValidConfig(t *testing.T) {
 
 	report := Build(envPath, configPath, &config.Config{
 		Name:        "test-agent",
-		Model:       "test-model",
+		Model:       "openai/gpt-4o-mini",
 		ModelRouter: "openrouter",
 		ModelKey:    "test-key",
 		LogLevel:    "info",
@@ -42,7 +42,7 @@ func TestBuild_ReturnsValidationFailureForInvalidConfig(t *testing.T) {
 	// config error: model router must be one of: none, openrouter
 	report := Build(".env", "config.yaml", &config.Config{
 		Name:        "test-agent",
-		Model:       "test-model",
+		Model:       "openai/gpt-4o-mini",
 		ModelRouter: "anthropic",
 		ModelKey:    "test-key",
 		LogLevel:    "info",
@@ -55,7 +55,7 @@ func TestBuild_ReturnsValidationFailureForInvalidConfig(t *testing.T) {
 func TestBuild_ReturnsBaseURLFailureForInvalidURL(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
 		Name:         "test-agent",
-		Model:        "test-model",
+		Model:        "openai/gpt-4o-mini",
 		ModelRouter:  "none",
 		ModelKey:     "test-key",
 		ModelBaseURL: "://bad-url",
@@ -69,7 +69,7 @@ func TestBuild_ReturnsBaseURLFailureForInvalidURL(t *testing.T) {
 func TestBuild_ReturnsValidationFailureWhileAuthStillPasses(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
 		Name:        "test-agent",
-		Model:       "test-model",
+		Model:       "openai/gpt-4o-mini",
 		ModelRouter: "openrouter",
 		ModelKey:    "test-key",
 		LogLevel:    "trace",
@@ -91,7 +91,7 @@ func TestBuild_ReturnsValidationFailureWhileAuthStillPasses(t *testing.T) {
 func TestBuild_ReturnsModelAuthFailureWhenKeyIsMissing(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
 		Name:        "test-agent",
-		Model:       "test-model",
+		Model:       "openai/gpt-4o-mini",
 		ModelRouter: "openrouter",
 		LogLevel:    "info",
 	}, nil)
@@ -107,7 +107,7 @@ func TestBuild_ReturnsModelAuthFailureWhenKeyIsMissing(t *testing.T) {
 func TestBuild_WarnsForMissingOptionalFiles(t *testing.T) {
 	report := Build("missing.env", "missing.yaml", &config.Config{
 		Name:        "test-agent",
-		Model:       "test-model",
+		Model:       "openai/gpt-4o-mini",
 		ModelRouter: "none",
 		ModelKey:    "test-key",
 		LogLevel:    "info",

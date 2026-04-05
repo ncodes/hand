@@ -7,7 +7,7 @@ import (
 )
 
 type Client interface {
-	Chat(ctx context.Context, req Request) (*Response, error)
+	Complete(ctx context.Context, req Request) (*Response, error)
 }
 
 const (

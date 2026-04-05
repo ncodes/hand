@@ -31,7 +31,7 @@ func TestNewCommand_PrintsPassingReport(t *testing.T) {
 	err := cmd.Run(context.Background(), []string{
 		"hand",
 		"--name", "flag-agent",
-		"--model", "flag-model",
+		"--model", "openai/gpt-4o-mini",
 		"--model.router", "openrouter",
 		"--model.key", "flag-key",
 		"doctor",
@@ -54,7 +54,7 @@ func TestNewCommand_PrintsFailureReport(t *testing.T) {
 	err := cmd.Run(context.Background(), []string{
 		"hand",
 		"--name", "flag-agent",
-		"--model", "flag-model",
+		"--model", "openai/gpt-4o-mini",
 		"doctor",
 	})
 	require.EqualError(t, err, "doctor checks failed: config validation: model key is required; set MODEL_KEY, provide it in config, or use --model.key; model auth: model key is required; set MODEL_KEY, provide it in config, or use --model.key")
@@ -75,7 +75,7 @@ func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
 	err := cmd.Run(context.Background(), []string{
 		"hand",
 		"--name", "flag-agent",
-		"--model", "flag-model",
+		"--model", "openai/gpt-4o-mini",
 		"--model.router", "openrouter",
 		"--model.key", "flag-key",
 		"--log.no-color",

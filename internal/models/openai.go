@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	openai "github.com/openai/openai-go/v3"
@@ -71,8 +72,8 @@ func NewOpenAIClient(apiKey string, opts ...option.RequestOption) (*OpenAIClient
 	}, nil
 }
 
-// Chat sends a chat message to the configured OpenAI-compatible API mode and returns the normalized response.
-func (c *OpenAIClient) Chat(ctx context.Context, req Request) (*Response, error) {
+// Complete sends a request to the configured OpenAI-compatible API mode and returns the normalized response.
+func (c *OpenAIClient) Complete(ctx context.Context, req Request) (*Response, error) {
 	if c == nil {
 		return nil, errors.New("model client is required")
 	}
@@ -499,7 +500,7 @@ func buildChatCompletionsTools(definitions []ToolDefinition) []openai.ChatComple
 		tools = append(tools, openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
 			Name:        definition.Name,
 			Description: openai.String(definition.Description),
-			Parameters:  shared.FunctionParameters(definition.InputSchema),
+			Parameters:  shared.FunctionParameters(normalizeStrictJSONSchema(definition.InputSchema)),
 			Strict:      openai.Bool(true),
 		}))
 	}
@@ -514,13 +515,88 @@ func buildResponsesTools(definitions []ToolDefinition) []responses.ToolUnionPara
 			OfFunction: &responses.FunctionToolParam{
 				Name:        definition.Name,
 				Description: openai.String(definition.Description),
-				Parameters:  definition.InputSchema,
+				Parameters:  normalizeStrictJSONSchema(definition.InputSchema),
 				Strict:      openai.Bool(true),
 			},
 		})
 	}
 
 	return tools
+}
+
+func normalizeStrictJSONSchema(schema map[string]any) map[string]any {
+	if len(schema) == 0 {
+		return nil
+	}
+
+	return normalizeStrictJSONSchemaValue(schema).(map[string]any)
+}
+
+func normalizeStrictJSONSchemaValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		cloned := make(map[string]any, len(typed))
+		for key, item := range typed {
+			cloned[key] = normalizeStrictJSONSchemaValue(item)
+		}
+
+		schemaType, _ := cloned["type"].(string)
+		properties, _ := cloned["properties"].(map[string]any)
+		if schemaType == "object" && len(properties) > 0 {
+			for key, property := range properties {
+				if propertySchema, ok := property.(map[string]any); ok && isUnsupportedStrictJSONObjectProperty(propertySchema) {
+					delete(properties, key)
+				}
+			}
+
+			required := make([]string, 0, len(properties))
+			for key := range properties {
+				required = append(required, key)
+			}
+			slices.Sort(required)
+			cloned["required"] = required
+		}
+
+		return cloned
+	case []any:
+		cloned := make([]any, 0, len(typed))
+		for _, item := range typed {
+			cloned = append(cloned, normalizeStrictJSONSchemaValue(item))
+		}
+		return cloned
+	default:
+		return value
+	}
+}
+
+func isUnsupportedStrictJSONObjectProperty(schema map[string]any) bool {
+	if len(schema) == 0 {
+		return false
+	}
+
+	schemaType, _ := schema["type"].(string)
+	if schemaType != "object" {
+		return false
+	}
+
+	properties, _ := schema["properties"].(map[string]any)
+	if len(properties) > 0 {
+		return false
+	}
+
+	additionalProperties, ok := schema["additionalProperties"]
+	if !ok {
+		return false
+	}
+
+	switch typed := additionalProperties.(type) {
+	case bool:
+		return typed
+	case map[string]any:
+		return true
+	default:
+		return true
+	}
 }
 
 func extractChatCompletionsToolCalls(toolCalls []openai.ChatCompletionMessageToolCallUnion) ([]ToolCall, error) {

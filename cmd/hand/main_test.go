@@ -5,6 +5,8 @@ import (
 	"context"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -31,14 +33,15 @@ func TestNewCommand_UsesConfigFileValues(t *testing.T) {
 	resetGlobals(t)
 
 	dir := t.TempDir()
+	serverURL := newOpenRouterModelsServer(t, "openai/gpt-4o-mini")
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 model:
-  name: config-model
+  name: openai/gpt-4o-mini
   router: openrouter
   key: config-key
-  baseUrl: https://config.example/v1
+  baseUrl: `+serverURL+`
 log:
   level: error
   noColor: true
@@ -57,8 +60,8 @@ log:
 	require.Equal(t, "config-agent", cfg.Name)
 	require.Equal(t, "openrouter", cfg.ModelRouter)
 	require.Equal(t, "config-key", cfg.ModelKey)
-	require.Equal(t, "config-model", cfg.Model)
-	require.Equal(t, "https://config.example/v1", cfg.ModelBaseURL)
+	require.Equal(t, "openai/gpt-4o-mini", cfg.Model)
+	require.Equal(t, serverURL, cfg.ModelBaseURL)
 	require.Equal(t, "error", cfg.LogLevel)
 	require.True(t, cfg.LogNoColor)
 }
@@ -68,24 +71,25 @@ func TestNewCommand_UsesEnvOverConfigFile(t *testing.T) {
 	resetGlobals(t)
 
 	dir := t.TempDir()
+	serverURL := newOpenRouterModelsServer(t, "openai/gpt-4o-mini")
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(envPath, []byte(`
 NAME=env-agent
-MODEL=env-model
+MODEL=openai/gpt-4o-mini
 MODEL_ROUTER=openrouter
 MODEL_KEY=env-key
-MODEL_BASE_URL=https://env.example/v1
+MODEL_BASE_URL=`+serverURL+`
 LOG_LEVEL=warn
 LOG_NO_COLOR=false
 `), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 model:
-  name: config-model
+  name: openai/gpt-4o-mini
   router: openrouter
   key: config-key
-  baseUrl: https://config.example/v1
+  baseUrl: `+serverURL+`
 log:
   level: error
   noColor: true
@@ -105,8 +109,8 @@ log:
 	require.Equal(t, "env-agent", cfg.Name)
 	require.Equal(t, "openrouter", cfg.ModelRouter)
 	require.Equal(t, "env-key", cfg.ModelKey)
-	require.Equal(t, "env-model", cfg.Model)
-	require.Equal(t, "https://env.example/v1", cfg.ModelBaseURL)
+	require.Equal(t, "openai/gpt-4o-mini", cfg.Model)
+	require.Equal(t, serverURL, cfg.ModelBaseURL)
 	require.Equal(t, "warn", cfg.LogLevel)
 	require.False(t, cfg.LogNoColor)
 }
@@ -120,7 +124,7 @@ func TestNewCommand_DefaultsRouterWhenEmpty(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 model:
-  name: config-model
+  name: openai/gpt-4o-mini
 log:
   level: info
 `), 0o600))
@@ -144,7 +148,7 @@ func TestNewCommand_DefaultsBaseURLWhenRouterIsImplicit(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 model:
-  name: config-model
+  name: openai/gpt-4o-mini
   key: config-key
 log:
   level: info
@@ -173,7 +177,7 @@ func TestNewCommand_UsesMappedBaseURLWhenRouterSetAndBaseURLUnset(t *testing.T) 
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 model:
-  name: config-model
+  name: openai/gpt-4o-mini
   router: openrouter
   key: config-key
 log:
@@ -200,25 +204,26 @@ func TestNewCommand_FlagsOverrideEnvAndConfig(t *testing.T) {
 	resetGlobals(t)
 
 	dir := t.TempDir()
+	serverURL := newOpenRouterModelsServer(t, "openai/gpt-4o-mini")
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
 
 	require.NoError(t, os.WriteFile(envPath, []byte(`
 NAME=env-agent
-MODEL=env-model
+MODEL=openai/gpt-4o-mini
 MODEL_ROUTER=openrouter
 MODEL_KEY=env-key
-MODEL_BASE_URL=https://env.example/v1
+MODEL_BASE_URL=`+serverURL+`
 LOG_LEVEL=warn
 LOG_NO_COLOR=false
 `), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 model:
-  name: config-model
+  name: openai/gpt-4o-mini
   router: openrouter
   key: config-key
-  baseUrl: https://config.example/v1
+  baseUrl: `+serverURL+`
 log:
   level: error
   noColor: true
@@ -230,10 +235,10 @@ log:
 		"--env-file", envPath,
 		"--config", configPath,
 		"--name", "flag-agent",
-		"--model", "flag-model",
+		"--model", "openai/gpt-4o-mini",
 		"--model.router", "openrouter",
 		"--model.key", "flag-key",
-		"--model.base-url", "https://flag.example/v1",
+		"--model.base-url", serverURL,
 		"--rpc.port", nextTestPort(t),
 		"--log.level", "debug",
 		"--log.no-color=true",
@@ -245,8 +250,8 @@ log:
 	require.Equal(t, "flag-agent", cfg.Name)
 	require.Equal(t, "openrouter", cfg.ModelRouter)
 	require.Equal(t, "flag-key", cfg.ModelKey)
-	require.Equal(t, "flag-model", cfg.Model)
-	require.Equal(t, "https://flag.example/v1", cfg.ModelBaseURL)
+	require.Equal(t, "openai/gpt-4o-mini", cfg.Model)
+	require.Equal(t, serverURL, cfg.ModelBaseURL)
 	require.Equal(t, "debug", cfg.LogLevel)
 	require.True(t, cfg.LogNoColor)
 }
@@ -256,14 +261,15 @@ func TestNewCommand_RunsUpCommandExplicitly(t *testing.T) {
 	resetGlobals(t)
 
 	dir := t.TempDir()
+	serverURL := newOpenRouterModelsServer(t, "openai/gpt-4o-mini")
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 model:
-  name: config-model
+  name: openai/gpt-4o-mini
   router: openrouter
   key: config-key
-  baseUrl: https://config.example/v1
+  baseUrl: `+serverURL+`
 log:
   level: info
 `), 0o600))
@@ -279,10 +285,10 @@ log:
 
 	cfg := config.Get()
 	require.Equal(t, "config-agent", cfg.Name)
-	require.Equal(t, "config-model", cfg.Model)
+	require.Equal(t, "openai/gpt-4o-mini", cfg.Model)
 	require.Equal(t, "openrouter", cfg.ModelRouter)
 	require.Equal(t, "config-key", cfg.ModelKey)
-	require.Equal(t, "https://config.example/v1", cfg.ModelBaseURL)
+	require.Equal(t, serverURL, cfg.ModelBaseURL)
 }
 
 func TestResolveEnvFilePrefersFlag(t *testing.T) {
@@ -332,7 +338,7 @@ func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
 	err := cmd.Run(context.Background(), []string{
 		"hand",
 		"--name", "flag-agent",
-		"--model", "flag-model",
+		"--model", "openai/gpt-4o-mini",
 		"--model.router", "openrouter",
 		"--model.key", "flag-key",
 		"doctor",
@@ -440,7 +446,7 @@ func TestNewCommand_RootActionDoesNotForwardConfiguredInstruct(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 model:
-  name: config-model
+  name: openai/gpt-4o-mini
   router: openrouter
   key: config-key
 instruct: be terse
@@ -492,7 +498,7 @@ func TestNewCommand_RejectsUnsupportedRouter(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 model:
-  name: config-model
+  name: openai/gpt-4o-mini
   router: anthropic
   key: config-key
   baseUrl: https://config.example/v1
@@ -517,7 +523,7 @@ func TestNewCommand_UsesDirectClientWhenRouterIsNone(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 model:
-  name: config-model
+  name: openai/gpt-4o-mini
   router: none
   key: config-key
 log:
@@ -577,6 +583,18 @@ func resetGlobals(t *testing.T) {
 	logutils.SetOutput(io.Discard)
 	config.Set(nil)
 	t.Setenv("HAND_HOME", t.TempDir())
+}
+
+func newOpenRouterModelsServer(t *testing.T, model string) string {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/models", r.URL.Path)
+		_, _ = w.Write([]byte(`{"data":[{"id":"` + model + `","context_length":128000}]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	return server.URL
 }
 
 func canceledContext() context.Context {

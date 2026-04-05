@@ -19,7 +19,6 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 )
 
-
 // Turn executes a single response turn against a resolved session.
 type Turn struct {
 	// ctx is the request context used for session writes during the turn.
@@ -129,6 +128,12 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 	t.lastPromptTokens = session.LastPromptTokens
 	t.summaryRefreshAttempted = false
 
+	agentLog.Debug().
+		Str("session_id", session.ID).
+		Int("history_offset", tailOffset).
+		Int("history_messages", len(messages)).
+		Msg("turn loaded")
+
 	return nil
 }
 
@@ -203,7 +208,13 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
 		traceSession.Record(trace.EvtModelRequest, request)
 
-		resp, err := t.modelClient.Chat(ctx, request)
+		agentLog.Debug().
+			Str("model", t.cfg.Model).
+			Int("context_messages", len(request.Messages)).
+			Int("tools", len(request.Tools)).
+			Msg("sending model request")
+
+		resp, err := t.modelClient.Complete(ctx, request)
 		if err != nil {
 			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 			return "", err
@@ -216,6 +227,13 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		}
 
 		traceSession.Record(trace.EvtModelResponse, resp)
+
+		agentLog.Debug().
+			Int("prompt_tokens", resp.PromptTokens).
+			Int("completion_tokens", resp.CompletionTokens).
+			Bool("requires_tool_calls", resp.RequiresToolCalls).
+			Msg("model response received")
+
 		if err := t.recordPostflightUsage(traceSession, resp); err != nil {
 			return "", err
 		}
@@ -234,6 +252,9 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			}
 
 			traceSession.Record(trace.EvtFinalAssistantResponse, map[string]any{"message": resp.OutputText})
+
+			agentLog.Info().Str("session_id", t.sessionID).Msg("turn completed")
+
 			return resp.OutputText, nil
 		}
 
@@ -268,6 +289,8 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				return "", err
 			}
 
+			agentLog.Debug().Str("tool", toolCall.Name).Str("tool_call_id", toolCall.ID).Msg("invoking tool")
+
 			traceSession.Record(trace.EvtToolInvocationStarted, toolCall)
 			toolMessage := t.invokeTool(ctx, toolCall)
 			traceSession.Record(trace.EvtToolInvocationCompleted, toolMessage)
@@ -286,6 +309,10 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			}
 		}
 	}
+
+	agentLog.Warn().
+		Str("session_id", t.sessionID).
+		Msg("iteration budget exhausted, falling back to summary")
 
 	reply, err := t.summaryFallback(ctx, budget, traceSession)
 	if err != nil {
@@ -376,8 +403,9 @@ func (t *Turn) summaryFallback(ctx context.Context, budget environment.Iteration
 	recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
 	traceSession.Record(trace.EvtModelRequest, request)
 
-	resp, err := t.modelClient.Chat(ctx, request)
+	resp, err := t.modelClient.Complete(ctx, request)
 	if err != nil {
+		agentLog.Error().Err(err).Str("session_id", t.sessionID).Msg("summary fallback model call failed")
 		wrapped := fmt.Errorf("iteration limit reached and summary failed: %w", err)
 		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": wrapped.Error()})
 		return "", wrapped

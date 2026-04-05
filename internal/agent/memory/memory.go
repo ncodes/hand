@@ -6,7 +6,10 @@ import (
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/storage"
 	common "github.com/wandxy/hand/internal/storage/common"
+	"github.com/wandxy/hand/pkg/logutils"
 )
+
+var memLog = logutils.InitLogger("agent.memory")
 
 type Memory struct {
 	Summary *SummaryState

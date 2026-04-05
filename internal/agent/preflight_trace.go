@@ -49,9 +49,22 @@ func recordPreflightCompactionTrace(
 	traceSession.Record(trace.EvtContextPreflight, payload)
 
 	if estimate.Triggered() {
+		agentLog.Info().
+			Str("source", estimate.Source).
+			Int("prompt_tokens", estimate.PromptTokens).
+			Int("trigger_threshold", estimate.TriggerThreshold).
+			Int("context_limit", estimate.ContextLimit).
+			Msg("preflight context estimate exceeded compaction threshold")
 		traceSession.Record(trace.EvtContextCompactionTriggered, payload)
 	}
 
+	if estimate.Warning() && !estimate.Triggered() {
+		agentLog.Warn().
+			Int("prompt_tokens", estimate.PromptTokens).
+			Int("warn_threshold", estimate.WarnThreshold).
+			Int("context_limit", estimate.ContextLimit).
+			Msg("context approaching compaction threshold")
+	}
 	if estimate.Warning() {
 		traceSession.Record(trace.EvtContextCompactionWarning, payload)
 	}

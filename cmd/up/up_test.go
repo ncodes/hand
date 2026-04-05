@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"testing"
 
@@ -37,6 +39,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 
 	config.Set(nil)
 	configFile := ""
+	serverURL := newOpenRouterModelsServer(t, "openai/gpt-4o-mini")
 	runCalled := false
 	serveCalled := false
 	startupBuffer := &bytes.Buffer{}
@@ -65,10 +68,10 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.NoError(t, cmd.Run(context.Background(), []string{
 		"hand",
 		"--name", "flag-agent",
-		"--model", "flag-model",
+		"--model", "openai/gpt-4o-mini",
 		"--model.router", "openrouter",
 		"--model.key", "flag-key",
-		"--model.base-url", "https://flag.example/v1",
+		"--model.base-url", serverURL,
 		"--rpc.address", "0.0.0.0",
 		"--rpc.port", "6000",
 		"--debug.traces",
@@ -79,10 +82,10 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 
 	cfg := config.Get()
 	require.Equal(t, "flag-agent", cfg.Name)
-	require.Equal(t, "flag-model", cfg.Model)
+	require.Equal(t, "openai/gpt-4o-mini", cfg.Model)
 	require.Equal(t, "openrouter", cfg.ModelRouter)
 	require.Equal(t, "flag-key", cfg.ModelKey)
-	require.Equal(t, "https://flag.example/v1", cfg.ModelBaseURL)
+	require.Equal(t, serverURL, cfg.ModelBaseURL)
 	require.Equal(t, "0.0.0.0", cfg.RPCAddress)
 	require.Equal(t, 6000, cfg.RPCPort)
 	require.True(t, cfg.DebugTraces)
@@ -108,7 +111,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, logOutput, "Configuration loaded")
 	require.Contains(t, logOutput, "Starting Hand services")
 	require.Contains(t, logOutput, "name=flag-agent")
-	require.Contains(t, logOutput, "model=flag-model")
+	require.Contains(t, logOutput, "model=openai/gpt-4o-mini")
 	require.Contains(t, logOutput, "router=openrouter")
 	require.Contains(t, logOutput, "rpcEndpoint=0.0.0.0:6000")
 	require.Contains(t, logOutput, "debugTraces=true")
@@ -120,7 +123,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	output := renderStartupPanel(&config.Config{
 		Name:          "daemon",
-		Model:         "test-model",
+		Model:         "openai/gpt-4o-mini",
 		ModelRouter:   "openrouter",
 		RPCAddress:    "127.0.0.1",
 		RPCPort:       50051,
@@ -179,4 +182,16 @@ var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 func stripANSI(value string) string {
 	return ansiPattern.ReplaceAllString(value, "")
+}
+
+func newOpenRouterModelsServer(t *testing.T, model string) string {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/models", r.URL.Path)
+		_, _ = w.Write([]byte(`{"data":[{"id":"` + model + `","context_length":128000}]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	return server.URL
 }

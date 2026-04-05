@@ -134,3 +134,14 @@ func TestListFiles_ToolAppliesEntryLimit(t *testing.T) {
 	require.Len(t, payload.Entries, 1)
 	require.Equal(t, "alpha.txt", payload.Entries[0].Path)
 }
+
+func TestListFiles_DefinitionDeclaresStrictRequiredSchema(t *testing.T) {
+	root := t.TempDir()
+	definition := ListFilesDefinition(&testDependencies{
+		filePolicy: guardrails.FilesystemPolicy{Roots: guardrails.NormalizeRoots([]string{root})},
+	})
+
+	required, ok := definition.InputSchema["required"].([]string)
+	require.True(t, ok)
+	require.Equal(t, []string{"path", "recursive", "include_hidden", "max_entries"}, required)
+}

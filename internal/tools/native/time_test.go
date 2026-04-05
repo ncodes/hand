@@ -17,6 +17,8 @@ func TestTimeDefinition_DeclaresObjectInputSchema(t *testing.T) {
 	require.Equal(t, map[string]any{
 		"type":                 "object",
 		"additionalProperties": false,
+		"properties":           map[string]any{},
+		"required":             []string{},
 	}, definition.InputSchema)
 }
 

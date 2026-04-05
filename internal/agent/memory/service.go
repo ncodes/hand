@@ -58,6 +58,11 @@ func NewService(cfg *config.Config, modelClient models.Client, summaryStore Summ
 		service.debugRequests = cfg.DebugRequests
 	}
 
+	memLog.Debug().
+		Str("model", service.model).
+		Bool("compaction_enabled", service.compactionOn).
+		Msg("memory service initialized")
+
 	return service
 }
 
@@ -75,5 +80,15 @@ func (s *Service) Load(ctx context.Context, sessionID string) (*Memory, error) {
 		return nil, err
 	}
 
-	return &Memory{Summary: SummaryFromStorage(summary)}, nil
+	mem := &Memory{Summary: SummaryFromStorage(summary)}
+
+	if mem.Summary != nil {
+		memLog.Debug().Str("session_id", sessionID).
+			Int("source_end_offset", mem.Summary.SourceEndOffset).
+			Msg("memory loaded with existing summary")
+	} else {
+		memLog.Debug().Str("session_id", sessionID).Msg("memory loaded")
+	}
+
+	return mem, nil
 }

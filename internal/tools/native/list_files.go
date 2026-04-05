@@ -35,7 +35,7 @@ func ListFilesDefinition(dependencies envtypes.Runtime) tools.Definition {
 			"recursive":      booleanSchema("When true, list directory contents recursively. Defaults to false."),
 			"include_hidden": booleanSchema("When true, include hidden files and directories in the results."),
 			"max_entries":    integerSchema("Maximum number of entries to return. Values outside the supported range are clamped."),
-		}),
+		}, "path", "recursive", "include_hidden", "max_entries"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
 			if result := decodeInput(call, &req); result.Error != "" {

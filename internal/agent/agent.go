@@ -18,11 +18,14 @@ import (
 	storagefactory "github.com/wandxy/hand/internal/storage/factory"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/hand/pkg/logutils"
 )
 
 var jsonMarshal = json.Marshal
 
 const requestInstructionName = "request.instruct"
+
+var agentLog = logutils.InitLogger("agent")
 
 type ServiceAPI interface {
 	Respond(context.Context, string, RespondOptions) (string, error)
@@ -62,7 +65,7 @@ type SessionContextStatus struct {
 	CompactionStatus string
 }
 
-var newRuntimeEnvironment = func(ctx context.Context, cfg *config.Config) environment.Environment {
+var newEnvironment = func(ctx context.Context, cfg *config.Config) environment.Environment {
 	return environment.NewEnvironment(ctx, cfg)
 }
 
@@ -105,13 +108,15 @@ func (a *Agent) Start(ctx context.Context) error {
 		return err
 	}
 
-	a.env = newRuntimeEnvironment(ctx, a.cfg)
+	a.env = newEnvironment(ctx, a.cfg)
 	if err := a.env.Prepare(); err != nil {
 		return err
 	}
 
 	a.turnMessages = nil
 	a.initialized = true
+
+	agentLog.Info().Msg("agent started")
 
 	return nil
 }
@@ -143,21 +148,23 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 		return "", errors.New("environment has not been initialized")
 	}
 
-	runtimeEnv := a.env
-	if a.initialized || runtimeEnv == nil {
-		runtimeEnv = newRuntimeEnvironment(ctx, a.cfg)
-		if err := runtimeEnv.Prepare(); err != nil {
+	env := a.env
+	if a.initialized || env == nil {
+		env = newEnvironment(ctx, a.cfg)
+		if err := env.Prepare(); err != nil {
 			return "", err
 		}
 	}
 
-	if runtimeEnv.Tools() == nil {
+	if env.Tools() == nil {
 		return "", errors.New("tool registry is required")
 	}
 
-	a.env = runtimeEnv
+	a.env = env
 
-	turn := NewTurn(a.cfg, a.modelClient, a.sessionMgr, a.invokeToolWithEnvironment, runtimeEnv)
+	agentLog.Info().Str("session_id", opts.SessionID).Str("model", a.cfg.Model).Msg("responding to user message")
+
+	turn := NewTurn(a.cfg, a.modelClient, a.sessionMgr, a.invokeToolWithEnvironment, env)
 	reply, err := turn.Run(ctx, msg, opts)
 	a.turnMessages = turn.Messages()
 
@@ -200,22 +207,27 @@ func (a *Agent) invokeTool(ctx context.Context, toolCall models.ToolCall) handms
 	return a.invokeToolWithEnvironment(ctx, a.env, toolCall)
 }
 
-func (a *Agent) invokeToolWithEnvironment(ctx context.Context, runtimeEnv environment.Environment, toolCall models.ToolCall) handmsg.Message {
+func (a *Agent) invokeToolWithEnvironment(
+	ctx context.Context,
+	env environment.Environment,
+	toolCall models.ToolCall,
+) handmsg.Message {
 	result := map[string]any{"name": toolCall.Name}
 
-	if runtimeEnv == nil || runtimeEnv.Tools() == nil {
+	if env == nil || env.Tools() == nil {
 		result["error"] = "tool registry is required"
 		raw, _ := jsonMarshal(result)
 		return handmsg.Message{Role: handmsg.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: string(raw)}
 	}
 
-	toolResult, err := runtimeEnv.Tools().Invoke(ctx, tools.Call{
+	toolResult, err := env.Tools().Invoke(ctx, tools.Call{
 		Name:   toolCall.Name,
 		Input:  toolCall.Input,
 		Source: "model",
 	})
 
 	if err != nil {
+		agentLog.Warn().Str("tool", toolCall.Name).Err(err).Msg("tool invocation failed")
 		result["error"] = err.Error()
 	}
 
@@ -305,6 +317,8 @@ func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionRe
 		return CompactSessionResult{}, err
 	}
 
+	agentLog.Info().Str("session_id", session.ID).Msg("manual session compaction requested")
+
 	traceSession := trace.NoopSession()
 	if a.env != nil {
 		traceSession = a.env.NewTraceSession()
@@ -314,6 +328,7 @@ func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionRe
 	memoryService := memory.NewService(a.cfg, a.modelClient, a.sessionMgr)
 	summary, err := memoryService.CompactSession(normalizeContext(ctx), session, traceSession)
 	if err != nil {
+		agentLog.Error().Str("session_id", session.ID).Err(err).Msg("session compaction failed")
 		return CompactSessionResult{}, err
 	}
 

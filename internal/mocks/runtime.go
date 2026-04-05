@@ -20,7 +20,7 @@ type ModelClientStub struct {
 	CallCount int
 }
 
-func (s *ModelClientStub) Chat(_ context.Context, req models.Request) (*models.Response, error) {
+func (s *ModelClientStub) Complete(_ context.Context, req models.Request) (*models.Response, error) {
 	s.Requests = append(s.Requests, req)
 	if s.CallCount < len(s.Errors) && s.Errors[s.CallCount] != nil {
 		s.CallCount++

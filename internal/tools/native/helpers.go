@@ -131,15 +131,18 @@ func joinStrings(parts ...string) string {
 }
 
 func objectSchema(properties map[string]any, required ...string) map[string]any {
+	if properties == nil {
+		properties = map[string]any{}
+	}
+	if required == nil {
+		required = []string{}
+	}
+
 	schema := map[string]any{
 		"type":                 "object",
 		"additionalProperties": false,
-	}
-	if len(properties) > 0 {
-		schema["properties"] = properties
-	}
-	if len(required) > 0 {
-		schema["required"] = required
+		"properties":           properties,
+		"required":             required,
 	}
 
 	return schema
