@@ -13,6 +13,7 @@ type AgentServiceStub struct {
 	RespondOptions   rpcclient.RespondOptions
 	Reply            string
 	Deltas           []string
+	Events           []agent.Event
 	RespondErr       error
 	Err              error
 	CloseErr         error
@@ -29,12 +30,19 @@ func (s *AgentServiceStub) Respond(_ context.Context, msg string, opts rpcclient
 	s.ChatInput = msg
 	s.RespondOptions = opts
 	if opts.OnEvent != nil {
-		deltas := s.Deltas
-		if len(deltas) == 0 && s.Reply != "" {
-			deltas = []string{s.Reply}
+		events := s.Events
+		if len(events) == 0 {
+			deltas := s.Deltas
+			if len(deltas) == 0 && s.Reply != "" {
+				deltas = []string{s.Reply}
+			}
+			events = make([]agent.Event, 0, len(deltas))
+			for _, delta := range deltas {
+				events = append(events, agent.Event{Channel: "assistant", Text: delta})
+			}
 		}
-		for _, delta := range deltas {
-			opts.OnEvent(agent.Event{Channel: "assistant", Text: delta})
+		for _, event := range events {
+			opts.OnEvent(event)
 		}
 	}
 	if s.RespondErr != nil {

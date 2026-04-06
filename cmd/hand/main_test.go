@@ -464,6 +464,79 @@ func TestNewCommand_RootActionStreamsOutput(t *testing.T) {
 	require.Equal(t, "hello back\n", output.String())
 }
 
+func TestNewCommand_RootActionStylesReasoningOutput(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	resetGlobals(t)
+
+	originalNewChatClient := newChatClient
+	originalRootOutput := rootOutput
+	t.Cleanup(func() {
+		newChatClient = originalNewChatClient
+		rootOutput = originalRootOutput
+	})
+
+	var output bytes.Buffer
+	rootOutput = &output
+
+	stub := &agentstub.AgentServiceStub{
+		Reply: "thinking done",
+		Events: []rpcclient.Event{
+			{Channel: "reasoning", Text: "thinking"},
+			{Channel: "assistant", Text: " done"},
+		},
+	}
+	newChatClient = func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+		return stub, nil
+	}
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--name", "flag-agent",
+		"--model.stream=true",
+		"hello",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "\x1b[90mthinking\x1b[0m done\n", output.String())
+}
+
+func TestNewCommand_RootActionDoesNotStyleReasoningWhenNoColor(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	resetGlobals(t)
+
+	originalNewChatClient := newChatClient
+	originalRootOutput := rootOutput
+	t.Cleanup(func() {
+		newChatClient = originalNewChatClient
+		rootOutput = originalRootOutput
+	})
+
+	var output bytes.Buffer
+	rootOutput = &output
+
+	stub := &agentstub.AgentServiceStub{
+		Reply: "thinking done",
+		Events: []rpcclient.Event{
+			{Channel: "reasoning", Text: "thinking"},
+			{Channel: "assistant", Text: " done"},
+		},
+	}
+	newChatClient = func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+		return stub, nil
+	}
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--name", "flag-agent",
+		"--model.stream=true",
+		"--log.no-color=true",
+		"hello",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "thinking done\n", output.String())
+}
+
 func TestNewCommand_RootActionDoesNotForwardConfiguredInstruct(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)

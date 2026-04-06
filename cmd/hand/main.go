@@ -31,6 +31,11 @@ var (
 	rootOutput io.Writer = os.Stdout
 )
 
+const (
+	rootColorGray  = "\x1b[90m"
+	rootColorReset = "\x1b[0m"
+)
+
 const rootHelpTemplate = `NAME:
    {{template "helpNameTemplate" .}}
 
@@ -141,7 +146,7 @@ func newCommand() *cli.Command {
 			}
 			if cfg.StreamEnabled() {
 				opts.OnEvent = func(event rpcclient.Event) {
-					_, _ = fmt.Fprint(rootOutput, event.Text)
+					_, _ = fmt.Fprint(rootOutput, formatChatEvent(cfg, event))
 				}
 			}
 
@@ -161,6 +166,14 @@ func newCommand() *cli.Command {
 	}
 
 	return cmd
+}
+
+func formatChatEvent(cfg *config.Config, event rpcclient.Event) string {
+	if strings.TrimSpace(event.Channel) != "reasoning" || cfg == nil || cfg.LogNoColor {
+		return event.Text
+	}
+
+	return rootColorGray + event.Text + rootColorReset
 }
 
 func resolveEnvFile(args []string) string {
