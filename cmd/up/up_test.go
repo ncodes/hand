@@ -141,6 +141,20 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	require.NotContains(t, output, "Ready to accept RPC connections.")
 }
 
+func TestRenderStartupPanel_IncludesSummaryModelWhenDistinct(t *testing.T) {
+	output := renderStartupPanel(&config.Config{
+		Name:         "daemon",
+		Model:        "openai/gpt-4o-mini",
+		SummaryModel: "anthropic/claude-3.5-haiku",
+		ModelRouter:  "openrouter",
+		RPCAddress:   "127.0.0.1",
+		RPCPort:      50051,
+		LogLevel:     "info",
+		LogNoColor:   true,
+	})
+	require.Contains(t, output, "Summary model: anthropic/claude-3.5-haiku")
+}
+
 func TestNewCommand_ReturnsValidationError(t *testing.T) {
 	originalServeGRPC := serveRPC
 

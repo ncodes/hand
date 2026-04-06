@@ -27,6 +27,7 @@ type Service struct {
 	evaluator     *compaction.Evaluator
 	compactionOn  bool
 	model         string
+	summaryModel  string
 	apiMode       string
 	debugRequests bool
 	now           func() time.Time
@@ -54,12 +55,14 @@ func NewService(cfg *config.Config, modelClient models.Client, summaryStore Summ
 
 	if cfg != nil {
 		service.model = cfg.Model
+		service.summaryModel = cfg.SummaryModelEffective()
 		service.apiMode = cfg.ModelAPIMode
 		service.debugRequests = cfg.DebugRequests
 	}
 
 	memLog.Debug().
 		Str("model", service.model).
+		Str("summary_model", service.summaryModel).
 		Bool("compaction_enabled", service.compactionOn).
 		Msg("memory service initialized")
 

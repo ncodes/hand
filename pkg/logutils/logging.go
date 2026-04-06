@@ -25,10 +25,11 @@ func SetOutput(out io.Writer) {
 
 	if out == nil {
 		loggerOutput = os.Stderr
-		return
+	} else {
+		loggerOutput = out
 	}
 
-	loggerOutput = out
+	log.Logger = log.Output(newConsoleWriter(loggerOutput, currentNoColorSetting()))
 }
 
 func ConfigureLogger(programName string, noColor bool) *zerolog.Logger {

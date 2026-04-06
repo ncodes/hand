@@ -5,6 +5,7 @@
 
 # model:
 #   name: "openai/gpt-4o-mini"
+#   summaryModel: "anthropic/claude-3.5-haiku"
 #   contextLength: 128000
 #   verifyModel: true
 #   router: "openrouter"

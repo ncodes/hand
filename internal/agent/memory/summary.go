@@ -356,7 +356,7 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 		Msg("generating compaction summary")
 
 	request := models.Request{
-		Model:            s.model,
+		Model:            s.summaryModel,
 		APIMode:          s.apiMode,
 		Instructions:     instructions.String(),
 		Messages:         summaryMessages,

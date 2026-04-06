@@ -34,6 +34,11 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value: config.Get().Model,
 		},
 		&cli.StringFlag{
+			Name:  "model.summary",
+			Usage: "Optional model slug for compaction summarization; defaults to --model when unset",
+			Value: config.Get().SummaryModel,
+		},
+		&cli.StringFlag{
 			Name:   "model.base-url",
 			Usage:  "Base URL for the model provider API",
 			Value:  config.Get().ModelBaseURL,
@@ -244,6 +249,9 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("model") {
 		cfg.Model = strings.TrimSpace(cmd.String("model"))
+	}
+	if cmd.IsSet("model.summary") {
+		cfg.SummaryModel = strings.TrimSpace(cmd.String("model.summary"))
 	}
 	if cmd.IsSet("model.router") {
 		cfg.ModelRouter = strings.TrimSpace(cmd.String("model.router"))

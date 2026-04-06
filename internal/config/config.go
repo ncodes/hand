@@ -24,6 +24,7 @@ import (
 type Config struct {
 	Name                     string
 	Model                    string
+	SummaryModel             string
 	ContextLength            int
 	VerifyModel              *bool
 	ModelRouter              string
@@ -104,6 +105,7 @@ type fileConfig struct {
 
 	Model struct {
 		Name             string `yaml:"name"`
+		SummaryModel     string `yaml:"summaryModel"`
 		ContextLength    int    `yaml:"contextLength"`
 		VerifyModel      *bool  `yaml:"verifyModel"`
 		Router           string `yaml:"router"`
@@ -261,6 +263,7 @@ func loadConfigFile(path string) (*Config, error) {
 	return &Config{
 		Name:                     raw.Name,
 		Model:                    raw.Model.Name,
+		SummaryModel:             raw.Model.SummaryModel,
 		ContextLength:            raw.Model.ContextLength,
 		VerifyModel:              raw.Model.VerifyModel,
 		ModelRouter:              raw.Model.Router,
@@ -308,6 +311,9 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := strings.TrimSpace(os.Getenv("MODEL")); value != "" {
 		cfg.Model = value
+	}
+	if value := strings.TrimSpace(os.Getenv("MODEL_SUMMARY")); value != "" {
+		cfg.SummaryModel = value
 	}
 	if value := strings.TrimSpace(os.Getenv("MODEL_CONTEXT_LENGTH")); value != "" {
 		if contextLength, err := strconv.Atoi(value); err == nil {
@@ -434,6 +440,7 @@ func (c *Config) Normalize() {
 
 	c.Name = strings.TrimSpace(c.Name)
 	c.Model = strings.TrimSpace(c.Model)
+	c.SummaryModel = strings.TrimSpace(c.SummaryModel)
 	c.ModelRouter = strings.TrimSpace(strings.ToLower(c.ModelRouter))
 	if c.ModelRouter == "openai" {
 		c.ModelRouter = "none"
@@ -545,6 +552,19 @@ func (c *Config) VerifyModelEnabled() bool {
 	}
 
 	return boolValueDefault(c.VerifyModel, true)
+}
+
+func (c *Config) SummaryModelEffective() string {
+	if c == nil {
+		return ""
+	}
+
+	c.Normalize()
+	if c.SummaryModel != "" {
+		return c.SummaryModel
+	}
+
+	return c.Model
 }
 
 func splitAndTrimCSV(value string) []string {
@@ -688,6 +708,10 @@ func (c *Config) Validate() error {
 		return errors.New("model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
 	}
 
+	if c.SummaryModel != "" && !isValidModelSlug(c.SummaryModel) {
+		return errors.New("summary model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
+	}
+
 	if router := strings.TrimSpace(strings.ToLower(c.ModelRouter)); router != "" {
 		if _, ok := supportedRouters[router]; !ok {
 			return errors.New(`model router must be one of: none, openrouter`)
@@ -738,12 +762,21 @@ func (c *Config) Validate() error {
 	}
 
 	if c.VerifyModelEnabled() {
-		meta, err := resolveModelMeta(context.Background(), c, auth)
-		if err != nil {
-			return err
+		verifySlots := []modelVerifySlot{{field: "model.name", slug: c.Model}}
+		if c.SummaryModel != "" && c.SummaryModel != c.Model {
+			verifySlots = append(verifySlots, modelVerifySlot{field: "model.summaryModel", slug: c.SummaryModel})
 		}
-		if !meta.Exists {
-			return unknownModelError(auth.Router, c.Model)
+
+		for _, slot := range verifySlots {
+			verifyCfg := *c
+			verifyCfg.Model = slot.slug
+			meta, err := resolveModelMeta(context.Background(), &verifyCfg, auth)
+			if err != nil {
+				return fmt.Errorf("%s: %w", slot.field, err)
+			}
+			if !meta.Exists {
+				return fmt.Errorf("%s: %w", slot.field, unknownModelError(auth.Router, slot.slug))
+			}
 		}
 	}
 
@@ -812,6 +845,12 @@ func normalizeRulePaths(files []string) []string {
 	return normalized
 }
 
+// modelVerifySlot pairs a config field label (YAML keys) with the slug sent to resolveModelMeta.
+type modelVerifySlot struct {
+	field string
+	slug  string
+}
+
 func isValidModelSlug(value string) bool {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -856,11 +895,20 @@ func resolveModelMetadataFromProvider(ctx context.Context, cfg *Config, auth Mod
 		return ModelMetadata{}, nil
 	}
 
+	return resolveModelMetadataForSlug(ctx, auth, cfg.Model)
+}
+
+func resolveModelMetadataForSlug(ctx context.Context, auth ModelAuth, slug string) (ModelMetadata, error) {
+	slug = strings.TrimSpace(slug)
+	if slug == "" {
+		return ModelMetadata{}, nil
+	}
+
 	switch strings.TrimSpace(strings.ToLower(auth.Router)) {
 	case "openrouter":
-		return fetchOpenRouterModelMetadata(ctx, auth.BaseURL, cfg.Model, auth.APIKey)
+		return fetchOpenRouterModelMetadata(ctx, auth.BaseURL, slug, auth.APIKey)
 	default:
-		return fetchOpenAIModelMetadata(ctx, cfg.Model)
+		return fetchOpenAIModelMetadata(ctx, slug)
 	}
 }
 
@@ -930,7 +978,6 @@ func fetchOpenAIModelMetadata(ctx context.Context, model string) (ModelMetadata,
 		if err != nil {
 			return ModelMetadata{}, err
 		}
-		fmt.Println(meta)
 		if meta.Exists {
 			return meta, nil
 		}
@@ -970,7 +1017,7 @@ func fetchOpenAIModelMetadataCandidate(ctx context.Context, model string) (Model
 
 	match := contextWindowPatternOAI.FindStringSubmatch(string(body))
 	if len(match) != 2 {
-		return ModelMetadata{Exists: true}, nil
+		return ModelMetadata{}, nil
 	}
 
 	contextLength, err := strconv.Atoi(strings.ReplaceAll(match[1], ",", ""))

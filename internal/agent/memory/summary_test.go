@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 	"time"
 
@@ -16,7 +17,12 @@ import (
 	"github.com/wandxy/hand/internal/storage"
 	storagemock "github.com/wandxy/hand/internal/storage/mock"
 	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/hand/pkg/logutils"
 )
+
+func init() {
+	logutils.SetOutput(io.Discard)
+}
 
 func TestService_MaybeRefreshMemory_ReturnsWhenMemoryOrTraceIsNil(t *testing.T) {
 	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{})
@@ -460,6 +466,40 @@ func TestService_MaybeRefreshMemory_FallsBackWhenStructuredOutputRequestFails(t 
 	require.Nil(t, client.Requests[1].StructuredOutput)
 	require.NotNil(t, mem.Summary)
 	require.Equal(t, "Older work", mem.Summary.SessionSummary)
+}
+
+func TestService_MaybeRefreshMemory_UsesSummaryModelWhenConfigured(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	mem := &Memory{}
+	client := &mocks.ModelClientStub{
+		Errors: []error{errors.New("structured outputs unsupported")},
+		Responses: []*models.Response{
+			nil,
+			{
+				OutputText: `{
+				"session_summary": "Older work",
+				"current_task": "Fix tests",
+				"discoveries": ["one"],
+				"open_questions": ["two"],
+				"next_actions": ["three"]
+			}`,
+			},
+		},
+	}
+	cfg := summaryTestConfig(true)
+	cfg.Model = "openai/gpt-4o-mini"
+	cfg.SummaryModel = "anthropic/claude-3.5-haiku"
+	service := NewService(cfg, client, summaryTestStore(summaryTestHistory(10)))
+
+	err := service.MaybeRefreshMemory(context.Background(), mem, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+	require.NoError(t, err)
+	require.Len(t, client.Requests, 2)
+	require.Equal(t, "anthropic/claude-3.5-haiku", client.Requests[0].Model)
+	require.Equal(t, "anthropic/claude-3.5-haiku", client.Requests[1].Model)
 }
 
 func TestService_generateSummaryResponse_ValidationAndFallbackPaths(t *testing.T) {

@@ -759,7 +759,57 @@ func TestConfig_ValidateRejectsUnknownOpenRouterModel(t *testing.T) {
 		LogLevel:    "info",
 	}).Validate()
 
-	require.EqualError(t, err, `model "openai/gpt-unknown" is not available on openrouter`)
+	require.EqualError(t, err, `model.name: model "openai/gpt-unknown" is not available on openrouter`)
+}
+
+func TestConfig_ValidateRejectsInvalidSummaryModelSlug(t *testing.T) {
+	err := (&Config{
+		Name:         "test-agent",
+		Model:        defaultModel,
+		SummaryModel: "gpt-4o-mini",
+		ModelRouter:  "none",
+		ModelKey:     "test-key",
+		RPCAddress:   "127.0.0.1",
+		RPCPort:      50051,
+		LogLevel:     "info",
+	}).Validate()
+
+	require.EqualError(t, err, "summary model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
+}
+
+func TestConfig_ValidateRejectsUnknownSummaryModel(t *testing.T) {
+	stubModelMetadataResolver(t, func(_ context.Context, cfg *Config, _ ModelAuth) (ModelMetadata, error) {
+		if cfg.Model == defaultModel {
+			return ModelMetadata{Exists: true}, nil
+		}
+
+		return ModelMetadata{}, nil
+	})
+
+	err := (&Config{
+		Name:         "test-agent",
+		Model:        defaultModel,
+		SummaryModel: "openai/gpt-unknown-summary",
+		ModelRouter:  "openrouter",
+		ModelKey:     "test-key",
+		RPCAddress:   "127.0.0.1",
+		RPCPort:      50051,
+		LogLevel:     "info",
+	}).Validate()
+
+	require.EqualError(t, err, `model.summaryModel: model "openai/gpt-unknown-summary" is not available on openrouter`)
+}
+
+func TestConfig_SummaryModelEffective(t *testing.T) {
+	t.Run("inherits_main_model_when_empty", func(t *testing.T) {
+		cfg := &Config{Model: defaultModel}
+		require.Equal(t, defaultModel, cfg.SummaryModelEffective())
+	})
+
+	t.Run("uses_summary_when_set", func(t *testing.T) {
+		cfg := &Config{Model: defaultModel, SummaryModel: "anthropic/claude-3.5-haiku"}
+		require.Equal(t, "anthropic/claude-3.5-haiku", cfg.SummaryModelEffective())
+	})
 }
 
 func TestConfig_ValidateReturnsOpenRouterLookupFailure(t *testing.T) {
@@ -777,7 +827,7 @@ func TestConfig_ValidateReturnsOpenRouterLookupFailure(t *testing.T) {
 		LogLevel:    "info",
 	}).Validate()
 
-	require.EqualError(t, err, `failed to verify openrouter model "openai/gpt-4o-mini": lookup failed`)
+	require.EqualError(t, err, `model.name: failed to verify openrouter model "openai/gpt-4o-mini": lookup failed`)
 }
 
 func TestConfig_ValidateRejectsUnknownOpenAIModel(t *testing.T) {
@@ -795,7 +845,7 @@ func TestConfig_ValidateRejectsUnknownOpenAIModel(t *testing.T) {
 		LogLevel:    "info",
 	}).Validate()
 
-	require.EqualError(t, err, `model "openai/gpt-unknown" is not available on openai`)
+	require.EqualError(t, err, `model.name: model "openai/gpt-unknown" is not available on openai`)
 }
 
 func TestConfig_ValidateRejectsInvalidLogLevel(t *testing.T) {
@@ -1312,7 +1362,7 @@ func TestFetchOpenAIModelMetadata_CoversRemainingBranches(t *testing.T) {
 
 		meta, err = fetchOpenAIModelMetadataCandidate(context.Background(), "no-window")
 		require.NoError(t, err)
-		require.Equal(t, ModelMetadata{Exists: true}, meta)
+		require.Equal(t, ModelMetadata{}, meta)
 
 		meta, err = fetchOpenAIModelMetadataCandidate(context.Background(), "comment-window")
 		require.NoError(t, err)

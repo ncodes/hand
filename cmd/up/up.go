@@ -81,12 +81,17 @@ func renderStartupPanel(cfg *config.Config) string {
 		"",
 		fmt.Sprintf("%s %s", styleLabel("Instance", cfg.LogNoColor), cfg.Name),
 		fmt.Sprintf("%s %s", styleLabel("Model", cfg.LogNoColor), cfg.Model),
+	}
+	if cfg.SummaryModel != "" && cfg.SummaryModel != cfg.Model {
+		lines = append(lines, fmt.Sprintf("%s %s", styleLabel("Summary model", cfg.LogNoColor), cfg.SummaryModelEffective()))
+	}
+	lines = append(lines,
 		fmt.Sprintf("%s %s", styleLabel("Router", cfg.LogNoColor), cfg.ModelRouter),
 		fmt.Sprintf("%s %s", styleLabel("RPC", cfg.LogNoColor), fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort)),
 		fmt.Sprintf("%s %s", styleLabel("Logs", cfg.LogNoColor), fmt.Sprintf("%s (%s)", cfg.LogLevel, logStyle)),
 		fmt.Sprintf("%s %s", styleLabel("Debug requests", cfg.LogNoColor), debugRequests),
 		fmt.Sprintf("%s %s", styleLabel("Traces", cfg.LogNoColor), traceStatus),
-	}
+	)
 
 	return strings.Join(lines, "\n") + "\n"
 }
