@@ -17,7 +17,7 @@ The long-term dream for Hand is a personal agent that can understand your workfl
    - `cp example.env .env`
    - `cp example.yaml config.yaml`
 2. Uncomment the values you want to use and replace the placeholder key values.
-3. Set at least `NAME`, `MODEL`, `MODEL_ROUTER`, and one auth value:
+3. Set at least `NAME`, `MODEL`, `MODEL_PROVIDER`, and one auth value:
    `MODEL_KEY`, `OPENAI_API_KEY`, or `OPENROUTER_API_KEY`.
 4. Start the daemon:
 
@@ -33,7 +33,7 @@ You can also send a direct prompt through the root command:
 go run ./cmd/hand \
   --name Daemon \
   --model qwen/qwen3.5-27b \
-  --model.router openrouter \
+  --model.provider openrouter \
   --model.key "$MODEL_KEY" \
   "hello"
 ```
@@ -47,7 +47,7 @@ Config precedence is:
 Config file values:
 - `name`
 - `model.name`
-- `model.router`
+- `model.provider`
 - `model.key`
 - `model.baseUrl`
 - `rpc.address`
@@ -59,7 +59,7 @@ Config file values:
 Env equivalents:
 - `NAME`
 - `MODEL`
-- `MODEL_ROUTER`
+- `MODEL_PROVIDER`
 - `MODEL_KEY`
 - `OPENAI_API_KEY`
 - `OPENROUTER_API_KEY`
@@ -72,7 +72,7 @@ Env equivalents:
 
 ### Model Configuration
 
-Supported `model.router` values (default when unset: `openrouter`):
+Supported `model.provider` values (default when unset: `openrouter`):
 - `openrouter`: routes model requests through the OpenRouter API
 - `openai`: uses the official OpenAI client with its default base URL (https://api.openai.com/v1), sending requests directly to the OpenAI API.
 
@@ -83,8 +83,8 @@ Current config direction:
 
 Typical model settings:
 - `model.name`: provider model slug such as `qwen/qwen3.5-27b`
-- `model.router`: `openrouter` or `openai`
-- `model.key`: generic provider or router API key fallback
+- `model.provider`: `openrouter` or `openai`
+- `model.key`: generic provider API key fallback
 - `model.openaiApiKey`: provider-specific OpenAI API key
 - `model.openrouterApiKey`: provider-specific OpenRouter API key
 - `model.baseUrl`: explicit provider base URL when needed

@@ -69,7 +69,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 		"hand",
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
-		"--model.router", "openrouter",
+		"--model.provider", "openrouter",
 		"--model.key", "flag-key",
 		"--model.base-url", serverURL,
 		"--rpc.address", "0.0.0.0",
@@ -83,7 +83,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	cfg := config.Get()
 	require.Equal(t, "flag-agent", cfg.Name)
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Model)
-	require.Equal(t, "openrouter", cfg.ModelRouter)
+	require.Equal(t, "openrouter", cfg.ModelProvider)
 	require.Equal(t, "flag-key", cfg.ModelKey)
 	require.Equal(t, serverURL, cfg.ModelBaseURL)
 	require.Equal(t, "0.0.0.0", cfg.RPCAddress)
@@ -112,7 +112,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, logOutput, "Starting Hand services")
 	require.Contains(t, logOutput, "name=flag-agent")
 	require.Contains(t, logOutput, "model=openai/gpt-4o-mini")
-	require.Contains(t, logOutput, "router=openrouter")
+	require.Contains(t, logOutput, "provider=openrouter")
 	require.Contains(t, logOutput, "rpcEndpoint=0.0.0.0:6000")
 	require.Contains(t, logOutput, "debugTraces=true")
 	require.Contains(t, logOutput, "debugTraceDir=/tmp/hand-traces")
@@ -124,7 +124,7 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	output := renderStartupPanel(&config.Config{
 		Name:          "daemon",
 		Model:         "openai/gpt-4o-mini",
-		ModelRouter:   "openrouter",
+		ModelProvider:   "openrouter",
 		RPCAddress:    "127.0.0.1",
 		RPCPort:       50051,
 		LogLevel:      "info",
@@ -146,7 +146,7 @@ func TestRenderStartupPanel_IncludesSummaryModelWhenDistinct(t *testing.T) {
 		Name:         "daemon",
 		Model:        "openai/gpt-4o-mini",
 		SummaryModel: "anthropic/claude-3.5-haiku",
-		ModelRouter:  "openrouter",
+		ModelProvider:  "openrouter",
 		RPCAddress:   "127.0.0.1",
 		RPCPort:      50051,
 		LogLevel:     "info",
@@ -173,7 +173,7 @@ func TestNewCommand_ReturnsValidationError(t *testing.T) {
 		"hand",
 		"--name", "flag-agent",
 		"--model", "",
-		"--model.router", "openrouter",
+		"--model.provider", "openrouter",
 		"--model.key", "",
 		"up",
 	})

@@ -18,14 +18,14 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value: config.Get().Name,
 		},
 		&cli.StringFlag{
-			Name:   "model.router",
-			Usage:  "Model router: openrouter (default) or openai",
-			Value:  config.Get().ModelRouter,
+			Name:   "model.provider",
+			Usage:  "Model provider: openrouter (default) or openai",
+			Value:  config.Get().ModelProvider,
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "model.key",
-			Usage:  "Authentication key for the selected model router",
+			Usage:  "Authentication key for the selected model provider",
 			Hidden: true,
 		},
 		&cli.StringFlag{
@@ -253,8 +253,8 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	if cmd.IsSet("model.summary") {
 		cfg.SummaryModel = strings.TrimSpace(cmd.String("model.summary"))
 	}
-	if cmd.IsSet("model.router") {
-		cfg.ModelRouter = strings.TrimSpace(cmd.String("model.router"))
+	if cmd.IsSet("model.provider") {
+		cfg.ModelProvider = strings.TrimSpace(cmd.String("model.provider"))
 	}
 	if cmd.IsSet("model.key") {
 		cfg.ModelKey = strings.TrimSpace(cmd.String("model.key"))

@@ -29,7 +29,7 @@ func init() {
 }
 
 func TestNewCommand_UsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -39,7 +39,7 @@ func TestNewCommand_UsesConfigFileValues(t *testing.T) {
 name: config-agent
 model:
   name: openai/gpt-4o-mini
-  router: openrouter
+  provider: openrouter
   key: config-key
   baseUrl: `+serverURL+`
 log:
@@ -58,7 +58,7 @@ log:
 
 	cfg := config.Get()
 	require.Equal(t, "config-agent", cfg.Name)
-	require.Equal(t, "openrouter", cfg.ModelRouter)
+	require.Equal(t, "openrouter", cfg.ModelProvider)
 	require.Equal(t, "config-key", cfg.ModelKey)
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Model)
 	require.Equal(t, serverURL, cfg.ModelBaseURL)
@@ -67,7 +67,7 @@ log:
 }
 
 func TestNewCommand_UsesEnvOverConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -77,7 +77,7 @@ func TestNewCommand_UsesEnvOverConfigFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(envPath, []byte(`
 NAME=env-agent
 MODEL=openai/gpt-4o-mini
-MODEL_ROUTER=openrouter
+MODEL_PROVIDER=openrouter
 MODEL_KEY=env-key
 MODEL_BASE_URL=`+serverURL+`
 LOG_LEVEL=warn
@@ -87,7 +87,7 @@ LOG_NO_COLOR=false
 name: config-agent
 model:
   name: openai/gpt-4o-mini
-  router: openrouter
+  provider: openrouter
   key: config-key
   baseUrl: `+serverURL+`
 log:
@@ -107,7 +107,7 @@ log:
 
 	cfg := config.Get()
 	require.Equal(t, "env-agent", cfg.Name)
-	require.Equal(t, "openrouter", cfg.ModelRouter)
+	require.Equal(t, "openrouter", cfg.ModelProvider)
 	require.Equal(t, "env-key", cfg.ModelKey)
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Model)
 	require.Equal(t, serverURL, cfg.ModelBaseURL)
@@ -115,8 +115,8 @@ log:
 	require.False(t, cfg.LogNoColor)
 }
 
-func TestNewCommand_DefaultsRouterWhenEmpty(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+func TestNewCommand_DefaultsProviderWhenEmpty(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -139,8 +139,8 @@ log:
 	require.EqualError(t, err, "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
 }
 
-func TestNewCommand_DefaultsBaseURLWhenRouterIsImplicit(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+func TestNewCommand_DefaultsBaseURLWhenProviderIsImplicit(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -164,12 +164,12 @@ log:
 	require.NoError(t, err)
 
 	cfg := config.Get()
-	require.Equal(t, "openrouter", cfg.ModelRouter)
+	require.Equal(t, "openrouter", cfg.ModelProvider)
 	require.Equal(t, "https://openrouter.ai/api/v1", cfg.ModelBaseURL)
 }
 
-func TestNewCommand_UsesMappedBaseURLWhenRouterSetAndBaseURLUnset(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+func TestNewCommand_UsesMappedBaseURLWhenProviderSetAndBaseURLUnset(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -178,7 +178,7 @@ func TestNewCommand_UsesMappedBaseURLWhenRouterSetAndBaseURLUnset(t *testing.T) 
 name: config-agent
 model:
   name: openai/gpt-4o-mini
-  router: openrouter
+  provider: openrouter
   key: config-key
 log:
   level: info
@@ -189,18 +189,18 @@ log:
 		"hand",
 		"--config", configPath,
 		"--rpc.port", nextTestPort(t),
-		"--model.router", "openrouter",
+		"--model.provider", "openrouter",
 		"up",
 	})
 	require.NoError(t, err)
 
 	cfg := config.Get()
-	require.Equal(t, "openrouter", cfg.ModelRouter)
+	require.Equal(t, "openrouter", cfg.ModelProvider)
 	require.Equal(t, "https://openrouter.ai/api/v1", cfg.ModelBaseURL)
 }
 
 func TestNewCommand_FlagsOverrideEnvAndConfig(t *testing.T) {
-	clearEnvKeys(t, "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -211,7 +211,7 @@ func TestNewCommand_FlagsOverrideEnvAndConfig(t *testing.T) {
 	require.NoError(t, os.WriteFile(envPath, []byte(`
 NAME=env-agent
 MODEL=openai/gpt-4o-mini
-MODEL_ROUTER=openrouter
+MODEL_PROVIDER=openrouter
 MODEL_KEY=env-key
 MODEL_BASE_URL=`+serverURL+`
 LOG_LEVEL=warn
@@ -221,7 +221,7 @@ LOG_NO_COLOR=false
 name: config-agent
 model:
   name: openai/gpt-4o-mini
-  router: openrouter
+  provider: openrouter
   key: config-key
   baseUrl: `+serverURL+`
 log:
@@ -236,7 +236,7 @@ log:
 		"--config", configPath,
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
-		"--model.router", "openrouter",
+		"--model.provider", "openrouter",
 		"--model.key", "flag-key",
 		"--model.base-url", serverURL,
 		"--rpc.port", nextTestPort(t),
@@ -248,7 +248,7 @@ log:
 
 	cfg := config.Get()
 	require.Equal(t, "flag-agent", cfg.Name)
-	require.Equal(t, "openrouter", cfg.ModelRouter)
+	require.Equal(t, "openrouter", cfg.ModelProvider)
 	require.Equal(t, "flag-key", cfg.ModelKey)
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Model)
 	require.Equal(t, serverURL, cfg.ModelBaseURL)
@@ -257,7 +257,7 @@ log:
 }
 
 func TestNewCommand_RunsUpCommandExplicitly(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -267,7 +267,7 @@ func TestNewCommand_RunsUpCommandExplicitly(t *testing.T) {
 name: config-agent
 model:
   name: openai/gpt-4o-mini
-  router: openrouter
+  provider: openrouter
   key: config-key
   baseUrl: `+serverURL+`
 log:
@@ -286,7 +286,7 @@ log:
 	cfg := config.Get()
 	require.Equal(t, "config-agent", cfg.Name)
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Model)
-	require.Equal(t, "openrouter", cfg.ModelRouter)
+	require.Equal(t, "openrouter", cfg.ModelProvider)
 	require.Equal(t, "config-key", cfg.ModelKey)
 	require.Equal(t, serverURL, cfg.ModelBaseURL)
 }
@@ -331,7 +331,7 @@ func TestNewCommand_RootActionShowsHelp(t *testing.T) {
 }
 
 func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	cmd := newCommand()
@@ -339,7 +339,7 @@ func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
 		"hand",
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
-		"--model.router", "openrouter",
+		"--model.provider", "openrouter",
 		"--model.key", "flag-key",
 		"doctor",
 	})
@@ -347,7 +347,7 @@ func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
 }
 
 func TestNewCommand_RootActionTreatsUnknownArgsAsChat(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	originalNewChatClient := newChatClient
@@ -383,7 +383,7 @@ func TestNewCommand_RootActionTreatsUnknownArgsAsChat(t *testing.T) {
 }
 
 func TestNewCommand_RootActionForwardsInstruct(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	originalNewChatClient := newChatClient
@@ -408,7 +408,7 @@ func TestNewCommand_RootActionForwardsInstruct(t *testing.T) {
 }
 
 func TestNewCommand_RootActionForwardsSessionID(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	originalNewChatClient := newChatClient
@@ -433,7 +433,7 @@ func TestNewCommand_RootActionForwardsSessionID(t *testing.T) {
 }
 
 func TestNewCommand_RootActionDoesNotForwardConfiguredInstruct(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	originalNewChatClient := newChatClient
@@ -447,7 +447,7 @@ func TestNewCommand_RootActionDoesNotForwardConfiguredInstruct(t *testing.T) {
 name: config-agent
 model:
   name: openai/gpt-4o-mini
-  router: openrouter
+  provider: openrouter
   key: config-key
 instruct: be terse
 `), 0o600))
@@ -489,8 +489,8 @@ func TestNewCommand_RootActionReturnsRPCError(t *testing.T) {
 	require.EqualError(t, err, "rpc error: code = Unavailable desc = connection refused")
 }
 
-func TestNewCommand_RejectsUnsupportedRouter(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+func TestNewCommand_RejectsUnsupportedProvider(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -499,7 +499,7 @@ func TestNewCommand_RejectsUnsupportedRouter(t *testing.T) {
 name: config-agent
 model:
   name: openai/gpt-4o-mini
-  router: anthropic
+  provider: anthropic
   key: config-key
   baseUrl: https://config.example/v1
 `), 0o600))
@@ -511,11 +511,11 @@ model:
 		"--rpc.port", nextTestPort(t),
 		"up",
 	})
-	require.EqualError(t, err, "model router must be one of: openai, openrouter")
+	require.EqualError(t, err, "model provider must be one of: openai, openrouter")
 }
 
-func TestNewCommand_UsesDirectClientWhenRouterIsOpenai(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+func TestNewCommand_UsesDirectClientWhenProviderIsOpenai(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -524,7 +524,7 @@ func TestNewCommand_UsesDirectClientWhenRouterIsOpenai(t *testing.T) {
 name: config-agent
 model:
   name: openai/gpt-4o-mini
-  router: openai
+  provider: openai
   key: config-key
 log:
   level: info
@@ -540,7 +540,7 @@ log:
 	require.NoError(t, err)
 
 	cfg := config.Get()
-	require.Equal(t, "openai", cfg.ModelRouter)
+	require.Equal(t, "openai", cfg.ModelProvider)
 	require.Equal(t, "", cfg.ModelBaseURL)
 }
 

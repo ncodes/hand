@@ -20,14 +20,14 @@ func TestBuild_ReturnsPassingReportForValidConfig(t *testing.T) {
 	report := Build(envPath, configPath, &config.Config{
 		Name:        "test-agent",
 		Model:       "openai/gpt-4o-mini",
-		ModelRouter: "openrouter",
+		ModelProvider: "openrouter",
 		ModelKey:    "test-key",
 		LogLevel:    "info",
 	}, nil)
 
 	require.False(t, report.HasFailures())
 	require.Contains(t, report.Checks, Check{Name: "config validation", Status: StatusPass, Message: "configuration is valid"})
-	require.Contains(t, report.Checks, Check{Name: "model auth", Status: StatusPass, Message: `resolved auth for router "openrouter"`})
+	require.Contains(t, report.Checks, Check{Name: "model auth", Status: StatusPass, Message: `resolved auth for provider "openrouter"`})
 	require.Contains(t, report.Checks, Check{Name: "model base URL", Status: StatusPass, Message: `using "https://openrouter.ai/api/v1"`})
 }
 
@@ -39,11 +39,11 @@ func TestBuild_ReturnsLoadFailureWhenConfigLoadFails(t *testing.T) {
 }
 
 func TestBuild_ReturnsValidationFailureForInvalidConfig(t *testing.T) {
-	// config error: model router must be one of: openai, openrouter
+	// config error: model provider must be one of: openai, openrouter
 	report := Build(".env", "config.yaml", &config.Config{
 		Name:        "test-agent",
 		Model:       "openai/gpt-4o-mini",
-		ModelRouter: "anthropic",
+		ModelProvider: "anthropic",
 		ModelKey:    "test-key",
 		LogLevel:    "info",
 	}, nil)
@@ -56,7 +56,7 @@ func TestBuild_ReturnsBaseURLFailureForInvalidURL(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
 		Name:         "test-agent",
 		Model:        "openai/gpt-4o-mini",
-		ModelRouter:  "openai",
+		ModelProvider:  "openai",
 		ModelKey:     "test-key",
 		ModelBaseURL: "://bad-url",
 		LogLevel:     "info",
@@ -70,7 +70,7 @@ func TestBuild_ReturnsValidationFailureWhileAuthStillPasses(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
 		Name:        "test-agent",
 		Model:       "openai/gpt-4o-mini",
-		ModelRouter: "openrouter",
+		ModelProvider: "openrouter",
 		ModelKey:    "test-key",
 		LogLevel:    "trace",
 	}, nil)
@@ -84,7 +84,7 @@ func TestBuild_ReturnsValidationFailureWhileAuthStillPasses(t *testing.T) {
 	require.Contains(t, report.Checks, Check{
 		Name:    "model auth",
 		Status:  StatusPass,
-		Message: `resolved auth for router "openrouter"`,
+		Message: `resolved auth for provider "openrouter"`,
 	})
 }
 
@@ -92,7 +92,7 @@ func TestBuild_ReturnsModelAuthFailureWhenKeyIsMissing(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
 		Name:        "test-agent",
 		Model:       "openai/gpt-4o-mini",
-		ModelRouter: "openrouter",
+		ModelProvider: "openrouter",
 		LogLevel:    "info",
 	}, nil)
 
@@ -108,7 +108,7 @@ func TestBuild_WarnsForMissingOptionalFiles(t *testing.T) {
 	report := Build("missing.env", "missing.yaml", &config.Config{
 		Name:        "test-agent",
 		Model:       "openai/gpt-4o-mini",
-		ModelRouter: "openai",
+		ModelProvider: "openai",
 		ModelKey:    "test-key",
 		LogLevel:    "info",
 	}, nil)

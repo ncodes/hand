@@ -80,7 +80,7 @@ func Build(envPath, configPath string, cfg *config.Config, loadErr error) Report
 		report.Checks = append(report.Checks, Check{
 			Name:    "model auth",
 			Status:  StatusPass,
-			Message: fmt.Sprintf("resolved auth for router %q", auth.Router),
+			Message: fmt.Sprintf("resolved auth for provider %q", auth.Provider),
 		})
 		report.Checks = append(report.Checks, baseURLCheck(auth.BaseURL))
 	}

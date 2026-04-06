@@ -86,7 +86,7 @@ func renderStartupPanel(cfg *config.Config) string {
 		lines = append(lines, fmt.Sprintf("%s %s", styleLabel("Summary model", cfg.LogNoColor), cfg.SummaryModelEffective()))
 	}
 	lines = append(lines,
-		fmt.Sprintf("%s %s", styleLabel("Router", cfg.LogNoColor), cfg.ModelRouter),
+		fmt.Sprintf("%s %s", styleLabel("Provider", cfg.LogNoColor), cfg.ModelProvider),
 		fmt.Sprintf("%s %s", styleLabel("RPC", cfg.LogNoColor), fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort)),
 		fmt.Sprintf("%s %s", styleLabel("Logs", cfg.LogNoColor), fmt.Sprintf("%s (%s)", cfg.LogLevel, logStyle)),
 		fmt.Sprintf("%s %s", styleLabel("Debug requests", cfg.LogNoColor), debugRequests),
@@ -204,7 +204,7 @@ func NewCommand() *cli.Command {
 			log.Info().
 				Str("name", cfg.Name).
 				Str("model", cfg.Model).
-				Str("router", cfg.ModelRouter).
+				Str("provider", cfg.ModelProvider).
 				Msg("Configuration loaded")
 
 			startupLog := log.Info().

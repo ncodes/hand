@@ -32,7 +32,7 @@ func TestNewCommand_PrintsPassingReport(t *testing.T) {
 		"hand",
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
-		"--model.router", "openrouter",
+		"--model.provider", "openrouter",
 		"--model.key", "flag-key",
 		"doctor",
 	})
@@ -76,7 +76,7 @@ func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
 		"hand",
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
-		"--model.router", "openrouter",
+		"--model.provider", "openrouter",
 		"--model.key", "flag-key",
 		"--log.no-color",
 		"doctor",

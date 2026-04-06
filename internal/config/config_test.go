@@ -33,7 +33,7 @@ func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestPreloadEnvFile_LoadsValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL",
 		"LOG_NO_COLOR", "DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET",
 		"AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
@@ -43,7 +43,7 @@ func TestPreloadEnvFile_LoadsValues(t *testing.T) {
 	require.NoError(t, os.WriteFile(envPath, []byte(`
 NAME=env-agent
 MODEL=env-model
-MODEL_ROUTER=openrouter
+MODEL_PROVIDER=openrouter
 MODEL_KEY=env-key
 OPENAI_API_KEY=openai-env-key
 OPENROUTER_API_KEY=openrouter-env-key
@@ -67,7 +67,7 @@ AGENT_CAP_BROWSER=true
 	require.NoError(t, PreloadEnvFile(envPath))
 	require.Equal(t, "env-agent", os.Getenv("NAME"))
 	require.Equal(t, "env-model", os.Getenv("MODEL"))
-	require.Equal(t, "openrouter", os.Getenv("MODEL_ROUTER"))
+	require.Equal(t, "openrouter", os.Getenv("MODEL_PROVIDER"))
 	require.Equal(t, "env-key", os.Getenv("MODEL_KEY"))
 	require.Equal(t, "openai-env-key", os.Getenv("OPENAI_API_KEY"))
 	require.Equal(t, "openrouter-env-key", os.Getenv("OPENROUTER_API_KEY"))
@@ -152,7 +152,7 @@ func TestLoad_ReturnsPreloadEnvFileError(t *testing.T) {
 }
 
 func TestLoad_UsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
 
@@ -162,7 +162,7 @@ func TestLoad_UsesConfigFileValues(t *testing.T) {
 name: config-agent
 model:
   name: config-model
-  router: openrouter
+  provider: openrouter
   key: config-key
   baseUrl: https://config.example/v1
 rpc:
@@ -193,7 +193,7 @@ rules:
 	require.NoError(t, err)
 	require.Equal(t, "config-agent", cfg.Name)
 	require.Equal(t, "config-model", cfg.Model)
-	require.Equal(t, "openrouter", cfg.ModelRouter)
+	require.Equal(t, "openrouter", cfg.ModelProvider)
 	require.Equal(t, "config-key", cfg.ModelKey)
 	require.Equal(t, "https://config.example/v1", cfg.ModelBaseURL)
 	require.Equal(t, "0.0.0.0", cfg.RPCAddress)
@@ -213,7 +213,7 @@ rules:
 }
 
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
 
@@ -223,7 +223,7 @@ func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(envPath, []byte(`
 NAME=env-agent
 MODEL=env-model
-MODEL_ROUTER=openrouter
+MODEL_PROVIDER=openrouter
 MODEL_KEY=env-key
 MODEL_BASE_URL=https://env.example/v1
 RPC_ADDRESS=127.0.0.1
@@ -245,7 +245,7 @@ AGENT_CAP_BROWSER=false
 name: config-agent
 model:
   name: config-model
-  router: openrouter
+  provider: openrouter
   key: config-key
   baseUrl: https://config.example/v1
 rpc:
@@ -275,7 +275,7 @@ rules:
 	require.NoError(t, err)
 	require.Equal(t, "env-agent", cfg.Name)
 	require.Equal(t, "env-model", cfg.Model)
-	require.Equal(t, "openrouter", cfg.ModelRouter)
+	require.Equal(t, "openrouter", cfg.ModelProvider)
 	require.Equal(t, "env-key", cfg.ModelKey)
 	require.Equal(t, "https://env.example/v1", cfg.ModelBaseURL)
 	require.Equal(t, "127.0.0.1", cfg.RPCAddress)
@@ -305,7 +305,7 @@ func TestLoad_UsesOpenRouterModelMetadataWhenContextLengthIsUnset(t *testing.T) 
 name: config-agent
 model:
   name: openai/gpt-4o-mini
-  router: openrouter
+  provider: openrouter
   key: config-key
 rpc:
   address: 127.0.0.1
@@ -330,7 +330,7 @@ func TestLoad_UsesProviderMetadataWhenConfiguredContextLengthIsTooLarge(t *testi
 name: config-agent
 model:
   name: gpt-4.1-nano
-  router: openai
+  provider: openai
   key: config-key
   contextLength: 999999
 rpc:
@@ -356,7 +356,7 @@ func TestLoad_PreservesSmallerConfiguredContextLengthThanProviderMetadata(t *tes
 name: config-agent
 model:
   name: gpt-4.1-nano
-  router: openai
+  provider: openai
   key: config-key
   contextLength: 32000
 rpc:
@@ -384,7 +384,7 @@ func TestLoad_SkipsProviderModelMetadataWhenVerificationIsDisabled(t *testing.T)
 name: config-agent
 model:
   name: openai/gpt-4o-mini
-  router: openrouter
+  provider: openrouter
   key: config-key
   verifyModel: false
 rpc:
@@ -472,7 +472,7 @@ func TestLoad_IgnoresInvalidMaxIterationsEnvOverride(t *testing.T) {
 name: config-agent
 model:
   name: config-model
-  router: openrouter
+  provider: openrouter
   key: config-key
 rpc:
   address: 127.0.0.1
@@ -489,14 +489,14 @@ log:
 }
 
 func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	cfg, err := Load("", filepath.Join(t.TempDir(), "missing.yaml"))
 
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	require.Equal(t, defaultModel, cfg.Model)
-	require.Equal(t, defaultModelRouter, cfg.ModelRouter)
+	require.Equal(t, defaultModelProvider, cfg.ModelProvider)
 	require.Equal(t, "127.0.0.1", cfg.RPCAddress)
 	require.Equal(t, 50051, cfg.RPCPort)
 	require.Equal(t, defaultMaxIterations, cfg.MaxIterations)
@@ -510,7 +510,7 @@ func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
 }
 
 func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -547,7 +547,7 @@ func TestGet_ReturnsDefaultsWhenConfigIsUnset(t *testing.T) {
 	require.Empty(t, cfg.Name)
 	require.Equal(t, defaultModel, cfg.Model)
 	require.Equal(t, "info", cfg.LogLevel)
-	require.Empty(t, cfg.ModelRouter)
+	require.Empty(t, cfg.ModelProvider)
 	require.Empty(t, cfg.ModelBaseURL)
 	require.Empty(t, cfg.RPCAddress)
 	require.Zero(t, cfg.RPCPort)
@@ -566,7 +566,7 @@ func TestSet_StoresConfigGlobally(t *testing.T) {
 		Set(original)
 	})
 
-	cfg := &Config{Name: "Test Agent", Model: "test-model", ModelRouter: "openai", ModelKey: "test-key", LogLevel: "debug"}
+	cfg := &Config{Name: "Test Agent", Model: "test-model", ModelProvider: "openai", ModelKey: "test-key", LogLevel: "debug"}
 	Set(cfg)
 	require.Same(t, cfg, Get())
 }
@@ -578,8 +578,8 @@ func TestConfig_ValidateRequiresKey(t *testing.T) {
 		LogLevel: "info",
 	}
 	require.EqualError(t, cfg.Validate(), "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
-	require.Equal(t, defaultModelRouter, cfg.ModelRouter)
-	require.Equal(t, supportedRouters[defaultModelRouter], cfg.ModelBaseURL)
+	require.Equal(t, defaultModelProvider, cfg.ModelProvider)
+	require.Equal(t, supportedProviders[defaultModelProvider], cfg.ModelBaseURL)
 }
 
 func TestConfig_ValidateNilConfig(t *testing.T) {
@@ -591,46 +591,46 @@ func TestConfig_ResolveModelAuthUsesOpenRouterSpecificKey(t *testing.T) {
 	cfg := &Config{
 		Name:             "test-agent",
 		Model:            defaultModel,
-		ModelRouter:      "openrouter",
+		ModelProvider:      "openrouter",
 		OpenRouterAPIKey: "openrouter-key",
 	}
 
 	auth, err := cfg.ResolveModelAuth()
 
 	require.NoError(t, err)
-	require.Equal(t, "openrouter", auth.Router)
+	require.Equal(t, "openrouter", auth.Provider)
 	require.Equal(t, "openrouter-key", auth.APIKey)
-	require.Equal(t, supportedRouters["openrouter"], auth.BaseURL)
+	require.Equal(t, supportedProviders["openrouter"], auth.BaseURL)
 }
 
 func TestConfig_ResolveModelAuthUsesOpenAISpecificKey(t *testing.T) {
 	cfg := &Config{
 		Name:         "test-agent",
 		Model:        defaultModel,
-		ModelRouter:  "openai",
+		ModelProvider:  "openai",
 		OpenAIAPIKey: "openai-key",
 	}
 
 	auth, err := cfg.ResolveModelAuth()
 
 	require.NoError(t, err)
-	require.Equal(t, "openai", auth.Router)
+	require.Equal(t, "openai", auth.Provider)
 	require.Equal(t, "openai-key", auth.APIKey)
 	require.Empty(t, auth.BaseURL)
 }
 
-func TestConfig_ResolveModelAuthAcceptsOpenAIRouterAlias(t *testing.T) {
+func TestConfig_ResolveModelAuthAcceptsOpenAIProviderAlias(t *testing.T) {
 	cfg := &Config{
 		Name:         "test-agent",
 		Model:        defaultModel,
-		ModelRouter:  "openai",
+		ModelProvider:  "openai",
 		OpenAIAPIKey: "openai-key",
 	}
 
 	auth, err := cfg.ResolveModelAuth()
 
 	require.NoError(t, err)
-	require.Equal(t, "openai", auth.Router)
+	require.Equal(t, "openai", auth.Provider)
 	require.Equal(t, "openai-key", auth.APIKey)
 	require.Empty(t, auth.BaseURL)
 }
@@ -639,7 +639,7 @@ func TestConfig_ResolveModelAuthFallsBackToModelKey(t *testing.T) {
 	cfg := &Config{
 		Name:        "test-agent",
 		Model:       defaultModel,
-		ModelRouter: "openrouter",
+		ModelProvider: "openrouter",
 		ModelKey:    "generic-key",
 	}
 
@@ -657,7 +657,7 @@ func TestConfig_ValidateAllowsProviderSpecificAuthWithoutModelKey(t *testing.T) 
 	cfg := &Config{
 		Name:             "test-agent",
 		Model:            defaultModel,
-		ModelRouter:      "openrouter",
+		ModelProvider:      "openrouter",
 		OpenRouterAPIKey: "openrouter-key",
 		LogLevel:         "info",
 	}
@@ -673,7 +673,7 @@ func TestConfig_ValidateNormalizesFields(t *testing.T) {
 	cfg := &Config{
 		Name:        "  Test Agent  ",
 		Model:       "  openai/test-model  ",
-		ModelRouter: " OpenRouter ",
+		ModelProvider: " OpenRouter ",
 		ModelKey:    "  test-key  ",
 		LogLevel:    " WARN ",
 	}
@@ -681,9 +681,9 @@ func TestConfig_ValidateNormalizesFields(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, "Test Agent", cfg.Name)
 	require.Equal(t, "openai/test-model", cfg.Model)
-	require.Equal(t, "openrouter", cfg.ModelRouter)
+	require.Equal(t, "openrouter", cfg.ModelProvider)
 	require.Equal(t, "test-key", cfg.ModelKey)
-	require.Equal(t, supportedRouters["openrouter"], cfg.ModelBaseURL)
+	require.Equal(t, supportedProviders["openrouter"], cfg.ModelBaseURL)
 	require.Equal(t, "warn", cfg.LogLevel)
 }
 
@@ -706,7 +706,7 @@ func TestConfig_ValidateRejectsModelWithoutOwnerPrefix(t *testing.T) {
 	err := (&Config{
 		Name:        "test-agent",
 		Model:       "gpt-4o-mini",
-		ModelRouter: "openai",
+		ModelProvider: "openai",
 		ModelKey:    "test-key",
 		RPCAddress:  "127.0.0.1",
 		RPCPort:     50051,
@@ -724,7 +724,7 @@ func TestConfig_ValidateRejectsModelWithEmptyOwnerOrName(t *testing.T) {
 			err := (&Config{
 				Name:        "test-agent",
 				Model:       model,
-				ModelRouter: "openai",
+				ModelProvider: "openai",
 				ModelKey:    "test-key",
 				RPCAddress:  "127.0.0.1",
 				RPCPort:     50051,
@@ -736,30 +736,30 @@ func TestConfig_ValidateRejectsModelWithEmptyOwnerOrName(t *testing.T) {
 	}
 }
 
-func TestConfig_ValidateRejectsUnsupportedRouter(t *testing.T) {
+func TestConfig_ValidateRejectsUnsupportedProvider(t *testing.T) {
 	err := (&Config{
 		Name:         "test-agent",
 		Model:        defaultModel,
-		ModelRouter:  "anthropic",
+		ModelProvider:  "anthropic",
 		ModelKey:     "test-key",
-		ModelBaseURL: supportedRouters[defaultModelRouter],
+		ModelBaseURL: supportedProviders[defaultModelProvider],
 		LogLevel:     "info",
 	}).Validate()
-	require.EqualError(t, err, "model router must be one of: openai, openrouter")
+	require.EqualError(t, err, "model provider must be one of: openai, openrouter")
 }
 
-func TestConfig_ValidateRejectsNoneRouter(t *testing.T) {
+func TestConfig_ValidateRejectsNoneProvider(t *testing.T) {
 	err := (&Config{
 		Name:        "test-agent",
 		Model:       defaultModel,
-		ModelRouter: "none",
+		ModelProvider: "none",
 		ModelKey:    "test-key",
 		RPCAddress:  "127.0.0.1",
 		RPCPort:     50051,
 		LogLevel:    "info",
 	}).Validate()
 
-	require.EqualError(t, err, "model router must be one of: openai, openrouter")
+	require.EqualError(t, err, "model provider must be one of: openai, openrouter")
 }
 
 func TestConfig_ValidateRejectsUnknownOpenRouterModel(t *testing.T) {
@@ -770,7 +770,7 @@ func TestConfig_ValidateRejectsUnknownOpenRouterModel(t *testing.T) {
 	err := (&Config{
 		Name:        "test-agent",
 		Model:       "openai/gpt-unknown",
-		ModelRouter: "openrouter",
+		ModelProvider: "openrouter",
 		ModelKey:    "test-key",
 		RPCAddress:  "127.0.0.1",
 		RPCPort:     50051,
@@ -785,7 +785,7 @@ func TestConfig_ValidateRejectsInvalidSummaryModelSlug(t *testing.T) {
 		Name:         "test-agent",
 		Model:        defaultModel,
 		SummaryModel: "gpt-4o-mini",
-		ModelRouter:  "openai",
+		ModelProvider:  "openai",
 		ModelKey:     "test-key",
 		RPCAddress:   "127.0.0.1",
 		RPCPort:      50051,
@@ -808,7 +808,7 @@ func TestConfig_ValidateRejectsUnknownSummaryModel(t *testing.T) {
 		Name:         "test-agent",
 		Model:        defaultModel,
 		SummaryModel: "openai/gpt-unknown-summary",
-		ModelRouter:  "openrouter",
+		ModelProvider:  "openrouter",
 		ModelKey:     "test-key",
 		RPCAddress:   "127.0.0.1",
 		RPCPort:      50051,
@@ -838,7 +838,7 @@ func TestConfig_ValidateReturnsOpenRouterLookupFailure(t *testing.T) {
 	err := (&Config{
 		Name:        "test-agent",
 		Model:       defaultModel,
-		ModelRouter: "openrouter",
+		ModelProvider: "openrouter",
 		ModelKey:    "test-key",
 		RPCAddress:  "127.0.0.1",
 		RPCPort:     50051,
@@ -856,7 +856,7 @@ func TestConfig_ValidateRejectsUnknownOpenAIModel(t *testing.T) {
 	err := (&Config{
 		Name:        "test-agent",
 		Model:       "openai/gpt-unknown",
-		ModelRouter: "openai",
+		ModelProvider: "openai",
 		ModelKey:    "test-key",
 		RPCAddress:  "127.0.0.1",
 		RPCPort:     50051,
@@ -870,14 +870,14 @@ func TestConfig_ValidateRejectsInvalidLogLevel(t *testing.T) {
 	err := (&Config{
 		Name:        "test-agent",
 		Model:       defaultModel,
-		ModelRouter: "openai",
+		ModelProvider: "openai",
 		ModelKey:    "test-key",
 		LogLevel:    "trace",
 	}).Validate()
 	require.EqualError(t, err, "log level must be one of debug, info, warn, or error; use --log.level")
 }
 
-func TestConfig_ValidateAllowsEmptyRouterAndLogLevel(t *testing.T) {
+func TestConfig_ValidateAllowsEmptyProviderAndLogLevel(t *testing.T) {
 	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
 		return ModelMetadata{Exists: true}, nil
 	})
@@ -894,7 +894,7 @@ func TestConfig_ValidateRejectsEmptyRPCAddress(t *testing.T) {
 	cfg := &Config{
 		Name:        "test-agent",
 		Model:       defaultModel,
-		ModelRouter: "openai",
+		ModelProvider: "openai",
 		ModelKey:    "test-key",
 		RPCAddress:  "   ",
 		RPCPort:     50051,
@@ -908,7 +908,7 @@ func TestConfig_ValidateRejectsInvalidRPCPort(t *testing.T) {
 	cfg := &Config{
 		Name:        "test-agent",
 		Model:       defaultModel,
-		ModelRouter: "openai",
+		ModelProvider: "openai",
 		ModelKey:    "test-key",
 		RPCAddress:  "127.0.0.1",
 		RPCPort:     -1,
@@ -922,7 +922,7 @@ func TestConfig_ValidateRejectsInvalidMaxIterations(t *testing.T) {
 	cfg := &Config{
 		Name:          "test-agent",
 		Model:         defaultModel,
-		ModelRouter:   "openai",
+		ModelProvider:   "openai",
 		ModelKey:      "test-key",
 		RPCAddress:    "127.0.0.1",
 		RPCPort:       50051,
@@ -937,7 +937,7 @@ func TestConfig_ValidateRejectsCompactionThresholdsAboveOrEqualOne(t *testing.T)
 	err := (&Config{
 		Name:                     "test-agent",
 		Model:                    defaultModel,
-		ModelRouter:              "openai",
+		ModelProvider:              "openai",
 		ModelKey:                 "test-key",
 		RPCAddress:               "127.0.0.1",
 		RPCPort:                  50051,
@@ -956,7 +956,7 @@ func TestConfig_ValidateRejectsCompactionThresholdsAboveOrEqualOne(t *testing.T)
 	err = (&Config{
 		Name:                     "test-agent",
 		Model:                    defaultModel,
-		ModelRouter:              "openai",
+		ModelProvider:              "openai",
 		ModelKey:                 "test-key",
 		RPCAddress:               "127.0.0.1",
 		RPCPort:                  50051,
@@ -973,14 +973,14 @@ func TestConfig_ValidateRejectsCompactionThresholdsAboveOrEqualOne(t *testing.T)
 	require.EqualError(t, err, "compaction warn percent must be greater than zero and less than one")
 }
 
-func TestConfig_NormalizeDefaultsRouterWhenEmpty(t *testing.T) {
+func TestConfig_NormalizeDefaultsProviderWhenEmpty(t *testing.T) {
 	cfg := &Config{
 		Model:    defaultModel,
 		LogLevel: "info",
 	}
 	cfg.Normalize()
-	require.Equal(t, defaultModelRouter, cfg.ModelRouter)
-	require.Equal(t, supportedRouters[defaultModelRouter], cfg.ModelBaseURL)
+	require.Equal(t, defaultModelProvider, cfg.ModelProvider)
+	require.Equal(t, supportedProviders[defaultModelProvider], cfg.ModelBaseURL)
 }
 
 func TestConfig_NormalizeIgnoresNilReceiver(t *testing.T) {
@@ -993,14 +993,14 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	cfg.Normalize()
 	require.Empty(t, cfg.Name)
 	require.Equal(t, defaultModel, cfg.Model)
-	require.Equal(t, defaultModelRouter, cfg.ModelRouter)
+	require.Equal(t, defaultModelProvider, cfg.ModelProvider)
 	require.Equal(t, "cli", cfg.Platform)
 	require.True(t, boolValue(cfg.CapFilesystem))
 	require.True(t, boolValue(cfg.CapNetwork))
 	require.True(t, boolValue(cfg.CapExec))
 	require.True(t, boolValue(cfg.CapMemory))
 	require.False(t, boolValue(cfg.CapBrowser))
-	require.Equal(t, supportedRouters[defaultModelRouter], cfg.ModelBaseURL)
+	require.Equal(t, supportedProviders[defaultModelProvider], cfg.ModelBaseURL)
 	require.Equal(t, "127.0.0.1", cfg.RPCAddress)
 	require.Equal(t, 50051, cfg.RPCPort)
 	require.Equal(t, defaultMaxIterations, cfg.MaxIterations)
@@ -1038,26 +1038,26 @@ func TestConfig_NormalizeDefaultsUnsetCapabilitiesIndividually(t *testing.T) {
 	require.False(t, boolValue(cfg.CapBrowser))
 }
 
-func TestConfig_NormalizeUsesMappedBaseURLWhenRouterWasExplicitlySet(t *testing.T) {
+func TestConfig_NormalizeUsesMappedBaseURLWhenProviderWasExplicitlySet(t *testing.T) {
 	cfg := &Config{
 		Model:       defaultModel,
-		ModelRouter: defaultModelRouter,
+		ModelProvider: defaultModelProvider,
 		LogLevel:    "info",
 	}
 	cfg.Normalize()
-	require.Equal(t, defaultModelRouter, cfg.ModelRouter)
-	require.Equal(t, supportedRouters[defaultModelRouter], cfg.ModelBaseURL)
+	require.Equal(t, defaultModelProvider, cfg.ModelProvider)
+	require.Equal(t, supportedProviders[defaultModelProvider], cfg.ModelBaseURL)
 }
 
-func TestConfig_NormalizeKeepsOpenaiRouter(t *testing.T) {
+func TestConfig_NormalizeKeepsOpenaiProvider(t *testing.T) {
 	cfg := &Config{
 		Model:       defaultModel,
-		ModelRouter: "openai",
+		ModelProvider: "openai",
 		ModelKey:    "test-key",
 		LogLevel:    "info",
 	}
 	cfg.Normalize()
-	require.Equal(t, "openai", cfg.ModelRouter)
+	require.Equal(t, "openai", cfg.ModelProvider)
 	require.Equal(t, "", cfg.ModelBaseURL)
 }
 
@@ -1065,7 +1065,7 @@ func TestConfig_NormalizeTrimsAndLowercasesFields(t *testing.T) {
 	cfg := &Config{
 		Name:         "  Test Agent  ",
 		Model:        "  test-model  ",
-		ModelRouter:  " OpenRouter ",
+		ModelProvider:  " OpenRouter ",
 		ModelKey:     "  test-key  ",
 		ModelBaseURL: "  https://example.com/v1  ",
 		LogLevel:     " WARN ",
@@ -1073,7 +1073,7 @@ func TestConfig_NormalizeTrimsAndLowercasesFields(t *testing.T) {
 	cfg.Normalize()
 	require.Equal(t, "Test Agent", cfg.Name)
 	require.Equal(t, "test-model", cfg.Model)
-	require.Equal(t, "openrouter", cfg.ModelRouter)
+	require.Equal(t, "openrouter", cfg.ModelProvider)
 	require.Equal(t, "test-key", cfg.ModelKey)
 	require.Equal(t, "https://example.com/v1", cfg.ModelBaseURL)
 	require.Equal(t, "warn", cfg.LogLevel)
@@ -1143,7 +1143,7 @@ func TestResolveModelAuth_CoversDefaultBranchAndNilReceiver(t *testing.T) {
 	require.EqualError(t, err, "config is required")
 
 	cfg = &Config{
-		ModelRouter: "custom",
+		ModelProvider: "custom",
 		ModelKey:    "key",
 	}
 	auth, err := cfg.ResolveModelAuth()
@@ -1206,7 +1206,7 @@ func TestApplyProviderModelMetadata_CoversEarlyReturns(t *testing.T) {
 	cfg = &Config{
 		Model:       defaultModel,
 		VerifyModel: new(true),
-		ModelRouter: "openai",
+		ModelProvider: "openai",
 		ModelKey:    "test-key",
 	}
 	cfg.Normalize()
@@ -1504,7 +1504,7 @@ func TestLoad_UsesModelAPIModeFromConfig(t *testing.T) {
 name: config-agent
 model:
   name: config-model
-  router: openai
+  provider: openai
   key: config-key
   apiMode: responses
 rpc:
@@ -1530,7 +1530,7 @@ func TestLoad_UsesModelAPIModeFromEnvOverride(t *testing.T) {
 name: config-agent
 model:
   name: config-model
-  router: openai
+  provider: openai
   key: config-key
   apiMode: chat-completions
 rpc:
@@ -1549,7 +1549,7 @@ func TestConfig_ValidateRejectsInvalidAPIMode(t *testing.T) {
 	err := (&Config{
 		Name:         "test-agent",
 		Model:        defaultModel,
-		ModelRouter:  "openai",
+		ModelProvider:  "openai",
 		ModelAPIMode: "invalid",
 		ModelKey:     "test-key",
 		RPCAddress:   "127.0.0.1",
@@ -1563,14 +1563,14 @@ func TestConfig_ValidateRejectsResponsesModeWithOpenRouter(t *testing.T) {
 	err := (&Config{
 		Name:         "test-agent",
 		Model:        defaultModel,
-		ModelRouter:  "openrouter",
+		ModelProvider:  "openrouter",
 		ModelAPIMode: "responses",
 		ModelKey:     "test-key",
 		RPCAddress:   "127.0.0.1",
 		RPCPort:      50051,
 		LogLevel:     "info",
 	}).Validate()
-	require.EqualError(t, err, "model api mode 'responses' is only supported with model router 'openai'; use --model.router 'openai' or --model.api-mode 'chat-completions'")
+	require.EqualError(t, err, "model api mode 'responses' is only supported with model provider 'openai'; use --model.provider 'openai' or --model.api-mode 'chat-completions'")
 }
 
 func TestLoad_UsesDebugTraceSettingsFromConfig(t *testing.T) {
@@ -1582,7 +1582,7 @@ func TestLoad_UsesDebugTraceSettingsFromConfig(t *testing.T) {
 name: config-agent
 model:
   name: config-model
-  router: openai
+  provider: openai
   key: config-key
 rpc:
   address: 127.0.0.1
@@ -1611,7 +1611,7 @@ func TestLoad_UsesDebugTraceSettingsFromEnvOverride(t *testing.T) {
 name: config-agent
 model:
   name: config-model
-  router: openai
+  provider: openai
   key: config-key
 rpc:
   address: 127.0.0.1
@@ -1651,7 +1651,7 @@ func TestLoad_UsesFilesystemRootsAndExecRulesFromConfig(t *testing.T) {
 name: config-agent
 model:
   name: config-model
-  router: openai
+  provider: openai
   key: config-key
 rpc:
   address: 127.0.0.1
@@ -1694,7 +1694,7 @@ func TestLoad_UsesFilesystemRootsAndExecRulesFromEnv(t *testing.T) {
 name: config-agent
 model:
   name: config-model
-  router: openai
+  provider: openai
   key: config-key
 rpc:
   address: 127.0.0.1
@@ -1748,7 +1748,7 @@ func TestConfig_ValidateRejectsInvalidSessionSettings(t *testing.T) {
 	cfg := &Config{
 		Name:                     "daemon",
 		Model:                    "openai/model",
-		ModelRouter:              "openrouter",
+		ModelProvider:              "openrouter",
 		ModelKey:                 "key",
 		ModelBaseURL:             "https://example.com",
 		ModelAPIMode:             DefaultModelAPIMode,
@@ -1809,7 +1809,7 @@ func TestConfig_ValidateRejectsInvalidCompactionSettings(t *testing.T) {
 		Name:                     "daemon",
 		Model:                    "openai/model",
 		ContextLength:            128000,
-		ModelRouter:              "openrouter",
+		ModelProvider:              "openrouter",
 		ModelKey:                 "key",
 		ModelBaseURL:             "https://example.com",
 		ModelAPIMode:             DefaultModelAPIMode,
