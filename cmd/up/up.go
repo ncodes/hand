@@ -87,6 +87,7 @@ func renderStartupPanel(cfg *config.Config) string {
 	}
 	lines = append(lines,
 		fmt.Sprintf("%s %s", styleLabel("Provider", cfg.LogNoColor), cfg.ModelProvider),
+		fmt.Sprintf("%s %t", styleLabel("Streaming", cfg.LogNoColor), cfg.StreamEnabled()),
 		fmt.Sprintf("%s %s", styleLabel("RPC", cfg.LogNoColor), fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort)),
 		fmt.Sprintf("%s %s", styleLabel("Logs", cfg.LogNoColor), fmt.Sprintf("%s (%s)", cfg.LogLevel, logStyle)),
 		fmt.Sprintf("%s %s", styleLabel("Debug requests", cfg.LogNoColor), debugRequests),
@@ -209,6 +210,7 @@ func NewCommand() *cli.Command {
 
 			startupLog := log.Info().
 				Str("rpcEndpoint", fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort)).
+				Bool("streaming", cfg.StreamEnabled()).
 				Bool("debugTraces", cfg.DebugTraces)
 			if cfg.DebugTraces {
 				startupLog = startupLog.Str("debugTraceDir", cfg.DebugTraceDir)

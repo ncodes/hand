@@ -101,6 +101,8 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, startupBuffer.String(), "flag-agent")
 	require.Contains(t, startupBuffer.String(), "RPC")
 	require.Contains(t, startupBuffer.String(), "0.0.0.0:6000")
+	require.Contains(t, startupBuffer.String(), "Streaming")
+	require.Contains(t, startupBuffer.String(), "true")
 	require.Contains(t, startupBuffer.String(), "Debug requests")
 	require.Contains(t, startupBuffer.String(), "disabled")
 	require.Contains(t, startupBuffer.String(), "Traces")
@@ -114,6 +116,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, logOutput, "model=openai/gpt-4o-mini")
 	require.Contains(t, logOutput, "provider=openrouter")
 	require.Contains(t, logOutput, "rpcEndpoint=0.0.0.0:6000")
+	require.Contains(t, logOutput, "streaming=true")
 	require.Contains(t, logOutput, "debugTraces=true")
 	require.Contains(t, logOutput, "debugTraceDir=/tmp/hand-traces")
 	require.NotContains(t, logOutput, "service=hand")
@@ -124,11 +127,12 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	output := renderStartupPanel(&config.Config{
 		Name:          "daemon",
 		Model:         "openai/gpt-4o-mini",
-		ModelProvider:   "openrouter",
+		ModelProvider: "openrouter",
 		RPCAddress:    "127.0.0.1",
 		RPCPort:       50051,
 		LogLevel:      "info",
 		LogNoColor:    true,
+		Stream:        new(false),
 		DebugRequests: true,
 		DebugTraces:   true,
 		DebugTraceDir: "/tmp/hand-traces",
@@ -136,6 +140,7 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 
 	require.NotContains(t, output, "\x1b[90m")
 	require.Contains(t, output, "Instance: daemon")
+	require.Contains(t, output, "Streaming: false")
 	require.Contains(t, output, "Debug requests: enabled")
 	require.Contains(t, output, "Traces: enabled (/tmp/hand-traces)")
 	require.NotContains(t, output, "Ready to accept RPC connections.")
@@ -143,14 +148,14 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 
 func TestRenderStartupPanel_IncludesSummaryModelWhenDistinct(t *testing.T) {
 	output := renderStartupPanel(&config.Config{
-		Name:         "daemon",
-		Model:        "openai/gpt-4o-mini",
-		SummaryModel: "anthropic/claude-3.5-haiku",
-		ModelProvider:  "openrouter",
-		RPCAddress:   "127.0.0.1",
-		RPCPort:      50051,
-		LogLevel:     "info",
-		LogNoColor:   true,
+		Name:          "daemon",
+		Model:         "openai/gpt-4o-mini",
+		SummaryModel:  "anthropic/claude-3.5-haiku",
+		ModelProvider: "openrouter",
+		RPCAddress:    "127.0.0.1",
+		RPCPort:       50051,
+		LogLevel:      "info",
+		LogNoColor:    true,
 	})
 	require.Contains(t, output, "Summary model: anthropic/claude-3.5-haiku")
 }
