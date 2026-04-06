@@ -74,16 +74,22 @@ type ModelMetadata struct {
 }
 
 var (
-	globalConfig       *Config
-	configMu           sync.RWMutex
-	loadDotEnv         = godotenv.Load
-	getwd              = os.Getwd
-	httpClient         = &http.Client{Timeout: 5 * time.Second}
-	modelDocsBaseURL   = "https://developers.openai.com/api/docs/models"
-	resolveModelMeta   = resolveModelMetadataFromProvider
-	supportedProviders = map[string]string{
-		"openrouter": "https://openrouter.ai/api/v1",
-		"openai":     "",
+	globalConfig            *Config
+	configMu                sync.RWMutex
+	loadDotEnv              = godotenv.Load
+	getwd                   = os.Getwd
+	httpClient              = &http.Client{Timeout: 5 * time.Second}
+	modelDocsBaseURL        = "https://developers.openai.com/api/docs/models"
+	resolveModelMeta        = resolveModelMetadataFromProvider
+	providerDefaultBaseURLs = map[string]map[string]string{
+		"openrouter": {
+			DefaultModelAPIMode: "https://openrouter.ai/api/v1",
+			"responses":         "https://openrouter.ai/api/v1/responses",
+		},
+		"openai": {
+			DefaultModelAPIMode: "",
+			"responses":         "",
+		},
 	}
 )
 
@@ -440,7 +446,8 @@ func applyEnvOverrides(cfg *Config) {
 	}
 }
 
-func (c *Config) Normalize() {
+// normalizeFields applies trimming and defaults except default model base URL resolution.
+func (c *Config) normalizeFields() {
 	if c == nil {
 		return
 	}
@@ -545,12 +552,46 @@ func (c *Config) Normalize() {
 	if c.CompactionWarnPercent <= 0 {
 		c.CompactionWarnPercent = 0.95
 	}
+}
 
-	if c.ModelBaseURL == "" {
-		if mappedBaseURL, ok := supportedProviders[c.ModelProvider]; ok {
-			c.ModelBaseURL = mappedBaseURL
-		}
+func (c *Config) applyDefaultModelBaseURL() {
+	if c == nil || c.ModelBaseURL != "" {
+		return
 	}
+
+	if mapped := defaultBaseURLForProvider(c.ModelProvider, c.ModelAPIMode); mapped != "" {
+		c.ModelBaseURL = mapped
+	}
+}
+
+// Normalize trims fields, applies defaults, and resolves default model base URL when unset.
+func (c *Config) Normalize() {
+	if c == nil {
+		return
+	}
+
+	c.normalizeFields()
+	c.applyDefaultModelBaseURL()
+}
+
+func defaultBaseURLForProvider(provider, apiMode string) string {
+	provider = strings.TrimSpace(strings.ToLower(provider))
+	apiMode = strings.TrimSpace(strings.ToLower(apiMode))
+	if apiMode == "" {
+		apiMode = DefaultModelAPIMode
+	}
+
+	modes, ok := providerDefaultBaseURLs[provider]
+	if !ok {
+		return ""
+	}
+
+	u, ok := modes[apiMode]
+	if !ok {
+		return ""
+	}
+
+	return u
 }
 
 func (c *Config) VerifyModelEnabled() bool {
@@ -574,7 +615,7 @@ func (c *Config) SummaryModelEffective() string {
 		return ""
 	}
 
-	c.Normalize()
+	c.normalizeFields()
 	if c.SummaryModel != "" {
 		return c.SummaryModel
 	}
@@ -727,7 +768,7 @@ func (c *Config) Validate() error {
 		return errors.New("summary model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
 	}
 
-	if _, ok := supportedProviders[strings.TrimSpace(strings.ToLower(c.ModelProvider))]; !ok {
+	if _, ok := providerDefaultBaseURLs[strings.TrimSpace(strings.ToLower(c.ModelProvider))]; !ok {
 		return errors.New("model provider must be one of: openai, openrouter")
 	}
 
@@ -753,11 +794,6 @@ func (c *Config) Validate() error {
 	case DefaultModelAPIMode, "responses":
 	default:
 		return errors.New("model api mode must be one of: chat-completions, responses; use --model.api-mode")
-	}
-
-	if c.ModelAPIMode == "responses" && c.ModelProvider == "openrouter" {
-		return errors.New("model api mode 'responses' is only supported with model provider 'openai'; " +
-			"use --model.provider 'openai' or --model.api-mode 'chat-completions'")
 	}
 
 	if c.StorageBackend != "memory" && c.StorageBackend != "sqlite" {
@@ -935,7 +971,7 @@ func fetchOpenRouterModelMetadata(ctx context.Context, baseURL, model, apiKey st
 
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
-		baseURL = supportedProviders["openrouter"]
+		baseURL = defaultBaseURLForProvider("openrouter", DefaultModelAPIMode)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/models", nil)

@@ -602,7 +602,7 @@ func TestConfig_ValidateRequiresKey(t *testing.T) {
 	}
 	require.EqualError(t, cfg.Validate(), "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
 	require.Equal(t, defaultModelProvider, cfg.ModelProvider)
-	require.Equal(t, supportedProviders[defaultModelProvider], cfg.ModelBaseURL)
+	require.Equal(t, defaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode), cfg.ModelBaseURL)
 }
 
 func TestConfig_ValidateNilConfig(t *testing.T) {
@@ -623,7 +623,7 @@ func TestConfig_ResolveModelAuthUsesOpenRouterSpecificKey(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "openrouter", auth.Provider)
 	require.Equal(t, "openrouter-key", auth.APIKey)
-	require.Equal(t, supportedProviders["openrouter"], auth.BaseURL)
+	require.Equal(t, defaultBaseURLForProvider("openrouter", DefaultModelAPIMode), auth.BaseURL)
 }
 
 func TestConfig_ResolveModelAuthUsesOpenAISpecificKey(t *testing.T) {
@@ -706,7 +706,7 @@ func TestConfig_ValidateNormalizesFields(t *testing.T) {
 	require.Equal(t, "openai/test-model", cfg.Model)
 	require.Equal(t, "openrouter", cfg.ModelProvider)
 	require.Equal(t, "test-key", cfg.ModelKey)
-	require.Equal(t, supportedProviders["openrouter"], cfg.ModelBaseURL)
+	require.Equal(t, defaultBaseURLForProvider("openrouter", DefaultModelAPIMode), cfg.ModelBaseURL)
 	require.Equal(t, "warn", cfg.LogLevel)
 }
 
@@ -760,28 +760,15 @@ func TestConfig_ValidateRejectsModelWithEmptyOwnerOrName(t *testing.T) {
 }
 
 func TestConfig_ValidateRejectsUnsupportedProvider(t *testing.T) {
+	openRouterDefault := defaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode)
 	err := (&Config{
 		Name:          "test-agent",
 		Model:         defaultModel,
 		ModelProvider: "anthropic",
 		ModelKey:      "test-key",
-		ModelBaseURL:  supportedProviders[defaultModelProvider],
+		ModelBaseURL:  openRouterDefault,
 		LogLevel:      "info",
 	}).Validate()
-	require.EqualError(t, err, "model provider must be one of: openai, openrouter")
-}
-
-func TestConfig_ValidateRejectsNoneProvider(t *testing.T) {
-	err := (&Config{
-		Name:          "test-agent",
-		Model:         defaultModel,
-		ModelProvider: "none",
-		ModelKey:      "test-key",
-		RPCAddress:    "127.0.0.1",
-		RPCPort:       50051,
-		LogLevel:      "info",
-	}).Validate()
-
 	require.EqualError(t, err, "model provider must be one of: openai, openrouter")
 }
 
@@ -1003,7 +990,7 @@ func TestConfig_NormalizeDefaultsProviderWhenEmpty(t *testing.T) {
 	}
 	cfg.Normalize()
 	require.Equal(t, defaultModelProvider, cfg.ModelProvider)
-	require.Equal(t, supportedProviders[defaultModelProvider], cfg.ModelBaseURL)
+	require.Equal(t, defaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode), cfg.ModelBaseURL)
 }
 
 func TestConfig_NormalizeIgnoresNilReceiver(t *testing.T) {
@@ -1023,7 +1010,7 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	require.True(t, boolValue(cfg.CapExec))
 	require.True(t, boolValue(cfg.CapMemory))
 	require.False(t, boolValue(cfg.CapBrowser))
-	require.Equal(t, supportedProviders[defaultModelProvider], cfg.ModelBaseURL)
+	require.Equal(t, defaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode), cfg.ModelBaseURL)
 	require.Equal(t, "127.0.0.1", cfg.RPCAddress)
 	require.Equal(t, 50051, cfg.RPCPort)
 	require.Equal(t, defaultMaxIterations, cfg.MaxIterations)
@@ -1069,7 +1056,7 @@ func TestConfig_NormalizeUsesMappedBaseURLWhenProviderWasExplicitlySet(t *testin
 	}
 	cfg.Normalize()
 	require.Equal(t, defaultModelProvider, cfg.ModelProvider)
-	require.Equal(t, supportedProviders[defaultModelProvider], cfg.ModelBaseURL)
+	require.Equal(t, defaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode), cfg.ModelBaseURL)
 }
 
 func TestConfig_NormalizeKeepsOpenaiProvider(t *testing.T) {
@@ -1082,6 +1069,32 @@ func TestConfig_NormalizeKeepsOpenaiProvider(t *testing.T) {
 	cfg.Normalize()
 	require.Equal(t, "openai", cfg.ModelProvider)
 	require.Equal(t, "", cfg.ModelBaseURL)
+}
+
+func TestConfig_NormalizeDefaultBaseURLDependsOnAPIMode(t *testing.T) {
+	t.Run("openai uses sdk default for chat-completions and responses", func(t *testing.T) {
+		for _, mode := range []string{DefaultModelAPIMode, "responses"} {
+			cfg := &Config{ModelProvider: "openai", ModelAPIMode: mode}
+			cfg.Normalize()
+			require.Empty(t, cfg.ModelBaseURL, mode)
+		}
+	})
+
+	t.Run("openrouter defaults differ by api mode", func(t *testing.T) {
+		cfgChat := &Config{ModelProvider: "openrouter", ModelAPIMode: DefaultModelAPIMode}
+		cfgChat.Normalize()
+		require.Equal(t, "https://openrouter.ai/api/v1", cfgChat.ModelBaseURL)
+
+		cfgResp := &Config{ModelProvider: "openrouter", ModelAPIMode: "responses"}
+		cfgResp.Normalize()
+		require.Equal(t, "https://openrouter.ai/api/v1/responses", cfgResp.ModelBaseURL)
+	})
+
+	t.Run("unknown api mode does not fall back to default base url", func(t *testing.T) {
+		cfg := &Config{ModelProvider: "openrouter", ModelAPIMode: "future-mode"}
+		cfg.Normalize()
+		require.Empty(t, cfg.ModelBaseURL)
+	})
 }
 
 func TestConfig_NormalizeTrimsAndLowercasesFields(t *testing.T) {
@@ -1582,7 +1595,7 @@ func TestConfig_ValidateRejectsInvalidAPIMode(t *testing.T) {
 	require.EqualError(t, err, "model api mode must be one of: chat-completions, responses; use --model.api-mode")
 }
 
-func TestConfig_ValidateRejectsResponsesModeWithOpenRouter(t *testing.T) {
+func TestConfig_ValidateAllowsResponsesModeWithOpenRouter(t *testing.T) {
 	err := (&Config{
 		Name:          "test-agent",
 		Model:         defaultModel,
@@ -1592,8 +1605,9 @@ func TestConfig_ValidateRejectsResponsesModeWithOpenRouter(t *testing.T) {
 		RPCAddress:    "127.0.0.1",
 		RPCPort:       50051,
 		LogLevel:      "info",
+		VerifyModel:   new(false),
 	}).Validate()
-	require.EqualError(t, err, "model api mode 'responses' is only supported with model provider 'openai'; use --model.provider 'openai' or --model.api-mode 'chat-completions'")
+	require.NoError(t, err)
 }
 
 func TestLoad_UsesDebugTraceSettingsFromConfig(t *testing.T) {
