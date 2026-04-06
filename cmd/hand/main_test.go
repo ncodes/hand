@@ -511,10 +511,10 @@ model:
 		"--rpc.port", nextTestPort(t),
 		"up",
 	})
-	require.EqualError(t, err, "model router must be one of: none, openrouter")
+	require.EqualError(t, err, "model router must be one of: openai, openrouter")
 }
 
-func TestNewCommand_UsesDirectClientWhenRouterIsNone(t *testing.T) {
+func TestNewCommand_UsesDirectClientWhenRouterIsOpenai(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_ROUTER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)
 
@@ -524,7 +524,7 @@ func TestNewCommand_UsesDirectClientWhenRouterIsNone(t *testing.T) {
 name: config-agent
 model:
   name: openai/gpt-4o-mini
-  router: none
+  router: openai
   key: config-key
 log:
   level: info
@@ -540,7 +540,7 @@ log:
 	require.NoError(t, err)
 
 	cfg := config.Get()
-	require.Equal(t, "none", cfg.ModelRouter)
+	require.Equal(t, "openai", cfg.ModelRouter)
 	require.Equal(t, "", cfg.ModelBaseURL)
 }
 

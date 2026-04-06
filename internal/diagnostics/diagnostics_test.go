@@ -39,7 +39,7 @@ func TestBuild_ReturnsLoadFailureWhenConfigLoadFails(t *testing.T) {
 }
 
 func TestBuild_ReturnsValidationFailureForInvalidConfig(t *testing.T) {
-	// config error: model router must be one of: none, openrouter
+	// config error: model router must be one of: openai, openrouter
 	report := Build(".env", "config.yaml", &config.Config{
 		Name:        "test-agent",
 		Model:       "openai/gpt-4o-mini",
@@ -56,7 +56,7 @@ func TestBuild_ReturnsBaseURLFailureForInvalidURL(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
 		Name:         "test-agent",
 		Model:        "openai/gpt-4o-mini",
-		ModelRouter:  "none",
+		ModelRouter:  "openai",
 		ModelKey:     "test-key",
 		ModelBaseURL: "://bad-url",
 		LogLevel:     "info",
@@ -108,7 +108,7 @@ func TestBuild_WarnsForMissingOptionalFiles(t *testing.T) {
 	report := Build("missing.env", "missing.yaml", &config.Config{
 		Name:        "test-agent",
 		Model:       "openai/gpt-4o-mini",
-		ModelRouter: "none",
+		ModelRouter: "openai",
 		ModelKey:    "test-key",
 		LogLevel:    "info",
 	}, nil)

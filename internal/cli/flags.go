@@ -19,7 +19,7 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:   "model.router",
-			Usage:  "Model router identifier",
+			Usage:  "Model router: openrouter (default) or openai",
 			Value:  config.Get().ModelRouter,
 			Hidden: true,
 		},

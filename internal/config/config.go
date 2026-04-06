@@ -82,7 +82,7 @@ var (
 	resolveModelMeta = resolveModelMetadataFromProvider
 	supportedRouters = map[string]string{
 		"openrouter": "https://openrouter.ai/api/v1",
-		"none":       "",
+		"openai":     "",
 	}
 )
 
@@ -442,9 +442,6 @@ func (c *Config) Normalize() {
 	c.Model = strings.TrimSpace(c.Model)
 	c.SummaryModel = strings.TrimSpace(c.SummaryModel)
 	c.ModelRouter = strings.TrimSpace(strings.ToLower(c.ModelRouter))
-	if c.ModelRouter == "openai" {
-		c.ModelRouter = "none"
-	}
 	c.ModelKey = strings.TrimSpace(c.ModelKey)
 	c.OpenAIAPIKey = strings.TrimSpace(c.OpenAIAPIKey)
 	c.OpenRouterAPIKey = strings.TrimSpace(c.OpenRouterAPIKey)
@@ -712,10 +709,8 @@ func (c *Config) Validate() error {
 		return errors.New("summary model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
 	}
 
-	if router := strings.TrimSpace(strings.ToLower(c.ModelRouter)); router != "" {
-		if _, ok := supportedRouters[router]; !ok {
-			return errors.New(`model router must be one of: none, openrouter`)
-		}
+	if _, ok := supportedRouters[strings.TrimSpace(strings.ToLower(c.ModelRouter))]; !ok {
+		return errors.New("model router must be one of: openai, openrouter")
 	}
 
 	auth, err := c.ResolveModelAuth()
@@ -743,8 +738,8 @@ func (c *Config) Validate() error {
 	}
 
 	if c.ModelAPIMode == "responses" && c.ModelRouter == "openrouter" {
-		return errors.New("model api mode 'responses' is only supported with model router 'none'; " +
-			"use --model.router 'none' or --model.api-mode 'chat-completions'")
+		return errors.New("model api mode 'responses' is only supported with model router 'openai'; " +
+			"use --model.router 'openai' or --model.api-mode 'chat-completions'")
 	}
 
 	if c.StorageBackend != "memory" && c.StorageBackend != "sqlite" {
@@ -803,7 +798,7 @@ func (c *Config) ResolveModelAuth() (ModelAuth, error) {
 	switch c.ModelRouter {
 	case "openrouter":
 		auth.APIKey = firstNonEmpty(c.OpenRouterAPIKey, c.ModelKey)
-	case "none":
+	case "openai":
 		auth.APIKey = firstNonEmpty(c.OpenAIAPIKey, c.ModelKey)
 	default:
 		auth.APIKey = c.ModelKey
@@ -907,8 +902,10 @@ func resolveModelMetadataForSlug(ctx context.Context, auth ModelAuth, slug strin
 	switch strings.TrimSpace(strings.ToLower(auth.Router)) {
 	case "openrouter":
 		return fetchOpenRouterModelMetadata(ctx, auth.BaseURL, slug, auth.APIKey)
-	default:
+	case "openai":
 		return fetchOpenAIModelMetadata(ctx, slug)
+	default:
+		return ModelMetadata{}, fmt.Errorf("unsupported model router %q", auth.Router)
 	}
 }
 

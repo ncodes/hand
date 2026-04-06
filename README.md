@@ -72,9 +72,9 @@ Env equivalents:
 
 ### Model Configuration
 
-Supported `model.router` values:
+Supported `model.router` values (default when unset: `openrouter`):
 - `openrouter`: routes model requests through the OpenRouter API
-- `none`: bypasses router configuration and uses the official OpenAI client with its default base URL (https://api.openai.com/v1). This sends requests directly to the OpenAI API.
+- `openai`: uses the official OpenAI client with its default base URL (https://api.openai.com/v1), sending requests directly to the OpenAI API.
 
 Current config direction:
 - put stable defaults in `config.yaml`
@@ -83,7 +83,7 @@ Current config direction:
 
 Typical model settings:
 - `model.name`: provider model slug such as `qwen/qwen3.5-27b`
-- `model.router`: router type such as `openrouter` or `none`
+- `model.router`: `openrouter` or `openai`
 - `model.key`: generic provider or router API key fallback
 - `model.openaiApiKey`: provider-specific OpenAI API key
 - `model.openrouterApiKey`: provider-specific OpenRouter API key
