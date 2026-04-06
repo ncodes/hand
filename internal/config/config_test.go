@@ -693,6 +693,10 @@ func TestConfig_ValidateRequiresName(t *testing.T) {
 }
 
 func TestConfig_ValidateDefaultsModelWhenEmpty(t *testing.T) {
+	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{Exists: true}, nil
+	})
+
 	cfg := &Config{Name: "test-agent", ModelKey: "test-key", LogLevel: "info"}
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, defaultModel, cfg.Model)
@@ -860,6 +864,10 @@ func TestConfig_ValidateRejectsInvalidLogLevel(t *testing.T) {
 }
 
 func TestConfig_ValidateAllowsEmptyRouterAndLogLevel(t *testing.T) {
+	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{Exists: true}, nil
+	})
+
 	err := (&Config{
 		Name:     "test-agent",
 		Model:    defaultModel,
