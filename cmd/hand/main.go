@@ -134,11 +134,24 @@ func newCommand() *cli.Command {
 				instruct = cfg.Instruct
 			}
 
-			reply, err := client.Respond(ctx, message, rpcclient.RespondOptions{
+			opts := rpcclient.RespondOptions{
 				Instruct:  instruct,
 				SessionID: strings.TrimSpace(cmd.String("session")),
-			})
+				Stream:    cfg.Stream,
+			}
+			if cfg.StreamEnabled() {
+				opts.OnEvent = func(event rpcclient.Event) {
+					_, _ = fmt.Fprint(rootOutput, event.Text)
+				}
+			}
+
+			reply, err := client.Respond(ctx, message, opts)
 			if err != nil {
+				return err
+			}
+
+			if cfg.StreamEnabled() {
+				_, err = fmt.Fprintln(rootOutput)
 				return err
 			}
 

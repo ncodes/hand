@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/ssestream"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -791,6 +793,66 @@ func TestOpenAIClient_ChatReturnsResponsesIncompleteErrorWithUnknownReason(t *te
 	require.EqualError(t, err, "response incomplete: unknown")
 }
 
+func TestHandleResponsesStreamEvent_ReturnsFailedTerminalResponse(t *testing.T) {
+	var event responses.ResponseStreamEventUnion
+	require.NoError(t, event.UnmarshalJSON([]byte(`{
+		"type":"response.failed",
+		"sequence_number":1,
+		"response":{
+			"id":"resp_123",
+			"object":"response",
+			"created_at":0,
+			"model":"gpt-5.1",
+			"status":"failed",
+			"error":{"message":"provider failed"},
+			"output":[],
+			"parallel_tool_calls":false,
+			"temperature":1,
+			"tool_choice":"auto",
+			"tools":[],
+			"top_p":1,
+			"text":{"format":{"type":"text"}}
+		}
+	}`)))
+
+	_, terminal, err := handleResponsesStreamEvent(event)
+
+	require.NoError(t, err)
+	require.NotNil(t, terminal)
+	require.Equal(t, responses.ResponseStatusFailed, terminal.Status)
+	require.Equal(t, "provider failed", terminal.Error.Message)
+}
+
+func TestHandleResponsesStreamEvent_ReturnsIncompleteTerminalResponse(t *testing.T) {
+	var event responses.ResponseStreamEventUnion
+	require.NoError(t, event.UnmarshalJSON([]byte(`{
+		"type":"response.incomplete",
+		"sequence_number":1,
+		"response":{
+			"id":"resp_123",
+			"object":"response",
+			"created_at":0,
+			"model":"gpt-5.1",
+			"status":"incomplete",
+			"incomplete_details":{"reason":"max_output_tokens"},
+			"output":[],
+			"parallel_tool_calls":false,
+			"temperature":1,
+			"tool_choice":"auto",
+			"tools":[],
+			"top_p":1,
+			"text":{"format":{"type":"text"}}
+		}
+	}`)))
+
+	_, terminal, err := handleResponsesStreamEvent(event)
+
+	require.NoError(t, err)
+	require.NotNil(t, terminal)
+	require.Equal(t, responses.ResponseStatusIncomplete, terminal.Status)
+	require.Equal(t, "max_output_tokens", terminal.IncompleteDetails.Reason)
+}
+
 func TestOpenAIClient_ChatLogsRequestDebugDumpForChatCompletions(t *testing.T) {
 	originalLogger := log.Logger
 	originalLevel := zerolog.GlobalLevel()
@@ -1093,6 +1155,608 @@ func responseOutputItemFromJSON(t *testing.T, raw string) responses.ResponseOutp
 	var item responses.ResponseOutputItemUnion
 	require.NoError(t, json.Unmarshal([]byte(raw), &item))
 	return item
+}
+
+func newChatStreamServer(t *testing.T, chunks []string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		for _, chunk := range chunks {
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", chunk)
+		}
+		_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+}
+
+func newResponsesStreamServer(t *testing.T, events []string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		for _, event := range events {
+			var parsed map[string]any
+			require.NoError(t, json.Unmarshal([]byte(event), &parsed))
+			eventType := parsed["type"].(string)
+			_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, event)
+		}
+		_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+}
+
+func chatStreamRequest() Request {
+	return Request{
+		Model:    "test-model",
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+	}
+}
+
+func responsesStreamRequest() Request {
+	return Request{
+		Model:    "gpt-5.1",
+		APIMode:  APIModeResponses,
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+	}
+}
+
+func TestOpenAIClient_CompleteStreamDelegatesWithStreamFlag(t *testing.T) {
+	server := newChatStreamServer(t, []string{
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","content":"hi"}}]}`,
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1,"total_tokens":6}}`,
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{createChatStream: caller}
+
+	var deltas []StreamDelta
+	resp, err := client.CompleteStream(context.Background(), chatStreamRequest(), func(delta StreamDelta) {
+		deltas = append(deltas, delta)
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "hi", resp.OutputText)
+	require.Equal(t, []StreamDelta{{Channel: StreamChannelAssistant, Text: "hi"}}, deltas)
+	require.Equal(t, 5, resp.PromptTokens)
+	require.Equal(t, 1, resp.CompletionTokens)
+	require.Equal(t, 6, resp.TotalTokens)
+}
+
+func TestOpenAIClient_StreamRequiresResponseStreamHandler(t *testing.T) {
+	client := &OpenAIClient{}
+	_, err := client.CompleteStream(context.Background(), responsesStreamRequest(), nil)
+	require.EqualError(t, err, "model client is required")
+}
+
+func TestOpenAIClient_StreamRequiresChatStreamHandler(t *testing.T) {
+	client := &OpenAIClient{}
+	_, err := client.CompleteStream(context.Background(), chatStreamRequest(), nil)
+	require.EqualError(t, err, "model client is required")
+}
+
+func TestOpenAIClient_CompleteChatStreamReturnsResponseAndDeltas(t *testing.T) {
+	server := newChatStreamServer(t, []string{
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","content":"hel"}}]}`,
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{"content":"lo"}}]}`,
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":2,"total_tokens":12}}`,
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{createChatStream: caller}
+
+	var deltas []StreamDelta
+	resp, err := client.CompleteStream(context.Background(), chatStreamRequest(), func(delta StreamDelta) {
+		deltas = append(deltas, delta)
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "hello", resp.OutputText)
+	require.Equal(t, []StreamDelta{
+		{Channel: StreamChannelAssistant, Text: "hel"},
+		{Channel: StreamChannelAssistant, Text: "lo"},
+	}, deltas)
+}
+
+func TestOpenAIClient_CompleteChatStreamSkipsEmptyDeltas(t *testing.T) {
+	server := newChatStreamServer(t, []string{
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","content":""}}]}`,
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{"content":"hi"}}]}`,
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1,"total_tokens":6}}`,
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{createChatStream: caller}
+
+	var deltas []StreamDelta
+	resp, err := client.CompleteStream(context.Background(), chatStreamRequest(), func(delta StreamDelta) {
+		deltas = append(deltas, delta)
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "hi", resp.OutputText)
+	require.Equal(t, []StreamDelta{{Channel: StreamChannelAssistant, Text: "hi"}}, deltas)
+}
+
+func TestOpenAIClient_CompleteChatStreamHandlesNilCallback(t *testing.T) {
+	server := newChatStreamServer(t, []string{
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"}}]}`,
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1,"total_tokens":6}}`,
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{createChatStream: caller}
+
+	resp, err := client.CompleteStream(context.Background(), chatStreamRequest(), nil)
+
+	require.NoError(t, err)
+	require.Equal(t, "ok", resp.OutputText)
+}
+
+func TestOpenAIClient_CompleteChatStreamReturnsNilStreamError(t *testing.T) {
+	client := &OpenAIClient{
+		createChatStream: func(context.Context, openai.ChatCompletionNewParams) *ssestream.Stream[openai.ChatCompletionChunk] {
+			return nil
+		},
+	}
+
+	_, err := client.completeChatStream(context.Background(), openai.ChatCompletionNewParams{}, nil)
+	require.EqualError(t, err, "model response is required")
+}
+
+func TestOpenAIClient_CompleteResponsesStreamReturnsResponseAndDeltas(t *testing.T) {
+	completedResponse := `{
+		"id": "resp_123",
+		"object": "response",
+		"created_at": 0,
+		"model": "gpt-5.1",
+		"output": [
+			{
+				"id": "msg_123",
+				"type": "message",
+				"role": "assistant",
+				"status": "completed",
+				"content": [
+					{
+						"type": "output_text",
+						"text": "hello back",
+						"annotations": []
+					}
+				]
+			}
+		],
+		"parallel_tool_calls": false,
+		"temperature": 1,
+		"tool_choice": "auto",
+		"tools": [],
+		"top_p": 1,
+		"status": "completed",
+		"text": {
+			"format": {
+				"type": "text"
+			}
+		}
+	}`
+	server := newResponsesStreamServer(t, []string{
+		`{"type":"response.output_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":"hello "}`,
+		`{"type":"response.output_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":"back"}`,
+		fmt.Sprintf(`{"type":"response.completed","sequence_number":1,"response":%s}`, completedResponse),
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{createResponseStream: caller}
+
+	var deltas []StreamDelta
+	resp, err := client.CompleteStream(context.Background(), responsesStreamRequest(), func(delta StreamDelta) {
+		deltas = append(deltas, delta)
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "hello back", resp.OutputText)
+	require.Equal(t, []StreamDelta{
+		{Channel: StreamChannelAssistant, Text: "hello "},
+		{Channel: StreamChannelAssistant, Text: "back"},
+	}, deltas)
+}
+
+func TestOpenAIClient_CompleteResponsesStreamReturnsNilStreamError(t *testing.T) {
+	client := &OpenAIClient{
+		createResponseStream: func(context.Context, responses.ResponseNewParams) *ssestream.Stream[responses.ResponseStreamEventUnion] {
+			return nil
+		},
+	}
+
+	_, err := client.completeResponsesStream(context.Background(), responses.ResponseNewParams{}, nil)
+	require.EqualError(t, err, "model response is required")
+}
+
+func TestOpenAIClient_CompleteResponsesStreamRequiresFinalResponse(t *testing.T) {
+	server := newResponsesStreamServer(t, []string{
+		`{"type":"response.output_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":"hello"}`,
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{createResponseStream: caller}
+
+	_, err := client.CompleteStream(context.Background(), responsesStreamRequest(), nil)
+	require.EqualError(t, err, "model response is required")
+}
+
+func TestOpenAIClient_CompleteResponsesStreamSkipsEmptyTextDeltas(t *testing.T) {
+	completedResponse := `{
+		"id": "resp_123",
+		"object": "response",
+		"created_at": 0,
+		"model": "gpt-5.1",
+		"output": [
+			{
+				"id": "msg_123",
+				"type": "message",
+				"role": "assistant",
+				"status": "completed",
+				"content": [
+					{
+						"type": "output_text",
+						"text": "ok",
+						"annotations": []
+					}
+				]
+			}
+		],
+		"parallel_tool_calls": false,
+		"temperature": 1,
+		"tool_choice": "auto",
+		"tools": [],
+		"top_p": 1,
+		"status": "completed",
+		"text": {
+			"format": {
+				"type": "text"
+			}
+		}
+	}`
+	server := newResponsesStreamServer(t, []string{
+		`{"type":"response.output_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":""}`,
+		`{"type":"response.output_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":"ok"}`,
+		fmt.Sprintf(`{"type":"response.completed","sequence_number":1,"response":%s}`, completedResponse),
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{createResponseStream: caller}
+
+	var deltas []StreamDelta
+	resp, err := client.CompleteStream(context.Background(), responsesStreamRequest(), func(delta StreamDelta) {
+		deltas = append(deltas, delta)
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "ok", resp.OutputText)
+	require.Equal(t, []StreamDelta{{Channel: StreamChannelAssistant, Text: "ok"}}, deltas)
+}
+
+func TestHandleResponsesStreamEvent_ReturnsOutputTextDelta(t *testing.T) {
+	var event responses.ResponseStreamEventUnion
+	require.NoError(t, event.UnmarshalJSON([]byte(`{"type":"response.output_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":"hello"}`)))
+
+	delta, terminal, err := handleResponsesStreamEvent(event)
+
+	require.NoError(t, err)
+	require.Nil(t, terminal)
+	require.Equal(t, StreamDelta{Channel: StreamChannelAssistant, Text: "hello"}, delta)
+}
+
+func TestHandleResponsesStreamEvent_ReturnsReasoningTextDelta(t *testing.T) {
+	var event responses.ResponseStreamEventUnion
+	require.NoError(t, event.UnmarshalJSON([]byte(`{"type":"response.reasoning_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":"thinking..."}`)))
+
+	delta, terminal, err := handleResponsesStreamEvent(event)
+
+	require.NoError(t, err)
+	require.Nil(t, terminal)
+	require.Equal(t, StreamDelta{Channel: StreamChannelReasoning, Text: "thinking..."}, delta)
+}
+
+func TestHandleResponsesStreamEvent_ReturnsReasoningSummaryTextDelta(t *testing.T) {
+	var event responses.ResponseStreamEventUnion
+	require.NoError(t, event.UnmarshalJSON([]byte(`{"type":"response.reasoning_summary_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":"summary"}`)))
+
+	delta, terminal, err := handleResponsesStreamEvent(event)
+
+	require.NoError(t, err)
+	require.Nil(t, terminal)
+	require.Equal(t, StreamDelta{Channel: StreamChannelReasoning, Text: "summary"}, delta)
+}
+
+func TestHandleResponsesStreamEvent_ReturnsCompletedTerminalResponse(t *testing.T) {
+	var event responses.ResponseStreamEventUnion
+	require.NoError(t, event.UnmarshalJSON([]byte(`{
+		"type":"response.completed",
+		"sequence_number":1,
+		"response":{
+			"id":"resp_123",
+			"object":"response",
+			"created_at":0,
+			"model":"gpt-5.1",
+			"status":"completed",
+			"output":[{"id":"msg_123","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"done","annotations":[]}]}],
+			"parallel_tool_calls":false,
+			"temperature":1,
+			"tool_choice":"auto",
+			"tools":[],
+			"top_p":1,
+			"text":{"format":{"type":"text"}}
+		}
+	}`)))
+
+	_, terminal, err := handleResponsesStreamEvent(event)
+
+	require.NoError(t, err)
+	require.NotNil(t, terminal)
+	require.Equal(t, responses.ResponseStatusCompleted, terminal.Status)
+}
+
+func TestHandleResponsesStreamEvent_ReturnsErrorWithMessage(t *testing.T) {
+	var event responses.ResponseStreamEventUnion
+	require.NoError(t, event.UnmarshalJSON([]byte(`{"type":"error","code":"server_error","message":"something broke"}`)))
+
+	_, _, err := handleResponsesStreamEvent(event)
+
+	require.EqualError(t, err, "something broke")
+}
+
+func TestHandleResponsesStreamEvent_ReturnsErrorWithDefaultMessage(t *testing.T) {
+	var event responses.ResponseStreamEventUnion
+	require.NoError(t, event.UnmarshalJSON([]byte(`{"type":"error","code":"server_error","message":""}`)))
+
+	_, _, err := handleResponsesStreamEvent(event)
+
+	require.EqualError(t, err, "response failed")
+}
+
+func TestHandleResponsesStreamEvent_ReturnsEmptyForUnknownEvent(t *testing.T) {
+	var event responses.ResponseStreamEventUnion
+	require.NoError(t, event.UnmarshalJSON([]byte(`{"type":"response.created","sequence_number":0,"response":{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","status":"in_progress","output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"text":{"format":{"type":"text"}}}}`)))
+
+	delta, terminal, err := handleResponsesStreamEvent(event)
+
+	require.NoError(t, err)
+	require.Nil(t, terminal)
+	require.Equal(t, StreamDelta{}, delta)
+}
+
+func TestNormalizeStructuredOutput_ReturnsNilForEmptyName(t *testing.T) {
+	result := normalizeStructuredOutput(&StructuredOutput{
+		Name:   "   ",
+		Schema: map[string]any{"type": "object"},
+	})
+	require.Nil(t, result)
+}
+
+func TestNormalizeStructuredOutput_ReturnsNilForEmptySchema(t *testing.T) {
+	result := normalizeStructuredOutput(&StructuredOutput{
+		Name:   "test",
+		Schema: nil,
+	})
+	require.Nil(t, result)
+}
+
+func TestNormalizeStrictJSONSchema_ReturnsNilForEmptySchema(t *testing.T) {
+	require.Nil(t, normalizeStrictJSONSchema(nil))
+	require.Nil(t, normalizeStrictJSONSchema(map[string]any{}))
+}
+
+func TestNormalizeStrictJSONSchemaValue_HandlesArrays(t *testing.T) {
+	input := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"tags": map[string]any{
+				"type":  "array",
+				"items": []any{map[string]any{"type": "string"}, map[string]any{"type": "number"}},
+			},
+		},
+	}
+
+	result := normalizeStrictJSONSchema(input)
+	tags := result["properties"].(map[string]any)["tags"].(map[string]any)
+	items := tags["items"].([]any)
+	require.Len(t, items, 2)
+	require.Equal(t, "string", items[0].(map[string]any)["type"])
+	require.Equal(t, "number", items[1].(map[string]any)["type"])
+}
+
+func TestNormalizeStrictJSONSchemaValue_ReturnsPrimitives(t *testing.T) {
+	result := normalizeStrictJSONSchemaValue("hello")
+	require.Equal(t, "hello", result)
+
+	result = normalizeStrictJSONSchemaValue(42)
+	require.Equal(t, 42, result)
+
+	result = normalizeStrictJSONSchemaValue(true)
+	require.Equal(t, true, result)
+}
+
+func TestIsUnsupportedStrictJSONObjectProperty_ReturnsFalseForEmptySchema(t *testing.T) {
+	require.False(t, isUnsupportedStrictJSONObjectProperty(map[string]any{}))
+}
+
+func TestIsUnsupportedStrictJSONObjectProperty_ReturnsFalseForNonObjectType(t *testing.T) {
+	require.False(t, isUnsupportedStrictJSONObjectProperty(map[string]any{
+		"type":                 "string",
+		"additionalProperties": true,
+	}))
+}
+
+func TestIsUnsupportedStrictJSONObjectProperty_ReturnsFalseWithoutAdditionalProperties(t *testing.T) {
+	require.False(t, isUnsupportedStrictJSONObjectProperty(map[string]any{
+		"type": "object",
+	}))
+}
+
+func TestIsUnsupportedStrictJSONObjectProperty_ReturnsFalseForBoolFalse(t *testing.T) {
+	require.False(t, isUnsupportedStrictJSONObjectProperty(map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+	}))
+}
+
+func TestNewOpenAICompletionStreamCaller_UsesSDKClient(t *testing.T) {
+	server := newChatStreamServer(t, []string{
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"}}]}`,
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`,
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	stream := caller(context.Background(), openai.ChatCompletionNewParams{
+		Model:    openai.ChatModel("test-model"),
+		Messages: []openai.ChatCompletionMessageParamUnion{openai.UserMessage("hello")},
+	})
+
+	require.NotNil(t, stream)
+	require.True(t, stream.Next())
+}
+
+func TestNewOpenAIResponseStreamCaller_UsesSDKClient(t *testing.T) {
+	completedResponse := `{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","output":[{"id":"msg_123","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok","annotations":[]}]}],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"completed","text":{"format":{"type":"text"}}}`
+	server := newResponsesStreamServer(t, []string{
+		fmt.Sprintf(`{"type":"response.completed","sequence_number":1,"response":%s}`, completedResponse),
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	stream := caller(context.Background(), responses.ResponseNewParams{
+		Model: "gpt-5.1",
+		Input: responses.ResponseNewParamsInputUnion{OfString: openai.String("hello")},
+	})
+
+	require.NotNil(t, stream)
+	require.True(t, stream.Next())
+}
+
+func TestOpenAIClient_StreamLogsDebugDumpForChatCompletions(t *testing.T) {
+	originalLogger := log.Logger
+	originalLevel := zerolog.GlobalLevel()
+	t.Cleanup(func() {
+		log.Logger = originalLogger
+		zerolog.SetGlobalLevel(originalLevel)
+	})
+
+	buf := &bytes.Buffer{}
+	log.Logger = zerolog.New(buf)
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+
+	server := newChatStreamServer(t, []string{
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"}}]}`,
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`,
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{createChatStream: caller}
+
+	_, err := client.CompleteStream(context.Background(), Request{
+		Model:         "test-model",
+		Messages:      []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		DebugRequests: true,
+	}, nil)
+	require.NoError(t, err)
+	require.Contains(t, buf.String(), `"mode":"chat-completions"`)
+}
+
+func TestOpenAIClient_StreamLogsDebugDumpForResponses(t *testing.T) {
+	originalLogger := log.Logger
+	originalLevel := zerolog.GlobalLevel()
+	t.Cleanup(func() {
+		log.Logger = originalLogger
+		zerolog.SetGlobalLevel(originalLevel)
+	})
+
+	buf := &bytes.Buffer{}
+	log.Logger = zerolog.New(buf)
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+
+	completedResponse := `{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","output":[{"id":"msg_123","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok","annotations":[]}]}],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"completed","text":{"format":{"type":"text"}}}`
+	server := newResponsesStreamServer(t, []string{
+		fmt.Sprintf(`{"type":"response.completed","sequence_number":1,"response":%s}`, completedResponse),
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{createResponseStream: caller}
+
+	_, err := client.CompleteStream(context.Background(), Request{
+		Model:         "gpt-5.1",
+		APIMode:       APIModeResponses,
+		Messages:      []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		DebugRequests: true,
+	}, nil)
+	require.NoError(t, err)
+	require.Contains(t, buf.String(), `"mode":"responses"`)
+}
+
+func TestOpenAIClient_CompleteChatStreamReturnsStreamError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = fmt.Fprint(w, "data: {invalid json\n\n")
+	}))
+	t.Cleanup(server.Close)
+
+	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{createChatStream: caller}
+
+	_, err := client.CompleteStream(context.Background(), chatStreamRequest(), nil)
+	require.Error(t, err)
+}
+
+func TestOpenAIClient_CompleteResponsesStreamReturnsStreamError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = fmt.Fprint(w, "event: error\ndata: {invalid json\n\n")
+	}))
+	t.Cleanup(server.Close)
+
+	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{createResponseStream: caller}
+
+	_, err := client.CompleteStream(context.Background(), responsesStreamRequest(), nil)
+	require.Error(t, err)
+}
+
+func TestOpenAIClient_CompleteResponsesStreamReturnsEventError(t *testing.T) {
+	server := newResponsesStreamServer(t, []string{
+		`{"type":"error","code":"server_error","message":"upstream broke"}`,
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{createResponseStream: caller}
+
+	_, err := client.CompleteStream(context.Background(), responsesStreamRequest(), nil)
+	require.Error(t, err)
+}
+
+func TestOpenAIClient_CompleteChatStreamReturnsAccumulateError(t *testing.T) {
+	server := newChatStreamServer(t, []string{
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","content":"hi"}}]}`,
+		`{"id":"chatcmpl-DIFFERENT","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{"content":"x"}}]}`,
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{createChatStream: caller}
+
+	_, err := client.CompleteStream(context.Background(), chatStreamRequest(), nil)
+	require.EqualError(t, err, "failed to accumulate chat completion stream")
+}
+
+func TestIsUnsupportedStrictJSONObjectProperty_ReturnsTrueForNonBoolNonMapAdditionalProperties(t *testing.T) {
+	require.True(t, isUnsupportedStrictJSONObjectProperty(map[string]any{
+		"type":                 "object",
+		"additionalProperties": "true",
+	}))
 }
 
 func TestLogRequestDebugDumpRedactsSensitiveFields(t *testing.T) {

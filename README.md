@@ -50,6 +50,7 @@ Config file values:
 - `model.provider`
 - `model.key`
 - `model.baseUrl`
+- `model.stream`
 - `rpc.address`
 - `rpc.port`
 - `log.level`
@@ -64,6 +65,7 @@ Env equivalents:
 - `OPENAI_API_KEY`
 - `OPENROUTER_API_KEY`
 - `MODEL_BASE_URL`
+- `MODEL_STREAM`
 - `RPC_ADDRESS`
 - `RPC_PORT`
 - `LOG_LEVEL`
@@ -88,6 +90,7 @@ Typical model settings:
 - `model.openaiApiKey`: provider-specific OpenAI API key
 - `model.openrouterApiKey`: provider-specific OpenRouter API key
 - `model.baseUrl`: explicit provider base URL when needed
+- `model.stream`: stream assistant text responses during chat requests; defaults to `true`
 - `rpc.address`: interface the daemon binds to
 - `rpc.port`: port the daemon binds to
 - `debug.requests`: emits sanitized model request dumps at debug level
@@ -103,7 +106,7 @@ Typical model settings:
 The daemon exposes a gRPC service defined in [internal/rpc/proto/hand.proto](./internal/rpc/proto/hand.proto).
 
 Current RPC surface:
-- `HandService/Echo`: returns the provided message
+- `HandService/Respond`: streams assistant text deltas and a terminal done event
 
 The generated Go stubs live under [internal/rpc/proto](./internal/rpc/proto), and the service implementation lives in [internal/rpc/service.go](./internal/rpc/service.go).
 

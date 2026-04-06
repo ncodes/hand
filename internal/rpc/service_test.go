@@ -3,11 +3,13 @@ package rpc
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -17,6 +19,32 @@ import (
 	"github.com/wandxy/hand/internal/storage"
 )
 
+type respondStreamServerStub struct {
+	ctx       context.Context
+	events    []*handpb.RespondEvent
+	sendErrAt int
+}
+
+func (s *respondStreamServerStub) Send(event *handpb.RespondEvent) error {
+	if s.sendErrAt > 0 && len(s.events)+1 == s.sendErrAt {
+		return errors.New("send failed")
+	}
+	s.events = append(s.events, event)
+	return nil
+}
+
+func (s *respondStreamServerStub) SetHeader(metadata.MD) error  { return nil }
+func (s *respondStreamServerStub) SendHeader(metadata.MD) error { return nil }
+func (s *respondStreamServerStub) SetTrailer(metadata.MD)       {}
+func (s *respondStreamServerStub) Context() context.Context {
+	if s.ctx != nil {
+		return s.ctx
+	}
+	return context.Background()
+}
+func (s *respondStreamServerStub) SendMsg(any) error { return nil }
+func (s *respondStreamServerStub) RecvMsg(any) error { return io.EOF }
+
 func TestNewService_ReturnsService(t *testing.T) {
 	require.NotNil(t, NewService(nil))
 }
@@ -24,55 +52,244 @@ func TestNewService_ReturnsService(t *testing.T) {
 func TestService_RespondReturnsMessage(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
 	svc := NewService(stub)
+	stream := &respondStreamServerStub{}
 
-	resp, err := svc.Respond(context.Background(), &handpb.RespondRequest{Message: "hello", Instruct: "be terse"})
+	err := svc.Respond(&handpb.RespondRequest{Message: "hello", Instruct: "be terse"}, stream)
 
 	require.NoError(t, err)
 	require.Equal(t, "hello", stub.ChatInput)
 	require.Equal(t, "be terse", stub.RespondOptions.Instruct)
 	require.Empty(t, stub.RespondOptions.SessionID)
-	require.Equal(t, "hello back", resp.Message)
+	require.Equal(t, []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "hello back", Channel: handpb.RespondEvent_ASSISTANT},
+		{Type: handpb.RespondEvent_DONE},
+	}, stream.events)
+}
+
+func TestService_RespondSendsBufferedReplyWhenNotStreamed(t *testing.T) {
+	stub := &bufferedReplyStub{reply: "full reply"}
+	svc := NewService(stub)
+	stream := &respondStreamServerStub{}
+
+	err := svc.Respond(&handpb.RespondRequest{Message: "hello", Id: "ses_1"}, stream)
+
+	require.NoError(t, err)
+	require.Equal(t, "ses_1", stub.capturedSessionID)
+	require.Equal(t, []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "full reply", Channel: handpb.RespondEvent_ASSISTANT},
+		{Type: handpb.RespondEvent_DONE},
+	}, stream.events)
 }
 
 func TestService_RespondReturnsHandlerError(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{RespondErr: errors.New("boom")}
 	svc := NewService(stub)
+	stream := &respondStreamServerStub{}
 
-	resp, err := svc.Respond(context.Background(), &handpb.RespondRequest{Message: "hello"})
+	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
 
-	require.Equal(t, codes.Internal, status.Code(err))
-	require.Equal(t, "boom", status.Convert(err).Message())
-	require.Nil(t, resp)
+	require.NoError(t, err)
+	require.Equal(t, []*handpb.RespondEvent{{Type: handpb.RespondEvent_ERROR, Error: "boom"}}, stream.events)
 }
 
 func TestService_RespondRejectsNilRequest(t *testing.T) {
 	svc := NewService(&agentstub.AgentServiceStub{})
+	stream := &respondStreamServerStub{}
 
-	resp, err := svc.Respond(context.Background(), nil)
+	err := svc.Respond(nil, stream)
 
 	require.Equal(t, codes.InvalidArgument, status.Code(err))
 	require.Equal(t, "respond request is required", status.Convert(err).Message())
-	require.Nil(t, resp)
 }
 
 func TestService_RespondRejectsMissingHandler(t *testing.T) {
 	svc := NewService(nil)
+	stream := &respondStreamServerStub{}
 
-	resp, err := svc.Respond(context.Background(), &handpb.RespondRequest{Message: "hello"})
+	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
 
 	require.Equal(t, codes.Internal, status.Code(err))
-	require.Equal(t, "chat handler is required", status.Convert(err).Message())
-	require.Nil(t, resp)
+	require.Equal(t, "agent handler is required", status.Convert(err).Message())
 }
 
 func TestService_RespondRejectsNilReceiver(t *testing.T) {
 	var svc *Service
+	stream := &respondStreamServerStub{}
 
-	resp, err := svc.Respond(context.Background(), &handpb.RespondRequest{Message: "hello"})
+	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
 
 	require.Equal(t, codes.Internal, status.Code(err))
 	require.Equal(t, "service is required", status.Convert(err).Message())
-	require.Nil(t, resp)
+}
+
+func TestService_RespondStreamsDeltas(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{Reply: "hello back", Deltas: []string{"hello ", "back"}}
+	svc := NewService(stub)
+	stream := &respondStreamServerStub{}
+
+	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+
+	require.NoError(t, err)
+	require.Equal(t, []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "hello ", Channel: handpb.RespondEvent_ASSISTANT},
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "back", Channel: handpb.RespondEvent_ASSISTANT},
+		{Type: handpb.RespondEvent_DONE},
+	}, stream.events)
+}
+
+func TestService_RespondForwardsStreamOverride(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+	svc := NewService(stub)
+	stream := &respondStreamServerStub{}
+	streaming := false
+
+	err := svc.Respond(&handpb.RespondRequest{Message: "hello", Stream: &streaming}, stream)
+
+	require.NoError(t, err)
+	require.NotNil(t, stub.RespondOptions.Stream)
+	require.False(t, *stub.RespondOptions.Stream)
+}
+
+func TestService_RespondReturnsStreamSendErrorForDelta(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{Reply: "hello back", Deltas: []string{"hello "}}
+	svc := NewService(stub)
+	stream := &respondStreamServerStub{sendErrAt: 1}
+
+	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+
+	require.EqualError(t, err, "send failed")
+}
+
+func TestService_RespondReturnsStreamSendErrorForErrorEvent(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{RespondErr: errors.New("boom")}
+	svc := NewService(stub)
+	stream := &respondStreamServerStub{sendErrAt: 1}
+
+	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+
+	require.EqualError(t, err, "send failed")
+}
+
+func TestService_RespondSkipsStreamEventsAfterSendFailure(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{Reply: "ignored", Deltas: []string{"first", "second"}}
+	svc := NewService(stub)
+	stream := &respondStreamServerStub{sendErrAt: 1}
+
+	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+
+	require.EqualError(t, err, "send failed")
+	require.Len(t, stream.events, 0)
+}
+
+func TestService_RespondReturnsStreamSendErrorOnSecondDelta(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{Reply: "back", Deltas: []string{"a", "b"}}
+	svc := NewService(stub)
+	stream := &respondStreamServerStub{sendErrAt: 2}
+
+	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+
+	require.EqualError(t, err, "send failed")
+	require.Equal(t, []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "a", Channel: handpb.RespondEvent_ASSISTANT},
+	}, stream.events)
+}
+
+func TestService_RespondReturnsStreamSendErrorForBufferedReply(t *testing.T) {
+	stub := &bufferedReplyStub{reply: "only reply"}
+	svc := NewService(stub)
+	stream := &respondStreamServerStub{sendErrAt: 1}
+
+	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+
+	require.EqualError(t, err, "send failed")
+	require.Empty(t, stream.events)
+}
+
+func TestService_RespondReturnsStreamSendErrorForDone(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{Reply: "done", Deltas: []string{"a", "b"}}
+	svc := NewService(stub)
+	stream := &respondStreamServerStub{sendErrAt: 3}
+
+	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+
+	require.EqualError(t, err, "send failed")
+	require.Equal(t, []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "a", Channel: handpb.RespondEvent_ASSISTANT},
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "b", Channel: handpb.RespondEvent_ASSISTANT},
+	}, stream.events)
+}
+
+func TestService_RespondMapsStreamChannelFromAgent(t *testing.T) {
+	t.Run("reasoning", func(t *testing.T) {
+		stub := &channelRespondStub{channel: "reasoning", text: "think"}
+		svc := NewService(stub)
+		stream := &respondStreamServerStub{}
+
+		err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+
+		require.NoError(t, err)
+		require.Equal(t, handpb.RespondEvent_REASONING, stream.events[0].GetChannel())
+	})
+
+	t.Run("assistant default", func(t *testing.T) {
+		stub := &channelRespondStub{channel: "assistant", text: "hi"}
+		svc := NewService(stub)
+		stream := &respondStreamServerStub{}
+
+		err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+
+		require.NoError(t, err)
+		require.Equal(t, handpb.RespondEvent_ASSISTANT, stream.events[0].GetChannel())
+	})
+
+	t.Run("unknown maps to assistant", func(t *testing.T) {
+		stub := &channelRespondStub{channel: "other", text: "x"}
+		svc := NewService(stub)
+		stream := &respondStreamServerStub{}
+
+		err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+
+		require.NoError(t, err)
+		require.Equal(t, handpb.RespondEvent_ASSISTANT, stream.events[0].GetChannel())
+	})
+}
+
+func TestService_RespondMapsGRPCHandlerErrorToErrorEvent(t *testing.T) {
+	grpcErr := status.Error(codes.InvalidArgument, "bad request")
+	stub := &agentstub.AgentServiceStub{RespondErr: grpcErr}
+	svc := NewService(stub)
+	stream := &respondStreamServerStub{}
+
+	err := svc.Respond(&handpb.RespondRequest{Message: "hello"}, stream)
+
+	require.NoError(t, err)
+	require.Equal(t, []*handpb.RespondEvent{{Type: handpb.RespondEvent_ERROR, Error: "bad request"}}, stream.events)
+}
+
+// channelRespondStub emits a single stream event with configurable agent channel name.
+type channelRespondStub struct {
+	agentstub.AgentServiceStub
+	channel string
+	text    string
+}
+
+func (s *channelRespondStub) Respond(_ context.Context, _ string, opts agent.RespondOptions) (string, error) {
+	if opts.OnEvent != nil {
+		opts.OnEvent(agent.Event{Channel: s.channel, Text: s.text})
+	}
+	return "", nil
+}
+
+// bufferedReplyStub returns a final reply without invoking OnEvent (non-streaming path).
+type bufferedReplyStub struct {
+	agentstub.AgentServiceStub
+	reply             string
+	capturedSessionID string
+}
+
+func (s *bufferedReplyStub) Respond(_ context.Context, _ string, opts agent.RespondOptions) (string, error) {
+	s.capturedSessionID = opts.SessionID
+	return s.reply, nil
 }
 
 func TestService_CreateSessionReturnsSummary(t *testing.T) {
@@ -100,7 +317,7 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 
 		resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{})
 
-		requireStatusError(t, err, codes.Internal, "chat handler is required")
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
 	})
 
@@ -150,7 +367,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 
 		resp, err := svc.ListSessions(context.Background(), &handpb.ListSessionsRequest{})
 
-		requireStatusError(t, err, codes.Internal, "chat handler is required")
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
 	})
 
@@ -197,7 +414,7 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 
 		resp, err := svc.UseSession(context.Background(), &handpb.UseSessionRequest{})
 
-		requireStatusError(t, err, codes.Internal, "chat handler is required")
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
 	})
 
@@ -257,7 +474,7 @@ func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
 
 		resp, err := svc.CompactSession(context.Background(), &handpb.CompactSessionRequest{})
 
-		requireStatusError(t, err, codes.Internal, "chat handler is required")
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
 	})
 
@@ -331,7 +548,7 @@ func TestService_GetSessionRejectsInvalidState(t *testing.T) {
 
 		resp, err := svc.GetSession(context.Background(), &handpb.GetSessionRequest{})
 
-		requireStatusError(t, err, codes.Internal, "chat handler is required")
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
 	})
 
@@ -389,7 +606,7 @@ func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {
 
 		resp, err := svc.CurrentSession(context.Background(), &handpb.CurrentSessionRequest{})
 
-		requireStatusError(t, err, codes.Internal, "chat handler is required")
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
 	})
 

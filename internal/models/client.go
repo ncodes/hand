@@ -8,6 +8,19 @@ import (
 
 type Client interface {
 	Complete(ctx context.Context, req Request) (*Response, error)
+	CompleteStream(ctx context.Context, req Request, onTextDelta func(StreamDelta)) (*Response, error)
+}
+
+type StreamChannel string
+
+const (
+	StreamChannelAssistant StreamChannel = "assistant"
+	StreamChannelReasoning StreamChannel = "reasoning"
+)
+
+type StreamDelta struct {
+	Channel StreamChannel
+	Text    string
 }
 
 const (

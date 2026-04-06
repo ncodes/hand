@@ -2,15 +2,17 @@ package proto
 
 import (
 	"context"
+	"io"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 )
 
 type HandServiceClientStub struct {
 	Req         *handpb.RespondRequest
-	Resp        *handpb.RespondResponse
+	Events      []*handpb.RespondEvent
 	Err         error
 	CreateResp  *handpb.CreateSessionResponse
 	CreateReq   *handpb.CreateSessionRequest
@@ -24,9 +26,12 @@ type HandServiceClientStub struct {
 	StatusReq   *handpb.GetSessionRequest
 }
 
-func (s *HandServiceClientStub) Respond(_ context.Context, req *handpb.RespondRequest, _ ...grpc.CallOption) (*handpb.RespondResponse, error) {
+func (s *HandServiceClientStub) Respond(_ context.Context, req *handpb.RespondRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[handpb.RespondEvent], error) {
 	s.Req = req
-	return s.Resp, s.Err
+	if s.Err != nil {
+		return nil, s.Err
+	}
+	return &respondStreamStub{events: s.Events}, nil
 }
 
 func (s *HandServiceClientStub) CreateSession(_ context.Context, req *handpb.CreateSessionRequest, _ ...grpc.CallOption) (*handpb.CreateSessionResponse, error) {
@@ -56,4 +61,42 @@ func (s *HandServiceClientStub) CompactSession(_ context.Context, req *handpb.Co
 func (s *HandServiceClientStub) GetSession(_ context.Context, req *handpb.GetSessionRequest, _ ...grpc.CallOption) (*handpb.GetSessionResponse, error) {
 	s.StatusReq = req
 	return s.StatusResp, s.Err
+}
+
+type respondStreamStub struct {
+	events []*handpb.RespondEvent
+	index  int
+}
+
+func (s *respondStreamStub) Header() (metadata.MD, error) {
+	return metadata.MD{}, nil
+}
+
+func (s *respondStreamStub) Trailer() metadata.MD {
+	return metadata.MD{}
+}
+
+func (s *respondStreamStub) CloseSend() error {
+	return nil
+}
+
+func (s *respondStreamStub) Context() context.Context {
+	return context.Background()
+}
+
+func (s *respondStreamStub) SendMsg(any) error {
+	return nil
+}
+
+func (s *respondStreamStub) RecvMsg(any) error {
+	return nil
+}
+
+func (s *respondStreamStub) Recv() (*handpb.RespondEvent, error) {
+	if s.index >= len(s.events) {
+		return nil, io.EOF
+	}
+	event := s.events[s.index]
+	s.index++
+	return event, nil
 }

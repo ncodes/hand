@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/wandxy/hand/internal/agent"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	"github.com/wandxy/hand/internal/storage"
 	"google.golang.org/grpc/codes"
@@ -26,23 +25,72 @@ func NewService(api agent.ServiceAPI) *Service {
 }
 
 // Respond handles a respond request and returns a response.
-func (s *Service) Respond(ctx context.Context, req *handpb.RespondRequest) (*handpb.RespondResponse, error) {
+func (s *Service) Respond(req *handpb.RespondRequest, stream handpb.HandService_RespondServer) error {
 	if s == nil {
-		return nil, status.Error(codes.Internal, "service is required")
+		return status.Error(codes.Internal, "service is required")
 	}
 	if s.api == nil {
-		return nil, status.Error(codes.Internal, "chat handler is required")
+		return status.Error(codes.Internal, "agent handler is required")
 	}
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "respond request is required")
+		return status.Error(codes.InvalidArgument, "respond request is required")
 	}
 
-	reply, err := s.api.Respond(ctx, req.Message, rpcclient.RespondOptions{Instruct: req.Instruct, SessionID: req.GetId()})
+	ctx := stream.Context()
+	streamed := false
+	var sendErr error
+	opts := agent.RespondOptions{
+		Instruct:  req.Instruct,
+		SessionID: req.GetId(),
+		Stream:    req.Stream,
+		OnEvent: func(event agent.Event) {
+			if sendErr != nil {
+				return
+			}
+			streamed = true
+			sendErr = stream.Send(&handpb.RespondEvent{
+				Type:    handpb.RespondEvent_TEXT_DELTA,
+				Text:    event.Text,
+				Channel: streamChannelFromAgent(event.Channel),
+			})
+		},
+	}
+
+	reply, err := s.api.Respond(ctx, req.Message, opts)
+	if sendErr != nil {
+		return sendErr
+	}
 	if err != nil {
-		return nil, grpcError(err)
+		grpcErr := grpcError(err)
+		if sendErr := stream.Send(&handpb.RespondEvent{
+			Type:  handpb.RespondEvent_ERROR,
+			Error: status.Convert(grpcErr).Message(),
+		}); sendErr != nil {
+			return sendErr
+		}
+		return nil
 	}
 
-	return &handpb.RespondResponse{Message: reply}, nil
+	if !streamed {
+		if err := stream.Send(&handpb.RespondEvent{
+			Type:    handpb.RespondEvent_TEXT_DELTA,
+			Text:    reply,
+			Channel: handpb.RespondEvent_ASSISTANT,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return stream.Send(&handpb.RespondEvent{Type: handpb.RespondEvent_DONE})
+}
+
+func streamChannelFromAgent(channel string) handpb.RespondEvent_Channel {
+	switch strings.TrimSpace(strings.ToLower(channel)) {
+	case "reasoning":
+		return handpb.RespondEvent_REASONING
+	default:
+		return handpb.RespondEvent_ASSISTANT
+	}
 }
 
 func (s *Service) CreateSession(ctx context.Context, req *handpb.CreateSessionRequest) (*handpb.CreateSessionResponse, error) {
@@ -50,7 +98,7 @@ func (s *Service) CreateSession(ctx context.Context, req *handpb.CreateSessionRe
 		return nil, status.Error(codes.Internal, "service is required")
 	}
 	if s.api == nil {
-		return nil, status.Error(codes.Internal, "chat handler is required")
+		return nil, status.Error(codes.Internal, "agent handler is required")
 	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "create session request is required")
@@ -69,7 +117,7 @@ func (s *Service) ListSessions(ctx context.Context, req *handpb.ListSessionsRequ
 		return nil, status.Error(codes.Internal, "service is required")
 	}
 	if s.api == nil {
-		return nil, status.Error(codes.Internal, "chat handler is required")
+		return nil, status.Error(codes.Internal, "agent handler is required")
 	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "list sessions request is required")
@@ -93,7 +141,7 @@ func (s *Service) UseSession(ctx context.Context, req *handpb.UseSessionRequest)
 		return nil, status.Error(codes.Internal, "service is required")
 	}
 	if s.api == nil {
-		return nil, status.Error(codes.Internal, "chat handler is required")
+		return nil, status.Error(codes.Internal, "agent handler is required")
 	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "use session request is required")
@@ -111,7 +159,7 @@ func (s *Service) CurrentSession(ctx context.Context, req *handpb.CurrentSession
 		return nil, status.Error(codes.Internal, "service is required")
 	}
 	if s.api == nil {
-		return nil, status.Error(codes.Internal, "chat handler is required")
+		return nil, status.Error(codes.Internal, "agent handler is required")
 	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "current session request is required")
@@ -133,7 +181,7 @@ func (s *Service) CompactSession(
 		return nil, status.Error(codes.Internal, "service is required")
 	}
 	if s.api == nil {
-		return nil, status.Error(codes.Internal, "chat handler is required")
+		return nil, status.Error(codes.Internal, "agent handler is required")
 	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "compact session request is required")
@@ -159,7 +207,7 @@ func (s *Service) GetSession(ctx context.Context, req *handpb.GetSessionRequest)
 		return nil, status.Error(codes.Internal, "service is required")
 	}
 	if s.api == nil {
-		return nil, status.Error(codes.Internal, "chat handler is required")
+		return nil, status.Error(codes.Internal, "agent handler is required")
 	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "get session request is required")

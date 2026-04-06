@@ -25,6 +25,7 @@ type Config struct {
 	Name                     string
 	Model                    string
 	SummaryModel             string
+	Stream                   *bool
 	ContextLength            int
 	VerifyModel              *bool
 	ModelProvider            string
@@ -73,13 +74,13 @@ type ModelMetadata struct {
 }
 
 var (
-	globalConfig     *Config
-	configMu         sync.RWMutex
-	loadDotEnv       = godotenv.Load
-	getwd            = os.Getwd
-	httpClient       = &http.Client{Timeout: 5 * time.Second}
-	modelDocsBaseURL = "https://developers.openai.com/api/docs/models"
-	resolveModelMeta = resolveModelMetadataFromProvider
+	globalConfig       *Config
+	configMu           sync.RWMutex
+	loadDotEnv         = godotenv.Load
+	getwd              = os.Getwd
+	httpClient         = &http.Client{Timeout: 5 * time.Second}
+	modelDocsBaseURL   = "https://developers.openai.com/api/docs/models"
+	resolveModelMeta   = resolveModelMetadataFromProvider
 	supportedProviders = map[string]string{
 		"openrouter": "https://openrouter.ai/api/v1",
 		"openai":     "",
@@ -106,6 +107,7 @@ type fileConfig struct {
 	Model struct {
 		Name             string `yaml:"name"`
 		SummaryModel     string `yaml:"summaryModel"`
+		Stream           *bool  `yaml:"stream"`
 		ContextLength    int    `yaml:"contextLength"`
 		VerifyModel      *bool  `yaml:"verifyModel"`
 		Provider         string `yaml:"provider"`
@@ -208,6 +210,7 @@ func Get() *Config {
 	if globalConfig == nil {
 		return &Config{
 			Model:                    defaultModel,
+			Stream:                   new(true),
 			ContextLength:            defaultContextLength,
 			VerifyModel:              new(true),
 			ModelAPIMode:             DefaultModelAPIMode,
@@ -264,6 +267,7 @@ func loadConfigFile(path string) (*Config, error) {
 		Name:                     raw.Name,
 		Model:                    raw.Model.Name,
 		SummaryModel:             raw.Model.SummaryModel,
+		Stream:                   raw.Model.Stream,
 		ContextLength:            raw.Model.ContextLength,
 		VerifyModel:              raw.Model.VerifyModel,
 		ModelProvider:            raw.Model.Provider,
@@ -314,6 +318,9 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := strings.TrimSpace(os.Getenv("MODEL_SUMMARY")); value != "" {
 		cfg.SummaryModel = value
+	}
+	if value, ok := parseOptionalBoolEnv("MODEL_STREAM"); ok {
+		cfg.Stream = new(value)
 	}
 	if value := strings.TrimSpace(os.Getenv("MODEL_CONTEXT_LENGTH")); value != "" {
 		if contextLength, err := strconv.Atoi(value); err == nil {
@@ -461,6 +468,9 @@ func (c *Config) Normalize() {
 	if c.Model == "" {
 		c.Model = defaultModel
 	}
+	if c.Stream == nil {
+		c.Stream = new(true)
+	}
 	if c.VerifyModel == nil {
 		c.VerifyModel = new(true)
 	}
@@ -549,6 +559,14 @@ func (c *Config) VerifyModelEnabled() bool {
 	}
 
 	return boolValueDefault(c.VerifyModel, true)
+}
+
+func (c *Config) StreamEnabled() bool {
+	if c == nil {
+		return true
+	}
+
+	return boolValueDefault(c.Stream, true)
 }
 
 func (c *Config) SummaryModelEffective() string {

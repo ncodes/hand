@@ -14,7 +14,10 @@ import (
 )
 
 func TestClient_RespondSendsInstruct(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Resp: &handpb.RespondResponse{Message: "hello back"}}
+	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "hello back", Channel: handpb.RespondEvent_ASSISTANT},
+		{Type: handpb.RespondEvent_DONE},
+	}}
 	client := &Client{client: stub}
 
 	reply, err := client.Respond(context.Background(), "hello", RespondOptions{Instruct: "be terse"})
@@ -25,13 +28,74 @@ func TestClient_RespondSendsInstruct(t *testing.T) {
 }
 
 func TestClient_RespondSendsSessionID(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{Resp: &handpb.RespondResponse{Message: "hello back"}}
+	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "hello back", Channel: handpb.RespondEvent_ASSISTANT},
+		{Type: handpb.RespondEvent_DONE},
+	}}
 	client := &Client{client: stub}
 
 	_, err := client.Respond(context.Background(), "hello", RespondOptions{SessionID: "project-a"})
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", stub.Req.GetId())
+}
+
+func TestClient_RespondStreamsTextDeltas(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "hello ", Channel: handpb.RespondEvent_ASSISTANT},
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "back", Channel: handpb.RespondEvent_ASSISTANT},
+		{Type: handpb.RespondEvent_DONE},
+	}}
+	client := &Client{client: stub}
+
+	var events []Event
+	reply, err := client.Respond(context.Background(), "hello", RespondOptions{
+		OnEvent: func(event Event) {
+			events = append(events, event)
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "hello back", reply)
+	require.Equal(t, []Event{
+		{Channel: "assistant", Text: "hello "},
+		{Channel: "assistant", Text: "back"},
+	}, events)
+}
+
+func TestClient_RespondRejectsStreamThatEndsBeforeDone(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "partial", Channel: handpb.RespondEvent_ASSISTANT},
+	}}
+	client := &Client{client: stub}
+
+	reply, err := client.Respond(context.Background(), "hello", RespondOptions{})
+
+	require.Equal(t, "partial", reply)
+	require.EqualError(t, err, "respond stream ended before done event")
+}
+
+func TestClient_RespondIgnoresReasoningForFinalReplyAndExposesEvents(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "thinking", Channel: handpb.RespondEvent_REASONING},
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "answer", Channel: handpb.RespondEvent_ASSISTANT},
+		{Type: handpb.RespondEvent_DONE},
+	}}
+	client := &Client{client: stub}
+
+	var events []Event
+	reply, err := client.Respond(context.Background(), "hello", RespondOptions{
+		OnEvent: func(event Event) {
+			events = append(events, event)
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "answer", reply)
+	require.Equal(t, []Event{
+		{Channel: "reasoning", Text: "thinking"},
+		{Channel: "assistant", Text: "answer"},
+	}, events)
 }
 
 func TestClient_CreateSessionReturnsSummary(t *testing.T) {

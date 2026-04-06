@@ -12,6 +12,7 @@ type AgentServiceStub struct {
 	ChatInput        string
 	RespondOptions   rpcclient.RespondOptions
 	Reply            string
+	Deltas           []string
 	RespondErr       error
 	Err              error
 	CloseErr         error
@@ -27,6 +28,15 @@ type AgentServiceStub struct {
 func (s *AgentServiceStub) Respond(_ context.Context, msg string, opts rpcclient.RespondOptions) (string, error) {
 	s.ChatInput = msg
 	s.RespondOptions = opts
+	if opts.OnEvent != nil {
+		deltas := s.Deltas
+		if len(deltas) == 0 && s.Reply != "" {
+			deltas = []string{s.Reply}
+		}
+		for _, delta := range deltas {
+			opts.OnEvent(agent.Event{Channel: "assistant", Text: delta})
+		}
+	}
 	if s.RespondErr != nil {
 		return s.Reply, s.RespondErr
 	}

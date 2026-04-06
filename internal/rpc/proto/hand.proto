@@ -7,7 +7,7 @@ option go_package = "github.com/wandxy/hand/internal/rpc/proto;handpb";
 import "google/protobuf/timestamp.proto";
 
 service HandService {
-  rpc Respond(RespondRequest) returns (RespondResponse);
+  rpc Respond(RespondRequest) returns (stream RespondEvent);
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
   rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
   rpc UseSession(UseSessionRequest) returns (UseSessionResponse);
@@ -20,10 +20,27 @@ message RespondRequest {
   string message = 1;
   string instruct = 2;
   string id = 3;
+  optional bool stream = 4;
 }
 
-message RespondResponse {
-  string message = 1;
+message RespondEvent {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    TEXT_DELTA = 1;
+    DONE = 2;
+    ERROR = 3;
+  }
+
+  enum Channel {
+    CHANNEL_UNSPECIFIED = 0;
+    ASSISTANT = 1;
+    REASONING = 2;
+  }
+
+  Type type = 1;
+  string text = 2;
+  string error = 3;
+  Channel channel = 4;
 }
 
 message SessionSummary {

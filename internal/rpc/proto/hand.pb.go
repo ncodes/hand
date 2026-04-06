@@ -22,11 +22,113 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type RespondEvent_Type int32
+
+const (
+	RespondEvent_TYPE_UNSPECIFIED RespondEvent_Type = 0
+	RespondEvent_TEXT_DELTA       RespondEvent_Type = 1
+	RespondEvent_DONE             RespondEvent_Type = 2
+	RespondEvent_ERROR            RespondEvent_Type = 3
+)
+
+// Enum value maps for RespondEvent_Type.
+var (
+	RespondEvent_Type_name = map[int32]string{
+		0: "TYPE_UNSPECIFIED",
+		1: "TEXT_DELTA",
+		2: "DONE",
+		3: "ERROR",
+	}
+	RespondEvent_Type_value = map[string]int32{
+		"TYPE_UNSPECIFIED": 0,
+		"TEXT_DELTA":       1,
+		"DONE":             2,
+		"ERROR":            3,
+	}
+)
+
+func (x RespondEvent_Type) Enum() *RespondEvent_Type {
+	p := new(RespondEvent_Type)
+	*p = x
+	return p
+}
+
+func (x RespondEvent_Type) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RespondEvent_Type) Descriptor() protoreflect.EnumDescriptor {
+	return file_internal_rpc_proto_hand_proto_enumTypes[0].Descriptor()
+}
+
+func (RespondEvent_Type) Type() protoreflect.EnumType {
+	return &file_internal_rpc_proto_hand_proto_enumTypes[0]
+}
+
+func (x RespondEvent_Type) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RespondEvent_Type.Descriptor instead.
+func (RespondEvent_Type) EnumDescriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{1, 0}
+}
+
+type RespondEvent_Channel int32
+
+const (
+	RespondEvent_CHANNEL_UNSPECIFIED RespondEvent_Channel = 0
+	RespondEvent_ASSISTANT           RespondEvent_Channel = 1
+	RespondEvent_REASONING           RespondEvent_Channel = 2
+)
+
+// Enum value maps for RespondEvent_Channel.
+var (
+	RespondEvent_Channel_name = map[int32]string{
+		0: "CHANNEL_UNSPECIFIED",
+		1: "ASSISTANT",
+		2: "REASONING",
+	}
+	RespondEvent_Channel_value = map[string]int32{
+		"CHANNEL_UNSPECIFIED": 0,
+		"ASSISTANT":           1,
+		"REASONING":           2,
+	}
+)
+
+func (x RespondEvent_Channel) Enum() *RespondEvent_Channel {
+	p := new(RespondEvent_Channel)
+	*p = x
+	return p
+}
+
+func (x RespondEvent_Channel) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RespondEvent_Channel) Descriptor() protoreflect.EnumDescriptor {
+	return file_internal_rpc_proto_hand_proto_enumTypes[1].Descriptor()
+}
+
+func (RespondEvent_Channel) Type() protoreflect.EnumType {
+	return &file_internal_rpc_proto_hand_proto_enumTypes[1]
+}
+
+func (x RespondEvent_Channel) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RespondEvent_Channel.Descriptor instead.
+func (RespondEvent_Channel) EnumDescriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{1, 1}
+}
+
 type RespondRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
 	Instruct      string                 `protobuf:"bytes,2,opt,name=instruct,proto3" json:"instruct,omitempty"`
 	Id            string                 `protobuf:"bytes,3,opt,name=id,proto3" json:"id,omitempty"`
+	Stream        *bool                  `protobuf:"varint,4,opt,name=stream,proto3,oneof" json:"stream,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -82,27 +184,37 @@ func (x *RespondRequest) GetId() string {
 	return ""
 }
 
-type RespondResponse struct {
+func (x *RespondRequest) GetStream() bool {
+	if x != nil && x.Stream != nil {
+		return *x.Stream
+	}
+	return false
+}
+
+type RespondEvent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	Type          RespondEvent_Type      `protobuf:"varint,1,opt,name=type,proto3,enum=hand.v1.RespondEvent_Type" json:"type,omitempty"`
+	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	Channel       RespondEvent_Channel   `protobuf:"varint,4,opt,name=channel,proto3,enum=hand.v1.RespondEvent_Channel" json:"channel,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *RespondResponse) Reset() {
-	*x = RespondResponse{}
+func (x *RespondEvent) Reset() {
+	*x = RespondEvent{}
 	mi := &file_internal_rpc_proto_hand_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *RespondResponse) String() string {
+func (x *RespondEvent) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RespondResponse) ProtoMessage() {}
+func (*RespondEvent) ProtoMessage() {}
 
-func (x *RespondResponse) ProtoReflect() protoreflect.Message {
+func (x *RespondEvent) ProtoReflect() protoreflect.Message {
 	mi := &file_internal_rpc_proto_hand_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -114,16 +226,37 @@ func (x *RespondResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RespondResponse.ProtoReflect.Descriptor instead.
-func (*RespondResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use RespondEvent.ProtoReflect.Descriptor instead.
+func (*RespondEvent) Descriptor() ([]byte, []int) {
 	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *RespondResponse) GetMessage() string {
+func (x *RespondEvent) GetType() RespondEvent_Type {
 	if x != nil {
-		return x.Message
+		return x.Type
+	}
+	return RespondEvent_TYPE_UNSPECIFIED
+}
+
+func (x *RespondEvent) GetText() string {
+	if x != nil {
+		return x.Text
 	}
 	return ""
+}
+
+func (x *RespondEvent) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *RespondEvent) GetChannel() RespondEvent_Channel {
+	if x != nil {
+		return x.Channel
+	}
+	return RespondEvent_CHANNEL_UNSPECIFIED
 }
 
 type SessionSummary struct {
@@ -910,13 +1043,28 @@ var File_internal_rpc_proto_hand_proto protoreflect.FileDescriptor
 
 const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\n" +
-	"\x1dinternal/rpc/proto/hand.proto\x12\ahand.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"V\n" +
+	"\x1dinternal/rpc/proto/hand.proto\x12\ahand.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"~\n" +
 	"\x0eRespondRequest\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12\x1a\n" +
 	"\binstruct\x18\x02 \x01(\tR\binstruct\x12\x0e\n" +
-	"\x02id\x18\x03 \x01(\tR\x02id\"+\n" +
-	"\x0fRespondResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage\"m\n" +
+	"\x02id\x18\x03 \x01(\tR\x02id\x12\x1b\n" +
+	"\x06stream\x18\x04 \x01(\bH\x00R\x06stream\x88\x01\x01B\t\n" +
+	"\a_stream\"\xa6\x02\n" +
+	"\fRespondEvent\x12.\n" +
+	"\x04type\x18\x01 \x01(\x0e2\x1a.hand.v1.RespondEvent.TypeR\x04type\x12\x12\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\x12\x14\n" +
+	"\x05error\x18\x03 \x01(\tR\x05error\x127\n" +
+	"\achannel\x18\x04 \x01(\x0e2\x1d.hand.v1.RespondEvent.ChannelR\achannel\"A\n" +
+	"\x04Type\x12\x14\n" +
+	"\x10TYPE_UNSPECIFIED\x10\x00\x12\x0e\n" +
+	"\n" +
+	"TEXT_DELTA\x10\x01\x12\b\n" +
+	"\x04DONE\x10\x02\x12\t\n" +
+	"\x05ERROR\x10\x03\"@\n" +
+	"\aChannel\x12\x17\n" +
+	"\x13CHANNEL_UNSPECIFIED\x10\x00\x12\r\n" +
+	"\tASSISTANT\x10\x01\x12\r\n" +
+	"\tREASONING\x10\x02\"m\n" +
 	"\x0eSessionSummary\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12&\n" +
 	"\x0fupdated_at_unix\x18\x02 \x01(\x03R\rupdatedAtUnix\x12#\n" +
@@ -964,9 +1112,9 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\x04used\x18\x03 \x01(\x05R\x04used\x12\x1c\n" +
 	"\tremaining\x18\x04 \x01(\x05R\tremaining\x12\x19\n" +
 	"\bused_pct\x18\x05 \x01(\x01R\ausedPct\x12#\n" +
-	"\rremaining_pct\x18\x06 \x01(\x01R\fremainingPct2\x9c\x04\n" +
-	"\vHandService\x12<\n" +
-	"\aRespond\x12\x17.hand.v1.RespondRequest\x1a\x18.hand.v1.RespondResponse\x12N\n" +
+	"\rremaining_pct\x18\x06 \x01(\x01R\fremainingPct2\x9b\x04\n" +
+	"\vHandService\x12;\n" +
+	"\aRespond\x12\x17.hand.v1.RespondRequest\x1a\x15.hand.v1.RespondEvent0\x01\x12N\n" +
 	"\rCreateSession\x12\x1d.hand.v1.CreateSessionRequest\x1a\x1e.hand.v1.CreateSessionResponse\x12K\n" +
 	"\fListSessions\x12\x1c.hand.v1.ListSessionsRequest\x1a\x1d.hand.v1.ListSessionsResponse\x12E\n" +
 	"\n" +
@@ -988,54 +1136,59 @@ func file_internal_rpc_proto_hand_proto_rawDescGZIP() []byte {
 	return file_internal_rpc_proto_hand_proto_rawDescData
 }
 
+var file_internal_rpc_proto_hand_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_internal_rpc_proto_hand_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_internal_rpc_proto_hand_proto_goTypes = []any{
-	(*RespondRequest)(nil),             // 0: hand.v1.RespondRequest
-	(*RespondResponse)(nil),            // 1: hand.v1.RespondResponse
-	(*SessionSummary)(nil),             // 2: hand.v1.SessionSummary
-	(*CreateSessionRequest)(nil),       // 3: hand.v1.CreateSessionRequest
-	(*CreateSessionResponse)(nil),      // 4: hand.v1.CreateSessionResponse
-	(*ListSessionsRequest)(nil),        // 5: hand.v1.ListSessionsRequest
-	(*ListSessionsResponse)(nil),       // 6: hand.v1.ListSessionsResponse
-	(*UseSessionRequest)(nil),          // 7: hand.v1.UseSessionRequest
-	(*UseSessionResponse)(nil),         // 8: hand.v1.UseSessionResponse
-	(*CurrentSessionRequest)(nil),      // 9: hand.v1.CurrentSessionRequest
-	(*CurrentSessionResponse)(nil),     // 10: hand.v1.CurrentSessionResponse
-	(*CompactSessionRequest)(nil),      // 11: hand.v1.CompactSessionRequest
-	(*CompactSessionResponse)(nil),     // 12: hand.v1.CompactSessionResponse
-	(*GetSessionRequestContext)(nil),   // 13: hand.v1.GetSessionRequestContext
-	(*GetSessionRequest)(nil),          // 14: hand.v1.GetSessionRequest
-	(*GetSessionResponse)(nil),         // 15: hand.v1.GetSessionResponse
-	(*GetSessionResponse_Context)(nil), // 16: hand.v1.GetSessionResponse.Context
-	(*timestamppb.Timestamp)(nil),      // 17: google.protobuf.Timestamp
+	(RespondEvent_Type)(0),             // 0: hand.v1.RespondEvent.Type
+	(RespondEvent_Channel)(0),          // 1: hand.v1.RespondEvent.Channel
+	(*RespondRequest)(nil),             // 2: hand.v1.RespondRequest
+	(*RespondEvent)(nil),               // 3: hand.v1.RespondEvent
+	(*SessionSummary)(nil),             // 4: hand.v1.SessionSummary
+	(*CreateSessionRequest)(nil),       // 5: hand.v1.CreateSessionRequest
+	(*CreateSessionResponse)(nil),      // 6: hand.v1.CreateSessionResponse
+	(*ListSessionsRequest)(nil),        // 7: hand.v1.ListSessionsRequest
+	(*ListSessionsResponse)(nil),       // 8: hand.v1.ListSessionsResponse
+	(*UseSessionRequest)(nil),          // 9: hand.v1.UseSessionRequest
+	(*UseSessionResponse)(nil),         // 10: hand.v1.UseSessionResponse
+	(*CurrentSessionRequest)(nil),      // 11: hand.v1.CurrentSessionRequest
+	(*CurrentSessionResponse)(nil),     // 12: hand.v1.CurrentSessionResponse
+	(*CompactSessionRequest)(nil),      // 13: hand.v1.CompactSessionRequest
+	(*CompactSessionResponse)(nil),     // 14: hand.v1.CompactSessionResponse
+	(*GetSessionRequestContext)(nil),   // 15: hand.v1.GetSessionRequestContext
+	(*GetSessionRequest)(nil),          // 16: hand.v1.GetSessionRequest
+	(*GetSessionResponse)(nil),         // 17: hand.v1.GetSessionResponse
+	(*GetSessionResponse_Context)(nil), // 18: hand.v1.GetSessionResponse.Context
+	(*timestamppb.Timestamp)(nil),      // 19: google.protobuf.Timestamp
 }
 var file_internal_rpc_proto_hand_proto_depIdxs = []int32{
-	2,  // 0: hand.v1.CreateSessionResponse.session:type_name -> hand.v1.SessionSummary
-	2,  // 1: hand.v1.ListSessionsResponse.sessions:type_name -> hand.v1.SessionSummary
-	17, // 2: hand.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
-	13, // 3: hand.v1.GetSessionRequest.context:type_name -> hand.v1.GetSessionRequestContext
-	16, // 4: hand.v1.GetSessionResponse.context:type_name -> hand.v1.GetSessionResponse.Context
-	17, // 5: hand.v1.GetSessionResponse.created_at:type_name -> google.protobuf.Timestamp
-	17, // 6: hand.v1.GetSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
-	0,  // 7: hand.v1.HandService.Respond:input_type -> hand.v1.RespondRequest
-	3,  // 8: hand.v1.HandService.CreateSession:input_type -> hand.v1.CreateSessionRequest
-	5,  // 9: hand.v1.HandService.ListSessions:input_type -> hand.v1.ListSessionsRequest
-	7,  // 10: hand.v1.HandService.UseSession:input_type -> hand.v1.UseSessionRequest
-	9,  // 11: hand.v1.HandService.CurrentSession:input_type -> hand.v1.CurrentSessionRequest
-	11, // 12: hand.v1.HandService.CompactSession:input_type -> hand.v1.CompactSessionRequest
-	14, // 13: hand.v1.HandService.GetSession:input_type -> hand.v1.GetSessionRequest
-	1,  // 14: hand.v1.HandService.Respond:output_type -> hand.v1.RespondResponse
-	4,  // 15: hand.v1.HandService.CreateSession:output_type -> hand.v1.CreateSessionResponse
-	6,  // 16: hand.v1.HandService.ListSessions:output_type -> hand.v1.ListSessionsResponse
-	8,  // 17: hand.v1.HandService.UseSession:output_type -> hand.v1.UseSessionResponse
-	10, // 18: hand.v1.HandService.CurrentSession:output_type -> hand.v1.CurrentSessionResponse
-	12, // 19: hand.v1.HandService.CompactSession:output_type -> hand.v1.CompactSessionResponse
-	15, // 20: hand.v1.HandService.GetSession:output_type -> hand.v1.GetSessionResponse
-	14, // [14:21] is the sub-list for method output_type
-	7,  // [7:14] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	0,  // 0: hand.v1.RespondEvent.type:type_name -> hand.v1.RespondEvent.Type
+	1,  // 1: hand.v1.RespondEvent.channel:type_name -> hand.v1.RespondEvent.Channel
+	4,  // 2: hand.v1.CreateSessionResponse.session:type_name -> hand.v1.SessionSummary
+	4,  // 3: hand.v1.ListSessionsResponse.sessions:type_name -> hand.v1.SessionSummary
+	19, // 4: hand.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
+	15, // 5: hand.v1.GetSessionRequest.context:type_name -> hand.v1.GetSessionRequestContext
+	18, // 6: hand.v1.GetSessionResponse.context:type_name -> hand.v1.GetSessionResponse.Context
+	19, // 7: hand.v1.GetSessionResponse.created_at:type_name -> google.protobuf.Timestamp
+	19, // 8: hand.v1.GetSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
+	2,  // 9: hand.v1.HandService.Respond:input_type -> hand.v1.RespondRequest
+	5,  // 10: hand.v1.HandService.CreateSession:input_type -> hand.v1.CreateSessionRequest
+	7,  // 11: hand.v1.HandService.ListSessions:input_type -> hand.v1.ListSessionsRequest
+	9,  // 12: hand.v1.HandService.UseSession:input_type -> hand.v1.UseSessionRequest
+	11, // 13: hand.v1.HandService.CurrentSession:input_type -> hand.v1.CurrentSessionRequest
+	13, // 14: hand.v1.HandService.CompactSession:input_type -> hand.v1.CompactSessionRequest
+	16, // 15: hand.v1.HandService.GetSession:input_type -> hand.v1.GetSessionRequest
+	3,  // 16: hand.v1.HandService.Respond:output_type -> hand.v1.RespondEvent
+	6,  // 17: hand.v1.HandService.CreateSession:output_type -> hand.v1.CreateSessionResponse
+	8,  // 18: hand.v1.HandService.ListSessions:output_type -> hand.v1.ListSessionsResponse
+	10, // 19: hand.v1.HandService.UseSession:output_type -> hand.v1.UseSessionResponse
+	12, // 20: hand.v1.HandService.CurrentSession:output_type -> hand.v1.CurrentSessionResponse
+	14, // 21: hand.v1.HandService.CompactSession:output_type -> hand.v1.CompactSessionResponse
+	17, // 22: hand.v1.HandService.GetSession:output_type -> hand.v1.GetSessionResponse
+	16, // [16:23] is the sub-list for method output_type
+	9,  // [9:16] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_internal_rpc_proto_hand_proto_init() }
@@ -1043,18 +1196,20 @@ func file_internal_rpc_proto_hand_proto_init() {
 	if File_internal_rpc_proto_hand_proto != nil {
 		return
 	}
+	file_internal_rpc_proto_hand_proto_msgTypes[0].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_rpc_proto_hand_proto_rawDesc), len(file_internal_rpc_proto_hand_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      2,
 			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_internal_rpc_proto_hand_proto_goTypes,
 		DependencyIndexes: file_internal_rpc_proto_hand_proto_depIdxs,
+		EnumInfos:         file_internal_rpc_proto_hand_proto_enumTypes,
 		MessageInfos:      file_internal_rpc_proto_hand_proto_msgTypes,
 	}.Build()
 	File_internal_rpc_proto_hand_proto = out.File

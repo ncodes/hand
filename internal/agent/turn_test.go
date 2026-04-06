@@ -321,6 +321,31 @@ func TestTurn_RunReturnsAppendSessionErrorAfterAssistantResponse(t *testing.T) {
 	require.EqualError(t, err, "append assistant failed")
 }
 
+func TestTurn_RunStreamsDeltasImmediatelyWhenNoToolsAreAvailable(t *testing.T) {
+	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{
+		Responses: []*models.Response{{OutputText: "reply"}},
+		Deltas: [][]models.StreamDelta{{
+			{Channel: models.StreamChannelAssistant, Text: "re"},
+			{Channel: models.StreamChannelAssistant, Text: "ply"},
+		}},
+	})
+
+	var events []Event
+	reply, err := turn.Run(context.Background(), "hello", RespondOptions{
+		Stream: new(true),
+		OnEvent: func(event Event) {
+			events = append(events, event)
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "reply", reply)
+	require.Equal(t, []Event{
+		{Channel: "assistant", Text: "re"},
+		{Channel: "assistant", Text: "ply"},
+	}, events)
+}
+
 func TestTurn_RunReturnsAppendSessionErrorAfterAssistantToolCall(t *testing.T) {
 	appendCalls := 0
 	manager, err := session.NewManager(&storagemock.SessionStore{

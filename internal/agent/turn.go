@@ -169,6 +169,11 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 	traceSession.Record(trace.EvtUserMessageAccepted, map[string]any{"message": msg})
 
 	budget := t.env.NewIterationBudget()
+	streamingEnabled := t.cfg.StreamEnabled()
+	if opts.Stream != nil {
+		streamingEnabled = *opts.Stream
+	}
+
 	for budget.Consume() {
 		if err := ctx.Err(); err != nil {
 			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
@@ -214,7 +219,29 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			Int("tools", len(request.Tools)).
 			Msg("sending model request")
 
-		resp, err := t.modelClient.Complete(ctx, request)
+		var resp *models.Response
+		if streamingEnabled {
+			deltas := make([]Event, 0, 16)
+			allowLiveDelivery := opts.OnEvent != nil
+			resp, err = t.modelClient.CompleteStream(ctx, request, func(delta models.StreamDelta) {
+				if delta.Text == "" {
+					return
+				}
+				event := Event{Channel: string(delta.Channel), Text: delta.Text}
+				if allowLiveDelivery {
+					opts.OnEvent(event)
+					return
+				}
+				deltas = append(deltas, event)
+			})
+			if err == nil && resp != nil && !resp.RequiresToolCalls && !allowLiveDelivery && opts.OnEvent != nil {
+				for _, delta := range deltas {
+					opts.OnEvent(delta)
+				}
+			}
+		} else {
+			resp, err = t.modelClient.Complete(ctx, request)
+		}
 		if err != nil {
 			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 			return "", err

@@ -10,6 +10,7 @@ import (
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/ssestream"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/openai/openai-go/v3/shared"
 	"github.com/rs/zerolog/log"
@@ -23,7 +24,9 @@ var debugRedactor = guardrails.NewRedactor()
 
 type OpenAIClient struct {
 	createChatCompletion func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error)
+	createChatStream     func(context.Context, openai.ChatCompletionNewParams) *ssestream.Stream[openai.ChatCompletionChunk]
 	createResponse       func(context.Context, responses.ResponseNewParams) (*responses.Response, error)
+	createResponseStream func(context.Context, responses.ResponseNewParams) *ssestream.Stream[responses.ResponseStreamEventUnion]
 }
 
 var newOpenAICompletionCaller = func(opts ...option.RequestOption) func(
@@ -43,6 +46,26 @@ var newOpenAIResponseCaller = func(opts ...option.RequestOption) func(
 	client := openai.NewClient(opts...)
 	return func(ctx context.Context, params responses.ResponseNewParams) (*responses.Response, error) {
 		return client.Responses.New(ctx, params)
+	}
+}
+
+var newOpenAICompletionStreamCaller = func(opts ...option.RequestOption) func(
+	context.Context,
+	openai.ChatCompletionNewParams,
+) *ssestream.Stream[openai.ChatCompletionChunk] {
+	client := openai.NewClient(opts...)
+	return func(ctx context.Context, params openai.ChatCompletionNewParams) *ssestream.Stream[openai.ChatCompletionChunk] {
+		return client.Chat.Completions.NewStreaming(ctx, params)
+	}
+}
+
+var newOpenAIResponseStreamCaller = func(opts ...option.RequestOption) func(
+	context.Context,
+	responses.ResponseNewParams,
+) *ssestream.Stream[responses.ResponseStreamEventUnion] {
+	client := openai.NewClient(opts...)
+	return func(ctx context.Context, params responses.ResponseNewParams) *ssestream.Stream[responses.ResponseStreamEventUnion] {
+		return client.Responses.NewStreaming(ctx, params)
 	}
 }
 
@@ -68,31 +91,52 @@ func NewOpenAIClient(apiKey string, opts ...option.RequestOption) (*OpenAIClient
 
 	return &OpenAIClient{
 		createChatCompletion: newOpenAICompletionCaller(clientOptions...),
+		createChatStream:     newOpenAICompletionStreamCaller(clientOptions...),
 		createResponse:       newOpenAIResponseCaller(clientOptions...),
+		createResponseStream: newOpenAIResponseStreamCaller(clientOptions...),
 	}, nil
 }
 
 // Complete sends a request to the configured OpenAI-compatible API mode and returns the normalized response.
 func (c *OpenAIClient) Complete(ctx context.Context, req Request) (*Response, error) {
+	return c.complete(ctx, req, nil, false)
+}
+
+func (c *OpenAIClient) CompleteStream(ctx context.Context, req Request, onTextDelta func(StreamDelta)) (*Response, error) {
+	return c.complete(ctx, req, onTextDelta, true)
+}
+
+func (c *OpenAIClient) complete(
+	ctx context.Context,
+	req Request,
+	onTextDelta func(StreamDelta),
+	stream bool,
+) (*Response, error) {
 	if c == nil {
 		return nil, errors.New("model client is required")
 	}
 
-	normalized, err := normalizeGenerateRequest(req)
+	normalizedReq, err := normalizeGenerateRequest(req)
 	if err != nil {
 		return nil, err
 	}
 
-	if normalized.APIMode == APIModeResponses {
+	if normalizedReq.APIMode == APIModeResponses {
+		params := buildResponsesRequest(normalizedReq)
+		if normalizedReq.DebugRequests {
+			logRequestDebugDump(normalizedReq.APIMode, params)
+		}
+
+		if stream {
+			if c.createResponseStream == nil {
+				return nil, errors.New("model client is required")
+			}
+			return c.completeResponsesStream(ctx, params, onTextDelta)
+		}
+
 		if c.createResponse == nil {
 			return nil, errors.New("model client is required")
 		}
-
-		params := buildResponsesRequest(normalized)
-		if normalized.DebugRequests {
-			logRequestDebugDump(normalized.APIMode, params)
-		}
-
 		resp, err := c.createResponse(ctx, params)
 		if err != nil {
 			return nil, err
@@ -100,19 +144,29 @@ func (c *OpenAIClient) Complete(ctx context.Context, req Request) (*Response, er
 		if resp == nil {
 			return nil, errors.New("model response is required")
 		}
-
 		return extractResponsesResponse(resp)
+	}
+
+	params := buildChatCompletionsRequest(normalizedReq)
+	if stream {
+		params.StreamOptions = openai.ChatCompletionStreamOptionsParam{
+			IncludeUsage: openai.Bool(true),
+		}
+	}
+	if normalizedReq.DebugRequests {
+		logRequestDebugDump(normalizedReq.APIMode, params)
+	}
+
+	if stream {
+		if c.createChatStream == nil {
+			return nil, errors.New("model client is required")
+		}
+		return c.completeChatStream(ctx, params, onTextDelta)
 	}
 
 	if c.createChatCompletion == nil {
 		return nil, errors.New("model client is required")
 	}
-
-	params := buildChatCompletionsRequest(normalized)
-	if normalized.DebugRequests {
-		logRequestDebugDump(normalized.APIMode, params)
-	}
-
 	resp, err := c.createChatCompletion(ctx, params)
 	if err != nil {
 		return nil, err
@@ -120,8 +174,102 @@ func (c *OpenAIClient) Complete(ctx context.Context, req Request) (*Response, er
 	if resp == nil {
 		return nil, errors.New("model response is required")
 	}
-
 	return extractChatCompletionsResponse(resp)
+}
+
+func (c *OpenAIClient) completeChatStream(
+	ctx context.Context,
+	params openai.ChatCompletionNewParams,
+	onTextDelta func(StreamDelta),
+) (*Response, error) {
+	stream := c.createChatStream(ctx, params)
+	if stream == nil {
+		return nil, errors.New("model response is required")
+	}
+
+	acc := openai.ChatCompletionAccumulator{}
+	for stream.Next() {
+		chunk := stream.Current()
+		if !acc.AddChunk(chunk) {
+			return nil, errors.New("failed to accumulate chat completion stream")
+		}
+
+		if onTextDelta != nil {
+			for _, choice := range chunk.Choices {
+				if choice.Delta.Content != "" {
+					onTextDelta(StreamDelta{Channel: StreamChannelAssistant, Text: choice.Delta.Content})
+				}
+			}
+		}
+	}
+	if err := stream.Err(); err != nil {
+		return nil, err
+	}
+
+	return extractChatCompletionsResponse(&acc.ChatCompletion)
+}
+
+func (c *OpenAIClient) completeResponsesStream(
+	ctx context.Context,
+	params responses.ResponseNewParams,
+	onTextDelta func(StreamDelta),
+) (*Response, error) {
+	stream := c.createResponseStream(ctx, params)
+	if stream == nil {
+		return nil, errors.New("model response is required")
+	}
+
+	var finalResponse *responses.Response
+	for stream.Next() {
+		event := stream.Current()
+		if textDelta, terminalResponse, err := handleResponsesStreamEvent(event); err != nil {
+			return nil, err
+		} else {
+			if onTextDelta != nil && textDelta.Text != "" {
+				onTextDelta(textDelta)
+			}
+			if terminalResponse != nil {
+				finalResponse = terminalResponse
+			}
+		}
+	}
+	if err := stream.Err(); err != nil {
+		return nil, err
+	}
+	if finalResponse == nil {
+		return nil, errors.New("model response is required")
+	}
+
+	return extractResponsesResponse(finalResponse)
+}
+
+func handleResponsesStreamEvent(event responses.ResponseStreamEventUnion) (StreamDelta, *responses.Response, error) {
+	switch event.Type {
+	case "response.output_text.delta":
+		return StreamDelta{Channel: StreamChannelAssistant, Text: event.AsResponseOutputTextDelta().Delta}, nil, nil
+	case "response.reasoning_text.delta":
+		return StreamDelta{Channel: StreamChannelReasoning, Text: event.AsResponseReasoningTextDelta().Delta}, nil, nil
+	case "response.reasoning_summary_text.delta":
+		return StreamDelta{Channel: StreamChannelReasoning, Text: event.AsResponseReasoningSummaryTextDelta().Delta}, nil, nil
+	case "response.completed":
+		completed := event.AsResponseCompleted()
+		return StreamDelta{}, &completed.Response, nil
+	case "response.failed":
+		failed := event.AsResponseFailed()
+		return StreamDelta{}, &failed.Response, nil
+	case "response.incomplete":
+		incomplete := event.AsResponseIncomplete()
+		return StreamDelta{}, &incomplete.Response, nil
+	case "error":
+		apierr := event.AsError()
+		message := strings.TrimSpace(apierr.Message)
+		if message == "" {
+			message = "response failed"
+		}
+		return StreamDelta{}, nil, errors.New(message)
+	default:
+		return StreamDelta{}, nil, nil
+	}
 }
 
 func normalizeGenerateRequest(req Request) (normalizedGenerateRequest, error) {

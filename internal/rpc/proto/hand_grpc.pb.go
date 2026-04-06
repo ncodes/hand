@@ -32,7 +32,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type HandServiceClient interface {
-	Respond(ctx context.Context, in *RespondRequest, opts ...grpc.CallOption) (*RespondResponse, error)
+	Respond(ctx context.Context, in *RespondRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RespondEvent], error)
 	CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
 	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
 	UseSession(ctx context.Context, in *UseSessionRequest, opts ...grpc.CallOption) (*UseSessionResponse, error)
@@ -49,15 +49,24 @@ func NewHandServiceClient(cc grpc.ClientConnInterface) HandServiceClient {
 	return &handServiceClient{cc}
 }
 
-func (c *handServiceClient) Respond(ctx context.Context, in *RespondRequest, opts ...grpc.CallOption) (*RespondResponse, error) {
+func (c *handServiceClient) Respond(ctx context.Context, in *RespondRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RespondEvent], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RespondResponse)
-	err := c.cc.Invoke(ctx, HandService_Respond_FullMethodName, in, out, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &HandService_ServiceDesc.Streams[0], HandService_Respond_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &grpc.GenericClientStream[RespondRequest, RespondEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type HandService_RespondClient = grpc.ServerStreamingClient[RespondEvent]
 
 func (c *handServiceClient) CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -123,7 +132,7 @@ func (c *handServiceClient) GetSession(ctx context.Context, in *GetSessionReques
 // All implementations must embed UnimplementedHandServiceServer
 // for forward compatibility.
 type HandServiceServer interface {
-	Respond(context.Context, *RespondRequest) (*RespondResponse, error)
+	Respond(*RespondRequest, grpc.ServerStreamingServer[RespondEvent]) error
 	CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
 	ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
 	UseSession(context.Context, *UseSessionRequest) (*UseSessionResponse, error)
@@ -140,8 +149,8 @@ type HandServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedHandServiceServer struct{}
 
-func (UnimplementedHandServiceServer) Respond(context.Context, *RespondRequest) (*RespondResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method Respond not implemented")
+func (UnimplementedHandServiceServer) Respond(*RespondRequest, grpc.ServerStreamingServer[RespondEvent]) error {
+	return status.Error(codes.Unimplemented, "method Respond not implemented")
 }
 func (UnimplementedHandServiceServer) CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateSession not implemented")
@@ -182,23 +191,16 @@ func RegisterHandServiceServer(s grpc.ServiceRegistrar, srv HandServiceServer) {
 	s.RegisterService(&HandService_ServiceDesc, srv)
 }
 
-func _HandService_Respond_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RespondRequest)
-	if err := dec(in); err != nil {
-		return nil, err
+func _HandService_Respond_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(RespondRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	if interceptor == nil {
-		return srv.(HandServiceServer).Respond(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: HandService_Respond_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HandServiceServer).Respond(ctx, req.(*RespondRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(HandServiceServer).Respond(m, &grpc.GenericServerStream[RespondRequest, RespondEvent]{ServerStream: stream})
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type HandService_RespondServer = grpc.ServerStreamingServer[RespondEvent]
 
 func _HandService_CreateSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateSessionRequest)
@@ -316,10 +318,6 @@ var HandService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*HandServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Respond",
-			Handler:    _HandService_Respond_Handler,
-		},
-		{
 			MethodName: "CreateSession",
 			Handler:    _HandService_CreateSession_Handler,
 		},
@@ -344,6 +342,12 @@ var HandService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _HandService_GetSession_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Respond",
+			Handler:       _HandService_Respond_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "internal/rpc/proto/hand.proto",
 }

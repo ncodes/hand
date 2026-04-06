@@ -432,6 +432,38 @@ func TestNewCommand_RootActionForwardsSessionID(t *testing.T) {
 	require.Equal(t, "project-a", stub.RespondOptions.SessionID)
 }
 
+func TestNewCommand_RootActionStreamsOutput(t *testing.T) {
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	resetGlobals(t)
+
+	originalNewChatClient := newChatClient
+	originalRootOutput := rootOutput
+	t.Cleanup(func() {
+		newChatClient = originalNewChatClient
+		rootOutput = originalRootOutput
+	})
+
+	var output bytes.Buffer
+	rootOutput = &output
+
+	stub := &agentstub.AgentServiceStub{Reply: "hello back", Deltas: []string{"hello ", "back"}}
+	newChatClient = func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+		return stub, nil
+	}
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--name", "flag-agent",
+		"--model.stream=true",
+		"hello",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, stub.RespondOptions.Stream)
+	require.True(t, *stub.RespondOptions.Stream)
+	require.Equal(t, "hello back\n", output.String())
+}
+
 func TestNewCommand_RootActionDoesNotForwardConfiguredInstruct(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
 	resetGlobals(t)

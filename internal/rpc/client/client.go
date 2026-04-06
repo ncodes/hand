@@ -2,7 +2,9 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -20,6 +22,7 @@ type Client struct {
 }
 
 type RespondOptions = agent.RespondOptions
+type Event = agent.Event
 
 type CompactSessionResult = agent.CompactSessionResult
 
@@ -86,16 +89,66 @@ func NewClient(ctx context.Context, opts Options) (*Client, error) {
 }
 
 func (c *Client) Respond(ctx context.Context, message string, opts RespondOptions) (string, error) {
-	resp, err := c.client.Respond(ctx, &handpb.RespondRequest{
+	req := &handpb.RespondRequest{
 		Message:  message,
 		Instruct: strings.TrimSpace(opts.Instruct),
 		Id:       strings.TrimSpace(opts.SessionID),
-	})
+	}
+	if opts.Stream != nil {
+		req.Stream = opts.Stream
+	}
+
+	stream, err := c.client.Respond(ctx, req)
 	if err != nil {
 		return "", err
 	}
 
-	return resp.Message, nil
+	var builder strings.Builder
+	done := false
+	for {
+		event, recvErr := stream.Recv()
+		if recvErr != nil {
+			if recvErr == io.EOF {
+				if done {
+					break
+				}
+				return builder.String(), errors.New("respond stream ended before done event")
+			}
+			return builder.String(), recvErr
+		}
+		switch event.GetType() {
+		case handpb.RespondEvent_TEXT_DELTA:
+			if event.GetChannel() != handpb.RespondEvent_REASONING {
+				builder.WriteString(event.GetText())
+			}
+			if opts.OnEvent != nil {
+				opts.OnEvent(agent.Event{
+					Channel: streamChannelToAgent(event.GetChannel()),
+					Text:    event.GetText(),
+				})
+			}
+		case handpb.RespondEvent_ERROR:
+			message := strings.TrimSpace(event.GetError())
+			if message == "" {
+				message = "respond stream failed"
+			}
+			return builder.String(), errors.New(message)
+		case handpb.RespondEvent_DONE:
+			done = true
+			return builder.String(), nil
+		}
+	}
+
+	return builder.String(), nil
+}
+
+func streamChannelToAgent(channel handpb.RespondEvent_Channel) string {
+	switch channel {
+	case handpb.RespondEvent_REASONING:
+		return "reasoning"
+	default:
+		return "assistant"
+	}
 }
 
 func (c *Client) CreateSession(ctx context.Context, id string) (storage.Session, error) {

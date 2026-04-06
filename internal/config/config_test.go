@@ -294,6 +294,29 @@ rules:
 	require.False(t, boolValue(cfg.CapBrowser))
 }
 
+func TestLoad_UsesModelStreamFromConfigAndEnv(t *testing.T) {
+	clearEnvKeys(t, "MODEL_STREAM")
+
+	dir := t.TempDir()
+	envPath := filepath.Join(dir, ".env")
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(envPath, []byte("MODEL_STREAM=true\n"), 0o600))
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+model:
+  stream: false
+`), 0o600))
+
+	cfg, err := Load(envPath, configPath)
+
+	require.NoError(t, err)
+	require.True(t, cfg.StreamEnabled())
+}
+
+func TestConfig_StreamEnabledDefaultsToTrue(t *testing.T) {
+	require.True(t, (&Config{}).StreamEnabled())
+	require.False(t, (&Config{Stream: new(false)}).StreamEnabled())
+}
+
 func TestLoad_UsesOpenRouterModelMetadataWhenContextLengthIsUnset(t *testing.T) {
 	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
 		return ModelMetadata{Exists: true, ContextLength: 222222}, nil
@@ -591,7 +614,7 @@ func TestConfig_ResolveModelAuthUsesOpenRouterSpecificKey(t *testing.T) {
 	cfg := &Config{
 		Name:             "test-agent",
 		Model:            defaultModel,
-		ModelProvider:      "openrouter",
+		ModelProvider:    "openrouter",
 		OpenRouterAPIKey: "openrouter-key",
 	}
 
@@ -605,10 +628,10 @@ func TestConfig_ResolveModelAuthUsesOpenRouterSpecificKey(t *testing.T) {
 
 func TestConfig_ResolveModelAuthUsesOpenAISpecificKey(t *testing.T) {
 	cfg := &Config{
-		Name:         "test-agent",
-		Model:        defaultModel,
-		ModelProvider:  "openai",
-		OpenAIAPIKey: "openai-key",
+		Name:          "test-agent",
+		Model:         defaultModel,
+		ModelProvider: "openai",
+		OpenAIAPIKey:  "openai-key",
 	}
 
 	auth, err := cfg.ResolveModelAuth()
@@ -621,10 +644,10 @@ func TestConfig_ResolveModelAuthUsesOpenAISpecificKey(t *testing.T) {
 
 func TestConfig_ResolveModelAuthAcceptsOpenAIProviderAlias(t *testing.T) {
 	cfg := &Config{
-		Name:         "test-agent",
-		Model:        defaultModel,
-		ModelProvider:  "openai",
-		OpenAIAPIKey: "openai-key",
+		Name:          "test-agent",
+		Model:         defaultModel,
+		ModelProvider: "openai",
+		OpenAIAPIKey:  "openai-key",
 	}
 
 	auth, err := cfg.ResolveModelAuth()
@@ -637,10 +660,10 @@ func TestConfig_ResolveModelAuthAcceptsOpenAIProviderAlias(t *testing.T) {
 
 func TestConfig_ResolveModelAuthFallsBackToModelKey(t *testing.T) {
 	cfg := &Config{
-		Name:        "test-agent",
-		Model:       defaultModel,
+		Name:          "test-agent",
+		Model:         defaultModel,
 		ModelProvider: "openrouter",
-		ModelKey:    "generic-key",
+		ModelKey:      "generic-key",
 	}
 
 	auth, err := cfg.ResolveModelAuth()
@@ -657,7 +680,7 @@ func TestConfig_ValidateAllowsProviderSpecificAuthWithoutModelKey(t *testing.T) 
 	cfg := &Config{
 		Name:             "test-agent",
 		Model:            defaultModel,
-		ModelProvider:      "openrouter",
+		ModelProvider:    "openrouter",
 		OpenRouterAPIKey: "openrouter-key",
 		LogLevel:         "info",
 	}
@@ -671,11 +694,11 @@ func TestConfig_ValidateNormalizesFields(t *testing.T) {
 	})
 
 	cfg := &Config{
-		Name:        "  Test Agent  ",
-		Model:       "  openai/test-model  ",
+		Name:          "  Test Agent  ",
+		Model:         "  openai/test-model  ",
 		ModelProvider: " OpenRouter ",
-		ModelKey:    "  test-key  ",
-		LogLevel:    " WARN ",
+		ModelKey:      "  test-key  ",
+		LogLevel:      " WARN ",
 	}
 
 	require.NoError(t, cfg.Validate())
@@ -704,13 +727,13 @@ func TestConfig_ValidateDefaultsModelWhenEmpty(t *testing.T) {
 
 func TestConfig_ValidateRejectsModelWithoutOwnerPrefix(t *testing.T) {
 	err := (&Config{
-		Name:        "test-agent",
-		Model:       "gpt-4o-mini",
+		Name:          "test-agent",
+		Model:         "gpt-4o-mini",
 		ModelProvider: "openai",
-		ModelKey:    "test-key",
-		RPCAddress:  "127.0.0.1",
-		RPCPort:     50051,
-		LogLevel:    "info",
+		ModelKey:      "test-key",
+		RPCAddress:    "127.0.0.1",
+		RPCPort:       50051,
+		LogLevel:      "info",
 	}).Validate()
 
 	require.EqualError(t, err, "model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
@@ -722,13 +745,13 @@ func TestConfig_ValidateRejectsModelWithEmptyOwnerOrName(t *testing.T) {
 	for _, model := range cases {
 		t.Run(model, func(t *testing.T) {
 			err := (&Config{
-				Name:        "test-agent",
-				Model:       model,
+				Name:          "test-agent",
+				Model:         model,
 				ModelProvider: "openai",
-				ModelKey:    "test-key",
-				RPCAddress:  "127.0.0.1",
-				RPCPort:     50051,
-				LogLevel:    "info",
+				ModelKey:      "test-key",
+				RPCAddress:    "127.0.0.1",
+				RPCPort:       50051,
+				LogLevel:      "info",
 			}).Validate()
 
 			require.EqualError(t, err, "model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
@@ -738,25 +761,25 @@ func TestConfig_ValidateRejectsModelWithEmptyOwnerOrName(t *testing.T) {
 
 func TestConfig_ValidateRejectsUnsupportedProvider(t *testing.T) {
 	err := (&Config{
-		Name:         "test-agent",
-		Model:        defaultModel,
-		ModelProvider:  "anthropic",
-		ModelKey:     "test-key",
-		ModelBaseURL: supportedProviders[defaultModelProvider],
-		LogLevel:     "info",
+		Name:          "test-agent",
+		Model:         defaultModel,
+		ModelProvider: "anthropic",
+		ModelKey:      "test-key",
+		ModelBaseURL:  supportedProviders[defaultModelProvider],
+		LogLevel:      "info",
 	}).Validate()
 	require.EqualError(t, err, "model provider must be one of: openai, openrouter")
 }
 
 func TestConfig_ValidateRejectsNoneProvider(t *testing.T) {
 	err := (&Config{
-		Name:        "test-agent",
-		Model:       defaultModel,
+		Name:          "test-agent",
+		Model:         defaultModel,
 		ModelProvider: "none",
-		ModelKey:    "test-key",
-		RPCAddress:  "127.0.0.1",
-		RPCPort:     50051,
-		LogLevel:    "info",
+		ModelKey:      "test-key",
+		RPCAddress:    "127.0.0.1",
+		RPCPort:       50051,
+		LogLevel:      "info",
 	}).Validate()
 
 	require.EqualError(t, err, "model provider must be one of: openai, openrouter")
@@ -768,13 +791,13 @@ func TestConfig_ValidateRejectsUnknownOpenRouterModel(t *testing.T) {
 	})
 
 	err := (&Config{
-		Name:        "test-agent",
-		Model:       "openai/gpt-unknown",
+		Name:          "test-agent",
+		Model:         "openai/gpt-unknown",
 		ModelProvider: "openrouter",
-		ModelKey:    "test-key",
-		RPCAddress:  "127.0.0.1",
-		RPCPort:     50051,
-		LogLevel:    "info",
+		ModelKey:      "test-key",
+		RPCAddress:    "127.0.0.1",
+		RPCPort:       50051,
+		LogLevel:      "info",
 	}).Validate()
 
 	require.EqualError(t, err, `model.name: model "openai/gpt-unknown" is not available on openrouter`)
@@ -782,14 +805,14 @@ func TestConfig_ValidateRejectsUnknownOpenRouterModel(t *testing.T) {
 
 func TestConfig_ValidateRejectsInvalidSummaryModelSlug(t *testing.T) {
 	err := (&Config{
-		Name:         "test-agent",
-		Model:        defaultModel,
-		SummaryModel: "gpt-4o-mini",
-		ModelProvider:  "openai",
-		ModelKey:     "test-key",
-		RPCAddress:   "127.0.0.1",
-		RPCPort:      50051,
-		LogLevel:     "info",
+		Name:          "test-agent",
+		Model:         defaultModel,
+		SummaryModel:  "gpt-4o-mini",
+		ModelProvider: "openai",
+		ModelKey:      "test-key",
+		RPCAddress:    "127.0.0.1",
+		RPCPort:       50051,
+		LogLevel:      "info",
 	}).Validate()
 
 	require.EqualError(t, err, "summary model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
@@ -805,14 +828,14 @@ func TestConfig_ValidateRejectsUnknownSummaryModel(t *testing.T) {
 	})
 
 	err := (&Config{
-		Name:         "test-agent",
-		Model:        defaultModel,
-		SummaryModel: "openai/gpt-unknown-summary",
-		ModelProvider:  "openrouter",
-		ModelKey:     "test-key",
-		RPCAddress:   "127.0.0.1",
-		RPCPort:      50051,
-		LogLevel:     "info",
+		Name:          "test-agent",
+		Model:         defaultModel,
+		SummaryModel:  "openai/gpt-unknown-summary",
+		ModelProvider: "openrouter",
+		ModelKey:      "test-key",
+		RPCAddress:    "127.0.0.1",
+		RPCPort:       50051,
+		LogLevel:      "info",
 	}).Validate()
 
 	require.EqualError(t, err, `model.summaryModel: model "openai/gpt-unknown-summary" is not available on openrouter`)
@@ -836,13 +859,13 @@ func TestConfig_ValidateReturnsOpenRouterLookupFailure(t *testing.T) {
 	})
 
 	err := (&Config{
-		Name:        "test-agent",
-		Model:       defaultModel,
+		Name:          "test-agent",
+		Model:         defaultModel,
 		ModelProvider: "openrouter",
-		ModelKey:    "test-key",
-		RPCAddress:  "127.0.0.1",
-		RPCPort:     50051,
-		LogLevel:    "info",
+		ModelKey:      "test-key",
+		RPCAddress:    "127.0.0.1",
+		RPCPort:       50051,
+		LogLevel:      "info",
 	}).Validate()
 
 	require.EqualError(t, err, `model.name: failed to verify openrouter model "openai/gpt-4o-mini": lookup failed`)
@@ -854,13 +877,13 @@ func TestConfig_ValidateRejectsUnknownOpenAIModel(t *testing.T) {
 	})
 
 	err := (&Config{
-		Name:        "test-agent",
-		Model:       "openai/gpt-unknown",
+		Name:          "test-agent",
+		Model:         "openai/gpt-unknown",
 		ModelProvider: "openai",
-		ModelKey:    "test-key",
-		RPCAddress:  "127.0.0.1",
-		RPCPort:     50051,
-		LogLevel:    "info",
+		ModelKey:      "test-key",
+		RPCAddress:    "127.0.0.1",
+		RPCPort:       50051,
+		LogLevel:      "info",
 	}).Validate()
 
 	require.EqualError(t, err, `model.name: model "openai/gpt-unknown" is not available on openai`)
@@ -868,11 +891,11 @@ func TestConfig_ValidateRejectsUnknownOpenAIModel(t *testing.T) {
 
 func TestConfig_ValidateRejectsInvalidLogLevel(t *testing.T) {
 	err := (&Config{
-		Name:        "test-agent",
-		Model:       defaultModel,
+		Name:          "test-agent",
+		Model:         defaultModel,
 		ModelProvider: "openai",
-		ModelKey:    "test-key",
-		LogLevel:    "trace",
+		ModelKey:      "test-key",
+		LogLevel:      "trace",
 	}).Validate()
 	require.EqualError(t, err, "log level must be one of debug, info, warn, or error; use --log.level")
 }
@@ -892,13 +915,13 @@ func TestConfig_ValidateAllowsEmptyProviderAndLogLevel(t *testing.T) {
 
 func TestConfig_ValidateRejectsEmptyRPCAddress(t *testing.T) {
 	cfg := &Config{
-		Name:        "test-agent",
-		Model:       defaultModel,
+		Name:          "test-agent",
+		Model:         defaultModel,
 		ModelProvider: "openai",
-		ModelKey:    "test-key",
-		RPCAddress:  "   ",
-		RPCPort:     50051,
-		LogLevel:    "info",
+		ModelKey:      "test-key",
+		RPCAddress:    "   ",
+		RPCPort:       50051,
+		LogLevel:      "info",
 	}
 
 	require.EqualError(t, cfg.Validate(), "rpc address is required; set RPC_ADDRESS, provide it in config, or use --rpc.address")
@@ -906,13 +929,13 @@ func TestConfig_ValidateRejectsEmptyRPCAddress(t *testing.T) {
 
 func TestConfig_ValidateRejectsInvalidRPCPort(t *testing.T) {
 	cfg := &Config{
-		Name:        "test-agent",
-		Model:       defaultModel,
+		Name:          "test-agent",
+		Model:         defaultModel,
 		ModelProvider: "openai",
-		ModelKey:    "test-key",
-		RPCAddress:  "127.0.0.1",
-		RPCPort:     -1,
-		LogLevel:    "info",
+		ModelKey:      "test-key",
+		RPCAddress:    "127.0.0.1",
+		RPCPort:       -1,
+		LogLevel:      "info",
 	}
 
 	require.EqualError(t, cfg.Validate(), "rpc port must be greater than zero; set RPC_PORT, provide it in config, or use --rpc.port")
@@ -922,7 +945,7 @@ func TestConfig_ValidateRejectsInvalidMaxIterations(t *testing.T) {
 	cfg := &Config{
 		Name:          "test-agent",
 		Model:         defaultModel,
-		ModelProvider:   "openai",
+		ModelProvider: "openai",
 		ModelKey:      "test-key",
 		RPCAddress:    "127.0.0.1",
 		RPCPort:       50051,
@@ -937,7 +960,7 @@ func TestConfig_ValidateRejectsCompactionThresholdsAboveOrEqualOne(t *testing.T)
 	err := (&Config{
 		Name:                     "test-agent",
 		Model:                    defaultModel,
-		ModelProvider:              "openai",
+		ModelProvider:            "openai",
 		ModelKey:                 "test-key",
 		RPCAddress:               "127.0.0.1",
 		RPCPort:                  50051,
@@ -956,7 +979,7 @@ func TestConfig_ValidateRejectsCompactionThresholdsAboveOrEqualOne(t *testing.T)
 	err = (&Config{
 		Name:                     "test-agent",
 		Model:                    defaultModel,
-		ModelProvider:              "openai",
+		ModelProvider:            "openai",
 		ModelKey:                 "test-key",
 		RPCAddress:               "127.0.0.1",
 		RPCPort:                  50051,
@@ -1040,9 +1063,9 @@ func TestConfig_NormalizeDefaultsUnsetCapabilitiesIndividually(t *testing.T) {
 
 func TestConfig_NormalizeUsesMappedBaseURLWhenProviderWasExplicitlySet(t *testing.T) {
 	cfg := &Config{
-		Model:       defaultModel,
+		Model:         defaultModel,
 		ModelProvider: defaultModelProvider,
-		LogLevel:    "info",
+		LogLevel:      "info",
 	}
 	cfg.Normalize()
 	require.Equal(t, defaultModelProvider, cfg.ModelProvider)
@@ -1051,10 +1074,10 @@ func TestConfig_NormalizeUsesMappedBaseURLWhenProviderWasExplicitlySet(t *testin
 
 func TestConfig_NormalizeKeepsOpenaiProvider(t *testing.T) {
 	cfg := &Config{
-		Model:       defaultModel,
+		Model:         defaultModel,
 		ModelProvider: "openai",
-		ModelKey:    "test-key",
-		LogLevel:    "info",
+		ModelKey:      "test-key",
+		LogLevel:      "info",
 	}
 	cfg.Normalize()
 	require.Equal(t, "openai", cfg.ModelProvider)
@@ -1063,12 +1086,12 @@ func TestConfig_NormalizeKeepsOpenaiProvider(t *testing.T) {
 
 func TestConfig_NormalizeTrimsAndLowercasesFields(t *testing.T) {
 	cfg := &Config{
-		Name:         "  Test Agent  ",
-		Model:        "  test-model  ",
-		ModelProvider:  " OpenRouter ",
-		ModelKey:     "  test-key  ",
-		ModelBaseURL: "  https://example.com/v1  ",
-		LogLevel:     " WARN ",
+		Name:          "  Test Agent  ",
+		Model:         "  test-model  ",
+		ModelProvider: " OpenRouter ",
+		ModelKey:      "  test-key  ",
+		ModelBaseURL:  "  https://example.com/v1  ",
+		LogLevel:      " WARN ",
 	}
 	cfg.Normalize()
 	require.Equal(t, "Test Agent", cfg.Name)
@@ -1144,7 +1167,7 @@ func TestResolveModelAuth_CoversDefaultBranchAndNilReceiver(t *testing.T) {
 
 	cfg = &Config{
 		ModelProvider: "custom",
-		ModelKey:    "key",
+		ModelKey:      "key",
 	}
 	auth, err := cfg.ResolveModelAuth()
 	require.NoError(t, err)
@@ -1204,10 +1227,10 @@ func TestApplyProviderModelMetadata_CoversEarlyReturns(t *testing.T) {
 		return ModelMetadata{}, errors.New("boom")
 	}
 	cfg = &Config{
-		Model:       defaultModel,
-		VerifyModel: new(true),
+		Model:         defaultModel,
+		VerifyModel:   new(true),
 		ModelProvider: "openai",
-		ModelKey:    "test-key",
+		ModelKey:      "test-key",
 	}
 	cfg.Normalize()
 	applyProviderModelMetadata(context.Background(), cfg, 0)
@@ -1547,28 +1570,28 @@ log:
 
 func TestConfig_ValidateRejectsInvalidAPIMode(t *testing.T) {
 	err := (&Config{
-		Name:         "test-agent",
-		Model:        defaultModel,
-		ModelProvider:  "openai",
-		ModelAPIMode: "invalid",
-		ModelKey:     "test-key",
-		RPCAddress:   "127.0.0.1",
-		RPCPort:      50051,
-		LogLevel:     "info",
+		Name:          "test-agent",
+		Model:         defaultModel,
+		ModelProvider: "openai",
+		ModelAPIMode:  "invalid",
+		ModelKey:      "test-key",
+		RPCAddress:    "127.0.0.1",
+		RPCPort:       50051,
+		LogLevel:      "info",
 	}).Validate()
 	require.EqualError(t, err, "model api mode must be one of: chat-completions, responses; use --model.api-mode")
 }
 
 func TestConfig_ValidateRejectsResponsesModeWithOpenRouter(t *testing.T) {
 	err := (&Config{
-		Name:         "test-agent",
-		Model:        defaultModel,
-		ModelProvider:  "openrouter",
-		ModelAPIMode: "responses",
-		ModelKey:     "test-key",
-		RPCAddress:   "127.0.0.1",
-		RPCPort:      50051,
-		LogLevel:     "info",
+		Name:          "test-agent",
+		Model:         defaultModel,
+		ModelProvider: "openrouter",
+		ModelAPIMode:  "responses",
+		ModelKey:      "test-key",
+		RPCAddress:    "127.0.0.1",
+		RPCPort:       50051,
+		LogLevel:      "info",
 	}).Validate()
 	require.EqualError(t, err, "model api mode 'responses' is only supported with model provider 'openai'; use --model.provider 'openai' or --model.api-mode 'chat-completions'")
 }
@@ -1748,7 +1771,7 @@ func TestConfig_ValidateRejectsInvalidSessionSettings(t *testing.T) {
 	cfg := &Config{
 		Name:                     "daemon",
 		Model:                    "openai/model",
-		ModelProvider:              "openrouter",
+		ModelProvider:            "openrouter",
 		ModelKey:                 "key",
 		ModelBaseURL:             "https://example.com",
 		ModelAPIMode:             DefaultModelAPIMode,
@@ -1809,7 +1832,7 @@ func TestConfig_ValidateRejectsInvalidCompactionSettings(t *testing.T) {
 		Name:                     "daemon",
 		Model:                    "openai/model",
 		ContextLength:            128000,
-		ModelProvider:              "openrouter",
+		ModelProvider:            "openrouter",
 		ModelKey:                 "key",
 		ModelBaseURL:             "https://example.com",
 		ModelAPIMode:             DefaultModelAPIMode,

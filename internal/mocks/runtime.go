@@ -18,6 +18,7 @@ type ModelClientStub struct {
 	Errors    []error
 	Err       error
 	CallCount int
+	Deltas    [][]models.StreamDelta
 }
 
 func (s *ModelClientStub) Complete(_ context.Context, req models.Request) (*models.Response, error) {
@@ -29,6 +30,31 @@ func (s *ModelClientStub) Complete(_ context.Context, req models.Request) (*mode
 
 	if s.Err != nil {
 		return nil, s.Err
+	}
+
+	if s.CallCount >= len(s.Responses) {
+		return nil, errors.New("missing stubbed response")
+	}
+	response := s.Responses[s.CallCount]
+	s.CallCount++
+	return response, nil
+}
+
+func (s *ModelClientStub) CompleteStream(_ context.Context, req models.Request, onTextDelta func(models.StreamDelta)) (*models.Response, error) {
+	s.Requests = append(s.Requests, req)
+	if s.CallCount < len(s.Errors) && s.Errors[s.CallCount] != nil {
+		s.CallCount++
+		return nil, s.Errors[s.CallCount-1]
+	}
+
+	if s.Err != nil {
+		return nil, s.Err
+	}
+
+	if onTextDelta != nil && s.CallCount < len(s.Deltas) {
+		for _, delta := range s.Deltas[s.CallCount] {
+			onTextDelta(delta)
+		}
 	}
 
 	if s.CallCount >= len(s.Responses) {

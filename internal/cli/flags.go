@@ -38,6 +38,11 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Usage: "Optional model slug for compaction summarization; defaults to --model when unset",
 			Value: config.Get().SummaryModel,
 		},
+		&cli.BoolFlag{
+			Name:  "model.stream",
+			Usage: "Stream assistant text responses as they are generated",
+			Value: config.Get().StreamEnabled(),
+		},
 		&cli.StringFlag{
 			Name:   "model.base-url",
 			Usage:  "Base URL for the model provider API",
@@ -252,6 +257,9 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("model.summary") {
 		cfg.SummaryModel = strings.TrimSpace(cmd.String("model.summary"))
+	}
+	if cmd.IsSet("model.stream") {
+		cfg.Stream = new(cmd.Bool("model.stream"))
 	}
 	if cmd.IsSet("model.provider") {
 		cfg.ModelProvider = strings.TrimSpace(cmd.String("model.provider"))

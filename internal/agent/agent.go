@@ -40,6 +40,13 @@ type ServiceAPI interface {
 type RespondOptions struct {
 	Instruct  string
 	SessionID string
+	Stream    *bool
+	OnEvent   func(Event)
+}
+
+type Event struct {
+	Channel string
+	Text    string
 }
 
 type CompactSessionResult struct {
