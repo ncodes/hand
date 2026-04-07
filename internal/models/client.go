@@ -24,8 +24,9 @@ type StreamDelta struct {
 }
 
 const (
-	APIModeChatCompletions = "chat-completions"
-	APIModeResponses       = "responses"
+	// APIModeCompletions selects the chat completions API path (OpenAI-compatible /v1/chat/completions).
+	APIModeCompletions = "completions"
+	APIModeResponses   = "responses"
 )
 
 type Request struct {

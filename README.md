@@ -103,7 +103,7 @@ Typical model settings:
 - `model.openrouterApiKey`: provider-specific OpenRouter API key
 - `model.baseUrl`: explicit provider base URL when needed
 - `model.summaryBaseUrl`: base URL for the summary provider when it differs from the main provider (optional)
-- `model.apiMode`: `chat-completions` or `responses` for chat requests
+- `model.apiMode`: `completions` or `responses` for chat requests
 - `model.summaryApiMode`: optional; same values as `model.apiMode`, used for compaction/summary; defaults to `model.apiMode` when unset. When the effective summary mode or provider differs from the main chat settings, the summary client base URL is derived accordingly unless `model.summaryBaseUrl` is set.
 - `model.stream`: stream assistant text responses during chat requests; defaults to `true`
 - `rpc.address`: interface the daemon binds to

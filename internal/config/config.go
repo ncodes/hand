@@ -102,7 +102,7 @@ const (
 	defaultModel         = "openai/gpt-4o-mini"
 	defaultContextLength = 128000
 	defaultModelProvider = "openrouter"
-	DefaultModelAPIMode  = "chat-completions"
+	DefaultModelAPIMode  = "completions"
 	DefaultMaxIterations = 90
 	defaultMaxIterations = DefaultMaxIterations
 )
@@ -897,7 +897,7 @@ func (c *Config) Validate() error {
 	case DefaultModelAPIMode:
 	case "responses":
 	default:
-		return errors.New("model api mode must be one of: chat-completions, responses; use --model.api-mode")
+		return errors.New("model api mode must be one of: completions, responses; use --model.api-mode")
 	}
 
 	if c.SummaryModelAPIMode != "" {
@@ -905,7 +905,7 @@ func (c *Config) Validate() error {
 		case DefaultModelAPIMode:
 		case "responses":
 		default:
-			return errors.New("summary model api mode must be one of: chat-completions, responses; " +
+			return errors.New("summary model api mode must be one of: completions, responses; " +
 				"use --model.summary-api-mode")
 		}
 	}

@@ -853,8 +853,9 @@ func TestConfig_SummaryModelAPIModeEffective(t *testing.T) {
 	cfg.Normalize()
 	require.Equal(t, "responses", cfg.SummaryModelAPIModeEffective())
 
-	cfg.SummaryModelAPIMode = "chat-completions"
-	require.Equal(t, "chat-completions", cfg.SummaryModelAPIModeEffective())
+	cfg.SummaryModelAPIMode = DefaultModelAPIMode
+	cfg.Normalize()
+	require.Equal(t, DefaultModelAPIMode, cfg.SummaryModelAPIModeEffective())
 }
 
 func TestConfig_ResolveSummaryModelAuth_UsesSummaryAPIModeForDefaultBaseURL(t *testing.T) {
@@ -933,7 +934,7 @@ func TestConfig_ValidateRejectsInvalidSummaryModelAPIMode(t *testing.T) {
 		LogLevel:            "info",
 	}).Validate()
 
-	require.EqualError(t, err, "summary model api mode must be one of: chat-completions, responses; "+
+	require.EqualError(t, err, "summary model api mode must be one of: completions, responses; "+
 		"use --model.summary-api-mode")
 }
 
@@ -957,7 +958,7 @@ func TestConfig_ValidateAcceptsSummaryModelAPIModeResponses(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestConfig_ValidateAcceptsSummaryModelAPIModeChatCompletions(t *testing.T) {
+func TestConfig_ValidateAcceptsSummaryModelAPIModeCompletions(t *testing.T) {
 	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
 		return ModelMetadata{Exists: true, ContextLength: defaultContextLength}, nil
 	})
@@ -1220,7 +1221,7 @@ func TestConfig_NormalizeKeepsOpenaiProvider(t *testing.T) {
 }
 
 func TestConfig_NormalizeDefaultBaseURLDependsOnAPIMode(t *testing.T) {
-	t.Run("openai uses sdk default for chat-completions and responses", func(t *testing.T) {
+	t.Run("openai uses sdk default for completions and responses", func(t *testing.T) {
 		for _, mode := range []string{DefaultModelAPIMode, "responses"} {
 			cfg := &Config{ModelProvider: "openai", ModelAPIMode: mode}
 			cfg.Normalize()
@@ -1806,7 +1807,7 @@ model:
   name: config-model
   provider: openai
   key: config-key
-  apiMode: chat-completions
+  apiMode: completions
 rpc:
   address: 127.0.0.1
   port: 50051
@@ -1830,7 +1831,7 @@ func TestConfig_ValidateRejectsInvalidAPIMode(t *testing.T) {
 		RPCPort:       50051,
 		LogLevel:      "info",
 	}).Validate()
-	require.EqualError(t, err, "model api mode must be one of: chat-completions, responses; use --model.api-mode")
+	require.EqualError(t, err, "model api mode must be one of: completions, responses; use --model.api-mode")
 }
 
 func TestConfig_ValidateAllowsResponsesModeWithOpenRouter(t *testing.T) {

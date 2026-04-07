@@ -245,7 +245,7 @@ func writeTraceSession(t *testing.T, dir, id string) {
 		Payload: handtrace.Metadata{
 			AgentName: "Daemon",
 			Model:     "model",
-			APIMode:   "chat-completions",
+			APIMode:   "completions",
 		},
 	}))
 }

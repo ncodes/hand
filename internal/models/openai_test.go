@@ -140,7 +140,7 @@ func TestOpenAIClient_ChatRejectsInvalidAPIMode(t *testing.T) {
 		APIMode:  "invalid",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
-	require.EqualError(t, err, "model api mode must be one of: chat-completions, responses")
+	require.EqualError(t, err, "model api mode must be one of: completions, responses")
 }
 
 func TestOpenAIClient_ChatRequiresModel(t *testing.T) {
@@ -884,7 +884,7 @@ func TestOpenAIClient_ChatLogsRequestDebugDumpForChatCompletions(t *testing.T) {
 	})
 	require.NoError(t, err)
 	output := buf.String()
-	require.Contains(t, output, `"mode":"chat-completions"`)
+	require.Contains(t, output, `"mode":"completions"`)
 	require.Contains(t, output, `"content":"hello"`)
 }
 
@@ -940,7 +940,7 @@ func TestLogRequestDebugDump_LogsMarshalError(t *testing.T) {
 func TestNormalizeGenerateRequestDefaultsAPIMode(t *testing.T) {
 	normalized, err := normalizeGenerateRequest(Request{Model: "test-model", Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}})
 	require.NoError(t, err)
-	require.Equal(t, APIModeChatCompletions, normalized.APIMode)
+	require.Equal(t, APIModeCompletions, normalized.APIMode)
 }
 
 func TestBuildChatCompletionsRequestIncludesPlainAssistantMessage(t *testing.T) {
@@ -1601,7 +1601,7 @@ func TestOpenAIClient_StreamLogsDebugDumpForChatCompletions(t *testing.T) {
 		DebugRequests: true,
 	}, nil)
 	require.NoError(t, err)
-	require.Contains(t, buf.String(), `"mode":"chat-completions"`)
+	require.Contains(t, buf.String(), `"mode":"completions"`)
 }
 
 func TestOpenAIClient_StreamLogsDebugDumpForResponses(t *testing.T) {

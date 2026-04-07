@@ -63,13 +63,13 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:   "model.summary-api-mode",
-			Usage:  "API mode for compaction/summary calls; defaults to --model.api-mode when unset",
+			Usage:  "API mode for compaction/summary (completions or responses); defaults to --model.api-mode when unset",
 			Value:  config.Get().SummaryModelAPIMode,
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "model.api-mode",
-			Usage:  "Provider API mode: chat-completions or responses",
+			Usage:  "Provider API mode: completions or responses",
 			Value:  config.Get().ModelAPIMode,
 			Hidden: true,
 		},

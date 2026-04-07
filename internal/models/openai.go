@@ -293,10 +293,10 @@ func normalizeGenerateRequest(req Request) (normalizedGenerateRequest, error) {
 
 	mode := strings.TrimSpace(strings.ToLower(req.APIMode))
 	if mode == "" {
-		mode = APIModeChatCompletions
+		mode = APIModeCompletions
 	}
-	if mode != APIModeChatCompletions && mode != APIModeResponses {
-		return normalizedGenerateRequest{}, errors.New("model api mode must be one of: chat-completions, responses")
+	if mode != APIModeCompletions && mode != APIModeResponses {
+		return normalizedGenerateRequest{}, errors.New("model api mode must be one of: completions, responses")
 	}
 
 	return normalizedGenerateRequest{

@@ -30,7 +30,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			Payload: handtrace.Metadata{
 				AgentName: "Daemon",
 				Model:     "qwen/qwen3.5-27b",
-				APIMode:   "chat-completions",
+				APIMode:   "completions",
 				Source:    "agent",
 				TraceDir:  ".hand/traces",
 			},
@@ -47,7 +47,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 38, 171759000, time.UTC),
 			Payload: models.Request{
 				Model:        "qwen/qwen3.5-27b",
-				APIMode:      "chat-completions",
+				APIMode:      "completions",
 				Instructions: "Daemon is the user's personal agent.",
 				Messages: []handmsg.Message{
 					{
@@ -78,7 +78,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 45, 171759000, time.UTC),
 			Payload: models.Request{
 				Model:       "qwen/qwen3.5-27b",
-				APIMode:     "chat-completions",
+				APIMode:     "completions",
 				Messages:    []handmsg.Message{{Role: handmsg.RoleTool, Content: `{"entries":[]}`}},
 				Temperature: 0,
 			},
@@ -127,7 +127,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			Payload: handtrace.Metadata{
 				AgentName: "Daemon",
 				Model:     "qwen/qwen3.5-27b",
-				APIMode:   "chat-completions",
+				APIMode:   "completions",
 				Source:    "agent",
 			},
 		},
@@ -492,7 +492,7 @@ func Test_App_Handler_ServesIndexAndSessionEndpoints(t *testing.T) {
 			Payload: handtrace.Metadata{
 				AgentName: "Daemon",
 				Model:     "model",
-				APIMode:   "chat-completions",
+				APIMode:   "completions",
 			},
 		},
 	})
@@ -537,7 +537,7 @@ func Test_App_Handler_RequiresBasicAuthWhenConfigured(t *testing.T) {
 			Payload: handtrace.Metadata{
 				AgentName: "Daemon",
 				Model:     "model",
-				APIMode:   "chat-completions",
+				APIMode:   "completions",
 			},
 		},
 	})
@@ -821,7 +821,7 @@ func Test_ApplyEvent_PreservesSummaryAndFallsBackToGenericPayload(t *testing.T) 
 
 	requestPayload, err := json.Marshal(models.Request{
 		Model:   "new-model",
-		APIMode: "chat-completions",
+		APIMode: "completions",
 	})
 	require.NoError(t, err)
 
@@ -848,7 +848,7 @@ func Test_ApplyEvent_PreservesSummaryAndFallsBackToGenericPayload(t *testing.T) 
 		Payload: requestPayload,
 	})
 	require.Equal(t, "new-model", detail.Summary.Model)
-	require.Equal(t, "chat-completions", detail.Summary.APIMode)
+	require.Equal(t, "completions", detail.Summary.APIMode)
 }
 
 func Test_App_Handler_HandleSessionPermissionAndInternalErrors(t *testing.T) {
