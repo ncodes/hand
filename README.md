@@ -47,9 +47,14 @@ Config precedence is:
 Config file values:
 - `name`
 - `model.name`
+- `model.summaryModel`
 - `model.provider`
+- `model.summaryProvider`
 - `model.key`
 - `model.baseUrl`
+- `model.summaryBaseUrl`
+- `model.apiMode`
+- `model.summaryApiMode`
 - `model.stream`
 - `rpc.address`
 - `rpc.port`
@@ -60,11 +65,16 @@ Config file values:
 Env equivalents:
 - `NAME`
 - `MODEL`
+- `MODEL_SUMMARY`
 - `MODEL_PROVIDER`
+- `MODEL_SUMMARY_PROVIDER`
 - `MODEL_KEY`
 - `OPENAI_API_KEY`
 - `OPENROUTER_API_KEY`
 - `MODEL_BASE_URL`
+- `MODEL_SUMMARY_BASE_URL`
+- `MODEL_API_MODE`
+- `MODEL_SUMMARY_API_MODE`
 - `MODEL_STREAM`
 - `RPC_ADDRESS`
 - `RPC_PORT`
@@ -85,11 +95,16 @@ Current config direction:
 
 Typical model settings:
 - `model.name`: provider model slug such as `qwen/qwen3.5-27b`
+- `model.summaryModel`: optional slug for compaction/summary; defaults to `model.name` when unset
 - `model.provider`: `openrouter` or `openai`
+- `model.summaryProvider`: optional provider for compaction/summary API calls; defaults to `model.provider` when unset
 - `model.key`: generic provider API key fallback
 - `model.openaiApiKey`: provider-specific OpenAI API key
 - `model.openrouterApiKey`: provider-specific OpenRouter API key
 - `model.baseUrl`: explicit provider base URL when needed
+- `model.summaryBaseUrl`: base URL for the summary provider when it differs from the main provider (optional)
+- `model.apiMode`: `chat-completions` or `responses` for chat requests
+- `model.summaryApiMode`: optional; same values as `model.apiMode`, used for compaction/summary; defaults to `model.apiMode` when unset. When the effective summary mode or provider differs from the main chat settings, the summary client base URL is derived accordingly unless `model.summaryBaseUrl` is set.
 - `model.stream`: stream assistant text responses during chat requests; defaults to `true`
 - `rpc.address`: interface the daemon binds to
 - `rpc.port`: port the daemon binds to

@@ -47,6 +47,7 @@ func TestTurn_LoadRejectsNilExecutionEnvironment(t *testing.T) {
 	turn := NewTurn(
 		testSessionConfig(&config.Config{Name: "Test Agent"}),
 		&mocks.ModelClientStub{},
+		nil,
 		mustNewSessionManager(t),
 		nil,
 		nil,
@@ -66,6 +67,7 @@ func TestTurn_LoadRejectsMissingManager(t *testing.T) {
 	turn := NewTurn(
 		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
 		&mocks.ModelClientStub{},
+		nil,
 		nil,
 		nil,
 		&mocks.EnvironmentStub{
@@ -117,6 +119,7 @@ func TestTurn_LoadReturnsResolveError(t *testing.T) {
 	turn := NewTurn(
 		testSessionConfig(&config.Config{Name: "Test Agent"}),
 		&mocks.ModelClientStub{},
+		nil,
 		manager,
 		nil,
 		&mocks.EnvironmentStub{
@@ -143,6 +146,7 @@ func TestTurn_LoadReturnsGetMessagesError(t *testing.T) {
 	turn := NewTurn(
 		testSessionConfig(&config.Config{Name: "Test Agent"}),
 		&mocks.ModelClientStub{},
+		nil,
 		manager,
 		nil,
 		&mocks.EnvironmentStub{
@@ -172,6 +176,7 @@ func TestTurn_LoadReturnsGetSummaryError(t *testing.T) {
 	turn := NewTurn(
 		testSessionConfig(&config.Config{Name: "Test Agent"}),
 		&mocks.ModelClientStub{},
+		nil,
 		manager,
 		nil,
 		&mocks.EnvironmentStub{
@@ -213,6 +218,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterUserMessage(t *testing.T) {
 	_, err = NewTurn(
 		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
 		&mocks.ModelClientStub{},
+		nil,
 		manager,
 		nil,
 		&mocks.EnvironmentStub{
@@ -242,6 +248,7 @@ func TestTurn_RunReturnsContextErrorAtLoopStart(t *testing.T) {
 	_, err = NewTurn(
 		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
 		&mocks.ModelClientStub{},
+		nil,
 		manager,
 		nil,
 		&mocks.EnvironmentStub{
@@ -275,6 +282,7 @@ func TestTurn_RunReturnsPromptTokenPersistenceError(t *testing.T) {
 			OutputText:   "reply",
 			PromptTokens: 42,
 		}}},
+		nil,
 		manager,
 		nil,
 		&mocks.EnvironmentStub{
@@ -311,6 +319,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterAssistantResponse(t *testing.T) {
 	_, err = NewTurn(
 		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
 		&mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}},
+		nil,
 		manager,
 		nil,
 		&mocks.EnvironmentStub{
@@ -372,6 +381,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterAssistantToolCall(t *testing.T) {
 			ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
 			RequiresToolCalls: true,
 		}}},
+		nil,
 		manager,
 		nil,
 		&mocks.EnvironmentStub{
@@ -421,6 +431,7 @@ func TestTurn_RunReturnsContextErrorBeforeToolInvocation(t *testing.T) {
 			ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
 			RequiresToolCalls: true,
 		}}},
+		nil,
 		manager,
 		nil,
 		&mocks.EnvironmentStub{
@@ -476,6 +487,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterToolResult(t *testing.T) {
 			ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
 			RequiresToolCalls: true,
 		}}},
+		nil,
 		manager,
 		nil,
 		&mocks.EnvironmentStub{
@@ -512,6 +524,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterSummaryFallback(t *testing.T) {
 			{ToolCalls: []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}, RequiresToolCalls: true},
 			{OutputText: "summary"},
 		}},
+		nil,
 		manager,
 		nil,
 		&mocks.EnvironmentStub{
@@ -635,6 +648,7 @@ func TestTurn_SummaryFallbackReturnsPromptTokenPersistenceError(t *testing.T) {
 			OutputText:   "summary",
 			PromptTokens: 42,
 		}}},
+		nil,
 		manager,
 		nil,
 		&mocks.EnvironmentStub{
@@ -939,6 +953,7 @@ func TestTurn_LoadLoadsOnlyUnsummarizedTailWhenSummaryExists(t *testing.T) {
 	turn := NewTurn(
 		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
 		&mocks.ModelClientStub{},
+		nil,
 		manager,
 		nil,
 		&mocks.EnvironmentStub{
@@ -1981,6 +1996,7 @@ func TestTurn_RunReusesActualPromptTokensDuringPreflight(t *testing.T) {
 	turn := NewTurn(
 		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
 		&mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}},
+		nil,
 		manager,
 		nil,
 		&mocks.EnvironmentStub{
@@ -2008,6 +2024,7 @@ func TestTurn_RunUsesEstimatedPromptTokensWhenRequestGrowsPastStoredActual(t *te
 	turn := NewTurn(
 		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model", ContextLength: 1000}),
 		&mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}},
+		nil,
 		manager,
 		nil,
 		&mocks.EnvironmentStub{
@@ -2113,6 +2130,7 @@ func newTestTurnHarness(
 	turn := NewTurn(
 		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
 		client,
+		nil,
 		manager,
 		nil,
 		runtimeEnv,

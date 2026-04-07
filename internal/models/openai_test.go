@@ -1305,38 +1305,7 @@ func TestOpenAIClient_CompleteChatStreamReturnsNilStreamError(t *testing.T) {
 }
 
 func TestOpenAIClient_CompleteResponsesStreamReturnsResponseAndDeltas(t *testing.T) {
-	completedResponse := `{
-		"id": "resp_123",
-		"object": "response",
-		"created_at": 0,
-		"model": "gpt-5.1",
-		"output": [
-			{
-				"id": "msg_123",
-				"type": "message",
-				"role": "assistant",
-				"status": "completed",
-				"content": [
-					{
-						"type": "output_text",
-						"text": "hello back",
-						"annotations": []
-					}
-				]
-			}
-		],
-		"parallel_tool_calls": false,
-		"temperature": 1,
-		"tool_choice": "auto",
-		"tools": [],
-		"top_p": 1,
-		"status": "completed",
-		"text": {
-			"format": {
-				"type": "text"
-			}
-		}
-	}`
+	completedResponse := `{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","output":[{"id":"msg_123","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"hello back","annotations":[]}]}],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"completed","text":{"format":{"type":"text"}}}`
 	server := newResponsesStreamServer(t, []string{
 		`{"type":"response.output_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":"hello "}`,
 		`{"type":"response.output_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":"back"}`,
@@ -1385,38 +1354,7 @@ func TestOpenAIClient_CompleteResponsesStreamRequiresFinalResponse(t *testing.T)
 }
 
 func TestOpenAIClient_CompleteResponsesStreamSkipsEmptyTextDeltas(t *testing.T) {
-	completedResponse := `{
-		"id": "resp_123",
-		"object": "response",
-		"created_at": 0,
-		"model": "gpt-5.1",
-		"output": [
-			{
-				"id": "msg_123",
-				"type": "message",
-				"role": "assistant",
-				"status": "completed",
-				"content": [
-					{
-						"type": "output_text",
-						"text": "ok",
-						"annotations": []
-					}
-				]
-			}
-		],
-		"parallel_tool_calls": false,
-		"temperature": 1,
-		"tool_choice": "auto",
-		"tools": [],
-		"top_p": 1,
-		"status": "completed",
-		"text": {
-			"format": {
-				"type": "text"
-			}
-		}
-	}`
+	completedResponse := `{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","output":[{"id":"msg_123","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok","annotations":[]}]}],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"completed","text":{"format":{"type":"text"}}}`
 	server := newResponsesStreamServer(t, []string{
 		`{"type":"response.output_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":""}`,
 		`{"type":"response.output_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":"ok"}`,

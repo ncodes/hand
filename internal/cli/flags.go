@@ -50,6 +50,24 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Hidden: true,
 		},
 		&cli.StringFlag{
+			Name:   "model.summary-provider",
+			Usage:  "Optional provider for compaction/summary calls; defaults to --model.provider when unset",
+			Value:  config.Get().SummaryProvider,
+			Hidden: true,
+		},
+		&cli.StringFlag{
+			Name:   "model.summary-base-url",
+			Usage:  "Base URL for the summary provider when it differs from the main provider",
+			Value:  config.Get().SummaryModelBaseURL,
+			Hidden: true,
+		},
+		&cli.StringFlag{
+			Name:   "model.summary-api-mode",
+			Usage:  "API mode for compaction/summary calls; defaults to --model.api-mode when unset",
+			Value:  config.Get().SummaryModelAPIMode,
+			Hidden: true,
+		},
+		&cli.StringFlag{
 			Name:   "model.api-mode",
 			Usage:  "Provider API mode: chat-completions or responses",
 			Value:  config.Get().ModelAPIMode,
@@ -269,6 +287,15 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("model.base-url") {
 		cfg.ModelBaseURL = strings.TrimSpace(cmd.String("model.base-url"))
+	}
+	if cmd.IsSet("model.summary-provider") {
+		cfg.SummaryProvider = strings.TrimSpace(cmd.String("model.summary-provider"))
+	}
+	if cmd.IsSet("model.summary-base-url") {
+		cfg.SummaryModelBaseURL = strings.TrimSpace(cmd.String("model.summary-base-url"))
+	}
+	if cmd.IsSet("model.summary-api-mode") {
+		cfg.SummaryModelAPIMode = strings.TrimSpace(cmd.String("model.summary-api-mode"))
 	}
 	if cmd.IsSet("model.api-mode") {
 		cfg.ModelAPIMode = strings.TrimSpace(cmd.String("model.api-mode"))

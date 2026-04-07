@@ -82,18 +82,27 @@ var newSessionManager = sessionstore.NewManager
 
 // Agent coordinates agent lifecycle, sessions, and turn execution.
 type Agent struct {
-	ctx          context.Context
-	cfg          *config.Config
-	modelClient  models.Client
-	env          environment.Environment
-	sessionMgr   *sessionstore.Manager
-	turnMessages []handmsg.Message
-	initialized  bool
+	ctx           context.Context
+	cfg           *config.Config
+	modelClient   models.Client
+	summaryClient models.Client
+	env           environment.Environment
+	sessionMgr    *sessionstore.Manager
+	turnMessages  []handmsg.Message
+	initialized   bool
 }
 
 // NewAgent constructs an Agent with its runtime dependencies.
-func NewAgent(ctx context.Context, cfg *config.Config, modelClient models.Client) *Agent {
-	return &Agent{ctx: ctx, cfg: cfg, modelClient: modelClient}
+// When optionalSummary is empty or its first element is nil, summary/compaction calls use modelClient.
+func NewAgent(ctx context.Context, cfg *config.Config, modelClient models.Client, optionalSummary ...models.Client) *Agent {
+	var summaryClient models.Client
+	if len(optionalSummary) > 0 {
+		summaryClient = optionalSummary[0]
+	}
+	if summaryClient == nil {
+		summaryClient = modelClient
+	}
+	return &Agent{ctx: ctx, cfg: cfg, modelClient: modelClient, summaryClient: summaryClient}
 }
 
 func (a *Agent) Start(ctx context.Context) error {
@@ -171,7 +180,7 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 
 	agentLog.Info().Str("session_id", opts.SessionID).Str("model", a.cfg.Model).Msg("responding to user message")
 
-	turn := NewTurn(a.cfg, a.modelClient, a.sessionMgr, a.invokeToolWithEnvironment, env)
+	turn := NewTurn(a.cfg, a.modelClient, a.summaryClient, a.sessionMgr, a.invokeToolWithEnvironment, env)
 	reply, err := turn.Run(ctx, msg, opts)
 	a.turnMessages = turn.Messages()
 
@@ -332,7 +341,7 @@ func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionRe
 	}
 	defer traceSession.Close()
 
-	memoryService := memory.NewService(a.cfg, a.modelClient, a.sessionMgr)
+	memoryService := memory.NewService(a.cfg, a.modelClient, a.summaryClient, a.sessionMgr)
 	summary, err := memoryService.CompactSession(normalizeContext(ctx), session, traceSession)
 	if err != nil {
 		agentLog.Error().Str("session_id", session.ID).Err(err).Msg("session compaction failed")

@@ -489,7 +489,7 @@ func TestService_MaybeRefreshMemory_UsesSummaryModelWhenConfigured(t *testing.T)
 	cfg := summaryTestConfig(true)
 	cfg.Model = "openai/gpt-4o-mini"
 	cfg.SummaryModel = "anthropic/claude-3.5-haiku"
-	service := NewService(cfg, client, summaryTestStore(summaryTestHistory(10)))
+	service := NewService(cfg, client, nil, summaryTestStore(summaryTestHistory(10)))
 
 	err := service.MaybeRefreshMemory(context.Background(), mem, RefreshInput{
 		Request:      summaryTriggerRequest(),
@@ -521,6 +521,18 @@ func TestService_generateSummaryResponse_ValidationAndFallbackPaths(t *testing.T
 		resp, err := service.generateSummaryResponse(context.Background(), models.Request{})
 		require.Nil(t, resp)
 		require.EqualError(t, err, "chat failed")
+	})
+
+	t.Run("uses_summary_client_not_main", func(t *testing.T) {
+		main := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "from-main"}}}
+		summary := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "from-summary"}}}
+		cfg := summaryTestConfig(true)
+		service := NewService(cfg, main, summary, summaryTestStore(summaryTestHistory(10)))
+		resp, err := service.generateSummaryResponse(context.Background(), models.Request{})
+		require.NoError(t, err)
+		require.Equal(t, "from-summary", resp.OutputText)
+		require.Empty(t, main.Requests)
+		require.Len(t, summary.Requests, 1)
 	})
 }
 
@@ -877,13 +889,13 @@ func TestService_CompactSession_ReturnsValidationErrors(t *testing.T) {
 	})
 
 	t.Run("nil_model_client", func(t *testing.T) {
-		svc := NewService(summaryTestConfig(true), nil, &storagemock.SessionStore{})
+		svc := NewService(summaryTestConfig(true), nil, nil, &storagemock.SessionStore{})
 		_, err := svc.CompactSession(context.Background(), sess, traceSession)
 		require.EqualError(t, err, "model client is required")
 	})
 
 	t.Run("nil_summary_store", func(t *testing.T) {
-		svc := NewService(summaryTestConfig(true), &mocks.ModelClientStub{}, nil)
+		svc := NewService(summaryTestConfig(true), &mocks.ModelClientStub{}, nil, nil)
 		_, err := svc.CompactSession(context.Background(), sess, traceSession)
 		require.EqualError(t, err, "summary store is required")
 	})
@@ -1302,7 +1314,7 @@ func summaryTestHistory(count int) []handmsg.Message {
 }
 
 func summaryTestService(cfg *config.Config, client models.Client, store SummaryStore) *Service {
-	return NewService(cfg, client, store)
+	return NewService(cfg, client, nil, store)
 }
 
 func summaryTestStore(history []handmsg.Message) *storagemock.SessionStore {

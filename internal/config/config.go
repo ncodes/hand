@@ -33,6 +33,9 @@ type Config struct {
 	OpenAIAPIKey             string
 	OpenRouterAPIKey         string
 	ModelBaseURL             string
+	SummaryProvider          string
+	SummaryModelBaseURL      string
+	SummaryModelAPIMode      string
 	ModelAPIMode             string
 	RPCAddress               string
 	RPCPort                  int
@@ -121,6 +124,9 @@ type fileConfig struct {
 		OpenAIAPIKey     string `yaml:"openaiApiKey"`
 		OpenRouterAPIKey string `yaml:"openrouterApiKey"`
 		BaseURL          string `yaml:"baseUrl"`
+		SummaryProvider  string `yaml:"summaryProvider"`
+		SummaryBaseURL   string `yaml:"summaryBaseUrl"`
+		SummaryAPIMode   string `yaml:"summaryApiMode"`
 		APIMode          string `yaml:"apiMode"`
 	} `yaml:"model"`
 
@@ -281,6 +287,9 @@ func loadConfigFile(path string) (*Config, error) {
 		OpenAIAPIKey:             raw.Model.OpenAIAPIKey,
 		OpenRouterAPIKey:         raw.Model.OpenRouterAPIKey,
 		ModelBaseURL:             raw.Model.BaseURL,
+		SummaryProvider:          raw.Model.SummaryProvider,
+		SummaryModelBaseURL:      raw.Model.SummaryBaseURL,
+		SummaryModelAPIMode:      raw.Model.SummaryAPIMode,
 		ModelAPIMode:             raw.Model.APIMode,
 		RPCAddress:               raw.RPC.Address,
 		RPCPort:                  raw.RPC.Port,
@@ -351,8 +360,17 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("MODEL_BASE_URL")); value != "" {
 		cfg.ModelBaseURL = value
 	}
+	if value := strings.TrimSpace(os.Getenv("MODEL_SUMMARY_PROVIDER")); value != "" {
+		cfg.SummaryProvider = value
+	}
+	if value := strings.TrimSpace(os.Getenv("MODEL_SUMMARY_BASE_URL")); value != "" {
+		cfg.SummaryModelBaseURL = value
+	}
 	if value := strings.TrimSpace(os.Getenv("MODEL_API_MODE")); value != "" {
 		cfg.ModelAPIMode = value
+	}
+	if value := strings.TrimSpace(os.Getenv("MODEL_SUMMARY_API_MODE")); value != "" {
+		cfg.SummaryModelAPIMode = value
 	}
 	if value := strings.TrimSpace(os.Getenv("RPC_ADDRESS")); value != "" {
 		cfg.RPCAddress = value
@@ -460,7 +478,10 @@ func (c *Config) normalizeFields() {
 	c.OpenAIAPIKey = strings.TrimSpace(c.OpenAIAPIKey)
 	c.OpenRouterAPIKey = strings.TrimSpace(c.OpenRouterAPIKey)
 	c.ModelBaseURL = strings.TrimSpace(c.ModelBaseURL)
+	c.SummaryProvider = strings.TrimSpace(strings.ToLower(c.SummaryProvider))
+	c.SummaryModelBaseURL = strings.TrimSpace(c.SummaryModelBaseURL)
 	c.ModelAPIMode = strings.TrimSpace(strings.ToLower(c.ModelAPIMode))
+	c.SummaryModelAPIMode = strings.TrimSpace(strings.ToLower(c.SummaryModelAPIMode))
 	c.LogLevel = strings.TrimSpace(strings.ToLower(c.LogLevel))
 	c.DebugTraceDir = strings.TrimSpace(c.DebugTraceDir)
 	c.RulesFiles = normalizeRulePaths(c.RulesFiles)
@@ -623,6 +644,77 @@ func (c *Config) SummaryModelEffective() string {
 	return c.Model
 }
 
+func (c *Config) SummaryProviderEffective() string {
+	if c == nil {
+		return ""
+	}
+
+	c.normalizeFields()
+	if c.SummaryProvider != "" {
+		return c.SummaryProvider
+	}
+
+	return c.ModelProvider
+}
+
+func (c *Config) SummaryModelAPIModeEffective() string {
+	if c == nil {
+		return ""
+	}
+
+	c.normalizeFields()
+	if c.SummaryModelAPIMode != "" {
+		return c.SummaryModelAPIMode
+	}
+
+	return c.ModelAPIMode
+}
+
+func (c *Config) summaryModelBaseURLEffective() string {
+	main := c.ModelProvider
+	sum := c.SummaryProviderEffective()
+	sumMode := c.SummaryModelAPIModeEffective()
+	mainMode := c.ModelAPIMode
+
+	if sum == main && sumMode == mainMode {
+		return c.ModelBaseURL
+	}
+
+	if u := strings.TrimSpace(c.SummaryModelBaseURL); u != "" {
+		return u
+	}
+
+	return defaultBaseURLForProvider(sum, sumMode)
+}
+
+func (c *Config) ResolveSummaryModelAuth() (ModelAuth, error) {
+	if c == nil {
+		return ModelAuth{}, errors.New("config is required")
+	}
+
+	c.Normalize()
+
+	prov := c.SummaryProviderEffective()
+	auth := ModelAuth{
+		Provider: prov,
+		BaseURL:  c.summaryModelBaseURLEffective(),
+	}
+
+	auth.APIKey = c.resolveAPIKeyForProvider(prov)
+	if strings.TrimSpace(auth.APIKey) == "" {
+		return ModelAuth{}, errors.New("model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+	}
+
+	return auth, nil
+}
+
+// ModelAuthEqual reports whether two auth values describe the same provider, endpoint, and key.
+func ModelAuthEqual(a, b ModelAuth) bool {
+	return strings.TrimSpace(strings.ToLower(a.Provider)) == strings.TrimSpace(strings.ToLower(b.Provider)) &&
+		strings.TrimSpace(a.BaseURL) == strings.TrimSpace(b.BaseURL) &&
+		strings.TrimSpace(a.APIKey) == strings.TrimSpace(b.APIKey)
+}
+
 func splitAndTrimCSV(value string) []string {
 	if strings.TrimSpace(value) == "" {
 		return nil
@@ -772,7 +864,18 @@ func (c *Config) Validate() error {
 		return errors.New("model provider must be one of: openai, openrouter")
 	}
 
+	if c.SummaryProvider != "" {
+		if _, ok := providerDefaultBaseURLs[c.SummaryProvider]; !ok {
+			return errors.New("summary model provider must be one of: openai, openrouter")
+		}
+	}
+
 	auth, err := c.ResolveModelAuth()
+	if err != nil {
+		return err
+	}
+
+	summaryAuth, err := c.ResolveSummaryModelAuth()
 	if err != nil {
 		return err
 	}
@@ -791,9 +894,20 @@ func (c *Config) Validate() error {
 	}
 
 	switch c.ModelAPIMode {
-	case DefaultModelAPIMode, "responses":
+	case DefaultModelAPIMode:
+	case "responses":
 	default:
 		return errors.New("model api mode must be one of: chat-completions, responses; use --model.api-mode")
+	}
+
+	if c.SummaryModelAPIMode != "" {
+		switch c.SummaryModelAPIMode {
+		case DefaultModelAPIMode:
+		case "responses":
+		default:
+			return errors.New("summary model api mode must be one of: chat-completions, responses; " +
+				"use --model.summary-api-mode")
+		}
 	}
 
 	if c.StorageBackend != "memory" && c.StorageBackend != "sqlite" {
@@ -817,9 +931,13 @@ func (c *Config) Validate() error {
 		}
 
 		for _, slot := range verifySlots {
+			slotAuth := auth
+			if slot.field == "model.summaryModel" {
+				slotAuth = summaryAuth
+			}
 			verifyCfg := *c
 			verifyCfg.Model = slot.slug
-			meta, err := resolveModelMeta(context.Background(), &verifyCfg, auth)
+			meta, err := resolveModelMeta(context.Background(), &verifyCfg, slotAuth)
 			if err != nil {
 				return fmt.Errorf("%s: %w", slot.field, err)
 			}
@@ -849,20 +967,23 @@ func (c *Config) ResolveModelAuth() (ModelAuth, error) {
 		BaseURL:  c.ModelBaseURL,
 	}
 
-	switch c.ModelProvider {
-	case "openrouter":
-		auth.APIKey = firstNonEmpty(c.OpenRouterAPIKey, c.ModelKey)
-	case "openai":
-		auth.APIKey = firstNonEmpty(c.OpenAIAPIKey, c.ModelKey)
-	default:
-		auth.APIKey = c.ModelKey
-	}
-
+	auth.APIKey = c.resolveAPIKeyForProvider(c.ModelProvider)
 	if strings.TrimSpace(auth.APIKey) == "" {
 		return ModelAuth{}, errors.New("model key is required; set MODEL_KEY, provide it in config, or use --model.key")
 	}
 
 	return auth, nil
+}
+
+func (c *Config) resolveAPIKeyForProvider(provider string) string {
+	switch provider {
+	case "openrouter":
+		return firstNonEmpty(c.OpenRouterAPIKey, c.ModelKey)
+	case "openai":
+		return firstNonEmpty(c.OpenAIAPIKey, c.ModelKey)
+	default:
+		return c.ModelKey
+	}
 }
 
 func firstNonEmpty(values ...string) string {

@@ -462,11 +462,11 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 }
 
 func (s *Service) generateSummaryResponse(ctx context.Context, request models.Request) (*models.Response, error) {
-	if s == nil || s.modelClient == nil {
+	if s == nil || s.summaryClient == nil {
 		return nil, errors.New("model client is required")
 	}
 
-	resp, err := s.modelClient.Complete(ctx, request)
+	resp, err := s.summaryClient.Complete(ctx, request)
 	if err == nil {
 		memLog.Info().
 			Bool("structured_output_request", request.StructuredOutput != nil).
@@ -482,16 +482,16 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 
 	fallback := request
 	fallback.StructuredOutput = nil
-	resp, err = s.modelClient.Complete(ctx, fallback)
+	resp, err = s.summaryClient.Complete(ctx, fallback)
 	if err != nil {
 		return nil, err
 	}
-    
+
 	memLog.Info().
 		Bool("structured_output_request", false).
 		Msg("compaction summary model request completed after unstructured retry")
-	
-        return resp, nil
+
+	return resp, nil
 }
 
 func (s *Service) transitionCompactionPending(

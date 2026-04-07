@@ -840,6 +840,154 @@ func TestConfig_SummaryModelEffective(t *testing.T) {
 	})
 }
 
+func TestConfig_SummaryProviderEffective(t *testing.T) {
+	cfg := &Config{ModelProvider: "openrouter"}
+	require.Equal(t, "openrouter", cfg.SummaryProviderEffective())
+
+	cfg.SummaryProvider = "openai"
+	require.Equal(t, "openai", cfg.SummaryProviderEffective())
+}
+
+func TestConfig_SummaryModelAPIModeEffective(t *testing.T) {
+	cfg := &Config{ModelAPIMode: "responses"}
+	cfg.Normalize()
+	require.Equal(t, "responses", cfg.SummaryModelAPIModeEffective())
+
+	cfg.SummaryModelAPIMode = "chat-completions"
+	require.Equal(t, "chat-completions", cfg.SummaryModelAPIModeEffective())
+}
+
+func TestConfig_ResolveSummaryModelAuth_UsesSummaryAPIModeForDefaultBaseURL(t *testing.T) {
+	cfg := &Config{
+		Name:                "test-agent",
+		Model:               defaultModel,
+		ModelProvider:       "openrouter",
+		ModelKey:            "k",
+		ModelAPIMode:        DefaultModelAPIMode,
+		SummaryModelAPIMode: "responses",
+	}
+	cfg.Normalize()
+
+	auth, err := cfg.ResolveSummaryModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "https://openrouter.ai/api/v1/responses", auth.BaseURL)
+}
+
+func TestConfig_ResolveSummaryModelAuthMatchesMainWhenUnset(t *testing.T) {
+	cfg := &Config{
+		Name:          "test-agent",
+		Model:         defaultModel,
+		ModelProvider: "openrouter",
+		ModelKey:      "k",
+	}
+
+	main, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	sum, err := cfg.ResolveSummaryModelAuth()
+	require.NoError(t, err)
+	require.True(t, ModelAuthEqual(main, sum))
+}
+
+func TestConfig_ResolveSummaryModelAuthUsesOpenAIWhenSummaryProviderDiffers(t *testing.T) {
+	cfg := &Config{
+		Name:                "test-agent",
+		Model:               defaultModel,
+		ModelProvider:       "openrouter",
+		ModelKey:            "k",
+		SummaryProvider:     "openai",
+		SummaryModelBaseURL: "https://api.example/v1",
+	}
+	cfg.Normalize()
+
+	auth, err := cfg.ResolveSummaryModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "openai", auth.Provider)
+	require.Equal(t, "https://api.example/v1", auth.BaseURL)
+	require.Equal(t, "k", auth.APIKey)
+}
+
+func TestConfig_ValidateRejectsInvalidSummaryProvider(t *testing.T) {
+	err := (&Config{
+		Name:            "test-agent",
+		Model:           defaultModel,
+		ModelProvider:   "openrouter",
+		SummaryProvider: "anthropic",
+		ModelKey:        "test-key",
+		RPCAddress:      "127.0.0.1",
+		RPCPort:         50051,
+		LogLevel:        "info",
+	}).Validate()
+
+	require.EqualError(t, err, "summary model provider must be one of: openai, openrouter")
+}
+
+func TestConfig_ValidateRejectsInvalidSummaryModelAPIMode(t *testing.T) {
+	err := (&Config{
+		Name:                "test-agent",
+		Model:               defaultModel,
+		ModelProvider:       "openrouter",
+		ModelKey:            "test-key",
+		SummaryModelAPIMode: "invalid",
+		RPCAddress:          "127.0.0.1",
+		RPCPort:             50051,
+		LogLevel:            "info",
+	}).Validate()
+
+	require.EqualError(t, err, "summary model api mode must be one of: chat-completions, responses; "+
+		"use --model.summary-api-mode")
+}
+
+func TestConfig_ValidateAcceptsSummaryModelAPIModeResponses(t *testing.T) {
+	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{Exists: true, ContextLength: defaultContextLength}, nil
+	})
+
+	err := (&Config{
+		Name:                "test-agent",
+		Model:               defaultModel,
+		ModelProvider:       "openrouter",
+		ModelKey:            "test-key",
+		SummaryModelAPIMode: "responses",
+		RPCAddress:          "127.0.0.1",
+		RPCPort:             50051,
+		LogLevel:            "info",
+		VerifyModel:         new(false),
+	}).Validate()
+
+	require.NoError(t, err)
+}
+
+func TestConfig_ValidateAcceptsSummaryModelAPIModeChatCompletions(t *testing.T) {
+	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{Exists: true, ContextLength: defaultContextLength}, nil
+	})
+
+	err := (&Config{
+		Name:                "test-agent",
+		Model:               defaultModel,
+		ModelProvider:       "openrouter",
+		ModelKey:            "test-key",
+		SummaryModelAPIMode: DefaultModelAPIMode,
+		RPCAddress:          "127.0.0.1",
+		RPCPort:             50051,
+		LogLevel:            "info",
+		VerifyModel:         new(false),
+	}).Validate()
+
+	require.NoError(t, err)
+}
+
+func TestConfig_ModelAuthEqual(t *testing.T) {
+	require.True(t, ModelAuthEqual(
+		ModelAuth{Provider: "openai", BaseURL: "http://a", APIKey: "k"},
+		ModelAuth{Provider: "openai", BaseURL: "http://a", APIKey: "k"},
+	))
+	require.False(t, ModelAuthEqual(
+		ModelAuth{Provider: "openai", BaseURL: "http://a", APIKey: "k"},
+		ModelAuth{Provider: "openrouter", BaseURL: "http://a", APIKey: "k"},
+	))
+}
+
 func TestConfig_ValidateReturnsOpenRouterLookupFailure(t *testing.T) {
 	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
 		return ModelMetadata{}, errors.New(`failed to verify openrouter model "openai/gpt-4o-mini": lookup failed`)
@@ -1220,6 +1368,96 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.False(t, boolValue(cfg.CompactionEnabled))
 	require.Equal(t, 0.5, cfg.CompactionTriggerPercent)
 	require.Equal(t, 0.8, cfg.CompactionWarnPercent)
+}
+
+func TestApplyEnvOverrides_SummaryModelAndRelatedEnv(t *testing.T) {
+	clearEnvKeys(t,
+		"MODEL_SUMMARY", "MODEL_SUMMARY_PROVIDER", "MODEL_SUMMARY_BASE_URL",
+		"MODEL_API_MODE", "MODEL_SUMMARY_API_MODE",
+	)
+
+	cfg := &Config{}
+	t.Setenv("MODEL_SUMMARY", "openai/gpt-4o-mini")
+	t.Setenv("MODEL_SUMMARY_PROVIDER", "openai")
+	t.Setenv("MODEL_SUMMARY_BASE_URL", "https://example.com/v1")
+	t.Setenv("MODEL_API_MODE", "responses")
+	t.Setenv("MODEL_SUMMARY_API_MODE", "responses")
+
+	applyEnvOverrides(cfg)
+
+	require.Equal(t, "openai/gpt-4o-mini", cfg.SummaryModel)
+	require.Equal(t, "openai", cfg.SummaryProvider)
+	require.Equal(t, "https://example.com/v1", cfg.SummaryModelBaseURL)
+	require.Equal(t, "responses", cfg.ModelAPIMode)
+	require.Equal(t, "responses", cfg.SummaryModelAPIMode)
+}
+
+func TestNormalizeFields_NilReceiver_NoPanic(t *testing.T) {
+	var cfg *Config
+	cfg.normalizeFields()
+}
+
+func TestDefaultBaseURLForProvider_DefaultsEmptyAPIMode(t *testing.T) {
+	require.Equal(t, "https://openrouter.ai/api/v1", defaultBaseURLForProvider("openrouter", ""))
+	require.Equal(t, "https://openrouter.ai/api/v1", defaultBaseURLForProvider("openrouter", "   "))
+}
+
+func TestDefaultBaseURLForProvider_ReturnsEmptyForUnknownMode(t *testing.T) {
+	require.Empty(t, defaultBaseURLForProvider("openrouter", "not-a-mode"))
+}
+
+func TestConfig_NilReceiver_StreamAndSummaryHelpers(t *testing.T) {
+	var cfg *Config
+
+	require.True(t, cfg.StreamEnabled())
+	require.Equal(t, "", cfg.SummaryModelEffective())
+	require.Equal(t, "", cfg.SummaryProviderEffective())
+	require.Equal(t, "", cfg.SummaryModelAPIModeEffective())
+
+	_, err := cfg.ResolveSummaryModelAuth()
+	require.EqualError(t, err, "config is required")
+}
+
+func TestConfig_ResolveSummaryModelAuth_FailsWhenSummaryProviderHasNoKey(t *testing.T) {
+	cfg := &Config{
+		Name:                "test-agent",
+		Model:               defaultModel,
+		ModelProvider:       "openrouter",
+		OpenRouterAPIKey:    "router-only",
+		SummaryProvider:     "openai",
+		SummaryModelBaseURL: "https://api.openai.com/v1",
+	}
+	cfg.Normalize()
+
+	_, err := cfg.ResolveSummaryModelAuth()
+	require.EqualError(t, err, "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+}
+
+func TestConfig_Validate_ReturnsSummaryAuthErrorWhenOpenAIKeyMissing(t *testing.T) {
+	err := (&Config{
+		Name:             "test-agent",
+		Model:            defaultModel,
+		ModelProvider:    "openrouter",
+		OpenRouterAPIKey: "router-only",
+		SummaryProvider:  "openai",
+		RPCAddress:       "127.0.0.1",
+		RPCPort:          50051,
+		LogLevel:         "info",
+	}).Validate()
+
+	require.EqualError(t, err, "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+}
+
+func TestResolveModelMetadataForSlug_EmptySlug(t *testing.T) {
+	meta, err := resolveModelMetadataForSlug(context.Background(), ModelAuth{Provider: "openai"}, "")
+	require.NoError(t, err)
+	require.Equal(t, ModelMetadata{}, meta)
+}
+
+func TestResolveModelMetadataForSlug_UnsupportedProvider(t *testing.T) {
+	_, err := resolveModelMetadataForSlug(context.Background(), ModelAuth{Provider: "other"}, "openai/gpt-4o-mini")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unsupported model provider")
 }
 
 func TestApplyProviderModelMetadata_CoversEarlyReturns(t *testing.T) {

@@ -27,6 +27,8 @@ type Turn struct {
 	cfg *config.Config
 	// modelClient executes model requests for the turn.
 	modelClient models.Client
+	// summaryClient executes compaction/summary model requests; when nil, modelClient is used.
+	summaryClient models.Client
 	// sessionManager resolves sessions and persists turn messages.
 	sessionManager *sessionstore.Manager
 	// memoryService loads and refreshes persisted memory state for the turn.
@@ -59,13 +61,18 @@ type Turn struct {
 func NewTurn(
 	cfg *config.Config,
 	modelClient models.Client,
+	summaryClient models.Client,
 	sessionManager *sessionstore.Manager,
 	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message,
 	runtimeEnv environment.Environment,
 ) *Turn {
+	if summaryClient == nil {
+		summaryClient = modelClient
+	}
 	return &Turn{
 		cfg:            cfg,
 		modelClient:    modelClient,
+		summaryClient:  summaryClient,
 		sessionManager: sessionManager,
 		invokeToolFn:   invokeToolFn,
 		env:            runtimeEnv,
@@ -95,7 +102,7 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 	}
 
 	if t.memoryService == nil {
-		t.memoryService = agentmemory.NewService(t.cfg, t.modelClient, t.sessionManager)
+		t.memoryService = agentmemory.NewService(t.cfg, t.modelClient, t.summaryClient, t.sessionManager)
 	}
 
 	session, err := t.sessionManager.Resolve(ctx, opts.SessionID)

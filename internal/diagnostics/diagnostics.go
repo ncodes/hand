@@ -9,7 +9,12 @@ import (
 	"github.com/wandxy/hand/internal/config"
 )
 
-var osStat = os.Stat
+var (
+	osStat                  = os.Stat
+	resolveSummaryModelAuth = func(cfg *config.Config) (config.ModelAuth, error) {
+		return cfg.ResolveSummaryModelAuth()
+	}
+)
 
 type Status string
 
@@ -82,7 +87,23 @@ func Build(envPath, configPath string, cfg *config.Config, loadErr error) Report
 			Status:  StatusPass,
 			Message: fmt.Sprintf("resolved auth for provider %q", auth.Provider),
 		})
-		report.Checks = append(report.Checks, baseURLCheck(auth.BaseURL))
+		report.Checks = append(report.Checks, baseURLCheck("model base URL", auth.BaseURL))
+
+		summaryAuth, sumErr := resolveSummaryModelAuth(cfg)
+		if sumErr != nil {
+			report.Checks = append(report.Checks, Check{
+				Name:    "summary model auth",
+				Status:  StatusFail,
+				Message: sumErr.Error(),
+			})
+		} else if !config.ModelAuthEqual(auth, summaryAuth) {
+			report.Checks = append(report.Checks, Check{
+				Name:    "summary model auth",
+				Status:  StatusPass,
+				Message: fmt.Sprintf("resolved summary auth for provider %q", summaryAuth.Provider),
+			})
+			report.Checks = append(report.Checks, baseURLCheck("summary model base URL", summaryAuth.BaseURL))
+		}
 	}
 
 	return report
@@ -171,11 +192,11 @@ func fileCheck(name, path string, optional bool) Check {
 	}
 }
 
-func baseURLCheck(raw string) Check {
+func baseURLCheck(name, raw string) Check {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return Check{
-			Name:    "model base URL",
+			Name:    name,
 			Status:  StatusPass,
 			Message: "using provider default base URL",
 		}
@@ -184,14 +205,14 @@ func baseURLCheck(raw string) Check {
 	parsed, err := url.Parse(trimmed)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return Check{
-			Name:    "model base URL",
+			Name:    name,
 			Status:  StatusFail,
 			Message: fmt.Sprintf("%q is not a valid absolute URL", trimmed),
 		}
 	}
 
 	return Check{
-		Name:    "model base URL",
+		Name:    name,
 		Status:  StatusPass,
 		Message: fmt.Sprintf("using %q", trimmed),
 	}

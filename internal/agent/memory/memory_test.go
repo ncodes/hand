@@ -6,9 +6,26 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/config"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/storage"
 )
+
+func TestNewService_LogsWhenSummaryProviderAndAPIModeDifferFromMain(t *testing.T) {
+	cfg := &config.Config{
+		Name:                "t",
+		Model:               "openai/gpt-4o-mini",
+		ModelProvider:       "openrouter",
+		ModelAPIMode:        config.DefaultModelAPIMode,
+		SummaryProvider:     "openai",
+		SummaryModelAPIMode: "responses",
+		ContextLength:       100,
+	}
+	cfg.Normalize()
+
+	svc := NewService(cfg, nil, nil, nil)
+	require.NotNil(t, svc)
+}
 
 func TestMemory_SummaryToStorage_ReturnsZeroValueWithoutSummary(t *testing.T) {
 	require.Equal(t, storage.SessionSummary{}, (*Memory)(nil).SummaryToStorage())

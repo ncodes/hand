@@ -1,6 +1,7 @@
 package diagnostics
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,11 +19,11 @@ func TestBuild_ReturnsPassingReportForValidConfig(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte("name: test-agent\n"), 0o600))
 
 	report := Build(envPath, configPath, &config.Config{
-		Name:        "test-agent",
-		Model:       "openai/gpt-4o-mini",
+		Name:          "test-agent",
+		Model:         "openai/gpt-4o-mini",
 		ModelProvider: "openrouter",
-		ModelKey:    "test-key",
-		LogLevel:    "info",
+		ModelKey:      "test-key",
+		LogLevel:      "info",
 	}, nil)
 
 	require.False(t, report.HasFailures())
@@ -41,11 +42,11 @@ func TestBuild_ReturnsLoadFailureWhenConfigLoadFails(t *testing.T) {
 func TestBuild_ReturnsValidationFailureForInvalidConfig(t *testing.T) {
 	// config error: model provider must be one of: openai, openrouter
 	report := Build(".env", "config.yaml", &config.Config{
-		Name:        "test-agent",
-		Model:       "openai/gpt-4o-mini",
+		Name:          "test-agent",
+		Model:         "openai/gpt-4o-mini",
 		ModelProvider: "anthropic",
-		ModelKey:    "test-key",
-		LogLevel:    "info",
+		ModelKey:      "test-key",
+		LogLevel:      "info",
 	}, nil)
 
 	require.True(t, report.HasFailures())
@@ -54,12 +55,12 @@ func TestBuild_ReturnsValidationFailureForInvalidConfig(t *testing.T) {
 
 func TestBuild_ReturnsBaseURLFailureForInvalidURL(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
-		Name:         "test-agent",
-		Model:        "openai/gpt-4o-mini",
-		ModelProvider:  "openai",
-		ModelKey:     "test-key",
-		ModelBaseURL: "://bad-url",
-		LogLevel:     "info",
+		Name:          "test-agent",
+		Model:         "openai/gpt-4o-mini",
+		ModelProvider: "openai",
+		ModelKey:      "test-key",
+		ModelBaseURL:  "://bad-url",
+		LogLevel:      "info",
 	}, nil)
 
 	require.True(t, report.HasFailures())
@@ -68,11 +69,11 @@ func TestBuild_ReturnsBaseURLFailureForInvalidURL(t *testing.T) {
 
 func TestBuild_ReturnsValidationFailureWhileAuthStillPasses(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
-		Name:        "test-agent",
-		Model:       "openai/gpt-4o-mini",
+		Name:          "test-agent",
+		Model:         "openai/gpt-4o-mini",
 		ModelProvider: "openrouter",
-		ModelKey:    "test-key",
-		LogLevel:    "trace",
+		ModelKey:      "test-key",
+		LogLevel:      "trace",
 	}, nil)
 
 	require.True(t, report.HasFailures())
@@ -90,10 +91,10 @@ func TestBuild_ReturnsValidationFailureWhileAuthStillPasses(t *testing.T) {
 
 func TestBuild_ReturnsModelAuthFailureWhenKeyIsMissing(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
-		Name:        "test-agent",
-		Model:       "openai/gpt-4o-mini",
+		Name:          "test-agent",
+		Model:         "openai/gpt-4o-mini",
 		ModelProvider: "openrouter",
-		LogLevel:    "info",
+		LogLevel:      "info",
 	}, nil)
 
 	require.True(t, report.HasFailures())
@@ -104,13 +105,79 @@ func TestBuild_ReturnsModelAuthFailureWhenKeyIsMissing(t *testing.T) {
 	})
 }
 
+func TestBuild_IncludesSummaryModelChecksWhenSummaryAuthDiffersFromMain(t *testing.T) {
+	report := Build(".env", "config.yaml", &config.Config{
+		Name:                "test-agent",
+		Model:               "openai/gpt-4o-mini",
+		ModelProvider:       "openrouter",
+		ModelKey:            "test-key",
+		LogLevel:            "info",
+		SummaryProvider:     "openai",
+		SummaryModelBaseURL: "https://api.example/v1",
+		VerifyModel:         new(false),
+	}, nil)
+
+	require.False(t, report.HasFailures())
+	require.Contains(t, report.Checks, Check{
+		Name:    "summary model auth",
+		Status:  StatusPass,
+		Message: `resolved summary auth for provider "openai"`,
+	})
+	require.Contains(t, report.Checks, Check{
+		Name:    "summary model base URL",
+		Status:  StatusPass,
+		Message: `using "https://api.example/v1"`,
+	})
+}
+
+func TestBuild_ReturnsSummaryBaseURLFailureWhenSummaryURLInvalid(t *testing.T) {
+	report := Build(".env", "config.yaml", &config.Config{
+		Name:                "test-agent",
+		Model:               "openai/gpt-4o-mini",
+		ModelProvider:       "openrouter",
+		ModelKey:            "test-key",
+		LogLevel:            "info",
+		SummaryProvider:     "openai",
+		SummaryModelBaseURL: "://bad",
+		VerifyModel:         new(false),
+	}, nil)
+
+	require.True(t, report.HasFailures())
+	require.Contains(t, report.Summary(), "summary model base URL")
+	require.Contains(t, report.Summary(), `"://bad" is not a valid absolute URL`)
+}
+
+func TestBuild_ReturnsSummaryModelAuthFailureWhenSummaryResolveFails(t *testing.T) {
+	orig := resolveSummaryModelAuth
+	t.Cleanup(func() { resolveSummaryModelAuth = orig })
+	resolveSummaryModelAuth = func(*config.Config) (config.ModelAuth, error) {
+		return config.ModelAuth{}, errors.New("summary resolve failed")
+	}
+
+	report := Build(".env", "config.yaml", &config.Config{
+		Name:          "test-agent",
+		Model:         "openai/gpt-4o-mini",
+		ModelProvider: "openrouter",
+		ModelKey:      "test-key",
+		LogLevel:      "info",
+		VerifyModel:   new(false),
+	}, nil)
+
+	require.True(t, report.HasFailures())
+	require.Contains(t, report.Checks, Check{
+		Name:    "summary model auth",
+		Status:  StatusFail,
+		Message: "summary resolve failed",
+	})
+}
+
 func TestBuild_WarnsForMissingOptionalFiles(t *testing.T) {
 	report := Build("missing.env", "missing.yaml", &config.Config{
-		Name:        "test-agent",
-		Model:       "openai/gpt-4o-mini",
+		Name:          "test-agent",
+		Model:         "openai/gpt-4o-mini",
 		ModelProvider: "openai",
-		ModelKey:    "test-key",
-		LogLevel:    "info",
+		ModelKey:      "test-key",
+		LogLevel:      "info",
 	}, nil)
 
 	require.False(t, report.HasFailures())
@@ -193,7 +260,7 @@ func TestFileCheck_FailsForUnexpectedStatError(t *testing.T) {
 }
 
 func TestBaseURLCheck_PassesWhenEmpty(t *testing.T) {
-	check := baseURLCheck("   ")
+	check := baseURLCheck("model base URL", "   ")
 	require.Equal(t, Check{
 		Name:    "model base URL",
 		Status:  StatusPass,
@@ -202,7 +269,7 @@ func TestBaseURLCheck_PassesWhenEmpty(t *testing.T) {
 }
 
 func TestBaseURLCheck_PassesForValidAbsoluteURL(t *testing.T) {
-	check := baseURLCheck("https://example.com/v1")
+	check := baseURLCheck("model base URL", "https://example.com/v1")
 	require.Equal(t, Check{
 		Name:    "model base URL",
 		Status:  StatusPass,

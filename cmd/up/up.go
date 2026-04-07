@@ -52,8 +52,42 @@ func SetOutput(w io.Writer) io.Writer {
 	return previous
 }
 
-var newAgentRunner = func(ctx context.Context, cfg *config.Config, modelClient models.Client) agentRunner {
-	return agent.NewAgent(ctx, cfg, modelClient)
+func newAgentRunnerImpl(
+	ctx context.Context,
+	cfg *config.Config,
+	modelClient,
+	summaryClient models.Client,
+) agentRunner {
+	return agent.NewAgent(ctx, cfg, modelClient, summaryClient)
+}
+
+// newAgentRunner is swapped in tests to stub the agent.
+var newAgentRunner = newAgentRunnerImpl
+
+// listenFunc is swapped in tests to simulate listen failures.
+var listenFunc = net.Listen
+
+// grpcServerServe is swapped in tests to exercise serveRPC select branches.
+var grpcServerServe = func(srv *grpc.Server, lis net.Listener) error {
+	return srv.Serve(lis)
+}
+
+// grpcGracefulStop and serveRPCShutdownTimeout are swapped in tests to hit forced shutdown paths.
+var grpcGracefulStop = func(srv *grpc.Server) {
+	srv.GracefulStop()
+}
+
+var serveRPCShutdownTimeout = 5 * time.Second
+
+// postShutdownServeErrHook is swapped in tests to cover the final serverErr branch.
+var postShutdownServeErrHook = func(err error) error { return err }
+
+// openAIClientFactory is swapped in tests to simulate client construction failures.
+var openAIClientFactory = models.NewOpenAIClient
+
+// resolveSummaryAuth resolves summary model credentials (hooked in tests).
+var resolveSummaryAuth = func(cfg *config.Config) (config.ModelAuth, error) {
+	return cfg.ResolveSummaryModelAuth()
 }
 
 func renderStartupPanel(cfg *config.Config) string {
@@ -85,6 +119,12 @@ func renderStartupPanel(cfg *config.Config) string {
 	if cfg.SummaryModel != "" && cfg.SummaryModel != cfg.Model {
 		lines = append(lines, fmt.Sprintf("%s %s", styleLabel("Summary model", cfg.LogNoColor), cfg.SummaryModelEffective()))
 	}
+	if cfg.SummaryProviderEffective() != cfg.ModelProvider {
+		lines = append(lines, fmt.Sprintf("%s %s", styleLabel("Summary provider", cfg.LogNoColor), cfg.SummaryProviderEffective()))
+	}
+	if cfg.SummaryModelAPIModeEffective() != cfg.ModelAPIMode {
+		lines = append(lines, fmt.Sprintf("%s %s", styleLabel("Summary API mode", cfg.LogNoColor), cfg.SummaryModelAPIModeEffective()))
+	}
 	lines = append(lines,
 		fmt.Sprintf("%s %s", styleLabel("Provider", cfg.LogNoColor), cfg.ModelProvider),
 		fmt.Sprintf("%s %t", styleLabel("Streaming", cfg.LogNoColor), cfg.StreamEnabled()),
@@ -112,7 +152,7 @@ func styleLabel(value string, noColor bool) string {
 }
 
 var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) error {
-	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort))
+	lis, err := listenFunc("tcp", fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort))
 	if err != nil {
 		return err
 	}
@@ -129,7 +169,7 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) 
 
 	serverErr := make(chan error, 1)
 	go func() {
-		serverErr <- grpcSrv.Serve(lis)
+		serverErr <- grpcServerServe(grpcSrv, lis)
 	}()
 
 	log.Info().
@@ -148,12 +188,12 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) 
 		log.Info().Msg("Received shutdown signal")
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), serveRPCShutdownTimeout)
 	defer cancel()
 
 	stopped := make(chan struct{})
 	go func() {
-		grpcSrv.GracefulStop()
+		grpcGracefulStop(grpcSrv)
 		close(stopped)
 	}()
 
@@ -165,7 +205,7 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) 
 		<-stopped
 	}
 
-	if err := <-serverErr; err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+	if err := postShutdownServeErrHook(<-serverErr); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 		return err
 	}
 
@@ -222,12 +262,31 @@ func NewCommand() *cli.Command {
 				clientOptions = append(clientOptions, option.WithBaseURL(cfg.ModelBaseURL))
 			}
 
-			modelClient, err := models.NewOpenAIClient(auth.APIKey, clientOptions...)
+			modelClient, err := openAIClientFactory(auth.APIKey, clientOptions...)
 			if err != nil {
 				return err
 			}
 
-			agent := newAgentRunner(ctx, cfg, modelClient)
+			summaryAuth, err := resolveSummaryAuth(cfg)
+			if err != nil {
+				return err
+			}
+
+			var summaryClient models.Client
+			if config.ModelAuthEqual(auth, summaryAuth) {
+				summaryClient = modelClient
+			} else {
+				summaryOpts := make([]option.RequestOption, 0, 1)
+				if strings.TrimSpace(summaryAuth.BaseURL) != "" {
+					summaryOpts = append(summaryOpts, option.WithBaseURL(summaryAuth.BaseURL))
+				}
+				summaryClient, err = openAIClientFactory(summaryAuth.APIKey, summaryOpts...)
+				if err != nil {
+					return err
+				}
+			}
+
+			agent := newAgentRunner(ctx, cfg, modelClient, summaryClient)
 			if err := agent.Start(ctx); err != nil {
 				return err
 			}

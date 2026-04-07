@@ -10,8 +10,11 @@
 #   contextLength: 128000
 #   verifyModel: true
 #   provider: "openrouter"
+#   summaryProvider: "openai"
 #   apiMode: "chat-completions"
+#   summaryApiMode: "responses"
 #   baseUrl: "https://openrouter.ai/api/v1"
+#   summaryBaseUrl: "https://api.openai.com/v1"
 #   key: "replace-with-your-model-key"
 #   openaiApiKey: "replace-with-your-openai-key"
 #   openrouterApiKey: "replace-with-your-openrouter-key"

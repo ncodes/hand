@@ -23,6 +23,7 @@ type SummaryStore interface {
 
 type Service struct {
 	modelClient   models.Client
+	summaryClient models.Client
 	store         SummaryStore
 	evaluator     *compaction.Evaluator
 	compactionOn  bool
@@ -44,27 +45,41 @@ type traceRecorder interface {
 	Record(string, any)
 }
 
-func NewService(cfg *config.Config, modelClient models.Client, summaryStore SummaryStore) *Service {
+func NewService(cfg *config.Config, modelClient, summaryClient models.Client, summaryStore SummaryStore) *Service {
+	if summaryClient == nil {
+		summaryClient = modelClient
+	}
+
 	service := &Service{
-		modelClient:  modelClient,
-		store:        summaryStore,
-		evaluator:    summaryCompactionEvaluator(cfg),
-		compactionOn: summaryCompactionEnabled(cfg),
-		now:          func() time.Time { return time.Now().UTC() },
+		modelClient:   modelClient,
+		summaryClient: summaryClient,
+		store:         summaryStore,
+		evaluator:     summaryCompactionEvaluator(cfg),
+		compactionOn:  summaryCompactionEnabled(cfg),
+		now:           func() time.Time { return time.Now().UTC() },
 	}
 
 	if cfg != nil {
 		service.model = cfg.Model
 		service.summaryModel = cfg.SummaryModelEffective()
-		service.apiMode = cfg.ModelAPIMode
+		service.apiMode = cfg.SummaryModelAPIModeEffective()
 		service.debugRequests = cfg.DebugRequests
 	}
 
-	memLog.Debug().
+	logEvent := memLog.Debug().
 		Str("model", service.model).
 		Str("summary_model", service.summaryModel).
-		Bool("compaction_enabled", service.compactionOn).
-		Msg("memory service initialized")
+		Bool("compaction_enabled", service.compactionOn)
+
+	if cfg != nil && cfg.SummaryProviderEffective() != cfg.ModelProvider {
+		logEvent = logEvent.Str("summary_provider", cfg.SummaryProviderEffective())
+	}
+
+	if cfg != nil && cfg.SummaryModelAPIModeEffective() != cfg.ModelAPIMode {
+		logEvent = logEvent.Str("summary_api_mode", cfg.SummaryModelAPIModeEffective())
+	}
+
+	logEvent.Msg("memory service initialized")
 
 	return service
 }
