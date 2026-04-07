@@ -191,6 +191,43 @@ func Test_Store_ListSessions_SortsTiesByIDDescending(t *testing.T) {
 	require.Equal(t, "aaa", summaries[1].ID)
 }
 
+func Test_Store_GetSession_DecodesWorkspaceRulesTruncatedEvent(t *testing.T) {
+	dir := t.TempDir()
+	writeTraceFile(t, dir, "rules", []any{
+		handtrace.Event{
+			SessionID: "rules",
+			Type:      handtrace.EvtChatStarted,
+			Timestamp: time.Date(2026, 4, 7, 0, 0, 0, 0, time.UTC),
+			Payload: handtrace.Metadata{
+				AgentName: "Daemon",
+				Model:     "openai/gpt-4o-mini",
+				APIMode:   "responses",
+				Source:    "agent",
+			},
+		},
+		handtrace.Event{
+			SessionID: "rules",
+			Type:      handtrace.EvtWorkspaceRulesTruncated,
+			Timestamp: time.Date(2026, 4, 7, 0, 0, 1, 0, time.UTC),
+			Payload: map[string]any{
+				"original_length":    24000,
+				"truncated_length":   15000,
+				"max_content_length": 15000,
+				"marker":             "[... workspace rules truncated ...]",
+			},
+		},
+	})
+
+	detail, err := NewStore(dir).GetSession("rules")
+	require.NoError(t, err)
+	require.Len(t, detail.Timeline, 2)
+	require.NotNil(t, detail.Timeline[1].WorkspaceRules)
+	require.Equal(t, 24000, detail.Timeline[1].WorkspaceRules.OriginalLength)
+	require.Equal(t, 15000, detail.Timeline[1].WorkspaceRules.TruncatedLength)
+	require.Equal(t, 15000, detail.Timeline[1].WorkspaceRules.MaxContentLength)
+	require.Equal(t, "[... workspace rules truncated ...]", detail.Timeline[1].WorkspaceRules.Marker)
+}
+
 func Test_Store_ListSessions_SortsOlderSessionsAfterNewerOnComparatorReversePath(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "older", []any{

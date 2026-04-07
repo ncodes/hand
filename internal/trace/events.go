@@ -23,4 +23,5 @@ const (
 	EvtSummaryFailed              = "context.summary.failed"
 	EvtSummaryParseFailed         = "context.summary.parse_failed"
 	EvtSummaryApplied             = "context.summary.applied"
+	EvtWorkspaceRulesTruncated    = "workspace.rules.truncated"
 )

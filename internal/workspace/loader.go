@@ -29,8 +29,13 @@ var (
 )
 
 type Result struct {
-	Content string
-	Found   bool
+	Content          string
+	Found            bool
+	Truncated        bool
+	MaxContentLength int
+	OriginalLength   int
+	TruncatedLength  int
+	TruncationMarker string
 }
 
 func DefaultInstructionFiles() []string {
@@ -120,9 +125,17 @@ func LoadFromRoot(root string, files ...string) (Result, error) {
 		sections = append(sections, fmt.Sprintf("## %s\n%s", displayPath, scanned.Content))
 	}
 
+	combined := strings.Join(sections, "\n\n")
+	content, truncated := truncate(combined)
+
 	return Result{
-		Content: truncate(strings.Join(sections, "\n\n")),
-		Found:   true,
+		Content:          content,
+		Found:            true,
+		Truncated:        truncated,
+		MaxContentLength: maxContentLength,
+		OriginalLength:   len(combined),
+		TruncatedLength:  len(content),
+		TruncationMarker: "[... workspace rules truncated ...]",
 	}, nil
 }
 
@@ -296,8 +309,9 @@ func depth(root, path string) int {
 	return strings.Count(filepath.ToSlash(relative), "/")
 }
 
-func truncate(content string) string {
-	return promptio.TruncateMiddle(content, maxContentLength, "\n\n[... workspace rules truncated ...]\n\n")
+func truncate(content string) (string, bool) {
+	truncated := promptio.TruncateMiddle(content, maxContentLength, "\n\n[... workspace rules truncated ...]\n\n")
+	return truncated, truncated != content
 }
 
 func toFileSet(files []string) map[string]struct{} {

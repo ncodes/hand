@@ -107,6 +107,9 @@ func TestLoadFromRoot_TruncatesCombinedContent(t *testing.T) {
 
 	require.NoError(t, err)
 	require.True(t, result.Found)
+	require.True(t, result.Truncated)
+	require.Equal(t, maxContentLength, result.MaxContentLength)
+	require.Greater(t, result.OriginalLength, result.TruncatedLength)
 	require.Contains(t, result.Content, "[... workspace rules truncated ...]")
 	require.LessOrEqual(t, len(result.Content), maxContentLength)
 }

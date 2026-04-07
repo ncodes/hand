@@ -50,6 +50,7 @@ type environment struct {
 	ctx          context.Context
 	cfg          *config.Config
 	instructions instructions.Instructions
+	workspace    workspace.Result
 	tools        tools.Registry
 	traces       trace.Factory
 	runtime      *Runtime
@@ -164,6 +165,7 @@ func (e *environment) prepareInstructions() error {
 	}
 
 	if workspaceRules.Found {
+		e.workspace = workspaceRules
 		e.addInstruction(instructions.Instruction{Value: workspaceRules.Content})
 	}
 
@@ -206,7 +208,17 @@ func (e *environment) NewTraceSession(sessionID string) trace.Session {
 		metadata.APIMode = e.cfg.ModelAPIMode
 	}
 
-	return e.traces.OpenSession(e.ctx, sessionID, metadata)
+	session := e.traces.OpenSession(e.ctx, sessionID, metadata)
+	if e.workspace.Truncated {
+		session.Record(trace.EvtWorkspaceRulesTruncated, map[string]any{
+			"original_length":    e.workspace.OriginalLength,
+			"truncated_length":   e.workspace.TruncatedLength,
+			"max_content_length": e.workspace.MaxContentLength,
+			"marker":             e.workspace.TruncationMarker,
+		})
+	}
+
+	return session
 }
 
 func (e *environment) fileRoots() []string {

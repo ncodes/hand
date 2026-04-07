@@ -3,7 +3,9 @@ package environment
 import (
 	gctx "context"
 	stdctx "context"
+	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -15,6 +17,7 @@ import (
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/personality"
 	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/internal/workspace"
 )
 
@@ -541,6 +544,59 @@ func TestNewEnvironment_ConfiguresTraceFactoryWhenEnabled(t *testing.T) {
 	session.Close()
 }
 
+func TestEnvironment_NewTraceSessionRecordsWorkspaceRuleTruncation(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{
+			Found:            true,
+			Content:          "## AGENTS.md\nrepo rules\n\n[... workspace rules truncated ...]\n\n## pkg/hand.md\nmore",
+			Truncated:        true,
+			MaxContentLength: 15000,
+			OriginalLength:   24000,
+			TruncatedLength:  15000,
+			TruncationMarker: "[... workspace rules truncated ...]",
+		}, nil
+	}
+
+	dir := t.TempDir()
+	cfg := &config.Config{
+		Name:          "Test Agent",
+		Model:         "gpt-5.1",
+		ModelAPIMode:  "responses",
+		DebugTraces:   true,
+		DebugTraceDir: dir,
+	}
+	env := NewEnvironment(gctx.Background(), cfg)
+	require.NoError(t, env.Prepare())
+
+	const traceSessionID = "ses_rules"
+	session := env.NewTraceSession(traceSessionID)
+	session.Close()
+
+	tracePath, err := trace.ResolveTraceFilePath(dir, traceSessionID)
+	require.NoError(t, err)
+
+	lines := readJSONLines(t, tracePath)
+	require.Len(t, lines, 2)
+	require.Equal(t, trace.EvtChatStarted, lines[0].Type)
+	require.Equal(t, trace.EvtWorkspaceRulesTruncated, lines[1].Type)
+
+	payload, ok := lines[1].Payload.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, float64(24000), payload["original_length"])
+	require.Equal(t, float64(15000), payload["truncated_length"])
+	require.Equal(t, float64(15000), payload["max_content_length"])
+	require.Equal(t, "[... workspace rules truncated ...]", payload["marker"])
+}
+
 func TestNewEnvironment_ReturnsNoopTraceSessionWhenDisabled(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
@@ -573,4 +629,40 @@ func TestNewEnvironment_UsesDefaultTraceDirWhenEnabledWithoutConfiguredDir(t *te
 	require.NoError(t, err)
 	require.Len(t, matches, 1)
 	require.FileExists(t, matches[0])
+}
+
+func readJSONLines(t *testing.T, path string) []trace.Event {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	lines := make([]trace.Event, 0)
+	for _, raw := range splitLines(data) {
+		if len(raw) == 0 {
+			continue
+		}
+		var event trace.Event
+		require.NoError(t, json.Unmarshal(raw, &event))
+		lines = append(lines, event)
+	}
+
+	return lines
+}
+
+func splitLines(data []byte) [][]byte {
+	lines := make([][]byte, 0)
+	start := 0
+	for i, b := range data {
+		if b != '\n' {
+			continue
+		}
+		lines = append(lines, data[start:i])
+		start = i + 1
+	}
+	if start < len(data) {
+		lines = append(lines, data[start:])
+	}
+
+	return lines
 }

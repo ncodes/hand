@@ -65,6 +65,7 @@ type TimelineEvent struct {
 	ContextEvent      *ContextEventView    `json:"context_event,omitempty"`
 	SummaryEvent      *SummaryEventView    `json:"summary_event,omitempty"`
 	CompactionEvent   *CompactionEventView `json:"compaction_event,omitempty"`
+	WorkspaceRules    *WorkspaceRulesView  `json:"workspace_rules,omitempty"`
 	GenericPayloadRaw string               `json:"generic_payload_raw,omitempty"`
 }
 
@@ -181,6 +182,13 @@ type CompactionEventView struct {
 	CompletedAt        time.Time `json:"completed_at,omitempty"`
 	FailedAt           time.Time `json:"failed_at,omitempty"`
 	Error              string    `json:"error,omitempty"`
+}
+
+type WorkspaceRulesView struct {
+	OriginalLength   int    `json:"original_length,omitempty"`
+	TruncatedLength  int    `json:"truncated_length,omitempty"`
+	MaxContentLength int    `json:"max_content_length,omitempty"`
+	Marker           string `json:"marker,omitempty"`
 }
 
 type rawEvent struct {
@@ -537,6 +545,12 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 				Error:              strings.TrimSpace(payload.Error),
 			}
 
+			return
+		}
+	case handtrace.EvtWorkspaceRulesTruncated:
+		var payload WorkspaceRulesView
+		if json.Unmarshal(event.Payload, &payload) == nil {
+			timelineEvent.WorkspaceRules = &payload
 			return
 		}
 	}
