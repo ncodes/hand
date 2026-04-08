@@ -1,6 +1,6 @@
 //go:build windows
 
-package native
+package runcommand
 
 import "os/exec"
 

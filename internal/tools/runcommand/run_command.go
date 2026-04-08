@@ -1,4 +1,4 @@
-package native
+package runcommand
 
 import (
 	"bytes"
@@ -13,11 +13,13 @@ import (
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/hand/internal/tools/common"
 )
 
 var currentGOOS = goruntime.GOOS
+var commandContext = common.CommandContext
 
-func RunCommandDefinition(runtime envtypes.Runtime) tools.Definition {
+func Definition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Command        string            `json:"command"`
 		Args           []string          `json:"args"`
@@ -28,15 +30,15 @@ func RunCommandDefinition(runtime envtypes.Runtime) tools.Definition {
 
 	return tools.Definition{
 		Name: "run_command",
-		Description: joinStrings(
+		Description: common.JoinStrings(
 			"Run a short-lived, non-interactive command.",
 			"Default timeout 30s, max 120s.",
 			"Kills the process (main/child/background) on timeout.",
 		),
 		Groups:   []string{"core"},
 		Requires: tools.Capabilities{Exec: true},
-		InputSchema: objectSchema(map[string]any{
-			"command": stringSchema("Command to run. Uses the shell when args are omitted."),
+		InputSchema: common.ObjectSchema(map[string]any{
+			"command": common.StringSchema("Command to run. Uses the shell when args are omitted."),
 			"args": map[string]any{
 				"type":        "array",
 				"description": "Arguments passed directly to the command.",
@@ -44,7 +46,7 @@ func RunCommandDefinition(runtime envtypes.Runtime) tools.Definition {
 					"type": "string",
 				},
 			},
-			"cwd": stringSchema("Working directory relative to an allowed workspace root."),
+			"cwd": common.StringSchema("Working directory relative to an allowed workspace root."),
 			"env": map[string]any{
 				"type":        "object",
 				"description": "Environment variable overrides.",
@@ -52,19 +54,19 @@ func RunCommandDefinition(runtime envtypes.Runtime) tools.Definition {
 					"type": "string",
 				},
 			},
-			"timeout_seconds": integerSchema(joinStrings(
+			"timeout_seconds": common.IntegerSchema(common.JoinStrings(
 				"Timeout in seconds. Default 30. Max 120.",
 				"Terminates the command/processes when reached.",
 			)),
 		}, "command"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
-			if result := decodeInput(call, &req); result.Error != "" {
+			if result := common.DecodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
 
 			if strings.TrimSpace(req.Command) == "" {
-				return toolError("invalid_input", "command is required"), nil
+				return common.ToolError("invalid_input", "command is required"), nil
 			}
 
 			cwd := req.Cwd
@@ -74,28 +76,28 @@ func RunCommandDefinition(runtime envtypes.Runtime) tools.Definition {
 
 			resolved, err := runtime.FilePolicy().Resolve(cwd)
 			if err != nil {
-				return fileError(err), nil
+				return common.FileError(err), nil
 			}
 
 			eval := guardrails.EvaluateCommand(runtime.CommandPolicy(), req.Command, req.Args)
 			switch eval.Decision {
 			case guardrails.CommandDenied:
-				return toolError("command_denied", eval.Reason), nil
+				return common.ToolError("command_denied", eval.Reason), nil
 			case guardrails.CommandApprovalRequired:
 				message := "command requires approval"
 				if eval.Rule != "" {
 					message = "command requires approval: " + eval.Rule
 				}
 
-				return toolError("approval_required", message), nil
+				return common.ToolError("approval_required", message), nil
 			}
 
-			timeout := withTimeoutSeconds(req.TimeoutSeconds)
+			timeout := common.WithTimeoutSeconds(req.TimeoutSeconds)
 			runCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 			defer cancel()
 
 			if err := runCtx.Err(); err != nil {
-				return toolError("command_failed", err.Error()), nil
+				return common.ToolError("command_failed", err.Error()), nil
 			}
 
 			cmd := buildCommand(context.Background(), req.Command, req.Args)
@@ -116,7 +118,7 @@ func RunCommandDefinition(runtime envtypes.Runtime) tools.Definition {
 
 			startedAt := time.Now()
 			if err := cmd.Start(); err != nil {
-				return toolError("command_failed", err.Error()), nil
+				return common.ToolError("command_failed", err.Error()), nil
 			}
 
 			done := make(chan error, 1)
@@ -134,10 +136,10 @@ func RunCommandDefinition(runtime envtypes.Runtime) tools.Definition {
 			elapsedSeconds := time.Since(startedAt).Seconds()
 
 			if runCtx.Err() == context.DeadlineExceeded {
-				return encodeOutput(runCommandOutput(
+				return common.EncodeOutput(runCommandOutput(
 					-1,
-					trimOutput(stdout.String(), maxOutputBytes),
-					trimOutput(stderr.String(), maxOutputBytes),
+					common.TrimOutput(stdout.String(), common.MaxOutputBytes),
+					common.TrimOutput(stderr.String(), common.MaxOutputBytes),
 					true,
 					timeout,
 					elapsedSeconds,
@@ -145,7 +147,7 @@ func RunCommandDefinition(runtime envtypes.Runtime) tools.Definition {
 			}
 
 			if runCtx.Err() == context.Canceled {
-				return toolError("command_failed", runCtx.Err().Error()), nil
+				return common.ToolError("command_failed", runCtx.Err().Error()), nil
 			}
 
 			exitCode := 0
@@ -153,14 +155,14 @@ func RunCommandDefinition(runtime envtypes.Runtime) tools.Definition {
 				if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 					exitCode = exitErr.ExitCode()
 				} else {
-					return toolError("command_failed", err.Error()), nil
+					return common.ToolError("command_failed", err.Error()), nil
 				}
 			}
 
-			return encodeOutput(runCommandOutput(
+			return common.EncodeOutput(runCommandOutput(
 				exitCode,
-				trimOutput(stdout.String(), maxOutputBytes),
-				trimOutput(stderr.String(), maxOutputBytes),
+				common.TrimOutput(stdout.String(), common.MaxOutputBytes),
+				common.TrimOutput(stderr.String(), common.MaxOutputBytes),
 				false,
 				timeout,
 				elapsedSeconds,

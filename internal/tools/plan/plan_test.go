@@ -1,4 +1,4 @@
-package native
+package plan_test
 
 import (
 	"context"
@@ -8,14 +8,17 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/environment"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
+	nativemocks "github.com/wandxy/hand/internal/tools/mocks"
+	plantool "github.com/wandxy/hand/internal/tools/plan"
 	"github.com/wandxy/hand/internal/trace"
 )
 
 func TestPlanTool_ReadEmptyPlan(t *testing.T) {
-	registry := registerTestRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
+	registry := registerPlanRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
 
 	result, err := registry.Invoke(tools.WithSessionID(context.Background(), "session-1"), tools.Call{Name: "plan_tool", Input: `{}`})
 	require.NoError(t, err)
@@ -27,7 +30,7 @@ func TestPlanTool_ReadEmptyPlan(t *testing.T) {
 }
 
 func TestPlanTool_ReplacePlan(t *testing.T) {
-	registry := registerTestRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
+	registry := registerPlanRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
 
 	result, err := registry.Invoke(tools.WithSessionID(context.Background(), "session-1"), tools.Call{
 		Name: "plan_tool",
@@ -44,7 +47,7 @@ func TestPlanTool_ReplacePlan(t *testing.T) {
 }
 
 func TestPlanTool_MergeStatusOnlyUpdate(t *testing.T) {
-	registry := registerTestRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
+	registry := registerPlanRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
 	_, err := registry.Invoke(tools.WithSessionID(context.Background(), "session-1"), tools.Call{
 		Name:  "plan_tool",
 		Input: `{"steps":[{"id":"step-1","content":"Implement feature","status":"in_progress"},{"id":"step-2","content":"Write tests","status":"pending"}]}`,
@@ -64,7 +67,7 @@ func TestPlanTool_MergeStatusOnlyUpdate(t *testing.T) {
 }
 
 func TestPlanTool_MergeContentOnlyUpdateAndAppend(t *testing.T) {
-	registry := registerTestRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
+	registry := registerPlanRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
 	_, err := registry.Invoke(tools.WithSessionID(context.Background(), "session-1"), tools.Call{
 		Name:  "plan_tool",
 		Input: `{"steps":[{"id":"step-1","content":"Implement feature","status":"in_progress"}]}`,
@@ -84,7 +87,7 @@ func TestPlanTool_MergeContentOnlyUpdateAndAppend(t *testing.T) {
 }
 
 func TestPlanTool_ClearCompletedRemovesTerminalSteps(t *testing.T) {
-	registry := registerTestRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
+	registry := registerPlanRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
 
 	result, err := registry.Invoke(tools.WithSessionID(context.Background(), "session-1"), tools.Call{
 		Name:  "plan_tool",
@@ -98,7 +101,7 @@ func TestPlanTool_ClearCompletedRemovesTerminalSteps(t *testing.T) {
 }
 
 func TestPlanTool_RejectsInvalidWrites(t *testing.T) {
-	registry := registerTestRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
+	registry := registerPlanRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
 
 	testCases := []string{
 		`{"steps":[{"id":"dup","content":"A","status":"in_progress"},{"id":"dup","content":"B","status":"pending"}]}`,
@@ -116,42 +119,36 @@ func TestPlanTool_RejectsInvalidWrites(t *testing.T) {
 }
 
 func TestPlanTool_RejectsMalformedJSON(t *testing.T) {
-	registry := registerTestRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
+	registry := registerPlanRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
 	result, err := registry.Invoke(tools.WithSessionID(context.Background(), "session-1"), tools.Call{Name: "plan_tool", Input: `{"steps":`})
 	require.NoError(t, err)
 	require.Contains(t, result.Error, `"code":"invalid_input"`)
 }
 
 func TestPlanTool_ReturnsInvalidInputWhenMergeDependencyFails(t *testing.T) {
-	registry := tools.NewInMemoryRegistry()
-	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
-	require.NoError(t, registry.Register(PlanDefinition(&failingPlanRuntime{mergeErr: errors.New("merge failed")})))
+	registry := newPlanFailureRegistry(t, t.TempDir(), guardrails.CommandPolicy{}, errors.New("merge failed"), nil)
 
 	result, err := registry.Invoke(tools.WithSessionID(context.Background(), "session-1"), tools.Call{
 		Name:  "plan_tool",
 		Input: `{"merge":true,"steps":[{"id":"step-1","content":"Implement feature","status":"in_progress"}]}`,
 	})
 	require.NoError(t, err)
-	require.Contains(t, result.Error, `"code":"invalid_input"`)
-	require.Contains(t, result.Error, `"message":"merge failed"`)
+	requireInvalidInputError(t, result, "merge failed")
 }
 
 func TestPlanTool_ReturnsInvalidInputWhenReplaceDependencyFails(t *testing.T) {
-	registry := tools.NewInMemoryRegistry()
-	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
-	require.NoError(t, registry.Register(PlanDefinition(&failingPlanRuntime{replaceErr: errors.New("replace failed")})))
+	registry := newPlanFailureRegistry(t, t.TempDir(), guardrails.CommandPolicy{}, nil, errors.New("replace failed"))
 
 	result, err := registry.Invoke(tools.WithSessionID(context.Background(), "session-1"), tools.Call{
 		Name:  "plan_tool",
 		Input: `{"steps":[{"id":"step-1","content":"Implement feature","status":"in_progress"}]}`,
 	})
 	require.NoError(t, err)
-	require.Contains(t, result.Error, `"code":"invalid_input"`)
-	require.Contains(t, result.Error, `"message":"replace failed"`)
+	requireInvalidInputError(t, result, "replace failed")
 }
 
 func TestPlanTool_DefaultsToDefaultSessionWhenContextHasNoSessionID(t *testing.T) {
-	registry := registerTestRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
+	registry := registerPlanRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
 
 	result, err := registry.Invoke(context.Background(), tools.Call{
 		Name:  "plan_tool",
@@ -175,8 +172,8 @@ func TestPlanTool_DefaultsToDefaultSessionWhenContextHasNoSessionID(t *testing.T
 }
 
 func TestPlanTool_RecordsPlanUpdatedAndClearedEvents(t *testing.T) {
-	registry := registerTestRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
-	traceSession := &traceRecorderStub{}
+	registry := registerPlanRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
+	traceSession := &nativemocks.TraceRecorder{}
 	ctx := tools.WithTraceRecorder(tools.WithSessionID(context.Background(), "session-1"), traceSession)
 
 	result, err := registry.Invoke(ctx, tools.Call{
@@ -192,149 +189,32 @@ func TestPlanTool_RecordsPlanUpdatedAndClearedEvents(t *testing.T) {
 	require.Equal(t, trace.EvtPlanCleared, traceSession.Events[1].Type)
 }
 
-func TestPlanTool_DecodePlanStepsRejectsMissingID(t *testing.T) {
-	steps, err := decodePlanSteps([]map[string]any{{
-		"id":      " ",
-		"content": "Implement feature",
-		"status":  envtypes.PlanStatusInProgress,
-	}})
-
-	require.Nil(t, steps)
-	require.EqualError(t, err, "step id is required")
+func registerPlanRuntime(t *testing.T, root string, policy guardrails.CommandPolicy) tools.Registry {
+	t.Helper()
+	registry := tools.NewInMemoryRegistry()
+	runtime := environment.NewRuntime([]string{root}, policy)
+	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
+	require.NoError(t, registry.Register(plantool.Definition(runtime)))
+	return registry
 }
 
-func TestPlanTool_DecodePlanStepsRejectsTerminallessPlanWithoutActiveStep(t *testing.T) {
-	steps, err := decodePlanSteps([]map[string]any{{
-		"id":      "step-1",
-		"content": "Implement feature",
-		"status":  envtypes.PlanStatusPending,
-	}})
-
-	require.Len(t, steps, 1)
-	require.EqualError(t, err, "exactly one step must be in_progress while active work remains")
-}
-
-func TestPlanTool_DecodePartialPlanStepsRejectsInvalidInputs(t *testing.T) {
-	testCases := []struct {
-		name  string
-		steps []map[string]any
-		err   string
-	}{
-		{
-			name: "missing id",
-			steps: []map[string]any{{
-				"id": " ",
-			}},
-			err: "step id is required",
-		},
-		{
-			name: "duplicate id",
-			steps: []map[string]any{
-				{"id": "step-1"},
-				{"id": "step-1"},
-			},
-			err: "step ids must be unique",
-		},
-		{
-			name: "invalid content type",
-			steps: []map[string]any{{
-				"id":      "step-1",
-				"content": 123,
-			}},
-			err: "step content is required",
-		},
-		{
-			name: "invalid status",
-			steps: []map[string]any{{
-				"id":     "step-1",
-				"status": "bad",
-			}},
-			err: "step status is invalid",
-		},
+func newPlanFailureRegistry(t *testing.T, root string, policy guardrails.CommandPolicy, mergeErr, replaceErr error) tools.Registry {
+	t.Helper()
+	registry := tools.NewInMemoryRegistry()
+	runtime := &nativemocks.FailingPlanRuntime{
+		Runtime:    environment.NewRuntime([]string{root}, policy),
+		MergeErr:   mergeErr,
+		ReplaceErr: replaceErr,
 	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			steps, err := decodePartialPlanSteps(tc.steps)
-			require.Nil(t, steps)
-			require.EqualError(t, err, tc.err)
-		})
-	}
+	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
+	require.NoError(t, registry.Register(plantool.Definition(runtime)))
+	return registry
 }
 
-func TestPlanTool_SummarizePlanCountsCancelledAndActivePlanStepIDFallsBackEmpty(t *testing.T) {
-	plan := envtypes.Plan{
-		Steps: []envtypes.PlanStep{
-			{ID: "step-1", Content: "Pending", Status: envtypes.PlanStatusPending},
-			{ID: "step-2", Content: "Done", Status: envtypes.PlanStatusCompleted},
-			{ID: "step-3", Content: "Skip", Status: envtypes.PlanStatusCancelled},
-		},
-	}
-
-	require.Equal(t, envtypes.PlanSummary{
-		Total:     3,
-		Pending:   1,
-		Completed: 1,
-		Cancelled: 1,
-	}, summarizePlan(plan))
-	require.Empty(t, activePlanStepID(plan))
-}
-
-func TestPlanTool_RecordPlanEventAndClearedNoopWithoutRecorder(t *testing.T) {
-	recordPlanEvent(context.Background(), "session-1", envtypes.Plan{})
-	recordPlanCleared(context.Background(), "session-1", envtypes.Plan{})
-}
-
-func TestPlanTool_RecordPlanEventAndClearedIncludeExpectedPayload(t *testing.T) {
-	traceSession := &traceRecorderStub{}
-	ctx := tools.WithTraceRecorder(context.Background(), traceSession)
-	plan := envtypes.Plan{
-		Steps: []envtypes.PlanStep{
-			{ID: "step-1", Content: "Do first", Status: envtypes.PlanStatusInProgress},
-			{ID: "step-2", Content: "Skip", Status: envtypes.PlanStatusCancelled},
-		},
-		Explanation: "updated",
-	}
-
-	recordPlanEvent(ctx, "session-1", plan)
-	recordPlanCleared(ctx, "session-1", envtypes.Plan{Explanation: "updated"})
-
-	require.Len(t, traceSession.Events, 2)
-	require.Equal(t, trace.EvtPlanUpdated, traceSession.Events[0].Type)
-	require.Equal(t, trace.EvtPlanCleared, traceSession.Events[1].Type)
-}
-
-type recordedEvent struct {
-	Type    string
-	Payload any
-}
-
-type traceRecorderStub struct {
-	Events []recordedEvent
-}
-
-func (s *traceRecorderStub) Record(eventType string, payload any) {
-	s.Events = append(s.Events, recordedEvent{Type: eventType, Payload: payload})
-}
-
-type failingPlanRuntime struct {
-	testRuntime
-	mergeErr   error
-	replaceErr error
-}
-
-func (d *failingPlanRuntime) MergePlan(sessionID string, updates []envtypes.PartialPlanStep, explanation string, clearCompleted bool) (envtypes.Plan, error) {
-	if d.mergeErr != nil {
-		return envtypes.Plan{}, d.mergeErr
-	}
-	return d.testRuntime.MergePlan(sessionID, updates, explanation, clearCompleted)
-}
-
-func (d *failingPlanRuntime) ReplacePlan(sessionID string, plan envtypes.Plan) (envtypes.Plan, error) {
-	if d.replaceErr != nil {
-		return envtypes.Plan{}, d.replaceErr
-	}
-	return d.testRuntime.ReplacePlan(sessionID, plan)
+func requireInvalidInputError(t *testing.T, result tools.Result, message string) {
+	t.Helper()
+	require.Contains(t, result.Error, `"code":"invalid_input"`)
+	require.Contains(t, result.Error, `"message":"`+message+`"`)
 }
 
 type planToolOutput struct {

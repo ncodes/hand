@@ -1,4 +1,4 @@
-package native
+package time
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 	"github.com/wandxy/hand/internal/tools"
 )
 
-func TestTimeDefinition_DeclaresObjectInputSchema(t *testing.T) {
-	definition := TimeDefinition()
+func TestDefinition_DeclaresObjectInputSchema(t *testing.T) {
+	definition := Definition()
 
 	require.Equal(t, "time", definition.Name)
 	require.Equal(t, map[string]any{
@@ -22,7 +22,7 @@ func TestTimeDefinition_DeclaresObjectInputSchema(t *testing.T) {
 	}, definition.InputSchema)
 }
 
-func TestTimeDefinition_HandlerReturnsRFC3339Time(t *testing.T) {
+func TestDefinition_HandlerReturnsRFC3339Time(t *testing.T) {
 	originalNow := now
 	t.Cleanup(func() {
 		now = originalNow
@@ -31,7 +31,7 @@ func TestTimeDefinition_HandlerReturnsRFC3339Time(t *testing.T) {
 		return time.Date(2026, time.March, 28, 1, 2, 3, 0, time.FixedZone("WAT", 3600))
 	}
 
-	definition := TimeDefinition()
+	definition := Definition()
 	result, err := definition.Handler.Invoke(context.Background(), tools.Call{Name: "time"})
 
 	require.NoError(t, err)

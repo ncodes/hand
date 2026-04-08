@@ -1,4 +1,4 @@
-package native
+package writefile
 
 import (
 	"context"
@@ -10,9 +10,10 @@ import (
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/hand/internal/tools/common"
 )
 
-func WriteFileDefinition(runtime envtypes.Runtime) tools.Definition {
+func Definition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Path       string `json:"path"`
 		Content    string `json:"content"`
@@ -24,28 +25,28 @@ func WriteFileDefinition(runtime envtypes.Runtime) tools.Definition {
 		Description: "Create or overwrite a text file under an allowed workspace root.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Filesystem: true},
-		InputSchema: objectSchema(map[string]any{
-			"path":        stringSchema("Path to the file relative to an allowed workspace root."),
-			"content":     stringSchema("Text content to write to the target file."),
-			"create_dirs": booleanSchema("When true, create missing parent directories before writing. Defaults to true."),
+		InputSchema: common.ObjectSchema(map[string]any{
+			"path":        common.StringSchema("Path to the file relative to an allowed workspace root."),
+			"content":     common.StringSchema("Text content to write to the target file."),
+			"create_dirs": common.BooleanSchema("When true, create missing parent directories before writing. Defaults to true."),
 		}, "path", "content"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
-			if result := decodeInput(call, &req); result.Error != "" {
+			if result := common.DecodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
 
 			if strings.TrimSpace(req.Path) == "" {
-				return toolError("invalid_input", "path is required"), nil
+				return common.ToolError("invalid_input", "path is required"), nil
 			}
 
 			if guardrails.IsBinary([]byte(req.Content)) {
-				return toolError("not_text", "content must be text"), nil
+				return common.ToolError("not_text", "content must be text"), nil
 			}
 
 			resolved, err := runtime.FilePolicy().Resolve(req.Path)
 			if err != nil {
-				return fileError(err), nil
+				return common.FileError(err), nil
 			}
 
 			createDirs := true
@@ -54,20 +55,20 @@ func WriteFileDefinition(runtime envtypes.Runtime) tools.Definition {
 			}
 
 			if createDirs {
-				if err := mkdirAll(filepath.Dir(resolved.Absolute), 0o755); err != nil {
-					return fileError(err), nil
+				if err := common.MkdirAll(filepath.Dir(resolved.Absolute), 0o755); err != nil {
+					return common.FileError(err), nil
 				}
 			}
 
-			_, statErr := statFile(resolved.Absolute)
+			_, statErr := common.StatFile(resolved.Absolute)
 			created := errors.Is(statErr, os.ErrNotExist)
 
-			if err := writeFile(resolved.Absolute, []byte(req.Content), 0o644); err != nil {
-				return fileError(err), nil
+			if err := common.WriteFile(resolved.Absolute, []byte(req.Content), 0o644); err != nil {
+				return common.FileError(err), nil
 			}
 
-			return encodeOutput(map[string]any{
-				"path":          normalizedDisplayPath(resolved.Relative),
+			return common.EncodeOutput(map[string]any{
+				"path":          common.NormalizedDisplayPath(resolved.Relative),
 				"bytes_written": len(req.Content),
 				"created":       created,
 			})

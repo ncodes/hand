@@ -1,4 +1,4 @@
-package native
+package patch
 
 import (
 	"context"
@@ -13,15 +13,16 @@ import (
 
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
+	nativemocks "github.com/wandxy/hand/internal/tools/mocks"
 )
 
 func TestPatch_ToolAppliesUnifiedDiff(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "file.txt"), []byte("hello\nworld\n"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 	patch := "--- a/file.txt\n+++ b/file.txt\n@@ -1,2 +1,2 @@\n hello\n-world\n+there\n"
 
-	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + quoteJSON(patch) + `}`})
+	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + nativemocks.QuoteJSON(patch) + `}`})
 
 	require.NoError(t, err)
 	var payload struct {
@@ -39,10 +40,10 @@ func TestPatch_ToolAppliesUnifiedDiff(t *testing.T) {
 func TestPatch_ToolRejectsDeletePatch(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "file.txt"), []byte("hello\n"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 	patch := "--- a/file.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-hello\n"
 
-	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + quoteJSON(patch) + `}`})
+	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + nativemocks.QuoteJSON(patch) + `}`})
 
 	require.NoError(t, err)
 	var toolErr tools.Error
@@ -53,10 +54,10 @@ func TestPatch_ToolRejectsDeletePatch(t *testing.T) {
 
 func TestPatch_ToolCreatesFileFromDevNull(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 	patch := "--- /dev/null\n+++ b/new.txt\n@@ -0,0 +1,2 @@\n+alpha\n+beta\n"
 
-	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + quoteJSON(patch) + `}`})
+	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + nativemocks.QuoteJSON(patch) + `}`})
 
 	require.NoError(t, err)
 	var payload struct {
@@ -74,10 +75,10 @@ func TestPatch_ToolCreatesFileFromDevNull(t *testing.T) {
 func TestPatch_ToolUsesHunkPositionToChooseOccurrence(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "file.txt"), []byte("dup\nkeep\n\ndup\nchange\n"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 	patch := "--- a/file.txt\n+++ b/file.txt\n@@ -4,2 +4,2 @@\n dup\n-change\n+updated\n"
 
-	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + quoteJSON(patch) + `}`})
+	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + nativemocks.QuoteJSON(patch) + `}`})
 
 	require.NoError(t, err)
 	require.Empty(t, result.Error)
@@ -88,7 +89,7 @@ func TestPatch_ToolUsesHunkPositionToChooseOccurrence(t *testing.T) {
 
 func TestPatch_ToolRejectsBlankPatch(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":"   "}`})
 
@@ -101,7 +102,7 @@ func TestPatch_ToolRejectsBlankPatch(t *testing.T) {
 
 func TestPatch_ToolRejectsInvalidJSONInput(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":`})
 
@@ -115,10 +116,10 @@ func TestPatch_ToolRejectsInvalidJSONInput(t *testing.T) {
 func TestPatch_ToolReturnsConflictForNonApplyingHunk(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "file.txt"), []byte("hello\nworld\n"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 	patch := "--- a/file.txt\n+++ b/file.txt\n@@ -1,2 +1,2 @@\n hello\n-mars\n+there\n"
 
-	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + quoteJSON(patch) + `}`})
+	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + nativemocks.QuoteJSON(patch) + `}`})
 
 	require.NoError(t, err)
 	var toolErr tools.Error
@@ -130,10 +131,10 @@ func TestPatch_ToolReturnsConflictForNonApplyingHunk(t *testing.T) {
 func TestPatch_ToolRejectsRenamePatch(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "old.txt"), []byte("hello\n"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 	patch := "diff --git a/old.txt b/new.txt\nsimilarity index 100%\nrename from old.txt\nrename to new.txt\n"
 
-	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + quoteJSON(patch) + `}`})
+	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + nativemocks.QuoteJSON(patch) + `}`})
 
 	require.NoError(t, err)
 	var toolErr tools.Error
@@ -144,10 +145,10 @@ func TestPatch_ToolRejectsRenamePatch(t *testing.T) {
 
 func TestPatch_ToolRejectsOutsideAllowedRoots(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 	patch := "--- /dev/null\n+++ ../../outside.txt\n@@ -0,0 +1 @@\n+hello\n"
 
-	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + quoteJSON(patch) + `}`})
+	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + nativemocks.QuoteJSON(patch) + `}`})
 
 	require.NoError(t, err)
 	var toolErr tools.Error
@@ -157,10 +158,10 @@ func TestPatch_ToolRejectsOutsideAllowedRoots(t *testing.T) {
 
 func TestPatch_ToolMapsMalformedPatchToInternalError(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 	patch := "@@ -1 +1 @@\n-old\n+new\n"
 
-	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + quoteJSON(patch) + `}`})
+	result, err := registry.Invoke(context.Background(), tools.Call{Name: "patch", Input: `{"patch":` + nativemocks.QuoteJSON(patch) + `}`})
 
 	require.NoError(t, err)
 	var toolErr tools.Error

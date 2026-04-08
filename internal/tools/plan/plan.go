@@ -1,4 +1,4 @@
-package native
+package plan
 
 import (
 	"context"
@@ -6,10 +6,11 @@ import (
 
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/hand/internal/tools/common"
 	"github.com/wandxy/hand/internal/trace"
 )
 
-func PlanDefinition(runtime envtypes.Runtime) tools.Definition {
+func Definition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Steps          []map[string]any `json:"steps"`
 		Merge          bool             `json:"merge"`
@@ -22,14 +23,14 @@ func PlanDefinition(runtime envtypes.Runtime) tools.Definition {
 		Description: "Read or update the current session plan for multi-step work. Omit `steps` to read the current" +
 			" plan without changing it. Provide `steps` to replace or merge plan items.",
 		Groups: []string{"core"},
-		InputSchema: objectSchema(map[string]any{
+		InputSchema: common.ObjectSchema(map[string]any{
 			"steps": map[string]any{
 				"type": "array",
 				"description": "If omitted, the tool returns the current plan without changing it. " +
 					"If provided, the tool replaces or merges plan steps in the current session plan.",
-				"items": objectSchema(map[string]any{
-					"id":      stringSchema("Stable step identifier."),
-					"content": stringSchema("Human-readable step description."),
+				"items": common.ObjectSchema(map[string]any{
+					"id":      common.StringSchema("Stable step identifier."),
+					"content": common.StringSchema("Human-readable step description."),
 					"status": map[string]any{
 						"type":        "string",
 						"description": "Plan step status.",
@@ -42,14 +43,14 @@ func PlanDefinition(runtime envtypes.Runtime) tools.Definition {
 					},
 				}),
 			},
-			"merge":           booleanSchema("When true, merge step updates by id instead of replacing the full plan."),
-			"explanation":     stringSchema("Optional explanation for why the plan changed."),
-			"clear_completed": booleanSchema("When true, remove completed and cancelled steps after applying the update."),
+			"merge":           common.BooleanSchema("When true, merge step updates by id instead of replacing the full plan."),
+			"explanation":     common.StringSchema("Optional explanation for why the plan changed."),
+			"clear_completed": common.BooleanSchema("When true, remove completed and cancelled steps after applying the update."),
 		}),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
 
-			if result := decodeInput(call, &req); result.Error != "" {
+			if result := common.DecodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
 
@@ -70,13 +71,13 @@ func PlanDefinition(runtime envtypes.Runtime) tools.Definition {
 			if req.Merge {
 				updates, validationErr := decodePartialPlanSteps(req.Steps)
 				if validationErr != nil {
-					return toolError("invalid_input", validationErr.Error()), nil
+					return common.ToolError("invalid_input", validationErr.Error()), nil
 				}
 				plan, err = runtime.MergePlan(sessionID, updates, req.Explanation, req.ClearCompleted)
 			} else {
 				steps, validationErr := decodePlanSteps(req.Steps)
 				if validationErr != nil {
-					return toolError("invalid_input", validationErr.Error()), nil
+					return common.ToolError("invalid_input", validationErr.Error()), nil
 				}
 
 				plan = envtypes.Plan{
@@ -101,7 +102,7 @@ func PlanDefinition(runtime envtypes.Runtime) tools.Definition {
 			}
 
 			if err != nil {
-				return toolError("invalid_input", err.Error()), nil
+				return common.ToolError("invalid_input", err.Error()), nil
 			}
 
 			recordPlanEvent(ctx, sessionID, plan)
@@ -205,7 +206,7 @@ func encodePlanOutput(plan envtypes.Plan) (tools.Result, error) {
 		}
 	}
 
-	return encodeOutput(map[string]any{
+	return common.EncodeOutput(map[string]any{
 		"steps":          plan.Steps,
 		"summary":        summary,
 		"active_step_id": activeStepID,

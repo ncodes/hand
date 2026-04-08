@@ -1,4 +1,4 @@
-package native
+package searchfiles
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
+	nativemocks "github.com/wandxy/hand/internal/tools/mocks"
 )
 
 func TestSearchFiles_ToolUsesGoFallback(t *testing.T) {
@@ -28,7 +29,7 @@ func TestSearchFiles_ToolUsesGoFallback(t *testing.T) {
 
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\nfunc main() { println(\"hello\") }\n"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "search_files", Input: `{"pattern":"println","path":"."}`})
 	require.NoError(t, err)
@@ -55,7 +56,7 @@ func TestSearchFiles_ToolUsesGoFallback(t *testing.T) {
 
 func TestSearchFiles_ToolRejectsInvalidJSONInput(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "search_files", Input: `{"pattern":`})
 	require.NoError(t, err)
@@ -68,7 +69,7 @@ func TestSearchFiles_ToolRejectsInvalidJSONInput(t *testing.T) {
 
 func TestSearchFiles_ToolRequiresPattern(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "search_files", Input: `{"pattern":"   ","path":"."}`})
 	require.NoError(t, err)
@@ -83,9 +84,9 @@ func TestSearchFiles_ToolRejectsOutsideRoot(t *testing.T) {
 	root := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "file.txt")
 	require.NoError(t, os.WriteFile(outside, []byte("needle\n"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
-	result, err := registry.Invoke(context.Background(), tools.Call{Name: "search_files", Input: `{"pattern":"needle","path":` + quoteJSON(outside) + `}`})
+	result, err := registry.Invoke(context.Background(), tools.Call{Name: "search_files", Input: `{"pattern":"needle","path":` + nativemocks.QuoteJSON(outside) + `}`})
 
 	require.NoError(t, err)
 	var toolErr tools.Error
@@ -108,7 +109,7 @@ func TestSearchFiles_ToolReturnsWalkerErrors(t *testing.T) {
 	}
 
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "search_files", Input: `{"pattern":"needle","path":"."}`})
 
@@ -130,7 +131,7 @@ func TestSearchFiles_ToolUsesGoFallbackForLongLines(t *testing.T) {
 	root := t.TempDir()
 	longLine := strings.Repeat("a", 70*1024) + " needle"
 	require.NoError(t, os.WriteFile(filepath.Join(root, "main.txt"), []byte(longLine+"\n"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "search_files", Input: `{"pattern":"needle","path":"."}`})
 
@@ -160,7 +161,7 @@ func TestSearchFiles_ToolAppliesMaxResultsWithGoFallback(t *testing.T) {
 
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "main.txt"), []byte("Needle\nneedle\n"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "search_files", Input: `{"pattern":"needle","path":".","max_results":1}`})
 
@@ -191,11 +192,11 @@ func TestSearchFiles_ToolUsesRipgrepWhenAvailable(t *testing.T) {
 	}
 	commandContext = func(ctx context.Context, name string, args ...string) *exec.Cmd {
 		output := filepath.Join(args[len(args)-1], "main.go") + ":2:15:func main() { println(\"hello\") }\n"
-		return exec.CommandContext(ctx, "sh", "-lc", "printf %s "+quoteJSON(output))
+		return exec.CommandContext(ctx, "sh", "-lc", "printf %s "+nativemocks.QuoteJSON(output))
 	}
 
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "search_files", Input: `{"pattern":"println","path":"."}`})
 

@@ -13,7 +13,14 @@ import (
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/personality"
 	"github.com/wandxy/hand/internal/tools"
-	nativetools "github.com/wandxy/hand/internal/tools/native"
+	listfiles "github.com/wandxy/hand/internal/tools/listfiles"
+	patchtool "github.com/wandxy/hand/internal/tools/patch"
+	plantool "github.com/wandxy/hand/internal/tools/plan"
+	readfile "github.com/wandxy/hand/internal/tools/readfile"
+	runcommand "github.com/wandxy/hand/internal/tools/runcommand"
+	searchfiles "github.com/wandxy/hand/internal/tools/searchfiles"
+	timetool "github.com/wandxy/hand/internal/tools/time"
+	writefile "github.com/wandxy/hand/internal/tools/writefile"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/internal/workspace"
 )
@@ -134,14 +141,14 @@ func (e *environment) prepareTools() error {
 	}
 
 	definitions := []tools.Definition{
-		nativetools.TimeDefinition(),
-		nativetools.ListFilesDefinition(e.runtime),
-		nativetools.ReadFileDefinition(e.runtime),
-		nativetools.SearchFilesDefinition(e.runtime),
-		nativetools.WriteFileDefinition(e.runtime),
-		nativetools.PatchDefinition(e.runtime),
-		nativetools.PlanDefinition(e.runtime),
-		nativetools.RunCommandDefinition(e.runtime),
+		timetool.Definition(),
+		listfiles.Definition(e.runtime),
+		readfile.Definition(e.runtime),
+		searchfiles.Definition(e.runtime),
+		writefile.Definition(e.runtime),
+		patchtool.Definition(e.runtime),
+		plantool.Definition(e.runtime),
+		runcommand.Definition(e.runtime),
 	}
 
 	for _, definition := range definitions {

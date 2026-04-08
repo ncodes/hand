@@ -1,4 +1,4 @@
-package native
+package patch
 
 import (
 	"bytes"
@@ -13,9 +13,15 @@ import (
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/hand/internal/tools/common"
 )
 
-func PatchDefinition(runtime envtypes.Runtime) tools.Definition {
+var (
+	mkdirAll  = common.MkdirAll
+	writeFile = common.WriteFile
+)
+
+func Definition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Patch string `json:"patch"`
 		Strip int    `json:"strip"`
@@ -26,35 +32,35 @@ func PatchDefinition(runtime envtypes.Runtime) tools.Definition {
 		Description: "Apply a unified diff patch under allowed workspace roots.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Filesystem: true},
-		InputSchema: objectSchema(map[string]any{
-			"patch": stringSchema("Unified diff patch content to apply."),
-			"strip": integerSchema("Number of leading path components to strip from file paths, similar to git apply -p."),
+		InputSchema: common.ObjectSchema(map[string]any{
+			"patch": common.StringSchema("Unified diff patch content to apply."),
+			"strip": common.IntegerSchema("Number of leading path components to strip from file paths, similar to git apply -p."),
 		}, "patch"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
-			if result := decodeInput(call, &req); result.Error != "" {
+			if result := common.DecodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
 			if strings.TrimSpace(req.Patch) == "" {
-				return toolError("invalid_input", "patch is required"), nil
+				return common.ToolError("invalid_input", "patch is required"), nil
 			}
 
 			applied, created, err := applyUnifiedDiff(runtime.FilePolicy(), req.Patch, req.Strip)
 			if err != nil {
 				if strings.Contains(err.Error(), "conflict") {
-					return toolError("conflict", err.Error()), nil
+					return common.ToolError("conflict", err.Error()), nil
 				}
 				if strings.Contains(err.Error(), "outside allowed roots") {
-					return toolError("path_outside_roots", err.Error()), nil
+					return common.ToolError("path_outside_roots", err.Error()), nil
 				}
 				if strings.Contains(err.Error(), "delete") || strings.Contains(err.Error(), "rename") || strings.Contains(err.Error(), "binary") {
-					return toolError("invalid_input", err.Error()), nil
+					return common.ToolError("invalid_input", err.Error()), nil
 				}
 
-				return toolError("internal_error", err.Error()), nil
+				return common.ToolError("internal_error", err.Error()), nil
 			}
 
-			return encodeOutput(map[string]any{
+			return common.EncodeOutput(map[string]any{
 				"applied_files": applied,
 				"created_files": created,
 			})
@@ -132,7 +138,7 @@ func patchSourceBytes(file *gitdiff.File, absolutePath string) ([]byte, error) {
 		return nil, nil
 	}
 
-	return guardrails.ReadTextFile(absolutePath, maxReadBytes)
+	return guardrails.ReadTextFile(absolutePath, common.MaxReadBytes)
 }
 
 func stripPath(path string, strip int) string {

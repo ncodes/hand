@@ -1,4 +1,4 @@
-package native
+package readfile
 
 import (
 	"context"
@@ -11,12 +11,13 @@ import (
 
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
+	nativemocks "github.com/wandxy/hand/internal/tools/mocks"
 )
 
 func TestReadFile_ToolReadsText(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "file.txt"), []byte("hello"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "read_file", Input: `{"path":"file.txt"}`})
 	require.NoError(t, err)
@@ -34,7 +35,7 @@ func TestReadFile_ToolReadsText(t *testing.T) {
 
 func TestReadFile_ToolRejectsInvalidJSONInput(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "read_file", Input: `{"path":`})
 
@@ -49,9 +50,9 @@ func TestReadFile_ToolRejectsOutsideRoot(t *testing.T) {
 	root := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "file.txt")
 	require.NoError(t, os.WriteFile(outside, []byte("secret"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
-	result, err := registry.Invoke(context.Background(), tools.Call{Name: "read_file", Input: `{"path":` + quoteJSON(outside) + `}`})
+	result, err := registry.Invoke(context.Background(), tools.Call{Name: "read_file", Input: `{"path":` + nativemocks.QuoteJSON(outside) + `}`})
 
 	require.NoError(t, err)
 	var toolErr tools.Error
@@ -62,7 +63,7 @@ func TestReadFile_ToolRejectsOutsideRoot(t *testing.T) {
 func TestReadFile_ToolRejectsDirectories(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(root, "nested"), 0o755))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "read_file", Input: `{"path":"nested"}`})
 

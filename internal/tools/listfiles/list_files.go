@@ -1,4 +1,4 @@
-package native
+package listfiles
 
 import (
 	"context"
@@ -9,9 +9,10 @@ import (
 
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/hand/internal/tools/common"
 )
 
-func ListFilesDefinition(runtime envtypes.Runtime) tools.Definition {
+func Definition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Path          string `json:"path"`
 		Recursive     *bool  `json:"recursive"`
@@ -30,21 +31,21 @@ func ListFilesDefinition(runtime envtypes.Runtime) tools.Definition {
 		Description: "List files and directories under an allowed workspace root.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Filesystem: true},
-		InputSchema: objectSchema(map[string]any{
-			"path":           stringSchema("Path relative to an allowed workspace root. Defaults to the workspace root when omitted."),
-			"recursive":      booleanSchema("When true, list directory contents recursively. Defaults to false."),
-			"include_hidden": booleanSchema("When true, include hidden files and directories in the results."),
-			"max_entries":    integerSchema("Maximum number of entries to return. Values outside the supported range are clamped."),
+		InputSchema: common.ObjectSchema(map[string]any{
+			"path":           common.StringSchema("Path relative to an allowed workspace root. Defaults to the workspace root when omitted."),
+			"recursive":      common.BooleanSchema("When true, list directory contents recursively. Defaults to false."),
+			"include_hidden": common.BooleanSchema("When true, include hidden files and directories in the results."),
+			"max_entries":    common.IntegerSchema("Maximum number of entries to return. Values outside the supported range are clamped."),
 		}, "path", "recursive", "include_hidden", "max_entries"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
-			if result := decodeInput(call, &req); result.Error != "" {
+			if result := common.DecodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
 
 			resolved, err := runtime.FilePolicy().Resolve(req.Path)
 			if err != nil {
-				return fileError(err), nil
+				return common.FileError(err), nil
 			}
 
 			recursive := false
@@ -53,8 +54,8 @@ func ListFilesDefinition(runtime envtypes.Runtime) tools.Definition {
 			}
 
 			limit := req.MaxEntries
-			if limit <= 0 || limit > maxListEntries {
-				limit = maxListEntries
+			if limit <= 0 || limit > common.MaxListEntries {
+				limit = common.MaxListEntries
 			}
 
 			entries := make([]entry, 0)
@@ -69,7 +70,7 @@ func ListFilesDefinition(runtime envtypes.Runtime) tools.Definition {
 					return true
 				}
 
-				if !req.IncludeHidden && hiddenPath(rel) {
+				if !req.IncludeHidden && common.HiddenPath(rel) {
 					return true
 				}
 
@@ -86,7 +87,7 @@ func ListFilesDefinition(runtime envtypes.Runtime) tools.Definition {
 			}
 
 			if recursive {
-				walkErr := walkDir(resolved.Absolute, func(path string, d os.DirEntry, err error) error {
+				walkErr := common.WalkDir(resolved.Absolute, func(path string, d os.DirEntry, err error) error {
 					if err != nil {
 						return err
 					}
@@ -96,7 +97,7 @@ func ListFilesDefinition(runtime envtypes.Runtime) tools.Definition {
 					}
 
 					rel, relErr := filepath.Rel(resolved.Root, path)
-					if relErr == nil && !req.IncludeHidden && hiddenPath(rel) && d.IsDir() {
+					if relErr == nil && !req.IncludeHidden && common.HiddenPath(rel) && d.IsDir() {
 						return filepath.SkipDir
 					}
 
@@ -113,18 +114,18 @@ func ListFilesDefinition(runtime envtypes.Runtime) tools.Definition {
 				})
 
 				if walkErr != nil && walkErr.Error() != "entry limit reached" {
-					return fileError(walkErr), nil
+					return common.FileError(walkErr), nil
 				}
 			} else {
-				items, err := readDir(resolved.Absolute)
+				items, err := common.ReadDir(resolved.Absolute)
 				if err != nil {
-					return fileError(err), nil
+					return common.FileError(err), nil
 				}
 
 				for _, item := range items {
 					info, infoErr := item.Info()
 					if infoErr != nil {
-						return fileError(infoErr), nil
+						return common.FileError(infoErr), nil
 					}
 
 					if !appendEntry(filepath.Join(resolved.Absolute, item.Name()), item.IsDir(), info.Size()) {
@@ -135,9 +136,9 @@ func ListFilesDefinition(runtime envtypes.Runtime) tools.Definition {
 
 			sort.Slice(entries, func(i, j int) bool { return entries[i].Path < entries[j].Path })
 
-			return encodeOutput(map[string]any{
+			return common.EncodeOutput(map[string]any{
 				"root":    resolved.Root,
-				"path":    normalizedDisplayPath(resolved.Relative),
+				"path":    common.NormalizedDisplayPath(resolved.Relative),
 				"entries": entries,
 			})
 		}),

@@ -1,4 +1,4 @@
-package native
+package writefile
 
 import (
 	"context"
@@ -11,11 +11,12 @@ import (
 
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
+	nativemocks "github.com/wandxy/hand/internal/tools/mocks"
 )
 
 func TestWriteFile_ToolCreatesFile(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "write_file", Input: `{"path":"nested/file.txt","content":"hello"}`})
 
@@ -38,7 +39,7 @@ func TestWriteFile_ToolOverwritesExistingFile(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "file.txt")
 	require.NoError(t, os.WriteFile(path, []byte("before"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "write_file", Input: `{"path":"file.txt","content":"after"}`})
 

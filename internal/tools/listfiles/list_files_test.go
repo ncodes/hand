@@ -1,4 +1,4 @@
-package native
+package listfiles
 
 import (
 	"context"
@@ -11,13 +11,14 @@ import (
 
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
+	nativemocks "github.com/wandxy/hand/internal/tools/mocks"
 )
 
 func TestListFiles_ToolListsFiles(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "alpha.txt"), []byte("alpha"), 0o644))
 	require.NoError(t, os.Mkdir(filepath.Join(root, "nested"), 0o755))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "list_files", Input: `{"path":".","recursive":true}`})
 
@@ -48,7 +49,7 @@ func TestListFiles_ToolListsDirectoryNonRecursivelyAndSkipsHiddenEntries(t *test
 	require.NoError(t, os.WriteFile(filepath.Join(root, ".secret"), []byte("hidden"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "nested", "child"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "nested", "child", "beta.txt"), []byte("beta"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "list_files", Input: `{"path":".","recursive":false}`})
 
@@ -74,7 +75,7 @@ func TestListFiles_ToolDefaultsToNonRecursiveListing(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(root, "alpha.txt"), []byte("alpha"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "nested", "child"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "nested", "child", "beta.txt"), []byte("beta"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "list_files", Input: `{"path":"."}`})
 
@@ -97,7 +98,7 @@ func TestListFiles_ToolIncludesHiddenEntriesWhenRequested(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(root, ".hidden"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(root, ".hidden", "secret.txt"), []byte("secret"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "list_files", Input: `{"path":".","recursive":true,"include_hidden":true}`})
 
@@ -120,7 +121,7 @@ func TestListFiles_ToolAppliesEntryLimit(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "alpha.txt"), []byte("alpha"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "beta.txt"), []byte("beta"), 0o644))
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "list_files", Input: `{"path":".","recursive":false,"max_entries":1}`})
 
@@ -137,9 +138,7 @@ func TestListFiles_ToolAppliesEntryLimit(t *testing.T) {
 
 func TestListFiles_DefinitionDeclaresStrictRequiredSchema(t *testing.T) {
 	root := t.TempDir()
-	definition := ListFilesDefinition(&testRuntime{
-		filePolicy: guardrails.FilesystemPolicy{Roots: guardrails.NormalizeRoots([]string{root})},
-	})
+	definition := Definition(nativemocks.NewRuntime(root, guardrails.CommandPolicy{}))
 
 	required, ok := definition.InputSchema["required"].([]string)
 	require.True(t, ok)

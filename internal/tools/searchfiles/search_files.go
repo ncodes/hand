@@ -1,4 +1,4 @@
-package native
+package searchfiles
 
 import (
 	"bufio"
@@ -14,6 +14,7 @@ import (
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/hand/internal/tools/common"
 )
 
 type contentMatch struct {
@@ -23,7 +24,13 @@ type contentMatch struct {
 	Text   string `json:"text"`
 }
 
-func SearchFilesDefinition(runtime envtypes.Runtime) tools.Definition {
+var (
+	lookPath       = common.LookPath
+	commandContext = common.CommandContext
+	walkDir        = common.WalkDir
+)
+
+func Definition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Pattern       string `json:"pattern"`
 		Path          string `json:"path"`
@@ -44,31 +51,31 @@ func SearchFilesDefinition(runtime envtypes.Runtime) tools.Definition {
 		Description: "Search file contents under an allowed workspace root.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Filesystem: true},
-		InputSchema: objectSchema(map[string]any{
-			"pattern":        stringSchema("Text or pattern to search for within files."),
-			"path":           stringSchema("Path relative to an allowed workspace root to search within. Defaults to the workspace root when omitted."),
-			"case_sensitive": booleanSchema("When true, match text using case-sensitive search."),
-			"include_hidden": booleanSchema("When true, include hidden files and directories in the search."),
-			"max_results":    integerSchema("Maximum number of matches to return. Values outside the supported range are clamped."),
+		InputSchema: common.ObjectSchema(map[string]any{
+			"pattern":        common.StringSchema("Text or pattern to search for within files."),
+			"path":           common.StringSchema("Path relative to an allowed workspace root to search within. Defaults to the workspace root when omitted."),
+			"case_sensitive": common.BooleanSchema("When true, match text using case-sensitive search."),
+			"include_hidden": common.BooleanSchema("When true, include hidden files and directories in the search."),
+			"max_results":    common.IntegerSchema("Maximum number of matches to return. Values outside the supported range are clamped."),
 		}, "pattern"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
-			if result := decodeInput(call, &req); result.Error != "" {
+			if result := common.DecodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
 
 			if strings.TrimSpace(req.Pattern) == "" {
-				return toolError("invalid_input", "pattern is required"), nil
+				return common.ToolError("invalid_input", "pattern is required"), nil
 			}
 
 			resolved, err := runtime.FilePolicy().Resolve(req.Path)
 			if err != nil {
-				return fileError(err), nil
+				return common.FileError(err), nil
 			}
 
 			limit := req.MaxResults
-			if limit <= 0 || limit > maxSearchResults {
-				limit = maxSearchResults
+			if limit <= 0 || limit > common.MaxSearchResults {
+				limit = common.MaxSearchResults
 			}
 
 			matches, err := searchWithFallback(
@@ -80,7 +87,7 @@ func SearchFilesDefinition(runtime envtypes.Runtime) tools.Definition {
 				limit,
 			)
 			if err != nil {
-				return fileError(err), nil
+				return common.FileError(err), nil
 			}
 
 			out := make([]match, 0, len(matches))
@@ -88,9 +95,9 @@ func SearchFilesDefinition(runtime envtypes.Runtime) tools.Definition {
 				out = append(out, match(item))
 			}
 
-			return encodeOutput(map[string]any{
+			return common.EncodeOutput(map[string]any{
 				"root":    resolved.Root,
-				"path":    normalizedDisplayPath(resolved.Relative),
+				"path":    common.NormalizedDisplayPath(resolved.Relative),
 				"pattern": req.Pattern,
 				"matches": out,
 			})
@@ -203,7 +210,7 @@ func searchWithGo(
 		if d.IsDir() {
 			if path != resolved.Absolute {
 				rel, _ := filepath.Rel(resolved.Root, path)
-				if !includeHidden && hiddenPath(rel) {
+				if !includeHidden && common.HiddenPath(rel) {
 					return filepath.SkipDir
 				}
 			}
@@ -213,18 +220,18 @@ func searchWithGo(
 
 		rel, _ := filepath.Rel(resolved.Root, path)
 
-		if !includeHidden && hiddenPath(rel) {
+		if !includeHidden && common.HiddenPath(rel) {
 			return nil
 		}
 
-		content, readErr := guardrails.ReadTextFile(path, maxReadBytes)
+		content, readErr := guardrails.ReadTextFile(path, common.MaxReadBytes)
 		if readErr != nil {
 			return nil
 		}
 
 		scanner := bufio.NewScanner(bytes.NewReader(content))
 		buffer := make([]byte, 0, 64*1024)
-		scanner.Buffer(buffer, maxReadBytes)
+		scanner.Buffer(buffer, common.MaxReadBytes)
 		lineNo := 0
 
 		for scanner.Scan() {

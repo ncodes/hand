@@ -1,15 +1,23 @@
-package native
+package runcommand
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
+	nativemocks "github.com/wandxy/hand/internal/tools/mocks"
 )
 
 type runCommandPayload struct {
@@ -24,7 +32,7 @@ type runCommandPayload struct {
 
 func TestRunCommand_ToolRunsCommand(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "run_command", Input: `{"command":"printf","args":["hello"]}`})
 
@@ -43,7 +51,7 @@ func TestRunCommand_ToolRunsCommand(t *testing.T) {
 
 func TestRunCommand_ToolRejectsInvalidJSONInput(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "run_command", Input: `{"command":`})
 
@@ -56,7 +64,7 @@ func TestRunCommand_ToolRejectsInvalidJSONInput(t *testing.T) {
 
 func TestRunCommand_ToolRequiresCommand(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "run_command", Input: `{"command":"   "}`})
 
@@ -79,7 +87,7 @@ func TestRunCommand_ToolReturnsApprovalRequiredWithoutExecution(t *testing.T) {
 	}
 
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{Ask: []string{"git push"}})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{Ask: []string{"git push"}}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "run_command", Input: `{"command":"git","args":["push","origin","main"]}`})
 
@@ -103,7 +111,7 @@ func TestRunCommand_ToolReturnsBuiltInApprovalMessageWithoutRule(t *testing.T) {
 	}
 
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "run_command", Input: `{"command":"rm","args":["-rf","/"]}`})
 
@@ -127,7 +135,7 @@ func TestRunCommand_ToolReturnsDeniedWithoutExecution(t *testing.T) {
 	}
 
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{Deny: []string{"git push"}})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{Deny: []string{"git push"}}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "run_command", Input: `{"command":"git","args":["push","origin","main"]}`})
 
@@ -142,11 +150,11 @@ func TestRunCommand_ToolReturnsDeniedWithoutExecution(t *testing.T) {
 func TestRunCommand_ToolRejectsOutsideWorkingDirectory(t *testing.T) {
 	root := t.TempDir()
 	outside := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{
 		Name:  "run_command",
-		Input: `{"command":"printf","args":["hello"],"cwd":` + quoteJSON(outside) + `}`,
+		Input: `{"command":"printf","args":["hello"],"cwd":` + nativemocks.QuoteJSON(outside) + `}`,
 	})
 
 	require.NoError(t, err)
@@ -157,7 +165,7 @@ func TestRunCommand_ToolRejectsOutsideWorkingDirectory(t *testing.T) {
 
 func TestRunCommand_ToolTimesOut(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "run_command", Input: `{"command":"sleep","args":["2"],"timeout_seconds":1}`})
 
@@ -173,7 +181,7 @@ func TestRunCommand_ToolTimesOut(t *testing.T) {
 
 func TestRunCommand_ToolPassesEnvironmentVariables(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{
 		Name:  "run_command",
@@ -193,7 +201,7 @@ func TestRunCommand_ToolPassesEnvironmentVariables(t *testing.T) {
 
 func TestRunCommand_ToolReturnsNonZeroExitCode(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "run_command", Input: `{"command":"false"}`})
 
@@ -209,7 +217,7 @@ func TestRunCommand_ToolReturnsNonZeroExitCode(t *testing.T) {
 
 func TestRunCommand_ToolReportsClampedTimeout(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 
 	result, err := registry.Invoke(context.Background(), tools.Call{Name: "run_command", Input: `{"command":"printf","args":["hello"],"timeout_seconds":999}`})
 
@@ -225,7 +233,7 @@ func TestRunCommand_ToolReportsClampedTimeout(t *testing.T) {
 
 func TestRunCommand_ToolSupportsContextCancellation(t *testing.T) {
 	root := t.TempDir()
-	registry := registerTestRuntime(t, root, guardrails.CommandPolicy{})
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -303,4 +311,51 @@ func TestBuildCommand_UsesCmdOnWindowsWhenNoArgsAreProvided(t *testing.T) {
 
 	require.Equal(t, "cmd", gotName)
 	require.Equal(t, []string{"/C", "dir"}, gotArgs)
+}
+
+func TestRunCommand_ToolKillsShellChildrenOnTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("process group assertions are unix-only")
+	}
+
+	root := t.TempDir()
+	registry := nativemocks.RegisterRuntime(t, root, guardrails.CommandPolicy{}, Definition)
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "run_command",
+		Input: `{"command":"sleep 30 & child=$!; echo $child > child.pid; wait","timeout_seconds":1}`,
+	})
+
+	require.NoError(t, err)
+
+	var payload struct {
+		ExitCode int  `json:"exit_code"`
+		TimedOut bool `json:"timed_out"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Equal(t, -1, payload.ExitCode)
+	require.True(t, payload.TimedOut)
+
+	rawPID, readErr := os.ReadFile(filepath.Join(root, "child.pid"))
+	require.NoError(t, readErr)
+	childPID, parseErr := strconv.Atoi(bytesTrimSpace(rawPID))
+	require.NoError(t, parseErr)
+
+	require.Eventually(t, func() bool {
+		err := syscall.Kill(childPID, 0)
+		return errors.Is(err, syscall.ESRCH)
+	}, 3*time.Second, 50*time.Millisecond)
+}
+
+func bytesTrimSpace(value []byte) string {
+	start := 0
+	for start < len(value) && (value[start] == ' ' || value[start] == '\n' || value[start] == '\t' || value[start] == '\r') {
+		start++
+	}
+	end := len(value)
+	for end > start && (value[end-1] == ' ' || value[end-1] == '\n' || value[end-1] == '\t' || value[end-1] == '\r') {
+		end--
+	}
+
+	return string(value[start:end])
 }

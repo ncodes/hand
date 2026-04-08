@@ -1,4 +1,4 @@
-package native
+package common_test
 
 import (
 	"encoding/json"
@@ -11,6 +11,16 @@ import (
 
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
+	common "github.com/wandxy/hand/internal/tools/common"
+	listfiles "github.com/wandxy/hand/internal/tools/listfiles"
+	nativemocks "github.com/wandxy/hand/internal/tools/mocks"
+	patchtool "github.com/wandxy/hand/internal/tools/patch"
+	plantool "github.com/wandxy/hand/internal/tools/plan"
+	readfile "github.com/wandxy/hand/internal/tools/readfile"
+	runcommand "github.com/wandxy/hand/internal/tools/runcommand"
+	searchfiles "github.com/wandxy/hand/internal/tools/searchfiles"
+	timetool "github.com/wandxy/hand/internal/tools/time"
+	writefile "github.com/wandxy/hand/internal/tools/writefile"
 )
 
 func TestFileError_MapsKnownErrors(t *testing.T) {
@@ -31,7 +41,7 @@ func TestFileError_MapsKnownErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := fileError(tt.err)
+			result := common.FileError(tt.err)
 
 			require.Contains(t, result.Error, `"code":"`+tt.code+`"`)
 			require.Contains(t, result.Error, `"message":"`+tt.message+`"`)
@@ -40,37 +50,37 @@ func TestFileError_MapsKnownErrors(t *testing.T) {
 }
 
 func TestFileError_HandlesNilError(t *testing.T) {
-	require.Equal(t, tools.Result{}, fileError(nil))
+	require.Equal(t, tools.Result{}, common.FileError(nil))
 }
 
 func TestFileError_UsesInternalErrorFallback(t *testing.T) {
-	result := fileError(errors.New("boom"))
+	result := common.FileError(errors.New("boom"))
 
 	require.Contains(t, result.Error, `"code":"internal_error"`)
 	require.Contains(t, result.Error, `"message":"boom"`)
 }
 
 func TestHiddenPath_DetectsHiddenSegments(t *testing.T) {
-	require.True(t, hiddenPath(".git/config"))
-	require.True(t, hiddenPath("dir/.env"))
-	require.False(t, hiddenPath("dir/file.txt"))
-	require.False(t, hiddenPath("dir/./file.txt"))
-	require.False(t, hiddenPath("dir/../file.txt"))
+	require.True(t, common.HiddenPath(".git/config"))
+	require.True(t, common.HiddenPath("dir/.env"))
+	require.False(t, common.HiddenPath("dir/file.txt"))
+	require.False(t, common.HiddenPath("dir/./file.txt"))
+	require.False(t, common.HiddenPath("dir/../file.txt"))
 }
 
 func TestTrimOutput_ClampsToLimit(t *testing.T) {
-	require.Equal(t, "abc", trimOutput("abcdef", 3))
-	require.Equal(t, "abc", trimOutput("abc", 3))
+	require.Equal(t, "abc", common.TrimOutput("abcdef", 3))
+	require.Equal(t, "abc", common.TrimOutput("abc", 3))
 }
 
 func TestWithTimeoutSeconds_ClampsToSupportedRange(t *testing.T) {
-	require.Equal(t, defaultTimeout, withTimeoutSeconds(0))
-	require.Equal(t, maxTimeout, withTimeoutSeconds(maxTimeout+1))
-	require.Equal(t, 12, withTimeoutSeconds(12))
+	require.Equal(t, common.DefaultTimeout, common.WithTimeoutSeconds(0))
+	require.Equal(t, common.MaxTimeout, common.WithTimeoutSeconds(common.MaxTimeout+1))
+	require.Equal(t, 12, common.WithTimeoutSeconds(12))
 }
 
 func TestJoinStrings_JoinsNonEmptyParts(t *testing.T) {
-	require.Equal(t, "first second third", joinStrings("first", " ", "second", "", "third"))
+	require.Equal(t, "first second third", common.JoinStrings("first", " ", "second", "", "third"))
 }
 
 func TestDecodeInput_UsesEmptyObjectWhenInputIsBlank(t *testing.T) {
@@ -78,7 +88,7 @@ func TestDecodeInput_UsesEmptyObjectWhenInputIsBlank(t *testing.T) {
 		Name string `json:"name"`
 	}
 
-	result := decodeInput(tools.Call{Input: "   "}, &target)
+	result := common.DecodeInput(tools.Call{Input: "   "}, &target)
 
 	require.Equal(t, tools.Result{}, result)
 	require.Equal(t, "", target.Name)
@@ -87,14 +97,14 @@ func TestDecodeInput_UsesEmptyObjectWhenInputIsBlank(t *testing.T) {
 func TestDecodeInput_ReturnsStructuredErrorForInvalidJSON(t *testing.T) {
 	var target map[string]any
 
-	result := decodeInput(tools.Call{Input: "{"}, &target)
+	result := common.DecodeInput(tools.Call{Input: "{"}, &target)
 
 	require.NotEmpty(t, result.Error)
 	require.Contains(t, result.Error, `"code":"invalid_input"`)
 }
 
 func TestEncodeOutput_EncodesJSON(t *testing.T) {
-	result, err := encodeOutput(map[string]string{"message": "hello"})
+	result, err := common.EncodeOutput(map[string]string{"message": "hello"})
 
 	require.NoError(t, err)
 	var payload map[string]string
@@ -103,27 +113,24 @@ func TestEncodeOutput_EncodesJSON(t *testing.T) {
 }
 
 func TestEncodeOutput_ReturnsMarshalError(t *testing.T) {
-	_, err := encodeOutput(map[string]any{"bad": make(chan int)})
+	_, err := common.EncodeOutput(map[string]any{"bad": make(chan int)})
 
 	require.Error(t, err)
 }
 
 func TestNativeToolDefinitions_AdvertiseArgumentDescriptions(t *testing.T) {
 	root := t.TempDir()
-	runtime := &testRuntime{
-		filePolicy:    guardrails.FilesystemPolicy{Roots: guardrails.NormalizeRoots([]string{root})},
-		commandPolicy: guardrails.CommandPolicy{}.Normalize(),
-	}
+	runtime := nativemocks.NewRuntime(root, guardrails.CommandPolicy{})
 
 	definitions := []tools.Definition{
-		TimeDefinition(),
-		ListFilesDefinition(runtime),
-		ReadFileDefinition(runtime),
-		SearchFilesDefinition(runtime),
-		WriteFileDefinition(runtime),
-		PatchDefinition(runtime),
-		PlanDefinition(runtime),
-		RunCommandDefinition(runtime),
+		timetool.Definition(),
+		listfiles.Definition(runtime),
+		readfile.Definition(runtime),
+		searchfiles.Definition(runtime),
+		writefile.Definition(runtime),
+		patchtool.Definition(runtime),
+		plantool.Definition(runtime),
+		runcommand.Definition(runtime),
 	}
 
 	for _, definition := range definitions {
