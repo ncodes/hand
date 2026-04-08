@@ -2,6 +2,8 @@ package storage
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"time"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
@@ -11,6 +13,11 @@ import (
 const DefaultSessionID = "default"
 const SessionIDPrefix = "ses_"
 const ArchiveIDPrefix = "arc_"
+
+const (
+	MessageOrderAsc  = "asc"
+	MessageOrderDesc = "desc"
+)
 
 func NewSessionID() (string, error) {
 	return nanoid.Generate(SessionIDPrefix)
@@ -70,7 +77,21 @@ type SessionSummary struct {
 type MessageQueryOptions struct {
 	Archived bool
 	Limit    int
+	Name     string
+	Order    string
 	Offset   int
+	Role     handmsg.Role
+}
+
+func NormalizeMessageQueryOrder(order string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(order)) {
+	case "", MessageOrderAsc:
+		return MessageOrderAsc, nil
+	case MessageOrderDesc:
+		return MessageOrderDesc, nil
+	default:
+		return "", errors.New("message order must be asc or desc")
+	}
 }
 
 type SessionStore interface {

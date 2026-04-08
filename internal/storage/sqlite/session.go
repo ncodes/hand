@@ -190,6 +190,7 @@ func (s *SessionStore) Save(ctx context.Context, session Session) error {
 
 	if err := s.db.WithContext(ctx).First(&existing, "id = ?", session.ID).Error; err == nil {
 		session.CreatedAt = existing.CreatedAt
+
 		if session.Compaction == (base.SessionCompaction{}) {
 			session.Compaction = base.SessionCompaction{
 				CompletedAt:        existing.CompactionCompletedAt,
@@ -202,6 +203,7 @@ func (s *SessionStore) Save(ctx context.Context, session Session) error {
 				TargetOffset:       existing.CompactionTargetOffset,
 			}
 		}
+
 		session.UpdatedAt = time.Now().UTC()
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
@@ -258,7 +260,6 @@ func (s *SessionStore) Get(ctx context.Context, id string) (Session, bool, error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return Session{}, false, nil
 		}
-
 		return Session{}, false, err
 	}
 
@@ -293,7 +294,6 @@ func (s *SessionStore) List(ctx context.Context) ([]Session, error) {
 		if sessions[i].UpdatedAt.Equal(sessions[j].UpdatedAt) {
 			return sessions[i].ID < sessions[j].ID
 		}
-
 		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
 	})
 
@@ -316,11 +316,11 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var session sessionModel
+
 		if err := tx.First(&session, "id = ?", id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("session not found")
 			}
-
 			return err
 		}
 
@@ -361,11 +361,11 @@ func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages [
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var record sessionModel
+
 		if err := tx.First(&record, "id = ?", id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("session not found")
 			}
-
 			return err
 		}
 
@@ -396,6 +396,10 @@ func (s *SessionStore) GetMessages(
 		return nil, errors.New("session store is required")
 	}
 
+	if _, err := base.NormalizeMessageQueryOrder(opts.Order); err != nil {
+		return nil, err
+	}
+
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil, nil
@@ -413,7 +417,9 @@ func (s *SessionStore) GetMessages(
 
 	if opts.Archived {
 		var records []archivedMessageModel
-		query := s.db.WithContext(ctx).Where("archive_id = ?", id).Order("sequence asc").Offset(offset)
+		query := applyArchivedMessageFilters(s.db.WithContext(ctx), id, opts).
+			Order("sequence " + messageQueryOrder(opts)).
+			Offset(offset)
 		if opts.Limit > 0 {
 			query = query.Limit(opts.Limit)
 		}
@@ -425,7 +431,9 @@ func (s *SessionStore) GetMessages(
 	}
 
 	var records []messageModel
-	query := s.db.WithContext(ctx).Where("session_id = ?", id).Order("sequence asc").Offset(offset)
+	query := applySessionMessageFilters(s.db.WithContext(ctx), id, opts).
+		Order("sequence " + messageQueryOrder(opts)).
+		Offset(offset)
 	if opts.Limit > 0 {
 		query = query.Limit(opts.Limit)
 	}
@@ -445,6 +453,10 @@ func (s *SessionStore) CountMessages(
 		return 0, errors.New("session store is required")
 	}
 
+	if _, err := base.NormalizeMessageQueryOrder(opts.Order); err != nil {
+		return 0, err
+	}
+
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return 0, nil
@@ -460,21 +472,50 @@ func (s *SessionStore) CountMessages(
 
 	var count int64
 	if opts.Archived {
-		if err := s.db.WithContext(ctx).
-			Model(&archivedMessageModel{}).
-			Where("archive_id = ?", id).Count(&count).Error; err != nil {
+		if err := applyArchivedMessageFilters(s.db.WithContext(ctx), id, opts).
+			Count(&count).Error; err != nil {
 			return 0, err
 		}
 		return int(count), nil
 	}
 
-	if err := s.db.WithContext(ctx).
-		Model(&messageModel{}).
-		Where("session_id = ?", id).Count(&count).Error; err != nil {
+	if err := applySessionMessageFilters(s.db.WithContext(ctx), id, opts).
+		Count(&count).Error; err != nil {
 		return 0, err
 	}
 
 	return int(count), nil
+}
+
+func applySessionMessageFilters(query *gorm.DB, id string, opts MessageQueryOptions) *gorm.DB {
+	query = query.Model(&messageModel{}).Where("session_id = ?", id)
+	if role := strings.TrimSpace(string(opts.Role)); role != "" {
+		query = query.Where("role = ?", role)
+	}
+	if name := strings.TrimSpace(opts.Name); name != "" {
+		query = query.Where("name = ?", name)
+	}
+	return query
+}
+
+func applyArchivedMessageFilters(query *gorm.DB, id string, opts MessageQueryOptions) *gorm.DB {
+	query = query.Model(&archivedMessageModel{}).Where("archive_id = ?", id)
+	if role := strings.TrimSpace(string(opts.Role)); role != "" {
+		query = query.Where("role = ?", role)
+	}
+	if name := strings.TrimSpace(opts.Name); name != "" {
+		query = query.Where("name = ?", name)
+	}
+	return query
+}
+
+func messageQueryOrder(opts MessageQueryOptions) string {
+	order, err := base.NormalizeMessageQueryOrder(opts.Order)
+	if err != nil {
+		return base.MessageOrderAsc
+	}
+
+	return order
 }
 
 func (s *SessionStore) GetMessage(
@@ -507,7 +548,6 @@ func (s *SessionStore) GetMessage(
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return handmsg.Message{}, false, nil
 			}
-
 			return handmsg.Message{}, false, err
 		}
 
@@ -520,7 +560,6 @@ func (s *SessionStore) GetMessage(
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return handmsg.Message{}, false, nil
 		}
-
 		return handmsg.Message{}, false, err
 	}
 
@@ -539,11 +578,11 @@ func (s *SessionStore) SaveSummary(ctx context.Context, summary SessionSummary) 
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var session sessionModel
+
 		if err := tx.First(&session, "id = ?", normalized.SessionID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("session not found")
 			}
-
 			return err
 		}
 
@@ -582,7 +621,6 @@ func (s *SessionStore) GetSummary(ctx context.Context, sessionID string) (Sessio
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return SessionSummary{}, false, nil
 		}
-
 		return SessionSummary{}, false, err
 	}
 
@@ -623,6 +661,7 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 			Find(&source).Error; err != nil {
 			return err
 		}
+
 		if len(source) == 0 {
 			return errors.New("source session has no messages")
 		}
@@ -633,6 +672,7 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 			ArchivedAt:      archive.ArchivedAt,
 			ExpiresAt:       archive.ExpiresAt,
 		}
+
 		if err := tx.Save(&record).Error; err != nil {
 			return err
 		}
@@ -697,7 +737,6 @@ func (s *SessionStore) GetArchive(ctx context.Context, id string) (ArchivedSessi
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ArchivedSession{}, false, nil
 		}
-
 		return ArchivedSession{}, false, err
 	}
 
@@ -730,7 +769,6 @@ func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts Messag
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return errors.New("archive not found")
 				}
-
 				return err
 			}
 
@@ -742,7 +780,6 @@ func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts Messag
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("session not found")
 			}
-
 			return err
 		}
 
@@ -763,6 +800,7 @@ func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts Messag
 		session.CompactionTargetMessageCount = 0
 		session.CompactionTargetOffset = 0
 		session.UpdatedAt = time.Now().UTC()
+
 		return tx.Save(&session).Error
 	})
 }
@@ -774,6 +812,7 @@ func (s *SessionStore) ListArchives(ctx context.Context, sourceSessionID string)
 
 	query := s.db.WithContext(ctx).Order("archived_at desc").Order("id asc")
 	sourceSessionID = strings.TrimSpace(sourceSessionID)
+
 	if sourceSessionID != "" {
 		query = query.Where("source_session_id = ?", sourceSessionID)
 	}
@@ -811,7 +850,6 @@ func (s *SessionStore) DeleteArchive(ctx context.Context, archiveID string) erro
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("archive not found")
 			}
-
 			return err
 		}
 
@@ -885,7 +923,6 @@ func (s *SessionStore) Current(ctx context.Context) (string, bool, error) {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", false, nil
 		}
-
 		return "", false, err
 	}
 

@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
 )
@@ -111,21 +110,20 @@ func TestEncodeOutput_ReturnsMarshalError(t *testing.T) {
 
 func TestNativeToolDefinitions_AdvertiseArgumentDescriptions(t *testing.T) {
 	root := t.TempDir()
-	dependencies := &testDependencies{
+	runtime := &testRuntime{
 		filePolicy:    guardrails.FilesystemPolicy{Roots: guardrails.NormalizeRoots([]string{root})},
 		commandPolicy: guardrails.CommandPolicy{}.Normalize(),
-		todos:         []envtypes.TodoItem{{Text: "ship", Done: false}},
 	}
 
 	definitions := []tools.Definition{
 		TimeDefinition(),
-		ListFilesDefinition(dependencies),
-		ReadFileDefinition(dependencies),
-		SearchFilesDefinition(dependencies),
-		WriteFileDefinition(dependencies),
-		PatchDefinition(dependencies),
-		TodoDefinition(dependencies),
-		RunCommandDefinition(dependencies),
+		ListFilesDefinition(runtime),
+		ReadFileDefinition(runtime),
+		SearchFilesDefinition(runtime),
+		WriteFileDefinition(runtime),
+		PatchDefinition(runtime),
+		PlanDefinition(runtime),
+		RunCommandDefinition(runtime),
 	}
 
 	for _, definition := range definitions {

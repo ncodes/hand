@@ -17,7 +17,7 @@ import (
 
 var currentGOOS = goruntime.GOOS
 
-func RunCommandDefinition(dependencies envtypes.Runtime) tools.Definition {
+func RunCommandDefinition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Command        string            `json:"command"`
 		Args           []string          `json:"args"`
@@ -69,15 +69,15 @@ func RunCommandDefinition(dependencies envtypes.Runtime) tools.Definition {
 
 			cwd := req.Cwd
 			if strings.TrimSpace(cwd) == "" {
-				cwd = dependencies.FilePolicy().Roots[0]
+				cwd = runtime.FilePolicy().Roots[0]
 			}
 
-			resolved, err := dependencies.FilePolicy().Resolve(cwd)
+			resolved, err := runtime.FilePolicy().Resolve(cwd)
 			if err != nil {
 				return fileError(err), nil
 			}
 
-			eval := guardrails.EvaluateCommand(dependencies.CommandPolicy(), req.Command, req.Args)
+			eval := guardrails.EvaluateCommand(runtime.CommandPolicy(), req.Command, req.Args)
 			switch eval.Decision {
 			case guardrails.CommandDenied:
 				return toolError("command_denied", eval.Reason), nil

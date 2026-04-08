@@ -6,6 +6,7 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/environment"
+	envtypes "github.com/wandxy/hand/internal/environment/types"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/tools"
@@ -74,6 +75,7 @@ type EnvironmentStub struct {
 	Policy           tools.Policy
 	IterationBudget  environment.IterationBudget
 	TraceSession     trace.Session
+	Plan             envtypes.Plan
 }
 
 func (s *EnvironmentStub) Prepare() error {
@@ -106,6 +108,14 @@ func (s *EnvironmentStub) NewTraceSession(string) trace.Session {
 	}
 
 	return s.TraceSession
+}
+
+func (s *EnvironmentStub) CurrentPlan(string) envtypes.Plan {
+	return s.Plan
+}
+
+func (s *EnvironmentStub) HydratePlan(_ string, plan envtypes.Plan) {
+	s.Plan = plan
 }
 
 type ToolRegistryStub struct {

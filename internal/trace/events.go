@@ -24,4 +24,7 @@ const (
 	EvtSummaryParseFailed         = "context.summary.parse_failed"
 	EvtSummaryApplied             = "context.summary.applied"
 	EvtWorkspaceRulesTruncated    = "workspace.rules.truncated"
+	EvtPlanUpdated                = "plan.updated"
+	EvtPlanCleared                = "plan.cleared"
+	EvtPlanHydrated               = "plan.hydrated"
 )

@@ -12,7 +12,7 @@ import (
 	"github.com/wandxy/hand/internal/tools"
 )
 
-func WriteFileDefinition(dependencies envtypes.Runtime) tools.Definition {
+func WriteFileDefinition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Path       string `json:"path"`
 		Content    string `json:"content"`
@@ -43,7 +43,7 @@ func WriteFileDefinition(dependencies envtypes.Runtime) tools.Definition {
 				return toolError("not_text", "content must be text"), nil
 			}
 
-			resolved, err := dependencies.FilePolicy().Resolve(req.Path)
+			resolved, err := runtime.FilePolicy().Resolve(req.Path)
 			if err != nil {
 				return fileError(err), nil
 			}

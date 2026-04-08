@@ -181,6 +181,10 @@ func (s *SessionStore) GetMessages(
 		return nil, errors.New("session store is required")
 	}
 
+	if _, err := base.NormalizeMessageQueryOrder(opts.Order); err != nil {
+		return nil, err
+	}
+
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil, nil
@@ -209,6 +213,10 @@ func (s *SessionStore) CountMessages(_ context.Context, id string, opts MessageQ
 		return 0, errors.New("session store is required")
 	}
 
+	if _, err := base.NormalizeMessageQueryOrder(opts.Order); err != nil {
+		return 0, err
+	}
+
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return 0, nil
@@ -226,10 +234,10 @@ func (s *SessionStore) CountMessages(_ context.Context, id string, opts MessageQ
 	defer s.mu.RUnlock()
 
 	if opts.Archived {
-		return len(s.archiveMessages[id]), nil
+		return len(filterMessages(s.archiveMessages[id], opts)), nil
 	}
 
-	return len(s.messages[id]), nil
+	return len(filterMessages(s.messages[id], opts)), nil
 }
 
 func (s *SessionStore) GetMessage(_ context.Context, id string, index int, opts MessageQueryOptions) (handmsg.Message, bool, error) {
@@ -537,15 +545,62 @@ func cloneMessages(messages []handmsg.Message) []handmsg.Message {
 }
 
 func queryMessages(messages []handmsg.Message, opts MessageQueryOptions) []handmsg.Message {
+	filtered := filterMessages(messages, opts)
+	if messageQueryOrder(opts) == base.MessageOrderDesc {
+		filtered = reverseMessages(filtered)
+	}
 	offset := max(opts.Offset, 0)
-	if offset >= len(messages) {
+	if offset >= len(filtered) {
 		return nil
 	}
 
-	end := len(messages)
+	end := len(filtered)
 	if opts.Limit > 0 && offset+opts.Limit < end {
 		end = offset + opts.Limit
 	}
 
-	return cloneMessages(messages[offset:end])
+	return cloneMessages(filtered[offset:end])
+}
+
+func reverseMessages(messages []handmsg.Message) []handmsg.Message {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	reversed := make([]handmsg.Message, len(messages))
+	for idx := range messages {
+		reversed[len(messages)-1-idx] = messages[idx]
+	}
+
+	return reversed
+}
+
+func filterMessages(messages []handmsg.Message, opts MessageQueryOptions) []handmsg.Message {
+	role := handmsg.Role(strings.TrimSpace(string(opts.Role)))
+	name := strings.TrimSpace(opts.Name)
+	if role == "" && name == "" {
+		return messages
+	}
+
+	filtered := make([]handmsg.Message, 0, len(messages))
+	for _, message := range messages {
+		if role != "" && message.Role != role {
+			continue
+		}
+		if name != "" && strings.TrimSpace(message.Name) != name {
+			continue
+		}
+		filtered = append(filtered, message)
+	}
+
+	return filtered
+}
+
+func messageQueryOrder(opts MessageQueryOptions) string {
+	order, err := base.NormalizeMessageQueryOrder(opts.Order)
+	if err != nil {
+		return base.MessageOrderAsc
+	}
+
+	return order
 }

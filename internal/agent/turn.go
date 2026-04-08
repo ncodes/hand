@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,11 +12,13 @@ import (
 	agentmemory "github.com/wandxy/hand/internal/agent/memory"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/environment"
+	envtypes "github.com/wandxy/hand/internal/environment/types"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	sessionstore "github.com/wandxy/hand/internal/session"
 	"github.com/wandxy/hand/internal/storage"
+	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 )
 
@@ -55,6 +58,8 @@ type Turn struct {
 	lastPromptTokens int
 	// summaryRefreshAttempted prevents multiple summary refresh attempts in one turn.
 	summaryRefreshAttempted bool
+	// planHydrated indicates whether plan state was restored from session history.
+	planHydrated bool
 }
 
 // NewTurn constructs a Turn with the dependencies needed for one response turn.
@@ -124,7 +129,6 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 	if err != nil {
 		return err
 	}
-
 	t.ctx = ctx
 	t.instructions = t.env.Instructions()
 	t.sessionHistory = messages
@@ -134,6 +138,10 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 	t.sessionID = session.ID
 	t.lastPromptTokens = session.LastPromptTokens
 	t.summaryRefreshAttempted = false
+	t.planHydrated, err = t.hydratePlanFromHistory(ctx, session.ID)
+	if err != nil {
+		return err
+	}
 
 	agentLog.Debug().
 		Str("session_id", session.ID).
@@ -160,6 +168,17 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 	traceSession := t.env.NewTraceSession(t.sessionID)
 	defer traceSession.Close()
+	if t.planHydrated {
+		plan := t.env.CurrentPlan(t.sessionID)
+		traceSession.Record(trace.EvtPlanHydrated, map[string]any{
+			"session_id":     t.sessionID,
+			"steps":          plan.Steps,
+			"summary":        summarizeHydratedPlan(plan),
+			"active_step_id": activeHydratedPlanStepID(plan),
+			"explanation":    strings.TrimSpace(plan.Explanation),
+			"source":         "history",
+		})
+	}
 
 	userMessage, err := handmsg.NewMessage(handmsg.RoleUser, msg)
 	if err != nil {
@@ -241,11 +260,6 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				}
 				deltas = append(deltas, event)
 			})
-			if err == nil && resp != nil && !resp.RequiresToolCalls && !allowLiveDelivery && opts.OnEvent != nil {
-				for _, delta := range deltas {
-					opts.OnEvent(delta)
-				}
-			}
 		} else {
 			resp, err = t.modelClient.Complete(ctx, request)
 		}
@@ -326,7 +340,8 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			agentLog.Debug().Str("tool", toolCall.Name).Str("tool_call_id", toolCall.ID).Msg("invoking tool")
 
 			traceSession.Record(trace.EvtToolInvocationStarted, toolCall)
-			toolMessage := t.invokeTool(ctx, toolCall)
+			toolCtx := tools.WithTraceRecorder(tools.WithSessionID(ctx, t.sessionID), traceSession)
+			toolMessage := t.invokeTool(toolCtx, toolCall)
 			traceSession.Record(trace.EvtToolInvocationCompleted, toolMessage)
 
 			toolMessage, err = normalizeTurnMessage(toolMessage)
@@ -486,6 +501,9 @@ func (t *Turn) buildRequestInstructions(extra ...instruct.Instructions) string {
 	}
 
 	instructions := t.instructions
+	if planInstructions := t.renderPlanInstructions(); planInstructions != "" {
+		instructions = instruct.New(planInstructions).Append(instructions...)
+	}
 	if t.memory != nil {
 		if summaryInstructions, ok := t.memory.RenderSummaryInstructions(); ok {
 			instructions = instruct.New(summaryInstructions).Append(instructions...)
@@ -496,6 +514,148 @@ func (t *Turn) buildRequestInstructions(extra ...instruct.Instructions) string {
 	}
 
 	return instructions.String()
+}
+
+func (t *Turn) hydratePlanFromMessages(messages []handmsg.Message) bool {
+	if t == nil || t.env == nil {
+		return false
+	}
+
+	empty := envtypes.Plan{}
+	for idx := len(messages) - 1; idx >= 0; idx-- {
+		message := messages[idx]
+		if message.Role != handmsg.RoleTool || message.Name != "plan_tool" {
+			continue
+		}
+
+		plan, ok := decodeHydratedPlan(message.Content)
+		if !ok {
+			continue
+		}
+
+		t.env.HydratePlan(t.sessionID, plan)
+		return true
+	}
+
+	t.env.HydratePlan(t.sessionID, empty)
+	return false
+}
+
+func (t *Turn) renderPlanInstructions() string {
+	if t == nil || t.env == nil {
+		return ""
+	}
+
+	plan := t.env.CurrentPlan(t.sessionID)
+	activeSteps := make([]envtypes.PlanStep, 0, len(plan.Steps))
+	for _, step := range plan.Steps {
+		if step.Status == envtypes.PlanStatusCompleted || step.Status == envtypes.PlanStatusCancelled {
+			continue
+		}
+		activeSteps = append(activeSteps, step)
+	}
+	if len(activeSteps) == 0 {
+		return ""
+	}
+
+	lines := []string{"Active Plan:"}
+	for _, step := range activeSteps {
+		lines = append(lines, "- ["+step.Status+"] "+step.Content)
+	}
+	if explanation := strings.TrimSpace(plan.Explanation); explanation != "" {
+		lines = append(lines, "", "Plan Update Reason:", explanation)
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func decodeHydratedPlan(content string) (envtypes.Plan, bool) {
+	type toolMessageEnvelope struct {
+		Output string `json:"output"`
+	}
+
+	var envelope toolMessageEnvelope
+	if err := json.Unmarshal([]byte(content), &envelope); err == nil && strings.TrimSpace(envelope.Output) != "" {
+		if plan, ok := decodeHydratedPlanPayload(envelope.Output); ok {
+			return plan, true
+		}
+	}
+
+	return decodeHydratedPlanPayload(content)
+}
+
+func decodeHydratedPlanPayload(content string) (envtypes.Plan, bool) {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(content), &raw); err != nil {
+		return envtypes.Plan{}, false
+	}
+
+	stepsRaw, ok := raw["steps"]
+	if !ok {
+		return envtypes.Plan{}, false
+	}
+
+	var steps []envtypes.PlanStep
+	if err := json.Unmarshal(stepsRaw, &steps); err != nil {
+		return envtypes.Plan{}, false
+	}
+
+	explanation := ""
+	if explanationRaw, ok := raw["explanation"]; ok {
+		_ = json.Unmarshal(explanationRaw, &explanation)
+	}
+
+	plan := envtypes.Plan{Steps: steps, Explanation: strings.TrimSpace(explanation)}
+	if err := envtypes.ValidatePlan(plan); err != nil {
+		fmt.Println("error", err)
+		return envtypes.Plan{}, false
+	}
+
+	return plan, true
+}
+
+func (t *Turn) hydratePlanFromHistory(ctx context.Context, sessionID string) (bool, error) {
+	messages, err := t.sessionManager.GetMessages(ctx, sessionID, storage.MessageQueryOptions{
+		Role:  handmsg.RoleTool,
+		Name:  "plan_tool",
+		Order: "desc",
+		Limit: 1,
+	})
+	if err != nil {
+		return false, err
+	}
+	if len(messages) > 0 && t.hydratePlanFromMessages(messages) {
+		return true, nil
+	}
+
+	t.env.HydratePlan(sessionID, envtypes.Plan{})
+	return false, nil
+}
+
+func summarizeHydratedPlan(plan envtypes.Plan) envtypes.PlanSummary {
+	summary := envtypes.PlanSummary{Total: len(plan.Steps)}
+	for _, step := range plan.Steps {
+		switch step.Status {
+		case envtypes.PlanStatusPending:
+			summary.Pending++
+		case envtypes.PlanStatusInProgress:
+			summary.InProgress++
+		case envtypes.PlanStatusCompleted:
+			summary.Completed++
+		case envtypes.PlanStatusCancelled:
+			summary.Cancelled++
+		}
+	}
+	return summary
+}
+
+func activeHydratedPlanStepID(plan envtypes.Plan) string {
+	for _, step := range plan.Steps {
+		if step.Status == envtypes.PlanStatusInProgress {
+			return step.ID
+		}
+	}
+	return ""
 }
 
 func (t *Turn) Context() []handmsg.Message {

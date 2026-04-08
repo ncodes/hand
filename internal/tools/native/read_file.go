@@ -8,7 +8,7 @@ import (
 	"github.com/wandxy/hand/internal/tools"
 )
 
-func ReadFileDefinition(dependencies envtypes.Runtime) tools.Definition {
+func ReadFileDefinition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Path string `json:"path"`
 	}
@@ -27,7 +27,7 @@ func ReadFileDefinition(dependencies envtypes.Runtime) tools.Definition {
 				return result, nil
 			}
 
-			resolved, err := dependencies.FilePolicy().Resolve(req.Path)
+			resolved, err := runtime.FilePolicy().Resolve(req.Path)
 			if err != nil {
 				return fileError(err), nil
 			}

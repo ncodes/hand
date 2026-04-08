@@ -137,7 +137,7 @@ func TestListFiles_ToolAppliesEntryLimit(t *testing.T) {
 
 func TestListFiles_DefinitionDeclaresStrictRequiredSchema(t *testing.T) {
 	root := t.TempDir()
-	definition := ListFilesDefinition(&testDependencies{
+	definition := ListFilesDefinition(&testRuntime{
 		filePolicy: guardrails.FilesystemPolicy{Roots: guardrails.NormalizeRoots([]string{root})},
 	})
 

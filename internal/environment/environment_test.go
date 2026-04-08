@@ -13,6 +13,7 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
+	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/personality"
@@ -254,7 +255,7 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 
 	definitions := tools.List()
 	require.Len(t, definitions, 8)
-	require.Equal(t, []string{"list_files", "patch", "read_file", "run_command", "search_files", "time", "todo", "write_file"}, []string{
+	require.Equal(t, []string{"list_files", "patch", "plan_tool", "read_file", "run_command", "search_files", "time", "write_file"}, []string{
 		definitions[0].Name,
 		definitions[1].Name,
 		definitions[2].Name,
@@ -270,6 +271,30 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	groups := tools.ListGroups()
 	require.Len(t, groups, 1)
 	require.Equal(t, "core", groups[0].Name)
+}
+
+func TestEnvironment_CurrentPlanAndHydratePlanHandleNilReceiver(t *testing.T) {
+	var env *environment
+
+	require.Equal(t, envtypes.Plan{}, env.CurrentPlan("session-1"))
+	env.HydratePlan("session-1", envtypes.Plan{
+		Steps: []envtypes.PlanStep{{ID: "step-1", Content: "First", Status: envtypes.PlanStatusInProgress}},
+	})
+	require.Equal(t, envtypes.Plan{}, env.CurrentPlan("session-1"))
+}
+
+func TestEnvironment_CurrentPlanAndHydratePlanUseRuntimeStore(t *testing.T) {
+	env := &environment{runtime: NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{})}
+
+	env.HydratePlan("session-1", envtypes.Plan{
+		Steps:       []envtypes.PlanStep{{ID: "step-1", Content: "First", Status: envtypes.PlanStatusInProgress}},
+		Explanation: "restored",
+	})
+
+	require.Equal(t, envtypes.Plan{
+		Steps:       []envtypes.PlanStep{{ID: "step-1", Content: "First", Status: envtypes.PlanStatusInProgress}},
+		Explanation: "restored",
+	}, env.CurrentPlan("session-1"))
 }
 
 type failingRegistry struct {

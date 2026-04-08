@@ -32,8 +32,8 @@ type Store struct {
 type SessionSummary struct {
 	ID          string    `json:"id"`
 	Path        string    `json:"path"`
-	StartedAt   time.Time `json:"started_at,omitempty"`
-	UpdatedAt   time.Time `json:"updated_at,omitempty"`
+	StartedAt   time.Time `json:"started_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 	AgentName   string    `json:"agent_name,omitempty"`
 	Model       string    `json:"model,omitempty"`
 	APIMode     string    `json:"api_mode,omitempty"`
@@ -66,6 +66,7 @@ type TimelineEvent struct {
 	SummaryEvent      *SummaryEventView    `json:"summary_event,omitempty"`
 	CompactionEvent   *CompactionEventView `json:"compaction_event,omitempty"`
 	WorkspaceRules    *WorkspaceRulesView  `json:"workspace_rules,omitempty"`
+	PlanEvent         *PlanEventView       `json:"plan_event,omitempty"`
 	GenericPayloadRaw string               `json:"generic_payload_raw,omitempty"`
 }
 
@@ -191,6 +192,29 @@ type WorkspaceRulesView struct {
 	Marker           string `json:"marker,omitempty"`
 }
 
+type PlanEventView struct {
+	SessionID    string          `json:"session_id,omitempty"`
+	Steps        []PlanStepView  `json:"steps,omitempty"`
+	Summary      PlanSummaryView `json:"summary"`
+	ActiveStepID string          `json:"active_step_id,omitempty"`
+	Explanation  string          `json:"explanation,omitempty"`
+	Source       string          `json:"source,omitempty"`
+}
+
+type PlanStepView struct {
+	ID      string `json:"id,omitempty"`
+	Content string `json:"content,omitempty"`
+	Status  string `json:"status,omitempty"`
+}
+
+type PlanSummaryView struct {
+	Total      int `json:"total"`
+	Pending    int `json:"pending"`
+	InProgress int `json:"in_progress"`
+	Completed  int `json:"completed"`
+	Cancelled  int `json:"cancelled"`
+}
+
 type rawEvent struct {
 	SessionID string          `json:"session_id"`
 	Type      string          `json:"type"`
@@ -230,6 +254,15 @@ type compactionEventPayload struct {
 	CompletedAt        time.Time `json:"completed_at"`
 	FailedAt           time.Time `json:"failed_at"`
 	Error              string    `json:"error"`
+}
+
+type planEventPayload struct {
+	SessionID    string          `json:"session_id"`
+	Steps        []PlanStepView  `json:"steps"`
+	Summary      PlanSummaryView `json:"summary"`
+	ActiveStepID string          `json:"active_step_id"`
+	Explanation  string          `json:"explanation"`
+	Source       string          `json:"source"`
 }
 
 func NewStore(directory string) *Store {
@@ -551,6 +584,19 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 		var payload WorkspaceRulesView
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.WorkspaceRules = &payload
+			return
+		}
+	case handtrace.EvtPlanUpdated, handtrace.EvtPlanCleared, handtrace.EvtPlanHydrated:
+		var payload planEventPayload
+		if json.Unmarshal(event.Payload, &payload) == nil {
+			timelineEvent.PlanEvent = &PlanEventView{
+				SessionID:    payload.SessionID,
+				Steps:        payload.Steps,
+				Summary:      payload.Summary,
+				ActiveStepID: payload.ActiveStepID,
+				Explanation:  strings.TrimSpace(payload.Explanation),
+				Source:       strings.TrimSpace(payload.Source),
+			}
 			return
 		}
 	}

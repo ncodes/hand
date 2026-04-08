@@ -23,7 +23,7 @@ type contentMatch struct {
 	Text   string `json:"text"`
 }
 
-func SearchFilesDefinition(dependencies envtypes.Runtime) tools.Definition {
+func SearchFilesDefinition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Pattern       string `json:"pattern"`
 		Path          string `json:"path"`
@@ -61,7 +61,7 @@ func SearchFilesDefinition(dependencies envtypes.Runtime) tools.Definition {
 				return toolError("invalid_input", "pattern is required"), nil
 			}
 
-			resolved, err := dependencies.FilePolicy().Resolve(req.Path)
+			resolved, err := runtime.FilePolicy().Resolve(req.Path)
 			if err != nil {
 				return fileError(err), nil
 			}

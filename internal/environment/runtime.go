@@ -1,9 +1,9 @@
 package environment
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
-	"sync"
 
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
@@ -14,13 +14,7 @@ var getwd = os.Getwd
 type Runtime struct {
 	filePolicy    guardrails.FilesystemPolicy
 	commandPolicy guardrails.CommandPolicy
-	todos         TodoStore
-}
-
-type TodoStore interface {
-	Replace([]envtypes.TodoItem) []envtypes.TodoItem
-	List() []envtypes.TodoItem
-	Clear() []envtypes.TodoItem
+	plans         PlanStore
 }
 
 func NewRuntime(roots []string, policy guardrails.CommandPolicy) *Runtime {
@@ -35,7 +29,7 @@ func NewRuntime(roots []string, policy guardrails.CommandPolicy) *Runtime {
 	return &Runtime{
 		filePolicy:    guardrails.FilesystemPolicy{Roots: guardrails.NormalizeRoots(roots)},
 		commandPolicy: policy.Normalize(),
-		todos:         &MemoryTodoStore{},
+		plans:         &MemoryPlanStore{},
 	}
 }
 
@@ -53,48 +47,37 @@ func (r *Runtime) CommandPolicy() guardrails.CommandPolicy {
 	return r.commandPolicy
 }
 
-func (r *Runtime) ListTodos() []envtypes.TodoItem {
-	if r == nil || r.todos == nil {
-		return nil
+func (r *Runtime) GetPlan(sessionID string) envtypes.Plan {
+	if r == nil || r.plans == nil {
+		return envtypes.Plan{}
 	}
-	return r.todos.List()
+	return r.plans.Get(sessionID)
 }
 
-func (r *Runtime) ReplaceTodos(items []envtypes.TodoItem) []envtypes.TodoItem {
-	if r == nil || r.todos == nil {
-		return append([]envtypes.TodoItem(nil), items...)
+func (r *Runtime) ReplacePlan(sessionID string, plan envtypes.Plan) (envtypes.Plan, error) {
+	if r == nil || r.plans == nil {
+		return clonePlan(plan), errors.New("plan store is required")
 	}
-	return r.todos.Replace(items)
+	return r.plans.Replace(sessionID, plan)
 }
 
-func (r *Runtime) ClearTodos() []envtypes.TodoItem {
-	if r == nil || r.todos == nil {
-		return nil
+func (r *Runtime) MergePlan(sessionID string, updates []envtypes.PartialPlanStep, explanation string, clearCompleted bool) (envtypes.Plan, error) {
+	if r == nil || r.plans == nil {
+		return envtypes.Plan{}, errors.New("plan store is required")
 	}
-	return r.todos.Clear()
+	return r.plans.Merge(sessionID, updates, explanation, clearCompleted)
 }
 
-type MemoryTodoStore struct {
-	mu    sync.Mutex
-	items []envtypes.TodoItem
+func (r *Runtime) ClearPlan(sessionID string) envtypes.Plan {
+	if r == nil || r.plans == nil {
+		return envtypes.Plan{}
+	}
+	return r.plans.Clear(sessionID)
 }
 
-func (s *MemoryTodoStore) Replace(items []envtypes.TodoItem) []envtypes.TodoItem {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.items = append([]envtypes.TodoItem(nil), items...)
-	return append([]envtypes.TodoItem(nil), s.items...)
-}
-
-func (s *MemoryTodoStore) List() []envtypes.TodoItem {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return append([]envtypes.TodoItem(nil), s.items...)
-}
-
-func (s *MemoryTodoStore) Clear() []envtypes.TodoItem {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.items = nil
-	return nil
+func (r *Runtime) HydratePlan(sessionID string, plan envtypes.Plan) {
+	if r == nil || r.plans == nil {
+		return
+	}
+	r.plans.Hydrate(sessionID, plan)
 }

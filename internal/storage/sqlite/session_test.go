@@ -1049,6 +1049,26 @@ func TestSQLiteStore_GetMessagesEdgeCases(t *testing.T) {
 	require.Nil(t, messages)
 }
 
+func TestSQLiteStore_GetMessagesRejectsInvalidOrder(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	messages, err := store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{Order: "sideways"})
+
+	require.EqualError(t, err, "message order must be asc or desc")
+	require.Nil(t, messages)
+}
+
+func TestSQLiteStore_CountMessagesRejectsInvalidOrder(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	count, err := store.CountMessages(context.Background(), testSessionA, MessageQueryOptions{Order: "sideways"})
+
+	require.EqualError(t, err, "message order must be asc or desc")
+	require.Zero(t, count)
+}
+
 func TestSQLiteStore_GetMessagesSupportsOffsetAndLimit(t *testing.T) {
 	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)
@@ -1093,6 +1113,60 @@ func TestSQLiteStore_GetMessagesSupportsOffsetAndLimit(t *testing.T) {
 	messages, err = store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{})
 	require.NoError(t, err)
 	require.Nil(t, messages)
+}
+
+func TestSQLiteStore_GetAndCountMessagesSupportRoleAndNameFilters(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+		{Role: handmsg.RoleTool, Name: "plan_tool", Content: "plan-1", ToolCallID: "call-1", CreatedAt: now},
+		{Role: handmsg.RoleTool, Name: "other_tool", Content: "other", ToolCallID: "call-2", CreatedAt: now},
+		{Role: handmsg.RoleTool, Name: "plan_tool", Content: "plan-2", ToolCallID: "call-3", CreatedAt: now},
+	}))
+
+	count, err := store.CountMessages(context.Background(), testSessionA, MessageQueryOptions{
+		Role: handmsg.RoleTool,
+		Name: "plan_tool",
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, count)
+
+	messages, err := store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{
+		Role:   handmsg.RoleTool,
+		Name:   "plan_tool",
+		Offset: 1,
+		Limit:  1,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "plan-2", messages[0].Content)
+	require.Equal(t, "plan_tool", messages[0].Name)
+}
+
+func TestSQLiteStore_GetMessagesSupportsDescendingOrder(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleTool, Name: "plan_tool", Content: "plan-1", ToolCallID: "call-1", CreatedAt: now},
+		{Role: handmsg.RoleTool, Name: "plan_tool", Content: "plan-2", ToolCallID: "call-2", CreatedAt: now},
+	}))
+
+	messages, err := store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{
+		Role:  handmsg.RoleTool,
+		Name:  "plan_tool",
+		Order: "desc",
+		Limit: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "plan-2", messages[0].Content)
 }
 
 func TestSQLiteStore_CountMessagesSupportsLiveAndArchivedQueries(t *testing.T) {

@@ -15,7 +15,7 @@ import (
 	"github.com/wandxy/hand/internal/tools"
 )
 
-func PatchDefinition(dependencies envtypes.Runtime) tools.Definition {
+func PatchDefinition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Patch string `json:"patch"`
 		Strip int    `json:"strip"`
@@ -39,7 +39,7 @@ func PatchDefinition(dependencies envtypes.Runtime) tools.Definition {
 				return toolError("invalid_input", "patch is required"), nil
 			}
 
-			applied, created, err := applyUnifiedDiff(dependencies.FilePolicy(), req.Patch, req.Strip)
+			applied, created, err := applyUnifiedDiff(runtime.FilePolicy(), req.Patch, req.Strip)
 			if err != nil {
 				if strings.Contains(err.Error(), "conflict") {
 					return toolError("conflict", err.Error()), nil

@@ -8,6 +8,7 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
+	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/personality"
@@ -44,6 +45,12 @@ type Environment interface {
 
 	// NewTraceSession opens a trace sink for the given storage session when debug tracing is enabled.
 	NewTraceSession(sessionID string) trace.Session
+
+	// CurrentPlan returns the in-memory plan state for the given session.
+	CurrentPlan(sessionID string) envtypes.Plan
+
+	// HydratePlan seeds the in-memory plan state for the given session.
+	HydratePlan(sessionID string, plan envtypes.Plan)
 }
 
 type environment struct {
@@ -133,7 +140,7 @@ func (e *environment) prepareTools() error {
 		nativetools.SearchFilesDefinition(e.runtime),
 		nativetools.WriteFileDefinition(e.runtime),
 		nativetools.PatchDefinition(e.runtime),
-		nativetools.TodoDefinition(e.runtime),
+		nativetools.PlanDefinition(e.runtime),
 		nativetools.RunCommandDefinition(e.runtime),
 	}
 
@@ -219,6 +226,20 @@ func (e *environment) NewTraceSession(sessionID string) trace.Session {
 	}
 
 	return session
+}
+
+func (e *environment) CurrentPlan(sessionID string) envtypes.Plan {
+	if e == nil || e.runtime == nil {
+		return envtypes.Plan{}
+	}
+	return e.runtime.GetPlan(sessionID)
+}
+
+func (e *environment) HydratePlan(sessionID string, plan envtypes.Plan) {
+	if e == nil || e.runtime == nil {
+		return
+	}
+	e.runtime.HydratePlan(sessionID, plan)
 }
 
 func (e *environment) fileRoots() []string {

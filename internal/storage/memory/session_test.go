@@ -62,6 +62,58 @@ func TestMemoryStore_SaveAndGet(t *testing.T) {
 	require.False(t, loaded.UpdatedAt.IsZero())
 }
 
+func TestMemoryStore_GetAndCountMessagesSupportRoleAndNameFilters(t *testing.T) {
+	store := NewSessionStore()
+	now := time.Now().UTC()
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+		{Role: handmsg.RoleTool, Name: "plan_tool", Content: "plan-1", ToolCallID: "call-1", CreatedAt: now},
+		{Role: handmsg.RoleTool, Name: "other_tool", Content: "other", ToolCallID: "call-2", CreatedAt: now},
+		{Role: handmsg.RoleTool, Name: "plan_tool", Content: "plan-2", ToolCallID: "call-3", CreatedAt: now},
+	}))
+
+	count, err := store.CountMessages(context.Background(), testSessionOne, MessageQueryOptions{
+		Role: handmsg.RoleTool,
+		Name: "plan_tool",
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, count)
+
+	messages, err := store.GetMessages(context.Background(), testSessionOne, MessageQueryOptions{
+		Role:   handmsg.RoleTool,
+		Name:   "plan_tool",
+		Offset: 1,
+		Limit:  1,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "plan-2", messages[0].Content)
+	require.Equal(t, "plan_tool", messages[0].Name)
+}
+
+func TestMemoryStore_GetMessagesSupportsDescendingOrder(t *testing.T) {
+	store := NewSessionStore()
+	now := time.Now().UTC()
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{
+		{Role: handmsg.RoleTool, Name: "plan_tool", Content: "plan-1", ToolCallID: "call-1", CreatedAt: now},
+		{Role: handmsg.RoleTool, Name: "plan_tool", Content: "plan-2", ToolCallID: "call-2", CreatedAt: now},
+	}))
+
+	messages, err := store.GetMessages(context.Background(), testSessionOne, MessageQueryOptions{
+		Role:  handmsg.RoleTool,
+		Name:  "plan_tool",
+		Order: "desc",
+		Limit: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "plan-2", messages[0].Content)
+}
+
 func TestMemoryStore_GetReturnsFalseWhenMissing(t *testing.T) {
 	store := NewSessionStore()
 
@@ -710,6 +762,24 @@ func TestMemoryStore_GetMessagesRejectsInvalidLiveID(t *testing.T) {
 
 	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
 	require.Nil(t, messages)
+}
+
+func TestMemoryStore_GetMessagesRejectsInvalidOrder(t *testing.T) {
+	store := NewSessionStore()
+
+	messages, err := store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{Order: "sideways"})
+
+	require.EqualError(t, err, "message order must be asc or desc")
+	require.Nil(t, messages)
+}
+
+func TestMemoryStore_CountMessagesRejectsInvalidOrder(t *testing.T) {
+	store := NewSessionStore()
+
+	count, err := store.CountMessages(context.Background(), testSessionA, MessageQueryOptions{Order: "sideways"})
+
+	require.EqualError(t, err, "message order must be asc or desc")
+	require.Zero(t, count)
 }
 
 func TestMemoryStore_GetMessagesAllowsArchivedLookupWithoutSessionIDValidation(t *testing.T) {

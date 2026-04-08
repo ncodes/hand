@@ -228,6 +228,40 @@ func Test_Store_GetSession_DecodesWorkspaceRulesTruncatedEvent(t *testing.T) {
 	require.Equal(t, "[... workspace rules truncated ...]", detail.Timeline[1].WorkspaceRules.Marker)
 }
 
+func Test_Store_GetSession_DecodesPlanEvents(t *testing.T) {
+	dir := t.TempDir()
+	writeTraceFile(t, dir, "plan", []any{
+		handtrace.Event{
+			SessionID: "plan",
+			Type:      handtrace.EvtChatStarted,
+			Timestamp: time.Date(2026, 4, 7, 0, 0, 0, 0, time.UTC),
+			Payload:   handtrace.Metadata{AgentName: "Daemon", Model: "test-model", APIMode: "responses"},
+		},
+		handtrace.Event{
+			SessionID: "plan",
+			Type:      handtrace.EvtPlanHydrated,
+			Timestamp: time.Date(2026, 4, 7, 0, 0, 1, 0, time.UTC),
+			Payload: map[string]any{
+				"session_id":     "plan",
+				"steps":          []map[string]any{{"id": "step-1", "content": "Implement feature", "status": "in_progress"}},
+				"summary":        map[string]any{"total": 1, "pending": 0, "in_progress": 1, "completed": 0, "cancelled": 0},
+				"active_step_id": "step-1",
+				"explanation":    "restored",
+				"source":         "history",
+			},
+		},
+	})
+
+	detail, err := NewStore(dir).GetSession("plan")
+	require.NoError(t, err)
+	require.Len(t, detail.Timeline, 2)
+	require.NotNil(t, detail.Timeline[1].PlanEvent)
+	require.Equal(t, "plan", detail.Timeline[1].PlanEvent.SessionID)
+	require.Equal(t, "step-1", detail.Timeline[1].PlanEvent.ActiveStepID)
+	require.Equal(t, "history", detail.Timeline[1].PlanEvent.Source)
+	require.Equal(t, "Implement feature", detail.Timeline[1].PlanEvent.Steps[0].Content)
+}
+
 func Test_Store_ListSessions_SortsOlderSessionsAfterNewerOnComparatorReversePath(t *testing.T) {
 	dir := t.TempDir()
 	writeTraceFile(t, dir, "older", []any{
