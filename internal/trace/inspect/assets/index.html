@@ -464,9 +464,9 @@
     }
 
     .event-body {
-      padding: 1.05rem 1.15rem 1.2rem;
+      padding: 0.2rem 0 0;
       display: grid;
-      gap: 0.95rem;
+      gap: 0.85rem;
     }
 
     .stack {
@@ -478,6 +478,7 @@
       display: flex;
       flex-wrap: wrap;
       gap: 0.5rem;
+      margin-bottom: 0.55rem;
     }
 
     .pill {
@@ -508,6 +509,14 @@
       gap: 0.85rem;
     }
 
+    .message-card > .pill-row {
+      margin-bottom: 0.7rem;
+    }
+
+    details .message-card {
+      margin-top: 0.8rem;
+    }
+
     .subcard h3 {
       margin: 0 0 0.55rem;
       font-size: 0.86rem;
@@ -529,6 +538,46 @@
       overflow: auto;
     }
 
+    .code-block {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      padding: 1rem;
+      border-radius: var(--radius-small);
+      overflow: auto;
+      line-height: 1.55;
+    }
+
+    .code-key {
+      color: #7dd3fc;
+    }
+
+    .code-string {
+      color: #86efac;
+    }
+
+    .code-number {
+      color: #f9a8d4;
+    }
+
+    .code-boolean {
+      color: #fcd34d;
+      font-weight: 700;
+    }
+
+    .code-null {
+      color: #c4b5fd;
+      font-style: italic;
+    }
+
+    .code-punctuation {
+      color: color-mix(in srgb, var(--code-ink) 72%, transparent);
+    }
+
     details {
       border: 1px solid var(--line);
       border-radius: var(--radius-small);
@@ -536,10 +585,27 @@
       padding: 0.8rem 0.95rem;
     }
 
+    .event > details {
+      border-top-left-radius: 0;
+    }
+
+    .event > details:not([open]) {
+      border-radius: 0;
+    }
+
+    details:not([open]) {
+      padding-bottom: 0.3rem;
+    }
+
     details summary {
       cursor: pointer;
       font-weight: 700;
       color: var(--accent);
+      margin-bottom: 0.7rem;
+    }
+
+    .message-card > summary {
+      margin-bottom: 0.3rem;
     }
 
     .empty,
@@ -613,6 +679,10 @@
           <input id="auto-refresh-toggle" type="checkbox" checked>
           <span>Auto Refresh</span>
         </label>
+        <label class="toggle">
+          <input id="single-event-toggle" type="checkbox" checked>
+          <span>Single Open Event</span>
+        </label>
         <button id="theme-toggle" class="button" type="button">Dark Mode</button>
         <div id="refresh-note" class="refresh-note">Polling every 3 seconds.</div>
       </div>
@@ -645,7 +715,9 @@
       selectedId: null,
       selectedDetail: null,
       autoRefresh: true,
+      singleEventOpen: true,
       refreshTimer: null,
+      openDetails: {},
       lastSeenEventCountBySession: {},
       sessionsSignature: ""
     };
@@ -657,14 +729,17 @@
     const warnings = document.getElementById("warnings");
     const timeline = document.getElementById("timeline");
     const autoRefreshToggle = document.getElementById("auto-refresh-toggle");
+    const singleEventToggle = document.getElementById("single-event-toggle");
     const themeToggle = document.getElementById("theme-toggle");
     const refreshNote = document.getElementById("refresh-note");
     const manualRefresh = document.getElementById("manual-refresh");
     const scrollTopButton = document.getElementById("scroll-top");
     const scrollBottomButton = document.getElementById("scroll-bottom");
     const root = document.documentElement;
+    const lazyDisclosureRenderers = new Map();
 
     state.theme = window.localStorage.getItem("trace-viewer-theme") || "";
+    state.singleEventOpen = window.localStorage.getItem("trace-viewer-single-event-open") !== "false";
 
     function fmtTime(value) {
       if (!value) return "Unknown";
@@ -684,9 +759,135 @@
         .replaceAll(">", "&gt;");
     }
 
-    function detailDisclosure(key, summary, content, open = false) {
-      const openAttr = open ? " open" : "";
+    function detailDisclosure(key, summary, content, open = false, options = {}) {
+      const resolvedOpen = key in state.openDetails ? !!state.openDetails[key] : open;
+      const openAttr = resolvedOpen ? " open" : "";
+      if (options.lazy && typeof content === "function") {
+        lazyDisclosureRenderers.set(key, content);
+        const body = resolvedOpen ? content() : "";
+        const renderedAttr = resolvedOpen ? ' data-lazy-rendered="true"' : "";
+        return `<details data-detail-key="${escapeHTML(key)}" data-lazy-detail="true"${renderedAttr}${openAttr}><summary>${escapeHTML(summary)}</summary>${body}</details>`;
+      }
       return `<details data-detail-key="${escapeHTML(key)}"${openAttr}><summary>${escapeHTML(summary)}</summary>${content}</details>`;
+    }
+
+    function isTopLevelEventDetail(detail) {
+      return detail instanceof HTMLDetailsElement && detail.parentElement?.classList.contains("event");
+    }
+
+    function collapseOtherOpenEvents(activeDetail) {
+      if (!state.singleEventOpen || !isTopLevelEventDetail(activeDetail) || !activeDetail.open) {
+        return;
+      }
+
+      for (const detail of timeline.querySelectorAll(".event > details[data-detail-key]")) {
+        if (detail === activeDetail) continue;
+        if (!detail.open) continue;
+        detail.open = false;
+        const key = detail.getAttribute("data-detail-key");
+        if (key) {
+          state.openDetails[key] = false;
+        }
+      }
+    }
+
+    function ensureLazyDisclosureContent(detail) {
+      if (!(detail instanceof HTMLDetailsElement)) return;
+      if (detail.getAttribute("data-lazy-detail") !== "true") return;
+      if (detail.getAttribute("data-lazy-rendered") === "true") return;
+
+      const key = detail.getAttribute("data-detail-key");
+      if (!key) return;
+
+      const renderer = lazyDisclosureRenderers.get(key);
+      if (!renderer) return;
+
+      detail.insertAdjacentHTML("beforeend", renderer());
+      detail.setAttribute("data-lazy-rendered", "true");
+    }
+
+    function highlightJSONString(value) {
+      return escapeHTML(value).replace(
+        /("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*")(\s*:)?|\b(true|false|null)\b|-?\b\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?\b/g,
+        (match, stringLiteral, keySuffix, keyword) => {
+          if (stringLiteral) {
+            if (keySuffix) {
+              return `<span class="code-key">${stringLiteral}</span><span class="code-punctuation">${keySuffix}</span>`;
+            }
+            return `<span class="code-string">${stringLiteral}</span>`;
+          }
+          if (keyword === "true" || keyword === "false") {
+            return `<span class="code-boolean">${match}</span>`;
+          }
+          if (keyword === "null") {
+            return `<span class="code-null">${match}</span>`;
+          }
+          return `<span class="code-number">${match}</span>`;
+        }
+      ).replace(/([{}[\],])/g, '<span class="code-punctuation">$1</span>');
+    }
+
+    function tryParseEmbeddedJSON(value) {
+      if (typeof value !== "string") {
+        return { parsed: false, value };
+      }
+
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return { parsed: false, value };
+      }
+
+      const first = trimmed[0];
+      if (first !== "{" && first !== "[" && first !== "\"" && first !== "-" && (first < "0" || first > "9")) {
+        return { parsed: false, value };
+      }
+
+      try {
+        return { parsed: true, value: JSON.parse(trimmed) };
+      } catch (_) {
+        return { parsed: false, value };
+      }
+    }
+
+    function expandJSONStringValues(value) {
+      if (Array.isArray(value)) {
+        return value.map((item) => expandJSONStringValues(item));
+      }
+
+      if (value && typeof value === "object") {
+        return Object.fromEntries(
+          Object.entries(value).map(([key, entryValue]) => [key, expandJSONStringValues(entryValue)])
+        );
+      }
+
+      const parsed = tryParseEmbeddedJSON(value);
+      if (!parsed.parsed) {
+        return value;
+      }
+
+      return expandJSONStringValues(parsed.value);
+    }
+
+    function renderCodeBlock(value, options = {}) {
+      const preferJSON = options.json !== false;
+      const text = String(value ?? "").trim();
+      if (!text) {
+        return `<pre class="code-block"><code></code></pre>`;
+      }
+
+      if (preferJSON) {
+        try {
+          const parsed = expandJSONStringValues(JSON.parse(text));
+          const pretty = JSON.stringify(parsed, null, 2);
+          return `<pre class="code-block"><code>${highlightJSONString(pretty)}</code></pre>`;
+        } catch (_) {}
+      }
+
+      return `<pre class="code-block"><code>${escapeHTML(String(value ?? ""))}</code></pre>`;
+    }
+
+    function normalizeToolCallPayload(toolCalls) {
+      return expandJSONStringValues(toolCalls || []);
     }
 
     function eventBadge(event) {
@@ -804,25 +1005,25 @@
             <div class="subcard"><h3>Tools</h3><div>${escapeHTML(String(metrics.tool_count || 0))}</div></div>
             <div class="subcard"><h3>Tool Calls in Context</h3><div>${escapeHTML(String(metrics.tool_call_count || 0))}</div></div>
           </div>
-          ${request.instructions ? detailDisclosure(`event:${eventIndex}:request:instructions`, "Instructions", `<pre>${escapeHTML(request.instructions)}</pre>`, true) : ""}
+          ${request.instructions ? detailDisclosure(`event:${eventIndex}:request:instructions`, "Instructions", renderCodeBlock(request.instructions, { json: false })) : ""}
           ${detailDisclosure(`event:${eventIndex}:request:messages`, `Messages (${(request.messages || []).length})`, `
             <div class="stack">
               ${(request.messages || []).map((message, index) => `
-                <div class="subcard message-card">
-                  <h3>Message ${index + 1}</h3>
+                <details class="subcard message-card" data-detail-key="event:${eventIndex}:request:message:${index}">
+                  <summary>Message ${index + 1}</summary>
                   <div class="pill-row">
                     <span class="pill">Role: ${escapeHTML(message.role || "unknown")}</span>
                     ${message.name ? `<span class="pill">Name: ${escapeHTML(message.name)}</span>` : ""}
                     ${message.tool_call_id ? `<span class="pill">Tool Call ID: ${escapeHTML(message.tool_call_id)}</span>` : ""}
                     <span class="pill">Chars: ${escapeHTML(String(message.content_chars || 0))}</span>
                   </div>
-                  ${message.content ? `<pre>${escapeHTML(message.content)}</pre>` : ""}
-                  ${(message.tool_calls || []).length ? detailDisclosure(`event:${eventIndex}:request:message:${index}:tool-calls`, "Tool Calls", `<pre>${escapeHTML(JSON.stringify(message.tool_calls, null, 2))}</pre>`) : ""}
-                </div>
+                  ${message.content ? renderCodeBlock(message.content) : ""}
+                  ${(message.tool_calls || []).length ? detailDisclosure(`event:${eventIndex}:request:message:${index}:tool-calls`, "Tool Calls", renderCodeBlock(JSON.stringify(normalizeToolCallPayload(message.tool_calls), null, 2))) : ""}
+                </details>
               `).join("")}
             </div>
-          `, true)}
-          ${detailDisclosure(`event:${eventIndex}:request:tools`, `Tools (${(request.tools || []).length})`, `<pre>${escapeHTML(JSON.stringify(request.tools || [], null, 2))}</pre>`)}
+          `)}
+          ${detailDisclosure(`event:${eventIndex}:request:tools`, `Tools (${(request.tools || []).length})`, renderCodeBlock(JSON.stringify(request.tools || [], null, 2)))}
         </div>
       `;
     }
@@ -836,8 +1037,8 @@
             <span class="pill">Model: ${escapeHTML(response.model || "Unknown")}</span>
             <span class="pill">Requires Tool Calls: ${escapeHTML(String(!!response.requires_tool_calls))}</span>
           </div>
-          ${response.output_text ? detailDisclosure(`event:${eventIndex}:response:output`, "Output Text", `<pre>${escapeHTML(response.output_text)}</pre>`, true) : ""}
-          ${(response.tool_calls || []).length ? detailDisclosure(`event:${eventIndex}:response:tool-calls`, "Tool Calls", `<pre>${escapeHTML(JSON.stringify(response.tool_calls, null, 2))}</pre>`, true) : ""}
+          ${response.output_text ? detailDisclosure(`event:${eventIndex}:response:output`, "Output Text", renderCodeBlock(response.output_text)) : ""}
+          ${(response.tool_calls || []).length ? detailDisclosure(`event:${eventIndex}:response:tool-calls`, "Tool Calls", renderCodeBlock(JSON.stringify(normalizeToolCallPayload(response.tool_calls), null, 2))) : ""}
         </div>
       `;
     }
@@ -851,8 +1052,8 @@
             ${tool.name ? `<span class="pill">Name: ${escapeHTML(tool.name)}</span>` : ""}
             ${tool.pair_index !== null && tool.pair_index !== undefined ? `<span class="pill">Paired Event: ${escapeHTML(String(tool.pair_index))}</span>` : ""}
           </div>
-          ${tool.input ? detailDisclosure(`event:${eventIndex}:tool:input`, "Input", `<pre>${escapeHTML(tool.input)}</pre>`, true) : ""}
-          ${tool.content ? detailDisclosure(`event:${eventIndex}:tool:content`, "Content", `<pre>${escapeHTML(tool.content)}</pre>`, true) : ""}
+          ${tool.input ? detailDisclosure(`event:${eventIndex}:tool:input`, "Input", renderCodeBlock(tool.input)) : ""}
+          ${tool.content ? detailDisclosure(`event:${eventIndex}:tool:content`, "Content", renderCodeBlock(tool.content)) : ""}
         </div>
       `;
     }
@@ -910,27 +1111,24 @@
       `;
     }
 
-    function renderEventMarkup(event) {
-      const eventClasses = ["event"];
+    function renderEventBodyContent(event) {
       let body = "";
       if (event.started_metadata) {
-        body = `<pre>${escapeHTML(JSON.stringify(event.started_metadata, null, 2))}</pre>`;
+        body = renderCodeBlock(JSON.stringify(event.started_metadata, null, 2));
       } else if (event.user_message) {
-        eventClasses.push("event-user-message");
-        body = `<pre>${escapeHTML(event.user_message.message)}</pre>`;
+        body = renderCodeBlock(event.user_message.message, { json: false });
       } else if (event.model_request) {
         body = renderRequest(event.model_request, event.index);
       } else if (event.model_response) {
-        eventClasses.push("event-model-response");
         body = renderResponse(event.model_response, event.index);
       } else if (event.tool_invocation) {
         body = renderToolInvocation(event.tool_invocation, event.index);
       } else if (event.final_response) {
-        body = `<pre>${escapeHTML(event.final_response.message)}</pre>`;
+        body = renderCodeBlock(event.final_response.message, { json: false });
       } else if (event.failure) {
         body = `<div class="error">${escapeHTML(event.failure.error)}</div>`;
       } else if (event.summary_fallback) {
-        body = `<pre>${escapeHTML(event.summary_fallback.payload || "")}</pre>`;
+        body = renderCodeBlock(event.summary_fallback.payload || "");
       } else if (event.context_event) {
         body = renderContextEvent(event.context_event);
       } else if (event.summary_event) {
@@ -938,7 +1136,23 @@
       } else if (event.compaction_event) {
         body = renderCompactionEvent(event.compaction_event);
       } else if (event.generic_payload_raw) {
-        body = `<pre>${escapeHTML(event.generic_payload_raw)}</pre>`;
+        body = renderCodeBlock(event.generic_payload_raw);
+      }
+
+      return `
+        <div class="event-body">
+          ${body}
+          ${detailDisclosure(`event:${event.index}:raw`, "Raw Event JSON", () => renderCodeBlock(event.raw), false, { lazy: true })}
+        </div>
+      `;
+    }
+
+    function renderEventMarkup(event) {
+      const eventClasses = ["event"];
+      if (event.user_message) {
+        eventClasses.push("event-user-message");
+      } else if (event.model_response) {
+        eventClasses.push("event-model-response");
       }
 
       return `
@@ -952,10 +1166,7 @@
             </div>
             <div class="event-time">${escapeHTML(fmtTime(event.timestamp))}</div>
           </div>
-          <div class="event-body">
-            ${body}
-            ${detailDisclosure(`event:${event.index}:raw`, "Raw Event JSON", `<pre>${escapeHTML(event.raw)}</pre>`)}
-          </div>
+          ${detailDisclosure(`event:${event.index}:body`, "Event Details", () => renderEventBodyContent(event), false, { lazy: true })}
         </article>
       `;
     }
@@ -967,19 +1178,38 @@
         if (!key) continue;
         openState[key] = detail.open;
       }
+      state.openDetails = { ...state.openDetails, ...openState };
       return openState;
     }
 
     function restoreOpenDetails(openState) {
-      if (!openState) return;
+      const desiredState = { ...(openState || {}), ...state.openDetails };
       for (const detail of timeline.querySelectorAll("details[data-detail-key]")) {
         const key = detail.getAttribute("data-detail-key");
-        if (!key || !(key in openState)) continue;
-        detail.open = openState[key];
+        if (!key || !(key in desiredState)) continue;
+        detail.open = desiredState[key];
+        state.openDetails[key] = desiredState[key];
+        if (detail.open) {
+          ensureLazyDisclosureContent(detail);
+        }
       }
+
+      if (!state.singleEventOpen) {
+        return;
+      }
+
+      const openEventDetails = Array.from(timeline.querySelectorAll(".event > details[data-detail-key]")).filter((detail) => detail.open);
+      if (openEventDetails.length <= 1) {
+        return;
+      }
+
+      const keepOpen = openEventDetails[openEventDetails.length - 1];
+      collapseOtherOpenEvents(keepOpen);
     }
 
     function renderTimeline(detail, previousOpenState = null) {
+      lazyDisclosureRenderers.clear();
+
       if (!detail.timeline || !detail.timeline.length) {
         timeline.innerHTML = '<div class="empty">This session has no events.</div>';
         return;
@@ -1039,6 +1269,7 @@
 
     function updateRefreshUI() {
       autoRefreshToggle.checked = state.autoRefresh;
+      singleEventToggle.checked = state.singleEventOpen;
       refreshNote.textContent = state.autoRefresh ? "Polling every 3 seconds." : "Auto refresh paused.";
     }
 
@@ -1181,6 +1412,24 @@
       startPolling();
     });
 
+    singleEventToggle.addEventListener("change", () => {
+      state.singleEventOpen = singleEventToggle.checked;
+      window.localStorage.setItem("trace-viewer-single-event-open", String(state.singleEventOpen));
+      updateRefreshUI();
+
+      if (!state.singleEventOpen) {
+        return;
+      }
+
+      const openEventDetails = Array.from(timeline.querySelectorAll(".event > details[data-detail-key]")).filter((detail) => detail.open);
+      if (openEventDetails.length <= 1) {
+        return;
+      }
+
+      const keepOpen = openEventDetails[openEventDetails.length - 1];
+      collapseOtherOpenEvents(keepOpen);
+    });
+
     themeToggle.addEventListener("click", () => {
       const nextTheme = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
       persistTheme(nextTheme);
@@ -1189,6 +1438,18 @@
     manualRefresh.addEventListener("click", () => {
       refreshCurrent({ silent: false }).catch(() => {});
     });
+
+    timeline.addEventListener("toggle", (event) => {
+      const detail = event.target;
+      if (!(detail instanceof HTMLDetailsElement)) return;
+      const key = detail.getAttribute("data-detail-key");
+      if (!key) return;
+      state.openDetails[key] = detail.open;
+      if (detail.open) {
+        ensureLazyDisclosureContent(detail);
+        collapseOtherOpenEvents(detail);
+      }
+    }, true);
 
     scrollTopButton.addEventListener("click", () => {
       window.scrollTo({ top: 0, behavior: "smooth" });
