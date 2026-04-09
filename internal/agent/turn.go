@@ -22,6 +22,8 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 )
 
+const planHydrationPageSize = 10
+
 // Turn executes a single response turn against a resolved session.
 type Turn struct {
 	// ctx is the request context used for session writes during the turn.
@@ -493,22 +495,46 @@ func (t *Turn) summaryFallback(ctx context.Context, budget environment.Iteration
 	return resp.OutputText, nil
 }
 
-// buildRequestInstructions builds the system prompt sent to the model: optional persisted session
-// summary, then the turn's base instructions, then any extra instruction blocks.
+// buildRequestInstructions assembles the system prompt sent to the model in this order:
+// planning policy, hydrated active plan context, remaining base instructions, optional
+// persisted memory summary, optional request-scoped instruction, then any extra blocks.
 func (t *Turn) buildRequestInstructions(extra ...instruct.Instructions) string {
 	if t == nil {
 		return ""
 	}
 
 	instructions := t.instructions
-	if planInstructions := t.renderPlanInstructions(); planInstructions != "" {
-		instructions = instruct.New(planInstructions).Append(instructions...)
+
+	// Hold request-scoped guidance aside so it can be appended after memory summary.
+	requestInstruction, hasRequestInstruction := instructions.GetByName(requestInstructionName)
+	if hasRequestInstruction {
+		instructions = instructions.WithoutName(requestInstructionName)
 	}
-	if t.memory != nil {
-		if summaryInstructions, ok := t.memory.RenderSummaryInstructions(); ok {
-			instructions = instruct.New(summaryInstructions).Append(instructions...)
+
+	// Prepend hydrated plan context and keep planning policy ahead of it when present.
+	if planInstructions := t.renderPlanInstructions(); planInstructions != "" {
+		if policy, ok := instructions.GetByName(instruct.PlanningPolicyInstructionName); ok {
+			instructions = instruct.New(policy.Value).
+				Append(instruct.Instruction{Value: planInstructions}).
+				Append(instructions.WithoutName(instruct.PlanningPolicyInstructionName)...)
+		} else {
+			instructions = instruct.New(planInstructions).Append(instructions...)
 		}
 	}
+
+	// Add persisted memory summary after base instructions and plan context.
+	if t.memory != nil {
+		if summaryInstructions, ok := t.memory.RenderSummaryInstructions(); ok {
+			instructions = instructions.Append(instruct.Instruction{Value: summaryInstructions})
+		}
+	}
+
+	// Append the per-request instruction after summary context.
+	if hasRequestInstruction {
+		instructions = instructions.Append(requestInstruction)
+	}
+
+	// Append any caller-provided extras last, such as summary-fallback guidance.
 	for _, block := range extra {
 		instructions = instructions.Append(block...)
 	}
@@ -522,8 +548,7 @@ func (t *Turn) hydratePlanFromMessages(messages []handmsg.Message) bool {
 	}
 
 	empty := envtypes.Plan{}
-	for idx := len(messages) - 1; idx >= 0; idx-- {
-		message := messages[idx]
+	for _, message := range messages {
 		if message.Role != handmsg.RoleTool || message.Name != "plan_tool" {
 			continue
 		}
@@ -559,16 +584,16 @@ func (t *Turn) renderPlanInstructions() string {
 	}
 
 	lines := []string{
-		"Plan Context:",
-		"Active Plan:",
+		"# Plan Context",
+		"",
+		"## Active Plan",
 	}
 	for _, step := range activeSteps {
 		lines = append(lines, "- ["+step.Status+"] "+step.Content)
 	}
 	if explanation := strings.TrimSpace(plan.Explanation); explanation != "" {
-		lines = append(lines, "", "Plan Update Reason:", explanation)
+		lines = append(lines, "", "## Plan Update Reason", "", explanation)
 	}
-	lines = append(lines, "", "End Plan Context.")
 
 	return strings.Join(lines, "\n")
 }
@@ -611,7 +636,6 @@ func decodeHydratedPlanPayload(content string) (envtypes.Plan, bool) {
 
 	plan := envtypes.Plan{Steps: steps, Explanation: strings.TrimSpace(explanation)}
 	if err := envtypes.ValidatePlan(plan); err != nil {
-		fmt.Println("error", err)
 		return envtypes.Plan{}, false
 	}
 
@@ -619,21 +643,27 @@ func decodeHydratedPlanPayload(content string) (envtypes.Plan, bool) {
 }
 
 func (t *Turn) hydratePlanFromHistory(ctx context.Context, sessionID string) (bool, error) {
-	messages, err := t.sessionManager.GetMessages(ctx, sessionID, storage.MessageQueryOptions{
-		Role:  handmsg.RoleTool,
-		Name:  "plan_tool",
-		Order: "desc",
-		Limit: 1,
-	})
-	if err != nil {
-		return false, err
+	offset := 0
+	for {
+		messages, err := t.sessionManager.GetMessages(ctx, sessionID, storage.MessageQueryOptions{
+			Role:   handmsg.RoleTool,
+			Name:   "plan_tool",
+			Order:  storage.MessageOrderDesc,
+			Limit:  planHydrationPageSize,
+			Offset: offset,
+		})
+		if err != nil {
+			return false, err
+		}
+		if len(messages) == 0 {
+			t.env.HydratePlan(sessionID, envtypes.Plan{})
+			return false, nil
+		}
+		if t.hydratePlanFromMessages(messages) {
+			return true, nil
+		}
+		offset += len(messages)
 	}
-	if len(messages) > 0 && t.hydratePlanFromMessages(messages) {
-		return true, nil
-	}
-
-	t.env.HydratePlan(sessionID, envtypes.Plan{})
-	return false, nil
 }
 
 func summarizeHydratedPlan(plan envtypes.Plan) envtypes.PlanSummary {

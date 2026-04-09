@@ -68,11 +68,11 @@ func TestMemory_RenderSummaryInstructions(t *testing.T) {
 
 	message, ok := mem.RenderSummaryInstructions()
 	require.True(t, ok)
-	require.Contains(t, message, "Session Summary:\nOlder work")
-	require.Contains(t, message, "Current Task:\nFix tests")
-	require.Contains(t, message, "Discoveries:\n- one")
-	require.Contains(t, message, "Open Questions:\n- two")
-	require.Contains(t, message, "Next Actions:\n- three")
+	require.Contains(t, message, "# Session Summary\n\nOlder work")
+	require.Contains(t, message, "# Current Task\n\nFix tests")
+	require.Contains(t, message, "# Discoveries\n\n- one")
+	require.Contains(t, message, "# Open Questions\n\n- two")
+	require.Contains(t, message, "# Next Actions\n\n- three")
 }
 
 func TestMemory_RenderSummaryInstructions_ReturnsFalseWhenUnavailable(t *testing.T) {

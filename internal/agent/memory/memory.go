@@ -49,9 +49,9 @@ func (m *Memory) RenderSummaryInstructions() (string, bool) {
 	}
 
 	var sections []string
-	sections = append(sections, "Session Summary:\n"+sessionSummary)
+	sections = append(sections, "# Session Summary\n\n"+sessionSummary)
 	if currentTask := strings.TrimSpace(m.Summary.CurrentTask); currentTask != "" {
-		sections = append(sections, "Current Task:\n"+currentTask)
+		sections = append(sections, "# Current Task\n\n"+currentTask)
 	}
 	if discoveries := renderSummaryList("Discoveries", m.Summary.Discoveries); discoveries != "" {
 		sections = append(sections, discoveries)

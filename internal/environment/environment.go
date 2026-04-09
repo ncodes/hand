@@ -161,6 +161,8 @@ func (e *environment) prepareTools() error {
 }
 
 func (e *environment) prepareInstructions() error {
+	e.addInstruction(instructions.BuildPlanningPolicy())
+
 	for _, instruction := range instructions.BuildBase(e.cfg.Name) {
 		e.addInstruction(instruction)
 	}

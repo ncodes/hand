@@ -133,7 +133,7 @@ func TestInstructions_WithoutNameReturnsAllInstructionsWhenMissing(t *testing.T)
 
 func TestBuildBase_ReturnsInstructionList(t *testing.T) {
 	instructions := BuildBase("Wandxie")
-	require.Len(t, instructions, 4)
+	require.Len(t, instructions, 1)
 	for _, instruction := range instructions {
 		require.NotEmpty(t, instruction.Value)
 	}
@@ -141,40 +141,53 @@ func TestBuildBase_ReturnsInstructionList(t *testing.T) {
 
 func TestBuildBase_IncludesConfiguredNameInIdentityLayer(t *testing.T) {
 	instructions := BuildBase("Wandxie")
+	require.Contains(t, instructions[0].Value, "# Base Instructions")
 	require.True(t, strings.Contains(instructions[0].Value, "Wandxie is the user's personal agent"))
 	require.True(t, strings.Contains(instructions[0].Value, "Wandxie exists to help the user get real work done"))
 }
 
 func TestBuildBase_FallsBackToDefaultNameWhenEmpty(t *testing.T) {
 	instructions := BuildBase("   ")
+	require.Contains(t, instructions[0].Value, "# Base Instructions")
 	require.True(t, strings.Contains(instructions[0].Value, "Hand is the user's personal agent"))
 	require.True(t, strings.Contains(instructions[0].Value, "Hand exists to help the user get real work done"))
 }
 
 func TestBuildBase_IncludesCoreBehaviorGuidance(t *testing.T) {
 	instructions := BuildBase("Hand")
-	require.Contains(t, instructions[1].Value, "Prioritize correctness, clarity, and usefulness")
-	require.Contains(t, instructions[1].Value, "Do not invent results")
-	require.Contains(t, instructions[1].Value, "acknowledge uncertainty or blockers plainly")
+	require.Contains(t, instructions[0].Value, "Core behavior:")
+	require.Contains(t, instructions[0].Value, "Prioritize correctness, clarity, and usefulness")
+	require.Contains(t, instructions[0].Value, "Do not invent results")
+	require.Contains(t, instructions[0].Value, "acknowledge uncertainty or blockers plainly")
 }
 
 func TestBuildBase_IncludesToolUseGuidance(t *testing.T) {
 	instructions := BuildBase("Hand")
-	require.Contains(t, instructions[2].Value, "Use tools when they materially improve correctness or allow real action")
-	require.Contains(t, instructions[2].Value, "Treat tool results as more authoritative than guessing")
-	require.Contains(t, instructions[2].Value, "do not claim to have used a tool when no tool was used")
+	require.Contains(t, instructions[0].Value, "Tool use:")
+	require.Contains(t, instructions[0].Value, "Use tools when they materially improve correctness or allow real action")
+	require.Contains(t, instructions[0].Value, "Treat tool results as more authoritative than guessing")
+	require.Contains(t, instructions[0].Value, "do not claim to have used a tool when no tool was used")
 }
 
 func TestBuildBase_IncludesResponseStyleGuidance(t *testing.T) {
 	instructions := BuildBase("Hand")
-	require.Contains(t, instructions[3].Value, "Preserve the user's intent")
-	require.Contains(t, instructions[3].Value, "avoid unnecessary verbosity")
-	require.Contains(t, instructions[3].Value, "summarize completed work clearly when stopping or blocked")
+	require.Contains(t, instructions[0].Value, "Response style:")
+	require.Contains(t, instructions[0].Value, "Preserve the user's intent")
+	require.Contains(t, instructions[0].Value, "avoid unnecessary verbosity")
+	require.Contains(t, instructions[0].Value, "summarize completed work clearly when stopping or blocked")
+}
+
+func TestBuildPlanningPolicy_ReturnsNamedPlanningInstruction(t *testing.T) {
+	instruction := BuildPlanningPolicy()
+	require.Equal(t, PlanningPolicyInstructionName, instruction.Name)
+	require.Contains(t, instruction.Value, "# Planning Policy")
+	require.Contains(t, instruction.Value, "Use plan_tool for tasks with 3 or more meaningful steps")
+	require.Contains(t, instruction.Value, "keep exactly one step in_progress")
 }
 
 func TestBuildSummary_IncludesBudgetWarningWhenLow(t *testing.T) {
 	require.Equal(t, Instructions{
-		{Value: "Remaining iteration budget: 2."},
+		{Value: "# Summary Fallback\n\nRemaining iteration budget: 2."},
 		{Value: "The maximum number of tool-calling iterations has been reached. Summarize completed work so far and do not call any more tools."},
 	}, BuildSummary(2))
 }
@@ -188,11 +201,12 @@ func TestBuildSummary_OmitsBudgetWarningWhenNotLow(t *testing.T) {
 func TestBuildSessionSummary_ReturnsStructuredSummaryInstructions(t *testing.T) {
 	instructions := BuildSessionSummary()
 	require.Len(t, instructions, 6)
-	require.Equal(t, "Create a structured handoff summary of the provided chat history for another assistant that will continue the work.", instructions[0].Value)
-	require.Equal(t, "Capture the current progress and important decisions made so far.", instructions[1].Value)
-	require.Equal(t, "Preserve important context, hard constraints, user preferences, and any critical examples or references needed to continue without redoing work.", instructions[2].Value)
-	require.Equal(t, "Make the remaining work explicit through unresolved questions and concrete next actions.", instructions[3].Value)
+	require.Equal(t, "# Session Summary Task\n\nCreate a structured handoff summary of the provided chat history for another assistant that will continue the work.", instructions[0].Value)
+	require.Equal(t, "Goal: Capture the current progress and important decisions made so far.", instructions[1].Value)
+	require.Equal(t, "Context preservation: Preserve important context, hard constraints, user preferences, and any critical examples or references needed to continue without redoing work.", instructions[2].Value)
+	require.Equal(t, "Remaining work: Make the remaining work explicit through unresolved questions and concrete next actions.", instructions[3].Value)
+	require.Contains(t, instructions[4].Value, "Output format:")
 	require.Contains(t, instructions[4].Value, `"session_summary": "required concise summary"`)
 	require.Contains(t, instructions[4].Value, `"next_actions": ["next action"]`)
-	require.Equal(t, "Do not include markdown fences or extra commentary.", instructions[5].Value)
+	require.Equal(t, "Output rules: Do not include markdown fences or extra commentary.", instructions[5].Value)
 }

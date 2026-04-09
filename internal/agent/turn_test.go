@@ -89,11 +89,206 @@ func TestTurn_LoadHydratesPlanUsingFilteredToolQueries(t *testing.T) {
 	require.True(t, turn.planHydrated)
 	require.Len(t, capturedGetOpts, 2)
 	require.Equal(t, storage.MessageQueryOptions{Offset: 0}, capturedGetOpts[0])
-	require.Equal(t, storage.MessageQueryOptions{Role: handmsg.RoleTool, Name: "plan_tool", Order: "desc", Limit: 1}, capturedGetOpts[1])
+	require.Equal(t, storage.MessageQueryOptions{Role: handmsg.RoleTool, Name: "plan_tool", Order: storage.MessageOrderDesc, Limit: planHydrationPageSize, Offset: 0}, capturedGetOpts[1])
 	require.Equal(t, envtypes.Plan{
 		Steps:       []envtypes.PlanStep{{ID: "step-1", Content: "Implement feature", Status: envtypes.PlanStatusInProgress}},
 		Explanation: "current plan",
 	}, env.Plan)
+}
+
+func TestTurn_LoadHydratesPlanFromLaterValidResultOnSamePage(t *testing.T) {
+	var capturedGetOpts []storage.MessageQueryOptions
+
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		},
+		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
+			capturedGetOpts = append(capturedGetOpts, opts)
+			if opts.Role == handmsg.RoleTool && opts.Name == "plan_tool" {
+				return []handmsg.Message{
+					{Role: handmsg.RoleTool, Name: "plan_tool", Content: `{"output":"{\"steps\":[{\"id\":\"broken\",\"content\":\"\",\"status\":\"pending\"}]}"}`},
+					{Role: handmsg.RoleTool, Name: "plan_tool", Content: `{"output":"{\"steps\":[{\"id\":\"step-2\",\"content\":\"Continue work\",\"status\":\"in_progress\"}],\"explanation\":\"fallback\"}"}`},
+				}, nil
+			}
+			return nil, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	env := &mocks.EnvironmentStub{ToolRegistry: tools.NewInMemoryRegistry()}
+	turn := NewTurn(
+		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		&mocks.ModelClientStub{},
+		nil,
+		manager,
+		nil,
+		env,
+	)
+
+	err = turn.load(context.Background(), RespondOptions{})
+	require.NoError(t, err)
+	require.True(t, turn.planHydrated)
+	require.Equal(t, envtypes.Plan{
+		Steps:       []envtypes.PlanStep{{ID: "step-2", Content: "Continue work", Status: envtypes.PlanStatusInProgress}},
+		Explanation: "fallback",
+	}, env.Plan)
+	require.Equal(t, storage.MessageQueryOptions{Role: handmsg.RoleTool, Name: "plan_tool", Order: storage.MessageOrderDesc, Limit: planHydrationPageSize, Offset: 0}, capturedGetOpts[1])
+}
+
+func TestTurn_LoadHydratesNewestValidPlanOnSamePage(t *testing.T) {
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		},
+		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
+			if opts.Role == handmsg.RoleTool && opts.Name == "plan_tool" {
+				return []handmsg.Message{
+					{Role: handmsg.RoleTool, Name: "plan_tool", Content: `{"output":"{\"steps\":[{\"id\":\"newest\",\"content\":\"Newest valid plan\",\"status\":\"in_progress\"}],\"explanation\":\"newest\"}"}`},
+					{Role: handmsg.RoleTool, Name: "plan_tool", Content: `{"output":"{\"steps\":[{\"id\":\"older\",\"content\":\"Older valid plan\",\"status\":\"in_progress\"}],\"explanation\":\"older\"}"}`},
+				}, nil
+			}
+			return nil, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	env := &mocks.EnvironmentStub{ToolRegistry: tools.NewInMemoryRegistry()}
+	turn := NewTurn(
+		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		&mocks.ModelClientStub{},
+		nil,
+		manager,
+		nil,
+		env,
+	)
+
+	err = turn.load(context.Background(), RespondOptions{})
+	require.NoError(t, err)
+	require.True(t, turn.planHydrated)
+	require.Equal(t, envtypes.Plan{
+		Steps:       []envtypes.PlanStep{{ID: "newest", Content: "Newest valid plan", Status: envtypes.PlanStatusInProgress}},
+		Explanation: "newest",
+	}, env.Plan)
+}
+
+func TestTurn_LoadHydratesPlanFromLaterPageWhenEarlierPageIsInvalid(t *testing.T) {
+	var capturedGetOpts []storage.MessageQueryOptions
+
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		},
+		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
+			capturedGetOpts = append(capturedGetOpts, opts)
+			if opts.Role == handmsg.RoleTool && opts.Name == "plan_tool" {
+				if opts.Offset == 0 {
+					return []handmsg.Message{
+						{Role: handmsg.RoleTool, Name: "plan_tool", Content: `{"output":"{\"steps\":[{\"id\":\"broken-1\",\"content\":\"\",\"status\":\"pending\"}]}"}`},
+						{Role: handmsg.RoleTool, Name: "plan_tool", Content: `{"output":"{\"steps\":[{\"id\":\"broken-2\",\"content\":\"\",\"status\":\"pending\"}]}"}`},
+					}, nil
+				}
+				if opts.Offset == 2 {
+					return []handmsg.Message{
+						{Role: handmsg.RoleTool, Name: "plan_tool", Content: `{"output":"{\"steps\":[{\"id\":\"step-3\",\"content\":\"Recover state\",\"status\":\"in_progress\"}],\"explanation\":\"second page\"}"}`},
+					}, nil
+				}
+			}
+			return nil, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	env := &mocks.EnvironmentStub{ToolRegistry: tools.NewInMemoryRegistry()}
+	turn := NewTurn(
+		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		&mocks.ModelClientStub{},
+		nil,
+		manager,
+		nil,
+		env,
+	)
+
+	err = turn.load(context.Background(), RespondOptions{})
+	require.NoError(t, err)
+	require.True(t, turn.planHydrated)
+	require.Equal(t, envtypes.Plan{
+		Steps:       []envtypes.PlanStep{{ID: "step-3", Content: "Recover state", Status: envtypes.PlanStatusInProgress}},
+		Explanation: "second page",
+	}, env.Plan)
+	require.Equal(t, storage.MessageQueryOptions{Role: handmsg.RoleTool, Name: "plan_tool", Order: storage.MessageOrderDesc, Limit: planHydrationPageSize, Offset: 0}, capturedGetOpts[1])
+	require.Equal(t, storage.MessageQueryOptions{Role: handmsg.RoleTool, Name: "plan_tool", Order: storage.MessageOrderDesc, Limit: planHydrationPageSize, Offset: 2}, capturedGetOpts[2])
+}
+
+func TestTurn_LoadHydratesEmptyPlanWhenNoValidHistoricalPlanExists(t *testing.T) {
+	var capturedGetOpts []storage.MessageQueryOptions
+
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		},
+		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
+			capturedGetOpts = append(capturedGetOpts, opts)
+			if opts.Role == handmsg.RoleTool && opts.Name == "plan_tool" {
+				if opts.Offset == 0 {
+					return []handmsg.Message{
+						{Role: handmsg.RoleTool, Name: "plan_tool", Content: `{"output":"{\"steps\":[{\"id\":\"broken\",\"content\":\"\",\"status\":\"pending\"}]}"}`},
+					}, nil
+				}
+				return nil, nil
+			}
+			return nil, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	env := &mocks.EnvironmentStub{ToolRegistry: tools.NewInMemoryRegistry()}
+	turn := NewTurn(
+		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		&mocks.ModelClientStub{},
+		nil,
+		manager,
+		nil,
+		env,
+	)
+
+	err = turn.load(context.Background(), RespondOptions{})
+	require.NoError(t, err)
+	require.False(t, turn.planHydrated)
+	require.Equal(t, envtypes.Plan{}, env.Plan)
+	require.Equal(t, storage.MessageQueryOptions{Role: handmsg.RoleTool, Name: "plan_tool", Order: storage.MessageOrderDesc, Limit: planHydrationPageSize, Offset: 1}, capturedGetOpts[2])
+}
+
+func TestTurn_LoadReturnsHydrationErrorFromLaterPageFetch(t *testing.T) {
+	manager, err := session.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
+		},
+		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
+			if opts.Role == handmsg.RoleTool && opts.Name == "plan_tool" {
+				if opts.Offset == 0 {
+					return []handmsg.Message{
+						{Role: handmsg.RoleTool, Name: "plan_tool", Content: `{"output":"{\"steps\":[{\"id\":\"broken\",\"content\":\"\",\"status\":\"pending\"}]}"}`},
+					}, nil
+				}
+				return nil, errors.New("later hydration fetch failed")
+			}
+			return nil, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	turn := NewTurn(
+		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		&mocks.ModelClientStub{},
+		nil,
+		manager,
+		nil,
+		&mocks.EnvironmentStub{ToolRegistry: tools.NewInMemoryRegistry()},
+	)
+
+	err = turn.load(context.Background(), RespondOptions{})
+	require.EqualError(t, err, "later hydration fetch failed")
 }
 
 func TestTurn_LoadRejectsNilExecutionEnvironment(t *testing.T) {
@@ -729,7 +924,7 @@ func TestTurn_SummaryFallbackUsesExistingInstructions(t *testing.T) {
 	require.Contains(t, client.Requests[0].Instructions, "persona")
 	require.Contains(t, client.Requests[0].Instructions, "workspace rules")
 	require.Contains(t, client.Requests[0].Instructions, "be terse")
-	require.Contains(t, client.Requests[0].Instructions, "Remaining iteration budget: 0.")
+	require.Contains(t, client.Requests[0].Instructions, "# Summary Fallback\n\nRemaining iteration budget: 0.")
 }
 
 func TestTurn_SummaryFallbackReturnsPromptTokenPersistenceError(t *testing.T) {
@@ -941,7 +1136,7 @@ func TestTurn_RequestMessagesIncludesPersistedSummaryBeforeUnsummarizedHistory(t
 	require.Equal(t, "recent-1", messages[0].Content)
 	require.Equal(t, "recent-2", messages[1].Content)
 	require.Equal(t, "new", messages[2].Content)
-	require.Contains(t, turn.buildRequestInstructions(), "Session Summary:\nOlder context")
+	require.Contains(t, turn.buildRequestInstructions(), "# Session Summary\n\nOlder context")
 }
 
 func TestTurn_RequestInstructions_HandlesNilTurnAndAppendsExtra(t *testing.T) {
@@ -959,6 +1154,9 @@ func TestTurn_RequestInstructions_IncludeActivePlanOnly(t *testing.T) {
 	turn := &Turn{
 		sessionID: "session-1",
 		env: &mocks.EnvironmentStub{
+			InstructionsList: instructions.Instructions{
+				instructions.BuildPlanningPolicy(),
+			},
 			Plan: envtypes.Plan{
 				Steps: []envtypes.PlanStep{
 					{ID: "step-1", Content: "Implement feature", Status: envtypes.PlanStatusInProgress},
@@ -968,17 +1166,80 @@ func TestTurn_RequestInstructions_IncludeActivePlanOnly(t *testing.T) {
 				Explanation: "current focus",
 			},
 		},
-		instructions: instructions.New("base"),
+		instructions: instructions.Instructions{
+			instructions.BuildPlanningPolicy(),
+			{Value: "base"},
+		},
 	}
 
 	rendered := turn.buildRequestInstructions()
-	require.Contains(t, rendered, "Plan Context:")
-	require.Contains(t, rendered, "Active Plan:")
+	require.True(t, strings.Index(rendered, "# Planning Policy") < strings.Index(rendered, "# Plan Context"))
+	require.True(t, strings.Index(rendered, "# Plan Context") < strings.Index(rendered, "base"))
+	require.Contains(t, rendered, "# Plan Context")
+	require.Contains(t, rendered, "## Active Plan")
 	require.Contains(t, rendered, "- [in_progress] Implement feature")
 	require.Contains(t, rendered, "- [pending] Write tests")
-	require.Contains(t, rendered, "Plan Update Reason:\ncurrent focus")
-	require.Contains(t, rendered, "End Plan Context.")
+	require.Contains(t, rendered, "## Plan Update Reason\n\ncurrent focus")
 	require.NotContains(t, rendered, "Done")
+}
+
+func TestTurn_RequestInstructions_KeepPlanningPolicyWithoutActivePlan(t *testing.T) {
+	turn := &Turn{
+		sessionID: "session-1",
+		env: &mocks.EnvironmentStub{
+			InstructionsList: instructions.Instructions{
+				instructions.BuildPlanningPolicy(),
+			},
+			Plan: envtypes.Plan{
+				Steps: []envtypes.PlanStep{
+					{ID: "step-1", Content: "Done", Status: envtypes.PlanStatusCompleted},
+				},
+			},
+		},
+		instructions: instructions.Instructions{
+			instructions.BuildPlanningPolicy(),
+			{Value: "base"},
+		},
+	}
+
+	rendered := turn.buildRequestInstructions()
+	require.Contains(t, rendered, "# Planning Policy")
+	require.Contains(t, rendered, "Use plan_tool for tasks with 3 or more meaningful steps")
+	require.NotContains(t, rendered, "# Plan Context")
+	require.Contains(t, rendered, "base")
+}
+
+func TestTurn_RequestInstructions_OrderPlanningPolicyPlanSummaryAndRequestInstruction(t *testing.T) {
+	turn := &Turn{
+		sessionID: "session-1",
+		env: &mocks.EnvironmentStub{
+			Plan: envtypes.Plan{
+				Steps: []envtypes.PlanStep{
+					{ID: "step-1", Content: "Implement feature", Status: envtypes.PlanStatusInProgress},
+				},
+			},
+		},
+		memory: &memory.Memory{
+			Summary: &memory.SummaryState{
+				SessionID:       storage.DefaultSessionID,
+				SessionSummary:  "Older context",
+				CurrentTask:     "Finish feature",
+				SourceEndOffset: 1,
+			},
+		},
+		instructions: instructions.Instructions{
+			instructions.BuildPlanningPolicy(),
+			{Value: "base"},
+			{Name: requestInstructionName, Value: "be terse"},
+		},
+	}
+
+	rendered := turn.buildRequestInstructions(instructions.New("extra"))
+	require.True(t, strings.Index(rendered, "# Planning Policy") < strings.Index(rendered, "# Plan Context"))
+	require.True(t, strings.Index(rendered, "# Plan Context") < strings.Index(rendered, "base"))
+	require.True(t, strings.Index(rendered, "base") < strings.Index(rendered, "# Session Summary\n\nOlder context"))
+	require.True(t, strings.Index(rendered, "# Session Summary\n\nOlder context") < strings.Index(rendered, "be terse"))
+	require.True(t, strings.Index(rendered, "be terse") < strings.Index(rendered, "extra"))
 }
 
 func TestTurn_TrimSessionHistoryToSummary_TrimsRelativeToLoadedOffset(t *testing.T) {
@@ -1079,6 +1340,9 @@ func TestTurn_LoadLoadsOnlyUnsummarizedTailWhenSummaryExists(t *testing.T) {
 		},
 		GetMessagesFunc: func(_ context.Context, _ string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			capturedOpts = append(capturedOpts, opts)
+			if opts.Role == handmsg.RoleTool && opts.Name == "plan_tool" {
+				return nil, nil
+			}
 			return []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "tail"}}, nil
 		},
 	}, time.Hour, 24*time.Hour)
@@ -1100,7 +1364,12 @@ func TestTurn_LoadLoadsOnlyUnsummarizedTailWhenSummaryExists(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, capturedOpts, 2)
 	require.Equal(t, 3, capturedOpts[0].Offset)
-	require.Equal(t, storage.MessageQueryOptions{Role: handmsg.RoleTool, Name: "plan_tool", Order: "desc", Limit: 1}, capturedOpts[1])
+	require.Equal(t, storage.MessageQueryOptions{
+		Role:  handmsg.RoleTool,
+		Name:  "plan_tool",
+		Order: "desc",
+		Limit: planHydrationPageSize,
+	}, capturedOpts[1])
 	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "tail"}}, turn.sessionHistory)
 }
 
@@ -1389,7 +1658,7 @@ func TestTurn_RunGeneratesAndAppliesStructuredSummaryWhenCompactionTriggers(t *t
 	require.Len(t, client.Requests, 2)
 	require.Nil(t, client.Requests[0].Tools)
 	require.Len(t, client.Requests[0].Messages, 3)
-	require.Contains(t, client.Requests[1].Instructions, "Session Summary:\nOlder work")
+	require.Contains(t, client.Requests[1].Instructions, "# Session Summary\n\nOlder work")
 	require.Len(t, client.Requests[1].Messages, 8)
 
 	summary, ok, err := manager.GetSummary(context.Background(), session.ID)
@@ -1604,7 +1873,7 @@ func TestTurn_RunRefreshesSummaryIncrementally(t *testing.T) {
 	require.Equal(t, "reply", reply)
 	require.Len(t, client.Requests, 2)
 	require.Len(t, client.Requests[0].Messages, 3)
-	require.Contains(t, client.Requests[0].Instructions, "Session Summary:\nOlder summary")
+	require.Contains(t, client.Requests[0].Instructions, "# Session Summary\n\nOlder summary")
 
 	summary, ok, err := manager.GetSummary(context.Background(), session.ID)
 	require.NoError(t, err)
@@ -2157,7 +2426,7 @@ func TestAgent_RespondUsesSummaryFallbackWhenIterationBudgetIsExhausted(t *testi
 	require.Equal(t, "summary", reply)
 	require.Len(t, client.Requests, 2)
 	require.Nil(t, client.Requests[1].Tools)
-	require.Contains(t, client.Requests[1].Instructions, "The maximum number of tool-calling iterations has been reached.")
+	require.Contains(t, client.Requests[1].Instructions, "# Summary Fallback")
 	require.Contains(t, client.Requests[1].Instructions, "Remaining iteration budget: 0.")
 }
 

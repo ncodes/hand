@@ -825,7 +825,7 @@ func renderSummaryList(title string, values []string) string {
 		return ""
 	}
 
-	return title + ":\n" + strings.Join(lines, "\n")
+	return "# " + title + "\n\n" + strings.Join(lines, "\n")
 }
 
 func summaryCompactionEnabled(cfg *config.Config) bool {

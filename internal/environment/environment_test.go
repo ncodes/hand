@@ -56,7 +56,10 @@ func TestEnvironment_PrepareAddsFullBaseInstructionStack(t *testing.T) {
 	err := env.Prepare()
 
 	require.NoError(t, err)
-	require.Equal(t, instruct.BuildBase(cfg.Name), env.Instructions())
+	require.Equal(t, append(
+		instruct.Instructions{instruct.BuildPlanningPolicy()},
+		instruct.BuildBase(cfg.Name)...,
+	), env.Instructions())
 }
 
 func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
@@ -84,7 +87,7 @@ func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
 	require.NoError(t, env.Prepare())
 
 	instructions := env.Instructions()
-	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+1)
+	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+2)
 	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-1].Value)
 }
 
@@ -109,7 +112,7 @@ func TestEnvironment_PrepareAppendsPersonalityBeforeWorkspaceRules(t *testing.T)
 	require.NoError(t, env.Prepare())
 
 	instructions := env.Instructions()
-	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+2)
+	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+3)
 	require.Equal(t, "## SOUL.md\npersona", instructions[len(instructions)-2].Value)
 	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-1].Value)
 }
@@ -157,7 +160,10 @@ func TestEnvironment_PrepareIgnoresPersonalityLoadError(t *testing.T) {
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	require.NoError(t, env.Prepare())
-	require.Equal(t, instruct.BuildBase(cfg.Name), env.Instructions())
+	require.Equal(t, append(
+		instruct.Instructions{instruct.BuildPlanningPolicy()},
+		instruct.BuildBase(cfg.Name)...,
+	), env.Instructions())
 }
 
 func TestEnvironment_PrepareIgnoresWorkspaceRuleLoadError(t *testing.T) {
@@ -179,7 +185,10 @@ func TestEnvironment_PrepareIgnoresWorkspaceRuleLoadError(t *testing.T) {
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	require.NoError(t, env.Prepare())
-	require.Equal(t, instruct.BuildBase(cfg.Name), env.Instructions())
+	require.Equal(t, append(
+		instruct.Instructions{instruct.BuildPlanningPolicy()},
+		instruct.BuildBase(cfg.Name)...,
+	), env.Instructions())
 }
 
 func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) {
@@ -203,8 +212,10 @@ func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) 
 	require.NoError(t, env.Prepare())
 
 	instructions := env.Instructions()
-	require.Contains(t, instructions[0].Value, "Test Agent is the user's personal agent")
-	require.Contains(t, instructions[2].Value, "Use tools when they materially improve correctness or allow real action")
+	require.Equal(t, instruct.PlanningPolicyInstructionName, instructions[0].Name)
+	require.Contains(t, instructions[0].Value, "Use plan_tool for tasks with 3 or more meaningful steps")
+	require.Contains(t, instructions[1].Value, "Test Agent is the user's personal agent")
+	require.Contains(t, instructions[1].Value, "Use tools when they materially improve correctness or allow real action")
 }
 
 func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
@@ -228,7 +239,8 @@ func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
 	require.NoError(t, env.Prepare())
 
 	instructions := env.Instructions()
-	require.Contains(t, instructions[0].Value, "Hand is the user's personal agent")
+	require.Equal(t, instruct.PlanningPolicyInstructionName, instructions[0].Name)
+	require.Contains(t, instructions[1].Value, "Hand is the user's personal agent")
 }
 
 func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {

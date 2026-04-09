@@ -783,7 +783,7 @@ func TestService_MaybeRefreshMemory_SavesSummaryAndRecordsTrace(t *testing.T) {
 	require.Equal(t, 1, client.CallCount)
 	require.Len(t, client.Requests, 1)
 	require.Contains(t, client.Requests[0].Instructions, instruct.BuildSessionSummary().String())
-	require.Contains(t, client.Requests[0].Instructions, "Session Summary:\nEarlier work")
+	require.Contains(t, client.Requests[0].Instructions, "# Session Summary\n\nEarlier work")
 	require.Len(t, client.Requests[0].Messages, 1)
 	require.Equal(t, "history", client.Requests[0].Messages[0].Content)
 
@@ -1260,7 +1260,7 @@ func TestStripMarkdownFence_HandlesFenceVariants(t *testing.T) {
 func TestRenderSummaryList_TrimsEmptyValues(t *testing.T) {
 	require.Equal(t, "", renderSummaryList("Discoveries", nil))
 	require.Equal(t, "", renderSummaryList("Discoveries", []string{" ", "\t"}))
-	require.Equal(t, "Discoveries:\n- one\n- two", renderSummaryList("Discoveries", []string{" one ", "", "two"}))
+	require.Equal(t, "# Discoveries\n\n- one\n- two", renderSummaryList("Discoveries", []string{" one ", "", "two"}))
 }
 
 func TestSummaryCompactionEnabled_DefaultsAndUsesConfiguredValue(t *testing.T) {
