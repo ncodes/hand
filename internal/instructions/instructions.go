@@ -60,7 +60,7 @@ func (i Instructions) String() string {
 		values = append(values, instruction.Value)
 	}
 
-	return strings.Join(values, "\n")
+	return strings.Join(values, "\n\n")
 }
 
 func (i Instructions) MarshalJSON() ([]byte, error) {

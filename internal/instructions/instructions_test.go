@@ -17,16 +17,16 @@ func TestNew_ReturnsEmptyWhenNoValuesProvided(t *testing.T) {
 	require.Empty(t, New())
 }
 
-func TestInstructions_StringJoinsValuesWithNewLines(t *testing.T) {
+func TestInstructions_StringJoinsValuesWithBlankLines(t *testing.T) {
 	instructions := Instructions{{Value: "first"}, {Value: "second"}, {Value: "third"}}
-	require.Equal(t, "first\nsecond\nthird", instructions.String())
+	require.Equal(t, "first\n\nsecond\n\nthird", instructions.String())
 }
 
 func TestInstructions_MarshalJSONEncodesJoinedString(t *testing.T) {
 	instructions := Instructions{{Value: "first"}, {Value: "second"}}
 	data, err := instructions.MarshalJSON()
 	require.NoError(t, err)
-	require.JSONEq(t, `"first\nsecond"`, string(data))
+	require.JSONEq(t, `"first\n\nsecond"`, string(data))
 }
 
 func TestInstructions_UnmarshalJSONDecodesStringArray(t *testing.T) {
@@ -49,7 +49,7 @@ func TestInstructions_JSONRoundTripUsesMarshalAndUnmarshalImplementations(t *tes
 	err = json.Unmarshal([]byte(`["first","second"]`), &decoded)
 	require.NoError(t, err)
 	require.Equal(t, original, decoded)
-	require.JSONEq(t, `"first\nsecond"`, string(data))
+	require.JSONEq(t, `"first\n\nsecond"`, string(data))
 }
 
 func TestInstructions_AppendAppendsTrimmedInstruction(t *testing.T) {

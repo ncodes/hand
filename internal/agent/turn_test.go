@@ -952,7 +952,7 @@ func TestTurn_RequestInstructions_HandlesNilTurnAndAppendsExtra(t *testing.T) {
 		instructions: instructions.New("base"),
 		memory:       &memory.Memory{},
 	}
-	require.Equal(t, "base\nextra", turn.buildRequestInstructions(instructions.New("extra")))
+	require.Equal(t, "base\n\nextra", turn.buildRequestInstructions(instructions.New("extra")))
 }
 
 func TestTurn_RequestInstructions_IncludeActivePlanOnly(t *testing.T) {
@@ -972,10 +972,12 @@ func TestTurn_RequestInstructions_IncludeActivePlanOnly(t *testing.T) {
 	}
 
 	rendered := turn.buildRequestInstructions()
+	require.Contains(t, rendered, "Plan Context:")
 	require.Contains(t, rendered, "Active Plan:")
 	require.Contains(t, rendered, "- [in_progress] Implement feature")
 	require.Contains(t, rendered, "- [pending] Write tests")
 	require.Contains(t, rendered, "Plan Update Reason:\ncurrent focus")
+	require.Contains(t, rendered, "End Plan Context.")
 	require.NotContains(t, rendered, "Done")
 }
 
@@ -1739,7 +1741,7 @@ func TestAgent_RespondAppendsRequestInstructLast(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "hello back", reply)
-	require.Equal(t, "base\nconfigured temporary\nrequest temporary", client.Requests[0].Instructions)
+	require.Equal(t, "base\n\nconfigured temporary\n\nrequest temporary", client.Requests[0].Instructions)
 	require.Equal(t, instructions.Instructions{
 		{Value: "base"},
 		{Name: "config.instruct", Value: "configured temporary"},

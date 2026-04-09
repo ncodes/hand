@@ -558,13 +558,17 @@ func (t *Turn) renderPlanInstructions() string {
 		return ""
 	}
 
-	lines := []string{"Active Plan:"}
+	lines := []string{
+		"Plan Context:",
+		"Active Plan:",
+	}
 	for _, step := range activeSteps {
 		lines = append(lines, "- ["+step.Status+"] "+step.Content)
 	}
 	if explanation := strings.TrimSpace(plan.Explanation); explanation != "" {
 		lines = append(lines, "", "Plan Update Reason:", explanation)
 	}
+	lines = append(lines, "", "End Plan Context.")
 
 	return strings.Join(lines, "\n")
 }
