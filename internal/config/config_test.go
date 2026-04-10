@@ -154,6 +154,7 @@ func TestLoad_ReturnsPreloadEnvFileError(t *testing.T) {
 func TestLoad_UsesConfigFileValues(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
+		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
 
 	dir := t.TempDir()
@@ -182,6 +183,10 @@ log:
   noColor: true
 debug:
   requests: true
+web:
+  provider: exa
+  apiKey: web-key
+  baseUrl: https://web.example
 rules:
   files:
     - hand.md
@@ -202,6 +207,9 @@ rules:
 	require.Equal(t, "error", cfg.LogLevel)
 	require.True(t, cfg.LogNoColor)
 	require.True(t, cfg.DebugRequests)
+	require.Equal(t, "exa", cfg.WebProvider)
+	require.Equal(t, "web-key", cfg.WebAPIKey)
+	require.Equal(t, "https://web.example", cfg.WebBaseURL)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.RulesFiles)
 	require.Equal(t, "be terse", cfg.Instruct)
 	require.Equal(t, "desktop", cfg.Platform)
@@ -215,6 +223,7 @@ rules:
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
+		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
 
 	dir := t.TempDir()
@@ -232,6 +241,9 @@ MAX_ITERATIONS=55
 LOG_LEVEL=warn
 LOG_NO_COLOR=false
 DEBUG_REQUESTS=false
+WEB_PROVIDER=tavily
+WEB_API_KEY=web-env-key
+WEB_BASE_URL=https://env-web.example
 RULES_FILES=hand.md,custom.md
 INSTRUCT=be terse
 PLATFORM=editor
@@ -253,6 +265,10 @@ rpc:
   port: 6000
 maxIterations: 45
 instruct: be formal
+web:
+  provider: firecrawl
+  apiKey: config-web-key
+  baseUrl: https://config-web.example
 cap:
   fs: false
   net: false
@@ -284,6 +300,9 @@ rules:
 	require.Equal(t, "warn", cfg.LogLevel)
 	require.False(t, cfg.LogNoColor)
 	require.False(t, cfg.DebugRequests)
+	require.Equal(t, "tavily", cfg.WebProvider)
+	require.Equal(t, "web-env-key", cfg.WebAPIKey)
+	require.Equal(t, "https://env-web.example", cfg.WebBaseURL)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.RulesFiles)
 	require.Equal(t, "be terse", cfg.Instruct)
 	require.Equal(t, "editor", cfg.Platform)
@@ -1341,6 +1360,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 		"MODEL_CONTEXT_LENGTH", "MODEL_VERIFY_MODEL", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"AGENT_STORAGE_BACKEND", "AGENT_SESSION_DEFAULT_IDLE_EXPIRY", "AGENT_SESSION_ARCHIVE_RETENTION",
 		"AGENT_COMPACTION_ENABLED", "AGENT_COMPACTION_TRIGGER_PERCENT", "AGENT_COMPACTION_WARN_PERCENT",
+		"FIRECRAWL_API_KEY", "FIRECRAWL_API_URL", "PARALLEL_API_KEY", "TAVILY_API_KEY", "EXA_API_KEY",
 	)
 
 	cfg := &Config{}
@@ -1369,6 +1389,31 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.False(t, boolValue(cfg.CompactionEnabled))
 	require.Equal(t, 0.5, cfg.CompactionTriggerPercent)
 	require.Equal(t, 0.8, cfg.CompactionWarnPercent)
+}
+
+func TestApplyEnvOverrides_WebProviderSpecificFallback(t *testing.T) {
+	clearEnvKeys(t,
+		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL",
+		"FIRECRAWL_API_KEY", "FIRECRAWL_API_URL", "PARALLEL_API_KEY", "TAVILY_API_KEY", "EXA_API_KEY",
+	)
+
+	cfg := &Config{}
+	t.Setenv("FIRECRAWL_API_URL", "http://localhost:3002")
+
+	applyEnvOverrides(cfg)
+
+	require.Equal(t, "firecrawl", cfg.WebProvider)
+	require.Equal(t, "", cfg.WebAPIKey)
+	require.Equal(t, "http://localhost:3002", cfg.WebBaseURL)
+
+	cfg = &Config{}
+	t.Setenv("WEB_PROVIDER", "exa")
+	t.Setenv("EXA_API_KEY", "exa-key")
+
+	applyEnvOverrides(cfg)
+
+	require.Equal(t, "exa", cfg.WebProvider)
+	require.Equal(t, "exa-key", cfg.WebAPIKey)
 }
 
 func TestApplyEnvOverrides_SummaryModelAndRelatedEnv(t *testing.T) {

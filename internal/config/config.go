@@ -45,6 +45,9 @@ type Config struct {
 	DebugRequests            bool
 	DebugTraces              bool
 	DebugTraceDir            string
+	WebProvider              string
+	WebAPIKey                string
+	WebBaseURL               string
 	RulesFiles               []string
 	Instruct                 string
 	Platform                 string
@@ -140,6 +143,12 @@ type fileConfig struct {
 		Traces   bool   `yaml:"traces"`
 		TraceDir string `yaml:"traceDir"`
 	} `yaml:"debug"`
+
+	Web struct {
+		Provider string `yaml:"provider"`
+		APIKey   string `yaml:"apiKey"`
+		BaseURL  string `yaml:"baseUrl"`
+	} `yaml:"web"`
 
 	RPC struct {
 		Address string `yaml:"address"`
@@ -299,6 +308,9 @@ func loadConfigFile(path string) (*Config, error) {
 		DebugRequests:            raw.Debug.Requests,
 		DebugTraces:              raw.Debug.Traces,
 		DebugTraceDir:            raw.Debug.TraceDir,
+		WebProvider:              raw.Web.Provider,
+		WebAPIKey:                raw.Web.APIKey,
+		WebBaseURL:               raw.Web.BaseURL,
 		RulesFiles:               raw.Rules.Files,
 		Instruct:                 raw.Instruct,
 		Platform:                 raw.Platform,
@@ -400,6 +412,42 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("DEBUG_TRACE_DIR")); value != "" {
 		cfg.DebugTraceDir = value
 	}
+	if value := strings.TrimSpace(os.Getenv("WEB_PROVIDER")); value != "" {
+		cfg.WebProvider = value
+	}
+	if value := strings.TrimSpace(os.Getenv("WEB_API_KEY")); value != "" {
+		cfg.WebAPIKey = value
+	}
+	if value := strings.TrimSpace(os.Getenv("WEB_BASE_URL")); value != "" {
+		cfg.WebBaseURL = value
+	}
+	if cfg.WebProvider == "" {
+		switch {
+		case strings.TrimSpace(os.Getenv("FIRECRAWL_API_KEY")) != "" || strings.TrimSpace(os.Getenv("FIRECRAWL_API_URL")) != "":
+			cfg.WebProvider = "firecrawl"
+		case strings.TrimSpace(os.Getenv("PARALLEL_API_KEY")) != "":
+			cfg.WebProvider = "parallel"
+		case strings.TrimSpace(os.Getenv("TAVILY_API_KEY")) != "":
+			cfg.WebProvider = "tavily"
+		case strings.TrimSpace(os.Getenv("EXA_API_KEY")) != "":
+			cfg.WebProvider = "exa"
+		}
+	}
+	if cfg.WebAPIKey == "" {
+		switch strings.TrimSpace(strings.ToLower(cfg.WebProvider)) {
+		case "firecrawl":
+			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("FIRECRAWL_API_KEY"))
+		case "parallel":
+			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("PARALLEL_API_KEY"))
+		case "tavily":
+			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("TAVILY_API_KEY"))
+		case "exa":
+			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("EXA_API_KEY"))
+		}
+	}
+	if cfg.WebBaseURL == "" && strings.TrimSpace(strings.ToLower(cfg.WebProvider)) == "firecrawl" {
+		cfg.WebBaseURL = strings.TrimSpace(os.Getenv("FIRECRAWL_API_URL"))
+	}
 	if value := strings.TrimSpace(os.Getenv("RULES_FILES")); value != "" {
 		cfg.RulesFiles = splitAndTrimCSV(value)
 	}
@@ -484,6 +532,9 @@ func (c *Config) normalizeFields() {
 	c.SummaryModelAPIMode = strings.TrimSpace(strings.ToLower(c.SummaryModelAPIMode))
 	c.LogLevel = strings.TrimSpace(strings.ToLower(c.LogLevel))
 	c.DebugTraceDir = strings.TrimSpace(c.DebugTraceDir)
+	c.WebProvider = strings.TrimSpace(strings.ToLower(c.WebProvider))
+	c.WebAPIKey = strings.TrimSpace(c.WebAPIKey)
+	c.WebBaseURL = strings.TrimSpace(c.WebBaseURL)
 	c.RulesFiles = normalizeRulePaths(c.RulesFiles)
 	c.Instruct = strings.TrimSpace(c.Instruct)
 	c.Platform = strings.TrimSpace(strings.ToLower(c.Platform))
