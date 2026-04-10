@@ -154,7 +154,7 @@ func TestLoad_ReturnsPreloadEnvFileError(t *testing.T) {
 func TestLoad_UsesConfigFileValues(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
-		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL",
+		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
 
 	dir := t.TempDir()
@@ -187,6 +187,7 @@ web:
   provider: exa
   apiKey: web-key
   baseUrl: https://web.example
+  maxCharPerResult: 2400
 rules:
   files:
     - hand.md
@@ -210,6 +211,7 @@ rules:
 	require.Equal(t, "exa", cfg.WebProvider)
 	require.Equal(t, "web-key", cfg.WebAPIKey)
 	require.Equal(t, "https://web.example", cfg.WebBaseURL)
+	require.Equal(t, 2400, cfg.WebMaxCharPerResult)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.RulesFiles)
 	require.Equal(t, "be terse", cfg.Instruct)
 	require.Equal(t, "desktop", cfg.Platform)
@@ -223,7 +225,7 @@ rules:
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
-		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL",
+		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
 
 	dir := t.TempDir()
@@ -244,6 +246,7 @@ DEBUG_REQUESTS=false
 WEB_PROVIDER=tavily
 WEB_API_KEY=web-env-key
 WEB_BASE_URL=https://env-web.example
+WEB_MAX_CHAR_PER_RESULT=3100
 RULES_FILES=hand.md,custom.md
 INSTRUCT=be terse
 PLATFORM=editor
@@ -269,6 +272,7 @@ web:
   provider: firecrawl
   apiKey: config-web-key
   baseUrl: https://config-web.example
+  maxCharPerResult: 1800
 cap:
   fs: false
   net: false
@@ -303,6 +307,7 @@ rules:
 	require.Equal(t, "tavily", cfg.WebProvider)
 	require.Equal(t, "web-env-key", cfg.WebAPIKey)
 	require.Equal(t, "https://env-web.example", cfg.WebBaseURL)
+	require.Equal(t, 3100, cfg.WebMaxCharPerResult)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.RulesFiles)
 	require.Equal(t, "be terse", cfg.Instruct)
 	require.Equal(t, "editor", cfg.Platform)

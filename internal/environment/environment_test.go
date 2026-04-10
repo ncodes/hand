@@ -285,6 +285,131 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	require.Equal(t, "core", groups[0].Name)
 }
 
+func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:          "Test Agent",
+		DebugTraceDir: t.TempDir(),
+		WebProvider:   "exa",
+		WebAPIKey:     "exa-key",
+	})
+
+	require.NoError(t, env.Prepare())
+
+	definitions := env.Tools().List()
+	require.Len(t, definitions, 9)
+	require.Equal(t, []string{
+		"list_files",
+		"patch",
+		"plan_tool",
+		"read_file",
+		"run_command",
+		"search_files",
+		"time",
+		"web_search",
+		"write_file",
+	}, []string{
+		definitions[0].Name,
+		definitions[1].Name,
+		definitions[2].Name,
+		definitions[3].Name,
+		definitions[4].Name,
+		definitions[5].Name,
+		definitions[6].Name,
+		definitions[7].Name,
+		definitions[8].Name,
+	})
+}
+
+func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:          "Test Agent",
+		DebugTraceDir: t.TempDir(),
+	})
+
+	require.NoError(t, env.Prepare())
+
+	definitions := env.Tools().List()
+	require.Len(t, definitions, 8)
+	for _, definition := range definitions {
+		require.NotEqual(t, "web_search", definition.Name)
+	}
+}
+
+func TestEnvironment_PrepareReturnsWebProviderErrors(t *testing.T) {
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:          "Test Agent",
+		DebugTraceDir: t.TempDir(),
+		WebProvider:   "parallel",
+	})
+
+	err := env.Prepare()
+	require.EqualError(t, err, "parallel requires web API key")
+}
+
+func TestEnvironment_WebSearchResolvesOnlyWithNetworkCapability(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:          "Test Agent",
+		DebugTraceDir: t.TempDir(),
+		WebProvider:   "exa",
+		WebAPIKey:     "exa-key",
+	})
+
+	require.NoError(t, env.Prepare())
+
+	withNetwork, err := env.Tools().Resolve(tools.Policy{GroupNames: []string{"core"}, Capabilities: tools.Capabilities{Filesystem: true, Exec: true, Memory: true, Network: true}})
+	require.NoError(t, err)
+	withNetworkNames := make([]string, 0, len(withNetwork))
+	for _, definition := range withNetwork {
+		withNetworkNames = append(withNetworkNames, definition.Name)
+	}
+	require.Contains(t, withNetworkNames, "web_search")
+
+	withoutNetwork, err := env.Tools().Resolve(tools.Policy{GroupNames: []string{"core"}, Capabilities: tools.Capabilities{Filesystem: true, Exec: true, Memory: true}})
+	require.NoError(t, err)
+	for _, definition := range withoutNetwork {
+		require.NotEqual(t, "web_search", definition.Name)
+	}
+}
+
 func TestEnvironment_CurrentPlanAndHydratePlanHandleNilReceiver(t *testing.T) {
 	var env *environment
 

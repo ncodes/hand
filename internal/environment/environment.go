@@ -2,6 +2,7 @@ package environment
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -12,6 +13,7 @@ import (
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/personality"
+	webintegration "github.com/wandxy/hand/internal/providers/web"
 	"github.com/wandxy/hand/internal/tools"
 	listfiles "github.com/wandxy/hand/internal/tools/listfiles"
 	patchtool "github.com/wandxy/hand/internal/tools/patch"
@@ -20,6 +22,7 @@ import (
 	runcommand "github.com/wandxy/hand/internal/tools/runcommand"
 	searchfiles "github.com/wandxy/hand/internal/tools/searchfiles"
 	timetool "github.com/wandxy/hand/internal/tools/time"
+	websearch "github.com/wandxy/hand/internal/tools/websearch"
 	writefile "github.com/wandxy/hand/internal/tools/writefile"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/internal/workspace"
@@ -149,6 +152,15 @@ func (e *environment) prepareTools() error {
 		patchtool.Definition(e.runtime),
 		plantool.Definition(e.runtime),
 		runcommand.Definition(e.runtime),
+	}
+
+	webProvider, err := webintegration.NewProvider(e.cfg)
+	switch {
+	case errors.Is(err, webintegration.ErrProviderNotConfigured):
+	case err != nil:
+		return err
+	default:
+		definitions = append(definitions, websearch.Definition(webProvider))
 	}
 
 	for _, definition := range definitions {

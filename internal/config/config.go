@@ -48,6 +48,7 @@ type Config struct {
 	WebProvider              string
 	WebAPIKey                string
 	WebBaseURL               string
+	WebMaxCharPerResult      int
 	RulesFiles               []string
 	Instruct                 string
 	Platform                 string
@@ -145,9 +146,10 @@ type fileConfig struct {
 	} `yaml:"debug"`
 
 	Web struct {
-		Provider string `yaml:"provider"`
-		APIKey   string `yaml:"apiKey"`
-		BaseURL  string `yaml:"baseUrl"`
+		Provider         string `yaml:"provider"`
+		APIKey           string `yaml:"apiKey"`
+		BaseURL          string `yaml:"baseUrl"`
+		MaxCharPerResult int    `yaml:"maxCharPerResult"`
 	} `yaml:"web"`
 
 	RPC struct {
@@ -311,6 +313,7 @@ func loadConfigFile(path string) (*Config, error) {
 		WebProvider:              raw.Web.Provider,
 		WebAPIKey:                raw.Web.APIKey,
 		WebBaseURL:               raw.Web.BaseURL,
+		WebMaxCharPerResult:      raw.Web.MaxCharPerResult,
 		RulesFiles:               raw.Rules.Files,
 		Instruct:                 raw.Instruct,
 		Platform:                 raw.Platform,
@@ -420,6 +423,11 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := strings.TrimSpace(os.Getenv("WEB_BASE_URL")); value != "" {
 		cfg.WebBaseURL = value
+	}
+	if value := strings.TrimSpace(os.Getenv("WEB_MAX_CHAR_PER_RESULT")); value != "" {
+		if chars, err := strconv.Atoi(value); err == nil {
+			cfg.WebMaxCharPerResult = chars
+		}
 	}
 	if cfg.WebProvider == "" {
 		switch {
@@ -583,6 +591,9 @@ func (c *Config) normalizeFields() {
 	}
 	if c.Platform == "" {
 		c.Platform = "cli"
+	}
+	if c.WebMaxCharPerResult < 0 {
+		c.WebMaxCharPerResult = 0
 	}
 
 	if c.CapFilesystem == nil {

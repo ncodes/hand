@@ -20,6 +20,8 @@ var (
 	ErrUnsupportedProvider   = errors.New("unsupported web provider")
 )
 
+const defaultMaxCharPerResult = 4000
+
 type SearchResult struct {
 	Title    string
 	URL      string
@@ -42,15 +44,19 @@ type Provider interface {
 }
 
 type Options struct {
-	Provider string
-	APIKey   string
-	BaseURL  string
+	Provider         string
+	APIKey           string
+	BaseURL          string
+	MaxCharPerResult int
 }
 
 func (o Options) Normalize() Options {
 	o.Provider = strings.TrimSpace(strings.ToLower(o.Provider))
 	o.APIKey = strings.TrimSpace(o.APIKey)
 	o.BaseURL = strings.TrimSpace(o.BaseURL)
+	if o.MaxCharPerResult < 0 {
+		o.MaxCharPerResult = 0
+	}
 	return o
 }
 
@@ -67,9 +73,10 @@ func ResolveOptions(cfg *config.Config) (Options, error) {
 	var opts Options
 	if cfg != nil {
 		opts = Options{
-			Provider: cfg.WebProvider,
-			APIKey:   cfg.WebAPIKey,
-			BaseURL:  cfg.WebBaseURL,
+			Provider:         cfg.WebProvider,
+			APIKey:           cfg.WebAPIKey,
+			BaseURL:          cfg.WebBaseURL,
+			MaxCharPerResult: cfg.WebMaxCharPerResult,
 		}.Normalize()
 	}
 
@@ -110,12 +117,39 @@ func fillProviderDefaults(opts Options) Options {
 	return opts.Normalize()
 }
 
+func maxCharPerResult(value int) int {
+	if value <= 0 {
+		return defaultMaxCharPerResult
+	}
+
+	return value
+}
+
+func truncateToMaxChars(value string, maxChars int) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+
+	limit := maxCharPerResult(maxChars)
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+
+	return strings.TrimSpace(string(runes[:limit]))
+}
+
 func NewProvider(cfg *config.Config) (Provider, error) {
 	opts, err := ResolveOptions(cfg)
 	if err != nil {
 		return nil, err
 	}
 
+	return newProvider(opts)
+}
+
+func newProvider(opts Options) (Provider, error) {
 	switch opts.Provider {
 	case ProviderFirecrawl:
 		return NewFirecrawl(opts)
