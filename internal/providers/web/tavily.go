@@ -10,8 +10,9 @@ import (
 const tavilyDefaultBaseURL = "https://api.tavily.com"
 
 type TavilyProvider struct {
-	client            *httpClient
-	maxCharsPerResult int
+	client                   *httpClient
+	maxCharsPerResult        int
+	maxExtractCharsPerResult int
 }
 
 func NewTavily(opts Options) (Provider, error) {
@@ -29,7 +30,8 @@ func NewTavily(opts Options) (Provider, error) {
 			baseURL: opts.BaseURL,
 			client:  http.DefaultClient,
 		},
-		maxCharsPerResult: maxCharPerResult(opts.MaxCharPerResult),
+		maxCharsPerResult:        opts.MaxCharPerResult,
+		maxExtractCharsPerResult: opts.MaxExtractCharPerResult,
 	}, nil
 }
 
@@ -57,7 +59,7 @@ func (p *TavilyProvider) Search(ctx context.Context, query string, count int) ([
 		results = append(results, SearchResult{
 			Title:    strings.TrimSpace(result.Title),
 			URL:      strings.TrimSpace(result.URL),
-			Snippet:  truncateToMaxChars(result.Content, p.resolvedMaxCharsPerResult()),
+			Snippet:  truncateToMaxChars(result.Content, p.maxCharsPerResult),
 			Position: idx + 1,
 		})
 	}
@@ -65,14 +67,56 @@ func (p *TavilyProvider) Search(ctx context.Context, query string, count int) ([
 	return results, nil
 }
 
-func (*TavilyProvider) Extract(context.Context, []string) ([]ExtractResult, error) {
-	return nil, errProviderMethodNotImplemented
-}
-
-func (p *TavilyProvider) resolvedMaxCharsPerResult() int {
-	if p == nil {
-		return defaultMaxCharPerResult
+func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractResult, error) {
+	var response struct {
+		Results []struct {
+			URL        string `json:"url"`
+			Title      string `json:"title"`
+			Content    string `json:"content"`
+			RawContent string `json:"raw_content"`
+		} `json:"results"`
+		FailedResults []struct {
+			URL   string `json:"url"`
+			Error string `json:"error"`
+		} `json:"failed_results"`
+		FailedURLs []string `json:"failed_urls"`
 	}
 
-	return maxCharPerResult(p.maxCharsPerResult)
+	if err := p.client.postJSON(ctx, "/extract", map[string]any{
+		"urls":             urls,
+		"extract_depth":    "basic",
+		"format":           "markdown",
+		"include_images":   false,
+		"include_raw_html": false,
+	}, p.client.authorizationHeaders(), &response); err != nil {
+		return nil, err
+	}
+
+	results := make([]ExtractResult, 0, len(response.Results)+len(response.FailedResults)+len(response.FailedURLs))
+	for _, result := range response.Results {
+		content, truncated := truncateContent(firstNonEmpty(result.RawContent, result.Content), p.maxExtractCharsPerResult)
+		results = append(results, ExtractResult{
+			URL:           strings.TrimSpace(result.URL),
+			Title:         strings.TrimSpace(result.Title),
+			Content:       content,
+			ContentFormat: "markdown",
+			Truncated:     truncated,
+		})
+	}
+	for _, result := range response.FailedResults {
+		results = append(results, ExtractResult{
+			URL:           strings.TrimSpace(result.URL),
+			ContentFormat: "markdown",
+			Error:         firstNonEmpty(result.Error, "extraction failed"),
+		})
+	}
+	for _, url := range response.FailedURLs {
+		results = append(results, ExtractResult{
+			URL:           strings.TrimSpace(url),
+			ContentFormat: "markdown",
+			Error:         "extraction failed",
+		})
+	}
+
+	return results, nil
 }

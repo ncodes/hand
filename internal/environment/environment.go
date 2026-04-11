@@ -22,6 +22,7 @@ import (
 	runcommand "github.com/wandxy/hand/internal/tools/runcommand"
 	searchfiles "github.com/wandxy/hand/internal/tools/searchfiles"
 	timetool "github.com/wandxy/hand/internal/tools/time"
+	webextract "github.com/wandxy/hand/internal/tools/webextract"
 	websearch "github.com/wandxy/hand/internal/tools/websearch"
 	writefile "github.com/wandxy/hand/internal/tools/writefile"
 	"github.com/wandxy/hand/internal/trace"
@@ -160,7 +161,7 @@ func (e *environment) prepareTools() error {
 	case err != nil:
 		return err
 	default:
-		definitions = append(definitions, websearch.Definition(webProvider))
+		definitions = append(definitions, webextract.Definition(webProvider), websearch.Definition(webProvider))
 	}
 
 	for _, definition := range definitions {

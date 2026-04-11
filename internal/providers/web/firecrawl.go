@@ -10,8 +10,9 @@ import (
 const firecrawlDefaultBaseURL = "https://api.firecrawl.dev"
 
 type FirecrawlProvider struct {
-	client            *httpClient
-	maxCharsPerResult int
+	client                   *httpClient
+	maxCharsPerResult        int
+	maxExtractCharsPerResult int
 }
 
 func NewFirecrawl(opts Options) (Provider, error) {
@@ -29,7 +30,8 @@ func NewFirecrawl(opts Options) (Provider, error) {
 			baseURL: opts.BaseURL,
 			client:  http.DefaultClient,
 		},
-		maxCharsPerResult: maxCharPerResult(opts.MaxCharPerResult),
+		maxCharsPerResult:        opts.MaxCharPerResult,
+		maxExtractCharsPerResult: opts.MaxExtractCharPerResult,
 	}, nil
 }
 
@@ -66,7 +68,7 @@ func (p *FirecrawlProvider) Search(ctx context.Context, query string, count int)
 		results = append(results, SearchResult{
 			Title:    strings.TrimSpace(result.Title),
 			URL:      strings.TrimSpace(result.URL),
-			Snippet:  truncateToMaxChars(firstNonEmpty(result.Description, result.Snippet), p.resolvedMaxCharsPerResult()),
+			Snippet:  truncateToMaxChars(firstNonEmpty(result.Description, result.Snippet), p.maxCharsPerResult),
 			Position: idx + 1,
 		})
 	}
@@ -74,14 +76,58 @@ func (p *FirecrawlProvider) Search(ctx context.Context, query string, count int)
 	return results, nil
 }
 
-func (*FirecrawlProvider) Extract(context.Context, []string) ([]ExtractResult, error) {
-	return nil, errProviderMethodNotImplemented
-}
-
-func (p *FirecrawlProvider) resolvedMaxCharsPerResult() int {
-	if p == nil {
-		return defaultMaxCharPerResult
+func (p *FirecrawlProvider) Extract(ctx context.Context, urls []string) ([]ExtractResult, error) {
+	type scrapeMetadata struct {
+		SourceURL string `json:"sourceURL"`
+		Title     string `json:"title"`
 	}
 
-	return maxCharPerResult(p.maxCharsPerResult)
+	type scrapeData struct {
+		Markdown string         `json:"markdown"`
+		HTML     string         `json:"html"`
+		Metadata scrapeMetadata `json:"metadata"`
+	}
+
+	type scrapeResponse struct {
+		Success bool       `json:"success"`
+		Data    scrapeData `json:"data"`
+	}
+
+	results := make([]ExtractResult, 0, len(urls))
+	for _, rawURL := range urls {
+		url := strings.TrimSpace(rawURL)
+
+		var response scrapeResponse
+		err := p.client.postJSON(ctx, "/v2/scrape", map[string]any{
+			"url": url,
+			"formats": []string{
+				"markdown",
+			},
+			"onlyMainContent": true,
+			"parsers": []string{
+				"pdf",
+			},
+		}, p.client.authorizationHeaders(), &response)
+		if err != nil {
+			results = append(results, ExtractResult{
+				URL:           url,
+				ContentFormat: "markdown",
+				Error:         err.Error(),
+			})
+			continue
+		}
+
+		content, truncated := truncateContent(
+			firstNonEmpty(response.Data.Markdown, response.Data.HTML),
+			p.maxExtractCharsPerResult)
+		results = append(results, ExtractResult{
+			URL:           firstNonEmpty(response.Data.Metadata.SourceURL, url),
+			Title:         strings.TrimSpace(response.Data.Metadata.Title),
+			Content:       content,
+			ContentFormat: "markdown",
+			Truncated:     truncated,
+		})
+	}
+
+	return results, nil
 }

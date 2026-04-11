@@ -20,8 +20,6 @@ var (
 	ErrUnsupportedProvider   = errors.New("unsupported web provider")
 )
 
-const defaultMaxCharPerResult = 4000
-
 type SearchResult struct {
 	Title    string
 	URL      string
@@ -44,10 +42,11 @@ type Provider interface {
 }
 
 type Options struct {
-	Provider         string
-	APIKey           string
-	BaseURL          string
-	MaxCharPerResult int
+	Provider                string
+	APIKey                  string
+	BaseURL                 string
+	MaxCharPerResult        int
+	MaxExtractCharPerResult int
 }
 
 func (o Options) Normalize() Options {
@@ -56,6 +55,9 @@ func (o Options) Normalize() Options {
 	o.BaseURL = strings.TrimSpace(o.BaseURL)
 	if o.MaxCharPerResult < 0 {
 		o.MaxCharPerResult = 0
+	}
+	if o.MaxExtractCharPerResult < 0 {
+		o.MaxExtractCharPerResult = 0
 	}
 	return o
 }
@@ -72,11 +74,15 @@ func SupportedProvider(name string) bool {
 func ResolveOptions(cfg *config.Config) (Options, error) {
 	var opts Options
 	if cfg != nil {
+		normalized := *cfg
+		normalized.Normalize()
+
 		opts = Options{
-			Provider:         cfg.WebProvider,
-			APIKey:           cfg.WebAPIKey,
-			BaseURL:          cfg.WebBaseURL,
-			MaxCharPerResult: cfg.WebMaxCharPerResult,
+			Provider:                normalized.WebProvider,
+			APIKey:                  normalized.WebAPIKey,
+			BaseURL:                 normalized.WebBaseURL,
+			MaxCharPerResult:        normalized.WebMaxCharPerResult,
+			MaxExtractCharPerResult: normalized.WebMaxExtractCharPerResult,
 		}.Normalize()
 	}
 
@@ -117,27 +123,38 @@ func fillProviderDefaults(opts Options) Options {
 	return opts.Normalize()
 }
 
-func maxCharPerResult(value int) int {
-	if value <= 0 {
-		return defaultMaxCharPerResult
-	}
-
-	return value
-}
-
 func truncateToMaxChars(value string, maxChars int) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return ""
 	}
-
-	limit := maxCharPerResult(maxChars)
-	runes := []rune(value)
-	if len(runes) <= limit {
+	if maxChars <= 0 {
 		return value
 	}
 
-	return strings.TrimSpace(string(runes[:limit]))
+	runes := []rune(value)
+	if len(runes) <= maxChars {
+		return value
+	}
+
+	return strings.TrimSpace(string(runes[:maxChars]))
+}
+
+func truncateContent(value string, maxChars int) (string, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", false
+	}
+	if maxChars <= 0 {
+		return value, false
+	}
+
+	runes := []rune(value)
+	if len(runes) <= maxChars {
+		return value, false
+	}
+
+	return strings.TrimSpace(string(runes[:maxChars])), true
 }
 
 func NewProvider(cfg *config.Config) (Provider, error) {

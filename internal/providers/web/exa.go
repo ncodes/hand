@@ -4,14 +4,16 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
 const exaDefaultBaseURL = "https://api.exa.ai"
 
 type ExaProvider struct {
-	client            *httpClient
-	maxCharsPerResult int
+	client                   *httpClient
+	maxCharsPerResult        int
+	maxExtractCharsPerResult int
 }
 
 func NewExa(opts Options) (Provider, error) {
@@ -29,7 +31,8 @@ func NewExa(opts Options) (Provider, error) {
 			baseURL: opts.BaseURL,
 			client:  http.DefaultClient,
 		},
-		maxCharsPerResult: maxCharPerResult(opts.MaxCharPerResult),
+		maxCharsPerResult:        opts.MaxCharPerResult,
+		maxExtractCharsPerResult: opts.MaxExtractCharPerResult,
 	}, nil
 }
 
@@ -49,7 +52,7 @@ func (p *ExaProvider) Search(ctx context.Context, query string, count int) ([]Se
 		"numResults": count,
 		"contents": map[string]any{
 			"highlights": map[string]any{
-				"maxCharacters": p.resolvedMaxCharsPerResult(),
+				"maxCharacters": p.maxCharsPerResult,
 			},
 		},
 	}, p.exaHeaders(), &response); err != nil {
@@ -61,7 +64,7 @@ func (p *ExaProvider) Search(ctx context.Context, query string, count int) ([]Se
 		results = append(results, SearchResult{
 			Title:    strings.TrimSpace(result.Title),
 			URL:      strings.TrimSpace(result.URL),
-			Snippet:  truncateToMaxChars(firstNonEmpty(firstHighlight(result.Highlights), result.Summary, result.Text), p.resolvedMaxCharsPerResult()),
+			Snippet:  truncateToMaxChars(firstNonEmpty(firstHighlight(result.Highlights), result.Summary, result.Text), p.maxCharsPerResult),
 			Position: idx + 1,
 		})
 	}
@@ -69,8 +72,71 @@ func (p *ExaProvider) Search(ctx context.Context, query string, count int) ([]Se
 	return results, nil
 }
 
-func (*ExaProvider) Extract(context.Context, []string) ([]ExtractResult, error) {
-	return nil, errProviderMethodNotImplemented
+func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResult, error) {
+	var response struct {
+		Results []struct {
+			URL   string `json:"url"`
+			Title string `json:"title"`
+			Text  string `json:"text"`
+			Error string `json:"error"`
+		} `json:"results"`
+		Statuses []struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+			Error  struct {
+				Tag            string `json:"tag"`
+				HTTPStatusCode int    `json:"httpStatusCode"`
+			} `json:"error"`
+		} `json:"statuses"`
+	}
+
+	if err := p.client.postJSON(ctx, "/contents", map[string]any{
+		"urls": urls,
+		"text": map[string]any{
+			"maxCharacters": p.maxExtractCharsPerResult,
+		},
+	}, p.exaHeaders(), &response); err != nil {
+		return nil, err
+	}
+
+	results := make([]ExtractResult, 0, len(response.Results))
+	statusByURL := make(map[string]string, len(response.Statuses))
+	for _, status := range response.Statuses {
+		if strings.TrimSpace(status.Status) != "error" {
+			continue
+		}
+		statusByURL[strings.TrimSpace(status.ID)] = exaStatusError(status.Error.Tag, status.Error.HTTPStatusCode)
+	}
+
+	seen := make(map[string]struct{}, len(response.Results))
+	for _, result := range response.Results {
+		url := strings.TrimSpace(result.URL)
+		content, truncated := truncateContent(result.Text, p.maxExtractCharsPerResult)
+		seen[url] = struct{}{}
+
+		results = append(results, ExtractResult{
+			URL:           url,
+			Title:         strings.TrimSpace(result.Title),
+			Content:       content,
+			ContentFormat: "text",
+			Truncated:     truncated,
+			Error:         firstNonEmpty(result.Error, statusByURL[url]),
+		})
+	}
+	for _, status := range response.Statuses {
+		url := strings.TrimSpace(status.ID)
+		if _, ok := seen[url]; ok || strings.TrimSpace(status.Status) != "error" {
+			continue
+		}
+
+		results = append(results, ExtractResult{
+			URL:           url,
+			ContentFormat: "text",
+			Error:         exaStatusError(status.Error.Tag, status.Error.HTTPStatusCode),
+		})
+	}
+
+	return results, nil
 }
 
 func (p *ExaProvider) exaHeaders() map[string]string {
@@ -83,10 +149,14 @@ func (p *ExaProvider) exaHeaders() map[string]string {
 	}
 }
 
-func (p *ExaProvider) resolvedMaxCharsPerResult() int {
-	if p == nil {
-		return defaultMaxCharPerResult
+func exaStatusError(tag string, httpStatusCode int) string {
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		return "extraction failed"
+	}
+	if httpStatusCode <= 0 {
+		return tag
 	}
 
-	return maxCharPerResult(p.maxCharsPerResult)
+	return tag + " (" + strconv.Itoa(httpStatusCode) + ")"
 }

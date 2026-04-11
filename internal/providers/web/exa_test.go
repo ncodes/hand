@@ -8,7 +8,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/wandxy/hand/internal/config"
 )
+
+// test real exa extract
 
 func TestNewExa_BuildsFromAPIKeyOnly(t *testing.T) {
 	provider, err := NewExa(Options{APIKey: "exa-key"})
@@ -17,7 +20,8 @@ func TestNewExa_BuildsFromAPIKeyOnly(t *testing.T) {
 	exaProvider, ok := provider.(*ExaProvider)
 	require.True(t, ok)
 	require.Equal(t, exaDefaultBaseURL, exaProvider.client.baseURL)
-	require.Equal(t, defaultMaxCharPerResult, exaProvider.maxCharsPerResult)
+	require.Zero(t, exaProvider.maxCharsPerResult)
+	require.Zero(t, exaProvider.maxExtractCharsPerResult)
 }
 
 func TestNewExa_PreservesConfiguredBaseURL(t *testing.T) {
@@ -30,12 +34,17 @@ func TestNewExa_PreservesConfiguredBaseURL(t *testing.T) {
 }
 
 func TestNewExa_UsesConfiguredMaxCharPerResult(t *testing.T) {
-	provider, err := NewExa(Options{APIKey: "exa-key", MaxCharPerResult: 400})
+	provider, err := NewExa(Options{
+		APIKey:                  "exa-key",
+		MaxCharPerResult:        400,
+		MaxExtractCharPerResult: 12000,
+	})
 	require.NoError(t, err)
 
 	exaProvider, ok := provider.(*ExaProvider)
 	require.True(t, ok)
 	require.Equal(t, 400, exaProvider.maxCharsPerResult)
+	require.Equal(t, 12000, exaProvider.maxExtractCharsPerResult)
 }
 
 func TestNewExa_ReturnsCredentialError(t *testing.T) {
@@ -78,6 +87,7 @@ func TestExaProvider_SearchNormalizesResults(t *testing.T) {
 			baseURL: server.URL,
 			client:  server.Client(),
 		},
+		maxCharsPerResult: config.DefaultWebMaxCharPerResult,
 	}
 
 	results, err := provider.Search(context.Background(), "exa search", 6)
@@ -86,7 +96,7 @@ func TestExaProvider_SearchNormalizesResults(t *testing.T) {
 	require.Equal(t, "exa-key", captured.APIKey)
 	require.Equal(t, "exa search", captured.Query)
 	require.Equal(t, 6, captured.NumResults)
-	require.Equal(t, defaultMaxCharPerResult, captured.Contents.Highlights.MaxCharacters)
+	require.Equal(t, config.DefaultWebMaxCharPerResult, captured.Contents.Highlights.MaxCharacters)
 	require.Equal(t, []SearchResult{{
 		Title:    "Exa result",
 		URL:      "https://example.com/exa",
@@ -224,8 +234,114 @@ func TestExaProvider_SearchReturnsProviderErrors(t *testing.T) {
 	require.EqualError(t, err, "web provider request failed: bad credentials")
 }
 
-func TestExaProvider_ExtractReturnsNotImplemented(t *testing.T) {
-	results, err := (&ExaProvider{}).Extract(context.Background(), []string{"https://example.com"})
-	require.ErrorIs(t, err, errProviderMethodNotImplemented)
-	require.Nil(t, results)
+func TestExaProvider_ExtractNormalizesResults(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+
+		var body struct {
+			URLs []string `json:"urls"`
+			Text struct {
+				MaxCharacters int `json:"maxCharacters"`
+			} `json:"text"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		require.Equal(t, []string{"https://example.com", "https://bad.example"}, body.URLs)
+		require.Equal(t, 900, body.Text.MaxCharacters)
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{"url": "https://example.com", "title": "Example", "text": "Extracted content"},
+			},
+			"statuses": []map[string]any{
+				{"id": "https://example.com", "status": "success"},
+				{"id": "https://bad.example", "status": "error", "error": map[string]any{"tag": "CRAWL_NOT_FOUND", "httpStatusCode": 404}},
+			},
+		}))
+	}))
+	defer server.Close()
+
+	provider := &ExaProvider{
+		client: &httpClient{
+			apiKey:  "exa-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+		maxCharsPerResult:        100,
+		maxExtractCharsPerResult: 900,
+	}
+
+	results, err := provider.Extract(context.Background(), []string{"https://example.com", "https://bad.example"})
+	require.NoError(t, err)
+	require.Equal(t, []ExtractResult{
+		{
+			URL:           "https://example.com",
+			Title:         "Example",
+			Content:       "Extracted content",
+			ContentFormat: "text",
+		},
+		{
+			URL:           "https://bad.example",
+			ContentFormat: "text",
+			Error:         "CRAWL_NOT_FOUND (404)",
+		},
+	}, results)
+}
+
+func TestExaProvider_ExtractUsesResultErrorAndSkipsSeenStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{"url": "https://bad.example", "title": "Bad", "text": "partial", "error": "result failed"},
+			},
+			"statuses": []map[string]any{
+				{"id": "https://bad.example", "status": "error", "error": map[string]any{"tag": "STATUS_FAILED", "httpStatusCode": 500}},
+			},
+		}))
+	}))
+	defer server.Close()
+
+	provider := &ExaProvider{
+		client: &httpClient{
+			apiKey:  "exa-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+		maxExtractCharsPerResult: 100,
+	}
+
+	results, err := provider.Extract(context.Background(), []string{"https://bad.example"})
+	require.NoError(t, err)
+	require.Equal(t, []ExtractResult{{
+		URL:           "https://bad.example",
+		Title:         "Bad",
+		Content:       "partial",
+		ContentFormat: "text",
+		Error:         "result failed",
+	}}, results)
+}
+
+func TestExaProvider_ExtractReturnsProviderErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "bad credentials", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	provider := &ExaProvider{
+		client: &httpClient{
+			apiKey:  "exa-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+	}
+
+	_, err := provider.Extract(context.Background(), []string{"https://example.com"})
+	require.EqualError(t, err, "web provider request failed: bad credentials")
+}
+
+func TestExaStatusError_FormatsFallbacks(t *testing.T) {
+	require.Equal(t, "extraction failed", exaStatusError("", 0))
+	require.Equal(t, "TIMEOUT", exaStatusError("TIMEOUT", 0))
+	require.Equal(t, "TIMEOUT (408)", exaStatusError("TIMEOUT", 408))
 }

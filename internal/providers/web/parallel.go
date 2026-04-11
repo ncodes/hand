@@ -10,8 +10,9 @@ import (
 const parallelDefaultBaseURL = "https://api.parallel.ai"
 
 type ParallelProvider struct {
-	client            *httpClient
-	maxCharsPerResult int
+	client                   *httpClient
+	maxCharsPerResult        int
+	maxExtractCharsPerResult int
 }
 
 func NewParallel(opts Options) (Provider, error) {
@@ -29,7 +30,8 @@ func NewParallel(opts Options) (Provider, error) {
 			baseURL: opts.BaseURL,
 			client:  http.DefaultClient,
 		},
-		maxCharsPerResult: maxCharPerResult(opts.MaxCharPerResult),
+		maxCharsPerResult:        opts.MaxCharPerResult,
+		maxExtractCharsPerResult: opts.MaxExtractCharPerResult,
 	}, nil
 }
 
@@ -48,7 +50,7 @@ func (p *ParallelProvider) Search(ctx context.Context, query string, count int) 
 		"objective":      query,
 		"max_results":    count,
 		"excerpts": map[string]any{
-			"max_chars_per_result": p.resolvedMaxCharsPerResult(),
+			"max_chars_per_result": p.maxCharsPerResult,
 		},
 	}, p.parallelHeaders(), &response); err != nil {
 		return nil, err
@@ -59,7 +61,7 @@ func (p *ParallelProvider) Search(ctx context.Context, query string, count int) 
 		results = append(results, SearchResult{
 			Title:    strings.TrimSpace(result.Title),
 			URL:      strings.TrimSpace(result.URL),
-			Snippet:  truncateToMaxChars(firstNonEmpty(strings.Join(result.Excerpts, " "), result.Snippet), p.resolvedMaxCharsPerResult()),
+			Snippet:  truncateToMaxChars(firstNonEmpty(strings.Join(result.Excerpts, " "), result.Snippet), p.maxCharsPerResult),
 			Position: idx + 1,
 		})
 	}
@@ -67,8 +69,49 @@ func (p *ParallelProvider) Search(ctx context.Context, query string, count int) 
 	return results, nil
 }
 
-func (*ParallelProvider) Extract(context.Context, []string) ([]ExtractResult, error) {
-	return nil, errProviderMethodNotImplemented
+func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]ExtractResult, error) {
+	var response struct {
+		Results []struct {
+			URL         string   `json:"url"`
+			Title       string   `json:"title"`
+			FullContent string   `json:"full_content"`
+			Excerpts    []string `json:"excerpts"`
+		} `json:"results"`
+		Errors []struct {
+			URL       string `json:"url"`
+			Content   string `json:"content"`
+			ErrorType string `json:"error_type"`
+		} `json:"errors"`
+	}
+
+	if err := p.client.postJSON(ctx, "/v1beta/extract", map[string]any{
+		"urls":         urls,
+		"full_content": true,
+	}, p.parallelHeaders(), &response); err != nil {
+		return nil, err
+	}
+
+	results := make([]ExtractResult, 0, len(response.Results)+len(response.Errors))
+	for _, result := range response.Results {
+		content, truncated := truncateContent(firstNonEmpty(result.FullContent, strings.Join(result.Excerpts, "\n\n")),
+			p.maxExtractCharsPerResult)
+		results = append(results, ExtractResult{
+			URL:           strings.TrimSpace(result.URL),
+			Title:         strings.TrimSpace(result.Title),
+			Content:       content,
+			ContentFormat: "markdown",
+			Truncated:     truncated,
+		})
+	}
+	for _, result := range response.Errors {
+		results = append(results, ExtractResult{
+			URL:           strings.TrimSpace(result.URL),
+			ContentFormat: "markdown",
+			Error:         firstNonEmpty(result.Content, result.ErrorType, "extraction failed"),
+		})
+	}
+
+	return results, nil
 }
 
 func (p *ParallelProvider) parallelHeaders() map[string]string {
@@ -79,12 +122,4 @@ func (p *ParallelProvider) parallelHeaders() map[string]string {
 	return map[string]string{
 		"x-api-key": strings.TrimSpace(p.client.apiKey),
 	}
-}
-
-func (p *ParallelProvider) resolvedMaxCharsPerResult() int {
-	if p == nil {
-		return defaultMaxCharPerResult
-	}
-
-	return maxCharPerResult(p.maxCharsPerResult)
 }

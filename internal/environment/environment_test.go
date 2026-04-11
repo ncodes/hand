@@ -309,7 +309,7 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 	require.NoError(t, env.Prepare())
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 9)
+	require.Len(t, definitions, 10)
 	require.Equal(t, []string{
 		"list_files",
 		"patch",
@@ -318,6 +318,7 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 		"run_command",
 		"search_files",
 		"time",
+		"web_extract",
 		"web_search",
 		"write_file",
 	}, []string{
@@ -330,6 +331,7 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 		definitions[6].Name,
 		definitions[7].Name,
 		definitions[8].Name,
+		definitions[9].Name,
 	})
 }
 
@@ -358,6 +360,7 @@ func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T
 	require.Len(t, definitions, 8)
 	for _, definition := range definitions {
 		require.NotEqual(t, "web_search", definition.Name)
+		require.NotEqual(t, "web_extract", definition.Name)
 	}
 }
 
@@ -372,7 +375,7 @@ func TestEnvironment_PrepareReturnsWebProviderErrors(t *testing.T) {
 	require.EqualError(t, err, "parallel requires web API key")
 }
 
-func TestEnvironment_WebSearchResolvesOnlyWithNetworkCapability(t *testing.T) {
+func TestEnvironment_WebToolsResolveOnlyWithNetworkCapability(t *testing.T) {
 	previousPersonality := loadPersonality
 	previousWorkspace := loadWorkspaceRules
 	t.Cleanup(func() {
@@ -401,12 +404,14 @@ func TestEnvironment_WebSearchResolvesOnlyWithNetworkCapability(t *testing.T) {
 	for _, definition := range withNetwork {
 		withNetworkNames = append(withNetworkNames, definition.Name)
 	}
+	require.Contains(t, withNetworkNames, "web_extract")
 	require.Contains(t, withNetworkNames, "web_search")
 
 	withoutNetwork, err := env.Tools().Resolve(tools.Policy{GroupNames: []string{"core"}, Capabilities: tools.Capabilities{Filesystem: true, Exec: true, Memory: true}})
 	require.NoError(t, err)
 	for _, definition := range withoutNetwork {
 		require.NotEqual(t, "web_search", definition.Name)
+		require.NotEqual(t, "web_extract", definition.Name)
 	}
 }
 

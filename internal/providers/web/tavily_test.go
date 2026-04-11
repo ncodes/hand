@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
-// real tavily provider test
 func TestRealTavilyProvider_Search(t *testing.T) {
 	provider, err := NewTavily(Options{APIKey: "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"})
 	require.NoError(t, err)
@@ -27,7 +27,8 @@ func TestNewTavily_BuildsFromAPIKeyOnly(t *testing.T) {
 	tavilyProvider, ok := provider.(*TavilyProvider)
 	require.True(t, ok)
 	require.Equal(t, tavilyDefaultBaseURL, tavilyProvider.client.baseURL)
-	require.Equal(t, defaultMaxCharPerResult, tavilyProvider.maxCharsPerResult)
+	require.Zero(t, tavilyProvider.maxCharsPerResult)
+	require.Zero(t, tavilyProvider.maxExtractCharsPerResult)
 }
 
 func TestNewTavily_PreservesConfiguredBaseURL(t *testing.T) {
@@ -40,12 +41,17 @@ func TestNewTavily_PreservesConfiguredBaseURL(t *testing.T) {
 }
 
 func TestNewTavily_UsesConfiguredMaxCharPerResult(t *testing.T) {
-	provider, err := NewTavily(Options{APIKey: "tavily-key", MaxCharPerResult: 222})
+	provider, err := NewTavily(Options{
+		APIKey:                  "tavily-key",
+		MaxCharPerResult:        222,
+		MaxExtractCharPerResult: 12000,
+	})
 	require.NoError(t, err)
 
 	tavilyProvider, ok := provider.(*TavilyProvider)
 	require.True(t, ok)
 	require.Equal(t, 222, tavilyProvider.maxCharsPerResult)
+	require.Equal(t, 12000, tavilyProvider.maxExtractCharsPerResult)
 }
 
 func TestNewTavily_ReturnsCredentialError(t *testing.T) {
@@ -137,8 +143,120 @@ func TestTavilyProvider_SearchReturnsClientErrors(t *testing.T) {
 	require.EqualError(t, err, "web provider base URL is required")
 }
 
-func TestTavilyProvider_ExtractReturnsNotImplemented(t *testing.T) {
-	results, err := (&TavilyProvider{}).Extract(context.Background(), []string{"https://example.com"})
-	require.ErrorIs(t, err, errProviderMethodNotImplemented)
-	require.Nil(t, results)
+func TestTavilyProvider_ExtractNormalizesResults(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+
+		var body struct {
+			URLs          []string `json:"urls"`
+			ExtractDepth  string   `json:"extract_depth"`
+			Format        string   `json:"format"`
+			IncludeImages bool     `json:"include_images"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		require.Equal(t, []string{"https://example.com"}, body.URLs)
+		require.Equal(t, "basic", body.ExtractDepth)
+		require.Equal(t, "markdown", body.Format)
+		require.False(t, body.IncludeImages)
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{"url": "https://example.com", "title": "Example", "raw_content": "Extracted content"},
+			},
+			"failed_results": []map[string]any{
+				{"url": "https://bad.example", "error": "timeout"},
+			},
+			"failed_urls": []string{"https://gone.example"},
+		}))
+	}))
+	defer server.Close()
+
+	provider := &TavilyProvider{
+		client: &httpClient{
+			apiKey:  "tavily-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+		maxExtractCharsPerResult: 100,
+	}
+
+	results, err := provider.Extract(context.Background(), []string{"https://example.com"})
+	require.NoError(t, err)
+	require.Equal(t, []ExtractResult{
+		{
+			URL:           "https://example.com",
+			Title:         "Example",
+			Content:       "Extracted content",
+			ContentFormat: "markdown",
+		},
+		{
+			URL:           "https://bad.example",
+			ContentFormat: "markdown",
+			Error:         "timeout",
+		},
+		{
+			URL:           "https://gone.example",
+			ContentFormat: "markdown",
+			Error:         "extraction failed",
+		},
+	}, results)
+}
+
+func TestTavilyProvider_ExtractFallsBackToContentAndDefaultErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{"url": "https://example.com", "title": "Example", "content": "summary content"},
+			},
+			"failed_results": []map[string]any{
+				{"url": "https://bad.example"},
+			},
+		}))
+	}))
+	defer server.Close()
+
+	provider := &TavilyProvider{
+		client: &httpClient{
+			apiKey:  "tavily-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+		maxExtractCharsPerResult: 100,
+	}
+
+	results, err := provider.Extract(context.Background(), []string{"https://example.com"})
+	require.NoError(t, err)
+	require.Equal(t, []ExtractResult{
+		{
+			URL:           "https://example.com",
+			Title:         "Example",
+			Content:       "summary content",
+			ContentFormat: "markdown",
+		},
+		{
+			URL:           "https://bad.example",
+			ContentFormat: "markdown",
+			Error:         "extraction failed",
+		},
+	}, results)
+}
+
+func TestTavilyProvider_ExtractReturnsProviderErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "bad credentials", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	provider := &TavilyProvider{
+		client: &httpClient{
+			apiKey:  "tavily-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+	}
+
+	_, err := provider.Extract(context.Background(), []string{"https://example.com"})
+	require.EqualError(t, err, "web provider request failed: bad credentials")
 }

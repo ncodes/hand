@@ -10,16 +10,34 @@ import (
 
 func TestResolveOptions_UsesExplicitConfig(t *testing.T) {
 	opts, err := ResolveOptions(&config.Config{
-		WebProvider:         "exa",
-		WebAPIKey:           "exa-config-key",
-		WebBaseURL:          "https://exa.example",
-		WebMaxCharPerResult: 3200,
+		WebProvider:                "exa",
+		WebAPIKey:                  "exa-config-key",
+		WebBaseURL:                 "https://exa.example",
+		WebMaxCharPerResult:        3200,
+		WebMaxExtractCharPerResult: 12000,
 	})
 	require.NoError(t, err)
 	require.Equal(t, ProviderExa, opts.Provider)
 	require.Equal(t, "exa-config-key", opts.APIKey)
 	require.Equal(t, "https://exa.example", opts.BaseURL)
 	require.Equal(t, 3200, opts.MaxCharPerResult)
+	require.Equal(t, 12000, opts.MaxExtractCharPerResult)
+}
+
+func TestOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {
+	opts := Options{
+		Provider:                " EXA ",
+		APIKey:                  " key ",
+		BaseURL:                 " https://exa.example ",
+		MaxCharPerResult:        -10,
+		MaxExtractCharPerResult: -20,
+	}.Normalize()
+
+	require.Equal(t, ProviderExa, opts.Provider)
+	require.Equal(t, "key", opts.APIKey)
+	require.Equal(t, "https://exa.example", opts.BaseURL)
+	require.Zero(t, opts.MaxCharPerResult)
+	require.Zero(t, opts.MaxExtractCharPerResult)
 }
 
 func TestResolveOptions_UsesDetectedProviderFallback(t *testing.T) {
@@ -31,6 +49,8 @@ func TestResolveOptions_UsesDetectedProviderFallback(t *testing.T) {
 	require.Equal(t, ProviderParallel, opts.Provider)
 	require.Equal(t, "parallel-key", opts.APIKey)
 	require.Equal(t, parallelDefaultBaseURL, opts.BaseURL)
+	require.Equal(t, config.DefaultWebMaxCharPerResult, opts.MaxCharPerResult)
+	require.Equal(t, config.DefaultWebMaxExtractCharPerResult, opts.MaxExtractCharPerResult)
 }
 
 func TestResolveOptions_UsesConfiguredBaseURL(t *testing.T) {
@@ -101,16 +121,29 @@ func TestFillProviderDefaults_AppliesKnownProviderDefaults(t *testing.T) {
 	}
 }
 
-func TestMaxCharPerResult_DefaultsWhenUnset(t *testing.T) {
-	require.Equal(t, defaultMaxCharPerResult, maxCharPerResult(0))
-	require.Equal(t, defaultMaxCharPerResult, maxCharPerResult(-1))
-	require.Equal(t, 1200, maxCharPerResult(1200))
-}
-
 func TestTruncateToMaxChars_TrimsAndClamps(t *testing.T) {
 	require.Equal(t, "", truncateToMaxChars("   ", 10))
 	require.Equal(t, "hello", truncateToMaxChars(" hello ", 10))
+	require.Equal(t, "hello world", truncateToMaxChars(" hello world ", 0))
 	require.Equal(t, "hello", truncateToMaxChars("hello world", 5))
+}
+
+func TestTruncateContent_ReportsTruncation(t *testing.T) {
+	content, truncated := truncateContent("   ", 5)
+	require.Empty(t, content)
+	require.False(t, truncated)
+
+	content, truncated = truncateContent(" hello ", 10)
+	require.Equal(t, "hello", content)
+	require.False(t, truncated)
+
+	content, truncated = truncateContent(" hello world ", 0)
+	require.Equal(t, "hello world", content)
+	require.False(t, truncated)
+
+	content, truncated = truncateContent("hello world", 5)
+	require.Equal(t, "hello", content)
+	require.True(t, truncated)
 }
 
 func TestNewProvider_ReturnsUnsupportedProviderError(t *testing.T) {

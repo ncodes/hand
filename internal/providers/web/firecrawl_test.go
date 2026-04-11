@@ -18,7 +18,8 @@ func TestNewFirecrawl_BuildsFromBaseURLOnly(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, firecrawlProvider.client)
 	require.Equal(t, "http://localhost:3002", firecrawlProvider.client.baseURL)
-	require.Equal(t, defaultMaxCharPerResult, firecrawlProvider.maxCharsPerResult)
+	require.Zero(t, firecrawlProvider.maxCharsPerResult)
+	require.Zero(t, firecrawlProvider.maxExtractCharsPerResult)
 }
 
 func TestNewFirecrawl_BuildsFromAPIKeyOnly(t *testing.T) {
@@ -29,7 +30,8 @@ func TestNewFirecrawl_BuildsFromAPIKeyOnly(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "firecrawl-key", firecrawlProvider.client.apiKey)
 	require.Equal(t, firecrawlDefaultBaseURL, firecrawlProvider.client.baseURL)
-	require.Equal(t, defaultMaxCharPerResult, firecrawlProvider.maxCharsPerResult)
+	require.Zero(t, firecrawlProvider.maxCharsPerResult)
+	require.Zero(t, firecrawlProvider.maxExtractCharsPerResult)
 }
 
 func TestNewFirecrawl_ReturnsCredentialError(t *testing.T) {
@@ -146,8 +148,61 @@ func TestFirecrawlProvider_SearchReturnsClientErrors(t *testing.T) {
 	require.EqualError(t, err, "web provider base URL is required")
 }
 
-func TestFirecrawlProvider_ExtractReturnsNotImplemented(t *testing.T) {
-	results, err := (&FirecrawlProvider{}).Extract(context.Background(), []string{"https://example.com"})
-	require.ErrorIs(t, err, errProviderMethodNotImplemented)
-	require.Nil(t, results)
+func TestFirecrawlProvider_ExtractNormalizesResults(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+
+		var body struct {
+			URL             string   `json:"url"`
+			Formats         []string `json:"formats"`
+			OnlyMainContent bool     `json:"onlyMainContent"`
+			Parsers         []string `json:"parsers"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		require.Equal(t, "https://example.com", body.URL)
+		require.Equal(t, []string{"markdown"}, body.Formats)
+		require.True(t, body.OnlyMainContent)
+		require.Equal(t, []string{"pdf"}, body.Parsers)
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"markdown": "Extracted content",
+				"metadata": map[string]any{
+					"sourceURL": "https://example.com",
+					"title":     "Example",
+				},
+			},
+		}))
+	}))
+	defer server.Close()
+
+	provider := &FirecrawlProvider{
+		client: &httpClient{
+			apiKey:  "firecrawl-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+		maxExtractCharsPerResult: 100,
+	}
+
+	results, err := provider.Extract(context.Background(), []string{"https://example.com"})
+	require.NoError(t, err)
+	require.Equal(t, []ExtractResult{{
+		URL:           "https://example.com",
+		Title:         "Example",
+		Content:       "Extracted content",
+		ContentFormat: "markdown",
+	}}, results)
+}
+
+func TestFirecrawlProvider_ExtractPreservesPerURLFailures(t *testing.T) {
+	provider := &FirecrawlProvider{client: &httpClient{}}
+
+	results, err := provider.Extract(context.Background(), []string{"https://example.com"})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, "https://example.com", results[0].URL)
+	require.Equal(t, "markdown", results[0].ContentFormat)
+	require.NotEmpty(t, results[0].Error)
 }

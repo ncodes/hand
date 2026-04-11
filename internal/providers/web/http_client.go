@@ -10,8 +10,6 @@ import (
 	"strings"
 )
 
-var errProviderMethodNotImplemented = errors.New("web provider method not implemented")
-
 type httpClient struct {
 	apiKey  string
 	baseURL string

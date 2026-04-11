@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/wandxy/hand/internal/config"
 )
 
 func TestNewParallel_BuildsFromAPIKeyOnly(t *testing.T) {
@@ -19,7 +21,8 @@ func TestNewParallel_BuildsFromAPIKeyOnly(t *testing.T) {
 	parallelProvider, ok := provider.(*ParallelProvider)
 	require.True(t, ok)
 	require.Equal(t, parallelDefaultBaseURL, parallelProvider.client.baseURL)
-	require.Equal(t, defaultMaxCharPerResult, parallelProvider.maxCharsPerResult)
+	require.Zero(t, parallelProvider.maxCharsPerResult)
+	require.Zero(t, parallelProvider.maxExtractCharsPerResult)
 }
 
 func TestNewParallel_PreservesConfiguredBaseURL(t *testing.T) {
@@ -32,12 +35,17 @@ func TestNewParallel_PreservesConfiguredBaseURL(t *testing.T) {
 }
 
 func TestNewParallel_UsesConfiguredMaxCharPerResult(t *testing.T) {
-	provider, err := NewParallel(Options{APIKey: "parallel-key", MaxCharPerResult: 333})
+	provider, err := NewParallel(Options{
+		APIKey:                  "parallel-key",
+		MaxCharPerResult:        333,
+		MaxExtractCharPerResult: 12000,
+	})
 	require.NoError(t, err)
 
 	parallelProvider, ok := provider.(*ParallelProvider)
 	require.True(t, ok)
 	require.Equal(t, 333, parallelProvider.maxCharsPerResult)
+	require.Equal(t, 12000, parallelProvider.maxExtractCharsPerResult)
 }
 
 func TestNewParallel_ReturnsCredentialError(t *testing.T) {
@@ -79,6 +87,7 @@ func TestParallelProvider_SearchNormalizesResults(t *testing.T) {
 			baseURL: server.URL,
 			client:  server.Client(),
 		},
+		maxCharsPerResult: config.DefaultWebMaxCharPerResult,
 	}
 
 	results, err := provider.Search(context.Background(), "parallel search", 3)
@@ -88,7 +97,7 @@ func TestParallelProvider_SearchNormalizesResults(t *testing.T) {
 	require.Equal(t, "parallel search", captured.Objective)
 	require.Equal(t, []string{"parallel search"}, captured.Queries)
 	require.Equal(t, 3, captured.MaxResults)
-	require.Equal(t, defaultMaxCharPerResult, captured.Excerpts.MaxCharsPerResult)
+	require.Equal(t, config.DefaultWebMaxCharPerResult, captured.Excerpts.MaxCharsPerResult)
 	require.Equal(t, []SearchResult{{
 		Title:    "Parallel result",
 		URL:      "https://example.com/parallel",
@@ -167,10 +176,118 @@ func TestParallelProvider_SearchReturnsTransportErrors(t *testing.T) {
 	require.True(t, errors.As(err, &opErr))
 }
 
-func TestParallelProvider_ExtractReturnsNotImplemented(t *testing.T) {
-	results, err := (&ParallelProvider{}).Extract(context.Background(), []string{"https://example.com"})
-	require.ErrorIs(t, err, errProviderMethodNotImplemented)
-	require.Nil(t, results)
+func TestParallelProvider_ExtractNormalizesResults(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+
+		var body struct {
+			URLs        []string `json:"urls"`
+			FullContent bool     `json:"full_content"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		require.Equal(t, []string{"https://example.com"}, body.URLs)
+		require.True(t, body.FullContent)
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{"url": "https://example.com", "title": "Example", "full_content": "Extracted content"},
+			},
+			"errors": []map[string]any{
+				{"url": "https://bad.example", "error_type": "timeout"},
+			},
+		}))
+	}))
+	defer server.Close()
+
+	provider := &ParallelProvider{
+		client: &httpClient{
+			apiKey:  "parallel-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+		maxExtractCharsPerResult: 100,
+	}
+
+	results, err := provider.Extract(context.Background(), []string{"https://example.com"})
+	require.NoError(t, err)
+	require.Equal(t, []ExtractResult{
+		{
+			URL:           "https://example.com",
+			Title:         "Example",
+			Content:       "Extracted content",
+			ContentFormat: "markdown",
+		},
+		{
+			URL:           "https://bad.example",
+			ContentFormat: "markdown",
+			Error:         "timeout",
+		},
+	}, results)
+}
+
+func TestParallelProvider_ExtractFallsBackToExcerptsAndErrorContent(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{"url": "https://example.com", "title": "Example", "excerpts": []string{"first", "second"}},
+			},
+			"errors": []map[string]any{
+				{"url": "https://bad.example", "content": "blocked"},
+				{"url": "https://empty.example"},
+			},
+		}))
+	}))
+	defer server.Close()
+
+	provider := &ParallelProvider{
+		client: &httpClient{
+			apiKey:  "parallel-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+		maxExtractCharsPerResult: 100,
+	}
+
+	results, err := provider.Extract(context.Background(), []string{"https://example.com"})
+	require.NoError(t, err)
+	require.Equal(t, []ExtractResult{
+		{
+			URL:           "https://example.com",
+			Title:         "Example",
+			Content:       "first\n\nsecond",
+			ContentFormat: "markdown",
+		},
+		{
+			URL:           "https://bad.example",
+			ContentFormat: "markdown",
+			Error:         "blocked",
+		},
+		{
+			URL:           "https://empty.example",
+			ContentFormat: "markdown",
+			Error:         "extraction failed",
+		},
+	}, results)
+}
+
+func TestParallelProvider_ExtractReturnsProviderErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "bad credentials", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	provider := &ParallelProvider{
+		client: &httpClient{
+			apiKey:  "parallel-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+	}
+
+	_, err := provider.Extract(context.Background(), []string{"https://example.com"})
+	require.EqualError(t, err, "web provider request failed: bad credentials")
 }
 
 func TestParallelProvider_ParallelHeaders(t *testing.T) {
