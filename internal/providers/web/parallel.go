@@ -72,6 +72,9 @@ func (p *ParallelProvider) Search(ctx context.Context, query string, count int) 
 }
 
 func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]ExtractResult, error) {
+	format := extractFormat(ctx, "markdown")
+	maxChars := extractCharLimit(ctx, p.maxExtractCharsPerResult)
+
 	var response struct {
 		Results []struct {
 			URL         string   `json:"url"`
@@ -98,13 +101,13 @@ func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]Extrac
 		content, truncated, downloadTruncated := limitExtractContent(
 			firstNonEmpty(result.FullContent, strings.Join(result.Excerpts, "\n\n")),
 			p.maxExtractResponseBytes,
-			p.maxExtractCharsPerResult)
+			maxChars)
 
 		results = append(results, ExtractResult{
 			URL:               strings.TrimSpace(result.URL),
 			Title:             strings.TrimSpace(result.Title),
 			Content:           content,
-			ContentFormat:     "markdown",
+			ContentFormat:     format,
 			Truncated:         truncated,
 			DownloadTruncated: downloadTruncated,
 		})
@@ -112,7 +115,7 @@ func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]Extrac
 	for _, result := range response.Errors {
 		results = append(results, ExtractResult{
 			URL:           strings.TrimSpace(result.URL),
-			ContentFormat: "markdown",
+			ContentFormat: format,
 			Error:         firstNonEmpty(result.Content, result.ErrorType, "extraction failed"),
 		})
 	}

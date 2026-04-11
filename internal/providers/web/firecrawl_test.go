@@ -198,6 +198,49 @@ func TestFirecrawlProvider_ExtractNormalizesResults(t *testing.T) {
 	}}, results)
 }
 
+func TestFirecrawlProvider_ExtractUsesContextOptions(t *testing.T) {
+	var captured struct {
+		Formats []string `json:"formats"`
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&captured))
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"text": "abcdef",
+				"metadata": map[string]any{
+					"sourceURL": "https://example.com",
+					"title":     "Example",
+				},
+			},
+		}))
+	}))
+	defer server.Close()
+
+	provider := &FirecrawlProvider{
+		client: &httpClient{
+			apiKey:  "firecrawl-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+		maxExtractCharsPerResult: 100,
+	}
+	ctx := WithExtractOptions(context.Background(), ExtractOptions{Format: "text", MaxChars: 3})
+
+	results, err := provider.Extract(ctx, []string{"https://example.com"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"text"}, captured.Formats)
+	require.Equal(t, []ExtractResult{{
+		URL:           "https://example.com",
+		Title:         "Example",
+		Content:       "abc",
+		ContentFormat: "text",
+		Truncated:     true,
+	}}, results)
+}
+
 func TestFirecrawlProvider_ExtractPreservesPerURLFailures(t *testing.T) {
 	provider := &FirecrawlProvider{client: &httpClient{}}
 

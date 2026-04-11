@@ -43,6 +43,13 @@ type Provider interface {
 	Extract(context.Context, []string) ([]ExtractResult, error)
 }
 
+type extractOptionsContextKey struct{}
+
+type ExtractOptions struct {
+	Format   string
+	MaxChars int
+}
+
 type Options struct {
 	Provider                string
 	APIKey                  string
@@ -66,6 +73,48 @@ func (o Options) Normalize() Options {
 		o.MaxExtractResponseBytes = 0
 	}
 	return o
+}
+
+func WithExtractOptions(ctx context.Context, opts ExtractOptions) context.Context {
+	return context.WithValue(ctx, extractOptionsContextKey{}, opts.Normalize())
+}
+
+func ExtractOptionsFromContext(ctx context.Context) ExtractOptions {
+	if ctx == nil {
+		return ExtractOptions{}
+	}
+
+	opts, _ := ctx.Value(extractOptionsContextKey{}).(ExtractOptions)
+	return opts.Normalize()
+}
+
+func (o ExtractOptions) Normalize() ExtractOptions {
+	o.Format = strings.TrimSpace(strings.ToLower(o.Format))
+	if o.Format != "text" && o.Format != "markdown" {
+		o.Format = ""
+	}
+	if o.MaxChars < 0 {
+		o.MaxChars = 0
+	}
+
+	return o
+}
+
+func extractCharLimit(ctx context.Context, configuredMax int) int {
+	opts := ExtractOptionsFromContext(ctx)
+	if opts.MaxChars > 0 {
+		return opts.MaxChars
+	}
+
+	return configuredMax
+}
+
+func extractFormat(ctx context.Context, defaultFormat string) string {
+	if format := ExtractOptionsFromContext(ctx).Format; format != "" {
+		return format
+	}
+
+	return defaultFormat
 }
 
 func SupportedProvider(name string) bool {

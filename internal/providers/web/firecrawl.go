@@ -86,6 +86,7 @@ func (p *FirecrawlProvider) Extract(ctx context.Context, urls []string) ([]Extra
 
 	type scrapeData struct {
 		Markdown string         `json:"markdown"`
+		Text     string         `json:"text"`
 		HTML     string         `json:"html"`
 		Metadata scrapeMetadata `json:"metadata"`
 	}
@@ -95,6 +96,8 @@ func (p *FirecrawlProvider) Extract(ctx context.Context, urls []string) ([]Extra
 		Data    scrapeData `json:"data"`
 	}
 
+	format := extractFormat(ctx, "markdown")
+	maxChars := extractCharLimit(ctx, p.maxExtractCharsPerResult)
 	results := make([]ExtractResult, 0, len(urls))
 	for _, rawURL := range urls {
 		url := strings.TrimSpace(rawURL)
@@ -103,7 +106,7 @@ func (p *FirecrawlProvider) Extract(ctx context.Context, urls []string) ([]Extra
 		err := p.client.postJSON(ctx, "/v2/scrape", map[string]any{
 			"url": url,
 			"formats": []string{
-				"markdown",
+				format,
 			},
 			"onlyMainContent": true,
 			"parsers": []string{
@@ -113,22 +116,22 @@ func (p *FirecrawlProvider) Extract(ctx context.Context, urls []string) ([]Extra
 		if err != nil {
 			results = append(results, ExtractResult{
 				URL:           url,
-				ContentFormat: "markdown",
+				ContentFormat: format,
 				Error:         err.Error(),
 			})
 			continue
 		}
 
 		content, truncated, downloadTruncated := limitExtractContent(
-			firstNonEmpty(response.Data.Markdown, response.Data.HTML),
+			firstNonEmpty(response.Data.Text, response.Data.Markdown, response.Data.HTML),
 			p.maxExtractResponseBytes,
-			p.maxExtractCharsPerResult)
+			maxChars)
 
 		results = append(results, ExtractResult{
 			URL:               firstNonEmpty(response.Data.Metadata.SourceURL, url),
 			Title:             strings.TrimSpace(response.Data.Metadata.Title),
 			Content:           content,
-			ContentFormat:     "markdown",
+			ContentFormat:     format,
 			Truncated:         truncated,
 			DownloadTruncated: downloadTruncated,
 		})

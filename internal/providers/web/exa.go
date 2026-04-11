@@ -75,6 +75,9 @@ func (p *ExaProvider) Search(ctx context.Context, query string, count int) ([]Se
 }
 
 func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResult, error) {
+	format := extractFormat(ctx, "text")
+	maxChars := extractCharLimit(ctx, p.maxExtractCharsPerResult)
+
 	var response struct {
 		Results []struct {
 			URL   string `json:"url"`
@@ -95,7 +98,7 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 	if err := p.client.postJSON(ctx, "/contents", map[string]any{
 		"urls": urls,
 		"text": map[string]any{
-			"maxCharacters": p.maxExtractCharsPerResult,
+			"maxCharacters": maxChars,
 		},
 	}, p.exaHeaders(), &response); err != nil {
 		return nil, err
@@ -116,14 +119,14 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 		content, truncated, downloadTruncated := limitExtractContent(
 			result.Text,
 			p.maxExtractResponseBytes,
-			p.maxExtractCharsPerResult)
+			maxChars)
 		seen[url] = struct{}{}
 
 		results = append(results, ExtractResult{
 			URL:               url,
 			Title:             strings.TrimSpace(result.Title),
 			Content:           content,
-			ContentFormat:     "text",
+			ContentFormat:     format,
 			Truncated:         truncated,
 			DownloadTruncated: downloadTruncated,
 			Error:             firstNonEmpty(result.Error, statusByURL[url]),
@@ -137,7 +140,7 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 
 		results = append(results, ExtractResult{
 			URL:           url,
-			ContentFormat: "text",
+			ContentFormat: format,
 			Error:         exaStatusError(status.Error.Tag, status.Error.HTTPStatusCode),
 		})
 	}

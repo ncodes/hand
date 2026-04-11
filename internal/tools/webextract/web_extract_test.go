@@ -132,12 +132,14 @@ func TestWebExtract_ReturnsProviderResults(t *testing.T) {
 
 func TestWebExtract_AppliesPerCallMaxChars(t *testing.T) {
 	registry := registerTool(t, stubProvider{
-		extract: func(_ context.Context, urls []string) ([]webprovider.ExtractResult, error) {
+		extract: func(ctx context.Context, urls []string) ([]webprovider.ExtractResult, error) {
 			require.Equal(t, []string{"https://example.com"}, urls)
+			require.Equal(t, webprovider.ExtractOptions{MaxChars: 3}, webprovider.ExtractOptionsFromContext(ctx))
 			return []webprovider.ExtractResult{{
 				URL:           "https://example.com",
-				Content:       "abcdef",
+				Content:       "abc",
 				ContentFormat: "text",
+				Truncated:     true,
 			}}, nil
 		},
 	}, Options{MaxExtractCharPerResult: 10})
@@ -160,12 +162,14 @@ func TestWebExtract_AppliesPerCallMaxChars(t *testing.T) {
 
 func TestWebExtract_ClampsPerCallMaxCharsToConfiguredMax(t *testing.T) {
 	registry := registerTool(t, stubProvider{
-		extract: func(_ context.Context, urls []string) ([]webprovider.ExtractResult, error) {
+		extract: func(ctx context.Context, urls []string) ([]webprovider.ExtractResult, error) {
 			require.Equal(t, []string{"https://example.com"}, urls)
+			require.Equal(t, webprovider.ExtractOptions{MaxChars: 4}, webprovider.ExtractOptionsFromContext(ctx))
 			return []webprovider.ExtractResult{{
 				URL:           "https://example.com",
-				Content:       "abcdef",
+				Content:       "abcd",
 				ContentFormat: "text",
+				Truncated:     true,
 			}}, nil
 		},
 	}, Options{MaxExtractCharPerResult: 4})
@@ -203,6 +207,102 @@ func TestWebExtract_RejectsInvalidMaxChars(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
 	require.Equal(t, "invalid_input", toolErr.Code)
 	require.Equal(t, "max_chars must be greater than zero", toolErr.Message)
+}
+
+func TestWebExtract_AppliesTextFormat(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(ctx context.Context, urls []string) ([]webprovider.ExtractResult, error) {
+			require.Equal(t, []string{"https://example.com"}, urls)
+			require.Equal(t, webprovider.ExtractOptions{Format: "text"}, webprovider.ExtractOptionsFromContext(ctx))
+			return []webprovider.ExtractResult{{
+				URL:           "https://example.com",
+				Content:       "Title\n\nRead docs and ship it.",
+				ContentFormat: "text",
+			}}, nil
+		},
+	})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://example.com"],"format":"text"}`,
+	})
+	require.NoError(t, err)
+
+	var payload struct {
+		Results []webprovider.ExtractResult `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Len(t, payload.Results, 1)
+	require.Equal(t, "text", payload.Results[0].ContentFormat)
+	require.Equal(t, "Title\n\nRead docs and ship it.", payload.Results[0].Content)
+}
+
+func TestWebExtract_AppliesExtractModeAlias(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(ctx context.Context, urls []string) ([]webprovider.ExtractResult, error) {
+			require.Equal(t, []string{"https://example.com"}, urls)
+			require.Equal(t, webprovider.ExtractOptions{Format: "markdown"}, webprovider.ExtractOptionsFromContext(ctx))
+			return []webprovider.ExtractResult{{
+				URL:           "https://example.com",
+				Content:       "plain content",
+				ContentFormat: "markdown",
+			}}, nil
+		},
+	})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://example.com"],"extract_mode":"markdown"}`,
+	})
+	require.NoError(t, err)
+
+	var payload struct {
+		Results []webprovider.ExtractResult `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Len(t, payload.Results, 1)
+	require.Equal(t, "markdown", payload.Results[0].ContentFormat)
+	require.Equal(t, "plain content", payload.Results[0].Content)
+}
+
+func TestWebExtract_RejectsInvalidFormat(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(context.Context, []string) ([]webprovider.ExtractResult, error) {
+			t.Fatal("extract should not be called")
+			return nil, nil
+		},
+	})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://example.com"],"format":"html"}`,
+	})
+	require.NoError(t, err)
+
+	var toolErr tools.Error
+	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+	require.Equal(t, "invalid_input", toolErr.Code)
+	require.Equal(t, "format must be text or markdown", toolErr.Message)
+}
+
+func TestWebExtract_RejectsConflictingFormatAliases(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(context.Context, []string) ([]webprovider.ExtractResult, error) {
+			t.Fatal("extract should not be called")
+			return nil, nil
+		},
+	})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://example.com"],"format":"text","extract_mode":"markdown"}`,
+	})
+	require.NoError(t, err)
+
+	var toolErr tools.Error
+	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+	require.Equal(t, "invalid_input", toolErr.Code)
+	require.Equal(t, "format and extract_mode must match when both are provided", toolErr.Message)
 }
 
 func TestWebExtract_PreservesPartialFailures(t *testing.T) {
@@ -270,32 +370,4 @@ func TestWebExtract_RequiresNetworkCapability(t *testing.T) {
 	withoutNetwork, err := registry.Resolve(tools.Policy{})
 	require.NoError(t, err)
 	require.Empty(t, withoutNetwork)
-}
-
-func TestTruncateContent_ReturnsEmptyContent(t *testing.T) {
-	content, truncated := truncateContent("   ", 3)
-
-	require.Empty(t, content)
-	require.False(t, truncated)
-}
-
-func TestTruncateContent_ReturnsOriginalWhenLimitDisabled(t *testing.T) {
-	content, truncated := truncateContent(" abc ", 0)
-
-	require.Equal(t, "abc", content)
-	require.False(t, truncated)
-}
-
-func TestTruncateContent_ReturnsOriginalWhenWithinLimit(t *testing.T) {
-	content, truncated := truncateContent("abc", 3)
-
-	require.Equal(t, "abc", content)
-	require.False(t, truncated)
-}
-
-func TestTruncateContent_TruncatesByRunes(t *testing.T) {
-	content, truncated := truncateContent("aé世b", 3)
-
-	require.Equal(t, "aé世", content)
-	require.True(t, truncated)
 }

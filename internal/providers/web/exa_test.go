@@ -291,6 +291,47 @@ func TestExaProvider_ExtractNormalizesResults(t *testing.T) {
 	}, results)
 }
 
+func TestExaProvider_ExtractUsesContextOptions(t *testing.T) {
+	var captured struct {
+		Text struct {
+			MaxCharacters int `json:"maxCharacters"`
+		} `json:"text"`
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&captured))
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{"url": "https://example.com", "title": "Example", "text": "abcdef"},
+			},
+		}))
+	}))
+	defer server.Close()
+
+	provider := &ExaProvider{
+		client: &httpClient{
+			apiKey:  "exa-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+		maxExtractCharsPerResult: 100,
+	}
+	ctx := WithExtractOptions(context.Background(), ExtractOptions{Format: "markdown", MaxChars: 3})
+
+	results, err := provider.Extract(ctx, []string{"https://example.com"})
+	require.NoError(t, err)
+	require.Equal(t, 3, captured.Text.MaxCharacters)
+	require.Equal(t, []ExtractResult{{
+		URL:           "https://example.com",
+		Title:         "Example",
+		Content:       "abc",
+		ContentFormat: "markdown",
+		Truncated:     true,
+	}}, results)
+}
+
 func TestExaProvider_ExtractUsesResultErrorAndSkipsSeenStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

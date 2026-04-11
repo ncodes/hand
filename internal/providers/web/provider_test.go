@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,38 @@ func TestOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {
 	require.Zero(t, opts.MaxCharPerResult)
 	require.Zero(t, opts.MaxExtractCharPerResult)
 	require.Zero(t, opts.MaxExtractResponseBytes)
+}
+
+func TestExtractOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {
+	opts := ExtractOptions{Format: " TEXT ", MaxChars: -10}.Normalize()
+	require.Equal(t, "text", opts.Format)
+	require.Zero(t, opts.MaxChars)
+
+	opts = ExtractOptions{Format: "html", MaxChars: 10}.Normalize()
+	require.Empty(t, opts.Format)
+	require.Equal(t, 10, opts.MaxChars)
+}
+
+func TestWithExtractOptions_RoundTripsNormalizedOptions(t *testing.T) {
+	ctx := WithExtractOptions(context.Background(), ExtractOptions{Format: " MARKDOWN ", MaxChars: 12})
+
+	require.Equal(t, ExtractOptions{Format: "markdown", MaxChars: 12}, ExtractOptionsFromContext(ctx))
+	require.Equal(t, ExtractOptions{}, ExtractOptionsFromContext(context.Background()))
+	require.Equal(t, ExtractOptions{}, ExtractOptionsFromContext(nil))
+}
+
+func TestExtractCharLimit_UsesRequestLimitWhenPresent(t *testing.T) {
+	ctx := WithExtractOptions(context.Background(), ExtractOptions{MaxChars: 12})
+
+	require.Equal(t, 12, extractCharLimit(ctx, 50))
+	require.Equal(t, 50, extractCharLimit(context.Background(), 50))
+}
+
+func TestExtractFormat_UsesRequestFormatWhenPresent(t *testing.T) {
+	ctx := WithExtractOptions(context.Background(), ExtractOptions{Format: "text"})
+
+	require.Equal(t, "text", extractFormat(ctx, "markdown"))
+	require.Equal(t, "markdown", extractFormat(context.Background(), "markdown"))
 }
 
 func TestResolveOptions_UsesDetectedProviderFallback(t *testing.T) {

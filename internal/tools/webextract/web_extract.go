@@ -18,8 +18,10 @@ type Options struct {
 
 func Definition(provider webprovider.Provider, options ...Options) tools.Definition {
 	type input struct {
-		URLs     []string `json:"urls"`
-		MaxChars *int     `json:"max_chars"`
+		URLs        []string `json:"urls"`
+		MaxChars    *int     `json:"max_chars"`
+		Format      string   `json:"format"`
+		ExtractMode string   `json:"extract_mode"`
 	}
 
 	opts := resolveOptions(options)
@@ -36,8 +38,21 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 				"description": "URLs to extract readable content from.",
 				"items":       common.StringSchema("URL to fetch and extract."),
 			},
+
 			"max_chars": common.IntegerSchema("Optional maximum characters to return per extracted page. " +
 				"Values above configured maxExtractCharPerResult are clamped."),
+
+			"format": map[string]any{
+				"type":        "string",
+				"description": "Optional output content format. Valid values are text or markdown.",
+				"enum":        []string{"text", "markdown"},
+			},
+
+			"extract_mode": map[string]any{
+				"type":        "string",
+				"description": "Alias for format. Valid values are text or markdown.",
+				"enum":        []string{"text", "markdown"},
+			},
 		}, "urls"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
@@ -69,16 +84,43 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 				return common.ToolError("invalid_input", validationErr.Error()), nil
 			}
 
+			format, validationErr := resolveFormat(req.Format, req.ExtractMode)
+			if validationErr != nil {
+				return common.ToolError("invalid_input", validationErr.Error()), nil
+			}
+
+			ctx = webprovider.WithExtractOptions(ctx, webprovider.ExtractOptions{
+				Format:   format,
+				MaxChars: maxChars,
+			})
+
 			results, err := provider.Extract(ctx, urls)
 			if err != nil {
 				return common.ToolError("tool_error", err.Error()), nil
 			}
 
-			results = limitResults(results, maxChars)
-
 			return common.EncodeOutput(map[string]any{"results": results})
 		}),
 	}
+}
+
+func resolveFormat(format, extractMode string) (string, error) {
+	format = strings.TrimSpace(strings.ToLower(format))
+	extractMode = strings.TrimSpace(strings.ToLower(extractMode))
+	if format != "" && extractMode != "" && format != extractMode {
+		return "", fmt.Errorf("format and extract_mode must match when both are provided")
+	}
+	if format == "" {
+		format = extractMode
+	}
+	if format == "" {
+		return "", nil
+	}
+	if format != "text" && format != "markdown" {
+		return "", fmt.Errorf("format must be text or markdown")
+	}
+
+	return format, nil
 }
 
 func resolveOptions(options []Options) Options {
@@ -101,34 +143,4 @@ func resolveRequestMaxChars(requested *int, configuredMax int) (int, error) {
 	}
 
 	return *requested, nil
-}
-
-func limitResults(results []webprovider.ExtractResult, maxChars int) []webprovider.ExtractResult {
-	if maxChars <= 0 {
-		return results
-	}
-
-	limited := make([]webprovider.ExtractResult, len(results))
-	copy(limited, results)
-	for idx := range limited {
-		content, truncated := truncateContent(limited[idx].Content, maxChars)
-		limited[idx].Content = content
-		limited[idx].Truncated = limited[idx].Truncated || truncated
-	}
-
-	return limited
-}
-
-func truncateContent(value string, maxChars int) (string, bool) {
-	value = strings.TrimSpace(value)
-	if value == "" || maxChars <= 0 {
-		return value, false
-	}
-
-	runes := []rune(value)
-	if len(runes) <= maxChars {
-		return value, false
-	}
-
-	return strings.TrimSpace(string(runes[:maxChars])), true
 }

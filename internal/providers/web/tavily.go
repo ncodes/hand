@@ -70,6 +70,9 @@ func (p *TavilyProvider) Search(ctx context.Context, query string, count int) ([
 }
 
 func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractResult, error) {
+	format := extractFormat(ctx, "markdown")
+	maxChars := extractCharLimit(ctx, p.maxExtractCharsPerResult)
+
 	var response struct {
 		Results []struct {
 			URL        string `json:"url"`
@@ -87,7 +90,7 @@ func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 	if err := p.client.postJSON(ctx, "/extract", map[string]any{
 		"urls":             urls,
 		"extract_depth":    "basic",
-		"format":           "markdown",
+		"format":           format,
 		"include_images":   false,
 		"include_raw_html": false,
 	}, p.client.authorizationHeaders(), &response); err != nil {
@@ -99,13 +102,13 @@ func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 		content, truncated, downloadTruncated := limitExtractContent(
 			firstNonEmpty(result.RawContent, result.Content),
 			p.maxExtractResponseBytes,
-			p.maxExtractCharsPerResult)
+			maxChars)
 
 		results = append(results, ExtractResult{
 			URL:               strings.TrimSpace(result.URL),
 			Title:             strings.TrimSpace(result.Title),
 			Content:           content,
-			ContentFormat:     "markdown",
+			ContentFormat:     format,
 			Truncated:         truncated,
 			DownloadTruncated: downloadTruncated,
 		})
@@ -113,14 +116,14 @@ func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 	for _, result := range response.FailedResults {
 		results = append(results, ExtractResult{
 			URL:           strings.TrimSpace(result.URL),
-			ContentFormat: "markdown",
+			ContentFormat: format,
 			Error:         firstNonEmpty(result.Error, "extraction failed"),
 		})
 	}
 	for _, url := range response.FailedURLs {
 		results = append(results, ExtractResult{
 			URL:           strings.TrimSpace(url),
-			ContentFormat: "markdown",
+			ContentFormat: format,
 			Error:         "extraction failed",
 		})
 	}
