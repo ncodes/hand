@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -175,6 +176,55 @@ func TestBuildBase_IncludesResponseStyleGuidance(t *testing.T) {
 	require.Contains(t, instructions[0].Value, "Preserve the user's intent")
 	require.Contains(t, instructions[0].Value, "avoid unnecessary verbosity")
 	require.Contains(t, instructions[0].Value, "summarize completed work clearly when stopping or blocked")
+}
+
+func TestBuildEnvironmentContext_ReturnsNamedInstructionWithRuntimeFacts(t *testing.T) {
+	location := time.FixedZone("WAT", 3600)
+	instruction := BuildEnvironmentContext(EnvironmentContext{
+		Now:              time.Date(2026, 4, 11, 17, 30, 0, 0, location),
+		Timezone:         "Africa/Lagos",
+		OS:               "darwin",
+		Architecture:     "arm64",
+		Platform:         "cli",
+		WorkingDirectory: "/workspace/hand",
+		FilesystemRoots:  []string{"/workspace/hand", "   "},
+		Capabilities: EnvironmentCapabilities{
+			Filesystem: true,
+			Network:    true,
+			Exec:       true,
+			Memory:     true,
+			Browser:    false,
+		},
+		HasCapabilities:  true,
+		ActiveToolGroups: []string{"core"},
+		ActiveTools:      []string{"time", "read_file"},
+		Model:            "openai/gpt-5.1",
+		ModelProvider:    "openrouter",
+		APIMode:          "responses",
+		SessionID:        "ses_123",
+	})
+
+	require.Equal(t, EnvironmentContextInstructionName, instruction.Name)
+	require.Contains(t, instruction.Value, "# Environment Context")
+	require.Contains(t, instruction.Value, "- Current date: 2026-04-11")
+	require.Contains(t, instruction.Value, "- Current time: 2026-04-11T17:30:00+01:00")
+	require.Contains(t, instruction.Value, "- Timezone: Africa/Lagos")
+	require.Contains(t, instruction.Value, "- OS: darwin")
+	require.Contains(t, instruction.Value, "- Architecture: arm64")
+	require.Contains(t, instruction.Value, "- Platform: cli")
+	require.Contains(t, instruction.Value, "- Working directory: /workspace/hand")
+	require.Contains(t, instruction.Value, "- Filesystem roots: /workspace/hand")
+	require.Contains(t, instruction.Value, "- Capabilities: filesystem=true, network=true, exec=true, memory=true, browser=false")
+	require.Contains(t, instruction.Value, "- Active tool groups: core")
+	require.Contains(t, instruction.Value, "- Active tools: time, read_file")
+	require.Contains(t, instruction.Value, "- Model: openai/gpt-5.1")
+	require.Contains(t, instruction.Value, "- Model provider: openrouter")
+	require.Contains(t, instruction.Value, "- API mode: responses")
+	require.Contains(t, instruction.Value, "- Session ID: ses_123")
+}
+
+func TestBuildEnvironmentContext_ReturnsEmptyNamedInstructionWithoutFacts(t *testing.T) {
+	require.Equal(t, Instruction{Name: EnvironmentContextInstructionName}, BuildEnvironmentContext(EnvironmentContext{}))
 }
 
 func TestBuildPlanningPolicy_ReturnsNamedPlanningInstruction(t *testing.T) {

@@ -1150,6 +1150,74 @@ func TestTurn_RequestInstructions_HandlesNilTurnAndAppendsExtra(t *testing.T) {
 	require.Equal(t, "base\n\nextra", turn.buildRequestInstructions(instructions.New("extra")))
 }
 
+func TestTurn_RequestInstructionsWithTools_AppendsEnvironmentContextBeforeExtras(t *testing.T) {
+	originalNow := environmentContextNow
+	originalGetwd := environmentContextGetwd
+	t.Cleanup(func() {
+		environmentContextNow = originalNow
+		environmentContextGetwd = originalGetwd
+	})
+
+	location := time.FixedZone("WAT", 3600)
+	environmentContextNow = func() time.Time {
+		return time.Date(2026, 4, 11, 17, 30, 0, 0, location)
+	}
+	environmentContextGetwd = func() (string, error) {
+		return "/workspace/hand", nil
+	}
+
+	turn := &Turn{
+		cfg: &config.Config{
+			Platform:       "cli",
+			FSRoots:        []string{"/workspace/hand"},
+			Model:          "openai/gpt-5.1",
+			ModelProvider:  "openrouter",
+			ModelAPIMode:   "responses",
+			MaxIterations:  3,
+			ContextLength:  128000,
+			StorageBackend: "memory",
+		},
+		env: &mocks.EnvironmentStub{
+			Policy: tools.Policy{
+				Platform: "cli",
+				Capabilities: tools.Capabilities{
+					Filesystem: true,
+					Network:    true,
+					Exec:       true,
+					Memory:     true,
+				},
+			},
+			ToolRegistry: &mocks.ToolRegistryStub{
+				Groups: []tools.Group{{Name: "core"}},
+			},
+		},
+		sessionID:    "ses_123",
+		instructions: instructions.New("base"),
+		memory:       &memory.Memory{},
+	}
+
+	rendered := turn.buildRequestInstructionsWithTools(
+		[]models.ToolDefinition{{Name: "time"}, {Name: "read_file"}},
+		instructions.New("extra"),
+	)
+
+	require.Contains(t, rendered, "# Environment Context")
+	require.Contains(t, rendered, "- Current date: 2026-04-11")
+	require.Contains(t, rendered, "- Current time: 2026-04-11T17:30:00+01:00")
+	require.Contains(t, rendered, "- OS:")
+	require.Contains(t, rendered, "- Working directory: /workspace/hand")
+	require.Contains(t, rendered, "- Filesystem roots: /workspace/hand")
+	require.Contains(t, rendered, "- Capabilities: filesystem=true, network=true, exec=true, memory=true, browser=false")
+	require.Contains(t, rendered, "- Active tool groups: core")
+	require.Contains(t, rendered, "- Active tools: read_file, time")
+	require.Contains(t, rendered, "- Model: openai/gpt-5.1")
+	require.Contains(t, rendered, "- Model provider: openrouter")
+	require.Contains(t, rendered, "- API mode: responses")
+	require.Contains(t, rendered, "- Session ID: ses_123")
+	require.True(t, strings.Index(rendered, "base") < strings.Index(rendered, "# Environment Context"))
+	require.True(t, strings.Index(rendered, "# Environment Context") < strings.Index(rendered, "extra"))
+}
+
 func TestTurn_RequestInstructions_IncludeActivePlanOnly(t *testing.T) {
 	turn := &Turn{
 		sessionID: "session-1",
@@ -1967,7 +2035,9 @@ func TestAgent_RespondAppendsConversationAcrossTurns(t *testing.T) {
 
 	require.Len(t, client.Requests, 2)
 	require.Equal(t, models.APIModeResponses, client.Requests[0].APIMode)
-	require.Equal(t, "system prompt", client.Requests[0].Instructions)
+	require.True(t, strings.HasPrefix(client.Requests[0].Instructions, "system prompt\n\n# Environment Context"))
+	require.Contains(t, client.Requests[0].Instructions, "- Model: test-model")
+	require.Contains(t, client.Requests[0].Instructions, "- Session ID: default")
 	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello",
 		CreatedAt: client.Requests[0].Messages[0].CreatedAt}}, client.Requests[0].Messages)
 
@@ -2010,7 +2080,10 @@ func TestAgent_RespondAppendsRequestInstructLast(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "hello back", reply)
-	require.Equal(t, "base\n\nconfigured temporary\n\nrequest temporary", client.Requests[0].Instructions)
+	rendered := client.Requests[0].Instructions
+	require.True(t, strings.Index(rendered, "base") < strings.Index(rendered, "configured temporary"))
+	require.True(t, strings.Index(rendered, "configured temporary") < strings.Index(rendered, "# Environment Context"))
+	require.True(t, strings.Index(rendered, "# Environment Context") < strings.Index(rendered, "request temporary"))
 	require.Equal(t, instructions.Instructions{
 		{Value: "base"},
 		{Name: "config.instruct", Value: "configured temporary"},

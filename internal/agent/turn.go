@@ -217,7 +217,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		request := models.Request{
 			Model:         t.cfg.Model,
 			APIMode:       t.cfg.ModelAPIMode,
-			Instructions:  t.buildRequestInstructions(),
+			Instructions:  t.buildRequestInstructionsWithTools(availableToolDefinitions),
 			Messages:      t.Context(),
 			Tools:         availableToolDefinitions,
 			DebugRequests: t.cfg.DebugRequests,
@@ -235,7 +235,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		}
 
 		// Refresh may persist a new session summary; rebuild instructions after it.
-		request.Instructions = t.buildRequestInstructions()
+		request.Instructions = t.buildRequestInstructionsWithTools(availableToolDefinitions)
 		request.Messages = t.Context()
 		t.memory.RecordSummaryApplied(traceSession)
 		recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
@@ -443,7 +443,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget environment.Iteration
 	request := models.Request{
 		Model:         t.cfg.Model,
 		APIMode:       t.cfg.ModelAPIMode,
-		Instructions:  t.buildRequestInstructions(instruct.BuildSummary(budget.Remaining())),
+		Instructions:  t.buildRequestInstructionsWithTools(nil, instruct.BuildSummary(budget.Remaining())),
 		Messages:      t.Context(),
 		Tools:         nil,
 		DebugRequests: t.cfg.DebugRequests,
@@ -497,8 +497,24 @@ func (t *Turn) summaryFallback(ctx context.Context, budget environment.Iteration
 
 // buildRequestInstructions assembles the system prompt sent to the model in this order:
 // planning policy, hydrated active plan context, remaining base instructions, optional
-// persisted memory summary, optional request-scoped instruction, then any extra blocks.
+// persisted memory summary, optional environment context, optional request-scoped
+// instruction, then any extra blocks.
 func (t *Turn) buildRequestInstructions(extra ...instruct.Instructions) string {
+	return t.buildRequestInstructionsCore(false, nil, extra...)
+}
+
+func (t *Turn) buildRequestInstructionsWithTools(
+	activeToolDefinitions []models.ToolDefinition,
+	extra ...instruct.Instructions,
+) string {
+	return t.buildRequestInstructionsCore(true, activeToolDefinitions, extra...)
+}
+
+func (t *Turn) buildRequestInstructionsCore(
+	includeEnvironmentContext bool,
+	activeToolDefinitions []models.ToolDefinition,
+	extra ...instruct.Instructions,
+) string {
 	if t == nil {
 		return ""
 	}
@@ -529,7 +545,12 @@ func (t *Turn) buildRequestInstructions(extra ...instruct.Instructions) string {
 		}
 	}
 
-	// Append the per-request instruction after summary context.
+	if includeEnvironmentContext {
+		environmentContext := t.buildEnvironmentContextInstruction(activeToolDefinitions)
+		instructions = instructions.Append(environmentContext)
+	}
+
+	// Append the per-request instruction after summary and environment context.
 	if hasRequestInstruction {
 		instructions = instructions.Append(requestInstruction)
 	}
