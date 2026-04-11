@@ -129,6 +129,15 @@ func NewEnvironment(ctx context.Context, cfg *config.Config) Environment {
 }
 
 func (e *environment) Prepare() error {
+	if e == nil {
+		return errors.New("environment is required")
+	}
+	if e.cfg == nil {
+		return errors.New("config is required")
+	}
+
+	e.cfg.Normalize()
+
 	if err := e.prepareTools(); err != nil {
 		return err
 	}
@@ -161,7 +170,9 @@ func (e *environment) prepareTools() error {
 	case err != nil:
 		return err
 	default:
-		definitions = append(definitions, webextract.Definition(webProvider), websearch.Definition(webProvider))
+		definitions = append(definitions, webextract.Definition(webProvider, webextract.Options{
+			MaxExtractCharPerResult: e.cfg.WebMaxExtractCharPerResult,
+		}), websearch.Definition(webProvider))
 	}
 
 	for _, definition := range definitions {

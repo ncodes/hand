@@ -62,6 +62,46 @@ func TestEnvironment_PrepareAddsFullBaseInstructionStack(t *testing.T) {
 	), env.Instructions())
 }
 
+func TestEnvironment_PrepareRequiresConfig(t *testing.T) {
+	env := NewEnvironment(gctx.Background(), nil)
+
+	err := env.Prepare()
+
+	require.EqualError(t, err, "config is required")
+}
+
+func TestEnvironment_PrepareRequiresEnvironment(t *testing.T) {
+	var env *environment
+
+	err := env.Prepare()
+
+	require.EqualError(t, err, "environment is required")
+}
+
+func TestEnvironment_PrepareNormalizesConfig(t *testing.T) {
+	previousPersonality := loadPersonality
+	previous := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previous
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
+	cfg := &config.Config{Name: " Test Agent ", DebugTraceDir: t.TempDir()}
+	env := NewEnvironment(gctx.Background(), cfg)
+
+	require.NoError(t, env.Prepare())
+	require.Equal(t, "Test Agent", cfg.Name)
+	require.Equal(t, config.DefaultWebMaxExtractCharPerResult, cfg.WebMaxExtractCharPerResult)
+	require.NotNil(t, cfg.CapNetwork)
+	require.True(t, *cfg.CapNetwork)
+}
+
 func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
 	previousPersonality := loadPersonality
 	previous := loadWorkspaceRules
