@@ -226,6 +226,11 @@ func limitExtractContent(value string, maxBytes, maxChars int) (string, bool, bo
 	return content, downloadTruncated || charTruncated, downloadTruncated
 }
 
+func isResponseTooLarge(err error) bool {
+	var tooLarge responseTooLargeError
+	return errors.As(err, &tooLarge)
+}
+
 func truncateToMaxBytes(value string, maxBytes int) (string, bool) {
 	value = strings.TrimSpace(value)
 	if value == "" || maxBytes <= 0 {

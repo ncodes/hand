@@ -99,7 +99,7 @@ func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 		payload["query"] = query
 	}
 
-	if err := p.client.postJSON(ctx, "/extract", payload, p.client.authorizationHeaders(), &response); err != nil {
+	if err := p.client.postJSONLimited(ctx, "/extract", payload, p.client.authorizationHeaders(), &response, p.maxExtractResponseBytes); err != nil {
 		return nil, err
 	}
 

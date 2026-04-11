@@ -251,3 +251,26 @@ func TestFirecrawlProvider_ExtractPreservesPerURLFailures(t *testing.T) {
 	require.Equal(t, "markdown", results[0].ContentFormat)
 	require.NotEmpty(t, results[0].Error)
 }
+
+func TestFirecrawlProvider_ExtractMarksOversizedResponsesAsDownloadTruncated(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"markdown":"abcdef"}}`))
+	}))
+	defer server.Close()
+
+	provider := &FirecrawlProvider{
+		client: &httpClient{
+			apiKey:  "firecrawl-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+		maxExtractResponseBytes: 5,
+	}
+
+	results, err := provider.Extract(context.Background(), []string{"https://example.com"})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.True(t, results[0].DownloadTruncated)
+	require.Equal(t, "web provider response exceeds 5 bytes", results[0].Error)
+}

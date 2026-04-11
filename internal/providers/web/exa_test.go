@@ -388,6 +388,27 @@ func TestExaProvider_ExtractReturnsProviderErrors(t *testing.T) {
 	require.EqualError(t, err, "web provider request failed: bad credentials")
 }
 
+func TestExaProvider_ExtractRejectsOversizedResponses(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"results":[{"url":"https://example.com","text":"abcdef"}]}`))
+	}))
+	defer server.Close()
+
+	provider := &ExaProvider{
+		client: &httpClient{
+			apiKey:  "exa-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+		maxExtractResponseBytes: 5,
+	}
+
+	_, err := provider.Extract(context.Background(), []string{"https://example.com"})
+	require.EqualError(t, err, "web provider response exceeds 5 bytes")
+	require.True(t, isResponseTooLarge(err))
+}
+
 func TestExaStatusError_FormatsFallbacks(t *testing.T) {
 	require.Equal(t, "extraction failed", exaStatusError("", 0))
 	require.Equal(t, "TIMEOUT", exaStatusError("TIMEOUT", 0))

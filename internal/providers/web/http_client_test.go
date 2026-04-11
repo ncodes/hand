@@ -72,6 +72,37 @@ func TestHTTPClient_PostJSONReturnsDecodeErrors(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestHTTPClient_PostJSONLimitedRejectsOversizedResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"content":"abcdef"}`))
+	}))
+	defer server.Close()
+
+	client := &httpClient{baseURL: server.URL, client: server.Client()}
+
+	err := client.postJSONLimited(context.Background(), "/extract", map[string]any{"url": "https://example.com"}, nil, &map[string]any{}, 5)
+
+	require.EqualError(t, err, "web provider response exceeds 5 bytes")
+	require.True(t, isResponseTooLarge(err))
+}
+
+func TestHTTPClient_PostJSONLimitedDecodesWithinLimit(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	client := &httpClient{baseURL: server.URL, client: server.Client()}
+	var payload map[string]any
+
+	err := client.postJSONLimited(context.Background(), "/extract", map[string]any{"url": "https://example.com"}, nil, &payload, 64)
+
+	require.NoError(t, err)
+	require.Equal(t, true, payload["ok"])
+}
+
 func TestHTTPClient_PostJSONReturnsMarshalErrors(t *testing.T) {
 	client := &httpClient{baseURL: "https://example.com"}
 

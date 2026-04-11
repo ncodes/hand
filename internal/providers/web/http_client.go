@@ -16,12 +16,31 @@ type httpClient struct {
 	client  *http.Client
 }
 
+type responseTooLargeError struct {
+	Limit int
+}
+
+func (e responseTooLargeError) Error() string {
+	return fmt.Sprintf("web provider response exceeds %d bytes", e.Limit)
+}
+
 func (p *httpClient) postJSON(
 	ctx context.Context,
 	path string,
 	payload any,
 	headers map[string]string,
 	target any,
+) error {
+	return p.postJSONLimited(ctx, path, payload, headers, target, 0)
+}
+
+func (p *httpClient) postJSONLimited(
+	ctx context.Context,
+	path string,
+	payload any,
+	headers map[string]string,
+	target any,
+	maxResponseBytes int,
 ) error {
 	client := p.client
 	if client == nil {
@@ -67,7 +86,19 @@ func (p *httpClient) postJSON(
 		return fmt.Errorf("web provider request failed: %s", message)
 	}
 
-	return json.NewDecoder(resp.Body).Decode(target)
+	if maxResponseBytes <= 0 {
+		return json.NewDecoder(resp.Body).Decode(target)
+	}
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, int64(maxResponseBytes)+1))
+	if err != nil {
+		return err
+	}
+	if len(data) > maxResponseBytes {
+		return responseTooLargeError{Limit: maxResponseBytes}
+	}
+
+	return json.Unmarshal(data, target)
 }
 
 func (p *httpClient) authorizationHeaders() map[string]string {

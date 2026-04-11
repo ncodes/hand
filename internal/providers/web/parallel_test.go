@@ -307,7 +307,7 @@ func TestParallelProvider_ExtractFallsBackToExcerptsAndErrorContent(t *testing.T
 	}, results)
 }
 
-func TestParallelProvider_ExtractMarksDownloadTruncated(t *testing.T) {
+func TestParallelProvider_ExtractTruncatesByConfiguredCharLimit(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
@@ -324,8 +324,8 @@ func TestParallelProvider_ExtractMarksDownloadTruncated(t *testing.T) {
 			baseURL: server.URL,
 			client:  server.Client(),
 		},
-		maxExtractCharsPerResult: 100,
-		maxExtractResponseBytes:  4,
+		maxExtractCharsPerResult: 4,
+		maxExtractResponseBytes:  1024,
 	}
 
 	results, err := provider.Extract(context.Background(), []string{"https://example.com"})
@@ -336,7 +336,7 @@ func TestParallelProvider_ExtractMarksDownloadTruncated(t *testing.T) {
 		Content:           "abcd",
 		ContentFormat:     "markdown",
 		Truncated:         true,
-		DownloadTruncated: true,
+		DownloadTruncated: false,
 	}}, results)
 }
 
@@ -356,6 +356,27 @@ func TestParallelProvider_ExtractReturnsProviderErrors(t *testing.T) {
 
 	_, err := provider.Extract(context.Background(), []string{"https://example.com"})
 	require.EqualError(t, err, "web provider request failed: bad credentials")
+}
+
+func TestParallelProvider_ExtractRejectsOversizedResponses(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"results":[{"url":"https://example.com","full_content":"abcdef"}]}`))
+	}))
+	defer server.Close()
+
+	provider := &ParallelProvider{
+		client: &httpClient{
+			apiKey:  "parallel-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+		maxExtractResponseBytes: 5,
+	}
+
+	_, err := provider.Extract(context.Background(), []string{"https://example.com"})
+	require.EqualError(t, err, "web provider response exceeds 5 bytes")
+	require.True(t, isResponseTooLarge(err))
 }
 
 func TestParallelProvider_ParallelHeaders(t *testing.T) {

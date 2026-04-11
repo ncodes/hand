@@ -103,7 +103,7 @@ func (p *FirecrawlProvider) Extract(ctx context.Context, urls []string) ([]Extra
 		url := strings.TrimSpace(rawURL)
 
 		var response scrapeResponse
-		err := p.client.postJSON(ctx, "/v2/scrape", map[string]any{
+		err := p.client.postJSONLimited(ctx, "/v2/scrape", map[string]any{
 			"url": url,
 			"formats": []string{
 				format,
@@ -112,12 +112,13 @@ func (p *FirecrawlProvider) Extract(ctx context.Context, urls []string) ([]Extra
 			"parsers": []string{
 				"pdf",
 			},
-		}, p.client.authorizationHeaders(), &response)
+		}, p.client.authorizationHeaders(), &response, p.maxExtractResponseBytes)
 		if err != nil {
 			results = append(results, ExtractResult{
-				URL:           url,
-				ContentFormat: format,
-				Error:         err.Error(),
+				URL:               url,
+				ContentFormat:     format,
+				DownloadTruncated: isResponseTooLarge(err),
+				Error:             err.Error(),
 			})
 			continue
 		}

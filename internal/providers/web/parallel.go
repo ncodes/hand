@@ -89,10 +89,10 @@ func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]Extrac
 		} `json:"errors"`
 	}
 
-	if err := p.client.postJSON(ctx, "/v1beta/extract", map[string]any{
+	if err := p.client.postJSONLimited(ctx, "/v1beta/extract", map[string]any{
 		"urls":         urls,
 		"full_content": true,
-	}, p.parallelHeaders(), &response); err != nil {
+	}, p.parallelHeaders(), &response, p.maxExtractResponseBytes); err != nil {
 		return nil, err
 	}
 

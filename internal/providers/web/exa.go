@@ -64,9 +64,12 @@ func (p *ExaProvider) Search(ctx context.Context, query string, count int) ([]Se
 	results := make([]SearchResult, 0, len(response.Results))
 	for idx, result := range response.Results {
 		results = append(results, SearchResult{
-			Title:    strings.TrimSpace(result.Title),
-			URL:      strings.TrimSpace(result.URL),
-			Snippet:  truncateToMaxChars(firstNonEmpty(firstHighlight(result.Highlights), result.Summary, result.Text), p.maxCharsPerResult),
+			Title: strings.TrimSpace(result.Title),
+			URL:   strings.TrimSpace(result.URL),
+			Snippet: truncateToMaxChars(
+				firstNonEmpty(firstHighlight(result.Highlights), result.Summary, result.Text),
+				p.maxCharsPerResult,
+			),
 			Position: idx + 1,
 		})
 	}
@@ -110,7 +113,12 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 		}
 	}
 
-	if err := p.client.postJSON(ctx, "/contents", payload, p.exaHeaders(), &response); err != nil {
+	if err := p.client.postJSONLimited(
+		ctx,
+		"/contents",
+		payload, p.exaHeaders(),
+		&response,
+		p.maxExtractResponseBytes); err != nil {
 		return nil, err
 	}
 
