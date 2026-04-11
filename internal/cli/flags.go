@@ -122,6 +122,41 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Hidden: true,
 		},
 		&cli.StringFlag{
+			Name:   "web.provider",
+			Usage:  "Web provider: firecrawl, parallel, tavily, or exa",
+			Value:  config.Get().WebProvider,
+			Hidden: true,
+		},
+		&cli.StringFlag{
+			Name:   "web.key",
+			Usage:  "Authentication key for the selected web provider",
+			Hidden: true,
+		},
+		&cli.StringFlag{
+			Name:   "web.base-url",
+			Usage:  "Base URL for the selected web provider API",
+			Value:  config.Get().WebBaseURL,
+			Hidden: true,
+		},
+		&cli.IntFlag{
+			Name:   "web.max-char-per-result",
+			Usage:  "Maximum characters returned per web search result",
+			Value:  config.Get().WebMaxCharPerResult,
+			Hidden: true,
+		},
+		&cli.IntFlag{
+			Name:   "web.max-extract-char-per-result",
+			Usage:  "Maximum characters returned per web extraction result",
+			Value:  config.Get().WebMaxExtractCharPerResult,
+			Hidden: true,
+		},
+		&cli.IntFlag{
+			Name:   "web.max-extract-response-bytes",
+			Usage:  "Maximum raw response bytes processed per web extraction result",
+			Value:  config.Get().WebMaxExtractResponseBytes,
+			Hidden: true,
+		},
+		&cli.StringFlag{
 			Name:   "rules.files",
 			Usage:  "Comma-separated rule file paths to load in addition to workspace defaults",
 			Value:  strings.Join(config.Get().RulesFiles, ","),
@@ -326,6 +361,24 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("debug.trace-dir") {
 		cfg.DebugTraceDir = strings.TrimSpace(cmd.String("debug.trace-dir"))
+	}
+	if cmd.IsSet("web.provider") {
+		cfg.WebProvider = strings.TrimSpace(cmd.String("web.provider"))
+	}
+	if cmd.IsSet("web.key") {
+		cfg.WebAPIKey = strings.TrimSpace(cmd.String("web.key"))
+	}
+	if cmd.IsSet("web.base-url") {
+		cfg.WebBaseURL = strings.TrimSpace(cmd.String("web.base-url"))
+	}
+	if cmd.IsSet("web.max-char-per-result") {
+		cfg.WebMaxCharPerResult = cmd.Int("web.max-char-per-result")
+	}
+	if cmd.IsSet("web.max-extract-char-per-result") {
+		cfg.WebMaxExtractCharPerResult = cmd.Int("web.max-extract-char-per-result")
+	}
+	if cmd.IsSet("web.max-extract-response-bytes") {
+		cfg.WebMaxExtractResponseBytes = cmd.Int("web.max-extract-response-bytes")
 	}
 	if cmd.IsSet("rules.files") {
 		cfg.RulesFiles = configSplitAndTrimCSV(cmd.String("rules.files"))

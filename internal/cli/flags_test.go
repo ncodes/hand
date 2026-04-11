@@ -146,3 +146,32 @@ func TestApplyConfigOverrides_AppliesSessionSettings(t *testing.T) {
 	require.Equal(t, 2*time.Hour, cfg.SessionDefaultIdleExpiry)
 	require.Equal(t, 72*time.Hour, cfg.SessionArchiveRetention)
 }
+
+func TestApplyConfigOverrides_AppliesWebSettings(t *testing.T) {
+	cfg := &config.Config{}
+	var cmd *cli.Command
+	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd.Action = func(context.Context, *cli.Command) error {
+		ApplyConfigOverrides(cmd, cfg)
+		return nil
+	}
+
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--web.provider", " exa ",
+		"--web.key", " web-key ",
+		"--web.base-url", " https://example.test ",
+		"--web.max-char-per-result", "1300",
+		"--web.max-extract-char-per-result", "51000",
+		"--web.max-extract-response-bytes", "2097152",
+	})
+
+	require.NoError(t, err)
+	cfg.Normalize()
+	require.Equal(t, "exa", cfg.WebProvider)
+	require.Equal(t, "web-key", cfg.WebAPIKey)
+	require.Equal(t, "https://example.test", cfg.WebBaseURL)
+	require.Equal(t, 1300, cfg.WebMaxCharPerResult)
+	require.Equal(t, 51000, cfg.WebMaxExtractCharPerResult)
+	require.Equal(t, 2097152, cfg.WebMaxExtractResponseBytes)
+}
