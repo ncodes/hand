@@ -13,6 +13,7 @@ type ParallelProvider struct {
 	client                   *httpClient
 	maxCharsPerResult        int
 	maxExtractCharsPerResult int
+	maxExtractResponseBytes  int
 }
 
 func NewParallel(opts Options) (Provider, error) {
@@ -32,6 +33,7 @@ func NewParallel(opts Options) (Provider, error) {
 		},
 		maxCharsPerResult:        opts.MaxCharPerResult,
 		maxExtractCharsPerResult: opts.MaxExtractCharPerResult,
+		maxExtractResponseBytes:  opts.MaxExtractResponseBytes,
 	}, nil
 }
 
@@ -93,14 +95,18 @@ func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]Extrac
 
 	results := make([]ExtractResult, 0, len(response.Results)+len(response.Errors))
 	for _, result := range response.Results {
-		content, truncated := truncateContent(firstNonEmpty(result.FullContent, strings.Join(result.Excerpts, "\n\n")),
+		content, truncated, downloadTruncated := limitExtractContent(
+			firstNonEmpty(result.FullContent, strings.Join(result.Excerpts, "\n\n")),
+			p.maxExtractResponseBytes,
 			p.maxExtractCharsPerResult)
+
 		results = append(results, ExtractResult{
-			URL:           strings.TrimSpace(result.URL),
-			Title:         strings.TrimSpace(result.Title),
-			Content:       content,
-			ContentFormat: "markdown",
-			Truncated:     truncated,
+			URL:               strings.TrimSpace(result.URL),
+			Title:             strings.TrimSpace(result.Title),
+			Content:           content,
+			ContentFormat:     "markdown",
+			Truncated:         truncated,
+			DownloadTruncated: downloadTruncated,
 		})
 	}
 	for _, result := range response.Errors {

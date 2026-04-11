@@ -106,11 +106,12 @@ func TestWebExtract_ReturnsProviderResults(t *testing.T) {
 		extract: func(_ context.Context, urls []string) ([]webprovider.ExtractResult, error) {
 			require.Equal(t, []string{"https://example.com"}, urls)
 			return []webprovider.ExtractResult{{
-				URL:           "https://example.com",
-				Title:         "Example",
-				Content:       "Hello",
-				ContentFormat: "markdown",
-				Truncated:     false,
+				URL:               "https://example.com",
+				Title:             "Example",
+				Content:           "Hello",
+				ContentFormat:     "markdown",
+				Truncated:         true,
+				DownloadTruncated: true,
 			}}, nil
 		},
 	})
@@ -124,6 +125,9 @@ func TestWebExtract_ReturnsProviderResults(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
 	require.Len(t, payload.Results, 1)
 	require.Equal(t, "Example", payload.Results[0].Title)
+	require.True(t, payload.Results[0].Truncated)
+	require.True(t, payload.Results[0].DownloadTruncated)
+	require.Contains(t, result.Output, `"download_truncated":true`)
 }
 
 func TestWebExtract_PreservesPartialFailures(t *testing.T) {

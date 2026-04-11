@@ -13,6 +13,7 @@ type TavilyProvider struct {
 	client                   *httpClient
 	maxCharsPerResult        int
 	maxExtractCharsPerResult int
+	maxExtractResponseBytes  int
 }
 
 func NewTavily(opts Options) (Provider, error) {
@@ -32,6 +33,7 @@ func NewTavily(opts Options) (Provider, error) {
 		},
 		maxCharsPerResult:        opts.MaxCharPerResult,
 		maxExtractCharsPerResult: opts.MaxExtractCharPerResult,
+		maxExtractResponseBytes:  opts.MaxExtractResponseBytes,
 	}, nil
 }
 
@@ -94,13 +96,18 @@ func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 
 	results := make([]ExtractResult, 0, len(response.Results)+len(response.FailedResults)+len(response.FailedURLs))
 	for _, result := range response.Results {
-		content, truncated := truncateContent(firstNonEmpty(result.RawContent, result.Content), p.maxExtractCharsPerResult)
+		content, truncated, downloadTruncated := limitExtractContent(
+			firstNonEmpty(result.RawContent, result.Content),
+			p.maxExtractResponseBytes,
+			p.maxExtractCharsPerResult)
+
 		results = append(results, ExtractResult{
-			URL:           strings.TrimSpace(result.URL),
-			Title:         strings.TrimSpace(result.Title),
-			Content:       content,
-			ContentFormat: "markdown",
-			Truncated:     truncated,
+			URL:               strings.TrimSpace(result.URL),
+			Title:             strings.TrimSpace(result.Title),
+			Content:           content,
+			ContentFormat:     "markdown",
+			Truncated:         truncated,
+			DownloadTruncated: downloadTruncated,
 		})
 	}
 	for _, result := range response.FailedResults {

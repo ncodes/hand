@@ -29,6 +29,7 @@ func TestNewTavily_BuildsFromAPIKeyOnly(t *testing.T) {
 	require.Equal(t, tavilyDefaultBaseURL, tavilyProvider.client.baseURL)
 	require.Zero(t, tavilyProvider.maxCharsPerResult)
 	require.Zero(t, tavilyProvider.maxExtractCharsPerResult)
+	require.Zero(t, tavilyProvider.maxExtractResponseBytes)
 }
 
 func TestNewTavily_PreservesConfiguredBaseURL(t *testing.T) {
@@ -45,6 +46,7 @@ func TestNewTavily_UsesConfiguredMaxCharPerResult(t *testing.T) {
 		APIKey:                  "tavily-key",
 		MaxCharPerResult:        222,
 		MaxExtractCharPerResult: 12000,
+		MaxExtractResponseBytes: 64000,
 	})
 	require.NoError(t, err)
 
@@ -52,6 +54,7 @@ func TestNewTavily_UsesConfiguredMaxCharPerResult(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, 222, tavilyProvider.maxCharsPerResult)
 	require.Equal(t, 12000, tavilyProvider.maxExtractCharsPerResult)
+	require.Equal(t, 64000, tavilyProvider.maxExtractResponseBytes)
 }
 
 func TestNewTavily_ReturnsCredentialError(t *testing.T) {

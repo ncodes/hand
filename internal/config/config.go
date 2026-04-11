@@ -50,6 +50,7 @@ type Config struct {
 	WebBaseURL                 string
 	WebMaxCharPerResult        int
 	WebMaxExtractCharPerResult int
+	WebMaxExtractResponseBytes int
 	RulesFiles                 []string
 	Instruct                   string
 	Platform                   string
@@ -109,8 +110,9 @@ const (
 	defaultModelProvider              = "openrouter"
 	DefaultModelAPIMode               = "completions"
 	DefaultMaxIterations              = 90
-	DefaultWebMaxCharPerResult        = 4000
-	DefaultWebMaxExtractCharPerResult = 4000
+	DefaultWebMaxCharPerResult        = 1200
+	DefaultWebMaxExtractCharPerResult = 50000
+	DefaultWebMaxExtractResponseBytes = 2 * 1024 * 1024
 	defaultMaxIterations              = DefaultMaxIterations
 )
 
@@ -154,6 +156,7 @@ type fileConfig struct {
 		BaseURL                 string `yaml:"baseUrl"`
 		MaxCharPerResult        int    `yaml:"maxCharPerResult"`
 		MaxExtractCharPerResult int    `yaml:"maxExtractCharPerResult"`
+		MaxExtractResponseBytes int    `yaml:"maxExtractResponseBytes"`
 	} `yaml:"web"`
 
 	RPC struct {
@@ -319,6 +322,7 @@ func loadConfigFile(path string) (*Config, error) {
 		WebBaseURL:                 raw.Web.BaseURL,
 		WebMaxCharPerResult:        raw.Web.MaxCharPerResult,
 		WebMaxExtractCharPerResult: raw.Web.MaxExtractCharPerResult,
+		WebMaxExtractResponseBytes: raw.Web.MaxExtractResponseBytes,
 		RulesFiles:                 raw.Rules.Files,
 		Instruct:                   raw.Instruct,
 		Platform:                   raw.Platform,
@@ -437,6 +441,11 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("WEB_MAX_EXTRACT_CHAR_PER_RESULT")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.WebMaxExtractCharPerResult = chars
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("WEB_MAX_EXTRACT_RESPONSE_BYTES")); value != "" {
+		if bytes, err := strconv.Atoi(value); err == nil {
+			cfg.WebMaxExtractResponseBytes = bytes
 		}
 	}
 	if cfg.WebProvider == "" {
@@ -607,6 +616,9 @@ func (c *Config) normalizeFields() {
 	}
 	if c.WebMaxExtractCharPerResult <= 0 {
 		c.WebMaxExtractCharPerResult = DefaultWebMaxExtractCharPerResult
+	}
+	if c.WebMaxExtractResponseBytes <= 0 {
+		c.WebMaxExtractResponseBytes = DefaultWebMaxExtractResponseBytes
 	}
 
 	if c.CapFilesystem == nil {

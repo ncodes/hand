@@ -15,6 +15,7 @@ func TestResolveOptions_UsesExplicitConfig(t *testing.T) {
 		WebBaseURL:                 "https://exa.example",
 		WebMaxCharPerResult:        3200,
 		WebMaxExtractCharPerResult: 12000,
+		WebMaxExtractResponseBytes: 64000,
 	})
 	require.NoError(t, err)
 	require.Equal(t, ProviderExa, opts.Provider)
@@ -22,6 +23,7 @@ func TestResolveOptions_UsesExplicitConfig(t *testing.T) {
 	require.Equal(t, "https://exa.example", opts.BaseURL)
 	require.Equal(t, 3200, opts.MaxCharPerResult)
 	require.Equal(t, 12000, opts.MaxExtractCharPerResult)
+	require.Equal(t, 64000, opts.MaxExtractResponseBytes)
 }
 
 func TestOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {
@@ -31,6 +33,7 @@ func TestOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {
 		BaseURL:                 " https://exa.example ",
 		MaxCharPerResult:        -10,
 		MaxExtractCharPerResult: -20,
+		MaxExtractResponseBytes: -30,
 	}.Normalize()
 
 	require.Equal(t, ProviderExa, opts.Provider)
@@ -38,6 +41,7 @@ func TestOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {
 	require.Equal(t, "https://exa.example", opts.BaseURL)
 	require.Zero(t, opts.MaxCharPerResult)
 	require.Zero(t, opts.MaxExtractCharPerResult)
+	require.Zero(t, opts.MaxExtractResponseBytes)
 }
 
 func TestResolveOptions_UsesDetectedProviderFallback(t *testing.T) {
@@ -51,6 +55,7 @@ func TestResolveOptions_UsesDetectedProviderFallback(t *testing.T) {
 	require.Equal(t, parallelDefaultBaseURL, opts.BaseURL)
 	require.Equal(t, config.DefaultWebMaxCharPerResult, opts.MaxCharPerResult)
 	require.Equal(t, config.DefaultWebMaxExtractCharPerResult, opts.MaxExtractCharPerResult)
+	require.Equal(t, config.DefaultWebMaxExtractResponseBytes, opts.MaxExtractResponseBytes)
 }
 
 func TestResolveOptions_UsesConfiguredBaseURL(t *testing.T) {
@@ -126,6 +131,27 @@ func TestTruncateToMaxChars_TrimsAndClamps(t *testing.T) {
 	require.Equal(t, "hello", truncateToMaxChars(" hello ", 10))
 	require.Equal(t, "hello world", truncateToMaxChars(" hello world ", 0))
 	require.Equal(t, "hello", truncateToMaxChars("hello world", 5))
+}
+
+func TestLimitExtractContent_AppliesByteLimitBeforeCharLimit(t *testing.T) {
+	content, truncated, downloadTruncated := limitExtractContent(" abcdef ", 4, 10)
+	require.Equal(t, "abcd", content)
+	require.True(t, truncated)
+	require.True(t, downloadTruncated)
+}
+
+func TestLimitExtractContent_AppliesCharLimitWithoutDownloadTruncation(t *testing.T) {
+	content, truncated, downloadTruncated := limitExtractContent("abcdef", 10, 4)
+	require.Equal(t, "abcd", content)
+	require.True(t, truncated)
+	require.False(t, downloadTruncated)
+}
+
+func TestLimitExtractContent_TrimsPartialUTF8Rune(t *testing.T) {
+	content, truncated, downloadTruncated := limitExtractContent("éclair", 1, 10)
+	require.Equal(t, "", content)
+	require.True(t, truncated)
+	require.True(t, downloadTruncated)
 }
 
 func TestTruncateContent_ReportsTruncation(t *testing.T) {

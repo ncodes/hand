@@ -13,6 +13,7 @@ type FirecrawlProvider struct {
 	client                   *httpClient
 	maxCharsPerResult        int
 	maxExtractCharsPerResult int
+	maxExtractResponseBytes  int
 }
 
 func NewFirecrawl(opts Options) (Provider, error) {
@@ -32,6 +33,7 @@ func NewFirecrawl(opts Options) (Provider, error) {
 		},
 		maxCharsPerResult:        opts.MaxCharPerResult,
 		maxExtractCharsPerResult: opts.MaxExtractCharPerResult,
+		maxExtractResponseBytes:  opts.MaxExtractResponseBytes,
 	}, nil
 }
 
@@ -117,15 +119,18 @@ func (p *FirecrawlProvider) Extract(ctx context.Context, urls []string) ([]Extra
 			continue
 		}
 
-		content, truncated := truncateContent(
+		content, truncated, downloadTruncated := limitExtractContent(
 			firstNonEmpty(response.Data.Markdown, response.Data.HTML),
+			p.maxExtractResponseBytes,
 			p.maxExtractCharsPerResult)
+
 		results = append(results, ExtractResult{
-			URL:           firstNonEmpty(response.Data.Metadata.SourceURL, url),
-			Title:         strings.TrimSpace(response.Data.Metadata.Title),
-			Content:       content,
-			ContentFormat: "markdown",
-			Truncated:     truncated,
+			URL:               firstNonEmpty(response.Data.Metadata.SourceURL, url),
+			Title:             strings.TrimSpace(response.Data.Metadata.Title),
+			Content:           content,
+			ContentFormat:     "markdown",
+			Truncated:         truncated,
+			DownloadTruncated: downloadTruncated,
 		})
 	}
 

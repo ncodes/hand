@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/wandxy/hand/internal/config"
 )
@@ -28,12 +29,13 @@ type SearchResult struct {
 }
 
 type ExtractResult struct {
-	URL           string
-	Title         string
-	Content       string
-	ContentFormat string
-	Truncated     bool
-	Error         string
+	URL               string `json:"url"`
+	Title             string `json:"title,omitempty"`
+	Content           string `json:"content,omitempty"`
+	ContentFormat     string `json:"content_format"`
+	Truncated         bool   `json:"truncated,omitempty"`
+	DownloadTruncated bool   `json:"download_truncated,omitempty"`
+	Error             string `json:"error,omitempty"`
 }
 
 type Provider interface {
@@ -47,6 +49,7 @@ type Options struct {
 	BaseURL                 string
 	MaxCharPerResult        int
 	MaxExtractCharPerResult int
+	MaxExtractResponseBytes int
 }
 
 func (o Options) Normalize() Options {
@@ -58,6 +61,9 @@ func (o Options) Normalize() Options {
 	}
 	if o.MaxExtractCharPerResult < 0 {
 		o.MaxExtractCharPerResult = 0
+	}
+	if o.MaxExtractResponseBytes < 0 {
+		o.MaxExtractResponseBytes = 0
 	}
 	return o
 }
@@ -83,6 +89,7 @@ func ResolveOptions(cfg *config.Config) (Options, error) {
 			BaseURL:                 normalized.WebBaseURL,
 			MaxCharPerResult:        normalized.WebMaxCharPerResult,
 			MaxExtractCharPerResult: normalized.WebMaxExtractCharPerResult,
+			MaxExtractResponseBytes: normalized.WebMaxExtractResponseBytes,
 		}.Normalize()
 	}
 
@@ -155,6 +162,31 @@ func truncateContent(value string, maxChars int) (string, bool) {
 	}
 
 	return strings.TrimSpace(string(runes[:maxChars])), true
+}
+
+func limitExtractContent(value string, maxBytes, maxChars int) (string, bool, bool) {
+	content, downloadTruncated := truncateToMaxBytes(value, maxBytes)
+	content, charTruncated := truncateContent(content, maxChars)
+
+	return content, downloadTruncated || charTruncated, downloadTruncated
+}
+
+func truncateToMaxBytes(value string, maxBytes int) (string, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" || maxBytes <= 0 {
+		return value, false
+	}
+	if len([]byte(value)) <= maxBytes {
+		return value, false
+	}
+
+	data := []byte(value)
+	data = data[:maxBytes]
+	for len(data) > 0 && !utf8.Valid(data) {
+		data = data[:len(data)-1]
+	}
+
+	return strings.TrimSpace(string(data)), true
 }
 
 func NewProvider(cfg *config.Config) (Provider, error) {

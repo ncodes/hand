@@ -22,6 +22,7 @@ func TestNewExa_BuildsFromAPIKeyOnly(t *testing.T) {
 	require.Equal(t, exaDefaultBaseURL, exaProvider.client.baseURL)
 	require.Zero(t, exaProvider.maxCharsPerResult)
 	require.Zero(t, exaProvider.maxExtractCharsPerResult)
+	require.Zero(t, exaProvider.maxExtractResponseBytes)
 }
 
 func TestNewExa_PreservesConfiguredBaseURL(t *testing.T) {
@@ -38,6 +39,7 @@ func TestNewExa_UsesConfiguredMaxCharPerResult(t *testing.T) {
 		APIKey:                  "exa-key",
 		MaxCharPerResult:        400,
 		MaxExtractCharPerResult: 12000,
+		MaxExtractResponseBytes: 64000,
 	})
 	require.NoError(t, err)
 
@@ -45,6 +47,7 @@ func TestNewExa_UsesConfiguredMaxCharPerResult(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, 400, exaProvider.maxCharsPerResult)
 	require.Equal(t, 12000, exaProvider.maxExtractCharsPerResult)
+	require.Equal(t, 64000, exaProvider.maxExtractResponseBytes)
 }
 
 func TestNewExa_ReturnsCredentialError(t *testing.T) {

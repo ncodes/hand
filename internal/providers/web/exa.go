@@ -14,6 +14,7 @@ type ExaProvider struct {
 	client                   *httpClient
 	maxCharsPerResult        int
 	maxExtractCharsPerResult int
+	maxExtractResponseBytes  int
 }
 
 func NewExa(opts Options) (Provider, error) {
@@ -33,6 +34,7 @@ func NewExa(opts Options) (Provider, error) {
 		},
 		maxCharsPerResult:        opts.MaxCharPerResult,
 		maxExtractCharsPerResult: opts.MaxExtractCharPerResult,
+		maxExtractResponseBytes:  opts.MaxExtractResponseBytes,
 	}, nil
 }
 
@@ -111,16 +113,20 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 	seen := make(map[string]struct{}, len(response.Results))
 	for _, result := range response.Results {
 		url := strings.TrimSpace(result.URL)
-		content, truncated := truncateContent(result.Text, p.maxExtractCharsPerResult)
+		content, truncated, downloadTruncated := limitExtractContent(
+			result.Text,
+			p.maxExtractResponseBytes,
+			p.maxExtractCharsPerResult)
 		seen[url] = struct{}{}
 
 		results = append(results, ExtractResult{
-			URL:           url,
-			Title:         strings.TrimSpace(result.Title),
-			Content:       content,
-			ContentFormat: "text",
-			Truncated:     truncated,
-			Error:         firstNonEmpty(result.Error, statusByURL[url]),
+			URL:               url,
+			Title:             strings.TrimSpace(result.Title),
+			Content:           content,
+			ContentFormat:     "text",
+			Truncated:         truncated,
+			DownloadTruncated: downloadTruncated,
+			Error:             firstNonEmpty(result.Error, statusByURL[url]),
 		})
 	}
 	for _, status := range response.Statuses {

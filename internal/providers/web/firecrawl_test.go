@@ -20,6 +20,7 @@ func TestNewFirecrawl_BuildsFromBaseURLOnly(t *testing.T) {
 	require.Equal(t, "http://localhost:3002", firecrawlProvider.client.baseURL)
 	require.Zero(t, firecrawlProvider.maxCharsPerResult)
 	require.Zero(t, firecrawlProvider.maxExtractCharsPerResult)
+	require.Zero(t, firecrawlProvider.maxExtractResponseBytes)
 }
 
 func TestNewFirecrawl_BuildsFromAPIKeyOnly(t *testing.T) {
@@ -32,6 +33,7 @@ func TestNewFirecrawl_BuildsFromAPIKeyOnly(t *testing.T) {
 	require.Equal(t, firecrawlDefaultBaseURL, firecrawlProvider.client.baseURL)
 	require.Zero(t, firecrawlProvider.maxCharsPerResult)
 	require.Zero(t, firecrawlProvider.maxExtractCharsPerResult)
+	require.Zero(t, firecrawlProvider.maxExtractResponseBytes)
 }
 
 func TestNewFirecrawl_ReturnsCredentialError(t *testing.T) {

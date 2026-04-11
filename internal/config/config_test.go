@@ -154,7 +154,7 @@ func TestLoad_ReturnsPreloadEnvFileError(t *testing.T) {
 func TestLoad_UsesConfigFileValues(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
-		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_CHAR_PER_RESULT",
+		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
 
 	dir := t.TempDir()
@@ -189,6 +189,7 @@ web:
   baseUrl: https://web.example
   maxCharPerResult: 2400
   maxExtractCharPerResult: 9600
+  maxExtractResponseBytes: 2048
 rules:
   files:
     - hand.md
@@ -214,6 +215,7 @@ rules:
 	require.Equal(t, "https://web.example", cfg.WebBaseURL)
 	require.Equal(t, 2400, cfg.WebMaxCharPerResult)
 	require.Equal(t, 9600, cfg.WebMaxExtractCharPerResult)
+	require.Equal(t, 2048, cfg.WebMaxExtractResponseBytes)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.RulesFiles)
 	require.Equal(t, "be terse", cfg.Instruct)
 	require.Equal(t, "desktop", cfg.Platform)
@@ -227,7 +229,7 @@ rules:
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
-		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_CHAR_PER_RESULT",
+		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
 
 	dir := t.TempDir()
@@ -250,6 +252,7 @@ WEB_API_KEY=web-env-key
 WEB_BASE_URL=https://env-web.example
 WEB_MAX_CHAR_PER_RESULT=3100
 WEB_MAX_EXTRACT_CHAR_PER_RESULT=12400
+WEB_MAX_EXTRACT_RESPONSE_BYTES=4096
 RULES_FILES=hand.md,custom.md
 INSTRUCT=be terse
 PLATFORM=editor
@@ -277,6 +280,7 @@ web:
   baseUrl: https://config-web.example
   maxCharPerResult: 1800
   maxExtractCharPerResult: 7200
+  maxExtractResponseBytes: 2048
 cap:
   fs: false
   net: false
@@ -313,6 +317,7 @@ rules:
 	require.Equal(t, "https://env-web.example", cfg.WebBaseURL)
 	require.Equal(t, 3100, cfg.WebMaxCharPerResult)
 	require.Equal(t, 12400, cfg.WebMaxExtractCharPerResult)
+	require.Equal(t, 4096, cfg.WebMaxExtractResponseBytes)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.RulesFiles)
 	require.Equal(t, "be terse", cfg.Instruct)
 	require.Equal(t, "editor", cfg.Platform)
@@ -1195,6 +1200,7 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	require.Equal(t, "info", cfg.LogLevel)
 	require.Equal(t, DefaultWebMaxCharPerResult, cfg.WebMaxCharPerResult)
 	require.Equal(t, DefaultWebMaxExtractCharPerResult, cfg.WebMaxExtractCharPerResult)
+	require.Equal(t, DefaultWebMaxExtractResponseBytes, cfg.WebMaxExtractResponseBytes)
 	require.True(t, boolValueDefault(cfg.VerifyModel, true))
 }
 

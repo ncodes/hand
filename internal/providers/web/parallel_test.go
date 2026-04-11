@@ -23,6 +23,7 @@ func TestNewParallel_BuildsFromAPIKeyOnly(t *testing.T) {
 	require.Equal(t, parallelDefaultBaseURL, parallelProvider.client.baseURL)
 	require.Zero(t, parallelProvider.maxCharsPerResult)
 	require.Zero(t, parallelProvider.maxExtractCharsPerResult)
+	require.Zero(t, parallelProvider.maxExtractResponseBytes)
 }
 
 func TestNewParallel_PreservesConfiguredBaseURL(t *testing.T) {
@@ -39,6 +40,7 @@ func TestNewParallel_UsesConfiguredMaxCharPerResult(t *testing.T) {
 		APIKey:                  "parallel-key",
 		MaxCharPerResult:        333,
 		MaxExtractCharPerResult: 12000,
+		MaxExtractResponseBytes: 64000,
 	})
 	require.NoError(t, err)
 
@@ -46,6 +48,7 @@ func TestNewParallel_UsesConfiguredMaxCharPerResult(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, 333, parallelProvider.maxCharsPerResult)
 	require.Equal(t, 12000, parallelProvider.maxExtractCharsPerResult)
+	require.Equal(t, 64000, parallelProvider.maxExtractResponseBytes)
 }
 
 func TestNewParallel_ReturnsCredentialError(t *testing.T) {
@@ -270,6 +273,39 @@ func TestParallelProvider_ExtractFallsBackToExcerptsAndErrorContent(t *testing.T
 			Error:         "extraction failed",
 		},
 	}, results)
+}
+
+func TestParallelProvider_ExtractMarksDownloadTruncated(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{"url": "https://example.com", "title": "Example", "full_content": "abcdef"},
+			},
+		}))
+	}))
+	defer server.Close()
+
+	provider := &ParallelProvider{
+		client: &httpClient{
+			apiKey:  "parallel-key",
+			baseURL: server.URL,
+			client:  server.Client(),
+		},
+		maxExtractCharsPerResult: 100,
+		maxExtractResponseBytes:  4,
+	}
+
+	results, err := provider.Extract(context.Background(), []string{"https://example.com"})
+	require.NoError(t, err)
+	require.Equal(t, []ExtractResult{{
+		URL:               "https://example.com",
+		Title:             "Example",
+		Content:           "abcd",
+		ContentFormat:     "markdown",
+		Truncated:         true,
+		DownloadTruncated: true,
+	}}, results)
 }
 
 func TestParallelProvider_ExtractReturnsProviderErrors(t *testing.T) {
