@@ -77,13 +77,15 @@ func (p *ExaProvider) Search(ctx context.Context, query string, count int) ([]Se
 func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResult, error) {
 	format := extractFormat(ctx, "text")
 	maxChars := extractCharLimit(ctx, p.maxExtractCharsPerResult)
+	query := extractQuery(ctx)
 
 	var response struct {
 		Results []struct {
-			URL   string `json:"url"`
-			Title string `json:"title"`
-			Text  string `json:"text"`
-			Error string `json:"error"`
+			URL        string   `json:"url"`
+			Title      string   `json:"title"`
+			Text       string   `json:"text"`
+			Highlights []string `json:"highlights"`
+			Error      string   `json:"error"`
 		} `json:"results"`
 		Statuses []struct {
 			ID     string `json:"id"`
@@ -95,12 +97,20 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 		} `json:"statuses"`
 	}
 
-	if err := p.client.postJSON(ctx, "/contents", map[string]any{
+	payload := map[string]any{
 		"urls": urls,
 		"text": map[string]any{
 			"maxCharacters": maxChars,
 		},
-	}, p.exaHeaders(), &response); err != nil {
+	}
+	if query != "" {
+		payload["highlights"] = map[string]any{
+			"query":         query,
+			"maxCharacters": maxChars,
+		}
+	}
+
+	if err := p.client.postJSON(ctx, "/contents", payload, p.exaHeaders(), &response); err != nil {
 		return nil, err
 	}
 
@@ -116,10 +126,12 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 	seen := make(map[string]struct{}, len(response.Results))
 	for _, result := range response.Results {
 		url := strings.TrimSpace(result.URL)
+
 		content, truncated, downloadTruncated := limitExtractContent(
-			result.Text,
+			firstNonEmpty(firstHighlight(result.Highlights), result.Text),
 			p.maxExtractResponseBytes,
 			maxChars)
+
 		seen[url] = struct{}{}
 
 		results = append(results, ExtractResult{

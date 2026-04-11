@@ -48,6 +48,7 @@ type extractOptionsContextKey struct{}
 type ExtractOptions struct {
 	Format   string
 	MaxChars int
+	Query    string
 }
 
 type Options struct {
@@ -90,6 +91,7 @@ func ExtractOptionsFromContext(ctx context.Context) ExtractOptions {
 
 func (o ExtractOptions) Normalize() ExtractOptions {
 	o.Format = strings.TrimSpace(strings.ToLower(o.Format))
+	o.Query = strings.TrimSpace(o.Query)
 	if o.Format != "text" && o.Format != "markdown" {
 		o.Format = ""
 	}
@@ -115,6 +117,10 @@ func extractFormat(ctx context.Context, defaultFormat string) string {
 	}
 
 	return defaultFormat
+}
+
+func extractQuery(ctx context.Context) string {
+	return ExtractOptionsFromContext(ctx).Query
 }
 
 func SupportedProvider(name string) bool {

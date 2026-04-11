@@ -72,6 +72,7 @@ func (p *TavilyProvider) Search(ctx context.Context, query string, count int) ([
 func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractResult, error) {
 	format := extractFormat(ctx, "markdown")
 	maxChars := extractCharLimit(ctx, p.maxExtractCharsPerResult)
+	query := extractQuery(ctx)
 
 	var response struct {
 		Results []struct {
@@ -87,13 +88,18 @@ func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 		FailedURLs []string `json:"failed_urls"`
 	}
 
-	if err := p.client.postJSON(ctx, "/extract", map[string]any{
+	payload := map[string]any{
 		"urls":             urls,
 		"extract_depth":    "basic",
 		"format":           format,
 		"include_images":   false,
 		"include_raw_html": false,
-	}, p.client.authorizationHeaders(), &response); err != nil {
+	}
+	if query != "" {
+		payload["query"] = query
+	}
+
+	if err := p.client.postJSON(ctx, "/extract", payload, p.client.authorizationHeaders(), &response); err != nil {
 		return nil, err
 	}
 

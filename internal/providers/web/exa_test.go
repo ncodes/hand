@@ -11,8 +11,6 @@ import (
 	"github.com/wandxy/hand/internal/config"
 )
 
-// test real exa extract
-
 func TestNewExa_BuildsFromAPIKeyOnly(t *testing.T) {
 	provider, err := NewExa(Options{APIKey: "exa-key"})
 	require.NoError(t, err)
@@ -296,6 +294,10 @@ func TestExaProvider_ExtractUsesContextOptions(t *testing.T) {
 		Text struct {
 			MaxCharacters int `json:"maxCharacters"`
 		} `json:"text"`
+		Highlights struct {
+			Query         string `json:"query"`
+			MaxCharacters int    `json:"maxCharacters"`
+		} `json:"highlights"`
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
@@ -304,7 +306,7 @@ func TestExaProvider_ExtractUsesContextOptions(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
 			"results": []map[string]any{
-				{"url": "https://example.com", "title": "Example", "text": "abcdef"},
+				{"url": "https://example.com", "title": "Example", "text": "abcdef", "highlights": []string{"focus text"}},
 			},
 		}))
 	}))
@@ -318,15 +320,17 @@ func TestExaProvider_ExtractUsesContextOptions(t *testing.T) {
 		},
 		maxExtractCharsPerResult: 100,
 	}
-	ctx := WithExtractOptions(context.Background(), ExtractOptions{Format: "markdown", MaxChars: 3})
+	ctx := WithExtractOptions(context.Background(), ExtractOptions{Format: "markdown", MaxChars: 3, Query: "pricing"})
 
 	results, err := provider.Extract(ctx, []string{"https://example.com"})
 	require.NoError(t, err)
 	require.Equal(t, 3, captured.Text.MaxCharacters)
+	require.Equal(t, "pricing", captured.Highlights.Query)
+	require.Equal(t, 3, captured.Highlights.MaxCharacters)
 	require.Equal(t, []ExtractResult{{
 		URL:           "https://example.com",
 		Title:         "Example",
-		Content:       "abc",
+		Content:       "foc",
 		ContentFormat: "markdown",
 		Truncated:     true,
 	}}, results)

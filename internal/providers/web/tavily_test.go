@@ -209,6 +209,7 @@ func TestTavilyProvider_ExtractNormalizesResults(t *testing.T) {
 func TestTavilyProvider_ExtractUsesContextOptions(t *testing.T) {
 	var captured struct {
 		Format string `json:"format"`
+		Query  string `json:"query"`
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
@@ -231,11 +232,12 @@ func TestTavilyProvider_ExtractUsesContextOptions(t *testing.T) {
 		},
 		maxExtractCharsPerResult: 100,
 	}
-	ctx := WithExtractOptions(context.Background(), ExtractOptions{Format: "text", MaxChars: 3})
+	ctx := WithExtractOptions(context.Background(), ExtractOptions{Format: "text", MaxChars: 3, Query: "pricing"})
 
 	results, err := provider.Extract(ctx, []string{"https://example.com"})
 	require.NoError(t, err)
 	require.Equal(t, "text", captured.Format)
+	require.Equal(t, "pricing", captured.Query)
 	require.Equal(t, []ExtractResult{{
 		URL:           "https://example.com",
 		Title:         "Example",

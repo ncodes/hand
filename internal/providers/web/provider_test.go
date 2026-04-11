@@ -46,8 +46,9 @@ func TestOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {
 }
 
 func TestExtractOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {
-	opts := ExtractOptions{Format: " TEXT ", MaxChars: -10}.Normalize()
+	opts := ExtractOptions{Format: " TEXT ", MaxChars: -10, Query: " docs "}.Normalize()
 	require.Equal(t, "text", opts.Format)
+	require.Equal(t, "docs", opts.Query)
 	require.Zero(t, opts.MaxChars)
 
 	opts = ExtractOptions{Format: "html", MaxChars: 10}.Normalize()
@@ -56,9 +57,9 @@ func TestExtractOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {
 }
 
 func TestWithExtractOptions_RoundTripsNormalizedOptions(t *testing.T) {
-	ctx := WithExtractOptions(context.Background(), ExtractOptions{Format: " MARKDOWN ", MaxChars: 12})
+	ctx := WithExtractOptions(context.Background(), ExtractOptions{Format: " MARKDOWN ", MaxChars: 12, Query: " specs "})
 
-	require.Equal(t, ExtractOptions{Format: "markdown", MaxChars: 12}, ExtractOptionsFromContext(ctx))
+	require.Equal(t, ExtractOptions{Format: "markdown", MaxChars: 12, Query: "specs"}, ExtractOptionsFromContext(ctx))
 	require.Equal(t, ExtractOptions{}, ExtractOptionsFromContext(context.Background()))
 	require.Equal(t, ExtractOptions{}, ExtractOptionsFromContext(nil))
 }
@@ -75,6 +76,13 @@ func TestExtractFormat_UsesRequestFormatWhenPresent(t *testing.T) {
 
 	require.Equal(t, "text", extractFormat(ctx, "markdown"))
 	require.Equal(t, "markdown", extractFormat(context.Background(), "markdown"))
+}
+
+func TestExtractQuery_UsesRequestQueryWhenPresent(t *testing.T) {
+	ctx := WithExtractOptions(context.Background(), ExtractOptions{Query: "release notes"})
+
+	require.Equal(t, "release notes", extractQuery(ctx))
+	require.Empty(t, extractQuery(context.Background()))
 }
 
 func TestResolveOptions_UsesDetectedProviderFallback(t *testing.T) {

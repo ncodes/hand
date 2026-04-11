@@ -20,6 +20,7 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 	type input struct {
 		URLs        []string `json:"urls"`
 		MaxChars    *int     `json:"max_chars"`
+		Query       string   `json:"query"`
 		Format      string   `json:"format"`
 		ExtractMode string   `json:"extract_mode"`
 	}
@@ -41,6 +42,9 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 
 			"max_chars": common.IntegerSchema("Optional maximum characters to return per extracted page. " +
 				"Values above configured maxExtractCharPerResult are clamped."),
+
+			"query": common.StringSchema("Optional focused extraction query. Providers that support it " +
+				"use this to return content most relevant to the query."),
 
 			"format": map[string]any{
 				"type":        "string",
@@ -92,6 +96,7 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 			ctx = webprovider.WithExtractOptions(ctx, webprovider.ExtractOptions{
 				Format:   format,
 				MaxChars: maxChars,
+				Query:    strings.TrimSpace(req.Query),
 			})
 
 			results, err := provider.Extract(ctx, urls)

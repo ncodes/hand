@@ -213,7 +213,10 @@ func TestWebExtract_AppliesTextFormat(t *testing.T) {
 	registry := registerTool(t, stubProvider{
 		extract: func(ctx context.Context, urls []string) ([]webprovider.ExtractResult, error) {
 			require.Equal(t, []string{"https://example.com"}, urls)
-			require.Equal(t, webprovider.ExtractOptions{Format: "text"}, webprovider.ExtractOptionsFromContext(ctx))
+			require.Equal(t, webprovider.ExtractOptions{
+				Format: "text",
+				Query:  "release notes",
+			}, webprovider.ExtractOptionsFromContext(ctx))
 			return []webprovider.ExtractResult{{
 				URL:           "https://example.com",
 				Content:       "Title\n\nRead docs and ship it.",
@@ -224,7 +227,7 @@ func TestWebExtract_AppliesTextFormat(t *testing.T) {
 
 	result, err := registry.Invoke(context.Background(), tools.Call{
 		Name:  "web_extract",
-		Input: `{"urls":["https://example.com"],"format":"text"}`,
+		Input: `{"urls":["https://example.com"],"format":"text","query":" release notes "}`,
 	})
 	require.NoError(t, err)
 
