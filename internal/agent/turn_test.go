@@ -1136,18 +1136,20 @@ func TestTurn_RequestMessagesIncludesPersistedSummaryBeforeUnsummarizedHistory(t
 	require.Equal(t, "recent-1", messages[0].Content)
 	require.Equal(t, "recent-2", messages[1].Content)
 	require.Equal(t, "new", messages[2].Content)
-	require.Contains(t, turn.buildRequestInstructions(), "# Session Summary\n\nOlder context")
+	require.Contains(t, turn.buildRequestInstructions(nil), "# Session Summary\n\nOlder context")
 }
 
 func TestTurn_RequestInstructions_HandlesNilTurnAndAppendsExtra(t *testing.T) {
 	var turn *Turn
-	require.Equal(t, "", turn.buildRequestInstructions())
+	require.Equal(t, "", turn.buildRequestInstructions(nil))
 
 	turn = &Turn{
 		instructions: instructions.New("base"),
 		memory:       &memory.Memory{},
 	}
-	require.Equal(t, "base\n\nextra", turn.buildRequestInstructions(instructions.New("extra")))
+	rendered := turn.buildRequestInstructions(nil, instructions.New("extra"))
+	require.True(t, strings.Index(rendered, "base") < strings.Index(rendered, "# Environment Context"))
+	require.True(t, strings.Index(rendered, "# Environment Context") < strings.Index(rendered, "extra"))
 }
 
 func TestTurn_RequestInstructions_IncludeActivePlanOnly(t *testing.T) {
@@ -1172,7 +1174,7 @@ func TestTurn_RequestInstructions_IncludeActivePlanOnly(t *testing.T) {
 		},
 	}
 
-	rendered := turn.buildRequestInstructions()
+	rendered := turn.buildRequestInstructions(nil)
 	require.True(t, strings.Index(rendered, "# Planning Policy") < strings.Index(rendered, "# Plan Context"))
 	require.True(t, strings.Index(rendered, "# Plan Context") < strings.Index(rendered, "base"))
 	require.Contains(t, rendered, "# Plan Context")
@@ -1202,7 +1204,7 @@ func TestTurn_RequestInstructions_KeepPlanningPolicyWithoutActivePlan(t *testing
 		},
 	}
 
-	rendered := turn.buildRequestInstructions()
+	rendered := turn.buildRequestInstructions(nil)
 	require.Contains(t, rendered, "# Planning Policy")
 	require.Contains(t, rendered, "Use plan_tool for tasks with 3 or more meaningful steps")
 	require.NotContains(t, rendered, "# Plan Context")
@@ -1234,11 +1236,12 @@ func TestTurn_RequestInstructions_OrderPlanningPolicyPlanSummaryAndRequestInstru
 		},
 	}
 
-	rendered := turn.buildRequestInstructions(instructions.New("extra"))
+	rendered := turn.buildRequestInstructions(nil, instructions.New("extra"))
 	require.True(t, strings.Index(rendered, "# Planning Policy") < strings.Index(rendered, "# Plan Context"))
 	require.True(t, strings.Index(rendered, "# Plan Context") < strings.Index(rendered, "base"))
 	require.True(t, strings.Index(rendered, "base") < strings.Index(rendered, "# Session Summary\n\nOlder context"))
-	require.True(t, strings.Index(rendered, "# Session Summary\n\nOlder context") < strings.Index(rendered, "be terse"))
+	require.True(t, strings.Index(rendered, "# Session Summary\n\nOlder context") < strings.Index(rendered, "# Environment Context"))
+	require.True(t, strings.Index(rendered, "# Environment Context") < strings.Index(rendered, "be terse"))
 	require.True(t, strings.Index(rendered, "be terse") < strings.Index(rendered, "extra"))
 }
 
@@ -1967,7 +1970,9 @@ func TestAgent_RespondAppendsConversationAcrossTurns(t *testing.T) {
 
 	require.Len(t, client.Requests, 2)
 	require.Equal(t, models.APIModeResponses, client.Requests[0].APIMode)
-	require.Equal(t, "system prompt", client.Requests[0].Instructions)
+	require.True(t, strings.HasPrefix(client.Requests[0].Instructions, "system prompt\n\n# Environment Context"))
+	require.Contains(t, client.Requests[0].Instructions, "- Model: test-model")
+	require.Contains(t, client.Requests[0].Instructions, "- Session ID: default")
 	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello",
 		CreatedAt: client.Requests[0].Messages[0].CreatedAt}}, client.Requests[0].Messages)
 
@@ -2010,7 +2015,10 @@ func TestAgent_RespondAppendsRequestInstructLast(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "hello back", reply)
-	require.Equal(t, "base\n\nconfigured temporary\n\nrequest temporary", client.Requests[0].Instructions)
+	rendered := client.Requests[0].Instructions
+	require.True(t, strings.Index(rendered, "base") < strings.Index(rendered, "configured temporary"))
+	require.True(t, strings.Index(rendered, "configured temporary") < strings.Index(rendered, "# Environment Context"))
+	require.True(t, strings.Index(rendered, "# Environment Context") < strings.Index(rendered, "request temporary"))
 	require.Equal(t, instructions.Instructions{
 		{Value: "base"},
 		{Name: "config.instruct", Value: "configured temporary"},

@@ -3,9 +3,42 @@ package instructions
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
-const PlanningPolicyInstructionName = "planning.policy"
+const (
+	PlanningPolicyInstructionName     = "planning.policy"
+	EnvironmentContextInstructionName = "environment.context"
+)
+
+type EnvironmentContext struct {
+	Now              time.Time
+	Timezone         string
+	OS               string
+	Architecture     string
+	Platform         string
+	WorkingDirectory string
+	FilesystemRoots  []string
+	Capabilities     EnvironmentCapabilities
+	HasCapabilities  bool
+	ActiveToolGroups []string
+	ActiveTools      []string
+	Model            string
+	SummaryModel     string
+	ModelProvider    string
+	SummaryProvider  string
+	APIMode          string
+	WebProvider      string
+	SessionID        string
+}
+
+type EnvironmentCapabilities struct {
+	Filesystem bool
+	Network    bool
+	Exec       bool
+	Memory     bool
+	Browser    bool
+}
 
 func BuildBase(name string) Instructions {
 	agentName := strings.TrimSpace(name)
@@ -23,6 +56,97 @@ Response style: Preserve the user's intent, avoid unnecessary verbosity, and sum
 		agentName,
 		agentName,
 	))
+}
+
+func BuildEnvironmentContext(ctx EnvironmentContext) Instruction {
+	lines := []string{"# Environment Context", ""}
+
+	if !ctx.Now.IsZero() {
+		lines = append(lines,
+			fmt.Sprintf("- Current date: %s", ctx.Now.Format("2006-01-02")),
+			fmt.Sprintf("- Current time: %s", ctx.Now.Format(time.RFC3339)),
+		)
+	}
+
+	if timezone := strings.TrimSpace(ctx.Timezone); timezone != "" {
+		lines = append(lines, fmt.Sprintf("- Timezone: %s", timezone))
+	}
+
+	if osName := strings.TrimSpace(ctx.OS); osName != "" {
+		lines = append(lines, fmt.Sprintf("- OS: %s", osName))
+	}
+
+	if arch := strings.TrimSpace(ctx.Architecture); arch != "" {
+		lines = append(lines, fmt.Sprintf("- Architecture: %s", arch))
+	}
+
+	if platform := strings.TrimSpace(ctx.Platform); platform != "" {
+		lines = append(lines, fmt.Sprintf("- Platform: %s", platform))
+	}
+
+	if workingDirectory := strings.TrimSpace(ctx.WorkingDirectory); workingDirectory != "" {
+		lines = append(lines, fmt.Sprintf("- Working directory: %s", workingDirectory))
+	}
+
+	if roots := cleanList(ctx.FilesystemRoots); len(roots) > 0 {
+		lines = append(lines, fmt.Sprintf("- Filesystem roots: %s", strings.Join(roots, ", ")))
+	}
+
+	if ctx.HasCapabilities {
+		lines = append(lines, fmt.Sprintf(
+			"- Capabilities: filesystem=%t, network=%t, exec=%t, memory=%t, browser=%t",
+			ctx.Capabilities.Filesystem,
+			ctx.Capabilities.Network,
+			ctx.Capabilities.Exec,
+			ctx.Capabilities.Memory,
+			ctx.Capabilities.Browser,
+		))
+	}
+
+	if groups := cleanList(ctx.ActiveToolGroups); len(groups) > 0 {
+		lines = append(lines, fmt.Sprintf("- Active tool groups: %s", strings.Join(groups, ", ")))
+	}
+
+	if activeTools := cleanList(ctx.ActiveTools); len(activeTools) > 0 {
+		lines = append(lines, fmt.Sprintf("- Active tools: %s", strings.Join(activeTools, ", ")))
+	}
+
+	if model := strings.TrimSpace(ctx.Model); model != "" {
+		lines = append(lines, fmt.Sprintf("- Model: %s", model))
+	}
+
+	if summaryModel := strings.TrimSpace(ctx.SummaryModel); summaryModel != "" {
+		lines = append(lines, fmt.Sprintf("- Summary model: %s", summaryModel))
+	}
+
+	if provider := strings.TrimSpace(ctx.ModelProvider); provider != "" {
+		lines = append(lines, fmt.Sprintf("- Model provider: %s", provider))
+	}
+
+	if summaryProvider := strings.TrimSpace(ctx.SummaryProvider); summaryProvider != "" {
+		lines = append(lines, fmt.Sprintf("- Summary model provider: %s", summaryProvider))
+	}
+
+	if apiMode := strings.TrimSpace(ctx.APIMode); apiMode != "" {
+		lines = append(lines, fmt.Sprintf("- API mode: %s", apiMode))
+	}
+
+	if webProvider := strings.TrimSpace(ctx.WebProvider); webProvider != "" {
+		lines = append(lines, fmt.Sprintf("- Web provider: %s", webProvider))
+	}
+
+	if sessionID := strings.TrimSpace(ctx.SessionID); sessionID != "" {
+		lines = append(lines, fmt.Sprintf("- Session ID: %s", sessionID))
+	}
+
+	if len(lines) == 2 {
+		return Instruction{Name: EnvironmentContextInstructionName}
+	}
+
+	return Instruction{
+		Name:  EnvironmentContextInstructionName,
+		Value: strings.Join(lines, "\n"),
+	}
 }
 
 func BuildPlanningPolicy() Instruction {
@@ -67,4 +191,16 @@ Return JSON only with this exact shape:
 }`,
 		"Output rules: Do not include markdown fences or extra commentary.",
 	)
+}
+
+func cleanList(values []string) []string {
+	cleaned := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		cleaned = append(cleaned, value)
+	}
+	return cleaned
 }
