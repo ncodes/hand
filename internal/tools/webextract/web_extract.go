@@ -13,7 +13,10 @@ import (
 const maxURLs = 5
 
 type Options struct {
-	MaxExtractCharPerResult int
+	MaxExtractCharPerResult        int
+	MinSummarizeChars              int
+	MaxSummaryChars                int
+	SummarizeRefusalThresholdChars int
 }
 
 func Definition(provider webprovider.Provider, options ...Options) tools.Definition {
@@ -21,6 +24,7 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 		URLs        []string `json:"urls"`
 		MaxChars    *int     `json:"max_chars"`
 		Query       string   `json:"query"`
+		Summarize   bool     `json:"summarize"`
 		Format      string   `json:"format"`
 		ExtractMode string   `json:"extract_mode"`
 	}
@@ -45,6 +49,9 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 
 			"query": common.StringSchema("Optional focused extraction query. Providers that support it " +
 				"use this to return content most relevant to the query."),
+
+			"summarize": common.BooleanSchema("When true, summarize extracted content that exceeds the " +
+				"configured minimum summarization size."),
 
 			"format": map[string]any{
 				"type":        "string",
@@ -102,6 +109,18 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 			results, err := provider.Extract(ctx, urls)
 			if err != nil {
 				return common.ToolError("tool_error", err.Error()), nil
+			}
+
+			if req.Summarize {
+				results, err = summarizeResults(ctx, results, summarizeOptions{
+					Query:                          strings.TrimSpace(req.Query),
+					MinSummarizeChars:              opts.MinSummarizeChars,
+					MaxSummaryChars:                opts.MaxSummaryChars,
+					SummarizeRefusalThresholdChars: opts.SummarizeRefusalThresholdChars,
+				})
+				if err != nil {
+					return common.ToolError("tool_error", err.Error()), nil
+				}
 			}
 
 			return common.EncodeOutput(map[string]any{"results": results})

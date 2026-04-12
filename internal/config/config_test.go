@@ -190,6 +190,9 @@ web:
   maxCharPerResult: 2400
   maxExtractCharPerResult: 9600
   maxExtractResponseBytes: 2048
+  extractMinSummarizeChars: 12000
+  extractMaxSummaryChars: 3000
+  extractRefusalThresholdChars: 180000
 rules:
   files:
     - hand.md
@@ -216,6 +219,9 @@ rules:
 	require.Equal(t, 2400, cfg.WebMaxCharPerResult)
 	require.Equal(t, 9600, cfg.WebMaxExtractCharPerResult)
 	require.Equal(t, 2048, cfg.WebMaxExtractResponseBytes)
+	require.Equal(t, 12000, cfg.WebExtractMinSummarizeChars)
+	require.Equal(t, 3000, cfg.WebExtractMaxSummaryChars)
+	require.Equal(t, 180000, cfg.WebExtractRefusalThresholdChars)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.RulesFiles)
 	require.Equal(t, "be terse", cfg.Instruct)
 	require.Equal(t, "desktop", cfg.Platform)
@@ -253,6 +259,9 @@ WEB_BASE_URL=https://env-web.example
 WEB_MAX_CHAR_PER_RESULT=3100
 WEB_MAX_EXTRACT_CHAR_PER_RESULT=12400
 WEB_MAX_EXTRACT_RESPONSE_BYTES=4096
+WEB_EXTRACT_MIN_SUMMARIZE_CHARS=13000
+WEB_EXTRACT_MAX_SUMMARY_CHARS=3200
+WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS=190000
 RULES_FILES=hand.md,custom.md
 INSTRUCT=be terse
 PLATFORM=editor
@@ -318,6 +327,9 @@ rules:
 	require.Equal(t, 3100, cfg.WebMaxCharPerResult)
 	require.Equal(t, 12400, cfg.WebMaxExtractCharPerResult)
 	require.Equal(t, 4096, cfg.WebMaxExtractResponseBytes)
+	require.Equal(t, 13000, cfg.WebExtractMinSummarizeChars)
+	require.Equal(t, 3200, cfg.WebExtractMaxSummaryChars)
+	require.Equal(t, 190000, cfg.WebExtractRefusalThresholdChars)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.RulesFiles)
 	require.Equal(t, "be terse", cfg.Instruct)
 	require.Equal(t, "editor", cfg.Platform)
@@ -1201,6 +1213,9 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	require.Equal(t, DefaultWebMaxCharPerResult, cfg.WebMaxCharPerResult)
 	require.Equal(t, DefaultWebMaxExtractCharPerResult, cfg.WebMaxExtractCharPerResult)
 	require.Equal(t, DefaultWebMaxExtractResponseBytes, cfg.WebMaxExtractResponseBytes)
+	require.Equal(t, DefaultWebExtractMinSummarizeChars, cfg.WebExtractMinSummarizeChars)
+	require.Equal(t, DefaultWebExtractMaxSummaryChars, cfg.WebExtractMaxSummaryChars)
+	require.Equal(t, DefaultWebExtractRefusalThresholdChars, cfg.WebExtractRefusalThresholdChars)
 	require.True(t, boolValueDefault(cfg.VerifyModel, true))
 }
 

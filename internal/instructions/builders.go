@@ -193,6 +193,17 @@ Return JSON only with this exact shape:
 	)
 }
 
+func BuildWebExtractSummary(maxSummaryChars int) string {
+	return fmt.Sprintf(`# Web Extract Summary
+
+Condense the extracted web page into markdown that is compact enough for agent context.
+Retain verifiable facts, dates, names, numbers, source details, decisions, and action items.
+Keep short quoted passages, code fragments, or technical specifics only when they materially affect the answer.
+When a query is provided, organize the summary around that query before covering secondary context.
+Do not add claims that are not supported by the extracted content.
+Keep the summary under %d characters.`, maxSummaryChars)
+}
+
 func cleanList(values []string) []string {
 	cleaned := make([]string, 0, len(values))
 	for _, value := range values {

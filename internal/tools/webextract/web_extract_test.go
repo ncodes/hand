@@ -16,12 +16,23 @@ type stubProvider struct {
 	extract func(context.Context, []string) ([]webprovider.ExtractResult, error)
 }
 
+type stubSummarizer struct {
+	inputs []SummaryInput
+	output string
+	err    error
+}
+
 func (stubProvider) Search(context.Context, string, int) ([]webprovider.SearchResult, error) {
 	return nil, errors.New("unexpected search call")
 }
 
 func (s stubProvider) Extract(ctx context.Context, urls []string) ([]webprovider.ExtractResult, error) {
 	return s.extract(ctx, urls)
+}
+
+func (s *stubSummarizer) SummarizeExtract(_ context.Context, input SummaryInput) (string, error) {
+	s.inputs = append(s.inputs, input)
+	return s.output, s.err
 }
 
 func registerTool(t *testing.T, provider webprovider.Provider, options ...Options) tools.Registry {
@@ -328,6 +339,120 @@ func TestWebExtract_PreservesPartialFailures(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
 	require.Len(t, payload.Results, 2)
 	require.Equal(t, "fetch failed", payload.Results[1].Error)
+}
+
+func TestWebExtract_SummarizesLongResults(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(context.Context, []string) ([]webprovider.ExtractResult, error) {
+			return []webprovider.ExtractResult{{
+				URL:           "https://example.com",
+				Title:         "Example",
+				Content:       "abcdef",
+				ContentFormat: "text",
+			}}, nil
+		},
+	}, Options{MinSummarizeChars: 3, MaxSummaryChars: 4, SummarizeRefusalThresholdChars: 20})
+	summarizer := &stubSummarizer{output: "summary text"}
+	ctx := WithSummarizer(context.Background(), summarizer)
+
+	result, err := registry.Invoke(ctx, tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://example.com"],"query":"pricing","summarize":true}`,
+	})
+	require.NoError(t, err)
+
+	var payload struct {
+		Results []webprovider.ExtractResult `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Len(t, payload.Results, 1)
+	require.Equal(t, "summ", payload.Results[0].Content)
+	require.Equal(t, "summary", payload.Results[0].ContentFormat)
+	require.True(t, payload.Results[0].Summarized)
+	require.Equal(t, 6, payload.Results[0].SourceContentChars)
+	require.Equal(t, 4, payload.Results[0].SummaryChars)
+	require.True(t, payload.Results[0].Truncated)
+	require.Len(t, summarizer.inputs, 1)
+	require.Equal(t, "pricing", summarizer.inputs[0].Query)
+	require.Equal(t, "abcdef", summarizer.inputs[0].Content)
+	require.Equal(t, 4, summarizer.inputs[0].MaxSummaryChars)
+}
+
+func TestWebExtract_SkipsSummarizationBelowMinimum(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(context.Context, []string) ([]webprovider.ExtractResult, error) {
+			return []webprovider.ExtractResult{{
+				URL:           "https://example.com",
+				Content:       "short",
+				ContentFormat: "text",
+			}}, nil
+		},
+	}, Options{MinSummarizeChars: 10, MaxSummaryChars: 4, SummarizeRefusalThresholdChars: 20})
+	summarizer := &stubSummarizer{output: "summary"}
+
+	result, err := registry.Invoke(WithSummarizer(context.Background(), summarizer), tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://example.com"],"summarize":true}`,
+	})
+	require.NoError(t, err)
+
+	var payload struct {
+		Results []webprovider.ExtractResult `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Equal(t, "short", payload.Results[0].Content)
+	require.False(t, payload.Results[0].Summarized)
+	require.Empty(t, summarizer.inputs)
+}
+
+func TestWebExtract_RefusesSummarizationAboveThreshold(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(context.Context, []string) ([]webprovider.ExtractResult, error) {
+			return []webprovider.ExtractResult{{
+				URL:           "https://example.com",
+				Content:       "abcdef",
+				ContentFormat: "text",
+			}}, nil
+		},
+	}, Options{MinSummarizeChars: 3, MaxSummaryChars: 4, SummarizeRefusalThresholdChars: 5})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://example.com"],"summarize":true}`,
+	})
+	require.NoError(t, err)
+
+	var payload struct {
+		Results []webprovider.ExtractResult `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Equal(t, "abcdef", payload.Results[0].Content)
+	require.True(t, payload.Results[0].SummaryRefused)
+	require.Equal(t, 6, payload.Results[0].SourceContentChars)
+	require.Equal(t, "content exceeds summarization threshold", payload.Results[0].Error)
+}
+
+func TestWebExtract_ReturnsErrorWhenSummarizerIsMissing(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(context.Context, []string) ([]webprovider.ExtractResult, error) {
+			return []webprovider.ExtractResult{{
+				URL:           "https://example.com",
+				Content:       "abcdef",
+				ContentFormat: "text",
+			}}, nil
+		},
+	}, Options{MinSummarizeChars: 3, MaxSummaryChars: 4, SummarizeRefusalThresholdChars: 20})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://example.com"],"summarize":true}`,
+	})
+	require.NoError(t, err)
+
+	var toolErr tools.Error
+	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+	require.Equal(t, "tool_error", toolErr.Code)
+	require.Equal(t, "web extract summarizer is not configured", toolErr.Message)
 }
 
 func TestWebExtract_ReturnsProviderErrorsAsToolErrors(t *testing.T) {

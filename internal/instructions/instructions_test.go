@@ -266,3 +266,15 @@ func TestBuildSessionSummary_ReturnsStructuredSummaryInstructions(t *testing.T) 
 	require.Contains(t, instructions[4].Value, `"next_actions": ["next action"]`)
 	require.Equal(t, "Output rules: Do not include markdown fences or extra commentary.", instructions[5].Value)
 }
+
+func TestBuildWebExtractSummary_ReturnsSummaryInstructions(t *testing.T) {
+	instructions := BuildWebExtractSummary(500)
+
+	require.Contains(t, instructions, "# Web Extract Summary")
+	require.Contains(t, instructions, "Condense the extracted web page into markdown")
+	require.Contains(t, instructions, "Retain verifiable facts, dates, names, numbers, source details, decisions, and action items")
+	require.Contains(t, instructions, "Keep short quoted passages, code fragments, or technical specifics")
+	require.Contains(t, instructions, "organize the summary around that query")
+	require.Contains(t, instructions, "Do not add claims that are not supported by the extracted content")
+	require.Contains(t, instructions, "Keep the summary under 500 characters")
+}

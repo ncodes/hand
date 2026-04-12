@@ -171,7 +171,10 @@ func (e *environment) prepareTools() error {
 		return err
 	default:
 		definitions = append(definitions, webextract.Definition(webProvider, webextract.Options{
-			MaxExtractCharPerResult: e.cfg.WebMaxExtractCharPerResult,
+			MaxExtractCharPerResult:        e.cfg.WebMaxExtractCharPerResult,
+			MinSummarizeChars:              e.cfg.WebExtractMinSummarizeChars,
+			MaxSummaryChars:                e.cfg.WebExtractMaxSummaryChars,
+			SummarizeRefusalThresholdChars: e.cfg.WebExtractRefusalThresholdChars,
 		}), websearch.Definition(webProvider))
 	}
 

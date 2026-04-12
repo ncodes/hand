@@ -156,6 +156,24 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value:  config.Get().WebMaxExtractResponseBytes,
 			Hidden: true,
 		},
+		&cli.IntFlag{
+			Name:   "web.extract-min-summarize-chars",
+			Usage:  "Minimum extracted content characters before optional web extraction summarization runs",
+			Value:  config.Get().WebExtractMinSummarizeChars,
+			Hidden: true,
+		},
+		&cli.IntFlag{
+			Name:   "web.extract-max-summary-chars",
+			Usage:  "Maximum characters returned by optional web extraction summaries",
+			Value:  config.Get().WebExtractMaxSummaryChars,
+			Hidden: true,
+		},
+		&cli.IntFlag{
+			Name:   "web.extract-refusal-threshold-chars",
+			Usage:  "Extracted content character threshold above which optional summarization is refused",
+			Value:  config.Get().WebExtractRefusalThresholdChars,
+			Hidden: true,
+		},
 		&cli.StringFlag{
 			Name:   "rules.files",
 			Usage:  "Comma-separated rule file paths to load in addition to workspace defaults",
@@ -379,6 +397,15 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("web.max-extract-response-bytes") {
 		cfg.WebMaxExtractResponseBytes = cmd.Int("web.max-extract-response-bytes")
+	}
+	if cmd.IsSet("web.extract-min-summarize-chars") {
+		cfg.WebExtractMinSummarizeChars = cmd.Int("web.extract-min-summarize-chars")
+	}
+	if cmd.IsSet("web.extract-max-summary-chars") {
+		cfg.WebExtractMaxSummaryChars = cmd.Int("web.extract-max-summary-chars")
+	}
+	if cmd.IsSet("web.extract-refusal-threshold-chars") {
+		cfg.WebExtractRefusalThresholdChars = cmd.Int("web.extract-refusal-threshold-chars")
 	}
 	if cmd.IsSet("rules.files") {
 		cfg.RulesFiles = configSplitAndTrimCSV(cmd.String("rules.files"))

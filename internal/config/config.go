@@ -22,53 +22,56 @@ import (
 )
 
 type Config struct {
-	Name                       string
-	Model                      string
-	SummaryModel               string
-	Stream                     *bool
-	ContextLength              int
-	VerifyModel                *bool
-	ModelProvider              string
-	ModelKey                   string
-	OpenAIAPIKey               string
-	OpenRouterAPIKey           string
-	ModelBaseURL               string
-	SummaryProvider            string
-	SummaryModelBaseURL        string
-	SummaryModelAPIMode        string
-	ModelAPIMode               string
-	RPCAddress                 string
-	RPCPort                    int
-	MaxIterations              int
-	LogLevel                   string
-	LogNoColor                 bool
-	DebugRequests              bool
-	DebugTraces                bool
-	DebugTraceDir              string
-	WebProvider                string
-	WebAPIKey                  string
-	WebBaseURL                 string
-	WebMaxCharPerResult        int
-	WebMaxExtractCharPerResult int
-	WebMaxExtractResponseBytes int
-	RulesFiles                 []string
-	Instruct                   string
-	Platform                   string
-	CapFilesystem              *bool
-	CapNetwork                 *bool
-	CapExec                    *bool
-	CapMemory                  *bool
-	CapBrowser                 *bool
-	FSRoots                    []string
-	ExecAllow                  []string
-	ExecAsk                    []string
-	ExecDeny                   []string
-	StorageBackend             string
-	SessionDefaultIdleExpiry   time.Duration
-	SessionArchiveRetention    time.Duration
-	CompactionEnabled          *bool
-	CompactionTriggerPercent   float64
-	CompactionWarnPercent      float64
+	Name                            string
+	Model                           string
+	SummaryModel                    string
+	Stream                          *bool
+	ContextLength                   int
+	VerifyModel                     *bool
+	ModelProvider                   string
+	ModelKey                        string
+	OpenAIAPIKey                    string
+	OpenRouterAPIKey                string
+	ModelBaseURL                    string
+	SummaryProvider                 string
+	SummaryModelBaseURL             string
+	SummaryModelAPIMode             string
+	ModelAPIMode                    string
+	RPCAddress                      string
+	RPCPort                         int
+	MaxIterations                   int
+	LogLevel                        string
+	LogNoColor                      bool
+	DebugRequests                   bool
+	DebugTraces                     bool
+	DebugTraceDir                   string
+	WebProvider                     string
+	WebAPIKey                       string
+	WebBaseURL                      string
+	WebMaxCharPerResult             int
+	WebMaxExtractCharPerResult      int
+	WebMaxExtractResponseBytes      int
+	WebExtractMinSummarizeChars     int
+	WebExtractMaxSummaryChars       int
+	WebExtractRefusalThresholdChars int
+	RulesFiles                      []string
+	Instruct                        string
+	Platform                        string
+	CapFilesystem                   *bool
+	CapNetwork                      *bool
+	CapExec                         *bool
+	CapMemory                       *bool
+	CapBrowser                      *bool
+	FSRoots                         []string
+	ExecAllow                       []string
+	ExecAsk                         []string
+	ExecDeny                        []string
+	StorageBackend                  string
+	SessionDefaultIdleExpiry        time.Duration
+	SessionArchiveRetention         time.Duration
+	CompactionEnabled               *bool
+	CompactionTriggerPercent        float64
+	CompactionWarnPercent           float64
 }
 
 type ModelAuth struct {
@@ -105,15 +108,18 @@ var (
 var contextWindowPatternOAI = regexp.MustCompile(`([0-9][0-9,]*)(?:\s|<!--[^>]*-->)+context window`)
 
 const (
-	defaultModel                      = "openai/gpt-4o-mini"
-	defaultContextLength              = 128000
-	defaultModelProvider              = "openrouter"
-	DefaultModelAPIMode               = "completions"
-	DefaultMaxIterations              = 90
-	DefaultWebMaxCharPerResult        = 1200
-	DefaultWebMaxExtractCharPerResult = 50000
-	DefaultWebMaxExtractResponseBytes = 2 * 1024 * 1024
-	defaultMaxIterations              = DefaultMaxIterations
+	defaultModel                           = "openai/gpt-4o-mini"
+	defaultContextLength                   = 128000
+	defaultModelProvider                   = "openrouter"
+	DefaultModelAPIMode                    = "completions"
+	DefaultMaxIterations                   = 90
+	DefaultWebMaxCharPerResult             = 1200
+	DefaultWebMaxExtractCharPerResult      = 50000
+	DefaultWebMaxExtractResponseBytes      = 2 * 1024 * 1024
+	DefaultWebExtractMinSummarizeChars     = 12000
+	DefaultWebExtractMaxSummaryChars       = 4000
+	DefaultWebExtractRefusalThresholdChars = 200000
+	defaultMaxIterations                   = DefaultMaxIterations
 )
 
 type fileConfig struct {
@@ -151,12 +157,15 @@ type fileConfig struct {
 	} `yaml:"debug"`
 
 	Web struct {
-		Provider                string `yaml:"provider"`
-		APIKey                  string `yaml:"apiKey"`
-		BaseURL                 string `yaml:"baseUrl"`
-		MaxCharPerResult        int    `yaml:"maxCharPerResult"`
-		MaxExtractCharPerResult int    `yaml:"maxExtractCharPerResult"`
-		MaxExtractResponseBytes int    `yaml:"maxExtractResponseBytes"`
+		Provider                     string `yaml:"provider"`
+		APIKey                       string `yaml:"apiKey"`
+		BaseURL                      string `yaml:"baseUrl"`
+		MaxCharPerResult             int    `yaml:"maxCharPerResult"`
+		MaxExtractCharPerResult      int    `yaml:"maxExtractCharPerResult"`
+		MaxExtractResponseBytes      int    `yaml:"maxExtractResponseBytes"`
+		ExtractMinSummarizeChars     int    `yaml:"extractMinSummarizeChars"`
+		ExtractMaxSummaryChars       int    `yaml:"extractMaxSummaryChars"`
+		ExtractRefusalThresholdChars int    `yaml:"extractRefusalThresholdChars"`
 	} `yaml:"web"`
 
 	RPC struct {
@@ -294,53 +303,56 @@ func loadConfigFile(path string) (*Config, error) {
 	}
 
 	return &Config{
-		Name:                       raw.Name,
-		Model:                      raw.Model.Name,
-		SummaryModel:               raw.Model.SummaryModel,
-		Stream:                     raw.Model.Stream,
-		ContextLength:              raw.Model.ContextLength,
-		VerifyModel:                raw.Model.VerifyModel,
-		ModelProvider:              raw.Model.Provider,
-		ModelKey:                   raw.Model.Key,
-		OpenAIAPIKey:               raw.Model.OpenAIAPIKey,
-		OpenRouterAPIKey:           raw.Model.OpenRouterAPIKey,
-		ModelBaseURL:               raw.Model.BaseURL,
-		SummaryProvider:            raw.Model.SummaryProvider,
-		SummaryModelBaseURL:        raw.Model.SummaryBaseURL,
-		SummaryModelAPIMode:        raw.Model.SummaryAPIMode,
-		ModelAPIMode:               raw.Model.APIMode,
-		RPCAddress:                 raw.RPC.Address,
-		RPCPort:                    raw.RPC.Port,
-		MaxIterations:              raw.MaxIterations,
-		LogLevel:                   raw.Log.Level,
-		LogNoColor:                 raw.Log.NoColor,
-		DebugRequests:              raw.Debug.Requests,
-		DebugTraces:                raw.Debug.Traces,
-		DebugTraceDir:              raw.Debug.TraceDir,
-		WebProvider:                raw.Web.Provider,
-		WebAPIKey:                  raw.Web.APIKey,
-		WebBaseURL:                 raw.Web.BaseURL,
-		WebMaxCharPerResult:        raw.Web.MaxCharPerResult,
-		WebMaxExtractCharPerResult: raw.Web.MaxExtractCharPerResult,
-		WebMaxExtractResponseBytes: raw.Web.MaxExtractResponseBytes,
-		RulesFiles:                 raw.Rules.Files,
-		Instruct:                   raw.Instruct,
-		Platform:                   raw.Platform,
-		CapFilesystem:              raw.Cap.Filesystem,
-		CapNetwork:                 raw.Cap.Network,
-		CapExec:                    raw.Cap.Exec,
-		CapMemory:                  raw.Cap.Memory,
-		CapBrowser:                 raw.Cap.Browser,
-		FSRoots:                    resolvePathsFromBase(raw.FS.Roots, baseDir),
-		ExecAllow:                  raw.Exec.Allow,
-		ExecAsk:                    raw.Exec.Ask,
-		ExecDeny:                   raw.Exec.Deny,
-		StorageBackend:             raw.Storage.Backend,
-		SessionDefaultIdleExpiry:   parseDurationOrZero(raw.Session.DefaultIdleExpiry),
-		SessionArchiveRetention:    parseDurationOrZero(raw.Session.ArchiveRetention),
-		CompactionEnabled:          raw.Compaction.Enabled,
-		CompactionTriggerPercent:   raw.Compaction.TriggerPercent,
-		CompactionWarnPercent:      raw.Compaction.WarnPercent,
+		Name:                            raw.Name,
+		Model:                           raw.Model.Name,
+		SummaryModel:                    raw.Model.SummaryModel,
+		Stream:                          raw.Model.Stream,
+		ContextLength:                   raw.Model.ContextLength,
+		VerifyModel:                     raw.Model.VerifyModel,
+		ModelProvider:                   raw.Model.Provider,
+		ModelKey:                        raw.Model.Key,
+		OpenAIAPIKey:                    raw.Model.OpenAIAPIKey,
+		OpenRouterAPIKey:                raw.Model.OpenRouterAPIKey,
+		ModelBaseURL:                    raw.Model.BaseURL,
+		SummaryProvider:                 raw.Model.SummaryProvider,
+		SummaryModelBaseURL:             raw.Model.SummaryBaseURL,
+		SummaryModelAPIMode:             raw.Model.SummaryAPIMode,
+		ModelAPIMode:                    raw.Model.APIMode,
+		RPCAddress:                      raw.RPC.Address,
+		RPCPort:                         raw.RPC.Port,
+		MaxIterations:                   raw.MaxIterations,
+		LogLevel:                        raw.Log.Level,
+		LogNoColor:                      raw.Log.NoColor,
+		DebugRequests:                   raw.Debug.Requests,
+		DebugTraces:                     raw.Debug.Traces,
+		DebugTraceDir:                   raw.Debug.TraceDir,
+		WebProvider:                     raw.Web.Provider,
+		WebAPIKey:                       raw.Web.APIKey,
+		WebBaseURL:                      raw.Web.BaseURL,
+		WebMaxCharPerResult:             raw.Web.MaxCharPerResult,
+		WebMaxExtractCharPerResult:      raw.Web.MaxExtractCharPerResult,
+		WebMaxExtractResponseBytes:      raw.Web.MaxExtractResponseBytes,
+		WebExtractMinSummarizeChars:     raw.Web.ExtractMinSummarizeChars,
+		WebExtractMaxSummaryChars:       raw.Web.ExtractMaxSummaryChars,
+		WebExtractRefusalThresholdChars: raw.Web.ExtractRefusalThresholdChars,
+		RulesFiles:                      raw.Rules.Files,
+		Instruct:                        raw.Instruct,
+		Platform:                        raw.Platform,
+		CapFilesystem:                   raw.Cap.Filesystem,
+		CapNetwork:                      raw.Cap.Network,
+		CapExec:                         raw.Cap.Exec,
+		CapMemory:                       raw.Cap.Memory,
+		CapBrowser:                      raw.Cap.Browser,
+		FSRoots:                         resolvePathsFromBase(raw.FS.Roots, baseDir),
+		ExecAllow:                       raw.Exec.Allow,
+		ExecAsk:                         raw.Exec.Ask,
+		ExecDeny:                        raw.Exec.Deny,
+		StorageBackend:                  raw.Storage.Backend,
+		SessionDefaultIdleExpiry:        parseDurationOrZero(raw.Session.DefaultIdleExpiry),
+		SessionArchiveRetention:         parseDurationOrZero(raw.Session.ArchiveRetention),
+		CompactionEnabled:               raw.Compaction.Enabled,
+		CompactionTriggerPercent:        raw.Compaction.TriggerPercent,
+		CompactionWarnPercent:           raw.Compaction.WarnPercent,
 	}, nil
 }
 
@@ -446,6 +458,21 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("WEB_MAX_EXTRACT_RESPONSE_BYTES")); value != "" {
 		if bytes, err := strconv.Atoi(value); err == nil {
 			cfg.WebMaxExtractResponseBytes = bytes
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("WEB_EXTRACT_MIN_SUMMARIZE_CHARS")); value != "" {
+		if chars, err := strconv.Atoi(value); err == nil {
+			cfg.WebExtractMinSummarizeChars = chars
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("WEB_EXTRACT_MAX_SUMMARY_CHARS")); value != "" {
+		if chars, err := strconv.Atoi(value); err == nil {
+			cfg.WebExtractMaxSummaryChars = chars
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS")); value != "" {
+		if chars, err := strconv.Atoi(value); err == nil {
+			cfg.WebExtractRefusalThresholdChars = chars
 		}
 	}
 	if cfg.WebProvider == "" {
@@ -619,6 +646,15 @@ func (c *Config) normalizeFields() {
 	}
 	if c.WebMaxExtractResponseBytes <= 0 {
 		c.WebMaxExtractResponseBytes = DefaultWebMaxExtractResponseBytes
+	}
+	if c.WebExtractMinSummarizeChars <= 0 {
+		c.WebExtractMinSummarizeChars = DefaultWebExtractMinSummarizeChars
+	}
+	if c.WebExtractMaxSummaryChars <= 0 {
+		c.WebExtractMaxSummaryChars = DefaultWebExtractMaxSummaryChars
+	}
+	if c.WebExtractRefusalThresholdChars <= 0 {
+		c.WebExtractRefusalThresholdChars = DefaultWebExtractRefusalThresholdChars
 	}
 
 	if c.CapFilesystem == nil {

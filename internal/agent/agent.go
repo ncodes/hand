@@ -17,6 +17,7 @@ import (
 	"github.com/wandxy/hand/internal/storage"
 	storagefactory "github.com/wandxy/hand/internal/storage/factory"
 	"github.com/wandxy/hand/internal/tools"
+	webextract "github.com/wandxy/hand/internal/tools/webextract"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -235,6 +236,8 @@ func (a *Agent) invokeToolWithEnvironment(
 		raw, _ := jsonMarshal(result)
 		return handmsg.Message{Role: handmsg.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: string(raw)}
 	}
+
+	ctx = webextract.WithSummarizer(ctx, webextract.NewModelSummarizer(a.summaryClient, a.cfg))
 
 	toolResult, err := env.Tools().Invoke(ctx, tools.Call{
 		Name:   toolCall.Name,

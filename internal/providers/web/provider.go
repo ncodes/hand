@@ -29,13 +29,17 @@ type SearchResult struct {
 }
 
 type ExtractResult struct {
-	URL               string `json:"url"`
-	Title             string `json:"title,omitempty"`
-	Content           string `json:"content,omitempty"`
-	ContentFormat     string `json:"content_format"`
-	Truncated         bool   `json:"truncated,omitempty"`
-	DownloadTruncated bool   `json:"download_truncated,omitempty"`
-	Error             string `json:"error,omitempty"`
+	URL                string `json:"url"`
+	Title              string `json:"title,omitempty"`
+	Content            string `json:"content,omitempty"`
+	ContentFormat      string `json:"content_format"`
+	Truncated          bool   `json:"truncated,omitempty"`
+	DownloadTruncated  bool   `json:"download_truncated,omitempty"`
+	Summarized         bool   `json:"summarized,omitempty"`
+	SummaryRefused     bool   `json:"summary_refused,omitempty"`
+	SourceContentChars int    `json:"source_content_chars,omitempty"`
+	SummaryChars       int    `json:"summary_chars,omitempty"`
+	Error              string `json:"error,omitempty"`
 }
 
 type Provider interface {
