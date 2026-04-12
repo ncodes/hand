@@ -3,6 +3,7 @@ package webextract
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/wandxy/hand/internal/config"
@@ -17,11 +18,12 @@ type Summarizer interface {
 }
 
 type SummaryInput struct {
-	URL             string
-	Title           string
-	Query           string
-	Content         string
-	MaxSummaryChars int
+	URL                  string
+	Title                string
+	Query                string
+	Content              string
+	MaxSummaryChars      int
+	MaxSummaryChunkChars int
 }
 
 type summarizerContextKey struct{}
@@ -30,6 +32,7 @@ type summarizeOptions struct {
 	Query                          string
 	MinSummarizeChars              int
 	MaxSummaryChars                int
+	MaxSummaryChunkChars           int
 	SummarizeRefusalThresholdChars int
 }
 
@@ -78,15 +81,59 @@ func (s ExtractSummarizer) SummarizeExtract(ctx context.Context, input SummaryIn
 		return "", errors.New("web extract summarizer is not configured")
 	}
 
+	content := strings.TrimSpace(input.Content)
+	if input.MaxSummaryChunkChars > 0 && runeLen(content) > input.MaxSummaryChunkChars {
+		return s.summarizeChunked(ctx, input)
+	}
+
+	return s.completeSummary(
+		ctx,
+		instruct.BuildWebExtractSummary(input.MaxSummaryChars),
+		renderSummaryPrompt(input),
+		input.MaxSummaryChars,
+	)
+}
+
+func (s ExtractSummarizer) summarizeChunked(ctx context.Context, input SummaryInput) (string, error) {
+	chunks := splitIntoChunks(input.Content, input.MaxSummaryChunkChars)
+	chunkSummaries := make([]string, 0, len(chunks))
+	for idx, chunk := range chunks {
+		summary, err := s.completeSummary(
+			ctx,
+			instruct.BuildWebExtractChunkSummary(input.MaxSummaryChars, idx+1, len(chunks)),
+			renderChunkSummaryPrompt(input, chunk, idx+1, len(chunks)),
+			input.MaxSummaryChars,
+		)
+		if err != nil {
+			return "", err
+		}
+
+		chunkSummaries = append(chunkSummaries, summary)
+	}
+
+	return s.completeSummary(
+		ctx,
+		instruct.BuildWebExtractSynthesis(input.MaxSummaryChars),
+		renderSynthesisPrompt(input, chunkSummaries),
+		input.MaxSummaryChars,
+	)
+}
+
+func (s ExtractSummarizer) completeSummary(
+	ctx context.Context,
+	instructions string,
+	prompt string,
+	maxSummaryChars int,
+) (string, error) {
 	resp, err := s.Client.Complete(ctx, models.Request{
 		Model:        s.Model,
 		APIMode:      s.APIMode,
-		Instructions: instruct.BuildWebExtractSummary(input.MaxSummaryChars),
+		Instructions: instructions,
 		Messages: []handmsg.Message{{
 			Role:    handmsg.RoleUser,
-			Content: renderSummaryPrompt(input),
+			Content: prompt,
 		}},
-		MaxOutputTokens: maxSummaryOutputTokens(input.MaxSummaryChars),
+		MaxOutputTokens: maxSummaryOutputTokens(maxSummaryChars),
 		Temperature:     0,
 		DebugRequests:   s.DebugRequests,
 	})
@@ -141,11 +188,12 @@ func summarizeResults(
 		}
 
 		summary, err := summarizer.SummarizeExtract(ctx, SummaryInput{
-			URL:             result.URL,
-			Title:           result.Title,
-			Query:           options.Query,
-			Content:         result.Content,
-			MaxSummaryChars: options.MaxSummaryChars,
+			URL:                  result.URL,
+			Title:                result.Title,
+			Query:                options.Query,
+			Content:              result.Content,
+			MaxSummaryChars:      options.MaxSummaryChars,
+			MaxSummaryChunkChars: options.MaxSummaryChunkChars,
 		})
 		if err != nil {
 			return nil, err
@@ -173,6 +221,61 @@ func renderSummaryPrompt(input SummaryInput) string {
 	parts = append(parts, "Content:\n"+strings.TrimSpace(input.Content))
 
 	return strings.Join(parts, "\n\n")
+}
+
+func renderChunkSummaryPrompt(input SummaryInput, chunk string, chunkIndex, chunkCount int) string {
+	parts := []string{
+		"URL: " + strings.TrimSpace(input.URL),
+		"Title: " + strings.TrimSpace(input.Title),
+		"Chunk: " + strconv.Itoa(chunkIndex) + " of " + strconv.Itoa(chunkCount),
+	}
+	if query := strings.TrimSpace(input.Query); query != "" {
+		parts = append(parts, "Query: "+query)
+	}
+	parts = append(parts, "Chunk Content:\n"+strings.TrimSpace(chunk))
+
+	return strings.Join(parts, "\n\n")
+}
+
+func renderSynthesisPrompt(input SummaryInput, chunkSummaries []string) string {
+	parts := []string{
+		"URL: " + strings.TrimSpace(input.URL),
+		"Title: " + strings.TrimSpace(input.Title),
+	}
+	if query := strings.TrimSpace(input.Query); query != "" {
+		parts = append(parts, "Query: "+query)
+	}
+
+	sections := make([]string, 0, len(chunkSummaries))
+	for idx, summary := range chunkSummaries {
+		sections = append(sections, "Chunk "+strconv.Itoa(idx+1)+" Summary:\n"+strings.TrimSpace(summary))
+	}
+	parts = append(parts, "Chunk Summaries:\n"+strings.Join(sections, "\n\n"))
+
+	return strings.Join(parts, "\n\n")
+}
+
+func splitIntoChunks(content string, chunkChars int) []string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return nil
+	}
+	if chunkChars <= 0 {
+		return []string{content}
+	}
+
+	runes := []rune(content)
+	chunks := make([]string, 0, (len(runes)+chunkChars-1)/chunkChars)
+	for start := 0; start < len(runes); start += chunkChars {
+		end := min(start+chunkChars, len(runes))
+		chunk := strings.TrimSpace(string(runes[start:end]))
+		if chunk == "" {
+			continue
+		}
+		chunks = append(chunks, chunk)
+	}
+
+	return chunks
 }
 
 func maxSummaryOutputTokens(maxSummaryChars int) int64 {

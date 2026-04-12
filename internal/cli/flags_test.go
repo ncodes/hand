@@ -166,6 +166,7 @@ func TestApplyConfigOverrides_AppliesWebSettings(t *testing.T) {
 		"--web.max-extract-response-bytes", "2097152",
 		"--web.extract-min-summarize-chars", "12000",
 		"--web.extract-max-summary-chars", "3000",
+		"--web.extract-max-summary-chunk-chars", "70000",
 		"--web.extract-refusal-threshold-chars", "190000",
 	})
 
@@ -179,5 +180,6 @@ func TestApplyConfigOverrides_AppliesWebSettings(t *testing.T) {
 	require.Equal(t, 2097152, cfg.WebMaxExtractResponseBytes)
 	require.Equal(t, 12000, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, 3000, cfg.WebExtractMaxSummaryChars)
+	require.Equal(t, 70000, cfg.WebExtractMaxSummaryChunkChars)
 	require.Equal(t, 190000, cfg.WebExtractRefusalThresholdChars)
 }

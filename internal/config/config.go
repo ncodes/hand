@@ -53,6 +53,7 @@ type Config struct {
 	WebMaxExtractResponseBytes      int
 	WebExtractMinSummarizeChars     int
 	WebExtractMaxSummaryChars       int
+	WebExtractMaxSummaryChunkChars  int
 	WebExtractRefusalThresholdChars int
 	RulesFiles                      []string
 	Instruct                        string
@@ -118,6 +119,7 @@ const (
 	DefaultWebMaxExtractResponseBytes      = 2 * 1024 * 1024
 	DefaultWebExtractMinSummarizeChars     = 12000
 	DefaultWebExtractMaxSummaryChars       = 4000
+	DefaultWebExtractMaxSummaryChunkChars  = 25000
 	DefaultWebExtractRefusalThresholdChars = 200000
 	defaultMaxIterations                   = DefaultMaxIterations
 )
@@ -165,6 +167,7 @@ type fileConfig struct {
 		MaxExtractResponseBytes      int    `yaml:"maxExtractResponseBytes"`
 		ExtractMinSummarizeChars     int    `yaml:"extractMinSummarizeChars"`
 		ExtractMaxSummaryChars       int    `yaml:"extractMaxSummaryChars"`
+		ExtractMaxSummaryChunkChars  int    `yaml:"extractMaxSummaryChunkChars"`
 		ExtractRefusalThresholdChars int    `yaml:"extractRefusalThresholdChars"`
 	} `yaml:"web"`
 
@@ -334,6 +337,7 @@ func loadConfigFile(path string) (*Config, error) {
 		WebMaxExtractResponseBytes:      raw.Web.MaxExtractResponseBytes,
 		WebExtractMinSummarizeChars:     raw.Web.ExtractMinSummarizeChars,
 		WebExtractMaxSummaryChars:       raw.Web.ExtractMaxSummaryChars,
+		WebExtractMaxSummaryChunkChars:  raw.Web.ExtractMaxSummaryChunkChars,
 		WebExtractRefusalThresholdChars: raw.Web.ExtractRefusalThresholdChars,
 		RulesFiles:                      raw.Rules.Files,
 		Instruct:                        raw.Instruct,
@@ -468,6 +472,11 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("WEB_EXTRACT_MAX_SUMMARY_CHARS")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.WebExtractMaxSummaryChars = chars
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS")); value != "" {
+		if chars, err := strconv.Atoi(value); err == nil {
+			cfg.WebExtractMaxSummaryChunkChars = chars
 		}
 	}
 	if value := strings.TrimSpace(os.Getenv("WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS")); value != "" {
@@ -652,6 +661,9 @@ func (c *Config) normalizeFields() {
 	}
 	if c.WebExtractMaxSummaryChars <= 0 {
 		c.WebExtractMaxSummaryChars = DefaultWebExtractMaxSummaryChars
+	}
+	if c.WebExtractMaxSummaryChunkChars <= 0 {
+		c.WebExtractMaxSummaryChunkChars = DefaultWebExtractMaxSummaryChunkChars
 	}
 	if c.WebExtractRefusalThresholdChars <= 0 {
 		c.WebExtractRefusalThresholdChars = DefaultWebExtractRefusalThresholdChars

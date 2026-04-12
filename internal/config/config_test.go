@@ -155,6 +155,7 @@ func TestLoad_UsesConfigFileValues(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
 		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
+		"WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
 
 	dir := t.TempDir()
@@ -192,6 +193,7 @@ web:
   maxExtractResponseBytes: 2048
   extractMinSummarizeChars: 12000
   extractMaxSummaryChars: 3000
+  extractMaxSummaryChunkChars: 60000
   extractRefusalThresholdChars: 180000
 rules:
   files:
@@ -221,6 +223,7 @@ rules:
 	require.Equal(t, 2048, cfg.WebMaxExtractResponseBytes)
 	require.Equal(t, 12000, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, 3000, cfg.WebExtractMaxSummaryChars)
+	require.Equal(t, 60000, cfg.WebExtractMaxSummaryChunkChars)
 	require.Equal(t, 180000, cfg.WebExtractRefusalThresholdChars)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.RulesFiles)
 	require.Equal(t, "be terse", cfg.Instruct)
@@ -236,6 +239,7 @@ func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
 		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
+		"WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
 
 	dir := t.TempDir()
@@ -261,6 +265,7 @@ WEB_MAX_EXTRACT_CHAR_PER_RESULT=12400
 WEB_MAX_EXTRACT_RESPONSE_BYTES=4096
 WEB_EXTRACT_MIN_SUMMARIZE_CHARS=13000
 WEB_EXTRACT_MAX_SUMMARY_CHARS=3200
+WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS=70000
 WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS=190000
 RULES_FILES=hand.md,custom.md
 INSTRUCT=be terse
@@ -329,6 +334,7 @@ rules:
 	require.Equal(t, 4096, cfg.WebMaxExtractResponseBytes)
 	require.Equal(t, 13000, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, 3200, cfg.WebExtractMaxSummaryChars)
+	require.Equal(t, 70000, cfg.WebExtractMaxSummaryChunkChars)
 	require.Equal(t, 190000, cfg.WebExtractRefusalThresholdChars)
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.RulesFiles)
 	require.Equal(t, "be terse", cfg.Instruct)
@@ -1215,6 +1221,8 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	require.Equal(t, DefaultWebMaxExtractResponseBytes, cfg.WebMaxExtractResponseBytes)
 	require.Equal(t, DefaultWebExtractMinSummarizeChars, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, DefaultWebExtractMaxSummaryChars, cfg.WebExtractMaxSummaryChars)
+	require.Equal(t, DefaultWebExtractMaxSummaryChunkChars, cfg.WebExtractMaxSummaryChunkChars)
+	require.Less(t, cfg.WebExtractMaxSummaryChunkChars, cfg.WebMaxExtractCharPerResult)
 	require.Equal(t, DefaultWebExtractRefusalThresholdChars, cfg.WebExtractRefusalThresholdChars)
 	require.True(t, boolValueDefault(cfg.VerifyModel, true))
 }

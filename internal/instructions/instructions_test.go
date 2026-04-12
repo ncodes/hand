@@ -278,3 +278,23 @@ func TestBuildWebExtractSummary_ReturnsSummaryInstructions(t *testing.T) {
 	require.Contains(t, instructions, "Do not add claims that are not supported by the extracted content")
 	require.Contains(t, instructions, "Keep the summary under 500 characters")
 }
+
+func TestBuildWebExtractChunkSummary_ReturnsChunkInstructions(t *testing.T) {
+	instructions := BuildWebExtractChunkSummary(500, 2, 5)
+
+	require.Contains(t, instructions, "# Web Extract Chunk Summary")
+	require.Contains(t, instructions, "chunk 2 of 5")
+	require.Contains(t, instructions, "Retain verifiable facts")
+	require.Contains(t, instructions, "Do not add context from other chunks")
+	require.Contains(t, instructions, "Keep the chunk summary under 500 characters")
+}
+
+func TestBuildWebExtractSynthesis_ReturnsSynthesisInstructions(t *testing.T) {
+	instructions := BuildWebExtractSynthesis(500)
+
+	require.Contains(t, instructions, "# Web Extract Summary Synthesis")
+	require.Contains(t, instructions, "Combine chunk summaries")
+	require.Contains(t, instructions, "Remove repeated details")
+	require.Contains(t, instructions, "Do not add claims that are not supported by the chunk summaries")
+	require.Contains(t, instructions, "Keep the final summary under 500 characters")
+}

@@ -351,7 +351,7 @@ func TestWebExtract_SummarizesLongResults(t *testing.T) {
 				ContentFormat: "text",
 			}}, nil
 		},
-	}, Options{MinSummarizeChars: 3, MaxSummaryChars: 4, SummarizeRefusalThresholdChars: 20})
+	}, Options{MinSummarizeChars: 3, MaxSummaryChars: 4, MaxSummaryChunkChars: 10, SummarizeRefusalThresholdChars: 20})
 	summarizer := &stubSummarizer{output: "summary text"}
 	ctx := WithSummarizer(context.Background(), summarizer)
 
@@ -376,6 +376,7 @@ func TestWebExtract_SummarizesLongResults(t *testing.T) {
 	require.Equal(t, "pricing", summarizer.inputs[0].Query)
 	require.Equal(t, "abcdef", summarizer.inputs[0].Content)
 	require.Equal(t, 4, summarizer.inputs[0].MaxSummaryChars)
+	require.Equal(t, 10, summarizer.inputs[0].MaxSummaryChunkChars)
 }
 
 func TestWebExtract_SkipsSummarizationBelowMinimum(t *testing.T) {

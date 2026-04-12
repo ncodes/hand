@@ -169,6 +169,12 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Hidden: true,
 		},
 		&cli.IntFlag{
+			Name:   "web.extract-max-summary-chunk-chars",
+			Usage:  "Maximum extracted content characters per optional summarization chunk",
+			Value:  config.Get().WebExtractMaxSummaryChunkChars,
+			Hidden: true,
+		},
+		&cli.IntFlag{
 			Name:   "web.extract-refusal-threshold-chars",
 			Usage:  "Extracted content character threshold above which optional summarization is refused",
 			Value:  config.Get().WebExtractRefusalThresholdChars,
@@ -403,6 +409,9 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("web.extract-max-summary-chars") {
 		cfg.WebExtractMaxSummaryChars = cmd.Int("web.extract-max-summary-chars")
+	}
+	if cmd.IsSet("web.extract-max-summary-chunk-chars") {
+		cfg.WebExtractMaxSummaryChunkChars = cmd.Int("web.extract-max-summary-chunk-chars")
 	}
 	if cmd.IsSet("web.extract-refusal-threshold-chars") {
 		cfg.WebExtractRefusalThresholdChars = cmd.Int("web.extract-refusal-threshold-chars")

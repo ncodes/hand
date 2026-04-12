@@ -16,6 +16,7 @@ type Options struct {
 	MaxExtractCharPerResult        int
 	MinSummarizeChars              int
 	MaxSummaryChars                int
+	MaxSummaryChunkChars           int
 	SummarizeRefusalThresholdChars int
 }
 
@@ -116,6 +117,7 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 					Query:                          strings.TrimSpace(req.Query),
 					MinSummarizeChars:              opts.MinSummarizeChars,
 					MaxSummaryChars:                opts.MaxSummaryChars,
+					MaxSummaryChunkChars:           opts.MaxSummaryChunkChars,
 					SummarizeRefusalThresholdChars: opts.SummarizeRefusalThresholdChars,
 				})
 				if err != nil {

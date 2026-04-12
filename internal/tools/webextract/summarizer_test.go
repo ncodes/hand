@@ -13,13 +13,21 @@ import (
 )
 
 type modelClientStub struct {
-	requests []models.Request
-	response *models.Response
-	err      error
+	requests  []models.Request
+	responses []*models.Response
+	response  *models.Response
+	err       error
 }
 
 func (s *modelClientStub) Complete(_ context.Context, req models.Request) (*models.Response, error) {
 	s.requests = append(s.requests, req)
+	if len(s.responses) > 0 {
+		idx := len(s.requests) - 1
+		if idx >= len(s.responses) {
+			return nil, errors.New("unexpected model request")
+		}
+		return s.responses[idx], nil
+	}
 	return s.response, s.err
 }
 
@@ -102,6 +110,57 @@ func TestExtractSummarizer_SummarizeExtractBuildsModelRequest(t *testing.T) {
 	require.True(t, client.requests[0].DebugRequests)
 }
 
+func TestExtractSummarizer_SummarizeExtractChunksAndSynthesizesLargeContent(t *testing.T) {
+	client := &modelClientStub{responses: []*models.Response{
+		{OutputText: "chunk one"},
+		{OutputText: "chunk two"},
+		{OutputText: "chunk three"},
+		{OutputText: " final summary "},
+	}}
+	summarizer := ExtractSummarizer{
+		Client:  client,
+		Model:   "openai/gpt-4o-mini",
+		APIMode: models.APIModeResponses,
+	}
+
+	summary, err := summarizer.SummarizeExtract(context.Background(), SummaryInput{
+		URL:                  "https://example.com",
+		Title:                "Example",
+		Query:                "pricing",
+		Content:              "abcdefghi",
+		MaxSummaryChars:      500,
+		MaxSummaryChunkChars: 3,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "final summary", summary)
+	require.Len(t, client.requests, 4)
+	require.Contains(t, client.requests[0].Instructions, "# Web Extract Chunk Summary")
+	require.Contains(t, client.requests[0].Instructions, "chunk 1 of 3")
+	require.Contains(t, client.requests[0].Messages[0].Content, "Chunk: 1 of 3")
+	require.Contains(t, client.requests[0].Messages[0].Content, "Chunk Content:\nabc")
+	require.Contains(t, client.requests[1].Messages[0].Content, "Chunk Content:\ndef")
+	require.Contains(t, client.requests[2].Messages[0].Content, "Chunk Content:\nghi")
+	require.Contains(t, client.requests[3].Instructions, "# Web Extract Summary Synthesis")
+	require.Contains(t, client.requests[3].Messages[0].Content, "Chunk 1 Summary:\nchunk one")
+	require.Contains(t, client.requests[3].Messages[0].Content, "Chunk 2 Summary:\nchunk two")
+	require.Contains(t, client.requests[3].Messages[0].Content, "Chunk 3 Summary:\nchunk three")
+}
+
+func TestExtractSummarizer_SummarizeExtractReturnsChunkError(t *testing.T) {
+	client := &modelClientStub{responses: []*models.Response{{OutputText: "chunk one"}}}
+	summarizer := ExtractSummarizer{Client: client}
+
+	_, err := summarizer.SummarizeExtract(context.Background(), SummaryInput{
+		Content:              "abcdef",
+		MaxSummaryChars:      500,
+		MaxSummaryChunkChars: 3,
+	})
+
+	require.EqualError(t, err, "unexpected model request")
+	require.Len(t, client.requests, 2)
+}
+
 func TestExtractSummarizer_ReturnsModelErrors(t *testing.T) {
 	summarizer := ExtractSummarizer{Client: &modelClientStub{err: errors.New("model failed")}}
 
@@ -163,6 +222,14 @@ func TestSummarizeResults_ReturnsSummarizerError(t *testing.T) {
 	)
 
 	require.EqualError(t, err, "summary failed")
+}
+
+func TestSplitIntoChunks_SplitsByRuneCount(t *testing.T) {
+	require.Nil(t, splitIntoChunks("   ", 3))
+	require.Equal(t, []string{"abc"}, splitIntoChunks(" abc ", 0))
+	require.Equal(t, []string{"åß", "cd", "ef"}, splitIntoChunks("åßcdef", 2))
+	require.Equal(t, []string{"ab", "cd", "e"}, splitIntoChunks("abcde", 2))
+	require.Equal(t, []string{"ab", "cd"}, splitIntoChunks("ab    cd", 2))
 }
 
 func TestTruncateToChars_TrimsAndReportsTruncation(t *testing.T) {

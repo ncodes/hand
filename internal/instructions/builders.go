@@ -204,6 +204,26 @@ Do not add claims that are not supported by the extracted content.
 Keep the summary under %d characters.`, maxSummaryChars)
 }
 
+func BuildWebExtractChunkSummary(maxSummaryChars, chunkIndex, chunkCount int) string {
+	return fmt.Sprintf(`# Web Extract Chunk Summary
+
+Condense chunk %d of %d from an extracted web page.
+Retain verifiable facts, dates, names, numbers, source details, decisions, and action items from this chunk.
+Keep short quoted passages, code fragments, or technical specifics only when they materially affect the answer.
+Do not add context from other chunks or claims that are not supported by this chunk.
+Keep the chunk summary under %d characters.`, chunkIndex, chunkCount, maxSummaryChars)
+}
+
+func BuildWebExtractSynthesis(maxSummaryChars int) string {
+	return fmt.Sprintf(`# Web Extract Summary Synthesis
+
+Combine chunk summaries from one extracted web page into a single markdown summary for agent context.
+Remove repeated details while preserving verifiable facts, dates, names, numbers, source details, decisions, and action items.
+When a query is provided, organize the final summary around that query before covering secondary context.
+Do not add claims that are not supported by the chunk summaries.
+Keep the final summary under %d characters.`, maxSummaryChars)
+}
+
 func cleanList(values []string) []string {
 	cleaned := make([]string, 0, len(values))
 	for _, value := range values {

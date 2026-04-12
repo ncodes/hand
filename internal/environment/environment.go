@@ -174,6 +174,7 @@ func (e *environment) prepareTools() error {
 			MaxExtractCharPerResult:        e.cfg.WebMaxExtractCharPerResult,
 			MinSummarizeChars:              e.cfg.WebExtractMinSummarizeChars,
 			MaxSummaryChars:                e.cfg.WebExtractMaxSummaryChars,
+			MaxSummaryChunkChars:           e.cfg.WebExtractMaxSummaryChunkChars,
 			SummarizeRefusalThresholdChars: e.cfg.WebExtractRefusalThresholdChars,
 		}), websearch.Definition(webProvider))
 	}
