@@ -33,14 +33,14 @@ type summarizeOptions struct {
 	SummarizeRefusalThresholdChars int
 }
 
-type ModelSummarizer struct {
+type ExtractSummarizer struct {
 	Client        models.Client
 	Model         string
 	APIMode       string
 	DebugRequests bool
 }
 
-func NewModelSummarizer(client models.Client, cfg *config.Config) Summarizer {
+func NewExtractSummarizer(client models.Client, cfg *config.Config) Summarizer {
 	if client == nil || cfg == nil {
 		return nil
 	}
@@ -48,7 +48,7 @@ func NewModelSummarizer(client models.Client, cfg *config.Config) Summarizer {
 	normalized := *cfg
 	normalized.Normalize()
 
-	return ModelSummarizer{
+	return ExtractSummarizer{
 		Client:        client,
 		Model:         normalized.SummaryModelEffective(),
 		APIMode:       normalized.SummaryModelAPIModeEffective(),
@@ -73,7 +73,7 @@ func summarizerFromContext(ctx context.Context) Summarizer {
 	return summarizer
 }
 
-func (s ModelSummarizer) SummarizeExtract(ctx context.Context, input SummaryInput) (string, error) {
+func (s ExtractSummarizer) SummarizeExtract(ctx context.Context, input SummaryInput) (string, error) {
 	if s.Client == nil {
 		return "", errors.New("web extract summarizer is not configured")
 	}

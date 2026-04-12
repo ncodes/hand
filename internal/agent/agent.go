@@ -237,7 +237,7 @@ func (a *Agent) invokeToolWithEnvironment(
 		return handmsg.Message{Role: handmsg.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: string(raw)}
 	}
 
-	ctx = webextract.WithSummarizer(ctx, webextract.NewModelSummarizer(a.summaryClient, a.cfg))
+	ctx = webextract.WithSummarizer(ctx, webextract.NewExtractSummarizer(a.summaryClient, a.cfg))
 
 	toolResult, err := env.Tools().Invoke(ctx, tools.Call{
 		Name:   toolCall.Name,

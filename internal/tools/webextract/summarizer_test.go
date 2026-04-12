@@ -27,33 +27,33 @@ func (s *modelClientStub) CompleteStream(context.Context, models.Request, func(m
 	return nil, errors.New("unexpected stream call")
 }
 
-func TestNewModelSummarizer_ReturnsNilWithoutDependencies(t *testing.T) {
-	require.Nil(t, NewModelSummarizer(nil, &config.Config{}))
-	require.Nil(t, NewModelSummarizer(&modelClientStub{}, nil))
+func TestNewExtractSummarizer_ReturnsNilWithoutDependencies(t *testing.T) {
+	require.Nil(t, NewExtractSummarizer(nil, &config.Config{}))
+	require.Nil(t, NewExtractSummarizer(&modelClientStub{}, nil))
 }
 
-func TestNewModelSummarizer_UsesSummaryModelEffective(t *testing.T) {
-	summarizer := NewModelSummarizer(&modelClientStub{}, &config.Config{
+func TestNewExtractSummarizer_UsesSummaryModelEffective(t *testing.T) {
+	summarizer := NewExtractSummarizer(&modelClientStub{}, &config.Config{
 		Model:         "openai/gpt-4o-mini",
 		SummaryModel:  "openai/gpt-4.1-mini",
 		ModelProvider: "openrouter",
 		ModelKey:      "key",
 	})
 
-	modelSummarizer, ok := summarizer.(ModelSummarizer)
+	modelSummarizer, ok := summarizer.(ExtractSummarizer)
 	require.True(t, ok)
 	require.Equal(t, "openai/gpt-4.1-mini", modelSummarizer.Model)
 	require.Equal(t, config.DefaultModelAPIMode, modelSummarizer.APIMode)
 }
 
-func TestNewModelSummarizer_FallsBackToMainModel(t *testing.T) {
-	summarizer := NewModelSummarizer(&modelClientStub{}, &config.Config{
+func TestNewExtractSummarizer_FallsBackToMainModel(t *testing.T) {
+	summarizer := NewExtractSummarizer(&modelClientStub{}, &config.Config{
 		Model:         "openai/gpt-4o-mini",
 		ModelProvider: "openrouter",
 		ModelKey:      "key",
 	})
 
-	modelSummarizer, ok := summarizer.(ModelSummarizer)
+	modelSummarizer, ok := summarizer.(ExtractSummarizer)
 	require.True(t, ok)
 	require.Equal(t, "openai/gpt-4o-mini", modelSummarizer.Model)
 }
@@ -65,13 +65,14 @@ func TestWithSummarizer_ReturnsOriginalContextWhenSummarizerIsNil(t *testing.T) 
 }
 
 func TestSummarizerFromContext_ReturnsNilWithoutSummarizer(t *testing.T) {
+	require.Nil(t, summarizerFromContext(nil))
 	require.Nil(t, summarizerFromContext(context.Background()))
 	require.Nil(t, summarizerFromContext(context.WithValue(context.Background(), summarizerContextKey{}, "not a summarizer")))
 }
 
-func TestModelSummarizer_SummarizeExtractBuildsModelRequest(t *testing.T) {
+func TestExtractSummarizer_SummarizeExtractBuildsModelRequest(t *testing.T) {
 	client := &modelClientStub{response: &models.Response{OutputText: " concise summary "}}
-	summarizer := ModelSummarizer{
+	summarizer := ExtractSummarizer{
 		Client:        client,
 		Model:         "openai/gpt-4o-mini",
 		APIMode:       models.APIModeResponses,
@@ -101,27 +102,27 @@ func TestModelSummarizer_SummarizeExtractBuildsModelRequest(t *testing.T) {
 	require.True(t, client.requests[0].DebugRequests)
 }
 
-func TestModelSummarizer_ReturnsModelErrors(t *testing.T) {
-	summarizer := ModelSummarizer{Client: &modelClientStub{err: errors.New("model failed")}}
+func TestExtractSummarizer_ReturnsModelErrors(t *testing.T) {
+	summarizer := ExtractSummarizer{Client: &modelClientStub{err: errors.New("model failed")}}
 
 	_, err := summarizer.SummarizeExtract(context.Background(), SummaryInput{Content: "content"})
 
 	require.EqualError(t, err, "model failed")
 }
 
-func TestModelSummarizer_RejectsInvalidResponses(t *testing.T) {
-	_, err := (ModelSummarizer{}).SummarizeExtract(context.Background(), SummaryInput{Content: "content"})
+func TestExtractSummarizer_RejectsInvalidResponses(t *testing.T) {
+	_, err := (ExtractSummarizer{}).SummarizeExtract(context.Background(), SummaryInput{Content: "content"})
 	require.EqualError(t, err, "web extract summarizer is not configured")
 
-	_, err = (ModelSummarizer{Client: &modelClientStub{}}).SummarizeExtract(context.Background(), SummaryInput{Content: "content"})
+	_, err = (ExtractSummarizer{Client: &modelClientStub{}}).SummarizeExtract(context.Background(), SummaryInput{Content: "content"})
 	require.EqualError(t, err, "web extract summary response is required")
 
-	_, err = (ModelSummarizer{Client: &modelClientStub{
+	_, err = (ExtractSummarizer{Client: &modelClientStub{
 		response: &models.Response{RequiresToolCalls: true},
 	}}).SummarizeExtract(context.Background(), SummaryInput{Content: "content"})
 	require.EqualError(t, err, "web extract summary requested tool calls")
 
-	_, err = (ModelSummarizer{Client: &modelClientStub{
+	_, err = (ExtractSummarizer{Client: &modelClientStub{
 		response: &models.Response{OutputText: "   "},
 	}}).SummarizeExtract(context.Background(), SummaryInput{Content: "content"})
 	require.EqualError(t, err, "web extract summary is empty")
