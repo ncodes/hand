@@ -55,6 +55,18 @@
 #   traces: false
 #   traceDir: ".hand/traces"
 
+# web:
+#   provider: ""
+#   apiKey: ""
+#   baseUrl: ""
+#   maxCharPerResult: 1200
+#   maxExtractCharPerResult: 50000
+#   maxExtractResponseBytes: 2097152
+#   extractMinSummarizeChars: 12000
+#   extractMaxSummaryChars: 4000
+#   extractMaxSummaryChunkChars: 25000
+#   extractRefusalThresholdChars: 200000
+
 # rules:
 #   files:
 #     - "/absolute/path/to/hand.md"
