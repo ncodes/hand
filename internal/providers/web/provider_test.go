@@ -157,6 +157,7 @@ func TestFillProviderDefaults_AppliesKnownProviderDefaults(t *testing.T) {
 		{name: "parallel", opts: Options{Provider: ProviderParallel}, expected: parallelDefaultBaseURL},
 		{name: "tavily", opts: Options{Provider: ProviderTavily}, expected: tavilyDefaultBaseURL},
 		{name: "exa", opts: Options{Provider: ProviderExa}, expected: exaDefaultBaseURL},
+		{name: "native", opts: Options{Provider: ProviderNative}, expected: ""},
 	}
 
 	for _, tc := range testCases {
@@ -249,6 +250,10 @@ func TestNewProvider_BuildsConcreteProviders(t *testing.T) {
 			name: "exa",
 			cfg:  &config.Config{WebProvider: ProviderExa, WebAPIKey: "exa-key"},
 		},
+		{
+			name: "native",
+			cfg:  &config.Config{WebProvider: ProviderNative},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -280,6 +285,10 @@ func TestNewProviderFromOptions_BuildsConcreteProviders(t *testing.T) {
 		{
 			name: "exa",
 			opts: Options{Provider: ProviderExa, APIKey: "exa-key"},
+		},
+		{
+			name: "native",
+			opts: Options{Provider: ProviderNative},
 		},
 	}
 

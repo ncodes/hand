@@ -123,7 +123,7 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:   "web.provider",
-			Usage:  "Web provider: firecrawl, parallel, tavily, or exa",
+			Usage:  "Web provider: firecrawl, parallel, tavily, exa, or native",
 			Value:  config.Get().WebProvider,
 			Hidden: true,
 		},

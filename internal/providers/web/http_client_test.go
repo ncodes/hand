@@ -103,6 +103,32 @@ func TestHTTPClient_PostJSONLimitedDecodesWithinLimit(t *testing.T) {
 	require.Equal(t, true, payload["ok"])
 }
 
+func TestHTTPClient_PostJSONLimitedReturnsReadErrors(t *testing.T) {
+	client := &httpClient{
+		baseURL: "https://example.com",
+		client: &http.Client{
+			Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       errReader{err: errors.New("response read failed")},
+				}, nil
+			}),
+		},
+	}
+
+	err := client.postJSONLimited(
+		context.Background(),
+		"/extract",
+		map[string]any{"url": "https://example.com"},
+		nil,
+		&map[string]any{},
+		64,
+	)
+
+	require.EqualError(t, err, "response read failed")
+}
+
 func TestHTTPClient_PostJSONReturnsMarshalErrors(t *testing.T) {
 	client := &httpClient{baseURL: "https://example.com"}
 

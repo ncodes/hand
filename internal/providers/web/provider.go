@@ -14,6 +14,7 @@ const (
 	ProviderParallel  = "parallel"
 	ProviderTavily    = "tavily"
 	ProviderExa       = "exa"
+	ProviderNative    = "native"
 )
 
 var (
@@ -129,7 +130,7 @@ func extractQuery(ctx context.Context) string {
 
 func SupportedProvider(name string) bool {
 	switch strings.TrimSpace(strings.ToLower(name)) {
-	case ProviderFirecrawl, ProviderParallel, ProviderTavily, ProviderExa:
+	case ProviderFirecrawl, ProviderParallel, ProviderTavily, ProviderExa, ProviderNative:
 		return true
 	default:
 		return false
@@ -184,6 +185,7 @@ func fillProviderDefaults(opts Options) Options {
 		if opts.BaseURL == "" {
 			opts.BaseURL = exaDefaultBaseURL
 		}
+	case ProviderNative:
 	}
 
 	return opts.Normalize()
@@ -272,6 +274,8 @@ func newProvider(opts Options) (Provider, error) {
 		return NewTavily(opts)
 	case ProviderExa:
 		return NewExa(opts)
+	case ProviderNative:
+		return NewNative(opts)
 	default:
 		return nil, ErrUnsupportedProvider
 	}

@@ -176,7 +176,10 @@ func (e *environment) prepareTools() error {
 			MaxSummaryChars:                e.cfg.WebExtractMaxSummaryChars,
 			MaxSummaryChunkChars:           e.cfg.WebExtractMaxSummaryChunkChars,
 			SummarizeRefusalThresholdChars: e.cfg.WebExtractRefusalThresholdChars,
-		}), websearch.Definition(webProvider))
+		}))
+		if e.cfg.WebProvider != webintegration.ProviderNative {
+			definitions = append(definitions, websearch.Definition(webProvider))
+		}
 	}
 
 	for _, definition := range definitions {

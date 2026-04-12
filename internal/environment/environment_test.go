@@ -375,6 +375,36 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 	})
 }
 
+func TestEnvironment_PrepareRegistersOnlyWebExtractForNativeProvider(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:          "Test Agent",
+		DebugTraceDir: t.TempDir(),
+		WebProvider:   "native",
+	})
+
+	require.NoError(t, env.Prepare())
+
+	names := make([]string, 0, len(env.Tools().List()))
+	for _, definition := range env.Tools().List() {
+		names = append(names, definition.Name)
+	}
+	require.Contains(t, names, "web_extract")
+	require.NotContains(t, names, "web_search")
+}
+
 func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T) {
 	previousPersonality := loadPersonality
 	previousWorkspace := loadWorkspaceRules
