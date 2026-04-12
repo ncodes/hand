@@ -9,6 +9,7 @@
 #   stream: true
 #   contextLength: 128000
 #   verifyModel: true
+#   maxRetries: 2
 #   provider: "openrouter"
 #   summaryProvider: "openai"
 #   apiMode: "completions"

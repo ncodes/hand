@@ -153,11 +153,17 @@ func TestLoad_ReturnsPreloadEnvFileError(t *testing.T) {
 }
 
 func TestLoad_UsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
-		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
-		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
-		"WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
-		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY",
+		"OPENROUTER_API_KEY",
+		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS",
+		"LOG_LEVEL", "LOG_NO_COLOR",
+		"MODEL_MAX_RETRIES",
+		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT",
+		"WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
+		"WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
+		"WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
+		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS",
+		"AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -168,6 +174,7 @@ model:
   provider: openrouter
   key: config-key
   baseUrl: https://config.example/v1
+  maxRetries: 4
 rpc:
   address: 0.0.0.0
   port: 6000
@@ -210,6 +217,7 @@ rules:
 	require.Equal(t, "openrouter", cfg.ModelProvider)
 	require.Equal(t, "config-key", cfg.ModelKey)
 	require.Equal(t, "https://config.example/v1", cfg.ModelBaseURL)
+	require.Equal(t, 4, cfg.ModelMaxRetriesEffective())
 	require.Equal(t, "0.0.0.0", cfg.RPCAddress)
 	require.Equal(t, 6000, cfg.RPCPort)
 	require.Equal(t, 45, cfg.MaxIterations)
@@ -237,11 +245,17 @@ rules:
 }
 
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
-		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR",
-		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
-		"WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
-		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY",
+		"OPENROUTER_API_KEY",
+		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS",
+		"LOG_LEVEL", "LOG_NO_COLOR",
+		"MODEL_MAX_RETRIES",
+		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT",
+		"WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
+		"WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
+		"WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
+		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS",
+		"AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -252,6 +266,7 @@ MODEL=env-model
 MODEL_PROVIDER=openrouter
 MODEL_KEY=env-key
 MODEL_BASE_URL=https://env.example/v1
+MODEL_MAX_RETRIES=0
 RPC_ADDRESS=127.0.0.1
 RPC_PORT=7000
 MAX_ITERATIONS=55
@@ -284,6 +299,7 @@ model:
   provider: openrouter
   key: config-key
   baseUrl: https://config.example/v1
+  maxRetries: 4
 rpc:
   address: 0.0.0.0
   port: 6000
@@ -321,6 +337,7 @@ rules:
 	require.Equal(t, "openrouter", cfg.ModelProvider)
 	require.Equal(t, "env-key", cfg.ModelKey)
 	require.Equal(t, "https://env.example/v1", cfg.ModelBaseURL)
+	require.Equal(t, 0, cfg.ModelMaxRetriesEffective())
 	require.Equal(t, "127.0.0.1", cfg.RPCAddress)
 	require.Equal(t, 7000, cfg.RPCPort)
 	require.Equal(t, 55, cfg.MaxIterations)
@@ -565,7 +582,9 @@ log:
 }
 
 func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY",
+		"OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "MODEL_MAX_RETRIES",
+		"RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	cfg, err := Load("", filepath.Join(t.TempDir(), "missing.yaml"))
 
@@ -586,7 +605,9 @@ func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
 }
 
 func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY",
+		"OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "MODEL_MAX_RETRIES",
+		"RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -1142,7 +1163,26 @@ func TestConfig_ValidateRejectsInvalidMaxIterations(t *testing.T) {
 		LogLevel:      "info",
 	}
 
-	require.EqualError(t, cfg.Validate(), "max iterations must be greater than zero; set MAX_ITERATIONS, provide it in config, or use --max-iterations")
+	require.EqualError(t, cfg.Validate(), "max iterations must be greater than zero; set "+
+		"MAX_ITERATIONS, provide it in config, or use --max-iterations")
+}
+
+func TestConfig_ValidateRejectsNegativeModelMaxRetries(t *testing.T) {
+	retries := -1
+	cfg := &Config{
+		Name:            "test-agent",
+		Model:           defaultModel,
+		ModelProvider:   "openai",
+		ModelKey:        "test-key",
+		ModelMaxRetries: &retries,
+		RPCAddress:      "127.0.0.1",
+		RPCPort:         50051,
+		MaxIterations:   1,
+		LogLevel:        "info",
+	}
+
+	require.EqualError(t, cfg.Validate(), "model max retries must be greater than or equal to "+
+		"zero; use --model.max-retries")
 }
 
 func TestConfig_ValidateRejectsCompactionThresholdsAboveOrEqualOne(t *testing.T) {
@@ -1399,7 +1439,7 @@ func TestResolveModelAuth_CoversDefaultBranchAndNilReceiver(t *testing.T) {
 
 func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	clearEnvKeys(t,
-		"MODEL_CONTEXT_LENGTH", "MODEL_VERIFY_MODEL", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
+		"MODEL_CONTEXT_LENGTH", "MODEL_VERIFY_MODEL", "MODEL_MAX_RETRIES", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"AGENT_STORAGE_BACKEND", "AGENT_SESSION_DEFAULT_IDLE_EXPIRY", "AGENT_SESSION_ARCHIVE_RETENTION",
 		"AGENT_COMPACTION_ENABLED", "AGENT_COMPACTION_TRIGGER_PERCENT", "AGENT_COMPACTION_WARN_PERCENT",
 		"FIRECRAWL_API_KEY", "FIRECRAWL_API_URL", "PARALLEL_API_KEY", "TAVILY_API_KEY", "EXA_API_KEY",
@@ -1410,6 +1450,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 
 	t.Setenv("MODEL_CONTEXT_LENGTH", "64000")
 	t.Setenv("MODEL_VERIFY_MODEL", "false")
+	t.Setenv("MODEL_MAX_RETRIES", "0")
 	t.Setenv("OPENAI_API_KEY", "openai-key")
 	t.Setenv("OPENROUTER_API_KEY", "openrouter-key")
 	t.Setenv("AGENT_STORAGE_BACKEND", "memory")
@@ -1423,6 +1464,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 
 	require.Equal(t, 64000, cfg.ContextLength)
 	require.False(t, boolValue(cfg.VerifyModel))
+	require.Equal(t, 0, cfg.ModelMaxRetriesEffective())
 	require.Equal(t, "openai-key", cfg.OpenAIAPIKey)
 	require.Equal(t, "openrouter-key", cfg.OpenRouterAPIKey)
 	require.Equal(t, "memory", cfg.StorageBackend)
@@ -2137,7 +2179,8 @@ func TestConfig_NormalizeDefaultsFilesystemRootsToCWD(t *testing.T) {
 }
 
 func TestLoad_UsesCompactionSettingsFromConfig(t *testing.T) {
-	clearEnvKeys(t, "MODEL_CONTEXT_LENGTH", "AGENT_COMPACTION_ENABLED", "AGENT_COMPACTION_TRIGGER_PERCENT", "AGENT_COMPACTION_WARN_PERCENT")
+	clearEnvKeys(t, "MODEL_CONTEXT_LENGTH", "AGENT_COMPACTION_ENABLED", "AGENT_COMPACTION_TRIGGER_PERCENT",
+		"AGENT_COMPACTION_WARN_PERCENT")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -2189,7 +2232,8 @@ func TestConfig_ValidateRejectsInvalidCompactionSettings(t *testing.T) {
 	}
 
 	err := cfg.Validate()
-	require.EqualError(t, err, "compaction warn percent must be greater than or equal to compaction trigger percent")
+	require.EqualError(t, err, "compaction warn percent must be greater than or equal to "+
+		"compaction trigger percent")
 }
 
 func TestConfigExamples_EnvFilesListSupportedEnvironmentKeys(t *testing.T) {
@@ -2237,6 +2281,7 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 				"stream",
 				"contextLength",
 				"verifyModel",
+				"maxRetries",
 				"provider",
 				"summaryProvider",
 				"apiMode",

@@ -257,10 +257,11 @@ func NewCommand() *cli.Command {
 			}
 			startupLog.Msg("Starting Hand services")
 
-			clientOptions := make([]option.RequestOption, 0, 1)
+			clientOptions := make([]option.RequestOption, 0, 2)
 			if cfg.ModelBaseURL != "" {
 				clientOptions = append(clientOptions, option.WithBaseURL(cfg.ModelBaseURL))
 			}
+			clientOptions = append(clientOptions, option.WithMaxRetries(cfg.ModelMaxRetriesEffective()))
 
 			modelClient, err := openAIClientFactory(auth.APIKey, clientOptions...)
 			if err != nil {
@@ -276,10 +277,11 @@ func NewCommand() *cli.Command {
 			if config.ModelAuthEqual(auth, summaryAuth) {
 				summaryClient = modelClient
 			} else {
-				summaryOpts := make([]option.RequestOption, 0, 1)
+				summaryOpts := make([]option.RequestOption, 0, 2)
 				if strings.TrimSpace(summaryAuth.BaseURL) != "" {
 					summaryOpts = append(summaryOpts, option.WithBaseURL(summaryAuth.BaseURL))
 				}
+				summaryOpts = append(summaryOpts, option.WithMaxRetries(cfg.ModelMaxRetriesEffective()))
 				summaryClient, err = openAIClientFactory(summaryAuth.APIKey, summaryOpts...)
 				if err != nil {
 					return err

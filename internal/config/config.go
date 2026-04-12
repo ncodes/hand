@@ -28,6 +28,7 @@ type Config struct {
 	Stream                          *bool
 	ContextLength                   int
 	VerifyModel                     *bool
+	ModelMaxRetries                 *int
 	ModelProvider                   string
 	ModelKey                        string
 	OpenAIAPIKey                    string
@@ -121,6 +122,7 @@ const (
 	DefaultWebExtractMaxSummaryChars       = 4000
 	DefaultWebExtractMaxSummaryChunkChars  = 25000
 	DefaultWebExtractRefusalThresholdChars = 200000
+	DefaultModelMaxRetries                 = 2
 	defaultMaxIterations                   = DefaultMaxIterations
 )
 
@@ -136,6 +138,7 @@ type fileConfig struct {
 		Stream           *bool  `yaml:"stream"`
 		ContextLength    int    `yaml:"contextLength"`
 		VerifyModel      *bool  `yaml:"verifyModel"`
+		MaxRetries       *int   `yaml:"maxRetries"`
 		Provider         string `yaml:"provider"`
 		Key              string `yaml:"key"`
 		OpenAIAPIKey     string `yaml:"openaiApiKey"`
@@ -255,6 +258,7 @@ func Get() *Config {
 			Stream:                   new(true),
 			ContextLength:            defaultContextLength,
 			VerifyModel:              new(true),
+			ModelMaxRetries:          new(DefaultModelMaxRetries),
 			ModelAPIMode:             DefaultModelAPIMode,
 			MaxIterations:            defaultMaxIterations,
 			LogLevel:                 "info",
@@ -312,6 +316,7 @@ func loadConfigFile(path string) (*Config, error) {
 		Stream:                          raw.Model.Stream,
 		ContextLength:                   raw.Model.ContextLength,
 		VerifyModel:                     raw.Model.VerifyModel,
+		ModelMaxRetries:                 raw.Model.MaxRetries,
 		ModelProvider:                   raw.Model.Provider,
 		ModelKey:                        raw.Model.Key,
 		OpenAIAPIKey:                    raw.Model.OpenAIAPIKey,
@@ -384,6 +389,11 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := strings.TrimSpace(strings.ToLower(os.Getenv("MODEL_VERIFY_MODEL"))); value != "" {
 		cfg.VerifyModel = new(value == "1" || value == "true" || value == "yes")
+	}
+	if value := strings.TrimSpace(os.Getenv("MODEL_MAX_RETRIES")); value != "" {
+		if retries, err := strconv.Atoi(value); err == nil {
+			cfg.ModelMaxRetries = &retries
+		}
 	}
 	if value := strings.TrimSpace(os.Getenv("MODEL_PROVIDER")); value != "" {
 		cfg.ModelProvider = value
@@ -616,6 +626,9 @@ func (c *Config) normalizeFields() {
 	if c.VerifyModel == nil {
 		c.VerifyModel = new(true)
 	}
+	if c.ModelMaxRetries == nil {
+		c.ModelMaxRetries = new(DefaultModelMaxRetries)
+	}
 	if c.ContextLength <= 0 {
 		c.ContextLength = defaultContextLength
 	}
@@ -764,6 +777,15 @@ func (c *Config) StreamEnabled() bool {
 	}
 
 	return boolValueDefault(c.Stream, true)
+}
+
+func (c *Config) ModelMaxRetriesEffective() int {
+	if c == nil {
+		return DefaultModelMaxRetries
+	}
+
+	c.normalizeFields()
+	return *c.ModelMaxRetries
 }
 
 func (c *Config) SummaryModelEffective() string {
@@ -1026,6 +1048,9 @@ func (c *Config) Validate() error {
 	if c.MaxIterations <= 0 {
 		return errors.New("max iterations must be greater than zero; set MAX_ITERATIONS, provide it in config, " +
 			"or use --max-iterations")
+	}
+	if c.ModelMaxRetriesEffective() < 0 {
+		return errors.New("model max retries must be greater than or equal to zero; use --model.max-retries")
 	}
 
 	switch c.ModelAPIMode {

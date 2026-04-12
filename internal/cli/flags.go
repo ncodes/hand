@@ -79,6 +79,12 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value:  config.Get().VerifyModelEnabled(),
 			Hidden: true,
 		},
+		&cli.IntFlag{
+			Name:   "model.max-retries",
+			Usage:  "Maximum SDK retry attempts for model requests; set 0 to disable retries",
+			Value:  config.Get().ModelMaxRetriesEffective(),
+			Hidden: true,
+		},
 		&cli.StringFlag{
 			Name:   "rpc.address",
 			Usage:  "Bind address for the RPC service",
@@ -361,6 +367,10 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("model.verify-model") {
 		cfg.VerifyModel = new(cmd.Bool("model.verify-model"))
+	}
+	if cmd.IsSet("model.max-retries") {
+		retries := cmd.Int("model.max-retries")
+		cfg.ModelMaxRetries = &retries
 	}
 	if cmd.IsSet("rpc.address") {
 		cfg.RPCAddress = strings.TrimSpace(cmd.String("rpc.address"))
