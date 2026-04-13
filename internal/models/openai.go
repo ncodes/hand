@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	openai "github.com/openai/openai-go/v3"
@@ -562,18 +563,18 @@ func extractChatCompletionsResponse(resp *openai.ChatCompletion) (*Response, err
 
 func extractResponsesResponse(resp *responses.Response) (*Response, error) {
 	var toolCalls []ToolCall
-	for _, item := range resp.Output {
+	for idx, item := range resp.Output {
 		if item.Type != "function_call" {
 			continue
 		}
 		functionCall := item.AsFunctionCall()
 		callID := strings.TrimSpace(functionCall.CallID)
 		name := strings.TrimSpace(functionCall.Name)
-		if callID == "" {
-			return nil, errors.New("tool call id is required")
-		}
 		if name == "" {
 			return nil, errors.New("tool call name is required")
+		}
+		if callID == "" {
+			callID = fallbackToolCallID(name, idx)
 		}
 		toolCalls = append(toolCalls, ToolCall{
 			ID:    callID,
@@ -753,14 +754,14 @@ func extractChatCompletionsToolCalls(toolCalls []openai.ChatCompletionMessageToo
 	}
 
 	normalized := make([]ToolCall, 0, len(toolCalls))
-	for _, toolCall := range toolCalls {
+	for idx, toolCall := range toolCalls {
 		id := strings.TrimSpace(toolCall.ID)
 		name := strings.TrimSpace(toolCall.Function.Name)
-		if id == "" {
-			return nil, errors.New("tool call id is required")
-		}
 		if name == "" {
 			return nil, errors.New("tool call name is required")
+		}
+		if id == "" {
+			id = fallbackToolCallID(name, idx)
 		}
 
 		normalized = append(normalized, ToolCall{
@@ -771,6 +772,10 @@ func extractChatCompletionsToolCalls(toolCalls []openai.ChatCompletionMessageToo
 	}
 
 	return normalized, nil
+}
+
+func fallbackToolCallID(name string, index int) string {
+	return "functions." + strings.TrimSpace(name) + ":" + strconv.Itoa(index)
 }
 
 func logRequestDebugDump(mode string, params any) {

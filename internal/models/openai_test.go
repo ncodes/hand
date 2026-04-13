@@ -405,7 +405,7 @@ func TestOpenAIClient_ChatReturnsToolCallsFromChatCompletions(t *testing.T) {
 	require.Equal(t, []ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}, resp.ToolCalls)
 }
 
-func TestOpenAIClient_ChatRejectsChatCompletionToolCallWithoutID(t *testing.T) {
+func TestOpenAIClient_ChatUsesFallbackIDForChatCompletionToolCallWithoutID(t *testing.T) {
 	client := &OpenAIClient{
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			return &openai.ChatCompletion{
@@ -418,11 +418,12 @@ func TestOpenAIClient_ChatRejectsChatCompletionToolCallWithoutID(t *testing.T) {
 		},
 	}
 
-	_, err := client.Complete(context.Background(), Request{
+	resp, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
-	require.EqualError(t, err, "tool call id is required")
+	require.NoError(t, err)
+	require.Equal(t, []ToolCall{{ID: "functions.time:0", Name: "time", Input: "{}"}}, resp.ToolCalls)
 }
 
 func TestOpenAIClient_ChatRejectsChatCompletionToolCallWithoutName(t *testing.T) {
@@ -651,7 +652,7 @@ func TestOpenAIClient_ChatRequiresResponsesResponse(t *testing.T) {
 	require.EqualError(t, err, "model response is required")
 }
 
-func TestOpenAIClient_ChatRejectsResponseToolCallWithoutID(t *testing.T) {
+func TestOpenAIClient_ChatUsesFallbackIDForResponseToolCallWithoutID(t *testing.T) {
 	client := &OpenAIClient{
 		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
 			return &responses.Response{Output: []responses.ResponseOutputItemUnion{
@@ -660,12 +661,13 @@ func TestOpenAIClient_ChatRejectsResponseToolCallWithoutID(t *testing.T) {
 		},
 	}
 
-	_, err := client.Complete(context.Background(), Request{
+	resp, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
 		APIMode:  APIModeResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
-	require.EqualError(t, err, "tool call id is required")
+	require.NoError(t, err)
+	require.Equal(t, []ToolCall{{ID: "functions.time:0", Name: "time", Input: "{}"}}, resp.ToolCalls)
 }
 
 func TestOpenAIClient_ChatRejectsResponseToolCallWithoutName(t *testing.T) {
@@ -1135,11 +1137,12 @@ func TestExtractChatCompletionsToolCallsReturnsNilWhenEmpty(t *testing.T) {
 	require.Nil(t, toolCalls)
 }
 
-func TestExtractChatCompletionsToolCallsRejectsMissingID(t *testing.T) {
-	_, err := extractChatCompletionsToolCalls([]openai.ChatCompletionMessageToolCallUnion{{
+func TestExtractChatCompletionsToolCallsUsesFallbackIDWhenMissing(t *testing.T) {
+	toolCalls, err := extractChatCompletionsToolCalls([]openai.ChatCompletionMessageToolCallUnion{{
 		Function: openai.ChatCompletionMessageFunctionToolCallFunction{Name: "time", Arguments: "{}"},
 	}})
-	require.EqualError(t, err, "tool call id is required")
+	require.NoError(t, err)
+	require.Equal(t, []ToolCall{{ID: "functions.time:0", Name: "time", Input: "{}"}}, toolCalls)
 }
 
 func TestExtractChatCompletionsToolCallsRejectsMissingName(t *testing.T) {
