@@ -165,7 +165,7 @@ func (e *environment) prepareTools() error {
 	}
 
 	webProvider, err := webintegration.NewProvider(e.cfg)
-    
+
 	switch {
 	case errors.Is(err, webintegration.ErrProviderNotConfigured):
 	case err != nil:

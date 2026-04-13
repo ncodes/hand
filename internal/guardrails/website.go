@@ -51,7 +51,7 @@ func (p WebsitePolicy) Check(rawURL string) (WebsiteBlock, bool) {
 			continue
 		}
 
-		message := `blocked by website policy: "` + host + `" matched "` + rule.Pattern + `"`
+		message := websiteBlockMessage(host, rule)
 		return WebsiteBlock{
 			URL:     strings.TrimSpace(rawURL),
 			Host:    host,
@@ -62,6 +62,16 @@ func (p WebsitePolicy) Check(rawURL string) (WebsiteBlock, bool) {
 	}
 
 	return WebsiteBlock{}, false
+}
+
+func websiteBlockMessage(host string, rule WebsiteRule) string {
+	message := `blocked by configured website blocklist policy: "` + host + `" matched "` + rule.Pattern + `"`
+	source := strings.TrimSpace(rule.Source)
+	if source == "" {
+		return message
+	}
+
+	return message + ` from "` + source + `"`
 }
 
 func (p *WebsitePolicy) addRules(values []string, source string) {

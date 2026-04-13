@@ -22,7 +22,8 @@ func TestWebsitePolicy_CheckBlocksExactAndSubdomain(t *testing.T) {
 	require.Equal(t, "docs.example.com", block.Host)
 	require.Equal(t, "example.com", block.Rule)
 	require.Equal(t, "config", block.Source)
-	require.Contains(t, block.Message, "blocked by website policy")
+	require.Contains(t, block.Message, "blocked by configured website blocklist policy")
+	require.Contains(t, block.Message, `from "config"`)
 }
 
 func TestWebsitePolicy_CheckWildcardBlocksOnlySubdomains(t *testing.T) {
@@ -72,6 +73,7 @@ func TestWebsitePolicy_LoadsRulesFromFiles(t *testing.T) {
 	require.True(t, blocked)
 	require.Equal(t, path, block.Source)
 	require.Equal(t, "*.blocked.test", block.Rule)
+	require.Contains(t, block.Message, `from "`+path+`"`)
 }
 
 func TestWebsitePolicy_IgnoresMissingFiles(t *testing.T) {

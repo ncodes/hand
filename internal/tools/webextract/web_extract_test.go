@@ -165,7 +165,7 @@ func TestWebExtract_BlocksConfiguredURLsBeforeProviderCall(t *testing.T) {
 	require.Len(t, payload.Results, 1)
 	require.Equal(t, "https://blocked.example/page", payload.Results[0].URL)
 	require.Equal(t, "markdown", payload.Results[0].ContentFormat)
-	require.Contains(t, payload.Results[0].Error, "blocked by website policy")
+	require.Contains(t, payload.Results[0].Error, "blocked by configured website blocklist policy")
 }
 
 func TestWebExtract_BlocksMixedURLsAndPreservesOrder(t *testing.T) {
@@ -193,7 +193,7 @@ func TestWebExtract_BlocksMixedURLsAndPreservesOrder(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
 	require.Len(t, payload.Results, 2)
-	require.Contains(t, payload.Results[0].Error, "blocked by website policy")
+	require.Contains(t, payload.Results[0].Error, "blocked by configured website blocklist policy")
 	require.Equal(t, "text", payload.Results[0].ContentFormat)
 	require.Equal(t, "allowed", payload.Results[1].Content)
 }
@@ -225,7 +225,7 @@ func TestWebExtract_BlocksProviderFinalURL(t *testing.T) {
 	require.Len(t, payload.Results, 1)
 	require.Equal(t, "https://blocked.example/final", payload.Results[0].URL)
 	require.Empty(t, payload.Results[0].Content)
-	require.Contains(t, payload.Results[0].Error, "blocked by website policy")
+	require.Contains(t, payload.Results[0].Error, "blocked by configured website blocklist policy")
 }
 
 func TestWebExtract_PassesThroughWhenWebsitePolicyDisabled(t *testing.T) {
@@ -277,8 +277,8 @@ func TestWebExtract_ReturnsBlockedResultsWhenAllURLsBlocked(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
 	require.Len(t, payload.Results, 2)
-	require.Contains(t, payload.Results[0].Error, "blocked by website policy")
-	require.Contains(t, payload.Results[1].Error, "blocked by website policy")
+	require.Contains(t, payload.Results[0].Error, "blocked by configured website blocklist policy")
+	require.Contains(t, payload.Results[1].Error, "blocked by configured website blocklist policy")
 }
 
 func TestWebExtract_FillsMissingProviderResults(t *testing.T) {
