@@ -165,26 +165,51 @@ func (e *environment) prepareTools() error {
 	}
 
 	webProvider, err := webintegration.NewProvider(e.cfg)
+    
 	switch {
 	case errors.Is(err, webintegration.ErrProviderNotConfigured):
 	case err != nil:
 		return err
 	default:
+		websitePolicy := guardrails.NewWebsitePolicy(
+			e.cfg.WebBlockedDomainsEnabled,
+			e.cfg.WebBlockedDomains,
+			e.cfg.WebBlockedDomainFiles,
+		)
+
 		if e.cfg.WebCacheTTL > 0 {
-			webProvider = webintegration.NewCachedProvider(webProvider, webintegration.CacheOptions{
-				ProviderName: e.cfg.WebProvider,
-				TTL:          e.cfg.WebCacheTTL,
-			})
+			webProvider = webintegration.NewCachedProvider(
+				webProvider,
+				webintegration.CacheOptions{
+					ProviderName: e.cfg.WebProvider,
+					TTL:          e.cfg.WebCacheTTL,
+				},
+			)
 		}
-		definitions = append(definitions, webextract.Definition(webProvider, webextract.Options{
-			MaxExtractCharPerResult:        e.cfg.WebMaxExtractCharPerResult,
-			MinSummarizeChars:              e.cfg.WebExtractMinSummarizeChars,
-			MaxSummaryChars:                e.cfg.WebExtractMaxSummaryChars,
-			MaxSummaryChunkChars:           e.cfg.WebExtractMaxSummaryChunkChars,
-			SummarizeRefusalThresholdChars: e.cfg.WebExtractRefusalThresholdChars,
-		}))
+
+		definitions = append(definitions,
+			webextract.Definition(
+				webProvider,
+				webextract.Options{
+					MaxExtractCharPerResult:        e.cfg.WebMaxExtractCharPerResult,
+					MinSummarizeChars:              e.cfg.WebExtractMinSummarizeChars,
+					MaxSummaryChars:                e.cfg.WebExtractMaxSummaryChars,
+					MaxSummaryChunkChars:           e.cfg.WebExtractMaxSummaryChunkChars,
+					SummarizeRefusalThresholdChars: e.cfg.WebExtractRefusalThresholdChars,
+					WebsitePolicy:                  websitePolicy,
+				},
+			),
+		)
+
 		if e.cfg.WebProvider != webintegration.ProviderNative {
-			definitions = append(definitions, websearch.Definition(webProvider))
+			definitions = append(definitions,
+				websearch.Definition(
+					webProvider,
+					websearch.Options{
+						WebsitePolicy: websitePolicy,
+					},
+				),
+			)
 		}
 	}
 

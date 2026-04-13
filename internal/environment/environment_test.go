@@ -469,6 +469,50 @@ func TestEnvironment_PrepareLeavesWebProviderUncachedWhenDisabled(t *testing.T) 
 	require.Equal(t, 2, requests)
 }
 
+func TestEnvironment_PrepareAppliesWebsitePolicyToWebTools(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{"title": "Blocked", "url": "https://blocked.example", "highlights": []string{"hit"}},
+			},
+		}))
+	}))
+	defer server.Close()
+
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:                       "Test Agent",
+		WebProvider:                "exa",
+		WebAPIKey:                  "exa-key",
+		WebBaseURL:                 server.URL,
+		WebBlockedDomainsEnabled:   true,
+		WebBlockedDomains:          []string{"blocked.example"},
+		WebMaxExtractCharPerResult: config.DefaultWebMaxExtractCharPerResult,
+	})
+
+	require.NoError(t, env.Prepare())
+	result, err := env.Tools().Invoke(gctx.Background(), tools.Call{
+		Name:  "web_search",
+		Input: `{"query":"golang","count":1}`,
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Error)
+	require.Contains(t, result.Output, `"results":[]`)
+}
+
 func TestEnvironment_PrepareRegistersOnlyWebExtractForNativeProvider(t *testing.T) {
 	previousPersonality := loadPersonality
 	previousWorkspace := loadWorkspaceRules

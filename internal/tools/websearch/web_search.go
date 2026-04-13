@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/wandxy/hand/internal/guardrails"
 	webintegration "github.com/wandxy/hand/internal/providers/web"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
@@ -14,11 +15,17 @@ const (
 	maxCount     = 10
 )
 
-func Definition(provider webintegration.Provider) tools.Definition {
+type Options struct {
+	WebsitePolicy guardrails.WebsitePolicy
+}
+
+func Definition(provider webintegration.Provider, options ...Options) tools.Definition {
 	type input struct {
 		Query string `json:"query"`
 		Count int    `json:"count"`
 	}
+
+	opts := resolveOptions(options)
 
 	return tools.Definition{
 		Name:        "web_search",
@@ -58,7 +65,36 @@ func Definition(provider webintegration.Provider) tools.Definition {
 				return common.ToolError("tool_error", err.Error()), nil
 			}
 
+			results = filterBlockedResults(results, opts.WebsitePolicy)
+
 			return common.EncodeOutput(map[string]any{"results": results})
 		}),
 	}
+}
+
+func resolveOptions(options []Options) Options {
+	if len(options) == 0 {
+		return Options{}
+	}
+
+	return options[0]
+}
+
+func filterBlockedResults(
+	results []webintegration.SearchResult,
+	policy guardrails.WebsitePolicy,
+) []webintegration.SearchResult {
+	if len(results) == 0 || !policy.Enabled {
+		return results
+	}
+
+	filtered := make([]webintegration.SearchResult, 0, len(results))
+	for _, result := range results {
+		if _, blocked := policy.Check(result.URL); blocked {
+			continue
+		}
+		filtered = append(filtered, result)
+	}
+
+	return filtered
 }

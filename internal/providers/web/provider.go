@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/guardrails"
 )
 
 const (
@@ -51,9 +52,10 @@ type Provider interface {
 type extractOptionsContextKey struct{}
 
 type ExtractOptions struct {
-	Format   string
-	MaxChars int
-	Query    string
+	Format        string
+	MaxChars      int
+	Query         string
+	WebsitePolicy guardrails.WebsitePolicy
 }
 
 type Options struct {
@@ -126,6 +128,10 @@ func extractFormat(ctx context.Context, defaultFormat string) string {
 
 func extractQuery(ctx context.Context) string {
 	return ExtractOptionsFromContext(ctx).Query
+}
+
+func extractWebsitePolicy(ctx context.Context) guardrails.WebsitePolicy {
+	return ExtractOptionsFromContext(ctx).WebsitePolicy
 }
 
 func SupportedProvider(name string) bool {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/wandxy/hand/internal/guardrails"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
@@ -18,6 +19,7 @@ type Options struct {
 	MaxSummaryChars                int
 	MaxSummaryChunkChars           int
 	SummarizeRefusalThresholdChars int
+	WebsitePolicy                  guardrails.WebsitePolicy
 }
 
 func Definition(provider webprovider.Provider, options ...Options) tools.Definition {
@@ -102,12 +104,13 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 			}
 
 			ctx = webprovider.WithExtractOptions(ctx, webprovider.ExtractOptions{
-				Format:   format,
-				MaxChars: maxChars,
-				Query:    strings.TrimSpace(req.Query),
+				Format:        format,
+				MaxChars:      maxChars,
+				Query:         strings.TrimSpace(req.Query),
+				WebsitePolicy: opts.WebsitePolicy,
 			})
 
-			results, err := provider.Extract(ctx, urls)
+			results, err := extractWithPolicy(ctx, provider, urls, format, opts.WebsitePolicy)
 			if err != nil {
 				return common.ToolError("tool_error", err.Error()), nil
 			}
@@ -127,6 +130,74 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 
 			return common.EncodeOutput(map[string]any{"results": results})
 		}),
+	}
+}
+
+func extractWithPolicy(
+	ctx context.Context,
+	provider webprovider.Provider,
+	urls []string,
+	format string,
+	policy guardrails.WebsitePolicy,
+) ([]webprovider.ExtractResult, error) {
+	if len(urls) == 0 || !policy.Enabled {
+		return provider.Extract(ctx, urls)
+	}
+
+	results := make([]webprovider.ExtractResult, len(urls))
+	allowedURLs := make([]string, 0, len(urls))
+	allowedIndexes := make([]int, 0, len(urls))
+	for idx, rawURL := range urls {
+		if block, blocked := policy.Check(rawURL); blocked {
+			results[idx] = blockedExtractResult(rawURL, format, block)
+			continue
+		}
+
+		allowedURLs = append(allowedURLs, rawURL)
+		allowedIndexes = append(allowedIndexes, idx)
+	}
+	if len(allowedURLs) == 0 {
+		return results, nil
+	}
+
+	fetched, err := provider.Extract(ctx, allowedURLs)
+	if err != nil {
+		return nil, err
+	}
+
+	for idx, result := range fetched {
+		if idx >= len(allowedIndexes) {
+			break
+		}
+
+		if block, blocked := policy.Check(result.URL); blocked {
+			results[allowedIndexes[idx]] = blockedExtractResult(result.URL, format, block)
+			continue
+		}
+
+		results[allowedIndexes[idx]] = result
+	}
+
+	for idx := len(fetched); idx < len(allowedIndexes); idx++ {
+		results[allowedIndexes[idx]] = webprovider.ExtractResult{
+			URL:           strings.TrimSpace(allowedURLs[idx]),
+			ContentFormat: format,
+			Error:         "web extraction provider returned no result",
+		}
+	}
+
+	return results, nil
+}
+
+func blockedExtractResult(rawURL, format string, block guardrails.WebsiteBlock) webprovider.ExtractResult {
+	if format == "" {
+		format = "text"
+	}
+
+	return webprovider.ExtractResult{
+		URL:           strings.TrimSpace(rawURL),
+		ContentFormat: format,
+		Error:         block.Message,
 	}
 }
 

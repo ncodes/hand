@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/guardrails"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
 	"github.com/wandxy/hand/internal/tools"
 )
@@ -139,6 +140,202 @@ func TestWebExtract_ReturnsProviderResults(t *testing.T) {
 	require.True(t, payload.Results[0].Truncated)
 	require.True(t, payload.Results[0].DownloadTruncated)
 	require.Contains(t, result.Output, `"download_truncated":true`)
+}
+
+func TestWebExtract_BlocksConfiguredURLsBeforeProviderCall(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(context.Context, []string) ([]webprovider.ExtractResult, error) {
+			t.Fatal("extract should not be called")
+			return nil, nil
+		},
+	}, Options{
+		WebsitePolicy: guardrails.NewWebsitePolicy(true, []string{"blocked.example"}, nil),
+	})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://blocked.example/page"],"format":"markdown"}`,
+	})
+	require.NoError(t, err)
+
+	var payload struct {
+		Results []webprovider.ExtractResult `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Len(t, payload.Results, 1)
+	require.Equal(t, "https://blocked.example/page", payload.Results[0].URL)
+	require.Equal(t, "markdown", payload.Results[0].ContentFormat)
+	require.Contains(t, payload.Results[0].Error, "blocked by website policy")
+}
+
+func TestWebExtract_BlocksMixedURLsAndPreservesOrder(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(_ context.Context, urls []string) ([]webprovider.ExtractResult, error) {
+			require.Equal(t, []string{"https://allowed.example"}, urls)
+			return []webprovider.ExtractResult{{
+				URL:           "https://allowed.example",
+				Content:       "allowed",
+				ContentFormat: "text",
+			}}, nil
+		},
+	}, Options{
+		WebsitePolicy: guardrails.NewWebsitePolicy(true, []string{"blocked.example"}, nil),
+	})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://blocked.example","https://allowed.example"]}`,
+	})
+	require.NoError(t, err)
+
+	var payload struct {
+		Results []webprovider.ExtractResult `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Len(t, payload.Results, 2)
+	require.Contains(t, payload.Results[0].Error, "blocked by website policy")
+	require.Equal(t, "text", payload.Results[0].ContentFormat)
+	require.Equal(t, "allowed", payload.Results[1].Content)
+}
+
+func TestWebExtract_BlocksProviderFinalURL(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(_ context.Context, urls []string) ([]webprovider.ExtractResult, error) {
+			require.Equal(t, []string{"https://allowed.example"}, urls)
+			return []webprovider.ExtractResult{{
+				URL:           "https://blocked.example/final",
+				Content:       "blocked final content",
+				ContentFormat: "text",
+			}}, nil
+		},
+	}, Options{
+		WebsitePolicy: guardrails.NewWebsitePolicy(true, []string{"blocked.example"}, nil),
+	})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://allowed.example"]}`,
+	})
+	require.NoError(t, err)
+
+	var payload struct {
+		Results []webprovider.ExtractResult `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Len(t, payload.Results, 1)
+	require.Equal(t, "https://blocked.example/final", payload.Results[0].URL)
+	require.Empty(t, payload.Results[0].Content)
+	require.Contains(t, payload.Results[0].Error, "blocked by website policy")
+}
+
+func TestWebExtract_PassesThroughWhenWebsitePolicyDisabled(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(_ context.Context, urls []string) ([]webprovider.ExtractResult, error) {
+			require.Equal(t, []string{"https://blocked.example"}, urls)
+			return []webprovider.ExtractResult{{
+				URL:           "https://blocked.example",
+				Content:       "allowed because policy is disabled",
+				ContentFormat: "text",
+			}}, nil
+		},
+	}, Options{
+		WebsitePolicy: guardrails.NewWebsitePolicy(false, []string{"blocked.example"}, nil),
+	})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://blocked.example"]}`,
+	})
+	require.NoError(t, err)
+
+	var payload struct {
+		Results []webprovider.ExtractResult `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Len(t, payload.Results, 1)
+	require.Equal(t, "allowed because policy is disabled", payload.Results[0].Content)
+}
+
+func TestWebExtract_ReturnsBlockedResultsWhenAllURLsBlocked(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(context.Context, []string) ([]webprovider.ExtractResult, error) {
+			t.Fatal("extract should not be called")
+			return nil, nil
+		},
+	}, Options{
+		WebsitePolicy: guardrails.NewWebsitePolicy(true, []string{"blocked.example"}, nil),
+	})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://blocked.example/one","https://blocked.example/two"]}`,
+	})
+	require.NoError(t, err)
+
+	var payload struct {
+		Results []webprovider.ExtractResult `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Len(t, payload.Results, 2)
+	require.Contains(t, payload.Results[0].Error, "blocked by website policy")
+	require.Contains(t, payload.Results[1].Error, "blocked by website policy")
+}
+
+func TestWebExtract_FillsMissingProviderResults(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(_ context.Context, urls []string) ([]webprovider.ExtractResult, error) {
+			require.Equal(t, []string{"https://one.example", "https://two.example"}, urls)
+			return []webprovider.ExtractResult{{
+				URL:           "https://one.example",
+				Content:       "one",
+				ContentFormat: "text",
+			}}, nil
+		},
+	}, Options{
+		WebsitePolicy: guardrails.NewWebsitePolicy(true, []string{"blocked.example"}, nil),
+	})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://one.example","https://two.example"]}`,
+	})
+	require.NoError(t, err)
+
+	var payload struct {
+		Results []webprovider.ExtractResult `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Len(t, payload.Results, 2)
+	require.Equal(t, "one", payload.Results[0].Content)
+	require.Equal(t, "https://two.example", payload.Results[1].URL)
+	require.Equal(t, "web extraction provider returned no result", payload.Results[1].Error)
+}
+
+func TestWebExtract_IgnoresExtraProviderResults(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(_ context.Context, urls []string) ([]webprovider.ExtractResult, error) {
+			require.Equal(t, []string{"https://one.example"}, urls)
+			return []webprovider.ExtractResult{
+				{URL: "https://one.example", Content: "one", ContentFormat: "text"},
+				{URL: "https://extra.example", Content: "extra", ContentFormat: "text"},
+			}, nil
+		},
+	}, Options{
+		WebsitePolicy: guardrails.NewWebsitePolicy(true, []string{"blocked.example"}, nil),
+	})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://one.example"]}`,
+	})
+	require.NoError(t, err)
+
+	var payload struct {
+		Results []webprovider.ExtractResult `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Len(t, payload.Results, 1)
+	require.Equal(t, "one", payload.Results[0].Content)
 }
 
 func TestWebExtract_AppliesPerCallMaxChars(t *testing.T) {
@@ -470,6 +667,42 @@ func TestWebExtract_ReturnsProviderErrorsAsToolErrors(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
 	require.Equal(t, "tool_error", toolErr.Code)
 	require.Equal(t, "provider failed", toolErr.Message)
+}
+
+func TestWebExtract_ReturnsPolicyEnabledProviderErrorsAsToolErrors(t *testing.T) {
+	registry := registerTool(t, stubProvider{
+		extract: func(context.Context, []string) ([]webprovider.ExtractResult, error) {
+			return nil, errors.New("provider failed")
+		},
+	}, Options{
+		WebsitePolicy: guardrails.NewWebsitePolicy(true, []string{"blocked.example"}, nil),
+	})
+
+	result, err := registry.Invoke(context.Background(), tools.Call{
+		Name:  "web_extract",
+		Input: `{"urls":["https://allowed.example"]}`,
+	})
+	require.NoError(t, err)
+
+	var toolErr tools.Error
+	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
+	require.Equal(t, "tool_error", toolErr.Code)
+	require.Equal(t, "provider failed", toolErr.Message)
+}
+
+func TestExtractWithPolicy_HandlesEmptyURLList(t *testing.T) {
+	called := false
+	results, err := extractWithPolicy(context.Background(), stubProvider{
+		extract: func(_ context.Context, urls []string) ([]webprovider.ExtractResult, error) {
+			called = true
+			require.Empty(t, urls)
+			return nil, nil
+		},
+	}, nil, "text", guardrails.NewWebsitePolicy(true, []string{"blocked.example"}, nil))
+
+	require.NoError(t, err)
+	require.True(t, called)
+	require.Nil(t, results)
 }
 
 func TestWebExtract_ReturnsErrorWhenProviderIsNil(t *testing.T) {

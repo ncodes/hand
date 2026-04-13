@@ -180,6 +180,9 @@ func TestApplyConfigOverrides_AppliesWebSettings(t *testing.T) {
 		"--web.max-extract-char-per-result", "51000",
 		"--web.max-extract-response-bytes", "2097152",
 		"--web.cache-ttl", "15m",
+		"--web.blocked-domains-enabled",
+		"--web.blocked-domains", " blocked.example , ads.example ",
+		"--web.blocked-domain-files", " blocked.txt , shared.txt ",
 		"--web.extract-min-summarize-chars", "12000",
 		"--web.extract-max-summary-chars", "3000",
 		"--web.extract-max-summary-chunk-chars", "70000",
@@ -195,6 +198,9 @@ func TestApplyConfigOverrides_AppliesWebSettings(t *testing.T) {
 	require.Equal(t, 51000, cfg.WebMaxExtractCharPerResult)
 	require.Equal(t, 2097152, cfg.WebMaxExtractResponseBytes)
 	require.Equal(t, 15*time.Minute, cfg.WebCacheTTL)
+	require.True(t, cfg.WebBlockedDomainsEnabled)
+	require.Equal(t, []string{"blocked.example", "ads.example"}, cfg.WebBlockedDomains)
+	require.Equal(t, []string{"blocked.txt", "shared.txt"}, cfg.WebBlockedDomainFiles)
 	require.Equal(t, 12000, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, 3000, cfg.WebExtractMaxSummaryChars)
 	require.Equal(t, 70000, cfg.WebExtractMaxSummaryChunkChars)

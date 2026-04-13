@@ -236,6 +236,9 @@ func (p *NativeProvider) validateURL(ctx context.Context, rawURL string) (*url.U
 	if parsed.User != nil {
 		return nil, errors.New("url userinfo is not allowed")
 	}
+	if block, blocked := extractWebsitePolicy(ctx).Check(parsed.String()); blocked {
+		return nil, errors.New(block.Message)
+	}
 	if _, err := p.resolveAndValidateHost(ctx, parsed.Hostname()); err != nil {
 		return nil, err
 	}

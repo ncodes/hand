@@ -14,6 +14,7 @@ import (
 
 	readability "codeberg.org/readeck/go-readability/v2"
 	"github.com/stretchr/testify/require"
+	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/pkg/logutils"
 	"golang.org/x/net/html"
 )
@@ -349,6 +350,45 @@ func TestNativeProvider_ExtractRejectsUnsafeRedirect(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	require.Contains(t, results[0].Error, "blocked address")
+}
+
+func TestNativeProvider_ExtractRejectsWebsitePolicyRedirect(t *testing.T) {
+	provider := &NativeProvider{
+		resolveHost: func(context.Context, string) ([]netip.Addr, error) {
+			return []netip.Addr{netip.MustParseAddr("93.184.216.34")}, nil
+		},
+	}
+	client := provider.newHTTPClient()
+	client.Transport = nativeRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Host == "example.com" {
+			return &http.Response{
+				StatusCode: http.StatusFound,
+				Status:     "302 Found",
+				Header:     http.Header{"Location": []string{"https://blocked.example/admin"}},
+				Body:       io.NopCloser(strings.NewReader("")),
+				Request:    req,
+			}, nil
+		}
+
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Header:     http.Header{"Content-Type": []string{"text/plain"}},
+			Body:       io.NopCloser(strings.NewReader("blocked")),
+			Request:    req,
+		}, nil
+	})
+	provider.client = client
+	ctx := WithExtractOptions(context.Background(), ExtractOptions{
+		WebsitePolicy: guardrails.NewWebsitePolicy(true, []string{"blocked.example"}, nil),
+	})
+
+	results, err := provider.Extract(ctx, []string{"https://example.com/page"})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Contains(t, results[0].Error, "blocked by website policy")
+	require.Empty(t, results[0].Content)
 }
 
 func TestNativeProvider_HTTPClientRejectsTooManyRedirects(t *testing.T) {

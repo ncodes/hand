@@ -168,6 +168,24 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value:  config.Get().WebCacheTTL,
 			Hidden: true,
 		},
+		&cli.BoolFlag{
+			Name:   "web.blocked-domains-enabled",
+			Usage:  "Enable configured domain blocklist checks for web search and extraction",
+			Value:  config.Get().WebBlockedDomainsEnabled,
+			Hidden: true,
+		},
+		&cli.StringFlag{
+			Name:   "web.blocked-domains",
+			Usage:  "Comma-separated domains blocked from web search and extraction results",
+			Value:  strings.Join(config.Get().WebBlockedDomains, ","),
+			Hidden: true,
+		},
+		&cli.StringFlag{
+			Name:   "web.blocked-domain-files",
+			Usage:  "Comma-separated files containing domains blocked from web search and extraction results",
+			Value:  strings.Join(config.Get().WebBlockedDomainFiles, ","),
+			Hidden: true,
+		},
 		&cli.IntFlag{
 			Name:   "web.extract-min-summarize-chars",
 			Usage:  "Minimum extracted content characters before optional web extraction summarization runs",
@@ -422,6 +440,15 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("web.cache-ttl") {
 		cfg.WebCacheTTL = cmd.Duration("web.cache-ttl")
+	}
+	if cmd.IsSet("web.blocked-domains-enabled") {
+		cfg.WebBlockedDomainsEnabled = cmd.Bool("web.blocked-domains-enabled")
+	}
+	if cmd.IsSet("web.blocked-domains") {
+		cfg.WebBlockedDomains = configSplitAndTrimCSV(cmd.String("web.blocked-domains"))
+	}
+	if cmd.IsSet("web.blocked-domain-files") {
+		cfg.WebBlockedDomainFiles = configSplitAndTrimCSV(cmd.String("web.blocked-domain-files"))
 	}
 	if cmd.IsSet("web.extract-min-summarize-chars") {
 		cfg.WebExtractMinSummarizeChars = cmd.Int("web.extract-min-summarize-chars")

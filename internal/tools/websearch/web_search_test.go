@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/guardrails"
 	webintegration "github.com/wandxy/hand/internal/providers/web"
 	"github.com/wandxy/hand/internal/tools"
 )
@@ -114,6 +115,31 @@ func TestWebSearch_ReturnsProviderErrorsAsToolErrors(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(result.Error), &toolErr))
 	require.Equal(t, "tool_error", toolErr.Code)
 	require.Equal(t, "provider failed", toolErr.Message)
+}
+
+func TestWebSearch_FiltersBlockedResults(t *testing.T) {
+	registry := tools.NewInMemoryRegistry()
+	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
+	require.NoError(t, registry.Register(Definition(stubProvider{
+		search: func(context.Context, string, int) ([]webintegration.SearchResult, error) {
+			return []webintegration.SearchResult{
+				{Title: "Allowed", URL: "https://allowed.example", Position: 1},
+				{Title: "Blocked", URL: "https://blocked.example", Position: 2},
+			}, nil
+		},
+	}, Options{
+		WebsitePolicy: guardrails.NewWebsitePolicy(true, []string{"blocked.example"}, nil),
+	})))
+
+	result, err := registry.Invoke(context.Background(), tools.Call{Name: "web_search", Input: `{"query":"golang"}`})
+	require.NoError(t, err)
+
+	var payload struct {
+		Results []webintegration.SearchResult `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Len(t, payload.Results, 1)
+	require.Equal(t, "Allowed", payload.Results[0].Title)
 }
 
 func TestWebSearch_ReturnsErrorWhenProviderIsNil(t *testing.T) {

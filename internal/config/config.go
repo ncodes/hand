@@ -53,6 +53,9 @@ type Config struct {
 	WebMaxExtractCharPerResult      int
 	WebMaxExtractResponseBytes      int
 	WebCacheTTL                     time.Duration
+	WebBlockedDomainsEnabled        bool
+	WebBlockedDomains               []string
+	WebBlockedDomainFiles           []string
 	WebExtractMinSummarizeChars     int
 	WebExtractMaxSummaryChars       int
 	WebExtractMaxSummaryChunkChars  int
@@ -164,17 +167,22 @@ type fileConfig struct {
 	} `yaml:"debug"`
 
 	Web struct {
-		Provider                     string `yaml:"provider"`
-		APIKey                       string `yaml:"apiKey"`
-		BaseURL                      string `yaml:"baseUrl"`
-		MaxCharPerResult             int    `yaml:"maxCharPerResult"`
-		MaxExtractCharPerResult      int    `yaml:"maxExtractCharPerResult"`
-		MaxExtractResponseBytes      int    `yaml:"maxExtractResponseBytes"`
-		CacheTTL                     string `yaml:"cacheTTL"`
-		ExtractMinSummarizeChars     int    `yaml:"extractMinSummarizeChars"`
-		ExtractMaxSummaryChars       int    `yaml:"extractMaxSummaryChars"`
-		ExtractMaxSummaryChunkChars  int    `yaml:"extractMaxSummaryChunkChars"`
-		ExtractRefusalThresholdChars int    `yaml:"extractRefusalThresholdChars"`
+		Provider                string `yaml:"provider"`
+		APIKey                  string `yaml:"apiKey"`
+		BaseURL                 string `yaml:"baseUrl"`
+		MaxCharPerResult        int    `yaml:"maxCharPerResult"`
+		MaxExtractCharPerResult int    `yaml:"maxExtractCharPerResult"`
+		MaxExtractResponseBytes int    `yaml:"maxExtractResponseBytes"`
+		CacheTTL                string `yaml:"cacheTTL"`
+		BlockedDomains          struct {
+			Enabled bool     `yaml:"enabled"`
+			Domains []string `yaml:"domains"`
+			Files   []string `yaml:"files"`
+		} `yaml:"blockedDomains"`
+		ExtractMinSummarizeChars     int `yaml:"extractMinSummarizeChars"`
+		ExtractMaxSummaryChars       int `yaml:"extractMaxSummaryChars"`
+		ExtractMaxSummaryChunkChars  int `yaml:"extractMaxSummaryChunkChars"`
+		ExtractRefusalThresholdChars int `yaml:"extractRefusalThresholdChars"`
 	} `yaml:"web"`
 
 	RPC struct {
@@ -352,6 +360,9 @@ func loadConfigFile(path string) (*Config, error) {
 		WebMaxExtractCharPerResult:      raw.Web.MaxExtractCharPerResult,
 		WebMaxExtractResponseBytes:      raw.Web.MaxExtractResponseBytes,
 		WebCacheTTL:                     parseDurationOrZero(raw.Web.CacheTTL),
+		WebBlockedDomainsEnabled:        raw.Web.BlockedDomains.Enabled,
+		WebBlockedDomains:               raw.Web.BlockedDomains.Domains,
+		WebBlockedDomainFiles:           resolvePathsFromBase(raw.Web.BlockedDomains.Files, baseDir),
 		WebExtractMinSummarizeChars:     raw.Web.ExtractMinSummarizeChars,
 		WebExtractMaxSummaryChars:       raw.Web.ExtractMaxSummaryChars,
 		WebExtractMaxSummaryChunkChars:  raw.Web.ExtractMaxSummaryChunkChars,
@@ -489,6 +500,15 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("WEB_CACHE_TTL")); value != "" {
 		cfg.WebCacheTTL = parseDurationOrZero(value)
 	}
+	if value, ok := parseOptionalBoolEnv("WEB_BLOCKED_DOMAINS_ENABLED"); ok {
+		cfg.WebBlockedDomainsEnabled = value
+	}
+	if value := strings.TrimSpace(os.Getenv("WEB_BLOCKED_DOMAINS")); value != "" {
+		cfg.WebBlockedDomains = splitAndTrimCSV(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("WEB_BLOCKED_DOMAIN_FILES")); value != "" {
+		cfg.WebBlockedDomainFiles = splitAndTrimCSV(value)
+	}
 	if value := strings.TrimSpace(os.Getenv("WEB_EXTRACT_MIN_SUMMARIZE_CHARS")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.WebExtractMinSummarizeChars = chars
@@ -623,6 +643,8 @@ func (c *Config) normalizeFields() {
 	c.WebProvider = strings.TrimSpace(strings.ToLower(c.WebProvider))
 	c.WebAPIKey = strings.TrimSpace(c.WebAPIKey)
 	c.WebBaseURL = strings.TrimSpace(c.WebBaseURL)
+	c.WebBlockedDomains = dedupeAndTrim(c.WebBlockedDomains)
+	c.WebBlockedDomainFiles = dedupeAndTrim(c.WebBlockedDomainFiles)
 	c.RulesFiles = normalizeRulePaths(c.RulesFiles)
 	c.Instruct = strings.TrimSpace(c.Instruct)
 	c.Platform = strings.TrimSpace(strings.ToLower(c.Platform))

@@ -160,7 +160,8 @@ func TestLoad_UsesConfigFileValues(t *testing.T) {
 		"MODEL_MAX_RETRIES",
 		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT",
 		"WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
-		"WEB_CACHE_TTL", "WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
+		"WEB_CACHE_TTL", "WEB_BLOCKED_DOMAINS_ENABLED", "WEB_BLOCKED_DOMAINS",
+		"WEB_BLOCKED_DOMAIN_FILES", "WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
 		"WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS",
 		"AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
@@ -200,6 +201,12 @@ web:
   maxExtractCharPerResult: 9600
   maxExtractResponseBytes: 2048
   cacheTTL: 15m
+  blockedDomains:
+    enabled: true
+    domains:
+      - blocked.example
+    files:
+      - blocked.txt
   extractMinSummarizeChars: 12000
   extractMaxSummaryChars: 3000
   extractMaxSummaryChunkChars: 60000
@@ -232,6 +239,9 @@ rules:
 	require.Equal(t, 9600, cfg.WebMaxExtractCharPerResult)
 	require.Equal(t, 2048, cfg.WebMaxExtractResponseBytes)
 	require.Equal(t, 15*time.Minute, cfg.WebCacheTTL)
+	require.True(t, cfg.WebBlockedDomainsEnabled)
+	require.Equal(t, []string{"blocked.example"}, cfg.WebBlockedDomains)
+	require.Equal(t, []string{filepath.Join(dir, "blocked.txt")}, cfg.WebBlockedDomainFiles)
 	require.Equal(t, 12000, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, 3000, cfg.WebExtractMaxSummaryChars)
 	require.Equal(t, 60000, cfg.WebExtractMaxSummaryChunkChars)
@@ -254,7 +264,8 @@ func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 		"MODEL_MAX_RETRIES",
 		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT",
 		"WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
-		"WEB_CACHE_TTL", "WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
+		"WEB_CACHE_TTL", "WEB_BLOCKED_DOMAINS_ENABLED", "WEB_BLOCKED_DOMAINS",
+		"WEB_BLOCKED_DOMAIN_FILES", "WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
 		"WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS",
 		"AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
@@ -282,6 +293,9 @@ WEB_MAX_CHAR_PER_RESULT=3100
 WEB_MAX_EXTRACT_CHAR_PER_RESULT=12400
 WEB_MAX_EXTRACT_RESPONSE_BYTES=4096
 WEB_CACHE_TTL=30m
+WEB_BLOCKED_DOMAINS_ENABLED=true
+WEB_BLOCKED_DOMAINS=blocked.example,ads.example
+WEB_BLOCKED_DOMAIN_FILES=blocked.txt,shared.txt
 WEB_EXTRACT_MIN_SUMMARIZE_CHARS=13000
 WEB_EXTRACT_MAX_SUMMARY_CHARS=3200
 WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS=70000
@@ -355,6 +369,9 @@ rules:
 	require.Equal(t, 12400, cfg.WebMaxExtractCharPerResult)
 	require.Equal(t, 4096, cfg.WebMaxExtractResponseBytes)
 	require.Equal(t, 30*time.Minute, cfg.WebCacheTTL)
+	require.True(t, cfg.WebBlockedDomainsEnabled)
+	require.Equal(t, []string{"blocked.example", "ads.example"}, cfg.WebBlockedDomains)
+	require.Equal(t, []string{"blocked.txt", "shared.txt"}, cfg.WebBlockedDomainFiles)
 	require.Equal(t, 13000, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, 3200, cfg.WebExtractMaxSummaryChars)
 	require.Equal(t, 70000, cfg.WebExtractMaxSummaryChunkChars)
@@ -1266,6 +1283,9 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	require.Equal(t, DefaultWebMaxExtractCharPerResult, cfg.WebMaxExtractCharPerResult)
 	require.Equal(t, DefaultWebMaxExtractResponseBytes, cfg.WebMaxExtractResponseBytes)
 	require.Equal(t, DefaultWebCacheTTL, cfg.WebCacheTTL)
+	require.False(t, cfg.WebBlockedDomainsEnabled)
+	require.Empty(t, cfg.WebBlockedDomains)
+	require.Empty(t, cfg.WebBlockedDomainFiles)
 	require.Equal(t, DefaultWebExtractMinSummarizeChars, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, DefaultWebExtractMaxSummaryChars, cfg.WebExtractMaxSummaryChars)
 	require.Equal(t, DefaultWebExtractMaxSummaryChunkChars, cfg.WebExtractMaxSummaryChunkChars)
@@ -1278,6 +1298,18 @@ func TestConfig_NormalizeDisablesNegativeWebCacheTTL(t *testing.T) {
 	cfg := &Config{WebCacheTTL: -time.Second}
 	cfg.Normalize()
 	require.Equal(t, DefaultWebCacheTTL, cfg.WebCacheTTL)
+}
+
+func TestConfig_NormalizeTrimsWebBlockedDomains(t *testing.T) {
+	cfg := &Config{
+		WebBlockedDomains:     []string{" blocked.example ", "blocked.example", ""},
+		WebBlockedDomainFiles: []string{" blocked.txt ", "blocked.txt", ""},
+	}
+
+	cfg.Normalize()
+
+	require.Equal(t, []string{"blocked.example"}, cfg.WebBlockedDomains)
+	require.Equal(t, []string{"blocked.txt"}, cfg.WebBlockedDomainFiles)
 }
 
 func TestApplyEnvOverrides_IgnoresInvalidWebCacheTTL(t *testing.T) {
@@ -2332,6 +2364,10 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 				"maxExtractCharPerResult",
 				"maxExtractResponseBytes",
 				"cacheTTL",
+				"blockedDomains",
+				"enabled",
+				"domains",
+				"files",
 				"extractMinSummarizeChars",
 				"extractMaxSummaryChars",
 				"extractMaxSummaryChunkChars",
