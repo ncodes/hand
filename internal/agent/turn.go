@@ -162,7 +162,10 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 	requestInstruct := strings.TrimSpace(opts.Instruct)
 	if requestInstruct != "" {
-		t.instructions = setInstruction(t.instructions, instruct.Instruction{Name: requestInstructionName, Value: requestInstruct})
+		t.instructions = setInstruction(t.instructions, instruct.Instruction{
+			Name:  requestInstructionName,
+			Value: requestInstruct,
+		})
 		defer func() {
 			t.instructions = t.instructions.WithoutName(requestInstructionName)
 		}()
@@ -236,7 +239,11 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 		// Refresh may persist a new session summary; rebuild instructions after it.
 		request.Instructions = t.buildRequestInstructions(availableToolDefinitions)
+        
+        // Attach the current context to the request
 		request.Messages = t.Context()
+
+        // Record trace events
 		t.memory.RecordSummaryApplied(traceSession)
 		recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
 		traceSession.Record(trace.EvtModelRequest, request)

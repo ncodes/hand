@@ -97,7 +97,6 @@ func (p *cachedProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 			results[idx] = result
 			continue
 		}
-
 		missURLs = append(missURLs, rawURL)
 		missIndexes = append(missIndexes, idx)
 		missKeys = append(missKeys, key)

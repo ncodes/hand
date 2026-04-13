@@ -166,7 +166,7 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 	}
 
 	env := a.env
-	if a.initialized || env == nil {
+	if env == nil {
 		env = newEnvironment(ctx, a.cfg)
 		if err := env.Prepare(); err != nil {
 			return "", err
@@ -181,7 +181,14 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 
 	agentLog.Info().Str("session_id", opts.SessionID).Str("model", a.cfg.Model).Msg("responding to user message")
 
-	turn := NewTurn(a.cfg, a.modelClient, a.summaryClient, a.sessionMgr, a.invokeToolWithEnvironment, env)
+	turn := NewTurn(
+        a.cfg, 
+        a.modelClient, 
+        a.summaryClient, 
+        a.sessionMgr, 
+        a.invokeToolWithEnvironment, 
+        env,
+    )
 	reply, err := turn.Run(ctx, msg, opts)
 	a.turnMessages = turn.Messages()
 

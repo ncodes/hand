@@ -374,7 +374,7 @@ func TestAgent_RespondRejectsMissingManagerWhenInitialized(t *testing.T) {
 	require.EqualError(t, err, "environment has not been initialized")
 }
 
-func TestAgent_RespondReturnsRecreatedEnvironmentPrepareError(t *testing.T) {
+func TestAgent_RespondReturnsPrepareErrorWhenEnvironmentIsMissing(t *testing.T) {
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
 		newEnvironment = originalFactory
@@ -394,17 +394,13 @@ func TestAgent_RespondReturnsRecreatedEnvironmentPrepareError(t *testing.T) {
 		modelClient: &mocks.ModelClientStub{},
 		sessionMgr:  manager,
 		initialized: true,
-		env: &mocks.EnvironmentStub{
-			InstructionsList: nil,
-			ToolRegistry:     tools.NewInMemoryRegistry(),
-		},
 	}
 
 	_, err := agent.Respond(context.Background(), "hello", RespondOptions{})
 	require.EqualError(t, err, "prepare failed")
 }
 
-func TestAgent_RespondUsesProvidedContextForExecutionEnvironment(t *testing.T) {
+func TestAgent_RespondReusesStartedEnvironment(t *testing.T) {
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
 		newEnvironment = originalFactory
@@ -422,7 +418,10 @@ func TestAgent_RespondUsesProvidedContextForExecutionEnvironment(t *testing.T) {
 		}
 	}
 
-	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "hello back"}}}
+	client := &mocks.ModelClientStub{Responses: []*models.Response{
+		{OutputText: "hello back"},
+		{OutputText: "hello back"},
+	}}
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
 	startCtx := context.WithValue(context.Background(), key, "start-ctx")
 	runCtx := context.WithValue(context.Background(), key, "run-ctx")
@@ -432,9 +431,13 @@ func TestAgent_RespondUsesProvidedContextForExecutionEnvironment(t *testing.T) {
 	reply, err := agent.Respond(runCtx, "hello", RespondOptions{})
 	require.NoError(t, err)
 	require.Equal(t, "hello back", reply)
-	require.Len(t, captured, 2)
+	require.Len(t, captured, 1)
 	require.Same(t, startCtx, captured[0])
-	require.Same(t, runCtx, captured[1])
+
+	reply, err = agent.Respond(runCtx, "again", RespondOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "hello back", reply)
+	require.Len(t, captured, 1)
 }
 
 func TestAgent_EnsureSessionManagerRejectsNilAgent(t *testing.T) {
