@@ -63,6 +63,7 @@
 #   maxCharPerResult: 1200
 #   maxExtractCharPerResult: 50000
 #   maxExtractResponseBytes: 2097152
+#   cacheTTL: "0s"
 #   extractMinSummarizeChars: 12000
 #   extractMaxSummaryChars: 4000
 #   extractMaxSummaryChunkChars: 25000

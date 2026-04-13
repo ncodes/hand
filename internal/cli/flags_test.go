@@ -179,6 +179,7 @@ func TestApplyConfigOverrides_AppliesWebSettings(t *testing.T) {
 		"--web.max-char-per-result", "1300",
 		"--web.max-extract-char-per-result", "51000",
 		"--web.max-extract-response-bytes", "2097152",
+		"--web.cache-ttl", "15m",
 		"--web.extract-min-summarize-chars", "12000",
 		"--web.extract-max-summary-chars", "3000",
 		"--web.extract-max-summary-chunk-chars", "70000",
@@ -193,6 +194,7 @@ func TestApplyConfigOverrides_AppliesWebSettings(t *testing.T) {
 	require.Equal(t, 1300, cfg.WebMaxCharPerResult)
 	require.Equal(t, 51000, cfg.WebMaxExtractCharPerResult)
 	require.Equal(t, 2097152, cfg.WebMaxExtractResponseBytes)
+	require.Equal(t, 15*time.Minute, cfg.WebCacheTTL)
 	require.Equal(t, 12000, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, 3000, cfg.WebExtractMaxSummaryChars)
 	require.Equal(t, 70000, cfg.WebExtractMaxSummaryChunkChars)

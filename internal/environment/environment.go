@@ -170,6 +170,12 @@ func (e *environment) prepareTools() error {
 	case err != nil:
 		return err
 	default:
+		if e.cfg.WebCacheTTL > 0 {
+			webProvider = webintegration.NewCachedProvider(webProvider, webintegration.CacheOptions{
+				ProviderName: e.cfg.WebProvider,
+				TTL:          e.cfg.WebCacheTTL,
+			})
+		}
 		definitions = append(definitions, webextract.Definition(webProvider, webextract.Options{
 			MaxExtractCharPerResult:        e.cfg.WebMaxExtractCharPerResult,
 			MinSummarizeChars:              e.cfg.WebExtractMinSummarizeChars,

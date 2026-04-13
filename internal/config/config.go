@@ -52,6 +52,7 @@ type Config struct {
 	WebMaxCharPerResult             int
 	WebMaxExtractCharPerResult      int
 	WebMaxExtractResponseBytes      int
+	WebCacheTTL                     time.Duration
 	WebExtractMinSummarizeChars     int
 	WebExtractMaxSummaryChars       int
 	WebExtractMaxSummaryChunkChars  int
@@ -110,20 +111,21 @@ var (
 var contextWindowPatternOAI = regexp.MustCompile(`([0-9][0-9,]*)(?:\s|<!--[^>]*-->)+context window`)
 
 const (
-	defaultModel                           = "openai/gpt-4o-mini"
-	defaultContextLength                   = 128000
-	defaultModelProvider                   = "openrouter"
-	DefaultModelAPIMode                    = "completions"
-	DefaultMaxIterations                   = 90
-	DefaultWebMaxCharPerResult             = 1200
-	DefaultWebMaxExtractCharPerResult      = 50000
-	DefaultWebMaxExtractResponseBytes      = 2 * 1024 * 1024
-	DefaultWebExtractMinSummarizeChars     = 12000
-	DefaultWebExtractMaxSummaryChars       = 4000
-	DefaultWebExtractMaxSummaryChunkChars  = 25000
-	DefaultWebExtractRefusalThresholdChars = 200000
-	DefaultModelMaxRetries                 = 2
-	defaultMaxIterations                   = DefaultMaxIterations
+	defaultModel                                         = "openai/gpt-4o-mini"
+	defaultContextLength                                 = 128000
+	defaultModelProvider                                 = "openrouter"
+	DefaultModelAPIMode                                  = "completions"
+	DefaultMaxIterations                                 = 90
+	DefaultWebMaxCharPerResult                           = 1200
+	DefaultWebMaxExtractCharPerResult                    = 50000
+	DefaultWebMaxExtractResponseBytes                    = 2 * 1024 * 1024
+	DefaultWebCacheTTL                     time.Duration = 0
+	DefaultWebExtractMinSummarizeChars                   = 12000
+	DefaultWebExtractMaxSummaryChars                     = 4000
+	DefaultWebExtractMaxSummaryChunkChars                = 25000
+	DefaultWebExtractRefusalThresholdChars               = 200000
+	DefaultModelMaxRetries                               = 2
+	defaultMaxIterations                                 = DefaultMaxIterations
 )
 
 type fileConfig struct {
@@ -168,6 +170,7 @@ type fileConfig struct {
 		MaxCharPerResult             int    `yaml:"maxCharPerResult"`
 		MaxExtractCharPerResult      int    `yaml:"maxExtractCharPerResult"`
 		MaxExtractResponseBytes      int    `yaml:"maxExtractResponseBytes"`
+		CacheTTL                     string `yaml:"cacheTTL"`
 		ExtractMinSummarizeChars     int    `yaml:"extractMinSummarizeChars"`
 		ExtractMaxSummaryChars       int    `yaml:"extractMaxSummaryChars"`
 		ExtractMaxSummaryChunkChars  int    `yaml:"extractMaxSummaryChunkChars"`
@@ -254,28 +257,36 @@ func Get() *Config {
 
 	if globalConfig == nil {
 		return &Config{
-			Model:                    defaultModel,
-			Stream:                   new(true),
-			ContextLength:            defaultContextLength,
-			VerifyModel:              new(true),
-			ModelMaxRetries:          new(DefaultModelMaxRetries),
-			ModelAPIMode:             DefaultModelAPIMode,
-			MaxIterations:            defaultMaxIterations,
-			LogLevel:                 "info",
-			DebugTraceDir:            datadir.DebugTraceDir(),
-			Platform:                 "cli",
-			CapFilesystem:            new(true),
-			CapNetwork:               new(true),
-			CapExec:                  new(true),
-			CapMemory:                new(true),
-			CapBrowser:               new(false),
-			FSRoots:                  defaultFSRoots(),
-			StorageBackend:           "sqlite",
-			SessionDefaultIdleExpiry: 24 * time.Hour,
-			SessionArchiveRetention:  30 * 24 * time.Hour,
-			CompactionEnabled:        new(true),
-			CompactionTriggerPercent: 0.85,
-			CompactionWarnPercent:    0.95,
+			Model:                           defaultModel,
+			Stream:                          new(true),
+			ContextLength:                   defaultContextLength,
+			VerifyModel:                     new(true),
+			ModelMaxRetries:                 new(DefaultModelMaxRetries),
+			ModelAPIMode:                    DefaultModelAPIMode,
+			MaxIterations:                   defaultMaxIterations,
+			LogLevel:                        "info",
+			DebugTraceDir:                   datadir.DebugTraceDir(),
+			WebMaxCharPerResult:             DefaultWebMaxCharPerResult,
+			WebMaxExtractCharPerResult:      DefaultWebMaxExtractCharPerResult,
+			WebMaxExtractResponseBytes:      DefaultWebMaxExtractResponseBytes,
+			WebCacheTTL:                     DefaultWebCacheTTL,
+			WebExtractMinSummarizeChars:     DefaultWebExtractMinSummarizeChars,
+			WebExtractMaxSummaryChars:       DefaultWebExtractMaxSummaryChars,
+			WebExtractMaxSummaryChunkChars:  DefaultWebExtractMaxSummaryChunkChars,
+			WebExtractRefusalThresholdChars: DefaultWebExtractRefusalThresholdChars,
+			Platform:                        "cli",
+			CapFilesystem:                   new(true),
+			CapNetwork:                      new(true),
+			CapExec:                         new(true),
+			CapMemory:                       new(true),
+			CapBrowser:                      new(false),
+			FSRoots:                         defaultFSRoots(),
+			StorageBackend:                  "sqlite",
+			SessionDefaultIdleExpiry:        24 * time.Hour,
+			SessionArchiveRetention:         30 * 24 * time.Hour,
+			CompactionEnabled:               new(true),
+			CompactionTriggerPercent:        0.85,
+			CompactionWarnPercent:           0.95,
 		}
 	}
 
@@ -340,6 +351,7 @@ func loadConfigFile(path string) (*Config, error) {
 		WebMaxCharPerResult:             raw.Web.MaxCharPerResult,
 		WebMaxExtractCharPerResult:      raw.Web.MaxExtractCharPerResult,
 		WebMaxExtractResponseBytes:      raw.Web.MaxExtractResponseBytes,
+		WebCacheTTL:                     parseDurationOrZero(raw.Web.CacheTTL),
 		WebExtractMinSummarizeChars:     raw.Web.ExtractMinSummarizeChars,
 		WebExtractMaxSummaryChars:       raw.Web.ExtractMaxSummaryChars,
 		WebExtractMaxSummaryChunkChars:  raw.Web.ExtractMaxSummaryChunkChars,
@@ -473,6 +485,9 @@ func applyEnvOverrides(cfg *Config) {
 		if bytes, err := strconv.Atoi(value); err == nil {
 			cfg.WebMaxExtractResponseBytes = bytes
 		}
+	}
+	if value := strings.TrimSpace(os.Getenv("WEB_CACHE_TTL")); value != "" {
+		cfg.WebCacheTTL = parseDurationOrZero(value)
 	}
 	if value := strings.TrimSpace(os.Getenv("WEB_EXTRACT_MIN_SUMMARIZE_CHARS")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
@@ -668,6 +683,9 @@ func (c *Config) normalizeFields() {
 	}
 	if c.WebMaxExtractResponseBytes <= 0 {
 		c.WebMaxExtractResponseBytes = DefaultWebMaxExtractResponseBytes
+	}
+	if c.WebCacheTTL < 0 {
+		c.WebCacheTTL = DefaultWebCacheTTL
 	}
 	if c.WebExtractMinSummarizeChars <= 0 {
 		c.WebExtractMinSummarizeChars = DefaultWebExtractMinSummarizeChars

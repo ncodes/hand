@@ -5,9 +5,12 @@ import (
 	stdctx "context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -373,6 +376,97 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 		definitions[8].Name,
 		definitions[9].Name,
 	})
+}
+
+func TestEnvironment_PrepareWrapsWebProviderWithCacheWhenConfigured(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{"title": "Cached", "url": "https://example.com", "highlights": []string{"hit"}},
+			},
+		}))
+	}))
+	defer server.Close()
+
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:        "Test Agent",
+		WebProvider: "exa",
+		WebAPIKey:   "exa-key",
+		WebBaseURL:  server.URL,
+		WebCacheTTL: time.Minute,
+	})
+
+	require.NoError(t, env.Prepare())
+	for range 2 {
+		result, err := env.Tools().Invoke(gctx.Background(), tools.Call{
+			Name:  "web_search",
+			Input: `{"query":"golang","count":1}`,
+		})
+		require.NoError(t, err)
+		require.Empty(t, result.Error)
+	}
+	require.Equal(t, 1, requests)
+}
+
+func TestEnvironment_PrepareLeavesWebProviderUncachedWhenDisabled(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{
+				{"title": "Uncached", "url": "https://example.com", "highlights": []string{"hit"}},
+			},
+		}))
+	}))
+	defer server.Close()
+
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:        "Test Agent",
+		WebProvider: "exa",
+		WebAPIKey:   "exa-key",
+		WebBaseURL:  server.URL,
+	})
+
+	require.NoError(t, env.Prepare())
+	for range 2 {
+		result, err := env.Tools().Invoke(gctx.Background(), tools.Call{
+			Name:  "web_search",
+			Input: `{"query":"golang","count":1}`,
+		})
+		require.NoError(t, err)
+		require.Empty(t, result.Error)
+	}
+	require.Equal(t, 2, requests)
 }
 
 func TestEnvironment_PrepareRegistersOnlyWebExtractForNativeProvider(t *testing.T) {

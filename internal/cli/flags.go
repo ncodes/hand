@@ -162,6 +162,12 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value:  config.Get().WebMaxExtractResponseBytes,
 			Hidden: true,
 		},
+		&cli.DurationFlag{
+			Name:   "web.cache-ttl",
+			Usage:  "Time to keep successful web search and extraction results in the in-process cache",
+			Value:  config.Get().WebCacheTTL,
+			Hidden: true,
+		},
 		&cli.IntFlag{
 			Name:   "web.extract-min-summarize-chars",
 			Usage:  "Minimum extracted content characters before optional web extraction summarization runs",
@@ -413,6 +419,9 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("web.max-extract-response-bytes") {
 		cfg.WebMaxExtractResponseBytes = cmd.Int("web.max-extract-response-bytes")
+	}
+	if cmd.IsSet("web.cache-ttl") {
+		cfg.WebCacheTTL = cmd.Duration("web.cache-ttl")
 	}
 	if cmd.IsSet("web.extract-min-summarize-chars") {
 		cfg.WebExtractMinSummarizeChars = cmd.Int("web.extract-min-summarize-chars")

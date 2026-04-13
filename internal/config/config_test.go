@@ -160,7 +160,7 @@ func TestLoad_UsesConfigFileValues(t *testing.T) {
 		"MODEL_MAX_RETRIES",
 		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT",
 		"WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
-		"WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
+		"WEB_CACHE_TTL", "WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
 		"WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS",
 		"AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
@@ -199,6 +199,7 @@ web:
   maxCharPerResult: 2400
   maxExtractCharPerResult: 9600
   maxExtractResponseBytes: 2048
+  cacheTTL: 15m
   extractMinSummarizeChars: 12000
   extractMaxSummaryChars: 3000
   extractMaxSummaryChunkChars: 60000
@@ -230,6 +231,7 @@ rules:
 	require.Equal(t, 2400, cfg.WebMaxCharPerResult)
 	require.Equal(t, 9600, cfg.WebMaxExtractCharPerResult)
 	require.Equal(t, 2048, cfg.WebMaxExtractResponseBytes)
+	require.Equal(t, 15*time.Minute, cfg.WebCacheTTL)
 	require.Equal(t, 12000, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, 3000, cfg.WebExtractMaxSummaryChars)
 	require.Equal(t, 60000, cfg.WebExtractMaxSummaryChunkChars)
@@ -252,7 +254,7 @@ func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 		"MODEL_MAX_RETRIES",
 		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT",
 		"WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
-		"WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
+		"WEB_CACHE_TTL", "WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
 		"WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS",
 		"AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
@@ -279,6 +281,7 @@ WEB_BASE_URL=https://env-web.example
 WEB_MAX_CHAR_PER_RESULT=3100
 WEB_MAX_EXTRACT_CHAR_PER_RESULT=12400
 WEB_MAX_EXTRACT_RESPONSE_BYTES=4096
+WEB_CACHE_TTL=30m
 WEB_EXTRACT_MIN_SUMMARIZE_CHARS=13000
 WEB_EXTRACT_MAX_SUMMARY_CHARS=3200
 WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS=70000
@@ -312,6 +315,7 @@ web:
   maxCharPerResult: 1800
   maxExtractCharPerResult: 7200
   maxExtractResponseBytes: 2048
+  cacheTTL: 15m
 cap:
   fs: false
   net: false
@@ -350,6 +354,7 @@ rules:
 	require.Equal(t, 3100, cfg.WebMaxCharPerResult)
 	require.Equal(t, 12400, cfg.WebMaxExtractCharPerResult)
 	require.Equal(t, 4096, cfg.WebMaxExtractResponseBytes)
+	require.Equal(t, 30*time.Minute, cfg.WebCacheTTL)
 	require.Equal(t, 13000, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, 3200, cfg.WebExtractMaxSummaryChars)
 	require.Equal(t, 70000, cfg.WebExtractMaxSummaryChunkChars)
@@ -1260,12 +1265,30 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	require.Equal(t, DefaultWebMaxCharPerResult, cfg.WebMaxCharPerResult)
 	require.Equal(t, DefaultWebMaxExtractCharPerResult, cfg.WebMaxExtractCharPerResult)
 	require.Equal(t, DefaultWebMaxExtractResponseBytes, cfg.WebMaxExtractResponseBytes)
+	require.Equal(t, DefaultWebCacheTTL, cfg.WebCacheTTL)
 	require.Equal(t, DefaultWebExtractMinSummarizeChars, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, DefaultWebExtractMaxSummaryChars, cfg.WebExtractMaxSummaryChars)
 	require.Equal(t, DefaultWebExtractMaxSummaryChunkChars, cfg.WebExtractMaxSummaryChunkChars)
 	require.Less(t, cfg.WebExtractMaxSummaryChunkChars, cfg.WebMaxExtractCharPerResult)
 	require.Equal(t, DefaultWebExtractRefusalThresholdChars, cfg.WebExtractRefusalThresholdChars)
 	require.True(t, boolValueDefault(cfg.VerifyModel, true))
+}
+
+func TestConfig_NormalizeDisablesNegativeWebCacheTTL(t *testing.T) {
+	cfg := &Config{WebCacheTTL: -time.Second}
+	cfg.Normalize()
+	require.Equal(t, DefaultWebCacheTTL, cfg.WebCacheTTL)
+}
+
+func TestApplyEnvOverrides_IgnoresInvalidWebCacheTTL(t *testing.T) {
+	clearEnvKeys(t, "WEB_CACHE_TTL")
+	t.Setenv("WEB_CACHE_TTL", "not-a-duration")
+
+	cfg := &Config{}
+	applyEnvOverrides(cfg)
+	cfg.Normalize()
+
+	require.Equal(t, DefaultWebCacheTTL, cfg.WebCacheTTL)
 }
 
 func TestConfig_NormalizePreservesExplicitFalseCapabilities(t *testing.T) {
@@ -2308,6 +2331,7 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 				"maxCharPerResult",
 				"maxExtractCharPerResult",
 				"maxExtractResponseBytes",
+				"cacheTTL",
 				"extractMinSummarizeChars",
 				"extractMaxSummaryChars",
 				"extractMaxSummaryChunkChars",
