@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/rs/zerolog/log"
+
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
@@ -59,8 +61,33 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				sessionID = "default"
 			}
 
+			log.Info().
+				Str("tool", "plan_tool").
+				Str("phase", "start").
+				Str("session_id", sessionID).
+				Bool("has_steps", req.Steps != nil).
+				Int("steps_count", len(req.Steps)).
+				Bool("merge", req.Merge).
+				Bool("clear_completed", req.ClearCompleted).
+				Msg("tool call started")
+
 			if req.Steps == nil {
-				return encodePlanOutput(runtime.GetPlan(sessionID))
+				log.Debug().
+					Str("tool", "plan_tool").
+					Str("phase", "execute").
+					Str("action", "read").
+					Msg("plan read started")
+				plan := runtime.GetPlan(sessionID)
+				log.Info().
+					Str("tool", "plan_tool").
+					Str("phase", "complete").
+					Int("plan_steps", len(plan.Steps)).
+					Int("pending", summarizePlan(plan).Pending).
+					Int("in_progress", summarizePlan(plan).InProgress).
+					Int("completed", summarizePlan(plan).Completed).
+					Int("cancelled", summarizePlan(plan).Cancelled).
+					Msg("tool call completed")
+				return encodePlanOutput(plan)
 			}
 
 			var (
@@ -69,14 +96,34 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			)
 
 			if req.Merge {
+				log.Debug().
+					Str("tool", "plan_tool").
+					Str("phase", "execute").
+					Str("action", "merge").
+					Msg("plan merge started")
 				updates, validationErr := decodePartialPlanSteps(req.Steps)
 				if validationErr != nil {
+					log.Warn().
+						Err(validationErr).
+						Str("tool", "plan_tool").
+						Str("phase", "error").
+						Msg("plan update failed")
 					return common.ToolError("invalid_input", validationErr.Error()), nil
 				}
 				plan, err = runtime.MergePlan(sessionID, updates, req.Explanation, req.ClearCompleted)
 			} else {
+				log.Debug().
+					Str("tool", "plan_tool").
+					Str("phase", "execute").
+					Str("action", "replace").
+					Msg("plan replace started")
 				steps, validationErr := decodePlanSteps(req.Steps)
 				if validationErr != nil {
+					log.Warn().
+						Err(validationErr).
+						Str("tool", "plan_tool").
+						Str("phase", "error").
+						Msg("plan update failed")
 					return common.ToolError("invalid_input", validationErr.Error()), nil
 				}
 
@@ -102,6 +149,11 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			}
 
 			if err != nil {
+				log.Warn().
+					Err(err).
+					Str("tool", "plan_tool").
+					Str("phase", "error").
+					Msg("plan update failed")
 				return common.ToolError("invalid_input", err.Error()), nil
 			}
 
@@ -110,6 +162,17 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			if req.ClearCompleted && len(plan.Steps) == 0 {
 				recordPlanCleared(ctx, sessionID, plan)
 			}
+
+			summary := summarizePlan(plan)
+			log.Info().
+				Str("tool", "plan_tool").
+				Str("phase", "complete").
+				Int("plan_steps", len(plan.Steps)).
+				Int("pending", summary.Pending).
+				Int("in_progress", summary.InProgress).
+				Int("completed", summary.Completed).
+				Int("cancelled", summary.Cancelled).
+				Msg("tool call completed")
 
 			return encodePlanOutput(plan)
 		}),

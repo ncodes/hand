@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
@@ -93,10 +95,26 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			}
 
 			timeout := common.WithTimeoutSeconds(req.TimeoutSeconds)
+
+			log.Info().
+				Str("tool", "run_command").
+				Str("phase", "start").
+				Str("cwd", common.NormalizedDisplayPath(req.Cwd)).
+				Int("args_count", len(req.Args)).
+				Int("env_overrides", len(req.Env)).
+				Bool("shell_mode", len(req.Args) == 0).
+				Int("timeout_seconds", timeout).
+				Msg("tool call started")
+
 			runCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 			defer cancel()
 
 			if err := runCtx.Err(); err != nil {
+				log.Warn().
+					Err(err).
+					Str("tool", "run_command").
+					Str("phase", "error").
+					Msg("run command failed before execution")
 				return common.ToolError("command_failed", err.Error()), nil
 			}
 
@@ -116,8 +134,18 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			cmd.Stdout = &stdout
 			cmd.Stderr = &stderr
 
+			log.Debug().
+				Str("tool", "run_command").
+				Str("phase", "execute").
+				Msg("command execution started")
+
 			startedAt := time.Now()
 			if err := cmd.Start(); err != nil {
+				log.Warn().
+					Err(err).
+					Str("tool", "run_command").
+					Str("phase", "error").
+					Msg("command execution failed to start")
 				return common.ToolError("command_failed", err.Error()), nil
 			}
 
@@ -136,6 +164,16 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			elapsedSeconds := time.Since(startedAt).Seconds()
 
 			if runCtx.Err() == context.DeadlineExceeded {
+				log.Info().
+					Str("tool", "run_command").
+					Str("phase", "complete").
+					Int("exit_code", -1).
+					Bool("timed_out", true).
+					Int("stdout_bytes", len(stdout.String())).
+					Int("stderr_bytes", len(stderr.String())).
+					Float64("elapsed_seconds", elapsedSeconds).
+					Msg("tool call completed")
+
 				return common.EncodeOutput(runCommandOutput(
 					-1,
 					common.TrimOutput(stdout.String(), common.MaxOutputBytes),
@@ -147,6 +185,11 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			}
 
 			if runCtx.Err() == context.Canceled {
+				log.Warn().
+					Err(runCtx.Err()).
+					Str("tool", "run_command").
+					Str("phase", "error").
+					Msg("command execution canceled")
 				return common.ToolError("command_failed", runCtx.Err().Error()), nil
 			}
 
@@ -155,9 +198,24 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 					exitCode = exitErr.ExitCode()
 				} else {
+					log.Warn().
+						Err(err).
+						Str("tool", "run_command").
+						Str("phase", "error").
+						Msg("command execution failed")
 					return common.ToolError("command_failed", err.Error()), nil
 				}
 			}
+
+			log.Info().
+				Str("tool", "run_command").
+				Str("phase", "complete").
+				Int("exit_code", exitCode).
+				Bool("timed_out", false).
+				Int("stdout_bytes", len(stdout.String())).
+				Int("stderr_bytes", len(stderr.String())).
+				Float64("elapsed_seconds", elapsedSeconds).
+				Msg("tool call completed")
 
 			return common.EncodeOutput(runCommandOutput(
 				exitCode,

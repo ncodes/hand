@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rs/zerolog/log"
+
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
@@ -54,8 +56,21 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				createDirs = *req.CreateDirs
 			}
 
+			log.Info().
+				Str("tool", "write_file").
+				Str("phase", "start").
+				Str("path", common.NormalizedDisplayPath(req.Path)).
+				Int("content_bytes", len(req.Content)).
+				Bool("create_dirs", createDirs).
+				Msg("tool call started")
+
 			if createDirs {
 				if err := common.MkdirAll(filepath.Dir(resolved.Absolute), 0o755); err != nil {
+					log.Warn().
+						Err(err).
+						Str("tool", "write_file").
+						Str("phase", "error").
+						Msg("write file failed")
 					return common.FileError(err), nil
 				}
 			}
@@ -63,9 +78,27 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			_, statErr := common.StatFile(resolved.Absolute)
 			created := errors.Is(statErr, os.ErrNotExist)
 
+			log.Debug().
+				Str("tool", "write_file").
+				Str("phase", "execute").
+				Bool("created", created).
+				Msg("write file execution started")
+
 			if err := common.WriteFile(resolved.Absolute, []byte(req.Content), 0o644); err != nil {
+				log.Warn().
+					Err(err).
+					Str("tool", "write_file").
+					Str("phase", "error").
+					Msg("write file failed")
 				return common.FileError(err), nil
 			}
+
+			log.Info().
+				Str("tool", "write_file").
+				Str("phase", "complete").
+				Int("bytes_written", len(req.Content)).
+				Bool("created", created).
+				Msg("tool call completed")
 
 			return common.EncodeOutput(map[string]any{
 				"path":          common.NormalizedDisplayPath(resolved.Relative),

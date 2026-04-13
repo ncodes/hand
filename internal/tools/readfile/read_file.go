@@ -3,6 +3,8 @@ package readfile
 import (
 	"context"
 
+	"github.com/rs/zerolog/log"
+
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
@@ -28,15 +30,43 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return result, nil
 			}
 
+			log.Info().
+				Str("tool", "read_file").
+				Str("phase", "start").
+				Str("path", common.NormalizedDisplayPath(req.Path)).
+				Msg("tool call started")
+
 			resolved, err := runtime.FilePolicy().Resolve(req.Path)
 			if err != nil {
+				log.Warn().
+					Err(err).
+					Str("tool", "read_file").
+					Str("phase", "error").
+					Msg("read file failed")
 				return common.FileError(err), nil
 			}
 
+			log.Debug().
+				Str("tool", "read_file").
+				Str("phase", "execute").
+				Str("path", common.NormalizedDisplayPath(resolved.Relative)).
+				Msg("read file execution started")
+
 			content, err := guardrails.ReadTextFile(resolved.Absolute, common.MaxReadBytes)
 			if err != nil {
+				log.Warn().
+					Err(err).
+					Str("tool", "read_file").
+					Str("phase", "error").
+					Msg("read file failed")
 				return common.FileError(err), nil
 			}
+
+			log.Info().
+				Str("tool", "read_file").
+				Str("phase", "complete").
+				Int("bytes", len(content)).
+				Msg("tool call completed")
 
 			return common.EncodeOutput(map[string]any{
 				"path":    common.NormalizedDisplayPath(resolved.Relative),

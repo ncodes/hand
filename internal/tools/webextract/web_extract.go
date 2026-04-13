@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/wandxy/hand/internal/guardrails"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
 	"github.com/wandxy/hand/internal/tools"
@@ -20,6 +22,14 @@ type Options struct {
 	MaxSummaryChunkChars           int
 	SummarizeRefusalThresholdChars int
 	WebsitePolicy                  guardrails.WebsitePolicy
+}
+
+type extractPolicyStats struct {
+	InputBlocked      int
+	ResultBlocked     int
+	MissingResults    int
+	ExtraResults      int
+	ProviderRequested int
 }
 
 func Definition(provider webprovider.Provider, options ...Options) tools.Definition {
@@ -103,30 +113,74 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 				return common.ToolError("invalid_input", validationErr.Error()), nil
 			}
 
+			query := strings.TrimSpace(req.Query)
+			log.Info().
+				Str("tool", "web_extract").
+				Str("phase", "start").
+				Int("url_count", len(urls)).
+				Int("max_chars", maxChars).
+				Int("query_chars", len([]rune(query))).
+				Str("format", format).
+				Bool("summarize", req.Summarize).
+				Bool("website_policy_enabled", opts.WebsitePolicy.Enabled).
+				Msg("tool call started")
+
 			ctx = webprovider.WithExtractOptions(ctx, webprovider.ExtractOptions{
 				Format:        format,
 				MaxChars:      maxChars,
-				Query:         strings.TrimSpace(req.Query),
+				Query:         query,
 				WebsitePolicy: opts.WebsitePolicy,
 			})
 
-			results, err := extractWithPolicy(ctx, provider, urls, format, opts.WebsitePolicy)
+			log.Debug().
+				Str("tool", "web_extract").
+				Str("phase", "execute").
+				Int("url_count", len(urls)).
+				Msg("web extract provider request started")
+
+			results, stats, err := extractWithPolicy(ctx, provider, urls, format, opts.WebsitePolicy)
 			if err != nil {
+				log.Warn().
+					Err(err).
+					Str("tool", "web_extract").
+					Str("phase", "error").
+					Msg("web extract provider request failed")
 				return common.ToolError("tool_error", err.Error()), nil
 			}
 
 			if req.Summarize {
+				log.Debug().
+					Str("tool", "web_extract").
+					Str("phase", "summarize").
+					Int("result_count", len(results)).
+					Msg("web extract summarization started")
 				results, err = summarizeResults(ctx, results, summarizeOptions{
-					Query:                          strings.TrimSpace(req.Query),
+					Query:                          query,
 					MinSummarizeChars:              opts.MinSummarizeChars,
 					MaxSummaryChars:                opts.MaxSummaryChars,
 					MaxSummaryChunkChars:           opts.MaxSummaryChunkChars,
 					SummarizeRefusalThresholdChars: opts.SummarizeRefusalThresholdChars,
 				})
 				if err != nil {
+					log.Warn().
+						Err(err).
+						Str("tool", "web_extract").
+						Str("phase", "error").
+						Msg("web extract summarization failed")
 					return common.ToolError("tool_error", err.Error()), nil
 				}
 			}
+
+			log.Info().
+				Str("tool", "web_extract").
+				Str("phase", "complete").
+				Int("result_count", len(results)).
+				Int("provider_requested", stats.ProviderRequested).
+				Int("input_blocked", stats.InputBlocked).
+				Int("result_blocked", stats.ResultBlocked).
+				Int("missing_results", stats.MissingResults).
+				Int("extra_results", stats.ExtraResults).
+				Msg("tool call completed")
 
 			return common.EncodeOutput(map[string]any{"results": results})
 		}),
@@ -139,39 +193,45 @@ func extractWithPolicy(
 	urls []string,
 	format string,
 	policy guardrails.WebsitePolicy,
-) ([]webprovider.ExtractResult, error) {
+) ([]webprovider.ExtractResult, extractPolicyStats, error) {
 	if len(urls) == 0 || !policy.Enabled {
-		return provider.Extract(ctx, urls)
+		results, err := provider.Extract(ctx, urls)
+		return results, extractPolicyStats{ProviderRequested: len(urls)}, err
 	}
 
+	stats := extractPolicyStats{}
 	results := make([]webprovider.ExtractResult, len(urls))
 	allowedURLs := make([]string, 0, len(urls))
 	allowedIndexes := make([]int, 0, len(urls))
 	for idx, rawURL := range urls {
 		if block, blocked := policy.Check(rawURL); blocked {
 			results[idx] = blockedExtractResult(rawURL, format, block)
+			stats.InputBlocked++
 			continue
 		}
 
 		allowedURLs = append(allowedURLs, rawURL)
 		allowedIndexes = append(allowedIndexes, idx)
 	}
+	stats.ProviderRequested = len(allowedURLs)
 	if len(allowedURLs) == 0 {
-		return results, nil
+		return results, stats, nil
 	}
 
 	fetched, err := provider.Extract(ctx, allowedURLs)
 	if err != nil {
-		return nil, err
+		return nil, stats, err
 	}
 
 	for idx, result := range fetched {
 		if idx >= len(allowedIndexes) {
+			stats.ExtraResults += len(fetched) - idx
 			break
 		}
 
 		if block, blocked := policy.Check(result.URL); blocked {
 			results[allowedIndexes[idx]] = blockedExtractResult(result.URL, format, block)
+			stats.ResultBlocked++
 			continue
 		}
 
@@ -184,9 +244,10 @@ func extractWithPolicy(
 			ContentFormat: format,
 			Error:         "web extraction provider returned no result",
 		}
+		stats.MissingResults++
 	}
 
-	return results, nil
+	return results, stats, nil
 }
 
 func blockedExtractResult(rawURL, format string, block guardrails.WebsiteBlock) webprovider.ExtractResult {

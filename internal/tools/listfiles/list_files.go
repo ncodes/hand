@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/rs/zerolog/log"
+
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
@@ -57,6 +59,21 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			if limit <= 0 || limit > common.MaxListEntries {
 				limit = common.MaxListEntries
 			}
+
+			log.Info().
+				Str("tool", "list_files").
+				Str("phase", "start").
+				Str("path", common.NormalizedDisplayPath(req.Path)).
+				Bool("recursive", recursive).
+				Bool("include_hidden", req.IncludeHidden).
+				Int("max_entries", limit).
+				Msg("tool call started")
+
+			log.Debug().
+				Str("tool", "list_files").
+				Str("phase", "execute").
+				Str("mode", map[bool]string{true: "recursive", false: "single_level"}[recursive]).
+				Msg("list files execution started")
 
 			entries := make([]entry, 0)
 			appendEntry := func(path string, isDir bool, size int64) bool {
@@ -114,17 +131,32 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				})
 
 				if walkErr != nil && walkErr.Error() != "entry limit reached" {
+					log.Warn().
+						Err(walkErr).
+						Str("tool", "list_files").
+						Str("phase", "error").
+						Msg("list files execution failed")
 					return common.FileError(walkErr), nil
 				}
 			} else {
 				items, err := common.ReadDir(resolved.Absolute)
 				if err != nil {
+					log.Warn().
+						Err(err).
+						Str("tool", "list_files").
+						Str("phase", "error").
+						Msg("list files execution failed")
 					return common.FileError(err), nil
 				}
 
 				for _, item := range items {
 					info, infoErr := item.Info()
 					if infoErr != nil {
+						log.Warn().
+							Err(infoErr).
+							Str("tool", "list_files").
+							Str("phase", "error").
+							Msg("list files execution failed")
 						return common.FileError(infoErr), nil
 					}
 
@@ -135,6 +167,13 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			}
 
 			sort.Slice(entries, func(i, j int) bool { return entries[i].Path < entries[j].Path })
+
+			log.Info().
+				Str("tool", "list_files").
+				Str("phase", "complete").
+				Int("entry_count", len(entries)).
+				Bool("limit_hit", len(entries) >= limit).
+				Msg("tool call completed")
 
 			return common.EncodeOutput(map[string]any{
 				"root":    resolved.Root,

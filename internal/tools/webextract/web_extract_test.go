@@ -692,7 +692,7 @@ func TestWebExtract_ReturnsPolicyEnabledProviderErrorsAsToolErrors(t *testing.T)
 
 func TestExtractWithPolicy_HandlesEmptyURLList(t *testing.T) {
 	called := false
-	results, err := extractWithPolicy(context.Background(), stubProvider{
+	results, stats, err := extractWithPolicy(context.Background(), stubProvider{
 		extract: func(_ context.Context, urls []string) ([]webprovider.ExtractResult, error) {
 			called = true
 			require.Empty(t, urls)
@@ -703,6 +703,7 @@ func TestExtractWithPolicy_HandlesEmptyURLList(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, called)
 	require.Nil(t, results)
+	require.Equal(t, extractPolicyStats{}, stats)
 }
 
 func TestWebExtract_ReturnsErrorWhenProviderIsNil(t *testing.T) {

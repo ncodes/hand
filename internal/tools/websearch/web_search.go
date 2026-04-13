@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/wandxy/hand/internal/guardrails"
 	webintegration "github.com/wandxy/hand/internal/providers/web"
 	"github.com/wandxy/hand/internal/tools"
@@ -60,12 +62,36 @@ func Definition(provider webintegration.Provider, options ...Options) tools.Defi
 				count = maxCount
 			}
 
+			log.Info().
+				Str("tool", "web_search").
+				Str("phase", "start").
+				Int("query_chars", len([]rune(query))).
+				Int("count", count).
+				Bool("website_policy_enabled", opts.WebsitePolicy.Enabled).
+				Msg("tool call started")
+
+			log.Debug().
+				Str("tool", "web_search").
+				Str("phase", "execute").
+				Msg("web search provider request started")
 			results, err := provider.Search(ctx, query, count)
 			if err != nil {
+				log.Warn().
+					Err(err).
+					Str("tool", "web_search").
+					Str("phase", "error").
+					Msg("web search provider request failed")
 				return common.ToolError("tool_error", err.Error()), nil
 			}
 
-			results = filterBlockedResults(results, opts.WebsitePolicy)
+			results, blocked := filterBlockedResults(results, opts.WebsitePolicy)
+
+			log.Info().
+				Str("tool", "web_search").
+				Str("phase", "complete").
+				Int("result_count", len(results)).
+				Int("blocked_results", blocked).
+				Msg("tool call completed")
 
 			return common.EncodeOutput(map[string]any{"results": results})
 		}),
@@ -83,18 +109,20 @@ func resolveOptions(options []Options) Options {
 func filterBlockedResults(
 	results []webintegration.SearchResult,
 	policy guardrails.WebsitePolicy,
-) []webintegration.SearchResult {
+) ([]webintegration.SearchResult, int) {
 	if len(results) == 0 || !policy.Enabled {
-		return results
+		return results, 0
 	}
 
+	blockedCount := 0
 	filtered := make([]webintegration.SearchResult, 0, len(results))
 	for _, result := range results {
 		if _, blocked := policy.Check(result.URL); blocked {
+			blockedCount++
 			continue
 		}
 		filtered = append(filtered, result)
 	}
 
-	return filtered
+	return filtered, blockedCount
 }

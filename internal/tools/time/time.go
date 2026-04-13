@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
 )
@@ -17,7 +19,19 @@ func Definition() tools.Definition {
 		InputSchema: common.ObjectSchema(nil),
 		Groups:      []string{"core"},
 		Handler: tools.HandlerFunc(func(context.Context, tools.Call) (tools.Result, error) {
-			return tools.Result{Output: now().UTC().Format(time.RFC3339)}, nil
+			log.Info().
+				Str("tool", "time").
+				Str("phase", "start").
+				Msg("tool call started")
+
+			value := now().UTC().Format(time.RFC3339)
+
+			log.Info().
+				Str("tool", "time").
+				Str("phase", "complete").
+				Msg("tool call completed")
+
+			return tools.Result{Output: value}, nil
 		}),
 	}
 }

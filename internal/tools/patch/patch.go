@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
+	"github.com/rs/zerolog/log"
 
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
@@ -45,8 +46,25 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return common.ToolError("invalid_input", "patch is required"), nil
 			}
 
+			log.Info().
+				Str("tool", "patch").
+				Str("phase", "start").
+				Int("patch_chars", len([]rune(strings.TrimSpace(req.Patch)))).
+				Int("strip", req.Strip).
+				Msg("tool call started")
+
+			log.Debug().
+				Str("tool", "patch").
+				Str("phase", "execute").
+				Msg("patch application started")
+
 			applied, created, err := applyUnifiedDiff(runtime.FilePolicy(), req.Patch, req.Strip)
 			if err != nil {
+				log.Warn().
+					Err(err).
+					Str("tool", "patch").
+					Str("phase", "error").
+					Msg("patch application failed")
 				if strings.Contains(err.Error(), "conflict") {
 					return common.ToolError("conflict", err.Error()), nil
 				}
@@ -59,6 +77,13 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 
 				return common.ToolError("internal_error", err.Error()), nil
 			}
+
+			log.Info().
+				Str("tool", "patch").
+				Str("phase", "complete").
+				Int("applied_files", len(applied)).
+				Int("created_files", len(created)).
+				Msg("tool call completed")
 
 			return common.EncodeOutput(map[string]any{
 				"applied_files": applied,

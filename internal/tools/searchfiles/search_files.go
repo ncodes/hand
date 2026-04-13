@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rs/zerolog/log"
+
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
@@ -78,6 +80,21 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				limit = common.MaxSearchResults
 			}
 
+			log.Info().
+				Str("tool", "search_files").
+				Str("phase", "start").
+				Str("path", common.NormalizedDisplayPath(req.Path)).
+				Int("pattern_chars", len([]rune(strings.TrimSpace(req.Pattern)))).
+				Bool("case_sensitive", req.CaseSensitive).
+				Bool("include_hidden", req.IncludeHidden).
+				Int("max_results", limit).
+				Msg("tool call started")
+
+			log.Debug().
+				Str("tool", "search_files").
+				Str("phase", "execute").
+				Msg("search files execution started")
+
 			matches, err := searchWithFallback(
 				ctx,
 				resolved,
@@ -87,6 +104,11 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				limit,
 			)
 			if err != nil {
+				log.Warn().
+					Err(err).
+					Str("tool", "search_files").
+					Str("phase", "error").
+					Msg("search files failed")
 				return common.FileError(err), nil
 			}
 
@@ -94,6 +116,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			for _, item := range matches {
 				out = append(out, match(item))
 			}
+
+			log.Info().
+				Str("tool", "search_files").
+				Str("phase", "complete").
+				Int("match_count", len(out)).
+				Msg("tool call completed")
 
 			return common.EncodeOutput(map[string]any{
 				"root":    resolved.Root,
