@@ -1,11 +1,14 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,7 +68,7 @@ func TestCachedProvider_SearchExpires(t *testing.T) {
 
 	_, err := provider.Search(context.Background(), "golang", 5)
 	require.NoError(t, err)
-    
+
 	now = now.Add(time.Minute)
 	_, err = provider.Search(context.Background(), "golang", 5)
 	require.NoError(t, err)
@@ -113,6 +116,35 @@ func TestCachedProvider_SearchPreservesEmptyResultSlices(t *testing.T) {
 	require.NotNil(t, second)
 	require.Empty(t, second)
 	require.Equal(t, 1, stub.searchCalls)
+}
+
+func TestCachedProvider_SearchLogsCacheHits(t *testing.T) {
+	originalLogger := log.Logger
+	t.Cleanup(func() {
+		log.Logger = originalLogger
+	})
+
+	buf := &bytes.Buffer{}
+	log.Logger = zerolog.New(buf)
+	stub := &cacheStubProvider{
+		search: func(context.Context, string, int) ([]SearchResult, error) {
+			return []SearchResult{{Title: "Go"}}, nil
+		},
+	}
+	provider := NewCachedProvider(stub, CacheOptions{
+		ProviderName: "exa",
+		TTL:          time.Minute,
+	})
+
+	_, err := provider.Search(context.Background(), "golang", 5)
+	require.NoError(t, err)
+	buf.Reset()
+	_, err = provider.Search(context.Background(), "golang", 5)
+	require.NoError(t, err)
+
+	require.Contains(t, buf.String(), `"message":"web provider cache hit"`)
+	require.Contains(t, buf.String(), `"provider":"exa"`)
+	require.Contains(t, buf.String(), `"operation":"search"`)
 }
 
 func TestCachedProvider_ExtractCachesSuccessfulResultsAndPreservesOrder(t *testing.T) {
@@ -172,6 +204,39 @@ func TestCachedProvider_ExtractExpires(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, 2, stub.extractCalls)
+}
+
+func TestCachedProvider_ExtractLogsCacheHits(t *testing.T) {
+	originalLogger := log.Logger
+	t.Cleanup(func() {
+		log.Logger = originalLogger
+	})
+
+	buf := &bytes.Buffer{}
+	log.Logger = zerolog.New(buf)
+	stub := &cacheStubProvider{
+		extract: func(_ context.Context, urls []string) ([]ExtractResult, error) {
+			return []ExtractResult{{
+				URL:           urls[0],
+				Content:       "content",
+				ContentFormat: "text",
+			}}, nil
+		},
+	}
+	provider := NewCachedProvider(stub, CacheOptions{
+		ProviderName: "exa",
+		TTL:          time.Minute,
+	})
+
+	_, err := provider.Extract(context.Background(), []string{"https://example.com"})
+	require.NoError(t, err)
+	buf.Reset()
+	_, err = provider.Extract(context.Background(), []string{"https://example.com"})
+	require.NoError(t, err)
+
+	require.Contains(t, buf.String(), `"message":"web provider cache hit"`)
+	require.Contains(t, buf.String(), `"provider":"exa"`)
+	require.Contains(t, buf.String(), `"operation":"extract"`)
 }
 
 func TestCachedProvider_ExtractDoesNotCacheProviderErrors(t *testing.T) {

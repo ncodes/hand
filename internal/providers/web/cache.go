@@ -6,7 +6,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/wandxy/hand/pkg/logutils"
 )
+
+var webLog = logutils.InitLogger("providers.web")
 
 type CacheOptions struct {
 	ProviderName string
@@ -61,6 +65,7 @@ func (p *cachedProvider) Search(ctx context.Context, query string, count int) ([
 
 	key := p.searchKey(query, count)
 	if results, ok := p.cachedSearch(key); ok {
+		p.logCacheHit("search")
 		return results, nil
 	}
 
@@ -88,6 +93,7 @@ func (p *cachedProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 	for idx, rawURL := range urls {
 		key := p.extractKey(ctx, rawURL)
 		if result, ok := p.cachedExtract(key); ok {
+			p.logCacheHit("extract")
 			results[idx] = result
 			continue
 		}
@@ -195,6 +201,13 @@ func (p *cachedProvider) extractKey(ctx context.Context, rawURL string) string {
 		strconv.Itoa(opts.MaxChars),
 		opts.Query,
 	}, "\x00")
+}
+
+func (p *cachedProvider) logCacheHit(operation string) {
+	webLog.Info().
+		Str("provider", p.providerName).
+		Str("operation", operation).
+		Msg("web provider cache hit")
 }
 
 func cloneSearchResults(results []SearchResult) []SearchResult {
