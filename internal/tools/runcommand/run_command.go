@@ -99,7 +99,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			log.Info().
 				Str("tool", "run_command").
 				Str("phase", "start").
-				Str("cwd", common.NormalizedDisplayPath(req.Cwd)).
+				Bool("cwd_provided", strings.TrimSpace(req.Cwd) != "").
 				Int("args_count", len(req.Args)).
 				Int("env_overrides", len(req.Env)).
 				Bool("shell_mode", len(req.Args) == 0).
@@ -111,9 +111,9 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 
 			if err := runCtx.Err(); err != nil {
 				log.Warn().
-					Err(err).
 					Str("tool", "run_command").
 					Str("phase", "error").
+					Str("error_kind", "context_unavailable_before_execution").
 					Msg("run command failed before execution")
 				return common.ToolError("command_failed", err.Error()), nil
 			}
@@ -142,9 +142,9 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			startedAt := time.Now()
 			if err := cmd.Start(); err != nil {
 				log.Warn().
-					Err(err).
 					Str("tool", "run_command").
 					Str("phase", "error").
+					Str("error_kind", "start_failed").
 					Msg("command execution failed to start")
 				return common.ToolError("command_failed", err.Error()), nil
 			}
@@ -186,9 +186,9 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 
 			if runCtx.Err() == context.Canceled {
 				log.Warn().
-					Err(runCtx.Err()).
 					Str("tool", "run_command").
 					Str("phase", "error").
+					Str("error_kind", "context_canceled").
 					Msg("command execution canceled")
 				return common.ToolError("command_failed", runCtx.Err().Error()), nil
 			}
@@ -199,9 +199,9 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 					exitCode = exitErr.ExitCode()
 				} else {
 					log.Warn().
-						Err(err).
 						Str("tool", "run_command").
 						Str("phase", "error").
+						Str("error_kind", "execution_failed").
 						Msg("command execution failed")
 					return common.ToolError("command_failed", err.Error()), nil
 				}
