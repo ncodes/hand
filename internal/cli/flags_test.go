@@ -183,6 +183,10 @@ func TestApplyConfigOverrides_AppliesWebSettings(t *testing.T) {
 		"--web.blocked-domains-enabled",
 		"--web.blocked-domains", " blocked.example , ads.example ",
 		"--web.blocked-domain-files", " blocked.txt , shared.txt ",
+		"--web.native-allowed-hosts", " allowed.example , docs.example ",
+		"--web.native-blocked-hosts", " blocked.example , raw.example ",
+		"--web.native-allowed-host-files", " allow.txt , safe.txt ",
+		"--web.native-blocked-host-files", " deny.txt , banned.txt ",
 		"--web.extract-min-summarize-chars", "12000",
 		"--web.extract-max-summary-chars", "3000",
 		"--web.extract-max-summary-chunk-chars", "70000",
@@ -201,6 +205,10 @@ func TestApplyConfigOverrides_AppliesWebSettings(t *testing.T) {
 	require.True(t, cfg.WebBlockedDomainsEnabled)
 	require.Equal(t, []string{"blocked.example", "ads.example"}, cfg.WebBlockedDomains)
 	require.Equal(t, []string{"blocked.txt", "shared.txt"}, cfg.WebBlockedDomainFiles)
+	require.Equal(t, []string{"allowed.example", "docs.example"}, cfg.WebNativeAllowedHosts)
+	require.Equal(t, []string{"blocked.example", "raw.example"}, cfg.WebNativeBlockedHosts)
+	require.Equal(t, []string{"allow.txt", "safe.txt"}, cfg.WebNativeAllowedHostFiles)
+	require.Equal(t, []string{"deny.txt", "banned.txt"}, cfg.WebNativeBlockedHostFiles)
 	require.Equal(t, 12000, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, 3000, cfg.WebExtractMaxSummaryChars)
 	require.Equal(t, 70000, cfg.WebExtractMaxSummaryChunkChars)

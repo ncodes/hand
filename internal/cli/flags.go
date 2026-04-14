@@ -186,6 +186,30 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value:  strings.Join(config.Get().WebBlockedDomainFiles, ","),
 			Hidden: true,
 		},
+		&cli.StringFlag{
+			Name:   "web.native-allowed-hosts",
+			Usage:  "Comma-separated host patterns the native web extractor may fetch; when set, other hosts are rejected",
+			Value:  strings.Join(config.Get().WebNativeAllowedHosts, ","),
+			Hidden: true,
+		},
+		&cli.StringFlag{
+			Name:   "web.native-blocked-hosts",
+			Usage:  "Comma-separated host patterns the native web extractor must never fetch",
+			Value:  strings.Join(config.Get().WebNativeBlockedHosts, ","),
+			Hidden: true,
+		},
+		&cli.StringFlag{
+			Name:   "web.native-allowed-host-files",
+			Usage:  "Comma-separated files containing native web extractor host allowlist rules",
+			Value:  strings.Join(config.Get().WebNativeAllowedHostFiles, ","),
+			Hidden: true,
+		},
+		&cli.StringFlag{
+			Name:   "web.native-blocked-host-files",
+			Usage:  "Comma-separated files containing native web extractor host denylist rules",
+			Value:  strings.Join(config.Get().WebNativeBlockedHostFiles, ","),
+			Hidden: true,
+		},
 		&cli.IntFlag{
 			Name:   "web.extract-min-summarize-chars",
 			Usage:  "Minimum extracted content characters before optional web extraction summarization runs",
@@ -449,6 +473,18 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("web.blocked-domain-files") {
 		cfg.WebBlockedDomainFiles = configSplitAndTrimCSV(cmd.String("web.blocked-domain-files"))
+	}
+	if cmd.IsSet("web.native-allowed-hosts") {
+		cfg.WebNativeAllowedHosts = configSplitAndTrimCSV(cmd.String("web.native-allowed-hosts"))
+	}
+	if cmd.IsSet("web.native-blocked-hosts") {
+		cfg.WebNativeBlockedHosts = configSplitAndTrimCSV(cmd.String("web.native-blocked-hosts"))
+	}
+	if cmd.IsSet("web.native-allowed-host-files") {
+		cfg.WebNativeAllowedHostFiles = configSplitAndTrimCSV(cmd.String("web.native-allowed-host-files"))
+	}
+	if cmd.IsSet("web.native-blocked-host-files") {
+		cfg.WebNativeBlockedHostFiles = configSplitAndTrimCSV(cmd.String("web.native-blocked-host-files"))
 	}
 	if cmd.IsSet("web.extract-min-summarize-chars") {
 		cfg.WebExtractMinSummarizeChars = cmd.Int("web.extract-min-summarize-chars")

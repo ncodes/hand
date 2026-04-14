@@ -68,6 +68,11 @@
 #     enabled: false
 #     domains: []
 #     files: []
+#   native:
+#     allowedHosts: []
+#     blockedHosts: []
+#     allowedHostFiles: []
+#     blockedHostFiles: []
 #   extractMinSummarizeChars: 12000
 #   extractMaxSummaryChars: 4000
 #   extractMaxSummaryChunkChars: 25000

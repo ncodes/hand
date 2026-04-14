@@ -17,6 +17,10 @@ func TestResolveOptions_UsesExplicitConfig(t *testing.T) {
 		WebMaxCharPerResult:        3200,
 		WebMaxExtractCharPerResult: 12000,
 		WebMaxExtractResponseBytes: 64000,
+		WebNativeAllowedHosts:      []string{"allowed.example"},
+		WebNativeBlockedHosts:      []string{"blocked.example"},
+		WebNativeAllowedHostFiles:  []string{"allow.txt"},
+		WebNativeBlockedHostFiles:  []string{"deny.txt"},
 	})
 	require.NoError(t, err)
 	require.Equal(t, ProviderExa, opts.Provider)
@@ -25,6 +29,10 @@ func TestResolveOptions_UsesExplicitConfig(t *testing.T) {
 	require.Equal(t, 3200, opts.MaxCharPerResult)
 	require.Equal(t, 12000, opts.MaxExtractCharPerResult)
 	require.Equal(t, 64000, opts.MaxExtractResponseBytes)
+	require.Equal(t, []string{"allowed.example"}, opts.NativeAllowedHosts)
+	require.Equal(t, []string{"blocked.example"}, opts.NativeBlockedHosts)
+	require.Equal(t, []string{"allow.txt"}, opts.NativeAllowedHostFiles)
+	require.Equal(t, []string{"deny.txt"}, opts.NativeBlockedHostFiles)
 }
 
 func TestOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {
@@ -35,6 +43,10 @@ func TestOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {
 		MaxCharPerResult:        -10,
 		MaxExtractCharPerResult: -20,
 		MaxExtractResponseBytes: -30,
+		NativeAllowedHosts:      []string{" allowed.example ", "allowed.example", ""},
+		NativeBlockedHosts:      []string{" blocked.example ", "blocked.example", ""},
+		NativeAllowedHostFiles:  []string{" allow.txt ", "allow.txt", ""},
+		NativeBlockedHostFiles:  []string{" deny.txt ", "deny.txt", ""},
 	}.Normalize()
 
 	require.Equal(t, ProviderExa, opts.Provider)
@@ -43,6 +55,10 @@ func TestOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {
 	require.Zero(t, opts.MaxCharPerResult)
 	require.Zero(t, opts.MaxExtractCharPerResult)
 	require.Zero(t, opts.MaxExtractResponseBytes)
+	require.Equal(t, []string{"allowed.example"}, opts.NativeAllowedHosts)
+	require.Equal(t, []string{"blocked.example"}, opts.NativeBlockedHosts)
+	require.Equal(t, []string{"allow.txt"}, opts.NativeAllowedHostFiles)
+	require.Equal(t, []string{"deny.txt"}, opts.NativeBlockedHostFiles)
 }
 
 func TestExtractOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {

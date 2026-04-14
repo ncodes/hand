@@ -56,6 +56,10 @@ type Config struct {
 	WebBlockedDomainsEnabled        bool
 	WebBlockedDomains               []string
 	WebBlockedDomainFiles           []string
+	WebNativeAllowedHosts           []string
+	WebNativeBlockedHosts           []string
+	WebNativeAllowedHostFiles       []string
+	WebNativeBlockedHostFiles       []string
 	WebExtractMinSummarizeChars     int
 	WebExtractMaxSummaryChars       int
 	WebExtractMaxSummaryChunkChars  int
@@ -179,6 +183,12 @@ type fileConfig struct {
 			Domains []string `yaml:"domains"`
 			Files   []string `yaml:"files"`
 		} `yaml:"blockedDomains"`
+		Native struct {
+			AllowedHosts     []string `yaml:"allowedHosts"`
+			BlockedHosts     []string `yaml:"blockedHosts"`
+			AllowedHostFiles []string `yaml:"allowedHostFiles"`
+			BlockedHostFiles []string `yaml:"blockedHostFiles"`
+		} `yaml:"native"`
 		ExtractMinSummarizeChars     int `yaml:"extractMinSummarizeChars"`
 		ExtractMaxSummaryChars       int `yaml:"extractMaxSummaryChars"`
 		ExtractMaxSummaryChunkChars  int `yaml:"extractMaxSummaryChunkChars"`
@@ -363,6 +373,10 @@ func loadConfigFile(path string) (*Config, error) {
 		WebBlockedDomainsEnabled:        raw.Web.BlockedDomains.Enabled,
 		WebBlockedDomains:               raw.Web.BlockedDomains.Domains,
 		WebBlockedDomainFiles:           resolvePathsFromBase(raw.Web.BlockedDomains.Files, baseDir),
+		WebNativeAllowedHosts:           raw.Web.Native.AllowedHosts,
+		WebNativeBlockedHosts:           raw.Web.Native.BlockedHosts,
+		WebNativeAllowedHostFiles:       resolvePathsFromBase(raw.Web.Native.AllowedHostFiles, baseDir),
+		WebNativeBlockedHostFiles:       resolvePathsFromBase(raw.Web.Native.BlockedHostFiles, baseDir),
 		WebExtractMinSummarizeChars:     raw.Web.ExtractMinSummarizeChars,
 		WebExtractMaxSummaryChars:       raw.Web.ExtractMaxSummaryChars,
 		WebExtractMaxSummaryChunkChars:  raw.Web.ExtractMaxSummaryChunkChars,
@@ -509,6 +523,18 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("WEB_BLOCKED_DOMAIN_FILES")); value != "" {
 		cfg.WebBlockedDomainFiles = splitAndTrimCSV(value)
 	}
+	if value := strings.TrimSpace(os.Getenv("WEB_NATIVE_ALLOWED_HOSTS")); value != "" {
+		cfg.WebNativeAllowedHosts = splitAndTrimCSV(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("WEB_NATIVE_BLOCKED_HOSTS")); value != "" {
+		cfg.WebNativeBlockedHosts = splitAndTrimCSV(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("WEB_NATIVE_ALLOWED_HOST_FILES")); value != "" {
+		cfg.WebNativeAllowedHostFiles = splitAndTrimCSV(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("WEB_NATIVE_BLOCKED_HOST_FILES")); value != "" {
+		cfg.WebNativeBlockedHostFiles = splitAndTrimCSV(value)
+	}
 	if value := strings.TrimSpace(os.Getenv("WEB_EXTRACT_MIN_SUMMARIZE_CHARS")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.WebExtractMinSummarizeChars = chars
@@ -645,6 +671,10 @@ func (c *Config) normalizeFields() {
 	c.WebBaseURL = strings.TrimSpace(c.WebBaseURL)
 	c.WebBlockedDomains = dedupeAndTrim(c.WebBlockedDomains)
 	c.WebBlockedDomainFiles = dedupeAndTrim(c.WebBlockedDomainFiles)
+	c.WebNativeAllowedHosts = dedupeAndTrim(c.WebNativeAllowedHosts)
+	c.WebNativeBlockedHosts = dedupeAndTrim(c.WebNativeBlockedHosts)
+	c.WebNativeAllowedHostFiles = dedupeAndTrim(c.WebNativeAllowedHostFiles)
+	c.WebNativeBlockedHostFiles = dedupeAndTrim(c.WebNativeBlockedHostFiles)
 	c.RulesFiles = normalizeRulePaths(c.RulesFiles)
 	c.Instruct = strings.TrimSpace(c.Instruct)
 	c.Platform = strings.TrimSpace(strings.ToLower(c.Platform))

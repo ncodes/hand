@@ -65,6 +65,10 @@ type Options struct {
 	MaxCharPerResult        int
 	MaxExtractCharPerResult int
 	MaxExtractResponseBytes int
+	NativeAllowedHosts      []string
+	NativeBlockedHosts      []string
+	NativeAllowedHostFiles  []string
+	NativeBlockedHostFiles  []string
 }
 
 func (o Options) Normalize() Options {
@@ -80,6 +84,10 @@ func (o Options) Normalize() Options {
 	if o.MaxExtractResponseBytes < 0 {
 		o.MaxExtractResponseBytes = 0
 	}
+	o.NativeAllowedHosts = dedupeTrimValues(o.NativeAllowedHosts)
+	o.NativeBlockedHosts = dedupeTrimValues(o.NativeBlockedHosts)
+	o.NativeAllowedHostFiles = dedupeTrimValues(o.NativeAllowedHostFiles)
+	o.NativeBlockedHostFiles = dedupeTrimValues(o.NativeBlockedHostFiles)
 	return o
 }
 
@@ -156,6 +164,10 @@ func ResolveOptions(cfg *config.Config) (Options, error) {
 			MaxCharPerResult:        normalized.WebMaxCharPerResult,
 			MaxExtractCharPerResult: normalized.WebMaxExtractCharPerResult,
 			MaxExtractResponseBytes: normalized.WebMaxExtractResponseBytes,
+			NativeAllowedHosts:      normalized.WebNativeAllowedHosts,
+			NativeBlockedHosts:      normalized.WebNativeBlockedHosts,
+			NativeAllowedHostFiles:  normalized.WebNativeAllowedHostFiles,
+			NativeBlockedHostFiles:  normalized.WebNativeBlockedHostFiles,
 		}.Normalize()
 	}
 
@@ -195,6 +207,28 @@ func fillProviderDefaults(opts Options) Options {
 	}
 
 	return opts.Normalize()
+}
+
+func dedupeTrimValues(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(values))
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		normalized = append(normalized, value)
+	}
+
+	return normalized
 }
 
 func truncateToMaxChars(value string, maxChars int) string {

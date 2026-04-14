@@ -161,7 +161,9 @@ func TestLoad_UsesConfigFileValues(t *testing.T) {
 		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT",
 		"WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
 		"WEB_CACHE_TTL", "WEB_BLOCKED_DOMAINS_ENABLED", "WEB_BLOCKED_DOMAINS",
-		"WEB_BLOCKED_DOMAIN_FILES", "WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
+		"WEB_BLOCKED_DOMAIN_FILES", "WEB_NATIVE_ALLOWED_HOSTS", "WEB_NATIVE_BLOCKED_HOSTS",
+		"WEB_NATIVE_ALLOWED_HOST_FILES", "WEB_NATIVE_BLOCKED_HOST_FILES",
+		"WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
 		"WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS",
 		"AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
@@ -207,6 +209,15 @@ web:
       - blocked.example
     files:
       - blocked.txt
+  native:
+    allowedHosts:
+      - allowed.example
+    blockedHosts:
+      - blocked.example
+    allowedHostFiles:
+      - allow.txt
+    blockedHostFiles:
+      - deny.txt
   extractMinSummarizeChars: 12000
   extractMaxSummaryChars: 3000
   extractMaxSummaryChunkChars: 60000
@@ -242,6 +253,10 @@ rules:
 	require.True(t, cfg.WebBlockedDomainsEnabled)
 	require.Equal(t, []string{"blocked.example"}, cfg.WebBlockedDomains)
 	require.Equal(t, []string{filepath.Join(dir, "blocked.txt")}, cfg.WebBlockedDomainFiles)
+	require.Equal(t, []string{"allowed.example"}, cfg.WebNativeAllowedHosts)
+	require.Equal(t, []string{"blocked.example"}, cfg.WebNativeBlockedHosts)
+	require.Equal(t, []string{filepath.Join(dir, "allow.txt")}, cfg.WebNativeAllowedHostFiles)
+	require.Equal(t, []string{filepath.Join(dir, "deny.txt")}, cfg.WebNativeBlockedHostFiles)
 	require.Equal(t, 12000, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, 3000, cfg.WebExtractMaxSummaryChars)
 	require.Equal(t, 60000, cfg.WebExtractMaxSummaryChunkChars)
@@ -265,7 +280,9 @@ func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT",
 		"WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
 		"WEB_CACHE_TTL", "WEB_BLOCKED_DOMAINS_ENABLED", "WEB_BLOCKED_DOMAINS",
-		"WEB_BLOCKED_DOMAIN_FILES", "WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
+		"WEB_BLOCKED_DOMAIN_FILES", "WEB_NATIVE_ALLOWED_HOSTS", "WEB_NATIVE_BLOCKED_HOSTS",
+		"WEB_NATIVE_ALLOWED_HOST_FILES", "WEB_NATIVE_BLOCKED_HOST_FILES",
+		"WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
 		"WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
 		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS",
 		"AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
@@ -296,6 +313,10 @@ WEB_CACHE_TTL=30m
 WEB_BLOCKED_DOMAINS_ENABLED=true
 WEB_BLOCKED_DOMAINS=blocked.example,ads.example
 WEB_BLOCKED_DOMAIN_FILES=blocked.txt,shared.txt
+WEB_NATIVE_ALLOWED_HOSTS=allowed.example,docs.example
+WEB_NATIVE_BLOCKED_HOSTS=blocked.example,raw.example
+WEB_NATIVE_ALLOWED_HOST_FILES=allow.txt,safe.txt
+WEB_NATIVE_BLOCKED_HOST_FILES=deny.txt,banned.txt
 WEB_EXTRACT_MIN_SUMMARIZE_CHARS=13000
 WEB_EXTRACT_MAX_SUMMARY_CHARS=3200
 WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS=70000
@@ -372,6 +393,10 @@ rules:
 	require.True(t, cfg.WebBlockedDomainsEnabled)
 	require.Equal(t, []string{"blocked.example", "ads.example"}, cfg.WebBlockedDomains)
 	require.Equal(t, []string{"blocked.txt", "shared.txt"}, cfg.WebBlockedDomainFiles)
+	require.Equal(t, []string{"allowed.example", "docs.example"}, cfg.WebNativeAllowedHosts)
+	require.Equal(t, []string{"blocked.example", "raw.example"}, cfg.WebNativeBlockedHosts)
+	require.Equal(t, []string{"allow.txt", "safe.txt"}, cfg.WebNativeAllowedHostFiles)
+	require.Equal(t, []string{"deny.txt", "banned.txt"}, cfg.WebNativeBlockedHostFiles)
 	require.Equal(t, 13000, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, 3200, cfg.WebExtractMaxSummaryChars)
 	require.Equal(t, 70000, cfg.WebExtractMaxSummaryChunkChars)
@@ -1286,6 +1311,10 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	require.False(t, cfg.WebBlockedDomainsEnabled)
 	require.Empty(t, cfg.WebBlockedDomains)
 	require.Empty(t, cfg.WebBlockedDomainFiles)
+	require.Empty(t, cfg.WebNativeAllowedHosts)
+	require.Empty(t, cfg.WebNativeBlockedHosts)
+	require.Empty(t, cfg.WebNativeAllowedHostFiles)
+	require.Empty(t, cfg.WebNativeBlockedHostFiles)
 	require.Equal(t, DefaultWebExtractMinSummarizeChars, cfg.WebExtractMinSummarizeChars)
 	require.Equal(t, DefaultWebExtractMaxSummaryChars, cfg.WebExtractMaxSummaryChars)
 	require.Equal(t, DefaultWebExtractMaxSummaryChunkChars, cfg.WebExtractMaxSummaryChunkChars)
@@ -1302,14 +1331,22 @@ func TestConfig_NormalizeDisablesNegativeWebCacheTTL(t *testing.T) {
 
 func TestConfig_NormalizeTrimsWebBlockedDomains(t *testing.T) {
 	cfg := &Config{
-		WebBlockedDomains:     []string{" blocked.example ", "blocked.example", ""},
-		WebBlockedDomainFiles: []string{" blocked.txt ", "blocked.txt", ""},
+		WebBlockedDomains:         []string{" blocked.example ", "blocked.example", ""},
+		WebBlockedDomainFiles:     []string{" blocked.txt ", "blocked.txt", ""},
+		WebNativeAllowedHosts:     []string{" allowed.example ", "allowed.example", ""},
+		WebNativeBlockedHosts:     []string{" blocked.example ", "blocked.example", ""},
+		WebNativeAllowedHostFiles: []string{" allow.txt ", "allow.txt", ""},
+		WebNativeBlockedHostFiles: []string{" deny.txt ", "deny.txt", ""},
 	}
 
 	cfg.Normalize()
 
 	require.Equal(t, []string{"blocked.example"}, cfg.WebBlockedDomains)
 	require.Equal(t, []string{"blocked.txt"}, cfg.WebBlockedDomainFiles)
+	require.Equal(t, []string{"allowed.example"}, cfg.WebNativeAllowedHosts)
+	require.Equal(t, []string{"blocked.example"}, cfg.WebNativeBlockedHosts)
+	require.Equal(t, []string{"allow.txt"}, cfg.WebNativeAllowedHostFiles)
+	require.Equal(t, []string{"deny.txt"}, cfg.WebNativeBlockedHostFiles)
 }
 
 func TestApplyEnvOverrides_IgnoresInvalidWebCacheTTL(t *testing.T) {
@@ -2365,6 +2402,7 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 				"maxExtractResponseBytes",
 				"cacheTTL",
 				"blockedDomains",
+				"native",
 				"enabled",
 				"domains",
 				"files",
@@ -2372,6 +2410,12 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 				"extractMaxSummaryChars",
 				"extractMaxSummaryChunkChars",
 				"extractRefusalThresholdChars",
+			})
+			requireYAMLKeys(t, content, "native", []string{
+				"allowedHosts",
+				"blockedHosts",
+				"allowedHostFiles",
+				"blockedHostFiles",
 			})
 			requireYAMLKeys(t, content, "rules", []string{"files"})
 		})

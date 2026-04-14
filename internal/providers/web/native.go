@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	readability "codeberg.org/readeck/go-readability/v2"
+	"github.com/wandxy/hand/internal/guardrails"
 	"golang.org/x/net/html"
 )
 
@@ -24,33 +25,37 @@ const (
 	nativeUserAgent      = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
 )
 
-var errNativeSearchUnsupported = errors.New("native web provider does not support search")
+var (
+	errNativeSearchUnsupported = errors.New("native web provider does not support search")
 
-var nativeReadabilityFromReader = readability.FromReader
-var nativeDefaultHTTPClient = func(provider *NativeProvider) *http.Client {
-	return provider.newHTTPClient()
-}
-var nativeDefaultDialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
-	dialer := net.Dialer{Timeout: 10 * time.Second}
-	return dialer.DialContext(ctx, network, address)
-}
+	nativeReadabilityFromReader = readability.FromReader
 
-var nativeBlockedAddressPrefixes = []netip.Prefix{
-	netip.MustParsePrefix("0.0.0.0/8"),
-	netip.MustParsePrefix("100.64.0.0/10"),
-	netip.MustParsePrefix("192.0.0.0/24"),
-	netip.MustParsePrefix("192.0.2.0/24"),
-	netip.MustParsePrefix("192.88.99.0/24"),
-	netip.MustParsePrefix("198.18.0.0/15"),
-	netip.MustParsePrefix("198.51.100.0/24"),
-	netip.MustParsePrefix("203.0.113.0/24"),
-	netip.MustParsePrefix("240.0.0.0/4"),
-	netip.MustParsePrefix("64:ff9b::/96"),
-	netip.MustParsePrefix("64:ff9b:1::/48"),
-	netip.MustParsePrefix("100::/64"),
-	netip.MustParsePrefix("2001:db8::/32"),
-	netip.MustParsePrefix("2002::/16"),
-}
+	nativeDefaultHTTPClient = func(provider *NativeProvider) *http.Client {
+		return provider.newHTTPClient()
+	}
+
+	nativeDefaultDialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		dialer := net.Dialer{Timeout: 10 * time.Second}
+		return dialer.DialContext(ctx, network, address)
+	}
+
+	nativeBlockedAddressPrefixes = []netip.Prefix{
+		netip.MustParsePrefix("0.0.0.0/8"),
+		netip.MustParsePrefix("100.64.0.0/10"),
+		netip.MustParsePrefix("192.0.0.0/24"),
+		netip.MustParsePrefix("192.0.2.0/24"),
+		netip.MustParsePrefix("192.88.99.0/24"),
+		netip.MustParsePrefix("198.18.0.0/15"),
+		netip.MustParsePrefix("198.51.100.0/24"),
+		netip.MustParsePrefix("203.0.113.0/24"),
+		netip.MustParsePrefix("240.0.0.0/4"),
+		netip.MustParsePrefix("64:ff9b::/96"),
+		netip.MustParsePrefix("64:ff9b:1::/48"),
+		netip.MustParsePrefix("100::/64"),
+		netip.MustParsePrefix("2001:db8::/32"),
+		netip.MustParsePrefix("2002::/16"),
+	}
+)
 
 type NativeProvider struct {
 	client                   *http.Client
@@ -58,21 +63,29 @@ type NativeProvider struct {
 	newRequest               func(context.Context, string, string, io.Reader) (*http.Request, error)
 	dial                     func(context.Context, string, string) (net.Conn, error)
 	resolveHost              func(context.Context, string) ([]netip.Addr, error)
+	hostPolicy               guardrails.HostPolicy
 	maxExtractCharsPerResult int
 	maxExtractResponseBytes  int
 }
 
 func NewNative(opts Options) (Provider, error) {
 	opts = opts.Normalize()
+
 	provider := &NativeProvider{
 		resolveHost: func(ctx context.Context, host string) ([]netip.Addr, error) {
 			return net.DefaultResolver.LookupNetIP(ctx, "ip", host)
 		},
+		hostPolicy: guardrails.NewHostPolicy(
+			opts.NativeAllowedHosts,
+			opts.NativeBlockedHosts,
+			opts.NativeAllowedHostFiles,
+			opts.NativeBlockedHostFiles,
+		),
 		maxExtractCharsPerResult: opts.MaxExtractCharPerResult,
 		maxExtractResponseBytes:  opts.MaxExtractResponseBytes,
 	}
-	provider.client = provider.newHTTPClient()
 
+	provider.client = provider.newHTTPClient()
 	return provider, nil
 }
 
@@ -106,6 +119,7 @@ func (p *NativeProvider) extract(ctx context.Context, rawURL, format string, max
 	if newRequest == nil {
 		newRequest = http.NewRequestWithContext
 	}
+
 	req, err := newRequest(ctx, http.MethodGet, validatedURL.String(), nil)
 	if err != nil {
 		result.Error = err.Error()
@@ -124,6 +138,7 @@ func (p *NativeProvider) extract(ctx context.Context, rawURL, format string, max
 		}
 		client = makeClient()
 	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		result.Error = err.Error()
@@ -136,6 +151,7 @@ func (p *NativeProvider) extract(ctx context.Context, rawURL, format string, max
 		extractionURL = resp.Request.URL
 		result.URL = extractionURL.String()
 	}
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		result.Error = fmt.Sprintf("web extraction request failed: %s", resp.Status)
 		return result
@@ -211,6 +227,7 @@ func (p *NativeProvider) dialContext(ctx context.Context, network, address strin
 	if dial == nil {
 		dial = nativeDefaultDialContext
 	}
+
 	var lastErr error
 	for _, addr := range addrs {
 		conn, err := dial(ctx, network, net.JoinHostPort(addr.String(), port))
@@ -219,6 +236,7 @@ func (p *NativeProvider) dialContext(ctx context.Context, network, address strin
 		}
 		lastErr = err
 	}
+
 	return nil, lastErr
 }
 
@@ -227,18 +245,27 @@ func (p *NativeProvider) validateURL(ctx context.Context, rawURL string) (*url.U
 	if err != nil {
 		return nil, err
 	}
+
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return nil, errors.New("url scheme must be http or https")
 	}
+
 	if strings.TrimSpace(parsed.Hostname()) == "" {
 		return nil, errors.New("url host is required")
 	}
+
 	if parsed.User != nil {
 		return nil, errors.New("url userinfo is not allowed")
 	}
+
+	if block, blocked := p.hostPolicy.Check(parsed.Hostname()); blocked {
+		return nil, errors.New(block.Message)
+	}
+
 	if block, blocked := extractWebsitePolicy(ctx).Check(parsed.String()); blocked {
 		return nil, errors.New(block.Message)
 	}
+
 	if _, err := p.resolveAndValidateHost(ctx, parsed.Hostname()); err != nil {
 		return nil, err
 	}
@@ -265,13 +292,16 @@ func (p *NativeProvider) resolveAndValidateHost(ctx context.Context, host string
 			return net.DefaultResolver.LookupNetIP(ctx, "ip", host)
 		}
 	}
+
 	addrs, err := resolveHost(ctx, host)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(addrs) == 0 {
 		return nil, errors.New("url host resolved to no addresses")
 	}
+
 	for _, addr := range addrs {
 		if !safeNativeAddr(addr) {
 			return nil, errors.New("url host resolves to a blocked address")
@@ -283,6 +313,7 @@ func (p *NativeProvider) resolveAndValidateHost(ctx context.Context, host string
 
 func safeNativeAddr(addr netip.Addr) bool {
 	addr = addr.Unmap()
+
 	if !addr.IsValid() ||
 		!addr.IsGlobalUnicast() ||
 		addr.IsLoopback() ||
@@ -314,6 +345,7 @@ func readNativeResponse(body io.Reader, maxBytes int) ([]byte, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
+
 	if len(data) > maxBytes {
 		data = data[:maxBytes]
 		for len(data) > 0 && !utf8.Valid(data) {
@@ -338,11 +370,13 @@ func extractNativeHTML(data []byte, pageURL *url.URL, format string) (nativeDocu
 	}
 
 	var content strings.Builder
+
 	if format == "markdown" {
 		content.WriteString(renderNativeMarkdown(article.Node))
 	} else {
 		err = article.RenderText(&content)
 	}
+
 	if err != nil {
 		return nativeDocument{}, err
 	}
@@ -367,6 +401,7 @@ func renderNativeMarkdown(root *html.Node) string {
 	}
 
 	var walk func(*html.Node)
+
 	walk = func(node *html.Node) {
 		if node == nil {
 			return
@@ -429,6 +464,7 @@ func collectNativeText(node *html.Node) string {
 func compactNativeLines(lines []string) []string {
 	compacted := make([]string, 0, len(lines))
 	blank := false
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -442,6 +478,7 @@ func compactNativeLines(lines []string) []string {
 		blank = false
 		compacted = append(compacted, line)
 	}
+
 	for len(compacted) > 0 && compacted[len(compacted)-1] == "" {
 		compacted = compacted[:len(compacted)-1]
 	}

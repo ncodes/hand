@@ -37,6 +37,8 @@ func TestNewNative_ConfiguresHTTPClientAndLimits(t *testing.T) {
 	provider, err := NewNative(Options{
 		MaxExtractCharPerResult: 123,
 		MaxExtractResponseBytes: 456,
+		NativeAllowedHosts:      []string{"allowed.example"},
+		NativeBlockedHosts:      []string{"blocked.example"},
 	})
 
 	require.NoError(t, err)
@@ -46,6 +48,8 @@ func TestNewNative_ConfiguresHTTPClientAndLimits(t *testing.T) {
 	require.NotNil(t, native.resolveHost)
 	require.Equal(t, 123, native.maxExtractCharsPerResult)
 	require.Equal(t, 456, native.maxExtractResponseBytes)
+	require.Len(t, native.hostPolicy.AllowRules, 1)
+	require.Len(t, native.hostPolicy.DenyRules, 1)
 
 	_, _ = native.resolveHost(context.Background(), "localhost")
 }
@@ -299,6 +303,32 @@ func TestNativeProvider_ExtractRejectsUnsafeURLs(t *testing.T) {
 	require.Contains(t, results[2].Error, "userinfo is not allowed")
 }
 
+func TestNativeProvider_ValidateURLRejectsBlockedHostPolicy(t *testing.T) {
+	provider := &NativeProvider{
+		hostPolicy: guardrails.NewHostPolicy(nil, []string{"blocked.example"}, nil, nil),
+		resolveHost: func(context.Context, string) ([]netip.Addr, error) {
+			return []netip.Addr{netip.MustParseAddr("93.184.216.34")}, nil
+		},
+	}
+
+	_, err := provider.validateURL(context.Background(), "https://blocked.example/page")
+
+	require.EqualError(t, err, `blocked by configured native host denylist policy: "blocked.example" matched "blocked.example" from "config"`)
+}
+
+func TestNativeProvider_ValidateURLRejectsHostMissingFromAllowlist(t *testing.T) {
+	provider := &NativeProvider{
+		hostPolicy: guardrails.NewHostPolicy([]string{"allowed.example"}, nil, nil, nil),
+		resolveHost: func(context.Context, string) ([]netip.Addr, error) {
+			return []netip.Addr{netip.MustParseAddr("93.184.216.34")}, nil
+		},
+	}
+
+	_, err := provider.validateURL(context.Background(), "https://other.example/page")
+
+	require.EqualError(t, err, `blocked by configured native host allowlist policy: "other.example" did not match any allowed host rule`)
+}
+
 func TestNativeProvider_ValidateURLRejectsMissingHostAndResolverErrors(t *testing.T) {
 	provider := newNativeTestProvider("ignored", "text/plain")
 
@@ -387,7 +417,7 @@ func TestNativeProvider_ExtractRejectsWebsitePolicyRedirect(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, results, 1)
-	require.Contains(t, results[0].Error, "blocked by website policy")
+	require.Contains(t, results[0].Error, "blocked by configured website blocklist policy")
 	require.Empty(t, results[0].Content)
 }
 

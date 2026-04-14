@@ -74,6 +74,7 @@ func Definition(provider webintegration.Provider, options ...Options) tools.Defi
 				Str("tool", "web_search").
 				Str("phase", "execute").
 				Msg("web search provider request started")
+
 			results, err := provider.Search(ctx, query, count)
 			if err != nil {
 				log.Warn().
@@ -116,6 +117,7 @@ func filterBlockedResults(
 
 	blockedCount := 0
 	filtered := make([]webintegration.SearchResult, 0, len(results))
+
 	for _, result := range results {
 		if _, blocked := policy.Check(result.URL); blocked {
 			blockedCount++

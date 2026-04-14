@@ -107,3 +107,27 @@ func TestWebsitePolicy_HostFromURLHandlesEmptyAndMalformedValues(t *testing.T) {
 	require.Empty(t, hostFromWebsiteURL(" "))
 	require.Empty(t, hostFromWebsiteURL("%"))
 }
+
+func TestWebsiteBlockMessage_OmitsSourceWhenRuleSourceIsEmpty(t *testing.T) {
+	message := websiteBlockMessage("example.com", WebsiteRule{
+		Pattern: "example.com",
+	})
+
+	require.Equal(t, `blocked by configured website blocklist policy: "example.com" matched "example.com"`, message)
+}
+
+func TestFirstMatchingDomainRule_HandlesEmptyAndUnmatchedHosts(t *testing.T) {
+	rules := []domainRule{{Pattern: "example.com", Source: "config"}}
+
+	rule, matched := firstMatchingDomainRule(rules, " ")
+	require.False(t, matched)
+	require.Equal(t, domainRule{}, rule)
+
+	rule, matched = firstMatchingDomainRule(rules, "other.example")
+	require.False(t, matched)
+	require.Equal(t, domainRule{}, rule)
+
+	rule, matched = firstMatchingDomainRule(rules, "docs.example.com")
+	require.True(t, matched)
+	require.Equal(t, rules[0], rule)
+}

@@ -78,8 +78,10 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 				"enum":        []string{"text", "markdown"},
 			},
 		}, "urls"),
+
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var req input
+
 			if result := common.DecodeInput(call, &req); result.Error != "" {
 				return result, nil
 			}
@@ -87,9 +89,11 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 			if provider == nil {
 				return common.ToolError("tool_error", "web extract provider is not configured"), nil
 			}
+
 			if len(req.URLs) == 0 {
 				return common.ToolError("invalid_input", "urls is required"), nil
 			}
+
 			if len(req.URLs) > maxURLs {
 				return common.ToolError("invalid_input", "too many urls"), nil
 			}
@@ -114,6 +118,7 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 			}
 
 			query := strings.TrimSpace(req.Query)
+
 			log.Info().
 				Str("tool", "web_extract").
 				Str("phase", "start").
@@ -154,6 +159,7 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 					Str("phase", "summarize").
 					Int("result_count", len(results)).
 					Msg("web extract summarization started")
+
 				results, err = summarizeResults(ctx, results, summarizeOptions{
 					Query:                          query,
 					MinSummarizeChars:              opts.MinSummarizeChars,
@@ -194,15 +200,18 @@ func extractWithPolicy(
 	format string,
 	policy guardrails.WebsitePolicy,
 ) ([]webprovider.ExtractResult, extractPolicyStats, error) {
+
 	if len(urls) == 0 || !policy.Enabled {
 		results, err := provider.Extract(ctx, urls)
 		return results, extractPolicyStats{ProviderRequested: len(urls)}, err
 	}
 
 	stats := extractPolicyStats{}
+
 	results := make([]webprovider.ExtractResult, len(urls))
 	allowedURLs := make([]string, 0, len(urls))
 	allowedIndexes := make([]int, 0, len(urls))
+
 	for idx, rawURL := range urls {
 		if block, blocked := policy.Check(rawURL); blocked {
 			results[idx] = blockedExtractResult(rawURL, format, block)
@@ -213,7 +222,9 @@ func extractWithPolicy(
 		allowedURLs = append(allowedURLs, rawURL)
 		allowedIndexes = append(allowedIndexes, idx)
 	}
+
 	stats.ProviderRequested = len(allowedURLs)
+
 	if len(allowedURLs) == 0 {
 		return results, stats, nil
 	}
@@ -265,15 +276,19 @@ func blockedExtractResult(rawURL, format string, block guardrails.WebsiteBlock) 
 func resolveFormat(format, extractMode string) (string, error) {
 	format = strings.TrimSpace(strings.ToLower(format))
 	extractMode = strings.TrimSpace(strings.ToLower(extractMode))
+
 	if format != "" && extractMode != "" && format != extractMode {
 		return "", fmt.Errorf("format and extract_mode must match when both are provided")
 	}
+
 	if format == "" {
 		format = extractMode
 	}
+
 	if format == "" {
 		return "", nil
 	}
+
 	if format != "text" && format != "markdown" {
 		return "", fmt.Errorf("format must be text or markdown")
 	}
@@ -293,9 +308,11 @@ func resolveRequestMaxChars(requested *int, configuredMax int) (int, error) {
 	if requested == nil {
 		return 0, nil
 	}
+
 	if *requested <= 0 {
 		return 0, fmt.Errorf("max_chars must be greater than zero")
 	}
+
 	if configuredMax > 0 && *requested > configuredMax {
 		return configuredMax, nil
 	}

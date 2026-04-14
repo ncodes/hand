@@ -1,9 +1,7 @@
 package guardrails
 
 import (
-	"bufio"
 	"net/url"
-	"os"
 	"strings"
 )
 
@@ -12,10 +10,7 @@ type WebsitePolicy struct {
 	Rules   []WebsiteRule
 }
 
-type WebsiteRule struct {
-	Pattern string
-	Source  string
-}
+type WebsiteRule = domainRule
 
 type WebsiteBlock struct {
 	URL     string
@@ -26,14 +21,9 @@ type WebsiteBlock struct {
 }
 
 func NewWebsitePolicy(enabled bool, domains, files []string) WebsitePolicy {
-	policy := WebsitePolicy{Enabled: enabled}
-	policy.addRules(domains, "config")
-
-	for _, file := range files {
-		policy.addRules(readWebsitePolicyFile(file), strings.TrimSpace(file))
-	}
-
-	return policy
+	rules := appendDomainRules(nil, domains, "config")
+	rules = appendDomainRulesFromFiles(rules, files)
+	return WebsitePolicy{Enabled: enabled, Rules: rules}
 }
 
 func (p WebsitePolicy) Check(rawURL string) (WebsiteBlock, bool) {
@@ -46,11 +36,7 @@ func (p WebsitePolicy) Check(rawURL string) (WebsiteBlock, bool) {
 		return WebsiteBlock{}, false
 	}
 
-	for _, rule := range p.Rules {
-		if !websiteRuleMatches(rule.Pattern, host) {
-			continue
-		}
-
+	if rule, ok := firstMatchingDomainRule(p.Rules, host); ok {
 		message := websiteBlockMessage(host, rule)
 		return WebsiteBlock{
 			URL:     strings.TrimSpace(rawURL),
@@ -72,45 +58,6 @@ func websiteBlockMessage(host string, rule WebsiteRule) string {
 	}
 
 	return message + ` from "` + source + `"`
-}
-
-func (p *WebsitePolicy) addRules(values []string, source string) {
-	for _, value := range values {
-		rule := normalizeWebsiteRule(value)
-		if rule == "" {
-			continue
-		}
-
-		p.Rules = append(p.Rules, WebsiteRule{
-			Pattern: rule,
-			Source:  strings.TrimSpace(source),
-		})
-	}
-}
-
-func readWebsitePolicyFile(path string) []string {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return nil
-	}
-
-	file, err := os.Open(path)
-	if err != nil {
-		return nil
-	}
-	defer file.Close()
-
-	var values []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		values = append(values, line)
-	}
-
-	return values
 }
 
 func normalizeWebsiteRule(value string) string {
