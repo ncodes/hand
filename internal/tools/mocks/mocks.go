@@ -1,10 +1,12 @@
 package mocks
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	processenv "github.com/wandxy/hand/internal/environment/process"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
@@ -17,7 +19,20 @@ type Runtime struct {
 
 func (r *Runtime) FilePolicy() guardrails.FilesystemPolicy { return r.FilePolicyValue }
 func (r *Runtime) CommandPolicy() guardrails.CommandPolicy { return r.CommandPolicyValue }
-func (r *Runtime) GetPlan(string) envtypes.Plan            { return envtypes.Plan{} }
+func (r *Runtime) StartProcess(context.Context, processenv.StartRequest) (processenv.Info, error) {
+	return processenv.Info{}, nil
+}
+func (r *Runtime) GetProcess(string) (processenv.Info, error) {
+	return processenv.Info{}, nil
+}
+func (r *Runtime) ReadProcess(string) (processenv.Output, error) {
+	return processenv.Output{}, nil
+}
+func (r *Runtime) StopProcess(context.Context, string) (processenv.Info, error) {
+	return processenv.Info{}, nil
+}
+func (r *Runtime) ListProcesses() []processenv.Info { return nil }
+func (r *Runtime) GetPlan(string) envtypes.Plan     { return envtypes.Plan{} }
 func (r *Runtime) ReplacePlan(string, envtypes.Plan) (envtypes.Plan, error) {
 	return envtypes.Plan{}, nil
 }
@@ -67,6 +82,21 @@ type FailingPlanRuntime struct {
 func (d *FailingPlanRuntime) FilePolicy() guardrails.FilesystemPolicy { return d.Runtime.FilePolicy() }
 func (d *FailingPlanRuntime) CommandPolicy() guardrails.CommandPolicy {
 	return d.Runtime.CommandPolicy()
+}
+func (d *FailingPlanRuntime) StartProcess(ctx context.Context, req processenv.StartRequest) (processenv.Info, error) {
+	return d.Runtime.StartProcess(ctx, req)
+}
+func (d *FailingPlanRuntime) GetProcess(processID string) (processenv.Info, error) {
+	return d.Runtime.GetProcess(processID)
+}
+func (d *FailingPlanRuntime) ReadProcess(processID string) (processenv.Output, error) {
+	return d.Runtime.ReadProcess(processID)
+}
+func (d *FailingPlanRuntime) StopProcess(ctx context.Context, processID string) (processenv.Info, error) {
+	return d.Runtime.StopProcess(ctx, processID)
+}
+func (d *FailingPlanRuntime) ListProcesses() []processenv.Info {
+	return d.Runtime.ListProcesses()
 }
 func (d *FailingPlanRuntime) GetPlan(sessionID string) envtypes.Plan {
 	return d.Runtime.GetPlan(sessionID)

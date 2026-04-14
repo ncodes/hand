@@ -1,10 +1,25 @@
 package types
 
-import "github.com/wandxy/hand/internal/guardrails"
+import (
+	"context"
+
+	"github.com/wandxy/hand/internal/environment/process"
+	"github.com/wandxy/hand/internal/guardrails"
+)
 
 type Runtime interface {
+	// Policy management
 	FilePolicy() guardrails.FilesystemPolicy
 	CommandPolicy() guardrails.CommandPolicy
+
+	// Process management
+	StartProcess(ctx context.Context, req process.StartRequest) (process.Info, error)
+	GetProcess(string) (process.Info, error)
+	ReadProcess(string) (process.Output, error)
+	StopProcess(ctx context.Context, processID string) (process.Info, error)
+	ListProcesses() []process.Info
+
+	// Plan management
 	GetPlan(string) Plan
 	ReplacePlan(string, Plan) (Plan, error)
 	MergePlan(string, []PartialPlanStep, string, bool) (Plan, error)

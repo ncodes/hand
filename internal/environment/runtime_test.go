@@ -1,12 +1,15 @@
 package environment
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
+	processenv "github.com/wandxy/hand/internal/environment/process"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 )
@@ -23,6 +26,7 @@ func TestNewRuntime_DefaultsRootToCWDAndNormalizesPolicy(t *testing.T) {
 	require.Equal(t, []string{dir}, runtime.FilePolicy().Roots)
 	require.Equal(t, []string{"git push"}, runtime.CommandPolicy().Ask)
 	require.Equal(t, []string{"git push"}, runtime.CommandPolicy().Deny)
+	require.IsType(t, &processenv.DefaultManager{}, runtime.processes)
 	require.IsType(t, &MemoryPlanStore{}, runtime.plans)
 }
 
@@ -121,4 +125,51 @@ func TestRuntime_HydratePlanDelegatesToStore(t *testing.T) {
 		Steps:       []envtypes.PlanStep{{ID: "step-1", Content: "First", Status: envtypes.PlanStatusInProgress}},
 		Explanation: "restored",
 	}, runtime.GetPlan("session-1"))
+}
+
+func TestRuntime_ProcessMethodsDelegateToStore(t *testing.T) {
+	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{})
+
+	info, err := runtime.StartProcess(context.Background(), processenv.StartRequest{
+		Command:           "printf",
+		Args:              []string{"hello"},
+		OutputBufferBytes: 32,
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		current, err := runtime.GetProcess(info.ID)
+		require.NoError(t, err)
+		return current.Status == processenv.StatusExited
+	}, 5*time.Second, 20*time.Millisecond)
+
+	output, err := runtime.ReadProcess(info.ID)
+	require.NoError(t, err)
+	require.Equal(t, "hello", output.Stdout)
+
+	stopped, err := runtime.StopProcess(context.Background(), info.ID)
+	require.NoError(t, err)
+	require.Equal(t, info.ID, stopped.ID)
+
+	list := runtime.ListProcesses()
+	require.Len(t, list, 1)
+	require.Equal(t, info.ID, list[0].ID)
+}
+
+func TestRuntime_ProcessMethodsHandleNilReceiver(t *testing.T) {
+	var runtime *Runtime
+
+	_, err := runtime.StartProcess(context.Background(), processenv.StartRequest{})
+	require.EqualError(t, err, "process manager is required")
+
+	_, err = runtime.GetProcess("proc_1")
+	require.EqualError(t, err, "process manager is required")
+
+	_, err = runtime.ReadProcess("proc_1")
+	require.EqualError(t, err, "process manager is required")
+
+	_, err = runtime.StopProcess(context.Background(), "proc_1")
+	require.EqualError(t, err, "process manager is required")
+
+	require.Nil(t, runtime.ListProcesses())
 }

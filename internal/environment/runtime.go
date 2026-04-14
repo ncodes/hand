@@ -1,10 +1,12 @@
 package environment
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 
+	processenv "github.com/wandxy/hand/internal/environment/process"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 )
@@ -14,6 +16,7 @@ var getwd = os.Getwd
 type Runtime struct {
 	filePolicy    guardrails.FilesystemPolicy
 	commandPolicy guardrails.CommandPolicy
+	processes     processenv.Manager
 	plans         PlanStore
 }
 
@@ -29,6 +32,7 @@ func NewRuntime(roots []string, policy guardrails.CommandPolicy) *Runtime {
 	return &Runtime{
 		filePolicy:    guardrails.FilesystemPolicy{Roots: guardrails.NormalizeRoots(roots)},
 		commandPolicy: policy.Normalize(),
+		processes:     &processenv.DefaultManager{},
 		plans:         &MemoryPlanStore{},
 	}
 }
@@ -45,6 +49,41 @@ func (r *Runtime) CommandPolicy() guardrails.CommandPolicy {
 		return guardrails.CommandPolicy{}.Normalize()
 	}
 	return r.commandPolicy
+}
+
+func (r *Runtime) StartProcess(ctx context.Context, req processenv.StartRequest) (processenv.Info, error) {
+	if r == nil || r.processes == nil {
+		return processenv.Info{}, errors.New("process manager is required")
+	}
+	return r.processes.Start(ctx, req)
+}
+
+func (r *Runtime) GetProcess(processID string) (processenv.Info, error) {
+	if r == nil || r.processes == nil {
+		return processenv.Info{}, errors.New("process manager is required")
+	}
+	return r.processes.Get(processID)
+}
+
+func (r *Runtime) ReadProcess(processID string) (processenv.Output, error) {
+	if r == nil || r.processes == nil {
+		return processenv.Output{}, errors.New("process manager is required")
+	}
+	return r.processes.Read(processID)
+}
+
+func (r *Runtime) StopProcess(ctx context.Context, processID string) (processenv.Info, error) {
+	if r == nil || r.processes == nil {
+		return processenv.Info{}, errors.New("process manager is required")
+	}
+	return r.processes.Stop(ctx, processID)
+}
+
+func (r *Runtime) ListProcesses() []processenv.Info {
+	if r == nil || r.processes == nil {
+		return nil
+	}
+	return r.processes.List()
 }
 
 func (r *Runtime) GetPlan(sessionID string) envtypes.Plan {
