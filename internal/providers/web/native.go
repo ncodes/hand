@@ -17,7 +17,7 @@ import (
 
 	readability "codeberg.org/readeck/go-readability/v2"
 	"github.com/wandxy/hand/internal/guardrails"
-	guardfetch "github.com/wandxy/hand/internal/guardrails/fetch"
+	"github.com/wandxy/hand/pkg/fetch"
 	"golang.org/x/net/html"
 )
 
@@ -114,73 +114,54 @@ func (p *NativeProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 func (p *NativeProvider) extract(ctx context.Context, rawURL, format string, maxChars int) ExtractResult {
 	result := ExtractResult{URL: rawURL, ContentFormat: format}
 
-	validatedURL, err := p.validateURL(ctx, rawURL)
+	validatedURL, err := p.fetcher().ValidateURL(ctx, rawURL)
 	if err != nil {
 		result.Error = err.Error()
 		return result
 	}
-
-	newRequest := p.newRequest
-	if newRequest == nil {
-		newRequest = http.NewRequestWithContext
-	}
-
-	req, err := newRequest(ctx, http.MethodGet, validatedURL.String(), nil)
+	response, err := p.fetcher().Get(ctx, fetch.GetRequest{
+		URL:        validatedURL.String(),
+		Header:     http.Header{"Accept": []string{"text/html,text/plain;q=0.9"}, "User-Agent": []string{nativeUserAgent}},
+		Timeout:    nativeDefaultTimeout,
+		MaxBytes:   p.maxExtractResponseBytes,
+		Client:     p.httpClient(),
+		NewRequest: p.newRequest,
+	})
 	if err != nil {
 		result.Error = err.Error()
 		return result
 	}
-	req.Header.Set("Accept", "text/html,text/plain;q=0.9")
-	req.Header.Set("User-Agent", nativeUserAgent)
-
-	client := p.client
-	if client == nil {
-		makeClient := p.makeClient
-		if makeClient == nil {
-			makeClient = func() *http.Client {
-				return nativeDefaultHTTPClient(p)
-			}
-		}
-		client = makeClient()
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		result.Error = err.Error()
-		return result
-	}
-	defer resp.Body.Close()
 
 	extractionURL := validatedURL
-	if resp.Request != nil && resp.Request.URL != nil {
-		extractionURL = resp.Request.URL
-		result.URL = extractionURL.String()
+	if response.FinalURL != "" {
+		parsedFinalURL, parseErr := url.Parse(response.FinalURL)
+		if parseErr == nil {
+			extractionURL = parsedFinalURL
+			result.URL = extractionURL.String()
+		}
 	}
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		result.Error = fmt.Sprintf("web extraction request failed: %s", resp.Status)
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		status := strings.TrimSpace(response.Status)
+		if status == "" {
+			status = fmt.Sprintf("%d", response.StatusCode)
+		}
+		result.Error = fmt.Sprintf("web extraction request failed: %s", status)
 		return result
 	}
 
-	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
+	contentType := strings.TrimSpace(response.Header.Get("Content-Type"))
 	mediaType, _, _ := mime.ParseMediaType(contentType)
 	if mediaType != "" && mediaType != "text/html" && mediaType != "application/xhtml+xml" && mediaType != "text/plain" {
 		result.Error = "unsupported content type: " + mediaType
 		return result
 	}
 
-	data, downloadTruncated, err := readNativeResponse(resp.Body, p.maxExtractResponseBytes)
-	if err != nil {
-		result.Error = err.Error()
-		result.DownloadTruncated = downloadTruncated
-		return result
-	}
-
 	var extracted nativeDocument
 	if mediaType == "text/plain" {
-		extracted.Content = strings.TrimSpace(string(data))
+		extracted.Content = strings.TrimSpace(string(response.Body))
 	} else {
-		extracted, err = extractNativeHTML(data, extractionURL, format)
+		extracted, err = extractNativeHTML(response.Body, extractionURL, format)
 		if err != nil {
 			result.Error = err.Error()
 			return result
@@ -190,8 +171,8 @@ func (p *NativeProvider) extract(ctx context.Context, rawURL, format string, max
 	content, truncated := truncateContent(extracted.Content, maxChars)
 	result.Title = extracted.Title
 	result.Content = content
-	result.Truncated = truncated || downloadTruncated
-	result.DownloadTruncated = downloadTruncated
+	result.Truncated = truncated || response.Truncated
+	result.DownloadTruncated = response.Truncated
 
 	return result
 }
@@ -200,28 +181,16 @@ func (p *NativeProvider) newHTTPClient() *http.Client {
 	return p.fetcher().NewHTTPClient(nativeDefaultTimeout)
 }
 
-func (p *NativeProvider) dialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	return p.fetcher().DialContext(ctx, network, address)
-}
-
-func (p *NativeProvider) validateURL(ctx context.Context, rawURL string) (*url.URL, error) {
-	return p.fetcher().ValidateURL(ctx, rawURL)
-}
-
-func (p *NativeProvider) resolveAndValidateHost(ctx context.Context, host string) ([]netip.Addr, error) {
-	return p.fetcher().ResolveAndValidateHost(ctx, host)
-}
-
-func (p *NativeProvider) fetcher() *guardfetch.GuardedFetcher {
+func (p *NativeProvider) fetcher() *fetch.Fetcher {
 	dial := p.dial
 	if dial == nil {
 		dial = nativeDefaultDialContext
 	}
 
-	return &guardfetch.GuardedFetcher{
-		ResolveHost: p.resolveHost,
-		Dial:        dial,
-		Policy: nativeFetchPolicy{
+	return fetch.New(
+		fetch.WithResolveHost(p.resolveHost),
+		fetch.WithDial(dial),
+		fetch.WithPolicy(nativeFetchPolicy{
 			hostPolicy: p.hostPolicy,
 			websiteCheck: func(ctx context.Context, rawURL string) error {
 				if block, blocked := extractWebsitePolicy(ctx).Check(rawURL); blocked {
@@ -230,12 +199,8 @@ func (p *NativeProvider) fetcher() *guardfetch.GuardedFetcher {
 
 				return nil
 			},
-		},
-	}
-}
-
-func safeNativeAddr(addr netip.Addr) bool {
-	return guardfetch.SafeAddr(addr)
+		}),
+	)
 }
 
 func readNativeResponse(body io.Reader, maxBytes int) ([]byte, bool, error) {
@@ -259,6 +224,21 @@ func readNativeResponse(body io.Reader, maxBytes int) ([]byte, bool, error) {
 	}
 
 	return data, false, nil
+}
+
+func (p *NativeProvider) httpClient() *http.Client {
+	if p.client != nil {
+		return p.client
+	}
+
+	makeClient := p.makeClient
+	if makeClient == nil {
+		makeClient = func() *http.Client {
+			return nativeDefaultHTTPClient(p)
+		}
+	}
+
+	return makeClient()
 }
 
 type nativeDocument struct {

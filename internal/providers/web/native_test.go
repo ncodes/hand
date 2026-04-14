@@ -25,6 +25,49 @@ func (f nativeRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error
 	return f(req)
 }
 
+func TestNativeFetchPolicy_Check(t *testing.T) {
+	t.Run("nil parsed url", func(t *testing.T) {
+		policy := nativeFetchPolicy{}
+
+		err := policy.Check(context.Background(), nil)
+
+		require.NoError(t, err)
+	})
+
+	t.Run("blocked by host policy", func(t *testing.T) {
+		policy := nativeFetchPolicy{
+			hostPolicy: guardrails.NewHostPolicy(nil, []string{"blocked.example"}, nil, nil),
+		}
+
+		err := policy.Check(context.Background(), mustParseURL(t, "https://blocked.example/page"))
+
+		require.EqualError(t, err, `blocked by configured native host denylist policy: "blocked.example" matched "blocked.example" from "config"`)
+	})
+
+	t.Run("allowed without website check", func(t *testing.T) {
+		policy := nativeFetchPolicy{
+			hostPolicy: guardrails.NewHostPolicy([]string{"allowed.example"}, nil, nil, nil),
+		}
+
+		err := policy.Check(context.Background(), mustParseURL(t, "https://allowed.example/page"))
+
+		require.NoError(t, err)
+	})
+
+	t.Run("blocked by website check", func(t *testing.T) {
+		policy := nativeFetchPolicy{
+			websiteCheck: func(_ context.Context, rawURL string) error {
+				require.Equal(t, "https://example.com/page", rawURL)
+				return errors.New("blocked by website policy")
+			},
+		}
+
+		err := policy.Check(context.Background(), mustParseURL(t, "https://example.com/page"))
+
+		require.EqualError(t, err, "blocked by website policy")
+	})
+}
+
 func TestNativeProvider_SearchReturnsUnsupportedError(t *testing.T) {
 	provider := &NativeProvider{}
 
@@ -311,7 +354,7 @@ func TestNativeProvider_ValidateURLRejectsBlockedHostPolicy(t *testing.T) {
 		},
 	}
 
-	_, err := provider.validateURL(context.Background(), "https://blocked.example/page")
+	_, err := provider.fetcher().ValidateURL(context.Background(), "https://blocked.example/page")
 
 	require.EqualError(t, err, `blocked by configured native host denylist policy: "blocked.example" matched "blocked.example" from "config"`)
 }
@@ -324,7 +367,7 @@ func TestNativeProvider_ValidateURLRejectsHostMissingFromAllowlist(t *testing.T)
 		},
 	}
 
-	_, err := provider.validateURL(context.Background(), "https://other.example/page")
+	_, err := provider.fetcher().ValidateURL(context.Background(), "https://other.example/page")
 
 	require.EqualError(t, err, `blocked by configured native host allowlist policy: "other.example" did not match any allowed host rule`)
 }
@@ -332,10 +375,10 @@ func TestNativeProvider_ValidateURLRejectsHostMissingFromAllowlist(t *testing.T)
 func TestNativeProvider_ValidateURLRejectsMissingHostAndResolverErrors(t *testing.T) {
 	provider := newNativeTestProvider("ignored", "text/plain")
 
-	_, err := provider.validateURL(context.Background(), "%")
+	_, err := provider.fetcher().ValidateURL(context.Background(), "%")
 	require.Error(t, err)
 
-	_, err = provider.validateURL(context.Background(), "https:///missing-host")
+	_, err = provider.fetcher().ValidateURL(context.Background(), "https:///missing-host")
 	require.EqualError(t, err, "url host is required")
 
 	provider = &NativeProvider{
@@ -344,7 +387,7 @@ func TestNativeProvider_ValidateURLRejectsMissingHostAndResolverErrors(t *testin
 		},
 	}
 
-	_, err = provider.validateURL(context.Background(), "https://example.com/page")
+	_, err = provider.fetcher().ValidateURL(context.Background(), "https://example.com/page")
 	require.EqualError(t, err, "resolver failed")
 }
 
@@ -487,10 +530,35 @@ func TestNativeProvider_ExtractReturnsHTTPAndContentTypeErrors(t *testing.T) {
 	require.Contains(t, results[0].Error, "404 Not Found")
 }
 
+func TestNativeProvider_ExtractFallsBackToStatusCodeWhenStatusIsBlank(t *testing.T) {
+	provider := &NativeProvider{
+		resolveHost: func(context.Context, string) ([]netip.Addr, error) {
+			return []netip.Addr{netip.MustParseAddr("93.184.216.34")}, nil
+		},
+	}
+	provider.client = &http.Client{
+		Transport: nativeRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusBadGateway,
+				Status:     "",
+				Header:     http.Header{"Content-Type": []string{"text/plain"}},
+				Body:       io.NopCloser(strings.NewReader("bad gateway")),
+				Request:    req,
+			}, nil
+		}),
+	}
+
+	results, err := provider.Extract(context.Background(), []string{"https://example.com/failure"})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, "web extraction request failed: 502", results[0].Error)
+}
+
 func TestNativeProvider_DialContextReturnsValidationErrors(t *testing.T) {
 	provider := &NativeProvider{}
 
-	_, err := provider.dialContext(context.Background(), "tcp", "bad-address")
+	_, err := provider.fetcher().DialContext(context.Background(), "tcp", "bad-address")
 	require.Error(t, err)
 
 	provider = &NativeProvider{
@@ -499,7 +567,7 @@ func TestNativeProvider_DialContextReturnsValidationErrors(t *testing.T) {
 		},
 	}
 
-	_, err = provider.dialContext(context.Background(), "tcp", "internal.example:443")
+	_, err = provider.fetcher().DialContext(context.Background(), "tcp", "internal.example:443")
 	require.EqualError(t, err, "url host resolves to a blocked address")
 }
 
@@ -517,7 +585,7 @@ func TestNativeProvider_DialContextReturnsConnectionAndDialErrors(t *testing.T) 
 		},
 	}
 
-	conn, err := provider.dialContext(context.Background(), "tcp", "example.com:443")
+	conn, err := provider.fetcher().DialContext(context.Background(), "tcp", "example.com:443")
 
 	require.NoError(t, err)
 	require.NotNil(t, conn)
@@ -527,7 +595,7 @@ func TestNativeProvider_DialContextReturnsConnectionAndDialErrors(t *testing.T) 
 		return nil, errors.New("dial failed")
 	}
 
-	conn, err = provider.dialContext(context.Background(), "tcp", "example.com:443")
+	conn, err = provider.fetcher().DialContext(context.Background(), "tcp", "example.com:443")
 
 	require.Nil(t, conn)
 	require.EqualError(t, err, "dial failed")
@@ -547,7 +615,7 @@ func TestNativeProvider_DialContextUsesDefaultDialer(t *testing.T) {
 		},
 	}
 
-	conn, err := provider.dialContext(context.Background(), "tcp", "example.com:443")
+	conn, err := provider.fetcher().DialContext(context.Background(), "tcp", "example.com:443")
 	require.Nil(t, conn)
 	require.EqualError(t, err, "default dial failed")
 }
@@ -555,10 +623,10 @@ func TestNativeProvider_DialContextUsesDefaultDialer(t *testing.T) {
 func TestNativeProvider_ResolveAndValidateHostHandlesLiteralAndEmptyResults(t *testing.T) {
 	provider := &NativeProvider{}
 
-	_, err := provider.resolveAndValidateHost(context.Background(), " ")
+	_, err := provider.fetcher().ResolveAndValidateHost(context.Background(), " ")
 	require.EqualError(t, err, "url host is required")
 
-	addrs, err := provider.resolveAndValidateHost(context.Background(), "93.184.216.34")
+	addrs, err := provider.fetcher().ResolveAndValidateHost(context.Background(), "93.184.216.34")
 	require.NoError(t, err)
 	require.Equal(t, []netip.Addr{netip.MustParseAddr("93.184.216.34")}, addrs)
 
@@ -568,11 +636,11 @@ func TestNativeProvider_ResolveAndValidateHostHandlesLiteralAndEmptyResults(t *t
 		},
 	}
 
-	_, err = provider.resolveAndValidateHost(context.Background(), "empty.example")
+	_, err = provider.fetcher().ResolveAndValidateHost(context.Background(), "empty.example")
 	require.EqualError(t, err, "url host resolved to no addresses")
 
 	provider = &NativeProvider{}
-	_, err = provider.resolveAndValidateHost(context.Background(), "localhost")
+	_, err = provider.fetcher().ResolveAndValidateHost(context.Background(), "localhost")
 	require.Error(t, err)
 }
 
@@ -583,31 +651,31 @@ func TestNativeProvider_ValidateURLRejectsResolvedPrivateAddress(t *testing.T) {
 		},
 	}
 
-	_, err := provider.validateURL(context.Background(), "https://internal.example/page")
+	_, err := provider.fetcher().ValidateURL(context.Background(), "https://internal.example/page")
 
 	require.EqualError(t, err, "url host resolves to a blocked address")
 }
 
 func TestNativeProvider_SafeNativeAddrClassifiesAddresses(t *testing.T) {
-	require.True(t, safeNativeAddr(netip.MustParseAddr("93.184.216.34")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("127.0.0.1")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("0.0.0.1")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("10.0.0.1")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("100.64.0.1")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("169.254.169.254")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("192.0.2.1")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("192.88.99.1")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("198.18.0.1")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("203.0.113.1")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("240.0.0.1")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("::1")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("::ffff:127.0.0.1")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("64:ff9b::1")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("64:ff9b:1::1")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("100::1")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("2001:db8::1")))
-	require.False(t, safeNativeAddr(netip.MustParseAddr("2002::1")))
-	require.False(t, safeNativeAddr(netip.Addr{}))
+	require.True(t, guardrails.SafeAddr(netip.MustParseAddr("93.184.216.34"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("127.0.0.1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("0.0.0.1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("10.0.0.1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("100.64.0.1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("169.254.169.254"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("192.0.2.1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("192.88.99.1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("198.18.0.1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("203.0.113.1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("240.0.0.1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("::1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("::ffff:127.0.0.1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("64:ff9b::1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("64:ff9b:1::1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("100::1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("2001:db8::1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.MustParseAddr("2002::1"), nil))
+	require.False(t, guardrails.SafeAddr(netip.Addr{}, nil))
 }
 
 func TestNativeMarkdownHelpers_RenderFormattingBoundaries(t *testing.T) {
