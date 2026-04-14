@@ -309,8 +309,8 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	require.NotNil(t, tools)
 
 	definitions := tools.List()
-	require.Len(t, definitions, 8)
-	require.Equal(t, []string{"list_files", "patch", "plan_tool", "read_file", "run_command", "search_files", "time", "write_file"}, []string{
+	require.Len(t, definitions, 9)
+	require.Equal(t, []string{"list_files", "patch", "plan_tool", "process", "read_file", "run_command", "search_files", "time", "write_file"}, []string{
 		definitions[0].Name,
 		definitions[1].Name,
 		definitions[2].Name,
@@ -319,6 +319,7 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 		definitions[5].Name,
 		definitions[6].Name,
 		definitions[7].Name,
+		definitions[8].Name,
 	})
 	for _, definition := range definitions {
 		require.Equal(t, []string{"core"}, definition.Groups)
@@ -352,11 +353,12 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 	require.NoError(t, env.Prepare())
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 10)
+	require.Len(t, definitions, 11)
 	require.Equal(t, []string{
 		"list_files",
 		"patch",
 		"plan_tool",
+		"process",
 		"read_file",
 		"run_command",
 		"search_files",
@@ -375,6 +377,7 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 		definitions[7].Name,
 		definitions[8].Name,
 		definitions[9].Name,
+		definitions[10].Name,
 	})
 }
 
@@ -565,7 +568,7 @@ func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T
 	require.NoError(t, env.Prepare())
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 8)
+	require.Len(t, definitions, 9)
 	for _, definition := range definitions {
 		require.NotEqual(t, "web_search", definition.Name)
 		require.NotEqual(t, "web_extract", definition.Name)

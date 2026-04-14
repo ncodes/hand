@@ -16,12 +16,13 @@ import (
 	webintegration "github.com/wandxy/hand/internal/providers/web"
 	"github.com/wandxy/hand/internal/tools"
 	listfiles "github.com/wandxy/hand/internal/tools/listfiles"
-	patchtool "github.com/wandxy/hand/internal/tools/patch"
-	plantool "github.com/wandxy/hand/internal/tools/plan"
+	"github.com/wandxy/hand/internal/tools/patch"
+	"github.com/wandxy/hand/internal/tools/plan"
+	"github.com/wandxy/hand/internal/tools/process"
 	readfile "github.com/wandxy/hand/internal/tools/readfile"
 	runcommand "github.com/wandxy/hand/internal/tools/runcommand"
 	searchfiles "github.com/wandxy/hand/internal/tools/searchfiles"
-	timetool "github.com/wandxy/hand/internal/tools/time"
+	"github.com/wandxy/hand/internal/tools/time"
 	webextract "github.com/wandxy/hand/internal/tools/webextract"
 	websearch "github.com/wandxy/hand/internal/tools/websearch"
 	writefile "github.com/wandxy/hand/internal/tools/writefile"
@@ -154,13 +155,14 @@ func (e *environment) prepareTools() error {
 	}
 
 	definitions := []tools.Definition{
-		timetool.Definition(),
+		time.Definition(),
 		listfiles.Definition(e.runtime),
 		readfile.Definition(e.runtime),
 		searchfiles.Definition(e.runtime),
 		writefile.Definition(e.runtime),
-		patchtool.Definition(e.runtime),
-		plantool.Definition(e.runtime),
+		patch.Definition(e.runtime),
+		plan.Definition(e.runtime),
+		process.Definition(e.runtime),
 		runcommand.Definition(e.runtime),
 	}
 

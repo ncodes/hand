@@ -15,24 +15,46 @@ import (
 type Runtime struct {
 	FilePolicyValue    guardrails.FilesystemPolicy
 	CommandPolicyValue guardrails.CommandPolicy
+	StartProcessFunc   func(context.Context, processenv.StartRequest) (processenv.Info, error)
+	GetProcessFunc     func(string) (processenv.Info, error)
+	ReadProcessFunc    func(string) (processenv.Output, error)
+	StopProcessFunc    func(context.Context, string) (processenv.Info, error)
+	ListProcessesFunc  func() []processenv.Info
 }
 
 func (r *Runtime) FilePolicy() guardrails.FilesystemPolicy { return r.FilePolicyValue }
 func (r *Runtime) CommandPolicy() guardrails.CommandPolicy { return r.CommandPolicyValue }
-func (r *Runtime) StartProcess(context.Context, processenv.StartRequest) (processenv.Info, error) {
+func (r *Runtime) StartProcess(ctx context.Context, req processenv.StartRequest) (processenv.Info, error) {
+	if r != nil && r.StartProcessFunc != nil {
+		return r.StartProcessFunc(ctx, req)
+	}
 	return processenv.Info{}, nil
 }
-func (r *Runtime) GetProcess(string) (processenv.Info, error) {
+func (r *Runtime) GetProcess(processID string) (processenv.Info, error) {
+	if r != nil && r.GetProcessFunc != nil {
+		return r.GetProcessFunc(processID)
+	}
 	return processenv.Info{}, nil
 }
-func (r *Runtime) ReadProcess(string) (processenv.Output, error) {
+func (r *Runtime) ReadProcess(processID string) (processenv.Output, error) {
+	if r != nil && r.ReadProcessFunc != nil {
+		return r.ReadProcessFunc(processID)
+	}
 	return processenv.Output{}, nil
 }
-func (r *Runtime) StopProcess(context.Context, string) (processenv.Info, error) {
+func (r *Runtime) StopProcess(ctx context.Context, processID string) (processenv.Info, error) {
+	if r != nil && r.StopProcessFunc != nil {
+		return r.StopProcessFunc(ctx, processID)
+	}
 	return processenv.Info{}, nil
 }
-func (r *Runtime) ListProcesses() []processenv.Info { return nil }
-func (r *Runtime) GetPlan(string) envtypes.Plan     { return envtypes.Plan{} }
+func (r *Runtime) ListProcesses() []processenv.Info {
+	if r != nil && r.ListProcessesFunc != nil {
+		return r.ListProcessesFunc()
+	}
+	return nil
+}
+func (r *Runtime) GetPlan(string) envtypes.Plan { return envtypes.Plan{} }
 func (r *Runtime) ReplacePlan(string, envtypes.Plan) (envtypes.Plan, error) {
 	return envtypes.Plan{}, nil
 }
