@@ -13,3 +13,7 @@ func terminateCommand(cmd *exec.Cmd) {
 
 	_ = cmd.Process.Kill()
 }
+
+func terminateCommandGracefully(cmd *exec.Cmd) {
+	terminateCommand(cmd)
+}

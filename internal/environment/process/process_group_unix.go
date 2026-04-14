@@ -22,3 +22,11 @@ func terminateCommand(cmd *exec.Cmd) {
 
 	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 }
+
+func terminateCommandGracefully(cmd *exec.Cmd) {
+	if cmd == nil || cmd.Process == nil {
+		return
+	}
+
+	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+}

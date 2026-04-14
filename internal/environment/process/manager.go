@@ -14,6 +14,8 @@ import (
 )
 
 const DefaultOutputBufferBytes = 64 * 1024
+const DefaultMaxTracked = 32
+const DefaultStopGracePeriod = 2 * time.Second
 
 var commandContext = exec.CommandContext
 var currentGOOS = goruntime.GOOS
@@ -27,10 +29,13 @@ type Manager interface {
 }
 
 type DefaultManager struct {
-	mu        sync.Mutex
-	processes map[string]*trackedProcess
-	order     []string
-	nextID    uint64
+	mu              sync.Mutex
+	processes       map[string]*trackedProcess
+	order           []string
+	stale           map[string]struct{}
+	nextID          uint64
+	MaxTracked      int
+	StopGracePeriod time.Duration
 }
 
 type trackedProcess struct {
@@ -40,6 +45,7 @@ type trackedProcess struct {
 	stderr  *recentBuffer
 	info    Info
 	waitErr error
+	done    chan struct{}
 }
 
 type recentBuffer struct {
@@ -95,6 +101,7 @@ func (s *DefaultManager) Start(ctx context.Context, req StartRequest) (Info, err
 		cmd:    cmd,
 		stdout: stdout,
 		stderr: stderr,
+		done:   make(chan struct{}),
 		info: Info{
 			ID:        processID,
 			Command:   command,
@@ -109,6 +116,22 @@ func (s *DefaultManager) Start(ctx context.Context, req StartRequest) (Info, err
 	if s.processes == nil {
 		s.processes = make(map[string]*trackedProcess)
 	}
+
+	if s.stale == nil {
+		s.stale = make(map[string]struct{})
+	}
+
+	s.cleanupLocked()
+
+	if limit := s.maxTracked(); limit > 0 && len(s.processes) >= limit {
+		s.mu.Unlock()
+		_ = cmd.Process.Kill()
+		_, _ = cmd.Process.Wait()
+		return Info{}, errors.New("process manager is at capacity")
+	}
+
+	delete(s.stale, processID)
+
 	s.processes[processID] = process
 	s.order = append(s.order, processID)
 	s.mu.Unlock()
@@ -136,10 +159,13 @@ func (s *DefaultManager) Read(processID string) (Output, error) {
 	return process.output(), nil
 }
 
-func (s *DefaultManager) Stop(_ context.Context, processID string) (Info, error) {
+func (s *DefaultManager) Stop(ctx context.Context, processID string) (Info, error) {
 	process, err := s.lookup(processID)
 	if err != nil {
 		return Info{}, err
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	process.mu.Lock()
@@ -154,7 +180,23 @@ func (s *DefaultManager) Stop(_ context.Context, processID string) (Info, error)
 		return process.snapshot(), nil
 	}
 
+	terminateCommandGracefully(cmd)
+	select {
+	case <-process.done:
+		return process.snapshot(), nil
+	case <-time.After(s.stopGracePeriod()):
+	case <-ctx.Done():
+		return process.snapshot(), ctx.Err()
+	}
+
 	terminateCommand(cmd)
+	select {
+	case <-process.done:
+	case <-time.After(s.stopGracePeriod()):
+	case <-ctx.Done():
+		return process.snapshot(), ctx.Err()
+	}
+
 	return process.snapshot(), nil
 }
 
@@ -185,8 +227,6 @@ func (s *DefaultManager) wait(process *trackedProcess) {
 	err := process.cmd.Wait()
 
 	process.mu.Lock()
-	defer process.mu.Unlock()
-
 	process.waitErr = err
 	endedAt := time.Now().UTC()
 	process.info.EndedAt = &endedAt
@@ -199,6 +239,10 @@ func (s *DefaultManager) wait(process *trackedProcess) {
 		exitCode := 0
 		process.info.ExitCode = &exitCode
 		process.info.Status = StatusExited
+		process.mu.Unlock()
+		if process.done != nil {
+			close(process.done)
+		}
 		return
 	}
 
@@ -206,13 +250,25 @@ func (s *DefaultManager) wait(process *trackedProcess) {
 		exitCode := exitErr.ExitCode()
 		process.info.ExitCode = &exitCode
 		if process.info.Status == StatusStopped {
+			process.mu.Unlock()
+			if process.done != nil {
+				close(process.done)
+			}
 			return
 		}
 		process.info.Status = StatusExited
+		process.mu.Unlock()
+		if process.done != nil {
+			close(process.done)
+		}
 		return
 	}
 
 	process.info.Status = StatusFailed
+	process.mu.Unlock()
+	if process.done != nil {
+		close(process.done)
+	}
 }
 
 func (s *DefaultManager) lookup(processID string) (*trackedProcess, error) {
@@ -220,15 +276,23 @@ func (s *DefaultManager) lookup(processID string) (*trackedProcess, error) {
 		return nil, errors.New("process manager is required")
 	}
 
-	normalized := strings.TrimSpace(processID)
-	if normalized == "" {
+	processID = strings.TrimSpace(processID)
+	if processID == "" {
 		return nil, errors.New("process id is required")
 	}
 
 	s.mu.Lock()
-	process := s.processes[normalized]
+	process := s.processes[processID]
+	_, stale := s.stale[processID]
+	if stale && process == nil {
+		delete(s.stale, processID)
+	}
 	s.mu.Unlock()
+
 	if process == nil {
+		if stale {
+			return nil, errors.New("process is no longer retained")
+		}
 		return nil, errors.New("process not found")
 	}
 
@@ -238,6 +302,44 @@ func (s *DefaultManager) lookup(processID string) (*trackedProcess, error) {
 func (s *DefaultManager) nextProcessID() string {
 	id := atomic.AddUint64(&s.nextID, 1)
 	return "proc_" + strconv.FormatUint(id, 10)
+}
+
+func (s *DefaultManager) cleanupLocked() {
+	if len(s.processes) == 0 {
+		return
+	}
+
+	order := s.order[:0]
+	for _, processID := range s.order {
+		process := s.processes[processID]
+		if process == nil {
+			continue
+		}
+		if process.finished() {
+			delete(s.processes, processID)
+			if s.stale == nil {
+				s.stale = make(map[string]struct{})
+			}
+			s.stale[processID] = struct{}{}
+			continue
+		}
+		order = append(order, processID)
+	}
+	s.order = order
+}
+
+func (s *DefaultManager) maxTracked() int {
+	if s == nil || s.MaxTracked <= 0 {
+		return DefaultMaxTracked
+	}
+	return s.MaxTracked
+}
+
+func (s *DefaultManager) stopGracePeriod() time.Duration {
+	if s == nil || s.StopGracePeriod <= 0 {
+		return DefaultStopGracePeriod
+	}
+	return s.StopGracePeriod
 }
 
 func (p *trackedProcess) snapshot() Info {
@@ -271,6 +373,25 @@ func (p *trackedProcess) output() Output {
 		StdoutTruncated: p.stdout.wasTruncated(),
 		StderrTruncated: p.stderr.wasTruncated(),
 	}
+}
+
+func (p *trackedProcess) finished() bool {
+	if p == nil {
+		return true
+	}
+
+	if p.done != nil {
+		select {
+		case <-p.done:
+			return true
+		default:
+		}
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.info.Status != StatusRunning
 }
 
 func (b *recentBuffer) Write(data []byte) (int, error) {
