@@ -17,6 +17,7 @@ import (
 
 	readability "codeberg.org/readeck/go-readability/v2"
 	"github.com/wandxy/hand/internal/guardrails"
+	guardfetch "github.com/wandxy/hand/internal/guardrails/fetch"
 	"golang.org/x/net/html"
 )
 
@@ -38,24 +39,28 @@ var (
 		dialer := net.Dialer{Timeout: 10 * time.Second}
 		return dialer.DialContext(ctx, network, address)
 	}
-
-	nativeBlockedAddressPrefixes = []netip.Prefix{
-		netip.MustParsePrefix("0.0.0.0/8"),
-		netip.MustParsePrefix("100.64.0.0/10"),
-		netip.MustParsePrefix("192.0.0.0/24"),
-		netip.MustParsePrefix("192.0.2.0/24"),
-		netip.MustParsePrefix("192.88.99.0/24"),
-		netip.MustParsePrefix("198.18.0.0/15"),
-		netip.MustParsePrefix("198.51.100.0/24"),
-		netip.MustParsePrefix("203.0.113.0/24"),
-		netip.MustParsePrefix("240.0.0.0/4"),
-		netip.MustParsePrefix("64:ff9b::/96"),
-		netip.MustParsePrefix("64:ff9b:1::/48"),
-		netip.MustParsePrefix("100::/64"),
-		netip.MustParsePrefix("2001:db8::/32"),
-		netip.MustParsePrefix("2002::/16"),
-	}
 )
+
+type nativeFetchPolicy struct {
+	hostPolicy   guardrails.HostPolicy
+	websiteCheck func(context.Context, string) error
+}
+
+func (p nativeFetchPolicy) Check(ctx context.Context, parsed *url.URL) error {
+	if parsed == nil {
+		return nil
+	}
+
+	if block, blocked := p.hostPolicy.Check(parsed.Hostname()); blocked {
+		return errors.New(block.Message)
+	}
+
+	if p.websiteCheck == nil {
+		return nil
+	}
+
+	return p.websiteCheck(ctx, parsed.String())
+}
 
 type NativeProvider struct {
 	client                   *http.Client
@@ -192,147 +197,45 @@ func (p *NativeProvider) extract(ctx context.Context, rawURL, format string, max
 }
 
 func (p *NativeProvider) newHTTPClient() *http.Client {
-	transport := &http.Transport{
-		Proxy:                 nil,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: 15 * time.Second,
-		DialContext:           p.dialContext,
-	}
-
-	return &http.Client{
-		Timeout:   nativeDefaultTimeout,
-		Transport: transport,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 5 {
-				return errors.New("too many redirects")
-			}
-			_, err := p.validateURL(req.Context(), req.URL.String())
-			return err
-		},
-	}
+	return p.fetcher().NewHTTPClient(nativeDefaultTimeout)
 }
 
 func (p *NativeProvider) dialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	host, port, err := net.SplitHostPort(address)
-	if err != nil {
-		return nil, err
-	}
+	return p.fetcher().DialContext(ctx, network, address)
+}
 
-	addrs, err := p.resolveAndValidateHost(ctx, host)
-	if err != nil {
-		return nil, err
-	}
+func (p *NativeProvider) validateURL(ctx context.Context, rawURL string) (*url.URL, error) {
+	return p.fetcher().ValidateURL(ctx, rawURL)
+}
 
+func (p *NativeProvider) resolveAndValidateHost(ctx context.Context, host string) ([]netip.Addr, error) {
+	return p.fetcher().ResolveAndValidateHost(ctx, host)
+}
+
+func (p *NativeProvider) fetcher() *guardfetch.GuardedFetcher {
 	dial := p.dial
 	if dial == nil {
 		dial = nativeDefaultDialContext
 	}
 
-	var lastErr error
-	for _, addr := range addrs {
-		conn, err := dial(ctx, network, net.JoinHostPort(addr.String(), port))
-		if err == nil {
-			return conn, nil
-		}
-		lastErr = err
+	return &guardfetch.GuardedFetcher{
+		ResolveHost: p.resolveHost,
+		Dial:        dial,
+		Policy: nativeFetchPolicy{
+			hostPolicy: p.hostPolicy,
+			websiteCheck: func(ctx context.Context, rawURL string) error {
+				if block, blocked := extractWebsitePolicy(ctx).Check(rawURL); blocked {
+					return errors.New(block.Message)
+				}
+
+				return nil
+			},
+		},
 	}
-
-	return nil, lastErr
-}
-
-func (p *NativeProvider) validateURL(ctx context.Context, rawURL string) (*url.URL, error) {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return nil, err
-	}
-
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return nil, errors.New("url scheme must be http or https")
-	}
-
-	if strings.TrimSpace(parsed.Hostname()) == "" {
-		return nil, errors.New("url host is required")
-	}
-
-	if parsed.User != nil {
-		return nil, errors.New("url userinfo is not allowed")
-	}
-
-	if block, blocked := p.hostPolicy.Check(parsed.Hostname()); blocked {
-		return nil, errors.New(block.Message)
-	}
-
-	if block, blocked := extractWebsitePolicy(ctx).Check(parsed.String()); blocked {
-		return nil, errors.New(block.Message)
-	}
-
-	if _, err := p.resolveAndValidateHost(ctx, parsed.Hostname()); err != nil {
-		return nil, err
-	}
-
-	return parsed, nil
-}
-
-func (p *NativeProvider) resolveAndValidateHost(ctx context.Context, host string) ([]netip.Addr, error) {
-	host = strings.TrimSpace(host)
-	if host == "" {
-		return nil, errors.New("url host is required")
-	}
-
-	if addr, err := netip.ParseAddr(host); err == nil {
-		if !safeNativeAddr(addr) {
-			return nil, errors.New("url host resolves to a blocked address")
-		}
-		return []netip.Addr{addr}, nil
-	}
-
-	resolveHost := p.resolveHost
-	if resolveHost == nil {
-		resolveHost = func(ctx context.Context, host string) ([]netip.Addr, error) {
-			return net.DefaultResolver.LookupNetIP(ctx, "ip", host)
-		}
-	}
-
-	addrs, err := resolveHost(ctx, host)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(addrs) == 0 {
-		return nil, errors.New("url host resolved to no addresses")
-	}
-
-	for _, addr := range addrs {
-		if !safeNativeAddr(addr) {
-			return nil, errors.New("url host resolves to a blocked address")
-		}
-	}
-
-	return addrs, nil
 }
 
 func safeNativeAddr(addr netip.Addr) bool {
-	addr = addr.Unmap()
-
-	if !addr.IsValid() ||
-		!addr.IsGlobalUnicast() ||
-		addr.IsLoopback() ||
-		addr.IsPrivate() ||
-		addr.IsLinkLocalUnicast() ||
-		addr.IsLinkLocalMulticast() ||
-		addr.IsInterfaceLocalMulticast() ||
-		addr.IsMulticast() ||
-		addr.IsUnspecified() {
-		return false
-	}
-
-	for _, prefix := range nativeBlockedAddressPrefixes {
-		if prefix.Contains(addr) {
-			return false
-		}
-	}
-
-	return true
+	return guardfetch.SafeAddr(addr)
 }
 
 func readNativeResponse(body io.Reader, maxBytes int) ([]byte, bool, error) {
