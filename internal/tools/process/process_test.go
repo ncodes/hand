@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -34,6 +35,49 @@ func TestProcess_ToolValidatesAction(t *testing.T) {
 	result, err = definition.Handler.Invoke(context.Background(), tools.Call{Name: "process", Input: `{"action":"unknown"}`})
 	require.NoError(t, err)
 	requireToolError(t, result.Error, "invalid_input", `unsupported action "unknown"`)
+}
+
+func TestProcess_ToolRejectsReadOnlyFieldsForNonReadActions(t *testing.T) {
+	definition := Definition(&toolmocks.Runtime{})
+
+	testCases := []struct {
+		name    string
+		input   string
+		message string
+	}{
+		{
+			name:    "start next stdout cursor",
+			input:   `{"action":"start","command":"printf","stdout_cursor":0}`,
+			message: "stdout_cursor is only supported for read",
+		},
+		{
+			name:    "status next stderr cursor",
+			input:   `{"action":"status","process_id":"proc_1","stderr_cursor":0}`,
+			message: "stderr_cursor is only supported for read",
+		},
+		{
+			name:    "stop stdout bytes",
+			input:   `{"action":"stop","process_id":"proc_1","stdout_bytes":16}`,
+			message: "stdout_bytes is only supported for read",
+		},
+		{
+			name:    "list stderr bytes",
+			input:   `{"action":"list","stderr_bytes":16}`,
+			message: "stderr_bytes is only supported for read",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := definition.Handler.Invoke(context.Background(), tools.Call{
+				Name:  "process",
+				Input: tc.input,
+			})
+
+			require.NoError(t, err)
+			requireToolError(t, result.Error, "invalid_input", tc.message)
+		})
+	}
 }
 
 func TestProcess_ToolStartDelegatesToRuntime(t *testing.T) {
@@ -264,7 +308,7 @@ func TestProcess_ToolReadSupportsCursorSemantics(t *testing.T) {
 		},
 	}).Handler.Invoke(tools.WithSessionID(context.Background(), "session-42"), tools.Call{
 		Name:  "process",
-		Input: `{"action":"read","process_id":"proc_1","next_stdout_cursor":3}`,
+		Input: `{"action":"read","process_id":"proc_1","stdout_cursor":3}`,
 	})
 
 	require.NoError(t, err)
@@ -280,27 +324,72 @@ func TestProcess_ToolReadSupportsCursorSemantics(t *testing.T) {
 func TestProcess_ToolReadRejectsInvalidCursorCombinations(t *testing.T) {
 	result, err := Definition(&toolmocks.Runtime{}).Handler.Invoke(context.Background(), tools.Call{
 		Name:  "process",
-		Input: `{"action":"read","process_id":"proc_1","next_stdout_cursor":0,"stdout_bytes":4}`,
+		Input: `{"action":"read","process_id":"proc_1","stdout_cursor":0,"stdout_bytes":4}`,
 	})
 
 	require.NoError(t, err)
-	requireToolError(t, result.Error, "invalid_input", "next_stdout_cursor cannot be combined with stdout_bytes")
+	requireToolError(t, result.Error, "invalid_input", "stdout_cursor cannot be combined with stdout_bytes")
 
 	result, err = Definition(&toolmocks.Runtime{}).Handler.Invoke(context.Background(), tools.Call{
 		Name:  "process",
-		Input: `{"action":"read","process_id":"proc_1","next_stderr_cursor":0,"stderr_bytes":4}`,
+		Input: `{"action":"read","process_id":"proc_1","stderr_cursor":0,"stderr_bytes":4}`,
 	})
 
 	require.NoError(t, err)
-	requireToolError(t, result.Error, "invalid_input", "next_stderr_cursor cannot be combined with stderr_bytes")
+	requireToolError(t, result.Error, "invalid_input", "stderr_cursor cannot be combined with stderr_bytes")
 
 	result, err = Definition(&toolmocks.Runtime{}).Handler.Invoke(context.Background(), tools.Call{
 		Name:  "process",
-		Input: `{"action":"read","process_id":"proc_1","next_stdout_cursor":-1}`,
+		Input: `{"action":"read","process_id":"proc_1","stdout_cursor":-1}`,
 	})
 
 	require.NoError(t, err)
-	requireToolError(t, result.Error, "invalid_input", "next_stdout_cursor must be greater than or equal to zero")
+	requireToolError(t, result.Error, "invalid_input", "stdout_cursor must be greater than or equal to zero")
+
+	result, err = Definition(&toolmocks.Runtime{}).Handler.Invoke(context.Background(), tools.Call{
+		Name:  "process",
+		Input: `{"action":"read","process_id":"proc_1","stderr_cursor":-1}`,
+	})
+
+	require.NoError(t, err)
+	requireToolError(t, result.Error, "invalid_input", "stderr_cursor must be greater than or equal to zero")
+}
+
+func TestProcess_ToolReadSupportsStderrCursorSemantics(t *testing.T) {
+	result, err := Definition(&toolmocks.Runtime{
+		GetProcessFunc: func(sessionID string, processID string) (processenv.Info, error) {
+			require.Equal(t, "default", sessionID)
+			require.Equal(t, "proc_1", processID)
+			return processenv.Info{ID: processID, Status: processenv.StatusRunning}, nil
+		},
+		ReadProcessFunc: func(sessionID string, req processenv.ReadRequest) (processenv.Output, error) {
+			require.Equal(t, "default", sessionID)
+			require.Equal(t, "proc_1", req.ProcessID)
+			require.Nil(t, req.StdoutCursor)
+			require.NotNil(t, req.StderrCursor)
+			require.Equal(t, 2, *req.StderrCursor)
+			return processenv.Output{
+				Stdout:           "abcdef",
+				Stderr:           "xyz",
+				StdoutBytes:      6,
+				StderrBytes:      3,
+				NextStderrCursor: 3,
+				NextStdoutCursor: 6,
+			}, nil
+		},
+	}).Handler.Invoke(context.Background(), tools.Call{
+		Name:  "process",
+		Input: `{"action":"read","process_id":"proc_1","stderr_cursor":2,"stdout_bytes":3}`,
+	})
+
+	require.NoError(t, err)
+	var payload struct {
+		Output processenv.Output `json:"output"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Equal(t, "def", payload.Output.Stdout)
+	require.Equal(t, "xyz", payload.Output.Stderr)
+	require.Equal(t, 3, payload.Output.NextStderrCursor)
 }
 
 func TestProcess_ToolListReturnsProcesses(t *testing.T) {
@@ -463,6 +552,14 @@ func TestProcess_ToolRequiresRuntime(t *testing.T) {
 
 	require.NoError(t, err)
 	requireToolError(t, result.Error, "tool_error", "process manager is not configured")
+}
+
+func TestProcess_EncodeProcessOutputReturnsInternalErrorOnMarshalFailure(t *testing.T) {
+	result := encodeProcessOutput(map[string]any{
+		"bad": math.NaN(),
+	})
+
+	requireToolError(t, result.Error, "internal_error", "failed to encode tool output")
 }
 
 func requireToolError(t *testing.T, raw, code, message string) {

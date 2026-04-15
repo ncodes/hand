@@ -17,17 +17,17 @@ import (
 var processLog = logutils.InitLogger("tools.process")
 
 type input struct {
-	Action           string            `json:"action"`
-	Command          string            `json:"command"`
-	Args             []string          `json:"args"`
-	Cwd              string            `json:"cwd"`
-	Env              map[string]string `json:"env"`
-	OutputBytes      *int              `json:"output_buffer_bytes"`
-	ProcessID        string            `json:"process_id"`
-	NextStdoutCursor *int              `json:"next_stdout_cursor"`
-	NextStderrCursor *int              `json:"next_stderr_cursor"`
-	StdoutBytes      *int              `json:"stdout_bytes"`
-	StderrBytes      *int              `json:"stderr_bytes"`
+	Action       string            `json:"action"`
+	Command      string            `json:"command"`
+	Args         []string          `json:"args"`
+	Cwd          string            `json:"cwd"`
+	Env          map[string]string `json:"env"`
+	OutputBytes  *int              `json:"output_buffer_bytes"`
+	ProcessID    string            `json:"process_id"`
+	StdoutCursor *int              `json:"stdout_cursor"`
+	StderrCursor *int              `json:"stderr_cursor"`
+	StdoutBytes  *int              `json:"stdout_bytes"`
+	StderrBytes  *int              `json:"stderr_bytes"`
 }
 
 func Definition(runtime envtypes.Runtime) tools.Definition {
@@ -60,11 +60,11 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				"Optional maximum bytes to retain per stdout/stderr buffer for action=start.",
 			),
 			"process_id": common.StringSchema("Tracked process identifier. Required for status, read, and stop."),
-			"next_stdout_cursor": common.IntegerSchema(
-				"Optional next stdout cursor from a previous read for incremental reads on action=read.",
+			"stdout_cursor": common.IntegerSchema(
+				"Optional stdout cursor from a previous read for incremental reads on action=read.",
 			),
-			"next_stderr_cursor": common.IntegerSchema(
-				"Optional next stderr cursor from a previous read for incremental reads on action=read.",
+			"stderr_cursor": common.IntegerSchema(
+				"Optional stderr cursor from a previous read for incremental reads on action=read.",
 			),
 			"stdout_bytes": common.IntegerSchema(
 				"Optional maximum stdout bytes to return for action=read.",
@@ -85,6 +85,9 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 			action := strings.TrimSpace(strings.ToLower(req.Action))
 			if action == "" {
 				return common.ToolError("invalid_input", "action is required"), nil
+			}
+			if err := validateActionFields(action, req); err != nil {
+				return common.ToolError("invalid_input", err.Error()), nil
 			}
 
 			logEvent := processLog.Info().
@@ -186,8 +189,8 @@ func handleRead(ctx context.Context, runtime envtypes.Runtime, action string, re
 	logEvent.
 		Str("session_id", sessionID).
 		Bool("has_process_id", strings.TrimSpace(req.ProcessID) != "").
-		Bool("stdout_cursor", req.NextStdoutCursor != nil).
-		Bool("stderr_cursor", req.NextStderrCursor != nil).
+		Bool("stdout_cursor", req.StdoutCursor != nil).
+		Bool("stderr_cursor", req.StderrCursor != nil).
 		Bool("stdout_limit", req.StdoutBytes != nil).
 		Bool("stderr_limit", req.StderrBytes != nil).
 		Msg("tool call started")
@@ -196,18 +199,18 @@ func handleRead(ctx context.Context, runtime envtypes.Runtime, action string, re
 	if processID == "" {
 		return common.ToolError("invalid_input", "process_id is required for read")
 	}
-	if req.NextStdoutCursor != nil && req.StdoutBytes != nil {
-		return common.ToolError("invalid_input", "next_stdout_cursor cannot be combined with stdout_bytes")
+	if req.StdoutCursor != nil && req.StdoutBytes != nil {
+		return common.ToolError("invalid_input", "stdout_cursor cannot be combined with stdout_bytes")
 	}
-	if req.NextStderrCursor != nil && req.StderrBytes != nil {
-		return common.ToolError("invalid_input", "next_stderr_cursor cannot be combined with stderr_bytes")
+	if req.StderrCursor != nil && req.StderrBytes != nil {
+		return common.ToolError("invalid_input", "stderr_cursor cannot be combined with stderr_bytes")
 	}
 
-	stdoutCursor, err := resolveCursor(req.NextStdoutCursor, "next_stdout_cursor")
+	stdoutCursor, err := resolveCursor(req.StdoutCursor, "stdout_cursor")
 	if err != nil {
 		return common.ToolError("invalid_input", err.Error())
 	}
-	stderrCursor, err := resolveCursor(req.NextStderrCursor, "next_stderr_cursor")
+	stderrCursor, err := resolveCursor(req.StderrCursor, "stderr_cursor")
 	if err != nil {
 		return common.ToolError("invalid_input", err.Error())
 	}
@@ -336,6 +339,25 @@ func encodeProcessOutput(value any) tools.Result {
 	}
 
 	return result
+}
+
+func validateActionFields(action string, req input) error {
+	if action == "read" {
+		return nil
+	}
+
+	switch {
+	case req.StdoutCursor != nil:
+		return fmt.Errorf("stdout_cursor is only supported for read")
+	case req.StderrCursor != nil:
+		return fmt.Errorf("stderr_cursor is only supported for read")
+	case req.StdoutBytes != nil:
+		return fmt.Errorf("stdout_bytes is only supported for read")
+	case req.StderrBytes != nil:
+		return fmt.Errorf("stderr_bytes is only supported for read")
+	default:
+		return nil
+	}
 }
 
 func resolveBufferLimit(value *int, field string) (int, error) {
