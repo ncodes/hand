@@ -347,7 +347,6 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			}
 
 			agentLog.Debug().Str("tool", toolCall.Name).Str("tool_call_id", toolCall.ID).Msg("invoking tool")
-
 			traceSession.Record(trace.EvtToolInvocationStarted, toolCall)
 			toolCtx := tools.WithTraceRecorder(tools.WithSessionID(ctx, t.sessionID), traceSession)
 			toolMessage := t.invokeTool(toolCtx, toolCall)
