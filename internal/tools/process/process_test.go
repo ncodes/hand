@@ -39,7 +39,8 @@ func TestProcess_ToolValidatesAction(t *testing.T) {
 func TestProcess_ToolStartDelegatesToRuntime(t *testing.T) {
 	startedAt := time.Now().UTC()
 	result, err := Definition(&toolmocks.Runtime{
-		StartProcessFunc: func(_ context.Context, req processenv.StartRequest) (processenv.Info, error) {
+		StartProcessFunc: func(_ context.Context, sessionID string, req processenv.StartRequest) (processenv.Info, error) {
+			require.Equal(t, "session-1", sessionID)
 			require.Equal(t, "printf", req.Command)
 			require.Equal(t, []string{"hello"}, req.Args)
 			require.Equal(t, "workspace", req.CWD)
@@ -47,7 +48,7 @@ func TestProcess_ToolStartDelegatesToRuntime(t *testing.T) {
 			require.Equal(t, 32, req.OutputBufferBytes)
 			return processenv.Info{ID: "proc_1", Command: req.Command, Args: req.Args, CWD: req.CWD, Status: processenv.StatusRunning, StartedAt: startedAt}, nil
 		},
-	}).Handler.Invoke(context.Background(), tools.Call{
+	}).Handler.Invoke(tools.WithSessionID(context.Background(), "session-1"), tools.Call{
 		Name:  "process",
 		Input: `{"action":"start","command":" printf ","args":["hello"],"cwd":" workspace ","env":{"KEY":"value"},"output_buffer_bytes":32}`,
 	})
@@ -63,7 +64,8 @@ func TestProcess_ToolStartDelegatesToRuntime(t *testing.T) {
 
 func TestProcess_ToolStartPassesNilEnvWhenEmpty(t *testing.T) {
 	result, err := Definition(&toolmocks.Runtime{
-		StartProcessFunc: func(_ context.Context, req processenv.StartRequest) (processenv.Info, error) {
+		StartProcessFunc: func(_ context.Context, sessionID string, req processenv.StartRequest) (processenv.Info, error) {
+			require.Equal(t, "default", sessionID)
 			require.Nil(t, req.Env)
 			return processenv.Info{ID: "proc_1", Status: processenv.StatusRunning, StartedAt: time.Now().UTC()}, nil
 		},
@@ -98,7 +100,8 @@ func TestProcess_ToolValidatesOutputBufferBytesForStart(t *testing.T) {
 
 func TestProcess_ToolStatusReturnsProcess(t *testing.T) {
 	result, err := Definition(&toolmocks.Runtime{
-		GetProcessFunc: func(processID string) (processenv.Info, error) {
+		GetProcessFunc: func(sessionID string, processID string) (processenv.Info, error) {
+			require.Equal(t, "default", sessionID)
 			require.Equal(t, "proc_1", processID)
 			return processenv.Info{ID: processID, Status: processenv.StatusExited}, nil
 		},
@@ -134,11 +137,13 @@ func TestProcess_ToolStatusReadAndStopRequireProcessID(t *testing.T) {
 
 func TestProcess_ToolReadReturnsTrimmedOutput(t *testing.T) {
 	result, err := Definition(&toolmocks.Runtime{
-		GetProcessFunc: func(processID string) (processenv.Info, error) {
+		GetProcessFunc: func(sessionID string, processID string) (processenv.Info, error) {
+			require.Equal(t, "default", sessionID)
 			require.Equal(t, "proc_1", processID)
 			return processenv.Info{ID: processID, Status: processenv.StatusRunning}, nil
 		},
-		ReadProcessFunc: func(processID string) (processenv.Output, error) {
+		ReadProcessFunc: func(sessionID string, processID string) (processenv.Output, error) {
+			require.Equal(t, "default", sessionID)
 			require.Equal(t, "proc_1", processID)
 			return processenv.Output{Stdout: "abcdef", Stderr: "uvwxyz", StdoutBytes: 6, StderrBytes: 6}, nil
 		},
@@ -159,11 +164,13 @@ func TestProcess_ToolReadReturnsTrimmedOutput(t *testing.T) {
 
 func TestProcess_ToolReadTrimPreservesUTF8(t *testing.T) {
 	result, err := Definition(&toolmocks.Runtime{
-		GetProcessFunc: func(processID string) (processenv.Info, error) {
+		GetProcessFunc: func(sessionID string, processID string) (processenv.Info, error) {
+			require.Equal(t, "default", sessionID)
 			require.Equal(t, "proc_1", processID)
 			return processenv.Info{ID: processID, Status: processenv.StatusRunning}, nil
 		},
-		ReadProcessFunc: func(processID string) (processenv.Output, error) {
+		ReadProcessFunc: func(sessionID string, processID string) (processenv.Output, error) {
+			require.Equal(t, "default", sessionID)
 			require.Equal(t, "proc_1", processID)
 			return processenv.Output{Stdout: "AéB", StdoutBytes: len("AéB")}, nil
 		},
@@ -182,7 +189,8 @@ func TestProcess_ToolReadTrimPreservesUTF8(t *testing.T) {
 
 func TestProcess_ToolReadReturnsRuntimeGetError(t *testing.T) {
 	result, err := Definition(&toolmocks.Runtime{
-		GetProcessFunc: func(string) (processenv.Info, error) {
+		GetProcessFunc: func(sessionID string, _ string) (processenv.Info, error) {
+			require.Equal(t, "default", sessionID)
 			return processenv.Info{}, errors.New("process not found")
 		},
 	}).Handler.Invoke(context.Background(), tools.Call{
@@ -196,10 +204,12 @@ func TestProcess_ToolReadReturnsRuntimeGetError(t *testing.T) {
 
 func TestProcess_ToolReadReturnsRuntimeReadError(t *testing.T) {
 	result, err := Definition(&toolmocks.Runtime{
-		GetProcessFunc: func(processID string) (processenv.Info, error) {
+		GetProcessFunc: func(sessionID string, processID string) (processenv.Info, error) {
+			require.Equal(t, "default", sessionID)
 			return processenv.Info{ID: processID, Status: processenv.StatusRunning}, nil
 		},
-		ReadProcessFunc: func(string) (processenv.Output, error) {
+		ReadProcessFunc: func(sessionID string, _ string) (processenv.Output, error) {
+			require.Equal(t, "default", sessionID)
 			return processenv.Output{}, errors.New("read failed")
 		},
 	}).Handler.Invoke(context.Background(), tools.Call{
@@ -231,7 +241,8 @@ func TestProcess_ToolReadValidatesLimits(t *testing.T) {
 
 func TestProcess_ToolListReturnsProcesses(t *testing.T) {
 	result, err := Definition(&toolmocks.Runtime{
-		ListProcessesFunc: func() []processenv.Info {
+		ListProcessesFunc: func(sessionID string) []processenv.Info {
+			require.Equal(t, "default", sessionID)
 			return []processenv.Info{
 				{ID: "proc_1", Status: processenv.StatusRunning},
 				{ID: "proc_2", Status: processenv.StatusExited}}
@@ -251,7 +262,7 @@ func TestProcess_ToolListReturnsProcesses(t *testing.T) {
 
 func TestProcess_ToolReturnsRuntimeErrors(t *testing.T) {
 	result, err := Definition(&toolmocks.Runtime{
-		StartProcessFunc: func(context.Context, processenv.StartRequest) (processenv.Info, error) {
+		StartProcessFunc: func(context.Context, string, processenv.StartRequest) (processenv.Info, error) {
 			return processenv.Info{}, errors.New("start failed")
 		},
 	}).Handler.Invoke(context.Background(), tools.Call{
@@ -263,7 +274,7 @@ func TestProcess_ToolReturnsRuntimeErrors(t *testing.T) {
 	requireToolError(t, result.Error, "tool_error", "start failed")
 
 	result, err = Definition(&toolmocks.Runtime{
-		GetProcessFunc: func(string) (processenv.Info, error) {
+		GetProcessFunc: func(string, string) (processenv.Info, error) {
 			return processenv.Info{}, errors.New("process not found")
 		},
 	}).Handler.Invoke(context.Background(), tools.Call{
@@ -275,7 +286,7 @@ func TestProcess_ToolReturnsRuntimeErrors(t *testing.T) {
 	requireToolError(t, result.Error, "tool_error", "process not found")
 
 	result, err = Definition(&toolmocks.Runtime{
-		StopProcessFunc: func(context.Context, string) (processenv.Info, error) {
+		StopProcessFunc: func(context.Context, string, string) (processenv.Info, error) {
 			return processenv.Info{}, errors.New("process not found")
 		},
 	}).Handler.Invoke(context.Background(), tools.Call{
@@ -289,7 +300,8 @@ func TestProcess_ToolReturnsRuntimeErrors(t *testing.T) {
 
 func TestProcess_ToolStopReturnsProcess(t *testing.T) {
 	result, err := Definition(&toolmocks.Runtime{
-		StopProcessFunc: func(_ context.Context, processID string) (processenv.Info, error) {
+		StopProcessFunc: func(_ context.Context, sessionID string, processID string) (processenv.Info, error) {
+			require.Equal(t, "default", sessionID)
 			require.Equal(t, "proc_1", processID)
 			return processenv.Info{ID: processID, Status: processenv.StatusStopped}, nil
 		},
@@ -305,6 +317,78 @@ func TestProcess_ToolStopReturnsProcess(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
 	require.Equal(t, "proc_1", payload.Process.ID)
 	require.Equal(t, processenv.StatusStopped, payload.Process.Status)
+}
+
+func TestProcess_ToolPropagatesExplicitSessionIDForNonStartActions(t *testing.T) {
+	ctx := tools.WithSessionID(context.Background(), "session-42")
+
+	t.Run("status", func(t *testing.T) {
+		result, err := Definition(&toolmocks.Runtime{
+			GetProcessFunc: func(sessionID string, processID string) (processenv.Info, error) {
+				require.Equal(t, "session-42", sessionID)
+				require.Equal(t, "proc_1", processID)
+				return processenv.Info{ID: processID, Status: processenv.StatusExited}, nil
+			},
+		}).Handler.Invoke(ctx, tools.Call{
+			Name:  "process",
+			Input: `{"action":"status","process_id":"proc_1"}`,
+		})
+
+		require.NoError(t, err)
+		require.Empty(t, result.Error)
+	})
+
+	t.Run("read", func(t *testing.T) {
+		result, err := Definition(&toolmocks.Runtime{
+			GetProcessFunc: func(sessionID string, processID string) (processenv.Info, error) {
+				require.Equal(t, "session-42", sessionID)
+				require.Equal(t, "proc_1", processID)
+				return processenv.Info{ID: processID, Status: processenv.StatusRunning}, nil
+			},
+			ReadProcessFunc: func(sessionID string, processID string) (processenv.Output, error) {
+				require.Equal(t, "session-42", sessionID)
+				require.Equal(t, "proc_1", processID)
+				return processenv.Output{Stdout: "hello"}, nil
+			},
+		}).Handler.Invoke(ctx, tools.Call{
+			Name:  "process",
+			Input: `{"action":"read","process_id":"proc_1"}`,
+		})
+
+		require.NoError(t, err)
+		require.Empty(t, result.Error)
+	})
+
+	t.Run("stop", func(t *testing.T) {
+		result, err := Definition(&toolmocks.Runtime{
+			StopProcessFunc: func(_ context.Context, sessionID string, processID string) (processenv.Info, error) {
+				require.Equal(t, "session-42", sessionID)
+				require.Equal(t, "proc_1", processID)
+				return processenv.Info{ID: processID, Status: processenv.StatusStopped}, nil
+			},
+		}).Handler.Invoke(ctx, tools.Call{
+			Name:  "process",
+			Input: `{"action":"stop","process_id":"proc_1"}`,
+		})
+
+		require.NoError(t, err)
+		require.Empty(t, result.Error)
+	})
+
+	t.Run("list", func(t *testing.T) {
+		result, err := Definition(&toolmocks.Runtime{
+			ListProcessesFunc: func(sessionID string) []processenv.Info {
+				require.Equal(t, "session-42", sessionID)
+				return []processenv.Info{{ID: "proc_1", Status: processenv.StatusRunning}}
+			},
+		}).Handler.Invoke(ctx, tools.Call{
+			Name:  "process",
+			Input: `{"action":"list"}`,
+		})
+
+		require.NoError(t, err)
+		require.Empty(t, result.Error)
+	})
 }
 
 func TestProcess_ToolRequiresRuntime(t *testing.T) {

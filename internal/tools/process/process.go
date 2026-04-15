@@ -89,16 +89,16 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return handleStart(ctx, runtime, action, req, logEvent), nil
 
 			case "status":
-				return handleStatus(runtime, action, req, logEvent), nil
+				return handleStatus(ctx, runtime, action, req, logEvent), nil
 
 			case "read":
-				return handleRead(runtime, action, req, logEvent), nil
+				return handleRead(ctx, runtime, action, req, logEvent), nil
 
 			case "stop":
 				return handleStop(ctx, runtime, action, req, logEvent), nil
 
 			case "list":
-				return handleList(runtime, action, logEvent), nil
+				return handleList(ctx, runtime, action, logEvent), nil
 
 			default:
 				return common.ToolError("invalid_input", fmt.Sprintf("unsupported action %q", action)), nil
@@ -114,7 +114,9 @@ func handleStart(
 	req input,
 	logEvent anyLogEvent,
 ) tools.Result {
+	sessionID := normalizeSessionID(ctx)
 	logEvent.
+		Str("session_id", sessionID).
 		Bool("cwd_provided", strings.TrimSpace(req.Cwd) != "").
 		Int("args_count", len(req.Args)).
 		Int("env_overrides", len(req.Env)).
@@ -131,7 +133,7 @@ func handleStart(
 		return common.ToolError("invalid_input", err.Error())
 	}
 
-	info, err := runtime.StartProcess(ctx, processenv.StartRequest{
+	info, err := runtime.StartProcess(ctx, sessionID, processenv.StartRequest{
 		Command:           command,
 		Args:              append([]string(nil), req.Args...),
 		CWD:               strings.TrimSpace(req.Cwd),
@@ -148,8 +150,10 @@ func handleStart(
 	return encodeProcessOutput(map[string]any{"process": info})
 }
 
-func handleStatus(runtime envtypes.Runtime, action string, req input, logEvent anyLogEvent) tools.Result {
+func handleStatus(ctx context.Context, runtime envtypes.Runtime, action string, req input, logEvent anyLogEvent) tools.Result {
+	sessionID := normalizeSessionID(ctx)
 	logEvent.
+		Str("session_id", sessionID).
 		Bool("has_process_id", strings.TrimSpace(req.ProcessID) != "").
 		Msg("tool call started")
 
@@ -158,7 +162,7 @@ func handleStatus(runtime envtypes.Runtime, action string, req input, logEvent a
 		return common.ToolError("invalid_input", "process_id is required for status")
 	}
 
-	info, err := runtime.GetProcess(processID)
+	info, err := runtime.GetProcess(sessionID, processID)
 	if err != nil {
 		logProcessError(action, "status_failed")
 		return common.ToolError("tool_error", err.Error())
@@ -169,8 +173,10 @@ func handleStatus(runtime envtypes.Runtime, action string, req input, logEvent a
 	return encodeProcessOutput(map[string]any{"process": info})
 }
 
-func handleRead(runtime envtypes.Runtime, action string, req input, logEvent anyLogEvent) tools.Result {
+func handleRead(ctx context.Context, runtime envtypes.Runtime, action string, req input, logEvent anyLogEvent) tools.Result {
+	sessionID := normalizeSessionID(ctx)
 	logEvent.
+		Str("session_id", sessionID).
 		Bool("has_process_id", strings.TrimSpace(req.ProcessID) != "").
 		Bool("stdout_limit", req.StdoutBytes != nil).
 		Bool("stderr_limit", req.StderrBytes != nil).
@@ -191,13 +197,13 @@ func handleRead(runtime envtypes.Runtime, action string, req input, logEvent any
 		return common.ToolError("invalid_input", err.Error())
 	}
 
-	info, err := runtime.GetProcess(processID)
+	info, err := runtime.GetProcess(sessionID, processID)
 	if err != nil {
 		logProcessError(action, "read_failed")
 		return common.ToolError("tool_error", err.Error())
 	}
 
-	output, err := runtime.ReadProcess(processID)
+	output, err := runtime.ReadProcess(sessionID, processID)
 	if err != nil {
 		logProcessError(action, "read_failed")
 		return common.ToolError("tool_error", err.Error())
@@ -221,7 +227,9 @@ func handleStop(
 	req input,
 	logEvent anyLogEvent,
 ) tools.Result {
+	sessionID := normalizeSessionID(ctx)
 	logEvent.
+		Str("session_id", sessionID).
 		Bool("has_process_id", strings.TrimSpace(req.ProcessID) != "").
 		Msg("tool call started")
 
@@ -230,7 +238,7 @@ func handleStop(
 		return common.ToolError("invalid_input", "process_id is required for stop")
 	}
 
-	info, err := runtime.StopProcess(ctx, processID)
+	info, err := runtime.StopProcess(ctx, sessionID, processID)
 	if err != nil {
 		logProcessError(action, "stop_failed")
 		return common.ToolError("tool_error", err.Error())
@@ -241,10 +249,11 @@ func handleStop(
 	return encodeProcessOutput(map[string]any{"process": info})
 }
 
-func handleList(runtime envtypes.Runtime, action string, logEvent anyLogEvent) tools.Result {
-	logEvent.Msg("tool call started")
+func handleList(ctx context.Context, runtime envtypes.Runtime, action string, logEvent anyLogEvent) tools.Result {
+	sessionID := normalizeSessionID(ctx)
+	logEvent.Str("session_id", sessionID).Msg("tool call started")
 
-	processes := runtime.ListProcesses()
+	processes := runtime.ListProcesses(sessionID)
 
 	processLog.Info().
 		Str("tool", "process").
@@ -257,6 +266,7 @@ func handleList(runtime envtypes.Runtime, action string, logEvent anyLogEvent) t
 }
 
 type anyLogEvent interface {
+	Str(string, string) *zerolog.Event
 	Bool(string, bool) *zerolog.Event
 	Int(string, int) *zerolog.Event
 	Msg(string)
@@ -327,4 +337,12 @@ func cloneEnv(env map[string]string) map[string]string {
 		cloned[key] = value
 	}
 	return cloned
+}
+
+func normalizeSessionID(ctx context.Context) string {
+	sessionID := strings.TrimSpace(tools.SessionIDFromContext(ctx))
+	if sessionID == "" {
+		return "default"
+	}
+	return sessionID
 }

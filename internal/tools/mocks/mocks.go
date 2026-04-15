@@ -15,42 +15,42 @@ import (
 type Runtime struct {
 	FilePolicyValue    guardrails.FilesystemPolicy
 	CommandPolicyValue guardrails.CommandPolicy
-	StartProcessFunc   func(context.Context, processenv.StartRequest) (processenv.Info, error)
-	GetProcessFunc     func(string) (processenv.Info, error)
-	ReadProcessFunc    func(string) (processenv.Output, error)
-	StopProcessFunc    func(context.Context, string) (processenv.Info, error)
-	ListProcessesFunc  func() []processenv.Info
+	StartProcessFunc   func(context.Context, string, processenv.StartRequest) (processenv.Info, error)
+	GetProcessFunc     func(string, string) (processenv.Info, error)
+	ReadProcessFunc    func(string, string) (processenv.Output, error)
+	StopProcessFunc    func(context.Context, string, string) (processenv.Info, error)
+	ListProcessesFunc  func(string) []processenv.Info
 }
 
 func (r *Runtime) FilePolicy() guardrails.FilesystemPolicy { return r.FilePolicyValue }
 func (r *Runtime) CommandPolicy() guardrails.CommandPolicy { return r.CommandPolicyValue }
-func (r *Runtime) StartProcess(ctx context.Context, req processenv.StartRequest) (processenv.Info, error) {
+func (r *Runtime) StartProcess(ctx context.Context, sessionID string, req processenv.StartRequest) (processenv.Info, error) {
 	if r != nil && r.StartProcessFunc != nil {
-		return r.StartProcessFunc(ctx, req)
+		return r.StartProcessFunc(ctx, sessionID, req)
 	}
 	return processenv.Info{}, nil
 }
-func (r *Runtime) GetProcess(processID string) (processenv.Info, error) {
+func (r *Runtime) GetProcess(sessionID string, processID string) (processenv.Info, error) {
 	if r != nil && r.GetProcessFunc != nil {
-		return r.GetProcessFunc(processID)
+		return r.GetProcessFunc(sessionID, processID)
 	}
 	return processenv.Info{}, nil
 }
-func (r *Runtime) ReadProcess(processID string) (processenv.Output, error) {
+func (r *Runtime) ReadProcess(sessionID string, processID string) (processenv.Output, error) {
 	if r != nil && r.ReadProcessFunc != nil {
-		return r.ReadProcessFunc(processID)
+		return r.ReadProcessFunc(sessionID, processID)
 	}
 	return processenv.Output{}, nil
 }
-func (r *Runtime) StopProcess(ctx context.Context, processID string) (processenv.Info, error) {
+func (r *Runtime) StopProcess(ctx context.Context, sessionID string, processID string) (processenv.Info, error) {
 	if r != nil && r.StopProcessFunc != nil {
-		return r.StopProcessFunc(ctx, processID)
+		return r.StopProcessFunc(ctx, sessionID, processID)
 	}
 	return processenv.Info{}, nil
 }
-func (r *Runtime) ListProcesses() []processenv.Info {
+func (r *Runtime) ListProcesses(sessionID string) []processenv.Info {
 	if r != nil && r.ListProcessesFunc != nil {
-		return r.ListProcessesFunc()
+		return r.ListProcessesFunc(sessionID)
 	}
 	return nil
 }
@@ -105,20 +105,20 @@ func (d *FailingPlanRuntime) FilePolicy() guardrails.FilesystemPolicy { return d
 func (d *FailingPlanRuntime) CommandPolicy() guardrails.CommandPolicy {
 	return d.Runtime.CommandPolicy()
 }
-func (d *FailingPlanRuntime) StartProcess(ctx context.Context, req processenv.StartRequest) (processenv.Info, error) {
-	return d.Runtime.StartProcess(ctx, req)
+func (d *FailingPlanRuntime) StartProcess(ctx context.Context, sessionID string, req processenv.StartRequest) (processenv.Info, error) {
+	return d.Runtime.StartProcess(ctx, sessionID, req)
 }
-func (d *FailingPlanRuntime) GetProcess(processID string) (processenv.Info, error) {
-	return d.Runtime.GetProcess(processID)
+func (d *FailingPlanRuntime) GetProcess(sessionID string, processID string) (processenv.Info, error) {
+	return d.Runtime.GetProcess(sessionID, processID)
 }
-func (d *FailingPlanRuntime) ReadProcess(processID string) (processenv.Output, error) {
-	return d.Runtime.ReadProcess(processID)
+func (d *FailingPlanRuntime) ReadProcess(sessionID string, processID string) (processenv.Output, error) {
+	return d.Runtime.ReadProcess(sessionID, processID)
 }
-func (d *FailingPlanRuntime) StopProcess(ctx context.Context, processID string) (processenv.Info, error) {
-	return d.Runtime.StopProcess(ctx, processID)
+func (d *FailingPlanRuntime) StopProcess(ctx context.Context, sessionID string, processID string) (processenv.Info, error) {
+	return d.Runtime.StopProcess(ctx, sessionID, processID)
 }
-func (d *FailingPlanRuntime) ListProcesses() []processenv.Info {
-	return d.Runtime.ListProcesses()
+func (d *FailingPlanRuntime) ListProcesses(sessionID string) []processenv.Info {
+	return d.Runtime.ListProcesses(sessionID)
 }
 func (d *FailingPlanRuntime) GetPlan(sessionID string) envtypes.Plan {
 	return d.Runtime.GetPlan(sessionID)

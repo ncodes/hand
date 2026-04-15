@@ -51,39 +51,39 @@ func (r *Runtime) CommandPolicy() guardrails.CommandPolicy {
 	return r.commandPolicy
 }
 
-func (r *Runtime) StartProcess(ctx context.Context, req processenv.StartRequest) (processenv.Info, error) {
+func (r *Runtime) StartProcess(ctx context.Context, sessionID string, req processenv.StartRequest) (processenv.Info, error) {
 	if r == nil || r.processes == nil {
 		return processenv.Info{}, errors.New("process manager is required")
 	}
-	return r.processes.Start(ctx, req)
+	return r.processes.Start(ctx, sessionID, req)
 }
 
-func (r *Runtime) GetProcess(processID string) (processenv.Info, error) {
+func (r *Runtime) GetProcess(sessionID string, processID string) (processenv.Info, error) {
 	if r == nil || r.processes == nil {
 		return processenv.Info{}, errors.New("process manager is required")
 	}
-	return r.processes.Get(processID)
+	return r.processes.Get(sessionID, processID)
 }
 
-func (r *Runtime) ReadProcess(processID string) (processenv.Output, error) {
+func (r *Runtime) ReadProcess(sessionID string, processID string) (processenv.Output, error) {
 	if r == nil || r.processes == nil {
 		return processenv.Output{}, errors.New("process manager is required")
 	}
-	return r.processes.Read(processID)
+	return r.processes.Read(sessionID, processID)
 }
 
-func (r *Runtime) StopProcess(ctx context.Context, processID string) (processenv.Info, error) {
+func (r *Runtime) StopProcess(ctx context.Context, sessionID string, processID string) (processenv.Info, error) {
 	if r == nil || r.processes == nil {
 		return processenv.Info{}, errors.New("process manager is required")
 	}
-	return r.processes.Stop(ctx, processID)
+	return r.processes.Stop(ctx, sessionID, processID)
 }
 
-func (r *Runtime) ListProcesses() []processenv.Info {
+func (r *Runtime) ListProcesses(sessionID string) []processenv.Info {
 	if r == nil || r.processes == nil {
 		return nil
 	}
-	return r.processes.List()
+	return r.processes.List(sessionID)
 }
 
 func (r *Runtime) GetPlan(sessionID string) envtypes.Plan {

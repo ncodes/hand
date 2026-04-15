@@ -11,34 +11,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testSessionID = "session-1"
+
 func TestManager_StartGetReadListAndExit(t *testing.T) {
 	manager := &DefaultManager{}
 
-	info, err := manager.Start(context.Background(), testPrintRequest("hello", 32))
+	info, err := manager.Start(context.Background(), testSessionID, testPrintRequest("hello", 32))
 	require.NoError(t, err)
 	require.Equal(t, StatusRunning, info.Status)
 	require.NotEmpty(t, info.ID)
 
 	require.Eventually(t, func() bool {
-		current, err := manager.Get(info.ID)
+		current, err := manager.Get(testSessionID, info.ID)
 		require.NoError(t, err)
 		return current.Status == StatusExited
 	}, 5*time.Second, 20*time.Millisecond)
 
-	current, err := manager.Get(info.ID)
+	current, err := manager.Get(testSessionID, info.ID)
 	require.NoError(t, err)
 	require.Equal(t, StatusExited, current.Status)
 	require.NotNil(t, current.ExitCode)
 	require.Equal(t, 0, *current.ExitCode)
 	require.NotNil(t, current.EndedAt)
 
-	output, err := manager.Read(info.ID)
+	output, err := manager.Read(testSessionID, info.ID)
 	require.NoError(t, err)
 	require.Equal(t, "hello", output.Stdout)
 	require.Empty(t, output.Stderr)
 	require.Equal(t, len("hello"), output.StdoutBytes)
 
-	list := manager.List()
+	list := manager.List(testSessionID)
 	require.Len(t, list, 1)
 	require.Equal(t, info.ID, list[0].ID)
 }
@@ -46,16 +48,16 @@ func TestManager_StartGetReadListAndExit(t *testing.T) {
 func TestManager_BoundsRecentOutput(t *testing.T) {
 	manager := &DefaultManager{}
 
-	info, err := manager.Start(context.Background(), testPrintRequest("abcdef", 3))
+	info, err := manager.Start(context.Background(), testSessionID, testPrintRequest("abcdef", 3))
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		current, err := manager.Get(info.ID)
+		current, err := manager.Get(testSessionID, info.ID)
 		require.NoError(t, err)
 		return current.Status == StatusExited
 	}, 5*time.Second, 20*time.Millisecond)
 
-	output, err := manager.Read(info.ID)
+	output, err := manager.Read(testSessionID, info.ID)
 	require.NoError(t, err)
 	require.Equal(t, "def", output.Stdout)
 	require.True(t, output.StdoutTruncated)
@@ -65,15 +67,15 @@ func TestManager_BoundsRecentOutput(t *testing.T) {
 func TestManager_StopMarksStopped(t *testing.T) {
 	manager := &DefaultManager{}
 
-	info, err := manager.Start(context.Background(), testSleepRequest())
+	info, err := manager.Start(context.Background(), testSessionID, testSleepRequest())
 	require.NoError(t, err)
 
-	stopped, err := manager.Stop(context.Background(), info.ID)
+	stopped, err := manager.Stop(context.Background(), testSessionID, info.ID)
 	require.NoError(t, err)
 	require.Equal(t, StatusStopped, stopped.Status)
 
 	require.Eventually(t, func() bool {
-		current, err := manager.Get(info.ID)
+		current, err := manager.Get(testSessionID, info.ID)
 		require.NoError(t, err)
 		return current.Status == StatusStopped && current.EndedAt != nil
 	}, 5*time.Second, 20*time.Millisecond)
@@ -82,10 +84,10 @@ func TestManager_StopMarksStopped(t *testing.T) {
 func TestManager_StopAcceptsNilContext(t *testing.T) {
 	manager := &DefaultManager{}
 
-	info, err := manager.Start(context.Background(), testSleepRequest())
+	info, err := manager.Start(context.Background(), testSessionID, testSleepRequest())
 	require.NoError(t, err)
 
-	stopped, err := manager.Stop(nil, info.ID)
+	stopped, err := manager.Stop(nil, testSessionID, info.ID)
 	require.NoError(t, err)
 	require.Equal(t, StatusStopped, stopped.Status)
 }
@@ -94,56 +96,56 @@ func TestManager_StartDetachesFromCallerContextAfterLaunch(t *testing.T) {
 	manager := &DefaultManager{}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	info, err := manager.Start(ctx, testSleepRequest())
+	info, err := manager.Start(ctx, testSessionID, testSleepRequest())
 	require.NoError(t, err)
 
 	cancel()
 
 	require.Eventually(t, func() bool {
-		current, getErr := manager.Get(info.ID)
+		current, getErr := manager.Get(testSessionID, info.ID)
 		require.NoError(t, getErr)
 		return current.Status == StatusRunning
 	}, time.Second, 20*time.Millisecond)
 
-	_, err = manager.Stop(context.Background(), info.ID)
+	_, err = manager.Stop(context.Background(), testSessionID, info.ID)
 	require.NoError(t, err)
 }
 
 func TestManager_ValidatesMissingProcessAndCommand(t *testing.T) {
 	manager := &DefaultManager{}
 
-	_, err := manager.Start(context.Background(), StartRequest{})
+	_, err := manager.Start(context.Background(), testSessionID, StartRequest{})
 	require.EqualError(t, err, "command is required")
 
 	canceledCtx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err = manager.Start(canceledCtx, testPrintRequest("hello", 32))
+	_, err = manager.Start(canceledCtx, testSessionID, testPrintRequest("hello", 32))
 	require.EqualError(t, err, context.Canceled.Error())
 
-	_, err = manager.Get(" ")
+	_, err = manager.Get(testSessionID, " ")
 	require.EqualError(t, err, "process id is required")
 
-	_, err = manager.Read("missing")
+	_, err = manager.Read(testSessionID, "missing")
 	require.EqualError(t, err, "process not found")
 
-	_, err = manager.Stop(context.Background(), "missing")
+	_, err = manager.Stop(context.Background(), testSessionID, "missing")
 	require.EqualError(t, err, "process not found")
 }
 
 func TestManager_StartHandlesNilContextAndStartFailure(t *testing.T) {
 	manager := &DefaultManager{}
 
-	info, err := manager.Start(nil, testPrintRequest("hello", 32))
+	info, err := manager.Start(nil, testSessionID, testPrintRequest("hello", 32))
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		current, getErr := manager.Get(info.ID)
+		current, getErr := manager.Get(testSessionID, info.ID)
 		require.NoError(t, getErr)
 		return current.Status == StatusExited
 	}, 5*time.Second, 20*time.Millisecond)
 
-	_, err = manager.Start(context.Background(), StartRequest{
+	_, err = manager.Start(context.Background(), testSessionID, StartRequest{
 		Command: "command-that-does-not-exist-hand",
 		Args:    []string{"arg"},
 	})
@@ -172,16 +174,16 @@ func TestManager_StartAppliesEnvOverrides(t *testing.T) {
 		}
 	}
 
-	info, err := manager.Start(context.Background(), req)
+	info, err := manager.Start(context.Background(), testSessionID, req)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		current, getErr := manager.Get(info.ID)
+		current, getErr := manager.Get(testSessionID, info.ID)
 		require.NoError(t, getErr)
 		return current.Status == StatusExited
 	}, 5*time.Second, 20*time.Millisecond)
 
-	output, err := manager.Read(info.ID)
+	output, err := manager.Read(testSessionID, info.ID)
 	require.NoError(t, err)
 	require.Equal(t, "hello", output.Stdout)
 }
@@ -189,9 +191,9 @@ func TestManager_StartAppliesEnvOverrides(t *testing.T) {
 func TestManager_WaitMarksExitedForNonZeroExitCode(t *testing.T) {
 	manager := &DefaultManager{}
 
-	info, err := manager.Start(context.Background(), StartRequest{Command: "false"})
+	info, err := manager.Start(context.Background(), testSessionID, StartRequest{Command: "false"})
 	if runtime.GOOS == "windows" {
-		info, err = manager.Start(context.Background(), StartRequest{
+		info, err = manager.Start(context.Background(), testSessionID, StartRequest{
 			Command: "cmd",
 			Args:    []string{"/C", "exit 2"},
 		})
@@ -199,7 +201,7 @@ func TestManager_WaitMarksExitedForNonZeroExitCode(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		current, getErr := manager.Get(info.ID)
+		current, getErr := manager.Get(testSessionID, info.ID)
 		require.NoError(t, getErr)
 		return current.Status == StatusExited && current.ExitCode != nil && *current.ExitCode != 0
 	}, 5*time.Second, 20*time.Millisecond)
@@ -208,34 +210,34 @@ func TestManager_WaitMarksExitedForNonZeroExitCode(t *testing.T) {
 func TestManager_HandlesNilReceiver(t *testing.T) {
 	var manager *DefaultManager
 
-	_, err := manager.Start(context.Background(), StartRequest{Command: "printf", Args: []string{"hello"}})
+	_, err := manager.Start(context.Background(), testSessionID, StartRequest{Command: "printf", Args: []string{"hello"}})
 	require.EqualError(t, err, "process manager is required")
 
-	_, err = manager.Get("proc_1")
+	_, err = manager.Get(testSessionID, "proc_1")
 	require.EqualError(t, err, "process manager is required")
 
-	_, err = manager.Read("proc_1")
+	_, err = manager.Read(testSessionID, "proc_1")
 	require.EqualError(t, err, "process manager is required")
 
-	_, err = manager.Stop(context.Background(), "proc_1")
+	_, err = manager.Stop(context.Background(), testSessionID, "proc_1")
 	require.EqualError(t, err, "process manager is required")
 
-	require.Nil(t, manager.List())
+	require.Nil(t, manager.List(testSessionID))
 }
 
 func TestManager_StopReturnsExistingSnapshotWhenAlreadyNotRunning(t *testing.T) {
 	manager := &DefaultManager{}
 
-	info, err := manager.Start(context.Background(), testPrintRequest("hello", 32))
+	info, err := manager.Start(context.Background(), testSessionID, testPrintRequest("hello", 32))
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		current, getErr := manager.Get(info.ID)
+		current, getErr := manager.Get(testSessionID, info.ID)
 		require.NoError(t, getErr)
 		return current.Status == StatusExited
 	}, 5*time.Second, 20*time.Millisecond)
 
-	stopped, err := manager.Stop(context.Background(), info.ID)
+	stopped, err := manager.Stop(context.Background(), testSessionID, info.ID)
 	require.NoError(t, err)
 	require.Equal(t, StatusExited, stopped.Status)
 }
@@ -243,113 +245,148 @@ func TestManager_StopReturnsExistingSnapshotWhenAlreadyNotRunning(t *testing.T) 
 func TestManager_StartRejectsWhenCapacityIsReachedByRunningProcess(t *testing.T) {
 	manager := &DefaultManager{MaxTracked: 1}
 
-	info, err := manager.Start(context.Background(), testSleepRequest())
+	info, err := manager.Start(context.Background(), testSessionID, testSleepRequest())
 	require.NoError(t, err)
 
-	_, err = manager.Start(context.Background(), testSleepRequest())
+	_, err = manager.Start(context.Background(), testSessionID, testSleepRequest())
 	require.EqualError(t, err, "process manager is at capacity")
 
-	_, stopErr := manager.Stop(context.Background(), info.ID)
+	_, stopErr := manager.Stop(context.Background(), testSessionID, info.ID)
 	require.NoError(t, stopErr)
 }
 
 func TestManager_StartCleansUpFinishedProcessesAndMarksStaleIDs(t *testing.T) {
 	manager := &DefaultManager{MaxTracked: 1}
 
-	info, err := manager.Start(context.Background(), testPrintRequest("hello", 32))
+	info, err := manager.Start(context.Background(), testSessionID, testPrintRequest("hello", 32))
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		current, getErr := manager.Get(info.ID)
+		current, getErr := manager.Get(testSessionID, info.ID)
 		require.NoError(t, getErr)
 		return current.Status == StatusExited
 	}, 5*time.Second, 20*time.Millisecond)
 
-	next, err := manager.Start(context.Background(), testSleepRequest())
+	next, err := manager.Start(context.Background(), testSessionID, testSleepRequest())
 	require.NoError(t, err)
 
-	_, err = manager.Get(info.ID)
+	_, err = manager.Get(testSessionID, info.ID)
 	require.EqualError(t, err, "process is no longer retained")
 
-	list := manager.List()
+	list := manager.List(testSessionID)
 	require.Len(t, list, 1)
 	require.Equal(t, next.ID, list[0].ID)
 
-	_, stopErr := manager.Stop(context.Background(), next.ID)
+	_, stopErr := manager.Stop(context.Background(), testSessionID, next.ID)
+	require.NoError(t, stopErr)
+}
+
+func TestManager_IsolatesProcessesBySession(t *testing.T) {
+	manager := &DefaultManager{MaxTracked: 1}
+
+	first, err := manager.Start(context.Background(), "session-a", testSleepRequest())
+	require.NoError(t, err)
+
+	second, err := manager.Start(context.Background(), "session-b", testSleepRequest())
+	require.NoError(t, err)
+
+	require.Equal(t, "proc_1", first.ID)
+	require.Equal(t, "proc_1", second.ID)
+
+	listA := manager.List("session-a")
+	require.Len(t, listA, 1)
+	require.Equal(t, first.ID, listA[0].ID)
+
+	listB := manager.List("session-b")
+	require.Len(t, listB, 1)
+	require.Equal(t, second.ID, listB[0].ID)
+
+	_, stopErr := manager.Stop(context.Background(), "session-a", first.ID)
+	require.NoError(t, stopErr)
+
+	_, stopErr = manager.Stop(context.Background(), "session-b", second.ID)
 	require.NoError(t, stopErr)
 }
 
 func TestManager_CleanupTreatsDoneProcessAsFinishedBeforeStatusUpdate(t *testing.T) {
 	manager := &DefaultManager{
 		MaxTracked: 1,
-		processes: map[string]*trackedProcess{
-			"proc_1": {
-				done: make(chan struct{}),
-				info: Info{
-					ID:     "proc_1",
-					Status: StatusRunning,
+		processes: map[string]map[string]*trackedProcess{
+			testSessionID: {
+				"proc_1": {
+					done: make(chan struct{}),
+					info: Info{
+						ID:     "proc_1",
+						Status: StatusRunning,
+					},
 				},
 			},
 		},
-		order: []string{"proc_1"},
-		stale: map[string]struct{}{},
+		order: map[string][]string{testSessionID: {"proc_1"}},
+		stale: map[string]map[string]struct{}{testSessionID: {}},
 	}
-	close(manager.processes["proc_1"].done)
+	close(manager.processes[testSessionID]["proc_1"].done)
 
-	manager.cleanupLocked()
+	manager.cleanupLocked(testSessionID)
 
-	require.Empty(t, manager.processes)
-	require.Empty(t, manager.order)
-	_, ok := manager.stale["proc_1"]
+	require.Empty(t, manager.processes[testSessionID])
+	require.Empty(t, manager.order[testSessionID])
+	_, ok := manager.stale[testSessionID]["proc_1"]
 	require.True(t, ok)
 }
 
 func TestManager_CleanupInitializesStaleMapForFinishedProcess(t *testing.T) {
 	manager := &DefaultManager{
-		processes: map[string]*trackedProcess{
-			"proc_1": {
-				info: Info{
-					ID:     "proc_1",
-					Status: StatusExited,
+		processes: map[string]map[string]*trackedProcess{
+			testSessionID: {
+				"proc_1": {
+					info: Info{
+						ID:     "proc_1",
+						Status: StatusExited,
+					},
 				},
 			},
 		},
-		order: []string{"proc_1"},
+		order: map[string][]string{testSessionID: {"proc_1"}},
 	}
 
-	manager.cleanupLocked()
+	manager.cleanupLocked(testSessionID)
 
-	require.Empty(t, manager.processes)
-	require.Empty(t, manager.order)
-	_, ok := manager.stale["proc_1"]
+	require.Empty(t, manager.processes[testSessionID])
+	require.Empty(t, manager.order[testSessionID])
+	_, ok := manager.stale[testSessionID]["proc_1"]
 	require.True(t, ok)
 }
 
 func TestManager_CleanupHandlesEmptyAndNilTrackedEntries(t *testing.T) {
 	manager := &DefaultManager{}
-	manager.cleanupLocked()
+	manager.cleanupLocked(testSessionID)
 
 	manager = &DefaultManager{
-		processes: map[string]*trackedProcess{
-			"proc_1": nil,
+		processes: map[string]map[string]*trackedProcess{
+			testSessionID: {
+				"proc_1": nil,
+			},
 		},
-		order: []string{"proc_1"},
+		order: map[string][]string{testSessionID: {"proc_1"}},
 	}
-	manager.cleanupLocked()
+	manager.cleanupLocked(testSessionID)
 
-	require.Empty(t, manager.order)
-	require.Len(t, manager.processes, 1)
+	require.Empty(t, manager.order[testSessionID])
+	require.Len(t, manager.processes[testSessionID], 1)
 }
 
 func TestManager_ListSkipsNilTrackedProcessEntries(t *testing.T) {
 	manager := &DefaultManager{
-		processes: map[string]*trackedProcess{
-			"proc_1": nil,
+		processes: map[string]map[string]*trackedProcess{
+			testSessionID: {
+				"proc_1": nil,
+			},
 		},
-		order: []string{"proc_1"},
+		order: map[string][]string{testSessionID: {"proc_1"}},
 	}
 
-	require.Empty(t, manager.List())
+	require.Empty(t, manager.List(testSessionID))
 }
 
 func TestManager_WaitMarksFailedWhenWaitDoesNotReturnExitError(t *testing.T) {
@@ -381,22 +418,24 @@ func TestManager_WaitMarksFailedWhenWaitDoesNotReturnExitError(t *testing.T) {
 func TestManager_StopFallsBackAfterGracePeriodAndReturnsSnapshot(t *testing.T) {
 	manager := &DefaultManager{
 		StopGracePeriod: 10 * time.Millisecond,
-		processes: map[string]*trackedProcess{
-			"proc_1": {
-				cmd:    &exec.Cmd{Process: &os.Process{Pid: 999999}},
-				stdout: &recentBuffer{},
-				stderr: &recentBuffer{},
-				info: Info{
-					ID:     "proc_1",
-					Status: StatusRunning,
+		processes: map[string]map[string]*trackedProcess{
+			testSessionID: {
+				"proc_1": {
+					cmd:    &exec.Cmd{Process: &os.Process{Pid: 999999}},
+					stdout: &recentBuffer{},
+					stderr: &recentBuffer{},
+					info: Info{
+						ID:     "proc_1",
+						Status: StatusRunning,
+					},
+					done: make(chan struct{}),
 				},
-				done: make(chan struct{}),
 			},
 		},
-		order: []string{"proc_1"},
+		order: map[string][]string{testSessionID: {"proc_1"}},
 	}
 
-	stopped, err := manager.Stop(context.Background(), "proc_1")
+	stopped, err := manager.Stop(context.Background(), testSessionID, "proc_1")
 	require.NoError(t, err)
 	require.Equal(t, StatusStopped, stopped.Status)
 }
@@ -404,19 +443,21 @@ func TestManager_StopFallsBackAfterGracePeriodAndReturnsSnapshot(t *testing.T) {
 func TestManager_StopReturnsContextErrorAfterForceKillAttempt(t *testing.T) {
 	manager := &DefaultManager{
 		StopGracePeriod: 20 * time.Millisecond,
-		processes: map[string]*trackedProcess{
-			"proc_1": {
-				cmd:    &exec.Cmd{Process: &os.Process{Pid: 999999}},
-				stdout: &recentBuffer{},
-				stderr: &recentBuffer{},
-				info: Info{
-					ID:     "proc_1",
-					Status: StatusRunning,
+		processes: map[string]map[string]*trackedProcess{
+			testSessionID: {
+				"proc_1": {
+					cmd:    &exec.Cmd{Process: &os.Process{Pid: 999999}},
+					stdout: &recentBuffer{},
+					stderr: &recentBuffer{},
+					info: Info{
+						ID:     "proc_1",
+						Status: StatusRunning,
+					},
+					done: make(chan struct{}),
 				},
-				done: make(chan struct{}),
 			},
 		},
-		order: []string{"proc_1"},
+		order: map[string][]string{testSessionID: {"proc_1"}},
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -425,7 +466,7 @@ func TestManager_StopReturnsContextErrorAfterForceKillAttempt(t *testing.T) {
 		cancel()
 	}()
 
-	stopped, err := manager.Stop(ctx, "proc_1")
+	stopped, err := manager.Stop(ctx, testSessionID, "proc_1")
 	require.EqualError(t, err, context.Canceled.Error())
 	require.Equal(t, StatusStopped, stopped.Status)
 }
@@ -517,18 +558,18 @@ func TestTerminateCommandGracefully_HandlesNilCommandAndProcess(t *testing.T) {
 func TestManager_StopReturnsContextErrorWhenCanceledWhileWaiting(t *testing.T) {
 	manager := &DefaultManager{StopGracePeriod: time.Second}
 
-	info, err := manager.Start(context.Background(), testSleepRequest())
+	info, err := manager.Start(context.Background(), testSessionID, testSleepRequest())
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	stopped, err := manager.Stop(ctx, info.ID)
+	stopped, err := manager.Stop(ctx, testSessionID, info.ID)
 	require.EqualError(t, err, context.Canceled.Error())
 	require.Equal(t, StatusStopped, stopped.Status)
 
 	require.Eventually(t, func() bool {
-		current, getErr := manager.Get(info.ID)
+		current, getErr := manager.Get(testSessionID, info.ID)
 		require.NoError(t, getErr)
 		return current.EndedAt != nil
 	}, 5*time.Second, 20*time.Millisecond)

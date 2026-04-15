@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -21,19 +20,19 @@ var commandContext = exec.CommandContext
 var currentGOOS = goruntime.GOOS
 
 type Manager interface {
-	Start(context.Context, StartRequest) (Info, error)
-	Get(string) (Info, error)
-	Read(string) (Output, error)
-	Stop(context.Context, string) (Info, error)
-	List() []Info
+	Start(context.Context, string, StartRequest) (Info, error)
+	Get(string, string) (Info, error)
+	Read(string, string) (Output, error)
+	Stop(context.Context, string, string) (Info, error)
+	List(string) []Info
 }
 
 type DefaultManager struct {
 	mu              sync.Mutex
-	processes       map[string]*trackedProcess
-	order           []string
-	stale           map[string]struct{}
-	nextID          uint64
+	processes       map[string]map[string]*trackedProcess
+	order           map[string][]string
+	stale           map[string]map[string]struct{}
+	nextID          map[string]uint64
 	MaxTracked      int
 	StopGracePeriod time.Duration
 }
@@ -56,7 +55,7 @@ type recentBuffer struct {
 	totalBytes int
 }
 
-func (s *DefaultManager) Start(ctx context.Context, req StartRequest) (Info, error) {
+func (s *DefaultManager) Start(ctx context.Context, sessionID string, req StartRequest) (Info, error) {
 	if s == nil {
 		return Info{}, errors.New("process manager is required")
 	}
@@ -71,6 +70,7 @@ func (s *DefaultManager) Start(ctx context.Context, req StartRequest) (Info, err
 	if command == "" {
 		return Info{}, errors.New("command is required")
 	}
+	sessionID = normalizeProcessSessionID(sessionID)
 
 	cmd := buildCommand(context.Background(), command, req.Args)
 	configureCommand(cmd)
@@ -95,8 +95,33 @@ func (s *DefaultManager) Start(ctx context.Context, req StartRequest) (Info, err
 		return Info{}, err
 	}
 
-	processID := s.nextProcessID()
 	startedAt := time.Now().UTC()
+
+	s.mu.Lock()
+	if s.processes == nil {
+		s.processes = make(map[string]map[string]*trackedProcess)
+	}
+	if s.order == nil {
+		s.order = make(map[string][]string)
+	}
+	if s.stale == nil {
+		s.stale = make(map[string]map[string]struct{})
+	}
+	if s.processes[sessionID] == nil {
+		s.processes[sessionID] = make(map[string]*trackedProcess)
+	}
+	if s.stale[sessionID] == nil {
+		s.stale[sessionID] = make(map[string]struct{})
+	}
+	s.cleanupLocked(sessionID)
+	if limit := s.maxTracked(); limit > 0 && len(s.processes[sessionID]) >= limit {
+		s.mu.Unlock()
+		_ = cmd.Process.Kill()
+		_, _ = cmd.Process.Wait()
+		return Info{}, errors.New("process manager is at capacity")
+	}
+
+	processID := s.nextProcessIDLocked(sessionID)
 	process := &trackedProcess{
 		cmd:    cmd,
 		stdout: stdout,
@@ -111,29 +136,9 @@ func (s *DefaultManager) Start(ctx context.Context, req StartRequest) (Info, err
 			StartedAt: startedAt,
 		},
 	}
-
-	s.mu.Lock()
-	if s.processes == nil {
-		s.processes = make(map[string]*trackedProcess)
-	}
-
-	if s.stale == nil {
-		s.stale = make(map[string]struct{})
-	}
-
-	s.cleanupLocked()
-
-	if limit := s.maxTracked(); limit > 0 && len(s.processes) >= limit {
-		s.mu.Unlock()
-		_ = cmd.Process.Kill()
-		_, _ = cmd.Process.Wait()
-		return Info{}, errors.New("process manager is at capacity")
-	}
-
-	delete(s.stale, processID)
-
-	s.processes[processID] = process
-	s.order = append(s.order, processID)
+	delete(s.stale[sessionID], processID)
+	s.processes[sessionID][processID] = process
+	s.order[sessionID] = append(s.order[sessionID], processID)
 	s.mu.Unlock()
 
 	go s.wait(process)
@@ -141,8 +146,8 @@ func (s *DefaultManager) Start(ctx context.Context, req StartRequest) (Info, err
 	return process.snapshot(), nil
 }
 
-func (s *DefaultManager) Get(processID string) (Info, error) {
-	process, err := s.lookup(processID)
+func (s *DefaultManager) Get(sessionID string, processID string) (Info, error) {
+	process, err := s.lookup(sessionID, processID)
 	if err != nil {
 		return Info{}, err
 	}
@@ -150,8 +155,8 @@ func (s *DefaultManager) Get(processID string) (Info, error) {
 	return process.snapshot(), nil
 }
 
-func (s *DefaultManager) Read(processID string) (Output, error) {
-	process, err := s.lookup(processID)
+func (s *DefaultManager) Read(sessionID string, processID string) (Output, error) {
+	process, err := s.lookup(sessionID, processID)
 	if err != nil {
 		return Output{}, err
 	}
@@ -159,8 +164,8 @@ func (s *DefaultManager) Read(processID string) (Output, error) {
 	return process.output(), nil
 }
 
-func (s *DefaultManager) Stop(ctx context.Context, processID string) (Info, error) {
-	process, err := s.lookup(processID)
+func (s *DefaultManager) Stop(ctx context.Context, sessionID string, processID string) (Info, error) {
+	process, err := s.lookup(sessionID, processID)
 	if err != nil {
 		return Info{}, err
 	}
@@ -200,16 +205,17 @@ func (s *DefaultManager) Stop(ctx context.Context, processID string) (Info, erro
 	return process.snapshot(), nil
 }
 
-func (s *DefaultManager) List() []Info {
+func (s *DefaultManager) List(sessionID string) []Info {
 	if s == nil {
 		return nil
 	}
+	sessionID = normalizeProcessSessionID(sessionID)
 
 	s.mu.Lock()
-	order := append([]string(nil), s.order...)
+	order := append([]string(nil), s.order[sessionID]...)
 	processes := make([]*trackedProcess, 0, len(order))
 	for _, processID := range order {
-		if process := s.processes[processID]; process != nil {
+		if process := s.processes[sessionID][processID]; process != nil {
 			processes = append(processes, process)
 		}
 	}
@@ -271,10 +277,11 @@ func (s *DefaultManager) wait(process *trackedProcess) {
 	}
 }
 
-func (s *DefaultManager) lookup(processID string) (*trackedProcess, error) {
+func (s *DefaultManager) lookup(sessionID string, processID string) (*trackedProcess, error) {
 	if s == nil {
 		return nil, errors.New("process manager is required")
 	}
+	sessionID = normalizeProcessSessionID(sessionID)
 
 	processID = strings.TrimSpace(processID)
 	if processID == "" {
@@ -282,10 +289,10 @@ func (s *DefaultManager) lookup(processID string) (*trackedProcess, error) {
 	}
 
 	s.mu.Lock()
-	process := s.processes[processID]
-	_, stale := s.stale[processID]
+	process := s.processes[sessionID][processID]
+	_, stale := s.stale[sessionID][processID]
 	if stale && process == nil {
-		delete(s.stale, processID)
+		delete(s.stale[sessionID], processID)
 	}
 	s.mu.Unlock()
 
@@ -299,33 +306,41 @@ func (s *DefaultManager) lookup(processID string) (*trackedProcess, error) {
 	return process, nil
 }
 
-func (s *DefaultManager) nextProcessID() string {
-	id := atomic.AddUint64(&s.nextID, 1)
+func (s *DefaultManager) nextProcessIDLocked(sessionID string) string {
+	if s.nextID == nil {
+		s.nextID = make(map[string]uint64)
+	}
+	s.nextID[sessionID]++
+	id := s.nextID[sessionID]
 	return "proc_" + strconv.FormatUint(id, 10)
 }
 
-func (s *DefaultManager) cleanupLocked() {
-	if len(s.processes) == 0 {
+func (s *DefaultManager) cleanupLocked(sessionID string) {
+	processes := s.processes[sessionID]
+	if len(processes) == 0 {
 		return
 	}
+	if s.stale == nil {
+		s.stale = make(map[string]map[string]struct{})
+	}
 
-	order := s.order[:0]
-	for _, processID := range s.order {
-		process := s.processes[processID]
+	order := s.order[sessionID][:0]
+	for _, processID := range s.order[sessionID] {
+		process := processes[processID]
 		if process == nil {
 			continue
 		}
 		if process.finished() {
-			delete(s.processes, processID)
-			if s.stale == nil {
-				s.stale = make(map[string]struct{})
+			delete(processes, processID)
+			if s.stale[sessionID] == nil {
+				s.stale[sessionID] = make(map[string]struct{})
 			}
-			s.stale[processID] = struct{}{}
+			s.stale[sessionID][processID] = struct{}{}
 			continue
 		}
 		order = append(order, processID)
 	}
-	s.order = order
+	s.order[sessionID] = order
 }
 
 func (s *DefaultManager) maxTracked() int {
@@ -445,4 +460,12 @@ func buildCommand(ctx context.Context, command string, args []string) *exec.Cmd 
 	}
 
 	return commandContext(ctx, "sh", "-lc", command)
+}
+
+func normalizeProcessSessionID(sessionID string) string {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return "default"
+	}
+	return sessionID
 }

@@ -130,7 +130,7 @@ func TestRuntime_HydratePlanDelegatesToStore(t *testing.T) {
 func TestRuntime_ProcessMethodsDelegateToStore(t *testing.T) {
 	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{})
 
-	info, err := runtime.StartProcess(context.Background(), processenv.StartRequest{
+	info, err := runtime.StartProcess(context.Background(), "session-1", processenv.StartRequest{
 		Command:           "printf",
 		Args:              []string{"hello"},
 		OutputBufferBytes: 32,
@@ -138,20 +138,20 @@ func TestRuntime_ProcessMethodsDelegateToStore(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		current, err := runtime.GetProcess(info.ID)
+		current, err := runtime.GetProcess("session-1", info.ID)
 		require.NoError(t, err)
 		return current.Status == processenv.StatusExited
 	}, 5*time.Second, 20*time.Millisecond)
 
-	output, err := runtime.ReadProcess(info.ID)
+	output, err := runtime.ReadProcess("session-1", info.ID)
 	require.NoError(t, err)
 	require.Equal(t, "hello", output.Stdout)
 
-	stopped, err := runtime.StopProcess(context.Background(), info.ID)
+	stopped, err := runtime.StopProcess(context.Background(), "session-1", info.ID)
 	require.NoError(t, err)
 	require.Equal(t, info.ID, stopped.ID)
 
-	list := runtime.ListProcesses()
+	list := runtime.ListProcesses("session-1")
 	require.Len(t, list, 1)
 	require.Equal(t, info.ID, list[0].ID)
 }
@@ -159,17 +159,17 @@ func TestRuntime_ProcessMethodsDelegateToStore(t *testing.T) {
 func TestRuntime_ProcessMethodsHandleNilReceiver(t *testing.T) {
 	var runtime *Runtime
 
-	_, err := runtime.StartProcess(context.Background(), processenv.StartRequest{})
+	_, err := runtime.StartProcess(context.Background(), "session-1", processenv.StartRequest{})
 	require.EqualError(t, err, "process manager is required")
 
-	_, err = runtime.GetProcess("proc_1")
+	_, err = runtime.GetProcess("session-1", "proc_1")
 	require.EqualError(t, err, "process manager is required")
 
-	_, err = runtime.ReadProcess("proc_1")
+	_, err = runtime.ReadProcess("session-1", "proc_1")
 	require.EqualError(t, err, "process manager is required")
 
-	_, err = runtime.StopProcess(context.Background(), "proc_1")
+	_, err = runtime.StopProcess(context.Background(), "session-1", "proc_1")
 	require.EqualError(t, err, "process manager is required")
 
-	require.Nil(t, runtime.ListProcesses())
+	require.Nil(t, runtime.ListProcesses("session-1"))
 }

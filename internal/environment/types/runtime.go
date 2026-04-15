@@ -13,11 +13,11 @@ type Runtime interface {
 	CommandPolicy() guardrails.CommandPolicy
 
 	// Process management
-	StartProcess(ctx context.Context, req process.StartRequest) (process.Info, error)
-	GetProcess(string) (process.Info, error)
-	ReadProcess(string) (process.Output, error)
-	StopProcess(ctx context.Context, processID string) (process.Info, error)
-	ListProcesses() []process.Info
+	StartProcess(ctx context.Context, sessionID string, req process.StartRequest) (process.Info, error)
+	GetProcess(sessionID string, processID string) (process.Info, error)
+	ReadProcess(sessionID string, processID string) (process.Output, error)
+	StopProcess(ctx context.Context, sessionID string, processID string) (process.Info, error)
+	ListProcesses(sessionID string) []process.Info
 
 	// Plan management
 	GetPlan(string) Plan
