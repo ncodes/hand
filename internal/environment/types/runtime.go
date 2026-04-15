@@ -15,7 +15,7 @@ type Runtime interface {
 	// Process management
 	StartProcess(ctx context.Context, sessionID string, req process.StartRequest) (process.Info, error)
 	GetProcess(sessionID string, processID string) (process.Info, error)
-	ReadProcess(sessionID string, processID string) (process.Output, error)
+	ReadProcess(sessionID string, req process.ReadRequest) (process.Output, error)
 	StopProcess(ctx context.Context, sessionID string, processID string) (process.Info, error)
 	ListProcesses(sessionID string) []process.Info
 

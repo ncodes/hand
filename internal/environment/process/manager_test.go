@@ -34,7 +34,7 @@ func TestManager_StartGetReadListAndExit(t *testing.T) {
 	require.Equal(t, 0, *current.ExitCode)
 	require.NotNil(t, current.EndedAt)
 
-	output, err := manager.Read(testSessionID, info.ID)
+	output, err := manager.Read(testSessionID, ReadRequest{ProcessID: info.ID})
 	require.NoError(t, err)
 	require.Equal(t, "hello", output.Stdout)
 	require.Empty(t, output.Stderr)
@@ -57,11 +57,79 @@ func TestManager_BoundsRecentOutput(t *testing.T) {
 		return current.Status == StatusExited
 	}, 5*time.Second, 20*time.Millisecond)
 
-	output, err := manager.Read(testSessionID, info.ID)
+	output, err := manager.Read(testSessionID, ReadRequest{ProcessID: info.ID})
 	require.NoError(t, err)
 	require.Equal(t, "def", output.Stdout)
 	require.True(t, output.StdoutTruncated)
 	require.Equal(t, len("abcdef"), output.StdoutBytes)
+}
+
+func TestManager_ReadSupportsIncrementalCursors(t *testing.T) {
+	manager := &DefaultManager{}
+
+	info, err := manager.Start(context.Background(), testSessionID, testPrintRequest("abcdef", 6))
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		current, getErr := manager.Get(testSessionID, info.ID)
+		require.NoError(t, getErr)
+		return current.Status == StatusExited
+	}, 5*time.Second, 20*time.Millisecond)
+
+	cursor := 3
+	output, err := manager.Read(testSessionID, ReadRequest{
+		ProcessID:    info.ID,
+		StdoutCursor: &cursor,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "def", output.Stdout)
+	require.Equal(t, 6, output.NextStdoutCursor)
+	require.False(t, output.StdoutCursorExpired)
+}
+
+func TestManager_ReadMarksExpiredCursorWhenWindowHasAdvanced(t *testing.T) {
+	manager := &DefaultManager{}
+
+	info, err := manager.Start(context.Background(), testSessionID, testPrintRequest("abcdef", 3))
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		current, getErr := manager.Get(testSessionID, info.ID)
+		require.NoError(t, getErr)
+		return current.Status == StatusExited
+	}, 5*time.Second, 20*time.Millisecond)
+
+	cursor := 0
+	output, err := manager.Read(testSessionID, ReadRequest{
+		ProcessID:    info.ID,
+		StdoutCursor: &cursor,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "def", output.Stdout)
+	require.Equal(t, 6, output.NextStdoutCursor)
+	require.True(t, output.StdoutCursorExpired)
+}
+
+func TestManager_ReadTrimsInvalidUTF8AtCursorBoundary(t *testing.T) {
+	manager := &DefaultManager{}
+
+	info, err := manager.Start(context.Background(), testSessionID, testPrintRequest("AéB", 8))
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		current, getErr := manager.Get(testSessionID, info.ID)
+		require.NoError(t, getErr)
+		return current.Status == StatusExited
+	}, 5*time.Second, 20*time.Millisecond)
+
+	cursor := 2
+	output, err := manager.Read(testSessionID, ReadRequest{
+		ProcessID:    info.ID,
+		StdoutCursor: &cursor,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "B", output.Stdout)
+	require.False(t, output.StdoutCursorExpired)
 }
 
 func TestManager_StopMarksStopped(t *testing.T) {
@@ -126,7 +194,7 @@ func TestManager_ValidatesMissingProcessAndCommand(t *testing.T) {
 	_, err = manager.Get(testSessionID, " ")
 	require.EqualError(t, err, "process id is required")
 
-	_, err = manager.Read(testSessionID, "missing")
+	_, err = manager.Read(testSessionID, ReadRequest{ProcessID: "missing"})
 	require.EqualError(t, err, "process not found")
 
 	_, err = manager.Stop(context.Background(), testSessionID, "missing")
@@ -183,7 +251,7 @@ func TestManager_StartAppliesEnvOverrides(t *testing.T) {
 		return current.Status == StatusExited
 	}, 5*time.Second, 20*time.Millisecond)
 
-	output, err := manager.Read(testSessionID, info.ID)
+	output, err := manager.Read(testSessionID, ReadRequest{ProcessID: info.ID})
 	require.NoError(t, err)
 	require.Equal(t, "hello", output.Stdout)
 }
@@ -216,7 +284,7 @@ func TestManager_HandlesNilReceiver(t *testing.T) {
 	_, err = manager.Get(testSessionID, "proc_1")
 	require.EqualError(t, err, "process manager is required")
 
-	_, err = manager.Read(testSessionID, "proc_1")
+	_, err = manager.Read(testSessionID, ReadRequest{ProcessID: "proc_1"})
 	require.EqualError(t, err, "process manager is required")
 
 	_, err = manager.Stop(context.Background(), testSessionID, "proc_1")
@@ -496,6 +564,50 @@ func TestRecentBuffer_WriteWithoutLimit(t *testing.T) {
 	require.Equal(t, "hello", buffer.string())
 	require.False(t, buffer.wasTruncated())
 	require.Equal(t, 5, buffer.total())
+}
+
+func TestRecentBuffer_ReadSinceReturnsEmptyWhenCursorCaughtUp(t *testing.T) {
+	buffer := &recentBuffer{
+		data:       []byte("hello"),
+		totalBytes: 5,
+	}
+	cursor := 5
+
+	data, next, expired := buffer.readSince(&cursor)
+
+	require.Nil(t, data)
+	require.Equal(t, 5, next)
+	require.False(t, expired)
+}
+
+func TestRecentBuffer_ReadSinceHandlesInconsistentOffsetPastBuffer(t *testing.T) {
+	buffer := &recentBuffer{
+		data:        []byte("abc"),
+		windowStart: 10,
+		totalBytes:  20,
+	}
+	cursor := 14
+
+	data, next, expired := buffer.readSince(&cursor)
+
+	require.Nil(t, data)
+	require.Equal(t, 20, next)
+	require.False(t, expired)
+}
+
+func TestTrimToValidUTF8Window_PreservesValidDataAndTrimsBrokenEdges(t *testing.T) {
+	require.Equal(t, []byte("hello"), trimToValidUTF8Window([]byte("hello")))
+
+	data := []byte{0xA9, 'B', 0xE2, 0x82}
+	require.Equal(t, []byte("B"), trimToValidUTF8Window(data))
+}
+
+func TestNormalizeProcessSessionID_UsesTrimmedValue(t *testing.T) {
+	require.Equal(t, "session-1", normalizeProcessSessionID(" session-1 "))
+}
+
+func TestNormalizeProcessSessionID_DefaultsWhenBlank(t *testing.T) {
+	require.Equal(t, "default", normalizeProcessSessionID("   "))
 }
 
 func TestBuildCommand_UsesShellWhenArgsAreOmitted(t *testing.T) {

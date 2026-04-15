@@ -26,7 +26,7 @@ func TestNewRuntime_DefaultsRootToCWDAndNormalizesPolicy(t *testing.T) {
 	require.Equal(t, []string{dir}, runtime.FilePolicy().Roots)
 	require.Equal(t, []string{"git push"}, runtime.CommandPolicy().Ask)
 	require.Equal(t, []string{"git push"}, runtime.CommandPolicy().Deny)
-	require.IsType(t, &processenv.DefaultManager{}, runtime.processes)
+	require.IsType(t, &processenv.DefaultManager{}, runtime.processMgr)
 	require.IsType(t, &MemoryPlanStore{}, runtime.plans)
 }
 
@@ -143,7 +143,7 @@ func TestRuntime_ProcessMethodsDelegateToStore(t *testing.T) {
 		return current.Status == processenv.StatusExited
 	}, 5*time.Second, 20*time.Millisecond)
 
-	output, err := runtime.ReadProcess("session-1", info.ID)
+	output, err := runtime.ReadProcess("session-1", processenv.ReadRequest{ProcessID: info.ID})
 	require.NoError(t, err)
 	require.Equal(t, "hello", output.Stdout)
 
@@ -165,7 +165,7 @@ func TestRuntime_ProcessMethodsHandleNilReceiver(t *testing.T) {
 	_, err = runtime.GetProcess("session-1", "proc_1")
 	require.EqualError(t, err, "process manager is required")
 
-	_, err = runtime.ReadProcess("session-1", "proc_1")
+	_, err = runtime.ReadProcess("session-1", processenv.ReadRequest{ProcessID: "proc_1"})
 	require.EqualError(t, err, "process manager is required")
 
 	_, err = runtime.StopProcess(context.Background(), "session-1", "proc_1")

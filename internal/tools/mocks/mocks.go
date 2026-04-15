@@ -17,7 +17,7 @@ type Runtime struct {
 	CommandPolicyValue guardrails.CommandPolicy
 	StartProcessFunc   func(context.Context, string, processenv.StartRequest) (processenv.Info, error)
 	GetProcessFunc     func(string, string) (processenv.Info, error)
-	ReadProcessFunc    func(string, string) (processenv.Output, error)
+	ReadProcessFunc    func(string, processenv.ReadRequest) (processenv.Output, error)
 	StopProcessFunc    func(context.Context, string, string) (processenv.Info, error)
 	ListProcessesFunc  func(string) []processenv.Info
 }
@@ -36,9 +36,9 @@ func (r *Runtime) GetProcess(sessionID string, processID string) (processenv.Inf
 	}
 	return processenv.Info{}, nil
 }
-func (r *Runtime) ReadProcess(sessionID string, processID string) (processenv.Output, error) {
+func (r *Runtime) ReadProcess(sessionID string, req processenv.ReadRequest) (processenv.Output, error) {
 	if r != nil && r.ReadProcessFunc != nil {
-		return r.ReadProcessFunc(sessionID, processID)
+		return r.ReadProcessFunc(sessionID, req)
 	}
 	return processenv.Output{}, nil
 }
@@ -111,8 +111,8 @@ func (d *FailingPlanRuntime) StartProcess(ctx context.Context, sessionID string,
 func (d *FailingPlanRuntime) GetProcess(sessionID string, processID string) (processenv.Info, error) {
 	return d.Runtime.GetProcess(sessionID, processID)
 }
-func (d *FailingPlanRuntime) ReadProcess(sessionID string, processID string) (processenv.Output, error) {
-	return d.Runtime.ReadProcess(sessionID, processID)
+func (d *FailingPlanRuntime) ReadProcess(sessionID string, req processenv.ReadRequest) (processenv.Output, error) {
+	return d.Runtime.ReadProcess(sessionID, req)
 }
 func (d *FailingPlanRuntime) StopProcess(ctx context.Context, sessionID string, processID string) (processenv.Info, error) {
 	return d.Runtime.StopProcess(ctx, sessionID, processID)

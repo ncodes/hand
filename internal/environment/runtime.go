@@ -16,7 +16,7 @@ var getwd = os.Getwd
 type Runtime struct {
 	filePolicy    guardrails.FilesystemPolicy
 	commandPolicy guardrails.CommandPolicy
-	processes     processenv.Manager
+	processMgr    processenv.Manager
 	plans         PlanStore
 }
 
@@ -32,7 +32,7 @@ func NewRuntime(roots []string, policy guardrails.CommandPolicy) *Runtime {
 	return &Runtime{
 		filePolicy:    guardrails.FilesystemPolicy{Roots: guardrails.NormalizeRoots(roots)},
 		commandPolicy: policy.Normalize(),
-		processes:     &processenv.DefaultManager{},
+		processMgr:    &processenv.DefaultManager{},
 		plans:         &MemoryPlanStore{},
 	}
 }
@@ -51,39 +51,43 @@ func (r *Runtime) CommandPolicy() guardrails.CommandPolicy {
 	return r.commandPolicy
 }
 
-func (r *Runtime) StartProcess(ctx context.Context, sessionID string, req processenv.StartRequest) (processenv.Info, error) {
-	if r == nil || r.processes == nil {
+func (r *Runtime) StartProcess(
+	ctx context.Context,
+	sessionID string,
+	req processenv.StartRequest,
+) (processenv.Info, error) {
+	if r == nil || r.processMgr == nil {
 		return processenv.Info{}, errors.New("process manager is required")
 	}
-	return r.processes.Start(ctx, sessionID, req)
+	return r.processMgr.Start(ctx, sessionID, req)
 }
 
 func (r *Runtime) GetProcess(sessionID string, processID string) (processenv.Info, error) {
-	if r == nil || r.processes == nil {
+	if r == nil || r.processMgr == nil {
 		return processenv.Info{}, errors.New("process manager is required")
 	}
-	return r.processes.Get(sessionID, processID)
+	return r.processMgr.Get(sessionID, processID)
 }
 
-func (r *Runtime) ReadProcess(sessionID string, processID string) (processenv.Output, error) {
-	if r == nil || r.processes == nil {
+func (r *Runtime) ReadProcess(sessionID string, req processenv.ReadRequest) (processenv.Output, error) {
+	if r == nil || r.processMgr == nil {
 		return processenv.Output{}, errors.New("process manager is required")
 	}
-	return r.processes.Read(sessionID, processID)
+	return r.processMgr.Read(sessionID, req)
 }
 
 func (r *Runtime) StopProcess(ctx context.Context, sessionID string, processID string) (processenv.Info, error) {
-	if r == nil || r.processes == nil {
+	if r == nil || r.processMgr == nil {
 		return processenv.Info{}, errors.New("process manager is required")
 	}
-	return r.processes.Stop(ctx, sessionID, processID)
+	return r.processMgr.Stop(ctx, sessionID, processID)
 }
 
 func (r *Runtime) ListProcesses(sessionID string) []processenv.Info {
-	if r == nil || r.processes == nil {
+	if r == nil || r.processMgr == nil {
 		return nil
 	}
-	return r.processes.List(sessionID)
+	return r.processMgr.List(sessionID)
 }
 
 func (r *Runtime) GetPlan(sessionID string) envtypes.Plan {

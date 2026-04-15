@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 const DefaultOutputBufferBytes = 64 * 1024
@@ -18,14 +19,6 @@ const DefaultStopGracePeriod = 2 * time.Second
 
 var commandContext = exec.CommandContext
 var currentGOOS = goruntime.GOOS
-
-type Manager interface {
-	Start(context.Context, string, StartRequest) (Info, error)
-	Get(string, string) (Info, error)
-	Read(string, string) (Output, error)
-	Stop(context.Context, string, string) (Info, error)
-	List(string) []Info
-}
 
 type DefaultManager struct {
 	mu              sync.Mutex
@@ -48,11 +41,12 @@ type trackedProcess struct {
 }
 
 type recentBuffer struct {
-	mu         sync.Mutex
-	limit      int
-	data       []byte
-	truncated  bool
-	totalBytes int
+	mu          sync.Mutex
+	limit       int
+	data        []byte
+	windowStart int
+	truncated   bool
+	totalBytes  int
 }
 
 func (s *DefaultManager) Start(ctx context.Context, sessionID string, req StartRequest) (Info, error) {
@@ -155,13 +149,13 @@ func (s *DefaultManager) Get(sessionID string, processID string) (Info, error) {
 	return process.snapshot(), nil
 }
 
-func (s *DefaultManager) Read(sessionID string, processID string) (Output, error) {
-	process, err := s.lookup(sessionID, processID)
+func (s *DefaultManager) Read(sessionID string, req ReadRequest) (Output, error) {
+	process, err := s.lookup(sessionID, req.ProcessID)
 	if err != nil {
 		return Output{}, err
 	}
 
-	return process.output(), nil
+	return process.output(req), nil
 }
 
 func (s *DefaultManager) Stop(ctx context.Context, sessionID string, processID string) (Info, error) {
@@ -379,14 +373,21 @@ func (p *trackedProcess) snapshot() Info {
 	return info
 }
 
-func (p *trackedProcess) output() Output {
+func (p *trackedProcess) output(req ReadRequest) Output {
+	stdout, stdoutCursor, stdoutExpired := p.stdout.readSince(req.StdoutCursor)
+	stderr, stderrCursor, stderrExpired := p.stderr.readSince(req.StderrCursor)
+
 	return Output{
-		Stdout:          p.stdout.string(),
-		Stderr:          p.stderr.string(),
-		StdoutBytes:     p.stdout.total(),
-		StderrBytes:     p.stderr.total(),
-		StdoutTruncated: p.stdout.wasTruncated(),
-		StderrTruncated: p.stderr.wasTruncated(),
+		Stdout:              string(stdout),
+		Stderr:              string(stderr),
+		StdoutBytes:         p.stdout.total(),
+		StderrBytes:         p.stderr.total(),
+		NextStdoutCursor:    stdoutCursor,
+		NextStderrCursor:    stderrCursor,
+		StdoutTruncated:     p.stdout.wasTruncated(),
+		StderrTruncated:     p.stderr.wasTruncated(),
+		StdoutCursorExpired: stdoutExpired,
+		StderrCursorExpired: stderrExpired,
 	}
 }
 
@@ -421,18 +422,60 @@ func (b *recentBuffer) Write(data []byte) (int, error) {
 
 	b.data = append(b.data, data...)
 	if len(b.data) > b.limit {
+		dropped := len(b.data) - b.limit
 		b.truncated = true
-		b.data = append([]byte(nil), b.data[len(b.data)-b.limit:]...)
+		b.windowStart += dropped
+		b.data = append([]byte(nil), b.data[dropped:]...)
 	}
 
 	return len(data), nil
 }
 
-func (b *recentBuffer) string() string {
+// readSince reads the data since the given cursor.
+// It returns the data, the total bytes, and whether the cursor is expired.
+func (b *recentBuffer) readSince(cursor *int) ([]byte, int, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	return string(append([]byte(nil), b.data...))
+	if cursor == nil {
+		return trimToValidUTF8Window(b.data), b.totalBytes, false
+	}
+
+	start := max(*cursor, 0)
+	if start < b.windowStart {
+		return trimToValidUTF8Window(b.data), b.totalBytes, true
+	}
+	if start >= b.totalBytes {
+		return nil, b.totalBytes, false
+	}
+
+	offset := max(start-b.windowStart, 0)
+	if offset > len(b.data) {
+		return nil, b.totalBytes, false
+	}
+
+	return trimToValidUTF8Window(b.data[offset:]), b.totalBytes, false
+}
+
+func (b *recentBuffer) string() string {
+	data, _, _ := b.readSince(nil)
+	return string(data)
+}
+
+func trimToValidUTF8Window(data []byte) []byte {
+	for len(data) > 0 {
+		r, size := utf8.DecodeRune(data)
+		if r != utf8.RuneError || size > 1 {
+			break
+		}
+		data = data[1:]
+	}
+
+	for len(data) > 0 && !utf8.Valid(data) {
+		data = data[:len(data)-1]
+	}
+
+	return append([]byte(nil), data...)
 }
 
 func (b *recentBuffer) total() int {
