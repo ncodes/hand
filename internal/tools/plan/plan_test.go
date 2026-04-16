@@ -192,7 +192,7 @@ func TestPlanTool_RecordsPlanUpdatedAndClearedEvents(t *testing.T) {
 func registerPlanRuntime(t *testing.T, root string, policy guardrails.CommandPolicy) tools.Registry {
 	t.Helper()
 	registry := tools.NewInMemoryRegistry()
-	runtime := environment.NewRuntime([]string{root}, policy)
+	runtime := environment.NewRuntime([]string{root}, policy, nil)
 	require.NoError(t, registry.RegisterGroup(tools.Group{Name: "core"}))
 	require.NoError(t, registry.Register(plantool.Definition(runtime)))
 	return registry
@@ -202,7 +202,7 @@ func newPlanFailureRegistry(t *testing.T, root string, policy guardrails.Command
 	t.Helper()
 	registry := tools.NewInMemoryRegistry()
 	runtime := &nativemocks.FailingPlanRuntime{
-		Runtime:    environment.NewRuntime([]string{root}, policy),
+		Runtime:    environment.NewRuntime([]string{root}, policy, nil),
 		MergeErr:   mergeErr,
 		ReplaceErr: replaceErr,
 	}

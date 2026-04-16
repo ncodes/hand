@@ -246,7 +246,7 @@ func (s *SessionStore) SearchMessages(
 	results := make([]handmsg.Message, 0, min(len(messages), max(opts.Limit, 0)))
 	seen := 0
 	for i := len(messages) - 1; i >= 0; i-- {
-		searchText, _ := searchableMessageText(messages[i], opts.ToolName)
+		searchText, _ := handmsg.SearchableMessageText(messages[i], opts.ToolName)
 		if searchText == "" {
 			continue
 		}
@@ -655,40 +655,6 @@ func filterMessages(messages []handmsg.Message, opts MessageQueryOptions) []hand
 	}
 
 	return filtered
-}
-
-func searchableMessageText(message handmsg.Message, toolName string) (string, string) {
-	switch message.Role {
-	case handmsg.RoleAssistant:
-		if len(message.ToolCalls) == 0 {
-			if strings.TrimSpace(toolName) != "" {
-				return "", ""
-			}
-			return strings.TrimSpace(message.Content), ""
-		}
-		if strings.TrimSpace(toolName) != "" {
-			for _, toolCall := range message.ToolCalls {
-				if strings.EqualFold(strings.TrimSpace(toolCall.Name), strings.TrimSpace(toolName)) {
-					return handmsg.ToolCallSearchText(toolCall), strings.TrimSpace(toolCall.Name)
-				}
-			}
-			return "", ""
-		}
-		return strings.TrimSpace(message.SearchText), ""
-	case handmsg.RoleTool:
-		if strings.TrimSpace(toolName) != "" && !strings.EqualFold(strings.TrimSpace(message.Name), strings.TrimSpace(toolName)) {
-			return "", ""
-		}
-		if strings.TrimSpace(message.SearchText) != "" {
-			return strings.TrimSpace(message.SearchText), strings.TrimSpace(message.Name)
-		}
-		return strings.TrimSpace(message.Content), strings.TrimSpace(message.Name)
-	default:
-		if strings.TrimSpace(toolName) != "" {
-			return "", ""
-		}
-		return strings.TrimSpace(message.Content), ""
-	}
 }
 
 func messageQueryOrder(opts MessageQueryOptions) string {

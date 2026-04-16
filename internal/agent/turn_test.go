@@ -14,6 +14,7 @@ import (
 	"github.com/wandxy/hand/internal/agent/memory"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/environment"
+	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/instructions"
 	handmsg "github.com/wandxy/hand/internal/messages"
@@ -833,7 +834,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterSummaryFallback(t *testing.T) {
 		&mocks.EnvironmentStub{
 			InstructionsList: nil,
 			ToolRegistry:     &mocks.ToolRegistryStub{Result: tools.Result{Output: "now"}},
-			IterationBudget:  environment.NewIterationBudget(1),
+			IterationBudget:  envbudget.New(1),
 		},
 	).Run(context.Background(), "hello", RespondOptions{})
 	require.EqualError(t, err, "append summary failed")
@@ -872,14 +873,14 @@ func TestTurn_SummaryFallbackRejectsToolRequests(t *testing.T) {
 	}}}
 	turn, _ := newTestTurnHarness(t, instructions.Instructions{{Value: "persona"}}, tools.NewInMemoryRegistry(), client)
 
-	_, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	_, err := turn.summaryFallback(context.Background(), envbudget.New(0), traceSession)
 	require.EqualError(t, err, "iteration limit reached and summary requested more tools")
 }
 
 func TestTurn_SummaryFallbackReturnsModelError(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{Err: errors.New("summary failed")})
-	_, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	_, err := turn.summaryFallback(context.Background(), envbudget.New(0), traceSession)
 	require.EqualError(t, err, "iteration limit reached and summary failed: summary failed")
 }
 
@@ -888,7 +889,7 @@ func TestTurn_SummaryFallbackReturnsContextError(t *testing.T) {
 	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := turn.summaryFallback(ctx, environment.NewIterationBudget(0), traceSession)
+	_, err := turn.summaryFallback(ctx, envbudget.New(0), traceSession)
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -896,7 +897,7 @@ func TestTurn_SummaryFallbackReturnsAssistantAppendError(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "   "}}}
 	turn, _ := newTestTurnHarness(t, instructions.Instructions{{Value: "persona"}}, tools.NewInMemoryRegistry(), client)
-	_, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	_, err := turn.summaryFallback(context.Background(), envbudget.New(0), traceSession)
 	require.EqualError(t, err, "message content is required")
 }
 
@@ -905,7 +906,7 @@ func TestTurn_SummaryFallbackRejectsNilModelResponse(t *testing.T) {
 	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{
 		Responses: []*models.Response{nil},
 	})
-	_, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	_, err := turn.summaryFallback(context.Background(), envbudget.New(0), traceSession)
 	require.EqualError(t, err, "model response is required")
 }
 
@@ -918,7 +919,7 @@ func TestTurn_SummaryFallbackUsesExistingInstructions(t *testing.T) {
 		{Name: requestInstructionName, Value: "be terse"},
 	}, tools.NewInMemoryRegistry(), client)
 
-	reply, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	reply, err := turn.summaryFallback(context.Background(), envbudget.New(0), traceSession)
 	require.NoError(t, err)
 	require.Equal(t, "summary", reply)
 	require.Contains(t, client.Requests[0].Instructions, "persona")
@@ -962,7 +963,7 @@ func TestTurn_SummaryFallbackReturnsPromptTokenPersistenceError(t *testing.T) {
 	)
 	require.NoError(t, turn.load(context.Background(), RespondOptions{}))
 
-	_, err = turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	_, err = turn.summaryFallback(context.Background(), envbudget.New(0), traceSession)
 	require.EqualError(t, err, "save failed")
 }
 
@@ -971,7 +972,7 @@ func TestTurn_SummaryFallbackRecordsTraceEvent(t *testing.T) {
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "summary"}}}
 	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
 
-	reply, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	reply, err := turn.summaryFallback(context.Background(), envbudget.New(0), traceSession)
 	require.NoError(t, err)
 	require.Equal(t, "summary", reply)
 	require.Equal(t, trace.EvtSummaryFallbackStarted, traceSession.Events[0].Type)
@@ -993,7 +994,7 @@ func TestTurn_SummaryFallbackSkipsCompactionTraceWhenDisabled(t *testing.T) {
 		CompactionEnabled: new(false),
 	})
 
-	reply, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	reply, err := turn.summaryFallback(context.Background(), envbudget.New(0), traceSession)
 	require.NoError(t, err)
 	require.Equal(t, "summary", reply)
 	require.Equal(t, trace.EvtSummaryFallbackStarted, traceSession.Events[0].Type)
@@ -1021,7 +1022,7 @@ func TestTurn_SummaryFallbackRecordsEstimatedPreflightPayload(t *testing.T) {
 	})
 	turn.sessionHistory = []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}
 
-	reply, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	reply, err := turn.summaryFallback(context.Background(), envbudget.New(0), traceSession)
 	require.NoError(t, err)
 	require.Equal(t, "summary", reply)
 	require.Equal(t, trace.EvtContextPreflight, traceSession.Events[1].Type)
@@ -1046,7 +1047,7 @@ func TestTurn_SummaryFallbackRecordsTriggerAndWarningWhenThresholdExceeded(t *te
 	})
 	turn.sessionHistory = []handmsg.Message{{Role: handmsg.RoleUser, Content: strings.Repeat("b", 300)}}
 
-	reply, err := turn.summaryFallback(context.Background(), environment.NewIterationBudget(0), traceSession)
+	reply, err := turn.summaryFallback(context.Background(), envbudget.New(0), traceSession)
 	require.NoError(t, err)
 	require.Equal(t, "summary", reply)
 
@@ -2369,7 +2370,7 @@ func TestAgent_RespondPreservesAssistantToolCallsAcrossSQLiteBackedTurns(t *test
 		return &mocks.EnvironmentStub{
 			InstructionsList: instructions.Instructions{{Value: "system prompt"}},
 			ToolRegistry:     registry,
-			IterationBudget:  environment.NewIterationBudget(config.DefaultMaxIterations),
+			IterationBudget:  envbudget.New(config.DefaultMaxIterations),
 			TraceSession:     &mocks.TraceSessionStub{},
 		}
 	}
@@ -2748,9 +2749,9 @@ func newTestAgent(
 	newEnvironment = func(context.Context, *config.Config) environment.Environment {
 		registry, err := registryFactory()
 		require.NoError(t, err)
-		budget := environment.NewIterationBudget(config.DefaultMaxIterations)
+		budget := envbudget.New(config.DefaultMaxIterations)
 		if cfg != nil && cfg.MaxIterations > 0 {
-			budget = environment.NewIterationBudget(cfg.MaxIterations)
+			budget = envbudget.New(cfg.MaxIterations)
 		}
 
 		return &mocks.EnvironmentStub{

@@ -1,4 +1,4 @@
-package environment
+package planstore
 
 import (
 	"strings"
@@ -7,7 +7,7 @@ import (
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 )
 
-type PlanStore interface {
+type Store interface {
 	Get(string) envtypes.Plan
 	Replace(string, envtypes.Plan) (envtypes.Plan, error)
 	Merge(string, []envtypes.PartialPlanStep, string, bool) (envtypes.Plan, error)
@@ -28,7 +28,7 @@ func (s *MemoryPlanStore) Get(sessionID string) envtypes.Plan {
 		return envtypes.Plan{}
 	}
 
-	return clonePlan(s.plans[normalizePlanSessionID(sessionID)])
+	return ClonePlan(s.plans[normalizeSessionID(sessionID)])
 }
 
 func (s *MemoryPlanStore) Replace(sessionID string, plan envtypes.Plan) (envtypes.Plan, error) {
@@ -43,10 +43,10 @@ func (s *MemoryPlanStore) Replace(sessionID string, plan envtypes.Plan) (envtype
 		return envtypes.Plan{}, err
 	}
 
-	normalized := normalizePlanSessionID(sessionID)
-	cloned := clonePlan(plan)
+	normalized := normalizeSessionID(sessionID)
+	cloned := ClonePlan(plan)
 	s.plans[normalized] = cloned
-	return clonePlan(cloned), nil
+	return ClonePlan(cloned), nil
 }
 
 func (s *MemoryPlanStore) Merge(
@@ -62,8 +62,8 @@ func (s *MemoryPlanStore) Merge(
 		s.plans = make(map[string]envtypes.Plan)
 	}
 
-	normalized := normalizePlanSessionID(sessionID)
-	current := clonePlan(s.plans[normalized])
+	normalized := normalizeSessionID(sessionID)
+	current := ClonePlan(s.plans[normalized])
 	indexByID := make(map[string]int, len(current.Steps))
 	for idx, step := range current.Steps {
 		indexByID[step.ID] = idx
@@ -107,9 +107,9 @@ func (s *MemoryPlanStore) Merge(
 		return envtypes.Plan{}, err
 	}
 
-	s.plans[normalized] = clonePlan(current)
+	s.plans[normalized] = ClonePlan(current)
 
-	return clonePlan(current), nil
+	return ClonePlan(current), nil
 }
 
 func (s *MemoryPlanStore) Clear(sessionID string) envtypes.Plan {
@@ -120,7 +120,7 @@ func (s *MemoryPlanStore) Clear(sessionID string) envtypes.Plan {
 		return envtypes.Plan{}
 	}
 
-	normalized := normalizePlanSessionID(sessionID)
+	normalized := normalizeSessionID(sessionID)
 	delete(s.plans, normalized)
 	return envtypes.Plan{}
 }
@@ -133,10 +133,10 @@ func (s *MemoryPlanStore) Hydrate(sessionID string, plan envtypes.Plan) {
 		s.plans = make(map[string]envtypes.Plan)
 	}
 
-	s.plans[normalizePlanSessionID(sessionID)] = clonePlan(plan)
+	s.plans[normalizeSessionID(sessionID)] = ClonePlan(plan)
 }
 
-func clonePlan(plan envtypes.Plan) envtypes.Plan {
+func ClonePlan(plan envtypes.Plan) envtypes.Plan {
 	cloned := envtypes.Plan{Explanation: plan.Explanation}
 	if len(plan.Steps) > 0 {
 		cloned.Steps = append([]envtypes.PlanStep(nil), plan.Steps...)
@@ -144,7 +144,7 @@ func clonePlan(plan envtypes.Plan) envtypes.Plan {
 	return cloned
 }
 
-func normalizePlanSessionID(sessionID string) string {
+func normalizeSessionID(sessionID string) string {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return "default"

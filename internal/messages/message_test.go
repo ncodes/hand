@@ -44,6 +44,7 @@ func TestNewMessage_DelegatesToNew(t *testing.T) {
 
 func TestNormalize_TrimsToolFieldsAndSetsTimestampWhenMissing(t *testing.T) {
 	message, err := Normalize(Message{
+		ID:         7,
 		Role:       RoleTool,
 		Content:    "  result  ",
 		Name:       "  time  ",
@@ -51,6 +52,7 @@ func TestNormalize_TrimsToolFieldsAndSetsTimestampWhenMissing(t *testing.T) {
 		CreatedAt:  time.Time{},
 	})
 	require.NoError(t, err)
+	require.Equal(t, uint(7), message.ID)
 	require.Equal(t, RoleTool, message.Role)
 	require.Equal(t, "result", message.Content)
 	require.Equal(t, "time", message.Name)
@@ -127,6 +129,7 @@ func TestCloneMessagesReturnsNilWhenEmpty(t *testing.T) {
 func TestCloneMessagesDeepCopiesToolCalls(t *testing.T) {
 	now := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
 	original := []Message{{
+		ID:        9,
 		Role:      RoleAssistant,
 		Content:   "hello",
 		ToolCalls: []ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
@@ -139,5 +142,6 @@ func TestCloneMessagesDeepCopiesToolCalls(t *testing.T) {
 
 	require.Equal(t, "hello", original[0].Content)
 	require.Equal(t, "time", original[0].ToolCalls[0].Name)
+	require.Equal(t, uint(9), cloned[0].ID)
 	require.Equal(t, now, cloned[0].CreatedAt)
 }

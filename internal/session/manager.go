@@ -170,6 +170,14 @@ func (m *Manager) GetMessages(ctx context.Context, id string, opts storage.Messa
 	return m.store.GetMessages(ctx, strings.TrimSpace(id), opts)
 }
 
+func (m *Manager) SearchMessages(ctx context.Context, id string, opts storage.SearchMessageOptions) ([]handmsg.Message, error) {
+	if m == nil {
+		return nil, errors.New("session manager is required")
+	}
+
+	return m.store.SearchMessages(ctx, strings.TrimSpace(id), opts)
+}
+
 func (m *Manager) CountMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) (int, error) {
 	if m == nil {
 		return 0, errors.New("session manager is required")

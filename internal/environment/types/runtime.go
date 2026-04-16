@@ -18,6 +18,7 @@ type Runtime interface {
 	ReadProcess(sessionID string, req process.ReadRequest) (process.Output, error)
 	StopProcess(ctx context.Context, sessionID string, processID string) (process.Info, error)
 	ListProcesses(sessionID string) []process.Info
+	SearchSession(ctx context.Context, req SessionSearchRequest) ([]SessionSearchResult, error)
 
 	// Plan management
 	GetPlan(string) Plan
@@ -25,6 +26,24 @@ type Runtime interface {
 	MergePlan(string, []PartialPlanStep, string, bool) (Plan, error)
 	ClearPlan(string) Plan
 	HydratePlan(string, Plan)
+}
+
+type SessionSearchRequest struct {
+	SessionID   string `json:"session_id,omitempty"`
+	Query       string `json:"query"`
+	Role        string `json:"role,omitempty"`
+	ToolName    string `json:"tool_name,omitempty"`
+	MaxResults  int    `json:"max_results,omitempty"`
+}
+
+type SessionSearchResult struct {
+	MessageID     uint      `json:"message_id"`
+	Role          string    `json:"role"`
+	ToolName      string    `json:"tool_name,omitempty"`
+	CreatedAt     string    `json:"created_at"`
+	Snippet       string    `json:"snippet"`
+	FullTextBytes int       `json:"full_text_bytes"`
+	MatchIndex    int       `json:"match_index"`
 }
 
 const (

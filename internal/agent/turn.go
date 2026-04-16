@@ -12,6 +12,7 @@ import (
 	agentmemory "github.com/wandxy/hand/internal/agent/memory"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/environment"
+	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	handmsg "github.com/wandxy/hand/internal/messages"
@@ -439,7 +440,7 @@ func (t *Turn) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg
 	return t.invokeToolFn(ctx, t.env, toolCall)
 }
 
-func (t *Turn) summaryFallback(ctx context.Context, budget environment.IterationBudget, traceSession trace.Session) (string, error) {
+func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBudget, traceSession trace.Session) (string, error) {
 	ctx = normalizeContext(ctx)
 	if err := ctx.Err(); err != nil {
 		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})

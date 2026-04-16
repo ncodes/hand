@@ -131,6 +131,64 @@ func TestMemoryStore_SearchMessagesSupportsStructuredAndToolFilters(t *testing.T
 	require.Equal(t, "process", messages[0].Name)
 }
 
+func TestMemoryStore_SearchMessagesEdgeCases(t *testing.T) {
+	var nilStore *SessionStore
+
+	messages, err := nilStore.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{Query: "hello"})
+	require.EqualError(t, err, "session store is required")
+	require.Nil(t, messages)
+
+	store := NewSessionStore()
+
+	messages, err = store.SearchMessages(context.Background(), "", base.SearchMessageOptions{Query: "hello"})
+	require.NoError(t, err)
+	require.Nil(t, messages)
+
+	messages, err = store.SearchMessages(context.Background(), "ses_invalid", base.SearchMessageOptions{Query: "hello"})
+	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
+	require.Nil(t, messages)
+
+	messages, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{})
+	require.NoError(t, err)
+	require.Nil(t, messages)
+}
+
+func TestMemoryStore_SearchMessagesSupportsPagingAndRoleFiltering(t *testing.T) {
+	store := NewSessionStore()
+	now := time.Now().UTC()
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello zero", CreatedAt: now},
+		{Role: handmsg.RoleAssistant, Content: "hello one", CreatedAt: now.Add(time.Second)},
+		{Role: handmsg.RoleUser, Content: "hello two", CreatedAt: now.Add(2 * time.Second)},
+	}))
+
+	messages, err := store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
+		Query:  "hello",
+		Offset: 1,
+		Limit:  1,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "hello one", messages[0].Content)
+
+	messages, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
+		Query: "hello",
+		Role:  handmsg.RoleAssistant,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, handmsg.RoleAssistant, messages[0].Role)
+
+	messages, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
+		Query:    "hello",
+		ToolName: "missing",
+	})
+	require.NoError(t, err)
+	require.Empty(t, messages)
+}
+
 func TestMemoryStore_GetMessagesSupportsDescendingOrder(t *testing.T) {
 	store := NewSessionStore()
 	now := time.Now().UTC()
@@ -509,6 +567,87 @@ func TestMemoryStore_SetCurrentAndCloneMessages(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "hello", messageAgain.Content)
+}
+
+func TestMemoryStore_HelperFunctions(t *testing.T) {
+	require.Nil(t, reverseMessages(nil))
+	require.Equal(t, base.MessageOrderAsc, messageQueryOrder(MessageQueryOptions{}))
+	require.Equal(t, base.MessageOrderAsc, messageQueryOrder(MessageQueryOptions{Order: "bogus"}))
+
+	searchText, toolName := handmsg.SearchableMessageText(handmsg.Message{
+		Role:    handmsg.RoleAssistant,
+		Content: "assistant plain text",
+	}, "")
+	require.Equal(t, "assistant plain text", searchText)
+	require.Empty(t, toolName)
+
+	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
+		Role:    handmsg.RoleAssistant,
+		Content: "assistant plain text",
+	}, "process")
+	require.Empty(t, searchText)
+	require.Empty(t, toolName)
+
+	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
+		Role:      handmsg.RoleAssistant,
+		ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "process", Input: `{"action":"start"}`}},
+	}, "process")
+	require.Contains(t, searchText, "tool_name process")
+	require.Equal(t, "process", toolName)
+
+	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
+		Role:      handmsg.RoleAssistant,
+		ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "process", Input: `{"action":"start"}`}},
+	}, "search_files")
+	require.Empty(t, searchText)
+	require.Empty(t, toolName)
+
+	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
+		Role:       handmsg.RoleAssistant,
+		SearchText: "assistant structured",
+		ToolCalls:  []handmsg.ToolCall{{ID: "call-1", Name: "process", Input: `{"action":"start"}`}},
+	}, "")
+	require.Equal(t, "assistant structured", searchText)
+	require.Equal(t, "process", toolName)
+
+	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
+		Role:       handmsg.RoleTool,
+		Name:       "process",
+		SearchText: "tool structured",
+		Content:    `{"status":"running"}`,
+	}, "process")
+	require.Equal(t, "tool structured", searchText)
+	require.Equal(t, "process", toolName)
+
+	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
+		Role:    handmsg.RoleTool,
+		Name:    "process",
+		Content: `{"status":"running"}`,
+	}, "")
+	require.Equal(t, `{"status":"running"}`, searchText)
+	require.Equal(t, "process", toolName)
+
+	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
+		Role:    handmsg.RoleTool,
+		Name:    "process",
+		Content: `{"status":"running"}`,
+	}, "search_files")
+	require.Empty(t, searchText)
+	require.Empty(t, toolName)
+
+	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
+		Role:    handmsg.RoleUser,
+		Content: "user plain text",
+	}, "")
+	require.Equal(t, "user plain text", searchText)
+	require.Empty(t, toolName)
+
+	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
+		Role:    handmsg.RoleUser,
+		Content: "user plain text",
+	}, "process")
+	require.Empty(t, searchText)
+	require.Empty(t, toolName)
 }
 
 func TestMemoryStore_ArchiveValidation(t *testing.T) {

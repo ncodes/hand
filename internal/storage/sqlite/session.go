@@ -92,6 +92,7 @@ type messageModel struct {
 	Role       string
 	Name       string
 	Content    string
+	SearchText string `gorm:"type:text"`
 	ToolCalls  string `gorm:"type:text"`
 	ToolCallID string
 	CreatedAt  time.Time
@@ -109,6 +110,7 @@ type archivedMessageModel struct {
 	Role       string
 	Name       string
 	Content    string
+	SearchText string `gorm:"type:text"`
 	ToolCalls  string `gorm:"type:text"`
 	ToolCallID string
 	CreatedAt  time.Time
@@ -485,6 +487,56 @@ func (s *SessionStore) CountMessages(
 	}
 
 	return int(count), nil
+}
+
+func (s *SessionStore) SearchMessages(
+	ctx context.Context,
+	id string,
+	opts base.SearchMessageOptions,
+) ([]handmsg.Message, error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("session store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, nil
+	}
+	if err := common.ValidateSessionID(id); err != nil {
+		return nil, err
+	}
+
+	queryText := strings.TrimSpace(strings.ToLower(opts.Query))
+	if queryText == "" {
+		return nil, nil
+	}
+
+	query := s.db.WithContext(ctx).Model(&messageModel{}).Where("session_id = ?", id)
+	if role := strings.TrimSpace(string(opts.Role)); role != "" {
+		query = query.Where("role = ?", role)
+	}
+
+	if toolName := strings.TrimSpace(opts.ToolName); toolName != "" {
+		assistantClause := "(role = ? AND LOWER(COALESCE(NULLIF(TRIM(search_text), ''), '')) LIKE ?)"
+		toolClause := "(role = ? AND name = ?)"
+		query = query.Where("("+assistantClause+" OR "+toolClause+")",
+			string(handmsg.RoleAssistant), "%tool_name "+strings.ToLower(toolName)+"%",
+			string(handmsg.RoleTool), toolName,
+		)
+	}
+
+	query = query.Where("LOWER(COALESCE(NULLIF(TRIM(search_text), ''), content)) LIKE ?", "%"+queryText+"%")
+	query = query.Order("sequence desc").Offset(max(opts.Offset, 0))
+	if opts.Limit > 0 {
+		query = query.Limit(opts.Limit)
+	}
+
+	var records []messageModel
+	if err := query.Find(&records).Error; err != nil {
+		return nil, err
+	}
+
+	return decodeSessionMessages(records), nil
 }
 
 func applySessionMessageFilters(query *gorm.DB, id string, opts MessageQueryOptions) *gorm.DB {
@@ -1002,11 +1054,13 @@ func encodeSessionMessagesWithOffset(sessionID string, messages []handmsg.Messag
 	records := make([]messageModel, 0, len(messages))
 	for i, message := range messages {
 		records = append(records, messageModel{
+			ID:         message.ID,
 			SessionID:  sessionID,
 			Sequence:   offset + i,
 			Role:       string(message.Role),
 			Name:       message.Name,
 			Content:    message.Content,
+			SearchText: messageSearchText(message),
 			ToolCalls:  encodeToolCalls(message.ToolCalls),
 			ToolCallID: message.ToolCallID,
 			CreatedAt:  message.CreatedAt,
@@ -1024,11 +1078,13 @@ func encodeArchivedMessages(archiveID string, messages []handmsg.Message) []arch
 	records := make([]archivedMessageModel, 0, len(messages))
 	for i, message := range messages {
 		records = append(records, archivedMessageModel{
+			ID:         message.ID,
 			ArchiveID:  archiveID,
 			Sequence:   i,
 			Role:       string(message.Role),
 			Name:       message.Name,
 			Content:    message.Content,
+			SearchText: messageSearchText(message),
 			ToolCalls:  encodeToolCalls(message.ToolCalls),
 			ToolCallID: message.ToolCallID,
 			CreatedAt:  message.CreatedAt,
@@ -1046,9 +1102,11 @@ func decodeSessionMessages(records []messageModel) []handmsg.Message {
 	messages := make([]handmsg.Message, 0, len(records))
 	for _, record := range records {
 		messages = append(messages, handmsg.Message{
+			ID:         record.ID,
 			Role:       handmsg.Role(record.Role),
 			Name:       record.Name,
 			Content:    record.Content,
+			SearchText: record.SearchText,
 			ToolCalls:  decodeToolCalls(record.ToolCalls),
 			ToolCallID: record.ToolCallID,
 			CreatedAt:  record.CreatedAt,
@@ -1066,9 +1124,11 @@ func decodeArchivedMessages(records []archivedMessageModel) []handmsg.Message {
 	messages := make([]handmsg.Message, 0, len(records))
 	for _, record := range records {
 		messages = append(messages, handmsg.Message{
+			ID:         record.ID,
 			Role:       handmsg.Role(record.Role),
 			Name:       record.Name,
 			Content:    record.Content,
+			SearchText: record.SearchText,
 			ToolCalls:  decodeToolCalls(record.ToolCalls),
 			ToolCallID: record.ToolCallID,
 			CreatedAt:  record.CreatedAt,
@@ -1124,4 +1184,12 @@ func decodeToolCalls(value string) []handmsg.ToolCall {
 	}
 
 	return toolCalls
+}
+
+func messageSearchText(message handmsg.Message) string {
+	if strings.TrimSpace(message.SearchText) != "" {
+		return strings.TrimSpace(message.SearchText)
+	}
+
+	return handmsg.MessageSearchText(message)
 }

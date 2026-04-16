@@ -20,6 +20,7 @@ type Runtime struct {
 	ReadProcessFunc    func(string, processenv.ReadRequest) (processenv.Output, error)
 	StopProcessFunc    func(context.Context, string, string) (processenv.Info, error)
 	ListProcessesFunc  func(string) []processenv.Info
+	SearchSessionFunc  func(context.Context, envtypes.SessionSearchRequest) ([]envtypes.SessionSearchResult, error)
 }
 
 func (r *Runtime) FilePolicy() guardrails.FilesystemPolicy { return r.FilePolicyValue }
@@ -53,6 +54,12 @@ func (r *Runtime) ListProcesses(sessionID string) []processenv.Info {
 		return r.ListProcessesFunc(sessionID)
 	}
 	return nil
+}
+func (r *Runtime) SearchSession(ctx context.Context, req envtypes.SessionSearchRequest) ([]envtypes.SessionSearchResult, error) {
+	if r != nil && r.SearchSessionFunc != nil {
+		return r.SearchSessionFunc(ctx, req)
+	}
+	return nil, nil
 }
 func (r *Runtime) GetPlan(string) envtypes.Plan { return envtypes.Plan{} }
 func (r *Runtime) ReplacePlan(string, envtypes.Plan) (envtypes.Plan, error) {
@@ -119,6 +126,9 @@ func (d *FailingPlanRuntime) StopProcess(ctx context.Context, sessionID string, 
 }
 func (d *FailingPlanRuntime) ListProcesses(sessionID string) []processenv.Info {
 	return d.Runtime.ListProcesses(sessionID)
+}
+func (d *FailingPlanRuntime) SearchSession(ctx context.Context, req envtypes.SessionSearchRequest) ([]envtypes.SessionSearchResult, error) {
+	return d.Runtime.SearchSession(ctx, req)
 }
 func (d *FailingPlanRuntime) GetPlan(sessionID string) envtypes.Plan {
 	return d.Runtime.GetPlan(sessionID)

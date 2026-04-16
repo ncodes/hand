@@ -6,9 +6,12 @@ import (
 	"os"
 	"path/filepath"
 
+	envplanstore "github.com/wandxy/hand/internal/environment/planstore"
 	processenv "github.com/wandxy/hand/internal/environment/process"
+	envsessionsearch "github.com/wandxy/hand/internal/environment/sessionsearch"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
+	sessionstore "github.com/wandxy/hand/internal/session"
 )
 
 var getwd = os.Getwd
@@ -17,10 +20,11 @@ type Runtime struct {
 	filePolicy    guardrails.FilesystemPolicy
 	commandPolicy guardrails.CommandPolicy
 	processMgr    processenv.Manager
-	plans         PlanStore
+	plans         envplanstore.Store
+	sessionMgr    *sessionstore.Manager
 }
 
-func NewRuntime(roots []string, policy guardrails.CommandPolicy) *Runtime {
+func NewRuntime(roots []string, policy guardrails.CommandPolicy, sessionMgr *sessionstore.Manager) *Runtime {
 	if len(roots) == 0 {
 		cwd, err := getwd()
 		if err != nil {
@@ -33,7 +37,8 @@ func NewRuntime(roots []string, policy guardrails.CommandPolicy) *Runtime {
 		filePolicy:    guardrails.FilesystemPolicy{Roots: guardrails.NormalizeRoots(roots)},
 		commandPolicy: policy.Normalize(),
 		processMgr:    &processenv.DefaultManager{},
-		plans:         &MemoryPlanStore{},
+		plans:         &envplanstore.MemoryPlanStore{},
+		sessionMgr:    sessionMgr,
 	}
 }
 
@@ -90,6 +95,14 @@ func (r *Runtime) ListProcesses(sessionID string) []processenv.Info {
 	return r.processMgr.List(sessionID)
 }
 
+func (r *Runtime) SearchSession(ctx context.Context, req envtypes.SessionSearchRequest) ([]envtypes.SessionSearchResult, error) {
+	if r == nil || r.sessionMgr == nil {
+		return nil, errors.New("session manager is required")
+	}
+
+	return envsessionsearch.Search(ctx, r.sessionMgr, req)
+}
+
 func (r *Runtime) GetPlan(sessionID string) envtypes.Plan {
 	if r == nil || r.plans == nil {
 		return envtypes.Plan{}
@@ -99,7 +112,7 @@ func (r *Runtime) GetPlan(sessionID string) envtypes.Plan {
 
 func (r *Runtime) ReplacePlan(sessionID string, plan envtypes.Plan) (envtypes.Plan, error) {
 	if r == nil || r.plans == nil {
-		return clonePlan(plan), errors.New("plan store is required")
+		return envplanstore.ClonePlan(plan), errors.New("plan store is required")
 	}
 	return r.plans.Replace(sessionID, plan)
 }

@@ -126,6 +126,7 @@ func (a *Agent) Start(ctx context.Context) error {
 	}
 
 	a.env = newEnvironment(ctx, a.cfg)
+	a.env.SetSessionManager(a.sessionMgr)
 	if err := a.env.Prepare(); err != nil {
 		return err
 	}
@@ -168,6 +169,7 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 	env := a.env
 	if env == nil {
 		env = newEnvironment(ctx, a.cfg)
+		env.SetSessionManager(a.sessionMgr)
 		if err := env.Prepare(); err != nil {
 			return "", err
 		}

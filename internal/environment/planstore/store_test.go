@@ -1,4 +1,4 @@
-package environment
+package planstore
 
 import (
 	"testing"

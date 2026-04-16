@@ -1,4 +1,4 @@
-package environment
+package budget
 
 import (
 	"testing"
@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewIterationBudgetConsumesDownToZero(t *testing.T) {
-	budget := NewIterationBudget(2)
+func TestNewConsumesDownToZero(t *testing.T) {
+	budget := New(2)
 
 	require.Equal(t, 2, budget.Remaining())
 	require.True(t, budget.Consume())

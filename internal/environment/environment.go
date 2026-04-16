@@ -9,11 +9,13 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
+	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/personality"
 	webintegration "github.com/wandxy/hand/internal/providers/web"
+	sessionstore "github.com/wandxy/hand/internal/session"
 	"github.com/wandxy/hand/internal/tools"
 	listfiles "github.com/wandxy/hand/internal/tools/listfiles"
 	"github.com/wandxy/hand/internal/tools/patch"
@@ -22,6 +24,7 @@ import (
 	readfile "github.com/wandxy/hand/internal/tools/readfile"
 	runcommand "github.com/wandxy/hand/internal/tools/runcommand"
 	searchfiles "github.com/wandxy/hand/internal/tools/searchfiles"
+	sessionsearch "github.com/wandxy/hand/internal/tools/sessionsearch"
 	"github.com/wandxy/hand/internal/tools/time"
 	webextract "github.com/wandxy/hand/internal/tools/webextract"
 	websearch "github.com/wandxy/hand/internal/tools/websearch"
@@ -53,7 +56,7 @@ type Environment interface {
 	ToolPolicy() tools.Policy
 
 	// NewIterationBudget creates the tool-calling iteration limit from config (max iterations).
-	NewIterationBudget() IterationBudget
+	NewIterationBudget() envbudget.IterationBudget
 
 	// NewTraceSession opens a trace sink for the given storage session when debug tracing is enabled.
 	NewTraceSession(sessionID string) trace.Session
@@ -63,6 +66,9 @@ type Environment interface {
 
 	// HydratePlan seeds the in-memory plan state for the given session.
 	HydratePlan(sessionID string, plan envtypes.Plan)
+
+	// SetSessionManager wires session-backed features into the environment runtime.
+	SetSessionManager(*sessionstore.Manager)
 }
 
 type environment struct {
@@ -73,6 +79,7 @@ type environment struct {
 	tools        tools.Registry
 	traces       trace.Factory
 	runtime      *Runtime
+	sessionMgr   *sessionstore.Manager
 }
 
 type ToolRegistry interface {
@@ -147,7 +154,7 @@ func (e *environment) Prepare() error {
 
 func (e *environment) prepareTools() error {
 	if e.runtime == nil {
-		e.runtime = NewRuntime(e.fileRoots(), e.commandPolicy())
+		e.runtime = NewRuntime(e.fileRoots(), e.commandPolicy(), e.sessionMgr)
 	}
 
 	if err := e.tools.RegisterGroup(tools.Group{Name: "core"}); err != nil {
@@ -164,6 +171,9 @@ func (e *environment) prepareTools() error {
 		plan.Definition(e.runtime),
 		process.Definition(e.runtime),
 		runcommand.Definition(e.runtime),
+	}
+	if e.sessionMgr != nil {
+		definitions = append(definitions, sessionsearch.Definition(e.runtime))
 	}
 
 	webProvider, err := webintegration.NewProvider(e.cfg)
@@ -269,11 +279,11 @@ func (e *environment) Tools() ToolRegistry {
 	return e.tools
 }
 
-func (e *environment) NewIterationBudget() IterationBudget {
+func (e *environment) NewIterationBudget() envbudget.IterationBudget {
 	if e == nil || e.cfg == nil || e.cfg.MaxIterations <= 0 {
-		return NewIterationBudget(config.DefaultMaxIterations)
+		return envbudget.New(config.DefaultMaxIterations)
 	}
-	return NewIterationBudget(e.cfg.MaxIterations)
+	return envbudget.New(e.cfg.MaxIterations)
 }
 
 func (e *environment) NewTraceSession(sessionID string) trace.Session {
@@ -313,6 +323,16 @@ func (e *environment) HydratePlan(sessionID string, plan envtypes.Plan) {
 		return
 	}
 	e.runtime.HydratePlan(sessionID, plan)
+}
+
+func (e *environment) SetSessionManager(manager *sessionstore.Manager) {
+	if e == nil {
+		return
+	}
+	e.sessionMgr = manager
+	if e.runtime != nil {
+		e.runtime.sessionMgr = manager
+	}
 }
 
 func (e *environment) fileRoots() []string {

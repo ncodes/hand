@@ -6,9 +6,11 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/environment"
+	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/models"
+	sessionstore "github.com/wandxy/hand/internal/session"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 )
@@ -73,7 +75,7 @@ type EnvironmentStub struct {
 	InstructionsList instruct.Instructions
 	ToolRegistry     environment.ToolRegistry
 	Policy           tools.Policy
-	IterationBudget  environment.IterationBudget
+	IterationBudget  envbudget.IterationBudget
 	TraceSession     trace.Session
 	Plan             envtypes.Plan
 }
@@ -94,9 +96,9 @@ func (s *EnvironmentStub) ToolPolicy() tools.Policy {
 	return s.Policy
 }
 
-func (s *EnvironmentStub) NewIterationBudget() environment.IterationBudget {
+func (s *EnvironmentStub) NewIterationBudget() envbudget.IterationBudget {
 	if s.IterationBudget.Remaining() <= 0 {
-		return environment.NewIterationBudget(config.DefaultMaxIterations)
+		return envbudget.New(config.DefaultMaxIterations)
 	}
 
 	return s.IterationBudget
@@ -117,6 +119,8 @@ func (s *EnvironmentStub) CurrentPlan(string) envtypes.Plan {
 func (s *EnvironmentStub) HydratePlan(_ string, plan envtypes.Plan) {
 	s.Plan = plan
 }
+
+func (s *EnvironmentStub) SetSessionManager(*sessionstore.Manager) {}
 
 type ToolRegistryStub struct {
 	Definitions    []tools.Definition

@@ -83,6 +83,14 @@ type MessageQueryOptions struct {
 	Role     handmsg.Role
 }
 
+type SearchMessageOptions struct {
+	Limit    int
+	Offset   int
+	Query    string
+	Role     handmsg.Role
+	ToolName string
+}
+
 func NormalizeMessageQueryOrder(order string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(order)) {
 	case "", MessageOrderAsc:
@@ -110,6 +118,7 @@ type SessionStore interface {
 	CountMessages(ctx context.Context, id string, opts MessageQueryOptions) (int, error)
 	GetMessage(ctx context.Context, id string, index int, opts MessageQueryOptions) (handmsg.Message, bool, error)
 	GetMessages(ctx context.Context, id string, opts MessageQueryOptions) ([]handmsg.Message, error)
+	SearchMessages(ctx context.Context, id string, opts SearchMessageOptions) ([]handmsg.Message, error)
 	ClearMessages(ctx context.Context, id string, opts MessageQueryOptions) error
 
 	// Session summaries

@@ -16,10 +16,12 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
+	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/personality"
+	"github.com/wandxy/hand/internal/session"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/internal/workspace"
@@ -259,6 +261,18 @@ func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) 
 	require.Contains(t, instructions[0].Value, "Use plan_tool for tasks with 3 or more meaningful steps")
 	require.Contains(t, instructions[1].Value, "Test Agent is the user's personal agent")
 	require.Contains(t, instructions[1].Value, "Use tools when they materially improve correctness or allow real action")
+}
+
+func TestEnvironment_SetSessionManager(t *testing.T) {
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
+	h := env.(*environment)
+
+	require.Nil(t, h.sessionMgr)
+
+	manager := &session.Manager{}
+	h.SetSessionManager(manager)
+
+	require.Same(t, manager, h.sessionMgr)
 }
 
 func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
@@ -637,7 +651,7 @@ func TestEnvironment_CurrentPlanAndHydratePlanHandleNilReceiver(t *testing.T) {
 }
 
 func TestEnvironment_CurrentPlanAndHydratePlanUseRuntimeStore(t *testing.T) {
-	env := &environment{runtime: NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{})}
+	env := &environment{runtime: NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, nil)}
 
 	env.HydratePlan("session-1", envtypes.Plan{
 		Steps:       []envtypes.PlanStep{{ID: "step-1", Content: "First", Status: envtypes.PlanStatusInProgress}},
@@ -743,7 +757,7 @@ func TestEnvironment_PrepareReturnsToolGroupRegistrationError(t *testing.T) {
 func TestEnvironment_PrepareToolsPreservesExistingRuntime(t *testing.T) {
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
 	h := env.(*environment)
-	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{})
+	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, nil)
 	h.runtime = runtime
 	require.NoError(t, h.prepareTools())
 	require.Same(t, runtime, h.runtime)
@@ -817,6 +831,7 @@ func TestEnvironment_NewIterationBudgetUsesConfigValue(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{MaxIterations: 12, DebugTraceDir: dir})
 	require.Equal(t, 12, env.NewIterationBudget().Remaining())
+	require.IsType(t, envbudget.IterationBudget{}, env.NewIterationBudget())
 }
 
 func TestEnvironment_NewIterationBudgetUsesDefaultWhenUnset(t *testing.T) {
