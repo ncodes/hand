@@ -93,6 +93,44 @@ func TestMemoryStore_GetAndCountMessagesSupportRoleAndNameFilters(t *testing.T) 
 	require.Equal(t, "plan_tool", messages[0].Name)
 }
 
+func TestMemoryStore_SearchMessagesSupportsStructuredAndToolFilters(t *testing.T) {
+	store := NewSessionStore()
+	now := time.Now().UTC()
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello plain text", CreatedAt: now},
+		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{
+			{ID: "call-1", Name: "process", Input: `{"action":"start"}`},
+			{ID: "call-2", Name: "search_files", Input: `{"pattern":"needle"}`},
+		}, CreatedAt: now.Add(time.Second)},
+		{Role: handmsg.RoleTool, Name: "process", Content: `{"status":"running"}`, ToolCallID: "call-3", CreatedAt: now.Add(2 * time.Second)},
+	}))
+
+	messages, err := store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
+		Query: "needle",
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, handmsg.RoleAssistant, messages[0].Role)
+
+	messages, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
+		Query:    "needle",
+		ToolName: "process",
+	})
+	require.NoError(t, err)
+	require.Empty(t, messages)
+
+	messages, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
+		Query:    "running",
+		ToolName: "process",
+		Role:     handmsg.RoleTool,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "process", messages[0].Name)
+}
+
 func TestMemoryStore_GetMessagesSupportsDescendingOrder(t *testing.T) {
 	store := NewSessionStore()
 	now := time.Now().UTC()

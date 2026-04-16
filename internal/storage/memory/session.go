@@ -26,6 +26,7 @@ type SessionStore struct {
 	archives        map[string]ArchivedSession
 	archiveMessages map[string][]handmsg.Message
 	currentSession  string
+	nextMessageID   uint
 }
 
 func NewSessionStore() *SessionStore {
@@ -165,6 +166,15 @@ func (s *SessionStore) AppendMessages(_ context.Context, id string, messages []h
 	}
 
 	copied := cloneMessages(messages)
+	for i := range copied {
+		if copied[i].ID == 0 {
+			s.nextMessageID++
+			copied[i].ID = s.nextMessageID
+		}
+		if strings.TrimSpace(copied[i].SearchText) == "" {
+			copied[i].SearchText = handmsg.MessageSearchText(copied[i])
+		}
+	}
 	s.messages[id] = append(s.messages[id], copied...)
 	session.UpdatedAt = time.Now().UTC()
 	s.sessions[id] = session
@@ -206,6 +216,57 @@ func (s *SessionStore) GetMessages(
 	}
 
 	return queryMessages(s.messages[id], opts), nil
+}
+
+func (s *SessionStore) SearchMessages(
+	_ context.Context,
+	id string, opts base.SearchMessageOptions,
+) ([]handmsg.Message, error) {
+	if s == nil {
+		return nil, errors.New("session store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, nil
+	}
+	if err := common.ValidateSessionID(id); err != nil {
+		return nil, err
+	}
+
+	query := strings.TrimSpace(strings.ToLower(opts.Query))
+	if query == "" {
+		return nil, nil
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	messages := s.messages[id]
+	results := make([]handmsg.Message, 0, min(len(messages), max(opts.Limit, 0)))
+	seen := 0
+	for i := len(messages) - 1; i >= 0; i-- {
+		searchText, _ := searchableMessageText(messages[i], opts.ToolName)
+		if searchText == "" {
+			continue
+		}
+		if !strings.Contains(strings.ToLower(searchText), query) {
+			continue
+		}
+		if opts.Role != "" && messages[i].Role != opts.Role {
+			continue
+		}
+		if seen < max(opts.Offset, 0) {
+			seen++
+			continue
+		}
+		results = append(results, handmsg.CloneMessages([]handmsg.Message{messages[i]})[0])
+		if opts.Limit > 0 && len(results) >= opts.Limit {
+			break
+		}
+	}
+
+	return results, nil
 }
 
 func (s *SessionStore) CountMessages(_ context.Context, id string, opts MessageQueryOptions) (int, error) {
@@ -594,6 +655,40 @@ func filterMessages(messages []handmsg.Message, opts MessageQueryOptions) []hand
 	}
 
 	return filtered
+}
+
+func searchableMessageText(message handmsg.Message, toolName string) (string, string) {
+	switch message.Role {
+	case handmsg.RoleAssistant:
+		if len(message.ToolCalls) == 0 {
+			if strings.TrimSpace(toolName) != "" {
+				return "", ""
+			}
+			return strings.TrimSpace(message.Content), ""
+		}
+		if strings.TrimSpace(toolName) != "" {
+			for _, toolCall := range message.ToolCalls {
+				if strings.EqualFold(strings.TrimSpace(toolCall.Name), strings.TrimSpace(toolName)) {
+					return handmsg.ToolCallSearchText(toolCall), strings.TrimSpace(toolCall.Name)
+				}
+			}
+			return "", ""
+		}
+		return strings.TrimSpace(message.SearchText), ""
+	case handmsg.RoleTool:
+		if strings.TrimSpace(toolName) != "" && !strings.EqualFold(strings.TrimSpace(message.Name), strings.TrimSpace(toolName)) {
+			return "", ""
+		}
+		if strings.TrimSpace(message.SearchText) != "" {
+			return strings.TrimSpace(message.SearchText), strings.TrimSpace(message.Name)
+		}
+		return strings.TrimSpace(message.Content), strings.TrimSpace(message.Name)
+	default:
+		if strings.TrimSpace(toolName) != "" {
+			return "", ""
+		}
+		return strings.TrimSpace(message.Content), ""
+	}
 }
 
 func messageQueryOrder(opts MessageQueryOptions) string {
