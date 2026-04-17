@@ -2,6 +2,8 @@ package e2e
 
 import (
 	"context"
+	"errors"
+	"net"
 	"time"
 
 	"github.com/wandxy/hand/internal/agent"
@@ -86,3 +88,16 @@ func (s *storageStoreStub) SetCurrent(context.Context, string) error { return ni
 func (s *storageStoreStub) Current(context.Context) (string, bool, error) {
 	return "", false, nil
 }
+
+type stubAddr string
+
+func (a stubAddr) Network() string { return string(a) }
+func (a stubAddr) String() string  { return string(a) }
+
+type stubListener struct {
+	addr net.Addr
+}
+
+func (l stubListener) Accept() (net.Conn, error) { return nil, errors.New("accept unsupported") }
+func (l stubListener) Close() error              { return nil }
+func (l stubListener) Addr() net.Addr            { return l.addr }

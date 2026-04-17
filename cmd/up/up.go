@@ -16,16 +16,13 @@ import (
 	"github.com/rs/zerolog/log"
 	cli "github.com/urfave/cli/v3"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/health"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/wandxy/hand/internal/agent"
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/diagnostics"
 	"github.com/wandxy/hand/internal/models"
-	rpc "github.com/wandxy/hand/internal/rpc"
-	handpb "github.com/wandxy/hand/internal/rpc/proto"
+	"github.com/wandxy/hand/internal/rpcserver"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -158,11 +155,7 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) 
 	}
 	defer lis.Close()
 
-	grpcSrv := grpc.NewServer()
-	healthcheck := health.NewServer()
-	handpb.RegisterHandServiceServer(grpcSrv, rpc.NewService(agent))
-	healthpb.RegisterHealthServer(grpcSrv, healthcheck)
-	healthcheck.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	grpcSrv := rpcserver.New(agent, rpcserver.Options{Health: true})
 
 	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
