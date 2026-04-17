@@ -15,16 +15,13 @@ import (
 	"github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/config"
 	handmsg "github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/mocks"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/storage"
 )
 
 func TestNewHarness_InMemoryConfigSmoke(t *testing.T) {
 	spec := testHarnessSpec(t)
-	client := &mocks.ModelClientStub{
-		Responses: []*models.Response{{OutputText: "hello from hand"}},
-	}
+	client := NewTextClient("hello from hand")
 
 	harness, err := NewHarness(context.Background(), HarnessOptions{
 		Spec:        spec,
@@ -75,7 +72,7 @@ func TestNewHarness_RealConfigLoadAndEnvOverride(t *testing.T) {
 
 	harness, err := NewHarness(context.Background(), HarnessOptions{
 		Spec:        spec,
-		ModelClient: &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "loaded"}}},
+		ModelClient: NewTextClient("loaded"),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -93,10 +90,48 @@ func TestNewHarness_RealConfigLoadAndEnvOverride(t *testing.T) {
 	assert.Equal(t, "loaded", result.Reply)
 }
 
+func TestNewHarness_ToolCallModelDoubleSmoke(t *testing.T) {
+	spec := testHarnessSpec(t)
+	client := NewToolClient(
+		models.ToolCall{ID: "call-1", Name: "time", Input: "{}"},
+		"time handled",
+	)
+
+	harness, err := NewHarness(context.Background(), HarnessOptions{
+		Spec:        spec,
+		Config:      testHarnessConfig(),
+		ModelClient: client,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, harness.Close())
+	})
+
+	result, err := harness.Send(context.Background(), RootChatRequest{Message: "what time is it"})
+	require.NoError(t, err)
+	assert.Equal(t, "time handled", result.Reply)
+
+	requests := client.Requests()
+	require.Len(t, requests, 2)
+	require.Len(t, requests[1].Messages, 3)
+
+	messages, err := harness.Messages(context.Background(), result.SessionID)
+	require.NoError(t, err)
+	require.Len(t, messages, 4)
+	assert.Equal(t, handmsg.RoleUser, messages[0].Role)
+	assert.Equal(t, handmsg.RoleAssistant, messages[1].Role)
+	assert.Len(t, messages[1].ToolCalls, 1)
+	assert.Equal(t, "call-1", messages[1].ToolCalls[0].ID)
+	assert.Equal(t, handmsg.RoleTool, messages[2].Role)
+	assert.Equal(t, "call-1", messages[2].ToolCallID)
+	assert.Equal(t, handmsg.RoleAssistant, messages[3].Role)
+	assert.Equal(t, "time handled", messages[3].Content)
+}
+
 func TestNewHarness_Errors(t *testing.T) {
 	validSpec := testHarnessSpec(t)
 	validConfig := testHarnessConfig()
-	validClient := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "ok"}}}
+	validClient := NewTextClient("ok")
 
 	t.Run("invalid spec", func(t *testing.T) {
 		_, err := NewHarness(context.Background(), HarnessOptions{})
@@ -212,7 +247,7 @@ func TestHarnessSendAndMessagesErrors(t *testing.T) {
 		h, err := NewHarness(context.Background(), HarnessOptions{
 			Spec:        spec,
 			Config:      testHarnessConfig(),
-			ModelClient: &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "ok"}}},
+			ModelClient: NewTextClient("ok"),
 		})
 		require.NoError(t, err)
 		t.Cleanup(func() {
@@ -306,7 +341,7 @@ func TestHarnessSendAndMessagesErrors(t *testing.T) {
 		harness, err := NewHarness(context.Background(), HarnessOptions{
 			Spec:        spec,
 			Config:      cfg,
-			ModelClient: &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "ok"}}},
+			ModelClient: NewTextClient("ok"),
 		})
 		require.NoError(t, err)
 		t.Cleanup(func() {
@@ -448,6 +483,18 @@ func TestStorageStoreStub_NoOpMethods(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, currentOK)
 	assert.Empty(t, current)
+
+	addr := stubAddr("pipe")
+	assert.Equal(t, "pipe", addr.Network())
+	assert.Equal(t, "pipe", addr.String())
+
+	listener := stubListener{addr: addr}
+	conn, err := listener.Accept()
+	require.Error(t, err)
+	assert.Nil(t, conn)
+	assert.EqualError(t, err, "accept unsupported")
+	assert.Equal(t, addr, listener.Addr())
+	assert.NoError(t, listener.Close())
 }
 
 func testHarnessSpec(t *testing.T) HarnessSpec {

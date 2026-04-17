@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/mocks"
-	"github.com/wandxy/hand/internal/models"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/pkg/logutils"
 	"google.golang.org/grpc"
@@ -26,7 +24,7 @@ func TestNewRPCHarness_RealClientChatSmoke(t *testing.T) {
 	h, err := NewRPCHarness(context.Background(), HarnessOptions{
 		Spec:        testHarnessSpec(t),
 		Config:      testHarnessConfig(),
-		ModelClient: &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "hello over rpc"}}},
+		ModelClient: NewTextClient("hello over rpc"),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -63,7 +61,7 @@ func TestNewRPCHarness_ErrorsAndHelpers(t *testing.T) {
 		_, err := NewRPCHarness(context.Background(), HarnessOptions{
 			Spec:        testHarnessSpec(t),
 			Config:      testHarnessConfig(),
-			ModelClient: &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "ok"}}},
+			ModelClient: NewTextClient("ok"),
 		})
 		require.Error(t, err)
 		assert.EqualError(t, err, "listen failed")
@@ -89,7 +87,7 @@ func TestNewRPCHarness_ErrorsAndHelpers(t *testing.T) {
 		_, err := NewRPCHarness(context.Background(), HarnessOptions{
 			Spec:        testHarnessSpec(t),
 			Config:      testHarnessConfig(),
-			ModelClient: &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "ok"}}},
+			ModelClient: NewTextClient("ok"),
 		})
 		require.Error(t, err)
 		assert.EqualError(t, err, "e2e rpc harness requires a full agent service")
@@ -110,7 +108,7 @@ func TestNewRPCHarness_ErrorsAndHelpers(t *testing.T) {
 		_, err := NewRPCHarness(context.Background(), HarnessOptions{
 			Spec:        testHarnessSpec(t),
 			Config:      testHarnessConfig(),
-			ModelClient: &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "ok"}}},
+			ModelClient: NewTextClient("ok"),
 		})
 		require.Error(t, err)
 		assert.EqualError(t, err, "e2e rpc listener must be tcp")
@@ -140,7 +138,7 @@ func TestNewRPCHarness_ErrorsAndHelpers(t *testing.T) {
 		h, err := NewRPCHarness(context.Background(), HarnessOptions{
 			Spec:        testHarnessSpec(t),
 			Config:      testHarnessConfig(),
-			ModelClient: &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "ok"}}},
+			ModelClient: NewTextClient("ok"),
 		})
 		require.NoError(t, err)
 
@@ -160,7 +158,7 @@ func TestNewRPCHarness_ErrorsAndHelpers(t *testing.T) {
 		h, err := NewRPCHarness(context.Background(), HarnessOptions{
 			Spec:        testHarnessSpec(t),
 			Config:      testHarnessConfig(),
-			ModelClient: &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "ok"}}},
+			ModelClient: NewTextClient("ok"),
 		})
 		require.NoError(t, err)
 		time.Sleep(10 * time.Millisecond)

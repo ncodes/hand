@@ -12,8 +12,6 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/e2e"
-	"github.com/wandxy/hand/internal/mocks"
-	"github.com/wandxy/hand/internal/models"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -33,7 +31,7 @@ func Test_E2E_SessionCommand_CreateSessionViaRPCSmoke(t *testing.T) {
 	h, err := e2e.NewRPCHarness(context.Background(), e2e.HarnessOptions{
 		Spec:        e2eTestHarnessSpec(t),
 		Config:      e2eTestHarnessConfig(),
-		ModelClient: &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "ok"}}},
+		ModelClient: e2e.NewTextClient("ok"),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
