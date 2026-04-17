@@ -1,11 +1,17 @@
 package e2e
 
 import (
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wandxy/hand/pkg/logutils"
 )
+
+func init() {
+	logutils.SetOutput(io.Discard)
+}
 
 func TestEntrypointValidate(t *testing.T) {
 	t.Run("direct agent", func(t *testing.T) {
