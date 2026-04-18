@@ -136,6 +136,21 @@ func MissingTools(names ...string) RequestAssert {
 	}
 }
 
+func CombineChecks(checks ...RequestAssert) RequestAssert {
+	return func(req models.Request) error {
+		for _, check := range checks {
+			if check == nil {
+				continue
+			}
+			if err := check(req); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+}
+
 func ToolMessagePresent(expectedID, expectedName string) RequestAssert {
 	return func(req models.Request) error {
 		for _, message := range req.Messages {
@@ -152,6 +167,32 @@ func ToolMessagePresent(expectedID, expectedName string) RequestAssert {
 		}
 
 		return fmt.Errorf("expected tool message for tool call %q", expectedID)
+	}
+}
+
+func ToolOutputString(expectedID, expectedName string, check func(string) error) RequestAssert {
+	return func(req models.Request) error {
+		output, err := findToolEnvelopeOutput(req, expectedID, expectedName)
+		if err != nil {
+			return err
+		}
+		return check(output)
+	}
+}
+
+func ToolOutputJSON(expectedID, expectedName string, check func(map[string]any) error) RequestAssert {
+	return func(req models.Request) error {
+		output, err := findToolEnvelopeOutput(req, expectedID, expectedName)
+		if err != nil {
+			return err
+		}
+
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(output), &payload); err != nil {
+			return err
+		}
+
+		return check(payload)
 	}
 }
 
@@ -190,4 +231,30 @@ func ToolError(expectedID, expectedName, expectedCode, expectedMessage string) R
 
 		return fmt.Errorf("expected tool error for tool call %q", expectedID)
 	}
+}
+
+func findToolEnvelopeOutput(req models.Request, expectedID, expectedName string) (string, error) {
+	for _, message := range req.Messages {
+		if message.Role != handmsg.RoleTool || strings.TrimSpace(message.ToolCallID) != expectedID {
+			continue
+		}
+		if strings.TrimSpace(message.Name) != expectedName {
+			return "", fmt.Errorf("expected tool message name %q", expectedName)
+		}
+
+		var envelope struct {
+			Name   string `json:"name"`
+			Output string `json:"output"`
+		}
+		if err := json.Unmarshal([]byte(message.Content), &envelope); err != nil {
+			return "", err
+		}
+		if strings.TrimSpace(envelope.Name) != expectedName {
+			return "", fmt.Errorf("expected tool payload name %q", expectedName)
+		}
+
+		return strings.TrimSpace(envelope.Output), nil
+	}
+
+	return "", fmt.Errorf("expected tool output for tool call %q", expectedID)
 }

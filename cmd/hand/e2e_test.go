@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,8 +24,8 @@ import (
 func Test_E2E_HandRootChat_SimpleAnswer(t *testing.T) {
 	resetRootChatE2E(t)
 
-	h := newRPCRootChatHarness(t, e2e.NewTextClient("hello back"))
-	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewTextClient("hello back"), nil)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "hello", "world")
 	require.NoError(t, err)
@@ -41,14 +43,14 @@ func Test_E2E_HandRootChat_SimpleAnswer(t *testing.T) {
 func Test_E2E_HandRootChat_StreamingAnswer(t *testing.T) {
 	resetRootChatE2E(t)
 
-	h := newRPCRootChatHarness(t, e2e.NewClient(e2e.Step{
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(e2e.Step{
 		Response: &models.Response{OutputText: "answer"},
 		Stream: []models.StreamDelta{
 			{Channel: models.StreamChannelReasoning, Text: "thinking"},
 			{Channel: models.StreamChannelAssistant, Text: "answer"},
 		},
-	}))
-	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{
+	}), nil)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{
 		Name:   "yaml-agent",
 		Stream: true,
 	})
@@ -63,8 +65,8 @@ func Test_E2E_HandRootChat_ExplicitSession(t *testing.T) {
 	resetRootChatE2E(t)
 
 	sessionID := "ses_123456789012345678901"
-	h := newRPCRootChatHarness(t, e2e.NewTextClient("session reply"))
-	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewTextClient("session reply"), nil)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 	client, err := h.Client(context.Background())
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -88,7 +90,7 @@ func Test_E2E_HandRootChat_ExplicitSession(t *testing.T) {
 func Test_E2E_HandRootChat_RequestInstruct(t *testing.T) {
 	resetRootChatE2E(t)
 
-	h := newRPCRootChatHarness(t, e2e.NewClient(e2e.Step{
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(e2e.Step{
 		Check: func(req models.Request) error {
 			if !strings.Contains(req.Instructions, "be brief") {
 				return errors.New("request instruct missing from model instructions")
@@ -96,8 +98,8 @@ func Test_E2E_HandRootChat_RequestInstruct(t *testing.T) {
 			return nil
 		},
 		Response: &models.Response{OutputText: "brief"},
-	}))
-	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+	}), nil)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "--instruct", "be brief", "hello")
 	require.NoError(t, err)
@@ -108,7 +110,7 @@ func Test_E2E_HandRootChat_RequestInstruct(t *testing.T) {
 func Test_E2E_HandRootChat_MultiTurnContinuity(t *testing.T) {
 	resetRootChatE2E(t)
 
-	h := newRPCRootChatHarness(t, e2e.NewClient(
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
 		e2e.OutputTextStep("first reply"),
 		e2e.Step{
 			Check: func(req models.Request) error {
@@ -128,8 +130,8 @@ func Test_E2E_HandRootChat_MultiTurnContinuity(t *testing.T) {
 			},
 			Response: &models.Response{OutputText: "second reply"},
 		},
-	))
-	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+	), nil)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
 	firstOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "first", "turn")
 	require.NoError(t, err)
@@ -157,8 +159,8 @@ func Test_E2E_HandRootChat_MultiTurnContinuity(t *testing.T) {
 func Test_E2E_HandRootChat_ConfigPrecedenceYAML(t *testing.T) {
 	resetRootChatE2E(t)
 
-	h := newRPCRootChatHarness(t, e2e.NewTextClient("yaml reply"))
-	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewTextClient("yaml reply"), nil)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "hello")
 	require.NoError(t, err)
@@ -169,8 +171,8 @@ func Test_E2E_HandRootChat_ConfigPrecedenceYAML(t *testing.T) {
 func Test_E2E_HandRootChat_ConfigPrecedenceEnvOverridesYAML(t *testing.T) {
 	resetRootChatE2E(t)
 
-	h := newRPCRootChatHarness(t, e2e.NewTextClient("env reply"))
-	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewTextClient("env reply"), nil)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 	envPath := writeRootChatEnv(t, "NAME=env-agent\n")
 
 	output, err := runRootChatCommand(t, "hand", "--env-file", envPath, "--config", configPath, "hello")
@@ -182,8 +184,8 @@ func Test_E2E_HandRootChat_ConfigPrecedenceEnvOverridesYAML(t *testing.T) {
 func Test_E2E_HandRootChat_ConfigPrecedenceCLIOverridesEnvAndYAML(t *testing.T) {
 	resetRootChatE2E(t)
 
-	h := newRPCRootChatHarness(t, e2e.NewTextClient("cli reply"))
-	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewTextClient("cli reply"), nil)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 	envPath := writeRootChatEnv(t, "NAME=env-agent\n")
 
 	output, err := runRootChatCommand(
@@ -202,7 +204,10 @@ func Test_E2E_HandRootChat_ConfigPrecedenceCLIOverridesEnvAndYAML(t *testing.T) 
 func Test_E2E_HandRootChat_UnavailableRPCReturnsError(t *testing.T) {
 	resetRootChatE2E(t)
 
-	configPath := writeStandaloneRootChatConfig(t, "127.0.0.1", mustInt(t, nextTestPort(t)), rootChatConfigOptions{
+	port, err := strconv.Atoi(nextTestPort(t))
+	require.NoError(t, err)
+
+	configPath := writeRPCConfig(t, "127.0.0.1", port, e2e.RPCConfigOptions{
 		Name: "yaml-agent",
 	})
 
@@ -253,8 +258,8 @@ func Test_E2E_HandRootChat_FileGuardrailFailureReturnsCoherentAnswer(t *testing.
 		},
 	)
 
-	h := newRPCRootChatHarnessWithConfig(t, client, e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"}))
-	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), client, e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"}))
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "read the file outside the workspace")
 	require.NoError(t, err)
@@ -281,8 +286,8 @@ func Test_E2E_HandRootChat_CommandDeniedReturnsCoherentAnswer(t *testing.T) {
 		},
 	)
 
-	h := newRPCRootChatHarnessWithConfig(t, client, cfg)
-	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), client, cfg)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "push the current branch")
 	require.NoError(t, err)
@@ -309,12 +314,220 @@ func Test_E2E_HandRootChat_CommandApprovalRequiredReturnsCoherentAnswer(t *testi
 		},
 	)
 
-	h := newRPCRootChatHarnessWithConfig(t, client, cfg)
-	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), client, cfg)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "push the current branch")
 	require.NoError(t, err)
 	assert.Equal(t, "That command requires approval before I can run it.\n", output)
+}
+
+func Test_E2E_HandRootChat_TimeToolSynthesizesFinalAnswer(t *testing.T) {
+	resetRootChatE2E(t)
+
+	toolCall := models.ToolCall{ID: "call-1", Name: "time", Input: "{}"}
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
+		e2e.ToolStep(toolCall),
+		e2e.Step{
+			Check: e2e.CombineChecks(
+				e2e.AssertToolRoundTrip(toolCall),
+				e2e.ToolOutputString("call-1", "time", func(value string) error {
+					_, err := time.Parse(time.RFC3339, strings.TrimSpace(value))
+					if err != nil {
+						return fmt.Errorf("expected RFC3339 time output: %w", err)
+					}
+					return nil
+				}),
+			),
+			Response: &models.Response{OutputText: "The current time has been retrieved."},
+		},
+	), nil)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
+
+	output, err := runRootChatCommand(t, "hand", "--config", configPath, "what time is it?")
+	require.NoError(t, err)
+	assert.Equal(t, "The current time has been retrieved.\n", output)
+}
+
+func Test_E2E_HandRootChat_ReadFileToolSynthesizesFinalAnswer(t *testing.T) {
+	resetRootChatE2E(t)
+
+	home := filepath.Join(t.TempDir(), "hand-home")
+	workspace := filepath.Join(home, "workspace")
+	require.NoError(t, os.MkdirAll(workspace, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(workspace, "notes.txt"), []byte("hello from file"), 0o600))
+	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
+	cfg.FSRoots = []string{workspace}
+
+	toolCall := models.ToolCall{ID: "call-1", Name: "read_file", Input: `{"path":"notes.txt"}`}
+	h := newRPCHarness(t, home, e2e.NewClient(
+		e2e.ToolStep(toolCall),
+		e2e.Step{
+			Check: e2e.CombineChecks(
+				e2e.AssertToolRoundTrip(toolCall),
+				e2e.ToolOutputJSON("call-1", "read_file", func(payload map[string]any) error {
+					if strings.TrimSpace(fmt.Sprint(payload["path"])) != "notes.txt" {
+						return fmt.Errorf("expected read path notes.txt, got %v", payload["path"])
+					}
+					if !strings.Contains(fmt.Sprint(payload["content"]), "hello from file") {
+						return fmt.Errorf("expected file content in tool output, got %v", payload["content"])
+					}
+					return nil
+				}),
+			),
+			Response: &models.Response{OutputText: "The file says hello from file."},
+		},
+	), cfg)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
+
+	output, err := runRootChatCommand(t, "hand", "--config", configPath, "read notes.txt and summarize it")
+	require.NoError(t, err)
+	assert.Equal(t, "The file says hello from file.\n", output)
+}
+
+func Test_E2E_HandRootChat_WriteFileToolSynthesizesFinalAnswer(t *testing.T) {
+	resetRootChatE2E(t)
+
+	home := filepath.Join(t.TempDir(), "hand-home")
+	workspace := filepath.Join(home, "workspace")
+	require.NoError(t, os.MkdirAll(workspace, 0o755))
+	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
+	cfg.FSRoots = []string{workspace}
+
+	toolCall := models.ToolCall{
+		ID:    "call-1",
+		Name:  "write_file",
+		Input: `{"path":"drafts/out.txt","content":"written by tool","create_dirs":true}`,
+	}
+	h := newRPCHarness(t, home, e2e.NewClient(
+		e2e.ToolStep(toolCall),
+		e2e.Step{
+			Check: e2e.CombineChecks(
+				e2e.AssertToolRoundTrip(toolCall),
+				e2e.ToolOutputJSON("call-1", "write_file", func(payload map[string]any) error {
+					if strings.TrimSpace(fmt.Sprint(payload["path"])) != "drafts/out.txt" {
+						return fmt.Errorf("expected write path drafts/out.txt, got %v", payload["path"])
+					}
+					if fmt.Sprint(payload["created"]) != "true" {
+						return fmt.Errorf("expected created=true, got %v", payload["created"])
+					}
+					raw, err := os.ReadFile(filepath.Join(workspace, "drafts", "out.txt"))
+					if err != nil {
+						return err
+					}
+					if string(raw) != "written by tool" {
+						return fmt.Errorf("expected written file content, got %q", string(raw))
+					}
+					return nil
+				}),
+			),
+			Response: &models.Response{OutputText: "I wrote the requested file."},
+		},
+	), cfg)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
+
+	output, err := runRootChatCommand(t, "hand", "--config", configPath, "write drafts/out.txt with the requested content")
+	require.NoError(t, err)
+	assert.Equal(t, "I wrote the requested file.\n", output)
+}
+
+func Test_E2E_HandRootChat_RunCommandToolSynthesizesFinalAnswer(t *testing.T) {
+	resetRootChatE2E(t)
+
+	home := filepath.Join(t.TempDir(), "hand-home")
+	workspace := filepath.Join(home, "workspace")
+	require.NoError(t, os.MkdirAll(workspace, 0o755))
+	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
+	cfg.FSRoots = []string{workspace}
+
+	toolCall := models.ToolCall{
+		ID:    "call-1",
+		Name:  "run_command",
+		Input: `{"command":"pwd"}`,
+	}
+	h := newRPCHarness(t, home, e2e.NewClient(
+		e2e.ToolStep(toolCall),
+		e2e.Step{
+			Check: e2e.CombineChecks(
+				e2e.AssertToolRoundTrip(toolCall),
+				e2e.ToolOutputJSON("call-1", "run_command", func(payload map[string]any) error {
+					if fmt.Sprint(payload["exit_code"]) != "0" {
+						return fmt.Errorf("expected exit_code=0, got %v", payload["exit_code"])
+					}
+					expected := filepath.Join(home, "workspace")
+					if !strings.Contains(fmt.Sprint(payload["stdout"]), expected) {
+						return fmt.Errorf("expected stdout to contain %q, got %v", expected, payload["stdout"])
+					}
+					return nil
+				}),
+			),
+			Response: &models.Response{OutputText: "The command ran successfully in the workspace."},
+		},
+	), cfg)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
+
+	output, err := runRootChatCommand(t, "hand", "--config", configPath, "run pwd and tell me where you are")
+	require.NoError(t, err)
+	assert.Equal(t, "The command ran successfully in the workspace.\n", output)
+}
+
+func Test_E2E_HandRootChat_PlanToolPersistsAcrossLaterTurn(t *testing.T) {
+	resetRootChatE2E(t)
+
+	toolCall := models.ToolCall{
+		ID:   "call-1",
+		Name: "plan_tool",
+		Input: `{"steps":[{"id":"step-1","content":"Inspect the bug","status":"in_progress"},` +
+			`{"id":"step-2","content":"Write the fix","status":"pending"}],` +
+			`"explanation":"track the current work"}`,
+	}
+
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
+		e2e.ToolStep(toolCall),
+		e2e.Step{
+			Check: e2e.CombineChecks(
+				e2e.AssertToolRoundTrip(toolCall),
+				e2e.ToolOutputJSON("call-1", "plan_tool", func(payload map[string]any) error {
+					steps, ok := payload["steps"].([]any)
+					if !ok || len(steps) != 2 {
+						return fmt.Errorf("expected two plan steps, got %v", payload["steps"])
+					}
+					if !strings.Contains(fmt.Sprint(steps[0]), "Inspect the bug") {
+						return fmt.Errorf("expected persisted plan content, got %v", steps[0])
+					}
+					return nil
+				}),
+			),
+			Response: &models.Response{OutputText: "Plan saved."},
+		},
+		e2e.Step{
+			Check: func(req models.Request) error {
+				if !strings.Contains(req.Instructions, "# Plan Context") {
+					return errors.New("expected hydrated plan context in instructions")
+				}
+				if !strings.Contains(req.Instructions, "- [in_progress] Inspect the bug") {
+					return errors.New("expected active plan step in later turn instructions")
+				}
+				if !strings.Contains(req.Instructions, "- [pending] Write the fix") {
+					return errors.New("expected pending plan step in later turn instructions")
+				}
+				if !strings.Contains(req.Instructions, "track the current work") {
+					return errors.New("expected plan explanation in later turn instructions")
+				}
+				return nil
+			},
+			Response: &models.Response{OutputText: "I still have the saved plan in context."},
+		},
+	), nil)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
+
+	firstOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "create a plan for this task")
+	require.NoError(t, err)
+	assert.Equal(t, "Plan saved.\n", firstOutput)
+
+	secondOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "what is the current plan?")
+	require.NoError(t, err)
+	assert.Equal(t, "I still have the saved plan in context.\n", secondOutput)
 }
 
 func Test_E2E_HandRootChat_DisabledFilesystemCapabilityOmitsFileTools(t *testing.T) {
@@ -323,13 +536,13 @@ func Test_E2E_HandRootChat_DisabledFilesystemCapabilityOmitsFileTools(t *testing
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
 	cfg.CapFilesystem = new(false)
 
-	h := newRPCRootChatHarnessWithConfig(t, e2e.NewClient(e2e.Step{
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(e2e.Step{
 		Check: e2e.MissingTools("list_files", "read_file", "search_files", "write_file", "patch"),
 		Response: &models.Response{
 			OutputText: "Filesystem access is unavailable in this run.",
 		},
 	}), cfg)
-	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "list the workspace files")
 	require.NoError(t, err)
@@ -342,13 +555,13 @@ func Test_E2E_HandRootChat_DisabledExecCapabilityOmitsExecTools(t *testing.T) {
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
 	cfg.CapExec = new(false)
 
-	h := newRPCRootChatHarnessWithConfig(t, e2e.NewClient(e2e.Step{
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(e2e.Step{
 		Check: e2e.MissingTools("run_command", "process"),
 		Response: &models.Response{
 			OutputText: "Command execution is unavailable in this run.",
 		},
 	}), cfg)
-	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "run git status")
 	require.NoError(t, err)
@@ -363,13 +576,13 @@ func Test_E2E_HandRootChat_DisabledNetworkCapabilityOmitsWebTools(t *testing.T) 
 	cfg.WebProvider = "firecrawl"
 	cfg.WebAPIKey = "test-key"
 
-	h := newRPCRootChatHarnessWithConfig(t, e2e.NewClient(e2e.Step{
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(e2e.Step{
 		Check: e2e.MissingTools("web_search", "web_extract"),
 		Response: &models.Response{
 			OutputText: "Network-backed web tools are unavailable in this run.",
 		},
 	}), cfg)
-	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "search the web for recent news")
 	require.NoError(t, err)
@@ -382,7 +595,7 @@ func Test_E2E_HandRootChat_IterationBudgetExhaustionFallsBackCoherently(t *testi
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
 	cfg.MaxIterations = 1
 
-	h := newRPCRootChatHarnessWithConfig(t, e2e.NewClient(
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
 		e2e.ToolStep(models.ToolCall{ID: "call-1", Name: "time", Input: "{}"}),
 		e2e.Step{
 			Check: func(req models.Request) error {
@@ -399,7 +612,7 @@ func Test_E2E_HandRootChat_IterationBudgetExhaustionFallsBackCoherently(t *testi
 			},
 		},
 	), cfg)
-	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
 
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "what time is it?")
 	require.NoError(t, err)
@@ -428,7 +641,7 @@ func Test_E2E_HandLiveHarness_RootChat(t *testing.T) {
 		require.NoError(t, h.Close())
 	})
 
-	configFile := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "live-agent"})
+	configFile := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "live-agent"})
 
 	t.Run("simple answer", func(t *testing.T) {
 		output, runErr := runRootChatCommand(t, "hand", "--config", configFile, "Reply with the token ALPHA-42 and nothing else.")
@@ -447,13 +660,6 @@ func Test_E2E_HandLiveHarness_RootChat(t *testing.T) {
 	})
 }
 
-type rootChatConfigOptions struct {
-	Name     string
-	Stream   bool
-	Instruct string
-	NoColor  bool
-}
-
 func resetRootChatE2E(t *testing.T) {
 	t.Helper()
 	clearEnvKeys(
@@ -470,16 +676,14 @@ func resetRootChatE2E(t *testing.T) {
 	resetGlobals(t)
 }
 
-func newRPCRootChatHarness(t *testing.T, client models.Client) *e2e.RPCHarness {
+func newRPCHarness(t *testing.T, home string, client models.Client, cfg *config.Config) *e2e.RPCHarness {
 	t.Helper()
 
-	return newRPCRootChatHarnessWithConfig(t, client, e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"}))
-}
+	if cfg == nil {
+		cfg = e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
+	}
 
-func newRPCRootChatHarnessWithConfig(t *testing.T, client models.Client, cfg *config.Config) *e2e.RPCHarness {
-	t.Helper()
-
-	h, err := e2e.NewDefaultRPCHarness(context.Background(), filepath.Join(t.TempDir(), "hand-home"), client, cfg)
+	h, err := e2e.NewDefaultRPCHarness(context.Background(), home, client, cfg)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, h.Close())
@@ -488,21 +692,10 @@ func newRPCRootChatHarnessWithConfig(t *testing.T, client models.Client, cfg *co
 	return h
 }
 
-func writeRootChatConfig(t *testing.T, h *e2e.RPCHarness, opts rootChatConfigOptions) string {
+func writeRPCConfig(t *testing.T, address string, port int, opts e2e.RPCConfigOptions) string {
 	t.Helper()
 
-	return writeStandaloneRootChatConfig(t, h.Address(), h.Port(), opts)
-}
-
-func writeStandaloneRootChatConfig(t *testing.T, address string, port int, opts rootChatConfigOptions) string {
-	t.Helper()
-
-	path, err := e2e.WriteRPCConfigFile(t.TempDir(), address, port, e2e.RPCConfigOptions{
-		Name:     opts.Name,
-		Stream:   opts.Stream,
-		Instruct: opts.Instruct,
-		NoColor:  opts.NoColor,
-	})
+	path, err := e2e.WriteRPCConfigFile(t.TempDir(), address, port, opts)
 	require.NoError(t, err)
 	return path
 }
@@ -523,13 +716,4 @@ func runRootChatCommand(t *testing.T, args ...string) (string, error) {
 
 	err := newCommand().Run(context.Background(), args)
 	return output.String(), err
-}
-
-func mustInt(t *testing.T, value string) int {
-	t.Helper()
-
-	var parsed int
-	_, err := fmt.Sscanf(value, "%d", &parsed)
-	require.NoError(t, err)
-	return parsed
 }

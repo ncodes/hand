@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -167,6 +168,17 @@ func TestMissingTools(t *testing.T) {
 	assert.EqualError(t, err, `expected tool "read_file" to be unavailable, got tools [read_file]`)
 }
 
+func TestCombineChecks(t *testing.T) {
+	assert.NoError(t, CombineChecks(nil, func(models.Request) error { return nil })(models.Request{}))
+
+	err := CombineChecks(
+		func(models.Request) error { return errors.New("first failure") },
+		func(models.Request) error { return errors.New("second failure") },
+	)(models.Request{})
+	require.Error(t, err)
+	assert.EqualError(t, err, "first failure")
+}
+
 func TestToolMessagePresent(t *testing.T) {
 	assert.NoError(t, ToolMessagePresent("call-1", "time")(models.Request{
 		Messages: []handmsg.Message{{Role: handmsg.RoleTool, Name: "time", ToolCallID: "call-1"}},
@@ -190,6 +202,59 @@ func TestToolMessagePresent(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.EqualError(t, err, `expected tool message for tool call "call-1"`)
+}
+
+func TestToolOutputString(t *testing.T) {
+	assert.NoError(t, ToolOutputString("call-1", "time", func(output string) error {
+		if output != "2026-01-01T00:00:00Z" {
+			return errors.New("unexpected output")
+		}
+		return nil
+	})(models.Request{
+		Messages: []handmsg.Message{{
+			Role:       handmsg.RoleTool,
+			Name:       "time",
+			ToolCallID: "call-1",
+			Content:    `{"name":"time","output":"2026-01-01T00:00:00Z"}`,
+		}},
+	}))
+
+	err := ToolOutputString("call-1", "time", func(string) error { return errors.New("bad output") })(models.Request{
+		Messages: []handmsg.Message{{
+			Role:       handmsg.RoleTool,
+			Name:       "time",
+			ToolCallID: "call-1",
+			Content:    `{"name":"time","output":"2026-01-01T00:00:00Z"}`,
+		}},
+	})
+	require.Error(t, err)
+	assert.EqualError(t, err, "bad output")
+}
+
+func TestToolOutputJSON(t *testing.T) {
+	assert.NoError(t, ToolOutputJSON("call-1", "write_file", func(payload map[string]any) error {
+		if fmt.Sprint(payload["path"]) != "drafts/out.txt" {
+			return errors.New("unexpected path")
+		}
+		return nil
+	})(models.Request{
+		Messages: []handmsg.Message{{
+			Role:       handmsg.RoleTool,
+			Name:       "write_file",
+			ToolCallID: "call-1",
+			Content:    `{"name":"write_file","output":"{\"path\":\"drafts/out.txt\",\"created\":true}"}`,
+		}},
+	}))
+
+	err := ToolOutputJSON("call-1", "write_file", func(map[string]any) error { return nil })(models.Request{
+		Messages: []handmsg.Message{{
+			Role:       handmsg.RoleTool,
+			Name:       "write_file",
+			ToolCallID: "call-1",
+			Content:    `{"name":"write_file","output":"{"}`,
+		}},
+	})
+	require.Error(t, err)
 }
 
 func TestToolError(t *testing.T) {
