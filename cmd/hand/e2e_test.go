@@ -19,6 +19,7 @@ import (
 	"github.com/wandxy/hand/internal/e2e"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/pkg/logutils"
 )
 
 func Test_E2E_HandRootChat_SimpleAnswer(t *testing.T) {
@@ -528,6 +529,107 @@ func Test_E2E_HandRootChat_PlanToolPersistsAcrossLaterTurn(t *testing.T) {
 	secondOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "what is the current plan?")
 	require.NoError(t, err)
 	assert.Equal(t, "I still have the saved plan in context.\n", secondOutput)
+}
+
+func Test_E2E_HandRootChat_SessionSearchRetrievesPriorContextDuringTask(t *testing.T) {
+	resetRootChatE2E(t)
+
+	toolCall := models.ToolCall{
+		ID:    "call-1",
+		Name:  "session_search",
+		Input: `{"query":"ORION","role":"user","max_results":3}`,
+	}
+
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
+		e2e.OutputTextStep("Stored the ORION codename for later."),
+		e2e.ToolStep(toolCall),
+		e2e.Step{
+			Check: e2e.CombineChecks(
+				e2e.AssertToolRoundTrip(toolCall),
+				e2e.ToolOutputJSON("call-1", "session_search", func(payload map[string]any) error {
+					results, ok := payload["results"].([]any)
+					if !ok || len(results) == 0 {
+						return fmt.Errorf("expected non-empty session search results, got %v", payload["results"])
+					}
+					logutils.PrettyPrint(results)
+
+					first, ok := results[0].(map[string]any)
+					if !ok {
+						return fmt.Errorf("expected structured session search result, got %T", results[0])
+					}
+					if fmt.Sprint(first["role"]) != "user" {
+						return fmt.Errorf("expected user-role search result, got %v", first["role"])
+					}
+					if !strings.Contains(fmt.Sprint(first["snippet"]), "ORION") {
+						return fmt.Errorf("expected ORION in search snippet, got %v", first["snippet"])
+					}
+
+					return nil
+				}),
+			),
+			Response: &models.Response{OutputText: "The earlier codename was ORION."},
+		},
+	), nil)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
+
+	firstOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "Remember the project codename ORION.")
+	require.NoError(t, err)
+	assert.Equal(t, "Stored the ORION codename for later.\n", firstOutput)
+
+	secondOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "What codename did I mention earlier?")
+	require.NoError(t, err)
+	assert.Equal(t, "The earlier codename was ORION.\n", secondOutput)
+}
+
+func Test_E2E_HandRootChat_SessionSearchFilteringInfluencesFinalAnswer(t *testing.T) {
+	resetRootChatE2E(t)
+
+	toolCall := models.ToolCall{
+		ID:    "call-1",
+		Name:  "session_search",
+		Input: `{"query":"keyword","role":"user","max_results":5}`,
+	}
+
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
+		e2e.OutputTextStep("The keyword is ASSISTANT-ONLY."),
+		e2e.ToolStep(toolCall),
+		e2e.Step{
+			Check: e2e.CombineChecks(
+				e2e.AssertToolRoundTrip(toolCall),
+				e2e.ToolOutputJSON("call-1", "session_search", func(payload map[string]any) error {
+					results, ok := payload["results"].([]any)
+					if !ok || len(results) == 0 {
+						return fmt.Errorf("expected filtered session search results, got %v", payload["results"])
+					}
+
+					for _, raw := range results {
+						result, ok := raw.(map[string]any)
+						if !ok {
+							return fmt.Errorf("expected structured session search result, got %T", raw)
+						}
+						if fmt.Sprint(result["role"]) != "user" {
+							return fmt.Errorf("expected only user-role search results, got %v", result["role"])
+						}
+						if strings.Contains(fmt.Sprint(result["snippet"]), "ASSISTANT-ONLY") {
+							return fmt.Errorf("expected assistant-only content to be filtered out, got %v", result["snippet"])
+						}
+					}
+
+					return nil
+				}),
+			),
+			Response: &models.Response{OutputText: "The user-side keyword was USER-ONLY."},
+		},
+	), nil)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
+
+	firstOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "The keyword is USER-ONLY.")
+	require.NoError(t, err)
+	assert.Equal(t, "The keyword is ASSISTANT-ONLY.\n", firstOutput)
+
+	secondOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "Which keyword did I provide earlier?")
+	require.NoError(t, err)
+	assert.Equal(t, "The user-side keyword was USER-ONLY.\n", secondOutput)
 }
 
 func Test_E2E_HandRootChat_DisabledFilesystemCapabilityOmitsFileTools(t *testing.T) {
