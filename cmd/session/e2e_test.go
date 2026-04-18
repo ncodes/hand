@@ -3,13 +3,19 @@ package session
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
+	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/e2e"
+	handmsg "github.com/wandxy/hand/internal/messages"
+	"github.com/wandxy/hand/internal/models"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -19,13 +25,6 @@ func init() {
 }
 
 func Test_E2E_SessionCommand_CreateSessionViaRPCSmoke(t *testing.T) {
-	originalNewClient := newClient
-	originalOutput := sessionOutput
-	t.Cleanup(func() {
-		newClient = originalNewClient
-		sessionOutput = originalOutput
-	})
-
 	h, err := e2e.NewDefaultRPCHarness(
 		context.Background(),
 		t.TempDir()+"/hand-home",
@@ -37,6 +36,218 @@ func Test_E2E_SessionCommand_CreateSessionViaRPCSmoke(t *testing.T) {
 		require.NoError(t, h.Close())
 	})
 
+	output, err := runSessionCommand(t, h, "session", "new", "ses_123456789012345678901")
+	require.NoError(t, err)
+	require.Equal(t, "ses_123456789012345678901\n", output)
+}
+
+func Test_E2E_SessionCommand_CreateListUseCurrentAndChatFlow(t *testing.T) {
+	// Shared boilerplate for these tests.
+	newSessionHarness := func(t *testing.T) *e2e.RPCHarness {
+		home := t.TempDir() + "/hand-home"
+		h, err := e2e.NewDefaultRPCHarness(
+			context.Background(),
+			home,
+			e2e.NewTextClient("session reply"),
+			e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"}),
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, h.Close()) })
+		return h
+	}
+
+	createSession := func(t *testing.T, h *e2e.RPCHarness, sessionID string) {
+		output, err := runSessionCommand(t, h, "session", "new", sessionID)
+		require.NoError(t, err)
+		assert.Equal(t, sessionID+"\n", output)
+	}
+
+	// Each sub-test sets up its own session state.
+	t.Run("Create sessions", func(t *testing.T) {
+		h := newSessionHarness(t)
+
+		createSession(t, h, "ses_123456789012345678901")
+		createSession(t, h, "ses_123456789012345678902")
+
+		_, err := runSessionCommand(t, h, "session", "new", "ses_1234567890123")
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "session id must be a valid ses_ nanoid")
+
+		_, err = runSessionCommand(t, h, "session", "new", "ses_123456789012345678902")
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "session already exists")
+	})
+
+	t.Run("List sessions", func(t *testing.T) {
+		h := newSessionHarness(t)
+		createSession(t, h, "ses_123456789012345678901")
+		createSession(t, h, "ses_123456789012345678902")
+
+		output, err := runSessionCommand(t, h, "session", "list")
+		require.NoError(t, err)
+		assert.Contains(t, output, "default\n")
+		assert.Contains(t, output, "ses_123456789012345678901\n")
+		assert.Contains(t, output, "ses_123456789012345678902\n")
+	})
+
+	t.Run("Switch and check current session", func(t *testing.T) {
+		h := newSessionHarness(t)
+		createSession(t, h, "ses_123456789012345678901")
+		createSession(t, h, "ses_123456789012345678902")
+
+		output, err := runSessionCommand(t, h, "session", "use", "ses_123456789012345678902")
+		require.NoError(t, err)
+		assert.Equal(t, "ses_123456789012345678902\n", output)
+
+		output, err = runSessionCommand(t, h, "session", "current")
+		require.NoError(t, err)
+		assert.Equal(t, "ses_123456789012345678902\n", output)
+	})
+
+	t.Run("Send message and check chat flow", func(t *testing.T) {
+		h := newSessionHarness(t)
+		createSession(t, h, "ses_123456789012345678902")
+
+		result, err := h.Send(context.Background(), e2e.RootChatRequest{
+			Message:   "hello from selected session",
+			SessionID: "ses_123456789012345678902",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "session reply", result.Reply)
+		assert.Equal(t, "ses_123456789012345678902", result.SessionID)
+	})
+
+	t.Run("Fetch messages and validate", func(t *testing.T) {
+		h := newSessionHarness(t)
+		createSession(t, h, "ses_123456789012345678902")
+
+		_, err := h.Send(context.Background(), e2e.RootChatRequest{
+			Message:   "hello from selected session",
+			SessionID: "ses_123456789012345678902",
+		})
+		require.NoError(t, err)
+
+		messages, err := h.Messages(context.Background(), "ses_123456789012345678902")
+		require.NoError(t, err)
+		require.Len(t, messages, 2)
+		assert.Equal(t, []handmsg.Role{handmsg.RoleUser, handmsg.RoleAssistant}, []handmsg.Role{messages[0].Role, messages[1].Role})
+		assert.Equal(t, "hello from selected session", messages[0].Content)
+		assert.Equal(t, "session reply", messages[1].Content)
+	})
+}
+
+func Test_E2E_SessionCommand_DefaultSessionBehavior(t *testing.T) {
+	home := t.TempDir() + "/hand-home"
+
+	h, err := e2e.NewDefaultRPCHarness(
+		context.Background(),
+		home,
+		e2e.NewTextClient("default reply"),
+		e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, h.Close())
+	})
+
+	result, err := h.Send(context.Background(), e2e.RootChatRequest{Message: "hello default"})
+	require.NoError(t, err)
+	assert.Equal(t, "default reply", result.Reply)
+	assert.Equal(t, "default", result.SessionID)
+
+	output, err := runSessionCommand(t, h, "session", "current")
+	require.NoError(t, err)
+	assert.Equal(t, "default\n", output)
+
+	output, err = runSessionCommand(t, h, "session", "list")
+	require.NoError(t, err)
+	assert.Equal(t, "default\n", output)
+}
+
+func Test_E2E_SessionCommand_PersistenceCompactionStatusAndSummaryReuse(t *testing.T) {
+	home := t.TempDir() + "/hand-home"
+
+	modelClient := e2e.NewClient(
+		e2e.OutputTextStep("reply 1"),
+		e2e.OutputTextStep("reply 2"),
+		e2e.OutputTextStep("reply 3"),
+		e2e.OutputTextStep("reply 4"),
+		e2e.OutputTextStep("reply 5"),
+	)
+	summaryClient := e2e.NewTextClient(`{"session_summary":"Older context","current_task":"Continue helping","discoveries":["Saved summary"],"open_questions":[],"next_actions":["Answer the next turn"]}`)
+
+	h1 := newPersistentSessionHarness(t, home, modelClient, summaryClient)
+
+	var sessionID string
+	for i := 1; i <= 5; i++ {
+		result, err := h1.Send(context.Background(), e2e.RootChatRequest{Message: fmt.Sprintf("turn %d", i)})
+		require.NoError(t, err)
+		assert.Equal(t, fmt.Sprintf("reply %d", i), result.Reply)
+		if sessionID == "" {
+			sessionID = result.SessionID
+		}
+	}
+	require.Equal(t, "default", sessionID)
+
+	compactOutput, err := runSessionCommand(t, h1, "session", "compact", sessionID)
+	require.NoError(t, err)
+	assert.Contains(t, compactOutput, "id=default")
+	assert.Contains(t, compactOutput, "source_end_offset=2")
+	assert.Contains(t, compactOutput, "source_message_count=10")
+
+	statusOutput, err := runSessionCommand(t, h1, "session", "status", sessionID)
+	require.NoError(t, err)
+	assert.Contains(t, statusOutput, "id=default")
+	assert.Contains(t, statusOutput, "compaction_status=succeeded")
+	assert.Contains(t, statusOutput, "offset=2")
+	assert.Contains(t, statusOutput, "size=10")
+
+	require.NoError(t, h1.Close())
+
+	followupClient := e2e.NewClient(e2e.Step{
+		Check: func(req models.Request) error {
+			if !strings.Contains(req.Instructions, "# Session Summary\n\nOlder context") {
+				return fmt.Errorf("expected persisted session summary in instructions")
+			}
+			if len(req.Messages) != 9 {
+				return fmt.Errorf("expected 9 messages after summary trimming, got %d", len(req.Messages))
+			}
+			if req.Messages[0].Role != handmsg.RoleUser || req.Messages[0].Content != "turn 2" {
+				return errors.New("expected trimmed history to start at the second turn")
+			}
+			if req.Messages[7].Role != handmsg.RoleAssistant || req.Messages[7].Content != "reply 5" {
+				return errors.New("expected latest retained assistant reply before follow-up")
+			}
+			if req.Messages[8].Role != handmsg.RoleUser || req.Messages[8].Content != "after restart" {
+				return errors.New("expected follow-up user message after restart")
+			}
+			return nil
+		},
+		Response: &models.Response{OutputText: "reply after restart"},
+	})
+
+	h2 := newPersistentSessionHarness(t, home, followupClient, e2e.NewTextClient(`{"session_summary":"ignored","current_task":"","discoveries":[],"open_questions":[],"next_actions":[]}`))
+
+	result, err := h2.Send(context.Background(), e2e.RootChatRequest{Message: "after restart"})
+	require.NoError(t, err)
+	assert.Equal(t, "reply after restart", result.Reply)
+	assert.Equal(t, "default", result.SessionID)
+
+	output, err := runSessionCommand(t, h2, "session", "current")
+	require.NoError(t, err)
+	assert.Equal(t, "default\n", output)
+}
+
+func runSessionCommand(t *testing.T, h *e2e.RPCHarness, args ...string) (string, error) {
+	t.Helper()
+
+	originalNewClient := newClient
+	originalOutput := sessionOutput
+	t.Cleanup(func() {
+		newClient = originalNewClient
+		sessionOutput = originalOutput
+	})
+
 	newClient = func(ctx context.Context, _ *config.Config) (rpcclient.SessionClient, error) {
 		return h.Client(ctx)
 	}
@@ -44,7 +255,25 @@ func Test_E2E_SessionCommand_CreateSessionViaRPCSmoke(t *testing.T) {
 	var output bytes.Buffer
 	sessionOutput = &output
 
-	err = NewCommand().Run(context.Background(), []string{"session", "new", "ses_123456789012345678901"})
+	err := NewCommand().Run(context.Background(), args)
+	return output.String(), err
+}
+
+func newPersistentSessionHarness(t *testing.T, home string, modelClient, summaryClient models.Client) *e2e.RPCHarness {
+	t.Helper()
+
+	h, err := e2e.NewRPCHarness(context.Background(), e2e.HarnessOptions{
+		Spec:          e2e.DefaultSpec(home),
+		Config:        e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"}),
+		ModelClient:   modelClient,
+		SummaryClient: summaryClient,
+	})
 	require.NoError(t, err)
-	require.Equal(t, "ses_123456789012345678901\n", output.String())
+	t.Cleanup(func() {
+		if h != nil {
+			_ = h.Close()
+		}
+	})
+
+	return h
 }
