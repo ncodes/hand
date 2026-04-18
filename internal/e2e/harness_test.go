@@ -499,30 +499,9 @@ func TestStorageStoreStub_NoOpMethods(t *testing.T) {
 
 func testHarnessSpec(t *testing.T) HarnessSpec {
 	t.Helper()
-
-	home := filepath.Join(t.TempDir(), "hand-home")
-	dataDir := filepath.Join(home, "data")
-	return HarnessSpec{
-		PrimaryEntrypoint:   EntrypointDirectAgent,
-		SecondaryEntrypoint: EntrypointCommandRPC,
-		Config:              ConfigInput{AllowInMemory: true},
-		Isolation: Isolation{
-			WorkspaceDir: filepath.Join(home, "workspace"),
-			DataDir:      dataDir,
-			StoragePath:  filepath.Join(dataDir, "state.db"),
-			TraceDir:     filepath.Join(home, "traces"),
-		},
-	}
+	return DefaultSpec(filepath.Join(t.TempDir(), "hand-home"))
 }
 
 func testHarnessConfig() *config.Config {
-	stream := false
-	return &config.Config{
-		Name:                     "Test Hand",
-		Model:                    "test-model",
-		Stream:                   &stream,
-		StorageBackend:           "sqlite",
-		SessionDefaultIdleExpiry: time.Hour,
-		SessionArchiveRetention:  24 * time.Hour,
-	}
+	return DefaultConfig(ConfigOptions{})
 }

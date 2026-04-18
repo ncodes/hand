@@ -6,7 +6,6 @@ import (
 	"io"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -52,29 +51,9 @@ func Test_E2E_SessionCommand_CreateSessionViaRPCSmoke(t *testing.T) {
 
 func e2eTestHarnessSpec(t *testing.T) e2e.HarnessSpec {
 	t.Helper()
-	home := filepath.Join(t.TempDir(), "hand-home")
-	dataDir := filepath.Join(home, "data")
-	return e2e.HarnessSpec{
-		PrimaryEntrypoint:   e2e.EntrypointDirectAgent,
-		SecondaryEntrypoint: e2e.EntrypointCommandRPC,
-		Config:              e2e.ConfigInput{AllowInMemory: true},
-		Isolation: e2e.Isolation{
-			WorkspaceDir: filepath.Join(home, "workspace"),
-			DataDir:      dataDir,
-			StoragePath:  filepath.Join(dataDir, "state.db"),
-			TraceDir:     filepath.Join(home, "traces"),
-		},
-	}
+	return e2e.DefaultSpec(filepath.Join(t.TempDir(), "hand-home"))
 }
 
 func e2eTestHarnessConfig() *config.Config {
-	stream := false
-	return &config.Config{
-		Name:                     "Test Hand",
-		Model:                    "test-model",
-		Stream:                   &stream,
-		StorageBackend:           "memory",
-		SessionDefaultIdleExpiry: time.Hour,
-		SessionArchiveRetention:  24 * time.Hour,
-	}
+	return e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "memory"})
 }
