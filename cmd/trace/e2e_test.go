@@ -89,6 +89,44 @@ func Test_E2E_TraceCommand_GeneratedTracesAreReadable(t *testing.T) {
 		assert.Equal(t, "completed", detailPayload.Summary.FinalStatus)
 	})
 
+	t.Run("Basic auth protects endpoints when configured", func(t *testing.T) {
+		authListenAddr := reserveListenAddress(t)
+		authCtx, authCancel := context.WithCancel(context.Background())
+		defer authCancel()
+
+		authErrCh := make(chan error, 1)
+		go func() {
+			authErrCh <- NewCommand().Run(authCtx, []string{
+				"trace", "view",
+				"--trace-dir", h.Config().DebugTraceDir,
+				"--listen", authListenAddr,
+				"--username", "viewer",
+				"--password", "secret",
+			})
+		}()
+
+		authBaseURL := "http://" + authListenAddr
+		waitForServer(t, authBaseURL+"/api/sessions")
+
+		req, reqErr := http.NewRequest(http.MethodGet, authBaseURL+"/api/sessions", nil)
+		require.NoError(t, reqErr)
+		resp, getErr := http.DefaultClient.Do(req)
+		require.NoError(t, getErr)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+		req, reqErr = http.NewRequest(http.MethodGet, authBaseURL+"/api/sessions", nil)
+		require.NoError(t, reqErr)
+		req.SetBasicAuth("viewer", "secret")
+		resp, getErr = http.DefaultClient.Do(req)
+		require.NoError(t, getErr)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		authCancel()
+		require.NoError(t, <-authErrCh)
+	})
+
 	cancel()
 	require.NoError(t, <-errCh)
 }
