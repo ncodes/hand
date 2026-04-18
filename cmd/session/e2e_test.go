@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,11 +26,12 @@ func Test_E2E_SessionCommand_CreateSessionViaRPCSmoke(t *testing.T) {
 		sessionOutput = originalOutput
 	})
 
-	h, err := e2e.NewRPCHarness(context.Background(), e2e.HarnessOptions{
-		Spec:        e2eTestHarnessSpec(t),
-		Config:      e2eTestHarnessConfig(),
-		ModelClient: e2e.NewTextClient("ok"),
-	})
+	h, err := e2e.NewDefaultRPCHarness(
+		context.Background(),
+		t.TempDir()+"/hand-home",
+		e2e.NewTextClient("ok"),
+		e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "memory"}),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, h.Close())
@@ -47,13 +47,4 @@ func Test_E2E_SessionCommand_CreateSessionViaRPCSmoke(t *testing.T) {
 	err = NewCommand().Run(context.Background(), []string{"session", "new", "ses_123456789012345678901"})
 	require.NoError(t, err)
 	require.Equal(t, "ses_123456789012345678901\n", output.String())
-}
-
-func e2eTestHarnessSpec(t *testing.T) e2e.HarnessSpec {
-	t.Helper()
-	return e2e.DefaultSpec(filepath.Join(t.TempDir(), "hand-home"))
-}
-
-func e2eTestHarnessConfig() *config.Config {
-	return e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "memory"})
 }

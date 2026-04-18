@@ -199,6 +199,213 @@ func Test_E2E_HandRootChat_ConfigPrecedenceCLIOverridesEnvAndYAML(t *testing.T) 
 	assert.Equal(t, "cli-agent", config.Get().Name)
 }
 
+func Test_E2E_HandRootChat_UnavailableRPCReturnsError(t *testing.T) {
+	resetRootChatE2E(t)
+
+	configPath := writeStandaloneRootChatConfig(t, "127.0.0.1", mustInt(t, nextTestPort(t)), rootChatConfigOptions{
+		Name: "yaml-agent",
+	})
+
+	output, err := runRootChatCommand(t, "hand", "--config", configPath, "hello")
+	require.Error(t, err)
+	assert.Empty(t, output)
+	assert.Contains(t, err.Error(), "connection refused")
+}
+
+func Test_E2E_HandStartup_InvalidConfigBlocksStartup(t *testing.T) {
+	resetRootChatE2E(t)
+
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+model:
+  name: openai/gpt-4o-mini
+  provider: anthropic
+  key: config-key
+`), 0o600))
+
+	err := newCommand().Run(canceledContext(), []string{
+		"hand",
+		"--config", configPath,
+		"--rpc.port", nextTestPort(t),
+		"up",
+	})
+	require.EqualError(t, err, "model provider must be one of: openai, openrouter")
+}
+
+func Test_E2E_HandRootChat_FileGuardrailFailureReturnsCoherentAnswer(t *testing.T) {
+	resetRootChatE2E(t)
+
+	outsidePath := filepath.Join(t.TempDir(), "outside.txt")
+	require.NoError(t, os.WriteFile(outsidePath, []byte("secret"), 0o600))
+
+	client := e2e.NewClient(
+		e2e.ToolStep(models.ToolCall{
+			ID:    "call-1",
+			Name:  "read_file",
+			Input: fmt.Sprintf(`{"path":%q}`, outsidePath),
+		}),
+		e2e.Step{
+			Check: e2e.ToolError("call-1", "read_file", "path_outside_roots", "path is outside allowed roots"),
+			Response: &models.Response{
+				OutputText: "I can't read that path because it is outside the allowed workspace.",
+			},
+		},
+	)
+
+	h := newRPCRootChatHarnessWithConfig(t, client, e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"}))
+	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+
+	output, err := runRootChatCommand(t, "hand", "--config", configPath, "read the file outside the workspace")
+	require.NoError(t, err)
+	assert.Equal(t, "I can't read that path because it is outside the allowed workspace.\n", output)
+}
+
+func Test_E2E_HandRootChat_CommandDeniedReturnsCoherentAnswer(t *testing.T) {
+	resetRootChatE2E(t)
+
+	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
+	cfg.ExecDeny = []string{"git push"}
+
+	client := e2e.NewClient(
+		e2e.ToolStep(models.ToolCall{
+			ID:    "call-1",
+			Name:  "run_command",
+			Input: `{"command":"git","args":["push","origin","main"]}`,
+		}),
+		e2e.Step{
+			Check: e2e.ToolError("call-1", "run_command", "command_denied", "matched deny rule"),
+			Response: &models.Response{
+				OutputText: "I can't run that command because command execution policy denies it.",
+			},
+		},
+	)
+
+	h := newRPCRootChatHarnessWithConfig(t, client, cfg)
+	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+
+	output, err := runRootChatCommand(t, "hand", "--config", configPath, "push the current branch")
+	require.NoError(t, err)
+	assert.Equal(t, "I can't run that command because command execution policy denies it.\n", output)
+}
+
+func Test_E2E_HandRootChat_CommandApprovalRequiredReturnsCoherentAnswer(t *testing.T) {
+	resetRootChatE2E(t)
+
+	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
+	cfg.ExecAsk = []string{"git push"}
+
+	client := e2e.NewClient(
+		e2e.ToolStep(models.ToolCall{
+			ID:    "call-1",
+			Name:  "run_command",
+			Input: `{"command":"git","args":["push","origin","main"]}`,
+		}),
+		e2e.Step{
+			Check: e2e.ToolError("call-1", "run_command", "approval_required", "command requires approval: git push"),
+			Response: &models.Response{
+				OutputText: "That command requires approval before I can run it.",
+			},
+		},
+	)
+
+	h := newRPCRootChatHarnessWithConfig(t, client, cfg)
+	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+
+	output, err := runRootChatCommand(t, "hand", "--config", configPath, "push the current branch")
+	require.NoError(t, err)
+	assert.Equal(t, "That command requires approval before I can run it.\n", output)
+}
+
+func Test_E2E_HandRootChat_DisabledFilesystemCapabilityOmitsFileTools(t *testing.T) {
+	resetRootChatE2E(t)
+
+	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
+	cfg.CapFilesystem = new(false)
+
+	h := newRPCRootChatHarnessWithConfig(t, e2e.NewClient(e2e.Step{
+		Check: e2e.MissingTools("list_files", "read_file", "search_files", "write_file", "patch"),
+		Response: &models.Response{
+			OutputText: "Filesystem access is unavailable in this run.",
+		},
+	}), cfg)
+	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+
+	output, err := runRootChatCommand(t, "hand", "--config", configPath, "list the workspace files")
+	require.NoError(t, err)
+	assert.Equal(t, "Filesystem access is unavailable in this run.\n", output)
+}
+
+func Test_E2E_HandRootChat_DisabledExecCapabilityOmitsExecTools(t *testing.T) {
+	resetRootChatE2E(t)
+
+	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
+	cfg.CapExec = new(false)
+
+	h := newRPCRootChatHarnessWithConfig(t, e2e.NewClient(e2e.Step{
+		Check: e2e.MissingTools("run_command", "process"),
+		Response: &models.Response{
+			OutputText: "Command execution is unavailable in this run.",
+		},
+	}), cfg)
+	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+
+	output, err := runRootChatCommand(t, "hand", "--config", configPath, "run git status")
+	require.NoError(t, err)
+	assert.Equal(t, "Command execution is unavailable in this run.\n", output)
+}
+
+func Test_E2E_HandRootChat_DisabledNetworkCapabilityOmitsWebTools(t *testing.T) {
+	resetRootChatE2E(t)
+
+	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
+	cfg.CapNetwork = new(false)
+	cfg.WebProvider = "firecrawl"
+	cfg.WebAPIKey = "test-key"
+
+	h := newRPCRootChatHarnessWithConfig(t, e2e.NewClient(e2e.Step{
+		Check: e2e.MissingTools("web_search", "web_extract"),
+		Response: &models.Response{
+			OutputText: "Network-backed web tools are unavailable in this run.",
+		},
+	}), cfg)
+	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+
+	output, err := runRootChatCommand(t, "hand", "--config", configPath, "search the web for recent news")
+	require.NoError(t, err)
+	assert.Equal(t, "Network-backed web tools are unavailable in this run.\n", output)
+}
+
+func Test_E2E_HandRootChat_IterationBudgetExhaustionFallsBackCoherently(t *testing.T) {
+	resetRootChatE2E(t)
+
+	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
+	cfg.MaxIterations = 1
+
+	h := newRPCRootChatHarnessWithConfig(t, e2e.NewClient(
+		e2e.ToolStep(models.ToolCall{ID: "call-1", Name: "time", Input: "{}"}),
+		e2e.Step{
+			Check: func(req models.Request) error {
+				if len(req.Tools) != 0 {
+					return fmt.Errorf("expected summary fallback request without tools, got %d", len(req.Tools))
+				}
+				if !strings.Contains(req.Instructions, "Remaining iteration budget: 0.") {
+					return errors.New("expected summary fallback instructions")
+				}
+				return e2e.ToolMessagePresent("call-1", "time")(req)
+			},
+			Response: &models.Response{
+				OutputText: "I hit the iteration limit before finishing, so I am returning a summary instead.",
+			},
+		},
+	), cfg)
+	configPath := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "yaml-agent"})
+
+	output, err := runRootChatCommand(t, "hand", "--config", configPath, "what time is it?")
+	require.NoError(t, err)
+	assert.Equal(t, "I hit the iteration limit before finishing, so I am returning a summary instead.\n", output)
+}
+
 type rootChatConfigOptions struct {
 	Name     string
 	Stream   bool
@@ -225,11 +432,13 @@ func resetRootChatE2E(t *testing.T) {
 func newRPCRootChatHarness(t *testing.T, client models.Client) *e2e.RPCHarness {
 	t.Helper()
 
-	h, err := e2e.NewRPCHarness(context.Background(), e2e.HarnessOptions{
-		Spec:        e2e.DefaultSpec(filepath.Join(t.TempDir(), "hand-home")),
-		Config:      e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"}),
-		ModelClient: client,
-	})
+	return newRPCRootChatHarnessWithConfig(t, client, e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"}))
+}
+
+func newRPCRootChatHarnessWithConfig(t *testing.T, client models.Client, cfg *config.Config) *e2e.RPCHarness {
+	t.Helper()
+
+	h, err := e2e.NewDefaultRPCHarness(context.Background(), filepath.Join(t.TempDir(), "hand-home"), client, cfg)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, h.Close())
@@ -241,33 +450,19 @@ func newRPCRootChatHarness(t *testing.T, client models.Client) *e2e.RPCHarness {
 func writeRootChatConfig(t *testing.T, h *e2e.RPCHarness, opts rootChatConfigOptions) string {
 	t.Helper()
 
-	if opts.Name == "" {
-		opts.Name = "yaml-agent"
-	}
+	return writeStandaloneRootChatConfig(t, h.Address(), h.Port(), opts)
+}
 
-	content := fmt.Sprintf(
-		`name: %s
-model:
-  verifyModel: false
-  stream: %t
-rpc:
-  address: %s
-  port: %d
-log:
-  noColor: %t
-`,
-		opts.Name,
-		opts.Stream,
-		h.Address(),
-		h.Port(),
-		opts.NoColor,
-	)
-	if strings.TrimSpace(opts.Instruct) != "" {
-		content += "instruct: " + strings.TrimSpace(opts.Instruct) + "\n"
-	}
+func writeStandaloneRootChatConfig(t *testing.T, address string, port int, opts rootChatConfigOptions) string {
+	t.Helper()
 
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	path, err := e2e.WriteRPCConfigFile(t.TempDir(), address, port, e2e.RPCConfigOptions{
+		Name:     opts.Name,
+		Stream:   opts.Stream,
+		Instruct: opts.Instruct,
+		NoColor:  opts.NoColor,
+	})
+	require.NoError(t, err)
 	return path
 }
 
@@ -287,4 +482,13 @@ func runRootChatCommand(t *testing.T, args ...string) (string, error) {
 
 	err := newCommand().Run(context.Background(), args)
 	return output.String(), err
+}
+
+func mustInt(t *testing.T, value string) int {
+	t.Helper()
+
+	var parsed int
+	_, err := fmt.Sscanf(value, "%d", &parsed)
+	require.NoError(t, err)
+	return parsed
 }
