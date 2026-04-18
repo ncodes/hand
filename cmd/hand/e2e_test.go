@@ -406,6 +406,47 @@ func Test_E2E_HandRootChat_IterationBudgetExhaustionFallsBackCoherently(t *testi
 	assert.Equal(t, "I hit the iteration limit before finishing, so I am returning a summary instead.\n", output)
 }
 
+func Test_E2E_HandLiveHarness_RootChat(t *testing.T) {
+	resetRootChatE2E(t)
+
+	os.Setenv("HAND_E2E_LIVE_CONFIG", "/Users/nedy/projects/wandxy/hand/config.yaml")
+
+	configPath := strings.TrimSpace(os.Getenv("HAND_E2E_LIVE_CONFIG"))
+	if configPath == "" {
+		t.Skip("set HAND_E2E_LIVE_CONFIG to run live harness e2e")
+	}
+
+	envPath := strings.TrimSpace(os.Getenv("HAND_E2E_LIVE_ENV_FILE"))
+	h, err := e2e.NewLiveRPCHarness(
+		context.Background(),
+		filepath.Join(t.TempDir(), "hand-home"),
+		envPath,
+		configPath,
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, h.Close())
+	})
+
+	configFile := writeRootChatConfig(t, h, rootChatConfigOptions{Name: "live-agent"})
+
+	t.Run("simple answer", func(t *testing.T) {
+		output, runErr := runRootChatCommand(t, "hand", "--config", configFile, "Reply with the token ALPHA-42 and nothing else.")
+		require.NoError(t, runErr)
+		assert.Contains(t, strings.ToUpper(output), "ALPHA-42")
+	})
+
+	t.Run("multi turn continuity", func(t *testing.T) {
+		firstOutput, runErr := runRootChatCommand(t, "hand", "--config", configFile, "Remember the token BRAVO-77 for this session. Reply with STORED only.")
+		require.NoError(t, runErr)
+		assert.Contains(t, strings.ToUpper(firstOutput), "STORED")
+
+		secondOutput, runErr := runRootChatCommand(t, "hand", "--config", configFile, "What token did I ask you to remember for this session? Reply with the token only.")
+		require.NoError(t, runErr)
+		assert.Contains(t, strings.ToUpper(secondOutput), "BRAVO-77")
+	})
+}
+
 type rootChatConfigOptions struct {
 	Name     string
 	Stream   bool
