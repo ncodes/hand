@@ -4,15 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/wandxy/hand/internal/config"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
+	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 )
+
+var rpcHelperListen = net.Listen
+var rpcHelperNewClient = rpcclient.NewClient
 
 type RPCConfigOptions struct {
 	Name     string
@@ -36,6 +42,42 @@ func NewDefaultRPCHarness(
 		Config:      cfg,
 		ModelClient: client,
 	})
+}
+
+func ReserveRPCPort() (int, error) {
+	lis, err := rpcHelperListen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	defer lis.Close()
+
+	tcpAddr, ok := lis.Addr().(*net.TCPAddr)
+	if !ok {
+		return 0, fmt.Errorf("rpc helper listener must be tcp")
+	}
+
+	return tcpAddr.Port, nil
+}
+
+func WaitForRPC(address string, port int, timeout time.Duration) (*rpcclient.Client, error) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		client, err := rpcHelperNewClient(context.Background(), rpcclient.Options{
+			Address: strings.TrimSpace(address),
+			Port:    port,
+		})
+		if err == nil {
+			_, currentErr := client.CurrentSession(context.Background())
+			if currentErr == nil {
+				return client, nil
+			}
+			_ = client.Close()
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return nil, fmt.Errorf("rpc server did not become ready on %s:%d", strings.TrimSpace(address), port)
 }
 
 func WriteRPCConfigFile(dir, address string, port int, opts RPCConfigOptions) (string, error) {

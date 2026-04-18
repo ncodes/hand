@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,6 +17,7 @@ import (
 
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/e2e"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	"github.com/wandxy/hand/internal/models"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
@@ -57,7 +57,9 @@ func Test_E2E_UpCommand_BootsAndServesRPC(t *testing.T) {
 		return &models.OpenAIClient{}, nil
 	}
 
-	port := reserveUpTestPort(t)
+	port, err := e2e.ReserveRPCPort()
+	require.NoError(t, err)
+
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(fmt.Sprintf(`
 name: yaml-up
@@ -97,7 +99,9 @@ rpc:
 		})
 	}()
 
-	client := waitForUpRPC(t, "127.0.0.1", port)
+	client, err := e2e.WaitForRPC("127.0.0.1", port, 5*time.Second)
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
 		require.NoError(t, client.Close())
 		cancel()
@@ -113,40 +117,4 @@ rpc:
 	assert.Equal(t, "default", current)
 	assert.Contains(t, startupBuffer.String(), "cli-up")
 	assert.Contains(t, startupBuffer.String(), fmt.Sprintf("127.0.0.1:%d", port))
-}
-
-func reserveUpTestPort(t *testing.T) int {
-	t.Helper()
-
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, lis.Close())
-	}()
-
-	return lis.Addr().(*net.TCPAddr).Port
-}
-
-func waitForUpRPC(t *testing.T, address string, port int) *rpcclient.Client {
-	t.Helper()
-
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		client, err := rpcclient.NewClient(context.Background(), rpcclient.Options{
-			Address: address,
-			Port:    port,
-		})
-		if err == nil {
-			_, currentErr := client.CurrentSession(context.Background())
-			if currentErr == nil {
-				return client
-			}
-			_ = client.Close()
-		}
-
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	t.Fatalf("rpc server did not become ready on %s:%d", address, port)
-	return nil
 }

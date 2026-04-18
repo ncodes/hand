@@ -2,12 +2,17 @@ package e2e
 
 import (
 	"context"
+	"errors"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
@@ -24,6 +29,90 @@ func TestNewDefaultRPCHarness_UsesDefaultSpecAndConfig(t *testing.T) {
 
 	assert.Equal(t, "127.0.0.1", h.Address())
 	assert.NotZero(t, h.Port())
+}
+
+func TestReserveRPCPort(t *testing.T) {
+	t.Run("returns available port", func(t *testing.T) {
+		port, err := ReserveRPCPort()
+		require.NoError(t, err)
+		assert.NotZero(t, port)
+	})
+
+	t.Run("returns listen error", func(t *testing.T) {
+		originalListen := rpcHelperListen
+		rpcHelperListen = func(string, string) (net.Listener, error) {
+			return nil, errors.New("listen failed")
+		}
+		t.Cleanup(func() {
+			rpcHelperListen = originalListen
+		})
+
+		port, err := ReserveRPCPort()
+		require.Error(t, err)
+		assert.Zero(t, port)
+		assert.EqualError(t, err, "listen failed")
+	})
+
+	t.Run("requires tcp listener", func(t *testing.T) {
+		originalListen := rpcHelperListen
+		rpcHelperListen = func(string, string) (net.Listener, error) {
+			return stubListener{addr: stubAddr("pipe")}, nil
+		}
+		t.Cleanup(func() {
+			rpcHelperListen = originalListen
+		})
+
+		port, err := ReserveRPCPort()
+		require.Error(t, err)
+		assert.Zero(t, port)
+		assert.EqualError(t, err, "rpc helper listener must be tcp")
+	})
+}
+
+func TestWaitForRPC(t *testing.T) {
+	t.Run("returns client when rpc becomes ready", func(t *testing.T) {
+		home := filepath.Join(t.TempDir(), "hand-home")
+
+		h, err := NewDefaultRPCHarness(context.Background(), home, NewTextClient("hello"), nil)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, h.Close())
+		})
+
+		client, err := WaitForRPC(h.Address(), h.Port(), 2*time.Second)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, client.Close())
+		})
+
+		current, err := client.CurrentSession(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, "default", current)
+	})
+
+	t.Run("times out when client cannot connect", func(t *testing.T) {
+		_, err := WaitForRPC("127.0.0.1", 1, 150*time.Millisecond)
+		require.Error(t, err)
+		assert.EqualError(t, err, "rpc server did not become ready on 127.0.0.1:1")
+	})
+
+	t.Run("retries when current session probe fails", func(t *testing.T) {
+		lis, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+
+		server := grpc.NewServer()
+		defer server.Stop()
+
+		go func() {
+			_ = server.Serve(lis)
+		}()
+
+		port := lis.Addr().(*net.TCPAddr).Port
+		client, err := WaitForRPC("127.0.0.1", port, 150*time.Millisecond)
+		require.Error(t, err)
+		assert.Nil(t, client)
+		assert.EqualError(t, err, "rpc server did not become ready on 127.0.0.1:"+strconv.Itoa(port))
+	})
 }
 
 func TestWriteRPCConfigFile_WritesExpectedContent(t *testing.T) {
