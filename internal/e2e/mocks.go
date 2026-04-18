@@ -8,6 +8,7 @@ import (
 
 	"github.com/wandxy/hand/internal/agent"
 	handmsg "github.com/wandxy/hand/internal/messages"
+	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/internal/storage"
 )
 
@@ -101,3 +102,23 @@ type stubListener struct {
 func (l stubListener) Accept() (net.Conn, error) { return nil, errors.New("accept unsupported") }
 func (l stubListener) Close() error              { return nil }
 func (l stubListener) Addr() net.Addr            { return l.addr }
+
+type rpcAdapterClientStub struct {
+	reply      string
+	currentErr error
+}
+
+func (s rpcAdapterClientStub) Respond(context.Context, string, rpcclient.RespondOptions) (string, error) {
+	return s.reply, nil
+}
+
+func (s rpcAdapterClientStub) CurrentSession(context.Context) (string, error) {
+	if s.currentErr != nil {
+		return "", s.currentErr
+	}
+	return "default", nil
+}
+
+func (s rpcAdapterClientStub) Close() error {
+	return nil
+}
