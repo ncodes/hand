@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -970,45 +971,148 @@ func Test_E2E_HandRootChat_IterationBudgetExhaustionFallsBackCoherently(t *testi
 	assert.Equal(t, "I hit the iteration limit before finishing, so I am returning a summary instead.\n", output)
 }
 
-func Test_E2E_HandLiveHarness_RootChat(t *testing.T) {
-	resetRootChatE2E(t)
+func Test_E2E_HandLiveHarness_OneTurnDirectAnswer(t *testing.T) {
+	ctx := newLiveRootChatContext(t)
+	sessionID := createLiveSession(t, ctx.harness, "ses_123456789012345678901")
 
-	os.Setenv("HAND_E2E_LIVE_CONFIG", "/Users/nedy/projects/wandxy/hand/config.yaml")
-
-	configPath := strings.TrimSpace(os.Getenv("HAND_E2E_LIVE_CONFIG"))
-	if configPath == "" {
-		t.Skip("set HAND_E2E_LIVE_CONFIG to run live harness e2e")
-	}
-
-	envPath := strings.TrimSpace(os.Getenv("HAND_E2E_LIVE_ENV_FILE"))
-	h, err := e2e.NewLiveRPCHarness(
-		context.Background(),
-		filepath.Join(t.TempDir(), "hand-home"),
-		envPath,
-		configPath,
+	_, err := e2e.RunLiveScenario(
+		"one-turn-direct-answer",
+		"Reply with the token ALPHA-42 and nothing else.",
+		ctx.artifactDir,
+		func(prompt string) (string, error) {
+			return runRootChatCommand(t, "hand", "--config", ctx.configFile, "--session", sessionID, prompt)
+		},
+		func(output string) error {
+			if !strings.Contains(strings.ToUpper(output), "ALPHA-42") {
+				return fmt.Errorf("expected ALPHA-42 in live output, got %q", output)
+			}
+			return nil
+		},
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, h.Close())
-	})
+}
 
-	configFile := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "live-agent"})
+func Test_E2E_HandLiveHarness_ToolUsing(t *testing.T) {
+	ctx := newLiveRootChatContext(t)
+	sessionID := createLiveSession(t, ctx.harness, "ses_123456789012345678902")
 
-	t.Run("simple answer", func(t *testing.T) {
-		output, runErr := runRootChatCommand(t, "hand", "--config", configFile, "Reply with the token ALPHA-42 and nothing else.")
-		require.NoError(t, runErr)
-		assert.Contains(t, strings.ToUpper(output), "ALPHA-42")
-	})
+	_, err := e2e.RunLiveScenario(
+		"tool-using",
+		"Use tools to inspect the configured filesystem roots and tell me whether "+ctx.markerPath+" exists. Reply with FOUND or MISSING only.",
+		ctx.artifactDir,
+		func(prompt string) (string, error) {
+			return runRootChatCommand(t, "hand", "--config", ctx.configFile, "--session", sessionID, prompt)
+		},
+		func(output string) error {
+			if !strings.Contains(strings.ToUpper(output), "FOUND") {
+				return fmt.Errorf("expected FOUND in live tool output, got %q", output)
+			}
 
-	t.Run("multi turn continuity", func(t *testing.T) {
-		firstOutput, runErr := runRootChatCommand(t, "hand", "--config", configFile, "Remember the token BRAVO-77 for this session. Reply with STORED only.")
-		require.NoError(t, runErr)
-		assert.Contains(t, strings.ToUpper(firstOutput), "STORED")
+			messages, err := ctx.harness.Messages(context.Background(), sessionID)
+			if err != nil {
+				return err
+			}
 
-		secondOutput, runErr := runRootChatCommand(t, "hand", "--config", configFile, "What token did I ask you to remember for this session? Reply with the token only.")
-		require.NoError(t, runErr)
-		assert.Contains(t, strings.ToUpper(secondOutput), "BRAVO-77")
-	})
+			for _, message := range messages {
+				if message.Role != handmsg.RoleTool {
+					continue
+				}
+				switch strings.TrimSpace(message.Name) {
+				case "list_files", "read_file", "search_files":
+					return nil
+				}
+			}
+
+			return errors.New("expected a filesystem tool message in live scenario")
+		},
+	)
+	require.NoError(t, err)
+}
+
+func Test_E2E_HandLiveHarness_MultiTurnContinuity(t *testing.T) {
+	ctx := newLiveRootChatContext(t)
+	sessionID := createLiveSession(t, ctx.harness, "ses_123456789012345678903")
+
+	_, err := e2e.RunLiveScenario(
+		"multi-turn",
+		"Remember the token BRAVO-77 for this session, then return it on a follow-up turn.",
+		ctx.artifactDir,
+		func(string) (string, error) {
+			firstOutput, err := runRootChatCommand(
+				t,
+				"hand",
+				"--config", ctx.configFile,
+				"--session", sessionID,
+				"Remember the token BRAVO-77 for this session. Reply with STORED only.",
+			)
+			if err != nil {
+				return "", err
+			}
+			if !strings.Contains(strings.ToUpper(firstOutput), "STORED") {
+				return "", fmt.Errorf("expected STORED in first live turn, got %q", firstOutput)
+			}
+
+			return runRootChatCommand(
+				t,
+				"hand",
+				"--config", ctx.configFile,
+				"--session", sessionID,
+				"What token did I ask you to remember for this session? Reply with the token only.",
+			)
+		},
+		func(output string) error {
+			if !strings.Contains(strings.ToUpper(output), "BRAVO-77") {
+				return fmt.Errorf("expected BRAVO-77 in live output, got %q", output)
+			}
+			return nil
+		},
+	)
+	require.NoError(t, err)
+}
+
+func Test_E2E_HandLiveHarness_MemorySensitive(t *testing.T) {
+	ctx := newLiveRootChatContext(t)
+	sessionID := createLiveSession(t, ctx.harness, "ses_123456789012345678904")
+
+	_, err := e2e.RunLiveScenario(
+		"memory-sensitive",
+		"Store three mappings and answer with only the requested one on a follow-up turn.",
+		ctx.artifactDir,
+		func(string) (string, error) {
+			firstOutput, err := runRootChatCommand(
+				t,
+				"hand",
+				"--config", ctx.configFile,
+				"--session", sessionID,
+				"Store these mappings for this session: ALDER=17, BIRCH=29, CEDAR=43. Reply with STORED only.",
+			)
+			if err != nil {
+				return "", err
+			}
+			if !strings.Contains(strings.ToUpper(firstOutput), "STORED") {
+				return "", fmt.Errorf("expected STORED in memory setup turn, got %q", firstOutput)
+			}
+
+			return runRootChatCommand(
+				t,
+				"hand",
+				"--config", ctx.configFile,
+				"--session", sessionID,
+				"What number is paired with BIRCH? Reply with BIRCH=29 only.",
+			)
+		},
+		func(output string) error {
+			normalized := strings.ToUpper(output)
+			if !strings.Contains(normalized, "BIRCH=29") {
+				return fmt.Errorf("expected BIRCH=29 in live output, got %q", output)
+			}
+			if strings.Contains(normalized, "ALDER") || strings.Contains(normalized, "CEDAR") {
+				return fmt.Errorf("expected focused memory answer without distractors, got %q", output)
+			}
+			return nil
+		},
+	)
+	require.NoError(t, err)
 }
 
 func resetRootChatE2E(t *testing.T) {
@@ -1075,4 +1179,98 @@ func newWebConfig(baseURL string) *config.Config {
 	cfg.WebBaseURL = strings.TrimSpace(baseURL)
 	cfg.WebAPIKey = "test-key"
 	return cfg
+}
+
+type liveRootChatContext struct {
+	harness     *e2e.RPCHarness
+	configFile  string
+	artifactDir string
+	markerPath  string
+}
+
+func newLiveRootChatContext(t *testing.T) liveRootChatContext {
+	t.Helper()
+	resetRootChatE2E(t)
+
+	if strings.TrimSpace(os.Getenv("HAND_E2E_LIVE")) != "1" {
+		t.Skip("set HAND_E2E_LIVE=1 to run live harness e2e")
+	}
+
+	configPath, envPath := resolveLiveInputs(t)
+	home := filepath.Join(t.TempDir(), "hand-home")
+
+	h, err := e2e.NewLiveRPCHarness(
+		context.Background(),
+		home,
+		envPath,
+		configPath,
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, h.Close())
+	})
+
+	root := home
+	cfg := h.Config()
+	if cfg != nil && len(cfg.FSRoots) > 0 && strings.TrimSpace(cfg.FSRoots[0]) != "" {
+		root = cfg.FSRoots[0]
+	}
+	require.NoError(t, os.MkdirAll(root, 0o755))
+
+	markerPath := filepath.Join(root, "live-marker.txt")
+	require.NoError(t, os.WriteFile(markerPath, []byte("live marker"), 0o600))
+
+	return liveRootChatContext{
+		harness:     h,
+		configFile:  writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "live-agent"}),
+		artifactDir: e2e.DefaultLiveArtifactDir(os.Getenv("HAND_E2E_LIVE_ARTIFACT_DIR")),
+		markerPath:  markerPath,
+	}
+}
+
+func resolveLiveInputs(t *testing.T) (string, string) {
+	t.Helper()
+
+	configPath := strings.TrimSpace(os.Getenv("HAND_E2E_LIVE_CONFIG"))
+	if configPath == "" {
+		candidate := filepath.Join(repoRoot(t), "config.yaml")
+		if _, err := os.Stat(candidate); err == nil {
+			configPath = candidate
+		}
+	}
+	if configPath == "" {
+		t.Skip("set HAND_E2E_LIVE_CONFIG or provide config.yaml at the repo root to run live harness e2e")
+	}
+
+	envPath := strings.TrimSpace(os.Getenv("HAND_E2E_LIVE_ENV_FILE"))
+	if envPath == "" {
+		candidate := filepath.Join(repoRoot(t), ".env")
+		if _, err := os.Stat(candidate); err == nil {
+			envPath = candidate
+		}
+	}
+
+	return configPath, envPath
+}
+
+func repoRoot(t *testing.T) string {
+	t.Helper()
+
+	_, file, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+}
+
+func createLiveSession(t *testing.T, h *e2e.RPCHarness, sessionID string) string {
+	t.Helper()
+
+	client, err := h.Client(context.Background())
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, client.Close())
+	}()
+
+	_, err = client.CreateSession(context.Background(), sessionID)
+	require.NoError(t, err)
+	return sessionID
 }

@@ -2,10 +2,12 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/openai/openai-go/v3/option"
 	"github.com/stretchr/testify/assert"
@@ -295,4 +297,123 @@ func TestLiveClientOptions(t *testing.T) {
 
 	opts = liveClientOptions(" https://example.com/v1 ", 2)
 	require.Len(t, opts, 2)
+}
+
+func TestDefaultLiveArtifactDir(t *testing.T) {
+	dir := DefaultLiveArtifactDir("")
+	require.NotEmpty(t, dir)
+	assert.Contains(t, dir, "hand-live-artifacts")
+
+	assert.Equal(t, "/tmp/custom-artifacts", DefaultLiveArtifactDir(" /tmp/custom-artifacts "))
+}
+
+func TestRunLiveScenario(t *testing.T) {
+	originalNow := liveNow
+	t.Cleanup(func() {
+		liveNow = originalNow
+	})
+
+	t.Run("writes passed artifact", func(t *testing.T) {
+		dir := t.TempDir()
+		now := time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC)
+		calls := 0
+		liveNow = func() time.Time {
+			calls++
+			return now.Add(time.Duration(calls-1) * time.Second)
+		}
+
+		artifact, err := RunLiveScenario(
+			"Simple Answer",
+			"say alpha",
+			dir,
+			func(string) (string, error) { return "ALPHA", nil },
+			func(output string) error {
+				if output != "ALPHA" {
+					return errors.New("unexpected output")
+				}
+				return nil
+			},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, LiveClassificationPassed, artifact.Classification)
+		assert.Equal(t, "ALPHA", artifact.Output)
+
+		raw, readErr := os.ReadFile(filepath.Join(dir, "simple-answer.json"))
+		require.NoError(t, readErr)
+
+		var written LiveArtifact
+		require.NoError(t, json.Unmarshal(raw, &written))
+		assert.Equal(t, LiveClassificationPassed, written.Classification)
+		assert.Equal(t, "say alpha", written.Prompt)
+	})
+
+	t.Run("classifies command error", func(t *testing.T) {
+		dir := t.TempDir()
+		liveNow = func() time.Time { return time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC) }
+
+		artifact, err := RunLiveScenario(
+			"Command Error",
+			"run",
+			dir,
+			func(string) (string, error) { return "", errors.New("rpc failed") },
+			nil,
+		)
+		require.Error(t, err)
+		assert.Equal(t, LiveClassificationCommandError, artifact.Classification)
+		assert.Equal(t, "rpc failed", artifact.Error)
+
+		raw, readErr := os.ReadFile(filepath.Join(dir, "command-error.json"))
+		require.NoError(t, readErr)
+
+		var written LiveArtifact
+		require.NoError(t, json.Unmarshal(raw, &written))
+		assert.Equal(t, LiveClassificationCommandError, written.Classification)
+	})
+
+	t.Run("classifies expectation failure", func(t *testing.T) {
+		dir := t.TempDir()
+		liveNow = func() time.Time { return time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC) }
+
+		artifact, err := RunLiveScenario(
+			"Expectation Failed",
+			"check",
+			dir,
+			func(string) (string, error) { return "wrong", nil },
+			func(string) error { return errors.New("missing token") },
+		)
+		require.Error(t, err)
+		assert.Equal(t, LiveClassificationExpectationFailed, artifact.Classification)
+		assert.Equal(t, "missing token", artifact.Error)
+
+		raw, readErr := os.ReadFile(filepath.Join(dir, "expectation-failed.json"))
+		require.NoError(t, readErr)
+
+		var written LiveArtifact
+		require.NoError(t, json.Unmarshal(raw, &written))
+		assert.Equal(t, LiveClassificationExpectationFailed, written.Classification)
+	})
+
+	t.Run("returns artifact write errors", func(t *testing.T) {
+		originalWrite := writeLiveArtifactFile
+		originalMkdir := mkdirAllLiveArtifacts
+		t.Cleanup(func() {
+			writeLiveArtifactFile = originalWrite
+			mkdirAllLiveArtifacts = originalMkdir
+		})
+
+		mkdirAllLiveArtifacts = func(string, os.FileMode) error { return nil }
+		writeLiveArtifactFile = func(string, []byte, os.FileMode) error {
+			return errors.New("write failed")
+		}
+
+		_, err := RunLiveScenario(
+			"Write Failed",
+			"prompt",
+			t.TempDir(),
+			func(string) (string, error) { return "ok", nil },
+			nil,
+		)
+		require.Error(t, err)
+		assert.EqualError(t, err, "write failed")
+	})
 }

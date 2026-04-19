@@ -2,8 +2,12 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/openai/openai-go/v3/option"
 
@@ -15,6 +19,25 @@ var newLiveModelClient = models.NewOpenAIClient
 var loadLiveConfig = config.Load
 var newLiveHarness = NewHarness
 var newLiveRPCHarness = NewRPCHarness
+var writeLiveArtifactFile = os.WriteFile
+var mkdirAllLiveArtifacts = os.MkdirAll
+var liveNow = time.Now
+
+const (
+	LiveClassificationPassed            = "passed"
+	LiveClassificationCommandError      = "command_error"
+	LiveClassificationExpectationFailed = "expectation_failed"
+)
+
+type LiveArtifact struct {
+	Scenario       string    `json:"scenario"`
+	Prompt         string    `json:"prompt"`
+	Output         string    `json:"output,omitempty"`
+	Error          string    `json:"error,omitempty"`
+	Classification string    `json:"classification"`
+	StartedAt      time.Time `json:"started_at"`
+	FinishedAt     time.Time `json:"finished_at"`
+}
 
 func NewLiveClients(cfg *config.Config) (models.Client, models.Client, error) {
 	if cfg == nil {
@@ -98,4 +121,114 @@ func liveClientOptions(baseURL string, maxRetries int) []option.RequestOption {
 	}
 	opts = append(opts, option.WithMaxRetries(maxRetries))
 	return opts
+}
+
+func DefaultLiveArtifactDir(override string) string {
+	if strings.TrimSpace(override) != "" {
+		return strings.TrimSpace(override)
+	}
+
+	return filepath.Join(os.TempDir(), "hand-live-artifacts")
+}
+
+func RunLiveScenario(
+	name string,
+	prompt string,
+	artifactDir string,
+	run func(string) (string, error),
+	check func(string) error,
+) (LiveArtifact, error) {
+	artifact := LiveArtifact{
+		Scenario:  strings.TrimSpace(name),
+		Prompt:    strings.TrimSpace(prompt),
+		StartedAt: liveNow().UTC(),
+	}
+
+	output, runErr := run(prompt)
+	artifact.Output = strings.TrimSpace(output)
+	artifact.FinishedAt = liveNow().UTC()
+
+	if runErr != nil {
+		artifact.Classification = LiveClassificationCommandError
+		artifact.Error = runErr.Error()
+		writeErr := WriteLiveArtifact(artifactDir, artifact)
+		if writeErr != nil {
+			return artifact, errors.Join(runErr, writeErr)
+		}
+		return artifact, runErr
+	}
+
+	if checkErr := checkOutput(check, artifact.Output); checkErr != nil {
+		artifact.Classification = LiveClassificationExpectationFailed
+		artifact.Error = checkErr.Error()
+		writeErr := WriteLiveArtifact(artifactDir, artifact)
+		if writeErr != nil {
+			return artifact, errors.Join(checkErr, writeErr)
+		}
+		return artifact, checkErr
+	}
+
+	artifact.Classification = LiveClassificationPassed
+	if err := WriteLiveArtifact(artifactDir, artifact); err != nil {
+		return artifact, err
+	}
+
+	return artifact, nil
+}
+
+func WriteLiveArtifact(dir string, artifact LiveArtifact) error {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return nil
+	}
+	if err := mkdirAllLiveArtifacts(dir, 0o755); err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(artifact, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	filename := sanitizeLiveArtifactName(artifact.Scenario)
+	if filename == "" {
+		filename = "live-scenario"
+	}
+
+	return writeLiveArtifactFile(filepath.Join(dir, filename+".json"), data, 0o600)
+}
+
+func sanitizeLiveArtifactName(name string) string {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" {
+		return ""
+	}
+
+	var builder strings.Builder
+	lastDash := false
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z':
+			builder.WriteRune(r)
+			lastDash = false
+		case r >= '0' && r <= '9':
+			builder.WriteRune(r)
+			lastDash = false
+		default:
+			if !lastDash && builder.Len() > 0 {
+				builder.WriteByte('-')
+				lastDash = true
+			}
+		}
+	}
+
+	return strings.Trim(builder.String(), "-")
+}
+
+func checkOutput(check func(string) error, output string) error {
+	if check == nil {
+		return nil
+	}
+
+	return check(strings.TrimSpace(output))
 }

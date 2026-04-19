@@ -29,9 +29,10 @@ test-spec:
 	@$(GO) test ./internal/e2e ./cmd/hand ./cmd/session ./cmd/trace ./cmd/up -count=1
 
 test-live:
-	@HAND_E2E_LIVE_CONFIG="$(LIVE_CONFIG)" \
+	@HAND_E2E_LIVE=1 \
+		HAND_E2E_LIVE_CONFIG="$(LIVE_CONFIG)" \
 		HAND_E2E_LIVE_ENV_FILE="$$(if [ -f "$(LIVE_ENV_FILE)" ]; then printf '%s' "$(LIVE_ENV_FILE)"; fi)" \
-		$(GO) test ./cmd/hand -run 'Test_E2E_HandLiveHarness_RootChat$$' -count=1
+		$(GO) test ./cmd/hand -run '^Test_E2E_HandLiveHarness_' -count=1
 
 lint:
 	@golangci-lint run ./...
