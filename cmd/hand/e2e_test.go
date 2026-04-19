@@ -1196,28 +1196,31 @@ func newLiveRootChatContext(t *testing.T) liveRootChatContext {
 		t.Skip("set HAND_E2E_LIVE=1 to run live harness e2e")
 	}
 
-	configPath, envPath := resolveLiveInputs(t)
 	home := filepath.Join(t.TempDir(), "hand-home")
+	workspace := filepath.Join(home, "workspace")
 
-	h, err := e2e.NewLiveRPCHarness(
-		context.Background(),
-		home,
-		envPath,
-		configPath,
-	)
+	configPath, envPath := resolveLiveInputs(t)
+	cfg, err := config.Load(envPath, configPath)
+	require.NoError(t, err)
+	cfg.FSRoots = []string{workspace}
+
+	modelClient, summaryClient, err := e2e.NewLiveClients(cfg)
+	require.NoError(t, err)
+
+	h, err := e2e.NewRPCHarness(context.Background(), e2e.HarnessOptions{
+		Spec:          e2e.DefaultSpec(home),
+		Config:        cfg,
+		ModelClient:   modelClient,
+		SummaryClient: summaryClient,
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, h.Close())
 	})
 
-	root := home
-	cfg := h.Config()
-	if cfg != nil && len(cfg.FSRoots) > 0 && strings.TrimSpace(cfg.FSRoots[0]) != "" {
-		root = cfg.FSRoots[0]
-	}
-	require.NoError(t, os.MkdirAll(root, 0o755))
+	require.NoError(t, os.MkdirAll(workspace, 0o755))
 
-	markerPath := filepath.Join(root, "live-marker.txt")
+	markerPath := filepath.Join(workspace, "live-marker.txt")
 	require.NoError(t, os.WriteFile(markerPath, []byte("live marker"), 0o600))
 
 	return liveRootChatContext{
