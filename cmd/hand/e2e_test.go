@@ -19,7 +19,6 @@ import (
 	"github.com/wandxy/hand/internal/e2e"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
-	"github.com/wandxy/hand/pkg/logutils"
 )
 
 func Test_E2E_HandRootChat_SimpleAnswer(t *testing.T) {
@@ -551,7 +550,6 @@ func Test_E2E_HandRootChat_SessionSearchRetrievesPriorContextDuringTask(t *testi
 					if !ok || len(results) == 0 {
 						return fmt.Errorf("expected non-empty session search results, got %v", payload["results"])
 					}
-					logutils.PrettyPrint(results)
 
 					first, ok := results[0].(map[string]any)
 					if !ok {
@@ -691,6 +689,257 @@ func Test_E2E_HandRootChat_DisabledNetworkCapabilityOmitsWebTools(t *testing.T) 
 	assert.Equal(t, "Network-backed web tools are unavailable in this run.\n", output)
 }
 
+func Test_E2E_HandRootChat_WebToolsAppearWhenProviderConfigured(t *testing.T) {
+	resetRootChatE2E(t)
+
+	provider := e2e.NewProvider(e2e.ProviderResponse{Body: `{"data":{"web":[]}}`})
+	t.Cleanup(provider.Close)
+
+	cfg := newWebConfig(provider.URL())
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(e2e.Step{
+		Check: func(req models.Request) error {
+			foundSearch := false
+			foundExtract := false
+			for _, tool := range req.Tools {
+				if tool.Name == "web_search" {
+					foundSearch = true
+				}
+				if tool.Name == "web_extract" {
+					foundExtract = true
+				}
+			}
+			if !foundSearch || !foundExtract {
+				return fmt.Errorf("expected web_search and web_extract tools, got %+v", req.Tools)
+			}
+
+			return nil
+		},
+		Response: &models.Response{OutputText: "Web tools are available."},
+	}), cfg)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
+
+	output, err := runRootChatCommand(t, "hand", "--config", configPath, "search the web for docs")
+	require.NoError(t, err)
+	assert.Equal(t, "Web tools are available.\n", output)
+}
+
+func Test_E2E_HandRootChat_WebExtractBlockedDomainIsEnforced(t *testing.T) {
+	resetRootChatE2E(t)
+
+	provider := e2e.NewProvider(e2e.ProviderResponse{
+		Body: `{"data":{"markdown":"should not be fetched","metadata":{"sourceURL":"https://blocked.example/page","title":"Blocked"}}}`,
+	})
+	t.Cleanup(provider.Close)
+
+	cfg := newWebConfig(provider.URL())
+	cfg.WebBlockedDomainsEnabled = true
+	cfg.WebBlockedDomains = []string{"blocked.example"}
+
+	toolCall := models.ToolCall{
+		ID:    "call-1",
+		Name:  "web_extract",
+		Input: `{"urls":["https://blocked.example/page"],"format":"markdown"}`,
+	}
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
+		e2e.ToolStep(toolCall),
+		e2e.Step{
+			Check: e2e.CombineChecks(
+				e2e.AssertToolRoundTrip(toolCall),
+				e2e.ToolOutputJSON("call-1", "web_extract", func(payload map[string]any) error {
+					results, ok := payload["results"].([]any)
+					if !ok || len(results) != 1 {
+						return fmt.Errorf("expected one blocked extract result, got %v", payload["results"])
+					}
+
+					result, ok := results[0].(map[string]any)
+					if !ok {
+						return fmt.Errorf("expected structured blocked extract result, got %T", results[0])
+					}
+					if fmt.Sprint(result["url"]) != "https://blocked.example/page" {
+						return fmt.Errorf("expected blocked url in result, got %v", result["url"])
+					}
+					if !strings.Contains(fmt.Sprint(result["error"]), "blocked by configured website blocklist policy") {
+						return fmt.Errorf("expected blocked-domain error, got %v", result["error"])
+					}
+
+					return nil
+				}),
+			),
+			Response: &models.Response{OutputText: "That domain is blocked by policy."},
+		},
+	), cfg)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
+
+	output, err := runRootChatCommand(t, "hand", "--config", configPath, "extract https://blocked.example/page")
+	require.NoError(t, err)
+	assert.Equal(t, "That domain is blocked by policy.\n", output)
+	assert.Empty(t, provider.Requests())
+}
+
+func Test_E2E_HandRootChat_WebSearchCachedProviderPathRemainsCorrect(t *testing.T) {
+	resetRootChatE2E(t)
+
+	provider := e2e.NewProvider(e2e.ProviderResponse{
+		Body: `{"data":{"web":[{"title":"Cache Docs","url":"https://example.com/docs","description":"Cached docs result"}]}}`,
+	})
+	t.Cleanup(provider.Close)
+
+	cfg := newWebConfig(provider.URL())
+	cfg.WebCacheTTL = time.Hour
+
+	toolCall := models.ToolCall{
+		ID:    "call-1",
+		Name:  "web_search",
+		Input: `{"query":"cached docs","count":1}`,
+	}
+	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
+		e2e.ToolStep(toolCall),
+		e2e.Step{
+			Check: e2e.CombineChecks(
+				e2e.AssertToolRoundTrip(toolCall),
+				e2e.ToolOutputJSON("call-1", "web_search", func(payload map[string]any) error {
+					results, ok := payload["results"].([]any)
+					if !ok || len(results) != 1 {
+						return fmt.Errorf("expected cached search result, got %v", payload["results"])
+					}
+
+					result, ok := results[0].(map[string]any)
+					if !ok {
+						return fmt.Errorf("expected structured search result, got %T", results[0])
+					}
+					if fmt.Sprint(result["Title"]) != "Cache Docs" {
+						return fmt.Errorf("expected cached search title, got %v", result["Title"])
+					}
+
+					return nil
+				}),
+			),
+			Response: &models.Response{OutputText: "Cached docs found."},
+		},
+		e2e.ToolStep(toolCall),
+		e2e.Step{
+			Check: e2e.CombineChecks(
+				e2e.AssertToolRoundTrip(toolCall),
+				e2e.ToolOutputJSON("call-1", "web_search", func(payload map[string]any) error {
+					results, ok := payload["results"].([]any)
+					if !ok || len(results) != 1 {
+						return fmt.Errorf("expected cached search result on second turn, got %v", payload["results"])
+					}
+					return nil
+				}),
+			),
+			Response: &models.Response{OutputText: "Cached docs found again."},
+		},
+	), cfg)
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
+
+	firstOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "search for cached docs")
+	require.NoError(t, err)
+	assert.Equal(t, "Cached docs found.\n", firstOutput)
+
+	secondOutput, err := runRootChatCommand(t, "hand", "--config", configPath, "search for cached docs again")
+	require.NoError(t, err)
+	assert.Equal(t, "Cached docs found again.\n", secondOutput)
+
+	requests := provider.Requests()
+	require.Len(t, requests, 1)
+	assert.Equal(t, "/v2/search", requests[0].Path)
+}
+
+func Test_E2E_HandRootChat_LargeWebExtractSummarizationPathRemainsCorrect(t *testing.T) {
+	resetRootChatE2E(t)
+
+	provider := e2e.NewProvider(e2e.ProviderResponse{
+		Body: `{"data":{"markdown":"` + strings.Repeat("A", 80) + `","metadata":{"sourceURL":"https://example.com/long","title":"Long Article"}}}`,
+	})
+	t.Cleanup(provider.Close)
+
+	cfg := newWebConfig(provider.URL())
+	cfg.WebExtractMinSummarizeChars = 10
+	cfg.WebExtractMaxSummaryChars = 40
+	cfg.WebExtractMaxSummaryChunkChars = 50
+	cfg.WebExtractRefusalThresholdChars = 1000
+
+	toolCall := models.ToolCall{
+		ID:    "call-1",
+		Name:  "web_extract",
+		Input: `{"urls":["https://example.com/long"],"summarize":true}`,
+	}
+	modelClient := e2e.NewClient(
+		e2e.ToolStep(toolCall),
+		e2e.Step{
+			Check: e2e.CombineChecks(
+				e2e.AssertToolRoundTrip(toolCall),
+				e2e.ToolOutputJSON("call-1", "web_extract", func(payload map[string]any) error {
+					results, ok := payload["results"].([]any)
+					if !ok || len(results) != 1 {
+						return fmt.Errorf("expected summarized extract result, got %v", payload["results"])
+					}
+
+					result, ok := results[0].(map[string]any)
+					if !ok {
+						return fmt.Errorf("expected structured summarized extract result, got %T", results[0])
+					}
+					if fmt.Sprint(result["content_format"]) != "summary" {
+						return fmt.Errorf("expected summary content format, got %v", result["content_format"])
+					}
+					if fmt.Sprint(result["summarized"]) != "true" {
+						return fmt.Errorf("expected summarized=true, got %v", result["summarized"])
+					}
+					if !strings.Contains(fmt.Sprint(result["content"]), "final condensed summary") {
+						return fmt.Errorf("expected final summary content, got %v", result["content"])
+					}
+					if fmt.Sprint(result["source_content_chars"]) != "80" {
+						return fmt.Errorf("expected source_content_chars=80, got %v", result["source_content_chars"])
+					}
+
+					return nil
+				}),
+			),
+			Response: &models.Response{OutputText: "Here is the condensed extract summary."},
+		},
+	)
+	summaryClient := e2e.NewClient(
+		e2e.OutputTextStep("chunk one summary"),
+		e2e.OutputTextStep("chunk two summary"),
+		e2e.Step{
+			Check: func(req models.Request) error {
+				if len(req.Messages) != 1 {
+					return fmt.Errorf("expected synthesis summary request, got %d messages", len(req.Messages))
+				}
+				content := req.Messages[0].Content
+				if !strings.Contains(content, "Chunk 1 Summary:\nchunk one summary") {
+					return errors.New("expected first chunk summary in synthesis request")
+				}
+				if !strings.Contains(content, "Chunk 2 Summary:\nchunk two summary") {
+					return errors.New("expected second chunk summary in synthesis request")
+				}
+
+				return nil
+			},
+			Response: &models.Response{OutputText: "final condensed summary"},
+		},
+	)
+
+	home := filepath.Join(t.TempDir(), "hand-home")
+	h, err := e2e.NewRPCHarness(context.Background(), e2e.HarnessOptions{
+		Spec:          e2e.DefaultSpec(home),
+		Config:        cfg,
+		ModelClient:   modelClient,
+		SummaryClient: summaryClient,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, h.Close())
+	})
+
+	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
+
+	output, err := runRootChatCommand(t, "hand", "--config", configPath, "extract and summarize the long article")
+	require.NoError(t, err)
+	assert.Equal(t, "Here is the condensed extract summary.\n", output)
+}
+
 func Test_E2E_HandRootChat_IterationBudgetExhaustionFallsBackCoherently(t *testing.T) {
 	resetRootChatE2E(t)
 
@@ -818,4 +1067,12 @@ func runRootChatCommand(t *testing.T, args ...string) (string, error) {
 
 	err := newCommand().Run(context.Background(), args)
 	return output.String(), err
+}
+
+func newWebConfig(baseURL string) *config.Config {
+	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
+	cfg.WebProvider = "firecrawl"
+	cfg.WebBaseURL = strings.TrimSpace(baseURL)
+	cfg.WebAPIKey = "test-key"
+	return cfg
 }
