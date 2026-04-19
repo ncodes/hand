@@ -16,7 +16,6 @@ const (
 	defaultSessionSearchMaxResults = 10
 	maxSessionSearchResults        = 20
 	sessionSearchSnippetRunes      = 200
-	sessionSearchBatchSize         = 50
 )
 
 func Search(
@@ -38,55 +37,38 @@ func Search(
 	toolName := strings.TrimSpace(strings.ToLower(req.ToolName))
 	limit := clampSearchResults(req.MaxResults)
 
-	results := make([]envtypes.SessionSearchResult, 0, limit)
-	batchSize := max(sessionSearchBatchSize, limit)
-	for offset := 0; len(results) < limit; offset += batchSize {
-		messages, err := manager.SearchMessages(ctx, sessionID, storage.SearchMessageOptions{
-			Limit:    batchSize,
-			Offset:   offset,
-			Query:    query,
-			Role:     handmsg.Role(role),
-			ToolName: toolName,
+	messages, err := manager.SearchMessages(ctx, sessionID, storage.SearchMessageOptions{
+		Limit:    limit,
+		Query:    query,
+		Role:     handmsg.Role(role),
+		ToolName: toolName,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]envtypes.SessionSearchResult, 0, len(messages))
+	for _, message := range messages {
+		searchText, matchedToolName := handmsg.SearchableMessageText(message, toolName)
+		if searchText == "" {
+			continue
+		}
+
+		matchIndex, matchLen := caseInsensitiveMatchIndex(searchText, query)
+		snippet := snippetAround(searchText, 0, 0, sessionSearchSnippetRunes)
+		if matchIndex >= 0 {
+			snippet = snippetAround(searchText, matchIndex, matchLen, sessionSearchSnippetRunes)
+		}
+
+		results = append(results, envtypes.SessionSearchResult{
+			MessageID:     message.ID,
+			Role:          string(message.Role),
+			ToolName:      matchedToolName,
+			CreatedAt:     message.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+			Snippet:       snippet,
+			FullTextBytes: len(searchText),
+			MatchIndex:    matchIndex,
 		})
-		if err != nil {
-			return nil, err
-		}
-		if len(messages) == 0 {
-			break
-		}
-
-		for _, message := range messages {
-			if !matchesRole(message, role) {
-				continue
-			}
-
-			searchText, matchedToolName := handmsg.SearchableMessageText(message, toolName)
-			if searchText == "" {
-				continue
-			}
-
-			matchIndex, matchLen := caseInsensitiveMatchIndex(searchText, query)
-			if matchIndex < 0 {
-				continue
-			}
-
-			results = append(results, envtypes.SessionSearchResult{
-				MessageID:     message.ID,
-				Role:          string(message.Role),
-				ToolName:      matchedToolName,
-				CreatedAt:     message.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-				Snippet:       snippetAround(searchText, matchIndex, matchLen, sessionSearchSnippetRunes),
-				FullTextBytes: len(searchText),
-				MatchIndex:    matchIndex,
-			})
-			if len(results) >= limit {
-				break
-			}
-		}
-
-		if len(messages) < batchSize {
-			break
-		}
 	}
 
 	return results, nil
@@ -108,13 +90,6 @@ func clampSearchResults(value int) int {
 		return maxSessionSearchResults
 	}
 	return value
-}
-
-func matchesRole(message handmsg.Message, role string) bool {
-	if role == "" {
-		return true
-	}
-	return strings.ToLower(string(message.Role)) == role
 }
 
 func caseInsensitiveMatchIndex(text string, query string) (int, int) {

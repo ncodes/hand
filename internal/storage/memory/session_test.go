@@ -603,20 +603,18 @@ func TestMemoryStore_HelperFunctions(t *testing.T) {
 	require.Empty(t, toolName)
 
 	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
-		Role:       handmsg.RoleAssistant,
-		SearchText: "assistant structured",
-		ToolCalls:  []handmsg.ToolCall{{ID: "call-1", Name: "process", Input: `{"action":"start"}`}},
+		Role:      handmsg.RoleAssistant,
+		ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "process", Input: `{"action":"start"}`}},
 	}, "")
-	require.Equal(t, "assistant structured", searchText)
+	require.Contains(t, searchText, "tool_name process")
 	require.Equal(t, "process", toolName)
 
 	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
-		Role:       handmsg.RoleTool,
-		Name:       "process",
-		SearchText: "tool structured",
-		Content:    `{"status":"running"}`,
+		Role:    handmsg.RoleTool,
+		Name:    "process",
+		Content: `{"status":"running"}`,
 	}, "process")
-	require.Equal(t, "tool structured", searchText)
+	require.Contains(t, searchText, "status running")
 	require.Equal(t, "process", toolName)
 
 	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{
@@ -624,7 +622,7 @@ func TestMemoryStore_HelperFunctions(t *testing.T) {
 		Name:    "process",
 		Content: `{"status":"running"}`,
 	}, "")
-	require.Equal(t, `{"status":"running"}`, searchText)
+	require.Contains(t, searchText, "status running")
 	require.Equal(t, "process", toolName)
 
 	searchText, toolName = handmsg.SearchableMessageText(handmsg.Message{

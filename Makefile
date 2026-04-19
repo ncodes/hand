@@ -1,6 +1,7 @@
 APP := hand
 BUILD_DIR := build
 GO ?= /opt/homebrew/Cellar/go/1.26.1/libexec/bin/go
+GO_SQLITE_TAGS ?= sqlite_fts5
 LIVE_CONFIG ?= $(CURDIR)/config.yaml
 LIVE_ENV_FILE ?= $(CURDIR)/.env
 
@@ -20,22 +21,22 @@ build-proto:
 
 build: build-proto
 	@mkdir -p $(BUILD_DIR)
-	@$(GO) build -o $(BUILD_DIR)/$(APP) ./cmd/hand
+	@CGO_ENABLED=1 $(GO) build -tags $(GO_SQLITE_TAGS) -o $(BUILD_DIR)/$(APP) ./cmd/hand
 
 test: build-proto
-	@$(GO) test ./...
+	@CGO_ENABLED=1 $(GO) test -tags $(GO_SQLITE_TAGS) ./...
 
 test-spec:
-	@$(GO) test ./internal/e2e ./cmd/hand ./cmd/session ./cmd/trace ./cmd/up -count=1
+	@CGO_ENABLED=1 $(GO) test -tags $(GO_SQLITE_TAGS) ./internal/e2e ./cmd/hand ./cmd/session ./cmd/trace ./cmd/up -count=1
 
 test-live:
 	@HAND_E2E_LIVE=1 \
 		HAND_E2E_LIVE_CONFIG="$(LIVE_CONFIG)" \
 		HAND_E2E_LIVE_ENV_FILE="$$(if [ -f "$(LIVE_ENV_FILE)" ]; then printf '%s' "$(LIVE_ENV_FILE)"; fi)" \
-		$(GO) test ./cmd/hand -run '^Test_E2E_HandLiveHarness_' -count=1
+		CGO_ENABLED=1 $(GO) test -tags $(GO_SQLITE_TAGS) ./cmd/hand -run '^Test_E2E_HandLiveHarness_' -count=1
 
 lint:
 	@golangci-lint run ./...
 
 install: build-proto
-	@$(GO) install ./cmd/hand
+	@CGO_ENABLED=1 $(GO) install -tags $(GO_SQLITE_TAGS) ./cmd/hand

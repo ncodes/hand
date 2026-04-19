@@ -106,20 +106,17 @@ func TestSearchableMessageText_CoversRoleAndFallbackBranches(t *testing.T) {
 
 	t.Run("Assistant structured message with SearchText", func(t *testing.T) {
 		assistantStructured := Message{
-			Role: RoleAssistant,
+			Role:    RoleAssistant,
+			Content: "assistant summary",
 			ToolCalls: []ToolCall{
 				{ID: "call-1", Name: "process", Input: `{"action":"start"}`},
 			},
-			SearchText: MessageSearchText(Message{
-				Role: RoleAssistant,
-				ToolCalls: []ToolCall{
-					{ID: "call-1", Name: "process", Input: `{"action":"start"}`},
-				},
-			}),
 		}
 
 		text, toolName := SearchableMessageText(assistantStructured, "")
 		require.NotEmpty(t, text)
+		require.Contains(t, text, "assistant summary")
+		require.Contains(t, text, "tool_name process")
 		require.Equal(t, "process", toolName)
 
 		text, toolName = SearchableMessageText(assistantStructured, "process")
@@ -131,14 +128,24 @@ func TestSearchableMessageText_CoversRoleAndFallbackBranches(t *testing.T) {
 		require.Empty(t, toolName)
 	})
 
-	t.Run("Assistant with tool calls but no SearchText", func(t *testing.T) {
+	t.Run("Assistant with tool calls derives search text", func(t *testing.T) {
 		assistantNoSearchText := Message{
 			Role:      RoleAssistant,
 			ToolCalls: []ToolCall{{ID: "call-1", Name: "process", Input: `{"action":"start"}`}},
 		}
 		text, toolName := SearchableMessageText(assistantNoSearchText, "")
-		require.Empty(t, text)
-		require.Empty(t, toolName)
+		require.Contains(t, text, "tool_name process")
+		require.Equal(t, "process", toolName)
+	})
+
+	t.Run("Assistant helper combines content and tool text", func(t *testing.T) {
+		text := assistantSearchText(Message{
+			Role:      RoleAssistant,
+			Content:   "assistant summary",
+			ToolCalls: []ToolCall{{ID: "call-1", Name: "process", Input: `{"action":"start"}`}},
+		})
+		require.Contains(t, text, "assistant summary")
+		require.Contains(t, text, "tool_name process")
 	})
 
 	t.Run("Tool role message, filtering by tool name", func(t *testing.T) {
@@ -152,12 +159,7 @@ func TestSearchableMessageText_CoversRoleAndFallbackBranches(t *testing.T) {
 		require.Empty(t, toolName)
 
 		text, toolName = SearchableMessageText(toolMessage, "")
-		require.Equal(t, `{"status":"running"}`, text)
-		require.Equal(t, "process", toolName)
-
-		toolMessage.SearchText = "tool structured"
-		text, toolName = SearchableMessageText(toolMessage, "")
-		require.Equal(t, "tool structured", text)
+		require.Contains(t, text, "status running")
 		require.Equal(t, "process", toolName)
 	})
 

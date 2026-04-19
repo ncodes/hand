@@ -204,61 +204,29 @@ func TestSearch_ReturnsStoreErrorsAndSkipsEmptyDerivedSearchText(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, results)
-
-	mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
-		SearchMessagesFunc: func(context.Context, string, storage.SearchMessageOptions) ([]handmsg.Message, error) {
-			return []handmsg.Message{{
-				ID:        1,
-				Role:      handmsg.RoleAssistant,
-				ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "process", Input: `{"action":"start"}`}},
-				CreatedAt: time.Now().UTC(),
-			}}, nil
-		},
-	}, time.Minute, time.Hour)
-	require.NoError(t, err)
-
-	results, err = Search(context.Background(), mockManager, envtypes.SessionSearchRequest{
-		SessionID: sessionSearchTestSessionID,
-		Query:     "needle",
-	})
-	require.NoError(t, err)
-	require.Empty(t, results)
 }
 
-func TestSearch_PaginatesAcrossBatchesAndSkipsRoleMismatches(t *testing.T) {
-	offsets := make([]int, 0, 2)
+func TestSearch_ForwardsCanonicalSearchOptions(t *testing.T) {
 	now := time.Now().UTC()
 	mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
-		SearchMessagesFunc: func(_ context.Context, _ string, opts storage.SearchMessageOptions) ([]handmsg.Message, error) {
-			offsets = append(offsets, opts.Offset)
-			switch opts.Offset {
-			case 0:
-				messages := make([]handmsg.Message, 0, sessionSearchBatchSize)
-				for i := 0; i < sessionSearchBatchSize-1; i++ {
-					messages = append(messages, handmsg.Message{
-						ID:        uint(i + 1),
-						Role:      handmsg.RoleUser,
-						Content:   "needle",
-						CreatedAt: now.Add(time.Duration(i) * time.Second),
-					})
-				}
-				messages = append(messages, handmsg.Message{
-					ID:        100,
-					Role:      handmsg.RoleAssistant,
-					Content:   "needle",
-					CreatedAt: now.Add(100 * time.Second),
-				})
-				return messages, nil
-			case sessionSearchBatchSize:
-				return []handmsg.Message{{
-					ID:        200,
-					Role:      handmsg.RoleAssistant,
-					Content:   "needle again",
-					CreatedAt: now.Add(200 * time.Second),
-				}}, nil
-			default:
-				return nil, nil
-			}
+		SearchMessagesFunc: func(_ context.Context, id string, opts storage.SearchMessageOptions) ([]handmsg.Message, error) {
+			require.Equal(t, sessionSearchTestSessionID, id)
+			require.Equal(t, "needle", opts.Query)
+			require.Equal(t, handmsg.RoleAssistant, opts.Role)
+			require.Equal(t, "process", opts.ToolName)
+			require.Equal(t, 2, opts.Limit)
+			require.Zero(t, opts.Offset)
+
+			return []handmsg.Message{{
+				ID:   200,
+				Role: handmsg.RoleAssistant,
+				ToolCalls: []handmsg.ToolCall{{
+					ID:    "call-1",
+					Name:  "process",
+					Input: `{"pattern":"needle"}`,
+				}},
+				CreatedAt: now,
+			}}, nil
 		},
 	}, time.Minute, time.Hour)
 	require.NoError(t, err)
@@ -267,16 +235,15 @@ func TestSearch_PaginatesAcrossBatchesAndSkipsRoleMismatches(t *testing.T) {
 		SessionID:  sessionSearchTestSessionID,
 		Query:      "needle",
 		Role:       "assistant",
+		ToolName:   "process",
 		MaxResults: 2,
 	})
 	require.NoError(t, err)
-	require.Len(t, results, 2)
-	require.Equal(t, []int{0, sessionSearchBatchSize}, offsets)
+	require.Len(t, results, 1)
 	require.Equal(t, "assistant", results[0].Role)
-	require.Equal(t, "assistant", results[1].Role)
 }
 
-func TestSearch_SkipsCandidatesThatDoNotActuallyMatchQueryText(t *testing.T) {
+func TestSearch_ShapesStoreCandidatesWithoutFallbackMatching(t *testing.T) {
 	mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
 		SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]handmsg.Message, error) {
 			return []handmsg.Message{{
@@ -294,7 +261,9 @@ func TestSearch_SkipsCandidatesThatDoNotActuallyMatchQueryText(t *testing.T) {
 		Query:     "needle",
 	})
 	require.NoError(t, err)
-	require.Empty(t, results)
+	require.Len(t, results, 1)
+	require.Equal(t, "stale candidate", results[0].Snippet)
+	require.Equal(t, -1, results[0].MatchIndex)
 }
 
 func TestNormalizeSearchSessionID(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -21,11 +22,15 @@ import (
 )
 
 const currentSessionStateKey = "current_session"
+const sessionMessageSearchTable = "session_message_search"
 
 type Session = base.Session
 type ArchivedSession = base.ArchivedSession
 type MessageQueryOptions = base.MessageQueryOptions
 type SessionSummary = base.SessionSummary
+type SearchMessageOptions = base.SearchMessageOptions
+type SessionCompaction = base.SessionCompaction
+type SessionCompactionStatus = base.SessionCompactionStatus
 
 type sessionModel struct {
 	ID                           string `gorm:"primaryKey"`
@@ -92,7 +97,6 @@ type messageModel struct {
 	Role       string
 	Name       string
 	Content    string
-	SearchText string `gorm:"type:text"`
 	ToolCalls  string `gorm:"type:text"`
 	ToolCallID string
 	CreatedAt  time.Time
@@ -110,7 +114,6 @@ type archivedMessageModel struct {
 	Role       string
 	Name       string
 	Content    string
-	SearchText string `gorm:"type:text"`
 	ToolCalls  string `gorm:"type:text"`
 	ToolCallID string
 	CreatedAt  time.Time
@@ -153,6 +156,10 @@ func NewSessionStoreFromDB(db *gorm.DB) (*SessionStore, error) {
 		&archivedMessageModel{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate session db: %w", err)
+	}
+
+	if err := ensureSessionMessageSearchIndex(db); err != nil {
+		return nil, err
 	}
 
 	return &SessionStore{db: db}, nil
@@ -265,7 +272,7 @@ func (s *SessionStore) Get(ctx context.Context, id string) (Session, bool, error
 		return Session{}, false, err
 	}
 
-	session, err := decodeSessionRecord(record)
+	session, err := sessionModelToSession(record)
 	if err != nil {
 		return Session{}, false, err
 	}
@@ -285,7 +292,7 @@ func (s *SessionStore) List(ctx context.Context) ([]Session, error) {
 
 	sessions := make([]Session, 0, len(records))
 	for _, record := range records {
-		session, err := decodeSessionRecord(record)
+		session, err := sessionModelToSession(record)
 		if err != nil {
 			return nil, err
 		}
@@ -327,6 +334,9 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 		}
 
 		if err := tx.Where("session_id = ?", id).Delete(&messageModel{}).Error; err != nil {
+			return err
+		}
+		if err := deleteSessionMessageSearchRows(tx, id); err != nil {
 			return err
 		}
 
@@ -377,14 +387,18 @@ func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages [
 			return err
 		}
 
-		records := encodeSessionMessagesWithOffset(id, messages, int(nextSequence))
+		records := messagesToMessageModelsWithOffset(id, messages, int(nextSequence))
 		if len(records) > 0 {
 			if err := tx.Create(&records).Error; err != nil {
+				return err
+			}
+			if err := insertToSearchRows(tx, messageModelsToSearchRows(records)); err != nil {
 				return err
 			}
 		}
 
 		record.UpdatedAt = time.Now().UTC()
+
 		return tx.Save(&record).Error
 	})
 }
@@ -429,7 +443,7 @@ func (s *SessionStore) GetMessages(
 			return nil, err
 		}
 
-		return decodeArchivedMessages(records), nil
+		return archivedMessageModelsToMessages(records), nil
 	}
 
 	var records []messageModel
@@ -443,7 +457,7 @@ func (s *SessionStore) GetMessages(
 		return nil, err
 	}
 
-	return decodeSessionMessages(records), nil
+	return messageModelsToMessages(records), nil
 }
 
 func (s *SessionStore) CountMessages(
@@ -506,37 +520,61 @@ func (s *SessionStore) SearchMessages(
 		return nil, err
 	}
 
-	queryText := strings.TrimSpace(strings.ToLower(opts.Query))
+	queryText := buildSessionMessageSearchQuery(opts.Query)
 	if queryText == "" {
 		return nil, nil
 	}
 
-	query := s.db.WithContext(ctx).Model(&messageModel{}).Where("session_id = ?", id)
+	hitQuery := `
+		JOIN (
+			SELECT
+				CAST(message_id AS INTEGER) AS message_id
+			FROM ` + sessionMessageSearchTable + `
+			WHERE session_id = ? AND body MATCH ?`
+	args := []any{id, queryText}
 	if role := strings.TrimSpace(string(opts.Role)); role != "" {
-		query = query.Where("role = ?", role)
+		hitQuery += ` AND role = ?`
+		args = append(args, role)
+	}
+	if toolName := normalizeSessionMessageSearchValue(opts.ToolName); toolName != "" {
+		hitQuery += ` AND tool_name = ?`
+		args = append(args, toolName)
 	}
 
-	if toolName := strings.TrimSpace(opts.ToolName); toolName != "" {
-		assistantClause := "(role = ? AND LOWER(COALESCE(NULLIF(TRIM(search_text), ''), '')) LIKE ?)"
-		toolClause := "(role = ? AND name = ?)"
-		query = query.Where("("+assistantClause+" OR "+toolClause+")",
-			string(handmsg.RoleAssistant), "%tool_name "+strings.ToLower(toolName)+"%",
-			string(handmsg.RoleTool), toolName,
-		)
-	}
+	hitQuery += `
+			GROUP BY message_id
+		) AS hits ON hits.message_id = m.id`
 
-	query = query.Where("LOWER(COALESCE(NULLIF(TRIM(search_text), ''), content)) LIKE ?", "%"+queryText+"%")
-	query = query.Order("sequence desc").Offset(max(opts.Offset, 0))
+	query := s.db.WithContext(ctx).
+		Table("session_messages AS m").
+		Select(`
+			m.id,
+			m.session_id,
+			m.sequence,
+			m.role,
+			m.name,
+			m.content,
+			m.tool_calls,
+			m.tool_call_id,
+			m.created_at,
+			m.updated_at
+		`).
+		Joins(hitQuery, args...).
+		Order("m.sequence DESC")
+
+	offset := max(opts.Offset, 0)
 	if opts.Limit > 0 {
-		query = query.Limit(opts.Limit)
+		query = query.Limit(opts.Limit).Offset(offset)
+	} else if offset > 0 {
+		query = query.Offset(offset)
 	}
 
 	var records []messageModel
-	if err := query.Find(&records).Error; err != nil {
+	if err := query.Scan(&records).Error; err != nil {
 		return nil, err
 	}
 
-	return decodeSessionMessages(records), nil
+	return messageModelsToMessages(records), nil
 }
 
 func applySessionMessageFilters(query *gorm.DB, id string, opts MessageQueryOptions) *gorm.DB {
@@ -603,7 +641,7 @@ func (s *SessionStore) GetMessage(
 			return handmsg.Message{}, false, err
 		}
 
-		return decodeArchivedMessages([]archivedMessageModel{record})[0], true, nil
+		return archivedMessageModelsToMessages([]archivedMessageModel{record})[0], true, nil
 	}
 
 	var record messageModel
@@ -615,7 +653,7 @@ func (s *SessionStore) GetMessage(
 		return handmsg.Message{}, false, err
 	}
 
-	return decodeSessionMessages([]messageModel{record})[0], true, nil
+	return messageModelsToMessages([]messageModel{record})[0], true, nil
 }
 
 func (s *SessionStore) SaveSummary(ctx context.Context, summary SessionSummary) error {
@@ -645,9 +683,9 @@ func (s *SessionStore) SaveSummary(ctx context.Context, summary SessionSummary) 
 			UpdatedAt:          normalized.UpdatedAt,
 			SessionSummary:     normalized.SessionSummary,
 			CurrentTask:        normalized.CurrentTask,
-			Discoveries:        encodeStrings(normalized.Discoveries),
-			OpenQuestions:      encodeStrings(normalized.OpenQuestions),
-			NextActions:        encodeStrings(normalized.NextActions),
+			Discoveries:        stringsToJSON(normalized.Discoveries),
+			OpenQuestions:      stringsToJSON(normalized.OpenQuestions),
+			NextActions:        stringsToJSON(normalized.NextActions),
 		}
 
 		return tx.Save(&record).Error
@@ -676,7 +714,7 @@ func (s *SessionStore) GetSummary(ctx context.Context, sessionID string) (Sessio
 		return SessionSummary{}, false, err
 	}
 
-	summary, err := decodeSummaryRecord(record)
+	summary, err := summaryModelToSessionSummary(record)
 	if err != nil {
 		return SessionSummary{}, false, err
 	}
@@ -733,12 +771,15 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 			return err
 		}
 
-		records := encodeArchivedMessages(archive.ID, decodeSessionMessages(source))
+		records := messagesToArchivedMessageModels(archive.ID, messageModelsToMessages(source))
 		if err := tx.Create(&records).Error; err != nil {
 			return err
 		}
 
 		if err := tx.Where("session_id = ?", archive.SourceSessionID).Delete(&messageModel{}).Error; err != nil {
+			return err
+		}
+		if err := deleteSessionMessageSearchRows(tx, archive.SourceSessionID); err != nil {
 			return err
 		}
 
@@ -792,7 +833,7 @@ func (s *SessionStore) GetArchive(ctx context.Context, id string) (ArchivedSessi
 		return ArchivedSession{}, false, err
 	}
 
-	archive, err := decodeArchiveRecord(record)
+	archive, err := archiveModelToArchivedSession(record)
 	if err != nil {
 		return ArchivedSession{}, false, err
 	}
@@ -838,6 +879,9 @@ func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts Messag
 		if err := tx.Where("session_id = ?", id).Delete(&messageModel{}).Error; err != nil {
 			return err
 		}
+		if err := deleteSessionMessageSearchRows(tx, id); err != nil {
+			return err
+		}
 
 		if err := tx.Where("session_id = ?", id).Delete(&summaryModel{}).Error; err != nil {
 			return err
@@ -876,7 +920,7 @@ func (s *SessionStore) ListArchives(ctx context.Context, sourceSessionID string)
 
 	archives := make([]ArchivedSession, 0, len(records))
 	for _, record := range records {
-		archive, err := decodeArchiveRecord(record)
+		archive, err := archiveModelToArchivedSession(record)
 		if err != nil {
 			return nil, err
 		}
@@ -986,7 +1030,7 @@ func (s *SessionStore) Current(ctx context.Context) (string, bool, error) {
 	return value, true, nil
 }
 
-func decodeSummaryRecord(record summaryModel) (SessionSummary, error) {
+func summaryModelToSessionSummary(record summaryModel) (SessionSummary, error) {
 	return common.NormalizeSessionSummary(SessionSummary{
 		SessionID:          record.SessionID,
 		SourceEndOffset:    record.SourceEndOffset,
@@ -994,13 +1038,13 @@ func decodeSummaryRecord(record summaryModel) (SessionSummary, error) {
 		UpdatedAt:          record.UpdatedAt,
 		SessionSummary:     record.SessionSummary,
 		CurrentTask:        record.CurrentTask,
-		Discoveries:        decodeStrings(record.Discoveries),
-		OpenQuestions:      decodeStrings(record.OpenQuestions),
-		NextActions:        decodeStrings(record.NextActions),
+		Discoveries:        jsonToStrings(record.Discoveries),
+		OpenQuestions:      jsonToStrings(record.OpenQuestions),
+		NextActions:        jsonToStrings(record.NextActions),
 	})
 }
 
-func decodeArchiveRecord(record archiveModel) (ArchivedSession, error) {
+func archiveModelToArchivedSession(record archiveModel) (ArchivedSession, error) {
 	return common.NormalizeCreateArchive(ArchivedSession{
 		ID:              record.ID,
 		SourceSessionID: record.SourceSessionID,
@@ -1009,7 +1053,7 @@ func decodeArchiveRecord(record archiveModel) (ArchivedSession, error) {
 	})
 }
 
-func decodeSessionRecord(record sessionModel) (Session, error) {
+func sessionModelToSession(record sessionModel) (Session, error) {
 	id := strings.TrimSpace(record.ID)
 	if id == "" {
 		return Session{}, errors.New("session id is required")
@@ -1042,11 +1086,11 @@ func decodeSessionRecord(record sessionModel) (Session, error) {
 	return session, nil
 }
 
-func encodeSessionMessages(sessionID string, messages []handmsg.Message) []messageModel {
-	return encodeSessionMessagesWithOffset(sessionID, messages, 0)
+func messagesToMessageModels(sessionID string, messages []handmsg.Message) []messageModel {
+	return messagesToMessageModelsWithOffset(sessionID, messages, 0)
 }
 
-func encodeSessionMessagesWithOffset(sessionID string, messages []handmsg.Message, offset int) []messageModel {
+func messagesToMessageModelsWithOffset(sessionID string, messages []handmsg.Message, offset int) []messageModel {
 	if len(messages) == 0 {
 		return nil
 	}
@@ -1060,8 +1104,7 @@ func encodeSessionMessagesWithOffset(sessionID string, messages []handmsg.Messag
 			Role:       string(message.Role),
 			Name:       message.Name,
 			Content:    message.Content,
-			SearchText: messageSearchText(message),
-			ToolCalls:  encodeToolCalls(message.ToolCalls),
+			ToolCalls:  toolCallsToJSON(message.ToolCalls),
 			ToolCallID: message.ToolCallID,
 			CreatedAt:  message.CreatedAt,
 		})
@@ -1070,7 +1113,7 @@ func encodeSessionMessagesWithOffset(sessionID string, messages []handmsg.Messag
 	return records
 }
 
-func encodeArchivedMessages(archiveID string, messages []handmsg.Message) []archivedMessageModel {
+func messagesToArchivedMessageModels(archiveID string, messages []handmsg.Message) []archivedMessageModel {
 	if len(messages) == 0 {
 		return nil
 	}
@@ -1084,8 +1127,7 @@ func encodeArchivedMessages(archiveID string, messages []handmsg.Message) []arch
 			Role:       string(message.Role),
 			Name:       message.Name,
 			Content:    message.Content,
-			SearchText: messageSearchText(message),
-			ToolCalls:  encodeToolCalls(message.ToolCalls),
+			ToolCalls:  toolCallsToJSON(message.ToolCalls),
 			ToolCallID: message.ToolCallID,
 			CreatedAt:  message.CreatedAt,
 		})
@@ -1094,7 +1136,7 @@ func encodeArchivedMessages(archiveID string, messages []handmsg.Message) []arch
 	return records
 }
 
-func decodeSessionMessages(records []messageModel) []handmsg.Message {
+func messageModelsToMessages(records []messageModel) []handmsg.Message {
 	if len(records) == 0 {
 		return nil
 	}
@@ -1106,8 +1148,7 @@ func decodeSessionMessages(records []messageModel) []handmsg.Message {
 			Role:       handmsg.Role(record.Role),
 			Name:       record.Name,
 			Content:    record.Content,
-			SearchText: record.SearchText,
-			ToolCalls:  decodeToolCalls(record.ToolCalls),
+			ToolCalls:  jsonToToolCalls(record.ToolCalls),
 			ToolCallID: record.ToolCallID,
 			CreatedAt:  record.CreatedAt,
 		})
@@ -1116,7 +1157,7 @@ func decodeSessionMessages(records []messageModel) []handmsg.Message {
 	return messages
 }
 
-func decodeArchivedMessages(records []archivedMessageModel) []handmsg.Message {
+func archivedMessageModelsToMessages(records []archivedMessageModel) []handmsg.Message {
 	if len(records) == 0 {
 		return nil
 	}
@@ -1128,8 +1169,7 @@ func decodeArchivedMessages(records []archivedMessageModel) []handmsg.Message {
 			Role:       handmsg.Role(record.Role),
 			Name:       record.Name,
 			Content:    record.Content,
-			SearchText: record.SearchText,
-			ToolCalls:  decodeToolCalls(record.ToolCalls),
+			ToolCalls:  jsonToToolCalls(record.ToolCalls),
 			ToolCallID: record.ToolCallID,
 			CreatedAt:  record.CreatedAt,
 		})
@@ -1138,7 +1178,7 @@ func decodeArchivedMessages(records []archivedMessageModel) []handmsg.Message {
 	return messages
 }
 
-func encodeToolCalls(toolCalls []handmsg.ToolCall) string {
+func toolCallsToJSON(toolCalls []handmsg.ToolCall) string {
 	if len(toolCalls) == 0 {
 		return ""
 	}
@@ -1148,7 +1188,7 @@ func encodeToolCalls(toolCalls []handmsg.ToolCall) string {
 	return string(raw)
 }
 
-func encodeStrings(values []string) string {
+func stringsToJSON(values []string) string {
 	if len(values) == 0 {
 		return ""
 	}
@@ -1158,7 +1198,7 @@ func encodeStrings(values []string) string {
 	return string(raw)
 }
 
-func decodeStrings(value string) []string {
+func jsonToStrings(value string) []string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return nil
@@ -1172,7 +1212,7 @@ func decodeStrings(value string) []string {
 	return values
 }
 
-func decodeToolCalls(value string) []handmsg.ToolCall {
+func jsonToToolCalls(value string) []handmsg.ToolCall {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return nil
@@ -1186,10 +1226,174 @@ func decodeToolCalls(value string) []handmsg.ToolCall {
 	return toolCalls
 }
 
-func messageSearchText(message handmsg.Message) string {
-	if strings.TrimSpace(message.SearchText) != "" {
-		return strings.TrimSpace(message.SearchText)
+type sessionMessageSearchRow struct {
+	MessageID uint
+	SessionID string
+	Role      string
+	ToolName  string
+	Body      string
+}
+
+func ensureSessionMessageSearchIndex(db *gorm.DB) error {
+	if db == nil {
+		return errors.New("session db is required")
 	}
 
-	return handmsg.MessageSearchText(message)
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS ` + sessionMessageSearchTable + ` USING fts5(
+	message_id UNINDEXED,
+	session_id UNINDEXED,
+	role UNINDEXED,
+	tool_name UNINDEXED,
+	body,
+	tokenize='unicode61'
+)`).Error; err != nil {
+			return fmt.Errorf("failed to create session message search index: %w", err)
+		}
+
+		return nil
+	})
+}
+
+func insertToSearchRows(tx *gorm.DB, rows []sessionMessageSearchRow) error {
+	if tx == nil || len(rows) == 0 {
+		return nil
+	}
+
+	for _, row := range rows {
+		if err := tx.Exec(
+			`INSERT INTO `+sessionMessageSearchTable+` (message_id, session_id, role, tool_name, body) VALUES (?, ?, ?, ?, ?)`,
+			row.MessageID,
+			row.SessionID,
+			row.Role,
+			row.ToolName,
+			row.Body,
+		).Error; err != nil {
+			return fmt.Errorf("failed to insert session message search row: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func deleteSessionMessageSearchRows(tx *gorm.DB, sessionID string) error {
+	if tx == nil {
+		return nil
+	}
+
+	if err := tx.Exec(`DELETE FROM `+sessionMessageSearchTable+` WHERE session_id = ?`, sessionID).Error; err != nil {
+		return fmt.Errorf("failed to delete session message search rows: %w", err)
+	}
+
+	return nil
+}
+
+func messageModelsToSearchRows(records []messageModel) []sessionMessageSearchRow {
+	if len(records) == 0 {
+		return nil
+	}
+
+	rows := make([]sessionMessageSearchRow, 0, len(records))
+	for _, record := range records {
+		rows = append(rows, messageModelToSearchRows(record)...)
+	}
+
+	return rows
+}
+
+func messageModelToSearchRows(record messageModel) []sessionMessageSearchRow {
+	baseRow := sessionMessageSearchRow{
+		MessageID: record.ID,
+		SessionID: strings.TrimSpace(record.SessionID),
+		Role:      normalizeSessionMessageSearchValue(record.Role),
+	}
+
+	body := strings.TrimSpace(record.Content)
+	role := handmsg.Role(strings.TrimSpace(record.Role))
+
+	switch role {
+	case handmsg.RoleAssistant:
+		toolCalls := jsonToToolCalls(record.ToolCalls)
+		if len(toolCalls) == 0 {
+			if body == "" {
+				return nil
+			}
+
+			row := baseRow
+			row.Body = body
+			return []sessionMessageSearchRow{row}
+		}
+
+		rows := make([]sessionMessageSearchRow, 0, len(toolCalls)+1)
+		if body != "" {
+			row := baseRow
+			row.Body = body
+			rows = append(rows, row)
+		}
+
+		for _, toolCall := range toolCalls {
+			toolBody := strings.TrimSpace(handmsg.ToolCallSearchText(toolCall))
+			if toolBody == "" {
+				continue
+			}
+
+			row := baseRow
+			row.ToolName = normalizeSessionMessageSearchValue(toolCall.Name)
+			row.Body = toolBody
+			rows = append(rows, row)
+		}
+
+		return rows
+	case handmsg.RoleTool:
+		if body == "" {
+			return nil
+		}
+
+		row := baseRow
+		row.ToolName = normalizeSessionMessageSearchValue(record.Name)
+		row.Body = body
+		return []sessionMessageSearchRow{row}
+	default:
+		if body == "" {
+			return nil
+		}
+
+		row := baseRow
+		row.Body = body
+		return []sessionMessageSearchRow{row}
+	}
+}
+
+func normalizeSessionMessageSearchValue(value string) string {
+	return strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(value)), " "))
+}
+
+func buildSessionMessageSearchQuery(query string) string {
+	tokens := sessionMessageSearchTokens(query)
+	if len(tokens) == 0 {
+		return ""
+	}
+
+	quoted := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		quoted = append(quoted, `"`+token+`"`)
+	}
+
+	return strings.Join(quoted, " AND ")
+}
+
+func sessionMessageSearchTokens(query string) []string {
+	fields := strings.FieldsFunc(strings.TrimSpace(query), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	if len(fields) == 0 {
+		return nil
+	}
+
+	tokens := make([]string, 0, len(fields))
+	for _, field := range fields {
+		tokens = append(tokens, normalizeSessionMessageSearchValue(field))
+	}
+
+	return tokens
 }

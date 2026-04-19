@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
@@ -73,8 +74,6 @@ func TestSQLiteStore_NewStoreValidationAndSchema(t *testing.T) {
 	require.True(t, store.db.Migrator().HasTable(&messageModel{}))
 	require.True(t, store.db.Migrator().HasTable(&archivedMessageModel{}))
 	require.False(t, store.db.Migrator().HasColumn(&sessionModel{}, "messages"))
-	require.True(t, store.db.Migrator().HasColumn(&messageModel{}, "search_text"))
-	require.True(t, store.db.Migrator().HasColumn(&archivedMessageModel{}, "search_text"))
 }
 
 func TestSQLiteStore_SessionLifecycle(t *testing.T) {
@@ -490,18 +489,17 @@ func TestSQLiteStore_NilReceiverErrors(t *testing.T) {
 func TestSQLiteStore_MessageEncodingHelpers(t *testing.T) {
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 
-	require.Nil(t, encodeSessionMessages("session-1", nil))
-	require.Nil(t, encodeArchivedMessages(testArchiveOne, nil))
-	require.Nil(t, decodeSessionMessages(nil))
-	require.Nil(t, decodeArchivedMessages(nil))
+	require.Nil(t, messagesToMessageModels("session-1", nil))
+	require.Nil(t, messagesToArchivedMessageModels(testArchiveOne, nil))
+	require.Nil(t, messageModelsToMessages(nil))
+	require.Nil(t, archivedMessageModelsToMessages(nil))
 
-	sessionRecords := encodeSessionMessages("session-1", []handmsg.Message{
+	sessionRecords := messagesToMessageModels("session-1", []handmsg.Message{
 		{
 			ID:         1,
 			Role:       handmsg.RoleUser,
 			Name:       "user",
 			Content:    "hello",
-			SearchText: "search text",
 			ToolCallID: "call-1",
 			CreatedAt:  now,
 		},
@@ -510,9 +508,8 @@ func TestSQLiteStore_MessageEncodingHelpers(t *testing.T) {
 	require.Equal(t, "session-1", sessionRecords[0].SessionID)
 	require.Equal(t, 0, sessionRecords[0].Sequence)
 	require.Equal(t, 1, int(sessionRecords[0].ID))
-	require.Equal(t, "search text", sessionRecords[0].SearchText)
 
-	archiveRecords := encodeArchivedMessages(testArchiveOne, []handmsg.Message{
+	archiveRecords := messagesToArchivedMessageModels(testArchiveOne, []handmsg.Message{
 		{
 			ID:         2,
 			Role:       handmsg.RoleAssistant,
@@ -520,35 +517,30 @@ func TestSQLiteStore_MessageEncodingHelpers(t *testing.T) {
 			Content:    "world",
 			ToolCallID: "call-2",
 			CreatedAt:  now.Add(time.Second),
-			SearchText: "search text",
 		},
 	})
 	require.Len(t, archiveRecords, 1)
 	require.Equal(t, testArchiveOne, archiveRecords[0].ArchiveID)
 	require.Equal(t, 0, archiveRecords[0].Sequence)
 
-	decodedSession := decodeSessionMessages(sessionRecords)
+	decodedSession := messageModelsToMessages(sessionRecords)
 	require.Len(t, decodedSession, 1)
 	require.Equal(t, sessionRecords[0].ID, decodedSession[0].ID)
-	require.Equal(t, sessionRecords[0].SearchText, decodedSession[0].SearchText)
 	require.Equal(t, handmsg.RoleUser, decodedSession[0].Role)
 	require.Equal(t, "user", decodedSession[0].Name)
 	require.Equal(t, "hello", decodedSession[0].Content)
 	require.Equal(t, "call-1", decodedSession[0].ToolCallID)
 	require.Equal(t, 1, int(decodedSession[0].ID))
-	require.Equal(t, "search text", decodedSession[0].SearchText)
 	require.Equal(t, now, decodedSession[0].CreatedAt)
 
-	decodedArchive := decodeArchivedMessages(archiveRecords)
+	decodedArchive := archivedMessageModelsToMessages(archiveRecords)
 	require.Len(t, decodedArchive, 1)
 	require.Equal(t, archiveRecords[0].ID, decodedArchive[0].ID)
-	require.Equal(t, archiveRecords[0].SearchText, decodedArchive[0].SearchText)
 	require.Equal(t, handmsg.RoleAssistant, decodedArchive[0].Role)
 	require.Equal(t, "assistant", decodedArchive[0].Name)
 	require.Equal(t, "world", decodedArchive[0].Content)
 	require.Equal(t, "call-2", decodedArchive[0].ToolCallID)
 	require.Equal(t, 2, int(decodedArchive[0].ID))
-	require.Equal(t, "search text", decodedArchive[0].SearchText)
 	require.Equal(t, now.Add(time.Second), decodedArchive[0].CreatedAt)
 }
 
@@ -565,12 +557,11 @@ func TestSQLiteStore_GetAndHelperFunctionsEdgeCases(t *testing.T) {
 	require.Equal(t, base.MessageOrderAsc, messageQueryOrder(MessageQueryOptions{Order: "bogus"}))
 
 	message := handmsg.Message{
-		Role:       handmsg.RoleTool,
-		Content:    `{"status":"running"}`,
-		SearchText: "  preserved  ",
+		Role:    handmsg.RoleTool,
+		Content: `{"status":"running"}`,
 	}
-	require.Equal(t, "preserved", messageSearchText(message))
-	require.Empty(t, messageSearchText(handmsg.Message{Role: handmsg.RoleUser, Content: "plain"}))
+	require.Contains(t, handmsg.MessageSearchText(message), "status running")
+	require.Empty(t, handmsg.MessageSearchText(handmsg.Message{Role: handmsg.RoleUser, Content: "plain"}))
 
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
@@ -635,37 +626,15 @@ func TestSQLiteStore_GetMessagesPopulatesMessageIDs(t *testing.T) {
 	require.NotEqual(t, messages[0].ID, messages[1].ID)
 }
 
-func TestSQLiteStore_AppendMessagesPopulatesSearchTextForStructuredMessages(t *testing.T) {
-	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
-	require.NoError(t, err)
-	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-
-	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "hello world", CreatedAt: time.Now().UTC()},
-		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{
-			{ID: "call-1", Name: "search_files", Input: `{"pattern":"needle"}`}},
-			CreatedAt: time.Now().UTC()},
-		{Role: handmsg.RoleTool, Name: "process", Content: `{"process":{"status":"running"}}`,
-			ToolCallID: "call-2", CreatedAt: time.Now().UTC()},
-	}))
-
-	messages, err := store.GetMessages(context.Background(), testSessionA, MessageQueryOptions{})
-	require.NoError(t, err)
-	require.Len(t, messages, 3)
-	require.Empty(t, messages[0].SearchText)
-	require.Contains(t, messages[1].SearchText, "tool search_files")
-	require.Contains(t, messages[2].SearchText, "process.status running")
-}
-
 func TestSQLiteStore_DecodeRecordHelpers(t *testing.T) {
 	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
 
-	session, err := decodeSessionRecord(sessionModel{ID: testSessionA, UpdatedAt: now})
+	session, err := sessionModelToSession(sessionModel{ID: testSessionA, UpdatedAt: now})
 	require.NoError(t, err)
 	require.Equal(t, testSessionA, session.ID)
 	require.True(t, session.CreatedAt.IsZero())
 
-	archive, err := decodeArchiveRecord(archiveModel{
+	archive, err := archiveModelToArchivedSession(archiveModel{
 		ID:              testArchiveOne,
 		SourceSessionID: DefaultSessionID,
 		ArchivedAt:      now,
@@ -1003,7 +972,7 @@ func TestSQLiteStore_SaveRoundTripsCompactionMetadata(t *testing.T) {
 	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{
 		ID: testSessionA,
-		Compaction: base.SessionCompaction{
+		Compaction: SessionCompaction{
 			CompletedAt:        now.Add(3 * time.Minute),
 			FailedAt:           now.Add(2 * time.Minute),
 			LastError:          "failed before retry",
@@ -1041,7 +1010,7 @@ func TestSQLiteStore_SavePreservesExistingCompactionMetadataOnPartialUpdate(t *t
 	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{
 		ID: testSessionA,
-		Compaction: base.SessionCompaction{
+		Compaction: SessionCompaction{
 			LastError:          "failed before retry",
 			RequestedAt:        now,
 			Status:             base.CompactionStatusFailed,
@@ -1072,7 +1041,7 @@ func TestSQLiteStore_ClearMessagesClearsCompactionMetadata(t *testing.T) {
 	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{
 		ID: testSessionA,
-		Compaction: base.SessionCompaction{
+		Compaction: SessionCompaction{
 			Status:             base.CompactionStatusRunning,
 			TargetMessageCount: 12,
 			TargetOffset:       4,
@@ -1090,7 +1059,7 @@ func TestSQLiteStore_ClearMessagesClearsCompactionMetadata(t *testing.T) {
 	session, ok, err := store.Get(context.Background(), testSessionA)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, base.SessionCompaction{}, session.Compaction)
+	require.Equal(t, SessionCompaction{}, session.Compaction)
 }
 
 func TestSQLiteStore_CreateArchiveClearsDefaultSessionCompactionMetadata(t *testing.T) {
@@ -1100,7 +1069,7 @@ func TestSQLiteStore_CreateArchiveClearsDefaultSessionCompactionMetadata(t *test
 	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{
 		ID: DefaultSessionID,
-		Compaction: base.SessionCompaction{
+		Compaction: SessionCompaction{
 			Status:             base.CompactionStatusSucceeded,
 			TargetMessageCount: 12,
 			TargetOffset:       4,
@@ -1123,7 +1092,7 @@ func TestSQLiteStore_CreateArchiveClearsDefaultSessionCompactionMetadata(t *test
 	session, ok, err := store.Get(context.Background(), DefaultSessionID)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, base.SessionCompaction{}, session.Compaction)
+	require.Equal(t, SessionCompaction{}, session.Compaction)
 }
 
 func TestSQLiteStore_SaveTrimsIDOnCreate(t *testing.T) {
@@ -1287,7 +1256,7 @@ func TestSQLiteStore_SearchMessagesSupportsStructuredAndToolFilters(t *testing.T
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
 		{Role: handmsg.RoleUser, Content: "hello plain text", CreatedAt: now},
-		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{
+		{Role: handmsg.RoleAssistant, Content: "assistant summary", ToolCalls: []handmsg.ToolCall{
 			{ID: "call-1", Name: "process", Input: `{"action":"start"}`},
 			{ID: "call-2", Name: "search_files", Input: `{"pattern":"needle"}`},
 		}, CreatedAt: now.Add(time.Second)},
@@ -1295,22 +1264,28 @@ func TestSQLiteStore_SearchMessagesSupportsStructuredAndToolFilters(t *testing.T
 			ToolCallID: "call-3", CreatedAt: now.Add(2 * time.Second)},
 	}))
 
-	messages, err := store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
+	messages, err := store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 		Query: "needle",
 	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	require.Equal(t, handmsg.RoleAssistant, messages[0].Role)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
-		Query:    "needle",
-		ToolName: "process",
+	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+		Query: "summary",
 	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	require.Equal(t, handmsg.RoleAssistant, messages[0].Role)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
+	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+		Query:    "needle",
+		ToolName: "process",
+	})
+	require.NoError(t, err)
+	require.Empty(t, messages)
+
+	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 		Query:    "running",
 		ToolName: "process",
 		Role:     handmsg.RoleTool,
@@ -1321,25 +1296,55 @@ func TestSQLiteStore_SearchMessagesSupportsStructuredAndToolFilters(t *testing.T
 	require.Equal(t, "call-3", messages[0].ToolCallID)
 }
 
+func TestSQLiteStore_SearchMessagesUsesDerivedStructuredSearchText(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
+		Role: handmsg.RoleAssistant,
+		ToolCalls: []handmsg.ToolCall{
+			{ID: "call-1", Name: "process", Input: `{"action":"start"}`},
+			{ID: "call-2", Name: "search_files", Input: `{"pattern":"needle"}`},
+		},
+		CreatedAt: now,
+	}}))
+
+	messages, err := store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+		Query: "tool_name process",
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, handmsg.RoleAssistant, messages[0].Role)
+
+	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+		Query:    "tool_name process",
+		ToolName: "process",
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+}
+
 func TestSQLiteStore_SearchMessagesEdgeCases(t *testing.T) {
 	var nilStore *SessionStore
 
-	messages, err := nilStore.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{Query: "hello"})
+	messages, err := nilStore.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{Query: "hello"})
 	require.EqualError(t, err, "session store is required")
 	require.Nil(t, messages)
 
 	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)
 
-	messages, err = store.SearchMessages(context.Background(), "", base.SearchMessageOptions{Query: "hello"})
+	messages, err = store.SearchMessages(context.Background(), "", SearchMessageOptions{Query: "hello"})
 	require.NoError(t, err)
 	require.Nil(t, messages)
 
-	messages, err = store.SearchMessages(context.Background(), "ses_invalid", base.SearchMessageOptions{Query: "hello"})
+	messages, err = store.SearchMessages(context.Background(), "ses_invalid", SearchMessageOptions{Query: "hello"})
 	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
 	require.Nil(t, messages)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{})
+	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{})
 	require.NoError(t, err)
 	require.Nil(t, messages)
 }
@@ -1356,7 +1361,7 @@ func TestSQLiteStore_SearchMessagesSupportsPagingAndQueryErrors(t *testing.T) {
 		{Role: handmsg.RoleUser, Content: "hello two", CreatedAt: now.Add(2 * time.Second)},
 	}))
 
-	messages, err := store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
+	messages, err := store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 		Query:  "hello",
 		Offset: -2,
 		Limit:  2,
@@ -1366,7 +1371,16 @@ func TestSQLiteStore_SearchMessagesSupportsPagingAndQueryErrors(t *testing.T) {
 	require.Equal(t, "hello two", messages[0].Content)
 	require.Equal(t, "hello one", messages[1].Content)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
+	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+		Query:  "hello",
+		Offset: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, "hello one", messages[0].Content)
+	require.Equal(t, "hello zero", messages[1].Content)
+
+	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 		Query:    "hello",
 		ToolName: "missing",
 	})
@@ -1374,7 +1388,7 @@ func TestSQLiteStore_SearchMessagesSupportsPagingAndQueryErrors(t *testing.T) {
 	require.Nil(t, messages)
 
 	require.NoError(t, store.db.Migrator().DropTable(&messageModel{}))
-	_, err = store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{Query: "hello"})
+	_, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{Query: "hello"})
 	require.Error(t, err)
 }
 
@@ -1771,7 +1785,7 @@ func TestSQLiteStore_DeleteExpiredArchivesEdgeCases(t *testing.T) {
 }
 
 func TestSQLiteStore_DecodeToolCallsRejectsInvalidJSON(t *testing.T) {
-	require.Nil(t, decodeToolCalls("{invalid"))
+	require.Nil(t, jsonToToolCalls("{invalid"))
 }
 
 func TestSQLiteStore_SaveReturnsTransactionSaveError(t *testing.T) {
@@ -2018,10 +2032,206 @@ func TestSQLiteStore_CreateArchiveReturnsSummaryCleanupError(t *testing.T) {
 }
 
 func TestSQLiteStore_StringEncodingHelpers(t *testing.T) {
-	require.Equal(t, "", encodeStrings(nil))
-	require.Equal(t, `["one","two"]`, encodeStrings([]string{"one", "two"}))
+	require.Equal(t, "", stringsToJSON(nil))
+	require.Equal(t, `["one","two"]`, stringsToJSON([]string{"one", "two"}))
 
-	require.Nil(t, decodeStrings(""))
-	require.Nil(t, decodeStrings("not-json"))
-	require.Equal(t, []string{"one", "two"}, decodeStrings(`["one","two"]`))
+	require.Nil(t, jsonToStrings(""))
+	require.Nil(t, jsonToStrings("not-json"))
+	require.Equal(t, []string{"one", "two"}, jsonToStrings(`["one","two"]`))
+}
+
+func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
+	t.Run("ensure search index validates db and surfaces create errors", func(t *testing.T) {
+		require.EqualError(t, ensureSessionMessageSearchIndex(nil), "session db is required")
+	})
+
+	t.Run("ensure search index and store creation fail on readonly databases", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "session.db")
+
+		writableDB, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+		require.NoError(t, err)
+		require.NoError(t, writableDB.AutoMigrate(
+			&sessionModel{},
+			&archiveModel{},
+			&stateModel{},
+			&summaryModel{},
+			&messageModel{},
+			&archivedMessageModel{},
+		))
+
+		readonlyDB, err := gorm.Open(sqlite.Open("file:"+path+"?mode=ro"), &gorm.Config{})
+		require.NoError(t, err)
+
+		err = ensureSessionMessageSearchIndex(readonlyDB)
+		require.ErrorContains(t, err, "failed to create session message search index")
+
+		_, err = NewSessionStoreFromDB(readonlyDB)
+		require.ErrorContains(t, err, "failed to create session message search index")
+	})
+
+	t.Run("insert and delete search rows handle no-op and query errors", func(t *testing.T) {
+		require.NoError(t, insertToSearchRows(nil, []sessionMessageSearchRow{{MessageID: 1}}))
+
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+
+		require.NoError(t, insertToSearchRows(store.db, nil))
+		require.NoError(t, deleteSessionMessageSearchRows(nil, testSessionA))
+
+		require.NoError(t, store.db.Exec(`DROP TABLE `+sessionMessageSearchTable).Error)
+
+		err = insertToSearchRows(store.db, []sessionMessageSearchRow{{
+			MessageID: 1,
+			SessionID: testSessionA,
+			Role:      "user",
+			Body:      "hello",
+		}})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "failed to insert session message search row")
+
+		err = deleteSessionMessageSearchRows(store.db, testSessionA)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "failed to delete session message search rows")
+	})
+
+	t.Run("message model search row conversions cover remaining branches", func(t *testing.T) {
+		require.Nil(t, messageModelsToSearchRows(nil))
+
+		rows := messageModelsToSearchRows([]messageModel{
+			{
+				ID:        1,
+				SessionID: testSessionA,
+				Role:      string(handmsg.RoleUser),
+				Content:   "plain text",
+			},
+			{
+				ID:        2,
+				SessionID: testSessionA,
+				Role:      string(handmsg.RoleTool),
+				Name:      "process",
+				Content:   "running",
+			},
+		})
+		require.Len(t, rows, 2)
+
+		require.Nil(t, messageModelToSearchRows(messageModel{
+			ID:        3,
+			SessionID: testSessionA,
+			Role:      string(handmsg.RoleAssistant),
+		}))
+
+		require.Nil(t, messageModelToSearchRows(messageModel{
+			ID:        4,
+			SessionID: testSessionA,
+			Role:      string(handmsg.RoleTool),
+			Name:      "process",
+		}))
+
+		require.Nil(t, messageModelToSearchRows(messageModel{
+			ID:        5,
+			SessionID: testSessionA,
+			Role:      string(handmsg.RoleUser),
+		}))
+
+		rows = messageModelToSearchRows(messageModel{
+			ID:        6,
+			SessionID: testSessionA,
+			Role:      string(handmsg.RoleAssistant),
+			Content:   "assistant fallback",
+		})
+		require.Len(t, rows, 1)
+		require.Equal(t, "assistant fallback", rows[0].Body)
+
+		rows = messageModelToSearchRows(messageModel{
+			ID:        7,
+			SessionID: testSessionA,
+			Role:      string(handmsg.RoleAssistant),
+			Content:   "search fallback",
+		})
+		require.Len(t, rows, 1)
+		require.Equal(t, "search fallback", rows[0].Body)
+
+		rows = messageModelToSearchRows(messageModel{
+			ID:        8,
+			SessionID: testSessionA,
+			Role:      string(handmsg.RoleAssistant),
+			ToolCalls: `[{}]`,
+		})
+		require.Empty(t, rows)
+
+		rows = messageModelToSearchRows(messageModel{
+			ID:        9,
+			SessionID: testSessionA,
+			Role:      string(handmsg.RoleAssistant),
+			Content:   "assistant summary",
+			ToolCalls: `[{"id":"call-1","name":"process","input":"{\"action\":\"start\"}"}]`,
+		})
+		require.Len(t, rows, 2)
+		require.Equal(t, "assistant summary", rows[0].Body)
+		require.Equal(t, "process", rows[1].ToolName)
+	})
+
+	t.Run("search tokenization drops punctuation-only segments", func(t *testing.T) {
+		require.Nil(t, sessionMessageSearchTokens("... ---"))
+	})
+}
+
+func TestSQLiteStore_FTSErrorPathsFromBrokenIndex(t *testing.T) {
+	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+
+	t.Run("append messages returns fts insert errors", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.db.Exec(`DROP TABLE `+sessionMessageSearchTable).Error)
+
+		err = store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+		})
+		require.ErrorContains(t, err, "failed to insert session message search row")
+	})
+
+	t.Run("delete returns fts delete errors", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+		}))
+		require.NoError(t, store.db.Exec(`DROP TABLE `+sessionMessageSearchTable).Error)
+
+		err = store.Delete(context.Background(), testSessionA)
+		require.ErrorContains(t, err, "failed to delete session message search rows")
+	})
+
+	t.Run("create archive returns fts delete errors", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+		}))
+		require.NoError(t, store.db.Exec(`DROP TABLE `+sessionMessageSearchTable).Error)
+
+		err = store.CreateArchive(context.Background(), ArchivedSession{
+			ID:              testArchiveOne,
+			SourceSessionID: testSessionA,
+			ArchivedAt:      now,
+			ExpiresAt:       now.Add(time.Hour),
+		})
+		require.ErrorContains(t, err, "failed to delete session message search rows")
+	})
+
+	t.Run("clear messages returns fts delete errors", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+		}))
+		require.NoError(t, store.db.Exec(`DROP TABLE `+sessionMessageSearchTable).Error)
+
+		err = store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{})
+		require.ErrorContains(t, err, "failed to delete session message search rows")
+	})
 }

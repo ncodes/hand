@@ -81,7 +81,7 @@ func SearchableMessageText(message Message, toolName string) (string, string) {
 			}
 		}
 
-		searchText := strings.TrimSpace(message.SearchText)
+		searchText := assistantSearchText(message)
 		if searchText == "" {
 			return "", ""
 		}
@@ -97,7 +97,7 @@ func SearchableMessageText(message Message, toolName string) (string, string) {
 			return "", ""
 		}
 
-		searchText := strings.TrimSpace(message.SearchText)
+		searchText := MessageSearchText(message)
 		if searchText == "" {
 			searchText = strings.TrimSpace(message.Content)
 		}
@@ -123,6 +123,20 @@ func matchAssistantToolName(toolCalls []ToolCall, toolName string) string {
 	}
 
 	return ""
+}
+
+func assistantSearchText(message Message) string {
+	parts := make([]string, 0, 2)
+
+	if content := strings.TrimSpace(message.Content); content != "" {
+		parts = append(parts, content)
+	}
+
+	if toolText := MessageSearchText(message); toolText != "" {
+		parts = append(parts, toolText)
+	}
+
+	return strings.Join(parts, "\n")
 }
 
 func normalizeSearchTextScalar(value string) string {

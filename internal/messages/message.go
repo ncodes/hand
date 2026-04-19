@@ -19,7 +19,6 @@ type Message struct {
 	ID         uint
 	Role       Role
 	Content    string
-	SearchText string
 	Name       string
 	ToolCallID string
 	ToolCalls  []ToolCall
@@ -81,7 +80,6 @@ func Normalize(message Message) (Message, error) {
 		ID:         message.ID,
 		Role:       role,
 		Content:    content,
-		SearchText: strings.TrimSpace(message.SearchText),
 		Name:       name,
 		ToolCallID: toolCallID,
 		ToolCalls:  toolCalls,

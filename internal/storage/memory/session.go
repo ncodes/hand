@@ -171,9 +171,6 @@ func (s *SessionStore) AppendMessages(_ context.Context, id string, messages []h
 			s.nextMessageID++
 			copied[i].ID = s.nextMessageID
 		}
-		if strings.TrimSpace(copied[i].SearchText) == "" {
-			copied[i].SearchText = handmsg.MessageSearchText(copied[i])
-		}
 	}
 	s.messages[id] = append(s.messages[id], copied...)
 	session.UpdatedAt = time.Now().UTC()
