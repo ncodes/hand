@@ -162,22 +162,30 @@ func TestSearch_ValidatesManagerAndQuery(t *testing.T) {
 	require.EqualError(t, err, "query is required")
 }
 
-func TestSearch_UsesDefaultSessionIDWhenBlank(t *testing.T) {
+func TestSearch_OmitsOriginSessionWhenSessionIDIsBlank(t *testing.T) {
 	store := memorystore.NewSessionStore()
 	manager, err := sessionstore.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: storage.DefaultSessionID}))
+	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: sessionSearchTestSessionID}))
 	require.NoError(t, manager.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{{
 		Role:      handmsg.RoleUser,
-		Content:   "default needle",
+		Content:   "other needle",
+		CreatedAt: time.Now().UTC(),
+	}}))
+	require.NoError(t, manager.AppendMessages(context.Background(), sessionSearchTestSessionID, []handmsg.Message{{
+		Role:      handmsg.RoleUser,
+		Content:   "origin needle",
 		CreatedAt: time.Now().UTC(),
 	}}))
 
 	results, err := Search(context.Background(), manager, envtypes.SessionSearchRequest{
-		Query: "needle",
+		IgnoreSessionID: sessionSearchTestSessionID,
+		Query:           "needle",
 	})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
+	require.Equal(t, "other needle", results[0].Snippet)
 }
 
 func TestSearch_ReturnsStoreErrorsAndSkipsEmptyDerivedSearchText(t *testing.T) {
@@ -210,7 +218,8 @@ func TestSearch_ForwardsCanonicalSearchOptions(t *testing.T) {
 	now := time.Now().UTC()
 	mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
 		SearchMessagesFunc: func(_ context.Context, id string, opts storage.SearchMessageOptions) ([]handmsg.Message, error) {
-			require.Equal(t, sessionSearchTestSessionID, id)
+			require.Empty(t, id)
+			require.Equal(t, storage.DefaultSessionID, opts.IgnoreSessionID)
 			require.Equal(t, "needle", opts.Query)
 			require.Equal(t, handmsg.RoleAssistant, opts.Role)
 			require.Equal(t, "process", opts.ToolName)
@@ -232,11 +241,11 @@ func TestSearch_ForwardsCanonicalSearchOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	results, err := Search(context.Background(), mockManager, envtypes.SessionSearchRequest{
-		SessionID:  sessionSearchTestSessionID,
-		Query:      "needle",
-		Role:       "assistant",
-		ToolName:   "process",
-		MaxResults: 2,
+		IgnoreSessionID: storage.DefaultSessionID,
+		Query:           "needle",
+		Role:            "assistant",
+		ToolName:        "process",
+		MaxResults:      2,
 	})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -264,11 +273,6 @@ func TestSearch_ShapesStoreCandidatesWithoutFallbackMatching(t *testing.T) {
 	require.Len(t, results, 1)
 	require.Equal(t, "stale candidate", results[0].Snippet)
 	require.Equal(t, -1, results[0].MatchIndex)
-}
-
-func TestNormalizeSearchSessionID(t *testing.T) {
-	require.Equal(t, storage.DefaultSessionID, normalizeSearchSessionID(""))
-	require.Equal(t, "ses_123", normalizeSearchSessionID(" ses_123 "))
 }
 
 func TestCaseInsensitiveMatchIndex_AndSnippetAround_EdgeCases(t *testing.T) {

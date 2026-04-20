@@ -162,7 +162,11 @@ func (m *Manager) Get(ctx context.Context, id string) (storage.Session, bool, er
 	return m.store.Get(ctx, strings.TrimSpace(id))
 }
 
-func (m *Manager) GetMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
+func (m *Manager) GetMessages(
+	ctx context.Context,
+	id string,
+	opts storage.MessageQueryOptions,
+) ([]handmsg.Message, error) {
 	if m == nil {
 		return nil, errors.New("session manager is required")
 	}
@@ -170,10 +174,16 @@ func (m *Manager) GetMessages(ctx context.Context, id string, opts storage.Messa
 	return m.store.GetMessages(ctx, strings.TrimSpace(id), opts)
 }
 
-func (m *Manager) SearchMessages(ctx context.Context, id string, opts storage.SearchMessageOptions) ([]handmsg.Message, error) {
+func (m *Manager) SearchMessages(
+	ctx context.Context,
+	id string,
+	opts storage.SearchMessageOptions,
+) ([]handmsg.Message, error) {
 	if m == nil {
 		return nil, errors.New("session manager is required")
 	}
+
+	opts.IgnoreSessionID = strings.TrimSpace(opts.IgnoreSessionID)
 
 	return m.store.SearchMessages(ctx, strings.TrimSpace(id), opts)
 }
@@ -186,7 +196,12 @@ func (m *Manager) CountMessages(ctx context.Context, id string, opts storage.Mes
 	return m.store.CountMessages(ctx, strings.TrimSpace(id), opts)
 }
 
-func (m *Manager) GetMessage(ctx context.Context, id string, index int, opts storage.MessageQueryOptions) (handmsg.Message, bool, error) {
+func (m *Manager) GetMessage(
+	ctx context.Context,
+	id string,
+	index int,
+	opts storage.MessageQueryOptions,
+) (handmsg.Message, bool, error) {
 	if m == nil {
 		return handmsg.Message{}, false, errors.New("session manager is required")
 	}

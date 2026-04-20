@@ -217,18 +217,22 @@ func (s *SessionStore) GetMessages(
 
 func (s *SessionStore) SearchMessages(
 	_ context.Context,
-	id string, opts base.SearchMessageOptions,
+	id string,
+	opts base.SearchMessageOptions,
 ) ([]handmsg.Message, error) {
 	if s == nil {
 		return nil, errors.New("session store is required")
 	}
 
 	id = strings.TrimSpace(id)
-	if id == "" {
-		return nil, nil
-	}
-	if err := common.ValidateSessionID(id); err != nil {
-		return nil, err
+	if id != "" {
+		if err := common.ValidateSessionID(id); err != nil {
+			return nil, err
+		}
+	} else if opts.IgnoreSessionID = strings.TrimSpace(opts.IgnoreSessionID); opts.IgnoreSessionID != "" {
+		if err := common.ValidateSessionID(opts.IgnoreSessionID); err != nil {
+			return nil, err
+		}
 	}
 
 	query := strings.TrimSpace(strings.ToLower(opts.Query))
@@ -239,9 +243,55 @@ func (s *SessionStore) SearchMessages(
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	messages := s.messages[id]
-	results := make([]handmsg.Message, 0, min(len(messages), max(opts.Limit, 0)))
-	seen := 0
+	if id != "" {
+		return searchMessages(s.messages[id], query, opts), nil
+	}
+
+	results := make([]handmsg.Message, 0)
+	for sessionID, messages := range s.messages {
+		if sessionID == opts.IgnoreSessionID {
+			continue
+		}
+		results = append(results, matchingMessages(messages, query, opts)...)
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].CreatedAt.Equal(results[j].CreatedAt) {
+			return results[i].ID > results[j].ID
+		}
+		return results[i].CreatedAt.After(results[j].CreatedAt)
+	})
+
+	offset := max(opts.Offset, 0)
+	if offset >= len(results) {
+		return nil, nil
+	}
+
+	results = results[offset:]
+	if opts.Limit > 0 && len(results) > opts.Limit {
+		results = results[:opts.Limit]
+	}
+
+	return cloneMessages(results), nil
+}
+
+func searchMessages(messages []handmsg.Message, query string, opts base.SearchMessageOptions) []handmsg.Message {
+	results := matchingMessages(messages, query, opts)
+	offset := max(opts.Offset, 0)
+	if offset >= len(results) {
+		return nil
+	}
+
+	results = results[offset:]
+	if opts.Limit > 0 && len(results) > opts.Limit {
+		results = results[:opts.Limit]
+	}
+
+	return cloneMessages(results)
+}
+
+func matchingMessages(messages []handmsg.Message, query string, opts base.SearchMessageOptions) []handmsg.Message {
+	results := make([]handmsg.Message, 0, len(messages))
 	for i := len(messages) - 1; i >= 0; i-- {
 		searchText, _ := handmsg.SearchableMessageText(messages[i], opts.ToolName)
 		if searchText == "" {
@@ -253,17 +303,10 @@ func (s *SessionStore) SearchMessages(
 		if opts.Role != "" && messages[i].Role != opts.Role {
 			continue
 		}
-		if seen < max(opts.Offset, 0) {
-			seen++
-			continue
-		}
-		results = append(results, handmsg.CloneMessages([]handmsg.Message{messages[i]})[0])
-		if opts.Limit > 0 && len(results) >= opts.Limit {
-			break
-		}
+		results = append(results, messages[i])
 	}
 
-	return results, nil
+	return results
 }
 
 func (s *SessionStore) CountMessages(_ context.Context, id string, opts MessageQueryOptions) (int, error) {

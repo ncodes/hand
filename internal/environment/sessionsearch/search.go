@@ -27,7 +27,8 @@ func Search(
 		return nil, errors.New("session manager is required")
 	}
 
-	sessionID := normalizeSearchSessionID(req.SessionID)
+	sessionID := strings.TrimSpace(req.SessionID)
+	ignoreSessionID := strings.TrimSpace(req.IgnoreSessionID)
 	query := strings.TrimSpace(req.Query)
 	if query == "" {
 		return nil, errors.New("query is required")
@@ -38,10 +39,11 @@ func Search(
 	limit := clampSearchResults(req.MaxResults)
 
 	messages, err := manager.SearchMessages(ctx, sessionID, storage.SearchMessageOptions{
-		Limit:    limit,
-		Query:    query,
-		Role:     handmsg.Role(role),
-		ToolName: toolName,
+		IgnoreSessionID: ignoreSessionID,
+		Limit:           limit,
+		Query:           query,
+		Role:            handmsg.Role(role),
+		ToolName:        toolName,
 	})
 	if err != nil {
 		return nil, err
@@ -72,14 +74,6 @@ func Search(
 	}
 
 	return results, nil
-}
-
-func normalizeSearchSessionID(sessionID string) string {
-	sessionID = strings.TrimSpace(sessionID)
-	if sessionID == "" {
-		return storage.DefaultSessionID
-	}
-	return sessionID
 }
 
 func clampSearchResults(value int) int {

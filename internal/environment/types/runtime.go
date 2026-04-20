@@ -29,21 +29,22 @@ type Runtime interface {
 }
 
 type SessionSearchRequest struct {
-	SessionID   string `json:"session_id,omitempty"`
-	Query       string `json:"query"`
-	Role        string `json:"role,omitempty"`
-	ToolName    string `json:"tool_name,omitempty"`
-	MaxResults  int    `json:"max_results,omitempty"`
+	SessionID       string `json:"session_id,omitempty"`
+	IgnoreSessionID string `json:"ignore_session_id,omitempty"`
+	Query           string `json:"query"`
+	Role            string `json:"role,omitempty"`
+	ToolName        string `json:"tool_name,omitempty"`
+	MaxResults      int    `json:"max_results,omitempty"`
 }
 
 type SessionSearchResult struct {
-	MessageID     uint      `json:"message_id"`
-	Role          string    `json:"role"`
-	ToolName      string    `json:"tool_name,omitempty"`
-	CreatedAt     string    `json:"created_at"`
-	Snippet       string    `json:"snippet"`
-	FullTextBytes int       `json:"full_text_bytes"`
-	MatchIndex    int       `json:"match_index"`
+	MessageID     uint   `json:"message_id"`
+	Role          string `json:"role"`
+	ToolName      string `json:"tool_name,omitempty"`
+	CreatedAt     string `json:"created_at"`
+	Snippet       string `json:"snippet"`
+	FullTextBytes int    `json:"full_text_bytes"`
+	MatchIndex    int    `json:"match_index"`
 }
 
 const (

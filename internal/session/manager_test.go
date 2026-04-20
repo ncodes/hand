@@ -162,6 +162,8 @@ func TestNewManager_ValidationAndNilManagerErrors(t *testing.T) {
 	require.EqualError(t, manager.AppendMessages(context.Background(), storage.DefaultSessionID, nil), "session manager is required")
 	_, err = manager.CountMessages(context.Background(), storage.DefaultSessionID, storage.MessageQueryOptions{})
 	require.EqualError(t, err, "session manager is required")
+	_, err = manager.SearchMessages(context.Background(), storage.DefaultSessionID, storage.SearchMessageOptions{})
+	require.EqualError(t, err, "session manager is required")
 	require.EqualError(t, manager.Save(context.Background(), storage.Session{}), "session manager is required")
 	_, _, err = manager.Get(context.Background(), storage.DefaultSessionID)
 	require.EqualError(t, err, "session manager is required")
@@ -221,15 +223,22 @@ func TestManager_SearchMessages_ForwardsToStore(t *testing.T) {
 	require.NoError(t, err)
 
 	messages, err := manager.SearchMessages(context.Background(), "  "+testSessionA+"  ", storage.SearchMessageOptions{
-		Query:    "hello",
-		ToolName: "process",
-		Limit:    2,
-		Offset:   3,
+		IgnoreSessionID: "  " + storage.DefaultSessionID + "  ",
+		Query:           "hello",
+		ToolName:        "process",
+		Limit:           2,
+		Offset:          3,
 	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	require.Equal(t, testSessionA, capturedID)
-	require.Equal(t, storage.SearchMessageOptions{Query: "hello", ToolName: "process", Limit: 2, Offset: 3}, capturedOpts)
+	require.Equal(t, storage.SearchMessageOptions{
+		IgnoreSessionID: storage.DefaultSessionID,
+		Query:           "hello",
+		ToolName:        "process",
+		Limit:           2,
+		Offset:          3,
+	}, capturedOpts)
 }
 
 func TestManager_Save_ForwardsToStore(t *testing.T) {
@@ -769,6 +778,28 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 			require.EqualError(t, manager.clearIdleDefaultSession(context.Background(), now), "archive failed")
 		})
 
+		t.Run("generate archive id error", func(t *testing.T) {
+			now := time.Now().UTC()
+			originalGenerateArchiveID := generateArchiveID
+			generateArchiveID = func() (string, error) {
+				return "", errors.New("generate archive id failed")
+			}
+			t.Cleanup(func() {
+				generateArchiveID = originalGenerateArchiveID
+			})
+
+			manager, err := NewManager(&storagemock.SessionStore{
+				GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+					return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: now.Add(-2 * time.Hour)}, true, nil
+				},
+				GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+					return []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now.Add(-3 * time.Hour)}}, nil
+				},
+			}, time.Hour, 24*time.Hour)
+			require.NoError(t, err)
+			require.EqualError(t, manager.clearIdleDefaultSession(context.Background(), now), "generate archive id failed")
+		})
+
 		t.Run("clear messages error", func(t *testing.T) {
 			now := time.Now().UTC()
 
@@ -803,6 +834,93 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 			}, time.Hour, 24*time.Hour)
 			require.NoError(t, err)
 			require.EqualError(t, manager.clearIdleDefaultSession(context.Background(), now), "save failed")
+		})
+
+		t.Run("active session with messages is a no-op", func(t *testing.T) {
+			now := time.Now().UTC()
+			called := false
+
+			manager, err := NewManager(&storagemock.SessionStore{
+				GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+					return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: now.Add(-30 * time.Minute)}, true, nil
+				},
+				GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+					return []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now.Add(-time.Hour)}}, nil
+				},
+				CreateArchiveFunc: func(context.Context, storage.ArchivedSession) error {
+					called = true
+					return nil
+				},
+				ClearMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) error {
+					called = true
+					return nil
+				},
+				SaveFunc: func(context.Context, storage.Session) error {
+					called = true
+					return nil
+				},
+			}, time.Hour, 24*time.Hour)
+			require.NoError(t, err)
+			require.NoError(t, manager.clearIdleDefaultSession(context.Background(), now))
+			require.False(t, called)
+		})
+
+		t.Run("session without messages is a no-op", func(t *testing.T) {
+			now := time.Now().UTC()
+			called := false
+
+			manager, err := NewManager(&storagemock.SessionStore{
+				GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+					return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: now.Add(-2 * time.Hour)}, true, nil
+				},
+				GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+					return nil, nil
+				},
+				CreateArchiveFunc: func(context.Context, storage.ArchivedSession) error {
+					called = true
+					return nil
+				},
+				ClearMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) error {
+					called = true
+					return nil
+				},
+				SaveFunc: func(context.Context, storage.Session) error {
+					called = true
+					return nil
+				},
+			}, time.Hour, 24*time.Hour)
+			require.NoError(t, err)
+			require.NoError(t, manager.clearIdleDefaultSession(context.Background(), now))
+			require.False(t, called)
+		})
+
+		t.Run("session with zero updated at is a no-op", func(t *testing.T) {
+			now := time.Now().UTC()
+			called := false
+
+			manager, err := NewManager(&storagemock.SessionStore{
+				GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+					return storage.Session{ID: storage.DefaultSessionID}, true, nil
+				},
+				GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+					return []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now.Add(-time.Hour)}}, nil
+				},
+				CreateArchiveFunc: func(context.Context, storage.ArchivedSession) error {
+					called = true
+					return nil
+				},
+				ClearMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) error {
+					called = true
+					return nil
+				},
+				SaveFunc: func(context.Context, storage.Session) error {
+					called = true
+					return nil
+				},
+			}, time.Hour, 24*time.Hour)
+			require.NoError(t, err)
+			require.NoError(t, manager.clearIdleDefaultSession(context.Background(), now))
+			require.False(t, called)
 		})
 	})
 }

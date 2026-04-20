@@ -208,6 +208,34 @@ func TestRuntime_SearchSessionDelegatesToSessionManager(t *testing.T) {
 	require.NotZero(t, results[0].MessageID)
 }
 
+func TestRuntime_SearchSessionSupportsCrossSessionScope(t *testing.T) {
+	store := memorystore.NewSessionStore()
+	manager, err := sessionstore.NewManager(store, time.Minute, time.Hour)
+	require.NoError(t, err)
+
+	otherSessionID := nanoid.MustFromSeed(storage.SessionIDPrefix, "runtime-search-other", "EnvironmentRuntimeTestSeed")
+
+	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: runtimeSearchSessionID}))
+	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: otherSessionID}))
+	require.NoError(t, manager.AppendMessages(context.Background(), runtimeSearchSessionID, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "origin needle", CreatedAt: time.Now().UTC()},
+	}))
+	require.NoError(t, manager.AppendMessages(context.Background(), otherSessionID, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "other needle", CreatedAt: time.Now().UTC()},
+	}))
+
+	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, manager)
+
+	results, err := runtime.SearchSession(context.Background(), envtypes.SessionSearchRequest{
+		IgnoreSessionID: runtimeSearchSessionID,
+		Query:           "needle",
+		MaxResults:      5,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, "other needle", results[0].Snippet)
+}
+
 func TestRuntime_SearchSessionHandlesNilReceiver(t *testing.T) {
 	var runtime *Runtime
 

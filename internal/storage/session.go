@@ -84,11 +84,12 @@ type MessageQueryOptions struct {
 }
 
 type SearchMessageOptions struct {
-	Limit    int
-	Offset   int
-	Query    string
-	Role     handmsg.Role
-	ToolName string
+	IgnoreSessionID string
+	Limit           int
+	Offset          int
+	Query           string
+	Role            handmsg.Role
+	ToolName        string
 }
 
 func NormalizeMessageQueryOrder(order string) (string, error) {

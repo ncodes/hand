@@ -1326,6 +1326,54 @@ func TestSQLiteStore_SearchMessagesUsesDerivedStructuredSearchText(t *testing.T)
 	require.Len(t, messages, 1)
 }
 
+func TestSQLiteStore_SearchMessagesSupportsCrossSessionScope(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "origin needle", CreatedAt: now},
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "other needle", CreatedAt: now.Add(time.Second)},
+	}))
+
+	messages, err := store.SearchMessages(context.Background(), "", SearchMessageOptions{
+		IgnoreSessionID: testSessionA,
+		Query:           "needle",
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "other needle", messages[0].Content)
+
+	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+		Query: "needle",
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "origin needle", messages[0].Content)
+
+	messages, err = store.SearchMessages(context.Background(), "", SearchMessageOptions{
+		Query: "needle",
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, "other needle", messages[0].Content)
+	require.Equal(t, "origin needle", messages[1].Content)
+
+	// search session with ignore session id
+    // ignore directive has no effect when session id is provided
+	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+		IgnoreSessionID: testSessionA,
+		Query:           "needle",
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "origin needle", messages[0].Content)
+}
+
 func TestSQLiteStore_SearchMessagesEdgeCases(t *testing.T) {
 	var nilStore *SessionStore
 
@@ -1341,6 +1389,13 @@ func TestSQLiteStore_SearchMessagesEdgeCases(t *testing.T) {
 	require.Nil(t, messages)
 
 	messages, err = store.SearchMessages(context.Background(), "ses_invalid", SearchMessageOptions{Query: "hello"})
+	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
+	require.Nil(t, messages)
+
+	messages, err = store.SearchMessages(context.Background(), "", SearchMessageOptions{
+		IgnoreSessionID: "ses_invalid",
+		Query:           "hello",
+	})
 	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
 	require.Nil(t, messages)
 

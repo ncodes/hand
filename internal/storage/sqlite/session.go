@@ -513,11 +513,14 @@ func (s *SessionStore) SearchMessages(
 	}
 
 	id = strings.TrimSpace(id)
-	if id == "" {
-		return nil, nil
-	}
-	if err := common.ValidateSessionID(id); err != nil {
-		return nil, err
+	if id != "" {
+		if err := common.ValidateSessionID(id); err != nil {
+			return nil, err
+		}
+	} else if opts.IgnoreSessionID = strings.TrimSpace(opts.IgnoreSessionID); opts.IgnoreSessionID != "" {
+		if err := common.ValidateSessionID(opts.IgnoreSessionID); err != nil {
+			return nil, err
+		}
 	}
 
 	queryText := buildSessionMessageSearchQuery(opts.Query)
@@ -530,8 +533,15 @@ func (s *SessionStore) SearchMessages(
 			SELECT
 				CAST(message_id AS INTEGER) AS message_id
 			FROM ` + sessionMessageSearchTable + `
-			WHERE session_id = ? AND body MATCH ?`
-	args := []any{id, queryText}
+			WHERE body MATCH ?`
+	args := []any{queryText}
+	if id != "" {
+		hitQuery += ` AND session_id = ?`
+		args = append(args, id)
+	} else if opts.IgnoreSessionID != "" {
+		hitQuery += ` AND session_id <> ?`
+		args = append(args, opts.IgnoreSessionID)
+	}
 	if role := strings.TrimSpace(string(opts.Role)); role != "" {
 		hitQuery += ` AND role = ?`
 		args = append(args, role)
@@ -559,8 +569,13 @@ func (s *SessionStore) SearchMessages(
 			m.created_at,
 			m.updated_at
 		`).
-		Joins(hitQuery, args...).
-		Order("m.sequence DESC")
+		Joins(hitQuery, args...)
+
+	if id != "" {
+		query = query.Order("m.sequence DESC")
+	} else {
+		query = query.Order("m.created_at DESC").Order("m.id DESC")
+	}
 
 	offset := max(opts.Offset, 0)
 	if opts.Limit > 0 {

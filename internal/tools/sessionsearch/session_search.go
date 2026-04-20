@@ -11,6 +11,7 @@ import (
 )
 
 type input struct {
+	SessionID  string `json:"session_id"`
 	Query      string `json:"query"`
 	Role       string `json:"role"`
 	ToolName   string `json:"tool_name"`
@@ -20,11 +21,12 @@ type input struct {
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:        "session_search",
-		Description: "Search prior messages in the current session.",
+		Description: "Search prior messages in the current session or other sessions.",
 		Groups:      []string{"core"},
 		Requires:    tools.Capabilities{Memory: true},
 		InputSchema: common.ObjectSchema(map[string]any{
-			"query":       common.StringSchema("Search query for the current session."),
+			"session_id":  common.StringSchema("Optional session id. When omitted, search other sessions and exclude the current session."),
+			"query":       common.StringSchema("Search query for prior messages."),
 			"role":        common.StringSchema("Optional role filter: user, assistant, or tool."),
 			"tool_name":   common.StringSchema("Optional tool-name filter."),
 			"max_results": common.IntegerSchema("Optional maximum number of results."),
@@ -50,13 +52,19 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return common.ToolError("invalid_input", fmt.Sprintf("unsupported role %q", role)), nil
 			}
 
-			sessionID := strings.TrimSpace(tools.SessionIDFromContext(ctx))
+			sessionID := strings.TrimSpace(req.SessionID)
+			ignoreSessionID := ""
+			if sessionID == "" {
+				ignoreSessionID = strings.TrimSpace(tools.SessionIDFromContext(ctx))
+			}
+
 			results, err := runtime.SearchSession(ctx, envtypes.SessionSearchRequest{
-				SessionID:  sessionID,
-				Query:      query,
-				Role:       role,
-				ToolName:   strings.TrimSpace(req.ToolName),
-				MaxResults: req.MaxResults,
+				SessionID:       sessionID,
+				IgnoreSessionID: ignoreSessionID,
+				Query:           query,
+				Role:            role,
+				ToolName:        strings.TrimSpace(req.ToolName),
+				MaxResults:      req.MaxResults,
 			})
 			if err != nil {
 				return common.ToolError("tool_error", err.Error()), nil

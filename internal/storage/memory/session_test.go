@@ -131,6 +131,85 @@ func TestMemoryStore_SearchMessagesSupportsStructuredAndToolFilters(t *testing.T
 	require.Equal(t, "process", messages[0].Name)
 }
 
+func TestMemoryStore_SearchMessagesSupportsCrossSessionScope(t *testing.T) {
+	store := NewSessionStore()
+	now := time.Now().UTC()
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "origin needle", CreatedAt: now},
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "other needle", CreatedAt: now.Add(time.Second)},
+	}))
+
+	messages, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
+		IgnoreSessionID: testSessionA,
+		Query:           "needle",
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "other needle", messages[0].Content)
+
+	messages, err = store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
+		Query: "needle",
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "origin needle", messages[0].Content)
+
+	messages, err = store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
+		IgnoreSessionID: testSessionOlder,
+		Query:           "needle",
+		Offset:          1,
+		Limit:           1,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "origin needle", messages[0].Content)
+
+	// search session with ignore session id
+	// ignore directive has no effect when session id is provided
+	messages, err = store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
+		IgnoreSessionID: testSessionA,
+		Query:           "needle",
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "origin needle", messages[0].Content)
+}
+
+func TestMemoryStore_SearchMessagesCrossSessionPagingAndTieBreaks(t *testing.T) {
+	store := NewSessionStore()
+	now := time.Now().UTC()
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
+
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "shared needle a", CreatedAt: now},
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "shared needle b", CreatedAt: now},
+	}))
+
+	messages, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
+		Query: "needle",
+		Limit: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "shared needle b", messages[0].Content)
+
+	messages, err = store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
+		Query:  "needle",
+		Offset: 10,
+	})
+	require.NoError(t, err)
+	require.Nil(t, messages)
+}
+
 func TestMemoryStore_SearchMessagesEdgeCases(t *testing.T) {
 	var nilStore *SessionStore
 
@@ -145,6 +224,13 @@ func TestMemoryStore_SearchMessagesEdgeCases(t *testing.T) {
 	require.Nil(t, messages)
 
 	messages, err = store.SearchMessages(context.Background(), "ses_invalid", base.SearchMessageOptions{Query: "hello"})
+	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
+	require.Nil(t, messages)
+
+	messages, err = store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
+		IgnoreSessionID: "ses_invalid",
+		Query:           "hello",
+	})
 	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
 	require.Nil(t, messages)
 

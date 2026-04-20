@@ -13,10 +13,11 @@ import (
 	toolmocks "github.com/wandxy/hand/internal/tools/mocks"
 )
 
-func TestSessionSearch_ToolSearchesCurrentSession(t *testing.T) {
+func TestSessionSearch_ToolSearchesExplicitSession(t *testing.T) {
 	result, err := Definition(&toolmocks.Runtime{
 		SearchSessionFunc: func(_ context.Context, req envtypes.SessionSearchRequest) ([]envtypes.SessionSearchResult, error) {
 			require.Equal(t, "session-1", req.SessionID)
+			require.Empty(t, req.IgnoreSessionID)
 			require.Equal(t, "hello", req.Query)
 			require.Equal(t, "tool", req.Role)
 			require.Equal(t, "process", req.ToolName)
@@ -33,7 +34,7 @@ func TestSessionSearch_ToolSearchesCurrentSession(t *testing.T) {
 		},
 	}).Handler.Invoke(tools.WithSessionID(context.Background(), "session-1"), tools.Call{
 		Name:  "session_search",
-		Input: `{"query":"hello","role":"tool","tool_name":"process","max_results":3}`,
+		Input: `{"session_id":"session-1","query":"hello","role":"tool","tool_name":"process","max_results":3}`,
 	})
 
 	require.NoError(t, err)
@@ -43,6 +44,23 @@ func TestSessionSearch_ToolSearchesCurrentSession(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
 	require.Len(t, payload.Results, 1)
 	require.Equal(t, uint(11), payload.Results[0].MessageID)
+}
+
+func TestSessionSearch_ToolSearchesOtherSessionsWhenSessionIDIsOmitted(t *testing.T) {
+	result, err := Definition(&toolmocks.Runtime{
+		SearchSessionFunc: func(_ context.Context, req envtypes.SessionSearchRequest) ([]envtypes.SessionSearchResult, error) {
+			require.Empty(t, req.SessionID)
+			require.Equal(t, "session-1", req.IgnoreSessionID)
+			require.Equal(t, "hello", req.Query)
+			return nil, nil
+		},
+	}).Handler.Invoke(tools.WithSessionID(context.Background(), "session-1"), tools.Call{
+		Name:  "session_search",
+		Input: `{"query":"hello"}`,
+	})
+
+	require.NoError(t, err)
+	require.JSONEq(t, `{"results":null}`, result.Output)
 }
 
 func TestSessionSearch_ToolValidatesInputs(t *testing.T) {
