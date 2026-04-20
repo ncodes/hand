@@ -84,12 +84,12 @@ type MessageQueryOptions struct {
 }
 
 type SearchMessageOptions struct {
-	IgnoreSessionID string
-	Limit           int
-	Offset          int
-	Query           string
-	Role            handmsg.Role
-	ToolName        string
+	IgnoreSessionID       string
+	MaxMessagesPerSession int
+	MaxSessions           int
+	Query                 string
+	Role                  handmsg.Role
+	ToolName              string
 }
 
 type SearchMessageHit struct {
@@ -97,6 +97,13 @@ type SearchMessageHit struct {
 	Message         handmsg.Message
 	MatchedText     string
 	MatchedToolName string
+}
+
+type SearchMessageResult struct {
+	SessionID     string
+	LastMatchedAt time.Time
+	MatchCount    int
+	Messages      []SearchMessageHit
 }
 
 func NormalizeMessageQueryOrder(order string) (string, error) {
@@ -126,7 +133,7 @@ type SessionStore interface {
 	CountMessages(ctx context.Context, id string, opts MessageQueryOptions) (int, error)
 	GetMessage(ctx context.Context, id string, index int, opts MessageQueryOptions) (handmsg.Message, bool, error)
 	GetMessages(ctx context.Context, id string, opts MessageQueryOptions) ([]handmsg.Message, error)
-	SearchMessages(ctx context.Context, id string, opts SearchMessageOptions) ([]SearchMessageHit, error)
+	SearchMessages(ctx context.Context, id string, opts SearchMessageOptions) ([]SearchMessageResult, error)
 	ClearMessages(ctx context.Context, id string, opts MessageQueryOptions) error
 
 	// Session summaries

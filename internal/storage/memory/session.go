@@ -219,7 +219,7 @@ func (s *SessionStore) SearchMessages(
 	_ context.Context,
 	id string,
 	opts base.SearchMessageOptions,
-) ([]base.SearchMessageHit, error) {
+) ([]base.SearchMessageResult, error) {
 	if s == nil {
 		return nil, errors.New("session store is required")
 	}
@@ -244,58 +244,69 @@ func (s *SessionStore) SearchMessages(
 	defer s.mu.RUnlock()
 
 	if id != "" {
-		return searchMessageHits(id, s.messages[id], query, opts), nil
+		results := searchMessageResults(id, s.messages[id], query, opts)
+		if len(results) == 0 {
+			return nil, nil
+		}
+		return cloneSearchMessageResults(results), nil
 	}
 
-	results := make([]base.SearchMessageHit, 0)
+	results := make([]base.SearchMessageResult, 0, len(s.messages))
 	for sessionID, messages := range s.messages {
 		if sessionID == opts.IgnoreSessionID {
 			continue
 		}
-		results = append(results, matchingMessageHits(sessionID, messages, query, opts)...)
+		results = append(results, searchMessageResults(sessionID, messages, query, opts)...)
 	}
 
 	sort.Slice(results, func(i, j int) bool {
-		if results[i].Message.CreatedAt.Equal(results[j].Message.CreatedAt) {
-			if results[i].Message.ID == results[j].Message.ID {
-				return results[i].SessionID < results[j].SessionID
-			}
-			return results[i].Message.ID > results[j].Message.ID
+		if results[i].LastMatchedAt.Equal(results[j].LastMatchedAt) {
+			return results[i].SessionID < results[j].SessionID
 		}
-		return results[i].Message.CreatedAt.After(results[j].Message.CreatedAt)
+		return results[i].LastMatchedAt.After(results[j].LastMatchedAt)
 	})
 
-	offset := max(opts.Offset, 0)
-	if offset >= len(results) {
-		return nil, nil
+	if opts.MaxSessions > 0 && len(results) > opts.MaxSessions {
+		results = results[:opts.MaxSessions]
 	}
 
-	results = results[offset:]
-	if opts.Limit > 0 && len(results) > opts.Limit {
-		results = results[:opts.Limit]
-	}
-
-	return cloneSearchMessageHits(results), nil
+	return cloneSearchMessageResults(results), nil
 }
 
-func searchMessageHits(
+func searchMessageResults(
 	sessionID string,
 	messages []handmsg.Message,
 	query string,
 	opts base.SearchMessageOptions,
-) []base.SearchMessageHit {
-	results := matchingMessageHits(sessionID, messages, query, opts)
-	offset := max(opts.Offset, 0)
-	if offset >= len(results) {
+) []base.SearchMessageResult {
+	hitOpts := base.SearchMessageOptions{
+		Query:    query,
+		Role:     opts.Role,
+		ToolName: opts.ToolName,
+	}
+	hits := matchingMessageHits(sessionID, messages, query, hitOpts)
+	if len(hits) == 0 {
 		return nil
 	}
 
-	results = results[offset:]
-	if opts.Limit > 0 && len(results) > opts.Limit {
-		results = results[:opts.Limit]
+	sort.Slice(hits, func(i, j int) bool {
+		if hits[i].Message.CreatedAt.Equal(hits[j].Message.CreatedAt) {
+			return hits[i].Message.ID > hits[j].Message.ID
+		}
+		return hits[i].Message.CreatedAt.After(hits[j].Message.CreatedAt)
+	})
+
+	result := base.SearchMessageResult{
+		SessionID:     sessionID,
+		LastMatchedAt: hits[0].Message.CreatedAt,
+		MatchCount:    len(hits),
+		Messages:      hits,
+	}
+	if opts.MaxMessagesPerSession > 0 && len(result.Messages) > opts.MaxMessagesPerSession {
+		result.Messages = result.Messages[:opts.MaxMessagesPerSession]
 	}
 
-	return cloneSearchMessageHits(results)
+	return []base.SearchMessageResult{result}
 }
 
 func matchingMessageHits(
@@ -727,6 +738,20 @@ func cloneSearchMessageHits(hits []base.SearchMessageHit) []base.SearchMessageHi
 	for i, hit := range hits {
 		cloned[i] = hit
 		cloned[i].Message = common.CloneMessages([]handmsg.Message{hit.Message})[0]
+	}
+
+	return cloned
+}
+
+func cloneSearchMessageResults(results []base.SearchMessageResult) []base.SearchMessageResult {
+	if len(results) == 0 {
+		return nil
+	}
+
+	cloned := make([]base.SearchMessageResult, len(results))
+	for i, result := range results {
+		cloned[i] = result
+		cloned[i].Messages = cloneSearchMessageHits(result.Messages)
 	}
 
 	return cloned

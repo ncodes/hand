@@ -27,8 +27,9 @@ const sessionMessageSearchTable = "session_message_search"
 type Session = base.Session
 type ArchivedSession = base.ArchivedSession
 type MessageQueryOptions = base.MessageQueryOptions
-type SessionSummary = base.SessionSummary
 type SearchMessageOptions = base.SearchMessageOptions
+type SearchMessageResult = base.SearchMessageResult
+type SessionSummary = base.SessionSummary
 type SessionCompaction = base.SessionCompaction
 type SessionCompactionStatus = base.SessionCompactionStatus
 
@@ -124,7 +125,7 @@ func (archivedMessageModel) TableName() string {
 	return "archived_session_messages"
 }
 
-type searchMessageHitModel struct {
+type searchSessionResultRow struct {
 	ID              uint
 	SessionID       string
 	Sequence        int
@@ -137,6 +138,8 @@ type searchMessageHitModel struct {
 	UpdatedAt       time.Time
 	MatchedText     string
 	MatchedToolName string
+	MatchCount      int
+	LastMatchedAt   string
 }
 
 type SessionStore struct {
@@ -522,7 +525,7 @@ func (s *SessionStore) SearchMessages(
 	ctx context.Context,
 	id string,
 	opts base.SearchMessageOptions,
-) ([]base.SearchMessageHit, error) {
+) ([]base.SearchMessageResult, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("session store is required")
 	}
@@ -548,6 +551,7 @@ func (s *SessionStore) SearchMessages(
 	sql.WriteString(`WITH ranked_hits AS (
 	SELECT
 		CAST(message_id AS INTEGER) AS message_id,
+		session_id,
 		body AS matched_text,
 		tool_name AS matched_tool_name,
 		ROW_NUMBER() OVER (
@@ -574,43 +578,101 @@ func (s *SessionStore) SearchMessages(
 		args = append(args, toolName)
 	}
 	sql.WriteString(`
+),
+message_hits AS (
+	SELECT
+		m.id,
+		m.session_id,
+		m.sequence,
+		m.role,
+		m.name,
+		m.content,
+		m.tool_calls,
+		m.tool_call_id,
+		m.created_at,
+		m.updated_at,
+		hits.matched_text,
+		hits.matched_tool_name
+	FROM session_messages AS m
+	JOIN ranked_hits AS hits ON hits.message_id = m.id AND hits.hit_rank = 1
+),
+session_groups AS (
+	SELECT
+		session_id,
+		COUNT(*) AS match_count,
+		strftime('%Y-%m-%dT%H:%M:%fZ', MAX(created_at)) AS last_matched_at
+	FROM message_hits
+	GROUP BY session_id
+),
+ranked_sessions AS (
+	SELECT
+		session_id,
+		match_count,
+		last_matched_at,
+		ROW_NUMBER() OVER (
+			ORDER BY last_matched_at DESC, session_id ASC
+		) AS session_rank
+	FROM session_groups
+),
+ranked_session_hits AS (
+	SELECT
+		mh.id,
+		mh.session_id,
+		mh.sequence,
+		mh.role,
+		mh.name,
+		mh.content,
+		mh.tool_calls,
+		mh.tool_call_id,
+		mh.created_at,
+		mh.updated_at,
+		mh.matched_text,
+		mh.matched_tool_name,
+		rs.match_count,
+		rs.last_matched_at,
+		ROW_NUMBER() OVER (
+			PARTITION BY mh.session_id
+			ORDER BY mh.created_at DESC, mh.id DESC
+		) AS message_rank
+	FROM message_hits AS mh
+	JOIN ranked_sessions AS rs ON rs.session_id = mh.session_id`)
+	if opts.MaxSessions > 0 {
+		sql.WriteString(`
+	WHERE rs.session_rank <= ?`)
+		args = append(args, opts.MaxSessions)
+	}
+	sql.WriteString(`
 )
 SELECT
-	m.id,
-	m.session_id,
-	m.sequence,
-	m.role,
-	m.name,
-	m.content,
-	m.tool_calls,
-	m.tool_call_id,
-	m.created_at,
-	m.updated_at,
-	hits.matched_text,
-	hits.matched_tool_name
-FROM session_messages AS m
-JOIN ranked_hits AS hits ON hits.message_id = m.id AND hits.hit_rank = 1`)
-	if id != "" {
-		sql.WriteString(` ORDER BY m.sequence DESC`)
-	} else {
-		sql.WriteString(` ORDER BY m.created_at DESC, m.id DESC`)
+	id,
+	session_id,
+	sequence,
+	role,
+	name,
+	content,
+	tool_calls,
+	tool_call_id,
+	created_at,
+	updated_at,
+	matched_text,
+	matched_tool_name,
+	match_count,
+	last_matched_at
+FROM ranked_session_hits`)
+	if opts.MaxMessagesPerSession > 0 {
+		sql.WriteString(`
+WHERE message_rank <= ?`)
+		args = append(args, opts.MaxMessagesPerSession)
 	}
+	sql.WriteString(`
+ORDER BY last_matched_at DESC, session_id ASC, created_at DESC, id DESC`)
 
-	offset := max(opts.Offset, 0)
-	if opts.Limit > 0 {
-		sql.WriteString(` LIMIT ? OFFSET ?`)
-		args = append(args, opts.Limit, offset)
-	} else if offset > 0 {
-		sql.WriteString(` LIMIT -1 OFFSET ?`)
-		args = append(args, offset)
-	}
-
-	var records []searchMessageHitModel
+	var records []searchSessionResultRow
 	if err := s.db.WithContext(ctx).Raw(sql.String(), args...).Scan(&records).Error; err != nil {
 		return nil, err
 	}
 
-	return searchMessageHitModelsToHits(records), nil
+	return searchMessageResultRowsToResults(records), nil
 }
 
 func applySessionMessageFilters(query *gorm.DB, id string, opts MessageQueryOptions) *gorm.DB {
@@ -1214,14 +1276,27 @@ func archivedMessageModelsToMessages(records []archivedMessageModel) []handmsg.M
 	return messages
 }
 
-func searchMessageHitModelsToHits(records []searchMessageHitModel) []base.SearchMessageHit {
+func searchMessageResultRowsToResults(records []searchSessionResultRow) []base.SearchMessageResult {
 	if len(records) == 0 {
 		return nil
 	}
 
-	hits := make([]base.SearchMessageHit, 0, len(records))
+	results := make([]base.SearchMessageResult, 0)
+	indexBySessionID := make(map[string]int, len(records))
 	for _, record := range records {
-		hits = append(hits, base.SearchMessageHit{
+		index, ok := indexBySessionID[record.SessionID]
+		if !ok {
+			results = append(results, base.SearchMessageResult{
+				SessionID:     record.SessionID,
+				LastMatchedAt: searchSessionResultTime(record.LastMatchedAt),
+				MatchCount:    record.MatchCount,
+				Messages:      make([]base.SearchMessageHit, 0),
+			})
+			index = len(results) - 1
+			indexBySessionID[record.SessionID] = index
+		}
+
+		results[index].Messages = append(results[index].Messages, base.SearchMessageHit{
 			SessionID: record.SessionID,
 			Message: handmsg.Message{
 				ID:         record.ID,
@@ -1237,7 +1312,21 @@ func searchMessageHitModelsToHits(records []searchMessageHitModel) []base.Search
 		})
 	}
 
-	return hits
+	return results
+}
+
+func searchSessionResultTime(value string) time.Time {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}
+	}
+
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}
+	}
+
+	return parsed.UTC()
 }
 
 func toolCallsToJSON(toolCalls []handmsg.ToolCall) string {

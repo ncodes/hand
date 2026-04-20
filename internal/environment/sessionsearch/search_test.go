@@ -221,29 +221,33 @@ func TestSearch_ReturnsStoreErrorsAndSkipsEmptyDerivedSearchText(t *testing.T) {
 func TestSearch_ForwardsCanonicalSearchOptions(t *testing.T) {
 	now := time.Now().UTC()
 	mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
-		SearchMessagesFunc: func(_ context.Context, id string, opts storage.SearchMessageOptions) ([]storage.SearchMessageHit, error) {
+		SearchMessagesFunc: func(_ context.Context, id string, opts storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
 			require.Empty(t, id)
 			require.Equal(t, storage.DefaultSessionID, opts.IgnoreSessionID)
 			require.Equal(t, "needle", opts.Query)
 			require.Equal(t, handmsg.RoleAssistant, opts.Role)
 			require.Equal(t, "process", opts.ToolName)
-			require.Zero(t, opts.Limit)
-			require.Zero(t, opts.Offset)
+			require.Equal(t, 2, opts.MaxSessions)
+			require.Equal(t, maxSessionMatchedMessages, opts.MaxMessagesPerSession)
 
-			return []storage.SearchMessageHit{{
-				SessionID: sessionSearchTestSessionID,
-				Message: handmsg.Message{
-					ID:   200,
-					Role: handmsg.RoleAssistant,
-					ToolCalls: []handmsg.ToolCall{{
-						ID:    "call-1",
-						Name:  "process",
-						Input: `{"pattern":"needle"}`,
-					}},
-					CreatedAt: now,
-				},
-				MatchedText:     "tool process\ninput pattern needle",
-				MatchedToolName: "process",
+			return []storage.SearchMessageResult{{
+				SessionID:  sessionSearchTestSessionID,
+				MatchCount: 1,
+				Messages: []storage.SearchMessageHit{{
+					SessionID: sessionSearchTestSessionID,
+					Message: handmsg.Message{
+						ID:   200,
+						Role: handmsg.RoleAssistant,
+						ToolCalls: []handmsg.ToolCall{{
+							ID:    "call-1",
+							Name:  "process",
+							Input: `{"pattern":"needle"}`,
+						}},
+						CreatedAt: now,
+					},
+					MatchedText:     "tool process\ninput pattern needle",
+					MatchedToolName: "process",
+				}},
 			}}, nil
 		},
 		GetFunc: func(_ context.Context, id string) (storage.Session, bool, error) {
@@ -274,19 +278,23 @@ func TestSearch_ForwardsCanonicalSearchOptions(t *testing.T) {
 
 func TestSearch_ShapesResultsFromStorageMatchedMetadata(t *testing.T) {
 	mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
-		SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]storage.SearchMessageHit, error) {
+		SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
 			now := time.Date(2026, time.April, 20, 15, 4, 5, 0, time.UTC)
 			matchedText := strings.Repeat("x", 140) + "needle" + strings.Repeat("y", 140)
-			return []storage.SearchMessageHit{{
-				SessionID: sessionSearchTestSessionID,
-				Message: handmsg.Message{
-					ID:        1,
-					Role:      handmsg.RoleAssistant,
-					Content:   "original message without query text",
-					CreatedAt: now,
-				},
-				MatchedText:     matchedText,
-				MatchedToolName: "search_files",
+			return []storage.SearchMessageResult{{
+				SessionID:  sessionSearchTestSessionID,
+				MatchCount: 1,
+				Messages: []storage.SearchMessageHit{{
+					SessionID: sessionSearchTestSessionID,
+					Message: handmsg.Message{
+						ID:        1,
+						Role:      handmsg.RoleAssistant,
+						Content:   "original message without query text",
+						CreatedAt: now,
+					},
+					MatchedText:     matchedText,
+					MatchedToolName: "search_files",
+				}},
 			}}, nil
 		},
 		GetFunc: func(_ context.Context, id string) (storage.Session, bool, error) {
@@ -322,27 +330,39 @@ func TestSearch_ShapesResultsFromStorageMatchedMetadata(t *testing.T) {
 func TestSearch_SkipsEmptyHitsAndMissingSessions(t *testing.T) {
 	now := time.Now().UTC()
 	mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
-		SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]storage.SearchMessageHit, error) {
-			return []storage.SearchMessageHit{
+		SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
+			return []storage.SearchMessageResult{
 				{
-					SessionID:   "ses_empty",
-					Message:     handmsg.Message{ID: 1, Role: handmsg.RoleUser, CreatedAt: now},
-					MatchedText: "   ",
+					SessionID:  "ses_empty",
+					MatchCount: 1,
+					Messages: []storage.SearchMessageHit{{
+						SessionID:   "ses_empty",
+						Message:     handmsg.Message{ID: 1, Role: handmsg.RoleUser, CreatedAt: now},
+						MatchedText: "   ",
+					}},
 				},
 				{
-					SessionID:   "ses_missing",
-					Message:     handmsg.Message{ID: 2, Role: handmsg.RoleUser, CreatedAt: now},
-					MatchedText: "needle missing",
+					SessionID:  "ses_missing",
+					MatchCount: 1,
+					Messages: []storage.SearchMessageHit{{
+						SessionID:   "ses_missing",
+						Message:     handmsg.Message{ID: 2, Role: handmsg.RoleUser, CreatedAt: now},
+						MatchedText: "needle missing",
+					}},
 				},
 				{
-					SessionID:   sessionSearchTestSessionID,
-					Message:     handmsg.Message{ID: 3, Role: handmsg.RoleUser, CreatedAt: now},
-					MatchedText: "needle found",
+					SessionID:  sessionSearchTestSessionID,
+					MatchCount: 1,
+					Messages: []storage.SearchMessageHit{{
+						SessionID:   sessionSearchTestSessionID,
+						Message:     handmsg.Message{ID: 3, Role: handmsg.RoleUser, CreatedAt: now},
+						MatchedText: "needle found",
+					}},
 				},
 			}, nil
 		},
 		GetFunc: func(_ context.Context, id string) (storage.Session, bool, error) {
-			if id == "ses_missing" {
+			if id == "ses_missing" || id == "ses_empty" {
 				return storage.Session{}, false, nil
 			}
 			return storage.Session{ID: id}, true, nil
@@ -365,16 +385,51 @@ func TestSearch_SkipsEmptyHitsAndMissingSessions(t *testing.T) {
 	require.Equal(t, "needle found", results[0].Messages[0].Snippet)
 }
 
+func TestSearch_SkipsEmptyMatchedMessagesInGroupedResult(t *testing.T) {
+	now := time.Now().UTC()
+	mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
+		SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
+			return []storage.SearchMessageResult{{
+				SessionID:  sessionSearchTestSessionID,
+				MatchCount: 1,
+				Messages: []storage.SearchMessageHit{{
+					SessionID:   sessionSearchTestSessionID,
+					Message:     handmsg.Message{ID: 1, Role: handmsg.RoleUser, CreatedAt: now},
+					MatchedText: "   ",
+				}},
+			}}, nil
+		},
+		GetFunc: func(_ context.Context, id string) (storage.Session, bool, error) {
+			return storage.Session{ID: id, CreatedAt: now, UpdatedAt: now}, true, nil
+		},
+		GetSummaryFunc: func(_ context.Context, id string) (storage.SessionSummary, bool, error) {
+			return storage.SessionSummary{SessionID: id}, false, nil
+		},
+	}, time.Minute, time.Hour)
+	require.NoError(t, err)
+
+	results, err := Search(context.Background(), mockManager, envtypes.SessionSearchRequest{
+		Query: "needle",
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Empty(t, results[0].Messages)
+}
+
 func TestSearch_ReturnsSessionLookupErrors(t *testing.T) {
 	now := time.Now().UTC()
 
 	t.Run("get", func(t *testing.T) {
 		mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
-			SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]storage.SearchMessageHit, error) {
-				return []storage.SearchMessageHit{{
-					SessionID:   sessionSearchTestSessionID,
-					Message:     handmsg.Message{ID: 1, Role: handmsg.RoleUser, CreatedAt: now},
-					MatchedText: "needle",
+			SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
+				return []storage.SearchMessageResult{{
+					SessionID:  sessionSearchTestSessionID,
+					MatchCount: 1,
+					Messages: []storage.SearchMessageHit{{
+						SessionID:   sessionSearchTestSessionID,
+						Message:     handmsg.Message{ID: 1, Role: handmsg.RoleUser, CreatedAt: now},
+						MatchedText: "needle",
+					}},
 				}}, nil
 			},
 			GetFunc: func(_ context.Context, _ string) (storage.Session, bool, error) {
@@ -389,11 +444,15 @@ func TestSearch_ReturnsSessionLookupErrors(t *testing.T) {
 
 	t.Run("summary", func(t *testing.T) {
 		mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
-			SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]storage.SearchMessageHit, error) {
-				return []storage.SearchMessageHit{{
-					SessionID:   sessionSearchTestSessionID,
-					Message:     handmsg.Message{ID: 1, Role: handmsg.RoleUser, CreatedAt: now},
-					MatchedText: "needle",
+			SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
+				return []storage.SearchMessageResult{{
+					SessionID:  sessionSearchTestSessionID,
+					MatchCount: 1,
+					Messages: []storage.SearchMessageHit{{
+						SessionID:   sessionSearchTestSessionID,
+						Message:     handmsg.Message{ID: 1, Role: handmsg.RoleUser, CreatedAt: now},
+						MatchedText: "needle",
+					}},
 				}}, nil
 			},
 			GetFunc: func(_ context.Context, id string) (storage.Session, bool, error) {
@@ -413,37 +472,34 @@ func TestSearch_ReturnsSessionLookupErrors(t *testing.T) {
 func TestSearch_LimitsAndSortsGroupedResultsDeterministically(t *testing.T) {
 	now := time.Now().UTC()
 	sessionA := nanoid.MustFromSeed(storage.SessionIDPrefix, "session-a", "EnvironmentSearchTestSeed")
-	sessionB := nanoid.MustFromSeed(storage.SessionIDPrefix, "session-b", "EnvironmentSearchTestSeed")
 
 	mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
-		SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]storage.SearchMessageHit, error) {
-			return []storage.SearchMessageHit{
-				{
-					SessionID:   sessionA,
-					Message:     handmsg.Message{ID: 20, Role: handmsg.RoleUser, CreatedAt: now},
-					MatchedText: "needle A newest",
+		SearchMessagesFunc: func(_ context.Context, _ string, opts storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
+			require.Equal(t, 1, opts.MaxSessions)
+			require.Equal(t, maxSessionMatchedMessages, opts.MaxMessagesPerSession)
+
+			return []storage.SearchMessageResult{{
+				SessionID:     sessionA,
+				LastMatchedAt: now,
+				MatchCount:    4,
+				Messages: []storage.SearchMessageHit{
+					{
+						SessionID:   sessionA,
+						Message:     handmsg.Message{ID: 30, Role: handmsg.RoleUser, CreatedAt: now},
+						MatchedText: "needle A tie higher id",
+					},
+					{
+						SessionID:   sessionA,
+						Message:     handmsg.Message{ID: 20, Role: handmsg.RoleUser, CreatedAt: now},
+						MatchedText: "needle A newest",
+					},
+					{
+						SessionID:   sessionA,
+						Message:     handmsg.Message{ID: 15, Role: handmsg.RoleUser, CreatedAt: now.Add(-time.Second)},
+						MatchedText: "needle A older",
+					},
 				},
-				{
-					SessionID:   sessionA,
-					Message:     handmsg.Message{ID: 15, Role: handmsg.RoleUser, CreatedAt: now.Add(-time.Second)},
-					MatchedText: "needle A older",
-				},
-				{
-					SessionID:   sessionA,
-					Message:     handmsg.Message{ID: 30, Role: handmsg.RoleUser, CreatedAt: now},
-					MatchedText: "needle A tie higher id",
-				},
-				{
-					SessionID:   sessionA,
-					Message:     handmsg.Message{ID: 10, Role: handmsg.RoleUser, CreatedAt: now.Add(-2 * time.Second)},
-					MatchedText: "needle A overflow",
-				},
-				{
-					SessionID:   sessionB,
-					Message:     handmsg.Message{ID: 40, Role: handmsg.RoleUser, CreatedAt: now},
-					MatchedText: "needle B",
-				},
-			}, nil
+			}}, nil
 		},
 		GetFunc: func(_ context.Context, id string) (storage.Session, bool, error) {
 			return storage.Session{ID: id, CreatedAt: now, UpdatedAt: now}, true, nil

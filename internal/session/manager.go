@@ -178,7 +178,7 @@ func (m *Manager) SearchMessages(
 	ctx context.Context,
 	id string,
 	opts storage.SearchMessageOptions,
-) ([]storage.SearchMessageHit, error) {
+) ([]storage.SearchMessageResult, error) {
 	if m == nil {
 		return nil, errors.New("session manager is required")
 	}

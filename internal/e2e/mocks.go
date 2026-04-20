@@ -55,7 +55,7 @@ func (s *storageStoreStub) AppendMessages(context.Context, string, []handmsg.Mes
 func (s *storageStoreStub) GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 	return s.messages, nil
 }
-func (s *storageStoreStub) SearchMessages(context.Context, string, storage.SearchMessageOptions) ([]handmsg.Message, error) {
+func (s *storageStoreStub) SearchMessages(context.Context, string, storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
 	return nil, nil
 }
 func (s *storageStoreStub) CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error) {

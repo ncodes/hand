@@ -214,31 +214,31 @@ func TestManager_SearchMessages_ForwardsToStore(t *testing.T) {
 	var capturedID string
 	var capturedOpts storage.SearchMessageOptions
 	manager, err := NewManager(&storagemock.SessionStore{
-		SearchMessagesFunc: func(_ context.Context, id string, opts storage.SearchMessageOptions) ([]storage.SearchMessageHit, error) {
+		SearchMessagesFunc: func(_ context.Context, id string, opts storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
 			capturedID = id
 			capturedOpts = opts
-			return []storage.SearchMessageHit{{SessionID: testSessionA, Message: handmsg.Message{Content: "hello"}}}, nil
+			return []storage.SearchMessageResult{{SessionID: testSessionA, MatchCount: 1}}, nil
 		},
 	}, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
-	messages, err := manager.SearchMessages(context.Background(), "  "+testSessionA+"  ", storage.SearchMessageOptions{
-		IgnoreSessionID: "  " + storage.DefaultSessionID + "  ",
-		Query:           "hello",
-		ToolName:        "process",
-		Limit:           2,
-		Offset:          3,
+	results, err := manager.SearchMessages(context.Background(), "  "+testSessionA+"  ", storage.SearchMessageOptions{
+		IgnoreSessionID:       "  " + storage.DefaultSessionID + "  ",
+		Query:                 "hello",
+		ToolName:              "process",
+		MaxSessions:           2,
+		MaxMessagesPerSession: 3,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
+	require.Len(t, results, 1)
 	require.Equal(t, testSessionA, capturedID)
-	require.Equal(t, testSessionA, messages[0].SessionID)
+	require.Equal(t, testSessionA, results[0].SessionID)
 	require.Equal(t, storage.SearchMessageOptions{
-		IgnoreSessionID: storage.DefaultSessionID,
-		Query:           "hello",
-		ToolName:        "process",
-		Limit:           2,
-		Offset:          3,
+		IgnoreSessionID:       storage.DefaultSessionID,
+		Query:                 "hello",
+		ToolName:              "process",
+		MaxSessions:           2,
+		MaxMessagesPerSession: 3,
 	}, capturedOpts)
 }
 
