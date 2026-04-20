@@ -107,28 +107,63 @@ func TestMemoryStore_SearchMessagesSupportsStructuredAndToolFilters(t *testing.T
 		{Role: handmsg.RoleTool, Name: "process", Content: `{"status":"running"}`, ToolCallID: "call-3", CreatedAt: now.Add(2 * time.Second)},
 	}))
 
-	messages, err := store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
+	hits, err := store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
 		Query: "needle",
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, handmsg.RoleAssistant, messages[0].Role)
+	require.Len(t, hits, 1)
+	require.Equal(t, testSessionOne, hits[0].SessionID)
+	require.Equal(t, handmsg.RoleAssistant, hits[0].Message.Role)
+	require.Equal(t, handmsg.ToolCallSearchText(handmsg.ToolCall{
+		ID:    "call-2",
+		Name:  "search_files",
+		Input: `{"pattern":"needle"}`,
+	}), hits[0].MatchedText)
+	require.Equal(t, "search_files", hits[0].MatchedToolName)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
 		Query:    "needle",
 		ToolName: "process",
 	})
 	require.NoError(t, err)
-	require.Empty(t, messages)
+	require.Empty(t, hits)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
 		Query:    "running",
 		ToolName: "process",
 		Role:     handmsg.RoleTool,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, "process", messages[0].Name)
+	require.Len(t, hits, 1)
+	require.Equal(t, "process", hits[0].Message.Name)
+	require.Equal(t, "process", hits[0].MatchedToolName)
+}
+
+func TestMemoryStore_SearchMessagesPrefersAssistantToolHitMetadataOverContent(t *testing.T) {
+	store := NewSessionStore()
+	now := time.Now().UTC()
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{{
+		Role:    handmsg.RoleAssistant,
+		Content: "needle summary",
+		ToolCalls: []handmsg.ToolCall{
+			{ID: "call-1", Name: "search_files", Input: `{"pattern":"needle"}`},
+		},
+		CreatedAt: now,
+	}}))
+
+	hits, err := store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
+		Query: "needle",
+	})
+	require.NoError(t, err)
+	require.Len(t, hits, 1)
+	require.Equal(t, "search_files", hits[0].MatchedToolName)
+	require.Equal(t, handmsg.ToolCallSearchText(handmsg.ToolCall{
+		ID:    "call-1",
+		Name:  "search_files",
+		Input: `{"pattern":"needle"}`,
+	}), hits[0].MatchedText)
 }
 
 func TestMemoryStore_SearchMessagesSupportsCrossSessionScope(t *testing.T) {
@@ -144,40 +179,40 @@ func TestMemoryStore_SearchMessagesSupportsCrossSessionScope(t *testing.T) {
 		{Role: handmsg.RoleUser, Content: "other needle", CreatedAt: now.Add(time.Second)},
 	}))
 
-	messages, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
+	hits, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
 		IgnoreSessionID: testSessionA,
 		Query:           "needle",
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, "other needle", messages[0].Content)
+	require.Len(t, hits, 1)
+	require.Equal(t, "other needle", hits[0].MatchedText)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
 		Query: "needle",
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, "origin needle", messages[0].Content)
+	require.Len(t, hits, 1)
+	require.Equal(t, "origin needle", hits[0].MatchedText)
 
-	messages, err = store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
 		IgnoreSessionID: testSessionOlder,
 		Query:           "needle",
 		Offset:          1,
 		Limit:           1,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, "origin needle", messages[0].Content)
+	require.Len(t, hits, 1)
+	require.Equal(t, "origin needle", hits[0].MatchedText)
 
 	// search session with ignore session id
 	// ignore directive has no effect when session id is provided
-	messages, err = store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
 		IgnoreSessionID: testSessionA,
 		Query:           "needle",
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, "origin needle", messages[0].Content)
+	require.Len(t, hits, 1)
+	require.Equal(t, "origin needle", hits[0].MatchedText)
 }
 
 func TestMemoryStore_SearchMessagesCrossSessionPagingAndTieBreaks(t *testing.T) {
@@ -194,49 +229,49 @@ func TestMemoryStore_SearchMessagesCrossSessionPagingAndTieBreaks(t *testing.T) 
 		{Role: handmsg.RoleUser, Content: "shared needle b", CreatedAt: now},
 	}))
 
-	messages, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
+	hits, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
 		Query: "needle",
 		Limit: 1,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, "shared needle b", messages[0].Content)
+	require.Len(t, hits, 1)
+	require.Equal(t, "shared needle b", hits[0].MatchedText)
 
-	messages, err = store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
 		Query:  "needle",
 		Offset: 10,
 	})
 	require.NoError(t, err)
-	require.Nil(t, messages)
+	require.Nil(t, hits)
 }
 
 func TestMemoryStore_SearchMessagesEdgeCases(t *testing.T) {
 	var nilStore *SessionStore
 
-	messages, err := nilStore.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{Query: "hello"})
+	hits, err := nilStore.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{Query: "hello"})
 	require.EqualError(t, err, "session store is required")
-	require.Nil(t, messages)
+	require.Nil(t, hits)
 
 	store := NewSessionStore()
 
-	messages, err = store.SearchMessages(context.Background(), "", base.SearchMessageOptions{Query: "hello"})
+	hits, err = store.SearchMessages(context.Background(), "", base.SearchMessageOptions{Query: "hello"})
 	require.NoError(t, err)
-	require.Nil(t, messages)
+	require.Nil(t, hits)
 
-	messages, err = store.SearchMessages(context.Background(), "ses_invalid", base.SearchMessageOptions{Query: "hello"})
+	hits, err = store.SearchMessages(context.Background(), "ses_invalid", base.SearchMessageOptions{Query: "hello"})
 	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
-	require.Nil(t, messages)
+	require.Nil(t, hits)
 
-	messages, err = store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
 		IgnoreSessionID: "ses_invalid",
 		Query:           "hello",
 	})
 	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
-	require.Nil(t, messages)
+	require.Nil(t, hits)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{})
+	hits, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{})
 	require.NoError(t, err)
-	require.Nil(t, messages)
+	require.Nil(t, hits)
 }
 
 func TestMemoryStore_SearchMessagesSupportsPagingAndRoleFiltering(t *testing.T) {
@@ -257,7 +292,7 @@ func TestMemoryStore_SearchMessagesSupportsPagingAndRoleFiltering(t *testing.T) 
 	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
-	require.Equal(t, "hello one", messages[0].Content)
+	require.Equal(t, "hello one", messages[0].MatchedText)
 
 	messages, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
 		Query: "hello",
@@ -265,7 +300,7 @@ func TestMemoryStore_SearchMessagesSupportsPagingAndRoleFiltering(t *testing.T) 
 	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
-	require.Equal(t, handmsg.RoleAssistant, messages[0].Role)
+	require.Equal(t, handmsg.RoleAssistant, messages[0].Message.Role)
 
 	messages, err = store.SearchMessages(context.Background(), testSessionOne, base.SearchMessageOptions{
 		Query:    "hello",

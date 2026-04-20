@@ -3,7 +3,9 @@ package sessionsearch
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	envtypes "github.com/wandxy/hand/internal/environment/types"
@@ -15,6 +17,7 @@ import (
 const (
 	defaultSessionSearchMaxResults = 10
 	maxSessionSearchResults        = 20
+	maxSessionMatchedMessages      = 3
 	sessionSearchSnippetRunes      = 200
 )
 
@@ -38,9 +41,8 @@ func Search(
 	toolName := strings.TrimSpace(strings.ToLower(req.ToolName))
 	limit := clampSearchResults(req.MaxResults)
 
-	messages, err := manager.SearchMessages(ctx, sessionID, storage.SearchMessageOptions{
+	hits, err := manager.SearchMessages(ctx, sessionID, storage.SearchMessageOptions{
 		IgnoreSessionID: ignoreSessionID,
-		Limit:           limit,
 		Query:           query,
 		Role:            handmsg.Role(role),
 		ToolName:        toolName,
@@ -49,31 +51,109 @@ func Search(
 		return nil, err
 	}
 
-	results := make([]envtypes.SessionSearchResult, 0, len(messages))
-	for _, message := range messages {
-		searchText, matchedToolName := handmsg.SearchableMessageText(message, toolName)
-		if searchText == "" {
+	if len(hits) == 0 {
+		return nil, nil
+	}
+
+	type groupedSessionResult struct {
+		result        envtypes.SessionSearchResult
+		lastMatchedAt time.Time
+	}
+
+	grouped := make(map[string]*groupedSessionResult)
+	for _, hit := range hits {
+		if strings.TrimSpace(hit.MatchedText) == "" {
 			continue
 		}
 
-		matchIndex, matchLen := caseInsensitiveMatchIndex(searchText, query)
-		snippet := snippetAround(searchText, 0, 0, sessionSearchSnippetRunes)
-		if matchIndex >= 0 {
-			snippet = snippetAround(searchText, matchIndex, matchLen, sessionSearchSnippetRunes)
+		group, ok := grouped[hit.SessionID]
+		if !ok {
+			session, found, err := manager.Get(ctx, hit.SessionID)
+			if err != nil {
+				return nil, err
+			}
+			if !found {
+				continue
+			}
+
+			summary, _, err := manager.GetSummary(ctx, hit.SessionID)
+			if err != nil {
+				return nil, err
+			}
+
+			group = &groupedSessionResult{
+				result: envtypes.SessionSearchResult{
+					SessionID:      hit.SessionID,
+					SessionCreated: formatSearchTime(session.CreatedAt),
+					SessionUpdated: formatSearchTime(session.UpdatedAt),
+					SessionSummary: strings.TrimSpace(summary.SessionSummary),
+					Messages:       make([]envtypes.SessionSearchMessageHit, 0, maxSessionMatchedMessages),
+				},
+			}
+			grouped[hit.SessionID] = group
 		}
 
-		results = append(results, envtypes.SessionSearchResult{
-			MessageID:     message.ID,
-			Role:          string(message.Role),
-			ToolName:      matchedToolName,
-			CreatedAt:     message.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		group.result.MatchCount++
+		if hit.Message.CreatedAt.After(group.lastMatchedAt) {
+			group.lastMatchedAt = hit.Message.CreatedAt
+		}
+
+		if len(group.result.Messages) >= maxSessionMatchedMessages {
+			continue
+		}
+
+		matchIndex, matchLen := caseInsensitiveMatchIndex(hit.MatchedText, query)
+		snippet := snippetAround(hit.MatchedText, 0, 0, sessionSearchSnippetRunes)
+		if matchIndex >= 0 {
+			snippet = snippetAround(hit.MatchedText, matchIndex, matchLen, sessionSearchSnippetRunes)
+		}
+
+		group.result.Messages = append(group.result.Messages, envtypes.SessionSearchMessageHit{
+			MessageID:     hit.Message.ID,
+			Role:          string(hit.Message.Role),
+			ToolName:      hit.MatchedToolName,
+			CreatedAt:     formatSearchTime(hit.Message.CreatedAt),
 			Snippet:       snippet,
-			FullTextBytes: len(searchText),
+			FullTextBytes: len(hit.MatchedText),
 			MatchIndex:    matchIndex,
 		})
 	}
 
-	return results, nil
+	results := make([]groupedSessionResult, 0, len(grouped))
+	for _, group := range grouped {
+		sort.Slice(group.result.Messages, func(i, j int) bool {
+			if group.result.Messages[i].CreatedAt == group.result.Messages[j].CreatedAt {
+				return group.result.Messages[i].MessageID > group.result.Messages[j].MessageID
+			}
+			return group.result.Messages[i].CreatedAt > group.result.Messages[j].CreatedAt
+		})
+		results = append(results, *group)
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].lastMatchedAt.Equal(results[j].lastMatchedAt) {
+			return results[i].result.SessionID < results[j].result.SessionID
+		}
+		return results[i].lastMatchedAt.After(results[j].lastMatchedAt)
+	})
+
+	if len(results) > limit {
+		results = results[:limit]
+	}
+
+	groupedResults := make([]envtypes.SessionSearchResult, 0, len(results))
+	for _, result := range results {
+		groupedResults = append(groupedResults, result.result)
+	}
+
+	return groupedResults, nil
+}
+
+func formatSearchTime(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.UTC().Format("2006-01-02T15:04:05Z07:00")
 }
 
 func clampSearchResults(value int) int {

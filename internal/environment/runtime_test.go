@@ -203,9 +203,11 @@ func TestRuntime_SearchSessionDelegatesToSessionManager(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
-	require.Equal(t, "tool", results[0].Role)
-	require.Equal(t, "process", results[0].ToolName)
-	require.NotZero(t, results[0].MessageID)
+	require.Equal(t, runtimeSearchSessionID, results[0].SessionID)
+	require.Len(t, results[0].Messages, 1)
+	require.Equal(t, "tool", results[0].Messages[0].Role)
+	require.Equal(t, "process", results[0].Messages[0].ToolName)
+	require.NotZero(t, results[0].Messages[0].MessageID)
 }
 
 func TestRuntime_SearchSessionSupportsCrossSessionScope(t *testing.T) {
@@ -233,7 +235,8 @@ func TestRuntime_SearchSessionSupportsCrossSessionScope(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
-	require.Equal(t, "other needle", results[0].Snippet)
+	require.Equal(t, otherSessionID, results[0].SessionID)
+	require.Equal(t, "other needle", results[0].Messages[0].Snippet)
 }
 
 func TestRuntime_SearchSessionHandlesNilReceiver(t *testing.T) {

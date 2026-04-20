@@ -22,7 +22,7 @@ type SessionStore struct {
 	CountMessagesFunc         func(context.Context, string, storage.MessageQueryOptions) (int, error)
 	GetMessageFunc            func(context.Context, string, int, storage.MessageQueryOptions) (handmsg.Message, bool, error)
 	GetMessagesFunc           func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
-	SearchMessagesFunc        func(context.Context, string, storage.SearchMessageOptions) ([]handmsg.Message, error)
+	SearchMessagesFunc        func(context.Context, string, storage.SearchMessageOptions) ([]storage.SearchMessageHit, error)
 	ClearMessagesFunc         func(context.Context, string, storage.MessageQueryOptions) error
 	CreateArchiveFunc         func(context.Context, storage.ArchivedSession) error
 	GetArchiveFunc            func(context.Context, string) (storage.ArchivedSession, bool, error)
@@ -175,7 +175,7 @@ func (s *SessionStore) GetMessages(ctx context.Context, id string, opts storage.
 	return nil, nil
 }
 
-func (s *SessionStore) SearchMessages(ctx context.Context, id string, opts storage.SearchMessageOptions) ([]handmsg.Message, error) {
+func (s *SessionStore) SearchMessages(ctx context.Context, id string, opts storage.SearchMessageOptions) ([]storage.SearchMessageHit, error) {
 	if s.SearchMessagesFunc != nil {
 		return s.SearchMessagesFunc(ctx, id, opts)
 	}

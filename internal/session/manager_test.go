@@ -214,10 +214,10 @@ func TestManager_SearchMessages_ForwardsToStore(t *testing.T) {
 	var capturedID string
 	var capturedOpts storage.SearchMessageOptions
 	manager, err := NewManager(&storagemock.SessionStore{
-		SearchMessagesFunc: func(_ context.Context, id string, opts storage.SearchMessageOptions) ([]handmsg.Message, error) {
+		SearchMessagesFunc: func(_ context.Context, id string, opts storage.SearchMessageOptions) ([]storage.SearchMessageHit, error) {
 			capturedID = id
 			capturedOpts = opts
-			return []handmsg.Message{{Content: "hello"}}, nil
+			return []storage.SearchMessageHit{{SessionID: testSessionA, Message: handmsg.Message{Content: "hello"}}}, nil
 		},
 	}, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -232,6 +232,7 @@ func TestManager_SearchMessages_ForwardsToStore(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	require.Equal(t, testSessionA, capturedID)
+	require.Equal(t, testSessionA, messages[0].SessionID)
 	require.Equal(t, storage.SearchMessageOptions{
 		IgnoreSessionID: storage.DefaultSessionID,
 		Query:           "hello",

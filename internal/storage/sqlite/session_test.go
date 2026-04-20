@@ -1264,36 +1264,39 @@ func TestSQLiteStore_SearchMessagesSupportsStructuredAndToolFilters(t *testing.T
 			ToolCallID: "call-3", CreatedAt: now.Add(2 * time.Second)},
 	}))
 
-	messages, err := store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+	hits, err := store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 		Query: "needle",
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, handmsg.RoleAssistant, messages[0].Role)
+	require.Len(t, hits, 1)
+	require.Equal(t, handmsg.RoleAssistant, hits[0].Message.Role)
+	require.Equal(t, "search_files", hits[0].MatchedToolName)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 		Query: "summary",
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, handmsg.RoleAssistant, messages[0].Role)
+	require.Len(t, hits, 1)
+	require.Equal(t, handmsg.RoleAssistant, hits[0].Message.Role)
+	require.Equal(t, "assistant summary", hits[0].MatchedText)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 		Query:    "needle",
 		ToolName: "process",
 	})
 	require.NoError(t, err)
-	require.Empty(t, messages)
+	require.Empty(t, hits)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 		Query:    "running",
 		ToolName: "process",
 		Role:     handmsg.RoleTool,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, "process", messages[0].Name)
-	require.Equal(t, "call-3", messages[0].ToolCallID)
+	require.Len(t, hits, 1)
+	require.Equal(t, "process", hits[0].Message.Name)
+	require.Equal(t, "call-3", hits[0].Message.ToolCallID)
+	require.Equal(t, "process", hits[0].MatchedToolName)
 }
 
 func TestSQLiteStore_SearchMessagesUsesDerivedStructuredSearchText(t *testing.T) {
@@ -1311,19 +1314,20 @@ func TestSQLiteStore_SearchMessagesUsesDerivedStructuredSearchText(t *testing.T)
 		CreatedAt: now,
 	}}))
 
-	messages, err := store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+	hits, err := store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 		Query: "tool_name process",
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, handmsg.RoleAssistant, messages[0].Role)
+	require.Len(t, hits, 1)
+	require.Equal(t, handmsg.RoleAssistant, hits[0].Message.Role)
+	require.Equal(t, "process", hits[0].MatchedToolName)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 		Query:    "tool_name process",
 		ToolName: "process",
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
+	require.Len(t, hits, 1)
 }
 
 func TestSQLiteStore_SearchMessagesSupportsCrossSessionScope(t *testing.T) {
@@ -1340,68 +1344,68 @@ func TestSQLiteStore_SearchMessagesSupportsCrossSessionScope(t *testing.T) {
 		{Role: handmsg.RoleUser, Content: "other needle", CreatedAt: now.Add(time.Second)},
 	}))
 
-	messages, err := store.SearchMessages(context.Background(), "", SearchMessageOptions{
+	hits, err := store.SearchMessages(context.Background(), "", SearchMessageOptions{
 		IgnoreSessionID: testSessionA,
 		Query:           "needle",
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, "other needle", messages[0].Content)
+	require.Len(t, hits, 1)
+	require.Equal(t, "other needle", hits[0].MatchedText)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 		Query: "needle",
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, "origin needle", messages[0].Content)
+	require.Len(t, hits, 1)
+	require.Equal(t, "origin needle", hits[0].MatchedText)
 
-	messages, err = store.SearchMessages(context.Background(), "", SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), "", SearchMessageOptions{
 		Query: "needle",
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 2)
-	require.Equal(t, "other needle", messages[0].Content)
-	require.Equal(t, "origin needle", messages[1].Content)
+	require.Len(t, hits, 2)
+	require.Equal(t, "other needle", hits[0].MatchedText)
+	require.Equal(t, "origin needle", hits[1].MatchedText)
 
 	// search session with ignore session id
-    // ignore directive has no effect when session id is provided
-	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+	// ignore directive has no effect when session id is provided
+	hits, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 		IgnoreSessionID: testSessionA,
 		Query:           "needle",
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, "origin needle", messages[0].Content)
+	require.Len(t, hits, 1)
+	require.Equal(t, "origin needle", hits[0].MatchedText)
 }
 
 func TestSQLiteStore_SearchMessagesEdgeCases(t *testing.T) {
 	var nilStore *SessionStore
 
-	messages, err := nilStore.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{Query: "hello"})
+	hits, err := nilStore.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{Query: "hello"})
 	require.EqualError(t, err, "session store is required")
-	require.Nil(t, messages)
+	require.Nil(t, hits)
 
 	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)
 
-	messages, err = store.SearchMessages(context.Background(), "", SearchMessageOptions{Query: "hello"})
+	hits, err = store.SearchMessages(context.Background(), "", SearchMessageOptions{Query: "hello"})
 	require.NoError(t, err)
-	require.Nil(t, messages)
+	require.Nil(t, hits)
 
-	messages, err = store.SearchMessages(context.Background(), "ses_invalid", SearchMessageOptions{Query: "hello"})
+	hits, err = store.SearchMessages(context.Background(), "ses_invalid", SearchMessageOptions{Query: "hello"})
 	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
-	require.Nil(t, messages)
+	require.Nil(t, hits)
 
-	messages, err = store.SearchMessages(context.Background(), "", SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), "", SearchMessageOptions{
 		IgnoreSessionID: "ses_invalid",
 		Query:           "hello",
 	})
 	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
-	require.Nil(t, messages)
+	require.Nil(t, hits)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{})
+	hits, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{})
 	require.NoError(t, err)
-	require.Nil(t, messages)
+	require.Nil(t, hits)
 }
 
 func TestSQLiteStore_SearchMessagesSupportsPagingAndQueryErrors(t *testing.T) {
@@ -1416,31 +1420,31 @@ func TestSQLiteStore_SearchMessagesSupportsPagingAndQueryErrors(t *testing.T) {
 		{Role: handmsg.RoleUser, Content: "hello two", CreatedAt: now.Add(2 * time.Second)},
 	}))
 
-	messages, err := store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+	hits, err := store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 		Query:  "hello",
 		Offset: -2,
 		Limit:  2,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 2)
-	require.Equal(t, "hello two", messages[0].Content)
-	require.Equal(t, "hello one", messages[1].Content)
+	require.Len(t, hits, 2)
+	require.Equal(t, "hello two", hits[0].MatchedText)
+	require.Equal(t, "hello one", hits[1].MatchedText)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 		Query:  "hello",
 		Offset: 1,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 2)
-	require.Equal(t, "hello one", messages[0].Content)
-	require.Equal(t, "hello zero", messages[1].Content)
+	require.Len(t, hits, 2)
+	require.Equal(t, "hello one", hits[0].MatchedText)
+	require.Equal(t, "hello zero", hits[1].MatchedText)
 
-	messages, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+	hits, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
 		Query:    "hello",
 		ToolName: "missing",
 	})
 	require.NoError(t, err)
-	require.Nil(t, messages)
+	require.Nil(t, hits)
 
 	require.NoError(t, store.db.Migrator().DropTable(&messageModel{}))
 	_, err = store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{Query: "hello"})

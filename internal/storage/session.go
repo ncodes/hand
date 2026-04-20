@@ -92,6 +92,13 @@ type SearchMessageOptions struct {
 	ToolName        string
 }
 
+type SearchMessageHit struct {
+	SessionID       string
+	Message         handmsg.Message
+	MatchedText     string
+	MatchedToolName string
+}
+
 func NormalizeMessageQueryOrder(order string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(order)) {
 	case "", MessageOrderAsc:
@@ -119,7 +126,7 @@ type SessionStore interface {
 	CountMessages(ctx context.Context, id string, opts MessageQueryOptions) (int, error)
 	GetMessage(ctx context.Context, id string, index int, opts MessageQueryOptions) (handmsg.Message, bool, error)
 	GetMessages(ctx context.Context, id string, opts MessageQueryOptions) ([]handmsg.Message, error)
-	SearchMessages(ctx context.Context, id string, opts SearchMessageOptions) ([]handmsg.Message, error)
+	SearchMessages(ctx context.Context, id string, opts SearchMessageOptions) ([]SearchMessageHit, error)
 	ClearMessages(ctx context.Context, id string, opts MessageQueryOptions) error
 
 	// Session summaries

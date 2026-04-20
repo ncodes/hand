@@ -219,7 +219,7 @@ func (s *SessionStore) SearchMessages(
 	_ context.Context,
 	id string,
 	opts base.SearchMessageOptions,
-) ([]handmsg.Message, error) {
+) ([]base.SearchMessageHit, error) {
 	if s == nil {
 		return nil, errors.New("session store is required")
 	}
@@ -244,22 +244,25 @@ func (s *SessionStore) SearchMessages(
 	defer s.mu.RUnlock()
 
 	if id != "" {
-		return searchMessages(s.messages[id], query, opts), nil
+		return searchMessageHits(id, s.messages[id], query, opts), nil
 	}
 
-	results := make([]handmsg.Message, 0)
+	results := make([]base.SearchMessageHit, 0)
 	for sessionID, messages := range s.messages {
 		if sessionID == opts.IgnoreSessionID {
 			continue
 		}
-		results = append(results, matchingMessages(messages, query, opts)...)
+		results = append(results, matchingMessageHits(sessionID, messages, query, opts)...)
 	}
 
 	sort.Slice(results, func(i, j int) bool {
-		if results[i].CreatedAt.Equal(results[j].CreatedAt) {
-			return results[i].ID > results[j].ID
+		if results[i].Message.CreatedAt.Equal(results[j].Message.CreatedAt) {
+			if results[i].Message.ID == results[j].Message.ID {
+				return results[i].SessionID < results[j].SessionID
+			}
+			return results[i].Message.ID > results[j].Message.ID
 		}
-		return results[i].CreatedAt.After(results[j].CreatedAt)
+		return results[i].Message.CreatedAt.After(results[j].Message.CreatedAt)
 	})
 
 	offset := max(opts.Offset, 0)
@@ -272,11 +275,16 @@ func (s *SessionStore) SearchMessages(
 		results = results[:opts.Limit]
 	}
 
-	return cloneMessages(results), nil
+	return cloneSearchMessageHits(results), nil
 }
 
-func searchMessages(messages []handmsg.Message, query string, opts base.SearchMessageOptions) []handmsg.Message {
-	results := matchingMessages(messages, query, opts)
+func searchMessageHits(
+	sessionID string,
+	messages []handmsg.Message,
+	query string,
+	opts base.SearchMessageOptions,
+) []base.SearchMessageHit {
+	results := matchingMessageHits(sessionID, messages, query, opts)
 	offset := max(opts.Offset, 0)
 	if offset >= len(results) {
 		return nil
@@ -287,26 +295,91 @@ func searchMessages(messages []handmsg.Message, query string, opts base.SearchMe
 		results = results[:opts.Limit]
 	}
 
-	return cloneMessages(results)
+	return cloneSearchMessageHits(results)
 }
 
-func matchingMessages(messages []handmsg.Message, query string, opts base.SearchMessageOptions) []handmsg.Message {
-	results := make([]handmsg.Message, 0, len(messages))
+func matchingMessageHits(
+	sessionID string,
+	messages []handmsg.Message,
+	query string,
+	opts base.SearchMessageOptions,
+) []base.SearchMessageHit {
+	results := make([]base.SearchMessageHit, 0, len(messages))
 	for i := len(messages) - 1; i >= 0; i-- {
-		searchText, _ := handmsg.SearchableMessageText(messages[i], opts.ToolName)
-		if searchText == "" {
+		hit, ok := matchedMessageHit(sessionID, messages[i], query, opts)
+		if !ok {
 			continue
 		}
-		if !strings.Contains(strings.ToLower(searchText), query) {
-			continue
-		}
-		if opts.Role != "" && messages[i].Role != opts.Role {
-			continue
-		}
-		results = append(results, messages[i])
+		results = append(results, hit)
 	}
 
 	return results
+}
+
+func matchedMessageHit(
+	sessionID string,
+	message handmsg.Message,
+	query string,
+	opts base.SearchMessageOptions,
+) (base.SearchMessageHit, bool) {
+	if opts.Role != "" && message.Role != opts.Role {
+		return base.SearchMessageHit{}, false
+	}
+
+	makeHit := func(matchedText string, matchedToolName string) (base.SearchMessageHit, bool) {
+		matchedText = strings.TrimSpace(matchedText)
+		if matchedText == "" {
+			return base.SearchMessageHit{}, false
+		}
+		if !strings.Contains(strings.ToLower(matchedText), query) {
+			return base.SearchMessageHit{}, false
+		}
+
+		return base.SearchMessageHit{
+			SessionID:       sessionID,
+			Message:         message,
+			MatchedText:     matchedText,
+			MatchedToolName: strings.TrimSpace(matchedToolName),
+		}, true
+	}
+
+	switch message.Role {
+	case handmsg.RoleAssistant:
+		if opts.ToolName != "" {
+			for _, toolCall := range message.ToolCalls {
+				if !strings.EqualFold(strings.TrimSpace(toolCall.Name), opts.ToolName) {
+					continue
+				}
+				return makeHit(handmsg.ToolCallSearchText(toolCall), toolCall.Name)
+			}
+			return base.SearchMessageHit{}, false
+		}
+
+		for _, toolCall := range message.ToolCalls {
+			if hit, ok := makeHit(handmsg.ToolCallSearchText(toolCall), toolCall.Name); ok {
+				return hit, true
+			}
+		}
+
+		if hit, ok := makeHit(message.Content, ""); ok {
+			return hit, true
+		}
+
+		return base.SearchMessageHit{}, false
+	case handmsg.RoleTool:
+		if opts.ToolName != "" && !strings.EqualFold(strings.TrimSpace(message.Name), opts.ToolName) {
+			return base.SearchMessageHit{}, false
+		}
+		if hit, ok := makeHit(handmsg.MessageSearchText(message), message.Name); ok {
+			return hit, true
+		}
+		return makeHit(message.Content, message.Name)
+	default:
+		if opts.ToolName != "" {
+			return base.SearchMessageHit{}, false
+		}
+		return makeHit(message.Content, "")
+	}
 }
 
 func (s *SessionStore) CountMessages(_ context.Context, id string, opts MessageQueryOptions) (int, error) {
@@ -643,6 +716,20 @@ func (s *SessionStore) Current(_ context.Context) (string, bool, error) {
 
 func cloneMessages(messages []handmsg.Message) []handmsg.Message {
 	return common.CloneMessages(messages)
+}
+
+func cloneSearchMessageHits(hits []base.SearchMessageHit) []base.SearchMessageHit {
+	if len(hits) == 0 {
+		return nil
+	}
+
+	cloned := make([]base.SearchMessageHit, len(hits))
+	for i, hit := range hits {
+		cloned[i] = hit
+		cloned[i].Message = common.CloneMessages([]handmsg.Message{hit.Message})[0]
+	}
+
+	return cloned
 }
 
 func queryMessages(messages []handmsg.Message, opts MessageQueryOptions) []handmsg.Message {

@@ -124,6 +124,21 @@ func (archivedMessageModel) TableName() string {
 	return "archived_session_messages"
 }
 
+type searchMessageHitModel struct {
+	ID              uint
+	SessionID       string
+	Sequence        int
+	Role            string
+	Name            string
+	Content         string
+	ToolCalls       string
+	ToolCallID      string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	MatchedText     string
+	MatchedToolName string
+}
+
 type SessionStore struct {
 	db *gorm.DB
 }
@@ -507,7 +522,7 @@ func (s *SessionStore) SearchMessages(
 	ctx context.Context,
 	id string,
 	opts base.SearchMessageOptions,
-) ([]handmsg.Message, error) {
+) ([]base.SearchMessageHit, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("session store is required")
 	}
@@ -528,68 +543,74 @@ func (s *SessionStore) SearchMessages(
 		return nil, nil
 	}
 
-	hitQuery := `
-		JOIN (
-			SELECT
-				CAST(message_id AS INTEGER) AS message_id
-			FROM ` + sessionMessageSearchTable + `
-			WHERE body MATCH ?`
 	args := []any{queryText}
+	var sql strings.Builder
+	sql.WriteString(`WITH ranked_hits AS (
+	SELECT
+		CAST(message_id AS INTEGER) AS message_id,
+		body AS matched_text,
+		tool_name AS matched_tool_name,
+		ROW_NUMBER() OVER (
+			PARTITION BY CAST(message_id AS INTEGER)
+			ORDER BY CASE WHEN tool_name <> '' THEN 0 ELSE 1 END, rowid ASC
+		) AS hit_rank
+	FROM `)
+	sql.WriteString(sessionMessageSearchTable)
+	sql.WriteString(`
+	WHERE body MATCH ?`)
 	if id != "" {
-		hitQuery += ` AND session_id = ?`
+		sql.WriteString(` AND session_id = ?`)
 		args = append(args, id)
 	} else if opts.IgnoreSessionID != "" {
-		hitQuery += ` AND session_id <> ?`
+		sql.WriteString(` AND session_id <> ?`)
 		args = append(args, opts.IgnoreSessionID)
 	}
 	if role := strings.TrimSpace(string(opts.Role)); role != "" {
-		hitQuery += ` AND role = ?`
+		sql.WriteString(` AND role = ?`)
 		args = append(args, role)
 	}
 	if toolName := normalizeSessionMessageSearchValue(opts.ToolName); toolName != "" {
-		hitQuery += ` AND tool_name = ?`
+		sql.WriteString(` AND tool_name = ?`)
 		args = append(args, toolName)
 	}
-
-	hitQuery += `
-			GROUP BY message_id
-		) AS hits ON hits.message_id = m.id`
-
-	query := s.db.WithContext(ctx).
-		Table("session_messages AS m").
-		Select(`
-			m.id,
-			m.session_id,
-			m.sequence,
-			m.role,
-			m.name,
-			m.content,
-			m.tool_calls,
-			m.tool_call_id,
-			m.created_at,
-			m.updated_at
-		`).
-		Joins(hitQuery, args...)
-
+	sql.WriteString(`
+)
+SELECT
+	m.id,
+	m.session_id,
+	m.sequence,
+	m.role,
+	m.name,
+	m.content,
+	m.tool_calls,
+	m.tool_call_id,
+	m.created_at,
+	m.updated_at,
+	hits.matched_text,
+	hits.matched_tool_name
+FROM session_messages AS m
+JOIN ranked_hits AS hits ON hits.message_id = m.id AND hits.hit_rank = 1`)
 	if id != "" {
-		query = query.Order("m.sequence DESC")
+		sql.WriteString(` ORDER BY m.sequence DESC`)
 	} else {
-		query = query.Order("m.created_at DESC").Order("m.id DESC")
+		sql.WriteString(` ORDER BY m.created_at DESC, m.id DESC`)
 	}
 
 	offset := max(opts.Offset, 0)
 	if opts.Limit > 0 {
-		query = query.Limit(opts.Limit).Offset(offset)
+		sql.WriteString(` LIMIT ? OFFSET ?`)
+		args = append(args, opts.Limit, offset)
 	} else if offset > 0 {
-		query = query.Offset(offset)
+		sql.WriteString(` LIMIT -1 OFFSET ?`)
+		args = append(args, offset)
 	}
 
-	var records []messageModel
-	if err := query.Scan(&records).Error; err != nil {
+	var records []searchMessageHitModel
+	if err := s.db.WithContext(ctx).Raw(sql.String(), args...).Scan(&records).Error; err != nil {
 		return nil, err
 	}
 
-	return messageModelsToMessages(records), nil
+	return searchMessageHitModelsToHits(records), nil
 }
 
 func applySessionMessageFilters(query *gorm.DB, id string, opts MessageQueryOptions) *gorm.DB {
@@ -1191,6 +1212,32 @@ func archivedMessageModelsToMessages(records []archivedMessageModel) []handmsg.M
 	}
 
 	return messages
+}
+
+func searchMessageHitModelsToHits(records []searchMessageHitModel) []base.SearchMessageHit {
+	if len(records) == 0 {
+		return nil
+	}
+
+	hits := make([]base.SearchMessageHit, 0, len(records))
+	for _, record := range records {
+		hits = append(hits, base.SearchMessageHit{
+			SessionID: record.SessionID,
+			Message: handmsg.Message{
+				ID:         record.ID,
+				Role:       handmsg.Role(record.Role),
+				Name:       record.Name,
+				Content:    record.Content,
+				ToolCalls:  jsonToToolCalls(record.ToolCalls),
+				ToolCallID: record.ToolCallID,
+				CreatedAt:  record.CreatedAt,
+			},
+			MatchedText:     strings.TrimSpace(record.MatchedText),
+			MatchedToolName: strings.TrimSpace(record.MatchedToolName),
+		})
+	}
+
+	return hits
 }
 
 func toolCallsToJSON(toolCalls []handmsg.ToolCall) string {

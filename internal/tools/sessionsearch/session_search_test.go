@@ -23,13 +23,17 @@ func TestSessionSearch_ToolSearchesExplicitSession(t *testing.T) {
 			require.Equal(t, "process", req.ToolName)
 			require.Equal(t, 3, req.MaxResults)
 			return []envtypes.SessionSearchResult{{
-				MessageID:     11,
-				Role:          "tool",
-				ToolName:      "process",
-				CreatedAt:     "2026-04-15T12:00:00Z",
-				Snippet:       "hello world",
-				FullTextBytes: 11,
-				MatchIndex:    0,
+				SessionID:  "session-1",
+				MatchCount: 1,
+				Messages: []envtypes.SessionSearchMessageHit{{
+					MessageID:     11,
+					Role:          "tool",
+					ToolName:      "process",
+					CreatedAt:     "2026-04-15T12:00:00Z",
+					Snippet:       "hello world",
+					FullTextBytes: 11,
+					MatchIndex:    0,
+				}},
 			}}, nil
 		},
 	}).Handler.Invoke(tools.WithSessionID(context.Background(), "session-1"), tools.Call{
@@ -43,7 +47,7 @@ func TestSessionSearch_ToolSearchesExplicitSession(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
 	require.Len(t, payload.Results, 1)
-	require.Equal(t, uint(11), payload.Results[0].MessageID)
+	require.Equal(t, uint(11), payload.Results[0].Messages[0].MessageID)
 }
 
 func TestSessionSearch_ToolSearchesOtherSessionsWhenSessionIDIsOmitted(t *testing.T) {
