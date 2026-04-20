@@ -398,6 +398,30 @@ func TestCachedProvider_ReturnsErrorWhenProviderIsMissing(t *testing.T) {
 	require.ErrorIs(t, err, ErrProviderNotConfigured)
 }
 
+func TestCachedProvider_CacheHelpersHandleMissingCaches(t *testing.T) {
+	var provider *cachedProvider
+	results, ok := provider.cachedSearch("search")
+	require.False(t, ok)
+	require.Nil(t, results)
+
+	result, ok := provider.cachedExtract("extract")
+	require.False(t, ok)
+	require.Equal(t, ExtractResult{}, result)
+
+	provider = &cachedProvider{}
+
+	results, ok = provider.cachedSearch("search")
+	require.False(t, ok)
+	require.Nil(t, results)
+
+	result, ok = provider.cachedExtract("extract")
+	require.False(t, ok)
+	require.Equal(t, ExtractResult{}, result)
+
+	provider.storeSearch("search", []SearchResult{{Title: "ignored"}})
+	provider.storeExtract("extract", ExtractResult{URL: "https://example.com"})
+}
+
 func TestCloneResults_PreservesNilSlices(t *testing.T) {
 	require.Nil(t, cloneSearchResults(nil))
 	require.Nil(t, cloneExtractResults(nil))

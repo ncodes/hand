@@ -4,9 +4,9 @@ import (
 	"context"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
+	pkgcache "github.com/wandxy/hand/pkg/cache"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -21,21 +21,8 @@ type CacheOptions struct {
 type cachedProvider struct {
 	provider     Provider
 	providerName string
-	ttl          time.Duration
-	now          func() time.Time
-	mu           sync.Mutex
-	search       map[string]cachedSearch
-	extract      map[string]cachedExtract
-}
-
-type cachedSearch struct {
-	expiresAt time.Time
-	results   []SearchResult
-}
-
-type cachedExtract struct {
-	expiresAt time.Time
-	result    ExtractResult
+	search       *pkgcache.Cache[string, []SearchResult]
+	extract      *pkgcache.Cache[string, ExtractResult]
 }
 
 func NewCachedProvider(provider Provider, opts CacheOptions) Provider {
@@ -51,10 +38,15 @@ func NewCachedProvider(provider Provider, opts CacheOptions) Provider {
 	return &cachedProvider{
 		provider:     provider,
 		providerName: strings.TrimSpace(strings.ToLower(opts.ProviderName)),
-		ttl:          opts.TTL,
-		now:          now,
-		search:       make(map[string]cachedSearch),
-		extract:      make(map[string]cachedExtract),
+		search: pkgcache.New(pkgcache.Options[string, []SearchResult]{
+			TTL:   opts.TTL,
+			Now:   now,
+			Clone: cloneSearchResults,
+		}),
+		extract: pkgcache.New(pkgcache.Options[string, ExtractResult]{
+			TTL: opts.TTL,
+			Now: now,
+		}),
 	}
 }
 
@@ -132,55 +124,35 @@ func (p *cachedProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 }
 
 func (p *cachedProvider) cachedSearch(key string) ([]SearchResult, bool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	entry, ok := p.search[key]
-	if !ok {
-		return nil, false
-	}
-	if !p.now().Before(entry.expiresAt) {
-		delete(p.search, key)
+	if p == nil || p.search == nil {
 		return nil, false
 	}
 
-	return cloneSearchResults(entry.results), true
+	return p.search.Get(key)
 }
 
 func (p *cachedProvider) storeSearch(key string, results []SearchResult) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	p.search[key] = cachedSearch{
-		expiresAt: p.now().Add(p.ttl),
-		results:   cloneSearchResults(results),
+	if p == nil || p.search == nil {
+		return
 	}
+
+	p.search.Set(key, results)
 }
 
 func (p *cachedProvider) cachedExtract(key string) (ExtractResult, bool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	entry, ok := p.extract[key]
-	if !ok {
-		return ExtractResult{}, false
-	}
-	if !p.now().Before(entry.expiresAt) {
-		delete(p.extract, key)
+	if p == nil || p.extract == nil {
 		return ExtractResult{}, false
 	}
 
-	return entry.result, true
+	return p.extract.Get(key)
 }
 
 func (p *cachedProvider) storeExtract(key string, result ExtractResult) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	p.extract[key] = cachedExtract{
-		expiresAt: p.now().Add(p.ttl),
-		result:    result,
+	if p == nil || p.extract == nil {
+		return
 	}
+
+	p.extract.Set(key, result)
 }
 
 func (p *cachedProvider) searchKey(query string, count int) string {
