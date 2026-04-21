@@ -683,6 +683,36 @@ func TestAgent_SummarizeSession_InvalidatesCachedRecallSummaryWhenMessageCountCh
 	require.Equal(t, "Updated work", second.SessionSummary)
 }
 
+func TestAgent_SummarizeSession_DoesNotReusePartialCachedRecallSummary(t *testing.T) {
+	client := &mocks.ModelClientStub{Responses: []*models.Response{
+		{OutputText: `{"session_summary":"Fresh recall","current_task":"Investigate compact","discoveries":["d1"],"open_questions":["q1"],"next_actions":["n1"]}`},
+	}}
+	agent := newSessionOpsAgent(t, &config.Config{
+		Name:          "Test Agent",
+		Model:         "test-model",
+		ContextLength: 128000,
+	}, client, &mocks.TraceSessionStub{})
+
+	session, err := agent.CreateSession(context.Background(), "ses_Y4VxN3E3h5cQH1sYq2k8h")
+	require.NoError(t, err)
+
+	appendUserMessages(t, agent, session.ID, 10, "message")
+
+	agent.storeRecallSummary(storage.SessionSummary{
+		SessionID:          session.ID,
+		SourceEndOffset:    8,
+		SourceMessageCount: 10,
+		SessionSummary:     "stale partial recall",
+	})
+
+	summary, err := agent.SummarizeSession(context.Background(), session.ID)
+	require.NoError(t, err)
+	require.Equal(t, "Fresh recall", summary.SessionSummary)
+	require.Equal(t, 10, summary.SourceEndOffset)
+	require.Equal(t, 10, summary.SourceMessageCount)
+	require.Equal(t, 1, client.CallCount)
+}
+
 func TestAgent_SummarizeSession_validationErrors(t *testing.T) {
 	cfg := testSessionConfig(&config.Config{Name: "Test Agent", Model: "m", ContextLength: 128000})
 	manager := mustSessionManager(t)

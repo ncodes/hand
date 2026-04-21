@@ -579,7 +579,7 @@ func (a *Agent) cachedRecallSummary(sessionID string, messageCount int) (storage
 		return storage.SessionSummary{}, false
 	}
 
-	if summary.SourceMessageCount != messageCount {
+	if !isFullRecallSummary(summary, messageCount) {
 		a.recallSummaryCache.Delete(sessionID)
 		return storage.SessionSummary{}, false
 	}
@@ -593,6 +593,10 @@ func (a *Agent) storeRecallSummary(summary storage.SessionSummary) {
 	}
 
 	a.recallSummaryCache.Set(summary.SessionID, summary)
+}
+
+func isFullRecallSummary(summary storage.SessionSummary, messageCount int) bool {
+	return summary.SourceMessageCount == messageCount && summary.SourceEndOffset == messageCount
 }
 
 func durationOrDefault(value, fallback time.Duration) time.Duration {
