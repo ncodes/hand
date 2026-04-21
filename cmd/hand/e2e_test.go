@@ -20,6 +20,7 @@ import (
 	"github.com/wandxy/hand/internal/e2e"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/internal/storage"
 )
 
 func Test_E2E_HandRootChat_SimpleAnswer(t *testing.T) {
@@ -537,7 +538,7 @@ func Test_E2E_HandRootChat_SessionSearchRetrievesPriorContextDuringTask(t *testi
 	toolCall := models.ToolCall{
 		ID:    "call-1",
 		Name:  "session_search",
-		Input: `{"query":"ORION","role":"user","max_results":3}`,
+		Input: fmt.Sprintf(`{"session_id":%q,"query":"ORION","role":"user","max_results":3}`, storage.DefaultSessionID),
 	}
 
 	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
@@ -556,11 +557,19 @@ func Test_E2E_HandRootChat_SessionSearchRetrievesPriorContextDuringTask(t *testi
 					if !ok {
 						return fmt.Errorf("expected structured session search result, got %T", results[0])
 					}
-					if fmt.Sprint(first["role"]) != "user" {
-						return fmt.Errorf("expected user-role search result, got %v", first["role"])
+					messages, ok := first["messages"].([]any)
+					if !ok || len(messages) == 0 {
+						return fmt.Errorf("expected grouped message hits, got %v", first["messages"])
 					}
-					if !strings.Contains(fmt.Sprint(first["snippet"]), "ORION") {
-						return fmt.Errorf("expected ORION in search snippet, got %v", first["snippet"])
+					message, ok := messages[0].(map[string]any)
+					if !ok {
+						return fmt.Errorf("expected structured message hit, got %T", messages[0])
+					}
+					if fmt.Sprint(message["role"]) != "user" {
+						return fmt.Errorf("expected user-role search result, got %v", message["role"])
+					}
+					if !strings.Contains(fmt.Sprint(message["snippet"]), "ORION") {
+						return fmt.Errorf("expected ORION in search snippet, got %v", message["snippet"])
 					}
 
 					return nil
@@ -586,7 +595,7 @@ func Test_E2E_HandRootChat_SessionSearchFilteringInfluencesFinalAnswer(t *testin
 	toolCall := models.ToolCall{
 		ID:    "call-1",
 		Name:  "session_search",
-		Input: `{"query":"keyword","role":"user","max_results":5}`,
+		Input: fmt.Sprintf(`{"session_id":%q,"query":"keyword","role":"user","max_results":5}`, storage.DefaultSessionID),
 	}
 
 	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
@@ -606,11 +615,21 @@ func Test_E2E_HandRootChat_SessionSearchFilteringInfluencesFinalAnswer(t *testin
 						if !ok {
 							return fmt.Errorf("expected structured session search result, got %T", raw)
 						}
-						if fmt.Sprint(result["role"]) != "user" {
-							return fmt.Errorf("expected only user-role search results, got %v", result["role"])
+						messages, ok := result["messages"].([]any)
+						if !ok || len(messages) == 0 {
+							return fmt.Errorf("expected grouped message hits, got %v", result["messages"])
 						}
-						if strings.Contains(fmt.Sprint(result["snippet"]), "ASSISTANT-ONLY") {
-							return fmt.Errorf("expected assistant-only content to be filtered out, got %v", result["snippet"])
+						for _, rawMessage := range messages {
+							message, ok := rawMessage.(map[string]any)
+							if !ok {
+								return fmt.Errorf("expected structured message hit, got %T", rawMessage)
+							}
+							if fmt.Sprint(message["role"]) != "user" {
+								return fmt.Errorf("expected only user-role search results, got %v", message["role"])
+							}
+							if strings.Contains(fmt.Sprint(message["snippet"]), "ASSISTANT-ONLY") {
+								return fmt.Errorf("expected assistant-only content to be filtered out, got %v", message["snippet"])
+							}
 						}
 					}
 

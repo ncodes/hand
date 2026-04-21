@@ -84,6 +84,19 @@ func TestNewRuntimeEnvironmentReturnsEnvironment(t *testing.T) {
 	require.NotNil(t, env)
 }
 
+func TestNewAgent_UsesOptionalSummaryClientWhenProvided(t *testing.T) {
+	modelClient := &mocks.ModelClientStub{}
+	summaryClient := &mocks.ModelClientStub{}
+
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), modelClient, summaryClient)
+	require.Same(t, modelClient, agent.modelClient)
+	require.Same(t, summaryClient, agent.summaryClient)
+
+	agent = NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), modelClient, nil)
+	require.Same(t, modelClient, agent.modelClient)
+	require.Same(t, modelClient, agent.summaryClient)
+}
+
 func TestAgent_StartUsesProvidedContext(t *testing.T) {
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
@@ -580,6 +593,38 @@ func TestAgent_CompactSessionRefreshesSummary(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "Earlier work", summary.SessionSummary)
+	require.Equal(t, 1, client.CallCount)
+}
+
+func TestAgent_SummarizeSessionReturnsStoredSummaryShape(t *testing.T) {
+	client := &mocks.ModelClientStub{Responses: []*models.Response{{
+		OutputText: `{"session_summary":"Earlier work","current_task":"Investigate compact","discoveries":["d1"],"open_questions":["q1"],"next_actions":["n1"]}`,
+	}}}
+	agent := newSessionOpsAgent(t, &config.Config{
+		Name:          "Test Agent",
+		Model:         "test-model",
+		ContextLength: 128000,
+	}, client, &mocks.TraceSessionStub{})
+
+	session, err := agent.CreateSession(context.Background(), "ses_Y4VxN3E3h5cQH1sYq2k8b")
+	require.NoError(t, err)
+
+	appendUserMessages(t, agent, session.ID, 10, "message")
+	require.NoError(t, agent.sessionMgr.UpdateLastPromptTokens(context.Background(), session.ID, 50))
+
+	retainedTailMessages := 2
+	summary, err := agent.SummarizeSession(context.Background(), session.ID, SummarizeSessionOptions{
+		Planner:              SessionSummaryPlannerRetainRecentTail,
+		RetainedTailMessages: &retainedTailMessages,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, session.ID, summary.SessionID)
+	require.Equal(t, 8, summary.SourceEndOffset)
+	require.Equal(t, 10, summary.SourceMessageCount)
+	require.Equal(t, "Earlier work", summary.SessionSummary)
+	require.Equal(t, "Investigate compact", summary.CurrentTask)
+	require.Equal(t, []string{"d1"}, summary.Discoveries)
 	require.Equal(t, 1, client.CallCount)
 }
 

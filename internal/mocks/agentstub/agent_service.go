@@ -23,6 +23,7 @@ type AgentServiceStub struct {
 	UsedSessionID    string
 	CurrentSessionID string
 	CompactResult    rpcclient.CompactSessionResult
+	SummaryResult    storage.SessionSummary
 	StatusResult     rpcclient.SessionContextStatus
 }
 
@@ -66,6 +67,10 @@ func (s *AgentServiceStub) UseSession(_ context.Context, id string) error {
 
 func (s *AgentServiceStub) CurrentSession(context.Context) (string, error) {
 	return s.CurrentSessionID, s.Err
+}
+
+func (s *AgentServiceStub) SummarizeSession(context.Context, string, agent.SummarizeSessionOptions) (storage.SessionSummary, error) {
+	return s.SummaryResult, s.Err
 }
 
 func (s *AgentServiceStub) CompactSession(context.Context, string) (rpcclient.CompactSessionResult, error) {

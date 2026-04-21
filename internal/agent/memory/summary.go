@@ -23,6 +23,15 @@ import (
 
 const RecentSessionTail = 8
 
+type SessionSummaryPlanner string
+
+const SessionSummaryPlannerRetainRecentTail SessionSummaryPlanner = "retain_recent_tail"
+
+type SummarizeSessionOptions struct {
+	Planner              SessionSummaryPlanner
+	RetainedTailMessages *int
+}
+
 type SummaryState struct {
 	SessionID          string
 	SourceEndOffset    int
@@ -102,10 +111,16 @@ func SummaryFromStorage(summary storage.SessionSummary) *SummaryState {
 }
 
 func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input RefreshInput) error {
-	return s.refreshMemory(ctx, memory, input, false)
+	return s.refreshMemory(ctx, memory, input, false, refreshPlan{})
 }
 
-func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input RefreshInput, force bool) error {
+func (s *Service) refreshMemory(
+	ctx context.Context,
+	memory *Memory,
+	input RefreshInput,
+	force bool,
+	forcedPlan refreshPlan,
+) error {
 	if memory == nil || input.TraceSession == nil {
 		return nil
 	}
@@ -140,12 +155,14 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 		return nil
 	}
 
-	targetOffset := totalCount - RecentSessionTail
-
-	plan := refreshPlan{
-		RequestedAt:        s.currentTime(),
-		TargetMessageCount: totalCount,
-		TargetOffset:       targetOffset,
+	plan := forcedPlan
+	if !force {
+		targetOffset := totalCount - RecentSessionTail
+		plan = refreshPlan{
+			RequestedAt:        s.currentTime(),
+			TargetMessageCount: totalCount,
+			TargetOffset:       targetOffset,
+		}
 	}
 
 	existingSummaryEndOffset := 0
@@ -153,13 +170,13 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 		existingSummaryEndOffset = memory.Summary.SourceEndOffset
 	}
 
-	if !force && memory.Summary != nil && memory.Summary.SourceEndOffset >= targetOffset {
+	if !force && memory.Summary != nil && memory.Summary.SourceEndOffset >= plan.TargetOffset {
 		session, ok, err := s.store.Get(ctx, input.SessionID)
 		if err != nil {
 			input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
 				Status:             storage.CompactionStatusFailed,
 				TargetMessageCount: totalCount,
-				TargetOffset:       targetOffset,
+				TargetOffset:       plan.TargetOffset,
 			}, err.Error()))
 			return err
 		}
@@ -168,7 +185,7 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 			input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
 				Status:             storage.CompactionStatusFailed,
 				TargetMessageCount: totalCount,
-				TargetOffset:       targetOffset,
+				TargetOffset:       plan.TargetOffset,
 			}, err.Error()))
 			return err
 		}
@@ -188,7 +205,7 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 		input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: totalCount,
-			TargetOffset:       targetOffset,
+			TargetOffset:       plan.TargetOffset,
 		}, err.Error()))
 		return err
 	}
@@ -197,7 +214,7 @@ func (s *Service) refreshMemory(ctx context.Context, memory *Memory, input Refre
 		input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: totalCount,
-			TargetOffset:       targetOffset,
+			TargetOffset:       plan.TargetOffset,
 		}, err.Error()))
 		return err
 	}
@@ -265,6 +282,15 @@ func (s *Service) CompactSession(
 	session storage.Session,
 	traceSession traceRecorder,
 ) (*SummaryState, error) {
+	return s.SummarizeSession(ctx, session, SummarizeSessionOptions{}, traceSession)
+}
+
+func (s *Service) SummarizeSession(
+	ctx context.Context,
+	session storage.Session,
+	opts SummarizeSessionOptions,
+	traceSession traceRecorder,
+) (*SummaryState, error) {
 	if s == nil {
 		return nil, errors.New("memory service is required")
 	}
@@ -296,8 +322,8 @@ func (s *Service) CompactSession(
 		return nil, err
 	}
 
-	if totalCount <= RecentSessionTail {
-		err = errors.New("session history is too short to compact")
+	plan, err := s.summarizeSessionPlan(totalCount, opts)
+	if err != nil {
 		traceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(
 			session.ID,
 			storage.SessionCompaction{Status: storage.CompactionStatusFailed},
@@ -310,11 +336,41 @@ func (s *Service) CompactSession(
 		LastPromptTokens: session.LastPromptTokens,
 		SessionID:        session.ID,
 		TraceSession:     traceSession,
-	}, true); err != nil {
+	}, true, plan); err != nil {
 		return nil, err
 	}
 
 	return memory.Summary, nil
+}
+
+func (s *Service) summarizeSessionPlan(totalCount int, opts SummarizeSessionOptions) (refreshPlan, error) {
+	planner := opts.Planner
+	if planner == "" {
+		planner = SessionSummaryPlannerRetainRecentTail
+	}
+
+	switch planner {
+	case SessionSummaryPlannerRetainRecentTail:
+		retainedTailMessages := RecentSessionTail
+		if opts.RetainedTailMessages != nil {
+			retainedTailMessages = *opts.RetainedTailMessages
+		}
+
+		if retainedTailMessages < 0 {
+			return refreshPlan{}, errors.New("retained tail messages must be greater than or equal to zero")
+		}
+		if totalCount <= retainedTailMessages {
+			return refreshPlan{}, errors.New("session history is too short to compact")
+		}
+
+		return refreshPlan{
+			RequestedAt:        s.currentTime(),
+			TargetMessageCount: totalCount,
+			TargetOffset:       totalCount - retainedTailMessages,
+		}, nil
+	default:
+		return refreshPlan{}, fmt.Errorf("unknown session summary planner: %s", planner)
+	}
 }
 
 func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input RefreshInput, plan refreshPlan) error {

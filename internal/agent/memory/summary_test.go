@@ -976,6 +976,56 @@ func TestService_CompactSession_ReturnsSummary(t *testing.T) {
 	requireSummaryEvent(t, traceSession.Events, trace.EvtSummarySaved)
 }
 
+func TestService_SummarizeSession_UsesConfiguredRetainedTail(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	store := summaryTestStore(summaryTestHistory(10))
+	client := &mocks.ModelClientStub{
+		Responses: []*models.Response{{
+			OutputText: `{"session_summary":"Compacted","current_task":"t","discoveries":["d"],"open_questions":["q"],"next_actions":["n"]}`,
+		}},
+	}
+	svc := summaryTestService(summaryTestConfig(true), client, store)
+	retainedTailMessages := 2
+
+	out, err := svc.SummarizeSession(context.Background(), storage.Session{
+		ID:               storage.DefaultSessionID,
+		LastPromptTokens: 50,
+	}, SummarizeSessionOptions{
+		Planner:              SessionSummaryPlannerRetainRecentTail,
+		RetainedTailMessages: &retainedTailMessages,
+	}, traceSession)
+
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	require.Equal(t, 8, out.SourceEndOffset)
+	require.Equal(t, 10, out.SourceMessageCount)
+	require.Equal(t, 1, client.CallCount)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryRequested)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtSummarySaved)
+}
+
+func TestService_SummarizeSession_ValidatesPlannerOptions(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	store := summaryTestStore(summaryTestHistory(10))
+	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
+	session := storage.Session{ID: storage.DefaultSessionID}
+
+	t.Run("unknown planner", func(t *testing.T) {
+		_, err := svc.SummarizeSession(context.Background(), session, SummarizeSessionOptions{
+			Planner: "unknown",
+		}, traceSession)
+		require.EqualError(t, err, "unknown session summary planner: unknown")
+	})
+
+	t.Run("negative retained tail", func(t *testing.T) {
+		retainedTailMessages := -1
+		_, err := svc.SummarizeSession(context.Background(), session, SummarizeSessionOptions{
+			RetainedTailMessages: &retainedTailMessages,
+		}, traceSession)
+		require.EqualError(t, err, "retained tail messages must be greater than or equal to zero")
+	})
+}
+
 func TestService_TransitionCompactionPending(t *testing.T) {
 	plan := refreshPlan{
 		RequestedAt:        time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC),

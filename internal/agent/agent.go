@@ -34,6 +34,7 @@ type ServiceAPI interface {
 	ListSessions(context.Context) ([]storage.Session, error)
 	UseSession(context.Context, string) error
 	CurrentSession(context.Context) (string, error)
+	SummarizeSession(context.Context, string, SummarizeSessionOptions) (storage.SessionSummary, error)
 	CompactSession(context.Context, string) (CompactSessionResult, error)
 	SessionContextStatus(context.Context, string) (SessionContextStatus, error)
 }
@@ -58,6 +59,12 @@ type CompactSessionResult struct {
 	CurrentContextLength int
 	TotalContextLength   int
 }
+
+type SessionSummaryPlanner = memory.SessionSummaryPlanner
+
+const SessionSummaryPlannerRetainRecentTail = memory.SessionSummaryPlannerRetainRecentTail
+
+type SummarizeSessionOptions = memory.SummarizeSessionOptions
 
 type SessionContextStatus struct {
 	SessionID        string
@@ -184,13 +191,13 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 	agentLog.Info().Str("session_id", opts.SessionID).Str("model", a.cfg.Model).Msg("responding to user message")
 
 	turn := NewTurn(
-        a.cfg, 
-        a.modelClient, 
-        a.summaryClient, 
-        a.sessionMgr, 
-        a.invokeToolWithEnvironment, 
-        env,
-    )
+		a.cfg,
+		a.modelClient,
+		a.summaryClient,
+		a.sessionMgr,
+		a.invokeToolWithEnvironment,
+		env,
+	)
 	reply, err := turn.Run(ctx, msg, opts)
 	a.turnMessages = turn.Messages()
 
@@ -327,36 +334,8 @@ func (a *Agent) CurrentSession(ctx context.Context) (string, error) {
 }
 
 func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionResult, error) {
-	if a == nil {
-		return CompactSessionResult{}, errors.New("agent is required")
-	}
-	if a.cfg == nil {
-		return CompactSessionResult{}, errors.New("config is required")
-	}
-	if !a.initialized || a.sessionMgr == nil {
-		return CompactSessionResult{}, errors.New("environment has not been initialized")
-	}
-	if a.modelClient == nil {
-		return CompactSessionResult{}, errors.New("model client is required")
-	}
-
-	session, err := a.sessionMgr.Resolve(normalizeContext(ctx), id)
+	summary, session, err := a.summarizeSession(ctx, id, SummarizeSessionOptions{})
 	if err != nil {
-		return CompactSessionResult{}, err
-	}
-
-	agentLog.Info().Str("session_id", session.ID).Msg("manual session compaction requested")
-
-	traceSession := trace.NoopSession()
-	if a.env != nil {
-		traceSession = a.env.NewTraceSession(session.ID)
-	}
-	defer traceSession.Close()
-
-	memoryService := memory.NewService(a.cfg, a.modelClient, a.summaryClient, a.sessionMgr)
-	summary, err := memoryService.CompactSession(normalizeContext(ctx), session, traceSession)
-	if err != nil {
-		agentLog.Error().Str("session_id", session.ID).Err(err).Msg("session compaction failed")
 		return CompactSessionResult{}, err
 	}
 
@@ -368,6 +347,71 @@ func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionRe
 		CurrentContextLength: session.LastPromptTokens,
 		TotalContextLength:   a.cfg.ContextLength,
 	}, nil
+}
+
+func (a *Agent) SummarizeSession(
+	ctx context.Context,
+	id string,
+	opts SummarizeSessionOptions,
+) (storage.SessionSummary, error) {
+	summary, _, err := a.summarizeSession(ctx, id, opts)
+	return summary, err
+}
+
+func (a *Agent) summarizeSession(
+	ctx context.Context,
+	id string,
+	opts SummarizeSessionOptions,
+) (storage.SessionSummary, storage.Session, error) {
+	if a == nil {
+		return storage.SessionSummary{}, storage.Session{}, errors.New("agent is required")
+	}
+	if a.cfg == nil {
+		return storage.SessionSummary{}, storage.Session{}, errors.New("config is required")
+	}
+	if !a.initialized || a.sessionMgr == nil {
+		return storage.SessionSummary{}, storage.Session{}, errors.New("environment has not been initialized")
+	}
+	if a.modelClient == nil {
+		return storage.SessionSummary{}, storage.Session{}, errors.New("model client is required")
+	}
+
+	session, err := a.sessionMgr.Resolve(normalizeContext(ctx), id)
+	if err != nil {
+		return storage.SessionSummary{}, storage.Session{}, err
+	}
+
+	agentLog.Info().Str("session_id", session.ID).Msg("manual session summary requested")
+
+	traceSession := trace.NoopSession()
+	if a.env != nil {
+		traceSession = a.env.NewTraceSession(session.ID)
+	}
+	defer traceSession.Close()
+
+	memoryService := memory.NewService(a.cfg, a.modelClient, a.summaryClient, a.sessionMgr)
+	summary, err := memoryService.SummarizeSession(
+		normalizeContext(ctx),
+		session,
+		memory.SummarizeSessionOptions(opts),
+		traceSession,
+	)
+	if err != nil {
+		agentLog.Error().Str("session_id", session.ID).Err(err).Msg("session summary failed")
+		return storage.SessionSummary{}, storage.Session{}, err
+	}
+
+	return storage.SessionSummary{
+		SessionID:          summary.SessionID,
+		SourceEndOffset:    summary.SourceEndOffset,
+		SourceMessageCount: summary.SourceMessageCount,
+		UpdatedAt:          summary.UpdatedAt,
+		SessionSummary:     summary.SessionSummary,
+		CurrentTask:        summary.CurrentTask,
+		Discoveries:        append([]string(nil), summary.Discoveries...),
+		OpenQuestions:      append([]string(nil), summary.OpenQuestions...),
+		NextActions:        append([]string(nil), summary.NextActions...),
+	}, session, nil
 }
 
 func (a *Agent) SessionContextStatus(ctx context.Context, id string) (SessionContextStatus, error) {
