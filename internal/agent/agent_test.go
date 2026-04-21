@@ -628,6 +628,61 @@ func TestAgent_SummarizeSessionUsesZeroTail(t *testing.T) {
 	require.Empty(t, storedSummary.SessionID)
 }
 
+func TestAgent_SummarizeSession_ReusesCachedRecallSummaryWhenMessageCountMatches(t *testing.T) {
+	client := &mocks.ModelClientStub{Responses: []*models.Response{{
+		OutputText: `{"session_summary":"Earlier work","current_task":"Investigate compact","discoveries":["d1"],"open_questions":["q1"],"next_actions":["n1"]}`,
+	}}}
+	agent := newSessionOpsAgent(t, &config.Config{
+		Name:          "Test Agent",
+		Model:         "test-model",
+		ContextLength: 128000,
+	}, client, &mocks.TraceSessionStub{})
+
+	session, err := agent.CreateSession(context.Background(), "ses_Y4VxN3E3h5cQH1sYq2k8f")
+	require.NoError(t, err)
+
+	appendUserMessages(t, agent, session.ID, 10, "message")
+
+	first, err := agent.SummarizeSession(context.Background(), session.ID)
+	require.NoError(t, err)
+
+	second, err := agent.SummarizeSession(context.Background(), session.ID)
+	require.NoError(t, err)
+
+	require.Equal(t, first, second)
+	require.Equal(t, 1, client.CallCount)
+}
+
+func TestAgent_SummarizeSession_InvalidatesCachedRecallSummaryWhenMessageCountChanges(t *testing.T) {
+	client := &mocks.ModelClientStub{Responses: []*models.Response{
+		{OutputText: `{"session_summary":"Earlier work","current_task":"Investigate compact","discoveries":["d1"],"open_questions":["q1"],"next_actions":["n1"]}`},
+		{OutputText: `{"session_summary":"Updated work","current_task":"Investigate compact","discoveries":["d2"],"open_questions":["q2"],"next_actions":["n2"]}`},
+	}}
+	agent := newSessionOpsAgent(t, &config.Config{
+		Name:          "Test Agent",
+		Model:         "test-model",
+		ContextLength: 128000,
+	}, client, &mocks.TraceSessionStub{})
+
+	session, err := agent.CreateSession(context.Background(), "ses_Y4VxN3E3h5cQH1sYq2k8g")
+	require.NoError(t, err)
+
+	appendUserMessages(t, agent, session.ID, 10, "message")
+
+	first, err := agent.SummarizeSession(context.Background(), session.ID)
+	require.NoError(t, err)
+
+	appendUserMessages(t, agent, session.ID, 1, "later")
+
+	second, err := agent.SummarizeSession(context.Background(), session.ID)
+	require.NoError(t, err)
+
+	require.Equal(t, 2, client.CallCount)
+	require.Equal(t, 10, first.SourceMessageCount)
+	require.Equal(t, 11, second.SourceMessageCount)
+	require.Equal(t, "Updated work", second.SessionSummary)
+}
+
 func TestAgent_SummarizeSession_validationErrors(t *testing.T) {
 	cfg := testSessionConfig(&config.Config{Name: "Test Agent", Model: "m", ContextLength: 128000})
 	manager := mustSessionManager(t)
@@ -674,6 +729,28 @@ func TestAgent_SummarizeSession_returnsResolveError(t *testing.T) {
 
 	_, err = a.SummarizeSession(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
 	require.EqualError(t, err, "store get failed")
+}
+
+func TestAgent_SummarizeSession_returnsCountMessagesError(t *testing.T) {
+	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: "ses_N8wM2fL7p9rT4vXc1q6b3"}, true, nil
+		},
+		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
+			return 0, errors.New("count failed")
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	a := &Agent{
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Model: "m", ContextLength: 128000}),
+		modelClient: &mocks.ModelClientStub{},
+		sessionMgr:  manager,
+		initialized: true,
+	}
+
+	_, err = a.SummarizeSession(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
+	require.EqualError(t, err, "count failed")
 }
 
 func TestAgent_SummarizeSession_withNilEnvironmentUsesNoopTrace(t *testing.T) {

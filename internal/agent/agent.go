@@ -15,16 +15,19 @@ import (
 	"github.com/wandxy/hand/internal/models"
 	sessionstore "github.com/wandxy/hand/internal/session"
 	"github.com/wandxy/hand/internal/storage"
+	commonstorage "github.com/wandxy/hand/internal/storage/common"
 	storagefactory "github.com/wandxy/hand/internal/storage/factory"
 	"github.com/wandxy/hand/internal/tools"
 	webextract "github.com/wandxy/hand/internal/tools/webextract"
 	"github.com/wandxy/hand/internal/trace"
+	pkgcache "github.com/wandxy/hand/pkg/cache"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
 var jsonMarshal = json.Marshal
 
 const requestInstructionName = "request.instruct"
+const defaultRecallSummaryCacheTTL = 15 * time.Minute
 
 var agentLog = logutils.InitLogger("agent")
 
@@ -87,20 +90,30 @@ var runTransientSummarizeSession = func(
 	return service.TransientSummarizeSession(ctx, session, traceSession)
 }
 
+var newRecallSummaryCache = func() *pkgcache.Cache[string, storage.SessionSummary] {
+	return pkgcache.New(pkgcache.Options[string, storage.SessionSummary]{
+		TTL: defaultRecallSummaryCacheTTL,
+		Clone: func(summary storage.SessionSummary) storage.SessionSummary {
+			return commonstorage.CloneSessionSummary(summary)
+		},
+	})
+}
+
 var openSessionStore = storagefactory.OpenSessionStore
 
 var newSessionManager = sessionstore.NewManager
 
 // Agent coordinates agent lifecycle, sessions, and turn execution.
 type Agent struct {
-	ctx           context.Context
-	cfg           *config.Config
-	modelClient   models.Client
-	summaryClient models.Client
-	env           environment.Environment
-	sessionMgr    *sessionstore.Manager
-	turnMessages  []handmsg.Message
-	initialized   bool
+	ctx                context.Context
+	cfg                *config.Config
+	modelClient        models.Client
+	summaryClient      models.Client
+	env                environment.Environment
+	sessionMgr         *sessionstore.Manager
+	recallSummaryCache *pkgcache.Cache[string, storage.SessionSummary]
+	turnMessages       []handmsg.Message
+	initialized        bool
 }
 
 // NewAgent constructs an Agent with its runtime dependencies.
@@ -113,7 +126,13 @@ func NewAgent(ctx context.Context, cfg *config.Config, modelClient models.Client
 	if summaryClient == nil {
 		summaryClient = modelClient
 	}
-	return &Agent{ctx: ctx, cfg: cfg, modelClient: modelClient, summaryClient: summaryClient}
+	return &Agent{
+		ctx:                ctx,
+		cfg:                cfg,
+		modelClient:        modelClient,
+		summaryClient:      summaryClient,
+		recallSummaryCache: newRecallSummaryCache(),
+	}
 }
 
 func (a *Agent) Start(ctx context.Context) error {
@@ -367,9 +386,20 @@ func (a *Agent) SummarizeSession(ctx context.Context, id string) (storage.Sessio
 		return storage.SessionSummary{}, errors.New("model client is required")
 	}
 
-	session, err := a.sessionMgr.Resolve(normalizeContext(ctx), id)
+	ctx = normalizeContext(ctx)
+
+	session, err := a.sessionMgr.Resolve(ctx, id)
 	if err != nil {
 		return storage.SessionSummary{}, err
+	}
+
+	messageCount, err := a.sessionMgr.CountMessages(ctx, session.ID, storage.MessageQueryOptions{})
+	if err != nil {
+		return storage.SessionSummary{}, err
+	}
+
+	if summary, ok := a.cachedRecallSummary(session.ID, messageCount); ok {
+		return summary, nil
 	}
 
 	agentLog.Info().Str("session_id", session.ID).Msg("manual recall session summary requested")
@@ -381,7 +411,7 @@ func (a *Agent) SummarizeSession(ctx context.Context, id string) (storage.Sessio
 	defer traceSession.Close()
 
 	memoryService := memory.NewService(a.cfg, a.modelClient, a.summaryClient, a.sessionMgr)
-	summary, err := runTransientSummarizeSession(memoryService, normalizeContext(ctx), session, traceSession)
+	summary, err := runTransientSummarizeSession(memoryService, ctx, session, traceSession)
 	if err != nil {
 		return storage.SessionSummary{}, err
 	}
@@ -389,7 +419,7 @@ func (a *Agent) SummarizeSession(ctx context.Context, id string) (storage.Sessio
 		return storage.SessionSummary{}, errors.New("summary is required")
 	}
 
-	return storage.SessionSummary{
+	result := storage.SessionSummary{
 		SessionID:          summary.SessionID,
 		SourceEndOffset:    summary.SourceEndOffset,
 		SourceMessageCount: summary.SourceMessageCount,
@@ -399,7 +429,11 @@ func (a *Agent) SummarizeSession(ctx context.Context, id string) (storage.Sessio
 		Discoveries:        summary.Discoveries,
 		OpenQuestions:      summary.OpenQuestions,
 		NextActions:        summary.NextActions,
-	}, nil
+	}
+
+	a.storeRecallSummary(result)
+
+	return result, nil
 }
 
 func (a *Agent) summarizeSession(
@@ -533,6 +567,32 @@ func (a *Agent) ensureSessionManager() error {
 
 	a.sessionMgr = manager
 	return nil
+}
+
+func (a *Agent) cachedRecallSummary(sessionID string, messageCount int) (storage.SessionSummary, bool) {
+	if a == nil || a.recallSummaryCache == nil {
+		return storage.SessionSummary{}, false
+	}
+
+	summary, ok := a.recallSummaryCache.Get(sessionID)
+	if !ok {
+		return storage.SessionSummary{}, false
+	}
+
+	if summary.SourceMessageCount != messageCount {
+		a.recallSummaryCache.Delete(sessionID)
+		return storage.SessionSummary{}, false
+	}
+
+	return summary, true
+}
+
+func (a *Agent) storeRecallSummary(summary storage.SessionSummary) {
+	if a == nil || a.recallSummaryCache == nil || strings.TrimSpace(summary.SessionID) == "" {
+		return
+	}
+
+	a.recallSummaryCache.Set(summary.SessionID, summary)
 }
 
 func durationOrDefault(value, fallback time.Duration) time.Duration {
