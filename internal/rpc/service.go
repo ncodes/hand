@@ -216,7 +216,7 @@ func (s *Service) GetSession(ctx context.Context, req *handpb.GetSessionRequest)
 		return nil, status.Error(codes.InvalidArgument, "get session request context is required")
 	}
 
-	result, err := s.api.SessionContextStatus(ctx, req.GetContext().GetId())
+	result, err := s.api.ContextStatus(ctx, req.GetContext().GetId())
 	if err != nil {
 		return nil, grpcError(err)
 	}

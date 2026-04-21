@@ -45,6 +45,8 @@ type traceRecorder interface {
 	Record(string, any)
 }
 
+// NewService builds the memory service used for summary loading, automatic
+// compaction, persisted compaction, and transient summarization.
 func NewService(cfg *config.Config, modelClient, summaryClient models.Client, summaryStore SummaryStore) *Service {
 	if summaryClient == nil {
 		summaryClient = modelClient
@@ -84,6 +86,8 @@ func NewService(cfg *config.Config, modelClient, summaryClient models.Client, su
 	return service
 }
 
+// Load returns the current memory view for a session from persisted summary
+// state without reading the live session transcript.
 func (s *Service) Load(ctx context.Context, sessionID string) (*Memory, error) {
 	if s == nil {
 		return nil, errors.New("memory service is required")

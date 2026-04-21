@@ -24,7 +24,7 @@ type AgentServiceStub struct {
 	CurrentSessionID string
 	CompactResult    rpcclient.CompactSessionResult
 	SummaryResult    storage.SessionSummary
-	StatusResult     rpcclient.SessionContextStatus
+	StatusResult     rpcclient.ContextStatus
 }
 
 func (s *AgentServiceStub) Respond(_ context.Context, msg string, opts rpcclient.RespondOptions) (string, error) {
@@ -69,7 +69,7 @@ func (s *AgentServiceStub) CurrentSession(context.Context) (string, error) {
 	return s.CurrentSessionID, s.Err
 }
 
-func (s *AgentServiceStub) SummarizeSession(context.Context, string, agent.SummarizeSessionOptions) (storage.SessionSummary, error) {
+func (s *AgentServiceStub) SummarizeSession(context.Context, string) (storage.SessionSummary, error) {
 	return s.SummaryResult, s.Err
 }
 
@@ -77,12 +77,12 @@ func (s *AgentServiceStub) CompactSession(context.Context, string) (rpcclient.Co
 	return s.CompactResult, s.Err
 }
 
-func (s *AgentServiceStub) GetSession(context.Context, string) (rpcclient.SessionContextStatus, error) {
+func (s *AgentServiceStub) GetSession(context.Context, string) (rpcclient.ContextStatus, error) {
 	return s.StatusResult, s.Err
 }
 
-func (s *AgentServiceStub) SessionContextStatus(context.Context, string) (agent.SessionContextStatus, error) {
-	return agent.SessionContextStatus(s.StatusResult), s.Err
+func (s *AgentServiceStub) ContextStatus(context.Context, string) (agent.ContextStatus, error) {
+	return agent.ContextStatus(s.StatusResult), s.Err
 }
 
 func (s *AgentServiceStub) Close() error {

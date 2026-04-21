@@ -26,7 +26,7 @@ type Event = agent.Event
 
 type CompactSessionResult = agent.CompactSessionResult
 
-type SessionContextStatus = agent.SessionContextStatus
+type ContextStatus = agent.ContextStatus
 
 type ChatAPI interface {
 	Respond(context.Context, string, RespondOptions) (string, error)
@@ -38,7 +38,7 @@ type SessionAPI interface {
 	UseSession(context.Context, string) error
 	CurrentSession(context.Context) (string, error)
 	CompactSession(context.Context, string) (CompactSessionResult, error)
-	GetSession(context.Context, string) (SessionContextStatus, error)
+	GetSession(context.Context, string) (ContextStatus, error)
 }
 
 type ServiceAPI interface {
@@ -208,19 +208,19 @@ func (c *Client) CompactSession(ctx context.Context, id string) (CompactSessionR
 	}, nil
 }
 
-func (c *Client) GetSession(ctx context.Context, id string) (SessionContextStatus, error) {
+func (c *Client) GetSession(ctx context.Context, id string) (ContextStatus, error) {
 	resp, err := c.client.GetSession(ctx, &handpb.GetSessionRequest{
 		Context: &handpb.GetSessionRequestContext{Id: strings.TrimSpace(id)},
 	})
 	if err != nil {
-		return SessionContextStatus{}, err
+		return ContextStatus{}, err
 	}
 	cctx := resp.GetContext()
 	if cctx == nil {
-		return SessionContextStatus{}, fmt.Errorf("hand: get session response context is required")
+		return ContextStatus{}, fmt.Errorf("hand: get session response context is required")
 	}
 
-	return SessionContextStatus{
+	return ContextStatus{
 		SessionID:        resp.GetId(),
 		Offset:           int(cctx.GetOffset()),
 		Size:             int(resp.GetSize()),
@@ -233,10 +233,6 @@ func (c *Client) GetSession(ctx context.Context, id string) (SessionContextStatu
 		UpdatedAt:        fromTimestamp(resp.GetUpdatedAt()),
 		CompactionStatus: resp.GetCompactionStatus(),
 	}, nil
-}
-
-func (c *Client) SessionContextStatus(ctx context.Context, id string) (SessionContextStatus, error) {
-	return c.GetSession(ctx, id)
 }
 
 func (c *Client) Close() error {

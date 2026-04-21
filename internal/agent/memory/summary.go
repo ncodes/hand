@@ -110,6 +110,9 @@ func SummaryFromStorage(summary storage.SessionSummary) *SummaryState {
 	}
 }
 
+// MaybeRefreshMemory evaluates whether automatic compaction should run for the
+// current session state and refreshes memory when the configured thresholds are
+// met.
 func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input RefreshInput) error {
 	return s.refreshMemory(ctx, memory, input, false, refreshPlan{})
 }
@@ -248,7 +251,7 @@ func (s *Service) refreshMemory(
 		return err
 	}
 
-	if err := s.refreshSummary(ctx, memory, input, plan); err != nil {
+	if _, err := s.refreshSummary(ctx, memory, input, plan, true); err != nil {
 		if transErr := s.transitionCompactionFailed(ctx, &session, plan, err, input.TraceSession); transErr != nil {
 			wrapped := fmt.Errorf("mark compaction failed: %w", transErr)
 			input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
@@ -277,6 +280,8 @@ func (s *Service) refreshMemory(
 	return nil
 }
 
+// CompactSession generates and persists the authoritative session summary using
+// the default retained-tail compaction behavior.
 func (s *Service) CompactSession(
 	ctx context.Context,
 	session storage.Session,
@@ -285,6 +290,72 @@ func (s *Service) CompactSession(
 	return s.SummarizeSession(ctx, session, SummarizeSessionOptions{}, traceSession)
 }
 
+// TransientSummarizeSession generates a zero-tail summary for the session and
+// returns it without persisting summary or compaction state.
+func (s *Service) TransientSummarizeSession(
+	ctx context.Context,
+	session storage.Session,
+	traceSession traceRecorder,
+) (*SummaryState, error) {
+	if s == nil {
+		return nil, errors.New("memory service is required")
+	}
+
+	if s.modelClient == nil {
+		return nil, errors.New("model client is required")
+	}
+
+	if s.store == nil {
+		return nil, errors.New("summary store is required")
+	}
+
+	if traceSession == nil {
+		return nil, errors.New("trace session is required")
+	}
+
+	memory, err := s.Load(ctx, session.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	totalCount, err := s.store.CountMessages(ctx, session.ID, storage.MessageQueryOptions{})
+	if err != nil {
+		traceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(
+			session.ID,
+			storage.SessionCompaction{Status: storage.CompactionStatusFailed},
+			err.Error()),
+		)
+		return nil, err
+	}
+
+	retainedTailMessages := 0
+	plan, err := s.summarizeSessionPlan(totalCount, SummarizeSessionOptions{
+		Planner:              SessionSummaryPlannerRetainRecentTail,
+		RetainedTailMessages: &retainedTailMessages,
+	})
+	if err != nil {
+		traceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(
+			session.ID,
+			storage.SessionCompaction{Status: storage.CompactionStatusFailed},
+			err.Error()),
+		)
+		return nil, err
+	}
+
+	summary, err := s.refreshSummary(ctx, memory, RefreshInput{
+		LastPromptTokens: session.LastPromptTokens,
+		SessionID:        session.ID,
+		TraceSession:     traceSession,
+	}, plan, false)
+	if err != nil {
+		return nil, err
+	}
+
+	return summary, nil
+}
+
+// SummarizeSession generates and persists the authoritative session summary
+// using the provided planner and retained-tail options.
 func (s *Service) SummarizeSession(
 	ctx context.Context,
 	session storage.Session,
@@ -373,7 +444,13 @@ func (s *Service) summarizeSessionPlan(totalCount int, opts SummarizeSessionOpti
 	}
 }
 
-func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input RefreshInput, plan refreshPlan) error {
+func (s *Service) refreshSummary(
+	ctx context.Context,
+	memory *Memory,
+	input RefreshInput,
+	plan refreshPlan,
+	persist bool,
+) (*SummaryState, error) {
 	payload := summaryTracePayload(input.SessionID, plan.TargetOffset, plan.TargetMessageCount, plan.RequestedAt)
 	input.TraceSession.Record(trace.EvtSummaryRequested, payload)
 
@@ -397,7 +474,7 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 		if err != nil {
 			failedPayload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
 			input.TraceSession.Record(trace.EvtSummaryFailed, failedPayload)
-			return err
+			return nil, err
 		}
 		summaryMessages = append(summaryMessages, handmsg.CloneMessages(messages)...)
 	}
@@ -424,21 +501,21 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 	if err != nil {
 		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
 		input.TraceSession.Record(trace.EvtSummaryFailed, payload)
-		return err
+		return nil, err
 	}
 
 	if resp == nil {
 		err = errors.New("model response is required")
 		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
 		input.TraceSession.Record(trace.EvtSummaryFailed, payload)
-		return err
+		return nil, err
 	}
 
 	if resp.RequiresToolCalls {
 		err = errors.New("summary requested tool calls")
 		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
 		input.TraceSession.Record(trace.EvtSummaryFailed, payload)
-		return err
+		return nil, err
 	}
 
 	summaryParsePath := "json"
@@ -453,7 +530,7 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 		if errors.Is(err, errSummaryResponseEmpty) {
 			payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
 			input.TraceSession.Record(trace.EvtSummaryFailed, payload)
-			return err
+			return nil, err
 		}
 
 		summaryParsePath = "plain_text_fallback"
@@ -473,7 +550,7 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 		if err != nil {
 			payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
 			input.TraceSession.Record(trace.EvtSummaryFailed, payload)
-			return err
+			return nil, err
 		}
 	}
 
@@ -489,10 +566,12 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 		NextActions:        summary.NextActions,
 	})
 
-	if err := s.store.SaveSummary(ctx, summaryRecord); err != nil {
-		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
-		input.TraceSession.Record(trace.EvtSummaryFailed, payload)
-		return err
+	if persist {
+		if err := s.store.SaveSummary(ctx, summaryRecord); err != nil {
+			payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
+			input.TraceSession.Record(trace.EvtSummaryFailed, payload)
+			return nil, err
+		}
 	}
 
 	memory.Summary = summary
@@ -514,7 +593,7 @@ func (s *Service) refreshSummary(ctx context.Context, memory *Memory, input Refr
 		memory.Summary.UpdatedAt,
 	))
 
-	return nil
+	return memory.Summary, nil
 }
 
 func (s *Service) generateSummaryResponse(ctx context.Context, request models.Request) (*models.Response, error) {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	memory "github.com/wandxy/hand/internal/agent/memory"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/environment"
 	handmsg "github.com/wandxy/hand/internal/messages"
@@ -596,7 +597,7 @@ func TestAgent_CompactSessionRefreshesSummary(t *testing.T) {
 	require.Equal(t, 1, client.CallCount)
 }
 
-func TestAgent_SummarizeSessionReturnsStoredSummaryShape(t *testing.T) {
+func TestAgent_SummarizeSessionUsesZeroTail(t *testing.T) {
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{
 		OutputText: `{"session_summary":"Earlier work","current_task":"Investigate compact","discoveries":["d1"],"open_questions":["q1"],"next_actions":["n1"]}`,
 	}}}
@@ -606,29 +607,163 @@ func TestAgent_SummarizeSessionReturnsStoredSummaryShape(t *testing.T) {
 		ContextLength: 128000,
 	}, client, &mocks.TraceSessionStub{})
 
-	session, err := agent.CreateSession(context.Background(), "ses_Y4VxN3E3h5cQH1sYq2k8b")
+	session, err := agent.CreateSession(context.Background(), "ses_Y4VxN3E3h5cQH1sYq2k8c")
 	require.NoError(t, err)
 
 	appendUserMessages(t, agent, session.ID, 10, "message")
-	require.NoError(t, agent.sessionMgr.UpdateLastPromptTokens(context.Background(), session.ID, 50))
 
-	retainedTailMessages := 2
-	summary, err := agent.SummarizeSession(context.Background(), session.ID, SummarizeSessionOptions{
-		Planner:              SessionSummaryPlannerRetainRecentTail,
-		RetainedTailMessages: &retainedTailMessages,
-	})
-
+	summary, err := agent.SummarizeSession(context.Background(), session.ID)
 	require.NoError(t, err)
 	require.Equal(t, session.ID, summary.SessionID)
-	require.Equal(t, 8, summary.SourceEndOffset)
+	require.Equal(t, 10, summary.SourceEndOffset)
 	require.Equal(t, 10, summary.SourceMessageCount)
 	require.Equal(t, "Earlier work", summary.SessionSummary)
 	require.Equal(t, "Investigate compact", summary.CurrentTask)
 	require.Equal(t, []string{"d1"}, summary.Discoveries)
 	require.Equal(t, 1, client.CallCount)
+
+	storedSummary, ok, err := agent.sessionMgr.GetSummary(context.Background(), session.ID)
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Empty(t, storedSummary.SessionID)
 }
 
-func TestAgent_SessionContextStatusUsesStoredPromptTokens(t *testing.T) {
+func TestAgent_SummarizeSession_validationErrors(t *testing.T) {
+	cfg := testSessionConfig(&config.Config{Name: "Test Agent", Model: "m", ContextLength: 128000})
+	manager := mustSessionManager(t)
+
+	t.Run("nil_agent", func(t *testing.T) {
+		var a *Agent
+		_, err := a.SummarizeSession(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
+		require.EqualError(t, err, "agent is required")
+	})
+
+	t.Run("nil_config", func(t *testing.T) {
+		a := &Agent{modelClient: &mocks.ModelClientStub{}, sessionMgr: manager, initialized: true}
+		_, err := a.SummarizeSession(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
+		require.EqualError(t, err, "config is required")
+	})
+
+	t.Run("uninitialized", func(t *testing.T) {
+		a := NewAgent(context.Background(), cfg, &mocks.ModelClientStub{})
+		_, err := a.SummarizeSession(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
+		require.EqualError(t, err, "environment has not been initialized")
+	})
+
+	t.Run("nil_model_client", func(t *testing.T) {
+		a := &Agent{cfg: cfg, sessionMgr: manager, initialized: true}
+		_, err := a.SummarizeSession(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
+		require.EqualError(t, err, "model client is required")
+	})
+}
+
+func TestAgent_SummarizeSession_returnsResolveError(t *testing.T) {
+	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{}, false, errors.New("store get failed")
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	a := &Agent{
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Model: "m", ContextLength: 128000}),
+		modelClient: &mocks.ModelClientStub{},
+		sessionMgr:  manager,
+		initialized: true,
+	}
+
+	_, err = a.SummarizeSession(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
+	require.EqualError(t, err, "store get failed")
+}
+
+func TestAgent_SummarizeSession_withNilEnvironmentUsesNoopTrace(t *testing.T) {
+	manager, err := sessionstore.NewManager(storagememory.NewSessionStore(), time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	client := &mocks.ModelClientStub{Responses: []*models.Response{{
+		OutputText: `{"session_summary":"noop trace","current_task":"t","discoveries":[],"open_questions":[],"next_actions":[]}`,
+	}}}
+
+	a := &Agent{
+		cfg: testSessionConfig(&config.Config{
+			Name:          "Test Agent",
+			Model:         "test-model",
+			ContextLength: 128000,
+		}),
+		modelClient: client,
+		sessionMgr:  manager,
+		initialized: true,
+		env:         nil,
+	}
+
+	session, err := a.CreateSession(context.Background(), "")
+	require.NoError(t, err)
+
+	appendUserMessages(t, a, session.ID, 10, "message")
+
+	summary, err := a.SummarizeSession(context.Background(), session.ID)
+	require.NoError(t, err)
+	require.Equal(t, session.ID, summary.SessionID)
+	require.Equal(t, 1, client.CallCount)
+}
+
+func TestAgent_SummarizeSession_returnsNilSummaryError(t *testing.T) {
+	originalRunTransientSummarizeSession := runTransientSummarizeSession
+	t.Cleanup(func() {
+		runTransientSummarizeSession = originalRunTransientSummarizeSession
+	})
+
+	runTransientSummarizeSession = func(
+		_ *memory.Service,
+		_ context.Context,
+		_ storage.Session,
+		_ trace.Session,
+	) (*memory.SummaryState, error) {
+		return nil, nil
+	}
+
+	agent := newSessionOpsAgent(t, &config.Config{
+		Name:          "Test Agent",
+		Model:         "test-model",
+		ContextLength: 128000,
+	}, &mocks.ModelClientStub{}, &mocks.TraceSessionStub{})
+
+	session, err := agent.CreateSession(context.Background(), "ses_Z4VxN3E3h5cQH1sYq2k8d")
+	require.NoError(t, err)
+
+	_, err = agent.SummarizeSession(context.Background(), session.ID)
+	require.EqualError(t, err, "summary is required")
+}
+
+func TestAgent_SummarizeSession_returnsTransientSummaryError(t *testing.T) {
+	originalRunTransientSummarizeSession := runTransientSummarizeSession
+	t.Cleanup(func() {
+		runTransientSummarizeSession = originalRunTransientSummarizeSession
+	})
+
+	runTransientSummarizeSession = func(
+		_ *memory.Service,
+		_ context.Context,
+		_ storage.Session,
+		_ trace.Session,
+	) (*memory.SummaryState, error) {
+		return nil, errors.New("transient summary failed")
+	}
+
+	agent := newSessionOpsAgent(t, &config.Config{
+		Name:          "Test Agent",
+		Model:         "test-model",
+		ContextLength: 128000,
+	}, &mocks.ModelClientStub{}, &mocks.TraceSessionStub{})
+
+	session, err := agent.CreateSession(context.Background(), "ses_Z4VxN3E3h5cQH1sYq2k8e")
+	require.NoError(t, err)
+
+	_, err = agent.SummarizeSession(context.Background(), session.ID)
+	require.EqualError(t, err, "transient summary failed")
+}
+
+func TestAgent_ContextStatusUsesStoredPromptTokens(t *testing.T) {
 	agent := newSessionOpsAgent(t, &config.Config{
 		Name:          "Test Agent",
 		Model:         "test-model",
@@ -639,7 +774,7 @@ func TestAgent_SessionContextStatusUsesStoredPromptTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, agent.sessionMgr.UpdateLastPromptTokens(context.Background(), session.ID, 64000))
 
-	status, err := agent.SessionContextStatus(context.Background(), session.ID)
+	status, err := agent.ContextStatus(context.Background(), session.ID)
 
 	require.NoError(t, err)
 	require.Equal(t, session.ID, status.SessionID)
@@ -748,30 +883,30 @@ func TestAgent_CompactSession_withNilEnvironmentUsesNoopTrace(t *testing.T) {
 	require.Equal(t, 1, client.CallCount)
 }
 
-func TestAgent_SessionContextStatus_validationErrors(t *testing.T) {
+func TestAgent_ContextStatus_validationErrors(t *testing.T) {
 	cfg := testSessionConfig(&config.Config{Name: "Test Agent", ContextLength: 128000})
 	manager := mustSessionManager(t)
 
 	t.Run("nil_agent", func(t *testing.T) {
 		var a *Agent
-		_, err := a.SessionContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
+		_, err := a.ContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
 		require.EqualError(t, err, "agent is required")
 	})
 
 	t.Run("nil_config", func(t *testing.T) {
 		a := &Agent{sessionMgr: manager, initialized: true}
-		_, err := a.SessionContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
+		_, err := a.ContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
 		require.EqualError(t, err, "config is required")
 	})
 
 	t.Run("uninitialized", func(t *testing.T) {
 		a := NewAgent(context.Background(), cfg, &mocks.ModelClientStub{})
-		_, err := a.SessionContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
+		_, err := a.ContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
 		require.EqualError(t, err, "environment has not been initialized")
 	})
 }
 
-func TestAgent_SessionContextStatus_returnsResolveError(t *testing.T) {
+func TestAgent_ContextStatus_returnsResolveError(t *testing.T) {
 	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{}, false, errors.New("session not found")
@@ -786,11 +921,11 @@ func TestAgent_SessionContextStatus_returnsResolveError(t *testing.T) {
 		modelClient: &mocks.ModelClientStub{},
 	}
 
-	_, err = a.SessionContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
+	_, err = a.ContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
 	require.EqualError(t, err, "session not found")
 }
 
-func TestAgent_SessionContextStatus_returnsSummaryError(t *testing.T) {
+func TestAgent_ContextStatus_returnsSummaryError(t *testing.T) {
 	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
 		GetFunc: func(_ context.Context, id string) (storage.Session, bool, error) {
 			return storage.Session{ID: id}, true, nil
@@ -808,11 +943,11 @@ func TestAgent_SessionContextStatus_returnsSummaryError(t *testing.T) {
 		modelClient: &mocks.ModelClientStub{},
 	}
 
-	_, err = a.SessionContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
+	_, err = a.ContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
 	require.EqualError(t, err, "summary load failed")
 }
 
-func TestAgent_SessionContextStatus_zeroTotalSkipsPercentages(t *testing.T) {
+func TestAgent_ContextStatus_zeroTotalSkipsPercentages(t *testing.T) {
 	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
 		GetFunc: func(_ context.Context, id string) (storage.Session, bool, error) {
 			return storage.Session{ID: id, LastPromptTokens: 0}, true, nil
@@ -827,7 +962,7 @@ func TestAgent_SessionContextStatus_zeroTotalSkipsPercentages(t *testing.T) {
 		modelClient: &mocks.ModelClientStub{},
 	}
 
-	st, err := a.SessionContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
+	st, err := a.ContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
 	require.NoError(t, err)
 	require.Zero(t, st.Offset)
 	require.Zero(t, st.Size)
@@ -838,7 +973,7 @@ func TestAgent_SessionContextStatus_zeroTotalSkipsPercentages(t *testing.T) {
 	require.Zero(t, st.RemainingPct)
 }
 
-func TestAgent_SessionContextStatus_clampsNegativeTotalsAndUsed(t *testing.T) {
+func TestAgent_ContextStatus_clampsNegativeTotalsAndUsed(t *testing.T) {
 	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
 		GetFunc: func(_ context.Context, id string) (storage.Session, bool, error) {
 			return storage.Session{ID: id, LastPromptTokens: -100}, true, nil
@@ -856,7 +991,7 @@ func TestAgent_SessionContextStatus_clampsNegativeTotalsAndUsed(t *testing.T) {
 		modelClient: &mocks.ModelClientStub{},
 	}
 
-	st, err := a.SessionContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
+	st, err := a.ContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
 	require.NoError(t, err)
 	require.Zero(t, st.Offset)
 	require.Zero(t, st.Size)

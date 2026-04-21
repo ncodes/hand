@@ -500,7 +500,7 @@ func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
 func TestService_GetSessionReturnsResult(t *testing.T) {
 	created := time.Date(2024, 3, 1, 12, 0, 0, 0, time.UTC)
 	updated := time.Date(2024, 3, 2, 15, 30, 0, 0, time.UTC)
-	svc := NewService(&agentstub.AgentServiceStub{StatusResult: agent.SessionContextStatus{
+	svc := NewService(&agentstub.AgentServiceStub{StatusResult: agent.ContextStatus{
 		SessionID:        "project-a",
 		Offset:           12,
 		Size:             20,

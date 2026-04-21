@@ -145,7 +145,7 @@ func TestNewCommandSessionStatusCallsRPC(t *testing.T) {
 
 	created := time.Date(2024, 5, 1, 8, 0, 0, 0, time.UTC)
 	updated := time.Date(2024, 5, 2, 9, 0, 0, 0, time.UTC)
-	stub := &agentstub.AgentServiceStub{StatusResult: rpcclient.SessionContextStatus{
+	stub := &agentstub.AgentServiceStub{StatusResult: rpcclient.ContextStatus{
 		SessionID:        "project-a",
 		Offset:           12,
 		Size:             20,
