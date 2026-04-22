@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -1004,7 +1005,7 @@ func TestService_SummarizeSession_UsesConfiguredRetainedTail(t *testing.T) {
 	requireSummaryEvent(t, traceSession.Events, trace.EvtSummarySaved)
 }
 
-func TestService_TransientSummarizeSession_UsesZeroTail(t *testing.T) {
+func TestService_RecallSessionSummary_UsesZeroTail(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	store := summaryTestStore(summaryTestHistory(10))
 	storedSummary := storage.SessionSummary{
@@ -1026,7 +1027,7 @@ func TestService_TransientSummarizeSession_UsesZeroTail(t *testing.T) {
 	}
 	svc := summaryTestService(summaryTestConfig(true), client, store)
 
-	out, err := svc.TransientSummarizeSession(context.Background(), storage.Session{
+	out, err := svc.RecallSessionSummary(context.Background(), storage.Session{
 		ID:               storage.DefaultSessionID,
 		LastPromptTokens: 50,
 	}, traceSession)
@@ -1043,39 +1044,39 @@ func TestService_TransientSummarizeSession_UsesZeroTail(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, storedSummary.SessionSummary, summary.SessionSummary)
 	require.Equal(t, storedSummary.SourceEndOffset, summary.SourceEndOffset)
-	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryRequested)
-	requireSummaryEvent(t, traceSession.Events, trace.EvtSummarySaved)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtRecallSummaryRequested)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtRecallSummarySaved)
 }
 
-func TestService_TransientSummarizeSession_ReturnsValidationErrors(t *testing.T) {
+func TestService_RecallSessionSummary_ReturnsValidationErrors(t *testing.T) {
 	sess := storage.Session{ID: storage.DefaultSessionID}
 	traceSession := &mocks.TraceSessionStub{}
 
 	t.Run("nil_service", func(t *testing.T) {
-		_, err := (*Service)(nil).TransientSummarizeSession(context.Background(), sess, traceSession)
+		_, err := (*Service)(nil).RecallSessionSummary(context.Background(), sess, traceSession)
 		require.EqualError(t, err, "memory service is required")
 	})
 
 	t.Run("nil_model_client", func(t *testing.T) {
 		svc := NewService(summaryTestConfig(true), nil, nil, &storagemock.SessionStore{})
-		_, err := svc.TransientSummarizeSession(context.Background(), sess, traceSession)
+		_, err := svc.RecallSessionSummary(context.Background(), sess, traceSession)
 		require.EqualError(t, err, "model client is required")
 	})
 
 	t.Run("nil_summary_store", func(t *testing.T) {
 		svc := NewService(summaryTestConfig(true), &mocks.ModelClientStub{}, nil, nil)
-		_, err := svc.TransientSummarizeSession(context.Background(), sess, traceSession)
+		_, err := svc.RecallSessionSummary(context.Background(), sess, traceSession)
 		require.EqualError(t, err, "summary store is required")
 	})
 
 	t.Run("nil_trace_session", func(t *testing.T) {
 		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, summaryTestStore(summaryTestHistory(10)))
-		_, err := svc.TransientSummarizeSession(context.Background(), sess, nil)
+		_, err := svc.RecallSessionSummary(context.Background(), sess, nil)
 		require.EqualError(t, err, "trace session is required")
 	})
 }
 
-func TestService_TransientSummarizeSession_ReturnsLoadError(t *testing.T) {
+func TestService_RecallSessionSummary_ReturnsLoadError(t *testing.T) {
 	store := summaryTestStore(summaryTestHistory(10))
 	store.GetSummaryFunc = func(context.Context, string) (storage.SessionSummary, bool, error) {
 		return storage.SessionSummary{}, false, errors.New("load summary failed")
@@ -1083,11 +1084,11 @@ func TestService_TransientSummarizeSession_ReturnsLoadError(t *testing.T) {
 	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
 	traceSession := &mocks.TraceSessionStub{}
 
-	_, err := svc.TransientSummarizeSession(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
+	_, err := svc.RecallSessionSummary(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
 	require.EqualError(t, err, "load summary failed")
 }
 
-func TestService_TransientSummarizeSession_ReturnsCountMessagesError(t *testing.T) {
+func TestService_RecallSessionSummary_ReturnsCountMessagesError(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	store := summaryTestStore(summaryTestHistory(10))
 	store.CountMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) (int, error) {
@@ -1095,27 +1096,542 @@ func TestService_TransientSummarizeSession_ReturnsCountMessagesError(t *testing.
 	}
 	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
 
-	_, err := svc.TransientSummarizeSession(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
+	_, err := svc.RecallSessionSummary(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
 	require.EqualError(t, err, "count failed")
 	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionFailed)
 }
 
-func TestService_TransientSummarizeSession_ReturnsHistoryTooShort(t *testing.T) {
+func TestService_RecallSessionSummary_ReturnsHistoryTooShort(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, summaryTestStore(summaryTestHistory(0)))
 
-	_, err := svc.TransientSummarizeSession(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
+	_, err := svc.RecallSessionSummary(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
 	require.EqualError(t, err, "session history is too short to compact")
 	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionFailed)
 }
 
-func TestService_TransientSummarizeSession_ReturnsRefreshError(t *testing.T) {
+func TestService_RecallSessionSummary_ReturnsRefreshError(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	store := summaryTestStore(summaryTestHistory(10))
 	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{Err: errors.New("chat failed")}, store)
 
-	_, err := svc.TransientSummarizeSession(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
+	_, err := svc.RecallSessionSummary(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
 	require.EqualError(t, err, "chat failed")
+}
+
+func TestService_RecallSessionSummary_WindowsLargeRecallByMessageCap(t *testing.T) {
+	setRecallLimitsForTest(t, 2, 10000, 8, 10000)
+
+	traceSession := &mocks.TraceSessionStub{}
+	history := []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "m1"},
+		{Role: handmsg.RoleUser, Content: "m2"},
+		{Role: handmsg.RoleUser, Content: "m3"},
+		{Role: handmsg.RoleUser, Content: "m4"},
+		{Role: handmsg.RoleUser, Content: "m5"},
+		{Role: handmsg.RoleUser, Content: "m6"},
+	}
+	client := &mocks.ModelClientStub{
+		Responses: []*models.Response{
+			{OutputText: `{"session_summary":"recent","current_task":"t1","discoveries":["d1"],"open_questions":["q1"],"next_actions":["n1"]}`},
+			{OutputText: `{"session_summary":"middle","current_task":"t2","discoveries":["d2"],"open_questions":["q2"],"next_actions":["n2"]}`},
+			{OutputText: `{"session_summary":"older","current_task":"t3","discoveries":["d3"],"open_questions":["q3"],"next_actions":["n3"]}`},
+			{OutputText: `{"session_summary":"final","current_task":"tf","discoveries":["df"],"open_questions":["qf"],"next_actions":["nf"]}`},
+		},
+	}
+	svc := summaryTestService(summaryTestConfig(true), client, summaryTestStore(history))
+
+	out, err := svc.RecallSessionSummary(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
+	require.NoError(t, err)
+	require.Equal(t, "final", out.SessionSummary)
+	require.Equal(t, 6, out.SourceEndOffset)
+	require.Equal(t, 6, out.SourceMessageCount)
+	require.Len(t, client.Requests, 4)
+	require.Equal(t, []string{"m5", "m6"}, []string{
+		client.Requests[0].Messages[0].Content,
+		client.Requests[0].Messages[1].Content,
+	})
+	require.Equal(t, []string{"m3", "m4"}, []string{
+		client.Requests[1].Messages[0].Content,
+		client.Requests[1].Messages[1].Content,
+	})
+	require.Equal(t, []string{"m1", "m2"}, []string{
+		client.Requests[2].Messages[0].Content,
+		client.Requests[2].Messages[1].Content,
+	})
+	require.Len(t, client.Requests[3].Messages, 1)
+	require.Contains(t, client.Requests[3].Messages[0].Content, "Recall Window Summary 1")
+	require.Contains(t, client.Requests[3].Messages[0].Content, "Recall Window Summary 3")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtRecallSummaryRequested)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtRecallSummarySaved)
+}
+
+func TestService_RecallSessionSummary_WindowsLargeRecallByTokenBudget(t *testing.T) {
+	setRecallLimitsForTest(t, 4, 260, 8, 10000)
+
+	traceSession := &mocks.TraceSessionStub{}
+	history := []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: strings.Repeat("a", 400)},
+		{Role: handmsg.RoleUser, Content: strings.Repeat("b", 400)},
+		{Role: handmsg.RoleUser, Content: strings.Repeat("c", 400)},
+	}
+	client := &mocks.ModelClientStub{
+		Responses: []*models.Response{
+			{OutputText: `{"session_summary":"recent","current_task":"t1","discoveries":["d1"],"open_questions":["q1"],"next_actions":["n1"]}`},
+			{OutputText: `{"session_summary":"middle","current_task":"t2","discoveries":["d2"],"open_questions":["q2"],"next_actions":["n2"]}`},
+			{OutputText: `{"session_summary":"older","current_task":"t3","discoveries":["d3"],"open_questions":["q3"],"next_actions":["n3"]}`},
+			{OutputText: `{"session_summary":"final","current_task":"tf","discoveries":["df"],"open_questions":["qf"],"next_actions":["nf"]}`},
+		},
+	}
+	svc := summaryTestService(summaryTestConfig(true), client, summaryTestStore(history))
+
+	out, err := svc.RecallSessionSummary(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
+	require.NoError(t, err)
+	require.Equal(t, "final", out.SessionSummary)
+	require.Len(t, client.Requests, 4)
+	require.Len(t, client.Requests[0].Messages, 1)
+	require.Len(t, client.Requests[1].Messages, 1)
+	require.Len(t, client.Requests[2].Messages, 1)
+}
+
+func TestService_RecallSessionSummary_ChunksOversizedSingleRecallWindow(t *testing.T) {
+	setRecallLimitsForTest(t, 4, 120, 8, 10000)
+
+	traceSession := &mocks.TraceSessionStub{}
+	history := []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: strings.Repeat("oversized ", 120)},
+	}
+	responses := make([]*models.Response, 0, 10)
+	for idx := 0; idx < 9; idx++ {
+		responses = append(responses, &models.Response{
+			OutputText: `{"session_summary":"chunk-summary","current_task":"t","discoveries":["d"],"open_questions":["q"],"next_actions":["n"]}`,
+		})
+	}
+	responses = append(responses, &models.Response{
+		OutputText: `{"session_summary":"final","current_task":"tf","discoveries":["df"],"open_questions":["qf"],"next_actions":["nf"]}`,
+	})
+	client := &mocks.ModelClientStub{
+		Responses: responses,
+	}
+	svc := summaryTestService(summaryTestConfig(true), client, summaryTestStore(history))
+
+	out, err := svc.RecallSessionSummary(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
+	require.NoError(t, err)
+	require.Equal(t, "chunk-summary", out.SessionSummary)
+	require.GreaterOrEqual(t, len(client.Requests), 3)
+	require.Len(t, client.Requests[0].Messages, 1)
+	require.Len(t, client.Requests[1].Messages, 1)
+	require.Len(t, client.Requests[2].Messages, 1)
+	require.Contains(t, client.Requests[0].Instructions, "Recall Session Summary Chunk")
+	require.Contains(t, client.Requests[1].Instructions, "Recall Session Summary Chunk")
+	require.Contains(t, client.Requests[2].Instructions, "Recall Session Summary Chunk")
+	finalRequest := client.Requests[len(client.Requests)-1]
+	require.Contains(t, finalRequest.Messages[0].Content, "Recall Window Summary 1")
+	require.Contains(t, finalRequest.Messages[0].Content, "Recall Window Summary 2")
+	require.Contains(t, finalRequest.Messages[0].Content, "Recall Window Summary 3")
+}
+
+func TestService_RecallSessionSummary_BatchesRecallSynthesis(t *testing.T) {
+	setRecallLimitsForTest(t, 1, 10000, 2, 10000)
+
+	traceSession := &mocks.TraceSessionStub{}
+	history := []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "m1"},
+		{Role: handmsg.RoleUser, Content: "m2"},
+		{Role: handmsg.RoleUser, Content: "m3"},
+	}
+	client := &mocks.ModelClientStub{
+		Responses: []*models.Response{
+			{OutputText: `{"session_summary":"recent","current_task":"t1","discoveries":["d1"],"open_questions":["q1"],"next_actions":["n1"]}`},
+			{OutputText: `{"session_summary":"middle","current_task":"t2","discoveries":["d2"],"open_questions":["q2"],"next_actions":["n2"]}`},
+			{OutputText: `{"session_summary":"older","current_task":"t3","discoveries":["d3"],"open_questions":["q3"],"next_actions":["n3"]}`},
+			{OutputText: `{"session_summary":"merge-one","current_task":"tm1","discoveries":["dm1"],"open_questions":["qm1"],"next_actions":["nm1"]}`},
+			{OutputText: `{"session_summary":"merge-two","current_task":"tm2","discoveries":["dm2"],"open_questions":["qm2"],"next_actions":["nm2"]}`},
+			{OutputText: `{"session_summary":"final","current_task":"tf","discoveries":["df"],"open_questions":["qf"],"next_actions":["nf"]}`},
+		},
+	}
+	svc := summaryTestService(summaryTestConfig(true), client, summaryTestStore(history))
+
+	out, err := svc.RecallSessionSummary(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
+	require.NoError(t, err)
+	require.Equal(t, "final", out.SessionSummary)
+	require.Len(t, client.Requests, 6)
+	require.Equal(t, 2, strings.Count(client.Requests[3].Messages[0].Content, "Recall Window Summary"))
+	require.Equal(t, 1, strings.Count(client.Requests[4].Messages[0].Content, "Recall Window Summary"))
+	require.Equal(t, 2, strings.Count(client.Requests[5].Messages[0].Content, "Recall Window Summary"))
+}
+
+func TestService_planRecallSummary_ErrorsWhenHistoryIsEmpty(t *testing.T) {
+	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, summaryTestStore(nil))
+
+	_, err := svc.planRecallSummary(context.Background(), storage.DefaultSessionID, &Memory{}, 0)
+	require.EqualError(t, err, "session history is too short to compact")
+}
+
+func TestService_planRecallSummary_ReturnsAlreadyCompleteSummaryWithoutWindows(t *testing.T) {
+	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, summaryTestStore(summaryTestHistory(3)))
+
+	plan, err := svc.planRecallSummary(context.Background(), storage.DefaultSessionID, &Memory{
+		Summary: &SummaryState{
+			SessionID:          storage.DefaultSessionID,
+			SourceEndOffset:    3,
+			SourceMessageCount: 3,
+			SessionSummary:     "done",
+		},
+	}, 3)
+	require.NoError(t, err)
+	require.Empty(t, plan.Windows)
+	require.Equal(t, 3, plan.TargetOffset)
+	require.Equal(t, 3, plan.TargetMessageCount)
+}
+
+func TestService_planRecallSummary_ErrorsWhenStartOffsetCoversHistoryButSummaryIsNotFullRecall(t *testing.T) {
+	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, summaryTestStore(summaryTestHistory(3)))
+
+	_, err := svc.planRecallSummary(context.Background(), storage.DefaultSessionID, &Memory{
+		Summary: &SummaryState{
+			SessionID:          storage.DefaultSessionID,
+			SourceEndOffset:    3,
+			SourceMessageCount: 2,
+			SessionSummary:     "partial",
+		},
+	}, 3)
+	require.EqualError(t, err, "session history is too short to compact")
+}
+
+func TestService_planRecallSummary_PropagatesWindowPlanningError(t *testing.T) {
+	store := summaryTestStore(summaryTestHistory(3))
+	store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+		return nil, errors.New("get messages failed")
+	}
+	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
+
+	_, err := svc.planRecallSummary(context.Background(), storage.DefaultSessionID, &Memory{}, 3)
+	require.EqualError(t, err, "get messages failed")
+}
+
+func TestService_planRecallWindows_Errors(t *testing.T) {
+	t.Run("invalid_range", func(t *testing.T) {
+		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, summaryTestStore(summaryTestHistory(2)))
+		_, err := svc.planRecallWindows(context.Background(), storage.DefaultSessionID, nil, 2, 2)
+		require.EqualError(t, err, "session history is too short to compact")
+	})
+
+	t.Run("store_error", func(t *testing.T) {
+		store := summaryTestStore(summaryTestHistory(2))
+		store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+			return nil, errors.New("get messages failed")
+		}
+		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
+		_, err := svc.planRecallWindows(context.Background(), storage.DefaultSessionID, nil, 0, 2)
+		require.EqualError(t, err, "get messages failed")
+	})
+
+	t.Run("empty_messages", func(t *testing.T) {
+		store := summaryTestStore(summaryTestHistory(2))
+		store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+			return nil, nil
+		}
+		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
+		_, err := svc.planRecallWindows(context.Background(), storage.DefaultSessionID, nil, 0, 2)
+		require.EqualError(t, err, "recall window messages are required")
+	})
+}
+
+func TestService_refreshRecallSummary_ZeroWindowPaths(t *testing.T) {
+	t.Run("returns_existing_full_recall_summary", func(t *testing.T) {
+		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, summaryTestStore(nil))
+		traceSession := &mocks.TraceSessionStub{}
+		mem := &Memory{Summary: &SummaryState{
+			SessionID:          storage.DefaultSessionID,
+			SourceEndOffset:    4,
+			SourceMessageCount: 4,
+			UpdatedAt:          time.Date(2026, 4, 21, 15, 0, 0, 0, time.UTC),
+			SessionSummary:     "existing",
+		}}
+
+		out, err := svc.refreshRecallSummary(context.Background(), mem, RefreshInput{
+			SessionID:    storage.DefaultSessionID,
+			TraceSession: traceSession,
+		}, recallPlan{
+			RequestedAt:        time.Date(2026, 4, 21, 15, 1, 0, 0, time.UTC),
+			TargetMessageCount: 4,
+			TargetOffset:       4,
+		})
+		require.NoError(t, err)
+		require.NotSame(t, mem.Summary, out)
+		require.Equal(t, "existing", out.SessionSummary)
+		requireSummaryEvent(t, traceSession.Events, trace.EvtRecallSummaryRequested)
+		requireSummaryEvent(t, traceSession.Events, trace.EvtRecallSummarySaved)
+	})
+
+	t.Run("errors_without_windows_or_full_summary", func(t *testing.T) {
+		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, summaryTestStore(nil))
+		traceSession := &mocks.TraceSessionStub{}
+
+		_, err := svc.refreshRecallSummary(context.Background(), &Memory{}, RefreshInput{
+			SessionID:    storage.DefaultSessionID,
+			TraceSession: traceSession,
+		}, recallPlan{
+			RequestedAt:        time.Date(2026, 4, 21, 15, 2, 0, 0, time.UTC),
+			TargetMessageCount: 4,
+			TargetOffset:       4,
+		})
+		require.EqualError(t, err, "recall windows are required")
+		requireSummaryEvent(t, traceSession.Events, trace.EvtRecallSummaryFailed)
+	})
+}
+
+func TestService_refreshRecallSummary_LeavesMemoryNilWhenInputMemoryIsNil(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{
+		Responses: []*models.Response{{OutputText: `{"session_summary":"final","current_task":"t","discoveries":["d"],"open_questions":["q"],"next_actions":["n"]}`}},
+	}
+	svc := summaryTestService(summaryTestConfig(true), client, summaryTestStore([]handmsg.Message{{Role: handmsg.RoleUser, Content: "m1"}}))
+
+	out, err := svc.refreshRecallSummary(context.Background(), nil, RefreshInput{
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	}, recallPlan{
+		RequestedAt:        time.Date(2026, 4, 21, 15, 3, 0, 0, time.UTC),
+		TargetMessageCount: 1,
+		TargetOffset:       1,
+		Windows:            []recallWindow{{StartOffset: 0, EndOffset: 1}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "final", out.SessionSummary)
+}
+
+func TestService_refreshRecallSummary_PropagatesSynthesisError(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{
+		Responses: []*models.Response{
+			{OutputText: `{"session_summary":"one","current_task":"t1","discoveries":["d1"],"open_questions":["q1"],"next_actions":["n1"]}`},
+			{OutputText: `{"session_summary":"two","current_task":"t2","discoveries":["d2"],"open_questions":["q2"],"next_actions":["n2"]}`},
+			{OutputText: "```"},
+		},
+	}
+	store := summaryTestStore([]handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "m1"},
+		{Role: handmsg.RoleUser, Content: "m2"},
+	})
+	svc := summaryTestService(summaryTestConfig(true), client, store)
+
+	_, err := svc.refreshRecallSummary(context.Background(), &Memory{}, RefreshInput{
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	}, recallPlan{
+		RequestedAt:        time.Date(2026, 4, 21, 15, 5, 0, 0, time.UTC),
+		TargetMessageCount: 2,
+		TargetOffset:       2,
+		Windows: []recallWindow{
+			{StartOffset: 1, EndOffset: 2},
+			{StartOffset: 0, EndOffset: 1},
+		},
+	})
+	require.EqualError(t, err, "summary response is empty")
+	requireSummaryEvent(t, traceSession.Events, trace.EvtRecallSummaryFailed)
+}
+
+func TestService_summarizeRecallWindow_Errors(t *testing.T) {
+	t.Run("store_error", func(t *testing.T) {
+		store := summaryTestStore(summaryTestHistory(1))
+		store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+			return nil, errors.New("get messages failed")
+		}
+		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
+		_, err := svc.summarizeRecallWindow(context.Background(), nil, storage.DefaultSessionID, recallPlan{}, recallWindow{StartOffset: 0, EndOffset: 1}, 1, 1)
+		require.EqualError(t, err, "get messages failed")
+	})
+
+	t.Run("empty_messages", func(t *testing.T) {
+		store := summaryTestStore(summaryTestHistory(1))
+		store.GetMessagesFunc = func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+			return nil, nil
+		}
+		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, store)
+		_, err := svc.summarizeRecallWindow(context.Background(), nil, storage.DefaultSessionID, recallPlan{}, recallWindow{StartOffset: 0, EndOffset: 1}, 1, 1)
+		require.EqualError(t, err, "recall window messages are required")
+	})
+}
+
+func TestService_summarizeOversizedRecallWindow_ErrorsWhenChunksAreEmpty(t *testing.T) {
+	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, summaryTestStore(nil))
+
+	_, err := svc.summarizeOversizedRecallWindow(context.Background(), nil, storage.DefaultSessionID, recallPlan{}, recallWindow{}, 1, 1, nil)
+	require.EqualError(t, err, "recall window chunks are required")
+}
+
+func TestService_summarizeOversizedRecallWindow_PropagatesChunkErrors(t *testing.T) {
+	t.Run("generate_summary_response", func(t *testing.T) {
+		setRecallLimitsForTest(t, 4, 120, 8, 10000)
+		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{Err: errors.New("chunk failed")}, summaryTestStore(nil))
+		_, err := svc.summarizeOversizedRecallWindow(context.Background(), nil, storage.DefaultSessionID, recallPlan{
+			RequestedAt:        time.Date(2026, 4, 21, 15, 6, 0, 0, time.UTC),
+			TargetMessageCount: 1,
+		}, recallWindow{EndOffset: 1}, 1, 1, []handmsg.Message{{
+			Role:    handmsg.RoleUser,
+			Content: strings.Repeat("oversized ", 120),
+		}})
+		require.EqualError(t, err, "chunk failed")
+	})
+
+	t.Run("parse_summary_response", func(t *testing.T) {
+		setRecallLimitsForTest(t, 4, 120, 8, 10000)
+		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{Responses: []*models.Response{
+			{OutputText: "```"},
+		}}, summaryTestStore(nil))
+		_, err := svc.summarizeOversizedRecallWindow(context.Background(), nil, storage.DefaultSessionID, recallPlan{
+			RequestedAt:        time.Date(2026, 4, 21, 15, 7, 0, 0, time.UTC),
+			TargetMessageCount: 1,
+		}, recallWindow{EndOffset: 1}, 1, 1, []handmsg.Message{{
+			Role:    handmsg.RoleUser,
+			Content: strings.Repeat("oversized ", 120),
+		}})
+		require.EqualError(t, err, "summary response is empty")
+	})
+}
+
+func TestService_synthesizeSummaryStates_ErrorsWhenSummariesAreEmpty(t *testing.T) {
+	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, summaryTestStore(nil))
+
+	_, err := svc.synthesizeSummaryStates(context.Background(), nil, storage.DefaultSessionID, 1, 1, time.Now().UTC(), nil, func(int, int) instruct.Instructions {
+		return recallSynthesisInstructions(nil, 1, 1)
+	})
+	require.EqualError(t, err, "recall chunk summaries are required")
+}
+
+func TestService_synthesizeSummaryStates_PropagatesErrors(t *testing.T) {
+	summaries := []*SummaryState{
+		{SessionID: storage.DefaultSessionID, SessionSummary: "one"},
+		{SessionID: storage.DefaultSessionID, SessionSummary: "two"},
+	}
+
+	t.Run("generate_summary_response", func(t *testing.T) {
+		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{Err: errors.New("merge failed")}, summaryTestStore(nil))
+		_, err := svc.synthesizeSummaryStates(context.Background(), nil, storage.DefaultSessionID, 2, 2, time.Now().UTC(), summaries, func(int, int) instruct.Instructions {
+			return recallSynthesisInstructions(nil, 1, 1)
+		})
+		require.EqualError(t, err, "merge failed")
+	})
+
+	t.Run("parse_summary_response", func(t *testing.T) {
+		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{Responses: []*models.Response{
+			{OutputText: "```"},
+		}}, summaryTestStore(nil))
+		_, err := svc.synthesizeSummaryStates(context.Background(), nil, storage.DefaultSessionID, 2, 2, time.Now().UTC(), summaries, func(int, int) instruct.Instructions {
+			return recallSynthesisInstructions(nil, 1, 1)
+		})
+		require.EqualError(t, err, "summary response is empty")
+	})
+}
+
+func TestPlanRecallSummaryBatches_RespectsMergeTokenBudget(t *testing.T) {
+	setRecallLimitsForTest(t, 4, 10000, 8, 120)
+
+	summaries := []*SummaryState{
+		{SessionID: storage.DefaultSessionID, SessionSummary: strings.Repeat("a", 200)},
+		{SessionID: storage.DefaultSessionID, SessionSummary: strings.Repeat("b", 200)},
+	}
+
+	batches := planRecallSummaryBatches(nil, summaries)
+	require.Len(t, batches, 2)
+	require.Len(t, batches[0], 1)
+	require.Len(t, batches[1], 1)
+}
+
+func TestRecallInstructionBuilders_IncludeExistingSummaryWhenPresent(t *testing.T) {
+	mem := &Memory{Summary: &SummaryState{
+		SessionID:      storage.DefaultSessionID,
+		SessionSummary: "Existing summary",
+		CurrentTask:    "Current task",
+	}}
+
+	require.Contains(t, recallChunkInstructions(mem, 1, 2).String(), "Existing summary")
+	require.Contains(t, recallSynthesisInstructions(mem, 1, 2).String(), "Existing summary")
+	require.Contains(t, recallChunkTextInstructions(mem, 1, 2, 1, 3).String(), "Existing summary")
+}
+
+func TestRecallInstructionBuilders_WorkWithoutExistingSummary(t *testing.T) {
+	require.Equal(t, instruct.BuildRecallSessionSummaryWindow(1, 2).String(), recallChunkInstructions(nil, 1, 2).String())
+	require.Equal(t, instruct.BuildRecallSessionSummarySynthesis(1, 2).String(), recallSynthesisInstructions(nil, 1, 2).String())
+	require.Equal(t, instruct.BuildRecallSessionSummaryChunk(1, 2, 1, 3).String(), recallChunkTextInstructions(nil, 1, 2, 1, 3).String())
+}
+
+func TestRenderRecallWindowPrompt(t *testing.T) {
+	require.Empty(t, renderRecallWindowPrompt(nil))
+
+	prompt := renderRecallWindowPrompt([]handmsg.Message{{
+		Role:       handmsg.RoleAssistant,
+		Name:       "assistant-name",
+		ToolCallID: "tool-call-id",
+		Content:    "assistant content",
+		ToolCalls: []handmsg.ToolCall{{
+			Name:  "search_files",
+			Input: `{"pattern":"needle"}`,
+		}},
+	}})
+	require.Contains(t, prompt, "Name: assistant-name")
+	require.Contains(t, prompt, "Tool Call ID: tool-call-id")
+	require.Contains(t, prompt, "assistant content")
+	require.Contains(t, prompt, "search_files")
+	require.Contains(t, prompt, `{"pattern":"needle"}`)
+}
+
+func TestSplitRecallWindowChunks(t *testing.T) {
+	require.Nil(t, splitRecallWindowChunks("   ", 10))
+	require.Equal(t, []string{"abc"}, splitRecallWindowChunks("abc", 0))
+	require.Equal(t, []string{"ab", "cd", "ef"}, splitRecallWindowChunks("abcdef", 2))
+	require.Nil(t, splitRecallWindowChunks("   ", 1))
+	require.Equal(t, []string{"a", "b"}, splitRecallWindowChunks("a   b", 1))
+}
+
+func TestParseSummaryResponse(t *testing.T) {
+	now := time.Date(2026, 4, 21, 15, 4, 0, 0, time.UTC)
+
+	t.Run("nil_response", func(t *testing.T) {
+		_, err := parseSummaryResponse(storage.DefaultSessionID, 1, 1, nil, now)
+		require.EqualError(t, err, "model response is required")
+	})
+
+	t.Run("tool_calls", func(t *testing.T) {
+		_, err := parseSummaryResponse(storage.DefaultSessionID, 1, 1, &models.Response{RequiresToolCalls: true}, now)
+		require.EqualError(t, err, "summary requested tool calls")
+	})
+
+	t.Run("empty_output", func(t *testing.T) {
+		_, err := parseSummaryResponse(storage.DefaultSessionID, 1, 1, &models.Response{OutputText: "   "}, now)
+		require.EqualError(t, err, "summary response is empty")
+	})
+
+	t.Run("fallback_success", func(t *testing.T) {
+		out, err := parseSummaryResponse(storage.DefaultSessionID, 1, 1, &models.Response{OutputText: "plain text summary"}, now)
+		require.NoError(t, err)
+		require.Equal(t, "plain text summary", out.SessionSummary)
+	})
+
+	t.Run("fallback_error", func(t *testing.T) {
+		_, err := parseSummaryResponse("", 1, 1, &models.Response{OutputText: "not json"}, now)
+		require.EqualError(t, err, "session summary is required")
+	})
+}
+
+func TestCloneSummaryHelpers(t *testing.T) {
+	require.Nil(t, cloneSummaryState(nil))
+	require.Nil(t, cloneSummaryStates(nil))
+
+	summary := &SummaryState{
+		SessionID:      storage.DefaultSessionID,
+		SessionSummary: "summary",
+		Discoveries:    []string{"d1"},
+	}
+	cloned := cloneSummaryState(summary)
+	require.NotSame(t, summary, cloned)
+	require.Equal(t, summary.SessionSummary, cloned.SessionSummary)
+
+	clonedList := cloneSummaryStates([]*SummaryState{summary})
+	require.Len(t, clonedList, 1)
+	require.NotSame(t, summary, clonedList[0])
 }
 
 func TestService_SummarizeSession_ValidatesPlannerOptions(t *testing.T) {
@@ -1479,6 +1995,27 @@ func summaryTestHistory(count int) []handmsg.Message {
 
 func summaryTestService(cfg *config.Config, client models.Client, store SummaryStore) *Service {
 	return NewService(cfg, client, nil, store)
+}
+
+func setRecallLimitsForTest(t *testing.T, windowMessages, windowTokens, mergeSummaries, mergeTokens int) {
+	t.Helper()
+
+	originalWindowMessages := maxRecallWindowMessages
+	originalWindowTokens := maxRecallWindowTokens
+	originalMergeSummaries := maxRecallMergeSummaries
+	originalMergeTokens := maxRecallMergeTokens
+
+	maxRecallWindowMessages = windowMessages
+	maxRecallWindowTokens = windowTokens
+	maxRecallMergeSummaries = mergeSummaries
+	maxRecallMergeTokens = mergeTokens
+
+	t.Cleanup(func() {
+		maxRecallWindowMessages = originalWindowMessages
+		maxRecallWindowTokens = originalWindowTokens
+		maxRecallMergeSummaries = originalMergeSummaries
+		maxRecallMergeTokens = originalMergeTokens
+	})
 }
 
 func summaryTestStore(history []handmsg.Message) *storagemock.SessionStore {

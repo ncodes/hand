@@ -549,7 +549,8 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 			return
 		}
 	case handtrace.EvtSummaryRequested, handtrace.EvtSummarySaved, handtrace.EvtSummaryFailed,
-		handtrace.EvtSummaryParseFailed, handtrace.EvtSummaryApplied:
+		handtrace.EvtSummaryParseFailed, handtrace.EvtSummaryApplied,
+		handtrace.EvtRecallSummaryRequested, handtrace.EvtRecallSummarySaved, handtrace.EvtRecallSummaryFailed:
 		var payload summaryEventPayload
 		if json.Unmarshal(event.Payload, &payload) == nil {
 			timelineEvent.SummaryEvent = &SummaryEventView{

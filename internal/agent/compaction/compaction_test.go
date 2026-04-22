@@ -14,6 +14,15 @@ func TestEstimateTextRough_ReturnsZeroWhenEmpty(t *testing.T) {
 	require.Zero(t, EstimateTextRough(""))
 }
 
+func TestEstimateCharsFromTokensRough_ReturnsZeroWhenNonPositive(t *testing.T) {
+	require.Zero(t, EstimateCharsFromTokensRough(0))
+	require.Zero(t, EstimateCharsFromTokensRough(-1))
+}
+
+func TestEstimateCharsFromTokensRough_UsesFourCharsPerToken(t *testing.T) {
+	require.Equal(t, 48, EstimateCharsFromTokensRough(12))
+}
+
 func TestEstimateRequestRough_IncludesInstructionsMessagesAndTools(t *testing.T) {
 	req := models.Request{
 		Instructions: "follow the instructions",

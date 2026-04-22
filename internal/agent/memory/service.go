@@ -46,7 +46,7 @@ type traceRecorder interface {
 }
 
 // NewService builds the memory service used for summary loading, automatic
-// compaction, persisted compaction, and transient summarization.
+// compaction, persisted compaction, and recall summarization.
 func NewService(cfg *config.Config, modelClient, summaryClient models.Client, summaryStore SummaryStore) *Service {
 	if summaryClient == nil {
 		summaryClient = modelClient

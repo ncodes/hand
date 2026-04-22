@@ -59,6 +59,14 @@ func EstimateTextRough(text string) int {
 	return len(text) / 4
 }
 
+func EstimateCharsFromTokensRough(tokens int) int {
+	if tokens <= 0 {
+		return 0
+	}
+
+	return tokens * 4
+}
+
 func EstimateRequestRough(req models.Request) int {
 	payload := struct {
 		Instructions string

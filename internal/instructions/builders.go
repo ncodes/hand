@@ -152,7 +152,8 @@ func BuildEnvironmentContext(ctx EnvironmentContext) Instruction {
 func BuildPlanningPolicy() Instruction {
 	return Instruction{
 		Name: PlanningPolicyInstructionName,
-		Value: `# Planning Policy
+		Value: `
+# Planning Policy
 
 Use plan_tool for tasks with 3 or more meaningful steps, multiple user asks in one request, or longer workflows involving several tool calls.
 Do not use plan_tool for trivial one-step work or direct factual answers.
@@ -174,12 +175,16 @@ func BuildSummary(iterationsLeft int) Instructions {
 }
 
 func BuildSessionSummary() Instructions {
-	return New(
-		"# Session Summary Task\n\nCreate a structured handoff summary of the provided chat history for another assistant that will continue the work.",
-		"Goal: Capture the current progress and important decisions made so far.",
-		"Context preservation: Preserve important context, hard constraints, user preferences, and any critical examples or references needed to continue without redoing work.",
-		"Remaining work: Make the remaining work explicit through unresolved questions and concrete next actions.",
-		`Output format:
+	return New(`
+# Session Summary Task
+
+Create a structured handoff summary of the provided chat history for another assistant that will continue the work.
+
+Goal: Capture the current progress and important decisions made so far.
+Context preservation: Preserve important context, hard constraints, user preferences, and any critical examples or references needed to continue without redoing work.
+Remaining work: Make the remaining work explicit through unresolved questions and concrete next actions.
+
+Output format:
 
 Return JSON only with this exact shape:
 {
@@ -188,13 +193,71 @@ Return JSON only with this exact shape:
   "discoveries": ["important discovery"],
   "open_questions": ["open question"],
   "next_actions": ["next action"]
-}`,
-		"Output rules: Do not include markdown fences or extra commentary.",
+}
+
+Output rules: Do not include markdown fences or extra commentary.`)
+}
+
+func BuildRecallSessionSummaryWindow(windowIndex, windowCount int) Instructions {
+	return New(
+		fmt.Sprintf(`
+# Recall Session Summary Window
+
+Summarize bounded recall window %d of %d from one session into the structured handoff format.`,
+			windowIndex,
+			windowCount,
+		),
+	).Append(
+		BuildSessionSummary()...,
+	).Append(
+		New(`
+Scope: Use only the messages in this recall window and any provided authoritative prior summary.
+Priority: Prefer the most recent concrete facts, decisions, constraints, unresolved questions, and next actions in this window.
+Do not add claims that are not supported by this recall window.`,
+		)...,
+	)
+}
+
+func BuildRecallSessionSummarySynthesis(batchIndex, batchCount int) Instructions {
+	return New(fmt.Sprintf(`
+# Recall Session Summary Synthesis
+
+Combine bounded recall summaries batch %d of %d into one structured handoff summary.`, batchIndex, batchCount),
+	).Append(
+		BuildSessionSummary()...,
+	).Append(
+		New(`
+Scope: Use only the provided recall window summaries and any provided authoritative prior summary.
+Priority: Prefer the most recent concrete facts, decisions, constraints, unresolved questions, and next actions when consolidating duplicates or conflicts.
+Do not add claims that are not supported by the recall window summaries.`,
+		)...,
+	)
+}
+
+func BuildRecallSessionSummaryChunk(windowIndex, windowCount, chunkIndex, chunkCount int) Instructions {
+	return New(fmt.Sprintf(`
+# Recall Session Summary Chunk
+
+Summarize chunk %d of %d from oversized recall window %d of %d into the structured handoff format.`,
+		chunkIndex,
+		chunkCount,
+		windowIndex,
+		windowCount,
+	),
+	).Append(
+		BuildSessionSummary()...,
+	).Append(
+		New(`
+Scope: Use only the provided recall chunk and any provided authoritative prior summary.
+Priority: Preserve concrete facts, decisions, constraints, unresolved questions, and next actions from this chunk.
+Do not add claims that are not supported by this recall chunk.`,
+		)...,
 	)
 }
 
 func BuildWebExtractSummary(maxSummaryChars int) string {
-	return fmt.Sprintf(`# Web Extract Summary
+	return fmt.Sprintf(`
+# Web Extract Summary
 
 Condense the extracted web page into markdown that is compact enough for agent context.
 Retain verifiable facts, dates, names, numbers, source details, decisions, and action items.
@@ -205,7 +268,8 @@ Keep the summary under %d characters.`, maxSummaryChars)
 }
 
 func BuildWebExtractChunkSummary(maxSummaryChars, chunkIndex, chunkCount int) string {
-	return fmt.Sprintf(`# Web Extract Chunk Summary
+	return fmt.Sprintf(`
+# Web Extract Chunk Summary
 
 Condense chunk %d of %d from an extracted web page.
 Retain verifiable facts, dates, names, numbers, source details, decisions, and action items from this chunk.
@@ -215,7 +279,8 @@ Keep the chunk summary under %d characters.`, chunkIndex, chunkCount, maxSummary
 }
 
 func BuildWebExtractSynthesis(maxSummaryChars int) string {
-	return fmt.Sprintf(`# Web Extract Summary Synthesis
+	return fmt.Sprintf(`
+# Web Extract Summary Synthesis
 
 Combine chunk summaries from one extracted web page into a single markdown summary for agent context.
 Remove repeated details while preserving verifiable facts, dates, names, numbers, source details, decisions, and action items.

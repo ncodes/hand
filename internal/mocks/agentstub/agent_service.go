@@ -69,7 +69,7 @@ func (s *AgentServiceStub) CurrentSession(context.Context) (string, error) {
 	return s.CurrentSessionID, s.Err
 }
 
-func (s *AgentServiceStub) SummarizeSession(context.Context, string) (storage.SessionSummary, error) {
+func (s *AgentServiceStub) RecallSessionSummary(context.Context, string) (storage.SessionSummary, error) {
 	return s.SummaryResult, s.Err
 }
 

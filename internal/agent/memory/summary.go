@@ -91,6 +91,23 @@ type refreshPlan struct {
 	TargetOffset       int
 }
 
+type recallPlan struct {
+	RequestedAt        time.Time
+	TargetMessageCount int
+	TargetOffset       int
+	Windows            []recallWindow
+}
+
+type recallWindow struct {
+	StartOffset int
+	EndOffset   int
+}
+
+var maxRecallWindowMessages = 64
+var maxRecallWindowTokens = 12000
+var maxRecallMergeSummaries = 8
+var maxRecallMergeTokens = 8000
+
 func SummaryFromStorage(summary storage.SessionSummary) *SummaryState {
 	if summary.SessionID == "" || summary.SessionSummary == "" {
 		return nil
@@ -117,6 +134,29 @@ func (s *Service) MaybeRefreshMemory(ctx context.Context, memory *Memory, input 
 	return s.refreshMemory(ctx, memory, input, false, refreshPlan{})
 }
 
+// refreshMemory runs the authoritative compaction flow for a session.
+//
+// In automatic mode it:
+//   - counts live messages
+//   - computes the retained-tail target
+//   - skips work when the evaluator does not trigger
+//   - transitions compaction state through pending/running/succeeded|failed
+//   - generates and persists a summary covering the target prefix
+//
+// In forced mode it skips the evaluator and uses the supplied plan.
+//
+// Diagram:
+//
+//	Example: 12 live messages, retained tail = 3
+//
+//	+---- summarized and persisted ----+--- kept live -------------+
+//	| m1 | m2 | m3 | m4 | m5 | m6 | m7 | m8 | m9 | m10 | m11 | m12 |
+//	+----------------------------------+---------------------------+
+//	^                                            ^                 ^
+//	offset 0                                     targetOffset=9    totalCount=12
+//
+//	state flow
+//	pending -> running -> refreshSummary(targetOffset) -> save summary -> succeeded
 func (s *Service) refreshMemory(
 	ctx context.Context,
 	memory *Memory,
@@ -290,9 +330,46 @@ func (s *Service) CompactSession(
 	return s.SummarizeSession(ctx, session, SummarizeSessionOptions{}, traceSession)
 }
 
-// TransientSummarizeSession generates a zero-tail summary for the session and
+// RecallSessionSummary generates a zero-tail summary for the session and
 // returns it without persisting summary or compaction state.
-func (s *Service) TransientSummarizeSession(
+//
+// It uses any existing authoritative summary as a starting point, plans bounded
+// recall windows over the unsummarized remainder, summarizes those windows, and
+// merges them into one recall result.
+//
+// Diagram:
+//
+//	Example: authoritative summary already covers m1..m4
+//
+//	already covered [0,4):
+//	+----+----+----+----+
+//	| m1 | m2 | m3 | m4 |
+//	+----+----+----+----+
+//
+//	recall target [4,12):
+//	+----+----+----+----+----+-----+-----+-----+
+//	| m5 | m6 | m7 | m8 | m9 | m10 | m11 | m12 |
+//	+----+----+----+----+----+-----+-----+-----+
+//
+//	planned newest-first windows:
+//	window 1 [8,12):
+//	+----+-----+-----+-----+
+//	| m9 | m10 | m11 | m12 |
+//	+----+-----+-----+-----+
+//
+//	window 2 [6,8):
+//	+----+----+
+//	| m7 | m8 |
+//	+----+----+
+//
+//	window 3 [4,6):
+//	+----+----+
+//	| m5 | m6 |
+//	+----+----+
+//
+//	then:
+//	window summaries -> merged recall summary
+func (s *Service) RecallSessionSummary(
 	ctx context.Context,
 	session storage.Session,
 	traceSession traceRecorder,
@@ -328,11 +405,7 @@ func (s *Service) TransientSummarizeSession(
 		return nil, err
 	}
 
-	retainedTailMessages := 0
-	plan, err := s.summarizeSessionPlan(totalCount, SummarizeSessionOptions{
-		Planner:              SessionSummaryPlannerRetainRecentTail,
-		RetainedTailMessages: &retainedTailMessages,
-	})
+	plan, err := s.planRecallSummary(ctx, session.ID, memory, totalCount)
 	if err != nil {
 		traceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(
 			session.ID,
@@ -342,11 +415,11 @@ func (s *Service) TransientSummarizeSession(
 		return nil, err
 	}
 
-	summary, err := s.refreshSummary(ctx, memory, RefreshInput{
+	summary, err := s.refreshRecallSummary(ctx, memory, RefreshInput{
 		LastPromptTokens: session.LastPromptTokens,
 		SessionID:        session.ID,
 		TraceSession:     traceSession,
-	}, plan, false)
+	}, plan)
 	if err != nil {
 		return nil, err
 	}
@@ -356,6 +429,9 @@ func (s *Service) TransientSummarizeSession(
 
 // SummarizeSession generates and persists the authoritative session summary
 // using the provided planner and retained-tail options.
+//
+// This is the configurable persisted-summary entry point. Unlike
+// RecallSessionSummary, it updates the stored summary and compaction state.
 func (s *Service) SummarizeSession(
 	ctx context.Context,
 	session storage.Session,
@@ -444,6 +520,842 @@ func (s *Service) summarizeSessionPlan(totalCount int, opts SummarizeSessionOpti
 	}
 }
 
+// planRecallSummary builds a recall-summary plan over the currently
+// unsummarized portion of the session.
+//
+// If the existing authoritative summary already covers the full live session,
+// it returns a plan with no windows so refreshRecallSummary can reuse that
+// summary without recomputing anything.
+//
+// Diagram:
+//
+//	Example A: work still remains
+//
+//	covered by existing summary [0,3):
+//	+----+----+----+
+//	| m1 | m2 | m3 |
+//	+----+----+----+
+//
+//	still needs recall planning [3,10):
+//	+----+----+----+----+----+----+-----+
+//	| m4 | m5 | m6 | m7 | m8 | m9 | m10 |
+//	+----+----+----+----+----+----+-----+
+//
+//	Example B: full existing summary can be reused
+//
+//	already fully covered [0,10):
+//	+----+----+----+----+----+----+----+----+----+-----+
+//	| m1 | m2 | m3 | m4 | m5 | m6 | m7 | m8 | m9 | m10 |
+//	+----+----+----+----+----+----+----+----+----+-----+
+//
+//	startOffset == totalCount == 10 -> no windows, reuse existing summary
+func (s *Service) planRecallSummary(
+	ctx context.Context,
+	sessionID string,
+	memory *Memory,
+	totalCount int) (recallPlan, error) {
+	if totalCount <= 0 {
+		return recallPlan{}, errors.New("session history is too short to compact")
+	}
+
+	startOffset := 0
+	if memory != nil && memory.Summary != nil && memory.Summary.SourceEndOffset > startOffset {
+		startOffset = memory.Summary.SourceEndOffset
+	}
+
+	if startOffset >= totalCount {
+		if memory != nil && memory.Summary != nil &&
+			memory.Summary.SourceEndOffset == totalCount &&
+			memory.Summary.SourceMessageCount == totalCount {
+			return recallPlan{
+				RequestedAt:        s.currentTime(),
+				TargetMessageCount: totalCount,
+				TargetOffset:       totalCount,
+			}, nil
+		}
+
+		return recallPlan{}, errors.New("session history is too short to compact")
+	}
+
+	windows, err := s.planRecallWindows(ctx, sessionID, memory, startOffset, totalCount)
+	if err != nil {
+		return recallPlan{}, err
+	}
+
+	return recallPlan{
+		RequestedAt:        s.currentTime(),
+		TargetMessageCount: totalCount,
+		TargetOffset:       totalCount,
+		Windows:            windows,
+	}, nil
+}
+
+// planRecallWindows partitions the unsummarized recall range into bounded
+// windows, planning from newest messages backward.
+//
+// Each window is constrained by:
+//   - maxRecallWindowMessages
+//   - maxRecallWindowTokens using rough prompt estimation
+//
+// The planner first takes the largest message-count candidate ending at the
+// current tail, then moves the left edge rightward until the token estimate
+// fits. That makes the window as recent and as large as possible under both
+// caps.
+//
+// Diagram:
+//
+//	Example: startOffset=2, currentEnd=10, maxRecallWindowMessages=4
+//
+//	already covered [0,2):
+//	+----+----+
+//	| m1 | m2 |
+//	+----+----+
+//
+//	still open [2,10):
+//	+----+----+----+----+----+----+----+-----+
+//	| m3 | m4 | m5 | m6 | m7 | m8 | m9 | m10 |
+//	+----+----+----+----+----+----+----+-----+
+//
+//	initial message-count candidate:
+//	candidate [6,10):
+//	+----+----+----+-----+
+//	| m7 | m8 | m9 | m10 |
+//	+----+----+----+-----+
+//
+//	if token estimate is too large, shrink from the left:
+//	accepted window [7,10):
+//	+----+----+-----+
+//	| m8 | m9 | m10 |
+//	+----+----+-----+
+//
+//	then emit [7,10) and continue planning [2,7)
+func (s *Service) planRecallWindows(
+	ctx context.Context,
+	sessionID string,
+	memory *Memory,
+	startOffset int,
+	targetOffset int,
+) ([]recallWindow, error) {
+	if targetOffset <= startOffset {
+		return nil, errors.New("session history is too short to compact")
+	}
+
+	baseInstructions := recallChunkInstructions(memory, 1, 1).String()
+	currentEnd := targetOffset
+	windows := make([]recallWindow, 0, max((targetOffset-startOffset+maxRecallWindowMessages-1)/maxRecallWindowMessages, 1))
+
+	c := 0
+	for currentEnd > startOffset {
+		c++
+		maxCount := min(maxRecallWindowMessages, currentEnd-startOffset)
+		candidateStart := max(currentEnd-maxCount, startOffset)
+		messages, err := s.store.GetMessages(ctx, sessionID, storage.MessageQueryOptions{
+			Offset: candidateStart,
+			Limit:  currentEnd - candidateStart,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if len(messages) == 0 {
+			return nil, errors.New("recall window messages are required")
+		}
+
+		windowStartIndex := len(messages) - 1
+		for idx := len(messages) - 2; idx >= 0; idx-- {
+			candidate := messages[idx:]
+			if estimateSummaryTokens(baseInstructions, candidate) > maxRecallWindowTokens {
+				break
+			}
+			windowStartIndex = idx
+		}
+
+		windowStart := candidateStart + windowStartIndex
+		windows = append(windows, recallWindow{
+			StartOffset: windowStart,
+			EndOffset:   currentEnd,
+		})
+		currentEnd = windowStart
+	}
+
+	return windows, nil
+}
+
+// refreshRecallSummary executes a recall-summary plan and returns a
+// non-persisted recall summary.
+//
+// It records recall-specific trace events, reuses a full existing summary when
+// the plan has no windows, summarizes each planned window otherwise, and then
+// synthesizes the intermediate results into one final summary.
+//
+// Diagram:
+//
+//	+-------------------- recall plan --------------------+
+//	| windows = [] and full summary still matches live    |
+//	+-----------------------------------------------------+
+//	                         |
+//	                         v
+//	              clone existing summary and return
+//
+//	+-------------------- recall plan --------------------+
+//	| windows = [w1, w2, w3]                              |
+//	+-----------------------------------------------------+
+//	                         |
+//	                         v
+//	     summarize w1 -> summarize w2 -> summarize w3 -> merge -> return
+func (s *Service) refreshRecallSummary(
+	ctx context.Context,
+	memory *Memory,
+	input RefreshInput,
+	plan recallPlan,
+) (*SummaryState, error) {
+	payload := summaryTracePayload(input.SessionID, plan.TargetOffset, plan.TargetMessageCount, plan.RequestedAt)
+	input.TraceSession.Record(trace.EvtRecallSummaryRequested, payload)
+
+	if len(plan.Windows) == 0 {
+		if memory != nil && memory.Summary != nil &&
+			memory.Summary.SourceEndOffset == plan.TargetOffset &&
+			memory.Summary.SourceMessageCount == plan.TargetMessageCount {
+			summary := cloneSummaryState(memory.Summary)
+			input.TraceSession.Record(trace.EvtRecallSummarySaved, summaryTracePayload(
+				summary.SessionID,
+				summary.SourceEndOffset,
+				summary.SourceMessageCount,
+				summary.UpdatedAt,
+			))
+			return summary, nil
+		}
+
+		err := errors.New("recall windows are required")
+		input.TraceSession.Record(trace.EvtRecallSummaryFailed, mergeSummaryTracePayload(payload,
+			map[string]any{"error": err.Error()}))
+		return nil, err
+	}
+
+	chunkSummaries := make([]*SummaryState, 0, len(plan.Windows))
+	for idx, window := range plan.Windows {
+		summary, err := s.summarizeRecallWindow(ctx, memory, input.SessionID, plan, window, idx+1, len(plan.Windows))
+		if err != nil {
+			input.TraceSession.Record(trace.EvtRecallSummaryFailed, mergeSummaryTracePayload(payload,
+				map[string]any{"error": err.Error()}))
+			return nil, err
+		}
+		chunkSummaries = append(chunkSummaries, summary)
+	}
+
+	finalSummary, err := s.synthesizeRecallSummaries(ctx, memory, input.SessionID, plan, chunkSummaries)
+	if err != nil {
+		input.TraceSession.Record(trace.EvtRecallSummaryFailed, mergeSummaryTracePayload(payload,
+			map[string]any{"error": err.Error()}))
+		return nil, err
+	}
+
+	if memory != nil {
+		memory.Summary = cloneSummaryState(finalSummary)
+	}
+
+	input.TraceSession.Record(trace.EvtRecallSummarySaved, summaryTracePayload(
+		finalSummary.SessionID,
+		finalSummary.SourceEndOffset,
+		finalSummary.SourceMessageCount,
+		finalSummary.UpdatedAt,
+	))
+
+	return finalSummary, nil
+}
+
+// summarizeRecallWindow summarizes one bounded recall window.
+//
+// If the structured message window still exceeds the recall token budget, it
+// falls back to summarizeOversizedRecallWindow, which renders the window to
+// text, chunks it, summarizes each chunk, and merges the chunk summaries back
+// into a single window summary.
+func (s *Service) summarizeRecallWindow(
+	ctx context.Context,
+	memory *Memory,
+	sessionID string,
+	plan recallPlan,
+	window recallWindow,
+	windowIndex int,
+	windowCount int,
+) (*SummaryState, error) {
+	messages, err := s.store.GetMessages(ctx, sessionID, storage.MessageQueryOptions{
+		Offset: window.StartOffset,
+		Limit:  window.EndOffset - window.StartOffset,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(messages) == 0 {
+		return nil, errors.New("recall window messages are required")
+	}
+
+	instructions := recallChunkInstructions(memory, windowIndex, windowCount).String()
+	if estimateSummaryTokens(instructions, messages) > maxRecallWindowTokens {
+		return s.summarizeOversizedRecallWindow(
+			ctx,
+			memory,
+			sessionID,
+			plan,
+			window,
+			windowIndex,
+			windowCount,
+			messages,
+		)
+	}
+
+	resp, err := s.generateSummaryResponse(ctx, models.Request{
+		Model:            s.summaryModel,
+		APIMode:          s.apiMode,
+		Instructions:     instructions,
+		Messages:         handmsg.CloneMessages(messages),
+		StructuredOutput: summaryStructuredOutput,
+		DebugRequests:    s.debugRequests,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return parseSummaryResponse(
+		sessionID,
+		window.EndOffset,
+		plan.TargetMessageCount,
+		resp,
+		plan.RequestedAt,
+	)
+}
+
+// summarizeOversizedRecallWindow handles the case where even a bounded recall
+// window is too large to summarize in one request.
+//
+// It renders the window to plain text, splits that text into deterministic
+// chunks, summarizes each chunk separately, and then synthesizes those chunk
+// summaries into one summary representing the original window.
+//
+// Diagram:
+//
+//	Example: one recall window contains 3 very large messages
+//
+//	oversized window [7,10):
+//	+-----------+-----------+------------+
+//	| m8 (huge) | m9 (huge) | m10 (huge) |
+//	+-----------+-----------+------------+
+//	                         |
+//	                         v
+//	            renderRecallWindowPrompt(messages)
+//	                         |
+//	                         v
+//	+--------- chunk 1 ---------+ +--------- chunk 2 ---------+ +--- chunk 3 ---+
+//	| first text slice          | | middle text slice         | | final slice   |
+//	+---------------------------+ +---------------------------+ +---------------+
+//	             |                             |                         |
+//	             v                             v                         v
+//	          sum 1                         sum 2                     sum 3
+//	             \                             |                         /
+//	              \                            |                        /
+//	               +------ synthesizeSummaryStates(...) ---------------+
+//	                                      |
+//	                                      v
+//	                            one summary for the window
+func (s *Service) summarizeOversizedRecallWindow(
+	ctx context.Context,
+	memory *Memory,
+	sessionID string,
+	plan recallPlan,
+	window recallWindow,
+	windowIndex int,
+	windowCount int,
+	messages []handmsg.Message,
+) (*SummaryState, error) {
+	chunks := splitRecallWindowChunks(renderRecallWindowPrompt(messages), maxRecallWindowChunkChars())
+	if len(chunks) == 0 {
+		return nil, errors.New("recall window chunks are required")
+	}
+
+	chunkSummaries := make([]*SummaryState, 0, len(chunks))
+	for idx, chunk := range chunks {
+		resp, err := s.generateSummaryResponse(ctx, models.Request{
+			Model:            s.summaryModel,
+			APIMode:          s.apiMode,
+			Instructions:     recallChunkTextInstructions(memory, windowIndex, windowCount, idx+1, len(chunks)).String(),
+			Messages:         []handmsg.Message{{Role: handmsg.RoleUser, Content: chunk}},
+			StructuredOutput: summaryStructuredOutput,
+			DebugRequests:    s.debugRequests,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		summary, err := parseSummaryResponse(
+			sessionID,
+			window.EndOffset,
+			plan.TargetMessageCount,
+			resp,
+			plan.RequestedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		chunkSummaries = append(chunkSummaries, summary)
+	}
+
+	return s.synthesizeSummaryStates(
+		ctx,
+		memory,
+		sessionID,
+		window.EndOffset,
+		plan.TargetMessageCount,
+		plan.RequestedAt,
+		chunkSummaries,
+		func(batchIndex int, batchCount int) instruct.Instructions {
+			return recallSynthesisInstructions(memory, batchIndex, batchCount)
+		},
+	)
+}
+
+// synthesizeRecallSummaries merges the per-window recall summaries into one
+// final recall summary that covers the full recall target range.
+func (s *Service) synthesizeRecallSummaries(
+	ctx context.Context,
+	memory *Memory,
+	sessionID string,
+	plan recallPlan,
+	summaries []*SummaryState,
+) (*SummaryState, error) {
+	return s.synthesizeSummaryStates(
+		ctx,
+		memory,
+		sessionID,
+		plan.TargetOffset,
+		plan.TargetMessageCount,
+		plan.RequestedAt,
+		summaries,
+		func(batchIndex int, batchCount int) instruct.Instructions {
+			return recallSynthesisInstructions(memory, batchIndex, batchCount)
+		},
+	)
+}
+
+// synthesizeSummaryStates reduces multiple intermediate summaries into one
+// summary by repeatedly batching and summarizing summary-of-summary payloads.
+//
+// This is shared by:
+//   - oversized recall-window chunk merging
+//   - multi-window recall summary merging
+//
+// Diagram:
+//
+//	Example: 5 summaries remain, maxRecallMergeSummaries = 3, but the token
+//	budget only allows 2 summaries in the first two merge requests.
+//
+//	batch 1:
+//	+----+----+
+//	| S1 | S2 |
+//	+----+----+
+//	   |
+//	   v
+//	  M1
+//
+//	batch 2:
+//	+----+----+
+//	| S3 | S4 |
+//	+----+----+
+//	   |
+//	   v
+//	  M2
+//
+//	batch 3:
+//	+----+
+//	| S5 |
+//	+----+
+//	   |
+//	   v
+//	  M3
+//
+//	second merge pass:
+//	now only 3 merged summaries remain, and they fit in one request:
+//
+//	+----+----+----+
+//	| M1 | M2 | M3 |
+//	+----+----+----+
+//	   |
+//	   v
+//	 FINAL
+func (s *Service) synthesizeSummaryStates(
+	ctx context.Context,
+	memory *Memory,
+	sessionID string,
+	sourceEndOffset int,
+	sourceMessageCount int,
+	requestedAt time.Time,
+	summaries []*SummaryState,
+	instructions func(batchIndex int, batchCount int) instruct.Instructions,
+) (*SummaryState, error) {
+	current := cloneSummaryStates(summaries)
+	if len(current) == 0 {
+		return nil, errors.New("recall chunk summaries are required")
+	}
+
+	for len(current) > 1 {
+		batches := planRecallSummaryBatches(memory, current)
+		next := make([]*SummaryState, 0, len(batches))
+		for idx, batch := range batches {
+			resp, err := s.generateSummaryResponse(ctx, models.Request{
+				Model:        s.summaryModel,
+				APIMode:      s.apiMode,
+				Instructions: instructions(idx+1, len(batches)).String(),
+				Messages: []handmsg.Message{
+					{Role: handmsg.RoleUser, Content: renderRecallSummaryBatch(batch)},
+				},
+				StructuredOutput: summaryStructuredOutput,
+				DebugRequests:    s.debugRequests,
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			summary, err := parseSummaryResponse(
+				sessionID,
+				sourceEndOffset,
+				sourceMessageCount,
+				resp,
+				requestedAt,
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			next = append(next, summary)
+		}
+		current = next
+	}
+
+	finalSummary := cloneSummaryState(current[0])
+	finalSummary.SourceEndOffset = sourceEndOffset
+	finalSummary.SourceMessageCount = sourceMessageCount
+	finalSummary.UpdatedAt = requestedAt
+	return finalSummary, nil
+}
+
+// planRecallSummaryBatches groups intermediate summaries into bounded merge
+// batches for synthesizeSummaryStates.
+//
+// Each batch is limited by:
+//   - maxRecallMergeSummaries
+//   - maxRecallMergeTokens using rough prompt estimation
+//
+// Diagram:
+//
+//	Example: 5 summaries remain, maxRecallMergeSummaries = 3, but the token
+//	budget only allows 2 summaries in the first two merge requests.
+//
+//	input summaries:
+//	+----+----+----+----+----+
+//	| S1 | S2 | S3 | S4 | S5 |
+//	+----+----+----+----+----+
+//
+//	first pass batching:
+//	+----+----+    +----+----+    +----+
+//	| S1 | S2 |    | S3 | S4 |    | S5 |
+//	+----+----+    +----+----+    +----+
+//
+//	output:
+//	[][]*SummaryState{
+//	  {S1, S2},
+//	  {S3, S4},
+//	  {S5},
+//	}
+func planRecallSummaryBatches(memory *Memory, summaries []*SummaryState) [][]*SummaryState {
+	batches := make([][]*SummaryState, 0, max((len(summaries)+maxRecallMergeSummaries-1)/maxRecallMergeSummaries, 1))
+	remaining := cloneSummaryStates(summaries)
+	instructions := recallSynthesisInstructions(memory, 1, 1).String()
+
+	for len(remaining) > 0 {
+		batchSize := 1
+		for batchSize < len(remaining) && batchSize < maxRecallMergeSummaries {
+			candidateSize := batchSize + 1
+			candidate := remaining[:candidateSize]
+			if estimateSummaryTokens(instructions, []handmsg.Message{{
+				Role:    handmsg.RoleUser,
+				Content: renderRecallSummaryBatch(candidate),
+			}}) > maxRecallMergeTokens {
+				break
+			}
+			batchSize = candidateSize
+		}
+
+		batches = append(batches, cloneSummaryStates(remaining[:batchSize]))
+		remaining = remaining[batchSize:]
+	}
+
+	return batches
+}
+
+func recallChunkInstructions(memory *Memory, windowIndex int, windowCount int) instruct.Instructions {
+	instructions := instruct.BuildRecallSessionSummaryWindow(windowIndex, windowCount)
+
+	if memory == nil {
+		return instructions
+	}
+
+	if summaryInstructions, ok := memory.RenderSummaryInstructions(); ok {
+		return instruct.New(summaryInstructions).Append(instructions...)
+	}
+
+	return instructions
+}
+
+func recallSynthesisInstructions(memory *Memory, batchIndex int, batchCount int) instruct.Instructions {
+	instructions := instruct.BuildRecallSessionSummarySynthesis(batchIndex, batchCount)
+
+	if memory == nil {
+		return instructions
+	}
+
+	if summaryInstructions, ok := memory.RenderSummaryInstructions(); ok {
+		return instruct.New(summaryInstructions).Append(instructions...)
+	}
+
+	return instructions
+}
+
+func recallChunkTextInstructions(
+	memory *Memory,
+	windowIndex int,
+	windowCount int,
+	chunkIndex int,
+	chunkCount int,
+) instruct.Instructions {
+	instructions := instruct.BuildRecallSessionSummaryChunk(windowIndex, windowCount, chunkIndex, chunkCount)
+
+	if memory == nil {
+		return instructions
+	}
+
+	if summaryInstructions, ok := memory.RenderSummaryInstructions(); ok {
+		return instruct.New(summaryInstructions).Append(instructions...)
+	}
+
+	return instructions
+}
+
+// renderRecallWindowPrompt converts structured messages into a plain-text
+// transcript block for oversized-window chunking.
+//
+// The output preserves role, optional name, optional tool call id, message
+// content, and tool-call details so the chunk summarizer still sees a readable
+// transcript after window rendering.
+//
+// Diagram:
+//
+//	Message 1
+//	Role: user
+//	Content:
+//	Find the earlier deployment note.
+//
+//	---
+//
+//	Message 2
+//	Role: assistant
+//	Name: planner
+//	Tool Calls:
+//	Name: search_files
+//	Input: {"query":"deployment note"}
+func renderRecallWindowPrompt(messages []handmsg.Message) string {
+	if len(messages) == 0 {
+		return ""
+	}
+
+	sections := make([]string, 0, len(messages))
+	for idx, message := range messages {
+		section := fmt.Sprintf("Message %d\nRole: %s", idx+1, message.Role)
+		if name := strings.TrimSpace(message.Name); name != "" {
+			section += "\nName: " + name
+		}
+		if toolCallID := strings.TrimSpace(message.ToolCallID); toolCallID != "" {
+			section += "\nTool Call ID: " + toolCallID
+		}
+		if content := strings.TrimSpace(message.Content); content != "" {
+			section += "\nContent:\n" + content
+		}
+		if len(message.ToolCalls) > 0 {
+			toolLines := make([]string, 0, len(message.ToolCalls))
+			for _, toolCall := range message.ToolCalls {
+				line := "Name: " + strings.TrimSpace(toolCall.Name)
+				if input := strings.TrimSpace(toolCall.Input); input != "" {
+					line += "\nInput: " + input
+				}
+				toolLines = append(toolLines, line)
+			}
+			section += "\nTool Calls:\n" + strings.Join(toolLines, "\n\n")
+		}
+		sections = append(sections, section)
+	}
+
+	return strings.Join(sections, "\n\n---\n\n")
+}
+
+// splitRecallWindowChunks splits rendered recall text into deterministic
+// character-bounded chunks.
+//
+// This is a fallback for windows that remain too large after message-window
+// planning. Chunking is done on rune boundaries so multi-byte characters are
+// not split mid-sequence.
+func splitRecallWindowChunks(content string, chunkChars int) []string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return nil
+	}
+
+	if chunkChars <= 0 {
+		return []string{content}
+	}
+
+	runes := []rune(content)
+	chunks := make([]string, 0, (len(runes)+chunkChars-1)/chunkChars)
+	for start := 0; start < len(runes); start += chunkChars {
+		end := min(start+chunkChars, len(runes))
+		chunk := strings.TrimSpace(string(runes[start:end]))
+		if chunk == "" {
+			continue
+		}
+		chunks = append(chunks, chunk)
+	}
+
+	return chunks
+}
+
+// maxRecallWindowChunkChars converts the recall token budget into a coarse
+// character budget for oversized-window chunking.
+//
+// The heuristic follows the shared rough estimate used elsewhere in compaction:
+// roughly 4 characters per token, with a minimum chunk size of 1 character.
+func maxRecallWindowChunkChars() int {
+	return max(compaction.EstimateCharsFromTokensRough(maxRecallWindowTokens), 1)
+}
+
+// renderRecallSummaryBatch serializes intermediate summaries into a single user
+// message so the model can synthesize them into a higher-level summary.
+func renderRecallSummaryBatch(summaries []*SummaryState) string {
+	sections := make([]string, 0, len(summaries)+1)
+	sections = append(sections, "Recall window summaries are ordered from most recent to oldest.")
+	for idx, summary := range summaries {
+		raw, _ := json.Marshal(summaryPayload{
+			SessionSummary: summary.SessionSummary,
+			CurrentTask:    summary.CurrentTask,
+			Discoveries:    summary.Discoveries,
+			OpenQuestions:  summary.OpenQuestions,
+			NextActions:    summary.NextActions,
+		})
+		sections = append(sections, fmt.Sprintf("Recall Window Summary %d:\n%s", idx+1, string(raw)))
+	}
+
+	return strings.Join(sections, "\n\n")
+}
+
+// parseSummaryResponse parses a model response into SummaryState, first using
+// the structured JSON path and then falling back to plain-text summary capture
+// when JSON parsing fails for non-empty output.
+func parseSummaryResponse(
+	sessionID string,
+	sourceEndOffset int,
+	sourceMessageCount int,
+	resp *models.Response,
+	requestedAt time.Time,
+) (*SummaryState, error) {
+	if resp == nil {
+		return nil, errors.New("model response is required")
+	}
+	if resp.RequiresToolCalls {
+		return nil, errors.New("summary requested tool calls")
+	}
+
+	summary, err := parseSummary(sessionID, sourceEndOffset, sourceMessageCount, resp.OutputText, requestedAt)
+	if err == nil {
+		return summary, nil
+	}
+	if errors.Is(err, errSummaryResponseEmpty) {
+		return nil, err
+	}
+
+	summary, fallbackErr := fallbackSummary(sessionID, sourceEndOffset, sourceMessageCount, resp.OutputText, requestedAt)
+	if fallbackErr != nil {
+		return nil, fallbackErr
+	}
+
+	return summary, nil
+}
+
+func estimateSummaryTokens(instructions string, messages []handmsg.Message) int {
+	return compaction.EstimateRequestRough(models.Request{
+		Instructions: instructions,
+		Messages:     messages,
+	})
+}
+
+func cloneSummaryState(summary *SummaryState) *SummaryState {
+	if summary == nil {
+		return nil
+	}
+
+	return SummaryFromStorage(storage.SessionSummary{
+		SessionID:          summary.SessionID,
+		SourceEndOffset:    summary.SourceEndOffset,
+		SourceMessageCount: summary.SourceMessageCount,
+		UpdatedAt:          summary.UpdatedAt,
+		SessionSummary:     summary.SessionSummary,
+		CurrentTask:        summary.CurrentTask,
+		Discoveries:        summary.Discoveries,
+		OpenQuestions:      summary.OpenQuestions,
+		NextActions:        summary.NextActions,
+	})
+}
+
+func cloneSummaryStates(summaries []*SummaryState) []*SummaryState {
+	if len(summaries) == 0 {
+		return nil
+	}
+
+	cloned := make([]*SummaryState, 0, len(summaries))
+	for _, summary := range summaries {
+		cloned = append(cloned, cloneSummaryState(summary))
+	}
+
+	return cloned
+}
+
+// refreshSummary generates the authoritative compaction summary for the target
+// prefix and optionally persists it.
+//
+// It:
+//   - gathers the unsummarized prefix between the existing summary end and the
+//     planned target offset
+//   - requests a structured summary from the model
+//   - falls back to plain text when structured parsing fails
+//   - persists the result when persist=true
+//   - updates memory.Summary
+//
+// Diagram:
+//
+//	Example: an older persisted summary already covers m1..m3
+//
+//	already in stored summary [0,3):
+//	+----+----+----+
+//	| m1 | m2 | m3 |
+//	+----+----+----+
+//
+//	fetched and summarized now [3,8):
+//	+----+----+----+----+----+
+//	| m4 | m5 | m6 | m7 | m8 |
+//	+----+----+----+----+----+
+//
+//	kept live outside the persisted summary target [8,10):
+//	+----+-----+
+//	| m9 | m10 |
+//	+----+-----+
+//
+//	refreshSummary fetches m4..m8, generates one summary covering m1..m8,
+//	and leaves m9..m10 outside the persisted summary target.
 func (s *Service) refreshSummary(
 	ctx context.Context,
 	memory *Memory,
@@ -596,6 +1508,11 @@ func (s *Service) refreshSummary(
 	return memory.Summary, nil
 }
 
+// generateSummaryResponse sends a summary request through the summary client.
+//
+// It first tries the structured-output form. If that request fails and the
+// caller asked for structured output, it retries once without the structured
+// schema so callers still have a plain-text fallback path.
 func (s *Service) generateSummaryResponse(ctx context.Context, request models.Request) (*models.Response, error) {
 	if s == nil || s.summaryClient == nil {
 		return nil, errors.New("model client is required")

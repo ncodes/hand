@@ -37,7 +37,7 @@ type ServiceAPI interface {
 	ListSessions(context.Context) ([]storage.Session, error)
 	UseSession(context.Context, string) error
 	CurrentSession(context.Context) (string, error)
-	SummarizeSession(context.Context, string) (storage.SessionSummary, error)
+	RecallSessionSummary(context.Context, string) (storage.SessionSummary, error)
 	CompactSession(context.Context, string) (CompactSessionResult, error)
 	ContextStatus(context.Context, string) (ContextStatus, error)
 }
@@ -81,13 +81,13 @@ var newEnvironment = func(ctx context.Context, cfg *config.Config) environment.E
 	return environment.NewEnvironment(ctx, cfg)
 }
 
-var runTransientSummarizeSession = func(
+var runRecallSessionSummary = func(
 	service *memory.Service,
 	ctx context.Context,
 	session storage.Session,
 	traceSession trace.Session,
 ) (*memory.SummaryState, error) {
-	return service.TransientSummarizeSession(ctx, session, traceSession)
+	return service.RecallSessionSummary(ctx, session, traceSession)
 }
 
 var newRecallSummaryCache = func() *pkgcache.Cache[string, storage.SessionSummary] {
@@ -371,8 +371,8 @@ func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionRe
 	}, nil
 }
 
-// SummarizeSession returns a transient session summary without persisting it.
-func (a *Agent) SummarizeSession(ctx context.Context, id string) (storage.SessionSummary, error) {
+// RecallSessionSummary returns a recall-specific session summary without persisting it.
+func (a *Agent) RecallSessionSummary(ctx context.Context, id string) (storage.SessionSummary, error) {
 	if a == nil {
 		return storage.SessionSummary{}, errors.New("agent is required")
 	}
@@ -411,7 +411,7 @@ func (a *Agent) SummarizeSession(ctx context.Context, id string) (storage.Sessio
 	defer traceSession.Close()
 
 	memoryService := memory.NewService(a.cfg, a.modelClient, a.summaryClient, a.sessionMgr)
-	summary, err := runTransientSummarizeSession(memoryService, ctx, session, traceSession)
+	summary, err := runRecallSessionSummary(memoryService, ctx, session, traceSession)
 	if err != nil {
 		return storage.SessionSummary{}, err
 	}

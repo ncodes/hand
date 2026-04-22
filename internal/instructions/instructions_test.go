@@ -256,15 +256,43 @@ func TestBuildSummary_OmitsBudgetWarningWhenNotLow(t *testing.T) {
 
 func TestBuildSessionSummary_ReturnsStructuredSummaryInstructions(t *testing.T) {
 	instructions := BuildSessionSummary()
-	require.Len(t, instructions, 6)
-	require.Equal(t, "# Session Summary Task\n\nCreate a structured handoff summary of the provided chat history for another assistant that will continue the work.", instructions[0].Value)
-	require.Equal(t, "Goal: Capture the current progress and important decisions made so far.", instructions[1].Value)
-	require.Equal(t, "Context preservation: Preserve important context, hard constraints, user preferences, and any critical examples or references needed to continue without redoing work.", instructions[2].Value)
-	require.Equal(t, "Remaining work: Make the remaining work explicit through unresolved questions and concrete next actions.", instructions[3].Value)
-	require.Contains(t, instructions[4].Value, "Output format:")
-	require.Contains(t, instructions[4].Value, `"session_summary": "required concise summary"`)
-	require.Contains(t, instructions[4].Value, `"next_actions": ["next action"]`)
-	require.Equal(t, "Output rules: Do not include markdown fences or extra commentary.", instructions[5].Value)
+	require.Len(t, instructions, 1)
+	require.Contains(t, instructions[0].Value, "# Session Summary Task")
+	require.Contains(t, instructions[0].Value, "Goal: Capture the current progress and important decisions made so far.")
+	require.Contains(t, instructions[0].Value, "Context preservation: Preserve important context")
+	require.Contains(t, instructions[0].Value, "Remaining work: Make the remaining work explicit")
+	require.Contains(t, instructions[0].Value, "Output format:")
+	require.Contains(t, instructions[0].Value, `"session_summary": "required concise summary"`)
+	require.Contains(t, instructions[0].Value, `"next_actions": ["next action"]`)
+	require.Contains(t, instructions[0].Value, "Output rules: Do not include markdown fences or extra commentary.")
+}
+
+func TestBuildRecallSessionSummaryWindow_ReturnsRecallWindowInstructions(t *testing.T) {
+	instructions := BuildRecallSessionSummaryWindow(2, 5)
+
+	require.Contains(t, instructions.String(), "# Recall Session Summary Window")
+	require.Contains(t, instructions.String(), "window 2 of 5")
+	require.Contains(t, instructions.String(), "Use only the messages in this recall window")
+	require.Contains(t, instructions.String(), "Do not add claims that are not supported by this recall window")
+}
+
+func TestBuildRecallSessionSummarySynthesis_ReturnsRecallSynthesisInstructions(t *testing.T) {
+	instructions := BuildRecallSessionSummarySynthesis(2, 3)
+
+	require.Contains(t, instructions.String(), "# Recall Session Summary Synthesis")
+	require.Contains(t, instructions.String(), "batch 2 of 3")
+	require.Contains(t, instructions.String(), "Use only the provided recall window summaries")
+	require.Contains(t, instructions.String(), "Do not add claims that are not supported by the recall window summaries")
+}
+
+func TestBuildRecallSessionSummaryChunk_ReturnsRecallChunkInstructions(t *testing.T) {
+	instructions := BuildRecallSessionSummaryChunk(2, 5, 3, 4)
+
+	require.Contains(t, instructions.String(), "# Recall Session Summary Chunk")
+	require.Contains(t, instructions.String(), "chunk 3 of 4")
+	require.Contains(t, instructions.String(), "window 2 of 5")
+	require.Contains(t, instructions.String(), "Use only the provided recall chunk")
+	require.Contains(t, instructions.String(), "Do not add claims that are not supported by this recall chunk")
 }
 
 func TestBuildWebExtractSummary_ReturnsSummaryInstructions(t *testing.T) {
