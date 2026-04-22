@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -341,6 +342,30 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	groups := tools.ListGroups()
 	require.Len(t, groups, 1)
 	require.Equal(t, "core", groups[0].Name)
+}
+
+func TestEnvironment_PrepareAppendsLoadedToolUsageInstructionsAfterBaseInstructions(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
+	env.SetSessionManager(&session.Manager{})
+
+	require.NoError(t, env.Prepare())
+
+	rendered := env.Instructions().String()
+	require.True(t, strings.Index(rendered, "Test Agent is the user's personal agent") < strings.Index(rendered, "# Session Search Guidance"))
+	require.Contains(t, rendered, "Use session_search when the user references prior work")
 }
 
 func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.T) {
@@ -737,21 +762,53 @@ func (failingGroupRegistry) Invoke(stdctx.Context, tools.Call) (tools.Result, er
 }
 
 func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
 	env.(*environment).tools = failingRegistry{err: errors.New("register failed")}
 	err := env.Prepare()
 	require.EqualError(t, err, "register failed")
-	require.Empty(t, env.Instructions())
+	require.Equal(t, append(
+		instruct.Instructions{instruct.BuildPlanningPolicy()},
+		instruct.BuildBase("Test Agent")...,
+	), env.Instructions())
 }
 
 func TestEnvironment_PrepareReturnsToolGroupRegistrationError(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
 	env.(*environment).tools = failingGroupRegistry{err: errors.New("group failed")}
 	err := env.Prepare()
 	require.EqualError(t, err, "group failed")
-	require.Empty(t, env.Instructions())
+	require.Equal(t, append(
+		instruct.Instructions{instruct.BuildPlanningPolicy()},
+		instruct.BuildBase("Test Agent")...,
+	), env.Instructions())
 }
 
 func TestEnvironment_PrepareToolsPreservesExistingRuntime(t *testing.T) {

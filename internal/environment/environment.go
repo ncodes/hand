@@ -146,10 +146,10 @@ func (e *environment) Prepare() error {
 
 	e.cfg.Normalize()
 
-	if err := e.prepareTools(); err != nil {
+	if err := e.prepareInstructions(); err != nil {
 		return err
 	}
-	return e.prepareInstructions()
+	return e.prepareTools()
 }
 
 func (e *environment) prepareTools() error {
@@ -229,6 +229,8 @@ func (e *environment) prepareTools() error {
 		if err := e.tools.Register(definition); err != nil {
 			return err
 		}
+
+		e.addInstruction(definition.UsageInstruction)
 	}
 
 	return nil
@@ -355,6 +357,10 @@ func (e *environment) commandPolicy() guardrails.CommandPolicy {
 }
 
 func (e *environment) addInstruction(instruction instructions.Instruction) {
+	if strings.TrimSpace(instruction.Value) == "" {
+		return
+	}
+
 	e.instructions = append(e.instructions, instruction)
 }
 

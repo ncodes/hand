@@ -241,6 +241,15 @@ func TestBuildPlanningPolicy_ReturnsNamedPlanningInstruction(t *testing.T) {
 	require.Contains(t, instruction.Value, "keep exactly one step in_progress")
 }
 
+func TestBuildSessionSearchGuidance_ReturnsNamedInstruction(t *testing.T) {
+	instruction := BuildSessionSearchGuidance()
+	require.Equal(t, SessionSearchInstructionName, instruction.Name)
+	require.Contains(t, instruction.Value, "# Session Search Guidance")
+	require.Contains(t, instruction.Value, "Use session_search when the user references prior work")
+	require.Contains(t, instruction.Value, "treat stable preferences or long-lived facts as durable memory rather than transcript history")
+	require.Contains(t, instruction.Value, "Reserve session_search for transcript recall")
+}
+
 func TestBuildSummary_IncludesBudgetWarningWhenLow(t *testing.T) {
 	require.Equal(t, Instructions{
 		{Value: "# Summary Fallback\n\nRemaining iteration budget: 2."},

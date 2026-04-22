@@ -3,6 +3,8 @@ package tools
 import (
 	"context"
 	"encoding/json"
+
+	"github.com/wandxy/hand/internal/instructions"
 )
 
 type Registry interface {
@@ -81,11 +83,12 @@ func (e Error) String() string {
 }
 
 type Definition struct {
-	Name        string
-	Description string
-	InputSchema map[string]any
-	Groups      []string
-	Requires    Capabilities
-	Platforms   []string
-	Handler     Handler
+	Name             string
+	Description      string
+	UsageInstruction instructions.Instruction
+	InputSchema      map[string]any
+	Groups           []string
+	Requires         Capabilities
+	Platforms        []string
+	Handler          Handler
 }

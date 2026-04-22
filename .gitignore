@@ -7,6 +7,7 @@ coverage.out
 config.yaml
 
 .idea/
+.vscode
 .vscode/*
 !.vscode/settings.json
 *.swp

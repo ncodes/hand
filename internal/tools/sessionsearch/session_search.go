@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	envtypes "github.com/wandxy/hand/internal/environment/types"
+	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
 )
@@ -20,10 +21,11 @@ type input struct {
 
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
-		Name:        "session_search",
-		Description: "Search prior messages in the current session or other sessions.",
-		Groups:      []string{"core"},
-		Requires:    tools.Capabilities{Memory: true},
+		Name:             "session_search",
+		Description:      "Search prior messages in the current session or other sessions.",
+		UsageInstruction: instructions.BuildSessionSearchGuidance(),
+		Groups:           []string{"core"},
+		Requires:         tools.Capabilities{Memory: true},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"session_id":  common.StringSchema("Optional session id. When omitted, search other sessions and exclude the current session."),
 			"query":       common.StringSchema("Search query for prior messages."),

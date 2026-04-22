@@ -555,7 +555,6 @@ func (t *Turn) buildRequestInstructions(
 
 	return instructions.String()
 }
-
 func (t *Turn) hydratePlanFromMessages(messages []handmsg.Message) bool {
 	if t == nil || t.env == nil {
 		return false

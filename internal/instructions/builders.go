@@ -9,6 +9,7 @@ import (
 const (
 	PlanningPolicyInstructionName     = "planning.policy"
 	EnvironmentContextInstructionName = "environment.context"
+	SessionSearchInstructionName      = "tool.session_search"
 )
 
 type EnvironmentContext struct {
@@ -160,6 +161,18 @@ Do not use plan_tool for trivial one-step work or direct factual answers.
 When using plan_tool, keep exactly one step in_progress while active work remains.
 Mark steps completed immediately when done.
 If a step becomes invalid or fails, cancel it and add a revised replacement step.`,
+	}
+}
+
+func BuildSessionSearchGuidance() Instruction {
+	return Instruction{
+		Name: SessionSearchInstructionName,
+		Value: `
+# Session Search Guidance
+
+Use session_search when the user references prior work, earlier attempts, previous sessions, or context that likely exists in older transcript history.
+Use session_search to recover task-specific transcript context such as prior decisions, explored approaches, unfinished work, or exact earlier statements.
+Do not treat session_search as long-term memory for stable user preferences or durable facts. Reserve session_search for transcript recall, and treat stable preferences or long-lived facts as durable memory rather than transcript history.`,
 	}
 }
 

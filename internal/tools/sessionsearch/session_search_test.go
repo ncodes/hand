@@ -9,9 +9,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	envtypes "github.com/wandxy/hand/internal/environment/types"
+	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/tools"
 	toolmocks "github.com/wandxy/hand/internal/tools/mocks"
 )
+
+func TestSessionSearch_DefinitionIncludesUsageInstruction(t *testing.T) {
+	definition := Definition(&toolmocks.Runtime{})
+
+	require.Equal(t, instructions.BuildSessionSearchGuidance(), definition.UsageInstruction)
+}
 
 func TestSessionSearch_ToolSearchesExplicitSession(t *testing.T) {
 	result, err := Definition(&toolmocks.Runtime{
