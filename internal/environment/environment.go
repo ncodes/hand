@@ -176,8 +176,8 @@ func (e *environment) prepareTools() error {
 		plan.Definition(e.runtime),
 		process.Definition(e.runtime),
 		runcommand.Definition(e.runtime),
-		sessionmessages.Definition(e.runtime),
 		sessionsearch.Definition(e.runtime),
+		sessionmessages.Definition(e.runtime),
 	}
 
 	webProvider, err := webprovider.NewProvider(e.cfg)

@@ -12,9 +12,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/environment/sessionmessages"
+	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/tools"
 	toolmocks "github.com/wandxy/hand/internal/tools/mocks"
 )
+
+func TestSessionMessages_DefinitionIncludesUsageInstruction(t *testing.T) {
+	definition := Definition(&toolmocks.Runtime{})
+
+	require.Equal(t, instructions.BuildSessionMessagesGuidance(), definition.UsageInstruction)
+}
 
 func TestSessionMessages_ToolFetchesByMessageIDs(t *testing.T) {
 	result, err := Definition(&toolmocks.Runtime{

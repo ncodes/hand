@@ -7,6 +7,7 @@ import (
 
 	"github.com/wandxy/hand/internal/environment/sessionmessages"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
+	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
 )
@@ -21,10 +22,11 @@ const (
 
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
-		Name:        "session_messages",
-		Description: "Fetch exact session transcript messages by message id, anchor window, or offset range.",
-		Groups:      []string{"core"},
-		Requires:    tools.Capabilities{Memory: true},
+		Name:             "session_messages",
+		Description:      "Fetch exact session transcript messages by message id, anchor window, or offset range.",
+		UsageInstruction: instructions.BuildSessionMessagesGuidance(),
+		Groups:           []string{"core"},
+		Requires:         tools.Capabilities{Memory: true},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"session_id": common.StringSchema("Optional session id. When omitted, read from the current session."),
 			"message_ids": map[string]any{

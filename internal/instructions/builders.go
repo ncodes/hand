@@ -10,6 +10,7 @@ const (
 	PlanningPolicyInstructionName     = "planning.policy"
 	EnvironmentContextInstructionName = "environment.context"
 	SessionSearchInstructionName      = "tool.session_search"
+	SessionMessagesInstructionName    = "tool.session_messages"
 )
 
 type EnvironmentContext struct {
@@ -173,6 +174,19 @@ func BuildSessionSearchGuidance() Instruction {
 Use session_search when the user references prior work, earlier attempts, previous sessions, or context that likely exists in older transcript history.
 Use session_search to recover task-specific transcript context such as prior decisions, explored approaches, unfinished work, or exact earlier statements.
 Do not treat session_search as long-term memory for stable user preferences or durable facts. Reserve session_search for transcript recall, and treat stable preferences or long-lived facts as durable memory rather than transcript history.`,
+	}
+}
+
+func BuildSessionMessagesGuidance() Instruction {
+	return Instruction{
+		Name: SessionMessagesInstructionName,
+		Value: `
+# Session Messages Guidance
+
+Use session_messages when you need exact stored transcript content or a small amount of nearby transcript context from a known session.
+Prefer session_search first for discovery across prior transcript history, then use session_messages to fetch the exact message text and neighboring context for the best hits.
+Use session_messages for bounded retrieval by message id, anchor window, or offset range when the relevant session or message is already known.
+Do not use session_messages as a substitute for transcript search, ranking, or unbounded transcript dumps.`,
 	}
 }
 
