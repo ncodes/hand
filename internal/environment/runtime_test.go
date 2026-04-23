@@ -276,6 +276,59 @@ func TestRuntime_GetSessionMessagesDelegatesToSessionManager(t *testing.T) {
 	require.Equal(t, []int{0, 1}, []int{response.Messages[0].Offset, response.Messages[1].Offset})
 }
 
+func TestRuntime_GetSessionMessagesSupportsCurrentSessionMessageIDLookup(t *testing.T) {
+	store := memory.NewSessionStore()
+	manager, err := session.NewManager(store, time.Minute, time.Hour)
+	require.NoError(t, err)
+	require.NoError(t, manager.Save(context.Background(), memory.Session{ID: runtimeSearchSessionID}))
+	require.NoError(t, manager.UseSession(context.Background(), runtimeSearchSessionID))
+	require.NoError(t, manager.AppendMessages(context.Background(), runtimeSearchSessionID, []messages.Message{
+		{ID: 2, Role: messages.RoleAssistant, Content: "beta", CreatedAt: time.Now().UTC()},
+		{ID: 4, Role: messages.RoleUser, Content: "delta", CreatedAt: time.Now().UTC().Add(time.Second)},
+	}))
+
+	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, manager)
+
+	response, err := runtime.GetSessionMessages(context.Background(), sessionmessages.SessionMessagesRequest{
+		MessageIDs: []uint{4, 2},
+	})
+	require.NoError(t, err)
+	require.Equal(t, runtimeSearchSessionID, response.SessionID)
+	require.Len(t, response.Messages, 2)
+	require.Equal(t, []uint{2, 4}, []uint{response.Messages[0].MessageID, response.Messages[1].MessageID})
+	require.Equal(t, []int{0, 1}, []int{response.Messages[0].Offset, response.Messages[1].Offset})
+}
+
+func TestRuntime_GetSessionMessagesSupportsAnchorWindowAndTruncation(t *testing.T) {
+	store := memory.NewSessionStore()
+	manager, err := session.NewManager(store, time.Minute, time.Hour)
+	require.NoError(t, err)
+	require.NoError(t, manager.Save(context.Background(), memory.Session{ID: runtimeSearchSessionID}))
+	require.NoError(t, manager.AppendMessages(context.Background(), runtimeSearchSessionID, []messages.Message{
+		{ID: 1, Role: messages.RoleUser, Content: "alpha", CreatedAt: time.Now().UTC()},
+		{ID: 2, Role: messages.RoleTool, Name: "process", Content: "process-running", ToolCallID: "call-1", CreatedAt: time.Now().UTC().Add(time.Second)},
+		{ID: 3, Role: messages.RoleAssistant, Content: "delta", CreatedAt: time.Now().UTC().Add(2 * time.Second)},
+	}))
+
+	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, manager)
+
+	response, err := runtime.GetSessionMessages(context.Background(), sessionmessages.SessionMessagesRequest{
+		SessionID:       runtimeSearchSessionID,
+		AnchorMessageID: 2,
+		Before:          1,
+		After:           1,
+		MaxChars:        4,
+	})
+	require.NoError(t, err)
+	require.True(t, response.Truncated)
+	require.Len(t, response.Messages, 3)
+	require.Equal(t, []uint{1, 2, 3}, []uint{response.Messages[0].MessageID, response.Messages[1].MessageID, response.Messages[2].MessageID})
+	require.Equal(t, []int{0, 1, 2}, []int{response.Messages[0].Offset, response.Messages[1].Offset, response.Messages[2].Offset})
+	require.Equal(t, "proc", response.Messages[1].Content)
+	require.True(t, response.Messages[1].Truncated)
+	require.Equal(t, "process", response.Messages[1].ToolName)
+}
+
 func TestRuntime_GetSessionMessagesHandlesNilReceiver(t *testing.T) {
 	var runtime *Runtime
 	offsetStart := 0

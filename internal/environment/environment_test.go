@@ -19,13 +19,19 @@ import (
 	"github.com/wandxy/hand/internal/datadir"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envplanstore "github.com/wandxy/hand/internal/environment/planstore"
+	envsessionmessages "github.com/wandxy/hand/internal/environment/sessionmessages"
+	envsessionsearch "github.com/wandxy/hand/internal/environment/sessionsearch"
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
+	"github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/personality"
 	"github.com/wandxy/hand/internal/session"
+	"github.com/wandxy/hand/internal/storage"
+	memorystore "github.com/wandxy/hand/internal/storage/memory"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/internal/workspace"
+	"github.com/wandxy/hand/pkg/nanoid"
 )
 
 func TestNewEnvironment_InitializesDependencies(t *testing.T) {
@@ -422,6 +428,92 @@ func TestEnvironment_PrepareRegistersSessionTools(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, definitions.Has("session_search"))
 	require.True(t, definitions.Has("session_messages"))
+}
+
+func TestEnvironment_SessionSearchThenSessionMessagesWorkflow(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
+	store := memorystore.NewSessionStore()
+	manager, err := session.NewManager(store, time.Minute, time.Hour)
+	require.NoError(t, err)
+
+	currentSessionID := nanoid.MustFromSeed(storage.SessionIDPrefix, "phase5-current", "EnvironmentPhase5TestSeed")
+	priorSessionID := nanoid.MustFromSeed(storage.SessionIDPrefix, "phase5-prior", "EnvironmentPhase5TestSeed")
+	require.NoError(t, manager.Save(gctx.Background(), memorystore.Session{ID: currentSessionID}))
+	require.NoError(t, manager.Save(gctx.Background(), memorystore.Session{ID: priorSessionID}))
+	require.NoError(t, manager.UseSession(gctx.Background(), currentSessionID))
+
+	now := time.Now().UTC()
+	require.NoError(t, manager.AppendMessages(gctx.Background(), currentSessionID, []messages.Message{
+		{ID: 1, Role: messages.RoleUser, Content: "current session needle context", CreatedAt: now},
+	}))
+	require.NoError(t, manager.AppendMessages(gctx.Background(), priorSessionID, []messages.Message{
+		{ID: 11, Role: messages.RoleUser, Content: "before context", CreatedAt: now.Add(time.Second)},
+		{ID: 12, Role: messages.RoleAssistant, Content: "needle exact details", CreatedAt: now.Add(2 * time.Second)},
+		{ID: 13, Role: messages.RoleAssistant, Content: "after context", CreatedAt: now.Add(3 * time.Second)},
+	}))
+
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
+	env.SetSessionManager(manager)
+	require.NoError(t, env.Prepare())
+
+	searchResult, err := env.Tools().Invoke(tools.WithSessionID(gctx.Background(), currentSessionID), tools.Call{
+		Name:  "session_search",
+		Input: `{"query":"needle"}`,
+	})
+	require.NoError(t, err)
+	require.Empty(t, searchResult.Error)
+
+	var searchPayload struct {
+		Results []envsessionsearch.SessionSearchResult `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(searchResult.Output), &searchPayload))
+	require.Len(t, searchPayload.Results, 1)
+	require.Equal(t, priorSessionID, searchPayload.Results[0].SessionID)
+	require.Len(t, searchPayload.Results[0].Messages, 1)
+	searchHit := searchPayload.Results[0].Messages[0]
+	require.Equal(t, uint(12), searchHit.MessageID)
+	require.Equal(t, "needle exact details", searchHit.Snippet)
+
+	fetchInput := `{"session_id":"` + priorSessionID + `","anchor_message_id":12,"before":1,"after":1}`
+	fetchResult, err := env.Tools().Invoke(gctx.Background(), tools.Call{
+		Name:  "session_messages",
+		Input: fetchInput,
+	})
+	require.NoError(t, err)
+	require.Empty(t, fetchResult.Error)
+
+	var fetchPayload envsessionmessages.SessionMessagesResponse
+	require.NoError(t, json.Unmarshal([]byte(fetchResult.Output), &fetchPayload))
+	require.Equal(t, priorSessionID, fetchPayload.SessionID)
+	require.False(t, fetchPayload.Truncated)
+	require.Len(t, fetchPayload.Messages, 3)
+	require.Equal(t, []uint{11, 12, 13}, []uint{
+		fetchPayload.Messages[0].MessageID,
+		fetchPayload.Messages[1].MessageID,
+		fetchPayload.Messages[2].MessageID,
+	})
+	require.Equal(t, []int{0, 1, 2}, []int{
+		fetchPayload.Messages[0].Offset,
+		fetchPayload.Messages[1].Offset,
+		fetchPayload.Messages[2].Offset,
+	})
+	require.Equal(t, []string{"before context", "needle exact details", "after context"}, []string{
+		fetchPayload.Messages[0].Content,
+		fetchPayload.Messages[1].Content,
+		fetchPayload.Messages[2].Content,
+	})
 }
 
 func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.T) {
