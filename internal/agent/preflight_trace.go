@@ -1,7 +1,7 @@
 package agent
 
 import (
-	"github.com/wandxy/hand/internal/agent/compaction"
+	"github.com/wandxy/hand/internal/agent/context/compaction"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/trace"

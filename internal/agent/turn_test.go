@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/agent/memory"
+	agentsummary "github.com/wandxy/hand/internal/agent/context/summary"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/environment"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
@@ -1113,8 +1113,8 @@ func TestTurn_RequestMessagesDefaultsBuilderWhenUnset(t *testing.T) {
 
 func TestTurn_RequestMessagesIncludesPersistedSummaryBeforeUnsummarizedHistory(t *testing.T) {
 	turn := &Turn{
-		memory: &memory.Memory{
-			Summary: &memory.SummaryState{
+		summary: &agentsummary.State{
+			Current: &agentsummary.SummaryState{
 				SessionID:          storage.DefaultSessionID,
 				SourceEndOffset:    1,
 				SourceMessageCount: 3,
@@ -1146,7 +1146,7 @@ func TestTurn_RequestInstructions_HandlesNilTurnAndAppendsExtra(t *testing.T) {
 
 	turn = &Turn{
 		instructions: instructions.New("base"),
-		memory:       &memory.Memory{},
+		summary:      &agentsummary.State{},
 	}
 	rendered := turn.buildRequestInstructions(nil, instructions.New("extra"))
 	require.True(t, strings.Index(rendered, "base") < strings.Index(rendered, "# Environment Context"))
@@ -1222,8 +1222,8 @@ func TestTurn_RequestInstructions_OrderPlanningPolicyPlanSummaryAndRequestInstru
 				},
 			},
 		},
-		memory: &memory.Memory{
-			Summary: &memory.SummaryState{
+		summary: &agentsummary.State{
+			Current: &agentsummary.SummaryState{
 				SessionID:       storage.DefaultSessionID,
 				SessionSummary:  "Older context",
 				CurrentTask:     "Finish feature",
@@ -1248,8 +1248,8 @@ func TestTurn_RequestInstructions_OrderPlanningPolicyPlanSummaryAndRequestInstru
 
 func TestTurn_TrimSessionHistoryToSummary_TrimsRelativeToLoadedOffset(t *testing.T) {
 	turn := &Turn{
-		memory: &memory.Memory{
-			Summary: &memory.SummaryState{SourceEndOffset: 5},
+		summary: &agentsummary.State{
+			Current: &agentsummary.SummaryState{SourceEndOffset: 5},
 		},
 		sessionHistory: []handmsg.Message{
 			{Role: handmsg.RoleUser, Content: "m3"},
@@ -1270,8 +1270,8 @@ func TestTurn_TrimSessionHistoryToSummary_TrimsRelativeToLoadedOffset(t *testing
 
 func TestTurn_TrimSessionHistoryToSummary_NoopsWhenSummaryDoesNotAdvanceOffset(t *testing.T) {
 	turn := &Turn{
-		memory: &memory.Memory{
-			Summary: &memory.SummaryState{SourceEndOffset: 2},
+		summary: &agentsummary.State{
+			Current: &agentsummary.SummaryState{SourceEndOffset: 2},
 		},
 		sessionHistory: []handmsg.Message{
 			{Role: handmsg.RoleUser, Content: "m2"},
@@ -1291,8 +1291,8 @@ func TestTurn_TrimSessionHistoryToSummary_NoopsWhenSummaryDoesNotAdvanceOffset(t
 
 func TestTurn_TrimSessionHistoryToSummary_ClearsHistoryWhenSummaryConsumesAllLoadedMessages(t *testing.T) {
 	turn := &Turn{
-		memory: &memory.Memory{
-			Summary: &memory.SummaryState{SourceEndOffset: 5},
+		summary: &agentsummary.State{
+			Current: &agentsummary.SummaryState{SourceEndOffset: 5},
 		},
 		sessionHistory: []handmsg.Message{
 			{Role: handmsg.RoleUser, Content: "m2"},
@@ -1323,10 +1323,10 @@ func TestTurn_LoadLoadsPersistedSummary(t *testing.T) {
 
 	err = turn.load(context.Background(), RespondOptions{})
 	require.NoError(t, err)
-	require.NotNil(t, turn.memory)
-	require.NotNil(t, turn.memory.Summary)
-	require.Equal(t, "Older work", turn.memory.Summary.SessionSummary)
-	require.Equal(t, "Finish phase 3", turn.memory.Summary.CurrentTask)
+	require.NotNil(t, turn.summary)
+	require.NotNil(t, turn.summary.Current)
+	require.Equal(t, "Older work", turn.summary.Current.SessionSummary)
+	require.Equal(t, "Finish phase 3", turn.summary.Current.CurrentTask)
 }
 
 func TestTurn_LoadLoadsOnlyUnsummarizedTailWhenSummaryExists(t *testing.T) {

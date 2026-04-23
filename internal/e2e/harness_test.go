@@ -455,6 +455,14 @@ func TestStorageStoreStub_NoOpMethods(t *testing.T) {
 	assert.False(t, found)
 	assert.Equal(t, handmsg.Message{}, message)
 
+	records, err := store.GetMessagesByIDs(context.Background(), "ses_test", []uint{1})
+	require.NoError(t, err)
+	assert.Nil(t, records)
+
+	records, err = store.GetMessageWindow(context.Background(), "ses_test", 1, 1, 1)
+	require.NoError(t, err)
+	assert.Nil(t, records)
+
 	require.NoError(t, store.SaveSummary(context.Background(), storage.SessionSummary{}))
 
 	summary, summaryFound, err := store.GetSummary(context.Background(), "ses_test")

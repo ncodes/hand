@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	memory "github.com/wandxy/hand/internal/agent/memory"
+	agentsummary "github.com/wandxy/hand/internal/agent/context/summary"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/environment"
 	handmsg "github.com/wandxy/hand/internal/messages"
@@ -82,11 +82,11 @@ var newEnvironment = func(ctx context.Context, cfg *config.Config) environment.E
 }
 
 var runRecallSessionSummary = func(
-	service *memory.Service,
+	service *agentsummary.Service,
 	ctx context.Context,
 	session storage.Session,
 	traceSession trace.Session,
-) (*memory.SummaryState, error) {
+) (*agentsummary.SummaryState, error) {
 	return service.RecallSessionSummary(ctx, session, traceSession)
 }
 
@@ -356,7 +356,7 @@ func (a *Agent) CurrentSession(ctx context.Context) (string, error) {
 }
 
 func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionResult, error) {
-	summary, session, err := a.summarizeSession(ctx, id, memory.SummarizeSessionOptions{})
+	summary, session, err := a.summarizeSession(ctx, id, agentsummary.SummarizeSessionOptions{})
 	if err != nil {
 		return CompactSessionResult{}, err
 	}
@@ -410,8 +410,8 @@ func (a *Agent) RecallSessionSummary(ctx context.Context, id string) (storage.Se
 	}
 	defer traceSession.Close()
 
-	memoryService := memory.NewService(a.cfg, a.modelClient, a.summaryClient, a.sessionMgr)
-	summary, err := runRecallSessionSummary(memoryService, ctx, session, traceSession)
+	summaryService := agentsummary.NewService(a.cfg, a.modelClient, a.summaryClient, a.sessionMgr)
+	summary, err := runRecallSessionSummary(summaryService, ctx, session, traceSession)
 	if err != nil {
 		return storage.SessionSummary{}, err
 	}
@@ -439,7 +439,7 @@ func (a *Agent) RecallSessionSummary(ctx context.Context, id string) (storage.Se
 func (a *Agent) summarizeSession(
 	ctx context.Context,
 	id string,
-	opts memory.SummarizeSessionOptions,
+	opts agentsummary.SummarizeSessionOptions,
 ) (storage.SessionSummary, storage.Session, error) {
 	if a == nil {
 		return storage.SessionSummary{}, storage.Session{}, errors.New("agent is required")
@@ -467,11 +467,11 @@ func (a *Agent) summarizeSession(
 	}
 	defer traceSession.Close()
 
-	memoryService := memory.NewService(a.cfg, a.modelClient, a.summaryClient, a.sessionMgr)
-	summary, err := memoryService.SummarizeSession(
+	summaryService := agentsummary.NewService(a.cfg, a.modelClient, a.summaryClient, a.sessionMgr)
+	summary, err := summaryService.SummarizeSession(
 		normalizeContext(ctx),
 		session,
-		memory.SummarizeSessionOptions(opts),
+		agentsummary.SummarizeSessionOptions(opts),
 		traceSession,
 	)
 	if err != nil {

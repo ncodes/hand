@@ -1,11 +1,11 @@
-package memory
+package summary
 
 import (
 	"context"
 	"errors"
 	"time"
 
-	"github.com/wandxy/hand/internal/agent/compaction"
+	"github.com/wandxy/hand/internal/agent/context/compaction"
 	"github.com/wandxy/hand/internal/config"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
@@ -45,7 +45,7 @@ type traceRecorder interface {
 	Record(string, any)
 }
 
-// NewService builds the memory service used for summary loading, automatic
+// NewService builds the summary service used for summary loading, automatic
 // compaction, persisted compaction, and recall summarization.
 func NewService(cfg *config.Config, modelClient, summaryClient models.Client, summaryStore SummaryStore) *Service {
 	if summaryClient == nil {
@@ -68,7 +68,7 @@ func NewService(cfg *config.Config, modelClient, summaryClient models.Client, su
 		service.debugRequests = cfg.DebugRequests
 	}
 
-	logEvent := memLog.Debug().
+	logEvent := summaryLog.Debug().
 		Str("model", service.model).
 		Str("summary_model", service.summaryModel).
 		Bool("compaction_enabled", service.compactionOn)
@@ -81,16 +81,16 @@ func NewService(cfg *config.Config, modelClient, summaryClient models.Client, su
 		logEvent = logEvent.Str("summary_api_mode", cfg.SummaryModelAPIModeEffective())
 	}
 
-	logEvent.Msg("memory service initialized")
+	logEvent.Msg("summary service initialized")
 
 	return service
 }
 
-// Load returns the current memory view for a session from persisted summary
+// Load returns the current summary view for a session from persisted summary
 // state without reading the live session transcript.
-func (s *Service) Load(ctx context.Context, sessionID string) (*Memory, error) {
+func (s *Service) Load(ctx context.Context, sessionID string) (*State, error) {
 	if s == nil {
-		return nil, errors.New("memory service is required")
+		return nil, errors.New("summary service is required")
 	}
 
 	if s.store == nil {
@@ -102,15 +102,15 @@ func (s *Service) Load(ctx context.Context, sessionID string) (*Memory, error) {
 		return nil, err
 	}
 
-	mem := &Memory{Summary: SummaryFromStorage(summary)}
+	state := &State{Current: SummaryFromStorage(summary)}
 
-	if mem.Summary != nil {
-		memLog.Debug().Str("session_id", sessionID).
-			Int("source_end_offset", mem.Summary.SourceEndOffset).
-			Msg("memory loaded with existing summary")
+	if state.Current != nil {
+		summaryLog.Debug().Str("session_id", sessionID).
+			Int("source_end_offset", state.Current.SourceEndOffset).
+			Msg("summary loaded with existing summary")
 	} else {
-		memLog.Debug().Str("session_id", sessionID).Msg("memory loaded")
+		summaryLog.Debug().Str("session_id", sessionID).Msg("summary loaded")
 	}
 
-	return mem, nil
+	return state, nil
 }

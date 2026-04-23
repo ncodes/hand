@@ -1,4 +1,4 @@
-package memory
+package summary
 
 import (
 	"testing"
@@ -27,14 +27,14 @@ func TestNewService_LogsWhenSummaryProviderAndAPIModeDifferFromMain(t *testing.T
 	require.NotNil(t, svc)
 }
 
-func TestMemory_SummaryToStorage_ReturnsZeroValueWithoutSummary(t *testing.T) {
-	require.Equal(t, storage.SessionSummary{}, (*Memory)(nil).SummaryToStorage())
-	require.Equal(t, storage.SessionSummary{}, (&Memory{}).SummaryToStorage())
+func TestState_Summary_ReturnsZeroValueWithoutCurrentSummary(t *testing.T) {
+	require.Equal(t, storage.SessionSummary{}, (*State)(nil).Summary())
+	require.Equal(t, storage.SessionSummary{}, (&State{}).Summary())
 }
 
-func TestMemory_SummaryToStorage_ClonesSummary(t *testing.T) {
-	mem := &Memory{
-		Summary: &SummaryState{
+func TestState_Summary_ClonesCurrentSummary(t *testing.T) {
+	state := &State{
+		Current: &SummaryState{
 			SessionID:          "ses_test",
 			SourceEndOffset:    2,
 			SourceMessageCount: 5,
@@ -47,17 +47,17 @@ func TestMemory_SummaryToStorage_ClonesSummary(t *testing.T) {
 		},
 	}
 
-	stored := mem.SummaryToStorage()
+	stored := state.Summary()
 	require.Equal(t, "ses_test", stored.SessionID)
 	require.Equal(t, "Older work", stored.SessionSummary)
 
-	mem.Summary.Discoveries[0] = "changed"
+	state.Current.Discoveries[0] = "changed"
 	require.Equal(t, "one", stored.Discoveries[0])
 }
 
-func TestMemory_RenderSummaryInstructions(t *testing.T) {
-	mem := &Memory{
-		Summary: &SummaryState{
+func TestState_RenderSummaryInstructions(t *testing.T) {
+	state := &State{
+		Current: &SummaryState{
 			SessionSummary: "Older work",
 			CurrentTask:    "Fix tests",
 			Discoveries:    []string{"one"},
@@ -66,7 +66,7 @@ func TestMemory_RenderSummaryInstructions(t *testing.T) {
 		},
 	}
 
-	message, ok := mem.RenderSummaryInstructions()
+	message, ok := state.RenderSummaryInstructions()
 	require.True(t, ok)
 	require.Contains(t, message, "# Session Summary\n\nOlder work")
 	require.Contains(t, message, "# Current Task\n\nFix tests")
@@ -75,27 +75,27 @@ func TestMemory_RenderSummaryInstructions(t *testing.T) {
 	require.Contains(t, message, "# Next Actions\n\n- three")
 }
 
-func TestMemory_RenderSummaryInstructions_ReturnsFalseWhenUnavailable(t *testing.T) {
-	message, ok := (*Memory)(nil).RenderSummaryInstructions()
+func TestState_RenderSummaryInstructions_ReturnsFalseWhenUnavailable(t *testing.T) {
+	message, ok := (*State)(nil).RenderSummaryInstructions()
 	require.False(t, ok)
 	require.Empty(t, message)
 
-	message, ok = (&Memory{}).RenderSummaryInstructions()
+	message, ok = (&State{}).RenderSummaryInstructions()
 	require.False(t, ok)
 	require.Empty(t, message)
 
-	message, ok = (&Memory{Summary: &SummaryState{SessionSummary: "   "}}).RenderSummaryInstructions()
+	message, ok = (&State{Current: &SummaryState{SessionSummary: "   "}}).RenderSummaryInstructions()
 	require.False(t, ok)
 	require.Empty(t, message)
 }
 
-func TestMemory_Recall(t *testing.T) {
+func TestState_Recall(t *testing.T) {
 	history := []handmsg.Message{
 		{Role: handmsg.RoleUser, Content: "old"},
 		{Role: handmsg.RoleAssistant, Content: "recent"},
 	}
 
-	recall := (&Memory{Summary: &SummaryState{
+	recall := (&State{Current: &SummaryState{
 		SourceEndOffset: 1,
 		SessionSummary:  "Older work",
 	}}).Recall(history)
@@ -104,14 +104,14 @@ func TestMemory_Recall(t *testing.T) {
 	require.Equal(t, history, recall.SessionHistory)
 }
 
-func TestMemory_Recall_DefaultsForNilAndPreservesHistoryWithSummary(t *testing.T) {
+func TestState_Recall_DefaultsForNilAndPreservesHistoryWithSummary(t *testing.T) {
 	history := []handmsg.Message{{Role: handmsg.RoleUser, Content: "history"}}
 
-	recall := (*Memory)(nil).Recall(history)
+	recall := (*State)(nil).Recall(history)
 	require.Empty(t, recall.PrefixMessages)
 	require.Equal(t, history, recall.SessionHistory)
 
-	recall = (&Memory{Summary: &SummaryState{SourceEndOffset: 99, SessionSummary: "Older work"}}).Recall(history)
+	recall = (&State{Current: &SummaryState{SourceEndOffset: 99, SessionSummary: "Older work"}}).Recall(history)
 	require.Empty(t, recall.PrefixMessages)
 	require.Equal(t, history, recall.SessionHistory)
 }

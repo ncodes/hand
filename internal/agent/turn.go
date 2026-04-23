@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wandxy/hand/internal/agent/compaction"
 	ctxbuilder "github.com/wandxy/hand/internal/agent/context"
-	agentmemory "github.com/wandxy/hand/internal/agent/memory"
+	"github.com/wandxy/hand/internal/agent/context/compaction"
+	agentsummary "github.com/wandxy/hand/internal/agent/context/summary"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/environment"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
@@ -37,8 +37,8 @@ type Turn struct {
 	summaryClient models.Client
 	// sessionManager resolves sessions and persists turn messages.
 	sessionManager *sessionstore.Manager
-	// memoryService loads and refreshes persisted memory state for the turn.
-	memoryService *agentmemory.Service
+	// summaryService loads and refreshes persisted summary state for the turn.
+	summaryService *agentsummary.Service
 	// invokeToolFn performs tool execution for requested tool calls.
 	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message
 	// env supplies tools, instructions, tracing, and iteration budget.
@@ -51,8 +51,8 @@ type Turn struct {
 	sessionHistory []handmsg.Message
 	// emittedMessages contains messages produced during the current turn.
 	emittedMessages []handmsg.Message
-	// memory contains persisted memory state used in active context assembly.
-	memory *agentmemory.Memory
+	// summary contains persisted summary state used in active context assembly.
+	summary *agentsummary.State
 	// sessionHistoryOffset is the absolute persisted offset represented by sessionHistory[0].
 	sessionHistoryOffset int
 	// sessionID identifies the session being read from and written to.
@@ -109,8 +109,8 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 		return errors.New("session manager is required")
 	}
 
-	if t.memoryService == nil {
-		t.memoryService = agentmemory.NewService(t.cfg, t.modelClient, t.summaryClient, t.sessionManager)
+	if t.summaryService == nil {
+		t.summaryService = agentsummary.NewService(t.cfg, t.modelClient, t.summaryClient, t.sessionManager)
 	}
 
 	session, err := t.sessionManager.Resolve(ctx, opts.SessionID)
@@ -118,14 +118,14 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 		return err
 	}
 
-	memory, err := t.memoryService.Load(ctx, session.ID)
+	summary, err := t.summaryService.Load(ctx, session.ID)
 	if err != nil {
 		return err
 	}
 
 	tailOffset := 0
-	if memory != nil && memory.Summary != nil {
-		tailOffset = max(memory.Summary.SourceEndOffset, 0)
+	if summary != nil && summary.Current != nil {
+		tailOffset = max(summary.Current.SourceEndOffset, 0)
 	}
 
 	messages, err := t.sessionManager.GetMessages(ctx, session.ID, storage.MessageQueryOptions{Offset: tailOffset})
@@ -136,7 +136,7 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 	t.instructions = t.env.Instructions()
 	t.sessionHistory = messages
 	t.emittedMessages = nil
-	t.memory = memory
+	t.summary = summary
 	t.sessionHistoryOffset = tailOffset
 	t.sessionID = session.ID
 	t.lastPromptTokens = session.LastPromptTokens
@@ -229,7 +229,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 		if !t.summaryRefreshAttempted {
 			t.summaryRefreshAttempted = true
-			_ = t.memoryService.MaybeRefreshMemory(ctx, t.memory, agentmemory.RefreshInput{
+			_ = t.summaryService.MaybeRefreshSummary(ctx, t.summary, agentsummary.RefreshInput{
 				LastPromptTokens: t.lastPromptTokens,
 				Request:          request,
 				SessionID:        t.sessionID,
@@ -245,7 +245,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		request.Messages = t.Context()
 
 		// Record trace events
-		t.memory.RecordSummaryApplied(traceSession)
+		t.summary.RecordSummaryApplied(traceSession)
 		recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
 		traceSession.Record(trace.EvtModelRequest, request)
 
@@ -381,11 +381,11 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 }
 
 func (t *Turn) trimSessionHistoryToSummary() {
-	if t == nil || t.memory == nil || t.memory.Summary == nil {
+	if t == nil || t.summary == nil || t.summary.Current == nil {
 		return
 	}
 
-	targetOffset := max(t.memory.Summary.SourceEndOffset, 0)
+	targetOffset := max(t.summary.Current.SourceEndOffset, 0)
 	if targetOffset <= t.sessionHistoryOffset {
 		return
 	}
@@ -457,7 +457,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 	}
 
 	traceSession.Record(trace.EvtSummaryFallbackStarted, map[string]any{"remaining_iterations": budget.Remaining()})
-	t.memory.RecordSummaryApplied(traceSession)
+	t.summary.RecordSummaryApplied(traceSession)
 	recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
 	traceSession.Record(trace.EvtModelRequest, request)
 
@@ -504,7 +504,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 
 // buildRequestInstructions assembles the system prompt sent to the model in this order:
 // planning policy, hydrated active plan context, remaining base instructions, optional
-// persisted memory summary, optional environment context, optional request-scoped
+// persisted summary instructions, optional environment context, optional request-scoped
 // instruction, then any extra blocks.
 func (t *Turn) buildRequestInstructions(
 	activeToolDefinitions []models.ToolDefinition,
@@ -516,7 +516,7 @@ func (t *Turn) buildRequestInstructions(
 
 	instructions := t.instructions
 
-	// Hold request-scoped guidance aside so it can be appended after memory summary.
+	// Hold request-scoped guidance aside so it can be appended after the summary.
 	requestInstruction, hasRequestInstruction := instructions.GetByName(requestInstructionName)
 	if hasRequestInstruction {
 		instructions = instructions.WithoutName(requestInstructionName)
@@ -533,9 +533,9 @@ func (t *Turn) buildRequestInstructions(
 		}
 	}
 
-	// Add persisted memory summary after base instructions and plan context.
-	if t.memory != nil {
-		if summaryInstructions, ok := t.memory.RenderSummaryInstructions(); ok {
+	// Add persisted summary instructions after base instructions and plan context.
+	if t.summary != nil {
+		if summaryInstructions, ok := t.summary.RenderSummaryInstructions(); ok {
 			instructions = instructions.Append(instruct.Instruction{Value: summaryInstructions})
 		}
 	}
@@ -711,7 +711,7 @@ func (t *Turn) Context() []handmsg.Message {
 		builder = ctxbuilder.New()
 	}
 
-	recall := t.memory.Recall(t.sessionHistory)
+	recall := t.summary.Recall(t.sessionHistory)
 
 	return builder.Build(ctxbuilder.Input{
 		PrefixMessages:  recall.PrefixMessages,

@@ -64,6 +64,12 @@ func (s *storageStoreStub) CountMessages(context.Context, string, storage.Messag
 func (s *storageStoreStub) GetMessage(context.Context, string, int, storage.MessageQueryOptions) (handmsg.Message, bool, error) {
 	return handmsg.Message{}, false, nil
 }
+func (s *storageStoreStub) GetMessagesByIDs(context.Context, string, []uint) ([]storage.MessageRecord, error) {
+	return nil, nil
+}
+func (s *storageStoreStub) GetMessageWindow(context.Context, string, uint, int, int) ([]storage.MessageRecord, error) {
+	return nil, nil
+}
 func (s *storageStoreStub) SaveSummary(context.Context, storage.SessionSummary) error { return nil }
 func (s *storageStoreStub) GetSummary(context.Context, string) (storage.SessionSummary, bool, error) {
 	return storage.SessionSummary{}, false, nil

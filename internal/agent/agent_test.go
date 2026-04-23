@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	memory "github.com/wandxy/hand/internal/agent/memory"
+	agentsummary "github.com/wandxy/hand/internal/agent/context/summary"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/environment"
 	handmsg "github.com/wandxy/hand/internal/messages"
@@ -821,11 +821,11 @@ func TestAgent_RecallSessionSummary_returnsNilSummaryError(t *testing.T) {
 	})
 
 	runRecallSessionSummary = func(
-		_ *memory.Service,
+		_ *agentsummary.Service,
 		_ context.Context,
 		_ storage.Session,
 		_ trace.Session,
-	) (*memory.SummaryState, error) {
+	) (*agentsummary.SummaryState, error) {
 		return nil, nil
 	}
 
@@ -849,11 +849,11 @@ func TestAgent_RecallSessionSummary_returnsRecallSummaryError(t *testing.T) {
 	})
 
 	runRecallSessionSummary = func(
-		_ *memory.Service,
+		_ *agentsummary.Service,
 		_ context.Context,
 		_ storage.Session,
 		_ trace.Session,
-	) (*memory.SummaryState, error) {
+	) (*agentsummary.SummaryState, error) {
 		return nil, errors.New("recall summary failed")
 	}
 
@@ -942,7 +942,7 @@ func TestAgent_CompactSession_returnsResolveError(t *testing.T) {
 	require.EqualError(t, err, "store get failed")
 }
 
-func TestAgent_CompactSession_returnsMemoryErrorWhenHistoryTooShort(t *testing.T) {
+func TestAgent_CompactSession_returnsSummaryErrorWhenHistoryTooShort(t *testing.T) {
 	a := newSessionOpsAgent(t, &config.Config{
 		Name:          "Test Agent",
 		Model:         "test-model",

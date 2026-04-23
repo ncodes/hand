@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/agent/memory"
+	agentsummary "github.com/wandxy/hand/internal/agent/context/summary"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/mocks"
@@ -61,7 +61,7 @@ func TestTurn_RequestInstructionsWithTools_AppendsEnvironmentContextBeforeExtras
 		},
 		sessionID:    "ses_123",
 		instructions: instructions.New("base"),
-		memory:       &memory.Memory{},
+		summary:      &agentsummary.State{},
 	}
 
 	rendered := turn.buildRequestInstructions(
@@ -125,7 +125,7 @@ func TestTurn_RequestInstructionsWithTools_OmitsMatchingSummaryModelAndProvider(
 			ToolRegistry: tools.NewInMemoryRegistry(),
 		},
 		instructions: instructions.New("base"),
-		memory:       &memory.Memory{},
+		summary:      &agentsummary.State{},
 	}
 
 	rendered := turn.buildRequestInstructions(nil)
