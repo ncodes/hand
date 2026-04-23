@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/wandxy/hand/internal/instructions"
 )
@@ -12,9 +13,9 @@ type Registry interface {
 	RegisterGroup(Group) error
 	Get(string) (Definition, bool)
 	GetGroup(string) (Group, bool)
-	List() []Definition
+	List() Definitions
 	ListGroups() []Group
-	Resolve(Policy) ([]Definition, error)
+	Resolve(Policy) (Definitions, error)
 	Invoke(context.Context, Call) (Result, error)
 }
 
@@ -91,4 +92,47 @@ type Definition struct {
 	Requires         Capabilities
 	Platforms        []string
 	Handler          Handler
+}
+
+type Definitions []Definition
+
+func (d Definitions) Has(name string) bool {
+	_, ok := d.Get(name)
+	return ok
+}
+
+func (d Definitions) Get(name string) (Definition, bool) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Definition{}, false
+	}
+
+	for _, def := range d {
+		if def.Name == name {
+			return def, true
+		}
+	}
+
+	return Definition{}, false
+}
+
+func (d Definitions) Names() []string {
+	if len(d) == 0 {
+		return nil
+	}
+
+	names := make([]string, 0, len(d))
+	for _, def := range d {
+		if strings.TrimSpace(def.Name) == "" {
+			continue
+		}
+
+		names = append(names, def.Name)
+	}
+
+	if len(names) == 0 {
+		return nil
+	}
+
+	return names
 }

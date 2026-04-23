@@ -122,7 +122,7 @@ func TestNativeToolDefinitions_AdvertiseArgumentDescriptions(t *testing.T) {
 	root := t.TempDir()
 	runtime := nativemocks.NewRuntime(root, guardrails.CommandPolicy{})
 
-	definitions := []tools.Definition{
+	definitions := tools.Definitions{
 		timetool.Definition(),
 		listfiles.Definition(runtime),
 		readfile.Definition(runtime),

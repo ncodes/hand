@@ -100,7 +100,7 @@ func (r *InMemoryRegistry) GetGroup(name string) (Group, bool) {
 	return group, ok
 }
 
-func (r *InMemoryRegistry) List() []Definition {
+func (r *InMemoryRegistry) List() Definitions {
 	if r == nil {
 		return nil
 	}
@@ -108,7 +108,7 @@ func (r *InMemoryRegistry) List() []Definition {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	definitions := make([]Definition, 0, len(r.definitions))
+	definitions := make(Definitions, 0, len(r.definitions))
 	for _, def := range r.definitions {
 		definitions = append(definitions, def)
 	}
@@ -140,7 +140,7 @@ func (r *InMemoryRegistry) ListGroups() []Group {
 	return groups
 }
 
-func (r *InMemoryRegistry) Resolve(opts Policy) ([]Definition, error) {
+func (r *InMemoryRegistry) Resolve(opts Policy) (Definitions, error) {
 	if r == nil {
 		return nil, errors.New("tool registry is required")
 	}
@@ -160,7 +160,7 @@ func (r *InMemoryRegistry) Resolve(opts Policy) ([]Definition, error) {
 		}
 	}
 
-	definitions := make([]Definition, 0, len(selected))
+	definitions := make(Definitions, 0, len(selected))
 	for _, def := range selected {
 		definitions = append(definitions, def)
 	}
@@ -233,8 +233,8 @@ func (r *InMemoryRegistry) resolveGroup(
 	return nil
 }
 
-func sortedDefinitions(definitions map[string]Definition) []Definition {
-	list := make([]Definition, 0, len(definitions))
+func sortedDefinitions(definitions map[string]Definition) Definitions {
+	list := make(Definitions, 0, len(definitions))
 	for _, def := range definitions {
 		list = append(list, def)
 	}
@@ -244,8 +244,8 @@ func sortedDefinitions(definitions map[string]Definition) []Definition {
 	return list
 }
 
-func filterDefinitions(definitions []Definition, opts Policy) []Definition {
-	filtered := make([]Definition, 0, len(definitions))
+func filterDefinitions(definitions Definitions, opts Policy) Definitions {
+	filtered := make(Definitions, 0, len(definitions))
 	platform := strings.TrimSpace(opts.Platform)
 	for _, def := range definitions {
 		if !opts.Capabilities.Supports(def.Requires) {

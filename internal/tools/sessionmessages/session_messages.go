@@ -1,0 +1,99 @@
+package sessionmessages
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/wandxy/hand/internal/environment/sessionmessages"
+	envtypes "github.com/wandxy/hand/internal/environment/types"
+	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/hand/internal/tools/common"
+)
+
+const (
+	maxMessageIDs       = 50
+	maxAnchorWindowSize = 20
+	maxOffsetRangeSize  = 50
+	defaultMaxChars     = 4000
+	maxMaxChars         = 16000
+)
+
+func Definition(runtime envtypes.Runtime) tools.Definition {
+	return tools.Definition{
+		Name:        "session_messages",
+		Description: "Fetch exact session transcript messages by message id, anchor window, or offset range.",
+		Groups:      []string{"core"},
+		Requires:    tools.Capabilities{Memory: true},
+		InputSchema: common.ObjectSchema(map[string]any{
+			"session_id": common.StringSchema("Optional session id. When omitted, read from the current session."),
+			"message_ids": map[string]any{
+				"type":        "array",
+				"description": "Optional message ids to fetch directly in transcript order.",
+				"items":       map[string]any{"type": "integer"},
+			},
+			"anchor_message_id": common.IntegerSchema("Optional anchor message id for centered context retrieval."),
+			"offset_start":      common.IntegerSchema("Optional inclusive start offset for range retrieval."),
+			"offset_end":        common.IntegerSchema("Optional exclusive end offset for range retrieval."),
+			"before":            common.IntegerSchema("Optional number of earlier messages to include around an anchor."),
+			"after":             common.IntegerSchema("Optional number of later messages to include around an anchor."),
+			"max_chars":         common.IntegerSchema("Optional maximum characters to return per message or tool-call input."),
+		}),
+		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
+			var req sessionmessages.SessionMessagesRequest
+			if result := common.DecodeInput(call, &req); result.Error != "" {
+				return result, nil
+			}
+			if runtime == nil {
+				return common.ToolError("tool_error", "session messages is not configured"), nil
+			}
+			if err := req.Validate(); err != nil {
+				return common.ToolError("invalid_input", err.Error()), nil
+			}
+			req, err := normalizeRequest(req)
+			if err != nil {
+				return common.ToolError("invalid_input", err.Error()), nil
+			}
+
+			response, err := runtime.GetSessionMessages(ctx, req)
+			if err != nil {
+				return common.ToolError("tool_error", err.Error()), nil
+			}
+
+			return common.EncodeOutput(response)
+		}),
+	}
+}
+
+func normalizeRequest(req sessionmessages.SessionMessagesRequest) (sessionmessages.SessionMessagesRequest, error) {
+	selector, err := req.Selector()
+	if err != nil {
+		return req, err
+	}
+
+	if req.MaxChars <= 0 {
+		req.MaxChars = defaultMaxChars
+	} else if req.MaxChars > maxMaxChars {
+		req.MaxChars = maxMaxChars
+	}
+
+	switch selector {
+	case sessionmessages.SessionMessagesSelectorMessageIDs:
+		if len(req.MessageIDs) > maxMessageIDs {
+			return req, errors.New("message_ids must contain at most 50 ids")
+		}
+	case sessionmessages.SessionMessagesSelectorAnchor:
+		if req.Before > maxAnchorWindowSize {
+			return req, fmt.Errorf("before must be less than or equal to %d", maxAnchorWindowSize)
+		}
+		if req.After > maxAnchorWindowSize {
+			return req, fmt.Errorf("after must be less than or equal to %d", maxAnchorWindowSize)
+		}
+	case sessionmessages.SessionMessagesSelectorOffsetRange:
+		if req.OffsetStart != nil && req.OffsetEnd != nil && *req.OffsetEnd-*req.OffsetStart > maxOffsetRangeSize {
+			return req, fmt.Errorf("offset range must include at most %d messages", maxOffsetRangeSize)
+		}
+	}
+
+	return req, nil
+}

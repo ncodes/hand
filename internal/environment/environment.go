@@ -24,6 +24,7 @@ import (
 	"github.com/wandxy/hand/internal/tools/readfile"
 	"github.com/wandxy/hand/internal/tools/runcommand"
 	"github.com/wandxy/hand/internal/tools/searchfiles"
+	"github.com/wandxy/hand/internal/tools/sessionmessages"
 	"github.com/wandxy/hand/internal/tools/sessionsearch"
 	"github.com/wandxy/hand/internal/tools/time"
 	"github.com/wandxy/hand/internal/tools/webextract"
@@ -84,9 +85,9 @@ type environment struct {
 
 type ToolRegistry interface {
 	GetGroup(string) (tools.Group, bool)
-	List() []tools.Definition
+	List() tools.Definitions
 	ListGroups() []tools.Group
-	Resolve(tools.Policy) ([]tools.Definition, error)
+	Resolve(tools.Policy) (tools.Definitions, error)
 	Invoke(context.Context, tools.Call) (tools.Result, error)
 }
 
@@ -153,6 +154,10 @@ func (e *environment) Prepare() error {
 }
 
 func (e *environment) prepareTools() error {
+	if e.sessionMgr == nil {
+		return errors.New("session manager is required")
+	}
+
 	if e.runtime == nil {
 		e.runtime = NewRuntime(e.fileRoots(), e.commandPolicy(), e.sessionMgr)
 	}
@@ -161,7 +166,7 @@ func (e *environment) prepareTools() error {
 		return err
 	}
 
-	definitions := []tools.Definition{
+	definitions := tools.Definitions{
 		time.Definition(),
 		listfiles.Definition(e.runtime),
 		readfile.Definition(e.runtime),
@@ -171,9 +176,8 @@ func (e *environment) prepareTools() error {
 		plan.Definition(e.runtime),
 		process.Definition(e.runtime),
 		runcommand.Definition(e.runtime),
-	}
-	if e.sessionMgr != nil {
-		definitions = append(definitions, sessionsearch.Definition(e.runtime))
+		sessionmessages.Definition(e.runtime),
+		sessionsearch.Definition(e.runtime),
 	}
 
 	webProvider, err := webprovider.NewProvider(e.cfg)

@@ -41,6 +41,13 @@ func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 	require.Empty(t, env.Instructions())
 }
 
+func prepareTestEnvironment(t *testing.T, env Environment) {
+	t.Helper()
+
+	env.SetSessionManager(&session.Manager{})
+	require.NoError(t, env.Prepare())
+}
+
 func TestEnvironment_PrepareAddsFullBaseInstructionStack(t *testing.T) {
 	previousPersonality := loadPersonality
 	previous := loadWorkspaceRules
@@ -59,12 +66,13 @@ func TestEnvironment_PrepareAddsFullBaseInstructionStack(t *testing.T) {
 	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
 	env := NewEnvironment(gctx.Background(), cfg)
 
-	err := env.Prepare()
-
-	require.NoError(t, err)
+	prepareTestEnvironment(t, env)
 	require.Equal(t, append(
-		instruct.Instructions{instruct.BuildPlanningPolicy()},
-		instruct.BuildBase(cfg.Name)...,
+		append(
+			instruct.Instructions{instruct.BuildPlanningPolicy()},
+			instruct.BuildBase(cfg.Name)...,
+		),
+		instruct.BuildSessionSearchGuidance(),
 	), env.Instructions())
 }
 
@@ -84,6 +92,27 @@ func TestEnvironment_PrepareRequiresEnvironment(t *testing.T) {
 	require.EqualError(t, err, "environment is required")
 }
 
+func TestEnvironment_PrepareRequiresSessionManager(t *testing.T) {
+	previousPersonality := loadPersonality
+	previous := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previous
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
+
+	err := env.Prepare()
+
+	require.EqualError(t, err, "session manager is required")
+}
+
 func TestEnvironment_PrepareNormalizesConfig(t *testing.T) {
 	previousPersonality := loadPersonality
 	previous := loadWorkspaceRules
@@ -101,7 +130,7 @@ func TestEnvironment_PrepareNormalizesConfig(t *testing.T) {
 	cfg := &config.Config{Name: " Test Agent ", DebugTraceDir: t.TempDir()}
 	env := NewEnvironment(gctx.Background(), cfg)
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 	require.Equal(t, "Test Agent", cfg.Name)
 	require.Equal(t, config.DefaultWebMaxExtractCharPerResult, cfg.WebMaxExtractCharPerResult)
 	require.NotNil(t, cfg.CapNetwork)
@@ -130,11 +159,12 @@ func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
 	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir, RulesFiles: []string{"hand.md"}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 
 	instructions := env.Instructions()
-	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+2)
-	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-1].Value)
+	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+3)
+	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-2].Value)
+	require.Equal(t, instruct.BuildSessionSearchGuidance(), instructions[len(instructions)-1])
 }
 
 func TestEnvironment_PrepareAppendsPersonalityBeforeWorkspaceRules(t *testing.T) {
@@ -155,12 +185,13 @@ func TestEnvironment_PrepareAppendsPersonalityBeforeWorkspaceRules(t *testing.T)
 	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
 	env := NewEnvironment(gctx.Background(), cfg)
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 
 	instructions := env.Instructions()
-	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+3)
-	require.Equal(t, "## SOUL.md\npersona", instructions[len(instructions)-2].Value)
-	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-1].Value)
+	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+4)
+	require.Equal(t, "## SOUL.md\npersona", instructions[len(instructions)-3].Value)
+	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-2].Value)
+	require.Equal(t, instruct.BuildSessionSearchGuidance(), instructions[len(instructions)-1])
 }
 
 func TestEnvironment_PrepareAppendsInstructAfterWorkspaceRules(t *testing.T) {
@@ -180,11 +211,12 @@ func TestEnvironment_PrepareAppendsInstructAfterWorkspaceRules(t *testing.T) {
 	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir(), Instruct: "be terse"}
 	env := NewEnvironment(gctx.Background(), cfg)
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 
 	instructions := env.Instructions()
-	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-2].Value)
-	require.Equal(t, "be terse", instructions[len(instructions)-1].Value)
+	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-3].Value)
+	require.Equal(t, "be terse", instructions[len(instructions)-2].Value)
+	require.Equal(t, instruct.BuildSessionSearchGuidance(), instructions[len(instructions)-1])
 }
 
 func TestEnvironment_PrepareIgnoresPersonalityLoadError(t *testing.T) {
@@ -205,10 +237,13 @@ func TestEnvironment_PrepareIgnoresPersonalityLoadError(t *testing.T) {
 	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
 	env := NewEnvironment(gctx.Background(), cfg)
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 	require.Equal(t, append(
-		instruct.Instructions{instruct.BuildPlanningPolicy()},
-		instruct.BuildBase(cfg.Name)...,
+		append(
+			instruct.Instructions{instruct.BuildPlanningPolicy()},
+			instruct.BuildBase(cfg.Name)...,
+		),
+		instruct.BuildSessionSearchGuidance(),
 	), env.Instructions())
 }
 
@@ -230,10 +265,13 @@ func TestEnvironment_PrepareIgnoresWorkspaceRuleLoadError(t *testing.T) {
 	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
 	env := NewEnvironment(gctx.Background(), cfg)
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 	require.Equal(t, append(
-		instruct.Instructions{instruct.BuildPlanningPolicy()},
-		instruct.BuildBase(cfg.Name)...,
+		append(
+			instruct.Instructions{instruct.BuildPlanningPolicy()},
+			instruct.BuildBase(cfg.Name)...,
+		),
+		instruct.BuildSessionSearchGuidance(),
 	), env.Instructions())
 }
 
@@ -255,7 +293,7 @@ func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) 
 	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
 	env := NewEnvironment(gctx.Background(), cfg)
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 
 	instructions := env.Instructions()
 	require.Equal(t, instruct.PlanningPolicyInstructionName, instructions[0].Name)
@@ -294,7 +332,7 @@ func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
 	cfg := &config.Config{DebugTraceDir: dir}
 	env := NewEnvironment(gctx.Background(), cfg)
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 
 	instructions := env.Instructions()
 	require.Equal(t, instruct.PlanningPolicyInstructionName, instructions[0].Name)
@@ -318,24 +356,14 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 
 	tools := env.Tools()
 	require.NotNil(t, tools)
 
 	definitions := tools.List()
-	require.Len(t, definitions, 9)
-	require.Equal(t, []string{"list_files", "patch", "plan_tool", "process", "read_file", "run_command", "search_files", "time", "write_file"}, []string{
-		definitions[0].Name,
-		definitions[1].Name,
-		definitions[2].Name,
-		definitions[3].Name,
-		definitions[4].Name,
-		definitions[5].Name,
-		definitions[6].Name,
-		definitions[7].Name,
-		definitions[8].Name,
-	})
+	require.Len(t, definitions, 11)
+	require.Equal(t, []string{"list_files", "patch", "plan_tool", "process", "read_file", "run_command", "search_files", "session_messages", "session_search", "time", "write_file"}, definitions.Names())
 	for _, definition := range definitions {
 		require.Equal(t, []string{"core"}, definition.Groups)
 	}
@@ -359,13 +387,37 @@ func TestEnvironment_PrepareAppendsLoadedToolUsageInstructionsAfterBaseInstructi
 	}
 
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
-	env.SetSessionManager(&session.Manager{})
-
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 
 	rendered := env.Instructions().String()
 	require.True(t, strings.Index(rendered, "Test Agent is the user's personal agent") < strings.Index(rendered, "# Session Search Guidance"))
 	require.Contains(t, rendered, "Use session_search when the user references prior work")
+}
+
+func TestEnvironment_PrepareRegistersSessionTools(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
+	prepareTestEnvironment(t, env)
+
+	definitions, err := env.Tools().Resolve(tools.Policy{
+		GroupNames:   []string{"core"},
+		Capabilities: tools.Capabilities{Filesystem: true, Exec: true, Memory: true},
+	})
+	require.NoError(t, err)
+	require.True(t, definitions.Has("session_search"))
+	require.True(t, definitions.Has("session_messages"))
 }
 
 func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.T) {
@@ -389,10 +441,10 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 		WebAPIKey:     "exa-key",
 	})
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 11)
+	require.Len(t, definitions, 13)
 	require.Equal(t, []string{
 		"list_files",
 		"patch",
@@ -401,23 +453,13 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 		"read_file",
 		"run_command",
 		"search_files",
+		"session_messages",
+		"session_search",
 		"time",
 		"web_extract",
 		"web_search",
 		"write_file",
-	}, []string{
-		definitions[0].Name,
-		definitions[1].Name,
-		definitions[2].Name,
-		definitions[3].Name,
-		definitions[4].Name,
-		definitions[5].Name,
-		definitions[6].Name,
-		definitions[7].Name,
-		definitions[8].Name,
-		definitions[9].Name,
-		definitions[10].Name,
-	})
+	}, definitions.Names())
 }
 
 func TestEnvironment_PrepareWrapsWebProviderWithCacheWhenConfigured(t *testing.T) {
@@ -454,7 +496,7 @@ func TestEnvironment_PrepareWrapsWebProviderWithCacheWhenConfigured(t *testing.T
 		WebCacheTTL: time.Minute,
 	})
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 	for range 2 {
 		result, err := env.Tools().Invoke(gctx.Background(), tools.Call{
 			Name:  "web_search",
@@ -499,7 +541,7 @@ func TestEnvironment_PrepareLeavesWebProviderUncachedWhenDisabled(t *testing.T) 
 		WebBaseURL:  server.URL,
 	})
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 	for range 2 {
 		result, err := env.Tools().Invoke(gctx.Background(), tools.Call{
 			Name:  "web_search",
@@ -545,7 +587,7 @@ func TestEnvironment_PrepareAppliesWebsitePolicyToWebTools(t *testing.T) {
 		WebMaxExtractCharPerResult: config.DefaultWebMaxExtractCharPerResult,
 	})
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 	result, err := env.Tools().Invoke(gctx.Background(), tools.Call{
 		Name:  "web_search",
 		Input: `{"query":"golang","count":1}`,
@@ -575,14 +617,11 @@ func TestEnvironment_PrepareRegistersOnlyWebExtractForNativeProvider(t *testing.
 		WebProvider:   "native",
 	})
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 
-	names := make([]string, 0, len(env.Tools().List()))
-	for _, definition := range env.Tools().List() {
-		names = append(names, definition.Name)
-	}
-	require.Contains(t, names, "web_extract")
-	require.NotContains(t, names, "web_search")
+	definitions := env.Tools().List()
+	require.True(t, definitions.Has("web_extract"))
+	require.False(t, definitions.Has("web_search"))
 }
 
 func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T) {
@@ -604,14 +643,12 @@ func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T
 		DebugTraceDir: t.TempDir(),
 	})
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 9)
-	for _, definition := range definitions {
-		require.NotEqual(t, "web_search", definition.Name)
-		require.NotEqual(t, "web_extract", definition.Name)
-	}
+	require.Len(t, definitions, 11)
+	require.False(t, definitions.Has("web_search"))
+	require.False(t, definitions.Has("web_extract"))
 }
 
 func TestEnvironment_PrepareReturnsWebProviderErrors(t *testing.T) {
@@ -620,6 +657,7 @@ func TestEnvironment_PrepareReturnsWebProviderErrors(t *testing.T) {
 		DebugTraceDir: t.TempDir(),
 		WebProvider:   "parallel",
 	})
+	env.SetSessionManager(&session.Manager{})
 
 	err := env.Prepare()
 	require.EqualError(t, err, "parallel requires web API key")
@@ -646,23 +684,17 @@ func TestEnvironment_WebToolsResolveOnlyWithNetworkCapability(t *testing.T) {
 		WebAPIKey:     "exa-key",
 	})
 
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 
 	withNetwork, err := env.Tools().Resolve(tools.Policy{GroupNames: []string{"core"}, Capabilities: tools.Capabilities{Filesystem: true, Exec: true, Memory: true, Network: true}})
 	require.NoError(t, err)
-	withNetworkNames := make([]string, 0, len(withNetwork))
-	for _, definition := range withNetwork {
-		withNetworkNames = append(withNetworkNames, definition.Name)
-	}
-	require.Contains(t, withNetworkNames, "web_extract")
-	require.Contains(t, withNetworkNames, "web_search")
+	require.True(t, withNetwork.Has("web_extract"))
+	require.True(t, withNetwork.Has("web_search"))
 
 	withoutNetwork, err := env.Tools().Resolve(tools.Policy{GroupNames: []string{"core"}, Capabilities: tools.Capabilities{Filesystem: true, Exec: true, Memory: true}})
 	require.NoError(t, err)
-	for _, definition := range withoutNetwork {
-		require.NotEqual(t, "web_search", definition.Name)
-		require.NotEqual(t, "web_extract", definition.Name)
-	}
+	require.False(t, withoutNetwork.Has("web_search"))
+	require.False(t, withoutNetwork.Has("web_extract"))
 }
 
 func TestEnvironment_CurrentPlanAndHydratePlanHandleNilReceiver(t *testing.T) {
@@ -709,7 +741,7 @@ func (failingRegistry) GetGroup(string) (tools.Group, bool) {
 	return tools.Group{}, false
 }
 
-func (failingRegistry) List() []tools.Definition {
+func (failingRegistry) List() tools.Definitions {
 	return nil
 }
 
@@ -717,7 +749,7 @@ func (failingRegistry) ListGroups() []tools.Group {
 	return nil
 }
 
-func (failingRegistry) Resolve(tools.Policy) ([]tools.Definition, error) {
+func (failingRegistry) Resolve(tools.Policy) (tools.Definitions, error) {
 	return nil, nil
 }
 
@@ -745,7 +777,7 @@ func (failingGroupRegistry) GetGroup(string) (tools.Group, bool) {
 	return tools.Group{}, false
 }
 
-func (failingGroupRegistry) List() []tools.Definition {
+func (failingGroupRegistry) List() tools.Definitions {
 	return nil
 }
 
@@ -753,7 +785,7 @@ func (failingGroupRegistry) ListGroups() []tools.Group {
 	return nil
 }
 
-func (failingGroupRegistry) Resolve(tools.Policy) ([]tools.Definition, error) {
+func (failingGroupRegistry) Resolve(tools.Policy) (tools.Definitions, error) {
 	return nil, nil
 }
 
@@ -778,6 +810,7 @@ func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
 	env.(*environment).tools = failingRegistry{err: errors.New("register failed")}
+	env.SetSessionManager(&session.Manager{})
 	err := env.Prepare()
 	require.EqualError(t, err, "register failed")
 	require.Equal(t, append(
@@ -803,6 +836,7 @@ func TestEnvironment_PrepareReturnsToolGroupRegistrationError(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
 	env.(*environment).tools = failingGroupRegistry{err: errors.New("group failed")}
+	env.SetSessionManager(&session.Manager{})
 	err := env.Prepare()
 	require.EqualError(t, err, "group failed")
 	require.Equal(t, append(
@@ -816,6 +850,7 @@ func TestEnvironment_PrepareToolsPreservesExistingRuntime(t *testing.T) {
 	h := env.(*environment)
 	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, nil)
 	h.runtime = runtime
+	h.SetSessionManager(&session.Manager{})
 	require.NoError(t, h.prepareTools())
 	require.Same(t, runtime, h.runtime)
 }
@@ -1025,7 +1060,7 @@ func TestEnvironment_NewTraceSessionRecordsWorkspaceRuleTruncation(t *testing.T)
 		DebugTraceDir: dir,
 	}
 	env := NewEnvironment(gctx.Background(), cfg)
-	require.NoError(t, env.Prepare())
+	prepareTestEnvironment(t, env)
 
 	const traceSessionID = "ses_rules"
 	session := env.NewTraceSession(traceSessionID)

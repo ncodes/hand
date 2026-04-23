@@ -123,7 +123,7 @@ func (s *EnvironmentStub) HydratePlan(_ string, plan envtypes.Plan) {
 func (s *EnvironmentStub) SetSessionManager(*sessionstore.Manager) {}
 
 type ToolRegistryStub struct {
-	Definitions    []tools.Definition
+	Definitions    tools.Definitions
 	Groups         []tools.Group
 	LastToolPolicy tools.Policy
 	Result         tools.Result
@@ -131,7 +131,7 @@ type ToolRegistryStub struct {
 	ResolveErr     error
 }
 
-func (s *ToolRegistryStub) List() []tools.Definition {
+func (s *ToolRegistryStub) List() tools.Definitions {
 	return s.Definitions
 }
 
@@ -149,7 +149,7 @@ func (s *ToolRegistryStub) ListGroups() []tools.Group {
 	return s.Groups
 }
 
-func (s *ToolRegistryStub) Resolve(opts tools.Policy) ([]tools.Definition, error) {
+func (s *ToolRegistryStub) Resolve(opts tools.Policy) (tools.Definitions, error) {
 	s.LastToolPolicy = opts
 	return s.Definitions, s.ResolveErr
 }

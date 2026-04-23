@@ -217,7 +217,7 @@ func TestAgent_AvailableToolDefinitionsReturnDefinitionsFromEnvironment(t *testi
 			Platform:     "cli",
 		},
 		ToolRegistry: &mocks.ToolRegistryStub{
-			Definitions: []tools.Definition{{
+			Definitions: tools.Definitions{{
 				Name:        "time",
 				Description: "Returns time",
 				InputSchema: map[string]any{"type": "object"},

@@ -52,8 +52,27 @@ func TestInMemoryRegistry_ListReturnsSortedDefinitions(t *testing.T) {
 	definitions := registry.List()
 
 	require.Len(t, definitions, 2)
-	require.Equal(t, "alpha", definitions[0].Name)
-	require.Equal(t, "zeta", definitions[1].Name)
+	require.Equal(t, []string{"alpha", "zeta"}, definitions.Names())
+}
+
+func TestDefinitions_NameHelpers(t *testing.T) {
+	definitions := Definitions{
+		{Name: "alpha"},
+		{Name: "beta"},
+		{Name: " "},
+	}
+
+	require.True(t, definitions.Has("alpha"))
+	require.True(t, definitions.Has(" beta "))
+	require.False(t, definitions.Has("missing"))
+	require.Equal(t, []string{"alpha", "beta"}, definitions.Names())
+
+	definition, ok := definitions.Get(" beta ")
+	require.True(t, ok)
+	require.Equal(t, "beta", definition.Name)
+
+	_, ok = definitions.Get("")
+	require.False(t, ok)
 }
 
 func TestInMemoryRegistry_RejectsInvalidDefinitions(t *testing.T) {
@@ -154,7 +173,7 @@ func TestInMemoryRegistry_ResolveReturnsAllToolsWhenNoGroupsRequested(t *testing
 	definitions, err := registry.Resolve(Policy{})
 
 	require.NoError(t, err)
-	require.Equal(t, []string{"alpha", "beta"}, []string{definitions[0].Name, definitions[1].Name})
+	require.Equal(t, []string{"alpha", "beta"}, definitions.Names())
 }
 
 func TestInMemoryRegistry_ResolveByGroupMembership(t *testing.T) {
