@@ -171,6 +171,10 @@ func TestNewManager_ValidationAndNilManagerErrors(t *testing.T) {
 	require.EqualError(t, err, "session manager is required")
 	_, err = manager.GetMessages(context.Background(), storage.DefaultSessionID, storage.MessageQueryOptions{})
 	require.EqualError(t, err, "session manager is required")
+	_, err = manager.GetMessagesByIDs(context.Background(), storage.DefaultSessionID, []uint{1})
+	require.EqualError(t, err, "session manager is required")
+	_, err = manager.GetMessageWindow(context.Background(), storage.DefaultSessionID, 1, 1, 1)
+	require.EqualError(t, err, "session manager is required")
 	require.EqualError(t, manager.UpdateLastPromptTokens(context.Background(), storage.DefaultSessionID, 1), "session manager is required")
 
 	_, err = manager.CreateSession(context.Background(), testSessionA)
@@ -240,6 +244,50 @@ func TestManager_SearchMessages_ForwardsToStore(t *testing.T) {
 		MaxSessions:           2,
 		MaxMessagesPerSession: 3,
 	}, capturedOpts)
+}
+
+func TestManager_GetMessagesByIDs_ForwardsToStore(t *testing.T) {
+	var capturedID string
+	var capturedMessageIDs []uint
+	manager, err := NewManager(&storagemock.SessionStore{
+		GetMessagesByIDsFunc: func(_ context.Context, id string, messageIDs []uint) ([]storage.MessageRecord, error) {
+			capturedID = id
+			capturedMessageIDs = append([]uint(nil), messageIDs...)
+			return []storage.MessageRecord{{Offset: 3, Message: handmsg.Message{ID: 7}}}, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	records, err := manager.GetMessagesByIDs(context.Background(), "  "+testSessionA+"  ", []uint{7, 9})
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	require.Equal(t, testSessionA, capturedID)
+	require.Equal(t, []uint{7, 9}, capturedMessageIDs)
+}
+
+func TestManager_GetMessageWindow_ForwardsToStore(t *testing.T) {
+	var capturedID string
+	var capturedAnchor uint
+	var capturedBefore int
+	var capturedAfter int
+	manager, err := NewManager(&storagemock.SessionStore{
+		GetMessageWindowFunc: func(_ context.Context, id string, anchorMessageID uint, before int, after int) ([]storage.MessageRecord, error) {
+			capturedID = id
+			capturedAnchor = anchorMessageID
+			capturedBefore = before
+			capturedAfter = after
+			return []storage.MessageRecord{{Offset: 2, Message: handmsg.Message{ID: anchorMessageID}}}, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	records, err := manager.GetMessageWindow(context.Background(), "  "+testSessionA+"  ", 7, 1, 2)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	require.Equal(t, testSessionA, capturedID)
+	require.Equal(t, uint(7), capturedAnchor)
+	require.Equal(t, 1, capturedBefore)
+	require.Equal(t, 2, capturedAfter)
 }
 
 func TestManager_Save_ForwardsToStore(t *testing.T) {

@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -177,6 +178,136 @@ func TestSQLiteStore_SessionLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 	require.Empty(t, current)
+}
+
+func TestSQLiteStore_GetMessagesByIDsReturnsTranscriptOrderedRecords(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Now().UTC()
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "m1", CreatedAt: now},
+		{Role: handmsg.RoleAssistant, Content: "m2", CreatedAt: now.Add(time.Second)},
+		{Role: handmsg.RoleTool, Name: "process", ToolCallID: "call-1", Content: "m3", CreatedAt: now.Add(2 * time.Second)},
+	}))
+
+	records, err := store.GetMessagesByIDs(context.Background(), testSessionA, []uint{3, 1})
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+	require.Equal(t, []uint{1, 3}, []uint{records[0].Message.ID, records[1].Message.ID})
+	require.Equal(t, []int{0, 2}, []int{records[0].Offset, records[1].Offset})
+}
+
+func TestSQLiteStore_GetMessagesByIDs_ValidationAndErrors(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Now().UTC()
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "m1", CreatedAt: now},
+	}))
+
+	records, err := store.GetMessagesByIDs(context.Background(), "", []uint{1})
+	require.NoError(t, err)
+	require.Nil(t, records)
+
+	records, err = store.GetMessagesByIDs(context.Background(), testSessionA, nil)
+	require.NoError(t, err)
+	require.Nil(t, records)
+
+	_, err = store.GetMessagesByIDs(context.Background(), "bad-session-id", []uint{1})
+	require.ErrorContains(t, err, "session id")
+
+	records, err = store.GetMessagesByIDs(context.Background(), testSessionA, []uint{99})
+	require.NoError(t, err)
+	require.Nil(t, records)
+
+	boom := errors.New("query failed")
+	require.NoError(t, store.db.Callback().Query().Before("gorm:query").Register("test:get-messages-by-ids-error", func(tx *gorm.DB) {
+		tx.AddError(boom)
+	}))
+	defer func() {
+		require.NoError(t, store.db.Callback().Query().Remove("test:get-messages-by-ids-error"))
+	}()
+
+	_, err = store.GetMessagesByIDs(context.Background(), testSessionA, []uint{1})
+	require.ErrorIs(t, err, boom)
+}
+
+func TestSQLiteStore_GetMessageWindowReturnsBoundedAnchorContext(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Now().UTC()
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "m1", CreatedAt: now},
+		{Role: handmsg.RoleAssistant, Content: "m2", CreatedAt: now.Add(time.Second)},
+		{Role: handmsg.RoleTool, Name: "process", ToolCallID: "call-1", Content: "m3", CreatedAt: now.Add(2 * time.Second)},
+		{Role: handmsg.RoleAssistant, Content: "m4", CreatedAt: now.Add(3 * time.Second)},
+	}))
+
+	records, err := store.GetMessageWindow(context.Background(), testSessionA, 3, 1, 1)
+	require.NoError(t, err)
+	require.Len(t, records, 3)
+	require.Equal(t, []int{1, 2, 3}, []int{records[0].Offset, records[1].Offset, records[2].Offset})
+	require.Equal(t, []uint{2, 3, 4}, []uint{records[0].Message.ID, records[1].Message.ID, records[2].Message.ID})
+}
+
+func TestSQLiteStore_GetMessageWindow_ValidationNotFoundAndErrors(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Now().UTC()
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "m1", CreatedAt: now},
+		{Role: handmsg.RoleAssistant, Content: "m2", CreatedAt: now.Add(time.Second)},
+	}))
+
+	records, err := store.GetMessageWindow(context.Background(), "", 1, 0, 0)
+	require.NoError(t, err)
+	require.Nil(t, records)
+
+	records, err = store.GetMessageWindow(context.Background(), testSessionA, 0, 0, 0)
+	require.NoError(t, err)
+	require.Nil(t, records)
+
+	_, err = store.GetMessageWindow(context.Background(), "bad-session-id", 1, 0, 0)
+	require.ErrorContains(t, err, "session id")
+
+	_, err = store.GetMessageWindow(context.Background(), testSessionA, 1, -1, 0)
+	require.EqualError(t, err, "before and after must be greater than or equal to zero")
+
+	records, err = store.GetMessageWindow(context.Background(), testSessionA, 99, 1, 1)
+	require.NoError(t, err)
+	require.Nil(t, records)
+
+	boom := errors.New("anchor lookup failed")
+	require.NoError(t, store.db.Callback().Query().Before("gorm:query").Register("test:get-message-window-anchor-error", func(tx *gorm.DB) {
+		tx.AddError(boom)
+	}))
+
+	_, err = store.GetMessageWindow(context.Background(), testSessionA, 1, 0, 0)
+	require.ErrorIs(t, err, boom)
+	require.NoError(t, store.db.Callback().Query().Remove("test:get-message-window-anchor-error"))
+
+	queryCount := 0
+	boom = errors.New("window lookup failed")
+	require.NoError(t, store.db.Callback().Query().Before("gorm:query").Register("test:get-message-window-range-error", func(tx *gorm.DB) {
+		queryCount++
+		if queryCount == 2 {
+			tx.AddError(boom)
+		}
+	}))
+	defer func() {
+		require.NoError(t, store.db.Callback().Query().Remove("test:get-message-window-range-error"))
+	}()
+
+	_, err = store.GetMessageWindow(context.Background(), testSessionA, 1, 0, 1)
+	require.ErrorIs(t, err, boom)
 }
 
 func TestSQLiteStore_MessageRoundTripPreservesAssistantToolCalls(t *testing.T) {
@@ -438,7 +569,15 @@ func TestSQLiteStore_NilReceiverErrors(t *testing.T) {
 
 	require.EqualError(t, store.Save(context.Background(), Session{ID: testSessionA}), "session store is required")
 	require.EqualError(t, store.Delete(context.Background(), testSessionA), "session store is required")
-	require.EqualError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}), "session store is required")
+	require.EqualError(
+		t,
+		store.AppendMessages(
+			context.Background(),
+			testSessionA,
+			[]handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+		),
+		"session store is required",
+	)
 
 	session, ok, err := store.Get(context.Background(), testSessionA)
 	require.EqualError(t, err, "session store is required")
@@ -449,8 +588,17 @@ func TestSQLiteStore_NilReceiverErrors(t *testing.T) {
 	require.EqualError(t, err, "session store is required")
 	require.Nil(t, sessions)
 
-	require.EqualError(t, store.CreateArchive(context.Background(), ArchivedSession{ID: testArchiveOne}), "session store is required")
-	require.EqualError(t, store.DeleteArchive(context.Background(), testArchiveOne), "session store is required")
+	require.EqualError(
+		t,
+		store.CreateArchive(context.Background(), ArchivedSession{ID: testArchiveOne}),
+		"session store is required",
+	)
+	require.EqualError(
+		t,
+		store.DeleteArchive(context.Background(), testArchiveOne),
+		"session store is required",
+	)
+
 	archive, ok, err := store.GetArchive(context.Background(), testArchiveOne)
 	require.EqualError(t, err, "session store is required")
 	require.False(t, ok)
@@ -459,26 +607,62 @@ func TestSQLiteStore_NilReceiverErrors(t *testing.T) {
 	archives, err := store.ListArchives(context.Background(), "")
 	require.EqualError(t, err, "session store is required")
 	require.Nil(t, archives)
+
 	messages, err := store.GetMessages(context.Background(), "", MessageQueryOptions{})
 	require.EqualError(t, err, "session store is required")
 	require.Nil(t, messages)
+
 	message, ok, err := store.GetMessage(context.Background(), "", 0, MessageQueryOptions{})
 	require.EqualError(t, err, "session store is required")
 	require.False(t, ok)
 	require.Equal(t, handmsg.Message{}, message)
+
+	records, err := store.GetMessagesByIDs(context.Background(), testSessionA, []uint{1})
+	require.EqualError(t, err, "session store is required")
+	require.Nil(t, records)
+	records, err = store.GetMessageWindow(context.Background(), testSessionA, 1, 0, 0)
+	require.EqualError(t, err, "session store is required")
+	require.Nil(t, records)
+
 	count, err := store.CountMessages(context.Background(), DefaultSessionID, MessageQueryOptions{})
 	require.EqualError(t, err, "session store is required")
 	require.Zero(t, count)
-	require.EqualError(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}), "session store is required")
-	require.EqualError(t, store.SaveSummary(context.Background(), SessionSummary{SessionID: testSessionA, SessionSummary: "summary"}), "session store is required")
+
+	require.EqualError(
+		t,
+		store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}),
+		"session store is required",
+	)
+	require.EqualError(
+		t,
+		store.SaveSummary(
+			context.Background(),
+			SessionSummary{SessionID: testSessionA, SessionSummary: "summary"},
+		),
+		"session store is required",
+	)
+
 	summary, ok, err := store.GetSummary(context.Background(), testSessionA)
 	require.EqualError(t, err, "session store is required")
 	require.False(t, ok)
 	require.Equal(t, SessionSummary{}, summary)
-	require.EqualError(t, store.DeleteSummary(context.Background(), testSessionA), "session store is required")
 
-	require.EqualError(t, store.DeleteExpiredArchives(context.Background(), time.Now().UTC()), "session store is required")
-	require.EqualError(t, store.SetCurrent(context.Background(), DefaultSessionID), "session store is required")
+	require.EqualError(
+		t,
+		store.DeleteSummary(context.Background(), testSessionA),
+		"session store is required",
+	)
+
+	require.EqualError(
+		t,
+		store.DeleteExpiredArchives(context.Background(), time.Now().UTC()),
+		"session store is required",
+	)
+	require.EqualError(
+		t,
+		store.SetCurrent(context.Background(), DefaultSessionID),
+		"session store is required",
+	)
 
 	current, ok, err := store.Current(context.Background())
 	require.EqualError(t, err, "session store is required")

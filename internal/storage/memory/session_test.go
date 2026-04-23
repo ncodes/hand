@@ -93,6 +93,43 @@ func TestMemoryStore_GetAndCountMessagesSupportRoleAndNameFilters(t *testing.T) 
 	require.Equal(t, "plan_tool", messages[0].Name)
 }
 
+func TestMemoryStore_GetMessagesByIDsReturnsTranscriptOrderedRecords(t *testing.T) {
+	store := NewSessionStore()
+	now := time.Now().UTC()
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "m1", CreatedAt: now},
+		{Role: handmsg.RoleAssistant, Content: "m2", CreatedAt: now.Add(time.Second)},
+		{Role: handmsg.RoleTool, Name: "process", ToolCallID: "call-1", Content: "m3", CreatedAt: now.Add(2 * time.Second)},
+	}))
+
+	records, err := store.GetMessagesByIDs(context.Background(), testSessionOne, []uint{3, 1})
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+	require.Equal(t, []uint{1, 3}, []uint{records[0].Message.ID, records[1].Message.ID})
+	require.Equal(t, []int{0, 2}, []int{records[0].Offset, records[1].Offset})
+}
+
+func TestMemoryStore_GetMessageWindowReturnsBoundedAnchorContext(t *testing.T) {
+	store := NewSessionStore()
+	now := time.Now().UTC()
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionOne, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "m1", CreatedAt: now},
+		{Role: handmsg.RoleAssistant, Content: "m2", CreatedAt: now.Add(time.Second)},
+		{Role: handmsg.RoleTool, Name: "process", ToolCallID: "call-1", Content: "m3", CreatedAt: now.Add(2 * time.Second)},
+		{Role: handmsg.RoleAssistant, Content: "m4", CreatedAt: now.Add(3 * time.Second)},
+	}))
+
+	records, err := store.GetMessageWindow(context.Background(), testSessionOne, 3, 1, 1)
+	require.NoError(t, err)
+	require.Len(t, records, 3)
+	require.Equal(t, []int{1, 2, 3}, []int{records[0].Offset, records[1].Offset, records[2].Offset})
+	require.Equal(t, []uint{2, 3, 4}, []uint{records[0].Message.ID, records[1].Message.ID, records[2].Message.ID})
+}
+
 func TestMemoryStore_SearchMessagesSupportsStructuredAndToolFilters(t *testing.T) {
 	store := NewSessionStore()
 	now := time.Now().UTC()

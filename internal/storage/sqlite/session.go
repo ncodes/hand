@@ -32,6 +32,7 @@ type SearchMessageResult = base.SearchMessageResult
 type SessionSummary = base.SessionSummary
 type SessionCompaction = base.SessionCompaction
 type SessionCompactionStatus = base.SessionCompactionStatus
+type MessageRecord = base.MessageRecord
 
 type sessionModel struct {
 	ID                           string `gorm:"primaryKey"`
@@ -476,6 +477,80 @@ func (s *SessionStore) GetMessages(
 	}
 
 	return messageModelsToMessages(records), nil
+}
+
+func (s *SessionStore) GetMessagesByIDs(
+	ctx context.Context,
+	id string,
+	messageIDs []uint,
+) ([]base.MessageRecord, error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("session store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" || len(messageIDs) == 0 {
+		return nil, nil
+	}
+	if err := common.ValidateSessionID(id); err != nil {
+		return nil, err
+	}
+
+	var records []messageModel
+	if err := s.db.WithContext(ctx).
+		Where("session_id = ? AND id IN ?", id, messageIDs).
+		Order("sequence asc").
+		Find(&records).Error; err != nil {
+		return nil, err
+	}
+
+	return messageModelsToRecords(records), nil
+}
+
+func (s *SessionStore) GetMessageWindow(
+	ctx context.Context,
+	id string,
+	anchorMessageID uint,
+	before int,
+	after int,
+) ([]base.MessageRecord, error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("session store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" || anchorMessageID == 0 {
+		return nil, nil
+	}
+	if err := common.ValidateSessionID(id); err != nil {
+		return nil, err
+	}
+	if before < 0 || after < 0 {
+		return nil, errors.New("before and after must be greater than or equal to zero")
+	}
+
+	var anchor messageModel
+	if err := s.db.WithContext(ctx).
+		Where("session_id = ? AND id = ?", id, anchorMessageID).
+		First(&anchor).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	start := max(anchor.Sequence-before, 0)
+	end := anchor.Sequence + after + 1
+
+	var records []messageModel
+	if err := s.db.WithContext(ctx).
+		Where("session_id = ? AND sequence >= ? AND sequence < ?", id, start, end).
+		Order("sequence asc").
+		Find(&records).Error; err != nil {
+		return nil, err
+	}
+
+	return messageModelsToRecords(records), nil
 }
 
 func (s *SessionStore) CountMessages(
@@ -1253,6 +1328,23 @@ func messageModelsToMessages(records []messageModel) []handmsg.Message {
 	}
 
 	return messages
+}
+
+func messageModelsToRecords(records []messageModel) []base.MessageRecord {
+	if len(records) == 0 {
+		return nil
+	}
+
+	messages := messageModelsToMessages(records)
+	messageRecords := make([]base.MessageRecord, 0, len(records))
+	for idx, record := range records {
+		messageRecords = append(messageRecords, base.MessageRecord{
+			Offset:  record.Sequence,
+			Message: messages[idx],
+		})
+	}
+
+	return messageRecords
 }
 
 func archivedMessageModelsToMessages(records []archivedMessageModel) []handmsg.Message {

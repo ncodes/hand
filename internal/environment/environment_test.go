@@ -18,7 +18,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
-	envtypes "github.com/wandxy/hand/internal/environment/types"
+	envplanstore "github.com/wandxy/hand/internal/environment/planstore"
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/personality"
@@ -668,23 +668,23 @@ func TestEnvironment_WebToolsResolveOnlyWithNetworkCapability(t *testing.T) {
 func TestEnvironment_CurrentPlanAndHydratePlanHandleNilReceiver(t *testing.T) {
 	var env *environment
 
-	require.Equal(t, envtypes.Plan{}, env.CurrentPlan("session-1"))
-	env.HydratePlan("session-1", envtypes.Plan{
-		Steps: []envtypes.PlanStep{{ID: "step-1", Content: "First", Status: envtypes.PlanStatusInProgress}},
+	require.Equal(t, envplanstore.Plan{}, env.CurrentPlan("session-1"))
+	env.HydratePlan("session-1", envplanstore.Plan{
+		Steps: []envplanstore.PlanStep{{ID: "step-1", Content: "First", Status: envplanstore.PlanStatusInProgress}},
 	})
-	require.Equal(t, envtypes.Plan{}, env.CurrentPlan("session-1"))
+	require.Equal(t, envplanstore.Plan{}, env.CurrentPlan("session-1"))
 }
 
 func TestEnvironment_CurrentPlanAndHydratePlanUseRuntimeStore(t *testing.T) {
 	env := &environment{runtime: NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, nil)}
 
-	env.HydratePlan("session-1", envtypes.Plan{
-		Steps:       []envtypes.PlanStep{{ID: "step-1", Content: "First", Status: envtypes.PlanStatusInProgress}},
+	env.HydratePlan("session-1", envplanstore.Plan{
+		Steps:       []envplanstore.PlanStep{{ID: "step-1", Content: "First", Status: envplanstore.PlanStatusInProgress}},
 		Explanation: "restored",
 	})
 
-	require.Equal(t, envtypes.Plan{
-		Steps:       []envtypes.PlanStep{{ID: "step-1", Content: "First", Status: envtypes.PlanStatusInProgress}},
+	require.Equal(t, envplanstore.Plan{
+		Steps:       []envplanstore.PlanStep{{ID: "step-1", Content: "First", Status: envplanstore.PlanStatusInProgress}},
 		Explanation: "restored",
 	}, env.CurrentPlan("session-1"))
 }

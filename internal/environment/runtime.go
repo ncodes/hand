@@ -6,12 +6,12 @@ import (
 	"os"
 	"path/filepath"
 
-	envplanstore "github.com/wandxy/hand/internal/environment/planstore"
-	processenv "github.com/wandxy/hand/internal/environment/process"
-	envsessionsearch "github.com/wandxy/hand/internal/environment/sessionsearch"
-	envtypes "github.com/wandxy/hand/internal/environment/types"
+	"github.com/wandxy/hand/internal/environment/planstore"
+	"github.com/wandxy/hand/internal/environment/process"
+	"github.com/wandxy/hand/internal/environment/sessionmessages"
+	"github.com/wandxy/hand/internal/environment/sessionsearch"
 	"github.com/wandxy/hand/internal/guardrails"
-	sessionstore "github.com/wandxy/hand/internal/session"
+	"github.com/wandxy/hand/internal/session"
 )
 
 var getwd = os.Getwd
@@ -19,12 +19,12 @@ var getwd = os.Getwd
 type Runtime struct {
 	filePolicy    guardrails.FilesystemPolicy
 	commandPolicy guardrails.CommandPolicy
-	processMgr    processenv.Manager
-	plans         envplanstore.Store
-	sessionMgr    *sessionstore.Manager
+	processMgr    process.Manager
+	plans         planstore.Store
+	sessionMgr    *session.Manager
 }
 
-func NewRuntime(roots []string, policy guardrails.CommandPolicy, sessionMgr *sessionstore.Manager) *Runtime {
+func NewRuntime(roots []string, policy guardrails.CommandPolicy, sessionMgr *session.Manager) *Runtime {
 	if len(roots) == 0 {
 		cwd, err := getwd()
 		if err != nil {
@@ -36,8 +36,8 @@ func NewRuntime(roots []string, policy guardrails.CommandPolicy, sessionMgr *ses
 	return &Runtime{
 		filePolicy:    guardrails.FilesystemPolicy{Roots: guardrails.NormalizeRoots(roots)},
 		commandPolicy: policy.Normalize(),
-		processMgr:    &processenv.DefaultManager{},
-		plans:         &envplanstore.MemoryPlanStore{},
+		processMgr:    &process.DefaultManager{},
+		plans:         &planstore.MemoryPlanStore{},
 		sessionMgr:    sessionMgr,
 	}
 }
@@ -59,79 +59,93 @@ func (r *Runtime) CommandPolicy() guardrails.CommandPolicy {
 func (r *Runtime) StartProcess(
 	ctx context.Context,
 	sessionID string,
-	req processenv.StartRequest,
-) (processenv.Info, error) {
+	req process.StartRequest,
+) (process.Info, error) {
 	if r == nil || r.processMgr == nil {
-		return processenv.Info{}, errors.New("process manager is required")
+		return process.Info{}, errors.New("process manager is required")
 	}
 	return r.processMgr.Start(ctx, sessionID, req)
 }
 
-func (r *Runtime) GetProcess(sessionID string, processID string) (processenv.Info, error) {
+func (r *Runtime) GetProcess(sessionID string, processID string) (process.Info, error) {
 	if r == nil || r.processMgr == nil {
-		return processenv.Info{}, errors.New("process manager is required")
+		return process.Info{}, errors.New("process manager is required")
 	}
 	return r.processMgr.Get(sessionID, processID)
 }
 
-func (r *Runtime) ReadProcess(sessionID string, req processenv.ReadRequest) (processenv.Output, error) {
+func (r *Runtime) ReadProcess(sessionID string, req process.ReadRequest) (process.Output, error) {
 	if r == nil || r.processMgr == nil {
-		return processenv.Output{}, errors.New("process manager is required")
+		return process.Output{}, errors.New("process manager is required")
 	}
 	return r.processMgr.Read(sessionID, req)
 }
 
-func (r *Runtime) StopProcess(ctx context.Context, sessionID string, processID string) (processenv.Info, error) {
+func (r *Runtime) StopProcess(ctx context.Context, sessionID string, processID string) (process.Info, error) {
 	if r == nil || r.processMgr == nil {
-		return processenv.Info{}, errors.New("process manager is required")
+		return process.Info{}, errors.New("process manager is required")
 	}
 	return r.processMgr.Stop(ctx, sessionID, processID)
 }
 
-func (r *Runtime) ListProcesses(sessionID string) []processenv.Info {
+func (r *Runtime) ListProcesses(sessionID string) []process.Info {
 	if r == nil || r.processMgr == nil {
 		return nil
 	}
 	return r.processMgr.List(sessionID)
 }
 
-func (r *Runtime) SearchSession(ctx context.Context, req envtypes.SessionSearchRequest) ([]envtypes.SessionSearchResult, error) {
+func (r *Runtime) SearchSession(
+	ctx context.Context,
+	req sessionsearch.SessionSearchRequest,
+) ([]sessionsearch.SessionSearchResult, error) {
 	if r == nil || r.sessionMgr == nil {
 		return nil, errors.New("session manager is required")
 	}
 
-	return envsessionsearch.Search(ctx, r.sessionMgr, req)
+	return sessionsearch.Search(ctx, r.sessionMgr, req)
 }
 
-func (r *Runtime) GetPlan(sessionID string) envtypes.Plan {
+func (r *Runtime) GetSessionMessages(
+	ctx context.Context,
+	req sessionmessages.SessionMessagesRequest,
+) (sessionmessages.SessionMessagesResponse, error) {
+	if r == nil || r.sessionMgr == nil {
+		return sessionmessages.SessionMessagesResponse{}, errors.New("session manager is required")
+	}
+
+	return sessionmessages.Get(ctx, r.sessionMgr, req)
+}
+
+func (r *Runtime) GetPlan(sessionID string) planstore.Plan {
 	if r == nil || r.plans == nil {
-		return envtypes.Plan{}
+		return planstore.Plan{}
 	}
 	return r.plans.Get(sessionID)
 }
 
-func (r *Runtime) ReplacePlan(sessionID string, plan envtypes.Plan) (envtypes.Plan, error) {
+func (r *Runtime) ReplacePlan(sessionID string, plan planstore.Plan) (planstore.Plan, error) {
 	if r == nil || r.plans == nil {
-		return envplanstore.ClonePlan(plan), errors.New("plan store is required")
+		return planstore.ClonePlan(plan), errors.New("plan store is required")
 	}
 	return r.plans.Replace(sessionID, plan)
 }
 
-func (r *Runtime) MergePlan(sessionID string, updates []envtypes.PartialPlanStep, explanation string, clearCompleted bool) (envtypes.Plan, error) {
+func (r *Runtime) MergePlan(sessionID string, updates []planstore.PartialPlanStep, explanation string, clearCompleted bool) (planstore.Plan, error) {
 	if r == nil || r.plans == nil {
-		return envtypes.Plan{}, errors.New("plan store is required")
+		return planstore.Plan{}, errors.New("plan store is required")
 	}
 	return r.plans.Merge(sessionID, updates, explanation, clearCompleted)
 }
 
-func (r *Runtime) ClearPlan(sessionID string) envtypes.Plan {
+func (r *Runtime) ClearPlan(sessionID string) planstore.Plan {
 	if r == nil || r.plans == nil {
-		return envtypes.Plan{}
+		return planstore.Plan{}
 	}
 	return r.plans.Clear(sessionID)
 }
 
-func (r *Runtime) HydratePlan(sessionID string, plan envtypes.Plan) {
+func (r *Runtime) HydratePlan(sessionID string, plan planstore.Plan) {
 	if r == nil || r.plans == nil {
 		return
 	}

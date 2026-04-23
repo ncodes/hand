@@ -7,7 +7,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	envtypes "github.com/wandxy/hand/internal/environment/types"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	sessionstore "github.com/wandxy/hand/internal/session"
 	"github.com/wandxy/hand/internal/storage"
@@ -23,8 +22,8 @@ const (
 func Search(
 	ctx context.Context,
 	manager *sessionstore.Manager,
-	req envtypes.SessionSearchRequest,
-) ([]envtypes.SessionSearchResult, error) {
+	req SessionSearchRequest,
+) ([]SessionSearchResult, error) {
 	if manager == nil {
 		return nil, errors.New("session manager is required")
 	}
@@ -56,7 +55,7 @@ func Search(
 		return nil, nil
 	}
 
-	groupedResults := make([]envtypes.SessionSearchResult, 0, len(results))
+	groupedResults := make([]SessionSearchResult, 0, len(results))
 	for _, result := range results {
 		session, found, err := manager.Get(ctx, result.SessionID)
 		if err != nil {
@@ -71,13 +70,13 @@ func Search(
 			return nil, err
 		}
 
-		group := envtypes.SessionSearchResult{
+		group := SessionSearchResult{
 			SessionID:      result.SessionID,
 			SessionCreated: formatSearchTime(session.CreatedAt),
 			SessionUpdated: formatSearchTime(session.UpdatedAt),
 			MatchCount:     result.MatchCount,
 			SessionSummary: strings.TrimSpace(summary.SessionSummary),
-			Messages:       make([]envtypes.SessionSearchMessageHit, 0, len(result.Messages)),
+			Messages:       make([]SessionSearchMessageHit, 0, len(result.Messages)),
 		}
 
 		for _, hit := range result.Messages {
@@ -91,7 +90,7 @@ func Search(
 				snippet = snippetAround(hit.MatchedText, matchIndex, matchLen, sessionSearchSnippetRunes)
 			}
 
-			group.Messages = append(group.Messages, envtypes.SessionSearchMessageHit{
+			group.Messages = append(group.Messages, SessionSearchMessageHit{
 				MessageID:     hit.Message.ID,
 				Role:          string(hit.Message.Role),
 				ToolName:      hit.MatchedToolName,

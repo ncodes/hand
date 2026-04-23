@@ -9,26 +9,26 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
-	envbudget "github.com/wandxy/hand/internal/environment/budget"
-	envtypes "github.com/wandxy/hand/internal/environment/types"
+	"github.com/wandxy/hand/internal/environment/budget"
+	"github.com/wandxy/hand/internal/environment/planstore"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/personality"
-	webintegration "github.com/wandxy/hand/internal/providers/web"
-	sessionstore "github.com/wandxy/hand/internal/session"
+	webprovider "github.com/wandxy/hand/internal/providers/web"
+	"github.com/wandxy/hand/internal/session"
 	"github.com/wandxy/hand/internal/tools"
-	listfiles "github.com/wandxy/hand/internal/tools/listfiles"
+	"github.com/wandxy/hand/internal/tools/listfiles"
 	"github.com/wandxy/hand/internal/tools/patch"
 	"github.com/wandxy/hand/internal/tools/plan"
 	"github.com/wandxy/hand/internal/tools/process"
-	readfile "github.com/wandxy/hand/internal/tools/readfile"
-	runcommand "github.com/wandxy/hand/internal/tools/runcommand"
-	searchfiles "github.com/wandxy/hand/internal/tools/searchfiles"
-	sessionsearch "github.com/wandxy/hand/internal/tools/sessionsearch"
+	"github.com/wandxy/hand/internal/tools/readfile"
+	"github.com/wandxy/hand/internal/tools/runcommand"
+	"github.com/wandxy/hand/internal/tools/searchfiles"
+	"github.com/wandxy/hand/internal/tools/sessionsearch"
 	"github.com/wandxy/hand/internal/tools/time"
-	webextract "github.com/wandxy/hand/internal/tools/webextract"
-	websearch "github.com/wandxy/hand/internal/tools/websearch"
-	writefile "github.com/wandxy/hand/internal/tools/writefile"
+	"github.com/wandxy/hand/internal/tools/webextract"
+	"github.com/wandxy/hand/internal/tools/websearch"
+	"github.com/wandxy/hand/internal/tools/writefile"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/internal/workspace"
 )
@@ -56,19 +56,19 @@ type Environment interface {
 	ToolPolicy() tools.Policy
 
 	// NewIterationBudget creates the tool-calling iteration limit from config (max iterations).
-	NewIterationBudget() envbudget.IterationBudget
+	NewIterationBudget() budget.IterationBudget
 
 	// NewTraceSession opens a trace sink for the given storage session when debug tracing is enabled.
 	NewTraceSession(sessionID string) trace.Session
 
 	// CurrentPlan returns the in-memory plan state for the given session.
-	CurrentPlan(sessionID string) envtypes.Plan
+	CurrentPlan(sessionID string) planstore.Plan
 
 	// HydratePlan seeds the in-memory plan state for the given session.
-	HydratePlan(sessionID string, plan envtypes.Plan)
+	HydratePlan(sessionID string, plan planstore.Plan)
 
 	// SetSessionManager wires session-backed features into the environment runtime.
-	SetSessionManager(*sessionstore.Manager)
+	SetSessionManager(*session.Manager)
 }
 
 type environment struct {
@@ -79,7 +79,7 @@ type environment struct {
 	tools        tools.Registry
 	traces       trace.Factory
 	runtime      *Runtime
-	sessionMgr   *sessionstore.Manager
+	sessionMgr   *session.Manager
 }
 
 type ToolRegistry interface {
@@ -176,10 +176,10 @@ func (e *environment) prepareTools() error {
 		definitions = append(definitions, sessionsearch.Definition(e.runtime))
 	}
 
-	webProvider, err := webintegration.NewProvider(e.cfg)
+	webProvider, err := webprovider.NewProvider(e.cfg)
 
 	switch {
-	case errors.Is(err, webintegration.ErrProviderNotConfigured):
+	case errors.Is(err, webprovider.ErrProviderNotConfigured):
 	case err != nil:
 		return err
 	default:
@@ -190,9 +190,9 @@ func (e *environment) prepareTools() error {
 		)
 
 		if e.cfg.WebCacheTTL > 0 {
-			webProvider = webintegration.NewCachedProvider(
+			webProvider = webprovider.NewCachedProvider(
 				webProvider,
-				webintegration.CacheOptions{
+				webprovider.CacheOptions{
 					ProviderName: e.cfg.WebProvider,
 					TTL:          e.cfg.WebCacheTTL,
 				},
@@ -213,7 +213,7 @@ func (e *environment) prepareTools() error {
 			),
 		)
 
-		if e.cfg.WebProvider != webintegration.ProviderNative {
+		if e.cfg.WebProvider != webprovider.ProviderNative {
 			definitions = append(definitions,
 				websearch.Definition(
 					webProvider,
@@ -281,11 +281,11 @@ func (e *environment) Tools() ToolRegistry {
 	return e.tools
 }
 
-func (e *environment) NewIterationBudget() envbudget.IterationBudget {
+func (e *environment) NewIterationBudget() budget.IterationBudget {
 	if e == nil || e.cfg == nil || e.cfg.MaxIterations <= 0 {
-		return envbudget.New(config.DefaultMaxIterations)
+		return budget.New(config.DefaultMaxIterations)
 	}
-	return envbudget.New(e.cfg.MaxIterations)
+	return budget.New(e.cfg.MaxIterations)
 }
 
 func (e *environment) NewTraceSession(sessionID string) trace.Session {
@@ -313,21 +313,21 @@ func (e *environment) NewTraceSession(sessionID string) trace.Session {
 	return session
 }
 
-func (e *environment) CurrentPlan(sessionID string) envtypes.Plan {
+func (e *environment) CurrentPlan(sessionID string) planstore.Plan {
 	if e == nil || e.runtime == nil {
-		return envtypes.Plan{}
+		return planstore.Plan{}
 	}
 	return e.runtime.GetPlan(sessionID)
 }
 
-func (e *environment) HydratePlan(sessionID string, plan envtypes.Plan) {
+func (e *environment) HydratePlan(sessionID string, plan planstore.Plan) {
 	if e == nil || e.runtime == nil {
 		return
 	}
 	e.runtime.HydratePlan(sessionID, plan)
 }
 
-func (e *environment) SetSessionManager(manager *sessionstore.Manager) {
+func (e *environment) SetSessionManager(manager *session.Manager) {
 	if e == nil {
 		return
 	}

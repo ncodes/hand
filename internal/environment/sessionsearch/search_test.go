@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	envtypes "github.com/wandxy/hand/internal/environment/types"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	sessionstore "github.com/wandxy/hand/internal/session"
 	"github.com/wandxy/hand/internal/storage"
@@ -33,7 +32,7 @@ func TestSearch_FindsAssistantToolCallsAndPlainText(t *testing.T) {
 		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "search_files", Input: `{"pattern":"needle"}`}}, CreatedAt: now.Add(time.Second)},
 	}))
 
-	results, err := Search(context.Background(), manager, envtypes.SessionSearchRequest{
+	results, err := Search(context.Background(), manager, SessionSearchRequest{
 		SessionID: sessionSearchTestSessionID,
 		Query:     "needle",
 	})
@@ -45,7 +44,7 @@ func TestSearch_FindsAssistantToolCallsAndPlainText(t *testing.T) {
 	require.Equal(t, "assistant", results[0].Messages[0].Role)
 	require.Equal(t, "search_files", results[0].Messages[0].ToolName)
 
-	results, err = Search(context.Background(), manager, envtypes.SessionSearchRequest{
+	results, err = Search(context.Background(), manager, SessionSearchRequest{
 		SessionID: sessionSearchTestSessionID,
 		Query:     "plain",
 		Role:      "user",
@@ -73,7 +72,7 @@ func TestSearch_AssistantToolNameFilterDoesNotMatchOtherToolCallPayloads(t *test
 		},
 	}))
 
-	results, err := Search(context.Background(), manager, envtypes.SessionSearchRequest{
+	results, err := Search(context.Background(), manager, SessionSearchRequest{
 		SessionID: sessionSearchTestSessionID,
 		Query:     "needle",
 		ToolName:  "process",
@@ -100,7 +99,7 @@ func TestSearch_FiltersAndClampsResults(t *testing.T) {
 		}}))
 	}
 
-	results, err := Search(context.Background(), manager, envtypes.SessionSearchRequest{
+	results, err := Search(context.Background(), manager, SessionSearchRequest{
 		Query:      "running",
 		ToolName:   "process",
 		MaxResults: 100,
@@ -121,7 +120,7 @@ func TestSearch_BuildsRuneSafeSnippet(t *testing.T) {
 		CreatedAt: time.Now().UTC(),
 	}}))
 
-	results, err := Search(context.Background(), manager, envtypes.SessionSearchRequest{
+	results, err := Search(context.Background(), manager, SessionSearchRequest{
 		SessionID: sessionSearchTestSessionID,
 		Query:     "needle",
 	})
@@ -143,7 +142,7 @@ func TestSearch_ReportsMatchIndexFromOriginalText(t *testing.T) {
 		CreatedAt: time.Now().UTC(),
 	}}))
 
-	results, err := Search(context.Background(), manager, envtypes.SessionSearchRequest{
+	results, err := Search(context.Background(), manager, SessionSearchRequest{
 		SessionID: sessionSearchTestSessionID,
 		Query:     "needle",
 	})
@@ -154,7 +153,7 @@ func TestSearch_ReportsMatchIndexFromOriginalText(t *testing.T) {
 }
 
 func TestSearch_ValidatesManagerAndQuery(t *testing.T) {
-	_, err := Search(context.Background(), nil, envtypes.SessionSearchRequest{Query: "x"})
+	_, err := Search(context.Background(), nil, SessionSearchRequest{Query: "x"})
 	require.EqualError(t, err, "session manager is required")
 
 	store := memorystore.NewSessionStore()
@@ -162,7 +161,7 @@ func TestSearch_ValidatesManagerAndQuery(t *testing.T) {
 	require.NoError(t, createErr)
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: sessionSearchTestSessionID}))
 
-	_, err = Search(context.Background(), manager, envtypes.SessionSearchRequest{SessionID: sessionSearchTestSessionID})
+	_, err = Search(context.Background(), manager, SessionSearchRequest{SessionID: sessionSearchTestSessionID})
 	require.EqualError(t, err, "query is required")
 }
 
@@ -183,7 +182,7 @@ func TestSearch_OmitsOriginSessionWhenSessionIDIsBlank(t *testing.T) {
 		CreatedAt: time.Now().UTC(),
 	}}))
 
-	results, err := Search(context.Background(), manager, envtypes.SessionSearchRequest{
+	results, err := Search(context.Background(), manager, SessionSearchRequest{
 		IgnoreSessionID: sessionSearchTestSessionID,
 		Query:           "needle",
 	})
@@ -197,7 +196,7 @@ func TestSearch_ReturnsStoreErrorsAndSkipsEmptyDerivedSearchText(t *testing.T) {
 	manager, err := sessionstore.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 
-	_, err = Search(context.Background(), manager, envtypes.SessionSearchRequest{
+	_, err = Search(context.Background(), manager, SessionSearchRequest{
 		SessionID: "ses_invalid",
 		Query:     "needle",
 	})
@@ -210,7 +209,7 @@ func TestSearch_ReturnsStoreErrorsAndSkipsEmptyDerivedSearchText(t *testing.T) {
 		CreatedAt: time.Now().UTC(),
 	}}))
 
-	results, err := Search(context.Background(), manager, envtypes.SessionSearchRequest{
+	results, err := Search(context.Background(), manager, SessionSearchRequest{
 		SessionID: sessionSearchTestSessionID,
 		Query:     "needle",
 	})
@@ -261,7 +260,7 @@ func TestSearch_ForwardsCanonicalSearchOptions(t *testing.T) {
 	}, time.Minute, time.Hour)
 	require.NoError(t, err)
 
-	results, err := Search(context.Background(), mockManager, envtypes.SessionSearchRequest{
+	results, err := Search(context.Background(), mockManager, SessionSearchRequest{
 		IgnoreSessionID: storage.DefaultSessionID,
 		Query:           "needle",
 		Role:            "assistant",
@@ -307,7 +306,7 @@ func TestSearch_ShapesResultsFromStorageMatchedMetadata(t *testing.T) {
 	}, time.Minute, time.Hour)
 	require.NoError(t, err)
 
-	results, err := Search(context.Background(), mockManager, envtypes.SessionSearchRequest{
+	results, err := Search(context.Background(), mockManager, SessionSearchRequest{
 		SessionID: sessionSearchTestSessionID,
 		Query:     "needle",
 	})
@@ -373,7 +372,7 @@ func TestSearch_SkipsEmptyHitsAndMissingSessions(t *testing.T) {
 	}, time.Minute, time.Hour)
 	require.NoError(t, err)
 
-	results, err := Search(context.Background(), mockManager, envtypes.SessionSearchRequest{
+	results, err := Search(context.Background(), mockManager, SessionSearchRequest{
 		Query: "needle",
 	})
 	require.NoError(t, err)
@@ -408,7 +407,7 @@ func TestSearch_SkipsEmptyMatchedMessagesInGroupedResult(t *testing.T) {
 	}, time.Minute, time.Hour)
 	require.NoError(t, err)
 
-	results, err := Search(context.Background(), mockManager, envtypes.SessionSearchRequest{
+	results, err := Search(context.Background(), mockManager, SessionSearchRequest{
 		Query: "needle",
 	})
 	require.NoError(t, err)
@@ -438,7 +437,7 @@ func TestSearch_ReturnsSessionLookupErrors(t *testing.T) {
 		}, time.Minute, time.Hour)
 		require.NoError(t, err)
 
-		_, err = Search(context.Background(), mockManager, envtypes.SessionSearchRequest{Query: "needle"})
+		_, err = Search(context.Background(), mockManager, SessionSearchRequest{Query: "needle"})
 		require.EqualError(t, err, "get failed")
 	})
 
@@ -464,7 +463,7 @@ func TestSearch_ReturnsSessionLookupErrors(t *testing.T) {
 		}, time.Minute, time.Hour)
 		require.NoError(t, err)
 
-		_, err = Search(context.Background(), mockManager, envtypes.SessionSearchRequest{Query: "needle"})
+		_, err = Search(context.Background(), mockManager, SessionSearchRequest{Query: "needle"})
 		require.EqualError(t, err, "summary failed")
 	})
 }
@@ -510,7 +509,7 @@ func TestSearch_LimitsAndSortsGroupedResultsDeterministically(t *testing.T) {
 	}, time.Minute, time.Hour)
 	require.NoError(t, err)
 
-	results, err := Search(context.Background(), mockManager, envtypes.SessionSearchRequest{
+	results, err := Search(context.Background(), mockManager, SessionSearchRequest{
 		Query:      "needle",
 		MaxResults: 1,
 	})

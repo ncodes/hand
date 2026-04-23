@@ -174,6 +174,32 @@ func (m *Manager) GetMessages(
 	return m.store.GetMessages(ctx, strings.TrimSpace(id), opts)
 }
 
+func (m *Manager) GetMessagesByIDs(
+	ctx context.Context,
+	id string,
+	messageIDs []uint,
+) ([]storage.MessageRecord, error) {
+	if m == nil {
+		return nil, errors.New("session manager is required")
+	}
+
+	return m.store.GetMessagesByIDs(ctx, strings.TrimSpace(id), messageIDs)
+}
+
+func (m *Manager) GetMessageWindow(
+	ctx context.Context,
+	id string,
+	anchorMessageID uint,
+	before int,
+	after int,
+) ([]storage.MessageRecord, error) {
+	if m == nil {
+		return nil, errors.New("session manager is required")
+	}
+
+	return m.store.GetMessageWindow(ctx, strings.TrimSpace(id), anchorMessageID, before, after)
+}
+
 func (m *Manager) SearchMessages(
 	ctx context.Context,
 	id string,

@@ -22,6 +22,8 @@ type SessionStore struct {
 	CountMessagesFunc         func(context.Context, string, storage.MessageQueryOptions) (int, error)
 	GetMessageFunc            func(context.Context, string, int, storage.MessageQueryOptions) (handmsg.Message, bool, error)
 	GetMessagesFunc           func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
+	GetMessagesByIDsFunc      func(context.Context, string, []uint) ([]storage.MessageRecord, error)
+	GetMessageWindowFunc      func(context.Context, string, uint, int, int) ([]storage.MessageRecord, error)
 	SearchMessagesFunc        func(context.Context, string, storage.SearchMessageOptions) ([]storage.SearchMessageResult, error)
 	ClearMessagesFunc         func(context.Context, string, storage.MessageQueryOptions) error
 	CreateArchiveFunc         func(context.Context, storage.ArchivedSession) error
@@ -170,6 +172,22 @@ func (s *SessionStore) GetMessage(ctx context.Context, id string, index int, opt
 func (s *SessionStore) GetMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
 	if s.GetMessagesFunc != nil {
 		return s.GetMessagesFunc(ctx, id, opts)
+	}
+
+	return nil, nil
+}
+
+func (s *SessionStore) GetMessagesByIDs(ctx context.Context, id string, messageIDs []uint) ([]storage.MessageRecord, error) {
+	if s.GetMessagesByIDsFunc != nil {
+		return s.GetMessagesByIDsFunc(ctx, id, messageIDs)
+	}
+
+	return nil, nil
+}
+
+func (s *SessionStore) GetMessageWindow(ctx context.Context, id string, anchorMessageID uint, before int, after int) ([]storage.MessageRecord, error) {
+	if s.GetMessageWindowFunc != nil {
+		return s.GetMessageWindowFunc(ctx, id, anchorMessageID, before, after)
 	}
 
 	return nil, nil

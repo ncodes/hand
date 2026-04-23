@@ -7,20 +7,22 @@ import (
 
 	"github.com/stretchr/testify/require"
 	processenv "github.com/wandxy/hand/internal/environment/process"
+	envsessionmessages "github.com/wandxy/hand/internal/environment/sessionmessages"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/tools"
 )
 
 type Runtime struct {
-	FilePolicyValue    guardrails.FilesystemPolicy
-	CommandPolicyValue guardrails.CommandPolicy
-	StartProcessFunc   func(context.Context, string, processenv.StartRequest) (processenv.Info, error)
-	GetProcessFunc     func(string, string) (processenv.Info, error)
-	ReadProcessFunc    func(string, processenv.ReadRequest) (processenv.Output, error)
-	StopProcessFunc    func(context.Context, string, string) (processenv.Info, error)
-	ListProcessesFunc  func(string) []processenv.Info
-	SearchSessionFunc  func(context.Context, envtypes.SessionSearchRequest) ([]envtypes.SessionSearchResult, error)
+	FilePolicyValue        guardrails.FilesystemPolicy
+	CommandPolicyValue     guardrails.CommandPolicy
+	StartProcessFunc       func(context.Context, string, processenv.StartRequest) (processenv.Info, error)
+	GetProcessFunc         func(string, string) (processenv.Info, error)
+	ReadProcessFunc        func(string, processenv.ReadRequest) (processenv.Output, error)
+	StopProcessFunc        func(context.Context, string, string) (processenv.Info, error)
+	ListProcessesFunc      func(string) []processenv.Info
+	SearchSessionFunc      func(context.Context, envtypes.SessionSearchRequest) ([]envtypes.SessionSearchResult, error)
+	GetSessionMessagesFunc func(context.Context, envsessionmessages.SessionMessagesRequest) (envsessionmessages.SessionMessagesResponse, error)
 }
 
 func (r *Runtime) FilePolicy() guardrails.FilesystemPolicy { return r.FilePolicyValue }
@@ -60,6 +62,12 @@ func (r *Runtime) SearchSession(ctx context.Context, req envtypes.SessionSearchR
 		return r.SearchSessionFunc(ctx, req)
 	}
 	return nil, nil
+}
+func (r *Runtime) GetSessionMessages(ctx context.Context, req envsessionmessages.SessionMessagesRequest) (envsessionmessages.SessionMessagesResponse, error) {
+	if r != nil && r.GetSessionMessagesFunc != nil {
+		return r.GetSessionMessagesFunc(ctx, req)
+	}
+	return envsessionmessages.SessionMessagesResponse{}, nil
 }
 func (r *Runtime) GetPlan(string) envtypes.Plan { return envtypes.Plan{} }
 func (r *Runtime) ReplacePlan(string, envtypes.Plan) (envtypes.Plan, error) {
@@ -129,6 +137,9 @@ func (d *FailingPlanRuntime) ListProcesses(sessionID string) []processenv.Info {
 }
 func (d *FailingPlanRuntime) SearchSession(ctx context.Context, req envtypes.SessionSearchRequest) ([]envtypes.SessionSearchResult, error) {
 	return d.Runtime.SearchSession(ctx, req)
+}
+func (d *FailingPlanRuntime) GetSessionMessages(ctx context.Context, req envsessionmessages.SessionMessagesRequest) (envsessionmessages.SessionMessagesResponse, error) {
+	return d.Runtime.GetSessionMessages(ctx, req)
 }
 func (d *FailingPlanRuntime) GetPlan(sessionID string) envtypes.Plan {
 	return d.Runtime.GetPlan(sessionID)

@@ -17,6 +17,7 @@ type Session = base.Session
 type ArchivedSession = base.ArchivedSession
 type MessageQueryOptions = base.MessageQueryOptions
 type SessionSummary = base.SessionSummary
+type MessageRecord = base.MessageRecord
 
 type SessionStore struct {
 	mu              sync.RWMutex
@@ -213,6 +214,106 @@ func (s *SessionStore) GetMessages(
 	}
 
 	return queryMessages(s.messages[id], opts), nil
+}
+
+func (s *SessionStore) GetMessagesByIDs(
+	_ context.Context,
+	id string,
+	messageIDs []uint,
+) ([]base.MessageRecord, error) {
+	if s == nil {
+		return nil, errors.New("session store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, nil
+	}
+	if err := common.ValidateSessionID(id); err != nil {
+		return nil, err
+	}
+	if len(messageIDs) == 0 {
+		return nil, nil
+	}
+
+	selected := make(map[uint]struct{}, len(messageIDs))
+	for _, messageID := range messageIDs {
+		if messageID == 0 {
+			continue
+		}
+		selected[messageID] = struct{}{}
+	}
+	if len(selected) == 0 {
+		return nil, nil
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	messages := s.messages[id]
+	records := make([]base.MessageRecord, 0, len(selected))
+	for idx, message := range messages {
+		if _, ok := selected[message.ID]; !ok {
+			continue
+		}
+
+		records = append(records, base.MessageRecord{
+			Offset:  idx,
+			Message: cloneMessages([]handmsg.Message{message})[0],
+		})
+	}
+
+	return records, nil
+}
+
+func (s *SessionStore) GetMessageWindow(
+	_ context.Context,
+	id string,
+	anchorMessageID uint,
+	before int,
+	after int,
+) ([]base.MessageRecord, error) {
+	if s == nil {
+		return nil, errors.New("session store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" || anchorMessageID == 0 {
+		return nil, nil
+	}
+	if err := common.ValidateSessionID(id); err != nil {
+		return nil, err
+	}
+	if before < 0 || after < 0 {
+		return nil, errors.New("before and after must be greater than or equal to zero")
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	messages := s.messages[id]
+	anchorIndex := -1
+	for idx, message := range messages {
+		if message.ID == anchorMessageID {
+			anchorIndex = idx
+			break
+		}
+	}
+	if anchorIndex < 0 {
+		return nil, nil
+	}
+
+	start := max(anchorIndex-before, 0)
+	end := min(anchorIndex+after+1, len(messages))
+	records := make([]base.MessageRecord, 0, end-start)
+	for idx := start; idx < end; idx++ {
+		records = append(records, base.MessageRecord{
+			Offset:  idx,
+			Message: cloneMessages([]handmsg.Message{messages[idx]})[0],
+		})
+	}
+
+	return records, nil
 }
 
 func (s *SessionStore) SearchMessages(
