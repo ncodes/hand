@@ -1724,6 +1724,41 @@ func TestSQLiteStore_SearchMessagesRanksByRelevanceBeforeRecency(t *testing.T) {
 	require.Equal(t, 2, results[0].MatchCount)
 }
 
+func TestSQLiteStore_SearchMessagesUsesRecencyWhenScoresTie(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "needle tie", CreatedAt: now},
+		{Role: handmsg.RoleUser, Content: "needle tie", CreatedAt: now.Add(time.Second)},
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "needle tie", CreatedAt: now.Add(2 * time.Second)},
+	}))
+
+	results, err := store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+		Query:                 "needle tie",
+		MaxMessagesPerSession: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, 2, results[0].MatchCount)
+	require.Len(t, results[0].Messages, 1)
+	require.Equal(t, now.Add(time.Second), results[0].Messages[0].Message.CreatedAt)
+
+	results, err = store.SearchMessages(context.Background(), "", SearchMessageOptions{
+		Query:       "needle tie",
+		MaxSessions: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, testSessionB, results[0].SessionID)
+	require.Equal(t, now.Add(2*time.Second), results[0].LastMatchedAt)
+}
+
 func TestSQLiteStore_SearchMessagesSupportsCrossSessionScopeAndOrdering(t *testing.T) {
 	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)
