@@ -1690,7 +1690,7 @@ func TestSQLiteStore_SearchMessagesSupportsGroupedResults(t *testing.T) {
 	})
 }
 
-func TestSQLiteStore_SearchMessagesCurrentlyOrdersByRecencyInsteadOfRelevance(t *testing.T) {
+func TestSQLiteStore_SearchMessagesRanksSessionsByRelevanceBeforeRecency(t *testing.T) {
 	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)
 
@@ -1698,30 +1698,30 @@ func TestSQLiteStore_SearchMessagesCurrentlyOrdersByRecencyInsteadOfRelevance(t 
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
 	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "needle needle needle durable ranking context", CreatedAt: now},
-		{Role: handmsg.RoleUser, Content: "needle", CreatedAt: now.Add(time.Second)},
+		{Role: handmsg.RoleUser, Content: "needle durable needle durable needle durable", CreatedAt: now},
+		{Role: handmsg.RoleUser, Content: "needle durable", CreatedAt: now.Add(time.Second)},
 	}))
 	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "needle", CreatedAt: now.Add(2 * time.Second)},
+		{Role: handmsg.RoleUser, Content: "needle durable", CreatedAt: now.Add(2 * time.Second)},
 	}))
 
 	results, err := store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
-		Query:                 "needle",
+		Query:                 "needle durable",
 		MaxMessagesPerSession: 1,
 	})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	require.Equal(t, 2, results[0].MatchCount)
-	require.Equal(t, "needle", results[0].Messages[0].MatchedText)
+	require.Equal(t, "needle durable", results[0].Messages[0].MatchedText)
 
 	results, err = store.SearchMessages(context.Background(), "", SearchMessageOptions{
-		Query:       "needle",
+		Query:       "needle durable",
 		MaxSessions: 1,
 	})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
-	require.Equal(t, testSessionB, results[0].SessionID)
-	require.Equal(t, "needle", results[0].Messages[0].MatchedText)
+	require.Equal(t, testSessionA, results[0].SessionID)
+	require.Equal(t, 2, results[0].MatchCount)
 }
 
 func TestSQLiteStore_SearchMessagesSupportsCrossSessionScopeAndOrdering(t *testing.T) {

@@ -140,6 +140,7 @@ type searchSessionResultRow struct {
 	MatchedText     string
 	MatchedToolName string
 	Score           float64
+	BestScore       float64
 	MatchCount      int
 	LastMatchedAt   string
 }
@@ -690,6 +691,7 @@ session_groups AS (
 	SELECT
 		session_id,
 		COUNT(*) AS match_count,
+		MIN(score) AS best_score,
 		strftime('%Y-%m-%dT%H:%M:%fZ', MAX(created_at)) AS last_matched_at
 	FROM message_hits
 	GROUP BY session_id
@@ -698,9 +700,10 @@ ranked_sessions AS (
 	SELECT
 		session_id,
 		match_count,
+		best_score,
 		last_matched_at,
 		ROW_NUMBER() OVER (
-			ORDER BY last_matched_at DESC, session_id ASC
+			ORDER BY best_score ASC, last_matched_at DESC, session_id ASC
 		) AS session_rank
 	FROM session_groups
 ),
@@ -720,6 +723,7 @@ ranked_session_hits AS (
 		mh.matched_tool_name,
 		mh.score,
 		rs.match_count,
+		rs.best_score,
 		rs.last_matched_at,
 		ROW_NUMBER() OVER (
 			PARTITION BY mh.session_id
@@ -749,6 +753,7 @@ SELECT
 	matched_tool_name,
 	score,
 	match_count,
+	best_score,
 	last_matched_at
 FROM ranked_session_hits`)
 	if opts.MaxMessagesPerSession > 0 {
@@ -757,7 +762,7 @@ WHERE message_rank <= ?`)
 		args = append(args, opts.MaxMessagesPerSession)
 	}
 	sql.WriteString(`
-ORDER BY last_matched_at DESC, session_id ASC, created_at DESC, id DESC`)
+ORDER BY best_score ASC, last_matched_at DESC, session_id ASC, created_at DESC, id DESC`)
 
 	var records []searchSessionResultRow
 	if err := s.db.WithContext(ctx).Raw(sql.String(), args...).Scan(&records).Error; err != nil {
