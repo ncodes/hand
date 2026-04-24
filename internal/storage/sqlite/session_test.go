@@ -1690,7 +1690,7 @@ func TestSQLiteStore_SearchMessagesSupportsGroupedResults(t *testing.T) {
 	})
 }
 
-func TestSQLiteStore_SearchMessagesRanksSessionsByRelevanceBeforeRecency(t *testing.T) {
+func TestSQLiteStore_SearchMessagesRanksByRelevanceBeforeRecency(t *testing.T) {
 	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)
 
@@ -1712,7 +1712,7 @@ func TestSQLiteStore_SearchMessagesRanksSessionsByRelevanceBeforeRecency(t *test
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	require.Equal(t, 2, results[0].MatchCount)
-	require.Equal(t, "needle durable", results[0].Messages[0].MatchedText)
+	require.Equal(t, "needle durable needle durable needle durable", results[0].Messages[0].MatchedText)
 
 	results, err = store.SearchMessages(context.Background(), "", SearchMessageOptions{
 		Query:       "needle durable",

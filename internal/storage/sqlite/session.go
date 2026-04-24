@@ -625,7 +625,9 @@ func (s *SessionStore) SearchMessages(
 
 	args := []any{queryText}
 	var sql strings.Builder
-	sql.WriteString(`WITH raw_hits AS (
+	sql.WriteString(`WITH
+-- Read matching FTS rows and compute BM25; lower scores are more relevant.
+raw_hits AS (
 	SELECT
 		rowid AS search_rowid,
 		CAST(message_id AS INTEGER) AS message_id,
@@ -656,6 +658,7 @@ func (s *SessionStore) SearchMessages(
 	}
 	sql.WriteString(`
 ),
+-- Collapse duplicate indexed rows for the same message to the best hit.
 ranked_hits AS (
 	SELECT
 		message_id,
@@ -669,6 +672,8 @@ ranked_hits AS (
 		) AS hit_rank
 	FROM raw_hits
 ),
+
+-- Join the selected FTS hits back to durable message rows.
 message_hits AS (
 	SELECT
 		m.id,
@@ -687,6 +692,8 @@ message_hits AS (
 	FROM session_messages AS m
 	JOIN ranked_hits AS hits ON hits.message_id = m.id AND hits.hit_rank = 1
 ),
+
+-- Aggregate per-session metadata used for grouping and session ranking.
 session_groups AS (
 	SELECT
 		session_id,
@@ -696,6 +703,8 @@ session_groups AS (
 	FROM message_hits
 	GROUP BY session_id
 ),
+
+-- Rank sessions by best message relevance, then latest matching message.
 ranked_sessions AS (
 	SELECT
 		session_id,
@@ -707,6 +716,8 @@ ranked_sessions AS (
 		) AS session_rank
 	FROM session_groups
 ),
+
+-- Rank messages inside each selected session by relevance, then recency.
 ranked_session_hits AS (
 	SELECT
 		mh.id,
@@ -727,7 +738,7 @@ ranked_session_hits AS (
 		rs.last_matched_at,
 		ROW_NUMBER() OVER (
 			PARTITION BY mh.session_id
-			ORDER BY mh.created_at DESC, mh.id DESC
+			ORDER BY mh.score ASC, mh.created_at DESC, mh.id DESC
 		) AS message_rank
 	FROM message_hits AS mh
 	JOIN ranked_sessions AS rs ON rs.session_id = mh.session_id`)
@@ -738,6 +749,8 @@ ranked_session_hits AS (
 	}
 	sql.WriteString(`
 )
+
+-- Emit ranked rows for the Go result mapper.
 SELECT
 	id,
 	session_id,
@@ -762,7 +775,7 @@ WHERE message_rank <= ?`)
 		args = append(args, opts.MaxMessagesPerSession)
 	}
 	sql.WriteString(`
-ORDER BY best_score ASC, last_matched_at DESC, session_id ASC, created_at DESC, id DESC`)
+ORDER BY best_score ASC, last_matched_at DESC, session_id ASC, score ASC, created_at DESC, id DESC`)
 
 	var records []searchSessionResultRow
 	if err := s.db.WithContext(ctx).Raw(sql.String(), args...).Scan(&records).Error; err != nil {
