@@ -664,7 +664,7 @@ ranked_hits AS (
 		score,
 		ROW_NUMBER() OVER (
 			PARTITION BY message_id
-			ORDER BY CASE WHEN matched_tool_name <> '' THEN 0 ELSE 1 END, search_rowid ASC
+			ORDER BY score ASC, CASE WHEN matched_tool_name <> '' THEN 0 ELSE 1 END, search_rowid ASC
 		) AS hit_rank
 	FROM raw_hits
 ),

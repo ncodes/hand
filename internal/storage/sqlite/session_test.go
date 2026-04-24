@@ -1519,6 +1519,31 @@ func TestSQLiteStore_SearchMessagesUsesDerivedStructuredSearchText(t *testing.T)
 	require.Len(t, results, 1)
 }
 
+func TestSQLiteStore_SearchMessagesSelectsBestDuplicateFTSRowByScore(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
+		Role:    handmsg.RoleAssistant,
+		Content: "needle needle needle durable ranking context",
+		ToolCalls: []handmsg.ToolCall{
+			{ID: "call-1", Name: "lookup", Input: `{"pattern":"needle"}`},
+		},
+		CreatedAt: now,
+	}}))
+
+	results, err := store.SearchMessages(context.Background(), testSessionA, SearchMessageOptions{
+		Query: "needle",
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Len(t, results[0].Messages, 1)
+	require.Equal(t, "needle needle needle durable ranking context", results[0].Messages[0].MatchedText)
+	require.Empty(t, results[0].Messages[0].MatchedToolName)
+}
+
 func TestSQLiteStore_SearchMessagesSupportsCrossSessionScope(t *testing.T) {
 	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)
