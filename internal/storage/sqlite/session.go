@@ -139,6 +139,7 @@ type searchSessionResultRow struct {
 	UpdatedAt       time.Time
 	MatchedText     string
 	MatchedToolName string
+	Score           float64
 	MatchCount      int
 	LastMatchedAt   string
 }
@@ -623,16 +624,16 @@ func (s *SessionStore) SearchMessages(
 
 	args := []any{queryText}
 	var sql strings.Builder
-	sql.WriteString(`WITH ranked_hits AS (
+	sql.WriteString(`WITH raw_hits AS (
 	SELECT
+		rowid AS search_rowid,
 		CAST(message_id AS INTEGER) AS message_id,
 		session_id,
 		body AS matched_text,
 		tool_name AS matched_tool_name,
-		ROW_NUMBER() OVER (
-			PARTITION BY CAST(message_id AS INTEGER)
-			ORDER BY CASE WHEN tool_name <> '' THEN 0 ELSE 1 END, rowid ASC
-		) AS hit_rank
+		bm25(`)
+	sql.WriteString(sessionMessageSearchTable)
+	sql.WriteString(`) AS score
 	FROM `)
 	sql.WriteString(sessionMessageSearchTable)
 	sql.WriteString(`
@@ -654,6 +655,19 @@ func (s *SessionStore) SearchMessages(
 	}
 	sql.WriteString(`
 ),
+ranked_hits AS (
+	SELECT
+		message_id,
+		session_id,
+		matched_text,
+		matched_tool_name,
+		score,
+		ROW_NUMBER() OVER (
+			PARTITION BY message_id
+			ORDER BY CASE WHEN matched_tool_name <> '' THEN 0 ELSE 1 END, search_rowid ASC
+		) AS hit_rank
+	FROM raw_hits
+),
 message_hits AS (
 	SELECT
 		m.id,
@@ -667,7 +681,8 @@ message_hits AS (
 		m.created_at,
 		m.updated_at,
 		hits.matched_text,
-		hits.matched_tool_name
+		hits.matched_tool_name,
+		hits.score
 	FROM session_messages AS m
 	JOIN ranked_hits AS hits ON hits.message_id = m.id AND hits.hit_rank = 1
 ),
@@ -703,6 +718,7 @@ ranked_session_hits AS (
 		mh.updated_at,
 		mh.matched_text,
 		mh.matched_tool_name,
+		mh.score,
 		rs.match_count,
 		rs.last_matched_at,
 		ROW_NUMBER() OVER (
@@ -731,6 +747,7 @@ SELECT
 	updated_at,
 	matched_text,
 	matched_tool_name,
+	score,
 	match_count,
 	last_matched_at
 FROM ranked_session_hits`)
