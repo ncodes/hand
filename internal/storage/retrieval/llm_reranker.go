@@ -35,8 +35,14 @@ type LLMReranker struct {
 
 func NewLLMReranker(options LLMRerankerOptions) Reranker {
 	if !options.Enabled {
+		retrievalLog.Trace().Msg("llm reranker disabled, using fallback")
 		return fallbackReranker(options.Fallback)
 	}
+
+	retrievalLog.Trace().
+		Int("max_candidates", options.MaxCandidates).
+		Int("max_candidate_text_chars", options.MaxCandidateTextChars).
+		Msg("llm reranker enabled")
 
 	return LLMReranker{options: normalizeLLMRerankerOptions(options)}
 }
@@ -44,11 +50,17 @@ func NewLLMReranker(options LLMRerankerOptions) Reranker {
 func (r LLMReranker) Rerank(ctx context.Context, req RerankRequest) (RerankResult, error) {
 	options := normalizeLLMRerankerOptions(r.options)
 	if !options.Enabled || options.Client == nil || strings.TrimSpace(options.Model) == "" {
+		rerankDebugLogEvent(req, "llm").
+			Bool("enabled", options.Enabled).
+			Bool("has_client", options.Client != nil).
+			Bool("has_model", strings.TrimSpace(options.Model) != "").
+			Msg("llm rerank unavailable, using fallback")
 		return options.Fallback.Rerank(ctx, req)
 	}
 
 	maxCandidates, err := effectiveLLMMaxCandidates(options.MaxCandidates, req.Options.MaxCandidates)
 	if err != nil {
+		rerankTraceLogEvent(req, "llm").Err(err).Msg("llm rerank candidate bound failed")
 		return RerankResult{}, err
 	}
 
@@ -57,34 +69,54 @@ func (r LLMReranker) Rerank(ctx context.Context, req RerankRequest) (RerankResul
 		candidates = candidates[:maxCandidates]
 	}
 	if len(candidates) == 0 {
+		rerankTraceLogEvent(req, "llm").Msg("llm rerank skipped without candidates")
 		return RerankResult{}, nil
 	}
 	for _, candidate := range candidates {
 		if err := ValidateCandidate(candidate); err != nil {
+			rerankTraceLogEvent(req, "llm").Err(err).Msg("llm rerank candidate validation failed")
 			return RerankResult{}, err
 		}
 	}
+
+	rerankTraceLogEvent(req, "llm").
+		Str("model", options.Model).
+		Str("api_mode", options.APIMode).
+		Int("candidate_count", len(req.Candidates)).
+		Int("bounded_candidate_count", len(candidates)).
+		Int("max_candidate_text_chars", options.MaxCandidateTextChars).
+		Msg("llm rerank model request started")
 
 	modelReq := r.modelRequest(req, candidates, true)
 	resp, err := options.Client.Complete(ctx, modelReq)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			rerankDebugLogEvent(req, "llm").Err(err).Msg("llm rerank timed out, using fallback")
 			return options.Fallback.Rerank(ctx, rerankRequestWithCandidates(req, candidates))
 		}
+		rerankDebugLogEvent(req, "llm").Err(err).Msg("llm rerank structured request failed, retrying without structured output")
 		modelReq.StructuredOutput = nil
 		resp, err = options.Client.Complete(ctx, modelReq)
 	}
 	if err != nil {
+		rerankDebugLogEvent(req, "llm").Err(err).Msg("llm rerank model request failed, using fallback")
 		return options.Fallback.Rerank(ctx, rerankRequestWithCandidates(req, candidates))
 	}
 
 	result, err := parseLLMRerankResponse(resp)
 	if err != nil {
+		rerankDebugLogEvent(req, "llm").Err(err).Msg("llm rerank response parse failed, using fallback")
 		return options.Fallback.Rerank(ctx, rerankRequestWithCandidates(req, candidates))
 	}
 	if err := ValidateRerankResult(candidates, result); err != nil {
+		rerankDebugLogEvent(req, "llm").Err(err).Msg("llm rerank result rejected, using fallback")
 		return options.Fallback.Rerank(ctx, rerankRequestWithCandidates(req, candidates))
 	}
+
+	rerankTraceLogEvent(req, "llm").
+		Int("bounded_candidate_count", len(candidates)).
+		Int("result_count", len(result.Items)).
+		Msg("llm rerank completed")
 
 	return result, nil
 }

@@ -7,7 +7,13 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog"
+
+	"github.com/wandxy/hand/pkg/logutils"
 )
+
+var retrievalLog = logutils.InitLogger("storage.retrieval")
 
 type Reranker interface {
 	Rerank(context.Context, RerankRequest) (RerankResult, error)
@@ -51,14 +57,18 @@ type RerankItem struct {
 type NoopReranker struct{}
 
 func (NoopReranker) Rerank(_ context.Context, req RerankRequest) (RerankResult, error) {
+	rerankTraceLogEvent(req, "noop").Int("candidate_count", len(req.Candidates)).Msg("rerank started")
+
 	candidates, err := boundedCandidates(req.Candidates, req.Options.MaxCandidates)
 	if err != nil {
+		rerankTraceLogEvent(req, "noop").Err(err).Msg("rerank candidate bound failed")
 		return RerankResult{}, err
 	}
 
 	items := make([]RerankItem, 0, len(candidates))
 	for _, candidate := range candidates {
 		if err := ValidateCandidate(candidate); err != nil {
+			rerankTraceLogEvent(req, "noop").Err(err).Msg("rerank candidate validation failed")
 			return RerankResult{}, err
 		}
 		items = append(items, RerankItem{
@@ -67,27 +77,38 @@ func (NoopReranker) Rerank(_ context.Context, req RerankRequest) (RerankResult, 
 		})
 	}
 
+	rerankTraceLogEvent(req, "noop").
+		Int("bounded_candidate_count", len(candidates)).
+		Int("result_count", len(items)).
+		Msg("rerank completed")
+
 	return RerankResult{Items: items}, nil
 }
 
 type DeterministicReranker struct{}
 
 func (DeterministicReranker) Rerank(_ context.Context, req RerankRequest) (RerankResult, error) {
+	rerankTraceLogEvent(req, "deterministic").Int("candidate_count", len(req.Candidates)).Msg("rerank started")
+
 	candidates, err := boundedCandidates(req.Candidates, req.Options.MaxCandidates)
 	if err != nil {
+		rerankTraceLogEvent(req, "deterministic").Err(err).Msg("rerank candidate bound failed")
 		return RerankResult{}, err
 	}
 	if len(candidates) == 0 {
+		rerankTraceLogEvent(req, "deterministic").Msg("rerank skipped without candidates")
 		return RerankResult{}, nil
 	}
 	for _, candidate := range candidates {
 		if err := ValidateCandidate(candidate); err != nil {
+			rerankTraceLogEvent(req, "deterministic").Err(err).Msg("rerank candidate validation failed")
 			return RerankResult{}, err
 		}
 	}
 
 	weights, err := normalizeRerankWeights(req.Options)
 	if err != nil {
+		rerankTraceLogEvent(req, "deterministic").Err(err).Msg("rerank weight normalization failed")
 		return RerankResult{}, err
 	}
 	lexicalScores := make([]float64, 0, len(candidates))
@@ -128,6 +149,15 @@ func (DeterministicReranker) Rerank(_ context.Context, req RerankRequest) (Reran
 		return left.CandidateID < right.CandidateID
 	})
 
+	rerankTraceLogEvent(req, "deterministic").
+		Int("bounded_candidate_count", len(candidates)).
+		Int("result_count", len(items)).
+		Float64("lexical_weight", weights.LexicalWeight).
+		Float64("vector_weight", weights.VectorWeight).
+		Float64("fused_weight", weights.FusedWeight).
+		Float64("recency_weight", weights.RecencyWeight).
+		Msg("rerank completed")
+
 	return RerankResult{Items: items}, nil
 }
 
@@ -137,20 +167,26 @@ func RerankWithFallback(
 	fallback Reranker,
 	req RerankRequest) (RerankResult, error) {
 	if primary == nil {
+		rerankDebugLogEvent(req, "fallback").Msg("rerank primary missing, using fallback")
 		return rerankFallback(ctx, fallback, req)
 	}
 
 	result, err := primary.Rerank(ctx, req)
 	if err != nil {
+		rerankDebugLogEvent(req, "fallback").Err(err).Msg("rerank primary failed, using fallback")
 		return rerankFallback(ctx, fallback, req)
 	}
 	candidates, err := boundedCandidates(req.Candidates, req.Options.MaxCandidates)
 	if err != nil {
+		rerankDebugLogEvent(req, "fallback").Err(err).Msg("rerank result candidate bound failed, using fallback")
 		return rerankFallback(ctx, fallback, req)
 	}
 	if err := ValidateRerankResult(candidates, result); err != nil {
+		rerankDebugLogEvent(req, "fallback").Err(err).Msg("rerank primary result rejected, using fallback")
 		return rerankFallback(ctx, fallback, req)
 	}
+
+	rerankTraceLogEvent(req, "primary").Int("result_count", len(result.Items)).Msg("rerank primary result accepted")
 
 	return result, nil
 }
@@ -285,4 +321,27 @@ func candidateRecencyScore(candidate Candidate) float64 {
 	}
 
 	return float64(value.UTC().UnixNano()) / float64(time.Second)
+}
+
+func rerankTraceLogEvent(req RerankRequest, reranker string) *zerolog.Event {
+	return rerankBaseLogEvent(retrievalLog.Trace(), req, reranker)
+}
+
+func rerankDebugLogEvent(req RerankRequest, reranker string) *zerolog.Event {
+	return rerankBaseLogEvent(retrievalLog.Debug(), req, reranker)
+}
+
+func rerankBaseLogEvent(event *zerolog.Event, req RerankRequest, reranker string) *zerolog.Event {
+	event = event.
+		Str("reranker", reranker).
+		Str("caller", strings.TrimSpace(req.Caller)).
+		Str("trace_id", strings.TrimSpace(req.TraceID)).
+		Str("source_kind", strings.TrimSpace(string(req.SourceKind))).
+		Int("max_candidates", req.Options.MaxCandidates)
+
+	if query := strings.TrimSpace(req.Query); query != "" {
+		event = event.Int("query_chars", len([]rune(query)))
+	}
+
+	return event
 }
