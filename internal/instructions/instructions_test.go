@@ -344,3 +344,13 @@ func TestBuildWebExtractSynthesis_ReturnsSynthesisInstructions(t *testing.T) {
 	require.Contains(t, instructions, "Do not add claims that are not supported by the chunk summaries")
 	require.Contains(t, instructions, "Keep the final summary under 500 characters")
 }
+
+func TestBuildRetrievalRerank_ReturnsRerankerInstructions(t *testing.T) {
+	instructions := BuildRetrievalRerank()
+
+	require.Contains(t, instructions, "Rank the retrieval candidates for the query.")
+	require.Contains(t, instructions, "Return only candidate IDs from the input.")
+	require.Contains(t, instructions, "Do not rewrite candidate text or metadata.")
+	require.Contains(t, instructions, "Return JSON with an items array ordered from best to worst.")
+	require.Contains(t, instructions, "Each item must include candidate_id and score.")
+}

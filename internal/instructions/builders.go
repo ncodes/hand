@@ -316,6 +316,16 @@ Do not add claims that are not supported by the chunk summaries.
 Keep the final summary under %d characters.`, maxSummaryChars)
 }
 
+func BuildRetrievalRerank() string {
+	return strings.Join([]string{
+		"Rank the retrieval candidates for the query.",
+		"Return only candidate IDs from the input.",
+		"Do not rewrite candidate text or metadata.",
+		"Return JSON with an items array ordered from best to worst.",
+		"Each item must include candidate_id and score.",
+	}, "\n")
+}
+
 func cleanList(values []string) []string {
 	cleaned := make([]string, 0, len(values))
 	for _, value := range values {
