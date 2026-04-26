@@ -5,7 +5,7 @@ import (
 
 	"github.com/wandxy/hand/internal/agent"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	"github.com/wandxy/hand/internal/storage"
+	storage "github.com/wandxy/hand/internal/storage/session"
 )
 
 type AgentServiceStub struct {

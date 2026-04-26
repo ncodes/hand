@@ -17,8 +17,8 @@ import (
 	"gorm.io/gorm/logger"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	base "github.com/wandxy/hand/internal/storage"
-	common "github.com/wandxy/hand/internal/storage/common"
+	base "github.com/wandxy/hand/internal/storage/session"
+	common "github.com/wandxy/hand/internal/storage/session/common"
 )
 
 const currentSessionStateKey = "current_session"

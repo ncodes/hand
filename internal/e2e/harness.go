@@ -1,11 +1,11 @@
 package e2e
 
 import (
-	"maps"
 	"bytes"
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,8 +15,8 @@ import (
 	"github.com/wandxy/hand/internal/datadir"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
-	"github.com/wandxy/hand/internal/storage"
-	storagefactory "github.com/wandxy/hand/internal/storage/factory"
+	storage "github.com/wandxy/hand/internal/storage/session"
+	storagefactory "github.com/wandxy/hand/internal/storage/session/factory"
 )
 
 var setHarnessEnv = os.Setenv

@@ -18,7 +18,7 @@ import (
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	sessionstore "github.com/wandxy/hand/internal/session"
-	"github.com/wandxy/hand/internal/storage"
+	storage "github.com/wandxy/hand/internal/storage/session"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 )

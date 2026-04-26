@@ -16,7 +16,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
-	"github.com/wandxy/hand/internal/storage"
+	storage "github.com/wandxy/hand/internal/storage/session"
 )
 
 func TestNewHarness_InMemoryConfigSmoke(t *testing.T) {

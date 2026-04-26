@@ -281,7 +281,7 @@ func TestValidateVectorSearchRequest(t *testing.T) {
 		{name: "unsupported source kind", mutate: func(req VectorSearchRequest) VectorSearchRequest {
 			req.Filter.SourceKind = SourceKind("unknown")
 			return req
-		}, want: `vector search source kind "unknown" is not supported`},
+		}, want: `vector search filter source kind "unknown" is not supported`},
 		{name: "missing limit", mutate: func(req VectorSearchRequest) VectorSearchRequest {
 			req.Limit = 0
 			return req

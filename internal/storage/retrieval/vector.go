@@ -217,7 +217,7 @@ func ValidateVectorSearchRequest(req VectorSearchRequest) error {
 	if strings.TrimSpace(req.EmbeddingModel) == "" {
 		return errors.New("vector search embedding model is required")
 	}
-	if err := validateOptionalSourceKind(req.Filter.SourceKind, "vector search source kind"); err != nil {
+	if err := validateOptionalSourceKind(req.Filter.SourceKind, "vector search filter source kind"); err != nil {
 		return err
 	}
 	if req.Limit <= 0 {

@@ -6,9 +6,9 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	handdb "github.com/wandxy/hand/internal/db"
-	"github.com/wandxy/hand/internal/storage"
-	storagememory "github.com/wandxy/hand/internal/storage/memory"
-	storagesqlite "github.com/wandxy/hand/internal/storage/sqlite"
+	storage "github.com/wandxy/hand/internal/storage/session"
+	storagememory "github.com/wandxy/hand/internal/storage/session/memory"
+	storagesqlite "github.com/wandxy/hand/internal/storage/session/sqlite"
 )
 
 // OpenSessionStore opens a session store based on the configuration.

@@ -13,7 +13,7 @@ import (
 
 	"github.com/wandxy/hand/internal/agent"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
-	"github.com/wandxy/hand/internal/storage"
+	storage "github.com/wandxy/hand/internal/storage/session"
 )
 
 type Client struct {

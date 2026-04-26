@@ -15,8 +15,8 @@ import (
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/mocks"
 	"github.com/wandxy/hand/internal/models"
-	"github.com/wandxy/hand/internal/storage"
-	storagemock "github.com/wandxy/hand/internal/storage/mock"
+	storage "github.com/wandxy/hand/internal/storage/session"
+	storagemock "github.com/wandxy/hand/internal/storage/session/mock"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/pkg/logutils"
 )

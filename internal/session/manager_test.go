@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/storage"
-	common "github.com/wandxy/hand/internal/storage/common"
-	storagememory "github.com/wandxy/hand/internal/storage/memory"
-	storagemock "github.com/wandxy/hand/internal/storage/mock"
+	storage "github.com/wandxy/hand/internal/storage/session"
+	common "github.com/wandxy/hand/internal/storage/session/common"
+	storagememory "github.com/wandxy/hand/internal/storage/session/memory"
+	storagemock "github.com/wandxy/hand/internal/storage/session/mock"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 

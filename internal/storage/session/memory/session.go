@@ -9,8 +9,8 @@ import (
 	"time"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	base "github.com/wandxy/hand/internal/storage"
-	common "github.com/wandxy/hand/internal/storage/common"
+	base "github.com/wandxy/hand/internal/storage/session"
+	common "github.com/wandxy/hand/internal/storage/session/common"
 )
 
 type Session = base.Session

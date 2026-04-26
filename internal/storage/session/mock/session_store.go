@@ -5,7 +5,7 @@ import (
 	"time"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/storage"
+	storage "github.com/wandxy/hand/internal/storage/session"
 )
 
 type SessionStore struct {

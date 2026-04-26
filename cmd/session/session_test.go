@@ -11,7 +11,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	"github.com/wandxy/hand/internal/storage"
+	storage "github.com/wandxy/hand/internal/storage/session"
 )
 
 func TestNewCommandSessionNewCallsRPC(t *testing.T) {

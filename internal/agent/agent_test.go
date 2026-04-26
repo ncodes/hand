@@ -15,9 +15,9 @@ import (
 	"github.com/wandxy/hand/internal/mocks"
 	"github.com/wandxy/hand/internal/models"
 	sessionstore "github.com/wandxy/hand/internal/session"
-	"github.com/wandxy/hand/internal/storage"
-	storagememory "github.com/wandxy/hand/internal/storage/memory"
-	storagemock "github.com/wandxy/hand/internal/storage/mock"
+	storage "github.com/wandxy/hand/internal/storage/session"
+	storagememory "github.com/wandxy/hand/internal/storage/session/memory"
+	storagemock "github.com/wandxy/hand/internal/storage/session/mock"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 )

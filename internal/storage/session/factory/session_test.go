@@ -9,8 +9,8 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
-	storagememory "github.com/wandxy/hand/internal/storage/memory"
-	storagesqlite "github.com/wandxy/hand/internal/storage/sqlite"
+	storagememory "github.com/wandxy/hand/internal/storage/session/memory"
+	storagesqlite "github.com/wandxy/hand/internal/storage/session/sqlite"
 )
 
 func TestOpenSessionStore_ValidatesConfigAndBackend(t *testing.T) {

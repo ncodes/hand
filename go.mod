@@ -9,6 +9,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.2
 	charm.land/lipgloss/v2 v2.0.2
 	codeberg.org/readeck/go-readability/v2 v2.1.1
+	github.com/asg017/sqlite-vec-go-bindings v0.1.6
 	github.com/bluekeyes/go-gitdiff v0.8.1
 	github.com/joho/godotenv v1.5.1
 	github.com/kr/pretty v0.3.1

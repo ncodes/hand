@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	base "github.com/wandxy/hand/internal/storage"
+	base "github.com/wandxy/hand/internal/storage/session"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 

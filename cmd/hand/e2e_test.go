@@ -20,7 +20,7 @@ import (
 	"github.com/wandxy/hand/internal/e2e"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
-	"github.com/wandxy/hand/internal/storage"
+	storage "github.com/wandxy/hand/internal/storage/session"
 )
 
 func Test_E2E_HandRootChat_SimpleAnswer(t *testing.T) {

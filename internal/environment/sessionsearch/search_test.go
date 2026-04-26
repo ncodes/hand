@@ -12,9 +12,9 @@ import (
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 	sessionstore "github.com/wandxy/hand/internal/session"
-	"github.com/wandxy/hand/internal/storage"
-	memorystore "github.com/wandxy/hand/internal/storage/memory"
-	storagemock "github.com/wandxy/hand/internal/storage/mock"
+	storage "github.com/wandxy/hand/internal/storage/session"
+	memorystore "github.com/wandxy/hand/internal/storage/session/memory"
+	storagemock "github.com/wandxy/hand/internal/storage/session/mock"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 

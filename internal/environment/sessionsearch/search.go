@@ -9,7 +9,7 @@ import (
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 	sessionstore "github.com/wandxy/hand/internal/session"
-	"github.com/wandxy/hand/internal/storage"
+	storage "github.com/wandxy/hand/internal/storage/session"
 )
 
 const (

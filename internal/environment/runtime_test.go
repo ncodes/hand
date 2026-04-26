@@ -16,8 +16,8 @@ import (
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/session"
-	"github.com/wandxy/hand/internal/storage"
-	"github.com/wandxy/hand/internal/storage/memory"
+	storage "github.com/wandxy/hand/internal/storage/session"
+	"github.com/wandxy/hand/internal/storage/session/memory"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
