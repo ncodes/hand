@@ -17,12 +17,14 @@ import (
 	"gorm.io/gorm/logger"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
+	"github.com/wandxy/hand/internal/storage/retrieval"
 	base "github.com/wandxy/hand/internal/storage/session"
 	common "github.com/wandxy/hand/internal/storage/session/common"
 )
 
 const currentSessionStateKey = "current_session"
 const sessionMessageSearchTable = "session_message_search"
+const defaultVectorStoreRebuildBatchSize = 100
 
 type Session = base.Session
 type ArchivedSession = base.ArchivedSession
@@ -146,7 +148,32 @@ type searchSessionResultRow struct {
 }
 
 type SessionStore struct {
-	db *gorm.DB
+	vectors *vectorConfig
+	db      *gorm.DB
+}
+
+type VectorStoreOptions struct {
+	EmbeddingProvider retrieval.EmbeddingProvider
+	VectorStore       retrieval.VectorStore
+	EmbeddingModel    string
+	RebuildBatchSize  int
+	Required          bool
+}
+
+type vectorConfig struct {
+	provider  retrieval.EmbeddingProvider
+	store     retrieval.VectorStore
+	model     string
+	batchSize int
+	required  bool
+}
+
+type vectorInput struct {
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	ID        string
+	SourceID  string
+	Text      string
 }
 
 func NewSessionStore(path string) (*SessionStore, error) {
@@ -179,11 +206,97 @@ func NewSessionStoreFromDB(db *gorm.DB) (*SessionStore, error) {
 		return nil, fmt.Errorf("failed to migrate session db: %w", err)
 	}
 
-	if err := ensureSessionMessageSearchIndex(db); err != nil {
+	if err := ensureSearchIndex(db); err != nil {
 		return nil, err
 	}
 
 	return &SessionStore{db: db}, nil
+}
+
+func (s *SessionStore) ConfigureVectorStore(opts VectorStoreOptions) error {
+	if s == nil || s.db == nil {
+		return errors.New("session store is required")
+	}
+
+	model := strings.TrimSpace(opts.EmbeddingModel)
+	if opts.EmbeddingProvider == nil && opts.VectorStore == nil && model == "" {
+		s.vectors = nil
+		return nil
+	}
+	if opts.EmbeddingProvider == nil {
+		return errors.New("vector store embedding provider is required")
+	}
+	if opts.VectorStore == nil {
+		return errors.New("vector store is required")
+	}
+	if model == "" {
+		return errors.New("vector store embedding model is required")
+	}
+	batchSize := opts.RebuildBatchSize
+	if batchSize < 0 {
+		return errors.New("vector store rebuild batch size must be greater than or equal to zero")
+	}
+	if batchSize == 0 {
+		batchSize = defaultVectorStoreRebuildBatchSize
+	}
+
+	s.vectors = &vectorConfig{
+		provider:  opts.EmbeddingProvider,
+		store:     opts.VectorStore,
+		model:     model,
+		batchSize: batchSize,
+		required:  opts.Required,
+	}
+
+	return nil
+}
+
+func (s *SessionStore) RebuildVectorStore(ctx context.Context, id string) error {
+	if s == nil || s.db == nil {
+		return errors.New("session store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if err := common.ValidateSessionID(id); err != nil {
+		return err
+	}
+
+	var session sessionModel
+	if err := s.db.WithContext(ctx).First(&session, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("session not found")
+		}
+		return err
+	}
+	if s.vectors == nil {
+		return nil
+	}
+
+	lastSequence := -1
+	for {
+		var records []messageModel
+		if err := s.db.WithContext(ctx).
+			Where("session_id = ? AND sequence > ?", id, lastSequence).
+			Order("sequence asc").
+			Limit(s.vectors.batchSize).
+			Find(&records).Error; err != nil {
+			return err
+		}
+		if len(records) == 0 {
+			return nil
+		}
+
+		if err := s.deleteVectorRows(ctx, sourceIDsFromModels(records)); err != nil {
+			if s.vectors.required {
+				return err
+			}
+		}
+		if err := s.indexVectors(ctx, records); err != nil {
+			return s.handleVectorStoreError(err)
+		}
+
+		lastSequence = records[len(records)-1].Sequence
+	}
 }
 
 func gormOpenSQLite(path string) (*SessionStore, error) {
@@ -344,7 +457,8 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 		return errors.New("default session cannot be deleted")
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var sourceIDs []string
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var session sessionModel
 
 		if err := tx.First(&session, "id = ?", id).Error; err != nil {
@@ -354,10 +468,18 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 			return err
 		}
 
+		var messageIDs []uint
+		if err := tx.Model(&messageModel{}).
+			Where("session_id = ?", id).
+			Pluck("id", &messageIDs).Error; err != nil {
+			return err
+		}
+		sourceIDs = sourceIDsFromMessageIDs(id, messageIDs)
+
 		if err := tx.Where("session_id = ?", id).Delete(&messageModel{}).Error; err != nil {
 			return err
 		}
-		if err := deleteSessionMessageSearchRows(tx, id); err != nil {
+		if err := deleteSearchRows(tx, id); err != nil {
 			return err
 		}
 
@@ -375,7 +497,15 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 		}
 
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	if err := s.deleteVectorRows(ctx, sourceIDs); err != nil {
+		return s.handleVectorStoreError(err)
+	}
+
+	return nil
 }
 
 func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
@@ -392,7 +522,8 @@ func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages [
 		return nil
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var records []messageModel
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var record sessionModel
 
 		if err := tx.First(&record, "id = ?", id).Error; err != nil {
@@ -408,12 +539,12 @@ func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages [
 			return err
 		}
 
-		records := messagesToMessageModelsWithOffset(id, messages, int(nextSequence))
+		records = messagesToMessageModelsWithOffset(id, messages, int(nextSequence))
 		if len(records) > 0 {
 			if err := tx.Create(&records).Error; err != nil {
 				return err
 			}
-			if err := insertToSearchRows(tx, messageModelsToSearchRows(records)); err != nil {
+			if err := insertSearchRows(tx, searchRowsFromMessageModels(records)); err != nil {
 				return err
 			}
 		}
@@ -421,7 +552,15 @@ func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages [
 		record.UpdatedAt = time.Now().UTC()
 
 		return tx.Save(&record).Error
-	})
+	}); err != nil {
+		return err
+	}
+
+	if err := s.indexVectors(ctx, records); err != nil {
+		return s.handleVectorStoreError(err)
+	}
+
+	return nil
 }
 
 func (s *SessionStore) GetMessages(
@@ -618,7 +757,7 @@ func (s *SessionStore) SearchMessages(
 		}
 	}
 
-	queryText := buildSessionMessageSearchQuery(opts.Query)
+	queryText := buildSearchQuery(opts.Query)
 	if queryText == "" {
 		return nil, nil
 	}
@@ -652,7 +791,7 @@ raw_hits AS (
 		sql.WriteString(` AND role = ?`)
 		args = append(args, role)
 	}
-	if toolName := normalizeSessionMessageSearchValue(opts.ToolName); toolName != "" {
+	if toolName := normalizeSearchValue(opts.ToolName); toolName != "" {
 		sql.WriteString(` AND tool_name = ?`)
 		args = append(args, toolName)
 	}
@@ -953,7 +1092,8 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 		return err
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var sourceIDs []string
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var source []messageModel
 		if err := tx.Where("session_id = ?", archive.SourceSessionID).Order("sequence asc").
 			Find(&source).Error; err != nil {
@@ -963,6 +1103,7 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 		if len(source) == 0 {
 			return errors.New("source session has no messages")
 		}
+		sourceIDs = sourceIDsFromModels(source)
 
 		record := archiveModel{
 			ID:              archive.ID,
@@ -987,7 +1128,7 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 		if err := tx.Where("session_id = ?", archive.SourceSessionID).Delete(&messageModel{}).Error; err != nil {
 			return err
 		}
-		if err := deleteSessionMessageSearchRows(tx, archive.SourceSessionID); err != nil {
+		if err := deleteSearchRows(tx, archive.SourceSessionID); err != nil {
 			return err
 		}
 
@@ -1016,7 +1157,15 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 
 		return tx.Where("key = ? AND value = ?", currentSessionStateKey, archive.SourceSessionID).
 			Delete(&stateModel{}).Error
-	})
+	}); err != nil {
+		return err
+	}
+
+	if err := s.deleteVectorRows(ctx, sourceIDs); err != nil {
+		return s.handleVectorStoreError(err)
+	}
+
+	return nil
 }
 
 func (s *SessionStore) GetArchive(ctx context.Context, id string) (ArchivedSession, bool, error) {
@@ -1063,7 +1212,8 @@ func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts Messag
 		return err
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var sourceIDs []string
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if opts.Archived {
 			var archive archiveModel
 			if err := tx.First(&archive, "id = ?", id).Error; err != nil {
@@ -1084,10 +1234,16 @@ func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts Messag
 			return err
 		}
 
+		var messageIDs []uint
+		if err := tx.Model(&messageModel{}).Where("session_id = ?", id).Pluck("id", &messageIDs).Error; err != nil {
+			return err
+		}
+		sourceIDs = sourceIDsFromMessageIDs(id, messageIDs)
+
 		if err := tx.Where("session_id = ?", id).Delete(&messageModel{}).Error; err != nil {
 			return err
 		}
-		if err := deleteSessionMessageSearchRows(tx, id); err != nil {
+		if err := deleteSearchRows(tx, id); err != nil {
 			return err
 		}
 
@@ -1106,7 +1262,15 @@ func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts Messag
 		session.UpdatedAt = time.Now().UTC()
 
 		return tx.Save(&session).Error
-	})
+	}); err != nil {
+		return err
+	}
+
+	if err := s.deleteVectorRows(ctx, sourceIDs); err != nil {
+		return s.handleVectorStoreError(err)
+	}
+
+	return nil
 }
 
 func (s *SessionStore) ListArchives(ctx context.Context, sourceSessionID string) ([]ArchivedSession, error) {
@@ -1504,7 +1668,9 @@ func jsonToToolCalls(value string) []handmsg.ToolCall {
 	return toolCalls
 }
 
-type sessionMessageSearchRow struct {
+type searchRow struct {
+	CreatedAt time.Time
+	UpdatedAt time.Time
 	MessageID uint
 	SessionID string
 	Role      string
@@ -1512,7 +1678,7 @@ type sessionMessageSearchRow struct {
 	Body      string
 }
 
-func ensureSessionMessageSearchIndex(db *gorm.DB) error {
+func ensureSearchIndex(db *gorm.DB) error {
 	if db == nil {
 		return errors.New("session db is required")
 	}
@@ -1533,7 +1699,7 @@ func ensureSessionMessageSearchIndex(db *gorm.DB) error {
 	})
 }
 
-func insertToSearchRows(tx *gorm.DB, rows []sessionMessageSearchRow) error {
+func insertSearchRows(tx *gorm.DB, rows []searchRow) error {
 	if tx == nil || len(rows) == 0 {
 		return nil
 	}
@@ -1554,7 +1720,7 @@ func insertToSearchRows(tx *gorm.DB, rows []sessionMessageSearchRow) error {
 	return nil
 }
 
-func deleteSessionMessageSearchRows(tx *gorm.DB, sessionID string) error {
+func deleteSearchRows(tx *gorm.DB, sessionID string) error {
 	if tx == nil {
 		return nil
 	}
@@ -1566,24 +1732,26 @@ func deleteSessionMessageSearchRows(tx *gorm.DB, sessionID string) error {
 	return nil
 }
 
-func messageModelsToSearchRows(records []messageModel) []sessionMessageSearchRow {
+func searchRowsFromMessageModels(records []messageModel) []searchRow {
 	if len(records) == 0 {
 		return nil
 	}
 
-	rows := make([]sessionMessageSearchRow, 0, len(records))
+	rows := make([]searchRow, 0, len(records))
 	for _, record := range records {
-		rows = append(rows, messageModelToSearchRows(record)...)
+		rows = append(rows, searchRowsFromMessageModel(record)...)
 	}
 
 	return rows
 }
 
-func messageModelToSearchRows(record messageModel) []sessionMessageSearchRow {
-	baseRow := sessionMessageSearchRow{
+func searchRowsFromMessageModel(record messageModel) []searchRow {
+	baseRow := searchRow{
+		CreatedAt: record.CreatedAt,
+		UpdatedAt: record.UpdatedAt,
 		MessageID: record.ID,
 		SessionID: strings.TrimSpace(record.SessionID),
-		Role:      normalizeSessionMessageSearchValue(record.Role),
+		Role:      normalizeSearchValue(record.Role),
 	}
 
 	body := strings.TrimSpace(record.Content)
@@ -1599,10 +1767,10 @@ func messageModelToSearchRows(record messageModel) []sessionMessageSearchRow {
 
 			row := baseRow
 			row.Body = body
-			return []sessionMessageSearchRow{row}
+			return []searchRow{row}
 		}
 
-		rows := make([]sessionMessageSearchRow, 0, len(toolCalls)+1)
+		rows := make([]searchRow, 0, len(toolCalls)+1)
 		if body != "" {
 			row := baseRow
 			row.Body = body
@@ -1616,7 +1784,7 @@ func messageModelToSearchRows(record messageModel) []sessionMessageSearchRow {
 			}
 
 			row := baseRow
-			row.ToolName = normalizeSessionMessageSearchValue(toolCall.Name)
+			row.ToolName = normalizeSearchValue(toolCall.Name)
 			row.Body = toolBody
 			rows = append(rows, row)
 		}
@@ -1628,9 +1796,9 @@ func messageModelToSearchRows(record messageModel) []sessionMessageSearchRow {
 		}
 
 		row := baseRow
-		row.ToolName = normalizeSessionMessageSearchValue(record.Name)
+		row.ToolName = normalizeSearchValue(record.Name)
 		row.Body = body
-		return []sessionMessageSearchRow{row}
+		return []searchRow{row}
 	default:
 		if body == "" {
 			return nil
@@ -1638,16 +1806,170 @@ func messageModelToSearchRows(record messageModel) []sessionMessageSearchRow {
 
 		row := baseRow
 		row.Body = body
-		return []sessionMessageSearchRow{row}
+		return []searchRow{row}
 	}
 }
 
-func normalizeSessionMessageSearchValue(value string) string {
+func (s *SessionStore) indexVectors(ctx context.Context, records []messageModel) error {
+	if s == nil || s.vectors == nil || len(records) == 0 {
+		return nil
+	}
+
+	inputs := vectorInputsFromSearchRows(searchRowsFromMessageModels(records))
+	if len(inputs) == 0 {
+		return nil
+	}
+
+	embeddingInputs := make([]retrieval.EmbeddingInput, 0, len(inputs))
+	for _, input := range inputs {
+		embeddingInputs = append(embeddingInputs, retrieval.EmbeddingInput{
+			ID:         input.ID,
+			Text:       input.Text,
+			SourceKind: retrieval.SourceKindSessionMessage,
+		})
+	}
+
+	req := retrieval.EmbeddingRequest{
+		Model:  s.vectors.model,
+		Inputs: embeddingInputs,
+	}
+	result, err := s.vectors.provider.Embed(ctx, req)
+	if err != nil {
+		return err
+	}
+	if err := retrieval.ValidateEmbeddingResult(req, result); err != nil {
+		return err
+	}
+
+	inputByID := make(map[string]vectorInput, len(inputs))
+	for _, input := range inputs {
+		inputByID[input.ID] = input
+	}
+
+	recordsToUpsert := make([]retrieval.VectorRecord, 0, len(result.Items))
+	for _, item := range result.Items {
+		input := inputByID[item.ID]
+		recordsToUpsert = append(recordsToUpsert, retrieval.VectorRecord{
+			CreatedAt:      input.CreatedAt,
+			UpdatedAt:      input.UpdatedAt,
+			ID:             item.ID,
+			SourceKind:     retrieval.SourceKindSessionMessage,
+			SourceID:       input.SourceID,
+			EmbeddingModel: result.Model,
+			ContentHash:    item.ContentHash,
+			Vector:         item.Vector,
+			Dimensions:     result.Dimensions,
+		})
+	}
+
+	return s.vectors.store.Upsert(ctx, recordsToUpsert)
+}
+
+func (s *SessionStore) deleteVectorRows(ctx context.Context, sourceIDs []string) error {
+	if s == nil || s.vectors == nil || len(sourceIDs) == 0 {
+		return nil
+	}
+
+	for _, sourceID := range uniqueStrings(sourceIDs) {
+		if err := s.vectors.store.Delete(ctx, retrieval.VectorDeleteRequest{
+			SourceKind: retrieval.SourceKindSessionMessage,
+			SourceID:   sourceID,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *SessionStore) handleVectorStoreError(err error) error {
+	if err == nil || s == nil || s.vectors == nil || !s.vectors.required {
+		return nil
+	}
+
+	return err
+}
+
+func vectorInputsFromSearchRows(rows []searchRow) []vectorInput {
+	if len(rows) == 0 {
+		return nil
+	}
+
+	countsByMessageID := make(map[uint]int, len(rows))
+	inputs := make([]vectorInput, 0, len(rows))
+	for _, row := range rows {
+		sourceID := sourceIDForMessage(row.SessionID, row.MessageID)
+		countsByMessageID[row.MessageID]++
+		inputs = append(inputs, vectorInput{
+			CreatedAt: row.CreatedAt,
+			UpdatedAt: row.UpdatedAt,
+			ID:        fmt.Sprintf("%s:row:%d", sourceID, countsByMessageID[row.MessageID]),
+			SourceID:  sourceID,
+			Text:      row.Body,
+		})
+	}
+
+	return inputs
+}
+
+func sourceIDsFromModels(records []messageModel) []string {
+	if len(records) == 0 {
+		return nil
+	}
+
+	sourceIDs := make([]string, 0, len(records))
+	for _, record := range records {
+		sourceIDs = append(sourceIDs, sourceIDForMessage(record.SessionID, record.ID))
+	}
+
+	return sourceIDs
+}
+
+func sourceIDsFromMessageIDs(sessionID string, messageIDs []uint) []string {
+	if len(messageIDs) == 0 {
+		return nil
+	}
+
+	sourceIDs := make([]string, 0, len(messageIDs))
+	for _, messageID := range messageIDs {
+		sourceIDs = append(sourceIDs, sourceIDForMessage(sessionID, messageID))
+	}
+
+	return sourceIDs
+}
+
+func sourceIDForMessage(sessionID string, messageID uint) string {
+	return retrieval.StableSessionMessageID(strings.TrimSpace(sessionID), messageID)
+}
+
+func uniqueStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(values))
+	unique := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		unique = append(unique, value)
+	}
+
+	return unique
+}
+
+func normalizeSearchValue(value string) string {
 	return strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(value)), " "))
 }
 
-func buildSessionMessageSearchQuery(query string) string {
-	tokens := sessionMessageSearchTokens(query)
+func buildSearchQuery(query string) string {
+	tokens := searchTokens(query)
 	if len(tokens) == 0 {
 		return ""
 	}
@@ -1660,7 +1982,7 @@ func buildSessionMessageSearchQuery(query string) string {
 	return strings.Join(quoted, " AND ")
 }
 
-func sessionMessageSearchTokens(query string) []string {
+func searchTokens(query string) []string {
 	fields := strings.FieldsFunc(strings.TrimSpace(query), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	})
@@ -1670,7 +1992,7 @@ func sessionMessageSearchTokens(query string) []string {
 
 	tokens := make([]string, 0, len(fields))
 	for _, field := range fields {
-		tokens = append(tokens, normalizeSessionMessageSearchValue(field))
+		tokens = append(tokens, normalizeSearchValue(field))
 	}
 
 	return tokens

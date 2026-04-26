@@ -13,7 +13,9 @@ import (
 	"gorm.io/gorm"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
+	"github.com/wandxy/hand/internal/storage/retrieval"
 	base "github.com/wandxy/hand/internal/storage/session"
+	storagevector "github.com/wandxy/hand/internal/storage/vector"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
@@ -2504,7 +2506,7 @@ func TestSQLiteStore_StringEncodingHelpers(t *testing.T) {
 
 func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 	t.Run("ensure search index validates db and surfaces create errors", func(t *testing.T) {
-		require.EqualError(t, ensureSessionMessageSearchIndex(nil), "session db is required")
+		require.EqualError(t, ensureSearchIndex(nil), "session db is required")
 	})
 
 	t.Run("ensure search index and store creation fail on readonly databases", func(t *testing.T) {
@@ -2524,7 +2526,7 @@ func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 		readonlyDB, err := gorm.Open(sqlite.Open("file:"+path+"?mode=ro"), &gorm.Config{})
 		require.NoError(t, err)
 
-		err = ensureSessionMessageSearchIndex(readonlyDB)
+		err = ensureSearchIndex(readonlyDB)
 		require.ErrorContains(t, err, "failed to create session message search index")
 
 		_, err = NewSessionStoreFromDB(readonlyDB)
@@ -2532,17 +2534,17 @@ func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 	})
 
 	t.Run("insert and delete search rows handle no-op and query errors", func(t *testing.T) {
-		require.NoError(t, insertToSearchRows(nil, []sessionMessageSearchRow{{MessageID: 1}}))
+		require.NoError(t, insertSearchRows(nil, []searchRow{{MessageID: 1}}))
 
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
 
-		require.NoError(t, insertToSearchRows(store.db, nil))
-		require.NoError(t, deleteSessionMessageSearchRows(nil, testSessionA))
+		require.NoError(t, insertSearchRows(store.db, nil))
+		require.NoError(t, deleteSearchRows(nil, testSessionA))
 
 		require.NoError(t, store.db.Exec(`DROP TABLE `+sessionMessageSearchTable).Error)
 
-		err = insertToSearchRows(store.db, []sessionMessageSearchRow{{
+		err = insertSearchRows(store.db, []searchRow{{
 			MessageID: 1,
 			SessionID: testSessionA,
 			Role:      "user",
@@ -2551,15 +2553,15 @@ func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "failed to insert session message search row")
 
-		err = deleteSessionMessageSearchRows(store.db, testSessionA)
+		err = deleteSearchRows(store.db, testSessionA)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "failed to delete session message search rows")
 	})
 
 	t.Run("message model search row conversions cover remaining branches", func(t *testing.T) {
-		require.Nil(t, messageModelsToSearchRows(nil))
+		require.Nil(t, searchRowsFromMessageModels(nil))
 
-		rows := messageModelsToSearchRows([]messageModel{
+		rows := searchRowsFromMessageModels([]messageModel{
 			{
 				ID:        1,
 				SessionID: testSessionA,
@@ -2576,26 +2578,26 @@ func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 		})
 		require.Len(t, rows, 2)
 
-		require.Nil(t, messageModelToSearchRows(messageModel{
+		require.Nil(t, searchRowsFromMessageModel(messageModel{
 			ID:        3,
 			SessionID: testSessionA,
 			Role:      string(handmsg.RoleAssistant),
 		}))
 
-		require.Nil(t, messageModelToSearchRows(messageModel{
+		require.Nil(t, searchRowsFromMessageModel(messageModel{
 			ID:        4,
 			SessionID: testSessionA,
 			Role:      string(handmsg.RoleTool),
 			Name:      "process",
 		}))
 
-		require.Nil(t, messageModelToSearchRows(messageModel{
+		require.Nil(t, searchRowsFromMessageModel(messageModel{
 			ID:        5,
 			SessionID: testSessionA,
 			Role:      string(handmsg.RoleUser),
 		}))
 
-		rows = messageModelToSearchRows(messageModel{
+		rows = searchRowsFromMessageModel(messageModel{
 			ID:        6,
 			SessionID: testSessionA,
 			Role:      string(handmsg.RoleAssistant),
@@ -2604,7 +2606,7 @@ func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 		require.Len(t, rows, 1)
 		require.Equal(t, "assistant fallback", rows[0].Body)
 
-		rows = messageModelToSearchRows(messageModel{
+		rows = searchRowsFromMessageModel(messageModel{
 			ID:        7,
 			SessionID: testSessionA,
 			Role:      string(handmsg.RoleAssistant),
@@ -2613,7 +2615,7 @@ func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 		require.Len(t, rows, 1)
 		require.Equal(t, "search fallback", rows[0].Body)
 
-		rows = messageModelToSearchRows(messageModel{
+		rows = searchRowsFromMessageModel(messageModel{
 			ID:        8,
 			SessionID: testSessionA,
 			Role:      string(handmsg.RoleAssistant),
@@ -2621,7 +2623,7 @@ func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 		})
 		require.Empty(t, rows)
 
-		rows = messageModelToSearchRows(messageModel{
+		rows = searchRowsFromMessageModel(messageModel{
 			ID:        9,
 			SessionID: testSessionA,
 			Role:      string(handmsg.RoleAssistant),
@@ -2634,7 +2636,7 @@ func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 	})
 
 	t.Run("search tokenization drops punctuation-only segments", func(t *testing.T) {
-		require.Nil(t, sessionMessageSearchTokens("... ---"))
+		require.Nil(t, searchTokens("... ---"))
 	})
 }
 
@@ -2696,4 +2698,614 @@ func TestSQLiteStore_FTSErrorPathsFromBrokenIndex(t *testing.T) {
 		err = store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{})
 		require.ErrorContains(t, err, "failed to delete session message search rows")
 	})
+}
+
+func TestSQLiteStore_VectorStoreAppendAndRebuild(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	provider := &sqliteTestEmbeddingProvider{dimensions: 3}
+	vectorStore := &sqliteTestVectorStore{}
+	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: provider,
+		VectorStore:       vectorStore,
+		EmbeddingModel:    "text-embedding-test",
+	}))
+
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
+		Role:    handmsg.RoleAssistant,
+		Content: "assistant summary",
+		ToolCalls: []handmsg.ToolCall{
+			{ID: "call-1", Name: "process", Input: `{"action":"start"}`},
+			{ID: "call-2", Name: "search", Input: `{"query":"needle"}`},
+		},
+		CreatedAt: now,
+	}}))
+
+	require.Len(t, provider.requests, 1)
+	require.Equal(t, "text-embedding-test", provider.requests[0].Model)
+	require.Len(t, provider.requests[0].Inputs, 3)
+	require.Equal(t, "assistant summary", provider.requests[0].Inputs[0].Text)
+	require.Contains(t, provider.requests[0].Inputs[1].Text, "process")
+	require.Contains(t, provider.requests[0].Inputs[2].Text, "search")
+
+	require.Len(t, vectorStore.upserts, 1)
+	require.Len(t, vectorStore.upserts[0], 3)
+	sourceID := vectorStore.upserts[0][0].SourceID
+	require.Equal(t, retrieval.SourceKindSessionMessage, vectorStore.upserts[0][0].SourceKind)
+	require.Equal(t, sourceID+":row:1", vectorStore.upserts[0][0].ID)
+	require.Equal(t, sourceID+":row:2", vectorStore.upserts[0][1].ID)
+	require.Equal(t, sourceID+":row:3", vectorStore.upserts[0][2].ID)
+	require.Equal(t, sourceID, vectorStore.upserts[0][1].SourceID)
+	require.Equal(t, sourceID, vectorStore.upserts[0][2].SourceID)
+
+	require.NoError(t, store.RebuildVectorStore(context.Background(), testSessionA))
+	require.Len(t, vectorStore.deletes, 1)
+	require.Equal(t, sourceID, vectorStore.deletes[0].SourceID)
+	require.Len(t, vectorStore.upserts, 2)
+	require.Equal(t, sqliteTestRecordIDs(vectorStore.upserts[0]), sqliteTestRecordIDs(vectorStore.upserts[1]))
+	require.Equal(t, vectorStore.upserts[0][0].ContentHash, vectorStore.upserts[1][0].ContentHash)
+}
+
+func TestSQLiteStore_VectorStoreDeletesSessionVectors(t *testing.T) {
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+
+	t.Run("clear messages deletes vectors", func(t *testing.T) {
+		store, vectorStore := sqliteVectorStoreTestStore(t)
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+		}))
+		sourceID := vectorStore.upserts[0][0].SourceID
+
+		require.NoError(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}))
+
+		require.Equal(t, []retrieval.VectorDeleteRequest{{
+			SourceKind: retrieval.SourceKindSessionMessage,
+			SourceID:   sourceID,
+		}}, vectorStore.deletes)
+	})
+
+	t.Run("delete session deletes vectors", func(t *testing.T) {
+		store, vectorStore := sqliteVectorStoreTestStore(t)
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+		}))
+		sourceID := vectorStore.upserts[0][0].SourceID
+
+		require.NoError(t, store.Delete(context.Background(), testSessionA))
+
+		require.Equal(t, []retrieval.VectorDeleteRequest{{
+			SourceKind: retrieval.SourceKindSessionMessage,
+			SourceID:   sourceID,
+		}}, vectorStore.deletes)
+	})
+
+	t.Run("archive session deletes source vectors", func(t *testing.T) {
+		store, vectorStore := sqliteVectorStoreTestStore(t)
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+		}))
+		sourceID := vectorStore.upserts[0][0].SourceID
+
+		require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+			ID:              testArchiveOne,
+			SourceSessionID: testSessionA,
+			ArchivedAt:      now,
+			ExpiresAt:       now.Add(time.Hour),
+		}))
+
+		require.Equal(t, []retrieval.VectorDeleteRequest{{
+			SourceKind: retrieval.SourceKindSessionMessage,
+			SourceID:   sourceID,
+		}}, vectorStore.deletes)
+	})
+}
+
+func TestSQLiteStore_VectorStoreUsesSharedSQLiteVectorStore(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "hand.db")))
+	require.NoError(t, err)
+
+	store, err := NewSessionStoreFromDB(db)
+	require.NoError(t, err)
+	vectorStore, err := storagevector.NewStoreFromDB(db)
+	require.NoError(t, err)
+	provider := &sqliteTestEmbeddingProvider{dimensions: 3}
+	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: provider,
+		VectorStore:       vectorStore,
+		EmbeddingModel:    "text-embedding-test",
+	}))
+
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "shared sqlite vector", CreatedAt: now},
+	}))
+
+	embedRes, err := provider.Embed(context.Background(), retrieval.EmbeddingRequest{
+		Model: "text-embedding-test",
+		Inputs: []retrieval.EmbeddingInput{{
+			ID:         "query",
+			Text:       "shared sqlite vector",
+			SourceKind: retrieval.SourceKindSessionMessage,
+		}},
+	})
+	require.NoError(t, err)
+
+	result, err := vectorStore.Search(context.Background(), storagevector.SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     3,
+		QueryVector:    embedRes.Items[0].Vector,
+		Limit:          1,
+		Filter: storagevector.Filter{
+			SourceKind: storagevector.SourceKindSessionMessage,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Matches, 1)
+	require.Equal(t, retrieval.SourceKindSessionMessage, result.Matches[0].Record.SourceKind)
+	require.Equal(t, retrieval.VectorContentHash("shared sqlite vector"), result.Matches[0].Record.ContentHash)
+
+	require.NoError(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}))
+	result, err = vectorStore.Search(context.Background(), storagevector.SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     3,
+		QueryVector:    embedRes.Items[0].Vector,
+		Limit:          1,
+		Filter: storagevector.Filter{
+			SourceKind: storagevector.SourceKindSessionMessage,
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Matches)
+}
+
+func TestSQLiteStore_VectorStoreBestEffortAndRequiredErrors(t *testing.T) {
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	embedErr := errors.New("embed failed")
+
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: &sqliteTestEmbeddingProvider{err: embedErr},
+		VectorStore:       &sqliteTestVectorStore{},
+		EmbeddingModel:    "text-embedding-test",
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "best effort", CreatedAt: now},
+	}))
+
+	requiredStore, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+	require.NoError(t, requiredStore.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, requiredStore.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: &sqliteTestEmbeddingProvider{err: embedErr},
+		VectorStore:       &sqliteTestVectorStore{},
+		EmbeddingModel:    "text-embedding-test",
+		Required:          true,
+	}))
+	err = requiredStore.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "required", CreatedAt: now},
+	})
+	require.ErrorIs(t, err, embedErr)
+}
+
+func TestSQLiteStore_RebuildVectorStoreContinuesAfterBestEffortDeleteError(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	vectorStore := &sqliteTestVectorStore{}
+	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:       vectorStore,
+		EmbeddingModel:    "text-embedding-test",
+	}))
+
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "repair me", CreatedAt: now},
+	}))
+
+	vectorStore.deleteErr = errors.New("delete failed")
+	require.NoError(t, store.RebuildVectorStore(context.Background(), testSessionA))
+	require.Len(t, vectorStore.deletes, 1)
+	require.Len(t, vectorStore.upserts, 2)
+}
+
+func TestSQLiteStore_RebuildVectorStoreBatchesMessages(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	vectorStore := &sqliteTestVectorStore{}
+	provider := &sqliteTestEmbeddingProvider{dimensions: 3}
+	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: provider,
+		VectorStore:       vectorStore,
+		EmbeddingModel:    "text-embedding-test",
+		RebuildBatchSize:  2,
+	}))
+
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "first", CreatedAt: now},
+		{Role: handmsg.RoleUser, Content: "second", CreatedAt: now.Add(time.Second)},
+		{Role: handmsg.RoleUser, Content: "third", CreatedAt: now.Add(2 * time.Second)},
+	}))
+
+	provider.requests = nil
+	vectorStore.upserts = nil
+	vectorStore.deletes = nil
+
+	require.NoError(t, store.RebuildVectorStore(context.Background(), testSessionA))
+
+	require.Len(t, provider.requests, 2)
+	require.Len(t, provider.requests[0].Inputs, 2)
+	require.Len(t, provider.requests[1].Inputs, 1)
+	require.Len(t, vectorStore.upserts, 2)
+	require.Len(t, vectorStore.upserts[0], 2)
+	require.Len(t, vectorStore.upserts[1], 1)
+	require.Len(t, vectorStore.deletes, 3)
+}
+
+func TestSQLiteStore_VectorStoreConfigurationValidation(t *testing.T) {
+	var nilStore *SessionStore
+	require.EqualError(t, nilStore.ConfigureVectorStore(VectorStoreOptions{}), "session store is required")
+
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	require.EqualError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		VectorStore:    &sqliteTestVectorStore{},
+		EmbeddingModel: "text-embedding-test",
+	}), "vector store embedding provider is required")
+	require.EqualError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
+		EmbeddingModel:    "text-embedding-test",
+	}), "vector store is required")
+	require.EqualError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:       &sqliteTestVectorStore{},
+	}), "vector store embedding model is required")
+	require.EqualError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:       &sqliteTestVectorStore{},
+		EmbeddingModel:    "text-embedding-test",
+		RebuildBatchSize:  -1,
+	}), "vector store rebuild batch size must be greater than or equal to zero")
+	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{}))
+
+	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:       &sqliteTestVectorStore{},
+		EmbeddingModel:    "text-embedding-test",
+	}))
+	require.EqualError(t, store.RebuildVectorStore(context.Background(), testMissingSession), "session not found")
+}
+
+func TestSQLiteStore_RebuildVectorStoreValidationAndErrorPaths(t *testing.T) {
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+
+	var nilStore *SessionStore
+	require.EqualError(t, nilStore.RebuildVectorStore(context.Background(), testSessionA), "session store is required")
+
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+	require.EqualError(t, store.RebuildVectorStore(context.Background(), " "), "session id is required")
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.RebuildVectorStore(context.Background(), testSessionA))
+
+	brokenStore, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+	require.NoError(t, brokenStore.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, brokenStore.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:       &sqliteTestVectorStore{},
+		EmbeddingModel:    "text-embedding-test",
+	}))
+	require.NoError(t, brokenStore.db.Exec(`DROP TABLE session_messages`).Error)
+	require.Error(t, brokenStore.RebuildVectorStore(context.Background(), testSessionA))
+
+	brokenSessionStore, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+	require.NoError(t, brokenSessionStore.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:       &sqliteTestVectorStore{},
+		EmbeddingModel:    "text-embedding-test",
+	}))
+	require.NoError(t, brokenSessionStore.db.Exec(`DROP TABLE sessions`).Error)
+	require.Error(t, brokenSessionStore.RebuildVectorStore(context.Background(), testSessionA))
+
+	deleteErr := errors.New("delete failed")
+	requiredDeleteStore, vectorStore := sqliteVectorStoreTestStore(t)
+	require.NoError(t, requiredDeleteStore.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:       vectorStore,
+		EmbeddingModel:    "text-embedding-test",
+		Required:          true,
+	}))
+	require.NoError(t, requiredDeleteStore.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, requiredDeleteStore.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "delete required", CreatedAt: now},
+	}))
+	vectorStore.deleteErr = deleteErr
+	require.ErrorIs(t, requiredDeleteStore.RebuildVectorStore(context.Background(), testSessionA), deleteErr)
+
+	upsertErr := errors.New("upsert failed")
+	upsertStore, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+	upsertVectorStore := &sqliteTestVectorStore{}
+	require.NoError(t, upsertStore.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:       upsertVectorStore,
+		EmbeddingModel:    "text-embedding-test",
+		Required:          true,
+	}))
+	require.NoError(t, upsertStore.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, upsertStore.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "upsert required", CreatedAt: now},
+	}))
+	upsertVectorStore.upsertErr = upsertErr
+	require.ErrorIs(t, upsertStore.RebuildVectorStore(context.Background(), testSessionA), upsertErr)
+}
+
+func TestSQLiteStore_VectorStoreMutationDatabaseErrors(t *testing.T) {
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+
+	t.Run("delete returns message id query error", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.db.Exec(`DROP TABLE session_messages`).Error)
+
+		err = store.Delete(context.Background(), testSessionA)
+		require.Error(t, err)
+	})
+
+	t.Run("clear returns message delete error", func(t *testing.T) {
+		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+		require.NoError(t, err)
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "clear db error", CreatedAt: now},
+		}))
+
+		deleteErr := errors.New("delete message failed")
+		err = store.db.Callback().Delete().
+			Before("gorm:delete").
+			Register("test:delete_message_error", func(tx *gorm.DB) {
+				if tx.Statement != nil && tx.Statement.Schema != nil && tx.Statement.Schema.Table == "session_messages" {
+					tx.AddError(deleteErr)
+				}
+			})
+		require.NoError(t, err)
+
+		require.ErrorIs(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}), deleteErr)
+	})
+}
+
+func TestSQLiteStore_VectorStorePostMutationErrors(t *testing.T) {
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	deleteErr := errors.New("delete failed")
+
+	t.Run("delete returns required vector delete error", func(t *testing.T) {
+		store, vectorStore := sqliteVectorStoreTestStore(t)
+		require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+			EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
+			VectorStore:       vectorStore,
+			EmbeddingModel:    "text-embedding-test",
+			Required:          true,
+		}))
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "delete vector", CreatedAt: now},
+		}))
+
+		vectorStore.deleteErr = deleteErr
+		require.ErrorIs(t, store.Delete(context.Background(), testSessionA), deleteErr)
+	})
+
+	t.Run("archive returns required vector delete error", func(t *testing.T) {
+		store, vectorStore := sqliteVectorStoreTestStore(t)
+		require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+			EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
+			VectorStore:       vectorStore,
+			EmbeddingModel:    "text-embedding-test",
+			Required:          true,
+		}))
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "archive vector", CreatedAt: now},
+		}))
+
+		vectorStore.deleteErr = deleteErr
+		err := store.CreateArchive(context.Background(), ArchivedSession{
+			ID:              testArchiveOne,
+			SourceSessionID: testSessionA,
+			ArchivedAt:      now,
+			ExpiresAt:       now.Add(time.Hour),
+		})
+		require.ErrorIs(t, err, deleteErr)
+	})
+
+	t.Run("clear returns required vector delete error", func(t *testing.T) {
+		store, vectorStore := sqliteVectorStoreTestStore(t)
+		require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+			EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
+			VectorStore:       vectorStore,
+			EmbeddingModel:    "text-embedding-test",
+			Required:          true,
+		}))
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "clear vector", CreatedAt: now},
+		}))
+
+		vectorStore.deleteErr = deleteErr
+		require.ErrorIs(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}), deleteErr)
+	})
+}
+
+func TestSQLiteStore_VectorStoreHelperBranches(t *testing.T) {
+	require.Nil(t, vectorInputsFromSearchRows(nil))
+	require.Nil(t, sourceIDsFromModels(nil))
+	require.Nil(t, uniqueStrings(nil))
+	require.Equal(t, []string{"one", "two"}, uniqueStrings([]string{" one ", "", "two", "one"}))
+}
+
+func TestSQLiteStore_VectorStoreSkipsEmptySearchRows(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	provider := &sqliteTestEmbeddingProvider{dimensions: 3}
+	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: provider,
+		VectorStore:       &sqliteTestVectorStore{},
+		EmbeddingModel:    "text-embedding-test",
+	}))
+
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, CreatedAt: now},
+	}))
+	require.Empty(t, provider.requests)
+}
+
+func TestSQLiteStore_VectorStoreRejectsInvalidEmbeddings(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	provider := &sqliteTestEmbeddingProvider{
+		mutate: func(result retrieval.EmbeddingResult) retrieval.EmbeddingResult {
+			result.Items[0].ContentHash = "wrong"
+			return result
+		},
+		dimensions: 3,
+	}
+	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: provider,
+		VectorStore:       &sqliteTestVectorStore{},
+		EmbeddingModel:    "text-embedding-test",
+		Required:          true,
+	}))
+
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	err = store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "bad embedding", CreatedAt: now},
+	})
+	require.EqualError(t, err, "embedding content hash must match input text")
+}
+
+func sqliteVectorStoreTestStore(t *testing.T) (*SessionStore, *sqliteTestVectorStore) {
+	t.Helper()
+
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+	vectorStore := &sqliteTestVectorStore{}
+	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:       vectorStore,
+		EmbeddingModel:    "text-embedding-test",
+	}))
+
+	return store, vectorStore
+}
+
+func sqliteTestRecordIDs(records []retrieval.VectorRecord) []string {
+	ids := make([]string, 0, len(records))
+	for _, record := range records {
+		ids = append(ids, record.ID)
+	}
+
+	return ids
+}
+
+type sqliteTestEmbeddingProvider struct {
+	err        error
+	mutate     func(retrieval.EmbeddingResult) retrieval.EmbeddingResult
+	requests   []retrieval.EmbeddingRequest
+	dimensions int
+}
+
+func (p *sqliteTestEmbeddingProvider) Embed(_ context.Context, req retrieval.EmbeddingRequest) (retrieval.EmbeddingResult, error) {
+	p.requests = append(p.requests, req)
+	if p.err != nil {
+		return retrieval.EmbeddingResult{}, p.err
+	}
+	if p.dimensions == 0 {
+		p.dimensions = 3
+	}
+
+	items := make([]retrieval.Embedding, 0, len(req.Inputs))
+	for _, input := range req.Inputs {
+		vector := make([]float64, p.dimensions)
+		for idx := range vector {
+			vector[idx] = float64(len(input.Text) + idx)
+		}
+		items = append(items, retrieval.Embedding{
+			ID:          input.ID,
+			ContentHash: retrieval.VectorContentHash(input.Text),
+			Vector:      vector,
+		})
+	}
+
+	result := retrieval.EmbeddingResult{
+		Model:      req.Model,
+		Dimensions: p.dimensions,
+		Items:      items,
+	}
+	if p.mutate != nil {
+		result = p.mutate(result)
+	}
+
+	return result, nil
+}
+
+type sqliteTestVectorStore struct {
+	err       error
+	deleteErr error
+	upsertErr error
+	upserts   [][]retrieval.VectorRecord
+	deletes   []retrieval.VectorDeleteRequest
+}
+
+func (s *sqliteTestVectorStore) Upsert(_ context.Context, records []retrieval.VectorRecord) error {
+	if s.upsertErr != nil {
+		return s.upsertErr
+	}
+	if s.err != nil {
+		return s.err
+	}
+	s.upserts = append(s.upserts, append([]retrieval.VectorRecord(nil), records...))
+
+	return nil
+}
+
+func (s *sqliteTestVectorStore) Delete(_ context.Context, req retrieval.VectorDeleteRequest) error {
+	s.deletes = append(s.deletes, req)
+	if s.deleteErr != nil {
+		return s.deleteErr
+	}
+	if s.err != nil {
+		return s.err
+	}
+
+	return nil
+}
+
+func (s *sqliteTestVectorStore) Search(context.Context, retrieval.VectorSearchRequest) (retrieval.VectorSearchResult, error) {
+	return retrieval.VectorSearchResult{}, nil
+}
+
+func (s *sqliteTestVectorStore) Metadata(context.Context) (retrieval.VectorStoreMetadata, error) {
+	return retrieval.VectorStoreMetadata{}, nil
 }
