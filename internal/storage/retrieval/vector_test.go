@@ -311,7 +311,11 @@ func TestValidateVectorSearchRequest(t *testing.T) {
 func TestValidateVectorDeleteRequest(t *testing.T) {
 	require.NoError(t, ValidateVectorDeleteRequest(VectorDeleteRequest{
 		SourceKind: SourceKindSessionMessage,
-		SourceID:   "msg-a",
+		SourceIDs:  []string{"msg-a"},
+	}))
+	require.NoError(t, ValidateVectorDeleteRequest(VectorDeleteRequest{
+		SourceKind: SourceKindSessionMessage,
+		SourceIDs:  []string{"msg-a", "msg-b"},
 	}))
 
 	err := ValidateVectorDeleteRequest(VectorDeleteRequest{})
@@ -321,6 +325,18 @@ func TestValidateVectorDeleteRequest(t *testing.T) {
 	require.EqualError(t, err, `source kind "unknown" is not supported`)
 
 	err = ValidateVectorDeleteRequest(VectorDeleteRequest{SourceKind: SourceKindSessionMessage})
+	require.EqualError(t, err, "source id is required")
+
+	err = ValidateVectorDeleteRequest(VectorDeleteRequest{
+		SourceKind: SourceKindSessionMessage,
+		SourceIDs:  []string{" msg-a "},
+	})
+	require.EqualError(t, err, "source id must be trimmed")
+
+	err = ValidateVectorDeleteRequest(VectorDeleteRequest{
+		SourceKind: SourceKindSessionMessage,
+		SourceIDs:  []string{""},
+	})
 	require.EqualError(t, err, "source id is required")
 }
 

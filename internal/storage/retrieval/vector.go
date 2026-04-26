@@ -48,6 +48,9 @@ type VectorRecord struct {
 	ID             string
 	SourceKind     SourceKind
 	SourceID       string
+	SessionID      string
+	Role           string
+	ToolName       string
 	EmbeddingModel string
 	ContentHash    string
 	Vector         []float64
@@ -58,7 +61,7 @@ type VectorRecord struct {
 
 type VectorDeleteRequest struct {
 	SourceKind SourceKind
-	SourceID   string
+	SourceIDs  []string
 }
 
 type VectorSearchRequest struct {
@@ -70,8 +73,12 @@ type VectorSearchRequest struct {
 }
 
 type VectorFilter struct {
-	SourceKind SourceKind
-	SourceIDs  []string
+	SourceKind      SourceKind
+	SourceIDs       []string
+	SessionID       string
+	IgnoreSessionID string
+	Role            string
+	ToolName        string
 }
 
 type VectorSearchResult struct {
@@ -242,8 +249,16 @@ func ValidateVectorDeleteRequest(req VectorDeleteRequest) error {
 	if err := validateRequiredSourceKind(req.SourceKind, "source kind"); err != nil {
 		return err
 	}
-	if strings.TrimSpace(req.SourceID) == "" {
+	if len(req.SourceIDs) == 0 {
 		return errors.New("source id is required")
+	}
+	for _, sourceID := range req.SourceIDs {
+		if strings.TrimSpace(sourceID) == "" {
+			return errors.New("source id is required")
+		}
+		if strings.TrimSpace(sourceID) != sourceID {
+			return errors.New("source id must be trimmed")
+		}
 	}
 
 	return nil

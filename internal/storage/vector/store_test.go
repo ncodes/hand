@@ -51,7 +51,7 @@ func TestStore_NilStoreErrors(t *testing.T) {
 
 	err = store.Delete(context.Background(), DeleteRequest{
 		SourceKind: SourceKindSessionMessage,
-		SourceID:   "msg-a",
+		SourceIDs:  []string{"msg-a"},
 	})
 	require.EqualError(t, err, "vector store is required")
 
@@ -108,6 +108,11 @@ func TestStore_UpsertSearchDeleteAndMetadata(t *testing.T) {
 		testRecord("vec-b", SourceKindSessionMessage, "msg-b", []float64{0.8, 0.2, 0}, now.Add(time.Second)),
 		testRecord("vec-c", SourceKindMemoryItem, "mem-c", []float64{0, 1, 0}, now.Add(2*time.Second)),
 	}
+	records[0].SessionID = "ses-a"
+	records[0].Role = "assistant"
+	records[1].SessionID = "ses-b"
+	records[1].Role = "assistant"
+	records[1].ToolName = "process"
 	require.NoError(t, store.Upsert(context.Background(), records))
 
 	require.True(t, sqliteTableExists(t, store.db, indexTableName(3)))
@@ -153,6 +158,48 @@ func TestStore_UpsertSearchDeleteAndMetadata(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"vec-a", "vec-b"}, matchIDs(result.Matches))
 
+	result, err = store.Search(context.Background(), SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     3,
+		QueryVector:    []float64{1, 0, 0},
+		Limit:          10,
+		Filter: Filter{
+			SourceKind: SourceKindSessionMessage,
+			SessionID:  "ses-b",
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"vec-b"}, matchIDs(result.Matches))
+	require.Equal(t, "ses-b", result.Matches[0].Record.SessionID)
+
+	result, err = store.Search(context.Background(), SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     3,
+		QueryVector:    []float64{1, 0, 0},
+		Limit:          10,
+		Filter: Filter{
+			SourceKind:      SourceKindSessionMessage,
+			IgnoreSessionID: "ses-a",
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"vec-b"}, matchIDs(result.Matches))
+
+	result, err = store.Search(context.Background(), SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     3,
+		QueryVector:    []float64{1, 0, 0},
+		Limit:          10,
+		Filter: Filter{
+			SourceKind: SourceKindSessionMessage,
+			Role:       "assistant",
+			ToolName:   "process",
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"vec-b"}, matchIDs(result.Matches))
+	require.Equal(t, "process", result.Matches[0].Record.ToolName)
+
 	metadata, err := store.Metadata(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, StoreMetadata{Models: []ModelMetadata{{
@@ -163,7 +210,7 @@ func TestStore_UpsertSearchDeleteAndMetadata(t *testing.T) {
 
 	require.NoError(t, store.Delete(context.Background(), DeleteRequest{
 		SourceKind: SourceKindSessionMessage,
-		SourceID:   "msg-b",
+		SourceIDs:  []string{"msg-b"},
 	}))
 
 	result, err = store.Search(context.Background(), SearchRequest{
@@ -177,6 +224,26 @@ func TestStore_UpsertSearchDeleteAndMetadata(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, []string{"vec-a"}, matchIDs(result.Matches))
+
+	require.NoError(t, store.Upsert(context.Background(), []Record{
+		testRecord("vec-b", SourceKindSessionMessage, "msg-b", []float64{0.8, 0.2, 0}, now.Add(time.Second)),
+	}))
+	require.NoError(t, store.Delete(context.Background(), DeleteRequest{
+		SourceKind: SourceKindSessionMessage,
+		SourceIDs:  []string{"msg-a", "msg-b"},
+	}))
+
+	result, err = store.Search(context.Background(), SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     3,
+		QueryVector:    []float64{1, 0, 0},
+		Limit:          10,
+		Filter: Filter{
+			SourceKind: SourceKindSessionMessage,
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Matches)
 }
 
 func TestStore_SearchMissingDimensionDoesNotCreateIndexTable(t *testing.T) {
@@ -337,7 +404,7 @@ func TestStore_BrokenDatabaseErrors(t *testing.T) {
 
 	err = store.Delete(context.Background(), DeleteRequest{
 		SourceKind: SourceKindSessionMessage,
-		SourceID:   "msg-a",
+		SourceIDs:  []string{"msg-a"},
 	})
 	require.ErrorContains(t, err, "failed to load vector record refs")
 
@@ -361,13 +428,13 @@ func TestStore_ReadOnlyDatabaseErrors(t *testing.T) {
 
 	err = readOnlyStore.Delete(context.Background(), DeleteRequest{
 		SourceKind: SourceKindSessionMessage,
-		SourceID:   "missing",
+		SourceIDs:  []string{"missing"},
 	})
 	require.ErrorContains(t, err, "failed to delete vector records")
 
 	err = readOnlyStore.Delete(context.Background(), DeleteRequest{
 		SourceKind: SourceKindSessionMessage,
-		SourceID:   "msg-a",
+		SourceIDs:  []string{"msg-a"},
 	})
 	require.ErrorContains(t, err, "failed to delete vector index row")
 
@@ -509,7 +576,7 @@ func TestStore_ExistingRecordIndexDeleteErrors(t *testing.T) {
 	require.ErrorContains(t, err, "failed to delete vector index row")
 }
 
-func TestStore_EnsureStorageMigrationErrors(t *testing.T) {
+func TestStore_EnsureStorageErrors(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "vectors.db")
 	db, err := gorm.Open(sqliteDriver.Open(path))
 	require.NoError(t, err)
@@ -544,6 +611,9 @@ func TestStore_InsertIndexError(t *testing.T) {
 	id TEXT NOT NULL UNIQUE,
 	source_kind TEXT NOT NULL,
 	source_id TEXT NOT NULL,
+	session_id TEXT NOT NULL DEFAULT '',
+	role TEXT NOT NULL DEFAULT '',
+	tool_name TEXT NOT NULL DEFAULT '',
 	embedding_model TEXT NOT NULL,
 	dimensions INTEGER NOT NULL,
 	content_hash TEXT NOT NULL,
@@ -586,7 +656,7 @@ func TestStore_HelperErrors(t *testing.T) {
 	require.ErrorContains(t, err, "failed to check vector index table")
 
 	err = ensureIndexTable(store.db, 99)
-	require.ErrorContains(t, err, "failed to create vector index table")
+	require.ErrorContains(t, err, "failed to check vector index table")
 
 	_, err = serialize([]float64{math.NaN()})
 	require.EqualError(t, err, "vector value must be finite")
@@ -611,6 +681,8 @@ func testRecord(id string, sourceKind SourceKind, sourceID string, vector []floa
 		ID:             id,
 		SourceKind:     sourceKind,
 		SourceID:       sourceID,
+		SessionID:      "ses-test",
+		Role:           "user",
 		EmbeddingModel: "text-embedding-test",
 		Dimensions:     len(vector),
 		ContentHash:    retrieval.VectorContentHash(id),

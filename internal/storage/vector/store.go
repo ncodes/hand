@@ -82,12 +82,16 @@ func (s *Store) Upsert(ctx context.Context, records []Record) error {
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		ensuredDimensions := make(map[int]struct{}, len(records))
 		for _, record := range records {
 			if err := retrieval.ValidateVectorRecord(record); err != nil {
 				return err
 			}
-			if err := ensureIndexTable(tx, record.Dimensions); err != nil {
-				return err
+			if _, ok := ensuredDimensions[record.Dimensions]; !ok {
+				if err := ensureIndexTable(tx, record.Dimensions); err != nil {
+					return err
+				}
+				ensuredDimensions[record.Dimensions] = struct{}{}
 			}
 			if err := upsertRecord(tx, record); err != nil {
 				return err
@@ -105,21 +109,26 @@ func (s *Store) Delete(ctx context.Context, req DeleteRequest) error {
 	if err := retrieval.ValidateVectorDeleteRequest(req); err != nil {
 		return err
 	}
+	sourceIDs := normalizeDeleteSourceIDs(req)
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		rows, err := recordRefs(tx, req.SourceKind, req.SourceID)
+		rows, err := vectorRowsForSources(tx, req.SourceKind, sourceIDs)
 		if err != nil {
 			return err
 		}
+		rowIDsByDimension := make(map[int][]int64, len(rows))
 		for _, row := range rows {
-			if err := deleteIndexRow(tx, row.Dimensions, row.RowID); err != nil {
+			rowIDsByDimension[row.Dimensions] = append(rowIDsByDimension[row.Dimensions], row.RowID)
+		}
+		for dimensions, rowIDs := range rowIDsByDimension {
+			if err := deleteIndexRows(tx, dimensions, rowIDs); err != nil {
 				return err
 			}
 		}
 		if err := tx.Exec(
-			`DELETE FROM `+recordsTable+` WHERE source_kind = ? AND source_id = ?`,
+			`DELETE FROM `+recordsTable+` WHERE source_kind = ? AND source_id IN ?`,
 			req.SourceKind,
-			req.SourceID,
+			sourceIDs,
 		).Error; err != nil {
 			return fmt.Errorf("failed to delete vector records: %w", err)
 		}
@@ -162,6 +171,9 @@ func (s *Store) Search(ctx context.Context, req SearchRequest) (SearchResult, er
 	rv.id,
 	rv.source_kind,
 	rv.source_id,
+	rv.session_id,
+	rv.role,
+	rv.tool_name,
 	rv.embedding_model,
 	rv.dimensions,
 	rv.content_hash,
@@ -196,6 +208,26 @@ WHERE vec.vector MATCH ?
 			args = append(args, sourceID)
 		}
 		sqlText.WriteString(`)`)
+	}
+	if sessionID := strings.TrimSpace(req.Filter.SessionID); sessionID != "" {
+		sqlText.WriteString(`
+	AND vec.session_id = ?`)
+		args = append(args, sessionID)
+	}
+	if ignoreSessionID := strings.TrimSpace(req.Filter.IgnoreSessionID); ignoreSessionID != "" {
+		sqlText.WriteString(`
+	AND vec.session_id <> ?`)
+		args = append(args, ignoreSessionID)
+	}
+	if role := strings.TrimSpace(req.Filter.Role); role != "" {
+		sqlText.WriteString(`
+	AND vec.role = ?`)
+		args = append(args, role)
+	}
+	if toolName := strings.TrimSpace(req.Filter.ToolName); toolName != "" {
+		sqlText.WriteString(`
+	AND vec.tool_name = ?`)
+		args = append(args, toolName)
 	}
 	sqlText.WriteString(`
 ORDER BY vec.distance ASC, rv.id ASC`)
@@ -252,6 +284,9 @@ func ensureSQLiteStorage(db *gorm.DB) error {
 	id TEXT NOT NULL UNIQUE,
 	source_kind TEXT NOT NULL,
 	source_id TEXT NOT NULL,
+	session_id TEXT NOT NULL DEFAULT '',
+	role TEXT NOT NULL DEFAULT '',
+	tool_name TEXT NOT NULL DEFAULT '',
 	embedding_model TEXT NOT NULL,
 	dimensions INTEGER NOT NULL,
 	content_hash TEXT NOT NULL,
@@ -263,6 +298,8 @@ func ensureSQLiteStorage(db *gorm.DB) error {
 		}
 		indexes := []string{
 			`CREATE INDEX IF NOT EXISTS idx_vectors_source ON ` + recordsTable + ` (source_kind, source_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_vectors_session ON ` + recordsTable + ` (source_kind, session_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_vectors_session_role_tool ON ` + recordsTable + ` (source_kind, session_id, role, tool_name)`,
 			`CREATE INDEX IF NOT EXISTS idx_vectors_model_dimensions ON ` + recordsTable + ` (embedding_model, dimensions)`,
 			`CREATE INDEX IF NOT EXISTS idx_vectors_content_hash ON ` + recordsTable + ` (content_hash)`,
 		}
@@ -310,6 +347,9 @@ func upsertRecord(tx *gorm.DB, record Record) error {
 		if err := tx.Exec(`UPDATE `+recordsTable+` SET
 	source_kind = ?,
 	source_id = ?,
+	session_id = ?,
+	role = ?,
+	tool_name = ?,
 	embedding_model = ?,
 	dimensions = ?,
 	content_hash = ?,
@@ -318,6 +358,9 @@ func upsertRecord(tx *gorm.DB, record Record) error {
 WHERE id = ?`,
 			string(record.SourceKind),
 			record.SourceID,
+			strings.TrimSpace(record.SessionID),
+			strings.TrimSpace(record.Role),
+			strings.TrimSpace(record.ToolName),
 			record.EmbeddingModel,
 			record.Dimensions,
 			record.ContentHash,
@@ -332,17 +375,23 @@ WHERE id = ?`,
 	id,
 	source_kind,
 	source_id,
+	session_id,
+	role,
+	tool_name,
 	embedding_model,
 	dimensions,
 	content_hash,
 	vector,
 	created_at,
 	updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING vector_rowid`,
 			record.ID,
 			string(record.SourceKind),
 			record.SourceID,
+			strings.TrimSpace(record.SessionID),
+			strings.TrimSpace(record.Role),
+			strings.TrimSpace(record.ToolName),
 			record.EmbeddingModel,
 			record.Dimensions,
 			record.ContentHash,
@@ -362,12 +411,18 @@ RETURNING vector_rowid`,
 				vector,
 				source_kind,
 				source_id,
+				session_id,
+				role,
+				tool_name,
 				embedding_model
-			) VALUES (?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		rowID,
 		blob,
 		string(record.SourceKind),
 		record.SourceID,
+		strings.TrimSpace(record.SessionID),
+		strings.TrimSpace(record.Role),
+		strings.TrimSpace(record.ToolName),
 		record.EmbeddingModel,
 	).Error; err != nil {
 		return fmt.Errorf("failed to insert vector index row: %w", err)
@@ -380,10 +435,21 @@ func ensureIndexTable(db *gorm.DB, dimensions int) error {
 	if dimensions <= 0 {
 		return errors.New("vector dimensions must be greater than zero")
 	}
-	if err := db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS ` + indexTableName(dimensions) + ` USING vec0(
+	exists, err := indexTableExists(db, dimensions)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+
+	if err := db.Exec(`CREATE VIRTUAL TABLE ` + indexTableName(dimensions) + ` USING vec0(
 	vector float[` + fmt.Sprintf("%d", dimensions) + `] distance_metric=cosine,
 	source_kind TEXT,
 	source_id TEXT,
+	session_id TEXT,
+	role TEXT,
+	tool_name TEXT,
 	embedding_model TEXT
 )`).Error; err != nil {
 		return fmt.Errorf("failed to create vector index table: %w", err)
@@ -396,7 +462,15 @@ func deleteIndexRow(tx *gorm.DB, dimensions int, rowID int64) error {
 	if dimensions <= 0 || rowID <= 0 {
 		return nil
 	}
-	if err := tx.Exec(`DELETE FROM `+indexTableName(dimensions)+` WHERE rowid = ?`, rowID).Error; err != nil {
+
+	return deleteIndexRows(tx, dimensions, []int64{rowID})
+}
+
+func deleteIndexRows(tx *gorm.DB, dimensions int, rowIDs []int64) error {
+	if dimensions <= 0 || len(rowIDs) == 0 {
+		return nil
+	}
+	if err := tx.Exec(`DELETE FROM `+indexTableName(dimensions)+` WHERE rowid IN ?`, rowIDs).Error; err != nil {
 		return fmt.Errorf("failed to delete vector index row: %w", err)
 	}
 
@@ -419,17 +493,34 @@ func recordRef(tx *gorm.DB, id string) (recordRefRow, bool, error) {
 	return row, true, nil
 }
 
-func recordRefs(tx *gorm.DB, sourceKind SourceKind, sourceID string) ([]recordRefRow, error) {
+func vectorRowsForSources(tx *gorm.DB, sourceKind SourceKind, sourceIDs []string) ([]recordRefRow, error) {
 	var rows []recordRefRow
 	if err := tx.Raw(
-		`SELECT vector_rowid, dimensions FROM `+recordsTable+` WHERE source_kind = ? AND source_id = ?`,
+		`SELECT vector_rowid, dimensions FROM `+recordsTable+` WHERE source_kind = ? AND source_id IN ?`,
 		string(sourceKind),
-		sourceID,
+		sourceIDs,
 	).Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("failed to load vector record refs: %w", err)
 	}
 
 	return rows, nil
+}
+
+func normalizeDeleteSourceIDs(req DeleteRequest) []string {
+	sourceIDs := make([]string, 0, len(req.SourceIDs))
+	seen := make(map[string]struct{}, len(req.SourceIDs))
+	for _, sourceID := range req.SourceIDs {
+		sourceID = strings.TrimSpace(sourceID)
+		if sourceID != "" {
+			if _, ok := seen[sourceID]; ok {
+				continue
+			}
+			seen[sourceID] = struct{}{}
+			sourceIDs = append(sourceIDs, sourceID)
+		}
+	}
+
+	return sourceIDs
 }
 
 func serialize(values []float64) ([]byte, error) {
@@ -512,6 +603,9 @@ type searchRow struct {
 	ID             string    `gorm:"column:id"`
 	SourceKind     string    `gorm:"column:source_kind"`
 	SourceID       string    `gorm:"column:source_id"`
+	SessionID      string    `gorm:"column:session_id"`
+	Role           string    `gorm:"column:role"`
+	ToolName       string    `gorm:"column:tool_name"`
 	EmbeddingModel string    `gorm:"column:embedding_model"`
 	ContentHash    string    `gorm:"column:content_hash"`
 	RowID          int64     `gorm:"column:vector_rowid"`
@@ -531,6 +625,9 @@ func (r searchRow) record() (Record, error) {
 		ID:             r.ID,
 		SourceKind:     SourceKind(r.SourceKind),
 		SourceID:       r.SourceID,
+		SessionID:      r.SessionID,
+		Role:           r.Role,
+		ToolName:       r.ToolName,
 		EmbeddingModel: r.EmbeddingModel,
 		ContentHash:    r.ContentHash,
 		Vector:         vector,
