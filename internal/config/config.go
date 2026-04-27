@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1246,8 +1247,44 @@ func (c *Config) validateSessionVectorSettings() error {
 	if c.SessionVectorRebuildBatchSize < 0 {
 		return errors.New("vector rebuild batch size must be non-negative")
 	}
-	if _, err := c.ResolveEmbeddingModelAuth(); err != nil {
+	auth, err := c.ResolveEmbeddingModelAuth()
+	if err != nil {
 		return err
+	}
+	if err := c.validateEmbeddingModelExists(context.Background(), auth); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Config) validateEmbeddingModelExists(ctx context.Context, auth ModelAuth) error {
+	if !c.VerifyModelEnabled() {
+		return nil
+	}
+
+	var (
+		meta ModelMetadata
+		err  error
+	)
+	switch strings.TrimSpace(strings.ToLower(auth.Provider)) {
+	case "openrouter":
+		meta, err = fetchOpenRouterModelEndpoints(
+			ctx,
+			defaultBaseURLForProvider("openrouter", DefaultModelAPIMode),
+			c.ModelEmbeddingModel,
+			auth.APIKey,
+		)
+	case "openai":
+		meta, err = fetchOpenAIModelExists(ctx, c.ModelEmbeddingModel)
+	default:
+		return fmt.Errorf("model.embeddingModel: unsupported model provider %q", auth.Provider)
+	}
+	if err != nil {
+		return fmt.Errorf("model.embeddingModel: %w", err)
+	}
+	if !meta.Exists {
+		return fmt.Errorf("model.embeddingModel: %w", unknownModelError(auth.Provider, c.ModelEmbeddingModel))
 	}
 
 	return nil
@@ -1479,9 +1516,60 @@ func fetchOpenRouterModelMetadata(ctx context.Context, baseURL, model, apiKey st
 	return ModelMetadata{}, nil
 }
 
+func fetchOpenRouterModelEndpoints(ctx context.Context, baseURL, model, apiKey string) (ModelMetadata, error) {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return ModelMetadata{}, nil
+	}
+
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if baseURL == "" {
+		baseURL = defaultBaseURLForProvider("openrouter", DefaultModelAPIMode)
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		baseURL+"/models/"+openRouterModelPath(model)+"/endpoints",
+		nil,
+	)
+	if err != nil {
+		return ModelMetadata{}, err
+	}
+
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return ModelMetadata{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return ModelMetadata{}, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return ModelMetadata{}, fmt.Errorf("failed to verify openrouter model %q: "+
+			"openrouter model endpoints lookup returned %s", model, resp.Status)
+	}
+
+	return ModelMetadata{Exists: true}, nil
+}
+
+func openRouterModelPath(model string) string {
+	segments := strings.Split(strings.Trim(strings.TrimSpace(model), "/"), "/")
+	for idx, segment := range segments {
+		segments[idx] = url.PathEscape(segment)
+	}
+
+	return strings.Join(segments, "/")
+}
+
 func fetchOpenAIModelMetadata(ctx context.Context, model string) (ModelMetadata, error) {
-	for _, candidate := range openAIModelDocCandidates(model) {
-		meta, err := fetchOpenAIModelMetadataCandidate(ctx, candidate)
+	for _, candidate := range openAIModelDocSlugs(model) {
+		meta, err := fetchOpenAIModelMetadataPage(ctx, candidate, true)
 		if err != nil {
 			return ModelMetadata{}, err
 		}
@@ -1493,7 +1581,21 @@ func fetchOpenAIModelMetadata(ctx context.Context, model string) (ModelMetadata,
 	return ModelMetadata{}, nil
 }
 
-func fetchOpenAIModelMetadataCandidate(ctx context.Context, model string) (ModelMetadata, error) {
+func fetchOpenAIModelExists(ctx context.Context, model string) (ModelMetadata, error) {
+	for _, candidate := range openAIModelDocSlugs(model) {
+		meta, err := fetchOpenAIModelMetadataPage(ctx, candidate, false)
+		if err != nil {
+			return ModelMetadata{}, err
+		}
+		if meta.Exists {
+			return meta, nil
+		}
+	}
+
+	return ModelMetadata{}, nil
+}
+
+func fetchOpenAIModelMetadataPage(ctx context.Context, model string, requireContextWindow bool) (ModelMetadata, error) {
 	model = strings.TrimSpace(model)
 	if model == "" {
 		return ModelMetadata{}, nil
@@ -1524,6 +1626,10 @@ func fetchOpenAIModelMetadataCandidate(ctx context.Context, model string) (Model
 
 	match := contextWindowPatternOAI.FindStringSubmatch(string(body))
 	if len(match) != 2 {
+		if !requireContextWindow {
+			return ModelMetadata{Exists: true}, nil
+		}
+
 		return ModelMetadata{}, nil
 	}
 
@@ -1547,7 +1653,7 @@ func unknownModelError(provider, model string) error {
 	}
 }
 
-func openAIModelDocCandidates(model string) []string {
+func openAIModelDocSlugs(model string) []string {
 	model = strings.TrimSpace(model)
 	if model == "" {
 		return nil

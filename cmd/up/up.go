@@ -112,24 +112,26 @@ func renderStartupPanel(cfg *config.Config) string {
 		"",
 		fmt.Sprintf("%s %s", styleLabel("Instance", cfg.LogNoColor), cfg.Name),
 		fmt.Sprintf("%s %s", styleLabel("Model", cfg.LogNoColor), cfg.Model),
-	}
-	if cfg.SummaryModel != "" && cfg.SummaryModel != cfg.Model {
-		lines = append(lines, fmt.Sprintf("%s %s", styleLabel("Summary model", cfg.LogNoColor), cfg.SummaryModelEffective()))
-	}
-	if cfg.SummaryProviderEffective() != cfg.ModelProvider {
-		lines = append(lines, fmt.Sprintf("%s %s", styleLabel("Summary provider", cfg.LogNoColor), cfg.SummaryProviderEffective()))
+		fmt.Sprintf("%s %s", styleLabel("Provider", cfg.LogNoColor), cfg.ModelProvider),
+		fmt.Sprintf("%s %s", styleLabel("Summary model", cfg.LogNoColor), cfg.SummaryModelEffective()),
+		fmt.Sprintf("%s %s", styleLabel("Summary provider", cfg.LogNoColor), cfg.SummaryProviderEffective()),
 	}
 	if cfg.SummaryModelAPIModeEffective() != cfg.ModelAPIMode {
 		lines = append(lines, fmt.Sprintf("%s %s", styleLabel("Summary API mode", cfg.LogNoColor), cfg.SummaryModelAPIModeEffective()))
 	}
 	lines = append(lines,
-		fmt.Sprintf("%s %s", styleLabel("Provider", cfg.LogNoColor), cfg.ModelProvider),
 		fmt.Sprintf("%s %t", styleLabel("Streaming", cfg.LogNoColor), cfg.StreamEnabled()),
 		fmt.Sprintf("%s %s", styleLabel("RPC", cfg.LogNoColor), fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort)),
 		fmt.Sprintf("%s %s", styleLabel("Logs", cfg.LogNoColor), fmt.Sprintf("%s (%s)", cfg.LogLevel, logStyle)),
 		fmt.Sprintf("%s %s", styleLabel("Debug requests", cfg.LogNoColor), debugRequests),
 		fmt.Sprintf("%s %s", styleLabel("Traces", cfg.LogNoColor), traceStatus),
 	)
+	if cfg.SessionVectorEnabled {
+		lines = append(lines,
+			fmt.Sprintf("%s %s", styleLabel("Embedding model", cfg.LogNoColor), cfg.ModelEmbeddingModel),
+			fmt.Sprintf("%s %s", styleLabel("Embedding provider", cfg.LogNoColor), cfg.ModelEmbeddingProviderEffective()),
+		)
+	}
 
 	return strings.Join(lines, "\n") + "\n"
 }
@@ -239,7 +241,15 @@ func NewCommand() *cli.Command {
 				Str("name", cfg.Name).
 				Str("model", cfg.Model).
 				Str("provider", cfg.ModelProvider).
+				Str("summaryModel", cfg.SummaryModelEffective()).
+				Str("summaryProvider", cfg.SummaryProviderEffective()).
 				Msg("Configuration loaded")
+			if cfg.SessionVectorEnabled {
+				log.Info().
+					Str("embeddingModel", cfg.ModelEmbeddingModel).
+					Str("embeddingProvider", cfg.ModelEmbeddingProviderEffective()).
+					Msg("Session vector embedding configured")
+			}
 
 			startupLog := log.Info().
 				Str("rpcEndpoint", fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort)).

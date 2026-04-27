@@ -106,6 +106,9 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, startupBuffer.String(), handcli.AppDescription)
 	require.Contains(t, startupBuffer.String(), "Instance")
 	require.Contains(t, startupBuffer.String(), "flag-agent")
+	require.Contains(t, startupBuffer.String(), "Summary model")
+	require.Contains(t, startupBuffer.String(), "openai/gpt-4o-mini")
+	require.Contains(t, startupBuffer.String(), "Summary provider")
 	require.Contains(t, startupBuffer.String(), "RPC")
 	require.Contains(t, startupBuffer.String(), "0.0.0.0:6000")
 	require.Contains(t, startupBuffer.String(), "Streaming")
@@ -122,6 +125,8 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, logOutput, "name=flag-agent")
 	require.Contains(t, logOutput, "model=openai/gpt-4o-mini")
 	require.Contains(t, logOutput, "provider=openrouter")
+	require.Contains(t, logOutput, "summaryModel=openai/gpt-4o-mini")
+	require.Contains(t, logOutput, "summaryProvider=openrouter")
 	require.Contains(t, logOutput, "rpcEndpoint=0.0.0.0:6000")
 	require.Contains(t, logOutput, "streaming=true")
 	require.Contains(t, logOutput, "debugTraces=true")
@@ -147,24 +152,65 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 
 	require.NotContains(t, output, "\x1b[90m")
 	require.Contains(t, output, "Instance: daemon")
+	require.Contains(t, output, "Summary model: openai/gpt-4o-mini")
+	require.Contains(t, output, "Summary provider: openrouter")
 	require.Contains(t, output, "Streaming: false")
 	require.Contains(t, output, "Debug requests: enabled")
 	require.Contains(t, output, "Traces: enabled (/tmp/hand-traces)")
 	require.NotContains(t, output, "Ready to accept RPC connections.")
 }
 
-func TestRenderStartupPanel_IncludesSummaryModelWhenDistinct(t *testing.T) {
+func TestRenderStartupPanel_IncludesEmbeddingModelWhenVectorEnabled(t *testing.T) {
+	rerankDisabled := false
 	output := renderStartupPanel(&config.Config{
-		Name:          "daemon",
-		Model:         "openai/gpt-4o-mini",
-		SummaryModel:  "anthropic/claude-3.5-haiku",
-		ModelProvider: "openrouter",
-		RPCAddress:    "127.0.0.1",
-		RPCPort:       50051,
-		LogLevel:      "info",
-		LogNoColor:    true,
+		Name:                      "daemon",
+		Model:                     "openai/gpt-4o-mini",
+		ModelProvider:             "openrouter",
+		ModelEmbeddingProvider:    "openai",
+		ModelEmbeddingModel:       "text-embedding-3-small",
+		SessionVectorEnabled:      true,
+		RPCAddress:                "127.0.0.1",
+		RPCPort:                   50051,
+		LogLevel:                  "info",
+		LogNoColor:                true,
+		SessionVectorEnableRerank: &rerankDisabled,
 	})
-	require.Contains(t, output, "Summary model: anthropic/claude-3.5-haiku")
+
+	require.Contains(t, output, "Embedding model: text-embedding-3-small")
+	require.Contains(t, output, "Embedding provider: openai")
+}
+
+func TestRenderStartupPanel_HidesEmbeddingModelWhenVectorDisabled(t *testing.T) {
+	output := renderStartupPanel(&config.Config{
+		Name:                "daemon",
+		Model:               "openai/gpt-4o-mini",
+		ModelProvider:       "openrouter",
+		ModelEmbeddingModel: "text-embedding-3-small",
+		RPCAddress:          "127.0.0.1",
+		RPCPort:             50051,
+		LogLevel:            "info",
+		LogNoColor:          true,
+	})
+
+	require.NotContains(t, output, "Embedding model")
+	require.NotContains(t, output, "Embedding provider")
+}
+
+func TestRenderStartupPanel_IncludesEffectiveSummaryModelAndProvider(t *testing.T) {
+	output := renderStartupPanel(&config.Config{
+		Name:            "daemon",
+		Model:           "openai/gpt-4o-mini",
+		SummaryModel:    "openai/gpt-4o-mini",
+		ModelProvider:   "openrouter",
+		SummaryProvider: "openai",
+		RPCAddress:      "127.0.0.1",
+		RPCPort:         50051,
+		LogLevel:        "info",
+		LogNoColor:      true,
+	})
+
+	require.Contains(t, output, "Summary model: openai/gpt-4o-mini")
+	require.Contains(t, output, "Summary provider: openai")
 }
 
 func TestSetOutput_SwitchesWriterAndRestoresPrevious(t *testing.T) {

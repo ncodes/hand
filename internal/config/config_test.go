@@ -28,6 +28,16 @@ func stubModelMetadataResolver(t *testing.T, fn func(context.Context, *Config, M
 	})
 }
 
+func stubProviderDefaultBaseURL(t *testing.T, provider string, mode string, value string) {
+	t.Helper()
+
+	original := providerDefaultBaseURLs[provider][mode]
+	providerDefaultBaseURLs[provider][mode] = value
+	t.Cleanup(func() {
+		providerDefaultBaseURLs[provider][mode] = original
+	})
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -1231,6 +1241,7 @@ func TestConfig_ValidateRejectsInvalidLogLevel(t *testing.T) {
 		Model:         defaultModel,
 		ModelProvider: "openai",
 		ModelKey:      "test-key",
+		VerifyModel:   new(false),
 		LogLevel:      "trace",
 	}).Validate()
 	require.EqualError(t, err, "log level must be one of debug, info, warn, or error; use --log.level")
@@ -1891,6 +1902,75 @@ func TestFetchOpenRouterModelMetadata_CoversRemainingBranches(t *testing.T) {
 	})
 }
 
+func TestFetchOpenRouterModelEndpoints_CoversResponses(t *testing.T) {
+	t.Run("empty_model", func(t *testing.T) {
+		meta, err := fetchOpenRouterModelEndpoints(context.Background(), "", "", "")
+		require.NoError(t, err)
+		require.Equal(t, ModelMetadata{}, meta)
+	})
+
+	t.Run("validates_model_endpoint", func(t *testing.T) {
+		var authorization string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authorization = r.Header.Get("Authorization")
+			require.Equal(t, "/models/openai/text-embedding-ada-002/endpoints", r.URL.Path)
+			_, _ = w.Write([]byte(`{"data":[]}`))
+		}))
+		t.Cleanup(server.Close)
+
+		meta, err := fetchOpenRouterModelEndpoints(
+			context.Background(),
+			server.URL,
+			"openai/text-embedding-ada-002",
+			"router-key",
+		)
+
+		require.NoError(t, err)
+		require.Equal(t, ModelMetadata{Exists: true}, meta)
+		require.Equal(t, "Bearer router-key", authorization)
+	})
+
+	t.Run("not_found", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		t.Cleanup(server.Close)
+
+		meta, err := fetchOpenRouterModelEndpoints(context.Background(), server.URL, "openai/missing", "")
+
+		require.NoError(t, err)
+		require.Equal(t, ModelMetadata{}, meta)
+	})
+
+	t.Run("non_200_status", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusBadGateway)
+		}))
+		t.Cleanup(server.Close)
+
+		_, err := fetchOpenRouterModelEndpoints(context.Background(), server.URL, "openai/model", "")
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "openrouter model endpoints lookup returned 502 Bad Gateway")
+	})
+
+	t.Run("network_error", func(t *testing.T) {
+		originalHTTPClient := httpClient
+		t.Cleanup(func() {
+			httpClient = originalHTTPClient
+		})
+
+		httpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, errors.New("network down")
+		})}
+
+		meta, err := fetchOpenRouterModelEndpoints(context.Background(), "", "openai/model", "")
+
+		require.EqualError(t, err, `Get "https://openrouter.ai/api/v1/models/openai/model/endpoints": network down`)
+		require.Equal(t, ModelMetadata{}, meta)
+	})
+}
+
 func TestFetchOpenAIModelMetadata_CoversRemainingBranches(t *testing.T) {
 	t.Run("empty_model", func(t *testing.T) {
 		meta, err := fetchOpenAIModelMetadata(context.Background(), "")
@@ -1907,7 +1987,7 @@ func TestFetchOpenAIModelMetadata_CoversRemainingBranches(t *testing.T) {
 		httpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 			return nil, errors.New("transport failed")
 		})}
-		meta, err := fetchOpenAIModelMetadataCandidate(context.Background(), "gpt-4o-mini")
+		meta, err := fetchOpenAIModelMetadataPage(context.Background(), "gpt-4o-mini", true)
 		require.EqualError(t, err, `Get "https://developers.openai.com/api/docs/models/gpt-4o-mini": transport failed`)
 		require.Equal(t, ModelMetadata{}, meta)
 	})
@@ -1919,7 +1999,7 @@ func TestFetchOpenAIModelMetadata_CoversRemainingBranches(t *testing.T) {
 		})
 
 		modelDocsBaseURL = "://bad"
-		meta, err := fetchOpenAIModelMetadataCandidate(context.Background(), "gpt-4o-mini")
+		meta, err := fetchOpenAIModelMetadataPage(context.Background(), "gpt-4o-mini", true)
 		require.Error(t, err)
 		require.Equal(t, ModelMetadata{}, meta)
 	})
@@ -1956,19 +2036,23 @@ func TestFetchOpenAIModelMetadata_CoversRemainingBranches(t *testing.T) {
 		httpClient = server.Client()
 		modelDocsBaseURL = server.URL + "/api/docs/models"
 
-		meta, err := fetchOpenAIModelMetadataCandidate(context.Background(), "missing")
+		meta, err := fetchOpenAIModelMetadataPage(context.Background(), "missing", true)
 		require.NoError(t, err)
 		require.Equal(t, ModelMetadata{}, meta)
 
-		meta, err = fetchOpenAIModelMetadataCandidate(context.Background(), "status")
+		meta, err = fetchOpenAIModelMetadataPage(context.Background(), "status", true)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "openai model docs lookup returned 502 Bad Gateway")
 
-		meta, err = fetchOpenAIModelMetadataCandidate(context.Background(), "no-window")
+		meta, err = fetchOpenAIModelMetadataPage(context.Background(), "no-window", true)
 		require.NoError(t, err)
 		require.Equal(t, ModelMetadata{}, meta)
 
-		meta, err = fetchOpenAIModelMetadataCandidate(context.Background(), "comment-window")
+		meta, err = fetchOpenAIModelMetadataPage(context.Background(), "no-window", false)
+		require.NoError(t, err)
+		require.Equal(t, ModelMetadata{Exists: true}, meta)
+
+		meta, err = fetchOpenAIModelMetadataPage(context.Background(), "comment-window", true)
 		require.NoError(t, err)
 		require.Equal(t, ModelMetadata{Exists: true, ContextLength: 128000}, meta)
 
@@ -1980,7 +2064,7 @@ func TestFetchOpenAIModelMetadata_CoversRemainingBranches(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, ModelMetadata{}, meta)
 
-		meta, err = fetchOpenAIModelMetadataCandidate(context.Background(), "bad-window")
+		meta, err = fetchOpenAIModelMetadataPage(context.Background(), "bad-window", true)
 		require.NoError(t, err)
 		require.Equal(t, ModelMetadata{Exists: true, ContextLength: 123456}, meta)
 	})
@@ -2003,17 +2087,17 @@ func TestFetchOpenAIModelMetadata_CoversRemainingBranches(t *testing.T) {
 		})}
 		modelDocsBaseURL = "https://developers.openai.com/api/docs/models"
 
-		meta, err := fetchOpenAIModelMetadataCandidate(context.Background(), "gpt-4o-mini")
+		meta, err := fetchOpenAIModelMetadataPage(context.Background(), "gpt-4o-mini", true)
 		require.EqualError(t, err, "forced read error")
 		require.Equal(t, ModelMetadata{}, meta)
 	})
 }
 
 func TestOpenAIModelCandidatesAndSnapshotTrim(t *testing.T) {
-	require.Nil(t, openAIModelDocCandidates(""))
+	require.Nil(t, openAIModelDocSlugs(""))
 	require.False(t, isValidModelSlug(""))
 	require.Equal(t, []string{"gpt-4.1-2025-04-14", "gpt-4.1"},
-		openAIModelDocCandidates("openai/gpt-4.1-2025-04-14"))
+		openAIModelDocSlugs("openai/gpt-4.1-2025-04-14"))
 	require.Equal(t, "gpt-4.1", trimOpenAISnapshotSuffix("gpt-4.1-2025-04-14"))
 	require.Equal(t, "gpt-4.1-preview", trimOpenAISnapshotSuffix("gpt-4.1-preview"))
 	require.Equal(t, "gpt-4.1-2025-4-14", trimOpenAISnapshotSuffix("gpt-4.1-2025-4-14"))
@@ -2051,13 +2135,13 @@ func TestFetchOpenAIModelMetadataCandidate_ReturnsContextParseError(t *testing.T
 	httpClient = server.Client()
 	modelDocsBaseURL = server.URL + "/api/docs/models"
 
-	meta, err := fetchOpenAIModelMetadataCandidate(context.Background(), "overflow")
+	meta, err := fetchOpenAIModelMetadataPage(context.Background(), "overflow", true)
 	require.Error(t, err)
 	require.Equal(t, ModelMetadata{}, meta)
 }
 
 func TestFetchOpenAIModelMetadataCandidate_EmptyModel(t *testing.T) {
-	meta, err := fetchOpenAIModelMetadataCandidate(context.Background(), "")
+	meta, err := fetchOpenAIModelMetadataPage(context.Background(), "", true)
 	require.NoError(t, err)
 	require.Equal(t, ModelMetadata{}, meta)
 }
@@ -2370,6 +2454,7 @@ func TestConfig_ValidateRejectsInvalidSessionSettings(t *testing.T) {
 		ModelKey:                 "key",
 		ModelBaseURL:             "https://example.com",
 		ModelAPIMode:             DefaultModelAPIMode,
+		VerifyModel:              new(false),
 		RPCAddress:               "127.0.0.1",
 		RPCPort:                  50051,
 		MaxIterations:            1,
@@ -2391,6 +2476,7 @@ func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {
 		ModelKey:                 "key",
 		ModelBaseURL:             "https://example.com",
 		ModelAPIMode:             DefaultModelAPIMode,
+		VerifyModel:              new(false),
 		RPCAddress:               "127.0.0.1",
 		RPCPort:                  50051,
 		MaxIterations:            1,
@@ -2453,6 +2539,88 @@ func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {
 			require.EqualError(t, err, tt.err)
 		})
 	}
+}
+
+func TestConfig_ValidateVerifiesEmbeddingModelWithoutContextRequirement(t *testing.T) {
+	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{Exists: true, ContextLength: 128000}, nil
+	})
+
+	var authorization string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization = r.Header.Get("Authorization")
+		require.Equal(t, "/models/openai/text-embedding-3-small/endpoints", r.URL.Path)
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	t.Cleanup(server.Close)
+	stubProviderDefaultBaseURL(t, "openrouter", DefaultModelAPIMode, server.URL)
+
+	cfg := Config{
+		Name:                     "daemon",
+		Model:                    "openai/model",
+		ModelProvider:            "openrouter",
+		ModelKey:                 "key",
+		ModelBaseURL:             "https://example.com",
+		ModelAPIMode:             DefaultModelAPIMode,
+		VerifyModel:              new(true),
+		RPCAddress:               "127.0.0.1",
+		RPCPort:                  50051,
+		MaxIterations:            1,
+		LogLevel:                 "info",
+		StorageBackend:           "sqlite",
+		SessionDefaultIdleExpiry: time.Hour,
+		SessionArchiveRetention:  24 * time.Hour,
+		SessionVectorEnabled:     true,
+		ModelEmbeddingProvider:   "openrouter",
+		ModelEmbeddingModel:      "openai/text-embedding-3-small",
+		CompactionEnabled:        new(true),
+		CompactionTriggerPercent: 0.85,
+		CompactionWarnPercent:    0.95,
+	}
+
+	err := cfg.Validate()
+
+	require.NoError(t, err)
+	require.Equal(t, "Bearer key", authorization)
+}
+
+func TestConfig_ValidateRejectsUnknownEmbeddingModel(t *testing.T) {
+	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
+		return ModelMetadata{Exists: true, ContextLength: 128000}, nil
+	})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(server.Close)
+	stubProviderDefaultBaseURL(t, "openrouter", DefaultModelAPIMode, server.URL)
+
+	cfg := Config{
+		Name:                     "daemon",
+		Model:                    "openai/model",
+		ModelProvider:            "openrouter",
+		ModelKey:                 "key",
+		ModelBaseURL:             "https://example.com",
+		ModelAPIMode:             DefaultModelAPIMode,
+		VerifyModel:              new(true),
+		RPCAddress:               "127.0.0.1",
+		RPCPort:                  50051,
+		MaxIterations:            1,
+		LogLevel:                 "info",
+		StorageBackend:           "sqlite",
+		SessionDefaultIdleExpiry: time.Hour,
+		SessionArchiveRetention:  24 * time.Hour,
+		SessionVectorEnabled:     true,
+		ModelEmbeddingProvider:   "openrouter",
+		ModelEmbeddingModel:      "openai/text-embedding-missing",
+		CompactionEnabled:        new(true),
+		CompactionTriggerPercent: 0.85,
+		CompactionWarnPercent:    0.95,
+	}
+
+	err := cfg.Validate()
+
+	require.EqualError(t, err, `model.embeddingModel: model "openai/text-embedding-missing" is not available on openrouter`)
 }
 
 func TestConfig_NormalizeDefaultsFilesystemRootsToCWD(t *testing.T) {
