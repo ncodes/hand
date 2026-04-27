@@ -65,8 +65,8 @@ func TestNewHarness_RealConfigLoadAndEnvOverride(t *testing.T) {
 	spec.Config = ConfigInput{
 		ConfigFilePath: configPath,
 		Env: map[string]string{
-			"NAME":         "Env Hand",
-			"MODEL_STREAM": "false",
+			"HAND_NAME":         "Env Hand",
+			"HAND_MODEL_STREAM": "false",
 		},
 	}
 
@@ -383,16 +383,16 @@ func TestOpenInspectStoreAndHelpers(t *testing.T) {
 	})
 
 	t.Run("capture env restore", func(t *testing.T) {
-		require.NoError(t, os.Setenv("E2E_CAPTURE_ENV", "old"))
+		require.NoError(t, os.Setenv("HAND_E2E_CAPTURE_ENV", "old"))
 		restore := captureEnv(map[string]string{
-			"E2E_CAPTURE_ENV": "new",
-			"E2E_CAPTURE_NEW": "x",
+			"HAND_E2E_CAPTURE_ENV": "new",
+			"HAND_E2E_CAPTURE_NEW": "x",
 		})
-		require.NoError(t, os.Setenv("E2E_CAPTURE_ENV", "new"))
-		require.NoError(t, os.Setenv("E2E_CAPTURE_NEW", "x"))
+		require.NoError(t, os.Setenv("HAND_E2E_CAPTURE_ENV", "new"))
+		require.NoError(t, os.Setenv("HAND_E2E_CAPTURE_NEW", "x"))
 		restore()
-		assert.Equal(t, "old", os.Getenv("E2E_CAPTURE_ENV"))
-		assert.Empty(t, os.Getenv("E2E_CAPTURE_NEW"))
+		assert.Equal(t, "old", os.Getenv("HAND_E2E_CAPTURE_ENV"))
+		assert.Empty(t, os.Getenv("HAND_E2E_CAPTURE_NEW"))
 	})
 
 	t.Run("apply env with explicit hand home", func(t *testing.T) {

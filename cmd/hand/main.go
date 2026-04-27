@@ -36,7 +36,7 @@ const (
 	rootColorReset = "\x1b[0m"
 )
 
-const rootHelpTemplate = `NAME:
+const rootHelpTemplate = `HAND_NAME:
    {{template "helpNameTemplate" .}}
 
 USAGE:
@@ -177,7 +177,7 @@ func formatChatEvent(cfg *config.Config, event rpcclient.Event) string {
 }
 
 func resolveEnvFile(args []string) string {
-	if value := strings.TrimSpace(os.Getenv("AGENT_ENV_FILE")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_ENV_FILE")); value != "" {
 		return value
 	}
 

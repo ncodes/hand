@@ -34,71 +34,71 @@ func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestPreloadEnvFile_LoadsValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
-		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL",
-		"LOG_NO_COLOR", "DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS", "AGENT_CAP_NET",
-		"AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY", "HAND_OPENROUTER_API_KEY",
+		"HAND_MODEL_BASE_URL", "HAND_MODEL_API_MODE", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_MAX_ITERATIONS", "HAND_LOG_LEVEL",
+		"HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS", "HAND_RULES_FILES", "HAND_INSTRUCT", "HAND_PLATFORM", "HAND_CAP_FS", "HAND_CAP_NET",
+		"HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
 	require.NoError(t, os.WriteFile(envPath, []byte(`
-NAME=env-agent
-MODEL=env-model
-MODEL_PROVIDER=openrouter
-MODEL_KEY=env-key
-OPENAI_API_KEY=openai-env-key
-OPENROUTER_API_KEY=openrouter-env-key
-MODEL_BASE_URL=https://env.example/v1
-RPC_ADDRESS=0.0.0.0
-RPC_PORT=6000
-MAX_ITERATIONS=45
-LOG_LEVEL=warn
-LOG_NO_COLOR=true
-DEBUG_REQUESTS=true
-RULES_FILES=hand.md,custom.md
-INSTRUCT=be terse
-PLATFORM=desktop
-AGENT_CAP_FS=false
-AGENT_CAP_NET=false
-AGENT_CAP_EXEC=false
-AGENT_CAP_MEM=false
-AGENT_CAP_BROWSER=true
+HAND_NAME=env-agent
+HAND_MODEL=env-model
+HAND_MODEL_PROVIDER=openrouter
+HAND_MODEL_KEY=env-key
+HAND_OPENAI_API_KEY=openai-env-key
+HAND_OPENROUTER_API_KEY=openrouter-env-key
+HAND_MODEL_BASE_URL=https://env.example/v1
+HAND_RPC_ADDRESS=0.0.0.0
+HAND_RPC_PORT=6000
+HAND_MAX_ITERATIONS=45
+HAND_LOG_LEVEL=warn
+HAND_LOG_NO_COLOR=true
+HAND_DEBUG_REQUESTS=true
+HAND_RULES_FILES=hand.md,custom.md
+HAND_INSTRUCT=be terse
+HAND_PLATFORM=desktop
+HAND_CAP_FS=false
+HAND_CAP_NET=false
+HAND_CAP_EXEC=false
+HAND_CAP_MEM=false
+HAND_CAP_BROWSER=true
 `), 0o600))
 
 	require.NoError(t, PreloadEnvFile(envPath))
-	require.Equal(t, "env-agent", os.Getenv("NAME"))
-	require.Equal(t, "env-model", os.Getenv("MODEL"))
-	require.Equal(t, "openrouter", os.Getenv("MODEL_PROVIDER"))
-	require.Equal(t, "env-key", os.Getenv("MODEL_KEY"))
-	require.Equal(t, "openai-env-key", os.Getenv("OPENAI_API_KEY"))
-	require.Equal(t, "openrouter-env-key", os.Getenv("OPENROUTER_API_KEY"))
-	require.Equal(t, "https://env.example/v1", os.Getenv("MODEL_BASE_URL"))
-	require.Equal(t, "0.0.0.0", os.Getenv("RPC_ADDRESS"))
-	require.Equal(t, "6000", os.Getenv("RPC_PORT"))
-	require.Equal(t, "45", os.Getenv("MAX_ITERATIONS"))
-	require.Equal(t, "warn", os.Getenv("LOG_LEVEL"))
-	require.Equal(t, "true", os.Getenv("LOG_NO_COLOR"))
-	require.Equal(t, "true", os.Getenv("DEBUG_REQUESTS"))
-	require.Equal(t, "hand.md,custom.md", os.Getenv("RULES_FILES"))
-	require.Equal(t, "be terse", os.Getenv("INSTRUCT"))
-	require.Equal(t, "desktop", os.Getenv("PLATFORM"))
-	require.Equal(t, "false", os.Getenv("AGENT_CAP_FS"))
-	require.Equal(t, "false", os.Getenv("AGENT_CAP_NET"))
-	require.Equal(t, "false", os.Getenv("AGENT_CAP_EXEC"))
-	require.Equal(t, "false", os.Getenv("AGENT_CAP_MEM"))
-	require.Equal(t, "true", os.Getenv("AGENT_CAP_BROWSER"))
+	require.Equal(t, "env-agent", os.Getenv("HAND_NAME"))
+	require.Equal(t, "env-model", os.Getenv("HAND_MODEL"))
+	require.Equal(t, "openrouter", os.Getenv("HAND_MODEL_PROVIDER"))
+	require.Equal(t, "env-key", os.Getenv("HAND_MODEL_KEY"))
+	require.Equal(t, "openai-env-key", os.Getenv("HAND_OPENAI_API_KEY"))
+	require.Equal(t, "openrouter-env-key", os.Getenv("HAND_OPENROUTER_API_KEY"))
+	require.Equal(t, "https://env.example/v1", os.Getenv("HAND_MODEL_BASE_URL"))
+	require.Equal(t, "0.0.0.0", os.Getenv("HAND_RPC_ADDRESS"))
+	require.Equal(t, "6000", os.Getenv("HAND_RPC_PORT"))
+	require.Equal(t, "45", os.Getenv("HAND_MAX_ITERATIONS"))
+	require.Equal(t, "warn", os.Getenv("HAND_LOG_LEVEL"))
+	require.Equal(t, "true", os.Getenv("HAND_LOG_NO_COLOR"))
+	require.Equal(t, "true", os.Getenv("HAND_DEBUG_REQUESTS"))
+	require.Equal(t, "hand.md,custom.md", os.Getenv("HAND_RULES_FILES"))
+	require.Equal(t, "be terse", os.Getenv("HAND_INSTRUCT"))
+	require.Equal(t, "desktop", os.Getenv("HAND_PLATFORM"))
+	require.Equal(t, "false", os.Getenv("HAND_CAP_FS"))
+	require.Equal(t, "false", os.Getenv("HAND_CAP_NET"))
+	require.Equal(t, "false", os.Getenv("HAND_CAP_EXEC"))
+	require.Equal(t, "false", os.Getenv("HAND_CAP_MEM"))
+	require.Equal(t, "true", os.Getenv("HAND_CAP_BROWSER"))
 }
 
 func TestPreloadEnvFile_DoesNotOverrideShellEnv(t *testing.T) {
-	clearEnvKeys(t, "MODEL_KEY")
-	t.Setenv("MODEL_KEY", "shell-key")
+	clearEnvKeys(t, "HAND_MODEL_KEY")
+	t.Setenv("HAND_MODEL_KEY", "shell-key")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
-	require.NoError(t, os.WriteFile(envPath, []byte("MODEL_KEY=env-key\n"), 0o600))
+	require.NoError(t, os.WriteFile(envPath, []byte("HAND_MODEL_KEY=env-key\n"), 0o600))
 
 	require.NoError(t, PreloadEnvFile(envPath))
-	require.Equal(t, "shell-key", os.Getenv("MODEL_KEY"))
+	require.Equal(t, "shell-key", os.Getenv("HAND_MODEL_KEY"))
 }
 
 func TestPreloadEnvFile_ReturnsErrorForUnreadablePath(t *testing.T) {
@@ -153,20 +153,20 @@ func TestLoad_ReturnsPreloadEnvFileError(t *testing.T) {
 }
 
 func TestLoad_UsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY",
-		"OPENROUTER_API_KEY",
-		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS",
-		"LOG_LEVEL", "LOG_NO_COLOR",
-		"MODEL_MAX_RETRIES",
-		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT",
-		"WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
-		"WEB_CACHE_TTL", "WEB_BLOCKED_DOMAINS_ENABLED", "WEB_BLOCKED_DOMAINS",
-		"WEB_BLOCKED_DOMAIN_FILES", "WEB_NATIVE_ALLOWED_HOSTS", "WEB_NATIVE_BLOCKED_HOSTS",
-		"WEB_NATIVE_ALLOWED_HOST_FILES", "WEB_NATIVE_BLOCKED_HOST_FILES",
-		"WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
-		"WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
-		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS",
-		"AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY",
+		"HAND_OPENROUTER_API_KEY",
+		"HAND_MODEL_BASE_URL", "HAND_MODEL_API_MODE", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_MAX_ITERATIONS",
+		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR",
+		"HAND_MODEL_MAX_RETRIES",
+		"HAND_WEB_PROVIDER", "HAND_WEB_API_KEY", "HAND_WEB_BASE_URL", "HAND_WEB_MAX_CHAR_PER_RESULT",
+		"HAND_WEB_MAX_EXTRACT_CHAR_PER_RESULT", "HAND_WEB_MAX_EXTRACT_RESPONSE_BYTES",
+		"HAND_WEB_CACHE_TTL", "HAND_WEB_BLOCKED_DOMAINS_ENABLED", "HAND_WEB_BLOCKED_DOMAINS",
+		"HAND_WEB_BLOCKED_DOMAIN_FILES", "HAND_WEB_NATIVE_ALLOWED_HOSTS", "HAND_WEB_NATIVE_BLOCKED_HOSTS",
+		"HAND_WEB_NATIVE_ALLOWED_HOST_FILES", "HAND_WEB_NATIVE_BLOCKED_HOST_FILES",
+		"HAND_WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "HAND_WEB_EXTRACT_MAX_SUMMARY_CHARS",
+		"HAND_WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "HAND_WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
+		"HAND_DEBUG_REQUESTS", "HAND_RULES_FILES", "HAND_INSTRUCT", "HAND_PLATFORM", "HAND_CAP_FS",
+		"HAND_CAP_NET", "HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -272,63 +272,63 @@ rules:
 }
 
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY",
-		"OPENROUTER_API_KEY",
-		"MODEL_BASE_URL", "MODEL_API_MODE", "RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS",
-		"LOG_LEVEL", "LOG_NO_COLOR",
-		"MODEL_MAX_RETRIES",
-		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL", "WEB_MAX_CHAR_PER_RESULT",
-		"WEB_MAX_EXTRACT_CHAR_PER_RESULT", "WEB_MAX_EXTRACT_RESPONSE_BYTES",
-		"WEB_CACHE_TTL", "WEB_BLOCKED_DOMAINS_ENABLED", "WEB_BLOCKED_DOMAINS",
-		"WEB_BLOCKED_DOMAIN_FILES", "WEB_NATIVE_ALLOWED_HOSTS", "WEB_NATIVE_BLOCKED_HOSTS",
-		"WEB_NATIVE_ALLOWED_HOST_FILES", "WEB_NATIVE_BLOCKED_HOST_FILES",
-		"WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "WEB_EXTRACT_MAX_SUMMARY_CHARS",
-		"WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
-		"DEBUG_REQUESTS", "RULES_FILES", "INSTRUCT", "PLATFORM", "AGENT_CAP_FS",
-		"AGENT_CAP_NET", "AGENT_CAP_EXEC", "AGENT_CAP_MEM", "AGENT_CAP_BROWSER")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY",
+		"HAND_OPENROUTER_API_KEY",
+		"HAND_MODEL_BASE_URL", "HAND_MODEL_API_MODE", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_MAX_ITERATIONS",
+		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR",
+		"HAND_MODEL_MAX_RETRIES",
+		"HAND_WEB_PROVIDER", "HAND_WEB_API_KEY", "HAND_WEB_BASE_URL", "HAND_WEB_MAX_CHAR_PER_RESULT",
+		"HAND_WEB_MAX_EXTRACT_CHAR_PER_RESULT", "HAND_WEB_MAX_EXTRACT_RESPONSE_BYTES",
+		"HAND_WEB_CACHE_TTL", "HAND_WEB_BLOCKED_DOMAINS_ENABLED", "HAND_WEB_BLOCKED_DOMAINS",
+		"HAND_WEB_BLOCKED_DOMAIN_FILES", "HAND_WEB_NATIVE_ALLOWED_HOSTS", "HAND_WEB_NATIVE_BLOCKED_HOSTS",
+		"HAND_WEB_NATIVE_ALLOWED_HOST_FILES", "HAND_WEB_NATIVE_BLOCKED_HOST_FILES",
+		"HAND_WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "HAND_WEB_EXTRACT_MAX_SUMMARY_CHARS",
+		"HAND_WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "HAND_WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
+		"HAND_DEBUG_REQUESTS", "HAND_RULES_FILES", "HAND_INSTRUCT", "HAND_PLATFORM", "HAND_CAP_FS",
+		"HAND_CAP_NET", "HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(envPath, []byte(`
-NAME=env-agent
-MODEL=env-model
-MODEL_PROVIDER=openrouter
-MODEL_KEY=env-key
-MODEL_BASE_URL=https://env.example/v1
-MODEL_MAX_RETRIES=0
-RPC_ADDRESS=127.0.0.1
-RPC_PORT=7000
-MAX_ITERATIONS=55
-LOG_LEVEL=warn
-LOG_NO_COLOR=false
-DEBUG_REQUESTS=false
-WEB_PROVIDER=tavily
-WEB_API_KEY=web-env-key
-WEB_BASE_URL=https://env-web.example
-WEB_MAX_CHAR_PER_RESULT=3100
-WEB_MAX_EXTRACT_CHAR_PER_RESULT=12400
-WEB_MAX_EXTRACT_RESPONSE_BYTES=4096
-WEB_CACHE_TTL=30m
-WEB_BLOCKED_DOMAINS_ENABLED=true
-WEB_BLOCKED_DOMAINS=blocked.example,ads.example
-WEB_BLOCKED_DOMAIN_FILES=blocked.txt,shared.txt
-WEB_NATIVE_ALLOWED_HOSTS=allowed.example,docs.example
-WEB_NATIVE_BLOCKED_HOSTS=blocked.example,raw.example
-WEB_NATIVE_ALLOWED_HOST_FILES=allow.txt,safe.txt
-WEB_NATIVE_BLOCKED_HOST_FILES=deny.txt,banned.txt
-WEB_EXTRACT_MIN_SUMMARIZE_CHARS=13000
-WEB_EXTRACT_MAX_SUMMARY_CHARS=3200
-WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS=70000
-WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS=190000
-RULES_FILES=hand.md,custom.md
-INSTRUCT=be terse
-PLATFORM=editor
-AGENT_CAP_FS=true
-AGENT_CAP_NET=true
-AGENT_CAP_EXEC=true
-AGENT_CAP_MEM=true
-AGENT_CAP_BROWSER=false
+HAND_NAME=env-agent
+HAND_MODEL=env-model
+HAND_MODEL_PROVIDER=openrouter
+HAND_MODEL_KEY=env-key
+HAND_MODEL_BASE_URL=https://env.example/v1
+HAND_MODEL_MAX_RETRIES=0
+HAND_RPC_ADDRESS=127.0.0.1
+HAND_RPC_PORT=7000
+HAND_MAX_ITERATIONS=55
+HAND_LOG_LEVEL=warn
+HAND_LOG_NO_COLOR=false
+HAND_DEBUG_REQUESTS=false
+HAND_WEB_PROVIDER=tavily
+HAND_WEB_API_KEY=web-env-key
+HAND_WEB_BASE_URL=https://env-web.example
+HAND_WEB_MAX_CHAR_PER_RESULT=3100
+HAND_WEB_MAX_EXTRACT_CHAR_PER_RESULT=12400
+HAND_WEB_MAX_EXTRACT_RESPONSE_BYTES=4096
+HAND_WEB_CACHE_TTL=30m
+HAND_WEB_BLOCKED_DOMAINS_ENABLED=true
+HAND_WEB_BLOCKED_DOMAINS=blocked.example,ads.example
+HAND_WEB_BLOCKED_DOMAIN_FILES=blocked.txt,shared.txt
+HAND_WEB_NATIVE_ALLOWED_HOSTS=allowed.example,docs.example
+HAND_WEB_NATIVE_BLOCKED_HOSTS=blocked.example,raw.example
+HAND_WEB_NATIVE_ALLOWED_HOST_FILES=allow.txt,safe.txt
+HAND_WEB_NATIVE_BLOCKED_HOST_FILES=deny.txt,banned.txt
+HAND_WEB_EXTRACT_MIN_SUMMARIZE_CHARS=13000
+HAND_WEB_EXTRACT_MAX_SUMMARY_CHARS=3200
+HAND_WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS=70000
+HAND_WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS=190000
+HAND_RULES_FILES=hand.md,custom.md
+HAND_INSTRUCT=be terse
+HAND_PLATFORM=editor
+HAND_CAP_FS=true
+HAND_CAP_NET=true
+HAND_CAP_EXEC=true
+HAND_CAP_MEM=true
+HAND_CAP_BROWSER=false
 `), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
@@ -412,12 +412,12 @@ rules:
 }
 
 func TestLoad_UsesModelStreamFromConfigAndEnv(t *testing.T) {
-	clearEnvKeys(t, "MODEL_STREAM")
+	clearEnvKeys(t, "HAND_MODEL_STREAM")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
-	require.NoError(t, os.WriteFile(envPath, []byte("MODEL_STREAM=true\n"), 0o600))
+	require.NoError(t, os.WriteFile(envPath, []byte("HAND_MODEL_STREAM=true\n"), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 model:
   stream: false
@@ -602,12 +602,12 @@ func TestFetchOpenAIModelMetadata(t *testing.T) {
 }
 
 func TestLoad_IgnoresInvalidMaxIterationsEnvOverride(t *testing.T) {
-	clearEnvKeys(t, "MAX_ITERATIONS", "MODEL_API_MODE")
+	clearEnvKeys(t, "HAND_MAX_ITERATIONS", "HAND_MODEL_API_MODE")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
-	require.NoError(t, os.WriteFile(envPath, []byte("MAX_ITERATIONS=invalid\n"), 0o600))
+	require.NoError(t, os.WriteFile(envPath, []byte("HAND_MAX_ITERATIONS=invalid\n"), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 model:
@@ -629,9 +629,9 @@ log:
 }
 
 func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY",
-		"OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "MODEL_MAX_RETRIES",
-		"RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY",
+		"HAND_OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_MODEL_API_MODE", "HAND_MODEL_MAX_RETRIES",
+		"HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_MAX_ITERATIONS", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS")
 
 	cfg, err := Load("", filepath.Join(t.TempDir(), "missing.yaml"))
 
@@ -652,9 +652,9 @@ func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
 }
 
 func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "OPENAI_API_KEY",
-		"OPENROUTER_API_KEY", "MODEL_BASE_URL", "MODEL_API_MODE", "MODEL_MAX_RETRIES",
-		"RPC_ADDRESS", "RPC_PORT", "MAX_ITERATIONS", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY",
+		"HAND_OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_MODEL_API_MODE", "HAND_MODEL_MAX_RETRIES",
+		"HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_MAX_ITERATIONS", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -721,7 +721,7 @@ func TestConfig_ValidateRequiresKey(t *testing.T) {
 		Model:    defaultModel,
 		LogLevel: "info",
 	}
-	require.EqualError(t, cfg.Validate(), "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+	require.EqualError(t, cfg.Validate(), "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
 	require.Equal(t, defaultModelProvider, cfg.ModelProvider)
 	require.Equal(t, defaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode), cfg.ModelBaseURL)
 }
@@ -833,7 +833,7 @@ func TestConfig_ValidateNormalizesFields(t *testing.T) {
 
 func TestConfig_ValidateRequiresName(t *testing.T) {
 	err := (&Config{Model: defaultModel, ModelKey: "test-key", LogLevel: "info"}).Validate()
-	require.EqualError(t, err, "name is required; set NAME, provide it in config, or use --name")
+	require.EqualError(t, err, "name is required; set HAND_NAME, provide it in config, or use --name")
 }
 
 func TestConfig_ValidateDefaultsModelWhenEmpty(t *testing.T) {
@@ -1181,7 +1181,7 @@ func TestConfig_ValidateRejectsEmptyRPCAddress(t *testing.T) {
 		LogLevel:      "info",
 	}
 
-	require.EqualError(t, cfg.Validate(), "rpc address is required; set RPC_ADDRESS, provide it in config, or use --rpc.address")
+	require.EqualError(t, cfg.Validate(), "rpc address is required; set HAND_RPC_ADDRESS, provide it in config, or use --rpc.address")
 }
 
 func TestConfig_ValidateRejectsInvalidRPCPort(t *testing.T) {
@@ -1195,7 +1195,7 @@ func TestConfig_ValidateRejectsInvalidRPCPort(t *testing.T) {
 		LogLevel:      "info",
 	}
 
-	require.EqualError(t, cfg.Validate(), "rpc port must be greater than zero; set RPC_PORT, provide it in config, or use --rpc.port")
+	require.EqualError(t, cfg.Validate(), "rpc port must be greater than zero; set HAND_RPC_PORT, provide it in config, or use --rpc.port")
 }
 
 func TestConfig_ValidateRejectsInvalidMaxIterations(t *testing.T) {
@@ -1211,7 +1211,7 @@ func TestConfig_ValidateRejectsInvalidMaxIterations(t *testing.T) {
 	}
 
 	require.EqualError(t, cfg.Validate(), "max iterations must be greater than zero; set "+
-		"MAX_ITERATIONS, provide it in config, or use --max-iterations")
+		"HAND_MAX_ITERATIONS, provide it in config, or use --max-iterations")
 }
 
 func TestConfig_ValidateRejectsNegativeModelMaxRetries(t *testing.T) {
@@ -1350,8 +1350,8 @@ func TestConfig_NormalizeTrimsWebBlockedDomains(t *testing.T) {
 }
 
 func TestApplyEnvOverrides_IgnoresInvalidWebCacheTTL(t *testing.T) {
-	clearEnvKeys(t, "WEB_CACHE_TTL")
-	t.Setenv("WEB_CACHE_TTL", "not-a-duration")
+	clearEnvKeys(t, "HAND_WEB_CACHE_TTL")
+	t.Setenv("HAND_WEB_CACHE_TTL", "not-a-duration")
 
 	cfg := &Config{}
 	applyEnvOverrides(cfg)
@@ -1531,26 +1531,35 @@ func TestResolveModelAuth_CoversDefaultBranchAndNilReceiver(t *testing.T) {
 
 func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	clearEnvKeys(t,
-		"MODEL_CONTEXT_LENGTH", "MODEL_VERIFY_MODEL", "MODEL_MAX_RETRIES", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
-		"AGENT_STORAGE_BACKEND", "AGENT_SESSION_DEFAULT_IDLE_EXPIRY", "AGENT_SESSION_ARCHIVE_RETENTION",
-		"AGENT_COMPACTION_ENABLED", "AGENT_COMPACTION_TRIGGER_PERCENT", "AGENT_COMPACTION_WARN_PERCENT",
-		"FIRECRAWL_API_KEY", "FIRECRAWL_API_URL", "PARALLEL_API_KEY", "TAVILY_API_KEY", "EXA_API_KEY",
+		"HAND_MODEL_CONTEXT_LENGTH", "HAND_MODEL_VERIFY_MODEL", "HAND_MODEL_MAX_RETRIES", "HAND_OPENAI_API_KEY", "HAND_OPENROUTER_API_KEY",
+		"HAND_STORAGE_BACKEND", "HAND_SESSION_DEFAULT_IDLE_EXPIRY", "HAND_SESSION_ARCHIVE_RETENTION",
+		"HAND_SESSION_VECTOR_ENABLED", "HAND_MODEL_EMBEDDING_PROVIDER",
+		"HAND_MODEL_EMBEDDING_MODEL", "HAND_SESSION_VECTOR_REQUIRED",
+		"HAND_SESSION_VECTOR_REBUILD_BATCH_SIZE", "HAND_SESSION_VECTOR_ENABLE_RERANK",
+		"HAND_COMPACTION_ENABLED", "HAND_COMPACTION_TRIGGER_PERCENT", "HAND_COMPACTION_WARN_PERCENT",
+		"HAND_FIRECRAWL_API_KEY", "HAND_FIRECRAWL_API_URL", "HAND_PARALLEL_API_KEY", "HAND_TAVILY_API_KEY", "HAND_EXA_API_KEY",
 	)
 
 	cfg := &Config{}
 	applyEnvOverrides(nil)
 
-	t.Setenv("MODEL_CONTEXT_LENGTH", "64000")
-	t.Setenv("MODEL_VERIFY_MODEL", "false")
-	t.Setenv("MODEL_MAX_RETRIES", "0")
-	t.Setenv("OPENAI_API_KEY", "openai-key")
-	t.Setenv("OPENROUTER_API_KEY", "openrouter-key")
-	t.Setenv("AGENT_STORAGE_BACKEND", "memory")
-	t.Setenv("AGENT_SESSION_DEFAULT_IDLE_EXPIRY", "2h")
-	t.Setenv("AGENT_SESSION_ARCHIVE_RETENTION", "48h")
-	t.Setenv("AGENT_COMPACTION_ENABLED", "false")
-	t.Setenv("AGENT_COMPACTION_TRIGGER_PERCENT", "0.5")
-	t.Setenv("AGENT_COMPACTION_WARN_PERCENT", "0.8")
+	t.Setenv("HAND_MODEL_CONTEXT_LENGTH", "64000")
+	t.Setenv("HAND_MODEL_VERIFY_MODEL", "false")
+	t.Setenv("HAND_MODEL_MAX_RETRIES", "0")
+	t.Setenv("HAND_OPENAI_API_KEY", "openai-key")
+	t.Setenv("HAND_OPENROUTER_API_KEY", "openrouter-key")
+	t.Setenv("HAND_STORAGE_BACKEND", "memory")
+	t.Setenv("HAND_SESSION_DEFAULT_IDLE_EXPIRY", "2h")
+	t.Setenv("HAND_SESSION_ARCHIVE_RETENTION", "48h")
+	t.Setenv("HAND_SESSION_VECTOR_ENABLED", "true")
+	t.Setenv("HAND_MODEL_EMBEDDING_PROVIDER", "test")
+	t.Setenv("HAND_MODEL_EMBEDDING_MODEL", "text-embedding-test")
+	t.Setenv("HAND_SESSION_VECTOR_REQUIRED", "true")
+	t.Setenv("HAND_SESSION_VECTOR_REBUILD_BATCH_SIZE", "32")
+	t.Setenv("HAND_SESSION_VECTOR_ENABLE_RERANK", "false")
+	t.Setenv("HAND_COMPACTION_ENABLED", "false")
+	t.Setenv("HAND_COMPACTION_TRIGGER_PERCENT", "0.5")
+	t.Setenv("HAND_COMPACTION_WARN_PERCENT", "0.8")
 
 	applyEnvOverrides(cfg)
 
@@ -1562,6 +1571,12 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.Equal(t, "memory", cfg.StorageBackend)
 	require.Equal(t, 2*time.Hour, cfg.SessionDefaultIdleExpiry)
 	require.Equal(t, 48*time.Hour, cfg.SessionArchiveRetention)
+	require.True(t, cfg.SessionVectorEnabled)
+	require.Equal(t, "test", cfg.ModelEmbeddingProvider)
+	require.Equal(t, "text-embedding-test", cfg.ModelEmbeddingModel)
+	require.True(t, cfg.SessionVectorRequired)
+	require.Equal(t, 32, cfg.SessionVectorRebuildBatchSize)
+	require.False(t, boolValueDefault(cfg.SessionVectorEnableRerank, true))
 	require.False(t, boolValue(cfg.CompactionEnabled))
 	require.Equal(t, 0.5, cfg.CompactionTriggerPercent)
 	require.Equal(t, 0.8, cfg.CompactionWarnPercent)
@@ -1569,12 +1584,12 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 
 func TestApplyEnvOverrides_WebProviderSpecificFallback(t *testing.T) {
 	clearEnvKeys(t,
-		"WEB_PROVIDER", "WEB_API_KEY", "WEB_BASE_URL",
-		"FIRECRAWL_API_KEY", "FIRECRAWL_API_URL", "PARALLEL_API_KEY", "TAVILY_API_KEY", "EXA_API_KEY",
+		"HAND_WEB_PROVIDER", "HAND_WEB_API_KEY", "HAND_WEB_BASE_URL",
+		"HAND_FIRECRAWL_API_KEY", "HAND_FIRECRAWL_API_URL", "HAND_PARALLEL_API_KEY", "HAND_TAVILY_API_KEY", "HAND_EXA_API_KEY",
 	)
 
 	cfg := &Config{}
-	t.Setenv("FIRECRAWL_API_URL", "http://localhost:3002")
+	t.Setenv("HAND_FIRECRAWL_API_URL", "http://localhost:3002")
 
 	applyEnvOverrides(cfg)
 
@@ -1583,8 +1598,8 @@ func TestApplyEnvOverrides_WebProviderSpecificFallback(t *testing.T) {
 	require.Equal(t, "http://localhost:3002", cfg.WebBaseURL)
 
 	cfg = &Config{}
-	t.Setenv("WEB_PROVIDER", "exa")
-	t.Setenv("EXA_API_KEY", "exa-key")
+	t.Setenv("HAND_WEB_PROVIDER", "exa")
+	t.Setenv("HAND_EXA_API_KEY", "exa-key")
 
 	applyEnvOverrides(cfg)
 
@@ -1594,16 +1609,16 @@ func TestApplyEnvOverrides_WebProviderSpecificFallback(t *testing.T) {
 
 func TestApplyEnvOverrides_SummaryModelAndRelatedEnv(t *testing.T) {
 	clearEnvKeys(t,
-		"MODEL_SUMMARY", "MODEL_SUMMARY_PROVIDER", "MODEL_SUMMARY_BASE_URL",
-		"MODEL_API_MODE", "MODEL_SUMMARY_API_MODE",
+		"HAND_MODEL_SUMMARY", "HAND_MODEL_SUMMARY_PROVIDER", "HAND_MODEL_SUMMARY_BASE_URL",
+		"HAND_MODEL_API_MODE", "HAND_MODEL_SUMMARY_API_MODE",
 	)
 
 	cfg := &Config{}
-	t.Setenv("MODEL_SUMMARY", "openai/gpt-4o-mini")
-	t.Setenv("MODEL_SUMMARY_PROVIDER", "openai")
-	t.Setenv("MODEL_SUMMARY_BASE_URL", "https://example.com/v1")
-	t.Setenv("MODEL_API_MODE", "responses")
-	t.Setenv("MODEL_SUMMARY_API_MODE", "responses")
+	t.Setenv("HAND_MODEL_SUMMARY", "openai/gpt-4o-mini")
+	t.Setenv("HAND_MODEL_SUMMARY_PROVIDER", "openai")
+	t.Setenv("HAND_MODEL_SUMMARY_BASE_URL", "https://example.com/v1")
+	t.Setenv("HAND_MODEL_API_MODE", "responses")
+	t.Setenv("HAND_MODEL_SUMMARY_API_MODE", "responses")
 
 	applyEnvOverrides(cfg)
 
@@ -1652,7 +1667,7 @@ func TestConfig_ResolveSummaryModelAuth_FailsWhenSummaryProviderHasNoKey(t *test
 	cfg.Normalize()
 
 	_, err := cfg.ResolveSummaryModelAuth()
-	require.EqualError(t, err, "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+	require.EqualError(t, err, "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
 }
 
 func TestConfig_Validate_ReturnsSummaryAuthErrorWhenOpenAIKeyMissing(t *testing.T) {
@@ -1667,7 +1682,7 @@ func TestConfig_Validate_ReturnsSummaryAuthErrorWhenOpenAIKeyMissing(t *testing.
 		LogLevel:         "info",
 	}).Validate()
 
-	require.EqualError(t, err, "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+	require.EqualError(t, err, "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
 }
 
 func TestResolveModelMetadataForSlug_EmptySlug(t *testing.T) {
@@ -1992,7 +2007,7 @@ func clearEnvKeys(t *testing.T, keys ...string) {
 }
 
 func TestLoad_UsesModelAPIModeFromConfig(t *testing.T) {
-	clearEnvKeys(t, "MODEL_API_MODE")
+	clearEnvKeys(t, "HAND_MODEL_API_MODE")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -2016,12 +2031,12 @@ log:
 }
 
 func TestLoad_UsesModelAPIModeFromEnvOverride(t *testing.T) {
-	clearEnvKeys(t, "MODEL_API_MODE")
+	clearEnvKeys(t, "HAND_MODEL_API_MODE")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
-	require.NoError(t, os.WriteFile(envPath, []byte("MODEL_API_MODE=responses\n"), 0o600))
+	require.NoError(t, os.WriteFile(envPath, []byte("HAND_MODEL_API_MODE=responses\n"), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 model:
@@ -2071,7 +2086,7 @@ func TestConfig_ValidateAllowsResponsesModeWithOpenRouter(t *testing.T) {
 }
 
 func TestLoad_UsesDebugTraceSettingsFromConfig(t *testing.T) {
-	clearEnvKeys(t, "DEBUG_TRACES", "DEBUG_TRACE_DIR")
+	clearEnvKeys(t, "HAND_DEBUG_TRACES", "HAND_DEBUG_TRACE_DIR")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -2098,12 +2113,12 @@ debug:
 }
 
 func TestLoad_UsesDebugTraceSettingsFromEnvOverride(t *testing.T) {
-	clearEnvKeys(t, "DEBUG_TRACES", "DEBUG_TRACE_DIR")
+	clearEnvKeys(t, "HAND_DEBUG_TRACES", "HAND_DEBUG_TRACE_DIR")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
-	require.NoError(t, os.WriteFile(envPath, []byte("DEBUG_TRACES=true\nDEBUG_TRACE_DIR=/tmp/env-traces\n"), 0o600))
+	require.NoError(t, os.WriteFile(envPath, []byte("HAND_DEBUG_TRACES=true\nHAND_DEBUG_TRACE_DIR=/tmp/env-traces\n"), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 model:
@@ -2141,7 +2156,7 @@ func TestConfig_NormalizeDefaultsDebugTraceDirFromHandHome(t *testing.T) {
 }
 
 func TestLoad_UsesFilesystemRootsAndExecRulesFromConfig(t *testing.T) {
-	clearEnvKeys(t, "AGENT_FS_ROOTS", "AGENT_EXEC_ALLOW", "AGENT_EXEC_ASK", "AGENT_EXEC_DENY")
+	clearEnvKeys(t, "HAND_FS_ROOTS", "HAND_EXEC_ALLOW", "HAND_EXEC_ASK", "HAND_EXEC_DENY")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
@@ -2181,12 +2196,12 @@ exec:
 }
 
 func TestLoad_UsesFilesystemRootsAndExecRulesFromEnv(t *testing.T) {
-	clearEnvKeys(t, "AGENT_FS_ROOTS", "AGENT_EXEC_ALLOW", "AGENT_EXEC_ASK", "AGENT_EXEC_DENY")
+	clearEnvKeys(t, "HAND_FS_ROOTS", "HAND_EXEC_ALLOW", "HAND_EXEC_ASK", "HAND_EXEC_DENY")
 	dir := t.TempDir()
 	t.Chdir(dir)
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
-	require.NoError(t, os.WriteFile(envPath, []byte("AGENT_FS_ROOTS=.,./nested\nAGENT_EXEC_ALLOW=git status\nAGENT_EXEC_ASK=git push\nAGENT_EXEC_DENY=git reset --hard\n"), 0o600))
+	require.NoError(t, os.WriteFile(envPath, []byte("HAND_FS_ROOTS=.,./nested\nHAND_EXEC_ALLOW=git status\nHAND_EXEC_ASK=git push\nHAND_EXEC_DENY=git reset --hard\n"), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 model:
@@ -2213,16 +2228,27 @@ log:
 }
 
 func TestLoad_UsesSessionSettingsFromConfig(t *testing.T) {
-	clearEnvKeys(t, "AGENT_STORAGE_BACKEND", "AGENT_SESSION_DEFAULT_IDLE_EXPIRY", "AGENT_SESSION_ARCHIVE_RETENTION")
+	clearEnvKeys(t, "HAND_STORAGE_BACKEND", "HAND_SESSION_DEFAULT_IDLE_EXPIRY", "HAND_SESSION_ARCHIVE_RETENTION",
+		"HAND_SESSION_VECTOR_ENABLED", "HAND_MODEL_EMBEDDING_PROVIDER",
+		"HAND_MODEL_EMBEDDING_MODEL", "HAND_SESSION_VECTOR_REQUIRED",
+		"HAND_SESSION_VECTOR_REBUILD_BATCH_SIZE", "HAND_SESSION_VECTOR_ENABLE_RERANK")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
+model:
+  embeddingProvider: test
+  embeddingModel: text-embedding-test
 storage:
   backend: memory
 session:
   defaultIdleExpiry: 2h
   archiveRetention: 168h
+  vector:
+    enabled: true
+    required: true
+    rebuildBatchSize: 25
+    enableRerank: false
 `), 0o600))
 
 	cfg, err := Load("", configPath)
@@ -2231,6 +2257,12 @@ session:
 	require.Equal(t, "memory", cfg.StorageBackend)
 	require.Equal(t, 2*time.Hour, cfg.SessionDefaultIdleExpiry)
 	require.Equal(t, 168*time.Hour, cfg.SessionArchiveRetention)
+	require.True(t, cfg.SessionVectorEnabled)
+	require.Equal(t, "test", cfg.ModelEmbeddingProvider)
+	require.Equal(t, "text-embedding-test", cfg.ModelEmbeddingModel)
+	require.True(t, cfg.SessionVectorRequired)
+	require.Equal(t, 25, cfg.SessionVectorRebuildBatchSize)
+	require.False(t, boolValueDefault(cfg.SessionVectorEnableRerank, true))
 }
 
 func TestConfig_NormalizeDefaultsSessionSettings(t *testing.T) {
@@ -2239,6 +2271,12 @@ func TestConfig_NormalizeDefaultsSessionSettings(t *testing.T) {
 	require.Equal(t, "sqlite", cfg.StorageBackend)
 	require.Equal(t, 24*time.Hour, cfg.SessionDefaultIdleExpiry)
 	require.Equal(t, 30*24*time.Hour, cfg.SessionArchiveRetention)
+	require.False(t, cfg.SessionVectorEnabled)
+	require.Empty(t, cfg.ModelEmbeddingProvider)
+	require.Empty(t, cfg.ModelEmbeddingModel)
+	require.False(t, cfg.SessionVectorRequired)
+	require.Zero(t, cfg.SessionVectorRebuildBatchSize)
+	require.Nil(t, cfg.SessionVectorEnableRerank)
 }
 
 func TestConfig_ValidateRejectsInvalidSessionSettings(t *testing.T) {
@@ -2262,6 +2300,69 @@ func TestConfig_ValidateRejectsInvalidSessionSettings(t *testing.T) {
 	require.EqualError(t, err, "storage backend must be one of: memory, sqlite")
 }
 
+func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {
+	valid := Config{
+		Name:                     "daemon",
+		Model:                    "openai/model",
+		ModelProvider:            "openrouter",
+		ModelKey:                 "key",
+		ModelBaseURL:             "https://example.com",
+		ModelAPIMode:             DefaultModelAPIMode,
+		RPCAddress:               "127.0.0.1",
+		RPCPort:                  50051,
+		MaxIterations:            1,
+		LogLevel:                 "info",
+		StorageBackend:           "sqlite",
+		SessionDefaultIdleExpiry: time.Hour,
+		SessionArchiveRetention:  24 * time.Hour,
+		SessionVectorEnabled:     true,
+		ModelEmbeddingProvider:   "test",
+		ModelEmbeddingModel:      "text-embedding-test",
+		CompactionEnabled:        new(true),
+		CompactionTriggerPercent: 0.85,
+		CompactionWarnPercent:    0.95,
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+		err    string
+	}{
+		{
+			name: "missing provider",
+			mutate: func(cfg *Config) {
+				cfg.ModelEmbeddingProvider = ""
+			},
+			err: "embedding provider is required",
+		},
+		{
+			name: "missing model",
+			mutate: func(cfg *Config) {
+				cfg.ModelEmbeddingModel = ""
+			},
+			err: "embedding model is required",
+		},
+		{
+			name: "negative batch size",
+			mutate: func(cfg *Config) {
+				cfg.SessionVectorRebuildBatchSize = -1
+			},
+			err: "vector rebuild batch size must be non-negative",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := valid
+			tt.mutate(&cfg)
+
+			err := cfg.Validate()
+
+			require.EqualError(t, err, tt.err)
+		})
+	}
+}
+
 func TestConfig_NormalizeDefaultsFilesystemRootsToCWD(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -2271,8 +2372,8 @@ func TestConfig_NormalizeDefaultsFilesystemRootsToCWD(t *testing.T) {
 }
 
 func TestLoad_UsesCompactionSettingsFromConfig(t *testing.T) {
-	clearEnvKeys(t, "MODEL_CONTEXT_LENGTH", "AGENT_COMPACTION_ENABLED", "AGENT_COMPACTION_TRIGGER_PERCENT",
-		"AGENT_COMPACTION_WARN_PERCENT")
+	clearEnvKeys(t, "HAND_MODEL_CONTEXT_LENGTH", "HAND_COMPACTION_ENABLED", "HAND_COMPACTION_TRIGGER_PERCENT",
+		"HAND_COMPACTION_WARN_PERCENT")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -2335,7 +2436,6 @@ func TestConfigExamples_EnvFilesListSupportedEnvironmentKeys(t *testing.T) {
 		optional bool
 	}{
 		{path: filepath.Join("..", "..", "example.env")},
-		{path: filepath.Join("..", "..", ".env"), optional: true},
 	} {
 		t.Run(file.path, func(t *testing.T) {
 			content, ok := readOptionalTextFile(t, file.path)
@@ -2357,7 +2457,6 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 		optional bool
 	}{
 		{path: filepath.Join("..", "..", "example.yaml")},
-		{path: filepath.Join("..", "..", "config.yaml"), optional: true},
 	} {
 		t.Run(file.path, func(t *testing.T) {
 			content, ok := readOptionalTextFile(t, file.path)
@@ -2375,6 +2474,8 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 				"verifyModel",
 				"maxRetries",
 				"provider",
+				"embeddingProvider",
+				"embeddingModel",
 				"summaryProvider",
 				"apiMode",
 				"summaryApiMode",
@@ -2388,7 +2489,13 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 			requireYAMLKeys(t, content, "fs", []string{"roots"})
 			requireYAMLKeys(t, content, "exec", []string{"allow", "ask", "deny"})
 			requireYAMLKeys(t, content, "storage", []string{"backend"})
-			requireYAMLKeys(t, content, "session", []string{"defaultIdleExpiry", "archiveRetention"})
+			requireYAMLKeys(t, content, "session", []string{"defaultIdleExpiry", "archiveRetention", "vector"})
+			requireYAMLKeys(t, content, "vector", []string{
+				"enabled",
+				"required",
+				"rebuildBatchSize",
+				"enableRerank",
+			})
 			requireYAMLKeys(t, content, "compaction", []string{"enabled", "triggerPercent", "warnPercent"})
 			requireYAMLKeys(t, content, "cap", []string{"fs", "net", "exec", "mem", "browser"})
 			requireYAMLKeys(t, content, "log", []string{"level", "noColor"})

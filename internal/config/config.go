@@ -30,6 +30,8 @@ type Config struct {
 	VerifyModel                     *bool
 	ModelMaxRetries                 *int
 	ModelProvider                   string
+	ModelEmbeddingProvider          string
+	ModelEmbeddingModel             string
 	ModelKey                        string
 	OpenAIAPIKey                    string
 	OpenRouterAPIKey                string
@@ -79,6 +81,10 @@ type Config struct {
 	StorageBackend                  string
 	SessionDefaultIdleExpiry        time.Duration
 	SessionArchiveRetention         time.Duration
+	SessionVectorEnabled            bool
+	SessionVectorRequired           bool
+	SessionVectorRebuildBatchSize   int
+	SessionVectorEnableRerank       *bool
 	CompactionEnabled               *bool
 	CompactionTriggerPercent        float64
 	CompactionWarnPercent           float64
@@ -142,21 +148,23 @@ type fileConfig struct {
 	MaxIterations int    `yaml:"maxIterations"`
 
 	Model struct {
-		Name             string `yaml:"name"`
-		SummaryModel     string `yaml:"summaryModel"`
-		Stream           *bool  `yaml:"stream"`
-		ContextLength    int    `yaml:"contextLength"`
-		VerifyModel      *bool  `yaml:"verifyModel"`
-		MaxRetries       *int   `yaml:"maxRetries"`
-		Provider         string `yaml:"provider"`
-		Key              string `yaml:"key"`
-		OpenAIAPIKey     string `yaml:"openaiApiKey"`
-		OpenRouterAPIKey string `yaml:"openrouterApiKey"`
-		BaseURL          string `yaml:"baseUrl"`
-		SummaryProvider  string `yaml:"summaryProvider"`
-		SummaryBaseURL   string `yaml:"summaryBaseUrl"`
-		SummaryAPIMode   string `yaml:"summaryApiMode"`
-		APIMode          string `yaml:"apiMode"`
+		Name              string `yaml:"name"`
+		SummaryModel      string `yaml:"summaryModel"`
+		Stream            *bool  `yaml:"stream"`
+		ContextLength     int    `yaml:"contextLength"`
+		VerifyModel       *bool  `yaml:"verifyModel"`
+		MaxRetries        *int   `yaml:"maxRetries"`
+		Provider          string `yaml:"provider"`
+		EmbeddingProvider string `yaml:"embeddingProvider"`
+		EmbeddingModel    string `yaml:"embeddingModel"`
+		Key               string `yaml:"key"`
+		OpenAIAPIKey      string `yaml:"openaiApiKey"`
+		OpenRouterAPIKey  string `yaml:"openrouterApiKey"`
+		BaseURL           string `yaml:"baseUrl"`
+		SummaryProvider   string `yaml:"summaryProvider"`
+		SummaryBaseURL    string `yaml:"summaryBaseUrl"`
+		SummaryAPIMode    string `yaml:"summaryApiMode"`
+		APIMode           string `yaml:"apiMode"`
 	} `yaml:"model"`
 
 	Log struct {
@@ -217,6 +225,12 @@ type fileConfig struct {
 	Session struct {
 		DefaultIdleExpiry string `yaml:"defaultIdleExpiry"`
 		ArchiveRetention  string `yaml:"archiveRetention"`
+		Vector            struct {
+			Enabled          bool  `yaml:"enabled"`
+			Required         bool  `yaml:"required"`
+			RebuildBatchSize int   `yaml:"rebuildBatchSize"`
+			EnableRerank     *bool `yaml:"enableRerank"`
+		} `yaml:"vector"`
 	} `yaml:"session"`
 
 	Compaction struct {
@@ -347,6 +361,8 @@ func loadConfigFile(path string) (*Config, error) {
 		VerifyModel:                     raw.Model.VerifyModel,
 		ModelMaxRetries:                 raw.Model.MaxRetries,
 		ModelProvider:                   raw.Model.Provider,
+		ModelEmbeddingProvider:          raw.Model.EmbeddingProvider,
+		ModelEmbeddingModel:             raw.Model.EmbeddingModel,
 		ModelKey:                        raw.Model.Key,
 		OpenAIAPIKey:                    raw.Model.OpenAIAPIKey,
 		OpenRouterAPIKey:                raw.Model.OpenRouterAPIKey,
@@ -396,6 +412,10 @@ func loadConfigFile(path string) (*Config, error) {
 		StorageBackend:                  raw.Storage.Backend,
 		SessionDefaultIdleExpiry:        parseDurationOrZero(raw.Session.DefaultIdleExpiry),
 		SessionArchiveRetention:         parseDurationOrZero(raw.Session.ArchiveRetention),
+		SessionVectorEnabled:            raw.Session.Vector.Enabled,
+		SessionVectorRequired:           raw.Session.Vector.Required,
+		SessionVectorRebuildBatchSize:   raw.Session.Vector.RebuildBatchSize,
+		SessionVectorEnableRerank:       raw.Session.Vector.EnableRerank,
 		CompactionEnabled:               raw.Compaction.Enabled,
 		CompactionTriggerPercent:        raw.Compaction.TriggerPercent,
 		CompactionWarnPercent:           raw.Compaction.WarnPercent,
@@ -407,239 +427,259 @@ func applyEnvOverrides(cfg *Config) {
 		return
 	}
 
-	if value := strings.TrimSpace(os.Getenv("NAME")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_NAME")); value != "" {
 		cfg.Name = value
 	}
-	if value := strings.TrimSpace(os.Getenv("MODEL")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MODEL")); value != "" {
 		cfg.Model = value
 	}
-	if value := strings.TrimSpace(os.Getenv("MODEL_SUMMARY")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_SUMMARY")); value != "" {
 		cfg.SummaryModel = value
 	}
-	if value, ok := parseOptionalBoolEnv("MODEL_STREAM"); ok {
+	if value, ok := parseOptionalBoolEnv("HAND_MODEL_STREAM"); ok {
 		cfg.Stream = new(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("MODEL_CONTEXT_LENGTH")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_CONTEXT_LENGTH")); value != "" {
 		if contextLength, err := strconv.Atoi(value); err == nil {
 			cfg.ContextLength = contextLength
 		}
 	}
-	if value := strings.TrimSpace(strings.ToLower(os.Getenv("MODEL_VERIFY_MODEL"))); value != "" {
+	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_MODEL_VERIFY_MODEL"))); value != "" {
 		cfg.VerifyModel = new(value == "1" || value == "true" || value == "yes")
 	}
-	if value := strings.TrimSpace(os.Getenv("MODEL_MAX_RETRIES")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_MAX_RETRIES")); value != "" {
 		if retries, err := strconv.Atoi(value); err == nil {
 			cfg.ModelMaxRetries = &retries
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("MODEL_PROVIDER")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_PROVIDER")); value != "" {
 		cfg.ModelProvider = value
 	}
-	if value := strings.TrimSpace(os.Getenv("MODEL_KEY")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_EMBEDDING_PROVIDER")); value != "" {
+		cfg.ModelEmbeddingProvider = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_EMBEDDING_MODEL")); value != "" {
+		cfg.ModelEmbeddingModel = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_KEY")); value != "" {
 		cfg.ModelKey = value
 	}
-	if value := strings.TrimSpace(os.Getenv("OPENAI_API_KEY")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_OPENAI_API_KEY")); value != "" {
 		cfg.OpenAIAPIKey = value
 	}
-	if value := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_OPENROUTER_API_KEY")); value != "" {
 		cfg.OpenRouterAPIKey = value
 	}
-	if value := strings.TrimSpace(os.Getenv("MODEL_BASE_URL")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_BASE_URL")); value != "" {
 		cfg.ModelBaseURL = value
 	}
-	if value := strings.TrimSpace(os.Getenv("MODEL_SUMMARY_PROVIDER")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_SUMMARY_PROVIDER")); value != "" {
 		cfg.SummaryProvider = value
 	}
-	if value := strings.TrimSpace(os.Getenv("MODEL_SUMMARY_BASE_URL")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_SUMMARY_BASE_URL")); value != "" {
 		cfg.SummaryModelBaseURL = value
 	}
-	if value := strings.TrimSpace(os.Getenv("MODEL_API_MODE")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_API_MODE")); value != "" {
 		cfg.ModelAPIMode = value
 	}
-	if value := strings.TrimSpace(os.Getenv("MODEL_SUMMARY_API_MODE")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_SUMMARY_API_MODE")); value != "" {
 		cfg.SummaryModelAPIMode = value
 	}
-	if value := strings.TrimSpace(os.Getenv("RPC_ADDRESS")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_RPC_ADDRESS")); value != "" {
 		cfg.RPCAddress = value
 	}
-	if value := strings.TrimSpace(os.Getenv("RPC_PORT")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_RPC_PORT")); value != "" {
 		if port, err := strconv.Atoi(value); err == nil {
 			cfg.RPCPort = port
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("MAX_ITERATIONS")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MAX_ITERATIONS")); value != "" {
 		if maxIterations, err := strconv.Atoi(value); err == nil {
 			cfg.MaxIterations = maxIterations
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("LOG_LEVEL")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_LOG_LEVEL")); value != "" {
 		cfg.LogLevel = value
 	}
-	if value := strings.TrimSpace(strings.ToLower(os.Getenv("LOG_NO_COLOR"))); value != "" {
+	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_LOG_NO_COLOR"))); value != "" {
 		cfg.LogNoColor = value == "1" || value == "true" || value == "yes"
 	}
-	if value := strings.TrimSpace(strings.ToLower(os.Getenv("DEBUG_REQUESTS"))); value != "" {
+	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_DEBUG_REQUESTS"))); value != "" {
 		cfg.DebugRequests = value == "1" || value == "true" || value == "yes"
 	}
-	if value := strings.TrimSpace(strings.ToLower(os.Getenv("DEBUG_TRACES"))); value != "" {
+	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_DEBUG_TRACES"))); value != "" {
 		cfg.DebugTraces = value == "1" || value == "true" || value == "yes"
 	}
-	if value := strings.TrimSpace(os.Getenv("DEBUG_TRACE_DIR")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_DEBUG_TRACE_DIR")); value != "" {
 		cfg.DebugTraceDir = value
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_PROVIDER")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_PROVIDER")); value != "" {
 		cfg.WebProvider = value
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_API_KEY")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_API_KEY")); value != "" {
 		cfg.WebAPIKey = value
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_BASE_URL")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_BASE_URL")); value != "" {
 		cfg.WebBaseURL = value
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_MAX_CHAR_PER_RESULT")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_MAX_CHAR_PER_RESULT")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.WebMaxCharPerResult = chars
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_MAX_EXTRACT_CHAR_PER_RESULT")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_MAX_EXTRACT_CHAR_PER_RESULT")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.WebMaxExtractCharPerResult = chars
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_MAX_EXTRACT_RESPONSE_BYTES")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_MAX_EXTRACT_RESPONSE_BYTES")); value != "" {
 		if bytes, err := strconv.Atoi(value); err == nil {
 			cfg.WebMaxExtractResponseBytes = bytes
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_CACHE_TTL")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_CACHE_TTL")); value != "" {
 		cfg.WebCacheTTL = parseDurationOrZero(value)
 	}
-	if value, ok := parseOptionalBoolEnv("WEB_BLOCKED_DOMAINS_ENABLED"); ok {
+	if value, ok := parseOptionalBoolEnv("HAND_WEB_BLOCKED_DOMAINS_ENABLED"); ok {
 		cfg.WebBlockedDomainsEnabled = value
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_BLOCKED_DOMAINS")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_BLOCKED_DOMAINS")); value != "" {
 		cfg.WebBlockedDomains = splitAndTrimCSV(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_BLOCKED_DOMAIN_FILES")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_BLOCKED_DOMAIN_FILES")); value != "" {
 		cfg.WebBlockedDomainFiles = splitAndTrimCSV(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_NATIVE_ALLOWED_HOSTS")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_NATIVE_ALLOWED_HOSTS")); value != "" {
 		cfg.WebNativeAllowedHosts = splitAndTrimCSV(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_NATIVE_BLOCKED_HOSTS")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_NATIVE_BLOCKED_HOSTS")); value != "" {
 		cfg.WebNativeBlockedHosts = splitAndTrimCSV(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_NATIVE_ALLOWED_HOST_FILES")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_NATIVE_ALLOWED_HOST_FILES")); value != "" {
 		cfg.WebNativeAllowedHostFiles = splitAndTrimCSV(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_NATIVE_BLOCKED_HOST_FILES")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_NATIVE_BLOCKED_HOST_FILES")); value != "" {
 		cfg.WebNativeBlockedHostFiles = splitAndTrimCSV(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_EXTRACT_MIN_SUMMARIZE_CHARS")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_EXTRACT_MIN_SUMMARIZE_CHARS")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.WebExtractMinSummarizeChars = chars
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_EXTRACT_MAX_SUMMARY_CHARS")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_EXTRACT_MAX_SUMMARY_CHARS")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.WebExtractMaxSummaryChars = chars
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.WebExtractMaxSummaryChunkChars = chars
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
 			cfg.WebExtractRefusalThresholdChars = chars
 		}
 	}
 	if cfg.WebProvider == "" {
 		switch {
-		case strings.TrimSpace(os.Getenv("FIRECRAWL_API_KEY")) != "" || strings.TrimSpace(os.Getenv("FIRECRAWL_API_URL")) != "":
+		case strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_KEY")) != "" || strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_URL")) != "":
 			cfg.WebProvider = "firecrawl"
-		case strings.TrimSpace(os.Getenv("PARALLEL_API_KEY")) != "":
+		case strings.TrimSpace(os.Getenv("HAND_PARALLEL_API_KEY")) != "":
 			cfg.WebProvider = "parallel"
-		case strings.TrimSpace(os.Getenv("TAVILY_API_KEY")) != "":
+		case strings.TrimSpace(os.Getenv("HAND_TAVILY_API_KEY")) != "":
 			cfg.WebProvider = "tavily"
-		case strings.TrimSpace(os.Getenv("EXA_API_KEY")) != "":
+		case strings.TrimSpace(os.Getenv("HAND_EXA_API_KEY")) != "":
 			cfg.WebProvider = "exa"
 		}
 	}
 	if cfg.WebAPIKey == "" {
 		switch strings.TrimSpace(strings.ToLower(cfg.WebProvider)) {
 		case "firecrawl":
-			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("FIRECRAWL_API_KEY"))
+			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_KEY"))
 		case "parallel":
-			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("PARALLEL_API_KEY"))
+			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("HAND_PARALLEL_API_KEY"))
 		case "tavily":
-			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("TAVILY_API_KEY"))
+			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("HAND_TAVILY_API_KEY"))
 		case "exa":
-			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("EXA_API_KEY"))
+			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("HAND_EXA_API_KEY"))
 		}
 	}
 	if cfg.WebBaseURL == "" && strings.TrimSpace(strings.ToLower(cfg.WebProvider)) == "firecrawl" {
-		cfg.WebBaseURL = strings.TrimSpace(os.Getenv("FIRECRAWL_API_URL"))
+		cfg.WebBaseURL = strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_URL"))
 	}
-	if value := strings.TrimSpace(os.Getenv("RULES_FILES")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_RULES_FILES")); value != "" {
 		cfg.RulesFiles = splitAndTrimCSV(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("INSTRUCT")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_INSTRUCT")); value != "" {
 		cfg.Instruct = value
 	}
-	if value := strings.TrimSpace(os.Getenv("PLATFORM")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_PLATFORM")); value != "" {
 		cfg.Platform = value
 	}
-	if value := strings.TrimSpace(os.Getenv("AGENT_FS_ROOTS")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_FS_ROOTS")); value != "" {
 		cfg.FSRoots = splitAndTrimCSV(value)
 	}
 
-	if value, ok := parseOptionalBoolEnv("AGENT_CAP_FS"); ok {
+	if value, ok := parseOptionalBoolEnv("HAND_CAP_FS"); ok {
 		cfg.CapFilesystem = new(value)
 	}
-	if value, ok := parseOptionalBoolEnv("AGENT_CAP_NET"); ok {
+	if value, ok := parseOptionalBoolEnv("HAND_CAP_NET"); ok {
 		cfg.CapNetwork = new(value)
 	}
-	if value, ok := parseOptionalBoolEnv("AGENT_CAP_EXEC"); ok {
+	if value, ok := parseOptionalBoolEnv("HAND_CAP_EXEC"); ok {
 		cfg.CapExec = new(value)
 	}
-	if value, ok := parseOptionalBoolEnv("AGENT_CAP_MEM"); ok {
+	if value, ok := parseOptionalBoolEnv("HAND_CAP_MEM"); ok {
 		cfg.CapMemory = new(value)
 	}
-	if value, ok := parseOptionalBoolEnv("AGENT_CAP_BROWSER"); ok {
+	if value, ok := parseOptionalBoolEnv("HAND_CAP_BROWSER"); ok {
 		cfg.CapBrowser = new(value)
 	}
 
-	if value := strings.TrimSpace(os.Getenv("AGENT_EXEC_ALLOW")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_EXEC_ALLOW")); value != "" {
 		cfg.ExecAllow = splitAndTrimCSV(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("AGENT_EXEC_ASK")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_EXEC_ASK")); value != "" {
 		cfg.ExecAsk = splitAndTrimCSV(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("AGENT_EXEC_DENY")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_EXEC_DENY")); value != "" {
 		cfg.ExecDeny = splitAndTrimCSV(value)
 	}
 
-	if value := strings.TrimSpace(os.Getenv("AGENT_STORAGE_BACKEND")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_STORAGE_BACKEND")); value != "" {
 		cfg.StorageBackend = value
 	}
-	if value := strings.TrimSpace(os.Getenv("AGENT_SESSION_DEFAULT_IDLE_EXPIRY")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_SESSION_DEFAULT_IDLE_EXPIRY")); value != "" {
 		cfg.SessionDefaultIdleExpiry = parseDurationOrZero(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("AGENT_SESSION_ARCHIVE_RETENTION")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_SESSION_ARCHIVE_RETENTION")); value != "" {
 		cfg.SessionArchiveRetention = parseDurationOrZero(value)
 	}
+	if value, ok := parseOptionalBoolEnv("HAND_SESSION_VECTOR_ENABLED"); ok {
+		cfg.SessionVectorEnabled = value
+	}
+	if value, ok := parseOptionalBoolEnv("HAND_SESSION_VECTOR_REQUIRED"); ok {
+		cfg.SessionVectorRequired = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_SESSION_VECTOR_REBUILD_BATCH_SIZE")); value != "" {
+		if batchSize, err := strconv.Atoi(value); err == nil {
+			cfg.SessionVectorRebuildBatchSize = batchSize
+		}
+	}
+	if value, ok := parseOptionalBoolEnv("HAND_SESSION_VECTOR_ENABLE_RERANK"); ok {
+		cfg.SessionVectorEnableRerank = new(value)
+	}
 
-	if value, ok := parseOptionalBoolEnv("AGENT_COMPACTION_ENABLED"); ok {
+	if value, ok := parseOptionalBoolEnv("HAND_COMPACTION_ENABLED"); ok {
 		cfg.CompactionEnabled = new(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("AGENT_COMPACTION_TRIGGER_PERCENT")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_COMPACTION_TRIGGER_PERCENT")); value != "" {
 		if percent, err := strconv.ParseFloat(value, 64); err == nil {
 			cfg.CompactionTriggerPercent = percent
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("AGENT_COMPACTION_WARN_PERCENT")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_COMPACTION_WARN_PERCENT")); value != "" {
 		if percent, err := strconv.ParseFloat(value, 64); err == nil {
 			cfg.CompactionWarnPercent = percent
 		}
@@ -656,6 +696,8 @@ func (c *Config) normalizeFields() {
 	c.Model = strings.TrimSpace(c.Model)
 	c.SummaryModel = strings.TrimSpace(c.SummaryModel)
 	c.ModelProvider = strings.TrimSpace(strings.ToLower(c.ModelProvider))
+	c.ModelEmbeddingProvider = strings.TrimSpace(strings.ToLower(c.ModelEmbeddingProvider))
+	c.ModelEmbeddingModel = strings.TrimSpace(c.ModelEmbeddingModel)
 	c.ModelKey = strings.TrimSpace(c.ModelKey)
 	c.OpenAIAPIKey = strings.TrimSpace(c.OpenAIAPIKey)
 	c.OpenRouterAPIKey = strings.TrimSpace(c.OpenRouterAPIKey)
@@ -929,7 +971,7 @@ func (c *Config) ResolveSummaryModelAuth() (ModelAuth, error) {
 
 	auth.APIKey = c.resolveAPIKeyForProvider(prov)
 	if strings.TrimSpace(auth.APIKey) == "" {
-		return ModelAuth{}, errors.New("model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+		return ModelAuth{}, errors.New("model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
 	}
 
 	return auth, nil
@@ -1076,7 +1118,7 @@ func (c *Config) Validate() error {
 	c.Normalize()
 
 	if strings.TrimSpace(c.Name) == "" {
-		return errors.New("name is required; set NAME, provide it in config, or use --name")
+		return errors.New("name is required; set HAND_NAME, provide it in config, or use --name")
 	}
 
 	if !isValidModelSlug(c.Model) {
@@ -1097,6 +1139,10 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	if err := c.validateSessionVectorSettings(); err != nil {
+		return err
+	}
+
 	auth, err := c.ResolveModelAuth()
 	if err != nil {
 		return err
@@ -1108,15 +1154,15 @@ func (c *Config) Validate() error {
 	}
 
 	if strings.TrimSpace(c.RPCAddress) == "" {
-		return errors.New("rpc address is required; set RPC_ADDRESS, provide it in config, or use --rpc.address")
+		return errors.New("rpc address is required; set HAND_RPC_ADDRESS, provide it in config, or use --rpc.address")
 	}
 
 	if c.RPCPort <= 0 {
-		return errors.New("rpc port must be greater than zero; set RPC_PORT, provide it in config, or use --rpc.port")
+		return errors.New("rpc port must be greater than zero; set HAND_RPC_PORT, provide it in config, or use --rpc.port")
 	}
 
 	if c.MaxIterations <= 0 {
-		return errors.New("max iterations must be greater than zero; set MAX_ITERATIONS, provide it in config, " +
+		return errors.New("max iterations must be greater than zero; set HAND_MAX_ITERATIONS, provide it in config, " +
 			"or use --max-iterations")
 	}
 	if c.ModelMaxRetriesEffective() < 0 {
@@ -1143,7 +1189,6 @@ func (c *Config) Validate() error {
 	if c.StorageBackend != "memory" && c.StorageBackend != "sqlite" {
 		return errors.New("storage backend must be one of: memory, sqlite")
 	}
-
 	if c.CompactionTriggerPercent >= 1 {
 		return errors.New("compaction trigger percent must be greater than zero and less than one")
 	}
@@ -1185,6 +1230,23 @@ func (c *Config) Validate() error {
 	}
 }
 
+func (c *Config) validateSessionVectorSettings() error {
+	if !c.SessionVectorEnabled {
+		return nil
+	}
+	if c.ModelEmbeddingProvider == "" {
+		return errors.New("embedding provider is required")
+	}
+	if c.ModelEmbeddingModel == "" {
+		return errors.New("embedding model is required")
+	}
+	if c.SessionVectorRebuildBatchSize < 0 {
+		return errors.New("vector rebuild batch size must be non-negative")
+	}
+
+	return nil
+}
+
 func (c *Config) ResolveModelAuth() (ModelAuth, error) {
 	if c == nil {
 		return ModelAuth{}, errors.New("config is required")
@@ -1199,7 +1261,7 @@ func (c *Config) ResolveModelAuth() (ModelAuth, error) {
 
 	auth.APIKey = c.resolveAPIKeyForProvider(c.ModelProvider)
 	if strings.TrimSpace(auth.APIKey) == "" {
-		return ModelAuth{}, errors.New("model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+		return ModelAuth{}, errors.New("model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
 	}
 
 	return auth, nil

@@ -74,7 +74,7 @@ rpc:
 `, port)), 0o600))
 
 	envPath := filepath.Join(t.TempDir(), ".env")
-	require.NoError(t, os.WriteFile(envPath, []byte("NAME=env-up\n"), 0o600))
+	require.NoError(t, os.WriteFile(envPath, []byte("HAND_NAME=env-up\n"), 0o600))
 
 	envFile := ""
 	configFile := ""

@@ -332,7 +332,7 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 				Value:       ".env",
 				Destination: envFile,
 				Sources: cli.NewValueSourceChain(
-					cli.EnvVar("AGENT_ENV_FILE"),
+					cli.EnvVar("HAND_ENV_FILE"),
 				),
 			},
 		}, flags...)
@@ -350,7 +350,7 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value:       "config.yaml",
 			Destination: configFile,
 			Sources: cli.NewValueSourceChain(
-				cli.EnvVar("AGENT_CONFIG"),
+				cli.EnvVar("HAND_CONFIG"),
 			),
 		}
 		flags = append(flags[:insertAt], append([]cli.Flag{configFlag}, flags[insertAt:]...)...)

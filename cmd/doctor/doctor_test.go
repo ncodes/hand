@@ -57,7 +57,7 @@ func TestNewCommand_PrintsFailureReport(t *testing.T) {
 		"--model", "openai/gpt-4o-mini",
 		"doctor",
 	})
-	require.EqualError(t, err, "doctor checks failed: config validation: model key is required; set MODEL_KEY, provide it in config, or use --model.key; model auth: model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+	require.EqualError(t, err, "doctor checks failed: config validation: model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key; model auth: model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
 	require.Contains(t, output.String(), "[\x1b[31mFAIL\x1b[0m] config validation")
 	require.Contains(t, output.String(), "[\x1b[31mFAIL\x1b[0m] model auth")
 }

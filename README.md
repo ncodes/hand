@@ -17,8 +17,8 @@ The long-term dream for Hand is a personal agent that can understand your workfl
    - `cp example.env .env`
    - `cp example.yaml config.yaml`
 2. Uncomment the values you want to use and replace the placeholder key values.
-3. Set at least `NAME`, `MODEL`, `MODEL_PROVIDER`, and one auth value:
-   `MODEL_KEY`, `OPENAI_API_KEY`, or `OPENROUTER_API_KEY`.
+3. Set at least `HAND_NAME`, `HAND_MODEL`, `HAND_MODEL_PROVIDER`, and one auth value:
+   `HAND_MODEL_KEY`, `HAND_OPENAI_API_KEY`, or `HAND_OPENROUTER_API_KEY`.
 4. Start the daemon:
 
 ```bash
@@ -34,7 +34,7 @@ go run ./cmd/hand \
   --name Daemon \
   --model qwen/qwen3.5-27b \
   --model.provider openrouter \
-  --model.key "$MODEL_KEY" \
+  --model.key "$HAND_MODEL_KEY" \
   "hello"
 ```
 
@@ -63,24 +63,24 @@ Config file values:
 - `debug.requests`
 
 Env equivalents:
-- `NAME`
-- `MODEL`
-- `MODEL_SUMMARY`
-- `MODEL_PROVIDER`
-- `MODEL_SUMMARY_PROVIDER`
-- `MODEL_KEY`
-- `OPENAI_API_KEY`
-- `OPENROUTER_API_KEY`
-- `MODEL_BASE_URL`
-- `MODEL_SUMMARY_BASE_URL`
-- `MODEL_API_MODE`
-- `MODEL_SUMMARY_API_MODE`
-- `MODEL_STREAM`
-- `RPC_ADDRESS`
-- `RPC_PORT`
-- `LOG_LEVEL`
-- `LOG_NO_COLOR`
-- `DEBUG_REQUESTS`
+- `HAND_NAME`
+- `HAND_MODEL`
+- `HAND_MODEL_SUMMARY`
+- `HAND_MODEL_PROVIDER`
+- `HAND_MODEL_SUMMARY_PROVIDER`
+- `HAND_MODEL_KEY`
+- `HAND_OPENAI_API_KEY`
+- `HAND_OPENROUTER_API_KEY`
+- `HAND_MODEL_BASE_URL`
+- `HAND_MODEL_SUMMARY_BASE_URL`
+- `HAND_MODEL_API_MODE`
+- `HAND_MODEL_SUMMARY_API_MODE`
+- `HAND_MODEL_STREAM`
+- `HAND_RPC_ADDRESS`
+- `HAND_RPC_PORT`
+- `HAND_LOG_LEVEL`
+- `HAND_LOG_NO_COLOR`
+- `HAND_DEBUG_REQUESTS`
 
 ### Model Configuration
 

@@ -111,7 +111,7 @@ func TestNewLiveClients(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, modelClient)
 		assert.Nil(t, summaryClient)
-		assert.EqualError(t, err, "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+		assert.EqualError(t, err, "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
 	})
 
 	t.Run("returns summary auth error", func(t *testing.T) {
@@ -127,7 +127,7 @@ func TestNewLiveClients(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, modelClient)
 		assert.Nil(t, summaryClient)
-		assert.EqualError(t, err, "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+		assert.EqualError(t, err, "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
 	})
 
 	t.Run("returns summary client factory error", func(t *testing.T) {
@@ -178,7 +178,7 @@ func TestNewLiveHarnessAndRPCHarness(t *testing.T) {
 		dir := t.TempDir()
 		envPath := filepath.Join(dir, ".env")
 		configPath := filepath.Join(dir, "config.yaml")
-		require.NoError(t, os.WriteFile(envPath, []byte("MODEL_KEY=test-key\n"), 0o600))
+		require.NoError(t, os.WriteFile(envPath, []byte("HAND_MODEL_KEY=test-key\n"), 0o600))
 		require.NoError(t, os.WriteFile(configPath, []byte(`
 name: live-test
 model:

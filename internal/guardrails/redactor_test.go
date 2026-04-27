@@ -133,8 +133,8 @@ func TestSanitizeRedactsKnownPrefixes(t *testing.T) {
 }
 
 func TestSanitizeRedactsEnvAssignments(t *testing.T) {
-	value := Sanitize(`OPENAI_API_KEY=sk-proj-abc123def456ghi789jkl012 MY_SECRET_TOKEN="supersecretvalue123456789" HOME=/tmp`)
-	require.Equal(t, `OPENAI_API_KEY=sk-pro...l012 MY_SECRET_TOKEN="supers...6789" HOME=/tmp`, value)
+	value := Sanitize(`HAND_OPENAI_API_KEY=sk-proj-abc123def456ghi789jkl012 MY_SECRET_TOKEN="supersecretvalue123456789" HOME=/tmp`)
+	require.Equal(t, `HAND_OPENAI_API_KEY=sk-pro...l012 MY_SECRET_TOKEN="supers...6789" HOME=/tmp`, value)
 }
 
 func TestSanitizeDoesNotRedactNonSecretAuthLikeEnvNames(t *testing.T) {
@@ -151,8 +151,8 @@ func TestSanitizeUsesDifferentMaskingForStructuredAndFreeFormSecrets(t *testing.
 	structured := Sanitize(map[string]any{"token": "sk-proj-abc123def456ghi789jkl012"})
 	require.Equal(t, map[string]any{"token": "[REDACTED]"}, structured)
 
-	freeForm := Sanitize(`OPENAI_API_KEY=sk-proj-abc123def456ghi789jkl012`)
-	require.Equal(t, `OPENAI_API_KEY=sk-pro...l012`, freeForm)
+	freeForm := Sanitize(`HAND_OPENAI_API_KEY=sk-proj-abc123def456ghi789jkl012`)
+	require.Equal(t, `HAND_OPENAI_API_KEY=sk-pro...l012`, freeForm)
 }
 
 func TestSanitizeRedactsQuotedEnvValuesWithSpaces(t *testing.T) {

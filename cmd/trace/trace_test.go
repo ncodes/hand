@@ -252,7 +252,7 @@ func writeTraceSession(t *testing.T, dir, id string) {
 
 func restoreLogs(t *testing.T, out io.Writer) {
 	t.Helper()
-	t.Setenv("LOG_NO_COLOR", "true")
+	t.Setenv("HAND_LOG_NO_COLOR", "true")
 	logutils.SetOutput(out)
 	t.Cleanup(func() {
 		logutils.SetOutput(os.Stderr)

@@ -29,7 +29,7 @@ func init() {
 }
 
 func TestNewCommand_UsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -67,7 +67,7 @@ log:
 }
 
 func TestNewCommand_UsesEnvOverConfigFile(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -75,13 +75,13 @@ func TestNewCommand_UsesEnvOverConfigFile(t *testing.T) {
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(envPath, []byte(`
-NAME=env-agent
-MODEL=openai/gpt-4o-mini
-MODEL_PROVIDER=openrouter
-MODEL_KEY=env-key
-MODEL_BASE_URL=`+serverURL+`
-LOG_LEVEL=warn
-LOG_NO_COLOR=false
+HAND_NAME=env-agent
+HAND_MODEL=openai/gpt-4o-mini
+HAND_MODEL_PROVIDER=openrouter
+HAND_MODEL_KEY=env-key
+HAND_MODEL_BASE_URL=`+serverURL+`
+HAND_LOG_LEVEL=warn
+HAND_LOG_NO_COLOR=false
 `), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
@@ -116,7 +116,7 @@ log:
 }
 
 func TestNewCommand_DefaultsProviderWhenEmpty(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -136,11 +136,11 @@ log:
 		"--rpc.port", nextTestPort(t),
 		"up",
 	})
-	require.EqualError(t, err, "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+	require.EqualError(t, err, "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
 }
 
 func TestNewCommand_DefaultsBaseURLWhenProviderIsImplicit(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -169,7 +169,7 @@ log:
 }
 
 func TestNewCommand_UsesMappedBaseURLWhenProviderSetAndBaseURLUnset(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -200,7 +200,7 @@ log:
 }
 
 func TestNewCommand_FlagsOverrideEnvAndConfig(t *testing.T) {
-	clearEnvKeys(t, "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -209,13 +209,13 @@ func TestNewCommand_FlagsOverrideEnvAndConfig(t *testing.T) {
 	configPath := filepath.Join(dir, "config.yaml")
 
 	require.NoError(t, os.WriteFile(envPath, []byte(`
-NAME=env-agent
-MODEL=openai/gpt-4o-mini
-MODEL_PROVIDER=openrouter
-MODEL_KEY=env-key
-MODEL_BASE_URL=`+serverURL+`
-LOG_LEVEL=warn
-LOG_NO_COLOR=false
+HAND_NAME=env-agent
+HAND_MODEL=openai/gpt-4o-mini
+HAND_MODEL_PROVIDER=openrouter
+HAND_MODEL_KEY=env-key
+HAND_MODEL_BASE_URL=`+serverURL+`
+HAND_LOG_LEVEL=warn
+HAND_LOG_NO_COLOR=false
 `), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
@@ -257,7 +257,7 @@ log:
 }
 
 func TestNewCommand_RunsUpCommandExplicitly(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -292,27 +292,27 @@ log:
 }
 
 func TestResolveEnvFilePrefersFlag(t *testing.T) {
-	clearEnvKeys(t, "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_ENV_FILE")
 	resetGlobals(t)
 	require.Equal(t, "/tmp/test.env", resolveEnvFile([]string{"hand", "--env-file", "/tmp/test.env"}))
 	require.Equal(t, "/tmp/test2.env", resolveEnvFile([]string{"hand", "--env-file=/tmp/test2.env"}))
 }
 
 func TestResolveEnvFilePrefersEnvVar(t *testing.T) {
-	clearEnvKeys(t, "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_ENV_FILE")
 	resetGlobals(t)
-	t.Setenv("AGENT_ENV_FILE", "/tmp/from-env.env")
+	t.Setenv("HAND_ENV_FILE", "/tmp/from-env.env")
 	require.Equal(t, "/tmp/from-env.env", resolveEnvFile([]string{"hand", "--env-file", "/tmp/ignored.env"}))
 }
 
 func TestResolveEnvFileUsesDefaultWhenUnset(t *testing.T) {
-	clearEnvKeys(t, "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_ENV_FILE")
 	resetGlobals(t)
 	require.Equal(t, ".env", resolveEnvFile([]string{"hand"}))
 }
 
 func TestNewCommand_RootActionShowsHelp(t *testing.T) {
-	clearEnvKeys(t, "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	var output bytes.Buffer
@@ -331,7 +331,7 @@ func TestNewCommand_RootActionShowsHelp(t *testing.T) {
 }
 
 func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "DEBUG_REQUESTS", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	cmd := newCommand()
@@ -347,7 +347,7 @@ func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
 }
 
 func TestNewCommand_RootActionTreatsUnknownArgsAsChat(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	originalNewChatClient := newChatClient
@@ -383,7 +383,7 @@ func TestNewCommand_RootActionTreatsUnknownArgsAsChat(t *testing.T) {
 }
 
 func TestNewCommand_RootActionForwardsInstruct(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	originalNewChatClient := newChatClient
@@ -408,7 +408,7 @@ func TestNewCommand_RootActionForwardsInstruct(t *testing.T) {
 }
 
 func TestNewCommand_RootActionForwardsSessionID(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	originalNewChatClient := newChatClient
@@ -433,7 +433,7 @@ func TestNewCommand_RootActionForwardsSessionID(t *testing.T) {
 }
 
 func TestNewCommand_RootActionStreamsOutput(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	originalNewChatClient := newChatClient
@@ -465,7 +465,7 @@ func TestNewCommand_RootActionStreamsOutput(t *testing.T) {
 }
 
 func TestNewCommand_RootActionStylesReasoningOutput(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	originalNewChatClient := newChatClient
@@ -501,7 +501,7 @@ func TestNewCommand_RootActionStylesReasoningOutput(t *testing.T) {
 }
 
 func TestNewCommand_RootActionDoesNotStyleReasoningWhenNoColor(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	originalNewChatClient := newChatClient
@@ -538,7 +538,7 @@ func TestNewCommand_RootActionDoesNotStyleReasoningWhenNoColor(t *testing.T) {
 }
 
 func TestNewCommand_RootActionDoesNotForwardConfiguredInstruct(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	originalNewChatClient := newChatClient
@@ -573,7 +573,7 @@ instruct: be terse
 }
 
 func TestNewCommand_RootActionReturnsRPCError(t *testing.T) {
-	clearEnvKeys(t, "NAME", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	originalNewChatClient := newChatClient
@@ -595,7 +595,7 @@ func TestNewCommand_RootActionReturnsRPCError(t *testing.T) {
 }
 
 func TestNewCommand_RejectsUnsupportedProvider(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -620,7 +620,7 @@ model:
 }
 
 func TestNewCommand_UsesDirectClientWhenProviderIsOpenai(t *testing.T) {
-	clearEnvKeys(t, "NAME", "MODEL", "MODEL_PROVIDER", "MODEL_KEY", "MODEL_BASE_URL", "LOG_LEVEL", "LOG_NO_COLOR", "AGENT_CONFIG", "AGENT_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()

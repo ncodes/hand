@@ -175,7 +175,7 @@ func Test_E2E_HandRootChat_ConfigPrecedenceEnvOverridesYAML(t *testing.T) {
 
 	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewTextClient("env reply"), nil)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
-	envPath := writeRootChatEnv(t, "NAME=env-agent\n")
+	envPath := writeRootChatEnv(t, "HAND_NAME=env-agent\n")
 
 	output, err := runRootChatCommand(t, "hand", "--env-file", envPath, "--config", configPath, "hello")
 	require.NoError(t, err)
@@ -188,7 +188,7 @@ func Test_E2E_HandRootChat_ConfigPrecedenceCLIOverridesEnvAndYAML(t *testing.T) 
 
 	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewTextClient("cli reply"), nil)
 	configPath := writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "yaml-agent"})
-	envPath := writeRootChatEnv(t, "NAME=env-agent\n")
+	envPath := writeRootChatEnv(t, "HAND_NAME=env-agent\n")
 
 	output, err := runRootChatCommand(
 		t,
@@ -1138,14 +1138,14 @@ func resetRootChatE2E(t *testing.T) {
 	t.Helper()
 	clearEnvKeys(
 		t,
-		"NAME",
-		"MODEL_STREAM",
-		"INSTRUCT",
-		"LOG_NO_COLOR",
-		"RPC_ADDRESS",
-		"RPC_PORT",
-		"AGENT_CONFIG",
-		"AGENT_ENV_FILE",
+		"HAND_NAME",
+		"HAND_MODEL_STREAM",
+		"HAND_INSTRUCT",
+		"HAND_LOG_NO_COLOR",
+		"HAND_RPC_ADDRESS",
+		"HAND_RPC_PORT",
+		"HAND_CONFIG",
+		"HAND_ENV_FILE",
 	)
 	resetGlobals(t)
 }

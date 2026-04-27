@@ -676,7 +676,7 @@ func TestNewCommand_ReturnsValidationError(t *testing.T) {
 		"up",
 	})
 
-	require.EqualError(t, err, "model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+	require.EqualError(t, err, "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
 }
 
 func newRootCommandForTest(configFile *string) *cli.Command {

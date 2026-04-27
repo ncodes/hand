@@ -15,7 +15,7 @@ func TestBuild_ReturnsPassingReportForValidConfig(t *testing.T) {
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
-	require.NoError(t, os.WriteFile(envPath, []byte("MODEL_KEY=test-key\n"), 0o600))
+	require.NoError(t, os.WriteFile(envPath, []byte("HAND_MODEL_KEY=test-key\n"), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte("name: test-agent\n"), 0o600))
 
 	report := Build(envPath, configPath, &config.Config{
@@ -101,7 +101,7 @@ func TestBuild_ReturnsModelAuthFailureWhenKeyIsMissing(t *testing.T) {
 	require.Contains(t, report.Checks, Check{
 		Name:    "model auth",
 		Status:  StatusFail,
-		Message: "model key is required; set MODEL_KEY, provide it in config, or use --model.key",
+		Message: "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key",
 	})
 }
 

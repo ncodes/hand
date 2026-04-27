@@ -50,7 +50,7 @@ model:
 
 		output, err := runDoctorCommand(t, "hand", "--config", configPath, "doctor")
 		fmt.Println(output)
-		require.EqualError(t, err, "doctor checks failed: config validation: model key is required; set MODEL_KEY, provide it in config, or use --model.key; model auth: model key is required; set MODEL_KEY, provide it in config, or use --model.key")
+		require.EqualError(t, err, "doctor checks failed: config validation: model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key; model auth: model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
 		assert.Contains(t, output, "config validation")
 		assert.Contains(t, output, "model auth")
 	})

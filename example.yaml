@@ -11,6 +11,8 @@
 #   verifyModel: true
 #   maxRetries: 2
 #   provider: "openrouter"
+#   embeddingProvider: ""
+#   embeddingModel: ""
 #   summaryProvider: "openai"
 #   apiMode: "completions"
 #   summaryApiMode: "responses"
@@ -36,6 +38,11 @@
 # session:
 #   defaultIdleExpiry: "24h"
 #   archiveRetention: "720h"
+#   vector:
+#     enabled: false
+#     required: false
+#     rebuildBatchSize: 100
+#     enableRerank: true
 # compaction:
 #   enabled: true
 #   triggerPercent: 0.85
