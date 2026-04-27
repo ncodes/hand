@@ -1982,11 +1982,11 @@ func TestSQLiteStore_SearchMessagesRerankerCanBeDisabled(t *testing.T) {
 	vectorStore := &sqliteTestVectorStore{}
 	enableRerank := false
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
-		Reranker:          reranker,
-		VectorStore:       vectorStore,
-		EnableRerank:      &enableRerank,
-		EmbeddingModel:    "text-embedding-test",
+		Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
+		Reranker:       reranker,
+		VectorStore:    vectorStore,
+		EnableRerank:   &enableRerank,
+		EmbeddingModel: "text-embedding-test",
 	}))
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
@@ -2049,11 +2049,11 @@ func TestSQLiteStore_SearchMessagesDiagnosticsAreInternal(t *testing.T) {
 	require.NotContains(t, output.String(), "session search ranking diagnostic")
 
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
-		Reranker:          &sqliteTestReranker{},
-		VectorStore:       vectorStore,
-		EmbeddingModel:    "text-embedding-test",
-		Diagnostics:       true,
+		Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
+		Reranker:       &sqliteTestReranker{},
+		VectorStore:    vectorStore,
+		EmbeddingModel: "text-embedding-test",
+		Diagnostics:    true,
 	}))
 	output.Reset()
 	results, err = store.SearchMessages(context.Background(), "", SearchMessageOptions{
@@ -2309,9 +2309,9 @@ func TestSQLiteStore_SearchMessagesHybridEdgeCases(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
 		require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-			EmbeddingProvider: &sqliteTestEmbeddingProvider{err: embedErr},
-			VectorStore:       &sqliteTestVectorStore{},
-			EmbeddingModel:    "text-embedding-test",
+			Embedder:       &sqliteTestEmbeddingProvider{err: embedErr},
+			VectorStore:    &sqliteTestVectorStore{},
+			EmbeddingModel: "text-embedding-test",
 		}))
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
@@ -2333,9 +2333,9 @@ func TestSQLiteStore_SearchMessagesHybridEdgeCases(t *testing.T) {
 			dimensions: 3,
 		}
 		require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-			EmbeddingProvider: provider,
-			VectorStore:       &sqliteTestVectorStore{},
-			EmbeddingModel:    "text-embedding-test",
+			Embedder:       provider,
+			VectorStore:    &sqliteTestVectorStore{},
+			EmbeddingModel: "text-embedding-test",
 		}))
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
@@ -2350,9 +2350,9 @@ func TestSQLiteStore_SearchMessagesHybridEdgeCases(t *testing.T) {
 		store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
 		require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-			EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
-			VectorStore:       &sqliteTestVectorStore{},
-			EmbeddingModel:    "text-embedding-test",
+			Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
+			VectorStore:    &sqliteTestVectorStore{},
+			EmbeddingModel: "text-embedding-test",
 		}))
 		require.NoError(t, store.db.Exec(`DROP TABLE `+sessionMessageSearchTable).Error)
 
@@ -3649,9 +3649,9 @@ func TestSQLiteStore_VectorStoreAppendAndRebuild(t *testing.T) {
 	provider := &sqliteTestEmbeddingProvider{dimensions: 3}
 	vectorStore := &sqliteTestVectorStore{}
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: provider,
-		VectorStore:       vectorStore,
-		EmbeddingModel:    "text-embedding-test",
+		Embedder:       provider,
+		VectorStore:    vectorStore,
+		EmbeddingModel: "text-embedding-test",
 	}))
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
@@ -3763,9 +3763,9 @@ func TestSQLiteStore_VectorStoreUsesSharedSQLiteVectorStore(t *testing.T) {
 	require.NoError(t, err)
 	provider := &sqliteTestEmbeddingProvider{dimensions: 3}
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: provider,
-		VectorStore:       vectorStore,
-		EmbeddingModel:    "text-embedding-test",
+		Embedder:       provider,
+		VectorStore:    vectorStore,
+		EmbeddingModel: "text-embedding-test",
 	}))
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
@@ -3820,9 +3820,9 @@ func TestSQLiteStore_VectorStoreBestEffortAndRequiredErrors(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: &sqliteTestEmbeddingProvider{err: embedErr},
-		VectorStore:       &sqliteTestVectorStore{},
-		EmbeddingModel:    "text-embedding-test",
+		Embedder:       &sqliteTestEmbeddingProvider{err: embedErr},
+		VectorStore:    &sqliteTestVectorStore{},
+		EmbeddingModel: "text-embedding-test",
 	}))
 	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
 		{Role: handmsg.RoleUser, Content: "best effort", CreatedAt: now},
@@ -3832,10 +3832,10 @@ func TestSQLiteStore_VectorStoreBestEffortAndRequiredErrors(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, requiredStore.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, requiredStore.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: &sqliteTestEmbeddingProvider{err: embedErr},
-		VectorStore:       &sqliteTestVectorStore{},
-		EmbeddingModel:    "text-embedding-test",
-		Required:          true,
+		Embedder:       &sqliteTestEmbeddingProvider{err: embedErr},
+		VectorStore:    &sqliteTestVectorStore{},
+		EmbeddingModel: "text-embedding-test",
+		Required:       true,
 	}))
 	err = requiredStore.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
 		{Role: handmsg.RoleUser, Content: "required", CreatedAt: now},
@@ -3849,9 +3849,9 @@ func TestSQLiteStore_RebuildVectorStoreContinuesAfterBestEffortDeleteError(t *te
 
 	vectorStore := &sqliteTestVectorStore{}
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
-		VectorStore:       vectorStore,
-		EmbeddingModel:    "text-embedding-test",
+		Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:    vectorStore,
+		EmbeddingModel: "text-embedding-test",
 	}))
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
@@ -3873,10 +3873,10 @@ func TestSQLiteStore_RebuildVectorStoreBatchesMessages(t *testing.T) {
 	vectorStore := &sqliteTestVectorStore{}
 	provider := &sqliteTestEmbeddingProvider{dimensions: 3}
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: provider,
-		VectorStore:       vectorStore,
-		EmbeddingModel:    "text-embedding-test",
-		RebuildBatchSize:  2,
+		Embedder:         provider,
+		VectorStore:      vectorStore,
+		EmbeddingModel:   "text-embedding-test",
+		RebuildBatchSize: 2,
 	}))
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
@@ -3921,21 +3921,21 @@ func TestSQLiteStore_VectorStoreConfigurationValidation(t *testing.T) {
 		EmbeddingModel: "text-embedding-test",
 	}), "vector store embedding provider is required")
 	require.EqualError(t, store.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
-		EmbeddingModel:    "text-embedding-test",
+		Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
+		EmbeddingModel: "text-embedding-test",
 	}), "vector store is required")
 	require.EqualError(t, store.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
-		VectorStore:       &sqliteTestVectorStore{},
+		Embedder:    &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore: &sqliteTestVectorStore{},
 	}), "vector store embedding model is required")
 	require.EqualError(t, store.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
-		VectorStore:       &sqliteTestVectorStore{},
-		EmbeddingModel:    "text-embedding-test",
-		RebuildBatchSize:  -1,
+		Embedder:         &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:      &sqliteTestVectorStore{},
+		EmbeddingModel:   "text-embedding-test",
+		RebuildBatchSize: -1,
 	}), "vector store rebuild batch size must be greater than or equal to zero")
 	require.EqualError(t, store.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider:   &sqliteTestEmbeddingProvider{dimensions: 3},
+		Embedder:            &sqliteTestEmbeddingProvider{dimensions: 3},
 		VectorStore:         &sqliteTestVectorStore{},
 		EmbeddingModel:      "text-embedding-test",
 		RerankMaxCandidates: -1,
@@ -3943,9 +3943,9 @@ func TestSQLiteStore_VectorStoreConfigurationValidation(t *testing.T) {
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{}))
 
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
-		VectorStore:       &sqliteTestVectorStore{},
-		EmbeddingModel:    "text-embedding-test",
+		Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:    &sqliteTestVectorStore{},
+		EmbeddingModel: "text-embedding-test",
 	}))
 	require.EqualError(t, store.RebuildVectorStore(context.Background(), testMissingSession), "session not found")
 }
@@ -3966,9 +3966,9 @@ func TestSQLiteStore_RebuildVectorStoreValidationAndErrorPaths(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, brokenStore.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, brokenStore.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
-		VectorStore:       &sqliteTestVectorStore{},
-		EmbeddingModel:    "text-embedding-test",
+		Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:    &sqliteTestVectorStore{},
+		EmbeddingModel: "text-embedding-test",
 	}))
 	require.NoError(t, brokenStore.db.Exec(`DROP TABLE session_messages`).Error)
 	require.Error(t, brokenStore.RebuildVectorStore(context.Background(), testSessionA))
@@ -3976,9 +3976,9 @@ func TestSQLiteStore_RebuildVectorStoreValidationAndErrorPaths(t *testing.T) {
 	brokenSessionStore, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)
 	require.NoError(t, brokenSessionStore.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
-		VectorStore:       &sqliteTestVectorStore{},
-		EmbeddingModel:    "text-embedding-test",
+		Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:    &sqliteTestVectorStore{},
+		EmbeddingModel: "text-embedding-test",
 	}))
 	require.NoError(t, brokenSessionStore.db.Exec(`DROP TABLE sessions`).Error)
 	require.Error(t, brokenSessionStore.RebuildVectorStore(context.Background(), testSessionA))
@@ -3986,10 +3986,10 @@ func TestSQLiteStore_RebuildVectorStoreValidationAndErrorPaths(t *testing.T) {
 	deleteErr := errors.New("delete failed")
 	requiredDeleteStore, vectorStore := sqliteVectorStoreTestStore(t)
 	require.NoError(t, requiredDeleteStore.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
-		VectorStore:       vectorStore,
-		EmbeddingModel:    "text-embedding-test",
-		Required:          true,
+		Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:    vectorStore,
+		EmbeddingModel: "text-embedding-test",
+		Required:       true,
 	}))
 	require.NoError(t, requiredDeleteStore.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, requiredDeleteStore.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
@@ -4003,10 +4003,10 @@ func TestSQLiteStore_RebuildVectorStoreValidationAndErrorPaths(t *testing.T) {
 	require.NoError(t, err)
 	upsertVectorStore := &sqliteTestVectorStore{}
 	require.NoError(t, upsertStore.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
-		VectorStore:       upsertVectorStore,
-		EmbeddingModel:    "text-embedding-test",
-		Required:          true,
+		Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
+		VectorStore:    upsertVectorStore,
+		EmbeddingModel: "text-embedding-test",
+		Required:       true,
 	}))
 	require.NoError(t, upsertStore.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 	require.NoError(t, upsertStore.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
@@ -4058,10 +4058,10 @@ func TestSQLiteStore_VectorStorePostMutationErrors(t *testing.T) {
 	t.Run("delete returns required vector delete error", func(t *testing.T) {
 		store, vectorStore := sqliteVectorStoreTestStore(t)
 		require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-			EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
-			VectorStore:       vectorStore,
-			EmbeddingModel:    "text-embedding-test",
-			Required:          true,
+			Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
+			VectorStore:    vectorStore,
+			EmbeddingModel: "text-embedding-test",
+			Required:       true,
 		}))
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
@@ -4075,10 +4075,10 @@ func TestSQLiteStore_VectorStorePostMutationErrors(t *testing.T) {
 	t.Run("archive returns required vector delete error", func(t *testing.T) {
 		store, vectorStore := sqliteVectorStoreTestStore(t)
 		require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-			EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
-			VectorStore:       vectorStore,
-			EmbeddingModel:    "text-embedding-test",
-			Required:          true,
+			Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
+			VectorStore:    vectorStore,
+			EmbeddingModel: "text-embedding-test",
+			Required:       true,
 		}))
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
@@ -4098,10 +4098,10 @@ func TestSQLiteStore_VectorStorePostMutationErrors(t *testing.T) {
 	t.Run("clear returns required vector delete error", func(t *testing.T) {
 		store, vectorStore := sqliteVectorStoreTestStore(t)
 		require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-			EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
-			VectorStore:       vectorStore,
-			EmbeddingModel:    "text-embedding-test",
-			Required:          true,
+			Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
+			VectorStore:    vectorStore,
+			EmbeddingModel: "text-embedding-test",
+			Required:       true,
 		}))
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
@@ -4130,9 +4130,9 @@ func TestSQLiteStore_VectorStoreSkipsEmptySearchRows(t *testing.T) {
 
 	provider := &sqliteTestEmbeddingProvider{dimensions: 3}
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: provider,
-		VectorStore:       &sqliteTestVectorStore{},
-		EmbeddingModel:    "text-embedding-test",
+		Embedder:       provider,
+		VectorStore:    &sqliteTestVectorStore{},
+		EmbeddingModel: "text-embedding-test",
 	}))
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
@@ -4155,10 +4155,10 @@ func TestSQLiteStore_VectorStoreRejectsInvalidEmbeddings(t *testing.T) {
 		dimensions: 3,
 	}
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider: provider,
-		VectorStore:       &sqliteTestVectorStore{},
-		EmbeddingModel:    "text-embedding-test",
-		Required:          true,
+		Embedder:       provider,
+		VectorStore:    &sqliteTestVectorStore{},
+		EmbeddingModel: "text-embedding-test",
+		Required:       true,
 	}))
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
@@ -4186,7 +4186,7 @@ func sqliteVectorStoreTestStoreWithReranker(
 	require.NoError(t, err)
 	vectorStore := &sqliteTestVectorStore{}
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-		EmbeddingProvider:   &sqliteTestEmbeddingProvider{dimensions: 3},
+		Embedder:            &sqliteTestEmbeddingProvider{dimensions: 3},
 		Reranker:            reranker,
 		VectorStore:         vectorStore,
 		EmbeddingModel:      "text-embedding-test",

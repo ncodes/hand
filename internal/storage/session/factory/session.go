@@ -2,7 +2,6 @@ package factory
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/wandxy/hand/internal/config"
@@ -89,7 +88,7 @@ func configureSQLiteSessionVectors(
 	cfg *config.Config,
 	db *gorm.DB,
 	store *storagesqlite.SessionStore,
-	provider retrieval.EmbeddingProvider,
+	provider retrieval.Embedder,
 ) error {
 	if !cfg.SessionVectorEnabled {
 		return nil
@@ -107,12 +106,12 @@ func configureSQLiteSessionVectors(
 	}
 
 	return store.ConfigureVectorStore(storagesqlite.VectorStoreOptions{
-		EmbeddingProvider: provider,
-		VectorStore:       vectorStore,
-		EnableRerank:      cfg.SessionVectorEnableRerank,
-		EmbeddingModel:    cfg.ModelEmbeddingModel,
-		RebuildBatchSize:  cfg.SessionVectorRebuildBatchSize,
-		Required:          cfg.SessionVectorRequired,
+		Embedder:         provider,
+		VectorStore:      vectorStore,
+		EnableRerank:     cfg.SessionVectorEnableRerank,
+		EmbeddingModel:   cfg.ModelEmbeddingModel,
+		RebuildBatchSize: cfg.SessionVectorRebuildBatchSize,
+		Required:         cfg.SessionVectorRequired,
 	})
 }
 
@@ -120,8 +119,10 @@ func validateSessionVectorConfig(cfg *config.Config) error {
 	if !cfg.SessionVectorEnabled {
 		return nil
 	}
-	if cfg.ModelEmbeddingProvider == "" {
-		return errors.New("embedding provider is required")
+	switch cfg.ModelEmbeddingProviderEffective() {
+	case "openai", "openrouter":
+	default:
+		return errors.New("embedding provider must be one of: openai, openrouter")
 	}
 	if cfg.ModelEmbeddingModel == "" {
 		return errors.New("embedding model is required")
@@ -133,7 +134,7 @@ func validateSessionVectorConfig(cfg *config.Config) error {
 	return nil
 }
 
-func sessionEmbeddingProvider(cfg *config.Config) (retrieval.EmbeddingProvider, error) {
+func sessionEmbeddingProvider(cfg *config.Config) (retrieval.Embedder, error) {
 	if !cfg.SessionVectorEnabled {
 		return nil, nil
 	}
@@ -141,6 +142,15 @@ func sessionEmbeddingProvider(cfg *config.Config) (retrieval.EmbeddingProvider, 
 	return newSessionEmbeddingProvider(cfg)
 }
 
-func defaultSessionEmbeddingProvider(cfg *config.Config) (retrieval.EmbeddingProvider, error) {
-	return nil, fmt.Errorf("embedding provider %q is not supported", cfg.ModelEmbeddingProvider)
+func defaultSessionEmbeddingProvider(cfg *config.Config) (retrieval.Embedder, error) {
+	auth, err := cfg.ResolveEmbeddingModelAuth()
+	if err != nil {
+		return nil, err
+	}
+
+	return retrieval.NewEmbeddingProvider(retrieval.EmbeddingProviderOptions{
+		Provider:    auth.Provider,
+		APIKey:      auth.APIKey,
+		EndpointURL: auth.BaseURL,
+	})
 }

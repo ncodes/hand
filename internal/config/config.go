@@ -113,10 +113,12 @@ var (
 		"openrouter": {
 			DefaultModelAPIMode: "https://openrouter.ai/api/v1",
 			"responses":         "https://openrouter.ai/api/v1/responses",
+			"embeddings":        "https://openrouter.ai/api/v1/embeddings",
 		},
 		"openai": {
-			DefaultModelAPIMode: "",
-			"responses":         "",
+			DefaultModelAPIMode: "https://api.openai.com/v1",
+			"responses":         "https://api.openai.com/v1",
+			"embeddings":        "https://api.openai.com/v1/embeddings",
 		},
 	}
 )
@@ -1234,8 +1236,9 @@ func (c *Config) validateSessionVectorSettings() error {
 	if !c.SessionVectorEnabled {
 		return nil
 	}
-	if c.ModelEmbeddingProvider == "" {
-		return errors.New("embedding provider is required")
+	provider := c.ModelEmbeddingProviderEffective()
+	if _, ok := providerDefaultBaseURLs[provider]; !ok {
+		return errors.New("embedding provider must be one of: openai, openrouter")
 	}
 	if c.ModelEmbeddingModel == "" {
 		return errors.New("embedding model is required")
@@ -1243,8 +1246,48 @@ func (c *Config) validateSessionVectorSettings() error {
 	if c.SessionVectorRebuildBatchSize < 0 {
 		return errors.New("vector rebuild batch size must be non-negative")
 	}
+	if _, err := c.ResolveEmbeddingModelAuth(); err != nil {
+		return err
+	}
 
 	return nil
+}
+
+func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
+	if c == nil {
+		return ModelAuth{}, errors.New("config is required")
+	}
+
+	c.Normalize()
+
+	provider := c.ModelEmbeddingProviderEffective()
+	if _, ok := providerDefaultBaseURLs[provider]; !ok {
+		return ModelAuth{}, errors.New("embedding provider must be one of: openai, openrouter")
+	}
+
+	auth := ModelAuth{
+		Provider: provider,
+		BaseURL:  defaultBaseURLForProvider(provider, "embeddings"),
+		APIKey:   c.resolveAPIKeyForProvider(provider),
+	}
+	if strings.TrimSpace(auth.APIKey) == "" {
+		return ModelAuth{}, errors.New("embedding API key is required")
+	}
+
+	return auth, nil
+}
+
+func (c *Config) ModelEmbeddingProviderEffective() string {
+	if c == nil {
+		return ""
+	}
+
+	c.normalizeFields()
+	if c.ModelEmbeddingProvider != "" {
+		return c.ModelEmbeddingProvider
+	}
+
+	return c.ModelProvider
 }
 
 func (c *Config) ResolveModelAuth() (ModelAuth, error) {

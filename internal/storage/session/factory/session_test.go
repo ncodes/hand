@@ -96,7 +96,7 @@ func TestOpenSessionStore_ConfiguresSQLiteVectorStore(t *testing.T) {
 	store, err := OpenSessionStore(&config.Config{
 		StorageBackend:                "sqlite",
 		SessionVectorEnabled:          true,
-		ModelEmbeddingProvider:        "test",
+		ModelEmbeddingProvider:        "openai",
 		ModelEmbeddingModel:           "text-embedding-test",
 		SessionVectorRequired:         true,
 		SessionVectorRebuildBatchSize: 7,
@@ -126,10 +126,10 @@ func TestOpenSessionStore_ReturnsMemoryVectorIntegrationError(t *testing.T) {
 	withSessionVectorHooks(t, &factoryTestEmbeddingProvider{}, nil, vectorStore)
 
 	store, err := OpenSessionStore(&config.Config{
-		StorageBackend:         "memory",
-		SessionVectorEnabled:   true,
-		ModelEmbeddingProvider: "test",
-		ModelEmbeddingModel:    "text-embedding-test",
+		StorageBackend:       "memory",
+		SessionVectorEnabled: true,
+		ModelProvider:        "openai",
+		ModelEmbeddingModel:  "text-embedding-test",
 	})
 
 	require.Nil(t, store)
@@ -143,20 +143,11 @@ func TestOpenSessionStore_ValidatesVectorConfig(t *testing.T) {
 		err  string
 	}{
 		{
-			name: "missing provider",
-			cfg: config.Config{
-				StorageBackend:       "sqlite",
-				SessionVectorEnabled: true,
-				ModelEmbeddingModel:  "text-embedding-test",
-			},
-			err: "embedding provider is required",
-		},
-		{
 			name: "missing model",
 			cfg: config.Config{
 				StorageBackend:         "sqlite",
 				SessionVectorEnabled:   true,
-				ModelEmbeddingProvider: "test",
+				ModelEmbeddingProvider: "openai",
 			},
 			err: "embedding model is required",
 		},
@@ -165,11 +156,21 @@ func TestOpenSessionStore_ValidatesVectorConfig(t *testing.T) {
 			cfg: config.Config{
 				StorageBackend:                "sqlite",
 				SessionVectorEnabled:          true,
-				ModelEmbeddingProvider:        "test",
+				ModelEmbeddingProvider:        "openai",
 				ModelEmbeddingModel:           "text-embedding-test",
 				SessionVectorRebuildBatchSize: -1,
 			},
 			err: "vector rebuild batch size must be non-negative",
+		},
+		{
+			name: "missing api key",
+			cfg: config.Config{
+				StorageBackend:       "sqlite",
+				SessionVectorEnabled: true,
+				ModelProvider:        "openai",
+				ModelEmbeddingModel:  "text-embedding-test",
+			},
+			err: "embedding API key is required",
 		},
 		{
 			name: "unsupported provider",
@@ -179,7 +180,7 @@ func TestOpenSessionStore_ValidatesVectorConfig(t *testing.T) {
 				ModelEmbeddingProvider: "unsupported",
 				ModelEmbeddingModel:    "text-embedding-test",
 			},
-			err: `embedding provider "unsupported" is not supported`,
+			err: "embedding provider must be one of: openai, openrouter",
 		},
 	}
 
@@ -208,7 +209,7 @@ func TestOpenSessionStore_ValidatesVectorStoreFactories(t *testing.T) {
 			newSQLiteSessionVectorStore = originalSQLiteStore
 		})
 
-		newSessionEmbeddingProvider = func(*config.Config) (retrieval.EmbeddingProvider, error) {
+		newSessionEmbeddingProvider = func(*config.Config) (retrieval.Embedder, error) {
 			return &factoryTestEmbeddingProvider{}, nil
 		}
 		newSQLiteSessionVectorStore = func(*gorm.DB) (retrieval.VectorStore, error) {
@@ -218,8 +219,9 @@ func TestOpenSessionStore_ValidatesVectorStoreFactories(t *testing.T) {
 		store, err := OpenSessionStore(&config.Config{
 			StorageBackend:         "sqlite",
 			SessionVectorEnabled:   true,
-			ModelEmbeddingProvider: "test",
+			ModelEmbeddingProvider: "openai",
 			ModelEmbeddingModel:    "text-embedding-test",
+			ModelKey:               "key",
 		})
 
 		require.Nil(t, store)
@@ -239,7 +241,7 @@ func TestOpenSessionStore_ValidatesVectorStoreFactories(t *testing.T) {
 		store, err := OpenSessionStore(&config.Config{
 			StorageBackend:         "memory",
 			SessionVectorEnabled:   true,
-			ModelEmbeddingProvider: "test",
+			ModelEmbeddingProvider: "openai",
 			ModelEmbeddingModel:    "text-embedding-test",
 		})
 
@@ -250,7 +252,7 @@ func TestOpenSessionStore_ValidatesVectorStoreFactories(t *testing.T) {
 
 func withSessionVectorHooks(
 	t *testing.T,
-	provider retrieval.EmbeddingProvider,
+	provider retrieval.Embedder,
 	sqliteStore retrieval.VectorStore,
 	memoryStore retrieval.VectorStore,
 ) {
@@ -266,7 +268,7 @@ func withSessionVectorHooks(
 	})
 
 	if provider != nil {
-		newSessionEmbeddingProvider = func(*config.Config) (retrieval.EmbeddingProvider, error) {
+		newSessionEmbeddingProvider = func(*config.Config) (retrieval.Embedder, error) {
 			return provider, nil
 		}
 	}

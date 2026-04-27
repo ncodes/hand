@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-type EmbeddingProvider interface {
+type Embedder interface {
 	Embed(context.Context, EmbeddingRequest) (EmbeddingResult, error)
 }
 

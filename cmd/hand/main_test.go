@@ -646,7 +646,7 @@ log:
 
 	cfg := config.Get()
 	require.Equal(t, "openai", cfg.ModelProvider)
-	require.Equal(t, "", cfg.ModelBaseURL)
+	require.Equal(t, "https://api.openai.com/v1", cfg.ModelBaseURL)
 }
 
 func clearEnvKeys(t *testing.T, keys ...string) {

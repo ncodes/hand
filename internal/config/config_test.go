@@ -760,7 +760,7 @@ func TestConfig_ResolveModelAuthUsesOpenAISpecificKey(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "openai", auth.Provider)
 	require.Equal(t, "openai-key", auth.APIKey)
-	require.Empty(t, auth.BaseURL)
+	require.Equal(t, "https://api.openai.com/v1", auth.BaseURL)
 }
 
 func TestConfig_ResolveModelAuthAcceptsOpenAIProviderAlias(t *testing.T) {
@@ -776,7 +776,7 @@ func TestConfig_ResolveModelAuthAcceptsOpenAIProviderAlias(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "openai", auth.Provider)
 	require.Equal(t, "openai-key", auth.APIKey)
-	require.Empty(t, auth.BaseURL)
+	require.Equal(t, "https://api.openai.com/v1", auth.BaseURL)
 }
 
 func TestConfig_ResolveModelAuthFallsBackToModelKey(t *testing.T) {
@@ -791,6 +791,84 @@ func TestConfig_ResolveModelAuthFallsBackToModelKey(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "generic-key", auth.APIKey)
+}
+
+func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
+	cfg := &Config{
+		ModelProvider:          "openrouter",
+		ModelEmbeddingProvider: "openrouter",
+		OpenRouterAPIKey:       "router-key",
+	}
+
+	auth, err := cfg.ResolveEmbeddingModelAuth()
+
+	require.NoError(t, err)
+	require.Equal(t, ModelAuth{
+		Provider: "openrouter",
+		APIKey:   "router-key",
+		BaseURL:  "https://openrouter.ai/api/v1/embeddings",
+	}, auth)
+
+	cfg = &Config{
+		ModelProvider:          "openrouter",
+		ModelAPIMode:           "responses",
+		ModelEmbeddingProvider: "openrouter",
+		OpenRouterAPIKey:       "router-key",
+	}
+
+	auth, err = cfg.ResolveEmbeddingModelAuth()
+
+	require.NoError(t, err)
+	require.Equal(t, defaultBaseURLForProvider("openrouter", "embeddings"), auth.BaseURL)
+
+	cfg = &Config{
+		ModelProvider:    "openrouter",
+		OpenRouterAPIKey: "router-key",
+	}
+
+	auth, err = cfg.ResolveEmbeddingModelAuth()
+
+	require.NoError(t, err)
+	require.Equal(t, ModelAuth{
+		Provider: "openrouter",
+		APIKey:   "router-key",
+		BaseURL:  "https://openrouter.ai/api/v1/embeddings",
+	}, auth)
+
+	cfg = &Config{
+		ModelProvider:          "openrouter",
+		ModelEmbeddingProvider: "openai",
+		OpenAIAPIKey:           "openai-key",
+	}
+
+	auth, err = cfg.ResolveEmbeddingModelAuth()
+
+	require.NoError(t, err)
+	require.Equal(t, ModelAuth{
+		Provider: "openai",
+		APIKey:   "openai-key",
+		BaseURL:  "https://api.openai.com/v1/embeddings",
+	}, auth)
+
+	_, err = (&Config{ModelEmbeddingProvider: "openai"}).ResolveEmbeddingModelAuth()
+	require.EqualError(t, err, "embedding API key is required")
+
+	_, err = (&Config{ModelEmbeddingProvider: "test", ModelKey: "key"}).ResolveEmbeddingModelAuth()
+	require.EqualError(t, err, "embedding provider must be one of: openai, openrouter")
+}
+
+func TestConfig_ModelEmbeddingProviderEffective(t *testing.T) {
+	var cfg *Config
+	require.Empty(t, cfg.ModelEmbeddingProviderEffective())
+
+	cfg = &Config{ModelProvider: " OpenRouter "}
+	require.Equal(t, "openrouter", cfg.ModelEmbeddingProviderEffective())
+
+	cfg = &Config{
+		ModelProvider:          "openrouter",
+		ModelEmbeddingProvider: " OpenAI ",
+	}
+	require.Equal(t, "openai", cfg.ModelEmbeddingProviderEffective())
 }
 
 func TestConfig_ValidateAllowsProviderSpecificAuthWithoutModelKey(t *testing.T) {
@@ -1410,15 +1488,15 @@ func TestConfig_NormalizeKeepsOpenaiProvider(t *testing.T) {
 	}
 	cfg.Normalize()
 	require.Equal(t, "openai", cfg.ModelProvider)
-	require.Equal(t, "", cfg.ModelBaseURL)
+	require.Equal(t, "https://api.openai.com/v1", cfg.ModelBaseURL)
 }
 
 func TestConfig_NormalizeDefaultBaseURLDependsOnAPIMode(t *testing.T) {
-	t.Run("openai uses sdk default for completions and responses", func(t *testing.T) {
+	t.Run("openai uses api root for completions and responses", func(t *testing.T) {
 		for _, mode := range []string{DefaultModelAPIMode, "responses"} {
 			cfg := &Config{ModelProvider: "openai", ModelAPIMode: mode}
 			cfg.Normalize()
-			require.Empty(t, cfg.ModelBaseURL, mode)
+			require.Equal(t, "https://api.openai.com/v1", cfg.ModelBaseURL, mode)
 		}
 	})
 
@@ -1637,6 +1715,10 @@ func TestNormalizeFields_NilReceiver_NoPanic(t *testing.T) {
 func TestDefaultBaseURLForProvider_DefaultsEmptyAPIMode(t *testing.T) {
 	require.Equal(t, "https://openrouter.ai/api/v1", defaultBaseURLForProvider("openrouter", ""))
 	require.Equal(t, "https://openrouter.ai/api/v1", defaultBaseURLForProvider("openrouter", "   "))
+	require.Equal(t, "https://api.openai.com/v1", defaultBaseURLForProvider("openai", DefaultModelAPIMode))
+	require.Equal(t, "https://api.openai.com/v1", defaultBaseURLForProvider("openai", "responses"))
+	require.Equal(t, "https://openrouter.ai/api/v1/embeddings", defaultBaseURLForProvider("openrouter", "embeddings"))
+	require.Equal(t, "https://api.openai.com/v1/embeddings", defaultBaseURLForProvider("openai", "embeddings"))
 }
 
 func TestDefaultBaseURLForProvider_ReturnsEmptyForUnknownMode(t *testing.T) {
@@ -2316,7 +2398,7 @@ func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {
 		SessionDefaultIdleExpiry: time.Hour,
 		SessionArchiveRetention:  24 * time.Hour,
 		SessionVectorEnabled:     true,
-		ModelEmbeddingProvider:   "test",
+		ModelEmbeddingProvider:   "openai",
 		ModelEmbeddingModel:      "text-embedding-test",
 		CompactionEnabled:        new(true),
 		CompactionTriggerPercent: 0.85,
@@ -2329,13 +2411,6 @@ func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {
 		err    string
 	}{
 		{
-			name: "missing provider",
-			mutate: func(cfg *Config) {
-				cfg.ModelEmbeddingProvider = ""
-			},
-			err: "embedding provider is required",
-		},
-		{
 			name: "missing model",
 			mutate: func(cfg *Config) {
 				cfg.ModelEmbeddingModel = ""
@@ -2343,11 +2418,27 @@ func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {
 			err: "embedding model is required",
 		},
 		{
+			name: "unsupported provider",
+			mutate: func(cfg *Config) {
+				cfg.ModelEmbeddingProvider = "test"
+			},
+			err: "embedding provider must be one of: openai, openrouter",
+		},
+		{
 			name: "negative batch size",
 			mutate: func(cfg *Config) {
 				cfg.SessionVectorRebuildBatchSize = -1
 			},
 			err: "vector rebuild batch size must be non-negative",
+		},
+		{
+			name: "missing api key",
+			mutate: func(cfg *Config) {
+				cfg.ModelKey = ""
+				cfg.OpenAIAPIKey = ""
+				cfg.OpenRouterAPIKey = ""
+			},
+			err: "embedding API key is required",
 		},
 	}
 

@@ -207,7 +207,7 @@ type SessionStore struct {
 
 // VectorStoreOptions configures optional vector indexing and hybrid reranking for session search.
 type VectorStoreOptions struct {
-	EmbeddingProvider   retrieval.EmbeddingProvider
+	Embedder            retrieval.Embedder
 	Reranker            retrieval.Reranker
 	VectorStore         retrieval.VectorStore
 	EnableRerank        *bool
@@ -220,7 +220,7 @@ type VectorStoreOptions struct {
 
 // vectorConfig holds normalized vector dependencies and operational limits.
 type vectorConfig struct {
-	provider    retrieval.EmbeddingProvider
+	provider    retrieval.Embedder
 	reranker    retrieval.Reranker
 	store       retrieval.VectorStore
 	model       string
@@ -287,11 +287,11 @@ func (s *SessionStore) ConfigureVectorStore(opts VectorStoreOptions) error {
 	}
 
 	model := strings.TrimSpace(opts.EmbeddingModel)
-	if opts.EmbeddingProvider == nil && opts.VectorStore == nil && model == "" {
+	if opts.Embedder == nil && opts.VectorStore == nil && model == "" {
 		s.vectors = nil
 		return nil
 	}
-	if opts.EmbeddingProvider == nil {
+	if opts.Embedder == nil {
 		return errors.New("vector store embedding provider is required")
 	}
 	if opts.VectorStore == nil {
@@ -320,7 +320,7 @@ func (s *SessionStore) ConfigureVectorStore(opts VectorStoreOptions) error {
 	}
 
 	s.vectors = &vectorConfig{
-		provider:    opts.EmbeddingProvider,
+		provider:    opts.Embedder,
 		reranker:    opts.Reranker,
 		store:       opts.VectorStore,
 		model:       model,
