@@ -15,7 +15,7 @@ import (
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/storage/retrieval"
 	base "github.com/wandxy/hand/internal/storage/session"
-	storagevector "github.com/wandxy/hand/internal/storage/vector"
+	storagevectorsqlite "github.com/wandxy/hand/internal/storage/vector/sqlite"
 	"github.com/wandxy/hand/pkg/logutils"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
@@ -3340,7 +3340,7 @@ func TestSQLiteStore_VectorStoreUsesSharedSQLiteVectorStore(t *testing.T) {
 
 	store, err := NewSessionStoreFromDB(db)
 	require.NoError(t, err)
-	vectorStore, err := storagevector.NewStoreFromDB(db)
+	vectorStore, err := storagevectorsqlite.NewStoreFromDB(db)
 	require.NoError(t, err)
 	provider := &sqliteTestEmbeddingProvider{dimensions: 3}
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
@@ -3365,13 +3365,13 @@ func TestSQLiteStore_VectorStoreUsesSharedSQLiteVectorStore(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	result, err := vectorStore.Search(context.Background(), storagevector.SearchRequest{
+	result, err := vectorStore.Search(context.Background(), storagevectorsqlite.SearchRequest{
 		EmbeddingModel: "text-embedding-test",
 		Dimensions:     3,
 		QueryVector:    embedRes.Items[0].Vector,
 		Limit:          1,
-		Filter: storagevector.Filter{
-			SourceKind: storagevector.SourceKindSessionMessage,
+		Filter: storagevectorsqlite.Filter{
+			SourceKind: storagevectorsqlite.SourceKindSessionMessage,
 		},
 	})
 	require.NoError(t, err)
@@ -3380,13 +3380,13 @@ func TestSQLiteStore_VectorStoreUsesSharedSQLiteVectorStore(t *testing.T) {
 	require.Equal(t, retrieval.VectorContentHash("shared sqlite vector"), result.Matches[0].Record.ContentHash)
 
 	require.NoError(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}))
-	result, err = vectorStore.Search(context.Background(), storagevector.SearchRequest{
+	result, err = vectorStore.Search(context.Background(), storagevectorsqlite.SearchRequest{
 		EmbeddingModel: "text-embedding-test",
 		Dimensions:     3,
 		QueryVector:    embedRes.Items[0].Vector,
 		Limit:          1,
-		Filter: storagevector.Filter{
-			SourceKind: storagevector.SourceKindSessionMessage,
+		Filter: storagevectorsqlite.Filter{
+			SourceKind: storagevectorsqlite.SourceKindSessionMessage,
 		},
 	})
 	require.NoError(t, err)
