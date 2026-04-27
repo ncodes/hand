@@ -28,6 +28,7 @@ const currentSessionStateKey = "current_session"
 const sessionMessageSearchTable = "session_message_search"
 const defaultVectorStoreRebuildBatchSize = 100
 const defaultHybridCandidateLimit = 100
+const defaultRerankCandidateLimit = 100
 const maxHybridCandidateLimit = 1000
 const reciprocalRankFusionConstant = 60
 
@@ -41,6 +42,7 @@ type SessionCompaction = base.SessionCompaction
 type SessionCompactionStatus = base.SessionCompactionStatus
 type MessageRecord = base.MessageRecord
 
+// sessionModel stores durable session-level state and compaction progress.
 type sessionModel struct {
 	ID                           string `gorm:"primaryKey"`
 	CreatedAt                    time.Time
@@ -56,10 +58,12 @@ type sessionModel struct {
 	CompactionTargetOffset       int
 }
 
+// TableName returns the SQLite table used for active sessions.
 func (sessionModel) TableName() string {
 	return "sessions"
 }
 
+// archiveModel stores metadata for archived session message sets.
 type archiveModel struct {
 	ID              string    `gorm:"primaryKey"`
 	SourceSessionID string    `gorm:"index;not null"`
@@ -68,10 +72,12 @@ type archiveModel struct {
 	CreatedAt       time.Time
 }
 
+// TableName returns the SQLite table used for session archives.
 func (archiveModel) TableName() string {
 	return "session_archives"
 }
 
+// stateModel stores small named session state values such as the current session.
 type stateModel struct {
 	Key       string `gorm:"primaryKey"`
 	Value     string `gorm:"not null"`
@@ -79,10 +85,12 @@ type stateModel struct {
 	CreatedAt time.Time
 }
 
+// TableName returns the SQLite table used for session state entries.
 func (stateModel) TableName() string {
 	return "session_state"
 }
 
+// summaryModel stores the latest generated summary for a session.
 type summaryModel struct {
 	SessionID          string `gorm:"primaryKey"`
 	SourceEndOffset    int
@@ -95,10 +103,12 @@ type summaryModel struct {
 	NextActions        string `gorm:"type:text"`
 }
 
+// TableName returns the SQLite table used for session summaries.
 func (summaryModel) TableName() string {
 	return "session_summaries"
 }
 
+// messageModel stores active session messages in append order.
 type messageModel struct {
 	ID         uint `gorm:"primaryKey"`
 	SessionID  string
@@ -112,10 +122,15 @@ type messageModel struct {
 	UpdatedAt  time.Time
 }
 
+// messageModels is a typed slice for active message conversion helpers.
+type messageModels []messageModel
+
+// TableName returns the SQLite table used for active session messages.
 func (messageModel) TableName() string {
 	return "session_messages"
 }
 
+// archivedMessageModel stores messages moved out of an active session archive.
 type archivedMessageModel struct {
 	ID         uint `gorm:"primaryKey"`
 	ArchiveID  string
@@ -129,10 +144,15 @@ type archivedMessageModel struct {
 	UpdatedAt  time.Time
 }
 
+// archivedMessageModels is a typed slice for archived message conversion helpers.
+type archivedMessageModels []archivedMessageModel
+
+// TableName returns the SQLite table used for archived session messages.
 func (archivedMessageModel) TableName() string {
 	return "archived_session_messages"
 }
 
+// searchSessionResultRow is the intermediate shape used to map ranked SQL rows to public search results.
 type searchSessionResultRow struct {
 	ID              uint
 	SessionID       string
@@ -152,6 +172,7 @@ type searchSessionResultRow struct {
 	LastMatchedAt   string
 }
 
+// searchCandidate is a merged lexical/vector candidate before final grouping.
 type searchCandidate struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
@@ -165,35 +186,48 @@ type searchCandidate struct {
 	MatchedText     string
 	MatchedToolName string
 	LexicalScore    float64
+	RerankScore     float64
 	VectorScore     float64
 	FusedScore      float64
 	LexicalRank     int
 	VectorRank      int
 	HasLexical      bool
+	HasRerank       bool
 	HasVector       bool
 }
 
+// searchCandidateSet collects merged search candidates keyed by message row ID.
+type searchCandidateSet map[uint]*searchCandidate
+
+// SessionStore persists sessions, messages, search rows, summaries, and optional vector indexing in SQLite.
 type SessionStore struct {
 	vectors *vectorConfig
 	db      *gorm.DB
 }
 
+// VectorStoreOptions configures optional vector indexing and hybrid reranking for session search.
 type VectorStoreOptions struct {
-	EmbeddingProvider retrieval.EmbeddingProvider
-	VectorStore       retrieval.VectorStore
-	EmbeddingModel    string
-	RebuildBatchSize  int
-	Required          bool
+	EmbeddingProvider   retrieval.EmbeddingProvider
+	Reranker            retrieval.Reranker
+	VectorStore         retrieval.VectorStore
+	EmbeddingModel      string
+	RebuildBatchSize    int
+	RerankMaxCandidates int
+	Required            bool
 }
 
+// vectorConfig holds normalized vector dependencies and operational limits.
 type vectorConfig struct {
 	provider  retrieval.EmbeddingProvider
+	reranker  retrieval.Reranker
 	store     retrieval.VectorStore
 	model     string
 	batchSize int
+	rerankMax int
 	required  bool
 }
 
+// vectorInput is the searchable text unit sent to the embedding provider.
 type vectorInput struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -242,6 +276,7 @@ func NewSessionStoreFromDB(db *gorm.DB) (*SessionStore, error) {
 	return &SessionStore{db: db}, nil
 }
 
+// ConfigureVectorStore enables or disables vector indexing and hybrid search for this store.
 func (s *SessionStore) ConfigureVectorStore(opts VectorStoreOptions) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
@@ -268,18 +303,28 @@ func (s *SessionStore) ConfigureVectorStore(opts VectorStoreOptions) error {
 	if batchSize == 0 {
 		batchSize = defaultVectorStoreRebuildBatchSize
 	}
+	rerankMax := opts.RerankMaxCandidates
+	if rerankMax < 0 {
+		return errors.New("vector store rerank max candidates must be greater than or equal to zero")
+	}
+	if rerankMax == 0 {
+		rerankMax = defaultRerankCandidateLimit
+	}
 
 	s.vectors = &vectorConfig{
 		provider:  opts.EmbeddingProvider,
+		reranker:  opts.Reranker,
 		store:     opts.VectorStore,
 		model:     model,
 		batchSize: batchSize,
+		rerankMax: rerankMax,
 		required:  opts.Required,
 	}
 
 	return nil
 }
 
+// RebuildVectorStore refreshes all vector rows for one active session in batches.
 func (s *SessionStore) RebuildVectorStore(ctx context.Context, id string) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
@@ -315,7 +360,7 @@ func (s *SessionStore) RebuildVectorStore(ctx context.Context, id string) error 
 			return nil
 		}
 
-		if err := s.deleteVectorRows(ctx, sourceIDsFromModels(records)); err != nil {
+		if err := s.deleteVectorRows(ctx, messageModels(records).sourceIDs()); err != nil {
 			if s.vectors.required {
 				return err
 			}
@@ -348,6 +393,7 @@ func gormOpenSQLite(path string) (*SessionStore, error) {
 	return NewSessionStoreFromDB(db)
 }
 
+// Save upserts session metadata without modifying stored messages.
 func (s *SessionStore) Save(ctx context.Context, session Session) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
@@ -413,6 +459,7 @@ func (s *SessionStore) Save(ctx context.Context, session Session) error {
 	})
 }
 
+// Get loads one active session by ID.
 func (s *SessionStore) Get(ctx context.Context, id string) (Session, bool, error) {
 	if s == nil || s.db == nil {
 		return Session{}, false, errors.New("session store is required")
@@ -443,6 +490,7 @@ func (s *SessionStore) Get(ctx context.Context, id string) (Session, bool, error
 	return session, true, nil
 }
 
+// List returns active sessions ordered by most recently updated.
 func (s *SessionStore) List(ctx context.Context) ([]Session, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("session store is required")
@@ -472,6 +520,7 @@ func (s *SessionStore) List(ctx context.Context) ([]Session, error) {
 	return sessions, nil
 }
 
+// Delete removes an active session and its messages, summaries, search rows, and vector rows.
 func (s *SessionStore) Delete(ctx context.Context, id string) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
@@ -537,6 +586,7 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// AppendMessages appends messages to a session and updates lexical/vector search indexes.
 func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
@@ -573,7 +623,7 @@ func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages [
 			if err := tx.Create(&records).Error; err != nil {
 				return err
 			}
-			if err := insertSearchRows(tx, searchRowsFromMessageModels(records)); err != nil {
+			if err := messageModels(records).searchRows().insert(tx); err != nil {
 				return err
 			}
 		}
@@ -592,6 +642,7 @@ func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages [
 	return nil
 }
 
+// GetMessages loads active or archived messages with role, name, order, offset, and limit filters.
 func (s *SessionStore) GetMessages(
 	ctx context.Context,
 	id string,
@@ -632,7 +683,7 @@ func (s *SessionStore) GetMessages(
 			return nil, err
 		}
 
-		return archivedMessageModelsToMessages(records), nil
+		return archivedMessageModels(records).messages(), nil
 	}
 
 	var records []messageModel
@@ -646,9 +697,10 @@ func (s *SessionStore) GetMessages(
 		return nil, err
 	}
 
-	return messageModelsToMessages(records), nil
+	return messageModels(records).messages(), nil
 }
 
+// GetMessagesByIDs loads active session messages by database row IDs.
 func (s *SessionStore) GetMessagesByIDs(
 	ctx context.Context,
 	id string,
@@ -674,9 +726,10 @@ func (s *SessionStore) GetMessagesByIDs(
 		return nil, err
 	}
 
-	return messageModelsToRecords(records), nil
+	return messageModels(records).records(), nil
 }
 
+// GetMessageWindow returns messages surrounding an anchor message in sequence order.
 func (s *SessionStore) GetMessageWindow(
 	ctx context.Context,
 	id string,
@@ -720,9 +773,10 @@ func (s *SessionStore) GetMessageWindow(
 		return nil, err
 	}
 
-	return messageModelsToRecords(records), nil
+	return messageModels(records).records(), nil
 }
 
+// CountMessages counts active or archived messages matching the supplied filters.
 func (s *SessionStore) CountMessages(
 	ctx context.Context,
 	id string,
@@ -766,6 +820,7 @@ func (s *SessionStore) CountMessages(
 	return int(count), nil
 }
 
+// SearchMessages runs BM25 search or hybrid BM25/vector search depending on configuration.
 func (s *SessionStore) SearchMessages(
 	ctx context.Context,
 	id string,
@@ -803,6 +858,7 @@ func (s *SessionStore) SearchMessages(
 	return searchMessageResultRowsToResults(records), nil
 }
 
+// searchMessagesLexical returns BM25-ranked message rows with optional early limiting.
 func (s *SessionStore) searchMessagesLexical(
 	ctx context.Context,
 	id string,
@@ -979,18 +1035,19 @@ LIMIT ?`)
 	return records, nil
 }
 
+// searchMessagesHybrid merges lexical and vector candidates, reranks them, and maps them to public results.
 func (s *SessionStore) searchMessagesHybrid(
 	ctx context.Context,
 	id string,
 	opts base.SearchMessageOptions,
 	queryText string,
 ) ([]base.SearchMessageResult, error) {
+
 	candidateLimit := hybridCandidateLimit(opts)
 	lexicalRows, err := s.searchMessagesLexical(ctx, id, opts, queryText, candidateLimit, false)
 	if err != nil {
 		return nil, err
 	}
-
 	candidates := searchCandidatesFromLexicalRows(lexicalRows)
 
 	vectorRows, err := s.searchMessagesVector(ctx, id, opts, candidateLimit)
@@ -998,18 +1055,20 @@ func (s *SessionStore) searchMessagesHybrid(
 		return nil, err
 	}
 
-	mergeSearchCandidates(candidates, vectorRows)
+	candidates.merge(vectorRows)
 	if len(candidates) == 0 {
 		return nil, nil
 	}
 
-	rows := rankedSearchRowsFromCandidates(candidates, opts)
+	matchCounts, lastMatchedAt := candidates.sessionStats()
+	reranked := s.rerankSearchCandidates(ctx, opts, candidates)
+	rows := rankedSearchRowsFromCandidateSlice(reranked, opts, matchCounts, lastMatchedAt)
 
 	return searchMessageResultRowsToResults(rows), nil
 }
 
-func searchCandidatesFromLexicalRows(rows []searchSessionResultRow) map[uint]*searchCandidate {
-	candidates := make(map[uint]*searchCandidate, len(rows))
+func searchCandidatesFromLexicalRows(rows []searchSessionResultRow) searchCandidateSet {
+	candidates := make(searchCandidateSet, len(rows))
 	for idx, row := range rows {
 		candidates[row.ID] = &searchCandidate{
 			CreatedAt:       row.CreatedAt,
@@ -1032,7 +1091,8 @@ func searchCandidatesFromLexicalRows(rows []searchSessionResultRow) map[uint]*se
 	return candidates
 }
 
-func mergeSearchCandidates(candidates map[uint]*searchCandidate, vectorCandidates []*searchCandidate) {
+// merge combines vector evidence into existing lexical candidates by message ID.
+func (candidates searchCandidateSet) merge(vectorCandidates []*searchCandidate) {
 	for _, vectorCandidate := range vectorCandidates {
 		if vectorCandidate == nil {
 			continue
@@ -1054,12 +1114,20 @@ func mergeSearchCandidates(candidates map[uint]*searchCandidate, vectorCandidate
 }
 
 func rankedSearchRowsFromCandidates(
-	candidates map[uint]*searchCandidate,
+	candidates searchCandidateSet,
 	opts base.SearchMessageOptions,
+) []searchSessionResultRow {
+	return rankedSearchRowsFromCandidateSlice(candidates.sorted(), opts, nil, nil)
+}
+
+func rankedSearchRowsFromCandidateSlice(
+	candidates []*searchCandidate,
+	opts base.SearchMessageOptions,
+	matchCounts map[string]int,
+	lastMatchedAt map[string]time.Time,
 ) []searchSessionResultRow {
 	groups := make(map[string][]*searchCandidate)
 	for _, candidate := range candidates {
-		candidate.FusedScore = fusedSearchCandidateScore(candidate)
 		groups[candidate.SessionID] = append(groups[candidate.SessionID], candidate)
 	}
 
@@ -1067,56 +1135,21 @@ func rankedSearchRowsFromCandidates(
 	bestScoreBySession := make(map[string]float64, len(groups))
 	lastMatchedBySession := make(map[string]time.Time, len(groups))
 	for sessionID, sessionCandidates := range groups {
-		slices.SortStableFunc(sessionCandidates, func(left *searchCandidate, right *searchCandidate) int {
-			if left.FusedScore != right.FusedScore {
-				if left.FusedScore > right.FusedScore {
-					return -1
-				}
-				return 1
-			}
-			if !left.CreatedAt.Equal(right.CreatedAt) {
-				if left.CreatedAt.After(right.CreatedAt) {
-					return -1
-				}
-				return 1
-			}
-			if left.ID > right.ID {
-				return -1
-			}
-			if left.ID < right.ID {
-				return 1
-			}
-			return 0
-		})
-		bestScoreBySession[sessionID] = sessionCandidates[0].FusedScore
+		slices.SortStableFunc(sessionCandidates, compareCandidatesWithinSession)
+		bestScoreBySession[sessionID] = searchCandidateRankingScore(sessionCandidates[0])
 		for _, candidate := range sessionCandidates {
 			if candidate.CreatedAt.After(lastMatchedBySession[sessionID]) {
 				lastMatchedBySession[sessionID] = candidate.CreatedAt
 			}
 		}
+		if lastMatchedAt[sessionID].After(lastMatchedBySession[sessionID]) {
+			lastMatchedBySession[sessionID] = lastMatchedAt[sessionID]
+		}
 		sessions = append(sessions, sessionID)
 	}
 
 	slices.SortStableFunc(sessions, func(left string, right string) int {
-		if bestScoreBySession[left] != bestScoreBySession[right] {
-			if bestScoreBySession[left] > bestScoreBySession[right] {
-				return -1
-			}
-			return 1
-		}
-		if !lastMatchedBySession[left].Equal(lastMatchedBySession[right]) {
-			if lastMatchedBySession[left].After(lastMatchedBySession[right]) {
-				return -1
-			}
-			return 1
-		}
-		if left < right {
-			return -1
-		}
-		if left > right {
-			return 1
-		}
-		return 0
+		return compareRankedSessions(left, right, bestScoreBySession, lastMatchedBySession)
 	})
 	if opts.MaxSessions > 0 && len(sessions) > opts.MaxSessions {
 		sessions = sessions[:opts.MaxSessions]
@@ -1146,15 +1179,139 @@ func rankedSearchRowsFromCandidates(
 				ToolCallID:      candidate.ToolCallID,
 				MatchedText:     candidate.MatchedText,
 				MatchedToolName: candidate.MatchedToolName,
-				Score:           candidate.FusedScore,
+				Score:           searchCandidateRankingScore(candidate),
 				BestScore:       bestScoreBySession[sessionID],
-				MatchCount:      len(groups[sessionID]),
+				MatchCount:      searchCandidateMatchCount(sessionID, groups, matchCounts),
 				LastMatchedAt:   lastMatchedAt,
 			})
 		}
 	}
 
 	return rows
+}
+
+func compareCandidatesWithinSession(left *searchCandidate, right *searchCandidate) int {
+	leftScore := searchCandidateRankingScore(left)
+	rightScore := searchCandidateRankingScore(right)
+	if leftScore != rightScore {
+		if leftScore > rightScore {
+			return -1
+		}
+		return 1
+	}
+	if !left.CreatedAt.Equal(right.CreatedAt) {
+		if left.CreatedAt.After(right.CreatedAt) {
+			return -1
+		}
+		return 1
+	}
+	if left.ID > right.ID {
+		return -1
+	}
+	if left.ID < right.ID {
+		return 1
+	}
+	return 0
+}
+
+func compareRankedSessions(
+	left string,
+	right string,
+	bestScoreBySession map[string]float64,
+	lastMatchedBySession map[string]time.Time,
+) int {
+	if bestScoreBySession[left] != bestScoreBySession[right] {
+		if bestScoreBySession[left] > bestScoreBySession[right] {
+			return -1
+		}
+		return 1
+	}
+	if !lastMatchedBySession[left].Equal(lastMatchedBySession[right]) {
+		if lastMatchedBySession[left].After(lastMatchedBySession[right]) {
+			return -1
+		}
+		return 1
+	}
+	if left < right {
+		return -1
+	}
+	if left > right {
+		return 1
+	}
+	return 0
+}
+
+// sessionStats returns per-session candidate counts and latest candidate timestamps.
+func (candidates searchCandidateSet) sessionStats() (map[string]int, map[string]time.Time) {
+	matchCounts := make(map[string]int)
+	lastMatchedAt := make(map[string]time.Time)
+	for _, candidate := range candidates {
+		matchCounts[candidate.SessionID]++
+		if candidate.CreatedAt.After(lastMatchedAt[candidate.SessionID]) {
+			lastMatchedAt[candidate.SessionID] = candidate.CreatedAt
+		}
+	}
+
+	return matchCounts, lastMatchedAt
+}
+
+func searchCandidateMatchCount(
+	sessionID string,
+	groups map[string][]*searchCandidate,
+	matchCounts map[string]int,
+) int {
+	if matchCounts[sessionID] > 0 {
+		return matchCounts[sessionID]
+	}
+
+	return len(groups[sessionID])
+}
+
+// sorted returns candidates ordered by current ranking score and deterministic tie-breaks.
+func (candidates searchCandidateSet) sorted() []*searchCandidate {
+	items := make([]*searchCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		candidate.FusedScore = fusedSearchCandidateScore(candidate)
+		items = append(items, candidate)
+	}
+	slices.SortStableFunc(items, compareSearchCandidates)
+
+	return items
+}
+
+func compareSearchCandidates(left *searchCandidate, right *searchCandidate) int {
+	leftScore := searchCandidateRankingScore(left)
+	rightScore := searchCandidateRankingScore(right)
+	if leftScore != rightScore {
+		if leftScore > rightScore {
+			return -1
+		}
+		return 1
+	}
+	if !left.CreatedAt.Equal(right.CreatedAt) {
+		if left.CreatedAt.After(right.CreatedAt) {
+			return -1
+		}
+		return 1
+	}
+	if left.SessionID != right.SessionID {
+		return strings.Compare(left.SessionID, right.SessionID)
+	}
+	if left.ID > right.ID {
+		return -1
+	}
+	if left.ID < right.ID {
+		return 1
+	}
+	return 0
+}
+
+func searchCandidateRankingScore(candidate *searchCandidate) float64 {
+	if candidate.HasRerank {
+		return candidate.RerankScore
+	}
+
+	return candidate.FusedScore
 }
 
 // fusedSearchCandidateScore computes the fused score for a search candidate using
@@ -1183,6 +1340,84 @@ func hybridCandidateLimit(opts base.SearchMessageOptions) int {
 	return limit
 }
 
+// rerankSearchCandidates converts merged search candidates to the shared retrieval reranker contract.
+func (s *SessionStore) rerankSearchCandidates(
+	ctx context.Context,
+	opts base.SearchMessageOptions,
+	candidates searchCandidateSet,
+) []*searchCandidate {
+	items := candidates.sorted()
+	if len(items) == 0 {
+		return nil
+	}
+
+	maxCandidates := defaultRerankCandidateLimit
+	reranker := retrieval.Reranker(retrieval.DeterministicReranker{})
+	if s != nil && s.vectors != nil {
+		maxCandidates = s.vectors.rerankMax
+		if s.vectors.reranker != nil {
+			reranker = s.vectors.reranker
+		}
+	}
+	if maxCandidates > 0 && len(items) > maxCandidates {
+		items = items[:maxCandidates]
+	}
+
+	retrievalCandidates := make([]retrieval.Candidate, 0, len(items))
+	searchCandidateByID := make(map[string]*searchCandidate, len(items))
+	for _, candidate := range items {
+		retrievalCandidate := retrievalCandidateFromSearchCandidate(candidate)
+		retrievalCandidates = append(retrievalCandidates, retrievalCandidate)
+		searchCandidateByID[retrievalCandidate.ID] = candidate
+	}
+
+	result, err := retrieval.RerankWithFallback(ctx, reranker, retrieval.DeterministicReranker{}, retrieval.RerankRequest{
+		Query:      strings.TrimSpace(opts.Query),
+		Caller:     "session_search",
+		SourceKind: retrieval.SourceKindSessionMessage,
+		Candidates: retrievalCandidates,
+		Options: retrieval.RerankOptions{
+			LexicalDirection: retrieval.ScoreLowerIsBetter,
+			VectorDirection:  retrieval.ScoreHigherIsBetter,
+			FusedDirection:   retrieval.ScoreHigherIsBetter,
+		},
+	})
+	if err != nil {
+		return items
+	}
+
+	reranked := make([]*searchCandidate, 0, len(result.Items))
+	for _, item := range result.Items {
+		candidate := searchCandidateByID[item.CandidateID]
+		candidate.RerankScore = item.Score
+		candidate.HasRerank = true
+		reranked = append(reranked, candidate)
+	}
+
+	return reranked
+}
+
+func retrievalCandidateFromSearchCandidate(candidate *searchCandidate) retrieval.Candidate {
+	text := strings.TrimSpace(candidate.MatchedText)
+	if text == "" {
+		text = strings.TrimSpace(candidate.Content)
+	}
+
+	return retrieval.Candidate{
+		CreatedAt:    candidate.CreatedAt,
+		UpdatedAt:    candidate.UpdatedAt,
+		ID:           sourceIDForMessage(candidate.SessionID, candidate.ID),
+		SourceKind:   retrieval.SourceKindSessionMessage,
+		SessionID:    candidate.SessionID,
+		Text:         text,
+		LexicalScore: candidate.LexicalScore,
+		VectorScore:  candidate.VectorScore,
+		FusedScore:   candidate.FusedScore,
+		MessageID:    candidate.ID,
+	}
+}
+
+// searchMessagesVector embeds the query and asks the vector store for session-message candidates.
 func (s *SessionStore) searchMessagesVector(
 	ctx context.Context,
 	id string,
@@ -1225,6 +1460,7 @@ func (s *SessionStore) searchMessagesVector(
 	return s.vectorMatchesToCandidates(ctx, id, opts, result.Matches)
 }
 
+// vectorMatchesToCandidates resolves vector hits back to durable messages and searchable rows.
 func (s *SessionStore) vectorMatchesToCandidates(
 	ctx context.Context,
 	id string,
@@ -1235,19 +1471,19 @@ func (s *SessionStore) vectorMatchesToCandidates(
 		return nil, nil
 	}
 
-	messageRefs := make([]messageRef, 0, len(matches))
+	refs := make(messageRefs, 0, len(matches))
 	for _, match := range matches {
 		ref, ok := messageRefFromSourceID(match.Record.SourceID)
 		if !ok {
 			continue
 		}
-		messageRefs = append(messageRefs, ref)
+		refs = append(refs, ref)
 	}
-	if len(messageRefs) == 0 {
+	if len(refs) == 0 {
 		return nil, nil
 	}
 
-	records, err := s.messagesByRef(ctx, messageRefs)
+	records, err := s.messagesByRef(ctx, refs)
 	if err != nil {
 		return nil, err
 	}
@@ -1259,7 +1495,7 @@ func (s *SessionStore) vectorMatchesToCandidates(
 		if !ok {
 			continue
 		}
-		record, ok := records[ref.key()]
+		record, ok := records.get(ref)
 		if !ok || !vectorRecordMatchesOptions(record, id, opts) {
 			continue
 		}
@@ -1293,45 +1529,84 @@ func (s *SessionStore) vectorMatchesToCandidates(
 	return candidates, nil
 }
 
-func (s *SessionStore) messagesByRef(ctx context.Context, refs []messageRef) (map[string]messageModel, error) {
-	records := make(map[string]messageModel, len(refs))
+// messagesByRef loads active messages for unique session/message references.
+func (s *SessionStore) messagesByRef(ctx context.Context, refs messageRefs) (messageLookup, error) {
+	refs = refs.unique()
+	records := make(messageLookup, len(refs))
 	if len(refs) == 0 {
 		return records, nil
 	}
 
+	where, args := refs.tupleCondition()
+	var rows []messageModel
+	if err := s.db.WithContext(ctx).Where("(session_id, id) IN ("+where+")", args...).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	records = make(messageLookup, len(rows))
+	for _, row := range rows {
+		records.set(messageRef{SessionID: row.SessionID, MessageID: row.ID}, row)
+	}
+	return records, nil
+}
+
+// messageRef identifies a message row within a session.
+type messageRef struct {
+	SessionID string
+	MessageID uint
+}
+
+// messageRefs is a typed slice for building tuple queries by message reference.
+type messageRefs []messageRef
+
+// messageLookup stores messages keyed by session/message reference.
+type messageLookup map[string]messageModel
+
+// unique removes duplicate message references while preserving first occurrence order.
+func (refs messageRefs) unique() messageRefs {
+	seen := make(map[string]struct{}, len(refs))
+	unique := make(messageRefs, 0, len(refs))
+	for _, ref := range refs {
+		key := ref.key()
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		unique = append(unique, ref)
+	}
+
+	return unique
+}
+
+// tupleCondition builds a SQLite row-value placeholder list for session/message references.
+func (refs messageRefs) tupleCondition() (string, []any) {
 	var where strings.Builder
 	args := make([]any, 0, len(refs)*2)
 	for _, ref := range refs {
-		if _, ok := records[ref.key()]; ok {
-			continue
-		}
-		records[ref.key()] = messageModel{}
-
 		if where.Len() > 0 {
 			where.WriteString(", ")
 		}
 		where.WriteString("(?, ?)")
 		args = append(args, ref.SessionID, ref.MessageID)
 	}
-	var rows []messageModel
-	if err := s.db.WithContext(ctx).Where("(session_id, id) IN ("+where.String()+")", args...).Find(&rows).Error; err != nil {
-		return nil, err
-	}
 
-	records = make(map[string]messageModel, len(rows))
-	for _, row := range rows {
-		records[messageRef{SessionID: row.SessionID, MessageID: row.ID}.key()] = row
-	}
-	return records, nil
+	return where.String(), args
 }
 
-type messageRef struct {
-	SessionID string
-	MessageID uint
-}
-
+// key returns a stable map key for this message reference.
 func (r messageRef) key() string {
 	return fmt.Sprintf("%s:%d", r.SessionID, r.MessageID)
+}
+
+// get returns the message for a reference.
+func (lookup messageLookup) get(ref messageRef) (messageModel, bool) {
+	record, ok := lookup[ref.key()]
+	return record, ok
+}
+
+// set stores a message for a reference.
+func (lookup messageLookup) set(ref messageRef, record messageModel) {
+	lookup[ref.key()] = record
 }
 
 func messageRefFromSourceID(sourceID string) (messageRef, bool) {
@@ -1422,6 +1697,7 @@ func messageQueryOrder(opts MessageQueryOptions) string {
 	return order
 }
 
+// GetMessage loads one active or archived message by its sequence index.
 func (s *SessionStore) GetMessage(
 	ctx context.Context,
 	id string,
@@ -1455,7 +1731,7 @@ func (s *SessionStore) GetMessage(
 			return handmsg.Message{}, false, err
 		}
 
-		return archivedMessageModelsToMessages([]archivedMessageModel{record})[0], true, nil
+		return archivedMessageModels([]archivedMessageModel{record}).messages()[0], true, nil
 	}
 
 	var record messageModel
@@ -1467,9 +1743,10 @@ func (s *SessionStore) GetMessage(
 		return handmsg.Message{}, false, err
 	}
 
-	return messageModelsToMessages([]messageModel{record})[0], true, nil
+	return messageModels([]messageModel{record}).messages()[0], true, nil
 }
 
+// SaveSummary stores or replaces a session summary.
 func (s *SessionStore) SaveSummary(ctx context.Context, summary SessionSummary) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
@@ -1506,6 +1783,7 @@ func (s *SessionStore) SaveSummary(ctx context.Context, summary SessionSummary) 
 	})
 }
 
+// GetSummary loads the current summary for a session.
 func (s *SessionStore) GetSummary(ctx context.Context, sessionID string) (SessionSummary, bool, error) {
 	if s == nil || s.db == nil {
 		return SessionSummary{}, false, errors.New("session store is required")
@@ -1536,6 +1814,7 @@ func (s *SessionStore) GetSummary(ctx context.Context, sessionID string) (Sessio
 	return summary, true, nil
 }
 
+// DeleteSummary removes a session summary if it exists.
 func (s *SessionStore) DeleteSummary(ctx context.Context, sessionID string) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
@@ -1549,6 +1828,7 @@ func (s *SessionStore) DeleteSummary(ctx context.Context, sessionID string) erro
 	return s.db.WithContext(ctx).Where("session_id = ?", sessionID).Delete(&summaryModel{}).Error
 }
 
+// CreateArchive moves active session messages into an archive and clears related indexes.
 func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSession) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
@@ -1570,7 +1850,7 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 		if len(source) == 0 {
 			return errors.New("source session has no messages")
 		}
-		sourceIDs = sourceIDsFromModels(source)
+		sourceIDs = messageModels(source).sourceIDs()
 
 		record := archiveModel{
 			ID:              archive.ID,
@@ -1587,7 +1867,7 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 			return err
 		}
 
-		records := messagesToArchivedMessageModels(archive.ID, messageModelsToMessages(source))
+		records := messagesToArchivedMessageModels(archive.ID, messageModels(source).messages())
 		if err := tx.Create(&records).Error; err != nil {
 			return err
 		}
@@ -1635,6 +1915,7 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 	return nil
 }
 
+// GetArchive loads archive metadata by archive ID.
 func (s *SessionStore) GetArchive(ctx context.Context, id string) (ArchivedSession, bool, error) {
 	if s == nil || s.db == nil {
 		return ArchivedSession{}, false, errors.New("session store is required")
@@ -1665,6 +1946,7 @@ func (s *SessionStore) GetArchive(ctx context.Context, id string) (ArchivedSessi
 	return archive, true, nil
 }
 
+// ClearMessages removes all messages for an active session or archive.
 func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts MessageQueryOptions) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
@@ -1740,6 +2022,7 @@ func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts Messag
 	return nil
 }
 
+// ListArchives returns archives, optionally scoped to one source session.
 func (s *SessionStore) ListArchives(ctx context.Context, sourceSessionID string) ([]ArchivedSession, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("session store is required")
@@ -1769,6 +2052,7 @@ func (s *SessionStore) ListArchives(ctx context.Context, sourceSessionID string)
 	return archives, nil
 }
 
+// DeleteArchive removes one archive and its archived messages.
 func (s *SessionStore) DeleteArchive(ctx context.Context, archiveID string) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
@@ -1796,6 +2080,7 @@ func (s *SessionStore) DeleteArchive(ctx context.Context, archiveID string) erro
 	})
 }
 
+// DeleteExpiredArchives removes archives whose expiration time is at or before now.
 func (s *SessionStore) DeleteExpiredArchives(ctx context.Context, now time.Time) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
@@ -1820,6 +2105,7 @@ func (s *SessionStore) DeleteExpiredArchives(ctx context.Context, now time.Time)
 	})
 }
 
+// SetCurrent marks an existing session as the current session.
 func (s *SessionStore) SetCurrent(ctx context.Context, id string) error {
 	if s == nil || s.db == nil {
 		return errors.New("session store is required")
@@ -1848,6 +2134,7 @@ func (s *SessionStore) SetCurrent(ctx context.Context, id string) error {
 	return s.db.WithContext(ctx).Save(&record).Error
 }
 
+// Current returns the current session ID if one is set.
 func (s *SessionStore) Current(ctx context.Context) (string, bool, error) {
 	if s == nil || s.db == nil {
 		return "", false, errors.New("session store is required")
@@ -1975,7 +2262,8 @@ func messagesToArchivedMessageModels(archiveID string, messages []handmsg.Messag
 	return records
 }
 
-func messageModelsToMessages(records []messageModel) []handmsg.Message {
+// messages converts active message models to domain messages.
+func (records messageModels) messages() []handmsg.Message {
 	if len(records) == 0 {
 		return nil
 	}
@@ -1996,12 +2284,13 @@ func messageModelsToMessages(records []messageModel) []handmsg.Message {
 	return messages
 }
 
-func messageModelsToRecords(records []messageModel) []base.MessageRecord {
+// records converts active message models to message records with sequence offsets.
+func (records messageModels) records() []base.MessageRecord {
 	if len(records) == 0 {
 		return nil
 	}
 
-	messages := messageModelsToMessages(records)
+	messages := records.messages()
 	messageRecords := make([]base.MessageRecord, 0, len(records))
 	for idx, record := range records {
 		messageRecords = append(messageRecords, base.MessageRecord{
@@ -2013,7 +2302,8 @@ func messageModelsToRecords(records []messageModel) []base.MessageRecord {
 	return messageRecords
 }
 
-func archivedMessageModelsToMessages(records []archivedMessageModel) []handmsg.Message {
+// messages converts archived message models to domain messages.
+func (records archivedMessageModels) messages() []handmsg.Message {
 	if len(records) == 0 {
 		return nil
 	}
@@ -2135,6 +2425,7 @@ func jsonToToolCalls(value string) []handmsg.ToolCall {
 	return toolCalls
 }
 
+// searchRow is one FTS row and the matching unit used for vector indexing.
 type searchRow struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -2144,6 +2435,9 @@ type searchRow struct {
 	ToolName  string
 	Body      string
 }
+
+// searchRows is a typed slice for FTS/vector searchable message rows.
+type searchRows []searchRow
 
 func ensureSearchIndex(db *gorm.DB) error {
 	if db == nil {
@@ -2166,7 +2460,8 @@ func ensureSearchIndex(db *gorm.DB) error {
 	})
 }
 
-func insertSearchRows(tx *gorm.DB, rows []searchRow) error {
+// insert writes search rows to the FTS table.
+func (rows searchRows) insert(tx *gorm.DB) error {
 	if tx == nil || len(rows) == 0 {
 		return nil
 	}
@@ -2199,12 +2494,13 @@ func deleteSearchRows(tx *gorm.DB, sessionID string) error {
 	return nil
 }
 
-func searchRowsFromMessageModels(records []messageModel) []searchRow {
+// searchRows derives FTS/vector searchable rows from active message models.
+func (records messageModels) searchRows() searchRows {
 	if len(records) == 0 {
 		return nil
 	}
 
-	rows := make([]searchRow, 0, len(records))
+	rows := make(searchRows, 0, len(records))
 	for _, record := range records {
 		rows = append(rows, searchRowsFromMessageModel(record)...)
 	}
@@ -2212,7 +2508,7 @@ func searchRowsFromMessageModels(records []messageModel) []searchRow {
 	return rows
 }
 
-func searchRowsFromMessageModel(record messageModel) []searchRow {
+func searchRowsFromMessageModel(record messageModel) searchRows {
 	baseRow := searchRow{
 		CreatedAt: record.CreatedAt,
 		UpdatedAt: record.UpdatedAt,
@@ -2234,10 +2530,10 @@ func searchRowsFromMessageModel(record messageModel) []searchRow {
 
 			row := baseRow
 			row.Body = body
-			return []searchRow{row}
+			return searchRows{row}
 		}
 
-		rows := make([]searchRow, 0, len(toolCalls)+1)
+		rows := make(searchRows, 0, len(toolCalls)+1)
 		if body != "" {
 			row := baseRow
 			row.Body = body
@@ -2265,7 +2561,7 @@ func searchRowsFromMessageModel(record messageModel) []searchRow {
 		row := baseRow
 		row.ToolName = normalizeSearchValue(record.Name)
 		row.Body = body
-		return []searchRow{row}
+		return searchRows{row}
 	default:
 		if body == "" {
 			return nil
@@ -2273,16 +2569,17 @@ func searchRowsFromMessageModel(record messageModel) []searchRow {
 
 		row := baseRow
 		row.Body = body
-		return []searchRow{row}
+		return searchRows{row}
 	}
 }
 
+// indexVectors embeds searchable message rows and upserts the resulting vector records.
 func (s *SessionStore) indexVectors(ctx context.Context, records []messageModel) error {
 	if s == nil || s.vectors == nil || len(records) == 0 {
 		return nil
 	}
 
-	inputs := vectorInputsFromSearchRows(searchRowsFromMessageModels(records))
+	inputs := messageModels(records).searchRows().vectorInputs()
 	if len(inputs) == 0 {
 		return nil
 	}
@@ -2335,6 +2632,7 @@ func (s *SessionStore) indexVectors(ctx context.Context, records []messageModel)
 	return s.vectors.store.Upsert(ctx, recordsToUpsert)
 }
 
+// deleteVectorRows removes vector records for one or more session-message source IDs.
 func (s *SessionStore) deleteVectorRows(ctx context.Context, sourceIDs []string) error {
 	if s == nil || s.vectors == nil || len(sourceIDs) == 0 {
 		return nil
@@ -2354,6 +2652,7 @@ func (s *SessionStore) deleteVectorRows(ctx context.Context, sourceIDs []string)
 	return nil
 }
 
+// handleVectorStoreError applies best-effort versus required vector indexing semantics.
 func (s *SessionStore) handleVectorStoreError(err error) error {
 	if err == nil || s == nil || s.vectors == nil || !s.vectors.required {
 		return nil
@@ -2362,7 +2661,8 @@ func (s *SessionStore) handleVectorStoreError(err error) error {
 	return err
 }
 
-func vectorInputsFromSearchRows(rows []searchRow) []vectorInput {
+// vectorInputs maps search rows to stable embedding inputs.
+func (rows searchRows) vectorInputs() []vectorInput {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -2387,7 +2687,8 @@ func vectorInputsFromSearchRows(rows []searchRow) []vectorInput {
 	return inputs
 }
 
-func sourceIDsFromModels(records []messageModel) []string {
+// sourceIDs returns stable vector source IDs for active message models.
+func (records messageModels) sourceIDs() []string {
 	if len(records) == 0 {
 		return nil
 	}
