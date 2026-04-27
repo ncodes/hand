@@ -214,19 +214,21 @@ type VectorStoreOptions struct {
 	EmbeddingModel      string
 	RebuildBatchSize    int
 	RerankMaxCandidates int
+	Diagnostics         bool
 	Required            bool
 }
 
 // vectorConfig holds normalized vector dependencies and operational limits.
 type vectorConfig struct {
-	provider  retrieval.EmbeddingProvider
-	reranker  retrieval.Reranker
-	store     retrieval.VectorStore
-	model     string
-	batchSize int
-	rerankMax int
-	rerank    bool
-	required  bool
+	provider    retrieval.EmbeddingProvider
+	reranker    retrieval.Reranker
+	store       retrieval.VectorStore
+	model       string
+	batchSize   int
+	rerankMax   int
+	diagnostics bool
+	rerank      bool
+	required    bool
 }
 
 // vectorInput is the searchable text unit sent to the embedding provider.
@@ -318,14 +320,15 @@ func (s *SessionStore) ConfigureVectorStore(opts VectorStoreOptions) error {
 	}
 
 	s.vectors = &vectorConfig{
-		provider:  opts.EmbeddingProvider,
-		reranker:  opts.Reranker,
-		store:     opts.VectorStore,
-		model:     model,
-		batchSize: batchSize,
-		rerankMax: rerankMax,
-		rerank:    rerankEnabled,
-		required:  opts.Required,
+		provider:    opts.EmbeddingProvider,
+		reranker:    opts.Reranker,
+		store:       opts.VectorStore,
+		model:       model,
+		batchSize:   batchSize,
+		rerankMax:   rerankMax,
+		diagnostics: opts.Diagnostics,
+		rerank:      rerankEnabled,
+		required:    opts.Required,
 	}
 
 	return nil
@@ -1046,6 +1049,10 @@ func (s *SessionStore) rerankEnabled() bool {
 	return s != nil && s.vectors != nil && s.vectors.rerank
 }
 
+func (s *SessionStore) diagnosticsEnabled() bool {
+	return s != nil && s.vectors != nil && s.vectors.diagnostics
+}
+
 // searchMessagesHybrid merges lexical and vector candidates, reranks them, and maps them to public results.
 func (s *SessionStore) searchMessagesHybrid(
 	ctx context.Context,
@@ -1061,24 +1068,53 @@ func (s *SessionStore) searchMessagesHybrid(
 	}
 	candidates := searchCandidatesFromLexicalRows(lexicalRows)
 
+	s.logSearchEvent("lexical candidates gathered", id, opts).
+		Int("candidate_count", len(candidates)).
+		Int("row_count", len(lexicalRows)).
+		Msg("session search lexical candidates gathered")
+
 	vectorRows, err := s.searchMessagesVector(ctx, id, opts, candidateLimit)
 	if err != nil {
+		s.logSearchEvent("vector search failed", id, opts).Err(err).Msg("session search vector search failed")
 		return nil, err
 	}
 
+	s.logSearchEvent("vector candidates gathered", id, opts).
+		Int("candidate_count", len(vectorRows)).
+		Msg("session search vector candidates gathered")
+
+	beforeMerge := len(candidates)
 	candidates.merge(vectorRows)
 	if len(candidates) == 0 {
+		s.logSearchEvent("no candidates", id, opts).Msg("session search returned no hybrid candidates")
 		return nil, nil
 	}
+
+	s.logSearchEvent("hybrid candidates merged", id, opts).
+		Int("lexical_candidate_count", beforeMerge).
+		Int("vector_candidate_count", len(vectorRows)).
+		Int("merged_candidate_count", len(candidates)).
+		Msg("session search hybrid candidates merged")
+
+	s.logCandidateDiagnostics("candidate merged", candidates.sorted())
 
 	matchCounts, lastMatchedAt := candidates.sessionStats()
 	reranked := candidates.sorted()
 	if s.rerankEnabled() {
 		reranked = s.rerankSearchCandidates(ctx, opts, candidates)
+		s.logCandidateDiagnostics("candidate reranked", reranked)
+	} else {
+		s.logSearchEvent("rerank skipped", id, opts).Msg("session search rerank skipped")
 	}
 	rows := rankedSearchRowsFromCandidateSlice(reranked, opts, matchCounts, lastMatchedAt)
+	results := searchMessageResultRowsToResults(rows)
 
-	return searchMessageResultRowsToResults(rows), nil
+	s.logSearchEvent("results ranked", id, opts).
+		Int("session_count", len(results)).
+		Int("message_count", len(rows)).
+		Msg("session search hybrid results ranked")
+
+	return results, nil
 }
 
 func searchCandidatesFromLexicalRows(rows []searchSessionResultRow) searchCandidateSet {
@@ -1376,6 +1412,10 @@ func (s *SessionStore) rerankSearchCandidates(
 	if maxCandidates > 0 && len(items) > maxCandidates {
 		items = items[:maxCandidates]
 	}
+	s.logSearchEvent("rerank started", "", opts).
+		Int("candidate_count", len(items)).
+		Int("max_candidates", maxCandidates).
+		Msg("session search rerank started")
 
 	retrievalCandidates := make([]retrieval.Candidate, 0, len(items))
 	searchCandidateByID := make(map[string]*searchCandidate, len(items))
@@ -1397,6 +1437,10 @@ func (s *SessionStore) rerankSearchCandidates(
 		},
 	})
 	if err != nil {
+		s.logSearchEvent("rerank fallback failed", "", opts).
+			Err(err).
+			Int("candidate_count", len(items)).
+			Msg("session search rerank fallback failed")
 		return items
 	}
 
@@ -1407,6 +1451,11 @@ func (s *SessionStore) rerankSearchCandidates(
 		candidate.HasRerank = true
 		reranked = append(reranked, candidate)
 	}
+
+	s.logSearchEvent("rerank completed", "", opts).
+		Int("candidate_count", len(items)).
+		Int("result_count", len(reranked)).
+		Msg("session search rerank completed")
 
 	return reranked
 }
@@ -1446,13 +1495,25 @@ func (s *SessionStore) searchMessagesVector(
 			SourceKind: retrieval.SourceKindSessionMessage,
 		}},
 	}
+
+	s.logSearchEvent("query embedding started", id, opts).
+		Str("embedding_model", embeddingReq.Model).
+		Msg("session search query embedding started")
+
 	embedding, err := s.vectors.provider.Embed(ctx, embeddingReq)
 	if err != nil {
+		s.logSearchEvent("query embedding failed", id, opts).Err(err).Msg("session search query embedding failed")
 		return nil, err
 	}
 	if err := retrieval.ValidateEmbeddingResult(embeddingReq, embedding); err != nil {
+		s.logSearchEvent("query embedding validation failed", id, opts).Err(err).Msg("session search query embedding validation failed")
 		return nil, err
 	}
+
+	s.logSearchEvent("query embedding completed", id, opts).
+		Int("dimensions", embedding.Dimensions).
+		Str("embedding_model", strings.TrimSpace(embedding.Model)).
+		Msg("session search query embedding completed")
 
 	result, err := s.vectors.store.Search(ctx, retrieval.VectorSearchRequest{
 		EmbeddingModel: strings.TrimSpace(s.vectors.model),
@@ -1468,8 +1529,15 @@ func (s *SessionStore) searchMessagesVector(
 		},
 	})
 	if err != nil {
+		s.logSearchEvent("vector search failed", id, opts).Err(err).Msg("session search vector retrieval failed")
 		return nil, err
 	}
+
+	s.logSearchEvent("vector search completed", id, opts).
+		Int("match_count", len(result.Matches)).
+		Int("limit", candidateLimit).
+		Int("dimensions", embedding.Dimensions).
+		Msg("session search vector retrieval completed")
 
 	return s.vectorMatchesToCandidates(ctx, id, opts, result.Matches)
 }
@@ -2611,13 +2679,24 @@ func (s *SessionStore) indexVectors(ctx context.Context, records []messageModel)
 		Model:  s.vectors.model,
 		Inputs: embeddingInputs,
 	}
+	s.logVectorEvent("embedding started").
+		Int("input_count", len(req.Inputs)).
+		Str("embedding_model", strings.TrimSpace(req.Model)).
+		Msg("session vector embedding started")
 	result, err := s.vectors.provider.Embed(ctx, req)
 	if err != nil {
+		s.logVectorEvent("embedding failed").Err(err).Msg("session vector embedding failed")
 		return err
 	}
 	if err := retrieval.ValidateEmbeddingResult(req, result); err != nil {
+		s.logVectorEvent("embedding validation failed").Err(err).Msg("session vector embedding validation failed")
 		return err
 	}
+	s.logVectorEvent("embedding completed").
+		Int("input_count", len(req.Inputs)).
+		Int("dimensions", result.Dimensions).
+		Str("embedding_model", strings.TrimSpace(result.Model)).
+		Msg("session vector embedding completed")
 
 	inputByID := make(map[string]vectorInput, len(inputs))
 	for _, input := range inputs {
@@ -2643,7 +2722,13 @@ func (s *SessionStore) indexVectors(ctx context.Context, records []messageModel)
 		})
 	}
 
-	return s.vectors.store.Upsert(ctx, recordsToUpsert)
+	if err := s.vectors.store.Upsert(ctx, recordsToUpsert); err != nil {
+		s.logVectorEvent("upsert failed").Err(err).Int("record_count", len(recordsToUpsert)).Msg("session vector upsert failed")
+		return err
+	}
+	s.logVectorEvent("upsert completed").Int("record_count", len(recordsToUpsert)).Msg("session vector upsert completed")
+
+	return nil
 }
 
 // deleteVectorRows removes vector records for one or more session-message source IDs.

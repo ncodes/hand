@@ -1,13 +1,16 @@
 package sqlite
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -2015,6 +2018,66 @@ func TestSQLiteStore_SearchMessagesRerankerCanBeDisabled(t *testing.T) {
 	require.Len(t, results, 1)
 	require.Equal(t, testSessionA, results[0].SessionID)
 	require.Empty(t, reranker.requests)
+}
+
+func TestSQLiteStore_SearchMessagesDiagnosticsAreInternal(t *testing.T) {
+	originalLevel := zerolog.GlobalLevel()
+	t.Cleanup(func() {
+		zerolog.SetGlobalLevel(originalLevel)
+		logutils.SetOutput(nil)
+	})
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+
+	store, vectorStore := sqliteVectorStoreTestStore(t)
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{{
+		Role:      handmsg.RoleUser,
+		Content:   "semantic context private-token-123",
+		CreatedAt: now,
+	}}))
+	vectorStore.searchMatches = []retrieval.VectorSearchMatch{{Record: vectorStore.upserts[0][0], Score: 0.99}}
+
+	var output bytes.Buffer
+	logutils.SetOutput(&output)
+	results, err := store.SearchMessages(context.Background(), "", SearchMessageOptions{
+		Query:                 "semantic context private-token-123",
+		MaxMessagesPerSession: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.NotContains(t, output.String(), "session search ranking diagnostic")
+
+	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
+		Reranker:          &sqliteTestReranker{},
+		VectorStore:       vectorStore,
+		EmbeddingModel:    "text-embedding-test",
+		Diagnostics:       true,
+	}))
+	output.Reset()
+	results, err = store.SearchMessages(context.Background(), "", SearchMessageOptions{
+		Query:                 "semantic context private-token-123",
+		MaxMessagesPerSession: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	store.logCandidateDiagnostics("candidate merged", []*searchCandidate{{
+		ID:              1,
+		SessionID:       testSessionA,
+		MatchedToolName: "process",
+	}})
+
+	logOutput := strings.ToLower(output.String())
+	require.Contains(t, logOutput, "session search ranking diagnostic")
+	require.Contains(t, logOutput, "lexical_score")
+	require.Contains(t, logOutput, "vector_score")
+	require.Contains(t, logOutput, "fused_score")
+	require.Contains(t, logOutput, "rerank_rank")
+	require.Contains(t, logOutput, "matched_tool_name")
+	require.Contains(t, logOutput, "max_messages_per_session")
+	require.NotContains(t, logOutput, "private-token-123")
+	require.NotContains(t, logOutput, "semantic context")
 }
 
 func TestSQLiteStore_SearchMessagesRerankerFallsBackOnErrorOrUnknownID(t *testing.T) {
