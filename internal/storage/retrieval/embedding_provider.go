@@ -32,6 +32,7 @@ type EmbeddingProviderOptions struct {
 
 type EmbeddingProvider struct {
 	client            *http.Client
+	provider          string
 	apiKey            string
 	endpointURL       string
 	maxInputsPerBatch int
@@ -84,6 +85,7 @@ func NewEmbeddingProvider(opts EmbeddingProviderOptions) (*EmbeddingProvider, er
 
 	return &EmbeddingProvider{
 		client:            client,
+		provider:          provider,
 		apiKey:            strings.TrimSpace(opts.APIKey),
 		endpointURL:       endpointURL,
 		maxInputsPerBatch: maxInputs,
@@ -104,6 +106,14 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 		return EmbeddingResult{}, err
 	}
 
+	retrievalLog.Debug().
+		Str("event", "embedding request started").
+		Str("provider", p.provider).
+		Str("embedding_model", strings.TrimSpace(req.Model)).
+		Int("input_count", len(req.Inputs)).
+		Int("max_inputs_per_batch", p.maxInputsPerBatch).
+		Msg("embedding provider request started")
+
 	result := EmbeddingResult{
 		Model: strings.TrimSpace(req.Model),
 		Items: make([]Embedding, 0, len(req.Inputs)),
@@ -112,15 +122,39 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 		end := min(start+p.maxInputsPerBatch, len(req.Inputs))
 		batchResult, err := p.embedBatch(ctx, req.Model, req.Inputs[start:end])
 		if err != nil {
+			retrievalLog.Debug().
+				Str("event", "embedding request failed").
+				Str("error_kind", embeddingProviderErrorKind(err)).
+				Str("provider", p.provider).
+				Str("embedding_model", strings.TrimSpace(req.Model)).
+				Int("input_count", len(req.Inputs)).
+				Msg("embedding provider request failed")
 			return EmbeddingResult{}, err
 		}
 		if result.Dimensions == 0 {
 			result.Dimensions = batchResult.Dimensions
 		} else if result.Dimensions != batchResult.Dimensions {
-			return EmbeddingResult{}, errors.New("embedding dimensions changed between batches")
+			err := errors.New("embedding dimensions changed between batches")
+			retrievalLog.Debug().
+				Str("event", "embedding request failed").
+				Str("error_kind", err.Error()).
+				Str("provider", p.provider).
+				Str("embedding_model", strings.TrimSpace(req.Model)).
+				Int("input_count", len(req.Inputs)).
+				Msg("embedding provider request failed")
+			return EmbeddingResult{}, err
 		}
 		result.Items = append(result.Items, batchResult.Items...)
 	}
+
+	retrievalLog.Debug().
+		Str("event", "embedding request completed").
+		Str("provider", p.provider).
+		Str("embedding_model", result.Model).
+		Int("input_count", len(req.Inputs)).
+		Int("embedding_count", len(result.Items)).
+		Int("dimensions", result.Dimensions).
+		Msg("embedding provider request completed")
 
 	return result, nil
 }
@@ -142,11 +176,37 @@ func (p *EmbeddingProvider) embedBatch(
 ) (EmbeddingResult, error) {
 	var lastErr error
 	for attempt := 0; attempt <= p.maxRetries; attempt++ {
+		retrievalLog.Debug().
+			Str("event", "embedding batch started").
+			Str("provider", p.provider).
+			Str("embedding_model", strings.TrimSpace(model)).
+			Int("input_count", len(inputs)).
+			Int("attempt", attempt+1).
+			Msg("embedding provider batch started")
+
 		result, retry, err := p.embedBatchAttempt(ctx, model, inputs)
 		if err == nil {
+			retrievalLog.Debug().
+				Str("event", "embedding batch completed").
+				Str("provider", p.provider).
+				Str("embedding_model", strings.TrimSpace(result.Model)).
+				Int("input_count", len(inputs)).
+				Int("embedding_count", len(result.Items)).
+				Int("dimensions", result.Dimensions).
+				Int("attempt", attempt+1).
+				Msg("embedding provider batch completed")
 			return result, nil
 		}
 		lastErr = err
+		retrievalLog.Debug().
+			Bool("retry", retry && attempt < p.maxRetries).
+			Str("event", "embedding batch failed").
+			Str("error_kind", embeddingProviderErrorKind(err)).
+			Str("provider", p.provider).
+			Str("embedding_model", strings.TrimSpace(model)).
+			Int("input_count", len(inputs)).
+			Int("attempt", attempt+1).
+			Msg("embedding provider batch failed")
 		if !retry || attempt == p.maxRetries {
 			break
 		}
@@ -277,6 +337,34 @@ func providerErrorMessage(resp *http.Response) string {
 
 func retryableEmbeddingStatus(status int) bool {
 	return status == http.StatusTooManyRequests || status >= 500
+}
+
+func embeddingProviderErrorKind(err error) string {
+	if err == nil {
+		return ""
+	}
+	if errors.Is(err, context.Canceled) {
+		return "context_canceled"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "timeout"
+	}
+
+	value := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(value, "embedding request failed"):
+		return "provider_request_failed"
+	case strings.Contains(value, "json"):
+		return "decode_failed"
+	case strings.Contains(value, "model"):
+		return "model_mismatch"
+	case strings.Contains(value, "dimensions"):
+		return "dimension_mismatch"
+	case strings.Contains(value, "timeout"):
+		return "timeout"
+	default:
+		return "operation_failed"
+	}
 }
 
 type embeddingProviderRequest struct {

@@ -112,6 +112,7 @@ func configureSQLiteSessionVectors(
 		EmbeddingModel:   cfg.ModelEmbeddingModel,
 		RebuildBatchSize: cfg.SessionVectorRebuildBatchSize,
 		Required:         cfg.SessionVectorRequired,
+		Diagnostics:      cfg.DebugRequests,
 	})
 }
 

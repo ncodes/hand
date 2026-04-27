@@ -1,6 +1,8 @@
 package sqlite
 
 import (
+	"context"
+	"errors"
 	"strings"
 
 	"github.com/rs/zerolog"
@@ -39,6 +41,40 @@ func (s *SessionStore) logSearchEvent(eventName string, id string, opts base.Sea
 
 func (s *SessionStore) logVectorEvent(eventName string) *zerolog.Event {
 	return sessionSearchLog.Debug().Str("event", strings.TrimSpace(eventName))
+}
+
+func logSafeError(event *zerolog.Event, err error) *zerolog.Event {
+	if err == nil {
+		return event
+	}
+
+	return event.Str("error_kind", safeErrorKind(err))
+}
+
+func safeErrorKind(err error) string {
+	if err == nil {
+		return ""
+	}
+	if errors.Is(err, context.Canceled) {
+		return "context_canceled"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "timeout"
+	}
+
+	value := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(value, "validation"):
+		return "validation_failed"
+	case strings.Contains(value, "not found"):
+		return "not_found"
+	case strings.Contains(value, "required"):
+		return "missing_required_value"
+	case strings.Contains(value, "timeout"):
+		return "timeout"
+	default:
+		return "operation_failed"
+	}
 }
 
 func (s *SessionStore) logCandidateDiagnostics(stage string, candidates []*searchCandidate) {

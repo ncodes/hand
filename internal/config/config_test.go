@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -2526,6 +2527,7 @@ func TestConfigExamples_EnvFilesListSupportedEnvironmentKeys(t *testing.T) {
 		path     string
 		optional bool
 	}{
+		{path: filepath.Join("..", "..", ".env"), optional: true},
 		{path: filepath.Join("..", "..", "example.env")},
 	} {
 		t.Run(file.path, func(t *testing.T) {
@@ -2538,6 +2540,9 @@ func TestConfigExamples_EnvFilesListSupportedEnvironmentKeys(t *testing.T) {
 			for _, key := range expected {
 				require.Regexp(t, regexp.MustCompile(`(?m)^#?\s*`+regexp.QuoteMeta(key)+`=`), content, key)
 			}
+			for _, match := range regexp.MustCompile(`(?m)^#?\s*([A-Z][A-Z0-9_]*)=`).FindAllStringSubmatch(content, -1) {
+				require.Truef(t, strings.HasPrefix(match[1], "HAND_"), "env key %q must use HAND_ prefix", match[1])
+			}
 		})
 	}
 }
@@ -2547,6 +2552,7 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 		path     string
 		optional bool
 	}{
+		{path: filepath.Join("..", "..", "config.yaml"), optional: true},
 		{path: filepath.Join("..", "..", "example.yaml")},
 	} {
 		t.Run(file.path, func(t *testing.T) {

@@ -860,12 +860,21 @@ func (s *SessionStore) SearchMessages(
 		return s.searchMessagesHybrid(ctx, id, opts, queryText)
 	}
 
+	s.logSearchEvent("lexical search started", id, opts).Msg("session search lexical search started")
 	records, err := s.searchMessagesLexical(ctx, id, opts, queryText, 0, true)
 	if err != nil {
+		logSafeError(s.logSearchEvent("lexical search failed", id, opts), err).
+			Msg("session search lexical search failed")
 		return nil, err
 	}
 
-	return searchMessageResultRowsToResults(records), nil
+	results := searchMessageResultRowsToResults(records)
+	s.logSearchEvent("lexical search completed", id, opts).
+		Int("session_count", len(results)).
+		Int("message_count", len(records)).
+		Msg("session search lexical search completed")
+
+	return results, nil
 }
 
 // searchMessagesLexical returns BM25-ranked message rows with optional early limiting.
@@ -1064,6 +1073,8 @@ func (s *SessionStore) searchMessagesHybrid(
 	candidateLimit := hybridCandidateLimit(opts)
 	lexicalRows, err := s.searchMessagesLexical(ctx, id, opts, queryText, candidateLimit, false)
 	if err != nil {
+		logSafeError(s.logSearchEvent("lexical search failed", id, opts), err).
+			Msg("session search lexical search failed")
 		return nil, err
 	}
 	candidates := searchCandidatesFromLexicalRows(lexicalRows)
@@ -1075,7 +1086,8 @@ func (s *SessionStore) searchMessagesHybrid(
 
 	vectorRows, err := s.searchMessagesVector(ctx, id, opts, candidateLimit)
 	if err != nil {
-		s.logSearchEvent("vector search failed", id, opts).Err(err).Msg("session search vector search failed")
+		logSafeError(s.logSearchEvent("vector search failed", id, opts), err).
+			Msg("session search vector search failed")
 		return nil, err
 	}
 
@@ -1502,11 +1514,13 @@ func (s *SessionStore) searchMessagesVector(
 
 	embedding, err := s.vectors.provider.Embed(ctx, embeddingReq)
 	if err != nil {
-		s.logSearchEvent("query embedding failed", id, opts).Err(err).Msg("session search query embedding failed")
+		logSafeError(s.logSearchEvent("query embedding failed", id, opts), err).
+			Msg("session search query embedding failed")
 		return nil, err
 	}
 	if err := retrieval.ValidateEmbeddingResult(embeddingReq, embedding); err != nil {
-		s.logSearchEvent("query embedding validation failed", id, opts).Err(err).Msg("session search query embedding validation failed")
+		logSafeError(s.logSearchEvent("query embedding validation failed", id, opts), err).
+			Msg("session search query embedding validation failed")
 		return nil, err
 	}
 
@@ -1515,7 +1529,7 @@ func (s *SessionStore) searchMessagesVector(
 		Str("embedding_model", strings.TrimSpace(embedding.Model)).
 		Msg("session search query embedding completed")
 
-	result, err := s.vectors.store.Search(ctx, retrieval.VectorSearchRequest{
+	searchReq := retrieval.VectorSearchRequest{
 		EmbeddingModel: strings.TrimSpace(s.vectors.model),
 		Dimensions:     embedding.Dimensions,
 		QueryVector:    embedding.Items[0].Vector,
@@ -1527,9 +1541,18 @@ func (s *SessionStore) searchMessagesVector(
 			Role:            strings.TrimSpace(string(opts.Role)),
 			ToolName:        normalizeSearchValue(opts.ToolName),
 		},
-	})
+	}
+
+	s.logSearchEvent("vector search started", id, opts).
+		Int("limit", candidateLimit).
+		Int("dimensions", embedding.Dimensions).
+		Str("embedding_model", searchReq.EmbeddingModel).
+		Msg("session search vector retrieval started")
+
+	result, err := s.vectors.store.Search(ctx, searchReq)
 	if err != nil {
-		s.logSearchEvent("vector search failed", id, opts).Err(err).Msg("session search vector retrieval failed")
+		logSafeError(s.logSearchEvent("vector search failed", id, opts), err).
+			Msg("session search vector retrieval failed")
 		return nil, err
 	}
 
@@ -1539,7 +1562,19 @@ func (s *SessionStore) searchMessagesVector(
 		Int("dimensions", embedding.Dimensions).
 		Msg("session search vector retrieval completed")
 
-	return s.vectorMatchesToCandidates(ctx, id, opts, result.Matches)
+	candidates, err := s.vectorMatchesToCandidates(ctx, id, opts, result.Matches)
+	if err != nil {
+		logSafeError(s.logSearchEvent("vector matches resolve failed", id, opts), err).
+			Msg("session search vector matches resolve failed")
+		return nil, err
+	}
+
+	s.logSearchEvent("vector matches resolved", id, opts).
+		Int("match_count", len(result.Matches)).
+		Int("candidate_count", len(candidates)).
+		Msg("session search vector matches resolved")
+
+	return candidates, nil
 }
 
 // vectorMatchesToCandidates resolves vector hits back to durable messages and searchable rows.
@@ -2685,11 +2720,12 @@ func (s *SessionStore) indexVectors(ctx context.Context, records []messageModel)
 		Msg("session vector embedding started")
 	result, err := s.vectors.provider.Embed(ctx, req)
 	if err != nil {
-		s.logVectorEvent("embedding failed").Err(err).Msg("session vector embedding failed")
+		logSafeError(s.logVectorEvent("embedding failed"), err).Msg("session vector embedding failed")
 		return err
 	}
 	if err := retrieval.ValidateEmbeddingResult(req, result); err != nil {
-		s.logVectorEvent("embedding validation failed").Err(err).Msg("session vector embedding validation failed")
+		logSafeError(s.logVectorEvent("embedding validation failed"), err).
+			Msg("session vector embedding validation failed")
 		return err
 	}
 	s.logVectorEvent("embedding completed").
@@ -2722,11 +2758,22 @@ func (s *SessionStore) indexVectors(ctx context.Context, records []messageModel)
 		})
 	}
 
+	s.logVectorEvent("upsert started").
+		Int("record_count", len(recordsToUpsert)).
+		Str("embedding_model", strings.TrimSpace(result.Model)).
+		Int("dimensions", result.Dimensions).
+		Msg("session vector upsert started")
 	if err := s.vectors.store.Upsert(ctx, recordsToUpsert); err != nil {
-		s.logVectorEvent("upsert failed").Err(err).Int("record_count", len(recordsToUpsert)).Msg("session vector upsert failed")
+		logSafeError(s.logVectorEvent("upsert failed"), err).
+			Int("record_count", len(recordsToUpsert)).
+			Msg("session vector upsert failed")
 		return err
 	}
-	s.logVectorEvent("upsert completed").Int("record_count", len(recordsToUpsert)).Msg("session vector upsert completed")
+	s.logVectorEvent("upsert completed").
+		Int("record_count", len(recordsToUpsert)).
+		Str("embedding_model", strings.TrimSpace(result.Model)).
+		Int("dimensions", result.Dimensions).
+		Msg("session vector upsert completed")
 
 	return nil
 }
@@ -2741,12 +2788,25 @@ func (s *SessionStore) deleteVectorRows(ctx context.Context, sourceIDs []string)
 	if len(sourceIDs) == 0 {
 		return nil
 	}
-	if err := s.vectors.store.Delete(ctx, retrieval.VectorDeleteRequest{
+	req := retrieval.VectorDeleteRequest{
 		SourceKind: retrieval.SourceKindSessionMessage,
 		SourceIDs:  sourceIDs,
-	}); err != nil {
+	}
+	s.logVectorEvent("delete started").
+		Int("source_id_count", len(sourceIDs)).
+		Str("source_kind", string(req.SourceKind)).
+		Msg("session vector delete started")
+	if err := s.vectors.store.Delete(ctx, req); err != nil {
+		logSafeError(s.logVectorEvent("delete failed"), err).
+			Int("source_id_count", len(sourceIDs)).
+			Str("source_kind", string(req.SourceKind)).
+			Msg("session vector delete failed")
 		return err
 	}
+	s.logVectorEvent("delete completed").
+		Int("source_id_count", len(sourceIDs)).
+		Str("source_kind", string(req.SourceKind)).
+		Msg("session vector delete completed")
 
 	return nil
 }
