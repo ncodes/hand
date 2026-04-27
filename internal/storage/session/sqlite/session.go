@@ -210,6 +210,7 @@ type VectorStoreOptions struct {
 	EmbeddingProvider   retrieval.EmbeddingProvider
 	Reranker            retrieval.Reranker
 	VectorStore         retrieval.VectorStore
+	EnableRerank        *bool
 	EmbeddingModel      string
 	RebuildBatchSize    int
 	RerankMaxCandidates int
@@ -224,6 +225,7 @@ type vectorConfig struct {
 	model     string
 	batchSize int
 	rerankMax int
+	rerank    bool
 	required  bool
 }
 
@@ -310,6 +312,10 @@ func (s *SessionStore) ConfigureVectorStore(opts VectorStoreOptions) error {
 	if rerankMax == 0 {
 		rerankMax = defaultRerankCandidateLimit
 	}
+	rerankEnabled := true
+	if opts.EnableRerank != nil {
+		rerankEnabled = *opts.EnableRerank
+	}
 
 	s.vectors = &vectorConfig{
 		provider:  opts.EmbeddingProvider,
@@ -318,6 +324,7 @@ func (s *SessionStore) ConfigureVectorStore(opts VectorStoreOptions) error {
 		model:     model,
 		batchSize: batchSize,
 		rerankMax: rerankMax,
+		rerank:    rerankEnabled,
 		required:  opts.Required,
 	}
 
@@ -1035,6 +1042,10 @@ LIMIT ?`)
 	return records, nil
 }
 
+func (s *SessionStore) rerankEnabled() bool {
+	return s != nil && s.vectors != nil && s.vectors.rerank
+}
+
 // searchMessagesHybrid merges lexical and vector candidates, reranks them, and maps them to public results.
 func (s *SessionStore) searchMessagesHybrid(
 	ctx context.Context,
@@ -1061,7 +1072,10 @@ func (s *SessionStore) searchMessagesHybrid(
 	}
 
 	matchCounts, lastMatchedAt := candidates.sessionStats()
-	reranked := s.rerankSearchCandidates(ctx, opts, candidates)
+	reranked := candidates.sorted()
+	if s.rerankEnabled() {
+		reranked = s.rerankSearchCandidates(ctx, opts, candidates)
+	}
 	rows := rankedSearchRowsFromCandidateSlice(reranked, opts, matchCounts, lastMatchedAt)
 
 	return searchMessageResultRowsToResults(rows), nil

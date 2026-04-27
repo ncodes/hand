@@ -1962,7 +1962,7 @@ func TestSQLiteStore_SearchMessagesRerankerChangesOrderBeforeLimits(t *testing.T
 	}}
 
 	results, err := store.SearchMessages(context.Background(), "", SearchMessageOptions{
-		Query:       "semantic context",
+		Query:       "database upgrade",
 		MaxSessions: 1,
 	})
 	require.NoError(t, err)
@@ -1970,6 +1970,51 @@ func TestSQLiteStore_SearchMessagesRerankerChangesOrderBeforeLimits(t *testing.T
 	require.Equal(t, testSessionB, results[0].SessionID)
 	require.Len(t, reranker.requests, 1)
 	require.Len(t, reranker.requests[0].Candidates, 2)
+}
+
+func TestSQLiteStore_SearchMessagesRerankerCanBeDisabled(t *testing.T) {
+	reranker := &sqliteTestReranker{}
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+	vectorStore := &sqliteTestVectorStore{}
+	enableRerank := false
+	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
+		EmbeddingProvider: &sqliteTestEmbeddingProvider{dimensions: 3},
+		Reranker:          reranker,
+		VectorStore:       vectorStore,
+		EnableRerank:      &enableRerank,
+		EmbeddingModel:    "text-embedding-test",
+	}))
+
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "older semantic context", CreatedAt: now},
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "newer semantic context", CreatedAt: now.Add(time.Second)},
+	}))
+
+	sessionARecord := vectorStore.upserts[0][0]
+	sessionBRecord := vectorStore.upserts[1][0]
+	vectorStore.searchMatches = []retrieval.VectorSearchMatch{
+		{Record: sessionARecord, Score: 0.99},
+		{Record: sessionBRecord, Score: 0.90},
+	}
+	reranker.result = retrieval.RerankResult{Items: []retrieval.RerankItem{
+		{CandidateID: sessionBRecord.SourceID, Score: 10},
+		{CandidateID: sessionARecord.SourceID, Score: 9},
+	}}
+
+	results, err := store.SearchMessages(context.Background(), "", SearchMessageOptions{
+		Query:       "database upgrade",
+		MaxSessions: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, testSessionA, results[0].SessionID)
+	require.Empty(t, reranker.requests)
 }
 
 func TestSQLiteStore_SearchMessagesRerankerFallsBackOnErrorOrUnknownID(t *testing.T) {
@@ -2500,6 +2545,7 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 		right := &searchCandidate{ID: 2, SessionID: testSessionA, FusedScore: 1}
 		require.Equal(t, -1, compareSearchCandidates(&searchCandidate{FusedScore: 2}, left))
 		require.Equal(t, 1, compareSearchCandidates(left, &searchCandidate{FusedScore: 2}))
+		require.Equal(t, -1, compareSearchCandidates(right, left))
 		require.Equal(t, 1, compareSearchCandidates(left, right))
 		require.Equal(t, 0, compareSearchCandidates(left, left))
 	})
