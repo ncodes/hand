@@ -22,16 +22,18 @@ type SummaryStore interface {
 }
 
 type Service struct {
-	modelClient   models.Client
-	summaryClient models.Client
-	store         SummaryStore
-	evaluator     *compaction.Evaluator
-	compactionOn  bool
-	model         string
-	summaryModel  string
-	apiMode       string
-	debugRequests bool
-	now           func() time.Time
+	modelClient     models.Client
+	summaryClient   models.Client
+	store           SummaryStore
+	evaluator       *compaction.Evaluator
+	compactionOn    bool
+	model           string
+	provider        string
+	summaryModel    string
+	summaryProvider string
+	apiMode         string
+	debugRequests   bool
+	now             func() time.Time
 }
 
 type RefreshInput struct {
@@ -63,7 +65,9 @@ func NewService(cfg *config.Config, modelClient, summaryClient models.Client, su
 
 	if cfg != nil {
 		service.model = cfg.Model
+		service.provider = cfg.ModelProvider
 		service.summaryModel = cfg.SummaryModelEffective()
+		service.summaryProvider = cfg.SummaryProviderEffective()
 		service.apiMode = cfg.SummaryModelAPIModeEffective()
 		service.debugRequests = cfg.DebugRequests
 	}

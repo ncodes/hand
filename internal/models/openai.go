@@ -2,7 +2,6 @@ package models
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -16,12 +15,8 @@ import (
 	"github.com/openai/openai-go/v3/shared"
 	"github.com/rs/zerolog/log"
 
-	"github.com/wandxy/hand/internal/guardrails"
 	handmsg "github.com/wandxy/hand/internal/messages"
 )
-
-var jsonMarshal = json.Marshal
-var debugRedactor = guardrails.NewRedactor()
 
 type OpenAIClient struct {
 	createChatCompletion func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error)
@@ -112,7 +107,7 @@ func (c *OpenAIClient) complete(
 	req Request,
 	onTextDelta func(StreamDelta),
 	stream bool,
-) (*Response, error) {
+) (resp *Response, err error) {
 	if c == nil {
 		return nil, errors.New("model client is required")
 	}
@@ -121,11 +116,19 @@ func (c *OpenAIClient) complete(
 	if err != nil {
 		return nil, err
 	}
+	logModelClientRequestStarted(normalizedReq, stream)
+	defer func() {
+		if err != nil {
+			logModelClientRequestFailed(normalizedReq, stream, err)
+			return
+		}
+		logModelClientRequestCompleted(normalizedReq, stream, resp)
+	}()
 
 	if normalizedReq.APIMode == APIModeResponses {
 		params := buildResponsesRequest(normalizedReq)
 		if normalizedReq.DebugRequests {
-			logRequestDebugDump(normalizedReq.APIMode, params)
+			logRequestDebugMetadata(normalizedReq.APIMode)
 		}
 
 		if stream {
@@ -138,14 +141,14 @@ func (c *OpenAIClient) complete(
 		if c.createResponse == nil {
 			return nil, errors.New("model client is required")
 		}
-		resp, err := c.createResponse(ctx, params)
-		if err != nil {
-			return nil, err
+		providerResp, callErr := c.createResponse(ctx, params)
+		if callErr != nil {
+			return nil, callErr
 		}
-		if resp == nil {
+		if providerResp == nil {
 			return nil, errors.New("model response is required")
 		}
-		return extractResponsesResponse(resp)
+		return extractResponsesResponse(providerResp)
 	}
 
 	params := buildChatCompletionsRequest(normalizedReq)
@@ -155,7 +158,7 @@ func (c *OpenAIClient) complete(
 		}
 	}
 	if normalizedReq.DebugRequests {
-		logRequestDebugDump(normalizedReq.APIMode, params)
+		logRequestDebugMetadata(normalizedReq.APIMode)
 	}
 
 	if stream {
@@ -168,14 +171,14 @@ func (c *OpenAIClient) complete(
 	if c.createChatCompletion == nil {
 		return nil, errors.New("model client is required")
 	}
-	resp, err := c.createChatCompletion(ctx, params)
-	if err != nil {
-		return nil, err
+	providerResp, callErr := c.createChatCompletion(ctx, params)
+	if callErr != nil {
+		return nil, callErr
 	}
-	if resp == nil {
+	if providerResp == nil {
 		return nil, errors.New("model response is required")
 	}
-	return extractChatCompletionsResponse(resp)
+	return extractChatCompletionsResponse(providerResp)
 }
 
 func (c *OpenAIClient) completeChatStream(
@@ -778,16 +781,84 @@ func fallbackToolCallID(name string, index int) string {
 	return "functions." + strings.TrimSpace(name) + ":" + strconv.Itoa(index)
 }
 
-func logRequestDebugDump(mode string, params any) {
-	raw, err := jsonMarshal(debugRedactor.Sanitize(params))
-	if err != nil {
-		log.Debug().Err(err).Msg("Failed to marshal model request debug dump")
-		return
+func logModelClientRequestStarted(req normalizedGenerateRequest, stream bool) {
+	log.Debug().
+		Str("event", "model client request started").
+		Str("provider", "openai-compatible").
+		Str("mode", req.APIMode).
+		Str("model", req.Model).
+		Bool("stream", stream).
+		Int("message_count", len(req.Messages)).
+		Int("tool_count", len(req.Tools)).
+		Bool("structured_output", req.StructuredOutput != nil).
+		Int64("max_output_tokens", req.MaxOutputTokens).
+		Msg("model client request started")
+}
+
+func logModelClientRequestCompleted(req normalizedGenerateRequest, stream bool, resp *Response) {
+	event := log.Debug().
+		Str("event", "model client request completed").
+		Str("provider", "openai-compatible").
+		Str("mode", req.APIMode).
+		Str("model", req.Model).
+		Bool("stream", stream)
+	if resp != nil {
+		event = event.
+			Str("response_model", resp.Model).
+			Int("prompt_tokens", resp.PromptTokens).
+			Int("completion_tokens", resp.CompletionTokens).
+			Int("total_tokens", resp.TotalTokens).
+			Int("tool_call_count", len(resp.ToolCalls)).
+			Bool("requires_tool_calls", resp.RequiresToolCalls)
+	}
+	event.Msg("model client request completed")
+}
+
+func logModelClientRequestFailed(req normalizedGenerateRequest, stream bool, err error) {
+	log.Debug().
+		Str("event", "model client request failed").
+		Str("provider", "openai-compatible").
+		Str("mode", req.APIMode).
+		Str("model", req.Model).
+		Bool("stream", stream).
+		Str("error_kind", modelClientErrorKind(err)).
+		Msg("model client request failed")
+}
+
+func modelClientErrorKind(err error) string {
+	if err == nil {
+		return ""
+	}
+	if errors.Is(err, context.Canceled) {
+		return "context_canceled"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "timeout"
 	}
 
+	value := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(value, "response is required"):
+		return "missing_response"
+	case strings.Contains(value, "failed to accumulate") ||
+		strings.Contains(value, "stream failed") ||
+		strings.Contains(value, "stream error") ||
+		strings.Contains(value, "stream response"):
+		return "stream_failed"
+	case strings.Contains(value, "tool"):
+		return "tool_call_failed"
+	case strings.Contains(value, "json"):
+		return "decode_failed"
+	case strings.Contains(value, "timeout"):
+		return "timeout"
+	default:
+		return "operation_failed"
+	}
+}
+
+func logRequestDebugMetadata(mode string) {
 	log.Debug().
 		Str("provider", "openai-compatible").
 		Str("mode", mode).
-		RawJSON("request", raw).
-		Msg("model request debug dump")
+		Msg("model request debug metadata")
 }

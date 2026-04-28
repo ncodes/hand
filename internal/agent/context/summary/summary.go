@@ -1518,32 +1518,127 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 		return nil, errors.New("model client is required")
 	}
 
+	summaryLog.Debug().
+		Str("event", "compaction summary model request started").
+		Str("provider", s.summaryProvider).
+		Str("mode", request.APIMode).
+		Str("model", request.Model).
+		Int("message_count", len(request.Messages)).
+		Bool("structured_output_request", request.StructuredOutput != nil).
+		Bool("debug_requests", request.DebugRequests).
+		Msg("compaction summary model request started")
+
 	resp, err := s.summaryClient.Complete(ctx, request)
 	if err == nil {
-		summaryLog.Info().
-			Bool("structured_output_request", request.StructuredOutput != nil).
-			Msg("compaction summary model request completed")
+		event := summaryLog.Debug().
+			Str("event", "compaction summary model request completed").
+			Str("provider", s.summaryProvider).
+			Str("mode", request.APIMode).
+			Str("model", request.Model).
+			Bool("structured_output_request", request.StructuredOutput != nil)
+		if resp != nil {
+			event = event.
+				Str("response_model", resp.Model).
+				Int("prompt_tokens", resp.PromptTokens).
+				Int("completion_tokens", resp.CompletionTokens).
+				Int("total_tokens", resp.TotalTokens)
+		} else {
+			event = event.Str("error_kind", "missing_response")
+		}
+		event.Msg("compaction summary model request completed")
 		return resp, nil
 	}
 
 	if request.StructuredOutput == nil {
+		summaryLog.Debug().
+			Err(err).
+			Str("event", "compaction summary model request failed").
+			Str("provider", s.summaryProvider).
+			Str("mode", request.APIMode).
+			Str("model", request.Model).
+			Str("error_kind", summaryModelErrorKind(err)).
+			Bool("structured_output_request", false).
+			Msg("compaction summary model request failed")
 		return nil, err
 	}
 
-	log.Warn().Err(err).Msg("structured summary request failed, retrying without structured output")
+	log.Warn().
+		Err(err).
+		Str("event", "compaction summary structured retry").
+		Str("provider", s.summaryProvider).
+		Str("mode", request.APIMode).
+		Str("model", request.Model).
+		Str("error_kind", summaryModelErrorKind(err)).
+		Msg("structured summary request failed, retrying without structured output")
 
 	fallback := request
 	fallback.StructuredOutput = nil
+	summaryLog.Debug().
+		Str("event", "compaction summary model retry started").
+		Str("provider", s.summaryProvider).
+		Str("mode", fallback.APIMode).
+		Str("model", fallback.Model).
+		Int("message_count", len(fallback.Messages)).
+		Bool("structured_output_request", false).
+		Bool("debug_requests", fallback.DebugRequests).
+		Msg("compaction summary model retry started")
+
 	resp, err = s.summaryClient.Complete(ctx, fallback)
 	if err != nil {
+		summaryLog.Debug().
+			Err(err).
+			Str("event", "compaction summary model retry failed").
+			Str("provider", s.summaryProvider).
+			Str("mode", fallback.APIMode).
+			Str("model", fallback.Model).
+			Str("error_kind", summaryModelErrorKind(err)).
+			Bool("structured_output_request", false).
+			Msg("compaction summary model retry failed")
 		return nil, err
 	}
 
-	summaryLog.Info().
-		Bool("structured_output_request", false).
-		Msg("compaction summary model request completed after unstructured retry")
+	event := summaryLog.Debug().
+		Str("event", "compaction summary model request completed").
+		Str("provider", s.summaryProvider).
+		Str("mode", fallback.APIMode).
+		Str("model", fallback.Model).
+		Bool("structured_output_request", false)
+	if resp != nil {
+		event = event.
+			Str("response_model", resp.Model).
+			Int("prompt_tokens", resp.PromptTokens).
+			Int("completion_tokens", resp.CompletionTokens).
+			Int("total_tokens", resp.TotalTokens)
+	} else {
+		event = event.Str("error_kind", "missing_response")
+	}
+	event.Msg("compaction summary model request completed after unstructured retry")
 
 	return resp, nil
+}
+
+func summaryModelErrorKind(err error) string {
+	if err == nil {
+		return ""
+	}
+	if errors.Is(err, context.Canceled) {
+		return "context_canceled"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "timeout"
+	}
+
+	value := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(value, "response is required"):
+		return "missing_response"
+	case strings.Contains(value, "json"):
+		return "decode_failed"
+	case strings.Contains(value, "timeout"):
+		return "timeout"
+	default:
+		return "operation_failed"
+	}
 }
 
 func (s *Service) transitionCompactionPending(

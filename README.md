@@ -108,7 +108,7 @@ Typical model settings:
 - `model.stream`: stream assistant text responses during chat requests; defaults to `true`
 - `rpc.address`: interface the daemon binds to
 - `rpc.port`: port the daemon binds to
-- `debug.requests`: emits sanitized model request dumps at debug level
+- `debug.requests`: emits model request metadata at debug level without request bodies
 
 ## Commands
 
@@ -147,7 +147,7 @@ Foundation:
 - [x] Implement config file loading plus env overrides
 - [x] Implement provider-specific auth resolution and validation
 - [x] Define a normalized model client interface
-- [x] Add structured logging and request debug dumps
+- [x] Add structured logging and request metadata diagnostics
 - [x] Add startup diagnostics and doctor checks
 
 Agent Runtime:

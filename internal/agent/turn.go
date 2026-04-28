@@ -250,9 +250,14 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		traceSession.Record(trace.EvtModelRequest, request)
 
 		agentLog.Debug().
+			Str("event", "model request dispatch started").
+			Str("provider", t.cfg.ModelProvider).
+			Str("mode", t.cfg.ModelAPIMode).
 			Str("model", t.cfg.Model).
+			Bool("stream", streamingEnabled).
 			Int("context_messages", len(request.Messages)).
 			Int("tools", len(request.Tools)).
+			Bool("debug_requests", t.cfg.DebugRequests).
 			Msg("sending model request")
 
 		var resp *models.Response
@@ -274,12 +279,28 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			resp, err = t.modelClient.Complete(ctx, request)
 		}
 		if err != nil {
+			agentLog.Debug().
+				Str("event", "model request dispatch failed").
+				Str("provider", t.cfg.ModelProvider).
+				Str("mode", t.cfg.ModelAPIMode).
+				Str("model", t.cfg.Model).
+				Bool("stream", streamingEnabled).
+				Str("error_kind", agentModelErrorKind(err)).
+				Msg("model request failed")
 			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 			return "", err
 		}
 
 		if resp == nil {
 			err = errors.New("model response is required")
+			agentLog.Debug().
+				Str("event", "model request dispatch failed").
+				Str("provider", t.cfg.ModelProvider).
+				Str("mode", t.cfg.ModelAPIMode).
+				Str("model", t.cfg.Model).
+				Bool("stream", streamingEnabled).
+				Str("error_kind", "missing_response").
+				Msg("model request failed")
 			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 			return "", err
 		}
@@ -287,8 +308,16 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		traceSession.Record(trace.EvtModelResponse, resp)
 
 		agentLog.Debug().
+			Str("event", "model response received").
+			Str("provider", t.cfg.ModelProvider).
+			Str("mode", t.cfg.ModelAPIMode).
+			Str("model", t.cfg.Model).
+			Str("response_model", resp.Model).
+			Bool("stream", streamingEnabled).
 			Int("prompt_tokens", resp.PromptTokens).
 			Int("completion_tokens", resp.CompletionTokens).
+			Int("total_tokens", resp.TotalTokens).
+			Int("tool_call_count", len(resp.ToolCalls)).
 			Bool("requires_tool_calls", resp.RequiresToolCalls).
 			Msg("model response received")
 
@@ -347,11 +376,23 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				return "", err
 			}
 
-			agentLog.Debug().Str("tool", toolCall.Name).Str("tool_call_id", toolCall.ID).Msg("invoking tool")
+			agentLog.Debug().
+				Str("event", "tool invocation started").
+				Str("tool", toolCall.Name).
+				Str("tool_call_id", toolCall.ID).
+				Msg("invoking tool")
+
 			traceSession.Record(trace.EvtToolInvocationStarted, toolCall)
 			toolCtx := tools.WithTraceRecorder(tools.WithSessionID(ctx, t.sessionID), traceSession)
 			toolMessage := t.invokeTool(toolCtx, toolCall)
 			traceSession.Record(trace.EvtToolInvocationCompleted, toolMessage)
+
+			agentLog.Debug().
+				Str("event", "tool invocation completed").
+				Str("tool", toolCall.Name).
+				Str("tool_call_id", toolCall.ID).
+				Int("output_bytes", len(toolMessage.Content)).
+				Msg("tool invocation completed")
 
 			toolMessage, err = normalizeTurnMessage(toolMessage)
 			if err != nil {
@@ -461,9 +502,26 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 	recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
 	traceSession.Record(trace.EvtModelRequest, request)
 
+	agentLog.Debug().
+		Str("event", "summary fallback model request started").
+		Str("provider", t.cfg.ModelProvider).
+		Str("mode", t.cfg.ModelAPIMode).
+		Str("model", t.cfg.Model).
+		Int("context_messages", len(request.Messages)).
+		Bool("debug_requests", t.cfg.DebugRequests).
+		Msg("summary fallback model request started")
+
 	resp, err := t.modelClient.Complete(ctx, request)
 	if err != nil {
-		agentLog.Error().Err(err).Str("session_id", t.sessionID).Msg("summary fallback model call failed")
+		agentLog.Error().
+			Err(err).
+			Str("event", "summary fallback model request failed").
+			Str("session_id", t.sessionID).
+			Str("provider", t.cfg.ModelProvider).
+			Str("mode", t.cfg.ModelAPIMode).
+			Str("model", t.cfg.Model).
+			Str("error_kind", agentModelErrorKind(err)).
+			Msg("summary fallback model request failed")
 		wrapped := fmt.Errorf("iteration limit reached and summary failed: %w", err)
 		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": wrapped.Error()})
 		return "", wrapped
@@ -471,11 +529,30 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 
 	if resp == nil {
 		err = errors.New("model response is required")
+		agentLog.Error().
+			Str("event", "summary fallback model request failed").
+			Str("session_id", t.sessionID).
+			Str("provider", t.cfg.ModelProvider).
+			Str("mode", t.cfg.ModelAPIMode).
+			Str("model", t.cfg.Model).
+			Str("error_kind", "missing_response").
+			Msg("summary fallback model request failed")
 		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 		return "", err
 	}
 
 	traceSession.Record(trace.EvtModelResponse, resp)
+	agentLog.Debug().
+		Str("event", "summary fallback model response received").
+		Str("provider", t.cfg.ModelProvider).
+		Str("mode", t.cfg.ModelAPIMode).
+		Str("model", t.cfg.Model).
+		Str("response_model", resp.Model).
+		Int("prompt_tokens", resp.PromptTokens).
+		Int("completion_tokens", resp.CompletionTokens).
+		Int("total_tokens", resp.TotalTokens).
+		Msg("summary fallback model response received")
+
 	if err := t.recordPostflightUsage(traceSession, resp); err != nil {
 		return "", err
 	}
@@ -500,6 +577,28 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 
 	traceSession.Record(trace.EvtFinalAssistantResponse, map[string]any{"message": resp.OutputText})
 	return resp.OutputText, nil
+}
+
+func agentModelErrorKind(err error) string {
+	if err == nil {
+		return ""
+	}
+	if errors.Is(err, context.Canceled) {
+		return "context_canceled"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "timeout"
+	}
+
+	value := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(value, "response is required"):
+		return "missing_response"
+	case strings.Contains(value, "timeout"):
+		return "timeout"
+	default:
+		return "operation_failed"
+	}
 }
 
 // buildRequestInstructions assembles the system prompt sent to the model in this order:

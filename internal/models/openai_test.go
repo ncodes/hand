@@ -855,7 +855,7 @@ func TestHandleResponsesStreamEvent_ReturnsIncompleteTerminalResponse(t *testing
 	require.Equal(t, "max_output_tokens", terminal.IncompleteDetails.Reason)
 }
 
-func TestOpenAIClient_ChatLogsRequestDebugDumpForChatCompletions(t *testing.T) {
+func TestOpenAIClient_ChatLogsRequestDebugMetadataForChatCompletions(t *testing.T) {
 	originalLogger := log.Logger
 	originalLevel := zerolog.GlobalLevel()
 	t.Cleanup(func() {
@@ -886,11 +886,19 @@ func TestOpenAIClient_ChatLogsRequestDebugDumpForChatCompletions(t *testing.T) {
 	})
 	require.NoError(t, err)
 	output := buf.String()
+	require.Contains(t, output, "model client request started")
+	require.Contains(t, output, "model client request completed")
+	require.Contains(t, output, "model request debug metadata")
+	require.Contains(t, output, `"provider":"openai-compatible"`)
 	require.Contains(t, output, `"mode":"completions"`)
-	require.Contains(t, output, `"content":"hello"`)
+	require.Contains(t, output, `"message_count":1`)
+	require.Contains(t, output, `"tool_count":0`)
+	require.Contains(t, output, `"requires_tool_calls":false`)
+	require.NotContains(t, output, `"request"`)
+	require.NotContains(t, output, "hello")
 }
 
-func TestOpenAIClient_ChatLogsRequestDebugDumpWhenEnabled(t *testing.T) {
+func TestOpenAIClient_ChatLogsRequestDebugMetadataForResponses(t *testing.T) {
 	originalLogger := log.Logger
 	originalLevel := zerolog.GlobalLevel()
 	t.Cleanup(func() {
@@ -911,32 +919,47 @@ func TestOpenAIClient_ChatLogsRequestDebugDumpWhenEnabled(t *testing.T) {
 	_, err := client.Complete(context.Background(), Request{Model: "gpt-5.1", APIMode: APIModeResponses, Instructions: "be concise", Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}, DebugRequests: true})
 	require.NoError(t, err)
 	output := buf.String()
-	require.Contains(t, output, "model request debug dump")
+	require.Contains(t, output, "model client request started")
+	require.Contains(t, output, "model client request completed")
+	require.Contains(t, output, "model request debug metadata")
 	require.Contains(t, output, `"provider":"openai-compatible"`)
 	require.Contains(t, output, `"mode":"responses"`)
-	require.Contains(t, output, `"model":"gpt-5.1"`)
-	require.Contains(t, output, `"text":"hello"`)
+	require.Contains(t, output, `"message_count":1`)
+	require.Contains(t, output, `"stream":false`)
+	require.NotContains(t, output, `"request"`)
+	require.NotContains(t, output, "hello")
 }
 
-func TestLogRequestDebugDump_LogsMarshalError(t *testing.T) {
+func TestOpenAIClient_ChatLogsModelClientRequestFailure(t *testing.T) {
 	originalLogger := log.Logger
 	originalLevel := zerolog.GlobalLevel()
-	originalMarshal := jsonMarshal
 	t.Cleanup(func() {
 		log.Logger = originalLogger
 		zerolog.SetGlobalLevel(originalLevel)
-		jsonMarshal = originalMarshal
 	})
 
 	buf := &bytes.Buffer{}
 	log.Logger = zerolog.New(buf)
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	jsonMarshal = func(any) ([]byte, error) {
-		return nil, errors.New("marshal failed")
+
+	client := &OpenAIClient{
+		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+			return nil, errors.New("upstream down")
+		},
 	}
 
-	logRequestDebugDump(APIModeResponses, responses.ResponseNewParams{})
-	require.Contains(t, buf.String(), "Failed to marshal model request debug dump")
+	_, err := client.Complete(context.Background(), Request{
+		Model:    "test-model",
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+	})
+
+	require.EqualError(t, err, "upstream down")
+	output := buf.String()
+	require.Contains(t, output, "model client request started")
+	require.Contains(t, output, "model client request failed")
+	require.Contains(t, output, `"error_kind":"operation_failed"`)
+	require.NotContains(t, output, `"request"`)
+	require.NotContains(t, output, "hello")
 }
 
 func TestNormalizeGenerateRequestDefaultsAPIMode(t *testing.T) {
@@ -1700,7 +1723,7 @@ func TestIsUnsupportedStrictJSONObjectProperty_ReturnsTrueForNonBoolNonMapAdditi
 	}))
 }
 
-func TestLogRequestDebugDumpRedactsSensitiveFields(t *testing.T) {
+func TestLogRequestDebugMetadataOmitsRequestBody(t *testing.T) {
 	originalLogger := log.Logger
 	originalLevel := zerolog.GlobalLevel()
 	t.Cleanup(func() {
@@ -1712,13 +1735,13 @@ func TestLogRequestDebugDumpRedactsSensitiveFields(t *testing.T) {
 	log.Logger = zerolog.New(buf)
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 
-	logRequestDebugDump(APIModeResponses, map[string]any{
-		"authorization": "Bearer secret-token",
-		"nested":        map[string]any{"api_key": "sk-secret-key"},
-	})
+	logRequestDebugMetadata(APIModeResponses)
 
 	output := buf.String()
-	require.Contains(t, output, `"authorization":"[REDACTED]"`)
-	require.Contains(t, output, `"api_key":"[REDACTED]"`)
+	require.Contains(t, output, "model request debug metadata")
+	require.Contains(t, output, `"mode":"responses"`)
+	require.NotContains(t, output, `"request"`)
+	require.NotContains(t, output, "authorization")
+	require.NotContains(t, output, "api_key")
 	require.NotContains(t, output, "secret-token")
 }
