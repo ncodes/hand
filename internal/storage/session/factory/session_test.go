@@ -190,9 +190,10 @@ func TestOpenSessionStore_ReturnsSQLiteVectorConfigurationError(t *testing.T) {
 	require.EqualError(t, err, "embedding provider is required")
 }
 
-func TestOpenSessionStore_ReturnsMemoryVectorIntegrationError(t *testing.T) {
+func TestOpenSessionStore_ConfiguresMemoryVectorStore(t *testing.T) {
+	provider := &factoryTestEmbeddingProvider{}
 	vectorStore := &factoryTestVectorStore{}
-	withSessionVectorHooks(t, &factoryTestEmbeddingProvider{}, nil, vectorStore)
+	withSessionVectorHooks(t, provider, nil, vectorStore)
 
 	store, err := OpenSessionStore(&config.Config{
 		Storage: config.StorageConfig{Backend: "memory"},
@@ -203,8 +204,23 @@ func TestOpenSessionStore_ReturnsMemoryVectorIntegrationError(t *testing.T) {
 		Search: config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
 	})
 
-	require.Nil(t, store)
-	require.EqualError(t, err, "memory vector integration is not implemented")
+	require.NoError(t, err)
+	require.IsType(t, &storagememory.SessionStore{}, store)
+
+	sessionID, err := storage.NewSessionID()
+	require.NoError(t, err)
+	require.NoError(t, store.Save(context.Background(), storage.Session{ID: sessionID}))
+	require.NoError(t, store.AppendMessages(context.Background(), sessionID, []handmsg.Message{{
+		Role:    handmsg.RoleUser,
+		Content: "semantic indexing text",
+	}}))
+
+	require.Len(t, provider.requests, 1)
+	require.Equal(t, "text-embedding-test", provider.requests[0].Model)
+	require.Len(t, vectorStore.upserts, 1)
+	require.Len(t, vectorStore.upserts[0], 1)
+	require.Equal(t, "text-embedding-test", vectorStore.upserts[0][0].EmbeddingModel)
+	require.Equal(t, retrieval.SourceKindSessionMessage, vectorStore.upserts[0][0].SourceKind)
 }
 
 func TestOpenSessionStore_ReturnsMemoryVectorConfigError(t *testing.T) {
@@ -215,6 +231,25 @@ func TestOpenSessionStore_ReturnsMemoryVectorConfigError(t *testing.T) {
 
 	require.Nil(t, store)
 	require.EqualError(t, err, "embedding model is required")
+}
+
+func TestOpenSessionStore_ReturnsMemoryVectorConfigurationError(t *testing.T) {
+	originalProvider := newSessionEmbeddingProvider
+	t.Cleanup(func() {
+		newSessionEmbeddingProvider = originalProvider
+	})
+	newSessionEmbeddingProvider = func(*config.Config) (retrieval.Embedder, error) {
+		return nil, nil
+	}
+
+	store, err := OpenSessionStore(&config.Config{
+		Storage: config.StorageConfig{Backend: "memory"},
+		Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"}},
+		Search:  config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+	})
+
+	require.Nil(t, store)
+	require.EqualError(t, err, "embedding provider is required")
 }
 
 func TestOpenSessionStore_ValidatesVectorConfig(t *testing.T) {
@@ -371,11 +406,16 @@ func TestOpenSessionStore_ValidatesVectorStoreFactories(t *testing.T) {
 	})
 
 	t.Run("memory vector store is required", func(t *testing.T) {
+		originalProvider := newSessionEmbeddingProvider
 		originalMemoryStore := newMemorySessionVectorStore
 		t.Cleanup(func() {
+			newSessionEmbeddingProvider = originalProvider
 			newMemorySessionVectorStore = originalMemoryStore
 		})
 
+		newSessionEmbeddingProvider = func(*config.Config) (retrieval.Embedder, error) {
+			return &factoryTestEmbeddingProvider{}, nil
+		}
 		newMemorySessionVectorStore = func() retrieval.VectorStore {
 			return nil
 		}

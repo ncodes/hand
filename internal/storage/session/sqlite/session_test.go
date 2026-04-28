@@ -2050,9 +2050,11 @@ func TestSQLiteStore_SearchMessagesDiagnosticsAreInternal(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	store.logCandidateDiagnostics("candidate merged", []*searchCandidate{{
-		ID:              1,
-		SessionID:       testSessionA,
-		MatchedToolName: "process",
+		CandidateMatch: base.CandidateMatch{
+			SessionID:       testSessionA,
+			MatchedToolName: "process",
+		},
+		ID: 1,
 	}})
 
 	logOutput := strings.ToLower(output.String())
@@ -2307,56 +2309,63 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("merges vector evidence and bounds candidate collection", func(t *testing.T) {
 		candidates := searchCandidateSet{
 			1: {
-				ID:          1,
-				SessionID:   testSessionA,
-				MatchedText: "",
-				LexicalRank: 1,
-				HasLexical:  true,
+				CandidateMatch: base.CandidateMatch{
+					SessionID:   testSessionA,
+					LexicalRank: 1,
+					HasLexical:  true,
+				},
+				ID: 1,
 			},
 		}
-		candidates.merge([]*searchCandidate{
+		candidates.Merge([]*searchCandidate{
 			nil,
 			{
-				ID:              1,
-				MatchedText:     "vector text",
-				MatchedToolName: "tool",
-				VectorRank:      1,
-				HasVector:       true,
+				CandidateMatch: base.CandidateMatch{
+					MatchedText:     "vector text",
+					MatchedToolName: "tool",
+					VectorRank:      1,
+					HasVector:       true,
+				},
+				ID: 1,
 			},
-		})
+		}, searchCandidateKey)
 		require.True(t, candidates[1].HasVector)
 		require.Equal(t, "vector text", candidates[1].MatchedText)
 		require.Equal(t, "tool", candidates[1].MatchedToolName)
-		require.Equal(t, defaultHybridCandidateLimit, hybridCandidateLimit(SearchMessageOptions{}))
+		require.Equal(t, defaultHybridRetrievalCandidateLimit, hybridCandidateLimit(SearchMessageOptions{}))
 		require.Equal(t, 120, hybridCandidateLimit(SearchMessageOptions{
 			MaxSessions:           12,
 			MaxMessagesPerSession: 10,
 		}))
-		require.Equal(t, maxHybridCandidateLimit, hybridCandidateLimit(SearchMessageOptions{
-			MaxSessions:           maxHybridCandidateLimit,
-			MaxMessagesPerSession: maxHybridCandidateLimit,
+		require.Equal(t, maxHybridRetrievalCandidateLimit, hybridCandidateLimit(SearchMessageOptions{
+			MaxSessions:           maxHybridRetrievalCandidateLimit,
+			MaxMessagesPerSession: maxHybridRetrievalCandidateLimit,
 		}))
 	})
 
 	t.Run("keeps top ranked message per session when message limit is one", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidates(searchCandidateSet{
 			1: {
-				ID:          1,
-				SessionID:   testSessionA,
-				Content:     "older",
-				MatchedText: "older",
-				CreatedAt:   now,
-				VectorRank:  2,
-				HasVector:   true,
+				CandidateMatch: base.CandidateMatch{
+					SessionID:   testSessionA,
+					MatchedText: "older",
+					VectorRank:  2,
+					HasVector:   true,
+				},
+				ID:        1,
+				Content:   "older",
+				CreatedAt: now,
 			},
 			2: {
-				ID:          2,
-				SessionID:   testSessionA,
-				Content:     "newer",
-				MatchedText: "newer",
-				CreatedAt:   now.Add(time.Second),
-				VectorRank:  1,
-				HasVector:   true,
+				CandidateMatch: base.CandidateMatch{
+					SessionID:   testSessionA,
+					MatchedText: "newer",
+					VectorRank:  1,
+					HasVector:   true,
+				},
+				ID:        2,
+				Content:   "newer",
+				CreatedAt: now.Add(time.Second),
 			},
 		}, SearchMessageOptions{MaxMessagesPerSession: 1})
 		require.Len(t, rows, 1)
@@ -2366,18 +2375,14 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("orders same-session messages by score before recency", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidateSlice([]*searchCandidate{
 			{
-				ID:          1,
-				SessionID:   testSessionA,
-				MatchedText: "better",
-				CreatedAt:   now,
-				FusedScore:  2,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionA, MatchedText: "better", FusedScore: 2},
+				ID:             1,
+				CreatedAt:      now,
 			},
 			{
-				ID:          2,
-				SessionID:   testSessionA,
-				MatchedText: "worse",
-				CreatedAt:   now.Add(time.Second),
-				FusedScore:  1,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionA, MatchedText: "worse", FusedScore: 1},
+				ID:             2,
+				CreatedAt:      now.Add(time.Second),
 			},
 		}, SearchMessageOptions{}, nil, nil)
 		require.Equal(t, []uint{1, 2}, []uint{rows[0].ID, rows[1].ID})
@@ -2386,18 +2391,14 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("orders same-session score ties by older message after newer", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidateSlice([]*searchCandidate{
 			{
-				ID:          1,
-				SessionID:   testSessionA,
-				MatchedText: "older",
-				CreatedAt:   now,
-				FusedScore:  1,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionA, MatchedText: "older", FusedScore: 1},
+				ID:             1,
+				CreatedAt:      now,
 			},
 			{
-				ID:          2,
-				SessionID:   testSessionA,
-				MatchedText: "newer",
-				CreatedAt:   now.Add(time.Second),
-				FusedScore:  1,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionA, MatchedText: "newer", FusedScore: 1},
+				ID:             2,
+				CreatedAt:      now.Add(time.Second),
 			},
 		}, SearchMessageOptions{}, nil, nil)
 		require.Equal(t, []uint{2, 1}, []uint{rows[0].ID, rows[1].ID})
@@ -2406,20 +2407,14 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("orders tied sessions by session id", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidates(searchCandidateSet{
 			1: {
-				ID:          1,
-				SessionID:   testSessionA,
-				MatchedText: "left",
-				CreatedAt:   now,
-				VectorRank:  1,
-				HasVector:   true,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionA, MatchedText: "left", VectorRank: 1, HasVector: true},
+				ID:             1,
+				CreatedAt:      now,
 			},
 			2: {
-				ID:          2,
-				SessionID:   testSessionB,
-				MatchedText: "right",
-				CreatedAt:   now,
-				VectorRank:  1,
-				HasVector:   true,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionB, MatchedText: "right", VectorRank: 1, HasVector: true},
+				ID:             2,
+				CreatedAt:      now,
 			},
 		}, SearchMessageOptions{})
 		require.Equal(t, []string{testSessionA, testSessionB}, []string{rows[0].SessionID, rows[1].SessionID})
@@ -2428,18 +2423,14 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("orders tied sessions by reverse session id when left is greater", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidateSlice([]*searchCandidate{
 			{
-				ID:          1,
-				SessionID:   testSessionB,
-				MatchedText: "right",
-				CreatedAt:   now,
-				FusedScore:  1,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionB, MatchedText: "right", FusedScore: 1},
+				ID:             1,
+				CreatedAt:      now,
 			},
 			{
-				ID:          2,
-				SessionID:   testSessionA,
-				MatchedText: "left",
-				CreatedAt:   now,
-				FusedScore:  1,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionA, MatchedText: "left", FusedScore: 1},
+				ID:             2,
+				CreatedAt:      now,
 			},
 		}, SearchMessageOptions{}, nil, nil)
 		require.Equal(t, []string{testSessionA, testSessionB}, []string{rows[0].SessionID, rows[1].SessionID})
@@ -2448,20 +2439,14 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("orders tied messages in the same session by newest id", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidates(searchCandidateSet{
 			1: {
-				ID:          1,
-				SessionID:   testSessionA,
-				MatchedText: "left",
-				CreatedAt:   now,
-				VectorRank:  1,
-				HasVector:   true,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionA, MatchedText: "left", VectorRank: 1, HasVector: true},
+				ID:             1,
+				CreatedAt:      now,
 			},
 			2: {
-				ID:          2,
-				SessionID:   testSessionA,
-				MatchedText: "right",
-				CreatedAt:   now,
-				VectorRank:  1,
-				HasVector:   true,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionA, MatchedText: "right", VectorRank: 1, HasVector: true},
+				ID:             2,
+				CreatedAt:      now,
 			},
 		}, SearchMessageOptions{})
 		require.Equal(t, uint(2), rows[0].ID)
@@ -2470,18 +2455,14 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("keeps equal same-session messages stable", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidateSlice([]*searchCandidate{
 			{
-				ID:          1,
-				SessionID:   testSessionA,
-				MatchedText: "left",
-				CreatedAt:   now,
-				FusedScore:  1,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionA, MatchedText: "left", FusedScore: 1},
+				ID:             1,
+				CreatedAt:      now,
 			},
 			{
-				ID:          1,
-				SessionID:   testSessionA,
-				MatchedText: "right",
-				CreatedAt:   now,
-				FusedScore:  1,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionA, MatchedText: "right", FusedScore: 1},
+				ID:             1,
+				CreatedAt:      now,
 			},
 		}, SearchMessageOptions{}, nil, nil)
 		require.Equal(t, []string{"left", "right"}, []string{rows[0].MatchedText, rows[1].MatchedText})
@@ -2490,20 +2471,14 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("orders tied sessions by newest matching message", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidates(searchCandidateSet{
 			1: {
-				ID:          1,
-				SessionID:   testSessionA,
-				MatchedText: "left",
-				CreatedAt:   now,
-				VectorRank:  1,
-				HasVector:   true,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionA, MatchedText: "left", VectorRank: 1, HasVector: true},
+				ID:             1,
+				CreatedAt:      now,
 			},
 			2: {
-				ID:          2,
-				SessionID:   testSessionB,
-				MatchedText: "right",
-				CreatedAt:   now.Add(time.Second),
-				VectorRank:  1,
-				HasVector:   true,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionB, MatchedText: "right", VectorRank: 1, HasVector: true},
+				ID:             2,
+				CreatedAt:      now.Add(time.Second),
 			},
 		}, SearchMessageOptions{})
 		require.Equal(t, testSessionB, rows[0].SessionID)
@@ -2512,18 +2487,14 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("orders sessions by score before recency", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidateSlice([]*searchCandidate{
 			{
-				ID:          1,
-				SessionID:   testSessionA,
-				MatchedText: "higher score",
-				CreatedAt:   now,
-				FusedScore:  2,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionA, MatchedText: "higher score", FusedScore: 2},
+				ID:             1,
+				CreatedAt:      now,
 			},
 			{
-				ID:          2,
-				SessionID:   testSessionB,
-				MatchedText: "newer",
-				CreatedAt:   now.Add(time.Second),
-				FusedScore:  1,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionB, MatchedText: "newer", FusedScore: 1},
+				ID:             2,
+				CreatedAt:      now.Add(time.Second),
 			},
 		}, SearchMessageOptions{}, nil, nil)
 		require.Equal(t, testSessionA, rows[0].SessionID)
@@ -2531,11 +2502,9 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 
 	t.Run("uses supplied last matched timestamp when newer than candidates", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidateSlice([]*searchCandidate{{
-			ID:          1,
-			SessionID:   testSessionA,
-			MatchedText: "left",
-			CreatedAt:   now,
-			FusedScore:  1,
+			CandidateMatch: base.CandidateMatch{SessionID: testSessionA, MatchedText: "left", FusedScore: 1},
+			ID:             1,
+			CreatedAt:      now,
 		}}, SearchMessageOptions{}, map[string]int{testSessionA: 3}, map[string]time.Time{
 			testSessionA: now.Add(time.Hour),
 		})
@@ -2544,10 +2513,10 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	})
 
 	t.Run("compareSearchCandidates covers id and equality ties", func(t *testing.T) {
-		left := &searchCandidate{ID: 1, SessionID: testSessionA, FusedScore: 1}
-		right := &searchCandidate{ID: 2, SessionID: testSessionA, FusedScore: 1}
-		require.Equal(t, -1, compareSearchCandidates(&searchCandidate{FusedScore: 2}, left))
-		require.Equal(t, 1, compareSearchCandidates(left, &searchCandidate{FusedScore: 2}))
+		left := &searchCandidate{CandidateMatch: base.CandidateMatch{SessionID: testSessionA, FusedScore: 1}, ID: 1}
+		right := &searchCandidate{CandidateMatch: base.CandidateMatch{SessionID: testSessionA, FusedScore: 1}, ID: 2}
+		require.Equal(t, -1, compareSearchCandidates(&searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 2}}, left))
+		require.Equal(t, 1, compareSearchCandidates(left, &searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 2}}))
 		require.Equal(t, -1, compareSearchCandidates(right, left))
 		require.Equal(t, 1, compareSearchCandidates(left, right))
 		require.Equal(t, 0, compareSearchCandidates(left, left))
@@ -2555,32 +2524,32 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 
 	t.Run("ranking comparators cover all tie-break directions", func(t *testing.T) {
 		require.Equal(t, -1, compareCandidatesWithinSession(
-			&searchCandidate{ID: 1, FusedScore: 2},
-			&searchCandidate{ID: 2, FusedScore: 1},
+			&searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 2}, ID: 1},
+			&searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 1}, ID: 2},
 		))
 		require.Equal(t, 1, compareCandidatesWithinSession(
-			&searchCandidate{ID: 1, FusedScore: 1},
-			&searchCandidate{ID: 2, FusedScore: 2},
+			&searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 1}, ID: 1},
+			&searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 2}, ID: 2},
 		))
 		require.Equal(t, -1, compareCandidatesWithinSession(
-			&searchCandidate{ID: 1, FusedScore: 1, CreatedAt: now.Add(time.Second)},
-			&searchCandidate{ID: 2, FusedScore: 1, CreatedAt: now},
+			&searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now.Add(time.Second)},
+			&searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 1}, ID: 2, CreatedAt: now},
 		))
 		require.Equal(t, 1, compareCandidatesWithinSession(
-			&searchCandidate{ID: 1, FusedScore: 1, CreatedAt: now},
-			&searchCandidate{ID: 2, FusedScore: 1, CreatedAt: now.Add(time.Second)},
+			&searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now},
+			&searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 1}, ID: 2, CreatedAt: now.Add(time.Second)},
 		))
 		require.Equal(t, -1, compareCandidatesWithinSession(
-			&searchCandidate{ID: 2, FusedScore: 1, CreatedAt: now},
-			&searchCandidate{ID: 1, FusedScore: 1, CreatedAt: now},
+			&searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 1}, ID: 2, CreatedAt: now},
+			&searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now},
 		))
 		require.Equal(t, 1, compareCandidatesWithinSession(
-			&searchCandidate{ID: 1, FusedScore: 1, CreatedAt: now},
-			&searchCandidate{ID: 2, FusedScore: 1, CreatedAt: now},
+			&searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now},
+			&searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 1}, ID: 2, CreatedAt: now},
 		))
 		require.Equal(t, 0, compareCandidatesWithinSession(
-			&searchCandidate{ID: 1, FusedScore: 1, CreatedAt: now},
-			&searchCandidate{ID: 1, FusedScore: 1, CreatedAt: now},
+			&searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now},
+			&searchCandidate{CandidateMatch: base.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now},
 		))
 
 		bestScores := map[string]float64{testSessionA: 2, testSessionB: 1}
@@ -2606,18 +2575,16 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 
 		items = store.rerankSearchCandidates(context.Background(), SearchMessageOptions{}, searchCandidateSet{
 			1: {
-				ID:         1,
-				SessionID:  testSessionA,
-				FusedScore: 1,
+				CandidateMatch: base.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
+				ID:             1,
 			},
 		})
 		require.Len(t, items, 1)
 
 		candidate := retrievalCandidateFromSearchCandidate(&searchCandidate{
-			ID:         1,
-			SessionID:  testSessionA,
-			Content:    "content fallback",
-			FusedScore: 1,
+			CandidateMatch: base.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
+			ID:             1,
+			Content:        "content fallback",
 		})
 		require.Equal(t, "content fallback", candidate.Text)
 	})
@@ -2680,7 +2647,7 @@ func TestSQLiteStore_HybridVectorCandidateErrorPaths(t *testing.T) {
 	}}
 
 	require.NoError(t, store.db.Exec(`DROP TABLE session_messages`).Error)
-	_, err := store.searchMessagesVector(context.Background(), testSessionA, SearchMessageOptions{Query: "hello"}, defaultHybridCandidateLimit)
+	_, err := store.searchMessagesVector(context.Background(), testSessionA, SearchMessageOptions{Query: "hello"}, defaultHybridRetrievalCandidateLimit)
 	require.Error(t, err)
 
 	store, vectorStore = sqliteVectorStoreTestStore(t)

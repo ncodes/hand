@@ -82,19 +82,54 @@ func OpenSessionStoreWithRerankerClient(
 		if err := validateSearchVectorConfig(cfg); err != nil {
 			return nil, err
 		}
-		if cfg.Search.Vector.Enabled {
-			vectorStore := newMemorySessionVectorStore()
-			if vectorStore == nil {
-				return nil, errors.New("memory vector store is required")
-			}
-
-			return nil, errors.New("memory vector integration is not implemented")
+		provider, err := sessionEmbeddingProvider(cfg)
+		if err != nil {
+			return nil, err
 		}
 
-		return storagememory.NewSessionStore(), nil
+		store := storagememory.NewSessionStore()
+		reranker, err := sessionReranker(cfg, rerankerClient)
+		if err != nil {
+			return nil, err
+		}
+		if err := configureMemorySessionVectors(cfg, store, provider, reranker); err != nil {
+			return nil, err
+		}
+
+		return store, nil
 	default:
 		return nil, errors.New("storage backend must be one of: memory, sqlite")
 	}
+}
+
+func configureMemorySessionVectors(
+	cfg *config.Config,
+	store *storagememory.SessionStore,
+	provider retrieval.Embedder,
+	reranker retrieval.Reranker,
+) error {
+	if !cfg.Search.Vector.Enabled {
+		return nil
+	}
+	if provider == nil {
+		return errors.New("embedding provider is required")
+	}
+
+	vectorStore := newMemorySessionVectorStore()
+	if vectorStore == nil {
+		return errors.New("memory vector store is required")
+	}
+
+	return store.ConfigureVectorStore(storage.VectorStoreOptions{
+		Embedder:            provider,
+		Reranker:            reranker,
+		VectorStore:         vectorStore,
+		EnableRerank:        sessionSearchRerankEnabledOption(cfg),
+		EmbeddingModel:      cfg.Models.Embedding.Name,
+		RerankMaxCandidates: cfg.Reranker.MaxCandidates,
+		Required:            cfg.Search.Vector.Required,
+		Diagnostics:         cfg.Debug.Requests,
+	})
 }
 
 func configureSQLiteSessionVectors(

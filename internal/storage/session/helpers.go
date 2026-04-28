@@ -1,4 +1,4 @@
-package common
+package session
 
 import (
 	"errors"
@@ -6,7 +6,6 @@ import (
 	"time"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	storage "github.com/wandxy/hand/internal/storage/session"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
@@ -16,11 +15,11 @@ func ValidateSessionID(id string) error {
 		return errors.New("session id is required")
 	}
 
-	if id == storage.DefaultSessionID {
+	if id == DefaultSessionID {
 		return nil
 	}
 
-	if !strings.HasPrefix(id, storage.SessionIDPrefix) || nanoid.ValidateID(id) != nil {
+	if !strings.HasPrefix(id, SessionIDPrefix) || nanoid.ValidateID(id) != nil {
 		return errors.New("session id must be a valid ses_ nanoid")
 	}
 
@@ -33,26 +32,26 @@ func ValidateArchiveID(id string) error {
 		return errors.New("archive id is required")
 	}
 
-	if !strings.HasPrefix(id, storage.ArchiveIDPrefix) || nanoid.ValidateID(id) != nil {
+	if !strings.HasPrefix(id, ArchiveIDPrefix) || nanoid.ValidateID(id) != nil {
 		return errors.New("archive id must be a valid arc_ nanoid")
 	}
 
 	return nil
 }
 
-func NormalizeCreateArchive(archive storage.ArchivedSession) (storage.ArchivedSession, error) {
+func NormalizeCreateArchive(archive ArchivedSession) (ArchivedSession, error) {
 	archive.ID = strings.TrimSpace(archive.ID)
 	if err := ValidateArchiveID(archive.ID); err != nil {
-		return storage.ArchivedSession{}, err
+		return ArchivedSession{}, err
 	}
 
 	archive.SourceSessionID = strings.TrimSpace(archive.SourceSessionID)
 	if err := ValidateSessionID(archive.SourceSessionID); err != nil {
 		if err.Error() == "session id is required" {
-			return storage.ArchivedSession{}, errors.New("source session id is required")
+			return ArchivedSession{}, errors.New("source session id is required")
 		}
 
-		return storage.ArchivedSession{}, err
+		return ArchivedSession{}, err
 	}
 
 	if archive.ArchivedAt.IsZero() {
@@ -62,7 +61,7 @@ func NormalizeCreateArchive(archive storage.ArchivedSession) (storage.ArchivedSe
 	}
 
 	if archive.ExpiresAt.IsZero() {
-		return storage.ArchivedSession{}, errors.New("archive expiry is required")
+		return ArchivedSession{}, errors.New("archive expiry is required")
 	}
 	archive.ExpiresAt = archive.ExpiresAt.UTC()
 
@@ -73,31 +72,31 @@ func CloneMessages(messages []handmsg.Message) []handmsg.Message {
 	return handmsg.CloneMessages(messages)
 }
 
-func NormalizeSessionSummary(summary storage.SessionSummary) (storage.SessionSummary, error) {
+func NormalizeSessionSummary(summary SessionSummary) (SessionSummary, error) {
 	summary.SessionID = strings.TrimSpace(summary.SessionID)
 	if err := ValidateSessionID(summary.SessionID); err != nil {
 		if err.Error() == "session id is required" {
-			return storage.SessionSummary{}, errors.New("session id is required")
+			return SessionSummary{}, errors.New("session id is required")
 		}
 
-		return storage.SessionSummary{}, err
+		return SessionSummary{}, err
 	}
 
 	summary.SessionSummary = strings.TrimSpace(summary.SessionSummary)
 	if summary.SessionSummary == "" {
-		return storage.SessionSummary{}, errors.New("session summary is required")
+		return SessionSummary{}, errors.New("session summary is required")
 	}
 
 	if summary.SourceEndOffset < 0 {
-		return storage.SessionSummary{}, errors.New("summary source end offset must be greater than or equal to zero")
+		return SessionSummary{}, errors.New("summary source end offset must be greater than or equal to zero")
 	}
 
 	if summary.SourceMessageCount < 0 {
-		return storage.SessionSummary{}, errors.New("summary source message count must be greater than or equal to zero")
+		return SessionSummary{}, errors.New("summary source message count must be greater than or equal to zero")
 	}
 
 	if summary.SourceEndOffset > summary.SourceMessageCount {
-		return storage.SessionSummary{}, errors.New("summary source end offset cannot exceed source message count")
+		return SessionSummary{}, errors.New("summary source end offset cannot exceed source message count")
 	}
 
 	if summary.UpdatedAt.IsZero() {
@@ -114,7 +113,7 @@ func NormalizeSessionSummary(summary storage.SessionSummary) (storage.SessionSum
 	return summary, nil
 }
 
-func CloneSessionSummary(summary storage.SessionSummary) storage.SessionSummary {
+func CloneSessionSummary(summary SessionSummary) SessionSummary {
 	cloned := summary
 	cloned.Discoveries = cloneStrings(summary.Discoveries)
 	cloned.OpenQuestions = cloneStrings(summary.OpenQuestions)

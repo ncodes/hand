@@ -5,7 +5,6 @@ import (
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/storage/session"
-	common "github.com/wandxy/hand/internal/storage/session/common"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -25,7 +24,7 @@ func (s *State) Summary() storage.SessionSummary {
 		return storage.SessionSummary{}
 	}
 
-	return common.CloneSessionSummary(storage.SessionSummary{
+	return storage.CloneSessionSummary(storage.SessionSummary{
 		SessionID:          s.Current.SessionID,
 		SourceEndOffset:    s.Current.SourceEndOffset,
 		SourceMessageCount: s.Current.SourceMessageCount,

@@ -10,7 +10,6 @@ import (
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 	base "github.com/wandxy/hand/internal/storage/session"
-	common "github.com/wandxy/hand/internal/storage/session/common"
 )
 
 type Session = base.Session
@@ -20,6 +19,7 @@ type SessionSummary = base.SessionSummary
 type MessageRecord = base.MessageRecord
 
 type SessionStore struct {
+	vectors         *base.VectorConfig
 	mu              sync.RWMutex
 	sessions        map[string]Session
 	messages        map[string][]handmsg.Message
@@ -49,7 +49,7 @@ func (s *SessionStore) Save(_ context.Context, session Session) error {
 	defer s.mu.Unlock()
 
 	session.ID = strings.TrimSpace(session.ID)
-	if err := common.ValidateSessionID(session.ID); err != nil {
+	if err := base.ValidateSessionID(session.ID); err != nil {
 		return err
 	}
 
@@ -113,13 +113,13 @@ func (s *SessionStore) List(context.Context) ([]Session, error) {
 	return sessions, nil
 }
 
-func (s *SessionStore) Delete(_ context.Context, id string) error {
+func (s *SessionStore) Delete(ctx context.Context, id string) error {
 	if s == nil {
 		return errors.New("session store is required")
 	}
 
 	id = strings.TrimSpace(id)
-	if err := common.ValidateSessionID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
 
@@ -127,30 +127,33 @@ func (s *SessionStore) Delete(_ context.Context, id string) error {
 		return errors.New("default session cannot be deleted")
 	}
 
+	var sourceIDs []string
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if _, ok := s.sessions[id]; !ok {
+		s.mu.Unlock()
 		return errors.New("session not found")
 	}
 
+	sourceIDs = base.SourceIDsFromMessages(id, s.messages[id])
 	delete(s.sessions, id)
 	delete(s.messages, id)
 	delete(s.summaries, id)
 	if s.currentSession == id {
 		s.currentSession = ""
 	}
+	s.mu.Unlock()
 
-	return nil
+	return s.handleVectorStoreError(s.deleteVectorRows(ctx, sourceIDs))
 }
 
-func (s *SessionStore) AppendMessages(_ context.Context, id string, messages []handmsg.Message) error {
+func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
 	if s == nil {
 		return errors.New("session store is required")
 	}
 
 	id = strings.TrimSpace(id)
-	if err := common.ValidateSessionID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
 
@@ -159,10 +162,10 @@ func (s *SessionStore) AppendMessages(_ context.Context, id string, messages []h
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	session, ok := s.sessions[id]
 	if !ok {
+		s.mu.Unlock()
 		return errors.New("session not found")
 	}
 
@@ -176,8 +179,9 @@ func (s *SessionStore) AppendMessages(_ context.Context, id string, messages []h
 	s.messages[id] = append(s.messages[id], copied...)
 	session.UpdatedAt = time.Now().UTC()
 	s.sessions[id] = session
+	s.mu.Unlock()
 
-	return nil
+	return s.handleVectorStoreError(s.indexVectors(ctx, id, copied))
 }
 
 func (s *SessionStore) GetMessages(
@@ -199,10 +203,10 @@ func (s *SessionStore) GetMessages(
 	}
 
 	if !opts.Archived {
-		if err := common.ValidateSessionID(id); err != nil {
+		if err := base.ValidateSessionID(id); err != nil {
 			return nil, err
 		}
-	} else if err := common.ValidateArchiveID(id); err != nil {
+	} else if err := base.ValidateArchiveID(id); err != nil {
 		return nil, err
 	}
 
@@ -229,7 +233,7 @@ func (s *SessionStore) GetMessagesByIDs(
 	if id == "" {
 		return nil, nil
 	}
-	if err := common.ValidateSessionID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return nil, err
 	}
 	if len(messageIDs) == 0 {
@@ -281,7 +285,7 @@ func (s *SessionStore) GetMessageWindow(
 	if id == "" || anchorMessageID == 0 {
 		return nil, nil
 	}
-	if err := common.ValidateSessionID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return nil, err
 	}
 	if before < 0 || after < 0 {
@@ -317,7 +321,7 @@ func (s *SessionStore) GetMessageWindow(
 }
 
 func (s *SessionStore) SearchMessages(
-	_ context.Context,
+	ctx context.Context,
 	id string,
 	opts base.SearchMessageOptions,
 ) ([]base.SearchMessageResult, error) {
@@ -327,11 +331,11 @@ func (s *SessionStore) SearchMessages(
 
 	id = strings.TrimSpace(id)
 	if id != "" {
-		if err := common.ValidateSessionID(id); err != nil {
+		if err := base.ValidateSessionID(id); err != nil {
 			return nil, err
 		}
 	} else if opts.IgnoreSessionID = strings.TrimSpace(opts.IgnoreSessionID); opts.IgnoreSessionID != "" {
-		if err := common.ValidateSessionID(opts.IgnoreSessionID); err != nil {
+		if err := base.ValidateSessionID(opts.IgnoreSessionID); err != nil {
 			return nil, err
 		}
 	}
@@ -339,6 +343,10 @@ func (s *SessionStore) SearchMessages(
 	query := strings.TrimSpace(strings.ToLower(opts.Query))
 	if query == "" {
 		return nil, nil
+	}
+
+	if s.vectors != nil {
+		return s.searchMessagesHybrid(ctx, id, opts, query)
 	}
 
 	s.mu.RLock()
@@ -509,10 +517,10 @@ func (s *SessionStore) CountMessages(_ context.Context, id string, opts MessageQ
 	}
 
 	if !opts.Archived {
-		if err := common.ValidateSessionID(id); err != nil {
+		if err := base.ValidateSessionID(id); err != nil {
 			return 0, err
 		}
-	} else if err := common.ValidateArchiveID(id); err != nil {
+	} else if err := base.ValidateArchiveID(id); err != nil {
 		return 0, err
 	}
 
@@ -537,10 +545,10 @@ func (s *SessionStore) GetMessage(_ context.Context, id string, index int, opts 
 	}
 
 	if !opts.Archived {
-		if err := common.ValidateSessionID(id); err != nil {
+		if err := base.ValidateSessionID(id); err != nil {
 			return handmsg.Message{}, false, err
 		}
-	} else if err := common.ValidateArchiveID(id); err != nil {
+	} else if err := base.ValidateArchiveID(id); err != nil {
 		return handmsg.Message{}, false, err
 	}
 
@@ -561,23 +569,25 @@ func (s *SessionStore) GetMessage(_ context.Context, id string, index int, opts 
 	return cloneMessages(messages[index : index+1])[0], true, nil
 }
 
-func (s *SessionStore) CreateArchive(_ context.Context, archive ArchivedSession) error {
+func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSession) error {
 	if s == nil {
 		return errors.New("session store is required")
 	}
 
-	normalized, err := common.NormalizeCreateArchive(archive)
+	normalized, err := base.NormalizeCreateArchive(archive)
 	if err != nil {
 		return err
 	}
 
+	var sourceIDs []string
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	sourceMessages := s.messages[normalized.SourceSessionID]
 	if len(sourceMessages) == 0 {
+		s.mu.Unlock()
 		return errors.New("source session has no messages")
 	}
+	sourceIDs = base.SourceIDsFromMessages(normalized.SourceSessionID, sourceMessages)
 
 	s.archiveMessages[normalized.ID] = cloneMessages(sourceMessages)
 	s.archives[normalized.ID] = normalized
@@ -593,8 +603,9 @@ func (s *SessionStore) CreateArchive(_ context.Context, archive ArchivedSession)
 		session.Compaction = base.SessionCompaction{}
 		s.sessions[normalized.SourceSessionID] = session
 	}
+	s.mu.Unlock()
 
-	return nil
+	return s.handleVectorStoreError(s.deleteVectorRows(ctx, sourceIDs))
 }
 
 func (s *SessionStore) GetArchive(_ context.Context, id string) (ArchivedSession, bool, error) {
@@ -607,7 +618,7 @@ func (s *SessionStore) GetArchive(_ context.Context, id string) (ArchivedSession
 		return ArchivedSession{}, false, nil
 	}
 
-	if err := common.ValidateArchiveID(id); err != nil {
+	if err := base.ValidateArchiveID(id); err != nil {
 		return ArchivedSession{}, false, err
 	}
 
@@ -647,84 +658,98 @@ func (s *SessionStore) ListArchives(_ context.Context, sourceSessionID string) (
 	return archives, nil
 }
 
-func (s *SessionStore) DeleteArchive(_ context.Context, archiveID string) error {
+func (s *SessionStore) DeleteArchive(ctx context.Context, archiveID string) error {
 	if s == nil {
 		return errors.New("session store is required")
 	}
 
 	archiveID = strings.TrimSpace(archiveID)
-	if err := common.ValidateArchiveID(archiveID); err != nil {
+	if err := base.ValidateArchiveID(archiveID); err != nil {
 		return err
 	}
 
+	var sourceIDs []string
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if _, ok := s.archives[archiveID]; !ok {
+		s.mu.Unlock()
 		return errors.New("archive not found")
 	}
 
+	archive := s.archives[archiveID]
+	sourceIDs = base.SourceIDsFromMessages(archive.SourceSessionID, s.archiveMessages[archiveID])
 	delete(s.archives, archiveID)
 	delete(s.archiveMessages, archiveID)
-	return nil
+	s.mu.Unlock()
+
+	return s.handleVectorStoreError(s.deleteVectorRows(ctx, sourceIDs))
 }
 
-func (s *SessionStore) DeleteExpiredArchives(_ context.Context, now time.Time) error {
+func (s *SessionStore) DeleteExpiredArchives(ctx context.Context, now time.Time) error {
 	if s == nil {
 		return errors.New("session store is required")
 	}
 
 	now = now.UTC()
 
+	var sourceIDs []string
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	for id, archive := range s.archives {
 		if !archive.ExpiresAt.IsZero() && !archive.ExpiresAt.After(now) {
+			sourceIDs = append(sourceIDs, base.SourceIDsFromMessages(archive.SourceSessionID, s.archiveMessages[id])...)
 			delete(s.archives, id)
 			delete(s.archiveMessages, id)
 		}
 	}
+	s.mu.Unlock()
 
-	return nil
+	return s.handleVectorStoreError(s.deleteVectorRows(ctx, sourceIDs))
 }
 
-func (s *SessionStore) ClearMessages(_ context.Context, id string, opts MessageQueryOptions) error {
+func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts MessageQueryOptions) error {
 	if s == nil {
 		return errors.New("session store is required")
 	}
 
 	id = strings.TrimSpace(id)
 	if !opts.Archived {
-		if err := common.ValidateSessionID(id); err != nil {
+		if err := base.ValidateSessionID(id); err != nil {
 			return err
 		}
-	} else if err := common.ValidateArchiveID(id); err != nil {
+	} else if err := base.ValidateArchiveID(id); err != nil {
 		return err
 	}
 
+	var sourceIDs []string
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if opts.Archived {
 		if _, ok := s.archives[id]; !ok {
+			s.mu.Unlock()
 			return errors.New("archive not found")
 		}
+		sourceIDs = base.SourceIDsFromMessages(s.archives[id].SourceSessionID, s.archiveMessages[id])
 		delete(s.archiveMessages, id)
-		return nil
+		s.mu.Unlock()
+		return s.handleVectorStoreError(s.deleteVectorRows(ctx, sourceIDs))
 	}
 
 	session, ok := s.sessions[id]
 	if !ok {
+		s.mu.Unlock()
 		return errors.New("session not found")
 	}
 
+	sourceIDs = base.SourceIDsFromMessages(id, s.messages[id])
 	delete(s.messages, id)
 	delete(s.summaries, id)
 	session.Compaction = base.SessionCompaction{}
 	session.UpdatedAt = time.Now().UTC()
 	s.sessions[id] = session
-	return nil
+	s.mu.Unlock()
+
+	return s.handleVectorStoreError(s.deleteVectorRows(ctx, sourceIDs))
 }
 
 func (s *SessionStore) SaveSummary(_ context.Context, summary SessionSummary) error {
@@ -732,7 +757,7 @@ func (s *SessionStore) SaveSummary(_ context.Context, summary SessionSummary) er
 		return errors.New("session store is required")
 	}
 
-	normalized, err := common.NormalizeSessionSummary(summary)
+	normalized, err := base.NormalizeSessionSummary(summary)
 	if err != nil {
 		return err
 	}
@@ -744,7 +769,7 @@ func (s *SessionStore) SaveSummary(_ context.Context, summary SessionSummary) er
 		return errors.New("session not found")
 	}
 
-	s.summaries[normalized.SessionID] = common.CloneSessionSummary(normalized)
+	s.summaries[normalized.SessionID] = base.CloneSessionSummary(normalized)
 	return nil
 }
 
@@ -758,7 +783,7 @@ func (s *SessionStore) GetSummary(_ context.Context, sessionID string) (SessionS
 		return SessionSummary{}, false, nil
 	}
 
-	if err := common.ValidateSessionID(sessionID); err != nil {
+	if err := base.ValidateSessionID(sessionID); err != nil {
 		return SessionSummary{}, false, err
 	}
 
@@ -770,7 +795,7 @@ func (s *SessionStore) GetSummary(_ context.Context, sessionID string) (SessionS
 		return SessionSummary{}, false, nil
 	}
 
-	return common.CloneSessionSummary(summary), true, nil
+	return base.CloneSessionSummary(summary), true, nil
 }
 
 func (s *SessionStore) DeleteSummary(_ context.Context, sessionID string) error {
@@ -779,7 +804,7 @@ func (s *SessionStore) DeleteSummary(_ context.Context, sessionID string) error 
 	}
 
 	sessionID = strings.TrimSpace(sessionID)
-	if err := common.ValidateSessionID(sessionID); err != nil {
+	if err := base.ValidateSessionID(sessionID); err != nil {
 		return err
 	}
 
@@ -796,7 +821,7 @@ func (s *SessionStore) SetCurrent(_ context.Context, id string) error {
 	}
 
 	id = strings.TrimSpace(id)
-	if err := common.ValidateSessionID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
 
@@ -827,7 +852,7 @@ func (s *SessionStore) Current(_ context.Context) (string, bool, error) {
 }
 
 func cloneMessages(messages []handmsg.Message) []handmsg.Message {
-	return common.CloneMessages(messages)
+	return base.CloneMessages(messages)
 }
 
 func cloneSearchMessageHits(hits []base.SearchMessageHit) []base.SearchMessageHit {
@@ -838,7 +863,7 @@ func cloneSearchMessageHits(hits []base.SearchMessageHit) []base.SearchMessageHi
 	cloned := make([]base.SearchMessageHit, len(hits))
 	for i, hit := range hits {
 		cloned[i] = hit
-		cloned[i].Message = common.CloneMessages([]handmsg.Message{hit.Message})[0]
+		cloned[i].Message = base.CloneMessages([]handmsg.Message{hit.Message})[0]
 	}
 
 	return cloned

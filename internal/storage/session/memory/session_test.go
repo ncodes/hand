@@ -2,13 +2,16 @@ package memory
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
+	"github.com/wandxy/hand/internal/storage/retrieval"
 	base "github.com/wandxy/hand/internal/storage/session"
+	vectormemory "github.com/wandxy/hand/internal/storage/vector/memory"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
@@ -500,6 +503,180 @@ func TestMemoryStore_SearchMessagesOrdersSessionMessagesByTimestampAndID(t *test
 	})
 }
 
+func TestMemoryStore_VectorSearchReturnsSemanticHits(t *testing.T) {
+	store := newVectorMemoryStore(t, nil)
+	now := time.Now().UTC()
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "The retention playbook focuses on renewal risk scoring.", CreatedAt: now},
+	}))
+
+	results, err := store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
+		Query: "customer cancellation prevention strategy",
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, testSessionA, results[0].SessionID)
+	require.Equal(t, "The retention playbook focuses on renewal risk scoring.", results[0].Messages[0].MatchedText)
+}
+
+func TestMemoryStore_VectorSearchMergesLexicalAndVectorCandidates(t *testing.T) {
+	enabled := false
+	store := newVectorMemoryStore(t, &enabled)
+	now := time.Now().UTC()
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "needle plus retention context", CreatedAt: now},
+	}))
+
+	results, err := store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
+		Query: "needle",
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, 1, results[0].MatchCount)
+	require.Len(t, results[0].Messages, 1)
+	require.Equal(t, "needle plus retention context", results[0].Messages[0].MatchedText)
+}
+
+func TestMemoryStore_VectorSearchAppliesScopeRoleAndToolFilters(t *testing.T) {
+	store := newVectorMemoryStore(t, nil)
+	now := time.Now().UTC()
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "The retention playbook is user-visible.", CreatedAt: now},
+		{Role: handmsg.RoleTool, Name: "session_search", Content: "The retention playbook came from tool output.", CreatedAt: now.Add(time.Second)},
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "The retention playbook is in another session.", CreatedAt: now.Add(2 * time.Second)},
+	}))
+
+	results, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
+		IgnoreSessionID: testSessionB,
+		Query:           "customer cancellation prevention strategy",
+		Role:            handmsg.RoleTool,
+		ToolName:        "session_search",
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, testSessionA, results[0].SessionID)
+	require.Len(t, results[0].Messages, 1)
+	require.Equal(t, handmsg.RoleTool, results[0].Messages[0].Message.Role)
+	require.Equal(t, "session_search", results[0].Messages[0].MatchedToolName)
+}
+
+func TestMemoryStore_VectorLifecycleRemovesRows(t *testing.T) {
+	t.Run("delete", func(t *testing.T) {
+		store := newVectorMemoryStore(t, nil)
+		now := time.Now().UTC()
+
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "The retention playbook should disappear.", CreatedAt: now},
+		}))
+		require.NoError(t, store.Delete(context.Background(), testSessionA))
+
+		results, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
+			Query: "customer cancellation prevention strategy",
+		})
+		require.NoError(t, err)
+		require.Empty(t, results)
+	})
+
+	t.Run("clear", func(t *testing.T) {
+		store := newVectorMemoryStore(t, nil)
+		now := time.Now().UTC()
+
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "The retention playbook should be cleared.", CreatedAt: now},
+		}))
+		require.NoError(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}))
+
+		results, err := store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
+			Query: "customer cancellation prevention strategy",
+		})
+		require.NoError(t, err)
+		require.Empty(t, results)
+	})
+
+	t.Run("archive", func(t *testing.T) {
+		store := newVectorMemoryStore(t, nil)
+		now := time.Now().UTC()
+
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "The retention playbook should be archived.", CreatedAt: now},
+		}))
+		require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+			ID:              testArchiveA,
+			SourceSessionID: testSessionA,
+			ArchivedAt:      now,
+			ExpiresAt:       now.Add(time.Hour),
+		}))
+
+		results, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
+			Query: "customer cancellation prevention strategy",
+		})
+		require.NoError(t, err)
+		require.Empty(t, results)
+	})
+
+	t.Run("expired archive cleanup", func(t *testing.T) {
+		store := newVectorMemoryStore(t, nil)
+		now := time.Now().UTC()
+
+		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "The retention playbook should expire.", CreatedAt: now},
+		}))
+		require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+			ID:              testArchiveOld,
+			SourceSessionID: testSessionA,
+			ArchivedAt:      now.Add(-2 * time.Hour),
+			ExpiresAt:       now.Add(-time.Hour),
+		}))
+		require.NoError(t, store.DeleteExpiredArchives(context.Background(), now))
+
+		results, err := store.SearchMessages(context.Background(), "", base.SearchMessageOptions{
+			Query: "customer cancellation prevention strategy",
+		})
+		require.NoError(t, err)
+		require.Empty(t, results)
+	})
+}
+
+func TestMemoryStore_VectorSearchUsesConfiguredReranker(t *testing.T) {
+	store := NewSessionStore()
+	now := time.Now().UTC()
+	require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+		Embedder:            semanticTestEmbedder{},
+		Reranker:            preferBillingTestReranker{},
+		VectorStore:         vectormemory.NewStore(),
+		EmbeddingModel:      "semantic-test",
+		RerankMaxCandidates: 100,
+		Required:            true,
+	}))
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "The retention playbook is related.", CreatedAt: now},
+		{Role: handmsg.RoleUser, Content: "Billing invoice notes are unrelated.", CreatedAt: now.Add(time.Second)},
+	}))
+
+	results, err := store.SearchMessages(context.Background(), testSessionA, base.SearchMessageOptions{
+		Query: "customer cancellation prevention strategy",
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Len(t, results[0].Messages, 2)
+	require.Equal(t, "Billing invoice notes are unrelated.", results[0].Messages[0].MatchedText)
+}
+
 func TestMatchedMessageHit_EdgeCases(t *testing.T) {
 	_, ok := matchedMessageHit(testSessionOne, handmsg.Message{
 		Role:    handmsg.RoleAssistant,
@@ -525,6 +702,79 @@ func TestMatchedMessageHit_EdgeCases(t *testing.T) {
 
 func TestCloneSearchMessageHits_Empty(t *testing.T) {
 	require.Nil(t, cloneSearchMessageHits(nil))
+}
+
+func newVectorMemoryStore(t *testing.T, enableRerank *bool) *SessionStore {
+	t.Helper()
+
+	store := NewSessionStore()
+	require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+		Embedder:            semanticTestEmbedder{},
+		Reranker:            retrieval.DeterministicReranker{},
+		VectorStore:         vectormemory.NewStore(),
+		EnableRerank:        enableRerank,
+		EmbeddingModel:      "semantic-test",
+		RerankMaxCandidates: 100,
+		Required:            true,
+	}))
+
+	return store
+}
+
+type semanticTestEmbedder struct{}
+
+func (semanticTestEmbedder) Embed(
+	_ context.Context,
+	req retrieval.EmbeddingRequest,
+) (retrieval.EmbeddingResult, error) {
+	items := make([]retrieval.Embedding, 0, len(req.Inputs))
+	for _, input := range req.Inputs {
+		vector := []float64{0.1, 0.9}
+		text := strings.ToLower(input.Text)
+		if strings.Contains(text, "retention") ||
+			strings.Contains(text, "renewal") ||
+			strings.Contains(text, "cancellation") ||
+			strings.Contains(text, "prevention") {
+			vector = []float64{1, 0}
+		}
+		items = append(items, retrieval.Embedding{
+			ID:          input.ID,
+			ContentHash: retrieval.VectorContentHash(input.Text),
+			Vector:      vector,
+		})
+	}
+
+	return retrieval.EmbeddingResult{
+		Model:      req.Model,
+		Items:      items,
+		Dimensions: 2,
+	}, nil
+}
+
+type preferBillingTestReranker struct{}
+
+func (preferBillingTestReranker) Name() string {
+	return retrieval.RerankerLLM
+}
+
+func (preferBillingTestReranker) Rerank(
+	_ context.Context,
+	req retrieval.RerankRequest,
+) (retrieval.RerankResult, error) {
+	var preferred []retrieval.RerankItem
+	var remaining []retrieval.RerankItem
+	for _, candidate := range req.Candidates {
+		item := retrieval.RerankItem{CandidateID: candidate.ID, Score: 0.1}
+		if strings.Contains(strings.ToLower(candidate.Text), "billing") {
+			item.Score = 1
+			preferred = append(preferred, item)
+			continue
+		}
+		remaining = append(remaining, item)
+	}
+
+	items := append(preferred, remaining...)
+	return retrieval.RerankResult{Reranker: retrieval.RerankerLLM, Items: items}, nil
 }
 
 func TestMemoryStore_GetMessagesSupportsDescendingOrder(t *testing.T) {

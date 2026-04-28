@@ -1,4 +1,4 @@
-package common
+package session
 
 import (
 	"testing"
@@ -7,15 +7,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	storage "github.com/wandxy/hand/internal/storage/session"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
 var (
-	testSessionID        = nanoid.MustFromSeed(storage.SessionIDPrefix, "project-a", "SessionUtilTestSeedValue123")
-	testArchiveSessionID = nanoid.MustFromSeed(storage.SessionIDPrefix, "archive-source", "SessionUtilTestSeedValue123")
-	testArchiveID        = nanoid.MustFromSeed(storage.ArchiveIDPrefix, "archive-a", "SessionUtilTestSeedValue123")
-	testArchiveIDAlt     = nanoid.MustFromSeed(storage.ArchiveIDPrefix, "archive-b", "SessionUtilTestSeedValue123")
+	testSessionID        = nanoid.MustFromSeed(SessionIDPrefix, "project-a", "SessionUtilTestSeedValue123")
+	testArchiveSessionID = nanoid.MustFromSeed(SessionIDPrefix, "archive-source", "SessionUtilTestSeedValue123")
+	testArchiveID        = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-a", "SessionUtilTestSeedValue123")
+	testArchiveIDAlt     = nanoid.MustFromSeed(ArchiveIDPrefix, "archive-b", "SessionUtilTestSeedValue123")
 )
 
 func TestValidateSessionID(t *testing.T) {
@@ -25,7 +24,7 @@ func TestValidateSessionID(t *testing.T) {
 	})
 
 	t.Run("accepts default id", func(t *testing.T) {
-		require.NoError(t, ValidateSessionID(storage.DefaultSessionID))
+		require.NoError(t, ValidateSessionID(DefaultSessionID))
 	})
 
 	t.Run("rejects invalid id", func(t *testing.T) {
@@ -56,50 +55,50 @@ func TestValidateArchiveID(t *testing.T) {
 
 func TestNormalizeCreateArchive(t *testing.T) {
 	t.Run("rejects missing archive id", func(t *testing.T) {
-		archive, err := NormalizeCreateArchive(storage.ArchivedSession{})
+		archive, err := NormalizeCreateArchive(ArchivedSession{})
 		require.EqualError(t, err, "archive id is required")
-		require.Equal(t, storage.ArchivedSession{}, archive)
+		require.Equal(t, ArchivedSession{}, archive)
 	})
 
 	t.Run("rejects missing source session id", func(t *testing.T) {
-		archive, err := NormalizeCreateArchive(storage.ArchivedSession{
+		archive, err := NormalizeCreateArchive(ArchivedSession{
 			ID:        testArchiveID,
 			ExpiresAt: time.Now().UTC().Add(time.Hour),
 		})
 		require.EqualError(t, err, "source session id is required")
-		require.Equal(t, storage.ArchivedSession{}, archive)
+		require.Equal(t, ArchivedSession{}, archive)
 	})
 
 	t.Run("rejects invalid source session id", func(t *testing.T) {
-		archive, err := NormalizeCreateArchive(storage.ArchivedSession{
+		archive, err := NormalizeCreateArchive(ArchivedSession{
 			ID:              testArchiveID,
 			SourceSessionID: "ses_invalid",
 			ExpiresAt:       time.Now().UTC().Add(time.Hour),
 		})
 		require.EqualError(t, err, "session id must be a valid ses_ nanoid")
-		require.Equal(t, storage.ArchivedSession{}, archive)
+		require.Equal(t, ArchivedSession{}, archive)
 	})
 
 	t.Run("rejects missing expiry", func(t *testing.T) {
-		archive, err := NormalizeCreateArchive(storage.ArchivedSession{
+		archive, err := NormalizeCreateArchive(ArchivedSession{
 			ID:              testArchiveID,
 			SourceSessionID: testArchiveSessionID,
 		})
 		require.EqualError(t, err, "archive expiry is required")
-		require.Equal(t, storage.ArchivedSession{}, archive)
+		require.Equal(t, ArchivedSession{}, archive)
 	})
 
 	t.Run("defaults archived at and trims source session id", func(t *testing.T) {
 		expiresAt := time.Now().Add(2 * time.Hour)
 
-		archive, err := NormalizeCreateArchive(storage.ArchivedSession{
+		archive, err := NormalizeCreateArchive(ArchivedSession{
 			ID:              testArchiveID,
-			SourceSessionID: "  " + storage.DefaultSessionID + "  ",
+			SourceSessionID: "  " + DefaultSessionID + "  ",
 			ExpiresAt:       expiresAt,
 		})
 		require.NoError(t, err)
 		require.Equal(t, testArchiveID, archive.ID)
-		require.Equal(t, storage.DefaultSessionID, archive.SourceSessionID)
+		require.Equal(t, DefaultSessionID, archive.SourceSessionID)
 		require.False(t, archive.ArchivedAt.IsZero())
 		require.Equal(t, time.UTC, archive.ArchivedAt.Location())
 		require.Equal(t, expiresAt.UTC(), archive.ExpiresAt)
@@ -110,7 +109,7 @@ func TestNormalizeCreateArchive(t *testing.T) {
 		archivedAt := time.Date(2026, 4, 2, 14, 0, 0, 0, location)
 		expiresAt := time.Date(2026, 4, 3, 14, 0, 0, 0, location)
 
-		archive, err := NormalizeCreateArchive(storage.ArchivedSession{
+		archive, err := NormalizeCreateArchive(ArchivedSession{
 			ID:              testArchiveIDAlt,
 			SourceSessionID: "  " + testArchiveSessionID + "  ",
 			ArchivedAt:      archivedAt,
@@ -151,62 +150,62 @@ func TestCloneMessages(t *testing.T) {
 
 func TestNormalizeSessionSummary(t *testing.T) {
 	t.Run("rejects missing session id", func(t *testing.T) {
-		summary, err := NormalizeSessionSummary(storage.SessionSummary{})
+		summary, err := NormalizeSessionSummary(SessionSummary{})
 		require.EqualError(t, err, "session id is required")
-		require.Equal(t, storage.SessionSummary{}, summary)
+		require.Equal(t, SessionSummary{}, summary)
 	})
 
 	t.Run("rejects invalid session id", func(t *testing.T) {
-		summary, err := NormalizeSessionSummary(storage.SessionSummary{
+		summary, err := NormalizeSessionSummary(SessionSummary{
 			SessionID:      "ses_invalid",
 			SessionSummary: "summary",
 		})
 		require.EqualError(t, err, "session id must be a valid ses_ nanoid")
-		require.Equal(t, storage.SessionSummary{}, summary)
+		require.Equal(t, SessionSummary{}, summary)
 	})
 
 	t.Run("rejects missing summary", func(t *testing.T) {
-		summary, err := NormalizeSessionSummary(storage.SessionSummary{
+		summary, err := NormalizeSessionSummary(SessionSummary{
 			SessionID: testSessionID,
 		})
 		require.EqualError(t, err, "session summary is required")
-		require.Equal(t, storage.SessionSummary{}, summary)
+		require.Equal(t, SessionSummary{}, summary)
 	})
 
 	t.Run("rejects negative source end offset", func(t *testing.T) {
-		summary, err := NormalizeSessionSummary(storage.SessionSummary{
+		summary, err := NormalizeSessionSummary(SessionSummary{
 			SessionID:       testSessionID,
 			SessionSummary:  "summary",
 			SourceEndOffset: -1,
 		})
 		require.EqualError(t, err, "summary source end offset must be greater than or equal to zero")
-		require.Equal(t, storage.SessionSummary{}, summary)
+		require.Equal(t, SessionSummary{}, summary)
 	})
 
 	t.Run("rejects negative source message count", func(t *testing.T) {
-		summary, err := NormalizeSessionSummary(storage.SessionSummary{
+		summary, err := NormalizeSessionSummary(SessionSummary{
 			SessionID:          testSessionID,
 			SessionSummary:     "summary",
 			SourceMessageCount: -1,
 		})
 		require.EqualError(t, err, "summary source message count must be greater than or equal to zero")
-		require.Equal(t, storage.SessionSummary{}, summary)
+		require.Equal(t, SessionSummary{}, summary)
 	})
 
 	t.Run("rejects source end offset larger than source count", func(t *testing.T) {
-		summary, err := NormalizeSessionSummary(storage.SessionSummary{
+		summary, err := NormalizeSessionSummary(SessionSummary{
 			SessionID:          testSessionID,
 			SessionSummary:     "summary",
 			SourceEndOffset:    3,
 			SourceMessageCount: 2,
 		})
 		require.EqualError(t, err, "summary source end offset cannot exceed source message count")
-		require.Equal(t, storage.SessionSummary{}, summary)
+		require.Equal(t, SessionSummary{}, summary)
 	})
 
 	t.Run("defaults updated at and trims strings", func(t *testing.T) {
-		summary, err := NormalizeSessionSummary(storage.SessionSummary{
-			SessionID:          "  " + storage.DefaultSessionID + "  ",
+		summary, err := NormalizeSessionSummary(SessionSummary{
+			SessionID:          "  " + DefaultSessionID + "  ",
 			SessionSummary:     "  summary  ",
 			CurrentTask:        "  task  ",
 			SourceEndOffset:    2,
@@ -216,7 +215,7 @@ func TestNormalizeSessionSummary(t *testing.T) {
 			NextActions:        []string{" three ", ""},
 		})
 		require.NoError(t, err)
-		require.Equal(t, storage.DefaultSessionID, summary.SessionID)
+		require.Equal(t, DefaultSessionID, summary.SessionID)
 		require.Equal(t, "summary", summary.SessionSummary)
 		require.Equal(t, "task", summary.CurrentTask)
 		require.False(t, summary.UpdatedAt.IsZero())
@@ -230,7 +229,7 @@ func TestNormalizeSessionSummary(t *testing.T) {
 		location := time.FixedZone("UTC+2", 2*60*60)
 		updatedAt := time.Date(2026, 4, 2, 14, 0, 0, 0, location)
 
-		summary, err := NormalizeSessionSummary(storage.SessionSummary{
+		summary, err := NormalizeSessionSummary(SessionSummary{
 			SessionID:          testSessionID,
 			SessionSummary:     "summary",
 			UpdatedAt:          updatedAt,
@@ -246,7 +245,7 @@ func TestNormalizeSessionSummary(t *testing.T) {
 }
 
 func TestCloneSessionSummary(t *testing.T) {
-	original := storage.SessionSummary{
+	original := SessionSummary{
 		SessionID:      testSessionID,
 		SessionSummary: "summary",
 		Discoveries:    []string{" one ", "", "two"},
@@ -267,12 +266,12 @@ func TestCloneSessionSummary(t *testing.T) {
 	require.Equal(t, []string{"three"}, cloned.OpenQuestions)
 	require.Equal(t, []string{"four"}, cloned.NextActions)
 
-	empty := CloneSessionSummary(storage.SessionSummary{})
+	empty := CloneSessionSummary(SessionSummary{})
 	require.Nil(t, empty.Discoveries)
 	require.Nil(t, empty.OpenQuestions)
 	require.Nil(t, empty.NextActions)
 
-	whitespaceOnly := CloneSessionSummary(storage.SessionSummary{
+	whitespaceOnly := CloneSessionSummary(SessionSummary{
 		Discoveries:   []string{" ", "\t"},
 		OpenQuestions: []string{""},
 		NextActions:   []string{"   "},

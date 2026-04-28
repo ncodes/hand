@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -21,16 +20,15 @@ import (
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/storage/retrieval"
 	base "github.com/wandxy/hand/internal/storage/session"
-	common "github.com/wandxy/hand/internal/storage/session/common"
 )
 
 const currentSessionStateKey = "current_session"
 const sessionMessageSearchTable = "session_message_search"
 const defaultVectorStoreRebuildBatchSize = 100
-const defaultHybridCandidateLimit = 100
-const defaultRerankCandidateLimit = 100
-const maxHybridCandidateLimit = 1000
-const reciprocalRankFusionConstant = 60
+const defaultHybridRetrievalCandidateLimit = base.DefaultHybridRetrievalCandidateLimit
+const defaultRerankCandidateLimit = base.DefaultRerankCandidateLimit
+const maxHybridRetrievalCandidateLimit = base.MaxHybridRetrievalCandidateLimit
+const reciprocalRankFusionConstant = base.ReciprocalRankFusionConstant
 
 type Session = base.Session
 type ArchivedSession = base.ArchivedSession
@@ -174,30 +172,27 @@ type searchSessionResultRow struct {
 
 // searchCandidate is a merged lexical/vector candidate before final grouping.
 type searchCandidate struct {
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	ID              uint
-	SessionID       string
-	Role            string
-	Name            string
-	Content         string
-	ToolCalls       string
-	ToolCallID      string
-	MatchedText     string
-	MatchedToolName string
-	LexicalScore    float64
-	RerankScore     float64
-	VectorScore     float64
-	FusedScore      float64
-	LexicalRank     int
-	VectorRank      int
-	HasLexical      bool
-	HasRerank       bool
-	HasVector       bool
+	base.CandidateMatch
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	ID         uint
+	Role       string
+	Name       string
+	Content    string
+	ToolCalls  string
+	ToolCallID string
 }
 
 // searchCandidateSet collects merged search candidates keyed by message row ID.
-type searchCandidateSet map[uint]*searchCandidate
+type searchCandidateSet = base.SearchCandidateSet[uint, *searchCandidate]
+
+func (candidate *searchCandidate) CandidateMatchRef() *base.CandidateMatch {
+	if candidate == nil {
+		return nil
+	}
+
+	return &candidate.CandidateMatch
+}
 
 // SessionStore persists sessions, messages, search rows, summaries, and optional vector indexing in SQLite.
 type SessionStore struct {
@@ -205,43 +200,15 @@ type SessionStore struct {
 	db      *gorm.DB
 }
 
-// VectorStoreOptions configures optional vector indexing and hybrid reranking for session search.
-type VectorStoreOptions struct {
-	Embedder            retrieval.Embedder
-	Reranker            retrieval.Reranker
-	VectorStore         retrieval.VectorStore
-	EnableRerank        *bool
-	EmbeddingModel      string
-	RebuildBatchSize    int
-	RerankMaxCandidates int
-	Diagnostics         bool
-	Required            bool
-}
+type VectorStoreOptions = base.VectorStoreOptions
 
 // vectorConfig holds normalized vector dependencies and operational limits.
 type vectorConfig struct {
-	provider    retrieval.Embedder
-	reranker    retrieval.Reranker
-	store       retrieval.VectorStore
-	model       string
-	batchSize   int
-	rerankMax   int
-	diagnostics bool
-	rerank      bool
-	required    bool
+	base.VectorConfig
+	batchSize int
 }
 
-// vectorInput is the searchable text unit sent to the embedding provider.
-type vectorInput struct {
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	ID        string
-	SourceID  string
-	SessionID string
-	Role      string
-	ToolName  string
-	Text      string
-}
+type vectorInput = base.VectorInput
 
 func NewSessionStore(path string) (*SessionStore, error) {
 	path = strings.TrimSpace(path)
@@ -324,15 +291,17 @@ func (s *SessionStore) ConfigureVectorStore(opts VectorStoreOptions) error {
 	}
 
 	s.vectors = &vectorConfig{
-		provider:    opts.Embedder,
-		reranker:    opts.Reranker,
-		store:       opts.VectorStore,
-		model:       model,
-		batchSize:   batchSize,
-		rerankMax:   rerankMax,
-		diagnostics: opts.Diagnostics,
-		rerank:      rerankEnabled,
-		required:    opts.Required,
+		VectorConfig: base.VectorConfig{
+			Provider:    opts.Embedder,
+			Reranker:    opts.Reranker,
+			Store:       opts.VectorStore,
+			Model:       model,
+			RerankMax:   rerankMax,
+			Diagnostics: opts.Diagnostics,
+			Rerank:      rerankEnabled,
+			Required:    opts.Required,
+		},
+		batchSize: batchSize,
 	}
 
 	return nil
@@ -345,7 +314,7 @@ func (s *SessionStore) RebuildVectorStore(ctx context.Context, id string) error 
 	}
 
 	id = strings.TrimSpace(id)
-	if err := common.ValidateSessionID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
 
@@ -375,7 +344,7 @@ func (s *SessionStore) RebuildVectorStore(ctx context.Context, id string) error 
 		}
 
 		if err := s.deleteVectorRows(ctx, messageModels(records).sourceIDs()); err != nil {
-			if s.vectors.required {
+			if s.vectors.Required {
 				return err
 			}
 		}
@@ -414,7 +383,7 @@ func (s *SessionStore) Save(ctx context.Context, session Session) error {
 	}
 
 	session.ID = strings.TrimSpace(session.ID)
-	if err := common.ValidateSessionID(session.ID); err != nil {
+	if err := base.ValidateSessionID(session.ID); err != nil {
 		return err
 	}
 
@@ -484,7 +453,7 @@ func (s *SessionStore) Get(ctx context.Context, id string) (Session, bool, error
 		return Session{}, false, nil
 	}
 
-	if err := common.ValidateSessionID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return Session{}, false, err
 	}
 
@@ -541,7 +510,7 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 	}
 
 	id = strings.TrimSpace(id)
-	if err := common.ValidateSessionID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
 
@@ -607,7 +576,7 @@ func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages [
 	}
 
 	id = strings.TrimSpace(id)
-	if err := common.ValidateSessionID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
 
@@ -676,10 +645,10 @@ func (s *SessionStore) GetMessages(
 	}
 
 	if !opts.Archived {
-		if err := common.ValidateSessionID(id); err != nil {
+		if err := base.ValidateSessionID(id); err != nil {
 			return nil, err
 		}
-	} else if err := common.ValidateArchiveID(id); err != nil {
+	} else if err := base.ValidateArchiveID(id); err != nil {
 		return nil, err
 	}
 
@@ -728,7 +697,7 @@ func (s *SessionStore) GetMessagesByIDs(
 	if id == "" || len(messageIDs) == 0 {
 		return nil, nil
 	}
-	if err := common.ValidateSessionID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return nil, err
 	}
 
@@ -759,7 +728,7 @@ func (s *SessionStore) GetMessageWindow(
 	if id == "" || anchorMessageID == 0 {
 		return nil, nil
 	}
-	if err := common.ValidateSessionID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return nil, err
 	}
 	if before < 0 || after < 0 {
@@ -810,10 +779,10 @@ func (s *SessionStore) CountMessages(
 	}
 
 	if !opts.Archived {
-		if err := common.ValidateSessionID(id); err != nil {
+		if err := base.ValidateSessionID(id); err != nil {
 			return 0, err
 		}
-	} else if err := common.ValidateArchiveID(id); err != nil {
+	} else if err := base.ValidateArchiveID(id); err != nil {
 		return 0, err
 	}
 
@@ -846,11 +815,11 @@ func (s *SessionStore) SearchMessages(
 
 	id = strings.TrimSpace(id)
 	if id != "" {
-		if err := common.ValidateSessionID(id); err != nil {
+		if err := base.ValidateSessionID(id); err != nil {
 			return nil, err
 		}
 	} else if opts.IgnoreSessionID = strings.TrimSpace(opts.IgnoreSessionID); opts.IgnoreSessionID != "" {
-		if err := common.ValidateSessionID(opts.IgnoreSessionID); err != nil {
+		if err := base.ValidateSessionID(opts.IgnoreSessionID); err != nil {
 			return nil, err
 		}
 	}
@@ -1059,19 +1028,19 @@ LIMIT ?`)
 }
 
 func (s *SessionStore) rerankEnabled() bool {
-	return s != nil && s.vectors != nil && s.vectors.rerank
+	return s != nil && s.vectors != nil && s.vectors.Rerank
 }
 
 func (s *SessionStore) rerankerName() string {
-	if s == nil || s.vectors == nil || s.vectors.reranker == nil {
+	if s == nil || s.vectors == nil || s.vectors.Reranker == nil {
 		return retrieval.RerankerDeterministic
 	}
 
-	return strings.TrimSpace(strings.ToLower(s.vectors.reranker.Name()))
+	return strings.TrimSpace(strings.ToLower(s.vectors.Reranker.Name()))
 }
 
 func (s *SessionStore) diagnosticsEnabled() bool {
-	return s != nil && s.vectors != nil && s.vectors.diagnostics
+	return s != nil && s.vectors != nil && s.vectors.Diagnostics
 }
 
 // searchMessagesHybrid merges lexical and vector candidates, reranks them, and maps them to public results.
@@ -1108,7 +1077,7 @@ func (s *SessionStore) searchMessagesHybrid(
 		Msg("session search vector candidates gathered")
 
 	beforeMerge := len(candidates)
-	candidates.merge(vectorRows)
+	candidates.Merge(vectorRows, searchCandidateKey)
 	if len(candidates) == 0 {
 		s.logSearchEvent("no candidates", id, opts).Msg("session search returned no hybrid candidates")
 		return nil, nil
@@ -1120,10 +1089,10 @@ func (s *SessionStore) searchMessagesHybrid(
 		Int("merged_candidate_count", len(candidates)).
 		Msg("session search hybrid candidates merged")
 
-	s.logCandidateDiagnostics("candidate merged", candidates.sorted())
+	s.logCandidateDiagnostics("candidate merged", candidates.Sorted(lessSearchCandidate))
 
-	matchCounts, lastMatchedAt := candidates.sessionStats()
-	reranked := candidates.sorted()
+	matchCounts, lastMatchedAt := searchCandidateSessionStats(candidates)
+	reranked := candidates.Sorted(lessSearchCandidate)
 	if s.rerankEnabled() {
 		reranked = s.rerankSearchCandidates(ctx, opts, candidates)
 		s.logCandidateDiagnostics("candidate reranked", reranked)
@@ -1147,53 +1116,33 @@ func searchCandidatesFromLexicalRows(rows []searchSessionResultRow) searchCandid
 	candidates := make(searchCandidateSet, len(rows))
 	for idx, row := range rows {
 		candidates[row.ID] = &searchCandidate{
-			CreatedAt:       row.CreatedAt,
-			UpdatedAt:       row.UpdatedAt,
-			ID:              row.ID,
-			SessionID:       row.SessionID,
-			Role:            row.Role,
-			Name:            row.Name,
-			Content:         row.Content,
-			ToolCalls:       row.ToolCalls,
-			ToolCallID:      row.ToolCallID,
-			MatchedText:     row.MatchedText,
-			MatchedToolName: row.MatchedToolName,
-			LexicalScore:    row.Score,
-			LexicalRank:     idx + 1,
-			HasLexical:      true,
+			CandidateMatch: base.CandidateMatch{
+				SessionID:       row.SessionID,
+				MatchedText:     row.MatchedText,
+				MatchedToolName: row.MatchedToolName,
+				LexicalScore:    row.Score,
+				LexicalRank:     idx + 1,
+				HasLexical:      true,
+			},
+			CreatedAt:  row.CreatedAt,
+			UpdatedAt:  row.UpdatedAt,
+			ID:         row.ID,
+			Role:       row.Role,
+			Name:       row.Name,
+			Content:    row.Content,
+			ToolCalls:  row.ToolCalls,
+			ToolCallID: row.ToolCallID,
 		}
 	}
 
 	return candidates
 }
 
-// merge combines vector evidence into existing lexical candidates by message ID.
-func (candidates searchCandidateSet) merge(vectorCandidates []*searchCandidate) {
-	for _, vectorCandidate := range vectorCandidates {
-		if vectorCandidate == nil {
-			continue
-		}
-		candidate, ok := candidates[vectorCandidate.ID]
-		if !ok {
-			candidates[vectorCandidate.ID] = vectorCandidate
-			continue
-		}
-
-		candidate.VectorScore = vectorCandidate.VectorScore
-		candidate.VectorRank = vectorCandidate.VectorRank
-		candidate.HasVector = true
-		if strings.TrimSpace(candidate.MatchedText) == "" {
-			candidate.MatchedText = vectorCandidate.MatchedText
-			candidate.MatchedToolName = vectorCandidate.MatchedToolName
-		}
-	}
-}
-
 func rankedSearchRowsFromCandidates(
 	candidates searchCandidateSet,
 	opts base.SearchMessageOptions,
 ) []searchSessionResultRow {
-	return rankedSearchRowsFromCandidateSlice(candidates.sorted(), opts, nil, nil)
+	return rankedSearchRowsFromCandidateSlice(candidates.Sorted(lessSearchCandidate), opts, nil, nil)
 }
 
 func rankedSearchRowsFromCandidateSlice(
@@ -1317,8 +1266,20 @@ func compareRankedSessions(
 	return 0
 }
 
+func searchCandidateKey(candidate *searchCandidate) uint {
+	if candidate == nil {
+		return 0
+	}
+
+	return candidate.ID
+}
+
+func lessSearchCandidate(left *searchCandidate, right *searchCandidate) bool {
+	return compareSearchCandidates(left, right) < 0
+}
+
 // sessionStats returns per-session candidate counts and latest candidate timestamps.
-func (candidates searchCandidateSet) sessionStats() (map[string]int, map[string]time.Time) {
+func searchCandidateSessionStats(candidates searchCandidateSet) (map[string]int, map[string]time.Time) {
 	matchCounts := make(map[string]int)
 	lastMatchedAt := make(map[string]time.Time)
 	for _, candidate := range candidates {
@@ -1343,77 +1304,25 @@ func searchCandidateMatchCount(
 	return len(groups[sessionID])
 }
 
-// sorted returns candidates ordered by current ranking score and deterministic tie-breaks.
-func (candidates searchCandidateSet) sorted() []*searchCandidate {
-	items := make([]*searchCandidate, 0, len(candidates))
-	for _, candidate := range candidates {
-		candidate.FusedScore = fusedSearchCandidateScore(candidate)
-		items = append(items, candidate)
-	}
-	slices.SortStableFunc(items, compareSearchCandidates)
-
-	return items
-}
-
 func compareSearchCandidates(left *searchCandidate, right *searchCandidate) int {
-	leftScore := searchCandidateRankingScore(left)
-	rightScore := searchCandidateRankingScore(right)
-	if leftScore != rightScore {
-		if leftScore > rightScore {
-			return -1
-		}
-		return 1
-	}
-	if !left.CreatedAt.Equal(right.CreatedAt) {
-		if left.CreatedAt.After(right.CreatedAt) {
-			return -1
-		}
-		return 1
-	}
-	if left.SessionID != right.SessionID {
-		return strings.Compare(left.SessionID, right.SessionID)
-	}
-	if left.ID > right.ID {
-		return -1
-	}
-	if left.ID < right.ID {
-		return 1
-	}
-	return 0
+	return base.CompareCandidateOrder(
+		searchCandidateRankingScore(left),
+		searchCandidateRankingScore(right),
+		left.CreatedAt,
+		right.CreatedAt,
+		left.SessionID,
+		right.SessionID,
+		left.ID,
+		right.ID,
+	)
 }
 
 func searchCandidateRankingScore(candidate *searchCandidate) float64 {
-	if candidate.HasRerank {
-		return candidate.RerankScore
-	}
-
-	return candidate.FusedScore
-}
-
-// fusedSearchCandidateScore computes the fused score for a search candidate using
-// the reciprocal rank fusion constant.
-func fusedSearchCandidateScore(candidate *searchCandidate) float64 {
-	var score float64
-	if candidate.HasLexical && candidate.LexicalRank > 0 {
-		score += 1 / float64(reciprocalRankFusionConstant+candidate.LexicalRank)
-	}
-	if candidate.HasVector && candidate.VectorRank > 0 {
-		score += 1 / float64(reciprocalRankFusionConstant+candidate.VectorRank)
-	}
-
-	return score
+	return base.CandidateRankingScore(candidate.HasRerank, candidate.RerankScore, candidate.FusedScore)
 }
 
 func hybridCandidateLimit(opts base.SearchMessageOptions) int {
-	limit := defaultHybridCandidateLimit
-	if opts.MaxSessions > 0 && opts.MaxMessagesPerSession > 0 {
-		limit = max(limit, opts.MaxSessions*opts.MaxMessagesPerSession)
-	}
-	if limit > maxHybridCandidateLimit {
-		limit = maxHybridCandidateLimit
-	}
-
-	return limit
+	return base.HybridRetrievalCandidateLimit(opts)
 }
 
 // rerankSearchCandidates converts merged search candidates to the shared retrieval reranker contract.
@@ -1422,7 +1331,7 @@ func (s *SessionStore) rerankSearchCandidates(
 	opts base.SearchMessageOptions,
 	candidates searchCandidateSet,
 ) []*searchCandidate {
-	items := candidates.sorted()
+	items := candidates.Sorted(lessSearchCandidate)
 	if len(items) == 0 {
 		return nil
 	}
@@ -1431,10 +1340,10 @@ func (s *SessionStore) rerankSearchCandidates(
 	reranker := retrieval.Reranker(retrieval.DeterministicReranker{})
 	rerankerName := retrieval.RerankerDeterministic
 	if s != nil && s.vectors != nil {
-		maxCandidates = s.vectors.rerankMax
+		maxCandidates = s.vectors.RerankMax
 		rerankerName = s.rerankerName()
-		if s.vectors.reranker != nil {
-			reranker = s.vectors.reranker
+		if s.vectors.Reranker != nil {
+			reranker = s.vectors.Reranker
 		}
 	}
 	if maxCandidates > 0 && len(items) > maxCandidates {
@@ -1528,7 +1437,7 @@ func (s *SessionStore) searchMessagesVector(
 	candidateLimit int,
 ) ([]*searchCandidate, error) {
 	embeddingReq := retrieval.EmbeddingRequest{
-		Model: strings.TrimSpace(s.vectors.model),
+		Model: strings.TrimSpace(s.vectors.Model),
 		Inputs: []retrieval.EmbeddingInput{{
 			ID:         "query",
 			Text:       strings.TrimSpace(opts.Query),
@@ -1540,7 +1449,7 @@ func (s *SessionStore) searchMessagesVector(
 		Str("embedding_model", embeddingReq.Model).
 		Msg("session search query embedding started")
 
-	embedding, err := s.vectors.provider.Embed(ctx, embeddingReq)
+	embedding, err := s.vectors.Provider.Embed(ctx, embeddingReq)
 	if err != nil {
 		logSafeError(s.logSearchEvent("query embedding failed", id, opts), err).
 			Msg("session search query embedding failed")
@@ -1558,7 +1467,7 @@ func (s *SessionStore) searchMessagesVector(
 		Msg("session search query embedding completed")
 
 	searchReq := retrieval.VectorSearchRequest{
-		EmbeddingModel: strings.TrimSpace(s.vectors.model),
+		EmbeddingModel: strings.TrimSpace(s.vectors.Model),
 		Dimensions:     embedding.Dimensions,
 		QueryVector:    embedding.Items[0].Vector,
 		Limit:          candidateLimit,
@@ -1577,7 +1486,7 @@ func (s *SessionStore) searchMessagesVector(
 		Str("embedding_model", searchReq.EmbeddingModel).
 		Msg("session search vector retrieval started")
 
-	result, err := s.vectors.store.Search(ctx, searchReq)
+	result, err := s.vectors.Store.Search(ctx, searchReq)
 	if err != nil {
 		logSafeError(s.logSearchEvent("vector search failed", id, opts), err).
 			Msg("session search vector retrieval failed")
@@ -1653,20 +1562,22 @@ func (s *SessionStore) vectorMatchesToCandidates(
 		}
 
 		candidates = append(candidates, &searchCandidate{
-			CreatedAt:       record.CreatedAt,
-			UpdatedAt:       record.UpdatedAt,
-			ID:              record.ID,
-			SessionID:       record.SessionID,
-			Role:            record.Role,
-			Name:            record.Name,
-			Content:         record.Content,
-			ToolCalls:       record.ToolCalls,
-			ToolCallID:      record.ToolCallID,
-			MatchedText:     row.Body,
-			MatchedToolName: row.ToolName,
-			VectorScore:     match.Score,
-			VectorRank:      idx + 1,
-			HasVector:       true,
+			CandidateMatch: base.CandidateMatch{
+				SessionID:       record.SessionID,
+				MatchedText:     row.Body,
+				MatchedToolName: row.ToolName,
+				VectorScore:     match.Score,
+				VectorRank:      idx + 1,
+				HasVector:       true,
+			},
+			CreatedAt:  record.CreatedAt,
+			UpdatedAt:  record.UpdatedAt,
+			ID:         record.ID,
+			Role:       record.Role,
+			Name:       record.Name,
+			Content:    record.Content,
+			ToolCalls:  record.ToolCalls,
+			ToolCallID: record.ToolCallID,
 		})
 		seen[record.ID] = struct{}{}
 	}
@@ -1755,20 +1666,12 @@ func (lookup messageLookup) set(ref messageRef, record messageModel) {
 }
 
 func messageRefFromSourceID(sourceID string) (messageRef, bool) {
-	value, ok := strings.CutPrefix(sourceID, string(retrieval.SourceKindSessionMessage)+":")
+	sessionID, messageID, ok := base.MessageRefFromSourceID(sourceID)
 	if !ok {
 		return messageRef{}, false
 	}
-	idx := strings.LastIndex(value, ":")
-	if idx <= 0 || idx == len(value)-1 {
-		return messageRef{}, false
-	}
-	messageID, err := strconv.ParseUint(value[idx+1:], 10, 64)
-	if err != nil || messageID == 0 {
-		return messageRef{}, false
-	}
 
-	return messageRef{SessionID: value[:idx], MessageID: uint(messageID)}, true
+	return messageRef{SessionID: sessionID, MessageID: messageID}, true
 }
 
 func vectorRecordMatchesOptions(record messageModel, id string, opts base.SearchMessageOptions) bool {
@@ -1786,29 +1689,11 @@ func vectorRecordMatchesOptions(record messageModel, id string, opts base.Search
 }
 
 func searchRowForVectorRecord(record messageModel, vectorID string) (searchRow, bool) {
-	rows := searchRowsFromMessageModel(record)
-	if len(rows) == 0 {
-		return searchRow{}, false
-	}
-
-	idx := strings.LastIndex(vectorID, ":row:")
-	if idx < 0 {
-		return searchRow{}, false
-	}
-	rowNumber, err := strconv.Atoi(vectorID[idx+5:])
-	if err != nil || rowNumber <= 0 || rowNumber > len(rows) {
-		return searchRow{}, false
-	}
-
-	return rows[rowNumber-1], true
+	return base.MessageIndexRowForVectorRecord([]base.MessageIndexRow(searchRowsFromMessageModel(record)), vectorID)
 }
 
 func searchRowMatchesOptions(row searchRow, opts base.SearchMessageOptions) bool {
-	if toolName := normalizeSearchValue(opts.ToolName); toolName != "" && row.ToolName != toolName {
-		return false
-	}
-
-	return true
+	return base.MessageIndexRowMatchesSearchOptions(row, opts)
 }
 
 func applySessionMessageFilters(query *gorm.DB, id string, opts MessageQueryOptions) *gorm.DB {
@@ -1859,10 +1744,10 @@ func (s *SessionStore) GetMessage(
 	}
 
 	if !opts.Archived {
-		if err := common.ValidateSessionID(id); err != nil {
+		if err := base.ValidateSessionID(id); err != nil {
 			return handmsg.Message{}, false, err
 		}
-	} else if err := common.ValidateArchiveID(id); err != nil {
+	} else if err := base.ValidateArchiveID(id); err != nil {
 		return handmsg.Message{}, false, err
 	}
 
@@ -1897,7 +1782,7 @@ func (s *SessionStore) SaveSummary(ctx context.Context, summary SessionSummary) 
 		return errors.New("session store is required")
 	}
 
-	normalized, err := common.NormalizeSessionSummary(summary)
+	normalized, err := base.NormalizeSessionSummary(summary)
 	if err != nil {
 		return err
 	}
@@ -1939,7 +1824,7 @@ func (s *SessionStore) GetSummary(ctx context.Context, sessionID string) (Sessio
 		return SessionSummary{}, false, nil
 	}
 
-	if err := common.ValidateSessionID(sessionID); err != nil {
+	if err := base.ValidateSessionID(sessionID); err != nil {
 		return SessionSummary{}, false, err
 	}
 
@@ -1966,7 +1851,7 @@ func (s *SessionStore) DeleteSummary(ctx context.Context, sessionID string) erro
 	}
 
 	sessionID = strings.TrimSpace(sessionID)
-	if err := common.ValidateSessionID(sessionID); err != nil {
+	if err := base.ValidateSessionID(sessionID); err != nil {
 		return err
 	}
 
@@ -1979,7 +1864,7 @@ func (s *SessionStore) CreateArchive(ctx context.Context, archive ArchivedSessio
 		return errors.New("session store is required")
 	}
 
-	archive, err := common.NormalizeCreateArchive(archive)
+	archive, err := base.NormalizeCreateArchive(archive)
 	if err != nil {
 		return err
 	}
@@ -2071,7 +1956,7 @@ func (s *SessionStore) GetArchive(ctx context.Context, id string) (ArchivedSessi
 		return ArchivedSession{}, false, nil
 	}
 
-	if err := common.ValidateArchiveID(id); err != nil {
+	if err := base.ValidateArchiveID(id); err != nil {
 		return ArchivedSession{}, false, err
 	}
 
@@ -2099,10 +1984,10 @@ func (s *SessionStore) ClearMessages(ctx context.Context, id string, opts Messag
 
 	id = strings.TrimSpace(id)
 	if !opts.Archived {
-		if err := common.ValidateSessionID(id); err != nil {
+		if err := base.ValidateSessionID(id); err != nil {
 			return err
 		}
-	} else if err := common.ValidateArchiveID(id); err != nil {
+	} else if err := base.ValidateArchiveID(id); err != nil {
 		return err
 	}
 
@@ -2204,7 +2089,7 @@ func (s *SessionStore) DeleteArchive(ctx context.Context, archiveID string) erro
 	}
 
 	archiveID = strings.TrimSpace(archiveID)
-	if err := common.ValidateArchiveID(archiveID); err != nil {
+	if err := base.ValidateArchiveID(archiveID); err != nil {
 		return err
 	}
 
@@ -2257,7 +2142,7 @@ func (s *SessionStore) SetCurrent(ctx context.Context, id string) error {
 	}
 
 	id = strings.TrimSpace(id)
-	if err := common.ValidateSessionID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
 
@@ -2302,7 +2187,7 @@ func (s *SessionStore) Current(ctx context.Context) (string, bool, error) {
 }
 
 func summaryModelToSessionSummary(record summaryModel) (SessionSummary, error) {
-	return common.NormalizeSessionSummary(SessionSummary{
+	return base.NormalizeSessionSummary(SessionSummary{
 		SessionID:          record.SessionID,
 		SourceEndOffset:    record.SourceEndOffset,
 		SourceMessageCount: record.SourceMessageCount,
@@ -2316,7 +2201,7 @@ func summaryModelToSessionSummary(record summaryModel) (SessionSummary, error) {
 }
 
 func archiveModelToArchivedSession(record archiveModel) (ArchivedSession, error) {
-	return common.NormalizeCreateArchive(ArchivedSession{
+	return base.NormalizeCreateArchive(ArchivedSession{
 		ID:              record.ID,
 		SourceSessionID: record.SourceSessionID,
 		ArchivedAt:      record.ArchivedAt,
@@ -2571,15 +2456,7 @@ func jsonToToolCalls(value string) []handmsg.ToolCall {
 }
 
 // searchRow is one FTS row and the matching unit used for vector indexing.
-type searchRow struct {
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	MessageID uint
-	SessionID string
-	Role      string
-	ToolName  string
-	Body      string
-}
+type searchRow = base.MessageIndexRow
 
 // searchRows is a typed slice for FTS/vector searchable message rows.
 type searchRows []searchRow
@@ -2654,68 +2531,20 @@ func (records messageModels) searchRows() searchRows {
 }
 
 func searchRowsFromMessageModel(record messageModel) searchRows {
-	baseRow := searchRow{
-		CreatedAt: record.CreatedAt,
-		UpdatedAt: record.UpdatedAt,
-		MessageID: record.ID,
-		SessionID: strings.TrimSpace(record.SessionID),
-		Role:      normalizeSearchValue(record.Role),
+	rows := base.MessageIndexRowsFromMessage(record.SessionID, handmsg.Message{
+		ID:         record.ID,
+		Role:       handmsg.Role(strings.TrimSpace(record.Role)),
+		Content:    record.Content,
+		Name:       record.Name,
+		ToolCallID: record.ToolCallID,
+		ToolCalls:  jsonToToolCalls(record.ToolCalls),
+		CreatedAt:  record.CreatedAt,
+	})
+	for idx := range rows {
+		rows[idx].UpdatedAt = record.UpdatedAt
 	}
 
-	body := strings.TrimSpace(record.Content)
-	role := handmsg.Role(strings.TrimSpace(record.Role))
-
-	switch role {
-	case handmsg.RoleAssistant:
-		toolCalls := jsonToToolCalls(record.ToolCalls)
-		if len(toolCalls) == 0 {
-			if body == "" {
-				return nil
-			}
-
-			row := baseRow
-			row.Body = body
-			return searchRows{row}
-		}
-
-		rows := make(searchRows, 0, len(toolCalls)+1)
-		if body != "" {
-			row := baseRow
-			row.Body = body
-			rows = append(rows, row)
-		}
-
-		for _, toolCall := range toolCalls {
-			toolBody := strings.TrimSpace(handmsg.ToolCallSearchText(toolCall))
-			if toolBody == "" {
-				continue
-			}
-
-			row := baseRow
-			row.ToolName = normalizeSearchValue(toolCall.Name)
-			row.Body = toolBody
-			rows = append(rows, row)
-		}
-
-		return rows
-	case handmsg.RoleTool:
-		if body == "" {
-			return nil
-		}
-
-		row := baseRow
-		row.ToolName = normalizeSearchValue(record.Name)
-		row.Body = body
-		return searchRows{row}
-	default:
-		if body == "" {
-			return nil
-		}
-
-		row := baseRow
-		row.Body = body
-		return searchRows{row}
-	}
+	return searchRows(rows)
 }
 
 // indexVectors embeds searchable message rows and upserts the resulting vector records.
@@ -2739,14 +2568,14 @@ func (s *SessionStore) indexVectors(ctx context.Context, records []messageModel)
 	}
 
 	req := retrieval.EmbeddingRequest{
-		Model:  s.vectors.model,
+		Model:  s.vectors.Model,
 		Inputs: embeddingInputs,
 	}
 	s.logVectorEvent("embedding started").
 		Int("input_count", len(req.Inputs)).
 		Str("embedding_model", strings.TrimSpace(req.Model)).
 		Msg("session vector embedding started")
-	result, err := s.vectors.provider.Embed(ctx, req)
+	result, err := s.vectors.Provider.Embed(ctx, req)
 	if err != nil {
 		logSafeError(s.logVectorEvent("embedding failed"), err).Msg("session vector embedding failed")
 		return err
@@ -2791,7 +2620,7 @@ func (s *SessionStore) indexVectors(ctx context.Context, records []messageModel)
 		Str("embedding_model", strings.TrimSpace(result.Model)).
 		Int("dimensions", result.Dimensions).
 		Msg("session vector upsert started")
-	if err := s.vectors.store.Upsert(ctx, recordsToUpsert); err != nil {
+	if err := s.vectors.Store.Upsert(ctx, recordsToUpsert); err != nil {
 		logSafeError(s.logVectorEvent("upsert failed"), err).
 			Int("record_count", len(recordsToUpsert)).
 			Msg("session vector upsert failed")
@@ -2824,7 +2653,7 @@ func (s *SessionStore) deleteVectorRows(ctx context.Context, sourceIDs []string)
 		Int("source_id_count", len(sourceIDs)).
 		Str("source_kind", string(req.SourceKind)).
 		Msg("session vector delete started")
-	if err := s.vectors.store.Delete(ctx, req); err != nil {
+	if err := s.vectors.Store.Delete(ctx, req); err != nil {
 		logSafeError(s.logVectorEvent("delete failed"), err).
 			Int("source_id_count", len(sourceIDs)).
 			Str("source_kind", string(req.SourceKind)).
@@ -2841,7 +2670,7 @@ func (s *SessionStore) deleteVectorRows(ctx context.Context, sourceIDs []string)
 
 // handleVectorStoreError applies best-effort versus required vector indexing semantics.
 func (s *SessionStore) handleVectorStoreError(err error) error {
-	if err == nil || s == nil || s.vectors == nil || !s.vectors.required {
+	if err == nil || s == nil || s.vectors == nil || !s.vectors.Required {
 		return nil
 	}
 
@@ -2850,28 +2679,7 @@ func (s *SessionStore) handleVectorStoreError(err error) error {
 
 // vectorInputs maps search rows to stable embedding inputs.
 func (rows searchRows) vectorInputs() []vectorInput {
-	if len(rows) == 0 {
-		return nil
-	}
-
-	countsByMessageID := make(map[uint]int, len(rows))
-	inputs := make([]vectorInput, 0, len(rows))
-	for _, row := range rows {
-		sourceID := sourceIDForMessage(row.SessionID, row.MessageID)
-		countsByMessageID[row.MessageID]++
-		inputs = append(inputs, vectorInput{
-			CreatedAt: row.CreatedAt,
-			UpdatedAt: row.UpdatedAt,
-			ID:        fmt.Sprintf("%s:row:%d", sourceID, countsByMessageID[row.MessageID]),
-			SourceID:  sourceID,
-			SessionID: row.SessionID,
-			Role:      row.Role,
-			ToolName:  row.ToolName,
-			Text:      row.Body,
-		})
-	}
-
-	return inputs
+	return base.VectorInputsFromIndexRows([]base.MessageIndexRow(rows))
 }
 
 // sourceIDs returns stable vector source IDs for active message models.
@@ -2902,33 +2710,15 @@ func sourceIDsFromMessageIDs(sessionID string, messageIDs []uint) []string {
 }
 
 func sourceIDForMessage(sessionID string, messageID uint) string {
-	return retrieval.StableSessionMessageID(strings.TrimSpace(sessionID), messageID)
+	return base.SourceIDForMessage(sessionID, messageID)
 }
 
 func uniqueStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-
-	seen := make(map[string]struct{}, len(values))
-	unique := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		unique = append(unique, value)
-	}
-
-	return unique
+	return base.UniqueStrings(values)
 }
 
 func normalizeSearchValue(value string) string {
-	return strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(value)), " "))
+	return base.NormalizeMatchValue(value)
 }
 
 func buildSearchQuery(query string) string {

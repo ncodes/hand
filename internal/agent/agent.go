@@ -15,7 +15,6 @@ import (
 	"github.com/wandxy/hand/internal/models"
 	sessionstore "github.com/wandxy/hand/internal/session"
 	storage "github.com/wandxy/hand/internal/storage/session"
-	commonstorage "github.com/wandxy/hand/internal/storage/session/common"
 	storagefactory "github.com/wandxy/hand/internal/storage/session/factory"
 	"github.com/wandxy/hand/internal/tools"
 	webextract "github.com/wandxy/hand/internal/tools/webextract"
@@ -94,7 +93,7 @@ var newRecallSummaryCache = func() *pkgcache.Cache[string, storage.SessionSummar
 	return pkgcache.New(pkgcache.Options[string, storage.SessionSummary]{
 		TTL: defaultRecallSummaryCacheTTL,
 		Clone: func(summary storage.SessionSummary) storage.SessionSummary {
-			return commonstorage.CloneSessionSummary(summary)
+			return storage.CloneSessionSummary(summary)
 		},
 	})
 }

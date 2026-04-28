@@ -17,7 +17,6 @@ import (
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	storage "github.com/wandxy/hand/internal/storage/session"
-	common "github.com/wandxy/hand/internal/storage/session/common"
 	"github.com/wandxy/hand/internal/trace"
 )
 
@@ -113,7 +112,7 @@ func SummaryFromStorage(summary storage.SessionSummary) *SummaryState {
 		return nil
 	}
 
-	cloned := common.CloneSessionSummary(summary)
+	cloned := storage.CloneSessionSummary(summary)
 	return &SummaryState{
 		SessionID:          cloned.SessionID,
 		SourceEndOffset:    cloned.SourceEndOffset,
@@ -1466,7 +1465,7 @@ func (s *Service) refreshSummary(
 		}
 	}
 
-	summaryRecord := common.CloneSessionSummary(storage.SessionSummary{
+	summaryRecord := storage.CloneSessionSummary(storage.SessionSummary{
 		SessionID:          summary.SessionID,
 		SourceEndOffset:    summary.SourceEndOffset,
 		SourceMessageCount: summary.SourceMessageCount,

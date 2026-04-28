@@ -11,7 +11,6 @@ import (
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/storage/session"
-	common "github.com/wandxy/hand/internal/storage/session/common"
 	storagememory "github.com/wandxy/hand/internal/storage/session/memory"
 	storagemock "github.com/wandxy/hand/internal/storage/session/mock"
 	"github.com/wandxy/hand/pkg/nanoid"
@@ -400,7 +399,7 @@ func TestManager_CreateUseAndResolveErrors(t *testing.T) {
 
 	created, err := manager.CreateSession(context.Background(), "")
 	require.NoError(t, err)
-	require.NoError(t, common.ValidateSessionID(created.ID))
+	require.NoError(t, storage.ValidateSessionID(created.ID))
 
 	_, err = manager.CreateSession(context.Background(), "project-a")
 	require.EqualError(t, err, "session id must be a valid ses_ nanoid")

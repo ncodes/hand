@@ -9,7 +9,6 @@ import (
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/storage/session"
-	common "github.com/wandxy/hand/internal/storage/session/common"
 )
 
 type Manager struct {
@@ -60,7 +59,7 @@ func (m *Manager) Resolve(ctx context.Context, id string) (storage.Session, erro
 		return m.resolveDefaultSession(ctx, now)
 	}
 
-	if err := common.ValidateSessionID(id); err != nil {
+	if err := storage.ValidateSessionID(id); err != nil {
 		return storage.Session{}, err
 	}
 
@@ -143,7 +142,7 @@ func (m *Manager) AppendMessages(ctx context.Context, id string, messages []hand
 		return errors.New("session id is required")
 	}
 
-	return m.store.AppendMessages(ctx, id, common.CloneMessages(messages))
+	return m.store.AppendMessages(ctx, id, storage.CloneMessages(messages))
 }
 
 func (m *Manager) Save(ctx context.Context, session storage.Session) error {
@@ -297,7 +296,7 @@ func (m *Manager) CreateSession(ctx context.Context, id string) (storage.Session
 			return storage.Session{}, err
 		}
 		id = generatedID
-	} else if err := common.ValidateSessionID(id); err != nil {
+	} else if err := storage.ValidateSessionID(id); err != nil {
 		return storage.Session{}, err
 	}
 
@@ -336,7 +335,7 @@ func (m *Manager) DeleteSession(ctx context.Context, id string) error {
 
 	id = strings.TrimSpace(id)
 	if id != "" {
-		if err := common.ValidateSessionID(id); err != nil {
+		if err := storage.ValidateSessionID(id); err != nil {
 			return err
 		}
 	}
@@ -354,7 +353,7 @@ func (m *Manager) UseSession(ctx context.Context, id string) error {
 		if _, err := m.resolveDefaultSession(ctx, m.now().UTC()); err != nil {
 			return err
 		}
-	} else if err := common.ValidateSessionID(id); err != nil {
+	} else if err := storage.ValidateSessionID(id); err != nil {
 		return err
 	}
 
