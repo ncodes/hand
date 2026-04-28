@@ -274,7 +274,7 @@ func embeddingResultFromOpenAIResponse(
 	if strings.TrimSpace(response.Model) == "" {
 		return EmbeddingResult{}, errors.New("embedding result model is required")
 	}
-	if strings.TrimSpace(response.Model) != strings.TrimSpace(model) {
+	if !embeddingModelNamesMatch(model, response.Model) {
 		return EmbeddingResult{}, errors.New("embedding result model must match request model")
 	}
 	if len(response.Data) != len(inputs) {
@@ -310,10 +310,29 @@ func embeddingResultFromOpenAIResponse(
 	}
 
 	return EmbeddingResult{
-		Model:      strings.TrimSpace(response.Model),
+		Model:      strings.TrimSpace(model),
 		Items:      items,
 		Dimensions: dimensions,
 	}, nil
+}
+
+func embeddingModelNamesMatch(requested string, returned string) bool {
+	requested = strings.TrimSpace(requested)
+	returned = strings.TrimSpace(returned)
+	if requested == returned {
+		return true
+	}
+
+	return trimModelProviderPrefix(requested) == trimModelProviderPrefix(returned)
+}
+
+func trimModelProviderPrefix(model string) string {
+	model = strings.TrimSpace(model)
+	if _, suffix, ok := strings.Cut(model, "/"); ok {
+		return suffix
+	}
+
+	return model
 }
 
 func embeddingTexts(inputs []EmbeddingInput) []string {

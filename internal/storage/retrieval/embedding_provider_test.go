@@ -52,6 +52,30 @@ func TestEmbeddingProvider_EmbedReturnsValidatedEmbeddings(t *testing.T) {
 	}, result)
 }
 
+func TestEmbeddingProvider_EmbedAcceptsProviderPrefixedModelAlias(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req embeddingProviderRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		require.Equal(t, "provider/text-embedding-model", req.Model)
+
+		_, _ = w.Write([]byte(`{
+			"model":"text-embedding-model",
+			"data":[{"index":0,"embedding":[1,0]}]
+		}`))
+	}))
+	defer server.Close()
+
+	provider := newTestEmbeddingProvider(t, server.URL+"/embeddings", EmbeddingProviderOptions{})
+	result, err := provider.Embed(context.Background(), EmbeddingRequest{
+		Model:  "provider/text-embedding-model",
+		Inputs: []EmbeddingInput{{ID: "one", Text: "first"}},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "provider/text-embedding-model", result.Model)
+	require.Equal(t, []float64{1, 0}, result.Items[0].Vector)
+}
+
 func TestEmbeddingProvider_EmbedsInBatches(t *testing.T) {
 	var batches [][]string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
