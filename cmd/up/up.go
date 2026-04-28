@@ -115,6 +115,7 @@ func renderStartupPanel(cfg *config.Config) string {
 		fmt.Sprintf("%s %s", styleLabel("Provider", cfg.Log.NoColor), cfg.Models.Main.Provider),
 		fmt.Sprintf("%s %s", styleLabel("Summary model", cfg.Log.NoColor), cfg.SummaryModelEffective()),
 		fmt.Sprintf("%s %s", styleLabel("Summary provider", cfg.Log.NoColor), cfg.SummaryProviderEffective()),
+		fmt.Sprintf("%s %s", styleLabel("Storage", cfg.Log.NoColor), storageBackendEffective(cfg)),
 	}
 	if cfg.SummaryModelAPIModeEffective() != cfg.Models.Main.APIMode {
 		lines = append(lines, fmt.Sprintf("%s %s", styleLabel("Summary API mode", cfg.Log.NoColor), cfg.SummaryModelAPIModeEffective()))
@@ -143,6 +144,19 @@ func configBoolDefault(value *bool, fallback bool) bool {
 	}
 
 	return *value
+}
+
+func storageBackendEffective(cfg *config.Config) string {
+	if cfg == nil {
+		return "sqlite"
+	}
+
+	backend := strings.TrimSpace(strings.ToLower(cfg.Storage.Backend))
+	if backend == "" {
+		return "sqlite"
+	}
+
+	return backend
 }
 
 func styleStartup(value string, noColor bool) string {
@@ -252,6 +266,7 @@ func NewCommand() *cli.Command {
 				Str("provider", cfg.Models.Main.Provider).
 				Str("summaryModel", cfg.SummaryModelEffective()).
 				Str("summaryProvider", cfg.SummaryProviderEffective()).
+				Str("storage", storageBackendEffective(cfg)).
 				Msg("Configuration loaded")
 			if cfg.Search.Vector.Enabled {
 				vectorLog := log.Info().

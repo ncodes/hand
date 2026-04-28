@@ -109,6 +109,8 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, startupBuffer.String(), "Summary model")
 	require.Contains(t, startupBuffer.String(), "openai/gpt-4o-mini")
 	require.Contains(t, startupBuffer.String(), "Summary provider")
+	require.Contains(t, startupBuffer.String(), "Storage")
+	require.Contains(t, startupBuffer.String(), "sqlite")
 	require.Contains(t, startupBuffer.String(), "RPC")
 	require.Contains(t, startupBuffer.String(), "0.0.0.0:6000")
 	require.Contains(t, startupBuffer.String(), "Streaming")
@@ -127,6 +129,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, logOutput, "provider=openrouter")
 	require.Contains(t, logOutput, "summaryModel=openai/gpt-4o-mini")
 	require.Contains(t, logOutput, "summaryProvider=openrouter")
+	require.Contains(t, logOutput, "storage=sqlite")
 	require.Contains(t, logOutput, "rpcEndpoint=0.0.0.0:6000")
 	require.Contains(t, logOutput, "streaming=true")
 	require.Contains(t, logOutput, "debugTraces=true")
@@ -148,6 +151,7 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	require.Contains(t, output, "Instance: daemon")
 	require.Contains(t, output, "Summary model: openai/gpt-4o-mini")
 	require.Contains(t, output, "Summary provider: openrouter")
+	require.Contains(t, output, "Storage: sqlite")
 	require.Contains(t, output, "Streaming: false")
 	require.Contains(t, output, "Debug requests: enabled")
 	require.Contains(t, output, "Traces: enabled (/tmp/hand-traces)")
@@ -186,6 +190,18 @@ func TestRenderStartupPanel_HidesEmbeddingModelWhenVectorDisabled(t *testing.T) 
 
 	require.NotContains(t, output, "Embedding model")
 	require.NotContains(t, output, "Embedding provider")
+}
+
+func TestRenderStartupPanel_IncludesStorageBackend(t *testing.T) {
+	output := renderStartupPanel(&config.Config{
+		Name:    "daemon",
+		Models:  config.ModelsConfig{Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"}},
+		Storage: config.StorageConfig{Backend: "memory"},
+		RPC:     config.RPCConfig{Address: "127.0.0.1", Port: 50051},
+		Log:     config.LogConfig{Level: "info", NoColor: true},
+	})
+
+	require.Contains(t, output, "Storage: memory")
 }
 
 func TestRenderStartupPanel_IncludesEffectiveSummaryModelAndProvider(t *testing.T) {
