@@ -1623,6 +1623,9 @@ func fetchOpenAIModelMetadataPage(ctx context.Context, model string, requireCont
 	if err != nil {
 		return ModelMetadata{}, err
 	}
+	if isOpenAIModelDocsPageNotFound(body) {
+		return ModelMetadata{}, nil
+	}
 
 	match := contextWindowPatternOAI.FindStringSubmatch(string(body))
 	if len(match) != 2 {
@@ -1642,6 +1645,12 @@ func fetchOpenAIModelMetadataPage(ctx context.Context, model string, requireCont
 		Exists:        true,
 		ContextLength: contextLength,
 	}, nil
+}
+
+func isOpenAIModelDocsPageNotFound(body []byte) bool {
+	text := string(body)
+	return strings.Contains(text, "<title>Page not found | OpenAI API</title>") ||
+		strings.Contains(text, `name="title" content="Page not found | OpenAI API"`)
 }
 
 func unknownModelError(provider, model string) error {

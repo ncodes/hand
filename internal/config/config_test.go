@@ -2020,6 +2020,8 @@ func TestFetchOpenAIModelMetadata_CoversRemainingBranches(t *testing.T) {
 				w.WriteHeader(http.StatusBadGateway)
 			case "/api/docs/models/no-window":
 				_, _ = w.Write([]byte(`<html>exists</html>`))
+			case "/api/docs/models/page-not-found":
+				_, _ = w.Write([]byte(`<html><head><title>Page not found | OpenAI API</title></head></html>`))
 			case "/api/docs/models/comment-window":
 				_, _ = w.Write([]byte(`<div>128,000<!-- --> context window</div></div><div c`))
 			case "/api/docs/models/bad-window":
@@ -2051,6 +2053,10 @@ func TestFetchOpenAIModelMetadata_CoversRemainingBranches(t *testing.T) {
 		meta, err = fetchOpenAIModelMetadataPage(context.Background(), "no-window", false)
 		require.NoError(t, err)
 		require.Equal(t, ModelMetadata{Exists: true}, meta)
+
+		meta, err = fetchOpenAIModelMetadataPage(context.Background(), "page-not-found", false)
+		require.NoError(t, err)
+		require.Equal(t, ModelMetadata{}, meta)
 
 		meta, err = fetchOpenAIModelMetadataPage(context.Background(), "comment-window", true)
 		require.NoError(t, err)
