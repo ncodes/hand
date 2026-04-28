@@ -249,7 +249,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
 		traceSession.Record(trace.EvtModelRequest, request)
 
-		agentLog.Debug().
+		agentLog.Info().
 			Str("event", "model request dispatch started").
 			Str("provider", t.cfg.ModelProvider).
 			Str("mode", t.cfg.ModelAPIMode).
@@ -279,7 +279,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			resp, err = t.modelClient.Complete(ctx, request)
 		}
 		if err != nil {
-			agentLog.Debug().
+			agentLog.Warn().
 				Str("event", "model request dispatch failed").
 				Str("provider", t.cfg.ModelProvider).
 				Str("mode", t.cfg.ModelAPIMode).
@@ -293,7 +293,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 		if resp == nil {
 			err = errors.New("model response is required")
-			agentLog.Debug().
+			agentLog.Warn().
 				Str("event", "model request dispatch failed").
 				Str("provider", t.cfg.ModelProvider).
 				Str("mode", t.cfg.ModelAPIMode).
@@ -307,7 +307,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 		traceSession.Record(trace.EvtModelResponse, resp)
 
-		agentLog.Debug().
+		agentLog.Info().
 			Str("event", "model response received").
 			Str("provider", t.cfg.ModelProvider).
 			Str("mode", t.cfg.ModelAPIMode).
@@ -376,7 +376,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				return "", err
 			}
 
-			agentLog.Debug().
+			agentLog.Info().
 				Str("event", "tool invocation started").
 				Str("tool", toolCall.Name).
 				Str("tool_call_id", toolCall.ID).
@@ -387,10 +387,11 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			toolMessage := t.invokeTool(toolCtx, toolCall)
 			traceSession.Record(trace.EvtToolInvocationCompleted, toolMessage)
 
-			agentLog.Debug().
+			agentLog.Info().
 				Str("event", "tool invocation completed").
 				Str("tool", toolCall.Name).
 				Str("tool_call_id", toolCall.ID).
+				Int("output_chars", len([]rune(toolMessage.Content))).
 				Int("output_bytes", len(toolMessage.Content)).
 				Msg("tool invocation completed")
 
@@ -502,7 +503,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 	recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
 	traceSession.Record(trace.EvtModelRequest, request)
 
-	agentLog.Debug().
+	agentLog.Info().
 		Str("event", "summary fallback model request started").
 		Str("provider", t.cfg.ModelProvider).
 		Str("mode", t.cfg.ModelAPIMode).
@@ -542,7 +543,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 	}
 
 	traceSession.Record(trace.EvtModelResponse, resp)
-	agentLog.Debug().
+	agentLog.Info().
 		Str("event", "summary fallback model response received").
 		Str("provider", t.cfg.ModelProvider).
 		Str("mode", t.cfg.ModelAPIMode).

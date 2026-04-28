@@ -1518,7 +1518,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 		return nil, errors.New("model client is required")
 	}
 
-	summaryLog.Debug().
+	summaryLog.Info().
 		Str("event", "compaction summary model request started").
 		Str("provider", s.summaryProvider).
 		Str("mode", request.APIMode).
@@ -1530,7 +1530,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 
 	resp, err := s.summaryClient.Complete(ctx, request)
 	if err == nil {
-		event := summaryLog.Debug().
+		event := summaryLog.Info().
 			Str("event", "compaction summary model request completed").
 			Str("provider", s.summaryProvider).
 			Str("mode", request.APIMode).
@@ -1550,7 +1550,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 	}
 
 	if request.StructuredOutput == nil {
-		summaryLog.Debug().
+		summaryLog.Warn().
 			Err(err).
 			Str("event", "compaction summary model request failed").
 			Str("provider", s.summaryProvider).
@@ -1573,7 +1573,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 
 	fallback := request
 	fallback.StructuredOutput = nil
-	summaryLog.Debug().
+	summaryLog.Info().
 		Str("event", "compaction summary model retry started").
 		Str("provider", s.summaryProvider).
 		Str("mode", fallback.APIMode).
@@ -1585,7 +1585,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 
 	resp, err = s.summaryClient.Complete(ctx, fallback)
 	if err != nil {
-		summaryLog.Debug().
+		summaryLog.Warn().
 			Err(err).
 			Str("event", "compaction summary model retry failed").
 			Str("provider", s.summaryProvider).
@@ -1597,7 +1597,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 		return nil, err
 	}
 
-	event := summaryLog.Debug().
+	event := summaryLog.Info().
 		Str("event", "compaction summary model request completed").
 		Str("provider", s.summaryProvider).
 		Str("mode", fallback.APIMode).
