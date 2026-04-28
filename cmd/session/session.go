@@ -20,8 +20,8 @@ var (
 	sessionOutput io.Writer = os.Stdout
 	newClient               = func(ctx context.Context, cfg *config.Config) (rpcclient.SessionClient, error) {
 		return rpcclient.NewClient(ctx, rpcclient.Options{
-			Address: cfg.RPCAddress,
-			Port:    cfg.RPCPort,
+			Address: cfg.RPC.Address,
+			Port:    cfg.RPC.Port,
 		})
 	}
 )
@@ -203,8 +203,8 @@ func sessionClient(ctx context.Context, cmd *cli.Command) (rpcclient.SessionClie
 	handcli.ApplyConfigOverrides(cmd, cfg)
 
 	config.Set(cfg)
-	_ = logutils.ConfigureLogger("hand", cfg.LogNoColor)
-	logutils.SetLogLevel(cfg.LogLevel)
+	_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
+	logutils.SetLogLevel(cfg.Log.Level)
 
 	return newClient(ctx, cfg)
 }

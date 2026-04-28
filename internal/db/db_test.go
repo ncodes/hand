@@ -27,7 +27,7 @@ func TestOpen_OpensSQLiteAtStateDBPath(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HAND_HOME", homeDir)
 
-	db, err := Open(&config.Config{StorageBackend: "sqlite"})
+	db, err := Open(&config.Config{Storage: config.StorageConfig{Backend: "sqlite"}})
 	require.NoError(t, err)
 	require.NotNil(t, db)
 

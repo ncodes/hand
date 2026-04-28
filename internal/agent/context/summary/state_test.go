@@ -13,13 +13,16 @@ import (
 
 func TestNewService_LogsWhenSummaryProviderAndAPIModeDifferFromMain(t *testing.T) {
 	cfg := &config.Config{
-		Name:                "t",
-		Model:               "openai/gpt-4o-mini",
-		ModelProvider:       "openrouter",
-		ModelAPIMode:        config.DefaultModelAPIMode,
-		SummaryProvider:     "openai",
-		SummaryModelAPIMode: "responses",
-		ContextLength:       100,
+		Name: "t",
+		Models: config.ModelsConfig{
+			Main: config.MainModelConfig{
+				Name:          "openai/gpt-4o-mini",
+				Provider:      "openrouter",
+				APIMode:       config.DefaultModelAPIMode,
+				ContextLength: 100,
+			},
+			Summary: config.SummaryModelConfig{Provider: "openai", APIMode: "responses"},
+		},
 	}
 	cfg.Normalize()
 

@@ -77,8 +77,8 @@ COPYRIGHT:
 
 var newChatClient = func(ctx context.Context, cfg *config.Config) (rpcclient.ChatClient, error) {
 	return rpcclient.NewClient(ctx, rpcclient.Options{
-		Address: cfg.RPCAddress,
-		Port:    cfg.RPCPort,
+		Address: cfg.RPC.Address,
+		Port:    cfg.RPC.Port,
 	})
 }
 
@@ -125,8 +125,8 @@ func newCommand() *cli.Command {
 			handcli.ApplyConfigOverrides(cmd, cfg)
 
 			config.Set(cfg)
-			_ = logutils.ConfigureLogger("hand", cfg.LogNoColor)
-			logutils.SetLogLevel(cfg.LogLevel)
+			_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
+			logutils.SetLogLevel(cfg.Log.Level)
 
 			client, err := newChatClient(ctx, cfg)
 			if err != nil {
@@ -136,13 +136,13 @@ func newCommand() *cli.Command {
 
 			instruct := ""
 			if cmd.IsSet("instruct") {
-				instruct = cfg.Instruct
+				instruct = cfg.Session.Instruct
 			}
 
 			opts := rpcclient.RespondOptions{
 				Instruct:  instruct,
 				SessionID: strings.TrimSpace(cmd.String("session")),
-				Stream:    cfg.Stream,
+				Stream:    cfg.Models.Main.Stream,
 			}
 			if cfg.StreamEnabled() {
 				opts.OnEvent = func(event rpcclient.Event) {
@@ -169,7 +169,7 @@ func newCommand() *cli.Command {
 }
 
 func formatChatEvent(cfg *config.Config, event rpcclient.Event) string {
-	if strings.TrimSpace(event.Channel) != "reasoning" || cfg == nil || cfg.LogNoColor {
+	if strings.TrimSpace(event.Channel) != "reasoning" || cfg == nil || cfg.Log.NoColor {
 		return event.Text
 	}
 

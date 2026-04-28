@@ -219,12 +219,12 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		}
 
 		request := models.Request{
-			Model:         t.cfg.Model,
-			APIMode:       t.cfg.ModelAPIMode,
+			Model:         t.cfg.Models.Main.Name,
+			APIMode:       t.cfg.Models.Main.APIMode,
 			Instructions:  t.buildRequestInstructions(availableToolDefinitions),
 			Messages:      t.Context(),
 			Tools:         availableToolDefinitions,
-			DebugRequests: t.cfg.DebugRequests,
+			DebugRequests: t.cfg.Debug.Requests,
 		}
 
 		if !t.summaryRefreshAttempted {
@@ -251,13 +251,13 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 		agentLog.Info().
 			Str("event", "model request dispatch started").
-			Str("provider", t.cfg.ModelProvider).
-			Str("mode", t.cfg.ModelAPIMode).
-			Str("model", t.cfg.Model).
+			Str("provider", t.cfg.Models.Main.Provider).
+			Str("mode", t.cfg.Models.Main.APIMode).
+			Str("model", t.cfg.Models.Main.Name).
 			Bool("stream", streamingEnabled).
 			Int("context_messages", len(request.Messages)).
 			Int("tools", len(request.Tools)).
-			Bool("debug_requests", t.cfg.DebugRequests).
+			Bool("debug_requests", t.cfg.Debug.Requests).
 			Msg("sending model request")
 
 		var resp *models.Response
@@ -281,9 +281,9 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		if err != nil {
 			agentLog.Warn().
 				Str("event", "model request dispatch failed").
-				Str("provider", t.cfg.ModelProvider).
-				Str("mode", t.cfg.ModelAPIMode).
-				Str("model", t.cfg.Model).
+				Str("provider", t.cfg.Models.Main.Provider).
+				Str("mode", t.cfg.Models.Main.APIMode).
+				Str("model", t.cfg.Models.Main.Name).
 				Bool("stream", streamingEnabled).
 				Str("error_kind", agentModelErrorKind(err)).
 				Msg("model request failed")
@@ -295,9 +295,9 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			err = errors.New("model response is required")
 			agentLog.Warn().
 				Str("event", "model request dispatch failed").
-				Str("provider", t.cfg.ModelProvider).
-				Str("mode", t.cfg.ModelAPIMode).
-				Str("model", t.cfg.Model).
+				Str("provider", t.cfg.Models.Main.Provider).
+				Str("mode", t.cfg.Models.Main.APIMode).
+				Str("model", t.cfg.Models.Main.Name).
 				Bool("stream", streamingEnabled).
 				Str("error_kind", "missing_response").
 				Msg("model request failed")
@@ -309,9 +309,9 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 		agentLog.Info().
 			Str("event", "model response received").
-			Str("provider", t.cfg.ModelProvider).
-			Str("mode", t.cfg.ModelAPIMode).
-			Str("model", t.cfg.Model).
+			Str("provider", t.cfg.Models.Main.Provider).
+			Str("mode", t.cfg.Models.Main.APIMode).
+			Str("model", t.cfg.Models.Main.Name).
 			Str("response_model", resp.Model).
 			Bool("stream", streamingEnabled).
 			Int("prompt_tokens", resp.PromptTokens).
@@ -490,12 +490,12 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 	}
 
 	request := models.Request{
-		Model:         t.cfg.Model,
-		APIMode:       t.cfg.ModelAPIMode,
+		Model:         t.cfg.Models.Main.Name,
+		APIMode:       t.cfg.Models.Main.APIMode,
 		Instructions:  t.buildRequestInstructions(nil, instruct.BuildSummary(budget.Remaining())),
 		Messages:      t.Context(),
 		Tools:         nil,
-		DebugRequests: t.cfg.DebugRequests,
+		DebugRequests: t.cfg.Debug.Requests,
 	}
 
 	traceSession.Record(trace.EvtSummaryFallbackStarted, map[string]any{"remaining_iterations": budget.Remaining()})
@@ -505,11 +505,11 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 
 	agentLog.Info().
 		Str("event", "summary fallback model request started").
-		Str("provider", t.cfg.ModelProvider).
-		Str("mode", t.cfg.ModelAPIMode).
-		Str("model", t.cfg.Model).
+		Str("provider", t.cfg.Models.Main.Provider).
+		Str("mode", t.cfg.Models.Main.APIMode).
+		Str("model", t.cfg.Models.Main.Name).
 		Int("context_messages", len(request.Messages)).
-		Bool("debug_requests", t.cfg.DebugRequests).
+		Bool("debug_requests", t.cfg.Debug.Requests).
 		Msg("summary fallback model request started")
 
 	resp, err := t.modelClient.Complete(ctx, request)
@@ -518,9 +518,9 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 			Err(err).
 			Str("event", "summary fallback model request failed").
 			Str("session_id", t.sessionID).
-			Str("provider", t.cfg.ModelProvider).
-			Str("mode", t.cfg.ModelAPIMode).
-			Str("model", t.cfg.Model).
+			Str("provider", t.cfg.Models.Main.Provider).
+			Str("mode", t.cfg.Models.Main.APIMode).
+			Str("model", t.cfg.Models.Main.Name).
 			Str("error_kind", agentModelErrorKind(err)).
 			Msg("summary fallback model request failed")
 		wrapped := fmt.Errorf("iteration limit reached and summary failed: %w", err)
@@ -533,9 +533,9 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 		agentLog.Error().
 			Str("event", "summary fallback model request failed").
 			Str("session_id", t.sessionID).
-			Str("provider", t.cfg.ModelProvider).
-			Str("mode", t.cfg.ModelAPIMode).
-			Str("model", t.cfg.Model).
+			Str("provider", t.cfg.Models.Main.Provider).
+			Str("mode", t.cfg.Models.Main.APIMode).
+			Str("model", t.cfg.Models.Main.Name).
 			Str("error_kind", "missing_response").
 			Msg("summary fallback model request failed")
 		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
@@ -545,9 +545,9 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 	traceSession.Record(trace.EvtModelResponse, resp)
 	agentLog.Info().
 		Str("event", "summary fallback model response received").
-		Str("provider", t.cfg.ModelProvider).
-		Str("mode", t.cfg.ModelAPIMode).
-		Str("model", t.cfg.Model).
+		Str("provider", t.cfg.Models.Main.Provider).
+		Str("mode", t.cfg.Models.Main.APIMode).
+		Str("model", t.cfg.Models.Main.Name).
 		Str("response_model", resp.Model).
 		Int("prompt_tokens", resp.PromptTokens).
 		Int("completion_tokens", resp.CompletionTokens).

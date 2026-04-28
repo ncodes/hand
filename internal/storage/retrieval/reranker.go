@@ -10,12 +10,20 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/wandxy/hand/internal/rerank"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
 var retrievalLog = logutils.InitLogger("storage.retrieval")
 
+const (
+	RerankerNoop          = rerank.Noop
+	RerankerDeterministic = rerank.Deterministic
+	RerankerLLM           = rerank.LLM
+)
+
 type Reranker interface {
+	Name() string
 	Rerank(context.Context, RerankRequest) (RerankResult, error)
 }
 
@@ -46,7 +54,8 @@ const (
 )
 
 type RerankResult struct {
-	Items []RerankItem
+	Reranker string
+	Items    []RerankItem
 }
 
 type RerankItem struct {
@@ -56,19 +65,24 @@ type RerankItem struct {
 
 type NoopReranker struct{}
 
+func (NoopReranker) Name() string {
+	return RerankerNoop
+}
+
 func (NoopReranker) Rerank(_ context.Context, req RerankRequest) (RerankResult, error) {
-	rerankTraceLogEvent(req, "noop").Int("candidate_count", len(req.Candidates)).Msg("rerank started")
+	name := NoopReranker{}.Name()
+	rerankTraceLogEvent(req, name).Int("candidate_count", len(req.Candidates)).Msg("rerank started")
 
 	candidates, err := boundedCandidates(req.Candidates, req.Options.MaxCandidates)
 	if err != nil {
-		rerankTraceLogEvent(req, "noop").Err(err).Msg("rerank candidate bound failed")
+		rerankTraceLogEvent(req, name).Err(err).Msg("rerank candidate bound failed")
 		return RerankResult{}, err
 	}
 
 	items := make([]RerankItem, 0, len(candidates))
 	for _, candidate := range candidates {
 		if err := ValidateCandidate(candidate); err != nil {
-			rerankTraceLogEvent(req, "noop").Err(err).Msg("rerank candidate validation failed")
+			rerankTraceLogEvent(req, name).Err(err).Msg("rerank candidate validation failed")
 			return RerankResult{}, err
 		}
 		items = append(items, RerankItem{
@@ -77,38 +91,43 @@ func (NoopReranker) Rerank(_ context.Context, req RerankRequest) (RerankResult, 
 		})
 	}
 
-	rerankTraceLogEvent(req, "noop").
+	rerankTraceLogEvent(req, name).
 		Int("bounded_candidate_count", len(candidates)).
 		Int("result_count", len(items)).
 		Msg("rerank completed")
 
-	return RerankResult{Items: items}, nil
+	return RerankResult{Reranker: name, Items: items}, nil
 }
 
 type DeterministicReranker struct{}
 
+func (DeterministicReranker) Name() string {
+	return RerankerDeterministic
+}
+
 func (DeterministicReranker) Rerank(_ context.Context, req RerankRequest) (RerankResult, error) {
-	rerankTraceLogEvent(req, "deterministic").Int("candidate_count", len(req.Candidates)).Msg("rerank started")
+	name := DeterministicReranker{}.Name()
+	rerankTraceLogEvent(req, name).Int("candidate_count", len(req.Candidates)).Msg("rerank started")
 
 	candidates, err := boundedCandidates(req.Candidates, req.Options.MaxCandidates)
 	if err != nil {
-		rerankTraceLogEvent(req, "deterministic").Err(err).Msg("rerank candidate bound failed")
+		rerankTraceLogEvent(req, name).Err(err).Msg("rerank candidate bound failed")
 		return RerankResult{}, err
 	}
 	if len(candidates) == 0 {
-		rerankTraceLogEvent(req, "deterministic").Msg("rerank skipped without candidates")
-		return RerankResult{}, nil
+		rerankTraceLogEvent(req, name).Msg("rerank skipped without candidates")
+		return RerankResult{Reranker: name}, nil
 	}
 	for _, candidate := range candidates {
 		if err := ValidateCandidate(candidate); err != nil {
-			rerankTraceLogEvent(req, "deterministic").Err(err).Msg("rerank candidate validation failed")
+			rerankTraceLogEvent(req, name).Err(err).Msg("rerank candidate validation failed")
 			return RerankResult{}, err
 		}
 	}
 
 	weights, err := normalizeRerankWeights(req.Options)
 	if err != nil {
-		rerankTraceLogEvent(req, "deterministic").Err(err).Msg("rerank weight normalization failed")
+		rerankTraceLogEvent(req, name).Err(err).Msg("rerank weight normalization failed")
 		return RerankResult{}, err
 	}
 	lexicalScores := make([]float64, 0, len(candidates))
@@ -149,7 +168,7 @@ func (DeterministicReranker) Rerank(_ context.Context, req RerankRequest) (Reran
 		return left.CandidateID < right.CandidateID
 	})
 
-	rerankTraceLogEvent(req, "deterministic").
+	rerankTraceLogEvent(req, name).
 		Int("bounded_candidate_count", len(candidates)).
 		Int("result_count", len(items)).
 		Float64("lexical_weight", weights.LexicalWeight).
@@ -158,7 +177,7 @@ func (DeterministicReranker) Rerank(_ context.Context, req RerankRequest) (Reran
 		Float64("recency_weight", weights.RecencyWeight).
 		Msg("rerank completed")
 
-	return RerankResult{Items: items}, nil
+	return RerankResult{Reranker: name, Items: items}, nil
 }
 
 func RerankWithFallback(
@@ -169,6 +188,14 @@ func RerankWithFallback(
 	if primary == nil {
 		rerankDebugLogEvent(req, "fallback").Msg("rerank primary missing, using fallback")
 		return rerankFallback(ctx, fallback, req)
+	}
+	if err := ValidateReranker(primary); err != nil {
+		return RerankResult{}, err
+	}
+	if fallback != nil {
+		if err := ValidateReranker(fallback); err != nil {
+			return RerankResult{}, err
+		}
 	}
 
 	result, err := primary.Rerank(ctx, req)
@@ -184,6 +211,9 @@ func RerankWithFallback(
 	if err := ValidateRerankResult(candidates, result); err != nil {
 		rerankDebugLogEvent(req, "fallback").Err(err).Msg("rerank primary result rejected, using fallback")
 		return rerankFallback(ctx, fallback, req)
+	}
+	if strings.TrimSpace(result.Reranker) == "" {
+		result.Reranker = primary.Name()
 	}
 
 	rerankTraceLogEvent(req, "primary").Int("result_count", len(result.Items)).Msg("rerank primary result accepted")
@@ -249,8 +279,28 @@ func rerankFallback(ctx context.Context, fallback Reranker, req RerankRequest) (
 	if fallback == nil {
 		fallback = DeterministicReranker{}
 	}
+	if err := ValidateReranker(fallback); err != nil {
+		return RerankResult{}, err
+	}
 
-	return fallback.Rerank(ctx, req)
+	result, err := fallback.Rerank(ctx, req)
+	if strings.TrimSpace(result.Reranker) == "" {
+		result.Reranker = fallback.Name()
+	}
+
+	return result, err
+}
+
+func ValidateReranker(reranker Reranker) error {
+	if reranker == nil {
+		return nil
+	}
+	switch strings.TrimSpace(strings.ToLower(reranker.Name())) {
+	case RerankerNoop, RerankerDeterministic, RerankerLLM:
+		return nil
+	default:
+		return errors.New("reranker must be one of: noop, deterministic, llm")
+	}
 }
 
 func normalizeRerankWeights(opts RerankOptions) (RerankOptions, error) {

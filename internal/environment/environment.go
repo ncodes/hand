@@ -106,11 +106,11 @@ func (e *environment) ToolPolicy() tools.Policy {
 
 	return tools.Policy{
 		Capabilities: tools.Capabilities{
-			Filesystem: *e.cfg.CapFilesystem,
-			Network:    *e.cfg.CapNetwork,
-			Exec:       *e.cfg.CapExec,
-			Memory:     *e.cfg.CapMemory,
-			Browser:    *e.cfg.CapBrowser,
+			Filesystem: *e.cfg.Cap.Filesystem,
+			Network:    *e.cfg.Cap.Network,
+			Exec:       *e.cfg.Cap.Exec,
+			Memory:     *e.cfg.Cap.Memory,
+			Browser:    *e.cfg.Cap.Browser,
 		},
 		Platform: e.cfg.Platform,
 	}
@@ -120,8 +120,8 @@ func NewEnvironment(ctx context.Context, cfg *config.Config) Environment {
 	registry := tools.NewInMemoryRegistry()
 	traceFactory := trace.NoopFactory()
 
-	if cfg != nil && cfg.DebugTraces {
-		traceDir := cfg.DebugTraceDir
+	if cfg != nil && cfg.Debug.Traces {
+		traceDir := cfg.Debug.TraceDir
 		if traceDir == "" {
 			traceDir = datadir.DebugTraceDir()
 		}
@@ -188,17 +188,17 @@ func (e *environment) prepareTools() error {
 		return err
 	default:
 		websitePolicy := guardrails.NewWebsitePolicy(
-			e.cfg.WebBlockedDomainsEnabled,
-			e.cfg.WebBlockedDomains,
-			e.cfg.WebBlockedDomainFiles,
+			e.cfg.Web.BlockedDomainsEnabled,
+			e.cfg.Web.BlockedDomains,
+			e.cfg.Web.BlockedDomainFiles,
 		)
 
-		if e.cfg.WebCacheTTL > 0 {
+		if e.cfg.Web.CacheTTL > 0 {
 			webProvider = webprovider.NewCachedProvider(
 				webProvider,
 				webprovider.CacheOptions{
-					ProviderName: e.cfg.WebProvider,
-					TTL:          e.cfg.WebCacheTTL,
+					ProviderName: e.cfg.Web.Provider,
+					TTL:          e.cfg.Web.CacheTTL,
 				},
 			)
 		}
@@ -207,17 +207,17 @@ func (e *environment) prepareTools() error {
 			webextract.Definition(
 				webProvider,
 				webextract.Options{
-					MaxExtractCharPerResult:        e.cfg.WebMaxExtractCharPerResult,
-					MinSummarizeChars:              e.cfg.WebExtractMinSummarizeChars,
-					MaxSummaryChars:                e.cfg.WebExtractMaxSummaryChars,
-					MaxSummaryChunkChars:           e.cfg.WebExtractMaxSummaryChunkChars,
-					SummarizeRefusalThresholdChars: e.cfg.WebExtractRefusalThresholdChars,
+					MaxExtractCharPerResult:        e.cfg.Web.MaxExtractCharPerResult,
+					MinSummarizeChars:              e.cfg.Web.ExtractMinSummarizeChars,
+					MaxSummaryChars:                e.cfg.Web.ExtractMaxSummaryChars,
+					MaxSummaryChunkChars:           e.cfg.Web.ExtractMaxSummaryChunkChars,
+					SummarizeRefusalThresholdChars: e.cfg.Web.ExtractRefusalThresholdChars,
 					WebsitePolicy:                  websitePolicy,
 				},
 			),
 		)
 
-		if e.cfg.WebProvider != webprovider.ProviderNative {
+		if e.cfg.Web.Provider != webprovider.ProviderNative {
 			definitions = append(definitions,
 				websearch.Definition(
 					webProvider,
@@ -254,7 +254,7 @@ func (e *environment) prepareInstructions() error {
 		e.addInstruction(instructions.Instruction{Value: personalityOverlay.Content})
 	}
 
-	workspaceRules, err := loadWorkspaceRules(e.cfg.RulesFiles...)
+	workspaceRules, err := loadWorkspaceRules(e.cfg.Rules.Files...)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to load workspace rules")
 		return nil
@@ -265,8 +265,8 @@ func (e *environment) prepareInstructions() error {
 		e.addInstruction(instructions.Instruction{Value: workspaceRules.Content})
 	}
 
-	if e.cfg != nil && e.cfg.Instruct != "" {
-		e.setInstruction(instructions.Instruction{Name: configInstructInstructionName, Value: e.cfg.Instruct})
+	if e.cfg != nil && e.cfg.Session.Instruct != "" {
+		e.setInstruction(instructions.Instruction{Name: configInstructInstructionName, Value: e.cfg.Session.Instruct})
 	}
 
 	return nil
@@ -286,10 +286,10 @@ func (e *environment) Tools() ToolRegistry {
 }
 
 func (e *environment) NewIterationBudget() budget.IterationBudget {
-	if e == nil || e.cfg == nil || e.cfg.MaxIterations <= 0 {
+	if e == nil || e.cfg == nil || e.cfg.Session.MaxIterations <= 0 {
 		return budget.New(config.DefaultMaxIterations)
 	}
-	return budget.New(e.cfg.MaxIterations)
+	return budget.New(e.cfg.Session.MaxIterations)
 }
 
 func (e *environment) NewTraceSession(sessionID string) trace.Session {
@@ -300,8 +300,8 @@ func (e *environment) NewTraceSession(sessionID string) trace.Session {
 	metadata := trace.Metadata{Source: "agent"}
 	if e.cfg != nil {
 		metadata.AgentName = e.cfg.Name
-		metadata.Model = e.cfg.Model
-		metadata.APIMode = e.cfg.ModelAPIMode
+		metadata.Model = e.cfg.Models.Main.Name
+		metadata.APIMode = e.cfg.Models.Main.APIMode
 	}
 
 	session := e.traces.OpenSession(e.ctx, sessionID, metadata)
@@ -342,10 +342,10 @@ func (e *environment) SetSessionManager(manager *session.Manager) {
 }
 
 func (e *environment) fileRoots() []string {
-	if e == nil || e.cfg == nil || len(e.cfg.FSRoots) == 0 {
+	if e == nil || e.cfg == nil || len(e.cfg.FS.Roots) == 0 {
 		return guardrails.NormalizeRoots(nil)
 	}
-	return guardrails.NormalizeRoots(e.cfg.FSRoots)
+	return guardrails.NormalizeRoots(e.cfg.FS.Roots)
 }
 
 func (e *environment) commandPolicy() guardrails.CommandPolicy {
@@ -354,9 +354,9 @@ func (e *environment) commandPolicy() guardrails.CommandPolicy {
 	}
 
 	return guardrails.CommandPolicy{
-		Allow: e.cfg.ExecAllow,
-		Ask:   e.cfg.ExecAsk,
-		Deny:  e.cfg.ExecDeny,
+		Allow: e.cfg.Exec.Allow,
+		Ask:   e.cfg.Exec.Ask,
+		Deny:  e.cfg.Exec.Deny,
 	}.Normalize()
 }
 

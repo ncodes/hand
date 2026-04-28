@@ -2,16 +2,19 @@ package factory
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
 	handmsg "github.com/wandxy/hand/internal/messages"
+	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/storage/retrieval"
 	storage "github.com/wandxy/hand/internal/storage/session"
 	storagememory "github.com/wandxy/hand/internal/storage/session/memory"
@@ -23,13 +26,17 @@ func TestOpenSessionStore_ValidatesConfigAndBackend(t *testing.T) {
 	require.Nil(t, store)
 	require.EqualError(t, err, "config is required")
 
-	store, err = OpenSessionStore(&config.Config{StorageBackend: "bogus"})
+	store, err = OpenSessionStore(factoryStorageConfig("bogus"))
 	require.Nil(t, store)
 	require.EqualError(t, err, "storage backend must be one of: memory, sqlite")
 }
 
+func factoryStorageConfig(backend string) *config.Config {
+	return &config.Config{Storage: config.StorageConfig{Backend: backend}}
+}
+
 func TestOpenSessionStore_ReturnsMemoryStore(t *testing.T) {
-	store, err := OpenSessionStore(&config.Config{StorageBackend: "memory"})
+	store, err := OpenSessionStore(factoryStorageConfig("memory"))
 
 	require.NoError(t, err)
 	require.IsType(t, &storagememory.SessionStore{}, store)
@@ -37,11 +44,8 @@ func TestOpenSessionStore_ReturnsMemoryStore(t *testing.T) {
 
 func TestOpenSessionStore_IgnoresIncompleteVectorConfigWhenDisabled(t *testing.T) {
 	store, err := OpenSessionStore(&config.Config{
-		StorageBackend:                "memory",
-		SessionVectorEnabled:          false,
-		ModelEmbeddingProvider:        "",
-		ModelEmbeddingModel:           "",
-		SessionVectorRebuildBatchSize: -1,
+		Storage: config.StorageConfig{Backend: "memory"},
+		Search:  config.SearchConfig{Vector: config.SearchVectorConfig{RebuildBatchSize: -1}},
 	})
 
 	require.NoError(t, err)
@@ -52,7 +56,7 @@ func TestOpenSessionStore_ReturnsSQLiteStore(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HAND_HOME", homeDir)
 
-	store, err := OpenSessionStore(&config.Config{StorageBackend: "sqlite"})
+	store, err := OpenSessionStore(factoryStorageConfig("sqlite"))
 
 	require.NoError(t, err)
 	require.IsType(t, &storagesqlite.SessionStore{}, store)
@@ -77,11 +81,29 @@ func TestOpenSessionStore_ReturnsSQLiteOpenError(t *testing.T) {
 	require.NoError(t, os.WriteFile(homePath, []byte("not-a-directory"), 0o600))
 	t.Setenv("HAND_HOME", homePath)
 
-	store, err := OpenSessionStore(&config.Config{StorageBackend: "sqlite"})
+	store, err := OpenSessionStore(factoryStorageConfig("sqlite"))
 
 	require.Nil(t, store)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to create sqlite db directory")
+}
+
+func TestOpenSessionStore_ReturnsSQLiteStoreInitializationError(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HAND_HOME", homeDir)
+
+	originalStore := newSQLiteSessionStoreFromDB
+	t.Cleanup(func() {
+		newSQLiteSessionStoreFromDB = originalStore
+	})
+	newSQLiteSessionStoreFromDB = func(*gorm.DB) (*storagesqlite.SessionStore, error) {
+		return nil, errors.New("session store init failed")
+	}
+
+	store, err := OpenSessionStore(factoryStorageConfig("sqlite"))
+
+	require.Nil(t, store)
+	require.EqualError(t, err, "session store init failed")
 }
 
 func TestOpenSessionStore_ConfiguresSQLiteVectorStore(t *testing.T) {
@@ -94,13 +116,12 @@ func TestOpenSessionStore_ConfiguresSQLiteVectorStore(t *testing.T) {
 
 	rerankEnabled := false
 	store, err := OpenSessionStore(&config.Config{
-		StorageBackend:                "sqlite",
-		SessionVectorEnabled:          true,
-		ModelEmbeddingProvider:        "openai",
-		ModelEmbeddingModel:           "text-embedding-test",
-		SessionVectorRequired:         true,
-		SessionVectorRebuildBatchSize: 7,
-		SessionVectorEnableRerank:     &rerankEnabled,
+		Storage: config.StorageConfig{Backend: "sqlite"},
+		Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"}},
+		Search: config.SearchConfig{
+			EnableRerank: &rerankEnabled,
+			Vector:       config.SearchVectorConfig{Enabled: true, Required: true, RebuildBatchSize: 7},
+		},
 	})
 	require.NoError(t, err)
 	require.IsType(t, &storagesqlite.SessionStore{}, store)
@@ -121,19 +142,79 @@ func TestOpenSessionStore_ConfiguresSQLiteVectorStore(t *testing.T) {
 	require.Equal(t, retrieval.SourceKindSessionMessage, vectorStore.upserts[0][0].SourceKind)
 }
 
+func TestOpenSessionStore_ReturnsRerankerConstructionError(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HAND_HOME", homeDir)
+
+	provider := &factoryTestEmbeddingProvider{}
+	vectorStore := &factoryTestVectorStore{}
+	withSessionVectorHooks(t, provider, vectorStore, nil)
+
+	store, err := OpenSessionStoreWithRerankerClient(&config.Config{
+		Storage: config.StorageConfig{Backend: "sqlite"},
+		Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"}},
+		Search:  config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+		Reranker: config.RerankerConfig{
+			Type: retrieval.RerankerLLM,
+		},
+	}, nil)
+
+	require.Nil(t, store)
+	require.EqualError(t, err, "reranker model client is required")
+}
+
+func TestOpenSessionStore_ReturnsSQLiteVectorConfigurationError(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HAND_HOME", homeDir)
+
+	originalProvider := newSessionEmbeddingProvider
+	originalSQLiteStore := newSQLiteSessionVectorStore
+	t.Cleanup(func() {
+		newSessionEmbeddingProvider = originalProvider
+		newSQLiteSessionVectorStore = originalSQLiteStore
+	})
+	newSessionEmbeddingProvider = func(*config.Config) (retrieval.Embedder, error) {
+		return nil, nil
+	}
+	newSQLiteSessionVectorStore = func(*gorm.DB) (retrieval.VectorStore, error) {
+		return &factoryTestVectorStore{}, nil
+	}
+
+	store, err := OpenSessionStore(&config.Config{
+		Storage: config.StorageConfig{Backend: "sqlite"},
+		Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"}},
+		Search:  config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+	})
+
+	require.Nil(t, store)
+	require.EqualError(t, err, "embedding provider is required")
+}
+
 func TestOpenSessionStore_ReturnsMemoryVectorIntegrationError(t *testing.T) {
 	vectorStore := &factoryTestVectorStore{}
 	withSessionVectorHooks(t, &factoryTestEmbeddingProvider{}, nil, vectorStore)
 
 	store, err := OpenSessionStore(&config.Config{
-		StorageBackend:       "memory",
-		SessionVectorEnabled: true,
-		ModelProvider:        "openai",
-		ModelEmbeddingModel:  "text-embedding-test",
+		Storage: config.StorageConfig{Backend: "memory"},
+		Models: config.ModelsConfig{
+			Main:      config.MainModelConfig{Provider: "openai"},
+			Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test"},
+		},
+		Search: config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
 	})
 
 	require.Nil(t, store)
 	require.EqualError(t, err, "memory vector integration is not implemented")
+}
+
+func TestOpenSessionStore_ReturnsMemoryVectorConfigError(t *testing.T) {
+	store, err := OpenSessionStore(&config.Config{
+		Storage: config.StorageConfig{Backend: "memory"},
+		Search:  config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+	})
+
+	require.Nil(t, store)
+	require.EqualError(t, err, "embedding model is required")
 }
 
 func TestOpenSessionStore_ValidatesVectorConfig(t *testing.T) {
@@ -145,42 +226,71 @@ func TestOpenSessionStore_ValidatesVectorConfig(t *testing.T) {
 		{
 			name: "missing model",
 			cfg: config.Config{
-				StorageBackend:         "sqlite",
-				SessionVectorEnabled:   true,
-				ModelEmbeddingProvider: "openai",
+				Storage: config.StorageConfig{Backend: "sqlite"},
+				Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Provider: "openai"}},
+				Search:  config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
 			},
 			err: "embedding model is required",
 		},
 		{
 			name: "negative batch size",
 			cfg: config.Config{
-				StorageBackend:                "sqlite",
-				SessionVectorEnabled:          true,
-				ModelEmbeddingProvider:        "openai",
-				ModelEmbeddingModel:           "text-embedding-test",
-				SessionVectorRebuildBatchSize: -1,
+				Storage: config.StorageConfig{Backend: "sqlite"},
+				Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"}},
+				Search:  config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true, RebuildBatchSize: -1}},
 			},
 			err: "vector rebuild batch size must be non-negative",
 		},
 		{
 			name: "missing api key",
 			cfg: config.Config{
-				StorageBackend:       "sqlite",
-				SessionVectorEnabled: true,
-				ModelProvider:        "openai",
-				ModelEmbeddingModel:  "text-embedding-test",
+				Storage: config.StorageConfig{Backend: "sqlite"},
+				Models: config.ModelsConfig{
+					Main:      config.MainModelConfig{Provider: "openai"},
+					Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test"},
+				},
+				Search: config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
 			},
 			err: "embedding API key is required",
 		},
 		{
 			name: "unsupported provider",
 			cfg: config.Config{
-				StorageBackend:         "sqlite",
-				SessionVectorEnabled:   true,
-				ModelEmbeddingProvider: "unsupported",
-				ModelEmbeddingModel:    "text-embedding-test",
+				Storage: config.StorageConfig{Backend: "sqlite"},
+				Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "unsupported"}},
+				Search:  config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
 			},
 			err: "embedding provider must be one of: openai, openrouter",
+		},
+		{
+			name: "negative reranker max candidates",
+			cfg: config.Config{
+				Storage:  config.StorageConfig{Backend: "sqlite"},
+				Models:   config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"}},
+				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+				Reranker: config.RerankerConfig{MaxCandidates: -1},
+			},
+			err: "reranker max candidates must be non-negative",
+		},
+		{
+			name: "negative reranker max candidate text chars",
+			cfg: config.Config{
+				Storage:  config.StorageConfig{Backend: "sqlite"},
+				Models:   config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"}},
+				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+				Reranker: config.RerankerConfig{MaxCandidateTextChars: -1},
+			},
+			err: "reranker max candidate text chars must be non-negative",
+		},
+		{
+			name: "negative reranker max output tokens",
+			cfg: config.Config{
+				Storage:  config.StorageConfig{Backend: "sqlite"},
+				Models:   config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"}},
+				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+				Reranker: config.RerankerConfig{MaxOutputTokens: -1},
+			},
+			err: "reranker max output tokens must be non-negative",
 		},
 	}
 
@@ -198,6 +308,37 @@ func TestOpenSessionStore_ValidatesVectorConfig(t *testing.T) {
 }
 
 func TestOpenSessionStore_ValidatesVectorStoreFactories(t *testing.T) {
+	t.Run("sqlite vector store error", func(t *testing.T) {
+		homeDir := t.TempDir()
+		t.Setenv("HAND_HOME", homeDir)
+
+		originalProvider := newSessionEmbeddingProvider
+		originalSQLiteStore := newSQLiteSessionVectorStore
+		t.Cleanup(func() {
+			newSessionEmbeddingProvider = originalProvider
+			newSQLiteSessionVectorStore = originalSQLiteStore
+		})
+
+		newSessionEmbeddingProvider = func(*config.Config) (retrieval.Embedder, error) {
+			return &factoryTestEmbeddingProvider{}, nil
+		}
+		newSQLiteSessionVectorStore = func(*gorm.DB) (retrieval.VectorStore, error) {
+			return nil, errors.New("vector factory failed")
+		}
+
+		store, err := OpenSessionStore(&config.Config{
+			Storage: config.StorageConfig{Backend: "sqlite"},
+			Models: config.ModelsConfig{
+				Key:       "key",
+				Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"},
+			},
+			Search: config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+		})
+
+		require.Nil(t, store)
+		require.EqualError(t, err, "vector factory failed")
+	})
+
 	t.Run("sqlite vector store is required", func(t *testing.T) {
 		homeDir := t.TempDir()
 		t.Setenv("HAND_HOME", homeDir)
@@ -217,11 +358,12 @@ func TestOpenSessionStore_ValidatesVectorStoreFactories(t *testing.T) {
 		}
 
 		store, err := OpenSessionStore(&config.Config{
-			StorageBackend:         "sqlite",
-			SessionVectorEnabled:   true,
-			ModelEmbeddingProvider: "openai",
-			ModelEmbeddingModel:    "text-embedding-test",
-			ModelKey:               "key",
+			Storage: config.StorageConfig{Backend: "sqlite"},
+			Models: config.ModelsConfig{
+				Key:       "key",
+				Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"},
+			},
+			Search: config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
 		})
 
 		require.Nil(t, store)
@@ -239,15 +381,143 @@ func TestOpenSessionStore_ValidatesVectorStoreFactories(t *testing.T) {
 		}
 
 		store, err := OpenSessionStore(&config.Config{
-			StorageBackend:         "memory",
-			SessionVectorEnabled:   true,
-			ModelEmbeddingProvider: "openai",
-			ModelEmbeddingModel:    "text-embedding-test",
+			Storage: config.StorageConfig{Backend: "memory"},
+			Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"}},
+			Search:  config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
 		})
 
 		require.Nil(t, store)
 		require.EqualError(t, err, "memory vector store is required")
 	})
+}
+
+func TestSessionReranker_SelectsConfiguredReranker(t *testing.T) {
+	disabled := false
+
+	tests := []struct {
+		name     string
+		cfg      config.Config
+		client   models.Client
+		wantName string
+		wantType any
+		wantErr  string
+		wantNil  bool
+	}{
+		{
+			name:    "vector disabled",
+			cfg:     config.Config{},
+			wantNil: true,
+		},
+		{
+			name: "deterministic default",
+			cfg: config.Config{
+				Search: config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+			},
+			wantName: retrieval.RerankerDeterministic,
+			wantType: retrieval.DeterministicReranker{},
+		},
+		{
+			name: retrieval.RerankerNoop,
+			cfg: config.Config{
+				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+				Reranker: config.RerankerConfig{Type: retrieval.RerankerNoop},
+			},
+			wantName: retrieval.RerankerNoop,
+			wantType: retrieval.NoopReranker{},
+		},
+		{
+			name: "globally disabled llm does not require client",
+			cfg: config.Config{
+				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+				Reranker: config.RerankerConfig{Enabled: &disabled, Type: retrieval.RerankerLLM},
+			},
+			wantNil: true,
+		},
+		{
+			name: "search disabled llm does not require client",
+			cfg: config.Config{
+				Search:   config.SearchConfig{EnableRerank: &disabled, Vector: config.SearchVectorConfig{Enabled: true}},
+				Reranker: config.RerankerConfig{Type: retrieval.RerankerLLM},
+			},
+			wantNil: true,
+		},
+		{
+			name: "llm requires client",
+			cfg: config.Config{
+				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+				Reranker: config.RerankerConfig{Type: retrieval.RerankerLLM},
+			},
+			wantErr: "reranker model client is required",
+		},
+		{
+			name: retrieval.RerankerLLM,
+			cfg: config.Config{
+				Models:   config.ModelsConfig{Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", APIMode: config.DefaultModelAPIMode}},
+				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+				Reranker: config.RerankerConfig{Type: retrieval.RerankerLLM, Model: "openai/gpt-4o-mini", MaxCandidates: 3, MaxCandidateTextChars: 40, MaxOutputTokens: 50},
+			},
+			client:   &factoryTestModelClient{},
+			wantName: retrieval.RerankerLLM,
+			wantType: retrieval.LLMReranker{},
+		},
+		{
+			name: "invalid reranker",
+			cfg: config.Config{
+				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+				Reranker: config.RerankerConfig{Type: "invalid"},
+			},
+			wantErr: "reranker type must be one of: deterministic, noop, llm",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reranker, err := sessionReranker(&tt.cfg, tt.client)
+			if tt.wantErr != "" {
+				require.Nil(t, reranker)
+				require.EqualError(t, err, tt.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			if tt.wantNil {
+				require.Nil(t, reranker)
+				return
+			}
+			require.IsType(t, tt.wantType, reranker)
+			require.Equal(t, tt.wantName, reranker.Name())
+		})
+	}
+}
+
+func TestFactoryDefaultVectorStores(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "vectors.db")), &gorm.Config{})
+	require.NoError(t, err)
+
+	sqliteStore, err := newSQLiteSessionVectorStore(db)
+	require.NoError(t, err)
+	require.NotNil(t, sqliteStore)
+	require.NotNil(t, newMemorySessionVectorStore())
+}
+
+func TestDefaultSessionEmbeddingProviderReturnsProvider(t *testing.T) {
+	provider, err := defaultSessionEmbeddingProvider(&config.Config{
+		Models: config.ModelsConfig{
+			Key:       "key",
+			Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"},
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+}
+
+func TestSessionRerankEnabledDefaults(t *testing.T) {
+	require.True(t, sessionRerankEnabled(nil))
+
+	var cfg config.Config
+	require.Nil(t, sessionSearchRerankEnabledOption(nil))
+	require.Nil(t, sessionSearchRerankEnabledOption(&cfg))
 }
 
 func withSessionVectorHooks(
@@ -286,6 +556,20 @@ func withSessionVectorHooks(
 
 type factoryTestEmbeddingProvider struct {
 	requests []retrieval.EmbeddingRequest
+}
+
+type factoryTestModelClient struct{}
+
+func (*factoryTestModelClient) Complete(context.Context, models.Request) (*models.Response, error) {
+	return &models.Response{OutputText: `{"items":[]}`}, nil
+}
+
+func (*factoryTestModelClient) CompleteStream(
+	context.Context,
+	models.Request,
+	func(models.StreamDelta),
+) (*models.Response, error) {
+	return &models.Response{OutputText: `{"items":[]}`}, nil
 }
 
 func (p *factoryTestEmbeddingProvider) Embed(

@@ -38,18 +38,18 @@ func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models
 
 	if t.cfg != nil {
 		ctx.Platform = t.cfg.Platform
-		ctx.FilesystemRoots = filesystemRoots(t.cfg.FSRoots, workingDirectory)
-		ctx.Model = t.cfg.Model
-		if summaryModel := t.cfg.SummaryModelEffective(); summaryModel != "" && summaryModel != t.cfg.Model {
+		ctx.FilesystemRoots = filesystemRoots(t.cfg.FS.Roots, workingDirectory)
+		ctx.Model = t.cfg.Models.Main.Name
+		if summaryModel := t.cfg.SummaryModelEffective(); summaryModel != "" && summaryModel != t.cfg.Models.Main.Name {
 			ctx.SummaryModel = summaryModel
 		}
-		ctx.ModelProvider = t.cfg.ModelProvider
+		ctx.ModelProvider = t.cfg.Models.Main.Provider
 		if summaryProvider := t.cfg.SummaryProviderEffective(); summaryProvider != "" &&
-			summaryProvider != t.cfg.ModelProvider {
+			summaryProvider != t.cfg.Models.Main.Provider {
 			ctx.SummaryProvider = summaryProvider
 		}
-		ctx.APIMode = t.cfg.ModelAPIMode
-		ctx.WebProvider = t.cfg.WebProvider
+		ctx.APIMode = t.cfg.Models.Main.APIMode
+		ctx.WebProvider = t.cfg.Web.Provider
 	}
 
 	if t.env != nil {

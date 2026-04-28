@@ -51,7 +51,7 @@ func NewLiveClients(cfg *config.Config) (models.Client, models.Client, error) {
 
 	modelClient, err := newLiveModelClient(
 		auth.APIKey,
-		liveClientOptions(cfg.ModelBaseURL, cfg.ModelMaxRetriesEffective())...,
+		liveClientOptions(cfg.Models.Main.BaseURL, cfg.ModelMaxRetriesEffective())...,
 	)
 	if err != nil {
 		return nil, nil, err

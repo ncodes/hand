@@ -63,11 +63,12 @@ func Test_E2E_UpCommand_BootsAndServesRPC(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(fmt.Sprintf(`
 name: yaml-up
-model:
-  name: openai/gpt-4o-mini
-  provider: openrouter
+models:
   key: config-key
-  verifyModel: false
+  verify: false
+  main:
+    name: openai/gpt-4o-mini
+    provider: openrouter
 rpc:
   address: 127.0.0.1
   port: %d

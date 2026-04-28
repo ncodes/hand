@@ -55,7 +55,7 @@ func NewExtractSummarizer(client models.Client, cfg *config.Config) Summarizer {
 		Client:        client,
 		Model:         normalized.SummaryModelEffective(),
 		APIMode:       normalized.SummaryModelAPIModeEffective(),
-		DebugRequests: normalized.DebugRequests,
+		DebugRequests: normalized.Debug.Requests,
 	}
 }
 

@@ -64,12 +64,12 @@ func NewService(cfg *config.Config, modelClient, summaryClient models.Client, su
 	}
 
 	if cfg != nil {
-		service.model = cfg.Model
-		service.provider = cfg.ModelProvider
+		service.model = cfg.Models.Main.Name
+		service.provider = cfg.Models.Main.Provider
 		service.summaryModel = cfg.SummaryModelEffective()
 		service.summaryProvider = cfg.SummaryProviderEffective()
 		service.apiMode = cfg.SummaryModelAPIModeEffective()
-		service.debugRequests = cfg.DebugRequests
+		service.debugRequests = cfg.Debug.Requests
 	}
 
 	logEvent := summaryLog.Debug().
@@ -77,11 +77,11 @@ func NewService(cfg *config.Config, modelClient, summaryClient models.Client, su
 		Str("summary_model", service.summaryModel).
 		Bool("compaction_enabled", service.compactionOn)
 
-	if cfg != nil && cfg.SummaryProviderEffective() != cfg.ModelProvider {
+	if cfg != nil && cfg.SummaryProviderEffective() != cfg.Models.Main.Provider {
 		logEvent = logEvent.Str("summary_provider", cfg.SummaryProviderEffective())
 	}
 
-	if cfg != nil && cfg.SummaryModelAPIModeEffective() != cfg.ModelAPIMode {
+	if cfg != nil && cfg.SummaryModelAPIModeEffective() != cfg.Models.Main.APIMode {
 		logEvent = logEvent.Str("summary_api_mode", cfg.SummaryModelAPIModeEffective())
 	}
 

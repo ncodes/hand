@@ -488,8 +488,8 @@ func TestService_MaybeRefreshSummary_UsesSummaryModelWhenConfigured(t *testing.T
 		},
 	}
 	cfg := summaryTestConfig(true)
-	cfg.Model = "openai/gpt-4o-mini"
-	cfg.SummaryModel = "anthropic/claude-3.5-haiku"
+	cfg.Models.Main.Name = "openai/gpt-4o-mini"
+	cfg.Models.Summary.Name = "anthropic/claude-3.5-haiku"
 	service := NewService(cfg, client, nil, summaryTestStore(summaryTestHistory(10)))
 
 	err := service.MaybeRefreshSummary(context.Background(), mem, RefreshInput{
@@ -1947,26 +1947,24 @@ func TestSummaryCompactionEnabled_DefaultsAndUsesConfiguredValue(t *testing.T) {
 	require.True(t, summaryCompactionEnabled(nil))
 	require.True(t, summaryCompactionEnabled(&config.Config{}))
 
-	require.False(t, summaryCompactionEnabled(&config.Config{CompactionEnabled: new(false)}))
+	require.False(t, summaryCompactionEnabled(&config.Config{Compaction: config.CompactionConfig{Enabled: new(false)}}))
 }
 
 func TestSummaryCompactionEvaluator_UsesConfigValues(t *testing.T) {
 	require.NotNil(t, summaryCompactionEvaluator(nil))
 	require.NotNil(t, summaryCompactionEvaluator(&config.Config{
-		ContextLength:            100,
-		CompactionTriggerPercent: 0.5,
-		CompactionWarnPercent:    0.8,
+		Models:     config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 100}},
+		Compaction: config.CompactionConfig{TriggerPercent: 0.5, WarnPercent: 0.8},
 	}))
 }
 
 func summaryTestConfig(enabled bool) *config.Config {
 	return &config.Config{
-		Name:                     "Test Agent",
-		Model:                    "test-model",
-		ContextLength:            100,
-		CompactionEnabled:        &enabled,
-		CompactionTriggerPercent: 0.5,
-		CompactionWarnPercent:    0.8,
+		Name: "Test Agent",
+		Models: config.ModelsConfig{
+			Main: config.MainModelConfig{Name: "test-model", ContextLength: 100},
+		},
+		Compaction: config.CompactionConfig{Enabled: &enabled, TriggerPercent: 0.5, WarnPercent: 0.8},
 	}
 }
 

@@ -46,10 +46,11 @@ func TestNewLiveClients(t *testing.T) {
 		}
 
 		cfg := &config.Config{
-			ModelProvider:   "openrouter",
-			ModelKey:        "router-key",
-			ModelBaseURL:    "https://router.example/v1",
-			ModelMaxRetries: &retries,
+			Models: config.ModelsConfig{
+				Key:        "router-key",
+				MaxRetries: &retries,
+				Main:       config.MainModelConfig{Provider: "openrouter", BaseURL: "https://router.example/v1"},
+			},
 		}
 
 		modelClient, summaryClient, err := NewLiveClients(cfg)
@@ -71,12 +72,13 @@ func TestNewLiveClients(t *testing.T) {
 		}
 
 		cfg := &config.Config{
-			ModelProvider:       "openrouter",
-			ModelKey:            "router-key",
-			SummaryProvider:     "openai",
-			OpenAIAPIKey:        "openai-key",
-			SummaryModelBaseURL: "https://openai.example/v1",
-			ModelMaxRetries:     &retries,
+			Models: config.ModelsConfig{
+				Key:          "router-key",
+				OpenAIAPIKey: "openai-key",
+				MaxRetries:   &retries,
+				Main:         config.MainModelConfig{Provider: "openrouter"},
+				Summary:      config.SummaryModelConfig{Provider: "openai", BaseURL: "https://openai.example/v1"},
+			},
 		}
 
 		modelClient, summaryClient, err := NewLiveClients(cfg)
@@ -93,8 +95,7 @@ func TestNewLiveClients(t *testing.T) {
 		}
 
 		cfg := &config.Config{
-			ModelProvider: "openrouter",
-			ModelKey:      "router-key",
+			Models: config.ModelsConfig{Key: "router-key", Main: config.MainModelConfig{Provider: "openrouter"}},
 		}
 
 		modelClient, summaryClient, err := NewLiveClients(cfg)
@@ -118,9 +119,11 @@ func TestNewLiveClients(t *testing.T) {
 		newLiveModelClient = originalFactory
 
 		cfg := &config.Config{
-			ModelProvider:    "openrouter",
-			OpenRouterAPIKey: "router-key",
-			SummaryProvider:  "openai",
+			Models: config.ModelsConfig{
+				OpenRouterAPIKey: "router-key",
+				Main:             config.MainModelConfig{Provider: "openrouter"},
+				Summary:          config.SummaryModelConfig{Provider: "openai"},
+			},
 		}
 
 		modelClient, summaryClient, err := NewLiveClients(cfg)
@@ -140,12 +143,13 @@ func TestNewLiveClients(t *testing.T) {
 
 		retries := 1
 		cfg := &config.Config{
-			ModelProvider:       "openrouter",
-			ModelKey:            "router-key",
-			SummaryProvider:     "openai",
-			OpenAIAPIKey:        "openai-key",
-			SummaryModelBaseURL: "https://openai.example/v1",
-			ModelMaxRetries:     &retries,
+			Models: config.ModelsConfig{
+				Key:          "router-key",
+				OpenAIAPIKey: "openai-key",
+				MaxRetries:   &retries,
+				Main:         config.MainModelConfig{Provider: "openrouter"},
+				Summary:      config.SummaryModelConfig{Provider: "openai", BaseURL: "https://openai.example/v1"},
+			},
 		}
 
 		modelClient, summaryClient, err := NewLiveClients(cfg)
@@ -181,10 +185,11 @@ func TestNewLiveHarnessAndRPCHarness(t *testing.T) {
 		require.NoError(t, os.WriteFile(envPath, []byte("HAND_MODEL_KEY=test-key\n"), 0o600))
 		require.NoError(t, os.WriteFile(configPath, []byte(`
 name: live-test
-model:
-  name: openai/gpt-4o-mini
-  provider: openrouter
-  verifyModel: false
+models:
+  verify: false
+  main:
+    name: openai/gpt-4o-mini
+    provider: openrouter
 rpc:
   address: 127.0.0.1
   port: 50051
@@ -232,7 +237,7 @@ storage:
 
 	t.Run("returns live client error", func(t *testing.T) {
 		loadLiveConfig = func(string, string) (*config.Config, error) {
-			return &config.Config{ModelProvider: "openrouter"}, nil
+			return &config.Config{Models: config.ModelsConfig{Main: config.MainModelConfig{Provider: "openrouter"}}}, nil
 		}
 
 		_, err := NewLiveHarness(context.Background(), filepath.Join(t.TempDir(), "hand-home"), "", "config.yaml")
@@ -242,8 +247,7 @@ storage:
 	t.Run("returns harness construction error", func(t *testing.T) {
 		loadLiveConfig = func(string, string) (*config.Config, error) {
 			return &config.Config{
-				ModelProvider: "openrouter",
-				ModelKey:      "router-key",
+				Models: config.ModelsConfig{Key: "router-key", Main: config.MainModelConfig{Provider: "openrouter"}},
 			}, nil
 		}
 		newLiveHarness = func(context.Context, HarnessOptions) (*Harness, error) {
@@ -258,8 +262,7 @@ storage:
 	t.Run("returns rpc harness construction error", func(t *testing.T) {
 		loadLiveConfig = func(string, string) (*config.Config, error) {
 			return &config.Config{
-				ModelProvider: "openrouter",
-				ModelKey:      "router-key",
+				Models: config.ModelsConfig{Key: "router-key", Main: config.MainModelConfig{Provider: "openrouter"}},
 			}, nil
 		}
 		newLiveRPCHarness = func(context.Context, HarnessOptions) (*RPCHarness, error) {
@@ -283,7 +286,7 @@ storage:
 
 	t.Run("returns rpc live client error", func(t *testing.T) {
 		loadLiveConfig = func(string, string) (*config.Config, error) {
-			return &config.Config{ModelProvider: "openrouter"}, nil
+			return &config.Config{Models: config.ModelsConfig{Main: config.MainModelConfig{Provider: "openrouter"}}}, nil
 		}
 
 		_, err := NewLiveRPCHarness(context.Background(), filepath.Join(t.TempDir(), "hand-home"), "", "config.yaml")

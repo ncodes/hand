@@ -118,8 +118,8 @@ func (h *RPCHarness) ConfigFileContents() string {
 	if h == nil {
 		return ""
 	}
-	return "model:\n" +
-		"  verifyModel: false\n" +
+	return "models:\n" +
+		"  verify: false\n" +
 		"rpc:\n" +
 		"  address: " + strings.TrimSpace(h.address) + "\n" +
 		"  port: " + strconv.Itoa(h.port) + "\n"

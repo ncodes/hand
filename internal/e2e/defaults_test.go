@@ -25,11 +25,11 @@ func TestDefaultConfig_DefaultsAndOverrides(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		cfg := DefaultConfig(ConfigOptions{})
 		require.NotNil(t, cfg)
-		require.NotNil(t, cfg.Stream)
+		require.NotNil(t, cfg.Models.Main.Stream)
 		assert.Equal(t, "Test Hand", cfg.Name)
-		assert.Equal(t, "test-model", cfg.Model)
-		assert.Equal(t, "sqlite", cfg.StorageBackend)
-		assert.False(t, *cfg.Stream)
+		assert.Equal(t, "test-model", cfg.Models.Main.Name)
+		assert.Equal(t, "sqlite", cfg.Storage.Backend)
+		assert.False(t, *cfg.Models.Main.Stream)
 	})
 
 	t.Run("overrides", func(t *testing.T) {
@@ -39,10 +39,10 @@ func TestDefaultConfig_DefaultsAndOverrides(t *testing.T) {
 			Stream:         true,
 		})
 		require.NotNil(t, cfg)
-		require.NotNil(t, cfg.Stream)
+		require.NotNil(t, cfg.Models.Main.Stream)
 		assert.Equal(t, "RPC Test", cfg.Name)
-		assert.Equal(t, "memory", cfg.StorageBackend)
-		assert.True(t, *cfg.Stream)
+		assert.Equal(t, "memory", cfg.Storage.Backend)
+		assert.True(t, *cfg.Models.Main.Stream)
 	})
 
 	t.Run("trims and falls back", func(t *testing.T) {
@@ -52,7 +52,7 @@ func TestDefaultConfig_DefaultsAndOverrides(t *testing.T) {
 		})
 		require.NotNil(t, cfg)
 		assert.Equal(t, "Test Hand", cfg.Name)
-		assert.Equal(t, "sqlite", cfg.StorageBackend)
+		assert.Equal(t, "sqlite", cfg.Storage.Backend)
 	})
 }
 

@@ -33,17 +33,15 @@ func TestTurn_RequestInstructionsWithTools_AppendsEnvironmentContextBeforeExtras
 
 	turn := &Turn{
 		cfg: &config.Config{
-			Platform:        "cli",
-			FSRoots:         []string{"/workspace/hand"},
-			Model:           "openai/gpt-5.1",
-			SummaryModel:    "openai/gpt-4o-mini",
-			ModelProvider:   "openrouter",
-			SummaryProvider: "openai",
-			ModelAPIMode:    "responses",
-			WebProvider:     "exa",
-			MaxIterations:   3,
-			ContextLength:   128000,
-			StorageBackend:  "memory",
+			Platform: "cli",
+			FS:       config.FSConfig{Roots: []string{"/workspace/hand"}},
+			Models: config.ModelsConfig{
+				Main:    config.MainModelConfig{Name: "openai/gpt-5.1", Provider: "openrouter", APIMode: "responses", ContextLength: 128000},
+				Summary: config.SummaryModelConfig{Name: "openai/gpt-4o-mini", Provider: "openai"},
+			},
+			Web:     config.WebConfig{Provider: "exa"},
+			Session: config.SessionConfig{MaxIterations: 3},
+			Storage: config.StorageConfig{Backend: "memory"},
 		},
 		env: &mocks.EnvironmentStub{
 			Policy: tools.Policy{
@@ -107,13 +105,13 @@ func TestTurn_RequestInstructionsWithTools_OmitsMatchingSummaryModelAndProvider(
 
 	turn := &Turn{
 		cfg: &config.Config{
-			Platform:        "cli",
-			FSRoots:         []string{"/workspace/hand"},
-			Model:           "openai/gpt-5.1",
-			SummaryModel:    "openai/gpt-5.1",
-			ModelProvider:   "openrouter",
-			SummaryProvider: "openrouter",
-			WebProvider:     "exa",
+			Platform: "cli",
+			FS:       config.FSConfig{Roots: []string{"/workspace/hand"}},
+			Models: config.ModelsConfig{
+				Main:    config.MainModelConfig{Name: "openai/gpt-5.1", Provider: "openrouter"},
+				Summary: config.SummaryModelConfig{Name: "openai/gpt-5.1", Provider: "openrouter"},
+			},
+			Web: config.WebConfig{Provider: "exa"},
 		},
 		env: &mocks.EnvironmentStub{
 			Policy: tools.Policy{

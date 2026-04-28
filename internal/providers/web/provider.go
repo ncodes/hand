@@ -158,16 +158,16 @@ func ResolveOptions(cfg *config.Config) (Options, error) {
 		normalized.Normalize()
 
 		opts = Options{
-			Provider:                normalized.WebProvider,
-			APIKey:                  normalized.WebAPIKey,
-			BaseURL:                 normalized.WebBaseURL,
-			MaxCharPerResult:        normalized.WebMaxCharPerResult,
-			MaxExtractCharPerResult: normalized.WebMaxExtractCharPerResult,
-			MaxExtractResponseBytes: normalized.WebMaxExtractResponseBytes,
-			NativeAllowedHosts:      normalized.WebNativeAllowedHosts,
-			NativeBlockedHosts:      normalized.WebNativeBlockedHosts,
-			NativeAllowedHostFiles:  normalized.WebNativeAllowedHostFiles,
-			NativeBlockedHostFiles:  normalized.WebNativeBlockedHostFiles,
+			Provider:                normalized.Web.Provider,
+			APIKey:                  normalized.Web.APIKey,
+			BaseURL:                 normalized.Web.BaseURL,
+			MaxCharPerResult:        normalized.Web.MaxCharPerResult,
+			MaxExtractCharPerResult: normalized.Web.MaxExtractCharPerResult,
+			MaxExtractResponseBytes: normalized.Web.MaxExtractResponseBytes,
+			NativeAllowedHosts:      normalized.Web.NativeAllowedHosts,
+			NativeBlockedHosts:      normalized.Web.NativeBlockedHosts,
+			NativeAllowedHostFiles:  normalized.Web.NativeAllowedHostFiles,
+			NativeBlockedHostFiles:  normalized.Web.NativeBlockedHostFiles,
 		}.Normalize()
 	}
 

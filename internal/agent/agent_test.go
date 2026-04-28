@@ -27,7 +27,7 @@ func testSessionConfig(cfg *config.Config) *config.Config {
 		return nil
 	}
 	cloned := *cfg
-	cloned.StorageBackend = "memory"
+	cloned.Storage.Backend = "memory"
 	return &cloned
 }
 
@@ -125,7 +125,7 @@ func TestAgent_StartUsesProvidedContext(t *testing.T) {
 }
 
 func TestAgent_StartReturnsEnsureSessionManagerError(t *testing.T) {
-	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", StorageBackend: "invalid"}, &mocks.ModelClientStub{})
+	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", Storage: config.StorageConfig{Backend: "invalid"}}, &mocks.ModelClientStub{})
 	err := agent.Start(context.Background())
 	require.EqualError(t, err, "storage backend must be one of: memory, sqlite")
 }
@@ -167,8 +167,8 @@ func TestAgent_TurnMessagesReturnsCopy(t *testing.T) {
 		},
 	}
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{
-		Name:  "Test Agent",
-		Model: "test-model",
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
 	}), client)
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
@@ -375,7 +375,7 @@ func TestAgent_SessionLifecycleMethods(t *testing.T) {
 func TestAgent_RespondRejectsMissingManagerWhenInitialized(t *testing.T) {
 	agent := &Agent{
 		ctx:         context.Background(),
-		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		modelClient: &mocks.ModelClientStub{},
 		env: &mocks.EnvironmentStub{
 			InstructionsList: nil,
@@ -404,7 +404,7 @@ func TestAgent_RespondReturnsPrepareErrorWhenEnvironmentIsMissing(t *testing.T) 
 	manager := mustSessionManager(t)
 	agent := &Agent{
 		ctx:         context.Background(),
-		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		modelClient: &mocks.ModelClientStub{},
 		sessionMgr:  manager,
 		initialized: true,
@@ -436,7 +436,7 @@ func TestAgent_RespondReusesStartedEnvironment(t *testing.T) {
 		{OutputText: "hello back"},
 		{OutputText: "hello back"},
 	}}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}), client)
 	startCtx := context.WithValue(context.Background(), key, "start-ctx")
 	runCtx := context.WithValue(context.Background(), key, "run-ctx")
 
@@ -479,7 +479,7 @@ func TestAgent_EnsureSessionManagerReturnsOpenStoreError(t *testing.T) {
 	t.Cleanup(func() {
 		openSessionStore = originalOpen
 	})
-	openSessionStore = func(*config.Config) (storage.SessionStore, error) {
+	openSessionStore = func(*config.Config, models.Client) (storage.SessionStore, error) {
 		return nil, errors.New("open store failed")
 	}
 
@@ -495,7 +495,7 @@ func TestAgent_EnsureSessionManagerReturnsNewManagerError(t *testing.T) {
 		openSessionStore = originalOpen
 		newSessionManager = originalNewManager
 	})
-	openSessionStore = func(*config.Config) (storage.SessionStore, error) {
+	openSessionStore = func(*config.Config, models.Client) (storage.SessionStore, error) {
 		return storagememory.NewSessionStore(), nil
 	}
 	newSessionManager = func(storage.SessionStore, time.Duration, time.Duration) (*sessionstore.Manager, error) {
@@ -535,7 +535,7 @@ func newSessionOpsAgent(
 	})
 
 	store := storagememory.NewSessionStore()
-	openSessionStore = func(*config.Config) (storage.SessionStore, error) {
+	openSessionStore = func(*config.Config, models.Client) (storage.SessionStore, error) {
 		return store, nil
 	}
 	newEnvironment = func(context.Context, *config.Config) environment.Environment {
@@ -570,9 +570,8 @@ func TestAgent_CompactSessionRefreshesSummary(t *testing.T) {
 		OutputText: `{"session_summary":"Earlier work","current_task":"Investigate compact","discoveries":["d1"],"open_questions":["q1"],"next_actions":["n1"]}`,
 	}}}
 	agent := newSessionOpsAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		ContextLength: 128000,
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 128000}},
 	}, client, &mocks.TraceSessionStub{})
 
 	session, err := agent.CreateSession(context.Background(), "ses_Z4VxN3E3h5cQH1sYq2k8a")
@@ -602,9 +601,8 @@ func TestAgent_RecallSessionSummary_UsesZeroTail(t *testing.T) {
 		OutputText: `{"session_summary":"Earlier work","current_task":"Investigate compact","discoveries":["d1"],"open_questions":["q1"],"next_actions":["n1"]}`,
 	}}}
 	agent := newSessionOpsAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		ContextLength: 128000,
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 128000}},
 	}, client, &mocks.TraceSessionStub{})
 
 	session, err := agent.CreateSession(context.Background(), "ses_Y4VxN3E3h5cQH1sYq2k8c")
@@ -633,9 +631,8 @@ func TestAgent_RecallSessionSummary_ReusesCachedRecallSummaryWhenMessageCountMat
 		OutputText: `{"session_summary":"Earlier work","current_task":"Investigate compact","discoveries":["d1"],"open_questions":["q1"],"next_actions":["n1"]}`,
 	}}}
 	agent := newSessionOpsAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		ContextLength: 128000,
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 128000}},
 	}, client, &mocks.TraceSessionStub{})
 
 	session, err := agent.CreateSession(context.Background(), "ses_Y4VxN3E3h5cQH1sYq2k8f")
@@ -659,9 +656,8 @@ func TestAgent_RecallSessionSummary_InvalidatesCachedRecallSummaryWhenMessageCou
 		{OutputText: `{"session_summary":"Updated work","current_task":"Investigate compact","discoveries":["d2"],"open_questions":["q2"],"next_actions":["n2"]}`},
 	}}
 	agent := newSessionOpsAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		ContextLength: 128000,
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 128000}},
 	}, client, &mocks.TraceSessionStub{})
 
 	session, err := agent.CreateSession(context.Background(), "ses_Y4VxN3E3h5cQH1sYq2k8g")
@@ -688,9 +684,8 @@ func TestAgent_RecallSessionSummary_DoesNotReusePartialCachedRecallSummary(t *te
 		{OutputText: `{"session_summary":"Fresh recall","current_task":"Investigate compact","discoveries":["d1"],"open_questions":["q1"],"next_actions":["n1"]}`},
 	}}
 	agent := newSessionOpsAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		ContextLength: 128000,
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 128000}},
 	}, client, &mocks.TraceSessionStub{})
 
 	session, err := agent.CreateSession(context.Background(), "ses_Y4VxN3E3h5cQH1sYq2k8h")
@@ -714,7 +709,7 @@ func TestAgent_RecallSessionSummary_DoesNotReusePartialCachedRecallSummary(t *te
 }
 
 func TestAgent_RecallSessionSummary_validationErrors(t *testing.T) {
-	cfg := testSessionConfig(&config.Config{Name: "Test Agent", Model: "m", ContextLength: 128000})
+	cfg := testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "m", ContextLength: 128000}}})
 	manager := mustSessionManager(t)
 
 	t.Run("nil_agent", func(t *testing.T) {
@@ -751,7 +746,7 @@ func TestAgent_RecallSessionSummary_returnsResolveError(t *testing.T) {
 	require.NoError(t, err)
 
 	a := &Agent{
-		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Model: "m", ContextLength: 128000}),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "m", ContextLength: 128000}}}),
 		modelClient: &mocks.ModelClientStub{},
 		sessionMgr:  manager,
 		initialized: true,
@@ -773,7 +768,7 @@ func TestAgent_RecallSessionSummary_returnsCountMessagesError(t *testing.T) {
 	require.NoError(t, err)
 
 	a := &Agent{
-		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Model: "m", ContextLength: 128000}),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "m", ContextLength: 128000}}}),
 		modelClient: &mocks.ModelClientStub{},
 		sessionMgr:  manager,
 		initialized: true,
@@ -793,9 +788,8 @@ func TestAgent_RecallSessionSummary_withNilEnvironmentUsesNoopTrace(t *testing.T
 
 	a := &Agent{
 		cfg: testSessionConfig(&config.Config{
-			Name:          "Test Agent",
-			Model:         "test-model",
-			ContextLength: 128000,
+			Name:   "Test Agent",
+			Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 128000}},
 		}),
 		modelClient: client,
 		sessionMgr:  manager,
@@ -830,9 +824,8 @@ func TestAgent_RecallSessionSummary_returnsNilSummaryError(t *testing.T) {
 	}
 
 	agent := newSessionOpsAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		ContextLength: 128000,
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 128000}},
 	}, &mocks.ModelClientStub{}, &mocks.TraceSessionStub{})
 
 	session, err := agent.CreateSession(context.Background(), "ses_Z4VxN3E3h5cQH1sYq2k8d")
@@ -858,9 +851,8 @@ func TestAgent_RecallSessionSummary_returnsRecallSummaryError(t *testing.T) {
 	}
 
 	agent := newSessionOpsAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		ContextLength: 128000,
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 128000}},
 	}, &mocks.ModelClientStub{}, &mocks.TraceSessionStub{})
 
 	session, err := agent.CreateSession(context.Background(), "ses_Z4VxN3E3h5cQH1sYq2k8e")
@@ -872,9 +864,8 @@ func TestAgent_RecallSessionSummary_returnsRecallSummaryError(t *testing.T) {
 
 func TestAgent_ContextStatusUsesStoredPromptTokens(t *testing.T) {
 	agent := newSessionOpsAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		ContextLength: 128000,
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 128000}},
 	}, &mocks.ModelClientStub{}, nil)
 
 	session, err := agent.CreateSession(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
@@ -895,7 +886,7 @@ func TestAgent_ContextStatusUsesStoredPromptTokens(t *testing.T) {
 }
 
 func TestAgent_CompactSession_validationErrors(t *testing.T) {
-	cfg := testSessionConfig(&config.Config{Name: "Test Agent", Model: "m", ContextLength: 128000})
+	cfg := testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "m", ContextLength: 128000}}})
 	manager := mustSessionManager(t)
 
 	t.Run("nil_agent", func(t *testing.T) {
@@ -932,7 +923,7 @@ func TestAgent_CompactSession_returnsResolveError(t *testing.T) {
 	require.NoError(t, err)
 
 	a := &Agent{
-		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Model: "m", ContextLength: 128000}),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "m", ContextLength: 128000}}}),
 		modelClient: &mocks.ModelClientStub{},
 		sessionMgr:  manager,
 		initialized: true,
@@ -944,9 +935,8 @@ func TestAgent_CompactSession_returnsResolveError(t *testing.T) {
 
 func TestAgent_CompactSession_returnsSummaryErrorWhenHistoryTooShort(t *testing.T) {
 	a := newSessionOpsAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		ContextLength: 128000,
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 128000}},
 	}, &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "{}"}}}, nil)
 
 	session, err := a.CreateSession(context.Background(), "")
@@ -968,9 +958,8 @@ func TestAgent_CompactSession_withNilEnvironmentUsesNoopTrace(t *testing.T) {
 
 	a := &Agent{
 		cfg: testSessionConfig(&config.Config{
-			Name:          "Test Agent",
-			Model:         "test-model",
-			ContextLength: 128000,
+			Name:   "Test Agent",
+			Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 128000}},
 		}),
 		modelClient: client,
 		sessionMgr:  manager,
@@ -991,7 +980,7 @@ func TestAgent_CompactSession_withNilEnvironmentUsesNoopTrace(t *testing.T) {
 }
 
 func TestAgent_ContextStatus_validationErrors(t *testing.T) {
-	cfg := testSessionConfig(&config.Config{Name: "Test Agent", ContextLength: 128000})
+	cfg := testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 128000}}})
 	manager := mustSessionManager(t)
 
 	t.Run("nil_agent", func(t *testing.T) {
@@ -1022,7 +1011,7 @@ func TestAgent_ContextStatus_returnsResolveError(t *testing.T) {
 	require.NoError(t, err)
 
 	a := &Agent{
-		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", ContextLength: 128000}),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 128000}}}),
 		sessionMgr:  manager,
 		initialized: true,
 		modelClient: &mocks.ModelClientStub{},
@@ -1044,7 +1033,7 @@ func TestAgent_ContextStatus_returnsSummaryError(t *testing.T) {
 	require.NoError(t, err)
 
 	a := &Agent{
-		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", ContextLength: 128000}),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 128000}}}),
 		sessionMgr:  manager,
 		initialized: true,
 		modelClient: &mocks.ModelClientStub{},
@@ -1063,7 +1052,7 @@ func TestAgent_ContextStatus_zeroTotalSkipsPercentages(t *testing.T) {
 	require.NoError(t, err)
 
 	a := &Agent{
-		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", ContextLength: 0}),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 0}}}),
 		sessionMgr:  manager,
 		initialized: true,
 		modelClient: &mocks.ModelClientStub{},
@@ -1090,8 +1079,8 @@ func TestAgent_ContextStatus_clampsNegativeTotalsAndUsed(t *testing.T) {
 
 	a := &Agent{
 		cfg: testSessionConfig(&config.Config{
-			Name:          "Test Agent",
-			ContextLength: -500,
+			Name:   "Test Agent",
+			Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: -500}},
 		}),
 		sessionMgr:  manager,
 		initialized: true,
@@ -1133,7 +1122,7 @@ func TestAgent_GetSessionReturnsConcreteValues(t *testing.T) {
 	require.NoError(t, err)
 
 	a := &Agent{
-		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", ContextLength: 400}),
+		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 400}}}),
 		sessionMgr:  manager,
 		initialized: true,
 		modelClient: &mocks.ModelClientStub{},

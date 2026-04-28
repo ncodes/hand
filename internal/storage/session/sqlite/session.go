@@ -319,6 +319,10 @@ func (s *SessionStore) ConfigureVectorStore(opts VectorStoreOptions) error {
 		rerankEnabled = *opts.EnableRerank
 	}
 
+	if err := retrieval.ValidateReranker(opts.Reranker); err != nil {
+		return err
+	}
+
 	s.vectors = &vectorConfig{
 		provider:    opts.Embedder,
 		reranker:    opts.Reranker,
@@ -1058,6 +1062,14 @@ func (s *SessionStore) rerankEnabled() bool {
 	return s != nil && s.vectors != nil && s.vectors.rerank
 }
 
+func (s *SessionStore) rerankerName() string {
+	if s == nil || s.vectors == nil || s.vectors.reranker == nil {
+		return retrieval.RerankerDeterministic
+	}
+
+	return strings.TrimSpace(strings.ToLower(s.vectors.reranker.Name()))
+}
+
 func (s *SessionStore) diagnosticsEnabled() bool {
 	return s != nil && s.vectors != nil && s.vectors.diagnostics
 }
@@ -1116,7 +1128,9 @@ func (s *SessionStore) searchMessagesHybrid(
 		reranked = s.rerankSearchCandidates(ctx, opts, candidates)
 		s.logCandidateDiagnostics("candidate reranked", reranked)
 	} else {
-		s.logSearchEvent("rerank skipped", id, opts).Msg("session search rerank skipped")
+		s.logSearchEvent("rerank skipped", id, opts).
+			Str("reranker", s.rerankerName()).
+			Msg("session search rerank skipped")
 	}
 	rows := rankedSearchRowsFromCandidateSlice(reranked, opts, matchCounts, lastMatchedAt)
 	results := searchMessageResultRowsToResults(rows)
@@ -1415,8 +1429,10 @@ func (s *SessionStore) rerankSearchCandidates(
 
 	maxCandidates := defaultRerankCandidateLimit
 	reranker := retrieval.Reranker(retrieval.DeterministicReranker{})
+	rerankerName := retrieval.RerankerDeterministic
 	if s != nil && s.vectors != nil {
 		maxCandidates = s.vectors.rerankMax
+		rerankerName = s.rerankerName()
 		if s.vectors.reranker != nil {
 			reranker = s.vectors.reranker
 		}
@@ -1425,6 +1441,7 @@ func (s *SessionStore) rerankSearchCandidates(
 		items = items[:maxCandidates]
 	}
 	s.logSearchEvent("rerank started", "", opts).
+		Str("configured_reranker", rerankerName).
 		Int("candidate_count", len(items)).
 		Int("max_candidates", maxCandidates).
 		Msg("session search rerank started")
@@ -1451,6 +1468,7 @@ func (s *SessionStore) rerankSearchCandidates(
 	if err != nil {
 		s.logSearchEvent("rerank fallback failed", "", opts).
 			Err(err).
+			Str("configured_reranker", rerankerName).
 			Int("candidate_count", len(items)).
 			Msg("session search rerank fallback failed")
 		return items
@@ -1465,11 +1483,21 @@ func (s *SessionStore) rerankSearchCandidates(
 	}
 
 	s.logSearchEvent("rerank completed", "", opts).
+		Str("configured_reranker", rerankerName).
+		Str("reranker", searchRerankResultName(result, rerankerName)).
 		Int("candidate_count", len(items)).
 		Int("result_count", len(reranked)).
 		Msg("session search rerank completed")
 
 	return reranked
+}
+
+func searchRerankResultName(result retrieval.RerankResult, fallback string) string {
+	if name := strings.TrimSpace(strings.ToLower(result.Reranker)); name != "" {
+		return name
+	}
+
+	return strings.TrimSpace(strings.ToLower(fallback))
 }
 
 func retrievalCandidateFromSearchCandidate(candidate *searchCandidate) retrieval.Candidate {

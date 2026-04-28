@@ -62,7 +62,7 @@ func NewCommand() *cli.Command {
 
 func formatStatus(status diagnostics.Status, cfg *config.Config) string {
 	label := strings.ToUpper(string(status))
-	if cfg != nil && cfg.LogNoColor {
+	if cfg != nil && cfg.Log.NoColor {
 		return label
 	}
 

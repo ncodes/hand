@@ -37,7 +37,7 @@ import (
 func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 	baseCtx := gctx.WithValue(gctx.Background(), "requestID", "req-123")
 	dir := t.TempDir()
-	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
+	cfg := &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}}
 
 	env := NewEnvironment(baseCtx, cfg)
 	h := env.(*environment)
@@ -86,7 +86,7 @@ func TestEnvironment_PrepareAddsFullBaseInstructionStack(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
+	cfg := &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
@@ -123,7 +123,7 @@ func TestEnvironment_PrepareRequiresSessionManager(t *testing.T) {
 		return workspace.Result{}, nil
 	}
 
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
 
 	err := env.Prepare()
 
@@ -144,14 +144,14 @@ func TestEnvironment_PrepareNormalizesConfig(t *testing.T) {
 		return workspace.Result{}, nil
 	}
 
-	cfg := &config.Config{Name: " Test Agent ", DebugTraceDir: t.TempDir()}
+	cfg := &config.Config{Name: " Test Agent ", Debug: config.DebugConfig{TraceDir: t.TempDir()}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
 	require.Equal(t, "Test Agent", cfg.Name)
-	require.Equal(t, config.DefaultWebMaxExtractCharPerResult, cfg.WebMaxExtractCharPerResult)
-	require.NotNil(t, cfg.CapNetwork)
-	require.True(t, *cfg.CapNetwork)
+	require.Equal(t, config.DefaultWebMaxExtractCharPerResult, cfg.Web.MaxExtractCharPerResult)
+	require.NotNil(t, cfg.Cap.Network)
+	require.True(t, *cfg.Cap.Network)
 }
 
 func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
@@ -173,7 +173,11 @@ func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir, RulesFiles: []string{"hand.md"}}
+	cfg := &config.Config{
+		Name:  "Test Agent",
+		Debug: config.DebugConfig{TraceDir: dir},
+		Rules: config.RulesConfig{Files: []string{"hand.md"}},
+	}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
@@ -200,7 +204,7 @@ func TestEnvironment_PrepareAppendsPersonalityBeforeWorkspaceRules(t *testing.T)
 	}
 
 	dir := t.TempDir()
-	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
+	cfg := &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
@@ -227,7 +231,11 @@ func TestEnvironment_PrepareAppendsInstructAfterWorkspaceRules(t *testing.T) {
 		return workspace.Result{Found: true, Content: "## AGENTS.md\nrepo rules"}, nil
 	}
 
-	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir(), Instruct: "be terse"}
+	cfg := &config.Config{
+		Name:    "Test Agent",
+		Debug:   config.DebugConfig{TraceDir: t.TempDir()},
+		Session: config.SessionConfig{Instruct: "be terse"},
+	}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
@@ -254,7 +262,7 @@ func TestEnvironment_PrepareIgnoresPersonalityLoadError(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
+	cfg := &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
@@ -276,7 +284,7 @@ func TestEnvironment_PrepareIgnoresWorkspaceRuleLoadError(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
+	cfg := &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
@@ -298,7 +306,7 @@ func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) 
 	}
 
 	dir := t.TempDir()
-	cfg := &config.Config{Name: "Test Agent", DebugTraceDir: dir}
+	cfg := &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
@@ -311,7 +319,7 @@ func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) 
 }
 
 func TestEnvironment_SetSessionManager(t *testing.T) {
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
 	h := env.(*environment)
 
 	require.Nil(t, h.sessionMgr)
@@ -337,7 +345,7 @@ func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	cfg := &config.Config{DebugTraceDir: dir}
+	cfg := &config.Config{Debug: config.DebugConfig{TraceDir: dir}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
@@ -362,7 +370,7 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}})
 
 	prepareTestEnvironment(t, env)
 
@@ -394,7 +402,7 @@ func TestEnvironment_PrepareAppendsLoadedToolUsageInstructionsAfterBaseInstructi
 		return workspace.Result{}, nil
 	}
 
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
 	prepareTestEnvironment(t, env)
 
 	rendered := env.Instructions().String()
@@ -418,7 +426,7 @@ func TestEnvironment_PrepareRegistersSessionTools(t *testing.T) {
 		return workspace.Result{}, nil
 	}
 
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
 	prepareTestEnvironment(t, env)
 
 	definitions, err := env.Tools().Resolve(tools.Policy{
@@ -464,7 +472,7 @@ func TestEnvironment_SessionSearchThenSessionMessagesWorkflow(t *testing.T) {
 		{ID: 13, Role: messages.RoleAssistant, Content: "after context", CreatedAt: now.Add(3 * time.Second)},
 	}))
 
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
 	env.SetSessionManager(manager)
 	require.NoError(t, env.Prepare())
 
@@ -531,10 +539,9 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 	}
 
 	env := NewEnvironment(gctx.Background(), &config.Config{
-		Name:          "Test Agent",
-		DebugTraceDir: t.TempDir(),
-		WebProvider:   "exa",
-		WebAPIKey:     "exa-key",
+		Name:  "Test Agent",
+		Debug: config.DebugConfig{TraceDir: t.TempDir()},
+		Web:   config.WebConfig{Provider: "exa", APIKey: "exa-key"},
 	})
 
 	prepareTestEnvironment(t, env)
@@ -585,11 +592,13 @@ func TestEnvironment_PrepareWrapsWebProviderWithCacheWhenConfigured(t *testing.T
 	defer server.Close()
 
 	env := NewEnvironment(gctx.Background(), &config.Config{
-		Name:        "Test Agent",
-		WebProvider: "exa",
-		WebAPIKey:   "exa-key",
-		WebBaseURL:  server.URL,
-		WebCacheTTL: time.Minute,
+		Name: "Test Agent",
+		Web: config.WebConfig{
+			Provider: "exa",
+			APIKey:   "exa-key",
+			BaseURL:  server.URL,
+			CacheTTL: time.Minute,
+		},
 	})
 
 	prepareTestEnvironment(t, env)
@@ -631,10 +640,12 @@ func TestEnvironment_PrepareLeavesWebProviderUncachedWhenDisabled(t *testing.T) 
 	defer server.Close()
 
 	env := NewEnvironment(gctx.Background(), &config.Config{
-		Name:        "Test Agent",
-		WebProvider: "exa",
-		WebAPIKey:   "exa-key",
-		WebBaseURL:  server.URL,
+		Name: "Test Agent",
+		Web: config.WebConfig{
+			Provider: "exa",
+			APIKey:   "exa-key",
+			BaseURL:  server.URL,
+		},
 	})
 
 	prepareTestEnvironment(t, env)
@@ -674,13 +685,15 @@ func TestEnvironment_PrepareAppliesWebsitePolicyToWebTools(t *testing.T) {
 	defer server.Close()
 
 	env := NewEnvironment(gctx.Background(), &config.Config{
-		Name:                       "Test Agent",
-		WebProvider:                "exa",
-		WebAPIKey:                  "exa-key",
-		WebBaseURL:                 server.URL,
-		WebBlockedDomainsEnabled:   true,
-		WebBlockedDomains:          []string{"blocked.example"},
-		WebMaxExtractCharPerResult: config.DefaultWebMaxExtractCharPerResult,
+		Name: "Test Agent",
+		Web: config.WebConfig{
+			Provider:                "exa",
+			APIKey:                  "exa-key",
+			BaseURL:                 server.URL,
+			BlockedDomainsEnabled:   true,
+			BlockedDomains:          []string{"blocked.example"},
+			MaxExtractCharPerResult: config.DefaultWebMaxExtractCharPerResult,
+		},
 	})
 
 	prepareTestEnvironment(t, env)
@@ -708,9 +721,9 @@ func TestEnvironment_PrepareRegistersOnlyWebExtractForNativeProvider(t *testing.
 	}
 
 	env := NewEnvironment(gctx.Background(), &config.Config{
-		Name:          "Test Agent",
-		DebugTraceDir: t.TempDir(),
-		WebProvider:   "native",
+		Name:  "Test Agent",
+		Debug: config.DebugConfig{TraceDir: t.TempDir()},
+		Web:   config.WebConfig{Provider: "native"},
 	})
 
 	prepareTestEnvironment(t, env)
@@ -735,8 +748,8 @@ func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T
 	}
 
 	env := NewEnvironment(gctx.Background(), &config.Config{
-		Name:          "Test Agent",
-		DebugTraceDir: t.TempDir(),
+		Name:  "Test Agent",
+		Debug: config.DebugConfig{TraceDir: t.TempDir()},
 	})
 
 	prepareTestEnvironment(t, env)
@@ -749,9 +762,9 @@ func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T
 
 func TestEnvironment_PrepareReturnsWebProviderErrors(t *testing.T) {
 	env := NewEnvironment(gctx.Background(), &config.Config{
-		Name:          "Test Agent",
-		DebugTraceDir: t.TempDir(),
-		WebProvider:   "parallel",
+		Name:  "Test Agent",
+		Debug: config.DebugConfig{TraceDir: t.TempDir()},
+		Web:   config.WebConfig{Provider: "parallel"},
 	})
 	env.SetSessionManager(&session.Manager{})
 
@@ -774,10 +787,9 @@ func TestEnvironment_WebToolsResolveOnlyWithNetworkCapability(t *testing.T) {
 	}
 
 	env := NewEnvironment(gctx.Background(), &config.Config{
-		Name:          "Test Agent",
-		DebugTraceDir: t.TempDir(),
-		WebProvider:   "exa",
-		WebAPIKey:     "exa-key",
+		Name:  "Test Agent",
+		Debug: config.DebugConfig{TraceDir: t.TempDir()},
+		Web:   config.WebConfig{Provider: "exa", APIKey: "exa-key"},
 	})
 
 	prepareTestEnvironment(t, env)
@@ -904,7 +916,7 @@ func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}})
 	env.(*environment).tools = failingRegistry{err: errors.New("register failed")}
 	env.SetSessionManager(&session.Manager{})
 	err := env.Prepare()
@@ -930,7 +942,7 @@ func TestEnvironment_PrepareReturnsToolGroupRegistrationError(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}})
 	env.(*environment).tools = failingGroupRegistry{err: errors.New("group failed")}
 	env.SetSessionManager(&session.Manager{})
 	err := env.Prepare()
@@ -942,7 +954,7 @@ func TestEnvironment_PrepareReturnsToolGroupRegistrationError(t *testing.T) {
 }
 
 func TestEnvironment_PrepareToolsPreservesExistingRuntime(t *testing.T) {
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: t.TempDir()})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
 	h := env.(*environment)
 	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, nil)
 	h.runtime = runtime
@@ -953,7 +965,7 @@ func TestEnvironment_PrepareToolsPreservesExistingRuntime(t *testing.T) {
 
 func TestEnvironment_InstructionsReturnsCopy(t *testing.T) {
 	dir := t.TempDir()
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}})
 	h := env.(*environment)
 	h.instructions = append(h.instructions, instruct.Instruction{Value: "hello"})
 	instructions := env.Instructions()
@@ -1017,7 +1029,10 @@ func TestEnvironment_SetInstructionSkipsEmptyNewNamedInstruction(t *testing.T) {
 
 func TestEnvironment_NewIterationBudgetUsesConfigValue(t *testing.T) {
 	dir := t.TempDir()
-	env := NewEnvironment(gctx.Background(), &config.Config{MaxIterations: 12, DebugTraceDir: dir})
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Session: config.SessionConfig{MaxIterations: 12},
+		Debug:   config.DebugConfig{TraceDir: dir},
+	})
 	require.Equal(t, 12, env.NewIterationBudget().Remaining())
 	require.IsType(t, envbudget.IterationBudget{}, env.NewIterationBudget())
 }
@@ -1069,12 +1084,14 @@ func TestEnvironment_ToolPolicyUsesDefaultsForNilConfig(t *testing.T) {
 
 func TestEnvironment_ToolPolicyUsesConfigValues(t *testing.T) {
 	cfg := &config.Config{
-		Platform:      "desktop",
-		CapFilesystem: new(false),
-		CapNetwork:    new(false),
-		CapExec:       new(true),
-		CapMemory:     new(false),
-		CapBrowser:    new(true),
+		Platform: "desktop",
+		Cap: config.CapConfig{
+			Filesystem: new(false),
+			Network:    new(false),
+			Exec:       new(true),
+			Memory:     new(false),
+			Browser:    new(true),
+		},
 	}
 	cfg.Normalize()
 	env := NewEnvironment(gctx.Background(), cfg)
@@ -1101,7 +1118,7 @@ func TestEnvironment_FileRootsUsesDefaultsForNilConfig(t *testing.T) {
 
 func TestEnvironment_FileRootsUsesConfiguredRoots(t *testing.T) {
 	root := t.TempDir()
-	env := &environment{cfg: &config.Config{FSRoots: []string{root, filepath.Join(root, ".")}}}
+	env := &environment{cfg: &config.Config{FS: config.FSConfig{Roots: []string{root, filepath.Join(root, ".")}}}}
 	require.Equal(t, []string{root}, env.fileRoots())
 }
 
@@ -1117,8 +1134,11 @@ func TestEnvironment_CommandPolicyUsesDefaultsForNilConfig(t *testing.T) {
 
 func TestNewEnvironment_ConfiguresTraceFactoryWhenEnabled(t *testing.T) {
 	dir := t.TempDir()
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Model: "gpt-5.1",
-		ModelAPIMode: "responses", DebugTraces: true, DebugTraceDir: dir})
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", APIMode: "responses"}},
+		Debug:  config.DebugConfig{Traces: true, TraceDir: dir},
+	})
 	const traceSessionID = "ses_test123"
 	session := env.NewTraceSession(traceSessionID)
 	require.Equal(t, traceSessionID, session.ID())
@@ -1149,11 +1169,9 @@ func TestEnvironment_NewTraceSessionRecordsWorkspaceRuleTruncation(t *testing.T)
 
 	dir := t.TempDir()
 	cfg := &config.Config{
-		Name:          "Test Agent",
-		Model:         "gpt-5.1",
-		ModelAPIMode:  "responses",
-		DebugTraces:   true,
-		DebugTraceDir: dir,
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", APIMode: "responses"}},
+		Debug:  config.DebugConfig{Traces: true, TraceDir: dir},
 	}
 	env := NewEnvironment(gctx.Background(), cfg)
 	prepareTestEnvironment(t, env)
@@ -1180,7 +1198,7 @@ func TestEnvironment_NewTraceSessionRecordsWorkspaceRuleTruncation(t *testing.T)
 
 func TestNewEnvironment_ReturnsNoopTraceSessionWhenDisabled(t *testing.T) {
 	dir := t.TempDir()
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraceDir: dir})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}})
 	session := env.NewTraceSession("ses_test123")
 	require.Equal(t, "", session.ID())
 }
@@ -1200,7 +1218,7 @@ func TestEnvironment_NewTraceSessionNilTraceFactory(t *testing.T) {
 func TestNewEnvironment_UsesDefaultTraceDirWhenEnabledWithoutConfiguredDir(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HAND_HOME", home)
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", DebugTraces: true})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{Traces: true}})
 
 	const traceSessionID = "ses_test123"
 	session := env.NewTraceSession(traceSessionID)

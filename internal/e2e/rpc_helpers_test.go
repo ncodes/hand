@@ -135,6 +135,7 @@ func TestWriteRPCConfigFile_WritesExpectedContent(t *testing.T) {
 	assert.Contains(t, string(raw), "address: 127.0.0.1")
 	assert.Contains(t, string(raw), "port: 8123")
 	assert.Contains(t, string(raw), "noColor: true")
+	assert.Contains(t, string(raw), "session:")
 	assert.Contains(t, string(raw), "instruct: be brief")
 }
 

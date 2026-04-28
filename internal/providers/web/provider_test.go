@@ -11,16 +11,18 @@ import (
 
 func TestResolveOptions_UsesExplicitConfig(t *testing.T) {
 	opts, err := ResolveOptions(&config.Config{
-		WebProvider:                "exa",
-		WebAPIKey:                  "exa-config-key",
-		WebBaseURL:                 "https://exa.example",
-		WebMaxCharPerResult:        3200,
-		WebMaxExtractCharPerResult: 12000,
-		WebMaxExtractResponseBytes: 64000,
-		WebNativeAllowedHosts:      []string{"allowed.example"},
-		WebNativeBlockedHosts:      []string{"blocked.example"},
-		WebNativeAllowedHostFiles:  []string{"allow.txt"},
-		WebNativeBlockedHostFiles:  []string{"deny.txt"},
+		Web: config.WebConfig{
+			Provider:                "exa",
+			APIKey:                  "exa-config-key",
+			BaseURL:                 "https://exa.example",
+			MaxCharPerResult:        3200,
+			MaxExtractCharPerResult: 12000,
+			MaxExtractResponseBytes: 64000,
+			NativeAllowedHosts:      []string{"allowed.example"},
+			NativeBlockedHosts:      []string{"blocked.example"},
+			NativeAllowedHostFiles:  []string{"allow.txt"},
+			NativeBlockedHostFiles:  []string{"deny.txt"},
+		},
 	})
 	require.NoError(t, err)
 	require.Equal(t, ProviderExa, opts.Provider)
@@ -103,8 +105,7 @@ func TestExtractQuery_UsesRequestQueryWhenPresent(t *testing.T) {
 
 func TestResolveOptions_UsesDetectedProviderFallback(t *testing.T) {
 	opts, err := ResolveOptions(&config.Config{
-		WebProvider: ProviderParallel,
-		WebAPIKey:   "parallel-key",
+		Web: config.WebConfig{Provider: ProviderParallel, APIKey: "parallel-key"},
 	})
 	require.NoError(t, err)
 	require.Equal(t, ProviderParallel, opts.Provider)
@@ -117,9 +118,11 @@ func TestResolveOptions_UsesDetectedProviderFallback(t *testing.T) {
 
 func TestResolveOptions_UsesConfiguredBaseURL(t *testing.T) {
 	opts, err := ResolveOptions(&config.Config{
-		WebProvider: ProviderTavily,
-		WebAPIKey:   "generic-key",
-		WebBaseURL:  "https://web.example",
+		Web: config.WebConfig{
+			Provider: ProviderTavily,
+			APIKey:   "generic-key",
+			BaseURL:  "https://web.example",
+		},
 	})
 	require.NoError(t, err)
 	require.Equal(t, ProviderTavily, opts.Provider)
@@ -129,8 +132,10 @@ func TestResolveOptions_UsesConfiguredBaseURL(t *testing.T) {
 
 func TestResolveOptions_UsesConfiguredFirecrawlBaseURL(t *testing.T) {
 	opts, err := ResolveOptions(&config.Config{
-		WebProvider: ProviderFirecrawl,
-		WebBaseURL:  "http://localhost:3002",
+		Web: config.WebConfig{
+			Provider: ProviderFirecrawl,
+			BaseURL:  "http://localhost:3002",
+		},
 	})
 	require.NoError(t, err)
 	require.Equal(t, ProviderFirecrawl, opts.Provider)
@@ -139,8 +144,7 @@ func TestResolveOptions_UsesConfiguredFirecrawlBaseURL(t *testing.T) {
 
 func TestResolveOptions_UsesConfiguredProviderWithoutAmbientEnvironment(t *testing.T) {
 	opts, err := ResolveOptions(&config.Config{
-		WebProvider: ProviderExa,
-		WebAPIKey:   "generic-key",
+		Web: config.WebConfig{Provider: ProviderExa, APIKey: "generic-key"},
 	})
 	require.NoError(t, err)
 	require.Equal(t, ProviderExa, opts.Provider)
@@ -148,7 +152,7 @@ func TestResolveOptions_UsesConfiguredProviderWithoutAmbientEnvironment(t *testi
 }
 
 func TestResolveOptions_RejectsUnsupportedProvider(t *testing.T) {
-	_, err := ResolveOptions(&config.Config{WebProvider: "unknown"})
+	_, err := ResolveOptions(&config.Config{Web: config.WebConfig{Provider: "unknown"}})
 	require.ErrorIs(t, err, ErrUnsupportedProvider)
 }
 
@@ -231,7 +235,7 @@ func TestTruncateContent_ReportsTruncation(t *testing.T) {
 }
 
 func TestNewProvider_ReturnsUnsupportedProviderError(t *testing.T) {
-	_, err := NewProvider(&config.Config{WebProvider: "custom"})
+	_, err := NewProvider(&config.Config{Web: config.WebConfig{Provider: "custom"}})
 	require.ErrorIs(t, err, ErrUnsupportedProvider)
 }
 
@@ -252,23 +256,26 @@ func TestNewProvider_BuildsConcreteProviders(t *testing.T) {
 	}{
 		{
 			name: "firecrawl",
-			cfg:  &config.Config{WebProvider: ProviderFirecrawl, WebBaseURL: "http://localhost:3002"},
+			cfg: &config.Config{Web: config.WebConfig{
+				Provider: ProviderFirecrawl,
+				BaseURL:  "http://localhost:3002",
+			}},
 		},
 		{
 			name: "parallel",
-			cfg:  &config.Config{WebProvider: ProviderParallel, WebAPIKey: "parallel-key"},
+			cfg:  &config.Config{Web: config.WebConfig{Provider: ProviderParallel, APIKey: "parallel-key"}},
 		},
 		{
 			name: "tavily",
-			cfg:  &config.Config{WebProvider: ProviderTavily, WebAPIKey: "tavily-key"},
+			cfg:  &config.Config{Web: config.WebConfig{Provider: ProviderTavily, APIKey: "tavily-key"}},
 		},
 		{
 			name: "exa",
-			cfg:  &config.Config{WebProvider: ProviderExa, WebAPIKey: "exa-key"},
+			cfg:  &config.Config{Web: config.WebConfig{Provider: ProviderExa, APIKey: "exa-key"}},
 		},
 		{
 			name: "native",
-			cfg:  &config.Config{WebProvider: ProviderNative},
+			cfg:  &config.Config{Web: config.WebConfig{Provider: ProviderNative}},
 		},
 	}
 

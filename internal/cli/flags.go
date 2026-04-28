@@ -20,7 +20,7 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 		&cli.StringFlag{
 			Name:   "model.provider",
 			Usage:  "Model provider: openrouter (default) or openai",
-			Value:  config.Get().ModelProvider,
+			Value:  config.Get().Models.Main.Provider,
 			Hidden: true,
 		},
 		&cli.StringFlag{
@@ -31,12 +31,12 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 		&cli.StringFlag{
 			Name:  "model",
 			Usage: "Model slug to send to the provider, for example openai/gpt-4o-mini",
-			Value: config.Get().Model,
+			Value: config.Get().Models.Main.Name,
 		},
 		&cli.StringFlag{
 			Name:  "model.summary",
 			Usage: "Optional model slug for compaction summarization; defaults to --model when unset",
-			Value: config.Get().SummaryModel,
+			Value: config.Get().Models.Summary.Name,
 		},
 		&cli.BoolFlag{
 			Name:  "model.stream",
@@ -46,37 +46,37 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 		&cli.StringFlag{
 			Name:   "model.base-url",
 			Usage:  "Base URL for the model provider API",
-			Value:  config.Get().ModelBaseURL,
+			Value:  config.Get().Models.Main.BaseURL,
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "model.summary-provider",
 			Usage:  "Optional provider for compaction/summary calls; defaults to --model.provider when unset",
-			Value:  config.Get().SummaryProvider,
+			Value:  config.Get().Models.Summary.Provider,
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "model.summary-base-url",
 			Usage:  "Base URL for the summary provider when it differs from the main provider",
-			Value:  config.Get().SummaryModelBaseURL,
+			Value:  config.Get().Models.Summary.BaseURL,
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "model.summary-api-mode",
 			Usage:  "API mode for compaction/summary (completions or responses); defaults to --model.api-mode when unset",
-			Value:  config.Get().SummaryModelAPIMode,
+			Value:  config.Get().Models.Summary.APIMode,
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "model.api-mode",
 			Usage:  "Provider API mode: completions or responses",
-			Value:  config.Get().ModelAPIMode,
+			Value:  config.Get().Models.Main.APIMode,
 			Hidden: true,
 		},
 		&cli.BoolFlag{
-			Name:   "model.verify-model",
+			Name:   "models.verify",
 			Usage:  "Verify model existence and clamp configured context length against provider metadata",
-			Value:  config.Get().VerifyModelEnabled(),
+			Value:  config.Get().VerifyEnabled(),
 			Hidden: true,
 		},
 		&cli.IntFlag{
@@ -88,25 +88,25 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 		&cli.StringFlag{
 			Name:   "rpc.address",
 			Usage:  "Bind address for the RPC service",
-			Value:  config.Get().RPCAddress,
+			Value:  config.Get().RPC.Address,
 			Hidden: true,
 		},
 		&cli.IntFlag{
 			Name:   "rpc.port",
 			Usage:  "Bind port for the RPC service",
-			Value:  config.Get().RPCPort,
+			Value:  config.Get().RPC.Port,
 			Hidden: true,
 		},
 		&cli.IntFlag{
 			Name:   "max-iterations",
 			Usage:  "Maximum model iterations allowed in a tool-calling loop",
-			Value:  config.Get().MaxIterations,
+			Value:  config.Get().Session.MaxIterations,
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:  "log.level",
 			Usage: "Set the minimum log level: debug, info, warn, or error",
-			Value: config.Get().LogLevel,
+			Value: config.Get().Log.Level,
 		},
 		&cli.BoolFlag{
 			Name:   "log.no-color",
@@ -124,13 +124,13 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 		&cli.StringFlag{
 			Name:   "debug.trace-dir",
 			Usage:  "Directory for persisted debug trace files",
-			Value:  config.Get().DebugTraceDir,
+			Value:  config.Get().Debug.TraceDir,
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "web.provider",
 			Usage:  "Web provider: firecrawl, parallel, tavily, exa, or native",
-			Value:  config.Get().WebProvider,
+			Value:  config.Get().Web.Provider,
 			Hidden: true,
 		},
 		&cli.StringFlag{
@@ -141,103 +141,103 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 		&cli.StringFlag{
 			Name:   "web.base-url",
 			Usage:  "Base URL for the selected web provider API",
-			Value:  config.Get().WebBaseURL,
+			Value:  config.Get().Web.BaseURL,
 			Hidden: true,
 		},
 		&cli.IntFlag{
 			Name:   "web.max-char-per-result",
 			Usage:  "Maximum characters returned per web search result",
-			Value:  config.Get().WebMaxCharPerResult,
+			Value:  config.Get().Web.MaxCharPerResult,
 			Hidden: true,
 		},
 		&cli.IntFlag{
 			Name:   "web.max-extract-char-per-result",
 			Usage:  "Maximum characters returned per web extraction result",
-			Value:  config.Get().WebMaxExtractCharPerResult,
+			Value:  config.Get().Web.MaxExtractCharPerResult,
 			Hidden: true,
 		},
 		&cli.IntFlag{
 			Name:   "web.max-extract-response-bytes",
 			Usage:  "Maximum raw response bytes processed per web extraction result",
-			Value:  config.Get().WebMaxExtractResponseBytes,
+			Value:  config.Get().Web.MaxExtractResponseBytes,
 			Hidden: true,
 		},
 		&cli.DurationFlag{
 			Name:   "web.cache-ttl",
 			Usage:  "Time to keep successful web search and extraction results in the in-process cache",
-			Value:  config.Get().WebCacheTTL,
+			Value:  config.Get().Web.CacheTTL,
 			Hidden: true,
 		},
 		&cli.BoolFlag{
 			Name:   "web.blocked-domains-enabled",
 			Usage:  "Enable configured domain blocklist checks for web search and extraction",
-			Value:  config.Get().WebBlockedDomainsEnabled,
+			Value:  config.Get().Web.BlockedDomainsEnabled,
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "web.blocked-domains",
 			Usage:  "Comma-separated domains blocked from web search and extraction results",
-			Value:  strings.Join(config.Get().WebBlockedDomains, ","),
+			Value:  strings.Join(config.Get().Web.BlockedDomains, ","),
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "web.blocked-domain-files",
 			Usage:  "Comma-separated files containing domains blocked from web search and extraction results",
-			Value:  strings.Join(config.Get().WebBlockedDomainFiles, ","),
+			Value:  strings.Join(config.Get().Web.BlockedDomainFiles, ","),
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "web.native-allowed-hosts",
 			Usage:  "Comma-separated host patterns the native web extractor may fetch; when set, other hosts are rejected",
-			Value:  strings.Join(config.Get().WebNativeAllowedHosts, ","),
+			Value:  strings.Join(config.Get().Web.NativeAllowedHosts, ","),
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "web.native-blocked-hosts",
 			Usage:  "Comma-separated host patterns the native web extractor must never fetch",
-			Value:  strings.Join(config.Get().WebNativeBlockedHosts, ","),
+			Value:  strings.Join(config.Get().Web.NativeBlockedHosts, ","),
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "web.native-allowed-host-files",
 			Usage:  "Comma-separated files containing native web extractor host allowlist rules",
-			Value:  strings.Join(config.Get().WebNativeAllowedHostFiles, ","),
+			Value:  strings.Join(config.Get().Web.NativeAllowedHostFiles, ","),
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "web.native-blocked-host-files",
 			Usage:  "Comma-separated files containing native web extractor host denylist rules",
-			Value:  strings.Join(config.Get().WebNativeBlockedHostFiles, ","),
+			Value:  strings.Join(config.Get().Web.NativeBlockedHostFiles, ","),
 			Hidden: true,
 		},
 		&cli.IntFlag{
 			Name:   "web.extract-min-summarize-chars",
 			Usage:  "Minimum extracted content characters before optional web extraction summarization runs",
-			Value:  config.Get().WebExtractMinSummarizeChars,
+			Value:  config.Get().Web.ExtractMinSummarizeChars,
 			Hidden: true,
 		},
 		&cli.IntFlag{
 			Name:   "web.extract-max-summary-chars",
 			Usage:  "Maximum characters returned by optional web extraction summaries",
-			Value:  config.Get().WebExtractMaxSummaryChars,
+			Value:  config.Get().Web.ExtractMaxSummaryChars,
 			Hidden: true,
 		},
 		&cli.IntFlag{
 			Name:   "web.extract-max-summary-chunk-chars",
 			Usage:  "Maximum extracted content characters per optional summarization chunk",
-			Value:  config.Get().WebExtractMaxSummaryChunkChars,
+			Value:  config.Get().Web.ExtractMaxSummaryChunkChars,
 			Hidden: true,
 		},
 		&cli.IntFlag{
 			Name:   "web.extract-refusal-threshold-chars",
 			Usage:  "Extracted content character threshold above which optional summarization is refused",
-			Value:  config.Get().WebExtractRefusalThresholdChars,
+			Value:  config.Get().Web.ExtractRefusalThresholdChars,
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "rules.files",
 			Usage:  "Comma-separated rule file paths to load in addition to workspace defaults",
-			Value:  strings.Join(config.Get().RulesFiles, ","),
+			Value:  strings.Join(config.Get().Rules.Files, ","),
 			Hidden: true,
 		},
 		&cli.StringFlag{
@@ -249,73 +249,73 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 		&cli.StringFlag{
 			Name:   "fs.roots",
 			Usage:  "Comma-separated filesystem roots allowed for file tools",
-			Value:  strings.Join(config.Get().FSRoots, ","),
+			Value:  strings.Join(config.Get().FS.Roots, ","),
 			Hidden: true,
 		},
 		&cli.BoolFlag{
 			Name:   "cap.fs",
 			Usage:  "Enable filesystem tool capability filtering",
-			Value:  boolValue(config.Get().CapFilesystem),
+			Value:  boolValue(config.Get().Cap.Filesystem),
 			Hidden: true,
 		},
 		&cli.BoolFlag{
 			Name:   "cap.net",
 			Usage:  "Enable network tool capability filtering",
-			Value:  boolValue(config.Get().CapNetwork),
+			Value:  boolValue(config.Get().Cap.Network),
 			Hidden: true,
 		},
 		&cli.BoolFlag{
 			Name:   "cap.exec",
 			Usage:  "Enable exec tool capability filtering",
-			Value:  boolValue(config.Get().CapExec),
+			Value:  boolValue(config.Get().Cap.Exec),
 			Hidden: true,
 		},
 		&cli.BoolFlag{
 			Name:   "cap.mem",
 			Usage:  "Enable memory tool capability filtering",
-			Value:  boolValue(config.Get().CapMemory),
+			Value:  boolValue(config.Get().Cap.Memory),
 			Hidden: true,
 		},
 		&cli.BoolFlag{
 			Name:   "cap.browser",
 			Usage:  "Enable browser tool capability filtering",
-			Value:  boolValue(config.Get().CapBrowser),
+			Value:  boolValue(config.Get().Cap.Browser),
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "exec.allow",
 			Usage:  "Comma-separated allowed command prefixes",
-			Value:  strings.Join(config.Get().ExecAllow, ","),
+			Value:  strings.Join(config.Get().Exec.Allow, ","),
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "exec.ask",
 			Usage:  "Comma-separated command prefixes that require approval",
-			Value:  strings.Join(config.Get().ExecAsk, ","),
+			Value:  strings.Join(config.Get().Exec.Ask, ","),
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "exec.deny",
 			Usage:  "Comma-separated denied command prefixes",
-			Value:  strings.Join(config.Get().ExecDeny, ","),
+			Value:  strings.Join(config.Get().Exec.Deny, ","),
 			Hidden: true,
 		},
 		&cli.StringFlag{
 			Name:   "storage.backend",
 			Usage:  "Storage backend: memory or sqlite",
-			Value:  config.Get().StorageBackend,
+			Value:  config.Get().Storage.Backend,
 			Hidden: true,
 		},
 		&cli.DurationFlag{
 			Name:   "session.default-idle-expiry",
 			Usage:  "Idle duration before the default session is archived and cleared",
-			Value:  config.Get().SessionDefaultIdleExpiry,
+			Value:  config.Get().Session.DefaultIdleExpiry,
 			Hidden: true,
 		},
 		&cli.DurationFlag{
 			Name:   "session.archive-retention",
 			Usage:  "How long archived default-session conversations are retained before deletion",
-			Value:  config.Get().SessionArchiveRetention,
+			Value:  config.Get().Session.ArchiveRetention,
 			Hidden: true,
 		},
 		&cli.StringFlag{
@@ -363,7 +363,7 @@ func RequestInstructFlag() cli.Flag {
 	return &cli.StringFlag{
 		Name:  "instruct",
 		Usage: "Per-request instruction appended after workspace rules and cleared when the response finishes",
-		Value: config.Get().Instruct,
+		Value: config.Get().Session.Instruct,
 	}
 }
 
@@ -371,7 +371,7 @@ func PersistentInstructFlag() cli.Flag {
 	return &cli.StringFlag{
 		Name:  "instruct",
 		Usage: "Server instruction appended after workspace rules and kept until the process exits",
-		Value: config.Get().Instruct,
+		Value: config.Get().Session.Instruct,
 	}
 }
 
@@ -384,164 +384,164 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 		cfg.Name = strings.TrimSpace(cmd.String("name"))
 	}
 	if cmd.IsSet("model") {
-		cfg.Model = strings.TrimSpace(cmd.String("model"))
+		cfg.Models.Main.Name = strings.TrimSpace(cmd.String("model"))
 	}
 	if cmd.IsSet("model.summary") {
-		cfg.SummaryModel = strings.TrimSpace(cmd.String("model.summary"))
+		cfg.Models.Summary.Name = strings.TrimSpace(cmd.String("model.summary"))
 	}
 	if cmd.IsSet("model.stream") {
-		cfg.Stream = new(cmd.Bool("model.stream"))
+		cfg.Models.Main.Stream = new(cmd.Bool("model.stream"))
 	}
 	if cmd.IsSet("model.provider") {
-		cfg.ModelProvider = strings.TrimSpace(cmd.String("model.provider"))
+		cfg.Models.Main.Provider = strings.TrimSpace(cmd.String("model.provider"))
 	}
 	if cmd.IsSet("model.key") {
-		cfg.ModelKey = strings.TrimSpace(cmd.String("model.key"))
+		cfg.Models.Key = strings.TrimSpace(cmd.String("model.key"))
 	}
 	if cmd.IsSet("model.base-url") {
-		cfg.ModelBaseURL = strings.TrimSpace(cmd.String("model.base-url"))
+		cfg.Models.Main.BaseURL = strings.TrimSpace(cmd.String("model.base-url"))
 	}
 	if cmd.IsSet("model.summary-provider") {
-		cfg.SummaryProvider = strings.TrimSpace(cmd.String("model.summary-provider"))
+		cfg.Models.Summary.Provider = strings.TrimSpace(cmd.String("model.summary-provider"))
 	}
 	if cmd.IsSet("model.summary-base-url") {
-		cfg.SummaryModelBaseURL = strings.TrimSpace(cmd.String("model.summary-base-url"))
+		cfg.Models.Summary.BaseURL = strings.TrimSpace(cmd.String("model.summary-base-url"))
 	}
 	if cmd.IsSet("model.summary-api-mode") {
-		cfg.SummaryModelAPIMode = strings.TrimSpace(cmd.String("model.summary-api-mode"))
+		cfg.Models.Summary.APIMode = strings.TrimSpace(cmd.String("model.summary-api-mode"))
 	}
 	if cmd.IsSet("model.api-mode") {
-		cfg.ModelAPIMode = strings.TrimSpace(cmd.String("model.api-mode"))
+		cfg.Models.Main.APIMode = strings.TrimSpace(cmd.String("model.api-mode"))
 	}
-	if cmd.IsSet("model.verify-model") {
-		cfg.VerifyModel = new(cmd.Bool("model.verify-model"))
+	if cmd.IsSet("models.verify") {
+		cfg.Models.Verify = new(cmd.Bool("models.verify"))
 	}
 	if cmd.IsSet("model.max-retries") {
 		retries := cmd.Int("model.max-retries")
-		cfg.ModelMaxRetries = &retries
+		cfg.Models.MaxRetries = &retries
 	}
 	if cmd.IsSet("rpc.address") {
-		cfg.RPCAddress = strings.TrimSpace(cmd.String("rpc.address"))
+		cfg.RPC.Address = strings.TrimSpace(cmd.String("rpc.address"))
 	}
 	if cmd.IsSet("rpc.port") {
-		cfg.RPCPort = cmd.Int("rpc.port")
+		cfg.RPC.Port = cmd.Int("rpc.port")
 	}
 	if cmd.IsSet("max-iterations") {
-		cfg.MaxIterations = cmd.Int("max-iterations")
+		cfg.Session.MaxIterations = cmd.Int("max-iterations")
 	}
 	if cmd.IsSet("log.level") {
-		cfg.LogLevel = strings.TrimSpace(cmd.String("log.level"))
+		cfg.Log.Level = strings.TrimSpace(cmd.String("log.level"))
 	}
 	if cmd.IsSet("log.no-color") {
-		cfg.LogNoColor = cmd.Bool("log.no-color")
+		cfg.Log.NoColor = cmd.Bool("log.no-color")
 	}
 	if cmd.IsSet("debug.requests") {
-		cfg.DebugRequests = cmd.Bool("debug.requests")
+		cfg.Debug.Requests = cmd.Bool("debug.requests")
 	}
 	if cmd.IsSet("debug.traces") {
-		cfg.DebugTraces = cmd.Bool("debug.traces")
+		cfg.Debug.Traces = cmd.Bool("debug.traces")
 	}
 	if cmd.IsSet("debug.trace-dir") {
-		cfg.DebugTraceDir = strings.TrimSpace(cmd.String("debug.trace-dir"))
+		cfg.Debug.TraceDir = strings.TrimSpace(cmd.String("debug.trace-dir"))
 	}
 	if cmd.IsSet("web.provider") {
-		cfg.WebProvider = strings.TrimSpace(cmd.String("web.provider"))
+		cfg.Web.Provider = strings.TrimSpace(cmd.String("web.provider"))
 	}
 	if cmd.IsSet("web.key") {
-		cfg.WebAPIKey = strings.TrimSpace(cmd.String("web.key"))
+		cfg.Web.APIKey = strings.TrimSpace(cmd.String("web.key"))
 	}
 	if cmd.IsSet("web.base-url") {
-		cfg.WebBaseURL = strings.TrimSpace(cmd.String("web.base-url"))
+		cfg.Web.BaseURL = strings.TrimSpace(cmd.String("web.base-url"))
 	}
 	if cmd.IsSet("web.max-char-per-result") {
-		cfg.WebMaxCharPerResult = cmd.Int("web.max-char-per-result")
+		cfg.Web.MaxCharPerResult = cmd.Int("web.max-char-per-result")
 	}
 	if cmd.IsSet("web.max-extract-char-per-result") {
-		cfg.WebMaxExtractCharPerResult = cmd.Int("web.max-extract-char-per-result")
+		cfg.Web.MaxExtractCharPerResult = cmd.Int("web.max-extract-char-per-result")
 	}
 	if cmd.IsSet("web.max-extract-response-bytes") {
-		cfg.WebMaxExtractResponseBytes = cmd.Int("web.max-extract-response-bytes")
+		cfg.Web.MaxExtractResponseBytes = cmd.Int("web.max-extract-response-bytes")
 	}
 	if cmd.IsSet("web.cache-ttl") {
-		cfg.WebCacheTTL = cmd.Duration("web.cache-ttl")
+		cfg.Web.CacheTTL = cmd.Duration("web.cache-ttl")
 	}
 	if cmd.IsSet("web.blocked-domains-enabled") {
-		cfg.WebBlockedDomainsEnabled = cmd.Bool("web.blocked-domains-enabled")
+		cfg.Web.BlockedDomainsEnabled = cmd.Bool("web.blocked-domains-enabled")
 	}
 	if cmd.IsSet("web.blocked-domains") {
-		cfg.WebBlockedDomains = configSplitAndTrimCSV(cmd.String("web.blocked-domains"))
+		cfg.Web.BlockedDomains = configSplitAndTrimCSV(cmd.String("web.blocked-domains"))
 	}
 	if cmd.IsSet("web.blocked-domain-files") {
-		cfg.WebBlockedDomainFiles = configSplitAndTrimCSV(cmd.String("web.blocked-domain-files"))
+		cfg.Web.BlockedDomainFiles = configSplitAndTrimCSV(cmd.String("web.blocked-domain-files"))
 	}
 	if cmd.IsSet("web.native-allowed-hosts") {
-		cfg.WebNativeAllowedHosts = configSplitAndTrimCSV(cmd.String("web.native-allowed-hosts"))
+		cfg.Web.NativeAllowedHosts = configSplitAndTrimCSV(cmd.String("web.native-allowed-hosts"))
 	}
 	if cmd.IsSet("web.native-blocked-hosts") {
-		cfg.WebNativeBlockedHosts = configSplitAndTrimCSV(cmd.String("web.native-blocked-hosts"))
+		cfg.Web.NativeBlockedHosts = configSplitAndTrimCSV(cmd.String("web.native-blocked-hosts"))
 	}
 	if cmd.IsSet("web.native-allowed-host-files") {
-		cfg.WebNativeAllowedHostFiles = configSplitAndTrimCSV(cmd.String("web.native-allowed-host-files"))
+		cfg.Web.NativeAllowedHostFiles = configSplitAndTrimCSV(cmd.String("web.native-allowed-host-files"))
 	}
 	if cmd.IsSet("web.native-blocked-host-files") {
-		cfg.WebNativeBlockedHostFiles = configSplitAndTrimCSV(cmd.String("web.native-blocked-host-files"))
+		cfg.Web.NativeBlockedHostFiles = configSplitAndTrimCSV(cmd.String("web.native-blocked-host-files"))
 	}
 	if cmd.IsSet("web.extract-min-summarize-chars") {
-		cfg.WebExtractMinSummarizeChars = cmd.Int("web.extract-min-summarize-chars")
+		cfg.Web.ExtractMinSummarizeChars = cmd.Int("web.extract-min-summarize-chars")
 	}
 	if cmd.IsSet("web.extract-max-summary-chars") {
-		cfg.WebExtractMaxSummaryChars = cmd.Int("web.extract-max-summary-chars")
+		cfg.Web.ExtractMaxSummaryChars = cmd.Int("web.extract-max-summary-chars")
 	}
 	if cmd.IsSet("web.extract-max-summary-chunk-chars") {
-		cfg.WebExtractMaxSummaryChunkChars = cmd.Int("web.extract-max-summary-chunk-chars")
+		cfg.Web.ExtractMaxSummaryChunkChars = cmd.Int("web.extract-max-summary-chunk-chars")
 	}
 	if cmd.IsSet("web.extract-refusal-threshold-chars") {
-		cfg.WebExtractRefusalThresholdChars = cmd.Int("web.extract-refusal-threshold-chars")
+		cfg.Web.ExtractRefusalThresholdChars = cmd.Int("web.extract-refusal-threshold-chars")
 	}
 	if cmd.IsSet("rules.files") {
-		cfg.RulesFiles = configSplitAndTrimCSV(cmd.String("rules.files"))
+		cfg.Rules.Files = configSplitAndTrimCSV(cmd.String("rules.files"))
 	}
 	if cmd.IsSet("instruct") {
-		cfg.Instruct = strings.TrimSpace(cmd.String("instruct"))
+		cfg.Session.Instruct = strings.TrimSpace(cmd.String("instruct"))
 	}
 	if cmd.IsSet("platform") {
 		cfg.Platform = strings.TrimSpace(cmd.String("platform"))
 	}
 	if cmd.IsSet("fs.roots") {
-		cfg.FSRoots = configSplitAndTrimCSV(cmd.String("fs.roots"))
+		cfg.FS.Roots = configSplitAndTrimCSV(cmd.String("fs.roots"))
 	}
 	if cmd.IsSet("cap.fs") {
-		cfg.CapFilesystem = new(cmd.Bool("cap.fs"))
+		cfg.Cap.Filesystem = new(cmd.Bool("cap.fs"))
 	}
 	if cmd.IsSet("cap.net") {
-		cfg.CapNetwork = new(cmd.Bool("cap.net"))
+		cfg.Cap.Network = new(cmd.Bool("cap.net"))
 	}
 	if cmd.IsSet("cap.exec") {
-		cfg.CapExec = new(cmd.Bool("cap.exec"))
+		cfg.Cap.Exec = new(cmd.Bool("cap.exec"))
 	}
 	if cmd.IsSet("cap.mem") {
-		cfg.CapMemory = new(cmd.Bool("cap.mem"))
+		cfg.Cap.Memory = new(cmd.Bool("cap.mem"))
 	}
 	if cmd.IsSet("cap.browser") {
-		cfg.CapBrowser = new(cmd.Bool("cap.browser"))
+		cfg.Cap.Browser = new(cmd.Bool("cap.browser"))
 	}
 	if cmd.IsSet("exec.allow") {
-		cfg.ExecAllow = configSplitAndTrimCSV(cmd.String("exec.allow"))
+		cfg.Exec.Allow = configSplitAndTrimCSV(cmd.String("exec.allow"))
 	}
 	if cmd.IsSet("exec.ask") {
-		cfg.ExecAsk = configSplitAndTrimCSV(cmd.String("exec.ask"))
+		cfg.Exec.Ask = configSplitAndTrimCSV(cmd.String("exec.ask"))
 	}
 	if cmd.IsSet("exec.deny") {
-		cfg.ExecDeny = configSplitAndTrimCSV(cmd.String("exec.deny"))
+		cfg.Exec.Deny = configSplitAndTrimCSV(cmd.String("exec.deny"))
 	}
 	if cmd.IsSet("storage.backend") {
-		cfg.StorageBackend = strings.TrimSpace(cmd.String("storage.backend"))
+		cfg.Storage.Backend = strings.TrimSpace(cmd.String("storage.backend"))
 	}
 	if cmd.IsSet("session.default-idle-expiry") {
-		cfg.SessionDefaultIdleExpiry = cmd.Duration("session.default-idle-expiry")
+		cfg.Session.DefaultIdleExpiry = cmd.Duration("session.default-idle-expiry")
 	}
 	if cmd.IsSet("session.archive-retention") {
-		cfg.SessionArchiveRetention = cmd.Duration("session.archive-retention")
+		cfg.Session.ArchiveRetention = cmd.Duration("session.archive-retention")
 	}
 }
 

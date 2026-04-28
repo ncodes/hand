@@ -61,12 +61,12 @@ func newViewCommand() *cli.Command {
 			}
 			handcli.ApplyConfigOverrides(cmd, cfg)
 			config.Set(cfg)
-			_ = logutils.ConfigureLogger("hand", cfg.LogNoColor)
-			logutils.SetLogLevel(cfg.LogLevel)
+			_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
+			logutils.SetLogLevel(cfg.Log.Level)
 
 			traceDir := strings.TrimSpace(cmd.String("trace-dir"))
 			if traceDir == "" {
-				traceDir = strings.TrimSpace(cfg.DebugTraceDir)
+				traceDir = strings.TrimSpace(cfg.Debug.TraceDir)
 			}
 			if traceDir == "" {
 				traceDir = datadir.DebugTraceDir()

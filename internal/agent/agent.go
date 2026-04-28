@@ -99,7 +99,7 @@ var newRecallSummaryCache = func() *pkgcache.Cache[string, storage.SessionSummar
 	})
 }
 
-var openSessionStore = storagefactory.OpenSessionStore
+var openSessionStore = storagefactory.OpenSessionStoreWithRerankerClient
 
 var newSessionManager = sessionstore.NewManager
 
@@ -210,7 +210,7 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 
 	a.env = env
 
-	agentLog.Info().Str("session_id", opts.SessionID).Str("model", a.cfg.Model).Msg("responding to user message")
+	agentLog.Info().Str("session_id", opts.SessionID).Str("model", a.cfg.Models.Main.Name).Msg("responding to user message")
 
 	turn := NewTurn(
 		a.cfg,
@@ -367,7 +367,7 @@ func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionRe
 		SourceMessageCount:   summary.SourceMessageCount,
 		UpdatedAt:            summary.UpdatedAt,
 		CurrentContextLength: session.LastPromptTokens,
-		TotalContextLength:   a.cfg.ContextLength,
+		TotalContextLength:   a.cfg.Models.Main.ContextLength,
 	}, nil
 }
 
@@ -513,7 +513,7 @@ func (a *Agent) ContextStatus(ctx context.Context, id string) (ContextStatus, er
 		return ContextStatus{}, err
 	}
 
-	total := max(a.cfg.ContextLength, 0)
+	total := max(a.cfg.Models.Main.ContextLength, 0)
 	used := max(session.LastPromptTokens, 0)
 	remaining := max(total-used, 0)
 
@@ -551,15 +551,15 @@ func (a *Agent) ensureSessionManager() error {
 		return nil
 	}
 
-	store, err := openSessionStore(a.cfg)
+	store, err := openSessionStore(a.cfg, a.summaryClient)
 	if err != nil {
 		return err
 	}
 
 	manager, err := newSessionManager(
 		store,
-		durationOrDefault(a.cfg.SessionDefaultIdleExpiry, 24*time.Hour),
-		durationOrDefault(a.cfg.SessionArchiveRetention, 30*24*time.Hour),
+		durationOrDefault(a.cfg.Session.DefaultIdleExpiry, 24*time.Hour),
+		durationOrDefault(a.cfg.Session.ArchiveRetention, 30*24*time.Hour),
 	)
 	if err != nil {
 		return err

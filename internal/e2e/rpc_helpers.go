@@ -88,9 +88,10 @@ func WriteRPCConfigFile(dir, address string, port int, opts RPCConfigOptions) (s
 
 	content := fmt.Sprintf(
 		`name: %s
-model:
-  verifyModel: false
-  stream: %t
+models:
+  verify: false
+  main:
+    stream: %t
 rpc:
   address: %s
   port: %d
@@ -104,7 +105,7 @@ log:
 		opts.NoColor,
 	)
 	if strings.TrimSpace(opts.Instruct) != "" {
-		content += "instruct: " + strings.TrimSpace(opts.Instruct) + "\n"
+		content += "session:\n  instruct: " + strings.TrimSpace(opts.Instruct) + "\n"
 	}
 
 	path := filepath.Join(dir, "config.yaml")

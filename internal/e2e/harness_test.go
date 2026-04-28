@@ -57,9 +57,10 @@ func TestNewHarness_RealConfigLoadAndEnvOverride(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(""+
 		"name: File Hand\n"+
-		"model:\n"+
-		"  name: test-model\n"+
-		"  stream: true\n"+
+		"models:\n"+
+		"  main:\n"+
+		"    name: test-model\n"+
+		"    stream: true\n"+
 		"storage:\n"+
 		"  backend: sqlite\n"), 0o644))
 	spec.Config = ConfigInput{
@@ -82,8 +83,8 @@ func TestNewHarness_RealConfigLoadAndEnvOverride(t *testing.T) {
 	cfg := harness.Config()
 	require.NotNil(t, cfg)
 	assert.Equal(t, "Env Hand", cfg.Name)
-	require.NotNil(t, cfg.Stream)
-	assert.False(t, *cfg.Stream)
+	require.NotNil(t, cfg.Models.Main.Stream)
+	assert.False(t, *cfg.Models.Main.Stream)
 
 	result, err := harness.Send(context.Background(), RootChatRequest{Message: "ping"})
 	require.NoError(t, err)
@@ -198,7 +199,7 @@ func TestNewHarness_Errors(t *testing.T) {
 
 	t.Run("agent start error", func(t *testing.T) {
 		cfg := testHarnessConfig()
-		cfg.StorageBackend = "bogus"
+		cfg.Storage.Backend = "bogus"
 		_, err := NewHarness(context.Background(), HarnessOptions{
 			Spec:        validSpec,
 			Config:      cfg,
@@ -336,7 +337,7 @@ func TestHarnessSendAndMessagesErrors(t *testing.T) {
 	t.Run("messages unavailable for memory store", func(t *testing.T) {
 		spec := testHarnessSpec(t)
 		cfg := testHarnessConfig()
-		cfg.StorageBackend = "memory"
+		cfg.Storage.Backend = "memory"
 
 		harness, err := NewHarness(context.Background(), HarnessOptions{
 			Spec:        spec,
@@ -363,7 +364,7 @@ func TestOpenInspectStoreAndHelpers(t *testing.T) {
 	})
 
 	t.Run("memory backend", func(t *testing.T) {
-		store, err := openInspectStore(&config.Config{StorageBackend: "memory"})
+		store, err := openInspectStore(&config.Config{Storage: config.StorageConfig{Backend: "memory"}})
 		require.NoError(t, err)
 		assert.Nil(t, store)
 	})

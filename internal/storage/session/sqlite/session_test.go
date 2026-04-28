@@ -1940,8 +1940,7 @@ func TestSQLiteStore_SearchMessagesHybridRanksSessionsByFusedScoreBeforeRecency(
 }
 
 func TestSQLiteStore_SearchMessagesRerankerChangesOrderBeforeLimits(t *testing.T) {
-	reranker := &sqliteTestReranker{}
-	store, vectorStore := sqliteVectorStoreTestStoreWithReranker(t, reranker, 0)
+	store, vectorStore := sqliteVectorStoreTestStoreWithReranker(t, retrieval.DeterministicReranker{}, 0)
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
@@ -1956,13 +1955,9 @@ func TestSQLiteStore_SearchMessagesRerankerChangesOrderBeforeLimits(t *testing.T
 	sessionARecord := vectorStore.upserts[0][0]
 	sessionBRecord := vectorStore.upserts[1][0]
 	vectorStore.searchMatches = []retrieval.VectorSearchMatch{
-		{Record: sessionARecord, Score: 0.99},
-		{Record: sessionBRecord, Score: 0.90},
+		{Record: sessionARecord, Score: 0.10},
+		{Record: sessionBRecord, Score: 0.99},
 	}
-	reranker.result = retrieval.RerankResult{Items: []retrieval.RerankItem{
-		{CandidateID: sessionBRecord.SourceID, Score: 10},
-		{CandidateID: sessionARecord.SourceID, Score: 9},
-	}}
 
 	results, err := store.SearchMessages(context.Background(), "", SearchMessageOptions{
 		Query:       "database upgrade",
@@ -1971,19 +1966,16 @@ func TestSQLiteStore_SearchMessagesRerankerChangesOrderBeforeLimits(t *testing.T
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	require.Equal(t, testSessionB, results[0].SessionID)
-	require.Len(t, reranker.requests, 1)
-	require.Len(t, reranker.requests[0].Candidates, 2)
 }
 
 func TestSQLiteStore_SearchMessagesRerankerCanBeDisabled(t *testing.T) {
-	reranker := &sqliteTestReranker{}
 	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)
 	vectorStore := &sqliteTestVectorStore{}
 	enableRerank := false
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
 		Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
-		Reranker:       reranker,
+		Reranker:       retrieval.DeterministicReranker{},
 		VectorStore:    vectorStore,
 		EnableRerank:   &enableRerank,
 		EmbeddingModel: "text-embedding-test",
@@ -2005,10 +1997,6 @@ func TestSQLiteStore_SearchMessagesRerankerCanBeDisabled(t *testing.T) {
 		{Record: sessionARecord, Score: 0.99},
 		{Record: sessionBRecord, Score: 0.90},
 	}
-	reranker.result = retrieval.RerankResult{Items: []retrieval.RerankItem{
-		{CandidateID: sessionBRecord.SourceID, Score: 10},
-		{CandidateID: sessionARecord.SourceID, Score: 9},
-	}}
 
 	results, err := store.SearchMessages(context.Background(), "", SearchMessageOptions{
 		Query:       "database upgrade",
@@ -2017,7 +2005,6 @@ func TestSQLiteStore_SearchMessagesRerankerCanBeDisabled(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	require.Equal(t, testSessionA, results[0].SessionID)
-	require.Empty(t, reranker.requests)
 }
 
 func TestSQLiteStore_SearchMessagesDiagnosticsAreInternal(t *testing.T) {
@@ -2050,7 +2037,7 @@ func TestSQLiteStore_SearchMessagesDiagnosticsAreInternal(t *testing.T) {
 
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
 		Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
-		Reranker:       &sqliteTestReranker{},
+		Reranker:       retrieval.DeterministicReranker{},
 		VectorStore:    vectorStore,
 		EmbeddingModel: "text-embedding-test",
 		Diagnostics:    true,
@@ -2080,66 +2067,21 @@ func TestSQLiteStore_SearchMessagesDiagnosticsAreInternal(t *testing.T) {
 	require.NotContains(t, logOutput, "semantic context")
 }
 
-func TestSQLiteStore_SearchMessagesRerankerFallsBackOnErrorOrUnknownID(t *testing.T) {
-	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+func TestSQLiteStore_ConfigureVectorStoreRejectsUnknownReranker(t *testing.T) {
+	store, err := NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
 
-	tests := []struct {
-		reranker *sqliteTestReranker
-		name     string
-	}{
-		{
-			name:     "error",
-			reranker: &sqliteTestReranker{err: errors.New("rerank failed")},
-		},
-		{
-			name: "unknown id",
-			reranker: &sqliteTestReranker{result: retrieval.RerankResult{Items: []retrieval.RerankItem{
-				{CandidateID: "session_message:missing:99", Score: 10},
-			}}},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			store, vectorStore := sqliteVectorStoreTestStoreWithReranker(t, tt.reranker, 0)
-			require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-			require.NoError(t, store.Save(context.Background(), Session{ID: testSessionB, UpdatedAt: now}))
-			require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-				{Role: handmsg.RoleUser, Content: "strong semantic context", CreatedAt: now},
-			}))
-			require.NoError(t, store.AppendMessages(context.Background(), testSessionB, []handmsg.Message{
-				{Role: handmsg.RoleUser, Content: "weak semantic context", CreatedAt: now.Add(time.Second)},
-			}))
-
-			vectorStore.searchMatches = []retrieval.VectorSearchMatch{
-				{Record: vectorStore.upserts[0][0], Score: 0.99},
-				{Record: vectorStore.upserts[1][0], Score: 0.90},
-			}
-
-			results, err := store.SearchMessages(context.Background(), "", SearchMessageOptions{
-				Query:       "semantic context",
-				MaxSessions: 1,
-			})
-			require.NoError(t, err)
-			require.Len(t, results, 1)
-			require.Equal(t, testSessionA, results[0].SessionID)
-			require.Len(t, tt.reranker.requests, 1)
-		})
-	}
+	err = store.ConfigureVectorStore(VectorStoreOptions{
+		Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
+		Reranker:       &sqliteTestReranker{},
+		VectorStore:    &sqliteTestVectorStore{},
+		EmbeddingModel: "text-embedding-test",
+	})
+	require.EqualError(t, err, "reranker must be one of: noop, deterministic, llm")
 }
 
 func TestSQLiteStore_SearchMessagesRerankerBoundsCandidateInput(t *testing.T) {
-	reranker := &sqliteTestReranker{
-		rerank: func(req retrieval.RerankRequest) retrieval.RerankResult {
-			items := make([]retrieval.RerankItem, 0, len(req.Candidates))
-			for _, candidate := range req.Candidates {
-				items = append(items, retrieval.RerankItem{CandidateID: candidate.ID, Score: 1})
-			}
-
-			return retrieval.RerankResult{Items: items}
-		},
-	}
-	store, vectorStore := sqliteVectorStoreTestStoreWithReranker(t, reranker, 1)
+	store, vectorStore := sqliteVectorStoreTestStoreWithReranker(t, retrieval.DeterministicReranker{}, 1)
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
@@ -2158,8 +2100,6 @@ func TestSQLiteStore_SearchMessagesRerankerBoundsCandidateInput(t *testing.T) {
 	require.Len(t, results, 1)
 	require.Equal(t, 2, results[0].MatchCount)
 	require.Len(t, results[0].Messages, 1)
-	require.Len(t, reranker.requests, 1)
-	require.Len(t, reranker.requests[0].Candidates, 1)
 }
 
 func TestSQLiteStore_SearchMessagesHybridPushesAndAppliesFilters(t *testing.T) {
@@ -4260,6 +4200,10 @@ type sqliteTestReranker struct {
 	rerank   func(retrieval.RerankRequest) retrieval.RerankResult
 	result   retrieval.RerankResult
 	requests []retrieval.RerankRequest
+}
+
+func (r *sqliteTestReranker) Name() string {
+	return "test"
 }
 
 func (r *sqliteTestReranker) Rerank(_ context.Context, req retrieval.RerankRequest) (retrieval.RerankResult, error) {

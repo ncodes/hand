@@ -13,6 +13,15 @@ import (
 type fakeReranker struct {
 	result RerankResult
 	err    error
+	name   string
+}
+
+func (f fakeReranker) Name() string {
+	if f.name != "" {
+		return f.name
+	}
+
+	return RerankerDeterministic
 }
 
 func (f fakeReranker) Rerank(context.Context, RerankRequest) (RerankResult, error) {
@@ -36,6 +45,7 @@ func TestNoopRerankerPreservesOrderAndBoundsCandidates(t *testing.T) {
 	})
 
 	require.NoError(t, err)
+	require.Equal(t, RerankerNoop, result.Reranker)
 	require.Equal(t, []RerankItem{
 		{CandidateID: "candidate-b", Score: 0.2},
 		{CandidateID: "candidate-a", Score: 0.9},
@@ -60,6 +70,7 @@ func TestDeterministicRerankerCombinesScoresAndRecency(t *testing.T) {
 	})
 
 	require.NoError(t, err)
+	require.Equal(t, RerankerDeterministic, result.Reranker)
 	require.Equal(t, []string{"candidate-best", "candidate-vector", "candidate-older"}, rerankIDs(result))
 	require.Greater(t, result.Items[0].Score, result.Items[1].Score)
 	require.Greater(t, result.Items[1].Score, result.Items[2].Score)
@@ -132,6 +143,7 @@ func TestRerankWithFallback(t *testing.T) {
 		}, NoopReranker{}, RerankRequest{Candidates: candidates})
 
 		require.NoError(t, err)
+		require.Equal(t, RerankerDeterministic, result.Reranker)
 		require.Equal(t, []RerankItem{{CandidateID: "candidate-b", Score: 7}}, result.Items)
 	})
 
@@ -141,6 +153,7 @@ func TestRerankWithFallback(t *testing.T) {
 		}, NoopReranker{}, RerankRequest{Candidates: candidates})
 
 		require.NoError(t, err)
+		require.Equal(t, RerankerNoop, result.Reranker)
 		require.Equal(t, []string{"candidate-a", "candidate-b"}, rerankIDs(result))
 	})
 
@@ -150,6 +163,7 @@ func TestRerankWithFallback(t *testing.T) {
 		}, NoopReranker{}, RerankRequest{Candidates: candidates})
 
 		require.NoError(t, err)
+		require.Equal(t, RerankerNoop, result.Reranker)
 		require.Equal(t, []string{"candidate-a", "candidate-b"}, rerankIDs(result))
 	})
 
@@ -159,6 +173,7 @@ func TestRerankWithFallback(t *testing.T) {
 		}, nil, RerankRequest{Candidates: candidates})
 
 		require.NoError(t, err)
+		require.Equal(t, RerankerDeterministic, result.Reranker)
 		require.Equal(t, []string{"candidate-a", "candidate-b"}, rerankIDs(result))
 	})
 
@@ -169,8 +184,50 @@ func TestRerankWithFallback(t *testing.T) {
 		})
 
 		require.NoError(t, err)
+		require.Equal(t, RerankerNoop, result.Reranker)
 		require.Equal(t, []string{"candidate-a"}, rerankIDs(result))
 	})
+
+	t.Run("rejects invalid primary reranker", func(t *testing.T) {
+		result, err := RerankWithFallback(context.Background(), fakeReranker{name: "test"}, NoopReranker{}, RerankRequest{
+			Candidates: candidates,
+		})
+
+		require.EqualError(t, err, "reranker must be one of: noop, deterministic, llm")
+		require.Empty(t, result.Items)
+	})
+
+	t.Run("rejects invalid fallback reranker", func(t *testing.T) {
+		result, err := RerankWithFallback(context.Background(), fakeReranker{}, fakeReranker{name: "test"}, RerankRequest{
+			Candidates: candidates,
+		})
+
+		require.EqualError(t, err, "reranker must be one of: noop, deterministic, llm")
+		require.Empty(t, result.Items)
+	})
+
+	t.Run("nil primary rejects invalid fallback reranker", func(t *testing.T) {
+		result, err := RerankWithFallback(context.Background(), nil, fakeReranker{name: "test"}, RerankRequest{
+			Candidates: candidates,
+		})
+
+		require.EqualError(t, err, "reranker must be one of: noop, deterministic, llm")
+		require.Empty(t, result.Items)
+	})
+}
+
+func TestRerankerNames(t *testing.T) {
+	require.Equal(t, RerankerNoop, NoopReranker{}.Name())
+	require.Equal(t, RerankerDeterministic, DeterministicReranker{}.Name())
+	require.Equal(t, RerankerLLM, LLMReranker{}.Name())
+}
+
+func TestValidateReranker(t *testing.T) {
+	require.NoError(t, ValidateReranker(nil))
+	require.NoError(t, ValidateReranker(NoopReranker{}))
+	require.NoError(t, ValidateReranker(DeterministicReranker{}))
+	require.NoError(t, ValidateReranker(LLMReranker{}))
+	require.EqualError(t, ValidateReranker(fakeReranker{name: "test"}), "reranker must be one of: noop, deterministic, llm")
 }
 
 func TestValidateRerankResult(t *testing.T) {

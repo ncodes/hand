@@ -1976,11 +1976,11 @@ func renderSummaryList(title string, values []string) string {
 }
 
 func summaryCompactionEnabled(cfg *config.Config) bool {
-	if cfg == nil || cfg.CompactionEnabled == nil {
+	if cfg == nil || cfg.Compaction.Enabled == nil {
 		return true
 	}
 
-	return *cfg.CompactionEnabled
+	return *cfg.Compaction.Enabled
 }
 
 func summaryCompactionEvaluator(cfg *config.Config) *compaction.Evaluator {
@@ -1989,8 +1989,8 @@ func summaryCompactionEvaluator(cfg *config.Config) *compaction.Evaluator {
 	}
 
 	return compaction.NewEvaluator(
-		cfg.ContextLength,
-		cfg.CompactionTriggerPercent,
-		cfg.CompactionWarnPercent,
+		cfg.Models.Main.ContextLength,
+		cfg.Compaction.TriggerPercent,
+		cfg.Compaction.WarnPercent,
 	)
 }

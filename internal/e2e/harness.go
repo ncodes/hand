@@ -65,7 +65,7 @@ func NewHarness(ctx context.Context, opts HarnessOptions) (*Harness, error) {
 	}
 
 	if strings.TrimSpace(opts.Spec.Isolation.TraceDir) != "" {
-		cfg.DebugTraceDir = opts.Spec.Isolation.TraceDir
+		cfg.Debug.TraceDir = opts.Spec.Isolation.TraceDir
 	}
 
 	runCtx, cancel := context.WithCancel(normalizeHarnessContext(ctx))
@@ -210,7 +210,7 @@ func openInspectStore(cfg *config.Config) (storage.SessionStore, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
-	if strings.TrimSpace(strings.ToLower(cfg.StorageBackend)) == "memory" {
+	if strings.TrimSpace(strings.ToLower(cfg.Storage.Backend)) == "memory" {
 		return nil, nil
 	}
 	return storagefactory.OpenSessionStore(cfg)

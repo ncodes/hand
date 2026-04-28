@@ -77,7 +77,7 @@ func TestTurn_LoadHydratesPlanUsingFilteredToolQueries(t *testing.T) {
 		ToolRegistry:     tools.NewInMemoryRegistry(),
 	}
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{},
 		nil,
 		manager,
@@ -119,7 +119,7 @@ func TestTurn_LoadHydratesPlanFromLaterValidResultOnSamePage(t *testing.T) {
 
 	env := &mocks.EnvironmentStub{ToolRegistry: tools.NewInMemoryRegistry()}
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{},
 		nil,
 		manager,
@@ -156,7 +156,7 @@ func TestTurn_LoadHydratesNewestValidPlanOnSamePage(t *testing.T) {
 
 	env := &mocks.EnvironmentStub{ToolRegistry: tools.NewInMemoryRegistry()}
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{},
 		nil,
 		manager,
@@ -202,7 +202,7 @@ func TestTurn_LoadHydratesPlanFromLaterPageWhenEarlierPageIsInvalid(t *testing.T
 
 	env := &mocks.EnvironmentStub{ToolRegistry: tools.NewInMemoryRegistry()}
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{},
 		nil,
 		manager,
@@ -245,7 +245,7 @@ func TestTurn_LoadHydratesEmptyPlanWhenNoValidHistoricalPlanExists(t *testing.T)
 
 	env := &mocks.EnvironmentStub{ToolRegistry: tools.NewInMemoryRegistry()}
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{},
 		nil,
 		manager,
@@ -280,7 +280,7 @@ func TestTurn_LoadReturnsHydrationErrorFromLaterPageFetch(t *testing.T) {
 	require.NoError(t, err)
 
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{},
 		nil,
 		manager,
@@ -314,7 +314,7 @@ func TestTurn_LoadRejectsNilTurn(t *testing.T) {
 
 func TestTurn_LoadRejectsMissingManager(t *testing.T) {
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{},
 		nil,
 		nil,
@@ -345,7 +345,7 @@ func TestTurn_LoadRejectsMissingConfig(t *testing.T) {
 
 func TestTurn_LoadRejectsMissingModelClient(t *testing.T) {
 	turn := &Turn{
-		cfg:            testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		cfg:            testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		sessionManager: mustNewSessionManager(t),
 		env: &mocks.EnvironmentStub{
 			InstructionsList: nil,
@@ -465,7 +465,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterUserMessage(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{},
 		nil,
 		manager,
@@ -495,7 +495,7 @@ func TestTurn_RunReturnsContextErrorAtLoopStart(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{},
 		nil,
 		manager,
@@ -526,7 +526,7 @@ func TestTurn_RunReturnsPromptTokenPersistenceError(t *testing.T) {
 	require.NoError(t, err)
 
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{Responses: []*models.Response{{
 			OutputText:   "reply",
 			PromptTokens: 42,
@@ -566,7 +566,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterAssistantResponse(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}},
 		nil,
 		manager,
@@ -680,7 +680,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterAssistantToolCall(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{Responses: []*models.Response{{
 			ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
 			RequiresToolCalls: true,
@@ -730,7 +730,7 @@ func TestTurn_RunReturnsContextErrorBeforeToolInvocation(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{Responses: []*models.Response{{
 			ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
 			RequiresToolCalls: true,
@@ -786,7 +786,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterToolResult(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{Responses: []*models.Response{{
 			ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
 			RequiresToolCalls: true,
@@ -823,7 +823,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterSummaryFallback(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model", MaxIterations: 1}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}, Session: config.SessionConfig{MaxIterations: 1}}),
 		&mocks.ModelClientStub{Responses: []*models.Response{
 			{ToolCalls: []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}, RequiresToolCalls: true},
 			{OutputText: "summary"},
@@ -947,7 +947,7 @@ func TestTurn_SummaryFallbackReturnsPromptTokenPersistenceError(t *testing.T) {
 	require.NoError(t, err)
 
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{Responses: []*models.Response{{
 			OutputText:   "summary",
 			PromptTokens: 42,
@@ -989,9 +989,9 @@ func TestTurn_SummaryFallbackSkipsCompactionTraceWhenDisabled(t *testing.T) {
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "summary"}}}
 	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
 	turn.cfg = testSessionConfig(&config.Config{
-		Name:              "Test Agent",
-		Model:             "test-model",
-		CompactionEnabled: new(false),
+		Name:       "Test Agent",
+		Models:     config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
+		Compaction: config.CompactionConfig{Enabled: new(false)},
 	})
 
 	reply, err := turn.summaryFallback(context.Background(), envbudget.New(0), traceSession)
@@ -1014,11 +1014,9 @@ func TestTurn_SummaryFallbackRecordsEstimatedPreflightPayload(t *testing.T) {
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "summary"}}}
 	turn, _ := newTestTurnHarness(t, instructions.Instructions{{Value: "persona"}}, tools.NewInMemoryRegistry(), client)
 	turn.cfg = testSessionConfig(&config.Config{
-		Name:                     "Test Agent",
-		Model:                    "test-model",
-		ContextLength:            1000,
-		CompactionTriggerPercent: 0.5,
-		CompactionWarnPercent:    0.8,
+		Name:       "Test Agent",
+		Models:     config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 1000}},
+		Compaction: config.CompactionConfig{TriggerPercent: 0.5, WarnPercent: 0.8},
 	})
 	turn.sessionHistory = []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}
 
@@ -1039,11 +1037,9 @@ func TestTurn_SummaryFallbackRecordsTriggerAndWarningWhenThresholdExceeded(t *te
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "summary"}}}
 	turn, _ := newTestTurnHarness(t, instructions.Instructions{{Value: strings.Repeat("a", 80)}}, tools.NewInMemoryRegistry(), client)
 	turn.cfg = testSessionConfig(&config.Config{
-		Name:                     "Test Agent",
-		Model:                    "test-model",
-		ContextLength:            100,
-		CompactionTriggerPercent: 0.5,
-		CompactionWarnPercent:    0.6,
+		Name:       "Test Agent",
+		Models:     config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 100}},
+		Compaction: config.CompactionConfig{TriggerPercent: 0.5, WarnPercent: 0.6},
 	})
 	turn.sessionHistory = []handmsg.Message{{Role: handmsg.RoleUser, Content: strings.Repeat("b", 300)}}
 
@@ -1353,7 +1349,7 @@ func TestTurn_LoadLoadsOnlyUnsummarizedTailWhenSummaryExists(t *testing.T) {
 	require.NoError(t, err)
 
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{},
 		nil,
 		manager,
@@ -1385,7 +1381,7 @@ func TestTurn_LoadHydratesLatestValidPlanFromHistory(t *testing.T) {
 		TraceSession:     &mocks.TraceSessionStub{},
 	}
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{},
 		nil,
 		manager,
@@ -1416,7 +1412,7 @@ func TestTurn_LoadIgnoresMalformedPlanHistory(t *testing.T) {
 		ToolRegistry:     tools.NewInMemoryRegistry(),
 	}
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{},
 		nil,
 		manager,
@@ -1473,7 +1469,7 @@ func TestTurn_LoadHydratesPlanFromHistoryBeforeSummaryOffset(t *testing.T) {
 		ToolRegistry:     tools.NewInMemoryRegistry(),
 	}
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{},
 		nil,
 		manager,
@@ -1506,7 +1502,7 @@ func TestTurn_LoadReturnsHydratePlanLookupError(t *testing.T) {
 	require.NoError(t, err)
 
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{},
 		nil,
 		manager,
@@ -1546,7 +1542,7 @@ func TestTurn_RunRecordsHydratedPlanTrace(t *testing.T) {
 		TraceSession: traceSession,
 	}
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		client,
 		nil,
 		manager,
@@ -1635,12 +1631,9 @@ func TestTurn_RunGeneratesAndAppliesStructuredSummaryWhenCompactionTriggers(t *t
 		TraceSession: traceSession,
 	}
 	turn.cfg = testSessionConfig(&config.Config{
-		Name:                     "Test Agent",
-		Model:                    "test-model",
-		ContextLength:            100,
-		CompactionEnabled:        new(true),
-		CompactionTriggerPercent: 0.5,
-		CompactionWarnPercent:    0.8,
+		Name:       "Test Agent",
+		Models:     config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 100}},
+		Compaction: config.CompactionConfig{Enabled: new(true), TriggerPercent: 0.5, WarnPercent: 0.8},
 	})
 
 	session, err := manager.Resolve(context.Background(), "")
@@ -1704,12 +1697,9 @@ func TestTurn_RunSkipsSummaryGenerationWhenHistoryIsTooShort(t *testing.T) {
 		TraceSession: traceSession,
 	}
 	turn.cfg = testSessionConfig(&config.Config{
-		Name:                     "Test Agent",
-		Model:                    "test-model",
-		ContextLength:            100,
-		CompactionEnabled:        new(true),
-		CompactionTriggerPercent: 0.1,
-		CompactionWarnPercent:    0.2,
+		Name:       "Test Agent",
+		Models:     config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 100}},
+		Compaction: config.CompactionConfig{Enabled: new(true), TriggerPercent: 0.1, WarnPercent: 0.2},
 	})
 
 	session, err := manager.Resolve(context.Background(), "")
@@ -1742,12 +1732,9 @@ func TestTurn_RunContinuesWhenSummaryParsingFails(t *testing.T) {
 		TraceSession: traceSession,
 	}
 	turn.cfg = testSessionConfig(&config.Config{
-		Name:                     "Test Agent",
-		Model:                    "test-model",
-		ContextLength:            100,
-		CompactionEnabled:        new(true),
-		CompactionTriggerPercent: 0.5,
-		CompactionWarnPercent:    0.8,
+		Name:       "Test Agent",
+		Models:     config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 100}},
+		Compaction: config.CompactionConfig{Enabled: new(true), TriggerPercent: 0.5, WarnPercent: 0.8},
 	})
 
 	session, err := manager.Resolve(context.Background(), "")
@@ -1797,12 +1784,9 @@ func TestTurn_RunSkipsSummaryGenerationWhenCompactionIsDisabled(t *testing.T) {
 		TraceSession: traceSession,
 	}
 	turn.cfg = testSessionConfig(&config.Config{
-		Name:                     "Test Agent",
-		Model:                    "test-model",
-		ContextLength:            100,
-		CompactionEnabled:        new(false),
-		CompactionTriggerPercent: 0.1,
-		CompactionWarnPercent:    0.2,
+		Name:       "Test Agent",
+		Models:     config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 100}},
+		Compaction: config.CompactionConfig{Enabled: new(false), TriggerPercent: 0.1, WarnPercent: 0.2},
 	})
 
 	session, err := manager.Resolve(context.Background(), "")
@@ -1849,12 +1833,9 @@ func TestTurn_RunRefreshesSummaryIncrementally(t *testing.T) {
 		TraceSession: traceSession,
 	}
 	turn.cfg = testSessionConfig(&config.Config{
-		Name:                     "Test Agent",
-		Model:                    "test-model",
-		ContextLength:            100,
-		CompactionEnabled:        new(true),
-		CompactionTriggerPercent: 0.5,
-		CompactionWarnPercent:    0.8,
+		Name:       "Test Agent",
+		Models:     config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 100}},
+		Compaction: config.CompactionConfig{Enabled: new(true), TriggerPercent: 0.5, WarnPercent: 0.8},
 	})
 
 	session, err := manager.Resolve(context.Background(), "")
@@ -1946,8 +1927,7 @@ func TestAgent_RespondAppendsConversationAcrossTurns(t *testing.T) {
 			{OutputText: "still here"},
 		},
 	}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model",
-		ModelAPIMode: models.APIModeResponses}), client)
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", APIMode: models.APIModeResponses}}}), client)
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
 		newEnvironment = originalFactory
@@ -1995,7 +1975,7 @@ func TestAgent_RespondAppendsRequestInstructLast(t *testing.T) {
 	client := &mocks.ModelClientStub{
 		Responses: []*models.Response{{OutputText: "hello back"}},
 	}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}), client)
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
 		newEnvironment = originalFactory
@@ -2031,9 +2011,8 @@ func TestAgent_RespondDoesNotAppendAssistantWhenModelFails(t *testing.T) {
 		Err: errors.New("upstream failed"),
 	}
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{
-		Name:         "Test Agent",
-		Model:        "test-model",
-		ModelAPIMode: models.APIModeResponses,
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", APIMode: models.APIModeResponses}},
 	}), client)
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
@@ -2077,13 +2056,13 @@ func TestAgent_RespondRejectsMissingConfig(t *testing.T) {
 }
 
 func TestAgent_RespondRejectsUninitializedEnvironment(t *testing.T) {
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), &mocks.ModelClientStub{})
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}), &mocks.ModelClientStub{})
 	_, err := agent.Respond(context.Background(), "hello", RespondOptions{})
 	require.EqualError(t, err, "environment has not been initialized")
 }
 
 func TestAgent_RespondRejectsMissingModelClient(t *testing.T) {
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), nil)
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}), nil)
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
 		newEnvironment = originalFactory
@@ -2101,7 +2080,7 @@ func TestAgent_RespondRejectsMissingModelClient(t *testing.T) {
 }
 
 func TestAgent_RespondRejectsMissingToolRegistry(t *testing.T) {
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), &mocks.ModelClientStub{})
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}), &mocks.ModelClientStub{})
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
 		newEnvironment = originalFactory
@@ -2119,7 +2098,7 @@ func TestAgent_RespondRejectsMissingToolRegistry(t *testing.T) {
 }
 
 func TestAgent_RespondRejectsEmptyMessage(t *testing.T) {
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), &mocks.ModelClientStub{})
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}), &mocks.ModelClientStub{})
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
 		newEnvironment = originalFactory
@@ -2137,7 +2116,7 @@ func TestAgent_RespondRejectsEmptyMessage(t *testing.T) {
 }
 
 func TestAgent_RespondReturnsContextErrorBeforeAppendingUserMessage(t *testing.T) {
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), &mocks.ModelClientStub{})
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}), &mocks.ModelClientStub{})
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
 		newEnvironment = originalFactory
@@ -2162,7 +2141,7 @@ func TestAgent_RespondUsesBackgroundWhenContextIsNil(t *testing.T) {
 	client := &mocks.ModelClientStub{
 		Responses: []*models.Response{{OutputText: "hello back"}},
 	}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}), client)
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
 		newEnvironment = originalFactory
@@ -2187,8 +2166,8 @@ func TestAgent_RespondReturnsAssistantAppendErrorForEmptyOutput(t *testing.T) {
 		},
 	}
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{
-		Name:  "Test Agent",
-		Model: "test-model",
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
 	}), client)
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
@@ -2211,7 +2190,7 @@ func TestAgent_RespondRejectsNilModelResponse(t *testing.T) {
 	client := &mocks.ModelClientStub{
 		Responses: []*models.Response{nil},
 	}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}), client)
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
 		newEnvironment = originalFactory
@@ -2235,9 +2214,9 @@ func TestAgent_RespondRejectsMissingToolCallsWhenRequested(t *testing.T) {
 		}},
 	}
 	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		DebugRequests: false,
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
+		Debug:  config.DebugConfig{Requests: false},
 	}, client, func() (tools.Registry, error) {
 		return tools.NewInMemoryRegistry(), nil
 	})
@@ -2259,9 +2238,9 @@ func TestAgent_RespondExecutesToolAndReturnsFinalAnswer(t *testing.T) {
 		},
 	}
 	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		DebugRequests: false,
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
+		Debug:  config.DebugConfig{Requests: false},
 	}, client, func() (tools.Registry, error) {
 		registry := tools.NewInMemoryRegistry()
 		require.NoError(t, registry.Register(tools.Definition{
@@ -2296,9 +2275,9 @@ func TestAgent_RespondExecutesMultipleSequentialToolCalls(t *testing.T) {
 		},
 	}
 	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		DebugRequests: false,
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
+		Debug:  config.DebugConfig{Requests: false},
 	}, client, func() (tools.Registry, error) {
 		registry := tools.NewInMemoryRegistry()
 		require.NoError(t, registry.Register(tools.Definition{
@@ -2327,9 +2306,9 @@ func TestAgent_RespondConvertsMissingToolIntoToolMessage(t *testing.T) {
 		},
 	}
 	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		DebugRequests: false,
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
+		Debug:  config.DebugConfig{Requests: false},
 	}, client, func() (tools.Registry, error) {
 		return tools.NewInMemoryRegistry(), nil
 	})
@@ -2375,14 +2354,14 @@ func TestAgent_RespondPreservesAssistantToolCallsAcrossSQLiteBackedTurns(t *test
 		}
 	}
 
-	openSessionStore = func(*config.Config) (storage.SessionStore, error) {
+	openSessionStore = func(*config.Config, models.Client) (storage.SessionStore, error) {
 		return storagesqlite.NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
 	}
 
 	agent := NewAgent(context.Background(), &config.Config{
-		Name:           "Test Agent",
-		Model:          "test-model",
-		StorageBackend: "sqlite",
+		Name:    "Test Agent",
+		Models:  config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
+		Storage: config.StorageConfig{Backend: "sqlite"},
 	}, client)
 	require.NoError(t, agent.Start(context.Background()))
 
@@ -2413,10 +2392,10 @@ func TestAgent_RespondUsesSummaryFallbackWhenIterationBudgetIsExhausted(t *testi
 		},
 	}
 	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		MaxIterations: 1,
-		DebugRequests: false,
+		Name:    "Test Agent",
+		Models:  config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
+		Session: config.SessionConfig{MaxIterations: 1},
+		Debug:   config.DebugConfig{Requests: false},
 	}, client, func() (tools.Registry, error) {
 		registry := tools.NewInMemoryRegistry()
 		require.NoError(t, registry.Register(tools.Definition{
@@ -2450,10 +2429,10 @@ func TestAgent_RespondReturnsSummaryFailureWhenFallbackCallFails(t *testing.T) {
 		Errors: []error{nil, errors.New("summary failed")},
 	}
 	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		MaxIterations: 1,
-		DebugRequests: false,
+		Name:    "Test Agent",
+		Models:  config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
+		Session: config.SessionConfig{MaxIterations: 1},
+		Debug:   config.DebugConfig{Requests: false},
 	}, client, func() (tools.Registry, error) {
 		registry := tools.NewInMemoryRegistry()
 		require.NoError(t, registry.Register(tools.Definition{
@@ -2485,10 +2464,10 @@ func TestAgent_RespondRejectsSummaryFallbackThatRequestsMoreTools(t *testing.T) 
 		},
 	}
 	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		MaxIterations: 1,
-		DebugRequests: false,
+		Name:    "Test Agent",
+		Models:  config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
+		Session: config.SessionConfig{MaxIterations: 1},
+		Debug:   config.DebugConfig{Requests: false},
 	}, client, func() (tools.Registry, error) {
 		registry := tools.NewInMemoryRegistry()
 		require.NoError(t, registry.Register(tools.Definition{
@@ -2514,10 +2493,10 @@ func TestAgent_RespondReturnsContextErrorBeforeToolInvocation(t *testing.T) {
 		}},
 	}
 	agent := newTestAgent(t, &config.Config{
-		Name:          "Test Agent",
-		Model:         "test-model",
-		MaxIterations: 1,
-		DebugRequests: false,
+		Name:    "Test Agent",
+		Models:  config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
+		Session: config.SessionConfig{MaxIterations: 1},
+		Debug:   config.DebugConfig{Requests: false},
 	}, client, func() (tools.Registry, error) {
 		registry := tools.NewInMemoryRegistry()
 		require.NoError(t, registry.Register(tools.Definition{
@@ -2539,7 +2518,7 @@ func TestAgent_RespondReturnsContextErrorBeforeToolInvocation(t *testing.T) {
 
 func TestAgent_RespondReturnsResolveError(t *testing.T) {
 	client := &mocks.ModelClientStub{}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}), client)
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
 		newEnvironment = originalFactory
@@ -2567,7 +2546,7 @@ func TestToContextToolCalls_ReturnsNilWhenEmpty(t *testing.T) {
 func TestAgent_RespondRecordsTraceEventsOnSuccess(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "hello back"}}}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}), client)
 
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
@@ -2605,7 +2584,7 @@ func TestAgent_RespondRecordsTraceEventsOnSuccess(t *testing.T) {
 func TestAgent_RespondRecordsTraceFailure(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	client := &mocks.ModelClientStub{Err: errors.New("upstream failed")}
-	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}), client)
+	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}), client)
 	originalFactory := newEnvironment
 	t.Cleanup(func() {
 		newEnvironment = originalFactory
@@ -2648,7 +2627,7 @@ func TestTurn_RunReusesActualPromptTokensDuringPreflight(t *testing.T) {
 	require.NoError(t, manager.UpdateLastPromptTokens(context.Background(), session.ID, 2048))
 
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		&mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}},
 		nil,
 		manager,
@@ -2676,7 +2655,7 @@ func TestTurn_RunUsesEstimatedPromptTokensWhenRequestGrowsPastStoredActual(t *te
 	require.NoError(t, manager.UpdateLastPromptTokens(context.Background(), session.ID, 50))
 
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model", ContextLength: 1000}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 1000}}}),
 		&mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}},
 		nil,
 		manager,
@@ -2699,12 +2678,9 @@ func TestTurn_RunUsesEstimatedPromptTokensWhenRequestGrowsPastStoredActual(t *te
 func TestTurn_RunRecordsCompactionTriggerAndWarningWithoutMutatingHistory(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	cfg := testSessionConfig(&config.Config{
-		Name:                     "Test Agent",
-		Model:                    "test-model",
-		ContextLength:            100,
-		CompactionEnabled:        new(true),
-		CompactionTriggerPercent: 0.5,
-		CompactionWarnPercent:    0.6,
+		Name:       "Test Agent",
+		Models:     config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 100}},
+		Compaction: config.CompactionConfig{Enabled: new(true), TriggerPercent: 0.5, WarnPercent: 0.6},
 	})
 	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{
 		Responses: []*models.Response{{OutputText: "reply"}},
@@ -2750,8 +2726,8 @@ func newTestAgent(
 		registry, err := registryFactory()
 		require.NoError(t, err)
 		budget := envbudget.New(config.DefaultMaxIterations)
-		if cfg != nil && cfg.MaxIterations > 0 {
-			budget = envbudget.New(cfg.MaxIterations)
+		if cfg != nil && cfg.Session.MaxIterations > 0 {
+			budget = envbudget.New(cfg.Session.MaxIterations)
 		}
 
 		return &mocks.EnvironmentStub{
@@ -2782,7 +2758,7 @@ func newTestTurnHarness(
 		TraceSession:     &mocks.TraceSessionStub{},
 	}
 	turn := NewTurn(
-		testSessionConfig(&config.Config{Name: "Test Agent", Model: "test-model"}),
+		testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		client,
 		nil,
 		manager,

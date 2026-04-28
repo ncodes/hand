@@ -26,11 +26,12 @@ func Test_E2E_DoctorCommand_ConfigPassAndFail(t *testing.T) {
 		configPath := filepath.Join(t.TempDir(), "config.yaml")
 		require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
-model:
-  name: openai/gpt-4o-mini
-  provider: openrouter
+models:
   key: config-key
-  verifyModel: false
+  verify: false
+  main:
+    name: openai/gpt-4o-mini
+    provider: openrouter
 `), 0o600))
 
 		output, err := runDoctorCommand(t, "hand", "--config", configPath, "doctor")
@@ -43,9 +44,10 @@ model:
 		configPath := filepath.Join(t.TempDir(), "config.yaml")
 		require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
-model:
-  name: openai/gpt-4o-mini
-  provider: openrouter
+models:
+  main:
+    name: openai/gpt-4o-mini
+    provider: openrouter
 `), 0o600))
 
 		output, err := runDoctorCommand(t, "hand", "--config", configPath, "doctor")

@@ -74,5 +74,5 @@ func newConsoleWriter(out io.Writer, noColor bool) zerolog.ConsoleWriter {
 
 func currentNoColorSetting() bool {
 	cfg := config.Get()
-	return cfg != nil && cfg.LogNoColor
+	return cfg != nil && cfg.Log.NoColor
 }

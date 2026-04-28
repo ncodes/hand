@@ -1,26 +1,27 @@
 # name: "Daemon"
-# maxIterations: 90
-# instruct: ""
 # platform: "cli"
 
-# model:
-#   name: "openai/gpt-4o-mini"
-#   summaryModel: "anthropic/claude-3.5-haiku"
-#   stream: true
-#   contextLength: 128000
-#   verifyModel: true
+# models:
+#   verify: true
 #   maxRetries: 2
-#   provider: "openrouter"
-#   embeddingProvider: ""
-#   embeddingModel: ""
-#   summaryProvider: "openai"
-#   apiMode: "completions"
-#   summaryApiMode: "responses"
-#   baseUrl: "https://openrouter.ai/api/v1"
-#   summaryBaseUrl: "https://api.openai.com/v1"
 #   key: "replace-with-your-model-key"
 #   openaiApiKey: "replace-with-your-openai-key"
 #   openrouterApiKey: "replace-with-your-openrouter-key"
+#   main:
+#     name: "openai/gpt-4o-mini"
+#     provider: "openrouter"
+#     apiMode: "completions"
+#     baseUrl: "https://openrouter.ai/api/v1"
+#     stream: true
+#     contextLength: 128000
+#   summary:
+#     name: "anthropic/claude-3.5-haiku"
+#     provider: "openai"
+#     apiMode: "responses"
+#     baseUrl: "https://api.openai.com/v1"
+#   embedding:
+#     name: ""
+#     provider: ""
 
 # rpc:
 #   address: "127.0.0.1"
@@ -36,13 +37,23 @@
 # storage:
 #   backend: "sqlite"
 # session:
+#   maxIterations: 90
+#   instruct: ""
 #   defaultIdleExpiry: "24h"
 #   archiveRetention: "720h"
+# search:
 #   vector:
 #     enabled: false
 #     required: false
 #     rebuildBatchSize: 100
-#     enableRerank: true
+#   enableRerank: true
+# reranker:
+#   enabled: true
+#   type: "deterministic"
+#   model: ""
+#   maxCandidates: 100
+#   maxCandidateTextChars: 1200
+#   maxOutputTokens: 0
 # compaction:
 #   enabled: true
 #   triggerPercent: 0.85

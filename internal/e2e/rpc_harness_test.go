@@ -167,7 +167,7 @@ func TestNewRPCHarness_ErrorsAndHelpers(t *testing.T) {
 
 	t.Run("config file contents", func(t *testing.T) {
 		h := &RPCHarness{address: "127.0.0.1", port: -1234}
-		assert.Contains(t, h.ConfigFileContents(), "verifyModel: false")
+		assert.Contains(t, h.ConfigFileContents(), "verify: false")
 		assert.Contains(t, h.ConfigFileContents(), "address: 127.0.0.1")
 		assert.Contains(t, h.ConfigFileContents(), "port: -1234")
 		assert.Equal(t, "127.0.0.1", h.Address())

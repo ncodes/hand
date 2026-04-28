@@ -45,11 +45,9 @@ func DefaultConfig(opts ConfigOptions) *config.Config {
 	}
 
 	return &config.Config{
-		Name:                     name,
-		Model:                    "test-model",
-		Stream:                   &stream,
-		StorageBackend:           storageBackend,
-		SessionDefaultIdleExpiry: time.Hour,
-		SessionArchiveRetention:  24 * time.Hour,
+		Name:    name,
+		Models:  config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", Stream: &stream}},
+		Storage: config.StorageConfig{Backend: storageBackend},
+		Session: config.SessionConfig{DefaultIdleExpiry: time.Hour, ArchiveRetention: 24 * time.Hour},
 	}
 }

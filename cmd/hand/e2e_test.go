@@ -106,7 +106,7 @@ func Test_E2E_HandRootChat_RequestInstruct(t *testing.T) {
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "--instruct", "be brief", "hello")
 	require.NoError(t, err)
 	assert.Equal(t, "brief\n", output)
-	assert.Equal(t, "be brief", config.Get().Instruct)
+	assert.Equal(t, "be brief", config.Get().Session.Instruct)
 }
 
 func Test_E2E_HandRootChat_MultiTurnContinuity(t *testing.T) {
@@ -225,10 +225,11 @@ func Test_E2E_HandStartup_InvalidConfigBlocksStartup(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
-model:
-  name: openai/gpt-4o-mini
-  provider: anthropic
+models:
   key: config-key
+  main:
+    name: openai/gpt-4o-mini
+    provider: anthropic
 `), 0o600))
 
 	err := newCommand().Run(canceledContext(), []string{
@@ -272,7 +273,7 @@ func Test_E2E_HandRootChat_CommandDeniedReturnsCoherentAnswer(t *testing.T) {
 	resetRootChatE2E(t)
 
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
-	cfg.ExecDeny = []string{"git push"}
+	cfg.Exec.Deny = []string{"git push"}
 
 	client := e2e.NewClient(
 		e2e.ToolStep(models.ToolCall{
@@ -300,7 +301,7 @@ func Test_E2E_HandRootChat_CommandApprovalRequiredReturnsCoherentAnswer(t *testi
 	resetRootChatE2E(t)
 
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
-	cfg.ExecAsk = []string{"git push"}
+	cfg.Exec.Ask = []string{"git push"}
 
 	client := e2e.NewClient(
 		e2e.ToolStep(models.ToolCall{
@@ -359,7 +360,7 @@ func Test_E2E_HandRootChat_ReadFileToolSynthesizesFinalAnswer(t *testing.T) {
 	require.NoError(t, os.MkdirAll(workspace, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(workspace, "notes.txt"), []byte("hello from file"), 0o600))
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
-	cfg.FSRoots = []string{workspace}
+	cfg.FS.Roots = []string{workspace}
 
 	toolCall := models.ToolCall{ID: "call-1", Name: "read_file", Input: `{"path":"notes.txt"}`}
 	h := newRPCHarness(t, home, e2e.NewClient(
@@ -394,7 +395,7 @@ func Test_E2E_HandRootChat_WriteFileToolSynthesizesFinalAnswer(t *testing.T) {
 	workspace := filepath.Join(home, "workspace")
 	require.NoError(t, os.MkdirAll(workspace, 0o755))
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
-	cfg.FSRoots = []string{workspace}
+	cfg.FS.Roots = []string{workspace}
 
 	toolCall := models.ToolCall{
 		ID:    "call-1",
@@ -440,7 +441,7 @@ func Test_E2E_HandRootChat_RunCommandToolSynthesizesFinalAnswer(t *testing.T) {
 	workspace := filepath.Join(home, "workspace")
 	require.NoError(t, os.MkdirAll(workspace, 0o755))
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
-	cfg.FSRoots = []string{workspace}
+	cfg.FS.Roots = []string{workspace}
 
 	toolCall := models.ToolCall{
 		ID:    "call-1",
@@ -654,7 +655,7 @@ func Test_E2E_HandRootChat_DisabledFilesystemCapabilityOmitsFileTools(t *testing
 	resetRootChatE2E(t)
 
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
-	cfg.CapFilesystem = new(false)
+	cfg.Cap.Filesystem = new(false)
 
 	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(e2e.Step{
 		Check: e2e.MissingTools("list_files", "read_file", "search_files", "write_file", "patch"),
@@ -673,7 +674,7 @@ func Test_E2E_HandRootChat_DisabledExecCapabilityOmitsExecTools(t *testing.T) {
 	resetRootChatE2E(t)
 
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
-	cfg.CapExec = new(false)
+	cfg.Cap.Exec = new(false)
 
 	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(e2e.Step{
 		Check: e2e.MissingTools("run_command", "process"),
@@ -692,9 +693,9 @@ func Test_E2E_HandRootChat_DisabledNetworkCapabilityOmitsWebTools(t *testing.T) 
 	resetRootChatE2E(t)
 
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
-	cfg.CapNetwork = new(false)
-	cfg.WebProvider = "firecrawl"
-	cfg.WebAPIKey = "test-key"
+	cfg.Cap.Network = new(false)
+	cfg.Web.Provider = "firecrawl"
+	cfg.Web.APIKey = "test-key"
 
 	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(e2e.Step{
 		Check: e2e.MissingTools("web_search", "web_extract"),
@@ -752,8 +753,8 @@ func Test_E2E_HandRootChat_WebExtractBlockedDomainIsEnforced(t *testing.T) {
 	t.Cleanup(provider.Close)
 
 	cfg := newWebConfig(provider.URL())
-	cfg.WebBlockedDomainsEnabled = true
-	cfg.WebBlockedDomains = []string{"blocked.example"}
+	cfg.Web.BlockedDomainsEnabled = true
+	cfg.Web.BlockedDomains = []string{"blocked.example"}
 
 	toolCall := models.ToolCall{
 		ID:    "call-1",
@@ -805,7 +806,7 @@ func Test_E2E_HandRootChat_WebSearchCachedProviderPathRemainsCorrect(t *testing.
 	t.Cleanup(provider.Close)
 
 	cfg := newWebConfig(provider.URL())
-	cfg.WebCacheTTL = time.Hour
+	cfg.Web.CacheTTL = time.Hour
 
 	toolCall := models.ToolCall{
 		ID:    "call-1",
@@ -875,10 +876,10 @@ func Test_E2E_HandRootChat_LargeWebExtractSummarizationPathRemainsCorrect(t *tes
 	t.Cleanup(provider.Close)
 
 	cfg := newWebConfig(provider.URL())
-	cfg.WebExtractMinSummarizeChars = 10
-	cfg.WebExtractMaxSummaryChars = 40
-	cfg.WebExtractMaxSummaryChunkChars = 50
-	cfg.WebExtractRefusalThresholdChars = 1000
+	cfg.Web.ExtractMinSummarizeChars = 10
+	cfg.Web.ExtractMaxSummaryChars = 40
+	cfg.Web.ExtractMaxSummaryChunkChars = 50
+	cfg.Web.ExtractRefusalThresholdChars = 1000
 
 	toolCall := models.ToolCall{
 		ID:    "call-1",
@@ -964,7 +965,7 @@ func Test_E2E_HandRootChat_IterationBudgetExhaustionFallsBackCoherently(t *testi
 	resetRootChatE2E(t)
 
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
-	cfg.MaxIterations = 1
+	cfg.Session.MaxIterations = 1
 
 	h := newRPCHarness(t, filepath.Join(t.TempDir(), "hand-home"), e2e.NewClient(
 		e2e.ToolStep(models.ToolCall{ID: "call-1", Name: "time", Input: "{}"}),
@@ -1140,7 +1141,7 @@ func resetRootChatE2E(t *testing.T) {
 		t,
 		"HAND_NAME",
 		"HAND_MODEL_STREAM",
-		"HAND_INSTRUCT",
+		"HAND_SESSION_INSTRUCT",
 		"HAND_LOG_NO_COLOR",
 		"HAND_RPC_ADDRESS",
 		"HAND_RPC_PORT",
@@ -1194,9 +1195,9 @@ func runRootChatCommand(t *testing.T, args ...string) (string, error) {
 
 func newWebConfig(baseURL string) *config.Config {
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
-	cfg.WebProvider = "firecrawl"
-	cfg.WebBaseURL = strings.TrimSpace(baseURL)
-	cfg.WebAPIKey = "test-key"
+	cfg.Web.Provider = "firecrawl"
+	cfg.Web.BaseURL = strings.TrimSpace(baseURL)
+	cfg.Web.APIKey = "test-key"
 	return cfg
 }
 
@@ -1221,7 +1222,7 @@ func newLiveRootChatContext(t *testing.T) liveRootChatContext {
 	configPath, envPath := resolveLiveInputs(t)
 	cfg, err := config.Load(envPath, configPath)
 	require.NoError(t, err)
-	cfg.FSRoots = []string{workspace}
+	cfg.FS.Roots = []string{workspace}
 
 	modelClient, summaryClient, err := e2e.NewLiveClients(cfg)
 	require.NoError(t, err)

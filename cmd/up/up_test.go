@@ -65,8 +65,8 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 
 	serveRPC = func(ctx context.Context, cfg *config.Config, app agentRunner) error {
 		serveCalled = true
-		require.Equal(t, "0.0.0.0", cfg.RPCAddress)
-		require.Equal(t, 6000, cfg.RPCPort)
+		require.Equal(t, "0.0.0.0", cfg.RPC.Address)
+		require.Equal(t, 6000, cfg.RPC.Port)
 		require.NotNil(t, app)
 		return nil
 	}
@@ -89,16 +89,16 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 
 	cfg := config.Get()
 	require.Equal(t, "flag-agent", cfg.Name)
-	require.Equal(t, "openai/gpt-4o-mini", cfg.Model)
-	require.Equal(t, "openrouter", cfg.ModelProvider)
-	require.Equal(t, "flag-key", cfg.ModelKey)
-	require.Equal(t, serverURL, cfg.ModelBaseURL)
-	require.Equal(t, "0.0.0.0", cfg.RPCAddress)
-	require.Equal(t, 6000, cfg.RPCPort)
-	require.True(t, cfg.DebugTraces)
-	require.Equal(t, "/tmp/hand-traces", cfg.DebugTraceDir)
-	require.Equal(t, "debug", cfg.LogLevel)
-	require.False(t, cfg.LogNoColor)
+	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Main.Name)
+	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
+	require.Equal(t, "flag-key", cfg.Models.Key)
+	require.Equal(t, serverURL, cfg.Models.Main.BaseURL)
+	require.Equal(t, "0.0.0.0", cfg.RPC.Address)
+	require.Equal(t, 6000, cfg.RPC.Port)
+	require.True(t, cfg.Debug.Traces)
+	require.Equal(t, "/tmp/hand-traces", cfg.Debug.TraceDir)
+	require.Equal(t, "debug", cfg.Log.Level)
+	require.False(t, cfg.Log.NoColor)
 	require.True(t, runCalled)
 	require.True(t, serveCalled)
 
@@ -137,17 +137,11 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 
 func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	output := renderStartupPanel(&config.Config{
-		Name:          "daemon",
-		Model:         "openai/gpt-4o-mini",
-		ModelProvider: "openrouter",
-		RPCAddress:    "127.0.0.1",
-		RPCPort:       50051,
-		LogLevel:      "info",
-		LogNoColor:    true,
-		Stream:        new(false),
-		DebugRequests: true,
-		DebugTraces:   true,
-		DebugTraceDir: "/tmp/hand-traces",
+		Name:   "daemon",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter", Stream: new(false)}},
+		RPC:    config.RPCConfig{Address: "127.0.0.1", Port: 50051},
+		Log:    config.LogConfig{Level: "info", NoColor: true},
+		Debug:  config.DebugConfig{Requests: true, Traces: true, TraceDir: "/tmp/hand-traces"},
 	})
 
 	require.NotContains(t, output, "\x1b[90m")
@@ -163,33 +157,31 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 func TestRenderStartupPanel_IncludesEmbeddingModelWhenVectorEnabled(t *testing.T) {
 	rerankDisabled := false
 	output := renderStartupPanel(&config.Config{
-		Name:                      "daemon",
-		Model:                     "openai/gpt-4o-mini",
-		ModelProvider:             "openrouter",
-		ModelEmbeddingProvider:    "openai",
-		ModelEmbeddingModel:       "text-embedding-3-small",
-		SessionVectorEnabled:      true,
-		RPCAddress:                "127.0.0.1",
-		RPCPort:                   50051,
-		LogLevel:                  "info",
-		LogNoColor:                true,
-		SessionVectorEnableRerank: &rerankDisabled,
+		Name: "daemon",
+		Models: config.ModelsConfig{
+			Main:      config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+			Embedding: config.EmbeddingModelConfig{Name: "text-embedding-3-small", Provider: "openai"},
+		},
+		Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+		RPC:      config.RPCConfig{Address: "127.0.0.1", Port: 50051},
+		Log:      config.LogConfig{Level: "info", NoColor: true},
+		Reranker: config.RerankerConfig{Enabled: &rerankDisabled},
 	})
 
 	require.Contains(t, output, "Embedding model: text-embedding-3-small")
 	require.Contains(t, output, "Embedding provider: openai")
+	require.Contains(t, output, "Reranker: deterministic")
 }
 
 func TestRenderStartupPanel_HidesEmbeddingModelWhenVectorDisabled(t *testing.T) {
 	output := renderStartupPanel(&config.Config{
-		Name:                "daemon",
-		Model:               "openai/gpt-4o-mini",
-		ModelProvider:       "openrouter",
-		ModelEmbeddingModel: "text-embedding-3-small",
-		RPCAddress:          "127.0.0.1",
-		RPCPort:             50051,
-		LogLevel:            "info",
-		LogNoColor:          true,
+		Name: "daemon",
+		Models: config.ModelsConfig{
+			Main:      config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+			Embedding: config.EmbeddingModelConfig{Name: "text-embedding-3-small"},
+		},
+		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051},
+		Log: config.LogConfig{Level: "info", NoColor: true},
 	})
 
 	require.NotContains(t, output, "Embedding model")
@@ -198,15 +190,13 @@ func TestRenderStartupPanel_HidesEmbeddingModelWhenVectorDisabled(t *testing.T) 
 
 func TestRenderStartupPanel_IncludesEffectiveSummaryModelAndProvider(t *testing.T) {
 	output := renderStartupPanel(&config.Config{
-		Name:            "daemon",
-		Model:           "openai/gpt-4o-mini",
-		SummaryModel:    "openai/gpt-4o-mini",
-		ModelProvider:   "openrouter",
-		SummaryProvider: "openai",
-		RPCAddress:      "127.0.0.1",
-		RPCPort:         50051,
-		LogLevel:        "info",
-		LogNoColor:      true,
+		Name: "daemon",
+		Models: config.ModelsConfig{
+			Main:    config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+			Summary: config.SummaryModelConfig{Name: "openai/gpt-4o-mini", Provider: "openai"},
+		},
+		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051},
+		Log: config.LogConfig{Level: "info", NoColor: true},
 	})
 
 	require.Contains(t, output, "Summary model: openai/gpt-4o-mini")
@@ -235,16 +225,13 @@ func TestRenderStartupPanel_NilConfigReturnsBadgeOnly(t *testing.T) {
 
 func TestRenderStartupPanel_IncludesSummaryProviderAndAPIModeWhenDistinct(t *testing.T) {
 	cfg := &config.Config{
-		Name:                "daemon",
-		Model:               "openai/gpt-4o-mini",
-		ModelProvider:       "openrouter",
-		ModelAPIMode:        config.DefaultModelAPIMode,
-		SummaryProvider:     "openai",
-		SummaryModelAPIMode: "responses",
-		RPCAddress:          "127.0.0.1",
-		RPCPort:             50051,
-		LogLevel:            "info",
-		LogNoColor:          true,
+		Name: "daemon",
+		Models: config.ModelsConfig{
+			Main:    config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter", APIMode: config.DefaultModelAPIMode},
+			Summary: config.SummaryModelConfig{Provider: "openai", APIMode: "responses"},
+		},
+		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051},
+		Log: config.LogConfig{Level: "info", NoColor: true},
 	}
 	cfg.Normalize()
 
@@ -262,8 +249,7 @@ func TestServeRPC_ReturnsListenError(t *testing.T) {
 	}
 
 	err := serveRPC(context.Background(), &config.Config{
-		RPCAddress: "127.0.0.1",
-		RPCPort:    50051,
+		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051},
 	}, &agentstub.AgentRunnerStub{})
 
 	require.EqualError(t, err, "listen boom")
@@ -283,8 +269,7 @@ func TestServeRPC_ReturnsWhenGRPCServeFails(t *testing.T) {
 	}
 
 	err := serveRPC(context.Background(), &config.Config{
-		RPCAddress: "127.0.0.1",
-		RPCPort:    0,
+		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0},
 	}, &agentstub.AgentRunnerStub{})
 
 	require.EqualError(t, err, "serve boom")
@@ -304,8 +289,7 @@ func TestServeRPC_ReturnsNilWhenGRPCServeReturnsServerStopped(t *testing.T) {
 	}
 
 	err := serveRPC(context.Background(), &config.Config{
-		RPCAddress: "127.0.0.1",
-		RPCPort:    0,
+		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0},
 	}, &agentstub.AgentRunnerStub{})
 
 	require.NoError(t, err)
@@ -313,10 +297,8 @@ func TestServeRPC_ReturnsNilWhenGRPCServeReturnsServerStopped(t *testing.T) {
 
 func TestNewAgentRunnerImpl_ReturnsAgent(t *testing.T) {
 	cfg := &config.Config{
-		Name:          "t",
-		Model:         "openai/gpt-4o-mini",
-		ModelProvider: "openrouter",
-		ModelKey:      "k",
+		Name:   "t",
+		Models: config.ModelsConfig{Key: "k", Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"}},
 	}
 	cfg.Normalize()
 
@@ -337,8 +319,7 @@ func TestServeRPC_StopsWhenContextCancelled(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- serveRPC(ctx, &config.Config{
-			RPCAddress: "127.0.0.1",
-			RPCPort:    0,
+			RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0},
 		}, &agentstub.AgentRunnerStub{})
 	}()
 
@@ -375,8 +356,7 @@ func TestServeRPC_ReturnsPostShutdownServeError(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- serveRPC(ctx, &config.Config{
-			RPCAddress: "127.0.0.1",
-			RPCPort:    0,
+			RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0},
 		}, &agentstub.AgentRunnerStub{})
 	}()
 
@@ -417,8 +397,7 @@ func TestServeRPC_ForcesStopWhenGracefulShutdownSlow(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- serveRPC(ctx, &config.Config{
-			RPCAddress: "127.0.0.1",
-			RPCPort:    0,
+			RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0},
 		}, &agentstub.AgentRunnerStub{})
 	}()
 
@@ -487,7 +466,7 @@ func TestNewCommand_ReturnsStartupOutputError(t *testing.T) {
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
 		"--model.key", "k",
-		"--model.verify-model", "false",
+		"--models.verify", "false",
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
 		"up",
@@ -525,7 +504,7 @@ func TestNewCommand_ReturnsOpenAIClientFactoryError(t *testing.T) {
 		"--model.provider", "openrouter",
 		"--model.key", "flag-key",
 		"--model.base-url", serverURL,
-		"--model.verify-model", "false",
+		"--models.verify", "false",
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
 		"up",
@@ -556,7 +535,7 @@ func TestNewCommand_ReturnsResolveSummaryAuthError(t *testing.T) {
 		"--model.provider", "openrouter",
 		"--model.key", "flag-key",
 		"--model.base-url", serverURL,
-		"--model.verify-model", "false",
+		"--models.verify", "false",
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
 		"up",
@@ -595,7 +574,7 @@ func TestNewCommand_ReturnsSecondOpenAIClientFactoryError(t *testing.T) {
 		"--model.base-url", serverURL,
 		"--model.summary-provider", "openai",
 		"--model.summary-base-url", "https://api.openai.com/v1",
-		"--model.verify-model", "false",
+		"--models.verify", "false",
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
 		"up",
@@ -634,7 +613,7 @@ func TestNewCommand_ReturnsAgentStartError(t *testing.T) {
 		"--model.provider", "openrouter",
 		"--model.key", "flag-key",
 		"--model.base-url", serverURL,
-		"--model.verify-model", "false",
+		"--models.verify", "false",
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
 		"up",
@@ -689,7 +668,7 @@ func TestNewCommand_UsesSeparateSummaryClientWhenAuthDiffers(t *testing.T) {
 		"--model.base-url", serverURL,
 		"--model.summary-provider", "openai",
 		"--model.summary-base-url", "https://api.openai.com/v1",
-		"--model.verify-model", "false",
+		"--models.verify", "false",
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
 		"up",

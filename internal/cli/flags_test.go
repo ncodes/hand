@@ -24,7 +24,7 @@ func TestApplyConfigOverrides_AppliesRulesFiles(t *testing.T) {
 	err := cmd.Run(context.Background(), []string{"hand", "--rules.files", "/tmp/Hand.md, ./custom.md ,/tmp/CLAUDE.md"})
 
 	require.NoError(t, err)
-	require.Equal(t, []string{"/tmp/Hand.md", "./custom.md", "/tmp/CLAUDE.md"}, cfg.RulesFiles)
+	require.Equal(t, []string{"/tmp/Hand.md", "./custom.md", "/tmp/CLAUDE.md"}, cfg.Rules.Files)
 }
 
 func TestApplyConfigOverrides_AppliesInstruct(t *testing.T) {
@@ -39,7 +39,7 @@ func TestApplyConfigOverrides_AppliesInstruct(t *testing.T) {
 	err := cmd.Run(context.Background(), []string{"hand", "--instruct", " be terse "})
 
 	require.NoError(t, err)
-	require.Equal(t, "be terse", cfg.Instruct)
+	require.Equal(t, "be terse", cfg.Session.Instruct)
 }
 
 func TestApplyConfigOverrides_AppliesPlatformAndCapabilities(t *testing.T) {
@@ -56,14 +56,14 @@ func TestApplyConfigOverrides_AppliesPlatformAndCapabilities(t *testing.T) {
 	require.NoError(t, err)
 	cfg.Normalize()
 	require.Equal(t, "desktop", cfg.Platform)
-	require.False(t, boolValue(cfg.CapFilesystem))
-	require.True(t, boolValue(cfg.CapNetwork))
-	require.True(t, boolValue(cfg.CapExec))
-	require.True(t, boolValue(cfg.CapMemory))
-	require.True(t, boolValue(cfg.CapBrowser))
+	require.False(t, boolValue(cfg.Cap.Filesystem))
+	require.True(t, boolValue(cfg.Cap.Network))
+	require.True(t, boolValue(cfg.Cap.Exec))
+	require.True(t, boolValue(cfg.Cap.Memory))
+	require.True(t, boolValue(cfg.Cap.Browser))
 }
 
-func TestApplyConfigOverrides_AppliesModelVerifyModel(t *testing.T) {
+func TestApplyConfigOverrides_AppliesModelVerify(t *testing.T) {
 	cfg := &config.Config{}
 	var cmd *cli.Command
 	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
@@ -72,11 +72,11 @@ func TestApplyConfigOverrides_AppliesModelVerifyModel(t *testing.T) {
 		return nil
 	}
 
-	err := cmd.Run(context.Background(), []string{"hand", "--model.verify-model=false"})
+	err := cmd.Run(context.Background(), []string{"hand", "--models.verify=false"})
 
 	require.NoError(t, err)
 	cfg.Normalize()
-	require.False(t, boolValue(cfg.VerifyModel))
+	require.False(t, boolValue(cfg.Models.Verify))
 }
 
 func TestApplyConfigOverrides_AppliesModelMaxRetries(t *testing.T) {
@@ -134,10 +134,10 @@ func TestApplyConfigOverrides_AppliesFilesystemRootsAndExecRules(t *testing.T) {
 	require.Equal(t, []string{
 		filepath.Join(dir, "workspace"),
 		filepath.Join(dir, "nested"),
-	}, cfg.FSRoots)
-	require.Equal(t, []string{"git status"}, cfg.ExecAllow)
-	require.Equal(t, []string{"git push"}, cfg.ExecAsk)
-	require.Equal(t, []string{"git reset --hard"}, cfg.ExecDeny)
+	}, cfg.FS.Roots)
+	require.Equal(t, []string{"git status"}, cfg.Exec.Allow)
+	require.Equal(t, []string{"git push"}, cfg.Exec.Ask)
+	require.Equal(t, []string{"git reset --hard"}, cfg.Exec.Deny)
 }
 
 func TestApplyConfigOverrides_AppliesSessionSettings(t *testing.T) {
@@ -157,9 +157,9 @@ func TestApplyConfigOverrides_AppliesSessionSettings(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, "memory", cfg.StorageBackend)
-	require.Equal(t, 2*time.Hour, cfg.SessionDefaultIdleExpiry)
-	require.Equal(t, 72*time.Hour, cfg.SessionArchiveRetention)
+	require.Equal(t, "memory", cfg.Storage.Backend)
+	require.Equal(t, 2*time.Hour, cfg.Session.DefaultIdleExpiry)
+	require.Equal(t, 72*time.Hour, cfg.Session.ArchiveRetention)
 }
 
 func TestApplyConfigOverrides_AppliesWebSettings(t *testing.T) {
@@ -195,22 +195,22 @@ func TestApplyConfigOverrides_AppliesWebSettings(t *testing.T) {
 
 	require.NoError(t, err)
 	cfg.Normalize()
-	require.Equal(t, "exa", cfg.WebProvider)
-	require.Equal(t, "web-key", cfg.WebAPIKey)
-	require.Equal(t, "https://example.test", cfg.WebBaseURL)
-	require.Equal(t, 1300, cfg.WebMaxCharPerResult)
-	require.Equal(t, 51000, cfg.WebMaxExtractCharPerResult)
-	require.Equal(t, 2097152, cfg.WebMaxExtractResponseBytes)
-	require.Equal(t, 15*time.Minute, cfg.WebCacheTTL)
-	require.True(t, cfg.WebBlockedDomainsEnabled)
-	require.Equal(t, []string{"blocked.example", "ads.example"}, cfg.WebBlockedDomains)
-	require.Equal(t, []string{"blocked.txt", "shared.txt"}, cfg.WebBlockedDomainFiles)
-	require.Equal(t, []string{"allowed.example", "docs.example"}, cfg.WebNativeAllowedHosts)
-	require.Equal(t, []string{"blocked.example", "raw.example"}, cfg.WebNativeBlockedHosts)
-	require.Equal(t, []string{"allow.txt", "safe.txt"}, cfg.WebNativeAllowedHostFiles)
-	require.Equal(t, []string{"deny.txt", "banned.txt"}, cfg.WebNativeBlockedHostFiles)
-	require.Equal(t, 12000, cfg.WebExtractMinSummarizeChars)
-	require.Equal(t, 3000, cfg.WebExtractMaxSummaryChars)
-	require.Equal(t, 70000, cfg.WebExtractMaxSummaryChunkChars)
-	require.Equal(t, 190000, cfg.WebExtractRefusalThresholdChars)
+	require.Equal(t, "exa", cfg.Web.Provider)
+	require.Equal(t, "web-key", cfg.Web.APIKey)
+	require.Equal(t, "https://example.test", cfg.Web.BaseURL)
+	require.Equal(t, 1300, cfg.Web.MaxCharPerResult)
+	require.Equal(t, 51000, cfg.Web.MaxExtractCharPerResult)
+	require.Equal(t, 2097152, cfg.Web.MaxExtractResponseBytes)
+	require.Equal(t, 15*time.Minute, cfg.Web.CacheTTL)
+	require.True(t, cfg.Web.BlockedDomainsEnabled)
+	require.Equal(t, []string{"blocked.example", "ads.example"}, cfg.Web.BlockedDomains)
+	require.Equal(t, []string{"blocked.txt", "shared.txt"}, cfg.Web.BlockedDomainFiles)
+	require.Equal(t, []string{"allowed.example", "docs.example"}, cfg.Web.NativeAllowedHosts)
+	require.Equal(t, []string{"blocked.example", "raw.example"}, cfg.Web.NativeBlockedHosts)
+	require.Equal(t, []string{"allow.txt", "safe.txt"}, cfg.Web.NativeAllowedHostFiles)
+	require.Equal(t, []string{"deny.txt", "banned.txt"}, cfg.Web.NativeBlockedHostFiles)
+	require.Equal(t, 12000, cfg.Web.ExtractMinSummarizeChars)
+	require.Equal(t, 3000, cfg.Web.ExtractMaxSummaryChars)
+	require.Equal(t, 70000, cfg.Web.ExtractMaxSummaryChunkChars)
+	require.Equal(t, 190000, cfg.Web.ExtractRefusalThresholdChars)
 }

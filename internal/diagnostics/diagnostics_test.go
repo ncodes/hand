@@ -19,11 +19,12 @@ func TestBuild_ReturnsPassingReportForValidConfig(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte("name: test-agent\n"), 0o600))
 
 	report := Build(envPath, configPath, &config.Config{
-		Name:          "test-agent",
-		Model:         "openai/gpt-4o-mini",
-		ModelProvider: "openrouter",
-		ModelKey:      "test-key",
-		LogLevel:      "info",
+		Name: "test-agent",
+		Models: config.ModelsConfig{
+			Key:  "test-key",
+			Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+		},
+		Log: config.LogConfig{Level: "info"},
 	}, nil)
 
 	require.False(t, report.HasFailures())
@@ -42,11 +43,12 @@ func TestBuild_ReturnsLoadFailureWhenConfigLoadFails(t *testing.T) {
 func TestBuild_ReturnsValidationFailureForInvalidConfig(t *testing.T) {
 	// config error: model provider must be one of: openai, openrouter
 	report := Build(".env", "config.yaml", &config.Config{
-		Name:          "test-agent",
-		Model:         "openai/gpt-4o-mini",
-		ModelProvider: "anthropic",
-		ModelKey:      "test-key",
-		LogLevel:      "info",
+		Name: "test-agent",
+		Models: config.ModelsConfig{
+			Key:  "test-key",
+			Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "anthropic"},
+		},
+		Log: config.LogConfig{Level: "info"},
 	}, nil)
 
 	require.True(t, report.HasFailures())
@@ -55,12 +57,16 @@ func TestBuild_ReturnsValidationFailureForInvalidConfig(t *testing.T) {
 
 func TestBuild_ReturnsBaseURLFailureForInvalidURL(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
-		Name:          "test-agent",
-		Model:         "openai/gpt-4o-mini",
-		ModelProvider: "openai",
-		ModelKey:      "test-key",
-		ModelBaseURL:  "://bad-url",
-		LogLevel:      "info",
+		Name: "test-agent",
+		Models: config.ModelsConfig{
+			Key: "test-key",
+			Main: config.MainModelConfig{
+				Name:     "openai/gpt-4o-mini",
+				Provider: "openai",
+				BaseURL:  "://bad-url",
+			},
+		},
+		Log: config.LogConfig{Level: "info"},
 	}, nil)
 
 	require.True(t, report.HasFailures())
@@ -69,11 +75,12 @@ func TestBuild_ReturnsBaseURLFailureForInvalidURL(t *testing.T) {
 
 func TestBuild_ReturnsValidationFailureWhileAuthStillPasses(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
-		Name:          "test-agent",
-		Model:         "openai/gpt-4o-mini",
-		ModelProvider: "openrouter",
-		ModelKey:      "test-key",
-		LogLevel:      "trace",
+		Name: "test-agent",
+		Models: config.ModelsConfig{
+			Key:  "test-key",
+			Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+		},
+		Log: config.LogConfig{Level: "trace"},
 	}, nil)
 
 	require.True(t, report.HasFailures())
@@ -91,10 +98,11 @@ func TestBuild_ReturnsValidationFailureWhileAuthStillPasses(t *testing.T) {
 
 func TestBuild_ReturnsModelAuthFailureWhenKeyIsMissing(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
-		Name:          "test-agent",
-		Model:         "openai/gpt-4o-mini",
-		ModelProvider: "openrouter",
-		LogLevel:      "info",
+		Name: "test-agent",
+		Models: config.ModelsConfig{
+			Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+		},
+		Log: config.LogConfig{Level: "info"},
 	}, nil)
 
 	require.True(t, report.HasFailures())
@@ -107,14 +115,17 @@ func TestBuild_ReturnsModelAuthFailureWhenKeyIsMissing(t *testing.T) {
 
 func TestBuild_IncludesSummaryModelChecksWhenSummaryAuthDiffersFromMain(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
-		Name:                "test-agent",
-		Model:               "openai/gpt-4o-mini",
-		ModelProvider:       "openrouter",
-		ModelKey:            "test-key",
-		LogLevel:            "info",
-		SummaryProvider:     "openai",
-		SummaryModelBaseURL: "https://api.example/v1",
-		VerifyModel:         new(false),
+		Name: "test-agent",
+		Models: config.ModelsConfig{
+			Verify: new(false),
+			Key:    "test-key",
+			Main:   config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+			Summary: config.SummaryModelConfig{
+				Provider: "openai",
+				BaseURL:  "https://api.example/v1",
+			},
+		},
+		Log: config.LogConfig{Level: "info"},
 	}, nil)
 
 	require.False(t, report.HasFailures())
@@ -132,14 +143,17 @@ func TestBuild_IncludesSummaryModelChecksWhenSummaryAuthDiffersFromMain(t *testi
 
 func TestBuild_ReturnsSummaryBaseURLFailureWhenSummaryURLInvalid(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
-		Name:                "test-agent",
-		Model:               "openai/gpt-4o-mini",
-		ModelProvider:       "openrouter",
-		ModelKey:            "test-key",
-		LogLevel:            "info",
-		SummaryProvider:     "openai",
-		SummaryModelBaseURL: "://bad",
-		VerifyModel:         new(false),
+		Name: "test-agent",
+		Models: config.ModelsConfig{
+			Verify: new(false),
+			Key:    "test-key",
+			Main:   config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+			Summary: config.SummaryModelConfig{
+				Provider: "openai",
+				BaseURL:  "://bad",
+			},
+		},
+		Log: config.LogConfig{Level: "info"},
 	}, nil)
 
 	require.True(t, report.HasFailures())
@@ -155,12 +169,13 @@ func TestBuild_ReturnsSummaryModelAuthFailureWhenSummaryResolveFails(t *testing.
 	}
 
 	report := Build(".env", "config.yaml", &config.Config{
-		Name:          "test-agent",
-		Model:         "openai/gpt-4o-mini",
-		ModelProvider: "openrouter",
-		ModelKey:      "test-key",
-		LogLevel:      "info",
-		VerifyModel:   new(false),
+		Name: "test-agent",
+		Models: config.ModelsConfig{
+			Verify: new(false),
+			Key:    "test-key",
+			Main:   config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+		},
+		Log: config.LogConfig{Level: "info"},
 	}, nil)
 
 	require.True(t, report.HasFailures())
@@ -173,11 +188,12 @@ func TestBuild_ReturnsSummaryModelAuthFailureWhenSummaryResolveFails(t *testing.
 
 func TestBuild_WarnsForMissingOptionalFiles(t *testing.T) {
 	report := Build("missing.env", "missing.yaml", &config.Config{
-		Name:          "test-agent",
-		Model:         "openai/gpt-4o-mini",
-		ModelProvider: "openai",
-		ModelKey:      "test-key",
-		LogLevel:      "info",
+		Name: "test-agent",
+		Models: config.ModelsConfig{
+			Key:  "test-key",
+			Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openai"},
+		},
+		Log: config.LogConfig{Level: "info"},
 	}, nil)
 
 	require.False(t, report.HasFailures())

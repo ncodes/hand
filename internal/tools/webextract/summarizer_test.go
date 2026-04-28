@@ -42,10 +42,11 @@ func TestNewExtractSummarizer_ReturnsNilWithoutDependencies(t *testing.T) {
 
 func TestNewExtractSummarizer_UsesSummaryModelEffective(t *testing.T) {
 	summarizer := NewExtractSummarizer(&modelClientStub{}, &config.Config{
-		Model:         "openai/gpt-4o-mini",
-		SummaryModel:  "openai/gpt-4.1-mini",
-		ModelProvider: "openrouter",
-		ModelKey:      "key",
+		Models: config.ModelsConfig{
+			Key:     "key",
+			Main:    config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+			Summary: config.SummaryModelConfig{Name: "openai/gpt-4.1-mini"},
+		},
 	})
 
 	modelSummarizer, ok := summarizer.(ExtractSummarizer)
@@ -56,9 +57,10 @@ func TestNewExtractSummarizer_UsesSummaryModelEffective(t *testing.T) {
 
 func TestNewExtractSummarizer_FallsBackToMainModel(t *testing.T) {
 	summarizer := NewExtractSummarizer(&modelClientStub{}, &config.Config{
-		Model:         "openai/gpt-4o-mini",
-		ModelProvider: "openrouter",
-		ModelKey:      "key",
+		Models: config.ModelsConfig{
+			Key:  "key",
+			Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+		},
 	})
 
 	modelSummarizer, ok := summarizer.(ExtractSummarizer)

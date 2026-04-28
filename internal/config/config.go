@@ -20,75 +20,187 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/wandxy/hand/internal/datadir"
+	"github.com/wandxy/hand/internal/rerank"
 )
 
 type Config struct {
-	Name                            string
-	Model                           string
-	SummaryModel                    string
-	Stream                          *bool
-	ContextLength                   int
-	VerifyModel                     *bool
-	ModelMaxRetries                 *int
-	ModelProvider                   string
-	ModelEmbeddingProvider          string
-	ModelEmbeddingModel             string
-	ModelKey                        string
-	OpenAIAPIKey                    string
-	OpenRouterAPIKey                string
-	ModelBaseURL                    string
-	SummaryProvider                 string
-	SummaryModelBaseURL             string
-	SummaryModelAPIMode             string
-	ModelAPIMode                    string
-	RPCAddress                      string
-	RPCPort                         int
-	MaxIterations                   int
-	LogLevel                        string
-	LogNoColor                      bool
-	DebugRequests                   bool
-	DebugTraces                     bool
-	DebugTraceDir                   string
-	WebProvider                     string
-	WebAPIKey                       string
-	WebBaseURL                      string
-	WebMaxCharPerResult             int
-	WebMaxExtractCharPerResult      int
-	WebMaxExtractResponseBytes      int
-	WebCacheTTL                     time.Duration
-	WebBlockedDomainsEnabled        bool
-	WebBlockedDomains               []string
-	WebBlockedDomainFiles           []string
-	WebNativeAllowedHosts           []string
-	WebNativeBlockedHosts           []string
-	WebNativeAllowedHostFiles       []string
-	WebNativeBlockedHostFiles       []string
-	WebExtractMinSummarizeChars     int
-	WebExtractMaxSummaryChars       int
-	WebExtractMaxSummaryChunkChars  int
-	WebExtractRefusalThresholdChars int
-	RulesFiles                      []string
-	Instruct                        string
-	Platform                        string
-	CapFilesystem                   *bool
-	CapNetwork                      *bool
-	CapExec                         *bool
-	CapMemory                       *bool
-	CapBrowser                      *bool
-	FSRoots                         []string
-	ExecAllow                       []string
-	ExecAsk                         []string
-	ExecDeny                        []string
-	StorageBackend                  string
-	SessionDefaultIdleExpiry        time.Duration
-	SessionArchiveRetention         time.Duration
-	SessionVectorEnabled            bool
-	SessionVectorRequired           bool
-	SessionVectorRebuildBatchSize   int
-	SessionVectorEnableRerank       *bool
-	CompactionEnabled               *bool
-	CompactionTriggerPercent        float64
-	CompactionWarnPercent           float64
+	Name       string           `yaml:"name"`
+	Platform   string           `yaml:"platform"`
+	Models     ModelsConfig     `yaml:"models"`
+	RPC        RPCConfig        `yaml:"rpc"`
+	FS         FSConfig         `yaml:"fs"`
+	Exec       ExecConfig       `yaml:"exec"`
+	Storage    StorageConfig    `yaml:"storage"`
+	Session    SessionConfig    `yaml:"session"`
+	Search     SearchConfig     `yaml:"search"`
+	Reranker   RerankerConfig   `yaml:"reranker"`
+	Compaction CompactionConfig `yaml:"compaction"`
+	Cap        CapConfig        `yaml:"cap"`
+	Log        LogConfig        `yaml:"log"`
+	Debug      DebugConfig      `yaml:"debug"`
+	Web        WebConfig        `yaml:"web"`
+	Rules      RulesConfig      `yaml:"rules"`
+}
+
+type ModelsConfig struct {
+	Verify           *bool                `yaml:"verify"`
+	MaxRetries       *int                 `yaml:"maxRetries"`
+	Key              string               `yaml:"key"`
+	OpenAIAPIKey     string               `yaml:"openaiApiKey"`
+	OpenRouterAPIKey string               `yaml:"openrouterApiKey"`
+	Main             MainModelConfig      `yaml:"main"`
+	Summary          SummaryModelConfig   `yaml:"summary"`
+	Embedding        EmbeddingModelConfig `yaml:"embedding"`
+}
+
+type MainModelConfig struct {
+	Name          string `yaml:"name"`
+	Provider      string `yaml:"provider"`
+	APIMode       string `yaml:"apiMode"`
+	BaseURL       string `yaml:"baseUrl"`
+	ContextLength int    `yaml:"contextLength"`
+	Stream        *bool  `yaml:"stream"`
+}
+
+type SummaryModelConfig struct {
+	Name     string `yaml:"name"`
+	Provider string `yaml:"provider"`
+	APIMode  string `yaml:"apiMode"`
+	BaseURL  string `yaml:"baseUrl"`
+}
+
+type EmbeddingModelConfig struct {
+	Name     string `yaml:"name"`
+	Provider string `yaml:"provider"`
+	BaseURL  string `yaml:"baseUrl"`
+}
+
+type RPCConfig struct {
+	Address string `yaml:"address"`
+	Port    int    `yaml:"port"`
+}
+
+type FSConfig struct {
+	Roots []string `yaml:"roots"`
+}
+
+type ExecConfig struct {
+	Allow []string `yaml:"allow"`
+	Ask   []string `yaml:"ask"`
+	Deny  []string `yaml:"deny"`
+}
+
+type StorageConfig struct {
+	Backend string `yaml:"backend"`
+}
+
+type SessionConfig struct {
+	MaxIterations     int           `yaml:"maxIterations"`
+	Instruct          string        `yaml:"instruct"`
+	DefaultIdleExpiry time.Duration `yaml:"defaultIdleExpiry"`
+	ArchiveRetention  time.Duration `yaml:"archiveRetention"`
+}
+
+type SearchConfig struct {
+	EnableRerank *bool              `yaml:"enableRerank"`
+	Vector       SearchVectorConfig `yaml:"vector"`
+}
+
+type SearchVectorConfig struct {
+	Enabled          bool `yaml:"enabled"`
+	Required         bool `yaml:"required"`
+	RebuildBatchSize int  `yaml:"rebuildBatchSize"`
+}
+
+type RerankerConfig struct {
+	Enabled               *bool  `yaml:"enabled"`
+	Type                  string `yaml:"type"`
+	Model                 string `yaml:"model"`
+	MaxCandidates         int    `yaml:"maxCandidates"`
+	MaxCandidateTextChars int    `yaml:"maxCandidateTextChars"`
+	MaxOutputTokens       int    `yaml:"maxOutputTokens"`
+}
+
+type CompactionConfig struct {
+	Enabled        *bool   `yaml:"enabled"`
+	TriggerPercent float64 `yaml:"triggerPercent"`
+	WarnPercent    float64 `yaml:"warnPercent"`
+}
+
+type CapConfig struct {
+	Filesystem *bool `yaml:"fs"`
+	Network    *bool `yaml:"net"`
+	Exec       *bool `yaml:"exec"`
+	Memory     *bool `yaml:"mem"`
+	Browser    *bool `yaml:"browser"`
+}
+
+type LogConfig struct {
+	Level   string `yaml:"level"`
+	NoColor bool   `yaml:"noColor"`
+}
+
+type DebugConfig struct {
+	Requests bool   `yaml:"requests"`
+	Traces   bool   `yaml:"traces"`
+	TraceDir string `yaml:"traceDir"`
+}
+
+type WebConfig struct {
+	Provider                     string        `yaml:"provider"`
+	APIKey                       string        `yaml:"apiKey"`
+	BaseURL                      string        `yaml:"baseUrl"`
+	MaxCharPerResult             int           `yaml:"maxCharPerResult"`
+	MaxExtractCharPerResult      int           `yaml:"maxExtractCharPerResult"`
+	MaxExtractResponseBytes      int           `yaml:"maxExtractResponseBytes"`
+	CacheTTL                     time.Duration `yaml:"cacheTTL"`
+	BlockedDomainsEnabled        bool          `yaml:"-"`
+	BlockedDomains               []string      `yaml:"-"`
+	BlockedDomainFiles           []string      `yaml:"-"`
+	NativeAllowedHosts           []string      `yaml:"-"`
+	NativeBlockedHosts           []string      `yaml:"-"`
+	NativeAllowedHostFiles       []string      `yaml:"-"`
+	NativeBlockedHostFiles       []string      `yaml:"-"`
+	ExtractMinSummarizeChars     int           `yaml:"extractMinSummarizeChars"`
+	ExtractMaxSummaryChars       int           `yaml:"extractMaxSummaryChars"`
+	ExtractMaxSummaryChunkChars  int           `yaml:"extractMaxSummaryChunkChars"`
+	ExtractRefusalThresholdChars int           `yaml:"extractRefusalThresholdChars"`
+}
+
+type RulesConfig struct {
+	Files []string `yaml:"files"`
+}
+
+func (c *WebConfig) UnmarshalYAML(value *yaml.Node) error {
+	type plain WebConfig
+	var raw struct {
+		plain          `yaml:",inline"`
+		BlockedDomains struct {
+			Enabled bool     `yaml:"enabled"`
+			Domains []string `yaml:"domains"`
+			Files   []string `yaml:"files"`
+		} `yaml:"blockedDomains"`
+		Native struct {
+			AllowedHosts     []string `yaml:"allowedHosts"`
+			BlockedHosts     []string `yaml:"blockedHosts"`
+			AllowedHostFiles []string `yaml:"allowedHostFiles"`
+			BlockedHostFiles []string `yaml:"blockedHostFiles"`
+		} `yaml:"native"`
+	}
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+
+	*c = WebConfig(raw.plain)
+	c.BlockedDomainsEnabled = raw.BlockedDomains.Enabled
+	c.BlockedDomains = raw.BlockedDomains.Domains
+	c.BlockedDomainFiles = raw.BlockedDomains.Files
+	c.NativeAllowedHosts = raw.Native.AllowedHosts
+	c.NativeBlockedHosts = raw.Native.BlockedHosts
+	c.NativeAllowedHostFiles = raw.Native.AllowedHostFiles
+	c.NativeBlockedHostFiles = raw.Native.BlockedHostFiles
+
+	return nil
 }
 
 type ModelAuth struct {
@@ -144,117 +256,6 @@ const (
 	defaultMaxIterations                                 = DefaultMaxIterations
 )
 
-type fileConfig struct {
-	Name          string `yaml:"name"`
-	Instruct      string `yaml:"instruct"`
-	Platform      string `yaml:"platform"`
-	MaxIterations int    `yaml:"maxIterations"`
-
-	Model struct {
-		Name              string `yaml:"name"`
-		SummaryModel      string `yaml:"summaryModel"`
-		Stream            *bool  `yaml:"stream"`
-		ContextLength     int    `yaml:"contextLength"`
-		VerifyModel       *bool  `yaml:"verifyModel"`
-		MaxRetries        *int   `yaml:"maxRetries"`
-		Provider          string `yaml:"provider"`
-		EmbeddingProvider string `yaml:"embeddingProvider"`
-		EmbeddingModel    string `yaml:"embeddingModel"`
-		Key               string `yaml:"key"`
-		OpenAIAPIKey      string `yaml:"openaiApiKey"`
-		OpenRouterAPIKey  string `yaml:"openrouterApiKey"`
-		BaseURL           string `yaml:"baseUrl"`
-		SummaryProvider   string `yaml:"summaryProvider"`
-		SummaryBaseURL    string `yaml:"summaryBaseUrl"`
-		SummaryAPIMode    string `yaml:"summaryApiMode"`
-		APIMode           string `yaml:"apiMode"`
-	} `yaml:"model"`
-
-	Log struct {
-		Level   string `yaml:"level"`
-		NoColor bool   `yaml:"noColor"`
-	} `yaml:"log"`
-
-	Debug struct {
-		Requests bool   `yaml:"requests"`
-		Traces   bool   `yaml:"traces"`
-		TraceDir string `yaml:"traceDir"`
-	} `yaml:"debug"`
-
-	Web struct {
-		Provider                string `yaml:"provider"`
-		APIKey                  string `yaml:"apiKey"`
-		BaseURL                 string `yaml:"baseUrl"`
-		MaxCharPerResult        int    `yaml:"maxCharPerResult"`
-		MaxExtractCharPerResult int    `yaml:"maxExtractCharPerResult"`
-		MaxExtractResponseBytes int    `yaml:"maxExtractResponseBytes"`
-		CacheTTL                string `yaml:"cacheTTL"`
-		BlockedDomains          struct {
-			Enabled bool     `yaml:"enabled"`
-			Domains []string `yaml:"domains"`
-			Files   []string `yaml:"files"`
-		} `yaml:"blockedDomains"`
-		Native struct {
-			AllowedHosts     []string `yaml:"allowedHosts"`
-			BlockedHosts     []string `yaml:"blockedHosts"`
-			AllowedHostFiles []string `yaml:"allowedHostFiles"`
-			BlockedHostFiles []string `yaml:"blockedHostFiles"`
-		} `yaml:"native"`
-		ExtractMinSummarizeChars     int `yaml:"extractMinSummarizeChars"`
-		ExtractMaxSummaryChars       int `yaml:"extractMaxSummaryChars"`
-		ExtractMaxSummaryChunkChars  int `yaml:"extractMaxSummaryChunkChars"`
-		ExtractRefusalThresholdChars int `yaml:"extractRefusalThresholdChars"`
-	} `yaml:"web"`
-
-	RPC struct {
-		Address string `yaml:"address"`
-		Port    int    `yaml:"port"`
-	} `yaml:"rpc"`
-
-	FS struct {
-		Roots []string `yaml:"roots"`
-	} `yaml:"fs"`
-
-	Exec struct {
-		Allow []string `yaml:"allow"`
-		Ask   []string `yaml:"ask"`
-		Deny  []string `yaml:"deny"`
-	} `yaml:"exec"`
-
-	Storage struct {
-		Backend string `yaml:"backend"`
-	} `yaml:"storage"`
-
-	Session struct {
-		DefaultIdleExpiry string `yaml:"defaultIdleExpiry"`
-		ArchiveRetention  string `yaml:"archiveRetention"`
-		Vector            struct {
-			Enabled          bool  `yaml:"enabled"`
-			Required         bool  `yaml:"required"`
-			RebuildBatchSize int   `yaml:"rebuildBatchSize"`
-			EnableRerank     *bool `yaml:"enableRerank"`
-		} `yaml:"vector"`
-	} `yaml:"session"`
-
-	Compaction struct {
-		Enabled        *bool   `yaml:"enabled"`
-		TriggerPercent float64 `yaml:"triggerPercent"`
-		WarnPercent    float64 `yaml:"warnPercent"`
-	} `yaml:"compaction"`
-
-	Cap struct {
-		Filesystem *bool `yaml:"fs"`
-		Network    *bool `yaml:"net"`
-		Exec       *bool `yaml:"exec"`
-		Memory     *bool `yaml:"mem"`
-		Browser    *bool `yaml:"browser"`
-	} `yaml:"cap"`
-
-	Rules struct {
-		Files []string `yaml:"files"`
-	} `yaml:"rules"`
-}
-
 func PreloadEnvFile(path string) error {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -279,7 +280,7 @@ func Load(envPath, configPath string) (*Config, error) {
 	}
 
 	applyEnvOverrides(cfg)
-	requestedContextLength := cfg.ContextLength
+	requestedContextLength := cfg.Models.Main.ContextLength
 	cfg.Normalize()
 	applyProviderModelMetadata(context.Background(), cfg, requestedContextLength)
 
@@ -292,36 +293,56 @@ func Get() *Config {
 
 	if globalConfig == nil {
 		return &Config{
-			Model:                           defaultModel,
-			Stream:                          new(true),
-			ContextLength:                   defaultContextLength,
-			VerifyModel:                     new(true),
-			ModelMaxRetries:                 new(DefaultModelMaxRetries),
-			ModelAPIMode:                    DefaultModelAPIMode,
-			MaxIterations:                   defaultMaxIterations,
-			LogLevel:                        "info",
-			DebugTraceDir:                   datadir.DebugTraceDir(),
-			WebMaxCharPerResult:             DefaultWebMaxCharPerResult,
-			WebMaxExtractCharPerResult:      DefaultWebMaxExtractCharPerResult,
-			WebMaxExtractResponseBytes:      DefaultWebMaxExtractResponseBytes,
-			WebCacheTTL:                     DefaultWebCacheTTL,
-			WebExtractMinSummarizeChars:     DefaultWebExtractMinSummarizeChars,
-			WebExtractMaxSummaryChars:       DefaultWebExtractMaxSummaryChars,
-			WebExtractMaxSummaryChunkChars:  DefaultWebExtractMaxSummaryChunkChars,
-			WebExtractRefusalThresholdChars: DefaultWebExtractRefusalThresholdChars,
-			Platform:                        "cli",
-			CapFilesystem:                   new(true),
-			CapNetwork:                      new(true),
-			CapExec:                         new(true),
-			CapMemory:                       new(true),
-			CapBrowser:                      new(false),
-			FSRoots:                         defaultFSRoots(),
-			StorageBackend:                  "sqlite",
-			SessionDefaultIdleExpiry:        24 * time.Hour,
-			SessionArchiveRetention:         30 * 24 * time.Hour,
-			CompactionEnabled:               new(true),
-			CompactionTriggerPercent:        0.85,
-			CompactionWarnPercent:           0.95,
+			Models: ModelsConfig{
+				Main: MainModelConfig{
+					Name:          defaultModel,
+					Stream:        new(true),
+					ContextLength: defaultContextLength,
+					APIMode:       DefaultModelAPIMode,
+				},
+				Verify:     new(true),
+				MaxRetries: new(DefaultModelMaxRetries),
+			},
+			Session: SessionConfig{
+				MaxIterations:     defaultMaxIterations,
+				DefaultIdleExpiry: 24 * time.Hour,
+				ArchiveRetention:  30 * 24 * time.Hour,
+			},
+			Log: LogConfig{
+				Level: "info",
+			},
+			Debug: DebugConfig{
+				TraceDir: datadir.DebugTraceDir(),
+			},
+			Web: WebConfig{
+				MaxCharPerResult:             DefaultWebMaxCharPerResult,
+				MaxExtractCharPerResult:      DefaultWebMaxExtractCharPerResult,
+				MaxExtractResponseBytes:      DefaultWebMaxExtractResponseBytes,
+				CacheTTL:                     DefaultWebCacheTTL,
+				ExtractMinSummarizeChars:     DefaultWebExtractMinSummarizeChars,
+				ExtractMaxSummaryChars:       DefaultWebExtractMaxSummaryChars,
+				ExtractMaxSummaryChunkChars:  DefaultWebExtractMaxSummaryChunkChars,
+				ExtractRefusalThresholdChars: DefaultWebExtractRefusalThresholdChars,
+			},
+			Platform: "cli",
+			Cap: CapConfig{
+				Filesystem: new(true),
+				Network:    new(true),
+				Exec:       new(true),
+				Memory:     new(true),
+				Browser:    new(false),
+			},
+			FS: FSConfig{
+				Roots: defaultFSRoots(),
+			},
+			Storage: StorageConfig{
+				Backend: "sqlite",
+			},
+			Compaction: CompactionConfig{
+				Enabled:        new(true),
+				TriggerPercent: 0.85,
+				WarnPercent:    0.95,
+			},
 		}
 	}
 
@@ -350,79 +371,25 @@ func loadConfigFile(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to read config file %q: %w", path, err)
 	}
 
-	var raw fileConfig
-	if err := yaml.Unmarshal(data, &raw); err != nil {
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config file %q: %w", path, err)
 	}
 
-	return &Config{
-		Name:                            raw.Name,
-		Model:                           raw.Model.Name,
-		SummaryModel:                    raw.Model.SummaryModel,
-		Stream:                          raw.Model.Stream,
-		ContextLength:                   raw.Model.ContextLength,
-		VerifyModel:                     raw.Model.VerifyModel,
-		ModelMaxRetries:                 raw.Model.MaxRetries,
-		ModelProvider:                   raw.Model.Provider,
-		ModelEmbeddingProvider:          raw.Model.EmbeddingProvider,
-		ModelEmbeddingModel:             raw.Model.EmbeddingModel,
-		ModelKey:                        raw.Model.Key,
-		OpenAIAPIKey:                    raw.Model.OpenAIAPIKey,
-		OpenRouterAPIKey:                raw.Model.OpenRouterAPIKey,
-		ModelBaseURL:                    raw.Model.BaseURL,
-		SummaryProvider:                 raw.Model.SummaryProvider,
-		SummaryModelBaseURL:             raw.Model.SummaryBaseURL,
-		SummaryModelAPIMode:             raw.Model.SummaryAPIMode,
-		ModelAPIMode:                    raw.Model.APIMode,
-		RPCAddress:                      raw.RPC.Address,
-		RPCPort:                         raw.RPC.Port,
-		MaxIterations:                   raw.MaxIterations,
-		LogLevel:                        raw.Log.Level,
-		LogNoColor:                      raw.Log.NoColor,
-		DebugRequests:                   raw.Debug.Requests,
-		DebugTraces:                     raw.Debug.Traces,
-		DebugTraceDir:                   raw.Debug.TraceDir,
-		WebProvider:                     raw.Web.Provider,
-		WebAPIKey:                       raw.Web.APIKey,
-		WebBaseURL:                      raw.Web.BaseURL,
-		WebMaxCharPerResult:             raw.Web.MaxCharPerResult,
-		WebMaxExtractCharPerResult:      raw.Web.MaxExtractCharPerResult,
-		WebMaxExtractResponseBytes:      raw.Web.MaxExtractResponseBytes,
-		WebCacheTTL:                     parseDurationOrZero(raw.Web.CacheTTL),
-		WebBlockedDomainsEnabled:        raw.Web.BlockedDomains.Enabled,
-		WebBlockedDomains:               raw.Web.BlockedDomains.Domains,
-		WebBlockedDomainFiles:           resolvePathsFromBase(raw.Web.BlockedDomains.Files, baseDir),
-		WebNativeAllowedHosts:           raw.Web.Native.AllowedHosts,
-		WebNativeBlockedHosts:           raw.Web.Native.BlockedHosts,
-		WebNativeAllowedHostFiles:       resolvePathsFromBase(raw.Web.Native.AllowedHostFiles, baseDir),
-		WebNativeBlockedHostFiles:       resolvePathsFromBase(raw.Web.Native.BlockedHostFiles, baseDir),
-		WebExtractMinSummarizeChars:     raw.Web.ExtractMinSummarizeChars,
-		WebExtractMaxSummaryChars:       raw.Web.ExtractMaxSummaryChars,
-		WebExtractMaxSummaryChunkChars:  raw.Web.ExtractMaxSummaryChunkChars,
-		WebExtractRefusalThresholdChars: raw.Web.ExtractRefusalThresholdChars,
-		RulesFiles:                      raw.Rules.Files,
-		Instruct:                        raw.Instruct,
-		Platform:                        raw.Platform,
-		CapFilesystem:                   raw.Cap.Filesystem,
-		CapNetwork:                      raw.Cap.Network,
-		CapExec:                         raw.Cap.Exec,
-		CapMemory:                       raw.Cap.Memory,
-		CapBrowser:                      raw.Cap.Browser,
-		FSRoots:                         resolvePathsFromBase(raw.FS.Roots, baseDir),
-		ExecAllow:                       raw.Exec.Allow,
-		ExecAsk:                         raw.Exec.Ask,
-		ExecDeny:                        raw.Exec.Deny,
-		StorageBackend:                  raw.Storage.Backend,
-		SessionDefaultIdleExpiry:        parseDurationOrZero(raw.Session.DefaultIdleExpiry),
-		SessionArchiveRetention:         parseDurationOrZero(raw.Session.ArchiveRetention),
-		SessionVectorEnabled:            raw.Session.Vector.Enabled,
-		SessionVectorRequired:           raw.Session.Vector.Required,
-		SessionVectorRebuildBatchSize:   raw.Session.Vector.RebuildBatchSize,
-		SessionVectorEnableRerank:       raw.Session.Vector.EnableRerank,
-		CompactionEnabled:               raw.Compaction.Enabled,
-		CompactionTriggerPercent:        raw.Compaction.TriggerPercent,
-		CompactionWarnPercent:           raw.Compaction.WarnPercent,
-	}, nil
+	cfg.resolvePaths(baseDir)
+
+	return &cfg, nil
+}
+
+func (c *Config) resolvePaths(baseDir string) {
+	if c == nil {
+		return
+	}
+
+	c.FS.Roots = resolvePathsFromBase(c.FS.Roots, baseDir)
+	c.Web.BlockedDomainFiles = resolvePathsFromBase(c.Web.BlockedDomainFiles, baseDir)
+	c.Web.NativeAllowedHostFiles = resolvePathsFromBase(c.Web.NativeAllowedHostFiles, baseDir)
+	c.Web.NativeBlockedHostFiles = resolvePathsFromBase(c.Web.NativeBlockedHostFiles, baseDir)
 }
 
 func applyEnvOverrides(cfg *Config) {
@@ -434,257 +401,281 @@ func applyEnvOverrides(cfg *Config) {
 		cfg.Name = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL")); value != "" {
-		cfg.Model = value
+		cfg.Models.Main.Name = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_SUMMARY")); value != "" {
-		cfg.SummaryModel = value
+		cfg.Models.Summary.Name = value
 	}
 	if value, ok := parseOptionalBoolEnv("HAND_MODEL_STREAM"); ok {
-		cfg.Stream = new(value)
+		cfg.Models.Main.Stream = new(value)
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_CONTEXT_LENGTH")); value != "" {
 		if contextLength, err := strconv.Atoi(value); err == nil {
-			cfg.ContextLength = contextLength
+			cfg.Models.Main.ContextLength = contextLength
 		}
 	}
-	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_MODEL_VERIFY_MODEL"))); value != "" {
-		cfg.VerifyModel = new(value == "1" || value == "true" || value == "yes")
+	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_MODELS_VERIFY"))); value != "" {
+		cfg.Models.Verify = new(value == "1" || value == "true" || value == "yes")
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_MAX_RETRIES")); value != "" {
 		if retries, err := strconv.Atoi(value); err == nil {
-			cfg.ModelMaxRetries = &retries
+			cfg.Models.MaxRetries = &retries
 		}
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_PROVIDER")); value != "" {
-		cfg.ModelProvider = value
+		cfg.Models.Main.Provider = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_EMBEDDING_PROVIDER")); value != "" {
-		cfg.ModelEmbeddingProvider = value
+		cfg.Models.Embedding.Provider = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_EMBEDDING_MODEL")); value != "" {
-		cfg.ModelEmbeddingModel = value
+		cfg.Models.Embedding.Name = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_KEY")); value != "" {
-		cfg.ModelKey = value
+		cfg.Models.Key = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_OPENAI_API_KEY")); value != "" {
-		cfg.OpenAIAPIKey = value
+		cfg.Models.OpenAIAPIKey = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_OPENROUTER_API_KEY")); value != "" {
-		cfg.OpenRouterAPIKey = value
+		cfg.Models.OpenRouterAPIKey = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_BASE_URL")); value != "" {
-		cfg.ModelBaseURL = value
+		cfg.Models.Main.BaseURL = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_SUMMARY_PROVIDER")); value != "" {
-		cfg.SummaryProvider = value
+		cfg.Models.Summary.Provider = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_SUMMARY_BASE_URL")); value != "" {
-		cfg.SummaryModelBaseURL = value
+		cfg.Models.Summary.BaseURL = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_API_MODE")); value != "" {
-		cfg.ModelAPIMode = value
+		cfg.Models.Main.APIMode = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_SUMMARY_API_MODE")); value != "" {
-		cfg.SummaryModelAPIMode = value
+		cfg.Models.Summary.APIMode = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_RPC_ADDRESS")); value != "" {
-		cfg.RPCAddress = value
+		cfg.RPC.Address = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_RPC_PORT")); value != "" {
 		if port, err := strconv.Atoi(value); err == nil {
-			cfg.RPCPort = port
+			cfg.RPC.Port = port
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("HAND_MAX_ITERATIONS")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_SESSION_MAX_ITERATIONS")); value != "" {
 		if maxIterations, err := strconv.Atoi(value); err == nil {
-			cfg.MaxIterations = maxIterations
+			cfg.Session.MaxIterations = maxIterations
 		}
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_LOG_LEVEL")); value != "" {
-		cfg.LogLevel = value
+		cfg.Log.Level = value
 	}
 	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_LOG_NO_COLOR"))); value != "" {
-		cfg.LogNoColor = value == "1" || value == "true" || value == "yes"
+		cfg.Log.NoColor = value == "1" || value == "true" || value == "yes"
 	}
 	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_DEBUG_REQUESTS"))); value != "" {
-		cfg.DebugRequests = value == "1" || value == "true" || value == "yes"
+		cfg.Debug.Requests = value == "1" || value == "true" || value == "yes"
 	}
 	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_DEBUG_TRACES"))); value != "" {
-		cfg.DebugTraces = value == "1" || value == "true" || value == "yes"
+		cfg.Debug.Traces = value == "1" || value == "true" || value == "yes"
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_DEBUG_TRACE_DIR")); value != "" {
-		cfg.DebugTraceDir = value
+		cfg.Debug.TraceDir = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_PROVIDER")); value != "" {
-		cfg.WebProvider = value
+		cfg.Web.Provider = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_API_KEY")); value != "" {
-		cfg.WebAPIKey = value
+		cfg.Web.APIKey = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_BASE_URL")); value != "" {
-		cfg.WebBaseURL = value
+		cfg.Web.BaseURL = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_MAX_CHAR_PER_RESULT")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
-			cfg.WebMaxCharPerResult = chars
+			cfg.Web.MaxCharPerResult = chars
 		}
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_MAX_EXTRACT_CHAR_PER_RESULT")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
-			cfg.WebMaxExtractCharPerResult = chars
+			cfg.Web.MaxExtractCharPerResult = chars
 		}
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_MAX_EXTRACT_RESPONSE_BYTES")); value != "" {
 		if bytes, err := strconv.Atoi(value); err == nil {
-			cfg.WebMaxExtractResponseBytes = bytes
+			cfg.Web.MaxExtractResponseBytes = bytes
 		}
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_CACHE_TTL")); value != "" {
-		cfg.WebCacheTTL = parseDurationOrZero(value)
+		cfg.Web.CacheTTL = parseDurationOrZero(value)
 	}
 	if value, ok := parseOptionalBoolEnv("HAND_WEB_BLOCKED_DOMAINS_ENABLED"); ok {
-		cfg.WebBlockedDomainsEnabled = value
+		cfg.Web.BlockedDomainsEnabled = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_BLOCKED_DOMAINS")); value != "" {
-		cfg.WebBlockedDomains = splitAndTrimCSV(value)
+		cfg.Web.BlockedDomains = splitAndTrimCSV(value)
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_BLOCKED_DOMAIN_FILES")); value != "" {
-		cfg.WebBlockedDomainFiles = splitAndTrimCSV(value)
+		cfg.Web.BlockedDomainFiles = splitAndTrimCSV(value)
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_NATIVE_ALLOWED_HOSTS")); value != "" {
-		cfg.WebNativeAllowedHosts = splitAndTrimCSV(value)
+		cfg.Web.NativeAllowedHosts = splitAndTrimCSV(value)
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_NATIVE_BLOCKED_HOSTS")); value != "" {
-		cfg.WebNativeBlockedHosts = splitAndTrimCSV(value)
+		cfg.Web.NativeBlockedHosts = splitAndTrimCSV(value)
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_NATIVE_ALLOWED_HOST_FILES")); value != "" {
-		cfg.WebNativeAllowedHostFiles = splitAndTrimCSV(value)
+		cfg.Web.NativeAllowedHostFiles = splitAndTrimCSV(value)
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_NATIVE_BLOCKED_HOST_FILES")); value != "" {
-		cfg.WebNativeBlockedHostFiles = splitAndTrimCSV(value)
+		cfg.Web.NativeBlockedHostFiles = splitAndTrimCSV(value)
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_EXTRACT_MIN_SUMMARIZE_CHARS")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
-			cfg.WebExtractMinSummarizeChars = chars
+			cfg.Web.ExtractMinSummarizeChars = chars
 		}
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_EXTRACT_MAX_SUMMARY_CHARS")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
-			cfg.WebExtractMaxSummaryChars = chars
+			cfg.Web.ExtractMaxSummaryChars = chars
 		}
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
-			cfg.WebExtractMaxSummaryChunkChars = chars
+			cfg.Web.ExtractMaxSummaryChunkChars = chars
 		}
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS")); value != "" {
 		if chars, err := strconv.Atoi(value); err == nil {
-			cfg.WebExtractRefusalThresholdChars = chars
+			cfg.Web.ExtractRefusalThresholdChars = chars
 		}
 	}
-	if cfg.WebProvider == "" {
+	if cfg.Web.Provider == "" {
 		switch {
 		case strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_KEY")) != "" || strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_URL")) != "":
-			cfg.WebProvider = "firecrawl"
+			cfg.Web.Provider = "firecrawl"
 		case strings.TrimSpace(os.Getenv("HAND_PARALLEL_API_KEY")) != "":
-			cfg.WebProvider = "parallel"
+			cfg.Web.Provider = "parallel"
 		case strings.TrimSpace(os.Getenv("HAND_TAVILY_API_KEY")) != "":
-			cfg.WebProvider = "tavily"
+			cfg.Web.Provider = "tavily"
 		case strings.TrimSpace(os.Getenv("HAND_EXA_API_KEY")) != "":
-			cfg.WebProvider = "exa"
+			cfg.Web.Provider = "exa"
 		}
 	}
-	if cfg.WebAPIKey == "" {
-		switch strings.TrimSpace(strings.ToLower(cfg.WebProvider)) {
+	if cfg.Web.APIKey == "" {
+		switch strings.TrimSpace(strings.ToLower(cfg.Web.Provider)) {
 		case "firecrawl":
-			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_KEY"))
+			cfg.Web.APIKey = strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_KEY"))
 		case "parallel":
-			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("HAND_PARALLEL_API_KEY"))
+			cfg.Web.APIKey = strings.TrimSpace(os.Getenv("HAND_PARALLEL_API_KEY"))
 		case "tavily":
-			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("HAND_TAVILY_API_KEY"))
+			cfg.Web.APIKey = strings.TrimSpace(os.Getenv("HAND_TAVILY_API_KEY"))
 		case "exa":
-			cfg.WebAPIKey = strings.TrimSpace(os.Getenv("HAND_EXA_API_KEY"))
+			cfg.Web.APIKey = strings.TrimSpace(os.Getenv("HAND_EXA_API_KEY"))
 		}
 	}
-	if cfg.WebBaseURL == "" && strings.TrimSpace(strings.ToLower(cfg.WebProvider)) == "firecrawl" {
-		cfg.WebBaseURL = strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_URL"))
+	if cfg.Web.BaseURL == "" && strings.TrimSpace(strings.ToLower(cfg.Web.Provider)) == "firecrawl" {
+		cfg.Web.BaseURL = strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_URL"))
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_RULES_FILES")); value != "" {
-		cfg.RulesFiles = splitAndTrimCSV(value)
+		cfg.Rules.Files = splitAndTrimCSV(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("HAND_INSTRUCT")); value != "" {
-		cfg.Instruct = value
+	if value := strings.TrimSpace(os.Getenv("HAND_SESSION_INSTRUCT")); value != "" {
+		cfg.Session.Instruct = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_PLATFORM")); value != "" {
 		cfg.Platform = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_FS_ROOTS")); value != "" {
-		cfg.FSRoots = splitAndTrimCSV(value)
+		cfg.FS.Roots = splitAndTrimCSV(value)
 	}
 
 	if value, ok := parseOptionalBoolEnv("HAND_CAP_FS"); ok {
-		cfg.CapFilesystem = new(value)
+		cfg.Cap.Filesystem = new(value)
 	}
 	if value, ok := parseOptionalBoolEnv("HAND_CAP_NET"); ok {
-		cfg.CapNetwork = new(value)
+		cfg.Cap.Network = new(value)
 	}
 	if value, ok := parseOptionalBoolEnv("HAND_CAP_EXEC"); ok {
-		cfg.CapExec = new(value)
+		cfg.Cap.Exec = new(value)
 	}
 	if value, ok := parseOptionalBoolEnv("HAND_CAP_MEM"); ok {
-		cfg.CapMemory = new(value)
+		cfg.Cap.Memory = new(value)
 	}
 	if value, ok := parseOptionalBoolEnv("HAND_CAP_BROWSER"); ok {
-		cfg.CapBrowser = new(value)
+		cfg.Cap.Browser = new(value)
 	}
 
 	if value := strings.TrimSpace(os.Getenv("HAND_EXEC_ALLOW")); value != "" {
-		cfg.ExecAllow = splitAndTrimCSV(value)
+		cfg.Exec.Allow = splitAndTrimCSV(value)
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_EXEC_ASK")); value != "" {
-		cfg.ExecAsk = splitAndTrimCSV(value)
+		cfg.Exec.Ask = splitAndTrimCSV(value)
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_EXEC_DENY")); value != "" {
-		cfg.ExecDeny = splitAndTrimCSV(value)
+		cfg.Exec.Deny = splitAndTrimCSV(value)
 	}
 
 	if value := strings.TrimSpace(os.Getenv("HAND_STORAGE_BACKEND")); value != "" {
-		cfg.StorageBackend = value
+		cfg.Storage.Backend = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_SESSION_DEFAULT_IDLE_EXPIRY")); value != "" {
-		cfg.SessionDefaultIdleExpiry = parseDurationOrZero(value)
+		cfg.Session.DefaultIdleExpiry = parseDurationOrZero(value)
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_SESSION_ARCHIVE_RETENTION")); value != "" {
-		cfg.SessionArchiveRetention = parseDurationOrZero(value)
+		cfg.Session.ArchiveRetention = parseDurationOrZero(value)
 	}
-	if value, ok := parseOptionalBoolEnv("HAND_SESSION_VECTOR_ENABLED"); ok {
-		cfg.SessionVectorEnabled = value
+	if value, ok := parseOptionalBoolEnv("HAND_SEARCH_VECTOR_ENABLED"); ok {
+		cfg.Search.Vector.Enabled = value
 	}
-	if value, ok := parseOptionalBoolEnv("HAND_SESSION_VECTOR_REQUIRED"); ok {
-		cfg.SessionVectorRequired = value
+	if value, ok := parseOptionalBoolEnv("HAND_SEARCH_VECTOR_REQUIRED"); ok {
+		cfg.Search.Vector.Required = value
 	}
-	if value := strings.TrimSpace(os.Getenv("HAND_SESSION_VECTOR_REBUILD_BATCH_SIZE")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_SEARCH_VECTOR_REBUILD_BATCH_SIZE")); value != "" {
 		if batchSize, err := strconv.Atoi(value); err == nil {
-			cfg.SessionVectorRebuildBatchSize = batchSize
+			cfg.Search.Vector.RebuildBatchSize = batchSize
 		}
 	}
-	if value, ok := parseOptionalBoolEnv("HAND_SESSION_VECTOR_ENABLE_RERANK"); ok {
-		cfg.SessionVectorEnableRerank = new(value)
+	if value, ok := parseOptionalBoolEnv("HAND_RERANKER_ENABLED"); ok {
+		cfg.Reranker.Enabled = new(value)
+	}
+	if value, ok := parseOptionalBoolEnv("HAND_SEARCH_ENABLE_RERANK"); ok {
+		cfg.Search.EnableRerank = new(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_RERANKER_TYPE")); value != "" {
+		cfg.Reranker.Type = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_RERANKER_MODEL")); value != "" {
+		cfg.Reranker.Model = value
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_RERANKER_MAX_CANDIDATES")); value != "" {
+		if maxCandidates, err := strconv.Atoi(value); err == nil {
+			cfg.Reranker.MaxCandidates = maxCandidates
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_RERANKER_MAX_CANDIDATE_TEXT_CHARS")); value != "" {
+		if maxChars, err := strconv.Atoi(value); err == nil {
+			cfg.Reranker.MaxCandidateTextChars = maxChars
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_RERANKER_MAX_OUTPUT_TOKENS")); value != "" {
+		if maxTokens, err := strconv.Atoi(value); err == nil {
+			cfg.Reranker.MaxOutputTokens = maxTokens
+		}
 	}
 
 	if value, ok := parseOptionalBoolEnv("HAND_COMPACTION_ENABLED"); ok {
-		cfg.CompactionEnabled = new(value)
+		cfg.Compaction.Enabled = new(value)
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_COMPACTION_TRIGGER_PERCENT")); value != "" {
 		if percent, err := strconv.ParseFloat(value, 64); err == nil {
-			cfg.CompactionTriggerPercent = percent
+			cfg.Compaction.TriggerPercent = percent
 		}
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_COMPACTION_WARN_PERCENT")); value != "" {
 		if percent, err := strconv.ParseFloat(value, 64); err == nil {
-			cfg.CompactionWarnPercent = percent
+			cfg.Compaction.WarnPercent = percent
 		}
 	}
 }
@@ -696,155 +687,158 @@ func (c *Config) normalizeFields() {
 	}
 
 	c.Name = strings.TrimSpace(c.Name)
-	c.Model = strings.TrimSpace(c.Model)
-	c.SummaryModel = strings.TrimSpace(c.SummaryModel)
-	c.ModelProvider = strings.TrimSpace(strings.ToLower(c.ModelProvider))
-	c.ModelEmbeddingProvider = strings.TrimSpace(strings.ToLower(c.ModelEmbeddingProvider))
-	c.ModelEmbeddingModel = strings.TrimSpace(c.ModelEmbeddingModel)
-	c.ModelKey = strings.TrimSpace(c.ModelKey)
-	c.OpenAIAPIKey = strings.TrimSpace(c.OpenAIAPIKey)
-	c.OpenRouterAPIKey = strings.TrimSpace(c.OpenRouterAPIKey)
-	c.ModelBaseURL = strings.TrimSpace(c.ModelBaseURL)
-	c.SummaryProvider = strings.TrimSpace(strings.ToLower(c.SummaryProvider))
-	c.SummaryModelBaseURL = strings.TrimSpace(c.SummaryModelBaseURL)
-	c.ModelAPIMode = strings.TrimSpace(strings.ToLower(c.ModelAPIMode))
-	c.SummaryModelAPIMode = strings.TrimSpace(strings.ToLower(c.SummaryModelAPIMode))
-	c.LogLevel = strings.TrimSpace(strings.ToLower(c.LogLevel))
-	c.DebugTraceDir = strings.TrimSpace(c.DebugTraceDir)
-	c.WebProvider = strings.TrimSpace(strings.ToLower(c.WebProvider))
-	c.WebAPIKey = strings.TrimSpace(c.WebAPIKey)
-	c.WebBaseURL = strings.TrimSpace(c.WebBaseURL)
-	c.WebBlockedDomains = dedupeAndTrim(c.WebBlockedDomains)
-	c.WebBlockedDomainFiles = dedupeAndTrim(c.WebBlockedDomainFiles)
-	c.WebNativeAllowedHosts = dedupeAndTrim(c.WebNativeAllowedHosts)
-	c.WebNativeBlockedHosts = dedupeAndTrim(c.WebNativeBlockedHosts)
-	c.WebNativeAllowedHostFiles = dedupeAndTrim(c.WebNativeAllowedHostFiles)
-	c.WebNativeBlockedHostFiles = dedupeAndTrim(c.WebNativeBlockedHostFiles)
-	c.RulesFiles = normalizeRulePaths(c.RulesFiles)
-	c.Instruct = strings.TrimSpace(c.Instruct)
+	c.Models.Main.Name = strings.TrimSpace(c.Models.Main.Name)
+	c.Models.Summary.Name = strings.TrimSpace(c.Models.Summary.Name)
+	c.Models.Main.Provider = strings.TrimSpace(strings.ToLower(c.Models.Main.Provider))
+	c.Models.Embedding.Provider = strings.TrimSpace(strings.ToLower(c.Models.Embedding.Provider))
+	c.Models.Embedding.Name = strings.TrimSpace(c.Models.Embedding.Name)
+	c.Models.Key = strings.TrimSpace(c.Models.Key)
+	c.Models.OpenAIAPIKey = strings.TrimSpace(c.Models.OpenAIAPIKey)
+	c.Models.OpenRouterAPIKey = strings.TrimSpace(c.Models.OpenRouterAPIKey)
+	c.Models.Main.BaseURL = strings.TrimSpace(c.Models.Main.BaseURL)
+	c.Models.Summary.Provider = strings.TrimSpace(strings.ToLower(c.Models.Summary.Provider))
+	c.Models.Summary.BaseURL = strings.TrimSpace(c.Models.Summary.BaseURL)
+	c.Models.Main.APIMode = strings.TrimSpace(strings.ToLower(c.Models.Main.APIMode))
+	c.Models.Summary.APIMode = strings.TrimSpace(strings.ToLower(c.Models.Summary.APIMode))
+	c.Log.Level = strings.TrimSpace(strings.ToLower(c.Log.Level))
+	c.Debug.TraceDir = strings.TrimSpace(c.Debug.TraceDir)
+	c.Web.Provider = strings.TrimSpace(strings.ToLower(c.Web.Provider))
+	c.Web.APIKey = strings.TrimSpace(c.Web.APIKey)
+	c.Web.BaseURL = strings.TrimSpace(c.Web.BaseURL)
+	c.Web.BlockedDomains = dedupeAndTrim(c.Web.BlockedDomains)
+	c.Web.BlockedDomainFiles = dedupeAndTrim(c.Web.BlockedDomainFiles)
+	c.Web.NativeAllowedHosts = dedupeAndTrim(c.Web.NativeAllowedHosts)
+	c.Web.NativeBlockedHosts = dedupeAndTrim(c.Web.NativeBlockedHosts)
+	c.Web.NativeAllowedHostFiles = dedupeAndTrim(c.Web.NativeAllowedHostFiles)
+	c.Web.NativeBlockedHostFiles = dedupeAndTrim(c.Web.NativeBlockedHostFiles)
+	c.Rules.Files = normalizeRulePaths(c.Rules.Files)
+	c.Session.Instruct = strings.TrimSpace(c.Session.Instruct)
 	c.Platform = strings.TrimSpace(strings.ToLower(c.Platform))
-	c.FSRoots = normalizeFSRoots(c.FSRoots)
-	c.ExecAllow = dedupeAndTrim(c.ExecAllow)
-	c.ExecAsk = dedupeAndTrim(c.ExecAsk)
-	c.ExecDeny = dedupeAndTrim(c.ExecDeny)
-	c.StorageBackend = strings.TrimSpace(strings.ToLower(c.StorageBackend))
+	c.FS.Roots = normalizeFSRoots(c.FS.Roots)
+	c.Exec.Allow = dedupeAndTrim(c.Exec.Allow)
+	c.Exec.Ask = dedupeAndTrim(c.Exec.Ask)
+	c.Exec.Deny = dedupeAndTrim(c.Exec.Deny)
+	c.Storage.Backend = strings.TrimSpace(strings.ToLower(c.Storage.Backend))
+	c.Reranker.Type = strings.TrimSpace(strings.ToLower(c.Reranker.Type))
+	c.Reranker.Model = strings.TrimSpace(c.Reranker.Model)
 
-	if c.Model == "" {
-		c.Model = defaultModel
+	if c.Models.Main.Name == "" {
+		c.Models.Main.Name = defaultModel
 	}
-	if c.Stream == nil {
-		c.Stream = new(true)
+	if c.Models.Main.Stream == nil {
+		c.Models.Main.Stream = new(true)
 	}
-	if c.VerifyModel == nil {
-		c.VerifyModel = new(true)
+	if c.Models.Verify == nil {
+		c.Models.Verify = new(true)
 	}
-	if c.ModelMaxRetries == nil {
-		c.ModelMaxRetries = new(DefaultModelMaxRetries)
+	if c.Models.MaxRetries == nil {
+		c.Models.MaxRetries = new(DefaultModelMaxRetries)
 	}
-	if c.ContextLength <= 0 {
-		c.ContextLength = defaultContextLength
-	}
-
-	if c.ModelProvider == "" {
-		c.ModelProvider = defaultModelProvider
+	if c.Models.Main.ContextLength <= 0 {
+		c.Models.Main.ContextLength = defaultContextLength
 	}
 
-	if c.ModelAPIMode == "" {
-		c.ModelAPIMode = DefaultModelAPIMode
+	if c.Models.Main.Provider == "" {
+		c.Models.Main.Provider = defaultModelProvider
 	}
 
-	if c.LogLevel == "" {
-		c.LogLevel = "info"
-	}
-	if c.RPCAddress == "" {
-		c.RPCAddress = "127.0.0.1"
+	if c.Models.Main.APIMode == "" {
+		c.Models.Main.APIMode = DefaultModelAPIMode
 	}
 
-	if c.RPCPort == 0 {
-		c.RPCPort = 50051
+	if c.Log.Level == "" {
+		c.Log.Level = "info"
 	}
-	if c.MaxIterations == 0 {
-		c.MaxIterations = defaultMaxIterations
+	if c.RPC.Address == "" {
+		c.RPC.Address = "127.0.0.1"
 	}
-	if c.DebugTraceDir == "" {
-		c.DebugTraceDir = datadir.DebugTraceDir()
+
+	if c.RPC.Port == 0 {
+		c.RPC.Port = 50051
+	}
+	if c.Session.MaxIterations == 0 {
+		c.Session.MaxIterations = defaultMaxIterations
+	}
+	if c.Debug.TraceDir == "" {
+		c.Debug.TraceDir = datadir.DebugTraceDir()
 	}
 	if c.Platform == "" {
 		c.Platform = "cli"
 	}
-	if c.WebMaxCharPerResult <= 0 {
-		c.WebMaxCharPerResult = DefaultWebMaxCharPerResult
+	if c.Web.MaxCharPerResult <= 0 {
+		c.Web.MaxCharPerResult = DefaultWebMaxCharPerResult
 	}
-	if c.WebMaxExtractCharPerResult <= 0 {
-		c.WebMaxExtractCharPerResult = DefaultWebMaxExtractCharPerResult
+	if c.Web.MaxExtractCharPerResult <= 0 {
+		c.Web.MaxExtractCharPerResult = DefaultWebMaxExtractCharPerResult
 	}
-	if c.WebMaxExtractResponseBytes <= 0 {
-		c.WebMaxExtractResponseBytes = DefaultWebMaxExtractResponseBytes
+	if c.Web.MaxExtractResponseBytes <= 0 {
+		c.Web.MaxExtractResponseBytes = DefaultWebMaxExtractResponseBytes
 	}
-	if c.WebCacheTTL < 0 {
-		c.WebCacheTTL = DefaultWebCacheTTL
+	if c.Web.CacheTTL < 0 {
+		c.Web.CacheTTL = DefaultWebCacheTTL
 	}
-	if c.WebExtractMinSummarizeChars <= 0 {
-		c.WebExtractMinSummarizeChars = DefaultWebExtractMinSummarizeChars
+	if c.Web.ExtractMinSummarizeChars <= 0 {
+		c.Web.ExtractMinSummarizeChars = DefaultWebExtractMinSummarizeChars
 	}
-	if c.WebExtractMaxSummaryChars <= 0 {
-		c.WebExtractMaxSummaryChars = DefaultWebExtractMaxSummaryChars
+	if c.Web.ExtractMaxSummaryChars <= 0 {
+		c.Web.ExtractMaxSummaryChars = DefaultWebExtractMaxSummaryChars
 	}
-	if c.WebExtractMaxSummaryChunkChars <= 0 {
-		c.WebExtractMaxSummaryChunkChars = DefaultWebExtractMaxSummaryChunkChars
+	if c.Web.ExtractMaxSummaryChunkChars <= 0 {
+		c.Web.ExtractMaxSummaryChunkChars = DefaultWebExtractMaxSummaryChunkChars
 	}
-	if c.WebExtractRefusalThresholdChars <= 0 {
-		c.WebExtractRefusalThresholdChars = DefaultWebExtractRefusalThresholdChars
-	}
-
-	if c.CapFilesystem == nil {
-		c.CapFilesystem = new(true)
-	}
-	if c.CapNetwork == nil {
-		c.CapNetwork = new(true)
-	}
-	if c.CapExec == nil {
-		c.CapExec = new(true)
-	}
-	if c.CapMemory == nil {
-		c.CapMemory = new(true)
-	}
-	if c.CapBrowser == nil {
-		c.CapBrowser = new(false)
+	if c.Web.ExtractRefusalThresholdChars <= 0 {
+		c.Web.ExtractRefusalThresholdChars = DefaultWebExtractRefusalThresholdChars
 	}
 
-	if len(c.FSRoots) == 0 {
-		c.FSRoots = defaultFSRoots()
+	if c.Cap.Filesystem == nil {
+		c.Cap.Filesystem = new(true)
+	}
+	if c.Cap.Network == nil {
+		c.Cap.Network = new(true)
+	}
+	if c.Cap.Exec == nil {
+		c.Cap.Exec = new(true)
+	}
+	if c.Cap.Memory == nil {
+		c.Cap.Memory = new(true)
+	}
+	if c.Cap.Browser == nil {
+		c.Cap.Browser = new(false)
 	}
 
-	if c.StorageBackend == "" {
-		c.StorageBackend = "sqlite"
+	if len(c.FS.Roots) == 0 {
+		c.FS.Roots = defaultFSRoots()
 	}
 
-	if c.SessionDefaultIdleExpiry <= 0 {
-		c.SessionDefaultIdleExpiry = 24 * time.Hour
+	if c.Storage.Backend == "" {
+		c.Storage.Backend = "sqlite"
 	}
-	if c.SessionArchiveRetention <= 0 {
-		c.SessionArchiveRetention = 30 * 24 * time.Hour
+
+	if c.Session.DefaultIdleExpiry <= 0 {
+		c.Session.DefaultIdleExpiry = 24 * time.Hour
 	}
-	if c.CompactionEnabled == nil {
-		c.CompactionEnabled = new(true)
+	if c.Session.ArchiveRetention <= 0 {
+		c.Session.ArchiveRetention = 30 * 24 * time.Hour
 	}
-	if c.CompactionTriggerPercent <= 0 {
-		c.CompactionTriggerPercent = 0.85
+	if c.Compaction.Enabled == nil {
+		c.Compaction.Enabled = new(true)
 	}
-	if c.CompactionWarnPercent <= 0 {
-		c.CompactionWarnPercent = 0.95
+	if c.Compaction.TriggerPercent <= 0 {
+		c.Compaction.TriggerPercent = 0.85
 	}
+	if c.Compaction.WarnPercent <= 0 {
+		c.Compaction.WarnPercent = 0.95
+	}
+
 }
 
 func (c *Config) applyDefaultModelBaseURL() {
-	if c == nil || c.ModelBaseURL != "" {
+	if c == nil || c.Models.Main.BaseURL != "" {
 		return
 	}
 
-	if mapped := defaultBaseURLForProvider(c.ModelProvider, c.ModelAPIMode); mapped != "" {
-		c.ModelBaseURL = mapped
+	if mapped := defaultBaseURLForProvider(c.Models.Main.Provider, c.Models.Main.APIMode); mapped != "" {
+		c.Models.Main.BaseURL = mapped
 	}
 }
 
@@ -878,12 +872,12 @@ func defaultBaseURLForProvider(provider, apiMode string) string {
 	return u
 }
 
-func (c *Config) VerifyModelEnabled() bool {
+func (c *Config) VerifyEnabled() bool {
 	if c == nil {
 		return true
 	}
 
-	return boolValueDefault(c.VerifyModel, true)
+	return boolValueDefault(c.Models.Verify, true)
 }
 
 func (c *Config) StreamEnabled() bool {
@@ -891,7 +885,7 @@ func (c *Config) StreamEnabled() bool {
 		return true
 	}
 
-	return boolValueDefault(c.Stream, true)
+	return boolValueDefault(c.Models.Main.Stream, true)
 }
 
 func (c *Config) ModelMaxRetriesEffective() int {
@@ -900,7 +894,7 @@ func (c *Config) ModelMaxRetriesEffective() int {
 	}
 
 	c.normalizeFields()
-	return *c.ModelMaxRetries
+	return *c.Models.MaxRetries
 }
 
 func (c *Config) SummaryModelEffective() string {
@@ -909,11 +903,11 @@ func (c *Config) SummaryModelEffective() string {
 	}
 
 	c.normalizeFields()
-	if c.SummaryModel != "" {
-		return c.SummaryModel
+	if c.Models.Summary.Name != "" {
+		return c.Models.Summary.Name
 	}
 
-	return c.Model
+	return c.Models.Main.Name
 }
 
 func (c *Config) SummaryProviderEffective() string {
@@ -922,11 +916,11 @@ func (c *Config) SummaryProviderEffective() string {
 	}
 
 	c.normalizeFields()
-	if c.SummaryProvider != "" {
-		return c.SummaryProvider
+	if c.Models.Summary.Provider != "" {
+		return c.Models.Summary.Provider
 	}
 
-	return c.ModelProvider
+	return c.Models.Main.Provider
 }
 
 func (c *Config) SummaryModelAPIModeEffective() string {
@@ -935,24 +929,50 @@ func (c *Config) SummaryModelAPIModeEffective() string {
 	}
 
 	c.normalizeFields()
-	if c.SummaryModelAPIMode != "" {
-		return c.SummaryModelAPIMode
+	if c.Models.Summary.APIMode != "" {
+		return c.Models.Summary.APIMode
 	}
 
-	return c.ModelAPIMode
+	return c.Models.Main.APIMode
+}
+
+func (c *Config) RerankerEffective() string {
+	if c == nil {
+		return rerank.Deterministic
+	}
+
+	c.normalizeFields()
+	if c.Reranker.Type != "" {
+		return c.Reranker.Type
+	}
+
+	return rerank.Deterministic
+}
+
+func (c *Config) RerankerModelEffective() string {
+	if c == nil {
+		return ""
+	}
+
+	c.normalizeFields()
+	if c.Reranker.Model != "" {
+		return c.Reranker.Model
+	}
+
+	return c.SummaryModelEffective()
 }
 
 func (c *Config) summaryModelBaseURLEffective() string {
-	main := c.ModelProvider
+	main := c.Models.Main.Provider
 	sum := c.SummaryProviderEffective()
 	sumMode := c.SummaryModelAPIModeEffective()
-	mainMode := c.ModelAPIMode
+	mainMode := c.Models.Main.APIMode
 
 	if sum == main && sumMode == mainMode {
-		return c.ModelBaseURL
+		return c.Models.Main.BaseURL
 	}
 
-	if u := strings.TrimSpace(c.SummaryModelBaseURL); u != "" {
+	if u := strings.TrimSpace(c.Models.Summary.BaseURL); u != "" {
 		return u
 	}
 
@@ -1124,25 +1144,29 @@ func (c *Config) Validate() error {
 		return errors.New("name is required; set HAND_NAME, provide it in config, or use --name")
 	}
 
-	if !isValidModelSlug(c.Model) {
+	if !isValidModelSlug(c.Models.Main.Name) {
 		return errors.New("model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
 	}
 
-	if c.SummaryModel != "" && !isValidModelSlug(c.SummaryModel) {
+	if c.Models.Summary.Name != "" && !isValidModelSlug(c.Models.Summary.Name) {
 		return errors.New("summary model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
 	}
 
-	if _, ok := providerDefaultBaseURLs[strings.TrimSpace(strings.ToLower(c.ModelProvider))]; !ok {
+	if _, ok := providerDefaultBaseURLs[strings.TrimSpace(strings.ToLower(c.Models.Main.Provider))]; !ok {
 		return errors.New("model provider must be one of: openai, openrouter")
 	}
 
-	if c.SummaryProvider != "" {
-		if _, ok := providerDefaultBaseURLs[c.SummaryProvider]; !ok {
+	if c.Models.Summary.Provider != "" {
+		if _, ok := providerDefaultBaseURLs[c.Models.Summary.Provider]; !ok {
 			return errors.New("summary model provider must be one of: openai, openrouter")
 		}
 	}
 
-	if err := c.validateSessionVectorSettings(); err != nil {
+	if err := c.validateRerankerSettings(); err != nil {
+		return err
+	}
+
+	if err := c.validateSearchVectorSettings(); err != nil {
 		return err
 	}
 
@@ -1156,31 +1180,31 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	if strings.TrimSpace(c.RPCAddress) == "" {
+	if strings.TrimSpace(c.RPC.Address) == "" {
 		return errors.New("rpc address is required; set HAND_RPC_ADDRESS, provide it in config, or use --rpc.address")
 	}
 
-	if c.RPCPort <= 0 {
+	if c.RPC.Port <= 0 {
 		return errors.New("rpc port must be greater than zero; set HAND_RPC_PORT, provide it in config, or use --rpc.port")
 	}
 
-	if c.MaxIterations <= 0 {
-		return errors.New("max iterations must be greater than zero; set HAND_MAX_ITERATIONS, provide it in config, " +
+	if c.Session.MaxIterations <= 0 {
+		return errors.New("max iterations must be greater than zero; set HAND_SESSION_MAX_ITERATIONS, provide it in config, " +
 			"or use --max-iterations")
 	}
 	if c.ModelMaxRetriesEffective() < 0 {
 		return errors.New("model max retries must be greater than or equal to zero; use --model.max-retries")
 	}
 
-	switch c.ModelAPIMode {
+	switch c.Models.Main.APIMode {
 	case DefaultModelAPIMode:
 	case "responses":
 	default:
 		return errors.New("model api mode must be one of: completions, responses; use --model.api-mode")
 	}
 
-	if c.SummaryModelAPIMode != "" {
-		switch c.SummaryModelAPIMode {
+	if c.Models.Summary.APIMode != "" {
+		switch c.Models.Summary.APIMode {
 		case DefaultModelAPIMode:
 		case "responses":
 		default:
@@ -1189,32 +1213,32 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	if c.StorageBackend != "memory" && c.StorageBackend != "sqlite" {
+	if c.Storage.Backend != "memory" && c.Storage.Backend != "sqlite" {
 		return errors.New("storage backend must be one of: memory, sqlite")
 	}
-	if c.CompactionTriggerPercent >= 1 {
+	if c.Compaction.TriggerPercent >= 1 {
 		return errors.New("compaction trigger percent must be greater than zero and less than one")
 	}
-	if c.CompactionWarnPercent >= 1 {
+	if c.Compaction.WarnPercent >= 1 {
 		return errors.New("compaction warn percent must be greater than zero and less than one")
 	}
-	if c.CompactionWarnPercent < c.CompactionTriggerPercent {
+	if c.Compaction.WarnPercent < c.Compaction.TriggerPercent {
 		return errors.New("compaction warn percent must be greater than or equal to compaction trigger percent")
 	}
 
-	if c.VerifyModelEnabled() {
-		verifySlots := []modelVerifySlot{{field: "model.name", slug: c.Model}}
-		if c.SummaryModel != "" && c.SummaryModel != c.Model {
-			verifySlots = append(verifySlots, modelVerifySlot{field: "model.summaryModel", slug: c.SummaryModel})
+	if c.VerifyEnabled() {
+		verifySlots := []modelVerifySlot{{field: "models.main.name", slug: c.Models.Main.Name}}
+		if c.Models.Summary.Name != "" && c.Models.Summary.Name != c.Models.Main.Name {
+			verifySlots = append(verifySlots, modelVerifySlot{field: "models.summary.name", slug: c.Models.Summary.Name})
 		}
 
 		for _, slot := range verifySlots {
 			slotAuth := auth
-			if slot.field == "model.summaryModel" {
+			if slot.field == "models.summary.name" {
 				slotAuth = summaryAuth
 			}
 			verifyCfg := *c
-			verifyCfg.Model = slot.slug
+			verifyCfg.Models.Main.Name = slot.slug
 			meta, err := resolveModelMeta(context.Background(), &verifyCfg, slotAuth)
 			if err != nil {
 				return fmt.Errorf("%s: %w", slot.field, err)
@@ -1225,7 +1249,7 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	switch strings.TrimSpace(strings.ToLower(c.LogLevel)) {
+	switch strings.TrimSpace(strings.ToLower(c.Log.Level)) {
 	case "", "debug", "info", "warn", "error":
 		return nil
 	default:
@@ -1233,18 +1257,18 @@ func (c *Config) Validate() error {
 	}
 }
 
-func (c *Config) validateSessionVectorSettings() error {
-	if !c.SessionVectorEnabled {
+func (c *Config) validateSearchVectorSettings() error {
+	if !c.Search.Vector.Enabled {
 		return nil
 	}
 	provider := c.ModelEmbeddingProviderEffective()
 	if _, ok := providerDefaultBaseURLs[provider]; !ok {
 		return errors.New("embedding provider must be one of: openai, openrouter")
 	}
-	if c.ModelEmbeddingModel == "" {
+	if c.Models.Embedding.Name == "" {
 		return errors.New("embedding model is required")
 	}
-	if c.SessionVectorRebuildBatchSize < 0 {
+	if c.Search.Vector.RebuildBatchSize < 0 {
 		return errors.New("vector rebuild batch size must be non-negative")
 	}
 	auth, err := c.ResolveEmbeddingModelAuth()
@@ -1258,8 +1282,32 @@ func (c *Config) validateSessionVectorSettings() error {
 	return nil
 }
 
+func (c *Config) validateRerankerSettings() error {
+	switch c.RerankerEffective() {
+	case rerank.Deterministic, rerank.Noop, rerank.LLM:
+	default:
+		return errors.New("reranker type must be one of: deterministic, noop, llm")
+	}
+	if c.Reranker.MaxCandidates < 0 {
+		return errors.New("reranker max candidates must be non-negative")
+	}
+	if c.Reranker.MaxCandidateTextChars < 0 {
+		return errors.New("reranker max candidate text chars must be non-negative")
+	}
+	if c.Reranker.MaxOutputTokens < 0 {
+		return errors.New("reranker max output tokens must be non-negative")
+	}
+	if c.RerankerEffective() == rerank.LLM {
+		if c.RerankerModelEffective() == "" {
+			return errors.New("reranker model is required")
+		}
+	}
+
+	return nil
+}
+
 func (c *Config) validateEmbeddingModelExists(ctx context.Context, auth ModelAuth) error {
-	if !c.VerifyModelEnabled() {
+	if !c.VerifyEnabled() {
 		return nil
 	}
 
@@ -1272,19 +1320,19 @@ func (c *Config) validateEmbeddingModelExists(ctx context.Context, auth ModelAut
 		meta, err = fetchOpenRouterModelEndpoints(
 			ctx,
 			defaultBaseURLForProvider("openrouter", DefaultModelAPIMode),
-			c.ModelEmbeddingModel,
+			c.Models.Embedding.Name,
 			auth.APIKey,
 		)
 	case "openai":
-		meta, err = fetchOpenAIModelExists(ctx, c.ModelEmbeddingModel)
+		meta, err = fetchOpenAIModelExists(ctx, c.Models.Embedding.Name)
 	default:
-		return fmt.Errorf("model.embeddingModel: unsupported model provider %q", auth.Provider)
+		return fmt.Errorf("models.embedding.name: unsupported model provider %q", auth.Provider)
 	}
 	if err != nil {
-		return fmt.Errorf("model.embeddingModel: %w", err)
+		return fmt.Errorf("models.embedding.name: %w", err)
 	}
 	if !meta.Exists {
-		return fmt.Errorf("model.embeddingModel: %w", unknownModelError(auth.Provider, c.ModelEmbeddingModel))
+		return fmt.Errorf("models.embedding.name: %w", unknownModelError(auth.Provider, c.Models.Embedding.Name))
 	}
 
 	return nil
@@ -1320,11 +1368,11 @@ func (c *Config) ModelEmbeddingProviderEffective() string {
 	}
 
 	c.normalizeFields()
-	if c.ModelEmbeddingProvider != "" {
-		return c.ModelEmbeddingProvider
+	if c.Models.Embedding.Provider != "" {
+		return c.Models.Embedding.Provider
 	}
 
-	return c.ModelProvider
+	return c.Models.Main.Provider
 }
 
 func (c *Config) ResolveModelAuth() (ModelAuth, error) {
@@ -1335,11 +1383,11 @@ func (c *Config) ResolveModelAuth() (ModelAuth, error) {
 	c.Normalize()
 
 	auth := ModelAuth{
-		Provider: c.ModelProvider,
-		BaseURL:  c.ModelBaseURL,
+		Provider: c.Models.Main.Provider,
+		BaseURL:  c.Models.Main.BaseURL,
 	}
 
-	auth.APIKey = c.resolveAPIKeyForProvider(c.ModelProvider)
+	auth.APIKey = c.resolveAPIKeyForProvider(c.Models.Main.Provider)
 	if strings.TrimSpace(auth.APIKey) == "" {
 		return ModelAuth{}, errors.New("model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
 	}
@@ -1350,11 +1398,11 @@ func (c *Config) ResolveModelAuth() (ModelAuth, error) {
 func (c *Config) resolveAPIKeyForProvider(provider string) string {
 	switch provider {
 	case "openrouter":
-		return firstNonEmpty(c.OpenRouterAPIKey, c.ModelKey)
+		return firstNonEmpty(c.Models.OpenRouterAPIKey, c.Models.Key)
 	case "openai":
-		return firstNonEmpty(c.OpenAIAPIKey, c.ModelKey)
+		return firstNonEmpty(c.Models.OpenAIAPIKey, c.Models.Key)
 	default:
-		return c.ModelKey
+		return c.Models.Key
 	}
 }
 
@@ -1413,7 +1461,7 @@ func applyProviderModelMetadata(ctx context.Context, cfg *Config, requestedConte
 	if cfg == nil {
 		return
 	}
-	if !cfg.VerifyModelEnabled() {
+	if !cfg.VerifyEnabled() {
 		return
 	}
 
@@ -1428,7 +1476,7 @@ func applyProviderModelMetadata(ctx context.Context, cfg *Config, requestedConte
 	}
 
 	if requestedContextLength <= 0 || requestedContextLength > meta.ContextLength {
-		cfg.ContextLength = meta.ContextLength
+		cfg.Models.Main.ContextLength = meta.ContextLength
 	}
 }
 
@@ -1437,7 +1485,7 @@ func resolveModelMetadataFromProvider(ctx context.Context, cfg *Config, auth Mod
 		return ModelMetadata{}, nil
 	}
 
-	return resolveModelMetadataForSlug(ctx, auth, cfg.Model)
+	return resolveModelMetadataForSlug(ctx, auth, cfg.Models.Main.Name)
 }
 
 func resolveModelMetadataForSlug(ctx context.Context, auth ModelAuth, slug string) (ModelMetadata, error) {

@@ -61,7 +61,7 @@ func TestInitLogger_UsesCurrentNoColorSetting(t *testing.T) {
 		config.Set(originalConfig)
 	})
 
-	config.Set(&config.Config{LogNoColor: true})
+	config.Set(&config.Config{Log: config.LogConfig{NoColor: true}})
 	buf := &bytes.Buffer{}
 	SetOutput(buf)
 
@@ -84,7 +84,7 @@ func TestGetLogger_UsesCurrentNoColorSetting(t *testing.T) {
 		config.Set(originalConfig)
 	})
 
-	config.Set(&config.Config{LogNoColor: false})
+	config.Set(&config.Config{Log: config.LogConfig{NoColor: false}})
 	buf := &bytes.Buffer{}
 	SetOutput(buf)
 
@@ -141,7 +141,7 @@ func TestCurrentNoColorSetting_UsesConfig(t *testing.T) {
 	config.Set(nil)
 	require.False(t, currentNoColorSetting())
 
-	config.Set(&config.Config{LogNoColor: true})
+	config.Set(&config.Config{Log: config.LogConfig{NoColor: true}})
 	require.True(t, currentNoColorSetting())
 }
 

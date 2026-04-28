@@ -94,46 +94,55 @@ func renderStartupPanel(cfg *config.Config) string {
 
 	logStyle := "color"
 	debugRequests := "disabled"
-	if cfg.LogNoColor {
+	if cfg.Log.NoColor {
 		logStyle = "plain"
 	}
 
-	if cfg.DebugRequests {
+	if cfg.Debug.Requests {
 		debugRequests = "enabled"
 	}
 	traceStatus := "disabled"
-	if cfg.DebugTraces {
-		traceStatus = fmt.Sprintf("enabled (%s)", cfg.DebugTraceDir)
+	if cfg.Debug.Traces {
+		traceStatus = fmt.Sprintf("enabled (%s)", cfg.Debug.TraceDir)
 	}
 
 	lines := []string{
-		styleStartup(handBadge, cfg.LogNoColor),
-		styleStartup(handcli.AppDescription, cfg.LogNoColor),
+		styleStartup(handBadge, cfg.Log.NoColor),
+		styleStartup(handcli.AppDescription, cfg.Log.NoColor),
 		"",
-		fmt.Sprintf("%s %s", styleLabel("Instance", cfg.LogNoColor), cfg.Name),
-		fmt.Sprintf("%s %s", styleLabel("Model", cfg.LogNoColor), cfg.Model),
-		fmt.Sprintf("%s %s", styleLabel("Provider", cfg.LogNoColor), cfg.ModelProvider),
-		fmt.Sprintf("%s %s", styleLabel("Summary model", cfg.LogNoColor), cfg.SummaryModelEffective()),
-		fmt.Sprintf("%s %s", styleLabel("Summary provider", cfg.LogNoColor), cfg.SummaryProviderEffective()),
+		fmt.Sprintf("%s %s", styleLabel("Instance", cfg.Log.NoColor), cfg.Name),
+		fmt.Sprintf("%s %s", styleLabel("Model", cfg.Log.NoColor), cfg.Models.Main.Name),
+		fmt.Sprintf("%s %s", styleLabel("Provider", cfg.Log.NoColor), cfg.Models.Main.Provider),
+		fmt.Sprintf("%s %s", styleLabel("Summary model", cfg.Log.NoColor), cfg.SummaryModelEffective()),
+		fmt.Sprintf("%s %s", styleLabel("Summary provider", cfg.Log.NoColor), cfg.SummaryProviderEffective()),
 	}
-	if cfg.SummaryModelAPIModeEffective() != cfg.ModelAPIMode {
-		lines = append(lines, fmt.Sprintf("%s %s", styleLabel("Summary API mode", cfg.LogNoColor), cfg.SummaryModelAPIModeEffective()))
+	if cfg.SummaryModelAPIModeEffective() != cfg.Models.Main.APIMode {
+		lines = append(lines, fmt.Sprintf("%s %s", styleLabel("Summary API mode", cfg.Log.NoColor), cfg.SummaryModelAPIModeEffective()))
 	}
 	lines = append(lines,
-		fmt.Sprintf("%s %t", styleLabel("Streaming", cfg.LogNoColor), cfg.StreamEnabled()),
-		fmt.Sprintf("%s %s", styleLabel("RPC", cfg.LogNoColor), fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort)),
-		fmt.Sprintf("%s %s", styleLabel("Logs", cfg.LogNoColor), fmt.Sprintf("%s (%s)", cfg.LogLevel, logStyle)),
-		fmt.Sprintf("%s %s", styleLabel("Debug requests", cfg.LogNoColor), debugRequests),
-		fmt.Sprintf("%s %s", styleLabel("Traces", cfg.LogNoColor), traceStatus),
+		fmt.Sprintf("%s %t", styleLabel("Streaming", cfg.Log.NoColor), cfg.StreamEnabled()),
+		fmt.Sprintf("%s %s", styleLabel("RPC", cfg.Log.NoColor), fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)),
+		fmt.Sprintf("%s %s", styleLabel("Logs", cfg.Log.NoColor), fmt.Sprintf("%s (%s)", cfg.Log.Level, logStyle)),
+		fmt.Sprintf("%s %s", styleLabel("Debug requests", cfg.Log.NoColor), debugRequests),
+		fmt.Sprintf("%s %s", styleLabel("Traces", cfg.Log.NoColor), traceStatus),
 	)
-	if cfg.SessionVectorEnabled {
+	if cfg.Search.Vector.Enabled {
 		lines = append(lines,
-			fmt.Sprintf("%s %s", styleLabel("Embedding model", cfg.LogNoColor), cfg.ModelEmbeddingModel),
-			fmt.Sprintf("%s %s", styleLabel("Embedding provider", cfg.LogNoColor), cfg.ModelEmbeddingProviderEffective()),
+			fmt.Sprintf("%s %s", styleLabel("Embedding model", cfg.Log.NoColor), cfg.Models.Embedding.Name),
+			fmt.Sprintf("%s %s", styleLabel("Embedding provider", cfg.Log.NoColor), cfg.ModelEmbeddingProviderEffective()),
+			fmt.Sprintf("%s %s", styleLabel("Reranker", cfg.Log.NoColor), cfg.RerankerEffective()),
 		)
 	}
 
 	return strings.Join(lines, "\n") + "\n"
+}
+
+func configBoolDefault(value *bool, fallback bool) bool {
+	if value == nil {
+		return fallback
+	}
+
+	return *value
 }
 
 func styleStartup(value string, noColor bool) string {
@@ -151,7 +160,7 @@ func styleLabel(value string, noColor bool) string {
 }
 
 var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) error {
-	lis, err := listenFunc("tcp", fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort))
+	lis, err := listenFunc("tcp", fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port))
 	if err != nil {
 		return err
 	}
@@ -168,8 +177,8 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) 
 	}()
 
 	log.Info().
-		Str("rpcAddress", cfg.RPCAddress).
-		Int("rpcPort", cfg.RPCPort).
+		Str("rpcAddress", cfg.RPC.Address).
+		Int("rpcPort", cfg.RPC.Port).
 		Msg("RPC server listening")
 
 	select {
@@ -227,8 +236,8 @@ func NewCommand() *cli.Command {
 			auth, _ := cfg.ResolveModelAuth()
 
 			config.Set(cfg)
-			_ = logutils.ConfigureLogger("hand", cfg.LogNoColor)
-			logutils.SetLogLevel(cfg.LogLevel)
+			_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
+			logutils.SetLogLevel(cfg.Log.Level)
 
 			if _, err := fmt.Fprint(startupOutput, renderStartupPanel(cfg)); err != nil {
 				return err
@@ -239,30 +248,38 @@ func NewCommand() *cli.Command {
 
 			log.Info().
 				Str("name", cfg.Name).
-				Str("model", cfg.Model).
-				Str("provider", cfg.ModelProvider).
+				Str("model", cfg.Models.Main.Name).
+				Str("provider", cfg.Models.Main.Provider).
 				Str("summaryModel", cfg.SummaryModelEffective()).
 				Str("summaryProvider", cfg.SummaryProviderEffective()).
 				Msg("Configuration loaded")
-			if cfg.SessionVectorEnabled {
-				log.Info().
-					Str("embeddingModel", cfg.ModelEmbeddingModel).
+			if cfg.Search.Vector.Enabled {
+				vectorLog := log.Info().
+					Str("embeddingModel", cfg.Models.Embedding.Name).
 					Str("embeddingProvider", cfg.ModelEmbeddingProviderEffective()).
-					Msg("Session vector embedding configured")
+					Bool("rerankerEnabled", configBoolDefault(cfg.Reranker.Enabled, true)).
+					Bool("searchRerankEnabled", configBoolDefault(cfg.Search.EnableRerank, true)).
+					Str("reranker", cfg.RerankerEffective())
+				if cfg.RerankerEffective() == "llm" {
+					vectorLog = vectorLog.
+						Str("rerankModel", cfg.RerankerModelEffective()).
+						Str("rerankApiMode", cfg.SummaryModelAPIModeEffective())
+				}
+				vectorLog.Msg("Session vector embedding configured")
 			}
 
 			startupLog := log.Info().
-				Str("rpcEndpoint", fmt.Sprintf("%s:%d", cfg.RPCAddress, cfg.RPCPort)).
+				Str("rpcEndpoint", fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)).
 				Bool("streaming", cfg.StreamEnabled()).
-				Bool("debugTraces", cfg.DebugTraces)
-			if cfg.DebugTraces {
-				startupLog = startupLog.Str("debugTraceDir", cfg.DebugTraceDir)
+				Bool("debugTraces", cfg.Debug.Traces)
+			if cfg.Debug.Traces {
+				startupLog = startupLog.Str("debugTraceDir", cfg.Debug.TraceDir)
 			}
 			startupLog.Msg("Starting Hand services")
 
 			clientOptions := make([]option.RequestOption, 0, 2)
-			if cfg.ModelBaseURL != "" {
-				clientOptions = append(clientOptions, option.WithBaseURL(cfg.ModelBaseURL))
+			if cfg.Models.Main.BaseURL != "" {
+				clientOptions = append(clientOptions, option.WithBaseURL(cfg.Models.Main.BaseURL))
 			}
 			clientOptions = append(clientOptions, option.WithMaxRetries(cfg.ModelMaxRetriesEffective()))
 

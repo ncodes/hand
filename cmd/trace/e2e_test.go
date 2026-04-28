@@ -23,7 +23,7 @@ func init() {
 func Test_E2E_TraceCommand_GeneratedTracesAreReadable(t *testing.T) {
 	home := filepath.Join(t.TempDir(), "hand-home")
 	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "sqlite"})
-	cfg.DebugTraces = true
+	cfg.Debug.Traces = true
 
 	h, err := e2e.NewDefaultRPCHarness(context.Background(), home, e2e.NewClient(e2e.Step{
 		Response: &models.Response{OutputText: "trace reply"},
@@ -43,14 +43,14 @@ func Test_E2E_TraceCommand_GeneratedTracesAreReadable(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- NewCommand().Run(ctx, []string{"trace", "view", "--trace-dir", h.Config().DebugTraceDir, "--listen", listenAddr})
+		errCh <- NewCommand().Run(ctx, []string{"trace", "view", "--trace-dir", h.Config().Debug.TraceDir, "--listen", listenAddr})
 	}()
 
 	baseURL := "http://" + listenAddr
 	waitForServer(t, baseURL+"/api/sessions")
 
 	t.Run("Trace files are written", func(t *testing.T) {
-		traceFiles, globErr := filepath.Glob(filepath.Join(h.Config().DebugTraceDir, "*.jsonl"))
+		traceFiles, globErr := filepath.Glob(filepath.Join(h.Config().Debug.TraceDir, "*.jsonl"))
 		require.NoError(t, globErr)
 		require.NotEmpty(t, traceFiles)
 		require.Len(t, traceFiles, 1)
@@ -98,7 +98,7 @@ func Test_E2E_TraceCommand_GeneratedTracesAreReadable(t *testing.T) {
 		go func() {
 			authErrCh <- NewCommand().Run(authCtx, []string{
 				"trace", "view",
-				"--trace-dir", h.Config().DebugTraceDir,
+				"--trace-dir", h.Config().Debug.TraceDir,
 				"--listen", authListenAddr,
 				"--username", "viewer",
 				"--password", "secret",
