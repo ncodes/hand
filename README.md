@@ -61,6 +61,8 @@ Config file values:
 - `log.level`
 - `log.noColor`
 - `debug.requests`
+- `memory.enabled`
+- `memory.provider`
 
 Env equivalents:
 - `HAND_NAME`
@@ -81,6 +83,8 @@ Env equivalents:
 - `HAND_LOG_LEVEL`
 - `HAND_LOG_NO_COLOR`
 - `HAND_DEBUG_REQUESTS`
+- `HAND_MEMORY_ENABLED`
+- `HAND_MEMORY_PROVIDER`
 
 ### Model Configuration
 

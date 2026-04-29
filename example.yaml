@@ -47,6 +47,9 @@
 #     required: false
 #     rebuildBatchSize: 100
 #   enableRerank: true
+# memory:
+#   enabled: false
+#   provider: "noop"
 # reranker:
 #   enabled: true
 #   type: "deterministic"

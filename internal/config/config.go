@@ -33,6 +33,7 @@ type Config struct {
 	Storage    StorageConfig    `yaml:"storage"`
 	Session    SessionConfig    `yaml:"session"`
 	Search     SearchConfig     `yaml:"search"`
+	Memory     MemoryConfig     `yaml:"memory"`
 	Reranker   RerankerConfig   `yaml:"reranker"`
 	Compaction CompactionConfig `yaml:"compaction"`
 	Cap        CapConfig        `yaml:"cap"`
@@ -110,6 +111,11 @@ type SearchVectorConfig struct {
 	Enabled          bool `yaml:"enabled"`
 	Required         bool `yaml:"required"`
 	RebuildBatchSize int  `yaml:"rebuildBatchSize"`
+}
+
+type MemoryConfig struct {
+	Enabled  *bool  `yaml:"enabled"`
+	Provider string `yaml:"provider"`
 }
 
 type RerankerConfig struct {
@@ -342,6 +348,10 @@ func Get() *Config {
 				Enabled:        new(true),
 				TriggerPercent: 0.85,
 				WarnPercent:    0.95,
+			},
+			Memory: MemoryConfig{
+				Enabled:  new(false),
+				Provider: "noop",
 			},
 		}
 	}
@@ -629,6 +639,12 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("HAND_SEARCH_VECTOR_ENABLED"); ok {
 		cfg.Search.Vector.Enabled = value
 	}
+	if value, ok := parseOptionalBoolEnv("HAND_MEMORY_ENABLED"); ok {
+		cfg.Memory.Enabled = new(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_PROVIDER")); value != "" {
+		cfg.Memory.Provider = value
+	}
 	if value, ok := parseOptionalBoolEnv("HAND_SEARCH_VECTOR_REQUIRED"); ok {
 		cfg.Search.Vector.Required = value
 	}
@@ -719,6 +735,7 @@ func (c *Config) normalizeFields() {
 	c.Exec.Ask = dedupeAndTrim(c.Exec.Ask)
 	c.Exec.Deny = dedupeAndTrim(c.Exec.Deny)
 	c.Storage.Backend = strings.TrimSpace(strings.ToLower(c.Storage.Backend))
+	c.Memory.Provider = strings.TrimSpace(strings.ToLower(c.Memory.Provider))
 	c.Reranker.Type = strings.TrimSpace(strings.ToLower(c.Reranker.Type))
 	c.Reranker.Model = strings.TrimSpace(c.Reranker.Model)
 
@@ -828,6 +845,12 @@ func (c *Config) normalizeFields() {
 	}
 	if c.Compaction.WarnPercent <= 0 {
 		c.Compaction.WarnPercent = 0.95
+	}
+	if c.Memory.Enabled == nil {
+		c.Memory.Enabled = new(false)
+	}
+	if c.Memory.Provider == "" {
+		c.Memory.Provider = "noop"
 	}
 
 }
@@ -947,6 +970,15 @@ func (c *Config) RerankerEffective() string {
 	}
 
 	return rerank.Deterministic
+}
+
+func (c *Config) MemoryEnabled() bool {
+	if c == nil {
+		return false
+	}
+
+	c.normalizeFields()
+	return boolValueDefault(c.Memory.Enabled, false)
 }
 
 func (c *Config) RerankerModelEffective() string {
