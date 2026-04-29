@@ -13,9 +13,8 @@ import (
 	"github.com/wandxy/hand/internal/environment"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
-	sessionstore "github.com/wandxy/hand/internal/session"
-	storage "github.com/wandxy/hand/internal/storage/session"
-	storagefactory "github.com/wandxy/hand/internal/storage/session/factory"
+	storage "github.com/wandxy/hand/internal/state"
+	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/tools"
 	webextract "github.com/wandxy/hand/internal/tools/webextract"
 	"github.com/wandxy/hand/internal/trace"
@@ -98,9 +97,9 @@ var newRecallSummaryCache = func() *pkgcache.Cache[string, storage.SessionSummar
 	})
 }
 
-var openSessionStore = storagefactory.OpenSessionStoreWithRerankerClient
+var openStore = statemanager.OpenStoreWithRerankerClient
 
-var newSessionManager = sessionstore.NewManager
+var newStateManager = statemanager.NewManager
 
 // Agent coordinates agent lifecycle, sessions, and turn execution.
 type Agent struct {
@@ -109,7 +108,7 @@ type Agent struct {
 	modelClient        models.Client
 	summaryClient      models.Client
 	env                environment.Environment
-	sessionMgr         *sessionstore.Manager
+	stateMgr           *statemanager.Manager
 	recallSummaryCache *pkgcache.Cache[string, storage.SessionSummary]
 	turnMessages       []handmsg.Message
 	initialized        bool
@@ -145,16 +144,16 @@ func (a *Agent) Start(ctx context.Context) error {
 	ctx = normalizeContext(ctx)
 	a.ctx = ctx
 
-	if err := a.ensureSessionManager(); err != nil {
+	if err := a.ensureStateManager(); err != nil {
 		return err
 	}
 
-	if err := a.sessionMgr.Start(ctx); err != nil {
+	if err := a.stateMgr.Start(ctx); err != nil {
 		return err
 	}
 
 	a.env = newEnvironment(ctx, a.cfg)
-	a.env.SetSessionManager(a.sessionMgr)
+	a.env.SetStateManager(a.stateMgr)
 	if err := a.env.Prepare(); err != nil {
 		return err
 	}
@@ -190,14 +189,14 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 		return "", err
 	}
 
-	if !a.initialized || a.sessionMgr == nil {
+	if !a.initialized || a.stateMgr == nil {
 		return "", errors.New("environment has not been initialized")
 	}
 
 	env := a.env
 	if env == nil {
 		env = newEnvironment(ctx, a.cfg)
-		env.SetSessionManager(a.sessionMgr)
+		env.SetStateManager(a.stateMgr)
 		if err := env.Prepare(); err != nil {
 			return "", err
 		}
@@ -215,7 +214,7 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 		a.cfg,
 		a.modelClient,
 		a.summaryClient,
-		a.sessionMgr,
+		a.stateMgr,
 		a.invokeToolWithEnvironment,
 		env,
 	)
@@ -311,11 +310,11 @@ func (a *Agent) CreateSession(ctx context.Context, id string) (storage.Session, 
 		return storage.Session{}, errors.New("agent is required")
 	}
 
-	if !a.initialized || a.sessionMgr == nil {
+	if !a.initialized || a.stateMgr == nil {
 		return storage.Session{}, errors.New("environment has not been initialized")
 	}
 
-	return a.sessionMgr.CreateSession(normalizeContext(ctx), id)
+	return a.stateMgr.CreateSession(normalizeContext(ctx), id)
 }
 
 func (a *Agent) ListSessions(ctx context.Context) ([]storage.Session, error) {
@@ -323,11 +322,11 @@ func (a *Agent) ListSessions(ctx context.Context) ([]storage.Session, error) {
 		return nil, errors.New("agent is required")
 	}
 
-	if !a.initialized || a.sessionMgr == nil {
+	if !a.initialized || a.stateMgr == nil {
 		return nil, errors.New("environment has not been initialized")
 	}
 
-	return a.sessionMgr.ListSessions(normalizeContext(ctx))
+	return a.stateMgr.ListSessions(normalizeContext(ctx))
 }
 
 func (a *Agent) UseSession(ctx context.Context, id string) error {
@@ -335,11 +334,11 @@ func (a *Agent) UseSession(ctx context.Context, id string) error {
 		return errors.New("agent is required")
 	}
 
-	if !a.initialized || a.sessionMgr == nil {
+	if !a.initialized || a.stateMgr == nil {
 		return errors.New("environment has not been initialized")
 	}
 
-	return a.sessionMgr.UseSession(normalizeContext(ctx), id)
+	return a.stateMgr.UseSession(normalizeContext(ctx), id)
 }
 
 func (a *Agent) CurrentSession(ctx context.Context) (string, error) {
@@ -347,11 +346,11 @@ func (a *Agent) CurrentSession(ctx context.Context) (string, error) {
 		return "", errors.New("agent is required")
 	}
 
-	if !a.initialized || a.sessionMgr == nil {
+	if !a.initialized || a.stateMgr == nil {
 		return "", errors.New("environment has not been initialized")
 	}
 
-	return a.sessionMgr.CurrentSession(normalizeContext(ctx))
+	return a.stateMgr.CurrentSession(normalizeContext(ctx))
 }
 
 func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionResult, error) {
@@ -378,7 +377,7 @@ func (a *Agent) RecallSessionSummary(ctx context.Context, id string) (storage.Se
 	if a.cfg == nil {
 		return storage.SessionSummary{}, errors.New("config is required")
 	}
-	if !a.initialized || a.sessionMgr == nil {
+	if !a.initialized || a.stateMgr == nil {
 		return storage.SessionSummary{}, errors.New("environment has not been initialized")
 	}
 	if a.modelClient == nil {
@@ -387,12 +386,12 @@ func (a *Agent) RecallSessionSummary(ctx context.Context, id string) (storage.Se
 
 	ctx = normalizeContext(ctx)
 
-	session, err := a.sessionMgr.Resolve(ctx, id)
+	session, err := a.stateMgr.Resolve(ctx, id)
 	if err != nil {
 		return storage.SessionSummary{}, err
 	}
 
-	messageCount, err := a.sessionMgr.CountMessages(ctx, session.ID, storage.MessageQueryOptions{})
+	messageCount, err := a.stateMgr.CountMessages(ctx, session.ID, storage.MessageQueryOptions{})
 	if err != nil {
 		return storage.SessionSummary{}, err
 	}
@@ -409,7 +408,7 @@ func (a *Agent) RecallSessionSummary(ctx context.Context, id string) (storage.Se
 	}
 	defer traceSession.Close()
 
-	summaryService := agentsummary.NewService(a.cfg, a.modelClient, a.summaryClient, a.sessionMgr)
+	summaryService := agentsummary.NewService(a.cfg, a.modelClient, a.summaryClient, a.stateMgr)
 	summary, err := runRecallSessionSummary(summaryService, ctx, session, traceSession)
 	if err != nil {
 		return storage.SessionSummary{}, err
@@ -446,14 +445,14 @@ func (a *Agent) summarizeSession(
 	if a.cfg == nil {
 		return storage.SessionSummary{}, storage.Session{}, errors.New("config is required")
 	}
-	if !a.initialized || a.sessionMgr == nil {
+	if !a.initialized || a.stateMgr == nil {
 		return storage.SessionSummary{}, storage.Session{}, errors.New("environment has not been initialized")
 	}
 	if a.modelClient == nil {
 		return storage.SessionSummary{}, storage.Session{}, errors.New("model client is required")
 	}
 
-	session, err := a.sessionMgr.Resolve(normalizeContext(ctx), id)
+	session, err := a.stateMgr.Resolve(normalizeContext(ctx), id)
 	if err != nil {
 		return storage.SessionSummary{}, storage.Session{}, err
 	}
@@ -466,7 +465,7 @@ func (a *Agent) summarizeSession(
 	}
 	defer traceSession.Close()
 
-	summaryService := agentsummary.NewService(a.cfg, a.modelClient, a.summaryClient, a.sessionMgr)
+	summaryService := agentsummary.NewService(a.cfg, a.modelClient, a.summaryClient, a.stateMgr)
 	summary, err := summaryService.SummarizeSession(
 		normalizeContext(ctx),
 		session,
@@ -498,16 +497,16 @@ func (a *Agent) ContextStatus(ctx context.Context, id string) (ContextStatus, er
 	if a.cfg == nil {
 		return ContextStatus{}, errors.New("config is required")
 	}
-	if !a.initialized || a.sessionMgr == nil {
+	if !a.initialized || a.stateMgr == nil {
 		return ContextStatus{}, errors.New("environment has not been initialized")
 	}
 
-	session, err := a.sessionMgr.Resolve(normalizeContext(ctx), id)
+	session, err := a.stateMgr.Resolve(normalizeContext(ctx), id)
 	if err != nil {
 		return ContextStatus{}, err
 	}
 
-	summary, _, err := a.sessionMgr.GetSummary(normalizeContext(ctx), session.ID)
+	summary, _, err := a.stateMgr.GetSummary(normalizeContext(ctx), session.ID)
 	if err != nil {
 		return ContextStatus{}, err
 	}
@@ -539,23 +538,23 @@ func (a *Agent) GetSession(ctx context.Context, id string) (ContextStatus, error
 	return a.ContextStatus(ctx, id)
 }
 
-func (a *Agent) ensureSessionManager() error {
+func (a *Agent) ensureStateManager() error {
 	if a == nil {
 		return errors.New("agent is required")
 	}
 	if a.cfg == nil {
 		return errors.New("config is required")
 	}
-	if a.sessionMgr != nil {
+	if a.stateMgr != nil {
 		return nil
 	}
 
-	store, err := openSessionStore(a.cfg, a.summaryClient)
+	store, err := openStore(a.cfg, a.summaryClient)
 	if err != nil {
 		return err
 	}
 
-	manager, err := newSessionManager(
+	manager, err := newStateManager(
 		store,
 		durationOrDefault(a.cfg.Session.DefaultIdleExpiry, 24*time.Hour),
 		durationOrDefault(a.cfg.Session.ArchiveRetention, 30*24*time.Hour),
@@ -564,7 +563,7 @@ func (a *Agent) ensureSessionManager() error {
 		return err
 	}
 
-	a.sessionMgr = manager
+	a.stateMgr = manager
 	return nil
 }
 

@@ -16,7 +16,7 @@ import (
 	instruct "github.com/wandxy/hand/internal/instructions"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
-	storage "github.com/wandxy/hand/internal/storage/session"
+	storage "github.com/wandxy/hand/internal/state"
 	"github.com/wandxy/hand/internal/trace"
 )
 

@@ -11,7 +11,7 @@ import (
 	"github.com/wandxy/hand/internal/environment/sessionmessages"
 	"github.com/wandxy/hand/internal/environment/sessionsearch"
 	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/internal/session"
+	statemanager "github.com/wandxy/hand/internal/state/manager"
 )
 
 var getwd = os.Getwd
@@ -21,10 +21,10 @@ type Runtime struct {
 	commandPolicy guardrails.CommandPolicy
 	processMgr    process.Manager
 	plans         planstore.Store
-	sessionMgr    *session.Manager
+	stateMgr      *statemanager.Manager
 }
 
-func NewRuntime(roots []string, policy guardrails.CommandPolicy, sessionMgr *session.Manager) *Runtime {
+func NewRuntime(roots []string, policy guardrails.CommandPolicy, stateMgr *statemanager.Manager) *Runtime {
 	if len(roots) == 0 {
 		cwd, err := getwd()
 		if err != nil {
@@ -38,7 +38,7 @@ func NewRuntime(roots []string, policy guardrails.CommandPolicy, sessionMgr *ses
 		commandPolicy: policy.Normalize(),
 		processMgr:    &process.DefaultManager{},
 		plans:         &planstore.MemoryPlanStore{},
-		sessionMgr:    sessionMgr,
+		stateMgr:      stateMgr,
 	}
 }
 
@@ -99,22 +99,22 @@ func (r *Runtime) SearchSession(
 	ctx context.Context,
 	req sessionsearch.SessionSearchRequest,
 ) ([]sessionsearch.SessionSearchResult, error) {
-	if r == nil || r.sessionMgr == nil {
-		return nil, errors.New("session manager is required")
+	if r == nil || r.stateMgr == nil {
+		return nil, errors.New("state manager is required")
 	}
 
-	return sessionsearch.Search(ctx, r.sessionMgr, req)
+	return sessionsearch.Search(ctx, r.stateMgr, req)
 }
 
 func (r *Runtime) GetSessionMessages(
 	ctx context.Context,
 	req sessionmessages.SessionMessagesRequest,
 ) (sessionmessages.SessionMessagesResponse, error) {
-	if r == nil || r.sessionMgr == nil {
-		return sessionmessages.SessionMessagesResponse{}, errors.New("session manager is required")
+	if r == nil || r.stateMgr == nil {
+		return sessionmessages.SessionMessagesResponse{}, errors.New("state manager is required")
 	}
 
-	return sessionmessages.Get(ctx, r.sessionMgr, req)
+	return sessionmessages.Get(ctx, r.stateMgr, req)
 }
 
 func (r *Runtime) GetPlan(sessionID string) planstore.Plan {

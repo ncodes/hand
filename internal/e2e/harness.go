@@ -15,8 +15,8 @@ import (
 	"github.com/wandxy/hand/internal/datadir"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
-	storage "github.com/wandxy/hand/internal/storage/session"
-	storagefactory "github.com/wandxy/hand/internal/storage/session/factory"
+	storage "github.com/wandxy/hand/internal/state"
+	statemanager "github.com/wandxy/hand/internal/state/manager"
 )
 
 var setHarnessEnv = os.Setenv
@@ -31,7 +31,7 @@ type HarnessOptions struct {
 type Harness struct {
 	cfg          *config.Config
 	agent        harnessAgent
-	inspectStore storage.SessionStore
+	inspectStore storage.Store
 	cancel       context.CancelFunc
 	restoreEnv   func()
 	stdout       *bytes.Buffer
@@ -206,14 +206,14 @@ func resolveHarnessConfig(spec HarnessSpec, cfg *config.Config) (*config.Config,
 	return &cloned, nil
 }
 
-func openInspectStore(cfg *config.Config) (storage.SessionStore, error) {
+func openInspectStore(cfg *config.Config) (storage.Store, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
 	if strings.TrimSpace(strings.ToLower(cfg.Storage.Backend)) == "memory" {
 		return nil, nil
 	}
-	return storagefactory.OpenSessionStore(cfg)
+	return statemanager.OpenStore(cfg)
 }
 
 func applyHarnessEnv(spec HarnessSpec) (func(), error) {

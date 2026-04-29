@@ -15,7 +15,7 @@ import (
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/personality"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
-	"github.com/wandxy/hand/internal/session"
+	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/listfiles"
 	"github.com/wandxy/hand/internal/tools/patch"
@@ -68,8 +68,8 @@ type Environment interface {
 	// HydratePlan seeds the in-memory plan state for the given session.
 	HydratePlan(sessionID string, plan planstore.Plan)
 
-	// SetSessionManager wires session-backed features into the environment runtime.
-	SetSessionManager(*session.Manager)
+	// SetStateManager wires state-backed features into the environment runtime.
+	SetStateManager(*statemanager.Manager)
 }
 
 type environment struct {
@@ -80,7 +80,7 @@ type environment struct {
 	tools        tools.Registry
 	traces       trace.Factory
 	runtime      *Runtime
-	sessionMgr   *session.Manager
+	stateMgr     *statemanager.Manager
 }
 
 type ToolRegistry interface {
@@ -154,12 +154,12 @@ func (e *environment) Prepare() error {
 }
 
 func (e *environment) prepareTools() error {
-	if e.sessionMgr == nil {
-		return errors.New("session manager is required")
+	if e.stateMgr == nil {
+		return errors.New("state manager is required")
 	}
 
 	if e.runtime == nil {
-		e.runtime = NewRuntime(e.fileRoots(), e.commandPolicy(), e.sessionMgr)
+		e.runtime = NewRuntime(e.fileRoots(), e.commandPolicy(), e.stateMgr)
 	}
 
 	if err := e.tools.RegisterGroup(tools.Group{Name: "core"}); err != nil {
@@ -331,13 +331,13 @@ func (e *environment) HydratePlan(sessionID string, plan planstore.Plan) {
 	e.runtime.HydratePlan(sessionID, plan)
 }
 
-func (e *environment) SetSessionManager(manager *session.Manager) {
+func (e *environment) SetStateManager(manager *statemanager.Manager) {
 	if e == nil {
 		return
 	}
-	e.sessionMgr = manager
+	e.stateMgr = manager
 	if e.runtime != nil {
-		e.runtime.sessionMgr = manager
+		e.runtime.stateMgr = manager
 	}
 }
 

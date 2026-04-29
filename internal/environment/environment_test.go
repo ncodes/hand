@@ -25,9 +25,9 @@ import (
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/personality"
-	"github.com/wandxy/hand/internal/session"
-	storage "github.com/wandxy/hand/internal/storage/session"
-	memorystore "github.com/wandxy/hand/internal/storage/session/memory"
+	storage "github.com/wandxy/hand/internal/state"
+	statemanager "github.com/wandxy/hand/internal/state/manager"
+	memorystore "github.com/wandxy/hand/internal/state/storememory"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/internal/workspace"
@@ -50,7 +50,7 @@ func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 func prepareTestEnvironment(t *testing.T, env Environment) {
 	t.Helper()
 
-	env.SetSessionManager(&session.Manager{})
+	env.SetStateManager(&statemanager.Manager{})
 	require.NoError(t, env.Prepare())
 }
 
@@ -109,7 +109,7 @@ func TestEnvironment_PrepareRequiresEnvironment(t *testing.T) {
 	require.EqualError(t, err, "environment is required")
 }
 
-func TestEnvironment_PrepareRequiresSessionManager(t *testing.T) {
+func TestEnvironment_PrepareRequiresStateManager(t *testing.T) {
 	previousPersonality := loadPersonality
 	previous := loadWorkspaceRules
 	t.Cleanup(func() {
@@ -127,7 +127,7 @@ func TestEnvironment_PrepareRequiresSessionManager(t *testing.T) {
 
 	err := env.Prepare()
 
-	require.EqualError(t, err, "session manager is required")
+	require.EqualError(t, err, "state manager is required")
 }
 
 func TestEnvironment_PrepareNormalizesConfig(t *testing.T) {
@@ -318,16 +318,16 @@ func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) 
 	require.Contains(t, instructions[1].Value, "Use tools when they materially improve correctness or allow real action")
 }
 
-func TestEnvironment_SetSessionManager(t *testing.T) {
+func TestEnvironment_SetStateManager(t *testing.T) {
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
 	h := env.(*environment)
 
-	require.Nil(t, h.sessionMgr)
+	require.Nil(t, h.stateMgr)
 
-	manager := &session.Manager{}
-	h.SetSessionManager(manager)
+	manager := &statemanager.Manager{}
+	h.SetStateManager(manager)
 
-	require.Same(t, manager, h.sessionMgr)
+	require.Same(t, manager, h.stateMgr)
 }
 
 func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
@@ -452,8 +452,8 @@ func TestEnvironment_SessionSearchThenSessionMessagesWorkflow(t *testing.T) {
 		return workspace.Result{}, nil
 	}
 
-	store := memorystore.NewSessionStore()
-	manager, err := session.NewManager(store, time.Minute, time.Hour)
+	store := memorystore.NewStore()
+	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 
 	currentSessionID := nanoid.MustFromSeed(storage.SessionIDPrefix, "phase5-current", "EnvironmentPhase5TestSeed")
@@ -473,7 +473,7 @@ func TestEnvironment_SessionSearchThenSessionMessagesWorkflow(t *testing.T) {
 	}))
 
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
-	env.SetSessionManager(manager)
+	env.SetStateManager(manager)
 	require.NoError(t, env.Prepare())
 
 	searchResult, err := env.Tools().Invoke(tools.WithSessionID(gctx.Background(), currentSessionID), tools.Call{
@@ -766,7 +766,7 @@ func TestEnvironment_PrepareReturnsWebProviderErrors(t *testing.T) {
 		Debug: config.DebugConfig{TraceDir: t.TempDir()},
 		Web:   config.WebConfig{Provider: "parallel"},
 	})
-	env.SetSessionManager(&session.Manager{})
+	env.SetStateManager(&statemanager.Manager{})
 
 	err := env.Prepare()
 	require.EqualError(t, err, "parallel requires web API key")
@@ -918,7 +918,7 @@ func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}})
 	env.(*environment).tools = failingRegistry{err: errors.New("register failed")}
-	env.SetSessionManager(&session.Manager{})
+	env.SetStateManager(&statemanager.Manager{})
 	err := env.Prepare()
 	require.EqualError(t, err, "register failed")
 	require.Equal(t, append(
@@ -944,7 +944,7 @@ func TestEnvironment_PrepareReturnsToolGroupRegistrationError(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}})
 	env.(*environment).tools = failingGroupRegistry{err: errors.New("group failed")}
-	env.SetSessionManager(&session.Manager{})
+	env.SetStateManager(&statemanager.Manager{})
 	err := env.Prepare()
 	require.EqualError(t, err, "group failed")
 	require.Equal(t, append(
@@ -958,7 +958,7 @@ func TestEnvironment_PrepareToolsPreservesExistingRuntime(t *testing.T) {
 	h := env.(*environment)
 	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, nil)
 	h.runtime = runtime
-	h.SetSessionManager(&session.Manager{})
+	h.SetStateManager(&statemanager.Manager{})
 	require.NoError(t, h.prepareTools())
 	require.Same(t, runtime, h.runtime)
 }

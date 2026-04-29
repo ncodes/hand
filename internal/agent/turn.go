@@ -17,8 +17,8 @@ import (
 	instruct "github.com/wandxy/hand/internal/instructions"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
-	sessionstore "github.com/wandxy/hand/internal/session"
-	storage "github.com/wandxy/hand/internal/storage/session"
+	storage "github.com/wandxy/hand/internal/state"
+	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 )
@@ -35,8 +35,8 @@ type Turn struct {
 	modelClient models.Client
 	// summaryClient executes compaction/summary model requests; when nil, modelClient is used.
 	summaryClient models.Client
-	// sessionManager resolves sessions and persists turn messages.
-	sessionManager *sessionstore.Manager
+	// stateMgr resolves sessions and persists turn messages.
+	stateMgr *statemanager.Manager
 	// summaryService loads and refreshes persisted summary state for the turn.
 	summaryService *agentsummary.Service
 	// invokeToolFn performs tool execution for requested tool calls.
@@ -70,7 +70,7 @@ func NewTurn(
 	cfg *config.Config,
 	modelClient models.Client,
 	summaryClient models.Client,
-	sessionManager *sessionstore.Manager,
+	stateMgr *statemanager.Manager,
 	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message,
 	runtimeEnv environment.Environment,
 ) *Turn {
@@ -81,7 +81,7 @@ func NewTurn(
 		cfg:            cfg,
 		modelClient:    modelClient,
 		summaryClient:  summaryClient,
-		sessionManager: sessionManager,
+		stateMgr:       stateMgr,
 		invokeToolFn:   invokeToolFn,
 		env:            runtimeEnv,
 		contextBuilder: ctxbuilder.New(),
@@ -105,15 +105,15 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 		return errors.New("runtime environment is required")
 	}
 
-	if t.sessionManager == nil {
-		return errors.New("session manager is required")
+	if t.stateMgr == nil {
+		return errors.New("state manager is required")
 	}
 
 	if t.summaryService == nil {
-		t.summaryService = agentsummary.NewService(t.cfg, t.modelClient, t.summaryClient, t.sessionManager)
+		t.summaryService = agentsummary.NewService(t.cfg, t.modelClient, t.summaryClient, t.stateMgr)
 	}
 
-	session, err := t.sessionManager.Resolve(ctx, opts.SessionID)
+	session, err := t.stateMgr.Resolve(ctx, opts.SessionID)
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 		tailOffset = max(summary.Current.SourceEndOffset, 0)
 	}
 
-	messages, err := t.sessionManager.GetMessages(ctx, session.ID, storage.MessageQueryOptions{Offset: tailOffset})
+	messages, err := t.stateMgr.GetMessages(ctx, session.ID, storage.MessageQueryOptions{Offset: tailOffset})
 	if err != nil {
 		return err
 	}
@@ -444,7 +444,7 @@ func (t *Turn) trimSessionHistoryToSummary() {
 }
 
 func (t *Turn) appendSessionMessages(messages []handmsg.Message) error {
-	return t.sessionManager.AppendMessages(t.ctx, t.sessionID, messages)
+	return t.stateMgr.AppendMessages(t.ctx, t.sessionID, messages)
 }
 
 func (t *Turn) availableToolDefinitions() ([]models.ToolDefinition, error) {
@@ -758,7 +758,7 @@ func decodeHydratedPlanPayload(content string) (envtypes.Plan, bool) {
 func (t *Turn) hydratePlanFromHistory(ctx context.Context, sessionID string) (bool, error) {
 	offset := 0
 	for {
-		messages, err := t.sessionManager.GetMessages(ctx, sessionID, storage.MessageQueryOptions{
+		messages, err := t.stateMgr.GetMessages(ctx, sessionID, storage.MessageQueryOptions{
 			Role:   handmsg.RoleTool,
 			Name:   "plan_tool",
 			Order:  storage.MessageOrderDesc,
@@ -826,7 +826,7 @@ func (t *Turn) recordPostflightUsage(traceSession trace.Session, resp *models.Re
 	}
 
 	t.lastPromptTokens = resp.PromptTokens
-	if err := t.sessionManager.UpdateLastPromptTokens(t.ctx, t.sessionID, resp.PromptTokens); err != nil {
+	if err := t.stateMgr.UpdateLastPromptTokens(t.ctx, t.sessionID, resp.PromptTokens); err != nil {
 		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 		return err
 	}

@@ -16,7 +16,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
-	storage "github.com/wandxy/hand/internal/storage/session"
+	storage "github.com/wandxy/hand/internal/state"
 )
 
 func TestNewHarness_InMemoryConfigSmoke(t *testing.T) {
@@ -211,7 +211,7 @@ func TestNewHarness_Errors(t *testing.T) {
 
 	t.Run("inspect store open error", func(t *testing.T) {
 		original := openHarnessInspectStore
-		openHarnessInspectStore = func(*config.Config) (storage.SessionStore, error) {
+		openHarnessInspectStore = func(*config.Config) (storage.Store, error) {
 			return nil, errors.New("inspect failed")
 		}
 		t.Cleanup(func() {

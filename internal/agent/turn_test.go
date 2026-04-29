@@ -20,11 +20,11 @@ import (
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/mocks"
 	"github.com/wandxy/hand/internal/models"
-	"github.com/wandxy/hand/internal/session"
-	storage "github.com/wandxy/hand/internal/storage/session"
-	storagememory "github.com/wandxy/hand/internal/storage/session/memory"
-	storagemock "github.com/wandxy/hand/internal/storage/session/mock"
-	storagesqlite "github.com/wandxy/hand/internal/storage/session/sqlite"
+	storage "github.com/wandxy/hand/internal/state"
+	statemanager "github.com/wandxy/hand/internal/state/manager"
+	storagemock "github.com/wandxy/hand/internal/state/mock"
+	storagememory "github.com/wandxy/hand/internal/state/storememory"
+	storagesqlite "github.com/wandxy/hand/internal/state/storesqlite"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/pkg/logutils"
@@ -54,7 +54,7 @@ func TestTurn_LoadLoadsPersistedHistoryWithoutHydratingRuntimeContext(t *testing
 func TestTurn_LoadHydratesPlanUsingFilteredToolQueries(t *testing.T) {
 	var capturedGetOpts []storage.MessageQueryOptions
 
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -100,7 +100,7 @@ func TestTurn_LoadHydratesPlanUsingFilteredToolQueries(t *testing.T) {
 func TestTurn_LoadHydratesPlanFromLaterValidResultOnSamePage(t *testing.T) {
 	var capturedGetOpts []storage.MessageQueryOptions
 
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -138,7 +138,7 @@ func TestTurn_LoadHydratesPlanFromLaterValidResultOnSamePage(t *testing.T) {
 }
 
 func TestTurn_LoadHydratesNewestValidPlanOnSamePage(t *testing.T) {
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -176,7 +176,7 @@ func TestTurn_LoadHydratesNewestValidPlanOnSamePage(t *testing.T) {
 func TestTurn_LoadHydratesPlanFromLaterPageWhenEarlierPageIsInvalid(t *testing.T) {
 	var capturedGetOpts []storage.MessageQueryOptions
 
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -224,7 +224,7 @@ func TestTurn_LoadHydratesPlanFromLaterPageWhenEarlierPageIsInvalid(t *testing.T
 func TestTurn_LoadHydratesEmptyPlanWhenNoValidHistoricalPlanExists(t *testing.T) {
 	var capturedGetOpts []storage.MessageQueryOptions
 
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -261,7 +261,7 @@ func TestTurn_LoadHydratesEmptyPlanWhenNoValidHistoricalPlanExists(t *testing.T)
 }
 
 func TestTurn_LoadReturnsHydrationErrorFromLaterPageFetch(t *testing.T) {
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -297,7 +297,7 @@ func TestTurn_LoadRejectsNilExecutionEnvironment(t *testing.T) {
 		testSessionConfig(&config.Config{Name: "Test Agent"}),
 		&mocks.ModelClientStub{},
 		nil,
-		mustNewSessionManager(t),
+		mustNewStateManager(t),
 		nil,
 		nil,
 	)
@@ -326,13 +326,13 @@ func TestTurn_LoadRejectsMissingManager(t *testing.T) {
 	)
 
 	err := turn.load(context.Background(), RespondOptions{})
-	require.EqualError(t, err, "session manager is required")
+	require.EqualError(t, err, "state manager is required")
 }
 
 func TestTurn_LoadRejectsMissingConfig(t *testing.T) {
 	turn := &Turn{
-		modelClient:    &mocks.ModelClientStub{},
-		sessionManager: mustNewSessionManager(t),
+		modelClient: &mocks.ModelClientStub{},
+		stateMgr:    mustNewStateManager(t),
 		env: &mocks.EnvironmentStub{
 			InstructionsList: nil,
 			ToolRegistry:     tools.NewInMemoryRegistry(),
@@ -345,8 +345,8 @@ func TestTurn_LoadRejectsMissingConfig(t *testing.T) {
 
 func TestTurn_LoadRejectsMissingModelClient(t *testing.T) {
 	turn := &Turn{
-		cfg:            testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
-		sessionManager: mustNewSessionManager(t),
+		cfg:      testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
+		stateMgr: mustNewStateManager(t),
 		env: &mocks.EnvironmentStub{
 			InstructionsList: nil,
 			ToolRegistry:     tools.NewInMemoryRegistry(),
@@ -358,7 +358,7 @@ func TestTurn_LoadRejectsMissingModelClient(t *testing.T) {
 }
 
 func TestTurn_LoadReturnsResolveError(t *testing.T) {
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{}, false, errors.New("resolve failed")
 		},
@@ -382,7 +382,7 @@ func TestTurn_LoadReturnsResolveError(t *testing.T) {
 }
 
 func TestTurn_LoadReturnsGetMessagesError(t *testing.T) {
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -409,7 +409,7 @@ func TestTurn_LoadReturnsGetMessagesError(t *testing.T) {
 }
 
 func TestTurn_LoadReturnsGetSummaryError(t *testing.T) {
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -451,7 +451,7 @@ func TestTurn_RunRejectsEmptyUserMessage(t *testing.T) {
 }
 
 func TestTurn_RunReturnsAppendSessionErrorAfterUserMessage(t *testing.T) {
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -480,7 +480,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterUserMessage(t *testing.T) {
 
 func TestTurn_RunReturnsContextErrorAtLoopStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -509,7 +509,7 @@ func TestTurn_RunReturnsContextErrorAtLoopStart(t *testing.T) {
 }
 
 func TestTurn_RunReturnsPromptTokenPersistenceError(t *testing.T) {
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -547,7 +547,7 @@ func TestTurn_RunReturnsPromptTokenPersistenceError(t *testing.T) {
 
 func TestTurn_RunReturnsAppendSessionErrorAfterAssistantResponse(t *testing.T) {
 	appendCalls := 0
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -661,7 +661,7 @@ func TestTurn_RunUsesNonStreamingCompletionWhenDisabled(t *testing.T) {
 
 func TestTurn_RunReturnsAppendSessionErrorAfterAssistantToolCall(t *testing.T) {
 	appendCalls := 0
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -711,7 +711,7 @@ func TestTurn_RunReturnsAssistantToolCallNormalizationError(t *testing.T) {
 func TestTurn_RunReturnsContextErrorBeforeToolInvocation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	appendCalls := 0
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -767,7 +767,7 @@ func TestTurn_RunReturnsToolMessageNormalizationError(t *testing.T) {
 
 func TestTurn_RunReturnsAppendSessionErrorAfterToolResult(t *testing.T) {
 	appendCalls := 0
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -804,7 +804,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterToolResult(t *testing.T) {
 
 func TestTurn_RunReturnsAppendSessionErrorAfterSummaryFallback(t *testing.T) {
 	appendCalls := 0
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -930,7 +930,7 @@ func TestTurn_SummaryFallbackUsesExistingInstructions(t *testing.T) {
 
 func TestTurn_SummaryFallbackReturnsPromptTokenPersistenceError(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -1327,7 +1327,7 @@ func TestTurn_LoadLoadsPersistedSummary(t *testing.T) {
 
 func TestTurn_LoadLoadsOnlyUnsummarizedTailWhenSummaryExists(t *testing.T) {
 	var capturedOpts []storage.MessageQueryOptions
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -1374,7 +1374,7 @@ func TestTurn_LoadLoadsOnlyUnsummarizedTailWhenSummaryExists(t *testing.T) {
 }
 
 func TestTurn_LoadHydratesLatestValidPlanFromHistory(t *testing.T) {
-	manager := mustNewSessionManager(t)
+	manager := mustNewStateManager(t)
 	env := &mocks.EnvironmentStub{
 		InstructionsList: instructions.New("base"),
 		ToolRegistry:     tools.NewInMemoryRegistry(),
@@ -1406,7 +1406,7 @@ func TestTurn_LoadHydratesLatestValidPlanFromHistory(t *testing.T) {
 }
 
 func TestTurn_LoadIgnoresMalformedPlanHistory(t *testing.T) {
-	manager := mustNewSessionManager(t)
+	manager := mustNewStateManager(t)
 	env := &mocks.EnvironmentStub{
 		InstructionsList: instructions.New("base"),
 		ToolRegistry:     tools.NewInMemoryRegistry(),
@@ -1433,7 +1433,7 @@ func TestTurn_LoadIgnoresMalformedPlanHistory(t *testing.T) {
 }
 
 func TestTurn_LoadHydratesPlanFromHistoryBeforeSummaryOffset(t *testing.T) {
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -1488,7 +1488,7 @@ func TestTurn_LoadHydratesPlanFromHistoryBeforeSummaryOffset(t *testing.T) {
 }
 
 func TestTurn_LoadReturnsHydratePlanLookupError(t *testing.T) {
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -1517,7 +1517,7 @@ func TestTurn_LoadReturnsHydratePlanLookupError(t *testing.T) {
 func TestTurn_RunRecordsHydratedPlanTrace(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}}
-	manager, err := session.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: storage.DefaultSessionID, UpdatedAt: time.Now().UTC()}, true, nil
 		},
@@ -2331,10 +2331,10 @@ func TestAgent_RespondPreservesAssistantToolCallsAcrossSQLiteBackedTurns(t *test
 	}
 
 	originalRuntimeFactory := newEnvironment
-	originalOpenStore := openSessionStore
+	originalOpenStore := openStore
 	t.Cleanup(func() {
 		newEnvironment = originalRuntimeFactory
-		openSessionStore = originalOpenStore
+		openStore = originalOpenStore
 	})
 
 	newEnvironment = func(context.Context, *config.Config) environment.Environment {
@@ -2354,8 +2354,8 @@ func TestAgent_RespondPreservesAssistantToolCallsAcrossSQLiteBackedTurns(t *test
 		}
 	}
 
-	openSessionStore = func(*config.Config, models.Client) (storage.SessionStore, error) {
-		return storagesqlite.NewSessionStore(filepath.Join(t.TempDir(), "session.db"))
+	openStore = func(*config.Config, models.Client) (storage.Store, error) {
+		return storagesqlite.NewStore(filepath.Join(t.TempDir(), "session.db"))
 	}
 
 	agent := NewAgent(context.Background(), &config.Config{
@@ -2621,7 +2621,7 @@ func TestTurn_RunStoresActualPromptTokensForFutureTurns(t *testing.T) {
 
 func TestTurn_RunReusesActualPromptTokensDuringPreflight(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
-	manager := mustNewSessionManager(t)
+	manager := mustNewStateManager(t)
 	session, err := manager.Resolve(context.Background(), "")
 	require.NoError(t, err)
 	require.NoError(t, manager.UpdateLastPromptTokens(context.Background(), session.ID, 2048))
@@ -2649,7 +2649,7 @@ func TestTurn_RunReusesActualPromptTokensDuringPreflight(t *testing.T) {
 
 func TestTurn_RunUsesEstimatedPromptTokensWhenRequestGrowsPastStoredActual(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
-	manager := mustNewSessionManager(t)
+	manager := mustNewStateManager(t)
 	session, err := manager.Resolve(context.Background(), "")
 	require.NoError(t, err)
 	require.NoError(t, manager.UpdateLastPromptTokens(context.Background(), session.ID, 50))
@@ -2748,10 +2748,10 @@ func newTestTurnHarness(
 	instructions instructions.Instructions,
 	registry environment.ToolRegistry,
 	client *mocks.ModelClientStub,
-) (*Turn, *session.Manager) {
+) (*Turn, *statemanager.Manager) {
 	t.Helper()
 
-	manager := mustNewSessionManager(t)
+	manager := mustNewStateManager(t)
 	runtimeEnv := &mocks.EnvironmentStub{
 		InstructionsList: instructions,
 		ToolRegistry:     registry,
@@ -2773,9 +2773,9 @@ func newTestTurnHarness(
 	return turn, manager
 }
 
-func mustNewSessionManager(t *testing.T) *session.Manager {
+func mustNewStateManager(t *testing.T) *statemanager.Manager {
 	t.Helper()
-	manager, err := session.NewManager(storagememory.NewSessionStore(), time.Hour, 24*time.Hour)
+	manager, err := statemanager.NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 	return manager
 }

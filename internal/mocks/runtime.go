@@ -10,7 +10,7 @@ import (
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/models"
-	sessionstore "github.com/wandxy/hand/internal/session"
+	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 )
@@ -120,7 +120,7 @@ func (s *EnvironmentStub) HydratePlan(_ string, plan envtypes.Plan) {
 	s.Plan = plan
 }
 
-func (s *EnvironmentStub) SetSessionManager(*sessionstore.Manager) {}
+func (s *EnvironmentStub) SetStateManager(*statemanager.Manager) {}
 
 type ToolRegistryStub struct {
 	Definitions    tools.Definitions

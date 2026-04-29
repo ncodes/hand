@@ -14,10 +14,10 @@ import (
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/mocks"
 	"github.com/wandxy/hand/internal/models"
-	sessionstore "github.com/wandxy/hand/internal/session"
-	storage "github.com/wandxy/hand/internal/storage/session"
-	storagememory "github.com/wandxy/hand/internal/storage/session/memory"
-	storagemock "github.com/wandxy/hand/internal/storage/session/mock"
+	storage "github.com/wandxy/hand/internal/state"
+	statemanager "github.com/wandxy/hand/internal/state/manager"
+	storagemock "github.com/wandxy/hand/internal/state/mock"
+	storagememory "github.com/wandxy/hand/internal/state/storememory"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 )
@@ -124,7 +124,7 @@ func TestAgent_StartUsesProvidedContext(t *testing.T) {
 	require.Same(t, ctx, agent.ctx)
 }
 
-func TestAgent_StartReturnsEnsureSessionManagerError(t *testing.T) {
+func TestAgent_StartReturnsEnsureStateManagerError(t *testing.T) {
 	agent := NewAgent(context.Background(), &config.Config{Name: "Test Agent", Storage: config.StorageConfig{Backend: "invalid"}}, &mocks.ModelClientStub{})
 	err := agent.Start(context.Background())
 	require.EqualError(t, err, "storage backend must be one of: memory, sqlite")
@@ -142,7 +142,7 @@ func TestAgent_StartReturnsManagerStartError(t *testing.T) {
 		}
 	}
 
-	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{}, false, errors.New("resolve failed")
 		},
@@ -153,7 +153,7 @@ func TestAgent_StartReturnsManagerStartError(t *testing.T) {
 		ctx:         context.Background(),
 		cfg:         testSessionConfig(&config.Config{Name: "Test Agent"}),
 		modelClient: &mocks.ModelClientStub{},
-		sessionMgr:  manager,
+		stateMgr:    manager,
 	}
 
 	err = agent.Start(context.Background())
@@ -346,13 +346,13 @@ func TestAgent_SessionMethodsRejectNilAgent(t *testing.T) {
 }
 
 func TestAgent_SessionLifecycleMethods(t *testing.T) {
-	manager, err := sessionstore.NewManager(storagememory.NewSessionStore(), time.Hour, 24*time.Hour)
+	manager, err := statemanager.NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
 	agent := &Agent{
 		cfg:         testSessionConfig(&config.Config{Name: "Test Agent"}),
 		modelClient: &mocks.ModelClientStub{},
-		sessionMgr:  manager,
+		stateMgr:    manager,
 		initialized: true,
 	}
 
@@ -401,12 +401,12 @@ func TestAgent_RespondReturnsPrepareErrorWhenEnvironmentIsMissing(t *testing.T) 
 		}
 	}
 
-	manager := mustSessionManager(t)
+	manager := mustStateManager(t)
 	agent := &Agent{
 		ctx:         context.Background(),
 		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		modelClient: &mocks.ModelClientStub{},
-		sessionMgr:  manager,
+		stateMgr:    manager,
 		initialized: true,
 	}
 
@@ -454,56 +454,56 @@ func TestAgent_RespondReusesStartedEnvironment(t *testing.T) {
 	require.Len(t, captured, 1)
 }
 
-func TestAgent_EnsureSessionManagerRejectsNilAgent(t *testing.T) {
+func TestAgent_EnsureStateManagerRejectsNilAgent(t *testing.T) {
 	var agent *Agent
-	err := agent.ensureSessionManager()
+	err := agent.ensureStateManager()
 	require.EqualError(t, err, "agent is required")
 }
 
-func TestAgent_EnsureSessionManagerRejectsNilConfig(t *testing.T) {
+func TestAgent_EnsureStateManagerRejectsNilConfig(t *testing.T) {
 	agent := &Agent{}
-	err := agent.ensureSessionManager()
+	err := agent.ensureStateManager()
 	require.EqualError(t, err, "config is required")
 }
 
-func TestAgent_EnsureSessionManagerReturnsExistingManager(t *testing.T) {
-	manager := mustSessionManager(t)
-	agent := &Agent{cfg: testSessionConfig(&config.Config{Name: "Test Agent"}), sessionMgr: manager}
-	err := agent.ensureSessionManager()
+func TestAgent_EnsureStateManagerReturnsExistingManager(t *testing.T) {
+	manager := mustStateManager(t)
+	agent := &Agent{cfg: testSessionConfig(&config.Config{Name: "Test Agent"}), stateMgr: manager}
+	err := agent.ensureStateManager()
 	require.NoError(t, err)
-	require.Same(t, manager, agent.sessionMgr)
+	require.Same(t, manager, agent.stateMgr)
 }
 
-func TestAgent_EnsureSessionManagerReturnsOpenStoreError(t *testing.T) {
-	originalOpen := openSessionStore
+func TestAgent_EnsureStateManagerReturnsOpenStoreError(t *testing.T) {
+	originalOpen := openStore
 	t.Cleanup(func() {
-		openSessionStore = originalOpen
+		openStore = originalOpen
 	})
-	openSessionStore = func(*config.Config, models.Client) (storage.SessionStore, error) {
+	openStore = func(*config.Config, models.Client) (storage.Store, error) {
 		return nil, errors.New("open store failed")
 	}
 
 	agent := &Agent{cfg: testSessionConfig(&config.Config{Name: "Test Agent"})}
-	err := agent.ensureSessionManager()
+	err := agent.ensureStateManager()
 	require.EqualError(t, err, "open store failed")
 }
 
-func TestAgent_EnsureSessionManagerReturnsNewManagerError(t *testing.T) {
-	originalOpen := openSessionStore
-	originalNewManager := newSessionManager
+func TestAgent_EnsureStateManagerReturnsNewManagerError(t *testing.T) {
+	originalOpen := openStore
+	originalNewManager := newStateManager
 	t.Cleanup(func() {
-		openSessionStore = originalOpen
-		newSessionManager = originalNewManager
+		openStore = originalOpen
+		newStateManager = originalNewManager
 	})
-	openSessionStore = func(*config.Config, models.Client) (storage.SessionStore, error) {
-		return storagememory.NewSessionStore(), nil
+	openStore = func(*config.Config, models.Client) (storage.Store, error) {
+		return storagememory.NewStore(), nil
 	}
-	newSessionManager = func(storage.SessionStore, time.Duration, time.Duration) (*sessionstore.Manager, error) {
+	newStateManager = func(storage.Store, time.Duration, time.Duration) (*statemanager.Manager, error) {
 		return nil, errors.New("new manager failed")
 	}
 
 	agent := &Agent{cfg: testSessionConfig(&config.Config{Name: "Test Agent"})}
-	err := agent.ensureSessionManager()
+	err := agent.ensureStateManager()
 	require.EqualError(t, err, "new manager failed")
 }
 
@@ -512,9 +512,9 @@ func TestDurationOrDefault(t *testing.T) {
 	require.Equal(t, time.Second, durationOrDefault(0, time.Second))
 }
 
-func mustSessionManager(t *testing.T) *sessionstore.Manager {
+func mustStateManager(t *testing.T) *statemanager.Manager {
 	t.Helper()
-	manager, err := sessionstore.NewManager(storagememory.NewSessionStore(), time.Hour, 24*time.Hour)
+	manager, err := statemanager.NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 	return manager
 }
@@ -528,14 +528,14 @@ func newSessionOpsAgent(
 	t.Helper()
 
 	originalFactory := newEnvironment
-	originalStore := openSessionStore
+	originalStore := openStore
 	t.Cleanup(func() {
 		newEnvironment = originalFactory
-		openSessionStore = originalStore
+		openStore = originalStore
 	})
 
-	store := storagememory.NewSessionStore()
-	openSessionStore = func(*config.Config, models.Client) (storage.SessionStore, error) {
+	store := storagememory.NewStore()
+	openStore = func(*config.Config, models.Client) (storage.Store, error) {
 		return store, nil
 	}
 	newEnvironment = func(context.Context, *config.Config) environment.Environment {
@@ -562,7 +562,7 @@ func appendUserMessages(t *testing.T, agent *Agent, sessionID string, count int,
 		messages = append(messages, msg)
 	}
 
-	require.NoError(t, agent.sessionMgr.AppendMessages(context.Background(), sessionID, messages))
+	require.NoError(t, agent.stateMgr.AppendMessages(context.Background(), sessionID, messages))
 }
 
 func TestAgent_CompactSessionRefreshesSummary(t *testing.T) {
@@ -578,7 +578,7 @@ func TestAgent_CompactSessionRefreshesSummary(t *testing.T) {
 	require.NoError(t, err)
 
 	appendUserMessages(t, agent, session.ID, 10, "message")
-	require.NoError(t, agent.sessionMgr.UpdateLastPromptTokens(context.Background(), session.ID, 50))
+	require.NoError(t, agent.stateMgr.UpdateLastPromptTokens(context.Background(), session.ID, 50))
 
 	result, err := agent.CompactSession(context.Background(), session.ID)
 
@@ -589,7 +589,7 @@ func TestAgent_CompactSessionRefreshesSummary(t *testing.T) {
 	require.Equal(t, 50, result.CurrentContextLength)
 	require.Equal(t, 128000, result.TotalContextLength)
 
-	summary, ok, err := agent.sessionMgr.GetSummary(context.Background(), session.ID)
+	summary, ok, err := agent.stateMgr.GetSummary(context.Background(), session.ID)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "Earlier work", summary.SessionSummary)
@@ -620,7 +620,7 @@ func TestAgent_RecallSessionSummary_UsesZeroTail(t *testing.T) {
 	require.Equal(t, []string{"d1"}, summary.Discoveries)
 	require.Equal(t, 1, client.CallCount)
 
-	storedSummary, ok, err := agent.sessionMgr.GetSummary(context.Background(), session.ID)
+	storedSummary, ok, err := agent.stateMgr.GetSummary(context.Background(), session.ID)
 	require.NoError(t, err)
 	require.False(t, ok)
 	require.Empty(t, storedSummary.SessionID)
@@ -710,7 +710,7 @@ func TestAgent_RecallSessionSummary_DoesNotReusePartialCachedRecallSummary(t *te
 
 func TestAgent_RecallSessionSummary_validationErrors(t *testing.T) {
 	cfg := testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "m", ContextLength: 128000}}})
-	manager := mustSessionManager(t)
+	manager := mustStateManager(t)
 
 	t.Run("nil_agent", func(t *testing.T) {
 		var a *Agent
@@ -719,7 +719,7 @@ func TestAgent_RecallSessionSummary_validationErrors(t *testing.T) {
 	})
 
 	t.Run("nil_config", func(t *testing.T) {
-		a := &Agent{modelClient: &mocks.ModelClientStub{}, sessionMgr: manager, initialized: true}
+		a := &Agent{modelClient: &mocks.ModelClientStub{}, stateMgr: manager, initialized: true}
 		_, err := a.RecallSessionSummary(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
 		require.EqualError(t, err, "config is required")
 	})
@@ -731,14 +731,14 @@ func TestAgent_RecallSessionSummary_validationErrors(t *testing.T) {
 	})
 
 	t.Run("nil_model_client", func(t *testing.T) {
-		a := &Agent{cfg: cfg, sessionMgr: manager, initialized: true}
+		a := &Agent{cfg: cfg, stateMgr: manager, initialized: true}
 		_, err := a.RecallSessionSummary(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
 		require.EqualError(t, err, "model client is required")
 	})
 }
 
 func TestAgent_RecallSessionSummary_returnsResolveError(t *testing.T) {
-	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{}, false, errors.New("store get failed")
 		},
@@ -748,7 +748,7 @@ func TestAgent_RecallSessionSummary_returnsResolveError(t *testing.T) {
 	a := &Agent{
 		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "m", ContextLength: 128000}}}),
 		modelClient: &mocks.ModelClientStub{},
-		sessionMgr:  manager,
+		stateMgr:    manager,
 		initialized: true,
 	}
 
@@ -757,7 +757,7 @@ func TestAgent_RecallSessionSummary_returnsResolveError(t *testing.T) {
 }
 
 func TestAgent_RecallSessionSummary_returnsCountMessagesError(t *testing.T) {
-	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{ID: "ses_N8wM2fL7p9rT4vXc1q6b3"}, true, nil
 		},
@@ -770,7 +770,7 @@ func TestAgent_RecallSessionSummary_returnsCountMessagesError(t *testing.T) {
 	a := &Agent{
 		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "m", ContextLength: 128000}}}),
 		modelClient: &mocks.ModelClientStub{},
-		sessionMgr:  manager,
+		stateMgr:    manager,
 		initialized: true,
 	}
 
@@ -779,7 +779,7 @@ func TestAgent_RecallSessionSummary_returnsCountMessagesError(t *testing.T) {
 }
 
 func TestAgent_RecallSessionSummary_withNilEnvironmentUsesNoopTrace(t *testing.T) {
-	manager, err := sessionstore.NewManager(storagememory.NewSessionStore(), time.Hour, 24*time.Hour)
+	manager, err := statemanager.NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{
@@ -792,7 +792,7 @@ func TestAgent_RecallSessionSummary_withNilEnvironmentUsesNoopTrace(t *testing.T
 			Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 128000}},
 		}),
 		modelClient: client,
-		sessionMgr:  manager,
+		stateMgr:    manager,
 		initialized: true,
 		env:         nil,
 	}
@@ -870,7 +870,7 @@ func TestAgent_ContextStatusUsesStoredPromptTokens(t *testing.T) {
 
 	session, err := agent.CreateSession(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
 	require.NoError(t, err)
-	require.NoError(t, agent.sessionMgr.UpdateLastPromptTokens(context.Background(), session.ID, 64000))
+	require.NoError(t, agent.stateMgr.UpdateLastPromptTokens(context.Background(), session.ID, 64000))
 
 	status, err := agent.ContextStatus(context.Background(), session.ID)
 
@@ -887,7 +887,7 @@ func TestAgent_ContextStatusUsesStoredPromptTokens(t *testing.T) {
 
 func TestAgent_CompactSession_validationErrors(t *testing.T) {
 	cfg := testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "m", ContextLength: 128000}}})
-	manager := mustSessionManager(t)
+	manager := mustStateManager(t)
 
 	t.Run("nil_agent", func(t *testing.T) {
 		var a *Agent
@@ -896,7 +896,7 @@ func TestAgent_CompactSession_validationErrors(t *testing.T) {
 	})
 
 	t.Run("nil_config", func(t *testing.T) {
-		a := &Agent{modelClient: &mocks.ModelClientStub{}, sessionMgr: manager, initialized: true}
+		a := &Agent{modelClient: &mocks.ModelClientStub{}, stateMgr: manager, initialized: true}
 		_, err := a.CompactSession(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
 		require.EqualError(t, err, "config is required")
 	})
@@ -908,14 +908,14 @@ func TestAgent_CompactSession_validationErrors(t *testing.T) {
 	})
 
 	t.Run("nil_model_client", func(t *testing.T) {
-		a := &Agent{cfg: cfg, sessionMgr: manager, initialized: true}
+		a := &Agent{cfg: cfg, stateMgr: manager, initialized: true}
 		_, err := a.CompactSession(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
 		require.EqualError(t, err, "model client is required")
 	})
 }
 
 func TestAgent_CompactSession_returnsResolveError(t *testing.T) {
-	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{}, false, errors.New("store get failed")
 		},
@@ -925,7 +925,7 @@ func TestAgent_CompactSession_returnsResolveError(t *testing.T) {
 	a := &Agent{
 		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "m", ContextLength: 128000}}}),
 		modelClient: &mocks.ModelClientStub{},
-		sessionMgr:  manager,
+		stateMgr:    manager,
 		initialized: true,
 	}
 
@@ -949,7 +949,7 @@ func TestAgent_CompactSession_returnsSummaryErrorWhenHistoryTooShort(t *testing.
 }
 
 func TestAgent_CompactSession_withNilEnvironmentUsesNoopTrace(t *testing.T) {
-	manager, err := sessionstore.NewManager(storagememory.NewSessionStore(), time.Hour, 24*time.Hour)
+	manager, err := statemanager.NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{
@@ -962,7 +962,7 @@ func TestAgent_CompactSession_withNilEnvironmentUsesNoopTrace(t *testing.T) {
 			Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", ContextLength: 128000}},
 		}),
 		modelClient: client,
-		sessionMgr:  manager,
+		stateMgr:    manager,
 		initialized: true,
 		env:         nil,
 	}
@@ -971,7 +971,7 @@ func TestAgent_CompactSession_withNilEnvironmentUsesNoopTrace(t *testing.T) {
 	require.NoError(t, err)
 
 	appendUserMessages(t, a, session.ID, 10, "message")
-	require.NoError(t, a.sessionMgr.UpdateLastPromptTokens(context.Background(), session.ID, 50))
+	require.NoError(t, a.stateMgr.UpdateLastPromptTokens(context.Background(), session.ID, 50))
 
 	result, err := a.CompactSession(context.Background(), session.ID)
 	require.NoError(t, err)
@@ -981,7 +981,7 @@ func TestAgent_CompactSession_withNilEnvironmentUsesNoopTrace(t *testing.T) {
 
 func TestAgent_ContextStatus_validationErrors(t *testing.T) {
 	cfg := testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 128000}}})
-	manager := mustSessionManager(t)
+	manager := mustStateManager(t)
 
 	t.Run("nil_agent", func(t *testing.T) {
 		var a *Agent
@@ -990,7 +990,7 @@ func TestAgent_ContextStatus_validationErrors(t *testing.T) {
 	})
 
 	t.Run("nil_config", func(t *testing.T) {
-		a := &Agent{sessionMgr: manager, initialized: true}
+		a := &Agent{stateMgr: manager, initialized: true}
 		_, err := a.ContextStatus(context.Background(), "ses_N8wM2fL7p9rT4vXc1q6b3")
 		require.EqualError(t, err, "config is required")
 	})
@@ -1003,7 +1003,7 @@ func TestAgent_ContextStatus_validationErrors(t *testing.T) {
 }
 
 func TestAgent_ContextStatus_returnsResolveError(t *testing.T) {
-	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return storage.Session{}, false, errors.New("session not found")
 		},
@@ -1012,7 +1012,7 @@ func TestAgent_ContextStatus_returnsResolveError(t *testing.T) {
 
 	a := &Agent{
 		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 128000}}}),
-		sessionMgr:  manager,
+		stateMgr:    manager,
 		initialized: true,
 		modelClient: &mocks.ModelClientStub{},
 	}
@@ -1022,7 +1022,7 @@ func TestAgent_ContextStatus_returnsResolveError(t *testing.T) {
 }
 
 func TestAgent_ContextStatus_returnsSummaryError(t *testing.T) {
-	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(_ context.Context, id string) (storage.Session, bool, error) {
 			return storage.Session{ID: id}, true, nil
 		},
@@ -1034,7 +1034,7 @@ func TestAgent_ContextStatus_returnsSummaryError(t *testing.T) {
 
 	a := &Agent{
 		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 128000}}}),
-		sessionMgr:  manager,
+		stateMgr:    manager,
 		initialized: true,
 		modelClient: &mocks.ModelClientStub{},
 	}
@@ -1044,7 +1044,7 @@ func TestAgent_ContextStatus_returnsSummaryError(t *testing.T) {
 }
 
 func TestAgent_ContextStatus_zeroTotalSkipsPercentages(t *testing.T) {
-	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(_ context.Context, id string) (storage.Session, bool, error) {
 			return storage.Session{ID: id, LastPromptTokens: 0}, true, nil
 		},
@@ -1053,7 +1053,7 @@ func TestAgent_ContextStatus_zeroTotalSkipsPercentages(t *testing.T) {
 
 	a := &Agent{
 		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 0}}}),
-		sessionMgr:  manager,
+		stateMgr:    manager,
 		initialized: true,
 		modelClient: &mocks.ModelClientStub{},
 	}
@@ -1070,7 +1070,7 @@ func TestAgent_ContextStatus_zeroTotalSkipsPercentages(t *testing.T) {
 }
 
 func TestAgent_ContextStatus_clampsNegativeTotalsAndUsed(t *testing.T) {
-	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(_ context.Context, id string) (storage.Session, bool, error) {
 			return storage.Session{ID: id, LastPromptTokens: -100}, true, nil
 		},
@@ -1082,7 +1082,7 @@ func TestAgent_ContextStatus_clampsNegativeTotalsAndUsed(t *testing.T) {
 			Name:   "Test Agent",
 			Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: -500}},
 		}),
-		sessionMgr:  manager,
+		stateMgr:    manager,
 		initialized: true,
 		modelClient: &mocks.ModelClientStub{},
 	}
@@ -1099,7 +1099,7 @@ func TestAgent_ContextStatus_clampsNegativeTotalsAndUsed(t *testing.T) {
 func TestAgent_GetSessionReturnsConcreteValues(t *testing.T) {
 	created := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
 	updated := time.Date(2024, 6, 2, 0, 0, 0, 0, time.UTC)
-	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetFunc: func(_ context.Context, id string) (storage.Session, bool, error) {
 			return storage.Session{
 				ID:               id,
@@ -1123,7 +1123,7 @@ func TestAgent_GetSessionReturnsConcreteValues(t *testing.T) {
 
 	a := &Agent{
 		cfg:         testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 400}}}),
-		sessionMgr:  manager,
+		stateMgr:    manager,
 		initialized: true,
 		modelClient: &mocks.ModelClientStub{},
 	}

@@ -15,9 +15,9 @@ import (
 	"github.com/wandxy/hand/internal/environment/sessionsearch"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/session"
-	storage "github.com/wandxy/hand/internal/storage/session"
-	"github.com/wandxy/hand/internal/storage/session/memory"
+	storage "github.com/wandxy/hand/internal/state"
+	statemanager "github.com/wandxy/hand/internal/state/manager"
+	memory "github.com/wandxy/hand/internal/state/storememory"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
@@ -183,9 +183,9 @@ func TestRuntime_ProcessMethodsHandleNilReceiver(t *testing.T) {
 	require.Nil(t, runtime.ListProcesses("session-1"))
 }
 
-func TestRuntime_SearchSessionDelegatesToSessionManager(t *testing.T) {
-	store := memory.NewSessionStore()
-	manager, err := session.NewManager(store, time.Minute, time.Hour)
+func TestRuntime_SearchSessionDelegatesToStateManager(t *testing.T) {
+	store := memory.NewStore()
+	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memory.Session{ID: runtimeSearchSessionID}))
 	require.NoError(t, manager.AppendMessages(context.Background(), runtimeSearchSessionID, []messages.Message{
@@ -212,8 +212,8 @@ func TestRuntime_SearchSessionDelegatesToSessionManager(t *testing.T) {
 }
 
 func TestRuntime_SearchSessionSupportsCrossSessionScope(t *testing.T) {
-	store := memory.NewSessionStore()
-	manager, err := session.NewManager(store, time.Minute, time.Hour)
+	store := memory.NewStore()
+	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 
 	otherSessionID := nanoid.MustFromSeed(storage.SessionIDPrefix, "runtime-search-other", "EnvironmentRuntimeTestSeed")
@@ -244,16 +244,16 @@ func TestRuntime_SearchSessionHandlesNilReceiver(t *testing.T) {
 	var runtime *Runtime
 
 	_, err := runtime.SearchSession(context.Background(), sessionsearch.SessionSearchRequest{SessionID: runtimeSearchSessionID, Query: "hello"})
-	require.EqualError(t, err, "session manager is required")
+	require.EqualError(t, err, "state manager is required")
 }
 
 func ptrTo[T any](value T) *T {
 	return &value
 }
 
-func TestRuntime_GetSessionMessagesDelegatesToSessionManager(t *testing.T) {
-	store := memory.NewSessionStore()
-	manager, err := session.NewManager(store, time.Minute, time.Hour)
+func TestRuntime_GetSessionMessagesDelegatesToStateManager(t *testing.T) {
+	store := memory.NewStore()
+	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memory.Session{ID: runtimeSearchSessionID}))
 	require.NoError(t, manager.AppendMessages(context.Background(), runtimeSearchSessionID, []messages.Message{
@@ -277,8 +277,8 @@ func TestRuntime_GetSessionMessagesDelegatesToSessionManager(t *testing.T) {
 }
 
 func TestRuntime_GetSessionMessagesSupportsCurrentSessionMessageIDLookup(t *testing.T) {
-	store := memory.NewSessionStore()
-	manager, err := session.NewManager(store, time.Minute, time.Hour)
+	store := memory.NewStore()
+	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memory.Session{ID: runtimeSearchSessionID}))
 	require.NoError(t, manager.UseSession(context.Background(), runtimeSearchSessionID))
@@ -300,8 +300,8 @@ func TestRuntime_GetSessionMessagesSupportsCurrentSessionMessageIDLookup(t *test
 }
 
 func TestRuntime_GetSessionMessagesSupportsAnchorWindowAndTruncation(t *testing.T) {
-	store := memory.NewSessionStore()
-	manager, err := session.NewManager(store, time.Minute, time.Hour)
+	store := memory.NewStore()
+	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memory.Session{ID: runtimeSearchSessionID}))
 	require.NoError(t, manager.AppendMessages(context.Background(), runtimeSearchSessionID, []messages.Message{
@@ -339,5 +339,5 @@ func TestRuntime_GetSessionMessagesHandlesNilReceiver(t *testing.T) {
 		OffsetStart: &offsetStart,
 		OffsetEnd:   &offsetEnd,
 	})
-	require.EqualError(t, err, "session manager is required")
+	require.EqualError(t, err, "state manager is required")
 }

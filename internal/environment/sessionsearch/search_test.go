@@ -11,18 +11,18 @@ import (
 	"github.com/stretchr/testify/require"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	sessionstore "github.com/wandxy/hand/internal/session"
-	storage "github.com/wandxy/hand/internal/storage/session"
-	memorystore "github.com/wandxy/hand/internal/storage/session/memory"
-	storagemock "github.com/wandxy/hand/internal/storage/session/mock"
+	storage "github.com/wandxy/hand/internal/state"
+	statemanager "github.com/wandxy/hand/internal/state/manager"
+	storagemock "github.com/wandxy/hand/internal/state/mock"
+	memorystore "github.com/wandxy/hand/internal/state/storememory"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
 var sessionSearchTestSessionID = nanoid.MustFromSeed(storage.SessionIDPrefix, "session-search", "EnvironmentSearchTestSeed")
 
 func TestSearch_FindsAssistantToolCallsAndPlainText(t *testing.T) {
-	store := memorystore.NewSessionStore()
-	manager, err := sessionstore.NewManager(store, time.Minute, time.Hour)
+	store := memorystore.NewStore()
+	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: sessionSearchTestSessionID}))
 
@@ -56,8 +56,8 @@ func TestSearch_FindsAssistantToolCallsAndPlainText(t *testing.T) {
 }
 
 func TestSearch_AssistantToolNameFilterDoesNotMatchOtherToolCallPayloads(t *testing.T) {
-	store := memorystore.NewSessionStore()
-	manager, err := sessionstore.NewManager(store, time.Minute, time.Hour)
+	store := memorystore.NewStore()
+	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: sessionSearchTestSessionID}))
 
@@ -82,8 +82,8 @@ func TestSearch_AssistantToolNameFilterDoesNotMatchOtherToolCallPayloads(t *test
 }
 
 func TestSearch_FiltersAndClampsResults(t *testing.T) {
-	store := memorystore.NewSessionStore()
-	manager, err := sessionstore.NewManager(store, time.Minute, time.Hour)
+	store := memorystore.NewStore()
+	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -110,8 +110,8 @@ func TestSearch_FiltersAndClampsResults(t *testing.T) {
 }
 
 func TestSearch_BuildsRuneSafeSnippet(t *testing.T) {
-	store := memorystore.NewSessionStore()
-	manager, err := sessionstore.NewManager(store, time.Minute, time.Hour)
+	store := memorystore.NewStore()
+	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: sessionSearchTestSessionID}))
 	require.NoError(t, manager.AppendMessages(context.Background(), sessionSearchTestSessionID, []handmsg.Message{{
@@ -130,8 +130,8 @@ func TestSearch_BuildsRuneSafeSnippet(t *testing.T) {
 }
 
 func TestSearch_ReportsMatchIndexFromOriginalText(t *testing.T) {
-	store := memorystore.NewSessionStore()
-	manager, err := sessionstore.NewManager(store, time.Minute, time.Hour)
+	store := memorystore.NewStore()
+	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: sessionSearchTestSessionID}))
 
@@ -154,10 +154,10 @@ func TestSearch_ReportsMatchIndexFromOriginalText(t *testing.T) {
 
 func TestSearch_ValidatesManagerAndQuery(t *testing.T) {
 	_, err := Search(context.Background(), nil, SessionSearchRequest{Query: "x"})
-	require.EqualError(t, err, "session manager is required")
+	require.EqualError(t, err, "state manager is required")
 
-	store := memorystore.NewSessionStore()
-	manager, createErr := sessionstore.NewManager(store, time.Minute, time.Hour)
+	store := memorystore.NewStore()
+	manager, createErr := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, createErr)
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: sessionSearchTestSessionID}))
 
@@ -166,8 +166,8 @@ func TestSearch_ValidatesManagerAndQuery(t *testing.T) {
 }
 
 func TestSearch_OmitsOriginSessionWhenSessionIDIsBlank(t *testing.T) {
-	store := memorystore.NewSessionStore()
-	manager, err := sessionstore.NewManager(store, time.Minute, time.Hour)
+	store := memorystore.NewStore()
+	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: storage.DefaultSessionID}))
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: sessionSearchTestSessionID}))
@@ -192,8 +192,8 @@ func TestSearch_OmitsOriginSessionWhenSessionIDIsBlank(t *testing.T) {
 }
 
 func TestSearch_ReturnsStoreErrorsAndSkipsEmptyDerivedSearchText(t *testing.T) {
-	store := memorystore.NewSessionStore()
-	manager, err := sessionstore.NewManager(store, time.Minute, time.Hour)
+	store := memorystore.NewStore()
+	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 
 	_, err = Search(context.Background(), manager, SessionSearchRequest{
@@ -219,7 +219,7 @@ func TestSearch_ReturnsStoreErrorsAndSkipsEmptyDerivedSearchText(t *testing.T) {
 
 func TestSearch_ForwardsCanonicalSearchOptions(t *testing.T) {
 	now := time.Now().UTC()
-	mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	mockManager, err := statemanager.NewManager(&storagemock.Store{
 		SearchMessagesFunc: func(_ context.Context, id string, opts storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
 			require.Empty(t, id)
 			require.Equal(t, storage.DefaultSessionID, opts.IgnoreSessionID)
@@ -276,7 +276,7 @@ func TestSearch_ForwardsCanonicalSearchOptions(t *testing.T) {
 }
 
 func TestSearch_ShapesResultsFromStorageMatchedMetadata(t *testing.T) {
-	mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	mockManager, err := statemanager.NewManager(&storagemock.Store{
 		SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
 			now := time.Date(2026, time.April, 20, 15, 4, 5, 0, time.UTC)
 			matchedText := strings.Repeat("x", 140) + "needle" + strings.Repeat("y", 140)
@@ -328,7 +328,7 @@ func TestSearch_ShapesResultsFromStorageMatchedMetadata(t *testing.T) {
 
 func TestSearch_SkipsEmptyHitsAndMissingSessions(t *testing.T) {
 	now := time.Now().UTC()
-	mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	mockManager, err := statemanager.NewManager(&storagemock.Store{
 		SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
 			return []storage.SearchMessageResult{
 				{
@@ -386,7 +386,7 @@ func TestSearch_SkipsEmptyHitsAndMissingSessions(t *testing.T) {
 
 func TestSearch_SkipsEmptyMatchedMessagesInGroupedResult(t *testing.T) {
 	now := time.Now().UTC()
-	mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	mockManager, err := statemanager.NewManager(&storagemock.Store{
 		SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
 			return []storage.SearchMessageResult{{
 				SessionID:  sessionSearchTestSessionID,
@@ -419,7 +419,7 @@ func TestSearch_ReturnsSessionLookupErrors(t *testing.T) {
 	now := time.Now().UTC()
 
 	t.Run("get", func(t *testing.T) {
-		mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
+		mockManager, err := statemanager.NewManager(&storagemock.Store{
 			SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
 				return []storage.SearchMessageResult{{
 					SessionID:  sessionSearchTestSessionID,
@@ -442,7 +442,7 @@ func TestSearch_ReturnsSessionLookupErrors(t *testing.T) {
 	})
 
 	t.Run("summary", func(t *testing.T) {
-		mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
+		mockManager, err := statemanager.NewManager(&storagemock.Store{
 			SearchMessagesFunc: func(_ context.Context, _ string, _ storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
 				return []storage.SearchMessageResult{{
 					SessionID:  sessionSearchTestSessionID,
@@ -472,7 +472,7 @@ func TestSearch_LimitsAndSortsGroupedResultsDeterministically(t *testing.T) {
 	now := time.Now().UTC()
 	sessionA := nanoid.MustFromSeed(storage.SessionIDPrefix, "session-a", "EnvironmentSearchTestSeed")
 
-	mockManager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	mockManager, err := statemanager.NewManager(&storagemock.Store{
 		SearchMessagesFunc: func(_ context.Context, _ string, opts storage.SearchMessageOptions) ([]storage.SearchMessageResult, error) {
 			require.Equal(t, 1, opts.MaxSessions)
 			require.Equal(t, maxSessionMatchedMessages, opts.MaxMessagesPerSession)

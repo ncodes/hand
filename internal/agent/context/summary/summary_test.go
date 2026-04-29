@@ -15,8 +15,8 @@ import (
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/mocks"
 	"github.com/wandxy/hand/internal/models"
-	storage "github.com/wandxy/hand/internal/storage/session"
-	storagemock "github.com/wandxy/hand/internal/storage/session/mock"
+	storage "github.com/wandxy/hand/internal/state"
+	storagemock "github.com/wandxy/hand/internal/state/mock"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -26,7 +26,7 @@ func init() {
 }
 
 func TestService_MaybeRefreshSummary_ReturnsWhenStateOrTraceIsNil(t *testing.T) {
-	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{})
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{})
 	var mem *State
 	require.NoError(t, service.MaybeRefreshSummary(context.Background(), mem, RefreshInput{
 		TraceSession: &mocks.TraceSessionStub{},
@@ -39,12 +39,12 @@ func TestService_MaybeRefreshSummary_ReturnsWhenStateOrTraceIsNil(t *testing.T) 
 func TestService_MaybeRefreshSummary_ReturnsErrorWhenServiceDependenciesMissing(t *testing.T) {
 	mem := &State{}
 	require.EqualError(t, (*Service)(nil).MaybeRefreshSummary(context.Background(), mem, RefreshInput{TraceSession: &mocks.TraceSessionStub{}}), "summary service is required")
-	require.EqualError(t, (&Service{store: &storagemock.SessionStore{}}).MaybeRefreshSummary(context.Background(), mem, RefreshInput{TraceSession: &mocks.TraceSessionStub{}}), "model client is required")
+	require.EqualError(t, (&Service{store: &storagemock.Store{}}).MaybeRefreshSummary(context.Background(), mem, RefreshInput{TraceSession: &mocks.TraceSessionStub{}}), "model client is required")
 	require.EqualError(t, (&Service{modelClient: &mocks.ModelClientStub{}}).MaybeRefreshSummary(context.Background(), mem, RefreshInput{TraceSession: &mocks.TraceSessionStub{}}), "summary store is required")
 }
 
 func TestService_Load(t *testing.T) {
-	store := &storagemock.SessionStore{
+	store := &storagemock.Store{
 		GetSummaryFunc: func(context.Context, string) (storage.SessionSummary, bool, error) {
 			return storage.SessionSummary{
 				SessionID:      storage.DefaultSessionID,
@@ -68,7 +68,7 @@ func TestService_Load_ReturnsErrors(t *testing.T) {
 	_, err = (&Service{}).Load(context.Background(), storage.DefaultSessionID)
 	require.EqualError(t, err, "summary store is required")
 
-	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{
 		GetSummaryFunc: func(context.Context, string) (storage.SessionSummary, bool, error) {
 			return storage.SessionSummary{}, false, errors.New("load failed")
 		},
@@ -136,7 +136,7 @@ func TestService_MaybeRefreshSummary_DoesNotTransitionCompactionWhenRefreshIsNot
 
 func TestService_MaybeRefreshSummary_ReturnsCountMessagesError(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
-	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return 0, errors.New("count failed")
 		},
@@ -216,7 +216,7 @@ func TestService_MaybeRefreshSummary_SkipsWhenEstimateDoesNotTrigger(t *testing.
 
 func TestService_MaybeRefreshSummary_SkipsWhenSummaryAlreadyCoversHistory(t *testing.T) {
 	client := &mocks.ModelClientStub{}
-	service := summaryTestService(summaryTestConfig(true), client, &storagemock.SessionStore{})
+	service := summaryTestService(summaryTestConfig(true), client, &storagemock.Store{})
 	mem := &State{Current: &SummaryState{
 		SessionID:       storage.DefaultSessionID,
 		SourceEndOffset: 2,
@@ -329,7 +329,7 @@ func TestService_MaybeRefreshSummary_ReconcilesCoveredSummaryWithoutTriggeringEs
 
 func TestService_MaybeRefreshSummary_RecordsCompactionFailureWhenCoveredSummarySessionLoadFails(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
-	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return 10, nil
 		},
@@ -354,7 +354,7 @@ func TestService_MaybeRefreshSummary_RecordsCompactionFailureWhenCoveredSummaryS
 
 func TestService_MaybeRefreshSummary_RecordsCompactionFailureWhenCoveredSummarySessionIsMissing(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
-	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{
+	service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
 			return 10, nil
 		},
@@ -890,7 +890,7 @@ func TestService_CompactSession_ReturnsValidationErrors(t *testing.T) {
 	})
 
 	t.Run("nil_model_client", func(t *testing.T) {
-		svc := NewService(summaryTestConfig(true), nil, nil, &storagemock.SessionStore{})
+		svc := NewService(summaryTestConfig(true), nil, nil, &storagemock.Store{})
 		_, err := svc.CompactSession(context.Background(), sess, traceSession)
 		require.EqualError(t, err, "model client is required")
 	})
@@ -1058,7 +1058,7 @@ func TestService_RecallSessionSummary_ReturnsValidationErrors(t *testing.T) {
 	})
 
 	t.Run("nil_model_client", func(t *testing.T) {
-		svc := NewService(summaryTestConfig(true), nil, nil, &storagemock.SessionStore{})
+		svc := NewService(summaryTestConfig(true), nil, nil, &storagemock.Store{})
 		_, err := svc.RecallSessionSummary(context.Background(), sess, traceSession)
 		require.EqualError(t, err, "model client is required")
 	})
@@ -1664,13 +1664,13 @@ func TestService_TransitionCompactionPending(t *testing.T) {
 	}
 
 	t.Run("nil session", func(t *testing.T) {
-		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{})
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{})
 		err := service.transitionCompactionPending(context.Background(), nil, plan, &mocks.TraceSessionStub{})
 		require.EqualError(t, err, "session is required")
 	})
 
 	t.Run("save error", func(t *testing.T) {
-		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{
 			SaveFunc: func(context.Context, storage.Session) error {
 				return errors.New("save failed")
 			},
@@ -1688,7 +1688,7 @@ func TestService_TransitionCompactionRunning(t *testing.T) {
 	}
 
 	t.Run("nil session", func(t *testing.T) {
-		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{})
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{})
 		err := service.transitionCompactionRunning(context.Background(), nil, plan, &mocks.TraceSessionStub{})
 		require.EqualError(t, err, "session is required")
 	})
@@ -1702,13 +1702,13 @@ func TestService_TransitionCompactionSucceeded(t *testing.T) {
 	}
 
 	t.Run("nil session", func(t *testing.T) {
-		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{})
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{})
 		err := service.transitionCompactionSucceeded(context.Background(), nil, plan, &mocks.TraceSessionStub{})
 		require.EqualError(t, err, "session is required")
 	})
 
 	t.Run("save error", func(t *testing.T) {
-		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{
 			SaveFunc: func(context.Context, storage.Session) error {
 				return errors.New("save failed")
 			},
@@ -1733,14 +1733,14 @@ func TestService_ReconcileCompactionSucceeded(t *testing.T) {
 	}
 
 	t.Run("nil session", func(t *testing.T) {
-		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{})
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{})
 		err := service.reconcileCompactionSucceeded(context.Background(), nil, plan, &mocks.TraceSessionStub{})
 		require.EqualError(t, err, "session is required")
 	})
 
 	t.Run("already reconciled", func(t *testing.T) {
 		traceSession := &mocks.TraceSessionStub{}
-		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{})
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{})
 		session := &storage.Session{
 			ID: storage.DefaultSessionID,
 			Compaction: storage.SessionCompaction{
@@ -1755,7 +1755,7 @@ func TestService_ReconcileCompactionSucceeded(t *testing.T) {
 
 	t.Run("save error records failure", func(t *testing.T) {
 		traceSession := &mocks.TraceSessionStub{}
-		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{
 			SaveFunc: func(context.Context, storage.Session) error {
 				return errors.New("save failed")
 			},
@@ -1781,13 +1781,13 @@ func TestService_TransitionCompactionFailed(t *testing.T) {
 	}
 
 	t.Run("nil session", func(t *testing.T) {
-		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{})
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{})
 		err := service.transitionCompactionFailed(context.Background(), nil, plan, errors.New("summary failed"), &mocks.TraceSessionStub{})
 		require.EqualError(t, err, "session is required")
 	})
 
 	t.Run("save error", func(t *testing.T) {
-		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.SessionStore{
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{
 			SaveFunc: func(context.Context, storage.Session) error {
 				return errors.New("save failed")
 			},
@@ -2016,9 +2016,9 @@ func setRecallLimitsForTest(t *testing.T, windowMessages, windowTokens, mergeSum
 	})
 }
 
-func summaryTestStore(history []handmsg.Message) *storagemock.SessionStore {
+func summaryTestStore(history []handmsg.Message) *storagemock.Store {
 	session := storage.Session{ID: storage.DefaultSessionID}
-	return &storagemock.SessionStore{
+	return &storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
 			return session, true, nil
 		},

@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	sessionstore "github.com/wandxy/hand/internal/session"
-	storage "github.com/wandxy/hand/internal/storage/session"
-	memorystore "github.com/wandxy/hand/internal/storage/session/memory"
-	storagemock "github.com/wandxy/hand/internal/storage/session/mock"
+	storage "github.com/wandxy/hand/internal/state"
+	statemanager "github.com/wandxy/hand/internal/state/manager"
+	storagemock "github.com/wandxy/hand/internal/state/mock"
+	memorystore "github.com/wandxy/hand/internal/state/storememory"
 	"github.com/wandxy/hand/pkg/logutils"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
@@ -24,7 +24,7 @@ func TestGet_RejectsNilManager(t *testing.T) {
 		MessageIDs: []uint{1},
 	})
 
-	require.EqualError(t, err, "session manager is required")
+	require.EqualError(t, err, "state manager is required")
 }
 
 func TestGet_RejectsInvalidRequest(t *testing.T) {
@@ -36,7 +36,7 @@ func TestGet_RejectsInvalidRequest(t *testing.T) {
 }
 
 func TestGet_ReturnsCurrentSessionLookupError(t *testing.T) {
-	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		CurrentFunc: func(context.Context) (string, bool, error) {
 			return "", false, errors.New("current session failed")
 		},
@@ -78,7 +78,7 @@ func TestGet_UsesCurrentSessionWhenSessionIDIsOmitted(t *testing.T) {
 }
 
 func TestGet_UsesDefaultSessionWhenSessionIDIsOmittedAndNoCurrentSessionExists(t *testing.T) {
-	manager, err := sessionstore.NewManager(memorystore.NewSessionStore(), time.Minute, time.Hour)
+	manager, err := statemanager.NewManager(memorystore.NewStore(), time.Minute, time.Hour)
 	require.NoError(t, err)
 	_, err = manager.Resolve(context.Background(), "")
 	require.NoError(t, err)
@@ -138,7 +138,7 @@ func TestGet_ReturnsAssistantToolCallsAndTruncatesInputs(t *testing.T) {
 }
 
 func TestGet_PreservesExactStoredContentWhenNotTruncated(t *testing.T) {
-	manager, err := sessionstore.NewManager(memorystore.NewSessionStore(), time.Minute, time.Hour)
+	manager, err := statemanager.NewManager(memorystore.NewStore(), time.Minute, time.Hour)
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: testSessionID}))
 	require.NoError(t, manager.AppendMessages(context.Background(), testSessionID, []handmsg.Message{
@@ -186,7 +186,7 @@ func TestGet_ReturnsOffsetRange(t *testing.T) {
 func TestGet_ReturnsOffsetRangeError(t *testing.T) {
 	offsetStart := 0
 	offsetEnd := 2
-	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, errors.New("offset range failed")
 		},
@@ -203,7 +203,7 @@ func TestGet_ReturnsOffsetRangeError(t *testing.T) {
 }
 
 func TestGet_UsesDirectMessageIDLookupInsteadOfFullTranscriptLoad(t *testing.T) {
-	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, errors.New("full transcript load should not be used")
 		},
@@ -228,7 +228,7 @@ func TestGet_UsesDirectMessageIDLookupInsteadOfFullTranscriptLoad(t *testing.T) 
 }
 
 func TestGet_ReturnsMessageIDLookupError(t *testing.T) {
-	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetMessagesByIDsFunc: func(context.Context, string, []uint) ([]storage.MessageRecord, error) {
 			return nil, errors.New("message id lookup failed")
 		},
@@ -244,7 +244,7 @@ func TestGet_ReturnsMessageIDLookupError(t *testing.T) {
 }
 
 func TestGet_UsesDirectAnchorWindowLookupInsteadOfFullTranscriptLoad(t *testing.T) {
-	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return nil, errors.New("full transcript load should not be used")
 		},
@@ -273,7 +273,7 @@ func TestGet_UsesDirectAnchorWindowLookupInsteadOfFullTranscriptLoad(t *testing.
 }
 
 func TestGet_ReturnsAnchorWindowLookupError(t *testing.T) {
-	manager, err := sessionstore.NewManager(&storagemock.SessionStore{
+	manager, err := statemanager.NewManager(&storagemock.Store{
 		GetMessageWindowFunc: func(context.Context, string, uint, int, int) ([]storage.MessageRecord, error) {
 			return nil, errors.New("anchor lookup failed")
 		},
@@ -304,11 +304,11 @@ func TestTruncateMessageContent_HandlesUTF8AndBounds(t *testing.T) {
 	require.False(t, truncated)
 }
 
-func newSessionMessagesTestManager(t *testing.T) *sessionstore.Manager {
+func newSessionMessagesTestManager(t *testing.T) *statemanager.Manager {
 	t.Helper()
 
-	store := memorystore.NewSessionStore()
-	manager, err := sessionstore.NewManager(store, time.Minute, time.Hour)
+	store := memorystore.NewStore()
+	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
 	require.NoError(t, manager.Save(context.Background(), memorystore.Session{ID: testSessionID}))
 	require.NoError(t, manager.AppendMessages(context.Background(), testSessionID, []handmsg.Message{

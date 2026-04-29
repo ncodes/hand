@@ -16,7 +16,7 @@ import (
 	"github.com/wandxy/hand/internal/agent"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
-	storage "github.com/wandxy/hand/internal/storage/session"
+	storage "github.com/wandxy/hand/internal/state"
 )
 
 type respondStreamServerStub struct {

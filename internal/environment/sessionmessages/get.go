@@ -8,17 +8,17 @@ import (
 	"unicode/utf8"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	sessionstore "github.com/wandxy/hand/internal/session"
-	storage "github.com/wandxy/hand/internal/storage/session"
+	storage "github.com/wandxy/hand/internal/state"
+	statemanager "github.com/wandxy/hand/internal/state/manager"
 )
 
 func Get(
 	ctx context.Context,
-	manager *sessionstore.Manager,
+	manager *statemanager.Manager,
 	req SessionMessagesRequest,
 ) (SessionMessagesResponse, error) {
 	if manager == nil {
-		return SessionMessagesResponse{}, errors.New("session manager is required")
+		return SessionMessagesResponse{}, errors.New("state manager is required")
 	}
 	if err := req.Validate(); err != nil {
 		return SessionMessagesResponse{}, err
