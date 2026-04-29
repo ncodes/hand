@@ -9,7 +9,7 @@ import (
 	"github.com/wandxy/hand/internal/agent"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	storage "github.com/wandxy/hand/internal/state"
+	storage "github.com/wandxy/hand/internal/state/core"
 )
 
 type harnessAgentStub struct {

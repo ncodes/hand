@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	storage "github.com/wandxy/hand/internal/state"
+	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 

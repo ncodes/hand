@@ -14,10 +14,11 @@ import (
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/mocks"
 	"github.com/wandxy/hand/internal/models"
-	storage "github.com/wandxy/hand/internal/state"
+	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	storagemock "github.com/wandxy/hand/internal/state/mock"
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
+	statevector "github.com/wandxy/hand/internal/state/vector"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 )
@@ -984,14 +985,14 @@ func TestAgent_RepairSession(t *testing.T) {
 		var a *Agent
 		result, err := a.RepairSession(context.Background(), RepairSessionOptions{})
 		require.EqualError(t, err, "agent is required")
-		require.Equal(t, storage.VectorRepairResult{}, result)
+		require.Equal(t, statevector.VectorRepairResult{}, result)
 	})
 
 	t.Run("rejects uninitialized agent", func(t *testing.T) {
 		a := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), &mocks.ModelClientStub{})
 		result, err := a.RepairSession(context.Background(), RepairSessionOptions{})
 		require.EqualError(t, err, "environment has not been initialized")
-		require.Equal(t, storage.VectorRepairResult{}, result)
+		require.Equal(t, statevector.VectorRepairResult{}, result)
 	})
 
 	t.Run("delegates to state manager", func(t *testing.T) {
@@ -1006,7 +1007,7 @@ func TestAgent_RepairSession(t *testing.T) {
 
 		result, err := a.RepairSession(context.Background(), RepairSessionOptions{})
 		require.NoError(t, err)
-		require.Equal(t, storage.VectorRepairResult{}, result)
+		require.Equal(t, statevector.VectorRepairResult{}, result)
 	})
 }
 

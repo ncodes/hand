@@ -8,7 +8,8 @@ import (
 	"time"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	storage "github.com/wandxy/hand/internal/state"
+	storage "github.com/wandxy/hand/internal/state/core"
+	statevector "github.com/wandxy/hand/internal/state/vector"
 )
 
 type Manager struct {
@@ -215,15 +216,15 @@ func (m *Manager) SearchMessages(
 
 func (m *Manager) RepairVectorStore(
 	ctx context.Context,
-	opts storage.VectorRepairOptions,
-) (storage.VectorRepairResult, error) {
+	opts statevector.VectorRepairOptions,
+) (statevector.VectorRepairResult, error) {
 	if m == nil {
-		return storage.VectorRepairResult{}, errors.New("state manager is required")
+		return statevector.VectorRepairResult{}, errors.New("state manager is required")
 	}
 
-	repairStore, ok := m.store.(storage.VectorRepairStore)
+	repairStore, ok := m.store.(statevector.VectorRepairStore)
 	if !ok {
-		return storage.VectorRepairResult{}, errors.New("session vector repair is not supported")
+		return statevector.VectorRepairResult{}, errors.New("session vector repair is not supported")
 	}
 
 	opts.SessionID = strings.TrimSpace(opts.SessionID)

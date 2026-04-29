@@ -9,8 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	base "github.com/wandxy/hand/internal/state"
+	base "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/retrieval"
+	statevector "github.com/wandxy/hand/internal/state/vector"
 	vectormemory "github.com/wandxy/hand/internal/state/vector/memory"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
@@ -653,7 +654,7 @@ func TestMemoryStore_VectorLifecycleRemovesRows(t *testing.T) {
 func TestMemoryStore_VectorSearchUsesConfiguredReranker(t *testing.T) {
 	store := NewStore()
 	now := time.Now().UTC()
-	require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+	require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
 		Embedder:            semanticTestEmbedder{},
 		Reranker:            preferBillingTestReranker{},
 		VectorStore:         vectormemory.NewStore(),
@@ -708,7 +709,7 @@ func newVectorMemoryStore(t *testing.T, enableRerank *bool) *Store {
 	t.Helper()
 
 	store := NewStore()
-	require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+	require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
 		Embedder:            semanticTestEmbedder{},
 		Reranker:            retrieval.DeterministicReranker{},
 		VectorStore:         vectormemory.NewStore(),

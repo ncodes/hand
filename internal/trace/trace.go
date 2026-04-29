@@ -130,7 +130,7 @@ func SessionIDFromTraceFilename(stem string) string {
 }
 
 // ResolveTraceFilePath returns the path to the JSONL trace file for a storage session id.
-// It looks for exactly one file matching "*<session_id>.jsonl" (time-prefixed names included). 
+// It looks for exactly one file matching "*<session_id>.jsonl" (time-prefixed names included).
 // If none exist, it returns [os.ErrNotExist]. If more than one match, it returns [ErrAmbiguousTraceFiles].
 func ResolveTraceFilePath(directory, sessionID string) (string, error) {
 	directory = strings.TrimSpace(directory)

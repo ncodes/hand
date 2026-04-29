@@ -7,8 +7,9 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/wandxy/hand/internal/state"
+	state "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/retrieval"
+	statevector "github.com/wandxy/hand/internal/state/vector"
 )
 
 // RebuildVectorStore refreshes all vector rows for one active session in batches.
@@ -18,7 +19,7 @@ func (s *Store) RebuildVectorStore(ctx context.Context, id string) error {
 		return err
 	}
 
-	_, err := s.RepairVectorStore(ctx, state.VectorRepairOptions{
+	_, err := s.RepairVectorStore(ctx, statevector.VectorRepairOptions{
 		SessionID: id,
 		Full:      true,
 	})
@@ -26,40 +27,40 @@ func (s *Store) RebuildVectorStore(ctx context.Context, id string) error {
 }
 
 // RepairVectorStore repairs missing, stale, or extra vector rows for active session messages.
-func (s *Store) RepairVectorStore(ctx context.Context, opts state.VectorRepairOptions) (state.VectorRepairResult, error) {
+func (s *Store) RepairVectorStore(ctx context.Context, opts statevector.VectorRepairOptions) (statevector.VectorRepairResult, error) {
 	if s == nil || s.db == nil {
-		return state.VectorRepairResult{}, errors.New("store is required")
+		return statevector.VectorRepairResult{}, errors.New("store is required")
 	}
 	if s.vectors == nil {
-		return state.VectorRepairResult{}, nil
+		return statevector.VectorRepairResult{}, nil
 	}
 
 	sessionID := strings.TrimSpace(opts.SessionID)
 	if sessionID != "" {
 		if err := state.ValidateSessionID(sessionID); err != nil {
-			return state.VectorRepairResult{}, err
+			return statevector.VectorRepairResult{}, err
 		}
 	}
 
 	batchSize := opts.BatchSize
 	if batchSize < 0 {
-		return state.VectorRepairResult{}, errors.New("vector repair batch size must be greater than or equal to zero")
+		return statevector.VectorRepairResult{}, errors.New("vector repair batch size must be greater than or equal to zero")
 	}
 	if batchSize == 0 {
 		batchSize = s.vectors.batchSize
 	}
 
-	lister, err := state.VectorRecordLister(s.vectors.Store)
+	lister, err := statevector.VectorRecordLister(s.vectors.Store)
 	if err != nil {
-		return state.VectorRepairResult{}, err
+		return statevector.VectorRepairResult{}, err
 	}
 
 	sessionIDs, err := s.repairSessionIDs(ctx, sessionID)
 	if err != nil {
-		return state.VectorRepairResult{}, err
+		return statevector.VectorRepairResult{}, err
 	}
 
-	var result state.VectorRepairResult
+	var result statevector.VectorRepairResult
 	result.SessionsScanned = len(sessionIDs)
 	for _, id := range sessionIDs {
 		lastSequence := -1
@@ -123,8 +124,8 @@ func (s *Store) repairVectorBatch(
 	lister retrieval.VectorRecordLister,
 	records []messageModel,
 	full bool,
-) (state.VectorRepairResult, error) {
-	var result state.VectorRepairResult
+) (statevector.VectorRepairResult, error) {
+	var result statevector.VectorRepairResult
 	if len(records) == 0 {
 		return result, nil
 	}
@@ -136,7 +137,7 @@ func (s *Store) repairVectorBatch(
 		return result, nil
 	}
 
-	dirtySources, batchResult, err := state.DirtyVectorSources(ctx, lister, s.vectors.Model, inputs, full)
+	dirtySources, batchResult, err := statevector.DirtyVectorSources(ctx, lister, s.vectors.Model, inputs, full)
 	result.Add(batchResult)
 	if err != nil || len(dirtySources) == 0 {
 		return result, err

@@ -13,7 +13,8 @@ import (
 
 	"github.com/wandxy/hand/internal/agent"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
-	storage "github.com/wandxy/hand/internal/state"
+	storage "github.com/wandxy/hand/internal/state/core"
+	statevector "github.com/wandxy/hand/internal/state/vector"
 )
 
 type Client struct {
@@ -28,9 +29,9 @@ type CompactSessionResult = agent.CompactSessionResult
 
 type ContextStatus = agent.ContextStatus
 
-type RepairSessionOptions = storage.VectorRepairOptions
+type RepairSessionOptions = statevector.VectorRepairOptions
 
-type RepairSessionResult = storage.VectorRepairResult
+type RepairSessionResult = statevector.VectorRepairResult
 
 type ChatAPI interface {
 	Respond(context.Context, string, RespondOptions) (string, error)

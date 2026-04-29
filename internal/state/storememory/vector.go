@@ -8,18 +8,20 @@ import (
 	"time"
 
 	"github.com/wandxy/hand/internal/messages"
-	base "github.com/wandxy/hand/internal/state"
+	base "github.com/wandxy/hand/internal/state/core"
+	"github.com/wandxy/hand/internal/state/indexing"
 	"github.com/wandxy/hand/internal/state/retrieval"
+	statevector "github.com/wandxy/hand/internal/state/vector"
 )
 
 type searchCandidate struct {
-	base.CandidateMatch
+	indexing.CandidateMatch
 	Message messages.Message
 }
 
-type searchCandidateSet = base.SearchCandidateSet[string, *searchCandidate]
+type searchCandidateSet = indexing.SearchCandidateSet[string, *searchCandidate]
 
-func (candidate *searchCandidate) CandidateMatchRef() *base.CandidateMatch {
+func (candidate *searchCandidate) CandidateMatchRef() *indexing.CandidateMatch {
 	if candidate == nil {
 		return nil
 	}
@@ -27,7 +29,7 @@ func (candidate *searchCandidate) CandidateMatchRef() *base.CandidateMatch {
 	return &candidate.CandidateMatch
 }
 
-func (s *Store) ConfigureVectorStore(opts base.VectorStoreOptions) error {
+func (s *Store) ConfigureVectorStore(opts statevector.VectorStoreOptions) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
@@ -56,7 +58,7 @@ func (s *Store) ConfigureVectorStore(opts base.VectorStoreOptions) error {
 	}
 
 	if rerankMax == 0 {
-		rerankMax = base.DefaultRerankCandidateLimit
+		rerankMax = indexing.DefaultRerankCandidateLimit
 	}
 
 	rerankEnabled := true
@@ -68,7 +70,7 @@ func (s *Store) ConfigureVectorStore(opts base.VectorStoreOptions) error {
 		return err
 	}
 
-	s.vectors = &base.VectorConfig{
+	s.vectors = &statevector.VectorConfig{
 		Provider:    opts.Embedder,
 		Reranker:    opts.Reranker,
 		Store:       opts.VectorStore,
@@ -88,7 +90,7 @@ func (s *Store) searchMessagesHybrid(
 	opts base.SearchMessageOptions,
 	query string,
 ) ([]base.SearchMessageResult, error) {
-	candidateLimit := base.HybridRetrievalCandidateLimit(opts)
+	candidateLimit := indexing.HybridRetrievalCandidateLimit(opts)
 	lexicalCandidates := s.searchMessagesLexicalCandidates(id, opts, query, candidateLimit)
 
 	s.logSearchEvent("lexical candidates gathered", id, opts).
@@ -164,8 +166,8 @@ func (s *Store) searchMessagesLexicalCandidates(
 			if limit > 0 && len(candidates) >= limit {
 				return
 			}
-			candidates[base.SourceIDForMessage(sessionID, hit.Message.ID)] = &searchCandidate{
-				CandidateMatch: base.CandidateMatch{
+			candidates[statevector.SourceIDForMessage(sessionID, hit.Message.ID)] = &searchCandidate{
+				CandidateMatch: indexing.CandidateMatch{
 					SessionID:       sessionID,
 					MatchedText:     hit.MatchedText,
 					MatchedToolName: hit.MatchedToolName,
@@ -292,7 +294,7 @@ func (s *Store) vectorMatchesToCandidates(
 	candidates := make([]*searchCandidate, 0, len(matches))
 	seen := make(map[string]struct{}, len(matches))
 	for idx, match := range matches {
-		sessionID, messageID, ok := base.MessageRefFromSourceID(match.Record.SourceID)
+		sessionID, messageID, ok := statevector.MessageRefFromSourceID(match.Record.SourceID)
 		if !ok {
 			continue
 		}
@@ -303,16 +305,16 @@ func (s *Store) vectorMatchesToCandidates(
 		if !ok || !messageMatchesSearchOptions(sessionID, message, id, opts) {
 			continue
 		}
-		row, ok := base.MessageIndexRowForVectorRecord(
-			base.MessageIndexRowsFromMessage(sessionID, message),
+		row, ok := indexing.MessageIndexRowForVectorRecord(
+			indexing.MessageIndexRowsFromMessage(sessionID, message),
 			match.Record.ID,
 		)
-		if !ok || !base.MessageIndexRowMatchesSearchOptions(row, opts) {
+		if !ok || !indexing.MessageIndexRowMatchesSearchOptions(row, opts) {
 			continue
 		}
 
 		candidates = append(candidates, &searchCandidate{
-			CandidateMatch: base.CandidateMatch{
+			CandidateMatch: indexing.CandidateMatch{
 				SessionID:       sessionID,
 				MatchedText:     row.Body,
 				MatchedToolName: row.ToolName,
@@ -333,7 +335,7 @@ func searchCandidateKey(candidate *searchCandidate) string {
 		return ""
 	}
 
-	return base.SourceIDForMessage(candidate.SessionID, candidate.Message.ID)
+	return statevector.SourceIDForMessage(candidate.SessionID, candidate.Message.ID)
 }
 
 func lessSearchCandidate(left *searchCandidate, right *searchCandidate) bool {
@@ -422,7 +424,7 @@ func retrievalCandidateFromSearchCandidate(candidate *searchCandidate) retrieval
 	return retrieval.Candidate{
 		CreatedAt:    candidate.Message.CreatedAt,
 		UpdatedAt:    candidate.Message.CreatedAt,
-		ID:           base.SourceIDForMessage(candidate.SessionID, candidate.Message.ID),
+		ID:           statevector.SourceIDForMessage(candidate.SessionID, candidate.Message.ID),
 		SourceKind:   retrieval.SourceKindSessionMessage,
 		SessionID:    candidate.SessionID,
 		Text:         text,
@@ -452,8 +454,8 @@ func searchResultsFromCandidates(
 	sort.SliceStable(sessionIDs, func(i, j int) bool {
 		left := groups[sessionIDs[i]][0]
 		right := groups[sessionIDs[j]][0]
-		leftScore := base.CandidateRankingScore(left.HasRerank, left.RerankScore, left.FusedScore)
-		rightScore := base.CandidateRankingScore(right.HasRerank, right.RerankScore, right.FusedScore)
+		leftScore := indexing.CandidateRankingScore(left.HasRerank, left.RerankScore, left.FusedScore)
+		rightScore := indexing.CandidateRankingScore(right.HasRerank, right.RerankScore, right.FusedScore)
 		if leftScore != rightScore {
 			return leftScore > rightScore
 		}
@@ -517,11 +519,11 @@ func (s *Store) vectorRecordsForMessages(
 		return nil, nil
 	}
 
-	rows := make([]base.MessageIndexRow, 0, len(messages))
+	rows := make([]indexing.MessageIndexRow, 0, len(messages))
 	for _, message := range messages {
-		rows = append(rows, base.MessageIndexRowsFromMessage(sessionID, message)...)
+		rows = append(rows, indexing.MessageIndexRowsFromMessage(sessionID, message)...)
 	}
-	inputs := base.VectorInputsFromIndexRows(rows)
+	inputs := statevector.VectorInputsFromIndexRows(rows)
 	if len(inputs) == 0 {
 		return nil, nil
 	}
@@ -559,7 +561,7 @@ func (s *Store) vectorRecordsForMessages(
 		Str("embedding_model", strings.TrimSpace(result.Model)).
 		Msg("session vector embedding completed")
 
-	inputByID := make(map[string]base.VectorInput, len(inputs))
+	inputByID := make(map[string]statevector.VectorInput, len(inputs))
 	for _, input := range inputs {
 		inputByID[input.ID] = input
 	}
@@ -689,9 +691,9 @@ func messageMatchesSearchOptions(
 }
 
 func compareSearchCandidates(left *searchCandidate, right *searchCandidate) int {
-	return base.CompareCandidateOrder(
-		base.CandidateRankingScore(left.HasRerank, left.RerankScore, left.FusedScore),
-		base.CandidateRankingScore(right.HasRerank, right.RerankScore, right.FusedScore),
+	return indexing.CompareCandidateOrder(
+		indexing.CandidateRankingScore(left.HasRerank, left.RerankScore, left.FusedScore),
+		indexing.CandidateRankingScore(right.HasRerank, right.RerankScore, right.FusedScore),
 		left.Message.CreatedAt,
 		right.Message.CreatedAt,
 		left.SessionID,

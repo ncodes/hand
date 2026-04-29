@@ -9,7 +9,8 @@ import (
 	"time"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	base "github.com/wandxy/hand/internal/state"
+	base "github.com/wandxy/hand/internal/state/core"
+	statevector "github.com/wandxy/hand/internal/state/vector"
 )
 
 type Session = base.Session
@@ -19,7 +20,7 @@ type SessionSummary = base.SessionSummary
 type MessageRecord = base.MessageRecord
 
 type Store struct {
-	vectors         *base.VectorConfig
+	vectors         *statevector.VectorConfig
 	mu              sync.RWMutex
 	sessions        map[string]Session
 	messages        map[string][]handmsg.Message
@@ -135,7 +136,7 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 		return errors.New("session not found")
 	}
 
-	sourceIDs = base.SourceIDsFromMessages(id, s.messages[id])
+	sourceIDs = statevector.SourceIDsFromMessages(id, s.messages[id])
 	delete(s.sessions, id)
 	delete(s.messages, id)
 	delete(s.summaries, id)
@@ -587,7 +588,7 @@ func (s *Store) CreateArchive(ctx context.Context, archive ArchivedSession) erro
 		s.mu.Unlock()
 		return errors.New("source session has no messages")
 	}
-	sourceIDs = base.SourceIDsFromMessages(normalized.SourceSessionID, sourceMessages)
+	sourceIDs = statevector.SourceIDsFromMessages(normalized.SourceSessionID, sourceMessages)
 
 	s.archiveMessages[normalized.ID] = cloneMessages(sourceMessages)
 	s.archives[normalized.ID] = normalized
@@ -677,7 +678,7 @@ func (s *Store) DeleteArchive(ctx context.Context, archiveID string) error {
 	}
 
 	archive := s.archives[archiveID]
-	sourceIDs = base.SourceIDsFromMessages(archive.SourceSessionID, s.archiveMessages[archiveID])
+	sourceIDs = statevector.SourceIDsFromMessages(archive.SourceSessionID, s.archiveMessages[archiveID])
 	delete(s.archives, archiveID)
 	delete(s.archiveMessages, archiveID)
 	s.mu.Unlock()
@@ -697,7 +698,7 @@ func (s *Store) DeleteExpiredArchives(ctx context.Context, now time.Time) error 
 
 	for id, archive := range s.archives {
 		if !archive.ExpiresAt.IsZero() && !archive.ExpiresAt.After(now) {
-			sourceIDs = append(sourceIDs, base.SourceIDsFromMessages(archive.SourceSessionID, s.archiveMessages[id])...)
+			sourceIDs = append(sourceIDs, statevector.SourceIDsFromMessages(archive.SourceSessionID, s.archiveMessages[id])...)
 			delete(s.archives, id)
 			delete(s.archiveMessages, id)
 		}
@@ -729,7 +730,7 @@ func (s *Store) ClearMessages(ctx context.Context, id string, opts MessageQueryO
 			s.mu.Unlock()
 			return errors.New("archive not found")
 		}
-		sourceIDs = base.SourceIDsFromMessages(s.archives[id].SourceSessionID, s.archiveMessages[id])
+		sourceIDs = statevector.SourceIDsFromMessages(s.archives[id].SourceSessionID, s.archiveMessages[id])
 		delete(s.archiveMessages, id)
 		s.mu.Unlock()
 		return s.handleVectorStoreError(s.deleteVectorRows(ctx, sourceIDs))
@@ -741,7 +742,7 @@ func (s *Store) ClearMessages(ctx context.Context, id string, opts MessageQueryO
 		return errors.New("session not found")
 	}
 
-	sourceIDs = base.SourceIDsFromMessages(id, s.messages[id])
+	sourceIDs = statevector.SourceIDsFromMessages(id, s.messages[id])
 	delete(s.messages, id)
 	delete(s.summaries, id)
 	session.Compaction = base.SessionCompaction{}

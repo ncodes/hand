@@ -8,18 +8,20 @@ import (
 	"strings"
 	"time"
 
-	base "github.com/wandxy/hand/internal/state"
+	base "github.com/wandxy/hand/internal/state/core"
+	"github.com/wandxy/hand/internal/state/indexing"
 	"github.com/wandxy/hand/internal/state/retrieval"
+	statevector "github.com/wandxy/hand/internal/state/vector"
 )
 
 const defaultVectorStoreRebuildBatchSize = 100
-const defaultHybridRetrievalCandidateLimit = base.DefaultHybridRetrievalCandidateLimit
-const defaultRerankCandidateLimit = base.DefaultRerankCandidateLimit
-const maxHybridRetrievalCandidateLimit = base.MaxHybridRetrievalCandidateLimit
+const defaultHybridRetrievalCandidateLimit = indexing.DefaultHybridRetrievalCandidateLimit
+const defaultRerankCandidateLimit = indexing.DefaultRerankCandidateLimit
+const maxHybridRetrievalCandidateLimit = indexing.MaxHybridRetrievalCandidateLimit
 
 // searchCandidate is a merged lexical/vector candidate before final grouping.
 type searchCandidate struct {
-	base.CandidateMatch
+	indexing.CandidateMatch
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 	ID         uint
@@ -31,10 +33,10 @@ type searchCandidate struct {
 }
 
 // searchCandidateSet collects merged search candidates keyed by message row ID.
-type searchCandidateSet = base.SearchCandidateSet[uint, *searchCandidate]
+type searchCandidateSet = indexing.SearchCandidateSet[uint, *searchCandidate]
 
 // CandidateMatchRef returns the mutable ranking metadata for this candidate.
-func (candidate *searchCandidate) CandidateMatchRef() *base.CandidateMatch {
+func (candidate *searchCandidate) CandidateMatchRef() *indexing.CandidateMatch {
 	if candidate == nil {
 		return nil
 	}
@@ -42,15 +44,15 @@ func (candidate *searchCandidate) CandidateMatchRef() *base.CandidateMatch {
 	return &candidate.CandidateMatch
 }
 
-type VectorStoreOptions = base.VectorStoreOptions
+type VectorStoreOptions = statevector.VectorStoreOptions
 
 // vectorConfig holds normalized vector dependencies and operational limits.
 type vectorConfig struct {
-	base.VectorConfig
+	statevector.VectorConfig
 	batchSize int
 }
 
-type vectorInput = base.VectorInput
+type vectorInput = statevector.VectorInput
 
 // ConfigureVectorStore enables or disables vector indexing and hybrid search for this store.
 func (s *Store) ConfigureVectorStore(opts VectorStoreOptions) error {
@@ -96,7 +98,7 @@ func (s *Store) ConfigureVectorStore(opts VectorStoreOptions) error {
 	}
 
 	s.vectors = &vectorConfig{
-		VectorConfig: base.VectorConfig{
+		VectorConfig: statevector.VectorConfig{
 			Provider:    opts.Embedder,
 			Reranker:    opts.Reranker,
 			Store:       opts.VectorStore,
@@ -205,7 +207,7 @@ func searchCandidatesFromLexicalRows(rows []searchSessionResultRow) searchCandid
 	candidates := make(searchCandidateSet, len(rows))
 	for idx, row := range rows {
 		candidates[row.ID] = &searchCandidate{
-			CandidateMatch: base.CandidateMatch{
+			CandidateMatch: indexing.CandidateMatch{
 				SessionID:       row.SessionID,
 				MatchedText:     row.MatchedText,
 				MatchedToolName: row.MatchedToolName,
@@ -402,7 +404,7 @@ func searchCandidateMatchCount(
 
 // compareSearchCandidates orders candidates by score, recency, session ID, and message ID.
 func compareSearchCandidates(left *searchCandidate, right *searchCandidate) int {
-	return base.CompareCandidateOrder(
+	return indexing.CompareCandidateOrder(
 		searchCandidateRankingScore(left),
 		searchCandidateRankingScore(right),
 		left.CreatedAt,
@@ -416,12 +418,12 @@ func compareSearchCandidates(left *searchCandidate, right *searchCandidate) int 
 
 // searchCandidateRankingScore returns the final score used for ordering a candidate.
 func searchCandidateRankingScore(candidate *searchCandidate) float64 {
-	return base.CandidateRankingScore(candidate.HasRerank, candidate.RerankScore, candidate.FusedScore)
+	return indexing.CandidateRankingScore(candidate.HasRerank, candidate.RerankScore, candidate.FusedScore)
 }
 
 // hybridCandidateLimit returns the shared lexical/vector candidate limit.
 func hybridCandidateLimit(opts base.SearchMessageOptions) int {
-	return base.HybridRetrievalCandidateLimit(opts)
+	return indexing.HybridRetrievalCandidateLimit(opts)
 }
 
 // rerankSearchCandidates converts merged search candidates to the shared retrieval reranker contract.
@@ -663,7 +665,7 @@ func (s *Store) vectorMatchesToCandidates(
 		}
 
 		candidates = append(candidates, &searchCandidate{
-			CandidateMatch: base.CandidateMatch{
+			CandidateMatch: indexing.CandidateMatch{
 				SessionID:       record.SessionID,
 				MatchedText:     row.Body,
 				MatchedToolName: row.ToolName,
@@ -768,7 +770,7 @@ func (lookup messageLookup) set(ref messageRef, record messageModel) {
 
 // messageRefFromSourceID parses a vector source ID into a SQLite message reference.
 func messageRefFromSourceID(sourceID string) (messageRef, bool) {
-	sessionID, messageID, ok := base.MessageRefFromSourceID(sourceID)
+	sessionID, messageID, ok := statevector.MessageRefFromSourceID(sourceID)
 	if !ok {
 		return messageRef{}, false
 	}
@@ -793,12 +795,12 @@ func vectorRecordMatchesOptions(record messageModel, id string, opts base.Search
 
 // searchRowForVectorRecord returns the searchable row represented by a vector record ID.
 func searchRowForVectorRecord(record messageModel, vectorID string) (searchRow, bool) {
-	return base.MessageIndexRowForVectorRecord([]base.MessageIndexRow(searchRowsFromMessageModel(record)), vectorID)
+	return indexing.MessageIndexRowForVectorRecord([]indexing.MessageIndexRow(searchRowsFromMessageModel(record)), vectorID)
 }
 
 // searchRowMatchesOptions reports whether a searchable row satisfies non-text search filters.
 func searchRowMatchesOptions(row searchRow, opts base.SearchMessageOptions) bool {
-	return base.MessageIndexRowMatchesSearchOptions(row, opts)
+	return indexing.MessageIndexRowMatchesSearchOptions(row, opts)
 }
 
 // indexVectors embeds searchable message rows and upserts the resulting vector records.
@@ -963,7 +965,7 @@ func (s *Store) handleVectorStoreError(err error) error {
 
 // vectorInputs maps search rows to stable embedding inputs.
 func (rows searchRows) vectorInputs() []vectorInput {
-	return base.VectorInputsFromIndexRows([]base.MessageIndexRow(rows))
+	return statevector.VectorInputsFromIndexRows([]indexing.MessageIndexRow(rows))
 }
 
 // sourceIDs returns stable vector source IDs for active message models.
@@ -996,7 +998,7 @@ func sourceIDsFromMessageIDs(sessionID string, messageIDs []uint) []string {
 
 // sourceIDForMessage returns the vector source ID for a message row.
 func sourceIDForMessage(sessionID string, messageID uint) string {
-	return base.SourceIDForMessage(sessionID, messageID)
+	return statevector.SourceIDForMessage(sessionID, messageID)
 }
 
 // uniqueStrings returns non-empty strings without duplicates.

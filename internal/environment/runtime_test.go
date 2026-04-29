@@ -15,7 +15,7 @@ import (
 	"github.com/wandxy/hand/internal/environment/sessionsearch"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/messages"
-	storage "github.com/wandxy/hand/internal/state"
+	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	memory "github.com/wandxy/hand/internal/state/storememory"
 	"github.com/wandxy/hand/pkg/nanoid"

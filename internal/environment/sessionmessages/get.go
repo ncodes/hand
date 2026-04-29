@@ -8,7 +8,7 @@ import (
 	"unicode/utf8"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	storage "github.com/wandxy/hand/internal/state"
+	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 )
 

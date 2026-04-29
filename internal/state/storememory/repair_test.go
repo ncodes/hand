@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	base "github.com/wandxy/hand/internal/state"
 	"github.com/wandxy/hand/internal/state/retrieval"
+	statevector "github.com/wandxy/hand/internal/state/vector"
 	vectormemory "github.com/wandxy/hand/internal/state/vector/memory"
 )
 
@@ -17,7 +17,7 @@ func TestStore_RepairVectorStore(t *testing.T) {
 	t.Run("returns nil store errors", func(t *testing.T) {
 		var store *Store
 
-		result, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{})
+		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{})
 		require.EqualError(t, err, "store is required")
 		require.Zero(t, result)
 	})
@@ -25,59 +25,59 @@ func TestStore_RepairVectorStore(t *testing.T) {
 	t.Run("skips when vectors are disabled", func(t *testing.T) {
 		store := NewStore()
 
-		result, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{})
+		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{})
 		require.NoError(t, err)
 		require.Zero(t, result)
 	})
 
 	t.Run("validates session id", func(t *testing.T) {
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    vectormemory.NewStore(),
 			EmbeddingModel: "semantic-test",
 		}))
 
-		result, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{SessionID: "bad"})
+		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{SessionID: "bad"})
 		require.EqualError(t, err, "session id must be a valid ses_ nanoid")
 		require.Zero(t, result)
 	})
 
 	t.Run("requires listable vector store", func(t *testing.T) {
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    &memoryTestVectorStore{},
 			EmbeddingModel: "semantic-test",
 		}))
 
-		result, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{})
+		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{})
 		require.EqualError(t, err, "vector store record listing is required")
 		require.Zero(t, result)
 	})
 
 	t.Run("validates batch size", func(t *testing.T) {
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    vectormemory.NewStore(),
 			EmbeddingModel: "semantic-test",
 		}))
 
-		result, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{BatchSize: -1})
+		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{BatchSize: -1})
 		require.EqualError(t, err, "vector repair batch size must be greater than or equal to zero")
 		require.Zero(t, result)
 	})
 
 	t.Run("returns missing session errors", func(t *testing.T) {
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    vectormemory.NewStore(),
 			EmbeddingModel: "semantic-test",
 		}))
 
-		result, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{SessionID: testSessionA})
+		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{SessionID: testSessionA})
 		require.EqualError(t, err, "session not found")
 		require.Zero(t, result)
 	})
@@ -94,14 +94,14 @@ func TestStore_RepairVectorStore(t *testing.T) {
 			Role:    handmsg.RoleUser,
 			Content: "second repair row",
 		}}))
-		require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    vectormemory.NewStore(),
 			EmbeddingModel: "semantic-test",
 			Required:       true,
 		}))
 
-		result, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{})
+		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{})
 		require.NoError(t, err)
 		require.Equal(t, 2, result.SessionsScanned)
 		require.Equal(t, 2, result.MessagesScanned)
@@ -117,14 +117,14 @@ func TestStore_RepairVectorStore(t *testing.T) {
 			Role:    handmsg.RoleUser,
 			Content: "retention renewal note",
 		}}))
-		require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    vectorStore,
 			EmbeddingModel: "semantic-test",
 			Required:       true,
 		}))
 
-		result, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{SessionID: testSessionA})
+		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{SessionID: testSessionA})
 		require.NoError(t, err)
 		require.Equal(t, 1, result.SessionsScanned)
 		require.Equal(t, 1, result.MessagesScanned)
@@ -154,7 +154,7 @@ func TestStore_RepairVectorStore(t *testing.T) {
 		store.messages[testSessionA][0].Content = "changed text"
 		store.mu.Unlock()
 
-		result, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{SessionID: testSessionA})
+		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{SessionID: testSessionA})
 		require.NoError(t, err)
 		require.Equal(t, 1, result.StaleRows)
 		require.Equal(t, 1, result.RebuiltRows)
@@ -168,7 +168,7 @@ func TestStore_RepairVectorStore(t *testing.T) {
 			Content: "unchanged text",
 		}}))
 
-		result, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{SessionID: testSessionA})
+		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{SessionID: testSessionA})
 		require.NoError(t, err)
 		require.Equal(t, 1, result.UnchangedRows)
 		require.Zero(t, result.RebuiltRows)
@@ -183,7 +183,7 @@ func TestStore_RepairVectorStore(t *testing.T) {
 			Content: "unchanged text",
 		}}))
 
-		result, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{
+		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{
 			SessionID: testSessionA,
 			Full:      true,
 		})
@@ -202,14 +202,14 @@ func TestStore_RepairVectorStore(t *testing.T) {
 			{Role: handmsg.RoleUser, Content: "second"},
 			{Role: handmsg.RoleUser, Content: "third"},
 		}))
-		require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
 			Embedder:       embedder,
 			VectorStore:    vectormemory.NewStore(),
 			EmbeddingModel: "semantic-test",
 			Required:       true,
 		}))
 
-		result, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{
+		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{
 			SessionID: testSessionA,
 			BatchSize: 1,
 		})
@@ -225,14 +225,14 @@ func TestStore_RepairVectorStore(t *testing.T) {
 			Role:    handmsg.RoleUser,
 			Content: "needs vectors",
 		}}))
-		require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
 			Embedder:       failingEmbedder{err: errors.New("embed failed")},
 			VectorStore:    vectormemory.NewStore(),
 			EmbeddingModel: "semantic-test",
 			Required:       true,
 		}))
 
-		_, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{SessionID: testSessionA})
+		_, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{SessionID: testSessionA})
 		require.EqualError(t, err, "embed failed")
 	})
 
@@ -243,13 +243,13 @@ func TestStore_RepairVectorStore(t *testing.T) {
 			Role:    handmsg.RoleUser,
 			Content: "needs vectors",
 		}}))
-		require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
 			Embedder:       failingEmbedder{err: errors.New("embed failed")},
 			VectorStore:    vectormemory.NewStore(),
 			EmbeddingModel: "semantic-test",
 		}))
 
-		result, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{SessionID: testSessionA})
+		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{SessionID: testSessionA})
 		require.NoError(t, err)
 		require.Equal(t, 1, result.MissingRows)
 		require.Zero(t, result.RebuiltRows)
@@ -259,7 +259,7 @@ func TestStore_RepairVectorStore(t *testing.T) {
 		vectorStore := vectormemory.NewStore()
 		store := NewStore()
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-		require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    vectorStore,
 			EmbeddingModel: "semantic-test",
@@ -273,7 +273,7 @@ func TestStore_RepairVectorStore(t *testing.T) {
 		store.vectors.Provider = failingEmbedder{err: errors.New("embed failed")}
 		store.mu.Unlock()
 
-		result, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{SessionID: testSessionA})
+		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{SessionID: testSessionA})
 		require.NoError(t, err)
 		require.Equal(t, 1, result.StaleRows)
 		require.Zero(t, result.RebuiltRows)
@@ -299,13 +299,13 @@ func TestStore_RepairVectorStore(t *testing.T) {
 			Role:    handmsg.RoleUser,
 			Content: "needs vectors",
 		}}))
-		require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    vectorStore,
 			EmbeddingModel: "semantic-test",
 		}))
 
-		result, err := store.RepairVectorStore(context.Background(), base.VectorRepairOptions{SessionID: testSessionA})
+		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{SessionID: testSessionA})
 		require.NoError(t, err)
 		require.Equal(t, 1, result.RebuiltRows)
 		require.Len(t, vectorStore.upserts, 1)
@@ -352,7 +352,7 @@ func TestStore_RepairVectorBatch(t *testing.T) {
 			memoryTestVectorStore: memoryTestVectorStore{upsertErr: errors.New("upsert failed")},
 		}
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(base.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    vectorStore,
 			EmbeddingModel: "semantic-test",

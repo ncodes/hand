@@ -8,7 +8,7 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	handmsg "github.com/wandxy/hand/internal/messages"
-	storage "github.com/wandxy/hand/internal/state"
+	storage "github.com/wandxy/hand/internal/state/core"
 )
 
 func TestNewService_LogsWhenSummaryProviderAndAPIModeDifferFromMain(t *testing.T) {

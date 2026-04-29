@@ -25,7 +25,7 @@ import (
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/personality"
-	storage "github.com/wandxy/hand/internal/state"
+	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	memorystore "github.com/wandxy/hand/internal/state/storememory"
 	"github.com/wandxy/hand/internal/tools"

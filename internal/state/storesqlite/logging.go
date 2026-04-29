@@ -7,7 +7,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	base "github.com/wandxy/hand/internal/state"
+	base "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 

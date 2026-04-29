@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	base "github.com/wandxy/hand/internal/state"
+	base "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 

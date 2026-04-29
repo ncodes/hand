@@ -17,7 +17,8 @@ import (
 	"gorm.io/gorm/logger"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	base "github.com/wandxy/hand/internal/state"
+	base "github.com/wandxy/hand/internal/state/core"
+	"github.com/wandxy/hand/internal/state/indexing"
 )
 
 const currentSessionStateKey = "current_session"
@@ -1638,7 +1639,7 @@ func jsonToToolCalls(value string) []handmsg.ToolCall {
 }
 
 // searchRow is one FTS row and the matching unit used for vector indexing.
-type searchRow = base.MessageIndexRow
+type searchRow = indexing.MessageIndexRow
 
 // searchRows is a typed slice for FTS/vector searchable message rows.
 type searchRows []searchRow
@@ -1713,7 +1714,7 @@ func (records messageModels) searchRows() searchRows {
 }
 
 func searchRowsFromMessageModel(record messageModel) searchRows {
-	rows := base.MessageIndexRowsFromMessage(record.SessionID, handmsg.Message{
+	rows := indexing.MessageIndexRowsFromMessage(record.SessionID, handmsg.Message{
 		ID:         record.ID,
 		Role:       handmsg.Role(strings.TrimSpace(record.Role)),
 		Content:    record.Content,

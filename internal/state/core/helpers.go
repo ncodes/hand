@@ -1,4 +1,4 @@
-package state
+package core
 
 import (
 	"errors"
@@ -119,6 +119,34 @@ func CloneSessionSummary(summary SessionSummary) SessionSummary {
 	cloned.OpenQuestions = cloneStrings(summary.OpenQuestions)
 	cloned.NextActions = cloneStrings(summary.NextActions)
 	return cloned
+}
+
+// UniqueStrings trims, de-duplicates, and preserves the first occurrence order of strings.
+func UniqueStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(values))
+	unique := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		unique = append(unique, value)
+	}
+
+	return unique
+}
+
+// NormalizeMatchValue canonicalizes role, tool, and filter values before comparison.
+func NormalizeMatchValue(value string) string {
+	return strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(value)), " "))
 }
 
 func cloneStrings(values []string) []string {

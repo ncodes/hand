@@ -11,7 +11,8 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	storage "github.com/wandxy/hand/internal/state"
+	storage "github.com/wandxy/hand/internal/state/core"
+	statevector "github.com/wandxy/hand/internal/state/vector"
 )
 
 func TestNewCommandSessionNewCallsRPC(t *testing.T) {
@@ -143,7 +144,7 @@ func TestNewCommandSessionRepairCallsRPC(t *testing.T) {
 	var output bytes.Buffer
 	sessionOutput = &output
 
-	stub := &agentstub.AgentServiceStub{RepairResult: storage.VectorRepairResult{
+	stub := &agentstub.AgentServiceStub{RepairResult: statevector.VectorRepairResult{
 		SessionsScanned: 2,
 		MessagesScanned: 3,
 		RowsScanned:     4,

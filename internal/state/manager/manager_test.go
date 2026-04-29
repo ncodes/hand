@@ -10,9 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	storage "github.com/wandxy/hand/internal/state"
+	storage "github.com/wandxy/hand/internal/state/core"
 	storagemock "github.com/wandxy/hand/internal/state/mock"
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
+	statevector "github.com/wandxy/hand/internal/state/vector"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
@@ -291,18 +292,18 @@ func TestManager_GetMessageWindow_ForwardsToStore(t *testing.T) {
 
 func TestManager_RepairVectorStore_ForwardsToStore(t *testing.T) {
 	store := &repairVectorStoreStub{
-		result: storage.VectorRepairResult{SessionsScanned: 1, RebuiltRows: 2},
+		result: statevector.VectorRepairResult{SessionsScanned: 1, RebuiltRows: 2},
 	}
 	manager, err := NewManager(store, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
-	result, err := manager.RepairVectorStore(context.Background(), storage.VectorRepairOptions{
+	result, err := manager.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{
 		SessionID: "  " + testSessionA + "  ",
 		Full:      true,
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, storage.VectorRepairResult{SessionsScanned: 1, RebuiltRows: 2}, result)
+	require.Equal(t, statevector.VectorRepairResult{SessionsScanned: 1, RebuiltRows: 2}, result)
 	require.Equal(t, testSessionA, store.opts.SessionID)
 	require.True(t, store.opts.Full)
 }
@@ -311,10 +312,10 @@ func TestManager_RepairVectorStore_ReturnsUnsupportedStoreError(t *testing.T) {
 	manager, err := NewManager(&storagemock.Store{}, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
-	result, err := manager.RepairVectorStore(context.Background(), storage.VectorRepairOptions{})
+	result, err := manager.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{})
 
 	require.EqualError(t, err, "session vector repair is not supported")
-	require.Equal(t, storage.VectorRepairResult{}, result)
+	require.Equal(t, statevector.VectorRepairResult{}, result)
 }
 
 func TestManager_Save_ForwardsToStore(t *testing.T) {
@@ -1177,15 +1178,15 @@ func TestManager_UpdateLastPromptTokens_Errors(t *testing.T) {
 
 type repairVectorStoreStub struct {
 	storagemock.Store
-	opts   storage.VectorRepairOptions
-	result storage.VectorRepairResult
+	opts   statevector.VectorRepairOptions
+	result statevector.VectorRepairResult
 	err    error
 }
 
 func (s *repairVectorStoreStub) RepairVectorStore(
 	_ context.Context,
-	opts storage.VectorRepairOptions,
-) (storage.VectorRepairResult, error) {
+	opts statevector.VectorRepairOptions,
+) (statevector.VectorRepairResult, error) {
 	s.opts = opts
 	return s.result, s.err
 }

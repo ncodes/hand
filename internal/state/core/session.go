@@ -1,22 +1,14 @@
-package state
+package core
 
 import (
-	"errors"
-	"strings"
 	"time"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
 const DefaultSessionID = "default"
 const SessionIDPrefix = "ses_"
 const ArchiveIDPrefix = "arc_"
-
-const (
-	MessageOrderAsc  = "asc"
-	MessageOrderDesc = "desc"
-)
 
 func NewSessionID() (string, error) {
 	return nanoid.Generate(SessionIDPrefix)
@@ -71,52 +63,4 @@ type SessionSummary struct {
 	Discoveries        []string
 	OpenQuestions      []string
 	NextActions        []string
-}
-
-type MessageQueryOptions struct {
-	Archived bool
-	Limit    int
-	Name     string
-	Order    string
-	Offset   int
-	Role     handmsg.Role
-}
-
-type SearchMessageOptions struct {
-	IgnoreSessionID       string
-	MaxMessagesPerSession int
-	MaxSessions           int
-	Query                 string
-	Role                  handmsg.Role
-	ToolName              string
-}
-
-type SearchMessageHit struct {
-	SessionID       string
-	Message         handmsg.Message
-	MatchedText     string
-	MatchedToolName string
-}
-
-type SearchMessageResult struct {
-	SessionID     string
-	LastMatchedAt time.Time
-	MatchCount    int
-	Messages      []SearchMessageHit
-}
-
-type MessageRecord struct {
-	Offset  int
-	Message handmsg.Message
-}
-
-func NormalizeMessageQueryOrder(order string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(order)) {
-	case "", MessageOrderAsc:
-		return MessageOrderAsc, nil
-	case MessageOrderDesc:
-		return MessageOrderDesc, nil
-	default:
-		return "", errors.New("message order must be asc or desc")
-	}
 }

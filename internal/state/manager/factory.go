@@ -7,10 +7,11 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	handdb "github.com/wandxy/hand/internal/db"
 	"github.com/wandxy/hand/internal/models"
-	storage "github.com/wandxy/hand/internal/state"
+	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/retrieval"
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
 	storagesqlite "github.com/wandxy/hand/internal/state/storesqlite"
+	statevector "github.com/wandxy/hand/internal/state/vector"
 	vectormemory "github.com/wandxy/hand/internal/state/vector/memory"
 	vectorsqlite "github.com/wandxy/hand/internal/state/vector/sqlite"
 	"gorm.io/gorm"
@@ -120,7 +121,7 @@ func configureMemoryStoreVectors(
 		return errors.New("memory vector store is required")
 	}
 
-	return store.ConfigureVectorStore(storage.VectorStoreOptions{
+	return store.ConfigureVectorStore(statevector.VectorStoreOptions{
 		Embedder:            provider,
 		Reranker:            reranker,
 		VectorStore:         vectorStore,
