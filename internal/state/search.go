@@ -1,6 +1,7 @@
 package state
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -15,6 +16,7 @@ const (
 	DefaultHybridRetrievalCandidateLimit = 100
 	MaxHybridRetrievalCandidateLimit     = 1000
 	DefaultRerankCandidateLimit          = 100
+	DefaultVectorRepairBatchSize         = 100
 	ReciprocalRankFusionConstant         = 60
 )
 
@@ -54,6 +56,43 @@ type VectorStoreOptions struct {
 	Required            bool
 }
 
+// VectorRepairOptions controls selective or full vector repair for session messages.
+type VectorRepairOptions struct {
+	SessionID string
+	Full      bool
+	BatchSize int
+}
+
+// VectorRepairResult reports what vector repair inspected and rebuilt.
+type VectorRepairResult struct {
+	SessionsScanned int
+	MessagesScanned int
+	RowsScanned     int
+	MissingRows     int
+	StaleRows       int
+	UnchangedRows   int
+	RebuiltRows     int
+	DeletedSources  int
+	Batches         int
+}
+
+// Add merges another repair result into r.
+func (r *VectorRepairResult) Add(other VectorRepairResult) {
+	if r == nil {
+		return
+	}
+
+	r.SessionsScanned += other.SessionsScanned
+	r.MessagesScanned += other.MessagesScanned
+	r.RowsScanned += other.RowsScanned
+	r.MissingRows += other.MissingRows
+	r.StaleRows += other.StaleRows
+	r.UnchangedRows += other.UnchangedRows
+	r.RebuiltRows += other.RebuiltRows
+	r.DeletedSources += other.DeletedSources
+	r.Batches += other.Batches
+}
+
 // VectorConfig is the normalized vector configuration kept by concrete stores.
 type VectorConfig struct {
 	Provider    retrieval.Embedder
@@ -64,6 +103,11 @@ type VectorConfig struct {
 	Diagnostics bool
 	Rerank      bool
 	Required    bool
+}
+
+// VectorRepairStore is implemented by stores that can repair session-message vector rows.
+type VectorRepairStore interface {
+	RepairVectorStore(context.Context, VectorRepairOptions) (VectorRepairResult, error)
 }
 
 // CandidateMatch stores ranking metadata for a lexical, vector, or reranked search candidate.
@@ -387,4 +431,116 @@ func CompareCandidateOrder(
 	}
 
 	return 0
+}
+
+// VectorRecordLister adapts a vector store to the listing capability required by repair.
+func VectorRecordLister(store retrieval.VectorStore) (retrieval.VectorRecordLister, error) {
+	lister, ok := store.(retrieval.VectorRecordLister)
+	if !ok || lister == nil {
+		return nil, fmt.Errorf("vector store record listing is required")
+	}
+
+	return lister, nil
+}
+
+// DirtyVectorSources returns source IDs whose vector rows are missing, stale, extra, or forced.
+func DirtyVectorSources(
+	ctx context.Context,
+	lister retrieval.VectorRecordLister,
+	model string,
+	inputs []VectorInput,
+	full bool,
+) ([]string, VectorRepairResult, error) {
+	var result VectorRepairResult
+	if lister == nil {
+		return nil, result, fmt.Errorf("vector store record listing is required")
+	}
+	if len(inputs) == 0 {
+		return nil, result, nil
+	}
+
+	sourceIDs := make([]string, 0, len(inputs))
+	expectedByID := make(map[string]VectorInput, len(inputs))
+	for _, input := range inputs {
+		sourceIDs = append(sourceIDs, input.SourceID)
+		expectedByID[input.ID] = input
+	}
+	sourceIDs = UniqueStrings(sourceIDs)
+
+	list, err := lister.List(ctx, retrieval.VectorListRequest{
+		EmbeddingModel: strings.TrimSpace(model),
+		Filter: retrieval.VectorFilter{
+			SourceKind: retrieval.SourceKindSessionMessage,
+			SourceIDs:  sourceIDs,
+		},
+	})
+	if err != nil {
+		return nil, result, err
+	}
+
+	recordsByID := make(map[string]retrieval.VectorRecord, len(list.Records))
+	for _, record := range list.Records {
+		recordsByID[record.ID] = record
+	}
+
+	dirtySourceSet := make(map[string]struct{}, len(sourceIDs))
+	for _, input := range inputs {
+		record, ok := recordsByID[input.ID]
+		if !ok {
+			result.MissingRows++
+			dirtySourceSet[input.SourceID] = struct{}{}
+			continue
+		}
+		if retrieval.IsVectorRecordStale(record, input.Text) {
+			result.StaleRows++
+			dirtySourceSet[input.SourceID] = struct{}{}
+			continue
+		}
+		result.UnchangedRows++
+	}
+
+	for _, record := range list.Records {
+		if _, ok := expectedByID[record.ID]; ok {
+			continue
+		}
+		result.StaleRows++
+		dirtySourceSet[record.SourceID] = struct{}{}
+	}
+
+	if full {
+		for _, sourceID := range sourceIDs {
+			dirtySourceSet[sourceID] = struct{}{}
+		}
+	}
+
+	dirtySources := make([]string, 0, len(dirtySourceSet))
+	for sourceID := range dirtySourceSet {
+		dirtySources = append(dirtySources, sourceID)
+	}
+	sort.Strings(dirtySources)
+
+	return dirtySources, result, nil
+}
+
+// MessagesBySourceID returns messages whose stable source IDs are present in sourceIDs.
+func MessagesBySourceID(sessionID string, messages []handmsg.Message, sourceIDs []string) []handmsg.Message {
+	sourceSet := make(map[string]struct{}, len(sourceIDs))
+	for _, sourceID := range sourceIDs {
+		sourceID = strings.TrimSpace(sourceID)
+		if sourceID != "" {
+			sourceSet[sourceID] = struct{}{}
+		}
+	}
+	if len(sourceSet) == 0 {
+		return nil
+	}
+
+	selected := make([]handmsg.Message, 0, len(messages))
+	for _, message := range messages {
+		if _, ok := sourceSet[SourceIDForMessage(sessionID, message.ID)]; ok {
+			selected = append(selected, message)
+		}
+	}
+
+	return selected
 }

@@ -123,6 +123,52 @@ func (RespondEvent_Channel) EnumDescriptor() ([]byte, []int) {
 	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{1, 1}
 }
 
+type RepairSessionRequest_Type int32
+
+const (
+	RepairSessionRequest_TYPE_UNSPECIFIED RepairSessionRequest_Type = 0
+	RepairSessionRequest_VECTOR           RepairSessionRequest_Type = 1
+)
+
+// Enum value maps for RepairSessionRequest_Type.
+var (
+	RepairSessionRequest_Type_name = map[int32]string{
+		0: "TYPE_UNSPECIFIED",
+		1: "VECTOR",
+	}
+	RepairSessionRequest_Type_value = map[string]int32{
+		"TYPE_UNSPECIFIED": 0,
+		"VECTOR":           1,
+	}
+)
+
+func (x RepairSessionRequest_Type) Enum() *RepairSessionRequest_Type {
+	p := new(RepairSessionRequest_Type)
+	*p = x
+	return p
+}
+
+func (x RepairSessionRequest_Type) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RepairSessionRequest_Type) Descriptor() protoreflect.EnumDescriptor {
+	return file_internal_rpc_proto_hand_proto_enumTypes[2].Descriptor()
+}
+
+func (RepairSessionRequest_Type) Type() protoreflect.EnumType {
+	return &file_internal_rpc_proto_hand_proto_enumTypes[2]
+}
+
+func (x RepairSessionRequest_Type) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RepairSessionRequest_Type.Descriptor instead.
+func (RepairSessionRequest_Type) EnumDescriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{13, 0}
+}
+
 type RespondRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
@@ -783,6 +829,270 @@ func (x *CompactSessionResponse) GetTotalContextLength() int32 {
 	return 0
 }
 
+type RepairSessionRequest struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Type          RepairSessionRequest_Type `protobuf:"varint,1,opt,name=type,proto3,enum=hand.v1.RepairSessionRequest_Type" json:"type,omitempty"`
+	Vector        *VectorRepairOption       `protobuf:"bytes,2,opt,name=vector,proto3" json:"vector,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RepairSessionRequest) Reset() {
+	*x = RepairSessionRequest{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RepairSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RepairSessionRequest) ProtoMessage() {}
+
+func (x *RepairSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RepairSessionRequest.ProtoReflect.Descriptor instead.
+func (*RepairSessionRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *RepairSessionRequest) GetType() RepairSessionRequest_Type {
+	if x != nil {
+		return x.Type
+	}
+	return RepairSessionRequest_TYPE_UNSPECIFIED
+}
+
+func (x *RepairSessionRequest) GetVector() *VectorRepairOption {
+	if x != nil {
+		return x.Vector
+	}
+	return nil
+}
+
+type RepairSessionResponse struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Type          RepairSessionRequest_Type `protobuf:"varint,1,opt,name=type,proto3,enum=hand.v1.RepairSessionRequest_Type" json:"type,omitempty"`
+	Vector        *VectorRepairResponse     `protobuf:"bytes,2,opt,name=vector,proto3" json:"vector,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RepairSessionResponse) Reset() {
+	*x = RepairSessionResponse{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RepairSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RepairSessionResponse) ProtoMessage() {}
+
+func (x *RepairSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RepairSessionResponse.ProtoReflect.Descriptor instead.
+func (*RepairSessionResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *RepairSessionResponse) GetType() RepairSessionRequest_Type {
+	if x != nil {
+		return x.Type
+	}
+	return RepairSessionRequest_TYPE_UNSPECIFIED
+}
+
+func (x *RepairSessionResponse) GetVector() *VectorRepairResponse {
+	if x != nil {
+		return x.Vector
+	}
+	return nil
+}
+
+type VectorRepairOption struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Full          bool                   `protobuf:"varint,2,opt,name=full,proto3" json:"full,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VectorRepairOption) Reset() {
+	*x = VectorRepairOption{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VectorRepairOption) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorRepairOption) ProtoMessage() {}
+
+func (x *VectorRepairOption) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorRepairOption.ProtoReflect.Descriptor instead.
+func (*VectorRepairOption) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *VectorRepairOption) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *VectorRepairOption) GetFull() bool {
+	if x != nil {
+		return x.Full
+	}
+	return false
+}
+
+type VectorRepairResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	SessionsScanned int32                  `protobuf:"varint,1,opt,name=sessions_scanned,json=sessionsScanned,proto3" json:"sessions_scanned,omitempty"`
+	MessagesScanned int32                  `protobuf:"varint,2,opt,name=messages_scanned,json=messagesScanned,proto3" json:"messages_scanned,omitempty"`
+	RowsScanned     int32                  `protobuf:"varint,3,opt,name=rows_scanned,json=rowsScanned,proto3" json:"rows_scanned,omitempty"`
+	MissingRows     int32                  `protobuf:"varint,4,opt,name=missing_rows,json=missingRows,proto3" json:"missing_rows,omitempty"`
+	StaleRows       int32                  `protobuf:"varint,5,opt,name=stale_rows,json=staleRows,proto3" json:"stale_rows,omitempty"`
+	UnchangedRows   int32                  `protobuf:"varint,6,opt,name=unchanged_rows,json=unchangedRows,proto3" json:"unchanged_rows,omitempty"`
+	RebuiltRows     int32                  `protobuf:"varint,7,opt,name=rebuilt_rows,json=rebuiltRows,proto3" json:"rebuilt_rows,omitempty"`
+	DeletedSources  int32                  `protobuf:"varint,8,opt,name=deleted_sources,json=deletedSources,proto3" json:"deleted_sources,omitempty"`
+	Batches         int32                  `protobuf:"varint,9,opt,name=batches,proto3" json:"batches,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *VectorRepairResponse) Reset() {
+	*x = VectorRepairResponse{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VectorRepairResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorRepairResponse) ProtoMessage() {}
+
+func (x *VectorRepairResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorRepairResponse.ProtoReflect.Descriptor instead.
+func (*VectorRepairResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *VectorRepairResponse) GetSessionsScanned() int32 {
+	if x != nil {
+		return x.SessionsScanned
+	}
+	return 0
+}
+
+func (x *VectorRepairResponse) GetMessagesScanned() int32 {
+	if x != nil {
+		return x.MessagesScanned
+	}
+	return 0
+}
+
+func (x *VectorRepairResponse) GetRowsScanned() int32 {
+	if x != nil {
+		return x.RowsScanned
+	}
+	return 0
+}
+
+func (x *VectorRepairResponse) GetMissingRows() int32 {
+	if x != nil {
+		return x.MissingRows
+	}
+	return 0
+}
+
+func (x *VectorRepairResponse) GetStaleRows() int32 {
+	if x != nil {
+		return x.StaleRows
+	}
+	return 0
+}
+
+func (x *VectorRepairResponse) GetUnchangedRows() int32 {
+	if x != nil {
+		return x.UnchangedRows
+	}
+	return 0
+}
+
+func (x *VectorRepairResponse) GetRebuiltRows() int32 {
+	if x != nil {
+		return x.RebuiltRows
+	}
+	return 0
+}
+
+func (x *VectorRepairResponse) GetDeletedSources() int32 {
+	if x != nil {
+		return x.DeletedSources
+	}
+	return 0
+}
+
+func (x *VectorRepairResponse) GetBatches() int32 {
+	if x != nil {
+		return x.Batches
+	}
+	return 0
+}
+
 type GetSessionRequestContext struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -792,7 +1102,7 @@ type GetSessionRequestContext struct {
 
 func (x *GetSessionRequestContext) Reset() {
 	*x = GetSessionRequestContext{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[13]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -804,7 +1114,7 @@ func (x *GetSessionRequestContext) String() string {
 func (*GetSessionRequestContext) ProtoMessage() {}
 
 func (x *GetSessionRequestContext) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[13]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -817,7 +1127,7 @@ func (x *GetSessionRequestContext) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionRequestContext.ProtoReflect.Descriptor instead.
 func (*GetSessionRequestContext) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{13}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetSessionRequestContext) GetId() string {
@@ -836,7 +1146,7 @@ type GetSessionRequest struct {
 
 func (x *GetSessionRequest) Reset() {
 	*x = GetSessionRequest{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[14]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -848,7 +1158,7 @@ func (x *GetSessionRequest) String() string {
 func (*GetSessionRequest) ProtoMessage() {}
 
 func (x *GetSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[14]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -861,7 +1171,7 @@ func (x *GetSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionRequest.ProtoReflect.Descriptor instead.
 func (*GetSessionRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{14}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GetSessionRequest) GetContext() *GetSessionRequestContext {
@@ -885,7 +1195,7 @@ type GetSessionResponse struct {
 
 func (x *GetSessionResponse) Reset() {
 	*x = GetSessionResponse{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[15]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -897,7 +1207,7 @@ func (x *GetSessionResponse) String() string {
 func (*GetSessionResponse) ProtoMessage() {}
 
 func (x *GetSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[15]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -910,7 +1220,7 @@ func (x *GetSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionResponse.ProtoReflect.Descriptor instead.
 func (*GetSessionResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{15}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetSessionResponse) GetId() string {
@@ -969,7 +1279,7 @@ type GetSessionResponse_Context struct {
 
 func (x *GetSessionResponse_Context) Reset() {
 	*x = GetSessionResponse_Context{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[16]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -981,7 +1291,7 @@ func (x *GetSessionResponse_Context) String() string {
 func (*GetSessionResponse_Context) ProtoMessage() {}
 
 func (x *GetSessionResponse_Context) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[16]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -994,7 +1304,7 @@ func (x *GetSessionResponse_Context) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionResponse_Context.ProtoReflect.Descriptor instead.
 func (*GetSessionResponse_Context) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{15, 0}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{19, 0}
 }
 
 func (x *GetSessionResponse_Context) GetOffset() int32 {
@@ -1092,7 +1402,31 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x124\n" +
 	"\x16current_context_length\x18\x05 \x01(\x05R\x14currentContextLength\x120\n" +
-	"\x14total_context_length\x18\x06 \x01(\x05R\x12totalContextLength\"*\n" +
+	"\x14total_context_length\x18\x06 \x01(\x05R\x12totalContextLength\"\xad\x01\n" +
+	"\x14RepairSessionRequest\x126\n" +
+	"\x04type\x18\x01 \x01(\x0e2\".hand.v1.RepairSessionRequest.TypeR\x04type\x123\n" +
+	"\x06vector\x18\x02 \x01(\v2\x1b.hand.v1.VectorRepairOptionR\x06vector\"(\n" +
+	"\x04Type\x12\x14\n" +
+	"\x10TYPE_UNSPECIFIED\x10\x00\x12\n" +
+	"\n" +
+	"\x06VECTOR\x10\x01\"\x86\x01\n" +
+	"\x15RepairSessionResponse\x126\n" +
+	"\x04type\x18\x01 \x01(\x0e2\".hand.v1.RepairSessionRequest.TypeR\x04type\x125\n" +
+	"\x06vector\x18\x02 \x01(\v2\x1d.hand.v1.VectorRepairResponseR\x06vector\"8\n" +
+	"\x12VectorRepairOption\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04full\x18\x02 \x01(\bR\x04full\"\xde\x02\n" +
+	"\x14VectorRepairResponse\x12)\n" +
+	"\x10sessions_scanned\x18\x01 \x01(\x05R\x0fsessionsScanned\x12)\n" +
+	"\x10messages_scanned\x18\x02 \x01(\x05R\x0fmessagesScanned\x12!\n" +
+	"\frows_scanned\x18\x03 \x01(\x05R\vrowsScanned\x12!\n" +
+	"\fmissing_rows\x18\x04 \x01(\x05R\vmissingRows\x12\x1d\n" +
+	"\n" +
+	"stale_rows\x18\x05 \x01(\x05R\tstaleRows\x12%\n" +
+	"\x0eunchanged_rows\x18\x06 \x01(\x05R\runchangedRows\x12!\n" +
+	"\frebuilt_rows\x18\a \x01(\x05R\vrebuiltRows\x12'\n" +
+	"\x0fdeleted_sources\x18\b \x01(\x05R\x0edeletedSources\x12\x18\n" +
+	"\abatches\x18\t \x01(\x05R\abatches\"*\n" +
 	"\x18GetSessionRequestContext\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"P\n" +
 	"\x11GetSessionRequest\x12;\n" +
@@ -1112,7 +1446,7 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\x04used\x18\x03 \x01(\x05R\x04used\x12\x1c\n" +
 	"\tremaining\x18\x04 \x01(\x05R\tremaining\x12\x19\n" +
 	"\bused_pct\x18\x05 \x01(\x01R\ausedPct\x12#\n" +
-	"\rremaining_pct\x18\x06 \x01(\x01R\fremainingPct2\x9b\x04\n" +
+	"\rremaining_pct\x18\x06 \x01(\x01R\fremainingPct2\xeb\x04\n" +
 	"\vHandService\x12;\n" +
 	"\aRespond\x12\x17.hand.v1.RespondRequest\x1a\x15.hand.v1.RespondEvent0\x01\x12N\n" +
 	"\rCreateSession\x12\x1d.hand.v1.CreateSessionRequest\x1a\x1e.hand.v1.CreateSessionResponse\x12K\n" +
@@ -1120,7 +1454,8 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\n" +
 	"UseSession\x12\x1a.hand.v1.UseSessionRequest\x1a\x1b.hand.v1.UseSessionResponse\x12Q\n" +
 	"\x0eCurrentSession\x12\x1e.hand.v1.CurrentSessionRequest\x1a\x1f.hand.v1.CurrentSessionResponse\x12Q\n" +
-	"\x0eCompactSession\x12\x1e.hand.v1.CompactSessionRequest\x1a\x1f.hand.v1.CompactSessionResponse\x12E\n" +
+	"\x0eCompactSession\x12\x1e.hand.v1.CompactSessionRequest\x1a\x1f.hand.v1.CompactSessionResponse\x12N\n" +
+	"\rRepairSession\x12\x1d.hand.v1.RepairSessionRequest\x1a\x1e.hand.v1.RepairSessionResponse\x12E\n" +
 	"\n" +
 	"GetSession\x12\x1a.hand.v1.GetSessionRequest\x1a\x1b.hand.v1.GetSessionResponseB2Z0github.com/wandxy/hand/internal/rpc/proto;handpbb\x06proto3"
 
@@ -1136,59 +1471,70 @@ func file_internal_rpc_proto_hand_proto_rawDescGZIP() []byte {
 	return file_internal_rpc_proto_hand_proto_rawDescData
 }
 
-var file_internal_rpc_proto_hand_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_internal_rpc_proto_hand_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_internal_rpc_proto_hand_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_internal_rpc_proto_hand_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_internal_rpc_proto_hand_proto_goTypes = []any{
 	(RespondEvent_Type)(0),             // 0: hand.v1.RespondEvent.Type
 	(RespondEvent_Channel)(0),          // 1: hand.v1.RespondEvent.Channel
-	(*RespondRequest)(nil),             // 2: hand.v1.RespondRequest
-	(*RespondEvent)(nil),               // 3: hand.v1.RespondEvent
-	(*SessionSummary)(nil),             // 4: hand.v1.SessionSummary
-	(*CreateSessionRequest)(nil),       // 5: hand.v1.CreateSessionRequest
-	(*CreateSessionResponse)(nil),      // 6: hand.v1.CreateSessionResponse
-	(*ListSessionsRequest)(nil),        // 7: hand.v1.ListSessionsRequest
-	(*ListSessionsResponse)(nil),       // 8: hand.v1.ListSessionsResponse
-	(*UseSessionRequest)(nil),          // 9: hand.v1.UseSessionRequest
-	(*UseSessionResponse)(nil),         // 10: hand.v1.UseSessionResponse
-	(*CurrentSessionRequest)(nil),      // 11: hand.v1.CurrentSessionRequest
-	(*CurrentSessionResponse)(nil),     // 12: hand.v1.CurrentSessionResponse
-	(*CompactSessionRequest)(nil),      // 13: hand.v1.CompactSessionRequest
-	(*CompactSessionResponse)(nil),     // 14: hand.v1.CompactSessionResponse
-	(*GetSessionRequestContext)(nil),   // 15: hand.v1.GetSessionRequestContext
-	(*GetSessionRequest)(nil),          // 16: hand.v1.GetSessionRequest
-	(*GetSessionResponse)(nil),         // 17: hand.v1.GetSessionResponse
-	(*GetSessionResponse_Context)(nil), // 18: hand.v1.GetSessionResponse.Context
-	(*timestamppb.Timestamp)(nil),      // 19: google.protobuf.Timestamp
+	(RepairSessionRequest_Type)(0),     // 2: hand.v1.RepairSessionRequest.Type
+	(*RespondRequest)(nil),             // 3: hand.v1.RespondRequest
+	(*RespondEvent)(nil),               // 4: hand.v1.RespondEvent
+	(*SessionSummary)(nil),             // 5: hand.v1.SessionSummary
+	(*CreateSessionRequest)(nil),       // 6: hand.v1.CreateSessionRequest
+	(*CreateSessionResponse)(nil),      // 7: hand.v1.CreateSessionResponse
+	(*ListSessionsRequest)(nil),        // 8: hand.v1.ListSessionsRequest
+	(*ListSessionsResponse)(nil),       // 9: hand.v1.ListSessionsResponse
+	(*UseSessionRequest)(nil),          // 10: hand.v1.UseSessionRequest
+	(*UseSessionResponse)(nil),         // 11: hand.v1.UseSessionResponse
+	(*CurrentSessionRequest)(nil),      // 12: hand.v1.CurrentSessionRequest
+	(*CurrentSessionResponse)(nil),     // 13: hand.v1.CurrentSessionResponse
+	(*CompactSessionRequest)(nil),      // 14: hand.v1.CompactSessionRequest
+	(*CompactSessionResponse)(nil),     // 15: hand.v1.CompactSessionResponse
+	(*RepairSessionRequest)(nil),       // 16: hand.v1.RepairSessionRequest
+	(*RepairSessionResponse)(nil),      // 17: hand.v1.RepairSessionResponse
+	(*VectorRepairOption)(nil),         // 18: hand.v1.VectorRepairOption
+	(*VectorRepairResponse)(nil),       // 19: hand.v1.VectorRepairResponse
+	(*GetSessionRequestContext)(nil),   // 20: hand.v1.GetSessionRequestContext
+	(*GetSessionRequest)(nil),          // 21: hand.v1.GetSessionRequest
+	(*GetSessionResponse)(nil),         // 22: hand.v1.GetSessionResponse
+	(*GetSessionResponse_Context)(nil), // 23: hand.v1.GetSessionResponse.Context
+	(*timestamppb.Timestamp)(nil),      // 24: google.protobuf.Timestamp
 }
 var file_internal_rpc_proto_hand_proto_depIdxs = []int32{
 	0,  // 0: hand.v1.RespondEvent.type:type_name -> hand.v1.RespondEvent.Type
 	1,  // 1: hand.v1.RespondEvent.channel:type_name -> hand.v1.RespondEvent.Channel
-	4,  // 2: hand.v1.CreateSessionResponse.session:type_name -> hand.v1.SessionSummary
-	4,  // 3: hand.v1.ListSessionsResponse.sessions:type_name -> hand.v1.SessionSummary
-	19, // 4: hand.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
-	15, // 5: hand.v1.GetSessionRequest.context:type_name -> hand.v1.GetSessionRequestContext
-	18, // 6: hand.v1.GetSessionResponse.context:type_name -> hand.v1.GetSessionResponse.Context
-	19, // 7: hand.v1.GetSessionResponse.created_at:type_name -> google.protobuf.Timestamp
-	19, // 8: hand.v1.GetSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
-	2,  // 9: hand.v1.HandService.Respond:input_type -> hand.v1.RespondRequest
-	5,  // 10: hand.v1.HandService.CreateSession:input_type -> hand.v1.CreateSessionRequest
-	7,  // 11: hand.v1.HandService.ListSessions:input_type -> hand.v1.ListSessionsRequest
-	9,  // 12: hand.v1.HandService.UseSession:input_type -> hand.v1.UseSessionRequest
-	11, // 13: hand.v1.HandService.CurrentSession:input_type -> hand.v1.CurrentSessionRequest
-	13, // 14: hand.v1.HandService.CompactSession:input_type -> hand.v1.CompactSessionRequest
-	16, // 15: hand.v1.HandService.GetSession:input_type -> hand.v1.GetSessionRequest
-	3,  // 16: hand.v1.HandService.Respond:output_type -> hand.v1.RespondEvent
-	6,  // 17: hand.v1.HandService.CreateSession:output_type -> hand.v1.CreateSessionResponse
-	8,  // 18: hand.v1.HandService.ListSessions:output_type -> hand.v1.ListSessionsResponse
-	10, // 19: hand.v1.HandService.UseSession:output_type -> hand.v1.UseSessionResponse
-	12, // 20: hand.v1.HandService.CurrentSession:output_type -> hand.v1.CurrentSessionResponse
-	14, // 21: hand.v1.HandService.CompactSession:output_type -> hand.v1.CompactSessionResponse
-	17, // 22: hand.v1.HandService.GetSession:output_type -> hand.v1.GetSessionResponse
-	16, // [16:23] is the sub-list for method output_type
-	9,  // [9:16] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	5,  // 2: hand.v1.CreateSessionResponse.session:type_name -> hand.v1.SessionSummary
+	5,  // 3: hand.v1.ListSessionsResponse.sessions:type_name -> hand.v1.SessionSummary
+	24, // 4: hand.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
+	2,  // 5: hand.v1.RepairSessionRequest.type:type_name -> hand.v1.RepairSessionRequest.Type
+	18, // 6: hand.v1.RepairSessionRequest.vector:type_name -> hand.v1.VectorRepairOption
+	2,  // 7: hand.v1.RepairSessionResponse.type:type_name -> hand.v1.RepairSessionRequest.Type
+	19, // 8: hand.v1.RepairSessionResponse.vector:type_name -> hand.v1.VectorRepairResponse
+	20, // 9: hand.v1.GetSessionRequest.context:type_name -> hand.v1.GetSessionRequestContext
+	23, // 10: hand.v1.GetSessionResponse.context:type_name -> hand.v1.GetSessionResponse.Context
+	24, // 11: hand.v1.GetSessionResponse.created_at:type_name -> google.protobuf.Timestamp
+	24, // 12: hand.v1.GetSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
+	3,  // 13: hand.v1.HandService.Respond:input_type -> hand.v1.RespondRequest
+	6,  // 14: hand.v1.HandService.CreateSession:input_type -> hand.v1.CreateSessionRequest
+	8,  // 15: hand.v1.HandService.ListSessions:input_type -> hand.v1.ListSessionsRequest
+	10, // 16: hand.v1.HandService.UseSession:input_type -> hand.v1.UseSessionRequest
+	12, // 17: hand.v1.HandService.CurrentSession:input_type -> hand.v1.CurrentSessionRequest
+	14, // 18: hand.v1.HandService.CompactSession:input_type -> hand.v1.CompactSessionRequest
+	16, // 19: hand.v1.HandService.RepairSession:input_type -> hand.v1.RepairSessionRequest
+	21, // 20: hand.v1.HandService.GetSession:input_type -> hand.v1.GetSessionRequest
+	4,  // 21: hand.v1.HandService.Respond:output_type -> hand.v1.RespondEvent
+	7,  // 22: hand.v1.HandService.CreateSession:output_type -> hand.v1.CreateSessionResponse
+	9,  // 23: hand.v1.HandService.ListSessions:output_type -> hand.v1.ListSessionsResponse
+	11, // 24: hand.v1.HandService.UseSession:output_type -> hand.v1.UseSessionResponse
+	13, // 25: hand.v1.HandService.CurrentSession:output_type -> hand.v1.CurrentSessionResponse
+	15, // 26: hand.v1.HandService.CompactSession:output_type -> hand.v1.CompactSessionResponse
+	17, // 27: hand.v1.HandService.RepairSession:output_type -> hand.v1.RepairSessionResponse
+	22, // 28: hand.v1.HandService.GetSession:output_type -> hand.v1.GetSessionResponse
+	21, // [21:29] is the sub-list for method output_type
+	13, // [13:21] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_internal_rpc_proto_hand_proto_init() }
@@ -1202,8 +1548,8 @@ func file_internal_rpc_proto_hand_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_rpc_proto_hand_proto_rawDesc), len(file_internal_rpc_proto_hand_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   17,
+			NumEnums:      3,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

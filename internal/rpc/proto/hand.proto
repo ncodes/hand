@@ -13,6 +13,7 @@ service HandService {
   rpc UseSession(UseSessionRequest) returns (UseSessionResponse);
   rpc CurrentSession(CurrentSessionRequest) returns (CurrentSessionResponse);
   rpc CompactSession(CompactSessionRequest) returns (CompactSessionResponse);
+  rpc RepairSession(RepairSessionRequest) returns (RepairSessionResponse);
   rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
 }
 
@@ -88,6 +89,38 @@ message CompactSessionResponse {
   google.protobuf.Timestamp updated_at = 4;
   int32 current_context_length = 5;
   int32 total_context_length = 6;
+}
+
+message RepairSessionRequest {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    VECTOR = 1;
+  }
+
+  Type type = 1;
+  VectorRepairOption vector = 2;
+}
+
+message RepairSessionResponse {
+  RepairSessionRequest.Type type = 1;
+  VectorRepairResponse vector = 2;
+}
+
+message VectorRepairOption {
+  string id = 1;
+  bool full = 2;
+}
+
+message VectorRepairResponse {
+  int32 sessions_scanned = 1;
+  int32 messages_scanned = 2;
+  int32 rows_scanned = 3;
+  int32 missing_rows = 4;
+  int32 stale_rows = 5;
+  int32 unchanged_rows = 6;
+  int32 rebuilt_rows = 7;
+  int32 deleted_sources = 8;
+  int32 batches = 9;
 }
 
 message GetSessionRequestContext {

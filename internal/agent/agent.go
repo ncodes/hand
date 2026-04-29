@@ -37,6 +37,7 @@ type ServiceAPI interface {
 	CurrentSession(context.Context) (string, error)
 	RecallSessionSummary(context.Context, string) (storage.SessionSummary, error)
 	CompactSession(context.Context, string) (CompactSessionResult, error)
+	RepairSession(context.Context, RepairSessionOptions) (RepairSessionResult, error)
 	ContextStatus(context.Context, string) (ContextStatus, error)
 }
 
@@ -60,6 +61,10 @@ type CompactSessionResult struct {
 	CurrentContextLength int
 	TotalContextLength   int
 }
+
+type RepairSessionOptions = storage.VectorRepairOptions
+
+type RepairSessionResult = storage.VectorRepairResult
 
 type ContextStatus struct {
 	SessionID        string
@@ -367,6 +372,20 @@ func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionRe
 		CurrentContextLength: session.LastPromptTokens,
 		TotalContextLength:   a.cfg.Models.Main.ContextLength,
 	}, nil
+}
+
+func (a *Agent) RepairSession(
+	ctx context.Context,
+	opts RepairSessionOptions,
+) (RepairSessionResult, error) {
+	if a == nil {
+		return RepairSessionResult{}, errors.New("agent is required")
+	}
+	if !a.initialized || a.stateMgr == nil {
+		return RepairSessionResult{}, errors.New("environment has not been initialized")
+	}
+
+	return a.stateMgr.RepairVectorStore(normalizeContext(ctx), opts)
 }
 
 // RecallSessionSummary returns a recall-specific session summary without persisting it.

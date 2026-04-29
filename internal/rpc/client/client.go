@@ -28,6 +28,10 @@ type CompactSessionResult = agent.CompactSessionResult
 
 type ContextStatus = agent.ContextStatus
 
+type RepairSessionOptions = storage.VectorRepairOptions
+
+type RepairSessionResult = storage.VectorRepairResult
+
 type ChatAPI interface {
 	Respond(context.Context, string, RespondOptions) (string, error)
 }
@@ -38,6 +42,7 @@ type SessionAPI interface {
 	UseSession(context.Context, string) error
 	CurrentSession(context.Context) (string, error)
 	CompactSession(context.Context, string) (CompactSessionResult, error)
+	RepairSession(context.Context, RepairSessionOptions) (RepairSessionResult, error)
 	GetSession(context.Context, string) (ContextStatus, error)
 }
 
@@ -205,6 +210,35 @@ func (c *Client) CompactSession(ctx context.Context, id string) (CompactSessionR
 		UpdatedAt:            fromTimestamp(resp.GetUpdatedAt()),
 		CurrentContextLength: int(resp.GetCurrentContextLength()),
 		TotalContextLength:   int(resp.GetTotalContextLength()),
+	}, nil
+}
+
+func (c *Client) RepairSession(
+	ctx context.Context,
+	opts RepairSessionOptions,
+) (RepairSessionResult, error) {
+	resp, err := c.client.RepairSession(ctx, &handpb.RepairSessionRequest{
+		Type: handpb.RepairSessionRequest_VECTOR,
+		Vector: &handpb.VectorRepairOption{
+			Id:   strings.TrimSpace(opts.SessionID),
+			Full: opts.Full,
+		},
+	})
+	if err != nil {
+		return RepairSessionResult{}, err
+	}
+	vector := resp.GetVector()
+
+	return RepairSessionResult{
+		SessionsScanned: int(vector.GetSessionsScanned()),
+		MessagesScanned: int(vector.GetMessagesScanned()),
+		RowsScanned:     int(vector.GetRowsScanned()),
+		MissingRows:     int(vector.GetMissingRows()),
+		StaleRows:       int(vector.GetStaleRows()),
+		UnchangedRows:   int(vector.GetUnchangedRows()),
+		RebuiltRows:     int(vector.GetRebuiltRows()),
+		DeletedSources:  int(vector.GetDeletedSources()),
+		Batches:         int(vector.GetBatches()),
 	}, nil
 }
 

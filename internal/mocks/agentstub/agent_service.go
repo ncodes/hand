@@ -23,6 +23,8 @@ type AgentServiceStub struct {
 	UsedSessionID    string
 	CurrentSessionID string
 	CompactResult    rpcclient.CompactSessionResult
+	RepairOptions    agent.RepairSessionOptions
+	RepairResult     storage.VectorRepairResult
 	SummaryResult    storage.SessionSummary
 	StatusResult     rpcclient.ContextStatus
 }
@@ -75,6 +77,14 @@ func (s *AgentServiceStub) RecallSessionSummary(context.Context, string) (storag
 
 func (s *AgentServiceStub) CompactSession(context.Context, string) (rpcclient.CompactSessionResult, error) {
 	return s.CompactResult, s.Err
+}
+
+func (s *AgentServiceStub) RepairSession(
+	_ context.Context,
+	opts agent.RepairSessionOptions,
+) (agent.RepairSessionResult, error) {
+	s.RepairOptions = opts
+	return s.RepairResult, s.Err
 }
 
 func (s *AgentServiceStub) GetSession(context.Context, string) (rpcclient.ContextStatus, error) {

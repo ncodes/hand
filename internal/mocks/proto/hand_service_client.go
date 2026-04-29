@@ -22,6 +22,8 @@ type HandServiceClientStub struct {
 	CurrentResp *handpb.CurrentSessionResponse
 	CompactResp *handpb.CompactSessionResponse
 	CompactReq  *handpb.CompactSessionRequest
+	RepairResp  *handpb.RepairSessionResponse
+	RepairReq   *handpb.RepairSessionRequest
 	StatusResp  *handpb.GetSessionResponse
 	StatusReq   *handpb.GetSessionRequest
 }
@@ -56,6 +58,11 @@ func (s *HandServiceClientStub) CurrentSession(context.Context, *handpb.CurrentS
 func (s *HandServiceClientStub) CompactSession(_ context.Context, req *handpb.CompactSessionRequest, _ ...grpc.CallOption) (*handpb.CompactSessionResponse, error) {
 	s.CompactReq = req
 	return s.CompactResp, s.Err
+}
+
+func (s *HandServiceClientStub) RepairSession(_ context.Context, req *handpb.RepairSessionRequest, _ ...grpc.CallOption) (*handpb.RepairSessionResponse, error) {
+	s.RepairReq = req
+	return s.RepairResp, s.Err
 }
 
 func (s *HandServiceClientStub) GetSession(_ context.Context, req *handpb.GetSessionRequest, _ ...grpc.CallOption) (*handpb.GetSessionResponse, error) {

@@ -979,6 +979,37 @@ func TestAgent_CompactSession_withNilEnvironmentUsesNoopTrace(t *testing.T) {
 	require.Equal(t, 1, client.CallCount)
 }
 
+func TestAgent_RepairSession(t *testing.T) {
+	t.Run("rejects nil agent", func(t *testing.T) {
+		var a *Agent
+		result, err := a.RepairSession(context.Background(), RepairSessionOptions{})
+		require.EqualError(t, err, "agent is required")
+		require.Equal(t, storage.VectorRepairResult{}, result)
+	})
+
+	t.Run("rejects uninitialized agent", func(t *testing.T) {
+		a := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), &mocks.ModelClientStub{})
+		result, err := a.RepairSession(context.Background(), RepairSessionOptions{})
+		require.EqualError(t, err, "environment has not been initialized")
+		require.Equal(t, storage.VectorRepairResult{}, result)
+	})
+
+	t.Run("delegates to state manager", func(t *testing.T) {
+		manager, err := statemanager.NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+		a := &Agent{
+			cfg:         testSessionConfig(&config.Config{Name: "Test Agent"}),
+			modelClient: &mocks.ModelClientStub{},
+			stateMgr:    manager,
+			initialized: true,
+		}
+
+		result, err := a.RepairSession(context.Background(), RepairSessionOptions{})
+		require.NoError(t, err)
+		require.Equal(t, storage.VectorRepairResult{}, result)
+	})
+}
+
 func TestAgent_ContextStatus_validationErrors(t *testing.T) {
 	cfg := testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 128000}}})
 	manager := mustStateManager(t)

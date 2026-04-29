@@ -213,6 +213,23 @@ func (m *Manager) SearchMessages(
 	return m.store.SearchMessages(ctx, strings.TrimSpace(id), opts)
 }
 
+func (m *Manager) RepairVectorStore(
+	ctx context.Context,
+	opts storage.VectorRepairOptions,
+) (storage.VectorRepairResult, error) {
+	if m == nil {
+		return storage.VectorRepairResult{}, errors.New("state manager is required")
+	}
+
+	repairStore, ok := m.store.(storage.VectorRepairStore)
+	if !ok {
+		return storage.VectorRepairResult{}, errors.New("session vector repair is not supported")
+	}
+
+	opts.SessionID = strings.TrimSpace(opts.SessionID)
+	return repairStore.RepairVectorStore(ctx, opts)
+}
+
 func (m *Manager) CountMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) (int, error) {
 	if m == nil {
 		return 0, errors.New("state manager is required")

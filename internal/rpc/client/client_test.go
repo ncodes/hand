@@ -180,6 +180,43 @@ func TestClient_CompactSessionReturnsResult(t *testing.T) {
 	require.Equal(t, 128000, result.TotalContextLength)
 }
 
+func TestClient_RepairSessionReturnsResult(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{RepairResp: &handpb.RepairSessionResponse{
+		Type: handpb.RepairSessionRequest_VECTOR,
+		Vector: &handpb.VectorRepairResponse{
+			SessionsScanned: 2,
+			MessagesScanned: 3,
+			RowsScanned:     4,
+			MissingRows:     5,
+			StaleRows:       6,
+			UnchangedRows:   7,
+			RebuiltRows:     8,
+			DeletedSources:  9,
+			Batches:         10,
+		},
+	}}
+	client := &Client{client: stub}
+
+	result, err := client.RepairSession(context.Background(), RepairSessionOptions{
+		SessionID: " project-a ",
+		Full:      true,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, handpb.RepairSessionRequest_VECTOR, stub.RepairReq.GetType())
+	require.Equal(t, "project-a", stub.RepairReq.GetVector().GetId())
+	require.True(t, stub.RepairReq.GetVector().GetFull())
+	require.Equal(t, 2, result.SessionsScanned)
+	require.Equal(t, 3, result.MessagesScanned)
+	require.Equal(t, 4, result.RowsScanned)
+	require.Equal(t, 5, result.MissingRows)
+	require.Equal(t, 6, result.StaleRows)
+	require.Equal(t, 7, result.UnchangedRows)
+	require.Equal(t, 8, result.RebuiltRows)
+	require.Equal(t, 9, result.DeletedSources)
+	require.Equal(t, 10, result.Batches)
+}
+
 func TestClient_GetSessionReturnsResult(t *testing.T) {
 	created := time.Date(2024, 4, 1, 10, 0, 0, 0, time.UTC)
 	updated := time.Date(2024, 4, 2, 11, 0, 0, 0, time.UTC)

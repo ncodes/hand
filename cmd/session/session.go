@@ -150,6 +150,50 @@ func NewCommand() *cli.Command {
 				},
 			},
 			{
+				Name:      "repair",
+				Usage:     "Repair session storage artifacts",
+				ArgsUsage: "[session-id]",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "full",
+						Usage: "Rebuild all repairable artifacts instead of only missing or stale artifacts",
+					},
+				},
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					client, err := sessionClient(ctx, cmd)
+					if err != nil {
+						return err
+					}
+					defer client.Close()
+
+					result, err := client.RepairSession(
+						ctx,
+						rpcclient.RepairSessionOptions{
+							SessionID: strings.TrimSpace(cmd.Args().First()),
+							Full:      cmd.Bool("full"),
+						},
+					)
+					if err != nil {
+						return err
+					}
+
+					_, err = fmt.Fprintf(
+						sessionOutput,
+						"sessions_scanned=%d messages_scanned=%d rows_scanned=%d missing_rows=%d stale_rows=%d unchanged_rows=%d rebuilt_rows=%d deleted_sources=%d batches=%d\n",
+						result.SessionsScanned,
+						result.MessagesScanned,
+						result.RowsScanned,
+						result.MissingRows,
+						result.StaleRows,
+						result.UnchangedRows,
+						result.RebuiltRows,
+						result.DeletedSources,
+						result.Batches,
+					)
+					return err
+				},
+			},
+			{
 				Name:      "status",
 				Usage:     "Show session context usage",
 				ArgsUsage: "[session-id]",

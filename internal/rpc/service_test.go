@@ -497,6 +497,106 @@ func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
 	})
 }
 
+func TestService_RepairSessionReturnsResult(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{RepairResult: storage.VectorRepairResult{
+		SessionsScanned: 2,
+		MessagesScanned: 3,
+		RowsScanned:     4,
+		MissingRows:     5,
+		StaleRows:       6,
+		UnchangedRows:   7,
+		RebuiltRows:     8,
+		DeletedSources:  9,
+		Batches:         10,
+	}}
+	svc := NewService(stub)
+
+	resp, err := svc.RepairSession(context.Background(), &handpb.RepairSessionRequest{
+		Type: handpb.RepairSessionRequest_VECTOR,
+		Vector: &handpb.VectorRepairOption{
+			Id:   "project-a",
+			Full: true,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "project-a", stub.RepairOptions.SessionID)
+	require.True(t, stub.RepairOptions.Full)
+	require.Equal(t, handpb.RepairSessionRequest_VECTOR, resp.GetType())
+	require.EqualValues(t, 2, resp.GetVector().GetSessionsScanned())
+	require.EqualValues(t, 3, resp.GetVector().GetMessagesScanned())
+	require.EqualValues(t, 4, resp.GetVector().GetRowsScanned())
+	require.EqualValues(t, 5, resp.GetVector().GetMissingRows())
+	require.EqualValues(t, 6, resp.GetVector().GetStaleRows())
+	require.EqualValues(t, 7, resp.GetVector().GetUnchangedRows())
+	require.EqualValues(t, 8, resp.GetVector().GetRebuiltRows())
+	require.EqualValues(t, 9, resp.GetVector().GetDeletedSources())
+	require.EqualValues(t, 10, resp.GetVector().GetBatches())
+}
+
+func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
+	t.Run("nil receiver", func(t *testing.T) {
+		var svc *Service
+
+		resp, err := svc.RepairSession(context.Background(), &handpb.RepairSessionRequest{})
+
+		requireStatusError(t, err, codes.Internal, "service is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("missing handler", func(t *testing.T) {
+		svc := NewService(nil)
+
+		resp, err := svc.RepairSession(context.Background(), &handpb.RepairSessionRequest{})
+
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("nil request", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{})
+
+		resp, err := svc.RepairSession(context.Background(), nil)
+
+		requireStatusError(t, err, codes.InvalidArgument, "repair session request is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("unsupported type", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{})
+
+		resp, err := svc.RepairSession(context.Background(), &handpb.RepairSessionRequest{})
+
+		requireStatusError(t, err, codes.InvalidArgument, "repair session type must be vector")
+		require.Nil(t, resp)
+	})
+
+	t.Run("missing vector options", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{})
+
+		resp, err := svc.RepairSession(context.Background(), &handpb.RepairSessionRequest{
+			Type: handpb.RepairSessionRequest_VECTOR,
+		})
+
+		requireStatusError(t, err, codes.InvalidArgument, "repair session vector options are required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("handler error", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
+
+		resp, err := svc.RepairSession(context.Background(), &handpb.RepairSessionRequest{
+			Type: handpb.RepairSessionRequest_VECTOR,
+			Vector: &handpb.VectorRepairOption{
+				Id: "project-a",
+			},
+		})
+
+		requireStatusError(t, err, codes.NotFound, "session not found")
+		require.Nil(t, resp)
+	})
+}
+
 func TestService_GetSessionReturnsResult(t *testing.T) {
 	created := time.Date(2024, 3, 1, 12, 0, 0, 0, time.UTC)
 	updated := time.Date(2024, 3, 2, 15, 30, 0, 0, time.UTC)

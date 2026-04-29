@@ -25,6 +25,7 @@ const (
 	HandService_UseSession_FullMethodName     = "/hand.v1.HandService/UseSession"
 	HandService_CurrentSession_FullMethodName = "/hand.v1.HandService/CurrentSession"
 	HandService_CompactSession_FullMethodName = "/hand.v1.HandService/CompactSession"
+	HandService_RepairSession_FullMethodName  = "/hand.v1.HandService/RepairSession"
 	HandService_GetSession_FullMethodName     = "/hand.v1.HandService/GetSession"
 )
 
@@ -38,6 +39,7 @@ type HandServiceClient interface {
 	UseSession(ctx context.Context, in *UseSessionRequest, opts ...grpc.CallOption) (*UseSessionResponse, error)
 	CurrentSession(ctx context.Context, in *CurrentSessionRequest, opts ...grpc.CallOption) (*CurrentSessionResponse, error)
 	CompactSession(ctx context.Context, in *CompactSessionRequest, opts ...grpc.CallOption) (*CompactSessionResponse, error)
+	RepairSession(ctx context.Context, in *RepairSessionRequest, opts ...grpc.CallOption) (*RepairSessionResponse, error)
 	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error)
 }
 
@@ -118,6 +120,16 @@ func (c *handServiceClient) CompactSession(ctx context.Context, in *CompactSessi
 	return out, nil
 }
 
+func (c *handServiceClient) RepairSession(ctx context.Context, in *RepairSessionRequest, opts ...grpc.CallOption) (*RepairSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RepairSessionResponse)
+	err := c.cc.Invoke(ctx, HandService_RepairSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *handServiceClient) GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetSessionResponse)
@@ -138,6 +150,7 @@ type HandServiceServer interface {
 	UseSession(context.Context, *UseSessionRequest) (*UseSessionResponse, error)
 	CurrentSession(context.Context, *CurrentSessionRequest) (*CurrentSessionResponse, error)
 	CompactSession(context.Context, *CompactSessionRequest) (*CompactSessionResponse, error)
+	RepairSession(context.Context, *RepairSessionRequest) (*RepairSessionResponse, error)
 	GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error)
 	mustEmbedUnimplementedHandServiceServer()
 }
@@ -166,6 +179,9 @@ func (UnimplementedHandServiceServer) CurrentSession(context.Context, *CurrentSe
 }
 func (UnimplementedHandServiceServer) CompactSession(context.Context, *CompactSessionRequest) (*CompactSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CompactSession not implemented")
+}
+func (UnimplementedHandServiceServer) RepairSession(context.Context, *RepairSessionRequest) (*RepairSessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RepairSession not implemented")
 }
 func (UnimplementedHandServiceServer) GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSession not implemented")
@@ -292,6 +308,24 @@ func _HandService_CompactSession_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HandService_RepairSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RepairSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HandServiceServer).RepairSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HandService_RepairSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HandServiceServer).RepairSession(ctx, req.(*RepairSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _HandService_GetSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetSessionRequest)
 	if err := dec(in); err != nil {
@@ -336,6 +370,10 @@ var HandService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CompactSession",
 			Handler:    _HandService_CompactSession_Handler,
+		},
+		{
+			MethodName: "RepairSession",
+			Handler:    _HandService_RepairSession_Handler,
 		},
 		{
 			MethodName: "GetSession",

@@ -68,6 +68,7 @@ func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 	if db == nil {
 		return nil, errors.New("vector db is required")
 	}
+	db = db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})
 	if err := ensureSQLiteStorage(db); err != nil {
 		return nil, err
 	}

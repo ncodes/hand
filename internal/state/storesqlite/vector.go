@@ -33,6 +33,7 @@ type searchCandidate struct {
 // searchCandidateSet collects merged search candidates keyed by message row ID.
 type searchCandidateSet = base.SearchCandidateSet[uint, *searchCandidate]
 
+// CandidateMatchRef returns the mutable ranking metadata for this candidate.
 func (candidate *searchCandidate) CandidateMatchRef() *base.CandidateMatch {
 	if candidate == nil {
 		return nil
@@ -111,10 +112,12 @@ func (s *Store) ConfigureVectorStore(opts VectorStoreOptions) error {
 	return nil
 }
 
+// rerankEnabled reports whether hybrid search should rerank merged candidates.
 func (s *Store) rerankEnabled() bool {
 	return s != nil && s.vectors != nil && s.vectors.Rerank
 }
 
+// rerankerName returns the configured reranker name or the deterministic fallback name.
 func (s *Store) rerankerName() string {
 	if s == nil || s.vectors == nil || s.vectors.Reranker == nil {
 		return retrieval.RerankerDeterministic
@@ -123,6 +126,7 @@ func (s *Store) rerankerName() string {
 	return strings.TrimSpace(strings.ToLower(s.vectors.Reranker.Name()))
 }
 
+// diagnosticsEnabled reports whether vector search diagnostics should be logged.
 func (s *Store) diagnosticsEnabled() bool {
 	return s != nil && s.vectors != nil && s.vectors.Diagnostics
 }
@@ -196,6 +200,7 @@ func (s *Store) searchMessagesHybrid(
 	return results, nil
 }
 
+// searchCandidatesFromLexicalRows converts ranked lexical rows into mergeable candidates.
 func searchCandidatesFromLexicalRows(rows []searchSessionResultRow) searchCandidateSet {
 	candidates := make(searchCandidateSet, len(rows))
 	for idx, row := range rows {
@@ -222,6 +227,7 @@ func searchCandidatesFromLexicalRows(rows []searchSessionResultRow) searchCandid
 	return candidates
 }
 
+// rankedSearchRowsFromCandidates ranks candidates and returns rows shaped for public search results.
 func rankedSearchRowsFromCandidates(
 	candidates searchCandidateSet,
 	opts base.SearchMessageOptions,
@@ -229,6 +235,7 @@ func rankedSearchRowsFromCandidates(
 	return rankedSearchRowsFromCandidateSlice(candidates.Sorted(lessSearchCandidate), opts, nil, nil)
 }
 
+// rankedSearchRowsFromCandidateSlice groups ranked candidates by session and applies result limits.
 func rankedSearchRowsFromCandidateSlice(
 	candidates []*searchCandidate,
 	opts base.SearchMessageOptions,
@@ -299,6 +306,7 @@ func rankedSearchRowsFromCandidateSlice(
 	return rows
 }
 
+// compareCandidatesWithinSession orders candidates inside a single session.
 func compareCandidatesWithinSession(left *searchCandidate, right *searchCandidate) int {
 	leftScore := searchCandidateRankingScore(left)
 	rightScore := searchCandidateRankingScore(right)
@@ -323,6 +331,7 @@ func compareCandidatesWithinSession(left *searchCandidate, right *searchCandidat
 	return 0
 }
 
+// compareRankedSessions orders result sessions by best score, recency, and session ID.
 func compareRankedSessions(
 	left string,
 	right string,
@@ -350,6 +359,7 @@ func compareRankedSessions(
 	return 0
 }
 
+// searchCandidateKey returns the durable message row ID used to merge candidates.
 func searchCandidateKey(candidate *searchCandidate) uint {
 	if candidate == nil {
 		return 0
@@ -358,11 +368,12 @@ func searchCandidateKey(candidate *searchCandidate) uint {
 	return candidate.ID
 }
 
+// lessSearchCandidate reports whether left should sort before right.
 func lessSearchCandidate(left *searchCandidate, right *searchCandidate) bool {
 	return compareSearchCandidates(left, right) < 0
 }
 
-// sessionStats returns per-session candidate counts and latest candidate timestamps.
+// searchCandidateSessionStats returns per-session candidate counts and latest timestamps.
 func searchCandidateSessionStats(candidates searchCandidateSet) (map[string]int, map[string]time.Time) {
 	matchCounts := make(map[string]int)
 	lastMatchedAt := make(map[string]time.Time)
@@ -376,6 +387,7 @@ func searchCandidateSessionStats(candidates searchCandidateSet) (map[string]int,
 	return matchCounts, lastMatchedAt
 }
 
+// searchCandidateMatchCount returns the original match count for a result session.
 func searchCandidateMatchCount(
 	sessionID string,
 	groups map[string][]*searchCandidate,
@@ -388,6 +400,7 @@ func searchCandidateMatchCount(
 	return len(groups[sessionID])
 }
 
+// compareSearchCandidates orders candidates by score, recency, session ID, and message ID.
 func compareSearchCandidates(left *searchCandidate, right *searchCandidate) int {
 	return base.CompareCandidateOrder(
 		searchCandidateRankingScore(left),
@@ -401,10 +414,12 @@ func compareSearchCandidates(left *searchCandidate, right *searchCandidate) int 
 	)
 }
 
+// searchCandidateRankingScore returns the final score used for ordering a candidate.
 func searchCandidateRankingScore(candidate *searchCandidate) float64 {
 	return base.CandidateRankingScore(candidate.HasRerank, candidate.RerankScore, candidate.FusedScore)
 }
 
+// hybridCandidateLimit returns the shared lexical/vector candidate limit.
 func hybridCandidateLimit(opts base.SearchMessageOptions) int {
 	return base.HybridRetrievalCandidateLimit(opts)
 }
@@ -485,6 +500,7 @@ func (s *Store) rerankSearchCandidates(
 	return reranked
 }
 
+// searchRerankResultName returns the reranker reported by a result or the configured fallback.
 func searchRerankResultName(result retrieval.RerankResult, fallback string) string {
 	if name := strings.TrimSpace(strings.ToLower(result.Reranker)); name != "" {
 		return name
@@ -493,6 +509,7 @@ func searchRerankResultName(result retrieval.RerankResult, fallback string) stri
 	return strings.TrimSpace(strings.ToLower(fallback))
 }
 
+// retrievalCandidateFromSearchCandidate converts a search candidate to the reranker contract.
 func retrievalCandidateFromSearchCandidate(candidate *searchCandidate) retrieval.Candidate {
 	text := strings.TrimSpace(candidate.MatchedText)
 	if text == "" {
@@ -749,6 +766,7 @@ func (lookup messageLookup) set(ref messageRef, record messageModel) {
 	lookup[ref.key()] = record
 }
 
+// messageRefFromSourceID parses a vector source ID into a SQLite message reference.
 func messageRefFromSourceID(sourceID string) (messageRef, bool) {
 	sessionID, messageID, ok := base.MessageRefFromSourceID(sourceID)
 	if !ok {
@@ -758,6 +776,7 @@ func messageRefFromSourceID(sourceID string) (messageRef, bool) {
 	return messageRef{SessionID: sessionID, MessageID: messageID}, true
 }
 
+// vectorRecordMatchesOptions reports whether a resolved message satisfies vector search filters.
 func vectorRecordMatchesOptions(record messageModel, id string, opts base.SearchMessageOptions) bool {
 	if id != "" && record.SessionID != id {
 		return false
@@ -772,10 +791,12 @@ func vectorRecordMatchesOptions(record messageModel, id string, opts base.Search
 	return true
 }
 
+// searchRowForVectorRecord returns the searchable row represented by a vector record ID.
 func searchRowForVectorRecord(record messageModel, vectorID string) (searchRow, bool) {
 	return base.MessageIndexRowForVectorRecord([]base.MessageIndexRow(searchRowsFromMessageModel(record)), vectorID)
 }
 
+// searchRowMatchesOptions reports whether a searchable row satisfies non-text search filters.
 func searchRowMatchesOptions(row searchRow, opts base.SearchMessageOptions) bool {
 	return base.MessageIndexRowMatchesSearchOptions(row, opts)
 }
@@ -790,6 +811,7 @@ func (s *Store) indexVectors(ctx context.Context, records []messageModel) error 
 	return s.upsertVectorRecords(ctx, recordsToUpsert)
 }
 
+// vectorRecordsForMessages embeds message search rows and builds vector records for storage.
 func (s *Store) vectorRecordsForMessages(
 	ctx context.Context,
 	records []messageModel,
@@ -816,10 +838,12 @@ func (s *Store) vectorRecordsForMessages(
 		Model:  s.vectors.Model,
 		Inputs: embeddingInputs,
 	}
+
 	s.logVectorEvent("embedding started").
 		Int("input_count", len(req.Inputs)).
 		Str("embedding_model", strings.TrimSpace(req.Model)).
 		Msg("session vector embedding started")
+
 	result, err := s.vectors.Provider.Embed(ctx, req)
 	if err != nil {
 		logSafeError(s.logVectorEvent("embedding failed"), err).Msg("session vector embedding failed")
@@ -830,6 +854,7 @@ func (s *Store) vectorRecordsForMessages(
 			Msg("session vector embedding validation failed")
 		return nil, err
 	}
+
 	s.logVectorEvent("embedding completed").
 		Int("input_count", len(req.Inputs)).
 		Int("dimensions", result.Dimensions).
@@ -863,6 +888,7 @@ func (s *Store) vectorRecordsForMessages(
 	return recordsToUpsert, nil
 }
 
+// upsertVectorRecords writes vector records through the configured vector store.
 func (s *Store) upsertVectorRecords(ctx context.Context, records []retrieval.VectorRecord) error {
 	if s == nil || s.vectors == nil || len(records) == 0 {
 		return nil
@@ -904,10 +930,12 @@ func (s *Store) deleteVectorRows(ctx context.Context, sourceIDs []string) error 
 		SourceKind: retrieval.SourceKindSessionMessage,
 		SourceIDs:  sourceIDs,
 	}
+
 	s.logVectorEvent("delete started").
 		Int("source_id_count", len(sourceIDs)).
 		Str("source_kind", string(req.SourceKind)).
 		Msg("session vector delete started")
+
 	if err := s.vectors.Store.Delete(ctx, req); err != nil {
 		logSafeError(s.logVectorEvent("delete failed"), err).
 			Int("source_id_count", len(sourceIDs)).
@@ -915,6 +943,7 @@ func (s *Store) deleteVectorRows(ctx context.Context, sourceIDs []string) error 
 			Msg("session vector delete failed")
 		return err
 	}
+
 	s.logVectorEvent("delete completed").
 		Int("source_id_count", len(sourceIDs)).
 		Str("source_kind", string(req.SourceKind)).
@@ -951,6 +980,7 @@ func (records messageModels) sourceIDs() []string {
 	return sourceIDs
 }
 
+// sourceIDsFromMessageIDs returns vector source IDs for message IDs in one session.
 func sourceIDsFromMessageIDs(sessionID string, messageIDs []uint) []string {
 	if len(messageIDs) == 0 {
 		return nil
@@ -964,14 +994,17 @@ func sourceIDsFromMessageIDs(sessionID string, messageIDs []uint) []string {
 	return sourceIDs
 }
 
+// sourceIDForMessage returns the vector source ID for a message row.
 func sourceIDForMessage(sessionID string, messageID uint) string {
 	return base.SourceIDForMessage(sessionID, messageID)
 }
 
+// uniqueStrings returns non-empty strings without duplicates.
 func uniqueStrings(values []string) []string {
 	return base.UniqueStrings(values)
 }
 
+// normalizeSearchValue canonicalizes a search filter value.
 func normalizeSearchValue(value string) string {
 	return base.NormalizeMatchValue(value)
 }

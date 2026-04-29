@@ -132,6 +132,40 @@ func TestNewCommandSessionCompactCallsRPC(t *testing.T) {
 	require.Equal(t, "id=project-a source_end_offset=12 source_message_count=20 updated_at=1970-01-01T00:02:03Z current_context_length=4000 total_context_length=128000\n", output.String())
 }
 
+func TestNewCommandSessionRepairCallsRPC(t *testing.T) {
+	originalNewClient := newClient
+	originalOutput := sessionOutput
+	t.Cleanup(func() {
+		newClient = originalNewClient
+		sessionOutput = originalOutput
+	})
+
+	var output bytes.Buffer
+	sessionOutput = &output
+
+	stub := &agentstub.AgentServiceStub{RepairResult: storage.VectorRepairResult{
+		SessionsScanned: 2,
+		MessagesScanned: 3,
+		RowsScanned:     4,
+		MissingRows:     5,
+		StaleRows:       6,
+		UnchangedRows:   7,
+		RebuiltRows:     8,
+		DeletedSources:  9,
+		Batches:         10,
+	}}
+	newClient = func(context.Context, *config.Config) (rpcclient.SessionClient, error) {
+		return stub, nil
+	}
+
+	err := NewCommand().Run(context.Background(), []string{"session", "repair", "--full", "project-a"})
+
+	require.NoError(t, err)
+	require.Equal(t, "project-a", stub.RepairOptions.SessionID)
+	require.True(t, stub.RepairOptions.Full)
+	require.Equal(t, "sessions_scanned=2 messages_scanned=3 rows_scanned=4 missing_rows=5 stale_rows=6 unchanged_rows=7 rebuilt_rows=8 deleted_sources=9 batches=10\n", output.String())
+}
+
 func TestNewCommandSessionStatusCallsRPC(t *testing.T) {
 	originalNewClient := newClient
 	originalOutput := sessionOutput

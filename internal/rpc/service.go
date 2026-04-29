@@ -202,6 +202,50 @@ func (s *Service) CompactSession(
 	}, nil
 }
 
+func (s *Service) RepairSession(
+	ctx context.Context,
+	req *handpb.RepairSessionRequest,
+) (*handpb.RepairSessionResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return nil, status.Error(codes.Internal, "agent handler is required")
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "repair session request is required")
+	}
+	if req.GetType() != handpb.RepairSessionRequest_VECTOR {
+		return nil, status.Error(codes.InvalidArgument, "repair session type must be vector")
+	}
+	if req.GetVector() == nil {
+		return nil, status.Error(codes.InvalidArgument, "repair session vector options are required")
+	}
+
+	result, err := s.api.RepairSession(ctx, agent.RepairSessionOptions{
+		SessionID: req.GetVector().GetId(),
+		Full:      req.GetVector().GetFull(),
+	})
+	if err != nil {
+		return nil, grpcError(err)
+	}
+
+	return &handpb.RepairSessionResponse{
+		Type: handpb.RepairSessionRequest_VECTOR,
+		Vector: &handpb.VectorRepairResponse{
+			SessionsScanned: int32(result.SessionsScanned),
+			MessagesScanned: int32(result.MessagesScanned),
+			RowsScanned:     int32(result.RowsScanned),
+			MissingRows:     int32(result.MissingRows),
+			StaleRows:       int32(result.StaleRows),
+			UnchangedRows:   int32(result.UnchangedRows),
+			RebuiltRows:     int32(result.RebuiltRows),
+			DeletedSources:  int32(result.DeletedSources),
+			Batches:         int32(result.Batches),
+		},
+	}, nil
+}
+
 func (s *Service) GetSession(ctx context.Context, req *handpb.GetSessionRequest) (*handpb.GetSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
