@@ -3,9 +3,12 @@ package manager
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -19,7 +22,16 @@ import (
 	"github.com/wandxy/hand/internal/state/retrieval"
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
 	storagesqlite "github.com/wandxy/hand/internal/state/storesqlite"
+	vectormemory "github.com/wandxy/hand/internal/state/vector/memory"
+	vectorsqlite "github.com/wandxy/hand/internal/state/vector/sqlite"
+	"github.com/wandxy/hand/pkg/logutils"
 )
+
+func init() {
+	logutils.SetOutput(io.Discard)
+}
+
+const e2eVectorEmbeddingModel = "text-embedding-e2e"
 
 func TestOpenStore_ValidatesConfigAndBackend(t *testing.T) {
 	store, err := OpenStore(nil)
@@ -58,6 +70,7 @@ func TestOpenStore_ReturnsSQLiteStore(t *testing.T) {
 
 	store, err := OpenStore(storeConfig("sqlite"))
 
+	skipIfSQLiteFTS5Unavailable(t, err)
 	require.NoError(t, err)
 	require.IsType(t, &storagesqlite.Store{}, store)
 	require.FileExists(t, datadir.StateDBPath())
@@ -70,6 +83,7 @@ func TestOpenStore_DefaultsToSQLite(t *testing.T) {
 
 	store, err := OpenStore(&config.Config{})
 
+	skipIfSQLiteFTS5Unavailable(t, err)
 	require.NoError(t, err)
 	require.IsType(t, &storagesqlite.Store{}, store)
 	require.FileExists(t, datadir.StateDBPath())
@@ -123,6 +137,7 @@ func TestOpenStore_ConfiguresSQLiteVectorStore(t *testing.T) {
 			Vector:       config.SearchVectorConfig{Enabled: true, Required: true, RebuildBatchSize: 7},
 		},
 	})
+	skipIfSQLiteFTS5Unavailable(t, err)
 	require.NoError(t, err)
 	require.IsType(t, &storagesqlite.Store{}, store)
 
@@ -160,6 +175,7 @@ func TestOpenStore_ReturnsRerankerConstructionError(t *testing.T) {
 	}, nil)
 
 	require.Nil(t, store)
+	skipIfSQLiteFTS5Unavailable(t, err)
 	require.EqualError(t, err, "reranker model client is required")
 }
 
@@ -187,6 +203,7 @@ func TestOpenStore_ReturnsSQLiteVectorConfigurationError(t *testing.T) {
 	})
 
 	require.Nil(t, store)
+	skipIfSQLiteFTS5Unavailable(t, err)
 	require.EqualError(t, err, "embedding provider is required")
 }
 
@@ -371,6 +388,7 @@ func TestOpenStore_ValidatesVectorStoreFactories(t *testing.T) {
 		})
 
 		require.Nil(t, store)
+		skipIfSQLiteFTS5Unavailable(t, err)
 		require.EqualError(t, err, "vector factory failed")
 	})
 
@@ -402,6 +420,7 @@ func TestOpenStore_ValidatesVectorStoreFactories(t *testing.T) {
 		})
 
 		require.Nil(t, store)
+		skipIfSQLiteFTS5Unavailable(t, err)
 		require.EqualError(t, err, "sqlite vector store is required")
 	})
 
@@ -429,6 +448,140 @@ func TestOpenStore_ValidatesVectorStoreFactories(t *testing.T) {
 		require.Nil(t, store)
 		require.EqualError(t, err, "memory vector store is required")
 	})
+}
+
+func TestOpenStore_VectorSearchEndToEnd(t *testing.T) {
+	for _, backend := range []string{"memory", "sqlite"} {
+		t.Run(backend, func(t *testing.T) {
+			ctx := context.Background()
+			store, lister := openStoreWithE2EVectorSearch(t, backend, &e2eVectorEmbeddingProvider{}, false)
+			sessionID := newStoreTestSessionID(t)
+
+			require.NoError(t, store.Save(ctx, storage.Session{ID: sessionID}))
+			require.NoError(t, store.AppendMessages(ctx, sessionID, []handmsg.Message{
+				{Role: handmsg.RoleUser, Content: "semantic target document", CreatedAt: time.Now().UTC()},
+				{Role: handmsg.RoleUser, Content: "different reference document", CreatedAt: time.Now().UTC().Add(time.Second)},
+			}))
+			requireVectorRecordCount(t, lister, 2)
+
+			results, err := store.SearchMessages(ctx, sessionID, storage.SearchMessageOptions{
+				Query:                 "related idea",
+				MaxSessions:           1,
+				MaxMessagesPerSession: 1,
+			})
+
+			require.NoError(t, err)
+			require.Len(t, results, 1)
+			require.Len(t, results[0].Messages, 1)
+			require.Equal(t, "semantic target document", results[0].Messages[0].Message.Content)
+		})
+	}
+}
+
+func TestOpenStore_RemovesVectorRowsEndToEnd(t *testing.T) {
+	operations := map[string]func(context.Context, storage.Store, string) error{
+		"delete": func(ctx context.Context, store storage.Store, sessionID string) error {
+			return store.Delete(ctx, sessionID)
+		},
+		"clear": func(ctx context.Context, store storage.Store, sessionID string) error {
+			return store.ClearMessages(ctx, sessionID, storage.MessageQueryOptions{})
+		},
+		"archive": func(ctx context.Context, store storage.Store, sessionID string) error {
+			archiveID, err := storage.NewArchiveID()
+			if err != nil {
+				return err
+			}
+
+			return store.CreateArchive(ctx, storage.ArchivedSession{
+				ID:              archiveID,
+				SourceSessionID: sessionID,
+				ExpiresAt:       time.Now().UTC().Add(time.Hour),
+			})
+		},
+	}
+
+	for _, backend := range []string{"memory", "sqlite"} {
+		for name, operation := range operations {
+			t.Run(backend+" "+name, func(t *testing.T) {
+				ctx := context.Background()
+				store, lister := openStoreWithE2EVectorSearch(t, backend, &e2eVectorEmbeddingProvider{}, false)
+				sessionID := newStoreTestSessionID(t)
+
+				require.NoError(t, store.Save(ctx, storage.Session{ID: sessionID}))
+				require.NoError(t, store.AppendMessages(ctx, sessionID, []handmsg.Message{{
+					Role:      handmsg.RoleUser,
+					Content:   "semantic target document",
+					CreatedAt: time.Now().UTC(),
+				}}))
+				requireVectorRecordCount(t, lister, 1)
+
+				require.NoError(t, operation(ctx, store, sessionID))
+				requireVectorRecordCount(t, lister, 0)
+			})
+		}
+	}
+}
+
+func TestOpenStore_BM25SearchWhenVectorDisabled(t *testing.T) {
+	for _, backend := range []string{"memory", "sqlite"} {
+		t.Run(backend, func(t *testing.T) {
+			ctx := context.Background()
+			if backend == "sqlite" {
+				t.Setenv("HAND_HOME", t.TempDir())
+			}
+
+			store, err := OpenStore(e2eVectorStoreConfig(backend, false, false))
+			skipIfSQLiteFTS5Unavailable(t, err)
+			require.NoError(t, err)
+
+			sessionID := newStoreTestSessionID(t)
+			require.NoError(t, store.Save(ctx, storage.Session{ID: sessionID}))
+			require.NoError(t, store.AppendMessages(ctx, sessionID, []handmsg.Message{{
+				Role:      handmsg.RoleUser,
+				Content:   "needle lexical result",
+				CreatedAt: time.Now().UTC(),
+			}}))
+
+			results, err := store.SearchMessages(ctx, sessionID, storage.SearchMessageOptions{Query: "needle"})
+
+			require.NoError(t, err)
+			require.Len(t, results, 1)
+			require.Len(t, results[0].Messages, 1)
+			require.Equal(t, "needle lexical result", results[0].Messages[0].Message.Content)
+		})
+	}
+}
+
+func TestOpenStore_VectorErrorRequiredSemantics(t *testing.T) {
+	for _, backend := range []string{"memory", "sqlite"} {
+		for _, required := range []bool{false, true} {
+			name := backend + "_best_effort"
+			if required {
+				name = backend + "_required"
+			}
+
+			t.Run(name, func(t *testing.T) {
+				ctx := context.Background()
+				provider := &e2eVectorEmbeddingProvider{err: errors.New("embedding failed")}
+				store, _ := openStoreWithE2EVectorSearch(t, backend, provider, required)
+				sessionID := newStoreTestSessionID(t)
+
+				require.NoError(t, store.Save(ctx, storage.Session{ID: sessionID}))
+				err := store.AppendMessages(ctx, sessionID, []handmsg.Message{{
+					Role:      handmsg.RoleUser,
+					Content:   "semantic target document",
+					CreatedAt: time.Now().UTC(),
+				}})
+
+				require.Len(t, provider.requests, 1)
+				if required {
+					require.EqualError(t, err, "embedding failed")
+					return
+				}
+				require.NoError(t, err)
+			})
+		}
+	}
 }
 
 func TestStoreReranker_SelectsConfiguredReranker(t *testing.T) {
@@ -658,4 +811,141 @@ func (s *storeTestVectorStore) Search(
 
 func (s *storeTestVectorStore) Metadata(context.Context) (retrieval.VectorStoreMetadata, error) {
 	return retrieval.VectorStoreMetadata{}, nil
+}
+
+func openStoreWithE2EVectorSearch(
+	t *testing.T,
+	backend string,
+	provider retrieval.Embedder,
+	required bool,
+) (storage.Store, retrieval.VectorRecordLister) {
+	t.Helper()
+
+	if backend == "sqlite" {
+		t.Setenv("HAND_HOME", t.TempDir())
+	}
+
+	originalProvider := newStoreEmbeddingProvider
+	originalSQLiteStore := newSQLiteVectorStore
+	originalMemoryStore := newMemoryVectorStore
+	t.Cleanup(func() {
+		newStoreEmbeddingProvider = originalProvider
+		newSQLiteVectorStore = originalSQLiteStore
+		newMemoryVectorStore = originalMemoryStore
+	})
+
+	var lister retrieval.VectorRecordLister
+	newStoreEmbeddingProvider = func(*config.Config) (retrieval.Embedder, error) {
+		return provider, nil
+	}
+	newMemoryVectorStore = func() retrieval.VectorStore {
+		store := vectormemory.NewStore()
+		lister = store
+		return store
+	}
+	newSQLiteVectorStore = func(db *gorm.DB) (retrieval.VectorStore, error) {
+		store, err := vectorsqlite.NewStoreFromDB(db)
+		if err != nil {
+			return nil, err
+		}
+		lister = store
+		return store, nil
+	}
+
+	store, err := OpenStore(e2eVectorStoreConfig(backend, true, required))
+	skipIfSQLiteFTS5Unavailable(t, err)
+	require.NoError(t, err)
+	require.NotNil(t, store)
+	require.NotNil(t, lister)
+
+	return store, lister
+}
+
+func skipIfSQLiteFTS5Unavailable(t *testing.T, err error) {
+	t.Helper()
+
+	if err != nil && strings.Contains(err.Error(), "no such module: fts5") {
+		t.Skip("sqlite FTS5 is not available in this test environment")
+	}
+}
+
+func e2eVectorStoreConfig(backend string, vectorEnabled bool, required bool) *config.Config {
+	rerankEnabled := false
+	return &config.Config{
+		Storage: config.StorageConfig{Backend: backend},
+		Models: config.ModelsConfig{
+			Embedding: config.EmbeddingModelConfig{Name: e2eVectorEmbeddingModel, Provider: "openai"},
+		},
+		Search: config.SearchConfig{
+			EnableRerank: &rerankEnabled,
+			Vector: config.SearchVectorConfig{
+				Enabled:  vectorEnabled,
+				Required: required,
+			},
+		},
+	}
+}
+
+func newStoreTestSessionID(t *testing.T) string {
+	t.Helper()
+
+	sessionID, err := storage.NewSessionID()
+	require.NoError(t, err)
+
+	return sessionID
+}
+
+func requireVectorRecordCount(t *testing.T, lister retrieval.VectorRecordLister, count int) {
+	t.Helper()
+
+	list, err := lister.List(context.Background(), retrieval.VectorListRequest{
+		EmbeddingModel: e2eVectorEmbeddingModel,
+		Filter: retrieval.VectorFilter{
+			SourceKind: retrieval.SourceKindSessionMessage,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, list.Records, count)
+}
+
+type e2eVectorEmbeddingProvider struct {
+	requests []retrieval.EmbeddingRequest
+	err      error
+}
+
+func (p *e2eVectorEmbeddingProvider) Embed(
+	_ context.Context,
+	req retrieval.EmbeddingRequest,
+) (retrieval.EmbeddingResult, error) {
+	p.requests = append(p.requests, req)
+	if p.err != nil {
+		return retrieval.EmbeddingResult{}, p.err
+	}
+
+	items := make([]retrieval.Embedding, 0, len(req.Inputs))
+	for _, input := range req.Inputs {
+		items = append(items, retrieval.Embedding{
+			ID:          input.ID,
+			ContentHash: retrieval.VectorContentHash(input.Text),
+			Vector:      e2eVectorForText(input.Text),
+		})
+	}
+
+	return retrieval.EmbeddingResult{
+		Model:      req.Model,
+		Items:      items,
+		Dimensions: 3,
+	}, nil
+}
+
+func e2eVectorForText(text string) []float64 {
+	text = strings.ToLower(text)
+	switch {
+	case strings.Contains(text, "semantic target"), strings.Contains(text, "related idea"):
+		return []float64{1, 0, 0}
+	case strings.Contains(text, "different reference"):
+		return []float64{0, 1, 0}
+	default:
+		return []float64{0, 0, 1}
+	}
 }
