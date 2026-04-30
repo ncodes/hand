@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -57,6 +58,13 @@ type MemoryItem struct {
 	SourceLinks []SourceLink
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+func (item MemoryItem) GuardrailSource() string {
+	if id := strings.TrimSpace(item.ID); id != "" {
+		return "memory:" + id
+	}
+	return "memory"
 }
 
 type SearchQuery struct {

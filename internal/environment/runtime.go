@@ -11,6 +11,7 @@ import (
 	"github.com/wandxy/hand/internal/environment/sessionmessages"
 	"github.com/wandxy/hand/internal/environment/sessionsearch"
 	"github.com/wandxy/hand/internal/guardrails"
+	"github.com/wandxy/hand/internal/memory"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 )
 
@@ -22,6 +23,7 @@ type Runtime struct {
 	processMgr    process.Manager
 	plans         planstore.Store
 	stateMgr      *statemanager.Manager
+	memory        memory.Provider
 }
 
 func NewRuntime(roots []string, policy guardrails.CommandPolicy, stateMgr *statemanager.Manager) *Runtime {
@@ -115,6 +117,45 @@ func (r *Runtime) GetSessionMessages(
 	}
 
 	return sessionmessages.Get(ctx, r.stateMgr, req)
+}
+
+func (r *Runtime) SupportsMemorySearch(ctx context.Context) (bool, error) {
+	_, supported, err := r.memorySearchProvider(ctx)
+	return supported, err
+}
+
+func (r *Runtime) memorySearchProvider(ctx context.Context) (memory.SearchProvider, bool, error) {
+	if r == nil || r.memory == nil {
+		return nil, false, nil
+	}
+
+	searchProvider, ok := r.memory.(memory.SearchProvider)
+	if !ok {
+		return nil, false, nil
+	}
+
+	caps, err := r.memory.Capabilities(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return searchProvider, caps.SupportsSearch, nil
+}
+
+func (r *Runtime) SearchMemory(ctx context.Context, query memory.SearchQuery) (memory.SearchResult, error) {
+	if r == nil || r.memory == nil {
+		return memory.SearchResult{}, errors.New("memory search is not configured")
+	}
+
+	searchProvider, supported, err := r.memorySearchProvider(ctx)
+	if err != nil {
+		return memory.SearchResult{}, err
+	}
+	if !supported {
+		return memory.SearchResult{}, errors.New("memory search is not supported by provider")
+	}
+
+	return searchProvider.Search(ctx, query)
 }
 
 func (r *Runtime) GetPlan(sessionID string) planstore.Plan {

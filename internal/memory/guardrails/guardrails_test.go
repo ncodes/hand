@@ -68,11 +68,6 @@ func TestSanitizedString_DefaultsRedactorAndFallsBackForUnexpectedResult(t *test
 	require.Equal(t, "plain value", sanitizedString(nonStringRedactor{}, "plain value"))
 }
 
-func TestSafetyScanSource_UsesMemoryIDWhenAvailable(t *testing.T) {
-	require.Equal(t, "memory:mem_123", safetyScanSource(memory.MemoryItem{ID: " mem_123 "}))
-	require.Equal(t, "memory", safetyScanSource(memory.MemoryItem{}))
-}
-
 func TestSanitizedStrings_ReturnsNilForEmptyInput(t *testing.T) {
 	require.Nil(t, sanitizedStrings(nil, nil))
 	require.Nil(t, sanitizedStrings(nil, []string{}))

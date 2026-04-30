@@ -138,7 +138,7 @@ func sanitizeMemoryItemForPrompt(item memory.MemoryItem) (memory.MemoryItem, boo
 
 	scanned := guardrails.SafetyScan(
 		strings.Join([]string{item.Title, item.Text}, "\n"),
-		memorySafetyScanSource(item),
+		item.GuardrailSource(),
 	)
 	if scanned.Blocked {
 		return memory.MemoryItem{}, false
@@ -153,13 +153,6 @@ func memoryPromptText(value string) string {
 		return strings.TrimSpace(value)
 	}
 	return strings.TrimSpace(sanitized)
-}
-
-func memorySafetyScanSource(item memory.MemoryItem) string {
-	if id := strings.TrimSpace(item.ID); id != "" {
-		return "memory:" + id
-	}
-	return "memory"
 }
 
 func memoryContextItems(items []memory.MemoryItem) []instruct.MemoryContextItem {

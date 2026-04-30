@@ -282,11 +282,6 @@ func TestMemoryPromptTextFallsBackToOriginalText(t *testing.T) {
 	require.Equal(t, "fallback", memoryPromptText(" fallback "))
 }
 
-func TestMemorySafetyScanSource(t *testing.T) {
-	require.Equal(t, "memory:mem_123", memorySafetyScanSource(memory.MemoryItem{ID: " mem_123 "}))
-	require.Equal(t, "memory", memorySafetyScanSource(memory.MemoryItem{}))
-}
-
 func TestMemoryContextItemsConvertsMemoryItems(t *testing.T) {
 	items := memoryContextItems([]memory.MemoryItem{{
 		Kind:  memory.KindSemantic,

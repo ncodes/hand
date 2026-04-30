@@ -8,6 +8,7 @@ import (
 	sesmsg "github.com/wandxy/hand/internal/environment/sessionmessages"
 	sessrc "github.com/wandxy/hand/internal/environment/sessionsearch"
 	"github.com/wandxy/hand/internal/guardrails"
+	"github.com/wandxy/hand/internal/memory"
 )
 
 type Runtime interface {
@@ -23,6 +24,8 @@ type Runtime interface {
 	ListProcesses(sessionID string) []process.Info
 	SearchSession(ctx context.Context, req sessrc.SessionSearchRequest) ([]sessrc.SessionSearchResult, error)
 	GetSessionMessages(ctx context.Context, req sesmsg.SessionMessagesRequest) (sesmsg.SessionMessagesResponse, error)
+	SupportsMemorySearch(ctx context.Context) (bool, error)
+	SearchMemory(ctx context.Context, query memory.SearchQuery) (memory.SearchResult, error)
 
 	// Plan management
 	GetPlan(string) planstore.Plan

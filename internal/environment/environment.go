@@ -20,6 +20,7 @@ import (
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/listfiles"
+	"github.com/wandxy/hand/internal/tools/memorysearch"
 	"github.com/wandxy/hand/internal/tools/patch"
 	"github.com/wandxy/hand/internal/tools/plan"
 	"github.com/wandxy/hand/internal/tools/process"
@@ -161,9 +162,7 @@ func (e *environment) Prepare() error {
 
 	e.cfg.Normalize()
 
-	if err := e.prepareInstructions(); err != nil {
-		return err
-	}
+	e.prepareInstructions()
 
 	if err := e.prepareMemory(); err != nil {
 		return err
@@ -197,6 +196,7 @@ func (e *environment) prepareTools() error {
 	if e.runtime == nil {
 		e.runtime = NewRuntime(e.fileRoots(), e.commandPolicy(), e.stateMgr)
 	}
+	e.runtime.memory = e.memory
 
 	if err := e.tools.RegisterGroup(tools.Group{Name: "core"}); err != nil {
 		return err
@@ -214,6 +214,12 @@ func (e *environment) prepareTools() error {
 		runcommand.Definition(e.runtime),
 		sessionsearch.Definition(e.runtime),
 		sessionmessages.Definition(e.runtime),
+	}
+
+	if definition, ok, err := e.memorySearchDefinition(); err != nil {
+		return err
+	} else if ok {
+		definitions = append(definitions, definition)
 	}
 
 	webProvider, err := webprovider.NewProvider(e.cfg)
@@ -276,7 +282,22 @@ func (e *environment) prepareTools() error {
 	return nil
 }
 
-func (e *environment) prepareInstructions() error {
+func (e *environment) memorySearchDefinition() (tools.Definition, bool, error) {
+	if e == nil || e.runtime == nil {
+		return tools.Definition{}, false, nil
+	}
+	ok, err := e.runtime.SupportsMemorySearch(e.ctx)
+	if err != nil {
+		return tools.Definition{}, false, err
+	}
+	if !ok {
+		return tools.Definition{}, false, nil
+	}
+
+	return memorysearch.Definition(e.runtime), true, nil
+}
+
+func (e *environment) prepareInstructions() {
 	e.addInstruction(instructions.BuildPlanningPolicy())
 
 	for _, instruction := range instructions.BuildBase(e.cfg.Name) {
@@ -293,7 +314,7 @@ func (e *environment) prepareInstructions() error {
 	workspaceRules, err := loadWorkspaceRules(e.cfg.Rules.Files...)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to load workspace rules")
-		return nil
+		return
 	}
 
 	if workspaceRules.Found {
@@ -304,8 +325,6 @@ func (e *environment) prepareInstructions() error {
 	if e.cfg != nil && e.cfg.Session.Instruct != "" {
 		e.setInstruction(instructions.Instruction{Name: configInstructInstructionName, Value: e.cfg.Session.Instruct})
 	}
-
-	return nil
 }
 
 func (e *environment) Instructions() instructions.Instructions {

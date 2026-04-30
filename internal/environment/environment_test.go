@@ -2,7 +2,6 @@ package environment
 
 import (
 	gctx "context"
-	stdctx "context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -200,6 +199,11 @@ func TestEnvironment_PrepareReturnsMemoryProviderErrors(t *testing.T) {
 
 	err := env.Prepare()
 	require.ErrorIs(t, err, memory.ErrUnknownProvider)
+}
+
+func TestEnvironment_MemoryProviderReturnsNilForNilEnvironment(t *testing.T) {
+	var env *environment
+	require.Nil(t, env.MemoryProvider())
 }
 
 func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
@@ -484,6 +488,123 @@ func TestEnvironment_PrepareRegistersSessionTools(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, definitions.Has("session_search"))
 	require.True(t, definitions.Has("session_messages"))
+}
+
+func TestEnvironment_PrepareRegistersMemorySearchWhenProviderSupportsSearch(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
+	enabled := true
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:   "Test Agent",
+		Debug:  config.DebugConfig{TraceDir: t.TempDir()},
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderInMemory},
+	})
+	prepareTestEnvironment(t, env)
+
+	definitions, err := env.Tools().Resolve(tools.Policy{
+		GroupNames:   []string{"core"},
+		Capabilities: tools.Capabilities{Filesystem: true, Exec: true, Memory: true},
+	})
+	require.NoError(t, err)
+	require.True(t, definitions.Has("memory_search"))
+}
+
+func TestEnvironment_PrepareToolsReturnsMemorySearchCapabilityError(t *testing.T) {
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
+	h := env.(*environment)
+	h.memory = &memorySearchProviderStub{capsErr: errors.New("capability failed")}
+	h.SetStateManager(&statemanager.Manager{})
+
+	require.EqualError(t, h.prepareTools(), "capability failed")
+}
+
+func TestEnvironment_MemorySearchDefinitionSkipsUnsupportedProviders(t *testing.T) {
+	tests := []struct {
+		name   string
+		env    *environment
+		err    string
+		expect bool
+	}{
+		{
+			name: "nil environment",
+		},
+		{
+			name: "nil provider",
+			env:  &environment{},
+		},
+		{
+			name: "provider without search",
+			env: &environment{
+				memory: memoryProviderWithoutSearch{},
+			},
+		},
+		{
+			name: "search capability disabled",
+			env: &environment{
+				memory: &memorySearchProviderStub{
+					caps: memory.Capabilities{},
+				},
+			},
+		},
+		{
+			name: "capability error",
+			env: &environment{
+				memory: &memorySearchProviderStub{
+					capsErr: errors.New("capability failed"),
+				},
+			},
+			err: "capability failed",
+		},
+		{
+			name: "search supported",
+			env: &environment{
+				memory: &memorySearchProviderStub{
+					caps: memory.Capabilities{SupportsSearch: true},
+				},
+			},
+			expect: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var env *environment
+			if tt.env != nil {
+				env = tt.env
+			}
+			if env != nil && env.memory != nil {
+				env.runtime = NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, nil)
+				env.runtime.memory = env.memory
+			}
+
+			definition, ok, err := env.memorySearchDefinition()
+			if tt.err != "" {
+				require.EqualError(t, err, tt.err)
+				require.False(t, ok)
+				require.Empty(t, definition)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, ok)
+			if tt.expect {
+				require.Equal(t, "memory_search", definition.Name)
+			} else {
+				require.Empty(t, definition)
+			}
+		})
+	}
 }
 
 func TestEnvironment_SessionSearchThenSessionMessagesWorkflow(t *testing.T) {
@@ -877,76 +998,44 @@ func TestEnvironment_CurrentPlanAndHydratePlanUseRuntimeStore(t *testing.T) {
 	}, env.CurrentPlan("session-1"))
 }
 
-type failingRegistry struct {
-	err error
+func TestRuntime_SearchMemoryHandlesUnavailableProviders(t *testing.T) {
+	tests := []struct {
+		name    string
+		runtime *Runtime
+		message string
+	}{
+		{name: "nil runtime", message: "memory search is not configured"},
+		{name: "nil provider", runtime: &Runtime{}, message: "memory search is not configured"},
+		{name: "provider without search", runtime: &Runtime{memory: memoryProviderWithoutSearch{}}, message: "memory search is not supported by provider"},
+		{name: "search capability disabled", runtime: &Runtime{memory: &memorySearchProviderStub{}}, message: "memory search is not supported by provider"},
+		{name: "capability error", runtime: &Runtime{memory: &memorySearchProviderStub{capsErr: errors.New("capability failed")}}, message: "capability failed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := tt.runtime.SearchMemory(gctx.Background(), memory.SearchQuery{Text: "hello"})
+
+			require.EqualError(t, err, tt.message)
+			require.Empty(t, result)
+		})
+	}
 }
 
-func (r failingRegistry) Register(tools.Definition) error {
-	return r.err
-}
+func TestRuntime_SearchMemorySearchesProvider(t *testing.T) {
+	provider := &memorySearchProviderStub{
+		caps: memory.Capabilities{SupportsSearch: true},
+		searchResult: memory.SearchResult{Hits: []memory.SearchHit{{
+			Item: memory.MemoryItem{ID: "mem_123", Status: memory.StatusActive, Text: "hello"},
+		}}},
+	}
+	runtime := &Runtime{memory: provider}
+	query := memory.SearchQuery{Text: "hello", Limit: 3}
 
-func (failingRegistry) Get(string) (tools.Definition, bool) {
-	return tools.Definition{}, false
-}
+	result, err := runtime.SearchMemory(gctx.Background(), query)
 
-func (failingRegistry) RegisterGroup(tools.Group) error {
-	return nil
-}
-
-func (failingRegistry) GetGroup(string) (tools.Group, bool) {
-	return tools.Group{}, false
-}
-
-func (failingRegistry) List() tools.Definitions {
-	return nil
-}
-
-func (failingRegistry) ListGroups() []tools.Group {
-	return nil
-}
-
-func (failingRegistry) Resolve(tools.Policy) (tools.Definitions, error) {
-	return nil, nil
-}
-
-func (failingRegistry) Invoke(stdctx.Context, tools.Call) (tools.Result, error) {
-	return tools.Result{}, nil
-}
-
-type failingGroupRegistry struct {
-	err error
-}
-
-func (failingGroupRegistry) Register(tools.Definition) error {
-	return nil
-}
-
-func (failingGroupRegistry) Get(string) (tools.Definition, bool) {
-	return tools.Definition{}, false
-}
-
-func (r failingGroupRegistry) RegisterGroup(tools.Group) error {
-	return r.err
-}
-
-func (failingGroupRegistry) GetGroup(string) (tools.Group, bool) {
-	return tools.Group{}, false
-}
-
-func (failingGroupRegistry) List() tools.Definitions {
-	return nil
-}
-
-func (failingGroupRegistry) ListGroups() []tools.Group {
-	return nil
-}
-
-func (failingGroupRegistry) Resolve(tools.Policy) (tools.Definitions, error) {
-	return nil, nil
-}
-
-func (failingGroupRegistry) Invoke(stdctx.Context, tools.Call) (tools.Result, error) {
-	return tools.Result{}, nil
+	require.NoError(t, err)
+	require.Equal(t, query, provider.searchQuery)
+	require.Equal(t, provider.searchResult, result)
 }
 
 func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
@@ -1031,6 +1120,11 @@ func TestEnvironment_SetInstructionAddsUnnamedInstruction(t *testing.T) {
 	env := &environment{}
 	env.setInstruction(instruct.Instruction{Value: "  hello  "})
 	require.Equal(t, instruct.Instructions{{Value: "hello"}}, env.instructions)
+}
+
+func TestEnvironment_SetStateManagerSkipsNilEnvironment(t *testing.T) {
+	var env *environment
+	env.SetStateManager(&statemanager.Manager{})
 }
 
 func TestEnvironment_SetInstructionUpdatesExistingNamedInstruction(t *testing.T) {

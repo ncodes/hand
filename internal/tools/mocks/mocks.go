@@ -10,19 +10,22 @@ import (
 	envsessionmessages "github.com/wandxy/hand/internal/environment/sessionmessages"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
+	"github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/tools"
 )
 
 type Runtime struct {
-	FilePolicyValue        guardrails.FilesystemPolicy
-	CommandPolicyValue     guardrails.CommandPolicy
-	StartProcessFunc       func(context.Context, string, processenv.StartRequest) (processenv.Info, error)
-	GetProcessFunc         func(string, string) (processenv.Info, error)
-	ReadProcessFunc        func(string, processenv.ReadRequest) (processenv.Output, error)
-	StopProcessFunc        func(context.Context, string, string) (processenv.Info, error)
-	ListProcessesFunc      func(string) []processenv.Info
-	SearchSessionFunc      func(context.Context, envtypes.SessionSearchRequest) ([]envtypes.SessionSearchResult, error)
-	GetSessionMessagesFunc func(context.Context, envsessionmessages.SessionMessagesRequest) (envsessionmessages.SessionMessagesResponse, error)
+	FilePolicyValue          guardrails.FilesystemPolicy
+	CommandPolicyValue       guardrails.CommandPolicy
+	StartProcessFunc         func(context.Context, string, processenv.StartRequest) (processenv.Info, error)
+	GetProcessFunc           func(string, string) (processenv.Info, error)
+	ReadProcessFunc          func(string, processenv.ReadRequest) (processenv.Output, error)
+	StopProcessFunc          func(context.Context, string, string) (processenv.Info, error)
+	ListProcessesFunc        func(string) []processenv.Info
+	SearchSessionFunc        func(context.Context, envtypes.SessionSearchRequest) ([]envtypes.SessionSearchResult, error)
+	GetSessionMessagesFunc   func(context.Context, envsessionmessages.SessionMessagesRequest) (envsessionmessages.SessionMessagesResponse, error)
+	SupportsMemorySearchFunc func(context.Context) (bool, error)
+	SearchMemoryFunc         func(context.Context, memory.SearchQuery) (memory.SearchResult, error)
 }
 
 func (r *Runtime) FilePolicy() guardrails.FilesystemPolicy { return r.FilePolicyValue }
@@ -68,6 +71,18 @@ func (r *Runtime) GetSessionMessages(ctx context.Context, req envsessionmessages
 		return r.GetSessionMessagesFunc(ctx, req)
 	}
 	return envsessionmessages.SessionMessagesResponse{}, nil
+}
+func (r *Runtime) SupportsMemorySearch(ctx context.Context) (bool, error) {
+	if r != nil && r.SupportsMemorySearchFunc != nil {
+		return r.SupportsMemorySearchFunc(ctx)
+	}
+	return false, nil
+}
+func (r *Runtime) SearchMemory(ctx context.Context, query memory.SearchQuery) (memory.SearchResult, error) {
+	if r != nil && r.SearchMemoryFunc != nil {
+		return r.SearchMemoryFunc(ctx, query)
+	}
+	return memory.SearchResult{}, nil
 }
 func (r *Runtime) GetPlan(string) envtypes.Plan { return envtypes.Plan{} }
 func (r *Runtime) ReplacePlan(string, envtypes.Plan) (envtypes.Plan, error) {
@@ -140,6 +155,12 @@ func (d *FailingPlanRuntime) SearchSession(ctx context.Context, req envtypes.Ses
 }
 func (d *FailingPlanRuntime) GetSessionMessages(ctx context.Context, req envsessionmessages.SessionMessagesRequest) (envsessionmessages.SessionMessagesResponse, error) {
 	return d.Runtime.GetSessionMessages(ctx, req)
+}
+func (d *FailingPlanRuntime) SupportsMemorySearch(ctx context.Context) (bool, error) {
+	return d.Runtime.SupportsMemorySearch(ctx)
+}
+func (d *FailingPlanRuntime) SearchMemory(ctx context.Context, query memory.SearchQuery) (memory.SearchResult, error) {
+	return d.Runtime.SearchMemory(ctx, query)
 }
 func (d *FailingPlanRuntime) GetPlan(sessionID string) envtypes.Plan {
 	return d.Runtime.GetPlan(sessionID)

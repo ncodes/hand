@@ -35,7 +35,7 @@ func (g Guardrails) ValidateDelete(context.Context, memory.DeleteRequest) error 
 func (g Guardrails) SafetyScan(_ context.Context, item memory.MemoryItem) error {
 	scanned := coreguardrails.SafetyScan(
 		strings.Join([]string{item.Title, item.Text}, "\n"),
-		safetyScanSource(item),
+		item.GuardrailSource(),
 	)
 	if scanned.Blocked {
 		return errors.New("memory item failed safety scan")
@@ -66,13 +66,6 @@ func sanitizedString(redactor coreguardrails.Redactor, value string) string {
 		return value
 	}
 	return sanitized
-}
-
-func safetyScanSource(item memory.MemoryItem) string {
-	if id := strings.TrimSpace(item.ID); id != "" {
-		return "memory:" + id
-	}
-	return "memory"
 }
 
 func sanitizedStrings(redactor coreguardrails.Redactor, values []string) []string {
