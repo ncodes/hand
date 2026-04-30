@@ -185,7 +185,7 @@ func matchesQuery(item MemoryItem, query SearchQuery) bool {
 		if !containsStatus(query.Statuses, item.Status) {
 			return false
 		}
-	} else if item.Status == StatusDeleted || item.Status == StatusSuperseded {
+	} else if item.Status != StatusActive {
 		return false
 	}
 	if len(query.Tags) > 0 && !containsAllTags(item.Tags, query.Tags) {

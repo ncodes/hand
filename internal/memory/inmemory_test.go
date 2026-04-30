@@ -146,7 +146,8 @@ func TestInMemoryProvider_SearchFiltersStatusesTagsKindsAndText(t *testing.T) {
 
 	result, err := provider.Search(context.Background(), SearchQuery{Text: "alpha", Tags: []string{"go"}})
 	require.NoError(t, err)
-	require.Len(t, result.Hits, 2)
+	require.Len(t, result.Hits, 1)
+	require.Equal(t, "mem_active", result.Hits[0].Item.ID)
 
 	result, err = provider.Search(context.Background(), SearchQuery{
 		Text:     "alpha",
@@ -157,6 +158,14 @@ func TestInMemoryProvider_SearchFiltersStatusesTagsKindsAndText(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.Hits, 1)
 	require.Equal(t, "mem_active", result.Hits[0].Item.ID)
+
+	result, err = provider.Search(context.Background(), SearchQuery{
+		Text:     "alpha",
+		Statuses: []Status{StatusCandidate},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+	require.Equal(t, "mem_candidate", result.Hits[0].Item.ID)
 
 	result, err = provider.Search(context.Background(), SearchQuery{
 		Text:     "alpha",
@@ -265,6 +274,10 @@ func TestInMemoryProvider_UpsertDefaultsAndCloneIsolation(t *testing.T) {
 
 	result, err := provider.Search(context.Background(), SearchQuery{})
 	require.NoError(t, err)
+	require.Empty(t, result.Hits)
+
+	result, err = provider.Search(context.Background(), SearchQuery{Statuses: []Status{StatusCandidate}})
+	require.NoError(t, err)
 	require.Len(t, result.Hits, 1)
 	require.Equal(t, []string{"one"}, result.Hits[0].Item.Tags)
 	require.Equal(t, map[string]string{"key": "value"}, result.Hits[0].Item.Metadata)
@@ -298,7 +311,7 @@ func TestInMemoryProvider_ReturnsGuardrailErrors(t *testing.T) {
 	require.ErrorIs(t, err, deleteErr)
 
 	provider = NewInMemoryProvider(Options{Guardrails: &fakeGuardrails{redactErr: redactErr}})
-	_, err = provider.Upsert(context.Background(), MemoryItem{Text: "hello"})
+	_, err = provider.Upsert(context.Background(), MemoryItem{Status: StatusActive, Text: "hello"})
 	require.NoError(t, err)
 	_, err = provider.Search(context.Background(), SearchQuery{Text: "hello"})
 	require.ErrorIs(t, err, redactErr)
