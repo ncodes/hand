@@ -23,6 +23,7 @@ import (
 	envsessionsearch "github.com/wandxy/hand/internal/environment/sessionsearch"
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
+	"github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/personality"
 	storage "github.com/wandxy/hand/internal/state/core"
@@ -152,6 +153,53 @@ func TestEnvironment_PrepareNormalizesConfig(t *testing.T) {
 	require.Equal(t, config.DefaultWebMaxExtractCharPerResult, cfg.Web.MaxExtractCharPerResult)
 	require.NotNil(t, cfg.Cap.Network)
 	require.True(t, *cfg.Cap.Network)
+}
+
+func TestEnvironment_PrepareConfiguresMemoryProviderWhenEnabled(t *testing.T) {
+	enabled := true
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:   "Test Agent",
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderInMemory},
+		Debug:  config.DebugConfig{TraceDir: t.TempDir()},
+	})
+	env.SetStateManager(&statemanager.Manager{})
+
+	require.NoError(t, env.Prepare())
+	require.IsType(t, &memory.InMemoryProvider{}, env.MemoryProvider())
+}
+
+func TestEnvironment_PrepareConfiguresNoopMemoryProviderByDefault(t *testing.T) {
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
+	env.SetStateManager(&statemanager.Manager{})
+
+	require.NoError(t, env.Prepare())
+	require.IsType(t, &memory.NoopProvider{}, env.MemoryProvider())
+}
+
+func TestEnvironment_PrepareLeavesMemoryProviderDisabledWhenConfigured(t *testing.T) {
+	enabled := false
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:   "Test Agent",
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderInMemory},
+		Debug:  config.DebugConfig{TraceDir: t.TempDir()},
+	})
+	env.SetStateManager(&statemanager.Manager{})
+
+	require.NoError(t, env.Prepare())
+	require.Nil(t, env.MemoryProvider())
+}
+
+func TestEnvironment_PrepareReturnsMemoryProviderErrors(t *testing.T) {
+	enabled := true
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:   "Test Agent",
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: "missing"},
+		Debug:  config.DebugConfig{TraceDir: t.TempDir()},
+	})
+	env.SetStateManager(&statemanager.Manager{})
+
+	err := env.Prepare()
+	require.ErrorIs(t, err, memory.ErrUnknownProvider)
 }
 
 func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {

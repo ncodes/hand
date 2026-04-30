@@ -233,6 +233,54 @@ func TestBuildEnvironmentContext_ReturnsEmptyNamedInstructionWithoutFacts(t *tes
 	require.Equal(t, Instruction{Name: EnvironmentContextInstructionName}, BuildEnvironmentContext(EnvironmentContext{}))
 }
 
+func TestBuildMemoryContext_ReturnsEmptyNamedInstructionWithoutItems(t *testing.T) {
+	require.Equal(t, Instruction{Name: MemoryContextInstructionName}, BuildMemoryContext(nil, 10))
+}
+
+func TestBuildMemoryContext_ReturnsNamedInstructionWithMemoryItems(t *testing.T) {
+	instruction := BuildMemoryContext([]MemoryContextItem{{
+		Kind:  "semantic",
+		Title: "Package manager",
+		Text:  "Use pnpm",
+	}}, 0)
+
+	require.Equal(t, MemoryContextInstructionName, instruction.Name)
+	require.Contains(t, instruction.Value, "# Memory Context")
+	require.Contains(t, instruction.Value, "Retrieved durable memories")
+	require.Contains(t, instruction.Value, "1. kind=semantic; title=Package manager; text=Use pnpm")
+}
+
+func TestBuildMemoryContext_TrimsEmptyMemoryItemParts(t *testing.T) {
+	instruction := BuildMemoryContext([]MemoryContextItem{{
+		Kind:  "   ",
+		Title: "  Title  ",
+		Text:  "  ",
+	}}, 0)
+
+	require.Contains(t, instruction.Value, "1. title=Title")
+	require.NotContains(t, instruction.Value, "kind=")
+	require.NotContains(t, instruction.Value, "text=")
+}
+
+func TestBuildMemoryContext_TruncatesLongInstruction(t *testing.T) {
+	maxChars := 4000
+	instruction := BuildMemoryContext([]MemoryContextItem{{
+		Kind:  "semantic",
+		Title: "Long memory",
+		Text:  strings.Repeat("x", maxChars),
+	}}, maxChars)
+
+	require.Len(t, []rune(instruction.Value), maxChars)
+}
+
+func TestBuildMemoryContext_DoesNotTruncateWhenLimitIsDisabled(t *testing.T) {
+	instruction := BuildMemoryContext([]MemoryContextItem{{
+		Text: strings.Repeat("x", 10),
+	}}, 0)
+
+	require.Greater(t, len([]rune(instruction.Value)), 10)
+}
+
 func TestBuildPlanningPolicy_ReturnsNamedPlanningInstruction(t *testing.T) {
 	instruction := BuildPlanningPolicy()
 	require.Equal(t, PlanningPolicyInstructionName, instruction.Name)

@@ -1714,12 +1714,12 @@ func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 
 	cfg = &Config{Memory: MemoryConfig{Provider: " Memory "}}
 	cfg.Normalize()
-	require.False(t, cfg.MemoryEnabled())
+	require.True(t, cfg.MemoryEnabled())
 	require.Equal(t, "memory", cfg.Memory.Provider)
 
-	cfg = &Config{Memory: MemoryConfig{Enabled: new(true)}}
+	cfg = &Config{Memory: MemoryConfig{Enabled: new(false)}}
 	cfg.Normalize()
-	require.True(t, cfg.MemoryEnabled())
+	require.False(t, cfg.MemoryEnabled())
 	require.Equal(t, "noop", cfg.Memory.Provider)
 }
 

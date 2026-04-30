@@ -9,9 +9,16 @@ import (
 const (
 	PlanningPolicyInstructionName     = "planning.policy"
 	EnvironmentContextInstructionName = "environment.context"
+	MemoryContextInstructionName      = "memory.context"
 	SessionSearchInstructionName      = "tool.session_search"
 	SessionMessagesInstructionName    = "tool.session_messages"
 )
+
+type MemoryContextItem struct {
+	Kind  string
+	Title string
+	Text  string
+}
 
 type EnvironmentContext struct {
 	Now              time.Time
@@ -149,6 +156,42 @@ func BuildEnvironmentContext(ctx EnvironmentContext) Instruction {
 		Name:  EnvironmentContextInstructionName,
 		Value: strings.Join(lines, "\n"),
 	}
+}
+
+func BuildMemoryContext(items []MemoryContextItem, maxChars int) Instruction {
+	if len(items) == 0 {
+		return Instruction{Name: MemoryContextInstructionName}
+	}
+
+	lines := []string{
+		"# Memory Context",
+		"",
+		"Retrieved durable memories that may be relevant to this turn:",
+	}
+	for idx, item := range items {
+		lines = append(lines, fmt.Sprintf("%d. %s", idx+1, renderMemoryContextItem(item)))
+	}
+
+	value := strings.TrimSpace(strings.Join(lines, "\n"))
+	if maxChars > 0 && len([]rune(value)) > maxChars {
+		value = string([]rune(value)[:maxChars])
+	}
+
+	return Instruction{Name: MemoryContextInstructionName, Value: value}
+}
+
+func renderMemoryContextItem(item MemoryContextItem) string {
+	parts := make([]string, 0, 3)
+	if kind := strings.TrimSpace(item.Kind); kind != "" {
+		parts = append(parts, "kind="+kind)
+	}
+	if title := strings.TrimSpace(item.Title); title != "" {
+		parts = append(parts, "title="+title)
+	}
+	if text := strings.TrimSpace(item.Text); text != "" {
+		parts = append(parts, "text="+text)
+	}
+	return strings.Join(parts, "; ")
 }
 
 func BuildPlanningPolicy() Instruction {

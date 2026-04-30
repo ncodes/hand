@@ -57,8 +57,10 @@ func SafetyScan(content, source string) SafetyScanResult {
 		return SafetyScanResult{Content: content}
 	}
 
-	blocked := fmt.Sprintf("[BLOCKED: %s contained potential prompt injection (%s). Content not loaded.]", source, strings.Join(findings, ", "))
+	blocked := fmt.Sprintf("[BLOCKED: %s contained potential prompt injection (%s). Content not loaded.]",
+		source, strings.Join(findings, ", "))
 	log.Warn().Str("source", source).Strs("findings", findings).Msg("Content blocked by safety scan")
+
 	return SafetyScanResult{
 		Content:  blocked,
 		Blocked:  true,

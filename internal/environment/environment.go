@@ -13,6 +13,8 @@ import (
 	"github.com/wandxy/hand/internal/environment/planstore"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/instructions"
+	"github.com/wandxy/hand/internal/memory"
+	memguardrails "github.com/wandxy/hand/internal/memory/guardrails"
 	"github.com/wandxy/hand/internal/personality"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
@@ -62,6 +64,9 @@ type Environment interface {
 	// NewTraceSession opens a trace sink for the given storage session when debug tracing is enabled.
 	NewTraceSession(sessionID string) trace.Session
 
+	// MemoryProvider returns the configured durable memory provider, when enabled.
+	MemoryProvider() memory.Provider
+
 	// CurrentPlan returns the in-memory plan state for the given session.
 	CurrentPlan(sessionID string) planstore.Plan
 
@@ -79,6 +84,7 @@ type environment struct {
 	workspace    workspace.Result
 	tools        tools.Registry
 	traces       trace.Factory
+	memory       memory.Provider
 	runtime      *Runtime
 	stateMgr     *statemanager.Manager
 }
@@ -116,6 +122,13 @@ func (e *environment) ToolPolicy() tools.Policy {
 	}
 }
 
+func (e *environment) MemoryProvider() memory.Provider {
+	if e == nil {
+		return nil
+	}
+	return e.memory
+}
+
 func NewEnvironment(ctx context.Context, cfg *config.Config) Environment {
 	registry := tools.NewInMemoryRegistry()
 	traceFactory := trace.NoopFactory()
@@ -141,6 +154,7 @@ func (e *environment) Prepare() error {
 	if e == nil {
 		return errors.New("environment is required")
 	}
+
 	if e.cfg == nil {
 		return errors.New("config is required")
 	}
@@ -150,7 +164,29 @@ func (e *environment) Prepare() error {
 	if err := e.prepareInstructions(); err != nil {
 		return err
 	}
+
+	if err := e.prepareMemory(); err != nil {
+		return err
+	}
+
 	return e.prepareTools()
+}
+
+func (e *environment) prepareMemory() error {
+	if e == nil || e.cfg == nil || !e.cfg.MemoryEnabled() {
+		e.memory = nil
+		return nil
+	}
+
+	provider, err := memory.NewProvider(e.cfg.Memory.Provider, memory.Options{
+		Guardrails: memguardrails.New(guardrails.NewRedactor()),
+	})
+	if err != nil {
+		return err
+	}
+
+	e.memory = provider
+	return nil
 }
 
 func (e *environment) prepareTools() error {

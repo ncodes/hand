@@ -48,7 +48,7 @@
 #     rebuildBatchSize: 100
 #   enableRerank: true
 # memory:
-#   enabled: false
+#   enabled: true
 #   provider: "noop"
 # reranker:
 #   enabled: true

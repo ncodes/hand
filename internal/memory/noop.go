@@ -2,11 +2,13 @@ package memory
 
 import (
 	"context"
+	"sync"
 )
 
 const ProviderNoop = "noop"
 
 type NoopProvider struct {
+	mu         sync.RWMutex
 	guardrails Guardrails
 	obs        Observability
 }
@@ -27,6 +29,9 @@ func (p *NoopProvider) Capabilities(context.Context) (Capabilities, error) {
 }
 
 func (p *NoopProvider) ConfigureObservability(obs Observability) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	p.obs = obs
 	return nil
 }
@@ -39,7 +44,7 @@ func (p *NoopProvider) LoadPinned(ctx context.Context, query SearchQuery) ([]Mem
 	if err := validateSearch(ctx, p.guardrails, query); err != nil {
 		return nil, err
 	}
-	traceRecord(ctx, p.obs, "memory.pinned.noop", map[string]any{"provider": p.Name()})
+	traceRecord(ctx, p.observability(), "memory.pinned.noop", map[string]any{"provider": p.Name(), "operation": "load_pinned"})
 	return nil, nil
 }
 
@@ -47,8 +52,9 @@ func (p *NoopProvider) Search(ctx context.Context, query SearchQuery) (SearchRes
 	if err := validateSearch(ctx, p.guardrails, query); err != nil {
 		return SearchResult{}, err
 	}
-	logDebug(p.obs, "memory search skipped", map[string]any{"provider": p.Name()})
-	traceRecord(ctx, p.obs, "memory.search.noop", map[string]any{"provider": p.Name()})
+	obs := p.observability()
+	logDebug(obs, "memory search skipped", map[string]any{"provider": p.Name(), "operation": "search"})
+	traceRecord(ctx, obs, "memory.search.noop", map[string]any{"provider": p.Name(), "operation": "search"})
 	return SearchResult{}, nil
 }
 
@@ -56,7 +62,7 @@ func (p *NoopProvider) Upsert(ctx context.Context, item MemoryItem) (MemoryItem,
 	if err := validateWrite(ctx, p.guardrails, item); err != nil {
 		return MemoryItem{}, err
 	}
-	traceRecord(ctx, p.obs, "memory.upsert.noop", map[string]any{"provider": p.Name()})
+	traceRecord(ctx, p.observability(), "memory.upsert.noop", map[string]any{"provider": p.Name(), "operation": "upsert"})
 	return cloneItem(item), nil
 }
 
@@ -64,6 +70,13 @@ func (p *NoopProvider) Delete(ctx context.Context, req DeleteRequest) error {
 	if err := validateDelete(ctx, p.guardrails, req); err != nil {
 		return err
 	}
-	traceRecord(ctx, p.obs, "memory.delete.noop", map[string]any{"provider": p.Name()})
+	traceRecord(ctx, p.observability(), "memory.delete.noop", map[string]any{"provider": p.Name(), "operation": "delete"})
 	return nil
+}
+
+func (p *NoopProvider) observability() Observability {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return p.obs
 }

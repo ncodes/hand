@@ -47,6 +47,8 @@ type Turn struct {
 	contextBuilder *ctxbuilder.Builder
 	// instructions is the request-scoped instruction set sent to the model.
 	instructions instruct.Instructions
+	// memoryInstruction contains retrieved durable memory for the current turn.
+	memoryInstruction instruct.Instruction
 	// sessionHistory contains persisted messages loaded before the turn starts.
 	sessionHistory []handmsg.Message
 	// emittedMessages contains messages produced during the current turn.
@@ -134,6 +136,7 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 	}
 	t.ctx = ctx
 	t.instructions = t.env.Instructions()
+	t.memoryInstruction = instruct.Instruction{}
 	t.sessionHistory = messages
 	t.emittedMessages = nil
 	t.summary = summary
@@ -199,6 +202,8 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 	}
 
 	traceSession.Record(trace.EvtUserMessageAccepted, map[string]any{"message": msg})
+
+	t.memoryInstruction = t.retrieveMemoryInstruction(ctx, msg, traceSession)
 
 	budget := t.env.NewIterationBudget()
 	streamingEnabled := t.cfg.StreamEnabled()
@@ -639,6 +644,8 @@ func (t *Turn) buildRequestInstructions(
 			instructions = instructions.Append(instruct.Instruction{Value: summaryInstructions})
 		}
 	}
+
+	instructions = instructions.Append(t.memoryInstruction)
 
 	environmentContext := t.buildEnvironmentContextInstruction(activeToolDefinitions)
 	instructions = instructions.Append(environmentContext)

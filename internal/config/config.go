@@ -350,7 +350,7 @@ func Get() *Config {
 				WarnPercent:    0.95,
 			},
 			Memory: MemoryConfig{
-				Enabled:  new(false),
+				Enabled:  new(true),
 				Provider: "noop",
 			},
 		}
@@ -847,7 +847,7 @@ func (c *Config) normalizeFields() {
 		c.Compaction.WarnPercent = 0.95
 	}
 	if c.Memory.Enabled == nil {
-		c.Memory.Enabled = new(false)
+		c.Memory.Enabled = new(true)
 	}
 	if c.Memory.Provider == "" {
 		c.Memory.Provider = "noop"
@@ -978,7 +978,7 @@ func (c *Config) MemoryEnabled() bool {
 	}
 
 	c.normalizeFields()
-	return boolValueDefault(c.Memory.Enabled, false)
+	return boolValueDefault(c.Memory.Enabled, true)
 }
 
 func (c *Config) RerankerModelEffective() string {

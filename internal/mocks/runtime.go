@@ -9,6 +9,7 @@ import (
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	instruct "github.com/wandxy/hand/internal/instructions"
+	"github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/models"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/tools"
@@ -77,6 +78,7 @@ type EnvironmentStub struct {
 	Policy           tools.Policy
 	IterationBudget  envbudget.IterationBudget
 	TraceSession     trace.Session
+	Memory           memory.Provider
 	Plan             envtypes.Plan
 }
 
@@ -110,6 +112,10 @@ func (s *EnvironmentStub) NewTraceSession(string) trace.Session {
 	}
 
 	return s.TraceSession
+}
+
+func (s *EnvironmentStub) MemoryProvider() memory.Provider {
+	return s.Memory
 }
 
 func (s *EnvironmentStub) CurrentPlan(string) envtypes.Plan {

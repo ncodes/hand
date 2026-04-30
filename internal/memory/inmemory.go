@@ -46,6 +46,9 @@ func (p *InMemoryProvider) Capabilities(context.Context) (Capabilities, error) {
 }
 
 func (p *InMemoryProvider) ConfigureObservability(obs Observability) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	p.obs = obs
 	return nil
 }
@@ -87,20 +90,20 @@ func (p *InMemoryProvider) Search(ctx context.Context, query SearchQuery) (Searc
 		if !matchesQuery(item, query) {
 			continue
 		}
-        
+
 		score := simpleScore(item, query.Text)
 		redacted, err := redactItem(ctx, p.guardrails, item)
 		if err != nil {
 			return SearchResult{}, err
 		}
-        
+
 		if query.MaxChars > 0 && len([]rune(redacted.Text)) > query.MaxChars {
 			redacted.Text = string([]rune(redacted.Text)[:query.MaxChars])
 		}
-        
+
 		hits = append(hits, SearchHit{Item: cloneItem(redacted), Score: score})
 	}
-    
+
 	sort.SliceStable(hits, func(i, j int) bool {
 		if hits[i].Score != hits[j].Score {
 			return hits[i].Score > hits[j].Score
@@ -110,13 +113,13 @@ func (p *InMemoryProvider) Search(ctx context.Context, query SearchQuery) (Searc
 		}
 		return hits[i].Item.ID < hits[j].Item.ID
 	})
-    
+
 	if len(hits) > limit {
 		hits = hits[:limit]
 	}
 
-	logDebug(p.obs, "memory search completed", map[string]any{"provider": p.Name(), "result_count": len(hits)})
-	traceRecord(ctx, p.obs, "memory.search.completed", map[string]any{"provider": p.Name(), "result_count": len(hits)})
+	logDebug(p.obs, "memory search completed", map[string]any{"provider": p.Name(), "operation": "search", "result_count": len(hits)})
+	traceRecord(ctx, p.obs, "memory.search.completed", map[string]any{"provider": p.Name(), "operation": "search", "result_count": len(hits)})
 
 	return SearchResult{Hits: hits}, nil
 }
@@ -143,8 +146,8 @@ func (p *InMemoryProvider) Upsert(ctx context.Context, item MemoryItem) (MemoryI
 	item.UpdatedAt = now
 
 	p.items[item.ID] = cloneItem(item)
-	logDebug(p.obs, "memory item upserted", map[string]any{"provider": p.Name(), "memory_id": item.ID})
-	traceRecord(ctx, p.obs, "memory.upsert.completed", map[string]any{"provider": p.Name(), "memory_id": item.ID})
+	logDebug(p.obs, "memory item upserted", map[string]any{"provider": p.Name(), "operation": "upsert", "memory_id": item.ID})
+	traceRecord(ctx, p.obs, "memory.upsert.completed", map[string]any{"provider": p.Name(), "operation": "upsert", "memory_id": item.ID})
 
 	return cloneItem(item), nil
 }
@@ -170,7 +173,7 @@ func (p *InMemoryProvider) Delete(ctx context.Context, req DeleteRequest) error 
 	item.UpdatedAt = p.now().UTC()
 	p.items[id] = item
 
-	traceRecord(ctx, p.obs, "memory.delete.completed", map[string]any{"provider": p.Name(), "memory_id": id})
+	traceRecord(ctx, p.obs, "memory.delete.completed", map[string]any{"provider": p.Name(), "operation": "delete", "memory_id": id})
 	return nil
 }
 
