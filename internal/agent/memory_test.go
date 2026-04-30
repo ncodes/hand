@@ -235,30 +235,33 @@ func TestTurn_RetrieveMemoryInstructionRecordsSetupFailures(t *testing.T) {
 }
 
 func TestTurn_RetrieveMemoryInstructionAllowsNilTraceSession(t *testing.T) {
+	provider := &memoryProviderStub{
+		caps: memory.Capabilities{SupportsSearch: true},
+		searchResult: memory.SearchResult{Hits: []memory.SearchHit{{
+			Item: memory.MemoryItem{
+				ID:     "mem_123",
+				Kind:   memory.KindSemantic,
+				Status: memory.StatusActive,
+				Title:  "Package manager",
+				Text:   "Use pnpm",
+			},
+		}}},
+	}
 	turn := &Turn{
 		cfg: memoryEnabledTestConfig(),
-		env: &mocks.EnvironmentStub{Memory: &memoryProviderStub{
-			caps: memory.Capabilities{SupportsSearch: true},
-			searchResult: memory.SearchResult{Hits: []memory.SearchHit{{
-				Item: memory.MemoryItem{
-					ID:     "mem_123",
-					Kind:   memory.KindSemantic,
-					Status: memory.StatusActive,
-					Title:  "Package manager",
-					Text:   "Use pnpm",
-				},
-			}}},
-		}},
+		env: &mocks.EnvironmentStub{Memory: provider},
 	}
 
 	instruction := turn.retrieveMemoryInstruction(context.Background(), "pnpm", nil)
 
 	require.Contains(t, instruction.Value, "# Memory Context")
 	require.Contains(t, instruction.Value, "Use pnpm")
+	require.Equal(t, []memory.Status{memory.StatusActive}, provider.searchQuery.Statuses)
 }
 
 func TestSanitizeMemoryItemForPromptSkipsEmptyAndInactiveItems(t *testing.T) {
 	for _, item := range []memory.MemoryItem{
+		{Status: memory.StatusCandidate, Text: "candidate"},
 		{Status: memory.StatusDeleted, Text: "deleted"},
 		{Status: memory.StatusSuperseded, Text: "superseded"},
 		{Status: memory.StatusActive, Text: "   "},

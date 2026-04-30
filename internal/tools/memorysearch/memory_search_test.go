@@ -45,7 +45,7 @@ func TestMemorySearch_DefinitionSearchesRuntimeWithFilters(t *testing.T) {
 		Input: `{
 			"query":" pnpm ",
 			"kinds":[" semantic "],
-			"filters":{"tags":[" tooling "],"statuses":[" active "]},
+			"filters":{"tags":[" tooling "]},
 			"limit":3,
 			"max_chars":200
 		}`,
@@ -92,7 +92,7 @@ func TestMemorySearch_DefinitionAppliesDefaultsAndBounds(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Empty(t, result.Error)
-	require.Equal(t, []memory.Status{memory.StatusActive, memory.StatusCandidate}, capturedQuery.Statuses)
+	require.Equal(t, []memory.Status{memory.StatusActive}, capturedQuery.Statuses)
 	require.Equal(t, maxLimit, capturedQuery.Limit)
 	require.Equal(t, maxMaxChars, capturedQuery.MaxChars)
 }
@@ -127,8 +127,6 @@ func TestMemorySearch_DefinitionValidatesInput(t *testing.T) {
 	}{
 		{name: "missing query", input: `{}`, message: "query is required"},
 		{name: "bad kind", input: `{"query":"hello","kinds":["unknown"]}`, message: `unsupported memory kind "unknown"`},
-		{name: "bad status", input: `{"query":"hello","filters":{"statuses":["unknown"]}}`, message: `unsupported memory status "unknown"`},
-		{name: "blocked status", input: `{"query":"hello","filters":{"statuses":["deleted"]}}`, message: `memory status "deleted" cannot be returned by memory_search`},
 		{name: "bad limit", input: `{"query":"hello","limit":-1}`, message: "limit must be greater than or equal to 0"},
 		{name: "bad max chars", input: `{"query":"hello","max_chars":-1}`, message: "max_chars must be greater than or equal to 0"},
 	}
@@ -186,9 +184,18 @@ func TestMemorySearch_OutputAppliesStatusSafetyAndRedaction(t *testing.T) {
 					Item: memory.MemoryItem{
 						ID:     "mem_safe",
 						Kind:   memory.KindSemantic,
-						Status: memory.StatusCandidate,
+						Status: memory.StatusActive,
 						Text:   "Token OPENAI_API_KEY=sk-live-secretsecret",
 						Tags:   []string{"Bearer secret-token-value", "   "},
+					},
+				},
+				{
+					Score: 1,
+					Item: memory.MemoryItem{
+						ID:     "mem_candidate",
+						Kind:   memory.KindSemantic,
+						Status: memory.StatusCandidate,
+						Text:   "candidate",
 					},
 				},
 				{

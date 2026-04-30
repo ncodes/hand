@@ -30,8 +30,7 @@ type input struct {
 }
 
 type filters struct {
-	Tags     []string `json:"tags"`
-	Statuses []string `json:"statuses"`
+	Tags []string `json:"tags"`
 }
 
 type output struct {
@@ -85,17 +84,6 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 					"description": "Optional memory tag filters. Results must include all provided tags.",
 					"items":       common.StringSchema("Memory tag."),
 				},
-				"statuses": map[string]any{
-					"type":        "array",
-					"description": "Optional status filters. Only active and candidate memories can be returned.",
-					"items": map[string]any{
-						"type": "string",
-						"enum": []string{
-							string(memory.StatusActive),
-							string(memory.StatusCandidate),
-						},
-					},
-				},
 			}),
 			"limit":     common.IntegerSchema("Optional maximum number of memories to return. Defaults to 10 and is capped at 50."),
 			"max_chars": common.IntegerSchema("Optional maximum characters per memory text. Defaults to 800 and is capped at 4000."),
@@ -136,14 +124,6 @@ func searchQuery(req input) (memory.SearchQuery, tools.Result) {
 		return memory.SearchQuery{}, common.ToolError("invalid_input", err.Error())
 	}
 
-	statuses, err := parseStatuses(req.Filters.Statuses)
-	if err != nil {
-		return memory.SearchQuery{}, common.ToolError("invalid_input", err.Error())
-	}
-	if len(statuses) == 0 {
-		statuses = []memory.Status{memory.StatusActive, memory.StatusCandidate}
-	}
-
 	limit, err := boundedPositive(req.Limit, defaultLimit, maxLimit, "limit")
 	if err != nil {
 		return memory.SearchQuery{}, common.ToolError("invalid_input", err.Error())
@@ -157,7 +137,7 @@ func searchQuery(req input) (memory.SearchQuery, tools.Result) {
 	return memory.SearchQuery{
 		Text:     query,
 		Kinds:    kinds,
-		Statuses: statuses,
+		Statuses: []memory.Status{memory.StatusActive},
 		Tags:     cleanStrings(req.Filters.Tags),
 		Limit:    limit,
 		MaxChars: maxChars,
@@ -176,22 +156,6 @@ func parseKinds(values []string) ([]memory.Kind, error) {
 		}
 	}
 	return kinds, nil
-}
-
-func parseStatuses(values []string) ([]memory.Status, error) {
-	statuses := make([]memory.Status, 0, len(values))
-	for _, value := range cleanStrings(values) {
-		status := memory.Status(strings.ToLower(value))
-		switch status {
-		case memory.StatusActive, memory.StatusCandidate:
-			statuses = append(statuses, status)
-		case memory.StatusDeleted, memory.StatusSuperseded:
-			return nil, fmt.Errorf("memory status %q cannot be returned by memory_search", value)
-		default:
-			return nil, fmt.Errorf("unsupported memory status %q", value)
-		}
-	}
-	return statuses, nil
 }
 
 func boundedPositive(value int, fallback int, max int, name string) (int, error) {
@@ -230,7 +194,7 @@ func outputResults(hits []memory.SearchHit, maxChars int) []result {
 }
 
 func outputItem(item memory.MemoryItem, maxChars int) (memory.MemoryItem, bool) {
-	if item.Status != memory.StatusActive && item.Status != memory.StatusCandidate {
+	if item.Status != memory.StatusActive {
 		return memory.MemoryItem{}, false
 	}
 

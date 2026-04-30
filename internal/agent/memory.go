@@ -61,7 +61,7 @@ func (t *Turn) retrieveMemoryInstruction(
 
 	query := memory.SearchQuery{
 		Text:     strings.TrimSpace(userText),
-		Statuses: []memory.Status{memory.StatusActive, memory.StatusCandidate},
+		Statuses: []memory.Status{memory.StatusActive},
 		Limit:    memoryRetrievalLimit,
 		MaxChars: memoryRetrievalItemChars,
 	}
@@ -126,7 +126,7 @@ func sanitizeMemoryHitsForPrompt(hits []memory.SearchHit) []memory.MemoryItem {
 }
 
 func sanitizeMemoryItemForPrompt(item memory.MemoryItem) (memory.MemoryItem, bool) {
-	if item.Status == memory.StatusDeleted || item.Status == memory.StatusSuperseded {
+	if item.Status != memory.StatusActive {
 		return memory.MemoryItem{}, false
 	}
 

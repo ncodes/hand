@@ -12,6 +12,7 @@ type memoryProviderStub struct {
 	capsErr      error
 	configureErr error
 	searchResult memory.SearchResult
+	searchQuery  memory.SearchQuery
 	searchErr    error
 }
 
@@ -34,7 +35,8 @@ func (p *memoryProviderStub) Close() error {
 	return nil
 }
 
-func (p *memoryProviderStub) Search(context.Context, memory.SearchQuery) (memory.SearchResult, error) {
+func (p *memoryProviderStub) Search(_ context.Context, query memory.SearchQuery) (memory.SearchResult, error) {
+	p.searchQuery = query
 	return p.searchResult, p.searchErr
 }
 
