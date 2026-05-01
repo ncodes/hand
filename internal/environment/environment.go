@@ -181,21 +181,12 @@ func (e *environment) prepareMemory() error {
 		return nil
 	}
 
-	pinnedFiles := e.cfg.Memory.Pinned.Files
-	autoPinnedFiles, err := memory.AutoPinnedFiles()
-	if err != nil {
-		log.Warn().Err(err).Msg("Failed to load automatic pinned memory files")
-	} else {
-		pinnedFiles = append(autoPinnedFiles, pinnedFiles...)
-	}
-
 	opts := memory.Options{
 		Guardrails:     memguardrails.New(guardrails.NewRedactor()),
 		StorageBackend: e.cfg.Storage.Backend,
 		MemoryBackend:  e.cfg.Memory.Backend,
 		Pinned: memory.PinnedOptions{
 			Enabled:      e.cfg.Memory.Pinned.Enabled,
-			Files:        pinnedFiles,
 			MaxChars:     e.cfg.Memory.Pinned.MaxChars,
 			MaxItemChars: e.cfg.Memory.Pinned.MaxItemChars,
 		},

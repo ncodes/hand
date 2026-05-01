@@ -25,7 +25,6 @@ type Options struct {
 
 type PinnedOptions struct {
 	Enabled      *bool
-	Files        []string
 	MaxChars     int
 	MaxItemChars int
 }

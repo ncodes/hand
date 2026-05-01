@@ -50,7 +50,7 @@ func TestPreloadEnvFile_LoadsValues(t *testing.T) {
 		"HAND_MODEL_BASE_URL", "HAND_MODEL_API_MODE", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS", "HAND_LOG_LEVEL",
 		"HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS", "HAND_RULES_FILES", "HAND_SESSION_INSTRUCT", "HAND_PLATFORM", "HAND_CAP_FS", "HAND_CAP_NET",
 		"HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER", "HAND_MEMORY_BACKEND",
-		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_FILES", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS")
+		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -80,7 +80,6 @@ HAND_MEMORY_ENABLED=true
 HAND_MEMORY_PROVIDER=default-memory
 HAND_MEMORY_BACKEND=memory
 HAND_MEMORY_PINNED_ENABLED=false
-HAND_MEMORY_PINNED_FILES=pinned.md,shared.md
 HAND_MEMORY_PINNED_MAX_CHARS=2000
 HAND_MEMORY_PINNED_MAX_ITEM_CHARS=500
 `), 0o600))
@@ -111,7 +110,6 @@ HAND_MEMORY_PINNED_MAX_ITEM_CHARS=500
 	require.Equal(t, "default-memory", os.Getenv("HAND_MEMORY_PROVIDER"))
 	require.Equal(t, "memory", os.Getenv("HAND_MEMORY_BACKEND"))
 	require.Equal(t, "false", os.Getenv("HAND_MEMORY_PINNED_ENABLED"))
-	require.Equal(t, "pinned.md,shared.md", os.Getenv("HAND_MEMORY_PINNED_FILES"))
 	require.Equal(t, "2000", os.Getenv("HAND_MEMORY_PINNED_MAX_CHARS"))
 	require.Equal(t, "500", os.Getenv("HAND_MEMORY_PINNED_MAX_ITEM_CHARS"))
 }
@@ -195,7 +193,7 @@ func TestLoad_UsesConfigFileValues(t *testing.T) {
 		"HAND_DEBUG_REQUESTS", "HAND_RULES_FILES", "HAND_SESSION_INSTRUCT", "HAND_PLATFORM", "HAND_CAP_FS",
 		"HAND_CAP_NET", "HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER",
 		"HAND_MEMORY_BACKEND",
-		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_FILES", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS")
+		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -227,9 +225,6 @@ memory:
   backend: memory
   pinned:
     enabled: false
-    files:
-      - pinned.md
-      - shared.md
     maxChars: 2000
     maxItemChars: 500
 log:
@@ -310,7 +305,6 @@ rules:
 	require.Equal(t, "default-memory", cfg.Memory.Provider)
 	require.Equal(t, "memory", cfg.Memory.Backend)
 	require.False(t, boolValue(cfg.Memory.Pinned.Enabled))
-	require.Equal(t, []string{filepath.Join(dir, "pinned.md"), filepath.Join(dir, "shared.md")}, cfg.Memory.Pinned.Files)
 	require.Equal(t, 2000, cfg.Memory.Pinned.MaxChars)
 	require.Equal(t, 500, cfg.Memory.Pinned.MaxItemChars)
 	require.False(t, boolValue(cfg.Cap.Filesystem))
@@ -336,7 +330,7 @@ func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 		"HAND_DEBUG_REQUESTS", "HAND_RULES_FILES", "HAND_SESSION_INSTRUCT", "HAND_PLATFORM", "HAND_CAP_FS",
 		"HAND_CAP_NET", "HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER",
 		"HAND_MEMORY_BACKEND",
-		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_FILES", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS")
+		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -384,7 +378,6 @@ HAND_MEMORY_ENABLED=false
 HAND_MEMORY_PROVIDER=default-memory
 HAND_MEMORY_BACKEND=sqlite
 HAND_MEMORY_PINNED_ENABLED=false
-HAND_MEMORY_PINNED_FILES=pinned.md,shared.md
 HAND_MEMORY_PINNED_MAX_CHARS=3000
 HAND_MEMORY_PINNED_MAX_ITEM_CHARS=600
 `), 0o600))
@@ -473,7 +466,6 @@ rules:
 	require.Equal(t, "default-memory", cfg.Memory.Provider)
 	require.Equal(t, "sqlite", cfg.Memory.Backend)
 	require.False(t, boolValue(cfg.Memory.Pinned.Enabled))
-	require.Equal(t, []string{"pinned.md", "shared.md"}, cfg.Memory.Pinned.Files)
 	require.Equal(t, 3000, cfg.Memory.Pinned.MaxChars)
 	require.Equal(t, 600, cfg.Memory.Pinned.MaxItemChars)
 }
@@ -1685,7 +1677,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 		"HAND_RERANKER_MAX_CANDIDATE_TEXT_CHARS", "HAND_RERANKER_MAX_OUTPUT_TOKENS",
 		"HAND_COMPACTION_ENABLED", "HAND_COMPACTION_TRIGGER_PERCENT", "HAND_COMPACTION_WARN_PERCENT",
 		"HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER", "HAND_MEMORY_BACKEND",
-		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_FILES", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS",
+		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS",
 		"HAND_FIRECRAWL_API_KEY", "HAND_FIRECRAWL_API_URL", "HAND_PARALLEL_API_KEY", "HAND_TAVILY_API_KEY", "HAND_EXA_API_KEY",
 	)
 
@@ -1719,7 +1711,6 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	t.Setenv("HAND_MEMORY_PROVIDER", " Default-Memory ")
 	t.Setenv("HAND_MEMORY_BACKEND", " SQLite ")
 	t.Setenv("HAND_MEMORY_PINNED_ENABLED", "false")
-	t.Setenv("HAND_MEMORY_PINNED_FILES", " pinned.md , shared.md ")
 	t.Setenv("HAND_MEMORY_PINNED_MAX_CHARS", "3200")
 	t.Setenv("HAND_MEMORY_PINNED_MAX_ITEM_CHARS", "700")
 
@@ -1752,7 +1743,6 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.Equal(t, "default-memory", cfg.Memory.Provider)
 	require.Equal(t, "sqlite", cfg.Memory.Backend)
 	require.False(t, boolValue(cfg.Memory.Pinned.Enabled))
-	require.Equal(t, []string{"pinned.md", "shared.md"}, cfg.Memory.Pinned.Files)
 	require.Equal(t, 3200, cfg.Memory.Pinned.MaxChars)
 	require.Equal(t, 700, cfg.Memory.Pinned.MaxItemChars)
 }
@@ -1773,9 +1763,10 @@ func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 	require.False(t, cfg.MemoryEnabled())
 	require.Equal(t, "default-memory", cfg.Memory.Provider)
 
-	cfg = &Config{Memory: MemoryConfig{Pinned: PinnedMemoryConfig{Files: []string{" pinned.md ", "pinned.md", ""}}}}
+	cfg = &Config{Memory: MemoryConfig{Pinned: PinnedMemoryConfig{MaxChars: 120, MaxItemChars: 60}}}
 	cfg.Normalize()
-	require.Equal(t, []string{"pinned.md"}, cfg.Memory.Pinned.Files)
+	require.Equal(t, 120, cfg.Memory.Pinned.MaxChars)
+	require.Equal(t, 60, cfg.Memory.Pinned.MaxItemChars)
 }
 
 func TestApplyEnvOverrides_WebProviderSpecificFallback(t *testing.T) {

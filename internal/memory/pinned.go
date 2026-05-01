@@ -20,49 +20,48 @@ var (
 	readDir = os.ReadDir
 )
 
-func AutoPinnedFiles() ([]string, error) {
+func AutoPinnedFile() (string, bool, error) {
 	root, err := getwd()
 	if err != nil {
-		return nil, fmt.Errorf("resolve workspace root: %w", err)
+		return "", false, fmt.Errorf("resolve workspace root: %w", err)
 	}
-	return autoPinnedFilesFromRoot(root)
+	return autoPinnedFileFromRoot(root)
 }
 
-func autoPinnedFilesFromRoot(root string) ([]string, error) {
+func autoPinnedFileFromRoot(root string) (string, bool, error) {
 	root = strings.TrimSpace(root)
 	if root == "" {
-		return nil, nil
+		return "", false, nil
 	}
 
 	info, err := stat(root)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return "", false, nil
 		}
-		return nil, fmt.Errorf("stat workspace root %q: %w", root, err)
+		return "", false, fmt.Errorf("stat workspace root %q: %w", root, err)
 	}
 	if !info.IsDir() {
-		return nil, nil
+		return "", false, nil
 	}
 
 	entries, err := readDir(root)
 	if err != nil {
-		return nil, fmt.Errorf("read workspace root %q: %w", root, err)
+		return "", false, fmt.Errorf("read workspace root %q: %w", root, err)
 	}
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
 		if strings.EqualFold(entry.Name(), defaultPinnedFileName) {
-			return []string{filepath.Join(root, entry.Name())}, nil
+			return filepath.Join(root, entry.Name()), true, nil
 		}
 	}
 
-	return nil, nil
+	return "", false, nil
 }
 
 func normalizePinnedOptions(opts PinnedOptions) PinnedOptions {
-	opts.Files = cleanPinnedFiles(opts.Files)
 	if opts.MaxChars <= 0 {
 		opts.MaxChars = defaultPinnedMaxChars
 	}
@@ -72,63 +71,40 @@ func normalizePinnedOptions(opts PinnedOptions) PinnedOptions {
 	return opts
 }
 
-func cleanPinnedFiles(files []string) []string {
-	if len(files) == 0 {
-		return nil
-	}
-
-	seen := make(map[string]struct{}, len(files))
-	cleaned := make([]string, 0, len(files))
-	for _, file := range files {
-		file = strings.TrimSpace(file)
-		if file == "" {
-			continue
-		}
-		if _, ok := seen[file]; ok {
-			continue
-		}
-		seen[file] = struct{}{}
-		cleaned = append(cleaned, file)
-	}
-	return cleaned
-}
-
 func pinnedEnabled(opts PinnedOptions) bool {
 	return opts.Enabled == nil || *opts.Enabled
 }
 
 func (p *MemoryProvider) loadFilePinned() ([]MemoryItem, error) {
-	files := p.pinned.Files
-	if len(files) == 0 {
+	file, ok, err := AutoPinnedFile()
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
 		return nil, nil
 	}
 
-	items := make([]MemoryItem, 0, len(files))
-	for idx, file := range files {
-		data, err := os.ReadFile(file)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read pinned memory file %q: %w", file, err)
-		}
-
-		text := strings.TrimSpace(string(data))
-		if text == "" {
-			continue
-		}
-
-		item := MemoryItem{
-			ID:     pinnedFileMemoryID(idx, file),
-			Kind:   KindPinned,
-			Status: StatusActive,
-			Title:  strings.TrimSpace(filepath.Base(file)),
-			Text:   text,
-			Metadata: map[string]string{
-				"source": "file",
-				"path":   file,
-			},
-		}
-		items = append(items, item)
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read pinned memory file %q: %w", file, err)
 	}
-	return items, nil
+
+	text := strings.TrimSpace(string(data))
+	if text == "" {
+		return nil, nil
+	}
+
+	return []MemoryItem{{
+		ID:     pinnedFileMemoryID(file),
+		Kind:   KindPinned,
+		Status: StatusActive,
+		Title:  strings.TrimSpace(filepath.Base(file)),
+		Text:   text,
+		Metadata: map[string]string{
+			"source": "file",
+			"path":   file,
+		},
+	}}, nil
 }
 
 func (p *MemoryProvider) loadStorePinned(ctx context.Context, query SearchQuery) ([]MemoryItem, error) {
@@ -207,8 +183,8 @@ func safetyScanItem(ctx context.Context, guardrails Guardrails, item MemoryItem)
 	return guardrails.SafetyScan(ctx, item)
 }
 
-func pinnedFileMemoryID(idx int, file string) string {
-	return fmt.Sprintf("pinned_file:%04d:%s", idx, strings.TrimSpace(file))
+func pinnedFileMemoryID(file string) string {
+	return "pinned_file:" + strings.TrimSpace(file)
 }
 
 func countPinnedItemChars(item MemoryItem) int {

@@ -54,7 +54,6 @@
 #   pinned:
 #     enabled: true
 #     # A workspace-root memory.md file is loaded automatically when present.
-#     files: []
 #     maxChars: 4000
 #     maxItemChars: 1000
 # reranker:

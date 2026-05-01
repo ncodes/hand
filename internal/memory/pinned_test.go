@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,7 +11,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAutoPinnedFilesUsesWorkingDirectory(t *testing.T) {
+type fakeDirEntry struct {
+	name string
+}
+
+func (entry fakeDirEntry) Name() string {
+	return entry.name
+}
+
+func (fakeDirEntry) IsDir() bool {
+	return false
+}
+
+func (fakeDirEntry) Type() fs.FileMode {
+	return 0
+}
+
+func (fakeDirEntry) Info() (fs.FileInfo, error) {
+	return nil, nil
+}
+
+func TestAutoPinnedFileUsesWorkingDirectory(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte("remember this"), 0o600))
@@ -23,12 +44,13 @@ func TestAutoPinnedFilesUsesWorkingDirectory(t *testing.T) {
 		return dir, nil
 	}
 
-	files, err := AutoPinnedFiles()
+	got, ok, err := AutoPinnedFile()
 	require.NoError(t, err)
-	require.Equal(t, []string{file}, files)
+	require.True(t, ok)
+	require.Equal(t, file, got)
 }
 
-func TestAutoPinnedFilesReturnsWorkingDirectoryError(t *testing.T) {
+func TestAutoPinnedFileReturnsWorkingDirectoryError(t *testing.T) {
 	cwdErr := errors.New("cwd failed")
 	previous := getwd
 	t.Cleanup(func() {
@@ -38,24 +60,31 @@ func TestAutoPinnedFilesReturnsWorkingDirectoryError(t *testing.T) {
 		return "", cwdErr
 	}
 
-	files, err := AutoPinnedFiles()
+	got, ok, err := AutoPinnedFile()
 	require.ErrorIs(t, err, cwdErr)
-	require.Empty(t, files)
+	require.False(t, ok)
+	require.Empty(t, got)
 }
 
-func TestAutoPinnedFilesFromRoot(t *testing.T) {
+func TestAutoPinnedFileFromRoot(t *testing.T) {
 	t.Run("empty root returns no files", func(t *testing.T) {
-		require.Empty(t, mustAutoPinnedFilesFromRoot(t, ""))
+		got, ok := mustAutoPinnedFileFromRoot(t, "")
+		require.False(t, ok)
+		require.Empty(t, got)
 	})
 
 	t.Run("missing root returns no files", func(t *testing.T) {
-		require.Empty(t, mustAutoPinnedFilesFromRoot(t, filepath.Join(t.TempDir(), "missing")))
+		got, ok := mustAutoPinnedFileFromRoot(t, filepath.Join(t.TempDir(), "missing"))
+		require.False(t, ok)
+		require.Empty(t, got)
 	})
 
 	t.Run("file root returns no files", func(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "not-root")
 		require.NoError(t, os.WriteFile(file, []byte("not a dir"), 0o600))
-		require.Empty(t, mustAutoPinnedFilesFromRoot(t, file))
+		got, ok := mustAutoPinnedFileFromRoot(t, file)
+		require.False(t, ok)
+		require.Empty(t, got)
 	})
 
 	t.Run("stat error is returned", func(t *testing.T) {
@@ -68,10 +97,11 @@ func TestAutoPinnedFilesFromRoot(t *testing.T) {
 			return nil, statErr
 		}
 
-		files, err := autoPinnedFilesFromRoot(t.TempDir())
+		got, ok, err := autoPinnedFileFromRoot(t.TempDir())
 		require.ErrorIs(t, err, statErr)
 		require.Contains(t, err.Error(), "stat workspace root")
-		require.Empty(t, files)
+		require.False(t, ok)
+		require.Empty(t, got)
 	})
 
 	t.Run("read directory error is returned", func(t *testing.T) {
@@ -84,23 +114,28 @@ func TestAutoPinnedFilesFromRoot(t *testing.T) {
 			return nil, readErr
 		}
 
-		files, err := autoPinnedFilesFromRoot(t.TempDir())
+		got, ok, err := autoPinnedFileFromRoot(t.TempDir())
 		require.ErrorIs(t, err, readErr)
 		require.Contains(t, err.Error(), "read workspace root")
-		require.Empty(t, files)
+		require.False(t, ok)
+		require.Empty(t, got)
 	})
 
 	t.Run("directory named memory file is ignored", func(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, os.Mkdir(filepath.Join(dir, "memory.md"), 0o700))
-		require.Empty(t, mustAutoPinnedFilesFromRoot(t, dir))
+		got, ok := mustAutoPinnedFileFromRoot(t, dir)
+		require.False(t, ok)
+		require.Empty(t, got)
 	})
 
 	t.Run("memory file match is case insensitive", func(t *testing.T) {
 		dir := t.TempDir()
 		file := filepath.Join(dir, "MEMORY.md")
 		require.NoError(t, os.WriteFile(file, []byte("remember this"), 0o600))
-		require.Equal(t, []string{file}, mustAutoPinnedFilesFromRoot(t, dir))
+		got, ok := mustAutoPinnedFileFromRoot(t, dir)
+		require.True(t, ok)
+		require.Equal(t, file, got)
 	})
 }
 
@@ -109,20 +144,13 @@ func TestNormalizePinnedOptions(t *testing.T) {
 
 	opts := normalizePinnedOptions(PinnedOptions{
 		Enabled:      &enabled,
-		Files:        []string{" pinned.md ", "", "shared.md", "pinned.md"},
 		MaxChars:     -1,
 		MaxItemChars: 0,
 	})
 
 	require.Same(t, &enabled, opts.Enabled)
-	require.Equal(t, []string{"pinned.md", "shared.md"}, opts.Files)
 	require.Equal(t, defaultPinnedMaxChars, opts.MaxChars)
 	require.Equal(t, defaultPinnedMaxItemChars, opts.MaxItemChars)
-}
-
-func TestCleanPinnedFilesReturnsNilForEmptyInput(t *testing.T) {
-	require.Nil(t, cleanPinnedFiles(nil))
-	require.Empty(t, cleanPinnedFiles([]string{" ", "\t"}))
 }
 
 func TestPinnedEnabled(t *testing.T) {
@@ -136,12 +164,11 @@ func TestPinnedEnabled(t *testing.T) {
 
 func TestMemoryProvider_LoadPinned(t *testing.T) {
 	dir := t.TempDir()
-	file := filepath.Join(dir, "pinned.md")
+	t.Chdir(dir)
+	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte("from file"), 0o600))
 
-	provider := defaultMemoryTestProvider(t, Options{
-		Pinned: PinnedOptions{Files: []string{file}},
-	})
+	provider := defaultMemoryTestProvider(t, Options{})
 
 	_, err := provider.Upsert(context.Background(), MemoryItem{Kind: KindPinned, Status: StatusActive, Text: "from db"})
 	require.NoError(t, err)
@@ -152,7 +179,7 @@ func TestMemoryProvider_LoadPinned(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, items, 2)
 	require.Equal(t, KindPinned, items[0].Kind)
-	require.Equal(t, "pinned.md", items[0].Title)
+	require.Equal(t, "memory.md", items[0].Title)
 	require.Equal(t, "from file", items[0].Text)
 	require.Equal(t, map[string]string{"source": "file", "path": file}, items[0].Metadata)
 	require.Equal(t, KindPinned, items[1].Kind)
@@ -165,7 +192,6 @@ func TestMemoryProvider_LoadPinnedDisabled(t *testing.T) {
 		Guardrails: &fakeGuardrails{searchErr: errors.New("search blocked"), safetyErr: errors.New("unsafe")},
 		Pinned: PinnedOptions{
 			Enabled: &enabled,
-			Files:   []string{filepath.Join(t.TempDir(), "missing.md")},
 		},
 	})
 
@@ -176,12 +202,11 @@ func TestMemoryProvider_LoadPinnedDisabled(t *testing.T) {
 
 func TestMemoryProvider_LoadPinnedSkipsEmptyFiles(t *testing.T) {
 	dir := t.TempDir()
-	file := filepath.Join(dir, "empty.md")
+	t.Chdir(dir)
+	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte(" \n\t "), 0o600))
 
-	provider := defaultMemoryTestProvider(t, Options{
-		Pinned: PinnedOptions{Files: []string{file}},
-	})
+	provider := defaultMemoryTestProvider(t, Options{})
 
 	items, err := provider.LoadPinned(context.Background(), SearchQuery{})
 	require.NoError(t, err)
@@ -190,14 +215,12 @@ func TestMemoryProvider_LoadPinnedSkipsEmptyFiles(t *testing.T) {
 
 func TestMemoryProvider_LoadPinnedAppliesItemAndTotalCharLimits(t *testing.T) {
 	dir := t.TempDir()
-	firstFile := filepath.Join(dir, "a")
-	secondFile := filepath.Join(dir, "b")
-	require.NoError(t, os.WriteFile(firstFile, []byte("abcdef"), 0o600))
-	require.NoError(t, os.WriteFile(secondFile, []byte("xyz"), 0o600))
+	t.Chdir(dir)
+	file := filepath.Join(dir, "memory.md")
+	require.NoError(t, os.WriteFile(file, []byte("abcdef"), 0o600))
 
 	provider := defaultMemoryTestProvider(t, Options{
 		Pinned: PinnedOptions{
-			Files:        []string{firstFile, secondFile},
 			MaxChars:     5,
 			MaxItemChars: 4,
 		},
@@ -205,21 +228,18 @@ func TestMemoryProvider_LoadPinnedAppliesItemAndTotalCharLimits(t *testing.T) {
 
 	items, err := provider.LoadPinned(context.Background(), SearchQuery{})
 	require.NoError(t, err)
-	require.Len(t, items, 2)
-	require.Equal(t, "a", items[0].Title)
-	require.Equal(t, "abc", items[0].Text)
-	require.Equal(t, "b", items[1].Title)
-	require.Empty(t, items[1].Text)
+	require.Len(t, items, 1)
+	require.Equal(t, "memo", items[0].Title)
+	require.Empty(t, items[0].Text)
 }
 
 func TestMemoryProvider_LoadPinnedAppliesQueryLimitAfterMerge(t *testing.T) {
 	dir := t.TempDir()
-	file := filepath.Join(dir, "pinned.md")
+	t.Chdir(dir)
+	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte("from file"), 0o600))
 
-	provider := defaultMemoryTestProvider(t, Options{
-		Pinned: PinnedOptions{Files: []string{file}},
-	})
+	provider := defaultMemoryTestProvider(t, Options{})
 	_, err := provider.Upsert(context.Background(), MemoryItem{Kind: KindPinned, Status: StatusActive, Text: "from db"})
 	require.NoError(t, err)
 
@@ -231,12 +251,12 @@ func TestMemoryProvider_LoadPinnedAppliesQueryLimitAfterMerge(t *testing.T) {
 
 func TestMemoryProvider_LoadPinnedUsesQueryCharLimitWhenSmaller(t *testing.T) {
 	dir := t.TempDir()
-	file := filepath.Join(dir, "pinned.md")
+	t.Chdir(dir)
+	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte("abcdef"), 0o600))
 
 	provider := defaultMemoryTestProvider(t, Options{
 		Pinned: PinnedOptions{
-			Files:        []string{file},
 			MaxChars:     100,
 			MaxItemChars: 100,
 		},
@@ -245,19 +265,19 @@ func TestMemoryProvider_LoadPinnedUsesQueryCharLimitWhenSmaller(t *testing.T) {
 	items, err := provider.LoadPinned(context.Background(), SearchQuery{MaxChars: 3})
 	require.NoError(t, err)
 	require.Len(t, items, 1)
-	require.Equal(t, "pin", items[0].Title)
+	require.Equal(t, "mem", items[0].Title)
 	require.Empty(t, items[0].Text)
 }
 
 func TestMemoryProvider_LoadPinnedSafetyScansAndRedacts(t *testing.T) {
 	dir := t.TempDir()
-	file := filepath.Join(dir, "pinned.md")
+	t.Chdir(dir)
+	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte("secret text"), 0o600))
 	guardrails := &fakeGuardrails{redactText: "redacted"}
 
 	provider := defaultMemoryTestProvider(t, Options{
 		Guardrails: guardrails,
-		Pinned:     PinnedOptions{Files: []string{file}},
 	})
 
 	items, err := provider.LoadPinned(context.Background(), SearchQuery{})
@@ -271,13 +291,13 @@ func TestMemoryProvider_LoadPinnedSafetyScansAndRedacts(t *testing.T) {
 
 func TestMemoryProvider_LoadPinnedReturnsSafetyScanError(t *testing.T) {
 	dir := t.TempDir()
-	file := filepath.Join(dir, "pinned.md")
+	t.Chdir(dir)
+	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte("unsafe"), 0o600))
 	safetyErr := errors.New("unsafe pinned memory")
 
 	provider := defaultMemoryTestProvider(t, Options{
 		Guardrails: &fakeGuardrails{safetyErr: safetyErr},
-		Pinned:     PinnedOptions{Files: []string{file}},
 	})
 
 	items, err := provider.LoadPinned(context.Background(), SearchQuery{})
@@ -285,14 +305,50 @@ func TestMemoryProvider_LoadPinnedReturnsSafetyScanError(t *testing.T) {
 	require.Empty(t, items)
 }
 
-func TestMemoryProvider_LoadPinnedReturnsFileReadError(t *testing.T) {
-	provider := defaultMemoryTestProvider(t, Options{
-		Pinned: PinnedOptions{Files: []string{filepath.Join(t.TempDir(), "missing.md")}},
+func TestMemoryProvider_LoadPinnedReturnsAutoPinnedFileDiscoveryError(t *testing.T) {
+	cwdErr := errors.New("cwd failed")
+	previous := getwd
+	t.Cleanup(func() {
+		getwd = previous
 	})
+	getwd = func() (string, error) {
+		return "", cwdErr
+	}
 
+	provider := defaultMemoryTestProvider(t, Options{})
+	items, err := provider.LoadPinned(context.Background(), SearchQuery{})
+	require.ErrorIs(t, err, cwdErr)
+	require.Empty(t, items)
+}
+
+func TestMemoryProvider_LoadPinnedReturnsAutoPinnedFileReadError(t *testing.T) {
+	dir := t.TempDir()
+
+	previousGetwd := getwd
+	previousReadDir := readDir
+	t.Cleanup(func() {
+		getwd = previousGetwd
+		readDir = previousReadDir
+	})
+	getwd = func() (string, error) {
+		return dir, nil
+	}
+	readDir = func(string) ([]os.DirEntry, error) {
+		return []os.DirEntry{fakeDirEntry{name: "memory.md"}}, nil
+	}
+
+	provider := defaultMemoryTestProvider(t, Options{})
 	items, err := provider.LoadPinned(context.Background(), SearchQuery{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to read pinned memory file")
+	require.Empty(t, items)
+}
+
+func TestMemoryProvider_PreparePinnedItemsReturnsNilWithoutItems(t *testing.T) {
+	provider := defaultMemoryTestProvider(t, Options{})
+
+	items, err := provider.preparePinnedItems(context.Background(), nil, SearchQuery{})
+	require.NoError(t, err)
 	require.Empty(t, items)
 }
 
@@ -324,6 +380,23 @@ func TestMemoryProvider_PreparePinnedItemsStopsWhenTotalBudgetIsExhausted(t *tes
 	require.Equal(t, "b", items[0].Text)
 }
 
+func TestMemoryProvider_PreparePinnedItemsTruncatesToRemainingBudget(t *testing.T) {
+	provider := defaultMemoryTestProvider(t, Options{
+		Pinned: PinnedOptions{MaxChars: 3, MaxItemChars: 10},
+	})
+
+	items, err := provider.preparePinnedItems(context.Background(), []MemoryItem{{
+		Kind:   KindPinned,
+		Status: StatusActive,
+		Title:  "a",
+		Text:   "bcdef",
+	}}, SearchQuery{})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, "a", items[0].Title)
+	require.Equal(t, "bc", items[0].Text)
+}
+
 func TestMemoryProvider_PreparePinnedItemsPropagatesRedactError(t *testing.T) {
 	redactErr := errors.New("redact failed")
 	provider := defaultMemoryTestProvider(t, Options{
@@ -340,7 +413,7 @@ func TestMemoryProvider_PreparePinnedItemsPropagatesRedactError(t *testing.T) {
 }
 
 func TestPinnedFileMemoryID(t *testing.T) {
-	require.Equal(t, "pinned_file:0007:/tmp/pinned.md", pinnedFileMemoryID(7, " /tmp/pinned.md "))
+	require.Equal(t, "pinned_file:/tmp/memory.md", pinnedFileMemoryID(" /tmp/memory.md "))
 }
 
 func TestPinnedItemChars(t *testing.T) {
@@ -367,10 +440,10 @@ func TestTruncateRunes(t *testing.T) {
 	require.Equal(t, "short", truncateRunes("short", 10))
 }
 
-func mustAutoPinnedFilesFromRoot(t *testing.T, root string) []string {
+func mustAutoPinnedFileFromRoot(t *testing.T, root string) (string, bool) {
 	t.Helper()
 
-	files, err := autoPinnedFilesFromRoot(root)
+	file, ok, err := autoPinnedFileFromRoot(root)
 	require.NoError(t, err)
-	return files
+	return file, ok
 }
