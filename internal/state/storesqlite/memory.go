@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/wandxy/hand/pkg/nanoid"
 	"gorm.io/gorm"
 )
+
+const memorySearchTable = "memory_items_fts"
 
 type memoryItemModel struct {
 	ID              string    `gorm:"column:id;primaryKey"`
@@ -39,6 +42,35 @@ func (memoryItemTagModel) TableName() string {
 	return "memory_item_tags"
 }
 
+type memorySearchRecord struct {
+	ID              string    `gorm:"column:id"`
+	Kind            string    `gorm:"column:kind"`
+	Status          string    `gorm:"column:status"`
+	Title           string    `gorm:"column:title"`
+	Text            string    `gorm:"column:text"`
+	TagsJSON        string    `gorm:"column:tags_json"`
+	MetadataJSON    string    `gorm:"column:metadata_json"`
+	SourceLinksJSON string    `gorm:"column:source_links_json"`
+	CreatedAt       time.Time `gorm:"column:created_at"`
+	UpdatedAt       time.Time `gorm:"column:updated_at"`
+	Score           float64   `gorm:"column:score"`
+}
+
+func (record memorySearchRecord) model() memoryItemModel {
+	return memoryItemModel{
+		ID:              record.ID,
+		Kind:            record.Kind,
+		Status:          record.Status,
+		Title:           record.Title,
+		Text:            record.Text,
+		TagsJSON:        record.TagsJSON,
+		MetadataJSON:    record.MetadataJSON,
+		SourceLinksJSON: record.SourceLinksJSON,
+		CreatedAt:       record.CreatedAt,
+		UpdatedAt:       record.UpdatedAt,
+	}
+}
+
 func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearchQuery) (statememory.MemorySearchResult, error) {
 	if s == nil || s.db == nil {
 		return statememory.MemorySearchResult{}, errors.New("store is required")
@@ -56,14 +88,14 @@ func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearch
 
 	hits := make([]statememory.MemorySearchHit, 0, len(records))
 	for _, record := range records {
-		item, err := memoryModelToItem(record)
+		item, err := memoryModelToItem(record.model())
 		if err != nil {
 			return statememory.MemorySearchResult{}, err
 		}
 
 		hits = append(hits, statememory.MemorySearchHit{
 			Item:  item.Clone(),
-			Score: statememory.SimpleMemoryScore(item, query.Text),
+			Score: record.Score,
 		})
 	}
 
@@ -122,6 +154,9 @@ func (s *Store) UpsertMemory(ctx context.Context, item statememory.MemoryItem) (
 				return err
 			}
 		}
+		if err := replaceMemorySearchRow(tx, item); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		return statememory.MemoryItem{}, err
@@ -151,10 +186,23 @@ func (s *Store) DeleteMemory(ctx context.Context, req statememory.MemoryDeleteRe
 	return nil
 }
 
-func (s *Store) searchMemoryRecords(ctx context.Context, query statememory.MemorySearchQuery, limit int) ([]memoryItemModel, error) {
+func (s *Store) searchMemoryRecords(
+	ctx context.Context,
+	query statememory.MemorySearchQuery,
+	limit int,
+) ([]memorySearchRecord, error) {
 	statuses := query.Statuses
 	if len(statuses) == 0 {
 		statuses = []statememory.MemoryStatus{statememory.MemoryStatusActive}
+	}
+
+	text := strings.TrimSpace(query.Text)
+	if text != "" {
+		queryText := buildSearchQuery(text)
+		if queryText == "" {
+			return nil, nil
+		}
+		return s.searchMemoryRecordsLexical(ctx, query, statuses, queryText, limit)
 	}
 
 	db := s.db.WithContext(ctx).Model(&memoryItemModel{})
@@ -174,17 +222,85 @@ func (s *Store) searchMemoryRecords(ctx context.Context, query statememory.Memor
 		db = db.Where("id IN (?)", subquery)
 	}
 
-	text := strings.TrimSpace(strings.ToLower(query.Text))
-	if text != "" {
-		pattern := statememory.MemoryLikePattern(text)
-		matchSQL := `LOWER(title) LIKE ? ESCAPE '\' OR LOWER(text) LIKE ? ESCAPE '\'`
-		scoreSQL := `((CASE WHEN LOWER(title) LIKE ? ESCAPE '\' THEN 2 ELSE 0 END) + (CASE WHEN LOWER(text) LIKE ? ESCAPE '\' THEN 1 ELSE 0 END)) DESC`
-		db = db.Where(matchSQL, pattern, pattern).
-			Order(gorm.Expr(scoreSQL, pattern, pattern))
-	}
-
 	var records []memoryItemModel
 	if err := db.Order("updated_at DESC").Order("id ASC").Limit(limit).Find(&records).Error; err != nil {
+		return nil, err
+	}
+
+	searchRecords := make([]memorySearchRecord, 0, len(records))
+	for _, record := range records {
+		searchRecords = append(searchRecords, memorySearchRecordFromModel(record, 0))
+	}
+	return searchRecords, nil
+}
+
+func (s *Store) searchMemoryRecordsLexical(
+	ctx context.Context,
+	query statememory.MemorySearchQuery,
+	statuses []statememory.MemoryStatus,
+	queryText string,
+	limit int,
+) ([]memorySearchRecord, error) {
+	args := []any{queryText}
+	var sql strings.Builder
+    
+	sql.WriteString(`
+WITH fts_hits AS (
+	SELECT
+		memory_id,
+		bm25(`)
+	sql.WriteString(memorySearchTable)
+	sql.WriteString(`, 0.0, 5.0, 3.0, 1.0, 1.0, 1.0) AS rank
+	FROM `)
+	sql.WriteString(memorySearchTable)
+	sql.WriteString(`
+	WHERE `)
+	sql.WriteString(memorySearchTable)
+	sql.WriteString(` MATCH ?
+)
+SELECT
+	m.id,
+	m.kind,
+	m.status,
+	m.title,
+	m.text,
+	m.tags_json,
+	m.metadata_json,
+	m.source_links_json,
+	m.created_at,
+	m.updated_at,
+	-hits.rank AS score
+FROM memory_items AS m
+JOIN fts_hits AS hits ON hits.memory_id = m.id
+WHERE 1 = 1`)
+	if len(query.Kinds) > 0 {
+		sql.WriteString(`
+	AND m.kind IN ?`)
+		args = append(args, statememory.MemoryKindStrings(query.Kinds))
+	}
+	if len(statuses) > 0 {
+		sql.WriteString(`
+	AND m.status IN ?`)
+		args = append(args, statememory.MemoryStatusStrings(statuses))
+	}
+	if tags := statememory.NormalizeMemoryTags(query.Tags); len(tags) > 0 {
+		sql.WriteString(`
+	AND m.id IN (
+		SELECT memory_id
+		FROM memory_item_tags
+		WHERE tag IN ?
+		GROUP BY memory_id
+		HAVING COUNT(DISTINCT tag) = ?
+	)`)
+		args = append(args, tags, len(tags))
+	}
+	sql.WriteString(`
+ORDER BY hits.rank ASC, m.updated_at DESC, m.id ASC
+LIMIT ?`)
+	args = append(args, limit)
+
+	var records []memorySearchRecord
+	if err := s.db.WithContext(ctx).Raw(sql.String(), args...).Scan(&records).Error; err != nil {
 		return nil, err
 	}
 	return records, nil
@@ -197,6 +313,36 @@ func ensureMemoryStorage(db *gorm.DB) error {
 
 	if err := db.AutoMigrate(&memoryItemModel{}, &memoryItemTagModel{}); err != nil {
 		return fmt.Errorf("failed to migrate memory db: %w", err)
+	}
+
+	if err := ensureMemorySearchIndex(db); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ensureMemorySearchIndex(db *gorm.DB) error {
+	if db == nil {
+		return errors.New("memory db is required")
+	}
+
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS ` + memorySearchTable + ` USING fts5(
+	memory_id UNINDEXED,
+	title,
+	text,
+	kind,
+	tags,
+	metadata,
+	tokenize='unicode61'
+)`).Error; err != nil {
+			return fmt.Errorf("failed to create memory search index: %w", err)
+		}
+
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	return nil
@@ -245,6 +391,64 @@ func memoryJSONString(value any) string {
 		return "null"
 	}
 	return string(data)
+}
+
+func memorySearchRecordFromModel(record memoryItemModel, score float64) memorySearchRecord {
+	return memorySearchRecord{
+		ID:              record.ID,
+		Kind:            record.Kind,
+		Status:          record.Status,
+		Title:           record.Title,
+		Text:            record.Text,
+		TagsJSON:        record.TagsJSON,
+		MetadataJSON:    record.MetadataJSON,
+		SourceLinksJSON: record.SourceLinksJSON,
+		CreatedAt:       record.CreatedAt,
+		UpdatedAt:       record.UpdatedAt,
+		Score:           score,
+	}
+}
+
+func replaceMemorySearchRow(tx *gorm.DB, item statememory.MemoryItem) error {
+	if tx == nil {
+		return nil
+	}
+
+	if err := tx.Exec(`DELETE FROM `+memorySearchTable+` WHERE memory_id = ?`, item.ID).Error; err != nil {
+		return fmt.Errorf("failed to delete memory search row: %w", err)
+	}
+
+	if err := tx.Exec(
+		`INSERT INTO `+memorySearchTable+` (memory_id, title, text, kind, tags, metadata) VALUES (?, ?, ?, ?, ?, ?)`,
+		item.ID,
+		item.Title,
+		item.Text,
+		string(item.Kind),
+		strings.Join(statememory.NormalizeMemoryTags(item.Tags), " "),
+		memoryMetadataSearchText(item.Metadata),
+	).Error; err != nil {
+		return fmt.Errorf("failed to insert memory search row: %w", err)
+	}
+
+	return nil
+}
+
+func memoryMetadataSearchText(metadata map[string]string) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+
+	keys := make([]string, 0, len(metadata))
+	for key := range metadata {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	values := make([]string, 0, len(metadata)*2)
+	for _, key := range keys {
+		values = append(values, key, metadata[key])
+	}
+	return strings.Join(values, " ")
 }
 
 func memoryDecodeJSON(raw string, target any) error {

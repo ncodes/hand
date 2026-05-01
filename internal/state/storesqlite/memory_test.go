@@ -20,6 +20,7 @@ func TestSQLiteMemoryStore_MigrationSearchWriteDeleteAndSourceLinks(t *testing.T
 	require.NoError(t, err)
 	require.True(t, db.Migrator().HasTable(&memoryItemModel{}))
 	require.True(t, db.Migrator().HasTable(&memoryItemTagModel{}))
+	require.True(t, hasSQLiteTable(t, db, memorySearchTable))
 	require.True(t, db.Migrator().HasIndex(&memoryItemModel{}, "idx_memory_items_kind"))
 	require.True(t, db.Migrator().HasIndex(&memoryItemModel{}, "idx_memory_items_status"))
 	require.True(t, db.Migrator().HasIndex(&memoryItemModel{}, "idx_memory_items_kind_status"))
@@ -55,7 +56,7 @@ func TestSQLiteMemoryStore_MigrationSearchWriteDeleteAndSourceLinks(t *testing.T
 	})
 	require.NoError(t, err)
 	require.Len(t, result.Hits, 1)
-	require.Equal(t, 1.0, result.Hits[0].Score)
+	require.Greater(t, result.Hits[0].Score, 0.0)
 	require.Equal(t, []uint{1}, result.Hits[0].Item.SourceLinks[0].MessageIDs)
 	require.Equal(t, []int{2}, result.Hits[0].Item.SourceLinks[0].Offsets)
 	require.Equal(t, "summary", result.Hits[0].Item.SourceLinks[0].SummaryID)
@@ -96,6 +97,22 @@ func TestSQLiteMemoryStore_DefaultsToCandidateAndActiveOnlySearch(t *testing.T) 
 	require.Len(t, result.Hits, 1)
 }
 
+func TestSQLiteMemoryStore_SearchWithNoFTSTokensReturnsNoHits(t *testing.T) {
+	store, err := NewStoreFromDB(openMemoryTestDB(t))
+	require.NoError(t, err)
+
+	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_symbols",
+		Status: statememory.MemoryStatusActive,
+		Text:   "symbols",
+	})
+	require.NoError(t, err)
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{Text: "!!!"})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
+}
+
 func TestSQLiteMemoryStore_UpdatePreservesCreatedAtAndReplacesTags(t *testing.T) {
 	store, err := NewStoreFromDB(openMemoryTestDB(t))
 	require.NoError(t, err)
@@ -134,6 +151,10 @@ func TestSQLiteMemoryStore_UpdatePreservesCreatedAtAndReplacesTags(t *testing.T)
 	require.NoError(t, err)
 	require.Empty(t, result.Hits)
 
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{Text: "old"})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
+
 	require.NoError(t, store.db.Create(&memoryItemModel{
 		ID:              "mem_zero_created",
 		Status:          string(statememory.MemoryStatusActive),
@@ -160,7 +181,7 @@ func TestSQLiteMemoryStore_SearchFiltersKindsStatusesTagsAndLimit(t *testing.T) 
 			ID:        "mem_a",
 			Kind:      statememory.MemoryKindSemantic,
 			Status:    statememory.MemoryStatusActive,
-			Title:     "Plan preference",
+			Title:     "Plan plan preference",
 			Text:      "Use phased plans",
 			Tags:      []string{"plan", "go"},
 			UpdatedAt: now,
@@ -198,7 +219,85 @@ func TestSQLiteMemoryStore_SearchFiltersKindsStatusesTagsAndLimit(t *testing.T) 
 	})
 	require.NoError(t, err)
 	require.Len(t, result.Hits, 1)
-	require.Equal(t, "mem_c", result.Hits[0].Item.ID)
+	require.Equal(t, "mem_a", result.Hits[0].Item.ID)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Kinds: []statememory.MemoryKind{statememory.MemoryKindProcedural},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+	require.Equal(t, "mem_b", result.Hits[0].Item.ID)
+}
+
+func TestSQLiteMemoryStore_FTSIndexesMemoryFields(t *testing.T) {
+	store, err := NewStoreFromDB(openMemoryTestDB(t))
+	require.NoError(t, err)
+
+	items := []statememory.MemoryItem{
+		{
+			ID:     "mem_title",
+			Kind:   statememory.MemoryKindSemantic,
+			Status: statememory.MemoryStatusActive,
+			Title:  "Hydra planning rule",
+			Text:   "Ordinary body",
+		},
+		{
+			ID:     "mem_tag",
+			Kind:   statememory.MemoryKindEpisodic,
+			Status: statememory.MemoryStatusActive,
+			Title:  "Meeting note",
+			Text:   "No special body",
+			Tags:   []string{"lexicaltag"},
+		},
+		{
+			ID:       "mem_metadata",
+			Kind:     statememory.MemoryKindProcedural,
+			Status:   statememory.MemoryStatusActive,
+			Title:    "Workflow",
+			Text:     "Steps",
+			Metadata: map[string]string{"workspace": "northstar"},
+		},
+	}
+	for _, item := range items {
+		_, err := store.UpsertMemory(context.Background(), item)
+		require.NoError(t, err)
+	}
+
+	assertMemorySearchIDs(t, store, "hydra", []string{"mem_title"})
+	assertMemorySearchIDs(t, store, "lexicaltag", []string{"mem_tag"})
+	assertMemorySearchIDs(t, store, "northstar", []string{"mem_metadata"})
+	assertMemorySearchIDs(t, store, "episodic", []string{"mem_tag"})
+}
+
+func TestSQLiteMemoryStore_BM25RanksByLexicalRelevanceBeforeRecency(t *testing.T) {
+	store, err := NewStoreFromDB(openMemoryTestDB(t))
+	require.NoError(t, err)
+
+	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_strong",
+		Kind:   statememory.MemoryKindSemantic,
+		Status: statememory.MemoryStatusActive,
+		Title:  "Needle needle needle",
+		Text:   "needle needle needle needle",
+	})
+	require.NoError(t, err)
+
+	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_recent",
+		Kind:   statememory.MemoryKindSemantic,
+		Status: statememory.MemoryStatusActive,
+		Title:  "Needle",
+		Text:   "plain",
+	})
+	require.NoError(t, err)
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text:  "needle",
+		Limit: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+	require.Equal(t, "mem_strong", result.Hits[0].Item.ID)
 }
 
 func TestSQLiteMemoryStore_ValidationAndDatabaseErrors(t *testing.T) {
@@ -274,6 +373,37 @@ func TestSQLiteMemoryStore_UpsertTransactionErrors(t *testing.T) {
 	require.NoError(t, store.db.Callback().Create().Remove("test:memory-tag-create-error"))
 }
 
+func TestSQLiteMemoryStore_FTSErrors(t *testing.T) {
+	store, err := NewStoreFromDB(openMemoryTestDB(t))
+	require.NoError(t, err)
+	require.NoError(t, store.db.Exec("DROP TABLE "+memorySearchTable).Error)
+
+	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_missing_fts",
+		Status: statememory.MemoryStatusActive,
+		Text:   "missing fts",
+	})
+	require.ErrorContains(t, err, "failed to delete memory search row")
+
+	_, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{Text: "missing"})
+	require.Error(t, err)
+}
+
+func TestSQLiteMemoryStore_FTSInsertErrors(t *testing.T) {
+	store, err := NewStoreFromDB(openMemoryTestDB(t))
+	require.NoError(t, err)
+	require.NoError(t, store.db.Exec("DROP TABLE "+memorySearchTable).Error)
+	require.NoError(t, store.db.Exec("CREATE TABLE "+memorySearchTable+" (memory_id TEXT)").Error)
+
+	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_bad_fts",
+		Status: statememory.MemoryStatusActive,
+		Text:   "bad fts",
+	})
+	require.ErrorContains(t, err, "failed to insert memory search row")
+	require.NoError(t, replaceMemorySearchRow(nil, statememory.MemoryItem{}))
+}
+
 func TestSQLiteMemoryStore_MalformedJSONReturnsDecodeErrors(t *testing.T) {
 	store, err := NewStoreFromDB(openMemoryTestDB(t))
 	require.NoError(t, err)
@@ -309,6 +439,7 @@ func TestSQLiteMemoryStore_MalformedJSONReturnsDecodeErrors(t *testing.T) {
 
 func TestSQLiteMemoryStore_StorageAndJSONHelpers(t *testing.T) {
 	require.EqualError(t, ensureMemoryStorage(nil), "memory db is required")
+	require.EqualError(t, ensureMemorySearchIndex(nil), "memory db is required")
 
 	emptyPath := filepath.Join(t.TempDir(), "empty.db")
 	require.NoError(t, os.WriteFile(emptyPath, nil, 0o600))
@@ -316,6 +447,19 @@ func TestSQLiteMemoryStore_StorageAndJSONHelpers(t *testing.T) {
 	require.NoError(t, err)
 	err = ensureMemoryStorage(readonlyEmptyDB)
 	require.ErrorContains(t, err, "failed to migrate memory db")
+
+	readonlyMemoryPath := filepath.Join(t.TempDir(), "memory.db")
+	writableMemoryDB, err := gorm.Open(sqlite.Open(readonlyMemoryPath), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, writableMemoryDB.AutoMigrate(&memoryItemModel{}, &memoryItemTagModel{}))
+	writableSQLDB, err := writableMemoryDB.DB()
+	require.NoError(t, err)
+	require.NoError(t, writableSQLDB.Close())
+
+	readonlyMemoryDB, err := gorm.Open(sqlite.Open("file:"+readonlyMemoryPath+"?mode=ro"), &gorm.Config{})
+	require.NoError(t, err)
+	err = ensureMemoryStorage(readonlyMemoryDB)
+	require.ErrorContains(t, err, "failed to create memory search index")
 
 	require.Equal(t, "null", memoryJSONString(make(chan int)))
 
@@ -350,4 +494,30 @@ func callbackTable(tx *gorm.DB) string {
 		return tx.Statement.Schema.Table
 	}
 	return ""
+}
+
+func hasSQLiteTable(t *testing.T, db *gorm.DB, name string) bool {
+	t.Helper()
+
+	var count int64
+	require.NoError(t, db.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", name).Scan(&count).Error)
+
+	return count > 0
+}
+
+func assertMemorySearchIDs(t *testing.T, store *Store, query string, expected []string) {
+	t.Helper()
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text:  query,
+		Limit: len(expected),
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, len(expected))
+
+	actual := make([]string, 0, len(result.Hits))
+	for _, hit := range result.Hits {
+		actual = append(actual, hit.Item.ID)
+	}
+	require.Equal(t, expected, actual)
 }
