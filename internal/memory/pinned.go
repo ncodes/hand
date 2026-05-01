@@ -11,7 +11,55 @@ import (
 const (
 	defaultPinnedMaxChars     = 4000
 	defaultPinnedMaxItemChars = 1000
+	defaultPinnedFileName     = "memory.md"
 )
+
+var (
+	getwd   = os.Getwd
+	stat    = os.Stat
+	readDir = os.ReadDir
+)
+
+func AutoPinnedFiles() ([]string, error) {
+	root, err := getwd()
+	if err != nil {
+		return nil, fmt.Errorf("resolve workspace root: %w", err)
+	}
+	return autoPinnedFilesFromRoot(root)
+}
+
+func autoPinnedFilesFromRoot(root string) ([]string, error) {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return nil, nil
+	}
+
+	info, err := stat(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("stat workspace root %q: %w", root, err)
+	}
+	if !info.IsDir() {
+		return nil, nil
+	}
+
+	entries, err := readDir(root)
+	if err != nil {
+		return nil, fmt.Errorf("read workspace root %q: %w", root, err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.EqualFold(entry.Name(), defaultPinnedFileName) {
+			return []string{filepath.Join(root, entry.Name())}, nil
+		}
+	}
+
+	return nil, nil
+}
 
 func normalizePinnedOptions(opts PinnedOptions) PinnedOptions {
 	opts.Files = cleanPinnedFiles(opts.Files)

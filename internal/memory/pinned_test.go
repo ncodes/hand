@@ -10,6 +10,100 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAutoPinnedFilesUsesWorkingDirectory(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "memory.md")
+	require.NoError(t, os.WriteFile(file, []byte("remember this"), 0o600))
+
+	previous := getwd
+	t.Cleanup(func() {
+		getwd = previous
+	})
+	getwd = func() (string, error) {
+		return dir, nil
+	}
+
+	files, err := AutoPinnedFiles()
+	require.NoError(t, err)
+	require.Equal(t, []string{file}, files)
+}
+
+func TestAutoPinnedFilesReturnsWorkingDirectoryError(t *testing.T) {
+	cwdErr := errors.New("cwd failed")
+	previous := getwd
+	t.Cleanup(func() {
+		getwd = previous
+	})
+	getwd = func() (string, error) {
+		return "", cwdErr
+	}
+
+	files, err := AutoPinnedFiles()
+	require.ErrorIs(t, err, cwdErr)
+	require.Empty(t, files)
+}
+
+func TestAutoPinnedFilesFromRoot(t *testing.T) {
+	t.Run("empty root returns no files", func(t *testing.T) {
+		require.Empty(t, mustAutoPinnedFilesFromRoot(t, ""))
+	})
+
+	t.Run("missing root returns no files", func(t *testing.T) {
+		require.Empty(t, mustAutoPinnedFilesFromRoot(t, filepath.Join(t.TempDir(), "missing")))
+	})
+
+	t.Run("file root returns no files", func(t *testing.T) {
+		file := filepath.Join(t.TempDir(), "not-root")
+		require.NoError(t, os.WriteFile(file, []byte("not a dir"), 0o600))
+		require.Empty(t, mustAutoPinnedFilesFromRoot(t, file))
+	})
+
+	t.Run("stat error is returned", func(t *testing.T) {
+		statErr := errors.New("stat failed")
+		previous := stat
+		t.Cleanup(func() {
+			stat = previous
+		})
+		stat = func(string) (os.FileInfo, error) {
+			return nil, statErr
+		}
+
+		files, err := autoPinnedFilesFromRoot(t.TempDir())
+		require.ErrorIs(t, err, statErr)
+		require.Contains(t, err.Error(), "stat workspace root")
+		require.Empty(t, files)
+	})
+
+	t.Run("read directory error is returned", func(t *testing.T) {
+		readErr := errors.New("read failed")
+		previous := readDir
+		t.Cleanup(func() {
+			readDir = previous
+		})
+		readDir = func(string) ([]os.DirEntry, error) {
+			return nil, readErr
+		}
+
+		files, err := autoPinnedFilesFromRoot(t.TempDir())
+		require.ErrorIs(t, err, readErr)
+		require.Contains(t, err.Error(), "read workspace root")
+		require.Empty(t, files)
+	})
+
+	t.Run("directory named memory file is ignored", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.Mkdir(filepath.Join(dir, "memory.md"), 0o700))
+		require.Empty(t, mustAutoPinnedFilesFromRoot(t, dir))
+	})
+
+	t.Run("memory file match is case insensitive", func(t *testing.T) {
+		dir := t.TempDir()
+		file := filepath.Join(dir, "MEMORY.md")
+		require.NoError(t, os.WriteFile(file, []byte("remember this"), 0o600))
+		require.Equal(t, []string{file}, mustAutoPinnedFilesFromRoot(t, dir))
+	})
+}
+
 func TestNormalizePinnedOptions(t *testing.T) {
 	enabled := true
 
@@ -271,4 +365,12 @@ func TestTruncateRunes(t *testing.T) {
 	require.Empty(t, truncateRunes("hello", 0))
 	require.Equal(t, "hé", truncateRunes("héllo", 2))
 	require.Equal(t, "short", truncateRunes("short", 10))
+}
+
+func mustAutoPinnedFilesFromRoot(t *testing.T, root string) []string {
+	t.Helper()
+
+	files, err := autoPinnedFilesFromRoot(root)
+	require.NoError(t, err)
+	return files
 }

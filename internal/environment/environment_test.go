@@ -236,6 +236,44 @@ func TestEnvironment_PrepareConfiguresPinnedMemoryOptions(t *testing.T) {
 	require.Equal(t, "Always use pnpm", items[0].Text)
 }
 
+func TestEnvironment_PrepareAutoLoadsWorkspaceMemoryFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "memory.md"), []byte("Always write focused tests"), 0o600))
+	configuredFile := filepath.Join(dir, "pinned.md")
+	require.NoError(t, os.WriteFile(configuredFile, []byte("Use pnpm"), 0o600))
+
+	store := memorystore.NewStore()
+	manager, err := statemanager.NewManager(store, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	enabled := true
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name: "Test Agent",
+		Memory: config.MemoryConfig{
+			Enabled:  &enabled,
+			Provider: memory.ProviderDefaultMemory,
+			Pinned: config.PinnedMemoryConfig{
+				Files: []string{configuredFile},
+			},
+		},
+		Debug: config.DebugConfig{TraceDir: t.TempDir()},
+	})
+	env.SetStateManager(manager)
+
+	require.NoError(t, env.Prepare())
+	pinned, ok := env.MemoryProvider().(memory.PinnedProvider)
+	require.True(t, ok)
+
+	items, err := pinned.LoadPinned(gctx.Background(), memory.SearchQuery{})
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	require.Equal(t, "memory.md", items[0].Title)
+	require.Equal(t, "Always write focused tests", items[0].Text)
+	require.Equal(t, "pinned.md", items[1].Title)
+	require.Equal(t, "Use pnpm", items[1].Text)
+}
+
 func TestEnvironment_PrepareConfiguresDefaultMemoryProviderWithMemoryBackend(t *testing.T) {
 	store := memorystore.NewStore()
 	manager, err := statemanager.NewManager(store, time.Hour, 24*time.Hour)
