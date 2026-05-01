@@ -6,7 +6,7 @@ import (
 	"github.com/wandxy/hand/internal/agent"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
-	statevector "github.com/wandxy/hand/internal/state/vector"
+	"github.com/wandxy/hand/internal/state/search"
 )
 
 type AgentServiceStub struct {
@@ -25,7 +25,7 @@ type AgentServiceStub struct {
 	CurrentSessionID string
 	CompactResult    rpcclient.CompactSessionResult
 	RepairOptions    agent.RepairSessionOptions
-	RepairResult     statevector.VectorRepairResult
+	RepairResult     search.VectorRepairResult
 	SummaryResult    storage.SessionSummary
 	StatusResult     rpcclient.ContextStatus
 }

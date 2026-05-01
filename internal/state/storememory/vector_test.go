@@ -12,9 +12,7 @@ import (
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 	base "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/indexing"
-	"github.com/wandxy/hand/internal/state/retrieval"
-	statevector "github.com/wandxy/hand/internal/state/vector"
+	"github.com/wandxy/hand/internal/state/search"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -25,18 +23,18 @@ func init() {
 func TestStore_ConfigureVectorStore(t *testing.T) {
 	t.Run("rejects nil store", func(t *testing.T) {
 		var nilStore *Store
-		require.EqualError(t, nilStore.ConfigureVectorStore(statevector.VectorStoreOptions{}), "store is required")
+		require.EqualError(t, nilStore.ConfigureVectorStore(search.VectorStoreOptions{}), "store is required")
 	})
 
 	t.Run("clears vector config when options are empty", func(t *testing.T) {
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{}))
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{}))
 		require.Nil(t, store.vectors)
 	})
 
 	t.Run("requires embedder", func(t *testing.T) {
 		store := NewStore()
-		require.EqualError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.EqualError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			VectorStore:    &memoryTestVectorStore{},
 			EmbeddingModel: "model",
 		}), "vector store embedding provider is required")
@@ -44,7 +42,7 @@ func TestStore_ConfigureVectorStore(t *testing.T) {
 
 	t.Run("requires vector store", func(t *testing.T) {
 		store := NewStore()
-		require.EqualError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.EqualError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			EmbeddingModel: "model",
 		}), "vector store is required")
@@ -52,7 +50,7 @@ func TestStore_ConfigureVectorStore(t *testing.T) {
 
 	t.Run("requires embedding model", func(t *testing.T) {
 		store := NewStore()
-		require.EqualError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.EqualError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:    semanticTestEmbedder{},
 			VectorStore: &memoryTestVectorStore{},
 		}), "vector store embedding model is required")
@@ -60,7 +58,7 @@ func TestStore_ConfigureVectorStore(t *testing.T) {
 
 	t.Run("rejects negative rerank candidate limit", func(t *testing.T) {
 		store := NewStore()
-		require.EqualError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.EqualError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:            semanticTestEmbedder{},
 			VectorStore:         &memoryTestVectorStore{},
 			EmbeddingModel:      "model",
@@ -70,7 +68,7 @@ func TestStore_ConfigureVectorStore(t *testing.T) {
 
 	t.Run("rejects invalid reranker", func(t *testing.T) {
 		store := NewStore()
-		require.EqualError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.EqualError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			Reranker:       invalidNameReranker{},
 			VectorStore:    &memoryTestVectorStore{},
@@ -82,7 +80,7 @@ func TestStore_ConfigureVectorStore(t *testing.T) {
 func TestStore_SearchMessages(t *testing.T) {
 	t.Run("returns embedder errors", func(t *testing.T) {
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       failingEmbedder{err: errors.New("embed failed")},
 			VectorStore:    &memoryTestVectorStore{},
 			EmbeddingModel: "model",
@@ -97,7 +95,7 @@ func TestStore_SearchMessages(t *testing.T) {
 
 	t.Run("returns embedding validation errors", func(t *testing.T) {
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       malformedEmbedder{},
 			VectorStore:    &memoryTestVectorStore{},
 			EmbeddingModel: "model",
@@ -112,7 +110,7 @@ func TestStore_SearchMessages(t *testing.T) {
 
 	t.Run("returns vector store errors", func(t *testing.T) {
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    &memoryTestVectorStore{searchErr: errors.New("search failed")},
 			EmbeddingModel: "semantic-test",
@@ -130,7 +128,7 @@ func TestStore_AppendMessages(t *testing.T) {
 	t.Run("returns required vector upsert errors", func(t *testing.T) {
 		store := NewStore()
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    &memoryTestVectorStore{upsertErr: errors.New("upsert failed")},
 			EmbeddingModel: "semantic-test",
@@ -149,7 +147,7 @@ func TestStore_ClearMessages(t *testing.T) {
 	t.Run("returns required vector delete errors", func(t *testing.T) {
 		store := NewStore()
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
-		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    &memoryTestVectorStore{deleteErr: errors.New("delete failed")},
 			EmbeddingModel: "semantic-test",
@@ -194,13 +192,13 @@ func TestLexicalScore(t *testing.T) {
 
 func TestSearchRerankResultName(t *testing.T) {
 	t.Run("uses fallback when result name is empty", func(t *testing.T) {
-		require.Equal(t, "fallback", searchRerankResultName(retrieval.RerankResult{}, "fallback"))
+		require.Equal(t, "fallback", searchRerankResultName(search.RerankResult{}, "fallback"))
 	})
 }
 
 func TestStore_RerankerName(t *testing.T) {
 	t.Run("defaults to deterministic", func(t *testing.T) {
-		require.Equal(t, retrieval.RerankerDeterministic, (*Store)(nil).rerankerName())
+		require.Equal(t, search.RerankerDeterministic, (*Store)(nil).rerankerName())
 	})
 }
 
@@ -216,7 +214,7 @@ func TestSearchResultsFromCandidates(t *testing.T) {
 
 	t.Run("applies result limits", func(t *testing.T) {
 		results := searchResultsFromCandidates([]*searchCandidate{{
-			CandidateMatch: indexing.CandidateMatch{
+			CandidateMatch: search.CandidateMatch{
 				SessionID:   testSessionA,
 				VectorRank:  1,
 				HasVector:   true,
@@ -224,7 +222,7 @@ func TestSearchResultsFromCandidates(t *testing.T) {
 			},
 			Message: handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "body a", CreatedAt: now},
 		}, {
-			CandidateMatch: indexing.CandidateMatch{
+			CandidateMatch: search.CandidateMatch{
 				SessionID:   testSessionB,
 				VectorRank:  2,
 				HasVector:   true,
@@ -242,10 +240,10 @@ func TestSearchResultsFromCandidates(t *testing.T) {
 
 	t.Run("result ordering prefers newest session match when scores tie", func(t *testing.T) {
 		results := searchResultsFromCandidates([]*searchCandidate{{
-			CandidateMatch: indexing.CandidateMatch{SessionID: testSessionB, FusedScore: 1},
+			CandidateMatch: search.CandidateMatch{SessionID: testSessionB, FusedScore: 1},
 			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "newer", CreatedAt: now},
 		}, {
-			CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
+			CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
 			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "older", CreatedAt: older},
 		}}, base.SearchMessageOptions{})
 		require.Equal(t, testSessionB, results[0].SessionID)
@@ -253,10 +251,10 @@ func TestSearchResultsFromCandidates(t *testing.T) {
 
 	t.Run("result ordering uses session id as final tie break", func(t *testing.T) {
 		results := searchResultsFromCandidates([]*searchCandidate{{
-			CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
+			CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
 			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "a", CreatedAt: now},
 		}, {
-			CandidateMatch: indexing.CandidateMatch{SessionID: testSessionB, FusedScore: 1},
+			CandidateMatch: search.CandidateMatch{SessionID: testSessionB, FusedScore: 1},
 			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "b", CreatedAt: now},
 		}}, base.SearchMessageOptions{})
 		require.Equal(t, testSessionA, results[0].SessionID)
@@ -264,10 +262,10 @@ func TestSearchResultsFromCandidates(t *testing.T) {
 
 	t.Run("message limit preserves total match count", func(t *testing.T) {
 		results := searchResultsFromCandidates([]*searchCandidate{{
-			CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, FusedScore: 2},
+			CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 2},
 			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "newer", CreatedAt: now},
 		}, {
-			CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
+			CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
 			Message:        handmsg.Message{ID: 2, Role: handmsg.RoleUser, Content: "older", CreatedAt: older},
 		}}, base.SearchMessageOptions{MaxMessagesPerSession: 1})
 		require.Len(t, results[0].Messages, 1)
@@ -281,40 +279,40 @@ func TestCompareSearchCandidates(t *testing.T) {
 	older := now.Add(-time.Minute)
 
 	t.Run("orders message ids descending", func(t *testing.T) {
-		left := &searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}}
-		right := &searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 2, CreatedAt: now}}
+		left := &searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}}
+		right := &searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 2, CreatedAt: now}}
 		require.Greater(t, compareSearchCandidates(left, right), 0)
 		require.Less(t, compareSearchCandidates(right, left), 0)
 	})
 
 	t.Run("covers score time session and equality ties", func(t *testing.T) {
 		require.Equal(t, 0, compareSearchCandidates(
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
 		))
 		require.Less(t, compareSearchCandidates(
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, FusedScore: 2}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, FusedScore: 1}, Message: handmsg.Message{ID: 2, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 2}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1}, Message: handmsg.Message{ID: 2, CreatedAt: now}},
 		), 0)
 		require.Greater(t, compareSearchCandidates(
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, FusedScore: 1}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, FusedScore: 2}, Message: handmsg.Message{ID: 2, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 2}, Message: handmsg.Message{ID: 2, CreatedAt: now}},
 		), 0)
 		require.Greater(t, compareSearchCandidates(
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: older}},
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 2, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: older}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 2, CreatedAt: now}},
 		), 0)
 		require.Less(t, compareSearchCandidates(
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 2, CreatedAt: older}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 2, CreatedAt: older}},
 		), 0)
 		require.Less(t, compareSearchCandidates(
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionB}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionB}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
 		), 0)
 		require.Greater(t, compareSearchCandidates(
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionB}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionB}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA}, Message: handmsg.Message{ID: 1, CreatedAt: now}},
 		), 0)
 	})
 }
@@ -322,7 +320,7 @@ func TestCompareSearchCandidates(t *testing.T) {
 func TestRetrievalCandidateFromSearchCandidate(t *testing.T) {
 	t.Run("falls back to message content", func(t *testing.T) {
 		candidate := retrievalCandidateFromSearchCandidate(&searchCandidate{
-			CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA},
+			CandidateMatch: search.CandidateMatch{SessionID: testSessionA},
 			Message:        handmsg.Message{ID: 3, Role: handmsg.RoleUser, Content: "fallback text", CreatedAt: time.Now().UTC()},
 		})
 		require.Equal(t, "fallback text", candidate.Text)
@@ -346,7 +344,7 @@ func TestStore_SearchMessagesLexicalCandidates(t *testing.T) {
 
 		candidates := store.searchMessagesLexicalCandidates(testSessionA, base.SearchMessageOptions{Query: "needle"}, "needle", 1)
 		require.Len(t, candidates, 1)
-		require.Contains(t, candidates, statevector.SourceIDForMessage(testSessionA, 2))
+		require.Contains(t, candidates, search.SourceIDForMessage(testSessionA, 2))
 	})
 
 	t.Run("cross session lexical candidates respect limit", func(t *testing.T) {
@@ -378,8 +376,8 @@ func TestStore_SearchMessagesLexicalCandidates(t *testing.T) {
 
 		candidates := store.searchMessagesLexicalCandidates(testSessionA, base.SearchMessageOptions{Query: "needle"}, "needle", 1)
 		require.Len(t, candidates, 1)
-		require.Contains(t, candidates, statevector.SourceIDForMessage(testSessionA, 2))
-		require.NotContains(t, candidates, statevector.SourceIDForMessage(testSessionA, 1))
+		require.Contains(t, candidates, search.SourceIDForMessage(testSessionA, 2))
+		require.NotContains(t, candidates, search.SourceIDForMessage(testSessionA, 1))
 	})
 }
 
@@ -401,41 +399,41 @@ func TestStore_VectorMatchesToCandidates(t *testing.T) {
 	}
 
 	t.Run("skips malformed source ids", func(t *testing.T) {
-		candidates := newStore(t).vectorMatchesToCandidates(testSessionA, base.SearchMessageOptions{}, []retrieval.VectorSearchMatch{
-			{Record: retrieval.VectorRecord{SourceID: "invalid"}},
+		candidates := newStore(t).vectorMatchesToCandidates(testSessionA, base.SearchMessageOptions{}, []search.VectorSearchMatch{
+			{Record: search.VectorRecord{SourceID: "invalid"}},
 		})
 		require.Empty(t, candidates)
 	})
 
 	t.Run("skips missing messages", func(t *testing.T) {
-		candidates := newStore(t).vectorMatchesToCandidates(testSessionA, base.SearchMessageOptions{}, []retrieval.VectorSearchMatch{{
-			Record: retrieval.VectorRecord{
-				ID:       retrieval.StableSessionMessageID(testSessionA, 99) + ":row:1",
-				SourceID: retrieval.StableSessionMessageID(testSessionA, 99),
+		candidates := newStore(t).vectorMatchesToCandidates(testSessionA, base.SearchMessageOptions{}, []search.VectorSearchMatch{{
+			Record: search.VectorRecord{
+				ID:       search.StableSessionMessageID(testSessionA, 99) + ":row:1",
+				SourceID: search.StableSessionMessageID(testSessionA, 99),
 			},
 		}})
 		require.Empty(t, candidates)
 	})
 
 	t.Run("skips invalid vector row ids", func(t *testing.T) {
-		candidates := newStore(t).vectorMatchesToCandidates(testSessionA, base.SearchMessageOptions{}, []retrieval.VectorSearchMatch{{
-			Record: retrieval.VectorRecord{
-				ID:       retrieval.StableSessionMessageID(testSessionA, 1) + ":row:99",
-				SourceID: retrieval.StableSessionMessageID(testSessionA, 1),
+		candidates := newStore(t).vectorMatchesToCandidates(testSessionA, base.SearchMessageOptions{}, []search.VectorSearchMatch{{
+			Record: search.VectorRecord{
+				ID:       search.StableSessionMessageID(testSessionA, 1) + ":row:99",
+				SourceID: search.StableSessionMessageID(testSessionA, 1),
 			},
 		}})
 		require.Empty(t, candidates)
 	})
 
 	t.Run("deduplicates repeated message matches", func(t *testing.T) {
-		candidates := newStore(t).vectorMatchesToCandidates(testSessionA, base.SearchMessageOptions{}, []retrieval.VectorSearchMatch{
-			{Record: retrieval.VectorRecord{
-				ID:       retrieval.StableSessionMessageID(testSessionA, 1) + ":row:1",
-				SourceID: retrieval.StableSessionMessageID(testSessionA, 1),
+		candidates := newStore(t).vectorMatchesToCandidates(testSessionA, base.SearchMessageOptions{}, []search.VectorSearchMatch{
+			{Record: search.VectorRecord{
+				ID:       search.StableSessionMessageID(testSessionA, 1) + ":row:1",
+				SourceID: search.StableSessionMessageID(testSessionA, 1),
 			}},
-			{Record: retrieval.VectorRecord{
-				ID:       retrieval.StableSessionMessageID(testSessionA, 1) + ":row:1",
-				SourceID: retrieval.StableSessionMessageID(testSessionA, 1),
+			{Record: search.VectorRecord{
+				ID:       search.StableSessionMessageID(testSessionA, 1) + ":row:1",
+				SourceID: search.StableSessionMessageID(testSessionA, 1),
 			}},
 		})
 		require.Len(t, candidates, 1)
@@ -445,7 +443,7 @@ func TestStore_VectorMatchesToCandidates(t *testing.T) {
 func TestStore_IndexVectors(t *testing.T) {
 	t.Run("skips empty inputs", func(t *testing.T) {
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       failingEmbedder{err: errors.New("should not embed")},
 			VectorStore:    &memoryTestVectorStore{},
 			EmbeddingModel: "model",
@@ -460,7 +458,7 @@ func TestStore_IndexVectors(t *testing.T) {
 
 	t.Run("returns embedder errors", func(t *testing.T) {
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       failingEmbedder{err: errors.New("embed failed")},
 			VectorStore:    &memoryTestVectorStore{},
 			EmbeddingModel: "model",
@@ -475,7 +473,7 @@ func TestStore_IndexVectors(t *testing.T) {
 
 	t.Run("returns embedding validation errors", func(t *testing.T) {
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       malformedEmbedder{},
 			VectorStore:    &memoryTestVectorStore{},
 			EmbeddingModel: "model",
@@ -492,7 +490,7 @@ func TestStore_IndexVectors(t *testing.T) {
 func TestStore_DeleteVectorRows(t *testing.T) {
 	t.Run("skips empty inputs", func(t *testing.T) {
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    &memoryTestVectorStore{},
 			EmbeddingModel: "semantic-test",
@@ -509,7 +507,7 @@ func TestSearchCandidateSet_Merge(t *testing.T) {
 	t.Run("ignores nil candidates and adds vector only candidates", func(t *testing.T) {
 		candidates := searchCandidateSet{}
 		candidates.Merge([]*searchCandidate{nil, {
-			CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA},
+			CandidateMatch: search.CandidateMatch{SessionID: testSessionA},
 			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "vector"},
 		}}, searchCandidateKey)
 		require.Len(t, candidates, 1)
@@ -517,13 +515,13 @@ func TestSearchCandidateSet_Merge(t *testing.T) {
 
 	t.Run("adds vector evidence to lexical candidate", func(t *testing.T) {
 		candidates := searchCandidateSet{
-			statevector.SourceIDForMessage(testSessionA, 1): {
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA},
+			search.SourceIDForMessage(testSessionA, 1): {
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA},
 				Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "lexical"},
 			},
 		}
 		candidates.Merge([]*searchCandidate{{
-			CandidateMatch: indexing.CandidateMatch{
+			CandidateMatch: search.CandidateMatch{
 				SessionID:       testSessionA,
 				MatchedText:     "vector text",
 				MatchedToolName: "tool",
@@ -532,20 +530,20 @@ func TestSearchCandidateSet_Merge(t *testing.T) {
 			},
 			Message: handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "vector"},
 		}}, searchCandidateKey)
-		require.Equal(t, "vector text", candidates[statevector.SourceIDForMessage(testSessionA, 1)].MatchedText)
+		require.Equal(t, "vector text", candidates[search.SourceIDForMessage(testSessionA, 1)].MatchedText)
 	})
 }
 
 func TestStore_RerankSearchCandidates(t *testing.T) {
 	t.Run("falls back when configured reranker fails", func(t *testing.T) {
 		candidates := searchCandidateSet{
-			statevector.SourceIDForMessage(testSessionA, 1): {
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA},
+			search.SourceIDForMessage(testSessionA, 1): {
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA},
 				Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "lexical"},
 			},
 		}
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			Reranker:       failingReranker{},
 			VectorStore:    &memoryTestVectorStore{},
@@ -558,7 +556,7 @@ func TestStore_RerankSearchCandidates(t *testing.T) {
 
 	t.Run("defaults to deterministic and respects max candidates", func(t *testing.T) {
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    &memoryTestVectorStore{},
 			EmbeddingModel: "semantic-test",
@@ -566,12 +564,12 @@ func TestStore_RerankSearchCandidates(t *testing.T) {
 		store.vectors.Reranker = nil
 		store.vectors.RerankMax = 1
 		candidates := searchCandidateSet{
-			statevector.SourceIDForMessage(testSessionA, 1): {
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA},
+			search.SourceIDForMessage(testSessionA, 1): {
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA},
 				Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "first"},
 			},
-			statevector.SourceIDForMessage(testSessionA, 2): {
-				CandidateMatch: indexing.CandidateMatch{
+			search.SourceIDForMessage(testSessionA, 2): {
+				CandidateMatch: search.CandidateMatch{
 					SessionID:  testSessionA,
 					VectorRank: 2,
 					HasVector:  true,
@@ -591,14 +589,14 @@ func TestStore_RerankSearchCandidates(t *testing.T) {
 
 	t.Run("returns sorted items when fallback fails", func(t *testing.T) {
 		store := NewStore()
-		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    &memoryTestVectorStore{},
 			EmbeddingModel: "semantic-test",
 		}))
 		badCandidates := searchCandidateSet{
-			statevector.SourceIDForMessage(testSessionA, 3): {
-				CandidateMatch: indexing.CandidateMatch{
+			search.SourceIDForMessage(testSessionA, 3): {
+				CandidateMatch: search.CandidateMatch{
 					SessionID:    testSessionA,
 					LexicalScore: math.NaN(),
 					LexicalRank:  1,
@@ -644,7 +642,7 @@ func TestStore_LogCandidateDiagnostics(t *testing.T) {
 	t.Run("logs ranked candidates", func(t *testing.T) {
 		store := NewStore()
 		store.logCandidateDiagnostics("ignored", nil)
-		require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 			Embedder:       semanticTestEmbedder{},
 			VectorStore:    &memoryTestVectorStore{},
 			EmbeddingModel: "semantic-test",
@@ -652,7 +650,7 @@ func TestStore_LogCandidateDiagnostics(t *testing.T) {
 		}))
 
 		store.logCandidateDiagnostics("candidate merged", []*searchCandidate{{
-			CandidateMatch: indexing.CandidateMatch{
+			CandidateMatch: search.CandidateMatch{
 				SessionID:       testSessionA,
 				MatchedToolName: "session_search",
 				LexicalRank:     1,
@@ -681,21 +679,21 @@ func (invalidNameReranker) Name() string {
 type failingReranker struct{}
 
 func (failingReranker) Name() string {
-	return retrieval.RerankerLLM
+	return search.RerankerLLM
 }
 
 func (failingReranker) Rerank(
 	context.Context,
-	retrieval.RerankRequest,
-) (retrieval.RerankResult, error) {
-	return retrieval.RerankResult{}, errors.New("rerank failed")
+	search.RerankRequest,
+) (search.RerankResult, error) {
+	return search.RerankResult{}, errors.New("rerank failed")
 }
 
 func (invalidNameReranker) Rerank(
 	context.Context,
-	retrieval.RerankRequest,
-) (retrieval.RerankResult, error) {
-	return retrieval.RerankResult{}, nil
+	search.RerankRequest,
+) (search.RerankResult, error) {
+	return search.RerankResult{}, nil
 }
 
 type failingEmbedder struct {
@@ -704,18 +702,18 @@ type failingEmbedder struct {
 
 func (e failingEmbedder) Embed(
 	context.Context,
-	retrieval.EmbeddingRequest,
-) (retrieval.EmbeddingResult, error) {
-	return retrieval.EmbeddingResult{}, e.err
+	search.EmbeddingRequest,
+) (search.EmbeddingResult, error) {
+	return search.EmbeddingResult{}, e.err
 }
 
 type malformedEmbedder struct{}
 
 func (malformedEmbedder) Embed(
 	context.Context,
-	retrieval.EmbeddingRequest,
-) (retrieval.EmbeddingResult, error) {
-	return retrieval.EmbeddingResult{Model: "model", Dimensions: 2}, nil
+	search.EmbeddingRequest,
+) (search.EmbeddingResult, error) {
+	return search.EmbeddingResult{Model: "model", Dimensions: 2}, nil
 }
 
 type memoryTestVectorStore struct {
@@ -724,21 +722,21 @@ type memoryTestVectorStore struct {
 	searchErr error
 }
 
-func (s *memoryTestVectorStore) Upsert(context.Context, []retrieval.VectorRecord) error {
+func (s *memoryTestVectorStore) Upsert(context.Context, []search.VectorRecord) error {
 	return s.upsertErr
 }
 
-func (s *memoryTestVectorStore) Delete(context.Context, retrieval.VectorDeleteRequest) error {
+func (s *memoryTestVectorStore) Delete(context.Context, search.VectorDeleteRequest) error {
 	return s.deleteErr
 }
 
 func (s *memoryTestVectorStore) Search(
 	context.Context,
-	retrieval.VectorSearchRequest,
-) (retrieval.VectorSearchResult, error) {
-	return retrieval.VectorSearchResult{}, s.searchErr
+	search.VectorSearchRequest,
+) (search.VectorSearchResult, error) {
+	return search.VectorSearchResult{}, s.searchErr
 }
 
-func (s *memoryTestVectorStore) Metadata(context.Context) (retrieval.VectorStoreMetadata, error) {
-	return retrieval.VectorStoreMetadata{}, nil
+func (s *memoryTestVectorStore) Metadata(context.Context) (search.VectorStoreMetadata, error) {
+	return search.VectorStoreMetadata{}, nil
 }

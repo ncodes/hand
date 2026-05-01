@@ -10,9 +10,8 @@ import (
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 	base "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/retrieval"
-	statevector "github.com/wandxy/hand/internal/state/vector"
-	vectormemory "github.com/wandxy/hand/internal/state/vector/memory"
+	"github.com/wandxy/hand/internal/state/search"
+	vectormemory "github.com/wandxy/hand/internal/state/search/vectorstore/memory"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
@@ -654,7 +653,7 @@ func TestMemoryStore_VectorLifecycleRemovesRows(t *testing.T) {
 func TestMemoryStore_VectorSearchUsesConfiguredReranker(t *testing.T) {
 	store := NewStore()
 	now := time.Now().UTC()
-	require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+	require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 		Embedder:            semanticTestEmbedder{},
 		Reranker:            preferBillingTestReranker{},
 		VectorStore:         vectormemory.NewStore(),
@@ -709,9 +708,9 @@ func newVectorMemoryStore(t *testing.T, enableRerank *bool) *Store {
 	t.Helper()
 
 	store := NewStore()
-	require.NoError(t, store.ConfigureVectorStore(statevector.VectorStoreOptions{
+	require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
 		Embedder:            semanticTestEmbedder{},
-		Reranker:            retrieval.DeterministicReranker{},
+		Reranker:            search.DeterministicReranker{},
 		VectorStore:         vectormemory.NewStore(),
 		EnableRerank:        enableRerank,
 		EmbeddingModel:      "semantic-test",
@@ -726,9 +725,9 @@ type semanticTestEmbedder struct{}
 
 func (semanticTestEmbedder) Embed(
 	_ context.Context,
-	req retrieval.EmbeddingRequest,
-) (retrieval.EmbeddingResult, error) {
-	items := make([]retrieval.Embedding, 0, len(req.Inputs))
+	req search.EmbeddingRequest,
+) (search.EmbeddingResult, error) {
+	items := make([]search.Embedding, 0, len(req.Inputs))
 	for _, input := range req.Inputs {
 		vector := []float64{0.1, 0.9}
 		text := strings.ToLower(input.Text)
@@ -738,14 +737,14 @@ func (semanticTestEmbedder) Embed(
 			strings.Contains(text, "prevention") {
 			vector = []float64{1, 0}
 		}
-		items = append(items, retrieval.Embedding{
+		items = append(items, search.Embedding{
 			ID:          input.ID,
-			ContentHash: retrieval.VectorContentHash(input.Text),
+			ContentHash: search.VectorContentHash(input.Text),
 			Vector:      vector,
 		})
 	}
 
-	return retrieval.EmbeddingResult{
+	return search.EmbeddingResult{
 		Model:      req.Model,
 		Items:      items,
 		Dimensions: 2,
@@ -755,17 +754,17 @@ func (semanticTestEmbedder) Embed(
 type preferBillingTestReranker struct{}
 
 func (preferBillingTestReranker) Name() string {
-	return retrieval.RerankerLLM
+	return search.RerankerLLM
 }
 
 func (preferBillingTestReranker) Rerank(
 	_ context.Context,
-	req retrieval.RerankRequest,
-) (retrieval.RerankResult, error) {
-	var preferred []retrieval.RerankItem
-	var remaining []retrieval.RerankItem
+	req search.RerankRequest,
+) (search.RerankResult, error) {
+	var preferred []search.RerankItem
+	var remaining []search.RerankItem
 	for _, candidate := range req.Candidates {
-		item := retrieval.RerankItem{CandidateID: candidate.ID, Score: 0.1}
+		item := search.RerankItem{CandidateID: candidate.ID, Score: 0.1}
 		if strings.Contains(strings.ToLower(candidate.Text), "billing") {
 			item.Score = 1
 			preferred = append(preferred, item)
@@ -775,7 +774,7 @@ func (preferBillingTestReranker) Rerank(
 	}
 
 	items := append(preferred, remaining...)
-	return retrieval.RerankResult{Reranker: retrieval.RerankerLLM, Items: items}, nil
+	return search.RerankResult{Reranker: search.RerankerLLM, Items: items}, nil
 }
 
 func TestMemoryStore_GetMessagesSupportsDescendingOrder(t *testing.T) {

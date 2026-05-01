@@ -49,7 +49,7 @@ func TestPreloadEnvFile_LoadsValues(t *testing.T) {
 	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY", "HAND_OPENROUTER_API_KEY",
 		"HAND_MODEL_BASE_URL", "HAND_MODEL_API_MODE", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS", "HAND_LOG_LEVEL",
 		"HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS", "HAND_RULES_FILES", "HAND_SESSION_INSTRUCT", "HAND_PLATFORM", "HAND_CAP_FS", "HAND_CAP_NET",
-		"HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER")
+		"HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER", "HAND_MEMORY_BACKEND")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -76,7 +76,8 @@ HAND_CAP_EXEC=false
 HAND_CAP_MEM=false
 HAND_CAP_BROWSER=true
 HAND_MEMORY_ENABLED=true
-HAND_MEMORY_PROVIDER=memory
+HAND_MEMORY_PROVIDER=default-memory
+HAND_MEMORY_BACKEND=memory
 `), 0o600))
 
 	require.NoError(t, PreloadEnvFile(envPath))
@@ -102,7 +103,8 @@ HAND_MEMORY_PROVIDER=memory
 	require.Equal(t, "false", os.Getenv("HAND_CAP_MEM"))
 	require.Equal(t, "true", os.Getenv("HAND_CAP_BROWSER"))
 	require.Equal(t, "true", os.Getenv("HAND_MEMORY_ENABLED"))
-	require.Equal(t, "memory", os.Getenv("HAND_MEMORY_PROVIDER"))
+	require.Equal(t, "default-memory", os.Getenv("HAND_MEMORY_PROVIDER"))
+	require.Equal(t, "memory", os.Getenv("HAND_MEMORY_BACKEND"))
 }
 
 func TestPreloadEnvFile_DoesNotOverrideShellEnv(t *testing.T) {
@@ -182,7 +184,8 @@ func TestLoad_UsesConfigFileValues(t *testing.T) {
 		"HAND_WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "HAND_WEB_EXTRACT_MAX_SUMMARY_CHARS",
 		"HAND_WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "HAND_WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
 		"HAND_DEBUG_REQUESTS", "HAND_RULES_FILES", "HAND_SESSION_INSTRUCT", "HAND_PLATFORM", "HAND_CAP_FS",
-		"HAND_CAP_NET", "HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER")
+		"HAND_CAP_NET", "HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER",
+		"HAND_MEMORY_BACKEND")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -210,7 +213,8 @@ cap:
 platform: desktop
 memory:
   enabled: true
-  provider: memory
+  provider: default-memory
+  backend: memory
 log:
   level: error
   noColor: true
@@ -286,7 +290,8 @@ rules:
 	require.Equal(t, "be terse", cfg.Session.Instruct)
 	require.Equal(t, "desktop", cfg.Platform)
 	require.True(t, cfg.MemoryEnabled())
-	require.Equal(t, "memory", cfg.Memory.Provider)
+	require.Equal(t, "default-memory", cfg.Memory.Provider)
+	require.Equal(t, "memory", cfg.Memory.Backend)
 	require.False(t, boolValue(cfg.Cap.Filesystem))
 	require.False(t, boolValue(cfg.Cap.Network))
 	require.False(t, boolValue(cfg.Cap.Exec))
@@ -308,7 +313,8 @@ func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 		"HAND_WEB_EXTRACT_MIN_SUMMARIZE_CHARS", "HAND_WEB_EXTRACT_MAX_SUMMARY_CHARS",
 		"HAND_WEB_EXTRACT_MAX_SUMMARY_CHUNK_CHARS", "HAND_WEB_EXTRACT_REFUSAL_THRESHOLD_CHARS",
 		"HAND_DEBUG_REQUESTS", "HAND_RULES_FILES", "HAND_SESSION_INSTRUCT", "HAND_PLATFORM", "HAND_CAP_FS",
-		"HAND_CAP_NET", "HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER")
+		"HAND_CAP_NET", "HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER",
+		"HAND_MEMORY_BACKEND")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -353,7 +359,8 @@ HAND_CAP_EXEC=true
 HAND_CAP_MEM=true
 HAND_CAP_BROWSER=false
 HAND_MEMORY_ENABLED=false
-HAND_MEMORY_PROVIDER=noop
+HAND_MEMORY_PROVIDER=default-memory
+HAND_MEMORY_BACKEND=sqlite
 `), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
@@ -437,7 +444,8 @@ rules:
 	require.True(t, boolValue(cfg.Cap.Memory))
 	require.False(t, boolValue(cfg.Cap.Browser))
 	require.False(t, cfg.MemoryEnabled())
-	require.Equal(t, "noop", cfg.Memory.Provider)
+	require.Equal(t, "default-memory", cfg.Memory.Provider)
+	require.Equal(t, "sqlite", cfg.Memory.Backend)
 }
 
 func TestLoad_UsesModelStreamFromConfigAndEnv(t *testing.T) {
@@ -1646,7 +1654,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 		"HAND_RERANKER_TYPE", "HAND_RERANKER_MODEL", "HAND_RERANKER_MAX_CANDIDATES",
 		"HAND_RERANKER_MAX_CANDIDATE_TEXT_CHARS", "HAND_RERANKER_MAX_OUTPUT_TOKENS",
 		"HAND_COMPACTION_ENABLED", "HAND_COMPACTION_TRIGGER_PERCENT", "HAND_COMPACTION_WARN_PERCENT",
-		"HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER",
+		"HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER", "HAND_MEMORY_BACKEND",
 		"HAND_FIRECRAWL_API_KEY", "HAND_FIRECRAWL_API_URL", "HAND_PARALLEL_API_KEY", "HAND_TAVILY_API_KEY", "HAND_EXA_API_KEY",
 	)
 
@@ -1677,7 +1685,8 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	t.Setenv("HAND_COMPACTION_TRIGGER_PERCENT", "0.5")
 	t.Setenv("HAND_COMPACTION_WARN_PERCENT", "0.8")
 	t.Setenv("HAND_MEMORY_ENABLED", "true")
-	t.Setenv("HAND_MEMORY_PROVIDER", " Memory ")
+	t.Setenv("HAND_MEMORY_PROVIDER", " Default-Memory ")
+	t.Setenv("HAND_MEMORY_BACKEND", " SQLite ")
 
 	applyEnvOverrides(cfg)
 
@@ -1705,22 +1714,24 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.Equal(t, 0.5, cfg.Compaction.TriggerPercent)
 	require.Equal(t, 0.8, cfg.Compaction.WarnPercent)
 	require.True(t, cfg.MemoryEnabled())
-	require.Equal(t, "memory", cfg.Memory.Provider)
+	require.Equal(t, "default-memory", cfg.Memory.Provider)
+	require.Equal(t, "sqlite", cfg.Memory.Backend)
 }
 
 func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 	var cfg *Config
 	require.False(t, cfg.MemoryEnabled())
 
-	cfg = &Config{Memory: MemoryConfig{Provider: " Memory "}}
+	cfg = &Config{Memory: MemoryConfig{Provider: " Default-Memory ", Backend: " SQLite "}}
 	cfg.Normalize()
 	require.True(t, cfg.MemoryEnabled())
-	require.Equal(t, "memory", cfg.Memory.Provider)
+	require.Equal(t, "default-memory", cfg.Memory.Provider)
+	require.Equal(t, "sqlite", cfg.Memory.Backend)
 
 	cfg = &Config{Memory: MemoryConfig{Enabled: new(false)}}
 	cfg.Normalize()
 	require.False(t, cfg.MemoryEnabled())
-	require.Equal(t, "noop", cfg.Memory.Provider)
+	require.Equal(t, "default-memory", cfg.Memory.Provider)
 }
 
 func TestApplyEnvOverrides_WebProviderSpecificFallback(t *testing.T) {
@@ -2544,6 +2555,25 @@ func TestConfig_ValidateRejectsInvalidSessionSettings(t *testing.T) {
 
 	err := cfg.Validate()
 	require.EqualError(t, err, "storage backend must be one of: memory, sqlite")
+}
+
+func TestConfig_ValidateRejectsInvalidMemoryBackend(t *testing.T) {
+	cfg := &Config{
+		Name: "daemon",
+		Models: ModelsConfig{
+			Verify: new(false),
+			Key:    "key",
+			Main:   MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", APIMode: DefaultModelAPIMode},
+		},
+		RPC:     RPCConfig{Address: "127.0.0.1", Port: 50051},
+		Session: SessionConfig{MaxIterations: 1},
+		Log:     LogConfig{Level: "info"},
+		Storage: StorageConfig{Backend: "sqlite"},
+		Memory:  MemoryConfig{Backend: "bogus"},
+	}
+
+	err := cfg.Validate()
+	require.EqualError(t, err, "memory backend must be one of: memory, sqlite")
 }
 
 func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {

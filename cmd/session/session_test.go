@@ -12,7 +12,7 @@ import (
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
-	statevector "github.com/wandxy/hand/internal/state/vector"
+	"github.com/wandxy/hand/internal/state/search"
 )
 
 func TestNewCommandSessionNewCallsRPC(t *testing.T) {
@@ -144,7 +144,7 @@ func TestNewCommandSessionRepairCallsRPC(t *testing.T) {
 	var output bytes.Buffer
 	sessionOutput = &output
 
-	stub := &agentstub.AgentServiceStub{RepairResult: statevector.VectorRepairResult{
+	stub := &agentstub.AgentServiceStub{RepairResult: search.VectorRepairResult{
 		SessionsScanned: 2,
 		MessagesScanned: 3,
 		RowsScanned:     4,

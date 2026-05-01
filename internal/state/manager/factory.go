@@ -8,21 +8,20 @@ import (
 	handdb "github.com/wandxy/hand/internal/db"
 	"github.com/wandxy/hand/internal/models"
 	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/retrieval"
+	"github.com/wandxy/hand/internal/state/search"
+	vectormemory "github.com/wandxy/hand/internal/state/search/vectorstore/memory"
+	vectorsqlite "github.com/wandxy/hand/internal/state/search/vectorstore/sqlite"
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
 	storagesqlite "github.com/wandxy/hand/internal/state/storesqlite"
-	statevector "github.com/wandxy/hand/internal/state/vector"
-	vectormemory "github.com/wandxy/hand/internal/state/vector/memory"
-	vectorsqlite "github.com/wandxy/hand/internal/state/vector/sqlite"
 	"gorm.io/gorm"
 )
 
 var (
 	newStoreEmbeddingProvider = defaultStoreEmbeddingProvider
-	newSQLiteVectorStore      = func(db *gorm.DB) (retrieval.VectorStore, error) {
+	newSQLiteVectorStore      = func(db *gorm.DB) (search.VectorStore, error) {
 		return vectorsqlite.NewStoreFromDB(db)
 	}
-	newMemoryVectorStore = func() retrieval.VectorStore {
+	newMemoryVectorStore = func() search.VectorStore {
 		return vectormemory.NewStore()
 	}
 	newSQLiteStoreFromDB = storagesqlite.NewStoreFromDB
@@ -106,8 +105,8 @@ func OpenStoreWithRerankerClient(
 func configureMemoryStoreVectors(
 	cfg *config.Config,
 	store *storagememory.Store,
-	provider retrieval.Embedder,
-	reranker retrieval.Reranker,
+	provider search.Embedder,
+	reranker search.Reranker,
 ) error {
 	if !cfg.Search.Vector.Enabled {
 		return nil
@@ -121,7 +120,7 @@ func configureMemoryStoreVectors(
 		return errors.New("memory vector store is required")
 	}
 
-	return store.ConfigureVectorStore(statevector.VectorStoreOptions{
+	return store.ConfigureVectorStore(search.VectorStoreOptions{
 		Embedder:            provider,
 		Reranker:            reranker,
 		VectorStore:         vectorStore,
@@ -137,8 +136,8 @@ func configureSQLiteStoreVectors(
 	cfg *config.Config,
 	db *gorm.DB,
 	store *storagesqlite.Store,
-	provider retrieval.Embedder,
-	reranker retrieval.Reranker,
+	provider search.Embedder,
+	reranker search.Reranker,
 ) error {
 	if !cfg.Search.Vector.Enabled {
 		return nil
@@ -202,7 +201,7 @@ func validateSearchVectorConfig(cfg *config.Config) error {
 	return nil
 }
 
-func storeEmbeddingProvider(cfg *config.Config) (retrieval.Embedder, error) {
+func storeEmbeddingProvider(cfg *config.Config) (search.Embedder, error) {
 	if !cfg.Search.Vector.Enabled {
 		return nil, nil
 	}
@@ -210,13 +209,13 @@ func storeEmbeddingProvider(cfg *config.Config) (retrieval.Embedder, error) {
 	return newStoreEmbeddingProvider(cfg)
 }
 
-func defaultStoreEmbeddingProvider(cfg *config.Config) (retrieval.Embedder, error) {
+func defaultStoreEmbeddingProvider(cfg *config.Config) (search.Embedder, error) {
 	auth, err := cfg.ResolveEmbeddingModelAuth()
 	if err != nil {
 		return nil, err
 	}
 
-	return retrieval.NewEmbeddingProvider(retrieval.EmbeddingProviderOptions{
+	return search.NewEmbeddingProvider(search.EmbeddingProviderOptions{
 		Provider:    auth.Provider,
 		APIKey:      auth.APIKey,
 		EndpointURL: auth.BaseURL,
@@ -226,7 +225,7 @@ func defaultStoreEmbeddingProvider(cfg *config.Config) (retrieval.Embedder, erro
 func storeReranker(
 	cfg *config.Config,
 	client models.Client,
-) (retrieval.Reranker, error) {
+) (search.Reranker, error) {
 	if !cfg.Search.Vector.Enabled {
 		return nil, nil
 	}
@@ -236,17 +235,17 @@ func storeReranker(
 	}
 
 	switch cfg.RerankerEffective() {
-	case retrieval.RerankerDeterministic:
-		return retrieval.DeterministicReranker{}, nil
-	case retrieval.RerankerNoop:
-		return retrieval.NoopReranker{}, nil
-	case retrieval.RerankerLLM:
+	case search.RerankerDeterministic:
+		return search.DeterministicReranker{}, nil
+	case search.RerankerNoop:
+		return search.NoopReranker{}, nil
+	case search.RerankerLLM:
 		if client == nil {
 			return nil, errors.New("reranker model client is required")
 		}
 
-		return retrieval.NewLLMReranker(retrieval.LLMRerankerOptions{
-			Fallback:              retrieval.DeterministicReranker{},
+		return search.NewLLMReranker(search.LLMRerankerOptions{
+			Fallback:              search.DeterministicReranker{},
 			Client:                client,
 			Model:                 cfg.RerankerModelEffective(),
 			APIMode:               cfg.SummaryModelAPIModeEffective(),

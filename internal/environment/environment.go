@@ -164,6 +164,10 @@ func (e *environment) Prepare() error {
 
 	e.prepareInstructions()
 
+	if e.stateMgr == nil {
+		return errors.New("state manager is required")
+	}
+
 	if err := e.prepareMemory(); err != nil {
 		return err
 	}
@@ -177,15 +181,38 @@ func (e *environment) prepareMemory() error {
 		return nil
 	}
 
-	provider, err := memory.NewProvider(e.cfg.Memory.Provider, memory.Options{
-		Guardrails: memguardrails.New(guardrails.NewRedactor()),
-	})
+	opts := memory.Options{
+		Guardrails:     memguardrails.New(guardrails.NewRedactor()),
+		StorageBackend: e.cfg.Storage.Backend,
+		MemoryBackend:  e.cfg.Memory.Backend,
+	}
+	if e.stateMgr != nil {
+		memoryBackend := effectiveMemoryBackend(e.cfg)
+		storageBackend := strings.TrimSpace(strings.ToLower(e.cfg.Storage.Backend))
+		if memoryBackend == storageBackend {
+			if store, ok := e.stateMgr.MemoryStore(); ok {
+				opts.MemoryStore = store
+			}
+		}
+	}
+
+	provider, err := memory.NewProvider(e.cfg.Memory.Provider, opts)
 	if err != nil {
 		return err
 	}
 
 	e.memory = provider
 	return nil
+}
+
+func effectiveMemoryBackend(cfg *config.Config) string {
+	if cfg == nil {
+		return ""
+	}
+	if backend := strings.TrimSpace(strings.ToLower(cfg.Memory.Backend)); backend != "" {
+		return backend
+	}
+	return strings.TrimSpace(strings.ToLower(cfg.Storage.Backend))
 }
 
 func (e *environment) prepareTools() error {

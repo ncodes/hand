@@ -152,12 +152,14 @@ func TestApplyConfigOverrides_AppliesSessionSettings(t *testing.T) {
 	err := cmd.Run(context.Background(), []string{
 		"hand",
 		"--storage.backend", "memory",
+		"--memory.backend", "sqlite",
 		"--session.default-idle-expiry", "2h",
 		"--session.archive-retention", "72h",
 	})
 
 	require.NoError(t, err)
 	require.Equal(t, "memory", cfg.Storage.Backend)
+	require.Equal(t, "sqlite", cfg.Memory.Backend)
 	require.Equal(t, 2*time.Hour, cfg.Session.DefaultIdleExpiry)
 	require.Equal(t, 72*time.Hour, cfg.Session.ArchiveRetention)
 }

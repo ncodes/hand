@@ -12,13 +12,14 @@ import (
 	"github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/mocks"
 	"github.com/wandxy/hand/internal/models"
+	storagememory "github.com/wandxy/hand/internal/state/storememory"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 )
 
 func TestTurn_RunInjectsRetrievedMemoryIntoModelInstructions(t *testing.T) {
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}}
-	provider := memory.NewInMemoryProvider(memory.Options{})
+	provider := newDefaultMemoryProviderForAgentTest(t, memory.Options{})
 	_, err := provider.Upsert(context.Background(), memory.MemoryItem{
 		ID:     "mem_package_manager",
 		Kind:   memory.KindSemantic,
@@ -33,7 +34,7 @@ func TestTurn_RunInjectsRetrievedMemoryIntoModelInstructions(t *testing.T) {
 	turn.cfg = testSessionConfig(&config.Config{
 		Name:   "Test Agent",
 		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
-		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderInMemory},
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
 	})
 	turn.env.(*mocks.EnvironmentStub).Memory = provider
 
@@ -57,7 +58,7 @@ func TestTurn_RunInjectsRetrievedMemoryIntoModelInstructions(t *testing.T) {
 
 func TestTurn_RunKeepsMemoryRetrievalDisabledWhenConfigured(t *testing.T) {
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}}
-	provider := memory.NewInMemoryProvider(memory.Options{})
+	provider := newDefaultMemoryProviderForAgentTest(t, memory.Options{})
 	_, err := provider.Upsert(context.Background(), memory.MemoryItem{
 		ID:     "mem_disabled",
 		Kind:   memory.KindSemantic,
@@ -71,7 +72,7 @@ func TestTurn_RunKeepsMemoryRetrievalDisabledWhenConfigured(t *testing.T) {
 	turn.cfg = testSessionConfig(&config.Config{
 		Name:   "Test Agent",
 		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
-		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderInMemory},
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
 	})
 	turn.env.(*mocks.EnvironmentStub).Memory = provider
 
@@ -83,7 +84,7 @@ func TestTurn_RunKeepsMemoryRetrievalDisabledWhenConfigured(t *testing.T) {
 
 func TestTurn_RunSkipsUnsafeRetrievedMemory(t *testing.T) {
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}}
-	provider := memory.NewInMemoryProvider(memory.Options{})
+	provider := newDefaultMemoryProviderForAgentTest(t, memory.Options{})
 	_, err := provider.Upsert(context.Background(), memory.MemoryItem{
 		ID:     "mem_unsafe",
 		Kind:   memory.KindSemantic,
@@ -97,7 +98,7 @@ func TestTurn_RunSkipsUnsafeRetrievedMemory(t *testing.T) {
 	turn.cfg = testSessionConfig(&config.Config{
 		Name:   "Test Agent",
 		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
-		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderInMemory},
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
 	})
 	turn.env.(*mocks.EnvironmentStub).Memory = provider
 
@@ -125,7 +126,7 @@ func TestTurn_RunContinuesWhenMemoryProviderSearchFails(t *testing.T) {
 	turn.cfg = testSessionConfig(&config.Config{
 		Name:   "Test Agent",
 		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
-		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderInMemory},
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
 	})
 	turn.env.(*mocks.EnvironmentStub).Memory = &memoryProviderStub{
 		name:      "failing",
@@ -153,11 +154,11 @@ func TestTurn_RetrieveMemoryInstructionSkipsWhenUnavailable(t *testing.T) {
 	disabled := false
 	cfg := testSessionConfig(&config.Config{
 		Name:   "Test Agent",
-		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderInMemory},
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
 	})
 	disabledCfg := testSessionConfig(&config.Config{
 		Name:   "Test Agent",
-		Memory: config.MemoryConfig{Enabled: &disabled, Provider: memory.ProviderInMemory},
+		Memory: config.MemoryConfig{Enabled: &disabled, Provider: memory.ProviderDefaultMemory},
 	})
 
 	tests := []struct {
@@ -303,6 +304,15 @@ func memoryEnabledTestConfig() *config.Config {
 	enabled := true
 	return testSessionConfig(&config.Config{
 		Name:   "Test Agent",
-		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderInMemory},
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
 	})
+}
+
+func newDefaultMemoryProviderForAgentTest(t *testing.T, opts memory.Options) *memory.MemoryProvider {
+	t.Helper()
+
+	provider, err := memory.NewFromStore(storagememory.NewStore(), opts)
+	require.NoError(t, err)
+
+	return provider
 }

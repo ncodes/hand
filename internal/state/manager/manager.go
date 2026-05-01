@@ -9,7 +9,7 @@ import (
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/state/core"
-	statevector "github.com/wandxy/hand/internal/state/vector"
+	"github.com/wandxy/hand/internal/state/search"
 )
 
 type Manager struct {
@@ -42,6 +42,19 @@ func NewManager(store storage.Store, defaultIdleExpiry, archiveRetention time.Du
 		archiveRetention:  archiveRetention,
 		now:               func() time.Time { return time.Now().UTC() },
 	}, nil
+}
+
+func (m *Manager) MemoryStore() (storage.MemoryStore, bool) {
+	if m == nil || m.store == nil {
+		return nil, false
+	}
+
+	store, ok := m.store.(storage.MemoryStore)
+	if !ok {
+		return nil, false
+	}
+
+	return store, true
 }
 
 func (m *Manager) Resolve(ctx context.Context, id string) (storage.Session, error) {
@@ -216,15 +229,15 @@ func (m *Manager) SearchMessages(
 
 func (m *Manager) RepairVectorStore(
 	ctx context.Context,
-	opts statevector.VectorRepairOptions,
-) (statevector.VectorRepairResult, error) {
+	opts search.VectorRepairOptions,
+) (search.VectorRepairResult, error) {
 	if m == nil {
-		return statevector.VectorRepairResult{}, errors.New("state manager is required")
+		return search.VectorRepairResult{}, errors.New("state manager is required")
 	}
 
-	repairStore, ok := m.store.(statevector.VectorRepairStore)
+	repairStore, ok := m.store.(search.VectorRepairStore)
 	if !ok {
-		return statevector.VectorRepairResult{}, errors.New("session vector repair is not supported")
+		return search.VectorRepairResult{}, errors.New("session vector repair is not supported")
 	}
 
 	opts.SessionID = strings.TrimSpace(opts.SessionID)

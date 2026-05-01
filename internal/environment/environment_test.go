@@ -50,8 +50,17 @@ func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 func prepareTestEnvironment(t *testing.T, env Environment) {
 	t.Helper()
 
-	env.SetStateManager(&statemanager.Manager{})
+	env.SetStateManager(newTestStateManager(t))
 	require.NoError(t, env.Prepare())
+}
+
+func newTestStateManager(t *testing.T) *statemanager.Manager {
+	t.Helper()
+
+	manager, err := statemanager.NewManager(memorystore.NewStore(), time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	return manager
 }
 
 func preparedToolGuidance() instruct.Instructions {
@@ -158,31 +167,83 @@ func TestEnvironment_PrepareConfiguresMemoryProviderWhenEnabled(t *testing.T) {
 	enabled := true
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:   "Test Agent",
-		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderInMemory},
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
 		Debug:  config.DebugConfig{TraceDir: t.TempDir()},
 	})
-	env.SetStateManager(&statemanager.Manager{})
+	env.SetStateManager(newTestStateManager(t))
 
 	require.NoError(t, env.Prepare())
-	require.IsType(t, &memory.InMemoryProvider{}, env.MemoryProvider())
+	require.IsType(t, &memory.MemoryProvider{}, env.MemoryProvider())
 }
 
-func TestEnvironment_PrepareConfiguresNoopMemoryProviderByDefault(t *testing.T) {
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
-	env.SetStateManager(&statemanager.Manager{})
+func TestEnvironment_PrepareConfiguresDefaultMemoryProviderWithStateStore(t *testing.T) {
+	store := memorystore.NewStore()
+	manager, err := statemanager.NewManager(store, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	enabled := true
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:   "Test Agent",
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
+		Debug:  config.DebugConfig{TraceDir: t.TempDir()},
+	})
+	env.SetStateManager(manager)
 
 	require.NoError(t, env.Prepare())
-	require.IsType(t, &memory.NoopProvider{}, env.MemoryProvider())
+	provider := env.MemoryProvider()
+	require.IsType(t, &memory.MemoryProvider{}, provider)
+	writer := provider.(memory.WriteProvider)
+	_, err = writer.Upsert(gctx.Background(), memory.MemoryItem{Status: memory.StatusActive, Text: "state owned store"})
+	require.NoError(t, err)
+	result, err := store.SearchMemory(gctx.Background(), memory.SearchQuery{Text: "state owned"})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+	require.NoError(t, provider.Close())
+}
+
+func TestEnvironment_PrepareConfiguresDefaultMemoryProviderWithMemoryBackend(t *testing.T) {
+	store := memorystore.NewStore()
+	manager, err := statemanager.NewManager(store, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	enabled := true
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:    "Test Agent",
+		Storage: config.StorageConfig{Backend: "memory"},
+		Memory:  config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
+		Debug:   config.DebugConfig{TraceDir: t.TempDir()},
+	})
+	env.SetStateManager(manager)
+
+	require.NoError(t, env.Prepare())
+	provider := env.MemoryProvider()
+	require.IsType(t, &memory.MemoryProvider{}, provider)
+
+	writer := provider.(memory.WriteProvider)
+	_, err = writer.Upsert(gctx.Background(), memory.MemoryItem{Status: memory.StatusActive, Text: "state owned memory"})
+	require.NoError(t, err)
+
+	result, err := store.SearchMemory(gctx.Background(), memory.SearchQuery{Text: "state owned"})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+}
+
+func TestEnvironment_PrepareConfiguresDefaultMemoryProviderByDefault(t *testing.T) {
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
+	env.SetStateManager(newTestStateManager(t))
+
+	require.NoError(t, env.Prepare())
+	require.IsType(t, &memory.MemoryProvider{}, env.MemoryProvider())
 }
 
 func TestEnvironment_PrepareLeavesMemoryProviderDisabledWhenConfigured(t *testing.T) {
 	enabled := false
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:   "Test Agent",
-		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderInMemory},
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
 		Debug:  config.DebugConfig{TraceDir: t.TempDir()},
 	})
-	env.SetStateManager(&statemanager.Manager{})
+	env.SetStateManager(newTestStateManager(t))
 
 	require.NoError(t, env.Prepare())
 	require.Nil(t, env.MemoryProvider())
@@ -430,8 +491,8 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	require.NotNil(t, tools)
 
 	definitions := tools.List()
-	require.Len(t, definitions, 11)
-	require.Equal(t, []string{"list_files", "patch", "plan_tool", "process", "read_file", "run_command", "search_files", "session_messages", "session_search", "time", "write_file"}, definitions.Names())
+	require.Len(t, definitions, 12)
+	require.Equal(t, []string{"list_files", "memory_search", "patch", "plan_tool", "process", "read_file", "run_command", "search_files", "session_messages", "session_search", "time", "write_file"}, definitions.Names())
 	for _, definition := range definitions {
 		require.Equal(t, []string{"core"}, definition.Groups)
 	}
@@ -508,7 +569,7 @@ func TestEnvironment_PrepareRegistersMemorySearchWhenProviderSupportsSearch(t *t
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:   "Test Agent",
 		Debug:  config.DebugConfig{TraceDir: t.TempDir()},
-		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderInMemory},
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
 	})
 	prepareTestEnvironment(t, env)
 
@@ -716,9 +777,10 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 	prepareTestEnvironment(t, env)
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 13)
+	require.Len(t, definitions, 14)
 	require.Equal(t, []string{
 		"list_files",
+		"memory_search",
 		"patch",
 		"plan_tool",
 		"process",
@@ -924,7 +986,7 @@ func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T
 	prepareTestEnvironment(t, env)
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 11)
+	require.Len(t, definitions, 12)
 	require.False(t, definitions.Has("web_search"))
 	require.False(t, definitions.Has("web_extract"))
 }
@@ -935,7 +997,7 @@ func TestEnvironment_PrepareReturnsWebProviderErrors(t *testing.T) {
 		Debug: config.DebugConfig{TraceDir: t.TempDir()},
 		Web:   config.WebConfig{Provider: "parallel"},
 	})
-	env.SetStateManager(&statemanager.Manager{})
+	env.SetStateManager(newTestStateManager(t))
 
 	err := env.Prepare()
 	require.EqualError(t, err, "parallel requires web API key")
@@ -1055,7 +1117,7 @@ func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}})
 	env.(*environment).tools = failingRegistry{err: errors.New("register failed")}
-	env.SetStateManager(&statemanager.Manager{})
+	env.SetStateManager(newTestStateManager(t))
 	err := env.Prepare()
 	require.EqualError(t, err, "register failed")
 	require.Equal(t, append(
@@ -1081,7 +1143,7 @@ func TestEnvironment_PrepareReturnsToolGroupRegistrationError(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}})
 	env.(*environment).tools = failingGroupRegistry{err: errors.New("group failed")}
-	env.SetStateManager(&statemanager.Manager{})
+	env.SetStateManager(newTestStateManager(t))
 	err := env.Prepare()
 	require.EqualError(t, err, "group failed")
 	require.Equal(t, append(

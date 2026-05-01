@@ -17,9 +17,8 @@ import (
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 	base "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/indexing"
-	"github.com/wandxy/hand/internal/state/retrieval"
-	storagevectorsqlite "github.com/wandxy/hand/internal/state/vector/sqlite"
+	"github.com/wandxy/hand/internal/state/search"
+	storagevectorsqlite "github.com/wandxy/hand/internal/state/search/vectorstore/sqlite"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -34,7 +33,7 @@ func TestSQLiteStore_SearchMessagesSupportsVectorOnlyResults(t *testing.T) {
 		CreatedAt: now,
 	}}))
 
-	vectorStore.searchMatches = []retrieval.VectorSearchMatch{{
+	vectorStore.searchMatches = []search.VectorSearchMatch{{
 		Record: vectorStore.upserts[0][0],
 		Score:  0.91,
 	}}
@@ -45,7 +44,7 @@ func TestSQLiteStore_SearchMessagesSupportsVectorOnlyResults(t *testing.T) {
 	require.Equal(t, testSessionA, results[0].SessionID)
 	require.Equal(t, "semantic sqlite storage details", results[0].Messages[0].MatchedText)
 	require.Len(t, vectorStore.searches, 1)
-	require.Equal(t, retrieval.SourceKindSessionMessage, vectorStore.searches[0].Filter.SourceKind)
+	require.Equal(t, search.SourceKindSessionMessage, vectorStore.searches[0].Filter.SourceKind)
 	require.Empty(t, vectorStore.searches[0].Filter.SourceIDs)
 }
 
@@ -61,7 +60,7 @@ func TestSQLiteStore_SearchMessagesHybridMergesLexicalAndVectorEvidence(t *testi
 	require.Len(t, vectorStore.upserts, 1)
 	require.Len(t, vectorStore.upserts[0], 2)
 
-	vectorStore.searchMatches = []retrieval.VectorSearchMatch{{
+	vectorStore.searchMatches = []search.VectorSearchMatch{{
 		Record: vectorStore.upserts[0][1],
 		Score:  0.95,
 	}}
@@ -92,7 +91,7 @@ func TestSQLiteStore_SearchMessagesHybridRanksSessionsByFusedScoreBeforeRecency(
 		{Role: handmsg.RoleUser, Content: "newer semantic context", CreatedAt: now.Add(time.Second)},
 	}))
 
-	vectorStore.searchMatches = []retrieval.VectorSearchMatch{
+	vectorStore.searchMatches = []search.VectorSearchMatch{
 		{Record: vectorStore.upserts[0][0], Score: 0.99},
 		{Record: vectorStore.upserts[1][0], Score: 0.90},
 	}
@@ -108,7 +107,7 @@ func TestSQLiteStore_SearchMessagesHybridRanksSessionsByFusedScoreBeforeRecency(
 }
 
 func TestSQLiteStore_SearchMessagesRerankerChangesOrderBeforeLimits(t *testing.T) {
-	store, vectorStore := sqliteVectorStoreTestStoreWithReranker(t, retrieval.DeterministicReranker{}, 0)
+	store, vectorStore := sqliteVectorStoreTestStoreWithReranker(t, search.DeterministicReranker{}, 0)
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
@@ -122,7 +121,7 @@ func TestSQLiteStore_SearchMessagesRerankerChangesOrderBeforeLimits(t *testing.T
 
 	sessionARecord := vectorStore.upserts[0][0]
 	sessionBRecord := vectorStore.upserts[1][0]
-	vectorStore.searchMatches = []retrieval.VectorSearchMatch{
+	vectorStore.searchMatches = []search.VectorSearchMatch{
 		{Record: sessionARecord, Score: 0.10},
 		{Record: sessionBRecord, Score: 0.99},
 	}
@@ -143,7 +142,7 @@ func TestSQLiteStore_SearchMessagesRerankerCanBeDisabled(t *testing.T) {
 	enableRerank := false
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
 		Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
-		Reranker:       retrieval.DeterministicReranker{},
+		Reranker:       search.DeterministicReranker{},
 		VectorStore:    vectorStore,
 		EnableRerank:   &enableRerank,
 		EmbeddingModel: "text-embedding-test",
@@ -161,7 +160,7 @@ func TestSQLiteStore_SearchMessagesRerankerCanBeDisabled(t *testing.T) {
 
 	sessionARecord := vectorStore.upserts[0][0]
 	sessionBRecord := vectorStore.upserts[1][0]
-	vectorStore.searchMatches = []retrieval.VectorSearchMatch{
+	vectorStore.searchMatches = []search.VectorSearchMatch{
 		{Record: sessionARecord, Score: 0.99},
 		{Record: sessionBRecord, Score: 0.90},
 	}
@@ -191,7 +190,7 @@ func TestSQLiteStore_SearchMessagesDiagnosticsAreInternal(t *testing.T) {
 		Content:   "semantic context private-token-123",
 		CreatedAt: now,
 	}}))
-	vectorStore.searchMatches = []retrieval.VectorSearchMatch{{Record: vectorStore.upserts[0][0], Score: 0.99}}
+	vectorStore.searchMatches = []search.VectorSearchMatch{{Record: vectorStore.upserts[0][0], Score: 0.99}}
 
 	var output bytes.Buffer
 	logutils.SetOutput(&output)
@@ -205,7 +204,7 @@ func TestSQLiteStore_SearchMessagesDiagnosticsAreInternal(t *testing.T) {
 
 	require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
 		Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
-		Reranker:       retrieval.DeterministicReranker{},
+		Reranker:       search.DeterministicReranker{},
 		VectorStore:    vectorStore,
 		EmbeddingModel: "text-embedding-test",
 		Diagnostics:    true,
@@ -218,7 +217,7 @@ func TestSQLiteStore_SearchMessagesDiagnosticsAreInternal(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	store.logCandidateDiagnostics("candidate merged", []*searchCandidate{{
-		CandidateMatch: indexing.CandidateMatch{
+		CandidateMatch: search.CandidateMatch{
 			SessionID:       testSessionA,
 			MatchedToolName: "process",
 		},
@@ -251,7 +250,7 @@ func TestSQLiteStore_ConfigureVectorStoreRejectsUnknownReranker(t *testing.T) {
 }
 
 func TestSQLiteStore_SearchMessagesRerankerBoundsCandidateInput(t *testing.T) {
-	store, vectorStore := sqliteVectorStoreTestStoreWithReranker(t, retrieval.DeterministicReranker{}, 1)
+	store, vectorStore := sqliteVectorStoreTestStoreWithReranker(t, search.DeterministicReranker{}, 1)
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
@@ -260,7 +259,7 @@ func TestSQLiteStore_SearchMessagesRerankerBoundsCandidateInput(t *testing.T) {
 		{Role: handmsg.RoleUser, Content: "second semantic context", CreatedAt: now.Add(time.Second)},
 	}))
 
-	vectorStore.searchMatches = []retrieval.VectorSearchMatch{
+	vectorStore.searchMatches = []search.VectorSearchMatch{
 		{Record: vectorStore.upserts[0][0], Score: 0.99},
 		{Record: vectorStore.upserts[0][1], Score: 0.98},
 	}
@@ -291,7 +290,7 @@ func TestSQLiteStore_SearchMessagesHybridPushesAndAppliesFilters(t *testing.T) {
 
 	contentRecord := vectorStore.upserts[0][0]
 	toolRecord := vectorStore.upserts[0][1]
-	vectorStore.searchMatches = []retrieval.VectorSearchMatch{
+	vectorStore.searchMatches = []search.VectorSearchMatch{
 		{Record: contentRecord, Score: 0.99},
 		{Record: toolRecord, Score: 0.98},
 	}
@@ -323,7 +322,7 @@ func TestSQLiteStore_SearchMessagesHybridPushesIgnoredSessionFilter(t *testing.T
 		{Role: handmsg.RoleUser, Content: "kept semantic context", CreatedAt: now.Add(time.Second)},
 	}))
 
-	vectorStore.searchMatches = []retrieval.VectorSearchMatch{
+	vectorStore.searchMatches = []search.VectorSearchMatch{
 		{Record: vectorStore.upserts[0][0], Score: 0.99},
 		{Record: vectorStore.upserts[1][0], Score: 0.98},
 	}
@@ -355,7 +354,7 @@ func TestSQLiteStore_SearchMessagesHybridCollapsesDuplicateVectorRows(t *testing
 		CreatedAt: now,
 	}}))
 
-	vectorStore.searchMatches = []retrieval.VectorSearchMatch{
+	vectorStore.searchMatches = []search.VectorSearchMatch{
 		{Record: vectorStore.upserts[0][2], Score: 0.99},
 		{Record: vectorStore.upserts[0][1], Score: 0.98},
 	}
@@ -436,7 +435,7 @@ func TestSQLiteStore_SearchMessagesHybridEdgeCases(t *testing.T) {
 		store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
 		require.NoError(t, err)
 		provider := &sqliteTestEmbeddingProvider{
-			mutate: func(result retrieval.EmbeddingResult) retrieval.EmbeddingResult {
+			mutate: func(result search.EmbeddingResult) search.EmbeddingResult {
 				result.Items[0].ContentHash = "wrong"
 				return result
 			},
@@ -477,7 +476,7 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("merges vector evidence and bounds candidate collection", func(t *testing.T) {
 		candidates := searchCandidateSet{
 			1: {
-				CandidateMatch: indexing.CandidateMatch{
+				CandidateMatch: search.CandidateMatch{
 					SessionID:   testSessionA,
 					LexicalRank: 1,
 					HasLexical:  true,
@@ -488,7 +487,7 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 		candidates.Merge([]*searchCandidate{
 			nil,
 			{
-				CandidateMatch: indexing.CandidateMatch{
+				CandidateMatch: search.CandidateMatch{
 					MatchedText:     "vector text",
 					MatchedToolName: "tool",
 					VectorRank:      1,
@@ -514,7 +513,7 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("keeps top ranked message per session when message limit is one", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidates(searchCandidateSet{
 			1: {
-				CandidateMatch: indexing.CandidateMatch{
+				CandidateMatch: search.CandidateMatch{
 					SessionID:   testSessionA,
 					MatchedText: "older",
 					VectorRank:  2,
@@ -525,7 +524,7 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 				CreatedAt: now,
 			},
 			2: {
-				CandidateMatch: indexing.CandidateMatch{
+				CandidateMatch: search.CandidateMatch{
 					SessionID:   testSessionA,
 					MatchedText: "newer",
 					VectorRank:  1,
@@ -543,12 +542,12 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("orders same-session messages by score before recency", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidateSlice([]*searchCandidate{
 			{
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, MatchedText: "better", FusedScore: 2},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA, MatchedText: "better", FusedScore: 2},
 				ID:             1,
 				CreatedAt:      now,
 			},
 			{
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, MatchedText: "worse", FusedScore: 1},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA, MatchedText: "worse", FusedScore: 1},
 				ID:             2,
 				CreatedAt:      now.Add(time.Second),
 			},
@@ -559,12 +558,12 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("orders same-session score ties by older message after newer", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidateSlice([]*searchCandidate{
 			{
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, MatchedText: "older", FusedScore: 1},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA, MatchedText: "older", FusedScore: 1},
 				ID:             1,
 				CreatedAt:      now,
 			},
 			{
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, MatchedText: "newer", FusedScore: 1},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA, MatchedText: "newer", FusedScore: 1},
 				ID:             2,
 				CreatedAt:      now.Add(time.Second),
 			},
@@ -575,12 +574,12 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("orders tied sessions by session id", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidates(searchCandidateSet{
 			1: {
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, MatchedText: "left", VectorRank: 1, HasVector: true},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA, MatchedText: "left", VectorRank: 1, HasVector: true},
 				ID:             1,
 				CreatedAt:      now,
 			},
 			2: {
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionB, MatchedText: "right", VectorRank: 1, HasVector: true},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionB, MatchedText: "right", VectorRank: 1, HasVector: true},
 				ID:             2,
 				CreatedAt:      now,
 			},
@@ -591,12 +590,12 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("orders tied sessions by reverse session id when left is greater", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidateSlice([]*searchCandidate{
 			{
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionB, MatchedText: "right", FusedScore: 1},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionB, MatchedText: "right", FusedScore: 1},
 				ID:             1,
 				CreatedAt:      now,
 			},
 			{
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, MatchedText: "left", FusedScore: 1},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA, MatchedText: "left", FusedScore: 1},
 				ID:             2,
 				CreatedAt:      now,
 			},
@@ -607,12 +606,12 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("orders tied messages in the same session by newest id", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidates(searchCandidateSet{
 			1: {
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, MatchedText: "left", VectorRank: 1, HasVector: true},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA, MatchedText: "left", VectorRank: 1, HasVector: true},
 				ID:             1,
 				CreatedAt:      now,
 			},
 			2: {
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, MatchedText: "right", VectorRank: 1, HasVector: true},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA, MatchedText: "right", VectorRank: 1, HasVector: true},
 				ID:             2,
 				CreatedAt:      now,
 			},
@@ -623,12 +622,12 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("keeps equal same-session messages stable", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidateSlice([]*searchCandidate{
 			{
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, MatchedText: "left", FusedScore: 1},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA, MatchedText: "left", FusedScore: 1},
 				ID:             1,
 				CreatedAt:      now,
 			},
 			{
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, MatchedText: "right", FusedScore: 1},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA, MatchedText: "right", FusedScore: 1},
 				ID:             1,
 				CreatedAt:      now,
 			},
@@ -639,12 +638,12 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("orders tied sessions by newest matching message", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidates(searchCandidateSet{
 			1: {
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, MatchedText: "left", VectorRank: 1, HasVector: true},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA, MatchedText: "left", VectorRank: 1, HasVector: true},
 				ID:             1,
 				CreatedAt:      now,
 			},
 			2: {
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionB, MatchedText: "right", VectorRank: 1, HasVector: true},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionB, MatchedText: "right", VectorRank: 1, HasVector: true},
 				ID:             2,
 				CreatedAt:      now.Add(time.Second),
 			},
@@ -655,12 +654,12 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	t.Run("orders sessions by score before recency", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidateSlice([]*searchCandidate{
 			{
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, MatchedText: "higher score", FusedScore: 2},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA, MatchedText: "higher score", FusedScore: 2},
 				ID:             1,
 				CreatedAt:      now,
 			},
 			{
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionB, MatchedText: "newer", FusedScore: 1},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionB, MatchedText: "newer", FusedScore: 1},
 				ID:             2,
 				CreatedAt:      now.Add(time.Second),
 			},
@@ -670,7 +669,7 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 
 	t.Run("uses supplied last matched timestamp when newer than candidates", func(t *testing.T) {
 		rows := rankedSearchRowsFromCandidateSlice([]*searchCandidate{{
-			CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, MatchedText: "left", FusedScore: 1},
+			CandidateMatch: search.CandidateMatch{SessionID: testSessionA, MatchedText: "left", FusedScore: 1},
 			ID:             1,
 			CreatedAt:      now,
 		}}, SearchMessageOptions{}, map[string]int{testSessionA: 3}, map[string]time.Time{
@@ -681,10 +680,10 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 	})
 
 	t.Run("compareSearchCandidates covers id and equality ties", func(t *testing.T) {
-		left := &searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, FusedScore: 1}, ID: 1}
-		right := &searchCandidate{CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, FusedScore: 1}, ID: 2}
-		require.Equal(t, -1, compareSearchCandidates(&searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 2}}, left))
-		require.Equal(t, 1, compareSearchCandidates(left, &searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 2}}))
+		left := &searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1}, ID: 1}
+		right := &searchCandidate{CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1}, ID: 2}
+		require.Equal(t, -1, compareSearchCandidates(&searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 2}}, left))
+		require.Equal(t, 1, compareSearchCandidates(left, &searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 2}}))
 		require.Equal(t, -1, compareSearchCandidates(right, left))
 		require.Equal(t, 1, compareSearchCandidates(left, right))
 		require.Equal(t, 0, compareSearchCandidates(left, left))
@@ -692,32 +691,32 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 
 	t.Run("ranking comparators cover all tie-break directions", func(t *testing.T) {
 		require.Equal(t, -1, compareCandidatesWithinSession(
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 2}, ID: 1},
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 1}, ID: 2},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 2}, ID: 1},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 1}, ID: 2},
 		))
 		require.Equal(t, 1, compareCandidatesWithinSession(
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 1}, ID: 1},
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 2}, ID: 2},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 1}, ID: 1},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 2}, ID: 2},
 		))
 		require.Equal(t, -1, compareCandidatesWithinSession(
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now.Add(time.Second)},
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 1}, ID: 2, CreatedAt: now},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now.Add(time.Second)},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 1}, ID: 2, CreatedAt: now},
 		))
 		require.Equal(t, 1, compareCandidatesWithinSession(
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now},
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 1}, ID: 2, CreatedAt: now.Add(time.Second)},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 1}, ID: 2, CreatedAt: now.Add(time.Second)},
 		))
 		require.Equal(t, -1, compareCandidatesWithinSession(
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 1}, ID: 2, CreatedAt: now},
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 1}, ID: 2, CreatedAt: now},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now},
 		))
 		require.Equal(t, 1, compareCandidatesWithinSession(
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now},
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 1}, ID: 2, CreatedAt: now},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 1}, ID: 2, CreatedAt: now},
 		))
 		require.Equal(t, 0, compareCandidatesWithinSession(
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now},
-			&searchCandidate{CandidateMatch: indexing.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now},
+			&searchCandidate{CandidateMatch: search.CandidateMatch{FusedScore: 1}, ID: 1, CreatedAt: now},
 		))
 
 		bestScores := map[string]float64{testSessionA: 2, testSessionB: 1}
@@ -743,14 +742,14 @@ func TestSQLiteStore_HybridSearchHelpers(t *testing.T) {
 
 		items = store.rerankSearchCandidates(context.Background(), SearchMessageOptions{}, searchCandidateSet{
 			1: {
-				CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
+				CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
 				ID:             1,
 			},
 		})
 		require.Len(t, items, 1)
 
 		candidate := retrievalCandidateFromSearchCandidate(&searchCandidate{
-			CandidateMatch: indexing.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
+			CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
 			ID:             1,
 			Content:        "content fallback",
 		})
@@ -809,7 +808,7 @@ func TestSQLiteStore_HybridVectorCandidateErrorPaths(t *testing.T) {
 	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
 		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
 	}))
-	vectorStore.searchMatches = []retrieval.VectorSearchMatch{{
+	vectorStore.searchMatches = []search.VectorSearchMatch{{
 		Record: vectorStore.upserts[0][0],
 		Score:  1,
 	}}
@@ -827,8 +826,8 @@ func TestSQLiteStore_HybridVectorCandidateErrorPaths(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, testSessionA, ref.SessionID)
 
-	matches := []retrieval.VectorSearchMatch{{
-		Record: retrieval.VectorRecord{
+	matches := []search.VectorSearchMatch{{
+		Record: search.VectorRecord{
 			ID:       "bad",
 			SourceID: "bad",
 		},
@@ -838,9 +837,9 @@ func TestSQLiteStore_HybridVectorCandidateErrorPaths(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, candidates)
 
-	matches = []retrieval.VectorSearchMatch{
+	matches = []search.VectorSearchMatch{
 		{Record: vectorStore.upserts[0][0], Score: 1},
-		{Record: retrieval.VectorRecord{ID: "bad", SourceID: "bad"}, Score: 0.9},
+		{Record: search.VectorRecord{ID: "bad", SourceID: "bad"}, Score: 0.9},
 	}
 	candidates, err = store.vectorMatchesToCandidates(context.Background(), "", SearchMessageOptions{}, matches)
 	require.NoError(t, err)
@@ -902,7 +901,7 @@ func TestSQLiteStore_VectorStoreAppendAndRebuild(t *testing.T) {
 	require.Len(t, vectorStore.upserts, 1)
 	require.Len(t, vectorStore.upserts[0], 3)
 	sourceID := vectorStore.upserts[0][0].SourceID
-	require.Equal(t, retrieval.SourceKindSessionMessage, vectorStore.upserts[0][0].SourceKind)
+	require.Equal(t, search.SourceKindSessionMessage, vectorStore.upserts[0][0].SourceKind)
 	require.Equal(t, sourceID+":row:1", vectorStore.upserts[0][0].ID)
 	require.Equal(t, sourceID+":row:2", vectorStore.upserts[0][1].ID)
 	require.Equal(t, sourceID+":row:3", vectorStore.upserts[0][2].ID)
@@ -935,8 +934,8 @@ func TestSQLiteStore_VectorStoreDeletesSessionVectors(t *testing.T) {
 
 		require.NoError(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}))
 
-		require.Equal(t, []retrieval.VectorDeleteRequest{{
-			SourceKind: retrieval.SourceKindSessionMessage,
+		require.Equal(t, []search.VectorDeleteRequest{{
+			SourceKind: search.SourceKindSessionMessage,
 			SourceIDs:  []string{sourceID},
 		}}, vectorStore.deletes)
 	})
@@ -951,8 +950,8 @@ func TestSQLiteStore_VectorStoreDeletesSessionVectors(t *testing.T) {
 
 		require.NoError(t, store.Delete(context.Background(), testSessionA))
 
-		require.Equal(t, []retrieval.VectorDeleteRequest{{
-			SourceKind: retrieval.SourceKindSessionMessage,
+		require.Equal(t, []search.VectorDeleteRequest{{
+			SourceKind: search.SourceKindSessionMessage,
 			SourceIDs:  []string{sourceID},
 		}}, vectorStore.deletes)
 	})
@@ -972,8 +971,8 @@ func TestSQLiteStore_VectorStoreDeletesSessionVectors(t *testing.T) {
 			ExpiresAt:       now.Add(time.Hour),
 		}))
 
-		require.Equal(t, []retrieval.VectorDeleteRequest{{
-			SourceKind: retrieval.SourceKindSessionMessage,
+		require.Equal(t, []search.VectorDeleteRequest{{
+			SourceKind: search.SourceKindSessionMessage,
 			SourceIDs:  []string{sourceID},
 		}}, vectorStore.deletes)
 	})
@@ -1000,12 +999,12 @@ func TestSQLiteStore_VectorStoreUsesSharedSQLiteVectorStore(t *testing.T) {
 		{Role: handmsg.RoleUser, Content: "shared sqlite vector", CreatedAt: now},
 	}))
 
-	embedRes, err := provider.Embed(context.Background(), retrieval.EmbeddingRequest{
+	embedRes, err := provider.Embed(context.Background(), search.EmbeddingRequest{
 		Model: "text-embedding-test",
-		Inputs: []retrieval.EmbeddingInput{{
+		Inputs: []search.EmbeddingInput{{
 			ID:         "query",
 			Text:       "shared sqlite vector",
-			SourceKind: retrieval.SourceKindSessionMessage,
+			SourceKind: search.SourceKindSessionMessage,
 		}},
 	})
 	require.NoError(t, err)
@@ -1021,8 +1020,8 @@ func TestSQLiteStore_VectorStoreUsesSharedSQLiteVectorStore(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, result.Matches, 1)
-	require.Equal(t, retrieval.SourceKindSessionMessage, result.Matches[0].Record.SourceKind)
-	require.Equal(t, retrieval.VectorContentHash("shared sqlite vector"), result.Matches[0].Record.ContentHash)
+	require.Equal(t, search.SourceKindSessionMessage, result.Matches[0].Record.SourceKind)
+	require.Equal(t, search.VectorContentHash("shared sqlite vector"), result.Matches[0].Record.ContentHash)
 
 	require.NoError(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}))
 	result, err = vectorStore.Search(context.Background(), storagevectorsqlite.SearchRequest{
@@ -1242,7 +1241,7 @@ func TestSQLiteStore_VectorStoreRejectsInvalidEmbeddings(t *testing.T) {
 	require.NoError(t, err)
 
 	provider := &sqliteTestEmbeddingProvider{
-		mutate: func(result retrieval.EmbeddingResult) retrieval.EmbeddingResult {
+		mutate: func(result search.EmbeddingResult) search.EmbeddingResult {
 			result.Items[0].ContentHash = "wrong"
 			return result
 		},
@@ -1271,7 +1270,7 @@ func sqliteVectorStoreTestStore(t *testing.T) (*Store, *sqliteTestVectorStore) {
 
 func sqliteVectorStoreTestStoreWithReranker(
 	t *testing.T,
-	reranker retrieval.Reranker,
+	reranker search.Reranker,
 	rerankMaxCandidates int,
 ) (*Store, *sqliteTestVectorStore) {
 	t.Helper()
@@ -1290,7 +1289,7 @@ func sqliteVectorStoreTestStoreWithReranker(
 	return store, vectorStore
 }
 
-func sqliteTestRecordIDs(records []retrieval.VectorRecord) []string {
+func sqliteTestRecordIDs(records []search.VectorRecord) []string {
 	ids := make([]string, 0, len(records))
 	for _, record := range records {
 		ids = append(ids, record.ID)
@@ -1310,34 +1309,34 @@ func sqliteSearchMatchedTexts(hits []base.SearchMessageHit) []string {
 
 type sqliteTestEmbeddingProvider struct {
 	err        error
-	mutate     func(retrieval.EmbeddingResult) retrieval.EmbeddingResult
-	requests   []retrieval.EmbeddingRequest
+	mutate     func(search.EmbeddingResult) search.EmbeddingResult
+	requests   []search.EmbeddingRequest
 	dimensions int
 }
 
-func (p *sqliteTestEmbeddingProvider) Embed(_ context.Context, req retrieval.EmbeddingRequest) (retrieval.EmbeddingResult, error) {
+func (p *sqliteTestEmbeddingProvider) Embed(_ context.Context, req search.EmbeddingRequest) (search.EmbeddingResult, error) {
 	p.requests = append(p.requests, req)
 	if p.err != nil {
-		return retrieval.EmbeddingResult{}, p.err
+		return search.EmbeddingResult{}, p.err
 	}
 	if p.dimensions == 0 {
 		p.dimensions = 3
 	}
 
-	items := make([]retrieval.Embedding, 0, len(req.Inputs))
+	items := make([]search.Embedding, 0, len(req.Inputs))
 	for _, input := range req.Inputs {
 		vector := make([]float64, p.dimensions)
 		for idx := range vector {
 			vector[idx] = float64(len(input.Text) + idx)
 		}
-		items = append(items, retrieval.Embedding{
+		items = append(items, search.Embedding{
 			ID:          input.ID,
-			ContentHash: retrieval.VectorContentHash(input.Text),
+			ContentHash: search.VectorContentHash(input.Text),
 			Vector:      vector,
 		})
 	}
 
-	result := retrieval.EmbeddingResult{
+	result := search.EmbeddingResult{
 		Model:      req.Model,
 		Dimensions: p.dimensions,
 		Items:      items,
@@ -1351,19 +1350,19 @@ func (p *sqliteTestEmbeddingProvider) Embed(_ context.Context, req retrieval.Emb
 
 type sqliteTestReranker struct {
 	err      error
-	rerank   func(retrieval.RerankRequest) retrieval.RerankResult
-	result   retrieval.RerankResult
-	requests []retrieval.RerankRequest
+	rerank   func(search.RerankRequest) search.RerankResult
+	result   search.RerankResult
+	requests []search.RerankRequest
 }
 
 func (r *sqliteTestReranker) Name() string {
 	return "test"
 }
 
-func (r *sqliteTestReranker) Rerank(_ context.Context, req retrieval.RerankRequest) (retrieval.RerankResult, error) {
+func (r *sqliteTestReranker) Rerank(_ context.Context, req search.RerankRequest) (search.RerankResult, error) {
 	r.requests = append(r.requests, req)
 	if r.err != nil {
-		return retrieval.RerankResult{}, r.err
+		return search.RerankResult{}, r.err
 	}
 	if r.rerank != nil {
 		return r.rerank(req), nil
@@ -1378,24 +1377,24 @@ type sqliteTestVectorStore struct {
 	listErr       error
 	searchErr     error
 	upsertErr     error
-	searchMatches []retrieval.VectorSearchMatch
-	searches      []retrieval.VectorSearchRequest
-	lists         []retrieval.VectorListRequest
-	upserts       [][]retrieval.VectorRecord
-	deletes       []retrieval.VectorDeleteRequest
-	records       map[string]retrieval.VectorRecord
+	searchMatches []search.VectorSearchMatch
+	searches      []search.VectorSearchRequest
+	lists         []search.VectorListRequest
+	upserts       [][]search.VectorRecord
+	deletes       []search.VectorDeleteRequest
+	records       map[string]search.VectorRecord
 }
 
-func (s *sqliteTestVectorStore) Upsert(_ context.Context, records []retrieval.VectorRecord) error {
+func (s *sqliteTestVectorStore) Upsert(_ context.Context, records []search.VectorRecord) error {
 	if s.upsertErr != nil {
 		return s.upsertErr
 	}
 	if s.err != nil {
 		return s.err
 	}
-	s.upserts = append(s.upserts, append([]retrieval.VectorRecord(nil), records...))
+	s.upserts = append(s.upserts, append([]search.VectorRecord(nil), records...))
 	if s.records == nil {
-		s.records = make(map[string]retrieval.VectorRecord, len(records))
+		s.records = make(map[string]search.VectorRecord, len(records))
 	}
 	for _, record := range records {
 		s.records[record.ID] = record
@@ -1404,7 +1403,7 @@ func (s *sqliteTestVectorStore) Upsert(_ context.Context, records []retrieval.Ve
 	return nil
 }
 
-func (s *sqliteTestVectorStore) Delete(_ context.Context, req retrieval.VectorDeleteRequest) error {
+func (s *sqliteTestVectorStore) Delete(_ context.Context, req search.VectorDeleteRequest) error {
 	s.deletes = append(s.deletes, req)
 	if s.deleteErr != nil {
 		return s.deleteErr
@@ -1428,28 +1427,28 @@ func (s *sqliteTestVectorStore) Delete(_ context.Context, req retrieval.VectorDe
 	return nil
 }
 
-func (s *sqliteTestVectorStore) Search(_ context.Context, req retrieval.VectorSearchRequest) (retrieval.VectorSearchResult, error) {
+func (s *sqliteTestVectorStore) Search(_ context.Context, req search.VectorSearchRequest) (search.VectorSearchResult, error) {
 	s.searches = append(s.searches, req)
 	if s.searchErr != nil {
-		return retrieval.VectorSearchResult{}, s.searchErr
+		return search.VectorSearchResult{}, s.searchErr
 	}
 	if s.err != nil {
-		return retrieval.VectorSearchResult{}, s.err
+		return search.VectorSearchResult{}, s.err
 	}
 
-	return retrieval.VectorSearchResult{Matches: append([]retrieval.VectorSearchMatch(nil), s.searchMatches...)}, nil
+	return search.VectorSearchResult{Matches: append([]search.VectorSearchMatch(nil), s.searchMatches...)}, nil
 }
 
-func (s *sqliteTestVectorStore) List(_ context.Context, req retrieval.VectorListRequest) (retrieval.VectorListResult, error) {
+func (s *sqliteTestVectorStore) List(_ context.Context, req search.VectorListRequest) (search.VectorListResult, error) {
 	s.lists = append(s.lists, req)
-	if err := retrieval.ValidateVectorListRequest(req); err != nil {
-		return retrieval.VectorListResult{}, err
+	if err := search.ValidateVectorListRequest(req); err != nil {
+		return search.VectorListResult{}, err
 	}
 	if s.listErr != nil {
-		return retrieval.VectorListResult{}, s.listErr
+		return search.VectorListResult{}, s.listErr
 	}
 	if s.err != nil {
-		return retrieval.VectorListResult{}, s.err
+		return search.VectorListResult{}, s.err
 	}
 
 	sourceIDs := make(map[string]struct{}, len(req.Filter.SourceIDs))
@@ -1457,7 +1456,7 @@ func (s *sqliteTestVectorStore) List(_ context.Context, req retrieval.VectorList
 		sourceIDs[sourceID] = struct{}{}
 	}
 
-	records := make([]retrieval.VectorRecord, 0, len(s.records))
+	records := make([]search.VectorRecord, 0, len(s.records))
 	for _, record := range s.records {
 		if record.EmbeddingModel != req.EmbeddingModel {
 			continue
@@ -1488,9 +1487,9 @@ func (s *sqliteTestVectorStore) List(_ context.Context, req retrieval.VectorList
 		return records[i].ID < records[j].ID
 	})
 
-	return retrieval.VectorListResult{Records: records}, nil
+	return search.VectorListResult{Records: records}, nil
 }
 
-func (s *sqliteTestVectorStore) Metadata(context.Context) (retrieval.VectorStoreMetadata, error) {
-	return retrieval.VectorStoreMetadata{}, nil
+func (s *sqliteTestVectorStore) Metadata(context.Context) (search.VectorStoreMetadata, error) {
+	return search.VectorStoreMetadata{}, nil
 }

@@ -19,11 +19,11 @@ import (
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/retrieval"
+	"github.com/wandxy/hand/internal/state/search"
+	vectormemory "github.com/wandxy/hand/internal/state/search/vectorstore/memory"
+	vectorsqlite "github.com/wandxy/hand/internal/state/search/vectorstore/sqlite"
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
 	storagesqlite "github.com/wandxy/hand/internal/state/storesqlite"
-	vectormemory "github.com/wandxy/hand/internal/state/vector/memory"
-	vectorsqlite "github.com/wandxy/hand/internal/state/vector/sqlite"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -69,8 +69,6 @@ func TestOpenStore_ReturnsSQLiteStore(t *testing.T) {
 	t.Setenv("HAND_HOME", homeDir)
 
 	store, err := OpenStore(storeConfig("sqlite"))
-
-	skipIfSQLiteFTS5Unavailable(t, err)
 	require.NoError(t, err)
 	require.IsType(t, &storagesqlite.Store{}, store)
 	require.FileExists(t, datadir.StateDBPath())
@@ -82,8 +80,6 @@ func TestOpenStore_DefaultsToSQLite(t *testing.T) {
 	t.Setenv("HAND_HOME", homeDir)
 
 	store, err := OpenStore(&config.Config{})
-
-	skipIfSQLiteFTS5Unavailable(t, err)
 	require.NoError(t, err)
 	require.IsType(t, &storagesqlite.Store{}, store)
 	require.FileExists(t, datadir.StateDBPath())
@@ -137,7 +133,6 @@ func TestOpenStore_ConfiguresSQLiteVectorStore(t *testing.T) {
 			Vector:       config.SearchVectorConfig{Enabled: true, Required: true, RebuildBatchSize: 7},
 		},
 	})
-	skipIfSQLiteFTS5Unavailable(t, err)
 	require.NoError(t, err)
 	require.IsType(t, &storagesqlite.Store{}, store)
 
@@ -154,7 +149,7 @@ func TestOpenStore_ConfiguresSQLiteVectorStore(t *testing.T) {
 	require.Len(t, vectorStore.upserts, 1)
 	require.Len(t, vectorStore.upserts[0], 1)
 	require.Equal(t, "text-embedding-test", vectorStore.upserts[0][0].EmbeddingModel)
-	require.Equal(t, retrieval.SourceKindSessionMessage, vectorStore.upserts[0][0].SourceKind)
+	require.Equal(t, search.SourceKindSessionMessage, vectorStore.upserts[0][0].SourceKind)
 }
 
 func TestOpenStore_ReturnsRerankerConstructionError(t *testing.T) {
@@ -170,12 +165,11 @@ func TestOpenStore_ReturnsRerankerConstructionError(t *testing.T) {
 		Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"}},
 		Search:  config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
 		Reranker: config.RerankerConfig{
-			Type: retrieval.RerankerLLM,
+			Type: search.RerankerLLM,
 		},
 	}, nil)
 
 	require.Nil(t, store)
-	skipIfSQLiteFTS5Unavailable(t, err)
 	require.EqualError(t, err, "reranker model client is required")
 }
 
@@ -189,10 +183,10 @@ func TestOpenStore_ReturnsSQLiteVectorConfigurationError(t *testing.T) {
 		newStoreEmbeddingProvider = originalProvider
 		newSQLiteVectorStore = originalSQLiteStore
 	})
-	newStoreEmbeddingProvider = func(*config.Config) (retrieval.Embedder, error) {
+	newStoreEmbeddingProvider = func(*config.Config) (search.Embedder, error) {
 		return nil, nil
 	}
-	newSQLiteVectorStore = func(*gorm.DB) (retrieval.VectorStore, error) {
+	newSQLiteVectorStore = func(*gorm.DB) (search.VectorStore, error) {
 		return &storeTestVectorStore{}, nil
 	}
 
@@ -203,7 +197,6 @@ func TestOpenStore_ReturnsSQLiteVectorConfigurationError(t *testing.T) {
 	})
 
 	require.Nil(t, store)
-	skipIfSQLiteFTS5Unavailable(t, err)
 	require.EqualError(t, err, "embedding provider is required")
 }
 
@@ -237,7 +230,7 @@ func TestOpenStore_ConfiguresMemoryVectorStore(t *testing.T) {
 	require.Len(t, vectorStore.upserts, 1)
 	require.Len(t, vectorStore.upserts[0], 1)
 	require.Equal(t, "text-embedding-test", vectorStore.upserts[0][0].EmbeddingModel)
-	require.Equal(t, retrieval.SourceKindSessionMessage, vectorStore.upserts[0][0].SourceKind)
+	require.Equal(t, search.SourceKindSessionMessage, vectorStore.upserts[0][0].SourceKind)
 }
 
 func TestOpenStore_ReturnsMemoryVectorConfigError(t *testing.T) {
@@ -255,7 +248,7 @@ func TestOpenStore_ReturnsMemoryVectorConfigurationError(t *testing.T) {
 	t.Cleanup(func() {
 		newStoreEmbeddingProvider = originalProvider
 	})
-	newStoreEmbeddingProvider = func(*config.Config) (retrieval.Embedder, error) {
+	newStoreEmbeddingProvider = func(*config.Config) (search.Embedder, error) {
 		return nil, nil
 	}
 
@@ -371,10 +364,10 @@ func TestOpenStore_ValidatesVectorStoreFactories(t *testing.T) {
 			newSQLiteVectorStore = originalSQLiteStore
 		})
 
-		newStoreEmbeddingProvider = func(*config.Config) (retrieval.Embedder, error) {
+		newStoreEmbeddingProvider = func(*config.Config) (search.Embedder, error) {
 			return &storeTestEmbeddingProvider{}, nil
 		}
-		newSQLiteVectorStore = func(*gorm.DB) (retrieval.VectorStore, error) {
+		newSQLiteVectorStore = func(*gorm.DB) (search.VectorStore, error) {
 			return nil, errors.New("vector factory failed")
 		}
 
@@ -388,7 +381,6 @@ func TestOpenStore_ValidatesVectorStoreFactories(t *testing.T) {
 		})
 
 		require.Nil(t, store)
-		skipIfSQLiteFTS5Unavailable(t, err)
 		require.EqualError(t, err, "vector factory failed")
 	})
 
@@ -403,10 +395,10 @@ func TestOpenStore_ValidatesVectorStoreFactories(t *testing.T) {
 			newSQLiteVectorStore = originalSQLiteStore
 		})
 
-		newStoreEmbeddingProvider = func(*config.Config) (retrieval.Embedder, error) {
+		newStoreEmbeddingProvider = func(*config.Config) (search.Embedder, error) {
 			return &storeTestEmbeddingProvider{}, nil
 		}
-		newSQLiteVectorStore = func(*gorm.DB) (retrieval.VectorStore, error) {
+		newSQLiteVectorStore = func(*gorm.DB) (search.VectorStore, error) {
 			return nil, nil
 		}
 
@@ -420,7 +412,6 @@ func TestOpenStore_ValidatesVectorStoreFactories(t *testing.T) {
 		})
 
 		require.Nil(t, store)
-		skipIfSQLiteFTS5Unavailable(t, err)
 		require.EqualError(t, err, "sqlite vector store is required")
 	})
 
@@ -432,10 +423,10 @@ func TestOpenStore_ValidatesVectorStoreFactories(t *testing.T) {
 			newMemoryVectorStore = originalMemoryStore
 		})
 
-		newStoreEmbeddingProvider = func(*config.Config) (retrieval.Embedder, error) {
+		newStoreEmbeddingProvider = func(*config.Config) (search.Embedder, error) {
 			return &storeTestEmbeddingProvider{}, nil
 		}
-		newMemoryVectorStore = func() retrieval.VectorStore {
+		newMemoryVectorStore = func() search.VectorStore {
 			return nil
 		}
 
@@ -531,7 +522,6 @@ func TestOpenStore_BM25SearchWhenVectorDisabled(t *testing.T) {
 			}
 
 			store, err := OpenStore(e2eVectorStoreConfig(backend, false, false))
-			skipIfSQLiteFTS5Unavailable(t, err)
 			require.NoError(t, err)
 
 			sessionID := newStoreTestSessionID(t)
@@ -606,23 +596,23 @@ func TestStoreReranker_SelectsConfiguredReranker(t *testing.T) {
 			cfg: config.Config{
 				Search: config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
 			},
-			wantName: retrieval.RerankerDeterministic,
-			wantType: retrieval.DeterministicReranker{},
+			wantName: search.RerankerDeterministic,
+			wantType: search.DeterministicReranker{},
 		},
 		{
-			name: retrieval.RerankerNoop,
+			name: search.RerankerNoop,
 			cfg: config.Config{
 				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
-				Reranker: config.RerankerConfig{Type: retrieval.RerankerNoop},
+				Reranker: config.RerankerConfig{Type: search.RerankerNoop},
 			},
-			wantName: retrieval.RerankerNoop,
-			wantType: retrieval.NoopReranker{},
+			wantName: search.RerankerNoop,
+			wantType: search.NoopReranker{},
 		},
 		{
 			name: "globally disabled llm does not require client",
 			cfg: config.Config{
 				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
-				Reranker: config.RerankerConfig{Enabled: &disabled, Type: retrieval.RerankerLLM},
+				Reranker: config.RerankerConfig{Enabled: &disabled, Type: search.RerankerLLM},
 			},
 			wantNil: true,
 		},
@@ -630,7 +620,7 @@ func TestStoreReranker_SelectsConfiguredReranker(t *testing.T) {
 			name: "search disabled llm does not require client",
 			cfg: config.Config{
 				Search:   config.SearchConfig{EnableRerank: &disabled, Vector: config.SearchVectorConfig{Enabled: true}},
-				Reranker: config.RerankerConfig{Type: retrieval.RerankerLLM},
+				Reranker: config.RerankerConfig{Type: search.RerankerLLM},
 			},
 			wantNil: true,
 		},
@@ -638,20 +628,20 @@ func TestStoreReranker_SelectsConfiguredReranker(t *testing.T) {
 			name: "llm requires client",
 			cfg: config.Config{
 				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
-				Reranker: config.RerankerConfig{Type: retrieval.RerankerLLM},
+				Reranker: config.RerankerConfig{Type: search.RerankerLLM},
 			},
 			wantErr: "reranker model client is required",
 		},
 		{
-			name: retrieval.RerankerLLM,
+			name: search.RerankerLLM,
 			cfg: config.Config{
 				Models:   config.ModelsConfig{Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", APIMode: config.DefaultModelAPIMode}},
 				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
-				Reranker: config.RerankerConfig{Type: retrieval.RerankerLLM, Model: "openai/gpt-4o-mini", MaxCandidates: 3, MaxCandidateTextChars: 40, MaxOutputTokens: 50},
+				Reranker: config.RerankerConfig{Type: search.RerankerLLM, Model: "openai/gpt-4o-mini", MaxCandidates: 3, MaxCandidateTextChars: 40, MaxOutputTokens: 50},
 			},
 			client:   &storeTestModelClient{},
-			wantName: retrieval.RerankerLLM,
-			wantType: retrieval.LLMReranker{},
+			wantName: search.RerankerLLM,
+			wantType: search.LLMReranker{},
 		},
 		{
 			name: "invalid reranker",
@@ -715,9 +705,9 @@ func TestStoreRerankEnabledDefaults(t *testing.T) {
 
 func withStoreVectorHooks(
 	t *testing.T,
-	provider retrieval.Embedder,
-	sqliteStore retrieval.VectorStore,
-	memoryStore retrieval.VectorStore,
+	provider search.Embedder,
+	sqliteStore search.VectorStore,
+	memoryStore search.VectorStore,
 ) {
 	t.Helper()
 
@@ -731,24 +721,24 @@ func withStoreVectorHooks(
 	})
 
 	if provider != nil {
-		newStoreEmbeddingProvider = func(*config.Config) (retrieval.Embedder, error) {
+		newStoreEmbeddingProvider = func(*config.Config) (search.Embedder, error) {
 			return provider, nil
 		}
 	}
 	if sqliteStore != nil {
-		newSQLiteVectorStore = func(*gorm.DB) (retrieval.VectorStore, error) {
+		newSQLiteVectorStore = func(*gorm.DB) (search.VectorStore, error) {
 			return sqliteStore, nil
 		}
 	}
 	if memoryStore != nil {
-		newMemoryVectorStore = func() retrieval.VectorStore {
+		newMemoryVectorStore = func() search.VectorStore {
 			return memoryStore
 		}
 	}
 }
 
 type storeTestEmbeddingProvider struct {
-	requests []retrieval.EmbeddingRequest
+	requests []search.EmbeddingRequest
 }
 
 type storeTestModelClient struct{}
@@ -767,20 +757,20 @@ func (*storeTestModelClient) CompleteStream(
 
 func (p *storeTestEmbeddingProvider) Embed(
 	_ context.Context,
-	req retrieval.EmbeddingRequest,
-) (retrieval.EmbeddingResult, error) {
+	req search.EmbeddingRequest,
+) (search.EmbeddingResult, error) {
 	p.requests = append(p.requests, req)
 
-	items := make([]retrieval.Embedding, 0, len(req.Inputs))
+	items := make([]search.Embedding, 0, len(req.Inputs))
 	for idx, input := range req.Inputs {
-		items = append(items, retrieval.Embedding{
+		items = append(items, search.Embedding{
 			ID:          input.ID,
-			ContentHash: retrieval.VectorContentHash(input.Text),
+			ContentHash: search.VectorContentHash(input.Text),
 			Vector:      []float64{1, float64(idx + 1)},
 		})
 	}
 
-	return retrieval.EmbeddingResult{
+	return search.EmbeddingResult{
 		Model:      req.Model,
 		Items:      items,
 		Dimensions: 2,
@@ -788,37 +778,37 @@ func (p *storeTestEmbeddingProvider) Embed(
 }
 
 type storeTestVectorStore struct {
-	upserts [][]retrieval.VectorRecord
+	upserts [][]search.VectorRecord
 }
 
-func (s *storeTestVectorStore) Upsert(_ context.Context, records []retrieval.VectorRecord) error {
-	cloned := make([]retrieval.VectorRecord, len(records))
+func (s *storeTestVectorStore) Upsert(_ context.Context, records []search.VectorRecord) error {
+	cloned := make([]search.VectorRecord, len(records))
 	copy(cloned, records)
 	s.upserts = append(s.upserts, cloned)
 	return nil
 }
 
-func (s *storeTestVectorStore) Delete(context.Context, retrieval.VectorDeleteRequest) error {
+func (s *storeTestVectorStore) Delete(context.Context, search.VectorDeleteRequest) error {
 	return nil
 }
 
 func (s *storeTestVectorStore) Search(
 	context.Context,
-	retrieval.VectorSearchRequest,
-) (retrieval.VectorSearchResult, error) {
-	return retrieval.VectorSearchResult{}, nil
+	search.VectorSearchRequest,
+) (search.VectorSearchResult, error) {
+	return search.VectorSearchResult{}, nil
 }
 
-func (s *storeTestVectorStore) Metadata(context.Context) (retrieval.VectorStoreMetadata, error) {
-	return retrieval.VectorStoreMetadata{}, nil
+func (s *storeTestVectorStore) Metadata(context.Context) (search.VectorStoreMetadata, error) {
+	return search.VectorStoreMetadata{}, nil
 }
 
 func openStoreWithE2EVectorSearch(
 	t *testing.T,
 	backend string,
-	provider retrieval.Embedder,
+	provider search.Embedder,
 	required bool,
-) (storage.Store, retrieval.VectorRecordLister) {
+) (storage.Store, search.VectorRecordLister) {
 	t.Helper()
 
 	if backend == "sqlite" {
@@ -834,16 +824,16 @@ func openStoreWithE2EVectorSearch(
 		newMemoryVectorStore = originalMemoryStore
 	})
 
-	var lister retrieval.VectorRecordLister
-	newStoreEmbeddingProvider = func(*config.Config) (retrieval.Embedder, error) {
+	var lister search.VectorRecordLister
+	newStoreEmbeddingProvider = func(*config.Config) (search.Embedder, error) {
 		return provider, nil
 	}
-	newMemoryVectorStore = func() retrieval.VectorStore {
+	newMemoryVectorStore = func() search.VectorStore {
 		store := vectormemory.NewStore()
 		lister = store
 		return store
 	}
-	newSQLiteVectorStore = func(db *gorm.DB) (retrieval.VectorStore, error) {
+	newSQLiteVectorStore = func(db *gorm.DB) (search.VectorStore, error) {
 		store, err := vectorsqlite.NewStoreFromDB(db)
 		if err != nil {
 			return nil, err
@@ -853,20 +843,11 @@ func openStoreWithE2EVectorSearch(
 	}
 
 	store, err := OpenStore(e2eVectorStoreConfig(backend, true, required))
-	skipIfSQLiteFTS5Unavailable(t, err)
 	require.NoError(t, err)
 	require.NotNil(t, store)
 	require.NotNil(t, lister)
 
 	return store, lister
-}
-
-func skipIfSQLiteFTS5Unavailable(t *testing.T, err error) {
-	t.Helper()
-
-	if err != nil && strings.Contains(err.Error(), "no such module: fts5") {
-		t.Skip("sqlite FTS5 is not available in this test environment")
-	}
 }
 
 func e2eVectorStoreConfig(backend string, vectorEnabled bool, required bool) *config.Config {
@@ -895,13 +876,13 @@ func newStoreTestSessionID(t *testing.T) string {
 	return sessionID
 }
 
-func requireVectorRecordCount(t *testing.T, lister retrieval.VectorRecordLister, count int) {
+func requireVectorRecordCount(t *testing.T, lister search.VectorRecordLister, count int) {
 	t.Helper()
 
-	list, err := lister.List(context.Background(), retrieval.VectorListRequest{
+	list, err := lister.List(context.Background(), search.VectorListRequest{
 		EmbeddingModel: e2eVectorEmbeddingModel,
-		Filter: retrieval.VectorFilter{
-			SourceKind: retrieval.SourceKindSessionMessage,
+		Filter: search.VectorFilter{
+			SourceKind: search.SourceKindSessionMessage,
 		},
 	})
 	require.NoError(t, err)
@@ -909,29 +890,29 @@ func requireVectorRecordCount(t *testing.T, lister retrieval.VectorRecordLister,
 }
 
 type e2eVectorEmbeddingProvider struct {
-	requests []retrieval.EmbeddingRequest
+	requests []search.EmbeddingRequest
 	err      error
 }
 
 func (p *e2eVectorEmbeddingProvider) Embed(
 	_ context.Context,
-	req retrieval.EmbeddingRequest,
-) (retrieval.EmbeddingResult, error) {
+	req search.EmbeddingRequest,
+) (search.EmbeddingResult, error) {
 	p.requests = append(p.requests, req)
 	if p.err != nil {
-		return retrieval.EmbeddingResult{}, p.err
+		return search.EmbeddingResult{}, p.err
 	}
 
-	items := make([]retrieval.Embedding, 0, len(req.Inputs))
+	items := make([]search.Embedding, 0, len(req.Inputs))
 	for _, input := range req.Inputs {
-		items = append(items, retrieval.Embedding{
+		items = append(items, search.Embedding{
 			ID:          input.ID,
-			ContentHash: retrieval.VectorContentHash(input.Text),
+			ContentHash: search.VectorContentHash(input.Text),
 			Vector:      e2eVectorForText(input.Text),
 		})
 	}
 
-	return retrieval.EmbeddingResult{
+	return search.EmbeddingResult{
 		Model:      req.Model,
 		Items:      items,
 		Dimensions: 3,

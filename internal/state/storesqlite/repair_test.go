@@ -14,8 +14,7 @@ import (
 	"gorm.io/gorm/logger"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/state/retrieval"
-	statevector "github.com/wandxy/hand/internal/state/vector"
+	"github.com/wandxy/hand/internal/state/search"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -134,20 +133,20 @@ func TestSQLiteStore_RepairVectorStore(t *testing.T) {
 
 	t.Run("returns zero result when vectors are not configured", func(t *testing.T) {
 		store := sqliteRepairStoreWithoutVectors(t)
-		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{})
+		result, err := store.RepairVectorStore(context.Background(), search.VectorRepairOptions{})
 		require.NoError(t, err)
-		require.Equal(t, statevector.VectorRepairResult{}, result)
+		require.Equal(t, search.VectorRepairResult{}, result)
 	})
 
 	t.Run("rejects invalid session id", func(t *testing.T) {
 		store, _, _ := sqliteRepairTestStore(t)
-		_, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{SessionID: "invalid"})
+		_, err := store.RepairVectorStore(context.Background(), search.VectorRepairOptions{SessionID: "invalid"})
 		require.EqualError(t, err, "session id must be a valid ses_ nanoid")
 	})
 
 	t.Run("rejects negative batch size", func(t *testing.T) {
 		store, _, _ := sqliteRepairTestStore(t)
-		_, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{BatchSize: -1})
+		_, err := store.RepairVectorStore(context.Background(), search.VectorRepairOptions{BatchSize: -1})
 		require.EqualError(t, err, "vector repair batch size must be greater than or equal to zero")
 	})
 
@@ -159,20 +158,20 @@ func TestSQLiteStore_RepairVectorStore(t *testing.T) {
 			EmbeddingModel: "text-embedding-test",
 		}))
 
-		_, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{})
+		_, err := store.RepairVectorStore(context.Background(), search.VectorRepairOptions{})
 		require.EqualError(t, err, "vector store record listing is required")
 	})
 
 	t.Run("returns session listing errors", func(t *testing.T) {
 		store, _, _ := sqliteRepairTestStore(t)
 		require.NoError(t, store.db.Exec(`DROP TABLE sessions`).Error)
-		_, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{})
+		_, err := store.RepairVectorStore(context.Background(), search.VectorRepairOptions{})
 		require.Error(t, err)
 	})
 
 	t.Run("returns missing scoped session errors", func(t *testing.T) {
 		store, _, _ := sqliteRepairTestStore(t)
-		_, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{
+		_, err := store.RepairVectorStore(context.Background(), search.VectorRepairOptions{
 			SessionID: testMissingSession,
 		})
 		require.EqualError(t, err, "session not found")
@@ -189,7 +188,7 @@ func TestSQLiteStore_RepairVectorStore(t *testing.T) {
 			{ID: 2, Role: handmsg.RoleUser, Content: "beta repair", CreatedAt: now},
 		})
 
-		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{})
+		result, err := store.RepairVectorStore(context.Background(), search.VectorRepairOptions{})
 
 		require.NoError(t, err)
 		require.Equal(t, 2, result.SessionsScanned)
@@ -215,7 +214,7 @@ func TestSQLiteStore_RepairVectorStore(t *testing.T) {
 		provider.requests = nil
 		vectorStore.upserts = nil
 
-		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{SessionID: testSessionA})
+		result, err := store.RepairVectorStore(context.Background(), search.VectorRepairOptions{SessionID: testSessionA})
 
 		require.NoError(t, err)
 		require.Equal(t, 1, result.SessionsScanned)
@@ -240,7 +239,7 @@ func TestSQLiteStore_RepairVectorStore(t *testing.T) {
 		vectorStore.upserts = nil
 		vectorStore.deletes = nil
 
-		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{
+		result, err := store.RepairVectorStore(context.Background(), search.VectorRepairOptions{
 			SessionID: testSessionA,
 			Full:      true,
 		})
@@ -263,7 +262,7 @@ func TestSQLiteStore_RepairVectorStore(t *testing.T) {
 		})
 		vectorStore.listErr = errors.New("list failed")
 
-		result, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{SessionID: testSessionA})
+		result, err := store.RepairVectorStore(context.Background(), search.VectorRepairOptions{SessionID: testSessionA})
 
 		require.NoError(t, err)
 		require.Equal(t, 1, result.MessagesScanned)
@@ -285,7 +284,7 @@ func TestSQLiteStore_RepairVectorStore(t *testing.T) {
 		})
 		vectorStore.listErr = errors.New("list failed")
 
-		_, err := store.RepairVectorStore(context.Background(), statevector.VectorRepairOptions{SessionID: testSessionA})
+		_, err := store.RepairVectorStore(context.Background(), search.VectorRepairOptions{SessionID: testSessionA})
 
 		require.EqualError(t, err, "list failed")
 	})
@@ -300,7 +299,7 @@ func TestSQLiteStore_RepairVectorBatch(t *testing.T) {
 		result, err := store.repairVectorBatch(context.Background(), vectorStore, nil, false)
 
 		require.NoError(t, err)
-		require.Equal(t, statevector.VectorRepairResult{}, result)
+		require.Equal(t, search.VectorRepairResult{}, result)
 	})
 
 	t.Run("skips messages without indexable rows", func(t *testing.T) {
@@ -400,21 +399,21 @@ func sqliteRepairSaveMessages(
 
 type repairSearchOnlyVectorStore struct{}
 
-func (repairSearchOnlyVectorStore) Upsert(context.Context, []retrieval.VectorRecord) error {
+func (repairSearchOnlyVectorStore) Upsert(context.Context, []search.VectorRecord) error {
 	return nil
 }
 
-func (repairSearchOnlyVectorStore) Delete(context.Context, retrieval.VectorDeleteRequest) error {
+func (repairSearchOnlyVectorStore) Delete(context.Context, search.VectorDeleteRequest) error {
 	return nil
 }
 
 func (repairSearchOnlyVectorStore) Search(
 	context.Context,
-	retrieval.VectorSearchRequest,
-) (retrieval.VectorSearchResult, error) {
-	return retrieval.VectorSearchResult{}, nil
+	search.VectorSearchRequest,
+) (search.VectorSearchResult, error) {
+	return search.VectorSearchResult{}, nil
 }
 
-func (repairSearchOnlyVectorStore) Metadata(context.Context) (retrieval.VectorStoreMetadata, error) {
-	return retrieval.VectorStoreMetadata{}, nil
+func (repairSearchOnlyVectorStore) Metadata(context.Context) (search.VectorStoreMetadata, error) {
+	return search.VectorStoreMetadata{}, nil
 }

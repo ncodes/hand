@@ -116,6 +116,7 @@ type SearchVectorConfig struct {
 type MemoryConfig struct {
 	Enabled  *bool  `yaml:"enabled"`
 	Provider string `yaml:"provider"`
+	Backend  string `yaml:"backend"`
 }
 
 type RerankerConfig struct {
@@ -351,7 +352,7 @@ func Get() *Config {
 			},
 			Memory: MemoryConfig{
 				Enabled:  new(true),
-				Provider: "noop",
+				Provider: "default-memory",
 			},
 		}
 	}
@@ -645,6 +646,9 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_PROVIDER")); value != "" {
 		cfg.Memory.Provider = value
 	}
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_BACKEND")); value != "" {
+		cfg.Memory.Backend = value
+	}
 	if value, ok := parseOptionalBoolEnv("HAND_SEARCH_VECTOR_REQUIRED"); ok {
 		cfg.Search.Vector.Required = value
 	}
@@ -736,6 +740,7 @@ func (c *Config) normalizeFields() {
 	c.Exec.Deny = dedupeAndTrim(c.Exec.Deny)
 	c.Storage.Backend = strings.TrimSpace(strings.ToLower(c.Storage.Backend))
 	c.Memory.Provider = strings.TrimSpace(strings.ToLower(c.Memory.Provider))
+	c.Memory.Backend = strings.TrimSpace(strings.ToLower(c.Memory.Backend))
 	c.Reranker.Type = strings.TrimSpace(strings.ToLower(c.Reranker.Type))
 	c.Reranker.Model = strings.TrimSpace(c.Reranker.Model)
 
@@ -850,7 +855,7 @@ func (c *Config) normalizeFields() {
 		c.Memory.Enabled = new(true)
 	}
 	if c.Memory.Provider == "" {
-		c.Memory.Provider = "noop"
+		c.Memory.Provider = "default-memory"
 	}
 
 }
@@ -1247,6 +1252,9 @@ func (c *Config) Validate() error {
 
 	if c.Storage.Backend != "memory" && c.Storage.Backend != "sqlite" {
 		return errors.New("storage backend must be one of: memory, sqlite")
+	}
+	if c.Memory.Backend != "" && c.Memory.Backend != "memory" && c.Memory.Backend != "sqlite" {
+		return errors.New("memory backend must be one of: memory, sqlite")
 	}
 	if c.Compaction.TriggerPercent >= 1 {
 		return errors.New("compaction trigger percent must be greater than zero and less than one")

@@ -17,7 +17,7 @@ import (
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
-	statevector "github.com/wandxy/hand/internal/state/vector"
+	"github.com/wandxy/hand/internal/state/search"
 )
 
 type respondStreamServerStub struct {
@@ -499,7 +499,7 @@ func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
 }
 
 func TestService_RepairSessionReturnsResult(t *testing.T) {
-	stub := &agentstub.AgentServiceStub{RepairResult: statevector.VectorRepairResult{
+	stub := &agentstub.AgentServiceStub{RepairResult: search.VectorRepairResult{
 		SessionsScanned: 2,
 		MessagesScanned: 3,
 		RowsScanned:     4,

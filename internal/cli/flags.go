@@ -306,6 +306,12 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value:  config.Get().Storage.Backend,
 			Hidden: true,
 		},
+		&cli.StringFlag{
+			Name:   "memory.backend",
+			Usage:  "Memory backend override: memory or sqlite",
+			Value:  config.Get().Memory.Backend,
+			Hidden: true,
+		},
 		&cli.DurationFlag{
 			Name:   "session.default-idle-expiry",
 			Usage:  "Idle duration before the default session is archived and cleared",
@@ -536,6 +542,9 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("storage.backend") {
 		cfg.Storage.Backend = strings.TrimSpace(cmd.String("storage.backend"))
+	}
+	if cmd.IsSet("memory.backend") {
+		cfg.Memory.Backend = strings.TrimSpace(cmd.String("memory.backend"))
 	}
 	if cmd.IsSet("session.default-idle-expiry") {
 		cfg.Session.DefaultIdleExpiry = cmd.Duration("session.default-idle-expiry")

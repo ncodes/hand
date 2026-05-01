@@ -9,19 +9,17 @@ import (
 
 	"github.com/wandxy/hand/internal/messages"
 	base "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/indexing"
-	"github.com/wandxy/hand/internal/state/retrieval"
-	statevector "github.com/wandxy/hand/internal/state/vector"
+	"github.com/wandxy/hand/internal/state/search"
 )
 
 type searchCandidate struct {
-	indexing.CandidateMatch
+	search.CandidateMatch
 	Message messages.Message
 }
 
-type searchCandidateSet = indexing.SearchCandidateSet[string, *searchCandidate]
+type searchCandidateSet = search.SearchCandidateSet[string, *searchCandidate]
 
-func (candidate *searchCandidate) CandidateMatchRef() *indexing.CandidateMatch {
+func (candidate *searchCandidate) CandidateMatchRef() *search.CandidateMatch {
 	if candidate == nil {
 		return nil
 	}
@@ -29,7 +27,7 @@ func (candidate *searchCandidate) CandidateMatchRef() *indexing.CandidateMatch {
 	return &candidate.CandidateMatch
 }
 
-func (s *Store) ConfigureVectorStore(opts statevector.VectorStoreOptions) error {
+func (s *Store) ConfigureVectorStore(opts search.VectorStoreOptions) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
@@ -58,7 +56,7 @@ func (s *Store) ConfigureVectorStore(opts statevector.VectorStoreOptions) error 
 	}
 
 	if rerankMax == 0 {
-		rerankMax = indexing.DefaultRerankCandidateLimit
+		rerankMax = search.DefaultRerankCandidateLimit
 	}
 
 	rerankEnabled := true
@@ -66,11 +64,11 @@ func (s *Store) ConfigureVectorStore(opts statevector.VectorStoreOptions) error 
 		rerankEnabled = *opts.EnableRerank
 	}
 
-	if err := retrieval.ValidateReranker(opts.Reranker); err != nil {
+	if err := search.ValidateReranker(opts.Reranker); err != nil {
 		return err
 	}
 
-	s.vectors = &statevector.VectorConfig{
+	s.vectors = &search.VectorConfig{
 		Provider:    opts.Embedder,
 		Reranker:    opts.Reranker,
 		Store:       opts.VectorStore,
@@ -90,7 +88,7 @@ func (s *Store) searchMessagesHybrid(
 	opts base.SearchMessageOptions,
 	query string,
 ) ([]base.SearchMessageResult, error) {
-	candidateLimit := indexing.HybridRetrievalCandidateLimit(opts)
+	candidateLimit := search.HybridRetrievalCandidateLimit(opts)
 	lexicalCandidates := s.searchMessagesLexicalCandidates(id, opts, query, candidateLimit)
 
 	s.logSearchEvent("lexical candidates gathered", id, opts).
@@ -166,8 +164,8 @@ func (s *Store) searchMessagesLexicalCandidates(
 			if limit > 0 && len(candidates) >= limit {
 				return
 			}
-			candidates[statevector.SourceIDForMessage(sessionID, hit.Message.ID)] = &searchCandidate{
-				CandidateMatch: indexing.CandidateMatch{
+			candidates[search.SourceIDForMessage(sessionID, hit.Message.ID)] = &searchCandidate{
+				CandidateMatch: search.CandidateMatch{
 					SessionID:       sessionID,
 					MatchedText:     hit.MatchedText,
 					MatchedToolName: hit.MatchedToolName,
@@ -208,12 +206,12 @@ func (s *Store) searchMessagesVector(
 	opts base.SearchMessageOptions,
 	candidateLimit int,
 ) ([]*searchCandidate, error) {
-	req := retrieval.EmbeddingRequest{
+	req := search.EmbeddingRequest{
 		Model: s.vectors.Model,
-		Inputs: []retrieval.EmbeddingInput{{
+		Inputs: []search.EmbeddingInput{{
 			ID:         "query",
 			Text:       strings.TrimSpace(opts.Query),
-			SourceKind: retrieval.SourceKindSessionMessage,
+			SourceKind: search.SourceKindSessionMessage,
 		}},
 	}
 
@@ -227,7 +225,7 @@ func (s *Store) searchMessagesVector(
 			Msg("session search query embedding failed")
 		return nil, err
 	}
-	if err := retrieval.ValidateEmbeddingResult(req, embedding); err != nil {
+	if err := search.ValidateEmbeddingResult(req, embedding); err != nil {
 		logSafeError(s.logSearchEvent("query embedding validation failed", id, opts), err).
 			Msg("session search query embedding validation failed")
 		return nil, err
@@ -244,13 +242,13 @@ func (s *Store) searchMessagesVector(
 		Str("embedding_model", s.vectors.Model).
 		Msg("session search vector retrieval started")
 
-	result, err := s.vectors.Store.Search(ctx, retrieval.VectorSearchRequest{
+	result, err := s.vectors.Store.Search(ctx, search.VectorSearchRequest{
 		EmbeddingModel: s.vectors.Model,
 		Dimensions:     embedding.Dimensions,
 		QueryVector:    embedding.Items[0].Vector,
 		Limit:          candidateLimit,
-		Filter: retrieval.VectorFilter{
-			SourceKind:      retrieval.SourceKindSessionMessage,
+		Filter: search.VectorFilter{
+			SourceKind:      search.SourceKindSessionMessage,
 			SessionID:       id,
 			IgnoreSessionID: opts.IgnoreSessionID,
 			Role:            strings.TrimSpace(string(opts.Role)),
@@ -282,7 +280,7 @@ func (s *Store) searchMessagesVector(
 func (s *Store) vectorMatchesToCandidates(
 	id string,
 	opts base.SearchMessageOptions,
-	matches []retrieval.VectorSearchMatch,
+	matches []search.VectorSearchMatch,
 ) []*searchCandidate {
 	if len(matches) == 0 {
 		return nil
@@ -294,7 +292,7 @@ func (s *Store) vectorMatchesToCandidates(
 	candidates := make([]*searchCandidate, 0, len(matches))
 	seen := make(map[string]struct{}, len(matches))
 	for idx, match := range matches {
-		sessionID, messageID, ok := statevector.MessageRefFromSourceID(match.Record.SourceID)
+		sessionID, messageID, ok := search.MessageRefFromSourceID(match.Record.SourceID)
 		if !ok {
 			continue
 		}
@@ -305,16 +303,16 @@ func (s *Store) vectorMatchesToCandidates(
 		if !ok || !messageMatchesSearchOptions(sessionID, message, id, opts) {
 			continue
 		}
-		row, ok := indexing.MessageIndexRowForVectorRecord(
-			indexing.MessageIndexRowsFromMessage(sessionID, message),
+		row, ok := search.MessageIndexRowForVectorRecord(
+			search.MessageIndexRowsFromMessage(sessionID, message),
 			match.Record.ID,
 		)
-		if !ok || !indexing.MessageIndexRowMatchesSearchOptions(row, opts) {
+		if !ok || !search.MessageIndexRowMatchesSearchOptions(row, opts) {
 			continue
 		}
 
 		candidates = append(candidates, &searchCandidate{
-			CandidateMatch: indexing.CandidateMatch{
+			CandidateMatch: search.CandidateMatch{
 				SessionID:       sessionID,
 				MatchedText:     row.Body,
 				MatchedToolName: row.ToolName,
@@ -335,7 +333,7 @@ func searchCandidateKey(candidate *searchCandidate) string {
 		return ""
 	}
 
-	return statevector.SourceIDForMessage(candidate.SessionID, candidate.Message.ID)
+	return search.SourceIDForMessage(candidate.SessionID, candidate.Message.ID)
 }
 
 func lessSearchCandidate(left *searchCandidate, right *searchCandidate) bool {
@@ -359,7 +357,7 @@ func (s *Store) rerankSearchCandidates(
 
 	reranker := s.vectors.Reranker
 	if reranker == nil {
-		reranker = retrieval.DeterministicReranker{}
+		reranker = search.DeterministicReranker{}
 	}
 	rerankerName := s.rerankerName()
 
@@ -369,7 +367,7 @@ func (s *Store) rerankSearchCandidates(
 		Int("max_candidates", maxCandidates).
 		Msg("session search rerank started")
 
-	retrievalCandidates := make([]retrieval.Candidate, 0, len(items))
+	retrievalCandidates := make([]search.Candidate, 0, len(items))
 	candidateByID := make(map[string]*searchCandidate, len(items))
 	for _, candidate := range items {
 		item := retrievalCandidateFromSearchCandidate(candidate)
@@ -377,15 +375,15 @@ func (s *Store) rerankSearchCandidates(
 		candidateByID[item.ID] = candidate
 	}
 
-	result, err := retrieval.RerankWithFallback(ctx, reranker, retrieval.DeterministicReranker{}, retrieval.RerankRequest{
+	result, err := search.RerankWithFallback(ctx, reranker, search.DeterministicReranker{}, search.RerankRequest{
 		Query:      strings.TrimSpace(opts.Query),
 		Caller:     "session_search",
-		SourceKind: retrieval.SourceKindSessionMessage,
+		SourceKind: search.SourceKindSessionMessage,
 		Candidates: retrievalCandidates,
-		Options: retrieval.RerankOptions{
-			LexicalDirection: retrieval.ScoreLowerIsBetter,
-			VectorDirection:  retrieval.ScoreHigherIsBetter,
-			FusedDirection:   retrieval.ScoreHigherIsBetter,
+		Options: search.RerankOptions{
+			LexicalDirection: search.ScoreLowerIsBetter,
+			VectorDirection:  search.ScoreHigherIsBetter,
+			FusedDirection:   search.ScoreHigherIsBetter,
 		},
 	})
 	if err != nil {
@@ -415,17 +413,17 @@ func (s *Store) rerankSearchCandidates(
 	return reranked
 }
 
-func retrievalCandidateFromSearchCandidate(candidate *searchCandidate) retrieval.Candidate {
+func retrievalCandidateFromSearchCandidate(candidate *searchCandidate) search.Candidate {
 	text := strings.TrimSpace(candidate.MatchedText)
 	if text == "" {
 		text = strings.TrimSpace(candidate.Message.Content)
 	}
 
-	return retrieval.Candidate{
+	return search.Candidate{
 		CreatedAt:    candidate.Message.CreatedAt,
 		UpdatedAt:    candidate.Message.CreatedAt,
-		ID:           statevector.SourceIDForMessage(candidate.SessionID, candidate.Message.ID),
-		SourceKind:   retrieval.SourceKindSessionMessage,
+		ID:           search.SourceIDForMessage(candidate.SessionID, candidate.Message.ID),
+		SourceKind:   search.SourceKindSessionMessage,
 		SessionID:    candidate.SessionID,
 		Text:         text,
 		LexicalScore: candidate.LexicalScore,
@@ -454,8 +452,8 @@ func searchResultsFromCandidates(
 	sort.SliceStable(sessionIDs, func(i, j int) bool {
 		left := groups[sessionIDs[i]][0]
 		right := groups[sessionIDs[j]][0]
-		leftScore := indexing.CandidateRankingScore(left.HasRerank, left.RerankScore, left.FusedScore)
-		rightScore := indexing.CandidateRankingScore(right.HasRerank, right.RerankScore, right.FusedScore)
+		leftScore := search.CandidateRankingScore(left.HasRerank, left.RerankScore, left.FusedScore)
+		rightScore := search.CandidateRankingScore(right.HasRerank, right.RerankScore, right.FusedScore)
 		if leftScore != rightScore {
 			return leftScore > rightScore
 		}
@@ -514,30 +512,30 @@ func (s *Store) vectorRecordsForMessages(
 	ctx context.Context,
 	sessionID string,
 	messages []messages.Message,
-) ([]retrieval.VectorRecord, error) {
+) ([]search.VectorRecord, error) {
 	if s == nil || s.vectors == nil || len(messages) == 0 {
 		return nil, nil
 	}
 
-	rows := make([]indexing.MessageIndexRow, 0, len(messages))
+	rows := make([]search.MessageIndexRow, 0, len(messages))
 	for _, message := range messages {
-		rows = append(rows, indexing.MessageIndexRowsFromMessage(sessionID, message)...)
+		rows = append(rows, search.MessageIndexRowsFromMessage(sessionID, message)...)
 	}
-	inputs := statevector.VectorInputsFromIndexRows(rows)
+	inputs := search.VectorInputsFromIndexRows(rows)
 	if len(inputs) == 0 {
 		return nil, nil
 	}
 
-	embeddingInputs := make([]retrieval.EmbeddingInput, 0, len(inputs))
+	embeddingInputs := make([]search.EmbeddingInput, 0, len(inputs))
 	for _, input := range inputs {
-		embeddingInputs = append(embeddingInputs, retrieval.EmbeddingInput{
+		embeddingInputs = append(embeddingInputs, search.EmbeddingInput{
 			ID:         input.ID,
 			Text:       input.Text,
-			SourceKind: retrieval.SourceKindSessionMessage,
+			SourceKind: search.SourceKindSessionMessage,
 		})
 	}
 
-	req := retrieval.EmbeddingRequest{Model: s.vectors.Model, Inputs: embeddingInputs}
+	req := search.EmbeddingRequest{Model: s.vectors.Model, Inputs: embeddingInputs}
 
 	s.logVectorEvent("embedding started").
 		Int("input_count", len(req.Inputs)).
@@ -549,7 +547,7 @@ func (s *Store) vectorRecordsForMessages(
 		logSafeError(s.logVectorEvent("embedding failed"), err).Msg("session vector embedding failed")
 		return nil, err
 	}
-	if err := retrieval.ValidateEmbeddingResult(req, result); err != nil {
+	if err := search.ValidateEmbeddingResult(req, result); err != nil {
 		logSafeError(s.logVectorEvent("embedding validation failed"), err).
 			Msg("session vector embedding validation failed")
 		return nil, err
@@ -561,19 +559,19 @@ func (s *Store) vectorRecordsForMessages(
 		Str("embedding_model", strings.TrimSpace(result.Model)).
 		Msg("session vector embedding completed")
 
-	inputByID := make(map[string]statevector.VectorInput, len(inputs))
+	inputByID := make(map[string]search.VectorInput, len(inputs))
 	for _, input := range inputs {
 		inputByID[input.ID] = input
 	}
 
-	records := make([]retrieval.VectorRecord, 0, len(result.Items))
+	records := make([]search.VectorRecord, 0, len(result.Items))
 	for _, item := range result.Items {
 		input := inputByID[item.ID]
-		records = append(records, retrieval.VectorRecord{
+		records = append(records, search.VectorRecord{
 			CreatedAt:      input.CreatedAt,
 			UpdatedAt:      input.UpdatedAt,
 			ID:             item.ID,
-			SourceKind:     retrieval.SourceKindSessionMessage,
+			SourceKind:     search.SourceKindSessionMessage,
 			SourceID:       input.SourceID,
 			SessionID:      input.SessionID,
 			Role:           input.Role,
@@ -588,7 +586,7 @@ func (s *Store) vectorRecordsForMessages(
 	return records, nil
 }
 
-func (s *Store) upsertVectorRecords(ctx context.Context, records []retrieval.VectorRecord) error {
+func (s *Store) upsertVectorRecords(ctx context.Context, records []search.VectorRecord) error {
 	if s == nil || s.vectors == nil || len(records) == 0 {
 		return nil
 	}
@@ -627,8 +625,8 @@ func (s *Store) deleteVectorRows(ctx context.Context, sourceIDs []string) error 
 		return nil
 	}
 
-	req := retrieval.VectorDeleteRequest{
-		SourceKind: retrieval.SourceKindSessionMessage,
+	req := search.VectorDeleteRequest{
+		SourceKind: search.SourceKindSessionMessage,
 		SourceIDs:  sourceIDs,
 	}
 
@@ -691,9 +689,9 @@ func messageMatchesSearchOptions(
 }
 
 func compareSearchCandidates(left *searchCandidate, right *searchCandidate) int {
-	return indexing.CompareCandidateOrder(
-		indexing.CandidateRankingScore(left.HasRerank, left.RerankScore, left.FusedScore),
-		indexing.CandidateRankingScore(right.HasRerank, right.RerankScore, right.FusedScore),
+	return search.CompareCandidateOrder(
+		search.CandidateRankingScore(left.HasRerank, left.RerankScore, left.FusedScore),
+		search.CandidateRankingScore(right.HasRerank, right.RerankScore, right.FusedScore),
 		left.Message.CreatedAt,
 		right.Message.CreatedAt,
 		left.SessionID,
@@ -718,7 +716,7 @@ func (s *Store) rerankEnabled() bool {
 
 func (s *Store) rerankerName() string {
 	if s == nil || s.vectors == nil || s.vectors.Reranker == nil {
-		return retrieval.RerankerDeterministic
+		return search.RerankerDeterministic
 	}
 
 	return strings.TrimSpace(strings.ToLower(s.vectors.Reranker.Name()))
@@ -728,7 +726,7 @@ func (s *Store) diagnosticsEnabled() bool {
 	return s != nil && s.vectors != nil && s.vectors.Diagnostics
 }
 
-func searchRerankResultName(result retrieval.RerankResult, fallback string) string {
+func searchRerankResultName(result search.RerankResult, fallback string) string {
 	if name := strings.TrimSpace(strings.ToLower(result.Reranker)); name != "" {
 		return name
 	}

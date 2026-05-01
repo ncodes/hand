@@ -1,6 +1,9 @@
 package memory
 
-import "context"
+import (
+	"context"
+	"maps"
+)
 
 type Logger interface {
 	Debug(string, map[string]any)
@@ -32,33 +35,22 @@ func traceRecord(ctx context.Context, obs Observability, event string, fields ma
 	obs.Tracer().Record(ctx, event, fields)
 }
 
-func validateSearch(ctx context.Context, guardrails Guardrails, query SearchQuery) error {
-	if guardrails == nil {
-		return nil
+func observationFields(provider string, operation string, fields map[string]any) map[string]any {
+	shared := map[string]any{
+		"provider":  provider,
+		"operation": operation,
 	}
-	return guardrails.ValidateSearch(ctx, query)
+	maps.Copy(shared, fields)
+	return shared
 }
 
-func validateWrite(ctx context.Context, guardrails Guardrails, item MemoryItem) error {
-	if guardrails == nil {
-		return nil
-	}
-	if err := guardrails.ValidateWrite(ctx, item); err != nil {
-		return err
-	}
-	return guardrails.SafetyScan(ctx, item)
-}
-
-func validateDelete(ctx context.Context, guardrails Guardrails, req DeleteRequest) error {
-	if guardrails == nil {
-		return nil
-	}
-	return guardrails.ValidateDelete(ctx, req)
-}
-
-func redactItem(ctx context.Context, guardrails Guardrails, item MemoryItem) (MemoryItem, error) {
-	if guardrails == nil {
-		return item, nil
-	}
-	return guardrails.Redact(ctx, item)
+func logDebugAndTrace(
+	ctx context.Context,
+	obs Observability,
+	message string,
+	event string,
+	fields map[string]any,
+) {
+	logDebug(obs, message, fields)
+	traceRecord(ctx, obs, event, fields)
 }

@@ -8,48 +8,46 @@ import (
 
 	"github.com/wandxy/hand/internal/messages"
 	state "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/indexing"
-	"github.com/wandxy/hand/internal/state/retrieval"
-	statevector "github.com/wandxy/hand/internal/state/vector"
+	"github.com/wandxy/hand/internal/state/search"
 )
 
 func (s *Store) RepairVectorStore(
 	ctx context.Context,
-	opts statevector.VectorRepairOptions,
-) (statevector.VectorRepairResult, error) {
+	opts search.VectorRepairOptions,
+) (search.VectorRepairResult, error) {
 	if s == nil {
-		return statevector.VectorRepairResult{}, errors.New("store is required")
+		return search.VectorRepairResult{}, errors.New("store is required")
 	}
 	if s.vectors == nil {
-		return statevector.VectorRepairResult{}, nil
+		return search.VectorRepairResult{}, nil
 	}
 
 	sessionID := strings.TrimSpace(opts.SessionID)
 	if sessionID != "" {
 		if err := state.ValidateSessionID(sessionID); err != nil {
-			return statevector.VectorRepairResult{}, err
+			return search.VectorRepairResult{}, err
 		}
 	}
 
-	lister, err := statevector.VectorRecordLister(s.vectors.Store)
+	lister, err := search.RequireVectorRecordLister(s.vectors.Store)
 	if err != nil {
-		return statevector.VectorRepairResult{}, err
+		return search.VectorRepairResult{}, err
 	}
 
 	batchSize := opts.BatchSize
 	if batchSize < 0 {
-		return statevector.VectorRepairResult{}, errors.New("vector repair batch size must be greater than or equal to zero")
+		return search.VectorRepairResult{}, errors.New("vector repair batch size must be greater than or equal to zero")
 	}
 	if batchSize == 0 {
-		batchSize = statevector.DefaultVectorRepairBatchSize
+		batchSize = search.DefaultVectorRepairBatchSize
 	}
 
 	sessions, err := s.repairSessionIDs(sessionID)
 	if err != nil {
-		return statevector.VectorRepairResult{}, err
+		return search.VectorRepairResult{}, err
 	}
 
-	var result statevector.VectorRepairResult
+	var result search.VectorRepairResult
 	result.SessionsScanned = len(sessions)
 	for _, id := range sessions {
 		messages := s.repairMessages(id)
@@ -98,28 +96,28 @@ func (s *Store) repairMessages(sessionID string) []messages.Message {
 
 func (s *Store) repairVectorBatch(
 	ctx context.Context,
-	lister retrieval.VectorRecordLister,
+	lister search.VectorRecordLister,
 	sessionID string,
 	messages []messages.Message,
 	full bool,
-) (statevector.VectorRepairResult, error) {
-	var result statevector.VectorRepairResult
+) (search.VectorRepairResult, error) {
+	var result search.VectorRepairResult
 	if len(messages) == 0 {
 		return result, nil
 	}
 
-	rows := make([]indexing.MessageIndexRow, 0, len(messages))
+	rows := make([]search.MessageIndexRow, 0, len(messages))
 	for _, message := range messages {
-		rows = append(rows, indexing.MessageIndexRowsFromMessage(sessionID, message)...)
+		rows = append(rows, search.MessageIndexRowsFromMessage(sessionID, message)...)
 	}
-	inputs := statevector.VectorInputsFromIndexRows(rows)
+	inputs := search.VectorInputsFromIndexRows(rows)
 	result.MessagesScanned = len(messages)
 	result.RowsScanned = len(inputs)
 	if len(inputs) == 0 {
 		return result, nil
 	}
 
-	dirtySources, batchResult, err := statevector.DirtyVectorSources(
+	dirtySources, batchResult, err := search.DirtyVectorSources(
 		ctx,
 		lister,
 		s.vectors.Model,
@@ -131,7 +129,7 @@ func (s *Store) repairVectorBatch(
 		return result, err
 	}
 
-	dirtyMessages := statevector.MessagesBySourceID(sessionID, messages, dirtySources)
+	dirtyMessages := search.MessagesBySourceID(sessionID, messages, dirtySources)
 	records, err := s.vectorRecordsForMessages(ctx, sessionID, dirtyMessages)
 	if err != nil {
 		return result, err
@@ -142,12 +140,12 @@ func (s *Store) repairVectorBatch(
 		return result, err
 	}
 
-	dirtyRows := make([]indexing.MessageIndexRow, 0, len(dirtyMessages))
+	dirtyRows := make([]search.MessageIndexRow, 0, len(dirtyMessages))
 	for _, message := range dirtyMessages {
-		dirtyRows = append(dirtyRows, indexing.MessageIndexRowsFromMessage(sessionID, message)...)
+		dirtyRows = append(dirtyRows, search.MessageIndexRowsFromMessage(sessionID, message)...)
 	}
 	result.DeletedSources = len(dirtySources)
-	result.RebuiltRows = len(statevector.VectorInputsFromIndexRows(dirtyRows))
+	result.RebuiltRows = len(search.VectorInputsFromIndexRows(dirtyRows))
 	result.Batches = 1
 
 	return result, deleteErr

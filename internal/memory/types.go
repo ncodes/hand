@@ -2,27 +2,34 @@ package memory
 
 import (
 	"context"
-	"strings"
-	"time"
+
+	statecore "github.com/wandxy/hand/internal/state/core"
 )
 
-type Kind string
+type Kind = statecore.MemoryKind
 
 const (
-	KindPinned     Kind = "pinned"
-	KindSemantic   Kind = "semantic"
-	KindEpisodic   Kind = "episodic"
-	KindProcedural Kind = "procedural"
+	KindPinned     = statecore.MemoryKindPinned
+	KindSemantic   = statecore.MemoryKindSemantic
+	KindEpisodic   = statecore.MemoryKindEpisodic
+	KindProcedural = statecore.MemoryKindProcedural
 )
 
-type Status string
+type Status = statecore.MemoryStatus
 
 const (
-	StatusCandidate  Status = "candidate"
-	StatusActive     Status = "active"
-	StatusSuperseded Status = "superseded"
-	StatusDeleted    Status = "deleted"
+	StatusCandidate  = statecore.MemoryStatusCandidate
+	StatusActive     = statecore.MemoryStatusActive
+	StatusSuperseded = statecore.MemoryStatusSuperseded
+	StatusDeleted    = statecore.MemoryStatusDeleted
 )
+
+type SourceLink = statecore.MemorySourceLink
+type MemoryItem = statecore.MemoryItem
+type SearchQuery = statecore.MemorySearchQuery
+type SearchHit = statecore.MemorySearchHit
+type SearchResult = statecore.MemorySearchResult
+type DeleteRequest = statecore.MemoryDeleteRequest
 
 type Capabilities struct {
 	SupportsPinned           bool
@@ -36,58 +43,6 @@ type Capabilities struct {
 	SupportsReranking        bool
 	SupportsAudit            bool
 	SupportsObservability    bool
-}
-
-type SourceLink struct {
-	SessionID     string
-	MessageIDs    []uint
-	Offsets       []int
-	SummaryID     string
-	CreatedBy     string
-	CreatedReason string
-}
-
-type MemoryItem struct {
-	ID          string
-	Kind        Kind
-	Status      Status
-	Title       string
-	Text        string
-	Tags        []string
-	Metadata    map[string]string
-	SourceLinks []SourceLink
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
-func (item MemoryItem) GuardrailSource() string {
-	if id := strings.TrimSpace(item.ID); id != "" {
-		return "memory:" + id
-	}
-	return "memory"
-}
-
-type SearchQuery struct {
-	Text     string
-	Kinds    []Kind
-	Statuses []Status
-	Tags     []string
-	Limit    int
-	MaxChars int
-}
-
-type SearchHit struct {
-	Item  MemoryItem
-	Score float64
-}
-
-type SearchResult struct {
-	Hits []SearchHit
-}
-
-type DeleteRequest struct {
-	ID     string
-	Reason string
 }
 
 type EpisodeRecord struct {

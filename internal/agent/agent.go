@@ -15,7 +15,7 @@ import (
 	"github.com/wandxy/hand/internal/models"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
-	statevector "github.com/wandxy/hand/internal/state/vector"
+	"github.com/wandxy/hand/internal/state/search"
 	"github.com/wandxy/hand/internal/tools"
 	webextract "github.com/wandxy/hand/internal/tools/webextract"
 	"github.com/wandxy/hand/internal/trace"
@@ -63,9 +63,9 @@ type CompactSessionResult struct {
 	TotalContextLength   int
 }
 
-type RepairSessionOptions = statevector.VectorRepairOptions
+type RepairSessionOptions = search.VectorRepairOptions
 
-type RepairSessionResult = statevector.VectorRepairResult
+type RepairSessionResult = search.VectorRepairResult
 
 type ContextStatus struct {
 	SessionID        string
