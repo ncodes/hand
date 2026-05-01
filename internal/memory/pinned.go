@@ -6,12 +6,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/wandxy/hand/internal/constants"
 )
 
 const (
-	defaultPinnedMaxChars     = 4000
-	defaultPinnedMaxItemChars = 1000
-	defaultPinnedFileName     = "memory.md"
+	defaultPinnedMaxChars     = constants.DefaultMemoryPinnedMaxChars
+	defaultPinnedMaxItemChars = constants.DefaultMemoryPinnedItemChars
+	defaultPinnedFileName     = constants.MemoryPinnedFileName
 )
 
 var (

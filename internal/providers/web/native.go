@@ -12,18 +12,18 @@ import (
 	"net/netip"
 	"net/url"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	readability "codeberg.org/readeck/go-readability/v2"
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/pkg/fetch"
 	"golang.org/x/net/html"
 )
 
 const (
-	nativeDefaultTimeout = 15 * time.Second
-	nativeUserAgent      = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+	nativeDefaultTimeout = constants.NativeWebDefaultTimeout
+	nativeUserAgent      = constants.NativeWebUserAgent
 )
 
 var (
@@ -36,7 +36,7 @@ var (
 	}
 
 	nativeDefaultDialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
-		dialer := net.Dialer{Timeout: 10 * time.Second}
+		dialer := net.Dialer{Timeout: constants.NativeWebDialTimeout}
 		return dialer.DialContext(ctx, network, address)
 	}
 )

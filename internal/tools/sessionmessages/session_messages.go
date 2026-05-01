@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment/sessionmessages"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/instructions"
@@ -13,11 +14,11 @@ import (
 )
 
 const (
-	maxMessageIDs       = 50
-	maxAnchorWindowSize = 20
-	maxOffsetRangeSize  = 50
-	defaultMaxChars     = 4000
-	maxMaxChars         = 16000
+	maxMessageIDs       = constants.SessionMessagesToolMaxMessageIDs
+	maxAnchorWindowSize = constants.SessionMessagesToolMaxAnchorWindowSize
+	maxOffsetRangeSize  = constants.SessionMessagesToolMaxOffsetRangeSize
+	defaultMaxChars     = constants.SessionMessagesToolDefaultMaxChars
+	maxMaxChars         = constants.SessionMessagesToolMaxChars
 )
 
 func Definition(runtime envtypes.Runtime) tools.Definition {

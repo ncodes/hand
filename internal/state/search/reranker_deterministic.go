@@ -5,12 +5,14 @@ import (
 	"errors"
 	"sort"
 	"time"
+
+	"github.com/wandxy/hand/internal/constants"
 )
 
 const (
-	defaultRerankLexicalWeight = 0.45
-	defaultRerankVectorWeight  = 0.45
-	defaultRerankFusedWeight   = 0.10
+	defaultRerankLexicalWeight = constants.DefaultRerankLexicalWeight
+	defaultRerankVectorWeight  = constants.DefaultRerankVectorWeight
+	defaultRerankFusedWeight   = constants.DefaultRerankFusedWeight
 )
 
 type DeterministicReranker struct{}

@@ -3,6 +3,7 @@ package compaction
 import (
 	"encoding/json"
 
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/models"
 )
 
@@ -35,13 +36,13 @@ type Evaluator struct {
 
 func NewEvaluator(contextLimit int, triggerPercent, warnPercent float64) *Evaluator {
 	if contextLimit <= 0 {
-		contextLimit = 128000
+		contextLimit = constants.DefaultContextLength
 	}
 	if triggerPercent <= 0 {
-		triggerPercent = 0.85
+		triggerPercent = constants.DefaultCompactionTrigger
 	}
 	if warnPercent <= 0 {
-		warnPercent = 0.95
+		warnPercent = constants.DefaultCompactionWarn
 	}
 
 	return &Evaluator{
@@ -56,7 +57,7 @@ func EstimateTextRough(text string) int {
 		return 0
 	}
 
-	return len(text) / 4
+	return len(text) / constants.RoughTokenCharRatio
 }
 
 func EstimateCharsFromTokensRough(tokens int) int {
@@ -64,7 +65,7 @@ func EstimateCharsFromTokensRough(tokens int) int {
 		return 0
 	}
 
-	return tokens * 4
+	return tokens * constants.RoughTokenCharRatio
 }
 
 func EstimateRequestRough(req models.Request) int {

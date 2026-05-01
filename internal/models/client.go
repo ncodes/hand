@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 
+	"github.com/wandxy/hand/internal/constants"
 	handmsg "github.com/wandxy/hand/internal/messages"
 )
 
@@ -25,7 +26,7 @@ type StreamDelta struct {
 
 const (
 	// APIModeCompletions selects the chat completions API path (OpenAI-compatible /v1/chat/completions).
-	APIModeCompletions = "completions"
+	APIModeCompletions = constants.DefaultModelAPIMode
 	APIModeResponses   = "responses"
 )
 

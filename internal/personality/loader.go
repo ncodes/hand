@@ -6,13 +6,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/pkg/promptio"
 )
 
-const fileName = "SOUL.md"
-const maxContentLength = 15000
+const fileName = constants.PersonalityFileName
+const maxContentLength = constants.PersonalityMaxContentLength
 
 var (
 	getwd              = os.Getwd

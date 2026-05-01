@@ -13,6 +13,7 @@ import (
 
 	"github.com/wandxy/hand/internal/agent/context/compaction"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
@@ -20,7 +21,7 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 )
 
-const RecentSessionTail = 8
+const RecentSessionTail = constants.RecentSessionTail
 
 type SessionSummaryPlanner string
 
@@ -102,10 +103,10 @@ type recallWindow struct {
 	EndOffset   int
 }
 
-var maxRecallWindowMessages = 64
-var maxRecallWindowTokens = 12000
-var maxRecallMergeSummaries = 8
-var maxRecallMergeTokens = 8000
+var maxRecallWindowMessages = constants.RecallWindowMessages
+var maxRecallWindowTokens = constants.RecallWindowTokens
+var maxRecallMergeSummaries = constants.RecallMergeSummaries
+var maxRecallMergeTokens = constants.RecallMergeTokens
 
 func SummaryFromStorage(summary storage.SessionSummary) *SummaryState {
 	if summary.SessionID == "" || summary.SessionSummary == "" {

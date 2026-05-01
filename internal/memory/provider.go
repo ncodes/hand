@@ -6,10 +6,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/wandxy/hand/internal/constants"
 	statecore "github.com/wandxy/hand/internal/state/core"
 )
 
-const ProviderDefaultMemory = "default-memory"
+const ProviderDefaultMemory = constants.MemoryProviderDefault
 
 var ErrUnknownProvider = errors.New("unknown memory provider")
 var ErrUnknownBackend = errors.New("unknown memory backend")
@@ -58,7 +59,7 @@ func effectiveBackend(opts Options) string {
 	if backend := strings.TrimSpace(strings.ToLower(opts.StorageBackend)); backend != "" {
 		return backend
 	}
-	return "sqlite"
+	return constants.DefaultStorageBackend
 }
 
 func NewFromStore(store statecore.MemoryStore, opts Options) (*MemoryProvider, error) {

@@ -7,13 +7,14 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/guardrails"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
 )
 
-const maxURLs = 5
+const maxURLs = constants.WebExtractToolMaxURLs
 
 type Options struct {
 	MaxExtractCharPerResult        int

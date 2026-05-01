@@ -10,13 +10,15 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/wandxy/hand/internal/constants"
 )
 
 const (
-	defaultEmbeddingMaxInputsPerBatch = 96
-	defaultEmbeddingMaxInputTextBytes = 32 * 1024
-	defaultEmbeddingTimeout           = 30 * time.Second
-	defaultEmbeddingMaxRetries        = 2
+	defaultEmbeddingMaxInputsPerBatch = constants.DefaultEmbeddingMaxInputsPerBatch
+	defaultEmbeddingMaxInputTextBytes = constants.DefaultEmbeddingMaxInputTextBytes
+	defaultEmbeddingTimeout           = constants.DefaultEmbeddingTimeout
+	defaultEmbeddingMaxRetries        = constants.DefaultEmbeddingMaxRetries
 )
 
 type EmbeddingProviderOptions struct {

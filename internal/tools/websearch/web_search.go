@@ -6,6 +6,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/guardrails"
 	webintegration "github.com/wandxy/hand/internal/providers/web"
 	"github.com/wandxy/hand/internal/tools"
@@ -13,8 +14,8 @@ import (
 )
 
 const (
-	defaultCount = 5
-	maxCount     = 10
+	defaultCount = constants.WebSearchToolDefaultCount
+	maxCount     = constants.WebSearchToolMaxCount
 )
 
 type Options struct {

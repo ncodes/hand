@@ -7,16 +7,17 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/wandxy/hand/internal/constants"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 )
 
 const (
-	defaultSessionSearchMaxResults = 10
-	maxSessionSearchResults        = 20
-	maxSessionMatchedMessages      = 3
-	sessionSearchSnippetRunes      = 200
+	defaultSessionSearchMaxResults = constants.DefaultSessionSearchMaxResults
+	maxSessionSearchResults        = constants.MaxSessionSearchResults
+	maxSessionMatchedMessages      = constants.MaxSessionMatchedMessages
+	sessionSearchSnippetRunes      = constants.SessionSearchSnippetRunes
 )
 
 func Search(

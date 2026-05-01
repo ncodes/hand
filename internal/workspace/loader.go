@@ -8,14 +8,15 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/pkg/promptio"
 )
 
-const maxContentLength = 15000
+const maxContentLength = constants.WorkspaceMaxContentLength
 
 var (
-	defaultInstructionFiles = []string{"agents.md", "hand.md"}
+	defaultInstructionFiles = append([]string(nil), constants.WorkspaceDefaultInstructionFiles...)
 	skippedDirectories      = map[string]struct{}{
 		"node_modules": {},
 		"__pycache__":  {},

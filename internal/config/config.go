@@ -237,12 +237,12 @@ var (
 	modelDocsBaseURL        = "https://developers.openai.com/api/docs/models"
 	resolveModelMeta        = resolveModelMetadataFromProvider
 	providerDefaultBaseURLs = map[string]map[string]string{
-		"openrouter": {
+		constants.ModelProviderOpenRouter: {
 			DefaultModelAPIMode: "https://openrouter.ai/api/v1",
 			"responses":         "https://openrouter.ai/api/v1/responses",
 			"embeddings":        "https://openrouter.ai/api/v1/embeddings",
 		},
-		"openai": {
+		constants.ModelProviderOpenAI: {
 			DefaultModelAPIMode: "https://api.openai.com/v1",
 			"responses":         "https://api.openai.com/v1",
 			"embeddings":        "https://api.openai.com/v1/embeddings",
@@ -253,21 +253,26 @@ var (
 var contextWindowPatternOAI = regexp.MustCompile(`([0-9][0-9,]*)(?:\s|<!--[^>]*-->)+context window`)
 
 const (
-	defaultModel                                         = "openai/gpt-4o-mini"
-	defaultContextLength                                 = 128000
-	defaultModelProvider                                 = "openrouter"
-	DefaultModelAPIMode                                  = "completions"
-	DefaultMaxIterations                                 = 90
-	DefaultWebMaxCharPerResult                           = 1200
-	DefaultWebMaxExtractCharPerResult                    = 50000
-	DefaultWebMaxExtractResponseBytes                    = 2 * 1024 * 1024
-	DefaultWebCacheTTL                     time.Duration = 0
-	DefaultWebExtractMinSummarizeChars                   = 12000
-	DefaultWebExtractMaxSummaryChars                     = 4000
-	DefaultWebExtractMaxSummaryChunkChars                = 25000
-	DefaultWebExtractRefusalThresholdChars               = 200000
-	DefaultModelMaxRetries                               = 2
-	defaultMaxIterations                                 = DefaultMaxIterations
+	webProviderFirecrawl = "firecrawl"
+	webProviderParallel  = "parallel"
+	webProviderTavily    = "tavily"
+	webProviderExa       = "exa"
+
+	defaultModel                                         = constants.DefaultModel
+	defaultContextLength                                 = constants.DefaultContextLength
+	defaultModelProvider                                 = constants.DefaultModelProvider
+	DefaultModelAPIMode                                  = constants.DefaultModelAPIMode
+	DefaultMaxIterations                                 = constants.DefaultMaxIterations
+	DefaultWebMaxCharPerResult                           = constants.DefaultWebMaxCharPerResult
+	DefaultWebMaxExtractCharPerResult                    = constants.DefaultWebMaxExtractCharPerResult
+	DefaultWebMaxExtractResponseBytes                    = constants.DefaultWebMaxExtractResponseBytes
+	DefaultWebCacheTTL                     time.Duration = constants.DefaultWebCacheTTL
+	DefaultWebExtractMinSummarizeChars                   = constants.DefaultWebExtractMinSummarizeChars
+	DefaultWebExtractMaxSummaryChars                     = constants.DefaultWebExtractMaxSummaryChars
+	DefaultWebExtractMaxSummaryChunkChars                = constants.DefaultWebExtractMaxSummaryChunkChars
+	DefaultWebExtractRefusalThresholdChars               = constants.DefaultWebExtractRefusalThresholdChars
+	DefaultModelMaxRetries                               = constants.DefaultModelMaxRetries
+	defaultMaxIterations                                 = constants.DefaultMaxIterations
 )
 
 func PreloadEnvFile(path string) error {
@@ -319,11 +324,11 @@ func Get() *Config {
 			},
 			Session: SessionConfig{
 				MaxIterations:     defaultMaxIterations,
-				DefaultIdleExpiry: 24 * time.Hour,
-				ArchiveRetention:  30 * 24 * time.Hour,
+				DefaultIdleExpiry: constants.DefaultSessionIdleExpiry,
+				ArchiveRetention:  constants.DefaultArchiveRetention,
 			},
 			Log: LogConfig{
-				Level: "info",
+				Level: constants.DefaultLogLevel,
 			},
 			Debug: DebugConfig{
 				TraceDir: datadir.DebugTraceDir(),
@@ -338,7 +343,7 @@ func Get() *Config {
 				ExtractMaxSummaryChunkChars:  DefaultWebExtractMaxSummaryChunkChars,
 				ExtractRefusalThresholdChars: DefaultWebExtractRefusalThresholdChars,
 			},
-			Platform: "cli",
+			Platform: constants.DefaultPlatform,
 			Cap: CapConfig{
 				Filesystem: new(true),
 				Network:    new(true),
@@ -350,16 +355,16 @@ func Get() *Config {
 				Roots: defaultFSRoots(),
 			},
 			Storage: StorageConfig{
-				Backend: "sqlite",
+				Backend: constants.DefaultStorageBackend,
 			},
 			Compaction: CompactionConfig{
 				Enabled:        new(true),
-				TriggerPercent: 0.85,
-				WarnPercent:    0.95,
+				TriggerPercent: constants.DefaultCompactionTrigger,
+				WarnPercent:    constants.DefaultCompactionWarn,
 			},
 			Memory: MemoryConfig{
 				Enabled:  new(true),
-				Provider: "default-memory",
+				Provider: constants.MemoryProviderDefault,
 			},
 		}
 	}
@@ -572,28 +577,28 @@ func applyEnvOverrides(cfg *Config) {
 	if cfg.Web.Provider == "" {
 		switch {
 		case strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_KEY")) != "" || strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_URL")) != "":
-			cfg.Web.Provider = "firecrawl"
+			cfg.Web.Provider = webProviderFirecrawl
 		case strings.TrimSpace(os.Getenv("HAND_PARALLEL_API_KEY")) != "":
-			cfg.Web.Provider = "parallel"
+			cfg.Web.Provider = webProviderParallel
 		case strings.TrimSpace(os.Getenv("HAND_TAVILY_API_KEY")) != "":
-			cfg.Web.Provider = "tavily"
+			cfg.Web.Provider = webProviderTavily
 		case strings.TrimSpace(os.Getenv("HAND_EXA_API_KEY")) != "":
-			cfg.Web.Provider = "exa"
+			cfg.Web.Provider = webProviderExa
 		}
 	}
 	if cfg.Web.APIKey == "" {
 		switch strings.TrimSpace(strings.ToLower(cfg.Web.Provider)) {
-		case "firecrawl":
+		case webProviderFirecrawl:
 			cfg.Web.APIKey = strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_KEY"))
-		case "parallel":
+		case webProviderParallel:
 			cfg.Web.APIKey = strings.TrimSpace(os.Getenv("HAND_PARALLEL_API_KEY"))
-		case "tavily":
+		case webProviderTavily:
 			cfg.Web.APIKey = strings.TrimSpace(os.Getenv("HAND_TAVILY_API_KEY"))
-		case "exa":
+		case webProviderExa:
 			cfg.Web.APIKey = strings.TrimSpace(os.Getenv("HAND_EXA_API_KEY"))
 		}
 	}
-	if cfg.Web.BaseURL == "" && strings.TrimSpace(strings.ToLower(cfg.Web.Provider)) == "firecrawl" {
+	if cfg.Web.BaseURL == "" && strings.TrimSpace(strings.ToLower(cfg.Web.Provider)) == webProviderFirecrawl {
 		cfg.Web.BaseURL = strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_URL"))
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_RULES_FILES")); value != "" {
@@ -789,14 +794,14 @@ func (c *Config) normalizeFields() {
 	}
 
 	if c.Log.Level == "" {
-		c.Log.Level = "info"
+		c.Log.Level = constants.DefaultLogLevel
 	}
 	if c.RPC.Address == "" {
-		c.RPC.Address = "127.0.0.1"
+		c.RPC.Address = constants.DefaultRPCAddress
 	}
 
 	if c.RPC.Port == 0 {
-		c.RPC.Port = 50051
+		c.RPC.Port = constants.DefaultRPCPort
 	}
 	if c.Session.MaxIterations == 0 {
 		c.Session.MaxIterations = defaultMaxIterations
@@ -805,7 +810,7 @@ func (c *Config) normalizeFields() {
 		c.Debug.TraceDir = datadir.DebugTraceDir()
 	}
 	if c.Platform == "" {
-		c.Platform = "cli"
+		c.Platform = constants.DefaultPlatform
 	}
 	if c.Web.MaxCharPerResult <= 0 {
 		c.Web.MaxCharPerResult = DefaultWebMaxCharPerResult
@@ -853,29 +858,29 @@ func (c *Config) normalizeFields() {
 	}
 
 	if c.Storage.Backend == "" {
-		c.Storage.Backend = "sqlite"
+		c.Storage.Backend = constants.DefaultStorageBackend
 	}
 
 	if c.Session.DefaultIdleExpiry <= 0 {
-		c.Session.DefaultIdleExpiry = 24 * time.Hour
+		c.Session.DefaultIdleExpiry = constants.DefaultSessionIdleExpiry
 	}
 	if c.Session.ArchiveRetention <= 0 {
-		c.Session.ArchiveRetention = 30 * 24 * time.Hour
+		c.Session.ArchiveRetention = constants.DefaultArchiveRetention
 	}
 	if c.Compaction.Enabled == nil {
 		c.Compaction.Enabled = new(true)
 	}
 	if c.Compaction.TriggerPercent <= 0 {
-		c.Compaction.TriggerPercent = 0.85
+		c.Compaction.TriggerPercent = constants.DefaultCompactionTrigger
 	}
 	if c.Compaction.WarnPercent <= 0 {
-		c.Compaction.WarnPercent = 0.95
+		c.Compaction.WarnPercent = constants.DefaultCompactionWarn
 	}
 	if c.Memory.Enabled == nil {
 		c.Memory.Enabled = new(true)
 	}
 	if c.Memory.Provider == "" {
-		c.Memory.Provider = "default-memory"
+		c.Memory.Provider = constants.MemoryProviderDefault
 	}
 	if c.Memory.Pinned.Enabled == nil {
 		c.Memory.Pinned.Enabled = new(true)

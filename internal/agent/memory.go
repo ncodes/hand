@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
@@ -12,11 +13,11 @@ import (
 )
 
 const (
-	pinnedMemoryRetrievalLimit      = 3
-	pinnedMemoryRetrievalItemChars  = 1000
-	searchMemoryRetrievalLimit      = 5
-	searchMemoryRetrievalItemChars  = 700
-	memoryContextInstructionMaxChar = 4000
+	pinnedMemoryRetrievalLimit      = constants.AgentPinnedMemoryRetrievalLimit
+	pinnedMemoryRetrievalItemChars  = constants.AgentPinnedMemoryRetrievalItemChars
+	searchMemoryRetrievalLimit      = constants.AgentSearchMemoryRetrievalLimit
+	searchMemoryRetrievalItemChars  = constants.AgentSearchMemoryRetrievalItemChars
+	memoryContextInstructionMaxChar = constants.AgentMemoryContextInstructionChars
 )
 
 var sanitizeMemoryPromptValue = guardrails.Sanitize

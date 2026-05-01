@@ -11,11 +11,13 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	"github.com/wandxy/hand/internal/constants"
 )
 
-const DefaultOutputBufferBytes = 64 * 1024
-const DefaultMaxTracked = 32
-const DefaultStopGracePeriod = 2 * time.Second
+const DefaultOutputBufferBytes = constants.DefaultProcessOutputBufferBytes
+const DefaultMaxTracked = constants.DefaultProcessMaxTracked
+const DefaultStopGracePeriod = constants.DefaultProcessStopGracePeriod
 
 var commandContext = exec.CommandContext
 var currentGOOS = goruntime.GOOS

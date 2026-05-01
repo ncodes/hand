@@ -7,14 +7,15 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/wandxy/hand/internal/constants"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 )
 
 const (
-	defaultLLMRerankerMaxCandidates       = 20
-	defaultLLMRerankerMaxCandidateTextLen = 1200
+	defaultLLMRerankerMaxCandidates       = constants.DefaultLLMRerankerMaxCandidates
+	defaultLLMRerankerMaxCandidateTextLen = constants.DefaultLLMRerankerMaxCandidateTextLen
 )
 
 type LLMRerankerOptions struct {

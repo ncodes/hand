@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/wandxy/hand/internal/constants"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/memory"
@@ -13,10 +14,10 @@ import (
 )
 
 const (
-	defaultLimit    = 10
-	maxLimit        = 50
-	defaultMaxChars = 800
-	maxMaxChars     = 4000
+	defaultLimit    = constants.MemorySearchToolDefaultLimit
+	maxLimit        = constants.MemorySearchToolMaxLimit
+	defaultMaxChars = constants.MemorySearchToolDefaultMaxChars
+	maxMaxChars     = constants.MemorySearchToolMaxChars
 )
 
 var sanitizeValue = guardrails.Sanitize

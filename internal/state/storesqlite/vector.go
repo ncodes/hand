@@ -8,11 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wandxy/hand/internal/constants"
 	base "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
 )
 
-const defaultVectorStoreRebuildBatchSize = 100
+const defaultVectorStoreRebuildBatchSize = constants.DefaultVectorStoreRebuildBatchSize
 const defaultHybridRetrievalCandidateLimit = search.DefaultHybridRetrievalCandidateLimit
 const defaultRerankCandidateLimit = search.DefaultRerankCandidateLimit
 const maxHybridRetrievalCandidateLimit = search.MaxHybridRetrievalCandidateLimit

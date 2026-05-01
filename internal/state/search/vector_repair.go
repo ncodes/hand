@@ -6,11 +6,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/wandxy/hand/internal/constants"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	state "github.com/wandxy/hand/internal/state/core"
 )
 
-const DefaultVectorRepairBatchSize = 100
+const DefaultVectorRepairBatchSize = constants.DefaultVectorRepairBatchSize
 
 // VectorRepairOptions controls selective or full vector repair for session messages.
 type VectorRepairOptions struct {

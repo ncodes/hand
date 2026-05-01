@@ -11,6 +11,7 @@ import (
 	"github.com/wandxy/hand/internal/agent/context/compaction"
 	agentsummary "github.com/wandxy/hand/internal/agent/context/summary"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
@@ -23,7 +24,8 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 )
 
-const planHydrationPageSize = 10
+const requestInstructionName = "request.instruct"
+const planHydrationPageSize = constants.PlanHydrationPageSize
 
 // Turn executes a single response turn against a resolved session.
 type Turn struct {

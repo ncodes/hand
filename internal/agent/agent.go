@@ -10,6 +10,7 @@ import (
 
 	agentsummary "github.com/wandxy/hand/internal/agent/context/summary"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
@@ -25,8 +26,7 @@ import (
 
 var jsonMarshal = json.Marshal
 
-const requestInstructionName = "request.instruct"
-const defaultRecallSummaryCacheTTL = 15 * time.Minute
+const defaultRecallSummaryCacheTTL = constants.DefaultRecallSummaryCacheTTL
 
 var agentLog = logutils.InitLogger("agent")
 

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/tools"
 )
 
@@ -23,12 +24,12 @@ var (
 )
 
 const (
-	MaxListEntries   = 500
-	MaxSearchResults = 200
-	MaxReadBytes     = 256 * 1024
-	MaxOutputBytes   = 256 * 1024
-	DefaultTimeout   = 30
-	MaxTimeout       = 120
+	MaxListEntries   = constants.ToolMaxListEntries
+	MaxSearchResults = constants.ToolMaxSearchResults
+	MaxReadBytes     = constants.ToolMaxReadBytes
+	MaxOutputBytes   = constants.ToolMaxOutputBytes
+	DefaultTimeout   = constants.ToolDefaultTimeout
+	MaxTimeout       = constants.ToolMaxTimeout
 )
 
 func DecodeInput(call tools.Call, target any) tools.Result {

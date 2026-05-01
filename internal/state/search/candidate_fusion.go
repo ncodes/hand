@@ -5,14 +5,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wandxy/hand/internal/constants"
 	state "github.com/wandxy/hand/internal/state/core"
 )
 
 const (
-	DefaultHybridRetrievalCandidateLimit = 100
-	MaxHybridRetrievalCandidateLimit     = 1000
-	DefaultRerankCandidateLimit          = 100
-	ReciprocalRankFusionConstant         = 60
+	DefaultHybridRetrievalCandidateLimit = constants.DefaultHybridRetrievalCandidateLimit
+	MaxHybridRetrievalCandidateLimit     = constants.MaxHybridRetrievalCandidateLimit
+	DefaultRerankCandidateLimit          = constants.DefaultRerankCandidateLimit
+	ReciprocalRankFusionConstant         = constants.ReciprocalRankFusionConstant
 )
 
 // CandidateMatch stores ranking metadata for a lexical, vector, or reranked search candidate.

@@ -6,9 +6,10 @@ import (
 	cli "github.com/urfave/cli/v3"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 )
 
-const AppDescription = "Hand is a personal assistant that works and exists for you."
+const AppDescription = constants.AppDescription
 
 func RootFlags(envFile, configFile *string) []cli.Flag {
 	flags := []cli.Flag{
