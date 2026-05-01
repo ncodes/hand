@@ -201,6 +201,41 @@ func TestEnvironment_PrepareConfiguresDefaultMemoryProviderWithStateStore(t *tes
 	require.NoError(t, provider.Close())
 }
 
+func TestEnvironment_PrepareConfiguresPinnedMemoryOptions(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "pinned.md")
+	require.NoError(t, os.WriteFile(file, []byte("Always use pnpm"), 0o600))
+	store := memorystore.NewStore()
+	manager, err := statemanager.NewManager(store, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	enabled := true
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name: "Test Agent",
+		Memory: config.MemoryConfig{
+			Enabled:  &enabled,
+			Provider: memory.ProviderDefaultMemory,
+			Pinned: config.PinnedMemoryConfig{
+				Files:        []string{file},
+				MaxChars:     100,
+				MaxItemChars: 40,
+			},
+		},
+		Debug: config.DebugConfig{TraceDir: t.TempDir()},
+	})
+	env.SetStateManager(manager)
+
+	require.NoError(t, env.Prepare())
+	pinned, ok := env.MemoryProvider().(memory.PinnedProvider)
+	require.True(t, ok)
+
+	items, err := pinned.LoadPinned(gctx.Background(), memory.SearchQuery{})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, "pinned.md", items[0].Title)
+	require.Equal(t, "Always use pnpm", items[0].Text)
+}
+
 func TestEnvironment_PrepareConfiguresDefaultMemoryProviderWithMemoryBackend(t *testing.T) {
 	store := memorystore.NewStore()
 	manager, err := statemanager.NewManager(store, time.Hour, 24*time.Hour)

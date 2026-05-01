@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -149,6 +150,65 @@ func TestTurn_RunContinuesWhenMemoryProviderSearchFails(t *testing.T) {
 	require.Contains(t, eventTypes, trace.EvtMemoryRetrievalFailed)
 }
 
+func TestTurn_RunContinuesWhenMemoryProviderLoadPinnedFails(t *testing.T) {
+	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}}
+	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
+	enabled := true
+	turn.cfg = testSessionConfig(&config.Config{
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
+	})
+	turn.env.(*mocks.EnvironmentStub).Memory = &memoryProviderStub{
+		name:      "failing",
+		caps:      memory.Capabilities{SupportsPinned: true, SupportsObservability: true},
+		pinnedErr: errors.New("pinned file missing"),
+	}
+
+	reply, err := turn.Run(context.Background(), "anything", RespondOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "reply", reply)
+	require.Len(t, client.Requests, 1)
+	require.NotContains(t, client.Requests[0].Instructions, "# Memory Context")
+
+	traceSession := turn.env.(*mocks.EnvironmentStub).TraceSession.(*mocks.TraceSessionStub)
+	eventTypes := make([]string, 0, len(traceSession.Events))
+	for _, event := range traceSession.Events {
+		eventTypes = append(eventTypes, event.Type)
+	}
+	require.Contains(t, eventTypes, trace.EvtMemoryRetrievalStarted)
+	require.Contains(t, eventTypes, trace.EvtMemoryRetrievalFailed)
+}
+
+func TestTurn_RunInjectsPinnedMemoryWithoutSearchSupport(t *testing.T) {
+	client := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "reply"}}}
+	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
+	enabled := true
+	turn.cfg = testSessionConfig(&config.Config{
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
+		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
+	})
+	turn.env.(*mocks.EnvironmentStub).Memory = &memoryProviderStub{
+		caps: memory.Capabilities{SupportsPinned: true, SupportsObservability: true},
+		pinnedItems: []memory.MemoryItem{{
+			ID:     "mem_pinned",
+			Kind:   memory.KindPinned,
+			Status: memory.StatusActive,
+			Title:  "Pinned preference",
+			Text:   "Always use pnpm",
+		}},
+	}
+
+	reply, err := turn.Run(context.Background(), "hello", RespondOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "reply", reply)
+	require.Len(t, client.Requests, 1)
+	require.Contains(t, client.Requests[0].Instructions, "# Memory Context")
+	require.Contains(t, client.Requests[0].Instructions, "Pinned preference")
+	require.Contains(t, client.Requests[0].Instructions, "Always use pnpm")
+}
+
 func TestTurn_RetrieveMemoryInstructionSkipsWhenUnavailable(t *testing.T) {
 	enabled := true
 	disabled := false
@@ -191,12 +251,47 @@ func TestTurn_RetrieveMemoryInstructionSkipsWhenUnavailable(t *testing.T) {
 
 func TestTurn_RetrieveMemoryInstructionSkipsWhenProviderCannotSearch(t *testing.T) {
 	cfg := memoryEnabledTestConfig()
-	provider := &memoryProviderStub{caps: memory.Capabilities{SupportsSearch: false}}
+	provider := &memoryProviderStub{caps: memory.Capabilities{}}
 	turn := &Turn{cfg: cfg, env: &mocks.EnvironmentStub{Memory: provider}}
 
 	instruction := turn.retrieveMemoryInstruction(context.Background(), "remember", trace.NoopSession())
 
 	require.Equal(t, instruct.Instruction{Name: instruct.MemoryContextInstructionName}, instruction)
+}
+
+func TestTurn_RetrieveMemoryInstructionMergesPinnedBeforeSearch(t *testing.T) {
+	provider := &memoryProviderStub{
+		caps: memory.Capabilities{SupportsPinned: true, SupportsSearch: true},
+		pinnedItems: []memory.MemoryItem{{
+			ID:     "mem_pinned",
+			Kind:   memory.KindPinned,
+			Status: memory.StatusActive,
+			Title:  "Pinned",
+			Text:   "Always use pnpm",
+		}},
+		searchResult: memory.SearchResult{Hits: []memory.SearchHit{{
+			Item: memory.MemoryItem{
+				ID:     "mem_semantic",
+				Kind:   memory.KindSemantic,
+				Status: memory.StatusActive,
+				Title:  "Semantic",
+				Text:   "Prefer focused tests",
+			},
+		}}},
+	}
+	turn := &Turn{cfg: memoryEnabledTestConfig(), env: &mocks.EnvironmentStub{Memory: provider}}
+
+	instruction := turn.retrieveMemoryInstruction(context.Background(), "pnpm", trace.NoopSession())
+
+	require.Contains(t, instruction.Value, "# Memory Context")
+	require.Less(t, strings.Index(instruction.Value, "Always use pnpm"), strings.Index(instruction.Value, "Prefer focused tests"))
+	require.Equal(t, []memory.Status{memory.StatusActive}, provider.pinnedQuery.Statuses)
+	require.Equal(t, pinnedMemoryRetrievalLimit, provider.pinnedQuery.Limit)
+	require.Equal(t, pinnedMemoryRetrievalItemChars, provider.pinnedQuery.MaxChars)
+	require.Equal(t, []memory.Kind{memory.KindSemantic, memory.KindEpisodic, memory.KindProcedural}, provider.searchQuery.Kinds)
+	require.Equal(t, []memory.Status{memory.StatusActive}, provider.searchQuery.Statuses)
+	require.Equal(t, searchMemoryRetrievalLimit, provider.searchQuery.Limit)
+	require.Equal(t, searchMemoryRetrievalItemChars, provider.searchQuery.MaxChars)
 }
 
 func TestTurn_RetrieveMemoryInstructionRecordsSetupFailures(t *testing.T) {
@@ -258,6 +353,8 @@ func TestTurn_RetrieveMemoryInstructionAllowsNilTraceSession(t *testing.T) {
 	require.Contains(t, instruction.Value, "# Memory Context")
 	require.Contains(t, instruction.Value, "Use pnpm")
 	require.Equal(t, []memory.Status{memory.StatusActive}, provider.searchQuery.Statuses)
+	require.Equal(t, searchMemoryRetrievalLimit, provider.searchQuery.Limit)
+	require.Equal(t, searchMemoryRetrievalItemChars, provider.searchQuery.MaxChars)
 }
 
 func TestSanitizeMemoryItemForPromptSkipsEmptyAndInactiveItems(t *testing.T) {
@@ -287,7 +384,7 @@ func TestMemoryPromptTextFallsBackToOriginalText(t *testing.T) {
 }
 
 func TestMemoryContextItemsConvertsMemoryItems(t *testing.T) {
-	items := memoryContextItems([]memory.MemoryItem{{
+	items := toMemoryContextItems([]memory.MemoryItem{{
 		Kind:  memory.KindSemantic,
 		Title: "Package manager",
 		Text:  "Use pnpm",

@@ -11,6 +11,9 @@ type memoryProviderStub struct {
 	caps         memory.Capabilities
 	capsErr      error
 	configureErr error
+	pinnedItems  []memory.MemoryItem
+	pinnedQuery  memory.SearchQuery
+	pinnedErr    error
 	searchResult memory.SearchResult
 	searchQuery  memory.SearchQuery
 	searchErr    error
@@ -38,6 +41,11 @@ func (p *memoryProviderStub) Close() error {
 func (p *memoryProviderStub) Search(_ context.Context, query memory.SearchQuery) (memory.SearchResult, error) {
 	p.searchQuery = query
 	return p.searchResult, p.searchErr
+}
+
+func (p *memoryProviderStub) LoadPinned(_ context.Context, query memory.SearchQuery) ([]memory.MemoryItem, error) {
+	p.pinnedQuery = query
+	return p.pinnedItems, p.pinnedErr
 }
 
 type nonSearchMemoryProvider struct{}

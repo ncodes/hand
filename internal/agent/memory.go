@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	memoryRetrievalLimit            = 5
-	memoryRetrievalItemChars        = 800
+	pinnedMemoryRetrievalLimit      = 3
+	pinnedMemoryRetrievalItemChars  = 1000
+	searchMemoryRetrievalLimit      = 5
+	searchMemoryRetrievalItemChars  = 700
 	memoryContextInstructionMaxChar = 4000
 )
 
@@ -33,11 +35,6 @@ func (t *Turn) retrieveMemoryInstruction(
 		return instruct.Instruction{Name: instruct.MemoryContextInstructionName}
 	}
 
-	searchProvider, ok := provider.(memory.SearchProvider)
-	if !ok {
-		return instruct.Instruction{Name: instruct.MemoryContextInstructionName}
-	}
-
 	if err := provider.ConfigureObservability(memoryobservability.New(agentLog, traceSession)); err != nil {
 		recordMemoryRetrievalFailed(traceSession, provider.Name(), "configure_observability", err)
 		return instruct.Instruction{Name: instruct.MemoryContextInstructionName}
@@ -48,39 +45,72 @@ func (t *Turn) retrieveMemoryInstruction(
 		recordMemoryRetrievalFailed(traceSession, provider.Name(), "capabilities", err)
 		return instruct.Instruction{Name: instruct.MemoryContextInstructionName}
 	}
-	if !caps.SupportsSearch {
+	searchProvider, supportsSearchProvider := provider.(memory.SearchProvider)
+	pinnedProvider, supportsPinnedProvider := provider.(memory.PinnedProvider)
+	if (!caps.SupportsSearch || !supportsSearchProvider) && (!caps.SupportsPinned || !supportsPinnedProvider) {
 		return instruct.Instruction{Name: instruct.MemoryContextInstructionName}
 	}
 
-	recordMemoryRetrievalEvent(traceSession, trace.EvtMemoryRetrievalStarted, map[string]any{
-		"provider":  provider.Name(),
-		"operation": "search",
-		"limit":     memoryRetrievalLimit,
-		"max_chars": memoryRetrievalItemChars,
-	})
+	items := make([]memory.MemoryItem, 0, pinnedMemoryRetrievalLimit+searchMemoryRetrievalLimit)
 
-	query := memory.SearchQuery{
-		Text:     strings.TrimSpace(userText),
-		Statuses: []memory.Status{memory.StatusActive},
-		Limit:    memoryRetrievalLimit,
-		MaxChars: memoryRetrievalItemChars,
-	}
-	result, err := searchProvider.Search(ctx, query)
-	if err != nil {
-		recordMemoryRetrievalFailed(traceSession, provider.Name(), "search", err)
-		return instruct.Instruction{Name: instruct.MemoryContextInstructionName}
+	if caps.SupportsPinned && supportsPinnedProvider {
+		recordMemoryRetrievalEvent(traceSession, trace.EvtMemoryRetrievalStarted, map[string]any{
+			"provider":  provider.Name(),
+			"operation": "load_pinned",
+			"limit":     pinnedMemoryRetrievalLimit,
+			"max_chars": pinnedMemoryRetrievalItemChars,
+		})
+
+		pinned, err := pinnedProvider.LoadPinned(ctx, memory.SearchQuery{
+			Statuses: []memory.Status{memory.StatusActive},
+			Limit:    pinnedMemoryRetrievalLimit,
+			MaxChars: pinnedMemoryRetrievalItemChars,
+		})
+		if err != nil {
+			recordMemoryRetrievalFailed(traceSession, provider.Name(), "load_pinned", err)
+		} else {
+			items = append(items, pinned...)
+		}
 	}
 
-	items := sanitizeMemoryHitsForPrompt(result.Hits)
+	if caps.SupportsSearch && supportsSearchProvider {
+		recordMemoryRetrievalEvent(traceSession, trace.EvtMemoryRetrievalStarted, map[string]any{
+			"provider":  provider.Name(),
+			"operation": "search",
+			"limit":     searchMemoryRetrievalLimit,
+			"max_chars": searchMemoryRetrievalItemChars,
+		})
+
+		query := memory.SearchQuery{
+			Text: strings.TrimSpace(userText),
+			Kinds: []memory.Kind{
+				memory.KindSemantic,
+				memory.KindEpisodic,
+				memory.KindProcedural,
+			},
+			Statuses: []memory.Status{memory.StatusActive},
+			Limit:    searchMemoryRetrievalLimit,
+			MaxChars: searchMemoryRetrievalItemChars,
+		}
+		result, err := searchProvider.Search(ctx, query)
+		if err != nil {
+			recordMemoryRetrievalFailed(traceSession, provider.Name(), "search", err)
+		} else {
+			items = append(items, toMemoryHitItems(result.Hits)...)
+		}
+	}
+
+	hitCount := len(items)
+	items = sanitizeMemoryItemsForPrompt(items)
 
 	recordMemoryRetrievalEvent(traceSession, trace.EvtMemoryRetrieved, map[string]any{
 		"provider":       provider.Name(),
-		"hit_count":      len(result.Hits),
+		"hit_count":      hitCount,
 		"injected_count": len(items),
 	})
 
 	return instruct.BuildMemoryContext(
-		memoryContextItems(items),
+		toMemoryContextItems(items),
 		memoryContextInstructionMaxChar,
 	)
 }
@@ -113,14 +143,22 @@ func recordMemoryRetrievalFailed(
 		Msg("memory retrieval failed")
 }
 
-func sanitizeMemoryHitsForPrompt(hits []memory.SearchHit) []memory.MemoryItem {
+func toMemoryHitItems(hits []memory.SearchHit) []memory.MemoryItem {
 	items := make([]memory.MemoryItem, 0, len(hits))
 	for _, hit := range hits {
-		item, ok := sanitizeMemoryItemForPrompt(hit.Item)
+		items = append(items, hit.Item)
+	}
+	return items
+}
+
+func sanitizeMemoryItemsForPrompt(input []memory.MemoryItem) []memory.MemoryItem {
+	items := make([]memory.MemoryItem, 0, len(input))
+	for _, item := range input {
+		sanitized, ok := sanitizeMemoryItemForPrompt(item)
 		if !ok {
 			continue
 		}
-		items = append(items, item)
+		items = append(items, sanitized)
 	}
 	return items
 }
@@ -155,7 +193,7 @@ func memoryPromptText(value string) string {
 	return strings.TrimSpace(sanitized)
 }
 
-func memoryContextItems(items []memory.MemoryItem) []instruct.MemoryContextItem {
+func toMemoryContextItems(items []memory.MemoryItem) []instruct.MemoryContextItem {
 	contextItems := make([]instruct.MemoryContextItem, 0, len(items))
 	for _, item := range items {
 		contextItems = append(contextItems, instruct.MemoryContextItem{

@@ -197,20 +197,6 @@ func TestDefaultMemoryProvider_SearchWriteDeleteAndObservability(t *testing.T) {
 	require.Equal(t, StatusDeleted, result.Hits[0].Item.Status)
 }
 
-func TestDefaultMemoryProvider_LoadPinned(t *testing.T) {
-	provider := defaultMemoryTestProvider(t, Options{})
-
-	_, err := provider.Upsert(context.Background(), MemoryItem{Kind: KindPinned, Status: StatusActive, Text: "always remember"})
-	require.NoError(t, err)
-	_, err = provider.Upsert(context.Background(), MemoryItem{Kind: KindSemantic, Status: StatusActive, Text: "semantic remember"})
-	require.NoError(t, err)
-
-	items, err := provider.LoadPinned(context.Background(), SearchQuery{Text: "remember"})
-	require.NoError(t, err)
-	require.Len(t, items, 1)
-	require.Equal(t, KindPinned, items[0].Kind)
-}
-
 func TestDefaultMemoryProvider_SearchFiltersStatusesTagsKindsAndText(t *testing.T) {
 	provider := defaultMemoryTestProvider(t, Options{})
 
@@ -392,7 +378,10 @@ func TestDefaultMemoryProvider_UpsertReplacesTagsAndUpdatesExistingRecord(t *tes
 func TestMemoryProvider_ReturnsProviderRequiredErrors(t *testing.T) {
 	var provider *MemoryProvider
 
-	_, err := provider.Search(context.Background(), SearchQuery{})
+	_, err := provider.LoadPinned(context.Background(), SearchQuery{})
+	require.EqualError(t, err, "memory provider is required")
+
+	_, err = provider.Search(context.Background(), SearchQuery{})
 	require.EqualError(t, err, "memory provider is required")
 
 	_, err = provider.Upsert(context.Background(), MemoryItem{Text: "hello"})
@@ -406,7 +395,10 @@ func TestMemoryProvider_PropagatesStoreErrors(t *testing.T) {
 	storeErr := errors.New("store failed")
 
 	provider := &MemoryProvider{store: fakeMemoryStore{searchErr: storeErr}}
-	_, err := provider.Search(context.Background(), SearchQuery{})
+	_, err := provider.LoadPinned(context.Background(), SearchQuery{})
+	require.ErrorIs(t, err, storeErr)
+
+	_, err = provider.Search(context.Background(), SearchQuery{})
 	require.ErrorIs(t, err, storeErr)
 
 	provider = &MemoryProvider{store: fakeMemoryStore{upsertErr: storeErr}}

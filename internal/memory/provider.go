@@ -20,6 +20,14 @@ type Options struct {
 	MemoryStore    statecore.MemoryStore
 	StorageBackend string
 	MemoryBackend  string
+	Pinned         PinnedOptions
+}
+
+type PinnedOptions struct {
+	Enabled      *bool
+	Files        []string
+	MaxChars     int
+	MaxItemChars int
 }
 
 type MemoryProvider struct {
@@ -27,6 +35,7 @@ type MemoryProvider struct {
 	store      statecore.MemoryStore
 	guardrails Guardrails
 	obs        Observability
+	pinned     PinnedOptions
 }
 
 func NewProvider(name string, opts Options) (Provider, error) {
@@ -62,6 +71,7 @@ func NewFromStore(store statecore.MemoryStore, opts Options) (*MemoryProvider, e
 		store:      store,
 		guardrails: opts.Guardrails,
 		obs:        opts.Observability,
+		pinned:     normalizePinnedOptions(opts.Pinned),
 	}, nil
 }
 
@@ -93,16 +103,38 @@ func (p *MemoryProvider) Close() error {
 }
 
 func (p *MemoryProvider) LoadPinned(ctx context.Context, query SearchQuery) ([]MemoryItem, error) {
-	query.Kinds = []Kind{KindPinned}
-	result, err := p.Search(ctx, query)
+	if p == nil || p.store == nil {
+		return nil, errors.New("memory provider is required")
+	}
+	if !pinnedEnabled(p.pinned) {
+		return nil, nil
+	}
+	if err := validateSearch(ctx, p.guardrails, query); err != nil {
+		return nil, err
+	}
+
+	fileItems, err := p.loadFilePinned()
 	if err != nil {
 		return nil, err
 	}
 
-	items := make([]MemoryItem, 0, len(result.Hits))
-	for _, hit := range result.Hits {
-		items = append(items, hit.Item)
+	dbItems, err := p.loadStorePinned(ctx, query)
+	if err != nil {
+		return nil, err
 	}
+
+	items := append(fileItems, dbItems...)
+	items, err = p.preparePinnedItems(ctx, items, query)
+	if err != nil {
+		return nil, err
+	}
+	if query.Limit > 0 && len(items) > query.Limit {
+		items = items[:query.Limit]
+	}
+
+	fields := observationFields(p.Name(), "load_pinned", map[string]any{"result_count": len(items)})
+	logDebugAndTrace(ctx, p.observability(), "memory pinned loaded", "memory.pinned.loaded", fields)
+
 	return items, nil
 }
 

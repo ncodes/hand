@@ -185,6 +185,12 @@ func (e *environment) prepareMemory() error {
 		Guardrails:     memguardrails.New(guardrails.NewRedactor()),
 		StorageBackend: e.cfg.Storage.Backend,
 		MemoryBackend:  e.cfg.Memory.Backend,
+		Pinned: memory.PinnedOptions{
+			Enabled:      e.cfg.Memory.Pinned.Enabled,
+			Files:        e.cfg.Memory.Pinned.Files,
+			MaxChars:     e.cfg.Memory.Pinned.MaxChars,
+			MaxItemChars: e.cfg.Memory.Pinned.MaxItemChars,
+		},
 	}
 	if e.stateMgr != nil {
 		memoryBackend := effectiveMemoryBackend(e.cfg)

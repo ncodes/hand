@@ -114,9 +114,17 @@ type SearchVectorConfig struct {
 }
 
 type MemoryConfig struct {
-	Enabled  *bool  `yaml:"enabled"`
-	Provider string `yaml:"provider"`
-	Backend  string `yaml:"backend"`
+	Enabled  *bool              `yaml:"enabled"`
+	Provider string             `yaml:"provider"`
+	Backend  string             `yaml:"backend"`
+	Pinned   PinnedMemoryConfig `yaml:"pinned"`
+}
+
+type PinnedMemoryConfig struct {
+	Enabled      *bool    `yaml:"enabled"`
+	Files        []string `yaml:"files"`
+	MaxChars     int      `yaml:"maxChars"`
+	MaxItemChars int      `yaml:"maxItemChars"`
 }
 
 type RerankerConfig struct {
@@ -401,6 +409,7 @@ func (c *Config) resolvePaths(baseDir string) {
 	c.Web.BlockedDomainFiles = resolvePathsFromBase(c.Web.BlockedDomainFiles, baseDir)
 	c.Web.NativeAllowedHostFiles = resolvePathsFromBase(c.Web.NativeAllowedHostFiles, baseDir)
 	c.Web.NativeBlockedHostFiles = resolvePathsFromBase(c.Web.NativeBlockedHostFiles, baseDir)
+	c.Memory.Pinned.Files = resolvePathsFromBase(c.Memory.Pinned.Files, baseDir)
 }
 
 func applyEnvOverrides(cfg *Config) {
@@ -649,6 +658,22 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_BACKEND")); value != "" {
 		cfg.Memory.Backend = value
 	}
+	if value, ok := parseOptionalBoolEnv("HAND_MEMORY_PINNED_ENABLED"); ok {
+		cfg.Memory.Pinned.Enabled = new(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_PINNED_FILES")); value != "" {
+		cfg.Memory.Pinned.Files = splitAndTrimCSV(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_PINNED_MAX_CHARS")); value != "" {
+		if maxChars, err := strconv.Atoi(value); err == nil {
+			cfg.Memory.Pinned.MaxChars = maxChars
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_PINNED_MAX_ITEM_CHARS")); value != "" {
+		if maxChars, err := strconv.Atoi(value); err == nil {
+			cfg.Memory.Pinned.MaxItemChars = maxChars
+		}
+	}
 	if value, ok := parseOptionalBoolEnv("HAND_SEARCH_VECTOR_REQUIRED"); ok {
 		cfg.Search.Vector.Required = value
 	}
@@ -741,6 +766,7 @@ func (c *Config) normalizeFields() {
 	c.Storage.Backend = strings.TrimSpace(strings.ToLower(c.Storage.Backend))
 	c.Memory.Provider = strings.TrimSpace(strings.ToLower(c.Memory.Provider))
 	c.Memory.Backend = strings.TrimSpace(strings.ToLower(c.Memory.Backend))
+	c.Memory.Pinned.Files = dedupeAndTrim(c.Memory.Pinned.Files)
 	c.Reranker.Type = strings.TrimSpace(strings.ToLower(c.Reranker.Type))
 	c.Reranker.Model = strings.TrimSpace(c.Reranker.Model)
 
@@ -856,6 +882,9 @@ func (c *Config) normalizeFields() {
 	}
 	if c.Memory.Provider == "" {
 		c.Memory.Provider = "default-memory"
+	}
+	if c.Memory.Pinned.Enabled == nil {
+		c.Memory.Pinned.Enabled = new(true)
 	}
 
 }
