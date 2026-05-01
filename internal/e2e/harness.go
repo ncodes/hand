@@ -213,7 +213,13 @@ func openInspectStore(cfg *config.Config) (storage.Store, error) {
 	if strings.TrimSpace(strings.ToLower(cfg.Storage.Backend)) == "memory" {
 		return nil, nil
 	}
-	return statemanager.OpenStore(cfg)
+
+	inspectCfg := *cfg
+	rerankDisabled := false
+	inspectCfg.Search.Vector.Enabled = false
+	inspectCfg.Reranker.Enabled = &rerankDisabled
+	inspectCfg.Search.EnableRerank = &rerankDisabled
+	return statemanager.OpenStore(&inspectCfg)
 }
 
 func applyHarnessEnv(spec HarnessSpec) (func(), error) {

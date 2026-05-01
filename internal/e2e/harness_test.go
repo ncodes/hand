@@ -14,6 +14,7 @@ import (
 
 	"github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	storage "github.com/wandxy/hand/internal/state/core"
@@ -369,8 +370,19 @@ func TestOpenInspectStoreAndHelpers(t *testing.T) {
 		assert.Nil(t, store)
 	})
 
-	t.Run("normalize nil context", func(t *testing.T) {
-		assert.NotNil(t, normalizeHarnessContext(nil))
+	t.Run("sqlite inspect store disables reranker without mutating config", func(t *testing.T) {
+		t.Setenv("HAND_HOME", t.TempDir())
+
+		cfg := testHarnessConfig()
+		cfg.Storage.Backend = "sqlite"
+		cfg.Search.Vector.Enabled = true
+		cfg.Reranker.Type = constants.RerankerLLM
+
+		store, err := openInspectStore(cfg)
+		require.NoError(t, err)
+		require.NotNil(t, store)
+		assert.Nil(t, cfg.Reranker.Enabled)
+		assert.Nil(t, cfg.Search.EnableRerank)
 	})
 
 	t.Run("write output helpers", func(t *testing.T) {

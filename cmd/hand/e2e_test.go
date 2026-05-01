@@ -1014,6 +1014,7 @@ func Test_E2E_HandLiveHarness_OneTurnDirectAnswer(t *testing.T) {
 
 func Test_E2E_HandLiveHarness_ToolUsing(t *testing.T) {
 	ctx := newLiveRootChatContext(t)
+	ctx.skipIfNonPersistentStorage(t)
 	sessionID := createLiveSession(t, ctx.harness, "ses_123456789012345678902")
 
 	_, err := e2e.RunLiveScenario(
@@ -1135,6 +1136,14 @@ func Test_E2E_HandLiveHarness_MemorySensitive(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestPrepareLiveRootChatConfig_PreservesStorageBackend(t *testing.T) {
+	cfg := e2e.DefaultConfig(e2e.ConfigOptions{StorageBackend: "memory"})
+	prepareLiveRootChatConfig(cfg, "/tmp/live-workspace")
+
+	require.Equal(t, []string{"/tmp/live-workspace"}, cfg.FS.Roots)
+	require.Equal(t, "memory", cfg.Storage.Backend)
+}
+
 func resetRootChatE2E(t *testing.T) {
 	t.Helper()
 	clearEnvKeys(
@@ -1202,10 +1211,11 @@ func newWebConfig(baseURL string) *config.Config {
 }
 
 type liveRootChatContext struct {
-	harness     *e2e.RPCHarness
-	configFile  string
-	artifactDir string
-	markerPath  string
+	harness        *e2e.RPCHarness
+	configFile     string
+	artifactDir    string
+	markerPath     string
+	storageBackend string
 }
 
 func newLiveRootChatContext(t *testing.T) liveRootChatContext {
@@ -1222,7 +1232,7 @@ func newLiveRootChatContext(t *testing.T) liveRootChatContext {
 	configPath, envPath := resolveLiveInputs(t)
 	cfg, err := config.Load(envPath, configPath)
 	require.NoError(t, err)
-	cfg.FS.Roots = []string{workspace}
+	prepareLiveRootChatConfig(cfg, workspace)
 
 	modelClient, summaryClient, err := e2e.NewLiveClients(cfg)
 	require.NoError(t, err)
@@ -1244,10 +1254,23 @@ func newLiveRootChatContext(t *testing.T) liveRootChatContext {
 	require.NoError(t, os.WriteFile(markerPath, []byte("live marker"), 0o600))
 
 	return liveRootChatContext{
-		harness:     h,
-		configFile:  writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "live-agent"}),
-		artifactDir: e2e.DefaultLiveArtifactDir(os.Getenv("HAND_E2E_LIVE_ARTIFACT_DIR")),
-		markerPath:  markerPath,
+		harness:        h,
+		configFile:     writeRPCConfig(t, h.Address(), h.Port(), e2e.RPCConfigOptions{Name: "live-agent"}),
+		artifactDir:    e2e.DefaultLiveArtifactDir(os.Getenv("HAND_E2E_LIVE_ARTIFACT_DIR")),
+		markerPath:     markerPath,
+		storageBackend: strings.TrimSpace(strings.ToLower(cfg.Storage.Backend)),
+	}
+}
+
+func prepareLiveRootChatConfig(cfg *config.Config, workspace string) {
+	cfg.FS.Roots = []string{workspace}
+}
+
+func (ctx liveRootChatContext) skipIfNonPersistentStorage(t *testing.T) {
+	t.Helper()
+
+	if ctx.storageBackend == "memory" {
+		t.Skip("live scenario requires persistent storage for message inspection")
 	}
 }
 
