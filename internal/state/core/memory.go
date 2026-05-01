@@ -45,6 +45,7 @@ type MemoryItem struct {
 	Tags        []string
 	Metadata    map[string]string
 	SourceLinks []MemorySourceLink
+	Confidence  float64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

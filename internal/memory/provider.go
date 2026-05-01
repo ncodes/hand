@@ -75,6 +75,7 @@ func (p *MemoryProvider) Capabilities(context.Context) (Capabilities, error) {
 		SupportsSearch:        true,
 		SupportsWrite:         true,
 		SupportsDelete:        true,
+		SupportsReranking:     true,
 		SupportsObservability: true,
 	}, nil
 }

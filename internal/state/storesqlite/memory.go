@@ -10,6 +10,7 @@ import (
 	"time"
 
 	statememory "github.com/wandxy/hand/internal/state/core"
+	"github.com/wandxy/hand/internal/state/search"
 	"github.com/wandxy/hand/pkg/nanoid"
 	"gorm.io/gorm"
 )
@@ -25,6 +26,7 @@ type memoryItemModel struct {
 	TagsJSON        string    `gorm:"column:tags_json;type:TEXT;not null;default:'null'"`
 	MetadataJSON    string    `gorm:"column:metadata_json;type:TEXT;not null;default:'null'"`
 	SourceLinksJSON string    `gorm:"column:source_links_json;type:TEXT;not null;default:'null'"`
+	Confidence      float64   `gorm:"column:confidence;not null;default:0"`
 	CreatedAt       time.Time `gorm:"column:created_at;autoCreateTime:false"`
 	UpdatedAt       time.Time `gorm:"column:updated_at;autoUpdateTime:false;index:idx_memory_items_updated_at"`
 }
@@ -51,6 +53,7 @@ type memorySearchRecord struct {
 	TagsJSON        string    `gorm:"column:tags_json"`
 	MetadataJSON    string    `gorm:"column:metadata_json"`
 	SourceLinksJSON string    `gorm:"column:source_links_json"`
+	Confidence      float64   `gorm:"column:confidence"`
 	CreatedAt       time.Time `gorm:"column:created_at"`
 	UpdatedAt       time.Time `gorm:"column:updated_at"`
 	Score           float64   `gorm:"column:score"`
@@ -66,6 +69,7 @@ func (record memorySearchRecord) model() memoryItemModel {
 		TagsJSON:        record.TagsJSON,
 		MetadataJSON:    record.MetadataJSON,
 		SourceLinksJSON: record.SourceLinksJSON,
+		Confidence:      record.Confidence,
 		CreatedAt:       record.CreatedAt,
 		UpdatedAt:       record.UpdatedAt,
 	}
@@ -76,12 +80,10 @@ func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearch
 		return statememory.MemorySearchResult{}, errors.New("store is required")
 	}
 
-	limit := query.Limit
-	if limit <= 0 {
-		limit = 10
-	}
+	resultLimit := search.MemoryResultLimit(query.Limit)
+	candidateLimit := search.MemoryCandidateLimit(resultLimit)
 
-	records, err := s.searchMemoryRecords(ctx, query, limit)
+	records, err := s.searchMemoryRecords(ctx, query, candidateLimit)
 	if err != nil {
 		return statememory.MemorySearchResult{}, err
 	}
@@ -99,7 +101,11 @@ func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearch
 		})
 	}
 
-	return statememory.MemorySearchResult{Hits: hits}, nil
+	return search.RerankMemoryHits(ctx, query, hits, search.MemoryRerankOptions{
+		Reranker:      s.memoryReranker,
+		MaxCandidates: candidateLimit,
+		Limit:         resultLimit,
+	})
 }
 
 func (s *Store) UpsertMemory(ctx context.Context, item statememory.MemoryItem) (statememory.MemoryItem, error) {
@@ -243,7 +249,7 @@ func (s *Store) searchMemoryRecordsLexical(
 ) ([]memorySearchRecord, error) {
 	args := []any{queryText}
 	var sql strings.Builder
-    
+
 	sql.WriteString(`
 WITH fts_hits AS (
 	SELECT
@@ -267,6 +273,7 @@ SELECT
 	m.tags_json,
 	m.metadata_json,
 	m.source_links_json,
+	m.confidence,
 	m.created_at,
 	m.updated_at,
 	-hits.rank AS score
@@ -358,6 +365,7 @@ func itemToMemoryModel(item statememory.MemoryItem) memoryItemModel {
 		TagsJSON:        memoryJSONString(item.Tags),
 		MetadataJSON:    memoryJSONString(item.Metadata),
 		SourceLinksJSON: memoryJSONString(item.SourceLinks),
+		Confidence:      item.Confidence,
 		CreatedAt:       item.CreatedAt,
 		UpdatedAt:       item.UpdatedAt,
 	}
@@ -365,13 +373,14 @@ func itemToMemoryModel(item statememory.MemoryItem) memoryItemModel {
 
 func memoryModelToItem(record memoryItemModel) (statememory.MemoryItem, error) {
 	item := statememory.MemoryItem{
-		ID:        record.ID,
-		Kind:      statememory.MemoryKind(record.Kind),
-		Status:    statememory.MemoryStatus(record.Status),
-		Title:     record.Title,
-		Text:      record.Text,
-		CreatedAt: record.CreatedAt.UTC(),
-		UpdatedAt: record.UpdatedAt.UTC(),
+		ID:         record.ID,
+		Kind:       statememory.MemoryKind(record.Kind),
+		Status:     statememory.MemoryStatus(record.Status),
+		Title:      record.Title,
+		Text:       record.Text,
+		Confidence: record.Confidence,
+		CreatedAt:  record.CreatedAt.UTC(),
+		UpdatedAt:  record.UpdatedAt.UTC(),
 	}
 	if err := memoryDecodeJSON(record.TagsJSON, &item.Tags); err != nil {
 		return statememory.MemoryItem{}, err
@@ -403,6 +412,7 @@ func memorySearchRecordFromModel(record memoryItemModel, score float64) memorySe
 		TagsJSON:        record.TagsJSON,
 		MetadataJSON:    record.MetadataJSON,
 		SourceLinksJSON: record.SourceLinksJSON,
+		Confidence:      record.Confidence,
 		CreatedAt:       record.CreatedAt,
 		UpdatedAt:       record.UpdatedAt,
 		Score:           score,

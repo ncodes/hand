@@ -19,8 +19,8 @@ import (
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
-	"github.com/wandxy/hand/internal/rerank"
 )
 
 type Config struct {
@@ -966,7 +966,7 @@ func (c *Config) SummaryModelAPIModeEffective() string {
 
 func (c *Config) RerankerEffective() string {
 	if c == nil {
-		return rerank.Deterministic
+		return constants.RerankerDeterministic
 	}
 
 	c.normalizeFields()
@@ -974,7 +974,7 @@ func (c *Config) RerankerEffective() string {
 		return c.Reranker.Type
 	}
 
-	return rerank.Deterministic
+	return constants.RerankerDeterministic
 }
 
 func (c *Config) MemoryEnabled() bool {
@@ -1324,7 +1324,7 @@ func (c *Config) validateSearchVectorSettings() error {
 
 func (c *Config) validateRerankerSettings() error {
 	switch c.RerankerEffective() {
-	case rerank.Deterministic, rerank.Noop, rerank.LLM:
+	case constants.RerankerDeterministic, constants.RerankerNoop, constants.RerankerLLM:
 	default:
 		return errors.New("reranker type must be one of: deterministic, noop, llm")
 	}
@@ -1337,7 +1337,7 @@ func (c *Config) validateRerankerSettings() error {
 	if c.Reranker.MaxOutputTokens < 0 {
 		return errors.New("reranker max output tokens must be non-negative")
 	}
-	if c.RerankerEffective() == rerank.LLM {
+	if c.RerankerEffective() == constants.RerankerLLM {
 		if c.RerankerModelEffective() == "" {
 			return errors.New("reranker model is required")
 		}

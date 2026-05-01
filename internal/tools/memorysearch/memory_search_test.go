@@ -70,7 +70,6 @@ func TestMemorySearch_DefinitionSearchesRuntimeWithFilters(t *testing.T) {
 	require.Equal(t, "Package manager", payload.Results[0].Title)
 	require.Equal(t, "Use pnpm", payload.Results[0].Text)
 	require.Equal(t, []string{"tooling"}, payload.Results[0].Tags)
-	require.Equal(t, 0.75, payload.Results[0].Score)
 	require.Equal(t, "session-1", payload.Results[0].SourceLinks[0].SessionID)
 	require.Equal(t, []uint{1, 2}, payload.Results[0].SourceLinks[0].MessageIDs)
 	require.Equal(t, []int{3, 4}, payload.Results[0].SourceLinks[0].Offsets)

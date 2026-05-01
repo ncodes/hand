@@ -10,6 +10,7 @@ import (
 
 type Store struct {
 	vectors         *search.VectorConfig
+	memoryReranker  search.Reranker
 	mu              sync.RWMutex
 	sessions        map[string]Session
 	messages        map[string][]handmsg.Message

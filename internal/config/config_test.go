@@ -15,8 +15,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
-	"github.com/wandxy/hand/internal/rerank"
 )
 
 func stubModelMetadataResolver(t *testing.T, fn func(context.Context, *Config, ModelAuth) (ModelMetadata, error)) {
@@ -1676,7 +1676,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	t.Setenv("HAND_SEARCH_VECTOR_REBUILD_BATCH_SIZE", "32")
 	t.Setenv("HAND_SEARCH_ENABLE_RERANK", "false")
 	t.Setenv("HAND_RERANKER_ENABLED", "false")
-	t.Setenv("HAND_RERANKER_TYPE", rerank.LLM)
+	t.Setenv("HAND_RERANKER_TYPE", constants.RerankerLLM)
 	t.Setenv("HAND_RERANKER_MODEL", "openai/gpt-4o-mini")
 	t.Setenv("HAND_RERANKER_MAX_CANDIDATES", "12")
 	t.Setenv("HAND_RERANKER_MAX_CANDIDATE_TEXT_CHARS", "700")
@@ -1705,7 +1705,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.Equal(t, 32, cfg.Search.Vector.RebuildBatchSize)
 	require.False(t, boolValueDefault(cfg.Search.EnableRerank, true))
 	require.False(t, boolValueDefault(cfg.Reranker.Enabled, true))
-	require.Equal(t, rerank.LLM, cfg.Reranker.Type)
+	require.Equal(t, constants.RerankerLLM, cfg.Reranker.Type)
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Reranker.Model)
 	require.Equal(t, 12, cfg.Reranker.MaxCandidates)
 	require.Equal(t, 700, cfg.Reranker.MaxCandidateTextChars)
@@ -2515,7 +2515,7 @@ reranker:
 	require.Equal(t, 25, cfg.Search.Vector.RebuildBatchSize)
 	require.False(t, boolValueDefault(cfg.Search.EnableRerank, true))
 	require.False(t, boolValueDefault(cfg.Reranker.Enabled, true))
-	require.Equal(t, rerank.LLM, cfg.Reranker.Type)
+	require.Equal(t, constants.RerankerLLM, cfg.Reranker.Type)
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Reranker.Model)
 	require.Equal(t, 11, cfg.Reranker.MaxCandidates)
 	require.Equal(t, 600, cfg.Reranker.MaxCandidateTextChars)
@@ -2536,7 +2536,7 @@ func TestConfig_NormalizeDefaultsSessionSettings(t *testing.T) {
 	require.Nil(t, cfg.Search.EnableRerank)
 	require.Nil(t, cfg.Reranker.Enabled)
 	require.Empty(t, cfg.Reranker.Type)
-	require.Equal(t, rerank.Deterministic, cfg.RerankerEffective())
+	require.Equal(t, constants.RerankerDeterministic, cfg.RerankerEffective())
 }
 
 func TestConfig_ValidateRejectsInvalidSessionSettings(t *testing.T) {

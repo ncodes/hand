@@ -133,6 +133,40 @@ func TestMemoryStore_SearchOrdersAndLimitsResults(t *testing.T) {
 	})
 }
 
+func TestMemoryStore_ReranksBeforeLimiting(t *testing.T) {
+	store := NewStore()
+
+	for _, item := range []statememory.MemoryItem{
+		{
+			ID:     "mem_broad",
+			Status: statememory.MemoryStatusActive,
+			Text:   "plan",
+		},
+		{
+			ID:         "mem_confident",
+			Status:     statememory.MemoryStatusActive,
+			Text:       "plan",
+			Confidence: 1,
+		},
+		{
+			ID:     "mem_other",
+			Status: statememory.MemoryStatusActive,
+			Text:   "plan",
+		},
+	} {
+		_, err := store.UpsertMemory(context.Background(), item)
+		require.NoError(t, err)
+	}
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text:  "plan",
+		Limit: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+	require.Equal(t, "mem_confident", result.Hits[0].Item.ID)
+}
+
 func TestMemoryStore_UpdatePreservesCreatedAtAndClonesItems(t *testing.T) {
 	store := &Store{}
 	createdAt := time.Date(2026, 4, 30, 11, 0, 0, 0, time.UTC)

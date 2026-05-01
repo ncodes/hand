@@ -45,7 +45,6 @@ type result struct {
 	Text        string       `json:"text"`
 	Tags        []string     `json:"tags,omitempty"`
 	SourceLinks []sourceLink `json:"source_links,omitempty"`
-	Score       float64      `json:"score"`
 }
 
 type sourceLink struct {
@@ -187,7 +186,6 @@ func outputResults(hits []memory.SearchHit, maxChars int) []result {
 			Text:        item.Text,
 			Tags:        append([]string(nil), item.Tags...),
 			SourceLinks: outputSourceLinks(item.SourceLinks),
-			Score:       hit.Score,
 		})
 	}
 	return results

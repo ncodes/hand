@@ -8,21 +8,16 @@ import (
 	"time"
 
 	statememory "github.com/wandxy/hand/internal/state/core"
+	"github.com/wandxy/hand/internal/state/search"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
-func (s *Store) SearchMemory(_ context.Context, query statememory.MemorySearchQuery) (statememory.MemorySearchResult, error) {
+func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearchQuery) (statememory.MemorySearchResult, error) {
 	if s == nil {
 		return statememory.MemorySearchResult{}, errors.New("store is required")
 	}
 
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	limit := query.Limit
-	if limit <= 0 {
-		limit = 10
-	}
 
 	hits := make([]statememory.MemorySearchHit, 0, len(s.memoryItems))
 	for _, item := range s.memoryItems {
@@ -46,11 +41,19 @@ func (s *Store) SearchMemory(_ context.Context, query statememory.MemorySearchQu
 		return hits[i].Item.ID < hits[j].Item.ID
 	})
 
-	if len(hits) > limit {
-		hits = hits[:limit]
+	resultLimit := search.MemoryResultLimit(query.Limit)
+	candidateLimit := search.MemoryCandidateLimit(resultLimit)
+	if len(hits) > candidateLimit {
+		hits = hits[:candidateLimit]
 	}
+	reranker := s.memoryReranker
+	s.mu.RUnlock()
 
-	return statememory.MemorySearchResult{Hits: hits}, nil
+	return search.RerankMemoryHits(ctx, query, hits, search.MemoryRerankOptions{
+		Reranker:      reranker,
+		MaxCandidates: candidateLimit,
+		Limit:         resultLimit,
+	})
 }
 
 func (s *Store) UpsertMemory(_ context.Context, item statememory.MemoryItem) (statememory.MemoryItem, error) {

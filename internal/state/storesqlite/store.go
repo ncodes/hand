@@ -7,14 +7,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/wandxy/hand/internal/state/search"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
 type Store struct {
-	vectors *vectorConfig
-	db      *gorm.DB
+	vectors        *vectorConfig
+	memoryReranker search.Reranker
+	db             *gorm.DB
 }
 
 func NewStore(path string) (*Store, error) {

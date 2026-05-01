@@ -300,6 +300,42 @@ func TestSQLiteMemoryStore_BM25RanksByLexicalRelevanceBeforeRecency(t *testing.T
 	require.Equal(t, "mem_strong", result.Hits[0].Item.ID)
 }
 
+func TestSQLiteMemoryStore_ReranksBeforeLimiting(t *testing.T) {
+	store, err := NewStoreFromDB(openMemoryTestDB(t))
+	require.NoError(t, err)
+
+	for _, item := range []statememory.MemoryItem{
+		{
+			ID:     "mem_broad",
+			Status: statememory.MemoryStatusActive,
+			Text:   "plan",
+		},
+		{
+			ID:         "mem_confident",
+			Status:     statememory.MemoryStatusActive,
+			Text:       "plan",
+			Confidence: 1,
+		},
+		{
+			ID:     "mem_other",
+			Status: statememory.MemoryStatusActive,
+			Text:   "plan",
+		},
+	} {
+		_, err := store.UpsertMemory(context.Background(), item)
+		require.NoError(t, err)
+	}
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text:  "plan",
+		Limit: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+	require.Equal(t, "mem_confident", result.Hits[0].Item.ID)
+	require.Equal(t, 1.0, result.Hits[0].Item.Confidence)
+}
+
 func TestSQLiteMemoryStore_ValidationAndDatabaseErrors(t *testing.T) {
 	var nilStore *Store
 	_, err := nilStore.SearchMemory(context.Background(), statememory.MemorySearchQuery{})

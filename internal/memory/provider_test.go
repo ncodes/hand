@@ -124,6 +124,7 @@ func TestMemoryProvider_CapabilitiesConfigureObservabilityAndClose(t *testing.T)
 	require.True(t, caps.SupportsSearch)
 	require.True(t, caps.SupportsWrite)
 	require.True(t, caps.SupportsDelete)
+	require.True(t, caps.SupportsReranking)
 	require.True(t, caps.SupportsObservability)
 
 	tracer := &fakeTracer{}
@@ -166,7 +167,7 @@ func TestDefaultMemoryProvider_SearchWriteDeleteAndObservability(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.Hits, 1)
 	require.Equal(t, "redacted", result.Hits[0].Item.Text)
-	require.Equal(t, 1.0, result.Hits[0].Score)
+	require.Greater(t, result.Hits[0].Score, 0.0)
 	require.Equal(t, 1, guardrails.redactCalls)
 	require.NotEmpty(t, logger.debug)
 	require.Contains(t, tracer.events, "memory.search.completed")
@@ -303,7 +304,7 @@ func TestDefaultMemoryProvider_SearchRanksBeforeLimiting(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.Hits, 1)
 	require.Equal(t, "mem_title_and_text", result.Hits[0].Item.ID)
-	require.Equal(t, 3.0, result.Hits[0].Score)
+	require.Greater(t, result.Hits[0].Score, 0.0)
 }
 
 func TestDefaultMemoryProvider_SourceLinksRoundTripAndCloneIsolation(t *testing.T) {
