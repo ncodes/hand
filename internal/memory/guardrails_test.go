@@ -101,7 +101,7 @@ func TestMemoryProvider_ReturnsGuardrailErrors(t *testing.T) {
 }
 
 func TestMemoryProvider_DeleteWithoutGuardrails(t *testing.T) {
-	provider := &MemoryProvider{store: fakeMemoryStore{}}
+	provider := &MemoryProvider{manager: fakeMemoryManager{}}
 
 	require.NoError(t, provider.Delete(context.Background(), DeleteRequest{ID: " mem_123 "}))
 }

@@ -473,10 +473,10 @@ func testManager(t *testing.T, store storage.Store) *statemanager.Manager {
 	return manager
 }
 
-func testProvider(t *testing.T, store storage.MemoryStore) *memory.MemoryProvider {
+func testProvider(t *testing.T, store storage.Store) *memory.MemoryProvider {
 	t.Helper()
 
-	provider, err := memory.NewFromStore(store, memory.Options{})
+	provider, err := memory.NewFromManager(testManager(t, store), memory.Options{})
 	require.NoError(t, err)
 	return provider
 }

@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,10 +11,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	statemanager "github.com/wandxy/hand/internal/state/manager"
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
+	"github.com/wandxy/hand/pkg/logutils"
 )
 
-type fakeMemoryStore struct {
+func init() {
+	logutils.SetOutput(io.Discard)
+}
+
+type fakeMemoryManager struct {
 	searchResult SearchResult
 	searchErr    error
 	upsertItem   MemoryItem
@@ -21,11 +28,11 @@ type fakeMemoryStore struct {
 	deleteErr    error
 }
 
-func (s fakeMemoryStore) SearchMemory(context.Context, SearchQuery) (SearchResult, error) {
+func (s fakeMemoryManager) SearchMemory(context.Context, SearchQuery) (SearchResult, error) {
 	return s.searchResult, s.searchErr
 }
 
-func (s fakeMemoryStore) UpsertMemory(_ context.Context, item MemoryItem) (MemoryItem, error) {
+func (s fakeMemoryManager) UpsertMemory(_ context.Context, item MemoryItem) (MemoryItem, error) {
 	if s.upsertErr != nil {
 		return MemoryItem{}, s.upsertErr
 	}
@@ -35,17 +42,17 @@ func (s fakeMemoryStore) UpsertMemory(_ context.Context, item MemoryItem) (Memor
 	return item, nil
 }
 
-func (s fakeMemoryStore) DeleteMemory(context.Context, DeleteRequest) error {
+func (s fakeMemoryManager) DeleteMemory(context.Context, DeleteRequest) error {
 	return s.deleteErr
 }
 
 func TestNewProvider_ReturnsConfiguredProvider(t *testing.T) {
-	provider, err := NewProvider("", Options{MemoryStore: storagememory.NewStore()})
+	provider, err := NewProvider("", Options{StateManager: newMemoryTestManager(t, storagememory.NewStore())})
 	require.NoError(t, err)
 	require.IsType(t, &MemoryProvider{}, provider)
 	require.Equal(t, ProviderDefaultMemory, provider.Name())
 
-	provider, err = NewProvider(" default-memory ", Options{MemoryStore: storagememory.NewStore()})
+	provider, err = NewProvider(" default-memory ", Options{StateManager: newMemoryTestManager(t, storagememory.NewStore())})
 	require.NoError(t, err)
 	require.IsType(t, &MemoryProvider{}, provider)
 	require.Equal(t, ProviderDefaultMemory, provider.Name())
@@ -55,7 +62,7 @@ func TestNewProvider_ReturnsConfiguredProvider(t *testing.T) {
 func TestNewProvider_DefaultMemoryBackendResolution(t *testing.T) {
 	provider, err := NewProvider("default-memory", Options{
 		StorageBackend: "memory",
-		MemoryStore:    storagememory.NewStore(),
+		StateManager:   newMemoryTestManager(t, storagememory.NewStore()),
 	})
 	require.NoError(t, err)
 	require.IsType(t, &MemoryProvider{}, provider)
@@ -73,7 +80,7 @@ func TestNewProvider_ExplicitMemoryBackendOverridesStorageBackend(t *testing.T) 
 	provider, err := NewProvider("default-memory", Options{
 		StorageBackend: "sqlite",
 		MemoryBackend:  " memory ",
-		MemoryStore:    storagememory.NewStore(),
+		StateManager:   newMemoryTestManager(t, storagememory.NewStore()),
 	})
 
 	require.NoError(t, err)
@@ -82,7 +89,7 @@ func TestNewProvider_ExplicitMemoryBackendOverridesStorageBackend(t *testing.T) 
 
 func TestNewProvider_DefaultMemoryRequiresStore(t *testing.T) {
 	provider, err := NewProvider("default-memory", Options{StorageBackend: "sqlite"})
-	require.EqualError(t, err, "memory store is required")
+	require.EqualError(t, err, "state manager is required")
 	require.Nil(t, provider)
 }
 
@@ -99,22 +106,22 @@ func TestNewProvider_ReturnsUnknownProviderError(t *testing.T) {
 }
 
 func TestNewProvider_ReturnsUnknownProviderForNoop(t *testing.T) {
-	provider, err := NewProvider("noop", Options{MemoryStore: storagememory.NewStore()})
+	provider, err := NewProvider("noop", Options{StateManager: newMemoryTestManager(t, storagememory.NewStore())})
 	require.ErrorIs(t, err, ErrUnknownProvider)
 	require.Nil(t, provider)
 }
 
 func TestNewProvider_ReturnsUnknownProviderForMemoryAlias(t *testing.T) {
-	provider, err := NewProvider("memory", Options{MemoryStore: storagememory.NewStore()})
+	provider, err := NewProvider("memory", Options{StateManager: newMemoryTestManager(t, storagememory.NewStore())})
 	require.ErrorIs(t, err, ErrUnknownProvider)
 	require.Nil(t, provider)
 }
 
-func TestDefaultMemoryProvider_NewProviderFromStoreValidation(t *testing.T) {
-	provider, err := NewFromStore(nil, Options{})
+func TestDefaultMemoryProvider_NewProviderFromManagerValidation(t *testing.T) {
+	provider, err := NewFromManager(nil, Options{})
 
 	require.Nil(t, provider)
-	require.EqualError(t, err, "memory store is required")
+	require.EqualError(t, err, "state manager is required")
 }
 
 func TestMemoryProvider_CapabilitiesConfigureObservabilityAndClose(t *testing.T) {
@@ -425,28 +432,28 @@ func TestMemoryProvider_ReturnsProviderRequiredErrors(t *testing.T) {
 	require.EqualError(t, err, "memory provider is required")
 }
 
-func TestMemoryProvider_PropagatesStoreErrors(t *testing.T) {
-	storeErr := errors.New("store failed")
+func TestMemoryProvider_PropagatesManagerErrors(t *testing.T) {
+	managerErr := errors.New("manager failed")
 
-	provider := &MemoryProvider{store: fakeMemoryStore{searchErr: storeErr}}
+	provider := &MemoryProvider{manager: fakeMemoryManager{searchErr: managerErr}}
 	_, err := provider.LoadPinned(context.Background(), SearchQuery{})
-	require.ErrorIs(t, err, storeErr)
+	require.ErrorIs(t, err, managerErr)
 
 	_, err = provider.Search(context.Background(), SearchQuery{})
-	require.ErrorIs(t, err, storeErr)
+	require.ErrorIs(t, err, managerErr)
 
-	provider = &MemoryProvider{store: fakeMemoryStore{upsertErr: storeErr}}
+	provider = &MemoryProvider{manager: fakeMemoryManager{upsertErr: managerErr}}
 	_, err = provider.Upsert(context.Background(), MemoryItem{Text: "hello"})
-	require.ErrorIs(t, err, storeErr)
+	require.ErrorIs(t, err, managerErr)
 
-	provider = &MemoryProvider{store: fakeMemoryStore{deleteErr: storeErr}}
+	provider = &MemoryProvider{manager: fakeMemoryManager{deleteErr: managerErr}}
 	err = provider.Delete(context.Background(), DeleteRequest{ID: "mem_123"})
-	require.ErrorIs(t, err, storeErr)
+	require.ErrorIs(t, err, managerErr)
 }
 
 func TestMemoryProvider_SearchTruncatesResultText(t *testing.T) {
 	provider := &MemoryProvider{
-		store: fakeMemoryStore{
+		manager: fakeMemoryManager{
 			searchResult: SearchResult{Hits: []SearchHit{{
 				Item:  MemoryItem{ID: "mem_123", Text: "abcdef"},
 				Score: 1,
@@ -606,8 +613,17 @@ func TestMemoryProvider_LoadPinnedReturnsSafetyScanError(t *testing.T) {
 func defaultMemoryTestProvider(t *testing.T, opts Options) *MemoryProvider {
 	t.Helper()
 
-	provider, err := NewFromStore(storagememory.NewStore(), opts)
+	provider, err := NewFromManager(newMemoryTestManager(t, storagememory.NewStore()), opts)
 	require.NoError(t, err)
 
 	return provider
+}
+
+func newMemoryTestManager(t *testing.T, store *storagememory.Store) *statemanager.Manager {
+	t.Helper()
+
+	manager, err := statemanager.NewManager(store, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	return manager
 }

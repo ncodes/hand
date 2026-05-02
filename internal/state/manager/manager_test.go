@@ -51,6 +51,44 @@ func TestManager_MemoryStore(t *testing.T) {
 	require.Nil(t, memoryStore)
 }
 
+func TestManager_MemoryOperationsUseMemoryStore(t *testing.T) {
+	manager, err := NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	item, err := manager.UpsertMemory(context.Background(), storage.MemoryItem{
+		Kind:   storage.MemoryKindSemantic,
+		Status: storage.MemoryStatusActive,
+		Text:   "remember manager owned memory",
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, item.ID)
+
+	result, err := manager.SearchMemory(context.Background(), storage.MemorySearchQuery{Text: "manager"})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+	require.Equal(t, item.ID, result.Hits[0].Item.ID)
+
+	require.NoError(t, manager.DeleteMemory(context.Background(), storage.MemoryDeleteRequest{ID: item.ID}))
+
+	result, err = manager.SearchMemory(context.Background(), storage.MemorySearchQuery{Text: "manager"})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
+}
+
+func TestManager_MemoryOperationsRequireMemoryStore(t *testing.T) {
+	manager, err := NewManager(&storagemock.Store{}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	_, err = manager.SearchMemory(context.Background(), storage.MemorySearchQuery{})
+	require.EqualError(t, err, "memory store is not supported")
+
+	_, err = manager.UpsertMemory(context.Background(), storage.MemoryItem{})
+	require.EqualError(t, err, "memory store is not supported")
+
+	err = manager.DeleteMemory(context.Background(), storage.MemoryDeleteRequest{ID: "mem_123"})
+	require.EqualError(t, err, "memory store is not supported")
+}
+
 func TestManager_RunMaintenanceArchivesExpiredDefault(t *testing.T) {
 	store := storagememory.NewStore()
 	expiredAt := time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC)

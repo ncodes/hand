@@ -8,7 +8,6 @@ import (
 
 	"github.com/wandxy/hand/internal/constants"
 	pinnedmemory "github.com/wandxy/hand/internal/memory/pinned"
-	statecore "github.com/wandxy/hand/internal/state/core"
 )
 
 const ProviderDefaultMemory = constants.MemoryProviderDefault
@@ -19,7 +18,7 @@ var ErrUnknownBackend = errors.New("unknown memory backend")
 type Options struct {
 	Guardrails     Guardrails
 	Observability  Observability
-	MemoryStore    statecore.MemoryStore
+	StateManager   StateManager
 	StorageBackend string
 	MemoryBackend  string
 	Pinned         PinnedOptions
@@ -27,9 +26,15 @@ type Options struct {
 
 type PinnedOptions = pinnedmemory.Options
 
+type StateManager interface {
+	SearchMemory(context.Context, SearchQuery) (SearchResult, error)
+	UpsertMemory(context.Context, MemoryItem) (MemoryItem, error)
+	DeleteMemory(context.Context, DeleteRequest) error
+}
+
 type MemoryProvider struct {
 	mu         sync.RWMutex
-	store      statecore.MemoryStore
+	manager    StateManager
 	guardrails Guardrails
 	obs        Observability
 	pinned     PinnedOptions
@@ -40,7 +45,7 @@ func NewProvider(name string, opts Options) (Provider, error) {
 	case "", ProviderDefaultMemory:
 		switch effectiveBackend(opts) {
 		case "memory", "sqlite":
-			return NewFromStore(opts.MemoryStore, opts)
+			return NewFromManager(opts.StateManager, opts)
 		default:
 			return nil, ErrUnknownBackend
 		}
@@ -59,13 +64,13 @@ func effectiveBackend(opts Options) string {
 	return constants.DefaultStorageBackend
 }
 
-func NewFromStore(store statecore.MemoryStore, opts Options) (*MemoryProvider, error) {
-	if store == nil {
-		return nil, errors.New("memory store is required")
+func NewFromManager(manager StateManager, opts Options) (*MemoryProvider, error) {
+	if manager == nil {
+		return nil, errors.New("state manager is required")
 	}
 
 	return &MemoryProvider{
-		store:      store,
+		manager:    manager,
 		guardrails: opts.Guardrails,
 		obs:        opts.Observability,
 		pinned:     pinnedmemory.NormalizeOptions(opts.Pinned),
@@ -101,7 +106,7 @@ func (p *MemoryProvider) Close() error {
 }
 
 func (p *MemoryProvider) LoadPinned(ctx context.Context, query SearchQuery) ([]MemoryItem, error) {
-	if p == nil || p.store == nil {
+	if p == nil || p.manager == nil {
 		return nil, errors.New("memory provider is required")
 	}
 	if !pinnedmemory.Enabled(p.pinned) {
@@ -142,7 +147,7 @@ func (p *MemoryProvider) loadStorePinned(ctx context.Context, query SearchQuery)
 	storeQuery.Kinds = []Kind{KindPinned}
 	storeQuery.Statuses = []Status{StatusActive}
 
-	result, err := p.store.SearchMemory(ctx, storeQuery)
+	result, err := p.manager.SearchMemory(ctx, storeQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -166,14 +171,14 @@ func (p *MemoryProvider) redactPinnedItem(ctx context.Context, item MemoryItem) 
 }
 
 func (p *MemoryProvider) Search(ctx context.Context, query SearchQuery) (SearchResult, error) {
-	if p == nil || p.store == nil {
+	if p == nil || p.manager == nil {
 		return SearchResult{}, errors.New("memory provider is required")
 	}
 	if err := validateSearch(ctx, p.guardrails, query); err != nil {
 		return SearchResult{}, err
 	}
 
-	result, err := p.store.SearchMemory(ctx, query)
+	result, err := p.manager.SearchMemory(ctx, query)
 	if err != nil {
 		return SearchResult{}, err
 	}
@@ -200,14 +205,14 @@ func (p *MemoryProvider) Search(ctx context.Context, query SearchQuery) (SearchR
 }
 
 func (p *MemoryProvider) Upsert(ctx context.Context, item MemoryItem) (MemoryItem, error) {
-	if p == nil || p.store == nil {
+	if p == nil || p.manager == nil {
 		return MemoryItem{}, errors.New("memory provider is required")
 	}
 	if err := validateWrite(ctx, p.guardrails, item); err != nil {
 		return MemoryItem{}, err
 	}
 
-	item, err := p.store.UpsertMemory(ctx, item)
+	item, err := p.manager.UpsertMemory(ctx, item)
 	if err != nil {
 		return MemoryItem{}, err
 	}
@@ -220,14 +225,14 @@ func (p *MemoryProvider) Upsert(ctx context.Context, item MemoryItem) (MemoryIte
 }
 
 func (p *MemoryProvider) Delete(ctx context.Context, req DeleteRequest) error {
-	if p == nil || p.store == nil {
+	if p == nil || p.manager == nil {
 		return errors.New("memory provider is required")
 	}
 	if err := validateDelete(ctx, p.guardrails, req); err != nil {
 		return err
 	}
 
-	if err := p.store.DeleteMemory(ctx, req); err != nil {
+	if err := p.manager.DeleteMemory(ctx, req); err != nil {
 		return err
 	}
 

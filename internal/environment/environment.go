@@ -187,6 +187,7 @@ func (e *environment) prepareMemory() error {
 
 	opts := memory.Options{
 		Guardrails:     memguardrails.New(guardrails.NewRedactor()),
+		StateManager:   e.stateMgr,
 		StorageBackend: e.cfg.Storage.Backend,
 		MemoryBackend:  e.cfg.Memory.Backend,
 		Pinned: memory.PinnedOptions{
@@ -195,16 +196,6 @@ func (e *environment) prepareMemory() error {
 			MaxItemChars: e.cfg.Memory.Pinned.MaxItemChars,
 		},
 	}
-	if e.stateMgr != nil {
-		memoryBackend := effectiveMemoryBackend(e.cfg)
-		storageBackend := strings.TrimSpace(strings.ToLower(e.cfg.Storage.Backend))
-		if memoryBackend == storageBackend {
-			if store, ok := e.stateMgr.MemoryStore(); ok {
-				opts.MemoryStore = store
-			}
-		}
-	}
-
 	provider, err := memory.NewProvider(e.cfg.Memory.Provider, opts)
 	if err != nil {
 		return err
@@ -225,16 +216,6 @@ func (e *environment) prepareEpisodicMemory() {
 	if err == nil {
 		e.episodic = service
 	}
-}
-
-func effectiveMemoryBackend(cfg *config.Config) string {
-	if cfg == nil {
-		return ""
-	}
-	if backend := strings.TrimSpace(strings.ToLower(cfg.Memory.Backend)); backend != "" {
-		return backend
-	}
-	return strings.TrimSpace(strings.ToLower(cfg.Storage.Backend))
 }
 
 func (e *environment) prepareTools() error {

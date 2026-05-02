@@ -904,7 +904,7 @@ func TestRuntime_ExtractEpisodesRunsExtractor(t *testing.T) {
 	store := memorystore.NewStore()
 	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
-	provider, err := memory.NewFromStore(store, memory.Options{})
+	provider, err := memory.NewFromManager(manager, memory.Options{})
 	require.NoError(t, err)
 
 	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
@@ -1568,35 +1568,6 @@ func TestEnvironment_ToolPolicyUsesConfigValues(t *testing.T) {
 	require.True(t, opts.Capabilities.Exec)
 	require.False(t, opts.Capabilities.Memory)
 	require.True(t, opts.Capabilities.Browser)
-}
-
-func TestEnvironment_EffectiveMemoryBackend(t *testing.T) {
-	tests := []struct {
-		name   string
-		cfg    *config.Config
-		expect string
-	}{
-		{name: "nil config"},
-		{
-			name: "memory backend",
-			cfg: &config.Config{
-				Memory:  config.MemoryConfig{Backend: " MEMORY "},
-				Storage: config.StorageConfig{Backend: "sqlite"},
-			},
-			expect: "memory",
-		},
-		{
-			name:   "storage backend fallback",
-			cfg:    &config.Config{Storage: config.StorageConfig{Backend: " SQLITE "}},
-			expect: "sqlite",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.expect, effectiveMemoryBackend(tt.cfg))
-		})
-	}
 }
 
 func TestEnvironment_FileRootsUsesDefaultsForNilEnvironment(t *testing.T) {

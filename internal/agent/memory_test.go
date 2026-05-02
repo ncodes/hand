@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/mocks"
 	"github.com/wandxy/hand/internal/models"
+	statemanager "github.com/wandxy/hand/internal/state/manager"
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
@@ -408,7 +410,10 @@ func memoryEnabledTestConfig() *config.Config {
 func newDefaultMemoryProviderForAgentTest(t *testing.T, opts memory.Options) *memory.MemoryProvider {
 	t.Helper()
 
-	provider, err := memory.NewFromStore(storagememory.NewStore(), opts)
+	manager, err := statemanager.NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	provider, err := memory.NewFromManager(manager, opts)
 	require.NoError(t, err)
 
 	return provider

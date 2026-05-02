@@ -57,6 +57,39 @@ func (m *Manager) MemoryStore() (storage.MemoryStore, bool) {
 	return store, true
 }
 
+func (m *Manager) SearchMemory(
+	ctx context.Context,
+	query storage.MemorySearchQuery,
+) (storage.MemorySearchResult, error) {
+	store, ok := m.MemoryStore()
+	if !ok {
+		return storage.MemorySearchResult{}, errors.New("memory store is not supported")
+	}
+
+	return store.SearchMemory(ctx, query)
+}
+
+func (m *Manager) UpsertMemory(
+	ctx context.Context,
+	item storage.MemoryItem,
+) (storage.MemoryItem, error) {
+	store, ok := m.MemoryStore()
+	if !ok {
+		return storage.MemoryItem{}, errors.New("memory store is not supported")
+	}
+
+	return store.UpsertMemory(ctx, item)
+}
+
+func (m *Manager) DeleteMemory(ctx context.Context, req storage.MemoryDeleteRequest) error {
+	store, ok := m.MemoryStore()
+	if !ok {
+		return errors.New("memory store is not supported")
+	}
+
+	return store.DeleteMemory(ctx, req)
+}
+
 func (m *Manager) Resolve(ctx context.Context, id string) (storage.Session, error) {
 	if m == nil {
 		return storage.Session{}, errors.New("state manager is required")
