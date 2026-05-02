@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	envtypes "github.com/wandxy/hand/internal/environment/types"
+	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory/episodic"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
@@ -23,10 +24,11 @@ type input struct {
 
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
-		Name:        "memory_extract",
-		Description: "Extract source-linked episodic memories from a completed session or bounded message window.",
-		Groups:      []string{"core"},
-		Requires:    tools.Capabilities{Memory: true},
+		Name:             "memory_extract",
+		Description:      "Extract source-linked episodic memories from a completed session or bounded message window.",
+		Groups:           []string{"core"},
+		Requires:         tools.Capabilities{Memory: true},
+		UsageInstruction: instructions.BuildMemoryExtractGuidance(),
 		InputSchema: common.ObjectSchema(map[string]any{
 			"session_id":   common.StringSchema("Optional session id. When omitted, use the current session."),
 			"offset_start": common.IntegerSchema("Optional inclusive message offset start. Defaults to the start of the session."),

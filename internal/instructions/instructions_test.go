@@ -307,6 +307,15 @@ func TestBuildSessionMessagesGuidance_ReturnsNamedInstruction(t *testing.T) {
 	require.Contains(t, instruction.Value, "Do not use session_messages as a substitute for transcript search")
 }
 
+func TestBuildMemoryExtractGuidance_ReturnsNamedInstruction(t *testing.T) {
+	instruction := BuildMemoryExtractGuidance()
+	require.Equal(t, MemoryExtractInstructionName, instruction.Name)
+	require.Contains(t, instruction.Value, "# Memory Extract Guidance")
+	require.Contains(t, instruction.Value, "Use memory_extract only when the user explicitly asks")
+	require.Contains(t, instruction.Value, "Prefer bounded ranges with session_id plus offset_start and offset_end")
+	require.Contains(t, instruction.Value, "Do not use memory_extract during ordinary task execution")
+}
+
 func TestBuildSummary_IncludesBudgetWarningWhenLow(t *testing.T) {
 	require.Equal(t, Instructions{
 		{Value: "# Summary Fallback\n\nRemaining iteration budget: 2."},

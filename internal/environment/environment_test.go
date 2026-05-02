@@ -68,6 +68,7 @@ func preparedToolGuidance() instruct.Instructions {
 	return instruct.Instructions{
 		instruct.BuildSessionSearchGuidance(),
 		instruct.BuildSessionMessagesGuidance(),
+		instruct.BuildMemoryExtractGuidance(),
 	}
 }
 
@@ -363,10 +364,11 @@ func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
 	prepareTestEnvironment(t, env)
 
 	instructions := env.Instructions()
-	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+4)
-	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-3].Value)
-	require.Equal(t, instruct.BuildSessionSearchGuidance(), instructions[len(instructions)-2])
-	require.Equal(t, instruct.BuildSessionMessagesGuidance(), instructions[len(instructions)-1])
+	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+5)
+	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-4].Value)
+	require.Equal(t, instruct.BuildSessionSearchGuidance(), instructions[len(instructions)-3])
+	require.Equal(t, instruct.BuildSessionMessagesGuidance(), instructions[len(instructions)-2])
+	require.Equal(t, instruct.BuildMemoryExtractGuidance(), instructions[len(instructions)-1])
 }
 
 func TestEnvironment_PrepareAppendsPersonalityBeforeWorkspaceRules(t *testing.T) {
@@ -390,11 +392,12 @@ func TestEnvironment_PrepareAppendsPersonalityBeforeWorkspaceRules(t *testing.T)
 	prepareTestEnvironment(t, env)
 
 	instructions := env.Instructions()
-	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+5)
-	require.Equal(t, "## SOUL.md\npersona", instructions[len(instructions)-4].Value)
-	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-3].Value)
-	require.Equal(t, instruct.BuildSessionSearchGuidance(), instructions[len(instructions)-2])
-	require.Equal(t, instruct.BuildSessionMessagesGuidance(), instructions[len(instructions)-1])
+	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+6)
+	require.Equal(t, "## SOUL.md\npersona", instructions[len(instructions)-5].Value)
+	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-4].Value)
+	require.Equal(t, instruct.BuildSessionSearchGuidance(), instructions[len(instructions)-3])
+	require.Equal(t, instruct.BuildSessionMessagesGuidance(), instructions[len(instructions)-2])
+	require.Equal(t, instruct.BuildMemoryExtractGuidance(), instructions[len(instructions)-1])
 }
 
 func TestEnvironment_PrepareAppendsInstructAfterWorkspaceRules(t *testing.T) {
@@ -421,10 +424,11 @@ func TestEnvironment_PrepareAppendsInstructAfterWorkspaceRules(t *testing.T) {
 	prepareTestEnvironment(t, env)
 
 	instructions := env.Instructions()
-	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-4].Value)
-	require.Equal(t, "be terse", instructions[len(instructions)-3].Value)
-	require.Equal(t, instruct.BuildSessionSearchGuidance(), instructions[len(instructions)-2])
-	require.Equal(t, instruct.BuildSessionMessagesGuidance(), instructions[len(instructions)-1])
+	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-5].Value)
+	require.Equal(t, "be terse", instructions[len(instructions)-4].Value)
+	require.Equal(t, instruct.BuildSessionSearchGuidance(), instructions[len(instructions)-3])
+	require.Equal(t, instruct.BuildSessionMessagesGuidance(), instructions[len(instructions)-2])
+	require.Equal(t, instruct.BuildMemoryExtractGuidance(), instructions[len(instructions)-1])
 }
 
 func TestEnvironment_PrepareIgnoresPersonalityLoadError(t *testing.T) {
@@ -588,8 +592,10 @@ func TestEnvironment_PrepareAppendsLoadedToolUsageInstructionsAfterBaseInstructi
 	rendered := env.Instructions().String()
 	require.True(t, strings.Index(rendered, "Test Agent is the user's personal agent") < strings.Index(rendered, "# Session Search Guidance"))
 	require.True(t, strings.Index(rendered, "# Session Search Guidance") < strings.Index(rendered, "# Session Messages Guidance"))
+	require.True(t, strings.Index(rendered, "# Session Messages Guidance") < strings.Index(rendered, "# Memory Extract Guidance"))
 	require.Contains(t, rendered, "Use session_search when the user references prior work")
 	require.Contains(t, rendered, "Use session_messages when you need exact stored transcript content")
+	require.Contains(t, rendered, "Use memory_extract only when the user explicitly asks")
 }
 
 func TestEnvironment_PrepareRegistersSessionTools(t *testing.T) {

@@ -12,6 +12,7 @@ const (
 	MemoryContextInstructionName      = "memory.context"
 	SessionSearchInstructionName      = "tool.session_search"
 	SessionMessagesInstructionName    = "tool.session_messages"
+	MemoryExtractInstructionName      = "tool.memory_extract"
 )
 
 type MemoryContextItem struct {
@@ -230,6 +231,19 @@ Use session_messages when you need exact stored transcript content or a small am
 Prefer session_search first for discovery across prior transcript history, then use session_messages to fetch the exact message text and neighboring context for the best hits.
 Use session_messages for bounded retrieval by message id, anchor window, or offset range when the relevant session or message is already known.
 Do not use session_messages as a substitute for transcript search, ranking, or unbounded transcript dumps.`,
+	}
+}
+
+func BuildMemoryExtractGuidance() Instruction {
+	return Instruction{
+		Name: MemoryExtractInstructionName,
+		Value: `
+# Memory Extract Guidance
+
+Use memory_extract only when the user explicitly asks to remember, capture, or extract durable memory from a completed session or a clearly bounded message range.
+Prefer bounded ranges with session_id plus offset_start and offset_end when the relevant messages are known.
+Do not use memory_extract during ordinary task execution, for speculative capture, or as a substitute for curated episodic extraction.
+Treat memory_extract as a deliberate capture action: it creates source-linked episodic memory and should be used sparingly.`,
 	}
 }
 
