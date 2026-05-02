@@ -14,7 +14,6 @@ import (
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
-	episodicmemory "github.com/wandxy/hand/internal/memory/episodic"
 	memguardrails "github.com/wandxy/hand/internal/memory/guardrails"
 	"github.com/wandxy/hand/internal/personality"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
@@ -88,7 +87,6 @@ type environment struct {
 	tools        tools.Registry
 	traces       trace.Factory
 	memory       memory.Provider
-	episodic     *episodicmemory.Service
 	runtime      *Runtime
 	stateMgr     *statemanager.Manager
 }
@@ -181,7 +179,6 @@ func (e *environment) Prepare() error {
 func (e *environment) prepareMemory() error {
 	if e == nil || e.cfg == nil || !e.cfg.MemoryEnabled() {
 		e.memory = nil
-		e.episodic = nil
 		return nil
 	}
 
@@ -202,20 +199,7 @@ func (e *environment) prepareMemory() error {
 	}
 
 	e.memory = provider
-	e.prepareEpisodicMemory()
 	return nil
-}
-
-func (e *environment) prepareEpisodicMemory() {
-	e.episodic = nil
-	if e == nil || e.stateMgr == nil || e.memory == nil {
-		return
-	}
-
-	service, err := episodicmemory.NewService(e.stateMgr, e.memory)
-	if err == nil {
-		e.episodic = service
-	}
 }
 
 func (e *environment) prepareTools() error {
@@ -227,7 +211,6 @@ func (e *environment) prepareTools() error {
 		e.runtime = NewRuntime(e.fileRoots(), e.commandPolicy(), e.stateMgr)
 	}
 	e.runtime.memory = e.memory
-	e.runtime.episodic = e.episodic
 
 	if err := e.tools.RegisterGroup(tools.Group{Name: "core"}); err != nil {
 		return err
@@ -442,10 +425,8 @@ func (e *environment) SetStateManager(manager *statemanager.Manager) {
 		return
 	}
 	e.stateMgr = manager
-	e.prepareEpisodicMemory()
 	if e.runtime != nil {
 		e.runtime.stateMgr = manager
-		e.runtime.episodic = e.episodic
 	}
 }
 

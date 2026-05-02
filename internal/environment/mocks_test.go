@@ -56,6 +56,8 @@ func (p *memorySearchProviderStub) Search(_ context.Context, query memory.Search
 
 type memoryExtractionProviderStub struct {
 	memorySearchProviderStub
+	extractResult memory.ExtractionResult
+	extractErr    error
 }
 
 func (p *memoryExtractionProviderStub) Upsert(context.Context, memory.MemoryItem) (memory.MemoryItem, error) {
@@ -68,6 +70,10 @@ func (p *memoryExtractionProviderStub) Delete(context.Context, memory.DeleteRequ
 
 func (p *memoryExtractionProviderStub) RecordEpisode(context.Context, memory.EpisodeRecord) (memory.MemoryItem, error) {
 	return memory.MemoryItem{}, nil
+}
+
+func (p *memoryExtractionProviderStub) ExtractEpisodes(context.Context, memory.ExtractionRequest) (memory.ExtractionResult, error) {
+	return p.extractResult, p.extractErr
 }
 
 type sequentialCapabilityMemoryProviderStub struct {

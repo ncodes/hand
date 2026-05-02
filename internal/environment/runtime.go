@@ -25,7 +25,6 @@ type Runtime struct {
 	plans         planstore.Store
 	stateMgr      *statemanager.Manager
 	memory        memory.Provider
-	episodic      *episodic.Service
 }
 
 func NewRuntime(roots []string, policy guardrails.CommandPolicy, stateMgr *statemanager.Manager) *Runtime {
@@ -161,7 +160,7 @@ func (r *Runtime) SearchMemory(ctx context.Context, query memory.SearchQuery) (m
 }
 
 func (r *Runtime) SupportsMemoryExtraction(ctx context.Context) (bool, error) {
-	if r == nil || r.memory == nil || r.stateMgr == nil || r.episodic == nil {
+	if r == nil || r.memory == nil {
 		return false, nil
 	}
 
@@ -170,20 +169,13 @@ func (r *Runtime) SupportsMemoryExtraction(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	_, supportsSearch := r.memory.(memory.SearchProvider)
-	_, supportsEpisodeRecording := r.memory.(memory.EpisodeProvider)
-	return caps.SupportsEpisodeRecording && caps.SupportsSearch && supportsSearch && supportsEpisodeRecording, nil
+	_, supportsExtraction := r.memory.(memory.ExtractionProvider)
+	return caps.SupportsEpisodeRecording && supportsExtraction, nil
 }
 
 func (r *Runtime) ExtractEpisodes(ctx context.Context, req episodic.Request) (episodic.Result, error) {
-	if r == nil || r.stateMgr == nil {
-		return episodic.Result{}, errors.New("state manager is required")
-	}
-	if r.memory == nil {
+	if r == nil || r.memory == nil {
 		return episodic.Result{}, errors.New("memory provider is required")
-	}
-	if r.episodic == nil {
-		return episodic.Result{}, errors.New("memory extraction is not configured")
 	}
 	supported, err := r.SupportsMemoryExtraction(ctx)
 	if err != nil {
@@ -193,7 +185,8 @@ func (r *Runtime) ExtractEpisodes(ctx context.Context, req episodic.Request) (ep
 		return episodic.Result{}, errors.New("memory extraction is not supported by provider")
 	}
 
-	return r.episodic.Extract(ctx, req)
+	extractor := r.memory.(memory.ExtractionProvider)
+	return extractor.ExtractEpisodes(ctx, req)
 }
 
 func (r *Runtime) GetPlan(sessionID string) planstore.Plan {

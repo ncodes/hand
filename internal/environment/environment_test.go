@@ -674,15 +674,11 @@ func TestEnvironment_PrepareToolsReturnsMemoryExtractionCapabilityError(t *testi
 			errors.New("extraction capability failed"),
 		},
 	}
-	manager := &statemanager.Manager{}
-	service, err := episodic.NewService(manager, provider)
-	require.NoError(t, err)
 
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
 	h := env.(*environment)
 	h.memory = provider
-	h.episodic = service
-	h.SetStateManager(manager)
+	h.SetStateManager(&statemanager.Manager{})
 
 	require.EqualError(t, h.prepareTools(), "extraction capability failed")
 }
@@ -823,12 +819,8 @@ func TestEnvironment_MemoryExtractionDefinitionSkipsUnsupportedProviders(t *test
 				env = tt.env
 			}
 			if env != nil && env.memory != nil {
-				manager := &statemanager.Manager{}
-				env.runtime = NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, manager)
+				env.runtime = NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, &statemanager.Manager{})
 				env.runtime.memory = env.memory
-				service, err := episodic.NewService(manager, env.memory)
-				require.NoError(t, err)
-				env.runtime.episodic = service
 			}
 
 			definition, ok, err := env.memoryExtractionDefinition()
@@ -851,18 +843,13 @@ func TestEnvironment_MemoryExtractionDefinitionSkipsUnsupportedProviders(t *test
 }
 
 func TestRuntime_ExtractEpisodesRejectsUnsupportedProviders(t *testing.T) {
-	manager := &statemanager.Manager{}
 	provider := &memoryExtractionProviderStub{
 		memorySearchProviderStub: memorySearchProviderStub{
 			caps: memory.Capabilities{SupportsSearch: true},
 		},
 	}
-	service, err := episodic.NewService(manager, provider)
-	require.NoError(t, err)
 	runtime := &Runtime{
-		stateMgr: manager,
-		memory:   provider,
-		episodic: service,
+		memory: provider,
 	}
 
 	result, err := runtime.ExtractEpisodes(gctx.Background(), episodic.Request{})
@@ -873,28 +860,21 @@ func TestRuntime_ExtractEpisodesRejectsUnsupportedProviders(t *testing.T) {
 
 func TestRuntime_ExtractEpisodesValidatesDependenciesAndCapabilities(t *testing.T) {
 	_, err := (*Runtime)(nil).ExtractEpisodes(gctx.Background(), episodic.Request{})
-	require.EqualError(t, err, "state manager is required")
+	require.EqualError(t, err, "memory provider is required")
 
-	runtime := &Runtime{stateMgr: &statemanager.Manager{}}
+	runtime := &Runtime{}
 	_, err = runtime.ExtractEpisodes(gctx.Background(), episodic.Request{})
 	require.EqualError(t, err, "memory provider is required")
 
-	runtime.memory = &memoryExtractionProviderStub{
-		memorySearchProviderStub: memorySearchProviderStub{
-			caps: memory.Capabilities{SupportsEpisodeRecording: true, SupportsSearch: true},
-		},
-	}
+	runtime.memory = &memorySearchProviderStub{caps: memory.Capabilities{SupportsEpisodeRecording: true}}
 	_, err = runtime.ExtractEpisodes(gctx.Background(), episodic.Request{})
-	require.EqualError(t, err, "memory extraction is not configured")
+	require.EqualError(t, err, "memory extraction is not supported by provider")
 
 	capsErr := errors.New("capability failed")
 	provider := &memoryExtractionProviderStub{
 		memorySearchProviderStub: memorySearchProviderStub{capsErr: capsErr},
 	}
 	runtime.memory = provider
-	service, err := episodic.NewService(runtime.stateMgr, provider)
-	require.NoError(t, err)
-	runtime.episodic = service
 	_, err = runtime.ExtractEpisodes(gctx.Background(), episodic.Request{})
 	require.ErrorIs(t, err, capsErr)
 }
@@ -912,9 +892,7 @@ func TestRuntime_ExtractEpisodesRunsExtractor(t *testing.T) {
 		{ID: 1, Role: messages.RoleUser, Content: "Remember the runtime extraction path."},
 	}))
 
-	service, err := episodic.NewService(manager, provider)
-	require.NoError(t, err)
-	runtime := &Runtime{stateMgr: manager, memory: provider, episodic: service}
+	runtime := &Runtime{stateMgr: manager, memory: provider}
 
 	result, err := runtime.ExtractEpisodes(ctx, episodic.Request{
 		SessionID:      storage.DefaultSessionID,

@@ -7,7 +7,10 @@ import (
 	"sync"
 
 	"github.com/wandxy/hand/internal/constants"
+	"github.com/wandxy/hand/internal/memory/episodic"
 	pinnedmemory "github.com/wandxy/hand/internal/memory/pinned"
+	handmsg "github.com/wandxy/hand/internal/messages"
+	statecore "github.com/wandxy/hand/internal/state/core"
 )
 
 const ProviderDefaultMemory = constants.MemoryProviderDefault
@@ -30,6 +33,9 @@ type StateManager interface {
 	SearchMemory(context.Context, SearchQuery) (SearchResult, error)
 	UpsertMemory(context.Context, MemoryItem) (MemoryItem, error)
 	DeleteMemory(context.Context, DeleteRequest) error
+	CurrentSession(context.Context) (string, error)
+	CountMessages(context.Context, string, statecore.MessageQueryOptions) (int, error)
+	GetMessages(context.Context, string, statecore.MessageQueryOptions) ([]handmsg.Message, error)
 }
 
 type MemoryProvider struct {
@@ -38,6 +44,7 @@ type MemoryProvider struct {
 	guardrails Guardrails
 	obs        Observability
 	pinned     PinnedOptions
+	extractor  *episodic.Service
 }
 
 func NewProvider(name string, opts Options) (Provider, error) {
@@ -69,12 +76,16 @@ func NewFromManager(manager StateManager, opts Options) (*MemoryProvider, error)
 		return nil, errors.New("state manager is required")
 	}
 
-	return &MemoryProvider{
+	provider := &MemoryProvider{
 		manager:    manager,
 		guardrails: opts.Guardrails,
 		obs:        opts.Observability,
 		pinned:     pinnedmemory.NormalizeOptions(opts.Pinned),
-	}, nil
+	}
+
+	provider.extractor, _ = episodic.NewService(manager, provider)
+
+	return provider, nil
 }
 
 func (p *MemoryProvider) Name() string {
@@ -248,6 +259,14 @@ func (p *MemoryProvider) RecordEpisode(ctx context.Context, record EpisodeRecord
 		item.Status = StatusActive
 	}
 	return p.Upsert(ctx, item)
+}
+
+func (p *MemoryProvider) ExtractEpisodes(ctx context.Context, req ExtractionRequest) (ExtractionResult, error) {
+	if p == nil || p.extractor == nil {
+		return ExtractionResult{}, errors.New("memory extraction is not configured")
+	}
+
+	return p.extractor.Extract(ctx, req)
 }
 
 func (p *MemoryProvider) observability() Observability {

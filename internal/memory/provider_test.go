@@ -11,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	handmsg "github.com/wandxy/hand/internal/messages"
+	statecore "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
 	"github.com/wandxy/hand/pkg/logutils"
@@ -18,32 +20,6 @@ import (
 
 func init() {
 	logutils.SetOutput(io.Discard)
-}
-
-type fakeMemoryManager struct {
-	searchResult SearchResult
-	searchErr    error
-	upsertItem   MemoryItem
-	upsertErr    error
-	deleteErr    error
-}
-
-func (s fakeMemoryManager) SearchMemory(context.Context, SearchQuery) (SearchResult, error) {
-	return s.searchResult, s.searchErr
-}
-
-func (s fakeMemoryManager) UpsertMemory(_ context.Context, item MemoryItem) (MemoryItem, error) {
-	if s.upsertErr != nil {
-		return MemoryItem{}, s.upsertErr
-	}
-	if s.upsertItem.ID != "" {
-		return s.upsertItem, nil
-	}
-	return item, nil
-}
-
-func (s fakeMemoryManager) DeleteMemory(context.Context, DeleteRequest) error {
-	return s.deleteErr
 }
 
 func TestNewProvider_ReturnsConfiguredProvider(t *testing.T) {
@@ -174,6 +150,38 @@ func TestMemoryProvider_RecordEpisodeStoresEpisodicMemory(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, KindEpisodic, item.Kind)
 	require.Equal(t, StatusActive, item.Status)
+}
+
+func TestMemoryProvider_ExtractEpisodes(t *testing.T) {
+	ctx := context.Background()
+	store := storagememory.NewStore()
+	manager := newMemoryTestManager(t, store)
+	provider, err := NewFromManager(manager, Options{})
+	require.NoError(t, err)
+
+	require.NoError(t, manager.Save(ctx, statecore.Session{ID: statecore.DefaultSessionID}))
+	require.NoError(t, manager.AppendMessages(ctx, statecore.DefaultSessionID, []handmsg.Message{{
+		Role:    handmsg.RoleUser,
+		Content: "Remember provider-owned extraction.",
+	}}))
+
+	result, err := provider.ExtractEpisodes(ctx, ExtractionRequest{
+		SessionID:      statecore.DefaultSessionID,
+		WindowSize:     1,
+		MaxWindowChars: 1000,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.WriteCount)
+	require.Equal(t, 1, result.MessageCount)
+}
+
+func TestMemoryProvider_ExtractEpisodesRequiresExtractor(t *testing.T) {
+	var provider *MemoryProvider
+
+	result, err := provider.ExtractEpisodes(context.Background(), ExtractionRequest{})
+	require.EqualError(t, err, "memory extraction is not configured")
+	require.Empty(t, result)
 }
 
 func TestDefaultMemoryProvider_SearchWriteDeleteAndObservability(t *testing.T) {

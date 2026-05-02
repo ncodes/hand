@@ -9,8 +9,6 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
-
-	"github.com/wandxy/hand/internal/memory"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
@@ -70,14 +68,14 @@ func TestService_ExtractWritesSourceLinkedEpisode(t *testing.T) {
 	require.Contains(t, traceEventNames(recorder), trace.EvtMemoryExtractionMemoryWritten)
 	require.Contains(t, traceEventNames(recorder), trace.EvtMemoryExtractionCompleted)
 
-	memories, err := provider.Search(ctx, memory.SearchQuery{
-		Kinds:    []memory.Kind{memory.KindEpisodic},
-		Statuses: []memory.Status{memory.StatusActive},
+	memories, err := provider.Search(ctx, storage.MemorySearchQuery{
+		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
+		Statuses: []storage.MemoryStatus{storage.MemoryStatusActive},
 		Limit:    10,
 	})
 	require.NoError(t, err)
 	require.Len(t, memories.Hits, 2)
-	require.Equal(t, memory.KindEpisodic, memories.Hits[0].Item.Kind)
+	require.Equal(t, storage.MemoryKindEpisodic, memories.Hits[0].Item.Kind)
 	require.Equal(t, storage.DefaultSessionID, memories.Hits[0].Item.SourceLinks[0].SessionID)
 	require.NotEmpty(t, memories.Hits[0].Item.SourceLinks[0].MessageIDs)
 	require.NotEmpty(t, memories.Hits[0].Item.SourceLinks[0].Offsets)
@@ -113,9 +111,9 @@ func TestService_ExtractSkipsDuplicateSourceRange(t *testing.T) {
 	require.Equal(t, 0, second.WriteCount)
 	require.Equal(t, 1, second.SkipCount)
 
-	memories, err := provider.Search(ctx, memory.SearchQuery{
-		Kinds:    []memory.Kind{memory.KindEpisodic},
-		Statuses: []memory.Status{memory.StatusActive},
+	memories, err := provider.Search(ctx, storage.MemorySearchQuery{
+		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
+		Statuses: []storage.MemoryStatus{storage.MemoryStatusActive},
 		Tags:     []string{sourceRangeTag(storage.DefaultSessionID, 0, 2)},
 		Limit:    10,
 	})
@@ -237,9 +235,9 @@ func TestService_ExtractBoundsEpisodeTextByTokenEstimate(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, result.WriteCount)
 
-	memories, err := provider.Search(ctx, memory.SearchQuery{
-		Kinds:    []memory.Kind{memory.KindEpisodic},
-		Statuses: []memory.Status{memory.StatusActive},
+	memories, err := provider.Search(ctx, storage.MemorySearchQuery{
+		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
+		Statuses: []storage.MemoryStatus{storage.MemoryStatusActive},
 		Limit:    1,
 	})
 	require.NoError(t, err)
@@ -286,16 +284,7 @@ func TestService_ExtractReturnsValidationAndProviderErrors(t *testing.T) {
 	require.EqualError(t, err, "state manager is required")
 
 	_, err = NewService(manager, nil)
-	require.EqualError(t, err, "memory provider is required")
-
-	_, err = newTestService(t, manager, memoryProviderStub{capsErr: errors.New("caps failed")}).Extract(ctx, Request{})
-	require.EqualError(t, err, "caps failed")
-
-	_, err = newTestService(t, manager, memoryProviderStub{caps: memory.Capabilities{SupportsWrite: true}}).Extract(ctx, Request{})
-	require.EqualError(t, err, "memory search is not supported by provider")
-
-	_, err = newTestService(t, manager, memoryProviderStub{caps: memory.Capabilities{SupportsSearch: true}}).Extract(ctx, Request{})
-	require.EqualError(t, err, "memory episode recording is not supported by provider")
+	require.EqualError(t, err, "memory repository is required")
 
 	_, err = newTestService(t, manager, provider).Extract(ctx, Request{
 		OffsetStart: intPtr(-1),
@@ -319,7 +308,7 @@ func TestService_ExtractReturnsMissingDependencyErrors(t *testing.T) {
 	require.EqualError(t, err, "state manager is required")
 
 	_, err = (&Service{manager: manager}).Extract(ctx, Request{})
-	require.EqualError(t, err, "memory provider is required")
+	require.EqualError(t, err, "memory repository is required")
 }
 
 func TestService_ExtractUsesInjectedClock(t *testing.T) {
@@ -439,13 +428,11 @@ func TestService_ExtractReturnsSearchAndWriteErrors(t *testing.T) {
 	manager := testManager(t, store)
 
 	_, err := newTestService(t, manager, memoryProviderStub{
-		caps:      memory.Capabilities{SupportsSearch: true, SupportsEpisodeRecording: true},
 		searchErr: errors.New("search failed"),
 	}).Extract(ctx, Request{SessionID: storage.DefaultSessionID})
 	require.EqualError(t, err, "search failed")
 
 	_, err = newTestService(t, manager, memoryProviderStub{
-		caps:      memory.Capabilities{SupportsSearch: true, SupportsEpisodeRecording: true},
 		upsertErr: errors.New("write failed"),
 	}).Extract(ctx, Request{SessionID: storage.DefaultSessionID})
 	require.EqualError(t, err, "write failed")
@@ -473,15 +460,15 @@ func testManager(t *testing.T, store storage.Store) *statemanager.Manager {
 	return manager
 }
 
-func testProvider(t *testing.T, store storage.Store) *memory.MemoryProvider {
+func testProvider(t *testing.T, store storage.Store) *testRepository {
 	t.Helper()
 
-	provider, err := memory.NewFromManager(testManager(t, store), memory.Options{})
-	require.NoError(t, err)
-	return provider
+	memoryStore, ok := store.(storage.MemoryStore)
+	require.True(t, ok)
+	return &testRepository{store: memoryStore}
 }
 
-func newTestService(t *testing.T, manager *statemanager.Manager, provider memory.Provider) *Service {
+func newTestService(t *testing.T, manager *statemanager.Manager, provider MemoryRepository) *Service {
 	t.Helper()
 
 	service, err := NewService(manager, provider)
@@ -517,40 +504,31 @@ func intPtr(value int) *int {
 }
 
 type memoryProviderStub struct {
-	caps      memory.Capabilities
-	capsErr   error
 	searchErr error
 	upsertErr error
 }
 
-func (p memoryProviderStub) Name() string {
-	return "stub"
+func (p memoryProviderStub) Search(context.Context, storage.MemorySearchQuery) (storage.MemorySearchResult, error) {
+	return storage.MemorySearchResult{}, p.searchErr
 }
 
-func (p memoryProviderStub) Capabilities(context.Context) (memory.Capabilities, error) {
-	return p.caps, p.capsErr
+func (p memoryProviderStub) RecordEpisode(context.Context, EpisodeRecord) (storage.MemoryItem, error) {
+	return storage.MemoryItem{}, p.upsertErr
 }
 
-func (p memoryProviderStub) ConfigureObservability(memory.Observability) error {
-	return nil
+type testRepository struct {
+	store storage.MemoryStore
 }
 
-func (p memoryProviderStub) Close() error {
-	return nil
+func (r *testRepository) Search(ctx context.Context, query storage.MemorySearchQuery) (storage.MemorySearchResult, error) {
+	return r.store.SearchMemory(ctx, query)
 }
 
-func (p memoryProviderStub) Search(context.Context, memory.SearchQuery) (memory.SearchResult, error) {
-	return memory.SearchResult{}, p.searchErr
-}
-
-func (p memoryProviderStub) Upsert(context.Context, memory.MemoryItem) (memory.MemoryItem, error) {
-	return memory.MemoryItem{}, p.upsertErr
-}
-
-func (p memoryProviderStub) Delete(context.Context, memory.DeleteRequest) error {
-	return nil
-}
-
-func (p memoryProviderStub) RecordEpisode(context.Context, memory.EpisodeRecord) (memory.MemoryItem, error) {
-	return memory.MemoryItem{}, p.upsertErr
+func (r *testRepository) RecordEpisode(ctx context.Context, record EpisodeRecord) (storage.MemoryItem, error) {
+	item := record.Item.Clone()
+	item.Kind = storage.MemoryKindEpisodic
+	if item.Status == "" {
+		item.Status = storage.MemoryStatusActive
+	}
+	return r.store.UpsertMemory(ctx, item)
 }

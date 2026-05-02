@@ -1,6 +1,11 @@
 package memory
 
-import "context"
+import (
+	"context"
+
+	handmsg "github.com/wandxy/hand/internal/messages"
+	statecore "github.com/wandxy/hand/internal/state/core"
+)
 
 type fakeLogger struct {
 	debug []map[string]any
@@ -86,4 +91,42 @@ func (g *fakeGuardrails) Redact(_ context.Context, item MemoryItem) (MemoryItem,
 		item.Text = g.redactText
 	}
 	return item, nil
+}
+
+type fakeMemoryManager struct {
+	searchResult SearchResult
+	searchErr    error
+	upsertItem   MemoryItem
+	upsertErr    error
+	deleteErr    error
+}
+
+func (s fakeMemoryManager) SearchMemory(context.Context, SearchQuery) (SearchResult, error) {
+	return s.searchResult, s.searchErr
+}
+
+func (s fakeMemoryManager) UpsertMemory(_ context.Context, item MemoryItem) (MemoryItem, error) {
+	if s.upsertErr != nil {
+		return MemoryItem{}, s.upsertErr
+	}
+	if s.upsertItem.ID != "" {
+		return s.upsertItem, nil
+	}
+	return item, nil
+}
+
+func (s fakeMemoryManager) DeleteMemory(context.Context, DeleteRequest) error {
+	return s.deleteErr
+}
+
+func (s fakeMemoryManager) CurrentSession(context.Context) (string, error) {
+	return "", nil
+}
+
+func (s fakeMemoryManager) CountMessages(context.Context, string, statecore.MessageQueryOptions) (int, error) {
+	return 0, nil
+}
+
+func (s fakeMemoryManager) GetMessages(context.Context, string, statecore.MessageQueryOptions) ([]handmsg.Message, error) {
+	return nil, nil
 }

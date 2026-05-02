@@ -14,10 +14,8 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/memory"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -71,10 +69,25 @@ type WindowResult struct {
 	SkipCount      int      `json:"skip_count"`
 }
 
+type EpisodeRecord struct {
+	Item storage.MemoryItem
+}
+
+type SourceManager interface {
+	CurrentSession(context.Context) (string, error)
+	CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error)
+	GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
+}
+
+type MemoryRepository interface {
+	Search(context.Context, storage.MemorySearchQuery) (storage.MemorySearchResult, error)
+	RecordEpisode(context.Context, EpisodeRecord) (storage.MemoryItem, error)
+}
+
 // Service extracts source-linked episodic memories from session message windows.
 type Service struct {
-	manager *statemanager.Manager
-	memory  memory.Provider
+	manager SourceManager
+	memory  MemoryRepository
 	nowFunc func() time.Time
 }
 
@@ -84,15 +97,15 @@ type TraceRecorder interface {
 }
 
 // NewService creates an episodic extraction service with required dependencies.
-func NewService(manager *statemanager.Manager, provider memory.Provider) (*Service, error) {
+func NewService(manager SourceManager, repository MemoryRepository) (*Service, error) {
 	if manager == nil {
 		return nil, errors.New("state manager is required")
 	}
-	if provider == nil {
-		return nil, errors.New("memory provider is required")
+	if repository == nil {
+		return nil, errors.New("memory repository is required")
 	}
 
-	return &Service{manager: manager, memory: provider}, nil
+	return &Service{manager: manager, memory: repository}, nil
 }
 
 // Extract processes the requested session range in bounded windows and records episodes.
@@ -102,12 +115,7 @@ func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 		return Result{}, errors.New("state manager is required")
 	}
 	if s.memory == nil {
-		return Result{}, errors.New("memory provider is required")
-	}
-
-	searcher, writer, err := memoryAccess(ctx, s.memory)
-	if err != nil {
-		return Result{}, err
+		return Result{}, errors.New("memory repository is required")
 	}
 
 	normalized, err := s.normalizeRequest(ctx, req)
@@ -137,7 +145,7 @@ func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 
 		end := min(start+normalized.WindowSize, normalized.OffsetEnd)
 		window := sourceWindow{Start: start, End: end}
-		windowResult, err := s.extractWindow(ctx, normalized, window, searcher, writer)
+		windowResult, err := s.extractWindow(ctx, normalized, window)
 		if err != nil {
 			recordFailure(req.Trace, normalized.withRange(window.Start, window.End), err)
 			return Result{}, err
@@ -175,8 +183,6 @@ func (s Service) extractWindow(
 	ctx context.Context,
 	req normalizedRequest,
 	window sourceWindow,
-	searcher memory.SearchProvider,
-	recorder memory.EpisodeProvider,
 ) (WindowResult, error) {
 	windowReq := req.withRange(window.Start, window.End)
 	messages, err := s.manager.GetMessages(ctx, req.SessionID, storage.MessageQueryOptions{
@@ -212,9 +218,9 @@ func (s Service) extractWindow(
 		return result, nil
 	}
 
-	existing, err := searcher.Search(ctx, memory.SearchQuery{
-		Kinds:    []memory.Kind{memory.KindEpisodic},
-		Statuses: []memory.Status{memory.StatusActive},
+	existing, err := s.memory.Search(ctx, storage.MemorySearchQuery{
+		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
+		Statuses: []storage.MemoryStatus{storage.MemoryStatusActive},
 		Tags:     []string{sourceRangeTag(req.SessionID, window.Start, window.End)},
 		Limit:    1,
 	})
@@ -231,7 +237,7 @@ func (s Service) extractWindow(
 		return result, nil
 	}
 
-	item, err := recorder.RecordEpisode(ctx, memory.EpisodeRecord{Item: candidate})
+	item, err := s.memory.RecordEpisode(ctx, EpisodeRecord{Item: candidate})
 	if err != nil {
 		return WindowResult{}, err
 	}
@@ -362,7 +368,7 @@ func candidateFromMessages(
 	req normalizedRequest,
 	window sourceWindow,
 	messages []handmsg.Message,
-) (memory.MemoryItem, bool) {
+) (storage.MemoryItem, bool) {
 	messageIDs := make([]uint, 0, len(messages))
 	offsets := make([]int, 0, len(messages))
 	lines := make([]string, 0, len(messages))
@@ -376,16 +382,16 @@ func candidateFromMessages(
 		lines = append(lines, line)
 	}
 	if len(lines) == 0 {
-		return memory.MemoryItem{}, false
+		return storage.MemoryItem{}, false
 	}
 
 	sourceTag := sourceRangeTag(req.SessionID, window.Start, window.End)
 	id := memoryID(req.SessionID, window.Start, window.End)
 	text := truncateRunes(strings.Join(lines, "\n"), req.windowCharLimit())
-	return memory.MemoryItem{
+	return storage.MemoryItem{
 		ID:     id,
-		Kind:   memory.KindEpisodic,
-		Status: memory.StatusActive,
+		Kind:   storage.MemoryKindEpisodic,
+		Status: storage.MemoryStatusActive,
 		Title:  fmt.Sprintf("Session %s messages %d-%d", req.SessionID, window.Start, window.End-1),
 		Text:   text,
 		Tags:   []string{"episodic", sourceTag},
@@ -395,7 +401,7 @@ func candidateFromMessages(
 			"source_end":        strconv.Itoa(window.End),
 			"trigger":           req.Trigger,
 		},
-		SourceLinks: []memory.SourceLink{{
+		SourceLinks: []storage.MemorySourceLink{{
 			SessionID:     req.SessionID,
 			MessageIDs:    messageIDs,
 			Offsets:       offsets,
@@ -440,22 +446,6 @@ func messageLine(message handmsg.Message) string {
 		role += ":" + toolName
 	}
 	return role + ": " + strings.Join(parts, " ")
-}
-
-func memoryAccess(ctx context.Context, provider memory.Provider) (memory.SearchProvider, memory.EpisodeProvider, error) {
-	caps, err := provider.Capabilities(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	searcher, ok := provider.(memory.SearchProvider)
-	if !ok || !caps.SupportsSearch {
-		return nil, nil, errors.New("memory search is not supported by provider")
-	}
-	recorder, ok := provider.(memory.EpisodeProvider)
-	if !ok || !caps.SupportsEpisodeRecording {
-		return nil, nil, errors.New("memory episode recording is not supported by provider")
-	}
-	return searcher, recorder, nil
 }
 
 func memoryID(sessionID string, start int, end int) string {

@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 
+	"github.com/wandxy/hand/internal/memory/episodic"
 	statecore "github.com/wandxy/hand/internal/state/core"
 )
 
@@ -45,9 +46,11 @@ type Capabilities struct {
 	SupportsObservability    bool
 }
 
-type EpisodeRecord struct {
-	Item MemoryItem
-}
+type EpisodeRecord = episodic.EpisodeRecord
+type ExtractionRequest = episodic.Request
+type ExtractionResult = episodic.Result
+type ExtractionWindowResult = episodic.WindowResult
+type TraceRecorder = episodic.TraceRecorder
 
 type ReflectionRequest struct {
 	Limit int
@@ -79,6 +82,10 @@ type WriteProvider interface {
 
 type EpisodeProvider interface {
 	RecordEpisode(context.Context, EpisodeRecord) (MemoryItem, error)
+}
+
+type ExtractionProvider interface {
+	ExtractEpisodes(context.Context, ExtractionRequest) (ExtractionResult, error)
 }
 
 type ReflectionProvider interface {
