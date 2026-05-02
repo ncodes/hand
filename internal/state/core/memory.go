@@ -59,6 +59,7 @@ func (item MemoryItem) GuardrailSource() string {
 
 type MemorySearchQuery struct {
 	Text     string
+	IDs      []string
 	Kinds    []MemoryKind
 	Statuses []MemoryStatus
 	Tags     []string
@@ -123,7 +124,28 @@ func NormalizeMemoryTags(tags []string) []string {
 	return results
 }
 
+func NormalizeMemoryIDs(ids []string) []string {
+	seen := make(map[string]struct{}, len(ids))
+	results := make([]string, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		results = append(results, id)
+	}
+	sort.Strings(results)
+	return results
+}
+
 func MemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
+	if ids := NormalizeMemoryIDs(query.IDs); len(ids) > 0 && !slices.Contains(ids, strings.TrimSpace(item.ID)) {
+		return false
+	}
 	if len(query.Kinds) > 0 && !slices.Contains(query.Kinds, item.Kind) {
 		return false
 	}

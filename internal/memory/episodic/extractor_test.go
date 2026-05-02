@@ -121,6 +121,36 @@ func TestService_ExtractSkipsDuplicateSourceRange(t *testing.T) {
 	require.Len(t, memories.Hits, 1)
 }
 
+func TestService_ExtractChecksDuplicateByDeterministicMemoryID(t *testing.T) {
+	ctx := context.Background()
+	store := &statemock.Store{
+		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
+			return 1, nil
+		},
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+			return []handmsg.Message{{ID: 1, Role: handmsg.RoleUser, Content: "Use deterministic duplicate lookup."}}, nil
+		},
+	}
+	manager := testManager(t, store)
+	expectedID := memoryID(storage.DefaultSessionID, 0, 1)
+	provider := &memoryProviderStub{
+		searchResult: storage.MemorySearchResult{
+			Hits: []storage.MemorySearchHit{{Item: storage.MemoryItem{ID: expectedID}}},
+		},
+	}
+
+	result, err := newTestService(t, manager, provider).Extract(ctx, Request{
+		SessionID:  storage.DefaultSessionID,
+		WindowSize: 1,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 0, result.WriteCount)
+	require.Equal(t, 1, result.SkipCount)
+	require.Equal(t, []string{expectedID}, provider.searchQuery.IDs)
+	require.Empty(t, provider.searchQuery.Tags)
+}
+
 func TestService_ExtractLoadsBoundedWindows(t *testing.T) {
 	ctx := context.Background()
 	messages := []handmsg.Message{
@@ -427,12 +457,12 @@ func TestService_ExtractReturnsSearchAndWriteErrors(t *testing.T) {
 	}
 	manager := testManager(t, store)
 
-	_, err := newTestService(t, manager, memoryProviderStub{
+	_, err := newTestService(t, manager, &memoryProviderStub{
 		searchErr: errors.New("search failed"),
 	}).Extract(ctx, Request{SessionID: storage.DefaultSessionID})
 	require.EqualError(t, err, "search failed")
 
-	_, err = newTestService(t, manager, memoryProviderStub{
+	_, err = newTestService(t, manager, &memoryProviderStub{
 		upsertErr: errors.New("write failed"),
 	}).Extract(ctx, Request{SessionID: storage.DefaultSessionID})
 	require.EqualError(t, err, "write failed")
@@ -504,15 +534,21 @@ func intPtr(value int) *int {
 }
 
 type memoryProviderStub struct {
-	searchErr error
-	upsertErr error
+	searchQuery  storage.MemorySearchQuery
+	searchResult storage.MemorySearchResult
+	searchErr    error
+	upsertErr    error
 }
 
-func (p memoryProviderStub) Search(context.Context, storage.MemorySearchQuery) (storage.MemorySearchResult, error) {
-	return storage.MemorySearchResult{}, p.searchErr
+func (p *memoryProviderStub) Search(_ context.Context, query storage.MemorySearchQuery) (storage.MemorySearchResult, error) {
+	p.searchQuery = query
+	if p.searchErr != nil {
+		return storage.MemorySearchResult{}, p.searchErr
+	}
+	return p.searchResult, nil
 }
 
-func (p memoryProviderStub) RecordEpisode(context.Context, EpisodeRecord) (storage.MemoryItem, error) {
+func (p *memoryProviderStub) RecordEpisode(context.Context, EpisodeRecord) (storage.MemoryItem, error) {
 	return storage.MemoryItem{}, p.upsertErr
 }
 

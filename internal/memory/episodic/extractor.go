@@ -218,10 +218,11 @@ func (s Service) extractWindow(
 		return result, nil
 	}
 
+	candidateID := memoryID(req.SessionID, window.Start, window.End)
 	existing, err := s.memory.Search(ctx, storage.MemorySearchQuery{
+		IDs:      []string{candidateID},
 		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
 		Statuses: []storage.MemoryStatus{storage.MemoryStatusActive},
-		Tags:     []string{sourceRangeTag(req.SessionID, window.Start, window.End)},
 		Limit:    1,
 	})
 	if err != nil {

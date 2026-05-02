@@ -48,6 +48,19 @@ func TestMemoryStore_SearchWriteDeleteAndSourceLinks(t *testing.T) {
 	require.Equal(t, []int{2}, result.Hits[0].Item.SourceLinks[0].Offsets)
 	require.Equal(t, "summary", result.Hits[0].Item.SourceLinks[0].SummaryID)
 
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		IDs: []string{" mem_one "},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+	require.Equal(t, "mem_one", result.Hits[0].Item.ID)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		IDs: []string{"mem_missing"},
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
+
 	require.NoError(t, store.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: item.ID}))
 
 	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{Text: "focused"})

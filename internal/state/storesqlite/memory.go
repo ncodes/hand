@@ -212,6 +212,9 @@ func (s *Store) searchMemoryRecords(
 	}
 
 	db := s.db.WithContext(ctx).Model(&memoryItemModel{})
+	if ids := statememory.NormalizeMemoryIDs(query.IDs); len(ids) > 0 {
+		db = db.Where("id IN ?", ids)
+	}
 	if len(query.Kinds) > 0 {
 		db = db.Where("kind IN ?", statememory.MemoryKindStrings(query.Kinds))
 	}
@@ -280,6 +283,11 @@ SELECT
 FROM memory_items AS m
 JOIN fts_hits AS hits ON hits.memory_id = m.id
 WHERE 1 = 1`)
+	if ids := statememory.NormalizeMemoryIDs(query.IDs); len(ids) > 0 {
+		sql.WriteString(`
+	AND m.id IN ?`)
+		args = append(args, ids)
+	}
 	if len(query.Kinds) > 0 {
 		sql.WriteString(`
 	AND m.kind IN ?`)

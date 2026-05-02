@@ -222,6 +222,27 @@ func TestSQLiteMemoryStore_SearchFiltersKindsStatusesTagsAndLimit(t *testing.T) 
 	require.Equal(t, "mem_a", result.Hits[0].Item.ID)
 
 	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		IDs: []string{" mem_b "},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+	require.Equal(t, "mem_b", result.Hits[0].Item.ID)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text: "plan",
+		IDs:  []string{"mem_b"},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+	require.Equal(t, "mem_b", result.Hits[0].Item.ID)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		IDs: []string{"mem_missing"},
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
 		Kinds: []statememory.MemoryKind{statememory.MemoryKindProcedural},
 	})
 	require.NoError(t, err)
