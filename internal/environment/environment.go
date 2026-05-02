@@ -14,12 +14,14 @@ import (
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
+	episodicmemory "github.com/wandxy/hand/internal/memory/episodic"
 	memguardrails "github.com/wandxy/hand/internal/memory/guardrails"
 	"github.com/wandxy/hand/internal/personality"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/listfiles"
+	"github.com/wandxy/hand/internal/tools/memoryextract"
 	"github.com/wandxy/hand/internal/tools/memorysearch"
 	"github.com/wandxy/hand/internal/tools/patch"
 	"github.com/wandxy/hand/internal/tools/plan"
@@ -86,6 +88,7 @@ type environment struct {
 	tools        tools.Registry
 	traces       trace.Factory
 	memory       memory.Provider
+	episodic     *episodicmemory.Service
 	runtime      *Runtime
 	stateMgr     *statemanager.Manager
 }
@@ -178,6 +181,7 @@ func (e *environment) Prepare() error {
 func (e *environment) prepareMemory() error {
 	if e == nil || e.cfg == nil || !e.cfg.MemoryEnabled() {
 		e.memory = nil
+		e.episodic = nil
 		return nil
 	}
 
@@ -207,7 +211,20 @@ func (e *environment) prepareMemory() error {
 	}
 
 	e.memory = provider
+	e.prepareEpisodicMemory()
 	return nil
+}
+
+func (e *environment) prepareEpisodicMemory() {
+	e.episodic = nil
+	if e == nil || e.stateMgr == nil || e.memory == nil {
+		return
+	}
+
+	service, err := episodicmemory.NewService(e.stateMgr, e.memory)
+	if err == nil {
+		e.episodic = service
+	}
 }
 
 func effectiveMemoryBackend(cfg *config.Config) string {
@@ -229,6 +246,7 @@ func (e *environment) prepareTools() error {
 		e.runtime = NewRuntime(e.fileRoots(), e.commandPolicy(), e.stateMgr)
 	}
 	e.runtime.memory = e.memory
+	e.runtime.episodic = e.episodic
 
 	if err := e.tools.RegisterGroup(tools.Group{Name: "core"}); err != nil {
 		return err
@@ -249,6 +267,11 @@ func (e *environment) prepareTools() error {
 	}
 
 	if definition, ok, err := e.memorySearchDefinition(); err != nil {
+		return err
+	} else if ok {
+		definitions = append(definitions, definition)
+	}
+	if definition, ok, err := e.memoryExtractionDefinition(); err != nil {
 		return err
 	} else if ok {
 		definitions = append(definitions, definition)
@@ -327,6 +350,21 @@ func (e *environment) memorySearchDefinition() (tools.Definition, bool, error) {
 	}
 
 	return memorysearch.Definition(e.runtime), true, nil
+}
+
+func (e *environment) memoryExtractionDefinition() (tools.Definition, bool, error) {
+	if e == nil || e.runtime == nil {
+		return tools.Definition{}, false, nil
+	}
+	ok, err := e.runtime.SupportsMemoryExtraction(e.ctx)
+	if err != nil {
+		return tools.Definition{}, false, err
+	}
+	if !ok {
+		return tools.Definition{}, false, nil
+	}
+
+	return memoryextract.Definition(e.runtime), true, nil
 }
 
 func (e *environment) prepareInstructions() {
@@ -423,8 +461,10 @@ func (e *environment) SetStateManager(manager *statemanager.Manager) {
 		return
 	}
 	e.stateMgr = manager
+	e.prepareEpisodicMemory()
 	if e.runtime != nil {
 		e.runtime.stateMgr = manager
+		e.runtime.episodic = e.episodic
 	}
 }
 

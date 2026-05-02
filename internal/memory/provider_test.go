@@ -3,6 +3,8 @@ package memory
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -124,6 +126,7 @@ func TestMemoryProvider_CapabilitiesConfigureObservabilityAndClose(t *testing.T)
 	require.True(t, caps.SupportsSearch)
 	require.True(t, caps.SupportsWrite)
 	require.True(t, caps.SupportsDelete)
+	require.True(t, caps.SupportsEpisodeRecording)
 	require.True(t, caps.SupportsReranking)
 	require.True(t, caps.SupportsObservability)
 
@@ -133,6 +136,37 @@ func TestMemoryProvider_CapabilitiesConfigureObservabilityAndClose(t *testing.T)
 	require.NoError(t, err)
 	require.Contains(t, tracer.events, "memory.search.completed")
 	require.NoError(t, provider.Close())
+}
+
+func TestMemoryProvider_RecordEpisodeStoresEpisodicMemory(t *testing.T) {
+	provider := defaultMemoryTestProvider(t, Options{})
+
+	item, err := provider.RecordEpisode(context.Background(), EpisodeRecord{Item: MemoryItem{
+		ID:     "mem_episode_test",
+		Status: StatusCandidate,
+		Text:   "User chose pnpm for installs.",
+	}})
+
+	require.NoError(t, err)
+	require.Equal(t, KindEpisodic, item.Kind)
+	require.Equal(t, StatusCandidate, item.Status)
+
+	result, err := provider.Search(context.Background(), SearchQuery{
+		Kinds:    []Kind{KindEpisodic},
+		Statuses: []Status{StatusCandidate},
+		Limit:    1,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+	require.Equal(t, "mem_episode_test", result.Hits[0].Item.ID)
+
+	item, err = provider.RecordEpisode(context.Background(), EpisodeRecord{Item: MemoryItem{
+		ID:   "mem_episode_default_status",
+		Text: "Use focused tests.",
+	}})
+	require.NoError(t, err)
+	require.Equal(t, KindEpisodic, item.Kind)
+	require.Equal(t, StatusActive, item.Status)
 }
 
 func TestDefaultMemoryProvider_SearchWriteDeleteAndObservability(t *testing.T) {
@@ -424,6 +458,149 @@ func TestMemoryProvider_SearchTruncatesResultText(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.Hits, 1)
 	require.Equal(t, "abcd", result.Hits[0].Item.Text)
+}
+
+func TestMemoryProvider_LoadPinned(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	file := filepath.Join(dir, "memory.md")
+	require.NoError(t, os.WriteFile(file, []byte("from file"), 0o600))
+
+	provider := defaultMemoryTestProvider(t, Options{})
+
+	_, err := provider.Upsert(context.Background(), MemoryItem{Kind: KindPinned, Status: StatusActive, Text: "from db"})
+	require.NoError(t, err)
+	_, err = provider.Upsert(context.Background(), MemoryItem{Kind: KindSemantic, Status: StatusActive, Text: "semantic remember"})
+	require.NoError(t, err)
+
+	items, err := provider.LoadPinned(context.Background(), SearchQuery{Text: "remember"})
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	require.Equal(t, KindPinned, items[0].Kind)
+	require.Equal(t, "memory.md", items[0].Title)
+	require.Equal(t, "from file", items[0].Text)
+	require.Equal(t, map[string]string{"source": "file", "path": file}, items[0].Metadata)
+	require.Equal(t, KindPinned, items[1].Kind)
+	require.Equal(t, "from db", items[1].Text)
+}
+
+func TestMemoryProvider_LoadPinnedDisabled(t *testing.T) {
+	enabled := false
+	provider := defaultMemoryTestProvider(t, Options{
+		Guardrails: &fakeGuardrails{searchErr: errors.New("search blocked"), safetyErr: errors.New("unsafe")},
+		Pinned: PinnedOptions{
+			Enabled: &enabled,
+		},
+	})
+
+	items, err := provider.LoadPinned(context.Background(), SearchQuery{})
+	require.NoError(t, err)
+	require.Empty(t, items)
+}
+
+func TestMemoryProvider_LoadPinnedReturnsFileLoadError(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	require.NoError(t, os.Symlink(filepath.Join(dir, "missing.md"), filepath.Join(dir, "memory.md")))
+
+	provider := defaultMemoryTestProvider(t, Options{})
+
+	items, err := provider.LoadPinned(context.Background(), SearchQuery{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to read pinned memory file")
+	require.Empty(t, items)
+}
+
+func TestMemoryProvider_LoadPinnedAppliesItemAndTotalCharLimits(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	file := filepath.Join(dir, "memory.md")
+	require.NoError(t, os.WriteFile(file, []byte("abcdef"), 0o600))
+
+	provider := defaultMemoryTestProvider(t, Options{
+		Pinned: PinnedOptions{
+			MaxChars:     5,
+			MaxItemChars: 4,
+		},
+	})
+
+	items, err := provider.LoadPinned(context.Background(), SearchQuery{})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, "memo", items[0].Title)
+	require.Empty(t, items[0].Text)
+}
+
+func TestMemoryProvider_LoadPinnedAppliesQueryLimitAfterMerge(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	file := filepath.Join(dir, "memory.md")
+	require.NoError(t, os.WriteFile(file, []byte("from file"), 0o600))
+
+	provider := defaultMemoryTestProvider(t, Options{})
+	_, err := provider.Upsert(context.Background(), MemoryItem{Kind: KindPinned, Status: StatusActive, Text: "from db"})
+	require.NoError(t, err)
+
+	items, err := provider.LoadPinned(context.Background(), SearchQuery{Limit: 1})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, "from file", items[0].Text)
+}
+
+func TestMemoryProvider_LoadPinnedUsesQueryCharLimitWhenSmaller(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	file := filepath.Join(dir, "memory.md")
+	require.NoError(t, os.WriteFile(file, []byte("abcdef"), 0o600))
+
+	provider := defaultMemoryTestProvider(t, Options{
+		Pinned: PinnedOptions{
+			MaxChars:     100,
+			MaxItemChars: 100,
+		},
+	})
+
+	items, err := provider.LoadPinned(context.Background(), SearchQuery{MaxChars: 3})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, "mem", items[0].Title)
+	require.Empty(t, items[0].Text)
+}
+
+func TestMemoryProvider_LoadPinnedSafetyScansAndRedacts(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	file := filepath.Join(dir, "memory.md")
+	require.NoError(t, os.WriteFile(file, []byte("secret text"), 0o600))
+	guardrails := &fakeGuardrails{redactText: "redacted"}
+
+	provider := defaultMemoryTestProvider(t, Options{
+		Guardrails: guardrails,
+	})
+
+	items, err := provider.LoadPinned(context.Background(), SearchQuery{})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, "redacted", items[0].Text)
+	require.Equal(t, 1, guardrails.validateSearchCalls)
+	require.Equal(t, 1, guardrails.safetyScanCalls)
+	require.Equal(t, 1, guardrails.redactCalls)
+}
+
+func TestMemoryProvider_LoadPinnedReturnsSafetyScanError(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	file := filepath.Join(dir, "memory.md")
+	require.NoError(t, os.WriteFile(file, []byte("unsafe"), 0o600))
+	safetyErr := errors.New("unsafe pinned memory")
+
+	provider := defaultMemoryTestProvider(t, Options{
+		Guardrails: &fakeGuardrails{safetyErr: safetyErr},
+	})
+
+	items, err := provider.LoadPinned(context.Background(), SearchQuery{})
+	require.ErrorIs(t, err, safetyErr)
+	require.Empty(t, items)
 }
 
 func defaultMemoryTestProvider(t *testing.T, opts Options) *MemoryProvider {

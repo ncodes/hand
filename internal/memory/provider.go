@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/wandxy/hand/internal/constants"
+	pinnedmemory "github.com/wandxy/hand/internal/memory/pinned"
 	statecore "github.com/wandxy/hand/internal/state/core"
 )
 
@@ -24,11 +25,7 @@ type Options struct {
 	Pinned         PinnedOptions
 }
 
-type PinnedOptions struct {
-	Enabled      *bool
-	MaxChars     int
-	MaxItemChars int
-}
+type PinnedOptions = pinnedmemory.Options
 
 type MemoryProvider struct {
 	mu         sync.RWMutex
@@ -71,7 +68,7 @@ func NewFromStore(store statecore.MemoryStore, opts Options) (*MemoryProvider, e
 		store:      store,
 		guardrails: opts.Guardrails,
 		obs:        opts.Observability,
-		pinned:     normalizePinnedOptions(opts.Pinned),
+		pinned:     pinnedmemory.NormalizeOptions(opts.Pinned),
 	}, nil
 }
 
@@ -81,12 +78,13 @@ func (p *MemoryProvider) Name() string {
 
 func (p *MemoryProvider) Capabilities(context.Context) (Capabilities, error) {
 	return Capabilities{
-		SupportsPinned:        true,
-		SupportsSearch:        true,
-		SupportsWrite:         true,
-		SupportsDelete:        true,
-		SupportsReranking:     true,
-		SupportsObservability: true,
+		SupportsPinned:           true,
+		SupportsSearch:           true,
+		SupportsWrite:            true,
+		SupportsDelete:           true,
+		SupportsEpisodeRecording: true,
+		SupportsReranking:        true,
+		SupportsObservability:    true,
 	}, nil
 }
 
@@ -106,14 +104,14 @@ func (p *MemoryProvider) LoadPinned(ctx context.Context, query SearchQuery) ([]M
 	if p == nil || p.store == nil {
 		return nil, errors.New("memory provider is required")
 	}
-	if !pinnedEnabled(p.pinned) {
+	if !pinnedmemory.Enabled(p.pinned) {
 		return nil, nil
 	}
 	if err := validateSearch(ctx, p.guardrails, query); err != nil {
 		return nil, err
 	}
 
-	fileItems, err := p.loadFilePinned()
+	fileItems, err := pinnedmemory.LoadFile()
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +122,7 @@ func (p *MemoryProvider) LoadPinned(ctx context.Context, query SearchQuery) ([]M
 	}
 
 	items := append(fileItems, dbItems...)
-	items, err = p.preparePinnedItems(ctx, items, query)
+	items, err = pinnedmemory.PrepareItems(ctx, items, query, p.pinned, p.safetyScanPinnedItem, p.redactPinnedItem)
 	if err != nil {
 		return nil, err
 	}
@@ -136,6 +134,35 @@ func (p *MemoryProvider) LoadPinned(ctx context.Context, query SearchQuery) ([]M
 	logDebugAndTrace(ctx, p.observability(), "memory pinned loaded", "memory.pinned.loaded", fields)
 
 	return items, nil
+}
+
+func (p *MemoryProvider) loadStorePinned(ctx context.Context, query SearchQuery) ([]MemoryItem, error) {
+	storeQuery := query
+	storeQuery.Text = ""
+	storeQuery.Kinds = []Kind{KindPinned}
+	storeQuery.Statuses = []Status{StatusActive}
+
+	result, err := p.store.SearchMemory(ctx, storeQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]MemoryItem, 0, len(result.Hits))
+	for _, hit := range result.Hits {
+		items = append(items, hit.Item.Clone())
+	}
+	return items, nil
+}
+
+func (p *MemoryProvider) safetyScanPinnedItem(ctx context.Context, item MemoryItem) error {
+	if p.guardrails == nil {
+		return nil
+	}
+	return p.guardrails.SafetyScan(ctx, item)
+}
+
+func (p *MemoryProvider) redactPinnedItem(ctx context.Context, item MemoryItem) (MemoryItem, error) {
+	return redactItem(ctx, p.guardrails, item)
 }
 
 func (p *MemoryProvider) Search(ctx context.Context, query SearchQuery) (SearchResult, error) {
@@ -207,6 +234,15 @@ func (p *MemoryProvider) Delete(ctx context.Context, req DeleteRequest) error {
 	fields := observationFields(p.Name(), "delete", map[string]any{"memory_id": strings.TrimSpace(req.ID)})
 	traceRecord(ctx, p.observability(), "memory.delete.completed", fields)
 	return nil
+}
+
+func (p *MemoryProvider) RecordEpisode(ctx context.Context, record EpisodeRecord) (MemoryItem, error) {
+	item := record.Item.Clone()
+	item.Kind = KindEpisodic
+	if item.Status == "" {
+		item.Status = StatusActive
+	}
+	return p.Upsert(ctx, item)
 }
 
 func (p *MemoryProvider) observability() Observability {

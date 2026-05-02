@@ -54,6 +54,44 @@ func (p *memorySearchProviderStub) Search(_ context.Context, query memory.Search
 	return p.searchResult, p.searchErr
 }
 
+type memoryExtractionProviderStub struct {
+	memorySearchProviderStub
+}
+
+func (p *memoryExtractionProviderStub) Upsert(context.Context, memory.MemoryItem) (memory.MemoryItem, error) {
+	return memory.MemoryItem{}, nil
+}
+
+func (p *memoryExtractionProviderStub) Delete(context.Context, memory.DeleteRequest) error {
+	return nil
+}
+
+func (p *memoryExtractionProviderStub) RecordEpisode(context.Context, memory.EpisodeRecord) (memory.MemoryItem, error) {
+	return memory.MemoryItem{}, nil
+}
+
+type sequentialCapabilityMemoryProviderStub struct {
+	memoryExtractionProviderStub
+	capsSequence []memory.Capabilities
+	errSequence  []error
+	calls        int
+}
+
+func (p *sequentialCapabilityMemoryProviderStub) Capabilities(context.Context) (memory.Capabilities, error) {
+	idx := p.calls
+	p.calls++
+	if idx < len(p.errSequence) && p.errSequence[idx] != nil {
+		return memory.Capabilities{}, p.errSequence[idx]
+	}
+	if idx < len(p.capsSequence) {
+		return p.capsSequence[idx], nil
+	}
+	if len(p.capsSequence) > 0 {
+		return p.capsSequence[len(p.capsSequence)-1], nil
+	}
+	return memory.Capabilities{}, nil
+}
+
 type failingRegistry struct {
 	err error
 }

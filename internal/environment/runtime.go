@@ -12,6 +12,7 @@ import (
 	"github.com/wandxy/hand/internal/environment/sessionsearch"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/memory"
+	"github.com/wandxy/hand/internal/memory/episodic"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 )
 
@@ -24,6 +25,7 @@ type Runtime struct {
 	plans         planstore.Store
 	stateMgr      *statemanager.Manager
 	memory        memory.Provider
+	episodic      *episodic.Service
 }
 
 func NewRuntime(roots []string, policy guardrails.CommandPolicy, stateMgr *statemanager.Manager) *Runtime {
@@ -156,6 +158,42 @@ func (r *Runtime) SearchMemory(ctx context.Context, query memory.SearchQuery) (m
 	}
 
 	return searchProvider.Search(ctx, query)
+}
+
+func (r *Runtime) SupportsMemoryExtraction(ctx context.Context) (bool, error) {
+	if r == nil || r.memory == nil || r.stateMgr == nil || r.episodic == nil {
+		return false, nil
+	}
+
+	caps, err := r.memory.Capabilities(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	_, supportsSearch := r.memory.(memory.SearchProvider)
+	_, supportsEpisodeRecording := r.memory.(memory.EpisodeProvider)
+	return caps.SupportsEpisodeRecording && caps.SupportsSearch && supportsSearch && supportsEpisodeRecording, nil
+}
+
+func (r *Runtime) ExtractEpisodes(ctx context.Context, req episodic.Request) (episodic.Result, error) {
+	if r == nil || r.stateMgr == nil {
+		return episodic.Result{}, errors.New("state manager is required")
+	}
+	if r.memory == nil {
+		return episodic.Result{}, errors.New("memory provider is required")
+	}
+	if r.episodic == nil {
+		return episodic.Result{}, errors.New("memory extraction is not configured")
+	}
+	supported, err := r.SupportsMemoryExtraction(ctx)
+	if err != nil {
+		return episodic.Result{}, err
+	}
+	if !supported {
+		return episodic.Result{}, errors.New("memory extraction is not supported by provider")
+	}
+
+	return r.episodic.Extract(ctx, req)
 }
 
 func (r *Runtime) GetPlan(sessionID string) planstore.Plan {

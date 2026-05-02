@@ -23,6 +23,7 @@ import (
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
+	"github.com/wandxy/hand/internal/memory/episodic"
 	"github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/personality"
 	storage "github.com/wandxy/hand/internal/state/core"
@@ -557,8 +558,8 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	require.NotNil(t, tools)
 
 	definitions := tools.List()
-	require.Len(t, definitions, 12)
-	require.Equal(t, []string{"list_files", "memory_search", "patch", "plan_tool", "process", "read_file", "run_command", "search_files", "session_messages", "session_search", "time", "write_file"}, definitions.Names())
+	require.Len(t, definitions, 13)
+	require.Equal(t, []string{"list_files", "memory_extract", "memory_search", "patch", "plan_tool", "process", "read_file", "run_command", "search_files", "session_messages", "session_search", "time", "write_file"}, definitions.Names())
 	for _, definition := range definitions {
 		require.Equal(t, []string{"core"}, definition.Groups)
 	}
@@ -656,6 +657,36 @@ func TestEnvironment_PrepareToolsReturnsMemorySearchCapabilityError(t *testing.T
 	require.EqualError(t, h.prepareTools(), "capability failed")
 }
 
+func TestEnvironment_PrepareToolsRequiresStateManager(t *testing.T) {
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
+	h := env.(*environment)
+
+	require.EqualError(t, h.prepareTools(), "state manager is required")
+}
+
+func TestEnvironment_PrepareToolsReturnsMemoryExtractionCapabilityError(t *testing.T) {
+	provider := &sequentialCapabilityMemoryProviderStub{
+		capsSequence: []memory.Capabilities{
+			{SupportsSearch: true},
+		},
+		errSequence: []error{
+			nil,
+			errors.New("extraction capability failed"),
+		},
+	}
+	manager := &statemanager.Manager{}
+	service, err := episodic.NewService(manager, provider)
+	require.NoError(t, err)
+
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
+	h := env.(*environment)
+	h.memory = provider
+	h.episodic = service
+	h.SetStateManager(manager)
+
+	require.EqualError(t, h.prepareTools(), "extraction capability failed")
+}
+
 func TestEnvironment_MemorySearchDefinitionSkipsUnsupportedProviders(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -732,6 +763,168 @@ func TestEnvironment_MemorySearchDefinitionSkipsUnsupportedProviders(t *testing.
 			}
 		})
 	}
+}
+
+func TestEnvironment_MemoryExtractionDefinitionSkipsUnsupportedProviders(t *testing.T) {
+	tests := []struct {
+		name   string
+		env    *environment
+		err    string
+		expect bool
+	}{
+		{
+			name: "nil environment",
+		},
+		{
+			name: "nil provider",
+			env:  &environment{},
+		},
+		{
+			name: "missing episode capability",
+			env: &environment{
+				memory: &memoryExtractionProviderStub{
+					memorySearchProviderStub: memorySearchProviderStub{
+						caps: memory.Capabilities{SupportsSearch: true, SupportsWrite: true},
+					},
+				},
+			},
+		},
+		{
+			name: "capability error",
+			env: &environment{
+				memory: &memoryExtractionProviderStub{
+					memorySearchProviderStub: memorySearchProviderStub{
+						capsErr: errors.New("capability failed"),
+					},
+				},
+			},
+			err: "capability failed",
+		},
+		{
+			name: "extraction supported",
+			env: &environment{
+				memory: &memoryExtractionProviderStub{
+					memorySearchProviderStub: memorySearchProviderStub{
+						caps: memory.Capabilities{
+							SupportsEpisodeRecording: true,
+							SupportsSearch:           true,
+						},
+					},
+				},
+			},
+			expect: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var env *environment
+			if tt.env != nil {
+				env = tt.env
+			}
+			if env != nil && env.memory != nil {
+				manager := &statemanager.Manager{}
+				env.runtime = NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, manager)
+				env.runtime.memory = env.memory
+				service, err := episodic.NewService(manager, env.memory)
+				require.NoError(t, err)
+				env.runtime.episodic = service
+			}
+
+			definition, ok, err := env.memoryExtractionDefinition()
+			if tt.err != "" {
+				require.EqualError(t, err, tt.err)
+				require.False(t, ok)
+				require.Empty(t, definition)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, ok)
+			if tt.expect {
+				require.Equal(t, "memory_extract", definition.Name)
+			} else {
+				require.Empty(t, definition)
+			}
+		})
+	}
+}
+
+func TestRuntime_ExtractEpisodesRejectsUnsupportedProviders(t *testing.T) {
+	manager := &statemanager.Manager{}
+	provider := &memoryExtractionProviderStub{
+		memorySearchProviderStub: memorySearchProviderStub{
+			caps: memory.Capabilities{SupportsSearch: true},
+		},
+	}
+	service, err := episodic.NewService(manager, provider)
+	require.NoError(t, err)
+	runtime := &Runtime{
+		stateMgr: manager,
+		memory:   provider,
+		episodic: service,
+	}
+
+	result, err := runtime.ExtractEpisodes(gctx.Background(), episodic.Request{})
+
+	require.EqualError(t, err, "memory extraction is not supported by provider")
+	require.Empty(t, result)
+}
+
+func TestRuntime_ExtractEpisodesValidatesDependenciesAndCapabilities(t *testing.T) {
+	_, err := (*Runtime)(nil).ExtractEpisodes(gctx.Background(), episodic.Request{})
+	require.EqualError(t, err, "state manager is required")
+
+	runtime := &Runtime{stateMgr: &statemanager.Manager{}}
+	_, err = runtime.ExtractEpisodes(gctx.Background(), episodic.Request{})
+	require.EqualError(t, err, "memory provider is required")
+
+	runtime.memory = &memoryExtractionProviderStub{
+		memorySearchProviderStub: memorySearchProviderStub{
+			caps: memory.Capabilities{SupportsEpisodeRecording: true, SupportsSearch: true},
+		},
+	}
+	_, err = runtime.ExtractEpisodes(gctx.Background(), episodic.Request{})
+	require.EqualError(t, err, "memory extraction is not configured")
+
+	capsErr := errors.New("capability failed")
+	provider := &memoryExtractionProviderStub{
+		memorySearchProviderStub: memorySearchProviderStub{capsErr: capsErr},
+	}
+	runtime.memory = provider
+	service, err := episodic.NewService(runtime.stateMgr, provider)
+	require.NoError(t, err)
+	runtime.episodic = service
+	_, err = runtime.ExtractEpisodes(gctx.Background(), episodic.Request{})
+	require.ErrorIs(t, err, capsErr)
+}
+
+func TestRuntime_ExtractEpisodesRunsExtractor(t *testing.T) {
+	ctx := gctx.Background()
+	store := memorystore.NewStore()
+	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
+	require.NoError(t, err)
+	provider, err := memory.NewFromStore(store, memory.Options{})
+	require.NoError(t, err)
+
+	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
+	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []messages.Message{
+		{ID: 1, Role: messages.RoleUser, Content: "Remember the runtime extraction path."},
+	}))
+
+	service, err := episodic.NewService(manager, provider)
+	require.NoError(t, err)
+	runtime := &Runtime{stateMgr: manager, memory: provider, episodic: service}
+
+	result, err := runtime.ExtractEpisodes(ctx, episodic.Request{
+		SessionID:      storage.DefaultSessionID,
+		WindowSize:     1,
+		MaxWindowChars: 1000,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.WriteCount)
+	require.Equal(t, 1, result.MessageCount)
 }
 
 func TestEnvironment_SessionSearchThenSessionMessagesWorkflow(t *testing.T) {
@@ -843,9 +1036,10 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 	prepareTestEnvironment(t, env)
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 14)
+	require.Len(t, definitions, 15)
 	require.Equal(t, []string{
 		"list_files",
+		"memory_extract",
 		"memory_search",
 		"patch",
 		"plan_tool",
@@ -1052,7 +1246,7 @@ func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T
 	prepareTestEnvironment(t, env)
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 12)
+	require.Len(t, definitions, 13)
 	require.False(t, definitions.Has("web_search"))
 	require.False(t, definitions.Has("web_extract"))
 }
@@ -1374,6 +1568,35 @@ func TestEnvironment_ToolPolicyUsesConfigValues(t *testing.T) {
 	require.True(t, opts.Capabilities.Exec)
 	require.False(t, opts.Capabilities.Memory)
 	require.True(t, opts.Capabilities.Browser)
+}
+
+func TestEnvironment_EffectiveMemoryBackend(t *testing.T) {
+	tests := []struct {
+		name   string
+		cfg    *config.Config
+		expect string
+	}{
+		{name: "nil config"},
+		{
+			name: "memory backend",
+			cfg: &config.Config{
+				Memory:  config.MemoryConfig{Backend: " MEMORY "},
+				Storage: config.StorageConfig{Backend: "sqlite"},
+			},
+			expect: "memory",
+		},
+		{
+			name:   "storage backend fallback",
+			cfg:    &config.Config{Storage: config.StorageConfig{Backend: " SQLITE "}},
+			expect: "sqlite",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expect, effectiveMemoryBackend(tt.cfg))
+		})
+	}
 }
 
 func TestEnvironment_FileRootsUsesDefaultsForNilEnvironment(t *testing.T) {
