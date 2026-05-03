@@ -130,3 +130,7 @@ func (s fakeMemoryManager) CountMessages(context.Context, string, statecore.Mess
 func (s fakeMemoryManager) GetMessages(context.Context, string, statecore.MessageQueryOptions) ([]handmsg.Message, error) {
 	return nil, nil
 }
+
+func (s fakeMemoryManager) UpdateEpisodicCheckpoint(context.Context, string, int) error {
+	return nil
+}

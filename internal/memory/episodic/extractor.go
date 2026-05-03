@@ -73,10 +73,11 @@ type EpisodeRecord struct {
 	Item storage.MemoryItem
 }
 
-type SourceManager interface {
+type StateManager interface {
 	CurrentSession(context.Context) (string, error)
 	CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error)
 	GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
+	UpdateEpisodicCheckpoint(context.Context, string, int) error
 }
 
 type MemoryRepository interface {
@@ -86,7 +87,7 @@ type MemoryRepository interface {
 
 // Service extracts source-linked episodic memories from session message windows.
 type Service struct {
-	manager SourceManager
+	manager StateManager
 	memory  MemoryRepository
 	nowFunc func() time.Time
 }
@@ -97,7 +98,7 @@ type TraceRecorder interface {
 }
 
 // NewService creates an episodic extraction service with required dependencies.
-func NewService(manager SourceManager, repository MemoryRepository) (*Service, error) {
+func NewService(manager StateManager, repository MemoryRepository) (*Service, error) {
 	if manager == nil {
 		return nil, errors.New("state manager is required")
 	}
@@ -156,6 +157,13 @@ func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 		result.CandidateCount += windowResult.CandidateCount
 		result.WriteCount += windowResult.WriteCount
 		result.SkipCount += windowResult.SkipCount
+
+		if normalized.Trigger == backgroundTrigger {
+			if err := s.manager.UpdateEpisodicCheckpoint(ctx, normalized.SessionID, windowResult.OffsetEnd); err != nil {
+				recordFailure(req.Trace, normalized.withRange(window.Start, window.End), err)
+				return Result{}, err
+			}
+		}
 	}
 
 	duration := s.now().Sub(started)
@@ -185,6 +193,31 @@ func (s Service) extractWindow(
 	window sourceWindow,
 ) (WindowResult, error) {
 	windowReq := req.withRange(window.Start, window.End)
+	result := WindowResult{
+		OffsetStart: window.Start,
+		OffsetEnd:   window.End,
+	}
+
+	candidateID := memoryID(req.SessionID, window.Start, window.End)
+	existing, err := s.memory.Search(ctx, storage.MemorySearchQuery{
+		IDs:      []string{candidateID},
+		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
+		Statuses: []storage.MemoryStatus{storage.MemoryStatusActive},
+		Limit:    1,
+	})
+	if err != nil {
+		return WindowResult{}, err
+	}
+	if len(existing.Hits) > 0 {
+		id := strings.TrimSpace(existing.Hits[0].Item.ID)
+		result.SkipCount = 1
+		result.SkippedIDs = append(result.SkippedIDs, id)
+		traceFields := map[string]any{"memory_id": id, "checkpoint_state": "complete"}
+		recordTrace(req.Trace, trace.EvtMemoryExtractionDuplicateSkipped, tracePayload(windowReq, traceFields))
+		logExtraction("duplicate_skipped", windowReq, traceFields)
+		return result, nil
+	}
+
 	messages, err := s.manager.GetMessages(ctx, req.SessionID, storage.MessageQueryOptions{
 		Offset: window.Start,
 		Limit:  window.End - window.Start,
@@ -202,39 +235,17 @@ func (s Service) extractWindow(
 	if ok {
 		candidateCount = 1
 	}
+
 	traceFields = map[string]any{"candidate_count": candidateCount}
 	recordTrace(req.Trace, trace.EvtMemoryExtractionExtractorRequested, tracePayload(windowReq, traceFields))
 	recordTrace(req.Trace, trace.EvtMemoryExtractionCandidates, tracePayload(windowReq, traceFields))
 	traceFields = map[string]any{"message_count": len(messages), "candidate_count": candidateCount}
 	logExtraction("candidates", windowReq, traceFields)
 
-	result := WindowResult{
-		OffsetStart:    window.Start,
-		OffsetEnd:      window.End,
-		MessageCount:   len(messages),
-		CandidateCount: candidateCount,
-	}
-	if !ok {
-		return result, nil
-	}
+	result.MessageCount = len(messages)
+	result.CandidateCount = candidateCount
 
-	candidateID := memoryID(req.SessionID, window.Start, window.End)
-	existing, err := s.memory.Search(ctx, storage.MemorySearchQuery{
-		IDs:      []string{candidateID},
-		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
-		Statuses: []storage.MemoryStatus{storage.MemoryStatusActive},
-		Limit:    1,
-	})
-	if err != nil {
-		return WindowResult{}, err
-	}
-	if len(existing.Hits) > 0 {
-		id := strings.TrimSpace(existing.Hits[0].Item.ID)
-		result.SkipCount = 1
-		result.SkippedIDs = append(result.SkippedIDs, id)
-		traceFields := map[string]any{"memory_id": id}
-		recordTrace(req.Trace, trace.EvtMemoryExtractionDuplicateSkipped, tracePayload(windowReq, traceFields))
-		logExtraction("duplicate_skipped", windowReq, traceFields)
+	if !ok {
 		return result, nil
 	}
 
@@ -245,6 +256,7 @@ func (s Service) extractWindow(
 
 	result.WriteCount = 1
 	result.MemoryIDs = append(result.MemoryIDs, item.ID)
+
 	traceFields = map[string]any{"memory_id": item.ID}
 	recordTrace(req.Trace, trace.EvtMemoryExtractionMemoryWritten, tracePayload(windowReq, traceFields))
 	logExtraction("memory_written", windowReq, traceFields)

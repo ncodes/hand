@@ -203,6 +203,34 @@ func TestEnvironment_PrepareConfiguresDefaultMemoryProviderWithStateStore(t *tes
 	require.NoError(t, provider.Close())
 }
 
+func TestEnvironment_PrepareConfiguresMemoryBackgroundOptions(t *testing.T) {
+	enabled := true
+	ctx, cancel := gctx.WithCancel(gctx.Background())
+	cancel()
+	env := NewEnvironment(ctx, &config.Config{
+		Name: "Test Agent",
+		Memory: config.MemoryConfig{
+			Enabled:  &enabled,
+			Provider: memory.ProviderDefaultMemory,
+			Episodic: config.EpisodicMemoryConfig{
+				Background: config.EpisodicMemoryBackgroundConfig{
+					Enabled:     &enabled,
+					IdleAfter:   time.Minute,
+					MinMessages: 1,
+					WindowSize:  1,
+					MaxWindows:  1,
+				},
+			},
+		},
+		Debug: config.DebugConfig{TraceDir: t.TempDir()},
+	})
+	env.SetStateManager(newTestStateManager(t))
+
+	require.NoError(t, env.Prepare())
+	background := env.MemoryProvider().(memory.BackgroundProvider)
+	require.NoError(t, background.StartBackground(gctx.Background()))
+}
+
 func TestEnvironment_PrepareConfiguresPinnedMemoryOptions(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

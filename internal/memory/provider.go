@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/memory/episodic"
@@ -19,12 +20,13 @@ var ErrUnknownProvider = errors.New("unknown memory provider")
 var ErrUnknownBackend = errors.New("unknown memory backend")
 
 type Options struct {
-	Guardrails     Guardrails
-	Observability  Observability
-	StateManager   StateManager
-	StorageBackend string
-	MemoryBackend  string
-	Pinned         PinnedOptions
+	Guardrails         Guardrails
+	Observability      Observability
+	StateManager       StateManager
+	StorageBackend     string
+	MemoryBackend      string
+	Pinned             PinnedOptions
+	EpisodicBackground EpisodicBackgroundOptions
 }
 
 type PinnedOptions = pinnedmemory.Options
@@ -36,15 +38,18 @@ type StateManager interface {
 	CurrentSession(context.Context) (string, error)
 	CountMessages(context.Context, string, statecore.MessageQueryOptions) (int, error)
 	GetMessages(context.Context, string, statecore.MessageQueryOptions) ([]handmsg.Message, error)
+	UpdateEpisodicCheckpoint(context.Context, string, int) error
 }
 
 type MemoryProvider struct {
-	mu         sync.RWMutex
-	manager    StateManager
-	guardrails Guardrails
-	obs        Observability
-	pinned     PinnedOptions
-	extractor  *episodic.Service
+	mu                          sync.RWMutex
+	manager                     StateManager
+	guardrails                  Guardrails
+	obs                         Observability
+	pinned                      PinnedOptions
+	episodicExtractor           *episodic.Service
+	episodicBackground          EpisodicBackgroundOptions
+	episodicBackgroundStartOnce sync.Once
 }
 
 func NewProvider(name string, opts Options) (Provider, error) {
@@ -77,13 +82,14 @@ func NewFromManager(manager StateManager, opts Options) (*MemoryProvider, error)
 	}
 
 	provider := &MemoryProvider{
-		manager:    manager,
-		guardrails: opts.Guardrails,
-		obs:        opts.Observability,
-		pinned:     pinnedmemory.NormalizeOptions(opts.Pinned),
+		manager:            manager,
+		guardrails:         opts.Guardrails,
+		obs:                opts.Observability,
+		pinned:             pinnedmemory.NormalizeOptions(opts.Pinned),
+		episodicBackground: episodic.NormalizeBackgroundOptions(opts.EpisodicBackground),
 	}
 
-	provider.extractor, _ = episodic.NewService(manager, provider)
+	provider.episodicExtractor, _ = episodic.NewService(manager, provider)
 
 	return provider, nil
 }
@@ -262,11 +268,76 @@ func (p *MemoryProvider) RecordEpisode(ctx context.Context, record EpisodeRecord
 }
 
 func (p *MemoryProvider) ExtractEpisodes(ctx context.Context, req ExtractionRequest) (ExtractionResult, error) {
-	if p == nil || p.extractor == nil {
+	if p == nil || p.episodicExtractor == nil {
 		return ExtractionResult{}, errors.New("memory extraction is not configured")
 	}
 
-	return p.extractor.Extract(ctx, req)
+	return p.episodicExtractor.Extract(ctx, req)
+}
+
+func (p *MemoryProvider) StartBackground(ctx context.Context) error {
+	if p == nil {
+		return errors.New("memory provider is required")
+	}
+
+	ctx = backgroundContext(ctx)
+	for _, start := range p.backgroundStarters() {
+		if err := start(ctx); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (p *MemoryProvider) backgroundStarters() []func(context.Context) error {
+	return []func(context.Context) error{
+		p.startEpisodicRecordingBackground,
+	}
+}
+
+func (p *MemoryProvider) startEpisodicRecordingBackground(ctx context.Context) error {
+	if !p.episodicBackground.Enabled {
+		return nil
+	}
+	if p.episodicExtractor == nil {
+		return errors.New("memory extraction is not configured")
+	}
+
+	opts := episodic.NormalizeBackgroundOptions(p.episodicBackground)
+	p.episodicBackgroundStartOnce.Do(func() {
+		go p.runEpisodicRecordingBackgroundLoop(ctx, opts)
+	})
+
+	return nil
+}
+
+func backgroundContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+
+	return ctx
+}
+
+func (p *MemoryProvider) runEpisodicRecordingBackgroundLoop(ctx context.Context, opts EpisodicBackgroundOptions) {
+	ticker := time.NewTicker(opts.Interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			_, _ = p.episodicExtractor.RunBackground(ctx, episodic.BackgroundRequest{
+				Options: opts,
+				Trace: providerTraceRecorder{
+					ctx: ctx,
+					obs: p.observability(),
+				},
+			})
+		}
+	}
 }
 
 func (p *MemoryProvider) observability() Observability {
@@ -274,4 +345,17 @@ func (p *MemoryProvider) observability() Observability {
 	defer p.mu.RUnlock()
 
 	return p.obs
+}
+
+type providerTraceRecorder struct {
+	ctx context.Context
+	obs Observability
+}
+
+func (r providerTraceRecorder) Record(event string, payload any) {
+	fields, ok := payload.(map[string]any)
+	if !ok {
+		fields = map[string]any{"payload": payload}
+	}
+	traceRecord(r.ctx, r.obs, event, fields)
 }

@@ -39,6 +39,7 @@ func TestSQLiteStore_NewStoreValidationAndSchema(t *testing.T) {
 	require.True(t, store.db.Migrator().HasTable(&archivedMessageModel{}))
 	require.True(t, store.db.Migrator().HasTable(&memoryItemModel{}))
 	require.True(t, store.db.Migrator().HasTable(&memoryItemTagModel{}))
+	require.True(t, store.db.Migrator().HasColumn(&sessionModel{}, "episodic_checkpoint_offset"))
 	require.False(t, store.db.Migrator().HasColumn(&sessionModel{}, "messages"))
 }
 

@@ -36,6 +36,9 @@ func (s *Store) Save(_ context.Context, session Session) error {
 		if session.Compaction == (base.SessionCompaction{}) {
 			session.Compaction = existing.Compaction
 		}
+		if session.EpisodicCheckpointOffset == 0 {
+			session.EpisodicCheckpointOffset = existing.EpisodicCheckpointOffset
+		}
 		session.UpdatedAt = time.Now().UTC()
 	}
 
@@ -52,6 +55,34 @@ func (s *Store) Save(_ context.Context, session Session) error {
 	}
 
 	s.sessions[session.ID] = session
+	return nil
+}
+
+func (s *Store) UpdateEpisodicCheckpoint(_ context.Context, id string, offset int) error {
+	if s == nil {
+		return errors.New("store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if err := base.ValidateSessionID(id); err != nil {
+		return err
+	}
+	if offset < 0 {
+		return errors.New("episodic checkpoint offset must be greater than or equal to zero")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	session, ok := s.sessions[id]
+	if !ok {
+		return errors.New("session not found")
+	}
+	if offset > session.EpisodicCheckpointOffset {
+		session.EpisodicCheckpointOffset = offset
+		s.sessions[id] = session
+	}
+
 	return nil
 }
 

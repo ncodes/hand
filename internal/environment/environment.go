@@ -192,10 +192,26 @@ func (e *environment) prepareMemory() error {
 			MaxChars:     e.cfg.Memory.Pinned.MaxChars,
 			MaxItemChars: e.cfg.Memory.Pinned.MaxItemChars,
 		},
+		EpisodicBackground: memory.EpisodicBackgroundOptions{
+			Enabled:         *e.cfg.Memory.Episodic.Background.Enabled,
+			Interval:        e.cfg.Memory.Episodic.Background.Interval,
+			IdleAfter:       e.cfg.Memory.Episodic.Background.IdleAfter,
+			MinMessages:     e.cfg.Memory.Episodic.Background.MinMessages,
+			WindowSize:      e.cfg.Memory.Episodic.Background.WindowSize,
+			MaxWindows:      e.cfg.Memory.Episodic.Background.MaxWindows,
+			MaxWindowChars:  e.cfg.Memory.Episodic.Background.MaxWindowChars,
+			MaxWindowTokens: e.cfg.Memory.Episodic.Background.MaxWindowTokens,
+			MaxRetries:      e.cfg.Memory.Episodic.Background.MaxRetries,
+		},
 	}
 	provider, err := memory.NewProvider(e.cfg.Memory.Provider, opts)
 	if err != nil {
 		return err
+	}
+	if background, ok := provider.(memory.BackgroundProvider); ok {
+		if err := background.StartBackground(e.ctx); err != nil {
+			return err
+		}
 	}
 
 	e.memory = provider

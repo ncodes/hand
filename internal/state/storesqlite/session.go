@@ -44,6 +44,7 @@ type sessionModel struct {
 	CompactionLastError          string
 	CompactionTargetMessageCount int
 	CompactionTargetOffset       int
+	EpisodicCheckpointOffset     int
 }
 
 // TableName returns the SQLite table used for active sessions.
@@ -188,6 +189,9 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 				TargetOffset:       existing.CompactionTargetOffset,
 			}
 		}
+		if session.EpisodicCheckpointOffset == 0 {
+			session.EpisodicCheckpointOffset = existing.EpisodicCheckpointOffset
+		}
 
 		session.UpdatedAt = time.Now().UTC()
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -216,6 +220,7 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 		CompactionStatus:             string(session.Compaction.Status),
 		CompactionTargetMessageCount: session.Compaction.TargetMessageCount,
 		CompactionTargetOffset:       session.Compaction.TargetOffset,
+		EpisodicCheckpointOffset:     session.EpisodicCheckpointOffset,
 		ID:                           session.ID,
 		LastPromptTokens:             session.LastPromptTokens,
 		UpdatedAt:                    session.UpdatedAt,
@@ -224,6 +229,41 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return tx.Save(&record).Error
 	})
+}
+
+func (s *Store) UpdateEpisodicCheckpoint(ctx context.Context, id string, offset int) error {
+	if s == nil || s.db == nil {
+		return errors.New("store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if err := base.ValidateSessionID(id); err != nil {
+		return err
+	}
+	if offset < 0 {
+		return errors.New("episodic checkpoint offset must be greater than or equal to zero")
+	}
+
+	result := s.db.WithContext(ctx).
+		Model(&sessionModel{}).
+		Where("id = ? AND episodic_checkpoint_offset < ?", id, offset).
+		Update("episodic_checkpoint_offset", offset)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected > 0 {
+		return nil
+	}
+
+	var count int64
+	if err := s.db.WithContext(ctx).Model(&sessionModel{}).Where("id = ?", id).Count(&count).Error; err != nil {
+		return err
+	}
+	if count == 0 {
+		return errors.New("session not found")
+	}
+
+	return nil
 }
 
 // Get loads one active session by ID.
@@ -1341,8 +1381,9 @@ func sessionModelToSession(record sessionModel) (Session, error) {
 			TargetMessageCount: record.CompactionTargetMessageCount,
 			TargetOffset:       record.CompactionTargetOffset,
 		},
-		ID:               id,
-		LastPromptTokens: record.LastPromptTokens,
+		EpisodicCheckpointOffset: record.EpisodicCheckpointOffset,
+		ID:                       id,
+		LastPromptTokens:         record.LastPromptTokens,
 	}
 
 	if !record.CreatedAt.IsZero() {

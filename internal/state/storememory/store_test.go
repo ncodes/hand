@@ -65,6 +65,26 @@ func TestMemoryStore_SaveAndGet(t *testing.T) {
 	require.False(t, loaded.UpdatedAt.IsZero())
 }
 
+func TestMemoryStore_UpdateEpisodicCheckpoint(t *testing.T) {
+	store := NewStore()
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionOne}))
+
+	require.NoError(t, store.UpdateEpisodicCheckpoint(context.Background(), testSessionOne, 12))
+	loaded, ok, err := store.Get(context.Background(), testSessionOne)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, 12, loaded.EpisodicCheckpointOffset)
+
+	require.NoError(t, store.UpdateEpisodicCheckpoint(context.Background(), testSessionOne, 4))
+	loaded, ok, err = store.Get(context.Background(), testSessionOne)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, 12, loaded.EpisodicCheckpointOffset)
+
+	require.EqualError(t, store.UpdateEpisodicCheckpoint(context.Background(), testSessionOne, -1), "episodic checkpoint offset must be greater than or equal to zero")
+	require.EqualError(t, store.UpdateEpisodicCheckpoint(context.Background(), testMissingSession, 1), "session not found")
+}
+
 func TestMemoryStore_GetAndCountMessagesSupportRoleAndNameFilters(t *testing.T) {
 	store := NewStore()
 	now := time.Now().UTC()

@@ -1078,6 +1078,27 @@ func TestManager_UpdateLastPromptTokens(t *testing.T) {
 	require.NoError(t, manager.UpdateLastPromptTokens(context.Background(), testSessionA, -1))
 }
 
+func TestManager_UpdateEpisodicCheckpoint_ForwardsToStore(t *testing.T) {
+	var gotID string
+	var gotOffset int
+
+	manager, err := NewManager(&storagemock.Store{
+		UpdateEpisodicCheckpointFunc: func(_ context.Context, id string, offset int) error {
+			gotID = id
+			gotOffset = offset
+			return nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	require.NoError(t, manager.UpdateEpisodicCheckpoint(context.Background(), "  "+testSessionA+"  ", 42))
+	require.Equal(t, testSessionA, gotID)
+	require.Equal(t, 42, gotOffset)
+
+	var nilManager *Manager
+	require.EqualError(t, nilManager.UpdateEpisodicCheckpoint(context.Background(), testSessionA, 1), "state manager is required")
+}
+
 func TestManager_UpdateLastPromptTokensReturnsSaveError(t *testing.T) {
 	manager, err := NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {

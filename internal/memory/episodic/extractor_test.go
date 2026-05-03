@@ -128,7 +128,7 @@ func TestService_ExtractChecksDuplicateByDeterministicMemoryID(t *testing.T) {
 			return 1, nil
 		},
 		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
-			return []handmsg.Message{{ID: 1, Role: handmsg.RoleUser, Content: "Use deterministic duplicate lookup."}}, nil
+			return nil, errors.New("messages should not be loaded for completed checkpoint")
 		},
 	}
 	manager := testManager(t, store)
@@ -190,6 +190,34 @@ func TestService_ExtractLoadsBoundedWindows(t *testing.T) {
 	require.Len(t, loads, 2)
 	require.Equal(t, storage.MessageQueryOptions{Offset: 0, Limit: 2}, loads[0])
 	require.Equal(t, storage.MessageQueryOptions{Offset: 2, Limit: 2}, loads[1])
+}
+
+func TestService_ExtractReturnsBackgroundCheckpointUpdateError(t *testing.T) {
+	ctx := context.Background()
+	checkpointErr := errors.New("checkpoint failed")
+	store := &statemock.Store{
+		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
+			return 1, nil
+		},
+		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+			return []handmsg.Message{{ID: 1, Role: handmsg.RoleUser, Content: "remember"}}, nil
+		},
+		UpdateEpisodicCheckpointFunc: func(context.Context, string, int) error {
+			return checkpointErr
+		},
+	}
+	manager := testManager(t, store)
+	recorder := &recordingTrace{}
+
+	_, err := newTestService(t, manager, &memoryProviderStub{}).Extract(ctx, Request{
+		SessionID:  storage.DefaultSessionID,
+		WindowSize: 1,
+		Trigger:    backgroundTrigger,
+		Trace:      recorder,
+	})
+
+	require.ErrorIs(t, err, checkpointErr)
+	require.Contains(t, traceEventNames(recorder), trace.EvtMemoryExtractionFailed)
 }
 
 func TestService_ExtractDoesNotPrecomputeLargeSessionWindows(t *testing.T) {

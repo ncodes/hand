@@ -1033,6 +1033,27 @@ func TestSQLiteStore_SaveRoundTripsLastPromptTokens(t *testing.T) {
 	require.Zero(t, session.LastPromptTokens)
 }
 
+func TestSQLiteStore_UpdateEpisodicCheckpoint(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
+
+	require.NoError(t, store.UpdateEpisodicCheckpoint(context.Background(), testSessionA, 12))
+	session, ok, err := store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, 12, session.EpisodicCheckpointOffset)
+
+	require.NoError(t, store.UpdateEpisodicCheckpoint(context.Background(), testSessionA, 4))
+	session, ok, err = store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, 12, session.EpisodicCheckpointOffset)
+
+	require.EqualError(t, store.UpdateEpisodicCheckpoint(context.Background(), testSessionA, -1), "episodic checkpoint offset must be greater than or equal to zero")
+	require.EqualError(t, store.UpdateEpisodicCheckpoint(context.Background(), testMissingSession, 1), "session not found")
+}
+
 func TestSQLiteStore_SaveRejectsInvalidSessionID(t *testing.T) {
 	store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)

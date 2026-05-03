@@ -285,6 +285,14 @@ func (m *Manager) CountMessages(ctx context.Context, id string, opts storage.Mes
 	return m.store.CountMessages(ctx, strings.TrimSpace(id), opts)
 }
 
+func (m *Manager) UpdateEpisodicCheckpoint(ctx context.Context, id string, offset int) error {
+	if m == nil {
+		return errors.New("state manager is required")
+	}
+
+	return m.store.UpdateEpisodicCheckpoint(ctx, strings.TrimSpace(id), offset)
+}
+
 func (m *Manager) GetMessage(
 	ctx context.Context,
 	id string,

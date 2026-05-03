@@ -50,6 +50,7 @@ type EpisodeRecord = episodic.EpisodeRecord
 type ExtractionRequest = episodic.Request
 type ExtractionResult = episodic.Result
 type ExtractionWindowResult = episodic.WindowResult
+type EpisodicBackgroundOptions = episodic.BackgroundOptions
 type TraceRecorder = episodic.TraceRecorder
 
 type ReflectionRequest struct {
@@ -86,6 +87,10 @@ type EpisodeProvider interface {
 
 type ExtractionProvider interface {
 	ExtractEpisodes(context.Context, ExtractionRequest) (ExtractionResult, error)
+}
+
+type BackgroundProvider interface {
+	StartBackground(context.Context) error
 }
 
 type ReflectionProvider interface {

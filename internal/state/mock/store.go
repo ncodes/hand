@@ -9,28 +9,29 @@ import (
 )
 
 type Store struct {
-	GetFunc                   func(context.Context, string) (storage.Session, bool, error)
-	GetSummaryFunc            func(context.Context, string) (storage.SessionSummary, bool, error)
-	ListFunc                  func(context.Context) ([]storage.Session, error)
-	SaveFunc                  func(context.Context, storage.Session) error
-	SaveSummaryFunc           func(context.Context, storage.SessionSummary) error
-	DeleteFunc                func(context.Context, string) error
-	DeleteSummaryFunc         func(context.Context, string) error
-	SetCurrentFunc            func(context.Context, string) error
-	CurrentFunc               func(context.Context) (string, bool, error)
-	AppendMessagesFunc        func(context.Context, string, []handmsg.Message) error
-	CountMessagesFunc         func(context.Context, string, storage.MessageQueryOptions) (int, error)
-	GetMessageFunc            func(context.Context, string, int, storage.MessageQueryOptions) (handmsg.Message, bool, error)
-	GetMessagesFunc           func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
-	GetMessagesByIDsFunc      func(context.Context, string, []uint) ([]storage.MessageRecord, error)
-	GetMessageWindowFunc      func(context.Context, string, uint, int, int) ([]storage.MessageRecord, error)
-	SearchMessagesFunc        func(context.Context, string, storage.SearchMessageOptions) ([]storage.SearchMessageResult, error)
-	ClearMessagesFunc         func(context.Context, string, storage.MessageQueryOptions) error
-	CreateArchiveFunc         func(context.Context, storage.ArchivedSession) error
-	GetArchiveFunc            func(context.Context, string) (storage.ArchivedSession, bool, error)
-	ListArchivesFunc          func(context.Context, string) ([]storage.ArchivedSession, error)
-	DeleteArchiveFunc         func(context.Context, string) error
-	DeleteExpiredArchivesFunc func(context.Context, time.Time) error
+	GetFunc                      func(context.Context, string) (storage.Session, bool, error)
+	GetSummaryFunc               func(context.Context, string) (storage.SessionSummary, bool, error)
+	ListFunc                     func(context.Context) ([]storage.Session, error)
+	SaveFunc                     func(context.Context, storage.Session) error
+	SaveSummaryFunc              func(context.Context, storage.SessionSummary) error
+	DeleteFunc                   func(context.Context, string) error
+	DeleteSummaryFunc            func(context.Context, string) error
+	UpdateEpisodicCheckpointFunc func(context.Context, string, int) error
+	SetCurrentFunc               func(context.Context, string) error
+	CurrentFunc                  func(context.Context) (string, bool, error)
+	AppendMessagesFunc           func(context.Context, string, []handmsg.Message) error
+	CountMessagesFunc            func(context.Context, string, storage.MessageQueryOptions) (int, error)
+	GetMessageFunc               func(context.Context, string, int, storage.MessageQueryOptions) (handmsg.Message, bool, error)
+	GetMessagesFunc              func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
+	GetMessagesByIDsFunc         func(context.Context, string, []uint) ([]storage.MessageRecord, error)
+	GetMessageWindowFunc         func(context.Context, string, uint, int, int) ([]storage.MessageRecord, error)
+	SearchMessagesFunc           func(context.Context, string, storage.SearchMessageOptions) ([]storage.SearchMessageResult, error)
+	ClearMessagesFunc            func(context.Context, string, storage.MessageQueryOptions) error
+	CreateArchiveFunc            func(context.Context, storage.ArchivedSession) error
+	GetArchiveFunc               func(context.Context, string) (storage.ArchivedSession, bool, error)
+	ListArchivesFunc             func(context.Context, string) ([]storage.ArchivedSession, error)
+	DeleteArchiveFunc            func(context.Context, string) error
+	DeleteExpiredArchivesFunc    func(context.Context, time.Time) error
 }
 
 func (s *Store) Save(ctx context.Context, session storage.Session) error {
@@ -84,6 +85,14 @@ func (s *Store) List(ctx context.Context) ([]storage.Session, error) {
 func (s *Store) Delete(ctx context.Context, id string) error {
 	if s.DeleteFunc != nil {
 		return s.DeleteFunc(ctx, id)
+	}
+
+	return nil
+}
+
+func (s *Store) UpdateEpisodicCheckpoint(ctx context.Context, id string, offset int) error {
+	if s.UpdateEpisodicCheckpointFunc != nil {
+		return s.UpdateEpisodicCheckpointFunc(ctx, id, offset)
 	}
 
 	return nil

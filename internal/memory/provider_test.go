@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -182,6 +183,78 @@ func TestMemoryProvider_ExtractEpisodesRequiresExtractor(t *testing.T) {
 	result, err := provider.ExtractEpisodes(context.Background(), ExtractionRequest{})
 	require.EqualError(t, err, "memory extraction is not configured")
 	require.Empty(t, result)
+}
+
+func TestMemoryProvider_StartBackground(t *testing.T) {
+	provider := defaultMemoryTestProvider(t, Options{})
+	require.NoError(t, provider.StartBackground(context.Background()))
+	require.NoError(t, provider.StartBackground(nil))
+	require.Len(t, provider.backgroundStarters(), 1)
+
+	var missing *MemoryProvider
+	require.EqualError(t, missing.StartBackground(context.Background()), "memory provider is required")
+
+	provider = &MemoryProvider{episodicBackground: EpisodicBackgroundOptions{Enabled: true}}
+	require.EqualError(t, provider.StartBackground(context.Background()), "memory extraction is not configured")
+}
+
+func TestMemoryProvider_StartBackgroundRunsEpisodicLoop(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	store := storagememory.NewStore()
+	manager := newMemoryTestManager(t, store)
+	tracer := &fakeTracer{}
+	provider, err := NewFromManager(manager, Options{
+		Observability: fakeObservability{tracer: tracer},
+		EpisodicBackground: EpisodicBackgroundOptions{
+			Enabled:     true,
+			Interval:    time.Nanosecond,
+			IdleAfter:   time.Nanosecond,
+			MinMessages: 1,
+			WindowSize:  1,
+			MaxWindows:  1,
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, manager.Save(ctx, statecore.Session{ID: statecore.DefaultSessionID}))
+	require.NoError(t, manager.AppendMessages(ctx, statecore.DefaultSessionID, []handmsg.Message{{
+		Role:    handmsg.RoleUser,
+		Content: "background loop",
+	}}))
+
+	require.NoError(t, provider.StartBackground(ctx))
+	require.Eventually(t, func() bool {
+		if slices.Contains(tracer.events, "memory.episodic_background.completed") {
+			cancel()
+			return true
+		}
+		return false
+	}, time.Second, time.Millisecond)
+
+	doneCtx, doneCancel := context.WithCancel(context.Background())
+	doneCancel()
+	provider.runEpisodicRecordingBackgroundLoop(doneCtx, EpisodicBackgroundOptions{Interval: time.Nanosecond})
+}
+
+func TestBackgroundContext(t *testing.T) {
+	require.NotNil(t, backgroundContext(nil))
+
+	ctx := context.WithValue(context.Background(), "key", "value")
+	require.Same(t, ctx, backgroundContext(ctx))
+}
+
+func TestProviderTraceRecorder_RecordWrapsNonMapPayload(t *testing.T) {
+	tracer := &fakeTracer{}
+	recorder := providerTraceRecorder{
+		ctx: context.Background(),
+		obs: fakeObservability{tracer: tracer},
+	}
+
+	recorder.Record("memory.custom", "payload")
+
+	require.Equal(t, []string{"memory.custom"}, tracer.events)
+	require.Equal(t, map[string]any{"payload": "payload"}, tracer.fields[0])
 }
 
 func TestDefaultMemoryProvider_SearchWriteDeleteAndObservability(t *testing.T) {
