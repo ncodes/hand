@@ -3,7 +3,6 @@ package episodic
 import (
 	"context"
 	"errors"
-	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -281,71 +280,4 @@ func normalizedCheckpointOffset(offset int, messageCount int) int {
 
 func backgroundRunID(now time.Time) string {
 	return "memory_bg_" + strconv.FormatInt(now.UTC().UnixNano(), 10)
-}
-
-func recordBackgroundFailure(
-	recorder TraceRecorder,
-	runID string,
-	sessionID string,
-	messageCount int,
-	reason string,
-	err error,
-) {
-	fields := map[string]any{"error": err.Error()}
-	recordBackgroundTrace(recorder, trace.EvtMemoryEpisodicBackgroundFailed, backgroundPayload(runID, sessionID, messageCount, reason, fields))
-	logBackground("failed", runID, sessionID, messageCount, reason, fields)
-}
-
-func recordBackgroundTrace(
-	recorder TraceRecorder,
-	event string,
-	payload map[string]any,
-) {
-	if recorder == nil {
-		return
-	}
-	recorder.Record(event, payload)
-}
-
-func backgroundPayload(
-	runID string,
-	sessionID string,
-	messageCount int,
-	reason string,
-	fields map[string]any,
-) map[string]any {
-	payload := map[string]any{
-		"run_id": strings.TrimSpace(runID),
-	}
-	if strings.TrimSpace(sessionID) != "" {
-		payload["session_id"] = strings.TrimSpace(sessionID)
-	}
-	if messageCount > 0 {
-		payload["message_count"] = messageCount
-	}
-	if strings.TrimSpace(reason) != "" {
-		payload["trigger_reason"] = strings.TrimSpace(reason)
-	}
-	maps.Copy(payload, fields)
-	return payload
-}
-
-func logBackground(
-	event string,
-	runID string,
-	sessionID string,
-	messageCount int,
-	reason string,
-	fields map[string]any,
-) {
-	entry := extractionLog.Debug().
-		Str("event", "memory episodic background "+event).
-		Str("background_run_id", strings.TrimSpace(runID)).
-		Str("session_id", strings.TrimSpace(sessionID)).
-		Str("trigger_reason", strings.TrimSpace(reason)).
-		Int("message_count", messageCount)
-	for key, value := range fields {
-		entry = logField(entry, key, value)
-	}
-	entry.Msg("memory episodic background " + event)
 }

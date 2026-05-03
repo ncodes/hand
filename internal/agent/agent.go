@@ -160,6 +160,7 @@ func (a *Agent) Start(ctx context.Context) error {
 
 	a.env = newEnvironment(ctx, a.cfg)
 	a.env.SetStateManager(a.stateMgr)
+	a.env.SetModelClient(a.summaryClient)
 	if err := a.env.Prepare(); err != nil {
 		return err
 	}
@@ -203,6 +204,7 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 	if env == nil {
 		env = newEnvironment(ctx, a.cfg)
 		env.SetStateManager(a.stateMgr)
+		env.SetModelClient(a.summaryClient)
 		if err := env.Prepare(); err != nil {
 			return "", err
 		}

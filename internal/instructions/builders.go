@@ -247,6 +247,14 @@ Treat memory_extract as a deliberate capture action: it creates source-linked ep
 	}
 }
 
+func BuildEpisodicExtractionInstructions() string {
+	return strings.TrimSpace(`Extract curated episodic memory candidates from bounded session messages.
+Return only JSON matching the schema. Do not store raw transcript windows.
+Extract only evidence-backed decisions, outcomes, tool events, blockers, and explicit durable user corrections/preferences.
+Reject low-signal, speculative, temporary, unsafe, or purely conversational content with a concise reason.
+Keep candidate text concise and outcome-oriented. Preserve uncertainty in metadata when evidence is incomplete.`)
+}
+
 func BuildSummary(iterationsLeft int) Instructions {
 	instructions := New()
 	if iterationsLeft <= 5 {

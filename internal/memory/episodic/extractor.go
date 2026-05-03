@@ -11,13 +11,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/rs/zerolog"
-
 	"github.com/wandxy/hand/internal/constants"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
-	"github.com/wandxy/hand/pkg/logutils"
 )
 
 const (
@@ -32,84 +29,40 @@ const (
 	defaultTrigger         = "command"
 )
 
-var extractionLog = logutils.InitLogger("memory.extraction")
-
-// Request configures episodic extraction for a session or bounded message range.
-type Request struct {
-	SessionID       string
-	OffsetStart     *int
-	OffsetEnd       *int
-	WindowSize      int
-	MaxWindows      int
-	MaxWindowChars  int
-	MaxWindowTokens int
-	Trigger         string
-	Trace           TraceRecorder
-}
-
-// Result summarizes all windows processed by an extraction request.
-type Result struct {
-	SessionID      string         `json:"session_id"`
-	Windows        []WindowResult `json:"windows,omitempty"`
-	MessageCount   int            `json:"message_count"`
-	CandidateCount int            `json:"candidate_count"`
-	WriteCount     int            `json:"write_count"`
-	SkipCount      int            `json:"skip_count"`
-}
-
-// WindowResult summarizes extraction work for one source message window.
-type WindowResult struct {
-	MemoryIDs      []string `json:"memory_ids,omitempty"`
-	SkippedIDs     []string `json:"skipped_ids,omitempty"`
-	OffsetStart    int      `json:"offset_start"`
-	OffsetEnd      int      `json:"offset_end"`
-	MessageCount   int      `json:"message_count"`
-	CandidateCount int      `json:"candidate_count"`
-	WriteCount     int      `json:"write_count"`
-	SkipCount      int      `json:"skip_count"`
-}
-
-type EpisodeRecord struct {
-	Item storage.MemoryItem
-}
-
-type StateManager interface {
-	CurrentSession(context.Context) (string, error)
-	CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error)
-	GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
-	UpdateEpisodicCheckpoint(context.Context, string, int) error
-}
-
-type MemoryRepository interface {
-	Search(context.Context, storage.MemorySearchQuery) (storage.MemorySearchResult, error)
-	RecordEpisode(context.Context, EpisodeRecord) (storage.MemoryItem, error)
-}
+const (
+	episodeKindDecision       = "decision"
+	episodeKindOutcome        = "outcome"
+	episodeKindToolEvent      = "tool_event"
+	episodeKindBlocker        = "blocker"
+	episodeKindUserCorrection = "user_correction"
+)
 
 // Service extracts source-linked episodic memories from session message windows.
 type Service struct {
+	// manager loads session messages and updates background extraction checkpoints.
 	manager StateManager
-	memory  MemoryRepository
+	// memory searches for existing memories and records proposed episodic memory items.
+	memory MemoryRepository
+	// extractor proposes curated episodic memory items from bounded message evidence.
+	extractor candidateExtractor
+	// nowFunc overrides the clock in tests and background scheduling.
 	nowFunc func() time.Time
 }
 
-// TraceRecorder records extraction trace events when provided by the caller.
-type TraceRecorder interface {
-	Record(string, any)
-}
-
-// NewService creates an episodic extraction service with required dependencies.
-func NewService(manager StateManager, repository MemoryRepository) (*Service, error) {
+func NewService(manager StateManager, repository MemoryRepository, extractor *LLMExtractor) (*Service, error) {
 	if manager == nil {
 		return nil, errors.New("state manager is required")
 	}
 	if repository == nil {
 		return nil, errors.New("memory repository is required")
 	}
+	if extractor == nil {
+		return nil, errors.New("memory episode extractor is required")
+	}
 
-	return &Service{manager: manager, memory: repository}, nil
+	return &Service{manager: manager, memory: repository, extractor: extractor}, nil
 }
 
-// Extract processes the requested session range in bounded windows and records episodes.
 func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 	started := s.now()
 	if s == nil || s.manager == nil {
@@ -117,6 +70,9 @@ func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 	}
 	if s.memory == nil {
 		return Result{}, errors.New("memory repository is required")
+	}
+	if s.extractor == nil {
+		return Result{}, errors.New("memory episode extractor is required")
 	}
 
 	normalized, err := s.normalizeRequest(ctx, req)
@@ -159,7 +115,11 @@ func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 		result.SkipCount += windowResult.SkipCount
 
 		if normalized.Trigger == backgroundTrigger {
-			if err := s.manager.UpdateEpisodicCheckpoint(ctx, normalized.SessionID, windowResult.OffsetEnd); err != nil {
+			if err := s.manager.UpdateEpisodicCheckpoint(
+				ctx,
+				normalized.SessionID,
+				windowResult.OffsetEnd,
+			); err != nil {
 				recordFailure(req.Trace, normalized.withRange(window.Start, window.End), err)
 				return Result{}, err
 			}
@@ -167,22 +127,16 @@ func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 	}
 
 	duration := s.now().Sub(started)
-	recordTrace(req.Trace, trace.EvtMemoryExtractionCompleted, tracePayload(normalized, map[string]any{
+	traceFields := map[string]any{
 		"window_count":    len(result.Windows),
 		"message_count":   result.MessageCount,
 		"candidate_count": result.CandidateCount,
 		"write_count":     result.WriteCount,
 		"skip_count":      result.SkipCount,
 		"duration_ms":     duration.Milliseconds(),
-	}))
-	logExtraction("completed", normalized, map[string]any{
-		"window_count":    len(result.Windows),
-		"message_count":   result.MessageCount,
-		"candidate_count": result.CandidateCount,
-		"write_count":     result.WriteCount,
-		"skip_count":      result.SkipCount,
-		"duration_ms":     duration.Milliseconds(),
-	})
+	}
+	recordTrace(req.Trace, trace.EvtMemoryExtractionCompleted, tracePayload(normalized, traceFields))
+	logExtraction("completed", normalized, traceFields)
 
 	return result, nil
 }
@@ -198,21 +152,25 @@ func (s Service) extractWindow(
 		OffsetEnd:   window.End,
 	}
 
-	candidateID := memoryID(req.SessionID, window.Start, window.End)
+	candidateIDs := candidateMemoryIDs(req.SessionID, window.Start, window.End)
 	existing, err := s.memory.Search(ctx, storage.MemorySearchQuery{
-		IDs:      []string{candidateID},
+		IDs:      candidateIDs,
 		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
-		Statuses: []storage.MemoryStatus{storage.MemoryStatusActive},
-		Limit:    1,
+		Statuses: []storage.MemoryStatus{storage.MemoryStatusCandidate, storage.MemoryStatusActive},
+		Limit:    len(candidateIDs),
 	})
 	if err != nil {
 		return WindowResult{}, err
 	}
 	if len(existing.Hits) > 0 {
-		id := strings.TrimSpace(existing.Hits[0].Item.ID)
-		result.SkipCount = 1
-		result.SkippedIDs = append(result.SkippedIDs, id)
-		traceFields := map[string]any{"memory_id": id, "checkpoint_state": "complete"}
+		result.SkipCount = len(existing.Hits)
+		for _, hit := range existing.Hits {
+			id := strings.TrimSpace(hit.Item.ID)
+			if id != "" {
+				result.SkippedIDs = append(result.SkippedIDs, id)
+			}
+		}
+		traceFields := map[string]any{"memory_ids": result.SkippedIDs, "checkpoint_state": "complete"}
 		recordTrace(req.Trace, trace.EvtMemoryExtractionDuplicateSkipped, tracePayload(windowReq, traceFields))
 		logExtraction("duplicate_skipped", windowReq, traceFields)
 		return result, nil
@@ -230,36 +188,65 @@ func (s Service) extractWindow(
 	recordTrace(req.Trace, trace.EvtMemoryExtractionWindowLoaded, tracePayload(windowReq, traceFields))
 	logExtraction("window_loaded", windowReq, traceFields)
 
-	candidate, ok := candidateFromMessages(req, window, messages)
-	candidateCount := 0
-	if ok {
-		candidateCount = 1
+	candidates, rejections, err := s.candidatesFromMessages(ctx, req, window, messages)
+	if err != nil {
+		return WindowResult{}, err
 	}
 
+	candidateCount := len(candidates)
 	traceFields = map[string]any{"candidate_count": candidateCount}
 	recordTrace(req.Trace, trace.EvtMemoryExtractionExtractorRequested, tracePayload(windowReq, traceFields))
 	recordTrace(req.Trace, trace.EvtMemoryExtractionCandidates, tracePayload(windowReq, traceFields))
 	traceFields = map[string]any{"message_count": len(messages), "candidate_count": candidateCount}
 	logExtraction("candidates", windowReq, traceFields)
 
+	for _, rejection := range rejections {
+		traceFields = map[string]any{"candidate_kind": rejection.Kind, "rejection_reason": rejection.Reason}
+		recordTrace(req.Trace, trace.EvtMemoryExtractionCandidateRejected, tracePayload(windowReq, traceFields))
+		logExtraction("candidate_rejected", windowReq, traceFields)
+	}
+
+	for _, candidate := range candidates {
+		traceFields = map[string]any{
+			"memory_id":       candidate.ID,
+			"candidate_kind":  candidate.Metadata["candidate_kind"],
+			"confidence":      candidate.Confidence,
+			"source_quality":  candidate.Metadata["source_quality"],
+			"usefulness":      candidate.Metadata["usefulness"],
+			"admission_state": candidate.Status,
+		}
+		recordTrace(req.Trace, trace.EvtMemoryExtractionCandidateGenerated, tracePayload(windowReq, traceFields))
+		recordTrace(req.Trace, trace.EvtMemoryExtractionConfidenceScored, tracePayload(windowReq, traceFields))
+		recordTrace(req.Trace, trace.EvtMemoryExtractionAdmissionHandoff, tracePayload(windowReq, traceFields))
+		logExtraction("candidate_generated", windowReq, traceFields)
+	}
+
 	result.MessageCount = len(messages)
 	result.CandidateCount = candidateCount
 
-	if !ok {
+	if len(candidates) == 0 {
 		return result, nil
 	}
 
-	item, err := s.memory.RecordEpisode(ctx, EpisodeRecord{Item: candidate})
-	if err != nil {
-		return WindowResult{}, err
+	for _, candidate := range candidates {
+		item, err := s.memory.RecordEpisode(ctx, EpisodeRecord{Item: candidate})
+		if err != nil {
+			return WindowResult{}, err
+		}
+
+		result.WriteCount++
+		result.MemoryIDs = append(result.MemoryIDs, item.ID)
+
+		traceFields = map[string]any{
+			"memory_id":       item.ID,
+			"candidate_kind":  item.Metadata["candidate_kind"],
+			"confidence":      item.Confidence,
+			"write_status":    "candidate",
+			"admission_state": item.Status,
+		}
+		recordTrace(req.Trace, trace.EvtMemoryExtractionMemoryWritten, tracePayload(windowReq, traceFields))
+		logExtraction("memory_written", windowReq, traceFields)
 	}
-
-	result.WriteCount = 1
-	result.MemoryIDs = append(result.MemoryIDs, item.ID)
-
-	traceFields = map[string]any{"memory_id": item.ID}
-	recordTrace(req.Trace, trace.EvtMemoryExtractionMemoryWritten, tracePayload(windowReq, traceFields))
-	logExtraction("memory_written", windowReq, traceFields)
 
 	return result, nil
 }
@@ -352,36 +339,53 @@ func (s *Service) now() time.Time {
 	return time.Now().UTC()
 }
 
-// normalizedRequest is the validated internal form used while processing windows.
-type normalizedRequest struct {
-	SessionID       string
-	OffsetStart     int
-	OffsetEnd       int
-	WindowSize      int
-	MaxWindows      int
-	MaxWindowChars  int
-	MaxWindowTokens int
-	Trigger         string
-	Trace           TraceRecorder
-}
-
 func (r normalizedRequest) withRange(start int, end int) normalizedRequest {
 	r.OffsetStart = start
 	r.OffsetEnd = end
 	return r
 }
 
-// sourceWindow identifies the inclusive/exclusive message offsets for one window.
-type sourceWindow struct {
-	Start int
-	End   int
-}
-
-func candidateFromMessages(
+func (s Service) candidatesFromMessages(
+	ctx context.Context,
 	req normalizedRequest,
 	window sourceWindow,
 	messages []handmsg.Message,
-) (storage.MemoryItem, bool) {
+) ([]storage.MemoryItem, []candidateRejection, error) {
+	evidence := evidenceFromMessages(window, messages)
+	if len(evidence.Lines) == 0 {
+		return nil, []candidateRejection{{Kind: "window", Reason: "empty_window"}}, nil
+	}
+	if s.extractor == nil {
+		return nil, nil, errors.New("memory episode extractor is required")
+	}
+	result, err := s.extractor.ExtractCandidates(ctx, CandidateRequest{
+		SessionID: req.SessionID,
+		Start:     window.Start,
+		End:       window.End,
+		Messages:  evidence.Lines,
+		MaxChars:  req.windowCharLimit(),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	items := make([]storage.MemoryItem, 0, len(result.Candidates))
+	rejections := append([]candidateRejection(nil), result.Rejections...)
+	for _, candidate := range result.Candidates {
+		item, ok := memoryItemFromCandidate(req, window, evidence, candidate)
+		if !ok {
+			rejections = append(rejections, candidateRejection{Kind: candidate.Kind, Reason: "empty_candidate"})
+			continue
+		}
+		items = append(items, item)
+	}
+	if len(items) == 0 && len(rejections) == 0 {
+		rejections = append(rejections, candidateRejection{Kind: "window", Reason: "no_curated_candidate"})
+	}
+	return items, rejections, nil
+}
+
+func evidenceFromMessages(window sourceWindow, messages []handmsg.Message) messageEvidence {
 	messageIDs := make([]uint, 0, len(messages))
 	offsets := make([]int, 0, len(messages))
 	lines := make([]string, 0, len(messages))
@@ -394,35 +398,124 @@ func candidateFromMessages(
 		offsets = append(offsets, window.Start+idx)
 		lines = append(lines, line)
 	}
-	if len(lines) == 0 {
+
+	text := strings.Join(lines, "\n")
+	return messageEvidence{
+		MessageIDs: messageIDs,
+		Offsets:    offsets,
+		Lines:      lines,
+		Text:       text,
+		LowerText:  strings.ToLower(text),
+	}
+}
+
+func memoryItemFromCandidate(
+	req normalizedRequest,
+	window sourceWindow,
+	evidence messageEvidence,
+	candidate episodeCandidate,
+) (storage.MemoryItem, bool) {
+	candidate.Kind = strings.TrimSpace(candidate.Kind)
+	if !validCandidateKind(candidate.Kind) {
 		return storage.MemoryItem{}, false
 	}
 
-	sourceTag := sourceRangeTag(req.SessionID, window.Start, window.End)
-	id := memoryID(req.SessionID, window.Start, window.End)
-	text := truncateRunes(strings.Join(lines, "\n"), req.windowCharLimit())
-	return storage.MemoryItem{
-		ID:     id,
-		Kind:   storage.MemoryKindEpisodic,
-		Status: storage.MemoryStatusActive,
-		Title:  fmt.Sprintf("Session %s messages %d-%d", req.SessionID, window.Start, window.End-1),
-		Text:   text,
-		Tags:   []string{"episodic", sourceTag},
-		Metadata: map[string]string{
-			"source_session_id": req.SessionID,
-			"source_start":      strconv.Itoa(window.Start),
-			"source_end":        strconv.Itoa(window.End),
-			"trigger":           req.Trigger,
-		},
-		SourceLinks: []storage.MemorySourceLink{{
+	text := strings.TrimSpace(truncateRunes(candidate.Text, req.windowCharLimit()))
+	title := strings.TrimSpace(candidate.Title)
+	if title == "" && text == "" {
+		return storage.MemoryItem{}, false
+	}
+
+	metadata := map[string]string{
+		"source_session_id": req.SessionID,
+		"source_start":      strconv.Itoa(window.Start),
+		"source_end":        strconv.Itoa(window.End),
+		"trigger":           req.Trigger,
+		"candidate_kind":    candidate.Kind,
+		"source_quality":    sourceQuality(evidence),
+		"usefulness":        usefulness(candidate.Kind),
+		"recency":           "source_window",
+		"uncertainty":       uncertainty(candidate.Confidence),
+	}
+	for key, value := range candidate.Metadata {
+		if strings.TrimSpace(value) != "" {
+			metadata[key] = strings.TrimSpace(value)
+		}
+	}
+
+	sourceLinks := candidate.SourceLinks
+	if len(sourceLinks) == 0 {
+		sourceLinks = []storage.MemorySourceLink{{
 			SessionID:     req.SessionID,
-			MessageIDs:    messageIDs,
-			Offsets:       offsets,
+			MessageIDs:    evidence.MessageIDs,
+			Offsets:       evidence.Offsets,
 			CreatedBy:     req.Trigger,
-			CreatedReason: "episodic_memory_extraction",
-		}},
-		Confidence: 0.5,
+			CreatedReason: "curated_episodic_memory_extraction",
+		}}
+	}
+	sourceTag := sourceRangeTag(req.SessionID, window.Start, window.End)
+	return storage.MemoryItem{
+		ID:          candidateMemoryID(req.SessionID, window.Start, window.End, candidate.Kind),
+		Kind:        storage.MemoryKindEpisodic,
+		Status:      storage.MemoryStatusCandidate,
+		Title:       title,
+		Text:        text,
+		Tags:        []string{"episodic", "curated", candidate.Kind, sourceTag},
+		Metadata:    metadata,
+		SourceLinks: sourceLinks,
+		Confidence:  clampConfidence(candidate.Confidence),
 	}, true
+}
+
+func validCandidateKind(kind string) bool {
+	switch kind {
+	case episodeKindDecision,
+		episodeKindOutcome,
+		episodeKindToolEvent,
+		episodeKindBlocker,
+		episodeKindUserCorrection:
+		return true
+	default:
+		return false
+	}
+}
+
+func sourceQuality(evidence messageEvidence) string {
+	if len(evidence.MessageIDs) > 0 && len(evidence.Offsets) > 0 {
+		return "high"
+	}
+	return "medium"
+}
+
+func usefulness(kind string) string {
+	switch kind {
+	case episodeKindDecision, episodeKindOutcome, episodeKindUserCorrection:
+		return "high"
+	case episodeKindToolEvent, episodeKindBlocker:
+		return "medium"
+	default:
+		return "low"
+	}
+}
+
+func uncertainty(confidence float64) string {
+	if confidence >= 0.80 {
+		return "low"
+	}
+	if confidence >= 0.65 {
+		return "medium"
+	}
+	return "high"
+}
+
+func clampConfidence(confidence float64) float64 {
+	if confidence < 0 {
+		return 0
+	}
+	if confidence > 1 {
+		return 1
+	}
+	return confidence
 }
 
 func (r normalizedRequest) windowCharLimit() int {
@@ -461,8 +554,23 @@ func messageLine(message handmsg.Message) string {
 	return role + ": " + strings.Join(parts, " ")
 }
 
-func memoryID(sessionID string, start int, end int) string {
-	return "mem_episode_" + sourceRangeHash(sessionID, start, end)
+func candidateMemoryIDs(sessionID string, start int, end int) []string {
+	kinds := []string{
+		episodeKindDecision,
+		episodeKindOutcome,
+		episodeKindToolEvent,
+		episodeKindBlocker,
+		episodeKindUserCorrection,
+	}
+	ids := make([]string, 0, len(kinds))
+	for _, kind := range kinds {
+		ids = append(ids, candidateMemoryID(sessionID, start, end, kind))
+	}
+	return ids
+}
+
+func candidateMemoryID(sessionID string, start int, end int, kind string) string {
+	return "mem_episode_" + sourceRangeHash(strings.TrimSpace(kind)+":"+sessionID, start, end)
 }
 
 func sourceRangeTag(sessionID string, start int, end int) string {
@@ -490,55 +598,4 @@ func validUTF8(value string) string {
 		return value
 	}
 	return strings.ToValidUTF8(value, "")
-}
-
-func recordFailure(recorder TraceRecorder, req normalizedRequest, err error) {
-	recordTrace(recorder, trace.EvtMemoryExtractionFailed, tracePayload(req, map[string]any{"error": err.Error()}))
-	logExtraction("failed", req, map[string]any{"error": err.Error()})
-}
-
-func recordTrace(recorder TraceRecorder, event string, payload map[string]any) {
-	if recorder == nil {
-		return
-	}
-	recorder.Record(event, payload)
-}
-
-func tracePayload(req normalizedRequest, fields map[string]any) map[string]any {
-	payload := map[string]any{
-		"session_id":   strings.TrimSpace(req.SessionID),
-		"offset_start": req.OffsetStart,
-		"offset_end":   req.OffsetEnd,
-		"trigger":      strings.TrimSpace(req.Trigger),
-	}
-	for key, value := range fields {
-		payload[key] = value
-	}
-	return payload
-}
-
-func logExtraction(event string, req normalizedRequest, fields map[string]any) {
-	entry := extractionLog.Debug().
-		Str("event", "memory extraction "+event).
-		Str("session_id", strings.TrimSpace(req.SessionID)).
-		Str("trigger", strings.TrimSpace(req.Trigger)).
-		Int("offset_start", req.OffsetStart).
-		Int("offset_end", req.OffsetEnd)
-	for key, value := range fields {
-		entry = logField(entry, key, value)
-	}
-	entry.Msg("memory extraction " + event)
-}
-
-func logField(event *zerolog.Event, key string, value any) *zerolog.Event {
-	switch typed := value.(type) {
-	case string:
-		return event.Str(key, typed)
-	case int:
-		return event.Int(key, typed)
-	case int64:
-		return event.Int64(key, typed)
-	default:
-		return event.Interface(key, value)
-	}
 }

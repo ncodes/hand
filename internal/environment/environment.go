@@ -15,6 +15,7 @@ import (
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
 	memguardrails "github.com/wandxy/hand/internal/memory/guardrails"
+	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/personality"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
@@ -77,6 +78,7 @@ type Environment interface {
 
 	// SetStateManager wires state-backed features into the environment runtime.
 	SetStateManager(*statemanager.Manager)
+	SetModelClient(models.Client)
 }
 
 type environment struct {
@@ -89,6 +91,7 @@ type environment struct {
 	memory       memory.Provider
 	runtime      *Runtime
 	stateMgr     *statemanager.Manager
+	modelClient  models.Client
 }
 
 type ToolRegistry interface {
@@ -187,6 +190,10 @@ func (e *environment) prepareMemory() error {
 		StateManager:   e.stateMgr,
 		StorageBackend: e.cfg.Storage.Backend,
 		MemoryBackend:  e.cfg.Memory.Backend,
+		ModelClient:    e.modelClient,
+		Model:          e.cfg.SummaryModelEffective(),
+		APIMode:        e.cfg.SummaryModelAPIModeEffective(),
+		DebugRequests:  e.cfg.Debug.Requests,
 		Pinned: memory.PinnedOptions{
 			Enabled:      e.cfg.Memory.Pinned.Enabled,
 			MaxChars:     e.cfg.Memory.Pinned.MaxChars,
@@ -444,6 +451,13 @@ func (e *environment) SetStateManager(manager *statemanager.Manager) {
 	if e.runtime != nil {
 		e.runtime.stateMgr = manager
 	}
+}
+
+func (e *environment) SetModelClient(client models.Client) {
+	if e == nil {
+		return
+	}
+	e.modelClient = client
 }
 
 func (e *environment) fileRoots() []string {

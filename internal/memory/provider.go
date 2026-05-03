@@ -11,6 +11,7 @@ import (
 	"github.com/wandxy/hand/internal/memory/episodic"
 	pinnedmemory "github.com/wandxy/hand/internal/memory/pinned"
 	handmsg "github.com/wandxy/hand/internal/messages"
+	"github.com/wandxy/hand/internal/models"
 	statecore "github.com/wandxy/hand/internal/state/core"
 )
 
@@ -27,6 +28,10 @@ type Options struct {
 	MemoryBackend      string
 	Pinned             PinnedOptions
 	EpisodicBackground EpisodicBackgroundOptions
+	ModelClient        models.Client
+	Model              string
+	APIMode            string
+	DebugRequests      bool
 }
 
 type PinnedOptions = pinnedmemory.Options
@@ -89,7 +94,23 @@ func NewFromManager(manager StateManager, opts Options) (*MemoryProvider, error)
 		episodicBackground: episodic.NormalizeBackgroundOptions(opts.EpisodicBackground),
 	}
 
-	provider.episodicExtractor, _ = episodic.NewService(manager, provider)
+	if opts.ModelClient != nil {
+		extractor, err := episodic.NewLLMExtractor(episodic.LLMExtractorOptions{
+			Client:        opts.ModelClient,
+			Model:         opts.Model,
+			APIMode:       opts.APIMode,
+			DebugRequests: opts.DebugRequests,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		service, err := episodic.NewService(manager, provider, extractor)
+		if err != nil {
+			return nil, err
+		}
+		provider.episodicExtractor = service
+	}
 
 	return provider, nil
 }

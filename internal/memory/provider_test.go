@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
+	"github.com/wandxy/hand/internal/models"
 	statecore "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
@@ -157,7 +158,10 @@ func TestMemoryProvider_ExtractEpisodes(t *testing.T) {
 	ctx := context.Background()
 	store := storagememory.NewStore()
 	manager := newMemoryTestManager(t, store)
-	provider, err := NewFromManager(manager, Options{})
+	provider, err := NewFromManager(manager, Options{
+		ModelClient: episodicModelClientStub(),
+		Model:       "test-model",
+	})
 	require.NoError(t, err)
 
 	require.NoError(t, manager.Save(ctx, statecore.Session{ID: statecore.DefaultSessionID}))
@@ -207,6 +211,8 @@ func TestMemoryProvider_StartBackgroundRunsEpisodicLoop(t *testing.T) {
 	tracer := &fakeTracer{}
 	provider, err := NewFromManager(manager, Options{
 		Observability: fakeObservability{tracer: tracer},
+		ModelClient:   episodicModelClientStub(),
+		Model:         "test-model",
 		EpisodicBackground: EpisodicBackgroundOptions{
 			Enabled:     true,
 			Interval:    time.Nanosecond,
@@ -235,6 +241,43 @@ func TestMemoryProvider_StartBackgroundRunsEpisodicLoop(t *testing.T) {
 	doneCtx, doneCancel := context.WithCancel(context.Background())
 	doneCancel()
 	provider.runEpisodicRecordingBackgroundLoop(doneCtx, EpisodicBackgroundOptions{Interval: time.Nanosecond})
+}
+
+func episodicModelClientStub() *memoryModelClientStub {
+	return &memoryModelClientStub{
+		response: &models.Response{OutputText: `{
+			"candidates": [{
+				"kind": "outcome",
+				"title": "Provider extraction",
+				"text": "Provider-owned extraction captured the completed memory event.",
+				"confidence": 0.8,
+				"metadata": {"outcome_status": "success"}
+			}],
+			"rejections": []
+		}`},
+	}
+}
+
+type memoryModelClientStub struct {
+	requests []models.Request
+	response *models.Response
+	err      error
+}
+
+func (s *memoryModelClientStub) Complete(_ context.Context, req models.Request) (*models.Response, error) {
+	s.requests = append(s.requests, req)
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.response, nil
+}
+
+func (s *memoryModelClientStub) CompleteStream(
+	context.Context,
+	models.Request,
+	func(models.StreamDelta),
+) (*models.Response, error) {
+	return nil, errors.New("streaming is not supported")
 }
 
 func TestBackgroundContext(t *testing.T) {

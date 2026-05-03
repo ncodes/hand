@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,6 +26,19 @@ type recordingTrace struct {
 type recordedEvent struct {
 	name    string
 	payload any
+}
+
+type fakeCandidateExtractor struct {
+	result CandidateResult
+	err    error
+	req    CandidateRequest
+}
+
+func (e fakeCandidateExtractor) ExtractCandidates(_ context.Context, req CandidateRequest) (CandidateResult, error) {
+	if e.err != nil {
+		return CandidateResult{}, e.err
+	}
+	return e.result, nil
 }
 
 func (r *recordingTrace) Record(name string, payload any) {
@@ -49,7 +63,15 @@ func TestService_ExtractWritesSourceLinkedEpisode(t *testing.T) {
 		{Role: handmsg.RoleTool, Name: "read_file", ToolCallID: "call_1", Content: "Run migration before deploy."},
 	}))
 
-	result, err := newTestService(t, manager, provider).Extract(ctx, Request{
+	service := newTestServiceWithCandidates(t, manager, provider, []episodeCandidate{{
+		Kind:       episodeKindToolEvent,
+		Title:      "Tool event: read_file",
+		Text:       "Tool event: read_file captured deployment checklist context.",
+		Confidence: 0.78,
+		Metadata:   map[string]string{"tool_name": "read_file", "status": "success"},
+	}})
+
+	result, err := service.Extract(ctx, Request{
 		SessionID:      storage.DefaultSessionID,
 		WindowSize:     2,
 		MaxWindowChars: 1000,
@@ -70,16 +92,18 @@ func TestService_ExtractWritesSourceLinkedEpisode(t *testing.T) {
 
 	memories, err := provider.Search(ctx, storage.MemorySearchQuery{
 		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
-		Statuses: []storage.MemoryStatus{storage.MemoryStatusActive},
+		Statuses: []storage.MemoryStatus{storage.MemoryStatusCandidate},
 		Limit:    10,
 	})
 	require.NoError(t, err)
-	require.Len(t, memories.Hits, 2)
+	require.NotEmpty(t, memories.Hits)
 	require.Equal(t, storage.MemoryKindEpisodic, memories.Hits[0].Item.Kind)
+	require.Equal(t, storage.MemoryStatusCandidate, memories.Hits[0].Item.Status)
 	require.Equal(t, storage.DefaultSessionID, memories.Hits[0].Item.SourceLinks[0].SessionID)
 	require.NotEmpty(t, memories.Hits[0].Item.SourceLinks[0].MessageIDs)
 	require.NotEmpty(t, memories.Hits[0].Item.SourceLinks[0].Offsets)
-	require.Contains(t, memories.Hits[0].Item.Text+memories.Hits[1].Item.Text, "tool_call read_file")
+	require.NotContains(t, memories.Hits[0].Item.Text, "user:")
+	require.Contains(t, memoryHitText(memories.Hits), "Tool event:")
 }
 
 func TestService_ExtractSkipsDuplicateSourceRange(t *testing.T) {
@@ -113,7 +137,7 @@ func TestService_ExtractSkipsDuplicateSourceRange(t *testing.T) {
 
 	memories, err := provider.Search(ctx, storage.MemorySearchQuery{
 		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
-		Statuses: []storage.MemoryStatus{storage.MemoryStatusActive},
+		Statuses: []storage.MemoryStatus{storage.MemoryStatusCandidate},
 		Tags:     []string{sourceRangeTag(storage.DefaultSessionID, 0, 2)},
 		Limit:    10,
 	})
@@ -132,7 +156,7 @@ func TestService_ExtractChecksDuplicateByDeterministicMemoryID(t *testing.T) {
 		},
 	}
 	manager := testManager(t, store)
-	expectedID := memoryID(storage.DefaultSessionID, 0, 1)
+	expectedID := candidateMemoryID(storage.DefaultSessionID, 0, 1, episodeKindDecision)
 	provider := &memoryProviderStub{
 		searchResult: storage.MemorySearchResult{
 			Hits: []storage.MemorySearchHit{{Item: storage.MemoryItem{ID: expectedID}}},
@@ -147,7 +171,7 @@ func TestService_ExtractChecksDuplicateByDeterministicMemoryID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, result.WriteCount)
 	require.Equal(t, 1, result.SkipCount)
-	require.Equal(t, []string{expectedID}, provider.searchQuery.IDs)
+	require.Equal(t, candidateMemoryIDs(storage.DefaultSessionID, 0, 1), provider.searchQuery.IDs)
 	require.Empty(t, provider.searchQuery.Tags)
 }
 
@@ -280,7 +304,7 @@ func TestService_ExtractBoundsEpisodeTextByTokenEstimate(t *testing.T) {
 	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
 	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{{
 		Role:    handmsg.RoleUser,
-		Content: "abcdefghijklmnopqrstuvwxyz",
+		Content: "Remember abcdefghijklmnopqrstuvwxyz",
 	}}))
 
 	result, err := newTestService(t, manager, provider).Extract(ctx, Request{
@@ -295,13 +319,12 @@ func TestService_ExtractBoundsEpisodeTextByTokenEstimate(t *testing.T) {
 
 	memories, err := provider.Search(ctx, storage.MemorySearchQuery{
 		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
-		Statuses: []storage.MemoryStatus{storage.MemoryStatusActive},
+		Statuses: []storage.MemoryStatus{storage.MemoryStatusCandidate},
 		Limit:    1,
 	})
 	require.NoError(t, err)
 	require.Len(t, memories.Hits, 1)
 	require.LessOrEqual(t, len([]rune(memories.Hits[0].Item.Text)), 8)
-	logutils.PrettyPrint(memories.Hits[0].Item.Text)
 }
 
 func TestService_ExtractCapsDirectBudgetInputs(t *testing.T) {
@@ -338,11 +361,23 @@ func TestService_ExtractReturnsValidationAndProviderErrors(t *testing.T) {
 	provider := testProvider(t, store)
 	recorder := &recordingTrace{}
 
-	_, err := NewService(nil, provider)
+	_, err := NewService(nil, provider, nil)
 	require.EqualError(t, err, "state manager is required")
 
-	_, err = NewService(manager, nil)
+	_, err = NewService(manager, nil, nil)
 	require.EqualError(t, err, "memory repository is required")
+
+	_, err = NewService(manager, provider, nil)
+	require.EqualError(t, err, "memory episode extractor is required")
+
+	extractor, err := NewLLMExtractor(LLMExtractorOptions{
+		Client: &llmExtractorClientStub{},
+		Model:  "test-model",
+	})
+	require.NoError(t, err)
+	service, err := NewService(manager, provider, extractor)
+	require.NoError(t, err)
+	require.NotNil(t, service)
 
 	_, err = newTestService(t, manager, provider).Extract(ctx, Request{
 		OffsetStart: intPtr(-1),
@@ -367,6 +402,9 @@ func TestService_ExtractReturnsMissingDependencyErrors(t *testing.T) {
 
 	_, err = (&Service{manager: manager}).Extract(ctx, Request{})
 	require.EqualError(t, err, "memory repository is required")
+
+	_, err = (&Service{manager: manager, memory: provider}).Extract(ctx, Request{})
+	require.EqualError(t, err, "memory episode extractor is required")
 }
 
 func TestService_ExtractUsesInjectedClock(t *testing.T) {
@@ -494,6 +532,150 @@ func TestService_ExtractReturnsSearchAndWriteErrors(t *testing.T) {
 		upsertErr: errors.New("write failed"),
 	}).Extract(ctx, Request{SessionID: storage.DefaultSessionID})
 	require.EqualError(t, err, "write failed")
+
+	service := newTestService(t, manager, &memoryProviderStub{})
+	service.extractor = fakeCandidateExtractor{err: errors.New("extractor failed")}
+	_, err = service.Extract(ctx, Request{SessionID: storage.DefaultSessionID})
+	require.EqualError(t, err, "extractor failed")
+}
+
+func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T) {
+	req := normalizedRequest{
+		SessionID:       storage.DefaultSessionID,
+		MaxWindowChars:  1000,
+		MaxWindowTokens: 250,
+		Trigger:         "command",
+	}
+	window := sourceWindow{Start: 0, End: 5}
+	messages := []handmsg.Message{
+		{ID: 1, Role: handmsg.RoleUser, Content: "We should use generic StartBackground instead of episodic-specific public APIs."},
+		{ID: 2, Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "run_command", Input: `{"cmd":"go test ./..."}`}}},
+		{ID: 3, Role: handmsg.RoleTool, Name: "run_command", Content: "error: tests failed"},
+		{ID: 4, Role: handmsg.RoleAssistant, Content: "Implemented StartBackground and verified tests passed."},
+		{ID: 5, Role: handmsg.RoleUser, Content: "Prefer generic provider background APIs going forward."},
+	}
+
+	service := Service{extractor: fakeCandidateExtractor{result: CandidateResult{Candidates: representativeEpisodeCandidates()}}}
+	items, rejections, err := service.candidatesFromMessages(context.Background(), req, window, messages)
+
+	require.NoError(t, err)
+	require.Empty(t, rejections)
+	require.Len(t, items, 5)
+	byKind := memoryItemsByCandidateKind(items)
+	require.Contains(t, byKind, episodeKindDecision)
+	require.Contains(t, byKind, episodeKindOutcome)
+	require.Contains(t, byKind, episodeKindToolEvent)
+	require.Contains(t, byKind, episodeKindBlocker)
+	require.Contains(t, byKind, episodeKindUserCorrection)
+
+	tool := byKind[episodeKindToolEvent]
+	require.Equal(t, "run_command", tool.Metadata["tool_name"])
+	require.Equal(t, "failed", tool.Metadata["status"])
+	require.Contains(t, tool.Metadata["reference"], "go test")
+
+	outcome := byKind[episodeKindOutcome]
+	require.Equal(t, storage.MemoryStatusCandidate, outcome.Status)
+	require.Equal(t, "success", outcome.Metadata["outcome_status"])
+	require.NotContains(t, outcome.Text, "assistant:")
+	require.NotEmpty(t, outcome.SourceLinks[0].MessageIDs)
+	require.NotEmpty(t, outcome.SourceLinks[0].Offsets)
+	require.LessOrEqual(t, outcome.Confidence, 1.0)
+	require.GreaterOrEqual(t, outcome.Confidence, 0.0)
+	require.Equal(t, "high", outcome.Metadata["source_quality"])
+	require.Equal(t, "high", outcome.Metadata["usefulness"])
+	require.Equal(t, "source_window", outcome.Metadata["recency"])
+}
+
+func TestService_CandidatesFromMessages_UsesLLMExtractorRejections(t *testing.T) {
+	req := normalizedRequest{SessionID: storage.DefaultSessionID, MaxWindowChars: 1000, MaxWindowTokens: 250}
+	service := Service{extractor: fakeCandidateExtractor{result: CandidateResult{
+		Rejections: []candidateRejection{{Kind: "window", Reason: "low_signal"}},
+	}}}
+
+	items, rejections, err := service.candidatesFromMessages(context.Background(), req, sourceWindow{Start: 0, End: 1}, []handmsg.Message{
+		{ID: 1, Role: handmsg.RoleUser, Content: "hi"},
+	})
+	require.NoError(t, err)
+	require.Empty(t, items)
+	require.Equal(t, []candidateRejection{{Kind: "window", Reason: "low_signal"}}, rejections)
+
+	service.extractor = fakeCandidateExtractor{err: errors.New("extract failed")}
+	items, rejections, err = service.candidatesFromMessages(context.Background(), req, sourceWindow{Start: 0, End: 1}, []handmsg.Message{
+		{ID: 1, Role: handmsg.RoleUser, Content: "Maybe someday there could be another interface."},
+	})
+	require.EqualError(t, err, "extract failed")
+	require.Empty(t, items)
+	require.Empty(t, rejections)
+}
+
+func TestService_CandidatesFromMessages_CoversEmptyAndInvalidCandidatePaths(t *testing.T) {
+	req := normalizedRequest{SessionID: storage.DefaultSessionID, MaxWindowChars: 1000, MaxWindowTokens: 250}
+	window := sourceWindow{Start: 0, End: 1}
+
+	items, rejections, err := (Service{}).candidatesFromMessages(context.Background(), req, window, []handmsg.Message{{}})
+	require.NoError(t, err)
+	require.Empty(t, items)
+	require.Equal(t, []candidateRejection{{Kind: "window", Reason: "empty_window"}}, rejections)
+
+	_, _, err = (Service{}).candidatesFromMessages(context.Background(), req, window, []handmsg.Message{
+		{ID: 1, Role: handmsg.RoleUser, Content: "This needs extraction."},
+	})
+	require.EqualError(t, err, "memory episode extractor is required")
+
+	service := Service{extractor: fakeCandidateExtractor{result: CandidateResult{Candidates: []episodeCandidate{
+		{Kind: "unknown", Title: "Unknown", Text: "Unknown candidate", Confidence: 0.5},
+		{Kind: episodeKindDecision, Title: "   ", Text: "   ", Confidence: 0.5},
+	}}}}
+	items, rejections, err = service.candidatesFromMessages(context.Background(), req, window, []handmsg.Message{
+		{ID: 1, Role: handmsg.RoleUser, Content: "This candidate should be rejected after validation."},
+	})
+	require.NoError(t, err)
+	require.Empty(t, items)
+	require.Equal(t, []candidateRejection{
+		{Kind: "unknown", Reason: "empty_candidate"},
+		{Kind: episodeKindDecision, Reason: "empty_candidate"},
+	}, rejections)
+
+	service.extractor = fakeCandidateExtractor{result: CandidateResult{}}
+	items, rejections, err = service.candidatesFromMessages(context.Background(), req, window, []handmsg.Message{
+		{ID: 1, Role: handmsg.RoleUser, Content: "The model returned no decision."},
+	})
+	require.NoError(t, err)
+	require.Empty(t, items)
+	require.Equal(t, []candidateRejection{{Kind: "window", Reason: "no_curated_candidate"}}, rejections)
+}
+
+func TestCuratedCandidateHelpersCoverEdgeBranches(t *testing.T) {
+	req := normalizedRequest{SessionID: storage.DefaultSessionID, MaxWindowChars: 100, MaxWindowTokens: 25}
+	window := sourceWindow{Start: 0, End: 1}
+	emptyEvidence := messageEvidence{}
+
+	item, ok := memoryItemFromCandidate(req, window, emptyEvidence, episodeCandidate{})
+	require.False(t, ok)
+	require.Empty(t, item)
+
+	item, ok = memoryItemFromCandidate(req, window, emptyEvidence, episodeCandidate{
+		Kind:       episodeKindOutcome,
+		Title:      "Title only",
+		Confidence: 0.4,
+		SourceLinks: []storage.MemorySourceLink{{
+			SessionID:     "custom-session",
+			CreatedReason: "custom",
+		}},
+	})
+	require.True(t, ok)
+	require.Equal(t, "Title only", item.Title)
+	require.Empty(t, item.Text)
+	require.Equal(t, "custom-session", item.SourceLinks[0].SessionID)
+
+	require.Equal(t, "medium", sourceQuality(emptyEvidence))
+	require.Equal(t, "medium", usefulness(episodeKindBlocker))
+	require.Equal(t, "low", usefulness("unknown"))
+	require.Equal(t, "low", uncertainty(0.9))
+	require.Equal(t, "medium", uncertainty(0.7))
+	require.Equal(t, "high", uncertainty(0.2))
+	require.Equal(t, 0.0, clampConfidence(-1))
+	require.Equal(t, 1.0, clampConfidence(2))
 }
 
 func TestMessageLineHandlesInvalidUTF8AndFallbackRole(t *testing.T) {
@@ -529,8 +711,30 @@ func testProvider(t *testing.T, store storage.Store) *testRepository {
 func newTestService(t *testing.T, manager *statemanager.Manager, provider MemoryRepository) *Service {
 	t.Helper()
 
-	service, err := NewService(manager, provider)
-	require.NoError(t, err)
+	return newTestServiceWithCandidates(t, manager, provider, []episodeCandidate{{
+		Kind:       episodeKindUserCorrection,
+		Title:      "User correction or preference",
+		Text:       "User correction or preference: remember this",
+		Confidence: 0.82,
+		Metadata:   map[string]string{"durability": "explicit"},
+	}})
+}
+
+func newTestServiceWithCandidates(
+	t *testing.T,
+	manager *statemanager.Manager,
+	provider MemoryRepository,
+	candidates []episodeCandidate,
+) *Service {
+	t.Helper()
+
+	service := &Service{
+		manager: manager,
+		memory:  provider,
+		extractor: fakeCandidateExtractor{result: CandidateResult{
+			Candidates: candidates,
+		}},
+	}
 	return service
 }
 
@@ -555,6 +759,63 @@ func tracePayloadFor(t *testing.T, recorder *recordingTrace, name string) map[st
 	}
 	require.FailNow(t, "trace event not found", name)
 	return nil
+}
+
+func memoryHitText(hits []storage.MemorySearchHit) string {
+	var text strings.Builder
+	for _, hit := range hits {
+		text.WriteString(hit.Item.Text)
+		text.WriteString("\n")
+	}
+	return text.String()
+}
+
+func memoryItemsByCandidateKind(items []storage.MemoryItem) map[string]storage.MemoryItem {
+	byKind := make(map[string]storage.MemoryItem, len(items))
+	for _, item := range items {
+		byKind[item.Metadata["candidate_kind"]] = item
+	}
+	return byKind
+}
+
+func representativeEpisodeCandidates() []episodeCandidate {
+	return []episodeCandidate{
+		{
+			Kind:       episodeKindDecision,
+			Title:      "Decision from session",
+			Text:       "Decision: use generic StartBackground instead of episodic-specific public APIs.",
+			Confidence: 0.72,
+			Metadata:   map[string]string{"decision": "generic StartBackground"},
+		},
+		{
+			Kind:       episodeKindOutcome,
+			Title:      "Task outcome from session",
+			Text:       "Task outcome: Implemented StartBackground and verified tests passed.",
+			Confidence: 0.76,
+			Metadata:   map[string]string{"outcome_status": "success"},
+		},
+		{
+			Kind:       episodeKindToolEvent,
+			Title:      "Tool event: run_command",
+			Text:       "Tool event: run_command completed with status failed. Relevant reference: go test ./....",
+			Confidence: 0.78,
+			Metadata:   map[string]string{"tool_name": "run_command", "status": "failed", "reference": "go test ./..."},
+		},
+		{
+			Kind:       episodeKindBlocker,
+			Title:      "Blocker or risk from session",
+			Text:       "Blocker or risk: tests failed before being fixed.",
+			Confidence: 0.68,
+			Metadata:   map[string]string{"resolution_status": "unresolved_or_uncertain"},
+		},
+		{
+			Kind:       episodeKindUserCorrection,
+			Title:      "User correction or preference",
+			Text:       "User correction or preference: Prefer generic provider background APIs going forward.",
+			Confidence: 0.82,
+			Metadata:   map[string]string{"durability": "explicit"},
+		},
+	}
 }
 
 func intPtr(value int) *int {

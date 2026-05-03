@@ -118,6 +118,8 @@ func (s *EnvironmentStub) MemoryProvider() memory.Provider {
 	return s.Memory
 }
 
+func (s *EnvironmentStub) SetModelClient(models.Client) {}
+
 func (s *EnvironmentStub) CurrentPlan(string) envtypes.Plan {
 	return s.Plan
 }

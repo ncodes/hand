@@ -20,7 +20,7 @@ func TestService_RunBackgroundProcessesEligibleSessionsWithBoundedWindows(t *tes
 	ctx := context.Background()
 	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
 	messages := []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "Capture this completed task."},
+		{ID: 1, Role: handmsg.RoleUser, Content: "Remember this completed task."},
 		{ID: 2, Role: handmsg.RoleAssistant, Content: "Done."},
 	}
 	store := &statemock.Store{
@@ -104,7 +104,7 @@ func TestService_RunBackgroundSkipsIneligibleSessions(t *testing.T) {
 func TestService_RunBackgroundSkipsExistingEpisodeBeforeLoadingMessages(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-	expectedID := memoryID(storage.DefaultSessionID, 0, 1)
+	expectedID := candidateMemoryID(storage.DefaultSessionID, 0, 1, episodeKindDecision)
 	loads := 0
 	store := &statemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
@@ -143,7 +143,7 @@ func TestService_RunBackgroundSkipsExistingEpisodeBeforeLoadingMessages(t *testi
 	require.NoError(t, err)
 	require.Equal(t, 1, result.SkipCount)
 	require.Zero(t, loads)
-	require.Equal(t, []string{expectedID}, provider.searchQuery.IDs)
+	require.Equal(t, candidateMemoryIDs(storage.DefaultSessionID, 0, 1), provider.searchQuery.IDs)
 }
 
 func TestService_RunBackgroundResumesFromSessionCheckpoint(t *testing.T) {
@@ -152,7 +152,7 @@ func TestService_RunBackgroundResumesFromSessionCheckpoint(t *testing.T) {
 	messages := []handmsg.Message{
 		{ID: 1, Role: handmsg.RoleUser, Content: "already processed"},
 		{ID: 2, Role: handmsg.RoleAssistant, Content: "also processed"},
-		{ID: 3, Role: handmsg.RoleUser, Content: "resume here"},
+		{ID: 3, Role: handmsg.RoleUser, Content: "remember resume here"},
 		{ID: 4, Role: handmsg.RoleAssistant, Content: "next run"},
 	}
 	var offsets []int
@@ -270,7 +270,7 @@ func TestService_RunBackgroundRetriesFailedWindows(t *testing.T) {
 			if loads == 1 {
 				return nil, errors.New("temporary load failure")
 			}
-			return []handmsg.Message{{ID: 1, Role: handmsg.RoleUser, Content: "retry works"}}, nil
+			return []handmsg.Message{{ID: 1, Role: handmsg.RoleUser, Content: "remember retry works"}}, nil
 		},
 	}
 	manager := testManager(t, store)

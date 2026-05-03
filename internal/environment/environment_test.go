@@ -25,6 +25,7 @@ import (
 	"github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/memory/episodic"
 	"github.com/wandxy/hand/internal/messages"
+	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/personality"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
@@ -173,6 +174,7 @@ func TestEnvironment_PrepareConfiguresMemoryProviderWhenEnabled(t *testing.T) {
 		Debug:  config.DebugConfig{TraceDir: t.TempDir()},
 	})
 	env.SetStateManager(newTestStateManager(t))
+	env.SetModelClient(environmentEpisodicModelClientStub())
 
 	require.NoError(t, env.Prepare())
 	require.IsType(t, &memory.MemoryProvider{}, env.MemoryProvider())
@@ -225,6 +227,7 @@ func TestEnvironment_PrepareConfiguresMemoryBackgroundOptions(t *testing.T) {
 		Debug: config.DebugConfig{TraceDir: t.TempDir()},
 	})
 	env.SetStateManager(newTestStateManager(t))
+	env.SetModelClient(environmentEpisodicModelClientStub())
 
 	require.NoError(t, env.Prepare())
 	background := env.MemoryProvider().(memory.BackgroundProvider)
@@ -918,7 +921,10 @@ func TestRuntime_ExtractEpisodesRunsExtractor(t *testing.T) {
 	store := memorystore.NewStore()
 	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
 	require.NoError(t, err)
-	provider, err := memory.NewFromManager(manager, memory.Options{})
+	provider, err := memory.NewFromManager(manager, memory.Options{
+		ModelClient: environmentEpisodicModelClientStub(),
+		Model:       "test-model",
+	})
 	require.NoError(t, err)
 
 	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
@@ -937,6 +943,43 @@ func TestRuntime_ExtractEpisodesRunsExtractor(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, result.WriteCount)
 	require.Equal(t, 1, result.MessageCount)
+}
+
+func environmentEpisodicModelClientStub() *environmentModelClientStub {
+	return &environmentModelClientStub{
+		response: &models.Response{OutputText: `{
+			"candidates": [{
+				"kind": "outcome",
+				"title": "Runtime extraction",
+				"text": "Runtime extraction captured the requested session range.",
+				"confidence": 0.8,
+				"metadata": {"outcome_status": "success"}
+			}],
+			"rejections": []
+		}`},
+	}
+}
+
+type environmentModelClientStub struct {
+	requests []models.Request
+	response *models.Response
+	err      error
+}
+
+func (s *environmentModelClientStub) Complete(_ gctx.Context, req models.Request) (*models.Response, error) {
+	s.requests = append(s.requests, req)
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.response, nil
+}
+
+func (s *environmentModelClientStub) CompleteStream(
+	gctx.Context,
+	models.Request,
+	func(models.StreamDelta),
+) (*models.Response, error) {
+	return nil, errors.New("streaming is not supported")
 }
 
 func TestEnvironment_SessionSearchThenSessionMessagesWorkflow(t *testing.T) {

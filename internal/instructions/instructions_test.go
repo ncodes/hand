@@ -316,6 +316,16 @@ func TestBuildMemoryExtractGuidance_ReturnsNamedInstruction(t *testing.T) {
 	require.Contains(t, instruction.Value, "Do not use memory_extract during ordinary task execution")
 }
 
+func TestBuildEpisodicExtractionInstructions_ReturnsCuratedExtractionPrompt(t *testing.T) {
+	instructions := BuildEpisodicExtractionInstructions()
+
+	require.Equal(t, strings.TrimSpace(instructions), instructions)
+	require.Contains(t, instructions, "Extract curated episodic memory candidates")
+	require.Contains(t, instructions, "Do not store raw transcript windows")
+	require.Contains(t, instructions, "Reject low-signal, speculative, temporary, unsafe")
+	require.Contains(t, instructions, "Preserve uncertainty in metadata")
+}
+
 func TestBuildSummary_IncludesBudgetWarningWhenLow(t *testing.T) {
 	require.Equal(t, Instructions{
 		{Value: "# Summary Fallback\n\nRemaining iteration budget: 2."},
