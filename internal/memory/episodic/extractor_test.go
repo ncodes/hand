@@ -97,6 +97,7 @@ func TestService_ExtractWritesSourceLinkedEpisode(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, memories.Hits)
+	require.Len(t, memories.Hits, 2)
 	require.Equal(t, storage.MemoryKindEpisodic, memories.Hits[0].Item.Kind)
 	require.Equal(t, storage.MemoryStatusCandidate, memories.Hits[0].Item.Status)
 	require.Equal(t, storage.DefaultSessionID, memories.Hits[0].Item.SourceLinks[0].SessionID)

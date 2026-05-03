@@ -49,6 +49,7 @@ type Service struct {
 	nowFunc func() time.Time
 }
 
+// NewService creates a new episodic memory extraction service.
 func NewService(manager StateManager, repository MemoryRepository, extractor *LLMExtractor) (*Service, error) {
 	if manager == nil {
 		return nil, errors.New("state manager is required")
@@ -63,6 +64,7 @@ func NewService(manager StateManager, repository MemoryRepository, extractor *LL
 	return &Service{manager: manager, memory: repository, extractor: extractor}, nil
 }
 
+// Extract extracts curated episodic memory items from a bounded message range.
 func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 	started := s.now()
 	if s == nil || s.manager == nil {
@@ -81,18 +83,14 @@ func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 		return Result{}, err
 	}
 
-	recordTrace(req.Trace, trace.EvtMemoryExtractionStarted, tracePayload(normalized, map[string]any{
+	traceField := map[string]any{
 		"window_size":       normalized.WindowSize,
 		"max_windows":       normalized.MaxWindows,
 		"max_window_chars":  normalized.MaxWindowChars,
 		"max_window_tokens": normalized.MaxWindowTokens,
-	}))
-	logExtraction("started", normalized, map[string]any{
-		"window_size":       normalized.WindowSize,
-		"max_windows":       normalized.MaxWindows,
-		"max_window_chars":  normalized.MaxWindowChars,
-		"max_window_tokens": normalized.MaxWindowTokens,
-	})
+	}
+	recordTrace(req.Trace, trace.EvtMemoryExtractionStarted, tracePayload(normalized, traceField))
+	logExtraction("started", normalized, traceField)
 
 	result := Result{SessionID: normalized.SessionID}
 	for start := normalized.OffsetStart; start < normalized.OffsetEnd; start += normalized.WindowSize {
@@ -379,9 +377,11 @@ func (s Service) candidatesFromMessages(
 		}
 		items = append(items, item)
 	}
+
 	if len(items) == 0 && len(rejections) == 0 {
 		rejections = append(rejections, candidateRejection{Kind: "window", Reason: "no_curated_candidate"})
 	}
+
 	return items, rejections, nil
 }
 
