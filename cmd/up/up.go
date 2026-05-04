@@ -22,7 +22,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/diagnostics"
 	"github.com/wandxy/hand/internal/models"
-	"github.com/wandxy/hand/internal/rpcserver"
+	"github.com/wandxy/hand/internal/rpc/server"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -181,7 +181,7 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) 
 	}
 	defer lis.Close()
 
-	grpcSrv := rpcserver.New(agent, rpcserver.Options{Health: true})
+	grpcSrv := server.New(agent, server.Options{Health: true})
 
 	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

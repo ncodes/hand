@@ -10,8 +10,9 @@ import (
 
 	"github.com/wandxy/hand/internal/agent"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	"github.com/wandxy/hand/internal/rpcserver"
 	"google.golang.org/grpc"
+
+	"github.com/wandxy/hand/internal/rpc/server"
 )
 
 var rpcListen = net.Listen
@@ -54,17 +55,17 @@ func NewRPCHarness(ctx context.Context, opts HarnessOptions) (*RPCHarness, error
 		_ = base.Close()
 		return nil, errors.New("e2e rpc harness requires a full agent service")
 	}
-	server := rpcserver.New(serviceAPI, rpcserver.Options{Health: true})
+	grpcServer := server.New(serviceAPI, server.Options{Health: true})
 
 	h := &RPCHarness{
 		Harness: base,
 		address: tcpAddr.IP.String(),
 		port:    tcpAddr.Port,
-		server:  server,
+		server:  grpcServer,
 	}
 
 	go func() {
-		if serveErr := grpcServe(server, lis); serveErr != nil && !errors.Is(serveErr, grpc.ErrServerStopped) {
+		if serveErr := grpcServe(grpcServer, lis); serveErr != nil && !errors.Is(serveErr, grpc.ErrServerStopped) {
 			h.errMu.Lock()
 			h.err = serveErr
 			h.errMu.Unlock()
