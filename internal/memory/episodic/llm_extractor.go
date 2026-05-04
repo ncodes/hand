@@ -112,13 +112,7 @@ func llmExtractorStructuredOutput() *models.StructuredOutput {
 						"properties": map[string]any{
 							"kind": map[string]any{
 								"type": "string",
-								"enum": []string{
-									episodeKindDecision,
-									episodeKindOutcome,
-									episodeKindToolEvent,
-									episodeKindBlocker,
-									episodeKindUserCorrection,
-								},
+								"enum": episodeCandidateKinds(),
 							},
 							"title":      map[string]any{"type": "string"},
 							"text":       map[string]any{"type": "string"},

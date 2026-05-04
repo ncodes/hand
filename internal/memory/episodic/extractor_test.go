@@ -571,13 +571,17 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 
 	require.NoError(t, err)
 	require.Empty(t, rejections)
-	require.Len(t, items, 5)
+	require.Len(t, items, 9)
 	byKind := memoryItemsByCandidateKind(items)
 	require.Contains(t, byKind, episodeKindDecision)
 	require.Contains(t, byKind, episodeKindOutcome)
 	require.Contains(t, byKind, episodeKindToolEvent)
 	require.Contains(t, byKind, episodeKindBlocker)
 	require.Contains(t, byKind, episodeKindUserCorrection)
+	require.Contains(t, byKind, episodeKindTaskTrace)
+	require.Contains(t, byKind, episodeKindResolvedIssue)
+	require.Contains(t, byKind, episodeKindMilestone)
+	require.Contains(t, byKind, episodeKindDiscarded)
 
 	tool := byKind[episodeKindToolEvent]
 	require.Equal(t, "run_command", tool.Metadata["tool_name"])
@@ -595,6 +599,11 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 	require.Equal(t, "high", outcome.Metadata["source_quality"])
 	require.Equal(t, "high", outcome.Metadata["usefulness"])
 	require.Equal(t, "source_window", outcome.Metadata["recency"])
+
+	require.Equal(t, "trace:2,trace:3", byKind[episodeKindTaskTrace].Metadata["trace_event_refs"])
+	require.Equal(t, "fixed", byKind[episodeKindResolvedIssue].Metadata["resolution_status"])
+	require.Equal(t, "phase_8c", byKind[episodeKindMilestone].Metadata["milestone"])
+	require.Equal(t, "manual_rule_parser", byKind[episodeKindDiscarded].Metadata["rejected_alternative"])
 }
 
 func TestService_CandidatesFromMessages_IncludesTaskTraceEvidence(t *testing.T) {
@@ -796,6 +805,10 @@ func TestCuratedCandidateHelpersCoverEdgeBranches(t *testing.T) {
 
 	require.Equal(t, "medium", sourceQuality(emptyEvidence))
 	require.Equal(t, "medium", usefulness(episodeKindBlocker))
+	require.Equal(t, "medium", usefulness(episodeKindTaskTrace))
+	require.Equal(t, "high", usefulness(episodeKindResolvedIssue))
+	require.Equal(t, "high", usefulness(episodeKindMilestone))
+	require.Equal(t, "high", usefulness(episodeKindDiscarded))
 	require.Equal(t, "low", usefulness("unknown"))
 	require.Equal(t, "low", uncertainty(0.9))
 	require.Equal(t, "medium", uncertainty(0.7))
@@ -948,6 +961,34 @@ func representativeEpisodeCandidates() []episodeCandidate {
 			Text:       "User correction or preference: Prefer generic provider background APIs going forward.",
 			Confidence: 0.82,
 			Metadata:   map[string]string{"durability": "explicit"},
+		},
+		{
+			Kind:       episodeKindTaskTrace,
+			Title:      "Task trace: test failure and recovery",
+			Text:       "Task trace: go test failed, then later passed after StartBackground changes.",
+			Confidence: 0.74,
+			Metadata:   map[string]string{"trace_event_refs": "trace:2,trace:3"},
+		},
+		{
+			Kind:       episodeKindResolvedIssue,
+			Title:      "Resolved issue: background API shape",
+			Text:       "Resolved issue: episodic-specific public background APIs were replaced with generic provider background APIs.",
+			Confidence: 0.79,
+			Metadata:   map[string]string{"resolution_status": "fixed"},
+		},
+		{
+			Kind:       episodeKindMilestone,
+			Title:      "Project milestone: Phase 8c trace evidence",
+			Text:       "Project milestone: curated extraction now uses task trace evidence alongside session messages.",
+			Confidence: 0.81,
+			Metadata:   map[string]string{"milestone": "phase_8c"},
+		},
+		{
+			Kind:       episodeKindDiscarded,
+			Title:      "Discarded approach: manual rule parser",
+			Text:       "Discarded approach: manual rule parsing was rejected in favor of LLM-only curated extraction.",
+			Confidence: 0.7,
+			Metadata:   map[string]string{"rejected_alternative": "manual_rule_parser"},
 		},
 	}
 }

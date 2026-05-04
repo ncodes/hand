@@ -124,7 +124,7 @@ type sourceWindow struct {
 
 // episodeCandidate is a proposed episodic memory item returned by the episode extractor.
 type episodeCandidate struct {
-	// Kind classifies the proposed memory item, such as decision or outcome.
+	// Kind classifies the proposed memory item, such as decision, outcome, or task_trace.
 	Kind string
 	// Title is a short summary for the proposed memory item.
 	Title string

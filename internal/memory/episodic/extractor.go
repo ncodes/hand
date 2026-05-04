@@ -36,6 +36,10 @@ const (
 	episodeKindToolEvent      = "tool_event"
 	episodeKindBlocker        = "blocker"
 	episodeKindUserCorrection = "user_correction"
+	episodeKindTaskTrace      = "task_trace"
+	episodeKindResolvedIssue  = "resolved_issue"
+	episodeKindMilestone      = "project_milestone"
+	episodeKindDiscarded      = "discarded_approach"
 )
 
 const (
@@ -554,16 +558,12 @@ func memoryItemFromCandidate(
 }
 
 func validCandidateKind(kind string) bool {
-	switch kind {
-	case episodeKindDecision,
-		episodeKindOutcome,
-		episodeKindToolEvent,
-		episodeKindBlocker,
-		episodeKindUserCorrection:
-		return true
-	default:
-		return false
+	for _, candidateKind := range episodeCandidateKinds() {
+		if kind == candidateKind {
+			return true
+		}
 	}
+	return false
 }
 
 func sourceQuality(evidence messageEvidence) string {
@@ -575,9 +575,14 @@ func sourceQuality(evidence messageEvidence) string {
 
 func usefulness(kind string) string {
 	switch kind {
-	case episodeKindDecision, episodeKindOutcome, episodeKindUserCorrection:
+	case episodeKindDecision,
+		episodeKindOutcome,
+		episodeKindUserCorrection,
+		episodeKindResolvedIssue,
+		episodeKindMilestone,
+		episodeKindDiscarded:
 		return "high"
-	case episodeKindToolEvent, episodeKindBlocker:
+	case episodeKindToolEvent, episodeKindBlocker, episodeKindTaskTrace:
 		return "medium"
 	default:
 		return "low"
@@ -641,18 +646,26 @@ func messageLine(message handmsg.Message) string {
 }
 
 func candidateMemoryIDs(sessionID string, start int, end int) []string {
-	kinds := []string{
-		episodeKindDecision,
-		episodeKindOutcome,
-		episodeKindToolEvent,
-		episodeKindBlocker,
-		episodeKindUserCorrection,
-	}
+	kinds := episodeCandidateKinds()
 	ids := make([]string, 0, len(kinds))
 	for _, kind := range kinds {
 		ids = append(ids, candidateMemoryID(sessionID, start, end, kind))
 	}
 	return ids
+}
+
+func episodeCandidateKinds() []string {
+	return []string{
+		episodeKindDecision,
+		episodeKindOutcome,
+		episodeKindToolEvent,
+		episodeKindBlocker,
+		episodeKindUserCorrection,
+		episodeKindTaskTrace,
+		episodeKindResolvedIssue,
+		episodeKindMilestone,
+		episodeKindDiscarded,
+	}
 }
 
 func candidateMemoryID(sessionID string, start int, end int, kind string) string {
