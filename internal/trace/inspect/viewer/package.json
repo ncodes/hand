@@ -1,0 +1,21 @@
+{
+  "name": "@hand/trace-viewer",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.100.9",
+    "lucide-react": "^1.14.0",
+    "react": "19.2.5",
+    "react-dom": "19.2.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.2.4",
+    "@vitejs/plugin-react": "6.0.1",
+    "tailwindcss": "4.2.4",
+    "vite": "8.0.10"
+  }
+}

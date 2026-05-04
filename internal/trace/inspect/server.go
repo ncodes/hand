@@ -47,6 +47,7 @@ func (a *App) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/sessions", a.handleSessions)
 	mux.HandleFunc("/api/sessions/", a.handleSession)
+	mux.Handle("/assets/", http.FileServer(http.FS(assetFS())))
 	mux.HandleFunc("/", a.handleIndex)
 	if !a.requiresAuth() {
 		return mux
@@ -95,6 +96,14 @@ func (a *App) handleIndex(w http.ResponseWriter, _ *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(content)
+}
+
+func assetFS() fs.FS {
+	sub, err := fs.Sub(assets, "assets")
+	if err != nil {
+		return assets
+	}
+	return sub
 }
 
 func (a *App) handleSessions(w http.ResponseWriter, _ *http.Request) {
