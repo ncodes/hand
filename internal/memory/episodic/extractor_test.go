@@ -41,6 +41,16 @@ func (e fakeCandidateExtractor) ExtractCandidates(_ context.Context, req Candida
 	return e.result, nil
 }
 
+type capturingCandidateExtractor struct {
+	result CandidateResult
+	req    CandidateRequest
+}
+
+func (e *capturingCandidateExtractor) ExtractCandidates(_ context.Context, req CandidateRequest) (CandidateResult, error) {
+	e.req = req
+	return e.result, nil
+}
+
 func (r *recordingTrace) Record(name string, payload any) {
 	r.events = append(r.events, recordedEvent{name: name, payload: payload})
 }
@@ -587,6 +597,121 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 	require.Equal(t, "source_window", outcome.Metadata["recency"])
 }
 
+func TestService_CandidatesFromMessages_IncludesTaskTraceEvidence(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	manager := testManager(t, store)
+	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
+
+	_, err := manager.AppendTraceEvent(ctx, storage.TraceEvent{
+		SessionID: storage.DefaultSessionID,
+		Type:      trace.EvtChatStarted,
+		Timestamp: time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC),
+		Payload:   map[string]any{"ignored": true},
+	})
+	require.NoError(t, err)
+	_, err = manager.AppendTraceEvent(ctx, storage.TraceEvent{
+		SessionID: storage.DefaultSessionID,
+		Type:      trace.EvtToolInvocationStarted,
+		Timestamp: time.Date(2026, 5, 3, 12, 0, 1, 0, time.UTC),
+		Payload:   map[string]any{"name": "run_command", "command": "go test ./..."},
+	})
+	require.NoError(t, err)
+	_, err = manager.AppendTraceEvent(ctx, storage.TraceEvent{
+		SessionID: storage.DefaultSessionID,
+		Type:      trace.EvtToolInvocationCompleted,
+		Timestamp: time.Date(2026, 5, 3, 12, 0, 2, 0, time.UTC),
+		Payload:   map[string]any{"name": "run_command", "exit_code": 0},
+	})
+	require.NoError(t, err)
+	_, err = manager.AppendTraceEvent(ctx, storage.TraceEvent{
+		SessionID: storage.DefaultSessionID,
+		Type:      trace.EvtMemoryExtractionStarted,
+		Timestamp: time.Date(2026, 5, 3, 12, 0, 3, 0, time.UTC),
+		Payload:   map[string]any{"ignored": true},
+	})
+	require.NoError(t, err)
+
+	extractor := &capturingCandidateExtractor{result: CandidateResult{Candidates: []episodeCandidate{{
+		Kind:       episodeKindToolEvent,
+		Title:      "Tool event",
+		Text:       "Tool event: run_command completed successfully.",
+		Confidence: 0.88,
+		Metadata: map[string]string{
+			"tool_name":        "run_command",
+			"status":           "success",
+			"trace_event_refs": "trace:2,trace:3",
+		},
+	}}}}
+	service := Service{manager: manager, extractor: extractor}
+
+	items, rejections, err := service.candidatesFromMessages(ctx, normalizedRequest{
+		SessionID:       storage.DefaultSessionID,
+		MaxWindowChars:  1000,
+		MaxWindowTokens: 250,
+		Trigger:         "command",
+	}, sourceWindow{Start: 0, End: 1}, []handmsg.Message{
+		{ID: 1, Role: handmsg.RoleAssistant, Content: "I ran tests and they passed."},
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, rejections)
+	require.Len(t, items, 1)
+	require.Contains(t, extractor.req.TraceEvents, taskTraceEvidence{Ref: "trace:2", Type: trace.EvtToolInvocationStarted, Timestamp: "2026-05-03T12:00:01Z", Payload: `{"command":"go test ./...","name":"run_command"}`})
+	require.Len(t, extractor.req.TraceEvents, 2)
+	require.Equal(t, []string{trace.EvtToolInvocationStarted, trace.EvtToolInvocationCompleted}, traceEvidenceTypes(extractor.req.TraceEvents))
+	require.Equal(t, "trace:2", extractor.req.TraceEvents[0].Ref)
+	require.Contains(t, extractor.req.TraceEvents[0].Payload, "go test ./...")
+	require.Equal(t, "trace:2,trace:3", items[0].Metadata["trace_event_refs"])
+	require.Equal(t, "trace:2,trace:3", items[0].Metadata["available_trace_event_refs"])
+	require.Equal(t, "2", items[0].Metadata["available_trace_event_count"])
+}
+
+func TestService_CandidatesFromMessages_ReturnsTraceLoadError(t *testing.T) {
+	traceErr := errors.New("trace load failed")
+	service := Service{manager: traceErrorManager{err: traceErr}, extractor: fakeCandidateExtractor{}}
+
+	_, _, err := service.candidatesFromMessages(context.Background(), normalizedRequest{
+		SessionID:       storage.DefaultSessionID,
+		MaxWindowChars:  1000,
+		MaxWindowTokens: 250,
+	}, sourceWindow{Start: 0, End: 1}, []handmsg.Message{
+		{ID: 1, Role: handmsg.RoleUser, Content: "remember"},
+	})
+
+	require.ErrorIs(t, err, traceErr)
+}
+
+func TestService_TraceEvidenceHelpersCoverEdgeBranches(t *testing.T) {
+	events, err := (Service{}).traceEvidence(context.Background(), storage.DefaultSessionID)
+	require.NoError(t, err)
+	require.Empty(t, events)
+
+	service := Service{manager: traceErrorManager{err: storage.ErrTraceStoreUnsupported}}
+	events, err = service.traceEvidence(context.Background(), storage.DefaultSessionID)
+	require.NoError(t, err)
+	require.Empty(t, events)
+
+	service = Service{manager: traceErrorManager{result: storage.TraceResult{Events: []storage.TraceEvent{{
+		SessionID: storage.DefaultSessionID,
+		Type:      trace.EvtChatStarted,
+	}}}}}
+	events, err = service.traceEvidence(context.Background(), storage.DefaultSessionID)
+	require.NoError(t, err)
+	require.Empty(t, events)
+
+	require.Equal(t, "trace_id:7", traceEventRef(storage.TraceEvent{ID: 7}))
+	require.Equal(t, "trace:unknown", traceEventRef(storage.TraceEvent{}))
+	require.Empty(t, traceEventTimestamp(storage.TraceEvent{}))
+	require.Empty(t, tracePayloadText(nil))
+	require.Empty(t, tracePayloadText(map[string]any{"invalid": func() {}}))
+	require.LessOrEqual(
+		t,
+		len([]rune(tracePayloadText(map[string]any{"value": strings.Repeat("x", maxTracePayloadChars+50)}))),
+		maxTracePayloadChars,
+	)
+}
+
 func TestService_CandidatesFromMessages_UsesLLMExtractorRejections(t *testing.T) {
 	req := normalizedRequest{SessionID: storage.DefaultSessionID, MaxWindowChars: 1000, MaxWindowTokens: 250}
 	service := Service{extractor: fakeCandidateExtractor{result: CandidateResult{
@@ -747,6 +872,14 @@ func traceEventNames(recorder *recordingTrace) []string {
 	return names
 }
 
+func traceEvidenceTypes(events []taskTraceEvidence) []string {
+	types := make([]string, 0, len(events))
+	for _, event := range events {
+		types = append(types, event.Type)
+	}
+	return types
+}
+
 func tracePayloadFor(t *testing.T, recorder *recordingTrace, name string) map[string]any {
 	t.Helper()
 
@@ -828,6 +961,31 @@ type memoryProviderStub struct {
 	searchResult storage.MemorySearchResult
 	searchErr    error
 	upsertErr    error
+}
+
+type traceErrorManager struct {
+	result storage.TraceResult
+	err    error
+}
+
+func (m traceErrorManager) CurrentSession(context.Context) (string, error) {
+	return storage.DefaultSessionID, nil
+}
+
+func (m traceErrorManager) CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error) {
+	return 0, nil
+}
+
+func (m traceErrorManager) GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+	return nil, nil
+}
+
+func (m traceErrorManager) ListTraceEvents(context.Context, storage.TraceQuery) (storage.TraceResult, error) {
+	return m.result, m.err
+}
+
+func (m traceErrorManager) UpdateEpisodicCheckpoint(context.Context, string, int) error {
+	return nil
 }
 
 func (p *memoryProviderStub) Search(_ context.Context, query storage.MemorySearchQuery) (storage.MemorySearchResult, error) {

@@ -53,7 +53,12 @@ func TestLLMExtractor_ExtractCandidatesUsesStructuredRequestAndParsesResponse(t 
 		Start:     1,
 		End:       2,
 		Messages:  []string{"user: use LLM extraction only"},
-		MaxChars:  500,
+		TraceEvents: []taskTraceEvidence{{
+			Ref:     "trace:2",
+			Type:    "tool.invocation.completed",
+			Payload: `{"name":"run_command","exit_code":0}`,
+		}},
+		MaxChars: 500,
 	})
 
 	require.NoError(t, err)
@@ -73,6 +78,8 @@ func TestLLMExtractor_ExtractCandidatesUsesStructuredRequestAndParsesResponse(t 
 	require.Len(t, client.requests[0].Messages, 1)
 	require.Equal(t, handmsg.RoleUser, client.requests[0].Messages[0].Role)
 	require.Contains(t, client.requests[0].Messages[0].Content, `"session_id":"session"`)
+	require.Contains(t, client.requests[0].Messages[0].Content, `"trace_events"`)
+	require.Contains(t, client.requests[0].Messages[0].Content, `"ref":"trace:2"`)
 }
 
 func TestLLMExtractor_ExtractCandidatesParsesFencedJSONResponse(t *testing.T) {

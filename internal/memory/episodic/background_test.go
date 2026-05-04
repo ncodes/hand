@@ -465,6 +465,10 @@ func (sourceManagerStub) GetMessages(context.Context, string, storage.MessageQue
 	return nil, nil
 }
 
+func (sourceManagerStub) ListTraceEvents(context.Context, storage.TraceQuery) (storage.TraceResult, error) {
+	return storage.TraceResult{}, nil
+}
+
 func (sourceManagerStub) UpdateEpisodicCheckpoint(context.Context, string, int) error {
 	return nil
 }

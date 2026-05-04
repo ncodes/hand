@@ -77,6 +77,7 @@ type StateManager interface {
 	CurrentSession(context.Context) (string, error)
 	CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error)
 	GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
+	ListTraceEvents(context.Context, storage.TraceQuery) (storage.TraceResult, error)
 	UpdateEpisodicCheckpoint(context.Context, string, int) error
 }
 
@@ -157,6 +158,8 @@ type messageEvidence struct {
 	Text string
 	// LowerText contains Text lowercased for local scoring helpers.
 	LowerText string
+	// TraceRefs identifies trace events used as task evidence.
+	TraceRefs []string
 }
 
 // candidateExtractor proposes curated episodic memory items from message evidence.
@@ -174,8 +177,22 @@ type CandidateRequest struct {
 	End int `json:"end"`
 	// Messages contains normalized role-prefixed evidence lines.
 	Messages []string `json:"messages"`
+	// TraceEvents contains bounded task trace evidence from the same source session.
+	TraceEvents []taskTraceEvidence `json:"trace_events,omitempty"`
 	// MaxChars is the maximum desired proposed memory text size.
 	MaxChars int `json:"max_chars"`
+}
+
+// taskTraceEvidence is a compact trace event representation sent to the extractor.
+type taskTraceEvidence struct {
+	// Ref is the stable source reference for this trace event within the session.
+	Ref string `json:"ref"`
+	// Type is the trace event type.
+	Type string `json:"type"`
+	// Timestamp is the UTC event timestamp.
+	Timestamp string `json:"timestamp,omitempty"`
+	// Payload contains a bounded JSON rendering of the sanitized trace payload.
+	Payload string `json:"payload,omitempty"`
 }
 
 // CandidateResult is the structured LLM output for one extraction window.

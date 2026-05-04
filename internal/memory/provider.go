@@ -43,6 +43,7 @@ type StateManager interface {
 	CurrentSession(context.Context) (string, error)
 	CountMessages(context.Context, string, statecore.MessageQueryOptions) (int, error)
 	GetMessages(context.Context, string, statecore.MessageQueryOptions) ([]handmsg.Message, error)
+	ListTraceEvents(context.Context, statecore.TraceQuery) (statecore.TraceResult, error)
 	UpdateEpisodicCheckpoint(context.Context, string, int) error
 }
 

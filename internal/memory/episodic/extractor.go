@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -35,6 +36,11 @@ const (
 	episodeKindToolEvent      = "tool_event"
 	episodeKindBlocker        = "blocker"
 	episodeKindUserCorrection = "user_correction"
+)
+
+const (
+	defaultMaxTraceEventsPerWindow = 40
+	maxTracePayloadChars           = 1200
 )
 
 // Service extracts source-linked episodic memories from session message windows.
@@ -356,12 +362,18 @@ func (s Service) candidatesFromMessages(
 	if s.extractor == nil {
 		return nil, nil, errors.New("memory episode extractor is required")
 	}
+	traceEvidence, err := s.traceEvidence(ctx, req.SessionID)
+	if err != nil {
+		return nil, nil, err
+	}
+	evidence.TraceRefs = traceEvidenceRefs(traceEvidence)
 	result, err := s.extractor.ExtractCandidates(ctx, CandidateRequest{
-		SessionID: req.SessionID,
-		Start:     window.Start,
-		End:       window.End,
-		Messages:  evidence.Lines,
-		MaxChars:  req.windowCharLimit(),
+		SessionID:   req.SessionID,
+		Start:       window.Start,
+		End:         window.End,
+		Messages:    evidence.Lines,
+		TraceEvents: traceEvidence,
+		MaxChars:    req.windowCharLimit(),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -383,6 +395,76 @@ func (s Service) candidatesFromMessages(
 	}
 
 	return items, rejections, nil
+}
+
+func (s Service) traceEvidence(ctx context.Context, sessionID string) ([]taskTraceEvidence, error) {
+	if s.manager == nil {
+		return nil, nil
+	}
+
+	result, err := s.manager.ListTraceEvents(ctx, storage.TraceQuery{
+		SessionID: sessionID,
+		Types:     trace.EpisodicMemoryTraceEventTypes(),
+		Limit:     defaultMaxTraceEventsPerWindow,
+	})
+	if err != nil {
+		if errors.Is(err, storage.ErrTraceStoreUnsupported) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	traces := make([]taskTraceEvidence, 0, len(result.Events))
+	for _, event := range result.Events {
+		if !trace.IsEpisodicMemoryTraceEventType(event.Type) {
+			continue
+		}
+		traces = append(traces, taskTraceEvidence{
+			Ref:       traceEventRef(event),
+			Type:      strings.TrimSpace(event.Type),
+			Timestamp: traceEventTimestamp(event),
+			Payload:   tracePayloadText(event.Payload),
+		})
+	}
+	return traces, nil
+}
+
+func traceEventRef(event storage.TraceEvent) string {
+	if event.Sequence > 0 {
+		return "trace:" + strconv.Itoa(event.Sequence)
+	}
+	if event.ID > 0 {
+		return "trace_id:" + strconv.FormatUint(uint64(event.ID), 10)
+	}
+	return "trace:unknown"
+}
+
+func traceEventTimestamp(event storage.TraceEvent) string {
+	if event.Timestamp.IsZero() {
+		return ""
+	}
+	return event.Timestamp.UTC().Format(time.RFC3339Nano)
+}
+
+func tracePayloadText(payload any) string {
+	if payload == nil {
+		return ""
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return ""
+	}
+	return truncateRunes(string(data), maxTracePayloadChars)
+}
+
+func traceEvidenceRefs(events []taskTraceEvidence) []string {
+	refs := make([]string, 0, len(events))
+	for _, event := range events {
+		if ref := strings.TrimSpace(event.Ref); ref != "" {
+			refs = append(refs, ref)
+		}
+	}
+	return refs
 }
 
 func evidenceFromMessages(window sourceWindow, messages []handmsg.Message) messageEvidence {
@@ -436,6 +518,10 @@ func memoryItemFromCandidate(
 		"usefulness":        usefulness(candidate.Kind),
 		"recency":           "source_window",
 		"uncertainty":       uncertainty(candidate.Confidence),
+	}
+	if len(evidence.TraceRefs) > 0 {
+		metadata["available_trace_event_refs"] = strings.Join(evidence.TraceRefs, ",")
+		metadata["available_trace_event_count"] = strconv.Itoa(len(evidence.TraceRefs))
 	}
 	for key, value := range candidate.Metadata {
 		if strings.TrimSpace(value) != "" {

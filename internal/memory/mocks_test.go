@@ -131,6 +131,10 @@ func (s fakeMemoryManager) GetMessages(context.Context, string, statecore.Messag
 	return nil, nil
 }
 
+func (s fakeMemoryManager) ListTraceEvents(context.Context, statecore.TraceQuery) (statecore.TraceResult, error) {
+	return statecore.TraceResult{}, nil
+}
+
 func (s fakeMemoryManager) UpdateEpisodicCheckpoint(context.Context, string, int) error {
 	return nil
 }

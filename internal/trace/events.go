@@ -1,5 +1,10 @@
 package trace
 
+import (
+	"slices"
+	"strings"
+)
+
 const (
 	EvtChatStarted                                = "chat.started"
 	EvtSessionFailed                              = "session.failed"
@@ -53,3 +58,34 @@ const (
 	EvtPlanCleared                                = "plan.cleared"
 	EvtPlanHydrated                               = "plan.hydrated"
 )
+
+var episodicMemoryTraceEventTypes = []string{
+	EvtSessionFailed,
+	EvtToolInvocationStarted,
+	EvtToolInvocationCompleted,
+	EvtContextCompactionTriggered,
+	EvtContextCompactionWarning,
+	EvtContextCompactionPending,
+	EvtContextCompactionRunning,
+	EvtContextCompactionSucceeded,
+	EvtContextCompactionFailed,
+	EvtSummaryFallbackStarted,
+	EvtSummaryRequested,
+	EvtSummarySaved,
+	EvtSummaryFailed,
+	EvtSummaryParseFailed,
+	EvtSummaryApplied,
+	EvtWorkspaceRulesTruncated,
+	EvtPlanUpdated,
+	EvtPlanCleared,
+	EvtPlanHydrated,
+}
+
+func EpisodicMemoryTraceEventTypes() []string {
+	return append([]string(nil), episodicMemoryTraceEventTypes...)
+}
+
+func IsEpisodicMemoryTraceEventType(eventType string) bool {
+	eventType = strings.TrimSpace(eventType)
+	return slices.Contains(episodicMemoryTraceEventTypes, eventType)
+}

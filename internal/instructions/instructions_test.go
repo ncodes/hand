@@ -321,7 +321,9 @@ func TestBuildEpisodicExtractionInstructions_ReturnsCuratedExtractionPrompt(t *t
 
 	require.Equal(t, strings.TrimSpace(instructions), instructions)
 	require.Contains(t, instructions, "Extract curated episodic memory candidates")
+	require.Contains(t, instructions, "task trace events")
 	require.Contains(t, instructions, "Do not store raw transcript windows")
+	require.Contains(t, instructions, "Use trace_events to verify tool execution")
 	require.Contains(t, instructions, "Reject low-signal, speculative, temporary, unsafe")
 	require.Contains(t, instructions, "Preserve uncertainty in metadata")
 }

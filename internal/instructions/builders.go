@@ -248,9 +248,11 @@ Treat memory_extract as a deliberate capture action: it creates source-linked ep
 }
 
 func BuildEpisodicExtractionInstructions() string {
-	return strings.TrimSpace(`Extract curated episodic memory candidates from bounded session messages.
+	return strings.TrimSpace(`Extract curated episodic memory candidates from bounded session messages and task trace events.
 Return only JSON matching the schema. Do not store raw transcript windows.
 Extract only evidence-backed decisions, outcomes, tool events, blockers, and explicit durable user corrections/preferences.
+Use trace_events to verify tool execution, failures, retries, policy blocks, truncation, plan changes, and other system-side task events that may not be fully narrated in messages.
+When a candidate depends on trace evidence, preserve relevant trace refs or event details in metadata.
 Reject low-signal, speculative, temporary, unsafe, or purely conversational content with a concise reason.
 Keep candidate text concise and outcome-oriented. Preserve uncertainty in metadata when evidence is incomplete.`)
 }

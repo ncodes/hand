@@ -106,7 +106,7 @@ func (m *Manager) TraceStore() (storage.TraceStore, bool) {
 func (m *Manager) AppendTraceEvent(ctx context.Context, event storage.TraceEvent) (storage.TraceEvent, error) {
 	store, ok := m.TraceStore()
 	if !ok {
-		return storage.TraceEvent{}, errors.New("trace store is not supported")
+		return storage.TraceEvent{}, storage.ErrTraceStoreUnsupported
 	}
 
 	return store.AppendTraceEvent(ctx, event)
@@ -115,7 +115,7 @@ func (m *Manager) AppendTraceEvent(ctx context.Context, event storage.TraceEvent
 func (m *Manager) ListTraceEvents(ctx context.Context, query storage.TraceQuery) (storage.TraceResult, error) {
 	store, ok := m.TraceStore()
 	if !ok {
-		return storage.TraceResult{}, errors.New("trace store is not supported")
+		return storage.TraceResult{}, storage.ErrTraceStoreUnsupported
 	}
 
 	return store.ListTraceEvents(ctx, query)
@@ -124,7 +124,7 @@ func (m *Manager) ListTraceEvents(ctx context.Context, query storage.TraceQuery)
 func (m *Manager) PruneTraceEvents(ctx context.Context, sessionID string, maxEvents int) error {
 	store, ok := m.TraceStore()
 	if !ok {
-		return errors.New("trace store is not supported")
+		return storage.ErrTraceStoreUnsupported
 	}
 
 	return store.PruneTraceEvents(ctx, sessionID, maxEvents)

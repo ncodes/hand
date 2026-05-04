@@ -3,10 +3,13 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"strings"
 	"time"
 )
+
+var ErrTraceStoreUnsupported = errors.New("trace store is not supported")
 
 type TraceEvent struct {
 	ID        uint
