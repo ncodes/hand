@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/wandxy/hand/internal/guardrails"
+	storage "github.com/wandxy/hand/internal/state/core"
 )
 
 var (
@@ -67,6 +68,39 @@ type JSONLFactory struct {
 	pathLocks sync.Map // path -> *sync.Mutex
 }
 
+type StateStore interface {
+	AppendTraceEvent(context.Context, storage.TraceEvent) (storage.TraceEvent, error)
+	ListTraceEvents(context.Context, storage.TraceQuery) (storage.TraceResult, error)
+	PruneTraceEvents(context.Context, string, int) error
+}
+
+type StateFactory struct {
+	store               StateStore
+	redactor            guardrails.Redactor
+	maxEventsPerSession int
+	now                 func() time.Time
+}
+
+type stateSession struct {
+	ctx                 context.Context
+	id                  string
+	store               StateStore
+	redactor            guardrails.Redactor
+	maxEventsPerSession int
+	now                 func() time.Time
+	closed              bool
+	mu                  sync.Mutex
+	noop                bool
+}
+
+type multiFactory struct {
+	factories []Factory
+}
+
+type multiSession struct {
+	sessions []Session
+}
+
 type jsonlSession struct {
 	id       string
 	encoder  *json.Encoder
@@ -82,7 +116,7 @@ type noopSession struct{}
 
 type noopFactory struct{}
 
-func NewFactory(directory string, redactor guardrails.Redactor) *JSONLFactory {
+func NewFileFactory(directory string, redactor guardrails.Redactor) *JSONLFactory {
 	if redactor == nil {
 		redactor = guardrails.NewRedactor()
 	}
@@ -92,6 +126,35 @@ func NewFactory(directory string, redactor guardrails.Redactor) *JSONLFactory {
 		redactor:  redactor,
 		now:       func() time.Time { return time.Now().UTC() },
 	}
+}
+
+func NewStateFactory(store StateStore, redactor guardrails.Redactor, maxEventsPerSession int) *StateFactory {
+	if redactor == nil {
+		redactor = guardrails.NewRedactor()
+	}
+
+	return &StateFactory{
+		store:               store,
+		redactor:            redactor,
+		maxEventsPerSession: maxEventsPerSession,
+		now:                 func() time.Time { return time.Now().UTC() },
+	}
+}
+
+func NewMultiFactory(factories ...Factory) Factory {
+	filtered := make([]Factory, 0, len(factories))
+	for _, factory := range factories {
+		if factory != nil {
+			filtered = append(filtered, factory)
+		}
+	}
+	if len(filtered) == 0 {
+		return NoopFactory()
+	}
+	if len(filtered) == 1 {
+		return filtered[0]
+	}
+	return multiFactory{factories: filtered}
 }
 
 func NoopFactory() Factory {
@@ -239,6 +302,51 @@ func (noopFactory) OpenSession(context.Context, string, Metadata) Session {
 	return NoopSession()
 }
 
+func (f *StateFactory) OpenSession(ctx context.Context, sessionID string, metadata Metadata) Session {
+	if f == nil || f.store == nil {
+		return NoopSession()
+	}
+	if !validateSessionID(sessionID) {
+		log.Warn().Str("sessionID", sessionID).Msg("Invalid trace session id; skipping state trace")
+		return NoopSession()
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	session := &stateSession{
+		ctx:                 ctx,
+		id:                  sessionID,
+		store:               f.store,
+		redactor:            f.redactor,
+		maxEventsPerSession: f.maxEventsPerSession,
+		now:                 f.now,
+	}
+
+	result, err := f.store.ListTraceEvents(ctx, storage.TraceQuery{SessionID: sessionID, Limit: 1})
+	if err != nil {
+		log.Warn().Err(err).Str("sessionID", sessionID).Msg("Failed to inspect state trace session")
+	} else if len(result.Events) == 0 {
+		session.recordUnlocked(EvtChatStarted, metadata)
+	}
+
+	return session
+}
+
+func (f multiFactory) OpenSession(ctx context.Context, sessionID string, metadata Metadata) Session {
+	sessions := make([]Session, 0, len(f.factories))
+	for _, factory := range f.factories {
+		session := factory.OpenSession(ctx, sessionID, metadata)
+		if session != nil {
+			sessions = append(sessions, session)
+		}
+	}
+	if len(sessions) == 0 {
+		return NoopSession()
+	}
+	return multiSession{sessions: sessions}
+}
+
 func (s *jsonlSession) ID() string {
 	if s == nil {
 		return ""
@@ -304,4 +412,78 @@ func (s noopSession) Record(string, any) {
 
 func (s noopSession) Close() {
 	_ = s
+}
+
+func (s *stateSession) ID() string {
+	if s == nil {
+		return ""
+	}
+	return s.id
+}
+
+func (s *stateSession) Record(eventType string, payload any) {
+	if s == nil || s.noop {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closed {
+		return
+	}
+
+	s.recordUnlocked(eventType, payload)
+}
+
+func (s *stateSession) recordUnlocked(eventType string, payload any) {
+	event := storage.TraceEvent{
+		SessionID: s.id,
+		Type:      strings.TrimSpace(eventType),
+		Timestamp: s.now().UTC(),
+	}
+	if payload != nil {
+		event.Payload = s.redactor.Sanitize(payload)
+	}
+	if _, err := s.store.AppendTraceEvent(s.ctx, event); err != nil {
+		log.Warn().Err(err).Str("sessionID", s.id).Str("eventType", event.Type).Msg("Failed to write state trace event")
+		return
+	}
+	if s.maxEventsPerSession >= 0 {
+		if err := s.store.PruneTraceEvents(s.ctx, s.id, s.maxEventsPerSession); err != nil {
+			log.Warn().Err(err).Str("sessionID", s.id).Msg("Failed to prune state trace events")
+		}
+	}
+}
+
+func (s *stateSession) Close() {
+	if s == nil || s.noop {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.closed = true
+}
+
+func (s multiSession) ID() string {
+	for _, session := range s.sessions {
+		if id := session.ID(); strings.TrimSpace(id) != "" {
+			return id
+		}
+	}
+	return ""
+}
+
+func (s multiSession) Record(eventType string, payload any) {
+	for _, session := range s.sessions {
+		session.Record(eventType, payload)
+	}
+}
+
+func (s multiSession) Close() {
+	for _, session := range s.sessions {
+		session.Close()
+	}
 }

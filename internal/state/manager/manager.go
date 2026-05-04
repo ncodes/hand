@@ -90,6 +90,46 @@ func (m *Manager) DeleteMemory(ctx context.Context, req storage.MemoryDeleteRequ
 	return store.DeleteMemory(ctx, req)
 }
 
+func (m *Manager) TraceStore() (storage.TraceStore, bool) {
+	if m == nil || m.store == nil {
+		return nil, false
+	}
+
+	store, ok := m.store.(storage.TraceStore)
+	if !ok {
+		return nil, false
+	}
+
+	return store, true
+}
+
+func (m *Manager) AppendTraceEvent(ctx context.Context, event storage.TraceEvent) (storage.TraceEvent, error) {
+	store, ok := m.TraceStore()
+	if !ok {
+		return storage.TraceEvent{}, errors.New("trace store is not supported")
+	}
+
+	return store.AppendTraceEvent(ctx, event)
+}
+
+func (m *Manager) ListTraceEvents(ctx context.Context, query storage.TraceQuery) (storage.TraceResult, error) {
+	store, ok := m.TraceStore()
+	if !ok {
+		return storage.TraceResult{}, errors.New("trace store is not supported")
+	}
+
+	return store.ListTraceEvents(ctx, query)
+}
+
+func (m *Manager) PruneTraceEvents(ctx context.Context, sessionID string, maxEvents int) error {
+	store, ok := m.TraceStore()
+	if !ok {
+		return errors.New("trace store is not supported")
+	}
+
+	return store.PruneTraceEvents(ctx, sessionID, maxEvents)
+}
+
 func (m *Manager) Resolve(ctx context.Context, id string) (storage.Session, error) {
 	if m == nil {
 		return storage.Session{}, errors.New("state manager is required")

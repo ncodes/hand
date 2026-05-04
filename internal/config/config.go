@@ -39,6 +39,7 @@ type Config struct {
 	Cap        CapConfig        `yaml:"cap"`
 	Log        LogConfig        `yaml:"log"`
 	Debug      DebugConfig      `yaml:"debug"`
+	Trace      TraceConfig      `yaml:"trace"`
 	Web        WebConfig        `yaml:"web"`
 	Rules      RulesConfig      `yaml:"rules"`
 }
@@ -172,9 +173,23 @@ type LogConfig struct {
 }
 
 type DebugConfig struct {
-	Requests bool   `yaml:"requests"`
-	Traces   bool   `yaml:"traces"`
-	TraceDir string `yaml:"traceDir"`
+	Requests bool `yaml:"requests"`
+}
+
+type TraceConfig struct {
+	Enabled  bool                `yaml:"enabled"`
+	Disk     TraceDiskConfig     `yaml:"disk"`
+	Database TraceDatabaseConfig `yaml:"database"`
+}
+
+type TraceDiskConfig struct {
+	Enabled *bool  `yaml:"enabled"`
+	Dir     string `yaml:"dir"`
+}
+
+type TraceDatabaseConfig struct {
+	Enabled             *bool `yaml:"enabled"`
+	MaxEventsPerSession int   `yaml:"maxEventsPerSession"`
 }
 
 type WebConfig struct {
@@ -288,6 +303,7 @@ const (
 	DefaultWebExtractMaxSummaryChars                     = constants.DefaultWebExtractMaxSummaryChars
 	DefaultWebExtractMaxSummaryChunkChars                = constants.DefaultWebExtractMaxSummaryChunkChars
 	DefaultWebExtractRefusalThresholdChars               = constants.DefaultWebExtractRefusalThresholdChars
+	DefaultTraceMaxEventsPerSession                      = 10000
 	DefaultModelMaxRetries                               = constants.DefaultModelMaxRetries
 	defaultMaxIterations                                 = constants.DefaultMaxIterations
 )
@@ -347,8 +363,14 @@ func Get() *Config {
 			Log: LogConfig{
 				Level: constants.DefaultLogLevel,
 			},
-			Debug: DebugConfig{
-				TraceDir: datadir.DebugTraceDir(),
+			Trace: TraceConfig{
+				Disk: TraceDiskConfig{
+					Enabled: new(true),
+				},
+				Database: TraceDatabaseConfig{
+					Enabled:             new(true),
+					MaxEventsPerSession: DefaultTraceMaxEventsPerSession,
+				},
 			},
 			Web: WebConfig{
 				MaxCharPerResult:             DefaultWebMaxCharPerResult,
@@ -517,11 +539,22 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_DEBUG_REQUESTS"))); value != "" {
 		cfg.Debug.Requests = value == "1" || value == "true" || value == "yes"
 	}
-	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_DEBUG_TRACES"))); value != "" {
-		cfg.Debug.Traces = value == "1" || value == "true" || value == "yes"
+	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_TRACE_ENABLED"))); value != "" {
+		cfg.Trace.Enabled = value == "1" || value == "true" || value == "yes"
 	}
-	if value := strings.TrimSpace(os.Getenv("HAND_DEBUG_TRACE_DIR")); value != "" {
-		cfg.Debug.TraceDir = value
+	if value, ok := parseOptionalBoolEnv("HAND_TRACE_DISK_ENABLED"); ok {
+		cfg.Trace.Disk.Enabled = new(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_TRACE_DISK_DIR")); value != "" {
+		cfg.Trace.Disk.Dir = value
+	}
+	if value, ok := parseOptionalBoolEnv("HAND_TRACE_DATABASE_ENABLED"); ok {
+		cfg.Trace.Database.Enabled = new(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_TRACE_DATABASE_MAX_EVENTS_PER_SESSION")); value != "" {
+		if maxEvents, err := strconv.Atoi(value); err == nil {
+			cfg.Trace.Database.MaxEventsPerSession = maxEvents
+		}
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_PROVIDER")); value != "" {
 		cfg.Web.Provider = value
@@ -802,7 +835,7 @@ func (c *Config) normalizeFields() {
 	c.Models.Main.APIMode = strings.TrimSpace(strings.ToLower(c.Models.Main.APIMode))
 	c.Models.Summary.APIMode = strings.TrimSpace(strings.ToLower(c.Models.Summary.APIMode))
 	c.Log.Level = strings.TrimSpace(strings.ToLower(c.Log.Level))
-	c.Debug.TraceDir = strings.TrimSpace(c.Debug.TraceDir)
+	c.Trace.Disk.Dir = strings.TrimSpace(c.Trace.Disk.Dir)
 	c.Web.Provider = strings.TrimSpace(strings.ToLower(c.Web.Provider))
 	c.Web.APIKey = strings.TrimSpace(c.Web.APIKey)
 	c.Web.BaseURL = strings.TrimSpace(c.Web.BaseURL)
@@ -862,8 +895,17 @@ func (c *Config) normalizeFields() {
 	if c.Session.MaxIterations == 0 {
 		c.Session.MaxIterations = defaultMaxIterations
 	}
-	if c.Debug.TraceDir == "" {
-		c.Debug.TraceDir = datadir.DebugTraceDir()
+	if c.Trace.Disk.Dir == "" {
+		c.Trace.Disk.Dir = datadir.DebugTraceDir()
+	}
+	if c.Trace.Disk.Enabled == nil {
+		c.Trace.Disk.Enabled = new(true)
+	}
+	if c.Trace.Database.Enabled == nil {
+		c.Trace.Database.Enabled = new(true)
+	}
+	if c.Trace.Database.MaxEventsPerSession <= 0 {
+		c.Trace.Database.MaxEventsPerSession = DefaultTraceMaxEventsPerSession
 	}
 	if c.Platform == "" {
 		c.Platform = constants.DefaultPlatform

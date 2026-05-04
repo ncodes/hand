@@ -60,7 +60,7 @@ GLOBAL OPTIONS:{{template "visibleFlagTemplate" .}}{{end}}
 EXAMPLES:
    Start the agent runtime:
       hand up
-      hand --config ./config.yaml --debug.traces up
+      hand --config ./config.yaml --trace.enabled up
 
    Chat with the agent:
       hand "summarize the failing tests"

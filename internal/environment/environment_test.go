@@ -39,7 +39,7 @@ import (
 func TestNewEnvironment_InitializesDependencies(t *testing.T) {
 	baseCtx := gctx.WithValue(gctx.Background(), "requestID", "req-123")
 	dir := t.TempDir()
-	cfg := &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}}
+	cfg := &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}}}
 
 	env := NewEnvironment(baseCtx, cfg)
 	h := env.(*environment)
@@ -98,7 +98,7 @@ func TestEnvironment_PrepareAddsFullBaseInstructionStack(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	cfg := &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}}
+	cfg := &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
@@ -135,7 +135,7 @@ func TestEnvironment_PrepareRequiresStateManager(t *testing.T) {
 		return workspace.Result{}, nil
 	}
 
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}}})
 
 	err := env.Prepare()
 
@@ -156,7 +156,7 @@ func TestEnvironment_PrepareNormalizesConfig(t *testing.T) {
 		return workspace.Result{}, nil
 	}
 
-	cfg := &config.Config{Name: " Test Agent ", Debug: config.DebugConfig{TraceDir: t.TempDir()}}
+	cfg := &config.Config{Name: " Test Agent ", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
@@ -171,7 +171,7 @@ func TestEnvironment_PrepareConfiguresMemoryProviderWhenEnabled(t *testing.T) {
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:   "Test Agent",
 		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
-		Debug:  config.DebugConfig{TraceDir: t.TempDir()},
+		Trace:  config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 	})
 	env.SetStateManager(newTestStateManager(t))
 	env.SetModelClient(environmentEpisodicModelClientStub())
@@ -189,7 +189,7 @@ func TestEnvironment_PrepareConfiguresDefaultMemoryProviderWithStateStore(t *tes
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:   "Test Agent",
 		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
-		Debug:  config.DebugConfig{TraceDir: t.TempDir()},
+		Trace:  config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 	})
 	env.SetStateManager(manager)
 
@@ -224,7 +224,7 @@ func TestEnvironment_PrepareConfiguresMemoryBackgroundOptions(t *testing.T) {
 				},
 			},
 		},
-		Debug: config.DebugConfig{TraceDir: t.TempDir()},
+		Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 	})
 	env.SetStateManager(newTestStateManager(t))
 	env.SetModelClient(environmentEpisodicModelClientStub())
@@ -254,7 +254,7 @@ func TestEnvironment_PrepareConfiguresPinnedMemoryOptions(t *testing.T) {
 				MaxItemChars: 40,
 			},
 		},
-		Debug: config.DebugConfig{TraceDir: t.TempDir()},
+		Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 	})
 	env.SetStateManager(manager)
 
@@ -285,7 +285,7 @@ func TestEnvironment_PrepareAutoLoadsWorkspaceMemoryFile(t *testing.T) {
 			Enabled:  &enabled,
 			Provider: memory.ProviderDefaultMemory,
 		},
-		Debug: config.DebugConfig{TraceDir: t.TempDir()},
+		Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 	})
 	env.SetStateManager(manager)
 
@@ -310,7 +310,7 @@ func TestEnvironment_PrepareConfiguresDefaultMemoryProviderWithMemoryBackend(t *
 		Name:    "Test Agent",
 		Storage: config.StorageConfig{Backend: "memory"},
 		Memory:  config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
-		Debug:   config.DebugConfig{TraceDir: t.TempDir()},
+		Trace:   config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 	})
 	env.SetStateManager(manager)
 
@@ -328,7 +328,7 @@ func TestEnvironment_PrepareConfiguresDefaultMemoryProviderWithMemoryBackend(t *
 }
 
 func TestEnvironment_PrepareConfiguresDefaultMemoryProviderByDefault(t *testing.T) {
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}}})
 	env.SetStateManager(newTestStateManager(t))
 
 	require.NoError(t, env.Prepare())
@@ -340,7 +340,7 @@ func TestEnvironment_PrepareLeavesMemoryProviderDisabledWhenConfigured(t *testin
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:   "Test Agent",
 		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
-		Debug:  config.DebugConfig{TraceDir: t.TempDir()},
+		Trace:  config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 	})
 	env.SetStateManager(newTestStateManager(t))
 
@@ -353,7 +353,7 @@ func TestEnvironment_PrepareReturnsMemoryProviderErrors(t *testing.T) {
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:   "Test Agent",
 		Memory: config.MemoryConfig{Enabled: &enabled, Provider: "missing"},
-		Debug:  config.DebugConfig{TraceDir: t.TempDir()},
+		Trace:  config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 	})
 	env.SetStateManager(&statemanager.Manager{})
 
@@ -387,7 +387,7 @@ func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
 	dir := t.TempDir()
 	cfg := &config.Config{
 		Name:  "Test Agent",
-		Debug: config.DebugConfig{TraceDir: dir},
+		Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}},
 		Rules: config.RulesConfig{Files: []string{"hand.md"}},
 	}
 	env := NewEnvironment(gctx.Background(), cfg)
@@ -417,7 +417,7 @@ func TestEnvironment_PrepareAppendsPersonalityBeforeWorkspaceRules(t *testing.T)
 	}
 
 	dir := t.TempDir()
-	cfg := &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}}
+	cfg := &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
@@ -447,7 +447,7 @@ func TestEnvironment_PrepareAppendsInstructAfterWorkspaceRules(t *testing.T) {
 
 	cfg := &config.Config{
 		Name:    "Test Agent",
-		Debug:   config.DebugConfig{TraceDir: t.TempDir()},
+		Trace:   config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 		Session: config.SessionConfig{Instruct: "be terse"},
 	}
 	env := NewEnvironment(gctx.Background(), cfg)
@@ -477,7 +477,7 @@ func TestEnvironment_PrepareIgnoresPersonalityLoadError(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	cfg := &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}}
+	cfg := &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
@@ -499,7 +499,7 @@ func TestEnvironment_PrepareIgnoresWorkspaceRuleLoadError(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	cfg := &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}}
+	cfg := &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
@@ -521,7 +521,7 @@ func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) 
 	}
 
 	dir := t.TempDir()
-	cfg := &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}}
+	cfg := &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
@@ -534,7 +534,7 @@ func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) 
 }
 
 func TestEnvironment_SetStateManager(t *testing.T) {
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}}})
 	h := env.(*environment)
 
 	require.Nil(t, h.stateMgr)
@@ -560,7 +560,7 @@ func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	cfg := &config.Config{Debug: config.DebugConfig{TraceDir: dir}}
+	cfg := &config.Config{Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}}}
 	env := NewEnvironment(gctx.Background(), cfg)
 
 	prepareTestEnvironment(t, env)
@@ -585,7 +585,7 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}}})
 
 	prepareTestEnvironment(t, env)
 
@@ -617,7 +617,7 @@ func TestEnvironment_PrepareAppendsLoadedToolUsageInstructionsAfterBaseInstructi
 		return workspace.Result{}, nil
 	}
 
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}}})
 	prepareTestEnvironment(t, env)
 
 	rendered := env.Instructions().String()
@@ -643,7 +643,7 @@ func TestEnvironment_PrepareRegistersSessionTools(t *testing.T) {
 		return workspace.Result{}, nil
 	}
 
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}}})
 	prepareTestEnvironment(t, env)
 
 	definitions, err := env.Tools().Resolve(tools.Policy{
@@ -672,7 +672,7 @@ func TestEnvironment_PrepareRegistersMemorySearchWhenProviderSupportsSearch(t *t
 	enabled := true
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:   "Test Agent",
-		Debug:  config.DebugConfig{TraceDir: t.TempDir()},
+		Trace:  config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
 	})
 	prepareTestEnvironment(t, env)
@@ -686,7 +686,7 @@ func TestEnvironment_PrepareRegistersMemorySearchWhenProviderSupportsSearch(t *t
 }
 
 func TestEnvironment_PrepareToolsReturnsMemorySearchCapabilityError(t *testing.T) {
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}}})
 	h := env.(*environment)
 	h.memory = &memorySearchProviderStub{capsErr: errors.New("capability failed")}
 	h.SetStateManager(&statemanager.Manager{})
@@ -695,7 +695,7 @@ func TestEnvironment_PrepareToolsReturnsMemorySearchCapabilityError(t *testing.T
 }
 
 func TestEnvironment_PrepareToolsRequiresStateManager(t *testing.T) {
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}}})
 	h := env.(*environment)
 
 	require.EqualError(t, h.prepareTools(), "state manager is required")
@@ -712,7 +712,7 @@ func TestEnvironment_PrepareToolsReturnsMemoryExtractionCapabilityError(t *testi
 		},
 	}
 
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}}})
 	h := env.(*environment)
 	h.memory = provider
 	h.SetStateManager(&statemanager.Manager{})
@@ -1016,7 +1016,7 @@ func TestEnvironment_SessionSearchThenSessionMessagesWorkflow(t *testing.T) {
 		{ID: 13, Role: messages.RoleAssistant, Content: "after context", CreatedAt: now.Add(3 * time.Second)},
 	}))
 
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}}})
 	env.SetStateManager(manager)
 	require.NoError(t, env.Prepare())
 
@@ -1084,7 +1084,7 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:  "Test Agent",
-		Debug: config.DebugConfig{TraceDir: t.TempDir()},
+		Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 		Web:   config.WebConfig{Provider: "exa", APIKey: "exa-key"},
 	})
 
@@ -1268,7 +1268,7 @@ func TestEnvironment_PrepareRegistersOnlyWebExtractForNativeProvider(t *testing.
 
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:  "Test Agent",
-		Debug: config.DebugConfig{TraceDir: t.TempDir()},
+		Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 		Web:   config.WebConfig{Provider: "native"},
 	})
 
@@ -1295,7 +1295,7 @@ func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T
 
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:  "Test Agent",
-		Debug: config.DebugConfig{TraceDir: t.TempDir()},
+		Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 	})
 
 	prepareTestEnvironment(t, env)
@@ -1309,7 +1309,7 @@ func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T
 func TestEnvironment_PrepareReturnsWebProviderErrors(t *testing.T) {
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:  "Test Agent",
-		Debug: config.DebugConfig{TraceDir: t.TempDir()},
+		Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 		Web:   config.WebConfig{Provider: "parallel"},
 	})
 	env.SetStateManager(newTestStateManager(t))
@@ -1334,7 +1334,7 @@ func TestEnvironment_WebToolsResolveOnlyWithNetworkCapability(t *testing.T) {
 
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:  "Test Agent",
-		Debug: config.DebugConfig{TraceDir: t.TempDir()},
+		Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 		Web:   config.WebConfig{Provider: "exa", APIKey: "exa-key"},
 	})
 
@@ -1430,7 +1430,7 @@ func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}}})
 	env.(*environment).tools = failingRegistry{err: errors.New("register failed")}
 	env.SetStateManager(newTestStateManager(t))
 	err := env.Prepare()
@@ -1456,7 +1456,7 @@ func TestEnvironment_PrepareReturnsToolGroupRegistrationError(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}}})
 	env.(*environment).tools = failingGroupRegistry{err: errors.New("group failed")}
 	env.SetStateManager(newTestStateManager(t))
 	err := env.Prepare()
@@ -1468,7 +1468,7 @@ func TestEnvironment_PrepareReturnsToolGroupRegistrationError(t *testing.T) {
 }
 
 func TestEnvironment_PrepareToolsPreservesExistingRuntime(t *testing.T) {
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: t.TempDir()}})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}}})
 	h := env.(*environment)
 	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, nil)
 	h.runtime = runtime
@@ -1479,7 +1479,7 @@ func TestEnvironment_PrepareToolsPreservesExistingRuntime(t *testing.T) {
 
 func TestEnvironment_InstructionsReturnsCopy(t *testing.T) {
 	dir := t.TempDir()
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}}})
 	h := env.(*environment)
 	h.instructions = append(h.instructions, instruct.Instruction{Value: "hello"})
 	instructions := env.Instructions()
@@ -1550,7 +1550,7 @@ func TestEnvironment_NewIterationBudgetUsesConfigValue(t *testing.T) {
 	dir := t.TempDir()
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Session: config.SessionConfig{MaxIterations: 12},
-		Debug:   config.DebugConfig{TraceDir: dir},
+		Trace:   config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}},
 	})
 	require.Equal(t, 12, env.NewIterationBudget().Remaining())
 	require.IsType(t, envbudget.IterationBudget{}, env.NewIterationBudget())
@@ -1653,11 +1653,15 @@ func TestEnvironment_CommandPolicyUsesDefaultsForNilConfig(t *testing.T) {
 
 func TestNewEnvironment_ConfiguresTraceFactoryWhenEnabled(t *testing.T) {
 	dir := t.TempDir()
+	manager := newTestStateManager(t)
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:   "Test Agent",
 		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", APIMode: "responses"}},
-		Debug:  config.DebugConfig{Traces: true, TraceDir: dir},
+		Trace:  config.TraceConfig{Enabled: true, Disk: config.TraceDiskConfig{Dir: dir}},
 	})
+	env.SetStateManager(manager)
+	require.NoError(t, env.Prepare())
+
 	const traceSessionID = "ses_test123"
 	session := env.NewTraceSession(traceSessionID)
 	require.Equal(t, traceSessionID, session.ID())
@@ -1690,12 +1694,15 @@ func TestEnvironment_NewTraceSessionRecordsWorkspaceRuleTruncation(t *testing.T)
 	cfg := &config.Config{
 		Name:   "Test Agent",
 		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", APIMode: "responses"}},
-		Debug:  config.DebugConfig{Traces: true, TraceDir: dir},
+		Trace:  config.TraceConfig{Enabled: true, Disk: config.TraceDiskConfig{Dir: dir}},
 	}
 	env := NewEnvironment(gctx.Background(), cfg)
-	prepareTestEnvironment(t, env)
+	manager := newTestStateManager(t)
+	env.SetStateManager(manager)
+	require.NoError(t, env.Prepare())
 
-	const traceSessionID = "ses_rules"
+	traceSessionID, err := storage.NewSessionID()
+	require.NoError(t, err)
 	session := env.NewTraceSession(traceSessionID)
 	session.Close()
 
@@ -1713,11 +1720,107 @@ func TestEnvironment_NewTraceSessionRecordsWorkspaceRuleTruncation(t *testing.T)
 	require.Equal(t, float64(15000), payload["truncated_length"])
 	require.Equal(t, float64(15000), payload["max_content_length"])
 	require.Equal(t, "[... workspace rules truncated ...]", payload["marker"])
+
+	result, err := manager.ListTraceEvents(gctx.Background(), storage.TraceQuery{SessionID: traceSessionID})
+	require.NoError(t, err)
+	require.Len(t, result.Events, 2)
+	require.Equal(t, trace.EvtChatStarted, result.Events[0].Type)
+	require.Equal(t, trace.EvtWorkspaceRulesTruncated, result.Events[1].Type)
+}
+
+func TestEnvironment_NewTraceSessionWritesDiskAndDatabaseSinksByDefault(t *testing.T) {
+	dir := t.TempDir()
+	manager := newTestStateManager(t)
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", APIMode: "responses"}},
+		Trace:  config.TraceConfig{Enabled: true, Disk: config.TraceDiskConfig{Dir: dir}},
+	})
+	env.SetStateManager(manager)
+	require.NoError(t, env.Prepare())
+
+	traceSessionID, err := storage.NewSessionID()
+	require.NoError(t, err)
+	session := env.NewTraceSession(traceSessionID)
+	session.Record(trace.EvtModelRequest, map[string]any{"message": "hello"})
+	session.Close()
+
+	tracePath, err := trace.ResolveTraceFilePath(dir, traceSessionID)
+	require.NoError(t, err)
+	require.Equal(t, []string{trace.EvtChatStarted, trace.EvtModelRequest}, traceEventTypes(readJSONLines(t, tracePath)))
+
+	result, err := manager.ListTraceEvents(gctx.Background(), storage.TraceQuery{SessionID: traceSessionID})
+	require.NoError(t, err)
+	require.Equal(t, []string{trace.EvtChatStarted, trace.EvtModelRequest}, stateTraceEventTypes(result.Events))
+}
+
+func TestEnvironment_NewTraceSessionCanDisableDiskSink(t *testing.T) {
+	disabled := false
+	dir := t.TempDir()
+	manager := newTestStateManager(t)
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", APIMode: "responses"}},
+		Trace: config.TraceConfig{
+			Enabled: true,
+			Disk: config.TraceDiskConfig{
+				Enabled: &disabled,
+				Dir:     dir,
+			},
+		},
+	})
+	env.SetStateManager(manager)
+	require.NoError(t, env.Prepare())
+
+	traceSessionID, err := storage.NewSessionID()
+	require.NoError(t, err)
+	session := env.NewTraceSession(traceSessionID)
+	session.Record(trace.EvtModelResponse, map[string]any{"ok": true})
+	session.Close()
+
+	matches, err := filepath.Glob(filepath.Join(dir, "*.jsonl"))
+	require.NoError(t, err)
+	require.Empty(t, matches)
+
+	result, err := manager.ListTraceEvents(gctx.Background(), storage.TraceQuery{SessionID: traceSessionID})
+	require.NoError(t, err)
+	require.Equal(t, []string{trace.EvtChatStarted, trace.EvtModelResponse}, stateTraceEventTypes(result.Events))
+}
+
+func TestEnvironment_NewTraceSessionCanDisableDatabaseSink(t *testing.T) {
+	disabled := false
+	dir := t.TempDir()
+	manager := newTestStateManager(t)
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", APIMode: "responses"}},
+		Trace: config.TraceConfig{
+			Enabled:  true,
+			Disk:     config.TraceDiskConfig{Dir: dir},
+			Database: config.TraceDatabaseConfig{Enabled: &disabled},
+		},
+	})
+	env.SetStateManager(manager)
+	require.NoError(t, env.Prepare())
+
+	traceSessionID, err := storage.NewSessionID()
+	require.NoError(t, err)
+	session := env.NewTraceSession(traceSessionID)
+	session.Record(trace.EvtModelResponse, map[string]any{"ok": true})
+	session.Close()
+
+	tracePath, err := trace.ResolveTraceFilePath(dir, traceSessionID)
+	require.NoError(t, err)
+	require.Equal(t, []string{trace.EvtChatStarted, trace.EvtModelResponse}, traceEventTypes(readJSONLines(t, tracePath)))
+
+	result, err := manager.ListTraceEvents(gctx.Background(), storage.TraceQuery{SessionID: traceSessionID})
+	require.NoError(t, err)
+	require.Empty(t, result.Events)
 }
 
 func TestNewEnvironment_ReturnsNoopTraceSessionWhenDisabled(t *testing.T) {
 	dir := t.TempDir()
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{TraceDir: dir}})
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: dir}}})
 	session := env.NewTraceSession("ses_test123")
 	require.Equal(t, "", session.ID())
 }
@@ -1737,7 +1840,10 @@ func TestEnvironment_NewTraceSessionNilTraceFactory(t *testing.T) {
 func TestNewEnvironment_UsesDefaultTraceDirWhenEnabledWithoutConfiguredDir(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HAND_HOME", home)
-	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Debug: config.DebugConfig{Traces: true}})
+	manager := newTestStateManager(t)
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Enabled: true}})
+	env.SetStateManager(manager)
+	require.NoError(t, env.Prepare())
 
 	const traceSessionID = "ses_test123"
 	session := env.NewTraceSession(traceSessionID)
@@ -1766,6 +1872,22 @@ func readJSONLines(t *testing.T, path string) []trace.Event {
 	}
 
 	return lines
+}
+
+func traceEventTypes(events []trace.Event) []string {
+	types := make([]string, 0, len(events))
+	for _, event := range events {
+		types = append(types, event.Type)
+	}
+	return types
+}
+
+func stateTraceEventTypes(events []storage.TraceEvent) []string {
+	types := make([]string, 0, len(events))
+	for _, event := range events {
+		types = append(types, event.Type)
+	}
+	return types
 }
 
 func splitLines(data []byte) [][]byte {

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/guardrails"
+	storage "github.com/wandxy/hand/internal/state/core"
 )
 
 func init() {
@@ -23,7 +24,7 @@ const testTraceSessionID = "ses_testtraceid"
 
 func TestJSONLFactory_OpenSessionCreatesSessionAndWritesEvents(t *testing.T) {
 	dir := t.TempDir()
-	factory := NewFactory(dir, guardrails.NewRedactor())
+	factory := NewFileFactory(dir, guardrails.NewRedactor())
 
 	session := factory.OpenSession(context.Background(), testTraceSessionID, Metadata{AgentName: "hand", Model: "gpt-5.1", APIMode: "responses", Source: "agent"})
 	require.Equal(t, testTraceSessionID, session.ID())
@@ -56,7 +57,7 @@ func TestJSONLFactory_OpenSessionCreatesSessionAndWritesEvents(t *testing.T) {
 
 func TestJSONLFactory_OpenSessionSecondOpenAppendsWithoutDuplicateChatStarted(t *testing.T) {
 	dir := t.TempDir()
-	factory := NewFactory(dir, guardrails.NewRedactor())
+	factory := NewFileFactory(dir, guardrails.NewRedactor())
 	meta := Metadata{AgentName: "hand", Model: "m", APIMode: "responses", Source: "agent"}
 
 	s1 := factory.OpenSession(context.Background(), testTraceSessionID, meta)
@@ -85,7 +86,7 @@ func TestJSONLFactory_OpenSessionSecondOpenAppendsWithoutDuplicateChatStarted(t 
 }
 
 func TestJSONLFactory_OpenSessionReturnsNoopWhenDirectoryIsEmpty(t *testing.T) {
-	factory := NewFactory("", guardrails.NewRedactor())
+	factory := NewFileFactory("", guardrails.NewRedactor())
 	session := factory.OpenSession(context.Background(), testTraceSessionID, Metadata{})
 	require.Equal(t, "", session.ID())
 	session.Record("ignored", nil)
@@ -94,7 +95,7 @@ func TestJSONLFactory_OpenSessionReturnsNoopWhenDirectoryIsEmpty(t *testing.T) {
 
 func TestJSONLFactory_OpenSessionReturnsNoopWhenSessionIDInvalid(t *testing.T) {
 	dir := t.TempDir()
-	factory := NewFactory(dir, guardrails.NewRedactor())
+	factory := NewFileFactory(dir, guardrails.NewRedactor())
 	for _, id := range []string{"", ".", "..", "a/b", `a\b`} {
 		session := factory.OpenSession(context.Background(), id, Metadata{})
 		require.Equal(t, "", session.ID(), id)
@@ -111,7 +112,7 @@ func TestNoopFactory_OpenSessionReturnsSession(t *testing.T) {
 
 func TestJSONLSession_CloseIsIdempotent(t *testing.T) {
 	dir := t.TempDir()
-	session := NewFactory(dir, guardrails.NewRedactor()).OpenSession(context.Background(), testTraceSessionID, Metadata{})
+	session := NewFileFactory(dir, guardrails.NewRedactor()).OpenSession(context.Background(), testTraceSessionID, Metadata{})
 	session.Close()
 	session.Close()
 }
@@ -121,14 +122,14 @@ func TestJSONLFactory_OpenSessionReturnsNoopWhenDirectoryInitializationFails(t *
 	blockedPath := filepath.Join(dir, "blocked")
 	require.NoError(t, os.WriteFile(blockedPath, []byte("x"), 0o600))
 
-	session := NewFactory(filepath.Join(blockedPath, "child"), guardrails.NewRedactor()).
+	session := NewFileFactory(filepath.Join(blockedPath, "child"), guardrails.NewRedactor()).
 		OpenSession(context.Background(), testTraceSessionID, Metadata{})
 	require.Equal(t, "", session.ID())
 }
 
 func TestJSONLSession_RecordAfterCloseIsIgnored(t *testing.T) {
 	dir := t.TempDir()
-	factory := NewFactory(dir, guardrails.NewRedactor())
+	factory := NewFileFactory(dir, guardrails.NewRedactor())
 	session := factory.OpenSession(context.Background(), testTraceSessionID, Metadata{})
 	session.Close()
 	session.Record("ignored", map[string]any{"x": 1})
@@ -147,7 +148,7 @@ func TestJSONLSession_IDHandlesNilReceiver(t *testing.T) {
 }
 
 func TestNewFactory_UsesDefaultRedactor(t *testing.T) {
-	factory := NewFactory(t.TempDir(), nil)
+	factory := NewFileFactory(t.TempDir(), nil)
 	require.NotNil(t, factory.redactor)
 }
 
@@ -166,7 +167,7 @@ func TestJSONLFactory_OpenSessionReturnsNoopWhenOpenFails(t *testing.T) {
 		openTraceFile = originalOpen
 	}()
 
-	session := NewFactory(t.TempDir(), guardrails.NewRedactor()).
+	session := NewFileFactory(t.TempDir(), guardrails.NewRedactor()).
 		OpenSession(context.Background(), testTraceSessionID, Metadata{})
 	require.Equal(t, "", session.ID())
 }
@@ -180,7 +181,7 @@ func TestJSONLFactory_OpenSessionReturnsNoopWhenMkdirFails(t *testing.T) {
 		mkdirAll = originalMkdirAll
 	}()
 
-	session := NewFactory(t.TempDir(), guardrails.NewRedactor()).
+	session := NewFileFactory(t.TempDir(), guardrails.NewRedactor()).
 		OpenSession(context.Background(), testTraceSessionID, Metadata{})
 	require.Equal(t, "", session.ID())
 }
@@ -202,7 +203,7 @@ func TestJSONLSession_RecordHandlesNilReceiverAndNoop(t *testing.T) {
 
 func TestJSONLSession_RecordHandlesEncoderError(t *testing.T) {
 	dir := t.TempDir()
-	session := NewFactory(dir, guardrails.NewRedactor()).
+	session := NewFileFactory(dir, guardrails.NewRedactor()).
 		OpenSession(context.Background(), testTraceSessionID, Metadata{}).(*jsonlSession)
 	require.NoError(t, session.file.Close())
 	session.Record("broken", map[string]any{"x": 1})
@@ -218,7 +219,7 @@ func TestJSONLSession_CloseHandlesNilReceiverAndNoop(t *testing.T) {
 
 func TestJSONLSession_CloseHandlesFileCloseError(t *testing.T) {
 	dir := t.TempDir()
-	session := NewFactory(dir, guardrails.NewRedactor()).
+	session := NewFileFactory(dir, guardrails.NewRedactor()).
 		OpenSession(context.Background(), testTraceSessionID, Metadata{}).(*jsonlSession)
 	require.NoError(t, session.file.Close())
 	session.Close()
@@ -281,7 +282,7 @@ func TestJSONLFactory_OpenSessionGlobErrorReturnsNoop(t *testing.T) {
 	}
 	defer func() { globTraceFiles = orig }()
 
-	factory := NewFactory(dir, guardrails.NewRedactor())
+	factory := NewFileFactory(dir, guardrails.NewRedactor())
 	s := factory.OpenSession(context.Background(), testTraceSessionID, Metadata{})
 	require.Equal(t, "", s.ID())
 	s.Close()
@@ -289,7 +290,7 @@ func TestJSONLFactory_OpenSessionGlobErrorReturnsNoop(t *testing.T) {
 
 func TestJSONLFactory_OpenSessionStatErrorReturnsNoop(t *testing.T) {
 	dir := t.TempDir()
-	factory := NewFactory(dir, guardrails.NewRedactor())
+	factory := NewFileFactory(dir, guardrails.NewRedactor())
 
 	origStat := statOpenedFile
 	statOpenedFile = func(*os.File) (os.FileInfo, error) {
@@ -304,7 +305,7 @@ func TestJSONLFactory_OpenSessionStatErrorReturnsNoop(t *testing.T) {
 
 func TestJSONLSession_CloseTraceFileError(t *testing.T) {
 	dir := t.TempDir()
-	session := NewFactory(dir, guardrails.NewRedactor()).OpenSession(context.Background(), testTraceSessionID, Metadata{}).(*jsonlSession)
+	session := NewFileFactory(dir, guardrails.NewRedactor()).OpenSession(context.Background(), testTraceSessionID, Metadata{}).(*jsonlSession)
 
 	origClose := closeTraceFile
 	closeTraceFile = func(*os.File) error {
@@ -319,8 +320,226 @@ func TestJSONLFactory_OpenSessionAmbiguousReturnsNoop(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a-ses_amb.jsonl"), []byte("x"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "b-ses_amb.jsonl"), []byte("y"), 0o644))
-	factory := NewFactory(dir, guardrails.NewRedactor())
+	factory := NewFileFactory(dir, guardrails.NewRedactor())
 	s := factory.OpenSession(context.Background(), "ses_amb", Metadata{})
 	require.Equal(t, "", s.ID())
 	s.Close()
+}
+
+func TestStateFactory_OpenSessionRecordsSanitizedEvents(t *testing.T) {
+	store := &traceStateStoreStub{}
+	factory := NewStateFactory(store, guardrails.NewRedactor(), 10)
+
+	session := factory.OpenSession(context.Background(), testTraceSessionID, Metadata{AgentName: "hand"})
+	require.Equal(t, testTraceSessionID, session.ID())
+	session.Record(EvtModelRequest, map[string]any{"authorization": "Bearer secret", "message": "hello"})
+	session.Close()
+
+	require.Equal(t, []string{EvtChatStarted, EvtModelRequest}, traceStoreEventTypes(store.events))
+	payload, ok := store.events[1].Payload.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "[REDACTED]", payload["authorization"])
+	require.Equal(t, "hello", payload["message"])
+	require.Equal(t, []int{10, 10}, store.pruneCaps)
+}
+
+func TestStateFactory_UsesDefaultRedactor(t *testing.T) {
+	factory := NewStateFactory(&traceStateStoreStub{}, nil, 10)
+
+	require.NotNil(t, factory.redactor)
+}
+
+func TestStateFactory_OpenSessionReturnsNoopWhenUnavailable(t *testing.T) {
+	require.Equal(t, "", NewStateFactory(nil, guardrails.NewRedactor(), 10).
+		OpenSession(context.Background(), testTraceSessionID, Metadata{}).ID())
+
+	var factory *StateFactory
+	require.Equal(t, "", factory.OpenSession(context.Background(), testTraceSessionID, Metadata{}).ID())
+}
+
+func TestStateFactory_OpenSessionReturnsNoopWhenSessionIDInvalid(t *testing.T) {
+	session := NewStateFactory(&traceStateStoreStub{}, guardrails.NewRedactor(), 10).
+		OpenSession(context.Background(), "bad/id", Metadata{})
+
+	require.Equal(t, "", session.ID())
+}
+
+func TestStateFactory_OpenSessionDoesNotDuplicateChatStarted(t *testing.T) {
+	store := &traceStateStoreStub{
+		events: []storage.TraceEvent{{SessionID: testTraceSessionID, Type: EvtChatStarted}},
+	}
+	factory := NewStateFactory(store, guardrails.NewRedactor(), 10)
+
+	session := factory.OpenSession(context.Background(), testTraceSessionID, Metadata{})
+	session.Record(EvtModelResponse, map[string]any{"ok": true})
+
+	require.Equal(t, []string{EvtChatStarted, EvtModelResponse}, traceStoreEventTypes(store.events))
+}
+
+func TestStateFactory_OpenSessionContinuesWhenInspectFails(t *testing.T) {
+	store := &traceStateStoreStub{listErr: os.ErrPermission}
+	session := NewStateFactory(store, guardrails.NewRedactor(), 10).
+		OpenSession(context.Background(), testTraceSessionID, Metadata{})
+
+	require.Equal(t, testTraceSessionID, session.ID())
+	session.Record(EvtModelRequest, map[string]any{"message": "hello"})
+	require.Equal(t, []string{EvtModelRequest}, traceStoreEventTypes(store.events))
+}
+
+func TestStateFactory_OpenSessionUsesBackgroundContextWhenNil(t *testing.T) {
+	store := &traceStateStoreStub{}
+	session := NewStateFactory(store, guardrails.NewRedactor(), 10).
+		OpenSession(nil, testTraceSessionID, Metadata{})
+
+	session.Record(EvtModelRequest, map[string]any{"message": "hello"})
+	require.Equal(t, []string{EvtChatStarted, EvtModelRequest}, traceStoreEventTypes(store.events))
+}
+
+func TestStateSession_RecordIgnoresStoreFailures(t *testing.T) {
+	store := &traceStateStoreStub{appendErr: os.ErrPermission, pruneErr: os.ErrPermission}
+	session := NewStateFactory(store, guardrails.NewRedactor(), 1).
+		OpenSession(context.Background(), testTraceSessionID, Metadata{})
+
+	session.Record(EvtModelRequest, map[string]any{"x": 1})
+	session.Close()
+	session.Record(EvtModelResponse, map[string]any{"x": 2})
+}
+
+func TestStateSession_RecordIgnoresPruneFailure(t *testing.T) {
+	store := &traceStateStoreStub{pruneErr: os.ErrPermission}
+	session := NewStateFactory(store, guardrails.NewRedactor(), 1).
+		OpenSession(context.Background(), testTraceSessionID, Metadata{})
+
+	session.Record(EvtModelRequest, map[string]any{"x": 1})
+
+	require.Equal(t, []string{EvtChatStarted, EvtModelRequest}, traceStoreEventTypes(store.events))
+	require.Equal(t, []int{1, 1}, store.pruneCaps)
+}
+
+func TestStateSession_Noops(t *testing.T) {
+	var session *stateSession
+	require.Equal(t, "", session.ID())
+	session.Record("ignored", nil)
+	session.Close()
+
+	noop := &stateSession{noop: true}
+	noop.Record("ignored", nil)
+	noop.Close()
+}
+
+func TestStateSession_RecordAfterCloseIsIgnored(t *testing.T) {
+	store := &traceStateStoreStub{}
+	session := NewStateFactory(store, guardrails.NewRedactor(), 10).
+		OpenSession(context.Background(), testTraceSessionID, Metadata{})
+
+	session.Close()
+	session.Record(EvtModelRequest, map[string]any{"x": 1})
+
+	require.Equal(t, []string{EvtChatStarted}, traceStoreEventTypes(store.events))
+}
+
+func TestStateSession_RecordSkipsPruneWhenCapIsNegative(t *testing.T) {
+	store := &traceStateStoreStub{}
+	session := NewStateFactory(store, guardrails.NewRedactor(), -1).
+		OpenSession(context.Background(), testTraceSessionID, Metadata{})
+
+	session.Record(EvtModelRequest, map[string]any{"x": 1})
+
+	require.Equal(t, []string{EvtChatStarted, EvtModelRequest}, traceStoreEventTypes(store.events))
+	require.Empty(t, store.pruneCaps)
+}
+
+func TestMultiFactory_FansOutRecords(t *testing.T) {
+	left := &traceStateStoreStub{}
+	right := &traceStateStoreStub{}
+	factory := NewMultiFactory(
+		NewStateFactory(left, guardrails.NewRedactor(), 10),
+		NewStateFactory(right, guardrails.NewRedactor(), 10),
+	)
+
+	session := factory.OpenSession(context.Background(), testTraceSessionID, Metadata{})
+	require.Equal(t, testTraceSessionID, session.ID())
+	session.Record(EvtToolInvocationStarted, map[string]any{"name": "shell"})
+	session.Close()
+
+	require.Equal(t, []string{EvtChatStarted, EvtToolInvocationStarted}, traceStoreEventTypes(left.events))
+	require.Equal(t, []string{EvtChatStarted, EvtToolInvocationStarted}, traceStoreEventTypes(right.events))
+}
+
+func TestMultiFactory_ReturnsNoopOrSingleFactory(t *testing.T) {
+	require.Equal(t, "", NewMultiFactory(nil).OpenSession(context.Background(), testTraceSessionID, Metadata{}).ID())
+
+	store := &traceStateStoreStub{}
+	factory := NewStateFactory(store, guardrails.NewRedactor(), 10)
+	require.Same(t, factory, NewMultiFactory(nil, factory))
+}
+
+func TestMultiFactory_ReturnsNoopWhenChildrenReturnNil(t *testing.T) {
+	session := multiFactory{factories: []Factory{nilSessionFactory{}}}.
+		OpenSession(context.Background(), testTraceSessionID, Metadata{})
+
+	require.Equal(t, "", session.ID())
+}
+
+func TestMultiSession_IDFallsBackToFirstNonEmptySession(t *testing.T) {
+	session := multiSession{sessions: []Session{
+		NoopSession(),
+		&stateSession{id: testTraceSessionID},
+	}}
+
+	require.Equal(t, testTraceSessionID, session.ID())
+	require.Equal(t, "", multiSession{sessions: []Session{NoopSession()}}.ID())
+}
+
+type traceStateStoreStub struct {
+	events    []storage.TraceEvent
+	appendErr error
+	listErr   error
+	pruneErr  error
+	pruneCaps []int
+}
+
+type nilSessionFactory struct{}
+
+func (nilSessionFactory) OpenSession(context.Context, string, Metadata) Session {
+	return nil
+}
+
+func (s *traceStateStoreStub) AppendTraceEvent(_ context.Context, event storage.TraceEvent) (storage.TraceEvent, error) {
+	if s.appendErr != nil {
+		return storage.TraceEvent{}, s.appendErr
+	}
+	event.ID = uint(len(s.events) + 1)
+	event.Sequence = len(s.events) + 1
+	s.events = append(s.events, event)
+	return event, nil
+}
+
+func (s *traceStateStoreStub) ListTraceEvents(_ context.Context, query storage.TraceQuery) (storage.TraceResult, error) {
+	if s.listErr != nil {
+		return storage.TraceResult{}, s.listErr
+	}
+	events := make([]storage.TraceEvent, 0, len(s.events))
+	for _, event := range s.events {
+		if storage.TraceEventMatchesQuery(event, query) {
+			events = append(events, event)
+		}
+	}
+	if query.Limit > 0 && len(events) > query.Limit {
+		events = events[:query.Limit]
+	}
+	return storage.TraceResult{Events: events}, nil
+}
+
+func (s *traceStateStoreStub) PruneTraceEvents(_ context.Context, _ string, maxEvents int) error {
+	s.pruneCaps = append(s.pruneCaps, maxEvents)
+	return s.pruneErr
+}
+
+func traceStoreEventTypes(events []storage.TraceEvent) []string {
+	types := make([]string, 0, len(events))
+	for _, event := range events {
+		types = append(types, event.Type)
+	}
+	return types
 }

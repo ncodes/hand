@@ -102,8 +102,9 @@ func renderStartupPanel(cfg *config.Config) string {
 		debugRequests = "enabled"
 	}
 	traceStatus := "disabled"
-	if cfg.Debug.Traces {
-		traceStatus = fmt.Sprintf("enabled (%s)", cfg.Debug.TraceDir)
+	if cfg.Trace.Enabled {
+		traceDir := strings.TrimSpace(cfg.Trace.Disk.Dir)
+		traceStatus = fmt.Sprintf("enabled (%s)", traceDir)
 	}
 
 	lines := []string{
@@ -286,9 +287,10 @@ func NewCommand() *cli.Command {
 			startupLog := log.Info().
 				Str("rpcEndpoint", fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)).
 				Bool("streaming", cfg.StreamEnabled()).
-				Bool("debugTraces", cfg.Debug.Traces)
-			if cfg.Debug.Traces {
-				startupLog = startupLog.Str("debugTraceDir", cfg.Debug.TraceDir)
+				Bool("traceEnabled", cfg.Trace.Enabled)
+			if cfg.Trace.Enabled {
+				traceDir := strings.TrimSpace(cfg.Trace.Disk.Dir)
+				startupLog = startupLog.Str("traceDir", traceDir)
 			}
 			startupLog.Msg("Starting Hand services")
 

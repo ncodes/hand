@@ -66,7 +66,7 @@ func newViewCommand() *cli.Command {
 
 			traceDir := strings.TrimSpace(cmd.String("trace-dir"))
 			if traceDir == "" {
-				traceDir = strings.TrimSpace(cfg.Debug.TraceDir)
+				traceDir = strings.TrimSpace(cfg.Trace.Disk.Dir)
 			}
 			if traceDir == "" {
 				traceDir = datadir.DebugTraceDir()

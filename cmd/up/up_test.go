@@ -81,8 +81,8 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 		"--model.base-url", serverURL,
 		"--rpc.address", "0.0.0.0",
 		"--rpc.port", "6000",
-		"--debug.traces",
-		"--debug.trace-dir", "/tmp/hand-traces",
+		"--trace.enabled",
+		"--trace.disk.dir", "/tmp/hand-traces",
 		"--log.level", "debug",
 		"up",
 	}))
@@ -95,8 +95,8 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Equal(t, serverURL, cfg.Models.Main.BaseURL)
 	require.Equal(t, "0.0.0.0", cfg.RPC.Address)
 	require.Equal(t, 6000, cfg.RPC.Port)
-	require.True(t, cfg.Debug.Traces)
-	require.Equal(t, "/tmp/hand-traces", cfg.Debug.TraceDir)
+	require.True(t, cfg.Trace.Enabled)
+	require.Equal(t, "/tmp/hand-traces", cfg.Trace.Disk.Dir)
 	require.Equal(t, "debug", cfg.Log.Level)
 	require.False(t, cfg.Log.NoColor)
 	require.True(t, runCalled)
@@ -132,8 +132,8 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, logOutput, "storage=sqlite")
 	require.Contains(t, logOutput, "rpcEndpoint=0.0.0.0:6000")
 	require.Contains(t, logOutput, "streaming=true")
-	require.Contains(t, logOutput, "debugTraces=true")
-	require.Contains(t, logOutput, "debugTraceDir=/tmp/hand-traces")
+	require.Contains(t, logOutput, "traceEnabled=true")
+	require.Contains(t, logOutput, "traceDir=/tmp/hand-traces")
 	require.NotContains(t, logOutput, "service=hand")
 	require.NotContains(t, logOutput, "rpcAddress=0.0.0.0 rpcEndpoint=0.0.0.0:6000 rpcPort=6000")
 }
@@ -144,7 +144,8 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter", Stream: new(false)}},
 		RPC:    config.RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log:    config.LogConfig{Level: "info", NoColor: true},
-		Debug:  config.DebugConfig{Requests: true, Traces: true, TraceDir: "/tmp/hand-traces"},
+		Debug:  config.DebugConfig{Requests: true},
+		Trace:  config.TraceConfig{Enabled: true, Disk: config.TraceDiskConfig{Dir: "/tmp/hand-traces"}},
 	})
 
 	require.NotContains(t, output, "\x1b[90m")

@@ -370,9 +370,9 @@ func itemToMemoryModel(item statememory.MemoryItem) memoryItemModel {
 		Status:          string(item.Status),
 		Title:           item.Title,
 		Text:            item.Text,
-		TagsJSON:        memoryJSONString(item.Tags),
-		MetadataJSON:    memoryJSONString(item.Metadata),
-		SourceLinksJSON: memoryJSONString(item.SourceLinks),
+		TagsJSON:        toJSONString(item.Tags),
+		MetadataJSON:    toJSONString(item.Metadata),
+		SourceLinksJSON: toJSONString(item.SourceLinks),
 		Confidence:      item.Confidence,
 		CreatedAt:       item.CreatedAt,
 		UpdatedAt:       item.UpdatedAt,
@@ -390,19 +390,19 @@ func memoryModelToItem(record memoryItemModel) (statememory.MemoryItem, error) {
 		CreatedAt:  record.CreatedAt.UTC(),
 		UpdatedAt:  record.UpdatedAt.UTC(),
 	}
-	if err := memoryDecodeJSON(record.TagsJSON, &item.Tags); err != nil {
+	if err := fromJSONString(record.TagsJSON, &item.Tags); err != nil {
 		return statememory.MemoryItem{}, err
 	}
-	if err := memoryDecodeJSON(record.MetadataJSON, &item.Metadata); err != nil {
+	if err := fromJSONString(record.MetadataJSON, &item.Metadata); err != nil {
 		return statememory.MemoryItem{}, err
 	}
-	if err := memoryDecodeJSON(record.SourceLinksJSON, &item.SourceLinks); err != nil {
+	if err := fromJSONString(record.SourceLinksJSON, &item.SourceLinks); err != nil {
 		return statememory.MemoryItem{}, err
 	}
 	return item, nil
 }
 
-func memoryJSONString(value any) string {
+func toJSONString(value any) string {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return "null"
@@ -469,7 +469,7 @@ func memoryMetadataSearchText(metadata map[string]string) string {
 	return strings.Join(values, " ")
 }
 
-func memoryDecodeJSON(raw string, target any) error {
+func fromJSONString(raw string, target any) error {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		raw = "null"

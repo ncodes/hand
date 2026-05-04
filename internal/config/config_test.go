@@ -2406,7 +2406,13 @@ func TestConfig_ValidateAllowsResponsesModeWithOpenRouter(t *testing.T) {
 }
 
 func TestLoad_UsesDebugTraceSettingsFromConfig(t *testing.T) {
-	clearEnvKeys(t, "HAND_DEBUG_TRACES", "HAND_DEBUG_TRACE_DIR")
+	clearEnvKeys(t,
+		"HAND_TRACE_ENABLED",
+		"HAND_TRACE_DISK_ENABLED",
+		"HAND_TRACE_DISK_DIR",
+		"HAND_TRACE_DATABASE_ENABLED",
+		"HAND_TRACE_DATABASE_MAX_EVENTS_PER_SESSION",
+	)
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -2423,23 +2429,45 @@ rpc:
 log:
   level: info
 debug:
-  traces: true
-  traceDir: /tmp/hand-traces
+  requests: false
+trace:
+  enabled: true
+  disk:
+    enabled: false
+    dir: /tmp/explicit-hand-traces
+  database:
+    enabled: false
+    maxEventsPerSession: 123
 `), 0o600))
 
 	cfg, err := Load("", configPath)
 	require.NoError(t, err)
-	require.True(t, cfg.Debug.Traces)
-	require.Equal(t, "/tmp/hand-traces", cfg.Debug.TraceDir)
+	require.True(t, cfg.Trace.Enabled)
+	require.False(t, *cfg.Trace.Disk.Enabled)
+	require.Equal(t, "/tmp/explicit-hand-traces", cfg.Trace.Disk.Dir)
+	require.False(t, *cfg.Trace.Database.Enabled)
+	require.Equal(t, 123, cfg.Trace.Database.MaxEventsPerSession)
 }
 
 func TestLoad_UsesDebugTraceSettingsFromEnvOverride(t *testing.T) {
-	clearEnvKeys(t, "HAND_DEBUG_TRACES", "HAND_DEBUG_TRACE_DIR")
+	clearEnvKeys(t,
+		"HAND_TRACE_ENABLED",
+		"HAND_TRACE_DISK_ENABLED",
+		"HAND_TRACE_DISK_DIR",
+		"HAND_TRACE_DATABASE_ENABLED",
+		"HAND_TRACE_DATABASE_MAX_EVENTS_PER_SESSION",
+	)
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
-	require.NoError(t, os.WriteFile(envPath, []byte("HAND_DEBUG_TRACES=true\nHAND_DEBUG_TRACE_DIR=/tmp/env-traces\n"), 0o600))
+	require.NoError(t, os.WriteFile(envPath, []byte(`
+HAND_TRACE_ENABLED=true
+HAND_TRACE_DISK_ENABLED=false
+HAND_TRACE_DISK_DIR=/tmp/env-disk-traces
+HAND_TRACE_DATABASE_ENABLED=false
+HAND_TRACE_DATABASE_MAX_EVENTS_PER_SESSION=77
+`), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
@@ -2453,28 +2481,47 @@ rpc:
 log:
   level: info
 debug:
-  traces: false
-  traceDir: /tmp/config-traces
+  requests: false
+trace:
+  enabled: false
 `), 0o600))
 
 	cfg, err := Load(envPath, configPath)
 	require.NoError(t, err)
-	require.True(t, cfg.Debug.Traces)
-	require.Equal(t, "/tmp/env-traces", cfg.Debug.TraceDir)
+	require.True(t, cfg.Trace.Enabled)
+	require.False(t, *cfg.Trace.Disk.Enabled)
+	require.Equal(t, "/tmp/env-disk-traces", cfg.Trace.Disk.Dir)
+	require.False(t, *cfg.Trace.Database.Enabled)
+	require.Equal(t, 77, cfg.Trace.Database.MaxEventsPerSession)
 }
 
-func TestConfig_NormalizeDefaultsDebugTraceDir(t *testing.T) {
+func TestConfig_NormalizeDefaultsDebugTraceSinks(t *testing.T) {
 	cfg := &Config{}
 	cfg.Normalize()
-	require.Equal(t, datadir.DebugTraceDir(), cfg.Debug.TraceDir)
+	require.True(t, *cfg.Trace.Disk.Enabled)
+	require.Equal(t, datadir.DebugTraceDir(), cfg.Trace.Disk.Dir)
+	require.True(t, *cfg.Trace.Database.Enabled)
+	require.Equal(t, DefaultTraceMaxEventsPerSession, cfg.Trace.Database.MaxEventsPerSession)
 }
 
-func TestConfig_NormalizeDefaultsDebugTraceDirFromHandHome(t *testing.T) {
+func TestConfig_NormalizeDefaultsDebugTraceDiskDirFromHandHome(t *testing.T) {
 	clearEnvKeys(t, "HAND_HOME")
 	t.Setenv("HAND_HOME", "/tmp/hand-home")
 	cfg := &Config{}
 	cfg.Normalize()
-	require.Equal(t, "/tmp/hand-home/traces", cfg.Debug.TraceDir)
+	require.Equal(t, "/tmp/hand-home/traces", cfg.Trace.Disk.Dir)
+}
+
+func TestConfig_NormalizeKeepsExplicitTraceDiskDir(t *testing.T) {
+	cfg := &Config{
+		Trace: TraceConfig{
+			Disk: TraceDiskConfig{Dir: "/tmp/disk-traces"},
+		},
+	}
+
+	cfg.Normalize()
+
+	require.Equal(t, "/tmp/disk-traces", cfg.Trace.Disk.Dir)
 }
 
 func TestLoad_UsesFilesystemRootsAndExecRulesFromConfig(t *testing.T) {
@@ -2923,7 +2970,7 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 			}
 			require.True(t, ok)
 
-			rootKeys := []string{"name", "platform", "search", "reranker"}
+			rootKeys := []string{"name", "platform", "search", "reranker", "trace"}
 			if !file.optional {
 				rootKeys = append(rootKeys, "memory")
 			}
@@ -2978,7 +3025,8 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 			requireYAMLKeys(t, content, "compaction", []string{"enabled", "triggerPercent", "warnPercent"})
 			requireYAMLKeys(t, content, "cap", []string{"fs", "net", "exec", "mem", "browser"})
 			requireYAMLKeys(t, content, "log", []string{"level", "noColor"})
-			requireYAMLKeys(t, content, "debug", []string{"requests", "traces", "traceDir"})
+			requireYAMLKeys(t, content, "debug", []string{"requests"})
+			requireYAMLKeys(t, content, "trace", []string{"enabled", "disk", "database"})
 			requireYAMLKeys(t, content, "web", []string{
 				"provider",
 				"apiKey",

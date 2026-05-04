@@ -344,7 +344,7 @@ func TestNewCommand_RootActionShowsHelp(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, output.String(), "EXAMPLES:")
 	require.Contains(t, output.String(), "hand up")
-	require.Contains(t, output.String(), "hand --config ./config.yaml --debug.traces up")
+	require.Contains(t, output.String(), "hand --config ./config.yaml --trace.enabled up")
 	require.Contains(t, output.String(), `hand "summarize the failing tests"`)
 	require.Contains(t, output.String(), `hand --session ses_abc123 --instruct "be brief" "continue from the last debugging step"`)
 	require.Contains(t, output.String(), "hand trace view")

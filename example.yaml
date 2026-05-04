@@ -80,8 +80,15 @@
 
 # debug:
 #   requests: false
-#   traces: false
-#   traceDir: ".hand/traces"
+
+# trace:
+#   enabled: false
+#   disk:
+#     enabled: true
+#     dir: ".hand/traces"
+#   database:
+#     enabled: true
+#     maxEventsPerSession: 10000
 
 # web:
 #   provider: ""

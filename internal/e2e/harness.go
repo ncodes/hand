@@ -65,7 +65,7 @@ func NewHarness(ctx context.Context, opts HarnessOptions) (*Harness, error) {
 	}
 
 	if strings.TrimSpace(opts.Spec.Isolation.TraceDir) != "" {
-		cfg.Debug.TraceDir = opts.Spec.Isolation.TraceDir
+		cfg.Trace.Disk.Dir = opts.Spec.Isolation.TraceDir
 	}
 
 	runCtx, cancel := context.WithCancel(normalizeHarnessContext(ctx))

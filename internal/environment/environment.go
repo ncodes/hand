@@ -136,22 +136,13 @@ func (e *environment) MemoryProvider() memory.Provider {
 
 func NewEnvironment(ctx context.Context, cfg *config.Config) Environment {
 	registry := tools.NewInMemoryRegistry()
-	traceFactory := trace.NoopFactory()
-
-	if cfg != nil && cfg.Debug.Traces {
-		traceDir := cfg.Debug.TraceDir
-		if traceDir == "" {
-			traceDir = datadir.DebugTraceDir()
-		}
-		traceFactory = trace.NewFactory(traceDir, guardrails.NewRedactor())
-	}
 
 	return &environment{
 		ctx:          ctx,
 		cfg:          cfg,
 		instructions: instructions.Instructions{},
 		tools:        registry,
-		traces:       traceFactory,
+		traces:       trace.NoopFactory(),
 	}
 }
 
@@ -172,11 +163,43 @@ func (e *environment) Prepare() error {
 		return errors.New("state manager is required")
 	}
 
+	e.prepareTraceFactory()
+
 	if err := e.prepareMemory(); err != nil {
 		return err
 	}
 
 	return e.prepareTools()
+}
+
+func (e *environment) prepareTraceFactory() {
+	if e == nil || e.cfg == nil || !e.cfg.Trace.Enabled {
+		e.traces = trace.NoopFactory()
+		return
+	}
+
+	factories := make([]trace.Factory, 0, 2)
+	redactor := guardrails.NewRedactor()
+
+	if e.cfg.Trace.Disk.Enabled == nil || *e.cfg.Trace.Disk.Enabled {
+		traceDir := e.cfg.Trace.Disk.Dir
+		if traceDir == "" {
+			traceDir = datadir.DebugTraceDir()
+		}
+		factories = append(factories, trace.NewFileFactory(traceDir, redactor))
+	}
+
+	if e.cfg.Trace.Database.Enabled == nil || *e.cfg.Trace.Database.Enabled {
+		if e.stateMgr != nil {
+			factories = append(factories, trace.NewStateFactory(
+				e.stateMgr,
+				redactor,
+				e.cfg.Trace.Database.MaxEventsPerSession,
+			))
+		}
+	}
+
+	e.traces = trace.NewMultiFactory(factories...)
 }
 
 func (e *environment) prepareMemory() error {

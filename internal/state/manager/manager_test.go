@@ -89,6 +89,45 @@ func TestManager_MemoryOperationsRequireMemoryStore(t *testing.T) {
 	require.EqualError(t, err, "memory store is not supported")
 }
 
+func TestManager_TraceOperationsUseTraceStore(t *testing.T) {
+	ctx := context.Background()
+	manager, err := NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	event, err := manager.AppendTraceEvent(ctx, storage.TraceEvent{
+		SessionID: storage.DefaultSessionID,
+		Type:      "model.request",
+		Payload:   map[string]any{"message": "hello"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, event.Sequence)
+
+	result, err := manager.ListTraceEvents(ctx, storage.TraceQuery{SessionID: storage.DefaultSessionID})
+	require.NoError(t, err)
+	require.Len(t, result.Events, 1)
+	require.Equal(t, "model.request", result.Events[0].Type)
+
+	require.NoError(t, manager.PruneTraceEvents(ctx, storage.DefaultSessionID, 0))
+	result, err = manager.ListTraceEvents(ctx, storage.TraceQuery{SessionID: storage.DefaultSessionID})
+	require.NoError(t, err)
+	require.Empty(t, result.Events)
+}
+
+func TestManager_TraceOperationsRequireTraceStore(t *testing.T) {
+	ctx := context.Background()
+	manager, err := NewManager(&storagemock.Store{}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	_, err = manager.AppendTraceEvent(ctx, storage.TraceEvent{SessionID: storage.DefaultSessionID, Type: "model.request"})
+	require.EqualError(t, err, "trace store is not supported")
+
+	_, err = manager.ListTraceEvents(ctx, storage.TraceQuery{SessionID: storage.DefaultSessionID})
+	require.EqualError(t, err, "trace store is not supported")
+
+	err = manager.PruneTraceEvents(ctx, storage.DefaultSessionID, 1)
+	require.EqualError(t, err, "trace store is not supported")
+}
+
 func TestManager_RunMaintenanceArchivesExpiredDefault(t *testing.T) {
 	store := storagememory.NewStore()
 	expiredAt := time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC)

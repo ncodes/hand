@@ -119,13 +119,29 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Usage: "Log sanitized model request payloads at debug level",
 		},
 		&cli.BoolFlag{
-			Name:  "debug.traces",
+			Name:  "trace.enabled",
 			Usage: "Persist sanitized per-session trace events for debugging",
 		},
+		&cli.BoolFlag{
+			Name:   "trace.disk.enabled",
+			Usage:  "Persist debug trace events as JSONL files",
+			Hidden: true,
+		},
 		&cli.StringFlag{
-			Name:   "debug.trace-dir",
-			Usage:  "Directory for persisted debug trace files",
-			Value:  config.Get().Debug.TraceDir,
+			Name:   "trace.disk.dir",
+			Usage:  "Directory for persisted debug trace JSONL files",
+			Value:  config.Get().Trace.Disk.Dir,
+			Hidden: true,
+		},
+		&cli.BoolFlag{
+			Name:   "trace.database.enabled",
+			Usage:  "Persist debug trace events to state storage",
+			Hidden: true,
+		},
+		&cli.IntFlag{
+			Name:   "trace.database.max-events-per-session",
+			Usage:  "Maximum stored debug trace events per session",
+			Value:  config.Get().Trace.Database.MaxEventsPerSession,
 			Hidden: true,
 		},
 		&cli.StringFlag{
@@ -445,11 +461,22 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	if cmd.IsSet("debug.requests") {
 		cfg.Debug.Requests = cmd.Bool("debug.requests")
 	}
-	if cmd.IsSet("debug.traces") {
-		cfg.Debug.Traces = cmd.Bool("debug.traces")
+	if cmd.IsSet("trace.enabled") {
+		cfg.Trace.Enabled = cmd.Bool("trace.enabled")
 	}
-	if cmd.IsSet("debug.trace-dir") {
-		cfg.Debug.TraceDir = strings.TrimSpace(cmd.String("debug.trace-dir"))
+	if cmd.IsSet("trace.disk.enabled") {
+		enabled := cmd.Bool("trace.disk.enabled")
+		cfg.Trace.Disk.Enabled = &enabled
+	}
+	if cmd.IsSet("trace.disk.dir") {
+		cfg.Trace.Disk.Dir = strings.TrimSpace(cmd.String("trace.disk.dir"))
+	}
+	if cmd.IsSet("trace.database.enabled") {
+		enabled := cmd.Bool("trace.database.enabled")
+		cfg.Trace.Database.Enabled = &enabled
+	}
+	if cmd.IsSet("trace.database.max-events-per-session") {
+		cfg.Trace.Database.MaxEventsPerSession = cmd.Int("trace.database.max-events-per-session")
 	}
 	if cmd.IsSet("web.provider") {
 		cfg.Web.Provider = strings.TrimSpace(cmd.String("web.provider"))

@@ -58,6 +58,10 @@ func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 		return nil, err
 	}
 
+	if err := ensureTraceStorage(db); err != nil {
+		return nil, err
+	}
+
 	return &Store{db: db}, nil
 }
 

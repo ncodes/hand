@@ -518,10 +518,10 @@ func TestSQLiteMemoryStore_StorageAndJSONHelpers(t *testing.T) {
 	err = ensureMemoryStorage(readonlyMemoryDB)
 	require.ErrorContains(t, err, "failed to create memory search index")
 
-	require.Equal(t, "null", memoryJSONString(make(chan int)))
+	require.Equal(t, "null", toJSONString(make(chan int)))
 
 	var metadata map[string]string
-	require.NoError(t, memoryDecodeJSON("", &metadata))
+	require.NoError(t, fromJSONString("", &metadata))
 	require.Nil(t, metadata)
 }
 
