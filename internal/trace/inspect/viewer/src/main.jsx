@@ -32,10 +32,12 @@ function App() {
   const [singleEventMode, setSingleEventMode] = useLocalStorageBool("trace:single-event", true);
   const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorageBool("trace:sidebar-collapsed", false);
   const [sidebarWidth, setSidebarWidth] = useLocalStorageNumber("trace:sidebar-width", 304);
+  const [inspectorWidth, setInspectorWidth] = useLocalStorageNumber("trace:inspector-width", 384);
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
   const [inspectorSheetOpen, setInspectorSheetOpen] = useState(false);
   const [expandedCharts, setExpandedCharts] = useState(() => new Set());
   const effectiveSidebarWidth = clamp(sidebarWidth, 240, 520);
+  const effectiveInspectorWidth = clamp(inspectorWidth, 320, 640);
   const [query, setQuery] = useState("");
   const [activeGroups, setActiveGroups] = useState(() => new Set(EVENT_GROUPS.map((group) => group.id)));
   const [severity, setSeverity] = useState("all");
@@ -102,15 +104,36 @@ function App() {
     window.addEventListener("pointerup", handleUp);
   }
 
+  function startInspectorResize(event) {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = effectiveInspectorWidth;
+
+    function handleMove(moveEvent) {
+      setInspectorWidth(clamp(startWidth + startX - moveEvent.clientX, 320, 640));
+    }
+
+    function handleUp() {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      document.body.classList.remove("select-none", "cursor-col-resize");
+    }
+
+    document.body.classList.add("select-none", "cursor-col-resize");
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+  }
+
   const layoutStyle = {
     "--trace-sidebar-width": sidebarCollapsed ? "4.5rem" : `${effectiveSidebarWidth}px`,
     "--trace-sidebar-width-narrow": sidebarCollapsed ? "4.5rem" : `${Math.min(effectiveSidebarWidth, 272)}px`,
+    "--trace-inspector-width": `${effectiveInspectorWidth}px`,
   };
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-stone-950 text-stone-100">
+    <main className="h-screen min-h-0 overflow-hidden bg-stone-950 text-stone-100 max-[880px]:h-auto max-[880px]:min-h-screen max-[880px]:overflow-x-hidden max-[880px]:overflow-y-auto">
       <div
-        className="grid min-h-screen [grid-template-columns:var(--trace-sidebar-width)_minmax(0,1fr)_24rem] max-[1180px]:[grid-template-columns:var(--trace-sidebar-width-narrow)_minmax(0,1fr)] max-[880px]:block"
+        className="grid h-screen min-h-0 [grid-template-columns:var(--trace-sidebar-width)_minmax(0,1fr)_var(--trace-inspector-width)] max-[1180px]:[grid-template-columns:var(--trace-sidebar-width-narrow)_minmax(0,1fr)] max-[880px]:block max-[880px]:h-auto max-[880px]:min-h-screen"
         style={layoutStyle}
       >
         <SessionSidebar
@@ -128,7 +151,7 @@ function App() {
             setSidebarDrawerOpen(false);
           }}
         />
-        <section className="min-w-0 border-x border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.045),transparent_18rem)]">
+        <section className="h-screen min-w-0 overflow-y-auto border-x border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.045),transparent_18rem)] max-[880px]:h-auto max-[880px]:overflow-visible">
           <MobileTopBar
             onOpenSidebar={() => setSidebarDrawerOpen(true)}
             onOpenInspector={() => setInspectorSheetOpen(true)}
@@ -180,6 +203,7 @@ function App() {
           detail={detail}
           sheetOpen={inspectorSheetOpen}
           onCloseSheet={() => setInspectorSheetOpen(false)}
+          onResizeStart={startInspectorResize}
         />
       </div>
     </main>
@@ -421,7 +445,11 @@ function ChartsPanel({ detail, metrics, expandedCharts, setExpandedCharts }) {
   const maxCount = Math.max(...distribution.map((group) => group.count), 1);
   const tokenPoints = events
     .filter((event) => event.context_event?.total_tokens)
-    .map((event) => ({ index: event.index, total: event.context_event.total_tokens }));
+    .map((event) => ({
+      index: event.index,
+      time: formatTimeOnly(event.timestamp),
+      total: event.context_event.total_tokens,
+    }));
   const gauge = Math.min(100, Math.round((metrics.maxTokens / Math.max(metrics.contextLimit, 1)) * 100));
 
   function toggleChart(id) {
@@ -437,20 +465,43 @@ function ChartsPanel({ detail, metrics, expandedCharts, setExpandedCharts }) {
         <button
           type="button"
           onClick={() => toggleChart("tokens")}
-          className="mb-3 flex w-full items-center justify-between gap-3 text-left"
+          className="mb-5 flex w-full items-start justify-between gap-3 text-left"
         >
-          <h3 className="text-sm font-semibold">Token pressure</h3>
-          <span className="text-xs text-stone-500">context over time</span>
-          <span className="hidden text-xs text-stone-500 max-[880px]:block">{expandedCharts.has("tokens") ? "Hide" : "Show"}</span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold">Context token usage</span>
+            <span className="mt-1 block truncate text-xs text-stone-500">
+              {tokenPoints.length ? `${tokenPoints.length} usage records · peak ${compactNumber(metrics.maxTokens)}` : "No context usage records"}
+            </span>
+          </span>
+          <span className="hidden shrink-0 text-xs text-stone-500 max-[880px]:block">{expandedCharts.has("tokens") ? "Hide" : "Show"}</span>
         </button>
-        <div className={`${expandedCharts.has("tokens") ? "max-[880px]:flex" : "max-[880px]:hidden"} flex h-32 items-end justify-center gap-2`}>
-          {(tokenPoints.length ? tokenPoints : [{ total: 0 }]).map((point, index) => (
-            <div
-              key={`${point.index}-${index}`}
-              className="w-8 max-w-10 rounded-t bg-cyan-300/70 max-[880px]:w-3"
-              style={{ height: `${Math.max(6, (point.total / Math.max(metrics.maxTokens, 1)) * 100)}%` }}
-            />
-          ))}
+        <div className={`${expandedCharts.has("tokens") ? "max-[880px]:block" : "max-[880px]:hidden"}`}>
+          {tokenPoints.length ? (
+            <>
+              <div className="flex h-36 items-end justify-center gap-4 pt-4">
+                {tokenPoints.map((point) => (
+                  <div key={point.index} className="flex min-w-10 flex-col items-center gap-2">
+                    <div className="text-[0.65rem] font-medium text-cyan-100">{compactNumber(point.total)}</div>
+                    <div
+                      className="w-8 max-w-10 rounded-t bg-cyan-300/70 max-[880px]:w-3"
+                      title={`Event #${point.index}: ${compactNumber(point.total)} tokens at ${point.time}`}
+                      style={{ height: `${Math.max(6, (point.total / Math.max(metrics.maxTokens, 1)) * 128)}px` }}
+                    />
+                    <div className="font-mono text-[0.65rem] text-stone-500">#{point.index}</div>
+                  </div>
+                ))}
+              </div>
+              {tokenPoints.length < 3 && (
+                <div className="mt-3 rounded-md border border-white/10 bg-black/20 px-3 py-2 text-xs text-stone-500">
+                  Only {tokenPoints.length} usage records in this trace, so trend detail is limited.
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="grid h-32 place-items-center rounded-md border border-dashed border-white/10 text-xs text-stone-500">
+              No token usage records found.
+            </div>
+          )}
         </div>
       </article>
       <article className="rounded-lg border border-white/10 bg-zinc-900/70 p-4">
@@ -538,7 +589,7 @@ function TimelinePanel({ events, selectedEvent, singleEventMode, onSelect, loadi
   );
 }
 
-function Inspector({ event, detail, sheetOpen, onCloseSheet }) {
+function Inspector({ event, detail, sheetOpen, onCloseSheet, onResizeStart }) {
   return (
     <>
       <div
@@ -548,10 +599,17 @@ function Inspector({ event, detail, sheetOpen, onCloseSheet }) {
         onClick={onCloseSheet}
       />
       <aside
-        className={`sticky top-0 z-50 h-screen overflow-auto bg-zinc-950/95 p-4 transition-transform max-[1180px]:col-span-2 max-[1180px]:h-auto max-[880px]:fixed max-[880px]:inset-y-0 max-[880px]:right-0 max-[880px]:w-[min(24rem,92vw)] max-[880px]:shadow-2xl max-[880px]:shadow-black/60 ${
+        className={`group/inspector sticky top-0 z-50 h-screen overflow-auto bg-zinc-950/95 p-4 transition-transform max-[1180px]:col-span-2 max-[1180px]:h-auto max-[880px]:fixed max-[880px]:inset-y-0 max-[880px]:right-0 max-[880px]:w-[min(24rem,92vw)] max-[880px]:shadow-2xl max-[880px]:shadow-black/60 ${
           sheetOpen ? "max-[880px]:translate-x-0" : "max-[880px]:translate-x-full"
         }`}
       >
+      <button
+        type="button"
+        onPointerDown={onResizeStart}
+        className="absolute bottom-0 left-0 top-0 hidden w-2 cursor-col-resize bg-cyan-300/0 transition hover:bg-cyan-300/25 group-hover/inspector:block max-[880px]:hidden"
+        title="Resize inspector"
+        aria-label="Resize inspector"
+      />
       <div className="rounded-lg border border-white/10 bg-white/[0.035] p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Inspector</div>
