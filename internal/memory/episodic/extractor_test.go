@@ -586,6 +586,7 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 	tool := byKind[episodeKindToolEvent]
 	require.Equal(t, "run_command", tool.Metadata["tool_name"])
 	require.Equal(t, "failed", tool.Metadata["status"])
+	require.Equal(t, "failed", tool.Metadata["attempt_status"])
 	require.Contains(t, tool.Metadata["reference"], "go test")
 
 	outcome := byKind[episodeKindOutcome]
@@ -604,6 +605,9 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 
 	require.Equal(t, "trace:2,trace:3", byKind[episodeKindTaskTrace].Metadata["trace_event_refs"])
 	require.Equal(t, "fixed", byKind[episodeKindResolvedIssue].Metadata["resolution_status"])
+	require.Equal(t, "unresolved", byKind[episodeKindBlocker].Metadata["blocker_status"])
+	require.Equal(t, "open", byKind[episodeKindBlocker].Metadata["follow_up_status"])
+	require.Equal(t, "partial", byKind[episodeKindMilestone].Metadata["progress_status"])
 	require.Equal(t, "phase_8c", byKind[episodeKindMilestone].Metadata["milestone"])
 	require.Equal(t, "manual_rule_parser", byKind[episodeKindDiscarded].Metadata["rejected_alternative"])
 }
@@ -951,14 +955,23 @@ func representativeEpisodeCandidates() []episodeCandidate {
 			Title:      "Tool event: run_command",
 			Text:       "Tool event: run_command completed with status failed. Relevant reference: go test ./....",
 			Confidence: 0.78,
-			Metadata:   map[string]string{"tool_name": "run_command", "status": "failed", "reference": "go test ./..."},
+			Metadata: map[string]string{
+				"tool_name":      "run_command",
+				"status":         "failed",
+				"attempt_status": "failed",
+				"reference":      "go test ./...",
+			},
 		},
 		{
 			Kind:       episodeKindBlocker,
 			Title:      "Blocker or risk from session",
 			Text:       "Blocker or risk: tests failed before being fixed.",
 			Confidence: 0.68,
-			Metadata:   map[string]string{"resolution_status": "unresolved_or_uncertain"},
+			Metadata: map[string]string{
+				"resolution_status": "unresolved_or_uncertain",
+				"blocker_status":    "unresolved",
+				"follow_up_status":  "open",
+			},
 		},
 		{
 			Kind:       episodeKindUserCorrection,
@@ -986,7 +999,10 @@ func representativeEpisodeCandidates() []episodeCandidate {
 			Title:      "Project milestone: Phase 8c trace evidence",
 			Text:       "Project milestone: curated extraction now uses task trace evidence alongside session messages.",
 			Confidence: 0.81,
-			Metadata:   map[string]string{"milestone": "phase_8c"},
+			Metadata: map[string]string{
+				"milestone":       "phase_8c",
+				"progress_status": "partial",
+			},
 		},
 		{
 			Kind:       episodeKindDiscarded,
