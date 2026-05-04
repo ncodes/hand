@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -558,12 +559,7 @@ func memoryItemFromCandidate(
 }
 
 func validCandidateKind(kind string) bool {
-	for _, candidateKind := range episodeCandidateKinds() {
-		if kind == candidateKind {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(episodeCandidateKinds(), kind)
 }
 
 func sourceQuality(evidence messageEvidence) string {
