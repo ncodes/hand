@@ -587,6 +587,7 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 	require.Equal(t, "run_command", tool.Metadata["tool_name"])
 	require.Equal(t, "failed", tool.Metadata["status"])
 	require.Equal(t, "failed", tool.Metadata["attempt_status"])
+	require.Equal(t, "verify the background API implementation with the Go test suite", tool.Metadata["purpose"])
 	require.Contains(t, tool.Metadata["reference"], "go test")
 
 	outcome := byKind[episodeKindOutcome]
@@ -959,6 +960,7 @@ func representativeEpisodeCandidates() []episodeCandidate {
 				"tool_name":      "run_command",
 				"status":         "failed",
 				"attempt_status": "failed",
+				"purpose":        "verify the background API implementation with the Go test suite",
 				"reference":      "go test ./...",
 			},
 		},

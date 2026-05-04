@@ -327,6 +327,8 @@ func TestBuildEpisodicExtractionInstructions_ReturnsCuratedExtractionPrompt(t *t
 	require.Contains(t, instructions, "discarded approaches")
 	require.Contains(t, instructions, "Do not store raw transcript windows")
 	require.Contains(t, instructions, "Use trace_events to verify tool execution")
+	require.Contains(t, instructions, "For tool_event candidates")
+	require.Contains(t, instructions, "metadata.purpose")
 	require.Contains(t, instructions, "explain why something happened")
 	require.Contains(t, instructions, "do not infer motives or causes")
 	require.Contains(t, instructions, "successful outcomes, failed attempts, partial progress")

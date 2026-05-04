@@ -253,6 +253,7 @@ Return only JSON matching the schema. Do not store raw transcript windows.
 Extract only evidence-backed decisions, outcomes, task traces, tool events, blockers, resolved issues, project milestones, discarded approaches, and explicit durable user corrections/preferences.
 Use trace_events to verify tool execution, failures, retries, policy blocks, truncation, plan changes, and other system-side task events that may not be fully narrated in messages.
 When a candidate depends on trace evidence, preserve relevant trace refs or event details in metadata.
+For tool_event candidates, include high-level purpose as metadata.purpose when the messages or trace payload explain why the tool was used.
 When messages or trace events explain why something happened, include the evidence-backed reason in the candidate text and metadata; do not infer motives or causes that are not supported.
 Distinguish successful outcomes, failed attempts, partial progress, open follow-ups, and unresolved blockers with explicit status metadata such as outcome_status, attempt_status, progress_status, follow_up_status, or blocker_status.
 Reject low-signal, speculative, temporary, unsafe, or purely conversational content with a concise reason.
