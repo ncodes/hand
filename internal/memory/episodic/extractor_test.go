@@ -596,6 +596,7 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 	require.Equal(t, "failed", tool.Metadata["status"])
 	require.Equal(t, "failed", tool.Metadata["attempt_status"])
 	require.Equal(t, "verify the background API implementation with the Go test suite", tool.Metadata["purpose"])
+	require.Equal(t, "go test ./...", tool.Metadata["artifact_or_command_ref"])
 	require.Contains(t, tool.Metadata["reference"], "go test")
 
 	outcome := byKind[episodeKindOutcome]
@@ -620,9 +621,11 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 	require.Equal(t, "fixed", byKind[episodeKindResolvedIssue].Metadata["resolution_status"])
 	require.Equal(t, "unresolved", byKind[episodeKindBlocker].Metadata["blocker_status"])
 	require.Equal(t, "open", byKind[episodeKindBlocker].Metadata["follow_up_status"])
+	require.Equal(t, "medium", byKind[episodeKindBlocker].Metadata["uncertainty"])
 	require.Equal(t, "partial", byKind[episodeKindMilestone].Metadata["progress_status"])
 	require.Equal(t, "phase_8c", byKind[episodeKindMilestone].Metadata["milestone"])
 	require.Equal(t, "manual_rule_parser", byKind[episodeKindDiscarded].Metadata["rejected_alternative"])
+	require.Equal(t, "medium", byKind[episodeKindDiscarded].Metadata["uncertainty"])
 }
 
 func TestService_CandidatesFromMessages_IncludesTaskTraceEvidence(t *testing.T) {
@@ -836,6 +839,27 @@ func TestCuratedCandidateHelpersCoverEdgeBranches(t *testing.T) {
 	require.Equal(t, 1.0, clampConfidence(2))
 }
 
+func TestMemoryItemFromCandidate_PreservesOutcomeStatusVariants(t *testing.T) {
+	req := normalizedRequest{SessionID: storage.DefaultSessionID, MaxWindowChars: 200, MaxWindowTokens: 50}
+	window := sourceWindow{Start: 0, End: 1}
+	evidence := messageEvidence{MessageIDs: []uint{1}, Offsets: []int{0}, Lines: []string{"assistant: done"}}
+
+	for _, status := range []string{"success", "failed", "partial", "follow_up_required"} {
+		item, ok := memoryItemFromCandidate(req, window, evidence, episodeCandidate{
+			Kind:       episodeKindOutcome,
+			Title:      "Outcome",
+			Text:       "Outcome status: " + status,
+			Confidence: 0.72,
+			Metadata: map[string]string{
+				"outcome_status": status,
+			},
+		})
+
+		require.True(t, ok)
+		require.Equal(t, status, item.Metadata["outcome_status"])
+	}
+}
+
 func TestMessageLineHandlesInvalidUTF8AndFallbackRole(t *testing.T) {
 	line := messageLine(handmsg.Message{Content: string([]byte{0xff, 'o', 'k'})})
 
@@ -978,11 +1002,12 @@ func representativeEpisodeCandidates() []episodeCandidate {
 			Text:       "Tool event: run_command completed with status failed. Relevant reference: go test ./....",
 			Confidence: 0.78,
 			Metadata: map[string]string{
-				"tool_name":      "run_command",
-				"status":         "failed",
-				"attempt_status": "failed",
-				"purpose":        "verify the background API implementation with the Go test suite",
-				"reference":      "go test ./...",
+				"tool_name":               "run_command",
+				"status":                  "failed",
+				"attempt_status":          "failed",
+				"purpose":                 "verify the background API implementation with the Go test suite",
+				"artifact_or_command_ref": "go test ./...",
+				"reference":               "go test ./...",
 			},
 		},
 		{
