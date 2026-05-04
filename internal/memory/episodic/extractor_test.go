@@ -583,6 +583,14 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 	require.Contains(t, byKind, episodeKindMilestone)
 	require.Contains(t, byKind, episodeKindDiscarded)
 
+	decision := byKind[episodeKindDecision]
+	require.Equal(t, "generic StartBackground", decision.Metadata["chosen_option"])
+	require.Equal(t, "episodic-specific public background APIs", decision.Metadata["rejected_alternatives"])
+	require.Equal(t, "provider background APIs can host multiple memory background processes", decision.Metadata["reason"])
+	require.Equal(t, "0-5", decision.Metadata["source_range"])
+	require.Equal(t, "0", decision.Metadata["source_start"])
+	require.Equal(t, "5", decision.Metadata["source_end"])
+
 	tool := byKind[episodeKindToolEvent]
 	require.Equal(t, "run_command", tool.Metadata["tool_name"])
 	require.Equal(t, "failed", tool.Metadata["status"])
@@ -939,7 +947,12 @@ func representativeEpisodeCandidates() []episodeCandidate {
 			Title:      "Decision from session",
 			Text:       "Decision: use generic StartBackground instead of episodic-specific public APIs.",
 			Confidence: 0.72,
-			Metadata:   map[string]string{"decision": "generic StartBackground"},
+			Metadata: map[string]string{
+				"chosen_option":         "generic StartBackground",
+				"rejected_alternatives": "episodic-specific public background APIs",
+				"reason":                "provider background APIs can host multiple memory background processes",
+				"source_range":          "0-5",
+			},
 		},
 		{
 			Kind:       episodeKindOutcome,
