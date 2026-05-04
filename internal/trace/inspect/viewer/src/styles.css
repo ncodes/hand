@@ -23,6 +23,10 @@ select {
   font: inherit;
 }
 
+.trace-shell-grid {
+  transition: grid-template-columns 160ms ease-out;
+}
+
 * {
   scrollbar-width: none;
   -ms-overflow-style: none;
