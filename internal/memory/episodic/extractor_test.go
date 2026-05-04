@@ -591,6 +591,8 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 	outcome := byKind[episodeKindOutcome]
 	require.Equal(t, storage.MemoryStatusCandidate, outcome.Status)
 	require.Equal(t, "success", outcome.Metadata["outcome_status"])
+	require.Equal(t, "tests_passed_after_start_background_changes", outcome.Metadata["causal_reason"])
+	require.Contains(t, outcome.Text, "because")
 	require.NotContains(t, outcome.Text, "assistant:")
 	require.NotEmpty(t, outcome.SourceLinks[0].MessageIDs)
 	require.NotEmpty(t, outcome.SourceLinks[0].Offsets)
@@ -937,9 +939,12 @@ func representativeEpisodeCandidates() []episodeCandidate {
 		{
 			Kind:       episodeKindOutcome,
 			Title:      "Task outcome from session",
-			Text:       "Task outcome: Implemented StartBackground and verified tests passed.",
+			Text:       "Task outcome: Implemented StartBackground and verified tests passed because the background API shape was corrected.",
 			Confidence: 0.76,
-			Metadata:   map[string]string{"outcome_status": "success"},
+			Metadata: map[string]string{
+				"outcome_status": "success",
+				"causal_reason":  "tests_passed_after_start_background_changes",
+			},
 		},
 		{
 			Kind:       episodeKindToolEvent,
