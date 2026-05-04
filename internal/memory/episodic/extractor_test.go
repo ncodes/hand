@@ -601,6 +601,10 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 	outcome := byKind[episodeKindOutcome]
 	require.Equal(t, storage.MemoryStatusCandidate, outcome.Status)
 	require.Equal(t, "success", outcome.Metadata["outcome_status"])
+	require.Equal(t, "replace episodic-specific background APIs", outcome.Metadata["requested_goal"])
+	require.Equal(t, "StartBackground now handles provider background processes", outcome.Metadata["resulting_change"])
+	require.Equal(t, "go test ./... passed", outcome.Metadata["verification_status"])
+	require.Equal(t, "none_identified", outcome.Metadata["remaining_risk"])
 	require.Equal(t, "tests_passed_after_start_background_changes", outcome.Metadata["causal_reason"])
 	require.Contains(t, outcome.Text, "because")
 	require.NotContains(t, outcome.Text, "assistant:")
@@ -960,8 +964,12 @@ func representativeEpisodeCandidates() []episodeCandidate {
 			Text:       "Task outcome: Implemented StartBackground and verified tests passed because the background API shape was corrected.",
 			Confidence: 0.76,
 			Metadata: map[string]string{
-				"outcome_status": "success",
-				"causal_reason":  "tests_passed_after_start_background_changes",
+				"outcome_status":      "success",
+				"requested_goal":      "replace episodic-specific background APIs",
+				"resulting_change":    "StartBackground now handles provider background processes",
+				"verification_status": "go test ./... passed",
+				"remaining_risk":      "none_identified",
+				"causal_reason":       "tests_passed_after_start_background_changes",
 			},
 		},
 		{
