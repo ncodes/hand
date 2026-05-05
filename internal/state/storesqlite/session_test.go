@@ -1050,6 +1050,15 @@ func TestSQLiteStore_UpdateEpisodicCheckpoint(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, 12, session.EpisodicCheckpointOffset)
 
+	require.NoError(t, store.db.Model(&sessionModel{}).
+		Where("id = ?", testSessionA).
+		Update("episodic_checkpoint_offset", nil).Error)
+	require.NoError(t, store.UpdateEpisodicCheckpoint(context.Background(), testSessionA, 22))
+	session, ok, err = store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, 22, session.EpisodicCheckpointOffset)
+
 	require.EqualError(t, store.UpdateEpisodicCheckpoint(context.Background(), testSessionA, -1), "episodic checkpoint offset must be greater than or equal to zero")
 	require.EqualError(t, store.UpdateEpisodicCheckpoint(context.Background(), testMissingSession, 1), "session not found")
 }

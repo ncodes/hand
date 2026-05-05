@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	DefaultBackgroundInterval    = 5 * time.Minute
+	DefaultBackgroundInterval    = 1 * time.Minute
 	DefaultBackgroundIdleAfter   = 10 * time.Minute
 	DefaultBackgroundMinMessages = 2
 	DefaultBackgroundMaxRetries  = 1

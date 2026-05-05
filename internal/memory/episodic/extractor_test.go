@@ -3,6 +3,7 @@ package episodic
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -117,6 +118,90 @@ func TestService_ExtractWritesSourceLinkedEpisode(t *testing.T) {
 	require.Contains(t, memoryHitText(memories.Hits), "Tool event:")
 }
 
+func TestService_ExtractWritesDistinctSameKindCandidatesInWindow(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	manager := testManager(t, store)
+	provider := testProvider(t, store)
+
+	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
+	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{
+		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "read_file", Input: `{"path":"a.go"}`}}},
+		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "run_command", Input: `{"cmd":"go test"}`}}},
+	}))
+
+	service := newTestServiceWithCandidates(t, manager, provider, []episodeCandidate{
+		{
+			Kind:       episodeKindToolEvent,
+			Title:      "Tool event: read_file",
+			Text:       "Read a.go before editing.",
+			Confidence: 0.82,
+			Metadata:   map[string]string{"tool_name": "read_file", "status": "success"},
+		},
+		{
+			Kind:       episodeKindToolEvent,
+			Title:      "Tool event: run_command",
+			Text:       "Ran go test after editing.",
+			Confidence: 0.84,
+			Metadata:   map[string]string{"tool_name": "run_command", "status": "success"},
+		},
+	})
+
+	result, err := service.Extract(ctx, Request{
+		SessionID:      storage.DefaultSessionID,
+		WindowSize:     2,
+		MaxWindowChars: 1000,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, result.WriteCount)
+	require.Len(t, result.Windows[0].MemoryIDs, 2)
+	require.NotEqual(t, result.Windows[0].MemoryIDs[0], result.Windows[0].MemoryIDs[1])
+
+	memories, err := provider.Search(ctx, storage.MemorySearchQuery{
+		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
+		Statuses: []storage.MemoryStatus{storage.MemoryStatusCandidate},
+		Tags:     []string{sourceRangeTag(storage.DefaultSessionID, 0, 2)},
+		Limit:    10,
+	})
+	require.NoError(t, err)
+	require.Len(t, memories.Hits, 2)
+}
+
+func TestService_ExtractDedupesIdenticalSameKindCandidatesInWindow(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	manager := testManager(t, store)
+	provider := testProvider(t, store)
+	recorder := &recordingTrace{}
+
+	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
+	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{
+		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "run_command", Input: `{"cmd":"go test"}`}}},
+	}))
+
+	candidate := episodeCandidate{
+		Kind:       episodeKindToolEvent,
+		Title:      "Tool event: run_command",
+		Text:       "Ran go test after editing.",
+		Confidence: 0.84,
+		Metadata:   map[string]string{"tool_name": "run_command", "status": "success"},
+	}
+	service := newTestServiceWithCandidates(t, manager, provider, []episodeCandidate{candidate, candidate})
+
+	result, err := service.Extract(ctx, Request{
+		SessionID:      storage.DefaultSessionID,
+		WindowSize:     1,
+		MaxWindowChars: 1000,
+		Trace:          recorder,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.WriteCount)
+	require.Equal(t, 1, result.CandidateCount)
+	require.Contains(t, tracePayloadsFor(t, recorder, trace.EvtMemoryExtractionCandidateRejected), "duplicate_candidate")
+}
+
 func TestService_ExtractSkipsDuplicateSourceRange(t *testing.T) {
 	ctx := context.Background()
 	store := storememory.NewStore()
@@ -156,7 +241,7 @@ func TestService_ExtractSkipsDuplicateSourceRange(t *testing.T) {
 	require.Len(t, memories.Hits, 1)
 }
 
-func TestService_ExtractChecksDuplicateByDeterministicMemoryID(t *testing.T) {
+func TestService_ExtractChecksDuplicateBySourceRangeTag(t *testing.T) {
 	ctx := context.Background()
 	store := &statemock.Store{
 		CountMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) (int, error) {
@@ -167,10 +252,9 @@ func TestService_ExtractChecksDuplicateByDeterministicMemoryID(t *testing.T) {
 		},
 	}
 	manager := testManager(t, store)
-	expectedID := candidateMemoryID(storage.DefaultSessionID, 0, 1, episodeKindDecision)
 	provider := &memoryProviderStub{
 		searchResult: storage.MemorySearchResult{
-			Hits: []storage.MemorySearchHit{{Item: storage.MemoryItem{ID: expectedID}}},
+			Hits: []storage.MemorySearchHit{{Item: storage.MemoryItem{ID: "existing-memory"}}},
 		},
 	}
 
@@ -182,8 +266,8 @@ func TestService_ExtractChecksDuplicateByDeterministicMemoryID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, result.WriteCount)
 	require.Equal(t, 1, result.SkipCount)
-	require.Equal(t, candidateMemoryIDs(storage.DefaultSessionID, 0, 1), provider.searchQuery.IDs)
-	require.Empty(t, provider.searchQuery.Tags)
+	require.Empty(t, provider.searchQuery.IDs)
+	require.Equal(t, []string{sourceRangeTag(storage.DefaultSessionID, 0, 1)}, provider.searchQuery.Tags)
 }
 
 func TestService_ExtractLoadsBoundedWindows(t *testing.T) {
@@ -949,6 +1033,23 @@ func tracePayloadFor(t *testing.T, recorder *recordingTrace, name string) map[st
 	}
 	require.FailNow(t, "trace event not found", name)
 	return nil
+}
+
+func tracePayloadsFor(t *testing.T, recorder *recordingTrace, name string) string {
+	t.Helper()
+
+	var payloads strings.Builder
+	for _, event := range recorder.events {
+		if event.name != name {
+			continue
+		}
+		payload, ok := event.payload.(map[string]any)
+		require.True(t, ok)
+		payloads.WriteString(fmt.Sprint(payload))
+		payloads.WriteString("\n")
+	}
+
+	return payloads.String()
 }
 
 func memoryHitText(hits []storage.MemorySearchHit) string {

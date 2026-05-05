@@ -151,15 +151,30 @@ func TestLLMExtractorStructuredOutputUsesLowercaseRejectionFields(t *testing.T) 
 	candidateItems := candidates["items"].(map[string]any)
 	candidateProperties := candidateItems["properties"].(map[string]any)
 	kinds := candidateProperties["kind"].(map[string]any)
+	metadata := candidateProperties["metadata"].(map[string]any)
+	metadataProperties := metadata["properties"].(map[string]any)
 	rejections := properties["rejections"].(map[string]any)
 	items := rejections["items"].(map[string]any)
 	rejectionProperties := items["properties"].(map[string]any)
 
 	require.ElementsMatch(t, episodeCandidateKinds(), kinds["enum"])
+	require.False(t, metadata["additionalProperties"].(bool))
+	require.ElementsMatch(t, mapKeys(metadataProperties), metadata["required"])
+	require.Contains(t, metadataProperties, "purpose")
+	require.Contains(t, metadataProperties, "outcome_status")
 	require.Contains(t, rejectionProperties, "kind")
 	require.Contains(t, rejectionProperties, "reason")
 	require.NotContains(t, rejectionProperties, "Kind")
 	require.NotContains(t, rejectionProperties, "Reason")
+}
+
+func mapKeys(values map[string]any) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+
+	return keys
 }
 
 type llmExtractorClientStub struct {

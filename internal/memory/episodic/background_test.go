@@ -101,10 +101,9 @@ func TestService_RunBackgroundSkipsIneligibleSessions(t *testing.T) {
 	require.Equal(t, "insufficient_messages", result.Sessions[0].Reason)
 }
 
-func TestService_RunBackgroundSkipsExistingEpisodeBeforeLoadingMessages(t *testing.T) {
+func TestService_RunBackgroundSkipsExistingSourceRangeBeforeLoadingMessages(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-	expectedID := candidateMemoryID(storage.DefaultSessionID, 0, 1, episodeKindDecision)
 	loads := 0
 	store := &statemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
@@ -124,7 +123,7 @@ func TestService_RunBackgroundSkipsExistingEpisodeBeforeLoadingMessages(t *testi
 	manager := testManager(t, store)
 	provider := &memoryProviderStub{
 		searchResult: storage.MemorySearchResult{
-			Hits: []storage.MemorySearchHit{{Item: storage.MemoryItem{ID: expectedID}}},
+			Hits: []storage.MemorySearchHit{{Item: storage.MemoryItem{ID: "existing-memory"}}},
 		},
 	}
 	service := newTestService(t, manager, provider)
@@ -143,7 +142,8 @@ func TestService_RunBackgroundSkipsExistingEpisodeBeforeLoadingMessages(t *testi
 	require.NoError(t, err)
 	require.Equal(t, 1, result.SkipCount)
 	require.Zero(t, loads)
-	require.Equal(t, candidateMemoryIDs(storage.DefaultSessionID, 0, 1), provider.searchQuery.IDs)
+	require.Empty(t, provider.searchQuery.IDs)
+	require.Equal(t, []string{sourceRangeTag(storage.DefaultSessionID, 0, 1)}, provider.searchQuery.Tags)
 }
 
 func TestService_RunBackgroundResumesFromSessionCheckpoint(t *testing.T) {

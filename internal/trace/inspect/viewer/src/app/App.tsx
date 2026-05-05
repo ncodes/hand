@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchSession, fetchSessions } from "../api/traces";
 import { ChartsPanel } from "../components/dashboard/ChartsPanel";
 import { FilterBar } from "../components/dashboard/FilterBar";
@@ -33,6 +33,7 @@ export function App() {
   const [query, setQuery] = useState("");
   const [activeGroups, setActiveGroups] = useState(() => new Set(EVENT_GROUPS.map((group) => group.id)));
   const [severity, setSeverity] = useState("all");
+  const previousEventSignatureRef = useRef<{ selectedId: string; maxIndex: number; count: number } | null>(null);
   const effectiveSidebarWidth = clamp(sidebarWidth, 240, 520);
   const effectiveInspectorWidth = clamp(inspectorWidth, 320, 640);
 
@@ -65,36 +66,50 @@ export function App() {
     () => filterTimeline(timeline, activeGroups, severity, query),
     [timeline, activeGroups, severity, query],
   );
+  const visibleTimeline = useMemo(() => [...filteredTimeline].reverse(), [filteredTimeline]);
   const selectedEvent = useMemo(() => {
     if (!timeline.length) return null;
-    const fallback = filteredTimeline[0] ?? timeline[0];
+    const fallback = visibleTimeline[0] ?? timeline[timeline.length - 1];
     if (selectedEventIndex === null) return fallback;
     return timeline.find((event) => event.index === selectedEventIndex) ?? fallback;
-  }, [filteredTimeline, selectedEventIndex, timeline]);
+  }, [selectedEventIndex, timeline, visibleTimeline]);
   const metrics = useMemo(() => summarize(detail), [detail]);
 
   useEffect(() => {
-    if (!selectedEvent && filteredTimeline.length) {
-      setSelectedEventIndex(filteredTimeline[0].index);
+    if (!selectedEvent && visibleTimeline.length) {
+      setSelectedEventIndex(visibleTimeline[0].index);
     }
-  }, [filteredTimeline, selectedEvent]);
+  }, [selectedEvent, visibleTimeline]);
+
+  useEffect(() => {
+    if (!selectedId || !timeline.length) return;
+
+    const maxIndex = Math.max(...timeline.map((event) => event.index));
+    const previous = previousEventSignatureRef.current;
+    previousEventSignatureRef.current = { selectedId, maxIndex, count: timeline.length };
+
+    if (!previous || previous.selectedId !== selectedId) return;
+    if (timeline.length > previous.count || maxIndex > previous.maxIndex) {
+      playNewEventBeep();
+    }
+  }, [selectedId, timeline]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented || !["ArrowDown", "ArrowUp"].includes(event.key)) return;
-      if (isTypingTarget(event.target) || !filteredTimeline.length) return;
+      if (isTypingTarget(event.target) || !visibleTimeline.length) return;
 
       event.preventDefault();
-      const currentIndex = filteredTimeline.findIndex((item) => item.index === selectedEvent?.index);
-      const fallbackIndex = event.key === "ArrowDown" ? -1 : filteredTimeline.length;
+      const currentIndex = visibleTimeline.findIndex((item) => item.index === selectedEvent?.index);
+      const fallbackIndex = event.key === "ArrowDown" ? -1 : visibleTimeline.length;
       const baseIndex = currentIndex >= 0 ? currentIndex : fallbackIndex;
-      const nextIndex = clamp(baseIndex + (event.key === "ArrowDown" ? 1 : -1), 0, filteredTimeline.length - 1);
-      setSelectedEventIndex(filteredTimeline[nextIndex].index);
+      const nextIndex = clamp(baseIndex + (event.key === "ArrowDown" ? 1 : -1), 0, visibleTimeline.length - 1);
+      setSelectedEventIndex(visibleTimeline[nextIndex].index);
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [filteredTimeline, selectedEvent]);
+  }, [selectedEvent, visibleTimeline]);
 
   function startSidebarResize(event: ReactPointerEvent<HTMLButtonElement>) {
     if (sidebarCollapsed) return;
@@ -200,7 +215,7 @@ export function App() {
                   setExpandedCharts={setExpandedCharts}
                 />
                 <TimelinePanel
-                  events={filteredTimeline}
+                  events={visibleTimeline}
                   selectedEvent={selectedEvent}
                   singleEventMode={singleEventMode}
                   onSelect={(index) => {
@@ -245,4 +260,28 @@ function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   const tagName = target.tagName.toLowerCase();
   return tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable;
+}
+
+function playNewEventBeep() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const context = new AudioContextClass();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(880, context.currentTime);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.04, context.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.12);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.13);
+    oscillator.addEventListener("ended", () => {
+      void context.close();
+    });
+  } catch {
+  }
 }

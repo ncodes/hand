@@ -161,12 +161,13 @@ func (s Service) extractWindow(
 		OffsetEnd:   window.End,
 	}
 
-	candidateIDs := candidateMemoryIDs(req.SessionID, window.Start, window.End)
 	existing, err := s.memory.Search(ctx, storage.MemorySearchQuery{
-		IDs:      candidateIDs,
 		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
 		Statuses: []storage.MemoryStatus{storage.MemoryStatusCandidate, storage.MemoryStatusActive},
-		Limit:    len(candidateIDs),
+		// Treat the source window as complete once any active/candidate memory exists
+		// for it, even if that window produced multiple candidate IDs.
+		Tags:  []string{sourceRangeTag(req.SessionID, window.Start, window.End)},
+		Limit: 1,
 	})
 	if err != nil {
 		return WindowResult{}, err
@@ -386,12 +387,21 @@ func (s Service) candidatesFromMessages(
 
 	items := make([]storage.MemoryItem, 0, len(result.Candidates))
 	rejections := append([]candidateRejection(nil), result.Rejections...)
+	// Same-kind candidates are allowed in a window, but exact duplicate
+	// candidate/source fingerprints should only be written once.
+	seen := make(map[string]struct{}, len(result.Candidates))
 	for _, candidate := range result.Candidates {
 		item, ok := memoryItemFromCandidate(req, window, evidence, candidate)
 		if !ok {
 			rejections = append(rejections, candidateRejection{Kind: candidate.Kind, Reason: "empty_candidate"})
 			continue
 		}
+		if _, ok := seen[item.ID]; ok {
+			rejections = append(rejections, candidateRejection{Kind: candidate.Kind, Reason: "duplicate_candidate"})
+			continue
+		}
+
+		seen[item.ID] = struct{}{}
 		items = append(items, item)
 	}
 
@@ -546,7 +556,7 @@ func memoryItemFromCandidate(
 	}
 	sourceTag := sourceRangeTag(req.SessionID, window.Start, window.End)
 	return storage.MemoryItem{
-		ID:          candidateMemoryID(req.SessionID, window.Start, window.End, candidate.Kind),
+		ID:          candidateMemoryID(req, window, candidate.Kind, title, text, metadata, sourceLinks),
 		Kind:        storage.MemoryKindEpisodic,
 		Status:      storage.MemoryStatusCandidate,
 		Title:       title,
@@ -641,15 +651,6 @@ func messageLine(message handmsg.Message) string {
 	return role + ": " + strings.Join(parts, " ")
 }
 
-func candidateMemoryIDs(sessionID string, start int, end int) []string {
-	kinds := episodeCandidateKinds()
-	ids := make([]string, 0, len(kinds))
-	for _, kind := range kinds {
-		ids = append(ids, candidateMemoryID(sessionID, start, end, kind))
-	}
-	return ids
-}
-
 func episodeCandidateKinds() []string {
 	return []string{
 		episodeKindDecision,
@@ -664,16 +665,99 @@ func episodeCandidateKinds() []string {
 	}
 }
 
-func candidateMemoryID(sessionID string, start int, end int, kind string) string {
-	return "mem_episode_" + sourceRangeHash(strings.TrimSpace(kind)+":"+sessionID, start, end)
+func candidateMemoryID(
+	req normalizedRequest,
+	window sourceWindow,
+	kind string,
+	title string,
+	text string,
+	metadata map[string]string,
+	sourceLinks []storage.MemorySourceLink,
+) string {
+	return "mem_episode_" + sourceRangeHash(
+		candidateMemoryIDSource(req.SessionID, kind, title, text, metadata, sourceLinks),
+		window.Start,
+		window.End,
+	)
+}
+
+func candidateMemoryIDSource(
+	sessionID string,
+	kind string,
+	title string,
+	text string,
+	metadata map[string]string,
+	sourceLinks []storage.MemorySourceLink,
+) string {
+	parts := []string{
+		strings.TrimSpace(sessionID),
+		strings.TrimSpace(kind),
+		normalizeMemoryIDText(title),
+		normalizeMemoryIDText(text),
+	}
+	for _, key := range candidateMemoryIDMetadataKeys() {
+		if value := strings.TrimSpace(metadata[key]); value != "" {
+			parts = append(parts, key+"="+normalizeMemoryIDText(value))
+		}
+	}
+	for _, link := range sourceLinks {
+		parts = append(parts, strings.TrimSpace(link.SessionID))
+		parts = append(parts, uintSliceMemoryIDText(link.MessageIDs))
+		parts = append(parts, intSliceMemoryIDText(link.Offsets))
+	}
+
+	return strings.Join(parts, "\n")
+}
+
+func candidateMemoryIDMetadataKeys() []string {
+	return []string{
+		"trace_refs",              // trace events that ground the candidate
+		"tool_name",               // tool identity for tool_event candidates
+		"purpose",                 // high-level tool or task purpose
+		"status",                  // generic success/failure state
+		"artifact_or_command_ref", // safe artifact path or command reference
+		"chosen_option",           // selected option for decision candidates
+		"source_range",            // finer source span supplied by the extractor
+		"requested_goal",          // user/task goal for outcome candidates
+		"resulting_change",        // durable result produced by the task
+		"verification_status",     // whether and how the result was checked
+		"remaining_risk",          // known residual risk or uncertainty
+		"outcome_status",          // success, failed, partial, or follow-up state
+		"attempt_status",          // failed-attempt or retry state
+		"progress_status",         // partial-progress state
+		"follow_up_status",        // open follow-up state
+		"blocker_status",          // unresolved/resolved blocker state
+	}
+}
+
+func normalizeMemoryIDText(value string) string {
+	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(value))), " ")
+}
+
+func uintSliceMemoryIDText(values []uint) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		parts = append(parts, strconv.FormatUint(uint64(value), 10))
+	}
+
+	return strings.Join(parts, ",")
+}
+
+func intSliceMemoryIDText(values []int) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		parts = append(parts, strconv.Itoa(value))
+	}
+
+	return strings.Join(parts, ",")
 }
 
 func sourceRangeTag(sessionID string, start int, end int) string {
 	return "source-range-" + sourceRangeHash(sessionID, start, end)
 }
 
-func sourceRangeHash(sessionID string, start int, end int) string {
-	sum := sha256.Sum256(fmt.Appendf(nil, "%s:%d:%d", strings.TrimSpace(sessionID), start, end))
+func sourceRangeHash(id string, start int, end int) string {
+	sum := sha256.Sum256(fmt.Appendf(nil, "%s:%d:%d", strings.TrimSpace(id), start, end))
 	return hex.EncodeToString(sum[:8])
 }
 

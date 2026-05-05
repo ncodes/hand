@@ -246,7 +246,7 @@ func (s *Store) UpdateEpisodicCheckpoint(ctx context.Context, id string, offset 
 
 	result := s.db.WithContext(ctx).
 		Model(&sessionModel{}).
-		Where("id = ? AND episodic_checkpoint_offset < ?", id, offset).
+		Where("id = ? AND COALESCE(episodic_checkpoint_offset, 0) < ?", id, offset).
 		Update("episodic_checkpoint_offset", offset)
 	if result.Error != nil {
 		return result.Error
