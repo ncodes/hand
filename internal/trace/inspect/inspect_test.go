@@ -2,7 +2,9 @@ package inspect
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"io/fs"
 	"net/http"
@@ -17,6 +19,7 @@ import (
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
+	storage "github.com/wandxy/hand/internal/state/core"
 	handtrace "github.com/wandxy/hand/internal/trace"
 )
 
@@ -594,6 +597,85 @@ func Test_App_Handler_RequiresBasicAuthWhenConfigured(t *testing.T) {
 	require.Contains(t, authorizedRec.Body.String(), "\"sessions\"")
 }
 
+func Test_App_Handler_AttachesProviderMemoriesForSession(t *testing.T) {
+	dir := t.TempDir()
+	writeTraceFile(t, dir, "session", []any{
+		handtrace.Event{
+			SessionID: "session",
+			Type:      handtrace.EvtChatStarted,
+			Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
+			Payload:   handtrace.Metadata{AgentName: "Daemon", Model: "model", APIMode: "completions"},
+		},
+	})
+
+	app := NewApp(dir)
+	app.SetMemoryProvider(sessionMemoryProviderStub{
+		items: []storage.MemoryItem{
+			{
+				ID:     "mem_session",
+				Kind:   storage.MemoryKindEpisodic,
+				Status: storage.MemoryStatusCandidate,
+				Title:  "Decision captured",
+				Text:   "Use provider memory records.",
+				Metadata: map[string]string{
+					"candidate_kind":    "decision",
+					"source_session_id": "session",
+				},
+				SourceLinks: []storage.MemorySourceLink{{
+					SessionID: "session",
+					Offsets:   []int{2, 3},
+				}},
+				Confidence: 0.82,
+			},
+			{
+				ID:       "mem_other",
+				Kind:     storage.MemoryKindEpisodic,
+				Status:   storage.MemoryStatusCandidate,
+				Metadata: map[string]string{"source_session_id": "other"},
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/session", nil)
+	rec := httptest.NewRecorder()
+	app.Handler().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var detail SessionDetail
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &detail))
+	require.NotNil(t, detail.Memories)
+	require.Equal(t, "state", detail.Memories.Source)
+	require.Len(t, detail.Memories.Items, 2)
+	require.Equal(t, "mem_session", detail.Memories.Items[0].ID)
+	require.Equal(t, []int{2, 3}, detail.Memories.Items[0].SourceLinks[0].Offsets)
+}
+
+func Test_App_AttachMemories_HandlesNilInputsAndProviderErrors(t *testing.T) {
+	var nilApp *App
+	detail := &SessionDetail{}
+
+	nilApp.SetMemoryProvider(sessionMemoryProviderStub{})
+	nilApp.attachMemories(context.Background(), "session", detail)
+	require.Nil(t, detail.Memories)
+
+	app := NewApp(t.TempDir())
+	app.attachMemories(context.Background(), "session", nil)
+	app.attachMemories(context.Background(), "session", detail)
+	require.Nil(t, detail.Memories)
+
+	expected := errors.New("memory load failed")
+	app.SetMemoryProvider(sessionMemoryProviderStub{err: expected})
+	memories, err := app.loadSessionMemories(context.Background(), "session")
+	require.ErrorIs(t, err, expected)
+	require.Nil(t, memories)
+
+	app.attachMemories(context.Background(), "session", detail)
+	require.NotNil(t, detail.Memories)
+	require.Equal(t, "state", detail.Memories.Source)
+	require.Equal(t, expected.Error(), detail.Memories.LoadError)
+}
+
 func Test_Store_ValidateAndResolvePath(t *testing.T) {
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "trace.jsonl")
@@ -671,6 +753,17 @@ func Test_Store_ListSessions_IgnoresNonJSONLAndGetSessionErrors(t *testing.T) {
 	}
 	_, err = store.GetSession("session")
 	require.ErrorIs(t, err, fs.ErrPermission)
+
+	restoreStatPath(t)
+	statPath = func(path string) (os.FileInfo, error) {
+		if path == sessionPath {
+			return nil, os.ErrNotExist
+		}
+
+		return os.Stat(path)
+	}
+	_, err = store.GetSession("session")
+	require.ErrorIs(t, err, os.ErrNotExist)
 
 	restoreStatPath(t)
 	readDirectory = os.ReadDir
@@ -843,6 +936,36 @@ func Test_LoadSessionFile_SkipsBlankLines(t *testing.T) {
 	require.Len(t, detail.Timeline, 1)
 }
 
+func Test_LoadSessionFile_UsesFileModTimeWhenEventsHaveNoTimestamp(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "untimed.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(`{"session_id":"untimed","type":"chat.started"}`+"\n"), 0o600))
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+
+	detail, err := LoadSessionFile(path)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, detail.Summary.EventCount)
+	require.True(t, detail.Summary.UpdatedAt.Equal(info.ModTime().UTC()))
+}
+
+func Test_LoadSessionFile_ReturnsDetailWithLoadErrorForMalformedJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "broken.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte("{bad json}\n"), 0o600))
+
+	detail, err := LoadSessionFile(path)
+
+	require.NoError(t, err)
+	require.Equal(t, "broken", detail.Summary.ID)
+	require.Equal(t, "load_error", detail.Summary.FinalStatus)
+	require.Contains(t, detail.LoadError, "failed to parse line 1")
+	require.Equal(t, detail.LoadError, detail.Summary.LoadError)
+	require.False(t, detail.Summary.UpdatedAt.IsZero())
+}
+
 func Test_ApplyEvent_PreservesSummaryAndFallsBackToGenericPayload(t *testing.T) {
 	detail := SessionDetail{
 		Summary: SessionSummary{
@@ -988,6 +1111,15 @@ func (r *failingReader) Read(p []byte) (int, error) {
 	}
 
 	return 0, fs.ErrInvalid
+}
+
+type sessionMemoryProviderStub struct {
+	items []storage.MemoryItem
+	err   error
+}
+
+func (s sessionMemoryProviderStub) ListSessionMemories(context.Context, string) ([]storage.MemoryItem, error) {
+	return s.items, s.err
 }
 
 func writeTraceFile(t *testing.T, dir, id string, events []any) {

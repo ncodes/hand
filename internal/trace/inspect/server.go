@@ -1,6 +1,7 @@
 package inspect
 
 import (
+	"context"
 	"crypto/subtle"
 	"embed"
 	"encoding/json"
@@ -17,13 +18,22 @@ var assets embed.FS
 var readAssetFile = fs.ReadFile
 
 type App struct {
-	store    *Store
-	username string
-	password string
+	store          *Store
+	memoryProvider SessionMemoryProvider
+	username       string
+	password       string
 }
 
 func NewApp(directory string) *App {
 	return &App{store: NewStore(directory)}
+}
+
+func (a *App) SetMemoryProvider(provider SessionMemoryProvider) {
+	if a == nil {
+		return
+	}
+
+	a.memoryProvider = provider
 }
 
 func (a *App) SetBasicAuth(username, password string) {
@@ -99,10 +109,7 @@ func (a *App) handleIndex(w http.ResponseWriter, _ *http.Request) {
 }
 
 func assetFS() fs.FS {
-	sub, err := fs.Sub(assets, "assets")
-	if err != nil {
-		return assets
-	}
+	sub, _ := fs.Sub(assets, "assets")
 	return sub
 }
 
@@ -135,7 +142,44 @@ func (a *App) handleSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	a.attachMemories(r.Context(), id, &detail)
+
 	writeJSON(w, http.StatusOK, detail)
+}
+
+func (a *App) attachMemories(ctx context.Context, sessionID string, detail *SessionDetail) {
+	if a == nil || a.memoryProvider == nil || detail == nil {
+		return
+	}
+
+	memories, err := a.loadSessionMemories(ctx, sessionID)
+	if err != nil {
+		detail.Memories = &SessionMemoryView{
+			Source:    "state",
+			LoadError: err.Error(),
+		}
+		return
+	}
+
+	detail.Memories = &SessionMemoryView{
+		Source: "state",
+		Items:  memories,
+	}
+}
+
+func (a *App) loadSessionMemories(ctx context.Context, sessionID string) ([]MemoryView, error) {
+	items, err := a.memoryProvider.ListSessionMemories(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	memories := make([]MemoryView, 0, len(items))
+	for _, item := range items {
+		memories = append(memories, memoryViewFromItem(item))
+	}
+
+	return memories, nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

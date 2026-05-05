@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	handtrace "github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/hand/internal/trace/inspect"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -205,6 +206,12 @@ func TestViewCommand_RejectsPartialBasicAuthConfiguration(t *testing.T) {
 		"--username", "viewer",
 	})
 	require.EqualError(t, err, "trace viewer basic auth requires both username and password")
+}
+
+func TestServe_ReturnsListenError(t *testing.T) {
+	app := inspect.NewApp(t.TempDir())
+	err := serve(context.Background(), app, t.TempDir(), "127.0.0.1:bad")
+	require.Error(t, err)
 }
 
 func reserveListenAddress(t *testing.T) string {

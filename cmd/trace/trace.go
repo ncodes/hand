@@ -73,6 +73,9 @@ func newViewCommand() *cli.Command {
 			}
 
 			app := inspect.NewApp(traceDir)
+			if err := inspect.ConfigureStateProvider(cfg, app); err != nil {
+				return err
+			}
 			if err := app.Validate(); err != nil {
 				return err
 			}

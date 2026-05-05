@@ -3,6 +3,7 @@ package inspect
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
+	storage "github.com/wandxy/hand/internal/state/core"
 	handtrace "github.com/wandxy/hand/internal/trace"
 )
 
@@ -43,10 +45,77 @@ type SessionSummary struct {
 }
 
 type SessionDetail struct {
-	Summary   SessionSummary  `json:"summary"`
-	Timeline  []TimelineEvent `json:"timeline"`
-	Warnings  []string        `json:"warnings,omitempty"`
-	LoadError string          `json:"load_error,omitempty"`
+	Summary   SessionSummary     `json:"summary"`
+	Timeline  []TimelineEvent    `json:"timeline"`
+	Memories  *SessionMemoryView `json:"memories,omitempty"`
+	Warnings  []string           `json:"warnings,omitempty"`
+	LoadError string             `json:"load_error,omitempty"`
+}
+
+type SessionMemoryView struct {
+	Source    string       `json:"source"`
+	Items     []MemoryView `json:"items,omitempty"`
+	LoadError string       `json:"load_error,omitempty"`
+}
+
+type MemoryView struct {
+	ID          string             `json:"id"`
+	Kind        string             `json:"kind"`
+	Status      string             `json:"status"`
+	Title       string             `json:"title,omitempty"`
+	Text        string             `json:"text,omitempty"`
+	Tags        []string           `json:"tags,omitempty"`
+	Metadata    map[string]string  `json:"metadata,omitempty"`
+	SourceLinks []MemorySourceView `json:"source_links,omitempty"`
+	Confidence  float64            `json:"confidence"`
+	CreatedAt   time.Time          `json:"created_at,omitempty"`
+	UpdatedAt   time.Time          `json:"updated_at,omitempty"`
+}
+
+type MemorySourceView struct {
+	SessionID     string `json:"session_id,omitempty"`
+	MessageIDs    []uint `json:"message_ids,omitempty"`
+	Offsets       []int  `json:"offsets,omitempty"`
+	SummaryID     string `json:"summary_id,omitempty"`
+	CreatedBy     string `json:"created_by,omitempty"`
+	CreatedReason string `json:"created_reason,omitempty"`
+}
+
+type SessionMemoryProvider interface {
+	ListSessionMemories(context.Context, string) ([]storage.MemoryItem, error)
+}
+
+func memoryViewFromItem(item storage.MemoryItem) MemoryView {
+	links := make([]MemorySourceView, 0, len(item.SourceLinks))
+	for _, link := range item.SourceLinks {
+		links = append(links, MemorySourceView{
+			SessionID:     link.SessionID,
+			MessageIDs:    append([]uint(nil), link.MessageIDs...),
+			Offsets:       append([]int(nil), link.Offsets...),
+			SummaryID:     link.SummaryID,
+			CreatedBy:     link.CreatedBy,
+			CreatedReason: link.CreatedReason,
+		})
+	}
+
+	metadata := make(map[string]string, len(item.Metadata))
+	for key, value := range item.Metadata {
+		metadata[key] = value
+	}
+
+	return MemoryView{
+		ID:          item.ID,
+		Kind:        string(item.Kind),
+		Status:      string(item.Status),
+		Title:       item.Title,
+		Text:        item.Text,
+		Tags:        append([]string(nil), item.Tags...),
+		Metadata:    metadata,
+		SourceLinks: links,
+		Confidence:  item.Confidence,
+		CreatedAt:   item.CreatedAt,
+		UpdatedAt:   item.UpdatedAt,
+	}
 }
 
 type TimelineEvent struct {

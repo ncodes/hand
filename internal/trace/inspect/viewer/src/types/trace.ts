@@ -17,6 +17,36 @@ export type TraceSessionsResponse = {
 export type TraceDetail = {
   summary?: TraceSessionSummary;
   timeline?: TraceEvent[];
+  memories?: SessionMemoryView;
+};
+
+export type SessionMemoryView = {
+  source?: string;
+  items?: MemoryRecord[];
+  load_error?: string;
+};
+
+export type MemoryRecord = {
+  id: string;
+  kind?: string;
+  status?: string;
+  title?: string;
+  text?: string;
+  tags?: string[];
+  metadata?: Record<string, string>;
+  source_links?: MemorySourceLink[];
+  confidence?: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type MemorySourceLink = {
+  session_id?: string;
+  message_ids?: number[];
+  offsets?: number[];
+  summary_id?: string;
+  created_by?: string;
+  created_reason?: string;
 };
 
 export type TraceEvent = {
@@ -89,4 +119,44 @@ export type TraceMetrics = {
   maxTokens: number;
   contextLimit: number;
   duration: string;
+};
+
+export type MemoryNodeKind =
+  | "outcome"
+  | "tool_event"
+  | "blocker"
+  | "task_trace"
+  | "milestone"
+  | "decision"
+  | "summary";
+
+export type MemoryNodeStatus = "active" | "candidate" | "blocked";
+
+export type MemoryNode = {
+  id: string;
+  kind: MemoryNodeKind;
+  status: MemoryNodeStatus;
+  title: string;
+  text: string;
+  confidence: number;
+  sourceIndex: number;
+  sourceRange: string;
+  traceRef: string;
+  x: number;
+  y: number;
+  metadata: Record<string, string>;
+};
+
+export type MemoryGraph = {
+  nodes: MemoryNode[];
+  links: Array<{ from: string; to: string }>;
+  loadError?: string;
+  metrics: {
+    episodic: number;
+    candidates: number;
+    active: number;
+    blockers: number;
+    sourceLinks: number;
+    confidence: number;
+  };
 };

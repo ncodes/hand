@@ -9,6 +9,7 @@ import { Header } from "../components/layout/Header";
 import { Inspector } from "../components/layout/Inspector";
 import { MobileTopBar } from "../components/layout/MobileTopBar";
 import { SessionSidebar } from "../components/layout/SessionSidebar";
+import { MemoryVisualizer } from "../components/memory/MemoryVisualizer";
 import { EVENT_GROUPS, POLL_INTERVAL_MS } from "../constants/events";
 import { useLocalStorageBool, useLocalStorageNumber } from "../hooks/useLocalStorage";
 import { useTransientScrollbars } from "../hooks/useTransientScrollbars";
@@ -27,6 +28,8 @@ export function App() {
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
   const [inspectorSheetOpen, setInspectorSheetOpen] = useState(false);
   const [expandedCharts, setExpandedCharts] = useState<Set<string>>(() => new Set());
+  const [activeView, setActiveView] = useState<"events" | "memory">("events");
+  const [selectedMemoryNodeId, setSelectedMemoryNodeId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [activeGroups, setActiveGroups] = useState(() => new Set(EVENT_GROUPS.map((group) => group.id)));
   const [severity, setSeverity] = useState("all");
@@ -158,6 +161,7 @@ export function App() {
           onSelect={(id) => {
             setSelectedId(id);
             setSelectedEventIndex(null);
+            setSelectedMemoryNodeId(null);
             setSidebarDrawerOpen(false);
           }}
         />
@@ -170,39 +174,59 @@ export function App() {
           <Header
             detail={detail}
             selectedId={selectedId}
+            activeView={activeView}
             autoRefresh={autoRefresh}
             singleEventMode={singleEventMode}
+            onActiveView={setActiveView}
             onAutoRefresh={setAutoRefresh}
             onSingleEventMode={setSingleEventMode}
           />
           <div className="space-y-5 p-5 max-[520px]:p-3">
-            <MetricGrid metrics={metrics} />
-            <FilterBar
-              query={query}
-              onQuery={setQuery}
-              activeGroups={activeGroups}
-              setActiveGroups={setActiveGroups}
-              severity={severity}
-              setSeverity={setSeverity}
-            />
-            <ChartsPanel
-              detail={detail}
-              metrics={metrics}
-              expandedCharts={expandedCharts}
-              setExpandedCharts={setExpandedCharts}
-            />
-            <TimelinePanel
-              events={filteredTimeline}
-              selectedEvent={selectedEvent}
-              singleEventMode={singleEventMode}
-              onSelect={(index) => {
-                setSelectedEventIndex(index);
-                if (index !== null && window.innerWidth <= 880) {
-                  setInspectorSheetOpen(true);
-                }
-              }}
-              loading={detailQuery.isLoading}
-            />
+            {activeView === "events" ? (
+              <>
+                <MetricGrid metrics={metrics} />
+                <FilterBar
+                  query={query}
+                  onQuery={setQuery}
+                  activeGroups={activeGroups}
+                  setActiveGroups={setActiveGroups}
+                  severity={severity}
+                  setSeverity={setSeverity}
+                />
+                <ChartsPanel
+                  detail={detail}
+                  metrics={metrics}
+                  expandedCharts={expandedCharts}
+                  setExpandedCharts={setExpandedCharts}
+                />
+                <TimelinePanel
+                  events={filteredTimeline}
+                  selectedEvent={selectedEvent}
+                  singleEventMode={singleEventMode}
+                  onSelect={(index) => {
+                    setSelectedEventIndex(index);
+                    if (index !== null && window.innerWidth <= 880) {
+                      setInspectorSheetOpen(true);
+                    }
+                  }}
+                  loading={detailQuery.isLoading}
+                />
+              </>
+            ) : (
+              <MemoryVisualizer
+                detail={detail}
+                selectedNodeId={selectedMemoryNodeId}
+                onSelectNode={(node) => {
+                  setSelectedMemoryNodeId(node.id);
+                  if (node.sourceIndex >= 0) {
+                    setSelectedEventIndex(node.sourceIndex);
+                  }
+                  if (window.innerWidth <= 880) {
+                    setInspectorSheetOpen(true);
+                  }
+                }}
+              />
+            )}
           </div>
         </section>
         <Inspector

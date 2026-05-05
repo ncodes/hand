@@ -8,13 +8,24 @@ import type { TraceDetail } from "../../types/trace";
 type HeaderProps = {
   detail?: TraceDetail;
   selectedId: string;
+  activeView: "events" | "memory";
   autoRefresh: boolean;
   singleEventMode: boolean;
+  onActiveView: (view: "events" | "memory") => void;
   onAutoRefresh: (checked: boolean) => void;
   onSingleEventMode: (checked: boolean) => void;
 };
 
-export function Header({ detail, selectedId, autoRefresh, singleEventMode, onAutoRefresh, onSingleEventMode }: HeaderProps) {
+export function Header({
+  detail,
+  selectedId,
+  activeView,
+  autoRefresh,
+  singleEventMode,
+  onActiveView,
+  onAutoRefresh,
+  onSingleEventMode,
+}: HeaderProps) {
   const summary = detail?.summary;
 
   return (
@@ -30,6 +41,19 @@ export function Header({ detail, selectedId, autoRefresh, singleEventMode, onAut
           <p className="mt-1 truncate text-sm text-stone-400">{summary?.model || "Model telemetry"} · {summary?.path || "No trace selected"}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-lg border border-white/10 bg-white/[0.035] p-1">
+            {(["events", "memory"] as const).map((view) => (
+              <Button
+                key={view}
+                onClick={() => onActiveView(view)}
+                className={`rounded-md px-3 py-1.5 text-sm font-semibold capitalize transition ${
+                  activeView === view ? "bg-cyan-300/15 text-cyan-100" : "text-stone-400 hover:bg-white/[0.04] hover:text-stone-200"
+                }`}
+              >
+                {view}
+              </Button>
+            ))}
+          </div>
           <Toggle label="Auto refresh" checked={autoRefresh} onChange={onAutoRefresh} />
           <Toggle label="Single event" checked={singleEventMode} onChange={onSingleEventMode} />
           <Button
