@@ -136,10 +136,10 @@ func TestTraceViewerStateConfig_DisablesSearchDependencies(t *testing.T) {
 	require.True(t, *cfg.Reranker.Enabled)
 }
 
-func TestStateSessionMemoryProvider_ListSessionMemoriesFiltersAndClones(t *testing.T) {
-	searchResult := storage.MemorySearchResult{
-		Hits: []storage.MemorySearchHit{
-			{Item: storage.MemoryItem{
+func TestStateSessionMemoryProvider_ListSessionMemoriesUsesStateQueryAndClones(t *testing.T) {
+	sessionResult := storage.SessionMemoriesResult{
+		Items: []storage.MemoryItem{
+			{
 				ID:     "source-link",
 				Kind:   storage.MemoryKindEpisodic,
 				Status: storage.MemoryStatusCandidate,
@@ -147,24 +147,18 @@ func TestStateSessionMemoryProvider_ListSessionMemoriesFiltersAndClones(t *testi
 					SessionID: " " + storage.DefaultSessionID + " ",
 					Offsets:   []int{1},
 				}},
-			}},
-			{Item: storage.MemoryItem{
+			},
+			{
 				ID:       "metadata",
 				Kind:     storage.MemoryKindEpisodic,
 				Status:   storage.MemoryStatusActive,
 				Metadata: map[string]string{"source_session_id": storage.DefaultSessionID},
-			}},
-			{Item: storage.MemoryItem{
-				ID:       "other",
-				Kind:     storage.MemoryKindEpisodic,
-				Status:   storage.MemoryStatusActive,
-				Metadata: map[string]string{"source_session_id": "other"},
-			}},
+			},
 		},
 	}
-
+	store := &memorySearchStore{result: sessionResult}
 	manager, err := statemanager.NewManager(
-		&memorySearchStore{result: searchResult},
+		store,
 		time.Hour,
 		time.Hour,
 	)
@@ -177,14 +171,26 @@ func TestStateSessionMemoryProvider_ListSessionMemoriesFiltersAndClones(t *testi
 
 	require.NoError(t, err)
 	require.Len(t, items, 2)
+	require.Equal(t, storage.SessionMemoryQuery{
+		SessionID: storage.DefaultSessionID,
+		Kinds: []storage.MemoryKind{
+			storage.MemoryKindEpisodic,
+		},
+		Statuses: []storage.MemoryStatus{
+			storage.MemoryStatusCandidate,
+			storage.MemoryStatusActive,
+			storage.MemoryStatusSuperseded,
+		},
+		Limit: 200,
+	}, store.query)
 	require.Equal(t, "source-link", items[0].ID)
 	require.Equal(t, "metadata", items[1].ID)
 	items[0].SourceLinks[0].Offsets[0] = 99
-	require.Equal(t, []int{1}, searchResult.Hits[0].Item.SourceLinks[0].Offsets)
+	require.Equal(t, []int{1}, sessionResult.Items[0].SourceLinks[0].Offsets)
 }
 
-func TestStateSessionMemoryProvider_ReturnsSearchErrors(t *testing.T) {
-	expected := errors.New("memory search failed")
+func TestStateSessionMemoryProvider_ReturnsListErrors(t *testing.T) {
+	expected := errors.New("memory list failed")
 	manager, err := statemanager.NewManager(
 		&memorySearchErrorStore{searchErr: expected},
 		time.Hour,
@@ -222,14 +228,23 @@ type memorySearchErrorStore struct {
 
 type memorySearchStore struct {
 	statemock.Store
-	result storage.MemorySearchResult
+	result storage.SessionMemoriesResult
+	query  storage.SessionMemoryQuery
 }
 
 func (s memorySearchStore) SearchMemory(
 	context.Context,
 	storage.MemorySearchQuery,
 ) (storage.MemorySearchResult, error) {
-	return s.result, nil
+	return storage.MemorySearchResult{}, nil
+}
+
+func (s *memorySearchStore) ListSessionMemories(
+	_ context.Context,
+	query storage.SessionMemoryQuery,
+) (storage.SessionMemoriesResult, error) {
+	s.query = query
+	return storage.SessionMemoriesResult{Items: cloneMemoryItems(s.result.Items)}, nil
 }
 
 func (s memorySearchStore) UpsertMemory(
@@ -250,7 +265,14 @@ func (s memorySearchErrorStore) SearchMemory(
 	context.Context,
 	storage.MemorySearchQuery,
 ) (storage.MemorySearchResult, error) {
-	return storage.MemorySearchResult{}, s.searchErr
+	return storage.MemorySearchResult{}, nil
+}
+
+func (s memorySearchErrorStore) ListSessionMemories(
+	context.Context,
+	storage.SessionMemoryQuery,
+) (storage.SessionMemoriesResult, error) {
+	return storage.SessionMemoriesResult{}, s.searchErr
 }
 
 func (s memorySearchErrorStore) UpsertMemory(
@@ -265,4 +287,12 @@ func (s memorySearchErrorStore) DeleteMemory(
 	storage.MemoryDeleteRequest,
 ) error {
 	return nil
+}
+
+func cloneMemoryItems(items []storage.MemoryItem) []storage.MemoryItem {
+	cloned := make([]storage.MemoryItem, 0, len(items))
+	for _, item := range items {
+		cloned = append(cloned, item.Clone())
+	}
+	return cloned
 }

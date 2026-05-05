@@ -2,12 +2,14 @@ package storememory
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	statememory "github.com/wandxy/hand/internal/state/core"
+	"github.com/wandxy/hand/internal/state/search"
 )
 
 func TestMemoryStore_SearchWriteDeleteAndSourceLinks(t *testing.T) {
@@ -96,16 +98,132 @@ func TestMemoryStore_DefaultsToCandidateAndActiveOnlySearch(t *testing.T) {
 	require.Len(t, result.Hits, 1)
 }
 
+func TestMemoryStore_ListSessionMemoriesFiltersOrdersLimitsAndClones(t *testing.T) {
+	store := NewStore()
+	now := time.Date(2026, 4, 30, 10, 0, 0, 0, time.UTC)
+
+	for _, item := range []statememory.MemoryItem{
+		{
+			ID:     "mem_source_old",
+			Kind:   statememory.MemoryKindEpisodic,
+			Status: statememory.MemoryStatusActive,
+			SourceLinks: []statememory.MemorySourceLink{{
+				SessionID: statememory.DefaultSessionID,
+				Offsets:   []int{1},
+			}},
+		},
+		{
+			ID:       "mem_metadata_new",
+			Kind:     statememory.MemoryKindEpisodic,
+			Status:   statememory.MemoryStatusActive,
+			Metadata: map[string]string{"source_session_id": statememory.DefaultSessionID},
+		},
+		{
+			ID:       "mem_candidate",
+			Kind:     statememory.MemoryKindEpisodic,
+			Status:   statememory.MemoryStatusCandidate,
+			Metadata: map[string]string{"source_session_id": statememory.DefaultSessionID},
+		},
+		{
+			ID:       "mem_other",
+			Kind:     statememory.MemoryKindEpisodic,
+			Status:   statememory.MemoryStatusActive,
+			Metadata: map[string]string{"source_session_id": "other"},
+		},
+	} {
+		_, err := store.UpsertMemory(context.Background(), item)
+		require.NoError(t, err)
+	}
+
+	store.mu.Lock()
+	for id, item := range store.memoryItems {
+		switch id {
+		case "mem_source_old":
+			item.UpdatedAt = now
+		case "mem_metadata_new":
+			item.UpdatedAt = now.Add(time.Hour)
+		case "mem_candidate":
+			item.UpdatedAt = now.Add(2 * time.Hour)
+		}
+		store.memoryItems[id] = item
+	}
+	store.mu.Unlock()
+
+	result, err := store.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{
+		SessionID: statememory.DefaultSessionID,
+		Kinds:     []statememory.MemoryKind{statememory.MemoryKindEpisodic},
+		Statuses:  []statememory.MemoryStatus{statememory.MemoryStatusActive},
+		Limit:     1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mem_metadata_new"}, memoryItemIDs(result.Items))
+
+	result, err = store.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{
+		SessionID: statememory.DefaultSessionID,
+		Statuses:  []statememory.MemoryStatus{statememory.MemoryStatusActive, statememory.MemoryStatusCandidate},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mem_candidate", "mem_metadata_new", "mem_source_old"}, memoryItemIDs(result.Items))
+	result.Items[2].SourceLinks[0].Offsets[0] = 99
+	require.Equal(t, []int{1}, store.memoryItems["mem_source_old"].SourceLinks[0].Offsets)
+}
+
+func TestMemoryStore_ListSessionMemoriesDefaultsToActiveStatus(t *testing.T) {
+	store := NewStore()
+	for _, item := range []statememory.MemoryItem{
+		{
+			ID:     "mem_active_b",
+			Status: statememory.MemoryStatusActive,
+			Metadata: map[string]string{
+				"source_session_id": statememory.DefaultSessionID,
+			},
+		},
+		{
+			ID:     "mem_active_a",
+			Status: statememory.MemoryStatusActive,
+			Metadata: map[string]string{
+				"source_session_id": statememory.DefaultSessionID,
+			},
+		},
+		{
+			ID:     "mem_candidate",
+			Status: statememory.MemoryStatusCandidate,
+			Metadata: map[string]string{
+				"source_session_id": statememory.DefaultSessionID,
+			},
+		},
+	} {
+		_, err := store.UpsertMemory(context.Background(), item)
+		require.NoError(t, err)
+	}
+
+	store.mu.Lock()
+	for id, item := range store.memoryItems {
+		if id == "mem_active_a" || id == "mem_active_b" {
+			item.UpdatedAt = time.Date(2026, 4, 30, 10, 0, 0, 0, time.UTC)
+			store.memoryItems[id] = item
+		}
+	}
+	store.mu.Unlock()
+
+	result, err := store.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{
+		SessionID: statememory.DefaultSessionID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mem_active_a", "mem_active_b"}, memoryItemIDs(result.Items))
+}
+
 func TestMemoryStore_SearchOrdersAndLimitsResults(t *testing.T) {
 	store := NewStore()
 	now := time.Date(2026, 4, 30, 10, 0, 0, 0, time.UTC)
 
 	for _, item := range []statememory.MemoryItem{
-		{ID: "mem_low", Status: statememory.MemoryStatusActive, Text: "plan"},
-		{ID: "mem_high_old", Status: statememory.MemoryStatusActive, Title: "plan", Text: "plan"},
-		{ID: "mem_high_new", Status: statememory.MemoryStatusActive, Title: "plan", Text: "plan"},
-		{ID: "mem_high_same_b", Status: statememory.MemoryStatusActive, Title: "plan", Text: "plan"},
-		{ID: "mem_high_same_a", Status: statememory.MemoryStatusActive, Title: "plan", Text: "plan"},
+		{ID: "mem_low", Status: statememory.MemoryStatusActive, Text: "plan", Metadata: map[string]string{"source_session_id": statememory.DefaultSessionID}},
+		{ID: "mem_high_old", Status: statememory.MemoryStatusActive, Title: "plan", Text: "plan", Metadata: map[string]string{"source_session_id": statememory.DefaultSessionID}},
+		{ID: "mem_high_new", Status: statememory.MemoryStatusActive, Title: "plan", Text: "plan", Metadata: map[string]string{"source_session_id": statememory.DefaultSessionID}},
+		{ID: "mem_high_same_b", Status: statememory.MemoryStatusActive, Title: "plan", Text: "plan", Metadata: map[string]string{"source_session_id": statememory.DefaultSessionID}},
+		{ID: "mem_high_same_a", Status: statememory.MemoryStatusActive, Title: "plan", Text: "plan", Metadata: map[string]string{"source_session_id": statememory.DefaultSessionID}},
+		{ID: "mem_other_session", Status: statememory.MemoryStatusActive, Title: "plan", Text: "plan", Metadata: map[string]string{"source_session_id": "other"}},
 	} {
 		_, err := store.UpsertMemory(context.Background(), item)
 		require.NoError(t, err)
@@ -128,8 +246,9 @@ func TestMemoryStore_SearchOrdersAndLimitsResults(t *testing.T) {
 	store.mu.Unlock()
 
 	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
-		Text:  "plan",
-		Limit: 4,
+		Text:      "plan",
+		SessionID: statememory.DefaultSessionID,
+		Limit:     4,
 	})
 	require.NoError(t, err)
 	require.Len(t, result.Hits, 4)
@@ -144,6 +263,25 @@ func TestMemoryStore_SearchOrdersAndLimitsResults(t *testing.T) {
 		result.Hits[2].Item.ID,
 		result.Hits[3].Item.ID,
 	})
+}
+
+func TestMemoryStore_SearchTrimsCandidateSetBeforeReranking(t *testing.T) {
+	store := NewStore()
+	for idx := 0; idx <= search.DefaultRerankCandidateLimit; idx++ {
+		_, err := store.UpsertMemory(context.Background(), statememory.MemoryItem{
+			ID:     fmt.Sprintf("mem_%03d", idx),
+			Status: statememory.MemoryStatusActive,
+			Text:   "plan",
+		})
+		require.NoError(t, err)
+	}
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text:  "plan",
+		Limit: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
 }
 
 func TestMemoryStore_ReranksBeforeLimiting(t *testing.T) {
@@ -234,6 +372,9 @@ func TestMemoryStore_NilReceiverAndValidationErrors(t *testing.T) {
 	_, err := nilStore.SearchMemory(context.Background(), statememory.MemorySearchQuery{})
 	require.EqualError(t, err, "store is required")
 
+	_, err = nilStore.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{})
+	require.EqualError(t, err, "store is required")
+
 	_, err = nilStore.UpsertMemory(context.Background(), statememory.MemoryItem{})
 	require.EqualError(t, err, "store is required")
 
@@ -241,6 +382,16 @@ func TestMemoryStore_NilReceiverAndValidationErrors(t *testing.T) {
 	require.EqualError(t, err, "store is required")
 
 	store := NewStore()
+	_, err = store.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{})
+	require.EqualError(t, err, "session id is required")
 	require.EqualError(t, store.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{}), "memory id is required")
 	require.NoError(t, store.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "missing"}))
+}
+
+func memoryItemIDs(items []statememory.MemoryItem) []string {
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	return ids
 }

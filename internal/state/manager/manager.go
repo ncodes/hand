@@ -69,6 +69,18 @@ func (m *Manager) SearchMemory(
 	return store.SearchMemory(ctx, query)
 }
 
+func (m *Manager) ListSessionMemories(
+	ctx context.Context,
+	query storage.SessionMemoryQuery,
+) (storage.SessionMemoriesResult, error) {
+	store, ok := m.MemoryStore()
+	if !ok {
+		return storage.SessionMemoriesResult{}, errors.New("memory store is not supported")
+	}
+
+	return store.ListSessionMemories(ctx, query)
+}
+
 func (m *Manager) UpsertMemory(
 	ctx context.Context,
 	item storage.MemoryItem,

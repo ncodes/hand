@@ -58,13 +58,21 @@ func (item MemoryItem) GuardrailSource() string {
 }
 
 type MemorySearchQuery struct {
-	Text     string
-	IDs      []string
-	Kinds    []MemoryKind
-	Statuses []MemoryStatus
-	Tags     []string
-	Limit    int
-	MaxChars int
+	Text      string
+	SessionID string
+	IDs       []string
+	Kinds     []MemoryKind
+	Statuses  []MemoryStatus
+	Tags      []string
+	Limit     int
+	MaxChars  int
+}
+
+type SessionMemoryQuery struct {
+	SessionID string
+	Kinds     []MemoryKind
+	Statuses  []MemoryStatus
+	Limit     int
 }
 
 type MemorySearchHit struct {
@@ -76,6 +84,10 @@ type MemorySearchResult struct {
 	Hits []MemorySearchHit
 }
 
+type SessionMemoriesResult struct {
+	Items []MemoryItem
+}
+
 type MemoryDeleteRequest struct {
 	ID     string
 	Reason string
@@ -83,6 +95,7 @@ type MemoryDeleteRequest struct {
 
 type MemoryStore interface {
 	SearchMemory(context.Context, MemorySearchQuery) (MemorySearchResult, error)
+	ListSessionMemories(context.Context, SessionMemoryQuery) (SessionMemoriesResult, error)
 	UpsertMemory(context.Context, MemoryItem) (MemoryItem, error)
 	DeleteMemory(context.Context, MemoryDeleteRequest) error
 }
@@ -143,6 +156,9 @@ func NormalizeMemoryIDs(ids []string) []string {
 }
 
 func MemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
+	if sessionID := strings.TrimSpace(query.SessionID); sessionID != "" && !MemoryBelongsToSession(item, sessionID) {
+		return false
+	}
 	if ids := NormalizeMemoryIDs(query.IDs); len(ids) > 0 && !slices.Contains(ids, strings.TrimSpace(item.ID)) {
 		return false
 	}
@@ -166,6 +182,36 @@ func MemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
 	}
 
 	return strings.Contains(strings.ToLower(item.Title), text) || strings.Contains(strings.ToLower(item.Text), text)
+}
+
+func MemoryMatchesSessionQuery(item MemoryItem, query SessionMemoryQuery) bool {
+	sessionID := strings.TrimSpace(query.SessionID)
+	if sessionID == "" || !MemoryBelongsToSession(item, sessionID) {
+		return false
+	}
+	if len(query.Kinds) > 0 && !slices.Contains(query.Kinds, item.Kind) {
+		return false
+	}
+	if len(query.Statuses) > 0 {
+		return slices.Contains(query.Statuses, item.Status)
+	}
+
+	return item.Status == MemoryStatusActive
+}
+
+func MemoryBelongsToSession(item MemoryItem, sessionID string) bool {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return false
+	}
+
+	for _, link := range item.SourceLinks {
+		if strings.TrimSpace(link.SessionID) == sessionID {
+			return true
+		}
+	}
+
+	return strings.TrimSpace(item.Metadata["source_session_id"]) == sessionID
 }
 
 func SimpleMemoryScore(item MemoryItem, query string) float64 {

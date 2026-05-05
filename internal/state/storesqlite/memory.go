@@ -19,6 +19,7 @@ const memorySearchTable = "memory_items_fts"
 
 type memoryItemModel struct {
 	ID              string    `gorm:"column:id;primaryKey"`
+	SourceSessionID string    `gorm:"column:source_session_id;not null;default:'';index:idx_memory_items_source_session_id"`
 	Kind            string    `gorm:"column:kind;not null;default:'';index:idx_memory_items_kind;index:idx_memory_items_kind_status,priority:1"`
 	Status          string    `gorm:"column:status;not null;index:idx_memory_items_status;index:idx_memory_items_kind_status,priority:2"`
 	Title           string    `gorm:"column:title;not null;default:''"`
@@ -46,6 +47,7 @@ func (memoryItemTagModel) TableName() string {
 
 type memorySearchRecord struct {
 	ID              string    `gorm:"column:id"`
+	SourceSessionID string    `gorm:"column:source_session_id"`
 	Kind            string    `gorm:"column:kind"`
 	Status          string    `gorm:"column:status"`
 	Title           string    `gorm:"column:title"`
@@ -62,6 +64,7 @@ type memorySearchRecord struct {
 func (record memorySearchRecord) model() memoryItemModel {
 	return memoryItemModel{
 		ID:              record.ID,
+		SourceSessionID: record.SourceSessionID,
 		Kind:            record.Kind,
 		Status:          record.Status,
 		Title:           record.Title,
@@ -106,6 +109,49 @@ func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearch
 		MaxCandidates: candidateLimit,
 		Limit:         resultLimit,
 	})
+}
+
+func (s *Store) ListSessionMemories(ctx context.Context, query statememory.SessionMemoryQuery) (statememory.SessionMemoriesResult, error) {
+	if s == nil || s.db == nil {
+		return statememory.SessionMemoriesResult{}, errors.New("store is required")
+	}
+
+	sessionID := strings.TrimSpace(query.SessionID)
+	if err := statememory.ValidateSessionID(sessionID); err != nil {
+		return statememory.SessionMemoriesResult{}, err
+	}
+
+	statuses := query.Statuses
+	if len(statuses) == 0 {
+		statuses = []statememory.MemoryStatus{statememory.MemoryStatusActive}
+	}
+
+	db := s.db.WithContext(ctx).Model(&memoryItemModel{}).Where("source_session_id = ?", sessionID)
+	if len(query.Kinds) > 0 {
+		db = db.Where("kind IN ?", statememory.MemoryKindStrings(query.Kinds))
+	}
+	if len(statuses) > 0 {
+		db = db.Where("status IN ?", statememory.MemoryStatusStrings(statuses))
+	}
+	if query.Limit > 0 {
+		db = db.Limit(query.Limit)
+	}
+
+	var records []memoryItemModel
+	if err := db.Order("updated_at DESC").Order("id ASC").Find(&records).Error; err != nil {
+		return statememory.SessionMemoriesResult{}, err
+	}
+
+	items := make([]statememory.MemoryItem, 0, len(records))
+	for _, record := range records {
+		item, err := memoryModelToItem(record)
+		if err != nil {
+			return statememory.SessionMemoriesResult{}, err
+		}
+		items = append(items, item.Clone())
+	}
+
+	return statememory.SessionMemoriesResult{Items: items}, nil
 }
 
 func (s *Store) UpsertMemory(ctx context.Context, item statememory.MemoryItem) (statememory.MemoryItem, error) {
@@ -212,6 +258,9 @@ func (s *Store) searchMemoryRecords(
 	}
 
 	db := s.db.WithContext(ctx).Model(&memoryItemModel{})
+	if sessionID := strings.TrimSpace(query.SessionID); sessionID != "" {
+		db = db.Where("source_session_id = ?", sessionID)
+	}
 	if ids := statememory.NormalizeMemoryIDs(query.IDs); len(ids) > 0 {
 		db = db.Where("id IN ?", ids)
 	}
@@ -269,6 +318,7 @@ WITH fts_hits AS (
 )
 SELECT
 	m.id,
+	m.source_session_id,
 	m.kind,
 	m.status,
 	m.title,
@@ -283,6 +333,11 @@ SELECT
 FROM memory_items AS m
 JOIN fts_hits AS hits ON hits.memory_id = m.id
 WHERE 1 = 1`)
+	if sessionID := strings.TrimSpace(query.SessionID); sessionID != "" {
+		sql.WriteString(`
+	AND m.source_session_id = ?`)
+		args = append(args, sessionID)
+	}
 	if ids := statememory.NormalizeMemoryIDs(query.IDs); len(ids) > 0 {
 		sql.WriteString(`
 	AND m.id IN ?`)
@@ -366,6 +421,7 @@ func ensureMemorySearchIndex(db *gorm.DB) error {
 func itemToMemoryModel(item statememory.MemoryItem) memoryItemModel {
 	return memoryItemModel{
 		ID:              item.ID,
+		SourceSessionID: memorySourceSessionID(item),
 		Kind:            string(item.Kind),
 		Status:          string(item.Status),
 		Title:           item.Title,
@@ -377,6 +433,20 @@ func itemToMemoryModel(item statememory.MemoryItem) memoryItemModel {
 		CreatedAt:       item.CreatedAt,
 		UpdatedAt:       item.UpdatedAt,
 	}
+}
+
+func memorySourceSessionID(item statememory.MemoryItem) string {
+	if sessionID := strings.TrimSpace(item.Metadata["source_session_id"]); sessionID != "" {
+		return sessionID
+	}
+
+	for _, link := range item.SourceLinks {
+		if sessionID := strings.TrimSpace(link.SessionID); sessionID != "" {
+			return sessionID
+		}
+	}
+
+	return ""
 }
 
 func memoryModelToItem(record memoryItemModel) (statememory.MemoryItem, error) {
@@ -413,6 +483,7 @@ func toJSONString(value any) string {
 func memorySearchRecordFromModel(record memoryItemModel, score float64) memorySearchRecord {
 	return memorySearchRecord{
 		ID:              record.ID,
+		SourceSessionID: record.SourceSessionID,
 		Kind:            record.Kind,
 		Status:          record.Status,
 		Title:           record.Title,

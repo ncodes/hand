@@ -25,6 +25,7 @@ func TestSQLiteMemoryStore_MigrationSearchWriteDeleteAndSourceLinks(t *testing.T
 	require.True(t, db.Migrator().HasIndex(&memoryItemModel{}, "idx_memory_items_status"))
 	require.True(t, db.Migrator().HasIndex(&memoryItemModel{}, "idx_memory_items_kind_status"))
 	require.True(t, db.Migrator().HasIndex(&memoryItemModel{}, "idx_memory_items_updated_at"))
+	require.True(t, db.Migrator().HasIndex(&memoryItemModel{}, "idx_memory_items_source_session_id"))
 	require.True(t, db.Migrator().HasIndex(&memoryItemTagModel{}, "idx_memory_item_tags_tag"))
 
 	createdAt := time.Date(2026, 4, 30, 9, 0, 0, 0, time.UTC)
@@ -49,6 +50,9 @@ func TestSQLiteMemoryStore_MigrationSearchWriteDeleteAndSourceLinks(t *testing.T
 	require.NoError(t, err)
 	require.Equal(t, "mem_one", item.ID)
 	require.Equal(t, createdAt, item.CreatedAt)
+	var record memoryItemModel
+	require.NoError(t, store.db.First(&record, "id = ?", item.ID).Error)
+	require.Equal(t, "session", record.SourceSessionID)
 
 	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
 		Text: "focused",
@@ -95,6 +99,120 @@ func TestSQLiteMemoryStore_DefaultsToCandidateAndActiveOnlySearch(t *testing.T) 
 	})
 	require.NoError(t, err)
 	require.Len(t, result.Hits, 1)
+}
+
+func TestSQLiteMemoryStore_ListSessionMemoriesFiltersOrdersLimitsAndClones(t *testing.T) {
+	store, err := NewStoreFromDB(openMemoryTestDB(t))
+	require.NoError(t, err)
+
+	for _, item := range []statememory.MemoryItem{
+		{
+			ID:     "mem_source_old",
+			Kind:   statememory.MemoryKindEpisodic,
+			Status: statememory.MemoryStatusActive,
+			SourceLinks: []statememory.MemorySourceLink{{
+				SessionID: statememory.DefaultSessionID,
+				Offsets:   []int{1},
+			}},
+		},
+		{
+			ID:       "mem_metadata_new",
+			Kind:     statememory.MemoryKindEpisodic,
+			Status:   statememory.MemoryStatusActive,
+			Metadata: map[string]string{"source_session_id": statememory.DefaultSessionID},
+		},
+		{
+			ID:       "mem_candidate",
+			Kind:     statememory.MemoryKindEpisodic,
+			Status:   statememory.MemoryStatusCandidate,
+			Metadata: map[string]string{"source_session_id": statememory.DefaultSessionID},
+		},
+		{
+			ID:       "mem_other",
+			Kind:     statememory.MemoryKindEpisodic,
+			Status:   statememory.MemoryStatusActive,
+			Metadata: map[string]string{"source_session_id": "other"},
+		},
+	} {
+		_, err := store.UpsertMemory(context.Background(), item)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, store.db.Model(&memoryItemModel{}).Where("id = ?", "mem_source_old").Update("updated_at", time.Date(2026, 4, 30, 10, 0, 0, 0, time.UTC)).Error)
+	require.NoError(t, store.db.Model(&memoryItemModel{}).Where("id = ?", "mem_metadata_new").Update("updated_at", time.Date(2026, 4, 30, 11, 0, 0, 0, time.UTC)).Error)
+	require.NoError(t, store.db.Model(&memoryItemModel{}).Where("id = ?", "mem_candidate").Update("updated_at", time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)).Error)
+
+	result, err := store.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{
+		SessionID: statememory.DefaultSessionID,
+		Kinds:     []statememory.MemoryKind{statememory.MemoryKindEpisodic},
+		Statuses:  []statememory.MemoryStatus{statememory.MemoryStatusActive},
+		Limit:     1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mem_metadata_new"}, sqliteMemoryItemIDs(result.Items))
+
+	result, err = store.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{
+		SessionID: statememory.DefaultSessionID,
+		Statuses:  []statememory.MemoryStatus{statememory.MemoryStatusActive, statememory.MemoryStatusCandidate},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mem_candidate", "mem_metadata_new", "mem_source_old"}, sqliteMemoryItemIDs(result.Items))
+	result.Items[2].SourceLinks[0].Offsets[0] = 99
+
+	result, err = store.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{
+		SessionID: statememory.DefaultSessionID,
+		Statuses:  []statememory.MemoryStatus{statememory.MemoryStatusActive},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []int{1}, result.Items[1].SourceLinks[0].Offsets)
+}
+
+func TestSQLiteMemoryStore_ListSessionMemoriesUsesSourceSessionColumn(t *testing.T) {
+	store, err := NewStoreFromDB(openMemoryTestDB(t))
+	require.NoError(t, err)
+
+	require.NoError(t, store.db.Create(&memoryItemModel{
+		ID:              "mem_indexed",
+		SourceSessionID: statememory.DefaultSessionID,
+		Kind:            string(statememory.MemoryKindEpisodic),
+		Status:          string(statememory.MemoryStatusActive),
+		Title:           "indexed",
+		TagsJSON:        "null",
+		MetadataJSON:    "null",
+		SourceLinksJSON: "null",
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}).Error)
+
+	result, err := store.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{
+		SessionID: statememory.DefaultSessionID,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"mem_indexed"}, sqliteMemoryItemIDs(result.Items))
+}
+
+func TestSQLiteMemoryStore_ListSessionMemoriesReturnsDecodeErrors(t *testing.T) {
+	store, err := NewStoreFromDB(openMemoryTestDB(t))
+	require.NoError(t, err)
+
+	require.NoError(t, store.db.Create(&memoryItemModel{
+		ID:              "mem_invalid",
+		SourceSessionID: statememory.DefaultSessionID,
+		Kind:            string(statememory.MemoryKindEpisodic),
+		Status:          string(statememory.MemoryStatusActive),
+		Title:           "invalid",
+		TagsJSON:        "{",
+		MetadataJSON:    "null",
+		SourceLinksJSON: "null",
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}).Error)
+
+	_, err = store.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{
+		SessionID: statememory.DefaultSessionID,
+	})
+	require.Error(t, err)
 }
 
 func TestSQLiteMemoryStore_SearchWithNoFTSTokensReturnsNoHits(t *testing.T) {
@@ -184,6 +302,7 @@ func TestSQLiteMemoryStore_SearchFiltersKindsStatusesTagsAndLimit(t *testing.T) 
 			Title:     "Plan plan preference",
 			Text:      "Use phased plans",
 			Tags:      []string{"plan", "go"},
+			Metadata:  map[string]string{"source_session_id": statememory.DefaultSessionID},
 			UpdatedAt: now,
 		},
 		{
@@ -193,6 +312,7 @@ func TestSQLiteMemoryStore_SearchFiltersKindsStatusesTagsAndLimit(t *testing.T) 
 			Title:     "Plan procedure",
 			Text:      "Review before commit",
 			Tags:      []string{"plan", "workflow"},
+			Metadata:  map[string]string{"source_session_id": "other"},
 			UpdatedAt: now.Add(time.Minute),
 		},
 		{
@@ -202,6 +322,7 @@ func TestSQLiteMemoryStore_SearchFiltersKindsStatusesTagsAndLimit(t *testing.T) 
 			Title:     "Old plan preference",
 			Text:      "Superseded text",
 			Tags:      []string{"plan"},
+			Metadata:  map[string]string{"source_session_id": "other"},
 			UpdatedAt: now.Add(2 * time.Minute),
 		},
 	}
@@ -211,11 +332,12 @@ func TestSQLiteMemoryStore_SearchFiltersKindsStatusesTagsAndLimit(t *testing.T) 
 	}
 
 	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
-		Text:     "plan",
-		Kinds:    []statememory.MemoryKind{statememory.MemoryKindSemantic},
-		Statuses: []statememory.MemoryStatus{statememory.MemoryStatusActive, statememory.MemoryStatusSuperseded},
-		Tags:     []string{"plan"},
-		Limit:    1,
+		Text:      "plan",
+		SessionID: statememory.DefaultSessionID,
+		Kinds:     []statememory.MemoryKind{statememory.MemoryKindSemantic},
+		Statuses:  []statememory.MemoryStatus{statememory.MemoryStatusActive, statememory.MemoryStatusSuperseded},
+		Tags:      []string{"plan"},
+		Limit:     1,
 	})
 	require.NoError(t, err)
 	require.Len(t, result.Hits, 1)
@@ -248,6 +370,14 @@ func TestSQLiteMemoryStore_SearchFiltersKindsStatusesTagsAndLimit(t *testing.T) 
 	require.NoError(t, err)
 	require.Len(t, result.Hits, 1)
 	require.Equal(t, "mem_b", result.Hits[0].Item.ID)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		SessionID: statememory.DefaultSessionID,
+		Kinds:     []statememory.MemoryKind{statememory.MemoryKindSemantic},
+		Statuses:  []statememory.MemoryStatus{statememory.MemoryStatusActive, statememory.MemoryStatusSuperseded},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mem_a"}, sqliteMemoryHitIDs(result.Hits))
 }
 
 func TestSQLiteMemoryStore_FTSIndexesMemoryFields(t *testing.T) {
@@ -361,12 +491,16 @@ func TestSQLiteMemoryStore_ValidationAndDatabaseErrors(t *testing.T) {
 	var nilStore *Store
 	_, err := nilStore.SearchMemory(context.Background(), statememory.MemorySearchQuery{})
 	require.EqualError(t, err, "store is required")
+	_, err = nilStore.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{})
+	require.EqualError(t, err, "store is required")
 	_, err = (&Store{}).UpsertMemory(context.Background(), statememory.MemoryItem{})
 	require.EqualError(t, err, "store is required")
 	require.EqualError(t, nilStore.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{}), "store is required")
 
 	store, err := NewStoreFromDB(openMemoryTestDB(t))
 	require.NoError(t, err)
+	_, err = store.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{})
+	require.EqualError(t, err, "session id is required")
 	require.EqualError(t, store.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{}), "memory id is required")
 	require.NoError(t, store.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "missing"}))
 
@@ -375,6 +509,8 @@ func TestSQLiteMemoryStore_ValidationAndDatabaseErrors(t *testing.T) {
 		tx.AddError(searchErr)
 	}))
 	_, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{})
+	require.ErrorIs(t, err, searchErr)
+	_, err = store.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{SessionID: statememory.DefaultSessionID})
 	require.ErrorIs(t, err, searchErr)
 	require.NoError(t, store.db.Callback().Query().Remove("test:memory-search-error"))
 
@@ -577,4 +713,20 @@ func assertMemorySearchIDs(t *testing.T, store *Store, query string, expected []
 		actual = append(actual, hit.Item.ID)
 	}
 	require.Equal(t, expected, actual)
+}
+
+func sqliteMemoryItemIDs(items []statememory.MemoryItem) []string {
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	return ids
+}
+
+func sqliteMemoryHitIDs(hits []statememory.MemorySearchHit) []string {
+	ids := make([]string, 0, len(hits))
+	for _, hit := range hits {
+		ids = append(ids, hit.Item.ID)
+	}
+	return ids
 }

@@ -2,7 +2,6 @@ package inspect
 
 import (
 	"context"
-	"strings"
 
 	"github.com/wandxy/hand/internal/config"
 	storage "github.com/wandxy/hand/internal/state/core"
@@ -47,7 +46,8 @@ type stateProvider struct {
 }
 
 func (p stateProvider) ListSessionMemories(ctx context.Context, sessionID string) ([]storage.MemoryItem, error) {
-	result, err := p.manager.SearchMemory(ctx, storage.MemorySearchQuery{
+	result, err := p.manager.ListSessionMemories(ctx, storage.SessionMemoryQuery{
+		SessionID: sessionID,
 		Kinds: []storage.MemoryKind{
 			storage.MemoryKindEpisodic,
 		},
@@ -62,23 +62,10 @@ func (p stateProvider) ListSessionMemories(ctx context.Context, sessionID string
 		return nil, err
 	}
 
-	memories := make([]storage.MemoryItem, 0, len(result.Hits))
-	for _, hit := range result.Hits {
-		if memoryBelongsToSession(hit.Item, sessionID) {
-			memories = append(memories, hit.Item.Clone())
-		}
+	memories := make([]storage.MemoryItem, 0, len(result.Items))
+	for _, item := range result.Items {
+		memories = append(memories, item.Clone())
 	}
 
 	return memories, nil
-}
-
-func memoryBelongsToSession(item storage.MemoryItem, sessionID string) bool {
-	sessionID = strings.TrimSpace(sessionID)
-	for _, link := range item.SourceLinks {
-		if strings.TrimSpace(link.SessionID) == sessionID {
-			return true
-		}
-	}
-
-	return strings.TrimSpace(item.Metadata["source_session_id"]) == sessionID
 }

@@ -56,6 +56,38 @@ func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearch
 	})
 }
 
+func (s *Store) ListSessionMemories(_ context.Context, query statememory.SessionMemoryQuery) (statememory.SessionMemoriesResult, error) {
+	if s == nil {
+		return statememory.SessionMemoriesResult{}, errors.New("store is required")
+	}
+	if err := statememory.ValidateSessionID(query.SessionID); err != nil {
+		return statememory.SessionMemoriesResult{}, err
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	items := make([]statememory.MemoryItem, 0, len(s.memoryItems))
+	for _, item := range s.memoryItems {
+		if statememory.MemoryMatchesSessionQuery(item, query) {
+			items = append(items, item.Clone())
+		}
+	}
+
+	sort.SliceStable(items, func(i, j int) bool {
+		if !items[i].UpdatedAt.Equal(items[j].UpdatedAt) {
+			return items[i].UpdatedAt.After(items[j].UpdatedAt)
+		}
+		return items[i].ID < items[j].ID
+	})
+
+	if query.Limit > 0 && len(items) > query.Limit {
+		items = items[:query.Limit]
+	}
+
+	return statememory.SessionMemoriesResult{Items: items}, nil
+}
+
 func (s *Store) UpsertMemory(_ context.Context, item statememory.MemoryItem) (statememory.MemoryItem, error) {
 	if s == nil {
 		return statememory.MemoryItem{}, errors.New("store is required")
