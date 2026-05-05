@@ -141,27 +141,7 @@ func llmExtractorStructuredOutput() *models.StructuredOutput {
 }
 
 func llmExtractorMetadataSchema() map[string]any {
-	fields := []string{
-		"reason",                  // evidence-backed reason for the candidate
-		"trace_refs",              // trace events that ground the candidate
-		"tool_name",               // tool identity for tool_event candidates
-		"purpose",                 // high-level tool or task purpose
-		"status",                  // generic success/failure state
-		"artifact_or_command_ref", // safe artifact path or command reference
-		"chosen_option",           // selected option for decision candidates
-		"rejected_alternatives",   // alternatives rejected in a decision
-		"source_range",            // finer source span supplied by the extractor
-		"requested_goal",          // user/task goal for outcome candidates
-		"resulting_change",        // durable result produced by the task
-		"verification_status",     // whether and how the result was checked
-		"remaining_risk",          // known residual risk or uncertainty
-		"outcome_status",          // success, failed, partial, or follow-up state
-		"attempt_status",          // failed-attempt or retry state
-		"progress_status",         // partial-progress state
-		"follow_up_status",        // open follow-up state
-		"blocker_status",          // unresolved/resolved blocker state
-		"uncertainty",             // uncertainty preserved from incomplete evidence
-	}
+	fields := episodeMetadataFieldKeys()
 	properties := make(map[string]any, len(fields))
 	for _, field := range fields {
 		properties[field] = map[string]any{"type": "string"}

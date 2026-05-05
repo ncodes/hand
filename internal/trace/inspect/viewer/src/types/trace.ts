@@ -128,6 +128,7 @@ export type MemoryNodeKind =
   | "task_trace"
   | "milestone"
   | "decision"
+  | "reflection"
   | "summary";
 
 export type MemoryNodeStatus = "active" | "candidate" | "blocked";

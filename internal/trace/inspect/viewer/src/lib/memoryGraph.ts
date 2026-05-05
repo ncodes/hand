@@ -69,6 +69,8 @@ export function memoryKindClass(kind: MemoryNodeKind): string {
       return "border-amber-300/35 bg-amber-300/12 text-amber-100";
     case "decision":
       return "border-violet-300/35 bg-violet-300/12 text-violet-100";
+    case "reflection":
+      return "border-fuchsia-300/35 bg-fuchsia-300/12 text-fuchsia-100";
     case "summary":
       return "border-stone-300/25 bg-stone-300/10 text-stone-100";
   }
@@ -123,9 +125,10 @@ function kindFromMemoryRecord(record: MemoryRecord): MemoryNodeKind {
       return "blocker";
     case "task_trace":
       return "task_trace";
-    case "project_milestone":
     case "milestone":
       return "milestone";
+    case "reflection":
+      return "reflection";
     case "outcome":
       return "outcome";
     default:

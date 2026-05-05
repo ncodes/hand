@@ -56,7 +56,7 @@ func TestLLMExtractor_ExtractCandidatesUsesStructuredRequestAndParsesResponse(t 
 		TraceEvents: []taskTraceEvidence{{
 			Ref:     "trace:2",
 			Type:    "tool.invocation.completed",
-			Payload: `{"name":"run_command","exit_code":0}`,
+			Payload: `{"name":"calendar_lookup","status":"available"}`,
 		}},
 		MaxChars: 500,
 	})
@@ -160,8 +160,14 @@ func TestLLMExtractorStructuredOutputUsesLowercaseRejectionFields(t *testing.T) 
 	require.ElementsMatch(t, episodeCandidateKinds(), kinds["enum"])
 	require.False(t, metadata["additionalProperties"].(bool))
 	require.ElementsMatch(t, mapKeys(metadataProperties), metadata["required"])
+	require.Contains(t, metadataProperties, "memory_importance")
+	require.Contains(t, metadataProperties, "memory_granularity")
+	require.Contains(t, metadataProperties, "canonical_group")
 	require.Contains(t, metadataProperties, "purpose")
 	require.Contains(t, metadataProperties, "outcome_status")
+	require.Contains(t, metadataProperties, "emotion")
+	require.Contains(t, metadataProperties, "emotional_valence")
+	require.Contains(t, metadataProperties, "emotion_target")
 	require.Contains(t, rejectionProperties, "kind")
 	require.Contains(t, rejectionProperties, "reason")
 	require.NotContains(t, rejectionProperties, "Kind")

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -29,18 +28,6 @@ const (
 	DefaultMaxWindows      = 5
 	MaxWindows             = 50
 	defaultTrigger         = "command"
-)
-
-const (
-	episodeKindDecision       = "decision"
-	episodeKindOutcome        = "outcome"
-	episodeKindToolEvent      = "tool_event"
-	episodeKindBlocker        = "blocker"
-	episodeKindUserCorrection = "user_correction"
-	episodeKindTaskTrace      = "task_trace"
-	episodeKindResolvedIssue  = "resolved_issue"
-	episodeKindMilestone      = "project_milestone"
-	episodeKindDiscarded      = "discarded_approach"
 )
 
 const (
@@ -387,8 +374,6 @@ func (s Service) candidatesFromMessages(
 
 	items := make([]storage.MemoryItem, 0, len(result.Candidates))
 	rejections := append([]candidateRejection(nil), result.Rejections...)
-	// Same-kind candidates are allowed in a window, but exact duplicate
-	// candidate/source fingerprints should only be written once.
 	seen := make(map[string]struct{}, len(result.Candidates))
 	for _, candidate := range result.Candidates {
 		item, ok := memoryItemFromCandidate(req, window, evidence, candidate)
@@ -404,6 +389,7 @@ func (s Service) candidatesFromMessages(
 		seen[item.ID] = struct{}{}
 		items = append(items, item)
 	}
+	items, rejections = admitCandidateItems(items, rejections)
 
 	if len(items) == 0 && len(rejections) == 0 {
 		rejections = append(rejections, candidateRejection{Kind: "window", Reason: "no_curated_candidate"})
@@ -535,12 +521,11 @@ func memoryItemFromCandidate(
 		"uncertainty":       uncertainty(candidate.Confidence),
 	}
 	if len(evidence.TraceRefs) > 0 {
-		metadata["available_trace_event_refs"] = strings.Join(evidence.TraceRefs, ",")
 		metadata["available_trace_event_count"] = strconv.Itoa(len(evidence.TraceRefs))
 	}
 	for key, value := range candidate.Metadata {
-		if strings.TrimSpace(value) != "" {
-			metadata[key] = strings.TrimSpace(value)
+		if value := normalizedMetadataValue(value); value != "" {
+			metadata[key] = value
 		}
 	}
 
@@ -568,8 +553,8 @@ func memoryItemFromCandidate(
 	}, true
 }
 
-func validCandidateKind(kind string) bool {
-	return slices.Contains(episodeCandidateKinds(), kind)
+func normalizedMetadataValue(value string) string {
+	return strings.TrimSpace(value)
 }
 
 func sourceQuality(evidence messageEvidence) string {
@@ -577,22 +562,6 @@ func sourceQuality(evidence messageEvidence) string {
 		return "high"
 	}
 	return "medium"
-}
-
-func usefulness(kind string) string {
-	switch kind {
-	case episodeKindDecision,
-		episodeKindOutcome,
-		episodeKindUserCorrection,
-		episodeKindResolvedIssue,
-		episodeKindMilestone,
-		episodeKindDiscarded:
-		return "high"
-	case episodeKindToolEvent, episodeKindBlocker, episodeKindTaskTrace:
-		return "medium"
-	default:
-		return "low"
-	}
 }
 
 func uncertainty(confidence float64) string {
@@ -651,20 +620,6 @@ func messageLine(message handmsg.Message) string {
 	return role + ": " + strings.Join(parts, " ")
 }
 
-func episodeCandidateKinds() []string {
-	return []string{
-		episodeKindDecision,
-		episodeKindOutcome,
-		episodeKindToolEvent,
-		episodeKindBlocker,
-		episodeKindUserCorrection,
-		episodeKindTaskTrace,
-		episodeKindResolvedIssue,
-		episodeKindMilestone,
-		episodeKindDiscarded,
-	}
-}
-
 func candidateMemoryID(
 	req normalizedRequest,
 	window sourceWindow,
@@ -695,7 +650,7 @@ func candidateMemoryIDSource(
 		normalizeMemoryIDText(title),
 		normalizeMemoryIDText(text),
 	}
-	for _, key := range candidateMemoryIDMetadataKeys() {
+	for _, key := range episodeIdentityMetadataKeys() {
 		if value := strings.TrimSpace(metadata[key]); value != "" {
 			parts = append(parts, key+"="+normalizeMemoryIDText(value))
 		}
@@ -707,27 +662,6 @@ func candidateMemoryIDSource(
 	}
 
 	return strings.Join(parts, "\n")
-}
-
-func candidateMemoryIDMetadataKeys() []string {
-	return []string{
-		"trace_refs",              // trace events that ground the candidate
-		"tool_name",               // tool identity for tool_event candidates
-		"purpose",                 // high-level tool or task purpose
-		"status",                  // generic success/failure state
-		"artifact_or_command_ref", // safe artifact path or command reference
-		"chosen_option",           // selected option for decision candidates
-		"source_range",            // finer source span supplied by the extractor
-		"requested_goal",          // user/task goal for outcome candidates
-		"resulting_change",        // durable result produced by the task
-		"verification_status",     // whether and how the result was checked
-		"remaining_risk",          // known residual risk or uncertainty
-		"outcome_status",          // success, failed, partial, or follow-up state
-		"attempt_status",          // failed-attempt or retry state
-		"progress_status",         // partial-progress state
-		"follow_up_status",        // open follow-up state
-		"blocker_status",          // unresolved/resolved blocker state
-	}
 }
 
 func normalizeMemoryIDText(value string) string {

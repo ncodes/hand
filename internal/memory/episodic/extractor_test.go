@@ -69,17 +69,17 @@ func TestService_ExtractWritesSourceLinkedEpisode(t *testing.T) {
 
 	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
 	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "Remember the deployment checklist."},
-		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "read_file", Input: `{"path":"deploy.md"}`}}},
-		{Role: handmsg.RoleTool, Name: "read_file", ToolCallID: "call_1", Content: "Run migration before deploy."},
+		{Role: handmsg.RoleUser, Content: "Remember the workshop checklist."},
+		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "note_lookup", Input: `{"topic":"workshop"}`}}},
+		{Role: handmsg.RoleTool, Name: "note_lookup", ToolCallID: "call_1", Content: "Confirm venue before sending invitations."},
 	}))
 
 	service := newTestServiceWithCandidates(t, manager, provider, []episodeCandidate{{
 		Kind:       episodeKindToolEvent,
-		Title:      "Tool event: read_file",
-		Text:       "Tool event: read_file captured deployment checklist context.",
+		Title:      "Tool event: note_lookup",
+		Text:       "Tool event: note_lookup captured workshop checklist context.",
 		Confidence: 0.78,
-		Metadata:   map[string]string{"tool_name": "read_file", "status": "success"},
+		Metadata:   map[string]string{"tool_name": "note_lookup", "status": "success"},
 	}})
 
 	result, err := service.Extract(ctx, Request{
@@ -126,24 +126,24 @@ func TestService_ExtractWritesDistinctSameKindCandidatesInWindow(t *testing.T) {
 
 	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
 	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "read_file", Input: `{"path":"a.go"}`}}},
-		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "run_command", Input: `{"cmd":"go test"}`}}},
+		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "calendar_lookup", Input: `{"date":"Friday"}`}}},
+		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "vendor_search", Input: `{"category":"catering"}`}}},
 	}))
 
 	service := newTestServiceWithCandidates(t, manager, provider, []episodeCandidate{
 		{
 			Kind:       episodeKindToolEvent,
-			Title:      "Tool event: read_file",
-			Text:       "Read a.go before editing.",
+			Title:      "Tool event: calendar_lookup",
+			Text:       "Checked venue availability before scheduling.",
 			Confidence: 0.82,
-			Metadata:   map[string]string{"tool_name": "read_file", "status": "success"},
+			Metadata:   map[string]string{"tool_name": "calendar_lookup", "status": "success"},
 		},
 		{
 			Kind:       episodeKindToolEvent,
-			Title:      "Tool event: run_command",
-			Text:       "Ran go test after editing.",
+			Title:      "Tool event: vendor_search",
+			Text:       "Compared catering vendors before handoff.",
 			Confidence: 0.84,
-			Metadata:   map[string]string{"tool_name": "run_command", "status": "success"},
+			Metadata:   map[string]string{"tool_name": "vendor_search", "status": "success"},
 		},
 	})
 
@@ -177,15 +177,15 @@ func TestService_ExtractDedupesIdenticalSameKindCandidatesInWindow(t *testing.T)
 
 	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
 	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "run_command", Input: `{"cmd":"go test"}`}}},
+		{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "calendar_lookup", Input: `{"date":"Friday"}`}}},
 	}))
 
 	candidate := episodeCandidate{
 		Kind:       episodeKindToolEvent,
-		Title:      "Tool event: run_command",
-		Text:       "Ran go test after editing.",
+		Title:      "Tool event: calendar_lookup",
+		Text:       "Checked venue availability before scheduling.",
 		Confidence: 0.84,
-		Metadata:   map[string]string{"tool_name": "run_command", "status": "success"},
+		Metadata:   map[string]string{"tool_name": "calendar_lookup", "status": "success"},
 	}
 	service := newTestServiceWithCandidates(t, manager, provider, []episodeCandidate{candidate, candidate})
 
@@ -210,7 +210,7 @@ func TestService_ExtractSkipsDuplicateSourceRange(t *testing.T) {
 
 	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
 	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{
-		{Role: handmsg.RoleUser, Content: "Use pnpm for this workspace."},
+		{Role: handmsg.RoleUser, Content: "Use the Lagos venue for this workshop."},
 		{Role: handmsg.RoleAssistant, Content: "I will remember that."},
 	}))
 
@@ -643,11 +643,11 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 	}
 	window := sourceWindow{Start: 0, End: 5}
 	messages := []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleUser, Content: "We should use generic StartBackground instead of episodic-specific public APIs."},
-		{ID: 2, Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "run_command", Input: `{"cmd":"go test ./..."}`}}},
-		{ID: 3, Role: handmsg.RoleTool, Name: "run_command", Content: "error: tests failed"},
-		{ID: 4, Role: handmsg.RoleAssistant, Content: "Implemented StartBackground and verified tests passed."},
-		{ID: 5, Role: handmsg.RoleUser, Content: "Prefer generic provider background APIs going forward."},
+		{ID: 1, Role: handmsg.RoleUser, Content: "We should host the workshop in person instead of running it as a webinar."},
+		{ID: 2, Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{Name: "calendar_lookup", Input: `{"venue":"community hall"}`}}},
+		{ID: 3, Role: handmsg.RoleTool, Name: "calendar_lookup", Content: "error: venue unavailable on the original date"},
+		{ID: 4, Role: handmsg.RoleAssistant, Content: "Moved the workshop date and verified the venue is available."},
+		{ID: 5, Role: handmsg.RoleUser, Content: "Prefer in-person planning when the venue is available."},
 	}
 
 	service := Service{extractor: fakeCandidateExtractor{result: CandidateResult{Candidates: representativeEpisodeCandidates()}}}
@@ -655,7 +655,7 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 
 	require.NoError(t, err)
 	require.Empty(t, rejections)
-	require.Len(t, items, 9)
+	require.Len(t, items, 10)
 	byKind := memoryItemsByCandidateKind(items)
 	require.Contains(t, byKind, episodeKindDecision)
 	require.Contains(t, byKind, episodeKindOutcome)
@@ -666,31 +666,32 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 	require.Contains(t, byKind, episodeKindResolvedIssue)
 	require.Contains(t, byKind, episodeKindMilestone)
 	require.Contains(t, byKind, episodeKindDiscarded)
+	require.Contains(t, byKind, episodeKindReflection)
 
 	decision := byKind[episodeKindDecision]
-	require.Equal(t, "generic StartBackground", decision.Metadata["chosen_option"])
-	require.Equal(t, "episodic-specific public background APIs", decision.Metadata["rejected_alternatives"])
-	require.Equal(t, "provider background APIs can host multiple memory background processes", decision.Metadata["reason"])
+	require.Equal(t, "in-person workshop", decision.Metadata["chosen_option"])
+	require.Equal(t, "webinar", decision.Metadata["rejected_alternatives"])
+	require.Equal(t, "the venue became available after moving the date", decision.Metadata["reason"])
 	require.Equal(t, "0-5", decision.Metadata["source_range"])
 	require.Equal(t, "0", decision.Metadata["source_start"])
 	require.Equal(t, "5", decision.Metadata["source_end"])
 
 	tool := byKind[episodeKindToolEvent]
-	require.Equal(t, "run_command", tool.Metadata["tool_name"])
+	require.Equal(t, "calendar_lookup", tool.Metadata["tool_name"])
 	require.Equal(t, "failed", tool.Metadata["status"])
 	require.Equal(t, "failed", tool.Metadata["attempt_status"])
-	require.Equal(t, "verify the background API implementation with the Go test suite", tool.Metadata["purpose"])
-	require.Equal(t, "go test ./...", tool.Metadata["artifact_or_command_ref"])
-	require.Contains(t, tool.Metadata["reference"], "go test")
+	require.Equal(t, "check venue availability for the workshop", tool.Metadata["purpose"])
+	require.Equal(t, "community hall calendar", tool.Metadata["artifact_or_command_ref"])
+	require.Contains(t, tool.Metadata["reference"], "community hall")
 
 	outcome := byKind[episodeKindOutcome]
 	require.Equal(t, storage.MemoryStatusCandidate, outcome.Status)
 	require.Equal(t, "success", outcome.Metadata["outcome_status"])
-	require.Equal(t, "replace episodic-specific background APIs", outcome.Metadata["requested_goal"])
-	require.Equal(t, "StartBackground now handles provider background processes", outcome.Metadata["resulting_change"])
-	require.Equal(t, "go test ./... passed", outcome.Metadata["verification_status"])
+	require.Equal(t, "schedule an in-person workshop", outcome.Metadata["requested_goal"])
+	require.Equal(t, "workshop date moved and venue availability confirmed", outcome.Metadata["resulting_change"])
+	require.Equal(t, "venue calendar confirmed availability", outcome.Metadata["verification_status"])
 	require.Equal(t, "none_identified", outcome.Metadata["remaining_risk"])
-	require.Equal(t, "tests_passed_after_start_background_changes", outcome.Metadata["causal_reason"])
+	require.Equal(t, "original date was unavailable", outcome.Metadata["causal_reason"])
 	require.Contains(t, outcome.Text, "because")
 	require.NotContains(t, outcome.Text, "assistant:")
 	require.NotEmpty(t, outcome.SourceLinks[0].MessageIDs)
@@ -701,15 +702,114 @@ func TestService_CandidatesFromMessages_UsesLLMExtractorCandidates(t *testing.T)
 	require.Equal(t, "high", outcome.Metadata["usefulness"])
 	require.Equal(t, "source_window", outcome.Metadata["recency"])
 
-	require.Equal(t, "trace:2,trace:3", byKind[episodeKindTaskTrace].Metadata["trace_event_refs"])
+	require.Equal(t, "trace:2,trace:3", byKind[episodeKindTaskTrace].Metadata["trace_refs"])
 	require.Equal(t, "fixed", byKind[episodeKindResolvedIssue].Metadata["resolution_status"])
 	require.Equal(t, "unresolved", byKind[episodeKindBlocker].Metadata["blocker_status"])
 	require.Equal(t, "open", byKind[episodeKindBlocker].Metadata["follow_up_status"])
 	require.Equal(t, "medium", byKind[episodeKindBlocker].Metadata["uncertainty"])
 	require.Equal(t, "partial", byKind[episodeKindMilestone].Metadata["progress_status"])
-	require.Equal(t, "phase_8c", byKind[episodeKindMilestone].Metadata["milestone"])
-	require.Equal(t, "manual_rule_parser", byKind[episodeKindDiscarded].Metadata["rejected_alternative"])
+	require.Equal(t, "workshop_planning", byKind[episodeKindMilestone].Metadata["milestone"])
+	require.Equal(t, "webinar", byKind[episodeKindDiscarded].Metadata["rejected_alternative"])
 	require.Equal(t, "medium", byKind[episodeKindDiscarded].Metadata["uncertainty"])
+	require.Equal(t, "relief", byKind[episodeKindReflection].Metadata["emotion"])
+	require.Equal(t, "positive", byKind[episodeKindReflection].Metadata["emotional_valence"])
+	require.Equal(t, "venue date conflict", byKind[episodeKindReflection].Metadata["emotion_target"])
+}
+
+func TestService_CandidatesFromMessages_AppliesModelAdmissionSignals(t *testing.T) {
+	req := normalizedRequest{
+		SessionID:       storage.DefaultSessionID,
+		MaxWindowChars:  1000,
+		MaxWindowTokens: 250,
+		Trigger:         "background",
+	}
+	window := sourceWindow{Start: 20, End: 22}
+	messages := []handmsg.Message{
+		{ID: 21, Role: handmsg.RoleUser, Content: "Plan the community workshop."},
+		{ID: 22, Role: handmsg.RoleAssistant, Content: "Confirmed venue availability, checked catering options, shortlisted speakers, and completed the workshop plan."},
+	}
+	service := Service{extractor: fakeCandidateExtractor{result: CandidateResult{Candidates: []episodeCandidate{
+		{
+			Kind:       episodeKindMilestone,
+			Title:      "Workshop Planning",
+			Text:       "Workshop planning gathered the main venue, catering, and speaker details.",
+			Confidence: 0.85,
+			Metadata: map[string]string{
+				"memory_importance":  "medium",
+				"memory_granularity": "episode",
+				"canonical_group":    "community_workshop_plan",
+				"progress_status":    "none",
+			},
+		},
+		{
+			Kind:       episodeKindMilestone,
+			Title:      "Community Workshop Plan Completed",
+			Text:       "Community workshop planning completed with venue, catering, and speaker options ready for handoff.",
+			Confidence: 0.9,
+			Metadata: map[string]string{
+				"memory_importance":  "high",
+				"memory_granularity": "summary",
+				"canonical_group":    "community_workshop_plan",
+				"progress_status":    "success",
+			},
+		},
+		{
+			Kind:       episodeKindResolvedIssue,
+			Title:      "Workshop Planning Resolved",
+			Text:       "Workshop planning completed as expected without a blocker or conflict.",
+			Confidence: 0.85,
+			Metadata: map[string]string{
+				"memory_importance":  "low",
+				"memory_granularity": "execution_detail",
+				"canonical_group":    "community_workshop_plan",
+				"reason":             "Workshop planning completed as expected without a blocker or conflict.",
+			},
+		},
+		{
+			Kind:       episodeKindToolEvent,
+			Title:      "Venue Availability Check",
+			Text:       "Venue availability check succeeded.",
+			Confidence: 0.9,
+			Metadata: map[string]string{
+				"tool_name":               "calendar_lookup",
+				"status":                  "success",
+				"memory_importance":       "low",
+				"memory_granularity":      "execution_detail",
+				"canonical_group":         "community_workshop_plan",
+				"purpose":                 "check venue availability",
+				"artifact_or_command_ref": "venue availability note",
+			},
+		},
+		{
+			Kind:       episodeKindToolEvent,
+			Title:      "Catering Options Check",
+			Text:       "Catering options check succeeded.",
+			Confidence: 0.9,
+			Metadata: map[string]string{
+				"tool_name":               "vendor_search",
+				"status":                  "success",
+				"memory_importance":       "low",
+				"memory_granularity":      "execution_detail",
+				"canonical_group":         "community_workshop_plan",
+				"purpose":                 "compare catering options",
+				"artifact_or_command_ref": "catering shortlist",
+			},
+		},
+	}}}}
+
+	items, rejections, err := service.candidatesFromMessages(context.Background(), req, window, messages)
+
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, episodeKindMilestone, items[0].Metadata["candidate_kind"])
+	require.Equal(t, "Community Workshop Plan Completed", items[0].Title)
+	require.Equal(t, "success", items[0].Metadata["progress_status"])
+	require.Equal(t, "high", items[0].Metadata["memory_importance"])
+	require.Equal(t, "summary", items[0].Metadata["memory_granularity"])
+
+	rejectionText := fmt.Sprint(rejections)
+	require.Contains(t, rejectionText, "low_importance_candidate")
+	require.Contains(t, rejectionText, "redundant_candidate_group")
 }
 
 func TestService_CandidatesFromMessages_IncludesTaskTraceEvidence(t *testing.T) {
@@ -729,14 +829,14 @@ func TestService_CandidatesFromMessages_IncludesTaskTraceEvidence(t *testing.T) 
 		SessionID: storage.DefaultSessionID,
 		Type:      trace.EvtToolInvocationStarted,
 		Timestamp: time.Date(2026, 5, 3, 12, 0, 1, 0, time.UTC),
-		Payload:   map[string]any{"name": "run_command", "command": "go test ./..."},
+		Payload:   map[string]any{"name": "calendar_lookup", "purpose": "check venue availability"},
 	})
 	require.NoError(t, err)
 	_, err = manager.AppendTraceEvent(ctx, storage.TraceEvent{
 		SessionID: storage.DefaultSessionID,
 		Type:      trace.EvtToolInvocationCompleted,
 		Timestamp: time.Date(2026, 5, 3, 12, 0, 2, 0, time.UTC),
-		Payload:   map[string]any{"name": "run_command", "exit_code": 0},
+		Payload:   map[string]any{"name": "calendar_lookup", "status": "available"},
 	})
 	require.NoError(t, err)
 	_, err = manager.AppendTraceEvent(ctx, storage.TraceEvent{
@@ -750,12 +850,12 @@ func TestService_CandidatesFromMessages_IncludesTaskTraceEvidence(t *testing.T) 
 	extractor := &capturingCandidateExtractor{result: CandidateResult{Candidates: []episodeCandidate{{
 		Kind:       episodeKindToolEvent,
 		Title:      "Tool event",
-		Text:       "Tool event: run_command completed successfully.",
+		Text:       "Tool event: calendar_lookup completed successfully.",
 		Confidence: 0.88,
 		Metadata: map[string]string{
-			"tool_name":        "run_command",
-			"status":           "success",
-			"trace_event_refs": "trace:2,trace:3",
+			"tool_name":  "calendar_lookup",
+			"status":     "success",
+			"trace_refs": "trace:2,trace:3",
 		},
 	}}}}
 	service := Service{manager: manager, extractor: extractor}
@@ -766,19 +866,19 @@ func TestService_CandidatesFromMessages_IncludesTaskTraceEvidence(t *testing.T) 
 		MaxWindowTokens: 250,
 		Trigger:         "command",
 	}, sourceWindow{Start: 0, End: 1}, []handmsg.Message{
-		{ID: 1, Role: handmsg.RoleAssistant, Content: "I ran tests and they passed."},
+		{ID: 1, Role: handmsg.RoleAssistant, Content: "I checked the venue calendar and Friday is available."},
 	})
 
 	require.NoError(t, err)
 	require.Empty(t, rejections)
 	require.Len(t, items, 1)
-	require.Contains(t, extractor.req.TraceEvents, taskTraceEvidence{Ref: "trace:2", Type: trace.EvtToolInvocationStarted, Timestamp: "2026-05-03T12:00:01Z", Payload: `{"command":"go test ./...","name":"run_command"}`})
+	require.Contains(t, extractor.req.TraceEvents, taskTraceEvidence{Ref: "trace:2", Type: trace.EvtToolInvocationStarted, Timestamp: "2026-05-03T12:00:01Z", Payload: `{"name":"calendar_lookup","purpose":"check venue availability"}`})
 	require.Len(t, extractor.req.TraceEvents, 2)
 	require.Equal(t, []string{trace.EvtToolInvocationStarted, trace.EvtToolInvocationCompleted}, traceEvidenceTypes(extractor.req.TraceEvents))
 	require.Equal(t, "trace:2", extractor.req.TraceEvents[0].Ref)
-	require.Contains(t, extractor.req.TraceEvents[0].Payload, "go test ./...")
-	require.Equal(t, "trace:2,trace:3", items[0].Metadata["trace_event_refs"])
-	require.Equal(t, "trace:2,trace:3", items[0].Metadata["available_trace_event_refs"])
+	require.Contains(t, extractor.req.TraceEvents[0].Payload, "venue availability")
+	require.Equal(t, "trace:2,trace:3", items[0].Metadata["trace_refs"])
+	require.NotContains(t, items[0].Metadata, "available_trace_event_refs")
 	require.Equal(t, "2", items[0].Metadata["available_trace_event_count"])
 }
 
@@ -915,6 +1015,7 @@ func TestCuratedCandidateHelpersCoverEdgeBranches(t *testing.T) {
 	require.Equal(t, "high", usefulness(episodeKindResolvedIssue))
 	require.Equal(t, "high", usefulness(episodeKindMilestone))
 	require.Equal(t, "high", usefulness(episodeKindDiscarded))
+	require.Equal(t, "high", usefulness(episodeKindReflection))
 	require.Equal(t, "low", usefulness("unknown"))
 	require.Equal(t, "low", uncertainty(0.9))
 	require.Equal(t, "medium", uncertainty(0.7))
@@ -1074,47 +1175,47 @@ func representativeEpisodeCandidates() []episodeCandidate {
 		{
 			Kind:       episodeKindDecision,
 			Title:      "Decision from session",
-			Text:       "Decision: use generic StartBackground instead of episodic-specific public APIs.",
+			Text:       "Decision: host the workshop in person instead of running it as a webinar.",
 			Confidence: 0.72,
 			Metadata: map[string]string{
-				"chosen_option":         "generic StartBackground",
-				"rejected_alternatives": "episodic-specific public background APIs",
-				"reason":                "provider background APIs can host multiple memory background processes",
+				"chosen_option":         "in-person workshop",
+				"rejected_alternatives": "webinar",
+				"reason":                "the venue became available after moving the date",
 				"source_range":          "0-5",
 			},
 		},
 		{
 			Kind:       episodeKindOutcome,
 			Title:      "Task outcome from session",
-			Text:       "Task outcome: Implemented StartBackground and verified tests passed because the background API shape was corrected.",
+			Text:       "Task outcome: Moved the workshop date and verified the venue because the original date was unavailable.",
 			Confidence: 0.76,
 			Metadata: map[string]string{
 				"outcome_status":      "success",
-				"requested_goal":      "replace episodic-specific background APIs",
-				"resulting_change":    "StartBackground now handles provider background processes",
-				"verification_status": "go test ./... passed",
+				"requested_goal":      "schedule an in-person workshop",
+				"resulting_change":    "workshop date moved and venue availability confirmed",
+				"verification_status": "venue calendar confirmed availability",
 				"remaining_risk":      "none_identified",
-				"causal_reason":       "tests_passed_after_start_background_changes",
+				"causal_reason":       "original date was unavailable",
 			},
 		},
 		{
 			Kind:       episodeKindToolEvent,
-			Title:      "Tool event: run_command",
-			Text:       "Tool event: run_command completed with status failed. Relevant reference: go test ./....",
+			Title:      "Tool event: calendar_lookup",
+			Text:       "Tool event: calendar_lookup completed with status failed. Relevant reference: community hall calendar.",
 			Confidence: 0.78,
 			Metadata: map[string]string{
-				"tool_name":               "run_command",
+				"tool_name":               "calendar_lookup",
 				"status":                  "failed",
 				"attempt_status":          "failed",
-				"purpose":                 "verify the background API implementation with the Go test suite",
-				"artifact_or_command_ref": "go test ./...",
-				"reference":               "go test ./...",
+				"purpose":                 "check venue availability for the workshop",
+				"artifact_or_command_ref": "community hall calendar",
+				"reference":               "community hall calendar",
 			},
 		},
 		{
 			Kind:       episodeKindBlocker,
 			Title:      "Blocker or risk from session",
-			Text:       "Blocker or risk: tests failed before being fixed.",
+			Text:       "Blocker or risk: original venue date was unavailable before the date was moved.",
 			Confidence: 0.68,
 			Metadata: map[string]string{
 				"resolution_status": "unresolved_or_uncertain",
@@ -1125,40 +1226,56 @@ func representativeEpisodeCandidates() []episodeCandidate {
 		{
 			Kind:       episodeKindUserCorrection,
 			Title:      "User correction or preference",
-			Text:       "User correction or preference: Prefer generic provider background APIs going forward.",
+			Text:       "User correction or preference: Prefer in-person planning when the venue is available.",
 			Confidence: 0.82,
 			Metadata:   map[string]string{"durability": "explicit"},
 		},
 		{
 			Kind:       episodeKindTaskTrace,
-			Title:      "Task trace: test failure and recovery",
-			Text:       "Task trace: go test failed, then later passed after StartBackground changes.",
+			Title:      "Task trace: venue conflict and recovery",
+			Text:       "Task trace: venue lookup failed for the original date, then succeeded after the date moved.",
 			Confidence: 0.74,
-			Metadata:   map[string]string{"trace_event_refs": "trace:2,trace:3"},
+			Metadata:   map[string]string{"trace_refs": "trace:2,trace:3"},
 		},
 		{
 			Kind:       episodeKindResolvedIssue,
-			Title:      "Resolved issue: background API shape",
-			Text:       "Resolved issue: episodic-specific public background APIs were replaced with generic provider background APIs.",
+			Title:      "Resolved issue: venue date conflict",
+			Text:       "Resolved issue: the unavailable workshop date was replaced with a venue-confirmed date.",
 			Confidence: 0.79,
 			Metadata:   map[string]string{"resolution_status": "fixed"},
 		},
 		{
 			Kind:       episodeKindMilestone,
-			Title:      "Project milestone: Phase 8c trace evidence",
-			Text:       "Project milestone: curated extraction now uses task trace evidence alongside session messages.",
+			Title:      "Milestone: workshop planning",
+			Text:       "Milestone: workshop planning reached a partial handoff-ready state.",
 			Confidence: 0.81,
 			Metadata: map[string]string{
-				"milestone":       "phase_8c",
+				"milestone":       "workshop_planning",
 				"progress_status": "partial",
 			},
 		},
 		{
 			Kind:       episodeKindDiscarded,
-			Title:      "Discarded approach: manual rule parser",
-			Text:       "Discarded approach: manual rule parsing was rejected in favor of LLM-only curated extraction.",
+			Title:      "Discarded approach: webinar",
+			Text:       "Discarded approach: webinar format was rejected after in-person planning became feasible.",
 			Confidence: 0.7,
-			Metadata:   map[string]string{"rejected_alternative": "manual_rule_parser"},
+			Metadata:   map[string]string{"rejected_alternative": "webinar"},
+		},
+		{
+			Kind:       episodeKindReflection,
+			Title:      "Reflection: relief after venue recovery",
+			Text:       "Reflection: the workshop planning shifted from uncertainty to relief after the venue date conflict was resolved.",
+			Confidence: 0.83,
+			Metadata: map[string]string{
+				"emotion":             "relief",
+				"emotional_valence":   "positive",
+				"emotional_intensity": "medium",
+				"emotion_target":      "venue date conflict",
+				"life_domain":         "community",
+				"sensitivity":         "low",
+				"memory_importance":   "medium",
+				"memory_granularity":  "episode",
+			},
 		},
 	}
 }

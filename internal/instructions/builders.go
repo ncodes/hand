@@ -250,18 +250,28 @@ Treat memory_extract as a deliberate capture action: it creates source-linked ep
 func BuildEpisodicExtractionInstructions() string {
 	return strings.TrimSpace(`Extract curated episodic memory candidates from bounded session messages and task trace events.
 Return only JSON matching the schema. Do not store raw transcript windows.
-Extract only evidence-backed decisions, outcomes, task traces, tool events, blockers, resolved issues, project milestones, discarded approaches, and explicit durable user corrections/preferences.
-Use trace_events to verify tool execution, failures, retries, policy blocks, truncation, plan changes, and other system-side task events that may not be fully narrated in messages.
-When a candidate depends on trace evidence, preserve relevant trace refs or event details in metadata.
-For tool_event candidates, include safe tool name, purpose, status, and artifact or command reference as metadata.tool_name, metadata.purpose, metadata.status, and metadata.artifact_or_command_ref when present in the evidence.
+Extract only evidence-backed decisions, outcomes, reflections, task traces, tool events, blockers, resolved issues, milestone episodes, discarded approaches, and explicit durable user corrections/preferences.
+Episodic memories may come from ordinary conversation, planning, research, writing, operations, personal preferences, coordination, troubleshooting, or coding; do not assume the session is a software project.
+Return the minimum number of candidates needed to preserve the durable story of the interaction.
+Prefer one broader outcome or milestone episode over several small step-level memories.
+Use metadata.memory_importance as high, medium, or low; emit candidates only when importance is high or medium.
+Use metadata.memory_granularity as summary, episode, or execution_detail; reject execution_detail candidates and preserve that detail inside a broader summary or episode when useful.
+Use metadata.canonical_group to give overlapping candidates the same durable group label so redundant small candidates can be collapsed.
+Use empty strings for metadata fields that are unknown, absent, or not applicable; do not use placeholder words.
+Do not emit separate candidates for routine mechanical steps, ordinary data gathering, record updates, confirmations, or successful actions unless they are consequential for a decision, failure, blocker, verification, future preference, or handoff.
+Only use resolved_issue when the evidence shows an actual problem, failure, blocker, conflict, or misunderstanding that was resolved; routine successful completion is not a resolved issue.
+Use trace_events to verify tool execution, failures, retries, policy blocks, truncation, plan changes, memory events, and other system-side events that may not be fully narrated in messages.
+When a candidate depends on trace evidence, preserve only the trace refs or event details that directly support that candidate in metadata.
+For tool_event candidates, include safe tool name, purpose, status, and artifact or command reference as metadata.tool_name, metadata.purpose, metadata.status, and metadata.artifact_or_command_ref when present in the evidence; emit tool_event only for consequential tool use such as failures, verification, risky operations, important produced artifacts or records, external actions, or handoff-relevant references.
 For decision candidates, include metadata.chosen_option, metadata.rejected_alternatives, metadata.reason, and metadata.source_range when present in the evidence.
-For outcome candidates, include metadata.requested_goal, metadata.resulting_change, metadata.verification_status, and metadata.remaining_risk when present in the evidence.
+For outcome candidates, include metadata.requested_goal, metadata.resulting_change, metadata.verification_status, and metadata.remaining_risk when present in the evidence; requested_goal may be conversational, analytical, creative, operational, personal, or technical.
+For reflection candidates, capture durable meaning-making or emotional interpretation of an episode, not passing mood; include metadata.emotion, metadata.emotional_valence, metadata.emotional_intensity, metadata.emotion_target, metadata.life_domain, and metadata.sensitivity when present in the evidence.
 When messages or trace events explain why something happened, include the evidence-backed reason in the candidate text and metadata; do not infer motives or causes that are not supported.
 Distinguish successful, failed, partial, and follow-up-required outcomes with metadata.outcome_status values such as success, failed, partial, or follow_up_required.
 Capture failed attempts, partial progress, open follow-ups, and unresolved blockers with explicit status metadata such as attempt_status, progress_status, follow_up_status, or blocker_status.
 For discarded approaches and unresolved blockers, preserve uncertainty metadata instead of overstating the evidence.
-Reject low-signal, speculative, temporary, unsafe, or purely conversational content with a concise reason.
-Keep candidate text concise and outcome-oriented. Preserve uncertainty in metadata when evidence is incomplete.`)
+Reject low-signal, speculative, temporary, unsafe, socially trivial, or purely conversational content with a concise reason.
+Keep candidate text concise, source-grounded, and useful for future continuity. Preserve uncertainty in metadata when evidence is incomplete.`)
 }
 
 func BuildSummary(iterationsLeft int) Instructions {
