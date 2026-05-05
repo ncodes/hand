@@ -626,7 +626,8 @@ func TestEnvironment_PrepareAppendsLoadedToolUsageInstructionsAfterBaseInstructi
 	require.True(t, strings.Index(rendered, "# Session Messages Guidance") < strings.Index(rendered, "# Memory Extract Guidance"))
 	require.Contains(t, rendered, "Use session_search when the user references prior work")
 	require.Contains(t, rendered, "Use session_messages when you need exact stored transcript content")
-	require.Contains(t, rendered, "Use memory_extract only when the user explicitly asks")
+	require.Contains(t, rendered, "Use memory_extract when the user explicitly asks")
+	require.Contains(t, rendered, "Use memory_extract proactively after a meaningful interaction has clearly completed")
 }
 
 func TestEnvironment_PrepareRegistersSessionTools(t *testing.T) {

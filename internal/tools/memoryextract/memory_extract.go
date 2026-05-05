@@ -25,7 +25,7 @@ type input struct {
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:             "memory_extract",
-		Description:      "Extract source-linked episodic memories from a completed session or bounded message window.",
+		Description:      "Extract source-linked durable memories from a completed session or bounded message window.",
 		Groups:           []string{"core"},
 		Requires:         tools.Capabilities{Memory: true},
 		UsageInstruction: instructions.BuildMemoryExtractGuidance(),
@@ -44,12 +44,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				episodic.MaxWindows,
 			)),
 			"max_window_chars": common.IntegerSchema(fmt.Sprintf(
-				"Optional maximum characters retained per extracted episode. Defaults to %d and is capped at %d.",
+				"Optional maximum characters retained per extracted memory. Defaults to %d and is capped at %d.",
 				episodic.DefaultMaxWindowChars,
 				episodic.MaxWindowChars,
 			)),
 			"max_window_tokens": common.IntegerSchema(fmt.Sprintf(
-				"Optional rough token estimate budget per extracted episode. Defaults to %d and is capped at %d.",
+				"Optional rough token estimate budget per extracted memory. Defaults to %d and is capped at %d.",
 				episodic.DefaultMaxWindowTokens,
 				episodic.MaxWindowTokens,
 			)),

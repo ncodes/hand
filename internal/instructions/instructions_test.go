@@ -311,9 +311,10 @@ func TestBuildMemoryExtractGuidance_ReturnsNamedInstruction(t *testing.T) {
 	instruction := BuildMemoryExtractGuidance()
 	require.Equal(t, MemoryExtractInstructionName, instruction.Name)
 	require.Contains(t, instruction.Value, "# Memory Extract Guidance")
-	require.Contains(t, instruction.Value, "Use memory_extract only when the user explicitly asks")
+	require.Contains(t, instruction.Value, "Use memory_extract when the user explicitly asks")
+	require.Contains(t, instruction.Value, "Use memory_extract proactively after a meaningful interaction has clearly completed")
 	require.Contains(t, instruction.Value, "Prefer bounded ranges with session_id plus offset_start and offset_end")
-	require.Contains(t, instruction.Value, "Do not use memory_extract during ordinary task execution")
+	require.Contains(t, instruction.Value, "Do not use memory_extract during active task execution")
 }
 
 func TestBuildEpisodicExtractionInstructions_ReturnsCuratedExtractionPrompt(t *testing.T) {
