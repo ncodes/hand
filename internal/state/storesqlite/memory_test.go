@@ -26,6 +26,7 @@ func TestSQLiteMemoryStore_MigrationSearchWriteDeleteAndSourceLinks(t *testing.T
 	require.True(t, db.Migrator().HasIndex(&memoryItemModel{}, "idx_memory_items_kind_status"))
 	require.True(t, db.Migrator().HasIndex(&memoryItemModel{}, "idx_memory_items_updated_at"))
 	require.True(t, db.Migrator().HasIndex(&memoryItemModel{}, "idx_memory_items_source_session_id"))
+	require.True(t, db.Migrator().HasIndex(&memoryItemModel{}, "idx_memory_items_reflected"))
 	require.True(t, db.Migrator().HasIndex(&memoryItemTagModel{}, "idx_memory_item_tags_tag"))
 
 	createdAt := time.Date(2026, 4, 30, 9, 0, 0, 0, time.UTC)
@@ -37,6 +38,7 @@ func TestSQLiteMemoryStore_MigrationSearchWriteDeleteAndSourceLinks(t *testing.T
 		Text:      "Use focused tests",
 		Tags:      []string{"Go", "Style"},
 		CreatedAt: createdAt,
+		Reflected: true,
 		Metadata:  map[string]string{"project": "hand"},
 		SourceLinks: []statememory.MemorySourceLink{{
 			SessionID:     "session",
@@ -53,6 +55,7 @@ func TestSQLiteMemoryStore_MigrationSearchWriteDeleteAndSourceLinks(t *testing.T
 	var record memoryItemModel
 	require.NoError(t, store.db.First(&record, "id = ?", item.ID).Error)
 	require.Equal(t, "session", record.SourceSessionID)
+	require.True(t, record.Reflected)
 
 	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
 		Text: "focused",
@@ -64,6 +67,13 @@ func TestSQLiteMemoryStore_MigrationSearchWriteDeleteAndSourceLinks(t *testing.T
 	require.Equal(t, []uint{1}, result.Hits[0].Item.SourceLinks[0].MessageIDs)
 	require.Equal(t, []int{2}, result.Hits[0].Item.SourceLinks[0].Offsets)
 	require.Equal(t, "summary", result.Hits[0].Item.SourceLinks[0].SummaryID)
+	require.True(t, result.Hits[0].Item.Reflected)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Reflected: new(false),
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
 
 	require.NoError(t, store.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: item.ID}))
 

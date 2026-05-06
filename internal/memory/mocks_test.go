@@ -141,17 +141,71 @@ func (s fakeMemoryManager) UpdateEpisodicCheckpoint(context.Context, string, int
 
 type recordingMemoryManager struct {
 	fakeMemoryManager
-	upsertItems []MemoryItem
-	upsertErr   error
+	searchResults     []SearchResult
+	searchErrs        []error
+	upsertErrs        []error
+	upsertItems       []MemoryItem
+	upsertErr         error
+	currentSessionErr error
 }
 
-func (s *recordingMemoryManager) UpsertMemory(_ context.Context, item MemoryItem) (MemoryItem, error) {
-	s.upsertItems = append(s.upsertItems, item.Clone())
-	if s.upsertErr != nil {
-		return MemoryItem{}, s.upsertErr
+func (m *recordingMemoryManager) SearchMemory(ctx context.Context, query SearchQuery) (SearchResult, error) {
+	if len(m.searchErrs) > 0 {
+		err := m.searchErrs[0]
+		m.searchErrs = m.searchErrs[1:]
+		if err != nil {
+			return SearchResult{}, err
+		}
 	}
-	if s.upsertItem.ID != "" {
-		return s.upsertItem, nil
+	if len(m.searchResults) > 0 {
+		result := m.searchResults[0]
+		m.searchResults = m.searchResults[1:]
+		return result, nil
 	}
+
+	return m.fakeMemoryManager.SearchMemory(ctx, query)
+}
+
+func (m *recordingMemoryManager) UpsertMemory(_ context.Context, item MemoryItem) (MemoryItem, error) {
+	m.upsertItems = append(m.upsertItems, item.Clone())
+	if len(m.upsertErrs) > 0 {
+		err := m.upsertErrs[0]
+		m.upsertErrs = m.upsertErrs[1:]
+		if err != nil {
+			return MemoryItem{}, err
+		}
+	}
+	if m.upsertErr != nil {
+		return MemoryItem{}, m.upsertErr
+	}
+	if m.upsertItem.ID != "" {
+		return m.upsertItem, nil
+	}
+
 	return item, nil
+}
+
+func (m *recordingMemoryManager) CurrentSession(ctx context.Context) (string, error) {
+	if m.currentSessionErr != nil {
+		return "", m.currentSessionErr
+	}
+
+	return m.fakeMemoryManager.CurrentSession(ctx)
+}
+
+type fakeReflectionGenerator struct {
+	requests []ReflectionGenerationRequest
+	result   ReflectionGenerationResult
+	err      error
+}
+
+func (g *fakeReflectionGenerator) GenerateReflectionCandidates(
+	_ context.Context,
+	req ReflectionGenerationRequest,
+) (ReflectionGenerationResult, error) {
+	g.requests = append(g.requests, req)
+	if g.err != nil {
+		return ReflectionGenerationResult{}, g.err
+	}
+	return g.result, nil
 }

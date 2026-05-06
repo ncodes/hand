@@ -24,6 +24,7 @@ func TestMemoryStore_SearchWriteDeleteAndSourceLinks(t *testing.T) {
 		Text:      "Use focused tests",
 		Tags:      []string{"Go", "Style"},
 		CreatedAt: createdAt,
+		Reflected: true,
 		Metadata:  map[string]string{"project": "hand"},
 		SourceLinks: []statememory.MemorySourceLink{{
 			SessionID:     "session",
@@ -49,6 +50,11 @@ func TestMemoryStore_SearchWriteDeleteAndSourceLinks(t *testing.T) {
 	require.Equal(t, []uint{1}, result.Hits[0].Item.SourceLinks[0].MessageIDs)
 	require.Equal(t, []int{2}, result.Hits[0].Item.SourceLinks[0].Offsets)
 	require.Equal(t, "summary", result.Hits[0].Item.SourceLinks[0].SummaryID)
+	require.True(t, result.Hits[0].Item.Reflected)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{Reflected: new(false)})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
 
 	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
 		IDs: []string{" mem_one "},

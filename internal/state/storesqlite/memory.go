@@ -28,6 +28,7 @@ type memoryItemModel struct {
 	MetadataJSON    string    `gorm:"column:metadata_json;type:TEXT;not null;default:'null'"`
 	SourceLinksJSON string    `gorm:"column:source_links_json;type:TEXT;not null;default:'null'"`
 	Confidence      float64   `gorm:"column:confidence;not null;default:0"`
+	Reflected       bool      `gorm:"column:reflected;not null;default:false;index:idx_memory_items_reflected"`
 	CreatedAt       time.Time `gorm:"column:created_at;autoCreateTime:false"`
 	UpdatedAt       time.Time `gorm:"column:updated_at;autoUpdateTime:false;index:idx_memory_items_updated_at"`
 }
@@ -56,6 +57,7 @@ type memorySearchRecord struct {
 	MetadataJSON    string    `gorm:"column:metadata_json"`
 	SourceLinksJSON string    `gorm:"column:source_links_json"`
 	Confidence      float64   `gorm:"column:confidence"`
+	Reflected       bool      `gorm:"column:reflected"`
 	CreatedAt       time.Time `gorm:"column:created_at"`
 	UpdatedAt       time.Time `gorm:"column:updated_at"`
 	Score           float64   `gorm:"column:score"`
@@ -73,6 +75,7 @@ func (record memorySearchRecord) model() memoryItemModel {
 		MetadataJSON:    record.MetadataJSON,
 		SourceLinksJSON: record.SourceLinksJSON,
 		Confidence:      record.Confidence,
+		Reflected:       record.Reflected,
 		CreatedAt:       record.CreatedAt,
 		UpdatedAt:       record.UpdatedAt,
 	}
@@ -279,6 +282,9 @@ func (s *Store) searchMemoryRecords(
 			Having("COUNT(DISTINCT tag) = ?", len(tags))
 		db = db.Where("id IN (?)", subquery)
 	}
+	if query.Reflected != nil {
+		db = db.Where("reflected = ?", *query.Reflected)
+	}
 
 	var records []memoryItemModel
 	if err := db.Order("updated_at DESC").Order("id ASC").Limit(limit).Find(&records).Error; err != nil {
@@ -327,6 +333,7 @@ SELECT
 	m.metadata_json,
 	m.source_links_json,
 	m.confidence,
+	m.reflected,
 	m.created_at,
 	m.updated_at,
 	-hits.rank AS score
@@ -363,6 +370,11 @@ WHERE 1 = 1`)
 		HAVING COUNT(DISTINCT tag) = ?
 	)`)
 		args = append(args, tags, len(tags))
+	}
+	if query.Reflected != nil {
+		sql.WriteString(`
+	AND m.reflected = ?`)
+		args = append(args, *query.Reflected)
 	}
 	sql.WriteString(`
 ORDER BY hits.rank ASC, m.updated_at DESC, m.id ASC
@@ -430,6 +442,7 @@ func itemToMemoryModel(item statememory.MemoryItem) memoryItemModel {
 		MetadataJSON:    toJSONString(item.Metadata),
 		SourceLinksJSON: toJSONString(item.SourceLinks),
 		Confidence:      item.Confidence,
+		Reflected:       item.Reflected,
 		CreatedAt:       item.CreatedAt,
 		UpdatedAt:       item.UpdatedAt,
 	}
@@ -457,6 +470,7 @@ func memoryModelToItem(record memoryItemModel) (statememory.MemoryItem, error) {
 		Title:      record.Title,
 		Text:       record.Text,
 		Confidence: record.Confidence,
+		Reflected:  record.Reflected,
 		CreatedAt:  record.CreatedAt.UTC(),
 		UpdatedAt:  record.UpdatedAt.UTC(),
 	}
@@ -492,6 +506,7 @@ func memorySearchRecordFromModel(record memoryItemModel, score float64) memorySe
 		MetadataJSON:    record.MetadataJSON,
 		SourceLinksJSON: record.SourceLinksJSON,
 		Confidence:      record.Confidence,
+		Reflected:       record.Reflected,
 		CreatedAt:       record.CreatedAt,
 		UpdatedAt:       record.UpdatedAt,
 		Score:           score,

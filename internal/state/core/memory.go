@@ -46,6 +46,7 @@ type MemoryItem struct {
 	Metadata    map[string]string
 	SourceLinks []MemorySourceLink
 	Confidence  float64
+	Reflected   bool
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -66,6 +67,7 @@ type MemorySearchQuery struct {
 	Tags      []string
 	Limit     int
 	MaxChars  int
+	Reflected *bool
 }
 
 type SessionMemoryQuery struct {
@@ -173,6 +175,9 @@ func MemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
 		return false
 	}
 	if len(query.Tags) > 0 && !ContainsAllMemoryTags(item.Tags, query.Tags) {
+		return false
+	}
+	if query.Reflected != nil && item.Reflected != *query.Reflected {
 		return false
 	}
 

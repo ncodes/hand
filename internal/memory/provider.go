@@ -21,17 +21,18 @@ var ErrUnknownProvider = errors.New("unknown memory provider")
 var ErrUnknownBackend = errors.New("unknown memory backend")
 
 type Options struct {
-	Guardrails         Guardrails
-	Observability      Observability
-	StateManager       StateManager
-	StorageBackend     string
-	MemoryBackend      string
-	Pinned             PinnedOptions
-	EpisodicBackground EpisodicBackgroundOptions
-	ModelClient        models.Client
-	Model              string
-	APIMode            string
-	DebugRequests      bool
+	Guardrails          Guardrails
+	Observability       Observability
+	StateManager        StateManager
+	StorageBackend      string
+	MemoryBackend       string
+	Pinned              PinnedOptions
+	EpisodicBackground  EpisodicBackgroundOptions
+	ModelClient         models.Client
+	Model               string
+	APIMode             string
+	DebugRequests       bool
+	ReflectionGenerator ReflectionGenerator
 }
 
 type PinnedOptions = pinnedmemory.Options
@@ -56,6 +57,7 @@ type MemoryProvider struct {
 	episodicExtractor           *episodic.Service
 	episodicBackground          EpisodicBackgroundOptions
 	episodicBackgroundStartOnce sync.Once
+	reflectionGenerator         ReflectionGenerator
 }
 
 func NewProvider(name string, opts Options) (Provider, error) {
@@ -88,11 +90,12 @@ func NewFromManager(manager StateManager, opts Options) (*MemoryProvider, error)
 	}
 
 	provider := &MemoryProvider{
-		manager:            manager,
-		guardrails:         opts.Guardrails,
-		obs:                opts.Observability,
-		pinned:             pinnedmemory.NormalizeOptions(opts.Pinned),
-		episodicBackground: episodic.NormalizeBackgroundOptions(opts.EpisodicBackground),
+		manager:             manager,
+		guardrails:          opts.Guardrails,
+		obs:                 opts.Observability,
+		pinned:              pinnedmemory.NormalizeOptions(opts.Pinned),
+		episodicBackground:  episodic.NormalizeBackgroundOptions(opts.EpisodicBackground),
+		reflectionGenerator: opts.ReflectionGenerator,
 	}
 
 	if opts.ModelClient != nil {
@@ -111,6 +114,19 @@ func NewFromManager(manager StateManager, opts Options) (*MemoryProvider, error)
 			return nil, err
 		}
 		provider.episodicExtractor = service
+
+		if provider.reflectionGenerator == nil {
+			generator, err := NewLLMReflectionGenerator(LLMReflectionGeneratorOptions{
+				Client:        opts.ModelClient,
+				Model:         opts.Model,
+				APIMode:       opts.APIMode,
+				DebugRequests: opts.DebugRequests,
+			})
+			if err != nil {
+				return nil, err
+			}
+			provider.reflectionGenerator = generator
+		}
 	}
 
 	return provider, nil
@@ -128,6 +144,7 @@ func (p *MemoryProvider) Capabilities(context.Context) (Capabilities, error) {
 		SupportsDelete:                      true,
 		SupportsEpisodeRecording:            true,
 		SupportsSemanticProceduralRecording: true,
+		SupportsReflection:                  p != nil && p.reflectionGenerator != nil,
 		SupportsReranking:                   true,
 		SupportsObservability:               true,
 	}, nil

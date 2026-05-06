@@ -63,11 +63,32 @@ type ProceduralRecord struct {
 }
 
 type ReflectionRequest struct {
-	Limit int
+	SessionID    string
+	Limit        int
+	RelatedLimit int
 }
 
 type ReflectionResult struct {
+	SessionID    string
+	SourceCount  int
+	RelatedCount int
+	WriteCount   int
+	Items        []MemoryItem
+}
+
+type ReflectionGenerationRequest struct {
+	SessionID string
+	Sources   []MemoryItem
+	Related   []MemoryItem
+	Limit     int
+}
+
+type ReflectionGenerationResult struct {
 	Items []MemoryItem
+}
+
+type ReflectionGenerator interface {
+	GenerateReflectionCandidates(context.Context, ReflectionGenerationRequest) (ReflectionGenerationResult, error)
 }
 
 type Provider interface {

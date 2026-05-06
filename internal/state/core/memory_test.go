@@ -15,6 +15,7 @@ func TestMemoryMatchesQuery_AppliesStatusKindTagsAndText(t *testing.T) {
 		Text:        "Use focused plans",
 		Tags:        []string{"go", "planning"},
 		SourceLinks: []MemorySourceLink{{SessionID: DefaultSessionID}},
+		Reflected:   true,
 	}
 
 	require.True(t, MemoryMatchesQuery(item, MemorySearchQuery{
@@ -23,6 +24,7 @@ func TestMemoryMatchesQuery_AppliesStatusKindTagsAndText(t *testing.T) {
 		IDs:       []string{" mem_plan "},
 		Kinds:     []MemoryKind{MemoryKindSemantic},
 		Tags:      []string{"planning"},
+		Reflected: new(true),
 	}))
 	require.True(t, MemoryMatchesQuery(item, MemorySearchQuery{}))
 	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{SessionID: "other"}))
@@ -30,11 +32,9 @@ func TestMemoryMatchesQuery_AppliesStatusKindTagsAndText(t *testing.T) {
 	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{Statuses: []MemoryStatus{MemoryStatusCandidate}}))
 	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{Kinds: []MemoryKind{MemoryKindProcedural}}))
 	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{Tags: []string{"missing"}}))
+	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{Reflected: new(false)}))
 	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{Text: "missing"}))
-	require.False(t, MemoryMatchesQuery(MemoryItem{
-		ID:     "mem_candidate",
-		Status: MemoryStatusCandidate,
-	}, MemorySearchQuery{}))
+	require.False(t, MemoryMatchesQuery(MemoryItem{ID: "mem_candidate", Status: MemoryStatusCandidate}, MemorySearchQuery{}))
 }
 
 func TestMemoryMatchesSessionQuery_AppliesSessionKindAndStatus(t *testing.T) {
