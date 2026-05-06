@@ -138,3 +138,20 @@ func (s fakeMemoryManager) ListTraceEvents(context.Context, statecore.TraceQuery
 func (s fakeMemoryManager) UpdateEpisodicCheckpoint(context.Context, string, int) error {
 	return nil
 }
+
+type recordingMemoryManager struct {
+	fakeMemoryManager
+	upsertItems []MemoryItem
+	upsertErr   error
+}
+
+func (s *recordingMemoryManager) UpsertMemory(_ context.Context, item MemoryItem) (MemoryItem, error) {
+	s.upsertItems = append(s.upsertItems, item.Clone())
+	if s.upsertErr != nil {
+		return MemoryItem{}, s.upsertErr
+	}
+	if s.upsertItem.ID != "" {
+		return s.upsertItem, nil
+	}
+	return item, nil
+}

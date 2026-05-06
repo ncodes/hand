@@ -84,9 +84,25 @@ func TestMemoryProvider_ReturnsGuardrailErrors(t *testing.T) {
 	provider = defaultMemoryTestProvider(t, Options{Guardrails: &fakeGuardrails{writeErr: writeErr}})
 	_, err = provider.Upsert(context.Background(), MemoryItem{Text: "hello"})
 	require.ErrorIs(t, err, writeErr)
+	_, err = provider.RecordSemanticMemory(context.Background(), SemanticRecord{Item: MemoryItem{
+		Kind: KindSemantic,
+		Text: "hello",
+		Metadata: map[string]string{
+			"source_session_id": "default",
+		},
+	}})
+	require.ErrorIs(t, err, writeErr)
 
 	provider = defaultMemoryTestProvider(t, Options{Guardrails: &fakeGuardrails{safetyErr: safetyErr}})
 	_, err = provider.Upsert(context.Background(), MemoryItem{Text: "hello"})
+	require.ErrorIs(t, err, safetyErr)
+	_, err = provider.RecordSemanticMemory(context.Background(), SemanticRecord{Item: MemoryItem{
+		Kind: KindSemantic,
+		Text: "hello",
+		Metadata: map[string]string{
+			"source_session_id": "default",
+		},
+	}})
 	require.ErrorIs(t, err, safetyErr)
 
 	provider = defaultMemoryTestProvider(t, Options{Guardrails: &fakeGuardrails{deleteErr: deleteErr}})

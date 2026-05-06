@@ -122,13 +122,14 @@ func (p *MemoryProvider) Name() string {
 
 func (p *MemoryProvider) Capabilities(context.Context) (Capabilities, error) {
 	return Capabilities{
-		SupportsPinned:           true,
-		SupportsSearch:           true,
-		SupportsWrite:            true,
-		SupportsDelete:           true,
-		SupportsEpisodeRecording: true,
-		SupportsReranking:        true,
-		SupportsObservability:    true,
+		SupportsPinned:                      true,
+		SupportsSearch:                      true,
+		SupportsWrite:                       true,
+		SupportsDelete:                      true,
+		SupportsEpisodeRecording:            true,
+		SupportsSemanticProceduralRecording: true,
+		SupportsReranking:                   true,
+		SupportsObservability:               true,
 	}, nil
 }
 

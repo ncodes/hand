@@ -112,6 +112,7 @@ func TestMemoryProvider_CapabilitiesConfigureObservabilityAndClose(t *testing.T)
 	require.True(t, caps.SupportsWrite)
 	require.True(t, caps.SupportsDelete)
 	require.True(t, caps.SupportsEpisodeRecording)
+	require.True(t, caps.SupportsSemanticProceduralRecording)
 	require.True(t, caps.SupportsReranking)
 	require.True(t, caps.SupportsObservability)
 
@@ -552,6 +553,9 @@ func TestMemoryProvider_ReturnsProviderRequiredErrors(t *testing.T) {
 	_, err = provider.Upsert(context.Background(), MemoryItem{Text: "hello"})
 	require.EqualError(t, err, "memory provider is required")
 
+	_, err = provider.RecordSemanticMemory(context.Background(), SemanticRecord{Item: MemoryItem{Text: "hello"}})
+	require.EqualError(t, err, "memory provider is required")
+
 	err = provider.Delete(context.Background(), DeleteRequest{ID: "mem_123"})
 	require.EqualError(t, err, "memory provider is required")
 }
@@ -568,6 +572,14 @@ func TestMemoryProvider_PropagatesManagerErrors(t *testing.T) {
 
 	provider = &MemoryProvider{manager: fakeMemoryManager{upsertErr: managerErr}}
 	_, err = provider.Upsert(context.Background(), MemoryItem{Text: "hello"})
+	require.ErrorIs(t, err, managerErr)
+	_, err = provider.RecordSemanticMemory(context.Background(), SemanticRecord{Item: MemoryItem{
+		Kind: KindSemantic,
+		Text: "hello",
+		Metadata: map[string]string{
+			"source_session_id": "default",
+		},
+	}})
 	require.ErrorIs(t, err, managerErr)
 
 	provider = &MemoryProvider{manager: fakeMemoryManager{deleteErr: managerErr}}

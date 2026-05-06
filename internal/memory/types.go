@@ -33,17 +33,18 @@ type SearchResult = statecore.MemorySearchResult
 type DeleteRequest = statecore.MemoryDeleteRequest
 
 type Capabilities struct {
-	SupportsPinned           bool
-	SupportsSearch           bool
-	SupportsWrite            bool
-	SupportsDelete           bool
-	SupportsEpisodeRecording bool
-	SupportsReflection       bool
-	SupportsBM25             bool
-	SupportsVectors          bool
-	SupportsReranking        bool
-	SupportsAudit            bool
-	SupportsObservability    bool
+	SupportsPinned                      bool
+	SupportsSearch                      bool
+	SupportsWrite                       bool
+	SupportsDelete                      bool
+	SupportsEpisodeRecording            bool
+	SupportsSemanticProceduralRecording bool
+	SupportsReflection                  bool
+	SupportsBM25                        bool
+	SupportsVectors                     bool
+	SupportsReranking                   bool
+	SupportsAudit                       bool
+	SupportsObservability               bool
 }
 
 type EpisodeRecord = episodic.EpisodeRecord
@@ -52,6 +53,14 @@ type ExtractionResult = episodic.Result
 type ExtractionWindowResult = episodic.WindowResult
 type EpisodicBackgroundOptions = episodic.BackgroundOptions
 type TraceRecorder = episodic.TraceRecorder
+
+type SemanticRecord struct {
+	Item MemoryItem
+}
+
+type ProceduralRecord struct {
+	Item MemoryItem
+}
 
 type ReflectionRequest struct {
 	Limit int
@@ -83,6 +92,11 @@ type WriteProvider interface {
 
 type EpisodeProvider interface {
 	RecordEpisode(context.Context, EpisodeRecord) (MemoryItem, error)
+}
+
+type SemanticProceduralProvider interface {
+	RecordSemanticMemory(context.Context, SemanticRecord) (MemoryItem, error)
+	RecordProceduralMemory(context.Context, ProceduralRecord) (MemoryItem, error)
 }
 
 type ExtractionProvider interface {
