@@ -5,6 +5,8 @@ import (
 	"maps"
 )
 
+// Logger is intentionally smaller than zerolog/logrus/etc. Memory code only
+// needs leveled structured messages and should not depend on a concrete logger.
 type Logger interface {
 	Debug(string, map[string]any)
 	Info(string, map[string]any)
@@ -12,10 +14,15 @@ type Logger interface {
 	Error(string, map[string]any)
 }
 
+// Tracer records structured events that can be inspected after a run. Logs are
+// optimized for humans watching the process; traces are optimized for debugging
+// complete timelines.
 type Tracer interface {
 	Record(context.Context, string, map[string]any)
 }
 
+// Observability bundles optional log and trace sinks. Nil sinks are valid so
+// memory code can run in tests and embedded contexts without instrumentation.
 type Observability interface {
 	Logger() Logger
 	Tracer() Tracer
@@ -35,6 +42,9 @@ func traceRecord(ctx context.Context, obs Observability, event string, fields ma
 	obs.Tracer().Record(ctx, event, fields)
 }
 
+// observationFields standardizes the fields present on provider events so log
+// streams remain searchable by provider and operation even as individual events
+// add their own payload.
 func observationFields(provider string, operation string, fields map[string]any) map[string]any {
 	shared := map[string]any{
 		"provider":  provider,
@@ -44,6 +54,8 @@ func observationFields(provider string, operation string, fields map[string]any)
 	return shared
 }
 
+// logDebugAndTrace emits the same event through both observability surfaces.
+// Keeping these paired makes the stdout sequence line up with trace inspection.
 func logDebugAndTrace(
 	ctx context.Context,
 	obs Observability,

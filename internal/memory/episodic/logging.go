@@ -12,6 +12,8 @@ import (
 
 var extractionLog = logutils.InitLogger("memory.extraction")
 
+// recordFailure keeps extraction failure logging and tracing consistent across
+// normalization, window loading, model calls, and persistence errors.
 func recordFailure(recorder TraceRecorder, req normalizedRequest, err error) {
 	recordTrace(recorder, trace.EvtMemoryExtractionFailed, tracePayload(req, map[string]any{"error": err.Error()}))
 	logExtraction("failed", req, map[string]any{"error": err.Error()})
@@ -24,6 +26,8 @@ func recordTrace(recorder TraceRecorder, event string, payload map[string]any) {
 	recorder.Record(event, payload)
 }
 
+// tracePayload adds the common extraction coordinates to every event so a trace
+// viewer can group logs by session and source message window.
 func tracePayload(req normalizedRequest, fields map[string]any) map[string]any {
 	payload := map[string]any{
 		"session_id":   strings.TrimSpace(req.SessionID),
@@ -37,6 +41,8 @@ func tracePayload(req normalizedRequest, fields map[string]any) map[string]any {
 	return payload
 }
 
+// logExtraction mirrors trace events to debug logs. The trace has the complete
+// event timeline; the log gives operators a readable live stream.
 func logExtraction(event string, req normalizedRequest, fields map[string]any) {
 	entry := extractionLog.Debug().
 		Str("event", "memory extraction "+event).
@@ -74,6 +80,8 @@ func recordBackgroundTrace(
 	recorder.Record(event, payload)
 }
 
+// backgroundPayload keeps background events compact. Empty session/reason fields
+// are omitted so run-level events are not cluttered with meaningless values.
 func backgroundPayload(
 	runID string,
 	sessionID string,
@@ -117,6 +125,8 @@ func logBackground(
 	entry.Msg("memory episodic background " + event)
 }
 
+// logField preserves useful scalar types instead of stringifying everything,
+// which keeps downstream log filters effective.
 func logField(event *zerolog.Event, key string, value any) *zerolog.Event {
 	switch typed := value.(type) {
 	case string:

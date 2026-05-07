@@ -5,6 +5,9 @@ type episodeMetadataField struct {
 	identity bool
 }
 
+// episodeMetadataFields is the strict metadata vocabulary for episodic
+// extraction. identity=true means the field participates in deterministic
+// candidate identity, so changing it should create a distinct memory candidate.
 var episodeMetadataFields = []episodeMetadataField{
 	{key: "reason"},
 	{key: "memory_importance", identity: true},
@@ -36,6 +39,9 @@ var episodeMetadataFields = []episodeMetadataField{
 	{key: "uncertainty"},
 }
 
+// episodeMetadataFieldKeys feeds the structured-output schema. Keeping the list
+// centralized avoids the prompt schema, parser, and identity hashing drifting
+// apart.
 func episodeMetadataFieldKeys() []string {
 	keys := make([]string, 0, len(episodeMetadataFields))
 	for _, field := range episodeMetadataFields {
@@ -45,6 +51,8 @@ func episodeMetadataFieldKeys() []string {
 	return keys
 }
 
+// episodeIdentityMetadataKeys identifies metadata that helps define whether two
+// extracted candidates are meaningfully the same memory.
 func episodeIdentityMetadataKeys() []string {
 	keys := make([]string, 0, len(episodeMetadataFields))
 	for _, field := range episodeMetadataFields {

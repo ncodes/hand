@@ -6,6 +6,9 @@ import (
 	storage "github.com/wandxy/hand/internal/state/core"
 )
 
+// admitCandidateItems applies deterministic admission after model extraction
+// and before persistence. The model can propose candidates, but local code
+// decides which proposals are too low-signal or redundant.
 func admitCandidateItems(
 	items []storage.MemoryItem,
 	rejections []candidateRejection,
@@ -26,6 +29,9 @@ func admitCandidateItems(
 	return collapseCandidateGroups(admitted, rejections)
 }
 
+// candidateRejectionReason rejects metadata that explicitly marks a proposal as
+// not worth durable memory. This mirrors the prompt guidance and gives a stable
+// reason independent of model wording.
 func candidateRejectionReason(item storage.MemoryItem) string {
 	switch strings.ToLower(strings.TrimSpace(item.Metadata["memory_importance"])) {
 	case "low":
@@ -39,6 +45,9 @@ func candidateRejectionReason(item storage.MemoryItem) string {
 	return ""
 }
 
+// collapseCandidateGroups keeps the strongest candidate per canonical group.
+// This lets the model emit related alternatives while the service stores only
+// the best representative for a repeated fact or outcome.
 func collapseCandidateGroups(
 	items []storage.MemoryItem,
 	rejections []candidateRejection,
@@ -76,6 +85,9 @@ func canonicalCandidateGroup(item storage.MemoryItem) string {
 	return normalizeMemoryIDText(item.Metadata["canonical_group"])
 }
 
+// candidateAdmissionScore ranks candidates within the same canonical group.
+// Higher-priority kinds, importance, summary-level granularity, and confidence
+// all improve the chance a candidate survives group collapse.
 func candidateAdmissionScore(item storage.MemoryItem) int {
 	score := candidateKindPriority(candidateKind(item)) * 100
 	switch strings.ToLower(strings.TrimSpace(item.Metadata["memory_importance"])) {

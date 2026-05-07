@@ -40,6 +40,10 @@ type Options struct {
 
 type PinnedOptions = pinnedmemory.Options
 
+// StateManager is the persistence and session-history contract the provider
+// needs. It intentionally combines memory storage with session/trace access
+// because episodic extraction and reflection both need source evidence, not just
+// memory rows.
 type StateManager interface {
 	SearchMemory(context.Context, SearchQuery) (SearchResult, error)
 	UpsertMemory(context.Context, MemoryItem) (MemoryItem, error)
@@ -52,6 +56,10 @@ type StateManager interface {
 	UpdateEpisodicCheckpoint(context.Context, string, int) error
 }
 
+// MemoryProvider is the default implementation that composes storage,
+// guardrails, model-backed extractors, reflection, promotion, and background
+// loops. The mutex protects observability reconfiguration; storage consistency
+// is handled by the manager/store layer.
 type MemoryProvider struct {
 	mu                            sync.RWMutex
 	manager                       StateManager
@@ -69,6 +77,9 @@ type MemoryProvider struct {
 	promotionPolicy               PromotionPolicy
 }
 
+// NewProvider is the name/backend selector used by environment setup. Today
+// both memory and SQLite backends share the same provider logic and differ only
+// in the StateManager they pass in.
 func NewProvider(name string, opts Options) (Provider, error) {
 	switch strings.TrimSpace(strings.ToLower(name)) {
 	case "", ProviderDefaultMemory:
@@ -93,6 +104,10 @@ func effectiveBackend(opts Options) string {
 	return constants.DefaultStorageBackend
 }
 
+// NewFromManager builds the provider around an already configured state
+// manager. Model-backed features are only installed when a model client exists;
+// this keeps the provider usable in tests and simple local modes where only
+// search/write are needed.
 func NewFromManager(manager StateManager, opts Options) (*MemoryProvider, error) {
 	if manager == nil {
 		return nil, errors.New("state manager is required")
@@ -202,6 +217,8 @@ func (p *MemoryProvider) LoadPinned(ctx context.Context, query SearchQuery) ([]M
 		return nil, err
 	}
 
+	// File-pinned and store-pinned memories are prepared together so limit,
+	// safety scanning, and redaction behave the same regardless of source.
 	items := append(fileItems, dbItems...)
 	items, err = pinnedmemory.PrepareItems(ctx, items, query, p.pinned, p.safetyScanPinnedItem, p.redactPinnedItem)
 	if err != nil {
@@ -217,6 +234,8 @@ func (p *MemoryProvider) LoadPinned(ctx context.Context, query SearchQuery) ([]M
 	return items, nil
 }
 
+// loadStorePinned intentionally clears query text. Pinned retrieval is a direct
+// context-load path; semantic search of general memories happens through Search.
 func (p *MemoryProvider) loadStorePinned(ctx context.Context, query SearchQuery) ([]MemoryItem, error) {
 	storeQuery := query
 	storeQuery.Text = ""
@@ -257,6 +276,9 @@ func (p *MemoryProvider) Search(ctx context.Context, query SearchQuery) (SearchR
 	obs := p.observability()
 	logDebugAndTrace(ctx, obs, "memory search started", "memory.search.started", observationFields(p.Name(), "search", nil))
 
+	// The manager may perform lexical search, vector search, reranking, or a
+	// hybrid of those. The provider logs only the high-level search boundary and
+	// applies prompt-facing redaction after storage returns canonical items.
 	result, err := p.manager.SearchMemory(ctx, query)
 	if err != nil {
 		return SearchResult{}, err
@@ -314,6 +336,10 @@ func (p *MemoryProvider) Delete(ctx context.Context, req DeleteRequest) error {
 	if memoryID == "" {
 		return errors.New("memory id is required")
 	}
+
+	// Deletion is represented as a lifecycle state transition rather than a
+	// blind store delete so audits can explain what happened and vector cleanup
+	// can still be driven by the store's normal upsert/delete synchronization.
 	item, err := p.loadLifecycleMemory(ctx, memoryID, []Status{StatusActive, StatusCandidate, StatusSuperseded})
 	if err != nil {
 		return err
@@ -331,6 +357,8 @@ func (p *MemoryProvider) Delete(ctx context.Context, req DeleteRequest) error {
 	return nil
 }
 
+// RecordEpisode is the write path used by the episodic extraction service after
+// it has already built provenance, candidate metadata, and deterministic IDs.
 func (p *MemoryProvider) RecordEpisode(ctx context.Context, record EpisodeRecord) (MemoryItem, error) {
 	item := record.Item.Clone()
 	item.Kind = KindEpisodic
@@ -340,6 +368,9 @@ func (p *MemoryProvider) RecordEpisode(ctx context.Context, record EpisodeRecord
 	return p.Upsert(ctx, item)
 }
 
+// ExtractEpisodes delegates to the model-backed episodic service. Keeping this
+// method on the provider lets tools call extraction without knowing how the
+// extractor is wired.
 func (p *MemoryProvider) ExtractEpisodes(ctx context.Context, req ExtractionRequest) (ExtractionResult, error) {
 	if p == nil || p.episodicExtractor == nil {
 		return ExtractionResult{}, errors.New("memory extraction is not configured")
@@ -348,6 +379,8 @@ func (p *MemoryProvider) ExtractEpisodes(ctx context.Context, req ExtractionRequ
 	return p.episodicExtractor.Extract(ctx, req)
 }
 
+// StartBackground enables the provider-owned periodic jobs. Each job uses a
+// sync.Once so repeated calls from setup paths are harmless.
 func (p *MemoryProvider) StartBackground(ctx context.Context) error {
 	if p == nil {
 		return errors.New("memory provider is required")
@@ -387,6 +420,8 @@ func (p *MemoryProvider) startEpisodicRecordingBackground(ctx context.Context) e
 	return nil
 }
 
+// backgroundContext normalizes nil context for background startup. Callers still
+// control cancellation by passing a real context.
 func backgroundContext(ctx context.Context) context.Context {
 	if ctx == nil {
 		return context.Background()
@@ -422,6 +457,8 @@ func (p *MemoryProvider) observability() Observability {
 	return p.obs
 }
 
+// providerTraceRecorder adapts package-level trace callbacks from the episodic
+// service into the provider's configured observability sink.
 type providerTraceRecorder struct {
 	ctx context.Context
 	obs Observability

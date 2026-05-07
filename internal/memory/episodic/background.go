@@ -63,6 +63,9 @@ type BackgroundStateManager interface {
 	ListSessions(context.Context) ([]storage.Session, error)
 }
 
+// NormalizeBackgroundOptions keeps background extraction conservative even when
+// configuration is partial. Bounds protect prompt size, run length, and retry
+// behavior.
 func NormalizeBackgroundOptions(opts BackgroundOptions) BackgroundOptions {
 	if opts.Interval <= 0 {
 		opts.Interval = DefaultBackgroundInterval
@@ -106,6 +109,9 @@ func NormalizeBackgroundOptions(opts BackgroundOptions) BackgroundOptions {
 	return opts
 }
 
+// RunBackground performs one complete background sweep across sessions. It does
+// not own a ticker; provider code owns scheduling so tests and manual callers
+// can run a single deterministic pass.
 func (s *Service) RunBackground(ctx context.Context, req BackgroundRequest) (BackgroundResult, error) {
 	started := s.now()
 	if s == nil || s.manager == nil {
@@ -138,6 +144,8 @@ func (s *Service) RunBackground(ctx context.Context, req BackgroundRequest) (Bac
 	}
 
 	for _, session := range sessions {
+		// Each session is evaluated independently so one failed extraction does
+		// not prevent other sessions from being checked in the same sweep.
 		sessionResult := s.runBackgroundForSession(ctx, req.Trace, runID, opts, session)
 		result.Sessions = append(result.Sessions, sessionResult)
 		result.CheckedCount++
@@ -200,6 +208,8 @@ func (s *Service) runBackgroundForSession(
 		return sessionResult
 	}
 
+	// Background extraction starts at the checkpoint and uses the special
+	// background trigger so successful windows advance the checkpoint.
 	req := Request{
 		SessionID:       sessionID,
 		OffsetStart:     &startOffset,
@@ -226,6 +236,8 @@ func (s *Service) runBackgroundForSession(
 		extraction, err := s.Extract(ctx, req)
 		if err == nil {
 			sessionResult.Extraction = extraction
+			// Emit one checkpoint event per processed window. The actual checkpoint
+			// write happens inside Extract immediately after each window succeeds.
 			for _, window := range extraction.Windows {
 				fields := map[string]any{"offset_start": window.OffsetStart, "offset_end": window.OffsetEnd, "write_count": window.WriteCount, "skip_count": window.SkipCount}
 				recordBackgroundTrace(recorder, trace.EvtMemoryEpisodicBackgroundWindowCheckpoint, backgroundPayload(runID, sessionID, messageCount, "processed", fields))
@@ -242,7 +254,9 @@ func (s *Service) runBackgroundForSession(
 	}
 }
 
-// isSessionEligible checks if a session is eligible for episodic memory extraction.
+// isSessionEligible checks whether a session is ready for autonomous extraction.
+// The idle gate avoids racing active user turns, and the checkpoint gate avoids
+// repeatedly processing already-extracted history.
 func isSessionEligible(
 	now time.Time,
 	session storage.Session,
@@ -267,7 +281,8 @@ func isSessionEligible(
 	return true, "eligible"
 }
 
-// normalizedCheckpointOffset normalizes the checkpoint offset to ensure it is within the valid range.
+// normalizedCheckpointOffset clamps stored checkpoints to the current message
+// count. This protects background extraction from stale or corrupted offsets.
 func normalizedCheckpointOffset(offset int, messageCount int) int {
 	if offset < 0 {
 		return 0

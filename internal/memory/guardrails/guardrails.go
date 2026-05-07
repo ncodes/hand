@@ -9,10 +9,16 @@ import (
 	"github.com/wandxy/hand/internal/memory"
 )
 
+// Guardrails adapts the core guardrail utilities to the memory provider
+// interface. The implementation is intentionally conservative: writes are
+// safety scanned, reads are redacted, and structural validation currently stays
+// in the provider/store-specific code.
 type Guardrails struct {
 	redactor coreguardrails.Redactor
 }
 
+// New returns default memory guardrails. A custom redactor can be injected in
+// tests or alternate runtime setups; nil selects the shared core redactor.
 func New(redactor coreguardrails.Redactor) memory.Guardrails {
 	if redactor == nil {
 		redactor = coreguardrails.NewRedactor()
@@ -20,18 +26,28 @@ func New(redactor coreguardrails.Redactor) memory.Guardrails {
 	return Guardrails{redactor: redactor}
 }
 
+// ValidateSearch currently allows all structurally valid provider queries. Query
+// shape validation lives closer to each search implementation because supported
+// filters differ by store capability.
 func (g Guardrails) ValidateSearch(context.Context, memory.SearchQuery) error {
 	return nil
 }
 
+// ValidateWrite is paired with SafetyScan by the provider. Field-level memory
+// validation is handled by candidate builders and lifecycle code.
 func (g Guardrails) ValidateWrite(context.Context, memory.MemoryItem) error {
 	return nil
 }
 
+// ValidateDelete is a hook for future policy checks such as protected pinned
+// records. ID validation is still enforced by the provider.
 func (g Guardrails) ValidateDelete(context.Context, memory.DeleteRequest) error {
 	return nil
 }
 
+// SafetyScan checks the text that would become durable memory. GuardrailSource
+// includes the memory ID when available, which makes blocked-content reports
+// easier to connect back to storage.
 func (g Guardrails) SafetyScan(_ context.Context, item memory.MemoryItem) error {
 	scanned := coreguardrails.SafetyScan(
 		strings.Join([]string{item.Title, item.Text}, "\n"),
@@ -43,6 +59,9 @@ func (g Guardrails) SafetyScan(_ context.Context, item memory.MemoryItem) error 
 	return nil
 }
 
+// Redact sanitizes all prompt-facing string fields while preserving the memory
+// shape. It returns a copy so callers do not accidentally mutate canonical
+// stored memory.
 func (g Guardrails) Redact(_ context.Context, item memory.MemoryItem) (memory.MemoryItem, error) {
 	item.Title = sanitizedString(g.redactor, item.Title)
 	item.Text = sanitizedString(g.redactor, item.Text)

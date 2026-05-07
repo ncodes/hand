@@ -29,10 +29,17 @@ type Options struct {
 	MaxItemChars int
 }
 
+// SafetyScanner is injected by the provider so this package can prepare pinned
+// items without importing provider guardrail implementations.
 type SafetyScanner func(context.Context, state.MemoryItem) error
 
+// Redactor is injected by the provider for the same reason as SafetyScanner:
+// pinned memory preparation should stay reusable and storage-agnostic.
 type Redactor func(context.Context, state.MemoryItem) (state.MemoryItem, error)
 
+// AutoFile looks for the conventional pinned-memory file in the current
+// workspace root. Absence is not an error because most projects will not have
+// pinned memory configured.
 func AutoFile() (string, bool, error) {
 	root, err := getwd()
 	if err != nil {
@@ -41,6 +48,8 @@ func AutoFile() (string, bool, error) {
 	return autoFileFromRoot(root)
 }
 
+// NormalizeOptions fills prompt-budget defaults. These budgets are enforced
+// after safety scan and redaction because redaction can change rendered length.
 func NormalizeOptions(opts Options) Options {
 	if opts.MaxChars <= 0 {
 		opts.MaxChars = defaultMaxChars
@@ -51,10 +60,15 @@ func NormalizeOptions(opts Options) Options {
 	return opts
 }
 
+// Enabled treats a nil option as enabled. That keeps pinned memory available by
+// default while allowing config to explicitly disable it.
 func Enabled(opts Options) bool {
 	return opts.Enabled == nil || *opts.Enabled
 }
 
+// LoadFile converts a workspace pinned-memory file into one active memory item.
+// Store-backed pinned memories are loaded by the provider; this function only
+// handles the operator-controlled file source.
 func LoadFile() ([]state.MemoryItem, error) {
 	file, ok, err := AutoFile()
 	if err != nil {
@@ -87,6 +101,9 @@ func LoadFile() ([]state.MemoryItem, error) {
 	}}, nil
 }
 
+// PrepareItems applies the prompt-facing preparation pipeline for pinned memory:
+// active-only filtering, safety scan, redaction, per-item truncation, and total
+// budget enforcement.
 func PrepareItems(
 	ctx context.Context,
 	items []state.MemoryItem,
@@ -116,6 +133,8 @@ func PrepareItems(
 			}
 		}
 
+		// Redact a copy before truncation so sensitive content does not influence
+		// the final prompt text even if it would have been truncated away.
 		redacted := item
 		if redact != nil {
 			var err error
@@ -147,6 +166,8 @@ func PrepareItems(
 	return prepared, nil
 }
 
+// autoFileFromRoot performs a case-insensitive lookup so users do not have to
+// remember exact filename casing across platforms.
 func autoFileFromRoot(root string) (string, bool, error) {
 	root = strings.TrimSpace(root)
 	if root == "" {
@@ -180,6 +201,8 @@ func autoFileFromRoot(root string) (string, bool, error) {
 	return "", false, nil
 }
 
+// fileMemoryID makes file-pinned IDs stable across runs and distinct from
+// generated store-backed memory IDs.
 func fileMemoryID(file string) string {
 	return "pinned_file:" + strings.TrimSpace(file)
 }
@@ -188,6 +211,9 @@ func countItemChars(item state.MemoryItem) int {
 	return len([]rune(item.Title)) + len([]rune(item.Text))
 }
 
+// truncateItem spends the item budget on the title first, then the body. A
+// title-only item is still useful context; a body without a title is also kept
+// when budget remains.
 func truncateItem(item state.MemoryItem, maxChars int) state.MemoryItem {
 	if maxChars <= 0 {
 		item.Title = ""

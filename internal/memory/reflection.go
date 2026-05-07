@@ -21,6 +21,17 @@ const (
 	reflectionSimilarScoreThreshold = 0.75
 )
 
+// Reflect consolidates unreflected episodic memories into new candidates.
+//
+// The shape of this method is important:
+//  1. load source episodic memories that have not yet been reflected
+//  2. load related durable/context memories to help the generator avoid repeats
+//  3. ask the generator for candidates
+//  4. normalize, validate, dedupe, and write candidates
+//  5. mark only the source memories as reflected
+//
+// Reflection can produce more reflected memories later, but duplicate rejection
+// prevents the system from writing the same insight repeatedly.
 func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (ReflectionResult, error) {
 	started := time.Now().UTC()
 	if p == nil || p.manager == nil {
@@ -92,6 +103,9 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 	sourceIDs := memoryIDs(sources)
 	written := make([]MemoryItem, 0, normalized.Limit)
 	for _, candidate := range limitReflectionItems(generated.Items, normalized.Limit) {
+		// Model output is treated as a proposal. The provider overwrites IDs,
+		// source links, reflection metadata, tags, and status so provenance is
+		// trustworthy even when the model omits or invents fields.
 		item, ok, rejection := prepareReflectionCandidate(
 			candidate,
 			normalized.SessionID,
@@ -103,6 +117,9 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 			continue
 		}
 
+		// Check duplicates after provider normalization. This catches both
+		// same-batch duplicates and already-written reflected memories across
+		// memory kinds.
 		rejection, err = p.reflectionCandidateRejection(ctx, item, written)
 		if err != nil {
 			p.recordReflectionFailure(ctx, result, err)
@@ -257,6 +274,9 @@ func (p *MemoryProvider) loadReflectionSources(
 	req normalizedReflectionRequest,
 ) ([]MemoryItem, error) {
 	unreflected := false
+	// Only unreflected episodic memory is used as source evidence. Reflected
+	// candidates can later become sources themselves, but not until they are
+	// written and then selected by a future pass.
 	result, err := p.manager.SearchMemory(ctx, SearchQuery{
 		SessionID: req.SessionID,
 		Kinds:     []Kind{KindEpisodic},
@@ -289,6 +309,8 @@ func (p *MemoryProvider) loadReflectionRelated(
 			continue
 		}
 
+		// Related memories are context, not sources. They help the generator and
+		// duplicate checks understand what the system already knows.
 		result, err := p.manager.SearchMemory(ctx, SearchQuery{
 			Text:     text,
 			Kinds:    []Kind{KindPinned, KindSemantic, KindProcedural},
@@ -330,6 +352,8 @@ func (p *MemoryProvider) reflectionCandidateRejection(
 	}
 
 	reflected := true
+	// Search across reflected memory of any kind. A semantic reflection and a
+	// pinned reflection can be duplicates even though their final use differs.
 	result, err := p.manager.SearchMemory(ctx, SearchQuery{
 		Text:      text,
 		Statuses:  []Status{StatusCandidate, StatusActive},
@@ -390,6 +414,8 @@ func prepareReflectionCandidate(
 ) (MemoryItem, bool, string) {
 	item = item.Clone()
 
+	// Reflection candidates get a fresh kind-aware ID because model-provided IDs
+	// are not trusted. Source provenance is reconstructed from the input sources.
 	item.ID = ""
 	if item.Status == "" {
 		item.Status = StatusCandidate
@@ -437,6 +463,8 @@ func (p *MemoryProvider) recordReflectionCandidate(ctx context.Context, item Mem
 func (p *MemoryProvider) markReflectionSourcesReflected(ctx context.Context, sources []MemoryItem) error {
 	for _, source := range sources {
 		reflected := true
+		// Patch only the reflected flag. A full upsert could overwrite lifecycle
+		// fields if promotion updated the source while reflection was running.
 		if _, err := p.manager.PatchMemory(ctx, MemoryPatch{
 			ID:        source.ID,
 			Reflected: &reflected,

@@ -65,6 +65,11 @@ func NewService(manager StateManager, repository MemoryRepository, extractor *LL
 }
 
 // Extract extracts curated episodic memory items from a bounded message range.
+//
+// Extraction is source-window oriented. The service does not scan an entire
+// transcript at once; it slices a session into bounded windows so model prompts
+// stay small, provenance stays precise, and background extraction can checkpoint
+// progress after each window.
 func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 	started := s.now()
 	if s == nil || s.manager == nil {
@@ -112,6 +117,9 @@ func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 		result.WriteCount += windowResult.WriteCount
 		result.SkipCount += windowResult.SkipCount
 
+		// Background extraction advances after every successfully processed
+		// window. Foreground/tool extraction does not move this checkpoint because
+		// callers may intentionally inspect arbitrary historical ranges.
 		if normalized.Trigger == backgroundTrigger {
 			if err := s.manager.UpdateEpisodicCheckpoint(
 				ctx,
@@ -162,6 +170,9 @@ func (s Service) extractWindow(
 		return WindowResult{}, err
 	}
 	if len(existing.Hits) > 0 {
+		// A source-window tag is the first duplicate guard. It prevents a
+		// background job from reprocessing a window it has already turned into at
+		// least one candidate.
 		result.SkipCount = len(existing.Hits)
 		for _, hit := range existing.Hits {
 			id := strings.TrimSpace(hit.Item.ID)
@@ -228,6 +239,9 @@ func (s Service) extractWindow(
 	}
 
 	for _, candidate := range candidates {
+		// The extractor and admission pipeline are not the final duplicate guard.
+		// Overlapping windows can still produce the same memory, so we search
+		// existing episodic candidate/active memory before writing.
 		rejection, err := s.episodicCandidateRejection(ctx, candidate)
 		if err != nil {
 			return WindowResult{}, err
@@ -268,6 +282,9 @@ func (s Service) episodicCandidateRejection(ctx context.Context, item storage.Me
 		return "", nil
 	}
 
+	// This dedupe pass is intentionally before RecordEpisode. It catches
+	// duplicate candidates generated from overlapping windows or repeated tool
+	// invocations, including candidates whose source-range tag differs.
 	result, err := s.memory.Search(ctx, storage.MemorySearchQuery{
 		Text:     text,
 		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
@@ -401,6 +418,10 @@ func (s Service) candidatesFromMessages(
 	if s.extractor == nil {
 		return nil, nil, errors.New("memory episode extractor is required")
 	}
+
+	// Trace evidence augments the transcript with task-level context such as
+	// tool calls and outcomes. It is optional because not every store supports
+	// trace queries.
 	traceEvidence, err := s.traceEvidence(ctx, req.SessionID)
 	if err != nil {
 		return nil, nil, err
@@ -428,6 +449,9 @@ func (s Service) candidatesFromMessages(
 			continue
 		}
 		if _, ok := seen[item.ID]; ok {
+			// Candidate IDs are deterministic over source window, kind, content,
+			// metadata, and source links. A repeated ID in one model response means
+			// the model produced the same candidate twice.
 			rejections = append(rejections, candidateRejection{Kind: candidate.Kind, Reason: "duplicate_candidate"})
 			continue
 		}
@@ -585,6 +609,9 @@ func memoryItemFromCandidate(
 		"recency":           "source_window",
 		"uncertainty":       uncertainty(candidate.Confidence),
 	}
+
+	// Model metadata is allowed to enrich provider metadata but not remove
+	// provenance. Empty values are ignored so storage stays compact and searchable.
 	if len(evidence.TraceRefs) > 0 {
 		metadata["available_trace_event_count"] = strconv.Itoa(len(evidence.TraceRefs))
 	}
@@ -605,6 +632,9 @@ func memoryItemFromCandidate(
 		}}
 	}
 	sourceTag := sourceRangeTag(req.SessionID, window.Start, window.End)
+	// The stable ID gives repeated extraction of the same evidence the same
+	// candidate identity, while source tags let background jobs skip completed
+	// windows cheaply.
 	return storage.MemoryItem{
 		ID:          candidateMemoryID(req, window, candidate.Kind, title, text, metadata, sourceLinks),
 		Kind:        storage.MemoryKindEpisodic,

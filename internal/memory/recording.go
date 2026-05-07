@@ -8,6 +8,9 @@ import (
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
+// RecordSemanticMemory records a candidate that captures a durable fact,
+// preference, correction, or relationship. It does not activate the memory; the
+// promotion lifecycle decides that later.
 func (p *MemoryProvider) RecordSemanticMemory(ctx context.Context, record SemanticRecord) (MemoryItem, error) {
 	item := record.Item
 	item.Kind = KindSemantic
@@ -15,6 +18,9 @@ func (p *MemoryProvider) RecordSemanticMemory(ctx context.Context, record Semant
 	return p.recordMemoryCandidate(ctx, item)
 }
 
+// RecordProceduralMemory records a candidate that captures a reusable process
+// or instruction. Like semantic memory, it must carry provenance and starts as a
+// candidate.
 func (p *MemoryProvider) RecordProceduralMemory(
 	ctx context.Context,
 	record ProceduralRecord,
@@ -25,6 +31,9 @@ func (p *MemoryProvider) RecordProceduralMemory(
 	return p.recordMemoryCandidate(ctx, item)
 }
 
+// recordMemoryCandidate is the shared non-episodic recording path. The provider
+// stamps kind-aware IDs, validates provenance/admission metadata, applies
+// guardrails, and only then writes to storage.
 func (p *MemoryProvider) recordMemoryCandidate(ctx context.Context, item MemoryItem) (MemoryItem, error) {
 	if p == nil || p.manager == nil {
 		return MemoryItem{}, errors.New("memory provider is required")
@@ -49,6 +58,9 @@ func (p *MemoryProvider) recordMemoryCandidate(ctx context.Context, item MemoryI
 	return item.Clone(), nil
 }
 
+// prepareMemoryCandidate normalizes provider-owned defaults without mutating
+// the caller's item. The clone matters because metadata maps and source-link
+// slices are shared mutable data otherwise.
 func prepareMemoryCandidate(item MemoryItem) MemoryItem {
 	item = item.Clone()
 	item.ID = strings.TrimSpace(item.ID)
@@ -65,6 +77,9 @@ func prepareMemoryCandidate(item MemoryItem) MemoryItem {
 	return item
 }
 
+// validateMemoryCandidate enforces the minimum shape for explicit semantic and
+// procedural candidates. Episodic/reflection candidates have their own builders
+// because they derive provenance differently.
 func validateMemoryCandidate(item MemoryItem) error {
 	switch item.Kind {
 	case KindSemantic, KindProcedural:
@@ -87,6 +102,9 @@ func validateMemoryCandidate(item MemoryItem) error {
 	return nil
 }
 
+// candidateAdmissionRejectionReason applies deterministic admission hints that
+// the model or extractor attached as metadata. Low-importance or execution-only
+// details should not enter the candidate lifecycle.
 func candidateAdmissionRejectionReason(item MemoryItem) string {
 	switch strings.ToLower(strings.TrimSpace(item.Metadata["memory_importance"])) {
 	case "low":
@@ -100,6 +118,8 @@ func candidateAdmissionRejectionReason(item MemoryItem) string {
 	return ""
 }
 
+// hasCandidateProvenance verifies that a candidate can be traced back to a
+// session, message range, summary, or explicit source-session metadata.
 func hasCandidateProvenance(item MemoryItem) bool {
 	for _, link := range item.SourceLinks {
 		if strings.TrimSpace(link.SessionID) != "" ||
@@ -113,6 +133,8 @@ func hasCandidateProvenance(item MemoryItem) bool {
 	return strings.TrimSpace(item.Metadata["source_session_id"]) != ""
 }
 
+// generateKindAwareMemoryID makes IDs self-describing in logs and database
+// inspection while preserving nanoid uniqueness.
 func generateKindAwareMemoryID(kind Kind) string {
 	return kindAwareMemoryIDPrefix(kind) + strings.TrimPrefix(nanoid.MustGenerate("mem_"), "mem_")
 }

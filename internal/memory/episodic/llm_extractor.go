@@ -13,6 +13,8 @@ import (
 
 const defaultLLMExtractorMaxOutputTokens int64 = 1600
 
+// NewLLMExtractor validates the model dependency once at provider setup time so
+// extraction calls can assume the model client and model name are available.
 func NewLLMExtractor(options LLMExtractorOptions) (*LLMExtractor, error) {
 	if options.Client == nil {
 		return nil, errors.New("memory episode extractor model client is required")
@@ -26,10 +28,17 @@ func NewLLMExtractor(options LLMExtractorOptions) (*LLMExtractor, error) {
 	return &LLMExtractor{options: options}, nil
 }
 
+// ExtractCandidates sends one bounded source window to the model and returns
+// proposals plus explicit model-side rejections. The service still owns
+// deterministic admission, provenance, dedupe, and writes.
 func (e *LLMExtractor) ExtractCandidates(ctx context.Context, req CandidateRequest) (CandidateResult, error) {
 	if e == nil || e.options.Client == nil {
 		return CandidateResult{}, errors.New("memory episode extractor model client is required")
 	}
+
+	// The request already contains trimmed message evidence and trace evidence.
+	// Sending JSON keeps the prompt compact and makes debug payloads easier to
+	// compare across runs.
 	payload, _ := json.Marshal(req)
 	resp, err := e.options.Client.Complete(ctx, models.Request{
 		Model:            e.options.Model,
@@ -70,6 +79,9 @@ func parseLLMExtractorResponse(resp *models.Response) (CandidateResult, error) {
 
 	result := CandidateResult{Rejections: parsed.Rejections}
 	for _, candidate := range parsed.Candidates {
+		// Model candidates are normalized only enough for downstream provider
+		// logic. IDs, source links, tags, and provenance are constructed by the
+		// service from trusted window evidence.
 		result.Candidates = append(result.Candidates, episodeCandidate{
 			Kind:       strings.TrimSpace(candidate.Kind),
 			Title:      strings.TrimSpace(candidate.Title),
@@ -95,6 +107,9 @@ func normalizedLLMExtractorJSON(raw string) string {
 	return strings.TrimSpace(raw)
 }
 
+// llmExtractorStructuredOutput constrains the extractor to known candidate
+// kinds and known metadata keys. Unknown metadata would make admission behavior
+// harder to reason about, so the schema is strict.
 func llmExtractorStructuredOutput() *models.StructuredOutput {
 	return &models.StructuredOutput{
 		Name:        "episodic_memory_candidates",

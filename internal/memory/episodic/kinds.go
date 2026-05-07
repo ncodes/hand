@@ -19,6 +19,9 @@ type episodeKindSpec struct {
 	priority   int
 }
 
+// episodeKindSpecs is both the model schema allowlist and the local ranking
+// table used during admission. Higher priority kinds win when candidates share a
+// canonical group.
 var episodeKindSpecs = []episodeKindSpec{
 	{kind: episodeKindOutcome, usefulness: "high", priority: 9},
 	{kind: episodeKindMilestone, usefulness: "high", priority: 8},
@@ -32,6 +35,7 @@ var episodeKindSpecs = []episodeKindSpec{
 	{kind: episodeKindToolEvent, usefulness: "medium", priority: 1},
 }
 
+// episodeCandidateKinds returns the schema enum passed to the model.
 func episodeCandidateKinds() []string {
 	kinds := make([]string, 0, len(episodeKindSpecs))
 	for _, spec := range episodeKindSpecs {
@@ -45,6 +49,8 @@ func validCandidateKind(kind string) bool {
 	return episodeKindSpecFor(kind).kind != ""
 }
 
+// usefulness is stored as metadata so later reflection/promotion steps can see
+// why an extracted episode was considered worth remembering.
 func usefulness(kind string) string {
 	if spec := episodeKindSpecFor(kind); spec.kind != "" {
 		return spec.usefulness

@@ -13,6 +13,9 @@ import (
 
 const defaultReflectionMaxOutputTokens int64 = 1600
 
+// LLMReflectionGeneratorOptions wires the reflection generator to the same
+// model abstraction used by chat and episodic extraction. DebugRequests is
+// forwarded so reflection prompts can be inspected with the rest of model I/O.
 type LLMReflectionGeneratorOptions struct {
 	Client          models.Client
 	Model           string
@@ -21,6 +24,9 @@ type LLMReflectionGeneratorOptions struct {
 	DebugRequests   bool
 }
 
+// LLMReflectionGenerator is a proposal generator. It deliberately returns
+// MemoryItems without persistence side effects; the provider validates and
+// writes them after adding trusted provenance.
 type LLMReflectionGenerator struct {
 	options LLMReflectionGeneratorOptions
 }
@@ -46,6 +52,8 @@ func (g *LLMReflectionGenerator) GenerateReflectionCandidates(
 		return ReflectionGenerationResult{}, errors.New("memory reflection model client is required")
 	}
 
+	// The model receives compact JSON rather than transcript-style prose so the
+	// prompt shape stays stable and structured-output validation can be strict.
 	payload, _ := json.Marshal(reflectionModelPayload(req))
 	resp, err := g.options.Client.Complete(ctx, models.Request{
 		Model:            g.options.Model,
@@ -137,6 +145,9 @@ func parseReflectionModelResponse(resp *models.Response) (ReflectionGenerationRe
 
 	items := make([]MemoryItem, 0, len(parsed.Candidates))
 	for _, candidate := range parsed.Candidates {
+		// Candidate IDs, source links, reflection tags, and provenance metadata are
+		// intentionally absent here. The provider reconstructs them from trusted
+		// source memories before writing.
 		items = append(items, MemoryItem{
 			Kind:       Kind(strings.TrimSpace(candidate.Kind)),
 			Status:     StatusCandidate,
@@ -164,6 +175,9 @@ func normalizedReflectionJSON(raw string) string {
 	return strings.TrimSpace(raw)
 }
 
+// reflectionInstructions tell the model what to omit as much as what to emit.
+// The provider still enforces these requirements, but prompt-level guidance
+// reduces noisy candidate proposals before validation.
 func reflectionInstructions() string {
 	return strings.Join([]string{
 		"Reflect over episodic memory evidence and propose durable memory candidates.",
@@ -176,6 +190,9 @@ func reflectionInstructions() string {
 	}, "\n")
 }
 
+// reflectionStructuredOutput keeps reflection responses machine-checkable. The
+// metadata array is used instead of an open object because strict schemas cannot
+// allow arbitrary properties.
 func reflectionStructuredOutput() *models.StructuredOutput {
 	return &models.StructuredOutput{
 		Name:        "memory_reflection_candidates",
