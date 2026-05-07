@@ -145,9 +145,15 @@ func (p *MemoryProvider) Capabilities(context.Context) (Capabilities, error) {
 		SupportsEpisodeRecording:            true,
 		SupportsSemanticProceduralRecording: true,
 		SupportsReflection:                  p != nil && p.reflectionGenerator != nil,
+		SupportsVectors:                     p != nil && supportsVectorSearch(p.manager),
 		SupportsReranking:                   true,
 		SupportsObservability:               true,
 	}, nil
+}
+
+func supportsVectorSearch(manager StateManager) bool {
+	vectorManager, ok := manager.(interface{ SupportsVectorSearch() bool })
+	return ok && vectorManager.SupportsVectorSearch()
 }
 
 func (p *MemoryProvider) ConfigureObservability(obs Observability) error {

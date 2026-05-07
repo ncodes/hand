@@ -58,9 +58,12 @@ func TestStore_UpsertSearchDeleteAndMetadata(t *testing.T) {
 	}
 	records[0].SessionID = "ses-a"
 	records[0].Role = "assistant"
+	records[0].Tags = []string{"phase:one", "kind:alpha", "group:red"}
 	records[1].SessionID = "ses-b"
 	records[1].Role = "assistant"
 	records[1].ToolName = "process"
+	records[1].Tags = []string{"phase:one", "kind:beta", "group:blue"}
+	records[2].Tags = []string{"phase:two", "kind:gamma"}
 
 	require.NoError(t, store.Upsert(context.Background(), records))
 
@@ -91,6 +94,21 @@ func TestStore_UpsertSearchDeleteAndMetadata(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, []string{"vec-b"}, matchIDs(result.Matches))
+
+	result, err = store.Search(context.Background(), SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     3,
+		QueryVector:    []float64{1, 0, 0},
+		Limit:          10,
+		Filter: Filter{
+			SourceKind: SourceKindSessionMessage,
+			Tags:       []string{"phase:one"},
+			TagGroups:  [][]string{{"kind:beta", "kind:missing"}, {"group:blue"}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"vec-b"}, matchIDs(result.Matches))
+	require.Equal(t, []string{"group:blue", "kind:beta", "phase:one"}, result.Matches[0].Record.Tags)
 
 	result, err = store.Search(context.Background(), SearchRequest{
 		EmbeddingModel: "text-embedding-test",
@@ -144,6 +162,71 @@ func TestStore_UpsertSearchDeleteAndMetadata(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, []string{"vec-a"}, matchIDs(result.Matches))
+}
+
+func TestStore_SearchTagFilters(t *testing.T) {
+	store := NewStore()
+	records := []Record{
+		testRecord("vec-a", SourceKindSessionMessage, "msg-a", []float64{1, 0}, time.Time{}),
+		testRecord("vec-b", SourceKindSessionMessage, "msg-b", []float64{0.9, 0.1}, time.Time{}),
+		testRecord("vec-c", SourceKindSessionMessage, "msg-c", []float64{0, 1}, time.Time{}),
+	}
+	records[0].Tags = []string{"phase:one", "kind:alpha", "group:red"}
+	records[1].Tags = []string{"phase:one", "kind:beta", "group:blue"}
+	records[2].Tags = []string{"phase:two", "kind:beta", "group:red"}
+	require.NoError(t, store.Upsert(context.Background(), records))
+
+	result, err := store.Search(context.Background(), SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     2,
+		QueryVector:    []float64{1, 0},
+		Limit:          10,
+		Filter: Filter{
+			SourceKind: SourceKindSessionMessage,
+			Tags:       []string{"phase:one"},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"vec-a", "vec-b"}, matchIDs(result.Matches))
+
+	result, err = store.Search(context.Background(), SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     2,
+		QueryVector:    []float64{1, 0},
+		Limit:          10,
+		Filter: Filter{
+			SourceKind: SourceKindSessionMessage,
+			Tags:       []string{"phase:missing"},
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Matches)
+
+	result, err = store.Search(context.Background(), SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     2,
+		QueryVector:    []float64{1, 0},
+		Limit:          10,
+		Filter: Filter{
+			SourceKind: SourceKindSessionMessage,
+			TagGroups:  [][]string{{"kind:beta", "kind:missing"}, {"group:red"}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"vec-c"}, matchIDs(result.Matches))
+
+	result, err = store.Search(context.Background(), SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     2,
+		QueryVector:    []float64{1, 0},
+		Limit:          10,
+		Filter: Filter{
+			SourceKind: SourceKindSessionMessage,
+			TagGroups:  [][]string{{"kind:missing"}},
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Matches)
 }
 
 func TestStore_ZeroValueStoreInitializesOnUpsert(t *testing.T) {
@@ -313,9 +396,11 @@ func TestStore_List(t *testing.T) {
 		}
 		records[0].SessionID = "ses-a"
 		records[0].Role = "user"
+		records[0].Tags = []string{"phase:one", "kind:alpha", "group:red"}
 		records[1].SessionID = "ses-b"
 		records[1].Role = "assistant"
 		records[1].ToolName = "search"
+		records[1].Tags = []string{"phase:one", "kind:beta", "group:blue"}
 		require.NoError(t, store.Upsert(context.Background(), records))
 
 		result, err := store.List(context.Background(), ListRequest{
@@ -329,7 +414,9 @@ func TestStore_List(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, []Record{records[1]}, result.Records)
+		expected := records[1]
+		expected.Tags = []string{"group:blue", "kind:beta", "phase:one"}
+		require.Equal(t, []Record{expected}, result.Records)
 	})
 
 	t.Run("honors ignored session id", func(t *testing.T) {
@@ -351,6 +438,97 @@ func TestStore_List(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, []Record{records[1]}, result.Records)
+	})
+
+	t.Run("excludes records on source metadata mismatch", func(t *testing.T) {
+		store := NewStore()
+		record := testRecord("vec-a", SourceKindSessionMessage, "msg-a", []float64{1, 0}, now)
+		record.SessionID = "ses-a"
+		record.Role = "assistant"
+		record.ToolName = "search"
+		require.NoError(t, store.Upsert(context.Background(), []Record{record}))
+
+		tests := []struct {
+			name   string
+			filter Filter
+		}{
+			{
+				name: "session",
+				filter: Filter{
+					SourceKind: SourceKindSessionMessage,
+					SessionID:  "ses-b",
+				},
+			},
+			{
+				name: "role",
+				filter: Filter{
+					SourceKind: SourceKindSessionMessage,
+					Role:       "user",
+				},
+			},
+			{
+				name: "tool",
+				filter: Filter{
+					SourceKind: SourceKindSessionMessage,
+					ToolName:   "other-tool",
+				},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				result, err := store.List(context.Background(), ListRequest{
+					EmbeddingModel: "text-embedding-test",
+					Filter:         tt.filter,
+				})
+				require.NoError(t, err)
+				require.Empty(t, result.Records)
+			})
+		}
+	})
+
+	t.Run("filters records by tags and tag groups", func(t *testing.T) {
+		store := NewStore()
+		records := []Record{
+			testRecord("vec-a", SourceKindSessionMessage, "msg-a", []float64{1, 0}, now),
+			testRecord("vec-b", SourceKindSessionMessage, "msg-b", []float64{0, 1}, now),
+			testRecord("vec-c", SourceKindSessionMessage, "msg-c", []float64{0.5, 0.5}, now),
+		}
+		records[0].Tags = []string{"phase:one", "kind:alpha", "group:red"}
+		records[1].Tags = []string{"phase:one", "kind:beta", "group:blue"}
+		records[2].Tags = []string{"phase:two", "kind:beta", "group:red"}
+		require.NoError(t, store.Upsert(context.Background(), records))
+
+		result, err := store.List(context.Background(), ListRequest{
+			EmbeddingModel: "text-embedding-test",
+			Filter: Filter{
+				SourceKind: SourceKindSessionMessage,
+				Tags:       []string{"phase:one"},
+				TagGroups:  [][]string{{"kind:beta", "kind:missing"}, {"group:blue"}},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"vec-b"}, recordIDs(result.Records))
+		require.Equal(t, []string{"group:blue", "kind:beta", "phase:one"}, result.Records[0].Tags)
+
+		result, err = store.List(context.Background(), ListRequest{
+			EmbeddingModel: "text-embedding-test",
+			Filter: Filter{
+				SourceKind: SourceKindSessionMessage,
+				Tags:       []string{"phase:missing"},
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, result.Records)
+
+		result, err = store.List(context.Background(), ListRequest{
+			EmbeddingModel: "text-embedding-test",
+			Filter: Filter{
+				SourceKind: SourceKindSessionMessage,
+				TagGroups:  [][]string{{"kind:missing"}},
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, result.Records)
 	})
 
 	t.Run("validates request", func(t *testing.T) {
@@ -491,6 +669,14 @@ func matchIDs(matches []SearchMatch) []string {
 	ids := make([]string, 0, len(matches))
 	for _, match := range matches {
 		ids = append(ids, match.Record.ID)
+	}
+	return ids
+}
+
+func recordIDs(records []Record) []string {
+	ids := make([]string, 0, len(records))
+	for _, record := range records {
+		ids = append(ids, record.ID)
 	}
 	return ids
 }

@@ -717,24 +717,34 @@ func (malformedEmbedder) Embed(
 }
 
 type memoryTestVectorStore struct {
-	upsertErr error
-	deleteErr error
-	searchErr error
+	upsertErr      error
+	deleteErr      error
+	searchErr      error
+	upsertRecords  []search.VectorRecord
+	deleteRequests []search.VectorDeleteRequest
+	searchRequests []search.VectorSearchRequest
+	searchResult   search.VectorSearchResult
 }
 
-func (s *memoryTestVectorStore) Upsert(context.Context, []search.VectorRecord) error {
+func (s *memoryTestVectorStore) Upsert(_ context.Context, records []search.VectorRecord) error {
+	s.upsertRecords = append(s.upsertRecords, records...)
 	return s.upsertErr
 }
 
-func (s *memoryTestVectorStore) Delete(context.Context, search.VectorDeleteRequest) error {
+func (s *memoryTestVectorStore) Delete(_ context.Context, req search.VectorDeleteRequest) error {
+	s.deleteRequests = append(s.deleteRequests, req)
 	return s.deleteErr
 }
 
 func (s *memoryTestVectorStore) Search(
-	context.Context,
-	search.VectorSearchRequest,
+	_ context.Context,
+	req search.VectorSearchRequest,
 ) (search.VectorSearchResult, error) {
-	return search.VectorSearchResult{}, s.searchErr
+	s.searchRequests = append(s.searchRequests, req)
+	if s.searchErr != nil {
+		return search.VectorSearchResult{}, s.searchErr
+	}
+	return s.searchResult, nil
 }
 
 func (s *memoryTestVectorStore) Metadata(context.Context) (search.VectorStoreMetadata, error) {

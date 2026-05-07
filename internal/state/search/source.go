@@ -17,6 +17,19 @@ func StableMemoryItemID(memoryID string) string {
 	return fmt.Sprintf("%s:%s", SourceKindMemoryItem, strings.TrimSpace(memoryID))
 }
 
+func MemoryIDFromSourceID(sourceID string) (string, bool) {
+	value, ok := strings.CutPrefix(sourceID, string(SourceKindMemoryItem)+":")
+	if !ok {
+		return "", false
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", false
+	}
+
+	return value, true
+}
+
 func SourceIDForMessage(sessionID string, messageID uint) string {
 	return StableSessionMessageID(strings.TrimSpace(sessionID), messageID)
 }

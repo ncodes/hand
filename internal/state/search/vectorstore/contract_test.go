@@ -197,13 +197,16 @@ func assertVectorStoreReplaceAndCopyIsolation(t *testing.T, store vectorstore.St
 func assertVectorStoreFiltersAndMetadata(t *testing.T, store vectorstore.Store) {
 	t.Helper()
 
-	require.NoError(t, store.Upsert(context.Background(), []vectorstore.Record{
+	records := []vectorstore.Record{
 		testRecord("vec-b", vectorstore.SourceKindSessionMessage, "msg-b", []float64{1, 0}, time.Time{}),
 		testRecord("vec-a", vectorstore.SourceKindSessionMessage, "msg-a", []float64{1, 0}, time.Time{}),
 		testRecordWithModel("vec-other-model", vectorstore.SourceKindSessionMessage, "msg-c", "other-model", []float64{1, 0}),
 		testRecord("vec-other-dim", vectorstore.SourceKindSessionMessage, "msg-d", []float64{1, 0, 0}, time.Time{}),
 		testRecord("vec-memory", vectorstore.SourceKindMemoryItem, "mem-a", []float64{1, 0}, time.Time{}),
-	}))
+	}
+	records[0].Tags = []string{"scope:project", "kind:message"}
+	records[1].Tags = []string{"scope:other", "kind:message"}
+	require.NoError(t, store.Upsert(context.Background(), records))
 
 	result, err := store.Search(context.Background(), vectorstore.SearchRequest{
 		EmbeddingModel: "text-embedding-test",
@@ -240,6 +243,66 @@ func assertVectorStoreFiltersAndMetadata(t *testing.T, store vectorstore.Store) 
 	})
 	require.NoError(t, err)
 	require.Equal(t, []string{"vec-memory"}, matchIDs(result.Matches))
+
+	result, err = store.Search(context.Background(), vectorstore.SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     2,
+		QueryVector:    []float64{1, 0},
+		Limit:          10,
+		Filter: vectorstore.Filter{
+			SourceKind: vectorstore.SourceKindSessionMessage,
+			Tags:       []string{"kind:message", "scope:project"},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"vec-b"}, matchIDs(result.Matches))
+	require.Equal(t, []string{"kind:message", "scope:project"}, result.Matches[0].Record.Tags)
+
+	result, err = store.Search(context.Background(), vectorstore.SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     2,
+		QueryVector:    []float64{1, 0},
+		Limit:          10,
+		Filter: vectorstore.Filter{
+			SourceKind: vectorstore.SourceKindSessionMessage,
+			Tags:       []string{"kind:message"},
+			TagGroups:  [][]string{{"scope:missing", "scope:other"}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"vec-a"}, matchIDs(result.Matches))
+
+	result, err = store.Search(context.Background(), vectorstore.SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     2,
+		QueryVector:    []float64{1, 0},
+		Limit:          10,
+		Filter: vectorstore.Filter{
+			SourceKind: vectorstore.SourceKindSessionMessage,
+			TagGroups: [][]string{
+				{"kind:missing", "kind:message"},
+				{"scope:missing", "scope:project"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"vec-b"}, matchIDs(result.Matches))
+
+	result, err = store.Search(context.Background(), vectorstore.SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     2,
+		QueryVector:    []float64{1, 0},
+		Limit:          10,
+		Filter: vectorstore.Filter{
+			SourceKind: vectorstore.SourceKindSessionMessage,
+			TagGroups: [][]string{
+				{"kind:message"},
+				{"scope:missing"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Matches)
 
 	metadata, err := store.Metadata(context.Background())
 	require.NoError(t, err)

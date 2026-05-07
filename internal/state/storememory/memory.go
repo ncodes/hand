@@ -17,6 +17,10 @@ func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearch
 		return statememory.MemorySearchResult{}, errors.New("store is required")
 	}
 
+	if s.memoryVectorSearchEnabled(query) {
+		return s.searchMemoryHybrid(ctx, query)
+	}
+
 	s.mu.RLock()
 
 	hits := make([]statememory.MemorySearchHit, 0, len(s.memoryItems))
@@ -88,13 +92,12 @@ func (s *Store) ListSessionMemories(_ context.Context, query statememory.Session
 	return statememory.SessionMemoriesResult{Items: items}, nil
 }
 
-func (s *Store) UpsertMemory(_ context.Context, item statememory.MemoryItem) (statememory.MemoryItem, error) {
+func (s *Store) UpsertMemory(ctx context.Context, item statememory.MemoryItem) (statememory.MemoryItem, error) {
 	if s == nil {
 		return statememory.MemoryItem{}, errors.New("store is required")
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if s.memoryItems == nil {
 		s.memoryItems = make(map[string]statememory.MemoryItem)
@@ -120,10 +123,16 @@ func (s *Store) UpsertMemory(_ context.Context, item statememory.MemoryItem) (st
 	item.UpdatedAt = now
 
 	s.memoryItems[item.ID] = item.Clone()
+	s.mu.Unlock()
+
+	if err := s.handleVectorStoreError(s.indexMemoryVector(ctx, item)); err != nil {
+		return statememory.MemoryItem{}, err
+	}
+
 	return item.Clone(), nil
 }
 
-func (s *Store) DeleteMemory(_ context.Context, req statememory.MemoryDeleteRequest) error {
+func (s *Store) DeleteMemory(ctx context.Context, req statememory.MemoryDeleteRequest) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
@@ -134,14 +143,16 @@ func (s *Store) DeleteMemory(_ context.Context, req statememory.MemoryDeleteRequ
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	item, ok := s.memoryItems[id]
 	if !ok {
+		s.mu.Unlock()
 		return nil
 	}
 	item.Status = statememory.MemoryStatusDeleted
 	item.UpdatedAt = time.Now().UTC()
 	s.memoryItems[id] = item
-	return nil
+	s.mu.Unlock()
+
+	return s.handleVectorStoreError(s.deleteMemoryVector(ctx, id))
 }

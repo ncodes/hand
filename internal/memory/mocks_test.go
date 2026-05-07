@@ -193,6 +193,15 @@ func (m *recordingMemoryManager) CurrentSession(ctx context.Context) (string, er
 	return m.fakeMemoryManager.CurrentSession(ctx)
 }
 
+type vectorCapabilityMemoryManager struct {
+	fakeMemoryManager
+	enabled bool
+}
+
+func (m vectorCapabilityMemoryManager) SupportsVectorSearch() bool {
+	return m.enabled
+}
+
 type fakeReflectionGenerator struct {
 	requests []ReflectionGenerationRequest
 	result   ReflectionGenerationResult

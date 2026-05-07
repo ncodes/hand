@@ -136,6 +136,8 @@ func (s *Store) Search(_ context.Context, req SearchRequest) (SearchResult, erro
 		ignoreSessionID: strings.TrimSpace(req.Filter.IgnoreSessionID),
 		role:            strings.TrimSpace(req.Filter.Role),
 		toolName:        strings.TrimSpace(req.Filter.ToolName),
+		tags:            tagSet(req.Filter.Tags),
+		tagGroups:       tagGroups(req.Filter.TagGroups),
 	}
 
 	graph, records := s.searchGraph(filter)
@@ -199,6 +201,8 @@ func (s *Store) List(_ context.Context, req ListRequest) (ListResult, error) {
 		ignoreSessionID: strings.TrimSpace(req.Filter.IgnoreSessionID),
 		role:            strings.TrimSpace(req.Filter.Role),
 		toolName:        strings.TrimSpace(req.Filter.ToolName),
+		tags:            tagSet(req.Filter.Tags),
+		tagGroups:       tagGroups(req.Filter.TagGroups),
 	}
 
 	s.mu.RLock()
@@ -224,6 +228,8 @@ type searchFilter struct {
 	ignoreSessionID string
 	role            string
 	toolName        string
+	tags            map[string]struct{}
+	tagGroups       []map[string]struct{}
 }
 
 type indexKey struct {
@@ -245,7 +251,9 @@ func (f searchFilter) usesOnlyIndexFilters() bool {
 		f.sessionID == "" &&
 		f.ignoreSessionID == "" &&
 		f.role == "" &&
-		f.toolName == ""
+		f.toolName == "" &&
+		len(f.tags) == 0 &&
+		len(f.tagGroups) == 0
 }
 
 func (s *Store) searchGraph(filter searchFilter) (*hnsw.Graph[string], map[string]Record) {
@@ -302,6 +310,12 @@ func recordMatchesSearch(record Record, filter searchFilter) bool {
 	if filter.toolName != "" && record.ToolName != filter.toolName {
 		return false
 	}
+	if !recordHasTags(record, filter.tags) {
+		return false
+	}
+	if !recordHasTagGroups(record, filter.tagGroups) {
+		return false
+	}
 	return true
 }
 
@@ -327,6 +341,12 @@ func recordMatchesList(record Record, filter searchFilter) bool {
 		return false
 	}
 	if filter.toolName != "" && record.ToolName != filter.toolName {
+		return false
+	}
+	if !recordHasTags(record, filter.tags) {
+		return false
+	}
+	if !recordHasTagGroups(record, filter.tagGroups) {
 		return false
 	}
 
@@ -387,6 +407,59 @@ func sourceIDSet(sourceIDs []string) map[string]struct{} {
 		}
 	}
 	return set
+}
+
+func tagSet(tags []string) map[string]struct{} {
+	tags = vectorstore.NormalizeTags(tags)
+	set := make(map[string]struct{}, len(tags))
+	for _, tag := range tags {
+		set[tag] = struct{}{}
+	}
+	return set
+}
+
+func tagGroups(groups [][]string) []map[string]struct{} {
+	groups = vectorstore.NormalizeTagGroups(groups)
+	normalized := make([]map[string]struct{}, 0, len(groups))
+	for _, group := range groups {
+		normalized = append(normalized, tagSet(group))
+	}
+	return normalized
+}
+
+func recordHasTags(record Record, tags map[string]struct{}) bool {
+	if len(tags) == 0 {
+		return true
+	}
+	recordTags := tagSet(record.Tags)
+	for tag := range tags {
+		if _, ok := recordTags[tag]; !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
+func recordHasTagGroups(record Record, groups []map[string]struct{}) bool {
+	if len(groups) == 0 {
+		return true
+	}
+	recordTags := tagSet(record.Tags)
+	for _, group := range groups {
+		matched := false
+		for tag := range group {
+			if _, ok := recordTags[tag]; ok {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+
+	return true
 }
 
 func newGraph() *hnsw.Graph[string] {
@@ -452,6 +525,11 @@ func compareRecords(left Record, right Record) int {
 
 func cloneRecord(record Record) Record {
 	record.Vector = append([]float64(nil), record.Vector...)
+	tags := record.Tags
+	record.Tags = nil
+	if normalized := vectorstore.NormalizeTags(tags); len(normalized) > 0 {
+		record.Tags = normalized
+	}
 	return record
 }
 

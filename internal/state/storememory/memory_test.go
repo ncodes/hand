@@ -2,6 +2,7 @@ package storememory
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 
 	statememory "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
+	vectormemory "github.com/wandxy/hand/internal/state/search/vectorstore/memory"
 )
 
 func TestMemoryStore_SearchWriteDeleteAndSourceLinks(t *testing.T) {
@@ -102,6 +104,496 @@ func TestMemoryStore_DefaultsToCandidateAndActiveOnlySearch(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, result.Hits, 1)
+}
+
+func TestMemoryStore_VectorDisabledUsesLexicalSearch(t *testing.T) {
+	store := NewStore()
+	_, err := store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_lexical",
+		Kind:   statememory.MemoryKindSemantic,
+		Status: statememory.MemoryStatusActive,
+		Text:   "Use focused tests for memory work.",
+	})
+	require.NoError(t, err)
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{Text: "focused"})
+
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+	require.Equal(t, "mem_lexical", result.Hits[0].Item.ID)
+}
+
+func TestMemoryStore_MemoryVectorSearchEnabled(t *testing.T) {
+	var nilStore *Store
+	require.False(t, nilStore.memoryVectorSearchEnabled(statememory.MemorySearchQuery{Text: "needle"}))
+
+	store := NewStore()
+	require.False(t, store.memoryVectorSearchEnabled(statememory.MemorySearchQuery{Text: "needle"}))
+
+	require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+		Embedder:       semanticTestEmbedder{},
+		VectorStore:    &memoryTestVectorStore{},
+		EmbeddingModel: "semantic-test",
+	}))
+	require.False(t, store.memoryVectorSearchEnabled(statememory.MemorySearchQuery{Text: " "}))
+	require.True(t, store.memoryVectorSearchEnabled(statememory.MemorySearchQuery{Text: "needle"}))
+}
+
+func TestMemoryStore_VectorSearchMergesWithLexicalCandidates(t *testing.T) {
+	store := NewStore()
+	require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+		Embedder:       semanticTestEmbedder{},
+		VectorStore:    vectormemory.NewStore(),
+		EmbeddingModel: "semantic-test",
+	}))
+	for _, item := range []statememory.MemoryItem{
+		{
+			ID:     "mem_lexical",
+			Kind:   statememory.MemoryKindSemantic,
+			Status: statememory.MemoryStatusActive,
+			Text:   "Use focused tests for memory work.",
+		},
+		{
+			ID:     "mem_vector",
+			Kind:   statememory.MemoryKindSemantic,
+			Status: statememory.MemoryStatusActive,
+			Text:   "Renewal risk scoring playbook.",
+		},
+	} {
+		_, err := store.UpsertMemory(context.Background(), item)
+		require.NoError(t, err)
+	}
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{Text: "focused cancellation"})
+
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"mem_lexical", "mem_vector"}, memoryHitIDs(result.Hits))
+}
+
+func TestMemoryStore_VectorSearchPushesTagFilters(t *testing.T) {
+	vectorStore := &memoryTestVectorStore{}
+	store := NewStore()
+	require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+		Embedder:       semanticTestEmbedder{},
+		VectorStore:    vectorStore,
+		EmbeddingModel: "semantic-test",
+	}))
+	for _, item := range []statememory.MemoryItem{
+		{
+			ID:     "mem_semantic",
+			Kind:   statememory.MemoryKindSemantic,
+			Status: statememory.MemoryStatusActive,
+			Tags:   []string{"go"},
+			Text:   "Retention renewal cancellation prevention workflow.",
+		},
+		{
+			ID:     "mem_procedural",
+			Kind:   statememory.MemoryKindProcedural,
+			Status: statememory.MemoryStatusActive,
+			Tags:   []string{"go"},
+			Text:   "Retention renewal cancellation prevention procedure.",
+		},
+	} {
+		_, err := store.UpsertMemory(context.Background(), item)
+		require.NoError(t, err)
+	}
+
+	_, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text:  "retention",
+		Kinds: []statememory.MemoryKind{statememory.MemoryKindSemantic},
+		Tags:  []string{"go"},
+		Limit: 1,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, vectorStore.searchRequests, 1)
+	require.Empty(t, vectorStore.searchRequests[0].Filter.SourceIDs)
+	require.Equal(t, []string{
+		"memory_kind:semantic",
+		"memory_status:active",
+		"memory_tag:go",
+	}, vectorStore.searchRequests[0].Filter.Tags)
+}
+
+func TestMemoryStore_VectorSearchPushesTagGroupsForOrFilters(t *testing.T) {
+	vectorStore := &memoryTestVectorStore{}
+	store := NewStore()
+	require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+		Embedder:       semanticTestEmbedder{},
+		VectorStore:    vectorStore,
+		EmbeddingModel: "semantic-test",
+		Required:       true,
+	}))
+	_, err := store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_semantic",
+		Kind:   statememory.MemoryKindSemantic,
+		Status: statememory.MemoryStatusActive,
+		Text:   "Retention renewal cancellation prevention workflow.",
+	})
+	require.NoError(t, err)
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text: "unrelated",
+		Kinds: []statememory.MemoryKind{
+			statememory.MemoryKindSemantic,
+			statememory.MemoryKindProcedural,
+		},
+		Limit: 1,
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
+	require.Len(t, vectorStore.searchRequests, 1)
+	require.Empty(t, vectorStore.searchRequests[0].Filter.SourceIDs)
+	require.Equal(t, []string{"memory_status:active"}, vectorStore.searchRequests[0].Filter.Tags)
+	require.Equal(t, [][]string{{
+		"memory_kind:procedural",
+		"memory_kind:semantic",
+	}}, vectorStore.searchRequests[0].Filter.TagGroups)
+
+	_, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text: "unrelated",
+		Statuses: []statememory.MemoryStatus{
+			statememory.MemoryStatusActive,
+			statememory.MemoryStatusCandidate,
+		},
+		Limit: 1,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, vectorStore.searchRequests, 2)
+	require.Empty(t, vectorStore.searchRequests[1].Filter.SourceIDs)
+	require.Empty(t, vectorStore.searchRequests[1].Filter.Tags)
+	require.Equal(t, [][]string{{
+		"memory_status:active",
+		"memory_status:candidate",
+	}}, vectorStore.searchRequests[1].Filter.TagGroups)
+}
+
+func TestMemoryStore_VectorSearchSourceIDFiltersAndMatchResolution(t *testing.T) {
+	vectorStore := &memoryTestVectorStore{}
+	store := NewStore()
+	require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+		Embedder:       semanticTestEmbedder{},
+		VectorStore:    vectorStore,
+		EmbeddingModel: "semantic-test",
+	}))
+	for _, item := range []statememory.MemoryItem{
+		{
+			ID:     "mem_keep",
+			Kind:   statememory.MemoryKindSemantic,
+			Status: statememory.MemoryStatusActive,
+			Title:  "Keep",
+			Text:   "Retention renewal cancellation prevention workflow.",
+		},
+		{
+			ID:     "mem_candidate",
+			Kind:   statememory.MemoryKindSemantic,
+			Status: statememory.MemoryStatusCandidate,
+			Title:  "Candidate",
+			Text:   "Retention renewal cancellation prevention draft.",
+		},
+	} {
+		_, err := store.UpsertMemory(context.Background(), item)
+		require.NoError(t, err)
+	}
+	vectorStore.searchResult = search.VectorSearchResult{Matches: []search.VectorSearchMatch{
+		{Record: search.VectorRecord{SourceID: "bad"}, Score: 1},
+		{Record: search.VectorRecord{SourceID: search.StableMemoryItemID("mem_keep")}, Score: 0.9},
+		{Record: search.VectorRecord{SourceID: search.StableMemoryItemID("mem_keep")}, Score: 0.8},
+		{Record: search.VectorRecord{SourceID: search.StableMemoryItemID("mem_candidate")}, Score: 0.7},
+		{Record: search.VectorRecord{SourceID: search.StableMemoryItemID("mem_missing")}, Score: 0.6},
+	}}
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text: "retention",
+		IDs:  []string{"mem_keep", "mem_missing"},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"mem_keep"}, memoryHitIDs(result.Hits))
+	require.Len(t, vectorStore.searchRequests, 1)
+	require.Equal(t, []string{
+		search.StableMemoryItemID("mem_keep"),
+	}, vectorStore.searchRequests[0].Filter.SourceIDs)
+}
+
+func TestMemoryStore_VectorSearchSkipsWhenIDFilterMatchesNoSources(t *testing.T) {
+	vectorStore := &memoryTestVectorStore{searchErr: errors.New("vector search should be skipped")}
+	store := NewStore()
+	require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+		Embedder:       semanticTestEmbedder{},
+		VectorStore:    vectorStore,
+		EmbeddingModel: "semantic-test",
+		Required:       true,
+	}))
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text: "retention",
+		IDs:  []string{"mem_missing"},
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
+	require.Empty(t, vectorStore.searchRequests)
+}
+
+func TestMemoryStore_VectorRefreshesStaleEmbeddingsWhenTextChanges(t *testing.T) {
+	vectorStore := &memoryTestVectorStore{}
+	store := NewStore()
+	require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+		Embedder:       semanticTestEmbedder{},
+		VectorStore:    vectorStore,
+		EmbeddingModel: "semantic-test",
+	}))
+
+	_, err := store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_refresh",
+		Status: statememory.MemoryStatusActive,
+		Text:   "Old text.",
+	})
+	require.NoError(t, err)
+	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_refresh",
+		Status: statememory.MemoryStatusActive,
+		Text:   "Retention renewal cancellation prevention workflow.",
+	})
+	require.NoError(t, err)
+
+	require.Len(t, vectorStore.upsertRecords, 2)
+	require.NotEqual(t, vectorStore.upsertRecords[0].ContentHash, vectorStore.upsertRecords[1].ContentHash)
+	require.Equal(t, search.StableMemoryItemID("mem_refresh"), vectorStore.upsertRecords[1].SourceID)
+	require.Contains(t, vectorStore.upsertRecords[1].Tags, "memory_status:active")
+	require.Contains(t, vectorStore.upsertRecords[1].Tags, "memory_reflected:false")
+}
+
+func TestMemoryStore_VectorIndexAndDeleteHelpers(t *testing.T) {
+	t.Run("skip when disabled empty or missing id", func(t *testing.T) {
+		var nilStore *Store
+		require.NoError(t, nilStore.indexMemoryVector(context.Background(), statememory.MemoryItem{ID: "mem_nil", Text: "text"}))
+		require.NoError(t, nilStore.deleteMemoryVector(context.Background(), "mem_nil"))
+
+		store := NewStore()
+		require.NoError(t, store.indexMemoryVector(context.Background(), statememory.MemoryItem{ID: "mem_disabled", Text: "text"}))
+		require.NoError(t, store.deleteMemoryVector(context.Background(), "mem_disabled"))
+
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+			Embedder:       semanticTestEmbedder{},
+			VectorStore:    &memoryTestVectorStore{},
+			EmbeddingModel: "semantic-test",
+		}))
+		require.NoError(t, store.indexMemoryVector(context.Background(), statememory.MemoryItem{ID: "mem_empty"}))
+		require.NoError(t, store.deleteMemoryVector(context.Background(), " "))
+	})
+
+	t.Run("returns embed validation upsert and delete errors", func(t *testing.T) {
+		store := NewStore()
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+			Embedder:       failingEmbedder{err: errors.New("embed failed")},
+			VectorStore:    &memoryTestVectorStore{},
+			EmbeddingModel: "semantic-test",
+			Required:       true,
+		}))
+		err := store.indexMemoryVector(context.Background(), statememory.MemoryItem{ID: "mem_embed", Text: "text"})
+		require.EqualError(t, err, "embed failed")
+
+		store = NewStore()
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+			Embedder:       malformedEmbedder{},
+			VectorStore:    &memoryTestVectorStore{},
+			EmbeddingModel: "semantic-test",
+			Required:       true,
+		}))
+		err = store.indexMemoryVector(context.Background(), statememory.MemoryItem{ID: "mem_malformed", Text: "text"})
+		require.EqualError(t, err, "embedding result model must match request model")
+
+		store = NewStore()
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+			Embedder:       semanticTestEmbedder{},
+			VectorStore:    &memoryTestVectorStore{upsertErr: errors.New("upsert failed")},
+			EmbeddingModel: "semantic-test",
+			Required:       true,
+		}))
+		err = store.indexMemoryVector(context.Background(), statememory.MemoryItem{ID: "mem_upsert", Text: "text"})
+		require.EqualError(t, err, "upsert failed")
+
+		store = NewStore()
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+			Embedder:       semanticTestEmbedder{},
+			VectorStore:    &memoryTestVectorStore{deleteErr: errors.New("delete failed")},
+			EmbeddingModel: "semantic-test",
+			Required:       true,
+		}))
+		err = store.deleteMemoryVector(context.Background(), "mem_delete")
+		require.EqualError(t, err, "delete failed")
+	})
+}
+
+func TestMemoryStore_VectorFailuresDegradeWhenOptional(t *testing.T) {
+	store := NewStore()
+	require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+		Embedder:       failingEmbedder{err: errors.New("embed failed")},
+		VectorStore:    &memoryTestVectorStore{},
+		EmbeddingModel: "semantic-test",
+	}))
+	_, err := store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_lexical",
+		Status: statememory.MemoryStatusActive,
+		Text:   "Use focused tests for memory work.",
+	})
+	require.NoError(t, err)
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{Text: "focused"})
+
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+	require.Equal(t, "mem_lexical", result.Hits[0].Item.ID)
+}
+
+func TestMemoryStore_VectorFailuresReturnWhenRequired(t *testing.T) {
+	store := NewStore()
+	require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+		Embedder:       semanticTestEmbedder{},
+		VectorStore:    &memoryTestVectorStore{searchErr: errors.New("vector failed")},
+		EmbeddingModel: "semantic-test",
+		Required:       true,
+	}))
+	_, err := store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_lexical",
+		Status: statememory.MemoryStatusActive,
+		Text:   "Use focused tests for memory work.",
+	})
+	require.NoError(t, err)
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{Text: "focused"})
+
+	require.EqualError(t, err, "vector failed")
+	require.Empty(t, result)
+}
+
+func TestMemoryStore_VectorSearchValidationAndSourceIDErrors(t *testing.T) {
+	store := NewStore()
+	require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+		Embedder:       malformedEmbedder{},
+		VectorStore:    &memoryTestVectorStore{},
+		EmbeddingModel: "semantic-test",
+		Required:       true,
+	}))
+
+	hits, err := store.searchMemoryVector(context.Background(), statememory.MemorySearchQuery{Text: "needle"}, 10)
+
+	require.EqualError(t, err, "embedding result model must match request model")
+	require.Empty(t, hits)
+
+	store = NewStore()
+	require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+		Embedder:       semanticTestEmbedder{},
+		VectorStore:    &memoryTestVectorStore{searchErr: errors.New("search failed")},
+		EmbeddingModel: "semantic-test",
+		Required:       true,
+	}))
+
+	hits, err = store.searchMemoryVector(context.Background(), statememory.MemorySearchQuery{Text: "needle"}, 10)
+
+	require.EqualError(t, err, "search failed")
+	require.Empty(t, hits)
+}
+
+func TestMemoryVectorHelpers(t *testing.T) {
+	reflected := true
+	query := statememory.MemorySearchQuery{
+		SessionID: " session ",
+		Kinds: []statememory.MemoryKind{
+			statememory.MemoryKindSemantic,
+			statememory.MemoryKindProcedural,
+		},
+		Statuses: []statememory.MemoryStatus{
+			statememory.MemoryStatusCandidate,
+			statememory.MemoryStatusActive,
+		},
+		Tags:      []string{" Go ", "style"},
+		Reflected: &reflected,
+	}
+
+	require.Equal(t, []string{
+		"memory_reflected:true",
+		"memory_session:session",
+		"memory_tag:go",
+		"memory_tag:style",
+	}, memoryVectorFilterTags(query))
+	require.Equal(t, [][]string{
+		{"memory_kind:procedural", "memory_kind:semantic"},
+		{"memory_status:active", "memory_status:candidate"},
+	}, memoryVectorFilterTagGroups(query))
+	require.Equal(t, []string{"memory_status:active"}, memoryVectorFilterTags(statememory.MemorySearchQuery{}))
+	require.Equal(t, []string{
+		"memory_kind:semantic",
+		"memory_status:candidate",
+	}, memoryVectorFilterTags(statememory.MemorySearchQuery{
+		Kinds:    []statememory.MemoryKind{statememory.MemoryKindSemantic},
+		Statuses: []statememory.MemoryStatus{statememory.MemoryStatusCandidate},
+	}))
+	require.True(t, memoryQueryNeedsSourceIDFilter(statememory.MemorySearchQuery{IDs: []string{"mem_a"}}))
+	require.False(t, memoryQueryNeedsSourceIDFilter(statememory.MemorySearchQuery{Tags: []string{"go"}}))
+
+	item := statememory.MemoryItem{
+		Kind:      statememory.MemoryKindSemantic,
+		Status:    statememory.MemoryStatusActive,
+		Title:     "Title",
+		Text:      "Body",
+		Tags:      []string{"Go"},
+		Reflected: true,
+		SourceLinks: []statememory.MemorySourceLink{{
+			SessionID: "source-session",
+		}},
+	}
+	require.Equal(t, "Title\nBody", memoryVectorText(item))
+	require.Equal(t, "source-session", memoryVectorSessionID(item))
+	require.Equal(t, []string{
+		"memory_kind:semantic",
+		"memory_reflected:true",
+		"memory_session:source-session",
+		"memory_status:active",
+		"memory_tag:go",
+	}, memoryVectorTags(item))
+
+	item.Metadata = map[string]string{"source_session_id": "metadata-session"}
+	require.Equal(t, "metadata-session", memoryVectorSessionID(item))
+	require.Empty(t, memoryVectorSessionID(statememory.MemoryItem{}))
+}
+
+func TestMemoryVectorMergeAndSortHelpers(t *testing.T) {
+	now := time.Date(2026, 4, 30, 9, 0, 0, 0, time.UTC)
+	merged := mergeMemoryHits(
+		[]statememory.MemorySearchHit{
+			{Item: statememory.MemoryItem{ID: "mem_a", UpdatedAt: now}, Score: 0.5},
+			{Item: statememory.MemoryItem{ID: "mem_b", UpdatedAt: now.Add(time.Minute)}, Score: 0.4},
+		},
+		[]statememory.MemorySearchHit{
+			{Item: statememory.MemoryItem{ID: "mem_a", UpdatedAt: now}, Score: 0.9},
+			{Item: statememory.MemoryItem{ID: "mem_c", UpdatedAt: now}, Score: 0.9},
+			{Item: statememory.MemoryItem{}, Score: 1},
+		},
+	)
+
+	require.Equal(t, []string{"mem_a", "mem_c", "mem_b"}, memoryHitIDs(merged))
+	require.Equal(t, 0.9, merged[0].Score)
+
+	hits := []statememory.MemorySearchHit{
+		{Item: statememory.MemoryItem{ID: "mem_b", UpdatedAt: now}, Score: 1},
+		{Item: statememory.MemoryItem{ID: "mem_c", UpdatedAt: now.Add(time.Minute)}, Score: 1},
+		{Item: statememory.MemoryItem{ID: "mem_a", UpdatedAt: now}, Score: 1},
+	}
+	sortMemoryHits(hits)
+	require.Equal(t, []string{"mem_c", "mem_a", "mem_b"}, memoryHitIDs(hits))
+}
+
+func memoryHitIDs(hits []statememory.MemorySearchHit) []string {
+	ids := make([]string, 0, len(hits))
+	for _, hit := range hits {
+		ids = append(ids, hit.Item.ID)
+	}
+	return ids
 }
 
 func TestMemoryStore_ListSessionMemoriesFiltersOrdersLimitsAndClones(t *testing.T) {

@@ -86,6 +86,10 @@ func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearch
 		return statememory.MemorySearchResult{}, errors.New("store is required")
 	}
 
+	if s.memoryVectorSearchEnabled(query) {
+		return s.searchMemoryHybrid(ctx, query)
+	}
+
 	resultLimit := search.MemoryResultLimit(query.Limit)
 	candidateLimit := search.MemoryCandidateLimit(resultLimit)
 
@@ -217,6 +221,10 @@ func (s *Store) UpsertMemory(ctx context.Context, item statememory.MemoryItem) (
 		return statememory.MemoryItem{}, err
 	}
 
+	if err := s.handleVectorStoreError(s.indexMemoryVector(ctx, item)); err != nil {
+		return statememory.MemoryItem{}, err
+	}
+
 	return item.Clone(), nil
 }
 
@@ -237,8 +245,11 @@ func (s *Store) DeleteMemory(ctx context.Context, req statememory.MemoryDeleteRe
 	if result.Error != nil {
 		return result.Error
 	}
+	if result.RowsAffected == 0 {
+		return nil
+	}
 
-	return nil
+	return s.handleVectorStoreError(s.deleteMemoryVector(ctx, id))
 }
 
 func (s *Store) searchMemoryRecords(

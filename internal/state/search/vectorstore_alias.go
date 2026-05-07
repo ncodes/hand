@@ -26,6 +26,8 @@ var ValidateVectorRecord = vectorstore.ValidateRecord
 var ValidateVectorSearchRequest = vectorstore.ValidateSearchRequest
 var ValidateVectorListRequest = vectorstore.ValidateListRequest
 var ValidateVectorDeleteRequest = vectorstore.ValidateDeleteRequest
+var NormalizeVectorTags = vectorstore.NormalizeTags
+var NormalizeVectorTagGroups = vectorstore.NormalizeTagGroups
 
 func VectorContentHash(text string) string {
 	return vectorstore.ContentHash(text)

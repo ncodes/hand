@@ -113,6 +113,7 @@ func TestMemoryProvider_CapabilitiesConfigureObservabilityAndClose(t *testing.T)
 	require.True(t, caps.SupportsDelete)
 	require.True(t, caps.SupportsEpisodeRecording)
 	require.True(t, caps.SupportsSemanticProceduralRecording)
+	require.False(t, caps.SupportsVectors)
 	require.True(t, caps.SupportsReranking)
 	require.True(t, caps.SupportsObservability)
 
@@ -122,6 +123,20 @@ func TestMemoryProvider_CapabilitiesConfigureObservabilityAndClose(t *testing.T)
 	require.NoError(t, err)
 	require.Contains(t, tracer.events, "memory.search.completed")
 	require.NoError(t, provider.Close())
+}
+
+func TestMemoryProvider_CapabilitiesReportsVectorSupport(t *testing.T) {
+	provider := &MemoryProvider{manager: vectorCapabilityMemoryManager{enabled: true}}
+
+	caps, err := provider.Capabilities(context.Background())
+
+	require.NoError(t, err)
+	require.True(t, caps.SupportsVectors)
+
+	var missing *MemoryProvider
+	caps, err = missing.Capabilities(context.Background())
+	require.NoError(t, err)
+	require.False(t, caps.SupportsVectors)
 }
 
 func TestMemoryProvider_RecordEpisodeStoresEpisodicMemory(t *testing.T) {

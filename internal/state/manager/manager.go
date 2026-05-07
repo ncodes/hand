@@ -57,6 +57,15 @@ func (m *Manager) MemoryStore() (storage.MemoryStore, bool) {
 	return store, true
 }
 
+func (m *Manager) SupportsVectorSearch() bool {
+	if m == nil || m.store == nil {
+		return false
+	}
+
+	store, ok := m.store.(interface{ SupportsVectorSearch() bool })
+	return ok && store.SupportsVectorSearch()
+}
+
 func (m *Manager) SearchMemory(
 	ctx context.Context,
 	query storage.MemorySearchQuery,

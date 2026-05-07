@@ -52,6 +52,10 @@ func TestValidateRecord(t *testing.T) {
 			record.ContentHash = ""
 			return record
 		}, want: "vector content hash is required"},
+		{name: "untrimmed tag", mutate: func(record Record) Record {
+			record.Tags = []string{" tag "}
+			return record
+		}, want: "vector tag must be trimmed"},
 	}
 
 	for _, tt := range tests {
@@ -100,6 +104,18 @@ func TestValidateSearchRequest(t *testing.T) {
 			req.QueryVector = []float64{1, math.Inf(-1), 0}
 			return req
 		}, want: "vector search query value must be finite"},
+		{name: "uppercase filter tag", mutate: func(req SearchRequest) SearchRequest {
+			req.Filter.Tags = []string{"Tag"}
+			return req
+		}, want: "vector search filter tag must be lowercase"},
+		{name: "empty filter tag group", mutate: func(req SearchRequest) SearchRequest {
+			req.Filter.TagGroups = [][]string{{}}
+			return req
+		}, want: "vector search filter tag group is required"},
+		{name: "untrimmed filter tag group tag", mutate: func(req SearchRequest) SearchRequest {
+			req.Filter.TagGroups = [][]string{{" tag "}}
+			return req
+		}, want: "vector search filter tag group tag must be trimmed"},
 	}
 
 	for _, tt := range tests {
@@ -139,6 +155,18 @@ func TestValidateListRequest(t *testing.T) {
 		Filter:         Filter{SourceIDs: []string{" msg-a "}},
 	})
 	require.EqualError(t, err, "vector list filter source id must be trimmed")
+
+	err = ValidateListRequest(ListRequest{
+		EmbeddingModel: "text-embedding-test",
+		Filter:         Filter{Tags: []string{""}},
+	})
+	require.EqualError(t, err, "vector list filter tag is required")
+
+	err = ValidateListRequest(ListRequest{
+		EmbeddingModel: "text-embedding-test",
+		Filter:         Filter{TagGroups: [][]string{{"Tag"}}},
+	})
+	require.EqualError(t, err, "vector list filter tag group tag must be lowercase")
 }
 
 func TestValidateDeleteRequest(t *testing.T) {
@@ -187,6 +215,22 @@ func TestIsRecordStale(t *testing.T) {
 	require.False(t, IsRecordStale(Record{ContentHash: hash}, "same text"))
 	require.True(t, IsRecordStale(Record{ContentHash: hash}, "other text"))
 	require.True(t, IsRecordStale(Record{ContentHash: " " + hash + " "}, "same text"))
+}
+
+func TestNormalizeTags(t *testing.T) {
+	require.Equal(t, []string{"alpha", "beta"}, NormalizeTags([]string{" Beta ", "", "alpha", "beta"}))
+}
+
+func TestNormalizeTagGroups(t *testing.T) {
+	require.Equal(t, [][]string{
+		{"alpha", "beta"},
+		{"gamma"},
+	}, NormalizeTagGroups([][]string{
+		{" Beta ", "alpha"},
+		{},
+		{"gamma"},
+		{"alpha", "beta"},
+	}))
 }
 
 func testRecord(id string, sourceKind SourceKind, sourceID string, vector []float64) Record {

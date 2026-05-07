@@ -113,6 +113,10 @@ func (s *Store) ConfigureVectorStore(opts VectorStoreOptions) error {
 	return nil
 }
 
+func (s *Store) SupportsVectorSearch() bool {
+	return s != nil && s.vectors != nil
+}
+
 // rerankEnabled reports whether hybrid search should rerank merged candidates.
 func (s *Store) rerankEnabled() bool {
 	return s != nil && s.vectors != nil && s.vectors.Rerank

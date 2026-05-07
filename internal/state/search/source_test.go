@@ -44,3 +44,17 @@ func TestStableMemoryItemID(t *testing.T) {
 	require.Equal(t, "memory_item:mem_a", StableMemoryItemID("mem_a"))
 	require.Equal(t, "memory_item:mem_a", StableMemoryItemID(" mem_a "))
 }
+
+func TestMemoryIDFromSourceID(t *testing.T) {
+	id, ok := MemoryIDFromSourceID("memory_item:mem_test")
+	require.True(t, ok)
+	require.Equal(t, "mem_test", id)
+
+	id, ok = MemoryIDFromSourceID("session_message:default:1")
+	require.False(t, ok)
+	require.Empty(t, id)
+
+	id, ok = MemoryIDFromSourceID("memory_item: ")
+	require.False(t, ok)
+	require.Empty(t, id)
+}

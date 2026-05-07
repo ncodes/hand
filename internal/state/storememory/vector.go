@@ -82,6 +82,10 @@ func (s *Store) ConfigureVectorStore(opts search.VectorStoreOptions) error {
 	return nil
 }
 
+func (s *Store) SupportsVectorSearch() bool {
+	return s != nil && s.vectors != nil
+}
+
 func (s *Store) searchMessagesHybrid(
 	ctx context.Context,
 	id string,

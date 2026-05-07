@@ -19,7 +19,10 @@ import (
 	"github.com/wandxy/hand/internal/state/search/vectorstore"
 )
 
-const recordsTable = "vector_records"
+const (
+	recordsTable    = "vector_records"
+	recordTagsTable = "vector_record_tags"
+)
 
 type Record = vectorstore.Record
 type DeleteRequest = vectorstore.DeleteRequest
@@ -128,6 +131,14 @@ func (s *Store) Delete(ctx context.Context, req DeleteRequest) error {
 				return err
 			}
 		}
+		if len(rows) > 0 {
+			if err := tx.Exec(
+				`DELETE FROM `+recordTagsTable+` WHERE record_id IN ?`,
+				recordIDs(rows),
+			).Error; err != nil {
+				return fmt.Errorf("failed to delete vector record tags: %w", err)
+			}
+		}
 		if err := tx.Exec(
 			`DELETE FROM `+recordsTable+` WHERE source_kind = ? AND source_id IN ?`,
 			req.SourceKind,
@@ -232,6 +243,8 @@ WHERE vec.vector MATCH ?
 	AND vec.tool_name = ?`)
 		args = append(args, toolName)
 	}
+	appendTagFilters(&sqlText, &args, req.Filter.Tags)
+	appendTagGroupFilters(&sqlText, &args, req.Filter.TagGroups)
 	sqlText.WriteString(`
 ORDER BY vec.distance ASC, rv.id ASC`)
 
@@ -241,11 +254,16 @@ ORDER BY vec.distance ASC, rv.id ASC`)
 	}
 
 	matches := make([]SearchMatch, 0, len(rows))
+	tagsByID, err := loadRecordTags(db, rowIDs(rows))
+	if err != nil {
+		return SearchResult{}, err
+	}
 	for _, row := range rows {
 		record, err := row.record()
 		if err != nil {
 			return SearchResult{}, err
 		}
+		record.Tags = tagsByID[record.ID]
 		matches = append(matches, SearchMatch{
 			Record: record,
 			Score:  1 - row.Distance,
@@ -296,7 +314,7 @@ func (s *Store) List(ctx context.Context, req ListRequest) (ListResult, error) {
 	vector,
 	created_at,
 	updated_at
-FROM ` + recordsTable + `
+FROM ` + recordsTable + ` AS rv
 WHERE embedding_model = ?`
 	args := []any{strings.TrimSpace(req.EmbeddingModel)}
 	if sourceKind := strings.TrimSpace(string(req.Filter.SourceKind)); sourceKind != "" {
@@ -333,6 +351,8 @@ WHERE embedding_model = ?`
 	AND tool_name = ?`
 		args = append(args, toolName)
 	}
+	appendTagFiltersString(&sqlText, &args, req.Filter.Tags)
+	appendTagGroupFiltersString(&sqlText, &args, req.Filter.TagGroups)
 	sqlText += `
 ORDER BY session_id ASC, source_id ASC, id ASC`
 
@@ -342,11 +362,16 @@ ORDER BY session_id ASC, source_id ASC, id ASC`
 	}
 
 	records := make([]Record, 0, len(rows))
+	tagsByID, err := loadRecordTags(s.db.WithContext(ctx), rowIDs(rows))
+	if err != nil {
+		return ListResult{}, err
+	}
 	for _, row := range rows {
 		record, err := row.record()
 		if err != nil {
 			return ListResult{}, err
 		}
+		record.Tags = tagsByID[record.ID]
 		records = append(records, record)
 	}
 
@@ -378,12 +403,21 @@ func ensureSQLiteStorage(db *gorm.DB) error {
 )`).Error; err != nil {
 			return fmt.Errorf("failed to create vector records table: %w", err)
 		}
+		if err := tx.Exec(`CREATE TABLE IF NOT EXISTS ` + recordTagsTable + ` (
+	record_id TEXT NOT NULL,
+	tag TEXT NOT NULL,
+	PRIMARY KEY (record_id, tag),
+	FOREIGN KEY (record_id) REFERENCES ` + recordsTable + ` (id) ON DELETE CASCADE
+)`).Error; err != nil {
+			return fmt.Errorf("failed to create vector record tags table: %w", err)
+		}
 		indexes := []string{
 			`CREATE INDEX IF NOT EXISTS idx_vectors_source ON ` + recordsTable + ` (source_kind, source_id)`,
 			`CREATE INDEX IF NOT EXISTS idx_vectors_session ON ` + recordsTable + ` (source_kind, session_id)`,
 			`CREATE INDEX IF NOT EXISTS idx_vectors_session_role_tool ON ` + recordsTable + ` (source_kind, session_id, role, tool_name)`,
 			`CREATE INDEX IF NOT EXISTS idx_vectors_model_dimensions ON ` + recordsTable + ` (embedding_model, dimensions)`,
 			`CREATE INDEX IF NOT EXISTS idx_vectors_content_hash ON ` + recordsTable + ` (content_hash)`,
+			`CREATE INDEX IF NOT EXISTS idx_vector_record_tags_tag ON ` + recordTagsTable + ` (tag, record_id)`,
 		}
 		for _, statement := range indexes {
 			if err := tx.Exec(statement).Error; err != nil {
@@ -509,6 +543,9 @@ RETURNING vector_rowid`,
 	).Error; err != nil {
 		return fmt.Errorf("failed to insert vector index row: %w", err)
 	}
+	if err := replaceRecordTags(tx, record.ID, record.Tags); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -578,7 +615,7 @@ func recordRef(tx *gorm.DB, id string) (recordRefRow, bool, error) {
 func vectorRowsForSources(tx *gorm.DB, sourceKind SourceKind, sourceIDs []string) ([]recordRefRow, error) {
 	var rows []recordRefRow
 	if err := tx.Raw(
-		`SELECT vector_rowid, dimensions FROM `+recordsTable+` WHERE source_kind = ? AND source_id IN ?`,
+		`SELECT id, vector_rowid, dimensions FROM `+recordsTable+` WHERE source_kind = ? AND source_id IN ?`,
 		string(sourceKind),
 		sourceIDs,
 	).Scan(&rows).Error; err != nil {
@@ -586,6 +623,108 @@ func vectorRowsForSources(tx *gorm.DB, sourceKind SourceKind, sourceIDs []string
 	}
 
 	return rows, nil
+}
+
+func replaceRecordTags(tx *gorm.DB, recordID string, tags []string) error {
+	if err := tx.Exec(`DELETE FROM `+recordTagsTable+` WHERE record_id = ?`, recordID).Error; err != nil {
+		return fmt.Errorf("failed to delete vector record tags: %w", err)
+	}
+	for _, tag := range vectorstore.NormalizeTags(tags) {
+		if err := tx.Exec(
+			`INSERT INTO `+recordTagsTable+` (record_id, tag) VALUES (?, ?)`,
+			recordID,
+			tag,
+		).Error; err != nil {
+			return fmt.Errorf("failed to insert vector record tag: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func appendTagFilters(sqlText *strings.Builder, args *[]any, tags []string) {
+	for idx, tag := range vectorstore.NormalizeTags(tags) {
+		sqlText.WriteString(fmt.Sprintf(`
+	AND EXISTS (
+		SELECT 1 FROM %s AS vrt%d
+		WHERE vrt%d.record_id = rv.id AND vrt%d.tag = ?
+	)`, recordTagsTable, idx, idx, idx))
+		*args = append(*args, tag)
+	}
+}
+
+func appendTagFiltersString(sqlText *string, args *[]any, tags []string) {
+	var builder strings.Builder
+	builder.WriteString(*sqlText)
+	appendTagFilters(&builder, args, tags)
+	*sqlText = builder.String()
+}
+
+func appendTagGroupFilters(sqlText *strings.Builder, args *[]any, groups [][]string) {
+	for groupIdx, group := range vectorstore.NormalizeTagGroups(groups) {
+		sqlText.WriteString(fmt.Sprintf(`
+	AND EXISTS (
+		SELECT 1 FROM %s AS vrg%d
+		WHERE vrg%d.record_id = rv.id AND vrg%d.tag IN (`, recordTagsTable, groupIdx, groupIdx, groupIdx))
+		for tagIdx, tag := range group {
+			if tagIdx > 0 {
+				sqlText.WriteString(`, `)
+			}
+			sqlText.WriteString(`?`)
+			*args = append(*args, tag)
+		}
+		sqlText.WriteString(`)
+	)`)
+	}
+}
+
+func appendTagGroupFiltersString(sqlText *string, args *[]any, groups [][]string) {
+	var builder strings.Builder
+	builder.WriteString(*sqlText)
+	appendTagGroupFilters(&builder, args, groups)
+	*sqlText = builder.String()
+}
+
+func loadRecordTags(db *gorm.DB, recordIDs []string) (map[string][]string, error) {
+	tagsByID := make(map[string][]string, len(recordIDs))
+	if len(recordIDs) == 0 {
+		return tagsByID, nil
+	}
+
+	var rows []recordTagRow
+	if err := db.Raw(
+		`SELECT record_id, tag FROM `+recordTagsTable+` WHERE record_id IN ? ORDER BY record_id ASC, tag ASC`,
+		recordIDs,
+	).Scan(&rows).Error; err != nil {
+		return nil, fmt.Errorf("failed to load vector record tags: %w", err)
+	}
+	for _, row := range rows {
+		tagsByID[row.RecordID] = append(tagsByID[row.RecordID], row.Tag)
+	}
+
+	return tagsByID, nil
+}
+
+func rowIDs(rows []searchRow) []string {
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if strings.TrimSpace(row.ID) != "" {
+			ids = append(ids, row.ID)
+		}
+	}
+
+	return ids
+}
+
+func recordIDs(rows []recordRefRow) []string {
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if strings.TrimSpace(row.ID) != "" {
+			ids = append(ids, row.ID)
+		}
+	}
+
+	return ids
 }
 
 func normalizeDeleteSourceIDs(req DeleteRequest) []string {
@@ -674,8 +813,14 @@ func validateSearchSourceIDs(sourceIDs []string) error {
 }
 
 type recordRefRow struct {
-	RowID      int64 `gorm:"column:vector_rowid"`
-	Dimensions int   `gorm:"column:dimensions"`
+	ID         string `gorm:"column:id"`
+	RowID      int64  `gorm:"column:vector_rowid"`
+	Dimensions int    `gorm:"column:dimensions"`
+}
+
+type recordTagRow struct {
+	RecordID string `gorm:"column:record_id"`
+	Tag      string `gorm:"column:tag"`
 }
 
 type searchRow struct {

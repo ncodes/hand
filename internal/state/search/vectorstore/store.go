@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 )
@@ -36,6 +37,7 @@ type Record struct {
 	SessionID      string
 	Role           string
 	ToolName       string
+	Tags           []string
 	EmbeddingModel string
 	ContentHash    string
 	Vector         []float64
@@ -64,6 +66,8 @@ type Filter struct {
 	IgnoreSessionID string
 	Role            string
 	ToolName        string
+	Tags            []string
+	TagGroups       [][]string
 }
 
 type SearchResult struct {
@@ -121,6 +125,9 @@ func ValidateRecord(record Record) error {
 	if strings.TrimSpace(record.ContentHash) == "" {
 		return errors.New("vector content hash is required")
 	}
+	if err := validateTags(record.Tags, "vector tag"); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -146,6 +153,12 @@ func ValidateSearchRequest(req SearchRequest) error {
 			return errors.New("vector search query value must be finite")
 		}
 	}
+	if err := validateTags(req.Filter.Tags, "vector search filter tag"); err != nil {
+		return err
+	}
+	if err := validateTagGroups(req.Filter.TagGroups, "vector search filter tag group"); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -164,6 +177,12 @@ func ValidateListRequest(req ListRequest) error {
 		if strings.TrimSpace(sourceID) != sourceID {
 			return errors.New("vector list filter source id must be trimmed")
 		}
+	}
+	if err := validateTags(req.Filter.Tags, "vector list filter tag"); err != nil {
+		return err
+	}
+	if err := validateTagGroups(req.Filter.TagGroups, "vector list filter tag group"); err != nil {
+		return err
 	}
 
 	return nil
@@ -197,6 +216,45 @@ func IsRecordStale(record Record, text string) bool {
 	return record.ContentHash != ContentHash(text)
 }
 
+func NormalizeTags(tags []string) []string {
+	normalized := make([]string, 0, len(tags))
+	seen := make(map[string]struct{}, len(tags))
+	for _, tag := range tags {
+		tag = strings.ToLower(strings.TrimSpace(tag))
+		if tag == "" {
+			continue
+		}
+		if _, ok := seen[tag]; ok {
+			continue
+		}
+		seen[tag] = struct{}{}
+		normalized = append(normalized, tag)
+	}
+	sort.Strings(normalized)
+	return normalized
+}
+
+func NormalizeTagGroups(groups [][]string) [][]string {
+	normalized := make([][]string, 0, len(groups))
+	seen := make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		tags := NormalizeTags(group)
+		if len(tags) == 0 {
+			continue
+		}
+		key := strings.Join(tags, "\x00")
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		normalized = append(normalized, tags)
+	}
+	sort.Slice(normalized, func(i, j int) bool {
+		return strings.Join(normalized[i], "\x00") < strings.Join(normalized[j], "\x00")
+	})
+	return normalized
+}
+
 func ValidateRequiredSourceKind(sourceKind SourceKind, field string) error {
 	if strings.TrimSpace(string(sourceKind)) == "" {
 		return fmt.Errorf("%s is required", field)
@@ -219,4 +277,33 @@ func ValidateOptionalSourceKind(sourceKind SourceKind, field string) error {
 
 func finite(value float64) bool {
 	return !math.IsNaN(value) && !math.IsInf(value, 0)
+}
+
+func validateTags(tags []string, field string) error {
+	for _, tag := range tags {
+		if strings.TrimSpace(tag) == "" {
+			return fmt.Errorf("%s is required", field)
+		}
+		if strings.TrimSpace(tag) != tag {
+			return fmt.Errorf("%s must be trimmed", field)
+		}
+		if strings.ToLower(tag) != tag {
+			return fmt.Errorf("%s must be lowercase", field)
+		}
+	}
+
+	return nil
+}
+
+func validateTagGroups(groups [][]string, field string) error {
+	for _, group := range groups {
+		if len(group) == 0 {
+			return fmt.Errorf("%s is required", field)
+		}
+		if err := validateTags(group, field+" tag"); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
