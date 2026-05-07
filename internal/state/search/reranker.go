@@ -189,9 +189,11 @@ func rerankDebugLogEvent(req RerankRequest, reranker string) *zerolog.Event {
 func rerankBaseLogEvent(event *zerolog.Event, req RerankRequest, reranker string) *zerolog.Event {
 	event = event.
 		Str("reranker", reranker).
+		Str("relationship", "query_to_candidate_relevance_ordering").
 		Str("caller", strings.TrimSpace(req.Caller)).
 		Str("trace_id", strings.TrimSpace(req.TraceID)).
 		Str("source_kind", strings.TrimSpace(string(req.SourceKind))).
+		Int("candidate_count", len(req.Candidates)).
 		Int("max_candidates", req.Options.MaxCandidates)
 
 	if query := strings.TrimSpace(req.Query); query != "" {

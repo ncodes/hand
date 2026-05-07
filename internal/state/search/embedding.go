@@ -12,8 +12,10 @@ type Embedder interface {
 }
 
 type EmbeddingRequest struct {
-	Model  string
-	Inputs []EmbeddingInput
+	Model        string
+	Relationship string
+	Target       string
+	Inputs       []EmbeddingInput
 }
 
 type EmbeddingInput struct {

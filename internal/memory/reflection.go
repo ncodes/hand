@@ -51,8 +51,9 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 		"session_id":    normalized.SessionID,
 		"limit":         normalized.Limit,
 		"related_limit": normalized.RelatedLimit,
+		"plan":          "load_unreflected_sources_load_related_generate_dedupe_write_mark_sources",
 	})
-	logDebugAndTrace(ctx, p.observability(), "memory reflection started", trace.EvtMemoryReflectionStarted, fields)
+	logDebugAndTrace(ctx, p.observability(), "memory reflection started to consolidate episodic sources", trace.EvtMemoryReflectionStarted, fields)
 
 	result := ReflectionResult{SessionID: normalized.SessionID}
 	sources, err := p.loadReflectionSources(ctx, normalized)
@@ -65,8 +66,10 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 	fields = observationFields(p.Name(), "reflect", map[string]any{
 		"session_id":   normalized.SessionID,
 		"source_count": result.SourceCount,
+		"source_kind":  string(KindEpisodic),
+		"source_state": "unreflected_candidate_or_active",
 	})
-	logDebugAndTrace(ctx, p.observability(), "memory reflection sources loaded", trace.EvtMemoryReflectionSourceLoaded, fields)
+	logDebugAndTrace(ctx, p.observability(), "memory reflection loaded unreflected episodic sources", trace.EvtMemoryReflectionSourceLoaded, fields)
 
 	if len(sources) == 0 {
 		p.recordReflectionCompleted(ctx, result, started)
@@ -85,8 +88,9 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 		"related_count": result.RelatedCount,
 		"bounded_limit": normalized.RelatedLimit,
 		"source_count":  result.SourceCount,
+		"relationship":  "context_for_reflection_and_dedupe",
 	})
-	logDebugAndTrace(ctx, p.observability(), "memory reflection related memories loaded", trace.EvtMemoryReflectionRelatedLoaded, fields)
+	logDebugAndTrace(ctx, p.observability(), "memory reflection loaded related context memories", trace.EvtMemoryReflectionRelatedLoaded, fields)
 
 	generated, err := p.reflectionGenerator.GenerateReflectionCandidates(ctx, ReflectionGenerationRequest{
 		SessionID: normalized.SessionID,

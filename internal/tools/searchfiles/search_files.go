@@ -88,7 +88,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Bool("case_sensitive", req.CaseSensitive).
 				Bool("include_hidden", req.IncludeHidden).
 				Int("max_results", limit).
-				Msg("tool call started")
+				Msg("search files tool started")
 
 			log.Debug().
 				Str("tool", "search_files").
@@ -121,7 +121,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Str("tool", "search_files").
 				Str("phase", "complete").
 				Int("match_count", len(out)).
-				Msg("tool call completed")
+				Msg("search files tool completed")
 
 			return common.EncodeOutput(map[string]any{
 				"root":    resolved.Root,

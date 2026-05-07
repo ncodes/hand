@@ -194,7 +194,7 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) 
 	log.Info().
 		Str("rpcAddress", cfg.RPC.Address).
 		Int("rpcPort", cfg.RPC.Port).
-		Msg("RPC server listening")
+		Msg("RPC server listening for agent requests")
 
 	select {
 	case err := <-serverErr:
@@ -204,7 +204,8 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) 
 
 		return err
 	case <-sigCtx.Done():
-		log.Info().Msg("Received shutdown signal")
+		log.Info().
+			Msg("received shutdown signal")
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), serveRPCShutdownTimeout)
@@ -219,7 +220,8 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) 
 	select {
 	case <-stopped:
 	case <-shutdownCtx.Done():
-		log.Warn().Msg("RPC graceful shutdown timed out, forcing stop")
+		log.Warn().
+			Msg("RPC graceful shutdown timed out, forcing stop")
 		grpcSrv.Stop()
 		<-stopped
 	}
@@ -228,7 +230,8 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) 
 		return err
 	}
 
-	log.Info().Msg("RPC server stopped")
+	log.Info().
+		Msg("RPC server stopped")
 	return nil
 }
 
@@ -271,6 +274,7 @@ func NewCommand() *cli.Command {
 				Msg("Configuration loaded")
 			if cfg.Search.Vector.Enabled {
 				vectorLog := log.Info().
+					Str("target", "session_and_memory_search").
 					Str("embeddingModel", cfg.Models.Embedding.Name).
 					Str("embeddingProvider", cfg.ModelEmbeddingProviderEffective()).
 					Bool("rerankerEnabled", configBoolDefault(cfg.Reranker.Enabled, true)).
@@ -281,10 +285,11 @@ func NewCommand() *cli.Command {
 						Str("rerankModel", cfg.RerankerModelEffective()).
 						Str("rerankApiMode", cfg.SummaryModelAPIModeEffective())
 				}
-				vectorLog.Msg("Session vector embedding configured")
+				vectorLog.Msg("Vector retrieval configured")
 			}
 
 			startupLog := log.Info().
+				Str("plan", "create_model_clients_start_agent_start_rpc_server").
 				Str("rpcEndpoint", fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)).
 				Bool("streaming", cfg.StreamEnabled()).
 				Bool("traceEnabled", cfg.Trace.Enabled)

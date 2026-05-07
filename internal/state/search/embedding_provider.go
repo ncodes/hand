@@ -112,6 +112,10 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 		Str("event", "embedding request started").
 		Str("provider", p.provider).
 		Str("embedding_model", strings.TrimSpace(req.Model)).
+		Str("relationship", strings.TrimSpace(req.Relationship)).
+		Str("target", strings.TrimSpace(req.Target)).
+		Str("source_kind", embeddingRequestSourceKind(req.Inputs)).
+		Str("input_id", embeddingRequestSingleInputID(req.Inputs)).
 		Int("input_count", len(req.Inputs)).
 		Int("max_inputs_per_batch", p.maxInputsPerBatch).
 		Msg("embedding provider request started")
@@ -129,6 +133,9 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 				Str("error_kind", embeddingProviderErrorKind(err)).
 				Str("provider", p.provider).
 				Str("embedding_model", strings.TrimSpace(req.Model)).
+				Str("relationship", strings.TrimSpace(req.Relationship)).
+				Str("target", strings.TrimSpace(req.Target)).
+				Str("source_kind", embeddingRequestSourceKind(req.Inputs)).
 				Int("input_count", len(req.Inputs)).
 				Msg("embedding provider request failed")
 			return EmbeddingResult{}, err
@@ -142,6 +149,9 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 				Str("error_kind", err.Error()).
 				Str("provider", p.provider).
 				Str("embedding_model", strings.TrimSpace(req.Model)).
+				Str("relationship", strings.TrimSpace(req.Relationship)).
+				Str("target", strings.TrimSpace(req.Target)).
+				Str("source_kind", embeddingRequestSourceKind(req.Inputs)).
 				Int("input_count", len(req.Inputs)).
 				Msg("embedding provider request failed")
 			return EmbeddingResult{}, err
@@ -153,6 +163,10 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 		Str("event", "embedding request completed").
 		Str("provider", p.provider).
 		Str("embedding_model", result.Model).
+		Str("relationship", strings.TrimSpace(req.Relationship)).
+		Str("target", strings.TrimSpace(req.Target)).
+		Str("source_kind", embeddingRequestSourceKind(req.Inputs)).
+		Str("input_id", embeddingRequestSingleInputID(req.Inputs)).
 		Int("input_count", len(req.Inputs)).
 		Int("embedding_count", len(result.Items)).
 		Int("dimensions", result.Dimensions).
@@ -182,6 +196,8 @@ func (p *EmbeddingProvider) embedBatch(
 			Str("event", "embedding batch started").
 			Str("provider", p.provider).
 			Str("embedding_model", strings.TrimSpace(model)).
+			Str("source_kind", embeddingRequestSourceKind(inputs)).
+			Str("input_id", embeddingRequestSingleInputID(inputs)).
 			Int("input_count", len(inputs)).
 			Int("attempt", attempt+1).
 			Msg("embedding provider batch started")
@@ -192,6 +208,8 @@ func (p *EmbeddingProvider) embedBatch(
 				Str("event", "embedding batch completed").
 				Str("provider", p.provider).
 				Str("embedding_model", strings.TrimSpace(result.Model)).
+				Str("source_kind", embeddingRequestSourceKind(inputs)).
+				Str("input_id", embeddingRequestSingleInputID(inputs)).
 				Int("input_count", len(inputs)).
 				Int("embedding_count", len(result.Items)).
 				Int("dimensions", result.Dimensions).
@@ -206,6 +224,8 @@ func (p *EmbeddingProvider) embedBatch(
 			Str("error_kind", embeddingProviderErrorKind(err)).
 			Str("provider", p.provider).
 			Str("embedding_model", strings.TrimSpace(model)).
+			Str("source_kind", embeddingRequestSourceKind(inputs)).
+			Str("input_id", embeddingRequestSingleInputID(inputs)).
 			Int("input_count", len(inputs)).
 			Int("attempt", attempt+1).
 			Msg("embedding provider batch failed")
@@ -344,6 +364,33 @@ func embeddingTexts(inputs []EmbeddingInput) []string {
 	}
 
 	return values
+}
+
+func embeddingRequestSourceKind(inputs []EmbeddingInput) string {
+	if len(inputs) == 0 {
+		return ""
+	}
+
+	sourceKind := strings.TrimSpace(string(inputs[0].SourceKind))
+	if sourceKind == "" {
+		return ""
+	}
+
+	for _, input := range inputs[1:] {
+		if strings.TrimSpace(string(input.SourceKind)) != sourceKind {
+			return "mixed"
+		}
+	}
+
+	return sourceKind
+}
+
+func embeddingRequestSingleInputID(inputs []EmbeddingInput) string {
+	if len(inputs) != 1 {
+		return ""
+	}
+
+	return strings.TrimSpace(inputs[0].ID)
 }
 
 func providerErrorMessage(resp *http.Response) string {

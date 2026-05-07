@@ -70,7 +70,9 @@ func (s *Store) searchMemoryVector(
 	limit int,
 ) ([]statememory.MemorySearchHit, error) {
 	req := search.EmbeddingRequest{
-		Model: strings.TrimSpace(s.vectors.Model),
+		Model:        strings.TrimSpace(s.vectors.Model),
+		Relationship: "query_vector_for_memory_item_retrieval",
+		Target:       "memory_item_vectors",
 		Inputs: []search.EmbeddingInput{{
 			ID:         "query",
 			Text:       strings.TrimSpace(query.Text),
@@ -182,7 +184,9 @@ func (s *Store) indexMemoryVector(ctx context.Context, item statememory.MemoryIt
 	}
 
 	req := search.EmbeddingRequest{
-		Model: strings.TrimSpace(s.vectors.Model),
+		Model:        strings.TrimSpace(s.vectors.Model),
+		Relationship: "memory_item_to_memory_vector_index",
+		Target:       "memory_item_vectors",
 		Inputs: []search.EmbeddingInput{{
 			ID:         search.StableMemoryItemID(item.ID),
 			Text:       text,

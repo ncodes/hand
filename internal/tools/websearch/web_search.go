@@ -69,7 +69,7 @@ func Definition(provider webintegration.Provider, options ...Options) tools.Defi
 				Int("query_chars", len([]rune(query))).
 				Int("count", count).
 				Bool("website_policy_enabled", opts.WebsitePolicy.Enabled).
-				Msg("tool call started")
+				Msg("web search tool started")
 
 			log.Debug().
 				Str("tool", "web_search").
@@ -93,7 +93,7 @@ func Definition(provider webintegration.Provider, options ...Options) tools.Defi
 				Str("phase", "complete").
 				Int("result_count", len(results)).
 				Int("blocked_results", blocked).
-				Msg("tool call completed")
+				Msg("web search tool completed")
 
 			return common.EncodeOutput(map[string]any{"results": results})
 		}),

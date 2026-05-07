@@ -69,7 +69,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Int("steps_count", len(req.Steps)).
 				Bool("merge", req.Merge).
 				Bool("clear_completed", req.ClearCompleted).
-				Msg("tool call started")
+				Msg("plan tool started")
 
 			if req.Steps == nil {
 				log.Debug().
@@ -86,7 +86,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 					Int("in_progress", summarizePlan(plan).InProgress).
 					Int("completed", summarizePlan(plan).Completed).
 					Int("cancelled", summarizePlan(plan).Cancelled).
-					Msg("tool call completed")
+					Msg("plan tool read completed")
 				return encodePlanOutput(plan)
 			}
 
@@ -172,7 +172,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Int("in_progress", summary.InProgress).
 				Int("completed", summary.Completed).
 				Int("cancelled", summary.Cancelled).
-				Msg("tool call completed")
+				Msg("plan tool update completed")
 
 			return encodePlanOutput(plan)
 		}),

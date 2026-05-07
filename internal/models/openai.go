@@ -784,6 +784,7 @@ func fallbackToolCallID(name string, index int) string {
 func logModelClientRequestStarted(req normalizedGenerateRequest, stream bool) {
 	log.Debug().
 		Str("event", "model client request started").
+		Str("target", "openai_compatible_api").
 		Str("provider", "openai-compatible").
 		Str("mode", req.APIMode).
 		Str("model", req.Model).
@@ -798,6 +799,7 @@ func logModelClientRequestStarted(req normalizedGenerateRequest, stream bool) {
 func logModelClientRequestCompleted(req normalizedGenerateRequest, stream bool, resp *Response) {
 	event := log.Debug().
 		Str("event", "model client request completed").
+		Str("target", "openai_compatible_api").
 		Str("provider", "openai-compatible").
 		Str("mode", req.APIMode).
 		Str("model", req.Model).
@@ -817,6 +819,7 @@ func logModelClientRequestCompleted(req normalizedGenerateRequest, stream bool, 
 func logModelClientRequestFailed(req normalizedGenerateRequest, stream bool, err error) {
 	log.Debug().
 		Str("event", "model client request failed").
+		Str("target", "openai_compatible_api").
 		Str("provider", "openai-compatible").
 		Str("mode", req.APIMode).
 		Str("model", req.Model).

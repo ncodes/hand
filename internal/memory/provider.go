@@ -274,7 +274,15 @@ func (p *MemoryProvider) Search(ctx context.Context, query SearchQuery) (SearchR
 	}
 
 	obs := p.observability()
-	logDebugAndTrace(ctx, obs, "memory search started", "memory.search.started", observationFields(p.Name(), "search", nil))
+	startFields := observationFields(p.Name(), "search", map[string]any{
+		"plan":         "validate_query_search_store_redact_results",
+		"query_chars":  len([]rune(strings.TrimSpace(query.Text))),
+		"kind_count":   len(query.Kinds),
+		"status_count": len(query.Statuses),
+		"limit":        query.Limit,
+		"max_chars":    query.MaxChars,
+	})
+	logDebugAndTrace(ctx, obs, "memory search started for retrieval", "memory.search.started", startFields)
 
 	// The manager may perform lexical search, vector search, reranking, or a
 	// hybrid of those. The provider logs only the high-level search boundary and
@@ -299,7 +307,7 @@ func (p *MemoryProvider) Search(ctx context.Context, query SearchQuery) (SearchR
 	}
 
 	fields := observationFields(p.Name(), "search", map[string]any{"result_count": len(hits)})
-	logDebugAndTrace(ctx, obs, "memory search completed", "memory.search.completed", fields)
+	logDebugAndTrace(ctx, obs, "memory search completed for retrieval", "memory.search.completed", fields)
 
 	return SearchResult{Hits: hits}, nil
 }

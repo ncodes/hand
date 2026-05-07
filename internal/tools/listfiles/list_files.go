@@ -67,7 +67,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Bool("recursive", recursive).
 				Bool("include_hidden", req.IncludeHidden).
 				Int("max_entries", limit).
-				Msg("tool call started")
+				Msg("list files tool started")
 
 			log.Debug().
 				Str("tool", "list_files").
@@ -173,7 +173,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Str("phase", "complete").
 				Int("entry_count", len(entries)).
 				Bool("limit_hit", len(entries) >= limit).
-				Msg("tool call completed")
+				Msg("list files tool completed")
 
 			return common.EncodeOutput(map[string]any{
 				"root":    resolved.Root,

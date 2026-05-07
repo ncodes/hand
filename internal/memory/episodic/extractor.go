@@ -93,9 +93,10 @@ func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 		"max_windows":       normalized.MaxWindows,
 		"max_window_chars":  normalized.MaxWindowChars,
 		"max_window_tokens": normalized.MaxWindowTokens,
+		"plan":              "load_window_collect_trace_evidence_generate_candidates_dedupe_write_candidates",
 	}
 	recordTrace(req.Trace, trace.EvtMemoryExtractionStarted, tracePayload(normalized, traceField))
-	logExtraction("started", normalized, traceField)
+	logExtraction("started to extract episodic memory candidates", normalized, traceField)
 
 	result := Result{SessionID: normalized.SessionID}
 	for start := normalized.OffsetStart; start < normalized.OffsetEnd; start += normalized.WindowSize {
@@ -142,7 +143,7 @@ func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 		"duration_ms":     duration.Milliseconds(),
 	}
 	recordTrace(req.Trace, trace.EvtMemoryExtractionCompleted, tracePayload(normalized, traceFields))
-	logExtraction("completed", normalized, traceFields)
+	logExtraction("completed episodic memory candidate extraction", normalized, traceFields)
 
 	return result, nil
 }
@@ -182,7 +183,7 @@ func (s Service) extractWindow(
 		}
 		traceFields := map[string]any{"memory_ids": result.SkippedIDs, "checkpoint_state": "complete"}
 		recordTrace(req.Trace, trace.EvtMemoryExtractionDuplicateSkipped, tracePayload(windowReq, traceFields))
-		logExtraction("duplicate_skipped", windowReq, traceFields)
+		logExtraction("skipped completed source window", windowReq, traceFields)
 		return result, nil
 	}
 
@@ -196,7 +197,7 @@ func (s Service) extractWindow(
 
 	traceFields := map[string]any{"message_count": len(messages)}
 	recordTrace(req.Trace, trace.EvtMemoryExtractionWindowLoaded, tracePayload(windowReq, traceFields))
-	logExtraction("window_loaded", windowReq, traceFields)
+	logExtraction("loaded source message window", windowReq, traceFields)
 
 	candidates, rejections, err := s.candidatesFromMessages(ctx, req, window, messages)
 	if err != nil {
@@ -208,7 +209,7 @@ func (s Service) extractWindow(
 	recordTrace(req.Trace, trace.EvtMemoryExtractionExtractorRequested, tracePayload(windowReq, traceFields))
 	recordTrace(req.Trace, trace.EvtMemoryExtractionCandidates, tracePayload(windowReq, traceFields))
 	traceFields = map[string]any{"message_count": len(messages), "candidate_count": candidateCount}
-	logExtraction("candidates", windowReq, traceFields)
+	logExtraction("received extractor candidate set", windowReq, traceFields)
 
 	for _, rejection := range rejections {
 		traceFields = map[string]any{"candidate_kind": rejection.Kind, "rejection_reason": rejection.Reason}
@@ -228,7 +229,7 @@ func (s Service) extractWindow(
 		recordTrace(req.Trace, trace.EvtMemoryExtractionCandidateGenerated, tracePayload(windowReq, traceFields))
 		recordTrace(req.Trace, trace.EvtMemoryExtractionConfidenceScored, tracePayload(windowReq, traceFields))
 		recordTrace(req.Trace, trace.EvtMemoryExtractionAdmissionHandoff, tracePayload(windowReq, traceFields))
-		logExtraction("candidate_generated", windowReq, traceFields)
+		logExtraction("generated episodic candidate proposal", windowReq, traceFields)
 	}
 
 	result.MessageCount = len(messages)
@@ -250,7 +251,7 @@ func (s Service) extractWindow(
 			result.SkipCount++
 			traceFields = map[string]any{"candidate_kind": candidate.Metadata["candidate_kind"], "rejection_reason": rejection}
 			recordTrace(req.Trace, trace.EvtMemoryExtractionCandidateRejected, tracePayload(windowReq, traceFields))
-			logExtraction("candidate_rejected", windowReq, traceFields)
+			logExtraction("rejected episodic candidate before write", windowReq, traceFields)
 			continue
 		}
 
@@ -270,7 +271,7 @@ func (s Service) extractWindow(
 			"admission_state": item.Status,
 		}
 		recordTrace(req.Trace, trace.EvtMemoryExtractionMemoryWritten, tracePayload(windowReq, traceFields))
-		logExtraction("memory_written", windowReq, traceFields)
+		logExtraction("wrote episodic candidate memory", windowReq, traceFields)
 	}
 
 	return result, nil

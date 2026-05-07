@@ -12,8 +12,9 @@ func (p *MemoryProvider) recordPromotionStarted(ctx context.Context, memoryID st
 	fields := observationFields(p.Name(), "promote", map[string]any{
 		"memory_id": memoryID,
 		"action":    operation,
+		"plan":      "load_candidate_check_related_apply_policy_write_decision",
 	})
-	logDebugAndTrace(ctx, p.observability(), "memory promotion started", trace.EvtMemoryPromotionStarted, fields)
+	logDebugAndTrace(ctx, p.observability(), "memory promotion started for candidate activation", trace.EvtMemoryPromotionStarted, fields)
 }
 
 func (p *MemoryProvider) recordPromotionDecision(
@@ -50,7 +51,7 @@ func (p *MemoryProvider) recordPromotionCompleted(
 		"reason":      decision.Reason,
 		"duration_ms": time.Since(started).Milliseconds(),
 	})
-	logDebugAndTrace(ctx, p.observability(), "memory promotion completed", trace.EvtMemoryPromotionCompleted, fields)
+	logDebugAndTrace(ctx, p.observability(), "memory promotion completed for candidate activation", trace.EvtMemoryPromotionCompleted, fields)
 }
 
 func (p *MemoryProvider) recordPromotionFailure(ctx context.Context, memoryID string, err error) {

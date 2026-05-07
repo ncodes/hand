@@ -40,14 +40,17 @@ func (LLMReranker) Name() string {
 
 func NewLLMReranker(options LLMRerankerOptions) Reranker {
 	if !options.Enabled {
-		retrievalLog.Trace().Msg("llm reranker disabled, using fallback")
+		retrievalLog.Trace().
+			Str("fallback", fallbackReranker(options.Fallback).Name()).
+			Msg("llm reranker disabled, using fallback reranker")
 		return fallbackReranker(options.Fallback)
 	}
 
 	retrievalLog.Trace().
+		Str("reranker", RerankerLLM).
 		Int("max_candidates", options.MaxCandidates).
 		Int("max_candidate_text_chars", options.MaxCandidateTextChars).
-		Msg("llm reranker enabled")
+		Msg("llm reranker enabled for retrieval ranking")
 
 	return LLMReranker{options: normalizeLLMRerankerOptions(options)}
 }
@@ -90,7 +93,7 @@ func (r LLMReranker) Rerank(ctx context.Context, req RerankRequest) (RerankResul
 		Int("candidate_count", len(req.Candidates)).
 		Int("bounded_candidate_count", len(candidates)).
 		Int("max_candidate_text_chars", options.MaxCandidateTextChars).
-		Msg("llm rerank model request started")
+		Msg("llm rerank model request started to order retrieval candidates")
 
 	modelReq := r.modelRequest(req, candidates, true)
 	resp, err := options.Client.Complete(ctx, modelReq)
@@ -121,7 +124,7 @@ func (r LLMReranker) Rerank(ctx context.Context, req RerankRequest) (RerankResul
 	rerankTraceLogEvent(req, RerankerLLM).
 		Int("bounded_candidate_count", len(candidates)).
 		Int("result_count", len(result.Items)).
-		Msg("llm rerank completed")
+		Msg("llm rerank completed for retrieval candidates")
 
 	result.Reranker = RerankerLLM
 	return result, nil

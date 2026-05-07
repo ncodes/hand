@@ -132,10 +132,14 @@ func (s *Service) RunBackground(ctx context.Context, req BackgroundRequest) (Bac
 	}
 	result := BackgroundResult{RunID: runID}
 
-	traceFields := map[string]any{"interval_ms": opts.Interval.Milliseconds(),
-		"idle_after_ms": opts.IdleAfter.Milliseconds(), "min_messages": opts.MinMessages}
+	traceFields := map[string]any{
+		"interval_ms":   opts.Interval.Milliseconds(),
+		"idle_after_ms": opts.IdleAfter.Milliseconds(),
+		"min_messages":  opts.MinMessages,
+		"plan":          "list_sessions_check_idle_and_checkpoint_extract_eligible_windows",
+	}
 	recordBackgroundTrace(req.Trace, trace.EvtMemoryEpisodicBackgroundScheduled, backgroundPayload(runID, "", 0, "", traceFields))
-	logBackground("scheduled", runID, "", 0, "", traceFields)
+	logBackground("scheduled idle-session episodic extraction sweep", runID, "", 0, "", traceFields)
 
 	sessions, err := manager.ListSessions(ctx)
 	if err != nil {
@@ -171,7 +175,7 @@ func (s *Service) RunBackground(ctx context.Context, req BackgroundRequest) (Bac
 		"duration_ms":    duration.Milliseconds(),
 	}
 	recordBackgroundTrace(req.Trace, trace.EvtMemoryEpisodicBackgroundCompleted, backgroundPayload(runID, "", 0, "", traceFields))
-	logBackground("completed", runID, "", 0, "", traceFields)
+	logBackground("completed idle-session episodic extraction sweep", runID, "", 0, "", traceFields)
 
 	return result, nil
 }
@@ -196,7 +200,7 @@ func (s *Service) runBackgroundForSession(
 	fields := map[string]any{"eligible": eligible, "reason": reason, "episodic_checkpoint_offset": startOffset}
 	recordBackgroundTrace(recorder, trace.EvtMemoryEpisodicBackgroundEligibilityChecked,
 		backgroundPayload(runID, sessionID, messageCount, reason, fields))
-	logBackground("eligibility_checked", runID, sessionID, messageCount, reason, fields)
+	logBackground("checked session eligibility for episodic extraction", runID, sessionID, messageCount, reason, fields)
 
 	sessionResult := BackgroundSessionResult{
 		SessionID:    sessionID,
@@ -231,7 +235,7 @@ func (s *Service) runBackgroundForSession(
 
 		traceFields := map[string]any{"attempt": attempt + 1}
 		recordBackgroundTrace(recorder, trace.EvtMemoryEpisodicBackgroundExtractionAttempt, backgroundPayload(runID, sessionID, messageCount, "eligible", traceFields))
-		logBackground("extraction_attempt", runID, sessionID, messageCount, "eligible", traceFields)
+		logBackground("started episodic extraction attempt for eligible session", runID, sessionID, messageCount, "eligible", traceFields)
 
 		extraction, err := s.Extract(ctx, req)
 		if err == nil {
@@ -241,7 +245,7 @@ func (s *Service) runBackgroundForSession(
 			for _, window := range extraction.Windows {
 				fields := map[string]any{"offset_start": window.OffsetStart, "offset_end": window.OffsetEnd, "write_count": window.WriteCount, "skip_count": window.SkipCount}
 				recordBackgroundTrace(recorder, trace.EvtMemoryEpisodicBackgroundWindowCheckpoint, backgroundPayload(runID, sessionID, messageCount, "processed", fields))
-				logBackground("window_checkpoint", runID, sessionID, messageCount, "processed", fields)
+				logBackground("checkpointed processed episodic extraction window", runID, sessionID, messageCount, "processed", fields)
 			}
 			return sessionResult
 		}

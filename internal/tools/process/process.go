@@ -132,7 +132,7 @@ func handleStart(
 		Int("args_count", len(req.Args)).
 		Int("env_overrides", len(req.Env)).
 		Bool("output_buffer_limit", req.OutputBytes != nil).
-		Msg("tool call started")
+		Msg("process tool start requested")
 
 	command := strings.TrimSpace(req.Command)
 	if command == "" {
@@ -166,7 +166,7 @@ func handleStatus(ctx context.Context, runtime envtypes.Runtime, action string, 
 	logEvent.
 		Str("session_id", sessionID).
 		Bool("has_process_id", strings.TrimSpace(req.ProcessID) != "").
-		Msg("tool call started")
+		Msg("process tool status requested")
 
 	processID := strings.TrimSpace(req.ProcessID)
 	if processID == "" {
@@ -193,7 +193,7 @@ func handleRead(ctx context.Context, runtime envtypes.Runtime, action string, re
 		Bool("stderr_cursor", req.StderrCursor != nil).
 		Bool("stdout_limit", req.StdoutBytes != nil).
 		Bool("stderr_limit", req.StderrBytes != nil).
-		Msg("tool call started")
+		Msg("process tool output requested")
 
 	processID := strings.TrimSpace(req.ProcessID)
 	if processID == "" {
@@ -267,7 +267,7 @@ func handleStop(
 	logEvent.
 		Str("session_id", sessionID).
 		Bool("has_process_id", strings.TrimSpace(req.ProcessID) != "").
-		Msg("tool call started")
+		Msg("process tool stop requested")
 
 	processID := strings.TrimSpace(req.ProcessID)
 	if processID == "" {
@@ -287,7 +287,7 @@ func handleStop(
 
 func handleList(ctx context.Context, runtime envtypes.Runtime, action string, logEvent anyLogEvent) tools.Result {
 	sessionID := normalizeSessionID(ctx)
-	logEvent.Str("session_id", sessionID).Msg("tool call started")
+	logEvent.Str("session_id", sessionID).Msg("process tool list requested")
 
 	processes := runtime.ListProcesses(sessionID)
 
@@ -296,7 +296,7 @@ func handleList(ctx context.Context, runtime envtypes.Runtime, action string, lo
 		Str("phase", "complete").
 		Str("action", action).
 		Int("processes", len(processes)).
-		Msg("tool call completed")
+		Msg("process tool list returned")
 
 	return encodeProcessOutput(map[string]any{"processes": processes})
 }
@@ -329,7 +329,7 @@ func logProcessComplete(action, status, processID string, stdoutBytes, stderrByt
 		event.Int("stdout_bytes", stdoutBytes).Int("stderr_bytes", stderrBytes)
 	}
 
-	event.Msg("tool call completed")
+	event.Msg("process tool action completed")
 }
 
 func encodeProcessOutput(value any) tools.Result {

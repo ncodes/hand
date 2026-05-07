@@ -153,9 +153,10 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 
 	agentLog.Debug().
 		Str("session_id", session.ID).
+		Str("plan", "load_summary_load_history_hydrate_plan_prepare_instructions").
 		Int("history_offset", tailOffset).
 		Int("history_messages", len(messages)).
-		Msg("turn loaded")
+		Msg("turn context loaded for response generation")
 
 	return nil
 }
@@ -258,6 +259,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 		agentLog.Info().
 			Str("event", "model request dispatch started").
+			Str("plan", "assemble_context_send_model_stream_or_complete_handle_response").
 			Str("provider", t.cfg.Models.Main.Provider).
 			Str("mode", t.cfg.Models.Main.APIMode).
 			Str("model", t.cfg.Models.Main.Name).
@@ -265,7 +267,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			Int("context_messages", len(request.Messages)).
 			Int("tools", len(request.Tools)).
 			Bool("debug_requests", t.cfg.Debug.Requests).
-			Msg("sending model request")
+			Msg("model request dispatch started")
 
 		var resp *models.Response
 		if streamingEnabled {
@@ -293,7 +295,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				Str("model", t.cfg.Models.Main.Name).
 				Bool("stream", streamingEnabled).
 				Str("error_kind", agentModelErrorKind(err)).
-				Msg("model request failed")
+				Msg("model request dispatch failed")
 			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 			return "", err
 		}
@@ -307,7 +309,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				Str("model", t.cfg.Models.Main.Name).
 				Bool("stream", streamingEnabled).
 				Str("error_kind", "missing_response").
-				Msg("model request failed")
+				Msg("model request dispatch failed")
 			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 			return "", err
 		}
@@ -316,6 +318,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 		agentLog.Info().
 			Str("event", "model response received").
+			Str("relationship", "response_to_current_turn_model_request").
 			Str("provider", t.cfg.Models.Main.Provider).
 			Str("mode", t.cfg.Models.Main.APIMode).
 			Str("model", t.cfg.Models.Main.Name).
@@ -347,7 +350,9 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 			traceSession.Record(trace.EvtFinalAssistantResponse, map[string]any{"message": resp.OutputText})
 
-			agentLog.Info().Str("session_id", t.sessionID).Msg("turn completed")
+			agentLog.Info().
+				Str("session_id", t.sessionID).
+				Msg("turn completed")
 
 			return resp.OutputText, nil
 		}
@@ -385,9 +390,10 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 			agentLog.Info().
 				Str("event", "tool invocation started").
+				Str("relationship", "tool_call_from_current_model_response").
 				Str("tool", toolCall.Name).
 				Str("tool_call_id", toolCall.ID).
-				Msg("invoking tool")
+				Msg("tool invocation started")
 
 			traceSession.Record(trace.EvtToolInvocationStarted, toolCall)
 			toolCtx := tools.WithTraceRecorder(tools.WithSessionID(ctx, t.sessionID), traceSession)
@@ -396,6 +402,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 			agentLog.Info().
 				Str("event", "tool invocation completed").
+				Str("relationship", "tool_result_for_current_model_response").
 				Str("tool", toolCall.Name).
 				Str("tool_call_id", toolCall.ID).
 				Int("output_chars", len([]rune(toolMessage.Content))).
@@ -512,6 +519,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 
 	agentLog.Info().
 		Str("event", "summary fallback model request started").
+		Str("plan", "send_summary_fallback_prompt_without_tools").
 		Str("provider", t.cfg.Models.Main.Provider).
 		Str("mode", t.cfg.Models.Main.APIMode).
 		Str("model", t.cfg.Models.Main.Name).

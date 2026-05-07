@@ -462,7 +462,16 @@ func TestDefaultMemoryProvider_SearchWriteDeleteAndObservability(t *testing.T) {
 	require.Equal(t, logger.debug[0], tracer.fields[0])
 	require.Equal(
 		t,
-		map[string]any{"provider": ProviderDefaultMemory, "operation": "search"},
+		map[string]any{
+			"provider":     ProviderDefaultMemory,
+			"operation":    "search",
+			"plan":         "validate_query_search_store_redact_results",
+			"query_chars":  7,
+			"kind_count":   1,
+			"status_count": 1,
+			"limit":        5,
+			"max_chars":    0,
+		},
 		logger.debug[1],
 	)
 	require.Equal(t, logger.debug[1], tracer.fields[1])

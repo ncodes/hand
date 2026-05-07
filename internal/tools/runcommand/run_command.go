@@ -104,7 +104,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Int("env_overrides", len(req.Env)).
 				Bool("shell_mode", len(req.Args) == 0).
 				Int("timeout_seconds", timeout).
-				Msg("tool call started")
+				Msg("command tool started")
 
 			runCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 			defer cancel()
@@ -172,7 +172,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 					Int("stdout_bytes", len(stdout.String())).
 					Int("stderr_bytes", len(stderr.String())).
 					Float64("elapsed_seconds", elapsedSeconds).
-					Msg("tool call completed")
+					Msg("command tool timed out")
 
 				return common.EncodeOutput(runCommandOutput(
 					-1,
@@ -215,7 +215,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Int("stdout_bytes", len(stdout.String())).
 				Int("stderr_bytes", len(stderr.String())).
 				Float64("elapsed_seconds", elapsedSeconds).
-				Msg("tool call completed")
+				Msg("command tool completed")
 
 			return common.EncodeOutput(runCommandOutput(
 				exitCode,

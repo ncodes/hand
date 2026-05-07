@@ -34,7 +34,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Str("tool", "read_file").
 				Str("phase", "start").
 				Str("path", common.NormalizedDisplayPath(req.Path)).
-				Msg("tool call started")
+				Msg("read file tool started")
 
 			resolved, err := runtime.FilePolicy().Resolve(req.Path)
 			if err != nil {
@@ -66,7 +66,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Str("tool", "read_file").
 				Str("phase", "complete").
 				Int("bytes", len(content)).
-				Msg("tool call completed")
+				Msg("read file tool completed")
 
 			return common.EncodeOutput(map[string]any{
 				"path":    common.NormalizedDisplayPath(resolved.Relative),

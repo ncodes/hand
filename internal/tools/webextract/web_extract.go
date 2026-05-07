@@ -129,7 +129,7 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 				Str("format", format).
 				Bool("summarize", req.Summarize).
 				Bool("website_policy_enabled", opts.WebsitePolicy.Enabled).
-				Msg("tool call started")
+				Msg("web extract tool started")
 
 			ctx = webprovider.WithExtractOptions(ctx, webprovider.ExtractOptions{
 				Format:        format,
@@ -187,7 +187,7 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 				Int("result_blocked", stats.ResultBlocked).
 				Int("missing_results", stats.MissingResults).
 				Int("extra_results", stats.ExtraResults).
-				Msg("tool call completed")
+				Msg("web extract tool completed")
 
 			return common.EncodeOutput(map[string]any{"results": results})
 		}),

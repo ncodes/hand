@@ -62,7 +62,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Str("path", common.NormalizedDisplayPath(req.Path)).
 				Int("content_bytes", len(req.Content)).
 				Bool("create_dirs", createDirs).
-				Msg("tool call started")
+				Msg("write file tool started")
 
 			if createDirs {
 				if err := common.MkdirAll(filepath.Dir(resolved.Absolute), 0o755); err != nil {
@@ -98,7 +98,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Str("phase", "complete").
 				Int("bytes_written", len(req.Content)).
 				Bool("created", created).
-				Msg("tool call completed")
+				Msg("write file tool completed")
 
 			return common.EncodeOutput(map[string]any{
 				"path":          common.NormalizedDisplayPath(resolved.Relative),

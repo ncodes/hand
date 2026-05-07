@@ -22,14 +22,14 @@ func Definition() tools.Definition {
 			log.Info().
 				Str("tool", "time").
 				Str("phase", "start").
-				Msg("tool call started")
+				Msg("time tool started")
 
 			value := now().UTC().Format(time.RFC3339)
 
 			log.Info().
 				Str("tool", "time").
 				Str("phase", "complete").
-				Msg("tool call completed")
+				Msg("time tool completed")
 
 			return tools.Result{Output: value}, nil
 		}),

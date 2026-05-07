@@ -51,7 +51,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Str("phase", "start").
 				Int("patch_chars", len([]rune(strings.TrimSpace(req.Patch)))).
 				Int("strip", req.Strip).
-				Msg("tool call started")
+				Msg("patch tool started")
 
 			log.Debug().
 				Str("tool", "patch").
@@ -83,7 +83,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Str("phase", "complete").
 				Int("applied_files", len(applied)).
 				Int("created_files", len(created)).
-				Msg("tool call completed")
+				Msg("patch tool completed")
 
 			return common.EncodeOutput(map[string]any{
 				"applied_files": applied,

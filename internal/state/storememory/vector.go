@@ -211,7 +211,9 @@ func (s *Store) searchMessagesVector(
 	candidateLimit int,
 ) ([]*searchCandidate, error) {
 	req := search.EmbeddingRequest{
-		Model: s.vectors.Model,
+		Model:        s.vectors.Model,
+		Relationship: "query_vector_for_session_message_retrieval",
+		Target:       "session_message_vectors",
 		Inputs: []search.EmbeddingInput{{
 			ID:         "query",
 			Text:       strings.TrimSpace(opts.Query),
@@ -220,8 +222,10 @@ func (s *Store) searchMessagesVector(
 	}
 
 	s.logSearchEvent("query embedding started", id, opts).
+		Str("relationship", "query_vector_for_session_message_retrieval").
+		Str("source_kind", string(search.SourceKindSessionMessage)).
 		Str("embedding_model", req.Model).
-		Msg("session search query embedding started")
+		Msg("session search query embedding started for vector retrieval")
 
 	embedding, err := s.vectors.Provider.Embed(ctx, req)
 	if err != nil {
@@ -237,14 +241,17 @@ func (s *Store) searchMessagesVector(
 
 	s.logSearchEvent("query embedding completed", id, opts).
 		Int("dimensions", embedding.Dimensions).
+		Str("source_kind", string(search.SourceKindSessionMessage)).
 		Str("embedding_model", strings.TrimSpace(embedding.Model)).
-		Msg("session search query embedding completed")
+		Msg("session search query embedding completed for vector retrieval")
 
 	s.logSearchEvent("vector search started", id, opts).
 		Int("limit", candidateLimit).
 		Int("dimensions", embedding.Dimensions).
+		Str("source_kind", string(search.SourceKindSessionMessage)).
+		Str("target", "session_message_vectors").
 		Str("embedding_model", s.vectors.Model).
-		Msg("session search vector retrieval started")
+		Msg("session search vector retrieval started for similar messages")
 
 	result, err := s.vectors.Store.Search(ctx, search.VectorSearchRequest{
 		EmbeddingModel: s.vectors.Model,
@@ -269,7 +276,7 @@ func (s *Store) searchMessagesVector(
 		Int("match_count", len(result.Matches)).
 		Int("limit", candidateLimit).
 		Int("dimensions", embedding.Dimensions).
-		Msg("session search vector retrieval completed")
+		Msg("session search vector retrieval completed for similar messages")
 
 	candidates := s.vectorMatchesToCandidates(id, opts, result.Matches)
 
@@ -539,16 +546,20 @@ func (s *Store) vectorRecordsForMessages(
 		})
 	}
 
-	req := search.EmbeddingRequest{Model: s.vectors.Model, Inputs: embeddingInputs}
+	req := search.EmbeddingRequest{
+		Model:        s.vectors.Model,
+		Relationship: "message_rows_to_session_vector_index",
+		Target:       "session_message_vectors",
+		Inputs:       embeddingInputs,
+	}
 
 	s.logVectorEvent("embedding started").
 		Int("input_count", len(req.Inputs)).
 		Int("message_count", len(messages)).
 		Int("row_count", len(inputs)).
 		Str("embedding_model", strings.TrimSpace(req.Model)).
-		Str("purpose", "index_session_message_rows").
 		Str("source_kind", string(search.SourceKindSessionMessage)).
-		Msg("session vector embedding started")
+		Msg("session vector indexing embedding started for message rows")
 
 	result, err := s.vectors.Provider.Embed(ctx, req)
 	if err != nil {
@@ -567,9 +578,8 @@ func (s *Store) vectorRecordsForMessages(
 		Int("row_count", len(inputs)).
 		Int("dimensions", result.Dimensions).
 		Str("embedding_model", strings.TrimSpace(result.Model)).
-		Str("purpose", "index_session_message_rows").
 		Str("source_kind", string(search.SourceKindSessionMessage)).
-		Msg("session vector embedding completed")
+		Msg("session vector indexing embedding completed for message rows")
 
 	inputByID := make(map[string]search.VectorInput, len(inputs))
 	for _, input := range inputs {
@@ -609,7 +619,8 @@ func (s *Store) upsertVectorRecords(ctx context.Context, records []search.Vector
 		Int("record_count", len(records)).
 		Str("embedding_model", strings.TrimSpace(model)).
 		Int("dimensions", dimensions).
-		Msg("session vector upsert started")
+		Str("target", "session_message_vectors").
+		Msg("session vector index upsert started for message rows")
 
 	if err := s.vectors.Store.Upsert(ctx, records); err != nil {
 		logSafeError(s.logVectorEvent("upsert failed"), err).
@@ -622,7 +633,8 @@ func (s *Store) upsertVectorRecords(ctx context.Context, records []search.Vector
 		Int("record_count", len(records)).
 		Str("embedding_model", strings.TrimSpace(model)).
 		Int("dimensions", dimensions).
-		Msg("session vector upsert completed")
+		Str("target", "session_message_vectors").
+		Msg("session vector index upsert completed for message rows")
 
 	return nil
 }
