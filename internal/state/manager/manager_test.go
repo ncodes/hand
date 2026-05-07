@@ -68,6 +68,14 @@ func TestManager_MemoryOperationsUseMemoryStore(t *testing.T) {
 	require.Len(t, result.Hits, 1)
 	require.Equal(t, item.ID, result.Hits[0].Item.ID)
 
+	reflected := true
+	item, err = manager.PatchMemory(context.Background(), storage.MemoryPatch{
+		ID:        item.ID,
+		Reflected: &reflected,
+	})
+	require.NoError(t, err)
+	require.True(t, item.Reflected)
+
 	sessionResult, err := manager.ListSessionMemories(context.Background(), storage.SessionMemoryQuery{
 		SessionID: storage.DefaultSessionID,
 		Statuses:  []storage.MemoryStatus{storage.MemoryStatusActive},
@@ -93,6 +101,9 @@ func TestManager_MemoryOperationsRequireMemoryStore(t *testing.T) {
 	require.EqualError(t, err, "memory store is not supported")
 
 	_, err = manager.UpsertMemory(context.Background(), storage.MemoryItem{})
+	require.EqualError(t, err, "memory store is not supported")
+
+	_, err = manager.PatchMemory(context.Background(), storage.MemoryPatch{ID: "mem_123"})
 	require.EqualError(t, err, "memory store is not supported")
 
 	err = manager.DeleteMemory(context.Background(), storage.MemoryDeleteRequest{ID: "mem_123"})

@@ -86,12 +86,17 @@ type reflectionModelResponse struct {
 }
 
 type reflectionModelCandidate struct {
-	Kind       string            `json:"kind"`
-	Title      string            `json:"title"`
-	Text       string            `json:"text"`
-	Tags       []string          `json:"tags"`
-	Confidence float64           `json:"confidence"`
-	Metadata   map[string]string `json:"metadata"`
+	Kind       string                         `json:"kind"`
+	Title      string                         `json:"title"`
+	Text       string                         `json:"text"`
+	Tags       []string                       `json:"tags"`
+	Confidence float64                        `json:"confidence"`
+	Metadata   []reflectionModelMetadataEntry `json:"metadata"`
+}
+
+type reflectionModelMetadataEntry struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 func reflectionModelPayload(req ReflectionGenerationRequest) reflectionModelRequest {
@@ -138,7 +143,7 @@ func parseReflectionModelResponse(resp *models.Response) (ReflectionGenerationRe
 			Title:      strings.TrimSpace(candidate.Title),
 			Text:       strings.TrimSpace(candidate.Text),
 			Tags:       append([]string(nil), candidate.Tags...),
-			Metadata:   cloneMetadata(candidate.Metadata),
+			Metadata:   reflectionMetadataEntries(candidate.Metadata),
 			Confidence: candidate.Confidence,
 		})
 	}
@@ -167,7 +172,7 @@ func reflectionInstructions() string {
 		"Every candidate must remain candidate-only; do not request activation, deletion, or supersession.",
 		"Prefer durable preferences, corrections, decisions, recurring procedures, and high-signal continuity facts.",
 		"Reject low-importance observations, execution details, raw transcript snippets, or temporary task state by omitting them.",
-		"Use metadata memory_importance and memory_granularity; avoid low importance and execution_detail granularity.",
+		"Use metadata key/value entries for memory_importance and memory_granularity; avoid low importance and execution_detail granularity.",
 	}, "\n")
 }
 
@@ -192,8 +197,16 @@ func reflectionStructuredOutput() *models.StructuredOutput {
 							"tags":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 							"confidence": map[string]any{"type": "number"},
 							"metadata": map[string]any{
-								"type":                 "object",
-								"additionalProperties": map[string]any{"type": "string"},
+								"type": "array",
+								"items": map[string]any{
+									"type":                 "object",
+									"additionalProperties": false,
+									"properties": map[string]any{
+										"key":   map[string]any{"type": "string"},
+										"value": map[string]any{"type": "string"},
+									},
+									"required": []string{"key", "value"},
+								},
 							},
 						},
 						"required": []string{"kind", "title", "text", "tags", "confidence", "metadata"},
@@ -203,6 +216,25 @@ func reflectionStructuredOutput() *models.StructuredOutput {
 			"required": []string{"candidates"},
 		},
 	}
+}
+
+func reflectionMetadataEntries(entries []reflectionModelMetadataEntry) map[string]string {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	metadata := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		key := strings.TrimSpace(entry.Key)
+		if key != "" {
+			metadata[key] = strings.TrimSpace(entry.Value)
+		}
+	}
+	if len(metadata) == 0 {
+		return nil
+	}
+
+	return metadata
 }
 
 func cloneMetadata(metadata map[string]string) map[string]string {

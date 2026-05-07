@@ -121,6 +121,7 @@ func TestMemoryProvider_CapabilitiesConfigureObservabilityAndClose(t *testing.T)
 	require.NoError(t, provider.ConfigureObservability(fakeObservability{tracer: tracer}))
 	_, err = provider.Search(context.Background(), SearchQuery{})
 	require.NoError(t, err)
+	require.Contains(t, tracer.events, "memory.search.started")
 	require.Contains(t, tracer.events, "memory.search.completed")
 	require.NoError(t, provider.Close())
 }
@@ -209,13 +210,16 @@ func TestMemoryProvider_StartBackground(t *testing.T) {
 	provider := defaultMemoryTestProvider(t, Options{})
 	require.NoError(t, provider.StartBackground(context.Background()))
 	require.NoError(t, provider.StartBackground(nil))
-	require.Len(t, provider.backgroundStarters(), 1)
+	require.Len(t, provider.backgroundStarters(), 3)
 
 	var missing *MemoryProvider
 	require.EqualError(t, missing.StartBackground(context.Background()), "memory provider is required")
 
 	provider = &MemoryProvider{episodicBackground: EpisodicBackgroundOptions{Enabled: true}}
 	require.EqualError(t, provider.StartBackground(context.Background()), "memory extraction is not configured")
+
+	provider = &MemoryProvider{reflectionBackground: ReflectionBackgroundOptions{Enabled: true}}
+	require.EqualError(t, provider.StartBackground(context.Background()), "memory reflection is not configured")
 }
 
 func TestMemoryProvider_StartBackgroundRunsEpisodicLoop(t *testing.T) {
@@ -257,6 +261,103 @@ func TestMemoryProvider_StartBackgroundRunsEpisodicLoop(t *testing.T) {
 	doneCtx, doneCancel := context.WithCancel(context.Background())
 	doneCancel()
 	provider.runEpisodicRecordingBackgroundLoop(doneCtx, EpisodicBackgroundOptions{Interval: time.Nanosecond})
+}
+
+func TestMemoryProvider_StartBackgroundRunsPromotionLoop(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	provider := defaultMemoryTestProvider(t, Options{
+		PromotionBackground: PromotionBackgroundOptions{
+			Enabled:  true,
+			Interval: time.Nanosecond,
+			Limit:    2,
+		},
+	})
+	_, err := provider.Upsert(ctx, lifecycleCandidate("mem_candidate", KindSemantic, "Use focused tests."))
+	require.NoError(t, err)
+
+	require.NoError(t, provider.StartBackground(ctx))
+	require.Eventually(t, func() bool {
+		result, err := provider.Search(context.Background(), SearchQuery{
+			IDs: []string{"mem_candidate"},
+		})
+		if err != nil || len(result.Hits) != 1 {
+			return false
+		}
+		if result.Hits[0].Item.Status == StatusActive {
+			cancel()
+			return true
+		}
+		return false
+	}, time.Second, time.Millisecond)
+
+	doneCtx, doneCancel := context.WithCancel(context.Background())
+	doneCancel()
+	provider.runPromotionBackgroundLoop(doneCtx, PromotionBackgroundOptions{Interval: time.Nanosecond})
+}
+
+func TestMemoryProvider_StartBackgroundRunsReflectionLoop(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	store := storagememory.NewStore()
+	manager := newMemoryTestManager(t, store)
+	require.NoError(t, manager.Save(ctx, statecore.Session{ID: statecore.DefaultSessionID}))
+
+	generator := &fakeReflectionGenerator{result: ReflectionGenerationResult{Items: []MemoryItem{{
+		Kind:       KindSemantic,
+		Title:      "Background reflection",
+		Text:       "The user prefers background reflection to run independently.",
+		Confidence: 0.9,
+		Metadata: map[string]string{
+			"memory_importance":  "high",
+			"memory_granularity": "summary",
+		},
+	}}}}
+	provider, err := NewFromManager(manager, Options{
+		ReflectionGenerator: generator,
+		ReflectionBackground: ReflectionBackgroundOptions{
+			Enabled:      true,
+			Interval:     time.Nanosecond,
+			Limit:        4,
+			RelatedLimit: 2,
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = provider.Upsert(ctx, MemoryItem{
+		ID:     "mem_episode_reflect_loop",
+		Kind:   KindEpisodic,
+		Status: StatusActive,
+		Text:   "Reflection should process this episodic memory.",
+		SourceLinks: []SourceLink{{
+			SessionID: statecore.DefaultSessionID,
+			Offsets:   []int{1},
+		}},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, provider.StartBackground(ctx))
+	require.Eventually(t, func() bool {
+		if len(generator.requests) == 0 {
+			return false
+		}
+		result, err := provider.Search(context.Background(), SearchQuery{
+			Tags:     []string{"reflection-source-mem_episode_reflect_loop"},
+			Statuses: []Status{StatusCandidate},
+		})
+		if err != nil || len(result.Hits) != 1 {
+			return false
+		}
+		cancel()
+		return true
+	}, time.Second, time.Millisecond)
+	require.Equal(t, 4, generator.requests[0].Limit)
+
+	doneCtx, doneCancel := context.WithCancel(context.Background())
+	doneCancel()
+	provider.runReflectionBackgroundLoop(doneCtx, ReflectionBackgroundOptions{Interval: time.Nanosecond})
 }
 
 func episodicModelClientStub() *memoryModelClientStub {
@@ -351,6 +452,7 @@ func TestDefaultMemoryProvider_SearchWriteDeleteAndObservability(t *testing.T) {
 	require.Greater(t, result.Hits[0].Score, 0.0)
 	require.Equal(t, 1, guardrails.redactCalls)
 	require.NotEmpty(t, logger.debug)
+	require.Contains(t, tracer.events, "memory.search.started")
 	require.Contains(t, tracer.events, "memory.search.completed")
 	require.Equal(
 		t,
@@ -360,13 +462,19 @@ func TestDefaultMemoryProvider_SearchWriteDeleteAndObservability(t *testing.T) {
 	require.Equal(t, logger.debug[0], tracer.fields[0])
 	require.Equal(
 		t,
-		map[string]any{"provider": ProviderDefaultMemory, "operation": "search", "result_count": 1},
+		map[string]any{"provider": ProviderDefaultMemory, "operation": "search"},
 		logger.debug[1],
 	)
 	require.Equal(t, logger.debug[1], tracer.fields[1])
+	require.Equal(
+		t,
+		map[string]any{"provider": ProviderDefaultMemory, "operation": "search", "result_count": 1},
+		logger.debug[2],
+	)
+	require.Equal(t, logger.debug[2], tracer.fields[2])
 
 	require.NoError(t, provider.Delete(context.Background(), DeleteRequest{ID: item.ID}))
-	require.NoError(t, provider.Delete(context.Background(), DeleteRequest{ID: "missing"}))
+	require.EqualError(t, provider.Delete(context.Background(), DeleteRequest{ID: "missing"}), "memory item not found")
 
 	result, err = provider.Search(context.Background(), SearchQuery{Text: "focused"})
 	require.NoError(t, err)
@@ -376,6 +484,8 @@ func TestDefaultMemoryProvider_SearchWriteDeleteAndObservability(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.Hits, 1)
 	require.Equal(t, StatusDeleted, result.Hits[0].Item.Status)
+	require.Equal(t, "delete", result.Hits[0].Item.Metadata[lifecycleMetadataAction])
+	require.Equal(t, string(StatusActive), result.Hits[0].Item.Metadata[lifecycleMetadataPreviousStatus])
 }
 
 func TestDefaultMemoryProvider_SearchFiltersStatusesTagsKindsAndText(t *testing.T) {
@@ -597,7 +707,14 @@ func TestMemoryProvider_PropagatesManagerErrors(t *testing.T) {
 	}})
 	require.ErrorIs(t, err, managerErr)
 
-	provider = &MemoryProvider{manager: fakeMemoryManager{deleteErr: managerErr}}
+	provider = &MemoryProvider{manager: fakeMemoryManager{searchErr: managerErr}}
+	err = provider.Delete(context.Background(), DeleteRequest{ID: "mem_123"})
+	require.ErrorIs(t, err, managerErr)
+
+	provider = &MemoryProvider{manager: fakeMemoryManager{
+		searchResult: SearchResult{Hits: []SearchHit{{Item: MemoryItem{ID: "mem_123", Status: StatusActive}}}},
+		upsertErr:    managerErr,
+	}}
 	err = provider.Delete(context.Background(), DeleteRequest{ID: "mem_123"})
 	require.ErrorIs(t, err, managerErr)
 }

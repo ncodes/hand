@@ -84,15 +84,15 @@ func TestService_ExtractWritesSourceLinkedEpisode(t *testing.T) {
 
 	result, err := service.Extract(ctx, Request{
 		SessionID:      storage.DefaultSessionID,
-		WindowSize:     2,
+		WindowSize:     3,
 		MaxWindowChars: 1000,
 		Trace:          recorder,
 	})
 
 	require.NoError(t, err)
 	require.Equal(t, storage.DefaultSessionID, result.SessionID)
-	require.Equal(t, 2, len(result.Windows))
-	require.Equal(t, 2, result.WriteCount)
+	require.Equal(t, 1, len(result.Windows))
+	require.Equal(t, 1, result.WriteCount)
 	require.Equal(t, 3, result.MessageCount)
 	require.Contains(t, traceEventNames(recorder), trace.EvtMemoryExtractionStarted)
 	require.Contains(t, traceEventNames(recorder), trace.EvtMemoryExtractionWindowLoaded)
@@ -108,7 +108,7 @@ func TestService_ExtractWritesSourceLinkedEpisode(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, memories.Hits)
-	require.Len(t, memories.Hits, 2)
+	require.Len(t, memories.Hits, 1)
 	require.Equal(t, storage.MemoryKindEpisodic, memories.Hits[0].Item.Kind)
 	require.Equal(t, storage.MemoryStatusCandidate, memories.Hits[0].Item.Status)
 	require.Equal(t, storage.DefaultSessionID, memories.Hits[0].Item.SourceLinks[0].SessionID)
@@ -239,6 +239,63 @@ func TestService_ExtractSkipsDuplicateSourceRange(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, memories.Hits, 1)
+}
+
+func TestService_ExtractRejectsDuplicateEpisodicMemoryAcrossOverlappingWindows(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	manager := testManager(t, store)
+	provider := testProvider(t, store)
+	recorder := &recordingTrace{}
+
+	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
+	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{
+		{ID: 1, Role: handmsg.RoleUser, Content: "Always prefer concise commit messages."},
+		{ID: 2, Role: handmsg.RoleAssistant, Content: "I will keep commit messages concise."},
+	}))
+
+	candidates := []episodeCandidate{{
+		Kind:       episodeKindUserCorrection,
+		Title:      "User correction or preference",
+		Text:       "User correction or preference: prefer concise commit messages.",
+		Confidence: 0.9,
+		Metadata:   map[string]string{"memory_importance": "high", "memory_granularity": "episode"},
+	}}
+	service := newTestServiceWithCandidates(t, manager, provider, candidates)
+
+	first, err := service.Extract(ctx, Request{
+		SessionID:      storage.DefaultSessionID,
+		OffsetStart:    intPtr(0),
+		OffsetEnd:      intPtr(2),
+		WindowSize:     2,
+		MaxWindowChars: 1000,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, first.WriteCount)
+	require.Equal(t, 0, first.SkipCount)
+
+	second, err := service.Extract(ctx, Request{
+		SessionID:      storage.DefaultSessionID,
+		OffsetStart:    intPtr(0),
+		OffsetEnd:      intPtr(1),
+		WindowSize:     1,
+		MaxWindowChars: 1000,
+		Trace:          recorder,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 0, second.WriteCount)
+	require.Equal(t, 1, second.SkipCount)
+	require.Contains(t, tracePayloadsFor(t, recorder, trace.EvtMemoryExtractionCandidateRejected), "duplicate_episodic_memory")
+
+	memories, err := provider.Search(ctx, storage.MemorySearchQuery{
+		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
+		Statuses: []storage.MemoryStatus{storage.MemoryStatusCandidate},
+		Text:     "concise commit messages",
+		Limit:    10,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, len(memories.Hits))
+	require.Equal(t, first.Windows[0].MemoryIDs, []string{memories.Hits[0].Item.ID})
 }
 
 func TestService_ExtractChecksDuplicateBySourceRangeTag(t *testing.T) {

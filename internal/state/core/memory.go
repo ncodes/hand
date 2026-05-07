@@ -37,18 +37,33 @@ type MemorySourceLink struct {
 }
 
 type MemoryItem struct {
-	ID          string
-	Kind        MemoryKind
-	Status      MemoryStatus
-	Title       string
-	Text        string
-	Tags        []string
-	Metadata    map[string]string
-	SourceLinks []MemorySourceLink
-	Confidence  float64
-	Reflected   bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID                   string
+	Kind                 MemoryKind
+	Status               MemoryStatus
+	Title                string
+	Text                 string
+	Tags                 []string
+	Metadata             map[string]string
+	SourceLinks          []MemorySourceLink
+	Confidence           float64
+	Reflected            bool
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	PromotionEvaluatedAt time.Time
+}
+
+type MemoryPatch struct {
+	ID                   string
+	Kind                 *MemoryKind
+	Status               *MemoryStatus
+	Title                *string
+	Text                 *string
+	Tags                 *[]string
+	Metadata             map[string]string
+	SourceLinks          *[]MemorySourceLink
+	Confidence           *float64
+	Reflected            *bool
+	PromotionEvaluatedAt *time.Time
 }
 
 func (item MemoryItem) GuardrailSource() string {
@@ -59,15 +74,18 @@ func (item MemoryItem) GuardrailSource() string {
 }
 
 type MemorySearchQuery struct {
-	Text      string
-	SessionID string
-	IDs       []string
-	Kinds     []MemoryKind
-	Statuses  []MemoryStatus
-	Tags      []string
-	Limit     int
-	MaxChars  int
-	Reflected *bool
+	Text                     string
+	SessionID                string
+	IDs                      []string
+	Kinds                    []MemoryKind
+	Statuses                 []MemoryStatus
+	Tags                     []string
+	Limit                    int
+	MaxChars                 int
+	Reflected                *bool
+	PromotionEvaluated       *bool
+	PromotionEvaluatedBefore time.Time
+	PromotionEvaluatedAfter  time.Time
 }
 
 type SessionMemoryQuery struct {
@@ -99,6 +117,7 @@ type MemoryStore interface {
 	SearchMemory(context.Context, MemorySearchQuery) (MemorySearchResult, error)
 	ListSessionMemories(context.Context, SessionMemoryQuery) (SessionMemoriesResult, error)
 	UpsertMemory(context.Context, MemoryItem) (MemoryItem, error)
+	PatchMemory(context.Context, MemoryPatch) (MemoryItem, error)
 	DeleteMemory(context.Context, MemoryDeleteRequest) error
 }
 
@@ -119,6 +138,49 @@ func (item MemoryItem) Clone() MemoryItem {
 		item.SourceLinks = links
 	}
 	return item
+}
+
+func ApplyMemoryPatch(item MemoryItem, patch MemoryPatch, updatedAt time.Time) MemoryItem {
+	if patch.Kind != nil {
+		item.Kind = *patch.Kind
+	}
+	if patch.Status != nil {
+		item.Status = *patch.Status
+	}
+	if patch.Title != nil {
+		item.Title = *patch.Title
+	}
+	if patch.Text != nil {
+		item.Text = *patch.Text
+	}
+	if patch.Tags != nil {
+		item.Tags = append([]string(nil), (*patch.Tags)...)
+	}
+	if len(patch.Metadata) > 0 {
+		if item.Metadata == nil {
+			item.Metadata = make(map[string]string, len(patch.Metadata))
+		}
+		for key, value := range patch.Metadata {
+			if key = strings.TrimSpace(key); key != "" {
+				item.Metadata[key] = value
+			}
+		}
+	}
+	if patch.SourceLinks != nil {
+		item.SourceLinks = append([]MemorySourceLink(nil), (*patch.SourceLinks)...)
+	}
+	if patch.Confidence != nil {
+		item.Confidence = *patch.Confidence
+	}
+	if patch.Reflected != nil {
+		item.Reflected = *patch.Reflected
+	}
+	if patch.PromotionEvaluatedAt != nil {
+		item.PromotionEvaluatedAt = patch.PromotionEvaluatedAt.UTC()
+	}
+	item.UpdatedAt = updatedAt.UTC()
+
+	return item.Clone()
 }
 
 func NormalizeMemoryTags(tags []string) []string {
@@ -179,6 +241,22 @@ func MemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
 	}
 	if query.Reflected != nil && item.Reflected != *query.Reflected {
 		return false
+	}
+	if query.PromotionEvaluated != nil {
+		evaluated := !item.PromotionEvaluatedAt.IsZero()
+		if evaluated != *query.PromotionEvaluated {
+			return false
+		}
+	}
+	if !query.PromotionEvaluatedBefore.IsZero() {
+		if item.PromotionEvaluatedAt.IsZero() || !item.PromotionEvaluatedAt.Before(query.PromotionEvaluatedBefore) {
+			return false
+		}
+	}
+	if !query.PromotionEvaluatedAfter.IsZero() {
+		if item.PromotionEvaluatedAt.IsZero() || !item.PromotionEvaluatedAt.After(query.PromotionEvaluatedAfter) {
+			return false
+		}
 	}
 
 	text := strings.TrimSpace(strings.ToLower(query.Text))

@@ -254,6 +254,13 @@ func (s memorySearchStore) UpsertMemory(
 	return storage.MemoryItem{}, nil
 }
 
+func (s memorySearchStore) PatchMemory(
+	context.Context,
+	storage.MemoryPatch,
+) (storage.MemoryItem, error) {
+	return storage.MemoryItem{}, nil
+}
+
 func (s memorySearchStore) DeleteMemory(
 	context.Context,
 	storage.MemoryDeleteRequest,
@@ -278,6 +285,13 @@ func (s memorySearchErrorStore) ListSessionMemories(
 func (s memorySearchErrorStore) UpsertMemory(
 	context.Context,
 	storage.MemoryItem,
+) (storage.MemoryItem, error) {
+	return storage.MemoryItem{}, nil
+}
+
+func (s memorySearchErrorStore) PatchMemory(
+	context.Context,
+	storage.MemoryPatch,
 ) (storage.MemoryItem, error) {
 	return storage.MemoryItem{}, nil
 }

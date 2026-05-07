@@ -18,19 +18,20 @@ import (
 const memorySearchTable = "memory_items_fts"
 
 type memoryItemModel struct {
-	ID              string    `gorm:"column:id;primaryKey"`
-	SourceSessionID string    `gorm:"column:source_session_id;not null;default:'';index:idx_memory_items_source_session_id"`
-	Kind            string    `gorm:"column:kind;not null;default:'';index:idx_memory_items_kind;index:idx_memory_items_kind_status,priority:1"`
-	Status          string    `gorm:"column:status;not null;index:idx_memory_items_status;index:idx_memory_items_kind_status,priority:2"`
-	Title           string    `gorm:"column:title;not null;default:''"`
-	Text            string    `gorm:"column:text;not null;default:''"`
-	TagsJSON        string    `gorm:"column:tags_json;type:TEXT;not null;default:'null'"`
-	MetadataJSON    string    `gorm:"column:metadata_json;type:TEXT;not null;default:'null'"`
-	SourceLinksJSON string    `gorm:"column:source_links_json;type:TEXT;not null;default:'null'"`
-	Confidence      float64   `gorm:"column:confidence;not null;default:0"`
-	Reflected       bool      `gorm:"column:reflected;not null;default:false;index:idx_memory_items_reflected"`
-	CreatedAt       time.Time `gorm:"column:created_at;autoCreateTime:false"`
-	UpdatedAt       time.Time `gorm:"column:updated_at;autoUpdateTime:false;index:idx_memory_items_updated_at"`
+	ID                   string     `gorm:"column:id;primaryKey"`
+	SourceSessionID      string     `gorm:"column:source_session_id;not null;default:'';index:idx_memory_items_source_session_id"`
+	Kind                 string     `gorm:"column:kind;not null;default:'';index:idx_memory_items_kind;index:idx_memory_items_kind_status,priority:1"`
+	Status               string     `gorm:"column:status;not null;index:idx_memory_items_status;index:idx_memory_items_kind_status,priority:2"`
+	Title                string     `gorm:"column:title;not null;default:''"`
+	Text                 string     `gorm:"column:text;not null;default:''"`
+	TagsJSON             string     `gorm:"column:tags_json;type:TEXT;not null;default:'null'"`
+	MetadataJSON         string     `gorm:"column:metadata_json;type:TEXT;not null;default:'null'"`
+	SourceLinksJSON      string     `gorm:"column:source_links_json;type:TEXT;not null;default:'null'"`
+	Confidence           float64    `gorm:"column:confidence;not null;default:0"`
+	Reflected            bool       `gorm:"column:reflected;not null;default:false;index:idx_memory_items_reflected"`
+	CreatedAt            time.Time  `gorm:"column:created_at;autoCreateTime:false"`
+	UpdatedAt            time.Time  `gorm:"column:updated_at;autoUpdateTime:false;index:idx_memory_items_updated_at"`
+	PromotionEvaluatedAt *time.Time `gorm:"column:promotion_evaluated_at;index:idx_memory_items_promotion_evaluated_at"`
 }
 
 func (memoryItemModel) TableName() string {
@@ -47,37 +48,39 @@ func (memoryItemTagModel) TableName() string {
 }
 
 type memorySearchRecord struct {
-	ID              string    `gorm:"column:id"`
-	SourceSessionID string    `gorm:"column:source_session_id"`
-	Kind            string    `gorm:"column:kind"`
-	Status          string    `gorm:"column:status"`
-	Title           string    `gorm:"column:title"`
-	Text            string    `gorm:"column:text"`
-	TagsJSON        string    `gorm:"column:tags_json"`
-	MetadataJSON    string    `gorm:"column:metadata_json"`
-	SourceLinksJSON string    `gorm:"column:source_links_json"`
-	Confidence      float64   `gorm:"column:confidence"`
-	Reflected       bool      `gorm:"column:reflected"`
-	CreatedAt       time.Time `gorm:"column:created_at"`
-	UpdatedAt       time.Time `gorm:"column:updated_at"`
-	Score           float64   `gorm:"column:score"`
+	ID                   string     `gorm:"column:id"`
+	SourceSessionID      string     `gorm:"column:source_session_id"`
+	Kind                 string     `gorm:"column:kind"`
+	Status               string     `gorm:"column:status"`
+	Title                string     `gorm:"column:title"`
+	Text                 string     `gorm:"column:text"`
+	TagsJSON             string     `gorm:"column:tags_json"`
+	MetadataJSON         string     `gorm:"column:metadata_json"`
+	SourceLinksJSON      string     `gorm:"column:source_links_json"`
+	Confidence           float64    `gorm:"column:confidence"`
+	Reflected            bool       `gorm:"column:reflected"`
+	CreatedAt            time.Time  `gorm:"column:created_at"`
+	UpdatedAt            time.Time  `gorm:"column:updated_at"`
+	PromotionEvaluatedAt *time.Time `gorm:"column:promotion_evaluated_at"`
+	Score                float64    `gorm:"column:score"`
 }
 
 func (record memorySearchRecord) model() memoryItemModel {
 	return memoryItemModel{
-		ID:              record.ID,
-		SourceSessionID: record.SourceSessionID,
-		Kind:            record.Kind,
-		Status:          record.Status,
-		Title:           record.Title,
-		Text:            record.Text,
-		TagsJSON:        record.TagsJSON,
-		MetadataJSON:    record.MetadataJSON,
-		SourceLinksJSON: record.SourceLinksJSON,
-		Confidence:      record.Confidence,
-		Reflected:       record.Reflected,
-		CreatedAt:       record.CreatedAt,
-		UpdatedAt:       record.UpdatedAt,
+		ID:                   record.ID,
+		SourceSessionID:      record.SourceSessionID,
+		Kind:                 record.Kind,
+		Status:               record.Status,
+		Title:                record.Title,
+		Text:                 record.Text,
+		TagsJSON:             record.TagsJSON,
+		MetadataJSON:         record.MetadataJSON,
+		SourceLinksJSON:      record.SourceLinksJSON,
+		Confidence:           record.Confidence,
+		Reflected:            record.Reflected,
+		CreatedAt:            record.CreatedAt,
+		UpdatedAt:            record.UpdatedAt,
+		PromotionEvaluatedAt: record.PromotionEvaluatedAt,
 	}
 }
 
@@ -221,11 +224,76 @@ func (s *Store) UpsertMemory(ctx context.Context, item statememory.MemoryItem) (
 		return statememory.MemoryItem{}, err
 	}
 
-	if err := s.handleVectorStoreError(s.indexMemoryVector(ctx, item)); err != nil {
+	if err := s.handleVectorStoreError(s.syncMemoryVector(ctx, item)); err != nil {
 		return statememory.MemoryItem{}, err
 	}
 
 	return item.Clone(), nil
+}
+
+func (s *Store) PatchMemory(ctx context.Context, patch statememory.MemoryPatch) (statememory.MemoryItem, error) {
+	if s == nil || s.db == nil {
+		return statememory.MemoryItem{}, errors.New("store is required")
+	}
+
+	patch.ID = strings.TrimSpace(patch.ID)
+	if patch.ID == "" {
+		return statememory.MemoryItem{}, errors.New("memory id is required")
+	}
+
+	now := time.Now().UTC()
+	var item statememory.MemoryItem
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var record memoryItemModel
+		if err := tx.First(&record, "id = ?", patch.ID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("memory item not found")
+			}
+			return err
+		}
+
+		current, err := memoryModelToItem(record)
+		if err != nil {
+			return err
+		}
+		item = statememory.ApplyMemoryPatch(current, patch, now)
+		updates := memoryPatchUpdates(patch, item)
+		if err := tx.Model(&memoryItemModel{}).Where("id = ?", item.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+		if patch.Tags != nil {
+			if err := tx.Where("memory_id = ?", item.ID).Delete(&memoryItemTagModel{}).Error; err != nil {
+				return err
+			}
+			for _, tag := range statememory.NormalizeMemoryTags(item.Tags) {
+				if err := tx.Create(&memoryItemTagModel{MemoryID: item.ID, Tag: tag}).Error; err != nil {
+					return err
+				}
+			}
+		}
+		if memoryPatchNeedsSearchRow(patch) {
+			if err := replaceMemorySearchRow(tx, item); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return statememory.MemoryItem{}, err
+	}
+
+	if err := s.handleVectorStoreError(s.syncMemoryVector(ctx, item)); err != nil {
+		return statememory.MemoryItem{}, err
+	}
+
+	return item.Clone(), nil
+}
+
+func (s *Store) syncMemoryVector(ctx context.Context, item statememory.MemoryItem) error {
+	if item.Status == statememory.MemoryStatusDeleted {
+		return s.deleteMemoryVector(ctx, item.ID)
+	}
+
+	return s.indexMemoryVector(ctx, item)
 }
 
 func (s *Store) DeleteMemory(ctx context.Context, req statememory.MemoryDeleteRequest) error {
@@ -296,6 +364,7 @@ func (s *Store) searchMemoryRecords(
 	if query.Reflected != nil {
 		db = db.Where("reflected = ?", *query.Reflected)
 	}
+	db = applyPromotionEvaluationFilters(db, query, "")
 
 	var records []memoryItemModel
 	if err := db.Order("updated_at DESC").Order("id ASC").Limit(limit).Find(&records).Error; err != nil {
@@ -347,6 +416,7 @@ SELECT
 	m.reflected,
 	m.created_at,
 	m.updated_at,
+	m.promotion_evaluated_at,
 	-hits.rank AS score
 FROM memory_items AS m
 JOIN fts_hits AS hits ON hits.memory_id = m.id
@@ -387,6 +457,7 @@ WHERE 1 = 1`)
 	AND m.reflected = ?`)
 		args = append(args, *query.Reflected)
 	}
+	appendPromotionEvaluationSQL(&sql, &args, query, "m.")
 	sql.WriteString(`
 ORDER BY hits.rank ASC, m.updated_at DESC, m.id ASC
 LIMIT ?`)
@@ -413,6 +484,57 @@ func ensureMemoryStorage(db *gorm.DB) error {
 	}
 
 	return nil
+}
+
+func applyPromotionEvaluationFilters(
+	db *gorm.DB,
+	query statememory.MemorySearchQuery,
+	prefix string,
+) *gorm.DB {
+	column := prefix + "promotion_evaluated_at"
+	if query.PromotionEvaluated != nil {
+		if *query.PromotionEvaluated {
+			db = db.Where(column + " IS NOT NULL")
+		} else {
+			db = db.Where(column + " IS NULL")
+		}
+	}
+	if !query.PromotionEvaluatedBefore.IsZero() {
+		db = db.Where(column+" IS NOT NULL AND "+column+" < ?", query.PromotionEvaluatedBefore.UTC())
+	}
+	if !query.PromotionEvaluatedAfter.IsZero() {
+		db = db.Where(column+" IS NOT NULL AND "+column+" > ?", query.PromotionEvaluatedAfter.UTC())
+	}
+
+	return db
+}
+
+func appendPromotionEvaluationSQL(
+	sql *strings.Builder,
+	args *[]any,
+	query statememory.MemorySearchQuery,
+	prefix string,
+) {
+	column := prefix + "promotion_evaluated_at"
+	if query.PromotionEvaluated != nil {
+		if *query.PromotionEvaluated {
+			sql.WriteString(`
+	AND ` + column + ` IS NOT NULL`)
+		} else {
+			sql.WriteString(`
+	AND ` + column + ` IS NULL`)
+		}
+	}
+	if !query.PromotionEvaluatedBefore.IsZero() {
+		sql.WriteString(`
+	AND ` + column + ` IS NOT NULL AND ` + column + ` < ?`)
+		*args = append(*args, query.PromotionEvaluatedBefore.UTC())
+	}
+	if !query.PromotionEvaluatedAfter.IsZero() {
+		sql.WriteString(`
+	AND ` + column + ` IS NOT NULL AND ` + column + ` > ?`)
+		*args = append(*args, query.PromotionEvaluatedAfter.UTC())
+	}
 }
 
 func ensureMemorySearchIndex(db *gorm.DB) error {
@@ -442,21 +564,78 @@ func ensureMemorySearchIndex(db *gorm.DB) error {
 }
 
 func itemToMemoryModel(item statememory.MemoryItem) memoryItemModel {
+	promotionEvaluatedAt := memoryPromotionEvaluatedAt(item)
 	return memoryItemModel{
-		ID:              item.ID,
-		SourceSessionID: memorySourceSessionID(item),
-		Kind:            string(item.Kind),
-		Status:          string(item.Status),
-		Title:           item.Title,
-		Text:            item.Text,
-		TagsJSON:        toJSONString(item.Tags),
-		MetadataJSON:    toJSONString(item.Metadata),
-		SourceLinksJSON: toJSONString(item.SourceLinks),
-		Confidence:      item.Confidence,
-		Reflected:       item.Reflected,
-		CreatedAt:       item.CreatedAt,
-		UpdatedAt:       item.UpdatedAt,
+		ID:                   item.ID,
+		SourceSessionID:      memorySourceSessionID(item),
+		Kind:                 string(item.Kind),
+		Status:               string(item.Status),
+		Title:                item.Title,
+		Text:                 item.Text,
+		TagsJSON:             toJSONString(item.Tags),
+		MetadataJSON:         toJSONString(item.Metadata),
+		SourceLinksJSON:      toJSONString(item.SourceLinks),
+		Confidence:           item.Confidence,
+		Reflected:            item.Reflected,
+		CreatedAt:            item.CreatedAt,
+		UpdatedAt:            item.UpdatedAt,
+		PromotionEvaluatedAt: promotionEvaluatedAt,
 	}
+}
+
+func memoryPromotionEvaluatedAt(item statememory.MemoryItem) *time.Time {
+	if item.PromotionEvaluatedAt.IsZero() {
+		return nil
+	}
+
+	evaluatedAt := item.PromotionEvaluatedAt.UTC()
+	return &evaluatedAt
+}
+
+func memoryPatchUpdates(patch statememory.MemoryPatch, item statememory.MemoryItem) map[string]any {
+	updates := map[string]any{"updated_at": item.UpdatedAt}
+	if patch.Kind != nil {
+		updates["kind"] = string(item.Kind)
+	}
+	if patch.Status != nil {
+		updates["status"] = string(item.Status)
+	}
+	if patch.Title != nil {
+		updates["title"] = item.Title
+	}
+	if patch.Text != nil {
+		updates["text"] = item.Text
+	}
+	if patch.Tags != nil {
+		updates["tags_json"] = toJSONString(item.Tags)
+	}
+	if len(patch.Metadata) > 0 {
+		updates["metadata_json"] = toJSONString(item.Metadata)
+		updates["source_session_id"] = memorySourceSessionID(item)
+	}
+	if patch.SourceLinks != nil {
+		updates["source_links_json"] = toJSONString(item.SourceLinks)
+		updates["source_session_id"] = memorySourceSessionID(item)
+	}
+	if patch.Confidence != nil {
+		updates["confidence"] = item.Confidence
+	}
+	if patch.Reflected != nil {
+		updates["reflected"] = item.Reflected
+	}
+	if patch.PromotionEvaluatedAt != nil {
+		updates["promotion_evaluated_at"] = memoryPromotionEvaluatedAt(item)
+	}
+
+	return updates
+}
+
+func memoryPatchNeedsSearchRow(patch statememory.MemoryPatch) bool {
+	return patch.Kind != nil ||
+		patch.Title != nil ||
+		patch.Text != nil ||
+		patch.Tags != nil ||
+		len(patch.Metadata) > 0
 }
 
 func memorySourceSessionID(item statememory.MemoryItem) string {
@@ -485,6 +664,9 @@ func memoryModelToItem(record memoryItemModel) (statememory.MemoryItem, error) {
 		CreatedAt:  record.CreatedAt.UTC(),
 		UpdatedAt:  record.UpdatedAt.UTC(),
 	}
+	if record.PromotionEvaluatedAt != nil {
+		item.PromotionEvaluatedAt = record.PromotionEvaluatedAt.UTC()
+	}
 	if err := fromJSONString(record.TagsJSON, &item.Tags); err != nil {
 		return statememory.MemoryItem{}, err
 	}
@@ -507,20 +689,21 @@ func toJSONString(value any) string {
 
 func memorySearchRecordFromModel(record memoryItemModel, score float64) memorySearchRecord {
 	return memorySearchRecord{
-		ID:              record.ID,
-		SourceSessionID: record.SourceSessionID,
-		Kind:            record.Kind,
-		Status:          record.Status,
-		Title:           record.Title,
-		Text:            record.Text,
-		TagsJSON:        record.TagsJSON,
-		MetadataJSON:    record.MetadataJSON,
-		SourceLinksJSON: record.SourceLinksJSON,
-		Confidence:      record.Confidence,
-		Reflected:       record.Reflected,
-		CreatedAt:       record.CreatedAt,
-		UpdatedAt:       record.UpdatedAt,
-		Score:           score,
+		ID:                   record.ID,
+		SourceSessionID:      record.SourceSessionID,
+		Kind:                 record.Kind,
+		Status:               record.Status,
+		Title:                record.Title,
+		Text:                 record.Text,
+		TagsJSON:             record.TagsJSON,
+		MetadataJSON:         record.MetadataJSON,
+		SourceLinksJSON:      record.SourceLinksJSON,
+		Confidence:           record.Confidence,
+		Reflected:            record.Reflected,
+		CreatedAt:            record.CreatedAt,
+		UpdatedAt:            record.UpdatedAt,
+		PromotionEvaluatedAt: record.PromotionEvaluatedAt,
+		Score:                score,
 	}
 }
 

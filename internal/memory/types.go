@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"time"
 
 	"github.com/wandxy/hand/internal/memory/episodic"
 	statecore "github.com/wandxy/hand/internal/state/core"
@@ -27,6 +28,7 @@ const (
 
 type SourceLink = statecore.MemorySourceLink
 type MemoryItem = statecore.MemoryItem
+type MemoryPatch = statecore.MemoryPatch
 type SearchQuery = statecore.MemorySearchQuery
 type SearchHit = statecore.MemorySearchHit
 type SearchResult = statecore.MemorySearchResult
@@ -68,6 +70,13 @@ type ReflectionRequest struct {
 	RelatedLimit int
 }
 
+type ReflectionBackgroundOptions struct {
+	Enabled      bool
+	Interval     time.Duration
+	Limit        int
+	RelatedLimit int
+}
+
 type ReflectionResult struct {
 	SessionID    string
 	SourceCount  int
@@ -89,6 +98,48 @@ type ReflectionGenerationResult struct {
 
 type ReflectionGenerator interface {
 	GenerateReflectionCandidates(context.Context, ReflectionGenerationRequest) (ReflectionGenerationResult, error)
+}
+
+type PromotionRequest struct {
+	ID     string
+	Reason string
+	Strict bool
+}
+
+type PromotionBackgroundOptions struct {
+	Enabled  bool
+	Interval time.Duration
+	Limit    int
+	Reason   string
+}
+
+type LifecycleResult struct {
+	Item     MemoryItem
+	Related  []MemoryItem
+	Decision PromotionDecision
+}
+
+type PromotionPolicyRequest struct {
+	Candidate          MemoryItem
+	Related            []MemoryItem
+	Reason             string
+	Strict             bool
+	AdmissionResult    string
+	GuardrailResult    string
+	ReflectionEvidence bool
+	ConflictState      string
+}
+
+type PromotionDecision struct {
+	Approved      bool
+	Policy        string
+	Reason        string
+	Confidence    float64
+	ConflictState string
+}
+
+type PromotionPolicy interface {
+	EvaluatePromotion(context.Context, PromotionPolicyRequest) (PromotionDecision, error)
 }
 
 type Provider interface {
@@ -130,4 +181,8 @@ type BackgroundProvider interface {
 
 type ReflectionProvider interface {
 	Reflect(context.Context, ReflectionRequest) (ReflectionResult, error)
+}
+
+type LifecycleProvider interface {
+	PromoteCandidate(context.Context, PromotionRequest) (LifecycleResult, error)
 }

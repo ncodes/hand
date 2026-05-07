@@ -33,6 +33,8 @@ const (
 const (
 	defaultMaxTraceEventsPerWindow = 40
 	maxTracePayloadChars           = 1200
+
+	episodicSimilarScoreThreshold = 0.75
 )
 
 // Service extracts source-linked episodic memories from session message windows.
@@ -226,6 +228,18 @@ func (s Service) extractWindow(
 	}
 
 	for _, candidate := range candidates {
+		rejection, err := s.episodicCandidateRejection(ctx, candidate)
+		if err != nil {
+			return WindowResult{}, err
+		}
+		if rejection != "" {
+			result.SkipCount++
+			traceFields = map[string]any{"candidate_kind": candidate.Metadata["candidate_kind"], "rejection_reason": rejection}
+			recordTrace(req.Trace, trace.EvtMemoryExtractionCandidateRejected, tracePayload(windowReq, traceFields))
+			logExtraction("candidate_rejected", windowReq, traceFields)
+			continue
+		}
+
 		item, err := s.memory.RecordEpisode(ctx, EpisodeRecord{Item: candidate})
 		if err != nil {
 			return WindowResult{}, err
@@ -246,6 +260,38 @@ func (s Service) extractWindow(
 	}
 
 	return result, nil
+}
+
+func (s Service) episodicCandidateRejection(ctx context.Context, item storage.MemoryItem) (string, error) {
+	text := episodicSearchText(item)
+	if text == "" {
+		return "", nil
+	}
+
+	result, err := s.memory.Search(ctx, storage.MemorySearchQuery{
+		Text:     text,
+		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
+		Statuses: []storage.MemoryStatus{storage.MemoryStatusCandidate, storage.MemoryStatusActive},
+		Limit:    5,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	for _, hit := range result.Hits {
+		related := hit.Item
+		if strings.TrimSpace(related.ID) == strings.TrimSpace(item.ID) {
+			continue
+		}
+		if normalizedEpisodicText(related) == normalizedEpisodicText(item) {
+			return "duplicate_episodic_memory", nil
+		}
+		if sameCandidateKind(related, item) && hit.Score >= episodicSimilarScoreThreshold {
+			return "similar_episodic_memory", nil
+		}
+	}
+
+	return "", nil
 }
 
 func (s Service) normalizeRequest(ctx context.Context, req Request) (normalizedRequest, error) {
@@ -458,6 +504,25 @@ func tracePayloadText(payload any) string {
 	return truncateRunes(string(data), maxTracePayloadChars)
 }
 
+func episodicSearchText(item storage.MemoryItem) string {
+	text := strings.TrimSpace(item.Text)
+	if text == "" {
+		text = strings.TrimSpace(item.Title)
+	}
+	if len([]rune(text)) > 240 {
+		text = string([]rune(text)[:240])
+	}
+	return text
+}
+
+func normalizedEpisodicText(item storage.MemoryItem) string {
+	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(item.Title+"\n"+item.Text))), " ")
+}
+
+func sameCandidateKind(a storage.MemoryItem, b storage.MemoryItem) bool {
+	return strings.TrimSpace(a.Metadata["candidate_kind"]) == strings.TrimSpace(b.Metadata["candidate_kind"])
+}
+
 func traceEvidenceRefs(events []taskTraceEvidence) []string {
 	refs := make([]string, 0, len(events))
 	for _, event := range events {
@@ -629,11 +694,15 @@ func candidateMemoryID(
 	metadata map[string]string,
 	sourceLinks []storage.MemorySourceLink,
 ) string {
-	return "mem_episode_" + sourceRangeHash(
+	return episodicMemoryIDPrefix() + sourceRangeHash(
 		candidateMemoryIDSource(req.SessionID, kind, title, text, metadata, sourceLinks),
 		window.Start,
 		window.End,
 	)
+}
+
+func episodicMemoryIDPrefix() string {
+	return "mem_" + string(storage.MemoryKindEpisodic) + "_"
 }
 
 func candidateMemoryIDSource(

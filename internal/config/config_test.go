@@ -193,7 +193,11 @@ func TestLoad_UsesConfigFileValues(t *testing.T) {
 		"HAND_DEBUG_REQUESTS", "HAND_RULES_FILES", "HAND_SESSION_INSTRUCT", "HAND_PLATFORM", "HAND_CAP_FS",
 		"HAND_CAP_NET", "HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER",
 		"HAND_MEMORY_BACKEND",
-		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS")
+		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS",
+		"HAND_MEMORY_REFLECTION_ENABLED", "HAND_MEMORY_REFLECTION_INTERVAL",
+		"HAND_MEMORY_REFLECTION_LIMIT", "HAND_MEMORY_REFLECTION_RELATED_LIMIT",
+		"HAND_MEMORY_PROMOTION_ENABLED", "HAND_MEMORY_PROMOTION_INTERVAL",
+		"HAND_MEMORY_PROMOTION_LIMIT")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -228,16 +232,24 @@ memory:
     maxChars: 2000
     maxItemChars: 500
   episodic:
-    background:
-      enabled: true
-      interval: 30m
-      idleAfter: 15m
-      minMessages: 3
-      windowSize: 12
-      maxWindows: 4
-      maxWindowChars: 5000
-      maxWindowTokens: 1250
-      maxRetries: 2
+    enabled: true
+    interval: 30m
+    idleAfter: 15m
+    minMessages: 3
+    windowSize: 12
+    maxWindows: 4
+    maxWindowChars: 5000
+    maxWindowTokens: 1250
+    maxRetries: 2
+  reflection:
+    enabled: true
+    interval: 4m
+    limit: 6
+    relatedLimit: 2
+  promotion:
+    enabled: true
+    interval: 2m
+    limit: 7
 log:
   level: error
   noColor: true
@@ -318,15 +330,22 @@ rules:
 	require.False(t, boolValue(cfg.Memory.Pinned.Enabled))
 	require.Equal(t, 2000, cfg.Memory.Pinned.MaxChars)
 	require.Equal(t, 500, cfg.Memory.Pinned.MaxItemChars)
-	require.True(t, boolValue(cfg.Memory.Episodic.Background.Enabled))
-	require.Equal(t, 30*time.Minute, cfg.Memory.Episodic.Background.Interval)
-	require.Equal(t, 15*time.Minute, cfg.Memory.Episodic.Background.IdleAfter)
-	require.Equal(t, 3, cfg.Memory.Episodic.Background.MinMessages)
-	require.Equal(t, 12, cfg.Memory.Episodic.Background.WindowSize)
-	require.Equal(t, 4, cfg.Memory.Episodic.Background.MaxWindows)
-	require.Equal(t, 5000, cfg.Memory.Episodic.Background.MaxWindowChars)
-	require.Equal(t, 1250, cfg.Memory.Episodic.Background.MaxWindowTokens)
-	require.Equal(t, 2, cfg.Memory.Episodic.Background.MaxRetries)
+	require.True(t, boolValue(cfg.Memory.Episodic.Enabled))
+	require.Equal(t, 30*time.Minute, cfg.Memory.Episodic.Interval)
+	require.Equal(t, 15*time.Minute, cfg.Memory.Episodic.IdleAfter)
+	require.Equal(t, 3, cfg.Memory.Episodic.MinMessages)
+	require.Equal(t, 12, cfg.Memory.Episodic.WindowSize)
+	require.Equal(t, 4, cfg.Memory.Episodic.MaxWindows)
+	require.Equal(t, 5000, cfg.Memory.Episodic.MaxWindowChars)
+	require.Equal(t, 1250, cfg.Memory.Episodic.MaxWindowTokens)
+	require.Equal(t, 2, cfg.Memory.Episodic.MaxRetries)
+	require.True(t, boolValue(cfg.Memory.Reflection.Enabled))
+	require.Equal(t, 4*time.Minute, cfg.Memory.Reflection.Interval)
+	require.Equal(t, 6, cfg.Memory.Reflection.Limit)
+	require.Equal(t, 2, cfg.Memory.Reflection.RelatedLimit)
+	require.True(t, boolValue(cfg.Memory.Promotion.Enabled))
+	require.Equal(t, 2*time.Minute, cfg.Memory.Promotion.Interval)
+	require.Equal(t, 7, cfg.Memory.Promotion.Limit)
 	require.False(t, boolValue(cfg.Cap.Filesystem))
 	require.False(t, boolValue(cfg.Cap.Network))
 	require.False(t, boolValue(cfg.Cap.Exec))
@@ -351,11 +370,14 @@ func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 		"HAND_CAP_NET", "HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER",
 		"HAND_MEMORY_BACKEND",
 		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS",
-		"HAND_MEMORY_EPISODIC_BACKGROUND_ENABLED", "HAND_MEMORY_EPISODIC_BACKGROUND_INTERVAL",
-		"HAND_MEMORY_EPISODIC_BACKGROUND_IDLE_AFTER", "HAND_MEMORY_EPISODIC_BACKGROUND_MIN_MESSAGES",
-		"HAND_MEMORY_EPISODIC_BACKGROUND_WINDOW_SIZE", "HAND_MEMORY_EPISODIC_BACKGROUND_MAX_WINDOWS",
-		"HAND_MEMORY_EPISODIC_BACKGROUND_MAX_WINDOW_CHARS", "HAND_MEMORY_EPISODIC_BACKGROUND_MAX_WINDOW_TOKENS",
-		"HAND_MEMORY_EPISODIC_BACKGROUND_MAX_RETRIES")
+		"HAND_MEMORY_EPISODIC_ENABLED", "HAND_MEMORY_EPISODIC_INTERVAL",
+		"HAND_MEMORY_EPISODIC_IDLE_AFTER", "HAND_MEMORY_EPISODIC_MIN_MESSAGES",
+		"HAND_MEMORY_EPISODIC_WINDOW_SIZE", "HAND_MEMORY_EPISODIC_MAX_WINDOWS",
+		"HAND_MEMORY_EPISODIC_MAX_WINDOW_CHARS", "HAND_MEMORY_EPISODIC_MAX_WINDOW_TOKENS",
+		"HAND_MEMORY_EPISODIC_MAX_RETRIES", "HAND_MEMORY_REFLECTION_ENABLED",
+		"HAND_MEMORY_REFLECTION_INTERVAL", "HAND_MEMORY_REFLECTION_LIMIT",
+		"HAND_MEMORY_REFLECTION_RELATED_LIMIT", "HAND_MEMORY_PROMOTION_ENABLED",
+		"HAND_MEMORY_PROMOTION_INTERVAL", "HAND_MEMORY_PROMOTION_LIMIT")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -405,6 +427,13 @@ HAND_MEMORY_BACKEND=sqlite
 HAND_MEMORY_PINNED_ENABLED=false
 HAND_MEMORY_PINNED_MAX_CHARS=3000
 HAND_MEMORY_PINNED_MAX_ITEM_CHARS=600
+HAND_MEMORY_REFLECTION_ENABLED=true
+HAND_MEMORY_REFLECTION_INTERVAL=5m
+HAND_MEMORY_REFLECTION_LIMIT=9
+HAND_MEMORY_REFLECTION_RELATED_LIMIT=4
+HAND_MEMORY_PROMOTION_ENABLED=true
+HAND_MEMORY_PROMOTION_INTERVAL=3m
+HAND_MEMORY_PROMOTION_LIMIT=8
 `), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
@@ -493,6 +522,13 @@ rules:
 	require.False(t, boolValue(cfg.Memory.Pinned.Enabled))
 	require.Equal(t, 3000, cfg.Memory.Pinned.MaxChars)
 	require.Equal(t, 600, cfg.Memory.Pinned.MaxItemChars)
+	require.True(t, boolValue(cfg.Memory.Reflection.Enabled))
+	require.Equal(t, 5*time.Minute, cfg.Memory.Reflection.Interval)
+	require.Equal(t, 9, cfg.Memory.Reflection.Limit)
+	require.Equal(t, 4, cfg.Memory.Reflection.RelatedLimit)
+	require.True(t, boolValue(cfg.Memory.Promotion.Enabled))
+	require.Equal(t, 3*time.Minute, cfg.Memory.Promotion.Interval)
+	require.Equal(t, 8, cfg.Memory.Promotion.Limit)
 }
 
 func TestLoad_UsesModelStreamFromConfigAndEnv(t *testing.T) {
@@ -1703,11 +1739,11 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 		"HAND_COMPACTION_ENABLED", "HAND_COMPACTION_TRIGGER_PERCENT", "HAND_COMPACTION_WARN_PERCENT",
 		"HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER", "HAND_MEMORY_BACKEND",
 		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS",
-		"HAND_MEMORY_EPISODIC_BACKGROUND_ENABLED", "HAND_MEMORY_EPISODIC_BACKGROUND_INTERVAL",
-		"HAND_MEMORY_EPISODIC_BACKGROUND_IDLE_AFTER", "HAND_MEMORY_EPISODIC_BACKGROUND_MIN_MESSAGES",
-		"HAND_MEMORY_EPISODIC_BACKGROUND_WINDOW_SIZE", "HAND_MEMORY_EPISODIC_BACKGROUND_MAX_WINDOWS",
-		"HAND_MEMORY_EPISODIC_BACKGROUND_MAX_WINDOW_CHARS", "HAND_MEMORY_EPISODIC_BACKGROUND_MAX_WINDOW_TOKENS",
-		"HAND_MEMORY_EPISODIC_BACKGROUND_MAX_RETRIES",
+		"HAND_MEMORY_EPISODIC_ENABLED", "HAND_MEMORY_EPISODIC_INTERVAL",
+		"HAND_MEMORY_EPISODIC_IDLE_AFTER", "HAND_MEMORY_EPISODIC_MIN_MESSAGES",
+		"HAND_MEMORY_EPISODIC_WINDOW_SIZE", "HAND_MEMORY_EPISODIC_MAX_WINDOWS",
+		"HAND_MEMORY_EPISODIC_MAX_WINDOW_CHARS", "HAND_MEMORY_EPISODIC_MAX_WINDOW_TOKENS",
+		"HAND_MEMORY_EPISODIC_MAX_RETRIES",
 		"HAND_FIRECRAWL_API_KEY", "HAND_FIRECRAWL_API_URL", "HAND_PARALLEL_API_KEY", "HAND_TAVILY_API_KEY", "HAND_EXA_API_KEY",
 	)
 
@@ -1743,15 +1779,15 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	t.Setenv("HAND_MEMORY_PINNED_ENABLED", "false")
 	t.Setenv("HAND_MEMORY_PINNED_MAX_CHARS", "3200")
 	t.Setenv("HAND_MEMORY_PINNED_MAX_ITEM_CHARS", "700")
-	t.Setenv("HAND_MEMORY_EPISODIC_BACKGROUND_ENABLED", "true")
-	t.Setenv("HAND_MEMORY_EPISODIC_BACKGROUND_INTERVAL", "20m")
-	t.Setenv("HAND_MEMORY_EPISODIC_BACKGROUND_IDLE_AFTER", "10m")
-	t.Setenv("HAND_MEMORY_EPISODIC_BACKGROUND_MIN_MESSAGES", "5")
-	t.Setenv("HAND_MEMORY_EPISODIC_BACKGROUND_WINDOW_SIZE", "10")
-	t.Setenv("HAND_MEMORY_EPISODIC_BACKGROUND_MAX_WINDOWS", "3")
-	t.Setenv("HAND_MEMORY_EPISODIC_BACKGROUND_MAX_WINDOW_CHARS", "4000")
-	t.Setenv("HAND_MEMORY_EPISODIC_BACKGROUND_MAX_WINDOW_TOKENS", "1000")
-	t.Setenv("HAND_MEMORY_EPISODIC_BACKGROUND_MAX_RETRIES", "2")
+	t.Setenv("HAND_MEMORY_EPISODIC_ENABLED", "true")
+	t.Setenv("HAND_MEMORY_EPISODIC_INTERVAL", "20m")
+	t.Setenv("HAND_MEMORY_EPISODIC_IDLE_AFTER", "10m")
+	t.Setenv("HAND_MEMORY_EPISODIC_MIN_MESSAGES", "5")
+	t.Setenv("HAND_MEMORY_EPISODIC_WINDOW_SIZE", "10")
+	t.Setenv("HAND_MEMORY_EPISODIC_MAX_WINDOWS", "3")
+	t.Setenv("HAND_MEMORY_EPISODIC_MAX_WINDOW_CHARS", "4000")
+	t.Setenv("HAND_MEMORY_EPISODIC_MAX_WINDOW_TOKENS", "1000")
+	t.Setenv("HAND_MEMORY_EPISODIC_MAX_RETRIES", "2")
 
 	applyEnvOverrides(cfg)
 
@@ -1784,15 +1820,15 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.False(t, boolValue(cfg.Memory.Pinned.Enabled))
 	require.Equal(t, 3200, cfg.Memory.Pinned.MaxChars)
 	require.Equal(t, 700, cfg.Memory.Pinned.MaxItemChars)
-	require.True(t, boolValue(cfg.Memory.Episodic.Background.Enabled))
-	require.Equal(t, 20*time.Minute, cfg.Memory.Episodic.Background.Interval)
-	require.Equal(t, 10*time.Minute, cfg.Memory.Episodic.Background.IdleAfter)
-	require.Equal(t, 5, cfg.Memory.Episodic.Background.MinMessages)
-	require.Equal(t, 10, cfg.Memory.Episodic.Background.WindowSize)
-	require.Equal(t, 3, cfg.Memory.Episodic.Background.MaxWindows)
-	require.Equal(t, 4000, cfg.Memory.Episodic.Background.MaxWindowChars)
-	require.Equal(t, 1000, cfg.Memory.Episodic.Background.MaxWindowTokens)
-	require.Equal(t, 2, cfg.Memory.Episodic.Background.MaxRetries)
+	require.True(t, boolValue(cfg.Memory.Episodic.Enabled))
+	require.Equal(t, 20*time.Minute, cfg.Memory.Episodic.Interval)
+	require.Equal(t, 10*time.Minute, cfg.Memory.Episodic.IdleAfter)
+	require.Equal(t, 5, cfg.Memory.Episodic.MinMessages)
+	require.Equal(t, 10, cfg.Memory.Episodic.WindowSize)
+	require.Equal(t, 3, cfg.Memory.Episodic.MaxWindows)
+	require.Equal(t, 4000, cfg.Memory.Episodic.MaxWindowChars)
+	require.Equal(t, 1000, cfg.Memory.Episodic.MaxWindowTokens)
+	require.Equal(t, 2, cfg.Memory.Episodic.MaxRetries)
 }
 
 func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
@@ -1805,12 +1841,36 @@ func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 	require.Equal(t, "default-memory", cfg.Memory.Provider)
 	require.Equal(t, "sqlite", cfg.Memory.Backend)
 	require.True(t, boolValue(cfg.Memory.Pinned.Enabled))
-	require.False(t, boolValue(cfg.Memory.Episodic.Background.Enabled))
+	require.False(t, boolValue(cfg.Memory.Episodic.Enabled))
+	require.False(t, boolValue(cfg.Memory.Reflection.Enabled))
+	require.True(t, boolValue(cfg.Memory.Promotion.Enabled))
 
 	cfg = &Config{Memory: MemoryConfig{Enabled: new(false)}}
 	cfg.Normalize()
 	require.False(t, cfg.MemoryEnabled())
 	require.Equal(t, "default-memory", cfg.Memory.Provider)
+
+	cfg = &Config{Memory: MemoryConfig{
+		Reflection: ReflectionMemoryConfig{
+			Enabled:      new(true),
+			Interval:     time.Minute,
+			Limit:        6,
+			RelatedLimit: 2,
+		},
+		Promotion: PromotionMemoryConfig{
+			Enabled:  new(true),
+			Interval: time.Minute,
+			Limit:    7,
+		},
+	}}
+	cfg.Normalize()
+	require.True(t, boolValue(cfg.Memory.Reflection.Enabled))
+	require.Equal(t, time.Minute, cfg.Memory.Reflection.Interval)
+	require.Equal(t, 6, cfg.Memory.Reflection.Limit)
+	require.Equal(t, 2, cfg.Memory.Reflection.RelatedLimit)
+	require.True(t, boolValue(cfg.Memory.Promotion.Enabled))
+	require.Equal(t, time.Minute, cfg.Memory.Promotion.Interval)
+	require.Equal(t, 7, cfg.Memory.Promotion.Limit)
 
 	cfg = &Config{Memory: MemoryConfig{Pinned: PinnedMemoryConfig{MaxChars: 120, MaxItemChars: 60}}}
 	cfg.Normalize()

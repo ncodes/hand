@@ -125,11 +125,47 @@ func (s *Store) UpsertMemory(ctx context.Context, item statememory.MemoryItem) (
 	s.memoryItems[item.ID] = item.Clone()
 	s.mu.Unlock()
 
-	if err := s.handleVectorStoreError(s.indexMemoryVector(ctx, item)); err != nil {
+	if err := s.handleVectorStoreError(s.syncMemoryVector(ctx, item)); err != nil {
 		return statememory.MemoryItem{}, err
 	}
 
 	return item.Clone(), nil
+}
+
+func (s *Store) PatchMemory(ctx context.Context, patch statememory.MemoryPatch) (statememory.MemoryItem, error) {
+	if s == nil {
+		return statememory.MemoryItem{}, errors.New("store is required")
+	}
+
+	id := strings.TrimSpace(patch.ID)
+	if id == "" {
+		return statememory.MemoryItem{}, errors.New("memory id is required")
+	}
+
+	s.mu.Lock()
+
+	item, ok := s.memoryItems[id]
+	if !ok {
+		s.mu.Unlock()
+		return statememory.MemoryItem{}, errors.New("memory item not found")
+	}
+	item = statememory.ApplyMemoryPatch(item.Clone(), patch, time.Now().UTC())
+	s.memoryItems[id] = item.Clone()
+	s.mu.Unlock()
+
+	if err := s.handleVectorStoreError(s.syncMemoryVector(ctx, item)); err != nil {
+		return statememory.MemoryItem{}, err
+	}
+
+	return item.Clone(), nil
+}
+
+func (s *Store) syncMemoryVector(ctx context.Context, item statememory.MemoryItem) error {
+	if item.Status == statememory.MemoryStatusDeleted {
+		return s.deleteMemoryVector(ctx, item.ID)
+	}
+
+	return s.indexMemoryVector(ctx, item)
 }
 
 func (s *Store) DeleteMemory(ctx context.Context, req statememory.MemoryDeleteRequest) error {

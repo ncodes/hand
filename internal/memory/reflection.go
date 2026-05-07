@@ -15,6 +15,10 @@ const (
 	maxReflectionLimit            = 50
 	defaultReflectionRelatedLimit = 3
 	maxReflectionRelatedLimit     = 10
+
+	defaultReflectionBackgroundInterval = time.Minute
+
+	reflectionSimilarScoreThreshold = 0.75
 )
 
 func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (ReflectionResult, error) {
@@ -86,6 +90,7 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 
 	sourceLinks := reflectionSourceLinks(sources)
 	sourceIDs := memoryIDs(sources)
+	written := make([]MemoryItem, 0, normalized.Limit)
 	for _, candidate := range limitReflectionItems(generated.Items, normalized.Limit) {
 		item, ok, rejection := prepareReflectionCandidate(
 			candidate,
@@ -94,6 +99,16 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 			sourceIDs,
 		)
 		if !ok {
+			p.recordReflectionRejection(ctx, normalized.SessionID, rejection)
+			continue
+		}
+
+		rejection, err = p.reflectionCandidateRejection(ctx, item, written)
+		if err != nil {
+			p.recordReflectionFailure(ctx, result, err)
+			return ReflectionResult{}, err
+		}
+		if rejection != "" {
 			p.recordReflectionRejection(ctx, normalized.SessionID, rejection)
 			continue
 		}
@@ -114,6 +129,7 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 
 		result.WriteCount++
 		result.Items = append(result.Items, item.Clone())
+		written = append(written, item.Clone())
 
 		fields = observationFields(p.Name(), "reflect", map[string]any{
 			"session_id":   normalized.SessionID,
@@ -131,6 +147,71 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 
 	p.recordReflectionCompleted(ctx, result, started)
 	return result, nil
+}
+
+func normalizeReflectionBackgroundOptions(opts ReflectionBackgroundOptions) ReflectionBackgroundOptions {
+	if opts.Interval <= 0 {
+		opts.Interval = defaultReflectionBackgroundInterval
+	}
+	if opts.Limit <= 0 {
+		opts.Limit = defaultReflectionLimit
+	}
+	if opts.Limit > maxReflectionLimit {
+		opts.Limit = maxReflectionLimit
+	}
+	if opts.RelatedLimit <= 0 {
+		opts.RelatedLimit = defaultReflectionRelatedLimit
+	}
+	if opts.RelatedLimit > maxReflectionRelatedLimit {
+		opts.RelatedLimit = maxReflectionRelatedLimit
+	}
+
+	return opts
+}
+
+func (p *MemoryProvider) startReflectionBackground(ctx context.Context) error {
+	if !p.reflectionBackground.Enabled {
+		return nil
+	}
+	if p.reflectionGenerator == nil {
+		return errors.New("memory reflection is not configured")
+	}
+
+	opts := normalizeReflectionBackgroundOptions(p.reflectionBackground)
+	p.reflectionBackgroundStartOnce.Do(func() {
+		go p.runReflectionBackgroundLoop(ctx, opts)
+	})
+
+	return nil
+}
+
+func (p *MemoryProvider) runReflectionBackgroundLoop(ctx context.Context, opts ReflectionBackgroundOptions) {
+	ticker := time.NewTicker(opts.Interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			_, _ = p.RunReflectionBackground(ctx, opts)
+		}
+	}
+}
+
+func (p *MemoryProvider) RunReflectionBackground(
+	ctx context.Context,
+	opts ReflectionBackgroundOptions,
+) (ReflectionResult, error) {
+	if p == nil || p.manager == nil {
+		return ReflectionResult{}, errors.New("memory provider is required")
+	}
+
+	opts = normalizeReflectionBackgroundOptions(opts)
+	return p.Reflect(ctx, ReflectionRequest{
+		Limit:        opts.Limit,
+		RelatedLimit: opts.RelatedLimit,
+	})
 }
 
 type normalizedReflectionRequest struct {
@@ -234,6 +315,62 @@ func (p *MemoryProvider) loadReflectionRelated(
 	return items, nil
 }
 
+func (p *MemoryProvider) reflectionCandidateRejection(
+	ctx context.Context,
+	item MemoryItem,
+	written []MemoryItem,
+) (string, error) {
+	if reflectionMatchesExistingCandidate(item, written) {
+		return "duplicate_reflection_candidate", nil
+	}
+
+	text := reflectionSearchText(item)
+	if text == "" {
+		return "", nil
+	}
+
+	reflected := true
+	result, err := p.manager.SearchMemory(ctx, SearchQuery{
+		Text:      text,
+		Statuses:  []Status{StatusCandidate, StatusActive},
+		Limit:     5,
+		Reflected: &reflected,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	for _, hit := range result.Hits {
+		related := hit.Item
+		if strings.TrimSpace(related.ID) == strings.TrimSpace(item.ID) {
+			continue
+		}
+		switch {
+		case normalizedLifecycleText(related) == normalizedLifecycleText(item):
+			return "duplicate_reflection_memory", nil
+		case hit.Score >= reflectionSimilarScoreThreshold:
+			return "similar_reflection_memory", nil
+		}
+	}
+
+	return "", nil
+}
+
+func reflectionMatchesExistingCandidate(item MemoryItem, existing []MemoryItem) bool {
+	normalized := normalizedLifecycleText(item)
+	if normalized == "" {
+		return false
+	}
+
+	for _, candidate := range existing {
+		if normalizedLifecycleText(candidate) == normalized {
+			return true
+		}
+	}
+
+	return false
+}
+
 func reflectionSearchText(item MemoryItem) string {
 	text := strings.TrimSpace(item.Title)
 	if text == "" {
@@ -299,9 +436,11 @@ func (p *MemoryProvider) recordReflectionCandidate(ctx context.Context, item Mem
 
 func (p *MemoryProvider) markReflectionSourcesReflected(ctx context.Context, sources []MemoryItem) error {
 	for _, source := range sources {
-		item := source.Clone()
-		item.Reflected = true
-		if _, err := p.manager.UpsertMemory(ctx, item); err != nil {
+		reflected := true
+		if _, err := p.manager.PatchMemory(ctx, MemoryPatch{
+			ID:        source.ID,
+			Reflected: &reflected,
+		}); err != nil {
 			return err
 		}
 	}

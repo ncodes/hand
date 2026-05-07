@@ -19,15 +19,16 @@ func TestMemoryStore_SearchWriteDeleteAndSourceLinks(t *testing.T) {
 	createdAt := time.Date(2026, 4, 30, 9, 0, 0, 0, time.UTC)
 
 	item, err := store.UpsertMemory(context.Background(), statememory.MemoryItem{
-		ID:        "  mem_one  ",
-		Kind:      statememory.MemoryKindSemantic,
-		Status:    statememory.MemoryStatusActive,
-		Title:     "Go preference",
-		Text:      "Use focused tests",
-		Tags:      []string{"Go", "Style"},
-		CreatedAt: createdAt,
-		Reflected: true,
-		Metadata:  map[string]string{"project": "hand"},
+		ID:                   "  mem_one  ",
+		Kind:                 statememory.MemoryKindSemantic,
+		Status:               statememory.MemoryStatusActive,
+		Title:                "Go preference",
+		Text:                 "Use focused tests",
+		Tags:                 []string{"Go", "Style"},
+		CreatedAt:            createdAt,
+		PromotionEvaluatedAt: createdAt.Add(time.Hour),
+		Reflected:            true,
+		Metadata:             map[string]string{"project": "hand"},
 		SourceLinks: []statememory.MemorySourceLink{{
 			SessionID:     "session",
 			MessageIDs:    []uint{1},
@@ -40,6 +41,7 @@ func TestMemoryStore_SearchWriteDeleteAndSourceLinks(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "mem_one", item.ID)
 	require.Equal(t, createdAt, item.CreatedAt)
+	require.Equal(t, createdAt.Add(time.Hour), item.PromotionEvaluatedAt)
 	require.False(t, item.UpdatedAt.IsZero())
 
 	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
@@ -57,6 +59,34 @@ func TestMemoryStore_SearchWriteDeleteAndSourceLinks(t *testing.T) {
 	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{Reflected: new(false)})
 	require.NoError(t, err)
 	require.Empty(t, result.Hits)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		PromotionEvaluated:       new(true),
+		PromotionEvaluatedAfter:  createdAt,
+		PromotionEvaluatedBefore: createdAt.Add(2 * time.Hour),
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		PromotionEvaluated: new(false),
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
+
+	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_unevaluated",
+		Kind:   statememory.MemoryKindSemantic,
+		Status: statememory.MemoryStatusActive,
+		Text:   "Unevaluated memory",
+	})
+	require.NoError(t, err)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		PromotionEvaluated: new(false),
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mem_unevaluated"}, memoryHitIDs(result.Hits))
 
 	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
 		IDs: []string{" mem_one "},
@@ -534,6 +564,7 @@ func TestMemoryVectorHelpers(t *testing.T) {
 		Statuses: []statememory.MemoryStatus{statememory.MemoryStatusCandidate},
 	}))
 	require.True(t, memoryQueryNeedsSourceIDFilter(statememory.MemorySearchQuery{IDs: []string{"mem_a"}}))
+	require.True(t, memoryQueryNeedsSourceIDFilter(statememory.MemorySearchQuery{PromotionEvaluated: new(false)}))
 	require.False(t, memoryQueryNeedsSourceIDFilter(statememory.MemorySearchQuery{Tags: []string{"go"}}))
 
 	item := statememory.MemoryItem{
@@ -864,6 +895,113 @@ func TestMemoryStore_UpdatePreservesCreatedAtAndClonesItems(t *testing.T) {
 	require.Equal(t, []string{"new"}, result.Hits[0].Item.Tags)
 }
 
+func TestMemoryStore_PatchMemoryUpdatesOnlyRequestedFields(t *testing.T) {
+	store := NewStore()
+	evaluatedAt := time.Date(2026, 4, 30, 10, 0, 0, 0, time.UTC)
+	item, err := store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:                   "mem_patch",
+		Kind:                 statememory.MemoryKindEpisodic,
+		Status:               statememory.MemoryStatusCandidate,
+		Title:                "Original",
+		Text:                 "Original text",
+		Tags:                 []string{"old"},
+		Metadata:             map[string]string{"preserved": "yes"},
+		Confidence:           0.4,
+		PromotionEvaluatedAt: evaluatedAt,
+		SourceLinks: []statememory.MemorySourceLink{{
+			SessionID: "old-session",
+			Offsets:   []int{1},
+		}},
+	})
+	require.NoError(t, err)
+
+	reflected := true
+	status := statememory.MemoryStatusActive
+	title := "Patched title"
+	text := "Patched text about durable updates"
+	tags := []string{"New", "Patch"}
+	links := []statememory.MemorySourceLink{{
+		SessionID: statememory.DefaultSessionID,
+		Offsets:   []int{2},
+	}}
+	clearedEvaluation := time.Time{}
+	patched, err := store.PatchMemory(context.Background(), statememory.MemoryPatch{
+		ID:                   item.ID,
+		Status:               &status,
+		Title:                &title,
+		Text:                 &text,
+		Tags:                 &tags,
+		SourceLinks:          &links,
+		Reflected:            &reflected,
+		Metadata:             map[string]string{"source_session_id": statememory.DefaultSessionID},
+		PromotionEvaluatedAt: &clearedEvaluation,
+	})
+	require.NoError(t, err)
+	require.Equal(t, statememory.MemoryStatusActive, patched.Status)
+	require.True(t, patched.Reflected)
+	require.Equal(t, "Patched title", patched.Title)
+	require.Equal(t, "Patched text about durable updates", patched.Text)
+	require.Equal(t, []string{"New", "Patch"}, patched.Tags)
+	require.Equal(t, []int{2}, patched.SourceLinks[0].Offsets)
+	require.Equal(t, 0.4, patched.Confidence)
+	require.Equal(t, "yes", patched.Metadata["preserved"])
+	require.Equal(t, statememory.DefaultSessionID, patched.Metadata["source_session_id"])
+	require.True(t, patched.PromotionEvaluatedAt.IsZero())
+	require.Equal(t, item.CreatedAt, patched.CreatedAt)
+	require.True(t, patched.UpdatedAt.After(item.UpdatedAt))
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text: "durable",
+		Tags: []string{"patch"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mem_patch"}, memoryHitIDs(result.Hits))
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{Text: "Original"})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{PromotionEvaluated: new(false)})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mem_patch"}, memoryHitIDs(result.Hits))
+
+	sessionResult, err := store.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{
+		SessionID: statememory.DefaultSessionID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mem_patch"}, memoryItemIDs(sessionResult.Items))
+}
+
+func TestMemoryStore_PatchMemoryDeletesVectorForDeletedStatus(t *testing.T) {
+	store := NewStore()
+	vectorStore := &memoryTestVectorStore{}
+	require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+		Embedder:       semanticTestEmbedder{},
+		VectorStore:    vectorStore,
+		EmbeddingModel: "semantic-test",
+		Required:       true,
+	}))
+
+	_, err := store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_delete_vector",
+		Status: statememory.MemoryStatusActive,
+		Text:   "Vector-backed memory",
+	})
+	require.NoError(t, err)
+
+	status := statememory.MemoryStatusDeleted
+	_, err = store.PatchMemory(context.Background(), statememory.MemoryPatch{
+		ID:     "mem_delete_vector",
+		Status: &status,
+	})
+	require.NoError(t, err)
+
+	require.Len(t, vectorStore.upsertRecords, 1)
+	require.Len(t, vectorStore.deleteRequests, 1)
+	require.Equal(t, search.SourceKindMemoryItem, vectorStore.deleteRequests[0].SourceKind)
+	require.Equal(t, []string{search.StableMemoryItemID("mem_delete_vector")}, vectorStore.deleteRequests[0].SourceIDs)
+}
+
 func TestMemoryStore_NilReceiverAndValidationErrors(t *testing.T) {
 	var nilStore *Store
 
@@ -876,12 +1014,19 @@ func TestMemoryStore_NilReceiverAndValidationErrors(t *testing.T) {
 	_, err = nilStore.UpsertMemory(context.Background(), statememory.MemoryItem{})
 	require.EqualError(t, err, "store is required")
 
+	_, err = nilStore.PatchMemory(context.Background(), statememory.MemoryPatch{})
+	require.EqualError(t, err, "store is required")
+
 	err = nilStore.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "mem"})
 	require.EqualError(t, err, "store is required")
 
 	store := NewStore()
 	_, err = store.ListSessionMemories(context.Background(), statememory.SessionMemoryQuery{})
 	require.EqualError(t, err, "session id is required")
+	_, err = store.PatchMemory(context.Background(), statememory.MemoryPatch{})
+	require.EqualError(t, err, "memory id is required")
+	_, err = store.PatchMemory(context.Background(), statememory.MemoryPatch{ID: "missing"})
+	require.EqualError(t, err, "memory item not found")
 	require.EqualError(t, store.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{}), "memory id is required")
 	require.NoError(t, store.DeleteMemory(context.Background(), statememory.MemoryDeleteRequest{ID: "missing"}))
 }

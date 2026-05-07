@@ -54,9 +54,7 @@ func cloneTracePayload(payload any) any {
 	}
 
 	var cloned any
-	if err := json.Unmarshal(data, &cloned); err != nil {
-		return nil
-	}
+	_ = json.Unmarshal(data, &cloned)
 	return cloned
 }
 

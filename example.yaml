@@ -22,6 +22,7 @@
 #   embedding:
 #     name: ""
 #     provider: ""
+#     baseUrl: ""
 
 # rpc:
 #   address: "127.0.0.1"
@@ -56,6 +57,25 @@
 #     # A workspace-root memory.md file is loaded automatically when present.
 #     maxChars: 4000
 #     maxItemChars: 1000
+#   episodic:
+#     enabled: false
+#     interval: "1m"
+#     idleAfter: "10m"
+#     minMessages: 2
+#     windowSize: 20
+#     maxWindows: 5
+#     maxWindowChars: 6000
+#     maxWindowTokens: 1500
+#     maxRetries: 1
+#   reflection:
+#     enabled: false
+#     interval: "1m"
+#     limit: 10
+#     relatedLimit: 3
+#   promotion:
+#     enabled: true
+#     interval: "1m"
+#     limit: 10
 # reranker:
 #   enabled: true
 #   type: "deterministic"

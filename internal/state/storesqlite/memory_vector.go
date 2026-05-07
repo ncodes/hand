@@ -319,7 +319,10 @@ func sortMemoryHits(hits []statememory.MemorySearchHit) {
 }
 
 func memoryQueryNeedsSourceIDFilter(query statememory.MemorySearchQuery) bool {
-	return len(query.IDs) > 0
+	return len(query.IDs) > 0 ||
+		query.PromotionEvaluated != nil ||
+		!query.PromotionEvaluatedBefore.IsZero() ||
+		!query.PromotionEvaluatedAfter.IsZero()
 }
 
 func memoryVectorFilterTags(query statememory.MemorySearchQuery) []string {

@@ -115,11 +115,13 @@ type SearchVectorConfig struct {
 }
 
 type MemoryConfig struct {
-	Enabled  *bool                `yaml:"enabled"`
-	Provider string               `yaml:"provider"`
-	Backend  string               `yaml:"backend"`
-	Pinned   PinnedMemoryConfig   `yaml:"pinned"`
-	Episodic EpisodicMemoryConfig `yaml:"episodic"`
+	Enabled    *bool                  `yaml:"enabled"`
+	Provider   string                 `yaml:"provider"`
+	Backend    string                 `yaml:"backend"`
+	Pinned     PinnedMemoryConfig     `yaml:"pinned"`
+	Episodic   EpisodicMemoryConfig   `yaml:"episodic"`
+	Reflection ReflectionMemoryConfig `yaml:"reflection"`
+	Promotion  PromotionMemoryConfig  `yaml:"promotion"`
 }
 
 type PinnedMemoryConfig struct {
@@ -129,10 +131,6 @@ type PinnedMemoryConfig struct {
 }
 
 type EpisodicMemoryConfig struct {
-	Background EpisodicMemoryBackgroundConfig `yaml:"background"`
-}
-
-type EpisodicMemoryBackgroundConfig struct {
 	Enabled         *bool         `yaml:"enabled"`
 	Interval        time.Duration `yaml:"interval"`
 	IdleAfter       time.Duration `yaml:"idleAfter"`
@@ -142,6 +140,19 @@ type EpisodicMemoryBackgroundConfig struct {
 	MaxWindowChars  int           `yaml:"maxWindowChars"`
 	MaxWindowTokens int           `yaml:"maxWindowTokens"`
 	MaxRetries      int           `yaml:"maxRetries"`
+}
+
+type ReflectionMemoryConfig struct {
+	Enabled      *bool         `yaml:"enabled"`
+	Interval     time.Duration `yaml:"interval"`
+	Limit        int           `yaml:"limit"`
+	RelatedLimit int           `yaml:"relatedLimit"`
+}
+
+type PromotionMemoryConfig struct {
+	Enabled  *bool         `yaml:"enabled"`
+	Interval time.Duration `yaml:"interval"`
+	Limit    int           `yaml:"limit"`
 }
 
 type RerankerConfig struct {
@@ -724,43 +735,70 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.Memory.Pinned.MaxItemChars = maxChars
 		}
 	}
-	if value, ok := parseOptionalBoolEnv("HAND_MEMORY_EPISODIC_BACKGROUND_ENABLED"); ok {
-		cfg.Memory.Episodic.Background.Enabled = new(value)
+	if value, ok := parseOptionalBoolEnv("HAND_MEMORY_EPISODIC_ENABLED"); ok {
+		cfg.Memory.Episodic.Enabled = new(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_BACKGROUND_INTERVAL")); value != "" {
-		cfg.Memory.Episodic.Background.Interval = parseDurationOrZero(value)
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_INTERVAL")); value != "" {
+		cfg.Memory.Episodic.Interval = parseDurationOrZero(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_BACKGROUND_IDLE_AFTER")); value != "" {
-		cfg.Memory.Episodic.Background.IdleAfter = parseDurationOrZero(value)
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_IDLE_AFTER")); value != "" {
+		cfg.Memory.Episodic.IdleAfter = parseDurationOrZero(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_BACKGROUND_MIN_MESSAGES")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_MIN_MESSAGES")); value != "" {
 		if count, err := strconv.Atoi(value); err == nil {
-			cfg.Memory.Episodic.Background.MinMessages = count
+			cfg.Memory.Episodic.MinMessages = count
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_BACKGROUND_WINDOW_SIZE")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_WINDOW_SIZE")); value != "" {
 		if count, err := strconv.Atoi(value); err == nil {
-			cfg.Memory.Episodic.Background.WindowSize = count
+			cfg.Memory.Episodic.WindowSize = count
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_BACKGROUND_MAX_WINDOWS")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_MAX_WINDOWS")); value != "" {
 		if count, err := strconv.Atoi(value); err == nil {
-			cfg.Memory.Episodic.Background.MaxWindows = count
+			cfg.Memory.Episodic.MaxWindows = count
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_BACKGROUND_MAX_WINDOW_CHARS")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_MAX_WINDOW_CHARS")); value != "" {
 		if count, err := strconv.Atoi(value); err == nil {
-			cfg.Memory.Episodic.Background.MaxWindowChars = count
+			cfg.Memory.Episodic.MaxWindowChars = count
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_BACKGROUND_MAX_WINDOW_TOKENS")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_MAX_WINDOW_TOKENS")); value != "" {
 		if count, err := strconv.Atoi(value); err == nil {
-			cfg.Memory.Episodic.Background.MaxWindowTokens = count
+			cfg.Memory.Episodic.MaxWindowTokens = count
 		}
 	}
-	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_BACKGROUND_MAX_RETRIES")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_EPISODIC_MAX_RETRIES")); value != "" {
 		if count, err := strconv.Atoi(value); err == nil {
-			cfg.Memory.Episodic.Background.MaxRetries = count
+			cfg.Memory.Episodic.MaxRetries = count
+		}
+	}
+	if value, ok := parseOptionalBoolEnv("HAND_MEMORY_REFLECTION_ENABLED"); ok {
+		cfg.Memory.Reflection.Enabled = new(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_REFLECTION_INTERVAL")); value != "" {
+		cfg.Memory.Reflection.Interval = parseDurationOrZero(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_REFLECTION_LIMIT")); value != "" {
+		if count, err := strconv.Atoi(value); err == nil {
+			cfg.Memory.Reflection.Limit = count
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_REFLECTION_RELATED_LIMIT")); value != "" {
+		if count, err := strconv.Atoi(value); err == nil {
+			cfg.Memory.Reflection.RelatedLimit = count
+		}
+	}
+	if value, ok := parseOptionalBoolEnv("HAND_MEMORY_PROMOTION_ENABLED"); ok {
+		cfg.Memory.Promotion.Enabled = new(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_PROMOTION_INTERVAL")); value != "" {
+		cfg.Memory.Promotion.Interval = parseDurationOrZero(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_PROMOTION_LIMIT")); value != "" {
+		if count, err := strconv.Atoi(value); err == nil {
+			cfg.Memory.Promotion.Limit = count
 		}
 	}
 	if value, ok := parseOptionalBoolEnv("HAND_SEARCH_VECTOR_REQUIRED"); ok {
@@ -983,8 +1021,14 @@ func (c *Config) normalizeFields() {
 	if c.Memory.Pinned.Enabled == nil {
 		c.Memory.Pinned.Enabled = new(true)
 	}
-	if c.Memory.Episodic.Background.Enabled == nil {
-		c.Memory.Episodic.Background.Enabled = new(false)
+	if c.Memory.Episodic.Enabled == nil {
+		c.Memory.Episodic.Enabled = new(false)
+	}
+	if c.Memory.Reflection.Enabled == nil {
+		c.Memory.Reflection.Enabled = new(false)
+	}
+	if c.Memory.Promotion.Enabled == nil {
+		c.Memory.Promotion.Enabled = new(true)
 	}
 
 }

@@ -846,7 +846,11 @@ func (s *Store) vectorRecordsForMessages(
 
 	s.logVectorEvent("embedding started").
 		Int("input_count", len(req.Inputs)).
+		Int("message_count", len(records)).
+		Int("row_count", len(inputs)).
 		Str("embedding_model", strings.TrimSpace(req.Model)).
+		Str("purpose", "index_session_message_rows").
+		Str("source_kind", string(search.SourceKindSessionMessage)).
 		Msg("session vector embedding started")
 
 	result, err := s.vectors.Provider.Embed(ctx, req)
@@ -862,8 +866,12 @@ func (s *Store) vectorRecordsForMessages(
 
 	s.logVectorEvent("embedding completed").
 		Int("input_count", len(req.Inputs)).
+		Int("message_count", len(records)).
+		Int("row_count", len(inputs)).
 		Int("dimensions", result.Dimensions).
 		Str("embedding_model", strings.TrimSpace(result.Model)).
+		Str("purpose", "index_session_message_rows").
+		Str("source_kind", string(search.SourceKindSessionMessage)).
 		Msg("session vector embedding completed")
 
 	inputByID := make(map[string]vectorInput, len(inputs))

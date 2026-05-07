@@ -102,6 +102,18 @@ func (m *Manager) UpsertMemory(
 	return store.UpsertMemory(ctx, item)
 }
 
+func (m *Manager) PatchMemory(
+	ctx context.Context,
+	patch storage.MemoryPatch,
+) (storage.MemoryItem, error) {
+	store, ok := m.MemoryStore()
+	if !ok {
+		return storage.MemoryItem{}, errors.New("memory store is not supported")
+	}
+
+	return store.PatchMemory(ctx, patch)
+}
+
 func (m *Manager) DeleteMemory(ctx context.Context, req storage.MemoryDeleteRequest) error {
 	store, ok := m.MemoryStore()
 	if !ok {

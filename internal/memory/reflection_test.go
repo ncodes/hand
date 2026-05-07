@@ -169,6 +169,159 @@ func TestMemoryProvider_ReflectRejectsUnsafeCandidates(t *testing.T) {
 	require.Contains(t, tracer.events, trace.EvtMemoryReflectionCompleted)
 }
 
+func TestMemoryProvider_ReflectRejectsDuplicateCandidateFromStore(t *testing.T) {
+	tracer := &fakeTracer{}
+	generator := &fakeReflectionGenerator{result: ReflectionGenerationResult{Items: []MemoryItem{{
+		Kind:       KindSemantic,
+		Title:      "Commit message preference",
+		Text:       "The user prefers concise commit messages.",
+		Confidence: 0.95,
+		Metadata: map[string]string{
+			"memory_importance":  "high",
+			"memory_granularity": "summary",
+		},
+	}}}}
+	provider := defaultMemoryTestProvider(t, Options{
+		Observability:       fakeObservability{tracer: tracer},
+		ReflectionGenerator: generator,
+	})
+
+	_, err := provider.Upsert(context.Background(), MemoryItem{
+		ID:     "mem_episode_duplicate",
+		Kind:   KindEpisodic,
+		Status: StatusActive,
+		Text:   "The user corrected commit message guidance.",
+		SourceLinks: []SourceLink{{
+			SessionID: statecore.DefaultSessionID,
+			Offsets:   []int{3},
+		}},
+	})
+	require.NoError(t, err)
+	_, err = provider.Upsert(context.Background(), MemoryItem{
+		ID:        "mem_semantic_duplicate",
+		Kind:      KindSemantic,
+		Status:    StatusCandidate,
+		Title:     "Commit message preference",
+		Text:      "The user prefers concise commit messages.",
+		Reflected: true,
+		Metadata: map[string]string{
+			"source_session_id": statecore.DefaultSessionID,
+		},
+	})
+	require.NoError(t, err)
+
+	result, err := provider.Reflect(context.Background(), ReflectionRequest{SessionID: statecore.DefaultSessionID})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.SourceCount)
+	require.Zero(t, result.WriteCount)
+	require.Empty(t, result.Items)
+	require.Contains(t, tracer.events, trace.EvtMemoryReflectionCandidateRejected)
+
+	search, err := provider.Search(context.Background(), SearchQuery{
+		Kinds:    []Kind{KindSemantic},
+		Statuses: []Status{StatusCandidate},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mem_semantic_duplicate"}, memoryHitIDs(search.Hits))
+
+	source, err := provider.Search(context.Background(), SearchQuery{
+		IDs:       []string{"mem_episode_duplicate"},
+		Statuses:  []Status{StatusActive},
+		Reflected: boolPtr(true),
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mem_episode_duplicate"}, memoryHitIDs(source.Hits))
+}
+
+func TestMemoryProvider_ReflectRejectsDuplicateReflectionAcrossKinds(t *testing.T) {
+	manager := &recordingMemoryManager{
+		searchResults: []SearchResult{{Hits: []SearchHit{{
+			Item: MemoryItem{
+				ID:        "mem_existing_pinned",
+				Kind:      KindPinned,
+				Status:    StatusCandidate,
+				Title:     "Commit message preference",
+				Text:      "The user prefers concise commit messages.",
+				Reflected: true,
+			},
+		}}}},
+	}
+	provider := &MemoryProvider{manager: manager}
+
+	rejection, err := provider.reflectionCandidateRejection(context.Background(), MemoryItem{
+		ID:     "mem_candidate_semantic",
+		Kind:   KindSemantic,
+		Status: StatusCandidate,
+		Title:  "Commit message preference",
+		Text:   "The user prefers concise commit messages.",
+	}, nil)
+
+	require.NoError(t, err)
+	require.Equal(t, "duplicate_reflection_memory", rejection)
+	require.Len(t, manager.searchQueries, 1)
+	require.Empty(t, manager.searchQueries[0].Kinds)
+	require.NotNil(t, manager.searchQueries[0].Reflected)
+	require.True(t, *manager.searchQueries[0].Reflected)
+}
+
+func TestMemoryProvider_ReflectRejectsDuplicateCandidateInBatch(t *testing.T) {
+	generator := &fakeReflectionGenerator{result: ReflectionGenerationResult{Items: []MemoryItem{
+		reflectionCandidate(KindProcedural, "Focused test workflow"),
+		reflectionCandidate(KindPinned, "Focused test workflow"),
+	}}}
+	provider := defaultMemoryTestProvider(t, Options{ReflectionGenerator: generator})
+
+	_, err := provider.Upsert(context.Background(), MemoryItem{
+		ID:     "mem_episode_batch_duplicate",
+		Kind:   KindEpisodic,
+		Status: StatusActive,
+		Text:   "The user asked for focused test workflow memory.",
+		SourceLinks: []SourceLink{{
+			SessionID: statecore.DefaultSessionID,
+			Offsets:   []int{4},
+		}},
+	})
+	require.NoError(t, err)
+
+	result, err := provider.Reflect(context.Background(), ReflectionRequest{SessionID: statecore.DefaultSessionID})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.WriteCount)
+	require.Len(t, result.Items, 1)
+	require.Equal(t, KindProcedural, result.Items[0].Kind)
+}
+
+func TestMemoryProvider_ReflectionCandidateRejectionRejectsSimilarMemory(t *testing.T) {
+	manager := &recordingMemoryManager{searchResults: []SearchResult{{Hits: []SearchHit{{
+		Item: MemoryItem{
+			ID:        "mem_existing_similar",
+			Kind:      KindPinned,
+			Status:    StatusActive,
+			Title:     "Commit guidance",
+			Text:      "The user prefers commit messages to stay concise.",
+			Reflected: true,
+		},
+		Score: reflectionSimilarScoreThreshold,
+	}}}}}
+	provider := &MemoryProvider{manager: manager}
+
+	rejection, err := provider.reflectionCandidateRejection(context.Background(), MemoryItem{
+		ID:     "mem_candidate_similar",
+		Kind:   KindSemantic,
+		Status: StatusCandidate,
+		Title:  "Commit preference",
+		Text:   "The user prefers concise commit messages.",
+	}, nil)
+
+	require.NoError(t, err)
+	require.Equal(t, "similar_reflection_memory", rejection)
+	require.Len(t, manager.searchQueries, 1)
+	require.Empty(t, manager.searchQueries[0].Kinds)
+	require.NotNil(t, manager.searchQueries[0].Reflected)
+	require.True(t, *manager.searchQueries[0].Reflected)
+}
+
 func TestMemoryProvider_ReflectPropagatesFailureWithoutWriting(t *testing.T) {
 	generator := &fakeReflectionGenerator{err: errors.New("model failed")}
 	tracer := &fakeTracer{}
@@ -312,6 +465,32 @@ func TestMemoryProvider_ReflectOverridesGeneratorProvenance(t *testing.T) {
 	require.Equal(t, "explicit", result.Items[0].Metadata["candidate_specific_confidence"])
 }
 
+func TestMemoryProvider_MarkReflectionSourceDoesNotOverwritePromotedMemory(t *testing.T) {
+	provider := defaultMemoryTestProvider(t, Options{})
+	source := reflectionSource("mem_episode_race", 4)
+	source.Status = StatusCandidate
+	source.Confidence = 0.9
+
+	_, err := provider.Upsert(context.Background(), source)
+	require.NoError(t, err)
+	stale := source.Clone()
+
+	promoted, err := provider.PromoteCandidate(context.Background(), PromotionRequest{ID: source.ID})
+	require.NoError(t, err)
+	require.Equal(t, StatusActive, promoted.Item.Status)
+	require.False(t, promoted.Item.PromotionEvaluatedAt.IsZero())
+
+	err = provider.markReflectionSourcesReflected(context.Background(), []MemoryItem{stale})
+	require.NoError(t, err)
+
+	result, err := provider.Search(context.Background(), SearchQuery{IDs: []string{source.ID}})
+	require.NoError(t, err)
+	require.Len(t, result.Hits, 1)
+	require.Equal(t, StatusActive, result.Hits[0].Item.Status)
+	require.True(t, result.Hits[0].Item.Reflected)
+	require.False(t, result.Hits[0].Item.PromotionEvaluatedAt.IsZero())
+}
+
 func TestMemoryProvider_ReflectAssignsFreshCandidateIDs(t *testing.T) {
 	generator := &fakeReflectionGenerator{result: ReflectionGenerationResult{Items: []MemoryItem{{
 		ID:    "mem_existing_active",
@@ -428,8 +607,23 @@ func TestMemoryProvider_ReflectionHelpersCoverFallbacksAndErrors(t *testing.T) {
 		require.Equal(t, "mem_related", related[0].ID)
 	})
 
-	t.Run("mark reflected returns upsert error", func(t *testing.T) {
-		provider := &MemoryProvider{manager: &recordingMemoryManager{upsertErr: errors.New("mark failed")}}
+	t.Run("mark reflected patches sources without full upsert", func(t *testing.T) {
+		manager := &recordingMemoryManager{}
+		provider := &MemoryProvider{manager: manager}
+		err := provider.markReflectionSourcesReflected(context.Background(), []MemoryItem{{
+			ID:     "mem_source",
+			Status: StatusCandidate,
+		}})
+		require.NoError(t, err)
+		require.Empty(t, manager.upsertItems)
+		require.Len(t, manager.patches, 1)
+		require.Equal(t, "mem_source", manager.patches[0].ID)
+		require.NotNil(t, manager.patches[0].Reflected)
+		require.True(t, *manager.patches[0].Reflected)
+	})
+
+	t.Run("mark reflected returns patch error", func(t *testing.T) {
+		provider := &MemoryProvider{manager: &recordingMemoryManager{patchErrs: []error{errors.New("mark failed")}}}
 		err := provider.markReflectionSourcesReflected(context.Background(), []MemoryItem{{ID: "mem_source"}})
 		require.EqualError(t, err, "mark failed")
 	})
@@ -579,7 +773,7 @@ func TestMemoryProvider_ReflectReturnsRelatedAndMarkErrors(t *testing.T) {
 			{Hits: []SearchHit{{Item: source}}},
 			{},
 		},
-		upsertErrs: []error{nil, errors.New("mark failed")},
+		patchErrs: []error{errors.New("mark failed")},
 	}
 	provider = &MemoryProvider{
 		manager: manager,
@@ -591,7 +785,8 @@ func TestMemoryProvider_ReflectReturnsRelatedAndMarkErrors(t *testing.T) {
 	result, err = provider.Reflect(context.Background(), ReflectionRequest{SessionID: statecore.DefaultSessionID})
 	require.EqualError(t, err, "mark failed")
 	require.Empty(t, result)
-	require.Len(t, manager.upsertItems, 2)
+	require.Len(t, manager.upsertItems, 1)
+	require.Len(t, manager.patches, 1)
 }
 
 func TestValidateReflectionCandidateRejectsMalformedCandidates(t *testing.T) {
@@ -669,10 +864,11 @@ func TestLLMReflectionGenerator_GeneratesCandidatesWithMockedModel(t *testing.T)
 				"text": "Run focused memory package tests after changing memory behavior.",
 				"tags": ["testing"],
 				"confidence": 0.82,
-				"metadata": {
-					"memory_importance": "high",
-					"memory_granularity": "summary"
-				}
+				"metadata": [
+					{"key": "memory_importance", "value": "high"},
+					{"key": "memory_granularity", "value": "summary"},
+					{"key": "custom_metadata", "value": "preserved"}
+				]
 			}]
 		}`},
 	}
@@ -697,10 +893,25 @@ func TestLLMReflectionGenerator_GeneratesCandidatesWithMockedModel(t *testing.T)
 	require.Equal(t, KindProcedural, result.Items[0].Kind)
 	require.Equal(t, StatusCandidate, result.Items[0].Status)
 	require.Equal(t, "high", result.Items[0].Metadata["memory_importance"])
+	require.Equal(t, "preserved", result.Items[0].Metadata["custom_metadata"])
 	require.Len(t, client.requests, 1)
 	require.Equal(t, "test-model", client.requests[0].Model)
 	require.NotNil(t, client.requests[0].StructuredOutput)
-	require.Contains(t, client.requests[0].Instructions, "candidate-only")
+	require.Contains(t, client.requests[0].Instructions, "key/value entries")
+}
+
+func TestLLMReflectionGenerator_StructuredOutputUsesMetadataEntries(t *testing.T) {
+	output := reflectionStructuredOutput()
+	properties := output.Schema["properties"].(map[string]any)
+	candidates := properties["candidates"].(map[string]any)
+	candidateItems := candidates["items"].(map[string]any)
+	candidateProperties := candidateItems["properties"].(map[string]any)
+	metadata := candidateProperties["metadata"].(map[string]any)
+	metadataItems := metadata["items"].(map[string]any)
+
+	require.Equal(t, "array", metadata["type"])
+	require.False(t, metadataItems["additionalProperties"].(bool))
+	require.ElementsMatch(t, []string{"key", "value"}, metadataItems["required"])
 }
 
 func TestLLMReflectionGenerator_ValidationAndModelErrors(t *testing.T) {
@@ -774,6 +985,14 @@ func reflectionSource(id string, offset int) MemoryItem {
 			Offsets:   []int{offset},
 		}},
 	}
+}
+
+func memoryHitIDs(hits []SearchHit) []string {
+	ids := make([]string, 0, len(hits))
+	for _, hit := range hits {
+		ids = append(ids, hit.Item.ID)
+	}
+	return ids
 }
 
 func boolPtr(value bool) *bool {

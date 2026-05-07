@@ -98,6 +98,8 @@ type fakeMemoryManager struct {
 	searchErr    error
 	upsertItem   MemoryItem
 	upsertErr    error
+	patchItem    MemoryItem
+	patchErr     error
 	deleteErr    error
 }
 
@@ -113,6 +115,16 @@ func (s fakeMemoryManager) UpsertMemory(_ context.Context, item MemoryItem) (Mem
 		return s.upsertItem, nil
 	}
 	return item, nil
+}
+
+func (s fakeMemoryManager) PatchMemory(_ context.Context, patch MemoryPatch) (MemoryItem, error) {
+	if s.patchErr != nil {
+		return MemoryItem{}, s.patchErr
+	}
+	if s.patchItem.ID != "" {
+		return s.patchItem, nil
+	}
+	return MemoryItem{ID: patch.ID}, nil
 }
 
 func (s fakeMemoryManager) DeleteMemory(context.Context, DeleteRequest) error {
@@ -143,13 +155,17 @@ type recordingMemoryManager struct {
 	fakeMemoryManager
 	searchResults     []SearchResult
 	searchErrs        []error
+	searchQueries     []SearchQuery
 	upsertErrs        []error
 	upsertItems       []MemoryItem
 	upsertErr         error
+	patchErrs         []error
+	patches           []MemoryPatch
 	currentSessionErr error
 }
 
 func (m *recordingMemoryManager) SearchMemory(ctx context.Context, query SearchQuery) (SearchResult, error) {
+	m.searchQueries = append(m.searchQueries, query)
 	if len(m.searchErrs) > 0 {
 		err := m.searchErrs[0]
 		m.searchErrs = m.searchErrs[1:]
@@ -185,6 +201,18 @@ func (m *recordingMemoryManager) UpsertMemory(_ context.Context, item MemoryItem
 	return item, nil
 }
 
+func (m *recordingMemoryManager) PatchMemory(_ context.Context, patch MemoryPatch) (MemoryItem, error) {
+	m.patches = append(m.patches, patch)
+	if len(m.patchErrs) > 0 {
+		err := m.patchErrs[0]
+		m.patchErrs = m.patchErrs[1:]
+		if err != nil {
+			return MemoryItem{}, err
+		}
+	}
+	return MemoryItem{ID: patch.ID}, nil
+}
+
 func (m *recordingMemoryManager) CurrentSession(ctx context.Context) (string, error) {
 	if m.currentSessionErr != nil {
 		return "", m.currentSessionErr
@@ -217,4 +245,21 @@ func (g *fakeReflectionGenerator) GenerateReflectionCandidates(
 		return ReflectionGenerationResult{}, g.err
 	}
 	return g.result, nil
+}
+
+type fakePromotionPolicy struct {
+	requests []PromotionPolicyRequest
+	decision PromotionDecision
+	err      error
+}
+
+func (p *fakePromotionPolicy) EvaluatePromotion(
+	_ context.Context,
+	req PromotionPolicyRequest,
+) (PromotionDecision, error) {
+	p.requests = append(p.requests, req)
+	if p.err != nil {
+		return PromotionDecision{}, p.err
+	}
+	return p.decision, nil
 }

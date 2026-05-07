@@ -106,6 +106,7 @@ func newCommand() *cli.Command {
 		CustomRootCommandHelpTemplate: rootHelpTemplate,
 		Flags:                         append(handcli.RootFlags(&envFile, &configFile), handcli.RequestInstructFlag()),
 		Commands: []*cli.Command{
+			newDatabaseCommand(),
 			doctorcmd.NewCommand(),
 			sessioncmd.NewCommand(),
 			tracecmd.NewCommand(),

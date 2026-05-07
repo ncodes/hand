@@ -117,7 +117,19 @@ func TestMemoryProvider_ReturnsGuardrailErrors(t *testing.T) {
 }
 
 func TestMemoryProvider_DeleteWithoutGuardrails(t *testing.T) {
-	provider := &MemoryProvider{manager: fakeMemoryManager{}}
+	manager := &recordingMemoryManager{
+		fakeMemoryManager: fakeMemoryManager{
+			searchResult: SearchResult{Hits: []SearchHit{{Item: MemoryItem{
+				ID:     "mem_123",
+				Status: StatusActive,
+				Text:   "delete me",
+			}}}},
+		},
+	}
+	provider := &MemoryProvider{manager: manager}
 
+	require.EqualError(t, provider.Delete(context.Background(), DeleteRequest{}), "memory id is required")
 	require.NoError(t, provider.Delete(context.Background(), DeleteRequest{ID: " mem_123 "}))
+	require.Len(t, manager.upsertItems, 1)
+	require.Equal(t, StatusDeleted, manager.upsertItems[0].Status)
 }

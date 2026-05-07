@@ -21,18 +21,21 @@ var ErrUnknownProvider = errors.New("unknown memory provider")
 var ErrUnknownBackend = errors.New("unknown memory backend")
 
 type Options struct {
-	Guardrails          Guardrails
-	Observability       Observability
-	StateManager        StateManager
-	StorageBackend      string
-	MemoryBackend       string
-	Pinned              PinnedOptions
-	EpisodicBackground  EpisodicBackgroundOptions
-	ModelClient         models.Client
-	Model               string
-	APIMode             string
-	DebugRequests       bool
-	ReflectionGenerator ReflectionGenerator
+	Guardrails           Guardrails
+	Observability        Observability
+	StateManager         StateManager
+	StorageBackend       string
+	MemoryBackend        string
+	Pinned               PinnedOptions
+	EpisodicBackground   EpisodicBackgroundOptions
+	ReflectionBackground ReflectionBackgroundOptions
+	PromotionBackground  PromotionBackgroundOptions
+	ModelClient          models.Client
+	Model                string
+	APIMode              string
+	DebugRequests        bool
+	ReflectionGenerator  ReflectionGenerator
+	PromotionPolicy      PromotionPolicy
 }
 
 type PinnedOptions = pinnedmemory.Options
@@ -40,6 +43,7 @@ type PinnedOptions = pinnedmemory.Options
 type StateManager interface {
 	SearchMemory(context.Context, SearchQuery) (SearchResult, error)
 	UpsertMemory(context.Context, MemoryItem) (MemoryItem, error)
+	PatchMemory(context.Context, MemoryPatch) (MemoryItem, error)
 	DeleteMemory(context.Context, DeleteRequest) error
 	CurrentSession(context.Context) (string, error)
 	CountMessages(context.Context, string, statecore.MessageQueryOptions) (int, error)
@@ -49,15 +53,20 @@ type StateManager interface {
 }
 
 type MemoryProvider struct {
-	mu                          sync.RWMutex
-	manager                     StateManager
-	guardrails                  Guardrails
-	obs                         Observability
-	pinned                      PinnedOptions
-	episodicExtractor           *episodic.Service
-	episodicBackground          EpisodicBackgroundOptions
-	episodicBackgroundStartOnce sync.Once
-	reflectionGenerator         ReflectionGenerator
+	mu                            sync.RWMutex
+	manager                       StateManager
+	guardrails                    Guardrails
+	obs                           Observability
+	pinned                        PinnedOptions
+	episodicExtractor             *episodic.Service
+	episodicBackground            EpisodicBackgroundOptions
+	episodicBackgroundStartOnce   sync.Once
+	reflectionBackground          ReflectionBackgroundOptions
+	reflectionBackgroundStartOnce sync.Once
+	promotionBackground           PromotionBackgroundOptions
+	promotionBackgroundStartOnce  sync.Once
+	reflectionGenerator           ReflectionGenerator
+	promotionPolicy               PromotionPolicy
 }
 
 func NewProvider(name string, opts Options) (Provider, error) {
@@ -90,12 +99,15 @@ func NewFromManager(manager StateManager, opts Options) (*MemoryProvider, error)
 	}
 
 	provider := &MemoryProvider{
-		manager:             manager,
-		guardrails:          opts.Guardrails,
-		obs:                 opts.Observability,
-		pinned:              pinnedmemory.NormalizeOptions(opts.Pinned),
-		episodicBackground:  episodic.NormalizeBackgroundOptions(opts.EpisodicBackground),
-		reflectionGenerator: opts.ReflectionGenerator,
+		manager:              manager,
+		guardrails:           opts.Guardrails,
+		obs:                  opts.Observability,
+		pinned:               pinnedmemory.NormalizeOptions(opts.Pinned),
+		episodicBackground:   episodic.NormalizeBackgroundOptions(opts.EpisodicBackground),
+		reflectionBackground: normalizeReflectionBackgroundOptions(opts.ReflectionBackground),
+		promotionBackground:  normalizePromotionBackgroundOptions(opts.PromotionBackground),
+		reflectionGenerator:  opts.ReflectionGenerator,
+		promotionPolicy:      opts.PromotionPolicy,
 	}
 
 	if opts.ModelClient != nil {
@@ -147,6 +159,7 @@ func (p *MemoryProvider) Capabilities(context.Context) (Capabilities, error) {
 		SupportsReflection:                  p != nil && p.reflectionGenerator != nil,
 		SupportsVectors:                     p != nil && supportsVectorSearch(p.manager),
 		SupportsReranking:                   true,
+		SupportsAudit:                       p != nil && p.manager != nil,
 		SupportsObservability:               true,
 	}, nil
 }
@@ -199,7 +212,7 @@ func (p *MemoryProvider) LoadPinned(ctx context.Context, query SearchQuery) ([]M
 	}
 
 	fields := observationFields(p.Name(), "load_pinned", map[string]any{"result_count": len(items)})
-	logDebugAndTrace(ctx, p.observability(), "memory pinned loaded", "memory.pinned.loaded", fields)
+	logDebugAndTrace(ctx, p.observability(), "pinned memory loaded", "memory.pinned.loaded", fields)
 
 	return items, nil
 }
@@ -241,6 +254,9 @@ func (p *MemoryProvider) Search(ctx context.Context, query SearchQuery) (SearchR
 		return SearchResult{}, err
 	}
 
+	obs := p.observability()
+	logDebugAndTrace(ctx, obs, "memory search started", "memory.search.started", observationFields(p.Name(), "search", nil))
+
 	result, err := p.manager.SearchMemory(ctx, query)
 	if err != nil {
 		return SearchResult{}, err
@@ -260,7 +276,6 @@ func (p *MemoryProvider) Search(ctx context.Context, query SearchQuery) (SearchR
 		hits = append(hits, SearchHit{Item: redacted.Clone(), Score: hit.Score})
 	}
 
-	obs := p.observability()
 	fields := observationFields(p.Name(), "search", map[string]any{"result_count": len(hits)})
 	logDebugAndTrace(ctx, obs, "memory search completed", "memory.search.completed", fields)
 
@@ -295,11 +310,23 @@ func (p *MemoryProvider) Delete(ctx context.Context, req DeleteRequest) error {
 		return err
 	}
 
-	if err := p.manager.DeleteMemory(ctx, req); err != nil {
+	memoryID := strings.TrimSpace(req.ID)
+	if memoryID == "" {
+		return errors.New("memory id is required")
+	}
+	item, err := p.loadLifecycleMemory(ctx, memoryID, []Status{StatusActive, StatusCandidate, StatusSuperseded})
+	if err != nil {
+		return err
+	}
+	previousStatus := item.Status
+	item.Status = StatusDeleted
+	item.Metadata = lifecycleMetadata(item.Metadata, "delete", req.Reason, previousStatus)
+
+	if _, err := p.manager.UpsertMemory(ctx, item); err != nil {
 		return err
 	}
 
-	fields := observationFields(p.Name(), "delete", map[string]any{"memory_id": strings.TrimSpace(req.ID)})
+	fields := observationFields(p.Name(), "delete", map[string]any{"memory_id": memoryID})
 	traceRecord(ctx, p.observability(), "memory.delete.completed", fields)
 	return nil
 }
@@ -339,6 +366,8 @@ func (p *MemoryProvider) StartBackground(ctx context.Context) error {
 func (p *MemoryProvider) backgroundStarters() []func(context.Context) error {
 	return []func(context.Context) error{
 		p.startEpisodicRecordingBackground,
+		p.startReflectionBackground,
+		p.startPromotionBackground,
 	}
 }
 

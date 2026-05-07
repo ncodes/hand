@@ -19,6 +19,7 @@ import (
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
 	upcmd "github.com/wandxy/hand/cmd/up"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/datadir"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/pkg/logutils"
@@ -674,6 +675,89 @@ storage:
 	cfg := config.Get()
 	require.Equal(t, "openai", cfg.Models.Main.Provider)
 	require.Equal(t, "https://api.openai.com/v1", cfg.Models.Main.BaseURL)
+}
+
+func TestNewCommand_DatabaseResetDeletesConfiguredSQLiteDatabase(t *testing.T) {
+	clearEnvKeys(t, "HAND_HOME", "HAND_CONFIG", "HAND_ENV_FILE")
+	resetGlobals(t)
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+storage:
+  backend: sqlite
+`), 0o600))
+
+	statePath := datadir.StateDBPath()
+	require.NoError(t, os.MkdirAll(filepath.Dir(statePath), 0o755))
+	for _, path := range configuredDatabasePaths() {
+		require.NoError(t, os.WriteFile(path, []byte("database"), 0o600))
+	}
+
+	var output bytes.Buffer
+	rootOutput = &output
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--config", configPath,
+		"db",
+		"reset",
+		"--force",
+	})
+	require.NoError(t, err)
+
+	for _, path := range configuredDatabasePaths() {
+		require.NoFileExists(t, path)
+	}
+	require.Contains(t, output.String(), "Reset database: "+statePath)
+}
+
+func TestNewCommand_DatabaseResetRequiresForce(t *testing.T) {
+	clearEnvKeys(t, "HAND_HOME", "HAND_CONFIG", "HAND_ENV_FILE")
+	resetGlobals(t)
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+storage:
+  backend: sqlite
+`), 0o600))
+
+	statePath := datadir.StateDBPath()
+	require.NoError(t, os.MkdirAll(filepath.Dir(statePath), 0o755))
+	require.NoError(t, os.WriteFile(statePath, []byte("database"), 0o600))
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--config", configPath,
+		"db",
+		"reset",
+	})
+	require.EqualError(t, err, "database reset requires --force")
+	require.FileExists(t, statePath)
+}
+
+func TestNewCommand_DatabaseResetRejectsMemoryStorage(t *testing.T) {
+	clearEnvKeys(t, "HAND_HOME", "HAND_CONFIG", "HAND_ENV_FILE")
+	resetGlobals(t)
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+storage:
+  backend: memory
+`), 0o600))
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--config", configPath,
+		"db",
+		"reset",
+		"--force",
+	})
+	require.EqualError(t, err, "database reset requires sqlite storage backend")
 }
 
 func clearEnvKeys(t *testing.T, keys ...string) {
