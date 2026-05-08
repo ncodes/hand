@@ -9,7 +9,7 @@ import (
 )
 
 func (p *MemoryProvider) recordPromotionStarted(ctx context.Context, memoryID string, operation string) {
-	fields := observationFields(p.Name(), "promote", map[string]any{
+	fields := buildObservationFields(p.Name(), "promote", map[string]any{
 		"memory_id": memoryID,
 		"action":    operation,
 		"plan":      "load_candidate_check_related_apply_policy_write_decision",
@@ -23,7 +23,7 @@ func (p *MemoryProvider) recordPromotionDecision(
 	decision PromotionDecision,
 	related []SearchHit,
 ) {
-	fields := observationFields(p.Name(), "promote", map[string]any{
+	fields := buildObservationFields(p.Name(), "promote", map[string]any{
 		"memory_id":      memoryID,
 		"approved":       decision.Approved,
 		"policy":         decision.Policy,
@@ -33,8 +33,8 @@ func (p *MemoryProvider) recordPromotionDecision(
 	})
 	if len(related) > 0 {
 		fields["related_count"] = len(related)
-		fields["related_memory_ids"] = promotionRelatedHitIDs(related)
-		fields["related_top_score"] = promotionTopRelatedScore(related)
+		fields["related_memory_ids"] = getPromotionRelatedHitIDs(related)
+		fields["related_top_score"] = getPromotionTopRelatedScore(related)
 	}
 	logDebugAndTrace(ctx, p.observability(), "memory promotion decision", trace.EvtMemoryPromotionDecision, fields)
 }
@@ -45,7 +45,7 @@ func (p *MemoryProvider) recordPromotionCompleted(
 	decision PromotionDecision,
 	started time.Time,
 ) {
-	fields := observationFields(p.Name(), "promote", map[string]any{
+	fields := buildObservationFields(p.Name(), "promote", map[string]any{
 		"memory_id":   memoryID,
 		"approved":    decision.Approved,
 		"reason":      decision.Reason,
@@ -55,7 +55,7 @@ func (p *MemoryProvider) recordPromotionCompleted(
 }
 
 func (p *MemoryProvider) recordPromotionFailure(ctx context.Context, memoryID string, err error) {
-	fields := observationFields(p.Name(), "promote", map[string]any{
+	fields := buildObservationFields(p.Name(), "promote", map[string]any{
 		"memory_id": memoryID,
 		"error":     err.Error(),
 	})
@@ -63,14 +63,14 @@ func (p *MemoryProvider) recordPromotionFailure(ctx context.Context, memoryID st
 }
 
 func (p *MemoryProvider) recordPromotionFallback(ctx context.Context, memoryID string) {
-	fields := observationFields(p.Name(), "promote", map[string]any{
+	fields := buildObservationFields(p.Name(), "promote", map[string]any{
 		"memory_id": memoryID,
 		"fallback":  "default_policy",
 	})
 	logDebugAndTrace(ctx, p.observability(), "memory promotion fallback", trace.EvtMemoryPromotionFallback, fields)
 }
 
-func promotionRelatedHitIDs(hits []SearchHit) []string {
+func getPromotionRelatedHitIDs(hits []SearchHit) []string {
 	ids := make([]string, 0, len(hits))
 	for _, hit := range hits {
 		if id := strings.TrimSpace(hit.Item.ID); id != "" {
@@ -80,7 +80,7 @@ func promotionRelatedHitIDs(hits []SearchHit) []string {
 	return ids
 }
 
-func promotionTopRelatedScore(hits []SearchHit) float64 {
+func getPromotionTopRelatedScore(hits []SearchHit) float64 {
 	var score float64
 	for _, hit := range hits {
 		if hit.Score > score {

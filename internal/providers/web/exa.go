@@ -67,7 +67,7 @@ func (p *ExaProvider) Search(ctx context.Context, query string, count int) ([]Se
 			Title: strings.TrimSpace(result.Title),
 			URL:   strings.TrimSpace(result.URL),
 			Snippet: truncateToMaxChars(
-				firstNonEmpty(firstHighlight(result.Highlights), result.Summary, result.Text),
+				getFirstNonEmpty(getFirstHighlight(result.Highlights), result.Summary, result.Text),
 				p.maxCharsPerResult,
 			),
 			Position: idx + 1,
@@ -78,9 +78,9 @@ func (p *ExaProvider) Search(ctx context.Context, query string, count int) ([]Se
 }
 
 func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResult, error) {
-	format := extractFormat(ctx, "text")
-	maxChars := extractCharLimit(ctx, p.maxExtractCharsPerResult)
-	query := extractQuery(ctx)
+	format := getExtractFormat(ctx, "text")
+	maxChars := getExtractCharLimit(ctx, p.maxExtractCharsPerResult)
+	query := getExtractQuery(ctx)
 
 	var response struct {
 		Results []struct {
@@ -128,7 +128,7 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 		if strings.TrimSpace(status.Status) != "error" {
 			continue
 		}
-		statusByURL[strings.TrimSpace(status.ID)] = exaStatusError(status.Error.Tag, status.Error.HTTPStatusCode)
+		statusByURL[strings.TrimSpace(status.ID)] = getExaStatusError(status.Error.Tag, status.Error.HTTPStatusCode)
 	}
 
 	seen := make(map[string]struct{}, len(response.Results))
@@ -136,7 +136,7 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 		url := strings.TrimSpace(result.URL)
 
 		content, truncated, downloadTruncated := limitExtractContent(
-			firstNonEmpty(firstHighlight(result.Highlights), result.Text),
+			getFirstNonEmpty(getFirstHighlight(result.Highlights), result.Text),
 			p.maxExtractResponseBytes,
 			maxChars)
 
@@ -149,7 +149,7 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 			ContentFormat:     format,
 			Truncated:         truncated,
 			DownloadTruncated: downloadTruncated,
-			Error:             firstNonEmpty(result.Error, statusByURL[url]),
+			Error:             getFirstNonEmpty(result.Error, statusByURL[url]),
 		})
 	}
 	for _, status := range response.Statuses {
@@ -161,7 +161,7 @@ func (p *ExaProvider) Extract(ctx context.Context, urls []string) ([]ExtractResu
 		results = append(results, ExtractResult{
 			URL:           url,
 			ContentFormat: format,
-			Error:         exaStatusError(status.Error.Tag, status.Error.HTTPStatusCode),
+			Error:         getExaStatusError(status.Error.Tag, status.Error.HTTPStatusCode),
 		})
 	}
 
@@ -178,7 +178,7 @@ func (p *ExaProvider) exaHeaders() map[string]string {
 	}
 }
 
-func exaStatusError(tag string, httpStatusCode int) string {
+func getExaStatusError(tag string, httpStatusCode int) string {
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
 		return "extraction failed"

@@ -698,15 +698,15 @@ func Test_Store_ValidateAndResolvePath(t *testing.T) {
 	}
 	require.ErrorContains(t, NewStore(dir).Validate(), "failed to access trace directory")
 
-	_, err := resolveSessionPath("", "session")
+	_, err := getSessionPath("", "session")
 	require.ErrorIs(t, err, os.ErrNotExist)
 
-	validPath, err := resolveSessionPath(dir, "session")
+	validPath, err := getSessionPath(dir, "session")
 	require.NoError(t, err)
 	require.Equal(t, filepath.Join(dir, "session.jsonl"), validPath)
 
 	for _, id := range []string{"", " ", ".", "..", "../etc/passwd", `..\etc\passwd`, "nested/file", `nested\file`} {
-		_, err = resolveSessionPath(dir, id)
+		_, err = getSessionPath(dir, id)
 		require.ErrorIs(t, err, os.ErrNotExist)
 	}
 }
@@ -790,12 +790,12 @@ func Test_Store_ListSessions_IgnoresNonJSONLAndGetSessionErrors(t *testing.T) {
 }
 
 func Test_Utility_Helpers(t *testing.T) {
-	require.Nil(t, buildToolCallViewsFromContext(nil))
+	require.Nil(t, toolCallsToToolCallViews(nil))
 	require.Equal(t, []ToolCallView{{
 		ID:    "call-1",
 		Name:  "list_files",
 		Input: "{}",
-	}}, buildToolCallViewsFromContext([]handmsg.ToolCall{{
+	}}, toolCallsToToolCallViews([]handmsg.ToolCall{{
 		ID:    "call-1",
 		Name:  "list_files",
 		Input: "{}",

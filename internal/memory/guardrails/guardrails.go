@@ -63,20 +63,20 @@ func (g Guardrails) SafetyScan(_ context.Context, item memory.MemoryItem) error 
 // shape. It returns a copy so callers do not accidentally mutate canonical
 // stored memory.
 func (g Guardrails) Redact(_ context.Context, item memory.MemoryItem) (memory.MemoryItem, error) {
-	item.Title = sanitizedString(g.redactor, item.Title)
-	item.Text = sanitizedString(g.redactor, item.Text)
-	item.Tags = sanitizedStrings(g.redactor, item.Tags)
+	item.Title = sanitizeString(g.redactor, item.Title)
+	item.Text = sanitizeString(g.redactor, item.Text)
+	item.Tags = sanitizeStrings(g.redactor, item.Tags)
 	if len(item.Metadata) > 0 {
 		metadata := make(map[string]string, len(item.Metadata))
 		for key, value := range item.Metadata {
-			metadata[key] = sanitizedString(g.redactor, value)
+			metadata[key] = sanitizeString(g.redactor, value)
 		}
 		item.Metadata = metadata
 	}
 	return item, nil
 }
 
-func sanitizedString(redactor coreguardrails.Redactor, value string) string {
+func sanitizeString(redactor coreguardrails.Redactor, value string) string {
 	if redactor == nil {
 		redactor = coreguardrails.NewRedactor()
 	}
@@ -87,13 +87,13 @@ func sanitizedString(redactor coreguardrails.Redactor, value string) string {
 	return sanitized
 }
 
-func sanitizedStrings(redactor coreguardrails.Redactor, values []string) []string {
+func sanitizeStrings(redactor coreguardrails.Redactor, values []string) []string {
 	if len(values) == 0 {
 		return nil
 	}
 	sanitized := make([]string, 0, len(values))
 	for _, value := range values {
-		sanitized = append(sanitized, sanitizedString(redactor, value))
+		sanitized = append(sanitized, sanitizeString(redactor, value))
 	}
 	return sanitized
 }

@@ -139,10 +139,10 @@ func TestCurrentNoColorSetting_UsesConfig(t *testing.T) {
 	})
 
 	config.Set(nil)
-	require.False(t, currentNoColorSetting())
+	require.False(t, getCurrentNoColorSetting())
 
 	config.Set(&config.Config{Log: config.LogConfig{NoColor: true}})
-	require.True(t, currentNoColorSetting())
+	require.True(t, getCurrentNoColorSetting())
 }
 
 func TestConfigureLogger_UsesConfiguredOutputWriter(t *testing.T) {

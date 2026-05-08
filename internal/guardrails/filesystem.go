@@ -79,7 +79,7 @@ func (p FilesystemPolicy) Resolve(path string) (ResolvedPath, error) {
 	}
 
 	for _, root := range p.Roots {
-		if withinRoot(root, candidate) {
+		if isWithinRoot(root, candidate) {
 			rel, err := filepath.Rel(root, candidate)
 			if err != nil {
 				return ResolvedPath{}, err
@@ -150,18 +150,18 @@ func IsBinary(content []byte) bool {
 		return false
 	}
 
-	if bytesContainsNUL(content) {
+	if hasNULBytes(content) {
 		return true
 	}
 
 	return !utf8.Valid(content)
 }
 
-func bytesContainsNUL(content []byte) bool {
+func hasNULBytes(content []byte) bool {
 	return slices.Contains(content, 0)
 }
 
-func withinRoot(root, candidate string) bool {
+func isWithinRoot(root, candidate string) bool {
 	root = filepath.Clean(root)
 	candidate = filepath.Clean(candidate)
 	if root == candidate {

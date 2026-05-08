@@ -25,13 +25,13 @@ func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearch
 
 	hits := make([]statememory.MemorySearchHit, 0, len(s.memoryItems))
 	for _, item := range s.memoryItems {
-		if !statememory.MemoryMatchesQuery(item, query) {
+		if !statememory.CheckMemoryMatchesQuery(item, query) {
 			continue
 		}
 
 		hits = append(hits, statememory.MemorySearchHit{
 			Item:  item.Clone(),
-			Score: statememory.SimpleMemoryScore(item, query.Text),
+			Score: statememory.GetSimpleMemoryScore(item, query.Text),
 		})
 	}
 
@@ -73,7 +73,7 @@ func (s *Store) ListSessionMemories(_ context.Context, query statememory.Session
 
 	items := make([]statememory.MemoryItem, 0, len(s.memoryItems))
 	for _, item := range s.memoryItems {
-		if statememory.MemoryMatchesSessionQuery(item, query) {
+		if statememory.CheckMemoryMatchesSessionQuery(item, query) {
 			items = append(items, item.Clone())
 		}
 	}

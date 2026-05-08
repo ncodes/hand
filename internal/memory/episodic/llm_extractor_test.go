@@ -142,7 +142,7 @@ func TestLLMExtractor_ExtractCandidatesReturnsClientAndParseErrors(t *testing.T)
 }
 
 func TestLLMExtractorStructuredOutputUsesLowercaseRejectionFields(t *testing.T) {
-	output := llmExtractorStructuredOutput()
+	output := getLLMExtractorStructuredOutput()
 	require.NotNil(t, output)
 	require.True(t, output.Strict)
 
@@ -157,7 +157,7 @@ func TestLLMExtractorStructuredOutputUsesLowercaseRejectionFields(t *testing.T) 
 	items := rejections["items"].(map[string]any)
 	rejectionProperties := items["properties"].(map[string]any)
 
-	require.ElementsMatch(t, episodeCandidateKinds(), kinds["enum"])
+	require.ElementsMatch(t, getEpisodeCandidateKinds(), kinds["enum"])
 	require.False(t, metadata["additionalProperties"].(bool))
 	require.ElementsMatch(t, mapKeys(metadataProperties), metadata["required"])
 	require.Contains(t, metadataProperties, "memory_importance")

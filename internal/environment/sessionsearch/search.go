@@ -85,10 +85,10 @@ func Search(
 				continue
 			}
 
-			matchIndex, matchLen := caseInsensitiveMatchIndex(hit.MatchedText, query)
-			snippet := snippetAround(hit.MatchedText, 0, 0, sessionSearchSnippetRunes)
+			matchIndex, matchLen := getCaseInsensitiveMatchIndex(hit.MatchedText, query)
+			snippet := getSnippetAround(hit.MatchedText, 0, 0, sessionSearchSnippetRunes)
 			if matchIndex >= 0 {
-				snippet = snippetAround(hit.MatchedText, matchIndex, matchLen, sessionSearchSnippetRunes)
+				snippet = getSnippetAround(hit.MatchedText, matchIndex, matchLen, sessionSearchSnippetRunes)
 			}
 
 			group.Messages = append(group.Messages, SessionSearchMessageHit{
@@ -125,7 +125,7 @@ func clampSearchResults(value int) int {
 	return value
 }
 
-func caseInsensitiveMatchIndex(text string, query string) (int, int) {
+func getCaseInsensitiveMatchIndex(text string, query string) (int, int) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return -1, 0
@@ -150,7 +150,7 @@ func caseInsensitiveMatchIndex(text string, query string) (int, int) {
 	return -1, 0
 }
 
-func snippetAround(text string, matchIndex int, matchLen int, maxRunes int) string {
+func getSnippetAround(text string, matchIndex int, matchLen int, maxRunes int) string {
 	if text == "" || maxRunes <= 0 {
 		return ""
 	}

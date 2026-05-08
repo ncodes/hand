@@ -51,7 +51,7 @@ func NewLiveClients(cfg *config.Config) (models.Client, models.Client, error) {
 
 	modelClient, err := newLiveModelClient(
 		auth.APIKey,
-		liveClientOptions(cfg.Models.Main.BaseURL, cfg.ModelMaxRetriesEffective())...,
+		getLiveClientOptions(cfg.Models.Main.BaseURL, cfg.ModelMaxRetriesEffective())...,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -67,7 +67,7 @@ func NewLiveClients(cfg *config.Config) (models.Client, models.Client, error) {
 
 	summaryClient, err := newLiveModelClient(
 		summaryAuth.APIKey,
-		liveClientOptions(summaryAuth.BaseURL, cfg.ModelMaxRetriesEffective())...,
+		getLiveClientOptions(summaryAuth.BaseURL, cfg.ModelMaxRetriesEffective())...,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -114,7 +114,7 @@ func NewLiveRPCHarness(ctx context.Context, home, envFile, configFile string) (*
 	})
 }
 
-func liveClientOptions(baseURL string, maxRetries int) []option.RequestOption {
+func getLiveClientOptions(baseURL string, maxRetries int) []option.RequestOption {
 	opts := make([]option.RequestOption, 0, 2)
 	if strings.TrimSpace(baseURL) != "" {
 		opts = append(opts, option.WithBaseURL(strings.TrimSpace(baseURL)))

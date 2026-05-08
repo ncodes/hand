@@ -706,8 +706,8 @@ func TestSQLiteStore_GetAndHelperFunctionsEdgeCases(t *testing.T) {
 	require.False(t, ok)
 	require.Equal(t, Session{}, session)
 
-	require.Equal(t, base.MessageOrderAsc, messageQueryOrder(MessageQueryOptions{}))
-	require.Equal(t, base.MessageOrderAsc, messageQueryOrder(MessageQueryOptions{Order: "bogus"}))
+	require.Equal(t, base.MessageOrderAsc, getMessageQueryOrder(MessageQueryOptions{}))
+	require.Equal(t, base.MessageOrderAsc, getMessageQueryOrder(MessageQueryOptions{Order: "bogus"}))
 
 	message := handmsg.Message{
 		Role:    handmsg.RoleTool,
@@ -1820,8 +1820,8 @@ func TestSQLiteStore_SearchMessagesSupportsRoleAndToolFilters(t *testing.T) {
 }
 
 func TestSearchMessageResultTime_EdgeCases(t *testing.T) {
-	require.True(t, searchSessionResultTime("").IsZero())
-	require.True(t, searchSessionResultTime("not-a-time").IsZero())
+	require.True(t, getSearchSessionResultTime("").IsZero())
+	require.True(t, getSearchSessionResultTime("not-a-time").IsZero())
 }
 
 func TestSQLiteStore_GetMessagesSupportsDescendingOrder(t *testing.T) {
@@ -2544,26 +2544,26 @@ func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 		}).searchRows()
 		require.Len(t, rows, 2)
 
-		require.Nil(t, searchRowsFromMessageModel(messageModel{
+		require.Nil(t, messageModelToSearchRows(messageModel{
 			ID:        3,
 			SessionID: testSessionA,
 			Role:      string(handmsg.RoleAssistant),
 		}))
 
-		require.Nil(t, searchRowsFromMessageModel(messageModel{
+		require.Nil(t, messageModelToSearchRows(messageModel{
 			ID:        4,
 			SessionID: testSessionA,
 			Role:      string(handmsg.RoleTool),
 			Name:      "process",
 		}))
 
-		require.Nil(t, searchRowsFromMessageModel(messageModel{
+		require.Nil(t, messageModelToSearchRows(messageModel{
 			ID:        5,
 			SessionID: testSessionA,
 			Role:      string(handmsg.RoleUser),
 		}))
 
-		rows = searchRowsFromMessageModel(messageModel{
+		rows = messageModelToSearchRows(messageModel{
 			ID:        6,
 			SessionID: testSessionA,
 			Role:      string(handmsg.RoleAssistant),
@@ -2572,7 +2572,7 @@ func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 		require.Len(t, rows, 1)
 		require.Equal(t, "assistant fallback", rows[0].Body)
 
-		rows = searchRowsFromMessageModel(messageModel{
+		rows = messageModelToSearchRows(messageModel{
 			ID:        7,
 			SessionID: testSessionA,
 			Role:      string(handmsg.RoleAssistant),
@@ -2581,7 +2581,7 @@ func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 		require.Len(t, rows, 1)
 		require.Equal(t, "search fallback", rows[0].Body)
 
-		rows = searchRowsFromMessageModel(messageModel{
+		rows = messageModelToSearchRows(messageModel{
 			ID:        8,
 			SessionID: testSessionA,
 			Role:      string(handmsg.RoleAssistant),
@@ -2589,7 +2589,7 @@ func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 		})
 		require.Empty(t, rows)
 
-		rows = searchRowsFromMessageModel(messageModel{
+		rows = messageModelToSearchRows(messageModel{
 			ID:        9,
 			SessionID: testSessionA,
 			Role:      string(handmsg.RoleAssistant),
@@ -2602,7 +2602,7 @@ func TestSQLiteStore_SearchIndexHelpers(t *testing.T) {
 	})
 
 	t.Run("search tokenization drops punctuation-only segments", func(t *testing.T) {
-		require.Nil(t, searchTokens("... ---"))
+		require.Nil(t, getSearchTokens("... ---"))
 	})
 }
 

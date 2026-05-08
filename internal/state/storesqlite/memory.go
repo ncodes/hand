@@ -103,7 +103,7 @@ func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearch
 
 	hits := make([]statememory.MemorySearchHit, 0, len(records))
 	for _, record := range records {
-		item, err := memoryModelToItem(record.model())
+		item, err := memoryModelToMemoryItem(record.model())
 		if err != nil {
 			return statememory.MemorySearchResult{}, err
 		}
@@ -138,10 +138,10 @@ func (s *Store) ListSessionMemories(ctx context.Context, query statememory.Sessi
 
 	db := s.db.WithContext(ctx).Model(&memoryItemModel{}).Where("source_session_id = ?", sessionID)
 	if len(query.Kinds) > 0 {
-		db = db.Where("kind IN ?", statememory.MemoryKindStrings(query.Kinds))
+		db = db.Where("kind IN ?", statememory.MemoryKindsToStrings(query.Kinds))
 	}
 	if len(statuses) > 0 {
-		db = db.Where("status IN ?", statememory.MemoryStatusStrings(statuses))
+		db = db.Where("status IN ?", statememory.MemoryStatusesToStrings(statuses))
 	}
 	if query.Limit > 0 {
 		db = db.Limit(query.Limit)
@@ -154,7 +154,7 @@ func (s *Store) ListSessionMemories(ctx context.Context, query statememory.Sessi
 
 	items := make([]statememory.MemoryItem, 0, len(records))
 	for _, record := range records {
-		item, err := memoryModelToItem(record)
+		item, err := memoryModelToMemoryItem(record)
 		if err != nil {
 			return statememory.SessionMemoriesResult{}, err
 		}
@@ -202,7 +202,7 @@ func (s *Store) UpsertMemory(ctx context.Context, item statememory.MemoryItem) (
 	}
 	item.UpdatedAt = now
 
-	record := itemToMemoryModel(item)
+	record := memoryItemToMemoryModel(item)
 
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Save(&record).Error; err != nil {
@@ -252,12 +252,12 @@ func (s *Store) PatchMemory(ctx context.Context, patch statememory.MemoryPatch) 
 			return err
 		}
 
-		current, err := memoryModelToItem(record)
+		current, err := memoryModelToMemoryItem(record)
 		if err != nil {
 			return err
 		}
 		item = statememory.ApplyMemoryPatch(current, patch, now)
-		updates := memoryPatchUpdates(patch, item)
+		updates := getMemoryPatchUpdates(patch, item)
 		if err := tx.Model(&memoryItemModel{}).Where("id = ?", item.ID).Updates(updates).Error; err != nil {
 			return err
 		}
@@ -271,7 +271,7 @@ func (s *Store) PatchMemory(ctx context.Context, patch statememory.MemoryPatch) 
 				}
 			}
 		}
-		if memoryPatchNeedsSearchRow(patch) {
+		if checkMemoryPatchNeedsSearchRow(patch) {
 			if err := replaceMemorySearchRow(tx, item); err != nil {
 				return err
 			}
@@ -332,7 +332,7 @@ func (s *Store) searchMemoryRecords(
 
 	text := strings.TrimSpace(query.Text)
 	if text != "" {
-		queryText := buildSearchQuery(text)
+		queryText := buildFTSSearchQuery(text)
 		if queryText == "" {
 			return nil, nil
 		}
@@ -347,10 +347,10 @@ func (s *Store) searchMemoryRecords(
 		db = db.Where("id IN ?", ids)
 	}
 	if len(query.Kinds) > 0 {
-		db = db.Where("kind IN ?", statememory.MemoryKindStrings(query.Kinds))
+		db = db.Where("kind IN ?", statememory.MemoryKindsToStrings(query.Kinds))
 	}
 	if len(statuses) > 0 {
-		db = db.Where("status IN ?", statememory.MemoryStatusStrings(statuses))
+		db = db.Where("status IN ?", statememory.MemoryStatusesToStrings(statuses))
 	}
 	if tags := statememory.NormalizeMemoryTags(query.Tags); len(tags) > 0 {
 		subquery := s.db.WithContext(ctx).
@@ -373,7 +373,7 @@ func (s *Store) searchMemoryRecords(
 
 	searchRecords := make([]memorySearchRecord, 0, len(records))
 	for _, record := range records {
-		searchRecords = append(searchRecords, memorySearchRecordFromModel(record, 0))
+		searchRecords = append(searchRecords, memoryModelToSearchRecord(record, 0))
 	}
 	return searchRecords, nil
 }
@@ -434,12 +434,12 @@ WHERE 1 = 1`)
 	if len(query.Kinds) > 0 {
 		sql.WriteString(`
 	AND m.kind IN ?`)
-		args = append(args, statememory.MemoryKindStrings(query.Kinds))
+		args = append(args, statememory.MemoryKindsToStrings(query.Kinds))
 	}
 	if len(statuses) > 0 {
 		sql.WriteString(`
 	AND m.status IN ?`)
-		args = append(args, statememory.MemoryStatusStrings(statuses))
+		args = append(args, statememory.MemoryStatusesToStrings(statuses))
 	}
 	if tags := statememory.NormalizeMemoryTags(query.Tags); len(tags) > 0 {
 		sql.WriteString(`
@@ -563,11 +563,11 @@ func ensureMemorySearchIndex(db *gorm.DB) error {
 	return nil
 }
 
-func itemToMemoryModel(item statememory.MemoryItem) memoryItemModel {
-	promotionEvaluatedAt := memoryPromotionEvaluatedAt(item)
+func memoryItemToMemoryModel(item statememory.MemoryItem) memoryItemModel {
+	promotionEvaluatedAt := getMemoryPromotionEvaluatedAt(item)
 	return memoryItemModel{
 		ID:                   item.ID,
-		SourceSessionID:      memorySourceSessionID(item),
+		SourceSessionID:      getMemorySourceSessionID(item),
 		Kind:                 string(item.Kind),
 		Status:               string(item.Status),
 		Title:                item.Title,
@@ -583,7 +583,7 @@ func itemToMemoryModel(item statememory.MemoryItem) memoryItemModel {
 	}
 }
 
-func memoryPromotionEvaluatedAt(item statememory.MemoryItem) *time.Time {
+func getMemoryPromotionEvaluatedAt(item statememory.MemoryItem) *time.Time {
 	if item.PromotionEvaluatedAt.IsZero() {
 		return nil
 	}
@@ -592,7 +592,7 @@ func memoryPromotionEvaluatedAt(item statememory.MemoryItem) *time.Time {
 	return &evaluatedAt
 }
 
-func memoryPatchUpdates(patch statememory.MemoryPatch, item statememory.MemoryItem) map[string]any {
+func getMemoryPatchUpdates(patch statememory.MemoryPatch, item statememory.MemoryItem) map[string]any {
 	updates := map[string]any{"updated_at": item.UpdatedAt}
 	if patch.Kind != nil {
 		updates["kind"] = string(item.Kind)
@@ -611,11 +611,11 @@ func memoryPatchUpdates(patch statememory.MemoryPatch, item statememory.MemoryIt
 	}
 	if len(patch.Metadata) > 0 {
 		updates["metadata_json"] = toJSONString(item.Metadata)
-		updates["source_session_id"] = memorySourceSessionID(item)
+		updates["source_session_id"] = getMemorySourceSessionID(item)
 	}
 	if patch.SourceLinks != nil {
 		updates["source_links_json"] = toJSONString(item.SourceLinks)
-		updates["source_session_id"] = memorySourceSessionID(item)
+		updates["source_session_id"] = getMemorySourceSessionID(item)
 	}
 	if patch.Confidence != nil {
 		updates["confidence"] = item.Confidence
@@ -624,13 +624,13 @@ func memoryPatchUpdates(patch statememory.MemoryPatch, item statememory.MemoryIt
 		updates["reflected"] = item.Reflected
 	}
 	if patch.PromotionEvaluatedAt != nil {
-		updates["promotion_evaluated_at"] = memoryPromotionEvaluatedAt(item)
+		updates["promotion_evaluated_at"] = getMemoryPromotionEvaluatedAt(item)
 	}
 
 	return updates
 }
 
-func memoryPatchNeedsSearchRow(patch statememory.MemoryPatch) bool {
+func checkMemoryPatchNeedsSearchRow(patch statememory.MemoryPatch) bool {
 	return patch.Kind != nil ||
 		patch.Title != nil ||
 		patch.Text != nil ||
@@ -638,7 +638,7 @@ func memoryPatchNeedsSearchRow(patch statememory.MemoryPatch) bool {
 		len(patch.Metadata) > 0
 }
 
-func memorySourceSessionID(item statememory.MemoryItem) string {
+func getMemorySourceSessionID(item statememory.MemoryItem) string {
 	if sessionID := strings.TrimSpace(item.Metadata["source_session_id"]); sessionID != "" {
 		return sessionID
 	}
@@ -652,7 +652,7 @@ func memorySourceSessionID(item statememory.MemoryItem) string {
 	return ""
 }
 
-func memoryModelToItem(record memoryItemModel) (statememory.MemoryItem, error) {
+func memoryModelToMemoryItem(record memoryItemModel) (statememory.MemoryItem, error) {
 	item := statememory.MemoryItem{
 		ID:         record.ID,
 		Kind:       statememory.MemoryKind(record.Kind),
@@ -687,7 +687,7 @@ func toJSONString(value any) string {
 	return string(data)
 }
 
-func memorySearchRecordFromModel(record memoryItemModel, score float64) memorySearchRecord {
+func memoryModelToSearchRecord(record memoryItemModel, score float64) memorySearchRecord {
 	return memorySearchRecord{
 		ID:                   record.ID,
 		SourceSessionID:      record.SourceSessionID,
@@ -723,7 +723,7 @@ func replaceMemorySearchRow(tx *gorm.DB, item statememory.MemoryItem) error {
 		item.Text,
 		string(item.Kind),
 		strings.Join(statememory.NormalizeMemoryTags(item.Tags), " "),
-		memoryMetadataSearchText(item.Metadata),
+		getMemoryMetadataSearchText(item.Metadata),
 	).Error; err != nil {
 		return fmt.Errorf("failed to insert memory search row: %w", err)
 	}
@@ -731,7 +731,7 @@ func replaceMemorySearchRow(tx *gorm.DB, item statememory.MemoryItem) error {
 	return nil
 }
 
-func memoryMetadataSearchText(metadata map[string]string) string {
+func getMemoryMetadataSearchText(metadata map[string]string) string {
 	if len(metadata) == 0 {
 		return ""
 	}

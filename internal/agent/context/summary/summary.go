@@ -186,7 +186,7 @@ func (s *Service) refreshSummaryState(
 
 	totalCount, err := s.store.CountMessages(ctx, input.SessionID, storage.MessageQueryOptions{})
 	if err != nil {
-		input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(
 			input.SessionID,
 			storage.SessionCompaction{Status: storage.CompactionStatusFailed},
 			err.Error()),
@@ -216,7 +216,7 @@ func (s *Service) refreshSummaryState(
 	if !force && state.Current != nil && state.Current.SourceEndOffset >= plan.TargetOffset {
 		session, ok, err := s.store.Get(ctx, input.SessionID)
 		if err != nil {
-			input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+			input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
 				Status:             storage.CompactionStatusFailed,
 				TargetMessageCount: totalCount,
 				TargetOffset:       plan.TargetOffset,
@@ -225,7 +225,7 @@ func (s *Service) refreshSummaryState(
 		}
 		if !ok {
 			err = errors.New("session not found")
-			input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+			input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
 				Status:             storage.CompactionStatusFailed,
 				TargetMessageCount: totalCount,
 				TargetOffset:       plan.TargetOffset,
@@ -245,7 +245,7 @@ func (s *Service) refreshSummaryState(
 
 	session, ok, err := s.store.Get(ctx, input.SessionID)
 	if err != nil {
-		input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: totalCount,
 			TargetOffset:       plan.TargetOffset,
@@ -254,7 +254,7 @@ func (s *Service) refreshSummaryState(
 	}
 	if !ok {
 		err = errors.New("session not found")
-		input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: totalCount,
 			TargetOffset:       plan.TargetOffset,
@@ -264,7 +264,7 @@ func (s *Service) refreshSummaryState(
 
 	log.Info().
 		Str("session_id", input.SessionID).
-		Str("trigger_source", compactionTriggerSource(force)).
+		Str("trigger_source", getCompactionTriggerSource(force)).
 		Int("existing_summary_end_offset", existingSummaryEndOffset).
 		Int("messages_to_summarize", max(plan.TargetOffset-existingSummaryEndOffset, 0)).
 		Int("tail_messages_retained", RecentSessionTail).
@@ -273,7 +273,7 @@ func (s *Service) refreshSummaryState(
 		Msg("compaction plan created")
 
 	if err := s.transitionCompactionPending(ctx, &session, plan, input.TraceSession); err != nil {
-		input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: plan.TargetMessageCount,
 			TargetOffset:       plan.TargetOffset,
@@ -282,7 +282,7 @@ func (s *Service) refreshSummaryState(
 	}
 
 	if err := s.transitionCompactionRunning(ctx, &session, plan, input.TraceSession); err != nil {
-		input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
 			RequestedAt:        plan.RequestedAt,
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: plan.TargetMessageCount,
@@ -294,7 +294,7 @@ func (s *Service) refreshSummaryState(
 	if _, err := s.refreshSummary(ctx, state, input, plan, true); err != nil {
 		if transErr := s.transitionCompactionFailed(ctx, &session, plan, err, input.TraceSession); transErr != nil {
 			wrapped := fmt.Errorf("mark compaction failed: %w", transErr)
-			input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+			input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
 				RequestedAt:        plan.RequestedAt,
 				StartedAt:          session.Compaction.StartedAt,
 				Status:             storage.CompactionStatusFailed,
@@ -307,7 +307,7 @@ func (s *Service) refreshSummaryState(
 	}
 
 	if err := s.transitionCompactionSucceeded(ctx, &session, plan, input.TraceSession); err != nil {
-		input.TraceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(input.SessionID, storage.SessionCompaction{
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
 			RequestedAt:        plan.RequestedAt,
 			StartedAt:          session.Compaction.StartedAt,
 			Status:             storage.CompactionStatusFailed,
@@ -397,7 +397,7 @@ func (s *Service) RecallSessionSummary(
 
 	totalCount, err := s.store.CountMessages(ctx, session.ID, storage.MessageQueryOptions{})
 	if err != nil {
-		traceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(
+		traceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(
 			session.ID,
 			storage.SessionCompaction{Status: storage.CompactionStatusFailed},
 			err.Error()),
@@ -407,7 +407,7 @@ func (s *Service) RecallSessionSummary(
 
 	plan, err := s.planRecallSummary(ctx, session.ID, state, totalCount)
 	if err != nil {
-		traceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(
+		traceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(
 			session.ID,
 			storage.SessionCompaction{Status: storage.CompactionStatusFailed},
 			err.Error()),
@@ -461,7 +461,7 @@ func (s *Service) SummarizeSession(
 
 	totalCount, err := s.store.CountMessages(ctx, session.ID, storage.MessageQueryOptions{})
 	if err != nil {
-		traceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(
+		traceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(
 			session.ID,
 			storage.SessionCompaction{Status: storage.CompactionStatusFailed},
 			err.Error()),
@@ -471,7 +471,7 @@ func (s *Service) SummarizeSession(
 
 	plan, err := s.summarizeSessionPlan(totalCount, opts)
 	if err != nil {
-		traceSession.Record(trace.EvtContextCompactionFailed, compactionTracePayload(
+		traceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(
 			session.ID,
 			storage.SessionCompaction{Status: storage.CompactionStatusFailed},
 			err.Error()),
@@ -640,7 +640,7 @@ func (s *Service) planRecallWindows(
 		return nil, errors.New("session history is too short to compact")
 	}
 
-	baseInstructions := recallChunkInstructions(state, 1, 1).String()
+	baseInstructions := buildRecallChunkInstructions(state, 1, 1).String()
 	currentEnd := targetOffset
 	windows := make([]recallWindow, 0, max((targetOffset-startOffset+maxRecallWindowMessages-1)/maxRecallWindowMessages, 1))
 
@@ -708,7 +708,7 @@ func (s *Service) refreshRecallSummary(
 	input RefreshInput,
 	plan recallPlan,
 ) (*SummaryState, error) {
-	payload := summaryTracePayload(input.SessionID, plan.TargetOffset, plan.TargetMessageCount, plan.RequestedAt)
+	payload := buildSummaryTracePayload(input.SessionID, plan.TargetOffset, plan.TargetMessageCount, plan.RequestedAt)
 	input.TraceSession.Record(trace.EvtRecallSummaryRequested, payload)
 
 	if len(plan.Windows) == 0 {
@@ -716,7 +716,7 @@ func (s *Service) refreshRecallSummary(
 			state.Current.SourceEndOffset == plan.TargetOffset &&
 			state.Current.SourceMessageCount == plan.TargetMessageCount {
 			summary := cloneSummaryState(state.Current)
-			input.TraceSession.Record(trace.EvtRecallSummarySaved, summaryTracePayload(
+			input.TraceSession.Record(trace.EvtRecallSummarySaved, buildSummaryTracePayload(
 				summary.SessionID,
 				summary.SourceEndOffset,
 				summary.SourceMessageCount,
@@ -753,7 +753,7 @@ func (s *Service) refreshRecallSummary(
 		state.Current = cloneSummaryState(finalSummary)
 	}
 
-	input.TraceSession.Record(trace.EvtRecallSummarySaved, summaryTracePayload(
+	input.TraceSession.Record(trace.EvtRecallSummarySaved, buildSummaryTracePayload(
 		finalSummary.SessionID,
 		finalSummary.SourceEndOffset,
 		finalSummary.SourceMessageCount,
@@ -789,7 +789,7 @@ func (s *Service) summarizeRecallWindow(
 		return nil, errors.New("recall window messages are required")
 	}
 
-	instructions := recallChunkInstructions(state, windowIndex, windowCount).String()
+	instructions := buildRecallChunkInstructions(state, windowIndex, windowCount).String()
 	if estimateSummaryTokens(instructions, messages) > maxRecallWindowTokens {
 		return s.summarizeOversizedRecallWindow(
 			ctx,
@@ -866,7 +866,7 @@ func (s *Service) summarizeOversizedRecallWindow(
 	windowCount int,
 	messages []handmsg.Message,
 ) (*SummaryState, error) {
-	chunks := splitRecallWindowChunks(renderRecallWindowPrompt(messages), maxRecallWindowChunkChars())
+	chunks := splitRecallWindowChunks(renderRecallWindowPrompt(messages), getMaxRecallWindowChunkChars())
 	if len(chunks) == 0 {
 		return nil, errors.New("recall window chunks are required")
 	}
@@ -876,7 +876,7 @@ func (s *Service) summarizeOversizedRecallWindow(
 		resp, err := s.generateSummaryResponse(ctx, models.Request{
 			Model:            s.summaryModel,
 			APIMode:          s.apiMode,
-			Instructions:     recallChunkTextInstructions(state, windowIndex, windowCount, idx+1, len(chunks)).String(),
+			Instructions:     buildRecallChunkTextInstructions(state, windowIndex, windowCount, idx+1, len(chunks)).String(),
 			Messages:         []handmsg.Message{{Role: handmsg.RoleUser, Content: chunk}},
 			StructuredOutput: summaryStructuredOutput,
 			DebugRequests:    s.debugRequests,
@@ -908,7 +908,7 @@ func (s *Service) summarizeOversizedRecallWindow(
 		plan.RequestedAt,
 		chunkSummaries,
 		func(batchIndex int, batchCount int) instruct.Instructions {
-			return recallSynthesisInstructions(state, batchIndex, batchCount)
+			return buildRecallSynthesisInstructions(state, batchIndex, batchCount)
 		},
 	)
 }
@@ -931,7 +931,7 @@ func (s *Service) synthesizeRecallSummaries(
 		plan.RequestedAt,
 		summaries,
 		func(batchIndex int, batchCount int) instruct.Instructions {
-			return recallSynthesisInstructions(state, batchIndex, batchCount)
+			return buildRecallSynthesisInstructions(state, batchIndex, batchCount)
 		},
 	)
 }
@@ -997,7 +997,7 @@ func (s *Service) synthesizeSummaryStates(
 	}
 
 	for len(current) > 1 {
-		batches := planRecallSummaryBatches(state, current)
+		batches := getPlannedRecallSummaryBatches(state, current)
 		next := make([]*SummaryState, 0, len(batches))
 		for idx, batch := range batches {
 			resp, err := s.generateSummaryResponse(ctx, models.Request{
@@ -1037,7 +1037,7 @@ func (s *Service) synthesizeSummaryStates(
 	return finalSummary, nil
 }
 
-// planRecallSummaryBatches groups intermediate summaries into bounded merge
+// getPlannedRecallSummaryBatches groups intermediate summaries into bounded merge
 // batches for synthesizeSummaryStates.
 //
 // Each batch is limited by:
@@ -1065,10 +1065,10 @@ func (s *Service) synthesizeSummaryStates(
 //	  {S3, S4},
 //	  {S5},
 //	}
-func planRecallSummaryBatches(state *State, summaries []*SummaryState) [][]*SummaryState {
+func getPlannedRecallSummaryBatches(state *State, summaries []*SummaryState) [][]*SummaryState {
 	batches := make([][]*SummaryState, 0, max((len(summaries)+maxRecallMergeSummaries-1)/maxRecallMergeSummaries, 1))
 	remaining := cloneSummaryStates(summaries)
-	instructions := recallSynthesisInstructions(state, 1, 1).String()
+	instructions := buildRecallSynthesisInstructions(state, 1, 1).String()
 
 	for len(remaining) > 0 {
 		batchSize := 1
@@ -1091,7 +1091,7 @@ func planRecallSummaryBatches(state *State, summaries []*SummaryState) [][]*Summ
 	return batches
 }
 
-func recallChunkInstructions(state *State, windowIndex int, windowCount int) instruct.Instructions {
+func buildRecallChunkInstructions(state *State, windowIndex int, windowCount int) instruct.Instructions {
 	instructions := instruct.BuildRecallSessionSummaryWindow(windowIndex, windowCount)
 
 	if state == nil {
@@ -1105,7 +1105,7 @@ func recallChunkInstructions(state *State, windowIndex int, windowCount int) ins
 	return instructions
 }
 
-func recallSynthesisInstructions(state *State, batchIndex int, batchCount int) instruct.Instructions {
+func buildRecallSynthesisInstructions(state *State, batchIndex int, batchCount int) instruct.Instructions {
 	instructions := instruct.BuildRecallSessionSummarySynthesis(batchIndex, batchCount)
 
 	if state == nil {
@@ -1119,7 +1119,7 @@ func recallSynthesisInstructions(state *State, batchIndex int, batchCount int) i
 	return instructions
 }
 
-func recallChunkTextInstructions(
+func buildRecallChunkTextInstructions(
 	state *State,
 	windowIndex int,
 	windowCount int,
@@ -1225,12 +1225,12 @@ func splitRecallWindowChunks(content string, chunkChars int) []string {
 	return chunks
 }
 
-// maxRecallWindowChunkChars converts the recall token budget into a coarse
+// getMaxRecallWindowChunkChars converts the recall token budget into a coarse
 // character budget for oversized-window chunking.
 //
 // The heuristic follows the shared rough estimate used elsewhere in compaction:
 // roughly 4 characters per token, with a minimum chunk size of 1 character.
-func maxRecallWindowChunkChars() int {
+func getMaxRecallWindowChunkChars() int {
 	return max(compaction.EstimateCharsFromTokensRough(maxRecallWindowTokens), 1)
 }
 
@@ -1278,7 +1278,7 @@ func parseSummaryResponse(
 		return nil, err
 	}
 
-	summary, fallbackErr := fallbackSummary(sessionID, sourceEndOffset, sourceMessageCount, resp.OutputText, requestedAt)
+	summary, fallbackErr := buildFallbackSummary(sessionID, sourceEndOffset, sourceMessageCount, resp.OutputText, requestedAt)
 	if fallbackErr != nil {
 		return nil, fallbackErr
 	}
@@ -1363,7 +1363,7 @@ func (s *Service) refreshSummary(
 	plan refreshPlan,
 	persist bool,
 ) (*SummaryState, error) {
-	payload := summaryTracePayload(input.SessionID, plan.TargetOffset, plan.TargetMessageCount, plan.RequestedAt)
+	payload := buildSummaryTracePayload(input.SessionID, plan.TargetOffset, plan.TargetMessageCount, plan.RequestedAt)
 	input.TraceSession.Record(trace.EvtSummaryRequested, payload)
 
 	summaryMessages := make([]handmsg.Message, 0, plan.TargetOffset)
@@ -1452,7 +1452,7 @@ func (s *Service) refreshSummary(
 			"error": err.Error(),
 		}))
 
-		summary, err = fallbackSummary(
+		summary, err = buildFallbackSummary(
 			input.SessionID,
 			plan.TargetOffset,
 			plan.TargetMessageCount,
@@ -1498,7 +1498,7 @@ func (s *Service) refreshSummary(
 		Int("tail_messages_retained", max(state.Current.SourceMessageCount-state.Current.SourceEndOffset, 0)).
 		Msg("compaction summary saved")
 
-	input.TraceSession.Record(trace.EvtSummarySaved, summaryTracePayload(
+	input.TraceSession.Record(trace.EvtSummarySaved, buildSummaryTracePayload(
 		state.Current.SessionID,
 		state.Current.SourceEndOffset,
 		state.Current.SourceMessageCount,
@@ -1557,7 +1557,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 			Str("provider", s.summaryProvider).
 			Str("mode", request.APIMode).
 			Str("model", request.Model).
-			Str("error_kind", summaryModelErrorKind(err)).
+			Str("error_kind", getSummaryModelErrorKind(err)).
 			Bool("structured_output_request", false).
 			Msg("compaction summary model request failed")
 		return nil, err
@@ -1569,7 +1569,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 		Str("provider", s.summaryProvider).
 		Str("mode", request.APIMode).
 		Str("model", request.Model).
-		Str("error_kind", summaryModelErrorKind(err)).
+		Str("error_kind", getSummaryModelErrorKind(err)).
 		Msg("structured summary request failed, retrying without structured output")
 
 	fallback := request
@@ -1592,7 +1592,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 			Str("provider", s.summaryProvider).
 			Str("mode", fallback.APIMode).
 			Str("model", fallback.Model).
-			Str("error_kind", summaryModelErrorKind(err)).
+			Str("error_kind", getSummaryModelErrorKind(err)).
 			Bool("structured_output_request", false).
 			Msg("compaction summary model retry failed")
 		return nil, err
@@ -1618,7 +1618,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 	return resp, nil
 }
 
-func summaryModelErrorKind(err error) string {
+func getSummaryModelErrorKind(err error) string {
 	if err == nil {
 		return ""
 	}
@@ -1663,7 +1663,7 @@ func (s *Service) transitionCompactionPending(
 		return err
 	}
 
-	recorder.Record(trace.EvtContextCompactionPending, compactionTracePayload(session.ID, session.Compaction, ""))
+	recorder.Record(trace.EvtContextCompactionPending, buildCompactionTracePayload(session.ID, session.Compaction, ""))
 	return nil
 }
 
@@ -1686,7 +1686,7 @@ func (s *Service) transitionCompactionRunning(
 		return err
 	}
 
-	recorder.Record(trace.EvtContextCompactionRunning, compactionTracePayload(session.ID, session.Compaction, ""))
+	recorder.Record(trace.EvtContextCompactionRunning, buildCompactionTracePayload(session.ID, session.Compaction, ""))
 	log.Debug().
 		Str("session_id", session.ID).
 		Int("target_offset", plan.TargetOffset).
@@ -1716,7 +1716,7 @@ func (s *Service) transitionCompactionSucceeded(
 		return err
 	}
 
-	recorder.Record(trace.EvtContextCompactionSucceeded, compactionTracePayload(session.ID, session.Compaction, ""))
+	recorder.Record(trace.EvtContextCompactionSucceeded, buildCompactionTracePayload(session.ID, session.Compaction, ""))
 	log.Info().
 		Str("session_id", session.ID).
 		Int("target_offset", plan.TargetOffset).
@@ -1742,7 +1742,7 @@ func (s *Service) reconcileCompactionSucceeded(
 	}
 
 	if err := s.transitionCompactionSucceeded(ctx, session, plan, recorder); err != nil {
-		recorder.Record(trace.EvtContextCompactionFailed, compactionTracePayload(session.ID, storage.SessionCompaction{
+		recorder.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(session.ID, storage.SessionCompaction{
 			RequestedAt:        session.Compaction.RequestedAt,
 			StartedAt:          session.Compaction.StartedAt,
 			Status:             storage.CompactionStatusFailed,
@@ -1779,7 +1779,7 @@ func (s *Service) transitionCompactionFailed(
 
 	log.Error().Str("session_id", session.ID).Str("cause", session.Compaction.LastError).Msg("compaction failed")
 
-	recorder.Record(trace.EvtContextCompactionFailed, compactionTracePayload(
+	recorder.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(
 		session.ID,
 		session.Compaction,
 		session.Compaction.LastError,
@@ -1794,7 +1794,7 @@ func (s *Service) transitionCompactionFailed(
 	return nil
 }
 
-func compactionTriggerSource(force bool) string {
+func getCompactionTriggerSource(force bool) string {
 	if force {
 		return "manual"
 	}
@@ -1822,7 +1822,7 @@ func (m *State) RecordSummaryApplied(traceSession trace.Session) {
 		return
 	}
 
-	traceSession.Record(trace.EvtSummaryApplied, summaryTracePayload(
+	traceSession.Record(trace.EvtSummaryApplied, buildSummaryTracePayload(
 		m.Current.SessionID,
 		m.Current.SourceEndOffset,
 		m.Current.SourceMessageCount,
@@ -1838,7 +1838,7 @@ func parseSummary(
 	raw string,
 	updatedAt time.Time,
 ) (*SummaryState, error) {
-	raw = normalizedSummaryText(raw)
+	raw = normalizeSummaryText(raw)
 	if raw == "" {
 		return nil, errSummaryResponseEmpty
 	}
@@ -1868,14 +1868,14 @@ func parseSummary(
 
 var errSummaryResponseEmpty = errors.New("summary response is empty")
 
-func fallbackSummary(
+func buildFallbackSummary(
 	sessionID string,
 	sourceEndOffset,
 	sourceMessageCount int,
 	raw string,
 	updatedAt time.Time,
 ) (*SummaryState, error) {
-	raw = normalizedSummaryText(raw)
+	raw = normalizeSummaryText(raw)
 	if raw == "" {
 		return nil, errSummaryResponseEmpty
 	}
@@ -1894,7 +1894,7 @@ func fallbackSummary(
 	return summary, nil
 }
 
-func normalizedSummaryText(raw string) string {
+func normalizeSummaryText(raw string) string {
 	return strings.TrimSpace(stripMarkdownFence(raw))
 }
 
@@ -1911,7 +1911,7 @@ func stripMarkdownFence(raw string) string {
 	return strings.TrimSpace(raw)
 }
 
-func summaryTracePayload(
+func buildSummaryTracePayload(
 	sessionID string,
 	sourceEndOffset,
 	sourceMessageCount int,
@@ -1932,7 +1932,7 @@ func mergeSummaryTracePayload(base map[string]any, extra map[string]any) map[str
 	return merged
 }
 
-func compactionTracePayload(sessionID string, state storage.SessionCompaction, failure string) map[string]any {
+func buildCompactionTracePayload(sessionID string, state storage.SessionCompaction, failure string) map[string]any {
 	payload := map[string]any{
 		"session_id":           sessionID,
 		"status":               state.Status,
@@ -1976,7 +1976,7 @@ func renderSummaryList(title string, values []string) string {
 	return "# " + title + "\n\n" + strings.Join(lines, "\n")
 }
 
-func summaryCompactionEnabled(cfg *config.Config) bool {
+func isSummaryCompactionEnabled(cfg *config.Config) bool {
 	if cfg == nil || cfg.Compaction.Enabled == nil {
 		return true
 	}
@@ -1984,7 +1984,7 @@ func summaryCompactionEnabled(cfg *config.Config) bool {
 	return *cfg.Compaction.Enabled
 }
 
-func summaryCompactionEvaluator(cfg *config.Config) *compaction.Evaluator {
+func getSummaryCompactionEvaluator(cfg *config.Config) *compaction.Evaluator {
 	if cfg == nil {
 		return compaction.NewEvaluator(0, 0, 0)
 	}

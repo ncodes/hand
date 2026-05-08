@@ -147,20 +147,20 @@ func TestEnvironmentTimezone(t *testing.T) {
 	lagos, err := time.LoadLocation("Africa/Lagos")
 	require.NoError(t, err)
 
-	require.Empty(t, environmentTimezone(time.Time{}))
-	require.Empty(t, environmentTimezone(time.Date(2026, 4, 11, 17, 30, 0, 0, time.FixedZone("", -5*60*60))))
-	require.Equal(t, "Africa/Lagos", environmentTimezone(time.Date(2026, 4, 11, 17, 30, 0, 0, lagos)))
+	require.Empty(t, getEnvironmentTimezone(time.Time{}))
+	require.Empty(t, getEnvironmentTimezone(time.Date(2026, 4, 11, 17, 30, 0, 0, time.FixedZone("", -5*60*60))))
+	require.Equal(t, "Africa/Lagos", getEnvironmentTimezone(time.Date(2026, 4, 11, 17, 30, 0, 0, lagos)))
 
 	localTime := time.Date(2026, 4, 11, 17, 30, 0, 0, time.Local)
 	name, offset := localTime.Zone()
 	if name != "" {
-		require.Equal(t, "Local ("+name+", UTC"+timezoneOffset(offset)+")", environmentTimezone(localTime))
+		require.Equal(t, "Local ("+name+", UTC"+getTimezoneOffset(offset)+")", getEnvironmentTimezone(localTime))
 	}
 }
 
 func TestTimezoneOffset(t *testing.T) {
-	require.Equal(t, "+01:00", timezoneOffset(60*60))
-	require.Equal(t, "-05:30", timezoneOffset(-5*60*60-30*60))
+	require.Equal(t, "+01:00", getTimezoneOffset(60*60))
+	require.Equal(t, "-05:30", getTimezoneOffset(-5*60*60-30*60))
 }
 
 func TestSortedUnique(t *testing.T) {

@@ -43,7 +43,7 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 		ExtractMode string   `json:"extract_mode"`
 	}
 
-	opts := resolveOptions(options)
+	opts := getWebExtractOptions(options)
 
 	return tools.Definition{
 		Name: "web_extract",
@@ -108,12 +108,12 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 				urls = append(urls, url)
 			}
 
-			maxChars, validationErr := resolveRequestMaxChars(req.MaxChars, opts.MaxExtractCharPerResult)
+			maxChars, validationErr := getRequestMaxChars(req.MaxChars, opts.MaxExtractCharPerResult)
 			if validationErr != nil {
 				return common.ToolError("invalid_input", validationErr.Error()), nil
 			}
 
-			format, validationErr := resolveFormat(req.Format, req.ExtractMode)
+			format, validationErr := getFormat(req.Format, req.ExtractMode)
 			if validationErr != nil {
 				return common.ToolError("invalid_input", validationErr.Error()), nil
 			}
@@ -161,7 +161,7 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 					Int("result_count", len(results)).
 					Msg("web extract summarization started")
 
-				results, err = summarizeResults(ctx, results, summarizeOptions{
+				results, err = summarizeExtractResults(ctx, results, summarizeOptions{
 					Query:                          query,
 					MinSummarizeChars:              opts.MinSummarizeChars,
 					MaxSummaryChars:                opts.MaxSummaryChars,
@@ -215,7 +215,7 @@ func extractWithPolicy(
 
 	for idx, rawURL := range urls {
 		if block, blocked := policy.Check(rawURL); blocked {
-			results[idx] = blockedExtractResult(rawURL, format, block)
+			results[idx] = websiteBlockToExtractResult(rawURL, format, block)
 			stats.InputBlocked++
 			continue
 		}
@@ -242,7 +242,7 @@ func extractWithPolicy(
 		}
 
 		if block, blocked := policy.Check(result.URL); blocked {
-			results[allowedIndexes[idx]] = blockedExtractResult(result.URL, format, block)
+			results[allowedIndexes[idx]] = websiteBlockToExtractResult(result.URL, format, block)
 			stats.ResultBlocked++
 			continue
 		}
@@ -262,7 +262,7 @@ func extractWithPolicy(
 	return results, stats, nil
 }
 
-func blockedExtractResult(rawURL, format string, block guardrails.WebsiteBlock) webprovider.ExtractResult {
+func websiteBlockToExtractResult(rawURL, format string, block guardrails.WebsiteBlock) webprovider.ExtractResult {
 	if format == "" {
 		format = "text"
 	}
@@ -274,7 +274,7 @@ func blockedExtractResult(rawURL, format string, block guardrails.WebsiteBlock) 
 	}
 }
 
-func resolveFormat(format, extractMode string) (string, error) {
+func getFormat(format, extractMode string) (string, error) {
 	format = strings.TrimSpace(strings.ToLower(format))
 	extractMode = strings.TrimSpace(strings.ToLower(extractMode))
 
@@ -297,7 +297,7 @@ func resolveFormat(format, extractMode string) (string, error) {
 	return format, nil
 }
 
-func resolveOptions(options []Options) Options {
+func getWebExtractOptions(options []Options) Options {
 	if len(options) == 0 {
 		return Options{}
 	}
@@ -305,7 +305,7 @@ func resolveOptions(options []Options) Options {
 	return options[0]
 }
 
-func resolveRequestMaxChars(requested *int, configuredMax int) (int, error) {
+func getRequestMaxChars(requested *int, configuredMax int) (int, error) {
 	if requested == nil {
 		return 0, nil
 	}

@@ -66,7 +66,7 @@ func (r LLMReranker) Rerank(ctx context.Context, req RerankRequest) (RerankResul
 		return options.Fallback.Rerank(ctx, req)
 	}
 
-	maxCandidates, err := effectiveLLMMaxCandidates(options.MaxCandidates, req.Options.MaxCandidates)
+	maxCandidates, err := getEffectiveLLMMaxCandidates(options.MaxCandidates, req.Options.MaxCandidates)
 	if err != nil {
 		rerankTraceLogEvent(req, RerankerLLM).Err(err).Msg("llm rerank candidate bound failed")
 		return RerankResult{}, err
@@ -100,7 +100,7 @@ func (r LLMReranker) Rerank(ctx context.Context, req RerankRequest) (RerankResul
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			rerankDebugLogEvent(req, RerankerLLM).Err(err).Msg("llm rerank timed out, using fallback")
-			return options.Fallback.Rerank(ctx, rerankRequestWithCandidates(req, candidates))
+			return options.Fallback.Rerank(ctx, rerankRequestWithCandidateSet(req, candidates))
 		}
 		rerankDebugLogEvent(req, RerankerLLM).Err(err).Msg("llm rerank structured request failed, retrying without structured output")
 		modelReq.StructuredOutput = nil
@@ -108,17 +108,17 @@ func (r LLMReranker) Rerank(ctx context.Context, req RerankRequest) (RerankResul
 	}
 	if err != nil {
 		rerankDebugLogEvent(req, RerankerLLM).Err(err).Msg("llm rerank model request failed, using fallback")
-		return options.Fallback.Rerank(ctx, rerankRequestWithCandidates(req, candidates))
+		return options.Fallback.Rerank(ctx, rerankRequestWithCandidateSet(req, candidates))
 	}
 
 	result, err := parseLLMRerankResponse(resp)
 	if err != nil {
 		rerankDebugLogEvent(req, RerankerLLM).Err(err).Msg("llm rerank response parse failed, using fallback")
-		return options.Fallback.Rerank(ctx, rerankRequestWithCandidates(req, candidates))
+		return options.Fallback.Rerank(ctx, rerankRequestWithCandidateSet(req, candidates))
 	}
 	if err := ValidateRerankResult(candidates, result); err != nil {
 		rerankDebugLogEvent(req, RerankerLLM).Err(err).Msg("llm rerank result rejected, using fallback")
-		return options.Fallback.Rerank(ctx, rerankRequestWithCandidates(req, candidates))
+		return options.Fallback.Rerank(ctx, rerankRequestWithCandidateSet(req, candidates))
 	}
 
 	rerankTraceLogEvent(req, RerankerLLM).
@@ -137,7 +137,7 @@ func (r LLMReranker) modelRequest(req RerankRequest, candidates []Candidate, str
 		Caller:     strings.TrimSpace(req.Caller),
 		TraceID:    strings.TrimSpace(req.TraceID),
 		SourceKind: strings.TrimSpace(string(req.SourceKind)),
-		Candidates: llmRerankCandidates(candidates, options.MaxCandidateTextChars),
+		Candidates: candidatesToLLMRerankCandidates(candidates, options.MaxCandidateTextChars),
 	}
 	data, _ := json.Marshal(payload)
 
@@ -150,7 +150,7 @@ func (r LLMReranker) modelRequest(req RerankRequest, candidates []Candidate, str
 		DebugRequests:   options.DebugRequests,
 	}
 	if structuredOutput {
-		modelReq.StructuredOutput = llmRerankerStructuredOutput()
+		modelReq.StructuredOutput = getLLMRerankerStructuredOutput()
 	}
 
 	return modelReq
@@ -178,13 +178,13 @@ func fallbackReranker(fallback Reranker) Reranker {
 	return fallback
 }
 
-func rerankRequestWithCandidates(req RerankRequest, candidates []Candidate) RerankRequest {
+func rerankRequestWithCandidateSet(req RerankRequest, candidates []Candidate) RerankRequest {
 	req.Candidates = candidates
 	req.Options.MaxCandidates = 0
 	return req
 }
 
-func effectiveLLMMaxCandidates(optionsMax int, requestMax int) (int, error) {
+func getEffectiveLLMMaxCandidates(optionsMax int, requestMax int) (int, error) {
 	if optionsMax < 0 || requestMax < 0 {
 		return 0, errors.New("max candidates must be greater than or equal to zero")
 	}
@@ -221,7 +221,7 @@ type llmRerankItem struct {
 	Score       float64 `json:"score"`
 }
 
-func llmRerankCandidates(candidates []Candidate, maxTextChars int) []llmRerankCandidate {
+func candidatesToLLMRerankCandidates(candidates []Candidate, maxTextChars int) []llmRerankCandidate {
 	items := make([]llmRerankCandidate, 0, len(candidates))
 	for _, candidate := range candidates {
 		items = append(items, llmRerankCandidate{
@@ -267,7 +267,7 @@ func parseLLMRerankResponse(resp *models.Response) (RerankResult, error) {
 	return RerankResult{Items: items}, nil
 }
 
-func llmRerankerStructuredOutput() *models.StructuredOutput {
+func getLLMRerankerStructuredOutput() *models.StructuredOutput {
 	return &models.StructuredOutput{
 		Name:        "retrieval_rerank",
 		Description: "Ranked retrieval candidate IDs.",

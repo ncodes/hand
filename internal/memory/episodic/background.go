@@ -128,7 +128,7 @@ func (s *Service) RunBackground(ctx context.Context, req BackgroundRequest) (Bac
 	opts := NormalizeBackgroundOptions(req.Options)
 	runID := strings.TrimSpace(req.RunID)
 	if runID == "" {
-		runID = backgroundRunID(started)
+		runID = getBackgroundRunID(started)
 	}
 	result := BackgroundResult{RunID: runID}
 
@@ -138,7 +138,7 @@ func (s *Service) RunBackground(ctx context.Context, req BackgroundRequest) (Bac
 		"min_messages":  opts.MinMessages,
 		"plan":          "list_sessions_check_idle_and_checkpoint_extract_eligible_windows",
 	}
-	recordBackgroundTrace(req.Trace, trace.EvtMemoryEpisodicBackgroundScheduled, backgroundPayload(runID, "", 0, "", traceFields))
+	recordBackgroundTrace(req.Trace, trace.EvtMemoryEpisodicBackgroundScheduled, getBackgroundPayload(runID, "", 0, "", traceFields))
 	logBackground("scheduled idle-session episodic extraction sweep", runID, "", 0, "", traceFields)
 
 	sessions, err := manager.ListSessions(ctx)
@@ -174,7 +174,7 @@ func (s *Service) RunBackground(ctx context.Context, req BackgroundRequest) (Bac
 		"retry_count":    result.RetryCount,
 		"duration_ms":    duration.Milliseconds(),
 	}
-	recordBackgroundTrace(req.Trace, trace.EvtMemoryEpisodicBackgroundCompleted, backgroundPayload(runID, "", 0, "", traceFields))
+	recordBackgroundTrace(req.Trace, trace.EvtMemoryEpisodicBackgroundCompleted, getBackgroundPayload(runID, "", 0, "", traceFields))
 	logBackground("completed idle-session episodic extraction sweep", runID, "", 0, "", traceFields)
 
 	return result, nil
@@ -194,12 +194,12 @@ func (s *Service) runBackgroundForSession(
 		return BackgroundSessionResult{SessionID: sessionID, Error: err.Error()}
 	}
 
-	startOffset := normalizedCheckpointOffset(session.EpisodicCheckpointOffset, messageCount)
+	startOffset := normalizeCheckpointOffset(session.EpisodicCheckpointOffset, messageCount)
 	eligible, reason := isSessionEligible(s.now(), session, messageCount, startOffset, opts)
 
 	fields := map[string]any{"eligible": eligible, "reason": reason, "episodic_checkpoint_offset": startOffset}
 	recordBackgroundTrace(recorder, trace.EvtMemoryEpisodicBackgroundEligibilityChecked,
-		backgroundPayload(runID, sessionID, messageCount, reason, fields))
+		getBackgroundPayload(runID, sessionID, messageCount, reason, fields))
 	logBackground("checked session eligibility for episodic extraction", runID, sessionID, messageCount, reason, fields)
 
 	sessionResult := BackgroundSessionResult{
@@ -229,12 +229,12 @@ func (s *Service) runBackgroundForSession(
 		if attempt > 0 {
 			sessionResult.RetryCount++
 			traceFields := map[string]any{"retry_count": sessionResult.RetryCount}
-			recordBackgroundTrace(recorder, trace.EvtMemoryEpisodicBackgroundRetry, backgroundPayload(runID, sessionID, messageCount, "retry", traceFields))
+			recordBackgroundTrace(recorder, trace.EvtMemoryEpisodicBackgroundRetry, getBackgroundPayload(runID, sessionID, messageCount, "retry", traceFields))
 			logBackground("retry", runID, sessionID, messageCount, "retry", traceFields)
 		}
 
 		traceFields := map[string]any{"attempt": attempt + 1}
-		recordBackgroundTrace(recorder, trace.EvtMemoryEpisodicBackgroundExtractionAttempt, backgroundPayload(runID, sessionID, messageCount, "eligible", traceFields))
+		recordBackgroundTrace(recorder, trace.EvtMemoryEpisodicBackgroundExtractionAttempt, getBackgroundPayload(runID, sessionID, messageCount, "eligible", traceFields))
 		logBackground("started episodic extraction attempt for eligible session", runID, sessionID, messageCount, "eligible", traceFields)
 
 		extraction, err := s.Extract(ctx, req)
@@ -244,7 +244,7 @@ func (s *Service) runBackgroundForSession(
 			// write happens inside Extract immediately after each window succeeds.
 			for _, window := range extraction.Windows {
 				fields := map[string]any{"offset_start": window.OffsetStart, "offset_end": window.OffsetEnd, "write_count": window.WriteCount, "skip_count": window.SkipCount}
-				recordBackgroundTrace(recorder, trace.EvtMemoryEpisodicBackgroundWindowCheckpoint, backgroundPayload(runID, sessionID, messageCount, "processed", fields))
+				recordBackgroundTrace(recorder, trace.EvtMemoryEpisodicBackgroundWindowCheckpoint, getBackgroundPayload(runID, sessionID, messageCount, "processed", fields))
 				logBackground("checkpointed processed episodic extraction window", runID, sessionID, messageCount, "processed", fields)
 			}
 			return sessionResult
@@ -285,9 +285,9 @@ func isSessionEligible(
 	return true, "eligible"
 }
 
-// normalizedCheckpointOffset clamps stored checkpoints to the current message
+// normalizeCheckpointOffset clamps stored checkpoints to the current message
 // count. This protects background extraction from stale or corrupted offsets.
-func normalizedCheckpointOffset(offset int, messageCount int) int {
+func normalizeCheckpointOffset(offset int, messageCount int) int {
 	if offset < 0 {
 		return 0
 	}
@@ -297,6 +297,6 @@ func normalizedCheckpointOffset(offset int, messageCount int) int {
 	return offset
 }
 
-func backgroundRunID(now time.Time) string {
+func getBackgroundRunID(now time.Time) string {
 	return "memory_bg_" + strconv.FormatInt(now.UTC().UnixNano(), 10)
 }

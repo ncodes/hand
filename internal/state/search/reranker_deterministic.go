@@ -25,7 +25,7 @@ func (DeterministicReranker) Rerank(_ context.Context, req RerankRequest) (Reran
 	name := DeterministicReranker{}.Name()
 	rerankTraceLogEvent(req, name).Int("candidate_count", len(req.Candidates)).Msg("rerank started")
 
-	candidates, err := boundedCandidates(req.Candidates, req.Options.MaxCandidates)
+	candidates, err := limitCandidates(req.Candidates, req.Options.MaxCandidates)
 	if err != nil {
 		rerankTraceLogEvent(req, name).Err(err).Msg("rerank candidate bound failed")
 		return RerankResult{}, err
@@ -55,7 +55,7 @@ func (DeterministicReranker) Rerank(_ context.Context, req RerankRequest) (Reran
 		lexicalScores = append(lexicalScores, candidate.LexicalScore)
 		vectorScores = append(vectorScores, candidate.VectorScore)
 		fusedScores = append(fusedScores, candidate.FusedScore)
-		recencyScores = append(recencyScores, candidateRecencyScore(candidate))
+		recencyScores = append(recencyScores, getCandidateRecencyScore(candidate))
 	}
 
 	normalizedLexical, _ := NormalizeScores(lexicalScores, weights.LexicalDirection)
@@ -115,10 +115,10 @@ func normalizeRerankWeights(opts RerankOptions) (RerankOptions, error) {
 		LexicalDirection: lexicalDirection,
 		VectorDirection:  vectorDirection,
 		FusedDirection:   fusedDirection,
-		LexicalWeight:    nonNegativeWeight(opts.LexicalWeight),
-		VectorWeight:     nonNegativeWeight(opts.VectorWeight),
-		FusedWeight:      nonNegativeWeight(opts.FusedWeight),
-		RecencyWeight:    nonNegativeWeight(opts.RecencyWeight),
+		LexicalWeight:    getNonNegativeWeight(opts.LexicalWeight),
+		VectorWeight:     getNonNegativeWeight(opts.VectorWeight),
+		FusedWeight:      getNonNegativeWeight(opts.FusedWeight),
+		RecencyWeight:    getNonNegativeWeight(opts.RecencyWeight),
 	}
 	total := weights.LexicalWeight + weights.VectorWeight + weights.FusedWeight + weights.RecencyWeight
 	if total == 0 {
@@ -147,7 +147,7 @@ func normalizeScoreDirection(direction ScoreDirection) (ScoreDirection, error) {
 	return ScoreHigherIsBetter, errors.New("score direction is not supported")
 }
 
-func nonNegativeWeight(value float64) float64 {
+func getNonNegativeWeight(value float64) float64 {
 	if value < 0 || !finite(value) {
 		return 0
 	}
@@ -155,7 +155,7 @@ func nonNegativeWeight(value float64) float64 {
 	return value
 }
 
-func candidateRecencyScore(candidate Candidate) float64 {
+func getCandidateRecencyScore(candidate Candidate) float64 {
 	value := candidate.UpdatedAt
 	if value.IsZero() {
 		value = candidate.CreatedAt

@@ -12,7 +12,7 @@ func (NoopReranker) Rerank(_ context.Context, req RerankRequest) (RerankResult, 
 	name := NoopReranker{}.Name()
 	rerankTraceLogEvent(req, name).Int("candidate_count", len(req.Candidates)).Msg("rerank started")
 
-	candidates, err := boundedCandidates(req.Candidates, req.Options.MaxCandidates)
+	candidates, err := limitCandidates(req.Candidates, req.Options.MaxCandidates)
 	if err != nil {
 		rerankTraceLogEvent(req, name).Err(err).Msg("rerank candidate bound failed")
 		return RerankResult{}, err

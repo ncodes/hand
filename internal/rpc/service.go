@@ -51,7 +51,7 @@ func (s *Service) Respond(req *handpb.RespondRequest, stream handpb.HandService_
 			sendErr = stream.Send(&handpb.RespondEvent{
 				Type:    handpb.RespondEvent_TEXT_DELTA,
 				Text:    event.Text,
-				Channel: streamChannelFromAgent(event.Channel),
+				Channel: agentChannelToProtoStreamChannel(event.Channel),
 			})
 		},
 	}
@@ -61,7 +61,7 @@ func (s *Service) Respond(req *handpb.RespondRequest, stream handpb.HandService_
 		return sendErr
 	}
 	if err != nil {
-		grpcErr := grpcError(err)
+		grpcErr := getGRPCError(err)
 		if sendErr := stream.Send(&handpb.RespondEvent{
 			Type:  handpb.RespondEvent_ERROR,
 			Error: status.Convert(grpcErr).Message(),
@@ -84,7 +84,7 @@ func (s *Service) Respond(req *handpb.RespondRequest, stream handpb.HandService_
 	return stream.Send(&handpb.RespondEvent{Type: handpb.RespondEvent_DONE})
 }
 
-func streamChannelFromAgent(channel string) handpb.RespondEvent_Channel {
+func agentChannelToProtoStreamChannel(channel string) handpb.RespondEvent_Channel {
 	switch strings.TrimSpace(strings.ToLower(channel)) {
 	case "reasoning":
 		return handpb.RespondEvent_REASONING
@@ -106,10 +106,10 @@ func (s *Service) CreateSession(ctx context.Context, req *handpb.CreateSessionRe
 
 	session, err := s.api.CreateSession(ctx, req.GetId())
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, getGRPCError(err)
 	}
 
-	return &handpb.CreateSessionResponse{Session: sessionSummary(session)}, nil
+	return &handpb.CreateSessionResponse{Session: sessionToProtoSummary(session)}, nil
 }
 
 func (s *Service) ListSessions(ctx context.Context, req *handpb.ListSessionsRequest) (*handpb.ListSessionsResponse, error) {
@@ -125,12 +125,12 @@ func (s *Service) ListSessions(ctx context.Context, req *handpb.ListSessionsRequ
 
 	sessions, err := s.api.ListSessions(ctx)
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, getGRPCError(err)
 	}
 
 	items := make([]*handpb.SessionSummary, 0, len(sessions))
 	for _, session := range sessions {
-		items = append(items, sessionSummary(session))
+		items = append(items, sessionToProtoSummary(session))
 	}
 
 	return &handpb.ListSessionsResponse{Sessions: items}, nil
@@ -148,7 +148,7 @@ func (s *Service) UseSession(ctx context.Context, req *handpb.UseSessionRequest)
 	}
 
 	if err := s.api.UseSession(ctx, req.GetId()); err != nil {
-		return nil, grpcError(err)
+		return nil, getGRPCError(err)
 	}
 
 	return &handpb.UseSessionResponse{Id: req.GetId()}, nil
@@ -167,7 +167,7 @@ func (s *Service) CurrentSession(ctx context.Context, req *handpb.CurrentSession
 
 	id, err := s.api.CurrentSession(ctx)
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, getGRPCError(err)
 	}
 
 	return &handpb.CurrentSessionResponse{Id: id}, nil
@@ -189,7 +189,7 @@ func (s *Service) CompactSession(
 
 	result, err := s.api.CompactSession(ctx, req.GetId())
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, getGRPCError(err)
 	}
 
 	return &handpb.CompactSessionResponse{
@@ -227,7 +227,7 @@ func (s *Service) RepairSession(
 		Full:      req.GetVector().GetFull(),
 	})
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, getGRPCError(err)
 	}
 
 	return &handpb.RepairSessionResponse{
@@ -262,7 +262,7 @@ func (s *Service) GetSession(ctx context.Context, req *handpb.GetSessionRequest)
 
 	result, err := s.api.ContextStatus(ctx, req.GetContext().GetId())
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, getGRPCError(err)
 	}
 
 	return &handpb.GetSessionResponse{
@@ -282,7 +282,7 @@ func (s *Service) GetSession(ctx context.Context, req *handpb.GetSessionRequest)
 	}, nil
 }
 
-func grpcError(err error) error {
+func getGRPCError(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -310,7 +310,7 @@ func grpcError(err error) error {
 	}
 }
 
-func sessionSummary(session storage.Session) *handpb.SessionSummary {
+func sessionToProtoSummary(session storage.Session) *handpb.SessionSummary {
 	return &handpb.SessionSummary{
 		Id:            session.ID,
 		UpdatedAtUnix: session.UpdatedAt.Unix(),

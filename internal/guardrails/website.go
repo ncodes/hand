@@ -31,13 +31,13 @@ func (p WebsitePolicy) Check(rawURL string) (WebsiteBlock, bool) {
 		return WebsiteBlock{}, false
 	}
 
-	host := hostFromWebsiteURL(rawURL)
+	host := getHostFromWebsiteURL(rawURL)
 	if host == "" {
 		return WebsiteBlock{}, false
 	}
 
-	if rule, ok := firstMatchingDomainRule(p.Rules, host); ok {
-		message := websiteBlockMessage(host, rule)
+	if rule, ok := getFirstMatchingDomainRule(p.Rules, host); ok {
+		message := getWebsiteBlockMessage(host, rule)
 		return WebsiteBlock{
 			URL:     strings.TrimSpace(rawURL),
 			Host:    host,
@@ -50,7 +50,7 @@ func (p WebsitePolicy) Check(rawURL string) (WebsiteBlock, bool) {
 	return WebsiteBlock{}, false
 }
 
-func websiteBlockMessage(host string, rule WebsiteRule) string {
+func getWebsiteBlockMessage(host string, rule WebsiteRule) string {
 	message := `blocked by configured website blocklist policy: "` + host + `" matched "` + rule.Pattern + `"`
 	source := strings.TrimSpace(rule.Source)
 	if source == "" {
@@ -71,7 +71,7 @@ func normalizeWebsiteRule(value string) string {
 		value = strings.TrimPrefix(value, "*.")
 	}
 
-	host := hostFromWebsiteURL(value)
+	host := getHostFromWebsiteURL(value)
 	if host == "" {
 		if strings.Contains(value, "://") {
 			return ""
@@ -88,7 +88,7 @@ func normalizeWebsiteRule(value string) string {
 	return host
 }
 
-func hostFromWebsiteURL(rawURL string) string {
+func getHostFromWebsiteURL(rawURL string) string {
 	rawURL = strings.TrimSpace(rawURL)
 	if rawURL == "" {
 		return ""
@@ -117,7 +117,7 @@ func normalizeWebsiteHost(host string) string {
 	return host
 }
 
-func websiteRuleMatches(rule, host string) bool {
+func checkWebsiteRuleMatches(rule, host string) bool {
 	rule = normalizeWebsiteRule(rule)
 	host = normalizeWebsiteHost(host)
 	if rule == "" || host == "" {

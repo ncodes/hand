@@ -18,7 +18,7 @@ func ConfigureStateProvider(cfg *config.Config, app *App) error {
 		return nil
 	}
 
-	stateCfg := traceViewerStateConfig(cfg)
+	stateCfg := configToTraceViewerStateConfig(cfg)
 	store, err := openStateStore(&stateCfg)
 	if err != nil {
 		return err
@@ -33,7 +33,7 @@ func ConfigureStateProvider(cfg *config.Config, app *App) error {
 	return nil
 }
 
-func traceViewerStateConfig(cfg *config.Config) config.Config {
+func configToTraceViewerStateConfig(cfg *config.Config) config.Config {
 	stateCfg := *cfg
 	stateCfg.Search.Vector.Enabled = false
 	disableReranker := false

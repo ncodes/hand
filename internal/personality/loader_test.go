@@ -362,7 +362,7 @@ func TestDisplayPath_FallsBackToAbsolutePath(t *testing.T) {
 	t.Setenv("HAND_HOME", t.TempDir())
 	outside := filepath.Join(t.TempDir(), fileName)
 
-	result, err := displayPath(outside, root)
+	result, err := getDisplayPath(outside, root)
 
 	require.NoError(t, err)
 	require.Equal(t, filepath.ToSlash(outside), result)

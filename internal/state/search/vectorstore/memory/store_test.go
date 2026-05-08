@@ -507,7 +507,7 @@ func TestStore_List(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, []string{"vec-b"}, recordIDs(result.Records))
+		require.Equal(t, []string{"vec-b"}, getRecordIDs(result.Records))
 		require.Equal(t, []string{"group:blue", "kind:beta", "phase:one"}, result.Records[0].Tags)
 
 		result, err = store.List(context.Background(), ListRequest{
@@ -673,7 +673,7 @@ func matchIDs(matches []SearchMatch) []string {
 	return ids
 }
 
-func recordIDs(records []Record) []string {
+func getRecordIDs(records []Record) []string {
 	ids := make([]string, 0, len(records))
 	for _, record := range records {
 		ids = append(ids, record.ID)

@@ -98,7 +98,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return common.ToolError("tool_error", "memory search is not configured"), nil
 			}
 
-			query, errResult := searchQuery(req)
+			query, errResult := buildMemorySearchQuery(req)
 			if errResult.Error != "" {
 				return errResult, nil
 			}
@@ -108,12 +108,12 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return common.ToolError("tool_error", err.Error()), nil
 			}
 
-			return common.EncodeOutput(output{Results: outputResults(result.Hits, query.MaxChars)})
+			return common.EncodeOutput(output{Results: searchHitsToOutputResults(result.Hits, query.MaxChars)})
 		}),
 	}
 }
 
-func searchQuery(req input) (memory.SearchQuery, tools.Result) {
+func buildMemorySearchQuery(req input) (memory.SearchQuery, tools.Result) {
 	query := strings.TrimSpace(req.Query)
 	if query == "" {
 		return memory.SearchQuery{}, common.ToolError("invalid_input", "query is required")
@@ -124,12 +124,12 @@ func searchQuery(req input) (memory.SearchQuery, tools.Result) {
 		return memory.SearchQuery{}, common.ToolError("invalid_input", err.Error())
 	}
 
-	limit, err := boundedPositive(req.Limit, defaultLimit, maxLimit, "limit")
+	limit, err := getBoundedPositive(req.Limit, defaultLimit, maxLimit, "limit")
 	if err != nil {
 		return memory.SearchQuery{}, common.ToolError("invalid_input", err.Error())
 	}
 
-	maxChars, err := boundedPositive(req.MaxChars, defaultMaxChars, maxMaxChars, "max_chars")
+	maxChars, err := getBoundedPositive(req.MaxChars, defaultMaxChars, maxMaxChars, "max_chars")
 	if err != nil {
 		return memory.SearchQuery{}, common.ToolError("invalid_input", err.Error())
 	}
@@ -158,7 +158,7 @@ func parseKinds(values []string) ([]memory.Kind, error) {
 	return kinds, nil
 }
 
-func boundedPositive(value int, fallback int, max int, name string) (int, error) {
+func getBoundedPositive(value int, fallback int, max int, name string) (int, error) {
 	if value < 0 {
 		return 0, fmt.Errorf("%s must be greater than or equal to 0", name)
 	}
@@ -171,10 +171,10 @@ func boundedPositive(value int, fallback int, max int, name string) (int, error)
 	return value, nil
 }
 
-func outputResults(hits []memory.SearchHit, maxChars int) []result {
+func searchHitsToOutputResults(hits []memory.SearchHit, maxChars int) []result {
 	results := make([]result, 0, len(hits))
 	for _, hit := range hits {
-		item, ok := outputItem(hit.Item, maxChars)
+		item, ok := memoryItemToOutputItem(hit.Item, maxChars)
 		if !ok {
 			continue
 		}
@@ -186,23 +186,23 @@ func outputResults(hits []memory.SearchHit, maxChars int) []result {
 			Title:       item.Title,
 			Text:        item.Text,
 			Tags:        append([]string(nil), item.Tags...),
-			SourceLinks: outputSourceLinks(item.SourceLinks),
+			SourceLinks: sourceLinksToOutputSourceLinks(item.SourceLinks),
 		})
 	}
 	return results
 }
 
-func outputItem(item memory.MemoryItem, maxChars int) (memory.MemoryItem, bool) {
+func memoryItemToOutputItem(item memory.MemoryItem, maxChars int) (memory.MemoryItem, bool) {
 	if item.Status != memory.StatusActive {
 		return memory.MemoryItem{}, false
 	}
 
-	item.Title = sanitizedString(item.Title)
-	item.Text = sanitizedString(item.Text)
+	item.Title = sanitizeString(item.Title)
+	item.Text = sanitizeString(item.Text)
 	if maxChars > 0 && len([]rune(item.Text)) > maxChars {
 		item.Text = string([]rune(item.Text)[:maxChars])
 	}
-	item.Tags = sanitizedStrings(item.Tags)
+	item.Tags = sanitizeStrings(item.Tags)
 	if strings.TrimSpace(item.Title) == "" && strings.TrimSpace(item.Text) == "" {
 		return memory.MemoryItem{}, false
 	}
@@ -218,7 +218,7 @@ func outputItem(item memory.MemoryItem, maxChars int) (memory.MemoryItem, bool) 
 	return item, true
 }
 
-func outputSourceLinks(links []memory.SourceLink) []sourceLink {
+func sourceLinksToOutputSourceLinks(links []memory.SourceLink) []sourceLink {
 	if len(links) == 0 {
 		return nil
 	}
@@ -237,7 +237,7 @@ func outputSourceLinks(links []memory.SourceLink) []sourceLink {
 	return results
 }
 
-func sanitizedString(value string) string {
+func sanitizeString(value string) string {
 	sanitized, ok := sanitizeValue(value).(string)
 	if !ok {
 		return strings.TrimSpace(value)
@@ -245,14 +245,14 @@ func sanitizedString(value string) string {
 	return strings.TrimSpace(sanitized)
 }
 
-func sanitizedStrings(values []string) []string {
+func sanitizeStrings(values []string) []string {
 	if len(values) == 0 {
 		return nil
 	}
 
 	sanitized := make([]string, 0, len(values))
 	for _, value := range values {
-		value = sanitizedString(value)
+		value = sanitizeString(value)
 		if value == "" {
 			continue
 		}

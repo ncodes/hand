@@ -83,7 +83,7 @@ type MemoryProvider struct {
 func NewProvider(name string, opts Options) (Provider, error) {
 	switch strings.TrimSpace(strings.ToLower(name)) {
 	case "", ProviderDefaultMemory:
-		switch effectiveBackend(opts) {
+		switch getEffectiveBackend(opts) {
 		case "memory", "sqlite":
 			return NewFromManager(opts.StateManager, opts)
 		default:
@@ -94,7 +94,7 @@ func NewProvider(name string, opts Options) (Provider, error) {
 	}
 }
 
-func effectiveBackend(opts Options) string {
+func getEffectiveBackend(opts Options) string {
 	if backend := strings.TrimSpace(strings.ToLower(opts.MemoryBackend)); backend != "" {
 		return backend
 	}
@@ -172,14 +172,14 @@ func (p *MemoryProvider) Capabilities(context.Context) (Capabilities, error) {
 		SupportsEpisodeRecording:            true,
 		SupportsSemanticProceduralRecording: true,
 		SupportsReflection:                  p != nil && p.reflectionGenerator != nil,
-		SupportsVectors:                     p != nil && supportsVectorSearch(p.manager),
+		SupportsVectors:                     p != nil && hasVectorSearchSupport(p.manager),
 		SupportsReranking:                   true,
 		SupportsAudit:                       p != nil && p.manager != nil,
 		SupportsObservability:               true,
 	}, nil
 }
 
-func supportsVectorSearch(manager StateManager) bool {
+func hasVectorSearchSupport(manager StateManager) bool {
 	vectorManager, ok := manager.(interface{ SupportsVectorSearch() bool })
 	return ok && vectorManager.SupportsVectorSearch()
 }
@@ -228,7 +228,7 @@ func (p *MemoryProvider) LoadPinned(ctx context.Context, query SearchQuery) ([]M
 		items = items[:query.Limit]
 	}
 
-	fields := observationFields(p.Name(), "load_pinned", map[string]any{"result_count": len(items)})
+	fields := buildObservationFields(p.Name(), "load_pinned", map[string]any{"result_count": len(items)})
 	logDebugAndTrace(ctx, p.observability(), "pinned memory loaded", "memory.pinned.loaded", fields)
 
 	return items, nil
@@ -274,7 +274,7 @@ func (p *MemoryProvider) Search(ctx context.Context, query SearchQuery) (SearchR
 	}
 
 	obs := p.observability()
-	startFields := observationFields(p.Name(), "search", map[string]any{
+	startFields := buildObservationFields(p.Name(), "search", map[string]any{
 		"plan":         "validate_query_search_store_redact_results",
 		"query_chars":  len([]rune(strings.TrimSpace(query.Text))),
 		"kind_count":   len(query.Kinds),
@@ -306,7 +306,7 @@ func (p *MemoryProvider) Search(ctx context.Context, query SearchQuery) (SearchR
 		hits = append(hits, SearchHit{Item: redacted.Clone(), Score: hit.Score})
 	}
 
-	fields := observationFields(p.Name(), "search", map[string]any{"result_count": len(hits)})
+	fields := buildObservationFields(p.Name(), "search", map[string]any{"result_count": len(hits)})
 	logDebugAndTrace(ctx, obs, "memory search completed for retrieval", "memory.search.completed", fields)
 
 	return SearchResult{Hits: hits}, nil
@@ -326,7 +326,7 @@ func (p *MemoryProvider) Upsert(ctx context.Context, item MemoryItem) (MemoryIte
 	}
 
 	obs := p.observability()
-	fields := observationFields(p.Name(), "upsert", map[string]any{"memory_id": item.ID})
+	fields := buildObservationFields(p.Name(), "upsert", map[string]any{"memory_id": item.ID})
 	logDebugAndTrace(ctx, obs, "memory item upserted", "memory.upsert.completed", fields)
 
 	return item.Clone(), nil
@@ -354,13 +354,13 @@ func (p *MemoryProvider) Delete(ctx context.Context, req DeleteRequest) error {
 	}
 	previousStatus := item.Status
 	item.Status = StatusDeleted
-	item.Metadata = lifecycleMetadata(item.Metadata, "delete", req.Reason, previousStatus)
+	item.Metadata = buildLifecycleMetadata(item.Metadata, "delete", req.Reason, previousStatus)
 
 	if _, err := p.manager.UpsertMemory(ctx, item); err != nil {
 		return err
 	}
 
-	fields := observationFields(p.Name(), "delete", map[string]any{"memory_id": memoryID})
+	fields := buildObservationFields(p.Name(), "delete", map[string]any{"memory_id": memoryID})
 	traceRecord(ctx, p.observability(), "memory.delete.completed", fields)
 	return nil
 }
@@ -394,7 +394,7 @@ func (p *MemoryProvider) StartBackground(ctx context.Context) error {
 		return errors.New("memory provider is required")
 	}
 
-	ctx = backgroundContext(ctx)
+	ctx = getBackgroundContext(ctx)
 	for _, start := range p.backgroundStarters() {
 		if err := start(ctx); err != nil {
 			return err
@@ -428,9 +428,9 @@ func (p *MemoryProvider) startEpisodicRecordingBackground(ctx context.Context) e
 	return nil
 }
 
-// backgroundContext normalizes nil context for background startup. Callers still
+// getBackgroundContext normalizes nil context for background startup. Callers still
 // control cancellation by passing a real context.
-func backgroundContext(ctx context.Context) context.Context {
+func getBackgroundContext(ctx context.Context) context.Context {
 	if ctx == nil {
 		return context.Background()
 	}

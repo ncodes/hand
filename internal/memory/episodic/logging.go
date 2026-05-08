@@ -15,7 +15,7 @@ var extractionLog = logutils.InitLogger("memory.extraction")
 // recordFailure keeps extraction failure logging and tracing consistent across
 // normalization, window loading, model calls, and persistence errors.
 func recordFailure(recorder TraceRecorder, req normalizedRequest, err error) {
-	recordTrace(recorder, trace.EvtMemoryExtractionFailed, tracePayload(req, map[string]any{"error": err.Error()}))
+	recordTrace(recorder, trace.EvtMemoryExtractionFailed, getTracePayload(req, map[string]any{"error": err.Error()}))
 	logExtraction("failed", req, map[string]any{"error": err.Error()})
 }
 
@@ -26,9 +26,9 @@ func recordTrace(recorder TraceRecorder, event string, payload map[string]any) {
 	recorder.Record(event, payload)
 }
 
-// tracePayload adds the common extraction coordinates to every event so a trace
+// getTracePayload adds the common extraction coordinates to every event so a trace
 // viewer can group logs by session and source message window.
-func tracePayload(req normalizedRequest, fields map[string]any) map[string]any {
+func getTracePayload(req normalizedRequest, fields map[string]any) map[string]any {
 	payload := map[string]any{
 		"session_id":   strings.TrimSpace(req.SessionID),
 		"offset_start": req.OffsetStart,
@@ -65,7 +65,7 @@ func recordBackgroundFailure(
 	err error,
 ) {
 	fields := map[string]any{"error": err.Error()}
-	recordBackgroundTrace(recorder, trace.EvtMemoryEpisodicBackgroundFailed, backgroundPayload(runID, sessionID, messageCount, reason, fields))
+	recordBackgroundTrace(recorder, trace.EvtMemoryEpisodicBackgroundFailed, getBackgroundPayload(runID, sessionID, messageCount, reason, fields))
 	logBackground("failed", runID, sessionID, messageCount, reason, fields)
 }
 
@@ -80,9 +80,9 @@ func recordBackgroundTrace(
 	recorder.Record(event, payload)
 }
 
-// backgroundPayload keeps background events compact. Empty session/reason fields
+// getBackgroundPayload keeps background events compact. Empty session/reason fields
 // are omitted so run-level events are not cluttered with meaningless values.
-func backgroundPayload(
+func getBackgroundPayload(
 	runID string,
 	sessionID string,
 	messageCount int,

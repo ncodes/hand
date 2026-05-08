@@ -114,8 +114,8 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 		Str("embedding_model", strings.TrimSpace(req.Model)).
 		Str("relationship", strings.TrimSpace(req.Relationship)).
 		Str("target", strings.TrimSpace(req.Target)).
-		Str("source_kind", embeddingRequestSourceKind(req.Inputs)).
-		Str("input_id", embeddingRequestSingleInputID(req.Inputs)).
+		Str("source_kind", getEmbeddingRequestSourceKind(req.Inputs)).
+		Str("input_id", getEmbeddingRequestSingleInputID(req.Inputs)).
 		Int("input_count", len(req.Inputs)).
 		Int("max_inputs_per_batch", p.maxInputsPerBatch).
 		Msg("embedding provider request started")
@@ -130,12 +130,12 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 		if err != nil {
 			retrievalLog.Debug().
 				Str("event", "embedding request failed").
-				Str("error_kind", embeddingProviderErrorKind(err)).
+				Str("error_kind", getEmbeddingProviderErrorKind(err)).
 				Str("provider", p.provider).
 				Str("embedding_model", strings.TrimSpace(req.Model)).
 				Str("relationship", strings.TrimSpace(req.Relationship)).
 				Str("target", strings.TrimSpace(req.Target)).
-				Str("source_kind", embeddingRequestSourceKind(req.Inputs)).
+				Str("source_kind", getEmbeddingRequestSourceKind(req.Inputs)).
 				Int("input_count", len(req.Inputs)).
 				Msg("embedding provider request failed")
 			return EmbeddingResult{}, err
@@ -151,7 +151,7 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 				Str("embedding_model", strings.TrimSpace(req.Model)).
 				Str("relationship", strings.TrimSpace(req.Relationship)).
 				Str("target", strings.TrimSpace(req.Target)).
-				Str("source_kind", embeddingRequestSourceKind(req.Inputs)).
+				Str("source_kind", getEmbeddingRequestSourceKind(req.Inputs)).
 				Int("input_count", len(req.Inputs)).
 				Msg("embedding provider request failed")
 			return EmbeddingResult{}, err
@@ -165,8 +165,8 @@ func (p *EmbeddingProvider) Embed(ctx context.Context, req EmbeddingRequest) (Em
 		Str("embedding_model", result.Model).
 		Str("relationship", strings.TrimSpace(req.Relationship)).
 		Str("target", strings.TrimSpace(req.Target)).
-		Str("source_kind", embeddingRequestSourceKind(req.Inputs)).
-		Str("input_id", embeddingRequestSingleInputID(req.Inputs)).
+		Str("source_kind", getEmbeddingRequestSourceKind(req.Inputs)).
+		Str("input_id", getEmbeddingRequestSingleInputID(req.Inputs)).
 		Int("input_count", len(req.Inputs)).
 		Int("embedding_count", len(result.Items)).
 		Int("dimensions", result.Dimensions).
@@ -196,8 +196,8 @@ func (p *EmbeddingProvider) embedBatch(
 			Str("event", "embedding batch started").
 			Str("provider", p.provider).
 			Str("embedding_model", strings.TrimSpace(model)).
-			Str("source_kind", embeddingRequestSourceKind(inputs)).
-			Str("input_id", embeddingRequestSingleInputID(inputs)).
+			Str("source_kind", getEmbeddingRequestSourceKind(inputs)).
+			Str("input_id", getEmbeddingRequestSingleInputID(inputs)).
 			Int("input_count", len(inputs)).
 			Int("attempt", attempt+1).
 			Msg("embedding provider batch started")
@@ -208,8 +208,8 @@ func (p *EmbeddingProvider) embedBatch(
 				Str("event", "embedding batch completed").
 				Str("provider", p.provider).
 				Str("embedding_model", strings.TrimSpace(result.Model)).
-				Str("source_kind", embeddingRequestSourceKind(inputs)).
-				Str("input_id", embeddingRequestSingleInputID(inputs)).
+				Str("source_kind", getEmbeddingRequestSourceKind(inputs)).
+				Str("input_id", getEmbeddingRequestSingleInputID(inputs)).
 				Int("input_count", len(inputs)).
 				Int("embedding_count", len(result.Items)).
 				Int("dimensions", result.Dimensions).
@@ -221,11 +221,11 @@ func (p *EmbeddingProvider) embedBatch(
 		retrievalLog.Debug().
 			Bool("retry", retry && attempt < p.maxRetries).
 			Str("event", "embedding batch failed").
-			Str("error_kind", embeddingProviderErrorKind(err)).
+			Str("error_kind", getEmbeddingProviderErrorKind(err)).
 			Str("provider", p.provider).
 			Str("embedding_model", strings.TrimSpace(model)).
-			Str("source_kind", embeddingRequestSourceKind(inputs)).
-			Str("input_id", embeddingRequestSingleInputID(inputs)).
+			Str("source_kind", getEmbeddingRequestSourceKind(inputs)).
+			Str("input_id", getEmbeddingRequestSingleInputID(inputs)).
 			Int("input_count", len(inputs)).
 			Int("attempt", attempt+1).
 			Msg("embedding provider batch failed")
@@ -250,7 +250,7 @@ func (p *EmbeddingProvider) embedBatchAttempt(
 
 	payload := embeddingProviderRequest{
 		Model:          strings.TrimSpace(model),
-		Input:          embeddingTexts(inputs),
+		Input:          getEmbeddingTexts(inputs),
 		EncodingFormat: "float",
 	}
 	body, _ := json.Marshal(payload)
@@ -270,7 +270,7 @@ func (p *EmbeddingProvider) embedBatchAttempt(
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		message := providerErrorMessage(resp)
+		message := getProviderErrorMessage(resp)
 		return EmbeddingResult{}, retryableEmbeddingStatus(resp.StatusCode),
 			fmt.Errorf("embedding request failed: %s", message)
 	}
@@ -280,7 +280,7 @@ func (p *EmbeddingProvider) embedBatchAttempt(
 		return EmbeddingResult{}, false, err
 	}
 
-	result, err := embeddingResultFromOpenAIResponse(strings.TrimSpace(model), inputs, decoded)
+	result, err := openAIEmbeddingResponseToEmbeddingResult(strings.TrimSpace(model), inputs, decoded)
 	if err != nil {
 		return EmbeddingResult{}, false, err
 	}
@@ -288,7 +288,7 @@ func (p *EmbeddingProvider) embedBatchAttempt(
 	return result, false, nil
 }
 
-func embeddingResultFromOpenAIResponse(
+func openAIEmbeddingResponseToEmbeddingResult(
 	model string,
 	inputs []EmbeddingInput,
 	response embeddingProviderResponse,
@@ -296,7 +296,7 @@ func embeddingResultFromOpenAIResponse(
 	if strings.TrimSpace(response.Model) == "" {
 		return EmbeddingResult{}, errors.New("embedding result model is required")
 	}
-	if !embeddingModelNamesMatch(model, response.Model) {
+	if !checkEmbeddingModelNamesMatch(model, response.Model) {
 		return EmbeddingResult{}, errors.New("embedding result model must match request model")
 	}
 	if len(response.Data) != len(inputs) {
@@ -338,7 +338,7 @@ func embeddingResultFromOpenAIResponse(
 	}, nil
 }
 
-func embeddingModelNamesMatch(requested string, returned string) bool {
+func checkEmbeddingModelNamesMatch(requested string, returned string) bool {
 	requested = strings.TrimSpace(requested)
 	returned = strings.TrimSpace(returned)
 	if requested == returned {
@@ -357,7 +357,7 @@ func trimModelProviderPrefix(model string) string {
 	return model
 }
 
-func embeddingTexts(inputs []EmbeddingInput) []string {
+func getEmbeddingTexts(inputs []EmbeddingInput) []string {
 	values := make([]string, 0, len(inputs))
 	for _, input := range inputs {
 		values = append(values, input.Text)
@@ -366,7 +366,7 @@ func embeddingTexts(inputs []EmbeddingInput) []string {
 	return values
 }
 
-func embeddingRequestSourceKind(inputs []EmbeddingInput) string {
+func getEmbeddingRequestSourceKind(inputs []EmbeddingInput) string {
 	if len(inputs) == 0 {
 		return ""
 	}
@@ -385,7 +385,7 @@ func embeddingRequestSourceKind(inputs []EmbeddingInput) string {
 	return sourceKind
 }
 
-func embeddingRequestSingleInputID(inputs []EmbeddingInput) string {
+func getEmbeddingRequestSingleInputID(inputs []EmbeddingInput) string {
 	if len(inputs) != 1 {
 		return ""
 	}
@@ -393,7 +393,7 @@ func embeddingRequestSingleInputID(inputs []EmbeddingInput) string {
 	return strings.TrimSpace(inputs[0].ID)
 }
 
-func providerErrorMessage(resp *http.Response) string {
+func getProviderErrorMessage(resp *http.Response) string {
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 4*1024))
 	message := strings.TrimSpace(string(data))
 	if message == "" {
@@ -407,7 +407,7 @@ func retryableEmbeddingStatus(status int) bool {
 	return status == http.StatusTooManyRequests || status >= 500
 }
 
-func embeddingProviderErrorKind(err error) string {
+func getEmbeddingProviderErrorKind(err error) string {
 	if err == nil {
 		return ""
 	}

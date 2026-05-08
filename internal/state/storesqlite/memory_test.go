@@ -382,7 +382,7 @@ func TestSQLiteMemoryStore_VectorSearchValidationAndResolutionErrors(t *testing.
 
 	require.Error(t, err)
 	require.Empty(t, hits)
-	records, err := store.memoryModelsByID(context.Background(), nil)
+	records, err := store.getMemoryModelsByID(context.Background(), nil)
 	require.NoError(t, err)
 	require.Nil(t, records)
 }
@@ -452,7 +452,7 @@ func TestSQLiteMemoryStore_VectorIndexAndDeleteHelpers(t *testing.T) {
 }
 
 func TestSQLiteMemoryVectorConversionMergeAndSortHelpers(t *testing.T) {
-	hits, err := memorySearchRecordsToHits([]memorySearchRecord{{
+	hits, err := memorySearchRecordsToSearchHits([]memorySearchRecord{{
 		ID:              "mem_ok",
 		Kind:            string(statememory.MemoryKindSemantic),
 		Status:          string(statememory.MemoryStatusActive),
@@ -466,7 +466,7 @@ func TestSQLiteMemoryVectorConversionMergeAndSortHelpers(t *testing.T) {
 	require.Equal(t, "mem_ok", hits[0].Item.ID)
 	require.Equal(t, 0.7, hits[0].Score)
 
-	_, err = memorySearchRecordsToHits([]memorySearchRecord{{
+	_, err = memorySearchRecordsToSearchHits([]memorySearchRecord{{
 		ID:              "mem_bad",
 		TagsJSON:        "{",
 		MetadataJSON:    "null",
@@ -520,22 +520,22 @@ func TestSQLiteMemoryVectorHelpers(t *testing.T) {
 		"memory_session:session",
 		"memory_tag:go",
 		"memory_tag:style",
-	}, memoryVectorFilterTags(query))
+	}, getMemoryVectorFilterTags(query))
 	require.Equal(t, [][]string{
 		{"memory_kind:procedural", "memory_kind:semantic"},
 		{"memory_status:active", "memory_status:candidate"},
-	}, memoryVectorFilterTagGroups(query))
-	require.Equal(t, []string{"memory_status:active"}, memoryVectorFilterTags(statememory.MemorySearchQuery{}))
+	}, getMemoryVectorFilterTagGroups(query))
+	require.Equal(t, []string{"memory_status:active"}, getMemoryVectorFilterTags(statememory.MemorySearchQuery{}))
 	require.Equal(t, []string{
 		"memory_kind:semantic",
 		"memory_status:candidate",
-	}, memoryVectorFilterTags(statememory.MemorySearchQuery{
+	}, getMemoryVectorFilterTags(statememory.MemorySearchQuery{
 		Kinds:    []statememory.MemoryKind{statememory.MemoryKindSemantic},
 		Statuses: []statememory.MemoryStatus{statememory.MemoryStatusCandidate},
 	}))
-	require.True(t, memoryQueryNeedsSourceIDFilter(statememory.MemorySearchQuery{IDs: []string{"mem_a"}}))
-	require.True(t, memoryQueryNeedsSourceIDFilter(statememory.MemorySearchQuery{PromotionEvaluated: new(false)}))
-	require.False(t, memoryQueryNeedsSourceIDFilter(statememory.MemorySearchQuery{Kinds: []statememory.MemoryKind{statememory.MemoryKindSemantic}}))
+	require.True(t, checkMemoryQueryNeedsSourceIDFilter(statememory.MemorySearchQuery{IDs: []string{"mem_a"}}))
+	require.True(t, checkMemoryQueryNeedsSourceIDFilter(statememory.MemorySearchQuery{PromotionEvaluated: new(false)}))
+	require.False(t, checkMemoryQueryNeedsSourceIDFilter(statememory.MemorySearchQuery{Kinds: []statememory.MemoryKind{statememory.MemoryKindSemantic}}))
 
 	item := statememory.MemoryItem{
 		Kind:   statememory.MemoryKindSemantic,
@@ -547,19 +547,19 @@ func TestSQLiteMemoryVectorHelpers(t *testing.T) {
 			SessionID: "source-session",
 		}},
 	}
-	require.Equal(t, "Title\nBody", memoryVectorText(item))
-	require.Equal(t, "source-session", memoryVectorSessionID(item))
+	require.Equal(t, "Title\nBody", getMemoryVectorText(item))
+	require.Equal(t, "source-session", getMemoryVectorSessionID(item))
 	require.Equal(t, []string{
 		"memory_kind:semantic",
 		"memory_reflected:false",
 		"memory_session:source-session",
 		"memory_status:active",
 		"memory_tag:go",
-	}, memoryVectorTags(item))
+	}, getMemoryVectorTags(item))
 
 	item.Metadata = map[string]string{"source_session_id": "metadata-session"}
-	require.Equal(t, "metadata-session", memoryVectorSessionID(item))
-	require.Empty(t, memoryVectorSessionID(statememory.MemoryItem{}))
+	require.Equal(t, "metadata-session", getMemoryVectorSessionID(item))
+	require.Empty(t, getMemoryVectorSessionID(statememory.MemoryItem{}))
 }
 
 func TestSQLiteMemoryStore_ListSessionMemoriesFiltersOrdersLimitsAndClones(t *testing.T) {
@@ -1359,14 +1359,14 @@ func TestSQLiteMemoryStore_MalformedJSONReturnsDecodeErrors(t *testing.T) {
 	_, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{})
 	require.Error(t, err)
 
-	_, err = memoryModelToItem(memoryItemModel{
+	_, err = memoryModelToMemoryItem(memoryItemModel{
 		TagsJSON:        "[]",
 		MetadataJSON:    "not-json",
 		SourceLinksJSON: "null",
 	})
 	require.Error(t, err)
 
-	_, err = memoryModelToItem(memoryItemModel{
+	_, err = memoryModelToMemoryItem(memoryItemModel{
 		TagsJSON:        "[]",
 		MetadataJSON:    "null",
 		SourceLinksJSON: "not-json",

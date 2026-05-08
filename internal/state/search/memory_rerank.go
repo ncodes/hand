@@ -152,9 +152,9 @@ func memoryCandidate(query state.MemorySearchQuery, hit state.MemorySearchHit) C
 		ID:           StableMemoryItemID(item.ID),
 		SourceKind:   SourceKindMemoryItem,
 		MemoryID:     item.ID,
-		Text:         memoryCandidateText(item),
+		Text:         getMemoryCandidateText(item),
 		LexicalScore: hit.Score,
-		FusedScore:   memoryCandidateFusedScore(query, hit),
+		FusedScore:   getMemoryCandidateFusedScore(query, hit),
 		CreatedAt:    item.CreatedAt,
 		UpdatedAt:    item.UpdatedAt,
 		Metadata: map[string]string{
@@ -164,7 +164,7 @@ func memoryCandidate(query state.MemorySearchQuery, hit state.MemorySearchHit) C
 	}
 }
 
-func memoryCandidateText(item state.MemoryItem) string {
+func getMemoryCandidateText(item state.MemoryItem) string {
 	text := strings.TrimSpace(strings.Join([]string{item.Title, item.Text}, "\n"))
 	if text != "" {
 		return text
@@ -172,7 +172,7 @@ func memoryCandidateText(item state.MemoryItem) string {
 	return strings.TrimSpace(item.ID)
 }
 
-func memoryCandidateFusedScore(query state.MemorySearchQuery, hit state.MemorySearchHit) float64 {
+func getMemoryCandidateFusedScore(query state.MemorySearchQuery, hit state.MemorySearchHit) float64 {
 	item := hit.Item
 	score := hit.Score
 	score += memoryKindBoost(item.Kind, query.Kinds)

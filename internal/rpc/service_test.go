@@ -747,7 +747,7 @@ func TestService_MapsDomainErrorsToGRPCCodes(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := grpcError(tc.err)
+			err := getGRPCError(tc.err)
 			require.Equal(t, tc.code, status.Code(err))
 			require.Equal(t, tc.err.Error(), status.Convert(err).Message())
 		})
@@ -757,14 +757,14 @@ func TestService_MapsDomainErrorsToGRPCCodes(t *testing.T) {
 func TestService_PreservesExistingGRPCStatus(t *testing.T) {
 	original := status.Error(codes.PermissionDenied, "nope")
 
-	err := grpcError(original)
+	err := getGRPCError(original)
 
 	require.Same(t, original, err)
 	require.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
 func TestService_GrpcErrorNil(t *testing.T) {
-	require.NoError(t, grpcError(nil))
+	require.NoError(t, getGRPCError(nil))
 }
 
 func requireStatusError(t *testing.T, err error, code codes.Code, message string) {

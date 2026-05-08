@@ -382,11 +382,11 @@ func TestMemoryPromptTextFallsBackToOriginalText(t *testing.T) {
 		return 123
 	}
 
-	require.Equal(t, "fallback", memoryPromptText(" fallback "))
+	require.Equal(t, "fallback", getMemoryPromptText(" fallback "))
 }
 
 func TestMemoryContextItemsConvertsMemoryItems(t *testing.T) {
-	items := toMemoryContextItems([]memory.MemoryItem{{
+	items := memoryItemsToContextItems([]memory.MemoryItem{{
 		Kind:  memory.KindSemantic,
 		Title: "Package manager",
 		Text:  "Use pnpm",

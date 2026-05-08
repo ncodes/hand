@@ -359,7 +359,7 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 			Pluck("id", &messageIDs).Error; err != nil {
 			return err
 		}
-		sourceIDs = sourceIDsFromMessageIDs(id, messageIDs)
+		sourceIDs = messageIDsToSourceIDs(id, messageIDs)
 
 		if err := tx.Where("session_id = ?", id).Delete(&messageModel{}).Error; err != nil {
 			return err
@@ -481,7 +481,7 @@ func (s *Store) GetMessages(
 	if opts.Archived {
 		var records []archivedMessageModel
 		query := applyArchivedMessageFilters(s.db.WithContext(ctx), id, opts).
-			Order("sequence " + messageQueryOrder(opts)).
+			Order("sequence " + getMessageQueryOrder(opts)).
 			Offset(offset)
 		if opts.Limit > 0 {
 			query = query.Limit(opts.Limit)
@@ -495,7 +495,7 @@ func (s *Store) GetMessages(
 
 	var records []messageModel
 	query := applySessionMessageFilters(s.db.WithContext(ctx), id, opts).
-		Order("sequence " + messageQueryOrder(opts)).
+		Order("sequence " + getMessageQueryOrder(opts)).
 		Offset(offset)
 	if opts.Limit > 0 {
 		query = query.Limit(opts.Limit)
@@ -648,7 +648,7 @@ func (s *Store) SearchMessages(
 		}
 	}
 
-	queryText := buildSearchQuery(opts.Query)
+	queryText := buildFTSSearchQuery(opts.Query)
 	if queryText == "" {
 		return nil, nil
 	}
@@ -660,7 +660,7 @@ func (s *Store) SearchMessages(
 	s.logSearchEvent("lexical search started", id, opts).Msg("session search lexical search started")
 	records, err := s.searchMessagesLexical(ctx, id, opts, queryText, 0, true)
 	if err != nil {
-		logSafeError(s.logSearchEvent("lexical search failed", id, opts), err).
+		applySafeErrorLog(s.logSearchEvent("lexical search failed", id, opts), err).
 			Msg("session search lexical search failed")
 		return nil, err
 	}
@@ -872,7 +872,7 @@ func applyArchivedMessageFilters(query *gorm.DB, id string, opts MessageQueryOpt
 	return query
 }
 
-func messageQueryOrder(opts MessageQueryOptions) string {
+func getMessageQueryOrder(opts MessageQueryOptions) string {
 	order, err := base.NormalizeMessageQueryOrder(opts.Order)
 	if err != nil {
 		return base.MessageOrderAsc
@@ -1171,7 +1171,7 @@ func (s *Store) ClearMessages(ctx context.Context, id string, opts MessageQueryO
 		if err := tx.Model(&messageModel{}).Where("session_id = ?", id).Pluck("id", &messageIDs).Error; err != nil {
 			return err
 		}
-		sourceIDs = sourceIDsFromMessageIDs(id, messageIDs)
+		sourceIDs = messageIDsToSourceIDs(id, messageIDs)
 
 		if err := tx.Where("session_id = ?", id).Delete(&messageModel{}).Error; err != nil {
 			return err
@@ -1521,7 +1521,7 @@ func searchMessageResultRowsToResults(records []searchSessionResultRow) []base.S
 		if !ok {
 			results = append(results, base.SearchMessageResult{
 				SessionID:     record.SessionID,
-				LastMatchedAt: searchSessionResultTime(record.LastMatchedAt),
+				LastMatchedAt: getSearchSessionResultTime(record.LastMatchedAt),
 				MatchCount:    record.MatchCount,
 				Messages:      make([]base.SearchMessageHit, 0),
 			})
@@ -1548,7 +1548,7 @@ func searchMessageResultRowsToResults(records []searchSessionResultRow) []base.S
 	return results
 }
 
-func searchSessionResultTime(value string) time.Time {
+func getSearchSessionResultTime(value string) time.Time {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return time.Time{}
@@ -1679,13 +1679,13 @@ func (records messageModels) searchRows() searchRows {
 
 	rows := make(searchRows, 0, len(records))
 	for _, record := range records {
-		rows = append(rows, searchRowsFromMessageModel(record)...)
+		rows = append(rows, messageModelToSearchRows(record)...)
 	}
 
 	return rows
 }
 
-func searchRowsFromMessageModel(record messageModel) searchRows {
+func messageModelToSearchRows(record messageModel) searchRows {
 	rows := search.MessageIndexRowsFromMessage(record.SessionID, handmsg.Message{
 		ID:         record.ID,
 		Role:       handmsg.Role(strings.TrimSpace(record.Role)),
@@ -1702,8 +1702,8 @@ func searchRowsFromMessageModel(record messageModel) searchRows {
 	return searchRows(rows)
 }
 
-func buildSearchQuery(query string) string {
-	tokens := searchTokens(query)
+func buildFTSSearchQuery(query string) string {
+	tokens := getSearchTokens(query)
 	if len(tokens) == 0 {
 		return ""
 	}
@@ -1716,7 +1716,7 @@ func buildSearchQuery(query string) string {
 	return strings.Join(quoted, " AND ")
 }
 
-func searchTokens(query string) []string {
+func getSearchTokens(query string) []string {
 	fields := strings.FieldsFunc(strings.TrimSpace(query), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	})

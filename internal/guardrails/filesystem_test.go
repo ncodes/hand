@@ -186,9 +186,9 @@ func TestIsBinary_HandlesEmptyAndInvalidUTF8(t *testing.T) {
 func TestWithinRoot_DetectsEqualInsideAndOutsidePaths(t *testing.T) {
 	root := t.TempDir()
 
-	require.True(t, withinRoot(root, root))
-	require.True(t, withinRoot(root, filepath.Join(root, "child.txt")))
-	require.False(t, withinRoot(root, filepath.Join(root, "..", "outside.txt")))
+	require.True(t, isWithinRoot(root, root))
+	require.True(t, isWithinRoot(root, filepath.Join(root, "child.txt")))
+	require.False(t, isWithinRoot(root, filepath.Join(root, "..", "outside.txt")))
 }
 
 type fakeFileInfo struct {

@@ -122,19 +122,19 @@ func (s *Store) Delete(ctx context.Context, req DeleteRequest) error {
 		if err != nil {
 			return err
 		}
-		rowIDsByDimension := make(map[int][]int64, len(rows))
+		getRowIDsByDimension := make(map[int][]int64, len(rows))
 		for _, row := range rows {
-			rowIDsByDimension[row.Dimensions] = append(rowIDsByDimension[row.Dimensions], row.RowID)
+			getRowIDsByDimension[row.Dimensions] = append(getRowIDsByDimension[row.Dimensions], row.RowID)
 		}
-		for dimensions, rowIDs := range rowIDsByDimension {
-			if err := deleteIndexRows(tx, dimensions, rowIDs); err != nil {
+		for dimensions, getRowIDs := range getRowIDsByDimension {
+			if err := deleteIndexRows(tx, dimensions, getRowIDs); err != nil {
 				return err
 			}
 		}
 		if len(rows) > 0 {
 			if err := tx.Exec(
 				`DELETE FROM `+recordTagsTable+` WHERE record_id IN ?`,
-				recordIDs(rows),
+				getRecordIDs(rows),
 			).Error; err != nil {
 				return fmt.Errorf("failed to delete vector record tags: %w", err)
 			}
@@ -195,7 +195,7 @@ func (s *Store) Search(ctx context.Context, req SearchRequest) (SearchResult, er
 	rv.created_at,
 	rv.updated_at,
 	vec.distance
-FROM ` + indexTableName(req.Dimensions) + ` AS vec
+FROM ` + getIndexTableName(req.Dimensions) + ` AS vec
 JOIN ` + recordsTable + ` AS rv ON rv.vector_rowid = vec.rowid
 WHERE vec.vector MATCH ?
 	AND k = ?
@@ -254,7 +254,7 @@ ORDER BY vec.distance ASC, rv.id ASC`)
 	}
 
 	matches := make([]SearchMatch, 0, len(rows))
-	tagsByID, err := loadRecordTags(db, rowIDs(rows))
+	tagsByID, err := loadRecordTags(db, getRowIDs(rows))
 	if err != nil {
 		return SearchResult{}, err
 	}
@@ -362,7 +362,7 @@ ORDER BY session_id ASC, source_id ASC, id ASC`
 	}
 
 	records := make([]Record, 0, len(rows))
-	tagsByID, err := loadRecordTags(s.db.WithContext(ctx), rowIDs(rows))
+	tagsByID, err := loadRecordTags(s.db.WithContext(ctx), getRowIDs(rows))
 	if err != nil {
 		return ListResult{}, err
 	}
@@ -521,7 +521,7 @@ RETURNING vector_rowid`,
 
 	if err := tx.Exec(
 		`INSERT INTO `+
-			indexTableName(record.Dimensions)+
+			getIndexTableName(record.Dimensions)+
 			` (
 				rowid,
 				vector,
@@ -562,7 +562,7 @@ func ensureIndexTable(db *gorm.DB, dimensions int) error {
 		return nil
 	}
 
-	if err := db.Exec(`CREATE VIRTUAL TABLE ` + indexTableName(dimensions) + ` USING vec0(
+	if err := db.Exec(`CREATE VIRTUAL TABLE ` + getIndexTableName(dimensions) + ` USING vec0(
 	vector float[` + fmt.Sprintf("%d", dimensions) + `] distance_metric=cosine,
 	source_kind TEXT,
 	source_id TEXT,
@@ -585,11 +585,11 @@ func deleteIndexRow(tx *gorm.DB, dimensions int, rowID int64) error {
 	return deleteIndexRows(tx, dimensions, []int64{rowID})
 }
 
-func deleteIndexRows(tx *gorm.DB, dimensions int, rowIDs []int64) error {
-	if dimensions <= 0 || len(rowIDs) == 0 {
+func deleteIndexRows(tx *gorm.DB, dimensions int, getRowIDs []int64) error {
+	if dimensions <= 0 || len(getRowIDs) == 0 {
 		return nil
 	}
-	if err := tx.Exec(`DELETE FROM `+indexTableName(dimensions)+` WHERE rowid IN ?`, rowIDs).Error; err != nil {
+	if err := tx.Exec(`DELETE FROM `+getIndexTableName(dimensions)+` WHERE rowid IN ?`, getRowIDs).Error; err != nil {
 		return fmt.Errorf("failed to delete vector index row: %w", err)
 	}
 
@@ -685,16 +685,16 @@ func appendTagGroupFiltersString(sqlText *string, args *[]any, groups [][]string
 	*sqlText = builder.String()
 }
 
-func loadRecordTags(db *gorm.DB, recordIDs []string) (map[string][]string, error) {
-	tagsByID := make(map[string][]string, len(recordIDs))
-	if len(recordIDs) == 0 {
+func loadRecordTags(db *gorm.DB, getRecordIDs []string) (map[string][]string, error) {
+	tagsByID := make(map[string][]string, len(getRecordIDs))
+	if len(getRecordIDs) == 0 {
 		return tagsByID, nil
 	}
 
 	var rows []recordTagRow
 	if err := db.Raw(
 		`SELECT record_id, tag FROM `+recordTagsTable+` WHERE record_id IN ? ORDER BY record_id ASC, tag ASC`,
-		recordIDs,
+		getRecordIDs,
 	).Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("failed to load vector record tags: %w", err)
 	}
@@ -705,7 +705,7 @@ func loadRecordTags(db *gorm.DB, recordIDs []string) (map[string][]string, error
 	return tagsByID, nil
 }
 
-func rowIDs(rows []searchRow) []string {
+func getRowIDs(rows []searchRow) []string {
 	ids := make([]string, 0, len(rows))
 	for _, row := range rows {
 		if strings.TrimSpace(row.ID) != "" {
@@ -716,7 +716,7 @@ func rowIDs(rows []searchRow) []string {
 	return ids
 }
 
-func recordIDs(rows []recordRefRow) []string {
+func getRecordIDs(rows []recordRefRow) []string {
 	ids := make([]string, 0, len(rows))
 	for _, row := range rows {
 		if strings.TrimSpace(row.ID) != "" {
@@ -778,7 +778,7 @@ func deserialize(blob []byte, dimensions int) ([]float64, error) {
 	return vector, nil
 }
 
-func indexTableName(dimensions int) string {
+func getIndexTableName(dimensions int) string {
 	return fmt.Sprintf("vector_index_%d", dimensions)
 }
 
@@ -790,7 +790,7 @@ func indexTableExists(db *gorm.DB, dimensions int) (bool, error) {
 	var count int
 	if err := db.Raw(
 		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`,
-		indexTableName(dimensions),
+		getIndexTableName(dimensions),
 	).Scan(&count).Error; err != nil {
 		return false, fmt.Errorf("failed to check vector index table: %w", err)
 	}

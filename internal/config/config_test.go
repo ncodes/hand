@@ -327,10 +327,10 @@ rules:
 	require.True(t, cfg.MemoryEnabled())
 	require.Equal(t, "default-memory", cfg.Memory.Provider)
 	require.Equal(t, "memory", cfg.Memory.Backend)
-	require.False(t, boolValue(cfg.Memory.Pinned.Enabled))
+	require.False(t, getBoolValue(cfg.Memory.Pinned.Enabled))
 	require.Equal(t, 2000, cfg.Memory.Pinned.MaxChars)
 	require.Equal(t, 500, cfg.Memory.Pinned.MaxItemChars)
-	require.True(t, boolValue(cfg.Memory.Episodic.Enabled))
+	require.True(t, getBoolValue(cfg.Memory.Episodic.Enabled))
 	require.Equal(t, 30*time.Minute, cfg.Memory.Episodic.Interval)
 	require.Equal(t, 15*time.Minute, cfg.Memory.Episodic.IdleAfter)
 	require.Equal(t, 3, cfg.Memory.Episodic.MinMessages)
@@ -339,18 +339,18 @@ rules:
 	require.Equal(t, 5000, cfg.Memory.Episodic.MaxWindowChars)
 	require.Equal(t, 1250, cfg.Memory.Episodic.MaxWindowTokens)
 	require.Equal(t, 2, cfg.Memory.Episodic.MaxRetries)
-	require.True(t, boolValue(cfg.Memory.Reflection.Enabled))
+	require.True(t, getBoolValue(cfg.Memory.Reflection.Enabled))
 	require.Equal(t, 4*time.Minute, cfg.Memory.Reflection.Interval)
 	require.Equal(t, 6, cfg.Memory.Reflection.Limit)
 	require.Equal(t, 2, cfg.Memory.Reflection.RelatedLimit)
-	require.True(t, boolValue(cfg.Memory.Promotion.Enabled))
+	require.True(t, getBoolValue(cfg.Memory.Promotion.Enabled))
 	require.Equal(t, 2*time.Minute, cfg.Memory.Promotion.Interval)
 	require.Equal(t, 7, cfg.Memory.Promotion.Limit)
-	require.False(t, boolValue(cfg.Cap.Filesystem))
-	require.False(t, boolValue(cfg.Cap.Network))
-	require.False(t, boolValue(cfg.Cap.Exec))
-	require.False(t, boolValue(cfg.Cap.Memory))
-	require.True(t, boolValue(cfg.Cap.Browser))
+	require.False(t, getBoolValue(cfg.Cap.Filesystem))
+	require.False(t, getBoolValue(cfg.Cap.Network))
+	require.False(t, getBoolValue(cfg.Cap.Exec))
+	require.False(t, getBoolValue(cfg.Cap.Memory))
+	require.True(t, getBoolValue(cfg.Cap.Browser))
 }
 
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
@@ -511,22 +511,22 @@ rules:
 	require.Equal(t, []string{"hand.md", "custom.md"}, cfg.Rules.Files)
 	require.Equal(t, "be terse", cfg.Session.Instruct)
 	require.Equal(t, "editor", cfg.Platform)
-	require.True(t, boolValue(cfg.Cap.Filesystem))
-	require.True(t, boolValue(cfg.Cap.Network))
-	require.True(t, boolValue(cfg.Cap.Exec))
-	require.True(t, boolValue(cfg.Cap.Memory))
-	require.False(t, boolValue(cfg.Cap.Browser))
+	require.True(t, getBoolValue(cfg.Cap.Filesystem))
+	require.True(t, getBoolValue(cfg.Cap.Network))
+	require.True(t, getBoolValue(cfg.Cap.Exec))
+	require.True(t, getBoolValue(cfg.Cap.Memory))
+	require.False(t, getBoolValue(cfg.Cap.Browser))
 	require.False(t, cfg.MemoryEnabled())
 	require.Equal(t, "default-memory", cfg.Memory.Provider)
 	require.Equal(t, "sqlite", cfg.Memory.Backend)
-	require.False(t, boolValue(cfg.Memory.Pinned.Enabled))
+	require.False(t, getBoolValue(cfg.Memory.Pinned.Enabled))
 	require.Equal(t, 3000, cfg.Memory.Pinned.MaxChars)
 	require.Equal(t, 600, cfg.Memory.Pinned.MaxItemChars)
-	require.True(t, boolValue(cfg.Memory.Reflection.Enabled))
+	require.True(t, getBoolValue(cfg.Memory.Reflection.Enabled))
 	require.Equal(t, 5*time.Minute, cfg.Memory.Reflection.Interval)
 	require.Equal(t, 9, cfg.Memory.Reflection.Limit)
 	require.Equal(t, 4, cfg.Memory.Reflection.RelatedLimit)
-	require.True(t, boolValue(cfg.Memory.Promotion.Enabled))
+	require.True(t, getBoolValue(cfg.Memory.Promotion.Enabled))
 	require.Equal(t, 3*time.Minute, cfg.Memory.Promotion.Interval)
 	require.Equal(t, 8, cfg.Memory.Promotion.Limit)
 }
@@ -663,7 +663,7 @@ log:
 	require.NoError(t, err)
 	require.False(t, called)
 	require.Equal(t, defaultContextLength, cfg.Models.Main.ContextLength)
-	require.False(t, boolValueDefault(cfg.Models.Verify, true))
+	require.False(t, getBoolValueDefault(cfg.Models.Verify, true))
 }
 
 func TestConfig_NormalizeLeavesRulesFilesEmptyWhenUnset(t *testing.T) {
@@ -770,11 +770,11 @@ func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
 	require.Equal(t, 50051, cfg.RPC.Port)
 	require.Equal(t, defaultMaxIterations, cfg.Session.MaxIterations)
 	require.Equal(t, "cli", cfg.Platform)
-	require.True(t, boolValue(cfg.Cap.Filesystem))
-	require.True(t, boolValue(cfg.Cap.Network))
-	require.True(t, boolValue(cfg.Cap.Exec))
-	require.True(t, boolValue(cfg.Cap.Memory))
-	require.False(t, boolValue(cfg.Cap.Browser))
+	require.True(t, getBoolValue(cfg.Cap.Filesystem))
+	require.True(t, getBoolValue(cfg.Cap.Network))
+	require.True(t, getBoolValue(cfg.Cap.Exec))
+	require.True(t, getBoolValue(cfg.Cap.Memory))
+	require.False(t, getBoolValue(cfg.Cap.Browser))
 	require.Equal(t, "info", cfg.Log.Level)
 }
 
@@ -824,11 +824,11 @@ func TestGet_ReturnsDefaultsWhenConfigIsUnset(t *testing.T) {
 	require.Zero(t, cfg.RPC.Port)
 	require.Equal(t, defaultMaxIterations, cfg.Session.MaxIterations)
 	require.Equal(t, "cli", cfg.Platform)
-	require.True(t, boolValue(cfg.Cap.Filesystem))
-	require.True(t, boolValue(cfg.Cap.Network))
-	require.True(t, boolValue(cfg.Cap.Exec))
-	require.True(t, boolValue(cfg.Cap.Memory))
-	require.False(t, boolValue(cfg.Cap.Browser))
+	require.True(t, getBoolValue(cfg.Cap.Filesystem))
+	require.True(t, getBoolValue(cfg.Cap.Network))
+	require.True(t, getBoolValue(cfg.Cap.Exec))
+	require.True(t, getBoolValue(cfg.Cap.Memory))
+	require.False(t, getBoolValue(cfg.Cap.Browser))
 }
 
 func TestSet_StoresConfigGlobally(t *testing.T) {
@@ -857,7 +857,7 @@ func TestConfig_ValidateRequiresKey(t *testing.T) {
 	}
 	require.EqualError(t, cfg.Validate(), "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
 	require.Equal(t, defaultModelProvider, cfg.Models.Main.Provider)
-	require.Equal(t, defaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode), cfg.Models.Main.BaseURL)
+	require.Equal(t, getDefaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode), cfg.Models.Main.BaseURL)
 }
 
 func TestConfig_ValidateNilConfig(t *testing.T) {
@@ -879,7 +879,7 @@ func TestConfig_ResolveModelAuthUsesOpenRouterSpecificKey(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "openrouter", auth.Provider)
 	require.Equal(t, "openrouter-key", auth.APIKey)
-	require.Equal(t, defaultBaseURLForProvider("openrouter", DefaultModelAPIMode), auth.BaseURL)
+	require.Equal(t, getDefaultBaseURLForProvider("openrouter", DefaultModelAPIMode), auth.BaseURL)
 }
 
 func TestConfig_ResolveModelAuthUsesOpenAISpecificKey(t *testing.T) {
@@ -960,7 +960,7 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 	auth, err = cfg.ResolveEmbeddingModelAuth()
 
 	require.NoError(t, err)
-	require.Equal(t, defaultBaseURLForProvider("openrouter", "embeddings"), auth.BaseURL)
+	require.Equal(t, getDefaultBaseURLForProvider("openrouter", "embeddings"), auth.BaseURL)
 
 	cfg = &Config{
 		Models: ModelsConfig{
@@ -1056,7 +1056,7 @@ func TestConfig_ValidateNormalizesFields(t *testing.T) {
 	require.Equal(t, "openai/test-model", cfg.Models.Main.Name)
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
 	require.Equal(t, "test-key", cfg.Models.Key)
-	require.Equal(t, defaultBaseURLForProvider("openrouter", DefaultModelAPIMode), cfg.Models.Main.BaseURL)
+	require.Equal(t, getDefaultBaseURLForProvider("openrouter", DefaultModelAPIMode), cfg.Models.Main.BaseURL)
 	require.Equal(t, "warn", cfg.Log.Level)
 }
 
@@ -1107,7 +1107,7 @@ func TestConfig_ValidateRejectsModelWithEmptyOwnerOrName(t *testing.T) {
 }
 
 func TestConfig_ValidateRejectsUnsupportedProvider(t *testing.T) {
-	openRouterDefault := defaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode)
+	openRouterDefault := getDefaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode)
 	err := (&Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
@@ -1477,7 +1477,7 @@ func TestConfig_NormalizeDefaultsProviderWhenEmpty(t *testing.T) {
 	}
 	cfg.Normalize()
 	require.Equal(t, defaultModelProvider, cfg.Models.Main.Provider)
-	require.Equal(t, defaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode), cfg.Models.Main.BaseURL)
+	require.Equal(t, getDefaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode), cfg.Models.Main.BaseURL)
 }
 
 func TestConfig_NormalizeIgnoresNilReceiver(t *testing.T) {
@@ -1492,12 +1492,12 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	require.Equal(t, defaultModel, cfg.Models.Main.Name)
 	require.Equal(t, defaultModelProvider, cfg.Models.Main.Provider)
 	require.Equal(t, "cli", cfg.Platform)
-	require.True(t, boolValue(cfg.Cap.Filesystem))
-	require.True(t, boolValue(cfg.Cap.Network))
-	require.True(t, boolValue(cfg.Cap.Exec))
-	require.True(t, boolValue(cfg.Cap.Memory))
-	require.False(t, boolValue(cfg.Cap.Browser))
-	require.Equal(t, defaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode), cfg.Models.Main.BaseURL)
+	require.True(t, getBoolValue(cfg.Cap.Filesystem))
+	require.True(t, getBoolValue(cfg.Cap.Network))
+	require.True(t, getBoolValue(cfg.Cap.Exec))
+	require.True(t, getBoolValue(cfg.Cap.Memory))
+	require.False(t, getBoolValue(cfg.Cap.Browser))
+	require.Equal(t, getDefaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode), cfg.Models.Main.BaseURL)
 	require.Equal(t, "127.0.0.1", cfg.RPC.Address)
 	require.Equal(t, 50051, cfg.RPC.Port)
 	require.Equal(t, defaultMaxIterations, cfg.Session.MaxIterations)
@@ -1518,7 +1518,7 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	require.Equal(t, DefaultWebExtractMaxSummaryChunkChars, cfg.Web.ExtractMaxSummaryChunkChars)
 	require.Less(t, cfg.Web.ExtractMaxSummaryChunkChars, cfg.Web.MaxExtractCharPerResult)
 	require.Equal(t, DefaultWebExtractRefusalThresholdChars, cfg.Web.ExtractRefusalThresholdChars)
-	require.True(t, boolValueDefault(cfg.Models.Verify, true))
+	require.True(t, getBoolValueDefault(cfg.Models.Verify, true))
 }
 
 func TestConfig_NormalizeDisablesNegativeWebCacheTTL(t *testing.T) {
@@ -1573,11 +1573,11 @@ func TestConfig_NormalizePreservesExplicitFalseCapabilities(t *testing.T) {
 
 	cfg.Normalize()
 
-	require.False(t, boolValue(cfg.Cap.Filesystem))
-	require.False(t, boolValue(cfg.Cap.Network))
-	require.False(t, boolValue(cfg.Cap.Exec))
-	require.False(t, boolValue(cfg.Cap.Memory))
-	require.False(t, boolValue(cfg.Cap.Browser))
+	require.False(t, getBoolValue(cfg.Cap.Filesystem))
+	require.False(t, getBoolValue(cfg.Cap.Network))
+	require.False(t, getBoolValue(cfg.Cap.Exec))
+	require.False(t, getBoolValue(cfg.Cap.Memory))
+	require.False(t, getBoolValue(cfg.Cap.Browser))
 }
 
 func TestConfig_NormalizeDefaultsUnsetCapabilitiesIndividually(t *testing.T) {
@@ -1585,11 +1585,11 @@ func TestConfig_NormalizeDefaultsUnsetCapabilitiesIndividually(t *testing.T) {
 
 	cfg.Normalize()
 
-	require.False(t, boolValue(cfg.Cap.Filesystem))
-	require.True(t, boolValue(cfg.Cap.Network))
-	require.True(t, boolValue(cfg.Cap.Exec))
-	require.True(t, boolValue(cfg.Cap.Memory))
-	require.False(t, boolValue(cfg.Cap.Browser))
+	require.False(t, getBoolValue(cfg.Cap.Filesystem))
+	require.True(t, getBoolValue(cfg.Cap.Network))
+	require.True(t, getBoolValue(cfg.Cap.Exec))
+	require.True(t, getBoolValue(cfg.Cap.Memory))
+	require.False(t, getBoolValue(cfg.Cap.Browser))
 }
 
 func TestConfig_NormalizeUsesMappedBaseURLWhenProviderWasExplicitlySet(t *testing.T) {
@@ -1599,7 +1599,7 @@ func TestConfig_NormalizeUsesMappedBaseURLWhenProviderWasExplicitlySet(t *testin
 	}
 	cfg.Normalize()
 	require.Equal(t, defaultModelProvider, cfg.Models.Main.Provider)
-	require.Equal(t, defaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode), cfg.Models.Main.BaseURL)
+	require.Equal(t, getDefaultBaseURLForProvider(defaultModelProvider, DefaultModelAPIMode), cfg.Models.Main.BaseURL)
 }
 
 func TestConfig_NormalizeKeepsOpenaiProvider(t *testing.T) {
@@ -1674,19 +1674,19 @@ func TestHelpers_SplitAndDedupeCSVAndBools(t *testing.T) {
 	require.Nil(t, dedupeAndTrim(nil))
 	require.Equal(t, []string{"a", "b"}, dedupeAndTrim([]string{" a ", "", "b", "a"}))
 
-	require.False(t, boolValue(nil))
-	require.True(t, boolValue(new(true)))
-	require.True(t, boolValueDefault(nil, true))
-	require.False(t, boolValueDefault(new(false), true))
+	require.False(t, getBoolValue(nil))
+	require.True(t, getBoolValue(new(true)))
+	require.True(t, getBoolValueDefault(nil, true))
+	require.False(t, getBoolValueDefault(new(false), true))
 }
 
 func TestResolvePathsFromBase_HandlesEmptyAndAbsolute(t *testing.T) {
-	require.Nil(t, resolvePathsFromBase(nil, "/tmp"))
-	require.Equal(t, []string{"a", "b"}, resolvePathsFromBase([]string{"a", "b"}, ""))
+	require.Nil(t, getPathsFromBase(nil, "/tmp"))
+	require.Equal(t, []string{"a", "b"}, getPathsFromBase([]string{"a", "b"}, ""))
 
 	abs := filepath.Join(string(os.PathSeparator), "tmp", "x")
 	require.Equal(t, []string{abs, filepath.Join("/base", "rel")},
-		resolvePathsFromBase([]string{abs, "rel"}, "/base"))
+		getPathsFromBase([]string{abs, "rel"}, "/base"))
 }
 
 func TestDefaultFSRootsAndNormalizeFSRootsFallbackWhenGetwdFails(t *testing.T) {
@@ -1699,7 +1699,7 @@ func TestDefaultFSRootsAndNormalizeFSRootsFallbackWhenGetwdFails(t *testing.T) {
 		return "", errors.New("cwd missing")
 	}
 
-	require.Equal(t, []string{"."}, defaultFSRoots())
+	require.Equal(t, []string{"."}, getDefaultFSRoots())
 	require.Equal(t, []string{"."}, normalizeFSRoots([]string{"."}))
 }
 
@@ -1709,7 +1709,7 @@ func TestNormalizeFSRoots_PreservesAbsoluteRoots(t *testing.T) {
 }
 
 func TestResolveModelMetadataFromProvider_NilConfig(t *testing.T) {
-	meta, err := resolveModelMetadataFromProvider(context.Background(), nil, ModelAuth{})
+	meta, err := fetchModelMetadataFromProvider(context.Background(), nil, ModelAuth{})
 	require.NoError(t, err)
 	require.Equal(t, ModelMetadata{}, meta)
 }
@@ -1792,7 +1792,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	applyEnvOverrides(cfg)
 
 	require.Equal(t, 64000, cfg.Models.Main.ContextLength)
-	require.False(t, boolValue(cfg.Models.Verify))
+	require.False(t, getBoolValue(cfg.Models.Verify))
 	require.Equal(t, 0, cfg.ModelMaxRetriesEffective())
 	require.Equal(t, "openai-key", cfg.Models.OpenAIAPIKey)
 	require.Equal(t, "openrouter-key", cfg.Models.OpenRouterAPIKey)
@@ -1804,23 +1804,23 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.Equal(t, "text-embedding-test", cfg.Models.Embedding.Name)
 	require.True(t, cfg.Search.Vector.Required)
 	require.Equal(t, 32, cfg.Search.Vector.RebuildBatchSize)
-	require.False(t, boolValueDefault(cfg.Search.EnableRerank, true))
-	require.False(t, boolValueDefault(cfg.Reranker.Enabled, true))
+	require.False(t, getBoolValueDefault(cfg.Search.EnableRerank, true))
+	require.False(t, getBoolValueDefault(cfg.Reranker.Enabled, true))
 	require.Equal(t, constants.RerankerLLM, cfg.Reranker.Type)
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Reranker.Model)
 	require.Equal(t, 12, cfg.Reranker.MaxCandidates)
 	require.Equal(t, 700, cfg.Reranker.MaxCandidateTextChars)
 	require.Equal(t, 256, cfg.Reranker.MaxOutputTokens)
-	require.False(t, boolValue(cfg.Compaction.Enabled))
+	require.False(t, getBoolValue(cfg.Compaction.Enabled))
 	require.Equal(t, 0.5, cfg.Compaction.TriggerPercent)
 	require.Equal(t, 0.8, cfg.Compaction.WarnPercent)
 	require.True(t, cfg.MemoryEnabled())
 	require.Equal(t, "default-memory", cfg.Memory.Provider)
 	require.Equal(t, "sqlite", cfg.Memory.Backend)
-	require.False(t, boolValue(cfg.Memory.Pinned.Enabled))
+	require.False(t, getBoolValue(cfg.Memory.Pinned.Enabled))
 	require.Equal(t, 3200, cfg.Memory.Pinned.MaxChars)
 	require.Equal(t, 700, cfg.Memory.Pinned.MaxItemChars)
-	require.True(t, boolValue(cfg.Memory.Episodic.Enabled))
+	require.True(t, getBoolValue(cfg.Memory.Episodic.Enabled))
 	require.Equal(t, 20*time.Minute, cfg.Memory.Episodic.Interval)
 	require.Equal(t, 10*time.Minute, cfg.Memory.Episodic.IdleAfter)
 	require.Equal(t, 5, cfg.Memory.Episodic.MinMessages)
@@ -1840,10 +1840,10 @@ func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 	require.True(t, cfg.MemoryEnabled())
 	require.Equal(t, "default-memory", cfg.Memory.Provider)
 	require.Equal(t, "sqlite", cfg.Memory.Backend)
-	require.True(t, boolValue(cfg.Memory.Pinned.Enabled))
-	require.False(t, boolValue(cfg.Memory.Episodic.Enabled))
-	require.False(t, boolValue(cfg.Memory.Reflection.Enabled))
-	require.True(t, boolValue(cfg.Memory.Promotion.Enabled))
+	require.True(t, getBoolValue(cfg.Memory.Pinned.Enabled))
+	require.False(t, getBoolValue(cfg.Memory.Episodic.Enabled))
+	require.False(t, getBoolValue(cfg.Memory.Reflection.Enabled))
+	require.True(t, getBoolValue(cfg.Memory.Promotion.Enabled))
 
 	cfg = &Config{Memory: MemoryConfig{Enabled: new(false)}}
 	cfg.Normalize()
@@ -1864,11 +1864,11 @@ func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 		},
 	}}
 	cfg.Normalize()
-	require.True(t, boolValue(cfg.Memory.Reflection.Enabled))
+	require.True(t, getBoolValue(cfg.Memory.Reflection.Enabled))
 	require.Equal(t, time.Minute, cfg.Memory.Reflection.Interval)
 	require.Equal(t, 6, cfg.Memory.Reflection.Limit)
 	require.Equal(t, 2, cfg.Memory.Reflection.RelatedLimit)
-	require.True(t, boolValue(cfg.Memory.Promotion.Enabled))
+	require.True(t, getBoolValue(cfg.Memory.Promotion.Enabled))
 	require.Equal(t, time.Minute, cfg.Memory.Promotion.Interval)
 	require.Equal(t, 7, cfg.Memory.Promotion.Limit)
 
@@ -1931,16 +1931,16 @@ func TestNormalizeFields_NilReceiver_NoPanic(t *testing.T) {
 }
 
 func TestDefaultBaseURLForProvider_DefaultsEmptyAPIMode(t *testing.T) {
-	require.Equal(t, "https://openrouter.ai/api/v1", defaultBaseURLForProvider("openrouter", ""))
-	require.Equal(t, "https://openrouter.ai/api/v1", defaultBaseURLForProvider("openrouter", "   "))
-	require.Equal(t, "https://api.openai.com/v1", defaultBaseURLForProvider("openai", DefaultModelAPIMode))
-	require.Equal(t, "https://api.openai.com/v1", defaultBaseURLForProvider("openai", "responses"))
-	require.Equal(t, "https://openrouter.ai/api/v1/embeddings", defaultBaseURLForProvider("openrouter", "embeddings"))
-	require.Equal(t, "https://api.openai.com/v1/embeddings", defaultBaseURLForProvider("openai", "embeddings"))
+	require.Equal(t, "https://openrouter.ai/api/v1", getDefaultBaseURLForProvider("openrouter", ""))
+	require.Equal(t, "https://openrouter.ai/api/v1", getDefaultBaseURLForProvider("openrouter", "   "))
+	require.Equal(t, "https://api.openai.com/v1", getDefaultBaseURLForProvider("openai", DefaultModelAPIMode))
+	require.Equal(t, "https://api.openai.com/v1", getDefaultBaseURLForProvider("openai", "responses"))
+	require.Equal(t, "https://openrouter.ai/api/v1/embeddings", getDefaultBaseURLForProvider("openrouter", "embeddings"))
+	require.Equal(t, "https://api.openai.com/v1/embeddings", getDefaultBaseURLForProvider("openai", "embeddings"))
 }
 
 func TestDefaultBaseURLForProvider_ReturnsEmptyForUnknownMode(t *testing.T) {
-	require.Empty(t, defaultBaseURLForProvider("openrouter", "not-a-mode"))
+	require.Empty(t, getDefaultBaseURLForProvider("openrouter", "not-a-mode"))
 }
 
 func TestConfig_NilReceiver_StreamAndSummaryHelpers(t *testing.T) {
@@ -1986,13 +1986,13 @@ func TestConfig_Validate_ReturnsSummaryAuthErrorWhenOpenAIKeyMissing(t *testing.
 }
 
 func TestResolveModelMetadataForSlug_EmptySlug(t *testing.T) {
-	meta, err := resolveModelMetadataForSlug(context.Background(), ModelAuth{Provider: "openai"}, "")
+	meta, err := fetchModelMetadataForSlug(context.Background(), ModelAuth{Provider: "openai"}, "")
 	require.NoError(t, err)
 	require.Equal(t, ModelMetadata{}, meta)
 }
 
 func TestResolveModelMetadataForSlug_UnsupportedProvider(t *testing.T) {
-	_, err := resolveModelMetadataForSlug(context.Background(), ModelAuth{Provider: "other"}, "openai/gpt-4o-mini")
+	_, err := fetchModelMetadataForSlug(context.Background(), ModelAuth{Provider: "other"}, "openai/gpt-4o-mini")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unsupported model provider")
 }
@@ -2307,10 +2307,10 @@ func TestFetchOpenAIModelMetadata_CoversRemainingBranches(t *testing.T) {
 }
 
 func TestOpenAIModelCandidatesAndSnapshotTrim(t *testing.T) {
-	require.Nil(t, openAIModelDocSlugs(""))
+	require.Nil(t, getOpenAIModelDocSlugs(""))
 	require.False(t, isValidModelSlug(""))
 	require.Equal(t, []string{"gpt-4.1-2025-04-14", "gpt-4.1"},
-		openAIModelDocSlugs("openai/gpt-4.1-2025-04-14"))
+		getOpenAIModelDocSlugs("openai/gpt-4.1-2025-04-14"))
 	require.Equal(t, "gpt-4.1", trimOpenAISnapshotSuffix("gpt-4.1-2025-04-14"))
 	require.Equal(t, "gpt-4.1-preview", trimOpenAISnapshotSuffix("gpt-4.1-preview"))
 	require.Equal(t, "gpt-4.1-2025-4-14", trimOpenAISnapshotSuffix("gpt-4.1-2025-4-14"))
@@ -2704,8 +2704,8 @@ reranker:
 	require.Equal(t, "text-embedding-test", cfg.Models.Embedding.Name)
 	require.True(t, cfg.Search.Vector.Required)
 	require.Equal(t, 25, cfg.Search.Vector.RebuildBatchSize)
-	require.False(t, boolValueDefault(cfg.Search.EnableRerank, true))
-	require.False(t, boolValueDefault(cfg.Reranker.Enabled, true))
+	require.False(t, getBoolValueDefault(cfg.Search.EnableRerank, true))
+	require.False(t, getBoolValueDefault(cfg.Reranker.Enabled, true))
 	require.Equal(t, constants.RerankerLLM, cfg.Reranker.Type)
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Reranker.Model)
 	require.Equal(t, 11, cfg.Reranker.MaxCandidates)
@@ -2956,7 +2956,7 @@ compaction:
 	cfg, err := Load("", configPath)
 	require.NoError(t, err)
 	require.Equal(t, 64000, cfg.Models.Main.ContextLength)
-	require.False(t, boolValue(cfg.Compaction.Enabled))
+	require.False(t, getBoolValue(cfg.Compaction.Enabled))
 	require.Equal(t, 0.7, cfg.Compaction.TriggerPercent)
 	require.Equal(t, 0.9, cfg.Compaction.WarnPercent)
 }
@@ -2965,7 +2965,7 @@ func TestConfig_NormalizeDefaultsCompactionSettings(t *testing.T) {
 	cfg := &Config{}
 	cfg.Normalize()
 	require.Equal(t, defaultContextLength, cfg.Models.Main.ContextLength)
-	require.True(t, boolValue(cfg.Compaction.Enabled))
+	require.True(t, getBoolValue(cfg.Compaction.Enabled))
 	require.Equal(t, 0.85, cfg.Compaction.TriggerPercent)
 	require.Equal(t, 0.95, cfg.Compaction.WarnPercent)
 }

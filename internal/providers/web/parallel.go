@@ -63,7 +63,7 @@ func (p *ParallelProvider) Search(ctx context.Context, query string, count int) 
 		results = append(results, SearchResult{
 			Title:    strings.TrimSpace(result.Title),
 			URL:      strings.TrimSpace(result.URL),
-			Snippet:  truncateToMaxChars(firstNonEmpty(strings.Join(result.Excerpts, " "), result.Snippet), p.maxCharsPerResult),
+			Snippet:  truncateToMaxChars(getFirstNonEmpty(strings.Join(result.Excerpts, " "), result.Snippet), p.maxCharsPerResult),
 			Position: idx + 1,
 		})
 	}
@@ -72,8 +72,8 @@ func (p *ParallelProvider) Search(ctx context.Context, query string, count int) 
 }
 
 func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]ExtractResult, error) {
-	format := extractFormat(ctx, "markdown")
-	maxChars := extractCharLimit(ctx, p.maxExtractCharsPerResult)
+	format := getExtractFormat(ctx, "markdown")
+	maxChars := getExtractCharLimit(ctx, p.maxExtractCharsPerResult)
 
 	var response struct {
 		Results []struct {
@@ -99,7 +99,7 @@ func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]Extrac
 	results := make([]ExtractResult, 0, len(response.Results)+len(response.Errors))
 	for _, result := range response.Results {
 		content, truncated, downloadTruncated := limitExtractContent(
-			firstNonEmpty(result.FullContent, strings.Join(result.Excerpts, "\n\n")),
+			getFirstNonEmpty(result.FullContent, strings.Join(result.Excerpts, "\n\n")),
 			p.maxExtractResponseBytes,
 			maxChars)
 
@@ -116,7 +116,7 @@ func (p *ParallelProvider) Extract(ctx context.Context, urls []string) ([]Extrac
 		results = append(results, ExtractResult{
 			URL:           strings.TrimSpace(result.URL),
 			ContentFormat: format,
-			Error:         firstNonEmpty(result.Content, result.ErrorType, "extraction failed"),
+			Error:         getFirstNonEmpty(result.Content, result.ErrorType, "extraction failed"),
 		})
 	}
 

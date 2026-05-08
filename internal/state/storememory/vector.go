@@ -101,7 +101,7 @@ func (s *Store) searchMessagesHybrid(
 
 	vectorCandidates, err := s.searchMessagesVector(ctx, id, opts, candidateLimit)
 	if err != nil {
-		logSafeError(s.logSearchEvent("vector search failed", id, opts), err).
+		applySafeErrorLog(s.logSearchEvent("vector search failed", id, opts), err).
 			Msg("session search vector search failed")
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func (s *Store) searchMessagesHybrid(
 
 	candidates := lexicalCandidates
 	beforeMerge := len(candidates)
-	candidates.Merge(vectorCandidates, searchCandidateKey)
+	candidates.Merge(vectorCandidates, getSearchCandidateKey)
 	if len(candidates) == 0 {
 		s.logSearchEvent("no candidates", id, opts).Msg("session search returned no hybrid candidates")
 		return nil, nil
@@ -124,9 +124,9 @@ func (s *Store) searchMessagesHybrid(
 		Int("merged_candidate_count", len(candidates)).
 		Msg("session search hybrid candidates merged")
 
-	s.logCandidateDiagnostics("candidate merged", candidates.Sorted(lessSearchCandidate))
+	s.logCandidateDiagnostics("candidate merged", candidates.Sorted(isSearchCandidateLess))
 
-	ranked := candidates.Sorted(lessSearchCandidate)
+	ranked := candidates.Sorted(isSearchCandidateLess)
 	if s.rerankEnabled() {
 		ranked = s.rerankSearchCandidates(ctx, opts, candidates)
 		s.logCandidateDiagnostics("candidate reranked", ranked)
@@ -136,11 +136,11 @@ func (s *Store) searchMessagesHybrid(
 			Msg("session search rerank skipped")
 	}
 
-	results := searchResultsFromCandidates(ranked, opts)
+	results := searchCandidatesToSearchResults(ranked, opts)
 
 	s.logSearchEvent("results ranked", id, opts).
 		Int("session_count", len(results)).
-		Int("message_count", countSearchResultMessages(results)).
+		Int("message_count", getSearchResultMessageCount(results)).
 		Msg("session search hybrid results ranked")
 
 	return results, nil
@@ -157,7 +157,7 @@ func (s *Store) searchMessagesLexicalCandidates(
 
 	candidates := make(searchCandidateSet)
 	addHits := func(sessionID string, msgs []messages.Message) {
-		hits := matchingMessageHits(sessionID, msgs, query, opts)
+		hits := getMatchingMessageHits(sessionID, msgs, query, opts)
 		sort.Slice(hits, func(i, j int) bool {
 			if hits[i].Message.CreatedAt.Equal(hits[j].Message.CreatedAt) {
 				return hits[i].Message.ID > hits[j].Message.ID
@@ -173,7 +173,7 @@ func (s *Store) searchMessagesLexicalCandidates(
 					SessionID:       sessionID,
 					MatchedText:     hit.MatchedText,
 					MatchedToolName: hit.MatchedToolName,
-					LexicalScore:    lexicalScore(hit.MatchedText, query),
+					LexicalScore:    getLexicalScore(hit.MatchedText, query),
 					LexicalRank:     len(candidates) + 1,
 					HasLexical:      true,
 				},
@@ -229,12 +229,12 @@ func (s *Store) searchMessagesVector(
 
 	embedding, err := s.vectors.Provider.Embed(ctx, req)
 	if err != nil {
-		logSafeError(s.logSearchEvent("query embedding failed", id, opts), err).
+		applySafeErrorLog(s.logSearchEvent("query embedding failed", id, opts), err).
 			Msg("session search query embedding failed")
 		return nil, err
 	}
 	if err := search.ValidateEmbeddingResult(req, embedding); err != nil {
-		logSafeError(s.logSearchEvent("query embedding validation failed", id, opts), err).
+		applySafeErrorLog(s.logSearchEvent("query embedding validation failed", id, opts), err).
 			Msg("session search query embedding validation failed")
 		return nil, err
 	}
@@ -267,7 +267,7 @@ func (s *Store) searchMessagesVector(
 		},
 	})
 	if err != nil {
-		logSafeError(s.logSearchEvent("vector search failed", id, opts), err).
+		applySafeErrorLog(s.logSearchEvent("vector search failed", id, opts), err).
 			Msg("session search vector retrieval failed")
 		return nil, err
 	}
@@ -310,8 +310,8 @@ func (s *Store) vectorMatchesToCandidates(
 		if _, ok := seen[match.Record.SourceID]; ok {
 			continue
 		}
-		message, ok := findMessageByID(s.messages[sessionID], messageID)
-		if !ok || !messageMatchesSearchOptions(sessionID, message, id, opts) {
+		message, ok := getMessageByID(s.messages[sessionID], messageID)
+		if !ok || !checkMessageMatchesSearchOptions(sessionID, message, id, opts) {
 			continue
 		}
 		row, ok := search.MessageIndexRowForVectorRecord(
@@ -339,7 +339,7 @@ func (s *Store) vectorMatchesToCandidates(
 	return candidates
 }
 
-func searchCandidateKey(candidate *searchCandidate) string {
+func getSearchCandidateKey(candidate *searchCandidate) string {
 	if candidate == nil {
 		return ""
 	}
@@ -347,7 +347,7 @@ func searchCandidateKey(candidate *searchCandidate) string {
 	return search.SourceIDForMessage(candidate.SessionID, candidate.Message.ID)
 }
 
-func lessSearchCandidate(left *searchCandidate, right *searchCandidate) bool {
+func isSearchCandidateLess(left *searchCandidate, right *searchCandidate) bool {
 	return compareSearchCandidates(left, right) < 0
 }
 
@@ -356,7 +356,7 @@ func (s *Store) rerankSearchCandidates(
 	opts base.SearchMessageOptions,
 	candidates searchCandidateSet,
 ) []*searchCandidate {
-	items := candidates.Sorted(lessSearchCandidate)
+	items := candidates.Sorted(isSearchCandidateLess)
 	if len(items) == 0 {
 		return nil
 	}
@@ -381,7 +381,7 @@ func (s *Store) rerankSearchCandidates(
 	retrievalCandidates := make([]search.Candidate, 0, len(items))
 	candidateByID := make(map[string]*searchCandidate, len(items))
 	for _, candidate := range items {
-		item := retrievalCandidateFromSearchCandidate(candidate)
+		item := searchCandidateToRetrievalCandidate(candidate)
 		retrievalCandidates = append(retrievalCandidates, item)
 		candidateByID[item.ID] = candidate
 	}
@@ -416,7 +416,7 @@ func (s *Store) rerankSearchCandidates(
 
 	s.logSearchEvent("rerank completed", "", opts).
 		Str("configured_reranker", rerankerName).
-		Str("reranker", searchRerankResultName(result, rerankerName)).
+		Str("reranker", getSearchRerankResultName(result, rerankerName)).
 		Int("candidate_count", len(items)).
 		Int("result_count", len(reranked)).
 		Msg("session search rerank completed")
@@ -424,7 +424,7 @@ func (s *Store) rerankSearchCandidates(
 	return reranked
 }
 
-func retrievalCandidateFromSearchCandidate(candidate *searchCandidate) search.Candidate {
+func searchCandidateToRetrievalCandidate(candidate *searchCandidate) search.Candidate {
 	text := strings.TrimSpace(candidate.MatchedText)
 	if text == "" {
 		text = strings.TrimSpace(candidate.Message.Content)
@@ -444,7 +444,7 @@ func retrievalCandidateFromSearchCandidate(candidate *searchCandidate) search.Ca
 	}
 }
 
-func searchResultsFromCandidates(
+func searchCandidatesToSearchResults(
 	candidates []*searchCandidate,
 	opts base.SearchMessageOptions,
 ) []base.SearchMessageResult {
@@ -563,11 +563,11 @@ func (s *Store) vectorRecordsForMessages(
 
 	result, err := s.vectors.Provider.Embed(ctx, req)
 	if err != nil {
-		logSafeError(s.logVectorEvent("embedding failed"), err).Msg("session vector embedding failed")
+		applySafeErrorLog(s.logVectorEvent("embedding failed"), err).Msg("session vector embedding failed")
 		return nil, err
 	}
 	if err := search.ValidateEmbeddingResult(req, result); err != nil {
-		logSafeError(s.logVectorEvent("embedding validation failed"), err).
+		applySafeErrorLog(s.logVectorEvent("embedding validation failed"), err).
 			Msg("session vector embedding validation failed")
 		return nil, err
 	}
@@ -623,7 +623,7 @@ func (s *Store) upsertVectorRecords(ctx context.Context, records []search.Vector
 		Msg("session vector index upsert started for message rows")
 
 	if err := s.vectors.Store.Upsert(ctx, records); err != nil {
-		logSafeError(s.logVectorEvent("upsert failed"), err).
+		applySafeErrorLog(s.logVectorEvent("upsert failed"), err).
 			Int("record_count", len(records)).
 			Msg("session vector upsert failed")
 		return err
@@ -660,7 +660,7 @@ func (s *Store) deleteVectorRows(ctx context.Context, sourceIDs []string) error 
 		Msg("session vector delete started")
 
 	if err := s.vectors.Store.Delete(ctx, req); err != nil {
-		logSafeError(s.logVectorEvent("delete failed"), err).
+		applySafeErrorLog(s.logVectorEvent("delete failed"), err).
 			Int("source_id_count", len(sourceIDs)).
 			Str("source_kind", string(req.SourceKind)).
 			Msg("session vector delete failed")
@@ -683,7 +683,7 @@ func (s *Store) handleVectorStoreError(err error) error {
 	return err
 }
 
-func findMessageByID(msgs []messages.Message, messageID uint) (messages.Message, bool) {
+func getMessageByID(msgs []messages.Message, messageID uint) (messages.Message, bool) {
 	for _, message := range msgs {
 		if message.ID == messageID {
 			return message, true
@@ -693,7 +693,7 @@ func findMessageByID(msgs []messages.Message, messageID uint) (messages.Message,
 	return messages.Message{}, false
 }
 
-func messageMatchesSearchOptions(
+func checkMessageMatchesSearchOptions(
 	sessionID string,
 	message messages.Message,
 	id string,
@@ -725,7 +725,7 @@ func compareSearchCandidates(left *searchCandidate, right *searchCandidate) int 
 	)
 }
 
-func lexicalScore(text string, query string) float64 {
+func getLexicalScore(text string, query string) float64 {
 	count := strings.Count(strings.ToLower(text), strings.ToLower(query))
 	if count <= 0 {
 		return 0
@@ -750,7 +750,7 @@ func (s *Store) diagnosticsEnabled() bool {
 	return s != nil && s.vectors != nil && s.vectors.Diagnostics
 }
 
-func searchRerankResultName(result search.RerankResult, fallback string) string {
+func getSearchRerankResultName(result search.RerankResult, fallback string) string {
 	if name := strings.TrimSpace(strings.ToLower(result.Reranker)); name != "" {
 		return name
 	}
@@ -758,7 +758,7 @@ func searchRerankResultName(result search.RerankResult, fallback string) string 
 	return strings.TrimSpace(strings.ToLower(fallback))
 }
 
-func countSearchResultMessages(results []base.SearchMessageResult) int {
+func getSearchResultMessageCount(results []base.SearchMessageResult) int {
 	var count int
 	for _, result := range results {
 		count += len(result.Messages)

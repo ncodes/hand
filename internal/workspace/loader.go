@@ -117,7 +117,7 @@ func LoadFromRoot(root string, files ...string) (Result, error) {
 			return Result{}, fmt.Errorf("read workspace rule %q: %w", path, err)
 		}
 
-		displayPath, err := displayPath(root, path)
+		displayPath, err := getDisplayPath(root, path)
 		if err != nil {
 			return Result{}, fmt.Errorf("resolve workspace rule path %q: %w", path, err)
 		}
@@ -146,7 +146,7 @@ func hasTopLevelRules(root string) (bool, error) {
 		return false, fmt.Errorf("read workspace root %q: %w", root, err)
 	}
 
-	supportedRuleFiles := toFileSet(DefaultInstructionFiles())
+	supportedRuleFiles := filesToFileSet(DefaultInstructionFiles())
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -214,7 +214,7 @@ func collectConfiguredRuleFiles(root string, files []string) ([]string, error) {
 
 func collectRuleFiles(root string, files []string) ([]string, error) {
 	paths := make([]string, 0)
-	supportedRuleFiles := toFileSet(files)
+	supportedRuleFiles := filesToFileSet(files)
 
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
@@ -252,8 +252,8 @@ func collectRuleFiles(root string, files []string) ([]string, error) {
 	}
 
 	slices.SortFunc(paths, func(left, right string) int {
-		leftDepth := depth(root, left)
-		rightDepth := depth(root, right)
+		leftDepth := getDepth(root, left)
+		rightDepth := getDepth(root, right)
 		if leftDepth != rightDepth {
 			return leftDepth - rightDepth
 		}
@@ -285,7 +285,7 @@ func mergePaths(groups ...[]string) []string {
 	return merged
 }
 
-func displayPath(root, path string) (string, error) {
+func getDisplayPath(root, path string) (string, error) {
 	relativePath, err := filepath.Rel(root, path)
 	if err != nil {
 		return "", err
@@ -301,7 +301,7 @@ func displayPath(root, path string) (string, error) {
 	return relativePath, nil
 }
 
-func depth(root, path string) int {
+func getDepth(root, path string) int {
 	relative, err := filepath.Rel(root, path)
 	if err != nil {
 		return 0
@@ -315,7 +315,7 @@ func truncate(content string) (string, bool) {
 	return truncated, truncated != content
 }
 
-func toFileSet(files []string) map[string]struct{} {
+func filesToFileSet(files []string) map[string]struct{} {
 	supported := make(map[string]struct{}, len(files))
 	for _, file := range files {
 		supported[file] = struct{}{}

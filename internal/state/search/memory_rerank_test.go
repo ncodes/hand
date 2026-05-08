@@ -215,7 +215,7 @@ func TestCompareMemoryHits(t *testing.T) {
 }
 
 func TestMemoryCandidateTextFallsBackToID(t *testing.T) {
-	require.Equal(t, "mem_empty", memoryCandidateText(state.MemoryItem{ID: " mem_empty "}))
+	require.Equal(t, "mem_empty", getMemoryCandidateText(state.MemoryItem{ID: " mem_empty "}))
 }
 
 func TestMemoryKindBoost(t *testing.T) {

@@ -176,7 +176,7 @@ func (a *App) loadSessionMemories(ctx context.Context, sessionID string) ([]Memo
 
 	memories := make([]MemoryView, 0, len(items))
 	for _, item := range items {
-		memories = append(memories, memoryViewFromItem(item))
+		memories = append(memories, memoryItemToMemoryView(item))
 	}
 
 	return memories, nil

@@ -99,8 +99,8 @@ func (p *NativeProvider) Search(context.Context, string, int) ([]SearchResult, e
 }
 
 func (p *NativeProvider) Extract(ctx context.Context, urls []string) ([]ExtractResult, error) {
-	format := extractFormat(ctx, "text")
-	maxChars := extractCharLimit(ctx, p.maxExtractCharsPerResult)
+	format := getExtractFormat(ctx, "text")
+	maxChars := getExtractCharLimit(ctx, p.maxExtractCharsPerResult)
 	results := make([]ExtractResult, 0, len(urls))
 
 	for _, rawURL := range urls {
@@ -193,7 +193,7 @@ func (p *NativeProvider) fetcher() *fetch.Fetcher {
 		fetch.WithPolicy(nativeFetchPolicy{
 			hostPolicy: p.hostPolicy,
 			websiteCheck: func(ctx context.Context, rawURL string) error {
-				if block, blocked := extractWebsitePolicy(ctx).Check(rawURL); blocked {
+				if block, blocked := getExtractWebsitePolicy(ctx).Check(rawURL); blocked {
 					return errors.New(block.Message)
 				}
 
@@ -296,7 +296,7 @@ func renderNativeMarkdown(root *html.Node) string {
 				text := collectNativeText(node)
 				if text != "" {
 					appendLine("")
-					appendLine(strings.Repeat("#", nativeHeadingLevel(node.Data)) + " " + text)
+					appendLine(strings.Repeat("#", getNativeHeadingLevel(node.Data)) + " " + text)
 					appendLine("")
 				}
 				return
@@ -369,7 +369,7 @@ func compactNativeLines(lines []string) []string {
 	return compacted
 }
 
-func nativeHeadingLevel(name string) int {
+func getNativeHeadingLevel(name string) int {
 	switch strings.ToLower(name) {
 	case "h1":
 		return 1

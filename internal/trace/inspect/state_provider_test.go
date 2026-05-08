@@ -127,7 +127,7 @@ func TestTraceViewerStateConfig_DisablesSearchDependencies(t *testing.T) {
 		},
 	}
 
-	stateCfg := traceViewerStateConfig(cfg)
+	stateCfg := configToTraceViewerStateConfig(cfg)
 
 	require.False(t, stateCfg.Search.Vector.Enabled)
 	require.NotNil(t, stateCfg.Reranker.Enabled)

@@ -29,20 +29,20 @@ func appendDomainRules(existing []domainRule, values []string, source string) []
 
 func appendDomainRulesFromFiles(existing []domainRule, files []string) []domainRule {
 	for _, file := range files {
-		existing = appendDomainRules(existing, readPolicyFile(file), strings.TrimSpace(file))
+		existing = appendDomainRules(existing, loadPolicyFile(file), strings.TrimSpace(file))
 	}
 
 	return existing
 }
 
-func firstMatchingDomainRule(rules []domainRule, host string) (domainRule, bool) {
+func getFirstMatchingDomainRule(rules []domainRule, host string) (domainRule, bool) {
 	host = normalizeWebsiteHost(host)
 	if host == "" {
 		return domainRule{}, false
 	}
 
 	for _, rule := range rules {
-		if websiteRuleMatches(rule.Pattern, host) {
+		if checkWebsiteRuleMatches(rule.Pattern, host) {
 			return rule, true
 		}
 	}
@@ -50,7 +50,7 @@ func firstMatchingDomainRule(rules []domainRule, host string) (domainRule, bool)
 	return domainRule{}, false
 }
 
-func readPolicyFile(path string) []string {
+func loadPolicyFile(path string) []string {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return nil

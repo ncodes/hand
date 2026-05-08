@@ -9,7 +9,7 @@ import (
 )
 
 func TestCandidateRejectionReason_RejectsExecutionDetail(t *testing.T) {
-	reason := candidateRejectionReason(storage.MemoryItem{
+	reason := getCandidateRejectionReason(storage.MemoryItem{
 		Metadata: map[string]string{
 			"memory_granularity": " execution_detail ",
 		},

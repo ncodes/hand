@@ -272,31 +272,31 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 		&cli.BoolFlag{
 			Name:   "cap.fs",
 			Usage:  "Enable filesystem tool capability filtering",
-			Value:  boolValue(config.Get().Cap.Filesystem),
+			Value:  getBoolValue(config.Get().Cap.Filesystem),
 			Hidden: true,
 		},
 		&cli.BoolFlag{
 			Name:   "cap.net",
 			Usage:  "Enable network tool capability filtering",
-			Value:  boolValue(config.Get().Cap.Network),
+			Value:  getBoolValue(config.Get().Cap.Network),
 			Hidden: true,
 		},
 		&cli.BoolFlag{
 			Name:   "cap.exec",
 			Usage:  "Enable exec tool capability filtering",
-			Value:  boolValue(config.Get().Cap.Exec),
+			Value:  getBoolValue(config.Get().Cap.Exec),
 			Hidden: true,
 		},
 		&cli.BoolFlag{
 			Name:   "cap.mem",
 			Usage:  "Enable memory tool capability filtering",
-			Value:  boolValue(config.Get().Cap.Memory),
+			Value:  getBoolValue(config.Get().Cap.Memory),
 			Hidden: true,
 		},
 		&cli.BoolFlag{
 			Name:   "cap.browser",
 			Usage:  "Enable browser tool capability filtering",
-			Value:  boolValue(config.Get().Cap.Browser),
+			Value:  getBoolValue(config.Get().Cap.Browser),
 			Hidden: true,
 		},
 		&cli.StringFlag{
@@ -503,22 +503,22 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 		cfg.Web.BlockedDomainsEnabled = cmd.Bool("web.blocked-domains-enabled")
 	}
 	if cmd.IsSet("web.blocked-domains") {
-		cfg.Web.BlockedDomains = configSplitAndTrimCSV(cmd.String("web.blocked-domains"))
+		cfg.Web.BlockedDomains = splitConfigCSVAndTrim(cmd.String("web.blocked-domains"))
 	}
 	if cmd.IsSet("web.blocked-domain-files") {
-		cfg.Web.BlockedDomainFiles = configSplitAndTrimCSV(cmd.String("web.blocked-domain-files"))
+		cfg.Web.BlockedDomainFiles = splitConfigCSVAndTrim(cmd.String("web.blocked-domain-files"))
 	}
 	if cmd.IsSet("web.native-allowed-hosts") {
-		cfg.Web.NativeAllowedHosts = configSplitAndTrimCSV(cmd.String("web.native-allowed-hosts"))
+		cfg.Web.NativeAllowedHosts = splitConfigCSVAndTrim(cmd.String("web.native-allowed-hosts"))
 	}
 	if cmd.IsSet("web.native-blocked-hosts") {
-		cfg.Web.NativeBlockedHosts = configSplitAndTrimCSV(cmd.String("web.native-blocked-hosts"))
+		cfg.Web.NativeBlockedHosts = splitConfigCSVAndTrim(cmd.String("web.native-blocked-hosts"))
 	}
 	if cmd.IsSet("web.native-allowed-host-files") {
-		cfg.Web.NativeAllowedHostFiles = configSplitAndTrimCSV(cmd.String("web.native-allowed-host-files"))
+		cfg.Web.NativeAllowedHostFiles = splitConfigCSVAndTrim(cmd.String("web.native-allowed-host-files"))
 	}
 	if cmd.IsSet("web.native-blocked-host-files") {
-		cfg.Web.NativeBlockedHostFiles = configSplitAndTrimCSV(cmd.String("web.native-blocked-host-files"))
+		cfg.Web.NativeBlockedHostFiles = splitConfigCSVAndTrim(cmd.String("web.native-blocked-host-files"))
 	}
 	if cmd.IsSet("web.extract-min-summarize-chars") {
 		cfg.Web.ExtractMinSummarizeChars = cmd.Int("web.extract-min-summarize-chars")
@@ -533,7 +533,7 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 		cfg.Web.ExtractRefusalThresholdChars = cmd.Int("web.extract-refusal-threshold-chars")
 	}
 	if cmd.IsSet("rules.files") {
-		cfg.Rules.Files = configSplitAndTrimCSV(cmd.String("rules.files"))
+		cfg.Rules.Files = splitConfigCSVAndTrim(cmd.String("rules.files"))
 	}
 	if cmd.IsSet("instruct") {
 		cfg.Session.Instruct = strings.TrimSpace(cmd.String("instruct"))
@@ -542,7 +542,7 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 		cfg.Platform = strings.TrimSpace(cmd.String("platform"))
 	}
 	if cmd.IsSet("fs.roots") {
-		cfg.FS.Roots = configSplitAndTrimCSV(cmd.String("fs.roots"))
+		cfg.FS.Roots = splitConfigCSVAndTrim(cmd.String("fs.roots"))
 	}
 	if cmd.IsSet("cap.fs") {
 		cfg.Cap.Filesystem = new(cmd.Bool("cap.fs"))
@@ -560,13 +560,13 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 		cfg.Cap.Browser = new(cmd.Bool("cap.browser"))
 	}
 	if cmd.IsSet("exec.allow") {
-		cfg.Exec.Allow = configSplitAndTrimCSV(cmd.String("exec.allow"))
+		cfg.Exec.Allow = splitConfigCSVAndTrim(cmd.String("exec.allow"))
 	}
 	if cmd.IsSet("exec.ask") {
-		cfg.Exec.Ask = configSplitAndTrimCSV(cmd.String("exec.ask"))
+		cfg.Exec.Ask = splitConfigCSVAndTrim(cmd.String("exec.ask"))
 	}
 	if cmd.IsSet("exec.deny") {
-		cfg.Exec.Deny = configSplitAndTrimCSV(cmd.String("exec.deny"))
+		cfg.Exec.Deny = splitConfigCSVAndTrim(cmd.String("exec.deny"))
 	}
 	if cmd.IsSet("storage.backend") {
 		cfg.Storage.Backend = strings.TrimSpace(cmd.String("storage.backend"))
@@ -582,7 +582,7 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 }
 
-func configSplitAndTrimCSV(value string) []string {
+func splitConfigCSVAndTrim(value string) []string {
 	if strings.TrimSpace(value) == "" {
 		return nil
 	}
@@ -600,7 +600,7 @@ func configSplitAndTrimCSV(value string) []string {
 	return values
 }
 
-func boolValue(value *bool) bool {
+func getBoolValue(value *bool) bool {
 	if value == nil {
 		return false
 	}

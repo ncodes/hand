@@ -54,13 +54,13 @@ func (g *LLMReflectionGenerator) GenerateReflectionCandidates(
 
 	// The model receives compact JSON rather than transcript-style prose so the
 	// prompt shape stays stable and structured-output validation can be strict.
-	payload, _ := json.Marshal(reflectionModelPayload(req))
+	payload, _ := json.Marshal(reflectionGenerationRequestToModelPayload(req))
 	resp, err := g.options.Client.Complete(ctx, models.Request{
 		Model:            g.options.Model,
 		APIMode:          g.options.APIMode,
-		Instructions:     reflectionInstructions(),
+		Instructions:     getReflectionInstructions(),
 		Messages:         []handmsg.Message{{Role: handmsg.RoleUser, Content: string(payload)}},
-		StructuredOutput: reflectionStructuredOutput(),
+		StructuredOutput: getReflectionStructuredOutput(),
 		MaxOutputTokens:  g.options.MaxOutputTokens,
 		DebugRequests:    g.options.DebugRequests,
 	})
@@ -68,7 +68,7 @@ func (g *LLMReflectionGenerator) GenerateReflectionCandidates(
 		return ReflectionGenerationResult{}, err
 	}
 
-	return parseReflectionModelResponse(resp)
+	return reflectionModelResponseToGenerationResult(resp)
 }
 
 type reflectionModelMemory struct {
@@ -107,16 +107,16 @@ type reflectionModelMetadataEntry struct {
 	Value string `json:"value"`
 }
 
-func reflectionModelPayload(req ReflectionGenerationRequest) reflectionModelRequest {
+func reflectionGenerationRequestToModelPayload(req ReflectionGenerationRequest) reflectionModelRequest {
 	return reflectionModelRequest{
 		SessionID: strings.TrimSpace(req.SessionID),
-		Sources:   reflectionModelMemories(req.Sources),
-		Related:   reflectionModelMemories(req.Related),
+		Sources:   memoryItemsToReflectionModelMemories(req.Sources),
+		Related:   memoryItemsToReflectionModelMemories(req.Related),
 		Limit:     req.Limit,
 	}
 }
 
-func reflectionModelMemories(items []MemoryItem) []reflectionModelMemory {
+func memoryItemsToReflectionModelMemories(items []MemoryItem) []reflectionModelMemory {
 	memories := make([]reflectionModelMemory, 0, len(items))
 	for _, item := range items {
 		memories = append(memories, reflectionModelMemory{
@@ -133,13 +133,13 @@ func reflectionModelMemories(items []MemoryItem) []reflectionModelMemory {
 	return memories
 }
 
-func parseReflectionModelResponse(resp *models.Response) (ReflectionGenerationResult, error) {
+func reflectionModelResponseToGenerationResult(resp *models.Response) (ReflectionGenerationResult, error) {
 	if resp == nil {
 		return ReflectionGenerationResult{}, errors.New("memory reflection response is required")
 	}
 
 	var parsed reflectionModelResponse
-	if err := json.Unmarshal([]byte(normalizedReflectionJSON(resp.OutputText)), &parsed); err != nil {
+	if err := json.Unmarshal([]byte(normalizeReflectionJSON(resp.OutputText)), &parsed); err != nil {
 		return ReflectionGenerationResult{}, err
 	}
 
@@ -154,7 +154,7 @@ func parseReflectionModelResponse(resp *models.Response) (ReflectionGenerationRe
 			Title:      strings.TrimSpace(candidate.Title),
 			Text:       strings.TrimSpace(candidate.Text),
 			Tags:       append([]string(nil), candidate.Tags...),
-			Metadata:   reflectionMetadataEntries(candidate.Metadata),
+			Metadata:   reflectionMetadataEntriesToMap(candidate.Metadata),
 			Confidence: candidate.Confidence,
 		})
 	}
@@ -162,7 +162,7 @@ func parseReflectionModelResponse(resp *models.Response) (ReflectionGenerationRe
 	return ReflectionGenerationResult{Items: items}, nil
 }
 
-func normalizedReflectionJSON(raw string) string {
+func normalizeReflectionJSON(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if !strings.HasPrefix(raw, "```") {
 		return raw
@@ -175,10 +175,10 @@ func normalizedReflectionJSON(raw string) string {
 	return strings.TrimSpace(raw)
 }
 
-// reflectionInstructions tell the model what to omit as much as what to emit.
+// getReflectionInstructions tell the model what to omit as much as what to emit.
 // The provider still enforces these requirements, but prompt-level guidance
 // reduces noisy candidate proposals before validation.
-func reflectionInstructions() string {
+func getReflectionInstructions() string {
 	return strings.Join([]string{
 		"Reflect over episodic memory evidence and propose durable memory candidates.",
 		"Only emit candidates supported by the provided source memories.",
@@ -190,10 +190,10 @@ func reflectionInstructions() string {
 	}, "\n")
 }
 
-// reflectionStructuredOutput keeps reflection responses machine-checkable. The
+// getReflectionStructuredOutput keeps reflection responses machine-checkable. The
 // metadata array is used instead of an open object because strict schemas cannot
 // allow arbitrary properties.
-func reflectionStructuredOutput() *models.StructuredOutput {
+func getReflectionStructuredOutput() *models.StructuredOutput {
 	return &models.StructuredOutput{
 		Name:        "memory_reflection_candidates",
 		Description: "Durable memory candidates derived from episodic evidence",
@@ -235,7 +235,7 @@ func reflectionStructuredOutput() *models.StructuredOutput {
 	}
 }
 
-func reflectionMetadataEntries(entries []reflectionModelMetadataEntry) map[string]string {
+func reflectionMetadataEntriesToMap(entries []reflectionModelMetadataEntry) map[string]string {
 	if len(entries) == 0 {
 		return nil
 	}

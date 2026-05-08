@@ -56,11 +56,11 @@ func TestApplyConfigOverrides_AppliesPlatformAndCapabilities(t *testing.T) {
 	require.NoError(t, err)
 	cfg.Normalize()
 	require.Equal(t, "desktop", cfg.Platform)
-	require.False(t, boolValue(cfg.Cap.Filesystem))
-	require.True(t, boolValue(cfg.Cap.Network))
-	require.True(t, boolValue(cfg.Cap.Exec))
-	require.True(t, boolValue(cfg.Cap.Memory))
-	require.True(t, boolValue(cfg.Cap.Browser))
+	require.False(t, getBoolValue(cfg.Cap.Filesystem))
+	require.True(t, getBoolValue(cfg.Cap.Network))
+	require.True(t, getBoolValue(cfg.Cap.Exec))
+	require.True(t, getBoolValue(cfg.Cap.Memory))
+	require.True(t, getBoolValue(cfg.Cap.Browser))
 }
 
 func TestApplyConfigOverrides_AppliesModelVerify(t *testing.T) {
@@ -76,7 +76,7 @@ func TestApplyConfigOverrides_AppliesModelVerify(t *testing.T) {
 
 	require.NoError(t, err)
 	cfg.Normalize()
-	require.False(t, boolValue(cfg.Models.Verify))
+	require.False(t, getBoolValue(cfg.Models.Verify))
 }
 
 func TestApplyConfigOverrides_AppliesModelMaxRetries(t *testing.T) {

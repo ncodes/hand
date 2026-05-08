@@ -161,7 +161,7 @@ func TestService_ExtractWritesDistinctSameKindCandidatesInWindow(t *testing.T) {
 	memories, err := provider.Search(ctx, storage.MemorySearchQuery{
 		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
 		Statuses: []storage.MemoryStatus{storage.MemoryStatusCandidate},
-		Tags:     []string{sourceRangeTag(storage.DefaultSessionID, 0, 2)},
+		Tags:     []string{getSourceRangeTag(storage.DefaultSessionID, 0, 2)},
 		Limit:    10,
 	})
 	require.NoError(t, err)
@@ -234,7 +234,7 @@ func TestService_ExtractSkipsDuplicateSourceRange(t *testing.T) {
 	memories, err := provider.Search(ctx, storage.MemorySearchQuery{
 		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
 		Statuses: []storage.MemoryStatus{storage.MemoryStatusCandidate},
-		Tags:     []string{sourceRangeTag(storage.DefaultSessionID, 0, 2)},
+		Tags:     []string{getSourceRangeTag(storage.DefaultSessionID, 0, 2)},
 		Limit:    10,
 	})
 	require.NoError(t, err)
@@ -324,7 +324,7 @@ func TestService_ExtractChecksDuplicateBySourceRangeTag(t *testing.T) {
 	require.Equal(t, 0, result.WriteCount)
 	require.Equal(t, 1, result.SkipCount)
 	require.Empty(t, provider.searchQuery.IDs)
-	require.Equal(t, []string{sourceRangeTag(storage.DefaultSessionID, 0, 1)}, provider.searchQuery.Tags)
+	require.Equal(t, []string{getSourceRangeTag(storage.DefaultSessionID, 0, 1)}, provider.searchQuery.Tags)
 }
 
 func TestService_ExtractLoadsBoundedWindows(t *testing.T) {
@@ -955,12 +955,12 @@ func TestService_CandidatesFromMessages_ReturnsTraceLoadError(t *testing.T) {
 }
 
 func TestService_TraceEvidenceHelpersCoverEdgeBranches(t *testing.T) {
-	events, err := (Service{}).traceEvidence(context.Background(), storage.DefaultSessionID)
+	events, err := (Service{}).loadTraceEvidence(context.Background(), storage.DefaultSessionID)
 	require.NoError(t, err)
 	require.Empty(t, events)
 
 	service := Service{manager: traceErrorManager{err: storage.ErrTraceStoreUnsupported}}
-	events, err = service.traceEvidence(context.Background(), storage.DefaultSessionID)
+	events, err = service.loadTraceEvidence(context.Background(), storage.DefaultSessionID)
 	require.NoError(t, err)
 	require.Empty(t, events)
 
@@ -968,18 +968,18 @@ func TestService_TraceEvidenceHelpersCoverEdgeBranches(t *testing.T) {
 		SessionID: storage.DefaultSessionID,
 		Type:      trace.EvtChatStarted,
 	}}}}}
-	events, err = service.traceEvidence(context.Background(), storage.DefaultSessionID)
+	events, err = service.loadTraceEvidence(context.Background(), storage.DefaultSessionID)
 	require.NoError(t, err)
 	require.Empty(t, events)
 
-	require.Equal(t, "trace_id:7", traceEventRef(storage.TraceEvent{ID: 7}))
-	require.Equal(t, "trace:unknown", traceEventRef(storage.TraceEvent{}))
-	require.Empty(t, traceEventTimestamp(storage.TraceEvent{}))
-	require.Empty(t, tracePayloadText(nil))
-	require.Empty(t, tracePayloadText(map[string]any{"invalid": func() {}}))
+	require.Equal(t, "trace_id:7", getTraceEventRef(storage.TraceEvent{ID: 7}))
+	require.Equal(t, "trace:unknown", getTraceEventRef(storage.TraceEvent{}))
+	require.Empty(t, getTraceEventTimestamp(storage.TraceEvent{}))
+	require.Empty(t, tracePayloadToText(nil))
+	require.Empty(t, tracePayloadToText(map[string]any{"invalid": func() {}}))
 	require.LessOrEqual(
 		t,
-		len([]rune(tracePayloadText(map[string]any{"value": strings.Repeat("x", maxTracePayloadChars+50)}))),
+		len([]rune(tracePayloadToText(map[string]any{"value": strings.Repeat("x", maxTracePayloadChars+50)}))),
 		maxTracePayloadChars,
 	)
 }
@@ -1048,11 +1048,11 @@ func TestCuratedCandidateHelpersCoverEdgeBranches(t *testing.T) {
 	window := sourceWindow{Start: 0, End: 1}
 	emptyEvidence := messageEvidence{}
 
-	item, ok := memoryItemFromCandidate(req, window, emptyEvidence, episodeCandidate{})
+	item, ok := episodeCandidateToMemoryItem(req, window, emptyEvidence, episodeCandidate{})
 	require.False(t, ok)
 	require.Empty(t, item)
 
-	item, ok = memoryItemFromCandidate(req, window, emptyEvidence, episodeCandidate{
+	item, ok = episodeCandidateToMemoryItem(req, window, emptyEvidence, episodeCandidate{
 		Kind:       episodeKindOutcome,
 		Title:      "Title only",
 		Confidence: 0.4,
@@ -1066,28 +1066,28 @@ func TestCuratedCandidateHelpersCoverEdgeBranches(t *testing.T) {
 	require.Empty(t, item.Text)
 	require.Equal(t, "custom-session", item.SourceLinks[0].SessionID)
 
-	require.Equal(t, "medium", sourceQuality(emptyEvidence))
-	require.Equal(t, "medium", usefulness(episodeKindBlocker))
-	require.Equal(t, "medium", usefulness(episodeKindTaskTrace))
-	require.Equal(t, "high", usefulness(episodeKindResolvedIssue))
-	require.Equal(t, "high", usefulness(episodeKindMilestone))
-	require.Equal(t, "high", usefulness(episodeKindDiscarded))
-	require.Equal(t, "high", usefulness(episodeKindReflection))
-	require.Equal(t, "low", usefulness("unknown"))
-	require.Equal(t, "low", uncertainty(0.9))
-	require.Equal(t, "medium", uncertainty(0.7))
-	require.Equal(t, "high", uncertainty(0.2))
+	require.Equal(t, "medium", getSourceQuality(emptyEvidence))
+	require.Equal(t, "medium", getUsefulness(episodeKindBlocker))
+	require.Equal(t, "medium", getUsefulness(episodeKindTaskTrace))
+	require.Equal(t, "high", getUsefulness(episodeKindResolvedIssue))
+	require.Equal(t, "high", getUsefulness(episodeKindMilestone))
+	require.Equal(t, "high", getUsefulness(episodeKindDiscarded))
+	require.Equal(t, "high", getUsefulness(episodeKindReflection))
+	require.Equal(t, "low", getUsefulness("unknown"))
+	require.Equal(t, "low", getUncertainty(0.9))
+	require.Equal(t, "medium", getUncertainty(0.7))
+	require.Equal(t, "high", getUncertainty(0.2))
 	require.Equal(t, 0.0, clampConfidence(-1))
 	require.Equal(t, 1.0, clampConfidence(2))
 }
 
-func TestMemoryItemFromCandidate_PreservesOutcomeStatusVariants(t *testing.T) {
+func TestMemoryItemFromEpisodeCandidate_PreservesOutcomeStatusVariants(t *testing.T) {
 	req := normalizedRequest{SessionID: storage.DefaultSessionID, MaxWindowChars: 200, MaxWindowTokens: 50}
 	window := sourceWindow{Start: 0, End: 1}
 	evidence := messageEvidence{MessageIDs: []uint{1}, Offsets: []int{0}, Lines: []string{"assistant: done"}}
 
 	for _, status := range []string{"success", "failed", "partial", "follow_up_required"} {
-		item, ok := memoryItemFromCandidate(req, window, evidence, episodeCandidate{
+		item, ok := episodeCandidateToMemoryItem(req, window, evidence, episodeCandidate{
 			Kind:       episodeKindOutcome,
 			Title:      "Outcome",
 			Text:       "Outcome status: " + status,
@@ -1102,11 +1102,11 @@ func TestMemoryItemFromCandidate_PreservesOutcomeStatusVariants(t *testing.T) {
 	}
 }
 
-func TestMessageLineHandlesInvalidUTF8AndFallbackRole(t *testing.T) {
-	line := messageLine(handmsg.Message{Content: string([]byte{0xff, 'o', 'k'})})
+func TestMessageLineHandlesInsanitizeUTF8AndFallbackRole(t *testing.T) {
+	line := messageToLine(handmsg.Message{Content: string([]byte{0xff, 'o', 'k'})})
 
 	require.Equal(t, "message: ok", line)
-	require.Empty(t, messageLine(handmsg.Message{ToolCalls: []handmsg.ToolCall{{}}}))
+	require.Empty(t, messageToLine(handmsg.Message{ToolCalls: []handmsg.ToolCall{{}}}))
 }
 
 func TestHelpersCoverEdgeBranches(t *testing.T) {

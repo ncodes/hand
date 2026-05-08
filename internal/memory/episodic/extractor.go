@@ -95,7 +95,7 @@ func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 		"max_window_tokens": normalized.MaxWindowTokens,
 		"plan":              "load_window_collect_trace_evidence_generate_candidates_dedupe_write_candidates",
 	}
-	recordTrace(req.Trace, trace.EvtMemoryExtractionStarted, tracePayload(normalized, traceField))
+	recordTrace(req.Trace, trace.EvtMemoryExtractionStarted, getTracePayload(normalized, traceField))
 	logExtraction("started to extract episodic memory candidates", normalized, traceField)
 
 	result := Result{SessionID: normalized.SessionID}
@@ -142,7 +142,7 @@ func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 		"skip_count":      result.SkipCount,
 		"duration_ms":     duration.Milliseconds(),
 	}
-	recordTrace(req.Trace, trace.EvtMemoryExtractionCompleted, tracePayload(normalized, traceFields))
+	recordTrace(req.Trace, trace.EvtMemoryExtractionCompleted, getTracePayload(normalized, traceFields))
 	logExtraction("completed episodic memory candidate extraction", normalized, traceFields)
 
 	return result, nil
@@ -164,7 +164,7 @@ func (s Service) extractWindow(
 		Statuses: []storage.MemoryStatus{storage.MemoryStatusCandidate, storage.MemoryStatusActive},
 		// Treat the source window as complete once any active/candidate memory exists
 		// for it, even if that window produced multiple candidate IDs.
-		Tags:  []string{sourceRangeTag(req.SessionID, window.Start, window.End)},
+		Tags:  []string{getSourceRangeTag(req.SessionID, window.Start, window.End)},
 		Limit: 1,
 	})
 	if err != nil {
@@ -182,7 +182,7 @@ func (s Service) extractWindow(
 			}
 		}
 		traceFields := map[string]any{"memory_ids": result.SkippedIDs, "checkpoint_state": "complete"}
-		recordTrace(req.Trace, trace.EvtMemoryExtractionDuplicateSkipped, tracePayload(windowReq, traceFields))
+		recordTrace(req.Trace, trace.EvtMemoryExtractionDuplicateSkipped, getTracePayload(windowReq, traceFields))
 		logExtraction("skipped completed source window", windowReq, traceFields)
 		return result, nil
 	}
@@ -196,7 +196,7 @@ func (s Service) extractWindow(
 	}
 
 	traceFields := map[string]any{"message_count": len(messages)}
-	recordTrace(req.Trace, trace.EvtMemoryExtractionWindowLoaded, tracePayload(windowReq, traceFields))
+	recordTrace(req.Trace, trace.EvtMemoryExtractionWindowLoaded, getTracePayload(windowReq, traceFields))
 	logExtraction("loaded source message window", windowReq, traceFields)
 
 	candidates, rejections, err := s.candidatesFromMessages(ctx, req, window, messages)
@@ -206,14 +206,14 @@ func (s Service) extractWindow(
 
 	candidateCount := len(candidates)
 	traceFields = map[string]any{"candidate_count": candidateCount}
-	recordTrace(req.Trace, trace.EvtMemoryExtractionExtractorRequested, tracePayload(windowReq, traceFields))
-	recordTrace(req.Trace, trace.EvtMemoryExtractionCandidates, tracePayload(windowReq, traceFields))
+	recordTrace(req.Trace, trace.EvtMemoryExtractionExtractorRequested, getTracePayload(windowReq, traceFields))
+	recordTrace(req.Trace, trace.EvtMemoryExtractionCandidates, getTracePayload(windowReq, traceFields))
 	traceFields = map[string]any{"message_count": len(messages), "candidate_count": candidateCount}
 	logExtraction("received extractor candidate set", windowReq, traceFields)
 
 	for _, rejection := range rejections {
 		traceFields = map[string]any{"candidate_kind": rejection.Kind, "rejection_reason": rejection.Reason}
-		recordTrace(req.Trace, trace.EvtMemoryExtractionCandidateRejected, tracePayload(windowReq, traceFields))
+		recordTrace(req.Trace, trace.EvtMemoryExtractionCandidateRejected, getTracePayload(windowReq, traceFields))
 		logExtraction("candidate_rejected", windowReq, traceFields)
 	}
 
@@ -226,9 +226,9 @@ func (s Service) extractWindow(
 			"usefulness":      candidate.Metadata["usefulness"],
 			"admission_state": candidate.Status,
 		}
-		recordTrace(req.Trace, trace.EvtMemoryExtractionCandidateGenerated, tracePayload(windowReq, traceFields))
-		recordTrace(req.Trace, trace.EvtMemoryExtractionConfidenceScored, tracePayload(windowReq, traceFields))
-		recordTrace(req.Trace, trace.EvtMemoryExtractionAdmissionHandoff, tracePayload(windowReq, traceFields))
+		recordTrace(req.Trace, trace.EvtMemoryExtractionCandidateGenerated, getTracePayload(windowReq, traceFields))
+		recordTrace(req.Trace, trace.EvtMemoryExtractionConfidenceScored, getTracePayload(windowReq, traceFields))
+		recordTrace(req.Trace, trace.EvtMemoryExtractionAdmissionHandoff, getTracePayload(windowReq, traceFields))
 		logExtraction("generated episodic candidate proposal", windowReq, traceFields)
 	}
 
@@ -250,7 +250,7 @@ func (s Service) extractWindow(
 		if rejection != "" {
 			result.SkipCount++
 			traceFields = map[string]any{"candidate_kind": candidate.Metadata["candidate_kind"], "rejection_reason": rejection}
-			recordTrace(req.Trace, trace.EvtMemoryExtractionCandidateRejected, tracePayload(windowReq, traceFields))
+			recordTrace(req.Trace, trace.EvtMemoryExtractionCandidateRejected, getTracePayload(windowReq, traceFields))
 			logExtraction("rejected episodic candidate before write", windowReq, traceFields)
 			continue
 		}
@@ -270,7 +270,7 @@ func (s Service) extractWindow(
 			"write_status":    "candidate",
 			"admission_state": item.Status,
 		}
-		recordTrace(req.Trace, trace.EvtMemoryExtractionMemoryWritten, tracePayload(windowReq, traceFields))
+		recordTrace(req.Trace, trace.EvtMemoryExtractionMemoryWritten, getTracePayload(windowReq, traceFields))
 		logExtraction("wrote episodic candidate memory", windowReq, traceFields)
 	}
 
@@ -278,7 +278,7 @@ func (s Service) extractWindow(
 }
 
 func (s Service) episodicCandidateRejection(ctx context.Context, item storage.MemoryItem) (string, error) {
-	text := episodicSearchText(item)
+	text := getEpisodicSearchText(item)
 	if text == "" {
 		return "", nil
 	}
@@ -301,10 +301,10 @@ func (s Service) episodicCandidateRejection(ctx context.Context, item storage.Me
 		if strings.TrimSpace(related.ID) == strings.TrimSpace(item.ID) {
 			continue
 		}
-		if normalizedEpisodicText(related) == normalizedEpisodicText(item) {
+		if normalizeEpisodicText(related) == normalizeEpisodicText(item) {
 			return "duplicate_episodic_memory", nil
 		}
-		if sameCandidateKind(related, item) && hit.Score >= episodicSimilarScoreThreshold {
+		if hasSameCandidateKind(related, item) && hit.Score >= episodicSimilarScoreThreshold {
 			return "similar_episodic_memory", nil
 		}
 	}
@@ -412,7 +412,7 @@ func (s Service) candidatesFromMessages(
 	window sourceWindow,
 	messages []handmsg.Message,
 ) ([]storage.MemoryItem, []candidateRejection, error) {
-	evidence := evidenceFromMessages(window, messages)
+	evidence := getEvidenceFromMessages(window, messages)
 	if len(evidence.Lines) == 0 {
 		return nil, []candidateRejection{{Kind: "window", Reason: "empty_window"}}, nil
 	}
@@ -423,18 +423,18 @@ func (s Service) candidatesFromMessages(
 	// Trace evidence augments the transcript with task-level context such as
 	// tool calls and outcomes. It is optional because not every store supports
 	// trace queries.
-	traceEvidence, err := s.traceEvidence(ctx, req.SessionID)
+	traceEvents, err := s.loadTraceEvidence(ctx, req.SessionID)
 	if err != nil {
 		return nil, nil, err
 	}
-	evidence.TraceRefs = traceEvidenceRefs(traceEvidence)
+	evidence.TraceRefs = getTraceEvidenceRefs(traceEvents)
 	result, err := s.extractor.ExtractCandidates(ctx, CandidateRequest{
 		SessionID:   req.SessionID,
 		Start:       window.Start,
 		End:         window.End,
 		Messages:    evidence.Lines,
-		TraceEvents: traceEvidence,
-		MaxChars:    req.windowCharLimit(),
+		TraceEvents: traceEvents,
+		MaxChars:    req.getWindowCharLimit(),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -444,7 +444,7 @@ func (s Service) candidatesFromMessages(
 	rejections := append([]candidateRejection(nil), result.Rejections...)
 	seen := make(map[string]struct{}, len(result.Candidates))
 	for _, candidate := range result.Candidates {
-		item, ok := memoryItemFromCandidate(req, window, evidence, candidate)
+		item, ok := episodeCandidateToMemoryItem(req, window, evidence, candidate)
 		if !ok {
 			rejections = append(rejections, candidateRejection{Kind: candidate.Kind, Reason: "empty_candidate"})
 			continue
@@ -469,7 +469,7 @@ func (s Service) candidatesFromMessages(
 	return items, rejections, nil
 }
 
-func (s Service) traceEvidence(ctx context.Context, sessionID string) ([]taskTraceEvidence, error) {
+func (s Service) loadTraceEvidence(ctx context.Context, sessionID string) ([]taskTraceEvidence, error) {
 	if s.manager == nil {
 		return nil, nil
 	}
@@ -492,16 +492,16 @@ func (s Service) traceEvidence(ctx context.Context, sessionID string) ([]taskTra
 			continue
 		}
 		traces = append(traces, taskTraceEvidence{
-			Ref:       traceEventRef(event),
+			Ref:       getTraceEventRef(event),
 			Type:      strings.TrimSpace(event.Type),
-			Timestamp: traceEventTimestamp(event),
-			Payload:   tracePayloadText(event.Payload),
+			Timestamp: getTraceEventTimestamp(event),
+			Payload:   tracePayloadToText(event.Payload),
 		})
 	}
 	return traces, nil
 }
 
-func traceEventRef(event storage.TraceEvent) string {
+func getTraceEventRef(event storage.TraceEvent) string {
 	if event.Sequence > 0 {
 		return "trace:" + strconv.Itoa(event.Sequence)
 	}
@@ -511,14 +511,14 @@ func traceEventRef(event storage.TraceEvent) string {
 	return "trace:unknown"
 }
 
-func traceEventTimestamp(event storage.TraceEvent) string {
+func getTraceEventTimestamp(event storage.TraceEvent) string {
 	if event.Timestamp.IsZero() {
 		return ""
 	}
 	return event.Timestamp.UTC().Format(time.RFC3339Nano)
 }
 
-func tracePayloadText(payload any) string {
+func tracePayloadToText(payload any) string {
 	if payload == nil {
 		return ""
 	}
@@ -529,7 +529,7 @@ func tracePayloadText(payload any) string {
 	return truncateRunes(string(data), maxTracePayloadChars)
 }
 
-func episodicSearchText(item storage.MemoryItem) string {
+func getEpisodicSearchText(item storage.MemoryItem) string {
 	text := strings.TrimSpace(item.Text)
 	if text == "" {
 		text = strings.TrimSpace(item.Title)
@@ -540,15 +540,15 @@ func episodicSearchText(item storage.MemoryItem) string {
 	return text
 }
 
-func normalizedEpisodicText(item storage.MemoryItem) string {
+func normalizeEpisodicText(item storage.MemoryItem) string {
 	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(item.Title+"\n"+item.Text))), " ")
 }
 
-func sameCandidateKind(a storage.MemoryItem, b storage.MemoryItem) bool {
+func hasSameCandidateKind(a storage.MemoryItem, b storage.MemoryItem) bool {
 	return strings.TrimSpace(a.Metadata["candidate_kind"]) == strings.TrimSpace(b.Metadata["candidate_kind"])
 }
 
-func traceEvidenceRefs(events []taskTraceEvidence) []string {
+func getTraceEvidenceRefs(events []taskTraceEvidence) []string {
 	refs := make([]string, 0, len(events))
 	for _, event := range events {
 		if ref := strings.TrimSpace(event.Ref); ref != "" {
@@ -558,12 +558,12 @@ func traceEvidenceRefs(events []taskTraceEvidence) []string {
 	return refs
 }
 
-func evidenceFromMessages(window sourceWindow, messages []handmsg.Message) messageEvidence {
+func getEvidenceFromMessages(window sourceWindow, messages []handmsg.Message) messageEvidence {
 	messageIDs := make([]uint, 0, len(messages))
 	offsets := make([]int, 0, len(messages))
 	lines := make([]string, 0, len(messages))
 	for idx, message := range messages {
-		line := messageLine(message)
+		line := messageToLine(message)
 		if line == "" {
 			continue
 		}
@@ -582,18 +582,18 @@ func evidenceFromMessages(window sourceWindow, messages []handmsg.Message) messa
 	}
 }
 
-func memoryItemFromCandidate(
+func episodeCandidateToMemoryItem(
 	req normalizedRequest,
 	window sourceWindow,
 	evidence messageEvidence,
 	candidate episodeCandidate,
 ) (storage.MemoryItem, bool) {
 	candidate.Kind = strings.TrimSpace(candidate.Kind)
-	if !validCandidateKind(candidate.Kind) {
+	if !isValidCandidateKind(candidate.Kind) {
 		return storage.MemoryItem{}, false
 	}
 
-	text := strings.TrimSpace(truncateRunes(candidate.Text, req.windowCharLimit()))
+	text := strings.TrimSpace(truncateRunes(candidate.Text, req.getWindowCharLimit()))
 	title := strings.TrimSpace(candidate.Title)
 	if title == "" && text == "" {
 		return storage.MemoryItem{}, false
@@ -605,10 +605,10 @@ func memoryItemFromCandidate(
 		"source_end":        strconv.Itoa(window.End),
 		"trigger":           req.Trigger,
 		"candidate_kind":    candidate.Kind,
-		"source_quality":    sourceQuality(evidence),
-		"usefulness":        usefulness(candidate.Kind),
+		"source_quality":    getSourceQuality(evidence),
+		"usefulness":        getUsefulness(candidate.Kind),
 		"recency":           "source_window",
-		"uncertainty":       uncertainty(candidate.Confidence),
+		"uncertainty":       getUncertainty(candidate.Confidence),
 	}
 
 	// Model metadata is allowed to enrich provider metadata but not remove
@@ -617,7 +617,7 @@ func memoryItemFromCandidate(
 		metadata["available_trace_event_count"] = strconv.Itoa(len(evidence.TraceRefs))
 	}
 	for key, value := range candidate.Metadata {
-		if value := normalizedMetadataValue(value); value != "" {
+		if value := normalizeMetadataValue(value); value != "" {
 			metadata[key] = value
 		}
 	}
@@ -632,12 +632,12 @@ func memoryItemFromCandidate(
 			CreatedReason: "curated_episodic_memory_extraction",
 		}}
 	}
-	sourceTag := sourceRangeTag(req.SessionID, window.Start, window.End)
+	sourceTag := getSourceRangeTag(req.SessionID, window.Start, window.End)
 	// The stable ID gives repeated extraction of the same evidence the same
 	// candidate identity, while source tags let background jobs skip completed
 	// windows cheaply.
 	return storage.MemoryItem{
-		ID:          candidateMemoryID(req, window, candidate.Kind, title, text, metadata, sourceLinks),
+		ID:          getCandidateMemoryID(req, window, candidate.Kind, title, text, metadata, sourceLinks),
 		Kind:        storage.MemoryKindEpisodic,
 		Status:      storage.MemoryStatusCandidate,
 		Title:       title,
@@ -649,18 +649,18 @@ func memoryItemFromCandidate(
 	}, true
 }
 
-func normalizedMetadataValue(value string) string {
+func normalizeMetadataValue(value string) string {
 	return strings.TrimSpace(value)
 }
 
-func sourceQuality(evidence messageEvidence) string {
+func getSourceQuality(evidence messageEvidence) string {
 	if len(evidence.MessageIDs) > 0 && len(evidence.Offsets) > 0 {
 		return "high"
 	}
 	return "medium"
 }
 
-func uncertainty(confidence float64) string {
+func getUncertainty(confidence float64) string {
 	if confidence >= 0.80 {
 		return "low"
 	}
@@ -680,7 +680,7 @@ func clampConfidence(confidence float64) float64 {
 	return confidence
 }
 
-func (r normalizedRequest) windowCharLimit() int {
+func (r normalizedRequest) getWindowCharLimit() int {
 	limit := r.MaxWindowChars
 	tokenChars := r.MaxWindowTokens * constants.RoughTokenCharRatio
 	if limit <= 0 || tokenChars < limit {
@@ -689,14 +689,14 @@ func (r normalizedRequest) windowCharLimit() int {
 	return limit
 }
 
-func messageLine(message handmsg.Message) string {
+func messageToLine(message handmsg.Message) string {
 	parts := make([]string, 0, 2+len(message.ToolCalls))
-	if content := strings.TrimSpace(validUTF8(message.Content)); content != "" {
+	if content := strings.TrimSpace(sanitizeUTF8(message.Content)); content != "" {
 		parts = append(parts, content)
 	}
 	for _, call := range message.ToolCalls {
 		name := strings.TrimSpace(call.Name)
-		input := strings.TrimSpace(validUTF8(call.Input))
+		input := strings.TrimSpace(sanitizeUTF8(call.Input))
 		if name == "" && input == "" {
 			continue
 		}
@@ -716,7 +716,7 @@ func messageLine(message handmsg.Message) string {
 	return role + ": " + strings.Join(parts, " ")
 }
 
-func candidateMemoryID(
+func getCandidateMemoryID(
 	req normalizedRequest,
 	window sourceWindow,
 	kind string,
@@ -725,18 +725,18 @@ func candidateMemoryID(
 	metadata map[string]string,
 	sourceLinks []storage.MemorySourceLink,
 ) string {
-	return episodicMemoryIDPrefix() + sourceRangeHash(
-		candidateMemoryIDSource(req.SessionID, kind, title, text, metadata, sourceLinks),
+	return getEpisodicMemoryIDPrefix() + getSourceRangeHash(
+		getCandidateMemoryIDSource(req.SessionID, kind, title, text, metadata, sourceLinks),
 		window.Start,
 		window.End,
 	)
 }
 
-func episodicMemoryIDPrefix() string {
+func getEpisodicMemoryIDPrefix() string {
 	return "mem_" + string(storage.MemoryKindEpisodic) + "_"
 }
 
-func candidateMemoryIDSource(
+func getCandidateMemoryIDSource(
 	sessionID string,
 	kind string,
 	title string,
@@ -750,15 +750,15 @@ func candidateMemoryIDSource(
 		normalizeMemoryIDText(title),
 		normalizeMemoryIDText(text),
 	}
-	for _, key := range episodeIdentityMetadataKeys() {
+	for _, key := range getEpisodeIdentityMetadataKeys() {
 		if value := strings.TrimSpace(metadata[key]); value != "" {
 			parts = append(parts, key+"="+normalizeMemoryIDText(value))
 		}
 	}
 	for _, link := range sourceLinks {
 		parts = append(parts, strings.TrimSpace(link.SessionID))
-		parts = append(parts, uintSliceMemoryIDText(link.MessageIDs))
-		parts = append(parts, intSliceMemoryIDText(link.Offsets))
+		parts = append(parts, uintSliceToMemoryIDText(link.MessageIDs))
+		parts = append(parts, intSliceToMemoryIDText(link.Offsets))
 	}
 
 	return strings.Join(parts, "\n")
@@ -768,7 +768,7 @@ func normalizeMemoryIDText(value string) string {
 	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(value))), " ")
 }
 
-func uintSliceMemoryIDText(values []uint) string {
+func uintSliceToMemoryIDText(values []uint) string {
 	parts := make([]string, 0, len(values))
 	for _, value := range values {
 		parts = append(parts, strconv.FormatUint(uint64(value), 10))
@@ -777,7 +777,7 @@ func uintSliceMemoryIDText(values []uint) string {
 	return strings.Join(parts, ",")
 }
 
-func intSliceMemoryIDText(values []int) string {
+func intSliceToMemoryIDText(values []int) string {
 	parts := make([]string, 0, len(values))
 	for _, value := range values {
 		parts = append(parts, strconv.Itoa(value))
@@ -786,11 +786,11 @@ func intSliceMemoryIDText(values []int) string {
 	return strings.Join(parts, ",")
 }
 
-func sourceRangeTag(sessionID string, start int, end int) string {
-	return "source-range-" + sourceRangeHash(sessionID, start, end)
+func getSourceRangeTag(sessionID string, start int, end int) string {
+	return "source-range-" + getSourceRangeHash(sessionID, start, end)
 }
 
-func sourceRangeHash(id string, start int, end int) string {
+func getSourceRangeHash(id string, start int, end int) string {
 	sum := sha256.Sum256(fmt.Appendf(nil, "%s:%d:%d", strings.TrimSpace(id), start, end))
 	return hex.EncodeToString(sum[:8])
 }
@@ -806,7 +806,7 @@ func truncateRunes(value string, maxChars int) string {
 	return string(runes[:maxChars])
 }
 
-func validUTF8(value string) string {
+func sanitizeUTF8(value string) string {
 	if utf8.ValidString(value) {
 		return value
 	}

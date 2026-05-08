@@ -16,7 +16,7 @@ var loggerMu sync.Mutex
 var loggerOutput io.Writer = os.Stderr
 
 func InitLogger(programName string) *zerolog.Logger {
-	return ConfigureLogger(programName, currentNoColorSetting())
+	return ConfigureLogger(programName, getCurrentNoColorSetting())
 }
 
 func SetOutput(out io.Writer) {
@@ -29,7 +29,7 @@ func SetOutput(out io.Writer) {
 		loggerOutput = out
 	}
 
-	log.Logger = log.Output(newConsoleWriter(loggerOutput, currentNoColorSetting()))
+	log.Logger = log.Output(newConsoleWriter(loggerOutput, getCurrentNoColorSetting()))
 }
 
 func ConfigureLogger(programName string, noColor bool) *zerolog.Logger {
@@ -48,7 +48,7 @@ func ConfigureLogger(programName string, noColor bool) *zerolog.Logger {
 }
 
 func GetLogger(programName string) *zerolog.Logger {
-	return ConfigureLogger(programName, currentNoColorSetting())
+	return ConfigureLogger(programName, getCurrentNoColorSetting())
 }
 
 func SetLogLevel(level string) {
@@ -72,7 +72,7 @@ func newConsoleWriter(out io.Writer, noColor bool) zerolog.ConsoleWriter {
 	}
 }
 
-func currentNoColorSetting() bool {
+func getCurrentNoColorSetting() bool {
 	cfg := config.Get()
 	return cfg != nil && cfg.Log.NoColor
 }

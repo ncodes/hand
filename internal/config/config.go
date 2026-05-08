@@ -278,7 +278,7 @@ var (
 	getwd                   = os.Getwd
 	httpClient              = &http.Client{Timeout: 5 * time.Second}
 	modelDocsBaseURL        = "https://developers.openai.com/api/docs/models"
-	resolveModelMeta        = resolveModelMetadataFromProvider
+	resolveModelMeta        = fetchModelMetadataFromProvider
 	providerDefaultBaseURLs = map[string]map[string]string{
 		constants.ModelProviderOpenRouter: {
 			DefaultModelAPIMode: "https://openrouter.ai/api/v1",
@@ -402,7 +402,7 @@ func Get() *Config {
 				Browser:    new(false),
 			},
 			FS: FSConfig{
-				Roots: defaultFSRoots(),
+				Roots: getDefaultFSRoots(),
 			},
 			Storage: StorageConfig{
 				Backend: constants.DefaultStorageBackend,
@@ -459,10 +459,10 @@ func (c *Config) resolvePaths(baseDir string) {
 		return
 	}
 
-	c.FS.Roots = resolvePathsFromBase(c.FS.Roots, baseDir)
-	c.Web.BlockedDomainFiles = resolvePathsFromBase(c.Web.BlockedDomainFiles, baseDir)
-	c.Web.NativeAllowedHostFiles = resolvePathsFromBase(c.Web.NativeAllowedHostFiles, baseDir)
-	c.Web.NativeBlockedHostFiles = resolvePathsFromBase(c.Web.NativeBlockedHostFiles, baseDir)
+	c.FS.Roots = getPathsFromBase(c.FS.Roots, baseDir)
+	c.Web.BlockedDomainFiles = getPathsFromBase(c.Web.BlockedDomainFiles, baseDir)
+	c.Web.NativeAllowedHostFiles = getPathsFromBase(c.Web.NativeAllowedHostFiles, baseDir)
+	c.Web.NativeBlockedHostFiles = getPathsFromBase(c.Web.NativeBlockedHostFiles, baseDir)
 }
 
 func applyEnvOverrides(cfg *Config) {
@@ -990,7 +990,7 @@ func (c *Config) normalizeFields() {
 	}
 
 	if len(c.FS.Roots) == 0 {
-		c.FS.Roots = defaultFSRoots()
+		c.FS.Roots = getDefaultFSRoots()
 	}
 
 	if c.Storage.Backend == "" {
@@ -1038,7 +1038,7 @@ func (c *Config) applyDefaultModelBaseURL() {
 		return
 	}
 
-	if mapped := defaultBaseURLForProvider(c.Models.Main.Provider, c.Models.Main.APIMode); mapped != "" {
+	if mapped := getDefaultBaseURLForProvider(c.Models.Main.Provider, c.Models.Main.APIMode); mapped != "" {
 		c.Models.Main.BaseURL = mapped
 	}
 }
@@ -1053,7 +1053,7 @@ func (c *Config) Normalize() {
 	c.applyDefaultModelBaseURL()
 }
 
-func defaultBaseURLForProvider(provider, apiMode string) string {
+func getDefaultBaseURLForProvider(provider, apiMode string) string {
 	provider = strings.TrimSpace(strings.ToLower(provider))
 	apiMode = strings.TrimSpace(strings.ToLower(apiMode))
 	if apiMode == "" {
@@ -1078,7 +1078,7 @@ func (c *Config) VerifyEnabled() bool {
 		return true
 	}
 
-	return boolValueDefault(c.Models.Verify, true)
+	return getBoolValueDefault(c.Models.Verify, true)
 }
 
 func (c *Config) StreamEnabled() bool {
@@ -1086,7 +1086,7 @@ func (c *Config) StreamEnabled() bool {
 		return true
 	}
 
-	return boolValueDefault(c.Models.Main.Stream, true)
+	return getBoolValueDefault(c.Models.Main.Stream, true)
 }
 
 func (c *Config) ModelMaxRetriesEffective() int {
@@ -1156,7 +1156,7 @@ func (c *Config) MemoryEnabled() bool {
 	}
 
 	c.normalizeFields()
-	return boolValueDefault(c.Memory.Enabled, true)
+	return getBoolValueDefault(c.Memory.Enabled, true)
 }
 
 func (c *Config) RerankerModelEffective() string {
@@ -1186,7 +1186,7 @@ func (c *Config) summaryModelBaseURLEffective() string {
 		return u
 	}
 
-	return defaultBaseURLForProvider(sum, sumMode)
+	return getDefaultBaseURLForProvider(sum, sumMode)
 }
 
 func (c *Config) ResolveSummaryModelAuth() (ModelAuth, error) {
@@ -1281,7 +1281,7 @@ func normalizeFSRoots(values []string) []string {
 	return dedupeAndTrim(roots)
 }
 
-func resolvePathsFromBase(values []string, baseDir string) []string {
+func getPathsFromBase(values []string, baseDir string) []string {
 	values = dedupeAndTrim(values)
 	if len(values) == 0 {
 		return nil
@@ -1304,7 +1304,7 @@ func resolvePathsFromBase(values []string, baseDir string) []string {
 	return resolved
 }
 
-func defaultFSRoots() []string {
+func getDefaultFSRoots() []string {
 	cwd, err := getwd()
 	if err != nil {
 		return []string{"."}
@@ -1328,14 +1328,14 @@ func parseDurationOrZero(value string) time.Duration {
 	return parsed
 }
 
-func boolValue(value *bool) bool {
+func getBoolValue(value *bool) bool {
 	if value == nil {
 		return false
 	}
 	return *value
 }
 
-func boolValueDefault(value *bool, fallback bool) bool {
+func getBoolValueDefault(value *bool, fallback bool) bool {
 	if value == nil {
 		return fallback
 	}
@@ -1457,7 +1457,7 @@ func (c *Config) Validate() error {
 				return fmt.Errorf("%s: %w", slot.field, err)
 			}
 			if !meta.Exists {
-				return fmt.Errorf("%s: %w", slot.field, unknownModelError(auth.Provider, slot.slug))
+				return fmt.Errorf("%s: %w", slot.field, newUnknownModelError(auth.Provider, slot.slug))
 			}
 		}
 	}
@@ -1532,7 +1532,7 @@ func (c *Config) validateEmbeddingModelExists(ctx context.Context, auth ModelAut
 	case "openrouter":
 		meta, err = fetchOpenRouterModelEndpoints(
 			ctx,
-			defaultBaseURLForProvider("openrouter", DefaultModelAPIMode),
+			getDefaultBaseURLForProvider("openrouter", DefaultModelAPIMode),
 			c.Models.Embedding.Name,
 			auth.APIKey,
 		)
@@ -1545,7 +1545,7 @@ func (c *Config) validateEmbeddingModelExists(ctx context.Context, auth ModelAut
 		return fmt.Errorf("models.embedding.name: %w", err)
 	}
 	if !meta.Exists {
-		return fmt.Errorf("models.embedding.name: %w", unknownModelError(auth.Provider, c.Models.Embedding.Name))
+		return fmt.Errorf("models.embedding.name: %w", newUnknownModelError(auth.Provider, c.Models.Embedding.Name))
 	}
 
 	return nil
@@ -1565,7 +1565,7 @@ func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
 
 	auth := ModelAuth{
 		Provider: provider,
-		BaseURL:  defaultBaseURLForProvider(provider, "embeddings"),
+		BaseURL:  getDefaultBaseURLForProvider(provider, "embeddings"),
 		APIKey:   c.resolveAPIKeyForProvider(provider),
 	}
 	if strings.TrimSpace(auth.APIKey) == "" {
@@ -1611,15 +1611,15 @@ func (c *Config) ResolveModelAuth() (ModelAuth, error) {
 func (c *Config) resolveAPIKeyForProvider(provider string) string {
 	switch provider {
 	case "openrouter":
-		return firstNonEmpty(c.Models.OpenRouterAPIKey, c.Models.Key)
+		return getFirstNonEmpty(c.Models.OpenRouterAPIKey, c.Models.Key)
 	case "openai":
-		return firstNonEmpty(c.Models.OpenAIAPIKey, c.Models.Key)
+		return getFirstNonEmpty(c.Models.OpenAIAPIKey, c.Models.Key)
 	default:
 		return c.Models.Key
 	}
 }
 
-func firstNonEmpty(values ...string) string {
+func getFirstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
 			return trimmed
@@ -1693,15 +1693,15 @@ func applyProviderModelMetadata(ctx context.Context, cfg *Config, requestedConte
 	}
 }
 
-func resolveModelMetadataFromProvider(ctx context.Context, cfg *Config, auth ModelAuth) (ModelMetadata, error) {
+func fetchModelMetadataFromProvider(ctx context.Context, cfg *Config, auth ModelAuth) (ModelMetadata, error) {
 	if cfg == nil {
 		return ModelMetadata{}, nil
 	}
 
-	return resolveModelMetadataForSlug(ctx, auth, cfg.Models.Main.Name)
+	return fetchModelMetadataForSlug(ctx, auth, cfg.Models.Main.Name)
 }
 
-func resolveModelMetadataForSlug(ctx context.Context, auth ModelAuth, slug string) (ModelMetadata, error) {
+func fetchModelMetadataForSlug(ctx context.Context, auth ModelAuth, slug string) (ModelMetadata, error) {
 	slug = strings.TrimSpace(slug)
 	if slug == "" {
 		return ModelMetadata{}, nil
@@ -1725,7 +1725,7 @@ func fetchOpenRouterModelMetadata(ctx context.Context, baseURL, model, apiKey st
 
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
-		baseURL = defaultBaseURLForProvider("openrouter", DefaultModelAPIMode)
+		baseURL = getDefaultBaseURLForProvider("openrouter", DefaultModelAPIMode)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/models", nil)
@@ -1785,13 +1785,13 @@ func fetchOpenRouterModelEndpoints(ctx context.Context, baseURL, model, apiKey s
 
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
-		baseURL = defaultBaseURLForProvider("openrouter", DefaultModelAPIMode)
+		baseURL = getDefaultBaseURLForProvider("openrouter", DefaultModelAPIMode)
 	}
 
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
-		baseURL+"/models/"+openRouterModelPath(model)+"/endpoints",
+		baseURL+"/models/"+getOpenRouterModelPath(model)+"/endpoints",
 		nil,
 	)
 	if err != nil {
@@ -1819,7 +1819,7 @@ func fetchOpenRouterModelEndpoints(ctx context.Context, baseURL, model, apiKey s
 	return ModelMetadata{Exists: true}, nil
 }
 
-func openRouterModelPath(model string) string {
+func getOpenRouterModelPath(model string) string {
 	segments := strings.Split(strings.Trim(strings.TrimSpace(model), "/"), "/")
 	for idx, segment := range segments {
 		segments[idx] = url.PathEscape(segment)
@@ -1829,7 +1829,7 @@ func openRouterModelPath(model string) string {
 }
 
 func fetchOpenAIModelMetadata(ctx context.Context, model string) (ModelMetadata, error) {
-	for _, candidate := range openAIModelDocSlugs(model) {
+	for _, candidate := range getOpenAIModelDocSlugs(model) {
 		meta, err := fetchOpenAIModelMetadataPage(ctx, candidate, true)
 		if err != nil {
 			return ModelMetadata{}, err
@@ -1843,7 +1843,7 @@ func fetchOpenAIModelMetadata(ctx context.Context, model string) (ModelMetadata,
 }
 
 func fetchOpenAIModelExists(ctx context.Context, model string) (ModelMetadata, error) {
-	for _, candidate := range openAIModelDocSlugs(model) {
+	for _, candidate := range getOpenAIModelDocSlugs(model) {
 		meta, err := fetchOpenAIModelMetadataPage(ctx, candidate, false)
 		if err != nil {
 			return ModelMetadata{}, err
@@ -1914,7 +1914,7 @@ func isOpenAIModelDocsPageNotFound(body []byte) bool {
 		strings.Contains(text, `name="title" content="Page not found | OpenAI API"`)
 }
 
-func unknownModelError(provider, model string) error {
+func newUnknownModelError(provider, model string) error {
 	switch strings.TrimSpace(strings.ToLower(provider)) {
 	case "openrouter":
 		return fmt.Errorf("model %q is not available on openrouter", model)
@@ -1923,7 +1923,7 @@ func unknownModelError(provider, model string) error {
 	}
 }
 
-func openAIModelDocSlugs(model string) []string {
+func getOpenAIModelDocSlugs(model string) []string {
 	model = strings.TrimSpace(model)
 	if model == "" {
 		return nil

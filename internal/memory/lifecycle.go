@@ -148,12 +148,12 @@ func (p *MemoryProvider) PromoteCandidate(ctx context.Context, req PromotionRequ
 		p.recordPromotionFailure(ctx, memoryID, err)
 		return LifecycleResult{}, err
 	}
-	related := promotionRelatedItems(relatedHits)
+	related := getPromotionRelatedItems(relatedHits)
 
 	// Admission rejects obviously unsuitable candidates from model-provided
 	// metadata. Guardrails run only after admission passes, avoiding extra work on
 	// candidates already rejected by deterministic admission.
-	admissionResult := candidateAdmissionRejectionReason(candidate)
+	admissionResult := getCandidateAdmissionRejectionReason(candidate)
 	guardrailResult := ""
 	if admissionResult == "" {
 		if err := validateWrite(ctx, p.guardrails, candidate); err != nil {
@@ -171,7 +171,7 @@ func (p *MemoryProvider) PromoteCandidate(ctx context.Context, req PromotionRequ
 		AdmissionResult:    admissionResult,
 		GuardrailResult:    guardrailResult,
 		ReflectionEvidence: hasReflectionEvidence(candidate),
-		ConflictState:      promotionConflictState(candidate, relatedHits),
+		ConflictState:      getPromotionConflictState(candidate, relatedHits),
 	})
 	if p.promotionPolicy == nil {
 		p.recordPromotionFallback(ctx, memoryID)
@@ -194,7 +194,7 @@ func (p *MemoryProvider) PromoteCandidate(ctx context.Context, req PromotionRequ
 		// promotion does not keep reprocessing them. Other denials also record the
 		// explainable decision metadata used by inspection and retry suppression.
 		if guardrailResult == "" {
-			denied.Metadata = lifecycleMetadata(denied.Metadata, "promote", req.Reason, denied.Status)
+			denied.Metadata = buildLifecycleMetadata(denied.Metadata, "promote", req.Reason, denied.Status)
 			writePromotionDecisionMetadata(denied.Metadata, decision, related)
 		}
 		if _, err := p.manager.UpsertMemory(ctx, denied); err != nil {
@@ -216,7 +216,7 @@ func (p *MemoryProvider) PromoteCandidate(ctx context.Context, req PromotionRequ
 	previousStatus := promoted.Status
 	promoted.Status = StatusActive
 	promoted.PromotionEvaluatedAt = started
-	promoted.Metadata = lifecycleMetadata(promoted.Metadata, "promote", req.Reason, previousStatus)
+	promoted.Metadata = buildLifecycleMetadata(promoted.Metadata, "promote", req.Reason, previousStatus)
 	writePromotionDecisionMetadata(promoted.Metadata, decision, related)
 
 	promoted, err = p.manager.UpsertMemory(ctx, promoted)
@@ -389,7 +389,7 @@ func (p *MemoryProvider) relatedPromotionMemories(
 	ctx context.Context,
 	candidate MemoryItem,
 ) ([]SearchHit, error) {
-	text := promotionSearchText(candidate)
+	text := getPromotionSearchText(candidate)
 	if text == "" {
 		return nil, nil
 	}
@@ -417,10 +417,10 @@ func (p *MemoryProvider) relatedPromotionMemories(
 	return hits, nil
 }
 
-// promotionSearchText prefers title because it is usually the shortest summary
+// getPromotionSearchText prefers title because it is usually the shortest summary
 // of a candidate. It falls back to text and caps length to keep related lookup
 // bounded.
-func promotionSearchText(item MemoryItem) string {
+func getPromotionSearchText(item MemoryItem) string {
 	text := strings.TrimSpace(item.Title)
 	if text == "" {
 		text = strings.TrimSpace(item.Text)
@@ -431,18 +431,18 @@ func promotionSearchText(item MemoryItem) string {
 	return text
 }
 
-// promotionConflictState classifies active same-kind related memories. Exact
+// getPromotionConflictState classifies active same-kind related memories. Exact
 // normalized matches are duplicates regardless of score. Non-identical related
 // memories only block promotion when their search score is strong enough to be
 // useful conflict evidence.
-func promotionConflictState(candidate MemoryItem, related []SearchHit) string {
+func getPromotionConflictState(candidate MemoryItem, related []SearchHit) string {
 	hasRelated := false
 	for _, hit := range related {
 		item := hit.Item
 		if candidate.Kind != item.Kind || item.Status != StatusActive {
 			continue
 		}
-		if normalizedLifecycleText(candidate) == normalizedLifecycleText(item) {
+		if normalizeLifecycleText(candidate) == normalizeLifecycleText(item) {
 			return promotionConflictDuplicate
 		}
 		if hit.Score >= promotionRelatedConflictScoreThreshold {
@@ -456,7 +456,7 @@ func promotionConflictState(candidate MemoryItem, related []SearchHit) string {
 	return promotionConflictNone
 }
 
-func promotionRelatedItems(hits []SearchHit) []MemoryItem {
+func getPromotionRelatedItems(hits []SearchHit) []MemoryItem {
 	items := make([]MemoryItem, 0, len(hits))
 	for _, hit := range hits {
 		items = append(items, hit.Item.Clone())
@@ -464,9 +464,9 @@ func promotionRelatedItems(hits []SearchHit) []MemoryItem {
 	return items
 }
 
-// normalizedLifecycleText gives duplicate checks a stable comparison string
+// normalizeLifecycleText gives duplicate checks a stable comparison string
 // without relying on model-provided dedupe keys.
-func normalizedLifecycleText(item MemoryItem) string {
+func normalizeLifecycleText(item MemoryItem) string {
 	title := strings.TrimSpace(item.Title)
 	text := strings.TrimSpace(item.Text)
 	combined := strings.Join([]string{title, text}, "\n")
@@ -486,9 +486,9 @@ func hasReflectionEvidence(item MemoryItem) bool {
 		strings.TrimSpace(item.Metadata["reflection_origin"]) != ""
 }
 
-// lifecycleMetadata writes provider-owned lifecycle audit metadata while
+// buildLifecycleMetadata writes provider-owned lifecycle audit metadata while
 // preserving existing metadata.
-func lifecycleMetadata(
+func buildLifecycleMetadata(
 	metadata map[string]string,
 	action string,
 	reason string,
@@ -523,7 +523,7 @@ func writePromotionDecisionMetadata(
 	}
 	metadata[lifecycleMetadataDecisionReason] = decision.Reason
 	metadata[lifecycleMetadataConflictState] = decision.ConflictState
-	if ids := memoryIDs(related); len(ids) > 0 {
+	if ids := getMemoryIDs(related); len(ids) > 0 {
 		metadata[lifecycleMetadataRelatedMemoryIDs] = strings.Join(ids, ",")
 	}
 }

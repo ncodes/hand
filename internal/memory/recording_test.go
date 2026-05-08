@@ -264,5 +264,5 @@ func TestMemoryProvider_CandidateHelpersCoverValidationAndFallbacks(t *testing.T
 	})
 	require.EqualError(t, err, "memory candidate kind must be semantic or procedural")
 
-	require.Equal(t, "mem_unknown_", kindAwareMemoryIDPrefix(""))
+	require.Equal(t, "mem_unknown_", getKindAwareMemoryIDPrefix(""))
 }

@@ -129,7 +129,7 @@ func (c *Client) Respond(ctx context.Context, message string, opts RespondOption
 			}
 			if opts.OnEvent != nil {
 				opts.OnEvent(agent.Event{
-					Channel: streamChannelToAgent(event.GetChannel()),
+					Channel: protoStreamChannelToAgentChannel(event.GetChannel()),
 					Text:    event.GetText(),
 				})
 			}
@@ -148,7 +148,7 @@ func (c *Client) Respond(ctx context.Context, message string, opts RespondOption
 	return builder.String(), nil
 }
 
-func streamChannelToAgent(channel handpb.RespondEvent_Channel) string {
+func protoStreamChannelToAgentChannel(channel handpb.RespondEvent_Channel) string {
 	switch channel {
 	case handpb.RespondEvent_REASONING:
 		return "reasoning"
@@ -167,7 +167,7 @@ func (c *Client) CreateSession(ctx context.Context, id string) (storage.Session,
 		return storage.Session{}, nil
 	}
 
-	return fromSessionSummary(resp.GetSession()), nil
+	return protoSessionSummaryToSession(resp.GetSession()), nil
 }
 
 func (c *Client) ListSessions(ctx context.Context) ([]storage.Session, error) {
@@ -178,7 +178,7 @@ func (c *Client) ListSessions(ctx context.Context) ([]storage.Session, error) {
 
 	sessions := make([]storage.Session, 0, len(resp.GetSessions()))
 	for _, session := range resp.GetSessions() {
-		sessions = append(sessions, fromSessionSummary(session))
+		sessions = append(sessions, protoSessionSummaryToSession(session))
 	}
 
 	return sessions, nil
@@ -208,7 +208,7 @@ func (c *Client) CompactSession(ctx context.Context, id string) (CompactSessionR
 		SessionID:            resp.GetId(),
 		SourceEndOffset:      int(resp.GetSourceEndOffset()),
 		SourceMessageCount:   int(resp.GetSourceMessageCount()),
-		UpdatedAt:            fromTimestamp(resp.GetUpdatedAt()),
+		UpdatedAt:            protoTimestampToTime(resp.GetUpdatedAt()),
 		CurrentContextLength: int(resp.GetCurrentContextLength()),
 		TotalContextLength:   int(resp.GetTotalContextLength()),
 	}, nil
@@ -264,8 +264,8 @@ func (c *Client) GetSession(ctx context.Context, id string) (ContextStatus, erro
 		Remaining:        int(cctx.GetRemaining()),
 		UsedPct:          cctx.GetUsedPct(),
 		RemainingPct:     cctx.GetRemainingPct(),
-		CreatedAt:        fromTimestamp(resp.GetCreatedAt()),
-		UpdatedAt:        fromTimestamp(resp.GetUpdatedAt()),
+		CreatedAt:        protoTimestampToTime(resp.GetCreatedAt()),
+		UpdatedAt:        protoTimestampToTime(resp.GetUpdatedAt()),
 		CompactionStatus: resp.GetCompactionStatus(),
 	}, nil
 }
@@ -278,7 +278,7 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func fromSessionSummary(summary *handpb.SessionSummary) storage.Session {
+func protoSessionSummaryToSession(summary *handpb.SessionSummary) storage.Session {
 	if summary == nil {
 		return storage.Session{}
 	}
@@ -289,7 +289,7 @@ func fromSessionSummary(summary *handpb.SessionSummary) storage.Session {
 	}
 }
 
-func fromTimestamp(value interface{ AsTime() time.Time }) time.Time {
+func protoTimestampToTime(value interface{ AsTime() time.Time }) time.Time {
 	if value == nil {
 		return time.Time{}
 	}

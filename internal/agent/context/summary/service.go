@@ -58,8 +58,8 @@ func NewService(cfg *config.Config, modelClient, summaryClient models.Client, su
 		modelClient:   modelClient,
 		summaryClient: summaryClient,
 		store:         summaryStore,
-		evaluator:     summaryCompactionEvaluator(cfg),
-		compactionOn:  summaryCompactionEnabled(cfg),
+		evaluator:     getSummaryCompactionEvaluator(cfg),
+		compactionOn:  isSummaryCompactionEnabled(cfg),
 		now:           func() time.Time { return time.Now().UTC() },
 	}
 

@@ -45,14 +45,14 @@ func (e *LLMExtractor) ExtractCandidates(ctx context.Context, req CandidateReque
 		APIMode:          e.options.APIMode,
 		Instructions:     instructions.BuildEpisodicExtractionInstructions(),
 		Messages:         []handmsg.Message{{Role: handmsg.RoleUser, Content: string(payload)}},
-		StructuredOutput: llmExtractorStructuredOutput(),
+		StructuredOutput: getLLMExtractorStructuredOutput(),
 		MaxOutputTokens:  e.options.MaxOutputTokens,
 		DebugRequests:    e.options.DebugRequests,
 	})
 	if err != nil {
 		return CandidateResult{}, err
 	}
-	return parseLLMExtractorResponse(resp)
+	return llmExtractorResponseToCandidateResult(resp)
 }
 
 type llmExtractorResponse struct {
@@ -67,13 +67,13 @@ type llmExtractorCandidate struct {
 	Metadata   map[string]string `json:"metadata"`
 }
 
-func parseLLMExtractorResponse(resp *models.Response) (CandidateResult, error) {
+func llmExtractorResponseToCandidateResult(resp *models.Response) (CandidateResult, error) {
 	if resp == nil {
 		return CandidateResult{}, errors.New("memory episode extractor response is required")
 	}
 
 	var parsed llmExtractorResponse
-	if err := json.Unmarshal([]byte(normalizedLLMExtractorJSON(resp.OutputText)), &parsed); err != nil {
+	if err := json.Unmarshal([]byte(normalizeLLMExtractorJSON(resp.OutputText)), &parsed); err != nil {
 		return CandidateResult{}, err
 	}
 
@@ -94,7 +94,7 @@ func parseLLMExtractorResponse(resp *models.Response) (CandidateResult, error) {
 	return result, nil
 }
 
-func normalizedLLMExtractorJSON(raw string) string {
+func normalizeLLMExtractorJSON(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if !strings.HasPrefix(raw, "```") {
 		return raw
@@ -107,10 +107,10 @@ func normalizedLLMExtractorJSON(raw string) string {
 	return strings.TrimSpace(raw)
 }
 
-// llmExtractorStructuredOutput constrains the extractor to known candidate
+// getLLMExtractorStructuredOutput constrains the extractor to known candidate
 // kinds and known metadata keys. Unknown metadata would make admission behavior
 // harder to reason about, so the schema is strict.
-func llmExtractorStructuredOutput() *models.StructuredOutput {
+func getLLMExtractorStructuredOutput() *models.StructuredOutput {
 	return &models.StructuredOutput{
 		Name:        "episodic_memory_candidates",
 		Description: "Curated episodic memory candidates",
@@ -127,12 +127,12 @@ func llmExtractorStructuredOutput() *models.StructuredOutput {
 						"properties": map[string]any{
 							"kind": map[string]any{
 								"type": "string",
-								"enum": episodeCandidateKinds(),
+								"enum": getEpisodeCandidateKinds(),
 							},
 							"title":      map[string]any{"type": "string"},
 							"text":       map[string]any{"type": "string"},
 							"confidence": map[string]any{"type": "number"},
-							"metadata":   llmExtractorMetadataSchema(),
+							"metadata":   getLLMExtractorMetadataSchema(),
 						},
 						"required": []string{"kind", "title", "text", "confidence", "metadata"},
 					},
@@ -155,8 +155,8 @@ func llmExtractorStructuredOutput() *models.StructuredOutput {
 	}
 }
 
-func llmExtractorMetadataSchema() map[string]any {
-	fields := episodeMetadataFieldKeys()
+func getLLMExtractorMetadataSchema() map[string]any {
+	fields := getEpisodeMetadataFieldKeys()
 	properties := make(map[string]any, len(fields))
 	for _, field := range fields {
 		properties[field] = map[string]any{"type": "string"}

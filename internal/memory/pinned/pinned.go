@@ -45,7 +45,7 @@ func AutoFile() (string, bool, error) {
 	if err != nil {
 		return "", false, fmt.Errorf("resolve workspace root: %w", err)
 	}
-	return autoFileFromRoot(root)
+	return getAutoFileFromRoot(root)
 }
 
 // NormalizeOptions fills prompt-budget defaults. These budgets are enforced
@@ -89,7 +89,7 @@ func LoadFile() ([]state.MemoryItem, error) {
 	}
 
 	return []state.MemoryItem{{
-		ID:     fileMemoryID(file),
+		ID:     getFileMemoryID(file),
 		Kind:   state.MemoryKindPinned,
 		Status: state.MemoryStatusActive,
 		Title:  strings.TrimSpace(filepath.Base(file)),
@@ -150,13 +150,13 @@ func PrepareItems(
 			continue
 		}
 
-		itemChars := countItemChars(redacted)
+		itemChars := getItemCharCount(redacted)
 		if remaining <= 0 {
 			break
 		}
 		if itemChars > remaining {
 			redacted = truncateItem(redacted, remaining)
-			itemChars = countItemChars(redacted)
+			itemChars = getItemCharCount(redacted)
 		}
 
 		prepared = append(prepared, redacted.Clone())
@@ -166,9 +166,9 @@ func PrepareItems(
 	return prepared, nil
 }
 
-// autoFileFromRoot performs a case-insensitive lookup so users do not have to
+// getAutoFileFromRoot performs a case-insensitive lookup so users do not have to
 // remember exact filename casing across platforms.
-func autoFileFromRoot(root string) (string, bool, error) {
+func getAutoFileFromRoot(root string) (string, bool, error) {
 	root = strings.TrimSpace(root)
 	if root == "" {
 		return "", false, nil
@@ -201,13 +201,13 @@ func autoFileFromRoot(root string) (string, bool, error) {
 	return "", false, nil
 }
 
-// fileMemoryID makes file-pinned IDs stable across runs and distinct from
+// getFileMemoryID makes file-pinned IDs stable across runs and distinct from
 // generated store-backed memory IDs.
-func fileMemoryID(file string) string {
+func getFileMemoryID(file string) string {
 	return "pinned_file:" + strings.TrimSpace(file)
 }
 
-func countItemChars(item state.MemoryItem) int {
+func getItemCharCount(item state.MemoryItem) int {
 	return len([]rune(item.Title)) + len([]rune(item.Text))
 }
 

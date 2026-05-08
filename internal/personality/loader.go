@@ -18,7 +18,7 @@ const maxContentLength = constants.PersonalityMaxContentLength
 var (
 	getwd              = os.Getwd
 	readFile           = os.ReadFile
-	resolveDisplayPath = displayPath
+	resolveDisplayPath = getDisplayPath
 )
 
 type Result struct {
@@ -119,7 +119,7 @@ func loadFile(path, workspaceRoot string, seenPaths map[string]struct{}) (string
 	return fmt.Sprintf("## %s\n%s", displayPath, scanned.Content), true, nil
 }
 
-func displayPath(path, workspaceRoot string) (string, error) {
+func getDisplayPath(path, workspaceRoot string) (string, error) {
 	if workspaceRoot != "" {
 		relativePath, err := filepath.Rel(workspaceRoot, path)
 		if err == nil {

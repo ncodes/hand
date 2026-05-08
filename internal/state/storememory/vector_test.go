@@ -165,34 +165,34 @@ func TestStore_ClearMessages(t *testing.T) {
 
 func TestFindMessageByID(t *testing.T) {
 	t.Run("returns false when id is missing", func(t *testing.T) {
-		_, ok := findMessageByID([]handmsg.Message{{ID: 1}}, 2)
+		_, ok := getMessageByID([]handmsg.Message{{ID: 1}}, 2)
 		require.False(t, ok)
 	})
 }
 
 func TestMessageMatchesSearchOptions(t *testing.T) {
 	t.Run("rejects mismatched session id", func(t *testing.T) {
-		require.False(t, messageMatchesSearchOptions(testSessionA, handmsg.Message{Role: handmsg.RoleUser}, testSessionB, base.SearchMessageOptions{}))
+		require.False(t, checkMessageMatchesSearchOptions(testSessionA, handmsg.Message{Role: handmsg.RoleUser}, testSessionB, base.SearchMessageOptions{}))
 	})
 
 	t.Run("rejects ignored session id", func(t *testing.T) {
-		require.False(t, messageMatchesSearchOptions(testSessionA, handmsg.Message{Role: handmsg.RoleUser}, "", base.SearchMessageOptions{IgnoreSessionID: testSessionA}))
+		require.False(t, checkMessageMatchesSearchOptions(testSessionA, handmsg.Message{Role: handmsg.RoleUser}, "", base.SearchMessageOptions{IgnoreSessionID: testSessionA}))
 	})
 
 	t.Run("rejects mismatched role", func(t *testing.T) {
-		require.False(t, messageMatchesSearchOptions(testSessionA, handmsg.Message{Role: handmsg.RoleUser}, "", base.SearchMessageOptions{Role: handmsg.RoleAssistant}))
+		require.False(t, checkMessageMatchesSearchOptions(testSessionA, handmsg.Message{Role: handmsg.RoleUser}, "", base.SearchMessageOptions{Role: handmsg.RoleAssistant}))
 	})
 }
 
 func TestLexicalScore(t *testing.T) {
 	t.Run("returns zero when query is missing", func(t *testing.T) {
-		require.Equal(t, float64(0), lexicalScore("body", "missing"))
+		require.Equal(t, float64(0), getLexicalScore("body", "missing"))
 	})
 }
 
 func TestSearchRerankResultName(t *testing.T) {
 	t.Run("uses fallback when result name is empty", func(t *testing.T) {
-		require.Equal(t, "fallback", searchRerankResultName(search.RerankResult{}, "fallback"))
+		require.Equal(t, "fallback", getSearchRerankResultName(search.RerankResult{}, "fallback"))
 	})
 }
 
@@ -213,7 +213,7 @@ func TestSearchResultsFromCandidates(t *testing.T) {
 	older := now.Add(-time.Minute)
 
 	t.Run("applies result limits", func(t *testing.T) {
-		results := searchResultsFromCandidates([]*searchCandidate{{
+		results := searchCandidatesToSearchResults([]*searchCandidate{{
 			CandidateMatch: search.CandidateMatch{
 				SessionID:   testSessionA,
 				VectorRank:  1,
@@ -239,7 +239,7 @@ func TestSearchResultsFromCandidates(t *testing.T) {
 	})
 
 	t.Run("result ordering prefers newest session match when scores tie", func(t *testing.T) {
-		results := searchResultsFromCandidates([]*searchCandidate{{
+		results := searchCandidatesToSearchResults([]*searchCandidate{{
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionB, FusedScore: 1},
 			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "newer", CreatedAt: now},
 		}, {
@@ -250,7 +250,7 @@ func TestSearchResultsFromCandidates(t *testing.T) {
 	})
 
 	t.Run("result ordering uses session id as final tie break", func(t *testing.T) {
-		results := searchResultsFromCandidates([]*searchCandidate{{
+		results := searchCandidatesToSearchResults([]*searchCandidate{{
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 1},
 			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "a", CreatedAt: now},
 		}, {
@@ -261,7 +261,7 @@ func TestSearchResultsFromCandidates(t *testing.T) {
 	})
 
 	t.Run("message limit preserves total match count", func(t *testing.T) {
-		results := searchResultsFromCandidates([]*searchCandidate{{
+		results := searchCandidatesToSearchResults([]*searchCandidate{{
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 2},
 			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "newer", CreatedAt: now},
 		}, {
@@ -319,7 +319,7 @@ func TestCompareSearchCandidates(t *testing.T) {
 
 func TestRetrievalCandidateFromSearchCandidate(t *testing.T) {
 	t.Run("falls back to message content", func(t *testing.T) {
-		candidate := retrievalCandidateFromSearchCandidate(&searchCandidate{
+		candidate := searchCandidateToRetrievalCandidate(&searchCandidate{
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionA},
 			Message:        handmsg.Message{ID: 3, Role: handmsg.RoleUser, Content: "fallback text", CreatedAt: time.Now().UTC()},
 		})
@@ -509,7 +509,7 @@ func TestSearchCandidateSet_Merge(t *testing.T) {
 		candidates.Merge([]*searchCandidate{nil, {
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionA},
 			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "vector"},
-		}}, searchCandidateKey)
+		}}, getSearchCandidateKey)
 		require.Len(t, candidates, 1)
 	})
 
@@ -529,7 +529,7 @@ func TestSearchCandidateSet_Merge(t *testing.T) {
 				HasVector:       true,
 			},
 			Message: handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "vector"},
-		}}, searchCandidateKey)
+		}}, getSearchCandidateKey)
 		require.Equal(t, "vector text", candidates[search.SourceIDForMessage(testSessionA, 1)].MatchedText)
 	})
 }
@@ -613,14 +613,14 @@ func TestStore_RerankSearchCandidates(t *testing.T) {
 
 func TestSafeErrorKind(t *testing.T) {
 	t.Run("classifies common errors", func(t *testing.T) {
-		require.Equal(t, "", safeErrorKind(nil))
-		require.Equal(t, "context_canceled", safeErrorKind(context.Canceled))
-		require.Equal(t, "timeout", safeErrorKind(context.DeadlineExceeded))
-		require.Equal(t, "validation_failed", safeErrorKind(errors.New("validation failed")))
-		require.Equal(t, "not_found", safeErrorKind(errors.New("not found")))
-		require.Equal(t, "missing_required_value", safeErrorKind(errors.New("name is required")))
-		require.Equal(t, "timeout", safeErrorKind(errors.New("request timeout")))
-		require.Equal(t, "operation_failed", safeErrorKind(errors.New("boom")))
+		require.Equal(t, "", getSafeErrorKind(nil))
+		require.Equal(t, "context_canceled", getSafeErrorKind(context.Canceled))
+		require.Equal(t, "timeout", getSafeErrorKind(context.DeadlineExceeded))
+		require.Equal(t, "validation_failed", getSafeErrorKind(errors.New("validation failed")))
+		require.Equal(t, "not_found", getSafeErrorKind(errors.New("not found")))
+		require.Equal(t, "missing_required_value", getSafeErrorKind(errors.New("name is required")))
+		require.Equal(t, "timeout", getSafeErrorKind(errors.New("request timeout")))
+		require.Equal(t, "operation_failed", getSafeErrorKind(errors.New("boom")))
 	})
 }
 
@@ -665,8 +665,8 @@ func TestStore_LogCandidateDiagnostics(t *testing.T) {
 func TestLogSafeError(t *testing.T) {
 	t.Run("preserves log events", func(t *testing.T) {
 		store := NewStore()
-		require.NotNil(t, logSafeError(store.logVectorEvent("test"), nil))
-		require.NotNil(t, logSafeError(store.logVectorEvent("test"), errors.New("boom")))
+		require.NotNil(t, applySafeErrorLog(store.logVectorEvent("test"), nil))
+		require.NotNil(t, applySafeErrorLog(store.logVectorEvent("test"), errors.New("boom")))
 	})
 }
 

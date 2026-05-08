@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMemoryMatchesQuery_AppliesStatusKindTagsAndText(t *testing.T) {
+func TestCheckMemoryMatchesQuery_AppliesStatusKindTagsAndText(t *testing.T) {
 	item := MemoryItem{
 		ID:          "mem_plan",
 		Kind:        MemoryKindSemantic,
@@ -19,7 +19,7 @@ func TestMemoryMatchesQuery_AppliesStatusKindTagsAndText(t *testing.T) {
 		Reflected:   true,
 	}
 
-	require.True(t, MemoryMatchesQuery(item, MemorySearchQuery{
+	require.True(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{
 		Text:      "focused",
 		SessionID: DefaultSessionID,
 		IDs:       []string{" mem_plan "},
@@ -27,19 +27,19 @@ func TestMemoryMatchesQuery_AppliesStatusKindTagsAndText(t *testing.T) {
 		Tags:      []string{"planning"},
 		Reflected: new(true),
 	}))
-	require.True(t, MemoryMatchesQuery(item, MemorySearchQuery{Text: "PLAN"}))
-	require.True(t, MemoryMatchesQuery(item, MemorySearchQuery{}))
-	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{SessionID: "other"}))
-	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{IDs: []string{"mem_other"}}))
-	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{Statuses: []MemoryStatus{MemoryStatusCandidate}}))
-	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{Kinds: []MemoryKind{MemoryKindProcedural}}))
-	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{Tags: []string{"missing"}}))
-	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{Reflected: new(false)}))
-	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{Text: "missing"}))
-	require.False(t, MemoryMatchesQuery(MemoryItem{ID: "mem_candidate", Status: MemoryStatusCandidate}, MemorySearchQuery{}))
+	require.True(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{Text: "PLAN"}))
+	require.True(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{}))
+	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{SessionID: "other"}))
+	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{IDs: []string{"mem_other"}}))
+	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{Statuses: []MemoryStatus{MemoryStatusCandidate}}))
+	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{Kinds: []MemoryKind{MemoryKindProcedural}}))
+	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{Tags: []string{"missing"}}))
+	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{Reflected: new(false)}))
+	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{Text: "missing"}))
+	require.False(t, CheckMemoryMatchesQuery(MemoryItem{ID: "mem_candidate", Status: MemoryStatusCandidate}, MemorySearchQuery{}))
 }
 
-func TestMemoryMatchesQuery_AppliesPromotionEvaluationFilters(t *testing.T) {
+func TestCheckMemoryMatchesQuery_AppliesPromotionEvaluationFilters(t *testing.T) {
 	evaluatedAt := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
 	item := MemoryItem{
 		ID:                   "mem_candidate",
@@ -47,43 +47,43 @@ func TestMemoryMatchesQuery_AppliesPromotionEvaluationFilters(t *testing.T) {
 		PromotionEvaluatedAt: evaluatedAt,
 	}
 
-	require.True(t, MemoryMatchesQuery(item, MemorySearchQuery{
+	require.True(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{
 		Statuses:                 []MemoryStatus{MemoryStatusCandidate},
 		PromotionEvaluated:       new(true),
 		PromotionEvaluatedAfter:  evaluatedAt.Add(-time.Minute),
 		PromotionEvaluatedBefore: evaluatedAt.Add(time.Minute),
 	}))
-	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{
+	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{
 		Statuses:           []MemoryStatus{MemoryStatusCandidate},
 		PromotionEvaluated: new(false),
 	}))
-	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{
+	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{
 		Statuses:                 []MemoryStatus{MemoryStatusCandidate},
 		PromotionEvaluatedBefore: evaluatedAt,
 	}))
-	require.False(t, MemoryMatchesQuery(item, MemorySearchQuery{
+	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{
 		Statuses:                []MemoryStatus{MemoryStatusCandidate},
 		PromotionEvaluatedAfter: evaluatedAt,
 	}))
-	require.False(t, MemoryMatchesQuery(MemoryItem{ID: "mem_new", Status: MemoryStatusCandidate}, MemorySearchQuery{
+	require.False(t, CheckMemoryMatchesQuery(MemoryItem{ID: "mem_new", Status: MemoryStatusCandidate}, MemorySearchQuery{
 		Statuses:           []MemoryStatus{MemoryStatusCandidate},
 		PromotionEvaluated: new(true),
 	}))
-	require.True(t, MemoryMatchesQuery(MemoryItem{ID: "mem_new", Status: MemoryStatusCandidate}, MemorySearchQuery{
+	require.True(t, CheckMemoryMatchesQuery(MemoryItem{ID: "mem_new", Status: MemoryStatusCandidate}, MemorySearchQuery{
 		Statuses:           []MemoryStatus{MemoryStatusCandidate},
 		PromotionEvaluated: new(false),
 	}))
-	require.False(t, MemoryMatchesQuery(MemoryItem{ID: "mem_new", Status: MemoryStatusCandidate}, MemorySearchQuery{
+	require.False(t, CheckMemoryMatchesQuery(MemoryItem{ID: "mem_new", Status: MemoryStatusCandidate}, MemorySearchQuery{
 		Statuses:                 []MemoryStatus{MemoryStatusCandidate},
 		PromotionEvaluatedBefore: evaluatedAt.Add(time.Minute),
 	}))
-	require.False(t, MemoryMatchesQuery(MemoryItem{ID: "mem_new", Status: MemoryStatusCandidate}, MemorySearchQuery{
+	require.False(t, CheckMemoryMatchesQuery(MemoryItem{ID: "mem_new", Status: MemoryStatusCandidate}, MemorySearchQuery{
 		Statuses:                []MemoryStatus{MemoryStatusCandidate},
 		PromotionEvaluatedAfter: evaluatedAt.Add(-time.Minute),
 	}))
 }
 
-func TestMemoryMatchesSessionQuery_AppliesSessionKindAndStatus(t *testing.T) {
+func TestCheckMemoryMatchesSessionQuery_AppliesSessionKindAndStatus(t *testing.T) {
 	item := MemoryItem{
 		ID:     "mem_episode",
 		Kind:   MemoryKindEpisodic,
@@ -96,29 +96,29 @@ func TestMemoryMatchesSessionQuery_AppliesSessionKindAndStatus(t *testing.T) {
 		}},
 	}
 
-	require.True(t, MemoryBelongsToSession(item, DefaultSessionID))
-	require.True(t, MemoryBelongsToSession(MemoryItem{
+	require.True(t, CheckMemoryBelongsToSession(item, DefaultSessionID))
+	require.True(t, CheckMemoryBelongsToSession(MemoryItem{
 		SourceLinks: []MemorySourceLink{{SessionID: " " + DefaultSessionID + " "}},
 	}, DefaultSessionID))
-	require.False(t, MemoryBelongsToSession(item, ""))
-	require.False(t, MemoryBelongsToSession(item, "other"))
+	require.False(t, CheckMemoryBelongsToSession(item, ""))
+	require.False(t, CheckMemoryBelongsToSession(item, "other"))
 
-	require.True(t, MemoryMatchesSessionQuery(item, SessionMemoryQuery{
+	require.True(t, CheckMemoryMatchesSessionQuery(item, SessionMemoryQuery{
 		SessionID: DefaultSessionID,
 		Kinds:     []MemoryKind{MemoryKindEpisodic},
 		Statuses:  []MemoryStatus{MemoryStatusCandidate},
 	}))
-	require.False(t, MemoryMatchesSessionQuery(item, SessionMemoryQuery{SessionID: "other"}))
-	require.False(t, MemoryMatchesSessionQuery(item, SessionMemoryQuery{
+	require.False(t, CheckMemoryMatchesSessionQuery(item, SessionMemoryQuery{SessionID: "other"}))
+	require.False(t, CheckMemoryMatchesSessionQuery(item, SessionMemoryQuery{
 		SessionID: DefaultSessionID,
 		Kinds:     []MemoryKind{MemoryKindSemantic},
 	}))
-	require.False(t, MemoryMatchesSessionQuery(item, SessionMemoryQuery{
+	require.False(t, CheckMemoryMatchesSessionQuery(item, SessionMemoryQuery{
 		SessionID: DefaultSessionID,
 		Statuses:  []MemoryStatus{MemoryStatusActive},
 	}))
-	require.False(t, MemoryMatchesSessionQuery(item, SessionMemoryQuery{SessionID: DefaultSessionID}))
-	require.True(t, MemoryMatchesSessionQuery(MemoryItem{
+	require.False(t, CheckMemoryMatchesSessionQuery(item, SessionMemoryQuery{SessionID: DefaultSessionID}))
+	require.True(t, CheckMemoryMatchesSessionQuery(MemoryItem{
 		Status:   MemoryStatusActive,
 		Metadata: map[string]string{"source_session_id": DefaultSessionID},
 	}, SessionMemoryQuery{SessionID: DefaultSessionID}))
@@ -270,39 +270,39 @@ func TestNormalizeMemoryTags_TrimsLowercasesDedupesAndSorts(t *testing.T) {
 	require.Equal(t, []string{"go", "memory"}, NormalizeMemoryTags([]string{" Memory ", "", "go", "GO"}))
 }
 
-func TestContainsAllMemoryTags_TrimsLowercasesAndRequiresAllQueryTags(t *testing.T) {
+func TestHasAllMemoryTags_TrimsLowercasesAndRequiresAllQueryTags(t *testing.T) {
 	itemTags := []string{" Go ", "Memory"}
 
-	require.True(t, ContainsAllMemoryTags(itemTags, nil))
-	require.True(t, ContainsAllMemoryTags(itemTags, []string{"go", " memory "}))
-	require.False(t, ContainsAllMemoryTags(itemTags, []string{"go", "missing"}))
+	require.True(t, HasAllMemoryTags(itemTags, nil))
+	require.True(t, HasAllMemoryTags(itemTags, []string{"go", " memory "}))
+	require.False(t, HasAllMemoryTags(itemTags, []string{"go", "missing"}))
 }
 
-func TestSimpleMemoryScore(t *testing.T) {
+func TestGetSimpleMemoryScore(t *testing.T) {
 	item := MemoryItem{
 		Title: "Plan preference",
 		Text:  "Use a plan for complex tasks",
 	}
 
-	require.Equal(t, 0.0, SimpleMemoryScore(item, ""))
-	require.Equal(t, 2.0, SimpleMemoryScore(item, "preference"))
-	require.Equal(t, 1.0, SimpleMemoryScore(item, "complex"))
-	require.Equal(t, 3.0, SimpleMemoryScore(item, "plan"))
+	require.Equal(t, 0.0, GetSimpleMemoryScore(item, ""))
+	require.Equal(t, 2.0, GetSimpleMemoryScore(item, "preference"))
+	require.Equal(t, 1.0, GetSimpleMemoryScore(item, "complex"))
+	require.Equal(t, 3.0, GetSimpleMemoryScore(item, "plan"))
 }
 
 func TestMemoryKindAndStatusStrings_FilterEmptyValues(t *testing.T) {
-	require.Equal(t, []string{"semantic", "episodic"}, MemoryKindStrings([]MemoryKind{
+	require.Equal(t, []string{"semantic", "episodic"}, MemoryKindsToStrings([]MemoryKind{
 		MemoryKindSemantic,
 		"",
 		MemoryKindEpisodic,
 	}))
-	require.Equal(t, []string{"candidate", "active"}, MemoryStatusStrings([]MemoryStatus{
+	require.Equal(t, []string{"candidate", "active"}, MemoryStatusesToStrings([]MemoryStatus{
 		MemoryStatusCandidate,
 		"",
 		MemoryStatusActive,
 	}))
 }
 
-func TestMemoryLikePattern_EscapesWildcardsAndBackslashes(t *testing.T) {
-	require.Equal(t, `%100\%\_ready\\now%`, MemoryLikePattern(`100%_ready\now`))
+func TestMemoryValueToLikePattern_EscapesWildcardsAndBackslashes(t *testing.T) {
+	require.Equal(t, `%100\%\_ready\\now%`, MemoryValueToLikePattern(`100%_ready\now`))
 }

@@ -236,7 +236,7 @@ func TestReport_FirstFailureReturnsFirstFailureOnly(t *testing.T) {
 }
 
 func TestFileCheck_WarnsWhenPathNotSet(t *testing.T) {
-	check := fileCheck("env file", "   ", true)
+	check := buildFileCheck("env file", "   ", true)
 	require.Equal(t, Check{
 		Name:    "env file",
 		Status:  StatusWarn,
@@ -247,7 +247,7 @@ func TestFileCheck_WarnsWhenPathNotSet(t *testing.T) {
 func TestFileCheck_FailsWhenPathIsDirectory(t *testing.T) {
 	dir := t.TempDir()
 
-	check := fileCheck("config file", dir, false)
+	check := buildFileCheck("config file", dir, false)
 
 	require.Equal(t, Check{
 		Name:    "config file",
@@ -266,7 +266,7 @@ func TestFileCheck_FailsForUnexpectedStatError(t *testing.T) {
 		return nil, os.ErrPermission
 	}
 
-	check := fileCheck("config file", "config.yaml", false)
+	check := buildFileCheck("config file", "config.yaml", false)
 
 	require.Equal(t, Check{
 		Name:    "config file",
@@ -276,7 +276,7 @@ func TestFileCheck_FailsForUnexpectedStatError(t *testing.T) {
 }
 
 func TestBaseURLCheck_PassesWhenEmpty(t *testing.T) {
-	check := baseURLCheck("model base URL", "   ")
+	check := buildBaseURLCheck("model base URL", "   ")
 	require.Equal(t, Check{
 		Name:    "model base URL",
 		Status:  StatusPass,
@@ -285,7 +285,7 @@ func TestBaseURLCheck_PassesWhenEmpty(t *testing.T) {
 }
 
 func TestBaseURLCheck_PassesForValidAbsoluteURL(t *testing.T) {
-	check := baseURLCheck("model base URL", "https://example.com/v1")
+	check := buildBaseURLCheck("model base URL", "https://example.com/v1")
 	require.Equal(t, Check{
 		Name:    "model base URL",
 		Status:  StatusPass,

@@ -58,7 +58,7 @@ func NewHarness(ctx context.Context, opts HarnessOptions) (*Harness, error) {
 		return nil, err
 	}
 
-	cfg, err := resolveHarnessConfig(opts.Spec, opts.Config)
+	cfg, err := getHarnessConfig(opts.Spec, opts.Config)
 	if err != nil {
 		restoreEnv()
 		return nil, err
@@ -189,7 +189,7 @@ func (h *Harness) Messages(ctx context.Context, sessionID string) ([]handmsg.Mes
 	return h.inspectStore.GetMessages(normalizeHarnessContext(ctx), sessionID, storage.MessageQueryOptions{})
 }
 
-func resolveHarnessConfig(spec HarnessSpec, cfg *config.Config) (*config.Config, error) {
+func getHarnessConfig(spec HarnessSpec, cfg *config.Config) (*config.Config, error) {
 	if spec.Config.Mode() == ConfigModeRealInput {
 		if cfg != nil {
 			return nil, errors.New("e2e harness must not use in-memory config when real config inputs are present")

@@ -509,8 +509,8 @@ func TestAgent_EnsureStateManagerReturnsNewManagerError(t *testing.T) {
 }
 
 func TestDurationOrDefault(t *testing.T) {
-	require.Equal(t, 5*time.Second, durationOrDefault(5*time.Second, time.Second))
-	require.Equal(t, time.Second, durationOrDefault(0, time.Second))
+	require.Equal(t, 5*time.Second, getDurationOrDefault(5*time.Second, time.Second))
+	require.Equal(t, time.Second, getDurationOrDefault(0, time.Second))
 }
 
 func mustStateManager(t *testing.T) *statemanager.Manager {

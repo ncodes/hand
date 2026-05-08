@@ -165,7 +165,7 @@ func NoopSession() Session {
 	return noopSession{}
 }
 
-// validateSessionID mirrors internal/trace/inspect resolveSessionPath rules for the id segment.
+// validateSessionID mirrors internal/trace/inspect getSessionPath rules for the id segment.
 func validateSessionID(id string) bool {
 	id = strings.TrimSpace(id)
 	if id == "" {

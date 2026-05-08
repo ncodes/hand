@@ -578,8 +578,8 @@ func (a *Agent) ensureStateManager() error {
 
 	manager, err := newStateManager(
 		store,
-		durationOrDefault(a.cfg.Session.DefaultIdleExpiry, 24*time.Hour),
-		durationOrDefault(a.cfg.Session.ArchiveRetention, 30*24*time.Hour),
+		getDurationOrDefault(a.cfg.Session.DefaultIdleExpiry, 24*time.Hour),
+		getDurationOrDefault(a.cfg.Session.ArchiveRetention, 30*24*time.Hour),
 	)
 	if err != nil {
 		return err
@@ -619,7 +619,7 @@ func isFullRecallSummary(summary storage.SessionSummary, messageCount int) bool 
 	return summary.SourceMessageCount == messageCount && summary.SourceEndOffset == messageCount
 }
 
-func durationOrDefault(value, fallback time.Duration) time.Duration {
+func getDurationOrDefault(value, fallback time.Duration) time.Duration {
 	if value > 0 {
 		return value
 	}
@@ -644,7 +644,7 @@ func normalizeContext(ctx context.Context) context.Context {
 	return ctx
 }
 
-func toContextToolCalls(toolCalls []models.ToolCall) []handmsg.ToolCall {
+func modelToolCallsToContextToolCalls(toolCalls []models.ToolCall) []handmsg.ToolCall {
 	if len(toolCalls) == 0 {
 		return nil
 	}

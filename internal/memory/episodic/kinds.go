@@ -35,8 +35,8 @@ var episodeKindSpecs = []episodeKindSpec{
 	{kind: episodeKindToolEvent, usefulness: "medium", priority: 1},
 }
 
-// episodeCandidateKinds returns the schema enum passed to the model.
-func episodeCandidateKinds() []string {
+// getEpisodeCandidateKinds returns the schema enum passed to the model.
+func getEpisodeCandidateKinds() []string {
 	kinds := make([]string, 0, len(episodeKindSpecs))
 	for _, spec := range episodeKindSpecs {
 		kinds = append(kinds, spec.kind)
@@ -45,25 +45,25 @@ func episodeCandidateKinds() []string {
 	return kinds
 }
 
-func validCandidateKind(kind string) bool {
-	return episodeKindSpecFor(kind).kind != ""
+func isValidCandidateKind(kind string) bool {
+	return getEpisodeKindSpecFor(kind).kind != ""
 }
 
 // usefulness is stored as metadata so later reflection/promotion steps can see
 // why an extracted episode was considered worth remembering.
-func usefulness(kind string) string {
-	if spec := episodeKindSpecFor(kind); spec.kind != "" {
+func getUsefulness(kind string) string {
+	if spec := getEpisodeKindSpecFor(kind); spec.kind != "" {
 		return spec.usefulness
 	}
 
 	return "low"
 }
 
-func candidateKindPriority(kind string) int {
-	return episodeKindSpecFor(kind).priority
+func getCandidateKindPriority(kind string) int {
+	return getEpisodeKindSpecFor(kind).priority
 }
 
-func episodeKindSpecFor(kind string) episodeKindSpec {
+func getEpisodeKindSpecFor(kind string) episodeKindSpec {
 	for _, spec := range episodeKindSpecs {
 		if spec.kind == kind {
 			return spec

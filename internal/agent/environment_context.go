@@ -29,7 +29,7 @@ func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models
 
 	ctx := instruct.EnvironmentContext{
 		Now:              now,
-		Timezone:         environmentTimezone(now),
+		Timezone:         getEnvironmentTimezone(now),
 		OS:               runtime.GOOS,
 		Architecture:     runtime.GOARCH,
 		WorkingDirectory: workingDirectory,
@@ -38,7 +38,7 @@ func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models
 
 	if t.cfg != nil {
 		ctx.Platform = t.cfg.Platform
-		ctx.FilesystemRoots = filesystemRoots(t.cfg.FS.Roots, workingDirectory)
+		ctx.FilesystemRoots = getFilesystemRoots(t.cfg.FS.Roots, workingDirectory)
 		ctx.Model = t.cfg.Models.Main.Name
 		if summaryModel := t.cfg.SummaryModelEffective(); summaryModel != "" && summaryModel != t.cfg.Models.Main.Name {
 			ctx.SummaryModel = summaryModel
@@ -54,7 +54,7 @@ func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models
 
 	if t.env != nil {
 		policy := t.env.ToolPolicy()
-		ctx.Platform = firstNonEmpty(ctx.Platform, policy.Platform)
+		ctx.Platform = getFirstNonEmpty(ctx.Platform, policy.Platform)
 		ctx.Capabilities = instruct.EnvironmentCapabilities{
 			Filesystem: policy.Capabilities.Filesystem,
 			Network:    policy.Capabilities.Network,
@@ -65,16 +65,16 @@ func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models
 		ctx.HasCapabilities = true
 
 		if len(activeToolDefinitions) > 0 && t.env.Tools() != nil {
-			ctx.ActiveToolGroups = activeToolGroups(t.env.Tools().ListGroups())
+			ctx.ActiveToolGroups = getActiveToolGroups(t.env.Tools().ListGroups())
 		}
 	}
 
-	ctx.ActiveTools = activeToolNames(activeToolDefinitions)
+	ctx.ActiveTools = getActiveToolNames(activeToolDefinitions)
 
 	return instruct.BuildEnvironmentContext(ctx)
 }
 
-func environmentTimezone(now time.Time) string {
+func getEnvironmentTimezone(now time.Time) string {
 	if now.IsZero() || now.Location() == nil {
 		return ""
 	}
@@ -90,11 +90,11 @@ func environmentTimezone(now time.Time) string {
 	}
 
 	return strings.TrimSpace(
-		location + " (" + name + ", UTC" + timezoneOffset(offset) + ")",
+		location + " (" + name + ", UTC" + getTimezoneOffset(offset) + ")",
 	)
 }
 
-func timezoneOffset(offset int) string {
+func getTimezoneOffset(offset int) string {
 	sign := "+"
 	if offset < 0 {
 		sign = "-"
@@ -103,7 +103,7 @@ func timezoneOffset(offset int) string {
 	return sign + fmt.Sprintf("%02d:%02d", offset/3600, (offset%3600)/60)
 }
 
-func filesystemRoots(configured []string, workingDirectory string) []string {
+func getFilesystemRoots(configured []string, workingDirectory string) []string {
 	roots := configured
 	if len(roots) == 0 && strings.TrimSpace(workingDirectory) != "" {
 		roots = []string{workingDirectory}
@@ -111,7 +111,7 @@ func filesystemRoots(configured []string, workingDirectory string) []string {
 	return guardrails.NormalizeRoots(roots)
 }
 
-func activeToolNames(definitions []models.ToolDefinition) []string {
+func getActiveToolNames(definitions []models.ToolDefinition) []string {
 	names := make([]string, 0, len(definitions))
 	for _, definition := range definitions {
 		names = append(names, definition.Name)
@@ -119,7 +119,7 @@ func activeToolNames(definitions []models.ToolDefinition) []string {
 	return sortedUnique(names)
 }
 
-func activeToolGroups(groups []tools.Group) []string {
+func getActiveToolGroups(groups []tools.Group) []string {
 	names := make([]string, 0, len(groups))
 	for _, group := range groups {
 		names = append(names, group.Name)
@@ -145,7 +145,7 @@ func sortedUnique(values []string) []string {
 	return cleaned
 }
 
-func firstNonEmpty(first, second string) string {
+func getFirstNonEmpty(first, second string) string {
 	if strings.TrimSpace(first) != "" {
 		return first
 	}

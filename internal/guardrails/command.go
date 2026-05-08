@@ -163,7 +163,7 @@ func (p CommandPolicy) Normalize() CommandPolicy {
 
 func EvaluateCommand(policy CommandPolicy, command string, args []string) CommandEvaluation {
 	policy = policy.Normalize()
-	tokens := commandTokens(command, args)
+	tokens := getCommandTokens(command, args)
 	if len(tokens) == 0 {
 		return CommandEvaluation{Decision: CommandDenied, Reason: "empty command"}
 	}
@@ -212,7 +212,7 @@ func normalizeCommandRules(values []string) []string {
 	return out
 }
 
-func commandTokens(command string, args []string) []string {
+func getCommandTokens(command string, args []string) []string {
 	if len(args) > 0 {
 		tokens := []string{strings.TrimSpace(command)}
 		for _, arg := range args {

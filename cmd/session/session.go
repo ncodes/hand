@@ -46,7 +46,7 @@ func NewCommand() *cli.Command {
 				Usage:     "Create a new session",
 				ArgsUsage: "<session-id>",
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					client, err := sessionClient(ctx, cmd)
+					client, err := getSessionClient(ctx, cmd)
 					if err != nil {
 						return err
 					}
@@ -64,7 +64,7 @@ func NewCommand() *cli.Command {
 				Name:  "list",
 				Usage: "List persisted sessions",
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					client, err := sessionClient(ctx, cmd)
+					client, err := getSessionClient(ctx, cmd)
 					if err != nil {
 						return err
 					}
@@ -88,7 +88,7 @@ func NewCommand() *cli.Command {
 				Usage:     "Mark a session as the current session",
 				ArgsUsage: "<session-id>",
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					client, err := sessionClient(ctx, cmd)
+					client, err := getSessionClient(ctx, cmd)
 					if err != nil {
 						return err
 					}
@@ -106,7 +106,7 @@ func NewCommand() *cli.Command {
 				Name:  "current",
 				Usage: "Show the current session selection",
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					client, err := sessionClient(ctx, cmd)
+					client, err := getSessionClient(ctx, cmd)
 					if err != nil {
 						return err
 					}
@@ -125,7 +125,7 @@ func NewCommand() *cli.Command {
 				Usage:     "Force summary compaction for a session",
 				ArgsUsage: "[session-id]",
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					client, err := sessionClient(ctx, cmd)
+					client, err := getSessionClient(ctx, cmd)
 					if err != nil {
 						return err
 					}
@@ -160,7 +160,7 @@ func NewCommand() *cli.Command {
 					},
 				},
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					client, err := sessionClient(ctx, cmd)
+					client, err := getSessionClient(ctx, cmd)
 					if err != nil {
 						return err
 					}
@@ -198,7 +198,7 @@ func NewCommand() *cli.Command {
 				Usage:     "Show session context usage",
 				ArgsUsage: "[session-id]",
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					client, err := sessionClient(ctx, cmd)
+					client, err := getSessionClient(ctx, cmd)
 					if err != nil {
 						return err
 					}
@@ -238,7 +238,7 @@ func formatSessionTime(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
-func sessionClient(ctx context.Context, cmd *cli.Command) (rpcclient.SessionClient, error) {
+func getSessionClient(ctx context.Context, cmd *cli.Command) (rpcclient.SessionClient, error) {
 	cfg, err := config.Load(cmd.String("env-file"), cmd.String("config"))
 	if err != nil {
 		return nil, err

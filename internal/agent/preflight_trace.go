@@ -7,7 +7,7 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 )
 
-func compactionEnabled(cfg *config.Config) bool {
+func isCompactionEnabled(cfg *config.Config) bool {
 	if cfg == nil || cfg.Compaction.Enabled == nil {
 		return true
 	}
@@ -15,7 +15,7 @@ func compactionEnabled(cfg *config.Config) bool {
 	return *cfg.Compaction.Enabled
 }
 
-func compactionEvaluator(cfg *config.Config) *compaction.Evaluator {
+func getCompactionEvaluator(cfg *config.Config) *compaction.Evaluator {
 	if cfg == nil {
 		return compaction.NewEvaluator(0, 0, 0)
 	}
@@ -33,11 +33,11 @@ func recordPreflightCompactionTrace(
 	request models.Request,
 	lastPromptTokens int,
 ) {
-	if !compactionEnabled(cfg) {
+	if !isCompactionEnabled(cfg) {
 		return
 	}
 
-	estimate := compactionEvaluator(cfg).Evaluate(request, lastPromptTokens)
+	estimate := getCompactionEvaluator(cfg).Evaluate(request, lastPromptTokens)
 	payload := map[string]any{
 		"source":            estimate.Source,
 		"prompt_tokens":     estimate.PromptTokens,

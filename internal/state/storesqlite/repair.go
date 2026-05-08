@@ -142,7 +142,7 @@ func (s *Store) repairVectorBatch(
 		return result, err
 	}
 
-	dirtyRecords := messageModelsBySourceID(records, dirtySources)
+	dirtyRecords := getMessageModelsBySourceID(records, dirtySources)
 	recordsToUpsert, err := s.vectorRecordsForMessages(ctx, dirtyRecords)
 	if err != nil {
 		return result, err
@@ -160,8 +160,8 @@ func (s *Store) repairVectorBatch(
 	return result, deleteErr
 }
 
-// messageModelsBySourceID returns message records whose vector source IDs are marked dirty.
-func messageModelsBySourceID(records []messageModel, sourceIDs []string) []messageModel {
+// getMessageModelsBySourceID returns message records whose vector source IDs are marked dirty.
+func getMessageModelsBySourceID(records []messageModel, sourceIDs []string) []messageModel {
 	sourceSet := make(map[string]struct{}, len(sourceIDs))
 	for _, sourceID := range sourceIDs {
 		sourceID = strings.TrimSpace(sourceID)
@@ -175,7 +175,7 @@ func messageModelsBySourceID(records []messageModel, sourceIDs []string) []messa
 
 	selected := make([]messageModel, 0, len(records))
 	for _, record := range records {
-		if _, ok := sourceSet[sourceIDForMessage(record.SessionID, record.ID)]; ok {
+		if _, ok := sourceSet[messageToSourceID(record.SessionID, record.ID)]; ok {
 			selected = append(selected, record)
 		}
 	}

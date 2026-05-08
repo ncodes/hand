@@ -43,15 +43,15 @@ func (s *Store) logVectorEvent(eventName string) *zerolog.Event {
 	return sessionSearchLog.Debug().Str("event", strings.TrimSpace(eventName))
 }
 
-func logSafeError(event *zerolog.Event, err error) *zerolog.Event {
+func applySafeErrorLog(event *zerolog.Event, err error) *zerolog.Event {
 	if err == nil {
 		return event
 	}
 
-	return event.Str("error_kind", safeErrorKind(err))
+	return event.Str("error_kind", getSafeErrorKind(err))
 }
 
-func safeErrorKind(err error) string {
+func getSafeErrorKind(err error) string {
 	if err == nil {
 		return ""
 	}

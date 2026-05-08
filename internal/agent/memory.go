@@ -97,7 +97,7 @@ func (t *Turn) retrieveMemoryInstruction(
 		if err != nil {
 			recordMemoryRetrievalFailed(traceSession, provider.Name(), "search", err)
 		} else {
-			items = append(items, toMemoryHitItems(result.Hits)...)
+			items = append(items, searchHitsToMemoryItems(result.Hits)...)
 		}
 	}
 
@@ -111,7 +111,7 @@ func (t *Turn) retrieveMemoryInstruction(
 	})
 
 	return instruct.BuildMemoryContext(
-		toMemoryContextItems(items),
+		memoryItemsToContextItems(items),
 		memoryContextInstructionMaxChar,
 	)
 }
@@ -144,7 +144,7 @@ func recordMemoryRetrievalFailed(
 		Msg("memory retrieval failed")
 }
 
-func toMemoryHitItems(hits []memory.SearchHit) []memory.MemoryItem {
+func searchHitsToMemoryItems(hits []memory.SearchHit) []memory.MemoryItem {
 	items := make([]memory.MemoryItem, 0, len(hits))
 	for _, hit := range hits {
 		items = append(items, hit.Item)
@@ -169,8 +169,8 @@ func sanitizeMemoryItemForPrompt(item memory.MemoryItem) (memory.MemoryItem, boo
 		return memory.MemoryItem{}, false
 	}
 
-	item.Title = memoryPromptText(item.Title)
-	item.Text = memoryPromptText(item.Text)
+	item.Title = getMemoryPromptText(item.Title)
+	item.Text = getMemoryPromptText(item.Text)
 	if strings.TrimSpace(item.Title) == "" && strings.TrimSpace(item.Text) == "" {
 		return memory.MemoryItem{}, false
 	}
@@ -186,7 +186,7 @@ func sanitizeMemoryItemForPrompt(item memory.MemoryItem) (memory.MemoryItem, boo
 	return item, true
 }
 
-func memoryPromptText(value string) string {
+func getMemoryPromptText(value string) string {
 	sanitized, ok := sanitizeMemoryPromptValue(value).(string)
 	if !ok {
 		return strings.TrimSpace(value)
@@ -194,7 +194,7 @@ func memoryPromptText(value string) string {
 	return strings.TrimSpace(sanitized)
 }
 
-func toMemoryContextItems(items []memory.MemoryItem) []instruct.MemoryContextItem {
+func memoryItemsToContextItems(items []memory.MemoryItem) []instruct.MemoryContextItem {
 	contextItems := make([]instruct.MemoryContextItem, 0, len(items))
 	for _, item := range items {
 		contextItems = append(contextItems, instruct.MemoryContextItem{

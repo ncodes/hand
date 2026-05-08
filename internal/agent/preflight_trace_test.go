@@ -50,7 +50,7 @@ func TestRecordPreflightCompactionTrace_SkipsEventsWhenDisabled(t *testing.T) {
 }
 
 func TestCompactionEvaluator_UsesDefaultsWhenConfigIsNil(t *testing.T) {
-	evaluator := compactionEvaluator(nil)
+	evaluator := getCompactionEvaluator(nil)
 	estimate := evaluator.Evaluate(models.Request{}, 0)
 
 	require.Equal(t, 128000, estimate.ContextLimit)

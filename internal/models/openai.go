@@ -577,7 +577,7 @@ func extractResponsesResponse(resp *responses.Response) (*Response, error) {
 			return nil, errors.New("tool call name is required")
 		}
 		if callID == "" {
-			callID = fallbackToolCallID(name, idx)
+			callID = getFallbackToolCallID(name, idx)
 		}
 		toolCalls = append(toolCalls, ToolCall{
 			ID:    callID,
@@ -764,7 +764,7 @@ func extractChatCompletionsToolCalls(toolCalls []openai.ChatCompletionMessageToo
 			return nil, errors.New("tool call name is required")
 		}
 		if id == "" {
-			id = fallbackToolCallID(name, idx)
+			id = getFallbackToolCallID(name, idx)
 		}
 
 		normalized = append(normalized, ToolCall{
@@ -777,7 +777,7 @@ func extractChatCompletionsToolCalls(toolCalls []openai.ChatCompletionMessageToo
 	return normalized, nil
 }
 
-func fallbackToolCallID(name string, index int) string {
+func getFallbackToolCallID(name string, index int) string {
 	return "functions." + strings.TrimSpace(name) + ":" + strconv.Itoa(index)
 }
 
@@ -824,11 +824,11 @@ func logModelClientRequestFailed(req normalizedGenerateRequest, stream bool, err
 		Str("mode", req.APIMode).
 		Str("model", req.Model).
 		Bool("stream", stream).
-		Str("error_kind", modelClientErrorKind(err)).
+		Str("error_kind", getModelClientErrorKind(err)).
 		Msg("model client request failed")
 }
 
-func modelClientErrorKind(err error) string {
+func getModelClientErrorKind(err error) string {
 	if err == nil {
 		return ""
 	}

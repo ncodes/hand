@@ -219,8 +219,8 @@ func NormalizeMemoryIDs(ids []string) []string {
 	return results
 }
 
-func MemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
-	if sessionID := strings.TrimSpace(query.SessionID); sessionID != "" && !MemoryBelongsToSession(item, sessionID) {
+func CheckMemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
+	if sessionID := strings.TrimSpace(query.SessionID); sessionID != "" && !CheckMemoryBelongsToSession(item, sessionID) {
 		return false
 	}
 	if ids := NormalizeMemoryIDs(query.IDs); len(ids) > 0 && !slices.Contains(ids, strings.TrimSpace(item.ID)) {
@@ -236,7 +236,7 @@ func MemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
 	} else if item.Status != MemoryStatusActive {
 		return false
 	}
-	if len(query.Tags) > 0 && !ContainsAllMemoryTags(item.Tags, query.Tags) {
+	if len(query.Tags) > 0 && !HasAllMemoryTags(item.Tags, query.Tags) {
 		return false
 	}
 	if query.Reflected != nil && item.Reflected != *query.Reflected {
@@ -267,9 +267,9 @@ func MemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
 	return strings.Contains(strings.ToLower(item.Title), text) || strings.Contains(strings.ToLower(item.Text), text)
 }
 
-func MemoryMatchesSessionQuery(item MemoryItem, query SessionMemoryQuery) bool {
+func CheckMemoryMatchesSessionQuery(item MemoryItem, query SessionMemoryQuery) bool {
 	sessionID := strings.TrimSpace(query.SessionID)
-	if sessionID == "" || !MemoryBelongsToSession(item, sessionID) {
+	if sessionID == "" || !CheckMemoryBelongsToSession(item, sessionID) {
 		return false
 	}
 	if len(query.Kinds) > 0 && !slices.Contains(query.Kinds, item.Kind) {
@@ -282,7 +282,7 @@ func MemoryMatchesSessionQuery(item MemoryItem, query SessionMemoryQuery) bool {
 	return item.Status == MemoryStatusActive
 }
 
-func MemoryBelongsToSession(item MemoryItem, sessionID string) bool {
+func CheckMemoryBelongsToSession(item MemoryItem, sessionID string) bool {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return false
@@ -297,7 +297,7 @@ func MemoryBelongsToSession(item MemoryItem, sessionID string) bool {
 	return strings.TrimSpace(item.Metadata["source_session_id"]) == sessionID
 }
 
-func SimpleMemoryScore(item MemoryItem, query string) float64 {
+func GetSimpleMemoryScore(item MemoryItem, query string) float64 {
 	query = strings.TrimSpace(strings.ToLower(query))
 	if query == "" {
 		return 0
@@ -313,7 +313,7 @@ func SimpleMemoryScore(item MemoryItem, query string) float64 {
 	return score
 }
 
-func ContainsAllMemoryTags(itemTags []string, queryTags []string) bool {
+func HasAllMemoryTags(itemTags []string, queryTags []string) bool {
 	tags := make(map[string]struct{}, len(itemTags))
 	for _, tag := range itemTags {
 		tags[strings.TrimSpace(strings.ToLower(tag))] = struct{}{}
@@ -326,7 +326,7 @@ func ContainsAllMemoryTags(itemTags []string, queryTags []string) bool {
 	return true
 }
 
-func MemoryKindStrings(kinds []MemoryKind) []string {
+func MemoryKindsToStrings(kinds []MemoryKind) []string {
 	values := make([]string, 0, len(kinds))
 	for _, kind := range kinds {
 		value := strings.TrimSpace(string(kind))
@@ -337,7 +337,7 @@ func MemoryKindStrings(kinds []MemoryKind) []string {
 	return values
 }
 
-func MemoryStatusStrings(statuses []MemoryStatus) []string {
+func MemoryStatusesToStrings(statuses []MemoryStatus) []string {
 	values := make([]string, 0, len(statuses))
 	for _, status := range statuses {
 		value := strings.TrimSpace(string(status))
@@ -348,7 +348,7 @@ func MemoryStatusStrings(statuses []MemoryStatus) []string {
 	return values
 }
 
-func MemoryLikePattern(value string) string {
+func MemoryValueToLikePattern(value string) string {
 	replacer := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 	return "%" + replacer.Replace(value) + "%"
 }

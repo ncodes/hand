@@ -295,10 +295,10 @@ storage:
 }
 
 func TestLiveClientOptions(t *testing.T) {
-	opts := liveClientOptions("", 2)
+	opts := getLiveClientOptions("", 2)
 	require.Len(t, opts, 1)
 
-	opts = liveClientOptions(" https://example.com/v1 ", 2)
+	opts = getLiveClientOptions(" https://example.com/v1 ", 2)
 	require.Len(t, opts, 2)
 }
 

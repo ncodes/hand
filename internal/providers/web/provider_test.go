@@ -85,22 +85,22 @@ func TestWithExtractOptions_RoundTripsNormalizedOptions(t *testing.T) {
 func TestExtractCharLimit_UsesRequestLimitWhenPresent(t *testing.T) {
 	ctx := WithExtractOptions(context.Background(), ExtractOptions{MaxChars: 12})
 
-	require.Equal(t, 12, extractCharLimit(ctx, 50))
-	require.Equal(t, 50, extractCharLimit(context.Background(), 50))
+	require.Equal(t, 12, getExtractCharLimit(ctx, 50))
+	require.Equal(t, 50, getExtractCharLimit(context.Background(), 50))
 }
 
 func TestExtractFormat_UsesRequestFormatWhenPresent(t *testing.T) {
 	ctx := WithExtractOptions(context.Background(), ExtractOptions{Format: "text"})
 
-	require.Equal(t, "text", extractFormat(ctx, "markdown"))
-	require.Equal(t, "markdown", extractFormat(context.Background(), "markdown"))
+	require.Equal(t, "text", getExtractFormat(ctx, "markdown"))
+	require.Equal(t, "markdown", getExtractFormat(context.Background(), "markdown"))
 }
 
 func TestExtractQuery_UsesRequestQueryWhenPresent(t *testing.T) {
 	ctx := WithExtractOptions(context.Background(), ExtractOptions{Query: "release notes"})
 
-	require.Equal(t, "release notes", extractQuery(ctx))
-	require.Empty(t, extractQuery(context.Background()))
+	require.Equal(t, "release notes", getExtractQuery(ctx))
+	require.Empty(t, getExtractQuery(context.Background()))
 }
 
 func TestResolveOptions_UsesDetectedProviderFallback(t *testing.T) {
@@ -162,7 +162,7 @@ func TestResolveOptions_RejectsMissingProviderConfiguration(t *testing.T) {
 }
 
 func TestFillProviderDefaults_LeavesUnsupportedProviderUnchanged(t *testing.T) {
-	opts := fillProviderDefaults(Options{Provider: "custom", BaseURL: "https://custom.example"})
+	opts := applyProviderDefaults(Options{Provider: "custom", BaseURL: "https://custom.example"})
 	require.Equal(t, "custom", opts.Provider)
 	require.Equal(t, "https://custom.example", opts.BaseURL)
 }
@@ -182,7 +182,7 @@ func TestFillProviderDefaults_AppliesKnownProviderDefaults(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			opts := fillProviderDefaults(tc.opts)
+			opts := applyProviderDefaults(tc.opts)
 			require.Equal(t, tc.expected, opts.BaseURL)
 		})
 	}

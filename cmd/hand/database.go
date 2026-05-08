@@ -50,7 +50,7 @@ func resetConfiguredDatabase(_ context.Context, cmd *cli.Command) error {
 		return errors.New("database reset requires sqlite storage backend")
 	}
 
-	paths := configuredDatabasePaths()
+	paths := getConfiguredDatabasePaths()
 	for _, path := range paths {
 		if err := removeDatabasePath(path); err != nil {
 			return err
@@ -61,7 +61,7 @@ func resetConfiguredDatabase(_ context.Context, cmd *cli.Command) error {
 	return err
 }
 
-func configuredDatabasePaths() []string {
+func getConfiguredDatabasePaths() []string {
 	path := datadir.StateDBPath()
 	return []string{
 		path,

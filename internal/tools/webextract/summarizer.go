@@ -67,7 +67,7 @@ func WithSummarizer(ctx context.Context, summarizer Summarizer) context.Context 
 	return context.WithValue(ctx, summarizerContextKey{}, summarizer)
 }
 
-func summarizerFromContext(ctx context.Context) Summarizer {
+func getSummarizerFromContext(ctx context.Context) Summarizer {
 	if ctx == nil {
 		return nil
 	}
@@ -82,7 +82,7 @@ func (s ExtractSummarizer) SummarizeExtract(ctx context.Context, input SummaryIn
 	}
 
 	content := strings.TrimSpace(input.Content)
-	if input.MaxSummaryChunkChars > 0 && runeLen(content) > input.MaxSummaryChunkChars {
+	if input.MaxSummaryChunkChars > 0 && getRuneLength(content) > input.MaxSummaryChunkChars {
 		return s.summarizeChunked(ctx, input)
 	}
 
@@ -133,7 +133,7 @@ func (s ExtractSummarizer) completeSummary(
 			Role:    handmsg.RoleUser,
 			Content: prompt,
 		}},
-		MaxOutputTokens: maxSummaryOutputTokens(maxSummaryChars),
+		MaxOutputTokens: getMaxSummaryOutputTokens(maxSummaryChars),
 		Temperature:     0,
 		DebugRequests:   s.DebugRequests,
 	})
@@ -153,7 +153,7 @@ func (s ExtractSummarizer) completeSummary(
 	return strings.TrimSpace(resp.OutputText), nil
 }
 
-func summarizeResults(
+func summarizeExtractResults(
 	ctx context.Context,
 	results []webprovider.ExtractResult,
 	options summarizeOptions,
@@ -162,7 +162,7 @@ func summarizeResults(
 		return results, nil
 	}
 
-	summarizer := summarizerFromContext(ctx)
+	summarizer := getSummarizerFromContext(ctx)
 	summarized := make([]webprovider.ExtractResult, len(results))
 	copy(summarized, results)
 	for idx := range summarized {
@@ -171,7 +171,7 @@ func summarizeResults(
 			continue
 		}
 
-		sourceChars := runeLen(result.Content)
+		sourceChars := getRuneLength(result.Content)
 		if sourceChars < options.MinSummarizeChars {
 			continue
 		}
@@ -203,7 +203,7 @@ func summarizeResults(
 		result.Content = summary
 		result.ContentFormat = "summary"
 		result.Summarized = true
-		result.SummaryChars = runeLen(summary)
+		result.SummaryChars = getRuneLength(summary)
 		result.Truncated = result.Truncated || truncated
 	}
 
@@ -278,7 +278,7 @@ func splitIntoChunks(content string, chunkChars int) []string {
 	return chunks
 }
 
-func maxSummaryOutputTokens(maxSummaryChars int) int64 {
+func getMaxSummaryOutputTokens(maxSummaryChars int) int64 {
 	if maxSummaryChars <= 0 {
 		return 0
 	}
@@ -300,6 +300,6 @@ func truncateToChars(value string, maxChars int) (string, bool) {
 	return strings.TrimSpace(string(runes[:maxChars])), true
 }
 
-func runeLen(value string) int {
+func getRuneLength(value string) int {
 	return len([]rune(strings.TrimSpace(value)))
 }

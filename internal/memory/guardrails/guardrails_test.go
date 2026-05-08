@@ -64,11 +64,11 @@ func TestGuardrails_ValidationHooksAllowCurrentPhase(t *testing.T) {
 }
 
 func TestSanitizedString_DefaultsRedactorAndFallsBackForUnexpectedResult(t *testing.T) {
-	require.Equal(t, "plain value", sanitizedString(nil, "plain value"))
-	require.Equal(t, "plain value", sanitizedString(nonStringRedactor{}, "plain value"))
+	require.Equal(t, "plain value", sanitizeString(nil, "plain value"))
+	require.Equal(t, "plain value", sanitizeString(nonStringRedactor{}, "plain value"))
 }
 
 func TestSanitizedStrings_ReturnsNilForEmptyInput(t *testing.T) {
-	require.Nil(t, sanitizedStrings(nil, nil))
-	require.Nil(t, sanitizedStrings(nil, []string{}))
+	require.Nil(t, sanitizeStrings(nil, nil))
+	require.Nil(t, sanitizeStrings(nil, []string{}))
 }

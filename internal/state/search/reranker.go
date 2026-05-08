@@ -78,7 +78,7 @@ func RerankWithFallback(
 		rerankDebugLogEvent(req, "fallback").Err(err).Msg("rerank primary failed, using fallback")
 		return rerankFallback(ctx, fallback, req)
 	}
-	candidates, err := boundedCandidates(req.Candidates, req.Options.MaxCandidates)
+	candidates, err := limitCandidates(req.Candidates, req.Options.MaxCandidates)
 	if err != nil {
 		rerankDebugLogEvent(req, "fallback").Err(err).Msg("rerank result candidate bound failed, using fallback")
 		return rerankFallback(ctx, fallback, req)
@@ -139,7 +139,7 @@ func ValidateRerankResult(candidates []Candidate, result RerankResult) error {
 	return nil
 }
 
-func boundedCandidates(candidates []Candidate, maxCandidates int) ([]Candidate, error) {
+func limitCandidates(candidates []Candidate, maxCandidates int) ([]Candidate, error) {
 	if maxCandidates < 0 {
 		return nil, errors.New("max candidates must be greater than or equal to zero")
 	}

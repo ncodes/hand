@@ -83,7 +83,7 @@ var newChatClient = func(ctx context.Context, cfg *config.Config) (rpcclient.Cha
 }
 
 func main() {
-	envFile = resolveEnvFile(os.Args)
+	envFile = getEnvFile(os.Args)
 	if err := config.PreloadEnvFile(envFile); err != nil {
 		log.Fatal().Err(err).Msg("Failed to preload environment")
 	}
@@ -177,7 +177,7 @@ func formatChatEvent(cfg *config.Config, event rpcclient.Event) string {
 	return rootColorGray + event.Text + rootColorReset
 }
 
-func resolveEnvFile(args []string) string {
+func getEnvFile(args []string) string {
 	if value := strings.TrimSpace(os.Getenv("HAND_ENV_FILE")); value != "" {
 		return value
 	}

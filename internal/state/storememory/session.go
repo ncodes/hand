@@ -223,10 +223,10 @@ func (s *Store) GetMessages(
 	defer s.mu.RUnlock()
 
 	if opts.Archived {
-		return queryMessages(s.archiveMessages[id], opts), nil
+		return getMessagesForQuery(s.archiveMessages[id], opts), nil
 	}
 
-	return queryMessages(s.messages[id], opts), nil
+	return getMessagesForQuery(s.messages[id], opts), nil
 }
 
 func (s *Store) GetMessagesByIDs(
@@ -402,7 +402,7 @@ func searchMessageResults(
 		Role:     opts.Role,
 		ToolName: opts.ToolName,
 	}
-	hits := matchingMessageHits(sessionID, messages, query, hitOpts)
+	hits := getMatchingMessageHits(sessionID, messages, query, hitOpts)
 	if len(hits) == 0 {
 		return nil
 	}
@@ -427,7 +427,7 @@ func searchMessageResults(
 	return []base.SearchMessageResult{result}
 }
 
-func matchingMessageHits(
+func getMatchingMessageHits(
 	sessionID string,
 	messages []handmsg.Message,
 	query string,
@@ -435,7 +435,7 @@ func matchingMessageHits(
 ) []base.SearchMessageHit {
 	results := make([]base.SearchMessageHit, 0, len(messages))
 	for i := len(messages) - 1; i >= 0; i-- {
-		hit, ok := matchedMessageHit(sessionID, messages[i], query, opts)
+		hit, ok := getMatchedMessageHit(sessionID, messages[i], query, opts)
 		if !ok {
 			continue
 		}
@@ -445,7 +445,7 @@ func matchingMessageHits(
 	return results
 }
 
-func matchedMessageHit(
+func getMatchedMessageHit(
 	sessionID string,
 	message handmsg.Message,
 	query string,
@@ -892,9 +892,9 @@ func cloneSearchMessageResults(results []base.SearchMessageResult) []base.Search
 	return cloned
 }
 
-func queryMessages(messages []handmsg.Message, opts MessageQueryOptions) []handmsg.Message {
+func getMessagesForQuery(messages []handmsg.Message, opts MessageQueryOptions) []handmsg.Message {
 	filtered := filterMessages(messages, opts)
-	if messageQueryOrder(opts) == base.MessageOrderDesc {
+	if getMessageQueryOrder(opts) == base.MessageOrderDesc {
 		filtered = reverseMessages(filtered)
 	}
 	offset := max(opts.Offset, 0)
@@ -944,7 +944,7 @@ func filterMessages(messages []handmsg.Message, opts MessageQueryOptions) []hand
 	return filtered
 }
 
-func messageQueryOrder(opts MessageQueryOptions) string {
+func getMessageQueryOrder(opts MessageQueryOptions) string {
 	order, err := base.NormalizeMessageQueryOrder(opts.Order)
 	if err != nil {
 		return base.MessageOrderAsc

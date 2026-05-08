@@ -278,7 +278,7 @@ func TestSanitizedString_FallsBackToOriginalText(t *testing.T) {
 		return 123
 	}
 
-	require.Equal(t, "hello", sanitizedString(" hello "))
+	require.Equal(t, "hello", sanitizeString(" hello "))
 }
 
 func TestCleanStrings_ReturnsNilForEmptyInput(t *testing.T) {

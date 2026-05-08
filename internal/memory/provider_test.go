@@ -398,10 +398,10 @@ func (s *memoryModelClientStub) CompleteStream(
 }
 
 func TestBackgroundContext(t *testing.T) {
-	require.NotNil(t, backgroundContext(nil))
+	require.NotNil(t, getBackgroundContext(nil))
 
 	ctx := context.WithValue(context.Background(), "key", "value")
-	require.Same(t, ctx, backgroundContext(ctx))
+	require.Same(t, ctx, getBackgroundContext(ctx))
 }
 
 func TestProviderTraceRecorder_RecordWrapsNonMapPayload(t *testing.T) {

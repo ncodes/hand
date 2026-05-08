@@ -28,7 +28,7 @@ func Definition(provider webintegration.Provider, options ...Options) tools.Defi
 		Count int    `json:"count"`
 	}
 
-	opts := resolveOptions(options)
+	opts := getWebSearchOptions(options)
 
 	return tools.Definition{
 		Name:        "web_search",
@@ -86,7 +86,7 @@ func Definition(provider webintegration.Provider, options ...Options) tools.Defi
 				return common.ToolError("tool_error", err.Error()), nil
 			}
 
-			results, blocked := filterBlockedResults(results, opts.WebsitePolicy)
+			results, blocked := filterBlockedSearchResults(results, opts.WebsitePolicy)
 
 			log.Info().
 				Str("tool", "web_search").
@@ -100,7 +100,7 @@ func Definition(provider webintegration.Provider, options ...Options) tools.Defi
 	}
 }
 
-func resolveOptions(options []Options) Options {
+func getWebSearchOptions(options []Options) Options {
 	if len(options) == 0 {
 		return Options{}
 	}
@@ -108,7 +108,7 @@ func resolveOptions(options []Options) Options {
 	return options[0]
 }
 
-func filterBlockedResults(
+func filterBlockedSearchResults(
 	results []webintegration.SearchResult,
 	policy guardrails.WebsitePolicy,
 ) ([]webintegration.SearchResult, int) {

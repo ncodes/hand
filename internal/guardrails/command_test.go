@@ -312,7 +312,7 @@ func TestNormalizeCommandRules_TrimsDeduplicatesAndSkipsInvalidEntries(t *testin
 }
 
 func TestCommandTokens_WithArgsTrimsAndSkipsBlankEntries(t *testing.T) {
-	tokens := commandTokens("  git  ", []string{"  status  ", "", "   ", "origin"})
+	tokens := getCommandTokens("  git  ", []string{"  status  ", "", "   ", "origin"})
 	require.Equal(t, []string{"git", "status", "origin"}, tokens)
 }
 

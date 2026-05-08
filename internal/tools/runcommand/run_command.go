@@ -174,7 +174,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 					Float64("elapsed_seconds", elapsedSeconds).
 					Msg("command tool timed out")
 
-				return common.EncodeOutput(runCommandOutput(
+				return common.EncodeOutput(buildRunCommandOutput(
 					-1,
 					common.TrimOutput(stdout.String(), common.MaxOutputBytes),
 					common.TrimOutput(stderr.String(), common.MaxOutputBytes),
@@ -217,7 +217,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Float64("elapsed_seconds", elapsedSeconds).
 				Msg("command tool completed")
 
-			return common.EncodeOutput(runCommandOutput(
+			return common.EncodeOutput(buildRunCommandOutput(
 				exitCode,
 				common.TrimOutput(stdout.String(), common.MaxOutputBytes),
 				common.TrimOutput(stderr.String(), common.MaxOutputBytes),
@@ -229,7 +229,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 	}
 }
 
-func runCommandOutput(exitCode int, stdout, stderr string, timedOut bool, timeoutSeconds int, elapsedSeconds float64) map[string]any {
+func buildRunCommandOutput(exitCode int, stdout, stderr string, timedOut bool, timeoutSeconds int, elapsedSeconds float64) map[string]any {
 	remainingSeconds := 0.0
 	if !timedOut {
 		remainingSeconds = float64(timeoutSeconds) - elapsedSeconds

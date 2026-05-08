@@ -143,7 +143,7 @@ func TestService_RunBackgroundSkipsExistingSourceRangeBeforeLoadingMessages(t *t
 	require.Equal(t, 1, result.SkipCount)
 	require.Zero(t, loads)
 	require.Empty(t, provider.searchQuery.IDs)
-	require.Equal(t, []string{sourceRangeTag(storage.DefaultSessionID, 0, 1)}, provider.searchQuery.Tags)
+	require.Equal(t, []string{getSourceRangeTag(storage.DefaultSessionID, 0, 1)}, provider.searchQuery.Tags)
 }
 
 func TestService_RunBackgroundResumesFromSessionCheckpoint(t *testing.T) {
@@ -446,9 +446,9 @@ func TestBackgroundEligible(t *testing.T) {
 }
 
 func TestNormalizedCheckpointOffset(t *testing.T) {
-	require.Zero(t, normalizedCheckpointOffset(-1, 10))
-	require.Equal(t, 10, normalizedCheckpointOffset(12, 10))
-	require.Equal(t, 4, normalizedCheckpointOffset(4, 10))
+	require.Zero(t, normalizeCheckpointOffset(-1, 10))
+	require.Equal(t, 10, normalizeCheckpointOffset(12, 10))
+	require.Equal(t, 4, normalizeCheckpointOffset(4, 10))
 }
 
 type sourceManagerStub struct{}

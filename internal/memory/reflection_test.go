@@ -629,15 +629,15 @@ func TestMemoryProvider_ReflectionHelpersCoverFallbacksAndErrors(t *testing.T) {
 	})
 
 	t.Run("pure helper fallbacks", func(t *testing.T) {
-		require.Empty(t, reflectionSearchText(MemoryItem{}))
-		require.Len(t, []rune(reflectionSearchText(MemoryItem{Text: strings.Repeat("x", 260)})), 240)
-		require.Empty(t, reflectionSourceTag(""))
+		require.Empty(t, getReflectionSearchText(MemoryItem{}))
+		require.Len(t, []rune(getReflectionSearchText(MemoryItem{Text: strings.Repeat("x", 260)})), 240)
+		require.Empty(t, getReflectionSourceTag(""))
 		require.Equal(t, []MemoryItem{{ID: "mem_a"}}, limitReflectionItems([]MemoryItem{{ID: "mem_a"}}, 0))
 		require.Equal(t, []string{"alpha", "beta"}, normalizeMemoryTags([]string{"Beta", "", "alpha", "beta"}))
 	})
 
 	t.Run("source links fall back to metadata session", func(t *testing.T) {
-		links := reflectionSourceLinks([]MemoryItem{{
+		links := getSourceLinks([]MemoryItem{{
 			Metadata: map[string]string{"source_session_id": statecore.DefaultSessionID},
 		}})
 		require.Equal(t, statecore.DefaultSessionID, links[0].SessionID)
@@ -901,7 +901,7 @@ func TestLLMReflectionGenerator_GeneratesCandidatesWithMockedModel(t *testing.T)
 }
 
 func TestLLMReflectionGenerator_StructuredOutputUsesMetadataEntries(t *testing.T) {
-	output := reflectionStructuredOutput()
+	output := getReflectionStructuredOutput()
 	properties := output.Schema["properties"].(map[string]any)
 	candidates := properties["candidates"].(map[string]any)
 	candidateItems := candidates["items"].(map[string]any)
@@ -948,16 +948,16 @@ func TestParseReflectionModelResponseHandlesFencedJSONAndErrors(t *testing.T) {
 		"```JSON\n{\"candidates\":[]}\n```",
 		"```\n{\"candidates\":[]}\n```",
 	} {
-		result, err := parseReflectionModelResponse(&models.Response{OutputText: raw})
+		result, err := reflectionModelResponseToGenerationResult(&models.Response{OutputText: raw})
 		require.NoError(t, err)
 		require.Empty(t, result.Items)
 	}
 
-	result, err := parseReflectionModelResponse(nil)
+	result, err := reflectionModelResponseToGenerationResult(nil)
 	require.EqualError(t, err, "memory reflection response is required")
 	require.Empty(t, result)
 
-	result, err = parseReflectionModelResponse(&models.Response{OutputText: `{"candidates":`})
+	result, err = reflectionModelResponseToGenerationResult(&models.Response{OutputText: `{"candidates":`})
 	require.Error(t, err)
 	require.Empty(t, result)
 }

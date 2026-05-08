@@ -187,12 +187,12 @@ func TestHTTPClient_PostJSONUsesCustomClientTransport(t *testing.T) {
 }
 
 func TestFirstNonEmpty_ReturnsEmptyWhenNoValueQualifies(t *testing.T) {
-	require.Equal(t, "", firstNonEmpty("", "   "))
+	require.Equal(t, "", getFirstNonEmpty("", "   "))
 }
 
 func TestFirstHighlight_ReturnsFirstNonEmptyHighlight(t *testing.T) {
-	require.Equal(t, "match", firstHighlight([]string{"   ", "match", "later"}))
-	require.Equal(t, "", firstHighlight([]string{"", "  "}))
+	require.Equal(t, "match", getFirstHighlight([]string{"   ", "match", "later"}))
+	require.Equal(t, "", getFirstHighlight([]string{"", "  "}))
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

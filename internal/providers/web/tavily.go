@@ -70,9 +70,9 @@ func (p *TavilyProvider) Search(ctx context.Context, query string, count int) ([
 }
 
 func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractResult, error) {
-	format := extractFormat(ctx, "markdown")
-	maxChars := extractCharLimit(ctx, p.maxExtractCharsPerResult)
-	query := extractQuery(ctx)
+	format := getExtractFormat(ctx, "markdown")
+	maxChars := getExtractCharLimit(ctx, p.maxExtractCharsPerResult)
+	query := getExtractQuery(ctx)
 
 	var response struct {
 		Results []struct {
@@ -106,7 +106,7 @@ func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 	results := make([]ExtractResult, 0, len(response.Results)+len(response.FailedResults)+len(response.FailedURLs))
 	for _, result := range response.Results {
 		content, truncated, downloadTruncated := limitExtractContent(
-			firstNonEmpty(result.RawContent, result.Content),
+			getFirstNonEmpty(result.RawContent, result.Content),
 			p.maxExtractResponseBytes,
 			maxChars)
 
@@ -123,7 +123,7 @@ func (p *TavilyProvider) Extract(ctx context.Context, urls []string) ([]ExtractR
 		results = append(results, ExtractResult{
 			URL:           strings.TrimSpace(result.URL),
 			ContentFormat: format,
-			Error:         firstNonEmpty(result.Error, "extraction failed"),
+			Error:         getFirstNonEmpty(result.Error, "extraction failed"),
 		})
 	}
 	for _, url := range response.FailedURLs {

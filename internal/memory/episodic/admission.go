@@ -15,9 +15,9 @@ func admitCandidateItems(
 ) ([]storage.MemoryItem, []candidateRejection) {
 	admitted := make([]storage.MemoryItem, 0, len(items))
 	for _, item := range items {
-		if reason := candidateRejectionReason(item); reason != "" {
+		if reason := getCandidateRejectionReason(item); reason != "" {
 			rejections = append(rejections, candidateRejection{
-				Kind:   candidateKind(item),
+				Kind:   getCandidateKind(item),
 				Reason: reason,
 			})
 			continue
@@ -29,10 +29,10 @@ func admitCandidateItems(
 	return collapseCandidateGroups(admitted, rejections)
 }
 
-// candidateRejectionReason rejects metadata that explicitly marks a proposal as
+// getCandidateRejectionReason rejects metadata that explicitly marks a proposal as
 // not worth durable memory. This mirrors the prompt guidance and gives a stable
 // reason independent of model wording.
-func candidateRejectionReason(item storage.MemoryItem) string {
+func getCandidateRejectionReason(item storage.MemoryItem) string {
 	switch strings.ToLower(strings.TrimSpace(item.Metadata["memory_importance"])) {
 	case "low":
 		return "low_importance_candidate"
@@ -54,12 +54,12 @@ func collapseCandidateGroups(
 ) ([]storage.MemoryItem, []candidateRejection) {
 	bestByGroup := make(map[string]int)
 	for idx, item := range items {
-		group := canonicalCandidateGroup(item)
+		group := getCanonicalCandidateGroup(item)
 		if group == "" {
 			continue
 		}
 		bestIndex, ok := bestByGroup[group]
-		if !ok || candidateAdmissionScore(item) > candidateAdmissionScore(items[bestIndex]) {
+		if !ok || getCandidateAdmissionScore(item) > getCandidateAdmissionScore(items[bestIndex]) {
 			bestByGroup[group] = idx
 			continue
 		}
@@ -67,13 +67,13 @@ func collapseCandidateGroups(
 
 	admitted := make([]storage.MemoryItem, 0, len(items))
 	for idx, item := range items {
-		group := canonicalCandidateGroup(item)
+		group := getCanonicalCandidateGroup(item)
 		if group == "" || bestByGroup[group] == idx {
 			admitted = append(admitted, item)
 			continue
 		}
 		rejections = append(rejections, candidateRejection{
-			Kind:   candidateKind(item),
+			Kind:   getCandidateKind(item),
 			Reason: "redundant_candidate_group",
 		})
 	}
@@ -81,15 +81,15 @@ func collapseCandidateGroups(
 	return admitted, rejections
 }
 
-func canonicalCandidateGroup(item storage.MemoryItem) string {
+func getCanonicalCandidateGroup(item storage.MemoryItem) string {
 	return normalizeMemoryIDText(item.Metadata["canonical_group"])
 }
 
-// candidateAdmissionScore ranks candidates within the same canonical group.
+// getCandidateAdmissionScore ranks candidates within the same canonical group.
 // Higher-priority kinds, importance, summary-level granularity, and confidence
 // all improve the chance a candidate survives group collapse.
-func candidateAdmissionScore(item storage.MemoryItem) int {
-	score := candidateKindPriority(candidateKind(item)) * 100
+func getCandidateAdmissionScore(item storage.MemoryItem) int {
+	score := getCandidateKindPriority(getCandidateKind(item)) * 100
 	switch strings.ToLower(strings.TrimSpace(item.Metadata["memory_importance"])) {
 	case "high":
 		score += 30
@@ -107,6 +107,6 @@ func candidateAdmissionScore(item storage.MemoryItem) int {
 	return score
 }
 
-func candidateKind(item storage.MemoryItem) string {
+func getCandidateKind(item storage.MemoryItem) string {
 	return strings.TrimSpace(item.Metadata["candidate_kind"])
 }

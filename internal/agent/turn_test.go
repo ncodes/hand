@@ -1608,7 +1608,7 @@ func TestTurn_DecodeHydratedPlanPayloadRejectsInvalidPlanState(t *testing.T) {
 }
 
 func TestTurn_ActiveHydratedPlanStepIDReturnsEmptyWhenNoActiveStepExists(t *testing.T) {
-	require.Empty(t, activeHydratedPlanStepID(envtypes.Plan{
+	require.Empty(t, getActiveHydratedPlanStepID(envtypes.Plan{
 		Steps: []envtypes.PlanStep{{ID: "step-1", Content: "Done", Status: envtypes.PlanStatusCompleted}},
 	}))
 }
@@ -2540,7 +2540,7 @@ func TestAgent_RespondReturnsResolveError(t *testing.T) {
 }
 
 func TestToContextToolCalls_ReturnsNilWhenEmpty(t *testing.T) {
-	require.Nil(t, toContextToolCalls(nil))
+	require.Nil(t, modelToolCallsToContextToolCalls(nil))
 }
 
 func TestAgent_RespondRecordsTraceEventsOnSuccess(t *testing.T) {

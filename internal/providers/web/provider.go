@@ -117,7 +117,7 @@ func (o ExtractOptions) Normalize() ExtractOptions {
 	return o
 }
 
-func extractCharLimit(ctx context.Context, configuredMax int) int {
+func getExtractCharLimit(ctx context.Context, configuredMax int) int {
 	opts := ExtractOptionsFromContext(ctx)
 	if opts.MaxChars > 0 {
 		return opts.MaxChars
@@ -126,7 +126,7 @@ func extractCharLimit(ctx context.Context, configuredMax int) int {
 	return configuredMax
 }
 
-func extractFormat(ctx context.Context, defaultFormat string) string {
+func getExtractFormat(ctx context.Context, defaultFormat string) string {
 	if format := ExtractOptionsFromContext(ctx).Format; format != "" {
 		return format
 	}
@@ -134,11 +134,11 @@ func extractFormat(ctx context.Context, defaultFormat string) string {
 	return defaultFormat
 }
 
-func extractQuery(ctx context.Context) string {
+func getExtractQuery(ctx context.Context) string {
 	return ExtractOptionsFromContext(ctx).Query
 }
 
-func extractWebsitePolicy(ctx context.Context) guardrails.WebsitePolicy {
+func getExtractWebsitePolicy(ctx context.Context) guardrails.WebsitePolicy {
 	return ExtractOptionsFromContext(ctx).WebsitePolicy
 }
 
@@ -179,11 +179,11 @@ func ResolveOptions(cfg *config.Config) (Options, error) {
 		return Options{}, ErrProviderNotConfigured
 	}
 
-	opts = fillProviderDefaults(opts)
+	opts = applyProviderDefaults(opts)
 	return opts, nil
 }
 
-func fillProviderDefaults(opts Options) Options {
+func applyProviderDefaults(opts Options) Options {
 	opts = opts.Normalize()
 
 	switch opts.Provider {

@@ -37,8 +37,8 @@ type Report struct {
 func Build(envPath, configPath string, cfg *config.Config, loadErr error) Report {
 	report := Report{
 		Checks: []Check{
-			fileCheck("env file", envPath, true),
-			fileCheck("config file", configPath, false),
+			buildFileCheck("env file", envPath, true),
+			buildFileCheck("config file", configPath, false),
 		},
 	}
 
@@ -87,7 +87,7 @@ func Build(envPath, configPath string, cfg *config.Config, loadErr error) Report
 			Status:  StatusPass,
 			Message: fmt.Sprintf("resolved auth for provider %q", auth.Provider),
 		})
-		report.Checks = append(report.Checks, baseURLCheck("model base URL", auth.BaseURL))
+		report.Checks = append(report.Checks, buildBaseURLCheck("model base URL", auth.BaseURL))
 
 		summaryAuth, sumErr := resolveSummaryModelAuth(cfg)
 		if sumErr != nil {
@@ -102,7 +102,7 @@ func Build(envPath, configPath string, cfg *config.Config, loadErr error) Report
 				Status:  StatusPass,
 				Message: fmt.Sprintf("resolved summary auth for provider %q", summaryAuth.Provider),
 			})
-			report.Checks = append(report.Checks, baseURLCheck("summary model base URL", summaryAuth.BaseURL))
+			report.Checks = append(report.Checks, buildBaseURLCheck("summary model base URL", summaryAuth.BaseURL))
 		}
 	}
 
@@ -142,7 +142,7 @@ func (r Report) FirstFailure() string {
 	return ""
 }
 
-func fileCheck(name, path string, optional bool) Check {
+func buildFileCheck(name, path string, optional bool) Check {
 	trimmed := strings.TrimSpace(path)
 	if trimmed == "" {
 		return Check{
@@ -192,7 +192,7 @@ func fileCheck(name, path string, optional bool) Check {
 	}
 }
 
-func baseURLCheck(name, raw string) Check {
+func buildBaseURLCheck(name, raw string) Check {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return Check{

@@ -19,12 +19,12 @@ var (
 )
 
 func Generate(prefix string, length ...int) (string, error) {
-	resolvedLength, err := resolveLength(length)
+	resolvedLength, err := getLength(length)
 	if err != nil {
 		return "", err
 	}
 
-	if err := validatePrefix(prefix); err != nil {
+	if err := checkPrefix(prefix); err != nil {
 		return "", err
 	}
 
@@ -46,13 +46,13 @@ func MustGenerate(prefix string, length ...int) string {
 }
 
 func FromSeed(prefix string, seed string, fallback string) (string, error) {
-	if err := validatePrefix(prefix); err != nil {
+	if err := checkPrefix(prefix); err != nil {
 		return "", err
 	}
 
-	normalized := normalizeAlphaNum(seed)
+	normalized := normalizeAlphanumeric(seed)
 	if normalized == "" {
-		normalized = normalizeAlphaNum(fallback)
+		normalized = normalizeAlphanumeric(fallback)
 	}
 	if normalized == "" {
 		return "", fmt.Errorf("nanoid seed fallback must contain alphanumeric characters")
@@ -98,7 +98,7 @@ func ValidateID(id string) error {
 	}
 
 	prefix := id[:underscore+1]
-	if err := validatePrefix(prefix); err != nil {
+	if err := checkPrefix(prefix); err != nil {
 		return err
 	}
 
@@ -116,7 +116,7 @@ func ValidateID(id string) error {
 	return nil
 }
 
-func normalizeAlphaNum(value string) string {
+func normalizeAlphanumeric(value string) string {
 	return strings.Map(func(r rune) rune {
 		switch {
 		case r >= '0' && r <= '9':
@@ -131,7 +131,7 @@ func normalizeAlphaNum(value string) string {
 	}, value)
 }
 
-func resolveLength(length []int) (int, error) {
+func getLength(length []int) (int, error) {
 	if len(length) == 0 {
 		return DefaultLength, nil
 	}
@@ -147,7 +147,7 @@ func resolveLength(length []int) (int, error) {
 	return length[0], nil
 }
 
-func validatePrefix(prefix string) error {
+func checkPrefix(prefix string) error {
 	if prefix == "" {
 		return nil
 	}

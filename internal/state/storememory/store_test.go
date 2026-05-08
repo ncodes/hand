@@ -698,13 +698,13 @@ func TestMemoryStore_VectorSearchUsesConfiguredReranker(t *testing.T) {
 }
 
 func TestMatchedMessageHit_EdgeCases(t *testing.T) {
-	_, ok := matchedMessageHit(testSessionOne, handmsg.Message{
+	_, ok := getMatchedMessageHit(testSessionOne, handmsg.Message{
 		Role:    handmsg.RoleAssistant,
 		Content: "",
 	}, "needle", base.SearchMessageOptions{})
 	require.False(t, ok)
 
-	_, ok = matchedMessageHit(testSessionOne, handmsg.Message{
+	_, ok = getMatchedMessageHit(testSessionOne, handmsg.Message{
 		Role: handmsg.RoleAssistant,
 		ToolCalls: []handmsg.ToolCall{
 			{ID: "call-1", Name: "search_files", Input: `{"pattern":"needle"}`},
@@ -712,7 +712,7 @@ func TestMatchedMessageHit_EdgeCases(t *testing.T) {
 	}, "needle", base.SearchMessageOptions{ToolName: "process"})
 	require.False(t, ok)
 
-	_, ok = matchedMessageHit(testSessionOne, handmsg.Message{
+	_, ok = getMatchedMessageHit(testSessionOne, handmsg.Message{
 		Role:    handmsg.RoleTool,
 		Name:    "process",
 		Content: `{"status":"running"}`,
@@ -1179,8 +1179,8 @@ func TestMemoryStore_SetCurrentAndCloneMessages(t *testing.T) {
 
 func TestMemoryStore_HelperFunctions(t *testing.T) {
 	require.Nil(t, reverseMessages(nil))
-	require.Equal(t, base.MessageOrderAsc, messageQueryOrder(MessageQueryOptions{}))
-	require.Equal(t, base.MessageOrderAsc, messageQueryOrder(MessageQueryOptions{Order: "bogus"}))
+	require.Equal(t, base.MessageOrderAsc, getMessageQueryOrder(MessageQueryOptions{}))
+	require.Equal(t, base.MessageOrderAsc, getMessageQueryOrder(MessageQueryOptions{Order: "bogus"}))
 
 	searchText, toolName := handmsg.SearchableMessageText(handmsg.Message{
 		Role:    handmsg.RoleAssistant,

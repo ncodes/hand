@@ -525,36 +525,36 @@ func TestSearch_LimitsAndSortsGroupedResultsDeterministically(t *testing.T) {
 }
 
 func TestCaseInsensitiveMatchIndex_AndSnippetAround_EdgeCases(t *testing.T) {
-	index, length := caseInsensitiveMatchIndex("hello", "")
+	index, length := getCaseInsensitiveMatchIndex("hello", "")
 	require.Equal(t, -1, index)
 	require.Zero(t, length)
 
-	index, length = caseInsensitiveMatchIndex("hello", "zzz")
+	index, length = getCaseInsensitiveMatchIndex("hello", "zzz")
 	require.Equal(t, -1, index)
 	require.Zero(t, length)
 
-	index, length = caseInsensitiveMatchIndex("Hello World", "world")
+	index, length = getCaseInsensitiveMatchIndex("Hello World", "world")
 	require.Equal(t, strings.Index("Hello World", "World"), index)
 	require.Equal(t, len("World"), length)
 
-	require.Empty(t, snippetAround("", 0, 0, 10))
-	require.Empty(t, snippetAround("hello", 0, 0, 0))
+	require.Empty(t, getSnippetAround("", 0, 0, 10))
+	require.Empty(t, getSnippetAround("hello", 0, 0, 0))
 
 	zeroLenText := strings.Repeat("a", 30)
-	zeroLenSnippet := snippetAround(zeroLenText, 10, 0, 10)
+	zeroLenSnippet := getSnippetAround(zeroLenText, 10, 0, 10)
 	require.NotEmpty(t, zeroLenSnippet)
 
 	invalid := string([]byte{'a', 0xff, 'b'})
-	require.Equal(t, "ab", snippetAround(invalid, 0, 1, 10))
+	require.Equal(t, "ab", getSnippetAround(invalid, 0, 1, 10))
 
 	longText := strings.Repeat("a", 120) + "needle" + strings.Repeat("b", 120)
-	snippet := snippetAround(longText, 120, len("needle"), 20)
+	snippet := getSnippetAround(longText, 120, len("needle"), 20)
 	require.Contains(t, snippet, "needle")
 	require.True(t, strings.HasPrefix(snippet, "..."))
 	require.True(t, strings.HasSuffix(snippet, "..."))
 
 	endText := strings.Repeat("a", 40) + "needle"
-	endSnippet := snippetAround(endText, strings.Index(endText, "needle"), len("needle"), 20)
+	endSnippet := getSnippetAround(endText, strings.Index(endText, "needle"), len("needle"), 20)
 	require.Contains(t, endSnippet, "needle")
 	require.True(t, strings.HasPrefix(endSnippet, "..."))
 	require.False(t, strings.HasSuffix(endSnippet, "..."))

@@ -39,10 +39,10 @@ var episodeMetadataFields = []episodeMetadataField{
 	{key: "uncertainty"},
 }
 
-// episodeMetadataFieldKeys feeds the structured-output schema. Keeping the list
+// getEpisodeMetadataFieldKeys feeds the structured-output schema. Keeping the list
 // centralized avoids the prompt schema, parser, and identity hashing drifting
 // apart.
-func episodeMetadataFieldKeys() []string {
+func getEpisodeMetadataFieldKeys() []string {
 	keys := make([]string, 0, len(episodeMetadataFields))
 	for _, field := range episodeMetadataFields {
 		keys = append(keys, field.key)
@@ -51,9 +51,9 @@ func episodeMetadataFieldKeys() []string {
 	return keys
 }
 
-// episodeIdentityMetadataKeys identifies metadata that helps define whether two
+// getEpisodeIdentityMetadataKeys identifies metadata that helps define whether two
 // extracted candidates are meaningfully the same memory.
-func episodeIdentityMetadataKeys() []string {
+func getEpisodeIdentityMetadataKeys() []string {
 	keys := make([]string, 0, len(episodeMetadataFields))
 	for _, field := range episodeMetadataFields {
 		if field.identity {

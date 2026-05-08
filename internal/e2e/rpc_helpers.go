@@ -173,7 +173,7 @@ func ToolMessagePresent(expectedID, expectedName string) RequestAssert {
 
 func ToolOutputString(expectedID, expectedName string, check func(string) error) RequestAssert {
 	return func(req models.Request) error {
-		output, err := findToolEnvelopeOutput(req, expectedID, expectedName)
+		output, err := getToolEnvelopeOutput(req, expectedID, expectedName)
 		if err != nil {
 			return err
 		}
@@ -183,7 +183,7 @@ func ToolOutputString(expectedID, expectedName string, check func(string) error)
 
 func ToolOutputJSON(expectedID, expectedName string, check func(map[string]any) error) RequestAssert {
 	return func(req models.Request) error {
-		output, err := findToolEnvelopeOutput(req, expectedID, expectedName)
+		output, err := getToolEnvelopeOutput(req, expectedID, expectedName)
 		if err != nil {
 			return err
 		}
@@ -234,7 +234,7 @@ func ToolError(expectedID, expectedName, expectedCode, expectedMessage string) R
 	}
 }
 
-func findToolEnvelopeOutput(req models.Request, expectedID, expectedName string) (string, error) {
+func getToolEnvelopeOutput(req models.Request, expectedID, expectedName string) (string, error) {
 	for _, message := range req.Messages {
 		if message.Role != handmsg.RoleTool || strings.TrimSpace(message.ToolCallID) != expectedID {
 			continue

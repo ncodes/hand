@@ -99,7 +99,7 @@ func TestAutoFileFromRoot(t *testing.T) {
 			return nil, statErr
 		}
 
-		got, ok, err := autoFileFromRoot(t.TempDir())
+		got, ok, err := getAutoFileFromRoot(t.TempDir())
 		require.ErrorIs(t, err, statErr)
 		require.Contains(t, err.Error(), "stat workspace root")
 		require.False(t, ok)
@@ -116,7 +116,7 @@ func TestAutoFileFromRoot(t *testing.T) {
 			return nil, readErr
 		}
 
-		got, ok, err := autoFileFromRoot(t.TempDir())
+		got, ok, err := getAutoFileFromRoot(t.TempDir())
 		require.ErrorIs(t, err, readErr)
 		require.Contains(t, err.Error(), "read workspace root")
 		require.False(t, ok)
@@ -331,11 +331,11 @@ func TestPrepareItemsReturnsErrors(t *testing.T) {
 }
 
 func TestFileMemoryID(t *testing.T) {
-	require.Equal(t, "pinned_file:/tmp/memory.md", fileMemoryID(" /tmp/memory.md "))
+	require.Equal(t, "pinned_file:/tmp/memory.md", getFileMemoryID(" /tmp/memory.md "))
 }
 
 func TestCountItemChars(t *testing.T) {
-	require.Equal(t, 4, countItemChars(state.MemoryItem{Title: "go", Text: "✓x"}))
+	require.Equal(t, 4, getItemCharCount(state.MemoryItem{Title: "go", Text: "✓x"}))
 }
 
 func TestTruncateItem(t *testing.T) {
@@ -361,7 +361,7 @@ func TestTruncateRunes(t *testing.T) {
 func mustAutoFileFromRoot(t *testing.T, root string) (string, bool) {
 	t.Helper()
 
-	file, ok, err := autoFileFromRoot(root)
+	file, ok, err := getAutoFileFromRoot(root)
 	require.NoError(t, err)
 	return file, ok
 }

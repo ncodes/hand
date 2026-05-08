@@ -1496,7 +1496,7 @@ func TestService_synthesizeSummaryStates_ErrorsWhenSummariesAreEmpty(t *testing.
 	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, summaryTestStore(nil))
 
 	_, err := svc.synthesizeSummaryStates(context.Background(), nil, storage.DefaultSessionID, 1, 1, time.Now().UTC(), nil, func(int, int) instruct.Instructions {
-		return recallSynthesisInstructions(nil, 1, 1)
+		return buildRecallSynthesisInstructions(nil, 1, 1)
 	})
 	require.EqualError(t, err, "recall chunk summaries are required")
 }
@@ -1510,7 +1510,7 @@ func TestService_synthesizeSummaryStates_PropagatesErrors(t *testing.T) {
 	t.Run("generate_summary_response", func(t *testing.T) {
 		svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{Err: errors.New("merge failed")}, summaryTestStore(nil))
 		_, err := svc.synthesizeSummaryStates(context.Background(), nil, storage.DefaultSessionID, 2, 2, time.Now().UTC(), summaries, func(int, int) instruct.Instructions {
-			return recallSynthesisInstructions(nil, 1, 1)
+			return buildRecallSynthesisInstructions(nil, 1, 1)
 		})
 		require.EqualError(t, err, "merge failed")
 	})
@@ -1520,7 +1520,7 @@ func TestService_synthesizeSummaryStates_PropagatesErrors(t *testing.T) {
 			{OutputText: "```"},
 		}}, summaryTestStore(nil))
 		_, err := svc.synthesizeSummaryStates(context.Background(), nil, storage.DefaultSessionID, 2, 2, time.Now().UTC(), summaries, func(int, int) instruct.Instructions {
-			return recallSynthesisInstructions(nil, 1, 1)
+			return buildRecallSynthesisInstructions(nil, 1, 1)
 		})
 		require.EqualError(t, err, "summary response is empty")
 	})
@@ -1534,7 +1534,7 @@ func TestPlanRecallSummaryBatches_RespectsMergeTokenBudget(t *testing.T) {
 		{SessionID: storage.DefaultSessionID, SessionSummary: strings.Repeat("b", 200)},
 	}
 
-	batches := planRecallSummaryBatches(nil, summaries)
+	batches := getPlannedRecallSummaryBatches(nil, summaries)
 	require.Len(t, batches, 2)
 	require.Len(t, batches[0], 1)
 	require.Len(t, batches[1], 1)
@@ -1547,15 +1547,15 @@ func TestRecallInstructionBuilders_IncludeExistingSummaryWhenPresent(t *testing.
 		CurrentTask:    "Current task",
 	}}
 
-	require.Contains(t, recallChunkInstructions(mem, 1, 2).String(), "Existing summary")
-	require.Contains(t, recallSynthesisInstructions(mem, 1, 2).String(), "Existing summary")
-	require.Contains(t, recallChunkTextInstructions(mem, 1, 2, 1, 3).String(), "Existing summary")
+	require.Contains(t, buildRecallChunkInstructions(mem, 1, 2).String(), "Existing summary")
+	require.Contains(t, buildRecallSynthesisInstructions(mem, 1, 2).String(), "Existing summary")
+	require.Contains(t, buildRecallChunkTextInstructions(mem, 1, 2, 1, 3).String(), "Existing summary")
 }
 
 func TestRecallInstructionBuilders_WorkWithoutExistingSummary(t *testing.T) {
-	require.Equal(t, instruct.BuildRecallSessionSummaryWindow(1, 2).String(), recallChunkInstructions(nil, 1, 2).String())
-	require.Equal(t, instruct.BuildRecallSessionSummarySynthesis(1, 2).String(), recallSynthesisInstructions(nil, 1, 2).String())
-	require.Equal(t, instruct.BuildRecallSessionSummaryChunk(1, 2, 1, 3).String(), recallChunkTextInstructions(nil, 1, 2, 1, 3).String())
+	require.Equal(t, instruct.BuildRecallSessionSummaryWindow(1, 2).String(), buildRecallChunkInstructions(nil, 1, 2).String())
+	require.Equal(t, instruct.BuildRecallSessionSummarySynthesis(1, 2).String(), buildRecallSynthesisInstructions(nil, 1, 2).String())
+	require.Equal(t, instruct.BuildRecallSessionSummaryChunk(1, 2, 1, 3).String(), buildRecallChunkTextInstructions(nil, 1, 2, 1, 3).String())
 }
 
 func TestRenderRecallWindowPrompt(t *testing.T) {
@@ -1875,7 +1875,7 @@ func TestParseSummary_RejectsInvalidJSON(t *testing.T) {
 }
 
 func TestFallbackSummary_UsesRawTextAsSessionSummary(t *testing.T) {
-	summary, err := fallbackSummary(storage.DefaultSessionID, 1, 2, "## Summary\nKeep moving", time.Now().UTC())
+	summary, err := buildFallbackSummary(storage.DefaultSessionID, 1, 2, "## Summary\nKeep moving", time.Now().UTC())
 	require.NoError(t, err)
 	require.NotNil(t, summary)
 	require.Equal(t, "## Summary\nKeep moving", summary.SessionSummary)
@@ -1886,20 +1886,20 @@ func TestFallbackSummary_UsesRawTextAsSessionSummary(t *testing.T) {
 }
 
 func TestFallbackSummary_StripsMarkdownFenceBeforeUsingRawText(t *testing.T) {
-	summary, err := fallbackSummary(storage.DefaultSessionID, 1, 2, "```json\n## Summary\nKeep moving\n```", time.Now().UTC())
+	summary, err := buildFallbackSummary(storage.DefaultSessionID, 1, 2, "```json\n## Summary\nKeep moving\n```", time.Now().UTC())
 	require.NoError(t, err)
 	require.NotNil(t, summary)
 	require.Equal(t, "## Summary\nKeep moving", summary.SessionSummary)
 }
 
 func TestFallbackSummary_RejectsEmptyRaw(t *testing.T) {
-	summary, err := fallbackSummary(storage.DefaultSessionID, 1, 2, "```json\n \n```", time.Now().UTC())
+	summary, err := buildFallbackSummary(storage.DefaultSessionID, 1, 2, "```json\n \n```", time.Now().UTC())
 	require.Nil(t, summary)
 	require.EqualError(t, err, "summary response is empty")
 }
 
 func TestFallbackSummary_RejectsMissingSessionID(t *testing.T) {
-	summary, err := fallbackSummary("", 1, 2, "plain text", time.Now().UTC())
+	summary, err := buildFallbackSummary("", 1, 2, "plain text", time.Now().UTC())
 	require.Nil(t, summary)
 	require.EqualError(t, err, "session summary is required")
 }
@@ -1944,15 +1944,15 @@ func TestRenderSummaryList_TrimsEmptyValues(t *testing.T) {
 }
 
 func TestSummaryCompactionEnabled_DefaultsAndUsesConfiguredValue(t *testing.T) {
-	require.True(t, summaryCompactionEnabled(nil))
-	require.True(t, summaryCompactionEnabled(&config.Config{}))
+	require.True(t, isSummaryCompactionEnabled(nil))
+	require.True(t, isSummaryCompactionEnabled(&config.Config{}))
 
-	require.False(t, summaryCompactionEnabled(&config.Config{Compaction: config.CompactionConfig{Enabled: new(false)}}))
+	require.False(t, isSummaryCompactionEnabled(&config.Config{Compaction: config.CompactionConfig{Enabled: new(false)}}))
 }
 
 func TestSummaryCompactionEvaluator_UsesConfigValues(t *testing.T) {
-	require.NotNil(t, summaryCompactionEvaluator(nil))
-	require.NotNil(t, summaryCompactionEvaluator(&config.Config{
+	require.NotNil(t, getSummaryCompactionEvaluator(nil))
+	require.NotNil(t, getSummaryCompactionEvaluator(&config.Config{
 		Models:     config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 100}},
 		Compaction: config.CompactionConfig{TriggerPercent: 0.5, WarnPercent: 0.8},
 	}))

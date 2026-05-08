@@ -186,7 +186,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			"session_id":     t.sessionID,
 			"steps":          plan.Steps,
 			"summary":        summarizeHydratedPlan(plan),
-			"active_step_id": activeHydratedPlanStepID(plan),
+			"active_step_id": getActiveHydratedPlanStepID(plan),
 			"explanation":    strings.TrimSpace(plan.Explanation),
 			"source":         "history",
 		})
@@ -294,7 +294,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				Str("mode", t.cfg.Models.Main.APIMode).
 				Str("model", t.cfg.Models.Main.Name).
 				Bool("stream", streamingEnabled).
-				Str("error_kind", agentModelErrorKind(err)).
+				Str("error_kind", getAgentModelErrorKind(err)).
 				Msg("model request dispatch failed")
 			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 			return "", err
@@ -366,7 +366,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		assistantMessage := handmsg.Message{
 			Role:      handmsg.RoleAssistant,
 			Content:   strings.TrimSpace(resp.OutputText),
-			ToolCalls: toContextToolCalls(resp.ToolCalls),
+			ToolCalls: modelToolCallsToContextToolCalls(resp.ToolCalls),
 		}
 
 		assistantMessage, err = normalizeTurnMessage(assistantMessage)
@@ -536,7 +536,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 			Str("provider", t.cfg.Models.Main.Provider).
 			Str("mode", t.cfg.Models.Main.APIMode).
 			Str("model", t.cfg.Models.Main.Name).
-			Str("error_kind", agentModelErrorKind(err)).
+			Str("error_kind", getAgentModelErrorKind(err)).
 			Msg("summary fallback model request failed")
 		wrapped := fmt.Errorf("iteration limit reached and summary failed: %w", err)
 		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": wrapped.Error()})
@@ -595,7 +595,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 	return resp.OutputText, nil
 }
 
-func agentModelErrorKind(err error) string {
+func getAgentModelErrorKind(err error) string {
 	if err == nil {
 		return ""
 	}
@@ -813,7 +813,7 @@ func summarizeHydratedPlan(plan envtypes.Plan) envtypes.PlanSummary {
 	return summary
 }
 
-func activeHydratedPlanStepID(plan envtypes.Plan) string {
+func getActiveHydratedPlanStepID(plan envtypes.Plan) string {
 	for _, step := range plan.Steps {
 		if step.Status == envtypes.PlanStatusInProgress {
 			return step.ID

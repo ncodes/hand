@@ -95,21 +95,21 @@ func TestWebsitePolicy_IgnoresEmptyFilesAndInvalidRules(t *testing.T) {
 }
 
 func TestWebsitePolicy_MatchesNormalizedRules(t *testing.T) {
-	require.True(t, websiteRuleMatches("HTTPS://WWW.Example.COM/path", "docs.www.example.com"))
-	require.False(t, websiteRuleMatches("HTTPS://WWW.Example.COM/path", "docs.example.com"))
-	require.False(t, websiteRuleMatches("*.example.com", "example.com"))
-	require.False(t, websiteRuleMatches("*.example.com", "not-example.com"))
-	require.False(t, websiteRuleMatches(" ", "example.com"))
-	require.False(t, websiteRuleMatches("example.com", " "))
+	require.True(t, checkWebsiteRuleMatches("HTTPS://WWW.Example.COM/path", "docs.www.example.com"))
+	require.False(t, checkWebsiteRuleMatches("HTTPS://WWW.Example.COM/path", "docs.example.com"))
+	require.False(t, checkWebsiteRuleMatches("*.example.com", "example.com"))
+	require.False(t, checkWebsiteRuleMatches("*.example.com", "not-example.com"))
+	require.False(t, checkWebsiteRuleMatches(" ", "example.com"))
+	require.False(t, checkWebsiteRuleMatches("example.com", " "))
 }
 
 func TestWebsitePolicy_HostFromURLHandlesEmptyAndMalformedValues(t *testing.T) {
-	require.Empty(t, hostFromWebsiteURL(" "))
-	require.Empty(t, hostFromWebsiteURL("%"))
+	require.Empty(t, getHostFromWebsiteURL(" "))
+	require.Empty(t, getHostFromWebsiteURL("%"))
 }
 
 func TestWebsiteBlockMessage_OmitsSourceWhenRuleSourceIsEmpty(t *testing.T) {
-	message := websiteBlockMessage("example.com", WebsiteRule{
+	message := getWebsiteBlockMessage("example.com", WebsiteRule{
 		Pattern: "example.com",
 	})
 
@@ -119,15 +119,15 @@ func TestWebsiteBlockMessage_OmitsSourceWhenRuleSourceIsEmpty(t *testing.T) {
 func TestFirstMatchingDomainRule_HandlesEmptyAndUnmatchedHosts(t *testing.T) {
 	rules := []domainRule{{Pattern: "example.com", Source: "config"}}
 
-	rule, matched := firstMatchingDomainRule(rules, " ")
+	rule, matched := getFirstMatchingDomainRule(rules, " ")
 	require.False(t, matched)
 	require.Equal(t, domainRule{}, rule)
 
-	rule, matched = firstMatchingDomainRule(rules, "other.example")
+	rule, matched = getFirstMatchingDomainRule(rules, "other.example")
 	require.False(t, matched)
 	require.Equal(t, domainRule{}, rule)
 
-	rule, matched = firstMatchingDomainRule(rules, "docs.example.com")
+	rule, matched = getFirstMatchingDomainRule(rules, "docs.example.com")
 	require.True(t, matched)
 	require.Equal(t, rules[0], rule)
 }

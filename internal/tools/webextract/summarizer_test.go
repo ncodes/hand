@@ -75,9 +75,9 @@ func TestWithSummarizer_ReturnsOriginalContextWhenSummarizerIsNil(t *testing.T) 
 }
 
 func TestSummarizerFromContext_ReturnsNilWithoutSummarizer(t *testing.T) {
-	require.Nil(t, summarizerFromContext(nil))
-	require.Nil(t, summarizerFromContext(context.Background()))
-	require.Nil(t, summarizerFromContext(context.WithValue(context.Background(), summarizerContextKey{}, "not a summarizer")))
+	require.Nil(t, getSummarizerFromContext(nil))
+	require.Nil(t, getSummarizerFromContext(context.Background()))
+	require.Nil(t, getSummarizerFromContext(context.WithValue(context.Background(), summarizerContextKey{}, "not a summarizer")))
 }
 
 func TestExtractSummarizer_SummarizeExtractBuildsModelRequest(t *testing.T) {
@@ -190,7 +190,7 @@ func TestExtractSummarizer_RejectsInvalidResponses(t *testing.T) {
 }
 
 func TestSummarizeResults_ReturnsEmptyResults(t *testing.T) {
-	results, err := summarizeResults(context.Background(), nil, summarizeOptions{})
+	results, err := summarizeExtractResults(context.Background(), nil, summarizeOptions{})
 
 	require.NoError(t, err)
 	require.Nil(t, results)
@@ -198,7 +198,7 @@ func TestSummarizeResults_ReturnsEmptyResults(t *testing.T) {
 
 func TestSummarizeResults_SkipsErroredAndBlankResults(t *testing.T) {
 	summarizer := &stubSummarizer{output: "summary"}
-	results, err := summarizeResults(
+	results, err := summarizeExtractResults(
 		WithSummarizer(context.Background(), summarizer),
 		[]webprovider.ExtractResult{
 			{URL: "https://bad.example", Content: "long enough", Error: "failed"},
@@ -217,7 +217,7 @@ func TestSummarizeResults_SkipsErroredAndBlankResults(t *testing.T) {
 
 func TestSummarizeResults_ReturnsSummarizerError(t *testing.T) {
 	summarizer := &stubSummarizer{err: errors.New("summary failed")}
-	_, err := summarizeResults(
+	_, err := summarizeExtractResults(
 		WithSummarizer(context.Background(), summarizer),
 		[]webprovider.ExtractResult{{URL: "https://example.com", Content: "long enough"}},
 		summarizeOptions{MinSummarizeChars: 3, MaxSummaryChars: 20},

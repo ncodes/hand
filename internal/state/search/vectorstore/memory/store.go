@@ -90,7 +90,7 @@ func (s *Store) Delete(_ context.Context, req DeleteRequest) error {
 		return err
 	}
 
-	sourceIDs := sourceIDSet(req.SourceIDs)
+	sourceIDs := sourceIDsToSet(req.SourceIDs)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -131,12 +131,12 @@ func (s *Store) Search(_ context.Context, req SearchRequest) (SearchResult, erro
 		embeddingModel:  strings.TrimSpace(req.EmbeddingModel),
 		dimensions:      req.Dimensions,
 		sourceKind:      req.Filter.SourceKind,
-		sourceIDs:       sourceIDSet(req.Filter.SourceIDs),
+		sourceIDs:       sourceIDsToSet(req.Filter.SourceIDs),
 		sessionID:       strings.TrimSpace(req.Filter.SessionID),
 		ignoreSessionID: strings.TrimSpace(req.Filter.IgnoreSessionID),
 		role:            strings.TrimSpace(req.Filter.Role),
 		toolName:        strings.TrimSpace(req.Filter.ToolName),
-		tags:            tagSet(req.Filter.Tags),
+		tags:            tagsToSet(req.Filter.Tags),
 		tagGroups:       tagGroups(req.Filter.TagGroups),
 	}
 
@@ -168,7 +168,7 @@ func (s *Store) Metadata(context.Context) (StoreMetadata, error) {
 
 	counts := make(map[string]ModelMetadata)
 	for _, record := range s.records {
-		key := modelMetadataKey(record.EmbeddingModel, record.Dimensions)
+		key := getModelMetadataKey(record.EmbeddingModel, record.Dimensions)
 		metadata := counts[key]
 		metadata.Model = record.EmbeddingModel
 		metadata.Dimensions = record.Dimensions
@@ -196,12 +196,12 @@ func (s *Store) List(_ context.Context, req ListRequest) (ListResult, error) {
 	filter := searchFilter{
 		embeddingModel:  strings.TrimSpace(req.EmbeddingModel),
 		sourceKind:      req.Filter.SourceKind,
-		sourceIDs:       sourceIDSet(req.Filter.SourceIDs),
+		sourceIDs:       sourceIDsToSet(req.Filter.SourceIDs),
 		sessionID:       strings.TrimSpace(req.Filter.SessionID),
 		ignoreSessionID: strings.TrimSpace(req.Filter.IgnoreSessionID),
 		role:            strings.TrimSpace(req.Filter.Role),
 		toolName:        strings.TrimSpace(req.Filter.ToolName),
-		tags:            tagSet(req.Filter.Tags),
+		tags:            tagsToSet(req.Filter.Tags),
 		tagGroups:       tagGroups(req.Filter.TagGroups),
 	}
 
@@ -210,7 +210,7 @@ func (s *Store) List(_ context.Context, req ListRequest) (ListResult, error) {
 
 	records := make([]Record, 0)
 	for _, record := range s.records {
-		if recordMatchesList(record, filter) {
+		if checkRecordMatchesList(record, filter) {
 			records = append(records, cloneRecord(record))
 		}
 	}
@@ -319,7 +319,7 @@ func recordMatchesSearch(record Record, filter searchFilter) bool {
 	return true
 }
 
-func recordMatchesList(record Record, filter searchFilter) bool {
+func checkRecordMatchesList(record Record, filter searchFilter) bool {
 	if record.EmbeddingModel != filter.embeddingModel {
 		return false
 	}
@@ -398,7 +398,7 @@ func validateSearchSourceIDs(sourceIDs []string) error {
 	return nil
 }
 
-func sourceIDSet(sourceIDs []string) map[string]struct{} {
+func sourceIDsToSet(sourceIDs []string) map[string]struct{} {
 	set := make(map[string]struct{}, len(sourceIDs))
 	for _, sourceID := range sourceIDs {
 		sourceID = strings.TrimSpace(sourceID)
@@ -409,7 +409,7 @@ func sourceIDSet(sourceIDs []string) map[string]struct{} {
 	return set
 }
 
-func tagSet(tags []string) map[string]struct{} {
+func tagsToSet(tags []string) map[string]struct{} {
 	tags = vectorstore.NormalizeTags(tags)
 	set := make(map[string]struct{}, len(tags))
 	for _, tag := range tags {
@@ -422,7 +422,7 @@ func tagGroups(groups [][]string) []map[string]struct{} {
 	groups = vectorstore.NormalizeTagGroups(groups)
 	normalized := make([]map[string]struct{}, 0, len(groups))
 	for _, group := range groups {
-		normalized = append(normalized, tagSet(group))
+		normalized = append(normalized, tagsToSet(group))
 	}
 	return normalized
 }
@@ -431,7 +431,7 @@ func recordHasTags(record Record, tags map[string]struct{}) bool {
 	if len(tags) == 0 {
 		return true
 	}
-	recordTags := tagSet(record.Tags)
+	recordTags := tagsToSet(record.Tags)
 	for tag := range tags {
 		if _, ok := recordTags[tag]; !ok {
 			return false
@@ -445,7 +445,7 @@ func recordHasTagGroups(record Record, groups []map[string]struct{}) bool {
 	if len(groups) == 0 {
 		return true
 	}
-	recordTags := tagSet(record.Tags)
+	recordTags := tagsToSet(record.Tags)
 	for _, group := range groups {
 		matched := false
 		for tag := range group {
@@ -533,7 +533,7 @@ func cloneRecord(record Record) Record {
 	return record
 }
 
-func modelMetadataKey(model string, dimensions int) string {
+func getModelMetadataKey(model string, dimensions int) string {
 	return fmt.Sprintf("%s:%d", strings.TrimSpace(model), dimensions)
 }
 

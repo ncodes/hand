@@ -139,7 +139,7 @@ func TestSearchableMessageText_CoversRoleAndFallbackBranches(t *testing.T) {
 	})
 
 	t.Run("Assistant helper combines content and tool text", func(t *testing.T) {
-		text := assistantSearchText(Message{
+		text := getAssistantSearchText(Message{
 			Role:      RoleAssistant,
 			Content:   "assistant summary",
 			ToolCalls: []ToolCall{{ID: "call-1", Name: "process", Input: `{"action":"start"}`}},
@@ -176,7 +176,7 @@ func TestSearchableMessageText_CoversRoleAndFallbackBranches(t *testing.T) {
 }
 
 func TestMatchAssistantToolName(t *testing.T) {
-	require.Empty(t, matchAssistantToolName([]ToolCall{{Name: "process"}}, ""))
-	require.Empty(t, matchAssistantToolName([]ToolCall{{Name: "process"}}, "search_files"))
-	require.Equal(t, "Process", matchAssistantToolName([]ToolCall{{Name: " Process "}}, "process"))
+	require.Empty(t, getAssistantToolNameMatch([]ToolCall{{Name: "process"}}, ""))
+	require.Empty(t, getAssistantToolNameMatch([]ToolCall{{Name: "process"}}, "search_files"))
+	require.Equal(t, "Process", getAssistantToolNameMatch([]ToolCall{{Name: " Process "}}, "process"))
 }

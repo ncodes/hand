@@ -42,10 +42,10 @@ func traceRecord(ctx context.Context, obs Observability, event string, fields ma
 	obs.Tracer().Record(ctx, event, fields)
 }
 
-// observationFields standardizes the fields present on provider events so log
+// buildObservationFields standardizes the fields present on provider events so log
 // streams remain searchable by provider and operation even as individual events
 // add their own payload.
-func observationFields(provider string, operation string, fields map[string]any) map[string]any {
+func buildObservationFields(provider string, operation string, fields map[string]any) map[string]any {
 	shared := map[string]any{
 		"provider":  provider,
 		"operation": operation,

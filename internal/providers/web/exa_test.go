@@ -410,7 +410,7 @@ func TestExaProvider_ExtractRejectsOversizedResponses(t *testing.T) {
 }
 
 func TestExaStatusError_FormatsFallbacks(t *testing.T) {
-	require.Equal(t, "extraction failed", exaStatusError("", 0))
-	require.Equal(t, "TIMEOUT", exaStatusError("TIMEOUT", 0))
-	require.Equal(t, "TIMEOUT (408)", exaStatusError("TIMEOUT", 408))
+	require.Equal(t, "extraction failed", getExaStatusError("", 0))
+	require.Equal(t, "TIMEOUT", getExaStatusError("TIMEOUT", 0))
+	require.Equal(t, "TIMEOUT (408)", getExaStatusError("TIMEOUT", 408))
 }

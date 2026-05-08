@@ -68,11 +68,11 @@ func TestSQLiteStore_RebuildVectorStoreBatchesMessages(t *testing.T) {
 	require.Len(t, vectorStore.upserts[1], 1)
 	require.Len(t, vectorStore.deletes, 2)
 	require.Equal(t, []string{
-		sourceIDForMessage(testSessionA, 1),
-		sourceIDForMessage(testSessionA, 2),
+		messageToSourceID(testSessionA, 1),
+		messageToSourceID(testSessionA, 2),
 	}, vectorStore.deletes[0].SourceIDs)
 	require.Equal(t, []string{
-		sourceIDForMessage(testSessionA, 3),
+		messageToSourceID(testSessionA, 3),
 	}, vectorStore.deletes[1].SourceIDs)
 }
 
@@ -343,11 +343,11 @@ func TestMessageModelsBySourceID(t *testing.T) {
 	}
 
 	t.Run("returns nil without source ids", func(t *testing.T) {
-		require.Nil(t, messageModelsBySourceID(records, []string{" ", ""}))
+		require.Nil(t, getMessageModelsBySourceID(records, []string{" ", ""}))
 	})
 
 	t.Run("selects matching records", func(t *testing.T) {
-		selected := messageModelsBySourceID(records, []string{sourceIDForMessage(testSessionA, 2)})
+		selected := getMessageModelsBySourceID(records, []string{messageToSourceID(testSessionA, 2)})
 
 		require.Len(t, selected, 1)
 		require.Equal(t, uint(2), selected[0].ID)

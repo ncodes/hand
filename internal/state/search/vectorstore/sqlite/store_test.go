@@ -128,7 +128,7 @@ func TestStore_UpsertSearchDeleteAndMetadata(t *testing.T) {
 	records[2].Tags = []string{"phase:two", "kind:gamma"}
 	require.NoError(t, store.Upsert(context.Background(), records))
 
-	require.True(t, sqliteTableExists(t, store.db, indexTableName(3)))
+	require.True(t, sqliteTableExists(t, store.db, getIndexTableName(3)))
 
 	result, err := store.Search(context.Background(), SearchRequest{
 		EmbeddingModel: "text-embedding-test",
@@ -357,7 +357,7 @@ func TestStore_SearchMissingDimensionDoesNotCreateIndexTable(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, result.Matches)
-	require.False(t, sqliteTableExists(t, store.db, indexTableName(3)))
+	require.False(t, sqliteTableExists(t, store.db, getIndexTableName(3)))
 }
 
 func TestStore_SearchReturnsSQLError(t *testing.T) {

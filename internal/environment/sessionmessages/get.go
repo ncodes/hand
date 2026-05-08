@@ -47,23 +47,23 @@ func Get(
 			return SessionMessagesResponse{}, err
 		}
 
-		return buildResponse(sessionID, messageRecordsFromMessages(start, messages), req.MaxChars), nil
+		return buildSessionMessagesResponse(sessionID, messagesToMessageRecords(start, messages), req.MaxChars), nil
 	case SessionMessagesSelectorAnchor:
 		records, err := manager.GetMessageWindow(ctx, sessionID, req.AnchorMessageID, req.Before, req.After)
 		if err != nil {
 			return SessionMessagesResponse{}, err
 		}
-		return buildResponse(sessionID, records, req.MaxChars), nil
+		return buildSessionMessagesResponse(sessionID, records, req.MaxChars), nil
 	default:
 		records, err := manager.GetMessagesByIDs(ctx, sessionID, req.MessageIDs)
 		if err != nil {
 			return SessionMessagesResponse{}, err
 		}
-		return buildResponse(sessionID, records, req.MaxChars), nil
+		return buildSessionMessagesResponse(sessionID, records, req.MaxChars), nil
 	}
 }
 
-func buildResponse(
+func buildSessionMessagesResponse(
 	sessionID string,
 	records []storage.MessageRecord,
 	maxChars int,
@@ -80,7 +80,7 @@ func buildResponse(
 			Offset:     messageRecord.Offset,
 			Role:       string(message.Role),
 			Name:       strings.TrimSpace(message.Name),
-			ToolName:   messageToolName(message),
+			ToolName:   getMessageToolName(message),
 			ToolCallID: strings.TrimSpace(message.ToolCallID),
 			CreatedAt:  formatMessageTime(message.CreatedAt),
 		}
@@ -105,7 +105,7 @@ func buildResponse(
 	return response
 }
 
-func messageRecordsFromMessages(start int, messages []handmsg.Message) []storage.MessageRecord {
+func messagesToMessageRecords(start int, messages []handmsg.Message) []storage.MessageRecord {
 	records := make([]storage.MessageRecord, 0, len(messages))
 	for idx, message := range messages {
 		records = append(records, storage.MessageRecord{
@@ -116,7 +116,7 @@ func messageRecordsFromMessages(start int, messages []handmsg.Message) []storage
 	return records
 }
 
-func messageToolName(message handmsg.Message) string {
+func getMessageToolName(message handmsg.Message) string {
 	if message.Role == handmsg.RoleTool {
 		return strings.TrimSpace(message.Name)
 	}

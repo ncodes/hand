@@ -47,7 +47,7 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 		return ReflectionResult{}, err
 	}
 
-	fields := observationFields(p.Name(), "reflect", map[string]any{
+	fields := buildObservationFields(p.Name(), "reflect", map[string]any{
 		"session_id":    normalized.SessionID,
 		"limit":         normalized.Limit,
 		"related_limit": normalized.RelatedLimit,
@@ -63,7 +63,7 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 	}
 	result.SourceCount = len(sources)
 
-	fields = observationFields(p.Name(), "reflect", map[string]any{
+	fields = buildObservationFields(p.Name(), "reflect", map[string]any{
 		"session_id":   normalized.SessionID,
 		"source_count": result.SourceCount,
 		"source_kind":  string(KindEpisodic),
@@ -83,7 +83,7 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 	}
 	result.RelatedCount = len(related)
 
-	fields = observationFields(p.Name(), "reflect", map[string]any{
+	fields = buildObservationFields(p.Name(), "reflect", map[string]any{
 		"session_id":    normalized.SessionID,
 		"related_count": result.RelatedCount,
 		"bounded_limit": normalized.RelatedLimit,
@@ -103,8 +103,8 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 		return ReflectionResult{}, err
 	}
 
-	sourceLinks := reflectionSourceLinks(sources)
-	sourceIDs := memoryIDs(sources)
+	sourceLinks := getSourceLinks(sources)
+	sourceIDs := getMemoryIDs(sources)
 	written := make([]MemoryItem, 0, normalized.Limit)
 	for _, candidate := range limitReflectionItems(generated.Items, normalized.Limit) {
 		// Model output is treated as a proposal. The provider overwrites IDs,
@@ -134,7 +134,7 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 			continue
 		}
 
-		fields = observationFields(p.Name(), "reflect", map[string]any{
+		fields = buildObservationFields(p.Name(), "reflect", map[string]any{
 			"session_id":  normalized.SessionID,
 			"memory_id":   item.ID,
 			"memory_kind": string(item.Kind),
@@ -152,7 +152,7 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 		result.Items = append(result.Items, item.Clone())
 		written = append(written, item.Clone())
 
-		fields = observationFields(p.Name(), "reflect", map[string]any{
+		fields = buildObservationFields(p.Name(), "reflect", map[string]any{
 			"session_id":   normalized.SessionID,
 			"memory_id":    item.ID,
 			"memory_kind":  string(item.Kind),
@@ -308,7 +308,7 @@ func (p *MemoryProvider) loadReflectionRelated(
 	seen := make(map[string]struct{})
 	items := make([]MemoryItem, 0, len(sources)*req.RelatedLimit)
 	for _, source := range sources {
-		text := reflectionSearchText(source)
+		text := getReflectionSearchText(source)
 		if text == "" {
 			continue
 		}
@@ -346,11 +346,11 @@ func (p *MemoryProvider) reflectionCandidateRejection(
 	item MemoryItem,
 	written []MemoryItem,
 ) (string, error) {
-	if reflectionMatchesExistingCandidate(item, written) {
+	if hasMatchingReflectionCandidate(item, written) {
 		return "duplicate_reflection_candidate", nil
 	}
 
-	text := reflectionSearchText(item)
+	text := getReflectionSearchText(item)
 	if text == "" {
 		return "", nil
 	}
@@ -374,7 +374,7 @@ func (p *MemoryProvider) reflectionCandidateRejection(
 			continue
 		}
 		switch {
-		case normalizedLifecycleText(related) == normalizedLifecycleText(item):
+		case normalizeLifecycleText(related) == normalizeLifecycleText(item):
 			return "duplicate_reflection_memory", nil
 		case hit.Score >= reflectionSimilarScoreThreshold:
 			return "similar_reflection_memory", nil
@@ -384,14 +384,14 @@ func (p *MemoryProvider) reflectionCandidateRejection(
 	return "", nil
 }
 
-func reflectionMatchesExistingCandidate(item MemoryItem, existing []MemoryItem) bool {
-	normalized := normalizedLifecycleText(item)
+func hasMatchingReflectionCandidate(item MemoryItem, existing []MemoryItem) bool {
+	normalized := normalizeLifecycleText(item)
 	if normalized == "" {
 		return false
 	}
 
 	for _, candidate := range existing {
-		if normalizedLifecycleText(candidate) == normalized {
+		if normalizeLifecycleText(candidate) == normalized {
 			return true
 		}
 	}
@@ -399,7 +399,7 @@ func reflectionMatchesExistingCandidate(item MemoryItem, existing []MemoryItem) 
 	return false
 }
 
-func reflectionSearchText(item MemoryItem) string {
+func getReflectionSearchText(item MemoryItem) string {
 	text := strings.TrimSpace(item.Title)
 	if text == "" {
 		text = strings.TrimSpace(item.Text)
@@ -437,13 +437,13 @@ func prepareReflectionCandidate(
 	item.SourceLinks = cloneSourceLinks(sourceLinks)
 	item.Tags = append(item.Tags, "reflection")
 	for _, id := range sourceIDs {
-		if tag := reflectionSourceTag(id); tag != "" {
+		if tag := getReflectionSourceTag(id); tag != "" {
 			item.Tags = append(item.Tags, tag)
 		}
 	}
 	item.Tags = normalizeMemoryTags(item.Tags)
 
-	item.ID = generateKindAwareMemoryID(item.Kind)
+	item.ID = getKindAwareMemoryID(item.Kind)
 	if err := validateReflectionCandidate(item); err != nil {
 		return MemoryItem{}, false, err.Error()
 	}
@@ -495,14 +495,14 @@ func validateReflectionCandidate(item MemoryItem) error {
 	if !hasCandidateProvenance(item) {
 		return errors.New("reflection candidate source provenance is required")
 	}
-	if reason := candidateAdmissionRejectionReason(item); reason != "" {
+	if reason := getCandidateAdmissionRejectionReason(item); reason != "" {
 		return errors.New(reason)
 	}
 
 	return nil
 }
 
-func reflectionSourceLinks(sources []MemoryItem) []SourceLink {
+func getSourceLinks(sources []MemoryItem) []SourceLink {
 	links := make([]SourceLink, 0, len(sources))
 	for _, source := range sources {
 		for _, link := range source.SourceLinks {
@@ -547,7 +547,7 @@ func cloneMemoryItems(items []MemoryItem) []MemoryItem {
 	return cloned
 }
 
-func memoryIDs(items []MemoryItem) []string {
+func getMemoryIDs(items []MemoryItem) []string {
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
 		if id := strings.TrimSpace(item.ID); id != "" {
@@ -558,7 +558,7 @@ func memoryIDs(items []MemoryItem) []string {
 	return ids
 }
 
-func reflectionSourceTag(id string) string {
+func getReflectionSourceTag(id string) string {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return ""
@@ -567,7 +567,7 @@ func reflectionSourceTag(id string) string {
 }
 
 func (p *MemoryProvider) recordReflectionRejection(ctx context.Context, sessionID string, reason string) {
-	fields := observationFields(p.Name(), "reflect", map[string]any{
+	fields := buildObservationFields(p.Name(), "reflect", map[string]any{
 		"session_id":        sessionID,
 		"rejection_reason":  reason,
 		"admission_outcome": "rejected",
@@ -576,7 +576,7 @@ func (p *MemoryProvider) recordReflectionRejection(ctx context.Context, sessionI
 }
 
 func (p *MemoryProvider) recordReflectionFailure(ctx context.Context, result ReflectionResult, err error) {
-	fields := observationFields(p.Name(), "reflect", map[string]any{
+	fields := buildObservationFields(p.Name(), "reflect", map[string]any{
 		"session_id":    result.SessionID,
 		"source_count":  result.SourceCount,
 		"related_count": result.RelatedCount,
@@ -587,7 +587,7 @@ func (p *MemoryProvider) recordReflectionFailure(ctx context.Context, result Ref
 }
 
 func (p *MemoryProvider) recordReflectionCompleted(ctx context.Context, result ReflectionResult, started time.Time) {
-	fields := observationFields(p.Name(), "reflect", map[string]any{
+	fields := buildObservationFields(p.Name(), "reflect", map[string]any{
 		"session_id":    result.SessionID,
 		"source_count":  result.SourceCount,
 		"related_count": result.RelatedCount,

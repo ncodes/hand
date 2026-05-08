@@ -695,10 +695,10 @@ func TestNativeMarkdownHelpers_RenderFormattingBoundaries(t *testing.T) {
 	require.Empty(t, renderNativeMarkdown(nil))
 	require.Empty(t, collectNativeText(nil))
 	require.Equal(t, []string{"one", "", "two"}, compactNativeLines([]string{"", "one", "", "", "two", ""}))
-	require.Equal(t, 2, nativeHeadingLevel("h2"))
-	require.Equal(t, 4, nativeHeadingLevel("h4"))
-	require.Equal(t, 5, nativeHeadingLevel("h5"))
-	require.Equal(t, 6, nativeHeadingLevel("unknown"))
+	require.Equal(t, 2, getNativeHeadingLevel("h2"))
+	require.Equal(t, 4, getNativeHeadingLevel("h4"))
+	require.Equal(t, 5, getNativeHeadingLevel("h5"))
+	require.Equal(t, 6, getNativeHeadingLevel("unknown"))
 }
 
 func TestReadNativeResponse_ReturnsTruncatedData(t *testing.T) {

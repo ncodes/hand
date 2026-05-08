@@ -34,7 +34,7 @@ func (p HostPolicy) Check(host string) (HostBlock, bool) {
 		return HostBlock{}, false
 	}
 
-	if rule, ok := firstMatchingDomainRule(p.DenyRules, host); ok {
+	if rule, ok := getFirstMatchingDomainRule(p.DenyRules, host); ok {
 		message := `blocked by configured native host denylist policy: "` + host + `" matched "` + rule.Pattern + `"`
 		if source := strings.TrimSpace(rule.Source); source != "" {
 			message += ` from "` + source + `"`
@@ -52,7 +52,7 @@ func (p HostPolicy) Check(host string) (HostBlock, bool) {
 		return HostBlock{}, false
 	}
 
-	if _, ok := firstMatchingDomainRule(p.AllowRules, host); ok {
+	if _, ok := getFirstMatchingDomainRule(p.AllowRules, host); ok {
 		return HostBlock{}, false
 	}
 

@@ -111,7 +111,7 @@ func (p *httpClient) authorizationHeaders() map[string]string {
 	}
 }
 
-func firstNonEmpty(values ...string) string {
+func getFirstNonEmpty(values ...string) string {
 	for _, value := range values {
 		value = strings.TrimSpace(value)
 		if value != "" {
@@ -122,7 +122,7 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func firstHighlight(values []string) string {
+func getFirstHighlight(values []string) string {
 	for _, value := range values {
 		value = strings.TrimSpace(value)
 		if value != "" {

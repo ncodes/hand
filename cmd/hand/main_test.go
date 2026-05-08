@@ -316,21 +316,21 @@ storage:
 func TestResolveEnvFilePrefersFlag(t *testing.T) {
 	clearEnvKeys(t, "HAND_ENV_FILE")
 	resetGlobals(t)
-	require.Equal(t, "/tmp/test.env", resolveEnvFile([]string{"hand", "--env-file", "/tmp/test.env"}))
-	require.Equal(t, "/tmp/test2.env", resolveEnvFile([]string{"hand", "--env-file=/tmp/test2.env"}))
+	require.Equal(t, "/tmp/test.env", getEnvFile([]string{"hand", "--env-file", "/tmp/test.env"}))
+	require.Equal(t, "/tmp/test2.env", getEnvFile([]string{"hand", "--env-file=/tmp/test2.env"}))
 }
 
 func TestResolveEnvFilePrefersEnvVar(t *testing.T) {
 	clearEnvKeys(t, "HAND_ENV_FILE")
 	resetGlobals(t)
 	t.Setenv("HAND_ENV_FILE", "/tmp/from-env.env")
-	require.Equal(t, "/tmp/from-env.env", resolveEnvFile([]string{"hand", "--env-file", "/tmp/ignored.env"}))
+	require.Equal(t, "/tmp/from-env.env", getEnvFile([]string{"hand", "--env-file", "/tmp/ignored.env"}))
 }
 
 func TestResolveEnvFileUsesDefaultWhenUnset(t *testing.T) {
 	clearEnvKeys(t, "HAND_ENV_FILE")
 	resetGlobals(t)
-	require.Equal(t, ".env", resolveEnvFile([]string{"hand"}))
+	require.Equal(t, ".env", getEnvFile([]string{"hand"}))
 }
 
 func TestNewCommand_RootActionShowsHelp(t *testing.T) {
@@ -690,7 +690,7 @@ storage:
 
 	statePath := datadir.StateDBPath()
 	require.NoError(t, os.MkdirAll(filepath.Dir(statePath), 0o755))
-	for _, path := range configuredDatabasePaths() {
+	for _, path := range getConfiguredDatabasePaths() {
 		require.NoError(t, os.WriteFile(path, []byte("database"), 0o600))
 	}
 
@@ -706,7 +706,7 @@ storage:
 	})
 	require.NoError(t, err)
 
-	for _, path := range configuredDatabasePaths() {
+	for _, path := range getConfiguredDatabasePaths() {
 		require.NoFileExists(t, path)
 	}
 	require.Contains(t, output.String(), "Reset database: "+statePath)

@@ -306,7 +306,7 @@ func recordPlanEvent(ctx context.Context, sessionID string, plan envtypes.Plan) 
 		"session_id":     sessionID,
 		"steps":          plan.Steps,
 		"summary":        summarizePlan(plan),
-		"active_step_id": activePlanStepID(plan),
+		"active_step_id": getActivePlanStepID(plan),
 		"explanation":    strings.TrimSpace(plan.Explanation),
 	})
 }
@@ -326,7 +326,7 @@ func recordPlanCleared(ctx context.Context, sessionID string, plan envtypes.Plan
 	})
 }
 
-func activePlanStepID(plan envtypes.Plan) string {
+func getActivePlanStepID(plan envtypes.Plan) string {
 	for _, step := range plan.Steps {
 		if step.Status == envtypes.PlanStatusInProgress {
 			return step.ID

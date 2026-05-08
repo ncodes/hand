@@ -580,9 +580,9 @@ func TestMemoryProvider_LifecycleFailureBranches(t *testing.T) {
 }
 
 func TestLifecycleHelpersCoverFallbacks(t *testing.T) {
-	require.Empty(t, promotionSearchText(MemoryItem{}))
-	require.Len(t, []rune(promotionSearchText(MemoryItem{Title: strings.Repeat("x", 260)})), 240)
-	require.Equal(t, promotionConflictNone, promotionConflictState(
+	require.Empty(t, getPromotionSearchText(MemoryItem{}))
+	require.Len(t, []rune(getPromotionSearchText(MemoryItem{Title: strings.Repeat("x", 260)})), 240)
+	require.Equal(t, promotionConflictNone, getPromotionConflictState(
 		lifecycleCandidate("mem_candidate", KindSemantic, "Use focused tests."),
 		[]SearchHit{{Item: func() MemoryItem {
 			item := lifecycleCandidate("mem_related", KindProcedural, "Use focused tests.")
@@ -602,7 +602,7 @@ func TestLifecycleHelpersCoverFallbacks(t *testing.T) {
 		lifecycleCandidate("mem_candidate", KindSemantic, "Use focused tests."),
 	)
 	require.NoError(t, err)
-	require.Equal(t, []string{"mem_related"}, lifecycleItemIDs(promotionRelatedItems(related)))
+	require.Equal(t, []string{"mem_related"}, lifecycleItemIDs(getPromotionRelatedItems(related)))
 
 	metadata := make(map[string]string)
 	writePromotionDecisionMetadata(metadata, PromotionDecision{

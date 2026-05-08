@@ -85,7 +85,7 @@ type SessionMemoryProvider interface {
 	ListSessionMemories(context.Context, string) ([]storage.MemoryItem, error)
 }
 
-func memoryViewFromItem(item storage.MemoryItem) MemoryView {
+func memoryItemToMemoryView(item storage.MemoryItem) MemoryView {
 	links := make([]MemorySourceView, 0, len(item.SourceLinks))
 	for _, link := range item.SourceLinks {
 		links = append(links, MemorySourceView{
@@ -402,7 +402,7 @@ func (s *Store) GetSession(id string) (SessionDetail, error) {
 		return SessionDetail{}, err
 	}
 
-	path, err := resolveSessionPath(s.directory, id)
+	path, err := getSessionPath(s.directory, id)
 	if err != nil {
 		return SessionDetail{}, os.ErrNotExist
 	}
@@ -418,7 +418,7 @@ func (s *Store) GetSession(id string) (SessionDetail, error) {
 	return LoadSessionFile(path)
 }
 
-func resolveSessionPath(directory, id string) (string, error) {
+func getSessionPath(directory, id string) (string, error) {
 	directory = strings.TrimSpace(directory)
 	id = strings.TrimSpace(id)
 	if directory == "" || id == "" {
@@ -556,7 +556,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 	case handtrace.EvtModelResponse:
 		var payload models.Response
 		if json.Unmarshal(event.Payload, &payload) == nil {
-			timelineEvent.ModelResponse = buildResponseView(payload)
+			timelineEvent.ModelResponse = buildSessionMessagesResponseView(payload)
 			return
 		}
 	case handtrace.EvtToolInvocationStarted:
@@ -690,7 +690,7 @@ func buildRequestView(payload models.Request) *ModelRequestView {
 			ContentChars: len(message.Content),
 			CreatedAt:    message.CreatedAt,
 			ToolCallID:   message.ToolCallID,
-			ToolCalls:    buildToolCallViewsFromContext(message.ToolCalls),
+			ToolCalls:    toolCallsToToolCallViews(message.ToolCalls),
 		}
 		metrics.MessageChars += len(message.Content)
 		metrics.ToolCallCount += len(message.ToolCalls)
@@ -718,7 +718,7 @@ func buildRequestView(payload models.Request) *ModelRequestView {
 	}
 }
 
-func buildResponseView(payload models.Response) *ModelResponseView {
+func buildSessionMessagesResponseView(payload models.Response) *ModelResponseView {
 	return &ModelResponseView{
 		ID:                payload.ID,
 		Model:             payload.Model,
@@ -745,7 +745,7 @@ func buildToolCallViews(toolCalls []models.ToolCall) []ToolCallView {
 	return views
 }
 
-func buildToolCallViewsFromContext(toolCalls []handmsg.ToolCall) []ToolCallView {
+func toolCallsToToolCallViews(toolCalls []handmsg.ToolCall) []ToolCallView {
 	if len(toolCalls) == 0 {
 		return nil
 	}

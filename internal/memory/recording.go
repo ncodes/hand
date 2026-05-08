@@ -52,7 +52,7 @@ func (p *MemoryProvider) recordMemoryCandidate(ctx context.Context, item MemoryI
 		return MemoryItem{}, err
 	}
 
-	fields := observationFields(p.Name(), "record_candidate", map[string]any{"memory_id": item.ID})
+	fields := buildObservationFields(p.Name(), "record_candidate", map[string]any{"memory_id": item.ID})
 	logDebugAndTrace(ctx, p.observability(), "memory candidate recorded", "memory.candidate_write.completed", fields)
 
 	return item.Clone(), nil
@@ -71,7 +71,7 @@ func prepareMemoryCandidate(item MemoryItem) MemoryItem {
 		item.Metadata = make(map[string]string)
 	}
 	if item.ID == "" {
-		item.ID = generateKindAwareMemoryID(item.Kind)
+		item.ID = getKindAwareMemoryID(item.Kind)
 	}
 
 	return item
@@ -95,17 +95,17 @@ func validateMemoryCandidate(item MemoryItem) error {
 	if !hasCandidateProvenance(item) {
 		return errors.New("memory candidate source provenance is required")
 	}
-	if reason := candidateAdmissionRejectionReason(item); reason != "" {
+	if reason := getCandidateAdmissionRejectionReason(item); reason != "" {
 		return errors.New(reason)
 	}
 
 	return nil
 }
 
-// candidateAdmissionRejectionReason applies deterministic admission hints that
+// getCandidateAdmissionRejectionReason applies deterministic admission hints that
 // the model or extractor attached as metadata. Low-importance or execution-only
 // details should not enter the candidate lifecycle.
-func candidateAdmissionRejectionReason(item MemoryItem) string {
+func getCandidateAdmissionRejectionReason(item MemoryItem) string {
 	switch strings.ToLower(strings.TrimSpace(item.Metadata["memory_importance"])) {
 	case "low":
 		return "low_importance_candidate"
@@ -133,13 +133,13 @@ func hasCandidateProvenance(item MemoryItem) bool {
 	return strings.TrimSpace(item.Metadata["source_session_id"]) != ""
 }
 
-// generateKindAwareMemoryID makes IDs self-describing in logs and database
+// getKindAwareMemoryID makes IDs self-describing in logs and database
 // inspection while preserving nanoid uniqueness.
-func generateKindAwareMemoryID(kind Kind) string {
-	return kindAwareMemoryIDPrefix(kind) + strings.TrimPrefix(nanoid.MustGenerate("mem_"), "mem_")
+func getKindAwareMemoryID(kind Kind) string {
+	return getKindAwareMemoryIDPrefix(kind) + strings.TrimPrefix(nanoid.MustGenerate("mem_"), "mem_")
 }
 
-func kindAwareMemoryIDPrefix(kind Kind) string {
+func getKindAwareMemoryIDPrefix(kind Kind) string {
 	kindPart := strings.TrimSpace(string(kind))
 	if kindPart == "" {
 		kindPart = "unknown"
