@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -228,7 +229,7 @@ func TestMemoryProvider_ReflectRejectsDuplicateCandidateFromStore(t *testing.T) 
 	source, err := provider.Search(context.Background(), SearchQuery{
 		IDs:       []string{"mem_episode_duplicate"},
 		Statuses:  []Status{StatusActive},
-		Reflected: boolPtr(true),
+		Reflected: new(true),
 	})
 	require.NoError(t, err)
 	require.Equal(t, []string{"mem_episode_duplicate"}, memoryHitIDs(source.Hits))
@@ -320,6 +321,65 @@ func TestMemoryProvider_ReflectionCandidateRejectionRejectsSimilarMemory(t *test
 	require.Empty(t, manager.searchQueries[0].Kinds)
 	require.NotNil(t, manager.searchQueries[0].Reflected)
 	require.True(t, *manager.searchQueries[0].Reflected)
+}
+
+func TestMemoryProvider_ReflectionCandidateRejectionCoversNoopAndErrorBranches(t *testing.T) {
+	t.Run("empty text skips store search", func(t *testing.T) {
+		manager := &recordingMemoryManager{}
+		provider := &MemoryProvider{manager: manager}
+
+		rejection, err := provider.reflectionCandidateRejection(context.Background(), MemoryItem{}, nil)
+
+		require.NoError(t, err)
+		require.Empty(t, rejection)
+		require.Empty(t, manager.searchQueries)
+	})
+
+	t.Run("store search error is returned", func(t *testing.T) {
+		manager := &recordingMemoryManager{
+			searchErrs: []error{errors.New("dedupe search failed")},
+		}
+		provider := &MemoryProvider{manager: manager}
+
+		rejection, err := provider.reflectionCandidateRejection(context.Background(), MemoryItem{
+			ID:    "mem_candidate",
+			Title: "Candidate",
+		}, nil)
+
+		require.EqualError(t, err, "dedupe search failed")
+		require.Empty(t, rejection)
+	})
+
+	t.Run("self and nonmatching hits are ignored", func(t *testing.T) {
+		manager := &recordingMemoryManager{searchResults: []SearchResult{{Hits: []SearchHit{
+			{
+				Item: MemoryItem{
+					ID:    "mem_candidate",
+					Title: "Candidate",
+					Text:  "Candidate reflection.",
+				},
+				Score: reflectionSimilarScoreThreshold,
+			},
+			{
+				Item: MemoryItem{
+					ID:    "mem_other",
+					Title: "Different",
+					Text:  "Different reflection.",
+				},
+				Score: reflectionSimilarScoreThreshold - 0.01,
+			},
+		}}}}
+		provider := &MemoryProvider{manager: manager}
+
+		rejection, err := provider.reflectionCandidateRejection(context.Background(), MemoryItem{
+			ID:    "mem_candidate",
+			Title: "Candidate",
+			Text:  "Candidate reflection.",
+		}, nil)
+
+		require.NoError(t, err)
+		require.Empty(t, rejection)
+	})
 }
 
 func TestMemoryProvider_ReflectPropagatesFailureWithoutWriting(t *testing.T) {
@@ -549,6 +609,11 @@ func TestMemoryProvider_ReflectValidationAndFailureBranches(t *testing.T) {
 	require.EqualError(t, err, "memory reflection is not configured")
 	require.Empty(t, result)
 
+	provider = &MemoryProvider{}
+	result, err = provider.Reflect(context.Background(), ReflectionRequest{})
+	require.EqualError(t, err, "memory provider is required")
+	require.Empty(t, result)
+
 	manager := &recordingMemoryManager{fakeMemoryManager: fakeMemoryManager{searchErr: errors.New("search failed")}}
 	provider = &MemoryProvider{manager: manager, reflectionGenerator: &fakeReflectionGenerator{}}
 	result, err = provider.Reflect(context.Background(), ReflectionRequest{SessionID: statecore.DefaultSessionID})
@@ -578,6 +643,33 @@ func TestMemoryProvider_ReflectReturnsWhenNoSources(t *testing.T) {
 }
 
 func TestMemoryProvider_ReflectionHelpersCoverFallbacksAndErrors(t *testing.T) {
+	t.Run("background options default and clamp", func(t *testing.T) {
+		defaulted := normalizeReflectionBackgroundOptions(ReflectionBackgroundOptions{})
+		require.Equal(t, defaultReflectionBackgroundInterval, defaulted.Interval)
+		require.Equal(t, defaultReflectionLimit, defaulted.Limit)
+		require.Equal(t, defaultReflectionRelatedLimit, defaulted.RelatedLimit)
+
+		clamped := normalizeReflectionBackgroundOptions(ReflectionBackgroundOptions{
+			Interval:     time.Second,
+			Limit:        maxReflectionLimit + 1,
+			RelatedLimit: maxReflectionRelatedLimit + 1,
+		})
+		require.Equal(t, time.Second, clamped.Interval)
+		require.Equal(t, maxReflectionLimit, clamped.Limit)
+		require.Equal(t, maxReflectionRelatedLimit, clamped.RelatedLimit)
+	})
+
+	t.Run("run background requires provider", func(t *testing.T) {
+		var missing *MemoryProvider
+		result, err := missing.RunReflectionBackground(context.Background(), ReflectionBackgroundOptions{})
+		require.EqualError(t, err, "memory provider is required")
+		require.Empty(t, result)
+
+		result, err = (&MemoryProvider{}).RunReflectionBackground(context.Background(), ReflectionBackgroundOptions{})
+		require.EqualError(t, err, "memory provider is required")
+		require.Empty(t, result)
+	})
+
 	t.Run("related search error", func(t *testing.T) {
 		provider := &MemoryProvider{manager: fakeMemoryManager{searchErr: errors.New("related search failed")}}
 		_, err := provider.loadReflectionRelated(context.Background(), []MemoryItem{{
@@ -673,6 +765,15 @@ func TestMemoryProvider_ReflectionHelpersCoverFallbacksAndErrors(t *testing.T) {
 		require.True(t, ok)
 		require.Empty(t, rejection)
 		require.Equal(t, statecore.DefaultSessionID, item.SourceLinks[0].SessionID)
+	})
+
+	t.Run("matching reflection candidate handles empty and misses", func(t *testing.T) {
+		require.False(t, hasMatchingReflectionCandidate(MemoryItem{}, []MemoryItem{{
+			Title: "Existing",
+		}}))
+		require.False(t, hasMatchingReflectionCandidate(MemoryItem{Title: "New"}, []MemoryItem{{
+			Title: "Existing",
+		}}))
 	})
 }
 
@@ -787,6 +888,30 @@ func TestMemoryProvider_ReflectReturnsRelatedAndMarkErrors(t *testing.T) {
 	require.Empty(t, result)
 	require.Len(t, manager.upsertItems, 1)
 	require.Len(t, manager.patches, 1)
+}
+
+func TestMemoryProvider_ReflectReturnsCandidateDedupeErrors(t *testing.T) {
+	source := reflectionSource("mem_episode_dedupe_error", 12)
+	manager := &recordingMemoryManager{
+		searchResults: []SearchResult{
+			{Hits: []SearchHit{{Item: source}}},
+			{},
+		},
+		searchErrs: []error{nil, nil, errors.New("dedupe failed")},
+	}
+	provider := &MemoryProvider{
+		manager: manager,
+		reflectionGenerator: &fakeReflectionGenerator{result: ReflectionGenerationResult{
+			Items: []MemoryItem{reflectionCandidate(KindSemantic, "Dedupe failure")},
+		}},
+	}
+
+	result, err := provider.Reflect(context.Background(), ReflectionRequest{SessionID: statecore.DefaultSessionID})
+
+	require.EqualError(t, err, "dedupe failed")
+	require.Empty(t, result)
+	require.Empty(t, manager.upsertItems)
+	require.Empty(t, manager.patches)
 }
 
 func TestValidateReflectionCandidateRejectsMalformedCandidates(t *testing.T) {
@@ -914,6 +1039,18 @@ func TestLLMReflectionGenerator_StructuredOutputUsesMetadataEntries(t *testing.T
 	require.ElementsMatch(t, []string{"key", "value"}, metadataItems["required"])
 }
 
+func TestReflectionMetadataEntriesToMapSkipsBlankKeys(t *testing.T) {
+	metadata := reflectionMetadataEntriesToMap([]reflectionModelMetadataEntry{
+		{Key: " memory_importance ", Value: "high"},
+		{Key: " ", Value: "ignored"},
+		{Key: "", Value: "ignored"},
+	})
+
+	require.Equal(t, map[string]string{"memory_importance": "high"}, metadata)
+	require.Nil(t, reflectionMetadataEntriesToMap(nil))
+	require.Nil(t, reflectionMetadataEntriesToMap([]reflectionModelMetadataEntry{{Key: " "}}))
+}
+
 func TestLLMReflectionGenerator_ValidationAndModelErrors(t *testing.T) {
 	generator, err := NewLLMReflectionGenerator(LLMReflectionGeneratorOptions{})
 	require.EqualError(t, err, "memory reflection model client is required")
@@ -993,8 +1130,4 @@ func memoryHitIDs(hits []SearchHit) []string {
 		ids = append(ids, hit.Item.ID)
 	}
 	return ids
-}
-
-func boolPtr(value bool) *bool {
-	return &value
 }

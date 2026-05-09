@@ -100,6 +100,29 @@ func TestDefaultMemoryProvider_NewProviderFromManagerValidation(t *testing.T) {
 
 	require.Nil(t, provider)
 	require.EqualError(t, err, "state manager is required")
+
+	provider, err = NewFromManager(newMemoryTestManager(t, storagememory.NewStore()), Options{
+		ModelClient: episodicModelClientStub(),
+	})
+	require.Nil(t, provider)
+	require.EqualError(t, err, "memory episode extractor model is required")
+}
+
+func TestDefaultMemoryProvider_NewFromManagerKeepsConfiguredReflectionGenerator(t *testing.T) {
+	generator := &fakeReflectionGenerator{}
+	provider, err := NewFromManager(newMemoryTestManager(t, storagememory.NewStore()), Options{
+		ModelClient:          episodicModelClientStub(),
+		Model:                "test-model",
+		ReflectionGenerator:  generator,
+		ReflectionBackground: ReflectionBackgroundOptions{Limit: maxReflectionLimit + 1},
+		PromotionBackground:  PromotionBackgroundOptions{Limit: maxPromotionBackgroundLimit + 1},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, provider.episodicExtractor)
+	require.Same(t, generator, provider.reflectionGenerator)
+	require.Equal(t, maxReflectionLimit, provider.reflectionBackground.Limit)
+	require.Equal(t, maxPromotionBackgroundLimit, provider.promotionBackground.Limit)
 }
 
 func TestMemoryProvider_CapabilitiesConfigureObservabilityAndClose(t *testing.T) {

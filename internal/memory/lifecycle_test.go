@@ -347,9 +347,10 @@ func TestMemoryProvider_RunPromotionBackgroundPromotesCandidatesIndependently(t 
 
 func TestMemoryProvider_RunPromotionBackgroundUsesEvaluationFilterAndLimit(t *testing.T) {
 	eligible := lifecycleCandidate("mem_eligible", KindSemantic, "Use focused tests.")
+	second := lifecycleCandidate("mem_second", KindSemantic, "Use focused reviews.")
 	manager := &recordingMemoryManager{
 		searchResults: []SearchResult{
-			{Hits: []SearchHit{{Item: MemoryItem{}}, {Item: eligible}}},
+			{Hits: []SearchHit{{Item: MemoryItem{}}, {Item: eligible}, {Item: second}}},
 			{Hits: []SearchHit{{Item: eligible}}},
 			{},
 		},
@@ -376,7 +377,12 @@ func TestMemoryProvider_RunPromotionBackgroundReturnsErrorsAndCapsLimits(t *test
 	require.EqualError(t, err, "memory provider is required")
 	require.Zero(t, count)
 
-	provider := &MemoryProvider{manager: fakeMemoryManager{searchErr: errors.New("candidate search failed")}}
+	provider := &MemoryProvider{}
+	count, err = provider.RunPromotionBackground(context.Background(), PromotionBackgroundOptions{})
+	require.EqualError(t, err, "memory provider is required")
+	require.Zero(t, count)
+
+	provider = &MemoryProvider{manager: fakeMemoryManager{searchErr: errors.New("candidate search failed")}}
 	count, err = provider.RunPromotionBackground(context.Background(), PromotionBackgroundOptions{})
 	require.EqualError(t, err, "candidate search failed")
 	require.Zero(t, count)
