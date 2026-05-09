@@ -9,22 +9,22 @@ const (
 	// MemoryPinnedFileName is the automatic pinned memory file name.
 	MemoryPinnedFileName = "memory.md"
 	// DefaultMemoryPinnedMaxChars is the fallback total character budget for pinned memory.
-	DefaultMemoryPinnedMaxChars = 4000
+	DefaultMemoryPinnedMaxChars = 2200
 	// DefaultMemoryPinnedItemChars is the fallback per-item character budget for pinned memory.
-	DefaultMemoryPinnedItemChars = 1000
+	DefaultMemoryPinnedItemChars = 2200
 )
 
 const (
 	// AgentPinnedMemoryRetrievalLimit is the maximum pinned memory items injected per turn.
-	AgentPinnedMemoryRetrievalLimit = 3
+	AgentPinnedMemoryRetrievalLimit = 1
 	// AgentPinnedMemoryRetrievalItemChars is the per-item character budget for pinned memory injection.
-	AgentPinnedMemoryRetrievalItemChars = 1000
+	AgentPinnedMemoryRetrievalItemChars = 2200
 	// AgentSearchMemoryRetrievalLimit is the maximum searched memory items injected per turn.
-	AgentSearchMemoryRetrievalLimit = 5
+	AgentSearchMemoryRetrievalLimit = 3
 	// AgentSearchMemoryRetrievalItemChars is the per-item character budget for searched memory injection.
 	AgentSearchMemoryRetrievalItemChars = 700
 	// AgentMemoryContextInstructionChars is the total character budget for memory context instructions.
-	AgentMemoryContextInstructionChars = 4000
+	AgentMemoryContextInstructionChars = 4500
 )
 
 const (
