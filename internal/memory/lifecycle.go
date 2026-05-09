@@ -49,6 +49,8 @@ const (
 	// score is strong enough to be useful conflict evidence. Exact duplicates are
 	// blocked regardless of score.
 	promotionRelatedConflictScoreThreshold = 0.75
+	promotionDefaultConfidenceThreshold    = 0.75
+	promotionPinnedConfidenceThreshold     = 0.9
 
 	// Promotion is a governance pass, not a high-throughput indexing job, so the
 	// default cadence and batch sizes stay intentionally modest.
@@ -94,9 +96,9 @@ func (defaultPromotionPolicy) EvaluatePromotion(_ context.Context, req Promotion
 		return decision, nil
 	}
 
-	minConfidence := 0.75
+	minConfidence := promotionDefaultConfidenceThreshold
 	if req.Candidate.Kind == KindPinned {
-		minConfidence = 0.9
+		minConfidence = promotionPinnedConfidenceThreshold
 	}
 	if req.Candidate.Confidence < minConfidence {
 		decision.Reason = "low_confidence"
@@ -127,7 +129,7 @@ func (p *MemoryProvider) PromoteCandidate(ctx context.Context, req PromotionRequ
 
 	memoryID := strings.TrimSpace(req.ID)
 	if memoryID == "" {
-		return LifecycleResult{}, errors.New("promotion memory id is required")
+		return LifecycleResult{}, errors.New("candidate memory id is required")
 	}
 
 	p.recordPromotionStarted(ctx, memoryID, "promote")

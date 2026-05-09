@@ -416,7 +416,7 @@ func TestMemoryProvider_LifecycleValidationAndPolicyErrors(t *testing.T) {
 
 	provider := defaultMemoryTestProvider(t, Options{})
 	_, err = provider.PromoteCandidate(context.Background(), PromotionRequest{})
-	require.EqualError(t, err, "promotion memory id is required")
+	require.EqualError(t, err, "candidate memory id is required")
 
 	policy := &fakePromotionPolicy{err: errors.New("policy failed")}
 	manager := &recordingMemoryManager{
