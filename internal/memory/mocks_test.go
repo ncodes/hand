@@ -162,6 +162,8 @@ type recordingMemoryManager struct {
 	patchErrs         []error
 	patches           []MemoryPatch
 	currentSessionErr error
+	sessions          []statecore.Session
+	listSessionsErr   error
 }
 
 func (m *recordingMemoryManager) SearchMemory(ctx context.Context, query SearchQuery) (SearchResult, error) {
@@ -219,6 +221,14 @@ func (m *recordingMemoryManager) CurrentSession(ctx context.Context) (string, er
 	}
 
 	return m.fakeMemoryManager.CurrentSession(ctx)
+}
+
+func (m *recordingMemoryManager) ListSessions(context.Context) ([]statecore.Session, error) {
+	if m.listSessionsErr != nil {
+		return nil, m.listSessionsErr
+	}
+
+	return append([]statecore.Session(nil), m.sessions...), nil
 }
 
 type vectorCapabilityMemoryManager struct {

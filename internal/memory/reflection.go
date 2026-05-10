@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	statecore "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
 )
 
@@ -227,18 +228,55 @@ func (p *MemoryProvider) RunReflectionBackground(
 	if p == nil || p.manager == nil {
 		return ReflectionResult{}, errors.New("memory provider is required")
 	}
+	manager, ok := p.manager.(reflectionBackgroundStateManager)
+	if !ok {
+		return ReflectionResult{}, errors.New("session listing is required")
+	}
 
 	opts = normalizeReflectionBackgroundOptions(opts)
-	return p.Reflect(ctx, ReflectionRequest{
-		Limit:        opts.Limit,
-		RelatedLimit: opts.RelatedLimit,
-	})
+	sessions, err := manager.ListSessions(ctx)
+	if err != nil {
+		return ReflectionResult{}, err
+	}
+
+	var firstErr error
+	result := ReflectionResult{}
+	for _, session := range sessions {
+		sessionID := strings.TrimSpace(session.ID)
+		if sessionID == "" {
+			continue
+		}
+
+		sessionResult, err := p.Reflect(ctx, ReflectionRequest{
+			SessionID:    sessionID,
+			Limit:        opts.Limit,
+			RelatedLimit: opts.RelatedLimit,
+		})
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+
+		result.SourceCount += sessionResult.SourceCount
+		result.RelatedCount += sessionResult.RelatedCount
+		result.WriteCount += sessionResult.WriteCount
+		result.Items = append(result.Items, cloneMemoryItems(sessionResult.Items)...)
+	}
+
+	return result, firstErr
 }
 
 type normalizedReflectionRequest struct {
 	SessionID    string
 	Limit        int
 	RelatedLimit int
+}
+
+type reflectionBackgroundStateManager interface {
+	StateManager
+	ListSessions(context.Context) ([]statecore.Session, error)
 }
 
 func (p *MemoryProvider) normalizeReflectionRequest(ctx context.Context, req ReflectionRequest) (normalizedReflectionRequest, error) {

@@ -668,6 +668,67 @@ func TestMemoryProvider_ReflectionHelpersCoverFallbacksAndErrors(t *testing.T) {
 		result, err = (&MemoryProvider{}).RunReflectionBackground(context.Background(), ReflectionBackgroundOptions{})
 		require.EqualError(t, err, "memory provider is required")
 		require.Empty(t, result)
+
+		result, err = (&MemoryProvider{manager: fakeMemoryManager{}}).RunReflectionBackground(
+			context.Background(),
+			ReflectionBackgroundOptions{},
+		)
+		require.EqualError(t, err, "session listing is required")
+		require.Empty(t, result)
+	})
+
+	t.Run("run background returns list sessions error", func(t *testing.T) {
+		manager := &recordingMemoryManager{listSessionsErr: errors.New("list failed")}
+		provider := &MemoryProvider{manager: manager}
+
+		result, err := provider.RunReflectionBackground(context.Background(), ReflectionBackgroundOptions{})
+
+		require.EqualError(t, err, "list failed")
+		require.Empty(t, result)
+	})
+
+	t.Run("run background reflects every listed session", func(t *testing.T) {
+		generator := &fakeReflectionGenerator{result: ReflectionGenerationResult{Items: []MemoryItem{
+			reflectionCandidate(KindProcedural, "Review daemon logs"),
+		}}}
+		manager := &recordingMemoryManager{
+			sessions: []statecore.Session{
+				{ID: "default"},
+				{ID: "ses_workflow"},
+			},
+			searchResults: []SearchResult{
+				{Hits: []SearchHit{{Item: reflectionSource("mem_default_source", 1)}}},
+				{},
+				{},
+				{Hits: []SearchHit{{Item: func() MemoryItem {
+					item := reflectionSource("mem_workflow_source", 2)
+					item.SourceLinks[0].SessionID = "ses_workflow"
+					return item
+				}()}}},
+				{},
+				{},
+			},
+		}
+		provider := &MemoryProvider{
+			manager:             manager,
+			reflectionGenerator: generator,
+		}
+
+		result, err := provider.RunReflectionBackground(context.Background(), ReflectionBackgroundOptions{
+			Limit:        5,
+			RelatedLimit: 2,
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, 2, result.SourceCount)
+		require.Equal(t, 2, result.WriteCount)
+		require.Len(t, result.Items, 2)
+		require.Len(t, generator.requests, 2)
+		require.Equal(t, "default", generator.requests[0].SessionID)
+		require.Equal(t, "ses_workflow", generator.requests[1].SessionID)
+		require.Len(t, manager.patches, 2)
+		require.Equal(t, "mem_default_source", manager.patches[0].ID)
+		require.Equal(t, "mem_workflow_source", manager.patches[1].ID)
 	})
 
 	t.Run("related search error", func(t *testing.T) {
