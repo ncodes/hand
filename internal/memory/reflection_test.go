@@ -250,7 +250,7 @@ func TestMemoryProvider_ReflectRejectsDuplicateReflectionAcrossKinds(t *testing.
 	}
 	provider := &MemoryProvider{manager: manager}
 
-	rejection, err := provider.reflectionCandidateRejection(context.Background(), MemoryItem{
+	rejection, err := provider.checkReflectionCandidateRedundancy(context.Background(), MemoryItem{
 		ID:     "mem_candidate_semantic",
 		Kind:   KindSemantic,
 		Status: StatusCandidate,
@@ -293,7 +293,7 @@ func TestMemoryProvider_ReflectRejectsDuplicateCandidateInBatch(t *testing.T) {
 	require.Equal(t, KindProcedural, result.Items[0].Kind)
 }
 
-func TestMemoryProvider_ReflectionCandidateRejectionRejectsSimilarMemory(t *testing.T) {
+func TestMemoryProvider_CheckReflectionCandidateRedundancyRejectsSimilarMemory(t *testing.T) {
 	manager := &recordingMemoryManager{searchResults: []SearchResult{{Hits: []SearchHit{{
 		Item: MemoryItem{
 			ID:        "mem_existing_similar",
@@ -307,7 +307,7 @@ func TestMemoryProvider_ReflectionCandidateRejectionRejectsSimilarMemory(t *test
 	}}}}}
 	provider := &MemoryProvider{manager: manager}
 
-	rejection, err := provider.reflectionCandidateRejection(context.Background(), MemoryItem{
+	rejection, err := provider.checkReflectionCandidateRedundancy(context.Background(), MemoryItem{
 		ID:     "mem_candidate_similar",
 		Kind:   KindSemantic,
 		Status: StatusCandidate,
@@ -323,12 +323,12 @@ func TestMemoryProvider_ReflectionCandidateRejectionRejectsSimilarMemory(t *test
 	require.True(t, *manager.searchQueries[0].Reflected)
 }
 
-func TestMemoryProvider_ReflectionCandidateRejectionCoversNoopAndErrorBranches(t *testing.T) {
+func TestMemoryProvider_CheckReflectionCandidateRedundancyCoversNoopAndErrorBranches(t *testing.T) {
 	t.Run("empty text skips store search", func(t *testing.T) {
 		manager := &recordingMemoryManager{}
 		provider := &MemoryProvider{manager: manager}
 
-		rejection, err := provider.reflectionCandidateRejection(context.Background(), MemoryItem{}, nil)
+		rejection, err := provider.checkReflectionCandidateRedundancy(context.Background(), MemoryItem{}, nil)
 
 		require.NoError(t, err)
 		require.Empty(t, rejection)
@@ -341,7 +341,7 @@ func TestMemoryProvider_ReflectionCandidateRejectionCoversNoopAndErrorBranches(t
 		}
 		provider := &MemoryProvider{manager: manager}
 
-		rejection, err := provider.reflectionCandidateRejection(context.Background(), MemoryItem{
+		rejection, err := provider.checkReflectionCandidateRedundancy(context.Background(), MemoryItem{
 			ID:    "mem_candidate",
 			Title: "Candidate",
 		}, nil)
@@ -371,7 +371,7 @@ func TestMemoryProvider_ReflectionCandidateRejectionCoversNoopAndErrorBranches(t
 		}}}}
 		provider := &MemoryProvider{manager: manager}
 
-		rejection, err := provider.reflectionCandidateRejection(context.Background(), MemoryItem{
+		rejection, err := provider.checkReflectionCandidateRedundancy(context.Background(), MemoryItem{
 			ID:    "mem_candidate",
 			Title: "Candidate",
 			Text:  "Candidate reflection.",
@@ -768,10 +768,10 @@ func TestMemoryProvider_ReflectionHelpersCoverFallbacksAndErrors(t *testing.T) {
 	})
 
 	t.Run("matching reflection candidate handles empty and misses", func(t *testing.T) {
-		require.False(t, hasMatchingReflectionCandidate(MemoryItem{}, []MemoryItem{{
+		require.False(t, hasDuplicateReflectionCandidate(MemoryItem{}, []MemoryItem{{
 			Title: "Existing",
 		}}))
-		require.False(t, hasMatchingReflectionCandidate(MemoryItem{Title: "New"}, []MemoryItem{{
+		require.False(t, hasDuplicateReflectionCandidate(MemoryItem{Title: "New"}, []MemoryItem{{
 			Title: "Existing",
 		}}))
 	})

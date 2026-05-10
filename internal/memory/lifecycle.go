@@ -155,7 +155,7 @@ func (p *MemoryProvider) PromoteCandidate(ctx context.Context, req PromotionRequ
 	// Admission rejects obviously unsuitable candidates from model-provided
 	// metadata. Guardrails run only after admission passes, avoiding extra work on
 	// candidates already rejected by deterministic admission.
-	admissionResult := getCandidateAdmissionRejectionReason(candidate)
+	admissionResult := checkCandidateAdmissionRejection(candidate)
 	guardrailResult := ""
 	if admissionResult == "" {
 		if err := validateWrite(ctx, p.guardrails, candidate); err != nil {
@@ -173,7 +173,7 @@ func (p *MemoryProvider) PromoteCandidate(ctx context.Context, req PromotionRequ
 		AdmissionResult:    admissionResult,
 		GuardrailResult:    guardrailResult,
 		ReflectionEvidence: hasReflectionEvidence(candidate),
-		ConflictState:      getPromotionConflictState(candidate, relatedHits),
+		ConflictState:      checkPromotionConflictState(candidate, relatedHits),
 	})
 	if p.promotionPolicy == nil {
 		p.recordPromotionFallback(ctx, memoryID)
@@ -433,11 +433,11 @@ func getPromotionSearchText(item MemoryItem) string {
 	return text
 }
 
-// getPromotionConflictState classifies active same-kind related memories. Exact
+// checkPromotionConflictState classifies active same-kind related memories. Exact
 // normalized matches are duplicates regardless of score. Non-identical related
 // memories only block promotion when their search score is strong enough to be
 // useful conflict evidence.
-func getPromotionConflictState(candidate MemoryItem, related []SearchHit) string {
+func checkPromotionConflictState(candidate MemoryItem, related []SearchHit) string {
 	hasRelated := false
 	for _, hit := range related {
 		item := hit.Item

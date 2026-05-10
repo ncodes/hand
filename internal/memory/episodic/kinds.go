@@ -45,7 +45,7 @@ func getEpisodeCandidateKinds() []string {
 	return kinds
 }
 
-func isValidCandidateKind(kind string) bool {
+func isValidEpisodeCandidateKind(kind string) bool {
 	return getEpisodeKindSpecFor(kind).kind != ""
 }
 

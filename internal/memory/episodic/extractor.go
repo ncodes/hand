@@ -243,13 +243,16 @@ func (s Service) extractWindow(
 		// The extractor and admission pipeline are not the final duplicate guard.
 		// Overlapping windows can still produce the same memory, so we search
 		// existing episodic candidate/active memory before writing.
-		rejection, err := s.episodicCandidateRejection(ctx, candidate)
+		rejection, rejectionFields, err := s.checkEpisodicCandidateRedundancy(ctx, candidate)
 		if err != nil {
 			return WindowResult{}, err
 		}
 		if rejection != "" {
 			result.SkipCount++
 			traceFields = map[string]any{"candidate_kind": candidate.Metadata["candidate_kind"], "rejection_reason": rejection}
+			for key, value := range rejectionFields {
+				traceFields[key] = value
+			}
 			recordTrace(req.Trace, trace.EvtMemoryExtractionCandidateRejected, getTracePayload(windowReq, traceFields))
 			logExtraction("rejected episodic candidate before write", windowReq, traceFields)
 			continue
@@ -277,10 +280,13 @@ func (s Service) extractWindow(
 	return result, nil
 }
 
-func (s Service) episodicCandidateRejection(ctx context.Context, item storage.MemoryItem) (string, error) {
+func (s Service) checkEpisodicCandidateRedundancy(
+	ctx context.Context,
+	item storage.MemoryItem,
+) (string, map[string]any, error) {
 	text := getEpisodicSearchText(item)
 	if text == "" {
-		return "", nil
+		return "", nil, nil
 	}
 
 	// This dedupe pass is intentionally before RecordEpisode. It catches
@@ -293,7 +299,7 @@ func (s Service) episodicCandidateRejection(ctx context.Context, item storage.Me
 		Limit:    5,
 	})
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	for _, hit := range result.Hits {
@@ -301,15 +307,37 @@ func (s Service) episodicCandidateRejection(ctx context.Context, item storage.Me
 		if strings.TrimSpace(related.ID) == strings.TrimSpace(item.ID) {
 			continue
 		}
+		fields := getEpisodicRejectionTraceFields(item, related, hit.Score)
 		if normalizeEpisodicText(related) == normalizeEpisodicText(item) {
-			return "duplicate_episodic_memory", nil
+			fields["match_type"] = "exact_normalized_text"
+			return "duplicate_episodic_memory", fields, nil
 		}
-		if hasSameCandidateKind(related, item) && hit.Score >= episodicSimilarScoreThreshold {
-			return "similar_episodic_memory", nil
+		if hasSameEpisodeCandidateKind(related, item) && hit.Score >= episodicSimilarScoreThreshold {
+			fields["match_type"] = "same_candidate_kind_above_score_threshold"
+			fields["similar_score_threshold"] = episodicSimilarScoreThreshold
+			return "similar_episodic_memory", fields, nil
 		}
 	}
 
-	return "", nil
+	return "", nil, nil
+}
+
+func getEpisodicRejectionTraceFields(
+	candidate storage.MemoryItem,
+	related storage.MemoryItem,
+	score float64,
+) map[string]any {
+	return map[string]any{
+		"candidate_memory_id":    strings.TrimSpace(candidate.ID),
+		"candidate_title":        truncateRunes(strings.TrimSpace(candidate.Title), 120),
+		"candidate_text_chars":   len([]rune(strings.TrimSpace(candidate.Text))),
+		"related_memory_id":      strings.TrimSpace(related.ID),
+		"related_memory_kind":    string(related.Kind),
+		"related_memory_status":  string(related.Status),
+		"related_candidate_kind": strings.TrimSpace(related.Metadata["candidate_kind"]),
+		"related_title":          truncateRunes(strings.TrimSpace(related.Title), 120),
+		"related_score":          score,
+	}
 }
 
 func (s Service) normalizeRequest(ctx context.Context, req Request) (normalizedRequest, error) {
@@ -544,7 +572,7 @@ func normalizeEpisodicText(item storage.MemoryItem) string {
 	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(item.Title+"\n"+item.Text))), " ")
 }
 
-func hasSameCandidateKind(a storage.MemoryItem, b storage.MemoryItem) bool {
+func hasSameEpisodeCandidateKind(a storage.MemoryItem, b storage.MemoryItem) bool {
 	return strings.TrimSpace(a.Metadata["candidate_kind"]) == strings.TrimSpace(b.Metadata["candidate_kind"])
 }
 
@@ -589,7 +617,7 @@ func episodeCandidateToMemoryItem(
 	candidate episodeCandidate,
 ) (storage.MemoryItem, bool) {
 	candidate.Kind = strings.TrimSpace(candidate.Kind)
-	if !isValidCandidateKind(candidate.Kind) {
+	if !isValidEpisodeCandidateKind(candidate.Kind) {
 		return storage.MemoryItem{}, false
 	}
 

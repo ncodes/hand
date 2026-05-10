@@ -23,6 +23,8 @@ const (
 	AgentSearchMemoryRetrievalLimit = 3
 	// AgentSearchMemoryRetrievalItemChars is the per-item character budget for searched memory injection.
 	AgentSearchMemoryRetrievalItemChars = 700
+	// AgentSearchMemoryRetrievalMinScore is the minimum score for searched memories injected per turn.
+	AgentSearchMemoryRetrievalMinScore = 0.75
 	// AgentMemoryContextInstructionChars is the total character budget for memory context instructions.
 	AgentMemoryContextInstructionChars = 4500
 )

@@ -15,7 +15,7 @@ func admitCandidateItems(
 ) ([]storage.MemoryItem, []candidateRejection) {
 	admitted := make([]storage.MemoryItem, 0, len(items))
 	for _, item := range items {
-		if reason := getCandidateRejectionReason(item); reason != "" {
+		if reason := checkEpisodeCandidateAdmissionRejection(item); reason != "" {
 			rejections = append(rejections, candidateRejection{
 				Kind:   getCandidateKind(item),
 				Reason: reason,
@@ -29,10 +29,10 @@ func admitCandidateItems(
 	return collapseCandidateGroups(admitted, rejections)
 }
 
-// getCandidateRejectionReason rejects metadata that explicitly marks a proposal as
+// checkEpisodeCandidateAdmissionRejection rejects metadata that explicitly marks a proposal as
 // not worth durable memory. This mirrors the prompt guidance and gives a stable
 // reason independent of model wording.
-func getCandidateRejectionReason(item storage.MemoryItem) string {
+func checkEpisodeCandidateAdmissionRejection(item storage.MemoryItem) string {
 	switch strings.ToLower(strings.TrimSpace(item.Metadata["memory_importance"])) {
 	case "low":
 		return "low_importance_candidate"

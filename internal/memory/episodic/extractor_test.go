@@ -298,6 +298,64 @@ func TestService_ExtractRejectsDuplicateEpisodicMemoryAcrossOverlappingWindows(t
 	require.Equal(t, first.Windows[0].MemoryIDs, []string{memories.Hits[0].Item.ID})
 }
 
+func TestService_ExtractRecordsRelatedMemoryDetailsForSimilarRejection(t *testing.T) {
+	ctx := context.Background()
+	store := storememory.NewStore()
+	manager := testManager(t, store)
+	recorder := &recordingTrace{}
+
+	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
+	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []handmsg.Message{{
+		ID:      1,
+		Role:    handmsg.RoleUser,
+		Content: "Remember this daemon log review workflow.",
+	}}))
+
+	provider := &memoryProviderStub{
+		searchResults: []storage.MemorySearchResult{
+			{},
+			{Hits: []storage.MemorySearchHit{{
+				Item: storage.MemoryItem{
+					ID:     "mem_existing",
+					Kind:   storage.MemoryKindEpisodic,
+					Status: storage.MemoryStatusActive,
+					Title:  "User Preference for Color",
+					Text:   "User prefers the color black.",
+					Metadata: map[string]string{
+						"candidate_kind": episodeKindUserCorrection,
+					},
+				},
+				Score: 0.82,
+			}}},
+		},
+	}
+	service := newTestServiceWithCandidates(t, manager, provider, []episodeCandidate{{
+		Kind:       episodeKindUserCorrection,
+		Title:      "Daemon log review workflow",
+		Text:       "When reviewing daemon logs, group by subsystem, flag anomalies, explain the timeline, then propose fixes.",
+		Confidence: 0.9,
+		Metadata:   map[string]string{"memory_importance": "high", "memory_granularity": "summary"},
+	}})
+
+	result, err := service.Extract(ctx, Request{
+		SessionID:   storage.DefaultSessionID,
+		OffsetStart: intPtr(0),
+		OffsetEnd:   intPtr(1),
+		WindowSize:  1,
+		Trace:       recorder,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 0, result.WriteCount)
+	require.Equal(t, 1, result.SkipCount)
+	payloads := tracePayloadsFor(t, recorder, trace.EvtMemoryExtractionCandidateRejected)
+	require.Contains(t, payloads, "similar_episodic_memory")
+	require.Contains(t, payloads, "mem_existing")
+	require.Contains(t, payloads, "User Preference for Color")
+	require.Contains(t, payloads, "same_candidate_kind_above_score_threshold")
+	require.Contains(t, payloads, "0.82")
+}
+
 func TestService_ExtractChecksDuplicateBySourceRangeTag(t *testing.T) {
 	ctx := context.Background()
 	store := &statemock.Store{
@@ -1342,10 +1400,12 @@ func intPtr(value int) *int {
 }
 
 type memoryProviderStub struct {
-	searchQuery  storage.MemorySearchQuery
-	searchResult storage.MemorySearchResult
-	searchErr    error
-	upsertErr    error
+	searchQuery   storage.MemorySearchQuery
+	searchResult  storage.MemorySearchResult
+	searchResults []storage.MemorySearchResult
+	searchCount   int
+	searchErr     error
+	upsertErr     error
 }
 
 type traceErrorManager struct {
@@ -1378,6 +1438,12 @@ func (p *memoryProviderStub) Search(_ context.Context, query storage.MemorySearc
 	if p.searchErr != nil {
 		return storage.MemorySearchResult{}, p.searchErr
 	}
+	if p.searchCount < len(p.searchResults) {
+		result := p.searchResults[p.searchCount]
+		p.searchCount++
+		return result, nil
+	}
+	p.searchCount++
 	return p.searchResult, nil
 }
 

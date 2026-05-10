@@ -588,7 +588,7 @@ func TestMemoryProvider_LifecycleFailureBranches(t *testing.T) {
 func TestLifecycleHelpersCoverFallbacks(t *testing.T) {
 	require.Empty(t, getPromotionSearchText(MemoryItem{}))
 	require.Len(t, []rune(getPromotionSearchText(MemoryItem{Title: strings.Repeat("x", 260)})), 240)
-	require.Equal(t, promotionConflictNone, getPromotionConflictState(
+	require.Equal(t, promotionConflictNone, checkPromotionConflictState(
 		lifecycleCandidate("mem_candidate", KindSemantic, "Use focused tests."),
 		[]SearchHit{{Item: func() MemoryItem {
 			item := lifecycleCandidate("mem_related", KindProcedural, "Use focused tests.")

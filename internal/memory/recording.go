@@ -95,17 +95,17 @@ func validateMemoryCandidate(item MemoryItem) error {
 	if !hasCandidateProvenance(item) {
 		return errors.New("memory candidate source provenance is required")
 	}
-	if reason := getCandidateAdmissionRejectionReason(item); reason != "" {
+	if reason := checkCandidateAdmissionRejection(item); reason != "" {
 		return errors.New(reason)
 	}
 
 	return nil
 }
 
-// getCandidateAdmissionRejectionReason applies deterministic admission hints that
+// checkCandidateAdmissionRejection applies deterministic admission hints that
 // the model or extractor attached as metadata. Low-importance or execution-only
 // details should not enter the candidate lifecycle.
-func getCandidateAdmissionRejectionReason(item MemoryItem) string {
+func checkCandidateAdmissionRejection(item MemoryItem) string {
 	switch strings.ToLower(strings.TrimSpace(item.Metadata["memory_importance"])) {
 	case "low":
 		return "low_importance_candidate"

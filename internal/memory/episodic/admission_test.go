@@ -8,8 +8,8 @@ import (
 	storage "github.com/wandxy/hand/internal/state/core"
 )
 
-func TestCandidateRejectionReason_RejectsExecutionDetail(t *testing.T) {
-	reason := getCandidateRejectionReason(storage.MemoryItem{
+func TestCheckEpisodeCandidateAdmissionRejection_RejectsExecutionDetail(t *testing.T) {
+	reason := checkEpisodeCandidateAdmissionRejection(storage.MemoryItem{
 		Metadata: map[string]string{
 			"memory_granularity": " execution_detail ",
 		},

@@ -124,7 +124,7 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 		// Check duplicates after provider normalization. This catches both
 		// same-batch duplicates and already-written reflected memories across
 		// memory kinds.
-		rejection, err = p.reflectionCandidateRejection(ctx, item, written)
+		rejection, err = p.checkReflectionCandidateRedundancy(ctx, item, written)
 		if err != nil {
 			p.recordReflectionFailure(ctx, result, err)
 			return ReflectionResult{}, err
@@ -341,12 +341,12 @@ func (p *MemoryProvider) loadReflectionRelated(
 	return items, nil
 }
 
-func (p *MemoryProvider) reflectionCandidateRejection(
+func (p *MemoryProvider) checkReflectionCandidateRedundancy(
 	ctx context.Context,
 	item MemoryItem,
 	written []MemoryItem,
 ) (string, error) {
-	if hasMatchingReflectionCandidate(item, written) {
+	if hasDuplicateReflectionCandidate(item, written) {
 		return "duplicate_reflection_candidate", nil
 	}
 
@@ -384,7 +384,7 @@ func (p *MemoryProvider) reflectionCandidateRejection(
 	return "", nil
 }
 
-func hasMatchingReflectionCandidate(item MemoryItem, existing []MemoryItem) bool {
+func hasDuplicateReflectionCandidate(item MemoryItem, existing []MemoryItem) bool {
 	normalized := normalizeLifecycleText(item)
 	if normalized == "" {
 		return false
@@ -495,7 +495,7 @@ func validateReflectionCandidate(item MemoryItem) error {
 	if !hasCandidateProvenance(item) {
 		return errors.New("reflection candidate source provenance is required")
 	}
-	if reason := getCandidateAdmissionRejectionReason(item); reason != "" {
+	if reason := checkCandidateAdmissionRejection(item); reason != "" {
 		return errors.New(reason)
 	}
 

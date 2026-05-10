@@ -273,17 +273,20 @@ func TestTurn_RetrieveMemoryInstructionMergesPinnedBeforeSearch(t *testing.T) {
 		}},
 		searchResult: memory.SearchResult{Hits: []memory.SearchHit{{
 			Item: memory.MemoryItem{
-				ID:     "mem_semantic",
-				Kind:   memory.KindSemantic,
-				Status: memory.StatusActive,
-				Title:  "Semantic",
-				Text:   "Prefer focused tests",
+				ID:         "mem_semantic",
+				Kind:       memory.KindSemantic,
+				Status:     memory.StatusActive,
+				Title:      "Semantic",
+				Text:       "Prefer focused tests",
+				Confidence: 0.8,
 			},
+			Score: 0.8,
 		}}},
 	}
 	turn := &Turn{cfg: memoryEnabledTestConfig(), env: &mocks.EnvironmentStub{Memory: provider}}
+	traceSession := &mocks.TraceSessionStub{}
 
-	instruction := turn.retrieveMemoryInstruction(context.Background(), "pnpm", trace.NoopSession())
+	instruction := turn.retrieveMemoryInstruction(context.Background(), "pnpm", traceSession)
 
 	require.Contains(t, instruction.Value, "# Memory Context")
 	require.Less(t, strings.Index(instruction.Value, "Always use pnpm"), strings.Index(instruction.Value, "Prefer focused tests"))
@@ -294,6 +297,74 @@ func TestTurn_RetrieveMemoryInstructionMergesPinnedBeforeSearch(t *testing.T) {
 	require.Equal(t, []memory.Status{memory.StatusActive}, provider.searchQuery.Statuses)
 	require.Equal(t, searchMemoryRetrievalLimit, provider.searchQuery.Limit)
 	require.Equal(t, searchMemoryRetrievalItemChars, provider.searchQuery.MaxChars)
+
+	var retrievedPayload map[string]any
+	for _, event := range traceSession.Events {
+		if event.Type == trace.EvtMemoryRetrieved {
+			retrievedPayload = event.Payload.(map[string]any)
+			break
+		}
+	}
+	require.NotNil(t, retrievedPayload)
+	require.Len(t, retrievedPayload["pinned_items"], 1)
+	require.Len(t, retrievedPayload["search_hits"], 1)
+	searchHits := retrievedPayload["search_hits"].([]map[string]any)
+	require.Equal(t, "mem_semantic", searchHits[0]["id"])
+	require.Equal(t, "semantic", searchHits[0]["kind"])
+	require.Equal(t, 0.8, searchHits[0]["score"])
+	require.Equal(t, "Semantic", searchHits[0]["title"])
+	require.Equal(t, searchMemoryRetrievalMinScore, retrievedPayload["search_min_score"])
+	require.Equal(t, 0, retrievedPayload["search_filtered_count"])
+}
+
+func TestTurn_RetrieveMemoryInstructionFiltersLowScoreSearchMemory(t *testing.T) {
+	provider := &memoryProviderStub{
+		caps: memory.Capabilities{SupportsSearch: true},
+		searchResult: memory.SearchResult{Hits: []memory.SearchHit{
+			{
+				Item: memory.MemoryItem{
+					ID:     "mem_low",
+					Kind:   memory.KindSemantic,
+					Status: memory.StatusActive,
+					Title:  "Low relevance",
+					Text:   "User likes black",
+				},
+				Score: searchMemoryRetrievalMinScore - 0.01,
+			},
+			{
+				Item: memory.MemoryItem{
+					ID:     "mem_high",
+					Kind:   memory.KindProcedural,
+					Status: memory.StatusActive,
+					Title:  "Daemon log workflow",
+					Text:   "Group logs by subsystem before suggesting fixes",
+				},
+				Score: searchMemoryRetrievalMinScore,
+			},
+		}},
+	}
+	traceSession := &mocks.TraceSessionStub{}
+	turn := &Turn{cfg: memoryEnabledTestConfig(), env: &mocks.EnvironmentStub{Memory: provider}}
+
+	instruction := turn.retrieveMemoryInstruction(context.Background(), "review daemon logs", traceSession)
+
+	require.Contains(t, instruction.Value, "# Memory Context")
+	require.Contains(t, instruction.Value, "Daemon log workflow")
+	require.NotContains(t, instruction.Value, "Low relevance")
+
+	var retrievedPayload map[string]any
+	for _, event := range traceSession.Events {
+		if event.Type == trace.EvtMemoryRetrieved {
+			retrievedPayload = event.Payload.(map[string]any)
+			break
+		}
+	}
+	require.NotNil(t, retrievedPayload)
+	require.Equal(t, 2, retrievedPayload["hit_count"])
+	require.Equal(t, 1, retrievedPayload["injected_count"])
+	require.Equal(t, 1, retrievedPayload["search_filtered_count"])
+	require.Len(t, retrievedPayload["search_hits"], 2)
+	require.Len(t, retrievedPayload["injected_items"], 1)
 }
 
 func TestTurn_RetrieveMemoryInstructionRecordsSetupFailures(t *testing.T) {
@@ -343,6 +414,7 @@ func TestTurn_RetrieveMemoryInstructionAllowsNilTraceSession(t *testing.T) {
 				Title:  "Package manager",
 				Text:   "Use pnpm",
 			},
+			Score: searchMemoryRetrievalMinScore,
 		}}},
 	}
 	turn := &Turn{
