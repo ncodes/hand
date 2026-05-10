@@ -155,13 +155,16 @@ func reflectionModelResponseToGenerationResult(resp *models.Response) (Reflectio
 	items := make([]MemoryItem, 0, len(parsed.Candidates))
 	for _, candidate := range parsed.Candidates {
 		metadata := reflectionMetadataEntriesToMap(candidate.Metadata)
-		metadata = setProceduralReflectionMetadata(metadata, candidate.Procedural)
+		kind := memoryKindFromReflectionCandidate(candidate)
+		if kind == KindProcedural {
+			metadata = setProceduralReflectionMetadata(metadata, candidate.Procedural)
+		}
 
 		// Candidate IDs, source links, reflection tags, and provenance metadata are
 		// intentionally absent here. The provider reconstructs them from trusted
 		// source memories before writing.
 		items = append(items, MemoryItem{
-			Kind:       memoryKindFromReflectionCandidate(candidate),
+			Kind:       kind,
 			Status:     StatusCandidate,
 			Title:      strings.TrimSpace(candidate.Title),
 			Text:       strings.TrimSpace(candidate.Text),
@@ -184,10 +187,7 @@ func memoryKindFromReflectionCandidate(candidate reflectionModelCandidate) Kind 
 
 func hasProceduralReflectionFields(procedural reflectionModelProcedural) bool {
 	return strings.TrimSpace(procedural.Trigger) != "" ||
-		len(getNonBlankStrings(procedural.Steps)) > 0 ||
-		len(getNonBlankStrings(procedural.Constraints)) > 0 ||
-		len(getNonBlankStrings(procedural.Examples)) > 0 ||
-		strings.TrimSpace(procedural.ExpectedBehavior) != ""
+		len(getNonBlankStrings(procedural.Steps)) > 0
 }
 
 func normalizeReflectionJSON(raw string) string {
@@ -214,9 +214,14 @@ func getReflectionInstructions() string {
 		"Every candidate must remain candidate-only; do not request activation, deletion, or supersession.",
 		"Prefer durable preferences, corrections, decisions, recurring procedures, and high-signal continuity facts.",
 		"Reject low-importance observations, execution details, raw transcript snippets, or temporary task state by omitting them.",
+		"Use semantic for stable user facts, durable preferences, identity details, project facts, and domain knowledge.",
+		"When multiple episodic sources corroborate a stable user fact or preference and related memory does not already capture it, emit a semantic candidate.",
+		"Use procedural only for reusable workflows, ordered steps, methods, policies, or instructions the assistant should follow.",
+		"Use pinned only when the source explicitly requests an always-loaded standing instruction or critical persistent constraint.",
 		"Procedural candidates must be written as reusable instructions, not summaries that a process exists.",
 		"Procedural text must preserve the trigger, ordered steps, constraints, important examples, and expected behavior when those details are present in the source memories.",
 		"Every candidate must include the typed procedural object. For non-procedural candidates, use empty procedural fields.",
+		"For non-procedural candidates, procedural.trigger, procedural.expected_behavior, and every procedural array must be empty.",
 		"For procedural candidates, fill procedural.trigger and procedural.steps. Also fill procedural.constraints, procedural.examples, and procedural.expected_behavior when present in the source memories.",
 		"Tags must be short machine labels, not sentences or descriptive phrases.",
 		"Use lowercase kebab-case tags with one to three words, such as daemon-log, review, or workflow.",

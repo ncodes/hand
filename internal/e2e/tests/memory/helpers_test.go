@@ -104,6 +104,25 @@ func loadLiveMemoryStore(
 	return memoryStore
 }
 
+func loadLiveMemoryStateManager(
+	t *testing.T,
+	cfg *config.Config,
+	rerankerClient models.Client,
+) *statemanager.Manager {
+	t.Helper()
+
+	inspectCfg := *cfg
+	store, err := statemanager.OpenStoreWithRerankerClient(&inspectCfg, rerankerClient)
+	require.NoError(t, err)
+
+	manager, err := statemanager.NewManager(store, cfg.Session.DefaultIdleExpiry, cfg.Session.ArchiveRetention)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, manager.Close())
+	})
+	return manager
+}
+
 func loadLiveMemoryVectorIndex(t *testing.T, cfg *config.Config) liveMemoryVectorIndex {
 	t.Helper()
 
@@ -172,6 +191,37 @@ func waitForLiveProceduralMemory(
 		select {
 		case <-ctx.Done():
 			t.Fatalf("timed out waiting for active procedural memory; memories: %s", getLiveMemoryDump(context.Background(), t, store, sessionID))
+		case <-ticker.C:
+		}
+	}
+}
+
+func waitForLiveSemanticMemoryContaining(
+	t *testing.T,
+	ctx context.Context,
+	store liveMemoryStore,
+	vectorIndex liveMemoryVectorIndex,
+	sessionID string,
+	required ...string,
+) storage.MemoryItem {
+	t.Helper()
+
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		item, ok := getLiveSemanticMemoryContaining(ctx, t, store, sessionID, required...)
+		if ok &&
+			!item.PromotionEvaluatedAt.IsZero() &&
+			hasNoPendingLiveMemoryPromotion(ctx, t, store, sessionID) &&
+			hasSessionEpisodicCheckpointComplete(t, ctx, store, sessionID) &&
+			hasCurrentLiveMemoryVectors(ctx, t, store, vectorIndex, sessionID) {
+			return item
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for active semantic memory; memories: %s", getLiveMemoryDump(context.Background(), t, store, sessionID))
 		case <-ticker.C:
 		}
 	}
@@ -328,6 +378,31 @@ func getLiveProceduralMemory(
 	return storage.MemoryItem{}, false
 }
 
+func getLiveSemanticMemoryContaining(
+	ctx context.Context,
+	t *testing.T,
+	store liveMemoryStore,
+	sessionID string,
+	required ...string,
+) (storage.MemoryItem, bool) {
+	t.Helper()
+
+	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
+		SessionID: strings.TrimSpace(sessionID),
+		Kinds:     []storage.MemoryKind{storage.MemoryKindSemantic},
+		Statuses:  []storage.MemoryStatus{storage.MemoryStatusActive},
+		Limit:     10,
+	})
+	require.NoError(t, err)
+	for _, hit := range result.Hits {
+		if hasLiveMemoryText(hit.Item, required...) {
+			return hit.Item, true
+		}
+	}
+
+	return storage.MemoryItem{}, false
+}
+
 func waitForLiveBackgroundEpisodicMemory(
 	t *testing.T,
 	ctx context.Context,
@@ -381,16 +456,25 @@ func getLiveBackgroundEpisodicMemory(
 }
 
 func hasLiveDaemonLogReviewMemoryText(item storage.MemoryItem) bool {
+	return hasLiveMemoryText(item, "daemon", "log", "review")
+}
+
+func hasLiveMemoryText(item storage.MemoryItem, required ...string) bool {
 	text := strings.ToLower(strings.Join([]string{
 		item.Title,
 		item.Text,
 		item.Metadata["procedural_trigger"],
 		item.Metadata["procedural_steps"],
+		item.Metadata["procedural_expected_behavior"],
 	}, " "))
 
-	return strings.Contains(text, "daemon") &&
-		strings.Contains(text, "log") &&
-		strings.Contains(text, "review")
+	for _, value := range required {
+		if !strings.Contains(text, strings.ToLower(strings.TrimSpace(value))) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func getLiveMemoryDump(ctx context.Context, t *testing.T, store liveMemoryStore, sessionID string) string {

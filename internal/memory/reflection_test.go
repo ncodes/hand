@@ -1233,7 +1233,12 @@ func TestLLMReflectionGenerator_GeneratesCandidatesWithMockedModel(t *testing.T)
 	require.Equal(t, "test-model", client.requests[0].Model)
 	require.NotNil(t, client.requests[0].StructuredOutput)
 	require.Contains(t, client.requests[0].Instructions, "key/value entries")
+	require.Contains(t, client.requests[0].Instructions, "Use semantic for stable user facts")
+	require.Contains(t, client.requests[0].Instructions, "multiple episodic sources corroborate a stable user fact")
+	require.Contains(t, client.requests[0].Instructions, "Use procedural only for reusable workflows")
+	require.Contains(t, client.requests[0].Instructions, "Use pinned only when the source explicitly requests")
 	require.Contains(t, client.requests[0].Instructions, "Procedural candidates must be written as reusable instructions")
+	require.Contains(t, client.requests[0].Instructions, "procedural.expected_behavior")
 	require.Contains(t, client.requests[0].Instructions, "procedural.trigger")
 	require.Contains(t, client.requests[0].Instructions, "procedural.steps")
 	require.Contains(t, client.requests[0].Instructions, "Tags must be short machine labels")
@@ -1268,6 +1273,34 @@ func TestReflectionModelResponseToGenerationResultUsesTypedProceduralFieldsForKi
 	require.Equal(t, KindProcedural, result.Items[0].Kind)
 	require.Equal(t, "User asks to review daemon logs.", result.Items[0].Metadata["procedural_trigger"])
 	require.Equal(t, "Group lines by subsystem.; Explain timeline before fixes.", result.Items[0].Metadata["procedural_steps"])
+}
+
+func TestReflectionModelResponseToGenerationResultKeepsSemanticKindWhenOnlyExpectedBehaviorIsSet(t *testing.T) {
+	result, err := reflectionModelResponseToGenerationResult(&models.Response{OutputText: `{
+		"candidates": [{
+			"kind": "semantic",
+			"title": "User project codename preference",
+			"text": "The user's preferred project codename for status reports is ember-lake.",
+			"tags": ["preference", "codename"],
+			"confidence": 1,
+			"procedural": {
+				"trigger": "",
+				"steps": [],
+				"constraints": [],
+				"examples": [],
+				"expected_behavior": "Use ember-lake in status reports."
+			},
+			"metadata": [
+				{"key": "memory_importance", "value": "high"},
+				{"key": "memory_granularity", "value": "summary"}
+			]
+		}]
+	}`})
+
+	require.NoError(t, err)
+	require.Len(t, result.Items, 1)
+	require.Equal(t, KindSemantic, result.Items[0].Kind)
+	require.Empty(t, result.Items[0].Metadata["procedural_expected_behavior"])
 }
 
 func TestLLMReflectionGenerator_StructuredOutputUsesMetadataEntries(t *testing.T) {
