@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -263,31 +262,7 @@ func hasCurrentLiveMemoryVectors(
 }
 
 func getLiveMemoryVectorTags(item storage.MemoryItem) []string {
-	tags := make([]string, 0, 4)
-	if kind := strings.TrimSpace(string(item.Kind)); kind != "" {
-		tags = append(tags, "memory_kind:"+kind)
-	}
-	if status := strings.TrimSpace(string(item.Status)); status != "" {
-		tags = append(tags, "memory_status:"+status)
-	}
-	if sessionID := getLiveMemoryVectorSessionID(item); sessionID != "" {
-		tags = append(tags, "memory_session:"+sessionID)
-	}
-	tags = append(tags, "memory_reflected:"+strings.TrimSpace(strings.ToLower((strconv.FormatBool(item.Reflected)))))
-	return search.NormalizeVectorTags(tags)
-}
-
-func getLiveMemoryVectorSessionID(item storage.MemoryItem) string {
-	if sessionID := strings.TrimSpace(item.Metadata["source_session_id"]); sessionID != "" {
-		return sessionID
-	}
-	for _, link := range item.SourceLinks {
-		if sessionID := strings.TrimSpace(link.SessionID); sessionID != "" {
-			return sessionID
-		}
-	}
-
-	return ""
+	return search.MemoryVectorTags(item)
 }
 
 func hasLiveMemoryVectorTags(actual []string, expected []string) bool {

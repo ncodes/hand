@@ -2,7 +2,6 @@ package memory
 
 import (
 	"context"
-	"io"
 	"os"
 	"strings"
 	"testing"
@@ -12,12 +11,7 @@ import (
 
 	e2e "github.com/wandxy/hand/internal/e2e"
 	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/pkg/logutils"
 )
-
-func init() {
-	logutils.SetOutput(io.Discard)
-}
 
 func TestLiveEpisodicMemoryCreatedByBackgroundProcess(t *testing.T) {
 	if strings.TrimSpace(os.Getenv("HAND_E2E_LIVE")) != "1" {

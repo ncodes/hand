@@ -550,18 +550,18 @@ func TestSQLiteMemoryVectorHelpers(t *testing.T) {
 		}},
 	}
 	require.Equal(t, "Title\nBody", getMemoryVectorText(item))
-	require.Equal(t, "source-session", getMemoryVectorSessionID(item))
+	require.Equal(t, "source-session", search.MemoryVectorSessionID(item))
 	require.Equal(t, []string{
 		"memory_kind:semantic",
 		"memory_reflected:false",
 		"memory_session:source-session",
 		"memory_status:active",
 		"memory_tag:go",
-	}, getMemoryVectorTags(item))
+	}, search.MemoryVectorTags(item))
 
 	item.Metadata = map[string]string{"source_session_id": "metadata-session"}
-	require.Equal(t, "metadata-session", getMemoryVectorSessionID(item))
-	require.Empty(t, getMemoryVectorSessionID(statememory.MemoryItem{}))
+	require.Equal(t, "metadata-session", search.MemoryVectorSessionID(item))
+	require.Empty(t, search.MemoryVectorSessionID(statememory.MemoryItem{}))
 }
 
 func TestSQLiteMemoryStore_ListSessionMemoriesFiltersOrdersLimitsAndClones(t *testing.T) {

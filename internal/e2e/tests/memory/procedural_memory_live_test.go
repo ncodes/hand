@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -14,9 +15,9 @@ import (
 )
 
 func TestLiveProceduralMemoryCreatedFromProductionConfig(t *testing.T) {
-	// if strings.TrimSpace(os.Getenv("HAND_E2E_LIVE")) != "1" {
-	// t.Skip("set HAND_E2E_LIVE=1 to run live LLM e2e tests")
-	// }
+	if strings.TrimSpace(os.Getenv("HAND_E2E_LIVE")) != "1" {
+		t.Skip("set HAND_E2E_LIVE=1 to run live LLM e2e tests")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	t.Cleanup(cancel)

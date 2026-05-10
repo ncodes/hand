@@ -40,7 +40,7 @@ func (s *Store) searchMemoryHybrid(
 	}
 
 	hits := search.FilterMemoryHitsForEvidence(query, mergeMemoryHits(lexicalHits, vectorHits))
-    
+
 	return search.RerankMemoryHits(ctx, query, hits, search.MemoryRerankOptions{
 		Reranker:      s.memoryReranker,
 		MaxCandidates: candidateLimit,
@@ -242,8 +242,8 @@ func (s *Store) indexMemoryVector(ctx context.Context, item statememory.MemoryIt
 		ID:             embedding.ID,
 		SourceKind:     search.SourceKindMemoryItem,
 		SourceID:       search.StableMemoryItemID(item.ID),
-		SessionID:      getMemoryVectorSessionID(item),
-		Tags:           getMemoryVectorTags(item),
+		SessionID:      search.MemoryVectorSessionID(item),
+		Tags:           search.MemoryVectorTags(item),
 		EmbeddingModel: result.Model,
 		ContentHash:    embedding.ContentHash,
 		Vector:         embedding.Vector,
@@ -357,23 +357,23 @@ func checkMemoryQueryNeedsSourceIDFilter(query statememory.MemorySearchQuery) bo
 func getMemoryVectorFilterTags(query statememory.MemorySearchQuery) []string {
 	tags := make([]string, 0, 4+len(query.Tags))
 	if sessionID := strings.TrimSpace(query.SessionID); sessionID != "" {
-		tags = append(tags, getMemoryVectorTag("memory_session", sessionID))
+		tags = append(tags, search.MemoryVectorTag("memory_session", sessionID))
 	}
 	if len(query.Kinds) == 1 {
-		tags = append(tags, getMemoryVectorTag("memory_kind", string(query.Kinds[0])))
+		tags = append(tags, search.MemoryVectorTag("memory_kind", string(query.Kinds[0])))
 	}
 	if len(query.Statuses) == 0 {
-		tags = append(tags, getMemoryVectorTag("memory_status", string(statememory.MemoryStatusActive)))
+		tags = append(tags, search.MemoryVectorTag("memory_status", string(statememory.MemoryStatusActive)))
 	} else if len(query.Statuses) == 1 {
-		tags = append(tags, getMemoryVectorTag("memory_status", string(query.Statuses[0])))
+		tags = append(tags, search.MemoryVectorTag("memory_status", string(query.Statuses[0])))
 	}
 	for _, tag := range query.Tags {
 		if tag = strings.TrimSpace(tag); tag != "" {
-			tags = append(tags, getMemoryVectorTag("memory_tag", tag))
+			tags = append(tags, search.MemoryVectorTag("memory_tag", tag))
 		}
 	}
 	if query.Reflected != nil {
-		tags = append(tags, getMemoryVectorTag("memory_reflected", fmt.Sprint(*query.Reflected)))
+		tags = append(tags, search.MemoryVectorTag("memory_reflected", fmt.Sprint(*query.Reflected)))
 	}
 
 	return search.NormalizeVectorTags(tags)
@@ -385,7 +385,7 @@ func getMemoryVectorFilterTagGroups(query statememory.MemorySearchQuery) [][]str
 		group := make([]string, 0, len(query.Kinds))
 		for _, kind := range query.Kinds {
 			if value := strings.TrimSpace(string(kind)); value != "" {
-				group = append(group, getMemoryVectorTag("memory_kind", value))
+				group = append(group, search.MemoryVectorTag("memory_kind", value))
 			}
 		}
 		groups = append(groups, group)
@@ -394,7 +394,7 @@ func getMemoryVectorFilterTagGroups(query statememory.MemorySearchQuery) [][]str
 		group := make([]string, 0, len(query.Statuses))
 		for _, status := range query.Statuses {
 			if value := strings.TrimSpace(string(status)); value != "" {
-				group = append(group, getMemoryVectorTag("memory_status", value))
+				group = append(group, search.MemoryVectorTag("memory_status", value))
 			}
 		}
 		groups = append(groups, group)
@@ -403,44 +403,6 @@ func getMemoryVectorFilterTagGroups(query statememory.MemorySearchQuery) [][]str
 	return search.NormalizeVectorTagGroups(groups)
 }
 
-func getMemoryVectorTags(item statememory.MemoryItem) []string {
-	tags := make([]string, 0, 4+len(item.Tags))
-	if kind := strings.TrimSpace(string(item.Kind)); kind != "" {
-		tags = append(tags, getMemoryVectorTag("memory_kind", kind))
-	}
-	if status := strings.TrimSpace(string(item.Status)); status != "" {
-		tags = append(tags, getMemoryVectorTag("memory_status", status))
-	}
-	if sessionID := getMemoryVectorSessionID(item); sessionID != "" {
-		tags = append(tags, getMemoryVectorTag("memory_session", sessionID))
-	}
-	tags = append(tags, getMemoryVectorTag("memory_reflected", fmt.Sprint(item.Reflected)))
-	for _, tag := range item.Tags {
-		if tag = strings.TrimSpace(tag); tag != "" {
-			tags = append(tags, getMemoryVectorTag("memory_tag", tag))
-		}
-	}
-
-	return search.NormalizeVectorTags(tags)
-}
-
-func getMemoryVectorTag(key string, value string) string {
-	return strings.TrimSpace(key) + ":" + strings.TrimSpace(value)
-}
-
 func getMemoryVectorText(item statememory.MemoryItem) string {
 	return strings.TrimSpace(strings.Join([]string{item.Title, item.Text}, "\n"))
-}
-
-func getMemoryVectorSessionID(item statememory.MemoryItem) string {
-	if sessionID := strings.TrimSpace(item.Metadata["source_session_id"]); sessionID != "" {
-		return sessionID
-	}
-	for _, link := range item.SourceLinks {
-		if sessionID := strings.TrimSpace(link.SessionID); sessionID != "" {
-			return sessionID
-		}
-	}
-
-	return ""
 }
