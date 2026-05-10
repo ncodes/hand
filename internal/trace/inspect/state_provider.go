@@ -50,6 +50,9 @@ func (p stateProvider) ListSessionMemories(ctx context.Context, sessionID string
 		SessionID: sessionID,
 		Kinds: []storage.MemoryKind{
 			storage.MemoryKindEpisodic,
+			storage.MemoryKindSemantic,
+			storage.MemoryKindProcedural,
+			storage.MemoryKindPinned,
 		},
 		Statuses: []storage.MemoryStatus{
 			storage.MemoryStatusCandidate,

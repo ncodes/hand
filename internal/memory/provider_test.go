@@ -488,7 +488,6 @@ func TestDefaultMemoryProvider_SearchWriteDeleteAndObservability(t *testing.T) {
 		map[string]any{
 			"provider":     ProviderDefaultMemory,
 			"operation":    "search",
-			"plan":         "validate_query_search_store_redact_results",
 			"query_chars":  7,
 			"kind_count":   1,
 			"status_count": 1,

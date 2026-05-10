@@ -13,7 +13,7 @@ type Store interface {
 	Get(ctx context.Context, id string) (Session, bool, error)
 	List(ctx context.Context) ([]Session, error)
 	Delete(ctx context.Context, id string) error
-	UpdateEpisodicCheckpoint(ctx context.Context, id string, offset int) error
+	UpdateCheckpoints(ctx context.Context, id string, patch CheckpointPatch) error
 
 	// Current session tracking
 	SetCurrent(ctx context.Context, id string) error

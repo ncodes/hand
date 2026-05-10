@@ -49,7 +49,7 @@ func (s *storageStoreStub) Get(context.Context, string) (storage.Session, bool, 
 }
 func (s *storageStoreStub) List(context.Context) ([]storage.Session, error) { return nil, nil }
 func (s *storageStoreStub) Delete(context.Context, string) error            { return nil }
-func (s *storageStoreStub) UpdateEpisodicCheckpoint(context.Context, string, int) error {
+func (s *storageStoreStub) UpdateCheckpoints(context.Context, string, storage.CheckpointPatch) error {
 	return nil
 }
 func (s *storageStoreStub) AppendMessages(context.Context, string, []handmsg.Message) error {

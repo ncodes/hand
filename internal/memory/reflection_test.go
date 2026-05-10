@@ -693,8 +693,12 @@ func TestMemoryProvider_ReflectionHelpersCoverFallbacksAndErrors(t *testing.T) {
 		}}}
 		manager := &recordingMemoryManager{
 			sessions: []statecore.Session{
-				{ID: "default"},
-				{ID: "ses_workflow"},
+				{ID: "default", EpisodicCheckpointOffset: 3},
+				{ID: "ses_workflow", EpisodicCheckpointOffset: 4},
+			},
+			messageCounts: map[string]int{
+				"default":      3,
+				"ses_workflow": 4,
 			},
 			searchResults: []SearchResult{
 				{Hits: []SearchHit{{Item: reflectionSource("mem_default_source", 1)}}},
@@ -729,6 +733,95 @@ func TestMemoryProvider_ReflectionHelpersCoverFallbacksAndErrors(t *testing.T) {
 		require.Len(t, manager.patches, 2)
 		require.Equal(t, "mem_default_source", manager.patches[0].ID)
 		require.Equal(t, "mem_workflow_source", manager.patches[1].ID)
+		require.Equal(t, 3, manager.reflectionCheckpoints["default"])
+		require.Equal(t, 4, manager.reflectionCheckpoints["ses_workflow"])
+	})
+
+	t.Run("run background waits for episodic checkpoint when no unreflected sources exist", func(t *testing.T) {
+		generator := &fakeReflectionGenerator{}
+		manager := &recordingMemoryManager{
+			sessions: []statecore.Session{{
+				ID:                       "ses_active",
+				EpisodicCheckpointOffset: 0,
+			}},
+			messageCounts: map[string]int{"ses_active": 4},
+			searchResults: []SearchResult{{}},
+		}
+		provider := &MemoryProvider{
+			manager:             manager,
+			reflectionGenerator: generator,
+		}
+
+		result, err := provider.RunReflectionBackground(context.Background(), ReflectionBackgroundOptions{})
+
+		require.NoError(t, err)
+		require.Zero(t, result.SourceCount)
+		require.Empty(t, generator.requests)
+		require.Len(t, manager.searchQueries, 1)
+		require.Equal(t, 1, manager.searchQueries[0].Limit)
+		require.NotNil(t, manager.searchQueries[0].Reflected)
+		require.False(t, *manager.searchQueries[0].Reflected)
+		require.Empty(t, manager.reflectionCheckpoints)
+	})
+
+	t.Run("run background skips checkpointed session with no unreflected sources", func(t *testing.T) {
+		generator := &fakeReflectionGenerator{}
+		manager := &recordingMemoryManager{
+			sessions: []statecore.Session{{
+				ID:                         "default",
+				EpisodicCheckpointOffset:   4,
+				ReflectionCheckpointOffset: 4,
+			}},
+			messageCounts: map[string]int{"default": 4},
+			searchResults: []SearchResult{{}},
+		}
+		provider := &MemoryProvider{
+			manager:             manager,
+			reflectionGenerator: generator,
+		}
+
+		result, err := provider.RunReflectionBackground(context.Background(), ReflectionBackgroundOptions{})
+
+		require.NoError(t, err)
+		require.Zero(t, result.SourceCount)
+		require.Empty(t, generator.requests)
+		require.Len(t, manager.searchQueries, 1)
+		require.Equal(t, 1, manager.searchQueries[0].Limit)
+		require.NotNil(t, manager.searchQueries[0].Reflected)
+		require.False(t, *manager.searchQueries[0].Reflected)
+		require.Empty(t, manager.reflectionCheckpoints)
+	})
+
+	t.Run("run background reflects checkpointed session with unreflected tool source", func(t *testing.T) {
+		generator := &fakeReflectionGenerator{result: ReflectionGenerationResult{Items: []MemoryItem{
+			reflectionCandidate(KindProcedural, "Remembered tool workflow"),
+		}}}
+		manager := &recordingMemoryManager{
+			sessions: []statecore.Session{{
+				ID:                         "default",
+				EpisodicCheckpointOffset:   4,
+				ReflectionCheckpointOffset: 4,
+			}},
+			messageCounts: map[string]int{"default": 4},
+			searchResults: []SearchResult{
+				{Hits: []SearchHit{{Item: reflectionSource("mem_tool_source", 1)}}},
+				{Hits: []SearchHit{{Item: reflectionSource("mem_tool_source", 1)}}},
+				{},
+				{},
+			},
+		}
+		provider := &MemoryProvider{
+			manager:             manager,
+			reflectionGenerator: generator,
+		}
+
+		result, err := provider.RunReflectionBackground(context.Background(), ReflectionBackgroundOptions{})
+
+		require.NoError(t, err)
+		require.Equal(t, 1, result.SourceCount)
+		require.Equal(t, 1, result.WriteCount)
+		require.Len(t, generator.requests, 1)
+		require.Equal(t, 4, manager.reflectionCheckpoints["default"])
 	})
 
 	t.Run("related search error", func(t *testing.T) {

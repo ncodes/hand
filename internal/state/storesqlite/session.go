@@ -29,6 +29,7 @@ type SessionSummary = base.SessionSummary
 type SessionCompaction = base.SessionCompaction
 type SessionCompactionStatus = base.SessionCompactionStatus
 type MessageRecord = base.MessageRecord
+type CheckpointPatch = base.CheckpointPatch
 
 // sessionModel stores durable session-level state and compaction progress.
 type sessionModel struct {
@@ -45,6 +46,7 @@ type sessionModel struct {
 	CompactionTargetMessageCount int
 	CompactionTargetOffset       int
 	EpisodicCheckpointOffset     int
+	ReflectionCheckpointOffset   int
 }
 
 // TableName returns the SQLite table used for active sessions.
@@ -192,6 +194,9 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 		if session.EpisodicCheckpointOffset == 0 {
 			session.EpisodicCheckpointOffset = existing.EpisodicCheckpointOffset
 		}
+		if session.ReflectionCheckpointOffset == 0 {
+			session.ReflectionCheckpointOffset = existing.ReflectionCheckpointOffset
+		}
 
 		session.UpdatedAt = time.Now().UTC()
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -223,6 +228,7 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 		EpisodicCheckpointOffset:     session.EpisodicCheckpointOffset,
 		ID:                           session.ID,
 		LastPromptTokens:             session.LastPromptTokens,
+		ReflectionCheckpointOffset:   session.ReflectionCheckpointOffset,
 		UpdatedAt:                    session.UpdatedAt,
 	}
 
@@ -231,7 +237,7 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 	})
 }
 
-func (s *Store) UpdateEpisodicCheckpoint(ctx context.Context, id string, offset int) error {
+func (s *Store) UpdateCheckpoints(ctx context.Context, id string, patch CheckpointPatch) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
@@ -240,30 +246,49 @@ func (s *Store) UpdateEpisodicCheckpoint(ctx context.Context, id string, offset 
 	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
-	if offset < 0 {
+	if patch.EpisodicOffset != nil && *patch.EpisodicOffset < 0 {
 		return errors.New("episodic checkpoint offset must be greater than or equal to zero")
 	}
-
-	result := s.db.WithContext(ctx).
-		Model(&sessionModel{}).
-		Where("id = ? AND COALESCE(episodic_checkpoint_offset, 0) < ?", id, offset).
-		Update("episodic_checkpoint_offset", offset)
-	if result.Error != nil {
-		return result.Error
+	if patch.ReflectionOffset != nil && *patch.ReflectionOffset < 0 {
+		return errors.New("reflection checkpoint offset must be greater than or equal to zero")
 	}
-	if result.RowsAffected > 0 {
+
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		changed := false
+		if patch.EpisodicOffset != nil {
+			result := tx.
+				Model(&sessionModel{}).
+				Where("id = ? AND COALESCE(episodic_checkpoint_offset, 0) < ?", id, *patch.EpisodicOffset).
+				Update("episodic_checkpoint_offset", *patch.EpisodicOffset)
+			if result.Error != nil {
+				return result.Error
+			}
+			changed = changed || result.RowsAffected > 0
+		}
+		if patch.ReflectionOffset != nil {
+			result := tx.
+				Model(&sessionModel{}).
+				Where("id = ? AND COALESCE(reflection_checkpoint_offset, 0) < ?", id, *patch.ReflectionOffset).
+				Update("reflection_checkpoint_offset", *patch.ReflectionOffset)
+			if result.Error != nil {
+				return result.Error
+			}
+			changed = changed || result.RowsAffected > 0
+		}
+		if changed {
+			return nil
+		}
+
+		var count int64
+		if err := tx.Model(&sessionModel{}).Where("id = ?", id).Count(&count).Error; err != nil {
+			return err
+		}
+		if count == 0 {
+			return errors.New("session not found")
+		}
+
 		return nil
-	}
-
-	var count int64
-	if err := s.db.WithContext(ctx).Model(&sessionModel{}).Where("id = ?", id).Count(&count).Error; err != nil {
-		return err
-	}
-	if count == 0 {
-		return errors.New("session not found")
-	}
-
-	return nil
+	})
 }
 
 // Get loads one active session by ID.
@@ -1381,9 +1406,10 @@ func sessionModelToSession(record sessionModel) (Session, error) {
 			TargetMessageCount: record.CompactionTargetMessageCount,
 			TargetOffset:       record.CompactionTargetOffset,
 		},
-		EpisodicCheckpointOffset: record.EpisodicCheckpointOffset,
-		ID:                       id,
-		LastPromptTokens:         record.LastPromptTokens,
+		EpisodicCheckpointOffset:   record.EpisodicCheckpointOffset,
+		ID:                         id,
+		LastPromptTokens:           record.LastPromptTokens,
+		ReflectionCheckpointOffset: record.ReflectionCheckpointOffset,
 	}
 
 	if !record.CreatedAt.IsZero() {

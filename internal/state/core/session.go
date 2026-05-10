@@ -19,12 +19,18 @@ func NewArchiveID() (string, error) {
 }
 
 type Session struct {
-	CreatedAt                time.Time
-	Compaction               SessionCompaction
-	ID                       string
-	EpisodicCheckpointOffset int
-	LastPromptTokens         int
-	UpdatedAt                time.Time
+	CreatedAt                  time.Time
+	Compaction                 SessionCompaction
+	ID                         string
+	EpisodicCheckpointOffset   int
+	LastPromptTokens           int
+	ReflectionCheckpointOffset int
+	UpdatedAt                  time.Time
+}
+
+type CheckpointPatch struct {
+	EpisodicOffset   *int
+	ReflectionOffset *int
 }
 
 type SessionCompactionStatus string

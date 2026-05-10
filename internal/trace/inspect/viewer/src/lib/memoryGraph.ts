@@ -34,7 +34,7 @@ export function buildMemoryGraph(detail?: TraceDetail): MemoryGraph {
     links,
     loadError: detail?.memories?.load_error,
     metrics: {
-      episodic: nodes.length,
+      episodic: nodes.filter((node) => node.metadata.kind === "episodic").length,
       candidates: nodes.filter((node) => node.status === "candidate").length,
       active: nodes.filter((node) => node.status === "active").length,
       blockers: nodes.filter((node) => node.kind === "blocker").length,

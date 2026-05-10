@@ -78,7 +78,7 @@ type StateManager interface {
 	CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error)
 	GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
 	ListTraceEvents(context.Context, storage.TraceQuery) (storage.TraceResult, error)
-	UpdateEpisodicCheckpoint(context.Context, string, int) error
+	UpdateCheckpoints(context.Context, string, storage.CheckpointPatch) error
 }
 
 // MemoryRepository provides existing-memory lookup and episode recording for extraction.

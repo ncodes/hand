@@ -180,8 +180,10 @@ func TestService_RunBackgroundResumesFromSessionCheckpoint(t *testing.T) {
 			end := min(opts.Offset+opts.Limit, len(messages))
 			return messages[opts.Offset:end], nil
 		},
-		UpdateEpisodicCheckpointFunc: func(_ context.Context, _ string, offset int) error {
-			checkpoints = append(checkpoints, offset)
+		UpdateCheckpointsFunc: func(_ context.Context, _ string, patch storage.CheckpointPatch) error {
+			if patch.EpisodicOffset != nil {
+				checkpoints = append(checkpoints, *patch.EpisodicOffset)
+			}
 			return nil
 		},
 	}
@@ -469,6 +471,6 @@ func (sourceManagerStub) ListTraceEvents(context.Context, storage.TraceQuery) (s
 	return storage.TraceResult{}, nil
 }
 
-func (sourceManagerStub) UpdateEpisodicCheckpoint(context.Context, string, int) error {
+func (sourceManagerStub) UpdateCheckpoints(context.Context, string, storage.CheckpointPatch) error {
 	return nil
 }

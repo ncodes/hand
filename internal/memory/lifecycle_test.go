@@ -216,6 +216,54 @@ func TestMemoryProvider_PromoteCandidateRejectsCrossKindNearDuplicates(t *testin
 	require.Equal(t, []string{"mem_active_episode"}, lifecycleItemIDs(result.Related))
 }
 
+func TestMemoryProvider_PromoteCandidateIgnoresReflectionSourceDuplicate(t *testing.T) {
+	source := lifecycleCandidate("mem_episode", KindEpisodic, "When reviewing daemon logs, group lines by subsystem before proposing fixes.")
+	source.Status = StatusActive
+	candidate := lifecycleCandidate("mem_candidate_procedural", KindProcedural, "When reviewing daemon logs, group lines by subsystem before proposing fixes.")
+	manager := &recordingMemoryManager{
+		searchResults: []SearchResult{
+			{Hits: []SearchHit{{Item: candidate}}},
+			{Hits: []SearchHit{{Item: source, Score: 1}}},
+		},
+	}
+	provider := &MemoryProvider{manager: manager}
+
+	result, err := provider.PromoteCandidate(context.Background(), PromotionRequest{ID: "mem_candidate_procedural"})
+
+	require.NoError(t, err)
+	require.True(t, result.Decision.Approved)
+	require.Equal(t, promotionConflictNone, result.Decision.ConflictState)
+	require.Empty(t, result.Related)
+	require.Len(t, manager.upsertItems, 1)
+	require.Equal(t, StatusActive, manager.upsertItems[0].Status)
+}
+
+func TestMemoryProvider_PromoteCandidateRejectsUnrelatedDuplicateWhenReflectionSourceAlsoRelated(t *testing.T) {
+	source := lifecycleCandidate("mem_episode", KindEpisodic, "When reviewing daemon logs, group lines by subsystem before proposing fixes.")
+	source.Status = StatusActive
+	duplicate := lifecycleCandidate("mem_unrelated_duplicate", KindProcedural, "When reviewing daemon logs, group lines by subsystem before proposing fixes.")
+	duplicate.Status = StatusActive
+	candidate := lifecycleCandidate("mem_candidate_procedural", KindProcedural, "When reviewing daemon logs, group lines by subsystem before proposing fixes.")
+	manager := &recordingMemoryManager{
+		searchResults: []SearchResult{
+			{Hits: []SearchHit{{Item: candidate}}},
+			{Hits: []SearchHit{
+				{Item: source, Score: 1},
+				{Item: duplicate, Score: 1},
+			}},
+		},
+	}
+	provider := &MemoryProvider{manager: manager}
+
+	result, err := provider.PromoteCandidate(context.Background(), PromotionRequest{ID: "mem_candidate_procedural"})
+
+	require.NoError(t, err)
+	require.False(t, result.Decision.Approved)
+	require.Equal(t, promotionConflictDuplicate, result.Decision.Reason)
+	require.Equal(t, promotionConflictDuplicate, result.Decision.ConflictState)
+	require.Equal(t, []string{"mem_unrelated_duplicate"}, lifecycleItemIDs(result.Related))
+}
+
 func TestMemoryProvider_PromoteCandidateAllowsCrossKindRelatedMemoryBelowDuplicateThreshold(t *testing.T) {
 	active := lifecycleCandidate("mem_active_episode", KindEpisodic, "The user asked for a daemon log review workflow.")
 	active.Status = StatusActive

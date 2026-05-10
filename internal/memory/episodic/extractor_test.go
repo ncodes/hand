@@ -436,7 +436,7 @@ func TestService_ExtractReturnsBackgroundCheckpointUpdateError(t *testing.T) {
 		GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			return []handmsg.Message{{ID: 1, Role: handmsg.RoleUser, Content: "remember"}}, nil
 		},
-		UpdateEpisodicCheckpointFunc: func(context.Context, string, int) error {
+		UpdateCheckpointsFunc: func(context.Context, string, storage.CheckpointPatch) error {
 			return checkpointErr
 		},
 	}
@@ -1432,7 +1432,7 @@ func (m traceErrorManager) ListTraceEvents(context.Context, storage.TraceQuery) 
 	return m.result, m.err
 }
 
-func (m traceErrorManager) UpdateEpisodicCheckpoint(context.Context, string, int) error {
+func (m traceErrorManager) UpdateCheckpoints(context.Context, string, storage.CheckpointPatch) error {
 	return nil
 }
 

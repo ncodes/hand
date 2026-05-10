@@ -407,9 +407,14 @@ func (p *MemoryProvider) relatedPromotionMemories(
 	}
 
 	hits := make([]SearchHit, 0, len(result.Hits))
+	reflectionSourceIDs := getReflectionSourceMemoryIDs(candidate)
 	for _, hit := range result.Hits {
 		item := hit.Item.Clone()
-		if strings.TrimSpace(item.ID) == strings.TrimSpace(candidate.ID) {
+		id := strings.TrimSpace(item.ID)
+		if id == strings.TrimSpace(candidate.ID) {
+			continue
+		}
+		if _, ok := reflectionSourceIDs[id]; ok {
 			continue
 		}
 		hit.Item = item
@@ -462,6 +467,17 @@ func checkPromotionConflictState(candidate MemoryItem, related []SearchHit) stri
 	}
 
 	return promotionConflictNone
+}
+
+func getReflectionSourceMemoryIDs(item MemoryItem) map[string]struct{} {
+	ids := make(map[string]struct{})
+	for id := range strings.SplitSeq(item.Metadata["reflection_source_memory_ids"], ",") {
+		id = strings.TrimSpace(id)
+		if id != "" {
+			ids[id] = struct{}{}
+		}
+	}
+	return ids
 }
 
 func getPromotionRelatedItems(hits []SearchHit) []MemoryItem {

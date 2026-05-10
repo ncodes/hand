@@ -1033,18 +1033,24 @@ func TestSQLiteStore_SaveRoundTripsLastPromptTokens(t *testing.T) {
 	require.Zero(t, session.LastPromptTokens)
 }
 
-func TestSQLiteStore_UpdateEpisodicCheckpoint(t *testing.T) {
+func TestSQLiteStore_UpdateCheckpointsUpdatesEpisodicOffset(t *testing.T) {
 	store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)
 	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
 
-	require.NoError(t, store.UpdateEpisodicCheckpoint(context.Background(), testSessionA, 12))
+	offset := 12
+	require.NoError(t, store.UpdateCheckpoints(context.Background(), testSessionA, CheckpointPatch{
+		EpisodicOffset: &offset,
+	}))
 	session, ok, err := store.Get(context.Background(), testSessionA)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, 12, session.EpisodicCheckpointOffset)
 
-	require.NoError(t, store.UpdateEpisodicCheckpoint(context.Background(), testSessionA, 4))
+	offset = 4
+	require.NoError(t, store.UpdateCheckpoints(context.Background(), testSessionA, CheckpointPatch{
+		EpisodicOffset: &offset,
+	}))
 	session, ok, err = store.Get(context.Background(), testSessionA)
 	require.NoError(t, err)
 	require.True(t, ok)
@@ -1053,14 +1059,68 @@ func TestSQLiteStore_UpdateEpisodicCheckpoint(t *testing.T) {
 	require.NoError(t, store.db.Model(&sessionModel{}).
 		Where("id = ?", testSessionA).
 		Update("episodic_checkpoint_offset", nil).Error)
-	require.NoError(t, store.UpdateEpisodicCheckpoint(context.Background(), testSessionA, 22))
+	offset = 22
+	require.NoError(t, store.UpdateCheckpoints(context.Background(), testSessionA, CheckpointPatch{
+		EpisodicOffset: &offset,
+	}))
 	session, ok, err = store.Get(context.Background(), testSessionA)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, 22, session.EpisodicCheckpointOffset)
 
-	require.EqualError(t, store.UpdateEpisodicCheckpoint(context.Background(), testSessionA, -1), "episodic checkpoint offset must be greater than or equal to zero")
-	require.EqualError(t, store.UpdateEpisodicCheckpoint(context.Background(), testMissingSession, 1), "session not found")
+	offset = -1
+	require.EqualError(t, store.UpdateCheckpoints(context.Background(), testSessionA, CheckpointPatch{
+		EpisodicOffset: &offset,
+	}), "episodic checkpoint offset must be greater than or equal to zero")
+	offset = 1
+	require.EqualError(t, store.UpdateCheckpoints(context.Background(), testMissingSession, CheckpointPatch{
+		EpisodicOffset: &offset,
+	}), "session not found")
+}
+
+func TestSQLiteStore_UpdateCheckpointsUpdatesReflectionOffset(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
+
+	offset := 12
+	require.NoError(t, store.UpdateCheckpoints(context.Background(), testSessionA, CheckpointPatch{
+		ReflectionOffset: &offset,
+	}))
+	session, ok, err := store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, 12, session.ReflectionCheckpointOffset)
+
+	offset = 4
+	require.NoError(t, store.UpdateCheckpoints(context.Background(), testSessionA, CheckpointPatch{
+		ReflectionOffset: &offset,
+	}))
+	session, ok, err = store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, 12, session.ReflectionCheckpointOffset)
+
+	require.NoError(t, store.db.Model(&sessionModel{}).
+		Where("id = ?", testSessionA).
+		Update("reflection_checkpoint_offset", nil).Error)
+	offset = 22
+	require.NoError(t, store.UpdateCheckpoints(context.Background(), testSessionA, CheckpointPatch{
+		ReflectionOffset: &offset,
+	}))
+	session, ok, err = store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, 22, session.ReflectionCheckpointOffset)
+
+	offset = -1
+	require.EqualError(t, store.UpdateCheckpoints(context.Background(), testSessionA, CheckpointPatch{
+		ReflectionOffset: &offset,
+	}), "reflection checkpoint offset must be greater than or equal to zero")
+	offset = 1
+	require.EqualError(t, store.UpdateCheckpoints(context.Background(), testMissingSession, CheckpointPatch{
+		ReflectionOffset: &offset,
+	}), "session not found")
 }
 
 func TestSQLiteStore_SaveRejectsInvalidSessionID(t *testing.T) {

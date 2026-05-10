@@ -147,23 +147,25 @@ func (s fakeMemoryManager) ListTraceEvents(context.Context, statecore.TraceQuery
 	return statecore.TraceResult{}, nil
 }
 
-func (s fakeMemoryManager) UpdateEpisodicCheckpoint(context.Context, string, int) error {
+func (s fakeMemoryManager) UpdateCheckpoints(context.Context, string, statecore.CheckpointPatch) error {
 	return nil
 }
 
 type recordingMemoryManager struct {
 	fakeMemoryManager
-	searchResults     []SearchResult
-	searchErrs        []error
-	searchQueries     []SearchQuery
-	upsertErrs        []error
-	upsertItems       []MemoryItem
-	upsertErr         error
-	patchErrs         []error
-	patches           []MemoryPatch
-	currentSessionErr error
-	sessions          []statecore.Session
-	listSessionsErr   error
+	searchResults         []SearchResult
+	searchErrs            []error
+	searchQueries         []SearchQuery
+	upsertErrs            []error
+	upsertItems           []MemoryItem
+	upsertErr             error
+	patchErrs             []error
+	patches               []MemoryPatch
+	currentSessionErr     error
+	messageCounts         map[string]int
+	sessions              []statecore.Session
+	listSessionsErr       error
+	reflectionCheckpoints map[string]int
 }
 
 func (m *recordingMemoryManager) SearchMemory(ctx context.Context, query SearchQuery) (SearchResult, error) {
@@ -223,12 +225,33 @@ func (m *recordingMemoryManager) CurrentSession(ctx context.Context) (string, er
 	return m.fakeMemoryManager.CurrentSession(ctx)
 }
 
+func (m *recordingMemoryManager) CountMessages(ctx context.Context, id string, opts statecore.MessageQueryOptions) (int, error) {
+	if m.messageCounts != nil {
+		return m.messageCounts[id], nil
+	}
+
+	return m.fakeMemoryManager.CountMessages(ctx, id, opts)
+}
+
 func (m *recordingMemoryManager) ListSessions(context.Context) ([]statecore.Session, error) {
 	if m.listSessionsErr != nil {
 		return nil, m.listSessionsErr
 	}
 
 	return append([]statecore.Session(nil), m.sessions...), nil
+}
+
+func (m *recordingMemoryManager) UpdateCheckpoints(_ context.Context, id string, patch statecore.CheckpointPatch) error {
+	if patch.ReflectionOffset != nil {
+		if m.reflectionCheckpoints == nil {
+			m.reflectionCheckpoints = make(map[string]int)
+		}
+		if *patch.ReflectionOffset > m.reflectionCheckpoints[id] {
+			m.reflectionCheckpoints[id] = *patch.ReflectionOffset
+		}
+	}
+
+	return nil
 }
 
 type vectorCapabilityMemoryManager struct {

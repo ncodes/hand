@@ -53,7 +53,7 @@ type StateManager interface {
 	CountMessages(context.Context, string, statecore.MessageQueryOptions) (int, error)
 	GetMessages(context.Context, string, statecore.MessageQueryOptions) ([]handmsg.Message, error)
 	ListTraceEvents(context.Context, statecore.TraceQuery) (statecore.TraceResult, error)
-	UpdateEpisodicCheckpoint(context.Context, string, int) error
+	UpdateCheckpoints(context.Context, string, statecore.CheckpointPatch) error
 }
 
 // MemoryProvider is the default implementation that composes storage,
@@ -275,7 +275,6 @@ func (p *MemoryProvider) Search(ctx context.Context, query SearchQuery) (SearchR
 
 	obs := p.observability()
 	startFields := buildObservationFields(p.Name(), "search", map[string]any{
-		"plan":         "validate_query_search_store_redact_results",
 		"query_chars":  len([]rune(strings.TrimSpace(query.Text))),
 		"kind_count":   len(query.Kinds),
 		"status_count": len(query.Statuses),

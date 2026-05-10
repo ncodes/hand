@@ -15,6 +15,7 @@ import (
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
 	memguardrails "github.com/wandxy/hand/internal/memory/guardrails"
+	memoryobservability "github.com/wandxy/hand/internal/memory/observability"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/personality"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
@@ -247,6 +248,9 @@ func (e *environment) prepareMemory() error {
 	}
 	provider, err := memory.NewProvider(e.cfg.Memory.Provider, opts)
 	if err != nil {
+		return err
+	}
+	if err := provider.ConfigureObservability(memoryobservability.New(&log.Logger, nil)); err != nil {
 		return err
 	}
 	if background, ok := provider.(memory.BackgroundProvider); ok {

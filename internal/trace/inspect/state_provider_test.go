@@ -175,6 +175,9 @@ func TestStateSessionMemoryProvider_ListSessionMemoriesUsesStateQueryAndClones(t
 		SessionID: storage.DefaultSessionID,
 		Kinds: []storage.MemoryKind{
 			storage.MemoryKindEpisodic,
+			storage.MemoryKindSemantic,
+			storage.MemoryKindProcedural,
+			storage.MemoryKindPinned,
 		},
 		Statuses: []storage.MemoryStatus{
 			storage.MemoryStatusCandidate,

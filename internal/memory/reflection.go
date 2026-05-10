@@ -52,7 +52,6 @@ func (p *MemoryProvider) Reflect(ctx context.Context, req ReflectionRequest) (Re
 		"session_id":    normalized.SessionID,
 		"limit":         normalized.Limit,
 		"related_limit": normalized.RelatedLimit,
-		"plan":          "load_unreflected_sources_load_related_generate_dedupe_write_mark_sources",
 	})
 	logDebugAndTrace(ctx, p.observability(), "memory reflection started to consolidate episodic sources", trace.EvtMemoryReflectionStarted, fields)
 
@@ -247,6 +246,30 @@ func (p *MemoryProvider) RunReflectionBackground(
 			continue
 		}
 
+		messageCount, err := p.manager.CountMessages(ctx, sessionID, statecore.MessageQueryOptions{})
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+
+		shouldReflect, err := p.shouldReflectSession(
+			ctx,
+			sessionID,
+			session,
+			messageCount,
+		)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if !shouldReflect {
+			continue
+		}
+
 		sessionResult, err := p.Reflect(ctx, ReflectionRequest{
 			SessionID:    sessionID,
 			Limit:        opts.Limit,
@@ -263,6 +286,15 @@ func (p *MemoryProvider) RunReflectionBackground(
 		result.RelatedCount += sessionResult.RelatedCount
 		result.WriteCount += sessionResult.WriteCount
 		result.Items = append(result.Items, cloneMemoryItems(sessionResult.Items)...)
+
+		offset := messageCount
+		if err := p.manager.UpdateCheckpoints(ctx, sessionID, statecore.CheckpointPatch{
+			ReflectionOffset: &offset,
+		}); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
 	}
 
 	return result, firstErr
@@ -277,6 +309,63 @@ type normalizedReflectionRequest struct {
 type reflectionBackgroundStateManager interface {
 	StateManager
 	ListSessions(context.Context) ([]statecore.Session, error)
+}
+
+func (p *MemoryProvider) isReflectionCheckpointComplete(
+	ctx context.Context,
+	sessionID string,
+	checkpointOffset int,
+	messageCount int,
+) (bool, error) {
+	if checkpointOffset < messageCount {
+		return false, nil
+	}
+
+	hasUnreflectedSources, err := p.hasUnreflectedReflectionSources(ctx, sessionID)
+	if err != nil {
+		return false, err
+	}
+
+	return !hasUnreflectedSources, nil
+}
+
+func (p *MemoryProvider) shouldReflectSession(
+	ctx context.Context,
+	sessionID string,
+	session statecore.Session,
+	messageCount int,
+) (bool, error) {
+	if session.EpisodicCheckpointOffset < messageCount {
+		return p.hasUnreflectedReflectionSources(ctx, sessionID)
+	}
+
+	complete, err := p.isReflectionCheckpointComplete(
+		ctx,
+		sessionID,
+		session.ReflectionCheckpointOffset,
+		messageCount,
+	)
+	if err != nil {
+		return false, err
+	}
+
+	return !complete, nil
+}
+
+func (p *MemoryProvider) hasUnreflectedReflectionSources(ctx context.Context, sessionID string) (bool, error) {
+	unreflected := false
+	result, err := p.manager.SearchMemory(ctx, SearchQuery{
+		SessionID: strings.TrimSpace(sessionID),
+		Kinds:     []Kind{KindEpisodic},
+		Statuses:  []Status{StatusCandidate, StatusActive},
+		Limit:     1,
+		Reflected: &unreflected,
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return len(result.Hits) > 0, nil
 }
 
 func (p *MemoryProvider) normalizeReflectionRequest(ctx context.Context, req ReflectionRequest) (normalizedReflectionRequest, error) {

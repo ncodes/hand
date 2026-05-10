@@ -136,7 +136,6 @@ func (s *Service) RunBackground(ctx context.Context, req BackgroundRequest) (Bac
 		"interval_ms":   opts.Interval.Milliseconds(),
 		"idle_after_ms": opts.IdleAfter.Milliseconds(),
 		"min_messages":  opts.MinMessages,
-		"plan":          "list_sessions_check_idle_and_checkpoint_extract_eligible_windows",
 	}
 	recordBackgroundTrace(req.Trace, trace.EvtMemoryEpisodicBackgroundScheduled, getBackgroundPayload(runID, "", 0, "", traceFields))
 	logBackground("scheduled idle-session episodic extraction sweep", runID, "", 0, "", traceFields)

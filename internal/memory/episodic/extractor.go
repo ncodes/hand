@@ -93,7 +93,6 @@ func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 		"max_windows":       normalized.MaxWindows,
 		"max_window_chars":  normalized.MaxWindowChars,
 		"max_window_tokens": normalized.MaxWindowTokens,
-		"plan":              "load_window_collect_trace_evidence_generate_candidates_dedupe_write_candidates",
 	}
 	recordTrace(req.Trace, trace.EvtMemoryExtractionStarted, getTracePayload(normalized, traceField))
 	logExtraction("started to extract episodic memory candidates", normalized, traceField)
@@ -122,11 +121,10 @@ func (s *Service) Extract(ctx context.Context, req Request) (Result, error) {
 		// window. Foreground/tool extraction does not move this checkpoint because
 		// callers may intentionally inspect arbitrary historical ranges.
 		if normalized.Trigger == backgroundTrigger {
-			if err := s.manager.UpdateEpisodicCheckpoint(
-				ctx,
-				normalized.SessionID,
-				windowResult.OffsetEnd,
-			); err != nil {
+			offset := windowResult.OffsetEnd
+			if err := s.manager.UpdateCheckpoints(ctx, normalized.SessionID, storage.CheckpointPatch{
+				EpisodicOffset: &offset,
+			}); err != nil {
 				recordFailure(req.Trace, normalized.withRange(window.Start, window.End), err)
 				return Result{}, err
 			}

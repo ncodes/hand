@@ -17,6 +17,7 @@ type ArchivedSession = base.ArchivedSession
 type MessageQueryOptions = base.MessageQueryOptions
 type SessionSummary = base.SessionSummary
 type MessageRecord = base.MessageRecord
+type CheckpointPatch = base.CheckpointPatch
 
 func (s *Store) Save(_ context.Context, session Session) error {
 	if s == nil {
@@ -39,6 +40,9 @@ func (s *Store) Save(_ context.Context, session Session) error {
 		if session.EpisodicCheckpointOffset == 0 {
 			session.EpisodicCheckpointOffset = existing.EpisodicCheckpointOffset
 		}
+		if session.ReflectionCheckpointOffset == 0 {
+			session.ReflectionCheckpointOffset = existing.ReflectionCheckpointOffset
+		}
 		session.UpdatedAt = time.Now().UTC()
 	}
 
@@ -58,7 +62,7 @@ func (s *Store) Save(_ context.Context, session Session) error {
 	return nil
 }
 
-func (s *Store) UpdateEpisodicCheckpoint(_ context.Context, id string, offset int) error {
+func (s *Store) UpdateCheckpoints(_ context.Context, id string, patch CheckpointPatch) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
@@ -67,8 +71,11 @@ func (s *Store) UpdateEpisodicCheckpoint(_ context.Context, id string, offset in
 	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
-	if offset < 0 {
+	if patch.EpisodicOffset != nil && *patch.EpisodicOffset < 0 {
 		return errors.New("episodic checkpoint offset must be greater than or equal to zero")
+	}
+	if patch.ReflectionOffset != nil && *patch.ReflectionOffset < 0 {
+		return errors.New("reflection checkpoint offset must be greater than or equal to zero")
 	}
 
 	s.mu.Lock()
@@ -78,8 +85,17 @@ func (s *Store) UpdateEpisodicCheckpoint(_ context.Context, id string, offset in
 	if !ok {
 		return errors.New("session not found")
 	}
-	if offset > session.EpisodicCheckpointOffset {
-		session.EpisodicCheckpointOffset = offset
+
+	changed := false
+	if patch.EpisodicOffset != nil && *patch.EpisodicOffset > session.EpisodicCheckpointOffset {
+		session.EpisodicCheckpointOffset = *patch.EpisodicOffset
+		changed = true
+	}
+	if patch.ReflectionOffset != nil && *patch.ReflectionOffset > session.ReflectionCheckpointOffset {
+		session.ReflectionCheckpointOffset = *patch.ReflectionOffset
+		changed = true
+	}
+	if changed {
 		s.sessions[id] = session
 	}
 

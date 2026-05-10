@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { GitBranch, Link2, Network, ShieldCheck, Sparkles } from "lucide-react";
 import { compactNumber } from "../../lib/format";
 import { buildMemoryGraph, memoryKindClass, memoryKindLabel, memoryStatusClass } from "../../lib/memoryGraph";
@@ -12,11 +13,46 @@ type MemoryVisualizerProps = {
   onSelectNode: (node: MemoryNode) => void;
 };
 
-const filters = ["Episodic", "Pinned", "Candidates", "Active", "Tool events", "Decisions", "Outcomes", "Blockers"];
+type MemoryFilterKey =
+  | "episodic"
+  | "semantic"
+  | "procedural"
+  | "pinned"
+  | "candidates"
+  | "active";
+
+const filters: Array<{ key: MemoryFilterKey; label: string }> = [
+  { key: "episodic", label: "Episodic" },
+  { key: "semantic", label: "Semantic" },
+  { key: "procedural", label: "Procedural" },
+  { key: "pinned", label: "Pinned" },
+  { key: "candidates", label: "Candidates" },
+  { key: "active", label: "Active" },
+];
 
 export function MemoryVisualizer({ detail, selectedNodeId, onSelectNode }: MemoryVisualizerProps) {
   const graph = buildMemoryGraph(detail);
-  const selectedNode = graph.nodes.find((node) => node.id === selectedNodeId) ?? graph.nodes[0];
+  const [activeFilters, setActiveFilters] = useState<Set<MemoryFilterKey>>(() => new Set());
+  const visibleNodes = useMemo(
+    () => graph.nodes.filter((node) => matchesActiveFilters(node, activeFilters)),
+    [activeFilters, graph.nodes],
+  );
+  const visibleNodeIDs = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
+  const visibleLinks = useMemo(
+    () => graph.links.filter((link) => visibleNodeIDs.has(link.from) && visibleNodeIDs.has(link.to)),
+    [graph.links, visibleNodeIDs],
+  );
+  const selectedNode = visibleNodes.find((node) => node.id === selectedNodeId) ?? visibleNodes[0];
+
+  function toggleFilter(key: MemoryFilterKey) {
+    setActiveFilters((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+
+      return next;
+    });
+  }
 
   return (
     <div className="space-y-5">
@@ -32,9 +68,18 @@ export function MemoryVisualizer({ detail, selectedNodeId, onSelectNode }: Memor
       <Panel className="p-3">
         <div className="flex flex-wrap gap-2">
           {filters.map((filter) => (
-            <span key={filter} className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-semibold text-cyan-100">
-              {filter}
-            </span>
+            <Button
+              key={filter.key}
+              onClick={() => toggleFilter(filter.key)}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                activeFilters.has(filter.key)
+                  ? "border-cyan-300/45 bg-cyan-300/18 text-cyan-50"
+                  : "border-white/10 bg-white/[0.035] text-stone-400 hover:border-cyan-300/25 hover:text-cyan-100",
+              )}
+            >
+              {filter.label}
+            </Button>
           ))}
         </div>
       </Panel>
@@ -43,13 +88,13 @@ export function MemoryVisualizer({ detail, selectedNodeId, onSelectNode }: Memor
         <Panel className="min-h-[34rem] overflow-hidden p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-sm font-semibold">Saved episodic memory map</h3>
+              <h3 className="text-sm font-semibold">Saved memory map</h3>
               <p className="mt-1 text-xs text-stone-500">
                 Persisted memory records returned by the Hand state manager.
               </p>
             </div>
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-stone-400">
-              {graph.nodes.length} nodes
+              {visibleNodes.length} nodes
             </span>
           </div>
 
@@ -59,12 +104,12 @@ export function MemoryVisualizer({ detail, selectedNodeId, onSelectNode }: Memor
             </div>
           ) : null}
 
-          {graph.nodes.length ? (
+          {visibleNodes.length ? (
             <div className="relative mt-4 h-[29rem] rounded-lg border border-white/10 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.12),transparent_42%),linear-gradient(135deg,rgba(255,255,255,0.04),transparent)]">
               <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                {graph.links.map((link) => {
-                  const from = graph.nodes.find((node) => node.id === link.from);
-                  const to = graph.nodes.find((node) => node.id === link.to);
+                {visibleLinks.map((link) => {
+                  const from = visibleNodes.find((node) => node.id === link.from);
+                  const to = visibleNodes.find((node) => node.id === link.to);
                   if (!from || !to) return null;
                   return (
                     <line
@@ -81,7 +126,7 @@ export function MemoryVisualizer({ detail, selectedNodeId, onSelectNode }: Memor
                 })}
               </svg>
 
-              {graph.nodes.map((node) => {
+              {visibleNodes.map((node) => {
                 const active = selectedNode?.id === node.id;
                 return (
                   <Button
@@ -104,7 +149,7 @@ export function MemoryVisualizer({ detail, selectedNodeId, onSelectNode }: Memor
             </div>
           ) : (
             <div className="mt-4 rounded-lg border border-dashed border-white/10 p-10 text-center text-sm text-stone-500">
-              No saved episodic memory records are available for this session.
+              No saved memory records match the active filters.
             </div>
           )}
         </Panel>
@@ -146,10 +191,10 @@ export function MemoryVisualizer({ detail, selectedNodeId, onSelectNode }: Memor
       <Panel className="p-4">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-semibold">Source checkpoints</h3>
-          <span className="text-xs text-stone-500">{compactNumber(graph.nodes.length)} saved records</span>
+          <span className="text-xs text-stone-500">{compactNumber(visibleNodes.length)} saved records</span>
         </div>
         <div className="mt-4 grid gap-2 md:grid-cols-4">
-          {graph.nodes.slice(0, 8).map((node) => (
+          {visibleNodes.slice(0, 8).map((node) => (
             <Button
               key={node.id}
               onClick={() => onSelectNode(node)}
@@ -166,6 +211,31 @@ export function MemoryVisualizer({ detail, selectedNodeId, onSelectNode }: Memor
       </Panel>
     </div>
   );
+}
+
+function matchesActiveFilters(node: MemoryNode, activeFilters: Set<MemoryFilterKey>): boolean {
+  if (!activeFilters.size) return true;
+
+  return [...activeFilters].some((filter) => matchesFilter(node, filter));
+}
+
+function matchesFilter(node: MemoryNode, filter: MemoryFilterKey): boolean {
+  const recordKind = node.metadata.kind?.trim().toLowerCase();
+
+  switch (filter) {
+    case "episodic":
+      return recordKind === "episodic";
+    case "semantic":
+      return recordKind === "semantic";
+    case "procedural":
+      return recordKind === "procedural";
+    case "pinned":
+      return recordKind === "pinned";
+    case "candidates":
+      return node.status === "candidate";
+    case "active":
+      return node.status === "active";
+  }
 }
 
 function MemoryMetric({ icon: Icon, label, value, note }: { icon: typeof Network; label: string; value: string | number; note: string }) {
