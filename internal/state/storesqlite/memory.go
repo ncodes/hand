@@ -109,8 +109,9 @@ func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearch
 		}
 
 		hits = append(hits, statememory.MemorySearchHit{
-			Item:  item.Clone(),
-			Score: record.Score,
+			Item:         item.Clone(),
+			Score:        record.Score,
+			LexicalScore: record.Score,
 		})
 	}
 

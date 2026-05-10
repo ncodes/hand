@@ -216,8 +216,8 @@ func TestService_ExtractSkipsDuplicateSourceRange(t *testing.T) {
 
 	req := Request{
 		SessionID:      storage.DefaultSessionID,
-		OffsetStart:    new(0),
-		OffsetEnd:      new(2),
+		OffsetStart:    intPtr(0),
+		OffsetEnd:      intPtr(2),
 		WindowSize:     2,
 		MaxWindowChars: 1000,
 	}
@@ -675,7 +675,10 @@ func TestService_NormalizeRequestBoundsAndErrors(t *testing.T) {
 		return 3, nil
 	}
 	_, err = service.normalizeRequest(ctx, Request{OffsetStart: intPtr(3), OffsetEnd: intPtr(2)})
-	require.EqualError(t, err, "offset_end must be greater than or equal to offset_start")
+	require.EqualError(t, err, "offset_end must be greater than offset_start")
+
+	_, err = service.normalizeRequest(ctx, Request{OffsetStart: intPtr(0), OffsetEnd: intPtr(0)})
+	require.EqualError(t, err, "offset_end must be greater than offset_start")
 
 	_, err = service.normalizeRequest(ctx, Request{MaxWindows: -1})
 	require.EqualError(t, err, "max_windows must be greater than or equal to zero")

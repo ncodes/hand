@@ -189,6 +189,35 @@ func TestRerankMemoryHits_EdgeCases(t *testing.T) {
 	require.Equal(t, MaxHybridRetrievalCandidateLimit, MemoryCandidateLimit(MaxHybridRetrievalCandidateLimit))
 }
 
+func TestFilterMemoryHitsForEvidence(t *testing.T) {
+	hits := []state.MemorySearchHit{
+		{
+			Item:         state.MemoryItem{ID: "mem_lexical"},
+			Score:        0.1,
+			LexicalScore: 0.1,
+		},
+		{
+			Item:        state.MemoryItem{ID: "mem_vector"},
+			Score:       memoryVectorEvidenceThreshold,
+			VectorScore: memoryVectorEvidenceThreshold,
+		},
+		{
+			Item:        state.MemoryItem{ID: "mem_weak_vector"},
+			Score:       memoryVectorEvidenceThreshold - 0.01,
+			VectorScore: memoryVectorEvidenceThreshold - 0.01,
+		},
+		{
+			Item:  state.MemoryItem{ID: "mem_no_evidence"},
+			Score: 1,
+		},
+	}
+
+	filtered := FilterMemoryHitsForEvidence(state.MemorySearchQuery{Text: "plan"}, hits)
+
+	require.Equal(t, []string{"mem_lexical", "mem_vector"}, memoryHitIDs(state.MemorySearchResult{Hits: filtered}))
+	require.Equal(t, hits, FilterMemoryHitsForEvidence(state.MemorySearchQuery{}, hits))
+}
+
 func TestCompareMemoryHits(t *testing.T) {
 	now := time.Date(2026, 4, 30, 10, 0, 0, 0, time.UTC)
 	left := state.MemorySearchHit{

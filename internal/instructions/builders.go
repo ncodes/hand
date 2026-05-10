@@ -240,7 +240,7 @@ func BuildMemoryExtractGuidance() Instruction {
 		Value: `
 # Memory Extract Guidance
 
-Use memory_extract when the user explicitly asks to remember, capture, or extract durable memory from a completed session or a clearly bounded message range.
+When the user explicitly asks you to remember, capture, save, or retain durable information, call memory_extract before giving the final response.
 Use memory_extract proactively after a meaningful interaction has clearly completed and produced durable continuity value, such as an important decision, outcome, correction, preference, unresolved blocker, reflection, or handoff-relevant context.
 Prefer bounded ranges with session_id plus offset_start and offset_end when the relevant messages are known.
 Do not use memory_extract during active task execution, for every routine turn, for speculative capture, or for low-signal conversational details.

@@ -181,7 +181,7 @@ func TestMemoryStore_VectorSearchMergesWithLexicalCandidates(t *testing.T) {
 			ID:     "mem_lexical",
 			Kind:   statememory.MemoryKindSemantic,
 			Status: statememory.MemoryStatusActive,
-			Text:   "Use focused tests for memory work.",
+			Text:   "Use focused cancellation tests for memory work.",
 		},
 		{
 			ID:     "mem_vector",
@@ -597,18 +597,20 @@ func TestMemoryVectorMergeAndSortHelpers(t *testing.T) {
 	now := time.Date(2026, 4, 30, 9, 0, 0, 0, time.UTC)
 	merged := mergeMemoryHits(
 		[]statememory.MemorySearchHit{
-			{Item: statememory.MemoryItem{ID: "mem_a", UpdatedAt: now}, Score: 0.5},
-			{Item: statememory.MemoryItem{ID: "mem_b", UpdatedAt: now.Add(time.Minute)}, Score: 0.4},
+			{Item: statememory.MemoryItem{ID: "mem_a", UpdatedAt: now}, Score: 0.5, LexicalScore: 0.5},
+			{Item: statememory.MemoryItem{ID: "mem_b", UpdatedAt: now.Add(time.Minute)}, Score: 0.4, LexicalScore: 0.4},
 		},
 		[]statememory.MemorySearchHit{
-			{Item: statememory.MemoryItem{ID: "mem_a", UpdatedAt: now}, Score: 0.9},
-			{Item: statememory.MemoryItem{ID: "mem_c", UpdatedAt: now}, Score: 0.9},
+			{Item: statememory.MemoryItem{ID: "mem_a", UpdatedAt: now}, Score: 0.9, VectorScore: 0.9},
+			{Item: statememory.MemoryItem{ID: "mem_c", UpdatedAt: now}, Score: 0.9, VectorScore: 0.9},
 			{Item: statememory.MemoryItem{}, Score: 1},
 		},
 	)
 
 	require.Equal(t, []string{"mem_a", "mem_c", "mem_b"}, memoryHitIDs(merged))
 	require.Equal(t, 0.9, merged[0].Score)
+	require.Equal(t, 0.5, merged[0].LexicalScore)
+	require.Equal(t, 0.9, merged[0].VectorScore)
 
 	hits := []statememory.MemorySearchHit{
 		{Item: statememory.MemoryItem{ID: "mem_b", UpdatedAt: now}, Score: 1},

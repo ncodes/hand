@@ -1,4 +1,3 @@
 # User Preferences
 
-## Color Preference
-- **Favorite color**: Black
+- **Color preference**: Black

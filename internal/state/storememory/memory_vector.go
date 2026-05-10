@@ -31,7 +31,7 @@ func (s *Store) searchMemoryHybrid(
 		vectorHits = nil
 	}
 
-	hits := mergeMemoryHits(lexicalHits, vectorHits)
+	hits := search.FilterMemoryHitsForEvidence(query, mergeMemoryHits(lexicalHits, vectorHits))
 	return search.RerankMemoryHits(ctx, query, hits, search.MemoryRerankOptions{
 		Reranker:      reranker,
 		MaxCandidates: candidateLimit,
@@ -51,9 +51,11 @@ func (s *Store) memoryLexicalHits(
 		if !statememory.CheckMemoryMatchesQuery(item, query) {
 			continue
 		}
+		score := statememory.GetSimpleMemoryScore(item, query.Text)
 		hits = append(hits, statememory.MemorySearchHit{
-			Item:  item.Clone(),
-			Score: statememory.GetSimpleMemoryScore(item, query.Text),
+			Item:         item.Clone(),
+			Score:        score,
+			LexicalScore: score,
 		})
 	}
 	sortMemoryHits(hits)
@@ -166,7 +168,11 @@ func (s *Store) memoryVectorMatchesToHits(
 		if !ok || !statememory.CheckMemoryMatchesQuery(item, filterQuery) {
 			continue
 		}
-		hits = append(hits, statememory.MemorySearchHit{Item: item.Clone(), Score: match.Score})
+		hits = append(hits, statememory.MemorySearchHit{
+			Item:        item.Clone(),
+			Score:       match.Score,
+			VectorScore: match.Score,
+		})
 		seen[memoryID] = struct{}{}
 	}
 
@@ -254,9 +260,11 @@ func mergeMemoryHits(
 			continue
 		}
 		existing, ok := byID[id]
-		if !ok || hit.Score > existing.Score {
+		if !ok {
 			byID[id] = hit
+			continue
 		}
+		byID[id] = mergeMemoryHitEvidence(existing, hit)
 	}
 
 	hits := make([]statememory.MemorySearchHit, 0, len(byID))
@@ -265,6 +273,22 @@ func mergeMemoryHits(
 	}
 	sortMemoryHits(hits)
 	return hits
+}
+
+func mergeMemoryHitEvidence(
+	existing statememory.MemorySearchHit,
+	next statememory.MemorySearchHit,
+) statememory.MemorySearchHit {
+	if next.Score > existing.Score {
+		existing.Score = next.Score
+	}
+	if next.LexicalScore > existing.LexicalScore {
+		existing.LexicalScore = next.LexicalScore
+	}
+	if next.VectorScore > existing.VectorScore {
+		existing.VectorScore = next.VectorScore
+	}
+	return existing
 }
 
 func sortMemoryHits(hits []statememory.MemorySearchHit) {

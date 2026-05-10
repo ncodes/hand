@@ -48,9 +48,10 @@ const (
 	// Non-exact related memories only block default promotion when their search
 	// score is strong enough to be useful conflict evidence. Exact duplicates are
 	// blocked regardless of score.
-	promotionRelatedConflictScoreThreshold = 0.75
-	promotionDefaultConfidenceThreshold    = 0.75
-	promotionPinnedConfidenceThreshold     = 0.9
+	promotionRelatedConflictScoreThreshold    = 0.75
+	promotionCrossKindDuplicateScoreThreshold = 0.9
+	promotionDefaultConfidenceThreshold       = 0.75
+	promotionPinnedConfidenceThreshold        = 0.9
 
 	// Promotion is a governance pass, not a high-throughput indexing job, so the
 	// default cadence and batch sizes stay intentionally modest.
@@ -384,9 +385,9 @@ func (p *MemoryProvider) loadLifecycleMemory(
 	return result.Hits[0].Item.Clone(), nil
 }
 
-// relatedPromotionMemories loads active same-kind memories that may duplicate or
-// conflict with the candidate. The query uses normal memory search, so vector
-// search participates when it is enabled by the backing store.
+// relatedPromotionMemories loads active memories that may duplicate or conflict
+// with the candidate. The query uses normal memory search, so vector search
+// participates when it is enabled by the backing store.
 func (p *MemoryProvider) relatedPromotionMemories(
 	ctx context.Context,
 	candidate MemoryItem,
@@ -398,7 +399,6 @@ func (p *MemoryProvider) relatedPromotionMemories(
 
 	result, err := p.manager.SearchMemory(ctx, SearchQuery{
 		Text:     text,
-		Kinds:    []Kind{candidate.Kind},
 		Statuses: []Status{StatusActive},
 		Limit:    5,
 	})
@@ -433,21 +433,27 @@ func getPromotionSearchText(item MemoryItem) string {
 	return text
 }
 
-// checkPromotionConflictState classifies active same-kind related memories. Exact
-// normalized matches are duplicates regardless of score. Non-identical related
-// memories only block promotion when their search score is strong enough to be
-// useful conflict evidence.
+// checkPromotionConflictState classifies active related memories. Exact
+// normalized matches are duplicates even across memory kinds, because a semantic
+// reflection should not activate if it simply repeats an active episodic source.
+// Non-identical same-kind memories block promotion at the normal related-memory
+// threshold. Non-identical cross-kind memories only block promotion at a stricter
+// near-duplicate threshold, so reflection can still turn an episode into a
+// genuinely distinct semantic or procedural memory.
 func checkPromotionConflictState(candidate MemoryItem, related []SearchHit) string {
 	hasRelated := false
 	for _, hit := range related {
 		item := hit.Item
-		if candidate.Kind != item.Kind || item.Status != StatusActive {
+		if item.Status != StatusActive {
 			continue
 		}
 		if normalizeLifecycleText(candidate) == normalizeLifecycleText(item) {
 			return promotionConflictDuplicate
 		}
-		if hit.Score >= promotionRelatedConflictScoreThreshold {
+		if candidate.Kind != item.Kind && hit.Score >= promotionCrossKindDuplicateScoreThreshold {
+			return promotionConflictDuplicate
+		}
+		if candidate.Kind == item.Kind && hit.Score >= promotionRelatedConflictScoreThreshold {
 			hasRelated = true
 		}
 	}

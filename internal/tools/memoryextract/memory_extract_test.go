@@ -112,7 +112,8 @@ func TestMemoryExtract_DefinitionValidatesInput(t *testing.T) {
 	}{
 		{name: "negative start", input: `{"offset_start":-1}`, message: "offset_start must be greater than or equal to zero"},
 		{name: "negative end", input: `{"offset_end":-1}`, message: "offset_end must be greater than or equal to zero"},
-		{name: "end before start", input: `{"offset_start":3,"offset_end":2}`, message: "offset_end must be greater than or equal to offset_start"},
+		{name: "empty explicit range", input: `{"offset_start":0,"offset_end":0}`, message: "offset_end must be greater than offset_start"},
+		{name: "end before start", input: `{"offset_start":3,"offset_end":2}`, message: "offset_end must be greater than offset_start"},
 		{name: "negative window", input: `{"window_size":-1}`, message: "window_size must be greater than or equal to 0"},
 		{name: "negative windows", input: `{"max_windows":-1}`, message: "max_windows must be greater than or equal to 0"},
 		{name: "negative chars", input: `{"max_window_chars":-1}`, message: "max_window_chars must be greater than or equal to 0"},

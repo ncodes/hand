@@ -366,8 +366,8 @@ func (s Service) normalizeRequest(ctx context.Context, req Request) (normalizedR
 	if start < 0 {
 		return normalizedRequest{}, errors.New("offset_start must be greater than or equal to zero")
 	}
-	if end < start {
-		return normalizedRequest{}, errors.New("offset_end must be greater than or equal to offset_start")
+	if end < start || (req.OffsetStart != nil && req.OffsetEnd != nil && end == start) {
+		return normalizedRequest{}, errors.New("offset_end must be greater than offset_start")
 	}
 	if end > count {
 		end = count

@@ -29,9 +29,11 @@ func (s *Store) SearchMemory(ctx context.Context, query statememory.MemorySearch
 			continue
 		}
 
+		score := statememory.GetSimpleMemoryScore(item, query.Text)
 		hits = append(hits, statememory.MemorySearchHit{
-			Item:  item.Clone(),
-			Score: statememory.GetSimpleMemoryScore(item, query.Text),
+			Item:         item.Clone(),
+			Score:        score,
+			LexicalScore: score,
 		})
 	}
 

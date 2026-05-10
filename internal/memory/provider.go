@@ -303,7 +303,12 @@ func (p *MemoryProvider) Search(ctx context.Context, query SearchQuery) (SearchR
 			redacted.Text = string([]rune(redacted.Text)[:query.MaxChars])
 		}
 
-		hits = append(hits, SearchHit{Item: redacted.Clone(), Score: hit.Score})
+		hits = append(hits, SearchHit{
+			Item:         redacted.Clone(),
+			Score:        hit.Score,
+			LexicalScore: hit.LexicalScore,
+			VectorScore:  hit.VectorScore,
+		})
 	}
 
 	fields := buildObservationFields(p.Name(), "search", map[string]any{"result_count": len(hits)})

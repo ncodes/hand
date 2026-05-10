@@ -183,6 +183,8 @@ func memoryRetrievalTraceHits(hits []memory.SearchHit) []map[string]any {
 	for _, hit := range hits {
 		item := memoryRetrievalTraceItem(hit.Item)
 		item["score"] = hit.Score
+		item["lexical_score"] = hit.LexicalScore
+		item["vector_score"] = hit.VectorScore
 		items = append(items, item)
 	}
 	return items

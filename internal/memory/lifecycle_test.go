@@ -148,7 +148,7 @@ func TestMemoryProvider_PromoteCandidateExplainsDecisionAndUsesRelatedSearch(t *
 	require.Equal(t, promotionConflictRelated, policy.requests[0].ConflictState)
 	require.Len(t, manager.searchQueries, 2)
 	require.Equal(t, "Use focused tests.", manager.searchQueries[1].Text)
-	require.Equal(t, []Kind{KindSemantic}, manager.searchQueries[1].Kinds)
+	require.Empty(t, manager.searchQueries[1].Kinds)
 	require.Equal(t, []Status{StatusActive}, manager.searchQueries[1].Statuses)
 	require.Len(t, manager.upsertItems, 1)
 	require.Equal(t, "mem_related", manager.upsertItems[0].Metadata[lifecycleMetadataRelatedMemoryIDs])
@@ -173,6 +173,96 @@ func TestMemoryProvider_PromoteCandidateRejectsSemanticDuplicates(t *testing.T) 
 	require.Equal(t, promotionConflictDuplicate, result.Decision.Reason)
 	require.Equal(t, promotionConflictDuplicate, result.Decision.ConflictState)
 	require.Equal(t, []string{"mem_active"}, lifecycleItemIDs(result.Related))
+}
+
+func TestMemoryProvider_PromoteCandidateRejectsCrossKindDuplicates(t *testing.T) {
+	provider := defaultMemoryTestProvider(t, Options{})
+	active := lifecycleCandidate("mem_active_episode", KindEpisodic, "User prefers black as their color preference.")
+	active.Status = StatusActive
+	candidate := lifecycleCandidate("mem_candidate_semantic", KindSemantic, "User prefers black as their color preference.")
+
+	_, err := provider.Upsert(context.Background(), active)
+	require.NoError(t, err)
+	_, err = provider.Upsert(context.Background(), candidate)
+	require.NoError(t, err)
+
+	result, err := provider.PromoteCandidate(context.Background(), PromotionRequest{ID: "mem_candidate_semantic"})
+
+	require.NoError(t, err)
+	require.False(t, result.Decision.Approved)
+	require.Equal(t, promotionConflictDuplicate, result.Decision.Reason)
+	require.Equal(t, promotionConflictDuplicate, result.Decision.ConflictState)
+	require.Equal(t, []string{"mem_active_episode"}, lifecycleItemIDs(result.Related))
+}
+
+func TestMemoryProvider_PromoteCandidateRejectsCrossKindNearDuplicates(t *testing.T) {
+	active := lifecycleCandidate("mem_active_episode", KindEpisodic, "User prefers black as their color preference.")
+	active.Status = StatusActive
+	candidate := lifecycleCandidate("mem_candidate_semantic", KindSemantic, "The user's color preference is black.")
+	manager := &recordingMemoryManager{
+		searchResults: []SearchResult{
+			{Hits: []SearchHit{{Item: candidate}}},
+			{Hits: []SearchHit{{Item: active, Score: promotionCrossKindDuplicateScoreThreshold}}},
+		},
+	}
+	provider := &MemoryProvider{manager: manager}
+
+	result, err := provider.PromoteCandidate(context.Background(), PromotionRequest{ID: "mem_candidate_semantic"})
+
+	require.NoError(t, err)
+	require.False(t, result.Decision.Approved)
+	require.Equal(t, promotionConflictDuplicate, result.Decision.Reason)
+	require.Equal(t, promotionConflictDuplicate, result.Decision.ConflictState)
+	require.Equal(t, []string{"mem_active_episode"}, lifecycleItemIDs(result.Related))
+}
+
+func TestMemoryProvider_PromoteCandidateAllowsCrossKindRelatedMemoryBelowDuplicateThreshold(t *testing.T) {
+	active := lifecycleCandidate("mem_active_episode", KindEpisodic, "The user asked for a daemon log review workflow.")
+	active.Status = StatusActive
+	candidate := lifecycleCandidate("mem_candidate_procedural", KindProcedural, "When reviewing daemon logs, group lines by subsystem before proposing fixes.")
+	manager := &recordingMemoryManager{
+		searchResults: []SearchResult{
+			{Hits: []SearchHit{{Item: candidate}}},
+			{Hits: []SearchHit{{Item: active, Score: promotionCrossKindDuplicateScoreThreshold - 0.01}}},
+		},
+	}
+	provider := &MemoryProvider{manager: manager}
+
+	result, err := provider.PromoteCandidate(context.Background(), PromotionRequest{ID: "mem_candidate_procedural"})
+
+	require.NoError(t, err)
+	require.True(t, result.Decision.Approved)
+	require.Equal(t, promotionConflictNone, result.Decision.ConflictState)
+	require.Len(t, manager.upsertItems, 1)
+	require.Equal(t, StatusActive, manager.upsertItems[0].Status)
+}
+
+func TestMemoryProvider_PromoteCandidateIgnoresInactiveRelatedMemories(t *testing.T) {
+	candidate := lifecycleCandidate("mem_candidate_semantic", KindSemantic, "User prefers black as their color preference.")
+	candidateDuplicate := lifecycleCandidate("mem_candidate_duplicate", KindEpisodic, "User prefers black as their color preference.")
+	deletedDuplicate := lifecycleCandidate("mem_deleted_duplicate", KindSemantic, "User prefers black as their color preference.")
+	deletedDuplicate.Status = StatusDeleted
+	supersededDuplicate := lifecycleCandidate("mem_superseded_duplicate", KindSemantic, "User prefers black as their color preference.")
+	supersededDuplicate.Status = StatusSuperseded
+	manager := &recordingMemoryManager{
+		searchResults: []SearchResult{
+			{Hits: []SearchHit{{Item: candidate}}},
+			{Hits: []SearchHit{
+				{Item: candidateDuplicate, Score: 1},
+				{Item: deletedDuplicate, Score: 1},
+				{Item: supersededDuplicate, Score: 1},
+			}},
+		},
+	}
+	provider := &MemoryProvider{manager: manager}
+
+	result, err := provider.PromoteCandidate(context.Background(), PromotionRequest{ID: "mem_candidate_semantic"})
+
+	require.NoError(t, err)
+	require.True(t, result.Decision.Approved)
+	require.Equal(t, promotionConflictNone, result.Decision.ConflictState)
+	require.Len(t, manager.upsertItems, 1)
+	require.Equal(t, StatusActive, manager.upsertItems[0].Status)
 }
 
 func TestMemoryProvider_PromoteCandidateRejectsRelatedActiveMemory(t *testing.T) {
@@ -589,6 +679,14 @@ func TestLifecycleHelpersCoverFallbacks(t *testing.T) {
 	require.Empty(t, getPromotionSearchText(MemoryItem{}))
 	require.Len(t, []rune(getPromotionSearchText(MemoryItem{Title: strings.Repeat("x", 260)})), 240)
 	require.Equal(t, promotionConflictNone, checkPromotionConflictState(
+		lifecycleCandidate("mem_candidate", KindSemantic, "Use focused tests."),
+		[]SearchHit{{Item: func() MemoryItem {
+			item := lifecycleCandidate("mem_related", KindProcedural, "Use focused tests differently.")
+			item.Status = StatusActive
+			return item
+		}(), Score: promotionCrossKindDuplicateScoreThreshold - 0.01}},
+	))
+	require.Equal(t, promotionConflictDuplicate, checkPromotionConflictState(
 		lifecycleCandidate("mem_candidate", KindSemantic, "Use focused tests."),
 		[]SearchHit{{Item: func() MemoryItem {
 			item := lifecycleCandidate("mem_related", KindProcedural, "Use focused tests.")

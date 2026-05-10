@@ -85,8 +85,8 @@ func normalizeRequest(ctx context.Context, req input) (episodic.Request, error) 
 	if req.OffsetEnd != nil && *req.OffsetEnd < 0 {
 		return episodic.Request{}, errors.New("offset_end must be greater than or equal to zero")
 	}
-	if req.OffsetStart != nil && req.OffsetEnd != nil && *req.OffsetEnd < *req.OffsetStart {
-		return episodic.Request{}, errors.New("offset_end must be greater than or equal to offset_start")
+	if req.OffsetStart != nil && req.OffsetEnd != nil && *req.OffsetEnd <= *req.OffsetStart {
+		return episodic.Request{}, errors.New("offset_end must be greater than offset_start")
 	}
 
 	windowSize, err := bounded(req.WindowSize, episodic.DefaultWindowSize, episodic.MaxWindowSize, "window_size")

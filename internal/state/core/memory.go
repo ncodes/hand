@@ -96,8 +96,10 @@ type SessionMemoryQuery struct {
 }
 
 type MemorySearchHit struct {
-	Item  MemoryItem
-	Score float64
+	Item         MemoryItem
+	Score        float64
+	LexicalScore float64
+	VectorScore  float64
 }
 
 type MemorySearchResult struct {

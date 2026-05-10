@@ -14,6 +14,25 @@ type MemoryRerankOptions struct {
 	Limit         int
 }
 
+const memoryVectorEvidenceThreshold = 0.75
+
+func FilterMemoryHitsForEvidence(
+	query state.MemorySearchQuery,
+	hits []state.MemorySearchHit,
+) []state.MemorySearchHit {
+	if strings.TrimSpace(query.Text) == "" {
+		return hits
+	}
+
+	filtered := make([]state.MemorySearchHit, 0, len(hits))
+	for _, hit := range hits {
+		if hit.LexicalScore > 0 || hit.VectorScore >= memoryVectorEvidenceThreshold {
+			filtered = append(filtered, hit)
+		}
+	}
+	return filtered
+}
+
 func RerankMemoryHits(
 	ctx context.Context,
 	query state.MemorySearchQuery,
@@ -148,12 +167,19 @@ func compareMemoryHits(left state.MemorySearchHit, right state.MemorySearchHit) 
 
 func memoryCandidate(query state.MemorySearchQuery, hit state.MemorySearchHit) Candidate {
 	item := hit.Item
+	lexicalScore := hit.LexicalScore
+	vectorScore := hit.VectorScore
+	if lexicalScore == 0 && vectorScore == 0 {
+		lexicalScore = hit.Score
+	}
+
 	return Candidate{
 		ID:           StableMemoryItemID(item.ID),
 		SourceKind:   SourceKindMemoryItem,
 		MemoryID:     item.ID,
 		Text:         getMemoryCandidateText(item),
-		LexicalScore: hit.Score,
+		LexicalScore: lexicalScore,
+		VectorScore:  vectorScore,
 		FusedScore:   getMemoryCandidateFusedScore(query, hit),
 		CreatedAt:    item.CreatedAt,
 		UpdatedAt:    item.UpdatedAt,
