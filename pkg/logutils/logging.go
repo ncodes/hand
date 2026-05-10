@@ -40,7 +40,7 @@ func ConfigureLogger(programName string, noColor bool) *zerolog.Logger {
 	loggerMu.Lock()
 	defer loggerMu.Unlock()
 
-	log.Logger = log.Output(newConsoleWriter(loggerOutput, noColor)).With().
+	log.Logger = log.Output(newConsoleWriter(loggerOutput, getEffectiveNoColorSetting(noColor))).With().
 		Str("program", programName).
 		Logger()
 
@@ -74,5 +74,13 @@ func newConsoleWriter(out io.Writer, noColor bool) zerolog.ConsoleWriter {
 
 func getCurrentNoColorSetting() bool {
 	cfg := config.Get()
-	return cfg != nil && cfg.Log.NoColor
+	return (cfg != nil && cfg.Log.NoColor) || isGoTestProcess()
+}
+
+func getEffectiveNoColorSetting(noColor bool) bool {
+	return noColor || isGoTestProcess()
+}
+
+func isGoTestProcess() bool {
+	return strings.HasSuffix(os.Args[0], ".test")
 }

@@ -1,0 +1,505 @@
+package memory
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/wandxy/hand/internal/config"
+	handdb "github.com/wandxy/hand/internal/db"
+	e2e "github.com/wandxy/hand/internal/e2e"
+	handmsg "github.com/wandxy/hand/internal/messages"
+	"github.com/wandxy/hand/internal/models"
+	storage "github.com/wandxy/hand/internal/state/core"
+	statemanager "github.com/wandxy/hand/internal/state/manager"
+	"github.com/wandxy/hand/internal/state/search"
+	vectorsqlite "github.com/wandxy/hand/internal/state/search/vectorstore/sqlite"
+)
+
+type liveMemoryStore interface {
+	storage.Store
+	storage.MemoryStore
+}
+
+type liveMemoryVectorIndex struct {
+	lister         search.VectorRecordLister
+	embeddingModel string
+}
+
+func loadProductionConfigForLiveMemoryE2E(t *testing.T, spec e2e.HarnessSpec) *config.Config {
+	t.Helper()
+
+	t.Setenv("HAND_MODELS_VERIFY", "false")
+	cfg, err := config.Load("", filepath.Join(getRepoRoot(t), "config.yaml"))
+	require.NoError(t, err)
+
+	cfg.FS.Roots = []string{spec.Isolation.WorkspaceDir}
+	return cfg
+}
+
+func setLiveMemoryE2EConfig(cfg *config.Config, spec e2e.HarnessSpec) {
+	enabled := true
+	disabled := false
+	stream := false
+	maxRetries := 0
+
+	cfg.Cap.Memory = &disabled
+	cfg.Cap.Filesystem = &disabled
+	cfg.Cap.Network = &disabled
+	cfg.Cap.Exec = &disabled
+	cfg.Cap.Browser = &disabled
+	cfg.Models.Main.Stream = &stream
+	cfg.Models.MaxRetries = &maxRetries
+	cfg.Trace.Enabled = false
+	cfg.Trace.Disk.Enabled = &disabled
+	cfg.Trace.Database.Enabled = &disabled
+	cfg.Memory.Enabled = &enabled
+	cfg.Memory.Pinned.Enabled = &disabled
+	cfg.Memory.Episodic.Enabled = &enabled
+	cfg.Memory.Episodic.Interval = 250 * time.Millisecond
+	cfg.Memory.Episodic.IdleAfter = 100 * time.Millisecond
+	cfg.Memory.Episodic.MinMessages = 2
+	cfg.Memory.Episodic.WindowSize = 20
+	cfg.Memory.Episodic.MaxWindows = 1
+	cfg.Memory.Episodic.MaxWindowChars = 6000
+	cfg.Memory.Episodic.MaxWindowTokens = 1500
+	cfg.Memory.Episodic.MaxRetries = 1
+	cfg.Memory.Reflection.Enabled = &enabled
+	cfg.Memory.Reflection.Interval = 250 * time.Millisecond
+	cfg.Memory.Reflection.Limit = 5
+	cfg.Memory.Reflection.RelatedLimit = 1
+	cfg.Memory.Promotion.Enabled = &enabled
+	cfg.Memory.Promotion.Interval = 250 * time.Millisecond
+	cfg.Memory.Promotion.Limit = 5
+	cfg.Session.DefaultIdleExpiry = time.Hour
+	cfg.Session.ArchiveRetention = time.Hour
+	cfg.Trace.Disk.Dir = spec.Isolation.TraceDir
+	cfg.Normalize()
+}
+
+func loadLiveMemoryStore(
+	t *testing.T,
+	cfg *config.Config,
+	rerankerClient models.Client,
+) liveMemoryStore {
+	t.Helper()
+
+	inspectCfg := *cfg
+	store, err := statemanager.OpenStoreWithRerankerClient(&inspectCfg, rerankerClient)
+	require.NoError(t, err)
+
+	memoryStore, ok := store.(liveMemoryStore)
+	require.True(t, ok)
+	t.Cleanup(func() {
+		closer, ok := store.(interface{ Close() error })
+		if ok {
+			require.NoError(t, closer.Close())
+		}
+	})
+	return memoryStore
+}
+
+func loadLiveMemoryVectorIndex(t *testing.T, cfg *config.Config) liveMemoryVectorIndex {
+	t.Helper()
+
+	db, err := handdb.Open(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		sqlDB, err := db.DB()
+		require.NoError(t, err)
+		require.NoError(t, sqlDB.Close())
+	})
+
+	vectorStore, err := vectorsqlite.NewStoreFromDB(db)
+	require.NoError(t, err)
+	return liveMemoryVectorIndex{
+		lister:         vectorStore,
+		embeddingModel: strings.TrimSpace(cfg.Models.Embedding.Name),
+	}
+}
+
+func requireNoLiveMemoryToolUsage(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2e.Harness,
+	sessionID string,
+) {
+	t.Helper()
+
+	messages, err := harness.Messages(ctx, sessionID)
+	require.NoError(t, err)
+	for _, message := range messages {
+		for _, call := range message.ToolCalls {
+			require.Falsef(t, isLiveMemoryToolName(call.Name), "unexpected memory tool call %q", call.Name)
+		}
+		if message.Role == handmsg.RoleTool {
+			require.Falsef(t, isLiveMemoryToolName(message.Name), "unexpected memory tool result %q", message.Name)
+		}
+	}
+}
+
+func isLiveMemoryToolName(name string) bool {
+	return strings.HasPrefix(strings.TrimSpace(name), "memory_")
+}
+
+func waitForLiveProceduralMemory(
+	t *testing.T,
+	ctx context.Context,
+	store liveMemoryStore,
+	vectorIndex liveMemoryVectorIndex,
+	sessionID string,
+) storage.MemoryItem {
+	t.Helper()
+
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		item, ok := getLiveProceduralMemory(ctx, t, store, sessionID)
+		if ok &&
+			!item.PromotionEvaluatedAt.IsZero() &&
+			hasNoPendingLiveMemoryPromotion(ctx, t, store, sessionID) &&
+			hasSessionEpisodicCheckpointComplete(t, ctx, store, sessionID) &&
+			hasCurrentLiveMemoryVectors(ctx, t, store, vectorIndex, sessionID) {
+			return item
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for active procedural memory; memories: %s", getLiveMemoryDump(context.Background(), t, store, sessionID))
+		case <-ticker.C:
+		}
+	}
+}
+
+func hasNoPendingLiveMemoryPromotion(
+	ctx context.Context,
+	t *testing.T,
+	store liveMemoryStore,
+	sessionID string,
+) bool {
+	t.Helper()
+
+	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
+		SessionID: strings.TrimSpace(sessionID),
+		Statuses: []storage.MemoryStatus{
+			storage.MemoryStatusCandidate,
+			storage.MemoryStatusActive,
+		},
+		Limit: 50,
+	})
+	require.NoError(t, err)
+	for _, hit := range result.Hits {
+		item := hit.Item
+		if item.Status == storage.MemoryStatusCandidate && item.PromotionEvaluatedAt.IsZero() {
+			return false
+		}
+	}
+
+	return true
+}
+
+func hasCurrentLiveMemoryVectors(
+	ctx context.Context,
+	t *testing.T,
+	store liveMemoryStore,
+	vectorIndex liveMemoryVectorIndex,
+	sessionID string,
+) bool {
+	t.Helper()
+
+	items := loadLiveSessionMemoryItems(ctx, t, store, sessionID)
+	if len(items) == 0 {
+		return false
+	}
+
+	sourceIDs := make([]string, 0, len(items))
+	expectedHashes := make(map[string]string, len(items))
+	expectedTags := make(map[string][]string, len(items))
+	for _, item := range items {
+		text := strings.TrimSpace(strings.Join([]string{item.Title, item.Text}, "\n"))
+		if text == "" {
+			continue
+		}
+
+		sourceID := search.StableMemoryItemID(item.ID)
+		sourceIDs = append(sourceIDs, sourceID)
+		expectedHashes[sourceID] = search.VectorContentHash(text)
+		expectedTags[sourceID] = getLiveMemoryVectorTags(item)
+	}
+	if len(sourceIDs) == 0 {
+		return true
+	}
+
+	result, err := vectorIndex.lister.List(ctx, search.VectorListRequest{
+		EmbeddingModel: vectorIndex.embeddingModel,
+		Filter: search.VectorFilter{
+			SourceKind: search.SourceKindMemoryItem,
+			SourceIDs:  sourceIDs,
+		},
+	})
+	require.NoError(t, err)
+
+	recordsBySourceID := make(map[string]search.VectorRecord, len(result.Records))
+	for _, record := range result.Records {
+		recordsBySourceID[record.SourceID] = record
+	}
+	for _, sourceID := range sourceIDs {
+		record, ok := recordsBySourceID[sourceID]
+		if !ok ||
+			record.ContentHash != expectedHashes[sourceID] ||
+			!hasLiveMemoryVectorTags(record.Tags, expectedTags[sourceID]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func getLiveMemoryVectorTags(item storage.MemoryItem) []string {
+	tags := make([]string, 0, 4)
+	if kind := strings.TrimSpace(string(item.Kind)); kind != "" {
+		tags = append(tags, "memory_kind:"+kind)
+	}
+	if status := strings.TrimSpace(string(item.Status)); status != "" {
+		tags = append(tags, "memory_status:"+status)
+	}
+	if sessionID := getLiveMemoryVectorSessionID(item); sessionID != "" {
+		tags = append(tags, "memory_session:"+sessionID)
+	}
+	tags = append(tags, "memory_reflected:"+strings.TrimSpace(strings.ToLower((strconv.FormatBool(item.Reflected)))))
+	return search.NormalizeVectorTags(tags)
+}
+
+func getLiveMemoryVectorSessionID(item storage.MemoryItem) string {
+	if sessionID := strings.TrimSpace(item.Metadata["source_session_id"]); sessionID != "" {
+		return sessionID
+	}
+	for _, link := range item.SourceLinks {
+		if sessionID := strings.TrimSpace(link.SessionID); sessionID != "" {
+			return sessionID
+		}
+	}
+
+	return ""
+}
+
+func hasLiveMemoryVectorTags(actual []string, expected []string) bool {
+	actualSet := make(map[string]struct{}, len(actual))
+	for _, tag := range search.NormalizeVectorTags(actual) {
+		actualSet[tag] = struct{}{}
+	}
+	for _, tag := range expected {
+		if _, ok := actualSet[tag]; !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
+func loadLiveSessionMemoryItems(
+	ctx context.Context,
+	t *testing.T,
+	store liveMemoryStore,
+	sessionID string,
+) []storage.MemoryItem {
+	t.Helper()
+
+	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
+		SessionID: strings.TrimSpace(sessionID),
+		Statuses: []storage.MemoryStatus{
+			storage.MemoryStatusCandidate,
+			storage.MemoryStatusActive,
+		},
+		Limit: 50,
+	})
+	require.NoError(t, err)
+
+	items := make([]storage.MemoryItem, 0, len(result.Hits))
+	for _, hit := range result.Hits {
+		items = append(items, hit.Item)
+	}
+	return items
+}
+
+func getLiveProceduralMemory(
+	ctx context.Context,
+	t *testing.T,
+	store liveMemoryStore,
+	sessionID string,
+) (storage.MemoryItem, bool) {
+	t.Helper()
+
+	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
+		SessionID: strings.TrimSpace(sessionID),
+		Kinds:     []storage.MemoryKind{storage.MemoryKindProcedural},
+		Statuses:  []storage.MemoryStatus{storage.MemoryStatusActive},
+		Limit:     10,
+	})
+	require.NoError(t, err)
+	for _, hit := range result.Hits {
+		if hasLiveDaemonLogReviewMemoryText(hit.Item) {
+			return hit.Item, true
+		}
+	}
+
+	return storage.MemoryItem{}, false
+}
+
+func waitForLiveBackgroundEpisodicMemory(
+	t *testing.T,
+	ctx context.Context,
+	store liveMemoryStore,
+	sessionID string,
+) storage.MemoryItem {
+	t.Helper()
+
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		item, ok := getLiveBackgroundEpisodicMemory(ctx, t, store, sessionID)
+		if ok &&
+			hasSessionEpisodicCheckpointComplete(t, ctx, store, sessionID) &&
+			item.Reflected &&
+			!item.PromotionEvaluatedAt.IsZero() {
+			return item
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for background episodic memory; memories: %s", getLiveMemoryDump(context.Background(), t, store, sessionID))
+		case <-ticker.C:
+		}
+	}
+}
+
+func getLiveBackgroundEpisodicMemory(
+	ctx context.Context,
+	t *testing.T,
+	store liveMemoryStore,
+	sessionID string,
+) (storage.MemoryItem, bool) {
+	t.Helper()
+
+	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
+		SessionID: strings.TrimSpace(sessionID),
+		Kinds:     []storage.MemoryKind{storage.MemoryKindEpisodic},
+		Statuses:  []storage.MemoryStatus{storage.MemoryStatusCandidate, storage.MemoryStatusActive},
+		Limit:     10,
+	})
+	require.NoError(t, err)
+	for _, hit := range result.Hits {
+		if getMemorySourceCreatedBy(hit.Item) == "background" {
+			return hit.Item, true
+		}
+	}
+
+	return storage.MemoryItem{}, false
+}
+
+func hasLiveDaemonLogReviewMemoryText(item storage.MemoryItem) bool {
+	text := strings.ToLower(strings.Join([]string{
+		item.Title,
+		item.Text,
+		item.Metadata["procedural_trigger"],
+		item.Metadata["procedural_steps"],
+	}, " "))
+
+	return strings.Contains(text, "daemon") &&
+		strings.Contains(text, "log") &&
+		strings.Contains(text, "review")
+}
+
+func getLiveMemoryDump(ctx context.Context, t *testing.T, store liveMemoryStore, sessionID string) string {
+	t.Helper()
+
+	result, err := store.SearchMemory(ctx, storage.MemorySearchQuery{
+		SessionID: strings.TrimSpace(sessionID),
+		Statuses:  []storage.MemoryStatus{storage.MemoryStatusCandidate, storage.MemoryStatusActive},
+		Limit:     20,
+	})
+	if err != nil {
+		return err.Error()
+	}
+
+	parts := make([]string, 0, len(result.Hits))
+	for _, hit := range result.Hits {
+		item := hit.Item
+		parts = append(parts, string(item.Kind)+":"+string(item.Status)+":"+item.Title+":"+item.Text)
+	}
+	return strings.Join(parts, " | ")
+}
+
+func getMemorySourceCreatedBy(item storage.MemoryItem) string {
+	for _, link := range item.SourceLinks {
+		if createdBy := strings.TrimSpace(link.CreatedBy); createdBy != "" {
+			return createdBy
+		}
+	}
+
+	return ""
+}
+
+func getSessionEpisodicCheckpoint(
+	t *testing.T,
+	ctx context.Context,
+	store liveMemoryStore,
+	sessionID string,
+) int {
+	t.Helper()
+
+	session, ok, err := store.Get(ctx, strings.TrimSpace(sessionID))
+	require.NoError(t, err)
+	require.True(t, ok)
+	return session.EpisodicCheckpointOffset
+}
+
+func hasSessionEpisodicCheckpointComplete(
+	t *testing.T,
+	ctx context.Context,
+	store liveMemoryStore,
+	sessionID string,
+) bool {
+	t.Helper()
+
+	sessionID = strings.TrimSpace(sessionID)
+	checkpoint := getSessionEpisodicCheckpoint(t, ctx, store, sessionID)
+	count, err := store.CountMessages(ctx, sessionID, storage.MessageQueryOptions{})
+	require.NoError(t, err)
+	return checkpoint >= count
+}
+
+func getRepoRoot(t *testing.T) string {
+	t.Helper()
+
+	dir, err := os.Getwd()
+	require.NoError(t, err)
+	for {
+		if hasRepoRootFiles(dir) {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("repo root not found")
+		}
+		dir = parent
+	}
+}
+
+func hasRepoRootFiles(dir string) bool {
+	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err != nil {
+		return false
+	}
+	if _, err := os.Stat(filepath.Join(dir, "config.yaml")); err != nil {
+		return false
+	}
+	return true
+}

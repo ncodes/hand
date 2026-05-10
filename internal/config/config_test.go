@@ -818,6 +818,7 @@ func TestGet_ReturnsDefaultsWhenConfigIsUnset(t *testing.T) {
 	require.Empty(t, cfg.Name)
 	require.Equal(t, defaultModel, cfg.Models.Main.Name)
 	require.Equal(t, "info", cfg.Log.Level)
+	require.False(t, cfg.Log.NoColor)
 	require.Empty(t, cfg.Models.Main.Provider)
 	require.Empty(t, cfg.Models.Main.BaseURL)
 	require.Empty(t, cfg.RPC.Address)

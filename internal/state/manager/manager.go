@@ -44,6 +44,19 @@ func NewManager(store storage.Store, defaultIdleExpiry, archiveRetention time.Du
 	}, nil
 }
 
+func (m *Manager) Close() error {
+	if m == nil || m.store == nil {
+		return nil
+	}
+
+	closer, ok := m.store.(interface{ Close() error })
+	if !ok {
+		return nil
+	}
+
+	return closer.Close()
+}
+
 func (m *Manager) MemoryStore() (storage.MemoryStore, bool) {
 	if m == nil || m.store == nil {
 		return nil, false

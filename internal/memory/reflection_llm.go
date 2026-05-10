@@ -218,6 +218,9 @@ func getReflectionInstructions() string {
 		"Procedural text must preserve the trigger, ordered steps, constraints, important examples, and expected behavior when those details are present in the source memories.",
 		"Every candidate must include the typed procedural object. For non-procedural candidates, use empty procedural fields.",
 		"For procedural candidates, fill procedural.trigger and procedural.steps. Also fill procedural.constraints, procedural.examples, and procedural.expected_behavior when present in the source memories.",
+		"Tags must be short machine labels, not sentences or descriptive phrases.",
+		"Use lowercase kebab-case tags with one to three words, such as daemon-log, review, or workflow.",
+		"Do not include tags that repeat the full title or summarize the whole memory.",
 		"Use metadata key/value entries for memory_importance and memory_granularity; avoid low importance and execution_detail granularity.",
 	}, "\n")
 }

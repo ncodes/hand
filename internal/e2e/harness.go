@@ -101,10 +101,19 @@ func (h *Harness) Close() error {
 	if h.cancel != nil {
 		h.cancel()
 	}
+	var closeErr error
+	if closer, ok := h.agent.(interface{ Close() error }); ok {
+		closeErr = closer.Close()
+	}
+	if closer, ok := h.inspectStore.(interface{ Close() error }); ok {
+		if err := closer.Close(); closeErr == nil {
+			closeErr = err
+		}
+	}
 	if h.restoreEnv != nil {
 		h.restoreEnv()
 	}
-	return nil
+	return closeErr
 }
 
 func (h *Harness) Config() *config.Config {

@@ -173,6 +173,14 @@ func (a *Agent) Start(ctx context.Context) error {
 	return nil
 }
 
+func (a *Agent) Close() error {
+	if a == nil || a.stateMgr == nil {
+		return nil
+	}
+
+	return a.stateMgr.Close()
+}
+
 func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (string, error) {
 	if a == nil {
 		return "", errors.New("agent is required")

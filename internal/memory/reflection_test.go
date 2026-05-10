@@ -1236,6 +1236,9 @@ func TestLLMReflectionGenerator_GeneratesCandidatesWithMockedModel(t *testing.T)
 	require.Contains(t, client.requests[0].Instructions, "Procedural candidates must be written as reusable instructions")
 	require.Contains(t, client.requests[0].Instructions, "procedural.trigger")
 	require.Contains(t, client.requests[0].Instructions, "procedural.steps")
+	require.Contains(t, client.requests[0].Instructions, "Tags must be short machine labels")
+	require.Contains(t, client.requests[0].Instructions, "lowercase kebab-case tags")
+	require.Contains(t, client.requests[0].Instructions, "repeat the full title")
 }
 
 func TestReflectionModelResponseToGenerationResultUsesTypedProceduralFieldsForKind(t *testing.T) {

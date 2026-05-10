@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 	"os"
-	"regexp"
 	"testing"
 	"time"
 
@@ -92,9 +91,9 @@ func TestGetLogger_UsesCurrentNoColorSetting(t *testing.T) {
 	require.NotNil(t, logger)
 
 	log.Info().Msg("Hello")
-	rawOutput := buf.String()
-	output := stripANSI(rawOutput)
+	output := buf.String()
 	require.Contains(t, output, "program=svc")
+	require.NotContains(t, output, "\x1b[")
 }
 
 func TestSetLogLevel_MapsLevels(t *testing.T) {
@@ -139,9 +138,12 @@ func TestCurrentNoColorSetting_UsesConfig(t *testing.T) {
 	})
 
 	config.Set(nil)
-	require.False(t, getCurrentNoColorSetting())
+	require.True(t, getCurrentNoColorSetting())
 
 	config.Set(&config.Config{Log: config.LogConfig{NoColor: true}})
+	require.True(t, getCurrentNoColorSetting())
+
+	config.Set(&config.Config{Log: config.LogConfig{NoColor: false}})
 	require.True(t, getCurrentNoColorSetting())
 }
 
@@ -175,10 +177,4 @@ func TestConfigureLogger_UsesConfiguredOutputWriter(t *testing.T) {
 	output := <-done
 	require.Contains(t, output, "Pipe-test")
 	require.Contains(t, output, "program=svc")
-}
-
-var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
-
-func stripANSI(value string) string {
-	return ansiPattern.ReplaceAllString(value, "")
 }
