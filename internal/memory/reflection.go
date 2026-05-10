@@ -625,8 +625,24 @@ func validateReflectionCandidate(item MemoryItem) error {
 	if reason := checkCandidateAdmissionRejection(item); reason != "" {
 		return errors.New(reason)
 	}
+	if item.Kind == KindProcedural {
+		if reason := checkProceduralReflectionMetadata(item); reason != "" {
+			return errors.New(reason)
+		}
+	}
 
 	return nil
+}
+
+func checkProceduralReflectionMetadata(item MemoryItem) string {
+	if strings.TrimSpace(item.Metadata["procedural_trigger"]) == "" {
+		return "procedural_trigger_required"
+	}
+	if strings.TrimSpace(item.Metadata["procedural_steps"]) == "" {
+		return "procedural_steps_required"
+	}
+
+	return ""
 }
 
 func getSourceLinks(sources []MemoryItem) []SourceLink {

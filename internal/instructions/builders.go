@@ -258,6 +258,7 @@ Prefer one broader outcome or milestone episode over several small step-level me
 Use metadata.memory_importance as high, medium, or low; emit candidates only when importance is high or medium.
 Use metadata.memory_granularity as summary, episode, or execution_detail; reject execution_detail candidates and preserve that detail inside a broader summary or episode when useful.
 Use metadata.canonical_group to give overlapping candidates the same durable group label so redundant small candidates can be collapsed.
+When the user gives an explicit future-work workflow, checklist, preference, or operating rule, preserve the ordered steps, triggering condition, constraints, and important examples so reflection can turn it into an actionable procedural memory.
 Use empty strings for metadata fields that are unknown, absent, or not applicable; do not use placeholder words.
 Do not emit separate candidates for routine mechanical steps, ordinary data gathering, record updates, confirmations, or successful actions unless they are consequential for a decision, failure, blocker, verification, future preference, or handoff.
 Only use resolved_issue when the evidence shows an actual problem, failure, blocker, conflict, or misunderstanding that was resolved; routine successful completion is not a resolved issue.

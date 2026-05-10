@@ -100,11 +100,20 @@ type reflectionModelCandidate struct {
 	Tags       []string                       `json:"tags"`
 	Confidence float64                        `json:"confidence"`
 	Metadata   []reflectionModelMetadataEntry `json:"metadata"`
+	Procedural reflectionModelProcedural      `json:"procedural"`
 }
 
 type reflectionModelMetadataEntry struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
+}
+
+type reflectionModelProcedural struct {
+	Trigger          string   `json:"trigger"`
+	Steps            []string `json:"steps"`
+	Constraints      []string `json:"constraints"`
+	Examples         []string `json:"examples"`
+	ExpectedBehavior string   `json:"expected_behavior"`
 }
 
 func reflectionGenerationRequestToModelPayload(req ReflectionGenerationRequest) reflectionModelRequest {
@@ -145,21 +154,40 @@ func reflectionModelResponseToGenerationResult(resp *models.Response) (Reflectio
 
 	items := make([]MemoryItem, 0, len(parsed.Candidates))
 	for _, candidate := range parsed.Candidates {
+		metadata := reflectionMetadataEntriesToMap(candidate.Metadata)
+		metadata = setProceduralReflectionMetadata(metadata, candidate.Procedural)
+
 		// Candidate IDs, source links, reflection tags, and provenance metadata are
 		// intentionally absent here. The provider reconstructs them from trusted
 		// source memories before writing.
 		items = append(items, MemoryItem{
-			Kind:       Kind(strings.TrimSpace(candidate.Kind)),
+			Kind:       memoryKindFromReflectionCandidate(candidate),
 			Status:     StatusCandidate,
 			Title:      strings.TrimSpace(candidate.Title),
 			Text:       strings.TrimSpace(candidate.Text),
 			Tags:       append([]string(nil), candidate.Tags...),
-			Metadata:   reflectionMetadataEntriesToMap(candidate.Metadata),
+			Metadata:   metadata,
 			Confidence: candidate.Confidence,
 		})
 	}
 
 	return ReflectionGenerationResult{Items: items}, nil
+}
+
+func memoryKindFromReflectionCandidate(candidate reflectionModelCandidate) Kind {
+	if hasProceduralReflectionFields(candidate.Procedural) {
+		return KindProcedural
+	}
+
+	return Kind(strings.TrimSpace(candidate.Kind))
+}
+
+func hasProceduralReflectionFields(procedural reflectionModelProcedural) bool {
+	return strings.TrimSpace(procedural.Trigger) != "" ||
+		len(getNonBlankStrings(procedural.Steps)) > 0 ||
+		len(getNonBlankStrings(procedural.Constraints)) > 0 ||
+		len(getNonBlankStrings(procedural.Examples)) > 0 ||
+		strings.TrimSpace(procedural.ExpectedBehavior) != ""
 }
 
 func normalizeReflectionJSON(raw string) string {
@@ -175,7 +203,7 @@ func normalizeReflectionJSON(raw string) string {
 	return strings.TrimSpace(raw)
 }
 
-// getReflectionInstructions tell the model what to omit as much as what to emit.
+// getReflectionInstructions tells the model what to omit as much as what to emit.
 // The provider still enforces these requirements, but prompt-level guidance
 // reduces noisy candidate proposals before validation.
 func getReflectionInstructions() string {
@@ -186,6 +214,10 @@ func getReflectionInstructions() string {
 		"Every candidate must remain candidate-only; do not request activation, deletion, or supersession.",
 		"Prefer durable preferences, corrections, decisions, recurring procedures, and high-signal continuity facts.",
 		"Reject low-importance observations, execution details, raw transcript snippets, or temporary task state by omitting them.",
+		"Procedural candidates must be written as reusable instructions, not summaries that a process exists.",
+		"Procedural text must preserve the trigger, ordered steps, constraints, important examples, and expected behavior when those details are present in the source memories.",
+		"Every candidate must include the typed procedural object. For non-procedural candidates, use empty procedural fields.",
+		"For procedural candidates, fill procedural.trigger and procedural.steps. Also fill procedural.constraints, procedural.examples, and procedural.expected_behavior when present in the source memories.",
 		"Use metadata key/value entries for memory_importance and memory_granularity; avoid low importance and execution_detail granularity.",
 	}, "\n")
 }
@@ -213,6 +245,18 @@ func getReflectionStructuredOutput() *models.StructuredOutput {
 							"text":       map[string]any{"type": "string"},
 							"tags":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 							"confidence": map[string]any{"type": "number"},
+							"procedural": map[string]any{
+								"type":                 "object",
+								"additionalProperties": false,
+								"properties": map[string]any{
+									"trigger":           map[string]any{"type": "string"},
+									"steps":             map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+									"constraints":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+									"examples":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+									"expected_behavior": map[string]any{"type": "string"},
+								},
+								"required": []string{"trigger", "steps", "constraints", "examples", "expected_behavior"},
+							},
 							"metadata": map[string]any{
 								"type": "array",
 								"items": map[string]any{
@@ -226,13 +270,37 @@ func getReflectionStructuredOutput() *models.StructuredOutput {
 								},
 							},
 						},
-						"required": []string{"kind", "title", "text", "tags", "confidence", "metadata"},
+						"required": []string{"kind", "title", "text", "tags", "confidence", "metadata", "procedural"},
 					},
 				},
 			},
 			"required": []string{"candidates"},
 		},
 	}
+}
+
+func setProceduralReflectionMetadata(
+	metadata map[string]string,
+	procedural reflectionModelProcedural,
+) map[string]string {
+	values := map[string]string{
+		"procedural_trigger":           strings.TrimSpace(procedural.Trigger),
+		"procedural_steps":             strings.Join(getNonBlankStrings(procedural.Steps), "; "),
+		"procedural_constraints":       strings.Join(getNonBlankStrings(procedural.Constraints), "; "),
+		"procedural_examples":          strings.Join(getNonBlankStrings(procedural.Examples), "; "),
+		"procedural_expected_behavior": strings.TrimSpace(procedural.ExpectedBehavior),
+	}
+	for key, value := range values {
+		if value == "" {
+			continue
+		}
+		if metadata == nil {
+			metadata = make(map[string]string)
+		}
+		metadata[key] = value
+	}
+
+	return metadata
 }
 
 func reflectionMetadataEntriesToMap(entries []reflectionModelMetadataEntry) map[string]string {
@@ -252,6 +320,17 @@ func reflectionMetadataEntriesToMap(entries []reflectionModelMetadataEntry) map[
 	}
 
 	return metadata
+}
+
+func getNonBlankStrings(values []string) []string {
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		if value := strings.TrimSpace(value); value != "" {
+			normalized = append(normalized, value)
+		}
+	}
+
+	return normalized
 }
 
 func cloneMetadata(metadata map[string]string) map[string]string {

@@ -97,6 +97,8 @@ func TestMemoryProvider_ReflectSkipsAlreadyReflectedSources(t *testing.T) {
 		Metadata: map[string]string{
 			"memory_importance":  "high",
 			"memory_granularity": "summary",
+			"procedural_trigger": "Memory behavior changes.",
+			"procedural_steps":   "Run focused memory package tests.",
 		},
 	}}}}
 	provider := defaultMemoryTestProvider(t, Options{ReflectionGenerator: generator})
@@ -1125,6 +1127,33 @@ func TestValidateReflectionCandidateRejectsMalformedCandidates(t *testing.T) {
 			}(),
 			err: "execution_detail",
 		},
+		{
+			name: "procedural trigger",
+			item: MemoryItem{
+				Kind:   KindProcedural,
+				Status: StatusCandidate,
+				Text:   "When reviewing daemon logs, follow the user's workflow.",
+				Metadata: map[string]string{
+					"source_session_id": statecore.DefaultSessionID,
+					"procedural_steps":  "Group lines by subsystem, identify anomalies, explain timeline, propose fixes.",
+				},
+			},
+			err: "procedural_trigger_required",
+		},
+		{
+			name: "procedural steps",
+			item: MemoryItem{
+				Kind:   KindProcedural,
+				Status: StatusCandidate,
+				Text:   "When reviewing daemon logs, follow the user's workflow.",
+				Metadata: map[string]string{
+					"source_session_id":   statecore.DefaultSessionID,
+					"procedural_trigger":  "User asks to review daemon logs.",
+					"procedural_examples": "model requests, memory extraction, promotion, embeddings, tools",
+				},
+			},
+			err: "procedural_steps_required",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1132,6 +1161,21 @@ func TestValidateReflectionCandidateRejectsMalformedCandidates(t *testing.T) {
 			require.EqualError(t, validateReflectionCandidate(tt.item), tt.err)
 		})
 	}
+}
+
+func TestValidateReflectionCandidateAllowsActionableProceduralCandidates(t *testing.T) {
+	item := MemoryItem{
+		Kind:   KindProcedural,
+		Status: StatusCandidate,
+		Text:   "When reviewing daemon logs, first group lines by subsystem, then identify anomalies, explain the timeline, and propose fixes.",
+		Metadata: map[string]string{
+			"source_session_id":  statecore.DefaultSessionID,
+			"procedural_trigger": "User asks to review daemon logs.",
+			"procedural_steps":   "Group lines by subsystem; identify anomalies; explain timeline; propose fixes.",
+		},
+	}
+
+	require.NoError(t, validateReflectionCandidate(item))
 }
 
 func TestLLMReflectionGenerator_GeneratesCandidatesWithMockedModel(t *testing.T) {
@@ -1143,6 +1187,13 @@ func TestLLMReflectionGenerator_GeneratesCandidatesWithMockedModel(t *testing.T)
 				"text": "Run focused memory package tests after changing memory behavior.",
 				"tags": ["testing"],
 				"confidence": 0.82,
+				"procedural": {
+					"trigger": "Memory behavior changes.",
+					"steps": ["Run focused memory package tests."],
+					"constraints": ["Keep the test scope focused."],
+					"examples": ["internal/memory"],
+					"expected_behavior": "Catch memory behavior regressions before continuing."
+				},
 				"metadata": [
 					{"key": "memory_importance", "value": "high"},
 					{"key": "memory_granularity", "value": "summary"},
@@ -1173,10 +1224,47 @@ func TestLLMReflectionGenerator_GeneratesCandidatesWithMockedModel(t *testing.T)
 	require.Equal(t, StatusCandidate, result.Items[0].Status)
 	require.Equal(t, "high", result.Items[0].Metadata["memory_importance"])
 	require.Equal(t, "preserved", result.Items[0].Metadata["custom_metadata"])
+	require.Equal(t, "Memory behavior changes.", result.Items[0].Metadata["procedural_trigger"])
+	require.Equal(t, "Run focused memory package tests.", result.Items[0].Metadata["procedural_steps"])
+	require.Equal(t, "Keep the test scope focused.", result.Items[0].Metadata["procedural_constraints"])
+	require.Equal(t, "internal/memory", result.Items[0].Metadata["procedural_examples"])
+	require.Equal(t, "Catch memory behavior regressions before continuing.", result.Items[0].Metadata["procedural_expected_behavior"])
 	require.Len(t, client.requests, 1)
 	require.Equal(t, "test-model", client.requests[0].Model)
 	require.NotNil(t, client.requests[0].StructuredOutput)
 	require.Contains(t, client.requests[0].Instructions, "key/value entries")
+	require.Contains(t, client.requests[0].Instructions, "Procedural candidates must be written as reusable instructions")
+	require.Contains(t, client.requests[0].Instructions, "procedural.trigger")
+	require.Contains(t, client.requests[0].Instructions, "procedural.steps")
+}
+
+func TestReflectionModelResponseToGenerationResultUsesTypedProceduralFieldsForKind(t *testing.T) {
+	result, err := reflectionModelResponseToGenerationResult(&models.Response{OutputText: `{
+		"candidates": [{
+			"kind": "episodic",
+			"title": "Daemon log review workflow",
+			"text": "When reviewing daemon logs, follow the user's workflow.",
+			"tags": ["daemon_logs"],
+			"confidence": 1,
+			"procedural": {
+				"trigger": "User asks to review daemon logs.",
+				"steps": ["Group lines by subsystem.", "Explain timeline before fixes."],
+				"constraints": [],
+				"examples": [],
+				"expected_behavior": ""
+			},
+			"metadata": [
+				{"key": "memory_importance", "value": "high"},
+				{"key": "memory_granularity", "value": "summary"}
+			]
+		}]
+	}`})
+
+	require.NoError(t, err)
+	require.Len(t, result.Items, 1)
+	require.Equal(t, KindProcedural, result.Items[0].Kind)
+	require.Equal(t, "User asks to review daemon logs.", result.Items[0].Metadata["procedural_trigger"])
+	require.Equal(t, "Group lines by subsystem.; Explain timeline before fixes.", result.Items[0].Metadata["procedural_steps"])
 }
 
 func TestLLMReflectionGenerator_StructuredOutputUsesMetadataEntries(t *testing.T) {
@@ -1187,10 +1275,18 @@ func TestLLMReflectionGenerator_StructuredOutputUsesMetadataEntries(t *testing.T
 	candidateProperties := candidateItems["properties"].(map[string]any)
 	metadata := candidateProperties["metadata"].(map[string]any)
 	metadataItems := metadata["items"].(map[string]any)
+	procedural := candidateProperties["procedural"].(map[string]any)
+	proceduralProperties := procedural["properties"].(map[string]any)
 
 	require.Equal(t, "array", metadata["type"])
 	require.False(t, metadataItems["additionalProperties"].(bool))
 	require.ElementsMatch(t, []string{"key", "value"}, metadataItems["required"])
+	require.Equal(t, "object", procedural["type"])
+	require.False(t, procedural["additionalProperties"].(bool))
+	require.Equal(t, "string", proceduralProperties["trigger"].(map[string]any)["type"])
+	require.Equal(t, "array", proceduralProperties["steps"].(map[string]any)["type"])
+	require.Equal(t, "string", proceduralProperties["steps"].(map[string]any)["items"].(map[string]any)["type"])
+	require.ElementsMatch(t, []string{"trigger", "steps", "constraints", "examples", "expected_behavior"}, procedural["required"])
 }
 
 func TestReflectionMetadataEntriesToMapSkipsBlankKeys(t *testing.T) {
@@ -1203,6 +1299,40 @@ func TestReflectionMetadataEntriesToMapSkipsBlankKeys(t *testing.T) {
 	require.Equal(t, map[string]string{"memory_importance": "high"}, metadata)
 	require.Nil(t, reflectionMetadataEntriesToMap(nil))
 	require.Nil(t, reflectionMetadataEntriesToMap([]reflectionModelMetadataEntry{{Key: " "}}))
+}
+
+func TestSetProceduralReflectionMetadataNormalizesTypedFields(t *testing.T) {
+	metadata := setProceduralReflectionMetadata(map[string]string{
+		"memory_importance":  "high",
+		"procedural_trigger": "stale trigger",
+	}, reflectionModelProcedural{
+		Trigger:          " User asks for daemon log review. ",
+		Steps:            []string{" Group by subsystem. ", "", "Explain timeline."},
+		Constraints:      []string{"Before fixes, explain timeline.", " "},
+		Examples:         []string{"memory extraction", " promotion "},
+		ExpectedBehavior: " Follow the workflow every time. ",
+	})
+
+	require.Equal(t, map[string]string{
+		"memory_importance":            "high",
+		"procedural_trigger":           "User asks for daemon log review.",
+		"procedural_steps":             "Group by subsystem.; Explain timeline.",
+		"procedural_constraints":       "Before fixes, explain timeline.",
+		"procedural_examples":          "memory extraction; promotion",
+		"procedural_expected_behavior": "Follow the workflow every time.",
+	}, metadata)
+}
+
+func TestSetProceduralReflectionMetadataSkipsEmptyTypedFields(t *testing.T) {
+	require.Nil(t, setProceduralReflectionMetadata(nil, reflectionModelProcedural{}))
+
+	metadata := setProceduralReflectionMetadata(map[string]string{
+		"memory_importance": "high",
+	}, reflectionModelProcedural{
+		Steps: []string{" ", ""},
+	})
+
+	require.Equal(t, map[string]string{"memory_importance": "high"}, metadata)
 }
 
 func TestLLMReflectionGenerator_ValidationAndModelErrors(t *testing.T) {
@@ -1254,15 +1384,21 @@ func TestParseReflectionModelResponseHandlesFencedJSONAndErrors(t *testing.T) {
 }
 
 func reflectionCandidate(kind Kind, title string) MemoryItem {
-	return MemoryItem{
+	item := MemoryItem{
 		Kind:  kind,
 		Title: title,
-		Text:  title + " reflection candidate.",
+		Text:  "When " + strings.ToLower(title) + " applies, run the remembered workflow.",
 		Metadata: map[string]string{
 			"memory_importance":  "high",
 			"memory_granularity": "summary",
 		},
 	}
+	if kind == KindProcedural {
+		item.Metadata["procedural_trigger"] = title + " applies."
+		item.Metadata["procedural_steps"] = "Run the remembered workflow."
+	}
+
+	return item
 }
 
 func reflectionSource(id string, offset int) MemoryItem {
