@@ -33,6 +33,12 @@ type Runtime interface {
 	SearchMemory(ctx context.Context, query memory.SearchQuery) (memory.SearchResult, error)
 	SupportsMemoryExtraction(ctx context.Context) (bool, error)
 	ExtractEpisodes(ctx context.Context, req episodic.Request) (episodic.Result, error)
+	SupportsMemoryWrite(ctx context.Context) (bool, error)
+	RecordSemanticMemory(ctx context.Context, record memory.SemanticRecord) (memory.MemoryItem, error)
+	RecordProceduralMemory(ctx context.Context, record memory.ProceduralRecord) (memory.MemoryItem, error)
+	PromoteMemoryCandidate(ctx context.Context, req memory.PromotionRequest) (memory.LifecycleResult, error)
+	UpdateMemory(ctx context.Context, req memory.UpdateRequest) (memory.UpdateResult, error)
+	DeleteMemory(ctx context.Context, req memory.DeleteRequest) error
 
 	// Plan management
 	GetPlan(string) planstore.Plan

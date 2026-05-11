@@ -1789,6 +1789,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	t.Setenv("HAND_MEMORY_EPISODIC_MAX_WINDOW_CHARS", "4000")
 	t.Setenv("HAND_MEMORY_EPISODIC_MAX_WINDOW_TOKENS", "1000")
 	t.Setenv("HAND_MEMORY_EPISODIC_MAX_RETRIES", "2")
+	t.Setenv("HAND_MEMORY_WRITE_ENABLED", "false")
 
 	applyEnvOverrides(cfg)
 
@@ -1830,6 +1831,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.Equal(t, 4000, cfg.Memory.Episodic.MaxWindowChars)
 	require.Equal(t, 1000, cfg.Memory.Episodic.MaxWindowTokens)
 	require.Equal(t, 2, cfg.Memory.Episodic.MaxRetries)
+	require.False(t, getBoolValue(cfg.Memory.Write.Enabled))
 }
 
 func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
@@ -1845,6 +1847,8 @@ func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 	require.False(t, getBoolValue(cfg.Memory.Episodic.Enabled))
 	require.False(t, getBoolValue(cfg.Memory.Reflection.Enabled))
 	require.True(t, getBoolValue(cfg.Memory.Promotion.Enabled))
+	require.True(t, getBoolValue(cfg.Memory.Write.Enabled))
+	require.True(t, cfg.MemoryWriteEnabled())
 
 	cfg = &Config{Memory: MemoryConfig{Enabled: new(false)}}
 	cfg.Normalize()
@@ -1863,6 +1867,9 @@ func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 			Interval: time.Minute,
 			Limit:    7,
 		},
+		Write: WriteMemoryConfig{
+			Enabled: new(true),
+		},
 	}}
 	cfg.Normalize()
 	require.True(t, getBoolValue(cfg.Memory.Reflection.Enabled))
@@ -1872,6 +1879,7 @@ func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 	require.True(t, getBoolValue(cfg.Memory.Promotion.Enabled))
 	require.Equal(t, time.Minute, cfg.Memory.Promotion.Interval)
 	require.Equal(t, 7, cfg.Memory.Promotion.Limit)
+	require.True(t, getBoolValue(cfg.Memory.Write.Enabled))
 
 	cfg = &Config{Memory: MemoryConfig{Pinned: PinnedMemoryConfig{MaxChars: 120, MaxItemChars: 60}}}
 	cfg.Normalize()

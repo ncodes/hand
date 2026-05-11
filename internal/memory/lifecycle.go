@@ -137,7 +137,7 @@ func (p *MemoryProvider) PromoteCandidate(ctx context.Context, req PromotionRequ
 
 	// Promotion never re-promotes active memory or revives deleted memory. The
 	// status filter makes that lifecycle boundary explicit at the storage query.
-	candidate, err := p.loadLifecycleMemory(ctx, memoryID, []Status{StatusCandidate})
+	candidate, err := p.loadMemoryByID(ctx, memoryID, []Status{StatusCandidate})
 	if err != nil {
 		p.recordPromotionFailure(ctx, memoryID, err)
 		return LifecycleResult{}, err
@@ -363,9 +363,8 @@ func enforcePromotionHardGates(
 	return decision
 }
 
-// loadLifecycleMemory centralizes status-scoped lifecycle reads. Lifecycle
-// operations should always be explicit about the statuses they can act on.
-func (p *MemoryProvider) loadLifecycleMemory(
+// loadMemoryByID reads one persisted memory item with an optional status scope.
+func (p *MemoryProvider) loadMemoryByID(
 	ctx context.Context,
 	id string,
 	statuses []Status,

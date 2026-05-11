@@ -23,7 +23,6 @@ import (
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
-	"github.com/wandxy/hand/internal/memory/episodic"
 	"github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/personality"
@@ -31,6 +30,7 @@ import (
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	memorystore "github.com/wandxy/hand/internal/state/storememory"
 	"github.com/wandxy/hand/internal/tools"
+	"github.com/wandxy/hand/internal/tools/memorywrite"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/internal/workspace"
 	"github.com/wandxy/hand/pkg/nanoid"
@@ -70,6 +70,9 @@ func preparedToolGuidance() instruct.Instructions {
 		instruct.BuildSessionSearchGuidance(),
 		instruct.BuildSessionMessagesGuidance(),
 		instruct.BuildMemoryExtractGuidance(),
+		instruct.BuildMemoryAddGuidance(),
+		instruct.BuildMemoryUpdateGuidance(),
+		instruct.BuildMemoryDeleteGuidance(),
 	}
 }
 
@@ -370,6 +373,40 @@ func TestEnvironment_PrepareReturnsMemoryProviderErrors(t *testing.T) {
 	require.ErrorIs(t, err, memory.ErrUnknownProvider)
 }
 
+func TestEnvironment_PrepareReturnsMemoryObservabilityAndBackgroundErrors(t *testing.T) {
+	previousNewMemoryProvider := newMemoryProvider
+	t.Cleanup(func() {
+		newMemoryProvider = previousNewMemoryProvider
+	})
+
+	enabled := true
+	observabilityErr := errors.New("observability failed")
+	newMemoryProvider = func(string, memory.Options) (memory.Provider, error) {
+		return memoryProviderWithObservabilityError{err: observabilityErr}, nil
+	}
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:   "Test Agent",
+		Memory: config.MemoryConfig{Enabled: &enabled},
+		Trace:  config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
+	})
+	env.SetStateManager(newTestStateManager(t))
+
+	require.ErrorIs(t, env.Prepare(), observabilityErr)
+
+	backgroundErr := errors.New("background failed")
+	newMemoryProvider = func(string, memory.Options) (memory.Provider, error) {
+		return memoryBackgroundProviderWithStartError{err: backgroundErr}, nil
+	}
+	env = NewEnvironment(gctx.Background(), &config.Config{
+		Name:   "Test Agent",
+		Memory: config.MemoryConfig{Enabled: &enabled},
+		Trace:  config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
+	})
+	env.SetStateManager(newTestStateManager(t))
+
+	require.ErrorIs(t, env.Prepare(), backgroundErr)
+}
+
 func TestEnvironment_MemoryProviderReturnsNilForNilEnvironment(t *testing.T) {
 	var env *environment
 	require.Nil(t, env.MemoryProvider())
@@ -404,11 +441,14 @@ func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
 	prepareTestEnvironment(t, env)
 
 	instructions := env.Instructions()
-	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+5)
-	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-4].Value)
-	require.Equal(t, instruct.BuildSessionSearchGuidance(), instructions[len(instructions)-3])
-	require.Equal(t, instruct.BuildSessionMessagesGuidance(), instructions[len(instructions)-2])
-	require.Equal(t, instruct.BuildMemoryExtractGuidance(), instructions[len(instructions)-1])
+	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+8)
+	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-7].Value)
+	require.Equal(t, instruct.BuildSessionSearchGuidance(), instructions[len(instructions)-6])
+	require.Equal(t, instruct.BuildSessionMessagesGuidance(), instructions[len(instructions)-5])
+	require.Equal(t, instruct.BuildMemoryExtractGuidance(), instructions[len(instructions)-4])
+	require.Equal(t, instruct.BuildMemoryAddGuidance(), instructions[len(instructions)-3])
+	require.Equal(t, instruct.BuildMemoryUpdateGuidance(), instructions[len(instructions)-2])
+	require.Equal(t, instruct.BuildMemoryDeleteGuidance(), instructions[len(instructions)-1])
 }
 
 func TestEnvironment_PrepareAppendsPersonalityBeforeWorkspaceRules(t *testing.T) {
@@ -432,12 +472,15 @@ func TestEnvironment_PrepareAppendsPersonalityBeforeWorkspaceRules(t *testing.T)
 	prepareTestEnvironment(t, env)
 
 	instructions := env.Instructions()
-	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+6)
-	require.Equal(t, "## SOUL.md\npersona", instructions[len(instructions)-5].Value)
-	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-4].Value)
-	require.Equal(t, instruct.BuildSessionSearchGuidance(), instructions[len(instructions)-3])
-	require.Equal(t, instruct.BuildSessionMessagesGuidance(), instructions[len(instructions)-2])
-	require.Equal(t, instruct.BuildMemoryExtractGuidance(), instructions[len(instructions)-1])
+	require.Len(t, instructions, len(instruct.BuildBase(cfg.Name))+9)
+	require.Equal(t, "## SOUL.md\npersona", instructions[len(instructions)-8].Value)
+	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-7].Value)
+	require.Equal(t, instruct.BuildSessionSearchGuidance(), instructions[len(instructions)-6])
+	require.Equal(t, instruct.BuildSessionMessagesGuidance(), instructions[len(instructions)-5])
+	require.Equal(t, instruct.BuildMemoryExtractGuidance(), instructions[len(instructions)-4])
+	require.Equal(t, instruct.BuildMemoryAddGuidance(), instructions[len(instructions)-3])
+	require.Equal(t, instruct.BuildMemoryUpdateGuidance(), instructions[len(instructions)-2])
+	require.Equal(t, instruct.BuildMemoryDeleteGuidance(), instructions[len(instructions)-1])
 }
 
 func TestEnvironment_PrepareAppendsInstructAfterWorkspaceRules(t *testing.T) {
@@ -464,11 +507,14 @@ func TestEnvironment_PrepareAppendsInstructAfterWorkspaceRules(t *testing.T) {
 	prepareTestEnvironment(t, env)
 
 	instructions := env.Instructions()
-	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-5].Value)
-	require.Equal(t, "be terse", instructions[len(instructions)-4].Value)
-	require.Equal(t, instruct.BuildSessionSearchGuidance(), instructions[len(instructions)-3])
-	require.Equal(t, instruct.BuildSessionMessagesGuidance(), instructions[len(instructions)-2])
-	require.Equal(t, instruct.BuildMemoryExtractGuidance(), instructions[len(instructions)-1])
+	require.Equal(t, "## AGENTS.md\nrepo rules", instructions[len(instructions)-8].Value)
+	require.Equal(t, "be terse", instructions[len(instructions)-7].Value)
+	require.Equal(t, instruct.BuildSessionSearchGuidance(), instructions[len(instructions)-6])
+	require.Equal(t, instruct.BuildSessionMessagesGuidance(), instructions[len(instructions)-5])
+	require.Equal(t, instruct.BuildMemoryExtractGuidance(), instructions[len(instructions)-4])
+	require.Equal(t, instruct.BuildMemoryAddGuidance(), instructions[len(instructions)-3])
+	require.Equal(t, instruct.BuildMemoryUpdateGuidance(), instructions[len(instructions)-2])
+	require.Equal(t, instruct.BuildMemoryDeleteGuidance(), instructions[len(instructions)-1])
 }
 
 func TestEnvironment_PrepareIgnoresPersonalityLoadError(t *testing.T) {
@@ -602,8 +648,8 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	require.NotNil(t, tools)
 
 	definitions := tools.List()
-	require.Len(t, definitions, 13)
-	require.Equal(t, []string{"list_files", "memory_extract", "memory_search", "patch", "plan_tool", "process", "read_file", "run_command", "search_files", "session_messages", "session_search", "time", "write_file"}, definitions.Names())
+	require.Len(t, definitions, 16)
+	require.Equal(t, []string{"list_files", "memory_add", "memory_delete", "memory_extract", "memory_search", "memory_update", "patch", "plan_tool", "process", "read_file", "run_command", "search_files", "session_messages", "session_search", "time", "write_file"}, definitions.Names())
 	for _, definition := range definitions {
 		require.Equal(t, []string{"core"}, definition.Groups)
 	}
@@ -633,10 +679,16 @@ func TestEnvironment_PrepareAppendsLoadedToolUsageInstructionsAfterBaseInstructi
 	require.True(t, strings.Index(rendered, "Test Agent is the user's personal agent") < strings.Index(rendered, "# Session Search Guidance"))
 	require.True(t, strings.Index(rendered, "# Session Search Guidance") < strings.Index(rendered, "# Session Messages Guidance"))
 	require.True(t, strings.Index(rendered, "# Session Messages Guidance") < strings.Index(rendered, "# Memory Extract Guidance"))
+	require.True(t, strings.Index(rendered, "# Memory Extract Guidance") < strings.Index(rendered, "# Memory Add Guidance"))
+	require.True(t, strings.Index(rendered, "# Memory Add Guidance") < strings.Index(rendered, "# Memory Update Guidance"))
+	require.True(t, strings.Index(rendered, "# Memory Update Guidance") < strings.Index(rendered, "# Memory Delete Guidance"))
 	require.Contains(t, rendered, "Use session_search when the user references prior work")
 	require.Contains(t, rendered, "Use session_messages when you need exact stored transcript content")
 	require.Contains(t, rendered, "call memory_extract before giving the final response")
 	require.Contains(t, rendered, "Use memory_extract proactively after a meaningful interaction has clearly completed")
+	require.Contains(t, rendered, "Use memory_add only when the user explicitly asks")
+	require.Contains(t, rendered, "Use memory_update only to replace an existing active semantic or procedural memory")
+	require.Contains(t, rendered, "Use memory_delete only when the user asks to remove")
 }
 
 func TestEnvironment_PrepareRegistersSessionTools(t *testing.T) {
@@ -728,6 +780,33 @@ func TestEnvironment_PrepareToolsReturnsMemoryExtractionCapabilityError(t *testi
 	h.SetStateManager(&statemanager.Manager{})
 
 	require.EqualError(t, h.prepareTools(), "extraction capability failed")
+}
+
+func TestEnvironment_PrepareToolsReturnsMemoryWriteCapabilityError(t *testing.T) {
+	provider := &sequentialCapabilityMemoryProviderStub{
+		capsSequence: []memory.Capabilities{
+			{SupportsSearch: true},
+			{SupportsEpisodeRecording: true},
+		},
+		errSequence: []error{
+			nil,
+			nil,
+			errors.New("write capability failed"),
+		},
+	}
+
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name: "Test Agent",
+		Memory: config.MemoryConfig{
+			Write: config.WriteMemoryConfig{Enabled: new(true)},
+		},
+		Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
+	})
+	h := env.(*environment)
+	h.memory = provider
+	h.SetStateManager(&statemanager.Manager{})
+
+	require.EqualError(t, h.prepareTools(), "write capability failed")
 }
 
 func TestEnvironment_MemorySearchDefinitionSkipsUnsupportedProviders(t *testing.T) {
@@ -889,70 +968,147 @@ func TestEnvironment_MemoryExtractionDefinitionSkipsUnsupportedProviders(t *test
 	}
 }
 
-func TestRuntime_ExtractEpisodesRejectsUnsupportedProviders(t *testing.T) {
-	provider := &memoryExtractionProviderStub{
-		memorySearchProviderStub: memorySearchProviderStub{
-			caps: memory.Capabilities{SupportsSearch: true},
+func TestEnvironment_MemoryWriteDefinitionsAreConfigGated(t *testing.T) {
+	cfg := &config.Config{Memory: config.MemoryConfig{
+		Write: config.WriteMemoryConfig{Enabled: new(true)},
+	}}
+	provider := &memoryWriteProviderStub{
+		memoryExtractionProviderStub: memoryExtractionProviderStub{
+			memorySearchProviderStub: memorySearchProviderStub{
+				caps: memory.Capabilities{
+					SupportsWrite:               true,
+					SupportsDelete:              true,
+					SupportsSemanticRecording:   true,
+					SupportsProceduralRecording: true,
+				},
+			},
 		},
 	}
-	runtime := &Runtime{
-		memory: provider,
-	}
+	env := &environment{cfg: cfg, ctx: gctx.Background(), memory: provider}
+	env.runtime = NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, nil)
+	env.runtime.memory = env.memory
 
-	result, err := runtime.ExtractEpisodes(gctx.Background(), episodic.Request{})
+	definitions, err := env.memoryWriteDefinitions()
 
-	require.EqualError(t, err, "memory extraction is not supported by provider")
-	require.Empty(t, result)
+	require.NoError(t, err)
+	require.Equal(t, tools.Definitions{
+		memorywrite.AddDefinition(env.runtime),
+		memorywrite.UpdateDefinition(env.runtime),
+		memorywrite.DeleteDefinition(env.runtime),
+	}.Names(), definitions.Names())
+
+	cfg = &config.Config{Memory: config.MemoryConfig{
+		Write: config.WriteMemoryConfig{Enabled: new(false)},
+	}}
+	env = &environment{cfg: cfg, ctx: gctx.Background(), memory: provider}
+	env.runtime = NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, nil)
+	env.runtime.memory = env.memory
+
+	definitions, err = env.memoryWriteDefinitions()
+	require.NoError(t, err)
+	require.Empty(t, definitions)
 }
 
-func TestRuntime_ExtractEpisodesValidatesDependenciesAndCapabilities(t *testing.T) {
-	_, err := (*Runtime)(nil).ExtractEpisodes(gctx.Background(), episodic.Request{})
-	require.EqualError(t, err, "memory provider is required")
-
-	runtime := &Runtime{}
-	_, err = runtime.ExtractEpisodes(gctx.Background(), episodic.Request{})
-	require.EqualError(t, err, "memory provider is required")
-
-	runtime.memory = &memorySearchProviderStub{caps: memory.Capabilities{SupportsEpisodeRecording: true}}
-	_, err = runtime.ExtractEpisodes(gctx.Background(), episodic.Request{})
-	require.EqualError(t, err, "memory extraction is not supported by provider")
-
-	capsErr := errors.New("capability failed")
-	provider := &memoryExtractionProviderStub{
-		memorySearchProviderStub: memorySearchProviderStub{capsErr: capsErr},
+func TestEnvironment_MemoryWriteDefinitionsSkipUnavailableProviders(t *testing.T) {
+	tests := []struct {
+		name string
+		env  *environment
+		err  string
+	}{
+		{
+			name: "nil environment",
+		},
+		{
+			name: "nil runtime",
+			env: &environment{
+				cfg: &config.Config{Memory: config.MemoryConfig{
+					Write: config.WriteMemoryConfig{Enabled: new(true)},
+				}},
+			},
+		},
+		{
+			name: "nil config",
+			env:  &environment{runtime: &Runtime{}},
+		},
+		{
+			name: "unsupported provider",
+			env: &environment{
+				cfg: &config.Config{Memory: config.MemoryConfig{
+					Write: config.WriteMemoryConfig{Enabled: new(true)},
+				}},
+				runtime: &Runtime{memory: &memorySearchProviderStub{}},
+			},
+		},
+		{
+			name: "capability error",
+			env: &environment{
+				cfg: &config.Config{Memory: config.MemoryConfig{
+					Write: config.WriteMemoryConfig{Enabled: new(true)},
+				}},
+				runtime: &Runtime{memory: &memoryWriteProviderStub{
+					memoryExtractionProviderStub: memoryExtractionProviderStub{
+						memorySearchProviderStub: memorySearchProviderStub{
+							capsErr: errors.New("write capability failed"),
+						},
+					},
+				}},
+			},
+			err: "write capability failed",
+		},
 	}
-	runtime.memory = provider
-	_, err = runtime.ExtractEpisodes(gctx.Background(), episodic.Request{})
-	require.ErrorIs(t, err, capsErr)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var env *environment
+			if tt.env != nil {
+				env = tt.env
+			}
+
+			definitions, err := env.memoryWriteDefinitions()
+			if tt.err != "" {
+				require.EqualError(t, err, tt.err)
+				require.Empty(t, definitions)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Empty(t, definitions)
+		})
+	}
 }
 
-func TestRuntime_ExtractEpisodesRunsExtractor(t *testing.T) {
-	ctx := gctx.Background()
-	store := memorystore.NewStore()
-	manager, err := statemanager.NewManager(store, time.Minute, time.Hour)
-	require.NoError(t, err)
-	provider, err := memory.NewFromManager(manager, memory.Options{
-		ModelClient: environmentEpisodicModelClientStub(),
-		Model:       "test-model",
+func TestEnvironment_PrepareRegistersMemoryWriteToolsWhenEnabled(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
 	})
-	require.NoError(t, err)
+	loadPersonality = func() (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
 
-	require.NoError(t, manager.Save(ctx, storage.Session{ID: storage.DefaultSessionID}))
-	require.NoError(t, manager.AppendMessages(ctx, storage.DefaultSessionID, []messages.Message{
-		{ID: 1, Role: messages.RoleUser, Content: "Remember the runtime extraction path."},
-	}))
-
-	runtime := &Runtime{stateMgr: manager, memory: provider}
-
-	result, err := runtime.ExtractEpisodes(ctx, episodic.Request{
-		SessionID:      storage.DefaultSessionID,
-		WindowSize:     1,
-		MaxWindowChars: 1000,
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:  "Test Agent",
+		Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
+		Memory: config.MemoryConfig{
+			Write: config.WriteMemoryConfig{Enabled: new(true)},
+		},
 	})
+	prepareTestEnvironment(t, env)
 
-	require.NoError(t, err)
-	require.Equal(t, 1, result.WriteCount)
-	require.Equal(t, 1, result.MessageCount)
+	definitions := env.Tools().List()
+	require.True(t, definitions.Has("memory_add"))
+	require.True(t, definitions.Has("memory_update"))
+	require.True(t, definitions.Has("memory_delete"))
+
+	rendered := env.Instructions().String()
+	require.Contains(t, rendered, "# Memory Add Guidance")
+	require.Contains(t, rendered, "# Memory Update Guidance")
+	require.Contains(t, rendered, "# Memory Delete Guidance")
 }
 
 func environmentEpisodicModelClientStub() *environmentModelClientStub {
@@ -1101,11 +1257,14 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 	prepareTestEnvironment(t, env)
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 15)
+	require.Len(t, definitions, 18)
 	require.Equal(t, []string{
 		"list_files",
+		"memory_add",
+		"memory_delete",
 		"memory_extract",
 		"memory_search",
+		"memory_update",
 		"patch",
 		"plan_tool",
 		"process",
@@ -1311,7 +1470,7 @@ func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T
 	prepareTestEnvironment(t, env)
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 13)
+	require.Len(t, definitions, 16)
 	require.False(t, definitions.Has("web_search"))
 	require.False(t, definitions.Has("web_extract"))
 }
@@ -1383,46 +1542,6 @@ func TestEnvironment_CurrentPlanAndHydratePlanUseRuntimeStore(t *testing.T) {
 		Steps:       []envplanstore.PlanStep{{ID: "step-1", Content: "First", Status: envplanstore.PlanStatusInProgress}},
 		Explanation: "restored",
 	}, env.CurrentPlan("session-1"))
-}
-
-func TestRuntime_SearchMemoryHandlesUnavailableProviders(t *testing.T) {
-	tests := []struct {
-		name    string
-		runtime *Runtime
-		message string
-	}{
-		{name: "nil runtime", message: "memory search is not configured"},
-		{name: "nil provider", runtime: &Runtime{}, message: "memory search is not configured"},
-		{name: "provider without search", runtime: &Runtime{memory: memoryProviderWithoutSearch{}}, message: "memory search is not supported by provider"},
-		{name: "search capability disabled", runtime: &Runtime{memory: &memorySearchProviderStub{}}, message: "memory search is not supported by provider"},
-		{name: "capability error", runtime: &Runtime{memory: &memorySearchProviderStub{capsErr: errors.New("capability failed")}}, message: "capability failed"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := tt.runtime.SearchMemory(gctx.Background(), memory.SearchQuery{Text: "hello"})
-
-			require.EqualError(t, err, tt.message)
-			require.Empty(t, result)
-		})
-	}
-}
-
-func TestRuntime_SearchMemorySearchesProvider(t *testing.T) {
-	provider := &memorySearchProviderStub{
-		caps: memory.Capabilities{SupportsSearch: true},
-		searchResult: memory.SearchResult{Hits: []memory.SearchHit{{
-			Item: memory.MemoryItem{ID: "mem_123", Status: memory.StatusActive, Text: "hello"},
-		}}},
-	}
-	runtime := &Runtime{memory: provider}
-	query := memory.SearchQuery{Text: "hello", Limit: 3}
-
-	result, err := runtime.SearchMemory(gctx.Background(), query)
-
-	require.NoError(t, err)
-	require.Equal(t, query, provider.searchQuery)
-	require.Equal(t, provider.searchResult, result)
 }
 
 func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
@@ -1512,6 +1631,11 @@ func TestEnvironment_SetInstructionAddsUnnamedInstruction(t *testing.T) {
 func TestEnvironment_SetStateManagerSkipsNilEnvironment(t *testing.T) {
 	var env *environment
 	env.SetStateManager(&statemanager.Manager{})
+}
+
+func TestEnvironment_SetModelClientSkipsNilEnvironment(t *testing.T) {
+	var env *environment
+	env.SetModelClient(&environmentModelClientStub{})
 }
 
 func TestEnvironment_SetInstructionUpdatesExistingNamedInstruction(t *testing.T) {
@@ -1676,6 +1800,26 @@ func TestNewEnvironment_ConfiguresTraceFactoryWhenEnabled(t *testing.T) {
 	session := env.NewTraceSession(traceSessionID)
 	require.Equal(t, traceSessionID, session.ID())
 	session.Close()
+}
+
+func TestEnvironment_PrepareTraceFactoryUsesDefaultTraceDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HAND_HOME", home)
+	manager := newTestStateManager(t)
+	env := &environment{
+		ctx:      gctx.Background(),
+		cfg:      &config.Config{Trace: config.TraceConfig{Enabled: true}},
+		stateMgr: manager,
+	}
+
+	env.prepareTraceFactory()
+	session := env.NewTraceSession("ses_test123")
+	require.Equal(t, "ses_test123", session.ID())
+	session.Close()
+
+	matches, err := filepath.Glob(filepath.Join(datadir.DebugTraceDir(), "*ses_test123.jsonl"))
+	require.NoError(t, err)
+	require.Len(t, matches, 1)
 }
 
 func TestEnvironment_NewTraceSessionRecordsWorkspaceRuleTruncation(t *testing.T) {

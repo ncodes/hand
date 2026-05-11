@@ -317,6 +317,23 @@ func TestBuildMemoryExtractGuidance_ReturnsNamedInstruction(t *testing.T) {
 	require.Contains(t, instruction.Value, "Do not use memory_extract during active task execution")
 }
 
+func TestBuildMemoryWriteGuidance_ReturnsNamedInstructions(t *testing.T) {
+	add := BuildMemoryAddGuidance()
+	require.Equal(t, MemoryAddInstructionName, add.Name)
+	require.Contains(t, add.Value, "# Memory Add Guidance")
+	require.Contains(t, add.Value, "Every write must include provenance")
+
+	update := BuildMemoryUpdateGuidance()
+	require.Equal(t, MemoryUpdateInstructionName, update.Name)
+	require.Contains(t, update.Value, "# Memory Update Guidance")
+	require.Contains(t, update.Value, "replace an existing active")
+
+	deleteInstruction := BuildMemoryDeleteGuidance()
+	require.Equal(t, MemoryDeleteInstructionName, deleteInstruction.Name)
+	require.Contains(t, deleteInstruction.Value, "# Memory Delete Guidance")
+	require.Contains(t, deleteInstruction.Value, "lifecycle transition")
+}
+
 func TestBuildEpisodicExtractionInstructions_ReturnsCuratedExtractionPrompt(t *testing.T) {
 	instructions := BuildEpisodicExtractionInstructions()
 

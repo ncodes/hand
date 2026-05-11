@@ -189,6 +189,161 @@ func (r *Runtime) ExtractEpisodes(ctx context.Context, req episodic.Request) (ep
 	return extractor.ExtractEpisodes(ctx, req)
 }
 
+func (r *Runtime) SupportsMemoryWrite(ctx context.Context) (bool, error) {
+	if r == nil || r.memory == nil {
+		return false, nil
+	}
+
+	caps, err := r.memory.Capabilities(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	_, supportsSemanticRecording := r.memory.(memory.SemanticProvider)
+	_, supportsProceduralRecording := r.memory.(memory.ProceduralProvider)
+	_, supportsLifecycle := r.memory.(memory.LifecycleProvider)
+	_, supportsUpdate := r.memory.(memory.UpdateProvider)
+	_, supportsDelete := r.memory.(memory.WriteProvider)
+
+	return caps.SupportsWrite &&
+		caps.SupportsSemanticRecording &&
+		caps.SupportsProceduralRecording &&
+		caps.SupportsDelete &&
+		supportsSemanticRecording &&
+		supportsProceduralRecording &&
+		supportsLifecycle &&
+		supportsUpdate &&
+		supportsDelete, nil
+}
+
+func (r *Runtime) RecordSemanticMemory(
+	ctx context.Context,
+	record memory.SemanticRecord,
+) (memory.MemoryItem, error) {
+	provider, err := r.memorySemanticProvider(ctx)
+	if err != nil {
+		return memory.MemoryItem{}, err
+	}
+
+	return provider.RecordSemanticMemory(ctx, record)
+}
+
+func (r *Runtime) RecordProceduralMemory(
+	ctx context.Context,
+	record memory.ProceduralRecord,
+) (memory.MemoryItem, error) {
+	provider, err := r.memoryProceduralProvider(ctx)
+	if err != nil {
+		return memory.MemoryItem{}, err
+	}
+
+	return provider.RecordProceduralMemory(ctx, record)
+}
+
+func (r *Runtime) PromoteMemoryCandidate(
+	ctx context.Context,
+	req memory.PromotionRequest,
+) (memory.LifecycleResult, error) {
+	if err := r.checkMemoryWriteSupported(ctx); err != nil {
+		return memory.LifecycleResult{}, err
+	}
+
+	provider := r.memory.(memory.LifecycleProvider)
+	return provider.PromoteCandidate(ctx, req)
+}
+
+func (r *Runtime) UpdateMemory(ctx context.Context, req memory.UpdateRequest) (memory.UpdateResult, error) {
+	if err := r.checkMemoryWriteSupported(ctx); err != nil {
+		return memory.UpdateResult{}, err
+	}
+
+	provider := r.memory.(memory.UpdateProvider)
+	return provider.Update(ctx, req)
+}
+
+func (r *Runtime) DeleteMemory(ctx context.Context, req memory.DeleteRequest) error {
+	if err := r.checkMemoryWriteSupported(ctx); err != nil {
+		return err
+	}
+
+	provider := r.memory.(memory.WriteProvider)
+	return provider.Delete(ctx, req)
+}
+
+func (r *Runtime) memorySemanticProvider(
+	ctx context.Context,
+) (memory.SemanticProvider, error) {
+	if err := r.checkSemanticMemoryWriteSupported(ctx); err != nil {
+		return nil, err
+	}
+
+	return r.memory.(memory.SemanticProvider), nil
+}
+
+func (r *Runtime) memoryProceduralProvider(
+	ctx context.Context,
+) (memory.ProceduralProvider, error) {
+	if err := r.checkProceduralMemoryWriteSupported(ctx); err != nil {
+		return nil, err
+	}
+
+	return r.memory.(memory.ProceduralProvider), nil
+}
+
+func (r *Runtime) checkSemanticMemoryWriteSupported(ctx context.Context) error {
+	if r == nil || r.memory == nil {
+		return errors.New("memory write is not configured")
+	}
+
+	caps, err := r.memory.Capabilities(ctx)
+	if err != nil {
+		return err
+	}
+	if !caps.SupportsWrite || !caps.SupportsSemanticRecording {
+		return errors.New("semantic memory write is not supported by provider")
+	}
+	if _, ok := r.memory.(memory.SemanticProvider); !ok {
+		return errors.New("semantic memory write is not supported by provider")
+	}
+
+	return nil
+}
+
+func (r *Runtime) checkProceduralMemoryWriteSupported(ctx context.Context) error {
+	if r == nil || r.memory == nil {
+		return errors.New("memory write is not configured")
+	}
+
+	caps, err := r.memory.Capabilities(ctx)
+	if err != nil {
+		return err
+	}
+	if !caps.SupportsWrite || !caps.SupportsProceduralRecording {
+		return errors.New("procedural memory write is not supported by provider")
+	}
+	if _, ok := r.memory.(memory.ProceduralProvider); !ok {
+		return errors.New("procedural memory write is not supported by provider")
+	}
+
+	return nil
+}
+
+func (r *Runtime) checkMemoryWriteSupported(ctx context.Context) error {
+	if r == nil || r.memory == nil {
+		return errors.New("memory write is not configured")
+	}
+
+	supported, err := r.SupportsMemoryWrite(ctx)
+	if err != nil {
+		return err
+	}
+	if !supported {
+		return errors.New("memory write is not supported by provider")
+	}
+
+	return nil
+}
+
 func (r *Runtime) GetPlan(sessionID string) planstore.Plan {
 	if r == nil || r.plans == nil {
 		return planstore.Plan{}

@@ -13,6 +13,9 @@ const (
 	SessionSearchInstructionName      = "tool.session_search"
 	SessionMessagesInstructionName    = "tool.session_messages"
 	MemoryExtractInstructionName      = "tool.memory_extract"
+	MemoryAddInstructionName          = "tool.memory_add"
+	MemoryUpdateInstructionName       = "tool.memory_update"
+	MemoryDeleteInstructionName       = "tool.memory_delete"
 )
 
 type MemoryContextItem struct {
@@ -245,6 +248,41 @@ Use memory_extract proactively after a meaningful interaction has clearly comple
 Prefer bounded ranges with session_id plus offset_start and offset_end when the relevant messages are known.
 Do not use memory_extract during active task execution, for every routine turn, for speculative capture, or for low-signal conversational details.
 Treat memory_extract as a deliberate capture action: it creates source-linked durable memory and should be used sparingly.`,
+	}
+}
+
+func BuildMemoryAddGuidance() Instruction {
+	return Instruction{
+		Name: MemoryAddInstructionName,
+		Value: `
+# Memory Add Guidance
+
+Use memory_add only when the user explicitly asks you to remember, save, correct, or retain a durable semantic fact or reusable procedure.
+Every write must include provenance through source_links or source_session_id, and the memory must be within the user's request and conversation evidence.
+Do not use memory_add for guesses, sensitive inferences, low-importance details, transient task state, or content outside the current evidence.`,
+	}
+}
+
+func BuildMemoryUpdateGuidance() Instruction {
+	return Instruction{
+		Name: MemoryUpdateInstructionName,
+		Value: `
+# Memory Update Guidance
+
+Use memory_update only to replace an existing active semantic or procedural memory with a source-linked correction.
+The replacement must include provenance through source_links or source_session_id and should preserve only durable facts or reusable procedures.
+Do not use memory_update to silently rewrite unrelated memory, broaden scope beyond evidence, or bypass promotion and safety review.`,
+	}
+}
+
+func BuildMemoryDeleteGuidance() Instruction {
+	return Instruction{
+		Name: MemoryDeleteInstructionName,
+		Value: `
+# Memory Delete Guidance
+
+Use memory_delete only when the user asks to remove, forget, revoke, or hide a specific durable memory.
+Provide a concise reason tied to the user's request. Deletion is a lifecycle transition and should not be used as a substitute for correction when replacement memory is needed.`,
 	}
 }
 

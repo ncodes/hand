@@ -29,6 +29,12 @@ type Runtime struct {
 	SearchMemoryFunc             func(context.Context, memory.SearchQuery) (memory.SearchResult, error)
 	SupportsMemoryExtractionFunc func(context.Context) (bool, error)
 	ExtractEpisodesFunc          func(context.Context, episodic.Request) (episodic.Result, error)
+	SupportsMemoryWriteFunc      func(context.Context) (bool, error)
+	RecordSemanticMemoryFunc     func(context.Context, memory.SemanticRecord) (memory.MemoryItem, error)
+	RecordProceduralMemoryFunc   func(context.Context, memory.ProceduralRecord) (memory.MemoryItem, error)
+	PromoteMemoryCandidateFunc   func(context.Context, memory.PromotionRequest) (memory.LifecycleResult, error)
+	UpdateMemoryFunc             func(context.Context, memory.UpdateRequest) (memory.UpdateResult, error)
+	DeleteMemoryFunc             func(context.Context, memory.DeleteRequest) error
 }
 
 func (r *Runtime) FilePolicy() guardrails.FilesystemPolicy { return r.FilePolicyValue }
@@ -98,6 +104,42 @@ func (r *Runtime) ExtractEpisodes(ctx context.Context, req episodic.Request) (ep
 		return r.ExtractEpisodesFunc(ctx, req)
 	}
 	return episodic.Result{}, nil
+}
+func (r *Runtime) SupportsMemoryWrite(ctx context.Context) (bool, error) {
+	if r != nil && r.SupportsMemoryWriteFunc != nil {
+		return r.SupportsMemoryWriteFunc(ctx)
+	}
+	return false, nil
+}
+func (r *Runtime) RecordSemanticMemory(ctx context.Context, record memory.SemanticRecord) (memory.MemoryItem, error) {
+	if r != nil && r.RecordSemanticMemoryFunc != nil {
+		return r.RecordSemanticMemoryFunc(ctx, record)
+	}
+	return memory.MemoryItem{}, nil
+}
+func (r *Runtime) RecordProceduralMemory(ctx context.Context, record memory.ProceduralRecord) (memory.MemoryItem, error) {
+	if r != nil && r.RecordProceduralMemoryFunc != nil {
+		return r.RecordProceduralMemoryFunc(ctx, record)
+	}
+	return memory.MemoryItem{}, nil
+}
+func (r *Runtime) PromoteMemoryCandidate(ctx context.Context, req memory.PromotionRequest) (memory.LifecycleResult, error) {
+	if r != nil && r.PromoteMemoryCandidateFunc != nil {
+		return r.PromoteMemoryCandidateFunc(ctx, req)
+	}
+	return memory.LifecycleResult{}, nil
+}
+func (r *Runtime) UpdateMemory(ctx context.Context, req memory.UpdateRequest) (memory.UpdateResult, error) {
+	if r != nil && r.UpdateMemoryFunc != nil {
+		return r.UpdateMemoryFunc(ctx, req)
+	}
+	return memory.UpdateResult{}, nil
+}
+func (r *Runtime) DeleteMemory(ctx context.Context, req memory.DeleteRequest) error {
+	if r != nil && r.DeleteMemoryFunc != nil {
+		return r.DeleteMemoryFunc(ctx, req)
+	}
+	return nil
 }
 func (r *Runtime) GetPlan(string) envtypes.Plan { return envtypes.Plan{} }
 func (r *Runtime) ReplacePlan(string, envtypes.Plan) (envtypes.Plan, error) {
@@ -182,6 +224,24 @@ func (d *FailingPlanRuntime) SupportsMemoryExtraction(ctx context.Context) (bool
 }
 func (d *FailingPlanRuntime) ExtractEpisodes(ctx context.Context, req episodic.Request) (episodic.Result, error) {
 	return d.Runtime.ExtractEpisodes(ctx, req)
+}
+func (d *FailingPlanRuntime) SupportsMemoryWrite(ctx context.Context) (bool, error) {
+	return d.Runtime.SupportsMemoryWrite(ctx)
+}
+func (d *FailingPlanRuntime) RecordSemanticMemory(ctx context.Context, record memory.SemanticRecord) (memory.MemoryItem, error) {
+	return d.Runtime.RecordSemanticMemory(ctx, record)
+}
+func (d *FailingPlanRuntime) RecordProceduralMemory(ctx context.Context, record memory.ProceduralRecord) (memory.MemoryItem, error) {
+	return d.Runtime.RecordProceduralMemory(ctx, record)
+}
+func (d *FailingPlanRuntime) PromoteMemoryCandidate(ctx context.Context, req memory.PromotionRequest) (memory.LifecycleResult, error) {
+	return d.Runtime.PromoteMemoryCandidate(ctx, req)
+}
+func (d *FailingPlanRuntime) UpdateMemory(ctx context.Context, req memory.UpdateRequest) (memory.UpdateResult, error) {
+	return d.Runtime.UpdateMemory(ctx, req)
+}
+func (d *FailingPlanRuntime) DeleteMemory(ctx context.Context, req memory.DeleteRequest) error {
+	return d.Runtime.DeleteMemory(ctx, req)
 }
 func (d *FailingPlanRuntime) GetPlan(sessionID string) envtypes.Plan {
 	return d.Runtime.GetPlan(sessionID)

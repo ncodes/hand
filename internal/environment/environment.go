@@ -24,6 +24,7 @@ import (
 	"github.com/wandxy/hand/internal/tools/listfiles"
 	"github.com/wandxy/hand/internal/tools/memoryextract"
 	"github.com/wandxy/hand/internal/tools/memorysearch"
+	"github.com/wandxy/hand/internal/tools/memorywrite"
 	"github.com/wandxy/hand/internal/tools/patch"
 	"github.com/wandxy/hand/internal/tools/plan"
 	"github.com/wandxy/hand/internal/tools/process"
@@ -43,6 +44,7 @@ import (
 var (
 	loadWorkspaceRules = workspace.Load
 	loadPersonality    = personality.Load
+	newMemoryProvider  = memory.NewProvider
 )
 
 const configInstructInstructionName = "config.instruct"
@@ -246,7 +248,7 @@ func (e *environment) prepareMemory() error {
 			Limit:    e.cfg.Memory.Promotion.Limit,
 		},
 	}
-	provider, err := memory.NewProvider(e.cfg.Memory.Provider, opts)
+	provider, err := newMemoryProvider(e.cfg.Memory.Provider, opts)
 	if err != nil {
 		return err
 	}
@@ -300,6 +302,11 @@ func (e *environment) prepareTools() error {
 		return err
 	} else if ok {
 		definitions = append(definitions, definition)
+	}
+	if writeDefinitions, err := e.memoryWriteDefinitions(); err != nil {
+		return err
+	} else {
+		definitions = append(definitions, writeDefinitions...)
 	}
 
 	webProvider, err := webprovider.NewProvider(e.cfg)
@@ -390,6 +397,29 @@ func (e *environment) memoryExtractionDefinition() (tools.Definition, bool, erro
 	}
 
 	return memoryextract.Definition(e.runtime), true, nil
+}
+
+func (e *environment) memoryWriteDefinitions() (tools.Definitions, error) {
+	if e == nil || e.runtime == nil || e.cfg == nil {
+		return nil, nil
+	}
+	if !e.cfg.MemoryWriteEnabled() {
+		return nil, nil
+	}
+
+	ok, err := e.runtime.SupportsMemoryWrite(e.ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
+
+	return tools.Definitions{
+		memorywrite.AddDefinition(e.runtime),
+		memorywrite.UpdateDefinition(e.runtime),
+		memorywrite.DeleteDefinition(e.runtime),
+	}, nil
 }
 
 func (e *environment) prepareInstructions() {

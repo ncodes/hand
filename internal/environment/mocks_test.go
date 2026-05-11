@@ -25,6 +25,35 @@ func (memoryProviderWithoutSearch) Close() error {
 	return nil
 }
 
+type memoryProviderWithObservabilityError struct {
+	err error
+}
+
+func (memoryProviderWithObservabilityError) Name() string {
+	return "observability-error"
+}
+
+func (memoryProviderWithObservabilityError) Capabilities(context.Context) (memory.Capabilities, error) {
+	return memory.Capabilities{}, nil
+}
+
+func (p memoryProviderWithObservabilityError) ConfigureObservability(memory.Observability) error {
+	return p.err
+}
+
+func (memoryProviderWithObservabilityError) Close() error {
+	return nil
+}
+
+type memoryBackgroundProviderWithStartError struct {
+	memoryProviderWithoutSearch
+	err error
+}
+
+func (p memoryBackgroundProviderWithStartError) StartBackground(context.Context) error {
+	return p.err
+}
+
 type memorySearchProviderStub struct {
 	caps         memory.Capabilities
 	capsErr      error
@@ -74,6 +103,59 @@ func (p *memoryExtractionProviderStub) RecordEpisode(context.Context, memory.Epi
 
 func (p *memoryExtractionProviderStub) ExtractEpisodes(context.Context, memory.ExtractionRequest) (memory.ExtractionResult, error) {
 	return p.extractResult, p.extractErr
+}
+
+type memoryWriteProviderStub struct {
+	memoryExtractionProviderStub
+	semanticRecord   memory.SemanticRecord
+	proceduralRecord memory.ProceduralRecord
+	promotionRequest memory.PromotionRequest
+	updateRequest    memory.UpdateRequest
+	deleteRequest    memory.DeleteRequest
+}
+
+func (p *memoryWriteProviderStub) RecordSemanticMemory(
+	_ context.Context,
+	record memory.SemanticRecord,
+) (memory.MemoryItem, error) {
+	p.semanticRecord = record
+	return record.Item, nil
+}
+
+func (p *memoryWriteProviderStub) RecordProceduralMemory(
+	_ context.Context,
+	record memory.ProceduralRecord,
+) (memory.MemoryItem, error) {
+	p.proceduralRecord = record
+	return record.Item, nil
+}
+
+func (p *memoryWriteProviderStub) PromoteCandidate(
+	_ context.Context,
+	req memory.PromotionRequest,
+) (memory.LifecycleResult, error) {
+	p.promotionRequest = req
+	return memory.LifecycleResult{Item: memory.MemoryItem{ID: req.ID, Status: memory.StatusActive}}, nil
+}
+
+func (p *memoryWriteProviderStub) Update(
+	_ context.Context,
+	req memory.UpdateRequest,
+) (memory.UpdateResult, error) {
+	p.updateRequest = req
+	return memory.UpdateResult{
+		Previous:    memory.MemoryItem{ID: req.ID, Status: memory.StatusSuperseded},
+		Replacement: req.Replacement,
+		Lifecycle: memory.LifecycleResult{
+			Item:     req.Replacement,
+			Decision: memory.PromotionDecision{Approved: true},
+		},
+	}, nil
+}
+
+func (p *memoryWriteProviderStub) Delete(_ context.Context, req memory.DeleteRequest) error {
+	p.deleteRequest = req
+	return nil
 }
 
 type sequentialCapabilityMemoryProviderStub struct {

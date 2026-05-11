@@ -34,22 +34,35 @@ type SearchHit = statecore.MemorySearchHit
 type SearchResult = statecore.MemorySearchResult
 type DeleteRequest = statecore.MemoryDeleteRequest
 
+type UpdateRequest struct {
+	ID          string
+	Reason      string
+	Replacement MemoryItem
+}
+
+type UpdateResult struct {
+	Previous    MemoryItem
+	Replacement MemoryItem
+	Lifecycle   LifecycleResult
+}
+
 // Capabilities describes the behavioral surface a memory provider exposes.
 // Callers use it as feature negotiation instead of assuming every backend can
 // search, reflect, promote, rerank, and emit traces.
 type Capabilities struct {
-	SupportsPinned                      bool
-	SupportsSearch                      bool
-	SupportsWrite                       bool
-	SupportsDelete                      bool
-	SupportsEpisodeRecording            bool
-	SupportsSemanticProceduralRecording bool
-	SupportsReflection                  bool
-	SupportsBM25                        bool
-	SupportsVectors                     bool
-	SupportsReranking                   bool
-	SupportsAudit                       bool
-	SupportsObservability               bool
+	SupportsPinned              bool
+	SupportsSearch              bool
+	SupportsWrite               bool
+	SupportsDelete              bool
+	SupportsEpisodeRecording    bool
+	SupportsSemanticRecording   bool
+	SupportsProceduralRecording bool
+	SupportsReflection          bool
+	SupportsBM25                bool
+	SupportsVectors             bool
+	SupportsReranking           bool
+	SupportsAudit               bool
+	SupportsObservability       bool
 }
 
 type EpisodeRecord = episodic.EpisodeRecord
@@ -197,14 +210,22 @@ type WriteProvider interface {
 	Delete(context.Context, DeleteRequest) error
 }
 
+type UpdateProvider interface {
+	Update(context.Context, UpdateRequest) (UpdateResult, error)
+}
+
 // EpisodeProvider records one already-curated episodic candidate.
 type EpisodeProvider interface {
 	RecordEpisode(context.Context, EpisodeRecord) (MemoryItem, error)
 }
 
-// SemanticProceduralProvider records explicit non-episodic candidates.
-type SemanticProceduralProvider interface {
+// SemanticProvider records explicit semantic candidates.
+type SemanticProvider interface {
 	RecordSemanticMemory(context.Context, SemanticRecord) (MemoryItem, error)
+}
+
+// ProceduralProvider records explicit procedural candidates.
+type ProceduralProvider interface {
 	RecordProceduralMemory(context.Context, ProceduralRecord) (MemoryItem, error)
 }
 

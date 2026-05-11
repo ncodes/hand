@@ -165,17 +165,18 @@ func (p *MemoryProvider) Name() string {
 
 func (p *MemoryProvider) Capabilities(context.Context) (Capabilities, error) {
 	return Capabilities{
-		SupportsPinned:                      true,
-		SupportsSearch:                      true,
-		SupportsWrite:                       true,
-		SupportsDelete:                      true,
-		SupportsEpisodeRecording:            true,
-		SupportsSemanticProceduralRecording: true,
-		SupportsReflection:                  p != nil && p.reflectionGenerator != nil,
-		SupportsVectors:                     p != nil && hasVectorSearchSupport(p.manager),
-		SupportsReranking:                   true,
-		SupportsAudit:                       p != nil && p.manager != nil,
-		SupportsObservability:               true,
+		SupportsPinned:              true,
+		SupportsSearch:              true,
+		SupportsWrite:               true,
+		SupportsDelete:              true,
+		SupportsEpisodeRecording:    true,
+		SupportsSemanticRecording:   true,
+		SupportsProceduralRecording: true,
+		SupportsReflection:          p != nil && p.reflectionGenerator != nil,
+		SupportsVectors:             p != nil && hasVectorSearchSupport(p.manager),
+		SupportsReranking:           true,
+		SupportsAudit:               p != nil && p.manager != nil,
+		SupportsObservability:       true,
 	}, nil
 }
 
@@ -352,7 +353,7 @@ func (p *MemoryProvider) Delete(ctx context.Context, req DeleteRequest) error {
 	// Deletion is represented as a lifecycle state transition rather than a
 	// blind store delete so audits can explain what happened and vector cleanup
 	// can still be driven by the store's normal upsert/delete synchronization.
-	item, err := p.loadLifecycleMemory(ctx, memoryID, []Status{StatusActive, StatusCandidate, StatusSuperseded})
+	item, err := p.loadMemoryByID(ctx, memoryID, []Status{StatusActive, StatusCandidate, StatusSuperseded})
 	if err != nil {
 		return err
 	}

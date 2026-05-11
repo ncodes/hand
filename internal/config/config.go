@@ -122,6 +122,7 @@ type MemoryConfig struct {
 	Episodic   EpisodicMemoryConfig   `yaml:"episodic"`
 	Reflection ReflectionMemoryConfig `yaml:"reflection"`
 	Promotion  PromotionMemoryConfig  `yaml:"promotion"`
+	Write      WriteMemoryConfig      `yaml:"write"`
 }
 
 type PinnedMemoryConfig struct {
@@ -153,6 +154,10 @@ type PromotionMemoryConfig struct {
 	Enabled  *bool         `yaml:"enabled"`
 	Interval time.Duration `yaml:"interval"`
 	Limit    int           `yaml:"limit"`
+}
+
+type WriteMemoryConfig struct {
+	Enabled *bool `yaml:"enabled"`
 }
 
 type RerankerConfig struct {
@@ -801,6 +806,9 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.Memory.Promotion.Limit = count
 		}
 	}
+	if value, ok := parseOptionalBoolEnv("HAND_MEMORY_WRITE_ENABLED"); ok {
+		cfg.Memory.Write.Enabled = new(value)
+	}
 	if value, ok := parseOptionalBoolEnv("HAND_SEARCH_VECTOR_REQUIRED"); ok {
 		cfg.Search.Vector.Required = value
 	}
@@ -1030,6 +1038,9 @@ func (c *Config) normalizeFields() {
 	if c.Memory.Promotion.Enabled == nil {
 		c.Memory.Promotion.Enabled = new(true)
 	}
+	if c.Memory.Write.Enabled == nil {
+		c.Memory.Write.Enabled = new(true)
+	}
 
 }
 
@@ -1157,6 +1168,15 @@ func (c *Config) MemoryEnabled() bool {
 
 	c.normalizeFields()
 	return getBoolValueDefault(c.Memory.Enabled, true)
+}
+
+func (c *Config) MemoryWriteEnabled() bool {
+	if c == nil {
+		return false
+	}
+
+	c.normalizeFields()
+	return getBoolValueDefault(c.Memory.Write.Enabled, true)
 }
 
 func (c *Config) RerankerModelEffective() string {
