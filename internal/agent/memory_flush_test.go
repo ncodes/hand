@@ -312,8 +312,8 @@ func TestTurn_ShouldFlushMemoryBeforeCompactionHonorsConfigAndThreshold(t *testi
 			ToolRegistry: tools.NewInMemoryRegistry(),
 		},
 	}
-	request := models.Request{Instructions: strings.Repeat("a", 300)}
 
+	request := models.Request{Instructions: strings.Repeat("a", 300)}
 	require.True(t, turn.shouldFlushMemoryBeforeCompaction(request))
 
 	turn.cfg.Memory.Flush.Enabled = &disabled
