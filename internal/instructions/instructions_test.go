@@ -341,9 +341,20 @@ func TestBuildMemoryFlushGuidance_ReturnsDurableContextLossPrompt(t *testing.T) 
 	require.Contains(t, instruction.Value, "# Pre-Context-Loss Memory Flush")
 	require.Contains(t, instruction.Value, "compression")
 	require.Contains(t, instruction.Value, "durable user preferences")
+	require.Contains(t, instruction.Value, "call exactly one available memory tool")
 	require.Contains(t, instruction.Value, "memory_extract")
 	require.Contains(t, instruction.Value, "source provenance")
 	require.Contains(t, instruction.Value, "no durable memory to flush")
+}
+
+func TestBuildMemoryFlushRequest_ReturnsActionPrompt(t *testing.T) {
+	request := BuildMemoryFlushRequest("compression")
+
+	require.Contains(t, request, "compression flush is starting now")
+	require.Contains(t, request, "Inspect the preceding session messages")
+	require.Contains(t, request, "call exactly one available memory tool")
+	require.Contains(t, request, "Prefer memory_extract")
+	require.Contains(t, request, "no durable memory to flush")
 }
 
 func TestBuildEpisodicExtractionInstructions_ReturnsCuratedExtractionPrompt(t *testing.T) {

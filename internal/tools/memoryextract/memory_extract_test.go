@@ -102,6 +102,39 @@ func TestMemoryExtract_DefinitionAppliesDefaultsAndBounds(t *testing.T) {
 	require.Equal(t, episodic.DefaultMaxWindowTokens, captured.MaxWindowTokens)
 }
 
+func TestMemoryExtract_DefinitionUsesCurrentSessionWhenSessionIDIsOmitted(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{name: "omitted", input: `{}`},
+		{name: "current alias", input: `{"session_id":"current"}`},
+		{name: "current session alias", input: `{"session_id":"current_session"}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var captured episodic.Request
+			runtime := &toolmocks.Runtime{
+				ExtractEpisodesFunc: func(_ context.Context, req episodic.Request) (episodic.Result, error) {
+					captured = req
+					return episodic.Result{}, nil
+				},
+			}
+			ctx := tools.WithSessionID(context.Background(), "ses_current")
+
+			result, err := Definition(runtime).Handler.Invoke(ctx, tools.Call{
+				Name:  "memory_extract",
+				Input: tt.input,
+			})
+
+			require.NoError(t, err)
+			require.Empty(t, result.Error)
+			require.Equal(t, "ses_current", captured.SessionID)
+		})
+	}
+}
+
 func TestMemoryExtract_DefinitionValidatesInput(t *testing.T) {
 	definition := Definition(&toolmocks.Runtime{})
 

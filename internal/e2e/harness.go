@@ -43,6 +43,15 @@ type harnessAgent interface {
 	CurrentSession(context.Context) (string, error)
 }
 
+type harnessSessionAgent interface {
+	CreateSession(context.Context, string) (storage.Session, error)
+	UseSession(context.Context, string) error
+}
+
+type harnessCompactionAgent interface {
+	CompactSession(context.Context, string) (agent.CompactSessionResult, error)
+}
+
 var openHarnessInspectStore = openInspectStore
 
 func NewHarness(ctx context.Context, opts HarnessOptions) (*Harness, error) {
@@ -98,12 +107,12 @@ func (h *Harness) Close() error {
 	if h == nil {
 		return nil
 	}
-	if h.cancel != nil {
-		h.cancel()
-	}
 	var closeErr error
 	if closer, ok := h.agent.(interface{ Close() error }); ok {
 		closeErr = closer.Close()
+	}
+	if h.cancel != nil {
+		h.cancel()
 	}
 	if closer, ok := h.inspectStore.(interface{ Close() error }); ok {
 		if err := closer.Close(); closeErr == nil {
@@ -114,6 +123,45 @@ func (h *Harness) Close() error {
 		h.restoreEnv()
 	}
 	return closeErr
+}
+
+func (h *Harness) CreateSession(ctx context.Context, id string) (storage.Session, error) {
+	if h == nil || h.agent == nil {
+		return storage.Session{}, errors.New("e2e harness is required")
+	}
+
+	agent, ok := h.agent.(harnessSessionAgent)
+	if !ok {
+		return storage.Session{}, errors.New("e2e harness session management is unavailable")
+	}
+
+	return agent.CreateSession(normalizeHarnessContext(ctx), id)
+}
+
+func (h *Harness) UseSession(ctx context.Context, id string) error {
+	if h == nil || h.agent == nil {
+		return errors.New("e2e harness is required")
+	}
+
+	agent, ok := h.agent.(harnessSessionAgent)
+	if !ok {
+		return errors.New("e2e harness session management is unavailable")
+	}
+
+	return agent.UseSession(normalizeHarnessContext(ctx), id)
+}
+
+func (h *Harness) CompactSession(ctx context.Context, id string) (agent.CompactSessionResult, error) {
+	if h == nil || h.agent == nil {
+		return agent.CompactSessionResult{}, errors.New("e2e harness is required")
+	}
+
+	compactor, ok := h.agent.(harnessCompactionAgent)
+	if !ok {
+		return agent.CompactSessionResult{}, errors.New("e2e harness compaction is unavailable")
+	}
+
+	return compactor.CompactSession(normalizeHarnessContext(ctx), id)
 }
 
 func (h *Harness) Config() *config.Config {

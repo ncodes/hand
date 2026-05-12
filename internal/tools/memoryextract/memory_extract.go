@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/instructions"
@@ -106,8 +107,10 @@ func normalizeRequest(ctx context.Context, req input) (episodic.Request, error) 
 		return episodic.Request{}, err
 	}
 
+	sessionID := normalizeSessionID(ctx, req.SessionID)
+
 	return episodic.Request{
-		SessionID:       req.SessionID,
+		SessionID:       sessionID,
 		OffsetStart:     req.OffsetStart,
 		OffsetEnd:       req.OffsetEnd,
 		WindowSize:      windowSize,
@@ -117,6 +120,21 @@ func normalizeRequest(ctx context.Context, req input) (episodic.Request, error) 
 		Trigger:         "tool",
 		Trace:           tools.TraceRecorderFromContext(ctx),
 	}, nil
+}
+
+func normalizeSessionID(ctx context.Context, sessionID string) string {
+	sessionID = strings.TrimSpace(sessionID)
+	currentSessionID := strings.TrimSpace(tools.SessionIDFromContext(ctx))
+	if sessionID == "" {
+		return currentSessionID
+	}
+
+	switch strings.ToLower(strings.ReplaceAll(sessionID, "_", " ")) {
+	case "current", "current session", "this session":
+		return currentSessionID
+	default:
+		return sessionID
+	}
 }
 
 func bounded(value int, fallback int, max int, name string) (int, error) {

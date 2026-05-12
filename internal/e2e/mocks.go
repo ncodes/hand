@@ -18,6 +18,12 @@ type harnessAgentStub struct {
 	current    string
 	currentErr error
 	events     []agent.Event
+	created    storage.Session
+	createErr  error
+	usedID     string
+	useErr     error
+	compact    agent.CompactSessionResult
+	compactErr error
 }
 
 func (s harnessAgentStub) Respond(_ context.Context, _ string, opts agent.RespondOptions) (string, error) {
@@ -37,6 +43,28 @@ func (s harnessAgentStub) CurrentSession(context.Context) (string, error) {
 		return "", s.currentErr
 	}
 	return s.current, nil
+}
+
+func (s *harnessAgentStub) CreateSession(context.Context, string) (storage.Session, error) {
+	if s.createErr != nil {
+		return storage.Session{}, s.createErr
+	}
+	return s.created, nil
+}
+
+func (s *harnessAgentStub) UseSession(_ context.Context, id string) error {
+	if s.useErr != nil {
+		return s.useErr
+	}
+	s.usedID = id
+	return nil
+}
+
+func (s *harnessAgentStub) CompactSession(context.Context, string) (agent.CompactSessionResult, error) {
+	if s.compactErr != nil {
+		return agent.CompactSessionResult{}, s.compactErr
+	}
+	return s.compact, nil
 }
 
 type storageStoreStub struct {

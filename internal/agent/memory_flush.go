@@ -111,6 +111,14 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 	}
 	cfg.Normalize()
 
+	flushClient := t.summaryClient
+	if flushClient == nil {
+		flushClient = t.modelClient
+	}
+	if flushClient == nil {
+		return errors.New("memory flush model client is required")
+	}
+
 	flushCtx := ctx
 	var cancel context.CancelFunc
 	if cfg.Memory.Flush.Timeout > 0 {
@@ -118,7 +126,10 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 		defer cancel()
 	}
 
-	messages := handmsg.CloneMessages(t.Context())
+	messages := append(handmsg.CloneMessages(t.Context()), handmsg.Message{
+		Role:    handmsg.RoleUser,
+		Content: instruct.BuildMemoryFlushRequest(trigger),
+	})
 	agentLog.Debug().
 		Str("event", trace.EvtMemoryFlushStarted).
 		Str("trigger", trigger).
@@ -139,8 +150,8 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 		}
 
 		request := models.Request{
-			Model:           cfg.Models.Main.Name,
-			APIMode:         cfg.Models.Main.APIMode,
+			Model:           cfg.SummaryModelEffective(),
+			APIMode:         cfg.SummaryModelAPIModeEffective(),
 			Instructions:    instruct.BuildMemoryFlushGuidance(trigger).Value,
 			Messages:        messages,
 			Tools:           flushTools,
@@ -152,6 +163,8 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 			Str("event", trace.EvtMemoryFlushModelRequested).
 			Str("trigger", trigger).
 			Str("session_id", t.sessionID).
+			Str("model", request.Model).
+			Str("mode", request.APIMode).
 			Int("message_count", len(request.Messages)).
 			Int("tool_count", len(request.Tools)).
 			Msg("memory flush model request prepared")
@@ -162,7 +175,7 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 		})
 		recordModelRequest(traceSession, request)
 
-		resp, err := t.modelClient.Complete(flushCtx, request)
+		resp, err := flushClient.Complete(flushCtx, request)
 		if err != nil {
 			return err
 		}

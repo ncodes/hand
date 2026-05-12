@@ -93,6 +93,41 @@ func TestTurn_RunFlushesMemoryBeforeCompaction(t *testing.T) {
 	require.Contains(t, eventTypes, trace.EvtContextCompactionRunning)
 }
 
+func TestTurn_FlushMemoryBeforeContextLossUsesSummaryClientAndModel(t *testing.T) {
+	enabled := true
+	modelClient := &mocks.ModelClientStub{}
+	summaryClient := &mocks.ModelClientStub{Responses: []*models.Response{{
+		OutputText: "no durable memory to flush",
+	}}}
+	registry, calls := memoryFlushTestRegistry(t)
+	turn, _ := newTestTurnHarness(t, nil, registry, modelClient)
+	turn.summaryClient = summaryClient
+	turn.env = &mocks.EnvironmentStub{
+		ToolRegistry: registry,
+		Policy:       tools.Policy{Capabilities: tools.Capabilities{Memory: true}},
+	}
+	turn.cfg = testSessionConfig(&config.Config{
+		Name: "Test Agent",
+		Models: config.ModelsConfig{
+			Main:    config.MainModelConfig{Name: "main-model", APIMode: "responses"},
+			Summary: config.SummaryModelConfig{Name: "summary-model", APIMode: "completions"},
+		},
+		Memory: config.MemoryConfig{
+			Enabled: &enabled,
+			Flush:   config.FlushMemoryConfig{Enabled: &enabled, MaxCalls: 1, Timeout: time.Second},
+		},
+	})
+
+	err := turn.flushMemoryBeforeContextLoss(context.Background(), "compression", trace.NoopSession())
+
+	require.NoError(t, err)
+	require.Empty(t, modelClient.Requests)
+	require.Len(t, summaryClient.Requests, 1)
+	require.Equal(t, "summary-model", summaryClient.Requests[0].Model)
+	require.Equal(t, "completions", summaryClient.Requests[0].APIMode)
+	require.Empty(t, *calls)
+}
+
 func TestAgent_CompactSessionFlushesMemoryBeforeSummary(t *testing.T) {
 	enabled := true
 	traceSession := &mocks.TraceSessionStub{}
@@ -439,6 +474,7 @@ func TestTurn_FlushMemoryBeforeContextLossValidatesReceiverContextAndResponse(t 
 	require.EqualError(t, err, "model response is required")
 
 	turn.modelClient = &mocks.ModelClientStub{Responses: []*models.Response{{RequiresToolCalls: true}}}
+	turn.summaryClient = turn.modelClient
 	err = turn.flushMemoryBeforeContextLoss(context.Background(), "reset", traceSession)
 	require.EqualError(t, err, "memory flush requested tool execution without tool calls")
 }
@@ -508,6 +544,7 @@ func TestTurn_FlushMemoryBeforeContextLossReturnsAssistantAndToolMessageNormaliz
 		RequiresToolCalls: true,
 		ToolCalls:         []models.ToolCall{{ID: "call-memory", Name: "memory_extract", Input: "{}"}},
 	}}}
+	turn.summaryClient = turn.modelClient
 	turn.invokeToolFn = func(context.Context, environment.Environment, models.ToolCall) handmsg.Message {
 		return handmsg.Message{Role: handmsg.RoleTool, Name: "memory_extract", Content: "{}"}
 	}

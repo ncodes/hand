@@ -354,6 +354,43 @@ func TestHarnessSendAndMessagesErrors(t *testing.T) {
 		require.Error(t, err)
 		assert.EqualError(t, err, "e2e harness message inspection is unavailable for non-persistent storage")
 	})
+
+	t.Run("session management delegates to agent", func(t *testing.T) {
+		stub := &harnessAgentStub{created: storage.Session{ID: "ses_created"}}
+		h := &Harness{agent: stub}
+
+		created, err := h.CreateSession(context.Background(), "")
+		require.NoError(t, err)
+		assert.Equal(t, "ses_created", created.ID)
+
+		require.NoError(t, h.UseSession(context.Background(), "ses_created"))
+		assert.Equal(t, "ses_created", stub.usedID)
+	})
+
+	t.Run("compaction delegates to agent", func(t *testing.T) {
+		expected := agent.CompactSessionResult{SessionID: "ses_compacted", SourceMessageCount: 10}
+		h := &Harness{agent: &harnessAgentStub{compact: expected}}
+
+		result, err := h.CompactSession(context.Background(), "ses_compacted")
+		require.NoError(t, err)
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("session and compaction require harness agent support", func(t *testing.T) {
+		h := &Harness{agent: harnessAgentStub{}}
+
+		_, err := h.CreateSession(context.Background(), "")
+		require.Error(t, err)
+		assert.EqualError(t, err, "e2e harness session management is unavailable")
+
+		err = h.UseSession(context.Background(), "ses_missing")
+		require.Error(t, err)
+		assert.EqualError(t, err, "e2e harness session management is unavailable")
+
+		_, err = h.CompactSession(context.Background(), "ses_missing")
+		require.Error(t, err)
+		assert.EqualError(t, err, "e2e harness compaction is unavailable")
+	})
 }
 
 func TestOpenInspectStoreAndHelpers(t *testing.T) {
