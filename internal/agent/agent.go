@@ -178,6 +178,18 @@ func (a *Agent) Close() error {
 		return nil
 	}
 
+	if a.shouldFlushMemoryBeforeContextLoss() {
+		ctx := normalizeContext(a.ctx)
+		if sessionID, err := a.stateMgr.CurrentSession(ctx); err == nil && strings.TrimSpace(sessionID) != "" {
+			traceSession := trace.NoopSession()
+			if a.env != nil {
+				traceSession = a.env.NewTraceSession(sessionID)
+			}
+			a.maybeFlushMemoryBeforeContextLoss(ctx, sessionID, memoryFlushTriggerControlledExit, traceSession)
+			traceSession.Close()
+		}
+	}
+
 	return a.stateMgr.Close()
 }
 
@@ -262,11 +274,7 @@ func (a *Agent) availableToolDefinitions() ([]models.ToolDefinition, error) {
 
 	toolsList := make([]models.ToolDefinition, 0, len(definitions))
 	for _, definition := range definitions {
-		toolsList = append(toolsList, models.ToolDefinition{
-			Name:        definition.Name,
-			Description: definition.Description,
-			InputSchema: definition.InputSchema,
-		})
+		toolsList = append(toolsList, modelToolDefinitionFromToolDefinition(definition))
 	}
 
 	return toolsList, nil
@@ -281,15 +289,24 @@ func (a *Agent) invokeToolWithEnvironment(
 	env environment.Environment,
 	toolCall models.ToolCall,
 ) handmsg.Message {
+	return invokeToolWithEnvironment(ctx, env, toolCall, a.summaryClient, a.cfg)
+}
+
+func invokeToolWithEnvironment(
+	ctx context.Context,
+	env environment.Environment,
+	toolCall models.ToolCall,
+	summaryClient models.Client,
+	cfg *config.Config,
+) handmsg.Message {
 	result := map[string]any{"name": toolCall.Name}
 
 	if env == nil || env.Tools() == nil {
 		result["error"] = "tool registry is required"
-		raw, _ := jsonMarshal(result)
-		return handmsg.Message{Role: handmsg.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: string(raw)}
+		return toolResultMessage(toolCall, result)
 	}
 
-	ctx = webextract.WithSummarizer(ctx, webextract.NewExtractSummarizer(a.summaryClient, a.cfg))
+	ctx = webextract.WithSummarizer(ctx, webextract.NewExtractSummarizer(summaryClient, cfg))
 
 	toolResult, err := env.Tools().Invoke(ctx, tools.Call{
 		Name:   toolCall.Name,
@@ -310,6 +327,10 @@ func (a *Agent) invokeToolWithEnvironment(
 		result["output"] = strings.TrimSpace(toolResult.Output)
 	}
 
+	return toolResultMessage(toolCall, result)
+}
+
+func toolResultMessage(toolCall models.ToolCall, result map[string]any) handmsg.Message {
 	raw, marshalErr := jsonMarshal(result)
 	content := ""
 	if marshalErr != nil {
@@ -354,7 +375,25 @@ func (a *Agent) UseSession(ctx context.Context, id string) error {
 		return errors.New("environment has not been initialized")
 	}
 
-	return a.stateMgr.UseSession(normalizeContext(ctx), id)
+	ctx = normalizeContext(ctx)
+	targetSession, err := a.stateMgr.Resolve(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	currentSessionID, currentErr := a.stateMgr.CurrentSession(ctx)
+	if currentErr == nil &&
+		strings.TrimSpace(currentSessionID) != "" &&
+		strings.TrimSpace(currentSessionID) != targetSession.ID {
+		traceSession := trace.NoopSession()
+		if a.env != nil {
+			traceSession = a.env.NewTraceSession(currentSessionID)
+		}
+		a.maybeFlushMemoryBeforeContextLoss(ctx, currentSessionID, memoryFlushTriggerSessionReset, traceSession)
+		traceSession.Close()
+	}
+
+	return a.stateMgr.UseSession(ctx, targetSession.ID)
 }
 
 func (a *Agent) CurrentSession(ctx context.Context) (string, error) {
@@ -494,6 +533,8 @@ func (a *Agent) summarizeSession(
 		traceSession = a.env.NewTraceSession(session.ID)
 	}
 	defer traceSession.Close()
+
+	a.maybeFlushMemoryBeforeContextLoss(ctx, session.ID, memoryFlushTriggerCompression, traceSession)
 
 	summaryService := agentsummary.NewService(a.cfg, a.modelClient, a.summaryClient, a.stateMgr)
 	summary, err := summaryService.SummarizeSession(
@@ -650,6 +691,30 @@ func normalizeContext(ctx context.Context) context.Context {
 		return context.Background()
 	}
 	return ctx
+}
+
+func modelToolDefinitionFromToolDefinition(definition tools.Definition) models.ToolDefinition {
+	return models.ToolDefinition{
+		Name:        definition.Name,
+		Description: definition.Description,
+		InputSchema: definition.InputSchema,
+	}
+}
+
+func assistantToolCallMessageFromResponse(resp *models.Response) (handmsg.Message, error) {
+	return normalizeTurnMessage(handmsg.Message{
+		Role:      handmsg.RoleAssistant,
+		Content:   strings.TrimSpace(resp.OutputText),
+		ToolCalls: modelToolCallsToContextToolCalls(resp.ToolCalls),
+	})
+}
+
+func recordModelRequest(traceSession trace.Session, request models.Request) {
+	traceSession.Record(trace.EvtModelRequest, request)
+}
+
+func recordModelResponse(traceSession trace.Session, resp *models.Response) {
+	traceSession.Record(trace.EvtModelResponse, resp)
 }
 
 func modelToolCallsToContextToolCalls(toolCalls []models.ToolCall) []handmsg.ToolCall {

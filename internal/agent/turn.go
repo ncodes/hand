@@ -237,6 +237,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 		if !t.summaryRefreshAttempted {
 			t.summaryRefreshAttempted = true
+			t.maybeFlushMemoryBeforeCompaction(ctx, request, traceSession)
 			_ = t.summaryService.MaybeRefreshSummary(ctx, t.summary, agentsummary.RefreshInput{
 				LastPromptTokens: t.lastPromptTokens,
 				Request:          request,
@@ -255,7 +256,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		// Record trace events
 		t.summary.RecordSummaryApplied(traceSession)
 		recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
-		traceSession.Record(trace.EvtModelRequest, request)
+		recordModelRequest(traceSession, request)
 
 		agentLog.Info().
 			Str("event", "model request dispatch started").
@@ -314,7 +315,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			return "", err
 		}
 
-		traceSession.Record(trace.EvtModelResponse, resp)
+		recordModelResponse(traceSession, resp)
 
 		agentLog.Info().
 			Str("event", "model response received").
@@ -363,13 +364,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			return "", err
 		}
 
-		assistantMessage := handmsg.Message{
-			Role:      handmsg.RoleAssistant,
-			Content:   strings.TrimSpace(resp.OutputText),
-			ToolCalls: modelToolCallsToContextToolCalls(resp.ToolCalls),
-		}
-
-		assistantMessage, err = normalizeTurnMessage(assistantMessage)
+		assistantMessage, err := assistantToolCallMessageFromResponse(resp)
 		if err != nil {
 			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 			return "", err
@@ -473,11 +468,7 @@ func (t *Turn) availableToolDefinitions() ([]models.ToolDefinition, error) {
 
 	toolsList := make([]models.ToolDefinition, 0, len(definitions))
 	for _, definition := range definitions {
-		toolsList = append(toolsList, models.ToolDefinition{
-			Name:        definition.Name,
-			Description: definition.Description,
-			InputSchema: definition.InputSchema,
-		})
+		toolsList = append(toolsList, modelToolDefinitionFromToolDefinition(definition))
 	}
 
 	return toolsList, nil
@@ -515,7 +506,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 	traceSession.Record(trace.EvtSummaryFallbackStarted, map[string]any{"remaining_iterations": budget.Remaining()})
 	t.summary.RecordSummaryApplied(traceSession)
 	recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
-	traceSession.Record(trace.EvtModelRequest, request)
+	recordModelRequest(traceSession, request)
 
 	agentLog.Info().
 		Str("event", "summary fallback model request started").
@@ -557,7 +548,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 		return "", err
 	}
 
-	traceSession.Record(trace.EvtModelResponse, resp)
+	recordModelResponse(traceSession, resp)
 	agentLog.Info().
 		Str("event", "summary fallback model response received").
 		Str("provider", t.cfg.Models.Main.Provider).

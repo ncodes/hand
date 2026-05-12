@@ -314,6 +314,14 @@ func TestAgent_InvokeToolReturnsRegistryRequiredWithoutRuntimeEnvironment(t *tes
 	require.Contains(t, message.Content, `"error":"tool registry is required"`)
 }
 
+func TestAgent_CloseHandlesNilAgentAndMissingStateManager(t *testing.T) {
+	var agent *Agent
+	require.NoError(t, agent.Close())
+
+	agent = &Agent{}
+	require.NoError(t, agent.Close())
+}
+
 func TestAgent_SessionMethodsRejectUninitializedAgent(t *testing.T) {
 	agent := NewAgent(context.Background(), testSessionConfig(&config.Config{Name: "Test Agent"}), &mocks.ModelClientStub{})
 
@@ -371,6 +379,9 @@ func TestAgent_SessionLifecycleMethods(t *testing.T) {
 	current, err := agent.CurrentSession(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, created.ID, current)
+
+	err = agent.UseSession(context.Background(), "not-a-session-id")
+	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
 }
 
 func TestAgent_RespondRejectsMissingManagerWhenInitialized(t *testing.T) {

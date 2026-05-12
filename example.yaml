@@ -59,6 +59,11 @@
 #     maxItemChars: 1000
 #   retrieval:
 #     enabled: true
+#   flush:
+#     enabled: false
+#     maxCalls: 2
+#     maxOutputTokens: 512
+#     timeout: "10s"
 #   episodic:
 #     enabled: false
 #     interval: "1m"

@@ -334,6 +334,18 @@ func TestBuildMemoryWriteGuidance_ReturnsNamedInstructions(t *testing.T) {
 	require.Contains(t, deleteInstruction.Value, "lifecycle transition")
 }
 
+func TestBuildMemoryFlushGuidance_ReturnsDurableContextLossPrompt(t *testing.T) {
+	instruction := BuildMemoryFlushGuidance("compression")
+
+	require.Empty(t, instruction.Name)
+	require.Contains(t, instruction.Value, "# Pre-Context-Loss Memory Flush")
+	require.Contains(t, instruction.Value, "compression")
+	require.Contains(t, instruction.Value, "durable user preferences")
+	require.Contains(t, instruction.Value, "memory_extract")
+	require.Contains(t, instruction.Value, "source provenance")
+	require.Contains(t, instruction.Value, "no durable memory to flush")
+}
+
 func TestBuildEpisodicExtractionInstructions_ReturnsCuratedExtractionPrompt(t *testing.T) {
 	instructions := BuildEpisodicExtractionInstructions()
 

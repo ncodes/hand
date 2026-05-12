@@ -120,6 +120,7 @@ type MemoryConfig struct {
 	Backend    string                 `yaml:"backend"`
 	Pinned     PinnedMemoryConfig     `yaml:"pinned"`
 	Retrieval  RetrievalMemoryConfig  `yaml:"retrieval"`
+	Flush      FlushMemoryConfig      `yaml:"flush"`
 	Episodic   EpisodicMemoryConfig   `yaml:"episodic"`
 	Reflection ReflectionMemoryConfig `yaml:"reflection"`
 	Promotion  PromotionMemoryConfig  `yaml:"promotion"`
@@ -134,6 +135,13 @@ type PinnedMemoryConfig struct {
 
 type RetrievalMemoryConfig struct {
 	Enabled *bool `yaml:"enabled"`
+}
+
+type FlushMemoryConfig struct {
+	Enabled         *bool         `yaml:"enabled"`
+	MaxCalls        int           `yaml:"maxCalls"`
+	MaxOutputTokens int64         `yaml:"maxOutputTokens"`
+	Timeout         time.Duration `yaml:"timeout"`
 }
 
 type EpisodicMemoryConfig struct {
@@ -738,6 +746,24 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("HAND_MEMORY_RETRIEVAL_ENABLED"); ok {
 		cfg.Memory.Retrieval.Enabled = new(value)
 	}
+	if value, ok := parseOptionalBoolEnv("HAND_MEMORY_FLUSH_ENABLED"); ok {
+		cfg.Memory.Flush.Enabled = new(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_FLUSH_MAX_CALLS")); value != "" {
+		if maxCalls, err := strconv.Atoi(value); err == nil {
+			cfg.Memory.Flush.MaxCalls = maxCalls
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_FLUSH_MAX_OUTPUT_TOKENS")); value != "" {
+		if maxOutputTokens, err := strconv.ParseInt(value, 10, 64); err == nil {
+			cfg.Memory.Flush.MaxOutputTokens = maxOutputTokens
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_FLUSH_TIMEOUT")); value != "" {
+		if timeout, err := time.ParseDuration(value); err == nil {
+			cfg.Memory.Flush.Timeout = timeout
+		}
+	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_PINNED_MAX_CHARS")); value != "" {
 		if maxChars, err := strconv.Atoi(value); err == nil {
 			cfg.Memory.Pinned.MaxChars = maxChars
@@ -1040,6 +1066,18 @@ func (c *Config) normalizeFields() {
 	if c.Memory.Retrieval.Enabled == nil {
 		c.Memory.Retrieval.Enabled = new(true)
 	}
+	if c.Memory.Flush.Enabled == nil {
+		c.Memory.Flush.Enabled = new(false)
+	}
+	if c.Memory.Flush.MaxCalls <= 0 {
+		c.Memory.Flush.MaxCalls = 2
+	}
+	if c.Memory.Flush.MaxOutputTokens <= 0 {
+		c.Memory.Flush.MaxOutputTokens = 512
+	}
+	if c.Memory.Flush.Timeout <= 0 {
+		c.Memory.Flush.Timeout = 10 * time.Second
+	}
 	if c.Memory.Episodic.Enabled == nil {
 		c.Memory.Episodic.Enabled = new(false)
 	}
@@ -1188,6 +1226,15 @@ func (c *Config) MemoryRetrievalEnabled() bool {
 
 	c.normalizeFields()
 	return getBoolValueDefault(c.Memory.Retrieval.Enabled, true)
+}
+
+func (c *Config) MemoryFlushEnabled() bool {
+	if c == nil {
+		return false
+	}
+
+	c.normalizeFields()
+	return getBoolValueDefault(c.Memory.Flush.Enabled, false)
 }
 
 func (c *Config) MemoryWriteEnabled() bool {

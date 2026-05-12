@@ -286,6 +286,25 @@ Provide a concise reason tied to the user's request. Deletion is a lifecycle tra
 	}
 }
 
+func BuildMemoryFlushGuidance(trigger string) Instruction {
+	trigger = strings.TrimSpace(trigger)
+	if trigger == "" {
+		trigger = "planned context loss"
+	}
+
+	return Instruction{
+		Value: strings.TrimSpace(`# Pre-Context-Loss Memory Flush
+
+The current context is about to be reduced because of ` + trigger + `.
+You have one bounded opportunity to preserve durable continuity before context is discarded or summarized.
+Prioritize durable user preferences, explicit corrections, decisions, recurring patterns, unresolved follow-ups, and high-signal relationship or continuity facts.
+Keep memories broad and durable. Do not preserve raw transcript snippets, transient task steps, low-signal details, guesses, sensitive inferences, or temporary state.
+Use memory_extract when the durable information is best grounded in the recent transcript window. Use memory_add, memory_update, or memory_delete only when a governed explicit write is appropriate and source provenance is available.
+Include source provenance that ties writes to this session and message range whenever a write tool requires it.
+If there is nothing durable to preserve, do not call a tool and reply briefly with "no durable memory to flush".`),
+	}
+}
+
 func BuildEpisodicExtractionInstructions() string {
 	return strings.TrimSpace(`Extract curated episodic memory candidates from bounded session messages and task trace events.
 Return only JSON matching the schema. Do not store raw transcript windows.

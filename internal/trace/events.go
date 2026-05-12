@@ -34,6 +34,13 @@ const (
 	EvtMemoryRetrievalStarted                     = "memory.search.started"
 	EvtMemoryRetrieved                            = "memory.retrieved"
 	EvtMemoryRetrievalFailed                      = "memory.search.failed"
+	EvtMemoryFlushStarted                         = "memory.flush.started"
+	EvtMemoryFlushModelRequested                  = "memory.flush.model_requested"
+	EvtMemoryFlushWriteRequested                  = "memory.flush.write_requested"
+	EvtMemoryFlushSkipped                         = "memory.flush.skipped"
+	EvtMemoryFlushFailed                          = "memory.flush.failed"
+	EvtMemoryFlushTimeout                         = "memory.flush.timeout"
+	EvtMemoryFlushCompleted                       = "memory.flush.completed"
 	EvtMemoryExtractionStarted                    = "memory.extraction.started"
 	EvtMemoryExtractionWindowLoaded               = "memory.extraction.window_loaded"
 	EvtMemoryExtractionExtractorRequested         = "memory.extraction.extractor_requested"
@@ -88,6 +95,13 @@ var episodicMemoryTraceEventTypes = []string{
 	EvtSummaryFailed,
 	EvtSummaryParseFailed,
 	EvtSummaryApplied,
+	EvtMemoryFlushStarted,
+	EvtMemoryFlushModelRequested,
+	EvtMemoryFlushWriteRequested,
+	EvtMemoryFlushSkipped,
+	EvtMemoryFlushFailed,
+	EvtMemoryFlushTimeout,
+	EvtMemoryFlushCompleted,
 	EvtWorkspaceRulesTruncated,
 	EvtPlanUpdated,
 	EvtPlanCleared,

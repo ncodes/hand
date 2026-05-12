@@ -10,15 +10,21 @@ import (
 
 var summaryLog = logutils.InitLogger("agent.summary")
 
+// State holds the active persisted summary used to replace older session
+// messages in model context.
 type State struct {
 	Current *SummaryState
 }
 
+// Recall contains the message slices used when building a recall-only summary
+// view without changing the persisted session summary.
 type Recall struct {
 	PrefixMessages []handmsg.Message
 	SessionHistory []handmsg.Message
 }
 
+// Summary returns the current summary as a storage record suitable for callers
+// that need the persisted shape.
 func (s *State) Summary() storage.SessionSummary {
 	if s == nil || s.Current == nil {
 		return storage.SessionSummary{}
@@ -37,6 +43,8 @@ func (s *State) Summary() storage.SessionSummary {
 	})
 }
 
+// RenderSummaryInstructions renders the current summary into instruction text
+// for the model context and reports whether any summary was available.
 func (s *State) RenderSummaryInstructions() (string, bool) {
 	if s == nil || s.Current == nil {
 		return "", false
@@ -65,6 +73,7 @@ func (s *State) RenderSummaryInstructions() (string, bool) {
 	return strings.Join(sections, "\n\n"), true
 }
 
+// Recall prepares cloned session history for temporary recall summarization.
 func (s *State) Recall(sessionHistory []handmsg.Message) Recall {
 	return Recall{
 		PrefixMessages: nil,
