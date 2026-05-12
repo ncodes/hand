@@ -9,6 +9,7 @@ import (
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory/episodic"
+	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
 )
@@ -132,6 +133,8 @@ func normalizeSessionID(ctx context.Context, sessionID string) string {
 	switch strings.ToLower(strings.ReplaceAll(sessionID, "_", " ")) {
 	case "current", "current session", "this session":
 		return currentSessionID
+	case "default", "default session":
+		return storage.DefaultSessionID
 	default:
 		return sessionID
 	}

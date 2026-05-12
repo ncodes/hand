@@ -213,7 +213,7 @@ func (s *Service) refreshSummaryState(
 		existingSummaryEndOffset = state.Current.SourceEndOffset
 	}
 
-	if !force && state.Current != nil && state.Current.SourceEndOffset >= plan.TargetOffset {
+	if state.Current != nil && state.Current.SourceEndOffset >= plan.TargetOffset {
 		session, ok, err := s.store.Get(ctx, input.SessionID)
 		if err != nil {
 			input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{

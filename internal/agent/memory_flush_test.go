@@ -27,7 +27,7 @@ func TestTurn_RunFlushesMemoryBeforeCompaction(t *testing.T) {
 			ToolCalls: []models.ToolCall{{
 				ID:    "call-memory",
 				Name:  "memory_extract",
-				Input: `{"session_id":"default","offset_start":0,"offset_end":3}`,
+				Input: `{"session_id":"7a9ae497-446e-49c2-bc7b-82a6a354722b","offset_start":0,"offset_end":3}`,
 			}},
 		},
 		{OutputText: `{
@@ -69,7 +69,7 @@ func TestTurn_RunFlushesMemoryBeforeCompaction(t *testing.T) {
 	reply, err := turn.Run(context.Background(), "hello", RespondOptions{})
 	require.NoError(t, err)
 	require.Equal(t, "reply", reply)
-	require.Len(t, client.Requests, 3)
+	require.Len(t, client.Requests, 2)
 	require.Contains(t, client.Requests[0].Instructions, "# Pre-Context-Loss Memory Flush")
 	require.Contains(t, client.Requests[0].Instructions, "compression")
 	require.Equal(t, int64(128), client.Requests[0].MaxOutputTokens)
@@ -91,6 +91,8 @@ func TestTurn_RunFlushesMemoryBeforeCompaction(t *testing.T) {
 	require.Contains(t, eventTypes, trace.EvtMemoryFlushWriteRequested)
 	require.Contains(t, eventTypes, trace.EvtMemoryFlushCompleted)
 	require.Contains(t, eventTypes, trace.EvtContextCompactionRunning)
+	completed := traceSession.Events[memoryFlushTraceEventIndex(eventTypes, trace.EvtMemoryFlushCompleted)]
+	require.Equal(t, "tool_executed", completed.Payload.(map[string]any)["status"])
 }
 
 func TestTurn_FlushMemoryBeforeContextLossUsesSummaryClientAndModel(t *testing.T) {

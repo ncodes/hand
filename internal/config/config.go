@@ -1067,7 +1067,7 @@ func (c *Config) normalizeFields() {
 		c.Memory.Retrieval.Enabled = new(true)
 	}
 	if c.Memory.Flush.Enabled == nil {
-		c.Memory.Flush.Enabled = new(false)
+		c.Memory.Flush.Enabled = new(true)
 	}
 	if c.Memory.Flush.MaxCalls <= 0 {
 		c.Memory.Flush.MaxCalls = 2
@@ -1234,7 +1234,7 @@ func (c *Config) MemoryFlushEnabled() bool {
 	}
 
 	c.normalizeFields()
-	return getBoolValueDefault(c.Memory.Flush.Enabled, false)
+	return getBoolValueDefault(c.Memory.Flush.Enabled, true)
 }
 
 func (c *Config) MemoryWriteEnabled() bool {

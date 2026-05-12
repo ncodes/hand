@@ -977,6 +977,33 @@ func TestService_CompactSession_ReturnsSummary(t *testing.T) {
 	requireSummaryEvent(t, traceSession.Events, trace.EvtSummarySaved)
 }
 
+func TestService_CompactSession_ReconcilesWhenExistingSummaryCoversTarget(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	store := summaryTestStore(summaryTestHistory(12))
+	store.GetSummaryFunc = func(context.Context, string) (storage.SessionSummary, bool, error) {
+		return storage.SessionSummary{
+			SessionID:          storage.DefaultSessionID,
+			SourceEndOffset:    4,
+			SourceMessageCount: 12,
+			SessionSummary:     "Existing summary",
+		}, true, nil
+	}
+	client := &mocks.ModelClientStub{Err: errors.New("should not call model")}
+	svc := summaryTestService(summaryTestConfig(true), client, store)
+
+	out, err := svc.CompactSession(context.Background(), storage.Session{
+		ID:               storage.DefaultSessionID,
+		LastPromptTokens: 50,
+	}, traceSession)
+
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	require.Equal(t, "Existing summary", out.SessionSummary)
+	require.Equal(t, 4, out.SourceEndOffset)
+	require.Equal(t, 0, client.CallCount)
+	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionSucceeded)
+}
+
 func TestService_SummarizeSession_UsesConfiguredRetainedTail(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	store := summaryTestStore(summaryTestHistory(10))

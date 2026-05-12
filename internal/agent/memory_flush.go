@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -217,6 +218,7 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 				recordMemoryFlushSkipped(traceSession, trigger, "unsupported_tool:"+strings.TrimSpace(toolCall.Name))
 				continue
 			}
+			toolCall = t.normalizeMemoryFlushToolCall(toolCall)
 
 			agentLog.Debug().
 				Str("event", trace.EvtMemoryFlushWriteRequested).
@@ -238,23 +240,42 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 				return err
 			}
 			messages = append(messages, toolMessage)
+
+			recordMemoryFlushCompleted(traceSession, trigger, t.sessionID, "tool_executed", callCount)
+			return nil
 		}
 	}
 
-	agentLog.Debug().
-		Str("event", trace.EvtMemoryFlushCompleted).
-		Str("trigger", trigger).
-		Str("session_id", t.sessionID).
-		Str("status", "bounded").
-		Int("tool_calls", callCount).
-		Msg("memory flush completed before context loss")
-	traceSession.Record(trace.EvtMemoryFlushCompleted, map[string]any{
-		"trigger":    trigger,
-		"status":     "bounded",
-		"tool_calls": callCount,
-	})
+	recordMemoryFlushCompleted(traceSession, trigger, t.sessionID, "bounded", callCount)
 
 	return nil
+}
+
+func (t *Turn) normalizeMemoryFlushToolCall(toolCall models.ToolCall) models.ToolCall {
+	if t == nil || strings.TrimSpace(toolCall.Name) != "memory_extract" {
+		return toolCall
+	}
+
+	sessionID := strings.TrimSpace(t.sessionID)
+	if sessionID == "" {
+		return toolCall
+	}
+
+	input := map[string]any{}
+	if strings.TrimSpace(toolCall.Input) != "" {
+		if err := json.Unmarshal([]byte(toolCall.Input), &input); err != nil {
+			return toolCall
+		}
+	}
+	input["session_id"] = sessionID
+
+	raw, err := jsonMarshal(input)
+	if err != nil {
+		return toolCall
+	}
+
+	toolCall.Input = string(raw)
+	return toolCall
 }
 
 func (t *Turn) invokeFlushTool(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
@@ -304,6 +325,27 @@ func recordMemoryFlushFailure(traceSession trace.Session, trigger string, err er
 	traceSession.Record(event, map[string]any{
 		"trigger": trigger,
 		"error":   err.Error(),
+	})
+}
+
+func recordMemoryFlushCompleted(
+	traceSession trace.Session,
+	trigger string,
+	sessionID string,
+	status string,
+	toolCalls int,
+) {
+	agentLog.Debug().
+		Str("event", trace.EvtMemoryFlushCompleted).
+		Str("trigger", trigger).
+		Str("session_id", sessionID).
+		Str("status", status).
+		Int("tool_calls", toolCalls).
+		Msg("memory flush completed before context loss")
+	traceSession.Record(trace.EvtMemoryFlushCompleted, map[string]any{
+		"trigger":    trigger,
+		"status":     status,
+		"tool_calls": toolCalls,
 	})
 }
 

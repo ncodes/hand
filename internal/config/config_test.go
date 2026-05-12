@@ -1855,7 +1855,7 @@ func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 	require.Equal(t, "sqlite", cfg.Memory.Backend)
 	require.True(t, getBoolValue(cfg.Memory.Pinned.Enabled))
 	require.True(t, getBoolValue(cfg.Memory.Retrieval.Enabled))
-	require.False(t, getBoolValue(cfg.Memory.Flush.Enabled))
+	require.True(t, getBoolValue(cfg.Memory.Flush.Enabled))
 	require.Equal(t, 2, cfg.Memory.Flush.MaxCalls)
 	require.Equal(t, int64(512), cfg.Memory.Flush.MaxOutputTokens)
 	require.Equal(t, 10*time.Second, cfg.Memory.Flush.Timeout)
@@ -1864,7 +1864,7 @@ func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 	require.True(t, getBoolValue(cfg.Memory.Promotion.Enabled))
 	require.True(t, getBoolValue(cfg.Memory.Write.Enabled))
 	require.True(t, cfg.MemoryRetrievalEnabled())
-	require.False(t, cfg.MemoryFlushEnabled())
+	require.True(t, cfg.MemoryFlushEnabled())
 	require.True(t, cfg.MemoryWriteEnabled())
 
 	cfg = &Config{Memory: MemoryConfig{Enabled: new(false)}}
