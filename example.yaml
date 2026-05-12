@@ -57,6 +57,8 @@
 #     # A workspace-root memory.md file is loaded automatically when present.
 #     maxChars: 4000
 #     maxItemChars: 1000
+#   retrieval:
+#     enabled: true
 #   episodic:
 #     enabled: false
 #     interval: "1m"

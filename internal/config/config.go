@@ -119,6 +119,7 @@ type MemoryConfig struct {
 	Provider   string                 `yaml:"provider"`
 	Backend    string                 `yaml:"backend"`
 	Pinned     PinnedMemoryConfig     `yaml:"pinned"`
+	Retrieval  RetrievalMemoryConfig  `yaml:"retrieval"`
 	Episodic   EpisodicMemoryConfig   `yaml:"episodic"`
 	Reflection ReflectionMemoryConfig `yaml:"reflection"`
 	Promotion  PromotionMemoryConfig  `yaml:"promotion"`
@@ -129,6 +130,10 @@ type PinnedMemoryConfig struct {
 	Enabled      *bool `yaml:"enabled"`
 	MaxChars     int   `yaml:"maxChars"`
 	MaxItemChars int   `yaml:"maxItemChars"`
+}
+
+type RetrievalMemoryConfig struct {
+	Enabled *bool `yaml:"enabled"`
 }
 
 type EpisodicMemoryConfig struct {
@@ -730,6 +735,9 @@ func applyEnvOverrides(cfg *Config) {
 	if value, ok := parseOptionalBoolEnv("HAND_MEMORY_PINNED_ENABLED"); ok {
 		cfg.Memory.Pinned.Enabled = new(value)
 	}
+	if value, ok := parseOptionalBoolEnv("HAND_MEMORY_RETRIEVAL_ENABLED"); ok {
+		cfg.Memory.Retrieval.Enabled = new(value)
+	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MEMORY_PINNED_MAX_CHARS")); value != "" {
 		if maxChars, err := strconv.Atoi(value); err == nil {
 			cfg.Memory.Pinned.MaxChars = maxChars
@@ -1029,6 +1037,9 @@ func (c *Config) normalizeFields() {
 	if c.Memory.Pinned.Enabled == nil {
 		c.Memory.Pinned.Enabled = new(true)
 	}
+	if c.Memory.Retrieval.Enabled == nil {
+		c.Memory.Retrieval.Enabled = new(true)
+	}
 	if c.Memory.Episodic.Enabled == nil {
 		c.Memory.Episodic.Enabled = new(false)
 	}
@@ -1168,6 +1179,15 @@ func (c *Config) MemoryEnabled() bool {
 
 	c.normalizeFields()
 	return getBoolValueDefault(c.Memory.Enabled, true)
+}
+
+func (c *Config) MemoryRetrievalEnabled() bool {
+	if c == nil {
+		return false
+	}
+
+	c.normalizeFields()
+	return getBoolValueDefault(c.Memory.Retrieval.Enabled, true)
 }
 
 func (c *Config) MemoryWriteEnabled() bool {

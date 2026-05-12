@@ -1778,6 +1778,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	t.Setenv("HAND_MEMORY_PROVIDER", " Default-Memory ")
 	t.Setenv("HAND_MEMORY_BACKEND", " SQLite ")
 	t.Setenv("HAND_MEMORY_PINNED_ENABLED", "false")
+	t.Setenv("HAND_MEMORY_RETRIEVAL_ENABLED", "false")
 	t.Setenv("HAND_MEMORY_PINNED_MAX_CHARS", "3200")
 	t.Setenv("HAND_MEMORY_PINNED_MAX_ITEM_CHARS", "700")
 	t.Setenv("HAND_MEMORY_EPISODIC_ENABLED", "true")
@@ -1820,6 +1821,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.Equal(t, "default-memory", cfg.Memory.Provider)
 	require.Equal(t, "sqlite", cfg.Memory.Backend)
 	require.False(t, getBoolValue(cfg.Memory.Pinned.Enabled))
+	require.False(t, getBoolValue(cfg.Memory.Retrieval.Enabled))
 	require.Equal(t, 3200, cfg.Memory.Pinned.MaxChars)
 	require.Equal(t, 700, cfg.Memory.Pinned.MaxItemChars)
 	require.True(t, getBoolValue(cfg.Memory.Episodic.Enabled))
@@ -1844,10 +1846,12 @@ func TestConfig_MemoryDefaultsAndNormalize(t *testing.T) {
 	require.Equal(t, "default-memory", cfg.Memory.Provider)
 	require.Equal(t, "sqlite", cfg.Memory.Backend)
 	require.True(t, getBoolValue(cfg.Memory.Pinned.Enabled))
+	require.True(t, getBoolValue(cfg.Memory.Retrieval.Enabled))
 	require.False(t, getBoolValue(cfg.Memory.Episodic.Enabled))
 	require.False(t, getBoolValue(cfg.Memory.Reflection.Enabled))
 	require.True(t, getBoolValue(cfg.Memory.Promotion.Enabled))
 	require.True(t, getBoolValue(cfg.Memory.Write.Enabled))
+	require.True(t, cfg.MemoryRetrievalEnabled())
 	require.True(t, cfg.MemoryWriteEnabled())
 
 	cfg = &Config{Memory: MemoryConfig{Enabled: new(false)}}

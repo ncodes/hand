@@ -71,11 +71,16 @@ func TestTurn_RunKeepsMemoryRetrievalDisabledWhenConfigured(t *testing.T) {
 	require.NoError(t, err)
 
 	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), client)
-	enabled := false
+	enabled := true
+	disabled := false
 	turn.cfg = testSessionConfig(&config.Config{
 		Name:   "Test Agent",
 		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}},
-		Memory: config.MemoryConfig{Enabled: &enabled, Provider: memory.ProviderDefaultMemory},
+		Memory: config.MemoryConfig{
+			Enabled:   &enabled,
+			Provider:  memory.ProviderDefaultMemory,
+			Retrieval: config.RetrievalMemoryConfig{Enabled: &disabled},
+		},
 	})
 	turn.env.(*mocks.EnvironmentStub).Memory = provider
 
@@ -222,6 +227,14 @@ func TestTurn_RetrieveMemoryInstructionSkipsWhenUnavailable(t *testing.T) {
 		Name:   "Test Agent",
 		Memory: config.MemoryConfig{Enabled: &disabled, Provider: memory.ProviderDefaultMemory},
 	})
+	retrievalDisabledCfg := testSessionConfig(&config.Config{
+		Name: "Test Agent",
+		Memory: config.MemoryConfig{
+			Enabled:   &enabled,
+			Provider:  memory.ProviderDefaultMemory,
+			Retrieval: config.RetrievalMemoryConfig{Enabled: &disabled},
+		},
+	})
 
 	tests := []struct {
 		name string
@@ -230,6 +243,12 @@ func TestTurn_RetrieveMemoryInstructionSkipsWhenUnavailable(t *testing.T) {
 		{name: "nil turn"},
 		{name: "nil config", turn: &Turn{}},
 		{name: "disabled config", turn: &Turn{cfg: disabledCfg}},
+		{name: "retrieval disabled", turn: &Turn{
+			cfg: retrievalDisabledCfg,
+			env: &mocks.EnvironmentStub{Memory: &memoryProviderStub{
+				caps: memory.Capabilities{SupportsSearch: true},
+			}},
+		}},
 		{name: "nil environment", turn: &Turn{cfg: cfg}},
 		{name: "nil provider", turn: &Turn{cfg: cfg, env: &mocks.EnvironmentStub{}}},
 		{name: "non search provider", turn: &Turn{

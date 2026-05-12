@@ -168,13 +168,17 @@ func TestLiveSemanticMemoryCreatedByReflectionAndPromotion(t *testing.T) {
 type recordingLiveModelClient struct {
 	client       models.Client
 	lastResponse *models.Response
+	requests     []models.Request
 }
 
 func (c *recordingLiveModelClient) Complete(ctx context.Context, req models.Request) (*models.Response, error) {
+	c.requests = append(c.requests, req)
+
 	resp, err := c.client.Complete(ctx, req)
 	if resp != nil {
 		c.lastResponse = resp
 	}
+
 	return resp, err
 }
 
@@ -183,9 +187,16 @@ func (c *recordingLiveModelClient) CompleteStream(
 	req models.Request,
 	onTextDelta func(models.StreamDelta),
 ) (*models.Response, error) {
+	c.requests = append(c.requests, req)
+
 	resp, err := c.client.CompleteStream(ctx, req, onTextDelta)
 	if resp != nil {
 		c.lastResponse = resp
 	}
+
 	return resp, err
+}
+
+func (c *recordingLiveModelClient) Requests() []models.Request {
+	return append([]models.Request(nil), c.requests...)
 }
