@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
 	"github.com/wandxy/hand/internal/environment/budget"
 	"github.com/wandxy/hand/internal/environment/planstore"
@@ -467,7 +468,7 @@ func (e *environment) Tools() ToolRegistry {
 
 func (e *environment) NewIterationBudget() budget.IterationBudget {
 	if e == nil || e.cfg == nil || e.cfg.Session.MaxIterations <= 0 {
-		return budget.New(config.DefaultMaxIterations)
+		return budget.New(constants.DefaultMaxIterations)
 	}
 	return budget.New(e.cfg.Session.MaxIterations)
 }

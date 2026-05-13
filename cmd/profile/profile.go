@@ -54,7 +54,15 @@ func newUseCommand() *cli.Command {
 				return fmt.Errorf("profile name is required")
 			}
 
-			name, err := profile.StoreCurrentName(name, "")
+			resolved, err := profile.Resolve(profile.ResolveOptions{Name: name})
+			if err != nil {
+				return err
+			}
+			if !pathExists(resolved.HomeDir) {
+				return fmt.Errorf("profile %q does not exist; run `hand profile init %s` first", resolved.Name, resolved.Name)
+			}
+
+			name, err = profile.StoreCurrentName(resolved.Name, "")
 			if err != nil {
 				return err
 			}
@@ -112,8 +120,8 @@ func newInitCommand() *cli.Command {
 		ArgsUsage: "<name>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
-				Name:  "with-config",
-				Usage: "Create a starter config.yaml for the profile",
+				Name:  "bare",
+				Usage: "Create only the profile directory without config.yaml",
 			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
@@ -126,7 +134,7 @@ func newInitCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			if cmd.Bool("with-config") {
+			if !cmd.Bool("bare") {
 				cfg := config.NewDefaultConfig()
 				cfg.Name = resolved.Name
 				if err := config.SaveYAML(resolved.ConfigPath, cfg); err != nil {

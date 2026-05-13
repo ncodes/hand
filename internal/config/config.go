@@ -300,102 +300,149 @@ var (
 	resolveModelMeta        = fetchModelMetadataFromProvider
 	providerDefaultBaseURLs = map[string]map[string]string{
 		constants.ModelProviderOpenRouter: {
-			DefaultModelAPIMode: "https://openrouter.ai/api/v1",
-			"responses":         "https://openrouter.ai/api/v1/responses",
-			"embeddings":        "https://openrouter.ai/api/v1/embeddings",
+			constants.DefaultModelAPIMode: constants.DefaultOpenRouterBaseURL,
+			"responses":                   constants.DefaultOpenRouterResponsesBaseURL,
+			"embeddings":                  constants.DefaultOpenRouterEmbeddingsBaseURL,
 		},
 		constants.ModelProviderOpenAI: {
-			DefaultModelAPIMode: "https://api.openai.com/v1",
-			"responses":         "https://api.openai.com/v1",
-			"embeddings":        "https://api.openai.com/v1/embeddings",
+			constants.DefaultModelAPIMode: constants.DefaultOpenAIBaseURL,
+			"responses":                   constants.DefaultOpenAIBaseURL,
+			"embeddings":                  constants.DefaultOpenAIEmbeddingsBaseURL,
 		},
 	}
 )
 
 var contextWindowPatternOAI = regexp.MustCompile(`([0-9][0-9,]*)(?:\s|<!--[^>]*-->)+context window`)
 
-const (
-	webProviderFirecrawl = "firecrawl"
-	webProviderParallel  = "parallel"
-	webProviderTavily    = "tavily"
-	webProviderExa       = "exa"
-
-	defaultModel                                         = constants.DefaultModel
-	defaultContextLength                                 = constants.DefaultContextLength
-	defaultModelProvider                                 = constants.DefaultModelProvider
-	DefaultModelAPIMode                                  = constants.DefaultModelAPIMode
-	DefaultMaxIterations                                 = constants.DefaultMaxIterations
-	DefaultWebMaxCharPerResult                           = constants.DefaultWebMaxCharPerResult
-	DefaultWebMaxExtractCharPerResult                    = constants.DefaultWebMaxExtractCharPerResult
-	DefaultWebMaxExtractResponseBytes                    = constants.DefaultWebMaxExtractResponseBytes
-	DefaultWebCacheTTL                     time.Duration = constants.DefaultWebCacheTTL
-	DefaultWebExtractMinSummarizeChars                   = constants.DefaultWebExtractMinSummarizeChars
-	DefaultWebExtractMaxSummaryChars                     = constants.DefaultWebExtractMaxSummaryChars
-	DefaultWebExtractMaxSummaryChunkChars                = constants.DefaultWebExtractMaxSummaryChunkChars
-	DefaultWebExtractRefusalThresholdChars               = constants.DefaultWebExtractRefusalThresholdChars
-	DefaultTraceMaxEventsPerSession                      = 10000
-	DefaultModelMaxRetries                               = constants.DefaultModelMaxRetries
-	defaultMaxIterations                                 = constants.DefaultMaxIterations
-)
-
 // DefaultConfig is the canonical baseline for new Hand configuration.
 var DefaultConfig = Config{
 	Models: ModelsConfig{
 		Main: MainModelConfig{
-			Name:          defaultModel,
-			Stream:        new(true),
-			ContextLength: defaultContextLength,
-			APIMode:       DefaultModelAPIMode,
+			Name:          constants.DefaultProfileModel,
+			Provider:      constants.ModelProviderOpenRouter,
+			Stream:        new(constants.DefaultProfileModelStream),
+			ContextLength: constants.DefaultContextLength,
+			APIMode:       constants.DefaultModelAPIMode,
+			BaseURL:       constants.DefaultOpenRouterBaseURL,
 		},
-		Verify:     new(true),
-		MaxRetries: new(DefaultModelMaxRetries),
+		Summary: SummaryModelConfig{
+			Name: constants.DefaultProfileSummaryModel,
+		},
+		Embedding: EmbeddingModelConfig{
+			Name: constants.DefaultProfileEmbeddingModel,
+		},
+		Verify:     new(constants.DefaultProfileModelVerify),
+		MaxRetries: new(constants.DefaultModelMaxRetries),
 	},
 	Session: SessionConfig{
-		MaxIterations:     defaultMaxIterations,
+		MaxIterations:     constants.DefaultMaxIterations,
 		DefaultIdleExpiry: constants.DefaultSessionIdleExpiry,
 		ArchiveRetention:  constants.DefaultArchiveRetention,
 	},
+	RPC: RPCConfig{
+		Address: constants.DefaultRPCAddress,
+		Port:    constants.DefaultRPCPort,
+	},
 	Log: LogConfig{
-		Level: constants.DefaultLogLevel,
+		Level: constants.DefaultProfileLogLevel,
+	},
+	Debug: DebugConfig{
+		Requests: constants.DefaultProfileDebugRequests,
 	},
 	Trace: TraceConfig{
+		Enabled: constants.DefaultProfileTraceEnabled,
 		Disk: TraceDiskConfig{
-			Enabled: new(true),
+			Enabled: new(constants.DefaultProfileTraceDiskEnabled),
 		},
 		Database: TraceDatabaseConfig{
-			Enabled:             new(true),
-			MaxEventsPerSession: DefaultTraceMaxEventsPerSession,
+			Enabled:             new(constants.DefaultProfileTraceDatabaseEnabled),
+			MaxEventsPerSession: constants.DefaultTraceMaxEventsPerSession,
 		},
 	},
 	Web: WebConfig{
-		MaxCharPerResult:             DefaultWebMaxCharPerResult,
-		MaxExtractCharPerResult:      DefaultWebMaxExtractCharPerResult,
-		MaxExtractResponseBytes:      DefaultWebMaxExtractResponseBytes,
-		CacheTTL:                     DefaultWebCacheTTL,
-		ExtractMinSummarizeChars:     DefaultWebExtractMinSummarizeChars,
-		ExtractMaxSummaryChars:       DefaultWebExtractMaxSummaryChars,
-		ExtractMaxSummaryChunkChars:  DefaultWebExtractMaxSummaryChunkChars,
-		ExtractRefusalThresholdChars: DefaultWebExtractRefusalThresholdChars,
+		Provider:                     constants.DefaultProfileWebProvider,
+		MaxCharPerResult:             constants.DefaultWebMaxCharPerResult,
+		MaxExtractCharPerResult:      constants.DefaultWebMaxExtractCharPerResult,
+		MaxExtractResponseBytes:      constants.DefaultWebMaxExtractResponseBytes,
+		CacheTTL:                     constants.DefaultProfileWebCacheTTL,
+		BlockedDomainsEnabled:        constants.DefaultProfileWebBlockedDomainsEnabled,
+		ExtractMinSummarizeChars:     constants.DefaultWebExtractMinSummarizeChars,
+		ExtractMaxSummaryChars:       constants.DefaultWebExtractMaxSummaryChars,
+		ExtractMaxSummaryChunkChars:  constants.DefaultWebExtractMaxSummaryChunkChars,
+		ExtractRefusalThresholdChars: constants.DefaultWebExtractRefusalThresholdChars,
 	},
 	Platform: constants.DefaultPlatform,
 	Cap: CapConfig{
-		Filesystem: new(true),
-		Network:    new(true),
-		Exec:       new(true),
-		Memory:     new(true),
-		Browser:    new(false),
+		Filesystem: new(constants.DefaultProfileCapabilityFilesystem),
+		Network:    new(constants.DefaultProfileCapabilityNetwork),
+		Exec:       new(constants.DefaultProfileCapabilityExec),
+		Memory:     new(constants.DefaultProfileCapabilityMemory),
+		Browser:    new(constants.DefaultProfileCapabilityBrowser),
 	},
 	Storage: StorageConfig{
 		Backend: constants.DefaultStorageBackend,
 	},
+	Search: SearchConfig{
+		EnableRerank: new(constants.DefaultProfileSearchEnableRerank),
+		Vector: SearchVectorConfig{
+			Enabled:          constants.DefaultProfileSearchVectorEnabled,
+			Required:         constants.DefaultProfileSearchVectorRequired,
+			RebuildBatchSize: constants.DefaultVectorStoreRebuildBatchSize,
+		},
+	},
+	Reranker: RerankerConfig{
+		Enabled:               new(constants.DefaultProfileRerankerEnabled),
+		Type:                  constants.RerankerLLM,
+		MaxCandidates:         constants.DefaultHybridRetrievalCandidateLimit,
+		MaxCandidateTextChars: constants.DefaultLLMRerankerMaxCandidateTextLen,
+	},
 	Compaction: CompactionConfig{
-		Enabled:        new(true),
+		Enabled:        new(constants.DefaultProfileCompactionEnabled),
 		TriggerPercent: constants.DefaultCompactionTrigger,
 		WarnPercent:    constants.DefaultCompactionWarn,
 	},
 	Memory: MemoryConfig{
-		Enabled:  new(true),
+		Enabled:  new(constants.DefaultProfileMemoryEnabled),
 		Provider: constants.MemoryProviderDefault,
+		Pinned: PinnedMemoryConfig{
+			Enabled:      new(constants.DefaultProfileMemoryPinnedEnabled),
+			MaxChars:     constants.DefaultProfileMemoryPinnedMaxChars,
+			MaxItemChars: constants.DefaultProfileMemoryPinnedMaxItemChars,
+		},
+		Retrieval: RetrievalMemoryConfig{
+			Enabled: new(constants.DefaultProfileMemoryRetrievalEnabled),
+		},
+		Flush: FlushMemoryConfig{
+			Enabled:         new(constants.DefaultProfileMemoryFlushEnabled),
+			MaxCalls:        constants.DefaultProfileMemoryFlushMaxCalls,
+			MaxOutputTokens: constants.DefaultProfileMemoryFlushMaxOutputTokens,
+			Timeout:         constants.DefaultProfileMemoryFlushTimeout,
+		},
+		Episodic: EpisodicMemoryConfig{
+			Enabled:         new(constants.DefaultProfileMemoryEpisodicEnabled),
+			Interval:        constants.DefaultProfileMemoryEpisodicInterval,
+			IdleAfter:       constants.DefaultProfileMemoryEpisodicIdleAfter,
+			MinMessages:     constants.DefaultProfileMemoryEpisodicMinMessages,
+			WindowSize:      constants.DefaultProfileMemoryEpisodicWindowSize,
+			MaxWindows:      constants.DefaultProfileMemoryEpisodicMaxWindows,
+			MaxWindowChars:  constants.DefaultProfileMemoryEpisodicMaxWindowChars,
+			MaxWindowTokens: constants.DefaultProfileMemoryEpisodicMaxWindowTokens,
+			MaxRetries:      constants.DefaultProfileMemoryEpisodicMaxRetries,
+		},
+		Reflection: ReflectionMemoryConfig{
+			Enabled:      new(constants.DefaultProfileMemoryReflectionEnabled),
+			Interval:     constants.DefaultProfileMemoryReflectionInterval,
+			Limit:        constants.DefaultProfileMemoryReflectionLimit,
+			RelatedLimit: constants.DefaultProfileMemoryReflectionRelatedLimit,
+		},
+		Promotion: PromotionMemoryConfig{
+			Enabled:  new(constants.DefaultProfileMemoryPromotionEnabled),
+			Interval: constants.DefaultProfileMemoryPromotionInterval,
+			Limit:    constants.DefaultProfileMemoryPromotionLimit,
+		},
+		Write: WriteMemoryConfig{
+			Enabled: new(constants.DefaultProfileMemoryWriteEnabled),
+		},
 	},
 }
 
@@ -566,13 +613,13 @@ func loadConfigFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return &Config{}, nil
+			return NewDefaultConfig(), nil
 		}
 
 		return nil, fmt.Errorf("failed to read config file %q: %w", path, err)
 	}
 
-	var cfg Config
+	cfg := cloneConfig(DefaultConfig)
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config file %q: %w", path, err)
 	}
@@ -766,28 +813,28 @@ func applyEnvOverrides(cfg *Config) {
 	if cfg.Web.Provider == "" {
 		switch {
 		case strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_KEY")) != "" || strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_URL")) != "":
-			cfg.Web.Provider = webProviderFirecrawl
+			cfg.Web.Provider = constants.WebProviderFirecrawl
 		case strings.TrimSpace(os.Getenv("HAND_PARALLEL_API_KEY")) != "":
-			cfg.Web.Provider = webProviderParallel
+			cfg.Web.Provider = constants.WebProviderParallel
 		case strings.TrimSpace(os.Getenv("HAND_TAVILY_API_KEY")) != "":
-			cfg.Web.Provider = webProviderTavily
+			cfg.Web.Provider = constants.WebProviderTavily
 		case strings.TrimSpace(os.Getenv("HAND_EXA_API_KEY")) != "":
-			cfg.Web.Provider = webProviderExa
+			cfg.Web.Provider = constants.WebProviderExa
 		}
 	}
 	if cfg.Web.APIKey == "" {
 		switch strings.TrimSpace(strings.ToLower(cfg.Web.Provider)) {
-		case webProviderFirecrawl:
+		case constants.WebProviderFirecrawl:
 			cfg.Web.APIKey = strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_KEY"))
-		case webProviderParallel:
+		case constants.WebProviderParallel:
 			cfg.Web.APIKey = strings.TrimSpace(os.Getenv("HAND_PARALLEL_API_KEY"))
-		case webProviderTavily:
+		case constants.WebProviderTavily:
 			cfg.Web.APIKey = strings.TrimSpace(os.Getenv("HAND_TAVILY_API_KEY"))
-		case webProviderExa:
+		case constants.WebProviderExa:
 			cfg.Web.APIKey = strings.TrimSpace(os.Getenv("HAND_EXA_API_KEY"))
 		}
 	}
-	if cfg.Web.BaseURL == "" && strings.TrimSpace(strings.ToLower(cfg.Web.Provider)) == webProviderFirecrawl {
+	if cfg.Web.BaseURL == "" && strings.TrimSpace(strings.ToLower(cfg.Web.Provider)) == constants.WebProviderFirecrawl {
 		cfg.Web.BaseURL = strings.TrimSpace(os.Getenv("HAND_FIRECRAWL_API_URL"))
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_RULES_FILES")); value != "" {
@@ -1049,27 +1096,27 @@ func (c *Config) normalizeFields() {
 	c.Reranker.Model = strings.TrimSpace(c.Reranker.Model)
 
 	if c.Models.Main.Name == "" {
-		c.Models.Main.Name = defaultModel
+		c.Models.Main.Name = constants.DefaultModel
 	}
 	if c.Models.Main.Stream == nil {
-		c.Models.Main.Stream = new(true)
+		c.Models.Main.Stream = new(constants.DefaultProfileModelStream)
 	}
 	if c.Models.Verify == nil {
-		c.Models.Verify = new(true)
+		c.Models.Verify = new(constants.DefaultProfileModelVerify)
 	}
 	if c.Models.MaxRetries == nil {
-		c.Models.MaxRetries = new(DefaultModelMaxRetries)
+		c.Models.MaxRetries = new(constants.DefaultModelMaxRetries)
 	}
 	if c.Models.Main.ContextLength <= 0 {
-		c.Models.Main.ContextLength = defaultContextLength
+		c.Models.Main.ContextLength = constants.DefaultContextLength
 	}
 
 	if c.Models.Main.Provider == "" {
-		c.Models.Main.Provider = defaultModelProvider
+		c.Models.Main.Provider = constants.DefaultModelProvider
 	}
 
 	if c.Models.Main.APIMode == "" {
-		c.Models.Main.APIMode = DefaultModelAPIMode
+		c.Models.Main.APIMode = constants.DefaultModelAPIMode
 	}
 
 	if c.Log.Level == "" {
@@ -1083,62 +1130,62 @@ func (c *Config) normalizeFields() {
 		c.RPC.Port = constants.DefaultRPCPort
 	}
 	if c.Session.MaxIterations == 0 {
-		c.Session.MaxIterations = defaultMaxIterations
+		c.Session.MaxIterations = constants.DefaultMaxIterations
 	}
 	if c.Trace.Disk.Dir == "" {
 		c.Trace.Disk.Dir = datadir.DebugTraceDir()
 	}
 	if c.Trace.Disk.Enabled == nil {
-		c.Trace.Disk.Enabled = new(true)
+		c.Trace.Disk.Enabled = new(constants.DefaultProfileTraceDiskEnabled)
 	}
 	if c.Trace.Database.Enabled == nil {
-		c.Trace.Database.Enabled = new(true)
+		c.Trace.Database.Enabled = new(constants.DefaultProfileTraceDatabaseEnabled)
 	}
 	if c.Trace.Database.MaxEventsPerSession <= 0 {
-		c.Trace.Database.MaxEventsPerSession = DefaultTraceMaxEventsPerSession
+		c.Trace.Database.MaxEventsPerSession = constants.DefaultTraceMaxEventsPerSession
 	}
 	if c.Platform == "" {
 		c.Platform = constants.DefaultPlatform
 	}
 	if c.Web.MaxCharPerResult <= 0 {
-		c.Web.MaxCharPerResult = DefaultWebMaxCharPerResult
+		c.Web.MaxCharPerResult = constants.DefaultWebMaxCharPerResult
 	}
 	if c.Web.MaxExtractCharPerResult <= 0 {
-		c.Web.MaxExtractCharPerResult = DefaultWebMaxExtractCharPerResult
+		c.Web.MaxExtractCharPerResult = constants.DefaultWebMaxExtractCharPerResult
 	}
 	if c.Web.MaxExtractResponseBytes <= 0 {
-		c.Web.MaxExtractResponseBytes = DefaultWebMaxExtractResponseBytes
+		c.Web.MaxExtractResponseBytes = constants.DefaultWebMaxExtractResponseBytes
 	}
 	if c.Web.CacheTTL < 0 {
-		c.Web.CacheTTL = DefaultWebCacheTTL
+		c.Web.CacheTTL = constants.DefaultWebCacheTTL
 	}
 	if c.Web.ExtractMinSummarizeChars <= 0 {
-		c.Web.ExtractMinSummarizeChars = DefaultWebExtractMinSummarizeChars
+		c.Web.ExtractMinSummarizeChars = constants.DefaultWebExtractMinSummarizeChars
 	}
 	if c.Web.ExtractMaxSummaryChars <= 0 {
-		c.Web.ExtractMaxSummaryChars = DefaultWebExtractMaxSummaryChars
+		c.Web.ExtractMaxSummaryChars = constants.DefaultWebExtractMaxSummaryChars
 	}
 	if c.Web.ExtractMaxSummaryChunkChars <= 0 {
-		c.Web.ExtractMaxSummaryChunkChars = DefaultWebExtractMaxSummaryChunkChars
+		c.Web.ExtractMaxSummaryChunkChars = constants.DefaultWebExtractMaxSummaryChunkChars
 	}
 	if c.Web.ExtractRefusalThresholdChars <= 0 {
-		c.Web.ExtractRefusalThresholdChars = DefaultWebExtractRefusalThresholdChars
+		c.Web.ExtractRefusalThresholdChars = constants.DefaultWebExtractRefusalThresholdChars
 	}
 
 	if c.Cap.Filesystem == nil {
-		c.Cap.Filesystem = new(true)
+		c.Cap.Filesystem = new(constants.DefaultProfileCapabilityFilesystem)
 	}
 	if c.Cap.Network == nil {
-		c.Cap.Network = new(true)
+		c.Cap.Network = new(constants.DefaultProfileCapabilityNetwork)
 	}
 	if c.Cap.Exec == nil {
-		c.Cap.Exec = new(true)
+		c.Cap.Exec = new(constants.DefaultProfileCapabilityExec)
 	}
 	if c.Cap.Memory == nil {
-		c.Cap.Memory = new(true)
+		c.Cap.Memory = new(constants.DefaultProfileCapabilityMemory)
 	}
 	if c.Cap.Browser == nil {
-		c.Cap.Browser = new(false)
+		c.Cap.Browser = new(constants.DefaultProfileCapabilityBrowser)
 	}
 
 	if len(c.FS.Roots) == 0 {
@@ -1156,7 +1203,7 @@ func (c *Config) normalizeFields() {
 		c.Session.ArchiveRetention = constants.DefaultArchiveRetention
 	}
 	if c.Compaction.Enabled == nil {
-		c.Compaction.Enabled = new(true)
+		c.Compaction.Enabled = new(constants.DefaultProfileCompactionEnabled)
 	}
 	if c.Compaction.TriggerPercent <= 0 {
 		c.Compaction.TriggerPercent = constants.DefaultCompactionTrigger
@@ -1165,40 +1212,40 @@ func (c *Config) normalizeFields() {
 		c.Compaction.WarnPercent = constants.DefaultCompactionWarn
 	}
 	if c.Memory.Enabled == nil {
-		c.Memory.Enabled = new(true)
+		c.Memory.Enabled = new(constants.DefaultProfileMemoryEnabled)
 	}
 	if c.Memory.Provider == "" {
 		c.Memory.Provider = constants.MemoryProviderDefault
 	}
 	if c.Memory.Pinned.Enabled == nil {
-		c.Memory.Pinned.Enabled = new(true)
+		c.Memory.Pinned.Enabled = new(constants.DefaultProfileMemoryPinnedEnabled)
 	}
 	if c.Memory.Retrieval.Enabled == nil {
-		c.Memory.Retrieval.Enabled = new(true)
+		c.Memory.Retrieval.Enabled = new(constants.DefaultProfileMemoryRetrievalEnabled)
 	}
 	if c.Memory.Flush.Enabled == nil {
-		c.Memory.Flush.Enabled = new(true)
+		c.Memory.Flush.Enabled = new(constants.DefaultProfileMemoryFlushEnabled)
 	}
 	if c.Memory.Flush.MaxCalls <= 0 {
-		c.Memory.Flush.MaxCalls = 2
+		c.Memory.Flush.MaxCalls = constants.DefaultProfileMemoryFlushMaxCalls
 	}
 	if c.Memory.Flush.MaxOutputTokens <= 0 {
-		c.Memory.Flush.MaxOutputTokens = 512
+		c.Memory.Flush.MaxOutputTokens = constants.DefaultProfileMemoryFlushMaxOutputTokens
 	}
 	if c.Memory.Flush.Timeout <= 0 {
-		c.Memory.Flush.Timeout = 10 * time.Second
+		c.Memory.Flush.Timeout = constants.DefaultProfileMemoryFlushTimeout
 	}
 	if c.Memory.Episodic.Enabled == nil {
-		c.Memory.Episodic.Enabled = new(false)
+		c.Memory.Episodic.Enabled = new(constants.DefaultMemoryEpisodicEnabled)
 	}
 	if c.Memory.Reflection.Enabled == nil {
-		c.Memory.Reflection.Enabled = new(false)
+		c.Memory.Reflection.Enabled = new(constants.DefaultMemoryReflectionEnabled)
 	}
 	if c.Memory.Promotion.Enabled == nil {
-		c.Memory.Promotion.Enabled = new(true)
+		c.Memory.Promotion.Enabled = new(constants.DefaultProfileMemoryPromotionEnabled)
 	}
 	if c.Memory.Write.Enabled == nil {
-		c.Memory.Write.Enabled = new(true)
+		c.Memory.Write.Enabled = new(constants.DefaultProfileMemoryWriteEnabled)
 	}
 
 }
@@ -1227,7 +1274,7 @@ func getDefaultBaseURLForProvider(provider, apiMode string) string {
 	provider = strings.TrimSpace(strings.ToLower(provider))
 	apiMode = strings.TrimSpace(strings.ToLower(apiMode))
 	if apiMode == "" {
-		apiMode = DefaultModelAPIMode
+		apiMode = constants.DefaultModelAPIMode
 	}
 
 	modes, ok := providerDefaultBaseURLs[provider]
@@ -1261,7 +1308,7 @@ func (c *Config) StreamEnabled() bool {
 
 func (c *Config) ModelMaxRetriesEffective() int {
 	if c == nil {
-		return DefaultModelMaxRetries
+		return constants.DefaultModelMaxRetries
 	}
 
 	c.normalizeFields()
@@ -1604,7 +1651,7 @@ func (c *Config) Validate() error {
 	}
 
 	switch c.Models.Main.APIMode {
-	case DefaultModelAPIMode:
+	case constants.DefaultModelAPIMode:
 	case "responses":
 	default:
 		return errors.New("model api mode must be one of: completions, responses; use --model.api-mode")
@@ -1612,7 +1659,7 @@ func (c *Config) Validate() error {
 
 	if c.Models.Summary.APIMode != "" {
 		switch c.Models.Summary.APIMode {
-		case DefaultModelAPIMode:
+		case constants.DefaultModelAPIMode:
 		case "responses":
 		default:
 			return errors.New("summary model api mode must be one of: completions, responses; " +
@@ -1729,7 +1776,7 @@ func (c *Config) validateEmbeddingModelExists(ctx context.Context, auth ModelAut
 	case "openrouter":
 		meta, err = fetchOpenRouterModelEndpoints(
 			ctx,
-			getDefaultBaseURLForProvider("openrouter", DefaultModelAPIMode),
+			getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIMode),
 			c.Models.Embedding.Name,
 			auth.APIKey,
 		)
@@ -1922,7 +1969,7 @@ func fetchOpenRouterModelMetadata(ctx context.Context, baseURL, model, apiKey st
 
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
-		baseURL = getDefaultBaseURLForProvider("openrouter", DefaultModelAPIMode)
+		baseURL = getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIMode)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/models", nil)
@@ -1982,7 +2029,7 @@ func fetchOpenRouterModelEndpoints(ctx context.Context, baseURL, model, apiKey s
 
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
-		baseURL = getDefaultBaseURLForProvider("openrouter", DefaultModelAPIMode)
+		baseURL = getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIMode)
 	}
 
 	req, err := http.NewRequestWithContext(

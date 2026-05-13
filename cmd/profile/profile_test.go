@@ -17,6 +17,7 @@ func TestCommandUseStoresCurrentProfile(t *testing.T) {
 	resetProfileCommand(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".hand", "profiles", "work"), 0o700))
 
 	var output bytes.Buffer
 	SetOutput(&output)
@@ -28,6 +29,18 @@ func TestCommandUseStoresCurrentProfile(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "work\n", string(data))
 	require.Equal(t, "work\n", output.String())
+}
+
+func TestCommandUseRejectsUnknownProfile(t *testing.T) {
+	resetProfileCommand(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	err := NewCommand().Run(context.Background(), []string{"profile", "use", "Work"})
+	require.EqualError(t, err, `profile "work" does not exist; run `+"`hand profile init work` first")
+
+	path := filepath.Join(home, ".hand", "current-profile")
+	require.NoFileExists(t, path)
 }
 
 func TestCommandUseRequiresName(t *testing.T) {
@@ -80,7 +93,7 @@ func TestCommandCurrentReturnsInvalidStoredProfileError(t *testing.T) {
 	require.EqualError(t, err, `invalid profile name "work/team": must match [a-zA-Z0-9][a-zA-Z0-9_-]{0,63}`)
 }
 
-func TestCommandInitCreatesProfileDirIdempotently(t *testing.T) {
+func TestCommandInitBareCreatesProfileDirIdempotently(t *testing.T) {
 	resetProfileCommand(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -88,24 +101,25 @@ func TestCommandInitCreatesProfileDirIdempotently(t *testing.T) {
 	var output bytes.Buffer
 	SetOutput(&output)
 	cmd := NewCommand()
-	err := cmd.Run(context.Background(), []string{"profile", "init", "Work"})
+	err := cmd.Run(context.Background(), []string{"profile", "init", "Work", "--bare"})
 	require.NoError(t, err)
-	err = cmd.Run(context.Background(), []string{"profile", "init", "Work"})
+	err = cmd.Run(context.Background(), []string{"profile", "init", "Work", "--bare"})
 	require.NoError(t, err)
 
 	profileHome := filepath.Join(home, ".hand", "profiles", "work")
 	require.DirExists(t, profileHome)
+	require.NoFileExists(t, filepath.Join(profileHome, "config.yaml"))
 	require.Equal(t, profileHome+"\n"+profileHome+"\n", output.String())
 }
 
-func TestCommandInitWithConfigCreatesStarterConfig(t *testing.T) {
+func TestCommandInitCreatesStarterConfig(t *testing.T) {
 	resetProfileCommand(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
 	var output bytes.Buffer
 	SetOutput(&output)
-	err := NewCommand().Run(context.Background(), []string{"profile", "init", "Alpha", "--with-config"})
+	err := NewCommand().Run(context.Background(), []string{"profile", "init", "Alpha"})
 	require.NoError(t, err)
 
 	profileHome := filepath.Join(home, ".hand", "profiles", "alpha")
@@ -120,7 +134,7 @@ func TestCommandInitWithConfigCreatesStarterConfig(t *testing.T) {
 	require.Equal(t, profileHome+"\n", output.String())
 }
 
-func TestCommandInitWithConfigRefusesOverwrite(t *testing.T) {
+func TestCommandInitRefusesConfigOverwrite(t *testing.T) {
 	resetProfileCommand(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -129,7 +143,7 @@ func TestCommandInitWithConfigRefusesOverwrite(t *testing.T) {
 	configPath := filepath.Join(profileHome, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte("name: existing\n"), 0o600))
 
-	err := NewCommand().Run(context.Background(), []string{"profile", "init", "Alpha", "--with-config"})
+	err := NewCommand().Run(context.Background(), []string{"profile", "init", "Alpha"})
 	require.EqualError(t, err, "config file already exists: "+configPath)
 	data, readErr := os.ReadFile(configPath)
 	require.NoError(t, readErr)

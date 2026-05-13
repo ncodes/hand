@@ -5,6 +5,12 @@ import "time"
 const (
 	// DefaultModel is the fallback model identifier.
 	DefaultModel = "openai/gpt-4o-mini"
+	// DefaultProfileModel is the starter profile model identifier.
+	DefaultProfileModel = "minimax/minimax-m2.7"
+	// DefaultProfileSummaryModel is the starter profile summary model identifier.
+	DefaultProfileSummaryModel = DefaultModel
+	// DefaultProfileEmbeddingModel is the starter profile embedding model identifier.
+	DefaultProfileEmbeddingModel = "openai/text-embedding-3-small"
 	// DefaultModelProvider is the fallback model provider.
 	DefaultModelProvider = "openrouter"
 	// ModelProviderOpenRouter identifies OpenRouter-backed model access.
@@ -13,8 +19,16 @@ const (
 	ModelProviderOpenAI = "openai"
 	// DefaultModelAPIMode is the fallback model API mode.
 	DefaultModelAPIMode = "completions"
+	// DefaultOpenRouterBaseURL is the default OpenRouter API base URL.
+	DefaultOpenRouterBaseURL           = "https://openrouter.ai/api/v1"
+	DefaultOpenRouterResponsesBaseURL  = "https://openrouter.ai/api/v1/responses"
+	DefaultOpenRouterEmbeddingsBaseURL = "https://openrouter.ai/api/v1/embeddings"
+	DefaultOpenAIBaseURL               = "https://api.openai.com/v1"
+	DefaultOpenAIEmbeddingsBaseURL     = "https://api.openai.com/v1/embeddings"
 	// DefaultModelMaxRetries is the fallback retry count for model calls.
-	DefaultModelMaxRetries = 2
+	DefaultModelMaxRetries    = 2
+	DefaultProfileModelStream = true
+	DefaultProfileModelVerify = true
 )
 
 const (
@@ -26,10 +40,27 @@ const (
 	DefaultRPCPort = 50051
 	// DefaultLogLevel is the fallback application log level.
 	DefaultLogLevel = "info"
+	// DefaultTraceMaxEventsPerSession is the fallback maximum stored trace events per session.
+	DefaultTraceMaxEventsPerSession = 10000
 	// DefaultPlatform is the fallback runtime platform identifier.
 	DefaultPlatform = "cli"
 	// DefaultStorageBackend is the fallback state storage backend.
-	DefaultStorageBackend = "sqlite"
+	DefaultStorageBackend              = "sqlite"
+	DefaultProfileLogLevel             = "debug"
+	DefaultProfileDebugRequests        = true
+	DefaultProfileTraceEnabled         = true
+	DefaultProfileTraceDiskEnabled     = true
+	DefaultProfileTraceDatabaseEnabled = true
+	DefaultProfileCapabilityFilesystem = true
+	DefaultProfileCapabilityNetwork    = true
+	DefaultProfileCapabilityExec       = true
+	DefaultProfileCapabilityMemory     = true
+	DefaultProfileCapabilityBrowser    = false
+	DefaultProfileSearchEnableRerank   = true
+	DefaultProfileSearchVectorEnabled  = true
+	DefaultProfileSearchVectorRequired = true
+	DefaultProfileRerankerEnabled      = true
+	DefaultProfileCompactionEnabled    = true
 	// DefaultSessionIdleExpiry is the fallback duration before idle sessions expire.
 	DefaultSessionIdleExpiry = 24 * time.Hour
 	// DefaultArchiveRetention is the fallback duration archived sessions are retained.

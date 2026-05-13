@@ -13,6 +13,7 @@ import (
 
 	agentsummary "github.com/wandxy/hand/internal/agent/context/summary"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
@@ -2349,7 +2350,7 @@ func TestAgent_RespondPreservesAssistantToolCallsAcrossSQLiteBackedTurns(t *test
 		return &mocks.EnvironmentStub{
 			InstructionsList: instructions.Instructions{{Value: "system prompt"}},
 			ToolRegistry:     registry,
-			IterationBudget:  envbudget.New(config.DefaultMaxIterations),
+			IterationBudget:  envbudget.New(constants.DefaultMaxIterations),
 			TraceSession:     &mocks.TraceSessionStub{},
 		}
 	}
@@ -2725,7 +2726,7 @@ func newTestAgent(
 	newEnvironment = func(context.Context, *config.Config) environment.Environment {
 		registry, err := registryFactory()
 		require.NoError(t, err)
-		budget := envbudget.New(config.DefaultMaxIterations)
+		budget := envbudget.New(constants.DefaultMaxIterations)
 		if cfg != nil && cfg.Session.MaxIterations > 0 {
 			budget = envbudget.New(cfg.Session.MaxIterations)
 		}

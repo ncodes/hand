@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
@@ -636,7 +637,7 @@ func TestStoreReranker_SelectsConfiguredReranker(t *testing.T) {
 		{
 			name: search.RerankerLLM,
 			cfg: config.Config{
-				Models:   config.ModelsConfig{Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", APIMode: config.DefaultModelAPIMode}},
+				Models:   config.ModelsConfig{Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", APIMode: constants.DefaultModelAPIMode}},
 				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
 				Reranker: config.RerankerConfig{Type: search.RerankerLLM, Model: "openai/gpt-4o-mini", MaxCandidates: 3, MaxCandidateTextChars: 40, MaxOutputTokens: 50},
 			},

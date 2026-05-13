@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wandxy/hand/internal/config"
+
+	"github.com/wandxy/hand/internal/constants"
 )
 
 func TestNewExa_BuildsFromAPIKeyOnly(t *testing.T) {
@@ -88,7 +89,7 @@ func TestExaProvider_SearchNormalizesResults(t *testing.T) {
 			baseURL: server.URL,
 			client:  server.Client(),
 		},
-		maxCharsPerResult: config.DefaultWebMaxCharPerResult,
+		maxCharsPerResult: constants.DefaultWebMaxCharPerResult,
 	}
 
 	results, err := provider.Search(context.Background(), "exa search", 6)
@@ -97,7 +98,7 @@ func TestExaProvider_SearchNormalizesResults(t *testing.T) {
 	require.Equal(t, "exa-key", captured.APIKey)
 	require.Equal(t, "exa search", captured.Query)
 	require.Equal(t, 6, captured.NumResults)
-	require.Equal(t, config.DefaultWebMaxCharPerResult, captured.Contents.Highlights.MaxCharacters)
+	require.Equal(t, constants.DefaultWebMaxCharPerResult, captured.Contents.Highlights.MaxCharacters)
 	require.Equal(t, []SearchResult{{
 		Title:    "Exa result",
 		URL:      "https://example.com/exa",

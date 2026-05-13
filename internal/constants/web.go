@@ -3,6 +3,10 @@ package constants
 import "time"
 
 const (
+	WebProviderFirecrawl = "firecrawl"
+	WebProviderParallel  = "parallel"
+	WebProviderTavily    = "tavily"
+	WebProviderExa       = "exa"
 	// DefaultWebMaxCharPerResult is the fallback character budget per web search result.
 	DefaultWebMaxCharPerResult = 1200
 	// DefaultWebMaxExtractCharPerResult is the fallback character budget per extracted web result.
@@ -10,7 +14,10 @@ const (
 	// DefaultWebMaxExtractResponseBytes is the fallback byte budget for extracted web responses.
 	DefaultWebMaxExtractResponseBytes = 2 * 1024 * 1024
 	// DefaultWebCacheTTL is the fallback TTL for cached web provider responses.
-	DefaultWebCacheTTL = 0 * time.Second
+	DefaultWebCacheTTL                     = 0 * time.Second
+	DefaultProfileWebProvider              = WebProviderExa
+	DefaultProfileWebCacheTTL              = 5 * time.Minute
+	DefaultProfileWebBlockedDomainsEnabled = true
 	// DefaultWebExtractMinSummarizeChars is the extracted content size that triggers summarization.
 	DefaultWebExtractMinSummarizeChars = 12000
 	// DefaultWebExtractMaxSummaryChars is the fallback character budget for web extraction summaries.

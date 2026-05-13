@@ -1,5 +1,7 @@
 package constants
 
+import "time"
+
 const (
 	// MemoryProviderDefault identifies the built-in memory provider.
 	MemoryProviderDefault = "default-memory"
@@ -11,7 +13,35 @@ const (
 	// DefaultMemoryPinnedMaxChars is the fallback total character budget for pinned memory.
 	DefaultMemoryPinnedMaxChars = 2200
 	// DefaultMemoryPinnedItemChars is the fallback per-item character budget for pinned memory.
-	DefaultMemoryPinnedItemChars = 2200
+	DefaultMemoryPinnedItemChars                = 2200
+	DefaultProfileMemoryEnabled                 = true
+	DefaultProfileMemoryPinnedEnabled           = true
+	DefaultProfileMemoryPinnedMaxChars          = 4000
+	DefaultProfileMemoryPinnedMaxItemChars      = 1000
+	DefaultProfileMemoryRetrievalEnabled        = true
+	DefaultProfileMemoryFlushEnabled            = true
+	DefaultProfileMemoryFlushMaxCalls           = 2
+	DefaultProfileMemoryFlushMaxOutputTokens    = 512
+	DefaultProfileMemoryFlushTimeout            = 10 * time.Second
+	DefaultProfileMemoryEpisodicEnabled         = true
+	DefaultProfileMemoryEpisodicInterval        = time.Minute
+	DefaultProfileMemoryEpisodicIdleAfter       = time.Minute
+	DefaultProfileMemoryEpisodicMinMessages     = 2
+	DefaultProfileMemoryEpisodicWindowSize      = 20
+	DefaultProfileMemoryEpisodicMaxWindows      = 10
+	DefaultProfileMemoryEpisodicMaxWindowChars  = 6000
+	DefaultProfileMemoryEpisodicMaxWindowTokens = 1500
+	DefaultProfileMemoryEpisodicMaxRetries      = 1
+	DefaultProfileMemoryReflectionEnabled       = true
+	DefaultProfileMemoryReflectionInterval      = 5 * time.Minute
+	DefaultProfileMemoryReflectionLimit         = 10
+	DefaultProfileMemoryReflectionRelatedLimit  = 3
+	DefaultProfileMemoryPromotionEnabled        = true
+	DefaultProfileMemoryPromotionInterval       = 3 * time.Minute
+	DefaultProfileMemoryPromotionLimit          = 10
+	DefaultProfileMemoryWriteEnabled            = true
+	DefaultMemoryEpisodicEnabled                = false
+	DefaultMemoryReflectionEnabled              = false
 )
 
 const (

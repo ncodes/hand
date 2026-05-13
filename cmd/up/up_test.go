@@ -21,6 +21,7 @@ import (
 
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/profile"
@@ -245,7 +246,7 @@ func TestRenderStartupPanel_IncludesSummaryProviderAndAPIModeWhenDistinct(t *tes
 	cfg := &config.Config{
 		Name: "daemon",
 		Models: config.ModelsConfig{
-			Main:    config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter", APIMode: config.DefaultModelAPIMode},
+			Main:    config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter", APIMode: constants.DefaultModelAPIMode},
 			Summary: config.SummaryModelConfig{Provider: "openai", APIMode: "responses"},
 		},
 		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051},

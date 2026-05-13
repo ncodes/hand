@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 )
 
 func TestNewParallel_BuildsFromAPIKeyOnly(t *testing.T) {
@@ -90,7 +90,7 @@ func TestParallelProvider_SearchNormalizesResults(t *testing.T) {
 			baseURL: server.URL,
 			client:  server.Client(),
 		},
-		maxCharsPerResult: config.DefaultWebMaxCharPerResult,
+		maxCharsPerResult: constants.DefaultWebMaxCharPerResult,
 	}
 
 	results, err := provider.Search(context.Background(), "parallel search", 3)
@@ -100,7 +100,7 @@ func TestParallelProvider_SearchNormalizesResults(t *testing.T) {
 	require.Equal(t, "parallel search", captured.Objective)
 	require.Equal(t, []string{"parallel search"}, captured.Queries)
 	require.Equal(t, 3, captured.MaxResults)
-	require.Equal(t, config.DefaultWebMaxCharPerResult, captured.Excerpts.MaxCharsPerResult)
+	require.Equal(t, constants.DefaultWebMaxCharPerResult, captured.Excerpts.MaxCharsPerResult)
 	require.Equal(t, []SearchResult{{
 		Title:    "Parallel result",
 		URL:      "https://example.com/parallel",

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
@@ -100,7 +100,7 @@ func (s *EnvironmentStub) ToolPolicy() tools.Policy {
 
 func (s *EnvironmentStub) NewIterationBudget() envbudget.IterationBudget {
 	if s.IterationBudget.Remaining() <= 0 {
-		return envbudget.New(config.DefaultMaxIterations)
+		return envbudget.New(constants.DefaultMaxIterations)
 	}
 
 	return s.IterationBudget

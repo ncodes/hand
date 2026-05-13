@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envplanstore "github.com/wandxy/hand/internal/environment/planstore"
@@ -165,7 +166,7 @@ func TestEnvironment_PrepareNormalizesConfig(t *testing.T) {
 
 	prepareTestEnvironment(t, env)
 	require.Equal(t, "Test Agent", cfg.Name)
-	require.Equal(t, config.DefaultWebMaxExtractCharPerResult, cfg.Web.MaxExtractCharPerResult)
+	require.Equal(t, constants.DefaultWebMaxExtractCharPerResult, cfg.Web.MaxExtractCharPerResult)
 	require.NotNil(t, cfg.Cap.Network)
 	require.True(t, *cfg.Cap.Network)
 }
@@ -1408,7 +1409,7 @@ func TestEnvironment_PrepareAppliesWebsitePolicyToWebTools(t *testing.T) {
 			BaseURL:                 server.URL,
 			BlockedDomainsEnabled:   true,
 			BlockedDomains:          []string{"blocked.example"},
-			MaxExtractCharPerResult: config.DefaultWebMaxExtractCharPerResult,
+			MaxExtractCharPerResult: constants.DefaultWebMaxExtractCharPerResult,
 		},
 	})
 
@@ -1692,7 +1693,7 @@ func TestEnvironment_NewIterationBudgetUsesConfigValue(t *testing.T) {
 }
 
 func TestEnvironment_NewIterationBudgetUsesDefaultWhenUnset(t *testing.T) {
-	require.Equal(t, config.DefaultMaxIterations, (&environment{}).NewIterationBudget().Remaining())
+	require.Equal(t, constants.DefaultMaxIterations, (&environment{}).NewIterationBudget().Remaining())
 }
 
 func TestEnvironment_ToolPolicyUsesCLIPlatformAndLocalCapabilities(t *testing.T) {

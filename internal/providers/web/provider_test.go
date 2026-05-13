@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 )
 
 func TestResolveOptions_UsesExplicitConfig(t *testing.T) {
@@ -111,9 +112,9 @@ func TestResolveOptions_UsesDetectedProviderFallback(t *testing.T) {
 	require.Equal(t, ProviderParallel, opts.Provider)
 	require.Equal(t, "parallel-key", opts.APIKey)
 	require.Equal(t, parallelDefaultBaseURL, opts.BaseURL)
-	require.Equal(t, config.DefaultWebMaxCharPerResult, opts.MaxCharPerResult)
-	require.Equal(t, config.DefaultWebMaxExtractCharPerResult, opts.MaxExtractCharPerResult)
-	require.Equal(t, config.DefaultWebMaxExtractResponseBytes, opts.MaxExtractResponseBytes)
+	require.Equal(t, constants.DefaultWebMaxCharPerResult, opts.MaxCharPerResult)
+	require.Equal(t, constants.DefaultWebMaxExtractCharPerResult, opts.MaxExtractCharPerResult)
+	require.Equal(t, constants.DefaultWebMaxExtractResponseBytes, opts.MaxExtractResponseBytes)
 }
 
 func TestResolveOptions_UsesConfiguredBaseURL(t *testing.T) {

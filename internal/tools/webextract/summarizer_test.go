@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/models"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
 )
@@ -52,7 +53,7 @@ func TestNewExtractSummarizer_UsesSummaryModelEffective(t *testing.T) {
 	modelSummarizer, ok := summarizer.(ExtractSummarizer)
 	require.True(t, ok)
 	require.Equal(t, "openai/gpt-4.1-mini", modelSummarizer.Model)
-	require.Equal(t, config.DefaultModelAPIMode, modelSummarizer.APIMode)
+	require.Equal(t, constants.DefaultModelAPIMode, modelSummarizer.APIMode)
 }
 
 func TestNewExtractSummarizer_FallsBackToMainModel(t *testing.T) {
