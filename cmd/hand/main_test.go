@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
+	profilecmd "github.com/wandxy/hand/cmd/profile"
 	upcmd "github.com/wandxy/hand/cmd/up"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
@@ -378,6 +379,55 @@ func TestConfigureProfileDefaults_IgnoresProfileTextAfterTerminator(t *testing.T
 	require.Equal(t, filepath.Join(profileHome, "config.yaml"), configFile)
 }
 
+func TestConfigureProfileDefaults_UsesStoredCurrentProfile(t *testing.T) {
+	clearEnvKeys(t, "HAND_PROFILE", "HAND_ENV_FILE", "HAND_CONFIG")
+	resetGlobals(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	_, err := profile.StoreCurrentName("Work", home)
+	require.NoError(t, err)
+
+	err = configureProfileDefaults([]string{"hand"})
+	require.NoError(t, err)
+
+	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	require.Equal(t, filepath.Join(profileHome, ".env"), envFile)
+	require.Equal(t, filepath.Join(profileHome, "config.yaml"), configFile)
+}
+
+func TestConfigureProfileDefaults_ProfileFlagOverridesStoredCurrentProfile(t *testing.T) {
+	clearEnvKeys(t, "HAND_PROFILE", "HAND_ENV_FILE", "HAND_CONFIG")
+	resetGlobals(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	_, err := profile.StoreCurrentName("Work", home)
+	require.NoError(t, err)
+
+	err = configureProfileDefaults([]string{"hand", "--profile", "Desk"})
+
+	require.NoError(t, err)
+	profileHome := filepath.Join(home, ".hand", "profiles", "desk")
+	require.Equal(t, filepath.Join(profileHome, ".env"), envFile)
+	require.Equal(t, filepath.Join(profileHome, "config.yaml"), configFile)
+}
+
+func TestConfigureProfileDefaults_EnvOverridesStoredCurrentProfile(t *testing.T) {
+	clearEnvKeys(t, "HAND_PROFILE", "HAND_ENV_FILE", "HAND_CONFIG")
+	resetGlobals(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HAND_PROFILE", "Desk")
+	_, err := profile.StoreCurrentName("Work", home)
+	require.NoError(t, err)
+
+	err = configureProfileDefaults([]string{"hand"})
+
+	require.NoError(t, err)
+	profileHome := filepath.Join(home, ".hand", "profiles", "desk")
+	require.Equal(t, filepath.Join(profileHome, ".env"), envFile)
+	require.Equal(t, filepath.Join(profileHome, "config.yaml"), configFile)
+}
+
 func TestNewCommand_RootActionShowsHelp(t *testing.T) {
 	clearEnvKeys(t, "HAND_ENV_FILE")
 	resetGlobals(t)
@@ -391,6 +441,7 @@ func TestNewCommand_RootActionShowsHelp(t *testing.T) {
 	require.Contains(t, output.String(), "EXAMPLES:")
 	require.Contains(t, output.String(), "hand up")
 	require.Contains(t, output.String(), "hand --profile work up")
+	require.Contains(t, output.String(), "hand profile use work")
 	require.Contains(t, output.String(), "hand --config ./config.yaml --trace.enabled up")
 	require.Contains(t, output.String(), `hand "summarize the failing tests"`)
 	require.Contains(t, output.String(), `hand --profile work "continue"`)
@@ -920,6 +971,7 @@ func resetGlobals(t *testing.T) {
 	originalConfigFile := configFile
 	originalRootOutput := rootOutput
 	originalDoctorOutput := doctorcmd.SetOutput(io.Discard)
+	originalProfileOutput := profilecmd.SetOutput(io.Discard)
 	originalStartupOutput := upcmd.SetOutput(io.Discard)
 	originalConfig := config.Get()
 	originalProfile := profile.Active()
@@ -928,6 +980,7 @@ func resetGlobals(t *testing.T) {
 		configFile = originalConfigFile
 		rootOutput = originalRootOutput
 		doctorcmd.SetOutput(originalDoctorOutput)
+		profilecmd.SetOutput(originalProfileOutput)
 		upcmd.SetOutput(originalStartupOutput)
 		config.Set(originalConfig)
 		profile.SetActive(originalProfile)

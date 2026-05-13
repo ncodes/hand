@@ -2,6 +2,7 @@ package profile
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -64,6 +65,11 @@ func TestWithMetadataPaths_KeepsExplicitPaths(t *testing.T) {
 	require.Equal(t, "/tmp/hand.pid", resolved.PIDPath)
 }
 
+func TestWithMetadataPaths_ReturnsProfileWhenHomeDirEmpty(t *testing.T) {
+	resolved := Profile{Name: "work"}
+	require.Equal(t, resolved, WithMetadataPaths(resolved))
+}
+
 func TestResolve_UsesExplicitProfileBeforeEnv(t *testing.T) {
 	resolved, err := Resolve(ResolveOptions{
 		Name:        "Work",
@@ -85,6 +91,56 @@ func TestResolve_UsesEnvProfile(t *testing.T) {
 
 	require.Equal(t, "research_01", resolved.Name)
 	require.Equal(t, filepath.Join("/Users/me", ".hand", "profiles", "research_01"), resolved.HomeDir)
+}
+
+func TestResolve_UsesStoredCurrentProfile(t *testing.T) {
+	home := t.TempDir()
+	_, err := StoreCurrentName("Work", home)
+	require.NoError(t, err)
+
+	resolved, err := Resolve(ResolveOptions{UserHomeDir: home})
+	require.NoError(t, err)
+
+	require.Equal(t, "work", resolved.Name)
+	require.Equal(t, filepath.Join(home, ".hand", "profiles", "work"), resolved.HomeDir)
+}
+
+func TestResolve_ExplicitProfileOverridesStoredCurrentProfile(t *testing.T) {
+	home := t.TempDir()
+	_, err := StoreCurrentName("Work", home)
+	require.NoError(t, err)
+
+	resolved, err := Resolve(ResolveOptions{Name: "Desk", UserHomeDir: home})
+	require.NoError(t, err)
+
+	require.Equal(t, "desk", resolved.Name)
+	require.Equal(t, filepath.Join(home, ".hand", "profiles", "desk"), resolved.HomeDir)
+}
+
+func TestResolve_EnvProfileOverridesStoredCurrentProfile(t *testing.T) {
+	home := t.TempDir()
+	_, err := StoreCurrentName("Work", home)
+	require.NoError(t, err)
+
+	resolved, err := Resolve(ResolveOptions{
+		Env:         map[string]string{EnvName: "Desk"},
+		UserHomeDir: home,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, "desk", resolved.Name)
+	require.Equal(t, filepath.Join(home, ".hand", "profiles", "desk"), resolved.HomeDir)
+}
+
+func TestResolve_ReturnsInvalidStoredCurrentProfileError(t *testing.T) {
+	home := t.TempDir()
+	path, err := CurrentPath(home)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte("work/team\n"), 0o600))
+
+	_, err = Resolve(ResolveOptions{UserHomeDir: home})
+	require.EqualError(t, err, `invalid profile name "work/team": must match `+namePattern)
 }
 
 func TestResolve_UsesProcessEnvProfile(t *testing.T) {
@@ -144,6 +200,254 @@ func TestResolve_ReturnsEmptyHomeDirError(t *testing.T) {
 
 	_, err := Resolve(ResolveOptions{Name: "desk"})
 	require.EqualError(t, err, "home directory is required")
+}
+
+func TestRootDir_ReturnsHomeDirError(t *testing.T) {
+	originalUserHomeDir := userHomeDir
+	userHomeDir = func() (string, error) {
+		return "", errors.New("home unavailable")
+	}
+	t.Cleanup(func() {
+		userHomeDir = originalUserHomeDir
+	})
+
+	_, err := RootDir("")
+	require.EqualError(t, err, "resolve user home dir: home unavailable")
+}
+
+func TestProfilesDir_ReturnsHomeDirError(t *testing.T) {
+	originalUserHomeDir := userHomeDir
+	userHomeDir = func() (string, error) {
+		return "", errors.New("home unavailable")
+	}
+	t.Cleanup(func() {
+		userHomeDir = originalUserHomeDir
+	})
+
+	_, err := ProfilesDir("")
+	require.EqualError(t, err, "resolve user home dir: home unavailable")
+}
+
+func TestCurrentPath(t *testing.T) {
+	home := t.TempDir()
+
+	path, err := CurrentPath(home)
+	require.NoError(t, err)
+
+	require.Equal(t, filepath.Join(home, ".hand", "current-profile"), path)
+}
+
+func TestCurrentPath_ReturnsHomeDirError(t *testing.T) {
+	originalUserHomeDir := userHomeDir
+	userHomeDir = func() (string, error) {
+		return "", errors.New("home unavailable")
+	}
+	t.Cleanup(func() {
+		userHomeDir = originalUserHomeDir
+	})
+
+	_, err := CurrentPath("")
+	require.EqualError(t, err, "resolve user home dir: home unavailable")
+}
+
+func TestLoadCurrentName_ReturnsFalseWhenMissing(t *testing.T) {
+	name, ok, err := LoadCurrentName(t.TempDir())
+	require.NoError(t, err)
+
+	require.Empty(t, name)
+	require.False(t, ok)
+}
+
+func TestLoadCurrentName_ReturnsHomeDirError(t *testing.T) {
+	originalUserHomeDir := userHomeDir
+	userHomeDir = func() (string, error) {
+		return "", errors.New("home unavailable")
+	}
+	t.Cleanup(func() {
+		userHomeDir = originalUserHomeDir
+	})
+
+	_, _, err := LoadCurrentName("")
+	require.EqualError(t, err, "resolve user home dir: home unavailable")
+}
+
+func TestLoadCurrentName_ReturnsReadError(t *testing.T) {
+	home := t.TempDir()
+	path, err := CurrentPath(home)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(path, 0o700))
+
+	_, _, err = LoadCurrentName(home)
+	require.ErrorContains(t, err, "read current profile:")
+}
+
+func TestLoadCurrentName_ReturnsInvalidStoredNameError(t *testing.T) {
+	home := t.TempDir()
+	path, err := CurrentPath(home)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte("work/team\n"), 0o600))
+
+	_, _, err = LoadCurrentName(home)
+	require.EqualError(t, err, `invalid profile name "work/team": must match `+namePattern)
+}
+
+func TestStoreCurrentNameAndLoadCurrentName(t *testing.T) {
+	home := t.TempDir()
+
+	stored, err := StoreCurrentName("Work", home)
+	require.NoError(t, err)
+	name, ok, err := LoadCurrentName(home)
+	require.NoError(t, err)
+
+	require.Equal(t, "work", stored)
+	require.True(t, ok)
+	require.Equal(t, "work", name)
+}
+
+func TestStoreCurrentName_RejectsInvalidName(t *testing.T) {
+	_, err := StoreCurrentName("work/team", t.TempDir())
+	require.EqualError(t, err, `invalid profile name "work/team": must match `+namePattern)
+}
+
+func TestStoreCurrentName_ReturnsCreateDirError(t *testing.T) {
+	home := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".hand"), []byte("file"), 0o600))
+
+	_, err := StoreCurrentName("work", home)
+	require.ErrorContains(t, err, "create profile selector dir:")
+}
+
+func TestStoreCurrentName_ReturnsWriteError(t *testing.T) {
+	home := t.TempDir()
+	path, err := CurrentPath(home)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(path, 0o700))
+
+	_, err = StoreCurrentName("work", home)
+	require.ErrorContains(t, err, "write current profile:")
+}
+
+func TestStoreCurrentName_ReturnsHomeDirError(t *testing.T) {
+	originalUserHomeDir := userHomeDir
+	userHomeDir = func() (string, error) {
+		return "", errors.New("home unavailable")
+	}
+	t.Cleanup(func() {
+		userHomeDir = originalUserHomeDir
+	})
+
+	_, err := StoreCurrentName("work", "")
+	require.EqualError(t, err, "resolve user home dir: home unavailable")
+}
+
+func TestInit_CreatesProfileDir(t *testing.T) {
+	home := t.TempDir()
+
+	resolved, err := Init("Work", home)
+	require.NoError(t, err)
+
+	require.Equal(t, "work", resolved.Name)
+	require.DirExists(t, filepath.Join(home, ".hand", "profiles", "work"))
+}
+
+func TestInit_IsIdempotent(t *testing.T) {
+	home := t.TempDir()
+
+	first, err := Init("Work", home)
+	require.NoError(t, err)
+	second, err := Init("Work", home)
+	require.NoError(t, err)
+
+	require.Equal(t, first, second)
+}
+
+func TestInit_ReturnsCreateProfileDirError(t *testing.T) {
+	home := t.TempDir()
+	profilesDir, err := ProfilesDir(home)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(profilesDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "work"), []byte("file"), 0o600))
+
+	_, err = Init("Work", home)
+	require.ErrorContains(t, err, "create profile dir:")
+}
+
+func TestInit_ReturnsResolveError(t *testing.T) {
+	_, err := Init("work/team", t.TempDir())
+	require.EqualError(t, err, `invalid profile name "work/team": must match `+namePattern)
+}
+
+func TestList_ReturnsSortedValidProfileDirs(t *testing.T) {
+	home := t.TempDir()
+	profilesDir, err := ProfilesDir(home)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(profilesDir, "zeta"), 0o700))
+	require.NoError(t, os.MkdirAll(filepath.Join(profilesDir, "Alpha"), 0o700))
+	require.NoError(t, os.MkdirAll(filepath.Join(profilesDir, "work.team"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "file"), []byte("ignored"), 0o600))
+
+	names, err := List(home)
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"alpha", "zeta"}, names)
+}
+
+func TestList_ReturnsEmptyWhenProfilesDirMissing(t *testing.T) {
+	names, err := List(t.TempDir())
+	require.NoError(t, err)
+
+	require.Empty(t, names)
+}
+
+func TestList_ReturnsReadDirError(t *testing.T) {
+	home := t.TempDir()
+	profilesDir, err := ProfilesDir(home)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(profilesDir), 0o700))
+	require.NoError(t, os.WriteFile(profilesDir, []byte("file"), 0o600))
+
+	_, err = List(home)
+	require.ErrorContains(t, err, "read profiles dir:")
+}
+
+func TestList_ReturnsHomeDirError(t *testing.T) {
+	originalUserHomeDir := userHomeDir
+	userHomeDir = func() (string, error) {
+		return "", errors.New("home unavailable")
+	}
+	t.Cleanup(func() {
+		userHomeDir = originalUserHomeDir
+	})
+
+	_, err := List("")
+	require.EqualError(t, err, "resolve user home dir: home unavailable")
+}
+
+func TestResolveName(t *testing.T) {
+	tests := []struct {
+		name         string
+		explicitName string
+		env          map[string]string
+		want         string
+	}{
+		{name: "default", want: DefaultName},
+		{name: "env", env: map[string]string{EnvName: "Work"}, want: "work"},
+		{name: "explicit", explicitName: "Desk", env: map[string]string{EnvName: "Work"}, want: "desk"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ResolveName(tc.explicitName, tc.env)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestResolveName_ReturnsInvalidNameError(t *testing.T) {
+	_, err := ResolveName("work/team", nil)
+	require.EqualError(t, err, `invalid profile name "work/team": must match `+namePattern)
 }
 
 func TestNormalizeName(t *testing.T) {

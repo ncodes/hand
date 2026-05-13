@@ -1,0 +1,204 @@
+package profilecmd
+
+import (
+	"bytes"
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/wandxy/hand/internal/profile"
+)
+
+func TestCommandUseStoresCurrentProfile(t *testing.T) {
+	resetProfileCommand(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	var output bytes.Buffer
+	SetOutput(&output)
+	err := NewCommand().Run(context.Background(), []string{"profile", "use", "Work"})
+	require.NoError(t, err)
+
+	path := filepath.Join(home, ".hand", "current-profile")
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, "work\n", string(data))
+	require.Equal(t, "work\n", output.String())
+}
+
+func TestCommandUseRequiresName(t *testing.T) {
+	resetProfileCommand(t)
+
+	err := NewCommand().Run(context.Background(), []string{"profile", "use"})
+	require.EqualError(t, err, "profile name is required")
+}
+
+func TestCommandCurrentUsesStoredProfile(t *testing.T) {
+	resetProfileCommand(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	_, err := profile.StoreCurrentName("Work", home)
+	require.NoError(t, err)
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{
+		Name:    "override",
+		HomeDir: filepath.Join(home, ".hand", "profiles", "override"),
+	}))
+
+	var output bytes.Buffer
+	SetOutput(&output)
+	err = NewCommand().Run(context.Background(), []string{"profile", "current"})
+	require.NoError(t, err)
+
+	require.Equal(t, "work\n", output.String())
+}
+
+func TestCommandCurrentDefaultsWhenStoredProfileMissing(t *testing.T) {
+	resetProfileCommand(t)
+	t.Setenv("HOME", t.TempDir())
+
+	var output bytes.Buffer
+	SetOutput(&output)
+	err := NewCommand().Run(context.Background(), []string{"profile", "current"})
+	require.NoError(t, err)
+
+	require.Equal(t, "default\n", output.String())
+}
+
+func TestCommandCurrentReturnsInvalidStoredProfileError(t *testing.T) {
+	resetProfileCommand(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	currentPath := filepath.Join(home, ".hand", "current-profile")
+	require.NoError(t, os.MkdirAll(filepath.Dir(currentPath), 0o700))
+	require.NoError(t, os.WriteFile(currentPath, []byte("work/team\n"), 0o600))
+
+	err := NewCommand().Run(context.Background(), []string{"profile", "current"})
+	require.EqualError(t, err, `invalid profile name "work/team": must match [a-zA-Z0-9][a-zA-Z0-9_-]{0,63}`)
+}
+
+func TestCommandInitCreatesProfileDirIdempotently(t *testing.T) {
+	resetProfileCommand(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	var output bytes.Buffer
+	SetOutput(&output)
+	cmd := NewCommand()
+	err := cmd.Run(context.Background(), []string{"profile", "init", "Work"})
+	require.NoError(t, err)
+	err = cmd.Run(context.Background(), []string{"profile", "init", "Work"})
+	require.NoError(t, err)
+
+	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	require.DirExists(t, profileHome)
+	require.Equal(t, profileHome+"\n"+profileHome+"\n", output.String())
+}
+
+func TestCommandInitRequiresName(t *testing.T) {
+	resetProfileCommand(t)
+
+	err := NewCommand().Run(context.Background(), []string{"profile", "init"})
+	require.EqualError(t, err, "profile name is required")
+}
+
+func TestCommandListPrintsExistingProfileDirs(t *testing.T) {
+	resetProfileCommand(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	profilesDir := filepath.Join(home, ".hand", "profiles")
+	require.NoError(t, os.MkdirAll(filepath.Join(profilesDir, "work"), 0o700))
+	require.NoError(t, os.MkdirAll(filepath.Join(profilesDir, "Personal"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "ignored"), []byte("file"), 0o600))
+
+	var output bytes.Buffer
+	SetOutput(&output)
+	err := NewCommand().Run(context.Background(), []string{"profile", "list"})
+	require.NoError(t, err)
+
+	require.Equal(t, "personal\nwork\n", output.String())
+}
+
+func TestCommandPathPrintsExplicitProfilePath(t *testing.T) {
+	resetProfileCommand(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	var output bytes.Buffer
+	SetOutput(&output)
+	err := NewCommand().Run(context.Background(), []string{"profile", "path", "Work"})
+	require.NoError(t, err)
+
+	require.Equal(t, filepath.Join(home, ".hand", "profiles", "work")+"\n", output.String())
+}
+
+func TestCommandPathPrintsActiveProfilePath(t *testing.T) {
+	resetProfileCommand(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{
+		Name:    "desk",
+		HomeDir: filepath.Join(home, ".hand", "profiles", "desk"),
+	}))
+
+	var output bytes.Buffer
+	SetOutput(&output)
+	err := NewCommand().Run(context.Background(), []string{"profile", "path"})
+	require.NoError(t, err)
+
+	require.Equal(t, filepath.Join(home, ".hand", "profiles", "desk")+"\n", output.String())
+}
+
+func TestCommandPathUsesStoredCurrentProfile(t *testing.T) {
+	resetProfileCommand(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	_, err := profile.StoreCurrentName("Work", home)
+	require.NoError(t, err)
+
+	var output bytes.Buffer
+	SetOutput(&output)
+	err = NewCommand().Run(context.Background(), []string{"profile", "path"})
+	require.NoError(t, err)
+
+	require.Equal(t, filepath.Join(home, ".hand", "profiles", "work")+"\n", output.String())
+}
+
+func TestCommandDoctorPrintsProfilePathsAndStatuses(t *testing.T) {
+	resetProfileCommand(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	require.NoError(t, os.MkdirAll(profileHome, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte("name: test\n"), 0o600))
+
+	var output bytes.Buffer
+	SetOutput(&output)
+	err := NewCommand().Run(context.Background(), []string{"profile", "doctor", "Work"})
+	require.NoError(t, err)
+
+	got := output.String()
+	require.Contains(t, got, "name=work\n")
+	require.Contains(t, got, "home="+profileHome+"\n")
+	require.Contains(t, got, "config="+filepath.Join(profileHome, "config.yaml")+"\n")
+	require.Contains(t, got, "env="+filepath.Join(profileHome, ".env")+"\n")
+	require.Contains(t, got, "runtime="+filepath.Join(profileHome, "runtime.json")+"\n")
+	require.Contains(t, got, "pid="+filepath.Join(profileHome, "hand.pid")+"\n")
+	require.Contains(t, got, "home_exists=true\n")
+	require.Contains(t, got, "config_exists=true\n")
+	require.Contains(t, got, "env_exists=false\n")
+	require.Contains(t, got, "runtime_exists=false\n")
+}
+
+func resetProfileCommand(t *testing.T) {
+	t.Helper()
+	originalOutput := SetOutput(nil)
+	originalProfile := profile.Active()
+	t.Cleanup(func() {
+		SetOutput(originalOutput)
+		profile.SetActive(originalProfile)
+	})
+	profile.SetActive(profile.Profile{})
+}

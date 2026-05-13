@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -46,20 +47,137 @@ type ResolveOptions struct {
 	UserHomeDir string
 }
 
-// Resolve returns the active profile from explicit options, environment, or the default.
+// Resolve returns the active profile from explicit options, environment, stored current, or the default.
 func Resolve(opts ResolveOptions) (Profile, error) {
-	name, err := ResolveName(opts.Name, opts.Env)
+	homeDir, err := resolveHomeDir(opts.UserHomeDir)
 	if err != nil {
 		return Profile{}, err
 	}
 
-	homeDir, err := resolveHomeDir(opts.UserHomeDir)
+	name, err := resolveNameWithStoredCurrent(opts.Name, opts.Env, homeDir)
 	if err != nil {
 		return Profile{}, err
 	}
 
 	profileHome := filepath.Join(homeDir, ".hand", "profiles", name)
 	return WithMetadataPaths(Profile{Name: name, HomeDir: profileHome}), nil
+}
+
+// RootDir returns the machine-local Hand root for profile selectors and profiles.
+func RootDir(homeDir string) (string, error) {
+	homeDir, err := resolveHomeDir(homeDir)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(homeDir, ".hand"), nil
+}
+
+// ProfilesDir returns the directory containing profile homes.
+func ProfilesDir(homeDir string) (string, error) {
+	root, err := RootDir(homeDir)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(root, "profiles"), nil
+}
+
+// CurrentPath returns the machine-local stored-current-profile selector path.
+func CurrentPath(homeDir string) (string, error) {
+	root, err := RootDir(homeDir)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(root, "current-profile"), nil
+}
+
+// LoadCurrentName returns the stored current profile name when configured.
+func LoadCurrentName(homeDir string) (string, bool, error) {
+	path, err := CurrentPath(homeDir)
+	if err != nil {
+		return "", false, err
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", false, nil
+		}
+
+		return "", false, fmt.Errorf("read current profile: %w", err)
+	}
+
+	name, err := NormalizeName(string(data))
+	if err != nil {
+		return "", false, err
+	}
+
+	return name, true, nil
+}
+
+// StoreCurrentName validates and stores the machine-local current profile name.
+func StoreCurrentName(name string, homeDir string) (string, error) {
+	name, err := NormalizeName(name)
+	if err != nil {
+		return "", err
+	}
+
+	path, err := CurrentPath(homeDir)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return "", fmt.Errorf("create profile selector dir: %w", err)
+	}
+	if err := os.WriteFile(path, []byte(name+"\n"), 0o600); err != nil {
+		return "", fmt.Errorf("write current profile: %w", err)
+	}
+
+	return name, nil
+}
+
+// Init creates the profile home directory and returns the resolved profile.
+func Init(name string, homeDir string) (Profile, error) {
+	resolved, err := Resolve(ResolveOptions{Name: name, UserHomeDir: homeDir})
+	if err != nil {
+		return Profile{}, err
+	}
+	if err := os.MkdirAll(resolved.HomeDir, 0o700); err != nil {
+		return Profile{}, fmt.Errorf("create profile dir: %w", err)
+	}
+
+	return resolved, nil
+}
+
+// List returns profile names with existing profile directories.
+func List(homeDir string) ([]string, error) {
+	profilesDir, err := ProfilesDir(homeDir)
+	if err != nil {
+		return nil, err
+	}
+
+	entries, err := os.ReadDir(profilesDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("read profiles dir: %w", err)
+	}
+
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() || !IsValidName(entry.Name()) {
+			continue
+		}
+
+		names = append(names, strings.ToLower(entry.Name()))
+	}
+	sort.Strings(names)
+
+	return names, nil
 }
 
 // WithMetadataPaths returns profile with empty metadata paths filled from HomeDir.
@@ -98,7 +216,7 @@ func Active() Profile {
 	return active
 }
 
-// ResolveName returns the normalized profile name from explicit input, environment, or default.
+// ResolveName returns the normalized profile name from explicit input, environment, or default without reading stored current.
 func ResolveName(explicitName string, env map[string]string) (string, error) {
 	name := strings.TrimSpace(explicitName)
 	if name == "" {
@@ -136,6 +254,26 @@ func envValue(env map[string]string, key string) string {
 	}
 
 	return os.Getenv(key)
+}
+
+func resolveNameWithStoredCurrent(explicitName string, env map[string]string, homeDir string) (string, error) {
+	name := strings.TrimSpace(explicitName)
+	if name == "" {
+		name = strings.TrimSpace(envValue(env, EnvName))
+	}
+	if name != "" {
+		return NormalizeName(name)
+	}
+
+	current, ok, err := LoadCurrentName(homeDir)
+	if err != nil {
+		return "", err
+	}
+	if ok {
+		return current, nil
+	}
+
+	return DefaultName, nil
 }
 
 func resolveHomeDir(homeDir string) (string, error) {

@@ -12,6 +12,7 @@ import (
 	cli "github.com/urfave/cli/v3"
 
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
+	profilecmd "github.com/wandxy/hand/cmd/profile"
 	sessioncmd "github.com/wandxy/hand/cmd/session"
 	tracecmd "github.com/wandxy/hand/cmd/trace"
 	upcmd "github.com/wandxy/hand/cmd/up"
@@ -63,6 +64,7 @@ EXAMPLES:
    Start the agent runtime:
       hand up
       hand --profile work up
+      hand profile use work
       hand --config ./config.yaml --trace.enabled up
 
    Chat with the agent:
@@ -117,6 +119,7 @@ func newCommand() *cli.Command {
 		Commands: []*cli.Command{
 			newDatabaseCommand(),
 			doctorcmd.NewCommand(),
+			profilecmd.NewCommand(),
 			sessioncmd.NewCommand(),
 			tracecmd.NewCommand(),
 			upcmd.NewCommand(),
