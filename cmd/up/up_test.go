@@ -23,6 +23,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/internal/profile"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -310,6 +311,36 @@ func TestServeRPC_ReturnsNilWhenGRPCServeReturnsServerStopped(t *testing.T) {
 	}, &agentstub.AgentRunnerStub{})
 
 	require.NoError(t, err)
+}
+
+func TestServeRPC_WritesRuntimeMetadataWithActualPort(t *testing.T) {
+	origListen := listenFunc
+	origServe := grpcServerServe
+	originalProfile := profile.Active()
+	t.Cleanup(func() {
+		listenFunc = origListen
+		grpcServerServe = origServe
+		profile.SetActive(originalProfile)
+	})
+
+	home := t.TempDir()
+	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: profileHome}))
+	listenFunc = net.Listen
+	grpcServerServe = func(*grpc.Server, net.Listener) error {
+		return grpc.ErrServerStopped
+	}
+
+	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
+	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{})
+
+	require.NoError(t, err)
+	require.Greater(t, cfg.RPC.Port, 0)
+	data, err := os.ReadFile(filepath.Join(profileHome, "runtime.json"))
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"profile": "work"`)
+	require.Contains(t, string(data), `"address": "127.0.0.1"`)
+	require.Contains(t, string(data), `"port": `)
 }
 
 func TestNewAgentRunnerImpl_ReturnsAgent(t *testing.T) {

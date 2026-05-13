@@ -1412,7 +1412,18 @@ func TestConfig_ValidateRejectsInvalidRPCPort(t *testing.T) {
 		Log:    LogConfig{Level: "info"},
 	}
 
-	require.EqualError(t, cfg.Validate(), "rpc port must be greater than zero; set HAND_RPC_PORT, provide it in config, or use --rpc.port")
+	require.EqualError(t, cfg.Validate(), "rpc port must be non-negative; set HAND_RPC_PORT, provide it in config, or use --rpc.port")
+}
+
+func TestConfig_ValidateAllowsZeroRPCPortForDynamicBind(t *testing.T) {
+	cfg := &Config{
+		Name:   "test-agent",
+		Models: ModelsConfig{Key: "test-key", Main: MainModelConfig{Name: defaultModel, Provider: "openai"}},
+		RPC:    RPCConfig{Address: "127.0.0.1", Port: 0},
+		Log:    LogConfig{Level: "info"},
+	}
+
+	require.NoError(t, cfg.Validate())
 }
 
 func TestConfig_ValidateRejectsInvalidMaxIterations(t *testing.T) {

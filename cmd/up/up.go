@@ -22,7 +22,9 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/diagnostics"
 	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/internal/profile"
 	"github.com/wandxy/hand/internal/rpc/server"
+	handruntime "github.com/wandxy/hand/internal/runtime"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -78,6 +80,8 @@ var serveRPCShutdownTimeout = 5 * time.Second
 
 // postShutdownServeErrHook is swapped in tests to cover the final serverErr branch.
 var postShutdownServeErrHook = func(err error) error { return err }
+
+var writeRuntimeMetadata = handruntime.WriteActive
 
 // openAIClientFactory is swapped in tests to simulate client construction failures.
 var openAIClientFactory = models.NewOpenAIClient
@@ -180,6 +184,15 @@ var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) 
 		return err
 	}
 	defer lis.Close()
+
+	if tcpAddr, ok := lis.Addr().(*net.TCPAddr); ok {
+		cfg.RPC.Port = tcpAddr.Port
+	}
+	if active := profile.Active(); strings.TrimSpace(active.HomeDir) != "" || strings.TrimSpace(active.RuntimePath) != "" {
+		if _, err := writeRuntimeMetadata(cfg.RPC.Address, cfg.RPC.Port); err != nil {
+			return err
+		}
+	}
 
 	grpcSrv := server.New(agent, server.Options{Health: true})
 

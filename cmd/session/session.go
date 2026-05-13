@@ -13,6 +13,7 @@ import (
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	"github.com/wandxy/hand/internal/runtime"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -245,6 +246,12 @@ func getSessionClient(ctx context.Context, cmd *cli.Command) (rpcclient.SessionC
 	}
 
 	handcli.ApplyConfigOverrides(cmd, cfg)
+
+	endpoint, err := runtime.ResolveRPC(ctx, cmd, cfg)
+	if err != nil {
+		return nil, err
+	}
+	cfg.RPC = endpoint
 
 	config.Set(cfg)
 	_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)

@@ -1481,8 +1481,8 @@ func (c *Config) Validate() error {
 		return errors.New("rpc address is required; set HAND_RPC_ADDRESS, provide it in config, or use --rpc.address")
 	}
 
-	if c.RPC.Port <= 0 {
-		return errors.New("rpc port must be greater than zero; set HAND_RPC_PORT, provide it in config, or use --rpc.port")
+	if c.RPC.Port < 0 {
+		return errors.New("rpc port must be non-negative; set HAND_RPC_PORT, provide it in config, or use --rpc.port")
 	}
 
 	if c.Session.MaxIterations <= 0 {

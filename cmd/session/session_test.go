@@ -3,6 +3,10 @@ package session
 import (
 	"bytes"
 	"context"
+	"io"
+	"net"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -10,12 +14,15 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
+	"github.com/wandxy/hand/internal/profile"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	"github.com/wandxy/hand/internal/runtime"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
 )
 
 func TestNewCommandSessionNewCallsRPC(t *testing.T) {
+	setSessionTestProfile(t)
 	originalNewClient := newClient
 	originalOutput := sessionOutput
 	t.Cleanup(func() {
@@ -38,6 +45,7 @@ func TestNewCommandSessionNewCallsRPC(t *testing.T) {
 }
 
 func TestNewCommandSessionListCallsRPC(t *testing.T) {
+	setSessionTestProfile(t)
 	originalNewClient := newClient
 	originalOutput := sessionOutput
 	t.Cleanup(func() {
@@ -59,7 +67,49 @@ func TestNewCommandSessionListCallsRPC(t *testing.T) {
 	require.Equal(t, "default\nproject-a\n", output.String())
 }
 
+func TestNewCommandSessionListUsesProfileRuntimeEndpoint(t *testing.T) {
+	originalNewClient := newClient
+	originalOutput := sessionOutput
+	originalProfile := profile.Active()
+	t.Cleanup(func() {
+		newClient = originalNewClient
+		sessionOutput = originalOutput
+		profile.SetActive(originalProfile)
+	})
+
+	home := t.TempDir()
+	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	require.NoError(t, os.MkdirAll(profileHome, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte("models:\n  verify: false\n"), 0o600))
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: profileHome}))
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, listener.Close())
+	})
+	port := listener.Addr().(*net.TCPAddr).Port
+	_, err = runtime.WriteActive("127.0.0.1", port)
+	require.NoError(t, err)
+
+	sessionOutput = io.Discard
+	stub := &agentstub.AgentServiceStub{Sessions: []storage.Session{{ID: "default"}}}
+	var got *config.Config
+	newClient = func(_ context.Context, cfg *config.Config) (rpcclient.SessionClient, error) {
+		got = cfg
+		return stub, nil
+	}
+
+	err = NewCommand().Run(context.Background(), []string{"session", "list"})
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Equal(t, "127.0.0.1", got.RPC.Address)
+	require.Equal(t, port, got.RPC.Port)
+}
+
 func TestNewCommandSessionCurrentCallsRPC(t *testing.T) {
+	setSessionTestProfile(t)
 	originalNewClient := newClient
 	originalOutput := sessionOutput
 	t.Cleanup(func() {
@@ -82,6 +132,7 @@ func TestNewCommandSessionCurrentCallsRPC(t *testing.T) {
 }
 
 func TestNewCommandSessionUseCallsRPC(t *testing.T) {
+	setSessionTestProfile(t)
 	originalNewClient := newClient
 	originalOutput := sessionOutput
 	t.Cleanup(func() {
@@ -105,6 +156,7 @@ func TestNewCommandSessionUseCallsRPC(t *testing.T) {
 }
 
 func TestNewCommandSessionCompactCallsRPC(t *testing.T) {
+	setSessionTestProfile(t)
 	originalNewClient := newClient
 	originalOutput := sessionOutput
 	t.Cleanup(func() {
@@ -134,6 +186,7 @@ func TestNewCommandSessionCompactCallsRPC(t *testing.T) {
 }
 
 func TestNewCommandSessionRepairCallsRPC(t *testing.T) {
+	setSessionTestProfile(t)
 	originalNewClient := newClient
 	originalOutput := sessionOutput
 	t.Cleanup(func() {
@@ -168,6 +221,7 @@ func TestNewCommandSessionRepairCallsRPC(t *testing.T) {
 }
 
 func TestNewCommandSessionStatusCallsRPC(t *testing.T) {
+	setSessionTestProfile(t)
 	originalNewClient := newClient
 	originalOutput := sessionOutput
 	t.Cleanup(func() {
@@ -201,4 +255,16 @@ func TestNewCommandSessionStatusCallsRPC(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "id=project-a created_at=2024-05-01T08:00:00Z updated_at=2024-05-02T09:00:00Z compaction_status=succeeded offset=12 size=20 length=128000 used=64000 remaining=64000 pct_used=0.5000 pct_remaining=0.5000\n", output.String())
+}
+
+func setSessionTestProfile(t *testing.T) {
+	t.Helper()
+	t.Setenv("HAND_RPC_ADDRESS", "")
+	t.Setenv("HAND_RPC_PORT", "")
+
+	original := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(original)
+	})
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: "test", HomeDir: t.TempDir()}))
 }

@@ -23,6 +23,7 @@ import (
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	"github.com/wandxy/hand/internal/profile"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	"github.com/wandxy/hand/internal/runtime"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -489,6 +490,55 @@ models:
 	require.NotNil(t, got)
 	require.Equal(t, "profile-agent", got.Name)
 	require.Equal(t, "debug", got.Log.Level)
+}
+
+func TestNewCommand_RootActionUsesProfileRuntimeEndpoint(t *testing.T) {
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_LOG_LEVEL",
+		"HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_RPC_ADDRESS", "HAND_RPC_PORT")
+	resetGlobals(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, listener.Close())
+	})
+
+	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	require.NoError(t, os.MkdirAll(profileHome, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte(`
+name: profile-agent
+models:
+  verify: false
+`), 0o600))
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: profileHome}))
+	port := listener.Addr().(*net.TCPAddr).Port
+	_, err = runtime.WriteActive("127.0.0.1", port)
+	require.NoError(t, err)
+
+	originalNewChatClient := newChatClient
+	originalRootOutput := rootOutput
+	t.Cleanup(func() {
+		newChatClient = originalNewChatClient
+		rootOutput = originalRootOutput
+	})
+
+	var got *config.Config
+	rootOutput = io.Discard
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+	newChatClient = func(_ context.Context, cfg *config.Config) (rpcclient.ChatClient, error) {
+		got = cfg
+		return stub, nil
+	}
+
+	cmd := newCommand()
+	err = cmd.Run(context.Background(), []string{"hand", "--profile", "Work", "hello"})
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Equal(t, "127.0.0.1", got.RPC.Address)
+	require.Equal(t, port, got.RPC.Port)
 }
 
 func TestNewCommand_RootActionForwardsInstruct(t *testing.T) {
