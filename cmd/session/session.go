@@ -239,7 +239,7 @@ func formatSessionTime(t time.Time) string {
 }
 
 func getSessionClient(ctx context.Context, cmd *cli.Command) (rpcclient.SessionClient, error) {
-	cfg, err := config.Load(cmd.String("env-file"), cmd.String("config"))
+	cfg, _, err := handcli.LoadConfig(cmd)
 	if err != nil {
 		return nil, err
 	}

@@ -23,6 +23,19 @@ func TestResolve_DefaultProfile(t *testing.T) {
 	}, resolved)
 }
 
+func TestActive(t *testing.T) {
+	original := Active()
+	t.Cleanup(func() {
+		SetActive(original)
+	})
+
+	profile := Profile{Name: "work", HomeDir: "/Users/me/.hand/profiles/work"}
+
+	SetActive(profile)
+
+	require.Equal(t, profile, Active())
+}
+
 func TestResolve_UsesExplicitProfileBeforeEnv(t *testing.T) {
 	resolved, err := Resolve(ResolveOptions{
 		Name:        "Work",

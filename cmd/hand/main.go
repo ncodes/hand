@@ -17,6 +17,7 @@ import (
 	upcmd "github.com/wandxy/hand/cmd/up"
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/profile"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -60,11 +61,14 @@ GLOBAL OPTIONS:{{template "visibleFlagTemplate" .}}{{end}}
 EXAMPLES:
    Start the agent runtime:
       hand up
+      hand --profile work up
       hand --config ./config.yaml --trace.enabled up
 
    Chat with the agent:
       hand "summarize the failing tests"
+      hand --profile work "continue"
       hand --session ses_abc123 --instruct "be brief" "continue from the last debugging step"
+      HAND_PROFILE=work hand session list
 
    Start the trace viewer:
       hand trace view
@@ -83,6 +87,10 @@ var newChatClient = func(ctx context.Context, cfg *config.Config) (rpcclient.Cha
 }
 
 func main() {
+	if err := configureProfileDefaults(os.Args); err != nil {
+		log.Fatal().Err(err).Msg("Failed to resolve profile")
+	}
+
 	envFile = getEnvFile(os.Args)
 	if err := config.PreloadEnvFile(envFile); err != nil {
 		log.Fatal().Err(err).Msg("Failed to preload environment")
@@ -118,7 +126,7 @@ func newCommand() *cli.Command {
 				return cli.ShowAppHelp(cmd)
 			}
 
-			cfg, err := config.Load(cmd.String("env-file"), cmd.String("config"))
+			cfg, _, err := handcli.LoadConfig(cmd)
 			if err != nil {
 				return err
 			}
@@ -193,4 +201,36 @@ func getEnvFile(args []string) string {
 	}
 
 	return envFile
+}
+
+func configureProfileDefaults(args []string) error {
+	resolved, err := profile.Resolve(profile.ResolveOptions{Name: getProfileArg(args)})
+	if err != nil {
+		return err
+	}
+
+	profile.SetActive(resolved)
+	envFile = resolved.EnvPath
+	configFile = resolved.ConfigPath
+	return nil
+}
+
+func getProfileArg(args []string) string {
+	for i := range args {
+		arg := strings.TrimSpace(args[i])
+		if arg == "--" {
+			return ""
+		}
+		if (arg == "--profile" || arg == "-p") && i+1 < len(args) {
+			return strings.TrimSpace(args[i+1])
+		}
+		if value, ok := strings.CutPrefix(arg, "--profile="); ok {
+			return strings.TrimSpace(value)
+		}
+		if value, ok := strings.CutPrefix(arg, "-p="); ok {
+			return strings.TrimSpace(value)
+		}
+	}
+
+	return ""
 }

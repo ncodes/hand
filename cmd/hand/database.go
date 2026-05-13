@@ -10,7 +10,6 @@ import (
 	cli "github.com/urfave/cli/v3"
 
 	handcli "github.com/wandxy/hand/internal/cli"
-	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
 )
 
@@ -39,7 +38,7 @@ func resetConfiguredDatabase(_ context.Context, cmd *cli.Command) error {
 		return errors.New("database reset requires --force")
 	}
 
-	cfg, err := config.Load(cmd.String("env-file"), cmd.String("config"))
+	cfg, _, err := handcli.LoadConfig(cmd)
 	if err != nil {
 		return err
 	}

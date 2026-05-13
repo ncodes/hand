@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 const (
@@ -22,7 +23,11 @@ const namePattern = `[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}`
 
 var validName = regexp.MustCompile(`^` + namePattern + `$`)
 
-var userHomeDir = os.UserHomeDir
+var (
+	activeMu    sync.RWMutex
+	active      Profile
+	userHomeDir = os.UserHomeDir
+)
 
 // Profile describes the resolved profile identity and profile-local metadata paths.
 type Profile struct {
@@ -62,6 +67,20 @@ func Resolve(opts ResolveOptions) (Profile, error) {
 		RuntimePath: filepath.Join(profileHome, "runtime.json"),
 		PIDPath:     filepath.Join(profileHome, "hand.pid"),
 	}, nil
+}
+
+// SetActive stores profile as the active process-local profile.
+func SetActive(profile Profile) {
+	activeMu.Lock()
+	defer activeMu.Unlock()
+	active = profile
+}
+
+// Active returns the active process-local profile.
+func Active() Profile {
+	activeMu.RLock()
+	defer activeMu.RUnlock()
+	return active
 }
 
 // ResolveName returns the normalized profile name from explicit input, environment, or default.

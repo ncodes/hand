@@ -241,13 +241,13 @@ func NewCommand() *cli.Command {
 		Usage: "Start the agent runtime",
 		Flags: []cli.Flag{handcli.PersistentInstructFlag()},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			cfg, err := config.Load(cmd.String("env-file"), cmd.String("config"))
+			cfg, inputs, err := handcli.LoadConfig(cmd)
 			if err != nil {
 				return err
 			}
 
 			handcli.ApplyConfigOverrides(cmd, cfg)
-			report := diagnostics.Build(cmd.String("env-file"), cmd.String("config"), cfg, nil)
+			report := diagnostics.Build(inputs.EnvPath, inputs.ConfigPath, cfg, nil)
 			if report.HasFailures() {
 				return errors.New(report.FirstFailure())
 			}

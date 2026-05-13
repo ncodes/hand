@@ -55,7 +55,7 @@ func newViewCommand() *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			cfg, err := config.Load(cmd.String("env-file"), cmd.String("config"))
+			cfg, _, err := handcli.LoadConfig(cmd)
 			if err != nil {
 				return err
 			}

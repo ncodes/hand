@@ -38,12 +38,12 @@ func NewCommand() *cli.Command {
 		Name:  "doctor",
 		Usage: "Run startup diagnostics",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			cfg, err := config.Load(cmd.String("env-file"), cmd.String("config"))
+			cfg, inputs, err := handcli.LoadConfig(cmd)
 			if err == nil {
 				handcli.ApplyConfigOverrides(cmd, cfg)
 			}
 
-			report := diagnostics.Build(cmd.String("env-file"), cmd.String("config"), cfg, err)
+			report := diagnostics.Build(inputs.EnvPath, inputs.ConfigPath, cfg, err)
 			for _, check := range report.Checks {
 				if _, writeErr := fmt.Fprintf(doctorOutput, "[%s] %s: %s\n", formatStatus(check.Status, cfg), check.Name, check.Message); writeErr != nil {
 					return writeErr

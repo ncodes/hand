@@ -7,12 +7,21 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
+	"github.com/wandxy/hand/internal/profile"
 )
 
 const AppDescription = constants.AppDescription
 
 func RootFlags(envFile, configFile *string) []cli.Flag {
 	flags := []cli.Flag{
+		&cli.StringFlag{
+			Name:    "profile",
+			Aliases: []string{"p"},
+			Usage:   "Profile name for profile-local config, env, and runtime metadata",
+			Sources: cli.NewValueSourceChain(
+				cli.EnvVar(profile.EnvName),
+			),
+		},
 		&cli.StringFlag{
 			Name:  "name",
 			Usage: "The name of your hand",

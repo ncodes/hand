@@ -333,6 +333,49 @@ func TestResolveEnvFileUsesDefaultWhenUnset(t *testing.T) {
 	require.Equal(t, ".env", getEnvFile([]string{"hand"}))
 }
 
+func TestConfigureProfileDefaults_UsesSelectedProfilePaths(t *testing.T) {
+	clearEnvKeys(t, "HAND_PROFILE", "HAND_ENV_FILE", "HAND_CONFIG")
+	resetGlobals(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	err := configureProfileDefaults([]string{"hand", "--profile", "Work"})
+
+	require.NoError(t, err)
+	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	require.Equal(t, filepath.Join(profileHome, ".env"), envFile)
+	require.Equal(t, filepath.Join(profileHome, "config.yaml"), configFile)
+	require.Equal(t, filepath.Join(profileHome, ".env"), getEnvFile([]string{"hand"}))
+}
+
+func TestConfigureProfileDefaults_UsesProfileShorthand(t *testing.T) {
+	clearEnvKeys(t, "HAND_PROFILE", "HAND_ENV_FILE", "HAND_CONFIG")
+	resetGlobals(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	err := configureProfileDefaults([]string{"hand", "-p", "Work"})
+
+	require.NoError(t, err)
+	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	require.Equal(t, filepath.Join(profileHome, ".env"), envFile)
+	require.Equal(t, filepath.Join(profileHome, "config.yaml"), configFile)
+}
+
+func TestConfigureProfileDefaults_IgnoresProfileTextAfterTerminator(t *testing.T) {
+	clearEnvKeys(t, "HAND_PROFILE", "HAND_ENV_FILE", "HAND_CONFIG")
+	resetGlobals(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	err := configureProfileDefaults([]string{"hand", "--", "--profile", "Work"})
+
+	require.NoError(t, err)
+	profileHome := filepath.Join(home, ".hand", "profiles", "default")
+	require.Equal(t, filepath.Join(profileHome, ".env"), envFile)
+	require.Equal(t, filepath.Join(profileHome, "config.yaml"), configFile)
+}
+
 func TestNewCommand_RootActionShowsHelp(t *testing.T) {
 	clearEnvKeys(t, "HAND_ENV_FILE")
 	resetGlobals(t)
@@ -345,9 +388,12 @@ func TestNewCommand_RootActionShowsHelp(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, output.String(), "EXAMPLES:")
 	require.Contains(t, output.String(), "hand up")
+	require.Contains(t, output.String(), "hand --profile work up")
 	require.Contains(t, output.String(), "hand --config ./config.yaml --trace.enabled up")
 	require.Contains(t, output.String(), `hand "summarize the failing tests"`)
+	require.Contains(t, output.String(), `hand --profile work "continue"`)
 	require.Contains(t, output.String(), `hand --session ses_abc123 --instruct "be brief" "continue from the last debugging step"`)
+	require.Contains(t, output.String(), "HAND_PROFILE=work hand session list")
 	require.Contains(t, output.String(), "hand trace view")
 	require.Contains(t, output.String(), "hand --config ./config.yaml trace view --listen 127.0.0.1:9090")
 }
@@ -402,6 +448,46 @@ func TestNewCommand_RootActionTreatsUnknownArgsAsChat(t *testing.T) {
 	require.Empty(t, stub.RespondOptions.SessionID)
 	require.True(t, stub.Closed)
 	require.Equal(t, "hello back\n", output.String())
+}
+
+func TestNewCommand_RootActionUsesProfileConfigAndEnv(t *testing.T) {
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_LOG_LEVEL", "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE")
+	resetGlobals(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	profileHome := filepath.Join(home, ".hand", "profiles", "work")
+	require.NoError(t, os.MkdirAll(profileHome, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte(`
+name: profile-agent
+models:
+  verify: false
+`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(profileHome, ".env"), []byte("HAND_LOG_LEVEL=debug\n"), 0o600))
+
+	originalNewChatClient := newChatClient
+	originalRootOutput := rootOutput
+	t.Cleanup(func() {
+		newChatClient = originalNewChatClient
+		rootOutput = originalRootOutput
+	})
+
+	var got *config.Config
+	rootOutput = io.Discard
+	stub := &agentstub.AgentServiceStub{Reply: "hello back"}
+	newChatClient = func(_ context.Context, cfg *config.Config) (rpcclient.ChatClient, error) {
+		got = cfg
+		return stub, nil
+	}
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{"hand", "--profile", "Work", "hello"})
+
+	require.NoError(t, err)
+	require.Equal(t, "hello", stub.ChatInput)
+	require.NotNil(t, got)
+	require.Equal(t, "profile-agent", got.Name)
+	require.Equal(t, "debug", got.Log.Level)
 }
 
 func TestNewCommand_RootActionForwardsInstruct(t *testing.T) {
