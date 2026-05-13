@@ -53,7 +53,7 @@ func TestNewExtractSummarizer_UsesSummaryModelEffective(t *testing.T) {
 	modelSummarizer, ok := summarizer.(ExtractSummarizer)
 	require.True(t, ok)
 	require.Equal(t, "openai/gpt-4.1-mini", modelSummarizer.Model)
-	require.Equal(t, constants.DefaultModelAPIMode, modelSummarizer.APIMode)
+	require.Equal(t, constants.DefaultModelAPIModeCompletions, modelSummarizer.APIMode)
 }
 
 func TestNewExtractSummarizer_FallsBackToMainModel(t *testing.T) {

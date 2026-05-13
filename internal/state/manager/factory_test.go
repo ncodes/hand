@@ -637,7 +637,7 @@ func TestStoreReranker_SelectsConfiguredReranker(t *testing.T) {
 		{
 			name: search.RerankerLLM,
 			cfg: config.Config{
-				Models:   config.ModelsConfig{Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", APIMode: constants.DefaultModelAPIMode}},
+				Models:   config.ModelsConfig{Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", APIMode: constants.DefaultModelAPIModeCompletions}},
 				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
 				Reranker: config.RerankerConfig{Type: search.RerankerLLM, Model: "openai/gpt-4o-mini", MaxCandidates: 3, MaxCandidateTextChars: 40, MaxOutputTokens: 50},
 			},

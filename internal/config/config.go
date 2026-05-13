@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,24 +26,25 @@ import (
 )
 
 type Config struct {
-	Name       string           `yaml:"name"`
-	Platform   string           `yaml:"platform"`
-	Models     ModelsConfig     `yaml:"models"`
-	RPC        RPCConfig        `yaml:"rpc"`
-	FS         FSConfig         `yaml:"fs"`
-	Exec       ExecConfig       `yaml:"exec"`
-	Storage    StorageConfig    `yaml:"storage"`
-	Session    SessionConfig    `yaml:"session"`
-	Search     SearchConfig     `yaml:"search"`
-	Memory     MemoryConfig     `yaml:"memory"`
-	Reranker   RerankerConfig   `yaml:"reranker"`
-	Compaction CompactionConfig `yaml:"compaction"`
-	Cap        CapConfig        `yaml:"cap"`
-	Log        LogConfig        `yaml:"log"`
-	Debug      DebugConfig      `yaml:"debug"`
-	Trace      TraceConfig      `yaml:"trace"`
-	Web        WebConfig        `yaml:"web"`
-	Rules      RulesConfig      `yaml:"rules"`
+	Name          string                       `yaml:"name"`
+	Platform      string                       `yaml:"platform"`
+	Models        ModelsConfig                 `yaml:"models"`
+	RPC           RPCConfig                    `yaml:"rpc"`
+	FS            FSConfig                     `yaml:"fs"`
+	Exec          ExecConfig                   `yaml:"exec"`
+	Storage       StorageConfig                `yaml:"storage"`
+	Session       SessionConfig                `yaml:"session"`
+	Search        SearchConfig                 `yaml:"search"`
+	Memory        MemoryConfig                 `yaml:"memory"`
+	Reranker      RerankerConfig               `yaml:"reranker"`
+	Compaction    CompactionConfig             `yaml:"compaction"`
+	Cap           CapConfig                    `yaml:"cap"`
+	Log           LogConfig                    `yaml:"log"`
+	Debug         DebugConfig                  `yaml:"debug"`
+	Trace         TraceConfig                  `yaml:"trace"`
+	Web           WebConfig                    `yaml:"web"`
+	Rules         RulesConfig                  `yaml:"rules"`
+	Personalities map[string]PersonalityConfig `yaml:"personalities"`
 }
 
 type ModelsConfig struct {
@@ -247,6 +249,33 @@ type RulesConfig struct {
 	Files []string `yaml:"files"`
 }
 
+type PersonalityConfig struct {
+	Soul          string                  `yaml:"soul"`
+	Instruct      string                  `yaml:"instruct"`
+	State         string                  `yaml:"state"`
+	Memory        PersonalityMemoryConfig `yaml:"memory"`
+	Tools         PersonalityToolsConfig  `yaml:"tools"`
+	Model         MainModelConfig         `yaml:"model"`
+	MaxIterations int                     `yaml:"maxIterations"`
+}
+
+type PersonalityMemoryConfig struct {
+	Pinned     *bool `yaml:"pinned"`
+	Retrieval  *bool `yaml:"retrieval"`
+	Write      *bool `yaml:"write"`
+	Episodic   *bool `yaml:"episodic"`
+	Reflection *bool `yaml:"reflection"`
+	Promotion  *bool `yaml:"promotion"`
+	Flush      *bool `yaml:"flush"`
+}
+
+type PersonalityToolsConfig struct {
+	Filesystem *bool  `yaml:"fs"`
+	Network    *bool  `yaml:"net"`
+	Exec       *bool  `yaml:"exec"`
+	Memory     string `yaml:"mem"`
+}
+
 func (c *WebConfig) UnmarshalYAML(value *yaml.Node) error {
 	type plain WebConfig
 	var raw struct {
@@ -300,19 +329,31 @@ var (
 	resolveModelMeta        = fetchModelMetadataFromProvider
 	providerDefaultBaseURLs = map[string]map[string]string{
 		constants.ModelProviderOpenRouter: {
-			constants.DefaultModelAPIMode: constants.DefaultOpenRouterBaseURL,
-			"responses":                   constants.DefaultOpenRouterResponsesBaseURL,
-			"embeddings":                  constants.DefaultOpenRouterEmbeddingsBaseURL,
+			constants.DefaultModelAPIModeCompletions: constants.DefaultOpenRouterBaseURL,
+			"responses":                              constants.DefaultOpenRouterResponsesBaseURL,
+			"embeddings":                             constants.DefaultOpenRouterEmbeddingsBaseURL,
 		},
 		constants.ModelProviderOpenAI: {
-			constants.DefaultModelAPIMode: constants.DefaultOpenAIBaseURL,
-			"responses":                   constants.DefaultOpenAIBaseURL,
-			"embeddings":                  constants.DefaultOpenAIEmbeddingsBaseURL,
+			constants.DefaultModelAPIModeCompletions: constants.DefaultOpenAIBaseURL,
+			"responses":                              constants.DefaultOpenAIBaseURL,
+			"embeddings":                             constants.DefaultOpenAIEmbeddingsBaseURL,
 		},
 	}
 )
 
 var contextWindowPatternOAI = regexp.MustCompile(`([0-9][0-9,]*)(?:\s|<!--[^>]*-->)+context window`)
+
+const (
+	personalityNamePattern     = `[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}`
+	personalityStateShared     = "shared"
+	personalityStateIsolated   = "isolated"
+	personalityStateReadonly   = "readonly"
+	personalityToolMemoryNone  = "none"
+	personalityToolMemoryRead  = "read"
+	personalityToolMemoryWrite = "write"
+)
+
+var validPersonalityName = regexp.MustCompile(`^` + personalityNamePattern + `$`)
 
 // DefaultConfig is the canonical baseline for new Hand configuration.
 var DefaultConfig = Config{
@@ -322,7 +363,7 @@ var DefaultConfig = Config{
 			Provider:      constants.ModelProviderOpenRouter,
 			Stream:        new(constants.DefaultProfileModelStream),
 			ContextLength: constants.DefaultContextLength,
-			APIMode:       constants.DefaultModelAPIMode,
+			APIMode:       constants.DefaultModelAPIModeCompletions,
 			BaseURL:       constants.DefaultOpenRouterBaseURL,
 		},
 		Summary: SummaryModelConfig{
@@ -577,8 +618,33 @@ func cloneConfig(cfg Config) Config {
 	cfg.Web.NativeAllowedHostFiles = slices.Clone(cfg.Web.NativeAllowedHostFiles)
 	cfg.Web.NativeBlockedHostFiles = slices.Clone(cfg.Web.NativeBlockedHostFiles)
 	cfg.Rules.Files = slices.Clone(cfg.Rules.Files)
+	cfg.Personalities = clonePersonalityConfigs(cfg.Personalities)
 
 	return cfg
+}
+
+func clonePersonalityConfigs(values map[string]PersonalityConfig) map[string]PersonalityConfig {
+	if len(values) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string]PersonalityConfig, len(values))
+	for name, personality := range values {
+		personality.Memory.Pinned = cloneBoolPtr(personality.Memory.Pinned)
+		personality.Memory.Retrieval = cloneBoolPtr(personality.Memory.Retrieval)
+		personality.Memory.Write = cloneBoolPtr(personality.Memory.Write)
+		personality.Memory.Episodic = cloneBoolPtr(personality.Memory.Episodic)
+		personality.Memory.Reflection = cloneBoolPtr(personality.Memory.Reflection)
+		personality.Memory.Promotion = cloneBoolPtr(personality.Memory.Promotion)
+		personality.Memory.Flush = cloneBoolPtr(personality.Memory.Flush)
+		personality.Tools.Filesystem = cloneBoolPtr(personality.Tools.Filesystem)
+		personality.Tools.Network = cloneBoolPtr(personality.Tools.Network)
+		personality.Tools.Exec = cloneBoolPtr(personality.Tools.Exec)
+		personality.Model.Stream = cloneBoolPtr(personality.Model.Stream)
+		cloned[name] = personality
+	}
+
+	return cloned
 }
 
 func cloneBoolPtr(value *bool) *bool {
@@ -638,6 +704,42 @@ func (c *Config) resolvePaths(baseDir string) {
 	c.Web.BlockedDomainFiles = getPathsFromBase(c.Web.BlockedDomainFiles, baseDir)
 	c.Web.NativeAllowedHostFiles = getPathsFromBase(c.Web.NativeAllowedHostFiles, baseDir)
 	c.Web.NativeBlockedHostFiles = getPathsFromBase(c.Web.NativeBlockedHostFiles, baseDir)
+	c.resolvePersonalitySoulPaths(baseDir)
+}
+
+func (c *Config) resolvePersonalitySoulPaths(baseDir string) {
+	if c == nil || len(c.Personalities) == 0 {
+		return
+	}
+
+	resolved := make(map[string]PersonalityConfig, len(c.Personalities))
+	for name, personality := range c.Personalities {
+		personality.Soul = resolvePersonalitySoulPath(personality.Soul, baseDir)
+		resolved[name] = personality
+	}
+	c.Personalities = resolved
+}
+
+func resolvePersonalitySoulPath(path string, baseDir string) string {
+	path = strings.TrimSpace(path)
+	if path == "" || filepath.IsAbs(path) {
+		return path
+	}
+
+	profileHome := strings.TrimSpace(datadir.HomeDir())
+	if profileHome != "" {
+		profilePath := filepath.Join(profileHome, path)
+		if _, err := os.Stat(profilePath); err == nil {
+			return profilePath
+		}
+	}
+
+	baseDir = strings.TrimSpace(baseDir)
+	if baseDir == "" {
+		return path
+	}
+
+	return filepath.Join(baseDir, path)
 }
 
 func applyEnvOverrides(cfg *Config) {
@@ -1094,6 +1196,7 @@ func (c *Config) normalizeFields() {
 	c.Memory.Backend = strings.TrimSpace(strings.ToLower(c.Memory.Backend))
 	c.Reranker.Type = strings.TrimSpace(strings.ToLower(c.Reranker.Type))
 	c.Reranker.Model = strings.TrimSpace(c.Reranker.Model)
+	c.normalizePersonalities()
 
 	if c.Models.Main.Name == "" {
 		c.Models.Main.Name = constants.DefaultModel
@@ -1116,7 +1219,7 @@ func (c *Config) normalizeFields() {
 	}
 
 	if c.Models.Main.APIMode == "" {
-		c.Models.Main.APIMode = constants.DefaultModelAPIMode
+		c.Models.Main.APIMode = constants.DefaultModelAPIModeCompletions
 	}
 
 	if c.Log.Level == "" {
@@ -1250,6 +1353,30 @@ func (c *Config) normalizeFields() {
 
 }
 
+func (c *Config) normalizePersonalities() {
+	if c == nil || len(c.Personalities) == 0 {
+		return
+	}
+
+	normalized := make(map[string]PersonalityConfig, len(c.Personalities))
+	for name, personality := range c.Personalities {
+		name = strings.ToLower(strings.TrimSpace(name))
+		personality.Soul = strings.TrimSpace(personality.Soul)
+		personality.Instruct = strings.TrimSpace(personality.Instruct)
+		personality.State = strings.TrimSpace(strings.ToLower(personality.State))
+		if personality.State == "" {
+			personality.State = personalityStateShared
+		}
+		personality.Tools.Memory = strings.TrimSpace(strings.ToLower(personality.Tools.Memory))
+		personality.Model.Name = strings.TrimSpace(personality.Model.Name)
+		personality.Model.Provider = strings.TrimSpace(strings.ToLower(personality.Model.Provider))
+		personality.Model.APIMode = strings.TrimSpace(strings.ToLower(personality.Model.APIMode))
+		personality.Model.BaseURL = strings.TrimSpace(personality.Model.BaseURL)
+		normalized[name] = personality
+	}
+	c.Personalities = normalized
+}
+
 func (c *Config) applyDefaultModelBaseURL() {
 	if c == nil || c.Models.Main.BaseURL != "" {
 		return
@@ -1274,7 +1401,7 @@ func getDefaultBaseURLForProvider(provider, apiMode string) string {
 	provider = strings.TrimSpace(strings.ToLower(provider))
 	apiMode = strings.TrimSpace(strings.ToLower(apiMode))
 	if apiMode == "" {
-		apiMode = constants.DefaultModelAPIMode
+		apiMode = constants.DefaultModelAPIModeCompletions
 	}
 
 	modes, ok := providerDefaultBaseURLs[provider]
@@ -1592,7 +1719,15 @@ func (c *Config) Validate() error {
 		return errors.New("config is required")
 	}
 
+	if err := c.validatePersonalityNames(); err != nil {
+		return err
+	}
+
 	c.Normalize()
+
+	if err := c.validatePersonalities(); err != nil {
+		return err
+	}
 
 	if strings.TrimSpace(c.Name) == "" {
 		return errors.New("name is required; set HAND_NAME, provide it in config, or use --name")
@@ -1651,7 +1786,7 @@ func (c *Config) Validate() error {
 	}
 
 	switch c.Models.Main.APIMode {
-	case constants.DefaultModelAPIMode:
+	case constants.DefaultModelAPIModeCompletions:
 	case "responses":
 	default:
 		return errors.New("model api mode must be one of: completions, responses; use --model.api-mode")
@@ -1659,7 +1794,7 @@ func (c *Config) Validate() error {
 
 	if c.Models.Summary.APIMode != "" {
 		switch c.Models.Summary.APIMode {
-		case constants.DefaultModelAPIMode:
+		case constants.DefaultModelAPIModeCompletions:
 		case "responses":
 		default:
 			return errors.New("summary model api mode must be one of: completions, responses; " +
@@ -1712,6 +1847,82 @@ func (c *Config) Validate() error {
 	default:
 		return errors.New("log level must be one of debug, info, warn, or error; use --log.level")
 	}
+}
+
+func (c *Config) validatePersonalityNames() error {
+	if c == nil || len(c.Personalities) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]string, len(c.Personalities))
+	names := make([]string, 0, len(c.Personalities))
+	for name := range c.Personalities {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		trimmed := strings.TrimSpace(name)
+		if !validPersonalityName.MatchString(trimmed) {
+			return fmt.Errorf("invalid personality name %q: must match %s", trimmed, personalityNamePattern)
+		}
+
+		normalized := strings.ToLower(trimmed)
+		if existing, ok := seen[normalized]; ok {
+			return fmt.Errorf("duplicate personality name %q conflicts with %q", trimmed, existing)
+		}
+		seen[normalized] = trimmed
+	}
+
+	return nil
+}
+
+func (c *Config) validatePersonalities() error {
+	if c == nil {
+		return nil
+	}
+
+	for name, personality := range c.Personalities {
+		if err := validatePersonalityConfig(name, personality); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validatePersonalityConfig(name string, personality PersonalityConfig) error {
+	switch personality.State {
+	case personalityStateShared, personalityStateIsolated, personalityStateReadonly:
+	default:
+		return fmt.Errorf("personalities.%s.state must be one of: shared, isolated, readonly", name)
+	}
+
+	switch personality.Tools.Memory {
+	case "", personalityToolMemoryNone, personalityToolMemoryRead, personalityToolMemoryWrite:
+	default:
+		return fmt.Errorf("personalities.%s.tools.mem must be one of: none, read, write", name)
+	}
+
+	if personality.MaxIterations < 0 {
+		return fmt.Errorf("personalities.%s.maxIterations must be non-negative", name)
+	}
+
+	if personality.Model.Name != "" && !isValidModelSlug(personality.Model.Name) {
+		return fmt.Errorf("personalities.%s.model.name must use the format <owner>/<name>", name)
+	}
+	if personality.Model.Provider != "" {
+		if _, ok := providerDefaultBaseURLs[personality.Model.Provider]; !ok {
+			return fmt.Errorf("personalities.%s.model.provider must be one of: openai, openrouter", name)
+		}
+	}
+	switch personality.Model.APIMode {
+	case "", constants.DefaultModelAPIModeCompletions, constants.DefaultModelAPIModeResponses:
+	default:
+		return fmt.Errorf("personalities.%s.model.apiMode must be one of: completions, responses", name)
+	}
+
+	return nil
 }
 
 func (c *Config) validateSearchVectorSettings() error {
@@ -1776,7 +1987,7 @@ func (c *Config) validateEmbeddingModelExists(ctx context.Context, auth ModelAut
 	case "openrouter":
 		meta, err = fetchOpenRouterModelEndpoints(
 			ctx,
-			getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIMode),
+			getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIModeCompletions),
 			c.Models.Embedding.Name,
 			auth.APIKey,
 		)
@@ -1969,7 +2180,7 @@ func fetchOpenRouterModelMetadata(ctx context.Context, baseURL, model, apiKey st
 
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
-		baseURL = getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIMode)
+		baseURL = getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIModeCompletions)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/models", nil)
@@ -2029,7 +2240,7 @@ func fetchOpenRouterModelEndpoints(ctx context.Context, baseURL, model, apiKey s
 
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
-		baseURL = getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIMode)
+		baseURL = getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIModeCompletions)
 	}
 
 	req, err := http.NewRequestWithContext(

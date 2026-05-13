@@ -26,8 +26,8 @@ type StreamDelta struct {
 
 const (
 	// APIModeCompletions selects the chat completions API path (OpenAI-compatible /v1/chat/completions).
-	APIModeCompletions = constants.DefaultModelAPIMode
-	APIModeResponses   = "responses"
+	APIModeCompletions = constants.DefaultModelAPIModeCompletions
+	APIModeResponses   = constants.DefaultModelAPIModeResponses
 )
 
 type Request struct {

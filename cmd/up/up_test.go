@@ -118,10 +118,10 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, startupBuffer.String(), "Streaming")
 	require.Contains(t, startupBuffer.String(), "true")
 	require.Contains(t, startupBuffer.String(), "Debug requests")
-	require.Contains(t, startupBuffer.String(), "disabled")
+	require.Contains(t, startupBuffer.String(), "enabled")
 	require.Contains(t, startupBuffer.String(), "Traces")
 	require.Contains(t, startupBuffer.String(), "enabled (/tmp/hand-traces)")
-	require.Contains(t, startupBuffer.String(), "enabled (/tmp/hand-traces)\n\n")
+	require.Contains(t, startupBuffer.String(), "Reranker")
 
 	logOutput := stripANSI(logBuffer.String())
 	require.Contains(t, logOutput, "Configuration loaded")
@@ -246,7 +246,7 @@ func TestRenderStartupPanel_IncludesSummaryProviderAndAPIModeWhenDistinct(t *tes
 	cfg := &config.Config{
 		Name: "daemon",
 		Models: config.ModelsConfig{
-			Main:    config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter", APIMode: constants.DefaultModelAPIMode},
+			Main:    config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter", APIMode: constants.DefaultModelAPIModeCompletions},
 			Summary: config.SummaryModelConfig{Provider: "openai", APIMode: "responses"},
 		},
 		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051},
@@ -750,7 +750,7 @@ func TestNewCommand_ReturnsValidationError(t *testing.T) {
 		"up",
 	})
 
-	require.EqualError(t, err, "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
+	require.EqualError(t, err, "embedding API key is required")
 }
 
 func newRootCommandForTest(configFile *string) *cli.Command {

@@ -19,7 +19,7 @@ func TestNewService_LogsWhenSummaryProviderAndAPIModeDifferFromMain(t *testing.T
 			Main: config.MainModelConfig{
 				Name:          "openai/gpt-4o-mini",
 				Provider:      "openrouter",
-				APIMode:       constants.DefaultModelAPIMode,
+				APIMode:       constants.DefaultModelAPIModeCompletions,
 				ContextLength: 100,
 			},
 			Summary: config.SummaryModelConfig{Provider: "openai", APIMode: "responses"},
