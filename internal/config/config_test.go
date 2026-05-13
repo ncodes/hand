@@ -170,6 +170,7 @@ func TestNewDefaultConfig_ReturnsIndependentConfig(t *testing.T) {
 
 	require.Equal(t, DefaultConfig.Models.Main.Name, first.Models.Main.Name)
 	require.Equal(t, DefaultConfig.Models.Main.Provider, first.Models.Main.Provider)
+	require.Empty(t, first.Web.Provider)
 	require.Equal(t, DefaultConfig.RPC.Address, first.RPC.Address)
 	require.Equal(t, DefaultConfig.RPC.Port, first.RPC.Port)
 	require.NotEmpty(t, first.FS.Roots)

@@ -15,7 +15,7 @@ const (
 	DefaultWebMaxExtractResponseBytes = 2 * 1024 * 1024
 	// DefaultWebCacheTTL is the fallback TTL for cached web provider responses.
 	DefaultWebCacheTTL                     = 0 * time.Second
-	DefaultProfileWebProvider              = WebProviderExa
+	DefaultProfileWebProvider              = ""
 	DefaultProfileWebCacheTTL              = 5 * time.Minute
 	DefaultProfileWebBlockedDomainsEnabled = true
 	// DefaultWebExtractMinSummarizeChars is the extracted content size that triggers summarization.

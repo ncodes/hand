@@ -131,6 +131,7 @@ func TestCommandInitCreatesStarterConfig(t *testing.T) {
 	cfg, err := config.Load("", configPath)
 	require.NoError(t, err)
 	require.Equal(t, "alpha", cfg.Name)
+	require.Empty(t, cfg.Web.Provider)
 	require.Equal(t, profileHome+"\n", output.String())
 }
 
