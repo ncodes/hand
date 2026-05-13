@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/profile"
 	state "github.com/wandxy/hand/internal/state/core"
 )
 
@@ -33,18 +34,11 @@ func (fakeDirEntry) Info() (fs.FileInfo, error) {
 	return nil, nil
 }
 
-func TestAutoFileUsesWorkingDirectory(t *testing.T) {
+func TestAutoFileUsesProfileHome(t *testing.T) {
 	dir := t.TempDir()
+	setProfileHome(t, dir)
 	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte("remember this"), 0o600))
-
-	previous := getwd
-	t.Cleanup(func() {
-		getwd = previous
-	})
-	getwd = func() (string, error) {
-		return dir, nil
-	}
 
 	got, ok, err := AutoFile()
 	require.NoError(t, err)
@@ -52,18 +46,21 @@ func TestAutoFileUsesWorkingDirectory(t *testing.T) {
 	require.Equal(t, file, got)
 }
 
-func TestAutoFileReturnsWorkingDirectoryError(t *testing.T) {
-	cwdErr := errors.New("cwd failed")
-	previous := getwd
+func TestAutoFileReturnsProfileHomeStatError(t *testing.T) {
+	dir := t.TempDir()
+	setProfileHome(t, dir)
+	statErr := errors.New("stat failed")
+	previous := stat
 	t.Cleanup(func() {
-		getwd = previous
+		stat = previous
 	})
-	getwd = func() (string, error) {
-		return "", cwdErr
+	stat = func(string) (os.FileInfo, error) {
+		return nil, statErr
 	}
 
 	got, ok, err := AutoFile()
-	require.ErrorIs(t, err, cwdErr)
+	require.ErrorIs(t, err, statErr)
+	require.Contains(t, err.Error(), "stat profile home")
 	require.False(t, ok)
 	require.Empty(t, got)
 }
@@ -101,7 +98,7 @@ func TestAutoFileFromRoot(t *testing.T) {
 
 		got, ok, err := getAutoFileFromRoot(t.TempDir())
 		require.ErrorIs(t, err, statErr)
-		require.Contains(t, err.Error(), "stat workspace root")
+		require.Contains(t, err.Error(), "stat profile home")
 		require.False(t, ok)
 		require.Empty(t, got)
 	})
@@ -118,7 +115,7 @@ func TestAutoFileFromRoot(t *testing.T) {
 
 		got, ok, err := getAutoFileFromRoot(t.TempDir())
 		require.ErrorIs(t, err, readErr)
-		require.Contains(t, err.Error(), "read workspace root")
+		require.Contains(t, err.Error(), "read profile home")
 		require.False(t, ok)
 		require.Empty(t, got)
 	})
@@ -166,7 +163,7 @@ func TestEnabled(t *testing.T) {
 
 func TestLoadFile(t *testing.T) {
 	dir := t.TempDir()
-	t.Chdir(dir)
+	setProfileHome(t, dir)
 	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte("from file"), 0o600))
 
@@ -181,25 +178,46 @@ func TestLoadFile(t *testing.T) {
 	require.Equal(t, map[string]string{"source": "file", "path": file}, items[0].Metadata)
 }
 
+func TestLoadFileUsesActiveProfile(t *testing.T) {
+	workHome := t.TempDir()
+	personalHome := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(workHome, "memory.md"), []byte("work memory"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(personalHome, "memory.md"), []byte("personal memory"), 0o600))
+
+	setProfileHome(t, workHome)
+	items, err := LoadFile()
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, "work memory", items[0].Text)
+
+	setProfileHome(t, personalHome)
+	items, err = LoadFile()
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, "personal memory", items[0].Text)
+}
+
 func TestLoadFileReturnsAutoFileError(t *testing.T) {
-	cwdErr := errors.New("cwd failed")
-	previous := getwd
+	dir := t.TempDir()
+	setProfileHome(t, dir)
+	statErr := errors.New("stat failed")
+	previous := stat
 	t.Cleanup(func() {
-		getwd = previous
+		stat = previous
 	})
-	getwd = func() (string, error) {
-		return "", cwdErr
+	stat = func(string) (os.FileInfo, error) {
+		return nil, statErr
 	}
 
 	items, err := LoadFile()
 
-	require.ErrorIs(t, err, cwdErr)
+	require.ErrorIs(t, err, statErr)
 	require.Empty(t, items)
 }
 
 func TestLoadFileSkipsMissingAndEmptyFile(t *testing.T) {
 	dir := t.TempDir()
-	t.Chdir(dir)
+	setProfileHome(t, dir)
 
 	items, err := LoadFile()
 	require.NoError(t, err)
@@ -214,16 +232,12 @@ func TestLoadFileSkipsMissingAndEmptyFile(t *testing.T) {
 
 func TestLoadFileReturnsReadError(t *testing.T) {
 	dir := t.TempDir()
+	setProfileHome(t, dir)
 
-	previousGetwd := getwd
 	previousReadDir := readDir
 	t.Cleanup(func() {
-		getwd = previousGetwd
 		readDir = previousReadDir
 	})
-	getwd = func() (string, error) {
-		return dir, nil
-	}
 	readDir = func(string) ([]os.DirEntry, error) {
 		return []os.DirEntry{fakeDirEntry{name: "memory.md"}}, nil
 	}
@@ -364,4 +378,14 @@ func mustAutoFileFromRoot(t *testing.T, root string) (string, bool) {
 	file, ok, err := getAutoFileFromRoot(root)
 	require.NoError(t, err)
 	return file, ok
+}
+
+func setProfileHome(t *testing.T, home string) {
+	t.Helper()
+
+	original := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(original)
+	})
+	profile.SetActive(profile.Profile{Name: "test", HomeDir: home})
 }

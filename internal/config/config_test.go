@@ -17,6 +17,7 @@ import (
 
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
+	"github.com/wandxy/hand/internal/profile"
 )
 
 func stubModelMetadataResolver(t *testing.T, fn func(context.Context, *Config, ModelAuth) (ModelMetadata, error)) {
@@ -2590,9 +2591,8 @@ func TestConfig_NormalizeDefaultsDebugTraceSinks(t *testing.T) {
 	require.Equal(t, DefaultTraceMaxEventsPerSession, cfg.Trace.Database.MaxEventsPerSession)
 }
 
-func TestConfig_NormalizeDefaultsDebugTraceDiskDirFromHandHome(t *testing.T) {
-	clearEnvKeys(t, "HAND_HOME")
-	t.Setenv("HAND_HOME", "/tmp/hand-home")
+func TestConfig_NormalizeDefaultsDebugTraceDiskDirFromActiveProfile(t *testing.T) {
+	setProfileHome(t, "/tmp/hand-home")
 	cfg := &Config{}
 	cfg.Normalize()
 	require.Equal(t, "/tmp/hand-home/traces", cfg.Trace.Disk.Dir)
@@ -3202,4 +3202,14 @@ func requireYAMLKeys(t *testing.T, content, section string, keys []string) {
 		}
 		require.Regexp(t, regexp.MustCompile(pattern), content, section+"."+key)
 	}
+}
+
+func setProfileHome(t *testing.T, home string) {
+	t.Helper()
+
+	original := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(original)
+	})
+	profile.SetActive(profile.Profile{Name: "test", HomeDir: home})
 }

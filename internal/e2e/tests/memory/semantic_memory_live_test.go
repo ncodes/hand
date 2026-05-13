@@ -12,6 +12,7 @@ import (
 	e2e "github.com/wandxy/hand/internal/e2e"
 	livememory "github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 )
 
@@ -24,7 +25,7 @@ func TestLiveSemanticMemoryCreatedByReflectionAndPromotion(t *testing.T) {
 	t.Cleanup(cancel)
 
 	home := t.TempDir()
-	t.Setenv("HAND_HOME", home)
+	setProfileHome(t, home)
 
 	spec := e2e.DefaultSpec(home)
 	cfg := loadProductionConfigForLiveMemoryE2E(t, spec)
@@ -163,6 +164,16 @@ func TestLiveSemanticMemoryCreatedByReflectionAndPromotion(t *testing.T) {
 	require.NotEmpty(t, item.Metadata["reflection_source_memory_ids"])
 	require.Equal(t, "approved", item.Metadata["promotion_decision_outcome"])
 	require.Equal(t, "approved", item.Metadata["promotion_decision_reason"])
+}
+
+func setProfileHome(t *testing.T, home string) {
+	t.Helper()
+
+	original := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(original)
+	})
+	profile.SetActive(profile.Profile{Name: "test", HomeDir: home})
 }
 
 type recordingLiveModelClient struct {

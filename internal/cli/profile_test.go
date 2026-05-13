@@ -130,6 +130,29 @@ func TestResolveConfigInputs_UsesProfileEnvVar(t *testing.T) {
 	require.Equal(t, filepath.Join(profileHome, "config.yaml"), got.ConfigPath)
 }
 
+func TestResolveConfigInputs_UsesActiveProfileWhenCommandHasNoProfile(t *testing.T) {
+	home := t.TempDir()
+	active := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(active)
+	})
+	profile.SetActive(profile.Profile{
+		Name:       "work",
+		HomeDir:    home,
+		ConfigPath: filepath.Join(home, "config.yaml"),
+		EnvPath:    filepath.Join(home, ".env"),
+	})
+
+	inputs, err := ResolveConfigInputs(&cli.Command{})
+
+	require.NoError(t, err)
+	require.Equal(t, "work", inputs.Profile.Name)
+	require.Equal(t, filepath.Join(home, ".env"), inputs.EnvPath)
+	require.Equal(t, filepath.Join(home, "config.yaml"), inputs.ConfigPath)
+	require.Equal(t, filepath.Join(home, ".env"), profile.Active().EnvPath)
+	require.Equal(t, filepath.Join(home, "config.yaml"), profile.Active().ConfigPath)
+}
+
 func TestLoadConfig_UsesProfileConfigAndEnvDefaults(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -200,6 +223,11 @@ func TestResolveConfigInputs_UsesDefaultProfileWhenCommandNil(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	clearEnv(t, profile.EnvName, "HAND_ENV_FILE", "HAND_CONFIG")
+	active := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(active)
+	})
+	profile.SetActive(profile.Profile{})
 
 	inputs, err := ResolveConfigInputs(nil)
 

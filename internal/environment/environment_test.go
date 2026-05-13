@@ -26,6 +26,7 @@ import (
 	"github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/personality"
+	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	memorystore "github.com/wandxy/hand/internal/state/storememory"
@@ -248,7 +249,7 @@ func TestEnvironment_PrepareConfiguresMemoryBackgroundOptions(t *testing.T) {
 
 func TestEnvironment_PrepareConfiguresPinnedMemoryOptions(t *testing.T) {
 	dir := t.TempDir()
-	t.Chdir(dir)
+	setProfileHome(t, dir)
 	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte("Always use pnpm"), 0o600))
 	store := memorystore.NewStore()
@@ -281,9 +282,9 @@ func TestEnvironment_PrepareConfiguresPinnedMemoryOptions(t *testing.T) {
 	require.Equal(t, "Always use pnpm", items[0].Text)
 }
 
-func TestEnvironment_PrepareAutoLoadsWorkspaceMemoryFile(t *testing.T) {
+func TestEnvironment_PrepareAutoLoadsProfileMemoryFile(t *testing.T) {
 	dir := t.TempDir()
-	t.Chdir(dir)
+	setProfileHome(t, dir)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "memory.md"), []byte("Always write focused tests"), 0o600))
 
 	store := memorystore.NewStore()
@@ -1804,7 +1805,7 @@ func TestNewEnvironment_ConfiguresTraceFactoryWhenEnabled(t *testing.T) {
 
 func TestEnvironment_PrepareTraceFactoryUsesDefaultTraceDir(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HAND_HOME", home)
+	setProfileHome(t, home)
 	manager := newTestStateManager(t)
 	env := &environment{
 		ctx:      gctx.Background(),
@@ -1993,7 +1994,7 @@ func TestEnvironment_NewTraceSessionNilTraceFactory(t *testing.T) {
 
 func TestNewEnvironment_UsesDefaultTraceDirWhenEnabledWithoutConfiguredDir(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HAND_HOME", home)
+	setProfileHome(t, home)
 	manager := newTestStateManager(t)
 	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Enabled: true}})
 	env.SetStateManager(manager)
@@ -2059,4 +2060,14 @@ func splitLines(data []byte) [][]byte {
 	}
 
 	return lines
+}
+
+func setProfileHome(t *testing.T, home string) {
+	t.Helper()
+
+	original := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(original)
+	})
+	profile.SetActive(profile.Profile{Name: "test", HomeDir: home})
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/wandxy/hand/internal/datadir"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 )
@@ -281,13 +282,22 @@ func openInspectStore(cfg *config.Config) (storage.Store, error) {
 
 func applyHarnessEnv(spec HarnessSpec) (func(), error) {
 	homeDir := filepath.Dir(spec.Isolation.DataDir)
-	updates := make(map[string]string, len(spec.Config.Env)+1)
+	updates := make(map[string]string, len(spec.Config.Env))
 	maps.Copy(updates, spec.Config.Env)
-	if strings.TrimSpace(updates["HAND_HOME"]) == "" {
-		updates["HAND_HOME"] = homeDir
+
+	profileName, err := profile.ResolveName("", updates)
+	if err != nil {
+		return nil, err
 	}
 
-	restore := captureEnv(updates)
+	originalProfile := profile.Active()
+	restoreEnv := captureEnv(updates)
+	restore := func() {
+		restoreEnv()
+		profile.SetActive(originalProfile)
+	}
+	profile.SetActive(profile.Profile{Name: profileName, HomeDir: homeDir})
+
 	for key, value := range updates {
 		if err := setHarnessEnv(key, value); err != nil {
 			restore()
@@ -297,11 +307,11 @@ func applyHarnessEnv(spec HarnessSpec) (func(), error) {
 
 	if datadir.DataDir() != spec.Isolation.DataDir {
 		restore()
-		return nil, errors.New("e2e isolation data dir must match HAND_HOME/data")
+		return nil, errors.New("e2e isolation data dir must match profile home data dir")
 	}
 	if datadir.StateDBPath() != spec.Isolation.StoragePath {
 		restore()
-		return nil, errors.New("e2e isolation storage path must match HAND_HOME/data/state.db")
+		return nil, errors.New("e2e isolation storage path must match profile home state db")
 	}
 
 	return restore, nil

@@ -21,6 +21,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
+	"github.com/wandxy/hand/internal/profile"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -764,7 +765,7 @@ storage:
 }
 
 func TestNewCommand_DatabaseResetDeletesConfiguredSQLiteDatabase(t *testing.T) {
-	clearEnvKeys(t, "HAND_HOME", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -799,7 +800,7 @@ storage:
 }
 
 func TestNewCommand_DatabaseResetRequiresForce(t *testing.T) {
-	clearEnvKeys(t, "HAND_HOME", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -825,7 +826,7 @@ storage:
 }
 
 func TestNewCommand_DatabaseResetRejectsMemoryStorage(t *testing.T) {
-	clearEnvKeys(t, "HAND_HOME", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -871,6 +872,7 @@ func resetGlobals(t *testing.T) {
 	originalDoctorOutput := doctorcmd.SetOutput(io.Discard)
 	originalStartupOutput := upcmd.SetOutput(io.Discard)
 	originalConfig := config.Get()
+	originalProfile := profile.Active()
 	t.Cleanup(func() {
 		envFile = originalEnvFile
 		configFile = originalConfigFile
@@ -878,13 +880,15 @@ func resetGlobals(t *testing.T) {
 		doctorcmd.SetOutput(originalDoctorOutput)
 		upcmd.SetOutput(originalStartupOutput)
 		config.Set(originalConfig)
+		profile.SetActive(originalProfile)
 	})
 	envFile = ".env"
 	configFile = "config.yaml"
 	rootOutput = io.Discard
 	logutils.SetOutput(io.Discard)
 	config.Set(nil)
-	t.Setenv("HAND_HOME", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	profile.SetActive(profile.Profile{})
 }
 
 func newOpenRouterModelsServer(t *testing.T, model string) string {

@@ -174,7 +174,11 @@ func Test_E2E_SessionCommand_PersistenceCompactionStatusAndSummaryReuse(t *testi
 		e2e.OutputTextStep("reply 4"),
 		e2e.OutputTextStep("reply 5"),
 	)
-	summaryClient := e2e.NewTextClient(`{"session_summary":"Older context","current_task":"Continue helping","discoveries":["Saved summary"],"open_questions":[],"next_actions":["Answer the next turn"]}`)
+	summaryClient := e2e.NewClient(
+		e2e.OutputTextStep("no durable memory to flush"),
+		e2e.OutputTextStep(`{"session_summary":"Older context","current_task":"Continue helping","discoveries":["Saved summary"],"open_questions":[],"next_actions":["Answer the next turn"]}`),
+		e2e.OutputTextStep("no durable memory to flush"),
+	)
 
 	h1 := newPersistentSessionHarness(t, home, modelClient, summaryClient)
 

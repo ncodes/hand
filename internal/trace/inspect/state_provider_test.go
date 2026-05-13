@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	statemock "github.com/wandxy/hand/internal/state/mock"
@@ -52,11 +53,11 @@ func TestConfigureStateProvider_ReturnsManagerSetupError(t *testing.T) {
 	}
 
 	home := t.TempDir()
-	t.Setenv("HAND_HOME", home)
+	setProfileHome(t, home)
 	dir := t.TempDir()
 	writeTraceSession(t, dir, storage.DefaultSessionID)
 	app := NewApp(dir)
-	cfg := &config.Config{Storage: config.StorageConfig{Backend: "sqlite"}}
+	cfg := &config.Config{Storage: config.StorageConfig{Backend: "memory"}}
 
 	err := ConfigureStateProvider(cfg, app)
 
@@ -65,11 +66,11 @@ func TestConfigureStateProvider_ReturnsManagerSetupError(t *testing.T) {
 
 func TestConfigureStateProvider_AttachesStateProvider(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HAND_HOME", home)
+	setProfileHome(t, home)
 	dir := t.TempDir()
 	writeTraceSession(t, dir, storage.DefaultSessionID)
 	app := NewApp(dir)
-	cfg := &config.Config{Storage: config.StorageConfig{Backend: "sqlite"}}
+	cfg := &config.Config{Storage: config.StorageConfig{Backend: "memory"}}
 
 	require.NoError(t, ConfigureStateProvider(cfg, app))
 
@@ -89,13 +90,13 @@ func TestConfigureStateProvider_AttachesStateProvider(t *testing.T) {
 
 func TestConfigureStateProvider_AttachesStateProviderWhenMemoryDisabled(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HAND_HOME", home)
+	setProfileHome(t, home)
 	dir := t.TempDir()
 	writeTraceSession(t, dir, storage.DefaultSessionID)
 	app := NewApp(dir)
 	disabled := false
 	cfg := &config.Config{
-		Storage: config.StorageConfig{Backend: "sqlite"},
+		Storage: config.StorageConfig{Backend: "memory"},
 		Memory:  config.MemoryConfig{Enabled: &disabled},
 	}
 
@@ -312,4 +313,14 @@ func cloneMemoryItems(items []storage.MemoryItem) []storage.MemoryItem {
 		cloned = append(cloned, item.Clone())
 	}
 	return cloned
+}
+
+func setProfileHome(t *testing.T, home string) {
+	t.Helper()
+
+	original := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(original)
+	})
+	profile.SetActive(profile.Profile{Name: "test", HomeDir: home})
 }

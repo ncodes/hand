@@ -59,14 +59,29 @@ func Resolve(opts ResolveOptions) (Profile, error) {
 	}
 
 	profileHome := filepath.Join(homeDir, ".hand", "profiles", name)
-	return Profile{
-		Name:        name,
-		HomeDir:     profileHome,
-		ConfigPath:  filepath.Join(profileHome, "config.yaml"),
-		EnvPath:     filepath.Join(profileHome, ".env"),
-		RuntimePath: filepath.Join(profileHome, "runtime.json"),
-		PIDPath:     filepath.Join(profileHome, "hand.pid"),
-	}, nil
+	return WithMetadataPaths(Profile{Name: name, HomeDir: profileHome}), nil
+}
+
+// WithMetadataPaths returns profile with empty metadata paths filled from HomeDir.
+func WithMetadataPaths(profile Profile) Profile {
+	homeDir := strings.TrimSpace(profile.HomeDir)
+	if homeDir == "" {
+		return profile
+	}
+	if strings.TrimSpace(profile.ConfigPath) == "" {
+		profile.ConfigPath = filepath.Join(homeDir, "config.yaml")
+	}
+	if strings.TrimSpace(profile.EnvPath) == "" {
+		profile.EnvPath = filepath.Join(homeDir, ".env")
+	}
+	if strings.TrimSpace(profile.RuntimePath) == "" {
+		profile.RuntimePath = filepath.Join(homeDir, "runtime.json")
+	}
+	if strings.TrimSpace(profile.PIDPath) == "" {
+		profile.PIDPath = filepath.Join(homeDir, "hand.pid")
+	}
+
+	return profile
 }
 
 // SetActive stores profile as the active process-local profile.

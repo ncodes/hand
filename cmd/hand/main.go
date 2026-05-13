@@ -190,7 +190,7 @@ func getEnvFile(args []string) string {
 		return value
 	}
 
-	for i := 0; i < len(args); i++ {
+	for i := range args {
 		arg := strings.TrimSpace(args[i])
 		if arg == "--env-file" && i+1 < len(args) {
 			return strings.TrimSpace(args[i+1])

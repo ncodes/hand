@@ -18,6 +18,7 @@ import (
 	"github.com/wandxy/hand/internal/datadir"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
 	vectormemory "github.com/wandxy/hand/internal/state/search/vectorstore/memory"
@@ -66,7 +67,7 @@ func TestOpenStore_IgnoresIncompleteVectorConfigWhenDisabled(t *testing.T) {
 
 func TestOpenStore_ReturnsSQLiteStore(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HAND_HOME", homeDir)
+	setProfileHome(t, homeDir)
 
 	store, err := OpenStore(storeConfig("sqlite"))
 	require.NoError(t, err)
@@ -77,7 +78,7 @@ func TestOpenStore_ReturnsSQLiteStore(t *testing.T) {
 
 func TestOpenStore_DefaultsToSQLite(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HAND_HOME", homeDir)
+	setProfileHome(t, homeDir)
 
 	store, err := OpenStore(&config.Config{})
 	require.NoError(t, err)
@@ -89,7 +90,7 @@ func TestOpenStore_DefaultsToSQLite(t *testing.T) {
 func TestOpenStore_ReturnsSQLiteOpenError(t *testing.T) {
 	homePath := filepath.Join(t.TempDir(), "hand-home")
 	require.NoError(t, os.WriteFile(homePath, []byte("not-a-directory"), 0o600))
-	t.Setenv("HAND_HOME", homePath)
+	setProfileHome(t, homePath)
 
 	store, err := OpenStore(storeConfig("sqlite"))
 
@@ -100,7 +101,7 @@ func TestOpenStore_ReturnsSQLiteOpenError(t *testing.T) {
 
 func TestOpenStore_ReturnsSQLiteStoreInitializationError(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HAND_HOME", homeDir)
+	setProfileHome(t, homeDir)
 
 	originalStore := newSQLiteStoreFromDB
 	t.Cleanup(func() {
@@ -118,7 +119,7 @@ func TestOpenStore_ReturnsSQLiteStoreInitializationError(t *testing.T) {
 
 func TestOpenStore_ConfiguresSQLiteVectorStore(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HAND_HOME", homeDir)
+	setProfileHome(t, homeDir)
 
 	provider := &storeTestEmbeddingProvider{}
 	vectorStore := &storeTestVectorStore{}
@@ -154,7 +155,7 @@ func TestOpenStore_ConfiguresSQLiteVectorStore(t *testing.T) {
 
 func TestOpenStore_ReturnsRerankerConstructionError(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HAND_HOME", homeDir)
+	setProfileHome(t, homeDir)
 
 	provider := &storeTestEmbeddingProvider{}
 	vectorStore := &storeTestVectorStore{}
@@ -175,7 +176,7 @@ func TestOpenStore_ReturnsRerankerConstructionError(t *testing.T) {
 
 func TestOpenStore_ReturnsSQLiteVectorConfigurationError(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HAND_HOME", homeDir)
+	setProfileHome(t, homeDir)
 
 	originalProvider := newStoreEmbeddingProvider
 	originalSQLiteStore := newSQLiteVectorStore
@@ -342,7 +343,7 @@ func TestOpenStore_ValidatesVectorConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			homeDir := t.TempDir()
-			t.Setenv("HAND_HOME", homeDir)
+			setProfileHome(t, homeDir)
 
 			store, err := OpenStore(&tt.cfg)
 
@@ -355,7 +356,7 @@ func TestOpenStore_ValidatesVectorConfig(t *testing.T) {
 func TestOpenStore_ValidatesVectorStoreFactories(t *testing.T) {
 	t.Run("sqlite vector store error", func(t *testing.T) {
 		homeDir := t.TempDir()
-		t.Setenv("HAND_HOME", homeDir)
+		setProfileHome(t, homeDir)
 
 		originalProvider := newStoreEmbeddingProvider
 		originalSQLiteStore := newSQLiteVectorStore
@@ -386,7 +387,7 @@ func TestOpenStore_ValidatesVectorStoreFactories(t *testing.T) {
 
 	t.Run("sqlite vector store is required", func(t *testing.T) {
 		homeDir := t.TempDir()
-		t.Setenv("HAND_HOME", homeDir)
+		setProfileHome(t, homeDir)
 
 		originalProvider := newStoreEmbeddingProvider
 		originalSQLiteStore := newSQLiteVectorStore
@@ -518,7 +519,7 @@ func TestOpenStore_BM25SearchWhenVectorDisabled(t *testing.T) {
 		t.Run(backend, func(t *testing.T) {
 			ctx := context.Background()
 			if backend == "sqlite" {
-				t.Setenv("HAND_HOME", t.TempDir())
+				setProfileHome(t, t.TempDir())
 			}
 
 			store, err := OpenStore(e2eVectorStoreConfig(backend, false, false))
@@ -812,7 +813,7 @@ func openStoreWithE2EVectorSearch(
 	t.Helper()
 
 	if backend == "sqlite" {
-		t.Setenv("HAND_HOME", t.TempDir())
+		setProfileHome(t, t.TempDir())
 	}
 
 	originalProvider := newStoreEmbeddingProvider
@@ -929,4 +930,14 @@ func e2eVectorForText(text string) []float64 {
 	default:
 		return []float64{0, 0, 1}
 	}
+}
+
+func setProfileHome(t *testing.T, home string) {
+	t.Helper()
+
+	original := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(original)
+	})
+	profile.SetActive(profile.Profile{Name: "test", HomeDir: home})
 }

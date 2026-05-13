@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/wandxy/hand/internal/profile"
 )
 
 var (
@@ -12,28 +14,46 @@ var (
 )
 
 func ProjectHomeDir() string {
-	if value := strings.TrimSpace(getenv("HAND_HOME")); value != "" {
-		return value
-	}
-
-	home, err := userHomeDir()
-	if err != nil || strings.TrimSpace(home) == "" {
-		return ".hand"
-	}
-
-	return filepath.Join(home, ".hand")
+	return HomeDir()
 }
 
 func HomeDir() string {
-	return ProjectHomeDir()
+	if active := profile.Active(); strings.TrimSpace(active.HomeDir) != "" {
+		return active.HomeDir
+	}
+
+	userHome := loadUserHomeDir()
+	if userHome == "" {
+		return filepath.Join(".hand", "profiles", profile.DefaultName)
+	}
+
+	resolved, err := profile.Resolve(profile.ResolveOptions{
+		Env:         map[string]string{profile.EnvName: getenv(profile.EnvName)},
+		UserHomeDir: userHome,
+	})
+	if err != nil {
+		return filepath.Join(".hand", "profiles", profile.DefaultName)
+	}
+
+	profile.SetActive(resolved)
+	return resolved.HomeDir
+}
+
+func loadUserHomeDir() string {
+	home, err := userHomeDir()
+	if err != nil || strings.TrimSpace(home) == "" {
+		return ""
+	}
+
+	return home
 }
 
 func DataDir() string {
-	return filepath.Join(ProjectHomeDir(), "data")
+	return filepath.Join(HomeDir(), "data")
 }
 
 func DebugTraceDir() string {
-	return filepath.Join(ProjectHomeDir(), "traces")
+	return filepath.Join(HomeDir(), "traces")
 }
 
 func StateDBPath() string {

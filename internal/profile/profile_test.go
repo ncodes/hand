@@ -36,6 +36,34 @@ func TestActive(t *testing.T) {
 	require.Equal(t, profile, Active())
 }
 
+func TestWithMetadataPaths_FillsEmptyPathsFromHomeDir(t *testing.T) {
+	home := filepath.Join("/Users/me", ".hand", "profiles", "work")
+
+	resolved := WithMetadataPaths(Profile{Name: "work", HomeDir: home})
+
+	require.Equal(t, filepath.Join(home, "config.yaml"), resolved.ConfigPath)
+	require.Equal(t, filepath.Join(home, ".env"), resolved.EnvPath)
+	require.Equal(t, filepath.Join(home, "runtime.json"), resolved.RuntimePath)
+	require.Equal(t, filepath.Join(home, "hand.pid"), resolved.PIDPath)
+}
+
+func TestWithMetadataPaths_KeepsExplicitPaths(t *testing.T) {
+	home := filepath.Join("/Users/me", ".hand", "profiles", "work")
+	resolved := WithMetadataPaths(Profile{
+		Name:        "work",
+		HomeDir:     home,
+		ConfigPath:  "/tmp/config.yaml",
+		EnvPath:     "/tmp/.env",
+		RuntimePath: "/tmp/runtime.json",
+		PIDPath:     "/tmp/hand.pid",
+	})
+
+	require.Equal(t, "/tmp/config.yaml", resolved.ConfigPath)
+	require.Equal(t, "/tmp/.env", resolved.EnvPath)
+	require.Equal(t, "/tmp/runtime.json", resolved.RuntimePath)
+	require.Equal(t, "/tmp/hand.pid", resolved.PIDPath)
+}
+
 func TestResolve_UsesExplicitProfileBeforeEnv(t *testing.T) {
 	resolved, err := Resolve(ResolveOptions{
 		Name:        "Work",

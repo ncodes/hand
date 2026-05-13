@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/wandxy/hand/internal/constants"
+	"github.com/wandxy/hand/internal/datadir"
 	state "github.com/wandxy/hand/internal/state/core"
 )
 
@@ -18,7 +19,6 @@ const (
 )
 
 var (
-	getwd   = os.Getwd
 	stat    = os.Stat
 	readDir = os.ReadDir
 )
@@ -37,15 +37,10 @@ type SafetyScanner func(context.Context, state.MemoryItem) error
 // pinned memory preparation should stay reusable and storage-agnostic.
 type Redactor func(context.Context, state.MemoryItem) (state.MemoryItem, error)
 
-// AutoFile looks for the conventional pinned-memory file in the current
-// workspace root. Absence is not an error because most projects will not have
-// pinned memory configured.
+// AutoFile looks for the conventional profile-local pinned-memory file. Absence
+// is not an error because most profiles will not have pinned memory configured.
 func AutoFile() (string, bool, error) {
-	root, err := getwd()
-	if err != nil {
-		return "", false, fmt.Errorf("resolve workspace root: %w", err)
-	}
-	return getAutoFileFromRoot(root)
+	return getAutoFileFromRoot(datadir.HomeDir())
 }
 
 // NormalizeOptions fills prompt-budget defaults. These budgets are enforced
@@ -66,7 +61,7 @@ func Enabled(opts Options) bool {
 	return opts.Enabled == nil || *opts.Enabled
 }
 
-// LoadFile converts a workspace pinned-memory file into one active memory item.
+// LoadFile converts a profile-local pinned-memory file into one active memory item.
 // Store-backed pinned memories are loaded by the provider; this function only
 // handles the operator-controlled file source.
 func LoadFile() ([]state.MemoryItem, error) {
@@ -179,7 +174,7 @@ func getAutoFileFromRoot(root string) (string, bool, error) {
 		if os.IsNotExist(err) {
 			return "", false, nil
 		}
-		return "", false, fmt.Errorf("stat workspace root %q: %w", root, err)
+		return "", false, fmt.Errorf("stat profile home %q: %w", root, err)
 	}
 	if !info.IsDir() {
 		return "", false, nil
@@ -187,7 +182,7 @@ func getAutoFileFromRoot(root string) (string, bool, error) {
 
 	entries, err := readDir(root)
 	if err != nil {
-		return "", false, fmt.Errorf("read workspace root %q: %w", root, err)
+		return "", false, fmt.Errorf("read profile home %q: %w", root, err)
 	}
 	for _, entry := range entries {
 		if entry.IsDir() {

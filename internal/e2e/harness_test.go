@@ -17,6 +17,7 @@ import (
 	"github.com/wandxy/hand/internal/constants"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 )
 
@@ -182,7 +183,7 @@ func TestNewHarness_Errors(t *testing.T) {
 			ModelClient: validClient,
 		})
 		require.Error(t, err)
-		assert.EqualError(t, err, "e2e isolation storage path must match HAND_HOME/data/state.db")
+		assert.EqualError(t, err, "e2e isolation storage path must match profile home state db")
 	})
 
 	t.Run("bad isolation data dir", func(t *testing.T) {
@@ -195,7 +196,7 @@ func TestNewHarness_Errors(t *testing.T) {
 			ModelClient: validClient,
 		})
 		require.Error(t, err)
-		assert.EqualError(t, err, "e2e isolation data dir must match HAND_HOME/data")
+		assert.EqualError(t, err, "e2e isolation data dir must match profile home data dir")
 	})
 
 	t.Run("agent start error", func(t *testing.T) {
@@ -408,7 +409,7 @@ func TestOpenInspectStoreAndHelpers(t *testing.T) {
 	})
 
 	t.Run("sqlite inspect store disables reranker without mutating config", func(t *testing.T) {
-		t.Setenv("HAND_HOME", t.TempDir())
+		setProfileHome(t, t.TempDir())
 
 		cfg := testHarnessConfig()
 		cfg.Storage.Backend = "sqlite"
@@ -445,14 +446,14 @@ func TestOpenInspectStoreAndHelpers(t *testing.T) {
 		assert.Empty(t, os.Getenv("HAND_E2E_CAPTURE_NEW"))
 	})
 
-	t.Run("apply env with explicit hand home", func(t *testing.T) {
+	t.Run("apply env with explicit profile", func(t *testing.T) {
 		spec := testHarnessSpec(t)
-		home := filepath.Dir(spec.Isolation.DataDir)
-		spec.Config.Env = map[string]string{"HAND_HOME": home}
+		spec.Config.Env = map[string]string{profile.EnvName: "research"}
 		restore, err := applyHarnessEnv(spec)
 		require.NoError(t, err)
 		t.Cleanup(restore)
-		assert.Equal(t, home, os.Getenv("HAND_HOME"))
+		assert.Equal(t, "research", os.Getenv(profile.EnvName))
+		assert.Equal(t, "research", profile.Active().Name)
 	})
 
 	t.Run("apply env set failure", func(t *testing.T) {
@@ -462,7 +463,10 @@ func TestOpenInspectStoreAndHelpers(t *testing.T) {
 			setHarnessEnv = original
 		})
 
-		_, err := applyHarnessEnv(testHarnessSpec(t))
+		spec := testHarnessSpec(t)
+		spec.Config.Env = map[string]string{profile.EnvName: "research"}
+
+		_, err := applyHarnessEnv(spec)
 		require.Error(t, err)
 		assert.EqualError(t, err, "setenv failed")
 	})
@@ -562,4 +566,14 @@ func testHarnessSpec(t *testing.T) HarnessSpec {
 
 func testHarnessConfig() *config.Config {
 	return DefaultConfig(ConfigOptions{})
+}
+
+func setProfileHome(t *testing.T, home string) {
+	t.Helper()
+
+	original := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(original)
+	})
+	profile.SetActive(profile.Profile{Name: "test", HomeDir: home})
 }

@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/profile"
 	handtrace "github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/internal/trace/inspect"
 	"github.com/wandxy/hand/pkg/logutils"
@@ -28,6 +29,7 @@ func TestNewCommand_ShowsHelpWithoutSubcommand(t *testing.T) {
 }
 
 func TestViewCommand_ServesTraceViewerAndPrintsURL(t *testing.T) {
+	setTraceProfile(t)
 	dir := t.TempDir()
 	writeTraceSession(t, dir, "session")
 	listenAddr := reserveListenAddress(t)
@@ -53,6 +55,7 @@ func TestViewCommand_ServesTraceViewerAndPrintsURL(t *testing.T) {
 }
 
 func TestViewCommand_UsesExplicitTraceDir(t *testing.T) {
+	setTraceProfile(t)
 	dir := t.TempDir()
 	writeTraceSession(t, dir, "session")
 	listenAddr := reserveListenAddress(t)
@@ -82,8 +85,7 @@ func TestViewCommand_UsesExplicitTraceDir(t *testing.T) {
 }
 
 func TestViewCommand_UsesDefaultTraceDirFallback(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HAND_HOME", home)
+	home := setTraceProfile(t)
 	traceDir := filepath.Join(home, "traces")
 	require.NoError(t, os.MkdirAll(traceDir, 0o755))
 	writeTraceSession(t, traceDir, "session")
@@ -116,6 +118,7 @@ func TestViewCommand_UsesDefaultTraceDirFallback(t *testing.T) {
 }
 
 func TestViewCommand_ReturnsMissingDirectoryError(t *testing.T) {
+	setTraceProfile(t)
 	restoreLogs(t, io.Discard)
 	missingDir := filepath.Join(t.TempDir(), "missing")
 	err := NewCommand().Run(context.Background(), []string{"trace", "view", "--trace-dir", missingDir})
@@ -123,6 +126,7 @@ func TestViewCommand_ReturnsMissingDirectoryError(t *testing.T) {
 }
 
 func TestViewCommand_LogsResolvedArguments(t *testing.T) {
+	setTraceProfile(t)
 	dir := t.TempDir()
 	writeTraceSession(t, dir, "session")
 	listenAddr := reserveListenAddress(t)
@@ -154,6 +158,7 @@ func TestViewCommand_LogsResolvedArguments(t *testing.T) {
 }
 
 func TestViewCommand_RequiresBasicAuthWhenConfigured(t *testing.T) {
+	setTraceProfile(t)
 	dir := t.TempDir()
 	writeTraceSession(t, dir, "session")
 	listenAddr := reserveListenAddress(t)
@@ -196,6 +201,7 @@ func TestViewCommand_RequiresBasicAuthWhenConfigured(t *testing.T) {
 }
 
 func TestViewCommand_RejectsPartialBasicAuthConfiguration(t *testing.T) {
+	setTraceProfile(t)
 	restoreLogs(t, io.Discard)
 	dir := t.TempDir()
 	writeTraceSession(t, dir, "session")
@@ -212,6 +218,20 @@ func TestServe_ReturnsListenError(t *testing.T) {
 	app := inspect.NewApp(t.TempDir())
 	err := serve(context.Background(), app, t.TempDir(), "127.0.0.1:bad")
 	require.Error(t, err)
+}
+
+func setTraceProfile(t *testing.T) string {
+	t.Helper()
+
+	home := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(home, "config.yaml"), []byte("storage:\n  backend: memory\n"), 0o600))
+
+	original := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(original)
+	})
+	profile.SetActive(profile.Profile{Name: "test", HomeDir: home})
+	return home
 }
 
 func reserveListenAddress(t *testing.T) string {

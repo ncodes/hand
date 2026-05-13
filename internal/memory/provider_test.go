@@ -14,6 +14,7 @@ import (
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/internal/profile"
 	statecore "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
@@ -768,7 +769,7 @@ func TestMemoryProvider_SearchTruncatesResultText(t *testing.T) {
 
 func TestMemoryProvider_LoadPinned(t *testing.T) {
 	dir := t.TempDir()
-	t.Chdir(dir)
+	setProfileHome(t, dir)
 	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte("from file"), 0o600))
 
@@ -806,7 +807,7 @@ func TestMemoryProvider_LoadPinnedDisabled(t *testing.T) {
 
 func TestMemoryProvider_LoadPinnedReturnsFileLoadError(t *testing.T) {
 	dir := t.TempDir()
-	t.Chdir(dir)
+	setProfileHome(t, dir)
 	require.NoError(t, os.Symlink(filepath.Join(dir, "missing.md"), filepath.Join(dir, "memory.md")))
 
 	provider := defaultMemoryTestProvider(t, Options{})
@@ -819,7 +820,7 @@ func TestMemoryProvider_LoadPinnedReturnsFileLoadError(t *testing.T) {
 
 func TestMemoryProvider_LoadPinnedAppliesItemAndTotalCharLimits(t *testing.T) {
 	dir := t.TempDir()
-	t.Chdir(dir)
+	setProfileHome(t, dir)
 	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte("abcdef"), 0o600))
 
@@ -839,7 +840,7 @@ func TestMemoryProvider_LoadPinnedAppliesItemAndTotalCharLimits(t *testing.T) {
 
 func TestMemoryProvider_LoadPinnedAppliesQueryLimitAfterMerge(t *testing.T) {
 	dir := t.TempDir()
-	t.Chdir(dir)
+	setProfileHome(t, dir)
 	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte("from file"), 0o600))
 
@@ -855,7 +856,7 @@ func TestMemoryProvider_LoadPinnedAppliesQueryLimitAfterMerge(t *testing.T) {
 
 func TestMemoryProvider_LoadPinnedUsesQueryCharLimitWhenSmaller(t *testing.T) {
 	dir := t.TempDir()
-	t.Chdir(dir)
+	setProfileHome(t, dir)
 	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte("abcdef"), 0o600))
 
@@ -875,7 +876,7 @@ func TestMemoryProvider_LoadPinnedUsesQueryCharLimitWhenSmaller(t *testing.T) {
 
 func TestMemoryProvider_LoadPinnedSafetyScansAndRedacts(t *testing.T) {
 	dir := t.TempDir()
-	t.Chdir(dir)
+	setProfileHome(t, dir)
 	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte("secret text"), 0o600))
 	guardrails := &fakeGuardrails{redactText: "redacted"}
@@ -895,7 +896,7 @@ func TestMemoryProvider_LoadPinnedSafetyScansAndRedacts(t *testing.T) {
 
 func TestMemoryProvider_LoadPinnedReturnsSafetyScanError(t *testing.T) {
 	dir := t.TempDir()
-	t.Chdir(dir)
+	setProfileHome(t, dir)
 	file := filepath.Join(dir, "memory.md")
 	require.NoError(t, os.WriteFile(file, []byte("unsafe"), 0o600))
 	safetyErr := errors.New("unsafe pinned memory")
@@ -916,6 +917,16 @@ func defaultMemoryTestProvider(t *testing.T, opts Options) *MemoryProvider {
 	require.NoError(t, err)
 
 	return provider
+}
+
+func setProfileHome(t *testing.T, home string) {
+	t.Helper()
+
+	original := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(original)
+	})
+	profile.SetActive(profile.Profile{Name: "test", HomeDir: home})
 }
 
 func newMemoryTestManager(t *testing.T, store *storagememory.Store) *statemanager.Manager {

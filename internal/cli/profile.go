@@ -18,13 +18,18 @@ type ConfigInputs struct {
 
 // ResolveConfigInputs resolves the active profile before config and env loading.
 func ResolveConfigInputs(cmd *cli.Command) (ConfigInputs, error) {
-	resolved, err := profile.Resolve(profile.ResolveOptions{Name: getCommandProfile(cmd)})
-	if err != nil {
-		return ConfigInputs{}, err
+	profileName := getCommandProfile(cmd)
+	resolved := profile.Active()
+	if profileName != "" || strings.TrimSpace(resolved.HomeDir) == "" {
+		var err error
+		resolved, err = profile.Resolve(profile.ResolveOptions{Name: profileName})
+		if err != nil {
+			return ConfigInputs{}, err
+		}
 	}
 
+	resolved = profile.WithMetadataPaths(resolved)
 	profile.SetActive(resolved)
-
 	inputs := ConfigInputs{
 		Profile:    resolved,
 		EnvPath:    resolved.EnvPath,
