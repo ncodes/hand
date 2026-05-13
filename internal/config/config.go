@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -337,6 +338,67 @@ const (
 	defaultMaxIterations                                 = constants.DefaultMaxIterations
 )
 
+// DefaultConfig is the canonical baseline for new Hand configuration.
+var DefaultConfig = Config{
+	Models: ModelsConfig{
+		Main: MainModelConfig{
+			Name:          defaultModel,
+			Stream:        new(true),
+			ContextLength: defaultContextLength,
+			APIMode:       DefaultModelAPIMode,
+		},
+		Verify:     new(true),
+		MaxRetries: new(DefaultModelMaxRetries),
+	},
+	Session: SessionConfig{
+		MaxIterations:     defaultMaxIterations,
+		DefaultIdleExpiry: constants.DefaultSessionIdleExpiry,
+		ArchiveRetention:  constants.DefaultArchiveRetention,
+	},
+	Log: LogConfig{
+		Level: constants.DefaultLogLevel,
+	},
+	Trace: TraceConfig{
+		Disk: TraceDiskConfig{
+			Enabled: new(true),
+		},
+		Database: TraceDatabaseConfig{
+			Enabled:             new(true),
+			MaxEventsPerSession: DefaultTraceMaxEventsPerSession,
+		},
+	},
+	Web: WebConfig{
+		MaxCharPerResult:             DefaultWebMaxCharPerResult,
+		MaxExtractCharPerResult:      DefaultWebMaxExtractCharPerResult,
+		MaxExtractResponseBytes:      DefaultWebMaxExtractResponseBytes,
+		CacheTTL:                     DefaultWebCacheTTL,
+		ExtractMinSummarizeChars:     DefaultWebExtractMinSummarizeChars,
+		ExtractMaxSummaryChars:       DefaultWebExtractMaxSummaryChars,
+		ExtractMaxSummaryChunkChars:  DefaultWebExtractMaxSummaryChunkChars,
+		ExtractRefusalThresholdChars: DefaultWebExtractRefusalThresholdChars,
+	},
+	Platform: constants.DefaultPlatform,
+	Cap: CapConfig{
+		Filesystem: new(true),
+		Network:    new(true),
+		Exec:       new(true),
+		Memory:     new(true),
+		Browser:    new(false),
+	},
+	Storage: StorageConfig{
+		Backend: constants.DefaultStorageBackend,
+	},
+	Compaction: CompactionConfig{
+		Enabled:        new(true),
+		TriggerPercent: constants.DefaultCompactionTrigger,
+		WarnPercent:    constants.DefaultCompactionWarn,
+	},
+	Memory: MemoryConfig{
+		Enabled:  new(true),
+		Provider: constants.MemoryProviderDefault,
+	},
+}
+
 func PreloadEnvFile(path string) error {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -373,71 +435,119 @@ func Get() *Config {
 	defer configMu.RUnlock()
 
 	if globalConfig == nil {
-		return &Config{
-			Models: ModelsConfig{
-				Main: MainModelConfig{
-					Name:          defaultModel,
-					Stream:        new(true),
-					ContextLength: defaultContextLength,
-					APIMode:       DefaultModelAPIMode,
-				},
-				Verify:     new(true),
-				MaxRetries: new(DefaultModelMaxRetries),
-			},
-			Session: SessionConfig{
-				MaxIterations:     defaultMaxIterations,
-				DefaultIdleExpiry: constants.DefaultSessionIdleExpiry,
-				ArchiveRetention:  constants.DefaultArchiveRetention,
-			},
-			Log: LogConfig{
-				Level: constants.DefaultLogLevel,
-			},
-			Trace: TraceConfig{
-				Disk: TraceDiskConfig{
-					Enabled: new(true),
-				},
-				Database: TraceDatabaseConfig{
-					Enabled:             new(true),
-					MaxEventsPerSession: DefaultTraceMaxEventsPerSession,
-				},
-			},
-			Web: WebConfig{
-				MaxCharPerResult:             DefaultWebMaxCharPerResult,
-				MaxExtractCharPerResult:      DefaultWebMaxExtractCharPerResult,
-				MaxExtractResponseBytes:      DefaultWebMaxExtractResponseBytes,
-				CacheTTL:                     DefaultWebCacheTTL,
-				ExtractMinSummarizeChars:     DefaultWebExtractMinSummarizeChars,
-				ExtractMaxSummaryChars:       DefaultWebExtractMaxSummaryChars,
-				ExtractMaxSummaryChunkChars:  DefaultWebExtractMaxSummaryChunkChars,
-				ExtractRefusalThresholdChars: DefaultWebExtractRefusalThresholdChars,
-			},
-			Platform: constants.DefaultPlatform,
-			Cap: CapConfig{
-				Filesystem: new(true),
-				Network:    new(true),
-				Exec:       new(true),
-				Memory:     new(true),
-				Browser:    new(false),
-			},
-			FS: FSConfig{
-				Roots: getDefaultFSRoots(),
-			},
-			Storage: StorageConfig{
-				Backend: constants.DefaultStorageBackend,
-			},
-			Compaction: CompactionConfig{
-				Enabled:        new(true),
-				TriggerPercent: constants.DefaultCompactionTrigger,
-				WarnPercent:    constants.DefaultCompactionWarn,
-			},
-			Memory: MemoryConfig{
-				Enabled:  new(true),
-				Provider: constants.MemoryProviderDefault,
-			},
-		}
+		return NewDefaultConfig()
 	}
 
 	return globalConfig
+}
+
+// NewDefaultConfig returns an independent default config instance.
+func NewDefaultConfig() *Config {
+	cfg := cloneConfig(DefaultConfig)
+	cfg.FS.Roots = getDefaultFSRoots()
+
+	return &cfg
+}
+
+// ToYAML returns cfg encoded as a YAML config file.
+func (c *Config) ToYAML() ([]byte, error) {
+	if c == nil {
+		return nil, errors.New("config is required")
+	}
+
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 || data[len(data)-1] != '\n' {
+		data = append(data, '\n')
+	}
+
+	return data, nil
+}
+
+// SaveYAML writes cfg to path without overwriting an existing file.
+func SaveYAML(path string, cfg *Config) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return errors.New("config path is required")
+	}
+
+	data, err := cfg.ToYAML()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("create config dir: %w", err)
+	}
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("config file already exists: %s", path)
+		}
+
+		return fmt.Errorf("open config file: %w", err)
+	}
+	defer file.Close()
+	if _, err := file.Write(data); err != nil {
+		_ = os.Remove(path)
+		return fmt.Errorf("write config file: %w", err)
+	}
+
+	return nil
+}
+
+func cloneConfig(cfg Config) Config {
+	cfg.Models.Verify = cloneBoolPtr(cfg.Models.Verify)
+	cfg.Models.MaxRetries = cloneIntPtr(cfg.Models.MaxRetries)
+	cfg.Models.Main.Stream = cloneBoolPtr(cfg.Models.Main.Stream)
+	cfg.Search.EnableRerank = cloneBoolPtr(cfg.Search.EnableRerank)
+	cfg.Memory.Enabled = cloneBoolPtr(cfg.Memory.Enabled)
+	cfg.Memory.Pinned.Enabled = cloneBoolPtr(cfg.Memory.Pinned.Enabled)
+	cfg.Memory.Retrieval.Enabled = cloneBoolPtr(cfg.Memory.Retrieval.Enabled)
+	cfg.Memory.Flush.Enabled = cloneBoolPtr(cfg.Memory.Flush.Enabled)
+	cfg.Memory.Episodic.Enabled = cloneBoolPtr(cfg.Memory.Episodic.Enabled)
+	cfg.Memory.Reflection.Enabled = cloneBoolPtr(cfg.Memory.Reflection.Enabled)
+	cfg.Memory.Promotion.Enabled = cloneBoolPtr(cfg.Memory.Promotion.Enabled)
+	cfg.Memory.Write.Enabled = cloneBoolPtr(cfg.Memory.Write.Enabled)
+	cfg.Reranker.Enabled = cloneBoolPtr(cfg.Reranker.Enabled)
+	cfg.Compaction.Enabled = cloneBoolPtr(cfg.Compaction.Enabled)
+	cfg.Cap.Filesystem = cloneBoolPtr(cfg.Cap.Filesystem)
+	cfg.Cap.Network = cloneBoolPtr(cfg.Cap.Network)
+	cfg.Cap.Exec = cloneBoolPtr(cfg.Cap.Exec)
+	cfg.Cap.Memory = cloneBoolPtr(cfg.Cap.Memory)
+	cfg.Cap.Browser = cloneBoolPtr(cfg.Cap.Browser)
+	cfg.Trace.Disk.Enabled = cloneBoolPtr(cfg.Trace.Disk.Enabled)
+	cfg.Trace.Database.Enabled = cloneBoolPtr(cfg.Trace.Database.Enabled)
+	cfg.FS.Roots = slices.Clone(cfg.FS.Roots)
+	cfg.Exec.Allow = slices.Clone(cfg.Exec.Allow)
+	cfg.Exec.Ask = slices.Clone(cfg.Exec.Ask)
+	cfg.Exec.Deny = slices.Clone(cfg.Exec.Deny)
+	cfg.Web.BlockedDomains = slices.Clone(cfg.Web.BlockedDomains)
+	cfg.Web.BlockedDomainFiles = slices.Clone(cfg.Web.BlockedDomainFiles)
+	cfg.Web.NativeAllowedHosts = slices.Clone(cfg.Web.NativeAllowedHosts)
+	cfg.Web.NativeBlockedHosts = slices.Clone(cfg.Web.NativeBlockedHosts)
+	cfg.Web.NativeAllowedHostFiles = slices.Clone(cfg.Web.NativeAllowedHostFiles)
+	cfg.Web.NativeBlockedHostFiles = slices.Clone(cfg.Web.NativeBlockedHostFiles)
+	cfg.Rules.Files = slices.Clone(cfg.Rules.Files)
+
+	return cfg
+}
+
+func cloneBoolPtr(value *bool) *bool {
+	if value == nil {
+		return nil
+	}
+
+	return new(*value)
+}
+
+func cloneIntPtr(value *int) *int {
+	if value == nil {
+		return nil
+	}
+
+	return new(*value)
 }
 
 func Set(cfg *Config) {

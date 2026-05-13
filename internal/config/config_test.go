@@ -164,6 +164,62 @@ func TestPreloadEnvFile_IgnoresMissingFile(t *testing.T) {
 	require.NoError(t, PreloadEnvFile("missing.env"))
 }
 
+func TestNewDefaultConfig_ReturnsIndependentConfig(t *testing.T) {
+	first := NewDefaultConfig()
+	second := NewDefaultConfig()
+
+	require.Equal(t, defaultModel, first.Models.Main.Name)
+	require.Empty(t, first.Models.Main.Provider)
+	require.Empty(t, first.RPC.Address)
+	require.Zero(t, first.RPC.Port)
+	require.NotEmpty(t, first.FS.Roots)
+
+	*first.Models.Verify = false
+	first.FS.Roots[0] = "mutated"
+
+	require.True(t, *second.Models.Verify)
+	require.NotEqual(t, "mutated", second.FS.Roots[0])
+	require.True(t, *DefaultConfig.Models.Verify)
+}
+
+func TestConfig_ToYAMLAndSaveYAML(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Name = "alpha"
+	path := filepath.Join(t.TempDir(), "profile", "config.yaml")
+
+	require.NoError(t, SaveYAML(path, cfg))
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+
+	loaded, err := loadConfigFile(path)
+	require.NoError(t, err)
+	require.Equal(t, "alpha", loaded.Name)
+	require.Equal(t, cfg.Models.Main.Name, loaded.Models.Main.Name)
+}
+
+func TestSaveYAML_RefusesOverwrite(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("name: existing\n"), 0o600))
+
+	cfg := NewDefaultConfig()
+	cfg.Name = "alpha"
+	err := SaveYAML(path, cfg)
+
+	require.EqualError(t, err, "config file already exists: "+path)
+	data, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	require.Equal(t, "name: existing\n", string(data))
+}
+
+func TestSaveYAML_ReturnsValidationErrors(t *testing.T) {
+	err := SaveYAML("", NewDefaultConfig())
+	require.EqualError(t, err, "config path is required")
+
+	err = SaveYAML(filepath.Join(t.TempDir(), "config.yaml"), nil)
+	require.EqualError(t, err, "config is required")
+}
+
 func TestLoad_ReturnsPreloadEnvFileError(t *testing.T) {
 	originalLoadDotEnv := loadDotEnv
 	t.Cleanup(func() {

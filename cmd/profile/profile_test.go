@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/profile"
 )
 
@@ -95,6 +96,44 @@ func TestCommandInitCreatesProfileDirIdempotently(t *testing.T) {
 	profileHome := filepath.Join(home, ".hand", "profiles", "work")
 	require.DirExists(t, profileHome)
 	require.Equal(t, profileHome+"\n"+profileHome+"\n", output.String())
+}
+
+func TestCommandInitWithConfigCreatesStarterConfig(t *testing.T) {
+	resetProfileCommand(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	var output bytes.Buffer
+	SetOutput(&output)
+	err := NewCommand().Run(context.Background(), []string{"profile", "init", "Alpha", "--with-config"})
+	require.NoError(t, err)
+
+	profileHome := filepath.Join(home, ".hand", "profiles", "alpha")
+	configPath := filepath.Join(profileHome, "config.yaml")
+	data, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	require.Contains(t, string(data), "name: alpha\n")
+	require.Contains(t, string(data), "models:\n")
+	cfg, err := config.Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, "alpha", cfg.Name)
+	require.Equal(t, profileHome+"\n", output.String())
+}
+
+func TestCommandInitWithConfigRefusesOverwrite(t *testing.T) {
+	resetProfileCommand(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	profileHome := filepath.Join(home, ".hand", "profiles", "alpha")
+	require.NoError(t, os.MkdirAll(profileHome, 0o700))
+	configPath := filepath.Join(profileHome, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("name: existing\n"), 0o600))
+
+	err := NewCommand().Run(context.Background(), []string{"profile", "init", "Alpha", "--with-config"})
+	require.EqualError(t, err, "config file already exists: "+configPath)
+	data, readErr := os.ReadFile(configPath)
+	require.NoError(t, readErr)
+	require.Equal(t, "name: existing\n", string(data))
 }
 
 func TestCommandInitRequiresName(t *testing.T) {

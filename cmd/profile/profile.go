@@ -9,6 +9,7 @@ import (
 
 	cli "github.com/urfave/cli/v3"
 
+	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/profile"
 )
 
@@ -109,6 +110,12 @@ func newInitCommand() *cli.Command {
 		Name:      "init",
 		Usage:     "Create a profile directory",
 		ArgsUsage: "<name>",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:  "with-config",
+				Usage: "Create a starter config.yaml for the profile",
+			},
+		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			name := strings.TrimSpace(cmd.Args().First())
 			if name == "" {
@@ -118,6 +125,13 @@ func newInitCommand() *cli.Command {
 			resolved, err := profile.Init(name, "")
 			if err != nil {
 				return err
+			}
+			if cmd.Bool("with-config") {
+				cfg := config.NewDefaultConfig()
+				cfg.Name = resolved.Name
+				if err := config.SaveYAML(resolved.ConfigPath, cfg); err != nil {
+					return err
+				}
 			}
 
 			_, err = fmt.Fprintln(profileOutput, resolved.HomeDir)
