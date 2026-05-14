@@ -233,7 +233,7 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 				"tool_call_id": toolCall.ID,
 			})
 
-			toolCtx := tools.WithTraceRecorder(tools.WithSessionID(flushCtx, t.sessionID), traceSession)
+			toolCtx := tools.WithTraceRecorder(t.getToolContext(flushCtx), traceSession)
 			toolMessage := t.invokeFlushTool(toolCtx, toolCall)
 			toolMessage, err = normalizeTurnMessage(toolMessage)
 			if err != nil {

@@ -79,8 +79,11 @@ type EnvironmentStub struct {
 	Policy           tools.Policy
 	IterationBudget  envbudget.IterationBudget
 	TraceSession     trace.Session
+	TraceRunContexts []runcontext.Context
+	TraceSessionIDs  []string
 	Memory           memory.Provider
 	Plan             envtypes.Plan
+	PlanSessionIDs   []string
 }
 
 func (s *EnvironmentStub) Prepare() error {
@@ -107,7 +110,8 @@ func (s *EnvironmentStub) NewIterationBudget() envbudget.IterationBudget {
 	return s.IterationBudget
 }
 
-func (s *EnvironmentStub) NewTraceSession(string) trace.Session {
+func (s *EnvironmentStub) NewTraceSession(sessionID string) trace.Session {
+	s.TraceSessionIDs = append(s.TraceSessionIDs, sessionID)
 	if s.TraceSession == nil {
 		return trace.NoopSession()
 	}
@@ -115,7 +119,8 @@ func (s *EnvironmentStub) NewTraceSession(string) trace.Session {
 	return s.TraceSession
 }
 
-func (s *EnvironmentStub) NewTraceSessionForRun(runcontext.Context) trace.Session {
+func (s *EnvironmentStub) NewTraceSessionForRun(runCtx runcontext.Context) trace.Session {
+	s.TraceRunContexts = append(s.TraceRunContexts, runCtx)
 	if s.TraceSession == nil {
 		return trace.NoopSession()
 	}
@@ -133,7 +138,8 @@ func (s *EnvironmentStub) CurrentPlan(string) envtypes.Plan {
 	return s.Plan
 }
 
-func (s *EnvironmentStub) HydratePlan(_ string, plan envtypes.Plan) {
+func (s *EnvironmentStub) HydratePlan(sessionID string, plan envtypes.Plan) {
+	s.PlanSessionIDs = append(s.PlanSessionIDs, sessionID)
 	s.Plan = plan
 }
 

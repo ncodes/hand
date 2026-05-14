@@ -17,6 +17,7 @@ import (
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/hand/pkg/nanoid"
 )
 
 func TestTurn_RunFlushesMemoryBeforeCompaction(t *testing.T) {
@@ -130,6 +131,64 @@ func TestTurn_FlushMemoryBeforeContextLossUsesSummaryClientAndModel(t *testing.T
 	require.Equal(t, "summary-model", summaryClient.Requests[0].Model)
 	require.Equal(t, "completions", summaryClient.Requests[0].APIMode)
 	require.Empty(t, *calls)
+}
+
+func TestTurn_FlushMemoryBeforeContextLossThreadsRunContextThroughToolInvocation(t *testing.T) {
+	enabled := true
+	sessionID := nanoid.MustFromSeed(storage.SessionIDPrefix, "flush", "TurnRunContextSeed")
+	client := &mocks.ModelClientStub{Responses: []*models.Response{{
+		RequiresToolCalls: true,
+		ToolCalls: []models.ToolCall{{
+			ID:    "call-memory",
+			Name:  "memory_extract",
+			Input: `{"session_id":"` + sessionID + `","offset_start":0,"offset_end":1}`,
+		}},
+	}}}
+	var toolRunCtxOK bool
+	var toolStateSessionID string
+	registry := tools.NewInMemoryRegistry()
+	require.NoError(t, registry.Register(tools.Definition{
+		Name:        "memory_extract",
+		Description: "Extract memory.",
+		Groups:      []string{"core"},
+		Requires:    tools.Capabilities{Memory: true},
+		InputSchema: map[string]any{"type": "object"},
+		Handler: tools.HandlerFunc(func(ctx context.Context, _ tools.Call) (tools.Result, error) {
+			runCtx, ok := tools.RunContextFromContext(ctx)
+			toolRunCtxOK = ok
+			toolStateSessionID = runCtx.StateSessionID()
+			return tools.Result{Output: `{"write_count":1}`}, nil
+		}),
+	}))
+	turn, manager := newTestTurnHarness(t, nil, registry, client)
+	turn.env = &mocks.EnvironmentStub{
+		ToolRegistry: registry,
+		TraceSession: &mocks.TraceSessionStub{},
+		Policy:       tools.Policy{Capabilities: tools.Capabilities{Memory: true}},
+	}
+	turn.cfg = testSessionConfig(&config.Config{
+		Name: "Test Agent",
+		Models: config.ModelsConfig{
+			Main: config.MainModelConfig{Name: "test-model", ContextLength: 128000},
+		},
+		Memory: config.MemoryConfig{
+			Enabled: &enabled,
+			Flush: config.FlushMemoryConfig{
+				Enabled:  &enabled,
+				MaxCalls: 1,
+				Timeout:  time.Second,
+			},
+		},
+	})
+	_, err := manager.CreateSession(context.Background(), sessionID)
+	require.NoError(t, err)
+	require.NoError(t, turn.load(context.Background(), RespondOptions{SessionID: sessionID}))
+
+	err = turn.flushMemoryBeforeContextLoss(context.Background(), "reset", trace.NoopSession())
+
+	require.NoError(t, err)
+	require.True(t, toolRunCtxOK)
+	require.Equal(t, sessionID, toolStateSessionID)
 }
 
 func TestAgent_CompactSessionFlushesMemoryBeforeSummary(t *testing.T) {

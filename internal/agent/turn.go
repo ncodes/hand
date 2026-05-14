@@ -10,6 +10,7 @@ import (
 	ctxbuilder "github.com/wandxy/hand/internal/agent/context"
 	"github.com/wandxy/hand/internal/agent/context/compaction"
 	agentsummary "github.com/wandxy/hand/internal/agent/context/summary"
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment"
@@ -18,6 +19,7 @@ import (
 	instruct "github.com/wandxy/hand/internal/instructions"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/tools"
@@ -61,6 +63,8 @@ type Turn struct {
 	sessionHistoryOffset int
 	// sessionID identifies the session being read from and written to.
 	sessionID string
+	// runCtx carries effective state identity, personality, profile, and lineage for this run.
+	runCtx runcontext.Context
 	// lastPromptTokens stores the most recent actual prompt token count for the session.
 	lastPromptTokens int
 	// summaryRefreshAttempted prevents multiple summary refresh attempts in one turn.
@@ -144,9 +148,13 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 	t.summary = summary
 	t.sessionHistoryOffset = tailOffset
 	t.sessionID = session.ID
+	t.runCtx, err = newRootRunContext(session.ID)
+	if err != nil {
+		return err
+	}
 	t.lastPromptTokens = session.LastPromptTokens
 	t.summaryRefreshAttempted = false
-	t.planHydrated, err = t.hydratePlanFromHistory(ctx, session.ID)
+	t.planHydrated, err = t.hydratePlanFromHistory(ctx, t.getStateSessionID())
 	if err != nil {
 		return err
 	}
@@ -178,12 +186,12 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		}()
 	}
 
-	traceSession := t.env.NewTraceSession(t.sessionID)
+	traceSession := t.env.NewTraceSessionForRun(t.runCtx)
 	defer traceSession.Close()
 	if t.planHydrated {
-		plan := t.env.CurrentPlan(t.sessionID)
+		plan := t.env.CurrentPlan(t.getStateSessionID())
 		traceSession.Record(trace.EvtPlanHydrated, map[string]any{
-			"session_id":     t.sessionID,
+			"session_id":     t.getStateSessionID(),
 			"steps":          plan.Steps,
 			"summary":        summarizeHydratedPlan(plan),
 			"active_step_id": getActiveHydratedPlanStepID(plan),
@@ -391,7 +399,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				Msg("tool invocation started")
 
 			traceSession.Record(trace.EvtToolInvocationStarted, toolCall)
-			toolCtx := tools.WithTraceRecorder(tools.WithSessionID(ctx, t.sessionID), traceSession)
+			toolCtx := tools.WithTraceRecorder(t.getToolContext(ctx), traceSession)
 			toolMessage := t.invokeTool(toolCtx, toolCall)
 			traceSession.Record(trace.EvtToolInvocationCompleted, toolMessage)
 
@@ -454,6 +462,33 @@ func (t *Turn) trimSessionHistoryToSummary() {
 
 func (t *Turn) appendSessionMessages(messages []handmsg.Message) error {
 	return t.stateMgr.AppendMessages(t.ctx, t.sessionID, messages)
+}
+
+func (t *Turn) getStateSessionID() string {
+	if t == nil {
+		return storage.DefaultSessionID
+	}
+	if strings.TrimSpace(t.runCtx.Session.EffectiveID) != "" ||
+		strings.TrimSpace(t.runCtx.Session.PublicID) != "" {
+		return t.runCtx.StateSessionID()
+	}
+	if value := strings.TrimSpace(t.sessionID); value != "" {
+		return value
+	}
+
+	return t.runCtx.StateSessionID()
+}
+
+func (t *Turn) getToolContext(ctx context.Context) context.Context {
+	if t == nil {
+		return tools.WithSessionID(ctx, "")
+	}
+
+	if strings.TrimSpace(t.runCtx.Session.PublicID) != "" {
+		return tools.WithRunContext(ctx, t.runCtx)
+	}
+
+	return tools.WithSessionID(ctx, t.sessionID)
 }
 
 func (t *Turn) availableToolDefinitions() ([]models.ToolDefinition, error) {
@@ -679,11 +714,11 @@ func (t *Turn) hydratePlanFromMessages(messages []handmsg.Message) bool {
 			continue
 		}
 
-		t.env.HydratePlan(t.sessionID, plan)
+		t.env.HydratePlan(t.getStateSessionID(), plan)
 		return true
 	}
 
-	t.env.HydratePlan(t.sessionID, empty)
+	t.env.HydratePlan(t.getStateSessionID(), empty)
 	return false
 }
 
@@ -692,7 +727,7 @@ func (t *Turn) renderPlanInstructions() string {
 		return ""
 	}
 
-	plan := t.env.CurrentPlan(t.sessionID)
+	plan := t.env.CurrentPlan(t.getStateSessionID())
 	activeSteps := make([]envtypes.PlanStep, 0, len(plan.Steps))
 	for _, step := range plan.Steps {
 		if step.Status == envtypes.PlanStatusCompleted || step.Status == envtypes.PlanStatusCancelled {
@@ -811,6 +846,19 @@ func getActiveHydratedPlanStepID(plan envtypes.Plan) string {
 		}
 	}
 	return ""
+}
+
+func newRootRunContext(sessionID string) (runcontext.Context, error) {
+	runCtx, err := runcontext.NewParent(sessionID)
+	if err != nil {
+		return runcontext.Context{}, err
+	}
+
+	if active := profile.Active(); strings.TrimSpace(active.Name) != "" {
+		runCtx.ProfileName = active.Name
+	}
+
+	return runCtx.Normalize()
 }
 
 func (t *Turn) Context() []handmsg.Message {

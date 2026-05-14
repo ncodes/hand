@@ -29,6 +29,7 @@ import (
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/pkg/logutils"
+	"github.com/wandxy/hand/pkg/nanoid"
 )
 
 func init() {
@@ -2265,6 +2266,74 @@ func TestAgent_RespondExecutesToolAndReturnsFinalAnswer(t *testing.T) {
 	require.Len(t, client.Requests[1].Messages[1].ToolCalls, 1)
 	require.Equal(t, handmsg.RoleTool, client.Requests[1].Messages[2].Role)
 	require.Contains(t, client.Requests[1].Messages[2].Content, `"output":"2026-03-23T00:00:00Z"`)
+}
+
+func TestTurn_RunThreadsRunContextThroughTraceAndToolInvocation(t *testing.T) {
+	stream := false
+	sessionID := nanoid.MustFromSeed(storage.SessionIDPrefix, "tools", "TurnRunContextSeed")
+	client := &mocks.ModelClientStub{
+		Responses: []*models.Response{
+			{
+				ToolCalls:         []models.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}},
+				RequiresToolCalls: true,
+			},
+			{
+				OutputText: "done",
+			},
+		},
+	}
+	registry := tools.NewInMemoryRegistry()
+	require.NoError(t, registry.Register(tools.Definition{
+		Name:        "time",
+		Description: "Returns time",
+		Handler: tools.HandlerFunc(func(context.Context, tools.Call) (tools.Result, error) {
+			return tools.Result{Output: "unused"}, nil
+		}),
+	}))
+	env := &mocks.EnvironmentStub{
+		InstructionsList: instructions.Instructions{{Value: "system prompt"}},
+		ToolRegistry:     registry,
+		TraceSession:     &mocks.TraceSessionStub{},
+	}
+	manager := mustNewStateManager(t)
+	_, err := manager.CreateSession(context.Background(), sessionID)
+	require.NoError(t, err)
+	var toolRunCtxOK bool
+	var toolStateSessionID string
+	turn := NewTurn(
+		testSessionConfig(&config.Config{
+			Name:   "Test Agent",
+			Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model", Stream: &stream}},
+		}),
+		client,
+		nil,
+		manager,
+		func(ctx context.Context, _ environment.Environment, toolCall models.ToolCall) handmsg.Message {
+			runCtx, ok := tools.RunContextFromContext(ctx)
+			toolRunCtxOK = ok
+			toolStateSessionID = runCtx.StateSessionID()
+			return toolResultMessage(toolCall, map[string]any{"name": toolCall.Name, "output": "2026-03-23T00:00:00Z"})
+		},
+		env,
+	)
+
+	reply, err := turn.Run(context.Background(), "what time is it?", RespondOptions{SessionID: sessionID})
+
+	require.NoError(t, err)
+	require.Equal(t, "done", reply)
+	require.Len(t, env.TraceRunContexts, 1)
+	require.Empty(t, env.TraceSessionIDs)
+	require.Equal(t, sessionID, env.TraceRunContexts[0].Session.PublicID)
+	require.Equal(t, sessionID, env.TraceRunContexts[0].Session.EffectiveID)
+	require.True(t, toolRunCtxOK)
+	require.Equal(t, sessionID, toolStateSessionID)
+}
+
+func TestTurn_GetStateSessionIDFallsBackToLoadedSessionID(t *testing.T) {
+	sessionID := nanoid.MustFromSeed(storage.SessionIDPrefix, "loaded", "TurnRunContextSeed")
+	turn := &Turn{sessionID: sessionID}
+
+	require.Equal(t, sessionID, turn.getStateSessionID())
 }
 
 func TestAgent_RespondExecutesMultipleSequentialToolCalls(t *testing.T) {

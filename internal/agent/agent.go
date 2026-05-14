@@ -9,6 +9,7 @@ import (
 	"time"
 
 	agentsummary "github.com/wandxy/hand/internal/agent/context/summary"
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment"
@@ -178,16 +179,19 @@ func (a *Agent) Close() error {
 		return nil
 	}
 
-	if a.shouldFlushMemoryBeforeContextLoss() {
-		ctx := normalizeContext(a.ctx)
-		if sessionID, err := a.stateMgr.CurrentSession(ctx); err == nil && strings.TrimSpace(sessionID) != "" {
-			traceSession := trace.NoopSession()
-			if a.env != nil {
-				traceSession = a.env.NewTraceSession(sessionID)
-			}
-			a.maybeFlushMemoryBeforeContextLoss(ctx, sessionID, memoryFlushTriggerControlledExit, traceSession)
-			traceSession.Close()
+	if !a.shouldFlushMemoryBeforeContextLoss() {
+		return a.stateMgr.Close()
+	}
+
+	ctx := normalizeContext(a.ctx)
+	sessionID, err := a.stateMgr.CurrentSession(ctx)
+	if err == nil && strings.TrimSpace(sessionID) != "" {
+		traceSession := trace.NoopSession()
+		if a.env != nil {
+			traceSession = a.openTraceSessionForSession(sessionID)
 		}
+		a.maybeFlushMemoryBeforeContextLoss(ctx, sessionID, memoryFlushTriggerControlledExit, traceSession)
+		traceSession.Close()
 	}
 
 	return a.stateMgr.Close()
@@ -282,6 +286,23 @@ func (a *Agent) availableToolDefinitions() ([]models.ToolDefinition, error) {
 
 func (a *Agent) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
 	return a.invokeToolWithEnvironment(ctx, a.env, toolCall)
+}
+
+func (a *Agent) getRootRunContext(sessionID string) (runcontext.Context, error) {
+	return newRootRunContext(sessionID)
+}
+
+func (a *Agent) openTraceSessionForSession(sessionID string) trace.Session {
+	if a == nil || a.env == nil {
+		return trace.NoopSession()
+	}
+
+	runCtx, err := a.getRootRunContext(sessionID)
+	if err != nil {
+		return trace.NoopSession()
+	}
+
+	return a.env.NewTraceSessionForRun(runCtx)
 }
 
 func (a *Agent) invokeToolWithEnvironment(
@@ -387,7 +408,7 @@ func (a *Agent) UseSession(ctx context.Context, id string) error {
 		strings.TrimSpace(currentSessionID) != targetSession.ID {
 		traceSession := trace.NoopSession()
 		if a.env != nil {
-			traceSession = a.env.NewTraceSession(currentSessionID)
+			traceSession = a.openTraceSessionForSession(currentSessionID)
 		}
 		a.maybeFlushMemoryBeforeContextLoss(ctx, currentSessionID, memoryFlushTriggerSessionReset, traceSession)
 		traceSession.Close()
@@ -473,7 +494,7 @@ func (a *Agent) RecallSessionSummary(ctx context.Context, id string) (storage.Se
 
 	traceSession := trace.NoopSession()
 	if a.env != nil {
-		traceSession = a.env.NewTraceSession(session.ID)
+		traceSession = a.openTraceSessionForSession(session.ID)
 	}
 	defer traceSession.Close()
 
@@ -530,7 +551,7 @@ func (a *Agent) summarizeSession(
 
 	traceSession := trace.NoopSession()
 	if a.env != nil {
-		traceSession = a.env.NewTraceSession(session.ID)
+		traceSession = a.openTraceSessionForSession(session.ID)
 	}
 	defer traceSession.Close()
 
