@@ -95,7 +95,7 @@ func TestEnvironment_PrepareAddsFullBaseInstructionStack(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previous
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -133,7 +133,7 @@ func TestEnvironment_PrepareRequiresStateManager(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previous
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -154,7 +154,7 @@ func TestEnvironment_PrepareNormalizesConfig(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previous
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -421,7 +421,7 @@ func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previous
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(files ...string) (workspace.Result, error) {
@@ -460,7 +460,7 @@ func TestEnvironment_PrepareAppendsPersonalityBeforeWorkspaceRules(t *testing.T)
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{Found: true, Content: "## SOUL.md\npersona"}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -485,6 +485,38 @@ func TestEnvironment_PrepareAppendsPersonalityBeforeWorkspaceRules(t *testing.T)
 	require.Equal(t, instruct.BuildMemoryDeleteGuidance(), instructions[len(instructions)-1])
 }
 
+func TestEnvironment_PrepareLoadsPersonalityWithActiveProfileHome(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	previousProfile := profile.Active()
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+		profile.SetActive(previousProfile)
+	})
+
+	home := t.TempDir()
+	profile.SetActive(profile.Profile{Name: "work", HomeDir: home})
+
+	var got personality.LoadOptions
+	loadPersonality = func(opts personality.LoadOptions) (personality.Result, error) {
+		got = opts
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
+	cfg := &config.Config{Name: "Test Agent", Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}}}
+	env := NewEnvironment(gctx.Background(), cfg)
+
+	prepareTestEnvironment(t, env)
+
+	require.Equal(t, home, got.ProfileHome)
+	require.True(t, got.AllowWorkspace)
+	require.Empty(t, got.PersonalityName)
+}
+
 func TestEnvironment_PrepareAppendsInstructAfterWorkspaceRules(t *testing.T) {
 	previousPersonality := loadPersonality
 	previousWorkspace := loadWorkspaceRules
@@ -492,7 +524,7 @@ func TestEnvironment_PrepareAppendsInstructAfterWorkspaceRules(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{Found: true, Content: "## SOUL.md\npersona"}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -526,7 +558,7 @@ func TestEnvironment_PrepareIgnoresPersonalityLoadError(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, errors.New("personality failed")
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -548,7 +580,7 @@ func TestEnvironment_PrepareIgnoresWorkspaceRuleLoadError(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previous
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -570,7 +602,7 @@ func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) 
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previous
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -609,7 +641,7 @@ func TestEnvironment_PrepareUsesDefaultIdentityWhenNameIsEmpty(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previous
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -634,7 +666,7 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previous
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -667,7 +699,7 @@ func TestEnvironment_PrepareAppendsLoadedToolUsageInstructionsAfterBaseInstructi
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -700,7 +732,7 @@ func TestEnvironment_PrepareRegistersSessionTools(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -726,7 +758,7 @@ func TestEnvironment_PrepareRegistersMemorySearchWhenProviderSupportsSearch(t *t
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -1086,7 +1118,7 @@ func TestEnvironment_PrepareRegistersMemoryWriteToolsWhenEnabled(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -1157,7 +1189,7 @@ func TestEnvironment_SessionSearchThenSessionMessagesWorkflow(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -1243,7 +1275,7 @@ func TestEnvironment_PrepareRegistersWebSearchWhenProviderConfigured(t *testing.
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -1289,7 +1321,7 @@ func TestEnvironment_PrepareWrapsWebProviderWithCacheWhenConfigured(t *testing.T
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -1337,7 +1369,7 @@ func TestEnvironment_PrepareLeavesWebProviderUncachedWhenDisabled(t *testing.T) 
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -1384,7 +1416,7 @@ func TestEnvironment_PrepareAppliesWebsitePolicyToWebTools(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -1430,7 +1462,7 @@ func TestEnvironment_PrepareRegistersOnlyWebExtractForNativeProvider(t *testing.
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -1457,7 +1489,7 @@ func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -1496,7 +1528,7 @@ func TestEnvironment_WebToolsResolveOnlyWithNetworkCapability(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -1553,7 +1585,7 @@ func TestEnvironment_PrepareReturnsToolRegistrationError(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -1579,7 +1611,7 @@ func TestEnvironment_PrepareReturnsToolGroupRegistrationError(t *testing.T) {
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {
@@ -1831,7 +1863,7 @@ func TestEnvironment_NewTraceSessionRecordsWorkspaceRuleTruncation(t *testing.T)
 		loadPersonality = previousPersonality
 		loadWorkspaceRules = previousWorkspace
 	})
-	loadPersonality = func() (personality.Result, error) {
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
 		return personality.Result{}, nil
 	}
 	loadWorkspaceRules = func(...string) (workspace.Result, error) {

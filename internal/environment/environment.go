@@ -430,7 +430,7 @@ func (e *environment) prepareInstructions() {
 		e.addInstruction(instruction)
 	}
 
-	personalityOverlay, err := loadPersonality()
+	personalityOverlay, err := loadPersonality(e.personalityLoadOptions())
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to load personality overlays")
 	} else if personalityOverlay.Found {
@@ -450,6 +450,13 @@ func (e *environment) prepareInstructions() {
 
 	if e.cfg != nil && e.cfg.Session.Instruct != "" {
 		e.setInstruction(instructions.Instruction{Name: configInstructInstructionName, Value: e.cfg.Session.Instruct})
+	}
+}
+
+func (e *environment) personalityLoadOptions() personality.LoadOptions {
+	return personality.LoadOptions{
+		ProfileHome:    datadir.HomeDir(),
+		AllowWorkspace: true,
 	}
 }
 
