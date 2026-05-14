@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/environment/planstore"
 	"github.com/wandxy/hand/internal/environment/process"
 	"github.com/wandxy/hand/internal/environment/sessionmessages"
@@ -66,6 +67,37 @@ func TestNewRuntime_NormalizesConfiguredRoots(t *testing.T) {
 	runtime := NewRuntime([]string{root, filepath.Join(root, ".")}, guardrails.CommandPolicy{}, nil)
 
 	require.Equal(t, []string{root}, runtime.FilePolicy().Roots)
+}
+
+func TestRuntime_ProcessStateUsesChildSessionID(t *testing.T) {
+	parentID := nanoid.MustFromSeed(storage.SessionIDPrefix, "parent", "RuntimeProcessLineageTestSeed")
+	childID := nanoid.MustFromSeed(storage.SessionIDPrefix, "child", "RuntimeProcessLineageTestSeed")
+	runtime := NewRuntime([]string{t.TempDir()}, guardrails.CommandPolicy{}, nil)
+
+	parentProcess, err := runtime.StartProcess(context.Background(), parentID, process.StartRequest{
+		Command: "printf",
+		Args:    []string{"parent"},
+	})
+	require.NoError(t, err)
+	childProcess, err := runtime.StartProcess(context.Background(), childID, process.StartRequest{
+		Command: "printf",
+		Args:    []string{"child"},
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, "proc_1", parentProcess.ID)
+	require.Equal(t, "proc_1", childProcess.ID)
+	require.Len(t, runtime.ListProcesses(parentID), 1)
+	require.Len(t, runtime.ListProcesses(childID), 1)
+	foundParent, err := runtime.GetProcess(parentID, childProcess.ID)
+	require.NoError(t, err)
+	require.Equal(t, "printf", foundParent.Command)
+	require.Equal(t, []string{"parent"}, foundParent.Args)
+	foundChild, err := runtime.GetProcess(childID, childProcess.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"child"}, foundChild.Args)
+	_, err = runtime.GetProcess("default", childProcess.ID)
+	require.EqualError(t, err, "process not found")
 }
 
 func TestRuntime_FilePolicyHandlesNilReceiver(t *testing.T) {
@@ -547,4 +579,59 @@ func TestRuntime_MemoryWriteCallsProvider(t *testing.T) {
 	err = runtime.DeleteMemory(context.Background(), handmemory.DeleteRequest{ID: item.ID})
 	require.NoError(t, err)
 	require.Equal(t, item.ID, provider.deleteRequest.ID)
+}
+
+func TestRuntime_MemoryWriteAppliesSessionLineage(t *testing.T) {
+	provider := &memoryWriteProviderStub{
+		memoryExtractionProviderStub: memoryExtractionProviderStub{
+			memorySearchProviderStub: memorySearchProviderStub{
+				caps: handmemory.Capabilities{
+					SupportsWrite:               true,
+					SupportsDelete:              true,
+					SupportsSemanticRecording:   true,
+					SupportsProceduralRecording: true,
+				},
+			},
+		},
+	}
+	runtime := &Runtime{memory: provider}
+	parentID := nanoid.MustFromSeed(storage.SessionIDPrefix, "parent", "RuntimeMemoryLineageTestSeed")
+	childID := nanoid.MustFromSeed(storage.SessionIDPrefix, "child", "RuntimeMemoryLineageTestSeed")
+	parent, err := runcontext.NewParent(parentID)
+	require.NoError(t, err)
+	child, err := parent.NewChild(runcontext.ChildOptions{
+		ChildSessionID:  childID,
+		RunID:           "run_runtime",
+		PersonalityName: "researcher",
+		StateMode:       runcontext.StateModeIsolated,
+		ProfileName:     "work",
+	})
+	require.NoError(t, err)
+	ctx := runcontext.WithContext(context.Background(), child)
+	item := handmemory.MemoryItem{
+		ID: "mem_candidate",
+		Metadata: map[string]string{
+			runcontext.MemoryMetadataTrigger: "episodic_extraction",
+		},
+		SourceLinks: []handmemory.SourceLink{{SessionID: parentID, MessageIDs: []uint{1}}},
+	}
+
+	_, err = runtime.RecordSemanticMemory(ctx, handmemory.SemanticRecord{Item: item})
+	require.NoError(t, err)
+	require.Equal(t, childID, provider.semanticRecord.Item.Metadata[runcontext.MemoryMetadataEffectiveSessionID])
+	require.Equal(t, parentID, provider.semanticRecord.Item.Metadata[runcontext.MemoryMetadataParentSessionID])
+	require.Equal(t, "episodic_extraction", provider.semanticRecord.Item.Metadata[runcontext.MemoryMetadataTrigger])
+	require.Equal(t, childID, provider.semanticRecord.Item.SourceLinks[0].ChildSessionID)
+
+	_, err = runtime.RecordProceduralMemory(ctx, handmemory.ProceduralRecord{Item: item})
+	require.NoError(t, err)
+	require.Equal(t, childID, provider.proceduralRecord.Item.Metadata[runcontext.MemoryMetadataEffectiveSessionID])
+	require.Equal(t, parentID, provider.proceduralRecord.Item.Metadata[runcontext.MemoryMetadataParentSessionID])
+	require.Equal(t, "episodic_extraction", provider.proceduralRecord.Item.Metadata[runcontext.MemoryMetadataTrigger])
+	require.Equal(t, childID, provider.proceduralRecord.Item.SourceLinks[0].ChildSessionID)
+
+	_, err = runtime.UpdateMemory(ctx, handmemory.UpdateRequest{ID: "mem_old", Replacement: item})
+	require.NoError(t, err)
+	require.Equal(t, childID, provider.updateRequest.Replacement.Metadata[runcontext.MemoryMetadataEffectiveSessionID])
+	require.Equal(t, parentID, provider.updateRequest.Replacement.SourceLinks[0].ParentSessionID)
 }

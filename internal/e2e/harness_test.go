@@ -64,11 +64,15 @@ func TestNewHarness_RealConfigLoadAndEnvOverride(t *testing.T) {
 		"    name: test-model\n"+
 		"    stream: true\n"+
 		"storage:\n"+
-		"  backend: sqlite\n"), 0o644))
+		"  backend: sqlite\n"+
+		"search:\n"+
+		"  vector:\n"+
+		"    enabled: false\n"), 0o644))
 	spec.Config = ConfigInput{
 		ConfigFilePath: configPath,
 		Env: map[string]string{
 			"HAND_NAME":         "Env Hand",
+			"HAND_MODEL_KEY":    "env-key",
 			"HAND_MODEL_STREAM": "false",
 		},
 	}

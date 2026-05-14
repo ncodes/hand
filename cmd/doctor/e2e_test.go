@@ -48,6 +48,9 @@ models:
   main:
     name: openai/gpt-4o-mini
     provider: openrouter
+search:
+  vector:
+    enabled: false
 `), 0o600))
 
 		output, err := runDoctorCommand(t, "hand", "--config", configPath, "doctor")

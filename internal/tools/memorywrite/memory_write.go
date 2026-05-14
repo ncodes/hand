@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
@@ -13,11 +14,18 @@ import (
 )
 
 type sourceLinkInput struct {
-	SessionID     string `json:"session_id,omitempty"`
-	MessageIDs    []uint `json:"message_ids,omitempty"`
-	Offsets       []int  `json:"offsets,omitempty"`
-	CreatedBy     string `json:"created_by,omitempty"`
-	CreatedReason string `json:"created_reason,omitempty"`
+	SessionID         string `json:"session_id,omitempty"`
+	MessageIDs        []uint `json:"message_ids,omitempty"`
+	Offsets           []int  `json:"offsets,omitempty"`
+	CreatedBy         string `json:"created_by,omitempty"`
+	CreatedReason     string `json:"created_reason,omitempty"`
+	SourceProfile     string `json:"source_profile,omitempty"`
+	SourcePersonality string `json:"source_personality,omitempty"`
+	ParentSessionID   string `json:"parent_session_id,omitempty"`
+	ChildSessionID    string `json:"child_session_id,omitempty"`
+	RunID             string `json:"run_id,omitempty"`
+	StateMode         string `json:"state_mode,omitempty"`
+	SourceTrigger     string `json:"source_trigger,omitempty"`
 }
 
 type addInput struct {
@@ -78,7 +86,8 @@ func AddDefinition(runtime envtypes.Runtime) tools.Definition {
 				return common.ToolError("tool_error", "memory write is not configured"), nil
 			}
 
-			item, err := memoryItemFromAddInput(input)
+			runCtx, hasRunContext := tools.RunContextFromContext(ctx)
+			item, err := memoryItemFromAddInput(input, runCtx, hasRunContext, "tool_write")
 			if err != nil {
 				return common.ToolError("invalid_input", err.Error()), nil
 			}
@@ -131,7 +140,13 @@ func UpdateDefinition(runtime envtypes.Runtime) tools.Definition {
 				return common.ToolError("invalid_input", "memory id is required"), nil
 			}
 
-			replacement, err := memoryItemFromAddInput(input.Replacement)
+			runCtx, hasRunContext := tools.RunContextFromContext(ctx)
+			replacement, err := memoryItemFromAddInput(
+				input.Replacement,
+				runCtx,
+				hasRunContext,
+				"tool_write",
+			)
 			if err != nil {
 				return common.ToolError("invalid_input", err.Error()), nil
 			}
@@ -187,7 +202,12 @@ func DeleteDefinition(runtime envtypes.Runtime) tools.Definition {
 	}
 }
 
-func memoryItemFromAddInput(input addInput) (memory.MemoryItem, error) {
+func memoryItemFromAddInput(
+	input addInput,
+	runCtx runcontext.Context,
+	hasRunContext bool,
+	trigger string,
+) (memory.MemoryItem, error) {
 	kind, err := parseKind(input.Kind)
 	if err != nil {
 		return memory.MemoryItem{}, err
@@ -212,6 +232,9 @@ func memoryItemFromAddInput(input addInput) (memory.MemoryItem, error) {
 	}
 	if sessionID := strings.TrimSpace(input.SourceSessionID); sessionID != "" {
 		item.Metadata["source_session_id"] = sessionID
+	}
+	if hasRunContext {
+		item = runcontext.ApplyMemoryProvenance(item, runCtx, trigger)
 	}
 	if item.Title == "" && item.Text == "" {
 		return memory.MemoryItem{}, errors.New("memory title or text is required")
@@ -238,11 +261,18 @@ func sourceLinksFromInput(inputs []sourceLinkInput) []memory.SourceLink {
 	links := make([]memory.SourceLink, 0, len(inputs))
 	for _, input := range inputs {
 		link := memory.SourceLink{
-			SessionID:     strings.TrimSpace(input.SessionID),
-			MessageIDs:    append([]uint(nil), input.MessageIDs...),
-			Offsets:       append([]int(nil), input.Offsets...),
-			CreatedBy:     strings.TrimSpace(input.CreatedBy),
-			CreatedReason: strings.TrimSpace(input.CreatedReason),
+			SessionID:         strings.TrimSpace(input.SessionID),
+			MessageIDs:        append([]uint(nil), input.MessageIDs...),
+			Offsets:           append([]int(nil), input.Offsets...),
+			CreatedBy:         strings.TrimSpace(input.CreatedBy),
+			CreatedReason:     strings.TrimSpace(input.CreatedReason),
+			SourceProfile:     strings.TrimSpace(input.SourceProfile),
+			SourcePersonality: strings.TrimSpace(input.SourcePersonality),
+			ParentSessionID:   strings.TrimSpace(input.ParentSessionID),
+			ChildSessionID:    strings.TrimSpace(input.ChildSessionID),
+			RunID:             strings.TrimSpace(input.RunID),
+			StateMode:         strings.TrimSpace(input.StateMode),
+			SourceTrigger:     strings.TrimSpace(input.SourceTrigger),
 		}
 		if link.SessionID == "" &&
 			len(link.MessageIDs) == 0 &&
@@ -342,11 +372,18 @@ func sourceLinksSchema() map[string]any {
 		"type":        "array",
 		"description": "Optional source links proving where the write came from.",
 		"items": common.ObjectSchema(map[string]any{
-			"session_id":     common.StringSchema("Source session id."),
-			"message_ids":    integerArraySchema("Source message ids."),
-			"offsets":        integerArraySchema("Source message offsets."),
-			"created_by":     common.StringSchema("Provenance creator."),
-			"created_reason": common.StringSchema("Provenance reason."),
+			"session_id":         common.StringSchema("Source session id."),
+			"message_ids":        integerArraySchema("Source message ids."),
+			"offsets":            integerArraySchema("Source message offsets."),
+			"created_by":         common.StringSchema("Provenance creator."),
+			"created_reason":     common.StringSchema("Provenance reason."),
+			"source_profile":     common.StringSchema("Source profile name."),
+			"source_personality": common.StringSchema("Source personality name."),
+			"parent_session_id":  common.StringSchema("Parent session id for child writes."),
+			"child_session_id":   common.StringSchema("Child session id."),
+			"run_id":             common.StringSchema("Child run id."),
+			"state_mode":         common.StringSchema("State mode for the source run."),
+			"source_trigger":     common.StringSchema("Trigger that produced this source link."),
 		}),
 	}
 }

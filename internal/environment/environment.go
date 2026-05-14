@@ -7,6 +7,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
@@ -70,6 +71,7 @@ type Environment interface {
 
 	// NewTraceSession opens a trace sink for the given storage session when debug tracing is enabled.
 	NewTraceSession(sessionID string) trace.Session
+	NewTraceSessionForRun(runcontext.Context) trace.Session
 
 	// MemoryProvider returns the configured durable memory provider, when enabled.
 	MemoryProvider() memory.Provider
@@ -491,7 +493,46 @@ func (e *environment) NewTraceSession(sessionID string) trace.Session {
 		metadata.Model = e.cfg.Models.Main.Name
 		metadata.APIMode = e.cfg.Models.Main.APIMode
 	}
+	metadata.PublicSessionID = sessionID
+	metadata.EffectiveSessionID = sessionID
 
+	return e.openTraceSession(sessionID, metadata)
+}
+
+func (e *environment) NewTraceSessionForRun(runCtx runcontext.Context) trace.Session {
+	if e == nil || e.traces == nil {
+		return trace.NoopSession()
+	}
+	runCtx, err := runCtx.Normalize()
+	if err != nil {
+		return trace.NoopSession()
+	}
+
+	metadata := trace.Metadata{Source: "agent"}
+	if e.cfg != nil {
+		metadata.AgentName = e.cfg.Name
+		metadata.Model = e.cfg.Models.Main.Name
+		metadata.APIMode = e.cfg.Models.Main.APIMode
+	}
+	metadata.PublicSessionID = runCtx.Session.PublicID
+	metadata.EffectiveSessionID = runCtx.Session.EffectiveID
+	metadata.ChildSessionID = runCtx.Lineage.ChildSessionID
+	metadata.ParentSessionID = runCtx.Lineage.ParentSessionID
+	metadata.RunID = runCtx.Lineage.RunID
+	metadata.PersonalityName = runCtx.Personality.Name
+	metadata.StateMode = runCtx.State.Mode
+	metadata.SourceProfile = runCtx.ProfileName
+	if !runCtx.Lineage.SpawnedAt.IsZero() {
+		metadata.SpawnedAt = &runCtx.Lineage.SpawnedAt
+	}
+	if !runCtx.Lineage.CompletedAt.IsZero() {
+		metadata.CompletedAt = &runCtx.Lineage.CompletedAt
+	}
+
+	return e.openTraceSession(runCtx.StateSessionID(), metadata)
+}
+
+func (e *environment) openTraceSession(sessionID string, metadata trace.Metadata) trace.Session {
 	session := e.traces.OpenSession(e.ctx, sessionID, metadata)
 	if e.workspace.Truncated {
 		session.Record(trace.EvtWorkspaceRulesTruncated, map[string]any{

@@ -28,12 +28,19 @@ const (
 )
 
 type MemorySourceLink struct {
-	SessionID     string
-	MessageIDs    []uint
-	Offsets       []int
-	SummaryID     string
-	CreatedBy     string
-	CreatedReason string
+	SessionID         string
+	MessageIDs        []uint
+	Offsets           []int
+	SummaryID         string
+	CreatedBy         string
+	CreatedReason     string
+	SourceProfile     string
+	SourcePersonality string
+	ParentSessionID   string
+	ChildSessionID    string
+	RunID             string
+	StateMode         string
+	SourceTrigger     string
 }
 
 type MemoryItem struct {

@@ -1899,6 +1899,16 @@ func TestConfig_NormalizeKeepsOpenaiProvider(t *testing.T) {
 	require.Equal(t, "https://api.openai.com/v1", cfg.Models.Main.BaseURL)
 }
 
+func TestConfig_NormalizeRemapsInheritedProviderDefaultBaseURL(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Models.Main.Provider = "openai"
+
+	cfg.Normalize()
+
+	require.Equal(t, "openai", cfg.Models.Main.Provider)
+	require.Equal(t, "https://api.openai.com/v1", cfg.Models.Main.BaseURL)
+}
+
 func TestConfig_NormalizeDefaultBaseURLDependsOnAPIMode(t *testing.T) {
 	t.Run("openai uses api root for completions and responses", func(t *testing.T) {
 		for _, mode := range []string{constants.DefaultModelAPIModeCompletions, "responses"} {

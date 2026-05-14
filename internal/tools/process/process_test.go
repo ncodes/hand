@@ -10,9 +10,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	processenv "github.com/wandxy/hand/internal/environment/process"
+	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/tools"
 	toolmocks "github.com/wandxy/hand/internal/tools/mocks"
+	"github.com/wandxy/hand/pkg/nanoid"
 )
 
 func TestProcess_ToolRejectsInvalidJSON(t *testing.T) {
@@ -104,6 +107,32 @@ func TestProcess_ToolStartDelegatesToRuntime(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
 	require.Equal(t, "proc_1", payload.Process.ID)
 	require.Equal(t, processenv.StatusRunning, payload.Process.Status)
+}
+
+func TestProcess_ToolUsesChildSessionIDForChildState(t *testing.T) {
+	parentID := nanoid.MustFromSeed(storage.SessionIDPrefix, "parent", "ProcessToolLineageTestSeed")
+	childID := nanoid.MustFromSeed(storage.SessionIDPrefix, "child", "ProcessToolLineageTestSeed")
+	parent, err := runcontext.NewParent(parentID)
+	require.NoError(t, err)
+	child, err := parent.NewChild(runcontext.ChildOptions{
+		ChildSessionID: childID,
+		RunID:          "run_process",
+	})
+	require.NoError(t, err)
+
+	result, err := Definition(&toolmocks.Runtime{
+		StartProcessFunc: func(_ context.Context, sessionID string, req processenv.StartRequest) (processenv.Info, error) {
+			require.Equal(t, childID, sessionID)
+			require.Equal(t, "printf", req.Command)
+			return processenv.Info{ID: "proc_1", Status: processenv.StatusRunning, StartedAt: time.Now().UTC()}, nil
+		},
+	}).Handler.Invoke(tools.WithRunContext(context.Background(), child), tools.Call{
+		Name:  "process",
+		Input: `{"action":"start","command":"printf"}`,
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Error)
 }
 
 func TestProcess_ToolStartPassesNilEnvWhenEmpty(t *testing.T) {

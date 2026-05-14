@@ -8,13 +8,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/environment"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
+	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/tools"
 	nativemocks "github.com/wandxy/hand/internal/tools/mocks"
 	plantool "github.com/wandxy/hand/internal/tools/plan"
 	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/hand/pkg/nanoid"
 )
 
 func TestPlanTool_ReadEmptyPlan(t *testing.T) {
@@ -44,6 +47,44 @@ func TestPlanTool_ReplacePlan(t *testing.T) {
 	require.Equal(t, "step-1", payload.ActiveStepID)
 	require.Equal(t, "starting work", payload.Explanation)
 	require.Equal(t, 1, payload.Summary.InProgress)
+}
+
+func TestPlanTool_UsesChildSessionIDForChildState(t *testing.T) {
+	parentID := nanoid.MustFromSeed(storage.SessionIDPrefix, "parent", "PlanToolLineageTestSeed")
+	childID := nanoid.MustFromSeed(storage.SessionIDPrefix, "child", "PlanToolLineageTestSeed")
+	parent, err := runcontext.NewParent(parentID)
+	require.NoError(t, err)
+	child, err := parent.NewChild(runcontext.ChildOptions{
+		ChildSessionID: childID,
+		RunID:          "run_plan",
+	})
+	require.NoError(t, err)
+
+	registry := registerPlanRuntime(t, t.TempDir(), guardrails.CommandPolicy{})
+	_, err = registry.Invoke(tools.WithSessionID(context.Background(), parentID), tools.Call{
+		Name:  "plan_tool",
+		Input: `{"steps":[{"id":"parent","content":"Parent work","status":"in_progress"}]}`,
+	})
+	require.NoError(t, err)
+	_, err = registry.Invoke(tools.WithRunContext(context.Background(), child), tools.Call{
+		Name:  "plan_tool",
+		Input: `{"steps":[{"id":"child","content":"Child work","status":"in_progress"}]}`,
+	})
+	require.NoError(t, err)
+
+	parentResult, err := registry.Invoke(
+		tools.WithSessionID(context.Background(), parentID),
+		tools.Call{Name: "plan_tool", Input: `{}`},
+	)
+	require.NoError(t, err)
+	childResult, err := registry.Invoke(
+		tools.WithRunContext(context.Background(), child),
+		tools.Call{Name: "plan_tool", Input: `{}`},
+	)
+	require.NoError(t, err)
+
+	require.Equal(t, "parent", decodePlanOutputForTest(t, parentResult.Output).Steps[0].ID)
+	require.Equal(t, "child", decodePlanOutputForTest(t, childResult.Output).Steps[0].ID)
 }
 
 func TestPlanTool_MergeStatusOnlyUpdate(t *testing.T) {

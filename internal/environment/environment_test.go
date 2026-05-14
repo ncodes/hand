@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
@@ -1914,6 +1915,86 @@ func TestEnvironment_NewTraceSessionRecordsWorkspaceRuleTruncation(t *testing.T)
 	require.Len(t, result.Events, 2)
 	require.Equal(t, trace.EvtChatStarted, result.Events[0].Type)
 	require.Equal(t, trace.EvtWorkspaceRulesTruncated, result.Events[1].Type)
+}
+
+func TestEnvironment_NewTraceSessionForRunRecordsLineageMetadata(t *testing.T) {
+	dir := t.TempDir()
+	manager := newTestStateManager(t)
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name:   "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", APIMode: "responses"}},
+		Trace:  config.TraceConfig{Enabled: true, Disk: config.TraceDiskConfig{Dir: dir}},
+	})
+	env.SetStateManager(manager)
+	require.NoError(t, env.Prepare())
+
+	parentID := nanoid.MustFromSeed(storage.SessionIDPrefix, "parent", "EnvironmentTraceLineageTestSeed")
+	childID := nanoid.MustFromSeed(storage.SessionIDPrefix, "child", "EnvironmentTraceLineageTestSeed")
+	parent, err := runcontext.NewParent(parentID)
+	require.NoError(t, err)
+	child, err := parent.NewChild(runcontext.ChildOptions{
+		ChildSessionID:  childID,
+		RunID:           "run_trace",
+		PersonalityName: "researcher",
+		StateMode:       runcontext.StateModeReadonly,
+		ProfileName:     "work",
+		SpawnedAt:       time.Date(2026, 5, 14, 9, 30, 0, 0, time.UTC),
+		CompletedAt:     time.Date(2026, 5, 14, 9, 35, 0, 0, time.UTC),
+	})
+	require.NoError(t, err)
+
+	session := env.NewTraceSessionForRun(child)
+	require.Equal(t, childID, session.ID())
+	session.Close()
+
+	tracePath, err := trace.ResolveTraceFilePath(dir, childID)
+	require.NoError(t, err)
+	lines := readJSONLines(t, tracePath)
+	require.Len(t, lines, 1)
+	payload, ok := lines[0].Payload.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, parentID, payload["public_session_id"])
+	require.Equal(t, childID, payload["effective_session_id"])
+	require.Equal(t, childID, payload["child_session_id"])
+	require.Equal(t, parentID, payload["parent_session_id"])
+	require.Equal(t, "run_trace", payload["run_id"])
+	require.Equal(t, "researcher", payload["personality_name"])
+	require.Equal(t, runcontext.StateModeReadonly, payload["state_mode"])
+	require.Equal(t, "work", payload["source_profile"])
+	require.Equal(t, "2026-05-14T09:30:00Z", payload["spawned_at"])
+	require.Equal(t, "2026-05-14T09:35:00Z", payload["completed_at"])
+
+	result, err := manager.ListTraceEvents(gctx.Background(), storage.TraceQuery{SessionID: childID})
+	require.NoError(t, err)
+	require.Len(t, result.Events, 1)
+	require.Equal(t, trace.EvtChatStarted, result.Events[0].Type)
+	statePayload, ok := result.Events[0].Payload.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, parentID, statePayload["public_session_id"])
+	require.Equal(t, childID, statePayload["effective_session_id"])
+	require.Equal(t, childID, statePayload["child_session_id"])
+	require.Equal(t, parentID, statePayload["parent_session_id"])
+	require.Equal(t, "run_trace", statePayload["run_id"])
+	require.Equal(t, "researcher", statePayload["personality_name"])
+}
+
+func TestEnvironment_NewTraceSessionForRunReturnsNoopWithoutTraceFactory(t *testing.T) {
+	parent, err := runcontext.NewParent(storage.DefaultSessionID)
+	require.NoError(t, err)
+
+	var nilEnv *environment
+	require.Empty(t, nilEnv.NewTraceSessionForRun(parent).ID())
+	require.Empty(t, (&environment{}).NewTraceSessionForRun(parent).ID())
+}
+
+func TestEnvironment_NewTraceSessionForRunReturnsNoopForInvalidRunContext(t *testing.T) {
+	env := &environment{traces: trace.NoopFactory()}
+
+	session := env.NewTraceSessionForRun(runcontext.Context{
+		Session: runcontext.Session{PublicID: "session-1"},
+	})
+
+	require.Empty(t, session.ID())
 }
 
 func TestEnvironment_NewTraceSessionWritesDiskAndDatabaseSinksByDefault(t *testing.T) {

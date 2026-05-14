@@ -52,6 +52,9 @@ log:
   noColor: true
 storage:
   backend: memory
+search:
+  vector:
+    enabled: false
 `), 0o600))
 
 	cmd := newCommand()
@@ -103,6 +106,9 @@ log:
   noColor: true
 storage:
   backend: memory
+search:
+  vector:
+    enabled: false
 `), 0o600))
 
 	cmd := newCommand()
@@ -140,6 +146,9 @@ log:
   level: info
 storage:
   backend: memory
+search:
+  vector:
+    enabled: false
 `), 0o600))
 
 	cmd := newCommand()

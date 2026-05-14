@@ -8,10 +8,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
+	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/tools"
 	toolmocks "github.com/wandxy/hand/internal/tools/mocks"
+	"github.com/wandxy/hand/pkg/nanoid"
 )
 
 func TestMemoryWrite_DefinitionsIncludeUsageInstructions(t *testing.T) {
@@ -72,6 +75,64 @@ func TestMemoryAdd_DefinitionRecordsAndPromotesSemanticMemory(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
 	require.True(t, output.Decision.Approved)
 	require.Equal(t, memory.StatusActive, output.Memory.Status)
+}
+
+func TestMemoryAdd_DefinitionPreservesSessionLineage(t *testing.T) {
+	parentID := nanoid.MustFromSeed(storage.SessionIDPrefix, "parent", "MemoryWriteLineageTestSeed")
+	childID := nanoid.MustFromSeed(storage.SessionIDPrefix, "child", "MemoryWriteLineageTestSeed")
+	parent, err := runcontext.NewParent(parentID)
+	require.NoError(t, err)
+	child, err := parent.NewChild(runcontext.ChildOptions{
+		ChildSessionID:  childID,
+		RunID:           "run_memory",
+		PersonalityName: "researcher",
+		StateMode:       runcontext.StateModeIsolated,
+		ProfileName:     "work",
+	})
+	require.NoError(t, err)
+
+	var recorded memory.SemanticRecord
+	runtime := &toolmocks.Runtime{
+		RecordSemanticMemoryFunc: func(_ context.Context, record memory.SemanticRecord) (memory.MemoryItem, error) {
+			recorded = record
+			item := record.Item
+			item.ID = "mem_semantic_candidate"
+			item.Status = memory.StatusCandidate
+			return item, nil
+		},
+		PromoteMemoryCandidateFunc: func(_ context.Context, req memory.PromotionRequest) (memory.LifecycleResult, error) {
+			return memory.LifecycleResult{
+				Item:     recorded.Item,
+				Decision: memory.PromotionDecision{Approved: true, Reason: "approved"},
+			}, nil
+		},
+	}
+	ctx := tools.WithRunContext(context.Background(), child)
+
+	result, err := AddDefinition(runtime).Handler.Invoke(ctx, tools.Call{
+		Name: "memory_add",
+		Input: `{
+			"kind":"semantic",
+			"title":"Research preference",
+			"source_links":[{"session_id":"` + parentID + `","message_ids":[1]}]
+		}`,
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Error)
+	require.Equal(t, parentID, recorded.Item.Metadata[runcontext.MemoryMetadataPublicSessionID])
+	require.Equal(t, childID, recorded.Item.Metadata[runcontext.MemoryMetadataEffectiveSessionID])
+	require.Equal(t, parentID, recorded.Item.Metadata[runcontext.MemoryMetadataParentSessionID])
+	require.Equal(t, childID, recorded.Item.Metadata[runcontext.MemoryMetadataChildSessionID])
+	require.Equal(t, "run_memory", recorded.Item.Metadata[runcontext.MemoryMetadataRunID])
+	require.Equal(t, "researcher", recorded.Item.Metadata[runcontext.MemoryMetadataSourcePersonality])
+	require.Equal(t, runcontext.StateModeIsolated, recorded.Item.Metadata[runcontext.MemoryMetadataStateMode])
+	require.Equal(t, "work", recorded.Item.Metadata[runcontext.MemoryMetadataSourceProfile])
+	require.Equal(t, "tool_write", recorded.Item.Metadata[runcontext.MemoryMetadataTrigger])
+	require.Equal(t, childID, recorded.Item.SourceLinks[0].ChildSessionID)
+	require.Equal(t, parentID, recorded.Item.SourceLinks[0].ParentSessionID)
+	require.Equal(t, "run_memory", recorded.Item.SourceLinks[0].RunID)
+	require.Equal(t, "tool_write", recorded.Item.SourceLinks[0].SourceTrigger)
 }
 
 func TestMemoryAdd_DefinitionRecordsProceduralMemory(t *testing.T) {
@@ -403,7 +464,7 @@ func TestMemoryItemFromAddInput_NormalizesOptionalFields(t *testing.T) {
 				CreatedReason: " user request ",
 			},
 		},
-	})
+	}, runcontext.Context{}, false, "")
 
 	require.NoError(t, err)
 	require.Equal(t, memory.KindSemantic, item.Kind)

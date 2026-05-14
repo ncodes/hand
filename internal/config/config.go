@@ -1378,13 +1378,34 @@ func (c *Config) normalizePersonalities() {
 }
 
 func (c *Config) applyDefaultModelBaseURL() {
-	if c == nil || c.Models.Main.BaseURL != "" {
+	if c == nil {
 		return
 	}
 
-	if mapped := getDefaultBaseURLForProvider(c.Models.Main.Provider, c.Models.Main.APIMode); mapped != "" {
+	mapped := getDefaultBaseURLForProvider(c.Models.Main.Provider, c.Models.Main.APIMode)
+	if mapped == "" {
+		return
+	}
+	if c.Models.Main.BaseURL == "" || isProviderDefaultBaseURL(c.Models.Main.BaseURL) {
 		c.Models.Main.BaseURL = mapped
 	}
+}
+
+func isProviderDefaultBaseURL(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+
+	for _, modes := range providerDefaultBaseURLs {
+		for _, baseURL := range modes {
+			if value == strings.TrimSpace(baseURL) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // Normalize trims fields, applies defaults, and resolves default model base URL when unset.

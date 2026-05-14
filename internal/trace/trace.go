@@ -47,11 +47,21 @@ type Factory interface {
 }
 
 type Metadata struct {
-	AgentName string `json:"agent_name"`
-	Model     string `json:"model"`
-	APIMode   string `json:"api_mode"`
-	Source    string `json:"source"`
-	TraceDir  string `json:"trace_dir,omitempty"`
+	AgentName          string     `json:"agent_name"`
+	Model              string     `json:"model"`
+	APIMode            string     `json:"api_mode"`
+	Source             string     `json:"source"`
+	PublicSessionID    string     `json:"public_session_id,omitempty"`
+	EffectiveSessionID string     `json:"effective_session_id,omitempty"`
+	ChildSessionID     string     `json:"child_session_id,omitempty"`
+	ParentSessionID    string     `json:"parent_session_id,omitempty"`
+	RunID              string     `json:"run_id,omitempty"`
+	PersonalityName    string     `json:"personality_name,omitempty"`
+	StateMode          string     `json:"state_mode,omitempty"`
+	SourceProfile      string     `json:"source_profile,omitempty"`
+	SpawnedAt          *time.Time `json:"spawned_at,omitempty"`
+	CompletedAt        *time.Time `json:"completed_at,omitempty"`
+	TraceDir           string     `json:"trace_dir,omitempty"`
 }
 
 type Event struct {

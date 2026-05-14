@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/environment/planstore"
 	"github.com/wandxy/hand/internal/environment/process"
 	"github.com/wandxy/hand/internal/environment/sessionmessages"
@@ -224,6 +225,13 @@ func (r *Runtime) RecordSemanticMemory(
 	if err != nil {
 		return memory.MemoryItem{}, err
 	}
+	if runCtx, ok := runcontext.FromContext(ctx); ok {
+		record.Item = runcontext.ApplyMemoryProvenance(
+			record.Item,
+			runCtx,
+			record.Item.Metadata[runcontext.MemoryMetadataTrigger],
+		)
+	}
 
 	return provider.RecordSemanticMemory(ctx, record)
 }
@@ -235,6 +243,13 @@ func (r *Runtime) RecordProceduralMemory(
 	provider, err := r.memoryProceduralProvider(ctx)
 	if err != nil {
 		return memory.MemoryItem{}, err
+	}
+	if runCtx, ok := runcontext.FromContext(ctx); ok {
+		record.Item = runcontext.ApplyMemoryProvenance(
+			record.Item,
+			runCtx,
+			record.Item.Metadata[runcontext.MemoryMetadataTrigger],
+		)
 	}
 
 	return provider.RecordProceduralMemory(ctx, record)
@@ -258,6 +273,14 @@ func (r *Runtime) UpdateMemory(ctx context.Context, req memory.UpdateRequest) (m
 	}
 
 	provider := r.memory.(memory.UpdateProvider)
+	if runCtx, ok := runcontext.FromContext(ctx); ok {
+		req.Replacement = runcontext.ApplyMemoryProvenance(
+			req.Replacement,
+			runCtx,
+			req.Replacement.Metadata[runcontext.MemoryMetadataTrigger],
+		)
+	}
+
 	return provider.Update(ctx, req)
 }
 

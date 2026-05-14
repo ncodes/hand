@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
@@ -107,6 +108,14 @@ func (s *EnvironmentStub) NewIterationBudget() envbudget.IterationBudget {
 }
 
 func (s *EnvironmentStub) NewTraceSession(string) trace.Session {
+	if s.TraceSession == nil {
+		return trace.NoopSession()
+	}
+
+	return s.TraceSession
+}
+
+func (s *EnvironmentStub) NewTraceSessionForRun(runcontext.Context) trace.Session {
 	if s.TraceSession == nil {
 		return trace.NoopSession()
 	}

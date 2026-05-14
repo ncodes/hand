@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
 
@@ -50,9 +52,17 @@ func TestNewCommand_PrintsFailureReport(t *testing.T) {
 	var output bytes.Buffer
 	doctorOutput = &output
 
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+search:
+  vector:
+    enabled: false
+`), 0o600))
+
 	cmd := newRootCommandForTest()
 	err := cmd.Run(context.Background(), []string{
 		"hand",
+		"--config", configPath,
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
 		"doctor",

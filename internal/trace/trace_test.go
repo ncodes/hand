@@ -55,6 +55,14 @@ func TestJSONLFactory_OpenSessionCreatesSessionAndWritesEvents(t *testing.T) {
 	require.Equal(t, "hello", payload["message"])
 }
 
+func TestMetadataOmitsUnsetLineageTimes(t *testing.T) {
+	data, err := json.Marshal(Metadata{Source: "agent"})
+
+	require.NoError(t, err)
+	require.NotContains(t, string(data), "spawned_at")
+	require.NotContains(t, string(data), "completed_at")
+}
+
 func TestJSONLFactory_OpenSessionSecondOpenAppendsWithoutDuplicateChatStarted(t *testing.T) {
 	dir := t.TempDir()
 	factory := NewFileFactory(dir, guardrails.NewRedactor())
