@@ -8,6 +8,7 @@ import (
 const (
 	EvtChatStarted                                = "chat.started"
 	EvtSessionFailed                              = "session.failed"
+	EvtInputSafetyBlocked                         = "input.safety.blocked"
 	EvtUserMessageAccepted                        = "user.message.accepted"
 	EvtModelRequest                               = "model.request"
 	EvtModelResponse                              = "model.response"

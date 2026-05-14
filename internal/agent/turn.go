@@ -16,6 +16,7 @@ import (
 	"github.com/wandxy/hand/internal/environment"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
+	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
@@ -198,6 +199,12 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			"explanation":    strings.TrimSpace(plan.Explanation),
 			"source":         "history",
 		})
+	}
+
+	inputSafety := guardrails.CheckInputSafety(msg, "user")
+	if inputSafety.Blocked {
+		traceSession.Record(trace.EvtInputSafetyBlocked, getInputSafetyTracePayload(t.sessionID, inputSafety))
+		return inputSafety.RefusalMessage, nil
 	}
 
 	userMessage, err := handmsg.NewMessage(handmsg.RoleUser, msg)
@@ -462,6 +469,32 @@ func (t *Turn) trimSessionHistoryToSummary() {
 
 func (t *Turn) appendSessionMessages(messages []handmsg.Message) error {
 	return t.stateMgr.AppendMessages(t.ctx, t.sessionID, messages)
+}
+
+func getInputSafetyTracePayload(sessionID string, result guardrails.InputSafetyResult) map[string]any {
+	payload := map[string]any{
+		"session_id": sessionID,
+		"blocked":    result.Blocked,
+		"findings":   getSafetyFindingLogFields(result.Findings),
+	}
+	if result.RefusalMessage != "" {
+		payload["refusal"] = result.RefusalMessage
+	}
+
+	return payload
+}
+
+func getSafetyFindingLogFields(findings []guardrails.SafetyFinding) []map[string]string {
+	if len(findings) == 0 {
+		return nil
+	}
+
+	fields := make([]map[string]string, 0, len(findings))
+	for _, finding := range findings {
+		fields = append(fields, finding.LogFields())
+	}
+
+	return fields
 }
 
 func (t *Turn) getStateSessionID() string {
