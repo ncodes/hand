@@ -9,6 +9,7 @@ const (
 	EvtChatStarted                                = "chat.started"
 	EvtSessionFailed                              = "session.failed"
 	EvtInputSafetyBlocked                         = "input.safety.blocked"
+	EvtOutputSafetyApplied                        = "output.safety.applied"
 	EvtUserMessageAccepted                        = "user.message.accepted"
 	EvtModelRequest                               = "model.request"
 	EvtModelResponse                              = "model.response"

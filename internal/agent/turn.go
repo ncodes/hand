@@ -352,7 +352,9 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		}
 
 		if !resp.RequiresToolCalls {
-			assistantMessage, err := handmsg.NewMessage(handmsg.RoleAssistant, resp.OutputText)
+			reply := t.applyAssistantOutputSafety(traceSession, resp.OutputText, streamingEnabled)
+
+			assistantMessage, err := handmsg.NewMessage(handmsg.RoleAssistant, reply)
 			if err != nil {
 				traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 				return "", err
@@ -364,13 +366,13 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				return "", err
 			}
 
-			traceSession.Record(trace.EvtFinalAssistantResponse, map[string]any{"message": resp.OutputText})
+			traceSession.Record(trace.EvtFinalAssistantResponse, map[string]any{"message": reply})
 
 			agentLog.Info().
 				Str("session_id", t.sessionID).
 				Msg("turn completed")
 
-			return resp.OutputText, nil
+			return reply, nil
 		}
 
 		if len(resp.ToolCalls) == 0 {
@@ -471,10 +473,37 @@ func (t *Turn) appendSessionMessages(messages []handmsg.Message) error {
 	return t.stateMgr.AppendMessages(t.ctx, t.sessionID, messages)
 }
 
+func (t *Turn) applyAssistantOutputSafety(traceSession trace.Session, output string, streamingEnabled bool) string {
+	if streamingEnabled {
+		return output
+	}
+
+	result := guardrails.CheckOutputSafety(output, "assistant", nil)
+	if traceSession != nil && (result.Blocked || result.Redacted) {
+		traceSession.Record(trace.EvtOutputSafetyApplied, getOutputSafetyTracePayload(t.sessionID, result))
+	}
+
+	return result.Content
+}
+
 func getInputSafetyTracePayload(sessionID string, result guardrails.InputSafetyResult) map[string]any {
 	payload := map[string]any{
 		"session_id": sessionID,
 		"blocked":    result.Blocked,
+		"findings":   getSafetyFindingLogFields(result.Findings),
+	}
+	if result.RefusalMessage != "" {
+		payload["refusal"] = result.RefusalMessage
+	}
+
+	return payload
+}
+
+func getOutputSafetyTracePayload(sessionID string, result guardrails.OutputSafetyResult) map[string]any {
+	payload := map[string]any{
+		"session_id": sessionID,
+		"blocked":    result.Blocked,
+		"redacted":   result.Redacted,
 		"findings":   getSafetyFindingLogFields(result.Findings),
 	}
 	if result.RefusalMessage != "" {
@@ -638,7 +667,9 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 		return "", err
 	}
 
-	assistantMessage, err := handmsg.NewMessage(handmsg.RoleAssistant, resp.OutputText)
+	reply := t.applyAssistantOutputSafety(traceSession, resp.OutputText, false)
+
+	assistantMessage, err := handmsg.NewMessage(handmsg.RoleAssistant, reply)
 	if err != nil {
 		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
 		return "", err
@@ -650,8 +681,8 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 		return "", err
 	}
 
-	traceSession.Record(trace.EvtFinalAssistantResponse, map[string]any{"message": resp.OutputText})
-	return resp.OutputText, nil
+	traceSession.Record(trace.EvtFinalAssistantResponse, map[string]any{"message": reply})
+	return reply, nil
 }
 
 func getAgentModelErrorKind(err error) string {
