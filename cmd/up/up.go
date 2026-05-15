@@ -131,6 +131,7 @@ func renderStartupPanel(cfg *config.Config) string {
 		fmt.Sprintf("%s %s", styleLabel("Logs", cfg.Log.NoColor), fmt.Sprintf("%s (%s)", cfg.Log.Level, logStyle)),
 		fmt.Sprintf("%s %s", styleLabel("Debug requests", cfg.Log.NoColor), debugRequests),
 		fmt.Sprintf("%s %s", styleLabel("Traces", cfg.Log.NoColor), traceStatus),
+		fmt.Sprintf("%s %s", styleLabel("Safety", cfg.Log.NoColor), handcli.SafetySummary(cfg)),
 	)
 	if cfg.Search.Vector.Enabled {
 		lines = append(lines,
@@ -284,6 +285,9 @@ func NewCommand() *cli.Command {
 				Str("summaryModel", cfg.SummaryModelEffective()).
 				Str("summaryProvider", cfg.SummaryProviderEffective()).
 				Str("storage", getEffectiveStorageBackend(cfg)).
+				Bool("inputSafety", cfg.InputSafetyEnabled()).
+				Bool("outputSafety", cfg.OutputSafetyEnabled()).
+				Bool("piiSafety", cfg.OutputPIIRedactionEnabled()).
 				Msg("Configuration loaded")
 			if cfg.Search.Vector.Enabled {
 				vectorLog := log.Info().

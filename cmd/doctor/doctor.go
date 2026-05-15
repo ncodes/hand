@@ -49,6 +49,11 @@ func NewCommand() *cli.Command {
 					return writeErr
 				}
 			}
+			if cfg != nil {
+				if _, writeErr := fmt.Fprintf(doctorOutput, "safety: %s\n", handcli.SafetySummary(cfg)); writeErr != nil {
+					return writeErr
+				}
+			}
 
 			if report.HasFailures() {
 				return fmt.Errorf("doctor checks failed: %s", report.Summary())

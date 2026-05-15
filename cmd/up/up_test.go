@@ -121,6 +121,8 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, startupBuffer.String(), "enabled")
 	require.Contains(t, startupBuffer.String(), "Traces")
 	require.Contains(t, startupBuffer.String(), "enabled (/tmp/hand-traces)")
+	require.Contains(t, startupBuffer.String(), "Safety")
+	require.Contains(t, startupBuffer.String(), "input=enabled, output=enabled, pii=disabled")
 	require.Contains(t, startupBuffer.String(), "Reranker")
 
 	logOutput := stripANSI(logBuffer.String())
@@ -132,6 +134,9 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, logOutput, "summaryModel=openai/gpt-4o-mini")
 	require.Contains(t, logOutput, "summaryProvider=openrouter")
 	require.Contains(t, logOutput, "storage=sqlite")
+	require.Contains(t, logOutput, "inputSafety=true")
+	require.Contains(t, logOutput, "outputSafety=true")
+	require.Contains(t, logOutput, "piiSafety=false")
 	require.Contains(t, logOutput, "rpcEndpoint=0.0.0.0:6000")
 	require.Contains(t, logOutput, "streaming=true")
 	require.Contains(t, logOutput, "traceEnabled=true")
@@ -158,7 +163,27 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	require.Contains(t, output, "Streaming: false")
 	require.Contains(t, output, "Debug requests: enabled")
 	require.Contains(t, output, "Traces: enabled (/tmp/hand-traces)")
+	require.Contains(t, output, "Safety: input=enabled, output=enabled, pii=disabled")
 	require.NotContains(t, output, "Ready to accept RPC connections.")
+}
+
+func TestRenderStartupPanel_IncludesSafetyMode(t *testing.T) {
+	inputSafety := false
+	outputSafety := true
+	piiSafety := true
+	output := renderStartupPanel(&config.Config{
+		Name:   "daemon",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"}},
+		RPC:    config.RPCConfig{Address: "127.0.0.1", Port: 50051},
+		Log:    config.LogConfig{Level: "info", NoColor: true},
+		Safety: config.SafetyConfig{
+			Input:  &inputSafety,
+			Output: &outputSafety,
+			PII:    &piiSafety,
+		},
+	})
+
+	require.Contains(t, output, "Safety: input=disabled, output=enabled, pii=enabled")
 }
 
 func TestRenderStartupPanel_IncludesEmbeddingModelWhenVectorEnabled(t *testing.T) {
