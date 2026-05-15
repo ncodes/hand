@@ -13,6 +13,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment"
+	"github.com/wandxy/hand/internal/guardrails"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	storage "github.com/wandxy/hand/internal/state/core"
@@ -345,10 +346,29 @@ func invokeToolWithEnvironment(
 	}
 
 	if strings.TrimSpace(toolResult.Output) != "" {
-		result["output"] = strings.TrimSpace(toolResult.Output)
+		result["output"] = sanitizeToolOutputForModel(toolCall.Name, toolResult.Output, cfg)
 	}
 
 	return toolResultMessage(toolCall, result)
+}
+
+func sanitizeToolOutputForModel(toolName string, output string, cfg *config.Config) string {
+	output = strings.TrimSpace(output)
+	if output == "" {
+		return ""
+	}
+	if cfg == nil || !cfg.OutputSafetyEnabled() {
+		return output
+	}
+
+	result := guardrails.CheckUntrustedContentSafety(
+		output,
+		"tool."+strings.TrimSpace(toolName),
+		guardrails.NewRedactorWithOptions(guardrails.RedactorOptions{
+			DisablePII: !cfg.OutputPIIRedactionEnabled(),
+		}),
+	)
+	return strings.TrimSpace(result.Content)
 }
 
 func toolResultMessage(toolCall models.ToolCall, result map[string]any) handmsg.Message {

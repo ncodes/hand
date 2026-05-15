@@ -84,6 +84,13 @@ type OutputSafetyResult struct {
 	Findings       []SafetyFinding
 }
 
+type UntrustedContentSafetyResult struct {
+	Content  string
+	Blocked  bool
+	Redacted bool
+	Findings []SafetyFinding
+}
+
 func CheckInputSafety(content, source string) InputSafetyResult {
 	findings := findSafetyFindings(content, source)
 	if len(findings) == 0 {
@@ -123,6 +130,25 @@ func CheckOutputSafety(content, source string, redactor Redactor) OutputSafetyRe
 		Redacted:       redacted,
 		RefusalMessage: defaultSafetyRefusal,
 		Findings:       findings,
+	}
+}
+
+func CheckUntrustedContentSafety(content, source string, redactor Redactor) UntrustedContentSafetyResult {
+	if redactor == nil {
+		redactor = NewRedactor()
+	}
+
+	redactedContent, _ := redactor.Sanitize(content).(string)
+	if redactedContent == "" && content != "" {
+		redactedContent = content
+	}
+
+	scanned := SafetyScan(redactedContent, source)
+	return UntrustedContentSafetyResult{
+		Content:  scanned.Content,
+		Blocked:  scanned.Blocked,
+		Redacted: isRedactedOutput(content, redactedContent),
+		Findings: scanned.Findings,
 	}
 }
 

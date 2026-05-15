@@ -7,6 +7,7 @@ import (
 
 	"github.com/wandxy/hand/internal/agent/runcontext"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
+	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/tools"
@@ -239,11 +240,37 @@ func memoryItemFromAddInput(
 	if item.Title == "" && item.Text == "" {
 		return memory.MemoryItem{}, errors.New("memory title or text is required")
 	}
+	if err := checkMemoryWriteSafety(item); err != nil {
+		return memory.MemoryItem{}, err
+	}
 	if !hasProvenance(item) {
 		return memory.MemoryItem{}, errors.New("memory source provenance is required")
 	}
 
 	return item, nil
+}
+
+func checkMemoryWriteSafety(item memory.MemoryItem) error {
+	content := strings.TrimSpace(strings.Join([]string{item.Title, item.Text}, "\n"))
+	if content == "" {
+		return nil
+	}
+
+	inputSafety := guardrails.CheckInputSafety(content, item.GuardrailSource())
+	if inputSafety.Blocked {
+		return errors.New("memory content failed safety check")
+	}
+
+	outputSafety := guardrails.CheckOutputSafety(
+		content,
+		item.GuardrailSource(),
+		guardrails.NewRedactorWithOptions(guardrails.RedactorOptions{DisablePII: true}),
+	)
+	if outputSafety.Blocked || outputSafety.Redacted {
+		return errors.New("memory content failed safety check")
+	}
+
+	return nil
 }
 
 func parseKind(value string) (memory.Kind, error) {
