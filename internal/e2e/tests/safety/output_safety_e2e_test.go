@@ -356,7 +356,7 @@ func requireOutputSafetyTrace(t *testing.T, harness *e2e.Harness, findingID stri
 			return
 		}
 		require.Equal(t, true, payload["blocked"])
-		requireOutputSafetyTraceFinding(t, payload, findingID)
+		requireSafetyTraceFinding(t, payload, findingID, "assistant")
 		return
 	}
 
@@ -371,6 +371,28 @@ func requireNoOutputSafetyTrace(t *testing.T, harness *e2e.Harness) {
 	}
 }
 
+func requireInputSafetyTrace(t *testing.T, harness *e2e.Harness, findingID string) {
+	t.Helper()
+
+	for _, event := range loadSafetyTraceEvents(t, harness) {
+		if event.Type != trace.EvtInputSafetyBlocked {
+			continue
+		}
+		payload, ok := event.Payload.(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, true, payload["blocked"])
+		require.Equal(t, false, payload["redacted"])
+		require.Equal(t, "blocked", payload["action"])
+		require.Equal(t, "user", payload["source"])
+		require.NotContains(t, payload, "message")
+		require.NotContains(t, payload, "input")
+		requireSafetyTraceFinding(t, payload, findingID, "user")
+		return
+	}
+
+	require.Failf(t, "expected input safety trace event", "finding_id=%s", findingID)
+}
+
 func requireNoInputSafetyTrace(t *testing.T, harness *e2e.Harness) {
 	t.Helper()
 
@@ -379,7 +401,7 @@ func requireNoInputSafetyTrace(t *testing.T, harness *e2e.Harness) {
 	}
 }
 
-func requireOutputSafetyTraceFinding(t *testing.T, payload map[string]any, findingID string) {
+func requireSafetyTraceFinding(t *testing.T, payload map[string]any, findingID string, source string) {
 	t.Helper()
 
 	findings, ok := payload["findings"].([]any)
@@ -389,12 +411,12 @@ func requireOutputSafetyTraceFinding(t *testing.T, payload map[string]any, findi
 		if !ok {
 			continue
 		}
-		if finding["id"] == findingID && finding["source"] == "assistant" {
+		if finding["id"] == findingID && finding["source"] == source {
 			return
 		}
 	}
 
-	require.Failf(t, "expected output safety finding", "finding_id=%s findings=%v", findingID, findings)
+	require.Failf(t, "expected safety finding", "finding_id=%s source=%s findings=%v", findingID, source, findings)
 }
 
 func requirePublicToolList(t *testing.T, content string) {
