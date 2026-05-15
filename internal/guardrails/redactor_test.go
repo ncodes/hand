@@ -1,6 +1,7 @@
 package guardrails
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -204,4 +205,30 @@ func TestSanitizeRedactsPhoneNumbers(t *testing.T) {
 func TestSanitizeRedactsShortPhoneNumbers(t *testing.T) {
 	value := Sanitize("Code +1234567")
 	require.Equal(t, "Code +1****67", value)
+}
+
+func TestSanitizeRedactsPIIClasses(t *testing.T) {
+	value := Sanitize(strings.Join([]string{
+		"Email jane.doe@example.com.",
+		"SSN 123-45-6789.",
+		"Card 4111 1111 1111 1111.",
+		"IBAN GB82WEST12345698765432.",
+		"Address 123 Main Street.",
+	}, " "))
+
+	require.Equal(t, "Email ja***@example.com. SSN ***-**-****. Card **** **** **** 1111. IBAN GB82WE...5432. Address [REDACTED ADDRESS].", value)
+}
+
+func TestNewRedactorWithOptions_DisablesPIIRedactionWithoutDisablingSecretRedaction(t *testing.T) {
+	redactor := NewRedactorWithOptions(RedactorOptions{DisablePII: true})
+
+	value := redactor.Sanitize("Email jane.doe@example.com TOKEN=example +15551234567")
+
+	require.Equal(t, "Email jane.doe@example.com TOKEN=*** +15551234567", value)
+}
+
+func TestSanitizeDoesNotRedactInvalidCreditCardNumbers(t *testing.T) {
+	value := Sanitize("Tracking number 4111 1111 1111 1112")
+
+	require.Equal(t, "Tracking number 4111 1111 1111 1112", value)
 }

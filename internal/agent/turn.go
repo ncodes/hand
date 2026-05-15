@@ -201,10 +201,12 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		})
 	}
 
-	inputSafety := guardrails.CheckInputSafety(msg, "user")
-	if inputSafety.Blocked {
-		traceSession.Record(trace.EvtInputSafetyBlocked, getInputSafetyTracePayload(t.sessionID, inputSafety))
-		return inputSafety.RefusalMessage, nil
+	if t.cfg.InputSafetyEnabled() {
+		inputSafety := guardrails.CheckInputSafety(msg, "user")
+		if inputSafety.Blocked {
+			traceSession.Record(trace.EvtInputSafetyBlocked, getInputSafetyTracePayload(t.sessionID, inputSafety))
+			return inputSafety.RefusalMessage, nil
+		}
 	}
 
 	userMessage, err := handmsg.NewMessage(handmsg.RoleUser, msg)
@@ -477,13 +479,26 @@ func (t *Turn) applyAssistantOutputSafety(traceSession trace.Session, output str
 	if streamingEnabled {
 		return output
 	}
+	if t == nil || t.cfg == nil || !t.cfg.OutputSafetyEnabled() {
+		return output
+	}
 
-	result := guardrails.CheckOutputSafety(output, "assistant", nil)
+	result := guardrails.CheckOutputSafety(output, "assistant", t.getOutputRedactor())
 	if traceSession != nil && (result.Blocked || result.Redacted) {
 		traceSession.Record(trace.EvtOutputSafetyApplied, getOutputSafetyTracePayload(t.sessionID, result))
 	}
 
 	return result.Content
+}
+
+func (t *Turn) getOutputRedactor() guardrails.Redactor {
+	if t == nil || t.cfg == nil {
+		return guardrails.NewRedactorWithOptions(guardrails.RedactorOptions{DisablePII: true})
+	}
+
+	return guardrails.NewRedactorWithOptions(guardrails.RedactorOptions{
+		DisablePII: !t.cfg.OutputPIIRedactionEnabled(),
+	})
 }
 
 func getInputSafetyTracePayload(sessionID string, result guardrails.InputSafetyResult) map[string]any {

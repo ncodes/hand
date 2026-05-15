@@ -43,6 +43,7 @@ type Config struct {
 	Debug         DebugConfig                  `yaml:"debug"`
 	Trace         TraceConfig                  `yaml:"trace"`
 	Web           WebConfig                    `yaml:"web"`
+	Safety        SafetyConfig                 `yaml:"safety"`
 	Rules         RulesConfig                  `yaml:"rules"`
 	Personalities map[string]PersonalityConfig `yaml:"personalities"`
 }
@@ -224,6 +225,12 @@ type TraceDatabaseConfig struct {
 	MaxEventsPerSession int   `yaml:"maxEventsPerSession"`
 }
 
+type SafetyConfig struct {
+	Input  *bool `yaml:"input"`
+	Output *bool `yaml:"output"`
+	PII    *bool `yaml:"pii"`
+}
+
 type WebConfig struct {
 	Provider                     string        `yaml:"provider"`
 	APIKey                       string        `yaml:"apiKey"`
@@ -399,6 +406,11 @@ var DefaultConfig = Config{
 			Enabled:             new(constants.DefaultProfileTraceDatabaseEnabled),
 			MaxEventsPerSession: constants.DefaultTraceMaxEventsPerSession,
 		},
+	},
+	Safety: SafetyConfig{
+		Input:  new(constants.DefaultSafetyInputEnabled),
+		Output: new(constants.DefaultSafetyOutputEnabled),
+		PII:    new(constants.DefaultSafetyPIIEnabled),
 	},
 	Web: WebConfig{
 		Provider:                     constants.DefaultProfileWebProvider,
@@ -607,6 +619,9 @@ func cloneConfig(cfg Config) Config {
 	cfg.Cap.Browser = cloneBoolPtr(cfg.Cap.Browser)
 	cfg.Trace.Disk.Enabled = cloneBoolPtr(cfg.Trace.Disk.Enabled)
 	cfg.Trace.Database.Enabled = cloneBoolPtr(cfg.Trace.Database.Enabled)
+	cfg.Safety.Input = cloneBoolPtr(cfg.Safety.Input)
+	cfg.Safety.Output = cloneBoolPtr(cfg.Safety.Output)
+	cfg.Safety.PII = cloneBoolPtr(cfg.Safety.PII)
 	cfg.FS.Roots = slices.Clone(cfg.FS.Roots)
 	cfg.Exec.Allow = slices.Clone(cfg.Exec.Allow)
 	cfg.Exec.Ask = slices.Clone(cfg.Exec.Ask)
@@ -826,6 +841,15 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_DEBUG_REQUESTS"))); value != "" {
 		cfg.Debug.Requests = value == "1" || value == "true" || value == "yes"
+	}
+	if value, ok := parseOptionalBoolEnv("HAND_SAFETY_INPUT"); ok {
+		cfg.Safety.Input = new(value)
+	}
+	if value, ok := parseOptionalBoolEnv("HAND_SAFETY_OUTPUT"); ok {
+		cfg.Safety.Output = new(value)
+	}
+	if value, ok := parseOptionalBoolEnv("HAND_SAFETY_PII"); ok {
+		cfg.Safety.PII = new(value)
 	}
 	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_TRACE_ENABLED"))); value != "" {
 		cfg.Trace.Enabled = value == "1" || value == "true" || value == "yes"
@@ -1247,6 +1271,15 @@ func (c *Config) normalizeFields() {
 	if c.Trace.Database.MaxEventsPerSession <= 0 {
 		c.Trace.Database.MaxEventsPerSession = constants.DefaultTraceMaxEventsPerSession
 	}
+	if c.Safety.Input == nil {
+		c.Safety.Input = new(constants.DefaultSafetyInputEnabled)
+	}
+	if c.Safety.Output == nil {
+		c.Safety.Output = new(constants.DefaultSafetyOutputEnabled)
+	}
+	if c.Safety.PII == nil {
+		c.Safety.PII = new(constants.DefaultSafetyPIIEnabled)
+	}
 	if c.Platform == "" {
 		c.Platform = constants.DefaultPlatform
 	}
@@ -1452,6 +1485,33 @@ func (c *Config) StreamEnabled() bool {
 	}
 
 	return getBoolValueDefault(c.Models.Main.Stream, true)
+}
+
+func (c *Config) InputSafetyEnabled() bool {
+	if c == nil {
+		return constants.DefaultSafetyInputEnabled
+	}
+
+	c.normalizeFields()
+	return getBoolValueDefault(c.Safety.Input, constants.DefaultSafetyInputEnabled)
+}
+
+func (c *Config) OutputSafetyEnabled() bool {
+	if c == nil {
+		return constants.DefaultSafetyOutputEnabled
+	}
+
+	c.normalizeFields()
+	return getBoolValueDefault(c.Safety.Output, constants.DefaultSafetyOutputEnabled)
+}
+
+func (c *Config) OutputPIIRedactionEnabled() bool {
+	if c == nil {
+		return false
+	}
+
+	c.normalizeFields()
+	return getBoolValueDefault(c.Safety.PII, constants.DefaultSafetyPIIEnabled)
 }
 
 func (c *Config) ModelMaxRetriesEffective() int {

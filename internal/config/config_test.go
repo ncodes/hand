@@ -173,14 +173,26 @@ func TestNewDefaultConfig_ReturnsIndependentConfig(t *testing.T) {
 	require.Empty(t, first.Web.Provider)
 	require.Equal(t, DefaultConfig.RPC.Address, first.RPC.Address)
 	require.Equal(t, DefaultConfig.RPC.Port, first.RPC.Port)
+	require.True(t, first.InputSafetyEnabled())
+	require.True(t, first.OutputSafetyEnabled())
+	require.False(t, first.OutputPIIRedactionEnabled())
 	require.NotEmpty(t, first.FS.Roots)
 
 	*first.Models.Verify = false
+	*first.Safety.Input = false
+	*first.Safety.Output = false
+	*first.Safety.PII = true
 	first.FS.Roots[0] = "mutated"
 
 	require.True(t, *second.Models.Verify)
+	require.True(t, *second.Safety.Input)
+	require.True(t, *second.Safety.Output)
+	require.False(t, *second.Safety.PII)
 	require.NotEqual(t, "mutated", second.FS.Roots[0])
 	require.True(t, *DefaultConfig.Models.Verify)
+	require.True(t, *DefaultConfig.Safety.Input)
+	require.True(t, *DefaultConfig.Safety.Output)
+	require.False(t, *DefaultConfig.Safety.PII)
 }
 
 func TestConfig_ToYAMLAndSaveYAML(t *testing.T) {
@@ -197,6 +209,9 @@ func TestConfig_ToYAMLAndSaveYAML(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "alpha", loaded.Name)
 	require.Equal(t, cfg.Models.Main.Name, loaded.Models.Main.Name)
+	require.True(t, getBoolValue(loaded.Safety.Input))
+	require.True(t, getBoolValue(loaded.Safety.Output))
+	require.False(t, getBoolValue(loaded.Safety.PII))
 }
 
 func TestLoad_PersonalitiesParseNormalizeAndResolveSoulPaths(t *testing.T) {
@@ -720,6 +735,49 @@ models:
 
 	require.NoError(t, err)
 	require.True(t, cfg.StreamEnabled())
+}
+
+func TestLoad_UsesSafetyConfigFromConfigAndEnv(t *testing.T) {
+	clearEnvKeys(t, "HAND_SAFETY_INPUT", "HAND_SAFETY_OUTPUT", "HAND_SAFETY_PII")
+
+	dir := t.TempDir()
+	envPath := filepath.Join(dir, ".env")
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(envPath, []byte(strings.Join([]string{
+		"HAND_SAFETY_INPUT=true",
+		"HAND_SAFETY_OUTPUT=false",
+		"HAND_SAFETY_PII=true",
+		"",
+	}, "\n")), 0o600))
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+safety:
+  input: false
+  output: true
+  pii: false
+`), 0o600))
+
+	cfg, err := Load(envPath, configPath)
+
+	require.NoError(t, err)
+	require.True(t, cfg.InputSafetyEnabled())
+	require.False(t, cfg.OutputSafetyEnabled())
+	require.True(t, cfg.OutputPIIRedactionEnabled())
+}
+
+func TestConfig_SafetyDefaultsAndValidation(t *testing.T) {
+	cfg := &Config{}
+	cfg.Normalize()
+	require.True(t, cfg.InputSafetyEnabled())
+	require.True(t, cfg.OutputSafetyEnabled())
+	require.False(t, cfg.OutputPIIRedactionEnabled())
+
+	cfg.Safety.Input = new(false)
+	cfg.Safety.Output = new(false)
+	require.False(t, cfg.InputSafetyEnabled())
+	require.False(t, cfg.OutputSafetyEnabled())
+
+	cfg.Safety.PII = new(true)
+	require.True(t, cfg.OutputPIIRedactionEnabled())
 }
 
 func TestConfig_StreamEnabledDefaultsToTrue(t *testing.T) {

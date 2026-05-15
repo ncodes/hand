@@ -53,6 +53,9 @@ const (
 	DefaultProfileTraceEnabled         = true
 	DefaultProfileTraceDiskEnabled     = true
 	DefaultProfileTraceDatabaseEnabled = true
+	DefaultSafetyInputEnabled          = true
+	DefaultSafetyOutputEnabled         = true
+	DefaultSafetyPIIEnabled            = false
 	DefaultProfileCapabilityFilesystem = true
 	DefaultProfileCapabilityNetwork    = true
 	DefaultProfileCapabilityExec       = true
