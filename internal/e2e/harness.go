@@ -49,6 +49,10 @@ type harnessSessionAgent interface {
 	UseSession(context.Context, string) error
 }
 
+type harnessTurnMessagesAgent interface {
+	TurnMessages() []handmsg.Message
+}
+
 type harnessCompactionAgent interface {
 	CompactSession(context.Context, string) (agent.CompactSessionResult, error)
 }
@@ -245,6 +249,20 @@ func (h *Harness) Messages(ctx context.Context, sessionID string) ([]handmsg.Mes
 	}
 
 	return h.inspectStore.GetMessages(normalizeHarnessContext(ctx), sessionID, storage.MessageQueryOptions{})
+}
+
+// TurnMessages returns the messages emitted by the most recent harness turn.
+func (h *Harness) TurnMessages() ([]handmsg.Message, error) {
+	if h == nil || h.agent == nil {
+		return nil, errors.New("e2e harness is required")
+	}
+
+	agent, ok := h.agent.(harnessTurnMessagesAgent)
+	if !ok {
+		return nil, errors.New("e2e harness turn message inspection is unavailable")
+	}
+
+	return agent.TurnMessages(), nil
 }
 
 func getHarnessConfig(spec HarnessSpec, cfg *config.Config) (*config.Config, error) {

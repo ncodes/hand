@@ -1,6 +1,11 @@
 package guardrails
 
-import "strings"
+import (
+	"encoding/json"
+	"reflect"
+	"regexp"
+	"strings"
+)
 
 type SafetyCategory string
 
@@ -28,9 +33,32 @@ const (
 	SafetyFindingCurlSecretExfil      SafetyFindingID = "exfil_curl"
 	SafetyFindingReadSecrets          SafetyFindingID = "read_secrets"
 	SafetyFindingInvisibleUnicode     SafetyFindingID = "invisible_unicode"
+	SafetyFindingOutputPromptLeak     SafetyFindingID = "output_prompt_leak"
+	SafetyFindingToolSchemaLeak       SafetyFindingID = "tool_schema_leak"
+	SafetyFindingInstructionNameLeak  SafetyFindingID = "instruction_name_leak"
 )
 
 const defaultSafetyRefusal = "I can't help reveal, override, or manipulate hidden instructions, secrets, or safety controls. I can still explain the public behavior at a high level."
+
+var outputLeakPatterns = []threatPattern{
+	{
+		re:       regexp.MustCompile(`(?im)^\s{0,3}#{1,6}\s+(?:Base Instructions|Environment Context|Memory Context|Planning Policy)\b`),
+		id:       SafetyFindingOutputPromptLeak,
+		category: SafetyCategoryHiddenInstruction,
+	},
+	{
+		re:       regexp.MustCompile(`(?is)"tools"\s*:\s*\[.*"(?:input_schema|parameters)"`),
+		id:       SafetyFindingToolSchemaLeak,
+		category: SafetyCategoryHiddenInstruction,
+	},
+	{
+		re: regexp.MustCompile(
+			`(?i)\b(?:planning\.policy|environment\.context|memory\.context|tool\.(?:session_search|session_messages|memory_extract|memory_add|memory_update|memory_delete))\b`,
+		),
+		id:       SafetyFindingInstructionNameLeak,
+		category: SafetyCategoryHiddenInstruction,
+	},
+}
 
 type SafetyFinding struct {
 	ID       SafetyFindingID
@@ -78,20 +106,51 @@ func CheckOutputSafety(content, source string, redactor Redactor) OutputSafetyRe
 	}
 
 	findings := findSafetyFindings(redactedContent, source)
+	findings = appendOutputLeakFindings(findings, redactedContent, source)
+	redacted := isRedactedOutput(content, redactedContent)
 	if len(findings) == 0 {
 		return OutputSafetyResult{
 			Content:  redactedContent,
-			Redacted: redactedContent != content,
+			Redacted: redacted,
 		}
 	}
 
 	return OutputSafetyResult{
 		Content:        defaultSafetyRefusal,
 		Blocked:        true,
-		Redacted:       redactedContent != content,
+		Redacted:       redacted,
 		RefusalMessage: defaultSafetyRefusal,
 		Findings:       findings,
 	}
+}
+
+func isRedactedOutput(original, sanitized string) bool {
+	if original == sanitized {
+		return false
+	}
+
+	var originalJSON any
+	var sanitizedJSON any
+	if json.Unmarshal([]byte(original), &originalJSON) == nil &&
+		json.Unmarshal([]byte(sanitized), &sanitizedJSON) == nil {
+		return !reflect.DeepEqual(originalJSON, sanitizedJSON)
+	}
+
+	return true
+}
+
+func appendOutputLeakFindings(findings []SafetyFinding, content, source string) []SafetyFinding {
+	for _, pattern := range outputLeakPatterns {
+		if pattern.re.MatchString(content) {
+			findings = appendSafetyFinding(findings, SafetyFinding{
+				ID:       pattern.id,
+				Category: pattern.category,
+				Source:   source,
+			})
+		}
+	}
+
+	return findings
 }
 
 func (finding SafetyFinding) LogFields() map[string]string {

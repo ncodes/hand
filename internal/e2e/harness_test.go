@@ -360,6 +360,32 @@ func TestHarnessSendAndMessagesErrors(t *testing.T) {
 		assert.EqualError(t, err, "e2e harness message inspection is unavailable for non-persistent storage")
 	})
 
+	t.Run("turn messages delegates to agent", func(t *testing.T) {
+		expected := []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "hello"},
+			{Role: handmsg.RoleAssistant, Content: "ok"},
+		}
+		h := &Harness{agent: &harnessAgentStub{turnMessages: expected}}
+
+		messages, err := h.TurnMessages()
+		require.NoError(t, err)
+		assert.Equal(t, expected, messages)
+	})
+
+	t.Run("turn messages require harness agent support", func(t *testing.T) {
+		_, err := (*Harness)(nil).TurnMessages()
+		require.Error(t, err)
+		assert.EqualError(t, err, "e2e harness is required")
+
+		_, err = (&Harness{}).TurnMessages()
+		require.Error(t, err)
+		assert.EqualError(t, err, "e2e harness is required")
+
+		_, err = (&Harness{agent: harnessAgentStub{}}).TurnMessages()
+		require.Error(t, err)
+		assert.EqualError(t, err, "e2e harness turn message inspection is unavailable")
+	})
+
 	t.Run("session management delegates to agent", func(t *testing.T) {
 		stub := &harnessAgentStub{created: storage.Session{ID: "ses_created"}}
 		h := &Harness{agent: stub}

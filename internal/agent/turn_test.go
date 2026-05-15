@@ -2992,6 +2992,39 @@ func TestTurn_RunBlocksUnsafeFinalAssistantOutputBeforePersistenceTraceAndReturn
 	})
 }
 
+func TestTurn_RunBlocksHiddenPromptLeakBeforePersistenceTraceAndReturn(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{
+		Responses: []*models.Response{{OutputText: "# Environment Context\n- Active tools: memory_extract"}},
+	})
+	turn.env = &mocks.EnvironmentStub{
+		ToolRegistry: tools.NewInMemoryRegistry(),
+		TraceSession: traceSession,
+	}
+
+	reply, err := turn.Run(context.Background(), "hello", RespondOptions{Stream: new(false)})
+
+	require.NoError(t, err)
+	require.Contains(t, reply, "I can't help")
+	messages, err := manager.GetMessages(context.Background(), storage.DefaultSessionID, storage.MessageQueryOptions{})
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, handmsg.RoleAssistant, messages[1].Role)
+	require.Equal(t, reply, messages[1].Content)
+	require.NotContains(t, messages[1].Content, "Environment Context")
+	finalPayload, ok := traceSession.Events[len(traceSession.Events)-1].Payload.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, reply, finalPayload["message"])
+	requireOutputSafetyEvent(t, traceSession, outputSafetyEventAssertion{
+		Blocked:          true,
+		Redacted:         false,
+		Refusal:          reply,
+		ExpectedID:       "output_prompt_leak",
+		ExpectedCategory: "hidden_or_obfuscated_instruction",
+		ExpectedSource:   "assistant",
+	})
+}
+
 func TestTurn_RunStoresActualPromptTokensForFutureTurns(t *testing.T) {
 	client := &mocks.ModelClientStub{Responses: []*models.Response{{
 		OutputText:   "hello back",

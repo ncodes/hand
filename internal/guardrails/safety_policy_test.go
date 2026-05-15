@@ -210,6 +210,75 @@ func TestCheckOutputSafety_BlocksUnsafeOutputAfterRedaction(t *testing.T) {
 	require.Equal(t, SafetyFindingPromptInjection, result.Findings[0].ID)
 }
 
+func TestCheckOutputSafety_BlocksHiddenPromptSectionLeaks(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+	}{
+		{name: "base instructions", content: "# Base Instructions\nYou are Hand."},
+		{name: "environment context", content: "## Environment Context\n- Active tools: memory_extract"},
+		{name: "memory context", content: "### Memory Context\nUser prefers terse replies."},
+		{name: "planning policy", content: "# Planning Policy\nUse the plan tool."},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := CheckOutputSafety(tc.content, "assistant", nil)
+
+			require.True(t, result.Blocked)
+			require.False(t, result.Redacted)
+			require.Equal(t, defaultSafetyRefusal, result.Content)
+			requireSafetyFinding(t, result.Findings, SafetyFindingOutputPromptLeak)
+			requireSafetyFindingCategory(t, result.Findings, SafetyFindingOutputPromptLeak, SafetyCategoryHiddenInstruction)
+			requireSafetyFindingSource(t, result.Findings, SafetyFindingOutputPromptLeak, "assistant")
+		})
+	}
+}
+
+func TestCheckOutputSafety_BlocksRawToolSchemaLeaks(t *testing.T) {
+	content := `{"tools":[{"name":"read_file","description":"Read file","input_schema":{"type":"object"}}]}`
+
+	result := CheckOutputSafety(content, "assistant", nil)
+
+	require.True(t, result.Blocked)
+	require.Equal(t, defaultSafetyRefusal, result.Content)
+	requireSafetyFinding(t, result.Findings, SafetyFindingToolSchemaLeak)
+	requireSafetyFindingCategory(t, result.Findings, SafetyFindingToolSchemaLeak, SafetyCategoryHiddenInstruction)
+	requireSafetyFindingSource(t, result.Findings, SafetyFindingToolSchemaLeak, "assistant")
+}
+
+func TestCheckOutputSafety_AllowsPublicToolListsWithoutSchemas(t *testing.T) {
+	content := `{"tools":[{"name":"read_file","description":"Read file"}]}`
+
+	result := CheckOutputSafety(content, "assistant", nil)
+
+	require.False(t, result.Blocked)
+	require.False(t, result.Redacted)
+	require.Empty(t, result.Findings)
+}
+
+func TestCheckOutputSafety_DoesNotTreatJSONKeyReorderingAsRedaction(t *testing.T) {
+	content := `{"b":2,"a":1}`
+
+	result := CheckOutputSafety(content, "assistant", nil)
+
+	require.False(t, result.Blocked)
+	require.False(t, result.Redacted)
+	require.JSONEq(t, content, result.Content)
+}
+
+func TestCheckOutputSafety_BlocksHiddenInstructionNameLeaks(t *testing.T) {
+	content := "Loaded internal instruction names: planning.policy, environment.context, tool.memory_add."
+
+	result := CheckOutputSafety(content, "assistant", nil)
+
+	require.True(t, result.Blocked)
+	require.Equal(t, defaultSafetyRefusal, result.Content)
+	requireSafetyFinding(t, result.Findings, SafetyFindingInstructionNameLeak)
+	requireSafetyFindingCategory(t, result.Findings, SafetyFindingInstructionNameLeak, SafetyCategoryHiddenInstruction)
+	requireSafetyFindingSource(t, result.Findings, SafetyFindingInstructionNameLeak, "assistant")
+}
+
 func TestCheckOutputSafety_UsesOriginalContentWhenRedactorReturnsNonString(t *testing.T) {
 	result := CheckOutputSafety("plain assistant output", "assistant", nonStringRedactor{})
 
@@ -249,4 +318,40 @@ func TestSafetyFinding_LogFieldsOmitBlankSource(t *testing.T) {
 		"id":       string(SafetyFindingInvisibleUnicode),
 		"category": string(SafetyCategoryHiddenInstruction),
 	}, fields)
+}
+
+func requireSafetyFindingCategory(
+	t *testing.T,
+	findings []SafetyFinding,
+	id SafetyFindingID,
+	category SafetyCategory,
+) {
+	t.Helper()
+
+	for _, finding := range findings {
+		if finding.ID == id {
+			require.Equal(t, category, finding.Category)
+			return
+		}
+	}
+
+	require.Failf(t, "missing safety finding", "id=%s findings=%v", id, findings)
+}
+
+func requireSafetyFindingSource(
+	t *testing.T,
+	findings []SafetyFinding,
+	id SafetyFindingID,
+	source string,
+) {
+	t.Helper()
+
+	for _, finding := range findings {
+		if finding.ID == id {
+			require.Equal(t, source, finding.Source)
+			return
+		}
+	}
+
+	require.Failf(t, "missing safety finding", "id=%s findings=%v", id, findings)
 }

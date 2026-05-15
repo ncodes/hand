@@ -13,17 +13,18 @@ import (
 )
 
 type harnessAgentStub struct {
-	reply      string
-	respondErr error
-	current    string
-	currentErr error
-	events     []agent.Event
-	created    storage.Session
-	createErr  error
-	usedID     string
-	useErr     error
-	compact    agent.CompactSessionResult
-	compactErr error
+	reply        string
+	respondErr   error
+	current      string
+	currentErr   error
+	events       []agent.Event
+	created      storage.Session
+	createErr    error
+	usedID       string
+	useErr       error
+	compact      agent.CompactSessionResult
+	compactErr   error
+	turnMessages []handmsg.Message
 }
 
 func (s harnessAgentStub) Respond(_ context.Context, _ string, opts agent.RespondOptions) (string, error) {
@@ -65,6 +66,10 @@ func (s *harnessAgentStub) CompactSession(context.Context, string) (agent.Compac
 		return agent.CompactSessionResult{}, s.compactErr
 	}
 	return s.compact, nil
+}
+
+func (s *harnessAgentStub) TurnMessages() []handmsg.Message {
+	return s.turnMessages
 }
 
 type storageStoreStub struct {
