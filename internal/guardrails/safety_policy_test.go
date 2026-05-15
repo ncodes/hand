@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	instruct "github.com/wandxy/hand/internal/instructions"
 )
 
 type nonStringRedactor struct{}
@@ -218,6 +220,11 @@ func TestCheckOutputSafety_BlocksHiddenPromptSectionLeaks(t *testing.T) {
 		{name: "base instructions", content: "# Base Instructions\nYou are Hand."},
 		{name: "environment context", content: "## Environment Context\n- Active tools: memory_extract"},
 		{name: "memory context", content: "### Memory Context\nUser prefers terse replies."},
+		{name: "memory extract guidance", content: instruct.BuildMemoryExtractGuidance().Value},
+		{name: "memory add guidance", content: instruct.BuildMemoryAddGuidance().Value},
+		{name: "memory update guidance", content: instruct.BuildMemoryUpdateGuidance().Value},
+		{name: "memory delete guidance", content: instruct.BuildMemoryDeleteGuidance().Value},
+		{name: "memory flush guidance", content: instruct.BuildMemoryFlushGuidance("compression").Value},
 		{name: "planning policy", content: "# Planning Policy\nUse the plan tool."},
 	}
 

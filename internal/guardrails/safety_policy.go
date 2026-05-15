@@ -42,7 +42,9 @@ const defaultSafetyRefusal = "I can't help reveal, override, or manipulate hidde
 
 var outputLeakPatterns = []threatPattern{
 	{
-		re:       regexp.MustCompile(`(?im)^\s{0,3}#{1,6}\s+(?:Base Instructions|Environment Context|Memory Context|Planning Policy)\b`),
+		re: regexp.MustCompile(
+			`(?im)^\s{0,3}#{1,6}\s+(?:Base Instructions|Environment Context|Memory Context|Planning Policy|Pre-Context-Loss Memory Flush|Memory (?:[A-Za-z]+(?: [A-Za-z]+){0,2}) Guidance|Tool Guidance)\b`,
+		),
 		id:       SafetyFindingOutputPromptLeak,
 		category: SafetyCategoryHiddenInstruction,
 	},

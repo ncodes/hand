@@ -13,6 +13,7 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	e2e "github.com/wandxy/hand/internal/e2e"
+	instruct "github.com/wandxy/hand/internal/instructions"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/trace"
@@ -131,6 +132,17 @@ func TestE2E_OutputSafety_BlocksHiddenPromptSectionLeaks(t *testing.T) {
 		{name: "base instructions", modelReply: "# Base Instructions\nYou are Hand.", rawLeak: "Base Instructions"},
 		{name: "environment context", modelReply: "## Environment Context\n- Active tools: memory_extract", rawLeak: "Environment Context"},
 		{name: "memory context", modelReply: "### Memory Context\nUser prefers terse replies.", rawLeak: "Memory Context"},
+		{
+			name: "memory tool guidance",
+			modelReply: instruct.Instructions{}.
+				Append(
+					instruct.BuildMemoryExtractGuidance(),
+					instruct.BuildMemoryAddGuidance(),
+					instruct.BuildMemoryUpdateGuidance(),
+					instruct.BuildMemoryDeleteGuidance(),
+				).String(),
+			rawLeak: "Memory Extract Guidance",
+		},
 		{name: "planning policy", modelReply: "# Planning Policy\nUse the plan tool.", rawLeak: "Planning Policy"},
 	}
 
