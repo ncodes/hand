@@ -33,6 +33,7 @@ func init() {
 }
 
 func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
+	isolateCommandProfile(t)
 	original := config.Get()
 	originalNewAgentRunner := newAgentRunner
 	originalServeGRPC := serveRPC
@@ -487,6 +488,7 @@ func TestServeRPC_ForcesStopWhenGracefulShutdownSlow(t *testing.T) {
 }
 
 func TestNewCommand_ReturnsConfigLoadError(t *testing.T) {
+	isolateCommandProfile(t)
 	origServe := serveRPC
 	t.Cleanup(func() { serveRPC = origServe })
 	serveRPC = func(context.Context, *config.Config, agentRunner) error {
@@ -523,6 +525,7 @@ func (w *startupWriteFailAfterFirst) Write(p []byte) (int, error) {
 }
 
 func TestNewCommand_ReturnsStartupOutputError(t *testing.T) {
+	isolateCommandProfile(t)
 	origOut := startupOutput
 	origServe := serveRPC
 	t.Cleanup(func() {
@@ -556,6 +559,7 @@ func TestNewCommand_ReturnsStartupOutputError(t *testing.T) {
 }
 
 func TestNewCommand_ReturnsOpenAIClientFactoryError(t *testing.T) {
+	isolateCommandProfile(t)
 	origFactory := openAIClientFactory
 	origServe := serveRPC
 	t.Cleanup(func() {
@@ -587,6 +591,7 @@ func TestNewCommand_ReturnsOpenAIClientFactoryError(t *testing.T) {
 }
 
 func TestNewCommand_ReturnsResolveSummaryAuthError(t *testing.T) {
+	isolateCommandProfile(t)
 	origResolve := resolveSummaryAuth
 	origServe := serveRPC
 	t.Cleanup(func() {
@@ -618,6 +623,7 @@ func TestNewCommand_ReturnsResolveSummaryAuthError(t *testing.T) {
 }
 
 func TestNewCommand_ReturnsSecondOpenAIClientFactoryError(t *testing.T) {
+	isolateCommandProfile(t)
 	origFactory := openAIClientFactory
 	origServe := serveRPC
 	t.Cleanup(func() {
@@ -657,6 +663,7 @@ func TestNewCommand_ReturnsSecondOpenAIClientFactoryError(t *testing.T) {
 }
 
 func TestNewCommand_ReturnsAgentStartError(t *testing.T) {
+	isolateCommandProfile(t)
 	origRunner := newAgentRunner
 	origServe := serveRPC
 	t.Cleanup(func() {
@@ -696,6 +703,7 @@ func TestNewCommand_ReturnsAgentStartError(t *testing.T) {
 }
 
 func TestNewCommand_UsesSeparateSummaryClientWhenAuthDiffers(t *testing.T) {
+	isolateCommandProfile(t)
 	original := config.Get()
 	originalNewAgentRunner := newAgentRunner
 	originalServeGRPC := serveRPC
@@ -753,6 +761,7 @@ func TestNewCommand_UsesSeparateSummaryClientWhenAuthDiffers(t *testing.T) {
 }
 
 func TestNewCommand_ReturnsValidationError(t *testing.T) {
+	isolateCommandProfile(t)
 	originalServeGRPC := serveRPC
 
 	t.Cleanup(func() {
@@ -786,6 +795,36 @@ func newRootCommandForTest(configFile *string) *cli.Command {
 		Commands: []*cli.Command{
 			NewCommand(),
 		},
+	}
+}
+
+func isolateCommandProfile(t *testing.T) {
+	t.Helper()
+
+	originalProfile := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(originalProfile)
+	})
+	profile.SetActive(profile.Profile{})
+	t.Setenv("HOME", t.TempDir())
+	clearEnv(t, profile.EnvName, "HAND_ENV_FILE", "HAND_CONFIG", "HAND_SAFETY_INPUT", "HAND_SAFETY_OUTPUT", "HAND_SAFETY_PII")
+}
+
+func clearEnv(t *testing.T, keys ...string) {
+	t.Helper()
+
+	for _, key := range keys {
+		original, ok := os.LookupEnv(key)
+		if ok {
+			t.Cleanup(func() {
+				require.NoError(t, os.Setenv(key, original))
+			})
+		} else {
+			t.Cleanup(func() {
+				require.NoError(t, os.Unsetenv(key))
+			})
+		}
+		require.NoError(t, os.Unsetenv(key))
 	}
 }
 

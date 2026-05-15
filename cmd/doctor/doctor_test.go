@@ -13,6 +13,7 @@ import (
 	cli "github.com/urfave/cli/v3"
 
 	handcli "github.com/wandxy/hand/internal/cli"
+	"github.com/wandxy/hand/internal/profile"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -21,6 +22,7 @@ func init() {
 }
 
 func TestNewCommand_PrintsPassingReport(t *testing.T) {
+	isolateProfile(t)
 	originalOutput := doctorOutput
 	t.Cleanup(func() {
 		doctorOutput = originalOutput
@@ -45,6 +47,7 @@ func TestNewCommand_PrintsPassingReport(t *testing.T) {
 }
 
 func TestNewCommand_PrintsSafetyModeFromConfig(t *testing.T) {
+	isolateProfile(t)
 	originalOutput := doctorOutput
 	t.Cleanup(func() {
 		doctorOutput = originalOutput
@@ -82,6 +85,7 @@ search:
 }
 
 func TestNewCommand_PrintsFailureReport(t *testing.T) {
+	isolateProfile(t)
 	originalOutput := doctorOutput
 	t.Cleanup(func() {
 		doctorOutput = originalOutput
@@ -112,6 +116,7 @@ search:
 }
 
 func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
+	isolateProfile(t)
 	originalOutput := doctorOutput
 	t.Cleanup(func() {
 		doctorOutput = originalOutput
@@ -146,5 +151,35 @@ func newRootCommandForTest() *cli.Command {
 		Commands: []*cli.Command{
 			NewCommand(),
 		},
+	}
+}
+
+func isolateProfile(t *testing.T) {
+	t.Helper()
+
+	originalProfile := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(originalProfile)
+	})
+	profile.SetActive(profile.Profile{})
+	t.Setenv("HOME", t.TempDir())
+	clearEnv(t, profile.EnvName, "HAND_ENV_FILE", "HAND_CONFIG", "HAND_SAFETY_INPUT", "HAND_SAFETY_OUTPUT", "HAND_SAFETY_PII")
+}
+
+func clearEnv(t *testing.T, keys ...string) {
+	t.Helper()
+
+	for _, key := range keys {
+		original, ok := os.LookupEnv(key)
+		if ok {
+			t.Cleanup(func() {
+				require.NoError(t, os.Setenv(key, original))
+			})
+		} else {
+			t.Cleanup(func() {
+				require.NoError(t, os.Unsetenv(key))
+			})
+		}
+		require.NoError(t, os.Unsetenv(key))
 	}
 }
