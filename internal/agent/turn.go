@@ -189,6 +189,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 	traceSession := t.env.NewTraceSessionForRun(t.runCtx)
 	defer traceSession.Close()
+	t.recordLoadedContentSafety(traceSession)
 	if t.planHydrated {
 		plan := t.env.CurrentPlan(t.getStateSessionID())
 		traceSession.Record(trace.EvtPlanHydrated, map[string]any{
@@ -204,7 +205,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 	if t.cfg.InputSafetyEnabled() {
 		inputSafety := guardrails.CheckInputSafety(msg, "user")
 		if inputSafety.Blocked {
-			traceSession.Record(trace.EvtInputSafetyBlocked, getInputSafetyTracePayload(t.sessionID, inputSafety))
+			traceSession.Record(trace.EvtInputSafetyBlocked, getInputSafetyTracePayload(t.sessionID, msg, inputSafety))
 			return inputSafety.RefusalMessage, nil
 		}
 	}
@@ -485,7 +486,7 @@ func (t *Turn) applyAssistantOutputSafety(traceSession trace.Session, output str
 
 	result := guardrails.CheckOutputSafety(output, "assistant", t.getOutputRedactor())
 	if traceSession != nil && (result.Blocked || result.Redacted) {
-		traceSession.Record(trace.EvtOutputSafetyApplied, getOutputSafetyTracePayload(t.sessionID, result))
+		traceSession.Record(trace.EvtOutputSafetyApplied, getOutputSafetyTracePayload(t.sessionID, output, result))
 	}
 
 	return result.Content
@@ -501,44 +502,43 @@ func (t *Turn) getOutputRedactor() guardrails.Redactor {
 	})
 }
 
-func getInputSafetyTracePayload(sessionID string, result guardrails.InputSafetyResult) map[string]any {
-	payload := map[string]any{
-		"session_id": sessionID,
-		"blocked":    result.Blocked,
-		"findings":   getSafetyFindingLogFields(result.Findings),
-	}
-	if result.RefusalMessage != "" {
-		payload["refusal"] = result.RefusalMessage
+func (t *Turn) recordLoadedContentSafety(traceSession trace.Session) {
+	if t == nil || t.env == nil || traceSession == nil {
+		return
 	}
 
-	return payload
+	for _, event := range t.env.SafetyTraceEvents() {
+		traceSession.Record(trace.EvtLoadedContentSafetyBlocked, guardrails.SafetyTracePayload(event))
+	}
 }
 
-func getOutputSafetyTracePayload(sessionID string, result guardrails.OutputSafetyResult) map[string]any {
-	payload := map[string]any{
-		"session_id": sessionID,
-		"blocked":    result.Blocked,
-		"redacted":   result.Redacted,
-		"findings":   getSafetyFindingLogFields(result.Findings),
-	}
-	if result.RefusalMessage != "" {
-		payload["refusal"] = result.RefusalMessage
-	}
-
-	return payload
+func getInputSafetyTracePayload(sessionID string, content string, result guardrails.InputSafetyResult) map[string]any {
+	return guardrails.SafetyTracePayload(guardrails.SafetyTracePayloadOptions{
+		SessionID:     sessionID,
+		Source:        "user",
+		Action:        "blocked",
+		ContentLength: len([]rune(content)),
+		Blocked:       result.Blocked,
+		Findings:      result.Findings,
+		Refusal:       result.RefusalMessage,
+	})
 }
 
-func getSafetyFindingLogFields(findings []guardrails.SafetyFinding) []map[string]string {
-	if len(findings) == 0 {
-		return nil
+func getOutputSafetyTracePayload(sessionID string, content string, result guardrails.OutputSafetyResult) map[string]any {
+	action := "redacted"
+	if result.Blocked {
+		action = "blocked"
 	}
-
-	fields := make([]map[string]string, 0, len(findings))
-	for _, finding := range findings {
-		fields = append(fields, finding.LogFields())
-	}
-
-	return fields
+	return guardrails.SafetyTracePayload(guardrails.SafetyTracePayloadOptions{
+		SessionID:     sessionID,
+		Source:        "assistant",
+		Action:        action,
+		ContentLength: len([]rune(content)),
+		Blocked:       result.Blocked,
+		Redacted:      result.Redacted,
+		Findings:      result.Findings,
+		Refusal:       result.RefusalMessage,
+	})
 }
 
 func (t *Turn) getStateSessionID() string {

@@ -23,8 +23,9 @@ var (
 )
 
 type Result struct {
-	Content string
-	Found   bool
+	Content      string
+	Found        bool
+	SafetyEvents []guardrails.SafetyTracePayloadOptions
 }
 
 type LoadOptions struct {
@@ -54,6 +55,7 @@ func Load(opts LoadOptions) (Result, error) {
 
 func loadWithOptions(opts LoadOptions) (Result, error) {
 	sections := make([]string, 0, 3)
+	safetyEvents := make([]guardrails.SafetyTracePayloadOptions, 0, 2)
 	seenPaths := make(map[string]struct{}, 2)
 
 	profileHome := strings.TrimSpace(opts.ProfileHome)
@@ -62,7 +64,7 @@ func loadWithOptions(opts LoadOptions) (Result, error) {
 
 	if personalityName == "" {
 		globalPath := filepath.Join(profileHome, fileName)
-		globalSection, foundGlobal, err := loadFile(
+		globalSection, foundGlobal, events, err := loadFile(
 			globalPath,
 			workspaceRoot,
 			seenPaths,
@@ -74,14 +76,16 @@ func loadWithOptions(opts LoadOptions) (Result, error) {
 		if foundGlobal {
 			sections = append(sections, globalSection)
 		}
+		safetyEvents = append(safetyEvents, events...)
 	} else {
-		section, found, err := loadNamedPersonality(opts, seenPaths)
+		section, found, events, err := loadNamedPersonality(opts, seenPaths)
 		if err != nil {
 			return Result{}, err
 		}
 		if found {
 			sections = append(sections, section)
 		}
+		safetyEvents = append(safetyEvents, events...)
 	}
 
 	if opts.AllowWorkspace && workspaceRoot != "" {
@@ -92,7 +96,7 @@ func loadWithOptions(opts LoadOptions) (Result, error) {
 			}
 		} else if info.IsDir() {
 			workspacePath := filepath.Join(workspaceRoot, fileName)
-			workspaceSection, foundWorkspace, err := loadFile(
+			workspaceSection, foundWorkspace, events, err := loadFile(
 				workspacePath,
 				workspaceRoot,
 				seenPaths,
@@ -104,53 +108,61 @@ func loadWithOptions(opts LoadOptions) (Result, error) {
 			if foundWorkspace {
 				sections = append(sections, workspaceSection)
 			}
+			safetyEvents = append(safetyEvents, events...)
 		}
 	}
 
 	if len(sections) == 0 {
-		return Result{}, nil
+		return Result{SafetyEvents: safetyEvents}, nil
 	}
 
 	return Result{
-		Content: truncate(strings.Join(sections, "\n\n")),
-		Found:   true,
+		Content:      truncate(strings.Join(sections, "\n\n")),
+		Found:        true,
+		SafetyEvents: safetyEvents,
 	}, nil
 }
 
 func loadNamedPersonality(
 	opts LoadOptions,
 	seenPaths map[string]struct{},
-) (string, bool, error) {
+) (string, bool, []guardrails.SafetyTracePayloadOptions, error) {
 	name := strings.TrimSpace(opts.PersonalityName)
 	personalityConfig := opts.PersonalityConfig
 	sections := make([]string, 0, 2)
+	safetyEvents := make([]guardrails.SafetyTracePayloadOptions, 0, 2)
 
 	if strings.TrimSpace(personalityConfig.Soul) != "" {
-		section, found, err := loadFile(
+		section, found, events, err := loadFile(
 			personalityConfig.Soul,
 			opts.WorkspaceRoot,
 			seenPaths,
 			loadFileOptions{Label: fmt.Sprintf("Personality %s SOUL.md", name), Required: true},
 		)
 		if err != nil {
-			return "", false, err
+			return "", false, nil, err
 		}
 		if found {
 			sections = append(sections, section)
 		}
+		safetyEvents = append(safetyEvents, events...)
 	}
 
 	if strings.TrimSpace(personalityConfig.Instruct) != "" {
 		displayName := fmt.Sprintf("personality:%s.instruct", name)
-		scanned := guardrails.SafetyScan(strings.TrimSpace(personalityConfig.Instruct), displayName)
+		content := strings.TrimSpace(personalityConfig.Instruct)
+		scanned := guardrails.SafetyScan(content, displayName)
+		if scanned.Blocked {
+			safetyEvents = append(safetyEvents, loadedContentSafetyEvent(displayName, content, scanned.Findings))
+		}
 		sections = append(sections, fmt.Sprintf("## Personality %s instruct\n%s", name, scanned.Content))
 	}
 
 	if len(sections) == 0 {
-		return "", false, nil
+		return "", false, safetyEvents, nil
 	}
 
-	return strings.Join(sections, "\n\n"), true, nil
+	return strings.Join(sections, "\n\n"), true, safetyEvents, nil
 }
 
 type loadFileOptions struct {
@@ -163,58 +175,76 @@ func loadFile(
 	workspaceRoot string,
 	seenPaths map[string]struct{},
 	opts loadFileOptions,
-) (string, bool, error) {
+) (string, bool, []guardrails.SafetyTracePayloadOptions, error) {
 	if absolutePath, err := filepath.Abs(path); err == nil {
 		path = absolutePath
 	}
 	if _, ok := seenPaths[path]; ok {
-		return "", false, nil
+		return "", false, nil, nil
 	}
 
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			if opts.Required {
-				return "", false, fmt.Errorf("personality file %q is required", path)
+				return "", false, nil, fmt.Errorf("personality file %q is required", path)
 			}
 
-			return "", false, nil
+			return "", false, nil, nil
 		}
 
-		return "", false, fmt.Errorf("stat personality file %q: %w", path, err)
+		return "", false, nil, fmt.Errorf("stat personality file %q: %w", path, err)
 	}
 
 	if info.IsDir() {
 		if opts.Required {
-			return "", false, fmt.Errorf("personality file %q is a directory", path)
+			return "", false, nil, fmt.Errorf("personality file %q is a directory", path)
 		}
 
-		return "", false, nil
+		return "", false, nil, nil
 	}
 
 	seenPaths[path] = struct{}{}
 
 	content, err := readFile(path)
 	if err != nil {
-		return "", false, fmt.Errorf("read personality file %q: %w", path, err)
+		return "", false, nil, fmt.Errorf("read personality file %q: %w", path, err)
 	}
 	contentText := strings.TrimSpace(string(content))
 	if contentText == "" {
-		return "", false, nil
+		return "", false, nil, nil
 	}
 
 	displayPath, err := resolveDisplayPath(path, workspaceRoot)
 	if err != nil {
-		return "", false, fmt.Errorf("resolve personality file path %q: %w", path, err)
+		return "", false, nil, fmt.Errorf("resolve personality file path %q: %w", path, err)
 	}
 
 	scanned := guardrails.SafetyScan(contentText, displayPath)
+	safetyEvents := []guardrails.SafetyTracePayloadOptions(nil)
+	if scanned.Blocked {
+		safetyEvents = append(safetyEvents, loadedContentSafetyEvent(displayPath, contentText, scanned.Findings))
+	}
 	label := strings.TrimSpace(opts.Label)
 	if label == "" {
 		label = displayPath
 	}
 
-	return fmt.Sprintf("## %s\n%s", label, scanned.Content), true, nil
+	return fmt.Sprintf("## %s\n%s", label, scanned.Content), true, safetyEvents, nil
+}
+
+func loadedContentSafetyEvent(
+	source string,
+	content string,
+	findings []guardrails.SafetyFinding,
+) guardrails.SafetyTracePayloadOptions {
+	return guardrails.SafetyTracePayloadOptions{
+		Source:        source,
+		Action:        "blocked",
+		ContentLength: len([]rune(content)),
+		Blocked:       true,
+		Findings:      findings,
+	}
 }
 
 func getDisplayPath(path, workspaceRoot string) (string, error) {

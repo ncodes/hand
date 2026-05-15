@@ -59,6 +59,7 @@ type Environment interface {
 
 	// Instructions returns a copy of the base prompts.
 	Instructions() instructions.Instructions
+	SafetyTraceEvents() []guardrails.SafetyTracePayloadOptions
 
 	// Tools returns the registry for tools.
 	Tools() ToolRegistry
@@ -98,6 +99,7 @@ type environment struct {
 	runtime      *Runtime
 	stateMgr     *statemanager.Manager
 	modelClient  models.Client
+	safetyEvents []guardrails.SafetyTracePayloadOptions
 }
 
 type ToolRegistry interface {
@@ -426,6 +428,7 @@ func (e *environment) memoryWriteDefinitions() (tools.Definitions, error) {
 }
 
 func (e *environment) prepareInstructions() {
+	e.safetyEvents = nil
 	e.addInstruction(instructions.BuildPlanningPolicy())
 
 	for _, instruction := range instructions.BuildBase(e.cfg.Name) {
@@ -438,6 +441,7 @@ func (e *environment) prepareInstructions() {
 	} else if personalityOverlay.Found {
 		e.addInstruction(instructions.Instruction{Value: personalityOverlay.Content})
 	}
+	e.safetyEvents = append(e.safetyEvents, personalityOverlay.SafetyEvents...)
 
 	workspaceRules, err := loadWorkspaceRules(e.cfg.Rules.Files...)
 	if err != nil {
@@ -449,6 +453,7 @@ func (e *environment) prepareInstructions() {
 		e.workspace = workspaceRules
 		e.addInstruction(instructions.Instruction{Value: workspaceRules.Content})
 	}
+	e.safetyEvents = append(e.safetyEvents, workspaceRules.SafetyEvents...)
 
 	if e.cfg != nil && e.cfg.Session.Instruct != "" {
 		e.setInstruction(instructions.Instruction{Name: configInstructInstructionName, Value: e.cfg.Session.Instruct})
@@ -469,6 +474,16 @@ func (e *environment) Instructions() instructions.Instructions {
 	copied := make(instructions.Instructions, len(e.instructions))
 	copy(copied, e.instructions)
 	return copied
+}
+
+func (e *environment) SafetyTraceEvents() []guardrails.SafetyTracePayloadOptions {
+	if e == nil || len(e.safetyEvents) == 0 {
+		return nil
+	}
+
+	events := make([]guardrails.SafetyTracePayloadOptions, len(e.safetyEvents))
+	copy(events, e.safetyEvents)
+	return events
 }
 
 func (e *environment) Tools() ToolRegistry {

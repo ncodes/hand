@@ -136,6 +136,7 @@ type TimelineEvent struct {
 	CompactionEvent   *CompactionEventView `json:"compaction_event,omitempty"`
 	WorkspaceRules    *WorkspaceRulesView  `json:"workspace_rules,omitempty"`
 	PlanEvent         *PlanEventView       `json:"plan_event,omitempty"`
+	SafetyEvent       *SafetyEventView     `json:"safety_event,omitempty"`
 	GenericPayloadRaw string               `json:"generic_payload_raw,omitempty"`
 }
 
@@ -284,6 +285,17 @@ type PlanSummaryView struct {
 	Cancelled  int `json:"cancelled"`
 }
 
+type SafetyEventView struct {
+	SessionID     string              `json:"session_id,omitempty"`
+	Source        string              `json:"source,omitempty"`
+	Action        string              `json:"action,omitempty"`
+	ContentLength int                 `json:"content_length"`
+	Blocked       bool                `json:"blocked"`
+	Redacted      bool                `json:"redacted"`
+	Refusal       string              `json:"refusal,omitempty"`
+	Findings      []map[string]string `json:"findings,omitempty"`
+}
+
 type rawEvent struct {
 	SessionID string          `json:"session_id"`
 	Type      string          `json:"type"`
@@ -332,6 +344,17 @@ type planEventPayload struct {
 	ActiveStepID string          `json:"active_step_id"`
 	Explanation  string          `json:"explanation"`
 	Source       string          `json:"source"`
+}
+
+type safetyEventPayload struct {
+	SessionID     string              `json:"session_id"`
+	Source        string              `json:"source"`
+	Action        string              `json:"action"`
+	ContentLength int                 `json:"content_length"`
+	Blocked       bool                `json:"blocked"`
+	Redacted      bool                `json:"redacted"`
+	Refusal       string              `json:"refusal"`
+	Findings      []map[string]string `json:"findings"`
 }
 
 func NewStore(directory string) *Store {
@@ -666,6 +689,23 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 				ActiveStepID: payload.ActiveStepID,
 				Explanation:  strings.TrimSpace(payload.Explanation),
 				Source:       strings.TrimSpace(payload.Source),
+			}
+			return
+		}
+	case handtrace.EvtInputSafetyBlocked, handtrace.EvtOutputSafetyApplied,
+		handtrace.EvtToolOutputSafetyApplied, handtrace.EvtLoadedContentSafetyBlocked,
+		handtrace.EvtMemorySafetyBlocked:
+		var payload safetyEventPayload
+		if json.Unmarshal(event.Payload, &payload) == nil {
+			timelineEvent.SafetyEvent = &SafetyEventView{
+				SessionID:     strings.TrimSpace(payload.SessionID),
+				Source:        strings.TrimSpace(payload.Source),
+				Action:        strings.TrimSpace(payload.Action),
+				ContentLength: payload.ContentLength,
+				Blocked:       payload.Blocked,
+				Redacted:      payload.Redacted,
+				Refusal:       strings.TrimSpace(payload.Refusal),
+				Findings:      payload.Findings,
 			}
 			return
 		}

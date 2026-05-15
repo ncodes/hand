@@ -112,7 +112,7 @@ func (t *Turn) retrieveMemoryInstruction(
 		}
 	}
 
-	items = sanitizeMemoryItemsForPrompt(items)
+	items = sanitizeMemoryItemsForPrompt(items, traceSession)
 
 	recordMemoryRetrievalEvent(traceSession, trace.EvtMemoryRetrieved, map[string]any{
 		"provider":              provider.Name(),
@@ -220,10 +220,10 @@ func truncateMemoryTraceText(value string) string {
 	return string(runes[:120])
 }
 
-func sanitizeMemoryItemsForPrompt(input []memory.MemoryItem) []memory.MemoryItem {
+func sanitizeMemoryItemsForPrompt(input []memory.MemoryItem, traceSession trace.Session) []memory.MemoryItem {
 	items := make([]memory.MemoryItem, 0, len(input))
 	for _, item := range input {
-		sanitized, ok := sanitizeMemoryItemForPrompt(item)
+		sanitized, ok := sanitizeMemoryItemForPromptWithTrace(item, traceSession)
 		if !ok {
 			continue
 		}
@@ -233,25 +233,50 @@ func sanitizeMemoryItemsForPrompt(input []memory.MemoryItem) []memory.MemoryItem
 }
 
 func sanitizeMemoryItemForPrompt(item memory.MemoryItem) (memory.MemoryItem, bool) {
+	return sanitizeMemoryItemForPromptWithTrace(item, nil)
+}
+
+func sanitizeMemoryItemForPromptWithTrace(item memory.MemoryItem, traceSession trace.Session) (memory.MemoryItem, bool) {
 	if item.Status != memory.StatusActive {
 		return memory.MemoryItem{}, false
 	}
 
 	item.Title = getMemoryPromptText(item.Title)
 	item.Text = getMemoryPromptText(item.Text)
+	content := strings.Join([]string{item.Title, item.Text}, "\n")
 	if strings.TrimSpace(item.Title) == "" && strings.TrimSpace(item.Text) == "" {
 		return memory.MemoryItem{}, false
 	}
 
 	scanned := guardrails.SafetyScan(
-		strings.Join([]string{item.Title, item.Text}, "\n"),
+		content,
 		item.GuardrailSource(),
 	)
 	if scanned.Blocked {
+		recordMemorySafetyBlocked(traceSession, item.GuardrailSource(), content, scanned.Findings)
 		return memory.MemoryItem{}, false
 	}
 
 	return item, true
+}
+
+func recordMemorySafetyBlocked(
+	traceSession trace.Session,
+	source string,
+	content string,
+	findings []guardrails.SafetyFinding,
+) {
+	if traceSession == nil {
+		return
+	}
+
+	traceSession.Record(trace.EvtMemorySafetyBlocked, guardrails.SafetyTracePayload(guardrails.SafetyTracePayloadOptions{
+		Source:        source,
+		Action:        "blocked",
+		ContentLength: len([]rune(content)),
+		Blocked:       true,
+		Findings:      findings,
+	}))
 }
 
 func getMemoryPromptText(value string) string {

@@ -177,6 +177,49 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 	require.Equal(t, 6, *detail.Timeline[7].ToolInvocation.PairIndex)
 }
 
+func Test_Store_GetSession_BuildsSafetyEventWithoutRawContent(t *testing.T) {
+	dir := t.TempDir()
+	writeTraceFile(t, dir, "20260515T002738.170520000Z-default", []any{
+		handtrace.Event{
+			SessionID: "default",
+			Type:      handtrace.EvtOutputSafetyApplied,
+			Timestamp: time.Date(2026, 5, 15, 0, 27, 38, 171258000, time.UTC),
+			Payload: map[string]any{
+				"session_id":     "default",
+				"source":         "assistant",
+				"action":         "blocked",
+				"content_length": 42,
+				"blocked":        true,
+				"redacted":       false,
+				"findings": []map[string]string{{
+					"id":       "output_prompt_leak",
+					"category": "hidden_or_obfuscated_instruction",
+					"source":   "assistant",
+				}},
+			},
+		},
+	})
+
+	detail, err := NewStore(dir).GetSession("default")
+
+	require.NoError(t, err)
+	require.Len(t, detail.Timeline, 1)
+	event := detail.Timeline[0]
+	require.NotNil(t, event.SafetyEvent)
+	require.Equal(t, "assistant", event.SafetyEvent.Source)
+	require.Equal(t, "blocked", event.SafetyEvent.Action)
+	require.Equal(t, 42, event.SafetyEvent.ContentLength)
+	require.True(t, event.SafetyEvent.Blocked)
+	require.False(t, event.SafetyEvent.Redacted)
+	require.Empty(t, event.GenericPayloadRaw)
+	require.NotContains(t, event.Raw, "Environment Context")
+	require.Contains(t, event.SafetyEvent.Findings, map[string]string{
+		"id":       "output_prompt_leak",
+		"category": "hidden_or_obfuscated_instruction",
+		"source":   "assistant",
+	})
+}
+
 func Test_Store_ListSessions_SortsTiesByIDDescending(t *testing.T) {
 	dir := t.TempDir()
 	timestamp := time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC)

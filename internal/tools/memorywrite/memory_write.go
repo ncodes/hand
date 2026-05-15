@@ -12,6 +12,7 @@ import (
 	"github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
+	"github.com/wandxy/hand/internal/trace"
 )
 
 type sourceLinkInput struct {
@@ -88,7 +89,13 @@ func AddDefinition(runtime envtypes.Runtime) tools.Definition {
 			}
 
 			runCtx, hasRunContext := tools.RunContextFromContext(ctx)
-			item, err := memoryItemFromAddInput(input, runCtx, hasRunContext, "tool_write")
+			item, err := memoryItemFromAddInput(
+				input,
+				runCtx,
+				hasRunContext,
+				"tool_write",
+				tools.TraceRecorderFromContext(ctx),
+			)
 			if err != nil {
 				return common.ToolError("invalid_input", err.Error()), nil
 			}
@@ -147,6 +154,7 @@ func UpdateDefinition(runtime envtypes.Runtime) tools.Definition {
 				runCtx,
 				hasRunContext,
 				"tool_write",
+				tools.TraceRecorderFromContext(ctx),
 			)
 			if err != nil {
 				return common.ToolError("invalid_input", err.Error()), nil
@@ -208,6 +216,7 @@ func memoryItemFromAddInput(
 	runCtx runcontext.Context,
 	hasRunContext bool,
 	trigger string,
+	recorder tools.TraceRecorder,
 ) (memory.MemoryItem, error) {
 	kind, err := parseKind(input.Kind)
 	if err != nil {
@@ -240,7 +249,8 @@ func memoryItemFromAddInput(
 	if item.Title == "" && item.Text == "" {
 		return memory.MemoryItem{}, errors.New("memory title or text is required")
 	}
-	if err := checkMemoryWriteSafety(item); err != nil {
+	if result, err := checkMemoryWriteSafety(item); err != nil {
+		recordMemoryWriteSafetyBlocked(recorder, result)
 		return memory.MemoryItem{}, err
 	}
 	if !hasProvenance(item) {
@@ -250,15 +260,29 @@ func memoryItemFromAddInput(
 	return item, nil
 }
 
-func checkMemoryWriteSafety(item memory.MemoryItem) error {
+type memoryWriteSafetyResult struct {
+	Source        string
+	ContentLength int
+	Blocked       bool
+	Redacted      bool
+	Findings      []guardrails.SafetyFinding
+}
+
+func checkMemoryWriteSafety(item memory.MemoryItem) (memoryWriteSafetyResult, error) {
 	content := strings.TrimSpace(strings.Join([]string{item.Title, item.Text}, "\n"))
+	result := memoryWriteSafetyResult{
+		Source:        item.GuardrailSource(),
+		ContentLength: len([]rune(content)),
+	}
 	if content == "" {
-		return nil
+		return result, nil
 	}
 
 	inputSafety := guardrails.CheckInputSafety(content, item.GuardrailSource())
 	if inputSafety.Blocked {
-		return errors.New("memory content failed safety check")
+		result.Blocked = true
+		result.Findings = inputSafety.Findings
+		return result, errors.New("memory content failed safety check")
 	}
 
 	outputSafety := guardrails.CheckOutputSafety(
@@ -267,10 +291,32 @@ func checkMemoryWriteSafety(item memory.MemoryItem) error {
 		guardrails.NewRedactorWithOptions(guardrails.RedactorOptions{DisablePII: true}),
 	)
 	if outputSafety.Blocked || outputSafety.Redacted {
-		return errors.New("memory content failed safety check")
+		result.Blocked = outputSafety.Blocked
+		result.Redacted = outputSafety.Redacted
+		result.Findings = outputSafety.Findings
+		return result, errors.New("memory content failed safety check")
 	}
 
-	return nil
+	return result, nil
+}
+
+func recordMemoryWriteSafetyBlocked(recorder tools.TraceRecorder, result memoryWriteSafetyResult) {
+	if recorder == nil {
+		return
+	}
+
+	action := "blocked"
+	if result.Redacted && !result.Blocked {
+		action = "redacted"
+	}
+	recorder.Record(trace.EvtMemorySafetyBlocked, guardrails.SafetyTracePayload(guardrails.SafetyTracePayloadOptions{
+		Source:        result.Source,
+		Action:        action,
+		ContentLength: result.ContentLength,
+		Blocked:       result.Blocked || result.Redacted,
+		Redacted:      result.Redacted,
+		Findings:      result.Findings,
+	}))
 }
 
 func parseKind(value string) (memory.Kind, error) {

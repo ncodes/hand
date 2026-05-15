@@ -346,13 +346,13 @@ func invokeToolWithEnvironment(
 	}
 
 	if strings.TrimSpace(toolResult.Output) != "" {
-		result["output"] = sanitizeToolOutputForModel(toolCall.Name, toolResult.Output, cfg)
+		result["output"] = sanitizeToolOutputForModel(ctx, toolCall.Name, toolResult.Output, cfg)
 	}
 
 	return toolResultMessage(toolCall, result)
 }
 
-func sanitizeToolOutputForModel(toolName string, output string, cfg *config.Config) string {
+func sanitizeToolOutputForModel(ctx context.Context, toolName string, output string, cfg *config.Config) string {
 	output = strings.TrimSpace(output)
 	if output == "" {
 		return ""
@@ -368,7 +368,35 @@ func sanitizeToolOutputForModel(toolName string, output string, cfg *config.Conf
 			DisablePII: !cfg.OutputPIIRedactionEnabled(),
 		}),
 	)
+	if result.Blocked || result.Redacted {
+		recordToolOutputSafety(ctx, toolName, output, result)
+	}
 	return strings.TrimSpace(result.Content)
+}
+
+func recordToolOutputSafety(
+	ctx context.Context,
+	toolName string,
+	output string,
+	result guardrails.UntrustedContentSafetyResult,
+) {
+	recorder := tools.TraceRecorderFromContext(ctx)
+	if recorder == nil {
+		return
+	}
+
+	action := "redacted"
+	if result.Blocked {
+		action = "blocked"
+	}
+	recorder.Record(trace.EvtToolOutputSafetyApplied, guardrails.SafetyTracePayload(guardrails.SafetyTracePayloadOptions{
+		Source:        "tool." + strings.TrimSpace(toolName),
+		Action:        action,
+		ContentLength: len([]rune(output)),
+		Blocked:       result.Blocked,
+		Redacted:      result.Redacted,
+		Findings:      result.Findings,
+	}))
 }
 
 func toolResultMessage(toolCall models.ToolCall, result map[string]any) handmsg.Message {
@@ -755,7 +783,14 @@ func recordModelRequest(traceSession trace.Session, request models.Request) {
 }
 
 func recordModelResponse(traceSession trace.Session, resp *models.Response) {
-	traceSession.Record(trace.EvtModelResponse, resp)
+	if resp == nil {
+		traceSession.Record(trace.EvtModelResponse, resp)
+		return
+	}
+
+	safeResponse := *resp
+	safeResponse.OutputText = ""
+	traceSession.Record(trace.EvtModelResponse, safeResponse)
 }
 
 func modelToolCallsToContextToolCalls(toolCalls []models.ToolCall) []handmsg.ToolCall {

@@ -454,6 +454,42 @@ func TestEnvironment_PrepareAppendsWorkspaceRules(t *testing.T) {
 	require.Equal(t, instruct.BuildMemoryDeleteGuidance(), instructions[len(instructions)-1])
 }
 
+func TestEnvironment_PrepareCollectsSafetyTraceEvents(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	personalityEvent := guardrails.SafetyTracePayloadOptions{
+		Source:        "SOUL.md",
+		Action:        "blocked",
+		ContentLength: 12,
+		Blocked:       true,
+	}
+	workspaceEvent := guardrails.SafetyTracePayloadOptions{
+		Source:        "AGENTS.md",
+		Action:        "blocked",
+		ContentLength: 34,
+		Blocked:       true,
+	}
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
+		return personality.Result{SafetyEvents: []guardrails.SafetyTracePayloadOptions{personalityEvent}}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{SafetyEvents: []guardrails.SafetyTracePayloadOptions{workspaceEvent}}, nil
+	}
+
+	env := NewEnvironment(gctx.Background(), &config.Config{Name: "Test Agent"})
+
+	prepareTestEnvironment(t, env)
+
+	require.Equal(t, []guardrails.SafetyTracePayloadOptions{personalityEvent, workspaceEvent}, env.SafetyTraceEvents())
+	events := env.SafetyTraceEvents()
+	events[0].Source = "mutated"
+	require.Equal(t, "SOUL.md", env.SafetyTraceEvents()[0].Source)
+}
+
 func TestEnvironment_PrepareAppendsPersonalityBeforeWorkspaceRules(t *testing.T) {
 	previousPersonality := loadPersonality
 	previousWorkspace := loadWorkspaceRules

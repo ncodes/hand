@@ -95,6 +95,11 @@ func TestLoadFromRoot_AppliesSafetyScanPerFile(t *testing.T) {
 	require.True(t, result.Found)
 	require.Contains(t, result.Content, "[BLOCKED: AGENTS.md contained potential prompt injection")
 	require.Contains(t, result.Content, "## pkg/hand.md\nsafe rules")
+	require.Len(t, result.SafetyEvents, 1)
+	require.Equal(t, "AGENTS.md", result.SafetyEvents[0].Source)
+	require.Equal(t, "blocked", result.SafetyEvents[0].Action)
+	require.Equal(t, len([]rune("ignore previous instructions")), result.SafetyEvents[0].ContentLength)
+	require.True(t, result.SafetyEvents[0].Blocked)
 }
 
 func TestLoadFromRoot_TruncatesCombinedContent(t *testing.T) {

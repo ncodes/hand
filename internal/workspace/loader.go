@@ -37,6 +37,7 @@ type Result struct {
 	OriginalLength   int
 	TruncatedLength  int
 	TruncationMarker string
+	SafetyEvents     []guardrails.SafetyTracePayloadOptions
 }
 
 func DefaultInstructionFiles() []string {
@@ -111,6 +112,7 @@ func LoadFromRoot(root string, files ...string) (Result, error) {
 	}
 
 	sections := make([]string, 0, len(paths))
+	safetyEvents := make([]guardrails.SafetyTracePayloadOptions, 0)
 	for _, path := range paths {
 		content, err := os.ReadFile(path)
 		if err != nil {
@@ -123,6 +125,9 @@ func LoadFromRoot(root string, files ...string) (Result, error) {
 		}
 
 		scanned := guardrails.SafetyScan(string(content), displayPath)
+		if scanned.Blocked {
+			safetyEvents = append(safetyEvents, loadedContentSafetyEvent(displayPath, string(content), scanned.Findings))
+		}
 		sections = append(sections, fmt.Sprintf("## %s\n%s", displayPath, scanned.Content))
 	}
 
@@ -137,7 +142,22 @@ func LoadFromRoot(root string, files ...string) (Result, error) {
 		OriginalLength:   len(combined),
 		TruncatedLength:  len(content),
 		TruncationMarker: "[... workspace rules truncated ...]",
+		SafetyEvents:     safetyEvents,
 	}, nil
+}
+
+func loadedContentSafetyEvent(
+	source string,
+	content string,
+	findings []guardrails.SafetyFinding,
+) guardrails.SafetyTracePayloadOptions {
+	return guardrails.SafetyTracePayloadOptions{
+		Source:        source,
+		Action:        "blocked",
+		ContentLength: len([]rune(content)),
+		Blocked:       true,
+		Findings:      findings,
+	}
 }
 
 func hasTopLevelRules(root string) (bool, error) {

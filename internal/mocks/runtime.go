@@ -9,6 +9,7 @@ import (
 	"github.com/wandxy/hand/internal/environment"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
+	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/models"
@@ -81,6 +82,7 @@ type EnvironmentStub struct {
 	TraceSession     trace.Session
 	TraceRunContexts []runcontext.Context
 	TraceSessionIDs  []string
+	SafetyEvents     []guardrails.SafetyTracePayloadOptions
 	Memory           memory.Provider
 	Plan             envtypes.Plan
 	PlanSessionIDs   []string
@@ -92,6 +94,10 @@ func (s *EnvironmentStub) Prepare() error {
 
 func (s *EnvironmentStub) Instructions() instruct.Instructions {
 	return s.InstructionsList
+}
+
+func (s *EnvironmentStub) SafetyTraceEvents() []guardrails.SafetyTracePayloadOptions {
+	return s.SafetyEvents
 }
 
 func (s *EnvironmentStub) Tools() environment.ToolRegistry {
