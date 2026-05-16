@@ -19,12 +19,14 @@ import (
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
 	profilecmd "github.com/wandxy/hand/cmd/profile"
 	upcmd "github.com/wandxy/hand/cmd/up"
+	"github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	"github.com/wandxy/hand/internal/profile"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/internal/runtime"
+	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -711,8 +713,8 @@ func TestNewCommand_RootActionStylesReasoningOutput(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{
 		Reply: "thinking done",
 		Events: []rpcclient.Event{
-			{Channel: "reasoning", Text: "thinking"},
-			{Channel: "assistant", Text: " done"},
+			{Kind: agent.EventKindTextDelta, Channel: "reasoning", Text: "thinking"},
+			{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: " done"},
 		},
 	}
 	newChatClient = func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
@@ -747,8 +749,8 @@ func TestNewCommand_RootActionDoesNotStyleReasoningWhenNoColor(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{
 		Reply: "thinking done",
 		Events: []rpcclient.Event{
-			{Channel: "reasoning", Text: "thinking"},
-			{Channel: "assistant", Text: " done"},
+			{Kind: agent.EventKindTextDelta, Channel: "reasoning", Text: "thinking"},
+			{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: " done"},
 		},
 	}
 	newChatClient = func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
@@ -765,6 +767,43 @@ func TestNewCommand_RootActionDoesNotStyleReasoningWhenNoColor(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "thinking done\n", output.String())
+}
+
+func TestNewCommand_RootActionIgnoresTraceEvents(t *testing.T) {
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	resetGlobals(t)
+
+	originalNewChatClient := newChatClient
+	originalRootOutput := rootOutput
+	t.Cleanup(func() {
+		newChatClient = originalNewChatClient
+		rootOutput = originalRootOutput
+	})
+
+	var output bytes.Buffer
+	rootOutput = &output
+
+	traceEvent := trace.Event{Type: trace.EvtInputSafetyBlocked, Payload: map[string]any{"blocked": true}}
+	stub := &agentstub.AgentServiceStub{
+		Reply: "hello back",
+		Events: []rpcclient.Event{
+			{Kind: agent.EventKindTrace, TraceEvent: &traceEvent},
+			{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: "hello back"},
+		},
+	}
+	newChatClient = func(context.Context, *config.Config) (rpcclient.ChatClient, error) {
+		return stub, nil
+	}
+
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"--name", "flag-agent",
+		"--model.stream=true",
+		"hello",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "hello back\n", output.String())
 }
 
 func TestNewCommand_RootActionDoesNotForwardConfiguredInstruct(t *testing.T) {

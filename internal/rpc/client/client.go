@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
+	"github.com/wandxy/hand/internal/trace"
 )
 
 type Client struct {
@@ -129,9 +131,20 @@ func (c *Client) Respond(ctx context.Context, message string, opts RespondOption
 			}
 			if opts.OnEvent != nil {
 				opts.OnEvent(agent.Event{
+					Kind:    agent.EventKindTextDelta,
 					Channel: protoStreamChannelToAgentChannel(event.GetChannel()),
 					Text:    event.GetText(),
 				})
+			}
+		case handpb.RespondEvent_TRACE_EVENT:
+			if opts.OnEvent != nil {
+				traceEvent, ok := protoRespondTraceEventToTraceEvent(event)
+				if ok {
+					opts.OnEvent(agent.Event{
+						Kind:       agent.EventKindTrace,
+						TraceEvent: &traceEvent,
+					})
+				}
 			}
 		case handpb.RespondEvent_ERROR:
 			message := strings.TrimSpace(event.GetError())
@@ -146,6 +159,32 @@ func (c *Client) Respond(ctx context.Context, message string, opts RespondOption
 	}
 
 	return builder.String(), nil
+}
+
+func protoRespondTraceEventToTraceEvent(event *handpb.RespondEvent) (trace.Event, bool) {
+	if event == nil {
+		return trace.Event{}, false
+	}
+
+	eventType := strings.TrimSpace(event.GetTraceType())
+	if eventType == "" {
+		return trace.Event{}, false
+	}
+
+	traceEvent := trace.Event{
+		SessionID: strings.TrimSpace(event.GetTraceSessionId()),
+		Type:      eventType,
+		Timestamp: protoTimestampToTime(event.GetTimestamp()),
+	}
+	if payloadJSON := strings.TrimSpace(event.GetTracePayloadJson()); payloadJSON != "" {
+		var payload any
+		if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
+			return trace.Event{}, false
+		}
+		traceEvent.Payload = payload
+	}
+
+	return traceEvent, true
 }
 
 func protoStreamChannelToAgentChannel(channel handpb.RespondEvent_Channel) string {

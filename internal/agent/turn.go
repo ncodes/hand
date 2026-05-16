@@ -188,18 +188,28 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 	}
 
 	traceSession := t.env.NewTraceSessionForRun(t.runCtx)
+
+	if opts.OnTraceEvent != nil {
+		traceSession = newFanoutTraceSession(traceSession, t.getStateSessionID(), opts.OnTraceEvent)
+	}
+
 	defer traceSession.Close()
+
 	t.recordLoadedContentSafety(traceSession)
+
 	if t.planHydrated {
 		plan := t.env.CurrentPlan(t.getStateSessionID())
-		traceSession.Record(trace.EvtPlanHydrated, map[string]any{
-			"session_id":     t.getStateSessionID(),
-			"steps":          plan.Steps,
-			"summary":        summarizeHydratedPlan(plan),
-			"active_step_id": getActiveHydratedPlanStepID(plan),
-			"explanation":    strings.TrimSpace(plan.Explanation),
-			"source":         "history",
-		})
+		traceSession.Record(
+			trace.EvtPlanHydrated,
+			map[string]any{
+				"session_id":     t.getStateSessionID(),
+				"steps":          plan.Steps,
+				"summary":        summarizeHydratedPlan(plan),
+				"active_step_id": getActiveHydratedPlanStepID(plan),
+				"explanation":    strings.TrimSpace(plan.Explanation),
+				"source":         "history",
+			},
+		)
 	}
 
 	if t.cfg.InputSafetyEnabled() {
@@ -296,7 +306,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				if delta.Text == "" {
 					return
 				}
-				event := Event{Channel: string(delta.Channel), Text: delta.Text}
+				event := Event{Kind: EventKindTextDelta, Channel: string(delta.Channel), Text: delta.Text}
 				if allowLiveDelivery {
 					opts.OnEvent(event)
 					return

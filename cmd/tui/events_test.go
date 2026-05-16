@@ -16,6 +16,7 @@ import (
 
 func TestAgentEventToTUIMessage_ConvertsAssistantDelta(t *testing.T) {
 	msg, ok := agentEventToTUIMessage(agent.Event{
+		Kind:    agent.EventKindTextDelta,
 		Channel: "assistant",
 		Text:    "hello",
 	})
@@ -25,7 +26,7 @@ func TestAgentEventToTUIMessage_ConvertsAssistantDelta(t *testing.T) {
 }
 
 func TestAgentEventToTUIMessage_DefaultsMissingChannel(t *testing.T) {
-	msg, ok := agentEventToTUIMessage(agent.Event{Text: "hello"})
+	msg, ok := agentEventToTUIMessage(agent.Event{Kind: agent.EventKindTextDelta, Text: "hello"})
 
 	require.True(t, ok)
 	require.Equal(t, assistantTextDeltaMsg{Channel: "assistant", Text: "hello"}, msg)
@@ -33,6 +34,7 @@ func TestAgentEventToTUIMessage_DefaultsMissingChannel(t *testing.T) {
 
 func TestAgentEventToTUIMessage_ConvertsRPCClientEvent(t *testing.T) {
 	msg, ok := agentEventToTUIMessage(rpcclient.Event{
+		Kind:    agent.EventKindTextDelta,
 		Channel: "assistant",
 		Text:    "daemon delta",
 	})
@@ -41,15 +43,37 @@ func TestAgentEventToTUIMessage_ConvertsRPCClientEvent(t *testing.T) {
 	require.Equal(t, assistantTextDeltaMsg{Channel: "assistant", Text: "daemon delta"}, msg)
 }
 
+func TestAgentEventToTUIMessage_ConvertsRPCTraceEvent(t *testing.T) {
+	traceEvent := trace.Event{
+		Type:    trace.EvtSessionFailed,
+		Payload: map[string]any{"error": "model unavailable"},
+	}
+
+	msg, ok := agentEventToTUIMessage(rpcclient.Event{
+		Kind:       agent.EventKindTrace,
+		TraceEvent: &traceEvent,
+	})
+
+	require.True(t, ok)
+	require.Equal(t, sessionErrorMsg{Message: "model unavailable"}, msg)
+}
+
 func TestAgentEventToTUIMessage_PreservesWhitespaceDelta(t *testing.T) {
-	msg, ok := agentEventToTUIMessage(agent.Event{Channel: "assistant", Text: " "})
+	msg, ok := agentEventToTUIMessage(agent.Event{
+		Kind:    agent.EventKindTextDelta,
+		Channel: "assistant",
+		Text:    " ",
+	})
 
 	require.True(t, ok)
 	require.Equal(t, assistantTextDeltaMsg{Channel: "assistant", Text: " "}, msg)
 }
 
 func TestAgentEventToTUIMessage_IgnoresZeroLengthDelta(t *testing.T) {
-	msg, ok := agentEventToTUIMessage(agent.Event{Channel: "assistant"})
+	msg, ok := agentEventToTUIMessage(agent.Event{
+		Kind:    agent.EventKindTextDelta,
+		Channel: "assistant",
+	})
 
 	require.False(t, ok)
 	require.Nil(t, msg)

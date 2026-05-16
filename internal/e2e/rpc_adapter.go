@@ -51,6 +51,9 @@ func (a *RPCAdapter) Send(ctx context.Context, req RootChatRequest) (RootChatRes
 		SessionID: req.SessionID,
 		Stream:    req.Stream,
 		OnEvent: func(event rpcclient.Event) {
+			if event.TraceEvent != nil {
+				return
+			}
 			events = append(events, Event{
 				Channel: strings.TrimSpace(event.Channel),
 				Text:    event.Text,

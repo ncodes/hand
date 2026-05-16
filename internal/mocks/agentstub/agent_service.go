@@ -42,7 +42,11 @@ func (s *AgentServiceStub) Respond(_ context.Context, msg string, opts rpcclient
 			}
 			events = make([]agent.Event, 0, len(deltas))
 			for _, delta := range deltas {
-				events = append(events, agent.Event{Channel: "assistant", Text: delta})
+				events = append(events, agent.Event{
+					Kind:    agent.EventKindTextDelta,
+					Channel: "assistant",
+					Text:    delta,
+				})
 			}
 		}
 		for _, event := range events {

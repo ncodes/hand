@@ -30,6 +30,7 @@ message RespondEvent {
     TEXT_DELTA = 1;
     DONE = 2;
     ERROR = 3;
+    TRACE_EVENT = 4;
   }
 
   enum Channel {
@@ -42,6 +43,11 @@ message RespondEvent {
   string text = 2;
   string error = 3;
   Channel channel = 4;
+  string trace_type = 5;
+  string trace_payload_json = 6;
+  // Present for TRACE_EVENT, ERROR, and DONE. TEXT_DELTA consumers should use local receive time.
+  google.protobuf.Timestamp timestamp = 7;
+  string trace_session_id = 8;
 }
 
 message SessionSummary {

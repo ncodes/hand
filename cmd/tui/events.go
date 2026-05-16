@@ -47,6 +47,9 @@ type sessionErrorMsg struct {
 }
 
 func agentEventToTUIMessage(event agent.Event) (any, bool) {
+	if event.TraceEvent != nil {
+		return traceEventToTUIMessage(*event.TraceEvent)
+	}
 	if event.Text == "" {
 		return nil, false
 	}

@@ -190,6 +190,9 @@ func newCommand() *cli.Command {
 }
 
 func formatChatEvent(cfg *config.Config, event rpcclient.Event) string {
+	if event.TraceEvent != nil {
+		return ""
+	}
 	if strings.TrimSpace(event.Channel) != "reasoning" || cfg == nil || cfg.Log.NoColor {
 		return event.Text
 	}

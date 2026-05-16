@@ -301,7 +301,10 @@ func TestHarnessSendAndMessagesErrors(t *testing.T) {
 		h := &Harness{agent: harnessAgentStub{
 			reply:   "ok",
 			current: "ses_current",
-			events:  []agent.Event{{Channel: "assistant", Text: "a"}, {Channel: "reasoning", Text: "b"}},
+			events: []agent.Event{
+				{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: "a"},
+				{Kind: agent.EventKindTextDelta, Channel: "reasoning", Text: "b"},
+			},
 		}, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
 		result, err := h.Send(context.Background(), RootChatRequest{Message: "hello"})
 		require.NoError(t, err)

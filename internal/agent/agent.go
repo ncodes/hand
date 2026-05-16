@@ -30,6 +30,11 @@ var jsonMarshal = json.Marshal
 
 const defaultRecallSummaryCacheTTL = constants.DefaultRecallSummaryCacheTTL
 
+const (
+	EventKindTextDelta = "text_delta"
+	EventKindTrace     = "trace_event"
+)
+
 var agentLog = logutils.InitLogger("agent")
 
 type ServiceAPI interface {
@@ -45,15 +50,18 @@ type ServiceAPI interface {
 }
 
 type RespondOptions struct {
-	Instruct  string
-	SessionID string
-	Stream    *bool
-	OnEvent   func(Event)
+	Instruct     string
+	SessionID    string
+	Stream       *bool
+	OnEvent      func(Event)
+	OnTraceEvent func(trace.Event)
 }
 
 type Event struct {
-	Channel string
-	Text    string
+	Kind       string
+	Channel    string
+	Text       string
+	TraceEvent *trace.Event
 }
 
 type CompactSessionResult struct {

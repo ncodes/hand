@@ -9,8 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/wandxy/hand/internal/agent"
 	protomock "github.com/wandxy/hand/internal/mocks/proto"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
+	"github.com/wandxy/hand/internal/trace"
 )
 
 func TestClient_RespondSendsInstruct(t *testing.T) {
@@ -58,8 +60,8 @@ func TestClient_RespondStreamsTextDeltas(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "hello back", reply)
 	require.Equal(t, []Event{
-		{Channel: "assistant", Text: "hello "},
-		{Channel: "assistant", Text: "back"},
+		{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: "hello "},
+		{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: "back"},
 	}, events)
 }
 
@@ -93,9 +95,68 @@ func TestClient_RespondIgnoresReasoningForFinalReplyAndExposesEvents(t *testing.
 	require.NoError(t, err)
 	require.Equal(t, "answer", reply)
 	require.Equal(t, []Event{
-		{Channel: "reasoning", Text: "thinking"},
-		{Channel: "assistant", Text: "answer"},
+		{Kind: agent.EventKindTextDelta, Channel: "reasoning", Text: "thinking"},
+		{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: "answer"},
 	}, events)
+}
+
+func TestClient_RespondExposesTraceEvents(t *testing.T) {
+	timestamp := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
+	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
+		{
+			Type:             handpb.RespondEvent_TRACE_EVENT,
+			TraceSessionId:   "default",
+			TraceType:        trace.EvtInputSafetyBlocked,
+			TracePayloadJson: `{"blocked":true,"findings":[{"id":"prompt_exfiltration"}]}`,
+			Timestamp:        timestamppb.New(timestamp),
+		},
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "safe", Channel: handpb.RespondEvent_ASSISTANT},
+		{Type: handpb.RespondEvent_DONE},
+	}}
+	client := &Client{client: stub}
+
+	var events []Event
+	reply, err := client.Respond(context.Background(), "hello", RespondOptions{
+		OnEvent: func(event Event) {
+			events = append(events, event)
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "safe", reply)
+	require.Len(t, events, 2)
+	require.Equal(t, agent.EventKindTrace, events[0].Kind)
+	require.NotNil(t, events[0].TraceEvent)
+	require.Equal(t, "default", events[0].TraceEvent.SessionID)
+	require.Equal(t, trace.EvtInputSafetyBlocked, events[0].TraceEvent.Type)
+	require.Equal(t, timestamp, events[0].TraceEvent.Timestamp)
+	require.Equal(t, map[string]any{
+		"blocked": true,
+		"findings": []any{
+			map[string]any{"id": "prompt_exfiltration"},
+		},
+	}, events[0].TraceEvent.Payload)
+	require.Equal(t, Event{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: "safe"}, events[1])
+}
+
+func TestClient_RespondIgnoresMalformedTraceEvents(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_TRACE_EVENT, TraceType: trace.EvtSessionFailed, TracePayloadJson: `{`},
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "safe", Channel: handpb.RespondEvent_ASSISTANT},
+		{Type: handpb.RespondEvent_DONE},
+	}}
+	client := &Client{client: stub}
+
+	var events []Event
+	reply, err := client.Respond(context.Background(), "hello", RespondOptions{
+		OnEvent: func(event Event) {
+			events = append(events, event)
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "safe", reply)
+	require.Equal(t, []Event{{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: "safe"}}, events)
 }
 
 func TestClient_CreateSessionReturnsSummary(t *testing.T) {

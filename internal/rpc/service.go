@@ -2,12 +2,15 @@ package rpc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/wandxy/hand/internal/agent"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
+	"github.com/wandxy/hand/internal/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -47,13 +50,23 @@ func (s *Service) Respond(req *handpb.RespondRequest, stream handpb.HandService_
 			if sendErr != nil {
 				return
 			}
+			protoEvent, ok := agentEventToProtoRespondEvent(event)
+			if !ok {
+				return
+			}
 			streamed = true
-			sendErr = stream.Send(&handpb.RespondEvent{
-				Type:    handpb.RespondEvent_TEXT_DELTA,
-				Text:    event.Text,
-				Channel: agentChannelToProtoStreamChannel(event.Channel),
-			})
+			sendErr = stream.Send(protoEvent)
 		},
+	}
+	opts.OnTraceEvent = func(event trace.Event) {
+		if sendErr != nil {
+			return
+		}
+		protoEvent, ok := traceEventToProtoRespondEvent(event)
+		if !ok {
+			return
+		}
+		sendErr = stream.Send(protoEvent)
 	}
 
 	reply, err := s.api.Respond(ctx, req.Message, opts)
@@ -63,8 +76,9 @@ func (s *Service) Respond(req *handpb.RespondRequest, stream handpb.HandService_
 	if err != nil {
 		grpcErr := getGRPCError(err)
 		if sendErr := stream.Send(&handpb.RespondEvent{
-			Type:  handpb.RespondEvent_ERROR,
-			Error: status.Convert(grpcErr).Message(),
+			Type:      handpb.RespondEvent_ERROR,
+			Error:     status.Convert(grpcErr).Message(),
+			Timestamp: timestamppb.New(time.Now().UTC()),
 		}); sendErr != nil {
 			return sendErr
 		}
@@ -81,7 +95,23 @@ func (s *Service) Respond(req *handpb.RespondRequest, stream handpb.HandService_
 		}
 	}
 
-	return stream.Send(&handpb.RespondEvent{Type: handpb.RespondEvent_DONE})
+	return stream.Send(&handpb.RespondEvent{
+		Type:      handpb.RespondEvent_DONE,
+		Timestamp: timestamppb.New(time.Now().UTC()),
+	})
+}
+
+func agentEventToProtoRespondEvent(event agent.Event) (*handpb.RespondEvent, bool) {
+	kind := strings.TrimSpace(event.Kind)
+	if kind != "" && kind != agent.EventKindTextDelta {
+		return nil, false
+	}
+
+	return &handpb.RespondEvent{
+		Type:    handpb.RespondEvent_TEXT_DELTA,
+		Text:    event.Text,
+		Channel: agentChannelToProtoStreamChannel(event.Channel),
+	}, true
 }
 
 func agentChannelToProtoStreamChannel(channel string) handpb.RespondEvent_Channel {
@@ -91,6 +121,153 @@ func agentChannelToProtoStreamChannel(channel string) handpb.RespondEvent_Channe
 	default:
 		return handpb.RespondEvent_ASSISTANT
 	}
+}
+
+func traceEventToProtoRespondEvent(event trace.Event) (*handpb.RespondEvent, bool) {
+	event.Type = strings.TrimSpace(event.Type)
+	if event.Type == "" {
+		return nil, false
+	}
+
+	payload, ok := getRPCTracePayload(event.Type, event.Payload)
+	if !ok {
+		return nil, false
+	}
+
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return nil, false
+	}
+
+	protoEvent := &handpb.RespondEvent{
+		Type:             handpb.RespondEvent_TRACE_EVENT,
+		TraceSessionId:   strings.TrimSpace(event.SessionID),
+		TraceType:        event.Type,
+		TracePayloadJson: string(payloadJSON),
+	}
+	if !event.Timestamp.IsZero() {
+		protoEvent.Timestamp = timestamppb.New(event.Timestamp.UTC())
+	} else {
+		protoEvent.Timestamp = timestamppb.New(time.Now().UTC())
+	}
+
+	return protoEvent, true
+}
+
+func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
+	fields := getPayloadFields(payload)
+
+	switch eventType {
+	case trace.EvtToolInvocationStarted:
+		result := map[string]any{}
+		if id, ok := getRPCTraceValue(fields, "id", "ID", "tool_call_id", "ToolCallID"); ok {
+			result["id"] = id
+		}
+		if name, ok := getRPCTraceValue(fields, "name", "Name", "tool"); ok {
+			result["name"] = name
+		}
+		return result, len(result) > 0
+	case trace.EvtToolInvocationCompleted:
+		result := map[string]any{}
+		if id, ok := getRPCTraceValue(fields, "tool_call_id", "ToolCallID", "id", "ID"); ok {
+			result["tool_call_id"] = id
+		}
+		if name, ok := getRPCTraceValue(fields, "name", "Name", "tool"); ok {
+			result["name"] = name
+		}
+		return result, len(result) > 0
+	case trace.EvtInputSafetyBlocked,
+		trace.EvtOutputSafetyApplied:
+		result := getRPCTraceFields(fields, "action", "refusal", "blocked", "redacted")
+		if findings := getRPCSafetyFindings(fields["findings"]); len(findings) > 0 {
+			result["findings"] = findings
+		}
+		return result, true
+	case trace.EvtSessionFailed:
+		result := getRPCTraceFields(fields, "error", "message")
+		return result, len(result) > 0
+	case trace.EvtPlanHydrated:
+		result := getRPCTraceFields(fields, "session_id", "summary", "active_step_id", "source")
+		if steps, ok := fields["steps"].([]any); ok {
+			result["step_count"] = len(steps)
+		}
+		return result, true
+	case trace.EvtFinalAssistantResponse:
+		result := getRPCTraceFields(fields, "message", "text")
+		return result, len(result) > 0
+	default:
+		return nil, false
+	}
+}
+
+func getRPCTraceFields(fields map[string]any, keys ...string) map[string]any {
+	result := make(map[string]any, len(keys))
+	for _, key := range keys {
+		if value, ok := fields[key]; ok {
+			result[key] = value
+		}
+	}
+
+	return result
+}
+
+func getRPCTraceValue(fields map[string]any, keys ...string) (any, bool) {
+	for _, key := range keys {
+		if value, ok := fields[key]; ok {
+			return value, true
+		}
+	}
+
+	return nil, false
+}
+
+func getRPCSafetyFindings(raw any) []map[string]any {
+	values, ok := raw.([]any)
+	if !ok {
+		data, err := json.Marshal(raw)
+		if err != nil {
+			return nil
+		}
+		if err := json.Unmarshal(data, &values); err != nil {
+			return nil
+		}
+	}
+
+	findings := make([]map[string]any, 0, len(values))
+	for _, value := range values {
+		fields, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		finding := getRPCTraceFields(fields, "id", "category", "severity")
+		if len(finding) > 0 {
+			findings = append(findings, finding)
+		}
+	}
+
+	return findings
+}
+
+func getPayloadFields(payload any) map[string]any {
+	if payload == nil {
+		return nil
+	}
+	if fields, ok := payload.(map[string]any); ok {
+		return fields
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil
+	}
+
+	var fields map[string]any
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil
+	}
+
+	return fields
 }
 
 func (s *Service) CreateSession(ctx context.Context, req *handpb.CreateSessionRequest) (*handpb.CreateSessionResponse, error) {

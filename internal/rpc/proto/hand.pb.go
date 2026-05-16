@@ -29,6 +29,7 @@ const (
 	RespondEvent_TEXT_DELTA       RespondEvent_Type = 1
 	RespondEvent_DONE             RespondEvent_Type = 2
 	RespondEvent_ERROR            RespondEvent_Type = 3
+	RespondEvent_TRACE_EVENT      RespondEvent_Type = 4
 )
 
 // Enum value maps for RespondEvent_Type.
@@ -38,12 +39,14 @@ var (
 		1: "TEXT_DELTA",
 		2: "DONE",
 		3: "ERROR",
+		4: "TRACE_EVENT",
 	}
 	RespondEvent_Type_value = map[string]int32{
 		"TYPE_UNSPECIFIED": 0,
 		"TEXT_DELTA":       1,
 		"DONE":             2,
 		"ERROR":            3,
+		"TRACE_EVENT":      4,
 	}
 )
 
@@ -238,13 +241,18 @@ func (x *RespondRequest) GetStream() bool {
 }
 
 type RespondEvent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Type          RespondEvent_Type      `protobuf:"varint,1,opt,name=type,proto3,enum=hand.v1.RespondEvent_Type" json:"type,omitempty"`
-	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
-	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
-	Channel       RespondEvent_Channel   `protobuf:"varint,4,opt,name=channel,proto3,enum=hand.v1.RespondEvent_Channel" json:"channel,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Type             RespondEvent_Type      `protobuf:"varint,1,opt,name=type,proto3,enum=hand.v1.RespondEvent_Type" json:"type,omitempty"`
+	Text             string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	Error            string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	Channel          RespondEvent_Channel   `protobuf:"varint,4,opt,name=channel,proto3,enum=hand.v1.RespondEvent_Channel" json:"channel,omitempty"`
+	TraceType        string                 `protobuf:"bytes,5,opt,name=trace_type,json=traceType,proto3" json:"trace_type,omitempty"`
+	TracePayloadJson string                 `protobuf:"bytes,6,opt,name=trace_payload_json,json=tracePayloadJson,proto3" json:"trace_payload_json,omitempty"`
+	// Present for TRACE_EVENT, ERROR, and DONE. TEXT_DELTA consumers should use local receive time.
+	Timestamp      *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	TraceSessionId string                 `protobuf:"bytes,8,opt,name=trace_session_id,json=traceSessionId,proto3" json:"trace_session_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *RespondEvent) Reset() {
@@ -303,6 +311,34 @@ func (x *RespondEvent) GetChannel() RespondEvent_Channel {
 		return x.Channel
 	}
 	return RespondEvent_CHANNEL_UNSPECIFIED
+}
+
+func (x *RespondEvent) GetTraceType() string {
+	if x != nil {
+		return x.TraceType
+	}
+	return ""
+}
+
+func (x *RespondEvent) GetTracePayloadJson() string {
+	if x != nil {
+		return x.TracePayloadJson
+	}
+	return ""
+}
+
+func (x *RespondEvent) GetTimestamp() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Timestamp
+	}
+	return nil
+}
+
+func (x *RespondEvent) GetTraceSessionId() string {
+	if x != nil {
+		return x.TraceSessionId
+	}
+	return ""
 }
 
 type SessionSummary struct {
@@ -1359,18 +1395,24 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\binstruct\x18\x02 \x01(\tR\binstruct\x12\x0e\n" +
 	"\x02id\x18\x03 \x01(\tR\x02id\x12\x1b\n" +
 	"\x06stream\x18\x04 \x01(\bH\x00R\x06stream\x88\x01\x01B\t\n" +
-	"\a_stream\"\xa6\x02\n" +
+	"\a_stream\"\xe8\x03\n" +
 	"\fRespondEvent\x12.\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x1a.hand.v1.RespondEvent.TypeR\x04type\x12\x12\n" +
 	"\x04text\x18\x02 \x01(\tR\x04text\x12\x14\n" +
 	"\x05error\x18\x03 \x01(\tR\x05error\x127\n" +
-	"\achannel\x18\x04 \x01(\x0e2\x1d.hand.v1.RespondEvent.ChannelR\achannel\"A\n" +
+	"\achannel\x18\x04 \x01(\x0e2\x1d.hand.v1.RespondEvent.ChannelR\achannel\x12\x1d\n" +
+	"\n" +
+	"trace_type\x18\x05 \x01(\tR\ttraceType\x12,\n" +
+	"\x12trace_payload_json\x18\x06 \x01(\tR\x10tracePayloadJson\x128\n" +
+	"\ttimestamp\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12(\n" +
+	"\x10trace_session_id\x18\b \x01(\tR\x0etraceSessionId\"R\n" +
 	"\x04Type\x12\x14\n" +
 	"\x10TYPE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
 	"TEXT_DELTA\x10\x01\x12\b\n" +
 	"\x04DONE\x10\x02\x12\t\n" +
-	"\x05ERROR\x10\x03\"@\n" +
+	"\x05ERROR\x10\x03\x12\x0f\n" +
+	"\vTRACE_EVENT\x10\x04\"@\n" +
 	"\aChannel\x12\x17\n" +
 	"\x13CHANNEL_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tASSISTANT\x10\x01\x12\r\n" +
@@ -1503,38 +1545,39 @@ var file_internal_rpc_proto_hand_proto_goTypes = []any{
 var file_internal_rpc_proto_hand_proto_depIdxs = []int32{
 	0,  // 0: hand.v1.RespondEvent.type:type_name -> hand.v1.RespondEvent.Type
 	1,  // 1: hand.v1.RespondEvent.channel:type_name -> hand.v1.RespondEvent.Channel
-	5,  // 2: hand.v1.CreateSessionResponse.session:type_name -> hand.v1.SessionSummary
-	5,  // 3: hand.v1.ListSessionsResponse.sessions:type_name -> hand.v1.SessionSummary
-	24, // 4: hand.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
-	2,  // 5: hand.v1.RepairSessionRequest.type:type_name -> hand.v1.RepairSessionRequest.Type
-	18, // 6: hand.v1.RepairSessionRequest.vector:type_name -> hand.v1.VectorRepairOption
-	2,  // 7: hand.v1.RepairSessionResponse.type:type_name -> hand.v1.RepairSessionRequest.Type
-	19, // 8: hand.v1.RepairSessionResponse.vector:type_name -> hand.v1.VectorRepairResponse
-	20, // 9: hand.v1.GetSessionRequest.context:type_name -> hand.v1.GetSessionRequestContext
-	23, // 10: hand.v1.GetSessionResponse.context:type_name -> hand.v1.GetSessionResponse.Context
-	24, // 11: hand.v1.GetSessionResponse.created_at:type_name -> google.protobuf.Timestamp
-	24, // 12: hand.v1.GetSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
-	3,  // 13: hand.v1.HandService.Respond:input_type -> hand.v1.RespondRequest
-	6,  // 14: hand.v1.HandService.CreateSession:input_type -> hand.v1.CreateSessionRequest
-	8,  // 15: hand.v1.HandService.ListSessions:input_type -> hand.v1.ListSessionsRequest
-	10, // 16: hand.v1.HandService.UseSession:input_type -> hand.v1.UseSessionRequest
-	12, // 17: hand.v1.HandService.CurrentSession:input_type -> hand.v1.CurrentSessionRequest
-	14, // 18: hand.v1.HandService.CompactSession:input_type -> hand.v1.CompactSessionRequest
-	16, // 19: hand.v1.HandService.RepairSession:input_type -> hand.v1.RepairSessionRequest
-	21, // 20: hand.v1.HandService.GetSession:input_type -> hand.v1.GetSessionRequest
-	4,  // 21: hand.v1.HandService.Respond:output_type -> hand.v1.RespondEvent
-	7,  // 22: hand.v1.HandService.CreateSession:output_type -> hand.v1.CreateSessionResponse
-	9,  // 23: hand.v1.HandService.ListSessions:output_type -> hand.v1.ListSessionsResponse
-	11, // 24: hand.v1.HandService.UseSession:output_type -> hand.v1.UseSessionResponse
-	13, // 25: hand.v1.HandService.CurrentSession:output_type -> hand.v1.CurrentSessionResponse
-	15, // 26: hand.v1.HandService.CompactSession:output_type -> hand.v1.CompactSessionResponse
-	17, // 27: hand.v1.HandService.RepairSession:output_type -> hand.v1.RepairSessionResponse
-	22, // 28: hand.v1.HandService.GetSession:output_type -> hand.v1.GetSessionResponse
-	21, // [21:29] is the sub-list for method output_type
-	13, // [13:21] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	24, // 2: hand.v1.RespondEvent.timestamp:type_name -> google.protobuf.Timestamp
+	5,  // 3: hand.v1.CreateSessionResponse.session:type_name -> hand.v1.SessionSummary
+	5,  // 4: hand.v1.ListSessionsResponse.sessions:type_name -> hand.v1.SessionSummary
+	24, // 5: hand.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
+	2,  // 6: hand.v1.RepairSessionRequest.type:type_name -> hand.v1.RepairSessionRequest.Type
+	18, // 7: hand.v1.RepairSessionRequest.vector:type_name -> hand.v1.VectorRepairOption
+	2,  // 8: hand.v1.RepairSessionResponse.type:type_name -> hand.v1.RepairSessionRequest.Type
+	19, // 9: hand.v1.RepairSessionResponse.vector:type_name -> hand.v1.VectorRepairResponse
+	20, // 10: hand.v1.GetSessionRequest.context:type_name -> hand.v1.GetSessionRequestContext
+	23, // 11: hand.v1.GetSessionResponse.context:type_name -> hand.v1.GetSessionResponse.Context
+	24, // 12: hand.v1.GetSessionResponse.created_at:type_name -> google.protobuf.Timestamp
+	24, // 13: hand.v1.GetSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
+	3,  // 14: hand.v1.HandService.Respond:input_type -> hand.v1.RespondRequest
+	6,  // 15: hand.v1.HandService.CreateSession:input_type -> hand.v1.CreateSessionRequest
+	8,  // 16: hand.v1.HandService.ListSessions:input_type -> hand.v1.ListSessionsRequest
+	10, // 17: hand.v1.HandService.UseSession:input_type -> hand.v1.UseSessionRequest
+	12, // 18: hand.v1.HandService.CurrentSession:input_type -> hand.v1.CurrentSessionRequest
+	14, // 19: hand.v1.HandService.CompactSession:input_type -> hand.v1.CompactSessionRequest
+	16, // 20: hand.v1.HandService.RepairSession:input_type -> hand.v1.RepairSessionRequest
+	21, // 21: hand.v1.HandService.GetSession:input_type -> hand.v1.GetSessionRequest
+	4,  // 22: hand.v1.HandService.Respond:output_type -> hand.v1.RespondEvent
+	7,  // 23: hand.v1.HandService.CreateSession:output_type -> hand.v1.CreateSessionResponse
+	9,  // 24: hand.v1.HandService.ListSessions:output_type -> hand.v1.ListSessionsResponse
+	11, // 25: hand.v1.HandService.UseSession:output_type -> hand.v1.UseSessionResponse
+	13, // 26: hand.v1.HandService.CurrentSession:output_type -> hand.v1.CurrentSessionResponse
+	15, // 27: hand.v1.HandService.CompactSession:output_type -> hand.v1.CompactSessionResponse
+	17, // 28: hand.v1.HandService.RepairSession:output_type -> hand.v1.RepairSessionResponse
+	22, // 29: hand.v1.HandService.GetSession:output_type -> hand.v1.GetSessionResponse
+	22, // [22:30] is the sub-list for method output_type
+	14, // [14:22] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_internal_rpc_proto_hand_proto_init() }
