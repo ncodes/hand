@@ -32,6 +32,17 @@ func init() {
 	logutils.SetOutput(io.Discard)
 }
 
+func TestNewCommand_RegistersTUICommand(t *testing.T) {
+	cmd := newCommand()
+
+	var names []string
+	for _, command := range cmd.Commands {
+		names = append(names, command.Name)
+	}
+
+	require.Contains(t, names, "tui")
+}
+
 func TestNewCommand_UsesConfigFileValues(t *testing.T) {
 	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)

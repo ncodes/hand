@@ -15,6 +15,7 @@ import (
 	profilecmd "github.com/wandxy/hand/cmd/profile"
 	sessioncmd "github.com/wandxy/hand/cmd/session"
 	tracecmd "github.com/wandxy/hand/cmd/trace"
+	tuicmd "github.com/wandxy/hand/cmd/tui"
 	upcmd "github.com/wandxy/hand/cmd/up"
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
@@ -122,6 +123,7 @@ func newCommand() *cli.Command {
 			profilecmd.NewCommand(),
 			sessioncmd.NewCommand(),
 			tracecmd.NewCommand(),
+			tuicmd.NewCommand(),
 			upcmd.NewCommand(),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
