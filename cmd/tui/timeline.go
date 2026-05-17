@@ -20,7 +20,9 @@ func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) {
 	}
 
 	m.messages = cells
-	m.transcript.SetContent(strings.Join(cells, "\n\n"))
+	m.live = ""
+	m.stream.Reset()
+	m.setTranscriptContent()
 	m.transcript.GotoTop()
 	if sessionID := strings.TrimSpace(timeline.SessionID); sessionID != "" {
 		m.status = sessionID + " · hydrated"

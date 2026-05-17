@@ -35,6 +35,8 @@ type model struct {
 	modelName  string
 	context    string
 	messages   []string
+	live       string
+	stream     markdownStreamCollector
 	exitAt     time.Time
 }
 
@@ -69,6 +71,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case exitConfirmationExpiredMsg:
 		return m.expireExitConfirmation(msg), nil
+	case assistantTextDeltaMsg:
+		m.appendAssistantDelta(msg.Text)
+		return m, nil
+	case assistantResponseCompletedMsg:
+		m.completeAssistantResponse(msg.Text)
+		return m, nil
 	case tea.KeyPressMsg:
 		switch msg.Keystroke() {
 		case "ctrl+c":
@@ -183,12 +191,50 @@ func (m *model) submitPrompt() bool {
 	}
 
 	m.messages = append(m.messages, "You: "+prompt)
-	m.transcript.SetContent(strings.Join(m.messages, "\n\n"))
-	m.transcript.GotoBottom()
+	m.setTranscriptContent()
 	m.input.SetValue("")
 	m.resize()
 
 	return true
+}
+
+func (m *model) appendAssistantDelta(delta string) {
+	if delta == "" {
+		return
+	}
+
+	m.stream.Add(delta)
+	m.live = assistantTranscriptCell(m.stream.Render())
+	m.setTranscriptContent()
+	m.resize()
+}
+
+func (m *model) completeAssistantResponse(text string) {
+	reply := text
+	if strings.TrimSpace(reply) == "" {
+		reply = m.stream.Finalize()
+	} else {
+		m.stream.Reset()
+	}
+	if strings.TrimSpace(reply) == "" {
+		m.live = ""
+		m.setTranscriptContent()
+		m.resize()
+		return
+	}
+
+	m.messages = append(m.messages, assistantTranscriptCell(reply))
+	m.live = ""
+	m.setTranscriptContent()
+	m.resize()
+}
+
+func assistantTranscriptCell(text string) string {
+	if strings.TrimSpace(text) == "" {
+		return ""
+	}
+
+	return "Hand: " + text
 }
 
 // isInputLineDeleteKey reports whether a key should clear the current row.

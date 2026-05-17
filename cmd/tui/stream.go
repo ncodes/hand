@@ -1,0 +1,42 @@
+package tui
+
+import "strings"
+
+type markdownStreamCollector struct {
+	stable []string
+	tail   string
+}
+
+func (c *markdownStreamCollector) Add(delta string) []string {
+	if delta == "" {
+		return nil
+	}
+
+	c.tail += delta
+	index := strings.LastIndex(c.tail, "\n")
+	if index < 0 {
+		return nil
+	}
+
+	chunk := c.tail[:index+1]
+	c.tail = c.tail[index+1:]
+	c.stable = append(c.stable, chunk)
+
+	return []string{chunk}
+}
+
+func (c markdownStreamCollector) Render() string {
+	return strings.Join(c.stable, "") + c.tail
+}
+
+func (c *markdownStreamCollector) Finalize() string {
+	text := c.Render()
+	c.Reset()
+
+	return text
+}
+
+func (c *markdownStreamCollector) Reset() {
+	c.stable = nil
+	c.tail = ""
+}

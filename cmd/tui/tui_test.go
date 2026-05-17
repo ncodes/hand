@@ -79,6 +79,14 @@ func TestModel_ViewRendersShellAreas(t *testing.T) {
 	require.Contains(t, content, "ready")
 }
 
+func TestModel_InitFocusesInput(t *testing.T) {
+	runModel := newModel()
+
+	cmd := runModel.Init()
+
+	require.NotNil(t, cmd)
+}
+
 func TestModel_ViewRendersHeaderInfoPanelWhenWide(t *testing.T) {
 	runModel := newModel()
 	runModel.width = 120
@@ -303,6 +311,24 @@ func TestModel_UpdatePromptsOnFirstCtrlC(t *testing.T) {
 	require.Equal(t, "Press Ctrl-C again to exit", updated.(model).status)
 }
 
+func TestModel_UpdateFirstCtrlCTimeoutReturnsExpirationMessage(t *testing.T) {
+	originalCurrentTime := currentTime
+	t.Cleanup(func() {
+		currentTime = originalCurrentTime
+	})
+	now := time.Date(2026, 5, 16, 9, 0, 0, 0, time.UTC)
+	currentTime = func() time.Time {
+		return now
+	}
+
+	runModel := newModel()
+	_, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'c', Mod: tea.ModCtrl}))
+
+	require.NotNil(t, cmd)
+	msg := cmd()
+	require.Equal(t, exitConfirmationExpiredMsg{startedAt: now}, msg)
+}
+
 func TestModel_RenderInputInfoShowsCtrlCNoticeOnRightOnly(t *testing.T) {
 	runModel := newModel()
 	runModel.exitAt = time.Date(2026, 5, 16, 9, 0, 0, 0, time.UTC)
@@ -418,6 +444,115 @@ func TestModel_UpdateAppendsPromptOnEnter(t *testing.T) {
 	require.Contains(t, content, "██████")
 	require.Contains(t, content, "You: Summarize tests")
 	require.Contains(t, content, "60,000 used")
+}
+
+func TestModel_UpdatePreservesLiveAssistantCellDuringStreaming(t *testing.T) {
+	runModel := newModel()
+	runModel.messages = []string{"You: hello"}
+	runModel.setTranscriptContent()
+
+	updated, cmd := runModel.Update(assistantTextDeltaMsg{Text: "first line\npartial"})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, []string{"You: hello"}, runModel.messages)
+	require.Equal(t, "Hand: first line\npartial", runModel.live)
+	content := stripANSI(runModel.transcript.View())
+	require.Contains(t, content, "You: hello")
+	require.Contains(t, content, "Hand: first line")
+	require.Contains(t, content, "partial")
+}
+
+func TestModel_UpdateConvertsLiveAssistantCellToHistoryAtCompletion(t *testing.T) {
+	runModel := newModel()
+	runModel.messages = []string{"You: hello"}
+	runModel.setTranscriptContent()
+
+	updated, cmd := runModel.Update(assistantTextDeltaMsg{Text: "first line\npartial"})
+	require.Nil(t, cmd)
+	updated, cmd = updated.(model).Update(assistantResponseCompletedMsg{})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Empty(t, runModel.live)
+	require.Equal(t, []string{"You: hello", "Hand: first line\npartial"}, runModel.messages)
+	require.Equal(t, "", runModel.stream.Render())
+	content := stripANSI(runModel.transcript.View())
+	require.Contains(t, content, "Hand: first line")
+	require.Contains(t, content, "partial")
+}
+
+func TestModel_UpdateStreamedRenderMatchesCommittedAssistantText(t *testing.T) {
+	runModel := newModel()
+	deltas := []string{"# Title\n", "\n- one", "\n- two\n", "tail\n\n"}
+	for _, delta := range deltas {
+		updated, cmd := runModel.Update(assistantTextDeltaMsg{Text: delta})
+		require.Nil(t, cmd)
+		runModel = updated.(model)
+	}
+	live := runModel.live
+
+	updated, cmd := runModel.Update(assistantResponseCompletedMsg{})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, []string{live}, runModel.messages)
+	require.Empty(t, runModel.live)
+}
+
+func TestModel_UpdateUsesFinalAssistantTextAtCompletion(t *testing.T) {
+	runModel := newModel()
+	runModel.messages = []string{"You: hello"}
+	runModel.setTranscriptContent()
+
+	updated, cmd := runModel.Update(assistantTextDeltaMsg{Text: "draft"})
+	require.Nil(t, cmd)
+	updated, cmd = updated.(model).Update(assistantResponseCompletedMsg{Text: "final"})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Empty(t, runModel.live)
+	require.Equal(t, []string{"You: hello", "Hand: final"}, runModel.messages)
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "draft")
+}
+
+func TestModel_UpdatePreservesFinalAssistantWhitespace(t *testing.T) {
+	runModel := newModel()
+
+	updated, cmd := runModel.Update(assistantTextDeltaMsg{Text: "draft"})
+	require.Nil(t, cmd)
+	updated, cmd = updated.(model).Update(assistantResponseCompletedMsg{Text: "final\n\n"})
+
+	require.Nil(t, cmd)
+	require.Equal(t, []string{"Hand: final\n\n"}, updated.(model).messages)
+}
+
+func TestModel_UpdateIgnoresEmptyAssistantDelta(t *testing.T) {
+	runModel := newModel()
+
+	updated, cmd := runModel.Update(assistantTextDeltaMsg{})
+
+	require.Nil(t, cmd)
+	require.Empty(t, updated.(model).live)
+	require.Empty(t, updated.(model).messages)
+}
+
+func TestModel_UpdateClearsEmptyAssistantCompletion(t *testing.T) {
+	runModel := newModel()
+	runModel.live = "Hand: draft"
+	runModel.stream.Add("   ")
+
+	updated, cmd := runModel.Update(assistantResponseCompletedMsg{})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Empty(t, runModel.live)
+	require.Empty(t, runModel.messages)
+	require.Empty(t, runModel.stream.Render())
+}
+
+func TestAssistantTranscriptCell_IgnoresBlankText(t *testing.T) {
+	require.Empty(t, assistantTranscriptCell(" \n\t "))
 }
 
 func TestModel_UpdateInsertsPromptNewlineOnShiftEnter(t *testing.T) {
