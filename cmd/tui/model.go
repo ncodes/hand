@@ -12,7 +12,6 @@ import (
 const (
 	defaultWidth  = 80
 	defaultHeight = 24
-	defaultStatus = "default session · ready · ctrl+c twice to quit"
 
 	inputChromeHeight = 3
 
@@ -31,7 +30,7 @@ type model struct {
 	input      textarea.Model
 	width      int
 	height     int
-	status     string
+	status     statusModel
 	modelName  string
 	context    string
 	messages   []string
@@ -52,14 +51,14 @@ func newModel() model {
 		input:      newInputComposer(),
 		width:      defaultWidth,
 		height:     defaultHeight,
-		status:     defaultStatus,
+		status:     newStatusModel(),
 		modelName:  "GPT 5.5",
 		context:    "60,000 used · 65%",
 		history:    history,
 	}
 	appModel.historyAt = len(appModel.history)
 	if err != nil {
-		appModel.status = "prompt history unavailable"
+		appModel.status.setTransient("prompt history unavailable")
 	}
 	appModel.resize()
 
@@ -68,7 +67,7 @@ func newModel() model {
 
 // Init focuses the input composer when Bubble Tea starts the program.
 func (m model) Init() tea.Cmd {
-	return m.input.Focus()
+	return tea.Batch(m.input.Focus(), m.statusExpireCmd())
 }
 
 // Update handles terminal events and delegates ordinary input to child models.
@@ -81,6 +80,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case exitConfirmationExpiredMsg:
 		return m.expireExitConfirmation(msg), nil
+	case statusExpiredMsg:
+		m.status.expire(msg)
+		return m, nil
 	case assistantTextDeltaMsg:
 		m.appendAssistantDelta(msg.Text)
 		return m, nil
@@ -106,8 +108,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "shift+enter":
 			return m.insertInputNewline()
 		case "enter":
-			m.submitPrompt()
-			return m, nil
+			cmd := m.submitPrompt()
+			return m, cmd
 		}
 		if isInputLineDeleteKey(msg) {
 			return m.deleteInputLine()
@@ -142,8 +144,9 @@ func (m model) confirmExit() (tea.Model, tea.Cmd) {
 	}
 
 	m.exitAt = now
-	m.status = "Press Ctrl-C again to exit"
 	startedAt := m.exitAt
+	m.status.text = "Press Ctrl-C again to exit"
+	m.status.startedAt = startedAt
 
 	return m, tea.Tick(exitConfirmationWindow, func(time.Time) tea.Msg {
 		return exitConfirmationExpiredMsg{startedAt: startedAt}
@@ -162,7 +165,7 @@ func (m model) expireExitConfirmation(msg exitConfirmationExpiredMsg) tea.Model 
 	}
 
 	m.exitAt = time.Time{}
-	m.status = defaultStatus
+	m.status.expire(statusExpiredMsg{startedAt: msg.startedAt})
 
 	return m
 }
@@ -213,57 +216,61 @@ func (m model) deleteInputLine() (tea.Model, tea.Cmd) {
 }
 
 // submitPrompt routes a non-empty composer value to prompt or command handling.
-func (m *model) submitPrompt() bool {
+func (m *model) submitPrompt() tea.Cmd {
 	input := parseComposerInput(m.input.Value())
 	if input.Kind == composerInputEmpty {
-		return false
+		return nil
 	}
 
-	m.addPromptHistory(input.Text)
+	cmd := m.addPromptHistory(input.Text)
 	switch input.Kind {
 	case composerInputPrompt:
 		m.messages = append(m.messages, "You: "+input.Text)
 	case composerInputCommand:
-		m.handleSlashCommand(input)
+		cmd = tea.Batch(cmd, m.handleSlashCommand(input))
 	case composerInputLocalCommand:
-		m.handleLocalCommand(input)
+		cmd = tea.Batch(cmd, m.handleLocalCommand(input))
 	}
 	m.setTranscriptContent()
 	m.clearComposer()
 	m.resize()
 
-	return true
+	return cmd
 }
 
-func (m *model) handleSlashCommand(input composerInput) {
+func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
+	var cmd tea.Cmd
 	switch input.Name {
 	case "clear":
 		m.messages = nil
 		m.live = ""
 		m.stream.Reset()
-		m.status = "transcript cleared"
+		cmd = m.setStatus("transcript cleared")
 	case "help":
 		m.messages = append(m.messages, "Commands: /clear, /help")
 	case "":
-		m.status = "empty command"
+		cmd = m.setStatus("empty command")
 	default:
-		m.status = "unknown command: /" + input.Name
+		cmd = m.setStatus("unknown command: /" + input.Name)
 	}
 
 	m.setTranscriptContent()
+	return cmd
 }
 
-func (m *model) handleLocalCommand(input composerInput) {
+func (m *model) handleLocalCommand(input composerInput) tea.Cmd {
+	var cmd tea.Cmd
 	if !m.allowShell {
-		m.status = "local commands are disabled"
+		cmd = m.setStatus("local commands are disabled")
 		m.messages = append(m.messages, "Local command blocked: !"+input.Args)
 		m.setTranscriptContent()
-		return
+		return cmd
 	}
 
-	m.status = "local command execution is not connected yet"
+	cmd = m.setStatus("local command execution is not connected yet")
 	m.messages = append(m.messages, "Local command queued: !"+input.Args)
 	m.setTranscriptContent()
+	return cmd
 }
 
 func (m *model) clearComposer() {
@@ -272,21 +279,43 @@ func (m *model) clearComposer() {
 	m.draft = ""
 }
 
-func (m *model) addPromptHistory(value string) {
+func (m *model) addPromptHistory(value string) tea.Cmd {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return
+		return nil
 	}
 	if len(m.history) > 0 && m.history[len(m.history)-1] == value {
 		m.historyAt = len(m.history)
-		return
+		return nil
 	}
 
 	m.history = normalizePromptHistory(append(m.history, value))
 	m.historyAt = len(m.history)
 	if err := savePromptHistory(m.history); err != nil {
-		m.status = "prompt history unavailable"
+		return m.setStatus("prompt history unavailable")
 	}
+
+	return nil
+}
+
+func (m *model) setStatus(text string) tea.Cmd {
+	return m.status.setTransient(text)
+}
+
+func (m model) statusExpireCmd() tea.Cmd {
+	if !m.status.hasTransient() {
+		return nil
+	}
+
+	startedAt := m.status.startedAt
+	hideAfter := m.status.hideAfter
+	if hideAfter <= 0 {
+		hideAfter = statusAutoHideWindow
+	}
+
+	return tea.Tick(hideAfter, func(time.Time) tea.Msg {
+		return statusExpiredMsg{startedAt: startedAt}
+	})
 }
 
 func (m *model) showPreviousPrompt() {

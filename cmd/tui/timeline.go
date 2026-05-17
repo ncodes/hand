@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
+
 	handmsg "github.com/wandxy/hand/internal/messages"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/internal/trace"
 )
 
-func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) {
+func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.Cmd {
 	cells := sessionTimelineToTranscriptCells(timeline)
 	if len(cells) == 0 {
 		sessionID := strings.TrimSpace(timeline.SessionID)
@@ -24,10 +26,13 @@ func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) {
 	m.stream.Reset()
 	m.setTranscriptContent()
 	m.transcript.GotoTop()
+	var cmd tea.Cmd
 	if sessionID := strings.TrimSpace(timeline.SessionID); sessionID != "" {
-		m.status = sessionID + " · hydrated"
+		cmd = m.setStatus(sessionID + " · hydrated")
 	}
 	m.resize()
+
+	return cmd
 }
 
 func sessionTimelineToTranscriptCells(timeline rpcclient.SessionTimeline) []string {

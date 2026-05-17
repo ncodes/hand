@@ -70,10 +70,7 @@ func (m model) renderInput() string {
 // renderInputInfo renders the compact metadata row below the composer.
 func (m model) renderInputInfo() string {
 	availableWidth := getInputBoxWidth(m.width)
-	status := strings.TrimSpace(m.status)
-	if status == "" {
-		status = "ready"
-	}
+	status := m.status.Text()
 
 	left := joinInputInfoSegments([]string{m.modelName, status}, availableWidth)
 	right := strings.TrimSpace(m.context)

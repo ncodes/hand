@@ -120,7 +120,7 @@ func TestModel_NewModelReportsPromptHistoryLoadFailure(t *testing.T) {
 	runModel := newModel()
 
 	require.Empty(t, runModel.history)
-	require.Equal(t, "prompt history unavailable", runModel.status)
+	require.Equal(t, "prompt history unavailable", runModel.status.Text())
 }
 
 func TestModel_SubmitPromptPersistsHistoryForRestart(t *testing.T) {
@@ -129,7 +129,7 @@ func TestModel_SubmitPromptPersistsHistoryForRestart(t *testing.T) {
 
 	runModel := newModel()
 	runModel.input.SetValue("remember this")
-	require.True(t, runModel.submitPrompt())
+	require.Nil(t, runModel.submitPrompt())
 
 	restarted := newModel()
 
@@ -146,7 +146,7 @@ func TestModel_AddPromptHistoryReportsSaveFailure(t *testing.T) {
 	runModel.addPromptHistory("remember this")
 
 	require.Equal(t, []string{"remember this"}, runModel.history)
-	require.Equal(t, "prompt history unavailable", runModel.status)
+	require.Equal(t, "prompt history unavailable", runModel.status.Text())
 }
 
 func withPromptHistoryPath(t *testing.T, path string) {

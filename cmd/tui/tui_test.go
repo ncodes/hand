@@ -98,6 +98,60 @@ func TestModel_InitFocusesInput(t *testing.T) {
 	require.NotNil(t, cmd)
 }
 
+func TestModel_InitSchedulesLoadedTransientStatusExpiration(t *testing.T) {
+	originalCurrentTime := currentTime
+	t.Cleanup(func() {
+		currentTime = originalCurrentTime
+	})
+	now := time.Date(2026, 5, 17, 10, 0, 0, 0, time.UTC)
+	currentTime = func() time.Time {
+		return now
+	}
+
+	runModel := newModel()
+	runModel.status.setTransient("loaded")
+	cmd := runModel.statusExpireCmd()
+
+	require.NotNil(t, cmd)
+}
+
+func TestModel_StatusExpireCmdFallsBackToDefaultWindow(t *testing.T) {
+	originalCurrentTime := currentTime
+	t.Cleanup(func() {
+		currentTime = originalCurrentTime
+	})
+	now := time.Date(2026, 5, 17, 10, 0, 0, 0, time.UTC)
+	currentTime = func() time.Time {
+		return now
+	}
+
+	runModel := newModel()
+	runModel.status.hideAfter = 0
+	runModel.status.setTransient("loaded")
+	cmd := runModel.statusExpireCmd()
+
+	require.NotNil(t, cmd)
+}
+
+func TestModel_StatusExpireCmdReturnsExpirationMessage(t *testing.T) {
+	originalCurrentTime := currentTime
+	t.Cleanup(func() {
+		currentTime = originalCurrentTime
+	})
+	now := time.Date(2026, 5, 17, 10, 0, 0, 0, time.UTC)
+	currentTime = func() time.Time {
+		return now
+	}
+
+	runModel := newModel()
+	runModel.status.hideAfter = time.Nanosecond
+	runModel.status.setTransient("loaded")
+	cmd := runModel.statusExpireCmd()
+
+	require.NotNil(t, cmd)
+	require.Equal(t, statusExpiredMsg{startedAt: now}, cmd())
+}
+
 func TestModel_ViewRendersHeaderInfoPanelWhenWide(t *testing.T) {
 	runModel := newModel()
 	runModel.width = 120
@@ -270,7 +324,7 @@ func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 	})
 
 	content := runModel.transcript.View()
-	require.Equal(t, "project-a · hydrated", runModel.status)
+	require.Equal(t, "project-a · hydrated", runModel.status.Text())
 	require.Equal(t, []string{"You: hello", "Hand: hi", "Tool started: read_file"}, runModel.messages)
 	require.Contains(t, content, "You: hello")
 	require.Contains(t, content, "Hand: hi")
@@ -283,7 +337,7 @@ func TestModel_HydrateSessionTimelineShowsEmptySession(t *testing.T) {
 
 	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{SessionID: "empty"})
 
-	require.Equal(t, "empty · hydrated", runModel.status)
+	require.Equal(t, "empty · hydrated", runModel.status.Text())
 	require.Equal(t, []string{"empty has no visible timeline yet."}, runModel.messages)
 	require.Contains(t, runModel.transcript.View(), "empty has no visible timeline yet.")
 }
@@ -293,7 +347,7 @@ func TestModel_HydrateSessionTimelineShowsFallbackForMissingSessionID(t *testing
 
 	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{})
 
-	require.Equal(t, defaultStatus, runModel.status)
+	require.Equal(t, defaultStatus, runModel.status.Text())
 	require.Equal(t, []string{"session has no visible timeline yet."}, runModel.messages)
 	require.Contains(t, runModel.transcript.View(), "session has no visible timeline yet.")
 }
@@ -303,7 +357,7 @@ func TestModel_UpdateIgnoresEsc(t *testing.T) {
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
 
 	require.Nil(t, cmd)
-	require.Equal(t, runModel.status, updated.(model).status)
+	require.Equal(t, runModel.status.Text(), updated.(model).status.Text())
 }
 
 func TestModel_UpdatePromptsOnFirstCtrlC(t *testing.T) {
@@ -319,7 +373,7 @@ func TestModel_UpdatePromptsOnFirstCtrlC(t *testing.T) {
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'c', Mod: tea.ModCtrl}))
 
 	require.NotNil(t, cmd)
-	require.Equal(t, "Press Ctrl-C again to exit", updated.(model).status)
+	require.Equal(t, "Press Ctrl-C again to exit", updated.(model).status.Text())
 }
 
 func TestModel_UpdateFirstCtrlCTimeoutReturnsExpirationMessage(t *testing.T) {
@@ -343,7 +397,7 @@ func TestModel_UpdateFirstCtrlCTimeoutReturnsExpirationMessage(t *testing.T) {
 func TestModel_RenderInputInfoShowsCtrlCNoticeOnRightOnly(t *testing.T) {
 	runModel := newModel()
 	runModel.exitAt = time.Date(2026, 5, 16, 9, 0, 0, 0, time.UTC)
-	runModel.status = "Press Ctrl-C again to exit"
+	runModel.status.setTransient("Press Ctrl-C again to exit")
 	content := stripANSI(runModel.renderInputInfo())
 
 	require.Contains(t, content, "Press Ctrl-C again to exit")
@@ -397,27 +451,29 @@ func TestModel_UpdateDoesNotQuitOnSlowSecondCtrlC(t *testing.T) {
 
 	updated, cmd = updated.(model).Update(tea.KeyPressMsg(tea.Key{Code: 'c', Mod: tea.ModCtrl}))
 	require.NotNil(t, cmd)
-	require.Equal(t, "Press Ctrl-C again to exit", updated.(model).status)
+	require.Equal(t, "Press Ctrl-C again to exit", updated.(model).status.Text())
 }
 
 func TestModel_UpdateClearsExpiredCtrlCNotice(t *testing.T) {
 	startedAt := time.Date(2026, 5, 16, 9, 0, 0, 0, time.UTC)
 	runModel := newModel()
 	runModel.exitAt = startedAt
-	runModel.status = "Press Ctrl-C again to exit"
+	runModel.status.text = "Press Ctrl-C again to exit"
+	runModel.status.startedAt = startedAt
 
 	updated, cmd := runModel.Update(exitConfirmationExpiredMsg{startedAt: startedAt})
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.True(t, runModel.exitAt.IsZero())
-	require.Equal(t, defaultStatus, runModel.status)
+	require.Equal(t, defaultStatus, runModel.status.Text())
 }
 
 func TestModel_UpdateIgnoresStaleCtrlCNoticeTimeout(t *testing.T) {
 	runModel := newModel()
 	runModel.exitAt = time.Date(2026, 5, 16, 9, 0, 1, 0, time.UTC)
-	runModel.status = "Press Ctrl-C again to exit"
+	runModel.status.text = "Press Ctrl-C again to exit"
+	runModel.status.startedAt = runModel.exitAt
 
 	updated, cmd := runModel.Update(exitConfirmationExpiredMsg{
 		startedAt: time.Date(2026, 5, 16, 9, 0, 0, 0, time.UTC),
@@ -426,7 +482,7 @@ func TestModel_UpdateIgnoresStaleCtrlCNoticeTimeout(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.False(t, runModel.exitAt.IsZero())
-	require.Equal(t, "Press Ctrl-C again to exit", runModel.status)
+	require.Equal(t, "Press Ctrl-C again to exit", runModel.status.Text())
 }
 
 func TestModel_UpdateKeepsPrintableTextInPrompt(t *testing.T) {
@@ -467,14 +523,18 @@ func TestModel_UpdateHandlesClearCommand(t *testing.T) {
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 
-	require.Nil(t, cmd)
+	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.Empty(t, runModel.messages)
 	require.Empty(t, runModel.live)
 	require.Empty(t, runModel.input.Value())
 	require.Empty(t, runModel.stream.Render())
-	require.Equal(t, "transcript cleared", runModel.status)
+	require.Equal(t, "transcript cleared", runModel.status.Text())
 	require.Empty(t, strings.TrimSpace(stripANSI(runModel.transcript.View())))
+
+	updated, cmd = runModel.Update(statusExpiredMsg{startedAt: runModel.status.startedAt})
+	require.Nil(t, cmd)
+	require.Equal(t, defaultStatus, updated.(model).status.Text())
 }
 
 func TestModel_UpdateHandlesHelpCommand(t *testing.T) {
@@ -496,10 +556,10 @@ func TestModel_UpdateReportsUnknownCommand(t *testing.T) {
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 
-	require.Nil(t, cmd)
+	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.Empty(t, runModel.messages)
-	require.Equal(t, "unknown command: /missing", runModel.status)
+	require.Equal(t, "unknown command: /missing", runModel.status.Text())
 	require.Empty(t, runModel.input.Value())
 }
 
@@ -509,10 +569,10 @@ func TestModel_UpdateReportsEmptyCommand(t *testing.T) {
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 
-	require.Nil(t, cmd)
+	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.Empty(t, runModel.messages)
-	require.Equal(t, "empty command", runModel.status)
+	require.Equal(t, "empty command", runModel.status.Text())
 	require.Empty(t, runModel.input.Value())
 }
 
@@ -522,9 +582,9 @@ func TestModel_UpdateBlocksLocalCommandWhenShellIsDisabled(t *testing.T) {
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 
-	require.Nil(t, cmd)
+	require.NotNil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, "local commands are disabled", runModel.status)
+	require.Equal(t, "local commands are disabled", runModel.status.Text())
 	require.Equal(t, []string{"Local command blocked: !ls -la"}, runModel.messages)
 	require.Empty(t, runModel.input.Value())
 	require.Contains(t, stripANSI(runModel.transcript.View()), "Local command blocked: !ls -la")
@@ -537,9 +597,9 @@ func TestModel_UpdateQueuesLocalCommandWhenShellIsAllowed(t *testing.T) {
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 
-	require.Nil(t, cmd)
+	require.NotNil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, "local command execution is not connected yet", runModel.status)
+	require.Equal(t, "local command execution is not connected yet", runModel.status.Text())
 	require.Equal(t, []string{"Local command queued: !pwd"}, runModel.messages)
 	require.Empty(t, runModel.input.Value())
 }
