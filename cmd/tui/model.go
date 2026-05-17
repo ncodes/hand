@@ -37,11 +37,16 @@ type model struct {
 	messages   []string
 	live       string
 	stream     markdownStreamCollector
+	history    []string
+	historyAt  int
+	draft      string
 	exitAt     time.Time
+	allowShell bool
 }
 
 // newModel builds the initial TUI state and sizes child components.
 func newModel() model {
+	history, err := loadPromptHistory()
 	appModel := model{
 		transcript: newTranscript(),
 		input:      newInputComposer(),
@@ -50,6 +55,11 @@ func newModel() model {
 		status:     defaultStatus,
 		modelName:  "GPT 5.5",
 		context:    "60,000 used · 65%",
+		history:    history,
+	}
+	appModel.historyAt = len(appModel.history)
+	if err != nil {
+		appModel.status = "prompt history unavailable"
 	}
 	appModel.resize()
 
@@ -77,11 +87,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case assistantResponseCompletedMsg:
 		m.completeAssistantResponse(msg.Text)
 		return m, nil
+	case tea.PasteMsg:
+		m.input, _ = m.input.Update(msg)
+		m.resize()
+		return m, nil
 	case tea.KeyPressMsg:
 		switch msg.Keystroke() {
 		case "ctrl+c":
 			return m.confirmExit()
 		case "esc":
+			return m, nil
+		case "ctrl+p":
+			m.showPreviousPrompt()
+			return m, nil
+		case "ctrl+n":
+			m.showNextPrompt()
 			return m, nil
 		case "shift+enter":
 			return m.insertInputNewline()
@@ -91,6 +111,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if isInputLineDeleteKey(msg) {
 			return m.deleteInputLine()
+		}
+		if m.shouldUseHistoryKey(msg) {
+			switch msg.Key().Code {
+			case tea.KeyUp:
+				m.showPreviousPrompt()
+			case tea.KeyDown:
+				m.showNextPrompt()
+			}
+			return m, nil
 		}
 	}
 
@@ -183,19 +212,122 @@ func (m model) deleteInputLine() (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// submitPrompt appends a non-empty composer value to the transcript.
+// submitPrompt routes a non-empty composer value to prompt or command handling.
 func (m *model) submitPrompt() bool {
-	prompt := strings.TrimSpace(m.input.Value())
-	if prompt == "" {
+	input := parseComposerInput(m.input.Value())
+	if input.Kind == composerInputEmpty {
 		return false
 	}
 
-	m.messages = append(m.messages, "You: "+prompt)
+	m.addPromptHistory(input.Text)
+	switch input.Kind {
+	case composerInputPrompt:
+		m.messages = append(m.messages, "You: "+input.Text)
+	case composerInputCommand:
+		m.handleSlashCommand(input)
+	case composerInputLocalCommand:
+		m.handleLocalCommand(input)
+	}
 	m.setTranscriptContent()
-	m.input.SetValue("")
+	m.clearComposer()
 	m.resize()
 
 	return true
+}
+
+func (m *model) handleSlashCommand(input composerInput) {
+	switch input.Name {
+	case "clear":
+		m.messages = nil
+		m.live = ""
+		m.stream.Reset()
+		m.status = "transcript cleared"
+	case "help":
+		m.messages = append(m.messages, "Commands: /clear, /help")
+	case "":
+		m.status = "empty command"
+	default:
+		m.status = "unknown command: /" + input.Name
+	}
+
+	m.setTranscriptContent()
+}
+
+func (m *model) handleLocalCommand(input composerInput) {
+	if !m.allowShell {
+		m.status = "local commands are disabled"
+		m.messages = append(m.messages, "Local command blocked: !"+input.Args)
+		m.setTranscriptContent()
+		return
+	}
+
+	m.status = "local command execution is not connected yet"
+	m.messages = append(m.messages, "Local command queued: !"+input.Args)
+	m.setTranscriptContent()
+}
+
+func (m *model) clearComposer() {
+	m.input.SetValue("")
+	m.historyAt = len(m.history)
+	m.draft = ""
+}
+
+func (m *model) addPromptHistory(value string) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return
+	}
+	if len(m.history) > 0 && m.history[len(m.history)-1] == value {
+		m.historyAt = len(m.history)
+		return
+	}
+
+	m.history = normalizePromptHistory(append(m.history, value))
+	m.historyAt = len(m.history)
+	if err := savePromptHistory(m.history); err != nil {
+		m.status = "prompt history unavailable"
+	}
+}
+
+func (m *model) showPreviousPrompt() {
+	if len(m.history) == 0 {
+		return
+	}
+	if m.historyAt == len(m.history) {
+		m.draft = m.input.Value()
+	}
+	if m.historyAt > 0 {
+		m.historyAt--
+	}
+
+	m.input.SetValue(m.history[m.historyAt])
+	m.input.CursorEnd()
+	m.resize()
+}
+
+func (m *model) showNextPrompt() {
+	if len(m.history) == 0 || m.historyAt >= len(m.history) {
+		return
+	}
+
+	m.historyAt++
+	if m.historyAt == len(m.history) {
+		m.input.SetValue(m.draft)
+		m.draft = ""
+	} else {
+		m.input.SetValue(m.history[m.historyAt])
+	}
+	m.input.CursorEnd()
+	m.resize()
+}
+
+func (m model) shouldUseHistoryKey(msg tea.KeyPressMsg) bool {
+	switch msg.Key().Code {
+	case tea.KeyUp, tea.KeyDown:
+		return !strings.Contains(m.input.Value(), "\n")
+	default:
+		return false
+	}
 }
 
 func (m *model) appendAssistantDelta(delta string) {

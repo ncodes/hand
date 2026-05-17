@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,16 @@ import (
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
 )
+
+func TestMain(m *testing.M) {
+	original := promptHistoryPath
+	promptHistoryPath = func() string {
+		return ""
+	}
+	code := m.Run()
+	promptHistoryPath = original
+	os.Exit(code)
+}
 
 type fakeProgram struct {
 	model tea.Model
@@ -444,6 +455,202 @@ func TestModel_UpdateAppendsPromptOnEnter(t *testing.T) {
 	require.Contains(t, content, "██████")
 	require.Contains(t, content, "You: Summarize tests")
 	require.Contains(t, content, "60,000 used")
+}
+
+func TestModel_UpdateHandlesClearCommand(t *testing.T) {
+	runModel := newModel()
+	runModel.messages = []string{"You: stale", "Hand: stale"}
+	runModel.live = "Hand: live"
+	runModel.stream.Add("live")
+	runModel.input.SetValue("/clear")
+	runModel.setTranscriptContent()
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Empty(t, runModel.messages)
+	require.Empty(t, runModel.live)
+	require.Empty(t, runModel.input.Value())
+	require.Empty(t, runModel.stream.Render())
+	require.Equal(t, "transcript cleared", runModel.status)
+	require.Empty(t, strings.TrimSpace(stripANSI(runModel.transcript.View())))
+}
+
+func TestModel_UpdateHandlesHelpCommand(t *testing.T) {
+	runModel := newModel()
+	runModel.input.SetValue("/help")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, []string{"Commands: /clear, /help"}, runModel.messages)
+	require.Empty(t, runModel.input.Value())
+	require.Contains(t, stripANSI(runModel.transcript.View()), "Commands: /clear, /help")
+}
+
+func TestModel_UpdateReportsUnknownCommand(t *testing.T) {
+	runModel := newModel()
+	runModel.input.SetValue("/missing now")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Empty(t, runModel.messages)
+	require.Equal(t, "unknown command: /missing", runModel.status)
+	require.Empty(t, runModel.input.Value())
+}
+
+func TestModel_UpdateReportsEmptyCommand(t *testing.T) {
+	runModel := newModel()
+	runModel.input.SetValue("/")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Empty(t, runModel.messages)
+	require.Equal(t, "empty command", runModel.status)
+	require.Empty(t, runModel.input.Value())
+}
+
+func TestModel_UpdateBlocksLocalCommandWhenShellIsDisabled(t *testing.T) {
+	runModel := newModel()
+	runModel.input.SetValue("!ls -la")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "local commands are disabled", runModel.status)
+	require.Equal(t, []string{"Local command blocked: !ls -la"}, runModel.messages)
+	require.Empty(t, runModel.input.Value())
+	require.Contains(t, stripANSI(runModel.transcript.View()), "Local command blocked: !ls -la")
+}
+
+func TestModel_UpdateQueuesLocalCommandWhenShellIsAllowed(t *testing.T) {
+	runModel := newModel()
+	runModel.allowShell = true
+	runModel.input.SetValue("!pwd")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "local command execution is not connected yet", runModel.status)
+	require.Equal(t, []string{"Local command queued: !pwd"}, runModel.messages)
+	require.Empty(t, runModel.input.Value())
+}
+
+func TestModel_UpdatePastesLargeMultilineContent(t *testing.T) {
+	runModel := newModel()
+	paste := strings.Join([]string{
+		"first",
+		"second",
+		strings.Repeat("x", getInputInnerWidth(runModel.width)+1),
+	}, "\n")
+
+	updated, cmd := runModel.Update(tea.PasteMsg{Content: paste})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, paste, runModel.input.Value())
+	require.GreaterOrEqual(t, runModel.input.Height(), 3)
+}
+
+func TestModel_UpdateNavigatesPromptHistory(t *testing.T) {
+	runModel := newModel()
+	for _, prompt := range []string{"first prompt", "second prompt"} {
+		runModel.input.SetValue(prompt)
+		updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+		require.Nil(t, cmd)
+		runModel = updated.(model)
+	}
+	runModel.input.SetValue("draft")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'p', Mod: tea.ModCtrl}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "second prompt", runModel.input.Value())
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyUp}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "first prompt", runModel.input.Value())
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'n', Mod: tea.ModCtrl}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "second prompt", runModel.input.Value())
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "draft", runModel.input.Value())
+}
+
+func TestModel_UpdateDeduplicatesConsecutivePromptHistory(t *testing.T) {
+	runModel := newModel()
+	for range 2 {
+		runModel.input.SetValue("repeat")
+		updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+		require.Nil(t, cmd)
+		runModel = updated.(model)
+	}
+
+	require.Equal(t, []string{"repeat"}, runModel.history)
+	require.Equal(t, 1, runModel.historyAt)
+}
+
+func TestModel_AddPromptHistoryIgnoresBlankValues(t *testing.T) {
+	runModel := newModel()
+
+	runModel.addPromptHistory(" \n\t ")
+
+	require.Empty(t, runModel.history)
+	require.Zero(t, runModel.historyAt)
+}
+
+func TestModel_UpdateKeepsHistoryStableWhenEmpty(t *testing.T) {
+	runModel := newModel()
+	runModel.input.SetValue("draft")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'p', Mod: tea.ModCtrl}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "draft", runModel.input.Value())
+	require.Empty(t, runModel.history)
+}
+
+func TestModel_UpdateKeepsHistoryStableAtNewestEntry(t *testing.T) {
+	runModel := newModel()
+	runModel.history = []string{"first"}
+	runModel.historyAt = len(runModel.history)
+	runModel.input.SetValue("draft")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'n', Mod: tea.ModCtrl}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "draft", runModel.input.Value())
+	require.Equal(t, len(runModel.history), runModel.historyAt)
+}
+
+func TestModel_UpdateLetsMultilineInputUseArrowKeys(t *testing.T) {
+	runModel := newModel()
+	runModel.history = []string{"previous prompt"}
+	runModel.historyAt = len(runModel.history)
+	runModel.input.SetValue("first\nsecond")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyUp}))
+
+	if cmd != nil {
+		cmd()
+	}
+	require.Equal(t, "first\nsecond", updated.(model).input.Value())
 }
 
 func TestModel_UpdatePreservesLiveAssistantCellDuringStreaming(t *testing.T) {
