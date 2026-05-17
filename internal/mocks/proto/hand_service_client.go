@@ -11,21 +11,23 @@ import (
 )
 
 type HandServiceClientStub struct {
-	Req         *handpb.RespondRequest
-	Events      []*handpb.RespondEvent
-	Err         error
-	CreateResp  *handpb.CreateSessionResponse
-	CreateReq   *handpb.CreateSessionRequest
-	ListResp    *handpb.ListSessionsResponse
-	ListReq     *handpb.ListSessionsRequest
-	UseReq      *handpb.UseSessionRequest
-	CurrentResp *handpb.CurrentSessionResponse
-	CompactResp *handpb.CompactSessionResponse
-	CompactReq  *handpb.CompactSessionRequest
-	RepairResp  *handpb.RepairSessionResponse
-	RepairReq   *handpb.RepairSessionRequest
-	StatusResp  *handpb.GetSessionResponse
-	StatusReq   *handpb.GetSessionRequest
+	Req          *handpb.RespondRequest
+	Events       []*handpb.RespondEvent
+	Err          error
+	CreateResp   *handpb.CreateSessionResponse
+	CreateReq    *handpb.CreateSessionRequest
+	ListResp     *handpb.ListSessionsResponse
+	ListReq      *handpb.ListSessionsRequest
+	UseReq       *handpb.UseSessionRequest
+	CurrentResp  *handpb.CurrentSessionResponse
+	CompactResp  *handpb.CompactSessionResponse
+	CompactReq   *handpb.CompactSessionRequest
+	RepairResp   *handpb.RepairSessionResponse
+	RepairReq    *handpb.RepairSessionRequest
+	StatusResp   *handpb.GetSessionResponse
+	StatusReq    *handpb.GetSessionRequest
+	TimelineResp *handpb.GetSessionTimelineResponse
+	TimelineReq  *handpb.GetSessionTimelineRequest
 }
 
 func (s *HandServiceClientStub) Respond(_ context.Context, req *handpb.RespondRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[handpb.RespondEvent], error) {
@@ -68,6 +70,11 @@ func (s *HandServiceClientStub) RepairSession(_ context.Context, req *handpb.Rep
 func (s *HandServiceClientStub) GetSession(_ context.Context, req *handpb.GetSessionRequest, _ ...grpc.CallOption) (*handpb.GetSessionResponse, error) {
 	s.StatusReq = req
 	return s.StatusResp, s.Err
+}
+
+func (s *HandServiceClientStub) GetSessionTimeline(_ context.Context, req *handpb.GetSessionTimelineRequest, _ ...grpc.CallOption) (*handpb.GetSessionTimelineResponse, error) {
+	s.TimelineReq = req
+	return s.TimelineResp, s.Err
 }
 
 type respondStreamStub struct {

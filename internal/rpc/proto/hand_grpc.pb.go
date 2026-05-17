@@ -19,14 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	HandService_Respond_FullMethodName        = "/hand.v1.HandService/Respond"
-	HandService_CreateSession_FullMethodName  = "/hand.v1.HandService/CreateSession"
-	HandService_ListSessions_FullMethodName   = "/hand.v1.HandService/ListSessions"
-	HandService_UseSession_FullMethodName     = "/hand.v1.HandService/UseSession"
-	HandService_CurrentSession_FullMethodName = "/hand.v1.HandService/CurrentSession"
-	HandService_CompactSession_FullMethodName = "/hand.v1.HandService/CompactSession"
-	HandService_RepairSession_FullMethodName  = "/hand.v1.HandService/RepairSession"
-	HandService_GetSession_FullMethodName     = "/hand.v1.HandService/GetSession"
+	HandService_Respond_FullMethodName            = "/hand.v1.HandService/Respond"
+	HandService_CreateSession_FullMethodName      = "/hand.v1.HandService/CreateSession"
+	HandService_ListSessions_FullMethodName       = "/hand.v1.HandService/ListSessions"
+	HandService_UseSession_FullMethodName         = "/hand.v1.HandService/UseSession"
+	HandService_CurrentSession_FullMethodName     = "/hand.v1.HandService/CurrentSession"
+	HandService_CompactSession_FullMethodName     = "/hand.v1.HandService/CompactSession"
+	HandService_RepairSession_FullMethodName      = "/hand.v1.HandService/RepairSession"
+	HandService_GetSession_FullMethodName         = "/hand.v1.HandService/GetSession"
+	HandService_GetSessionTimeline_FullMethodName = "/hand.v1.HandService/GetSessionTimeline"
 )
 
 // HandServiceClient is the client API for HandService service.
@@ -41,6 +42,7 @@ type HandServiceClient interface {
 	CompactSession(ctx context.Context, in *CompactSessionRequest, opts ...grpc.CallOption) (*CompactSessionResponse, error)
 	RepairSession(ctx context.Context, in *RepairSessionRequest, opts ...grpc.CallOption) (*RepairSessionResponse, error)
 	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error)
+	GetSessionTimeline(ctx context.Context, in *GetSessionTimelineRequest, opts ...grpc.CallOption) (*GetSessionTimelineResponse, error)
 }
 
 type handServiceClient struct {
@@ -140,6 +142,16 @@ func (c *handServiceClient) GetSession(ctx context.Context, in *GetSessionReques
 	return out, nil
 }
 
+func (c *handServiceClient) GetSessionTimeline(ctx context.Context, in *GetSessionTimelineRequest, opts ...grpc.CallOption) (*GetSessionTimelineResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSessionTimelineResponse)
+	err := c.cc.Invoke(ctx, HandService_GetSessionTimeline_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HandServiceServer is the server API for HandService service.
 // All implementations must embed UnimplementedHandServiceServer
 // for forward compatibility.
@@ -152,6 +164,7 @@ type HandServiceServer interface {
 	CompactSession(context.Context, *CompactSessionRequest) (*CompactSessionResponse, error)
 	RepairSession(context.Context, *RepairSessionRequest) (*RepairSessionResponse, error)
 	GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error)
+	GetSessionTimeline(context.Context, *GetSessionTimelineRequest) (*GetSessionTimelineResponse, error)
 	mustEmbedUnimplementedHandServiceServer()
 }
 
@@ -185,6 +198,9 @@ func (UnimplementedHandServiceServer) RepairSession(context.Context, *RepairSess
 }
 func (UnimplementedHandServiceServer) GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSession not implemented")
+}
+func (UnimplementedHandServiceServer) GetSessionTimeline(context.Context, *GetSessionTimelineRequest) (*GetSessionTimelineResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSessionTimeline not implemented")
 }
 func (UnimplementedHandServiceServer) mustEmbedUnimplementedHandServiceServer() {}
 func (UnimplementedHandServiceServer) testEmbeddedByValue()                     {}
@@ -344,6 +360,24 @@ func _HandService_GetSession_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HandService_GetSessionTimeline_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSessionTimelineRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HandServiceServer).GetSessionTimeline(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HandService_GetSessionTimeline_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HandServiceServer).GetSessionTimeline(ctx, req.(*GetSessionTimelineRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HandService_ServiceDesc is the grpc.ServiceDesc for HandService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -378,6 +412,10 @@ var HandService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSession",
 			Handler:    _HandService_GetSession_Handler,
+		},
+		{
+			MethodName: "GetSessionTimeline",
+			Handler:    _HandService_GetSessionTimeline_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -11,6 +11,12 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wandxy/hand/internal/agent"
+	handmsg "github.com/wandxy/hand/internal/messages"
+	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	storage "github.com/wandxy/hand/internal/state/core"
+	"github.com/wandxy/hand/internal/trace"
 )
 
 type fakeProgram struct {
@@ -223,6 +229,54 @@ func TestModel_UpdateResizesTranscriptAndInput(t *testing.T) {
 	require.LessOrEqual(t, resized.input.Width(), 100)
 	require.GreaterOrEqual(t, resized.transcript.Height(), 1)
 	require.Equal(t, 1, resized.input.Height())
+}
+
+func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
+	runModel := newModel()
+	runModel.messages = []string{"stale cell"}
+	runModel.transcript.SetContent("stale cell")
+
+	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{
+		SessionID: "project-a",
+		Messages: []agent.SessionTimelineMessage{
+			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "hello"}},
+			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "hi"}},
+		},
+		TraceEvents: []agent.SessionTimelineTraceEvent{{
+			Event: storage.TraceEvent{
+				Type:    trace.EvtToolInvocationStarted,
+				Payload: map[string]any{"id": "call_1", "name": "read_file"},
+			},
+		}},
+	})
+
+	content := runModel.transcript.View()
+	require.Equal(t, "project-a · hydrated", runModel.status)
+	require.Equal(t, []string{"You: hello", "Hand: hi", "Tool started: read_file"}, runModel.messages)
+	require.Contains(t, content, "You: hello")
+	require.Contains(t, content, "Hand: hi")
+	require.Contains(t, content, "Tool started: read_file")
+	require.NotContains(t, content, "stale cell")
+}
+
+func TestModel_HydrateSessionTimelineShowsEmptySession(t *testing.T) {
+	runModel := newModel()
+
+	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{SessionID: "empty"})
+
+	require.Equal(t, "empty · hydrated", runModel.status)
+	require.Equal(t, []string{"empty has no visible timeline yet."}, runModel.messages)
+	require.Contains(t, runModel.transcript.View(), "empty has no visible timeline yet.")
+}
+
+func TestModel_HydrateSessionTimelineShowsFallbackForMissingSessionID(t *testing.T) {
+	runModel := newModel()
+
+	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{})
+
+	require.Equal(t, defaultStatus, runModel.status)
+	require.Equal(t, []string{"session has no visible timeline yet."}, runModel.messages)
+	require.Contains(t, runModel.transcript.View(), "session has no visible timeline yet.")
 }
 
 func TestModel_UpdateIgnoresEsc(t *testing.T) {

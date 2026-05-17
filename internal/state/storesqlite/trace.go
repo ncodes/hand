@@ -95,6 +95,9 @@ func (s *Store) ListTraceEvents(ctx context.Context, query base.TraceQuery) (bas
 	if types := base.NormalizeTraceTypes(query.Types); len(types) > 0 {
 		db = db.Where("type IN ?", types)
 	}
+	if query.MinSequence > 0 {
+		db = db.Where("sequence >= ?", query.MinSequence)
+	}
 	if query.Desc {
 		db = db.Order("session_id DESC").Order("sequence DESC").Order("id DESC")
 	} else {

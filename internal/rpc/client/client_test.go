@@ -315,6 +315,109 @@ func TestClient_GetSessionReturnsResult(t *testing.T) {
 	require.Equal(t, "pending", result.CompactionStatus)
 }
 
+func TestClient_GetSessionTimelineReturnsResult(t *testing.T) {
+	messageAt := time.Date(2026, 5, 16, 10, 0, 0, 0, time.UTC)
+	traceAt := time.Date(2026, 5, 16, 11, 0, 0, 0, time.UTC)
+	stub := &protomock.HandServiceClientStub{TimelineResp: &handpb.GetSessionTimelineResponse{
+		Id: "default",
+		Messages: []*handpb.SessionTimelineMessage{{
+			Offset:     2,
+			Id:         7,
+			Role:       "tool",
+			Name:       "read_file",
+			ToolCallId: "call_1",
+			Content:    "file content",
+			CreatedAt:  timestamppb.New(messageAt),
+			ToolCalls: []*handpb.SessionTimelineToolCall{{
+				Id:   "call_2",
+				Name: "search",
+			}},
+		}},
+		TraceEvents: []*handpb.SessionTimelineTraceEvent{{
+			Id:          9,
+			Sequence:    3,
+			Type:        trace.EvtInputSafetyBlocked,
+			Timestamp:   timestamppb.New(traceAt),
+			PayloadJson: `{"blocked":true}`,
+		}},
+		MessagesHasMore:       true,
+		TracesHasMore:         true,
+		TracesTruncatedBefore: true,
+		FirstTraceSequence:    3,
+		LastTraceSequence:     3,
+	}}
+	client := &Client{client: stub}
+
+	result, err := client.GetSessionTimeline(context.Background(), agent.SessionTimelineOptions{
+		SessionID:     " default ",
+		MessageOffset: 2,
+		MessageLimit:  1,
+		TraceOffset:   3,
+		TraceLimit:    4,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "default", stub.TimelineReq.GetId())
+	require.EqualValues(t, 2, stub.TimelineReq.GetMessageOffset())
+	require.EqualValues(t, 1, stub.TimelineReq.GetMessageLimit())
+	require.EqualValues(t, 3, stub.TimelineReq.GetTraceOffset())
+	require.EqualValues(t, 4, stub.TimelineReq.GetTraceLimit())
+	require.Equal(t, "default", result.SessionID)
+	require.True(t, result.MessagesHasMore)
+	require.True(t, result.TracesHasMore)
+	require.True(t, result.TracesTruncatedBefore)
+	require.Equal(t, 3, result.FirstTraceSequence)
+	require.Equal(t, 3, result.LastTraceSequence)
+	require.Len(t, result.Messages, 1)
+	require.Equal(t, 2, result.Messages[0].Offset)
+	require.EqualValues(t, 7, result.Messages[0].Message.ID)
+	require.Equal(t, "tool", string(result.Messages[0].Message.Role))
+	require.Equal(t, "read_file", result.Messages[0].Message.Name)
+	require.Equal(t, "call_1", result.Messages[0].Message.ToolCallID)
+	require.Equal(t, "file content", result.Messages[0].Message.Content)
+	require.Equal(t, messageAt, result.Messages[0].Message.CreatedAt)
+	require.Len(t, result.Messages[0].Message.ToolCalls, 1)
+	require.Equal(t, "call_2", result.Messages[0].Message.ToolCalls[0].ID)
+	require.Equal(t, "search", result.Messages[0].Message.ToolCalls[0].Name)
+	require.Len(t, result.TraceEvents, 1)
+	require.EqualValues(t, 9, result.TraceEvents[0].Event.ID)
+	require.Equal(t, 3, result.TraceEvents[0].Event.Sequence)
+	require.Equal(t, trace.EvtInputSafetyBlocked, result.TraceEvents[0].Event.Type)
+	require.Equal(t, traceAt, result.TraceEvents[0].Event.Timestamp)
+	require.Equal(t, map[string]any{"blocked": true}, result.TraceEvents[0].Event.Payload)
+}
+
+func TestClient_GetSessionTimelineReturnsDecodeErrors(t *testing.T) {
+	client := &Client{client: &protomock.HandServiceClientStub{}}
+
+	_, err := client.GetSessionTimeline(context.Background(), agent.SessionTimelineOptions{})
+	require.EqualError(t, err, "hand: get session timeline response is required")
+
+	client = &Client{client: &protomock.HandServiceClientStub{TimelineResp: &handpb.GetSessionTimelineResponse{
+		TraceEvents: []*handpb.SessionTimelineTraceEvent{{PayloadJson: "{"}},
+	}}}
+	_, err = client.GetSessionTimeline(context.Background(), agent.SessionTimelineOptions{})
+	require.Error(t, err)
+}
+
+func TestClient_GetSessionTimelineReturnsRPCError(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	client := &Client{client: stub}
+
+	_, err := client.GetSessionTimeline(context.Background(), agent.SessionTimelineOptions{})
+
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestTimelineProtoAdaptersHandleNilRecords(t *testing.T) {
+	message := timelineMessageFromProto(nil)
+	require.Zero(t, message)
+
+	event, err := timelineTraceEventFromProto(nil)
+	require.NoError(t, err)
+	require.Zero(t, event)
+}
+
 func TestNewClient_ValidatesOptions(t *testing.T) {
 	_, err := NewClient(context.Background(), Options{})
 	require.EqualError(t, err, "rpc address is required")

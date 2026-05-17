@@ -24,13 +24,15 @@ func TestTrace_NormalizeTraceTypes(t *testing.T) {
 }
 
 func TestTrace_EventMatchesQuery(t *testing.T) {
-	event := TraceEvent{SessionID: DefaultSessionID, Type: "model.request"}
+	event := TraceEvent{SessionID: DefaultSessionID, Type: "model.request", Sequence: 2}
 
 	require.True(t, TraceEventMatchesQuery(event, TraceQuery{}))
 	require.True(t, TraceEventMatchesQuery(event, TraceQuery{SessionID: DefaultSessionID}))
 	require.True(t, TraceEventMatchesQuery(event, TraceQuery{Types: []string{" model.request "}}))
+	require.True(t, TraceEventMatchesQuery(event, TraceQuery{MinSequence: 2}))
 	require.False(t, TraceEventMatchesQuery(event, TraceQuery{SessionID: "ses_other"}))
 	require.False(t, TraceEventMatchesQuery(event, TraceQuery{Types: []string{"model.response"}}))
+	require.False(t, TraceEventMatchesQuery(event, TraceQuery{MinSequence: 3}))
 }
 
 func TestTrace_CloneTraceEventClonesPayload(t *testing.T) {

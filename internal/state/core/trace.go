@@ -21,11 +21,12 @@ type TraceEvent struct {
 }
 
 type TraceQuery struct {
-	SessionID string
-	Types     []string
-	Limit     int
-	Offset    int
-	Desc      bool
+	SessionID   string
+	Types       []string
+	Limit       int
+	Offset      int
+	MinSequence int
+	Desc        bool
 }
 
 type TraceResult struct {
@@ -65,6 +66,10 @@ func TraceEventMatchesQuery(event TraceEvent, query TraceQuery) bool {
 	if types := NormalizeTraceTypes(query.Types); len(types) > 0 && !slices.Contains(types, event.Type) {
 		return false
 	}
+	if query.MinSequence > 0 && event.Sequence < query.MinSequence {
+		return false
+	}
+
 	return true
 }
 

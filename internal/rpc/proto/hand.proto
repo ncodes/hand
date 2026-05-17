@@ -15,6 +15,7 @@ service HandService {
   rpc CompactSession(CompactSessionRequest) returns (CompactSessionResponse);
   rpc RepairSession(RepairSessionRequest) returns (RepairSessionResponse);
   rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  rpc GetSessionTimeline(GetSessionTimelineRequest) returns (GetSessionTimelineResponse);
 }
 
 message RespondRequest {
@@ -153,4 +154,47 @@ message GetSessionResponse {
     double used_pct = 5;
     double remaining_pct = 6;
   }
+}
+
+message GetSessionTimelineRequest {
+  string id = 1;
+  int32 message_offset = 2;
+  int32 message_limit = 3;
+  int32 trace_offset = 4;
+  int32 trace_limit = 5;
+}
+
+message SessionTimelineToolCall {
+  string id = 1;
+  string name = 2;
+}
+
+message SessionTimelineMessage {
+  int32 offset = 1;
+  uint64 id = 2;
+  string role = 3;
+  string name = 4;
+  string tool_call_id = 5;
+  string content = 6;
+  google.protobuf.Timestamp created_at = 7;
+  repeated SessionTimelineToolCall tool_calls = 8;
+}
+
+message SessionTimelineTraceEvent {
+  uint64 id = 1;
+  int32 sequence = 2;
+  string type = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  string payload_json = 5;
+}
+
+message GetSessionTimelineResponse {
+  string id = 1;
+  repeated SessionTimelineMessage messages = 2;
+  repeated SessionTimelineTraceEvent trace_events = 3;
+  bool messages_has_more = 4;
+  bool traces_has_more = 5;
+  bool traces_truncated_before = 6;
+  int32 first_trace_sequence = 7;
+  int32 last_trace_sequence = 8;
 }

@@ -28,6 +28,8 @@ type AgentServiceStub struct {
 	RepairResult     search.VectorRepairResult
 	SummaryResult    storage.SessionSummary
 	StatusResult     rpcclient.ContextStatus
+	TimelineOptions  agent.SessionTimelineOptions
+	TimelineResult   agent.SessionTimeline
 }
 
 func (s *AgentServiceStub) Respond(_ context.Context, msg string, opts rpcclient.RespondOptions) (string, error) {
@@ -98,6 +100,14 @@ func (s *AgentServiceStub) GetSession(context.Context, string) (rpcclient.Contex
 
 func (s *AgentServiceStub) ContextStatus(context.Context, string) (agent.ContextStatus, error) {
 	return agent.ContextStatus(s.StatusResult), s.Err
+}
+
+func (s *AgentServiceStub) GetSessionTimeline(
+	_ context.Context,
+	opts agent.SessionTimelineOptions,
+) (agent.SessionTimeline, error) {
+	s.TimelineOptions = opts
+	return s.TimelineResult, s.Err
 }
 
 func (s *AgentServiceStub) Close() error {

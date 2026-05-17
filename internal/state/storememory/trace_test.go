@@ -48,6 +48,10 @@ func TestMemoryStore_TraceAppendListAndPrune(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"second"}, traceEventTypes(result.Events))
 
+	result, err = store.ListTraceEvents(ctx, base.TraceQuery{SessionID: base.DefaultSessionID, MinSequence: 2})
+	require.NoError(t, err)
+	require.Equal(t, []string{"second"}, traceEventTypes(result.Events))
+
 	require.NoError(t, store.PruneTraceEvents(ctx, base.DefaultSessionID, 1))
 	result, err = store.ListTraceEvents(ctx, base.TraceQuery{SessionID: base.DefaultSessionID})
 	require.NoError(t, err)

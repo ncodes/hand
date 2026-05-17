@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/wandxy/hand/internal/agent"
+	handmsg "github.com/wandxy/hand/internal/messages"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
@@ -31,6 +32,10 @@ type CompactSessionResult = agent.CompactSessionResult
 
 type ContextStatus = agent.ContextStatus
 
+type SessionTimelineOptions = agent.SessionTimelineOptions
+
+type SessionTimeline = agent.SessionTimeline
+
 type RepairSessionOptions = search.VectorRepairOptions
 
 type RepairSessionResult = search.VectorRepairResult
@@ -47,6 +52,7 @@ type SessionAPI interface {
 	CompactSession(context.Context, string) (CompactSessionResult, error)
 	RepairSession(context.Context, RepairSessionOptions) (RepairSessionResult, error)
 	GetSession(context.Context, string) (ContextStatus, error)
+	GetSessionTimeline(context.Context, SessionTimelineOptions) (SessionTimeline, error)
 }
 
 type ServiceAPI interface {
@@ -309,12 +315,109 @@ func (c *Client) GetSession(ctx context.Context, id string) (ContextStatus, erro
 	}, nil
 }
 
+func (c *Client) GetSessionTimeline(
+	ctx context.Context,
+	opts SessionTimelineOptions,
+) (SessionTimeline, error) {
+	resp, err := c.client.GetSessionTimeline(ctx, &handpb.GetSessionTimelineRequest{
+		Id:            strings.TrimSpace(opts.SessionID),
+		MessageOffset: int32(opts.MessageOffset),
+		MessageLimit:  int32(opts.MessageLimit),
+		TraceOffset:   int32(opts.TraceOffset),
+		TraceLimit:    int32(opts.TraceLimit),
+	})
+	if err != nil {
+		return SessionTimeline{}, err
+	}
+
+	return protoSessionTimelineToTimeline(resp)
+}
+
 func (c *Client) Close() error {
 	if c == nil || c.conn == nil {
 		return nil
 	}
 
 	return c.conn.Close()
+}
+
+func protoSessionTimelineToTimeline(resp *handpb.GetSessionTimelineResponse) (SessionTimeline, error) {
+	if resp == nil {
+		return SessionTimeline{}, fmt.Errorf("hand: get session timeline response is required")
+	}
+
+	timeline := SessionTimeline{
+		SessionID:             resp.GetId(),
+		MessagesHasMore:       resp.GetMessagesHasMore(),
+		TracesHasMore:         resp.GetTracesHasMore(),
+		TracesTruncatedBefore: resp.GetTracesTruncatedBefore(),
+		FirstTraceSequence:    int(resp.GetFirstTraceSequence()),
+		LastTraceSequence:     int(resp.GetLastTraceSequence()),
+		Messages:              make([]agent.SessionTimelineMessage, 0, len(resp.GetMessages())),
+		TraceEvents:           make([]agent.SessionTimelineTraceEvent, 0, len(resp.GetTraceEvents())),
+	}
+	for _, message := range resp.GetMessages() {
+		timeline.Messages = append(timeline.Messages, timelineMessageFromProto(message))
+	}
+	for _, event := range resp.GetTraceEvents() {
+		timelineEvent, err := timelineTraceEventFromProto(event)
+		if err != nil {
+			return SessionTimeline{}, err
+		}
+		timeline.TraceEvents = append(timeline.TraceEvents, timelineEvent)
+	}
+
+	return timeline, nil
+}
+
+func timelineMessageFromProto(message *handpb.SessionTimelineMessage) agent.SessionTimelineMessage {
+	if message == nil {
+		return agent.SessionTimelineMessage{}
+	}
+
+	toolCalls := make([]handmsg.ToolCall, 0, len(message.GetToolCalls()))
+	for _, toolCall := range message.GetToolCalls() {
+		toolCalls = append(toolCalls, handmsg.ToolCall{
+			ID:   strings.TrimSpace(toolCall.GetId()),
+			Name: strings.TrimSpace(toolCall.GetName()),
+		})
+	}
+
+	return agent.SessionTimelineMessage{
+		Offset: int(message.GetOffset()),
+		Message: handmsg.Message{
+			ID:         uint(message.GetId()),
+			Role:       handmsg.Role(message.GetRole()),
+			Name:       message.GetName(),
+			ToolCallID: message.GetToolCallId(),
+			Content:    message.GetContent(),
+			CreatedAt:  protoTimestampToTime(message.GetCreatedAt()),
+			ToolCalls:  toolCalls,
+		},
+	}
+}
+
+func timelineTraceEventFromProto(event *handpb.SessionTimelineTraceEvent) (agent.SessionTimelineTraceEvent, error) {
+	if event == nil {
+		return agent.SessionTimelineTraceEvent{}, nil
+	}
+
+	var payload any
+	if payloadJSON := strings.TrimSpace(event.GetPayloadJson()); payloadJSON != "" {
+		if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
+			return agent.SessionTimelineTraceEvent{}, err
+		}
+	}
+
+	return agent.SessionTimelineTraceEvent{
+		Event: storage.TraceEvent{
+			ID:        uint(event.GetId()),
+			Sequence:  int(event.GetSequence()),
+			Type:      strings.TrimSpace(event.GetType()),
+			Timestamp: protoTimestampToTime(event.GetTimestamp()),
+			Payload:   payload,
+		},
+	}, nil
 }
 
 func protoSessionSummaryToSession(summary *handpb.SessionSummary) storage.Session {

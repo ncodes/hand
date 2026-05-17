@@ -2,8 +2,12 @@ package agent
 
 import (
 	"context"
+	"errors"
 
 	"github.com/wandxy/hand/internal/memory"
+	handmsg "github.com/wandxy/hand/internal/messages"
+	storage "github.com/wandxy/hand/internal/state/core"
+	storagememory "github.com/wandxy/hand/internal/state/storememory"
 )
 
 type memoryProviderStub struct {
@@ -64,4 +68,78 @@ func (nonSearchMemoryProvider) ConfigureObservability(memory.Observability) erro
 
 func (nonSearchMemoryProvider) Close() error {
 	return nil
+}
+
+type timelineErrorStore struct {
+	*storagememory.Store
+	messageErr error
+	traceErr   error
+}
+
+func (s *timelineErrorStore) Get(ctx context.Context, id string) (storage.Session, bool, error) {
+	return storage.Session{ID: storage.DefaultSessionID}, true, nil
+}
+
+func (s *timelineErrorStore) GetMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
+	if s.messageErr != nil {
+		return nil, s.messageErr
+	}
+
+	return nil, nil
+}
+
+func (s *timelineErrorStore) ListTraceEvents(ctx context.Context, query storage.TraceQuery) (storage.TraceResult, error) {
+	if s.traceErr != nil {
+		return storage.TraceResult{}, s.traceErr
+	}
+
+	return storage.TraceResult{}, nil
+}
+
+func (s *timelineErrorStore) PruneTraceEvents(context.Context, string, int) error {
+	return nil
+}
+
+func (s *timelineErrorStore) AppendTraceEvent(context.Context, storage.TraceEvent) (storage.TraceEvent, error) {
+	return storage.TraceEvent{}, nil
+}
+
+type timelineTraceGapErrorStore struct {
+	*timelineErrorStore
+}
+
+func (s *timelineTraceGapErrorStore) Get(ctx context.Context, id string) (storage.Session, bool, error) {
+	return storage.Session{ID: storage.DefaultSessionID}, true, nil
+}
+
+func (s *timelineTraceGapErrorStore) GetMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
+	return nil, nil
+}
+
+func (s *timelineTraceGapErrorStore) ListTraceEvents(ctx context.Context, query storage.TraceQuery) (storage.TraceResult, error) {
+	if query.MinSequence > 0 {
+		return storage.TraceResult{}, nil
+	}
+
+	return storage.TraceResult{}, errors.New("trace gap check failed")
+}
+
+func (s *timelineTraceGapErrorStore) PruneTraceEvents(context.Context, string, int) error {
+	return nil
+}
+
+func (s *timelineTraceGapErrorStore) AppendTraceEvent(context.Context, storage.TraceEvent) (storage.TraceEvent, error) {
+	return storage.TraceEvent{}, nil
+}
+
+type timelineTraceGapUnsupportedStore struct {
+	timelineTraceGapErrorStore
+}
+
+func (s *timelineTraceGapUnsupportedStore) ListTraceEvents(ctx context.Context, query storage.TraceQuery) (storage.TraceResult, error) {
+	if query.MinSequence > 0 {
+		return storage.TraceResult{}, nil
+	}
+
+	return storage.TraceResult{}, storage.ErrTraceStoreUnsupported
 }

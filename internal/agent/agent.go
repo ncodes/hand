@@ -47,6 +47,7 @@ type ServiceAPI interface {
 	CompactSession(context.Context, string) (CompactSessionResult, error)
 	RepairSession(context.Context, RepairSessionOptions) (RepairSessionResult, error)
 	ContextStatus(context.Context, string) (ContextStatus, error)
+	GetSessionTimeline(context.Context, SessionTimelineOptions) (SessionTimeline, error)
 }
 
 type RespondOptions struct {
@@ -89,6 +90,34 @@ type ContextStatus struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	CompactionStatus string
+}
+
+type SessionTimelineOptions struct {
+	SessionID     string
+	MessageOffset int
+	MessageLimit  int
+	TraceOffset   int
+	TraceLimit    int
+}
+
+type SessionTimeline struct {
+	SessionID             string
+	Messages              []SessionTimelineMessage
+	TraceEvents           []SessionTimelineTraceEvent
+	MessagesHasMore       bool
+	TracesHasMore         bool
+	TracesTruncatedBefore bool
+	FirstTraceSequence    int
+	LastTraceSequence     int
+}
+
+type SessionTimelineMessage struct {
+	Message handmsg.Message
+	Offset  int
+}
+
+type SessionTimelineTraceEvent struct {
+	Event storage.TraceEvent
 }
 
 var newEnvironment = func(ctx context.Context, cfg *config.Config) environment.Environment {

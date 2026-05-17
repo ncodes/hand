@@ -459,6 +459,34 @@ func (s *Service) GetSession(ctx context.Context, req *handpb.GetSessionRequest)
 	}, nil
 }
 
+func (s *Service) GetSessionTimeline(
+	ctx context.Context,
+	req *handpb.GetSessionTimelineRequest,
+) (*handpb.GetSessionTimelineResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return nil, status.Error(codes.Internal, "agent handler is required")
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "get session timeline request is required")
+	}
+
+	result, err := s.api.GetSessionTimeline(ctx, agent.SessionTimelineOptions{
+		SessionID:     req.GetId(),
+		MessageOffset: int(req.GetMessageOffset()),
+		MessageLimit:  int(req.GetMessageLimit()),
+		TraceOffset:   int(req.GetTraceOffset()),
+		TraceLimit:    int(req.GetTraceLimit()),
+	})
+	if err != nil {
+		return nil, getGRPCError(err)
+	}
+
+	return sessionTimelineToProtoResponse(result), nil
+}
+
 func getGRPCError(err error) error {
 	if err == nil {
 		return nil
@@ -476,6 +504,7 @@ func getGRPCError(err error) error {
 		return status.Error(codes.DeadlineExceeded, message)
 	case strings.HasSuffix(message, "is required"),
 		strings.Contains(message, "must be a valid"),
+		strings.Contains(message, "must be greater than or equal to"),
 		strings.Contains(message, "cannot be deleted"):
 		return status.Error(codes.InvalidArgument, message)
 	case strings.HasSuffix(message, "not found"):
@@ -492,4 +521,71 @@ func sessionToProtoSummary(session storage.Session) *handpb.SessionSummary {
 		Id:            session.ID,
 		UpdatedAtUnix: session.UpdatedAt.Unix(),
 	}
+}
+
+func sessionTimelineToProtoResponse(timeline agent.SessionTimeline) *handpb.GetSessionTimelineResponse {
+	response := &handpb.GetSessionTimelineResponse{
+		Id:                    timeline.SessionID,
+		MessagesHasMore:       timeline.MessagesHasMore,
+		TracesHasMore:         timeline.TracesHasMore,
+		TracesTruncatedBefore: timeline.TracesTruncatedBefore,
+		Messages:              make([]*handpb.SessionTimelineMessage, 0, len(timeline.Messages)),
+		TraceEvents:           make([]*handpb.SessionTimelineTraceEvent, 0, len(timeline.TraceEvents)),
+	}
+	for _, message := range timeline.Messages {
+		response.Messages = append(response.Messages, timelineMessageToProto(message))
+	}
+	for _, event := range timeline.TraceEvents {
+		if protoEvent, ok := timelineTraceEventToProto(event.Event); ok {
+			response.TraceEvents = append(response.TraceEvents, protoEvent)
+		}
+	}
+	if len(response.TraceEvents) > 0 {
+		response.FirstTraceSequence = response.TraceEvents[0].GetSequence()
+		response.LastTraceSequence = response.TraceEvents[len(response.TraceEvents)-1].GetSequence()
+	}
+
+	return response
+}
+
+func timelineMessageToProto(record agent.SessionTimelineMessage) *handpb.SessionTimelineMessage {
+	message := record.Message
+	protoMessage := &handpb.SessionTimelineMessage{
+		Offset:     int32(record.Offset),
+		Id:         uint64(message.ID),
+		Role:       string(message.Role),
+		Name:       message.Name,
+		ToolCallId: message.ToolCallID,
+		Content:    message.Content,
+		CreatedAt:  timestamppb.New(message.CreatedAt),
+		ToolCalls:  make([]*handpb.SessionTimelineToolCall, 0, len(message.ToolCalls)),
+	}
+	for _, toolCall := range message.ToolCalls {
+		protoMessage.ToolCalls = append(protoMessage.ToolCalls, &handpb.SessionTimelineToolCall{
+			Id:   strings.TrimSpace(toolCall.ID),
+			Name: strings.TrimSpace(toolCall.Name),
+		})
+	}
+
+	return protoMessage
+}
+
+func timelineTraceEventToProto(event storage.TraceEvent) (*handpb.SessionTimelineTraceEvent, bool) {
+	payload, ok := getRPCTracePayload(event.Type, event.Payload)
+	if !ok {
+		return nil, false
+	}
+
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return nil, false
+	}
+
+	return &handpb.SessionTimelineTraceEvent{
+		Id:          uint64(event.ID),
+		Sequence:    int32(event.Sequence),
+		Type:        strings.TrimSpace(event.Type),
+		Timestamp:   timestamppb.New(event.Timestamp),
+		PayloadJson: string(payloadJSON),
+	}, true
 }
