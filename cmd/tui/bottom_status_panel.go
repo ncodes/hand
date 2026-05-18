@@ -9,9 +9,11 @@ import (
 // renderBottomStatusPanel renders the compact bottom status panel below the composer.
 func (m model) renderBottomStatusPanel() string {
 	availableWidth := getInputBoxWidth(m.width)
+	horizontalPadding := getPanelHorizontalPadding(availableWidth)
+	contentWidth := getPanelContentWidth(availableWidth)
 	status := m.status.Text()
 
-	left := joinBottomStatusPanelSegments([]string{m.modelName, status}, availableWidth)
+	left := joinBottomStatusPanelSegments([]string{m.modelName, status}, contentWidth)
 	right := strings.TrimSpace(m.context)
 	if m.hasPendingExitConfirmation() {
 		left = status
@@ -20,8 +22,9 @@ func (m model) renderBottomStatusPanel() string {
 
 	return lipgloss.NewStyle().
 		Foreground(lipgloss.Color("8")).
+		Padding(0, horizontalPadding).
 		Width(availableWidth).
-		Render(spaceBetweenBottomStatusPanel(left, right, availableWidth))
+		Render(spaceBetweenBottomStatusPanel(left, right, contentWidth))
 }
 
 // joinBottomStatusPanelSegments joins metadata while preserving narrow-screen fallback.

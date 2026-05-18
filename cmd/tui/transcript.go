@@ -18,7 +18,10 @@ func newTranscript() viewport.Model {
 
 // renderTranscript draws the conversation viewport.
 func (m model) renderTranscript() string {
+	horizontalPadding := getPanelHorizontalPadding(m.width)
+
 	return lipgloss.NewStyle().
+		Padding(0, horizontalPadding).
 		Width(m.width).
 		Height(max(m.transcript.Height(), 1)).
 		Render(m.transcript.View())
@@ -50,7 +53,11 @@ func (m *model) renderTranscriptContent() string {
 		m.showIntro = false
 	}
 
-	content := strings.TrimSpace(m.renderHeader())
+	headerWidth := m.transcript.Width()
+	if headerWidth <= 0 {
+		headerWidth = getPanelContentWidth(m.width)
+	}
+	content := strings.TrimSpace(m.renderHeaderWithWidth(headerWidth))
 	if cellsText := strings.TrimSpace(renderTranscriptCells(cells)); cellsText != "" {
 		content = strings.Join([]string{content, cellsText}, "\n\n")
 	}

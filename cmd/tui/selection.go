@@ -97,7 +97,9 @@ func (m model) transcriptSelectionPointFromMouse(mouse tea.Mouse) (transcriptSel
 		return transcriptSelectionPoint{}, false
 	}
 
-	return m.transcriptSelectionPointFromVisualLine(m.transcript.YOffset()+row, mouse.X)
+	x := max(mouse.X-getPanelHorizontalPadding(m.width), 0)
+
+	return m.transcriptSelectionPointFromVisualLine(m.transcript.YOffset()+row, x)
 }
 
 func (m model) getTranscriptTop() int {

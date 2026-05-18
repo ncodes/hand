@@ -49,12 +49,20 @@ var handBannerColors = []color.Color{
 
 // renderHeader draws the fixed title bar.
 func (m model) renderHeader() string {
+	return m.renderHeaderWithWidth(m.width)
+}
+
+func (m model) renderHeaderWithWidth(width int) string {
+	width = max(width, 1)
+	contentModel := m
+	contentModel.width = width
+
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderBottom(true).
 		BorderForeground(lipgloss.Color("#242424")).
-		Width(m.width).
-		Render(m.renderHeaderContent())
+		Width(width).
+		Render(contentModel.renderHeaderContent())
 }
 
 // renderHeaderContent arranges the banner and runtime info panel.

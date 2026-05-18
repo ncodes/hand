@@ -573,11 +573,18 @@ func TestModel_RenderBottomStatusPanelMovesContextToRight(t *testing.T) {
 	runModel := newModel()
 	content := stripANSI(runModel.renderBottomStatusPanel())
 
+	require.True(t, strings.HasPrefix(content, " "))
+	require.Equal(t, runModel.width, lipgloss.Width(content))
 	require.Contains(t, content, "GPT 5.5")
 	require.Contains(t, content, "default session")
 	require.Contains(t, content, "60,000 used · 65%")
 	require.GreaterOrEqual(t, strings.Count(content, "  "), 1)
 	require.Greater(t, strings.Index(content, "60,000 used"), strings.Index(content, "default session"))
+}
+
+func TestGetPanelHorizontalPadding_DisablesPaddingWhenNarrow(t *testing.T) {
+	require.Equal(t, 0, getPanelHorizontalPadding(2))
+	require.Equal(t, panelHorizontalPadding, getPanelHorizontalPadding(3))
 }
 
 func TestJoinBottomStatusPanelSegments_HandlesEmptySingleAndNarrowValues(t *testing.T) {
@@ -599,7 +606,7 @@ func TestModel_UpdateResizesTranscriptAndInput(t *testing.T) {
 	resized := updated.(model)
 	require.Equal(t, 100, resized.width)
 	require.Equal(t, 30, resized.height)
-	require.Equal(t, 100, resized.transcript.Width())
+	require.Equal(t, getPanelContentWidth(100), resized.transcript.Width())
 	require.LessOrEqual(t, resized.input.Width(), 100)
 	require.GreaterOrEqual(t, resized.transcript.Height(), 1)
 	require.Equal(t, 1, resized.input.Height())
@@ -1065,7 +1072,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 
 	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      len("Hand: second"),
+		X:      getPanelHorizontalPadding(runModel.width) + len("Hand: second"),
 		Y:      secondRow,
 	}))
 	require.Nil(t, cmd)
@@ -1076,7 +1083,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 
 	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      len("Hand: second"),
+		X:      getPanelHorizontalPadding(runModel.width) + len("Hand: second"),
 		Y:      secondRow,
 	}))
 
@@ -1112,7 +1119,7 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 
 	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      len("Hand: "),
+		X:      getPanelHorizontalPadding(runModel.width) + len("Hand: "),
 		Y:      row,
 	}))
 	require.Nil(t, cmd)
@@ -1120,7 +1127,7 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 
 	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      len("Hand: sec"),
+		X:      getPanelHorizontalPadding(runModel.width) + len("Hand: sec"),
 		Y:      row,
 	}))
 	require.Nil(t, cmd)
@@ -1128,7 +1135,7 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 
 	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      len("Hand: sec"),
+		X:      getPanelHorizontalPadding(runModel.width) + len("Hand: sec"),
 		Y:      row,
 	}))
 
@@ -1341,7 +1348,7 @@ func TestModel_TranscriptSelectionPointFromMouseUsesWrappedVisualViewportOffset(
 	runModel.transcript.SetYOffset(getWrappedTranscriptLineHeight(firstLine, width))
 
 	point, ok := runModel.transcriptSelectionPointFromMouse(tea.Mouse{
-		X: len("target"),
+		X: getPanelHorizontalPadding(runModel.width) + len("target"),
 		Y: runModel.getTranscriptTop(),
 	})
 

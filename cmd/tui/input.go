@@ -83,7 +83,7 @@ func (m *model) resize() {
 	transcriptHeight := max(m.height-inputHeight-inputChromeHeight, 1)
 
 	m.input.SetHeight(inputHeight)
-	m.transcript.SetWidth(m.width)
+	m.transcript.SetWidth(getPanelContentWidth(m.width))
 	m.transcript.SetHeight(transcriptHeight)
 }
 
