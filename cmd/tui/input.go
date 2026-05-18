@@ -61,7 +61,7 @@ func renderInputPrompt(info textarea.PromptInfo) string {
 // renderInput draws the composer and its model/context/status row.
 func (m model) renderInput() string {
 	inputBox := lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
+		BorderStyle(lipgloss.RoundedBorder()).
 		BorderTop(true).
 		BorderRight(true).
 		BorderBottom(true).

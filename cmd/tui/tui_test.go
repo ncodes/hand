@@ -560,13 +560,13 @@ func TestModel_RenderInputUsesCompleteComposerFrame(t *testing.T) {
 	lines := strings.Split(stripANSI(runModel.renderInput()), "\n")
 
 	require.GreaterOrEqual(t, len(lines), 3)
-	require.True(t, strings.HasPrefix(lines[0], "┌"))
-	require.True(t, strings.HasSuffix(strings.TrimRight(lines[0], " "), "┐"))
+	require.True(t, strings.HasPrefix(lines[0], "╭"))
+	require.True(t, strings.HasSuffix(strings.TrimRight(lines[0], " "), "╮"))
 	require.True(t, strings.HasPrefix(lines[1], "│"))
 	require.True(t, strings.HasSuffix(strings.TrimRight(lines[1], " "), "│"))
 	require.Contains(t, lines[1], inputPrompt+"Ask Hand...")
-	require.True(t, strings.HasPrefix(lines[2], "└"))
-	require.True(t, strings.HasSuffix(strings.TrimRight(lines[2], " "), "┘"))
+	require.True(t, strings.HasPrefix(lines[2], "╰"))
+	require.True(t, strings.HasSuffix(strings.TrimRight(lines[2], " "), "╯"))
 }
 
 func TestModel_RenderInputInfoMovesContextToRight(t *testing.T) {
