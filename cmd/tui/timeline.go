@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,33 @@ import (
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/internal/trace"
 )
+
+type sessionTimelineLoader interface {
+	GetSessionTimeline(context.Context, rpcclient.SessionTimelineOptions) (rpcclient.SessionTimeline, error)
+}
+
+type sessionTimelineLoadedMsg struct {
+	Timeline rpcclient.SessionTimeline
+}
+
+type sessionTimelineLoadFailedMsg struct {
+	Err error
+}
+
+func loadSessionTimelineCmd(ctx context.Context, client sessionTimelineLoader) tea.Cmd {
+	if client == nil {
+		return nil
+	}
+
+	return func() tea.Msg {
+		timeline, err := client.GetSessionTimeline(ctx, rpcclient.SessionTimelineOptions{})
+		if err != nil {
+			return sessionTimelineLoadFailedMsg{Err: err}
+		}
+
+		return sessionTimelineLoadedMsg{Timeline: timeline}
+	}
+}
 
 func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.Cmd {
 	cells := sessionTimelineToTranscriptCells(timeline)

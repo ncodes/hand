@@ -52,12 +52,9 @@ func savePromptHistory(history []string) error {
 		return err
 	}
 
-	data, err := json.MarshalIndent(promptHistoryFile{
+	data, _ := json.MarshalIndent(promptHistoryFile{
 		Entries: normalizePromptHistory(history),
 	}, "", "  ")
-	if err != nil {
-		return err
-	}
 
 	return os.WriteFile(path, append(data, '\n'), 0o600)
 }

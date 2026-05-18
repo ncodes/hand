@@ -1,12 +1,15 @@
 package tui
 
 import (
+	"context"
 	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+
+	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 )
 
 const (
@@ -39,12 +42,31 @@ type model struct {
 	history    []string
 	historyAt  int
 	draft      string
+	chatClient rpcclient.ChatAPI
+	timeline   sessionTimelineLoader
+	chatCtx    context.Context
+	responding bool
+	responseID int
+	events     <-chan tea.Msg
 	exitAt     time.Time
 	allowShell bool
+	selection  transcriptSelection
 }
 
 // newModel builds the initial TUI state and sizes child components.
 func newModel() model {
+	return newModelWithClientContext(context.Background(), nil)
+}
+
+func newModelWithClient(client rpcclient.ChatAPI) model {
+	return newModelWithClientContext(context.Background(), client)
+}
+
+func newModelWithClientContext(ctx context.Context, client rpcclient.ChatAPI) model {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	history, err := loadPromptHistory()
 	appModel := model{
 		transcript: newTranscript(),
@@ -55,6 +77,11 @@ func newModel() model {
 		modelName:  "GPT 5.5",
 		context:    "60,000 used · 65%",
 		history:    history,
+		chatClient: client,
+		chatCtx:    ctx,
+	}
+	if timeline, ok := client.(sessionTimelineLoader); ok {
+		appModel.timeline = timeline
 	}
 	appModel.historyAt = len(appModel.history)
 	if err != nil {
@@ -67,7 +94,7 @@ func newModel() model {
 
 // Init focuses the input composer when Bubble Tea starts the program.
 func (m model) Init() tea.Cmd {
-	return tea.Batch(m.input.Focus(), m.statusExpireCmd())
+	return tea.Batch(m.input.Focus(), m.statusExpireCmd(), loadSessionTimelineCmd(m.chatCtx, m.timeline))
 }
 
 // Update handles terminal events and delegates ordinary input to child models.
@@ -84,11 +111,37 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status.expire(msg)
 		return m, nil
 	case assistantTextDeltaMsg:
-		m.appendAssistantDelta(msg.Text)
-		return m, nil
+		return m, m.applyTUIMessage(msg)
 	case assistantResponseCompletedMsg:
-		m.completeAssistantResponse(msg.Text)
+		return m, m.applyTUIMessage(msg)
+	case responseEventMsg:
+		if !m.isActiveResponse(msg.ResponseID) {
+			return m, nil
+		}
+		cmd := m.applyTUIMessage(msg.Message)
+		if m.events != nil {
+			cmd = tea.Batch(cmd, waitForResponseEvent(msg.ResponseID, m.events))
+		}
+		return m, cmd
+	case responseEventsClosedMsg:
+		if !m.isActiveResponse(msg.ResponseID) {
+			return m, nil
+		}
 		return m, nil
+	case responseCompletedMsg:
+		return m, m.completeResponse(msg)
+	case sessionTimelineLoadedMsg:
+		return m, m.hydrateSessionTimeline(msg.Timeline)
+	case sessionTimelineLoadFailedMsg:
+		return m, m.setStatus("session timeline unavailable")
+	case sessionErrorMsg:
+		return m, m.applyTUIMessage(msg)
+	case toolInvocationStartedMsg:
+		return m, m.applyTUIMessage(msg)
+	case toolInvocationCompletedMsg:
+		return m, m.applyTUIMessage(msg)
+	case safetyEventMsg:
+		return m, m.applyTUIMessage(msg)
 	case tea.PasteMsg:
 		m.input, _ = m.input.Update(msg)
 		m.resize()
@@ -97,6 +150,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Keystroke() {
 		case "ctrl+c":
 			return m.confirmExit()
+		case "ctrl+y":
+			return m, m.copyTranscript()
 		case "esc":
 			return m, nil
 		case "ctrl+p":
@@ -122,6 +177,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showNextPrompt()
 			}
 			return m, nil
+		}
+		if m.scrollTranscriptWithKey(msg) {
+			return m, nil
+		}
+	case tea.MouseWheelMsg:
+		return m.updateTranscript(msg)
+	case tea.MouseClickMsg:
+		if m.startTranscriptSelection(msg) {
+			return m, nil
+		}
+	case tea.MouseMotionMsg:
+		if m.updateTranscriptSelection(msg) {
+			return m, nil
+		}
+	case tea.MouseReleaseMsg:
+		if cmd := m.finishTranscriptSelection(msg); cmd != nil {
+			return m, cmd
 		}
 	}
 
@@ -221,11 +293,15 @@ func (m *model) submitPrompt() tea.Cmd {
 	if input.Kind == composerInputEmpty {
 		return nil
 	}
+	if input.Kind == composerInputPrompt && m.responding {
+		return m.setStatus("response already in progress")
+	}
 
 	cmd := m.addPromptHistory(input.Text)
 	switch input.Kind {
 	case composerInputPrompt:
 		m.messages = append(m.messages, "You: "+input.Text)
+		cmd = tea.Batch(cmd, m.startResponse(input.Text))
 	case composerInputCommand:
 		cmd = tea.Batch(cmd, m.handleSlashCommand(input))
 	case composerInputLocalCommand:
@@ -238,6 +314,69 @@ func (m *model) submitPrompt() tea.Cmd {
 	return cmd
 }
 
+func (m *model) startResponse(prompt string) tea.Cmd {
+	if m.chatClient == nil {
+		return nil
+	}
+
+	events := make(chan tea.Msg, 32)
+	m.responseID++
+	m.events = events
+	m.responding = true
+
+	return tea.Batch(
+		respondToPromptCmd(m.chatClient, m.responseID, m.chatCtx, prompt, events),
+		waitForResponseEvent(m.responseID, events),
+	)
+}
+
+func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
+	if !m.isActiveResponse(msg.ResponseID) {
+		return nil
+	}
+
+	m.responding = false
+	m.events = nil
+	if msg.Err != nil {
+		errorMsg := sessionErrorMsg{Message: msg.Err.Error()}
+		m.addTranscriptMessage(errorMsg)
+		return m.setStatus("response failed")
+	}
+
+	m.completeAssistantResponse(msg.Text)
+	return nil
+}
+
+func (m model) isActiveResponse(responseID int) bool {
+	return m.responding && responseID == m.responseID
+}
+
+func (m *model) applyTUIMessage(msg any) tea.Cmd {
+	switch value := msg.(type) {
+	case assistantTextDeltaMsg:
+		m.appendAssistantDelta(value.Text)
+	case assistantResponseCompletedMsg:
+		m.completeAssistantResponse(value.Text)
+	case sessionErrorMsg:
+		m.addTranscriptMessage(value)
+		return m.setStatus("response failed")
+	case toolInvocationStartedMsg,
+		toolInvocationCompletedMsg,
+		safetyEventMsg:
+		m.addTranscriptMessage(value)
+	}
+
+	return nil
+}
+
+func (m *model) addTranscriptMessage(msg any) {
+	if cell := tuiMessageToTranscriptCell(msg); cell != "" {
+		m.messages = append(m.messages, cell)
+		m.setTranscriptContent()
+		m.resize()
+	}
+}
+
 func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 	var cmd tea.Cmd
 	switch input.Name {
@@ -247,7 +386,9 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 		m.stream.Reset()
 		cmd = m.setStatus("transcript cleared")
 	case "help":
-		m.messages = append(m.messages, "Commands: /clear, /help")
+		m.messages = append(m.messages, "Commands: /clear, /copy, /help")
+	case "copy":
+		cmd = m.copyTranscript()
 	case "":
 		cmd = m.setStatus("empty command")
 	default:

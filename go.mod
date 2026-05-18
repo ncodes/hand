@@ -10,12 +10,14 @@ require (
 	charm.land/lipgloss/v2 v2.0.2
 	codeberg.org/readeck/go-readability/v2 v2.1.1
 	github.com/asg017/sqlite-vec-go-bindings v0.1.6
+	github.com/atotto/clipboard v0.1.4
 	github.com/bluekeyes/go-gitdiff v0.8.1
 	github.com/coder/hnsw v0.6.1
 	github.com/joho/godotenv v1.5.1
 	github.com/kr/pretty v0.3.1
 	github.com/matoous/go-nanoid/v2 v2.1.0
 	github.com/openai/openai-go/v3 v3.29.0
+	github.com/rivo/uniseg v0.4.7
 	github.com/rs/zerolog v1.34.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/net v0.48.0
@@ -29,7 +31,6 @@ require (
 require (
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de // indirect
-	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/charmbracelet/colorprofile v0.4.2 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20260205113103-524a6607adb8 // indirect
 	github.com/charmbracelet/x/ansi v0.11.6 // indirect
@@ -53,7 +54,6 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect

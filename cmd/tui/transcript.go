@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
 
@@ -25,6 +26,8 @@ func (m model) renderTranscript() string {
 }
 
 func (m *model) setTranscriptContent() {
+	m.clearTranscriptSelection()
+
 	cells := make([]string, 0, len(m.messages)+1)
 	cells = append(cells, m.messages...)
 	if strings.TrimSpace(m.live) != "" {
@@ -33,4 +36,28 @@ func (m *model) setTranscriptContent() {
 
 	m.transcript.SetContent(strings.Join(cells, "\n\n"))
 	m.transcript.GotoBottom()
+}
+
+func (m *model) updateTranscript(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.transcript, cmd = m.transcript.Update(msg)
+
+	return *m, cmd
+}
+
+func (m *model) scrollTranscriptWithKey(msg tea.KeyPressMsg) bool {
+	switch msg.Key().Code {
+	case tea.KeyPgUp:
+		m.transcript.PageUp()
+	case tea.KeyPgDown:
+		m.transcript.PageDown()
+	case tea.KeyHome:
+		m.transcript.GotoTop()
+	case tea.KeyEnd:
+		m.transcript.GotoBottom()
+	default:
+		return false
+	}
+
+	return true
 }
