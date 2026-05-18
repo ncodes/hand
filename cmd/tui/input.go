@@ -8,9 +8,14 @@ import (
 )
 
 const (
-	inputHorizontalPadding = 2
-	minInputHeight         = 1
-	inputPrompt            = "❯ "
+	inputFrameHorizontalPadding = 1
+	inputFrameVerticalPadding   = 0
+	inputFrameBorderWidth       = 2
+	inputFrameChromeHeight      = inputFrameBorderWidth + inputFrameVerticalPadding*2
+	inputInfoHeight             = 1
+	minInputHeight              = 1
+	inputPrompt                 = "❯ "
+	inputFrameBackground        = "#050505"
 )
 
 // newInputComposer creates the multiline prompt editor.
@@ -58,9 +63,12 @@ func (m model) renderInput() string {
 	inputBox := lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderTop(true).
+		BorderRight(true).
 		BorderBottom(true).
+		BorderLeft(true).
+		Background(lipgloss.Color(inputFrameBackground)).
 		BorderForeground(lipgloss.Color("8")).
-		Padding(0, 1).
+		Padding(inputFrameVerticalPadding, inputFrameHorizontalPadding).
 		Width(getInputBoxWidth(m.width)).
 		Render(m.input.View())
 
@@ -135,7 +143,10 @@ func getInputBoxWidth(width int) int {
 
 // getInputInnerWidth returns the textarea wrapping width inside the composer.
 func getInputInnerWidth(width int) int {
-	return max(getInputBoxWidth(width)-inputHorizontalPadding, 1)
+	return max(
+		getInputBoxWidth(width)-inputFrameBorderWidth-(inputFrameHorizontalPadding*2),
+		1,
+	)
 }
 
 // getInputHeight returns the number of visible rows needed for the value.

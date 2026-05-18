@@ -16,7 +16,7 @@ const (
 	defaultWidth  = 80
 	defaultHeight = 24
 
-	inputChromeHeight = 3
+	inputChromeHeight = inputFrameChromeHeight + inputInfoHeight
 
 	exitConfirmationWindow = 2 * time.Second
 )
