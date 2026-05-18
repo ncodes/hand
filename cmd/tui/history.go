@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/wandxy/hand/internal/datadir"
 )
 
@@ -77,4 +79,64 @@ func normalizePromptHistory(history []string) []string {
 	}
 
 	return normalized
+}
+
+func (m *model) addPromptHistory(value string) tea.Cmd {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	if len(m.history) > 0 && m.history[len(m.history)-1] == value {
+		m.historyAt = len(m.history)
+		return nil
+	}
+
+	m.history = normalizePromptHistory(append(m.history, value))
+	m.historyAt = len(m.history)
+	if err := savePromptHistory(m.history); err != nil {
+		return m.setStatus("prompt history unavailable")
+	}
+
+	return nil
+}
+
+func (m *model) showPreviousPrompt() {
+	if len(m.history) == 0 {
+		return
+	}
+	if m.historyAt == len(m.history) {
+		m.draft = m.input.Value()
+	}
+	if m.historyAt > 0 {
+		m.historyAt--
+	}
+
+	m.input.SetValue(m.history[m.historyAt])
+	m.input.CursorEnd()
+	m.resize()
+}
+
+func (m *model) showNextPrompt() {
+	if len(m.history) == 0 || m.historyAt >= len(m.history) {
+		return
+	}
+
+	m.historyAt++
+	if m.historyAt == len(m.history) {
+		m.input.SetValue(m.draft)
+		m.draft = ""
+	} else {
+		m.input.SetValue(m.history[m.historyAt])
+	}
+	m.input.CursorEnd()
+	m.resize()
+}
+
+func (m model) shouldUseHistoryKey(msg tea.KeyPressMsg) bool {
+	switch msg.Key().Code {
+	case tea.KeyUp, tea.KeyDown:
+		return !strings.Contains(m.input.Value(), "\n")
+	default:
+		return false
+	}
 }

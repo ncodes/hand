@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/textarea"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
 
@@ -12,7 +13,7 @@ const (
 	inputFrameVerticalPadding   = 0
 	inputFrameBorderWidth       = 2
 	inputFrameChromeHeight      = inputFrameBorderWidth + inputFrameVerticalPadding*2
-	inputInfoHeight             = 1
+	bottomStatusPanelHeight     = 1
 	minInputHeight              = 1
 	inputPrompt                 = "❯ "
 	inputFrameBackground        = "#050505"
@@ -72,68 +73,65 @@ func (m model) renderInput() string {
 		Width(getInputBoxWidth(m.width)).
 		Render(m.input.View())
 
-	return lipgloss.JoinVertical(lipgloss.Left, inputBox, m.renderInputInfo())
+	return lipgloss.JoinVertical(lipgloss.Left, inputBox, m.renderBottomStatusPanel())
 }
 
-// renderInputInfo renders the compact metadata row below the composer.
-func (m model) renderInputInfo() string {
-	availableWidth := getInputBoxWidth(m.width)
-	status := m.status.Text()
+// resize distributes terminal rows between transcript and composer.
+func (m *model) resize() {
+	m.input.SetWidth(getInputInnerWidth(m.width))
+	inputHeight := m.getInputHeight()
+	transcriptHeight := max(m.height-inputHeight-inputChromeHeight, 1)
 
-	left := joinInputInfoSegments([]string{m.modelName, status}, availableWidth)
-	right := strings.TrimSpace(m.context)
-	if m.hasPendingExitConfirmation() {
-		left = status
-		right = ""
-	}
-
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("8")).
-		Width(availableWidth).
-		Render(spaceBetweenInputInfo(left, right, availableWidth))
+	m.input.SetHeight(inputHeight)
+	m.transcript.SetWidth(m.width)
+	m.transcript.SetHeight(transcriptHeight)
 }
 
-// joinInputInfoSegments joins metadata while preserving narrow-screen fallback.
-func joinInputInfoSegments(segments []string, width int) string {
-	visible := make([]string, 0, len(segments))
-	for _, segment := range segments {
-		if segment = strings.TrimSpace(segment); segment != "" {
-			visible = append(visible, segment)
-		}
-	}
-	if len(visible) == 0 {
-		return ""
-	}
-	if len(visible) == 1 {
-		return visible[0]
-	}
-
-	separator := "  ·  "
-	value := strings.Join(visible, separator)
-	if lipgloss.Width(value) <= width {
-		return value
-	}
-
-	return strings.Join(visible, " · ")
+// getInputHeight returns the visible composer height constrained by the screen.
+func (m model) getInputHeight() int {
+	return m.getInputHeightForValue(m.input.Value())
 }
 
-// spaceBetweenInputInfo pushes context usage to the right edge when possible.
-func spaceBetweenInputInfo(left, right string, width int) string {
-	left = strings.TrimSpace(left)
-	right = strings.TrimSpace(right)
-	if left == "" {
-		return right
+func (m model) getInputHeightForValue(value string) int {
+	availableHeight := max(m.height-inputChromeHeight-1, minInputHeight)
+	contentWidth := m.input.Width()
+	if contentWidth <= 0 {
+		contentWidth = getInputInnerWidth(m.width)
 	}
-	if right == "" {
-		return left
-	}
+	contentHeight := getInputHeight(value, contentWidth)
 
-	gap := width - lipgloss.Width(left) - lipgloss.Width(right)
-	if gap <= 0 {
-		return left + " · " + right
-	}
+	return min(contentHeight, availableHeight)
+}
 
-	return left + strings.Repeat(" ", gap) + right
+func (m *model) resizeInputForValue(value string) {
+	m.input.SetWidth(getInputInnerWidth(m.width))
+	m.input.SetHeight(m.getInputHeightForValue(value))
+}
+
+// insertInputNewline expands the composer before adding a newline.
+func (m model) insertInputNewline() (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	inputWidth := getInputInnerWidth(m.width)
+	availableHeight := max(m.height-inputChromeHeight-1, minInputHeight)
+	m.input.SetWidth(inputWidth)
+	m.input.SetHeight(min(getInputHeight(m.input.Value()+"\n", m.input.Width()), availableHeight))
+	m.input, cmd = m.input.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.resize()
+
+	return m, cmd
+}
+
+// deleteInputLine clears the current logical composer line.
+func (m model) deleteInputLine() (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.input.CursorEnd()
+	m.input, cmd = m.input.Update(tea.KeyPressMsg(tea.Key{
+		Code: 'u',
+		Mod:  tea.ModCtrl,
+	}))
+	m.resize()
+
+	return m, cmd
 }
 
 // getInputBoxWidth returns the full composer width.
@@ -172,4 +170,19 @@ func getWrappedLineHeight(line string, width int) int {
 	}
 
 	return max((lineWidth+width-1)/width, 1)
+}
+
+// isInputLineDeleteKey reports whether a key should clear the current row.
+func isInputLineDeleteKey(msg tea.KeyPressMsg) bool {
+	key := msg.Key()
+	switch {
+	case key.Code == 'u' && key.Mod.Contains(tea.ModCtrl):
+		return true
+	case key.Code == tea.KeyBackspace || key.Code == tea.KeyDelete:
+		return key.Mod.Contains(tea.ModSuper) ||
+			key.Mod.Contains(tea.ModMeta) ||
+			key.Mod.Contains(tea.ModCtrl)
+	default:
+		return false
+	}
 }

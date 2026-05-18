@@ -81,3 +81,72 @@ func (m *model) scrollTranscriptWithKey(msg tea.KeyPressMsg) bool {
 
 	return true
 }
+
+func (m *model) applyTUIMessage(msg any) tea.Cmd {
+	switch value := msg.(type) {
+	case assistantTextDeltaMsg:
+		m.appendAssistantDelta(value.Text)
+	case assistantResponseCompletedMsg:
+		m.completeAssistantResponse(value.Text)
+	case sessionErrorMsg:
+		m.addTranscriptMessage(value)
+		return m.setStatus("response failed")
+	case toolInvocationStartedMsg,
+		toolInvocationCompletedMsg,
+		safetyEventMsg:
+		m.addTranscriptMessage(value)
+	}
+
+	return nil
+}
+
+func (m *model) addTranscriptMessage(msg any) {
+	if cell := tuiMessageToTranscriptCell(msg); cell != "" {
+		m.messages = append(m.messages, cell)
+		if m.responding {
+			m.setTranscriptContentForActiveTurn()
+		} else {
+			m.setTranscriptContent()
+		}
+		m.resize()
+	}
+}
+
+func (m *model) appendAssistantDelta(delta string) {
+	if delta == "" {
+		return
+	}
+
+	m.stream.Add(delta)
+	m.live = assistantTranscriptCell(m.stream.Render())
+	m.setTranscriptContentForActiveTurn()
+	m.resize()
+}
+
+func (m *model) completeAssistantResponse(text string) {
+	reply := text
+	if strings.TrimSpace(reply) == "" {
+		reply = m.stream.Finalize()
+	} else {
+		m.stream.Reset()
+	}
+	if strings.TrimSpace(reply) == "" {
+		m.live = ""
+		m.setTranscriptContentForActiveTurn()
+		m.resize()
+		return
+	}
+
+	m.messages = append(m.messages, assistantTranscriptCell(reply))
+	m.live = ""
+	m.setTranscriptContentForActiveTurn()
+	m.resize()
+}
+
+func assistantTranscriptCell(text string) string {
+	if strings.TrimSpace(text) == "" {
+		return ""
+	}
+
+	return "Hand: " + text
+}

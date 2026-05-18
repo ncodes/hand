@@ -10,9 +10,17 @@ import (
 const (
 	defaultStatus        = "default session · ready · ctrl+c twice to quit"
 	statusAutoHideWindow = 3 * time.Second
+
+	exitConfirmationWindow = 2 * time.Second
 )
 
+var currentTime = time.Now
+
 type statusExpiredMsg struct {
+	startedAt time.Time
+}
+
+type exitConfirmationExpiredMsg struct {
 	startedAt time.Time
 }
 
@@ -71,4 +79,58 @@ func (s *statusModel) expire(msg statusExpiredMsg) {
 
 	s.text = ""
 	s.startedAt = time.Time{}
+}
+
+func (m *model) setStatus(text string) tea.Cmd {
+	return m.status.setTransient(text)
+}
+
+func (m model) statusExpireCmd() tea.Cmd {
+	if !m.status.hasTransient() {
+		return nil
+	}
+
+	startedAt := m.status.startedAt
+	hideAfter := m.status.hideAfter
+	if hideAfter <= 0 {
+		hideAfter = statusAutoHideWindow
+	}
+
+	return tea.Tick(hideAfter, func(time.Time) tea.Msg {
+		return statusExpiredMsg{startedAt: startedAt}
+	})
+}
+
+// confirmExit quits only after a second Ctrl-C inside a short window.
+func (m model) confirmExit() (tea.Model, tea.Cmd) {
+	now := currentTime()
+	if !m.exitAt.IsZero() && now.Sub(m.exitAt) <= exitConfirmationWindow {
+		return m, tea.Quit
+	}
+
+	m.exitAt = now
+	startedAt := m.exitAt
+	m.status.text = "Press Ctrl-C again to exit"
+	m.status.startedAt = startedAt
+
+	return m, tea.Tick(exitConfirmationWindow, func(time.Time) tea.Msg {
+		return exitConfirmationExpiredMsg{startedAt: startedAt}
+	})
+}
+
+// hasPendingExitConfirmation reports whether Ctrl-C is awaiting confirmation.
+func (m model) hasPendingExitConfirmation() bool {
+	return !m.exitAt.IsZero()
+}
+
+// expireExitConfirmation clears a stale Ctrl-C exit confirmation.
+func (m model) expireExitConfirmation(msg exitConfirmationExpiredMsg) tea.Model {
+	if m.exitAt.IsZero() || !m.exitAt.Equal(msg.startedAt) {
+		return m
+	}
+
+	m.exitAt = time.Time{}
+	m.status.expire(statusExpiredMsg{startedAt: msg.startedAt})
+
+	return m
 }

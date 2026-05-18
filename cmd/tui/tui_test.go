@@ -541,7 +541,7 @@ func TestModel_ViewUsesCompactBannerWhenFullBannerDoesNotFit(t *testing.T) {
 	require.NotContains(t, content, "░██")
 }
 
-func TestModel_ViewRendersInputInfoBelowComposer(t *testing.T) {
+func TestModel_ViewRendersBottomStatusPanelBelowComposer(t *testing.T) {
 	runModel := newModel()
 	content := stripANSI(runModel.View().Content)
 	inputIndex := strings.Index(content, inputPrompt+"Ask Hand...")
@@ -569,9 +569,9 @@ func TestModel_RenderInputUsesCompleteComposerFrame(t *testing.T) {
 	require.True(t, strings.HasSuffix(strings.TrimRight(lines[2], " "), "╯"))
 }
 
-func TestModel_RenderInputInfoMovesContextToRight(t *testing.T) {
+func TestModel_RenderBottomStatusPanelMovesContextToRight(t *testing.T) {
 	runModel := newModel()
-	content := stripANSI(runModel.renderInputInfo())
+	content := stripANSI(runModel.renderBottomStatusPanel())
 
 	require.Contains(t, content, "GPT 5.5")
 	require.Contains(t, content, "default session")
@@ -580,15 +580,15 @@ func TestModel_RenderInputInfoMovesContextToRight(t *testing.T) {
 	require.Greater(t, strings.Index(content, "60,000 used"), strings.Index(content, "default session"))
 }
 
-func TestJoinInputInfoSegments_HandlesEmptySingleAndNarrowValues(t *testing.T) {
-	require.Empty(t, joinInputInfoSegments([]string{" ", ""}, 20))
-	require.Equal(t, "ready", joinInputInfoSegments([]string{"ready"}, 20))
-	require.Equal(t, "model · status", joinInputInfoSegments([]string{"model", "status"}, 5))
+func TestJoinBottomStatusPanelSegments_HandlesEmptySingleAndNarrowValues(t *testing.T) {
+	require.Empty(t, joinBottomStatusPanelSegments([]string{" ", ""}, 20))
+	require.Equal(t, "ready", joinBottomStatusPanelSegments([]string{"ready"}, 20))
+	require.Equal(t, "model · status", joinBottomStatusPanelSegments([]string{"model", "status"}, 5))
 }
 
-func TestSpaceBetweenInputInfo_HandlesMissingAndNarrowSides(t *testing.T) {
-	require.Equal(t, "right", spaceBetweenInputInfo("", "right", 20))
-	require.Equal(t, "left · right", spaceBetweenInputInfo("left", "right", 1))
+func TestSpaceBetweenBottomStatusPanel_HandlesMissingAndNarrowSides(t *testing.T) {
+	require.Equal(t, "right", spaceBetweenBottomStatusPanel("", "right", 20))
+	require.Equal(t, "left · right", spaceBetweenBottomStatusPanel("left", "right", 1))
 }
 
 func TestModel_UpdateResizesTranscriptAndInput(t *testing.T) {
@@ -785,11 +785,11 @@ func TestModel_UpdateFirstCtrlCTimeoutReturnsExpirationMessage(t *testing.T) {
 	require.Equal(t, exitConfirmationExpiredMsg{startedAt: now}, msg)
 }
 
-func TestModel_RenderInputInfoShowsCtrlCNoticeOnRightOnly(t *testing.T) {
+func TestModel_RenderBottomStatusPanelShowsCtrlCNoticeOnRightOnly(t *testing.T) {
 	runModel := newModel()
 	runModel.exitAt = time.Date(2026, 5, 16, 9, 0, 0, 0, time.UTC)
 	runModel.status.setTransient("Press Ctrl-C again to exit")
-	content := stripANSI(runModel.renderInputInfo())
+	content := stripANSI(runModel.renderBottomStatusPanel())
 
 	require.Contains(t, content, "Press Ctrl-C again to exit")
 	require.NotContains(t, content, "GPT 5.5")

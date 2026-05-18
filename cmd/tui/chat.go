@@ -66,3 +66,42 @@ func waitForResponseEvent(responseID int, events <-chan tea.Msg) tea.Cmd {
 		return responseEventMsg{ResponseID: responseID, Message: msg}
 	}
 }
+
+func (m *model) startResponse(prompt string) tea.Cmd {
+	if m.chatClient == nil {
+		return nil
+	}
+
+	events := make(chan tea.Msg, 32)
+	m.responseID++
+	m.events = events
+	m.responding = true
+
+	return tea.Batch(
+		respondToPromptCmd(m.chatClient, m.responseID, m.chatCtx, prompt, events),
+		waitForResponseEvent(m.responseID, events),
+	)
+}
+
+func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
+	if !m.isActiveResponse(msg.ResponseID) {
+		return nil
+	}
+
+	if msg.Err != nil {
+		errorMsg := sessionErrorMsg{Message: msg.Err.Error()}
+		m.addTranscriptMessage(errorMsg)
+		m.responding = false
+		m.events = nil
+		return m.setStatus("response failed")
+	}
+
+	m.completeAssistantResponse(msg.Text)
+	m.responding = false
+	m.events = nil
+	return nil
+}
+
+func (m model) isActiveResponse(responseID int) bool {
+	return m.responding && responseID == m.responseID
+}
