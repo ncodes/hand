@@ -12,7 +12,6 @@ import (
 func newTranscript() viewport.Model {
 	transcript := viewport.New()
 	transcript.SoftWrap = true
-	transcript.SetContent("Welcome to Hand TUI.\n\nThe interactive shell is ready.")
 
 	return transcript
 }
@@ -33,8 +32,19 @@ func (m *model) setTranscriptContent() {
 	if strings.TrimSpace(m.live) != "" {
 		cells = append(cells, m.live)
 	}
+	if len(cells) == 0 && m.showIntro {
+		cells = append(cells, "Welcome to Hand TUI.\n\nThe interactive shell is ready.")
+	}
+	if len(cells) > 0 {
+		m.showIntro = false
+	}
 
-	m.transcript.SetContent(strings.Join(cells, "\n\n"))
+	content := strings.TrimSpace(m.renderHeader())
+	if cellsText := strings.TrimSpace(strings.Join(cells, "\n\n")); cellsText != "" {
+		content = strings.Join([]string{content, cellsText}, "\n\n")
+	}
+
+	m.transcript.SetContent(content)
 	m.transcript.GotoBottom()
 }
 

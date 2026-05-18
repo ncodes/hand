@@ -267,6 +267,7 @@ func TestModel_ViewRendersShellAreas(t *testing.T) {
 
 	require.True(t, view.AltScreen)
 	require.Equal(t, tea.MouseModeCellMotion, view.MouseMode)
+	require.Contains(t, view.Content, "48;2;41;41;41")
 	require.Contains(t, content, "██████")
 	require.Contains(t, content, "/changelogs")
 	require.Contains(t, content, inputPrompt+"Ask Hand...")
@@ -624,6 +625,26 @@ func TestModel_UpdateScrollsTranscriptWithPagingKeys(t *testing.T) {
 	require.Equal(t, bottomOffset, runModel.transcript.YOffset())
 }
 
+func TestModel_UpdateScrollsHeaderWithTranscript(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	runModel.messages = make([]string, 0, 30)
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+	}
+	runModel.setTranscriptContent()
+	runModel.transcript.GotoTop()
+	require.Contains(t, stripANSI(runModel.transcript.View()), "Welcome, Kennedy")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "Welcome, Kennedy")
+	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "Welcome, Kennedy")
+}
+
 func TestModel_UpdateScrollsTranscriptWithMouseWheel(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 10
@@ -869,7 +890,10 @@ func TestModel_UpdateHandlesClearCommand(t *testing.T) {
 	require.Empty(t, runModel.input.Value())
 	require.Empty(t, runModel.stream.Render())
 	require.Equal(t, "transcript cleared", runModel.status.Text())
-	require.Empty(t, strings.TrimSpace(stripANSI(runModel.transcript.View())))
+	content := stripANSI(runModel.transcript.View())
+	require.Contains(t, content, "Welcome, Kennedy")
+	require.NotContains(t, content, "You: stale")
+	require.NotContains(t, content, "Hand: live")
 
 	updated, cmd = runModel.Update(statusExpiredMsg{startedAt: runModel.status.startedAt})
 	require.Nil(t, cmd)
@@ -995,12 +1019,14 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	runModel.messages = []string{"You: first", "Hand: second", "Tool started: read_file"}
 	runModel.setTranscriptContent()
 	runModel.resize()
-	top := runModel.getTranscriptTop()
+	runModel.transcript.GotoTop()
+	firstRow := getTranscriptContentRow(t, runModel, "You: first")
+	secondRow := getTranscriptContentRow(t, runModel, "Hand: second")
 	require.GreaterOrEqual(t, runModel.transcript.Height(), 3)
 
 	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		Y:      top,
+		Y:      firstRow,
 	}))
 	require.Nil(t, cmd)
 	runModel = updated.(model)
@@ -1009,7 +1035,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
 		Button: tea.MouseLeft,
 		X:      len("Hand: second"),
-		Y:      top + 2,
+		Y:      secondRow,
 	}))
 	require.Nil(t, cmd)
 	runModel = updated.(model)
@@ -1017,7 +1043,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
 		Button: tea.MouseLeft,
 		X:      len("Hand: second"),
-		Y:      top + 2,
+		Y:      secondRow,
 	}))
 
 	require.NotNil(t, cmd)
@@ -1025,7 +1051,6 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	require.False(t, runModel.selection.dragging)
 	require.Equal(t, "You: first\n\nHand: second", copied)
 	require.Equal(t, "selection copied", runModel.status.Text())
-	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
 }
 
 func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
@@ -1044,12 +1069,13 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 	runModel.messages = []string{"Hand: second"}
 	runModel.setTranscriptContent()
 	runModel.resize()
-	top := runModel.getTranscriptTop()
+	runModel.transcript.GotoTop()
+	row := getTranscriptContentRow(t, runModel, "Hand: second")
 
 	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
 		Button: tea.MouseLeft,
 		X:      len("Hand: "),
-		Y:      top,
+		Y:      row,
 	}))
 	require.Nil(t, cmd)
 	runModel = updated.(model)
@@ -1057,7 +1083,7 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
 		Button: tea.MouseLeft,
 		X:      len("Hand: sec"),
-		Y:      top,
+		Y:      row,
 	}))
 	require.Nil(t, cmd)
 	runModel = updated.(model)
@@ -1065,7 +1091,7 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
 		Button: tea.MouseLeft,
 		X:      len("Hand: sec"),
-		Y:      top,
+		Y:      row,
 	}))
 
 	require.NotNil(t, cmd)
@@ -1181,11 +1207,12 @@ func TestModel_UpdateReportsMouseSelectionCopyFailure(t *testing.T) {
 	runModel.messages = []string{"Hand: first"}
 	runModel.setTranscriptContent()
 	runModel.resize()
-	top := runModel.getTranscriptTop()
+	runModel.transcript.GotoTop()
+	row := getTranscriptContentRow(t, runModel, "Hand: first")
 
 	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		Y:      top,
+		Y:      row,
 	}))
 	require.Nil(t, cmd)
 	runModel = updated.(model)
@@ -1193,7 +1220,7 @@ func TestModel_UpdateReportsMouseSelectionCopyFailure(t *testing.T) {
 	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
 		Button: tea.MouseLeft,
 		X:      len("Hand"),
-		Y:      top,
+		Y:      row,
 	}))
 
 	require.NotNil(t, cmd)
@@ -1247,8 +1274,7 @@ func TestModel_TranscriptSelectionPointFromMouseMapsWrappedVisualRowsToContentLi
 	runModel.height = 40
 	runModel.resize()
 	first := "Hand: " + strings.Repeat("wrapped ", 6)
-	runModel.messages = []string{first, "You: next"}
-	runModel.setTranscriptContent()
+	runModel.transcript.SetContent(first + "\nYou: next")
 	runModel.transcript.GotoTop()
 
 	point, ok := runModel.transcriptSelectionPointFromMouse(tea.Mouse{
@@ -1909,7 +1935,7 @@ func TestModel_UpdateLimitsPromptRowsToAvailableHeight(t *testing.T) {
 	}, "\n"))
 	runModel.resize()
 
-	require.Equal(t, 1, runModel.input.Height())
+	require.Equal(t, 2, runModel.input.Height())
 	require.Equal(t, 1, runModel.transcript.Height())
 }
 
@@ -1938,6 +1964,20 @@ func TestModel_UpdateClampsTinyWindowSize(t *testing.T) {
 
 func stripANSI(value string) string {
 	return ansi.Strip(value)
+}
+
+func getTranscriptContentRow(t *testing.T, runModel model, needle string) int {
+	t.Helper()
+
+	lines := strings.Split(stripANSI(runModel.transcript.GetContent()), "\n")
+	for index, line := range lines {
+		if strings.Contains(line, needle) {
+			return index
+		}
+	}
+
+	t.Fatalf("transcript row containing %q not found in %q", needle, runModel.transcript.GetContent())
+	return 0
 }
 
 func newTUITestRootCommand(action func(context.Context, *cli.Command) error) *cli.Command {

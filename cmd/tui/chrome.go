@@ -230,16 +230,6 @@ func (m model) getHeaderBanner() string {
 	return tinyHandBanner
 }
 
-// getHeaderHeight returns the rendered height reserved for the current banner.
-func (m model) getHeaderHeight() int {
-	headerHeight := lipgloss.Height(m.getHeaderBanner())
-	if infoPanel := m.renderHeaderInfoPanel(); infoPanel != "" {
-		headerHeight = max(headerHeight, lipgloss.Height(infoPanel))
-	}
-
-	return headerHeight + noticeBarHeight + noticeBarMarginBottom + headerBorderHeight
-}
-
 // renderHandBanner renders the generated figlet masthead.
 func renderHandBanner(banner string) string {
 	lines := strings.Split(banner, "\n")

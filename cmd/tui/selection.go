@@ -95,7 +95,7 @@ func (m model) transcriptSelectionPointFromMouse(mouse tea.Mouse) (transcriptSel
 }
 
 func (m model) getTranscriptTop() int {
-	return m.getHeaderHeight()
+	return 0
 }
 
 func (m model) transcriptSelectionPointFromVisualLine(
@@ -182,7 +182,7 @@ func (m model) selectedTranscriptText() string {
 		end = len(content)
 	}
 
-	return content[start:end]
+	return strings.TrimSpace(ansi.Strip(content[start:end]))
 }
 
 func (s transcriptSelection) offsetBounds() (int, int) {

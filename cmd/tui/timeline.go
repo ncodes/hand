@@ -51,6 +51,7 @@ func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.C
 
 	m.messages = cells
 	m.live = ""
+	m.showIntro = false
 	m.stream.Reset()
 	m.setTranscriptContent()
 	m.transcript.GotoTop()

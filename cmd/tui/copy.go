@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/atotto/clipboard"
+	"github.com/charmbracelet/x/ansi"
 )
 
 var writeClipboard = clipboard.WriteAll
@@ -28,7 +29,7 @@ func (m model) transcriptText() string {
 		cells = append(cells, m.live)
 	}
 	if len(cells) == 0 {
-		return strings.TrimSpace(m.transcript.GetContent())
+		return strings.TrimSpace(ansi.Strip(m.transcript.GetContent()))
 	}
 
 	return strings.TrimSpace(strings.Join(cells, "\n\n"))

@@ -5,11 +5,10 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// View composes the title bar, transcript, and input composer.
+// View composes the scrollable transcript and fixed input composer.
 func (m model) View() tea.View {
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
-		m.renderHeader(),
 		m.renderTranscript(),
 		m.renderInput(),
 	)

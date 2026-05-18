@@ -38,6 +38,7 @@ type model struct {
 	context    string
 	messages   []string
 	live       string
+	showIntro  bool
 	stream     markdownStreamCollector
 	history    []string
 	historyAt  int
@@ -76,6 +77,7 @@ func newModelWithClientContext(ctx context.Context, client rpcclient.ChatAPI) mo
 		status:     newStatusModel(),
 		modelName:  "GPT 5.5",
 		context:    "60,000 used · 65%",
+		showIntro:  true,
 		history:    history,
 		chatClient: client,
 		chatCtx:    ctx,
@@ -88,6 +90,7 @@ func newModelWithClientContext(ctx context.Context, client rpcclient.ChatAPI) mo
 		appModel.status.setTransient("prompt history unavailable")
 	}
 	appModel.resize()
+	appModel.setTranscriptContent()
 
 	return appModel
 }
@@ -245,7 +248,7 @@ func (m model) expireExitConfirmation(msg exitConfirmationExpiredMsg) tea.Model 
 // resize distributes terminal rows between transcript and composer.
 func (m *model) resize() {
 	inputHeight := m.getInputHeight()
-	transcriptHeight := max(m.height-inputHeight-inputChromeHeight-m.getHeaderHeight(), 1)
+	transcriptHeight := max(m.height-inputHeight-inputChromeHeight, 1)
 
 	m.input.SetWidth(getInputInnerWidth(m.width))
 	m.input.SetHeight(inputHeight)
@@ -255,7 +258,7 @@ func (m *model) resize() {
 
 // getInputHeight returns the visible composer height constrained by the screen.
 func (m model) getInputHeight() int {
-	availableHeight := max(m.height-inputChromeHeight-m.getHeaderHeight()-1, minInputHeight)
+	availableHeight := max(m.height-inputChromeHeight-1, minInputHeight)
 	contentHeight := getInputHeight(m.input.Value(), getInputInnerWidth(m.width))
 
 	return min(contentHeight, availableHeight)
@@ -265,7 +268,7 @@ func (m model) getInputHeight() int {
 func (m model) insertInputNewline() (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	inputWidth := getInputInnerWidth(m.width)
-	availableHeight := max(m.height-inputChromeHeight-m.getHeaderHeight()-1, minInputHeight)
+	availableHeight := max(m.height-inputChromeHeight-1, minInputHeight)
 	m.input.SetWidth(inputWidth)
 	m.input.SetHeight(min(getInputHeight(m.input.Value()+"\n", inputWidth), availableHeight))
 	m.input, cmd = m.input.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -383,6 +386,7 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 	case "clear":
 		m.messages = nil
 		m.live = ""
+		m.showIntro = false
 		m.stream.Reset()
 		cmd = m.setStatus("transcript cleared")
 	case "help":
