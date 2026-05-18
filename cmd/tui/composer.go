@@ -44,3 +44,7 @@ func parseComposerInput(value string) composerInput {
 
 	return composerInput{Kind: composerInputPrompt, Text: text}
 }
+
+func normalizeComposerPaste(value string) string {
+	return strings.TrimRight(value, "\r\n")
+}

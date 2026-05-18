@@ -49,3 +49,8 @@ func TestParseComposerInput_ClassifiesInput(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizeComposerPaste_TrimsTrailingLineBreaks(t *testing.T) {
+	require.Equal(t, "first\n\nsecond", normalizeComposerPaste("first\n\nsecond\n\r\n"))
+	require.Equal(t, "first\n\nsecond", normalizeComposerPaste("first\n\nsecond"))
+}

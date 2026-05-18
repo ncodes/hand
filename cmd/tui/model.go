@@ -146,6 +146,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case safetyEventMsg:
 		return m, m.applyTUIMessage(msg)
 	case tea.PasteMsg:
+		msg.Content = normalizeComposerPaste(msg.Content)
+		m.resizeInputForValue(m.input.Value() + msg.Content)
 		m.input, _ = m.input.Update(msg)
 		m.resize()
 		return m, nil
@@ -247,10 +249,10 @@ func (m model) expireExitConfirmation(msg exitConfirmationExpiredMsg) tea.Model 
 
 // resize distributes terminal rows between transcript and composer.
 func (m *model) resize() {
+	m.input.SetWidth(getInputInnerWidth(m.width))
 	inputHeight := m.getInputHeight()
 	transcriptHeight := max(m.height-inputHeight-inputChromeHeight, 1)
 
-	m.input.SetWidth(getInputInnerWidth(m.width))
 	m.input.SetHeight(inputHeight)
 	m.transcript.SetWidth(m.width)
 	m.transcript.SetHeight(transcriptHeight)
@@ -258,10 +260,23 @@ func (m *model) resize() {
 
 // getInputHeight returns the visible composer height constrained by the screen.
 func (m model) getInputHeight() int {
+	return m.getInputHeightForValue(m.input.Value())
+}
+
+func (m model) getInputHeightForValue(value string) int {
 	availableHeight := max(m.height-inputChromeHeight-1, minInputHeight)
-	contentHeight := getInputHeight(m.input.Value(), getInputInnerWidth(m.width))
+	contentWidth := m.input.Width()
+	if contentWidth <= 0 {
+		contentWidth = getInputInnerWidth(m.width)
+	}
+	contentHeight := getInputHeight(value, contentWidth)
 
 	return min(contentHeight, availableHeight)
+}
+
+func (m *model) resizeInputForValue(value string) {
+	m.input.SetWidth(getInputInnerWidth(m.width))
+	m.input.SetHeight(m.getInputHeightForValue(value))
 }
 
 // insertInputNewline expands the composer before adding a newline.
@@ -270,7 +285,7 @@ func (m model) insertInputNewline() (tea.Model, tea.Cmd) {
 	inputWidth := getInputInnerWidth(m.width)
 	availableHeight := max(m.height-inputChromeHeight-1, minInputHeight)
 	m.input.SetWidth(inputWidth)
-	m.input.SetHeight(min(getInputHeight(m.input.Value()+"\n", inputWidth), availableHeight))
+	m.input.SetHeight(min(getInputHeight(m.input.Value()+"\n", m.input.Width()), availableHeight))
 	m.input, cmd = m.input.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m.resize()
 

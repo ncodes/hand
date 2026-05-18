@@ -87,7 +87,7 @@ func (m *model) finishTranscriptSelection(msg tea.MouseReleaseMsg) tea.Cmd {
 		return m.setStatus("copy failed")
 	}
 
-	return m.setStatus("selection copied")
+	return nil
 }
 
 func (m model) transcriptSelectionPointFromMouse(mouse tea.Mouse) (transcriptSelectionPoint, bool) {

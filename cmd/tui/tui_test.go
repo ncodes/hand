@@ -1063,7 +1063,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 		Y:      secondRow,
 	}))
 
-	require.NotNil(t, cmd)
+	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.False(t, runModel.selection.dragging)
 	require.True(t, runModel.selection.active)
@@ -1071,7 +1071,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	require.Contains(t, runModel.transcript.View(), "38;5;39")
 	require.Contains(t, runModel.transcript.View(), "38;5;83")
 	require.Equal(t, "You: first\n\nHand: second", copied)
-	require.Equal(t, "selection copied", runModel.status.Text())
+	require.Equal(t, defaultStatus, runModel.status.Text())
 }
 
 func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
@@ -1115,14 +1115,14 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 		Y:      row,
 	}))
 
-	require.NotNil(t, cmd)
+	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.False(t, runModel.selection.dragging)
 	require.True(t, runModel.selection.active)
 	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
 	require.Equal(t, "sec", runModel.selectedTranscriptText())
 	require.Equal(t, "sec", copied)
-	require.Equal(t, "selection copied", runModel.status.Text())
+	require.Equal(t, defaultStatus, runModel.status.Text())
 }
 
 func TestModel_UpdateIgnoresNonLeftMouseSelectionStart(t *testing.T) {
@@ -1804,6 +1804,39 @@ func TestModel_UpdatePastesLargeMultilineContent(t *testing.T) {
 	runModel = updated.(model)
 	require.Equal(t, paste, runModel.input.Value())
 	require.GreaterOrEqual(t, runModel.input.Height(), 3)
+}
+
+func TestModel_UpdateTrimsTrailingPasteLineBreaks(t *testing.T) {
+	runModel := newModel()
+	paste := "first\nsecond\n\n"
+
+	updated, cmd := runModel.Update(tea.PasteMsg{Content: paste})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "first\nsecond", runModel.input.Value())
+	require.Equal(t, 2, runModel.input.Height())
+	require.Contains(t, stripANSI(runModel.input.View()), "second")
+}
+
+func TestModel_UpdateSizesPasteUsingTextareaWidth(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 180
+	runModel.height = 20
+	runModel.resize()
+	paste := strings.Join([]string{
+		`office.\n[...]\nOn Monday Iran said it had responded to the latest US proposal and that exchanges with Washington were continuing through Pakistani mediators.`,
+		`\n[...]\nTrump's message echoed his threat that a \"whole civilisation\" would die unless Iran agreed to a deal to end the war.`,
+		`\n[...]\nIsraeli and US forces began massive air strikes on Iran on 28 February. The ceasefire meant to facilitate`,
+	}, "")
+
+	updated, cmd := runModel.Update(tea.PasteMsg{Content: paste})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Greater(t, runModel.input.Height(), 1)
+	require.Zero(t, runModel.input.ScrollYOffset())
+	require.Contains(t, stripANSI(runModel.input.View()), "office.")
 }
 
 func TestModel_UpdateNavigatesPromptHistory(t *testing.T) {
