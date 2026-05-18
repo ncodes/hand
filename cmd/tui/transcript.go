@@ -58,7 +58,7 @@ func (m *model) renderTranscriptContent() string {
 		headerWidth = getPanelContentWidth(m.width)
 	}
 	content := strings.TrimSpace(m.renderHeaderWithWidth(headerWidth))
-	if cellsText := strings.TrimSpace(renderTranscriptCells(cells)); cellsText != "" {
+	if cellsText := strings.TrimSpace(renderTranscriptCellsWithWidth(cells, headerWidth)); cellsText != "" {
 		content = strings.Join([]string{content, cellsText}, "\n\n")
 	}
 

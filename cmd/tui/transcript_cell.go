@@ -18,10 +18,14 @@ const (
 )
 
 func renderTranscriptCells(cells []string) string {
+	return renderTranscriptCellsWithWidth(cells, defaultWidth)
+}
+
+func renderTranscriptCellsWithWidth(cells []string, width int) string {
 	rendered := make([]string, 0, len(cells))
 	for _, cell := range cells {
 		if cell = strings.TrimSpace(cell); cell != "" {
-			rendered = append(rendered, renderTranscriptCell(cell))
+			rendered = append(rendered, renderTranscriptCellWithWidth(cell, width))
 		}
 	}
 
@@ -29,6 +33,10 @@ func renderTranscriptCells(cells []string) string {
 }
 
 func renderTranscriptCell(cell string) string {
+	return renderTranscriptCellWithWidth(cell, defaultWidth)
+}
+
+func renderTranscriptCellWithWidth(cell string, width int) string {
 	kind, label, body := parseTranscriptCell(cell)
 	if strings.TrimSpace(body) == "" {
 		return ""
@@ -36,10 +44,23 @@ func renderTranscriptCell(cell string) string {
 
 	labelStyle := transcriptCellLabelStyle(kind)
 	if label == "" {
-		return body
+		return renderTranscriptCellBody(kind, body, width)
+	}
+
+	if rendered := renderTranscriptCellBody(kind, body, width); rendered != body {
+		return labelStyle.Render(label+":") + "\n" + rendered
 	}
 
 	return labelStyle.Render(label+":") + " " + body
+}
+
+func renderTranscriptCellBody(kind transcriptCellKind, body string, width int) string {
+	switch kind {
+	case transcriptCellAssistant, transcriptCellSystem:
+		return renderMarkdownForTranscript(body, width)
+	default:
+		return body
+	}
 }
 
 func parseTranscriptCell(cell string) (transcriptCellKind, string, string) {
