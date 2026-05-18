@@ -80,6 +80,10 @@ func (s *timelineErrorStore) Get(ctx context.Context, id string) (storage.Sessio
 	return storage.Session{ID: storage.DefaultSessionID}, true, nil
 }
 
+func (s *timelineErrorStore) CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error) {
+	return 0, nil
+}
+
 func (s *timelineErrorStore) GetMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
 	if s.messageErr != nil {
 		return nil, s.messageErr

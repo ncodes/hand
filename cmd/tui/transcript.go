@@ -26,7 +26,18 @@ func (m model) renderTranscript() string {
 
 func (m *model) setTranscriptContent() {
 	m.clearTranscriptSelection()
+	m.transcript.SetContent(m.renderTranscriptContent())
+	m.transcript.GotoBottom()
+}
 
+func (m *model) setTranscriptContentForActiveTurn() {
+	offset := m.transcript.YOffset()
+	m.clearTranscriptSelection()
+	m.transcript.SetContent(m.renderTranscriptContent())
+	m.transcript.SetYOffset(offset)
+}
+
+func (m *model) renderTranscriptContent() string {
 	cells := make([]string, 0, len(m.messages)+1)
 	cells = append(cells, m.messages...)
 	if strings.TrimSpace(m.live) != "" {
@@ -40,12 +51,11 @@ func (m *model) setTranscriptContent() {
 	}
 
 	content := strings.TrimSpace(m.renderHeader())
-	if cellsText := strings.TrimSpace(strings.Join(cells, "\n\n")); cellsText != "" {
+	if cellsText := strings.TrimSpace(renderTranscriptCells(cells)); cellsText != "" {
 		content = strings.Join([]string{content, cellsText}, "\n\n")
 	}
 
-	m.transcript.SetContent(content)
-	m.transcript.GotoBottom()
+	return content
 }
 
 func (m *model) updateTranscript(msg tea.Msg) (tea.Model, tea.Cmd) {

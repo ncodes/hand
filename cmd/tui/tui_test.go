@@ -666,15 +666,25 @@ func TestModel_UpdateScrollsTranscriptWithMouseWheel(t *testing.T) {
 
 func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 	runModel := newModel()
+	runModel.height = 14
+	runModel.resize()
 	runModel.messages = []string{"stale cell"}
 	runModel.transcript.SetContent("stale cell")
 
+	messages := make([]agent.SessionTimelineMessage, 0, 20)
+	for index := 0; index < 18; index++ {
+		messages = append(messages, agent.SessionTimelineMessage{
+			Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: fmt.Sprintf("older %02d", index)},
+		})
+	}
+	messages = append(messages,
+		agent.SessionTimelineMessage{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "hello"}},
+		agent.SessionTimelineMessage{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "hi"}},
+	)
+
 	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{
 		SessionID: "project-a",
-		Messages: []agent.SessionTimelineMessage{
-			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "hello"}},
-			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "hi"}},
-		},
+		Messages:  messages,
 		TraceEvents: []agent.SessionTimelineTraceEvent{{
 			Event: storage.TraceEvent{
 				Type:    trace.EvtToolInvocationStarted,
@@ -683,13 +693,17 @@ func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 		}},
 	})
 
-	content := runModel.transcript.View()
+	content := stripANSI(runModel.transcript.View())
 	require.Equal(t, "project-a · hydrated", runModel.status.Text())
-	require.Equal(t, []string{"You: hello", "Hand: hi", "Tool started: read_file"}, runModel.messages)
+	require.Equal(t, "You: hello", runModel.messages[len(runModel.messages)-3])
+	require.Equal(t, "Hand: hi", runModel.messages[len(runModel.messages)-2])
+	require.Equal(t, "Tool started: read_file", runModel.messages[len(runModel.messages)-1])
 	require.Contains(t, content, "You: hello")
 	require.Contains(t, content, "Hand: hi")
 	require.Contains(t, content, "Tool started: read_file")
+	require.NotContains(t, content, "older 00")
 	require.NotContains(t, content, "stale cell")
+	require.True(t, runModel.transcript.AtBottom())
 }
 
 func TestModel_HydrateSessionTimelineShowsEmptySession(t *testing.T) {
@@ -1039,6 +1053,9 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	}))
 	require.Nil(t, cmd)
 	runModel = updated.(model)
+	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
+	require.Contains(t, runModel.transcript.View(), "38;5;39")
+	require.Contains(t, runModel.transcript.View(), "38;5;83")
 
 	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
 		Button: tea.MouseLeft,
@@ -1049,6 +1066,10 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.False(t, runModel.selection.dragging)
+	require.True(t, runModel.selection.active)
+	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
+	require.Contains(t, runModel.transcript.View(), "38;5;39")
+	require.Contains(t, runModel.transcript.View(), "38;5;83")
 	require.Equal(t, "You: first\n\nHand: second", copied)
 	require.Equal(t, "selection copied", runModel.status.Text())
 }
@@ -1096,8 +1117,11 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, "sec", copied)
+	require.False(t, runModel.selection.dragging)
+	require.True(t, runModel.selection.active)
+	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
 	require.Equal(t, "sec", runModel.selectedTranscriptText())
+	require.Equal(t, "sec", copied)
 	require.Equal(t, "selection copied", runModel.status.Text())
 }
 
@@ -1192,7 +1216,10 @@ func TestModel_UpdateDoesNotCopyBlankMouseSelection(t *testing.T) {
 	}))
 
 	require.Nil(t, cmd)
-	require.False(t, updated.(model).selection.dragging)
+	runModel = updated.(model)
+	require.False(t, runModel.selection.dragging)
+	require.False(t, runModel.selection.active)
+	require.NotContains(t, runModel.transcript.View(), "\x1b[7m")
 }
 
 func TestModel_UpdateReportsMouseSelectionCopyFailure(t *testing.T) {
@@ -1287,6 +1314,28 @@ func TestModel_TranscriptSelectionPointFromMouseMapsWrappedVisualRowsToContentLi
 	require.Greater(t, point.offset, 0)
 }
 
+func TestModel_TranscriptSelectionPointFromMouseUsesWrappedVisualViewportOffset(t *testing.T) {
+	runModel := newModel()
+	runModel.transcript.SetWidth(10)
+	runModel.transcript.SetHeight(1)
+	firstLine := "abcdefghijklmno"
+	runModel.transcript.SetContent(firstLine + "\ntarget line")
+	width := max(runModel.transcript.Width()-runModel.transcript.Style.GetHorizontalFrameSize(), 1)
+	runModel.transcript.SetYOffset(getWrappedTranscriptLineHeight(firstLine, width))
+
+	point, ok := runModel.transcriptSelectionPointFromMouse(tea.Mouse{
+		X: len("target"),
+		Y: runModel.getTranscriptTop(),
+	})
+
+	require.True(t, ok)
+	require.Equal(
+		t,
+		transcriptSelectionPoint{line: 1, offset: len("abcdefghijklmno\n") + len("target")},
+		point,
+	)
+}
+
 func TestModel_SelectedTranscriptTextHandlesOutOfRangeOffsets(t *testing.T) {
 	runModel := newModel()
 	runModel.transcript.SetContent("abc")
@@ -1327,6 +1376,39 @@ func TestGetTranscriptLineOffsetReturnsEndOffsetForPastEndIndex(t *testing.T) {
 	require.Equal(t, len("one\ntwo"), getTranscriptLineOffset([]string{"one", "two"}, 10))
 }
 
+func TestGetByteOffsetForDisplayColumnSkipsANSISequences(t *testing.T) {
+	line := renderTranscriptCell("Hand: hello")
+
+	offset := getByteOffsetForDisplayColumn(line, len("Hand: hel"))
+
+	require.Equal(t, strings.Index(line, "lo"), offset)
+}
+
+func TestHighlightTranscriptSelectionUsesDisplayColumnsForWideCharacters(t *testing.T) {
+	line := renderTranscriptCell("Hand: 👋 anything")
+	plain := stripANSI(line)
+	start := strings.Index(plain, "anything")
+	end := start + len("anything")
+
+	highlighted := highlightTranscriptSelection(
+		line,
+		start,
+		end,
+		lipgloss.NewStyle().Reverse(true),
+	)
+
+	require.Contains(t, highlighted, "\x1b[7manything")
+	require.NotContains(t, highlighted, "\x1b[7mything")
+}
+
+func TestGetDisplayColumnForByteOffsetHandlesWideCharacters(t *testing.T) {
+	line := "Hand: 👋 anything"
+
+	column := getDisplayColumnForByteOffset(line, strings.Index(line, "anything"))
+
+	require.Equal(t, len("Hand: ")+2+1, column)
+}
+
 func TestModel_SetTranscriptContentClearsMouseSelection(t *testing.T) {
 	runModel := newModel()
 	runModel.messages = []string{"Hand: stale"}
@@ -1344,7 +1426,7 @@ func TestModel_SetTranscriptContentClearsMouseSelection(t *testing.T) {
 
 	require.False(t, runModel.selection.active)
 	require.Empty(t, runModel.selectedTranscriptText())
-	require.Contains(t, runModel.transcript.View(), "Hand: refreshed")
+	require.Contains(t, stripANSI(runModel.transcript.View()), "Hand: refreshed")
 }
 
 func TestModel_UpdateReportsUnknownCommand(t *testing.T) {
@@ -1414,6 +1496,25 @@ func TestModel_SubmitPromptStartsRPCResponse(t *testing.T) {
 	require.Empty(t, runModel.input.Value())
 	require.Equal(t, []string{"hello"}, runModel.history)
 	require.Zero(t, client.calls)
+}
+
+func TestModel_SubmitPromptScrollsTranscriptToBottom(t *testing.T) {
+	runModel := newModelWithClient(&fakeTUIChatClient{})
+	runModel.height = 10
+	runModel.resize()
+	runModel.messages = make([]string, 0, 30)
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+	}
+	runModel.setTranscriptContent()
+	runModel.transcript.GotoTop()
+	runModel.input.SetValue("hello")
+
+	cmd := runModel.submitPrompt()
+
+	require.NotNil(t, cmd)
+	require.True(t, runModel.transcript.AtBottom())
+	require.Contains(t, stripANSI(runModel.transcript.View()), "You: hello")
 }
 
 func TestRespondToPromptCmd_StreamsDeltasTraceEventsAndCompletion(t *testing.T) {
@@ -1487,6 +1588,62 @@ func TestModel_UpdateAppliesResponseEventsAndCompletion(t *testing.T) {
 	require.Nil(t, runModel.events)
 	require.Empty(t, runModel.live)
 	require.Equal(t, []string{"Hand: hello final"}, runModel.messages)
+}
+
+func TestModel_UpdatePreservesTranscriptScrollDuringActiveResponse(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	runModel.messages = make([]string, 0, 30)
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+	}
+	runModel.setTranscriptContent()
+	bottomOffset := runModel.transcript.YOffset()
+	require.Greater(t, bottomOffset, 0)
+	runModel.transcript.GotoTop()
+	offsetBefore := runModel.transcript.YOffset()
+	runModel.responding = true
+	runModel.responseID = 4
+	runModel.events = make(chan tea.Msg)
+
+	updated, cmd := runModel.Update(responseEventMsg{
+		ResponseID: 4,
+		Message:    assistantTextDeltaMsg{Text: "streamed"},
+	})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, offsetBefore, runModel.transcript.YOffset())
+	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "Hand: streamed")
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
+}
+
+func TestModel_UpdatePreservesBottomOffsetDuringActiveResponse(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	runModel.messages = make([]string, 0, 30)
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+	}
+	runModel.setTranscriptContent()
+	require.True(t, runModel.transcript.AtBottom())
+	offsetBefore := runModel.transcript.YOffset()
+	runModel.responding = true
+	runModel.responseID = 4
+	runModel.events = make(chan tea.Msg)
+
+	updated, cmd := runModel.Update(responseEventMsg{
+		ResponseID: 4,
+		Message:    assistantTextDeltaMsg{Text: "streamed"},
+	})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, offsetBefore, runModel.transcript.YOffset())
+	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "Hand: streamed")
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
 }
 
 func TestModel_UpdateSurfacesRPCErrorInStatusAndTranscript(t *testing.T) {

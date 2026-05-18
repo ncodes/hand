@@ -18,6 +18,7 @@ type transcriptSelectionPoint struct {
 type transcriptSelection struct {
 	active   bool
 	dragging bool
+	content  string
 	start    transcriptSelectionPoint
 	end      transcriptSelectionPoint
 }
@@ -25,6 +26,12 @@ type transcriptSelection struct {
 func (m *model) startTranscriptSelection(msg tea.MouseClickMsg) bool {
 	if msg.Button != tea.MouseLeft {
 		return false
+	}
+	if !m.isMouseInTranscript(msg.Mouse()) {
+		return false
+	}
+	if m.selection.active {
+		m.restoreTranscriptContentAfterSelection()
 	}
 
 	point, ok := m.transcriptSelectionPointFromMouse(msg.Mouse())
@@ -35,6 +42,7 @@ func (m *model) startTranscriptSelection(msg tea.MouseClickMsg) bool {
 	m.selection = transcriptSelection{
 		active:   true,
 		dragging: true,
+		content:  m.transcript.GetContent(),
 		start:    point,
 		end:      point,
 	}
@@ -72,6 +80,7 @@ func (m *model) finishTranscriptSelection(msg tea.MouseReleaseMsg) tea.Cmd {
 
 	text := m.selectedTranscriptText()
 	if strings.TrimSpace(text) == "" {
+		m.restoreTranscriptContentAfterSelection()
 		return nil
 	}
 	if err := writeClipboard(text); err != nil {
@@ -84,18 +93,21 @@ func (m *model) finishTranscriptSelection(msg tea.MouseReleaseMsg) tea.Cmd {
 func (m model) transcriptSelectionPointFromMouse(mouse tea.Mouse) (transcriptSelectionPoint, bool) {
 	top := m.getTranscriptTop()
 	row := mouse.Y - top
-	if row < 0 || row >= m.transcript.Height() {
+	if !m.isMouseInTranscript(mouse) {
 		return transcriptSelectionPoint{}, false
 	}
 
-	return m.transcriptSelectionPointFromVisualLine(
-		m.transcript.YOffset()+row,
-		mouse.X,
-	)
+	return m.transcriptSelectionPointFromVisualLine(m.transcript.YOffset()+row, mouse.X)
 }
 
 func (m model) getTranscriptTop() int {
 	return 0
+}
+
+func (m model) isMouseInTranscript(mouse tea.Mouse) bool {
+	row := mouse.Y - m.getTranscriptTop()
+
+	return row >= 0 && row < m.transcript.Height()
 }
 
 func (m model) transcriptSelectionPointFromVisualLine(
@@ -106,7 +118,7 @@ func (m model) transcriptSelectionPointFromVisualLine(
 		return transcriptSelectionPoint{}, false
 	}
 
-	content := m.transcript.GetContent()
+	content := ansi.Strip(m.transcript.GetContent())
 	lines := strings.Split(content, "\n")
 	if !m.transcript.SoftWrap {
 		if visualLine >= len(lines) {
@@ -128,12 +140,13 @@ func (m model) transcriptSelectionPointFromVisualLine(
 	offset := 0
 	lineOffset := 0
 	for index, line := range lines {
-		height := max(1, int(math.Ceil(float64(ansi.StringWidth(line))/float64(width))))
+		height := getWrappedTranscriptLineHeight(line, width)
 		if visualLine >= offset && visualLine < offset+height {
 			wrappedColumn := (visualLine-offset)*width + max(min(x, width), 0)
 
 			return getTranscriptSelectionPoint(lines, index, wrappedColumn, lineOffset), true
 		}
+
 		offset += height
 		lineOffset += len(line)
 		if index < len(lines)-1 {
@@ -144,7 +157,14 @@ func (m model) transcriptSelectionPointFromVisualLine(
 	return transcriptSelectionPoint{}, false
 }
 
+func getWrappedTranscriptLineHeight(line string, width int) int {
+	width = max(width, 1)
+
+	return max(1, int(math.Ceil(float64(ansi.StringWidth(line))/float64(width))))
+}
+
 func (m *model) applyTranscriptSelectionStyle() {
+	offset := m.transcript.YOffset()
 	if !m.selection.active {
 		m.transcript.ClearHighlights()
 		return
@@ -158,14 +178,20 @@ func (m *model) applyTranscriptSelectionStyle() {
 	}
 
 	style := lipgloss.NewStyle().Reverse(true)
-	m.transcript.HighlightStyle = style
-	m.transcript.SelectedHighlightStyle = style
-	m.transcript.SetHighlights([][]int{{start, end}})
+	m.transcript.SetContent(highlightTranscriptSelection(m.getSelectionContent(), start, end, style))
+	m.transcript.SetYOffset(offset)
 }
 
 func (m *model) clearTranscriptSelection() {
 	m.selection = transcriptSelection{}
-	m.applyTranscriptSelectionStyle()
+	m.transcript.ClearHighlights()
+}
+
+func (m *model) restoreTranscriptContentAfterSelection() {
+	offset := m.transcript.YOffset()
+	m.clearTranscriptSelection()
+	m.transcript.SetContent(m.renderTranscriptContent())
+	m.transcript.SetYOffset(offset)
 }
 
 func (m model) selectedTranscriptText() string {
@@ -173,7 +199,7 @@ func (m model) selectedTranscriptText() string {
 		return ""
 	}
 
-	content := m.transcript.GetContent()
+	content := ansi.Strip(m.getSelectionContent())
 	start, end := m.selection.offsetBounds()
 	if start == end || start >= len(content) {
 		return ""
@@ -182,7 +208,15 @@ func (m model) selectedTranscriptText() string {
 		end = len(content)
 	}
 
-	return strings.TrimSpace(ansi.Strip(content[start:end]))
+	return strings.TrimSpace(content[start:end])
+}
+
+func (m model) getSelectionContent() string {
+	if m.selection.content != "" {
+		return m.selection.content
+	}
+
+	return m.transcript.GetContent()
 }
 
 func (s transcriptSelection) offsetBounds() (int, int) {
@@ -211,6 +245,54 @@ func getTranscriptSelectionPoint(
 	}
 }
 
+func highlightTranscriptSelection(
+	content string,
+	start int,
+	end int,
+	style lipgloss.Style,
+) string {
+	if start == end {
+		return content
+	}
+	if start > end {
+		start, end = end, start
+	}
+
+	lines := strings.Split(content, "\n")
+	plainOffset := 0
+	for index, line := range lines {
+		plainLine := ansi.Strip(line)
+		lineStart := plainOffset
+		lineEnd := lineStart + len(plainLine)
+		if start < lineEnd && end > lineStart {
+			rangeStart := max(start-lineStart, 0)
+			rangeEnd := min(end-lineStart, len(plainLine))
+			if rangeStart < rangeEnd {
+				styleStart := getDisplayColumnForByteOffset(plainLine, rangeStart)
+				styleEnd := getDisplayColumnForByteOffset(plainLine, rangeEnd)
+				lines[index] = lipgloss.StyleRanges(
+					line,
+					lipgloss.NewRange(styleStart, styleEnd, style),
+				)
+			}
+		}
+
+		plainOffset = lineEnd
+		if index < len(lines)-1 {
+			if start <= plainOffset && end > plainOffset {
+				styleColumn := getDisplayColumnForByteOffset(plainLine, len(plainLine))
+				lines[index] = lipgloss.StyleRanges(
+					lines[index],
+					lipgloss.NewRange(styleColumn, styleColumn+1, style),
+				)
+			}
+			plainOffset++
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
 func getByteOffsetForDisplayColumn(line string, column int) int {
 	if column <= 0 {
 		return 0
@@ -218,20 +300,89 @@ func getByteOffsetForDisplayColumn(line string, column int) int {
 
 	displayColumn := 0
 	byteOffset := 0
-	graphemes := uniseg.NewGraphemes(line)
-	for graphemes.Next() {
+	for byteOffset < len(line) {
+		if nextOffset, ok := skipANSISequence(line, byteOffset); ok {
+			byteOffset = nextOffset
+			continue
+		}
+
+		graphemes := uniseg.NewGraphemes(line[byteOffset:])
+		if !graphemes.Next() {
+			break
+		}
+		text := graphemes.Str()
 		width := max(1, graphemes.Width())
 		nextColumn := displayColumn + width
 		if column < nextColumn {
 			return byteOffset
 		}
 
-		text := graphemes.Str()
 		byteOffset += len(text)
 		displayColumn = nextColumn
 	}
 
 	return len(line)
+}
+
+func getDisplayColumnForByteOffset(line string, targetOffset int) int {
+	if targetOffset <= 0 {
+		return 0
+	}
+
+	displayColumn := 0
+	byteOffset := 0
+	for byteOffset < len(line) && byteOffset < targetOffset {
+		if nextOffset, ok := skipANSISequence(line, byteOffset); ok {
+			byteOffset = nextOffset
+			continue
+		}
+
+		graphemes := uniseg.NewGraphemes(line[byteOffset:])
+		if !graphemes.Next() {
+			break
+		}
+		text := graphemes.Str()
+		nextOffset := byteOffset + len(text)
+		if nextOffset > targetOffset {
+			return displayColumn
+		}
+
+		displayColumn += max(1, graphemes.Width())
+		byteOffset = nextOffset
+	}
+
+	return displayColumn
+}
+
+func skipANSISequence(value string, offset int) (int, bool) {
+	if offset < 0 || offset >= len(value) || value[offset] != '\x1b' {
+		return offset, false
+	}
+	if offset+1 >= len(value) {
+		return len(value), true
+	}
+
+	switch value[offset+1] {
+	case '[':
+		for index := offset + 2; index < len(value); index++ {
+			if value[index] >= 0x40 && value[index] <= 0x7e {
+				return index + 1, true
+			}
+		}
+	case ']':
+		for index := offset + 2; index < len(value); index++ {
+			if value[index] == '\a' {
+				return index + 1, true
+			}
+			if value[index] == '\x1b' && index+1 < len(value) && value[index+1] == '\\' {
+				return index + 2, true
+			}
+		}
+	default:
+		return offset + 2, true
+	}
+
+	return len(value), true
 }
 
 func getTranscriptLineOffset(lines []string, lineIndex int) int {

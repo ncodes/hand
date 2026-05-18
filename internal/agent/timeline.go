@@ -58,16 +58,29 @@ func (a *Agent) loadTimelineMessages(
 	opts SessionTimelineOptions,
 ) ([]SessionTimelineMessage, bool, error) {
 	limit := getTimelineLimit(opts.MessageLimit)
+	offset := opts.MessageOffset
+	hasMoreBefore := false
+	if opts.MessageOffset == 0 && opts.MessageLimit <= 0 {
+		count, err := a.stateMgr.CountMessages(ctx, sessionID, storage.MessageQueryOptions{})
+		if err != nil {
+			return nil, false, err
+		}
+		if count > limit {
+			offset = count - limit
+			hasMoreBefore = true
+		}
+	}
+
 	messages, err := a.stateMgr.GetMessages(ctx, sessionID, storage.MessageQueryOptions{
 		Order:  storage.MessageOrderAsc,
-		Offset: opts.MessageOffset,
+		Offset: offset,
 		Limit:  limit + 1,
 	})
 	if err != nil {
 		return nil, false, err
 	}
 
-	hasMore := len(messages) > limit
+	hasMore := hasMoreBefore || len(messages) > limit
 	if hasMore {
 		messages = messages[:limit]
 	}
@@ -75,7 +88,7 @@ func (a *Agent) loadTimelineMessages(
 	timelineMessages := make([]SessionTimelineMessage, 0, len(messages))
 	for index, message := range messages {
 		timelineMessages = append(timelineMessages, SessionTimelineMessage{
-			Offset:  opts.MessageOffset + index,
+			Offset:  offset + index,
 			Message: message,
 		})
 	}

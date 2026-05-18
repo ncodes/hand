@@ -58,6 +58,34 @@ func TestAgent_GetSessionTimelineReturnsPagedMessagesAndTraceEvents(t *testing.T
 	require.Equal(t, "second", timeline.TraceEvents[0].Event.Type)
 }
 
+func TestAgent_GetSessionTimelineDefaultsToRecentMessageTail(t *testing.T) {
+	ctx := context.Background()
+	manager := mustNewStateManager(t)
+	session, err := manager.Resolve(ctx, "")
+	require.NoError(t, err)
+
+	messages := make([]handmsg.Message, 0, defaultSessionTimelineLimit+2)
+	for index := 0; index < defaultSessionTimelineLimit+2; index++ {
+		messages = append(messages, handmsg.Message{
+			Role:    handmsg.RoleUser,
+			Content: "message " + string(rune('A'+index%26)),
+		})
+	}
+	messages[len(messages)-2].Content = "latest user"
+	messages[len(messages)-1].Role = handmsg.RoleAssistant
+	messages[len(messages)-1].Content = "latest assistant"
+	require.NoError(t, manager.AppendMessages(ctx, session.ID, messages))
+
+	timeline, err := (&Agent{stateMgr: manager}).GetSessionTimeline(ctx, SessionTimelineOptions{})
+
+	require.NoError(t, err)
+	require.True(t, timeline.MessagesHasMore)
+	require.Len(t, timeline.Messages, defaultSessionTimelineLimit)
+	require.Equal(t, 2, timeline.Messages[0].Offset)
+	require.Equal(t, "latest user", timeline.Messages[len(timeline.Messages)-2].Message.Content)
+	require.Equal(t, "latest assistant", timeline.Messages[len(timeline.Messages)-1].Message.Content)
+}
+
 func TestAgent_GetSessionTimelineReportsRetainedTraceGap(t *testing.T) {
 	ctx := context.Background()
 	manager := mustNewStateManager(t)

@@ -42,6 +42,7 @@ var (
 	mkdirAll      = os.MkdirAll
 	writeFile     = os.WriteFile
 	readFile      = os.ReadFile
+	removeFile    = os.Remove
 	findProcess   = os.FindProcess
 	signalProcess = func(process *os.Process, signal os.Signal) error {
 		return process.Signal(signal)
@@ -142,17 +143,24 @@ func ResolveRPC(ctx context.Context, cmd *cli.Command, cfg *config.Config) (conf
 		return config.RPCConfig{}, err
 	}
 	if err := checkPID(metadata.PID); err != nil {
-		return config.RPCConfig{}, fmt.Errorf("stale runtime metadata: %w", err)
+		removeActiveRuntimeMetadata()
+		return cfg.RPC, nil
 	}
 	if err := dialRuntime(ctx, metadata.RPC.Address, metadata.RPC.Port); err != nil {
-		return config.RPCConfig{}, fmt.Errorf("stale runtime metadata: rpc endpoint %s:%d is unreachable: %w",
-			metadata.RPC.Address,
-			metadata.RPC.Port,
-			err,
-		)
+		removeActiveRuntimeMetadata()
+		return cfg.RPC, nil
 	}
 
 	return config.RPCConfig{Address: metadata.RPC.Address, Port: metadata.RPC.Port}, nil
+}
+
+func removeActiveRuntimeMetadata() {
+	active := profile.WithMetadataPaths(profile.Active())
+	if strings.TrimSpace(active.RuntimePath) == "" {
+		return
+	}
+
+	_ = removeFile(active.RuntimePath)
 }
 
 func hasExplicitRPC(cmd *cli.Command, cfg *config.Config) bool {

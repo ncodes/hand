@@ -301,16 +301,24 @@ func (m *model) submitPrompt() tea.Cmd {
 	}
 
 	cmd := m.addPromptHistory(input.Text)
+	promptSubmitted := false
 	switch input.Kind {
 	case composerInputPrompt:
 		m.messages = append(m.messages, "You: "+input.Text)
 		cmd = tea.Batch(cmd, m.startResponse(input.Text))
+		promptSubmitted = true
 	case composerInputCommand:
 		cmd = tea.Batch(cmd, m.handleSlashCommand(input))
 	case composerInputLocalCommand:
 		cmd = tea.Batch(cmd, m.handleLocalCommand(input))
 	}
-	m.setTranscriptContent()
+	if promptSubmitted {
+		m.setTranscriptContent()
+	} else if m.responding {
+		m.setTranscriptContentForActiveTurn()
+	} else {
+		m.setTranscriptContent()
+	}
 	m.clearComposer()
 	m.resize()
 
@@ -338,15 +346,17 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 		return nil
 	}
 
-	m.responding = false
-	m.events = nil
 	if msg.Err != nil {
 		errorMsg := sessionErrorMsg{Message: msg.Err.Error()}
 		m.addTranscriptMessage(errorMsg)
+		m.responding = false
+		m.events = nil
 		return m.setStatus("response failed")
 	}
 
 	m.completeAssistantResponse(msg.Text)
+	m.responding = false
+	m.events = nil
 	return nil
 }
 
@@ -375,7 +385,11 @@ func (m *model) applyTUIMessage(msg any) tea.Cmd {
 func (m *model) addTranscriptMessage(msg any) {
 	if cell := tuiMessageToTranscriptCell(msg); cell != "" {
 		m.messages = append(m.messages, cell)
-		m.setTranscriptContent()
+		if m.responding {
+			m.setTranscriptContentForActiveTurn()
+		} else {
+			m.setTranscriptContent()
+		}
 		m.resize()
 	}
 }
@@ -399,7 +413,11 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 		cmd = m.setStatus("unknown command: /" + input.Name)
 	}
 
-	m.setTranscriptContent()
+	if m.responding {
+		m.setTranscriptContentForActiveTurn()
+	} else {
+		m.setTranscriptContent()
+	}
 	return cmd
 }
 
@@ -408,13 +426,21 @@ func (m *model) handleLocalCommand(input composerInput) tea.Cmd {
 	if !m.allowShell {
 		cmd = m.setStatus("local commands are disabled")
 		m.messages = append(m.messages, "Local command blocked: !"+input.Args)
-		m.setTranscriptContent()
+		if m.responding {
+			m.setTranscriptContentForActiveTurn()
+		} else {
+			m.setTranscriptContent()
+		}
 		return cmd
 	}
 
 	cmd = m.setStatus("local command execution is not connected yet")
 	m.messages = append(m.messages, "Local command queued: !"+input.Args)
-	m.setTranscriptContent()
+	if m.responding {
+		m.setTranscriptContentForActiveTurn()
+	} else {
+		m.setTranscriptContent()
+	}
 	return cmd
 }
 
@@ -511,7 +537,7 @@ func (m *model) appendAssistantDelta(delta string) {
 
 	m.stream.Add(delta)
 	m.live = assistantTranscriptCell(m.stream.Render())
-	m.setTranscriptContent()
+	m.setTranscriptContentForActiveTurn()
 	m.resize()
 }
 
@@ -524,14 +550,14 @@ func (m *model) completeAssistantResponse(text string) {
 	}
 	if strings.TrimSpace(reply) == "" {
 		m.live = ""
-		m.setTranscriptContent()
+		m.setTranscriptContentForActiveTurn()
 		m.resize()
 		return
 	}
 
 	m.messages = append(m.messages, assistantTranscriptCell(reply))
 	m.live = ""
-	m.setTranscriptContent()
+	m.setTranscriptContentForActiveTurn()
 	m.resize()
 }
 

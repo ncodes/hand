@@ -269,30 +269,33 @@ func TestResolveRPC_ReturnsConfigError(t *testing.T) {
 	require.EqualError(t, err, "config is required")
 }
 
-func TestResolveRPC_ReturnsStaleProcessError(t *testing.T) {
+func TestResolveRPC_RemovesStaleProcessMetadataAndFallsBackToConfig(t *testing.T) {
 	resetRuntimeHooks(t)
 	home := t.TempDir()
 	setRuntimeProfile(t, "work", home)
-	writeRuntimeFile(t, home, Metadata{Profile: "work", PID: 999, RPC: RPC{Address: "127.0.0.1", Port: 50051}})
+	runtimePath := writeRuntimeFile(t, home, Metadata{Profile: "work", PID: 999, RPC: RPC{Address: "127.0.0.1", Port: 50051}})
 	checkPID = func(int) error { return errors.New("missing process") }
 
-	_, err := ResolveRPC(context.Background(), nil, defaultRuntimeConfig())
+	endpoint, err := ResolveRPC(context.Background(), nil, defaultRuntimeConfig())
 
-	require.EqualError(t, err, "stale runtime metadata: missing process")
+	require.NoError(t, err)
+	require.Equal(t, config.RPCConfig{Address: constants.DefaultRPCAddress, Port: constants.DefaultRPCPort}, endpoint)
+	require.NoFileExists(t, runtimePath)
 }
 
-func TestResolveRPC_ReturnsConnectionRefusedError(t *testing.T) {
+func TestResolveRPC_RemovesUnreachableRuntimeMetadataAndFallsBackToConfig(t *testing.T) {
 	resetRuntimeHooks(t)
 	home := t.TempDir()
 	setRuntimeProfile(t, "work", home)
-	writeRuntimeFile(t, home, Metadata{Profile: "work", PID: 999, RPC: RPC{Address: "127.0.0.1", Port: 50051}})
+	runtimePath := writeRuntimeFile(t, home, Metadata{Profile: "work", PID: 999, RPC: RPC{Address: "127.0.0.1", Port: 50051}})
 	checkPID = func(int) error { return nil }
 	dialRuntime = func(context.Context, string, int) error { return errors.New("connection refused") }
 
-	_, err := ResolveRPC(context.Background(), nil, defaultRuntimeConfig())
+	endpoint, err := ResolveRPC(context.Background(), nil, defaultRuntimeConfig())
 
-	require.ErrorContains(t, err, "stale runtime metadata: rpc endpoint 127.0.0.1:50051 is unreachable")
-	require.ErrorContains(t, err, "connection refused")
+	require.NoError(t, err)
+	require.Equal(t, config.RPCConfig{Address: constants.DefaultRPCAddress, Port: constants.DefaultRPCPort}, endpoint)
+	require.NoFileExists(t, runtimePath)
 }
 
 func TestCheckProcessAcceptsCurrentProcess(t *testing.T) {
@@ -357,6 +360,7 @@ func resetRuntimeHooks(t *testing.T) {
 	originalMkdirAll := mkdirAll
 	originalWriteFile := writeFile
 	originalReadFile := readFile
+	originalRemoveFile := removeFile
 	originalFindProcess := findProcess
 	originalSignalProcess := signalProcess
 	originalProfile := profile.Active()
@@ -369,6 +373,7 @@ func resetRuntimeHooks(t *testing.T) {
 		mkdirAll = originalMkdirAll
 		writeFile = originalWriteFile
 		readFile = originalReadFile
+		removeFile = originalRemoveFile
 		findProcess = originalFindProcess
 		signalProcess = originalSignalProcess
 		profile.SetActive(originalProfile)
@@ -381,12 +386,15 @@ func setRuntimeProfile(t *testing.T, name string, home string) {
 	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: name, HomeDir: home}))
 }
 
-func writeRuntimeFile(t *testing.T, home string, metadata Metadata) {
+func writeRuntimeFile(t *testing.T, home string, metadata Metadata) string {
 	t.Helper()
 
 	data, err := json.Marshal(metadata)
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(home, "runtime.json"), data, 0o600))
+	path := filepath.Join(home, "runtime.json")
+	require.NoError(t, os.WriteFile(path, data, 0o600))
+
+	return path
 }
 
 func defaultRuntimeConfig() *config.Config {
