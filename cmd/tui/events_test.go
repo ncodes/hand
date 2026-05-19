@@ -125,6 +125,42 @@ func TestToolCallPayloadToTUIMessage_ConvertsMessageToolCall(t *testing.T) {
 	require.NotContains(t, fmt.Sprintf("%#v", msg), "secret.txt")
 }
 
+func TestToolCallPayloadToTUIMessage_ExtractsGenericToolParams(t *testing.T) {
+	msg, ok := toolCallPayloadToTUIMessage(models.ToolCall{
+		ID:   "call_1",
+		Name: "list_files",
+		Input: `{
+			"path": "/tmp/project",
+			"recursive": true,
+			"includeHidden": false,
+			"maxEntries": 50,
+			"empty": ""
+		}`,
+	})
+
+	require.True(t, ok)
+	require.Equal(t, toolInvocationStartedMsg{
+		ID:     "call_1",
+		Name:   "list_files",
+		Detail: "list_files(includeHidden=false maxEntries=50 path=/tmp/project recursive=true)",
+	}, msg)
+}
+
+func TestToolCallPayloadToTUIMessage_ShortensLongListFilesPath(t *testing.T) {
+	msg, ok := toolCallPayloadToTUIMessage(models.ToolCall{
+		ID:    "call_1",
+		Name:  "list_files",
+		Input: `{"path":"/Users/nedy/projects/wandxy/hand/internal/tools/listfiles","recursive":true}`,
+	})
+
+	require.True(t, ok)
+	require.Equal(t, toolInvocationStartedMsg{
+		ID:     "call_1",
+		Name:   "list_files",
+		Detail: "list_files(path=/Users/nedy/projects/wandxy/h/.../listfiles recursive=true)",
+	}, msg)
+}
+
 func TestToolCallPayloadToTUIMessage_ExtractsRunCommandDetail(t *testing.T) {
 	msg, ok := toolCallPayloadToTUIMessage(models.ToolCall{
 		ID:    "call_1",

@@ -97,7 +97,8 @@ func TestRenderTranscriptCell_StylesCanonicalCells(t *testing.T) {
 	require.NotContains(t, plain, "┌")
 	require.NotContains(t, plain, "│ ❯ hello")
 	require.NotContains(t, plain, "You: hello")
-	require.Contains(t, plain, "Hand: hi")
+	require.Contains(t, plain, "hi")
+	require.NotContains(t, plain, "Hand: hi")
 	require.Contains(t, plain, "● Read")
 	require.Contains(t, plain, "└ read_file")
 	require.Contains(t, plain, "Safety: blocked")
@@ -168,6 +169,27 @@ func TestRenderTranscriptCells_AnimatesRunningToolDot(t *testing.T) {
 	require.Contains(t, completed, "● Searched")
 }
 
+func TestRenderTranscriptCells_RendersToolElapsedTime(t *testing.T) {
+	originalCurrentTime := currentTime
+	t.Cleanup(func() { currentTime = originalCurrentTime })
+	startedAt := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
+	currentTime = func() time.Time {
+		return startedAt.Add(10 * time.Second)
+	}
+
+	running := stripANSI(renderTranscriptCells([]string{
+		toolOperationTranscriptCellWithTiming("call_1", "list_files", "", startedAt, time.Time{}, false),
+	}))
+	completed := stripANSI(renderTranscriptCells([]string{
+		toolOperationTranscriptCellWithTiming("call_1", "list_files", "", startedAt, startedAt.Add(12*time.Second), true),
+	}))
+
+	require.Contains(t, running, "● List Files (10s)")
+	require.Contains(t, running, "└ list_files (10s)")
+	require.Contains(t, completed, "● List Files (12s)")
+	require.Contains(t, completed, "└ list_files (12s)")
+}
+
 func TestRenderTranscriptCells_RendersRunCommandsWithShellLayout(t *testing.T) {
 	rendered := renderTranscriptCells([]string{
 		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 && echo "Done" (8s)`),
@@ -233,7 +255,7 @@ func TestRenderTranscriptCell_RendersAssistantMarkdown(t *testing.T) {
 	)
 	plain := stripANSI(rendered)
 
-	require.Contains(t, plain, "Hand:")
+	require.NotContains(t, plain, "Hand:")
 	require.Contains(t, plain, "Title")
 	require.Contains(t, plain, "Key Complications")
 	require.Contains(t, plain, "What Could Happen Next")
@@ -345,7 +367,7 @@ func TestSessionTimelineToTranscriptCells_SkipsMessageBackedTraceDuplicates(t *t
 	require.Equal(t, []string{
 		"You: hello there",
 		"Hand: hello back",
-		toolOperationTranscriptCell("", "read_file", ""),
+		toolOperationTranscriptCellWithTiming("", "read_file", "", now.Add(2*time.Second), time.Time{}, false),
 	}, cells)
 }
 
@@ -376,8 +398,8 @@ func TestSessionTimelineToTranscriptCells_InterleavesMessagesAndTraceEventsByTim
 	require.Equal(t, []string{
 		"You: older prompt",
 		"Hand: older answer",
-		toolOperationTranscriptCell("", "web_search", ""),
-		toolOperationTranscriptCell("", "web_search", "", true),
+		toolOperationTranscriptCellWithTiming("", "web_search", "", now.Add(2*time.Second), time.Time{}, false),
+		toolOperationTranscriptCellWithTiming("", "web_search", "", time.Time{}, now.Add(3*time.Second), true),
 		"You: Hi",
 		"Hand: Hi there",
 	}, cells)

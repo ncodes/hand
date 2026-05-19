@@ -893,7 +893,8 @@ func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 	require.Equal(t, "Hand: hi", runModel.messages[len(runModel.messages)-2])
 	require.Equal(t, toolOperationTranscriptCell("call_1", "read_file", ""), runModel.messages[len(runModel.messages)-1])
 	require.Contains(t, content, "❯ hello")
-	require.Contains(t, content, "Hand: hi")
+	require.Contains(t, content, "hi")
+	require.NotContains(t, content, "Hand: hi")
 	require.Contains(t, content, "● Read")
 	require.Contains(t, content, "└ read_file")
 	require.NotContains(t, content, "older 00")
@@ -1232,7 +1233,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	runModel.resize()
 	runModel.transcript.GotoTop()
 	firstRow := getTranscriptContentRow(t, runModel, "❯ first")
-	secondRow := getTranscriptContentRow(t, runModel, "Hand: second")
+	secondRow := getTranscriptContentRow(t, runModel, "second")
 	require.GreaterOrEqual(t, runModel.transcript.Height(), 3)
 
 	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
@@ -1245,18 +1246,17 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 
 	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + len("Hand: second"),
+		X:      getPanelHorizontalPadding(runModel.width) + len("second"),
 		Y:      secondRow,
 	}))
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
 	require.Contains(t, runModel.transcript.View(), "48;2;21;21;21")
-	require.Contains(t, runModel.transcript.View(), "38;5;83")
 
 	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + len("Hand: second"),
+		X:      getPanelHorizontalPadding(runModel.width) + len("second"),
 		Y:      secondRow,
 	}))
 
@@ -1266,11 +1266,10 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	require.True(t, runModel.selection.active)
 	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
 	require.Contains(t, runModel.transcript.View(), "48;2;21;21;21")
-	require.Contains(t, runModel.transcript.View(), "38;5;83")
 	require.Equal(t, strings.Join([]string{
 		"❯ first",
 		"",
-		"Hand: second",
+		"second",
 	}, "\n"), trimTrailingLineSpaces(copied))
 	require.Equal(t, defaultStatus, runModel.status.Text())
 }
@@ -1292,11 +1291,11 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 	runModel.setTranscriptContent()
 	runModel.resize()
 	runModel.transcript.GotoTop()
-	row := getTranscriptContentRow(t, runModel, "Hand: second")
+	row := getTranscriptContentRow(t, runModel, "second")
 
 	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + len("Hand: "),
+		X:      getPanelHorizontalPadding(runModel.width),
 		Y:      row,
 	}))
 	require.Nil(t, cmd)
@@ -1304,7 +1303,7 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 
 	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + len("Hand: sec"),
+		X:      getPanelHorizontalPadding(runModel.width) + len("sec"),
 		Y:      row,
 	}))
 	require.Nil(t, cmd)
@@ -1312,7 +1311,7 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 
 	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
 		Button: tea.MouseLeft,
-		X:      getPanelHorizontalPadding(runModel.width) + len("Hand: sec"),
+		X:      getPanelHorizontalPadding(runModel.width) + len("sec"),
 		Y:      row,
 	}))
 
@@ -1436,7 +1435,7 @@ func TestModel_UpdateReportsMouseSelectionCopyFailure(t *testing.T) {
 	runModel.setTranscriptContent()
 	runModel.resize()
 	runModel.transcript.GotoTop()
-	row := getTranscriptContentRow(t, runModel, "Hand: first")
+	row := getTranscriptContentRow(t, runModel, "first")
 
 	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
 		Button: tea.MouseLeft,
@@ -1580,7 +1579,7 @@ func TestGetTranscriptLineOffsetReturnsEndOffsetForPastEndIndex(t *testing.T) {
 func TestGetByteOffsetForDisplayColumnSkipsANSISequences(t *testing.T) {
 	line := renderTranscriptCell("Hand: hello")
 
-	offset := getByteOffsetForDisplayColumn(line, len("Hand: hel"))
+	offset := getByteOffsetForDisplayColumn(line, len("hel"))
 
 	require.Equal(t, strings.Index(line, "lo"), offset)
 }
@@ -1627,7 +1626,8 @@ func TestModel_SetTranscriptContentClearsMouseSelection(t *testing.T) {
 
 	require.False(t, runModel.selection.active)
 	require.Empty(t, runModel.selectedTranscriptText())
-	require.Contains(t, stripANSI(runModel.transcript.View()), "Hand: refreshed")
+	require.Contains(t, stripANSI(runModel.transcript.View()), "refreshed")
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: refreshed")
 }
 
 func TestModel_UpdateReportsUnknownCommand(t *testing.T) {
@@ -1749,7 +1749,8 @@ func TestModel_SubmitPromptStartsResponseFollowFromSettledBottom(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.True(t, runModel.transcript.AtBottom())
-	require.Contains(t, stripANSI(runModel.transcript.View()), "Hand: final")
+	require.Contains(t, stripANSI(runModel.transcript.View()), "final")
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: final")
 }
 
 func TestRespondToPromptCmd_StreamsDeltasTraceEventsAndCompletion(t *testing.T) {
@@ -1850,8 +1851,8 @@ func TestModel_UpdatePreservesTranscriptScrollDuringActiveResponse(t *testing.T)
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.Equal(t, offsetBefore, runModel.transcript.YOffset())
-	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "Hand: streamed")
-	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
+	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "streamed")
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "streamed")
 }
 
 func TestModel_UpdateFollowsBottomDuringActiveResponse(t *testing.T) {
@@ -1877,8 +1878,8 @@ func TestModel_UpdateFollowsBottomDuringActiveResponse(t *testing.T) {
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.True(t, runModel.transcript.AtBottom())
-	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "Hand: streamed")
-	require.Contains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
+	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "streamed")
+	require.Contains(t, stripANSI(runModel.transcript.View()), "streamed")
 }
 
 func TestModel_UpdateKeepsFollowingBottomWhenResponseCompletesAfterStream(t *testing.T) {
@@ -1910,7 +1911,8 @@ func TestModel_UpdateKeepsFollowingBottomWhenResponseCompletesAfterStream(t *tes
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.True(t, runModel.transcript.AtBottom())
-	require.Contains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
+	require.Contains(t, stripANSI(runModel.transcript.View()), "streamed")
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
 }
 
 func TestModel_UpdateScrollsToBottomWhenResponseCompletesWhileViewportIsAtBottom(t *testing.T) {
@@ -1933,7 +1935,8 @@ func TestModel_UpdateScrollsToBottomWhenResponseCompletesWhileViewportIsAtBottom
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.True(t, runModel.transcript.AtBottom())
-	require.Contains(t, stripANSI(runModel.transcript.View()), "Hand: final")
+	require.Contains(t, stripANSI(runModel.transcript.View()), "final")
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: final")
 }
 
 func TestModel_UpdateDoesNotScrollToBottomWhenResponseCompletesAfterManualScroll(t *testing.T) {
@@ -1969,7 +1972,7 @@ func TestModel_UpdateDoesNotScrollToBottomWhenResponseCompletesAfterManualScroll
 	runModel = updated.(model)
 	require.Equal(t, offsetBefore, runModel.transcript.YOffset())
 	require.False(t, runModel.transcript.AtBottom())
-	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "streamed")
 }
 
 func TestModel_UpdateDisablesFollowModeOnWheelDuringActiveResponse(t *testing.T) {
@@ -2007,7 +2010,7 @@ func TestModel_UpdateDisablesFollowModeOnWheelDuringActiveResponse(t *testing.T)
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.Equal(t, offsetBefore, runModel.transcript.YOffset())
-	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "streamed")
 }
 
 func TestModel_UpdateDoesNotScrollToBottomWhenResponseArrivesAwayFromBottom(t *testing.T) {
@@ -2435,7 +2438,8 @@ func TestModel_UpdatePreservesLiveAssistantCellDuringStreaming(t *testing.T) {
 	require.Equal(t, "Hand: first line\npartial", runModel.live)
 	content := stripANSI(runModel.transcript.View())
 	require.Contains(t, content, "❯ hello")
-	require.Contains(t, content, "Hand: first line")
+	require.Contains(t, content, "first line")
+	require.NotContains(t, content, "Hand: first line")
 	require.Contains(t, content, "partial")
 }
 
@@ -2454,7 +2458,8 @@ func TestModel_UpdateConvertsLiveAssistantCellToHistoryAtCompletion(t *testing.T
 	require.Equal(t, []string{"You: hello", "Hand: first line\npartial"}, runModel.messages)
 	require.Equal(t, "", runModel.stream.Render())
 	content := stripANSI(runModel.transcript.View())
-	require.Contains(t, content, "Hand: first line")
+	require.Contains(t, content, "first line")
+	require.NotContains(t, content, "Hand: first line")
 	require.Contains(t, content, "partial")
 }
 

@@ -217,9 +217,9 @@ func tuiMessageToTranscriptCell(msg any) string {
 			return "Hand: " + text
 		}
 	case toolInvocationStartedMsg:
-		return toolOperationTranscriptCell(value.ID, value.Name, value.Detail)
+		return toolOperationTranscriptCellWithTiming(value.ID, value.Name, value.Detail, value.StartedAt, time.Time{}, false)
 	case toolInvocationCompletedMsg:
-		return toolOperationTranscriptCell(value.ID, value.Name, value.Detail, true)
+		return toolOperationTranscriptCellWithTiming(value.ID, value.Name, value.Detail, time.Time{}, value.CompletedAt, true)
 	case safetyEventMsg:
 		return safetyEventToTranscriptCell(value)
 	case sessionErrorMsg:

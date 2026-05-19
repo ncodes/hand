@@ -3,7 +3,9 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/guardrails"
@@ -26,15 +28,17 @@ type assistantResponseCompletedMsg struct {
 }
 
 type toolInvocationStartedMsg struct {
-	ID     string
-	Name   string
-	Detail string
+	ID        string
+	Name      string
+	Detail    string
+	StartedAt time.Time
 }
 
 type toolInvocationCompletedMsg struct {
-	ID     string
-	Name   string
-	Detail string
+	ID          string
+	Name        string
+	Detail      string
+	CompletedAt time.Time
 }
 
 type safetyEventMsg struct {
@@ -77,9 +81,25 @@ func traceEventToTUIMessage(event trace.Event) (any, bool) {
 			return assistantResponseCompletedMsg{Text: text}, true
 		}
 	case trace.EvtToolInvocationStarted:
-		return toolCallPayloadToTUIMessage(event.Payload)
+		msg, ok := toolCallPayloadToTUIMessage(event.Payload)
+		if !ok {
+			return nil, false
+		}
+		if toolMsg, ok := msg.(toolInvocationStartedMsg); ok {
+			toolMsg.StartedAt = getTraceEventTimestamp(event)
+			return toolMsg, true
+		}
+		return msg, true
 	case trace.EvtToolInvocationCompleted:
-		return toolMessagePayloadToTUIMessage(event.Payload)
+		msg, ok := toolMessagePayloadToTUIMessage(event.Payload)
+		if !ok {
+			return nil, false
+		}
+		if toolMsg, ok := msg.(toolInvocationCompletedMsg); ok {
+			toolMsg.CompletedAt = getTraceEventTimestamp(event)
+			return toolMsg, true
+		}
+		return msg, true
 	case trace.EvtInputSafetyBlocked,
 		trace.EvtOutputSafetyApplied,
 		trace.EvtToolOutputSafetyApplied,
@@ -92,6 +112,10 @@ func traceEventToTUIMessage(event trace.Event) (any, bool) {
 	}
 
 	return nil, false
+}
+
+func getTraceEventTimestamp(event trace.Event) time.Time {
+	return event.Timestamp
 }
 
 func toolCallPayloadToTUIMessage(payload any) (any, bool) {
@@ -157,8 +181,46 @@ func getToolInputDisplayDetail(name string, input string) string {
 	case "Web Search", "Memory Search":
 		return getSearchToolDisplayDetail(fields)
 	default:
+		if !isGenericToolParamDisplayEnabled(name) {
+			return ""
+		}
+		return getGenericToolDisplayDetail(name, fields)
+	}
+}
+
+func isGenericToolParamDisplayEnabled(name string) bool {
+	switch strings.TrimSpace(strings.ToLower(name)) {
+	case "list_files":
+		return true
+	default:
+		return false
+	}
+}
+
+func getGenericToolDisplayDetail(name string, fields map[string]any) string {
+	name = strings.TrimSpace(name)
+	if name == "" || len(fields) == 0 {
 		return ""
 	}
+
+	keys := make([]string, 0, len(fields))
+	for key, value := range fields {
+		if strings.TrimSpace(key) == "" || isEmptyToolInputValue(value) {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	if len(keys) == 0 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, strings.TrimSpace(key)+"="+formatToolInputValueForKey(key, fields[key]))
+	}
+
+	return name + "(" + strings.Join(parts, " ") + ")"
 }
 
 func getRunToolDisplayDetail(fields map[string]any) string {
@@ -224,6 +286,85 @@ func getMapStringSlice(fields map[string]any, key string) []string {
 	}
 
 	return values
+}
+
+func isEmptyToolInputValue(value any) bool {
+	switch typed := value.(type) {
+	case nil:
+		return true
+	case string:
+		return strings.TrimSpace(typed) == ""
+	case []any:
+		return len(typed) == 0
+	case map[string]any:
+		return len(typed) == 0
+	default:
+		return false
+	}
+}
+
+func formatToolInputValueForKey(key string, value any) string {
+	switch typed := value.(type) {
+	case string:
+		sanitized, _ := guardrails.NewRedactor().Sanitize(typed).(string)
+		if strings.EqualFold(strings.TrimSpace(key), "path") {
+			return shortenToolPath(sanitized, 42)
+		}
+		return truncateToolDetail(sanitized, 60)
+	case float64:
+		return strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%.1f", typed), "0"), ".")
+	case bool:
+		if typed {
+			return "true"
+		}
+		return "false"
+	default:
+		data, err := json.Marshal(typed)
+		if err != nil {
+			return truncateToolDetail(fmt.Sprintf("%v", typed), 60)
+		}
+		return truncateToolDetail(string(data), 60)
+	}
+}
+
+func shortenToolPath(path string, limit int) string {
+	path = strings.Join(strings.Fields(strings.TrimSpace(path)), " ")
+	if limit <= 0 {
+		return path
+	}
+
+	runes := []rune(path)
+	if len(runes) <= limit {
+		return path
+	}
+	if limit <= 5 {
+		return string(runes[:limit])
+	}
+
+	separator := "/"
+	if strings.Contains(path, "\\") && !strings.Contains(path, "/") {
+		separator = "\\"
+	}
+	parts := strings.FieldsFunc(path, func(r rune) bool {
+		return r == '/' || r == '\\'
+	})
+	tail := ""
+	if len(parts) > 0 {
+		tail = parts[len(parts)-1]
+	}
+	if tail == "" {
+		return truncateToolDetail(path, limit)
+	}
+
+	tailRunes := []rune(tail)
+	if len(tailRunes)+5 >= limit {
+		return "..." + separator + string(tailRunes[max(len(tailRunes)-(limit-4), 0):])
+	}
+
+	prefixLimit := limit - len(tailRunes) - 4
+	prefix := string(runes[:max(prefixLimit, 1)])
+
+	return strings.TrimRight(prefix, `/\`) + separator + "..." + separator + tail
 }
 
 func shellQuoteCommandPart(value string) string {

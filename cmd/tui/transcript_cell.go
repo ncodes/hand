@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/muesli/reflow/wordwrap"
@@ -78,6 +79,9 @@ func renderTranscriptCellWithWidth(cell string, width int) string {
 
 	if kind == transcriptCellUser {
 		return renderUserTranscriptCell(body, width)
+	}
+	if kind == transcriptCellAssistant {
+		return renderTranscriptCellBody(kind, body, width)
 	}
 
 	labelStyle := transcriptCellLabelStyle(kind)
@@ -218,21 +222,44 @@ func transcriptCellLabelStyle(kind transcriptCellKind) lipgloss.Style {
 }
 
 type toolTranscriptCell struct {
-	id        string
-	action    string
-	detail    string
-	completed bool
+	id          string
+	action      string
+	detail      string
+	startedAt   time.Time
+	completedAt time.Time
+	completed   bool
+}
+
+type toolTranscriptDetail struct {
+	id          string
+	text        string
+	startedAt   time.Time
+	completedAt time.Time
+	completed   bool
 }
 
 type toolTranscriptGroup struct {
 	action       string
-	details      []string
+	details      []toolTranscriptDetail
 	seenIDs      map[string]bool
 	completedIDs map[string]bool
 	completed    bool
 }
 
 func toolOperationTranscriptCell(id string, name string, detail string, completed ...bool) string {
+	isCompleted := len(completed) > 0 && completed[0]
+
+	return toolOperationTranscriptCellWithTiming(id, name, detail, time.Time{}, time.Time{}, isCompleted)
+}
+
+func toolOperationTranscriptCellWithTiming(
+	id string,
+	name string,
+	detail string,
+	startedAt time.Time,
+	completedAt time.Time,
+	completed bool,
+) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ""
@@ -242,15 +269,22 @@ func toolOperationTranscriptCell(id string, name string, detail string, complete
 	if detail == "" {
 		detail = name
 	}
-	statusLine := ""
-	if len(completed) > 0 && completed[0] {
-		statusLine = "\nstatus: completed"
-	}
+	lines := []string{}
 	if id = strings.TrimSpace(id); id != "" {
-		return fmt.Sprintf("Tool %s:\nid: %s\ndetail: %s%s", getToolActionName(name), id, detail, statusLine)
+		lines = append(lines, "id: "+id)
+	}
+	lines = append(lines, "detail: "+detail)
+	if !startedAt.IsZero() {
+		lines = append(lines, "started_at: "+startedAt.UTC().Format(time.RFC3339Nano))
+	}
+	if !completedAt.IsZero() {
+		lines = append(lines, "completed_at: "+completedAt.UTC().Format(time.RFC3339Nano))
+	}
+	if completed {
+		lines = append(lines, "status: completed")
 	}
 
-	return fmt.Sprintf("Tool %s:\ndetail: %s%s", getToolActionName(name), detail, statusLine)
+	return fmt.Sprintf("Tool %s:\n%s", getToolActionName(name), strings.Join(lines, "\n"))
 }
 
 func parseToolTranscriptCell(cell string) (toolTranscriptCell, bool) {
@@ -276,6 +310,10 @@ func parseToolTranscriptCell(cell string) (toolTranscriptCell, bool) {
 			result.id = strings.TrimSpace(value)
 		case "detail":
 			result.detail = normalizeToolTranscriptDetail(value)
+		case "started_at":
+			result.startedAt = parseToolTranscriptTime(value)
+		case "completed_at":
+			result.completedAt = parseToolTranscriptTime(value)
 		case "status":
 			result.completed = strings.EqualFold(strings.TrimSpace(value), "completed")
 		}
@@ -302,6 +340,7 @@ func (group *toolTranscriptGroup) add(cell toolTranscriptCell) {
 			group.completedIDs[id] = true
 		}
 		if group.seenIDs[id] {
+			group.mergeToolTranscriptCell(id, cell)
 			return
 		}
 		group.seenIDs[id] = true
@@ -314,7 +353,34 @@ func (group *toolTranscriptGroup) add(cell toolTranscriptCell) {
 		detail = strings.TrimSpace(cell.action)
 	}
 	if detail != "" {
-		group.details = append(group.details, detail)
+		group.details = append(group.details, toolTranscriptDetail{
+			id:          strings.TrimSpace(cell.id),
+			text:        detail,
+			startedAt:   cell.startedAt,
+			completedAt: cell.completedAt,
+			completed:   cell.completed,
+		})
+	}
+}
+
+func (group *toolTranscriptGroup) mergeToolTranscriptCell(id string, cell toolTranscriptCell) {
+	for index := range group.details {
+		if group.details[index].id != id {
+			continue
+		}
+		if group.details[index].startedAt.IsZero() {
+			group.details[index].startedAt = cell.startedAt
+		}
+		if !cell.completedAt.IsZero() {
+			group.details[index].completedAt = cell.completedAt
+		}
+		if cell.completed {
+			group.details[index].completed = true
+		}
+		if group.details[index].text == "" {
+			group.details[index].text = cell.detail
+		}
+		return
 	}
 }
 
@@ -338,17 +404,25 @@ func renderToolTranscriptGroup(group toolTranscriptGroup, frame int) string {
 	}
 	completed := group.isCompleted()
 
+	headerTitle := getToolTranscriptTitle(action, completed)
+	headerDuration := ""
+	if len(group.details) == 1 {
+		headerDuration = renderToolTranscriptDuration(group.details[0])
+	}
 	header := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(getToolTranscriptDotColor(completed))).
 		Bold(true).
 		Render(getToolTranscriptDot(completed, frame)) +
 		lipgloss.NewStyle().
 			Foreground(lipgloss.Color("250")).
-			Render(" "+getToolTranscriptTitle(action, completed))
+			Render(" "+headerTitle) +
+		lipgloss.NewStyle().
+			Foreground(lipgloss.Color("246")).
+			Render(headerDuration)
 
-	details := make([]string, 0, len(group.details))
+	details := make([]toolTranscriptDetail, 0, len(group.details))
 	for _, detail := range group.details {
-		if detail = strings.TrimSpace(detail); detail != "" {
+		if strings.TrimSpace(detail.text) != "" {
 			details = append(details, detail)
 		}
 	}
@@ -364,7 +438,7 @@ func renderToolTranscriptGroup(group toolTranscriptGroup, frame int) string {
 		if index == len(details)-1 {
 			branch = "└"
 		}
-		lines = append(lines, "  "+branchStyle.Render(branch)+" "+detailStyle.Render(detail))
+		lines = append(lines, "  "+branchStyle.Render(branch)+" "+detailStyle.Render(detail.text+renderToolTranscriptDuration(detail)))
 	}
 
 	return strings.Join(lines, "\n")
@@ -410,10 +484,52 @@ func renderRunTranscriptGroup(group toolTranscriptGroup, frame int) string {
 		if index == len(group.details)-1 {
 			branch = "└"
 		}
-		lines = append(lines, "  "+branchStyle.Render(branch)+" "+detailStyle.Render("$ "+detail))
+		lines = append(lines, "  "+branchStyle.Render(branch)+" "+detailStyle.Render("$ "+detail.text+renderToolTranscriptDuration(detail)))
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func renderToolTranscriptDuration(detail toolTranscriptDetail) string {
+	duration := getToolTranscriptDuration(detail)
+	if duration <= 0 {
+		return ""
+	}
+
+	return " (" + formatToolTranscriptDuration(duration) + ")"
+}
+
+func getToolTranscriptDuration(detail toolTranscriptDetail) time.Duration {
+	if detail.startedAt.IsZero() {
+		return 0
+	}
+	end := detail.completedAt
+	if end.IsZero() {
+		end = currentTime()
+	}
+	if end.Before(detail.startedAt) {
+		return 0
+	}
+
+	return end.Sub(detail.startedAt).Round(time.Second)
+}
+
+func formatToolTranscriptDuration(duration time.Duration) string {
+	seconds := int(duration.Seconds())
+	if seconds < 1 {
+		seconds = 1
+	}
+
+	return fmt.Sprintf("%ds", seconds)
+}
+
+func parseToolTranscriptTime(value string) time.Time {
+	parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(value))
+	if err != nil {
+		return time.Time{}
+	}
+
+	return parsed
 }
 
 func (group toolTranscriptGroup) isCompleted() bool {
