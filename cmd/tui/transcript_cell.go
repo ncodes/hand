@@ -484,7 +484,8 @@ func renderRunTranscriptGroup(group toolTranscriptGroup, frame int) string {
 		if index == len(group.details)-1 {
 			branch = "└"
 		}
-		lines = append(lines, "  "+branchStyle.Render(branch)+" "+detailStyle.Render("$ "+detail.text+renderToolTranscriptDuration(detail)))
+		detailText := getToolBranchDisplayDetail(group.action, detail.text, detail.completed)
+		lines = append(lines, "  "+branchStyle.Render(branch)+" "+detailStyle.Render("$ "+detailText+renderToolTranscriptDuration(detail)))
 	}
 
 	return strings.Join(lines, "\n")

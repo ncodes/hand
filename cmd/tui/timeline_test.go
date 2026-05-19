@@ -192,27 +192,63 @@ func TestRenderTranscriptCells_RendersToolElapsedTime(t *testing.T) {
 
 func TestRenderTranscriptCells_RendersRunCommandsWithShellLayout(t *testing.T) {
 	rendered := renderTranscriptCells([]string{
-		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 && echo "Done" (8s)`),
+		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 && echo "Done" [terminates in 8s]`),
 	})
 	plain := stripANSI(rendered)
 
 	require.Contains(t, plain, "● Running 1 shell command…")
-	require.Contains(t, plain, `└ $ sleep 10 && echo "Done" (8s)`)
+	require.Contains(t, plain, `└ $ sleep 10 && echo "Done" [terminates in 8s]`)
 	require.NotContains(t, plain, "ctrl+b")
 	require.Contains(t, rendered, "\x1b[")
 }
 
 func TestRenderTranscriptCells_RendersCompletedRunCommandsWithPastTense(t *testing.T) {
 	rendered := renderTranscriptCells([]string{
-		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 (30s)`, true),
+		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 [terminates in 30s]`, true),
 	})
 	plain := stripANSI(rendered)
 
 	require.Contains(t, plain, "● Ran 1 shell command")
-	require.Contains(t, plain, "└ $ sleep 10 (30s)")
+	require.Contains(t, plain, "└ $ sleep 10")
+	require.NotContains(t, plain, "[terminates in 30s]")
 	require.NotContains(t, plain, "Running")
 	require.NotContains(t, plain, "…")
 	require.Contains(t, rendered, "\x1b[")
+}
+
+func TestRenderTranscriptCells_NormalizesLegacyRunCommandTimeouts(t *testing.T) {
+	startedAt := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
+	originalCurrentTime := currentTime
+	t.Cleanup(func() { currentTime = originalCurrentTime })
+	currentTime = func() time.Time {
+		return startedAt.Add(6 * time.Second)
+	}
+
+	rendered := renderTranscriptCells([]string{
+		toolOperationTranscriptCellWithTiming("call_1", "run_command", "sleep 10 (30s)", startedAt, time.Time{}, false),
+	})
+	plain := stripANSI(rendered)
+
+	require.Contains(t, plain, "└ $ sleep 10 [terminates in 30s] (6s)")
+	require.NotContains(t, plain, "sleep 10 (30s) (6s)")
+}
+
+func TestRenderTranscriptCells_RemovesRunCommandTimeoutHintWhenCompleted(t *testing.T) {
+	startedAt := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
+	rendered := renderTranscriptCells([]string{
+		toolOperationTranscriptCellWithTiming(
+			"call_1",
+			"run_command",
+			"sleep 10 [terminates in 30s]",
+			startedAt,
+			startedAt.Add(6*time.Second),
+			true,
+		),
+	})
+	plain := stripANSI(rendered)
+
+	require.Contains(t, plain, "└ $ sleep 10 (6s)")
+	require.NotContains(t, plain, "[terminates in 30s]")
 }
 
 func TestRenderTranscriptCell_RendersUserMessageBox(t *testing.T) {
@@ -426,10 +462,11 @@ func TestSessionTimelineToTranscriptCells_UsesPersistedToolCallInputForToolDetai
 	})
 
 	require.Equal(t, []string{
-		toolOperationTranscriptCell("call_1", "run_command", "sleep 10 (30s)", true),
+		toolOperationTranscriptCell("call_1", "run_command", "sleep 10 [terminates in 30s]", true),
 	}, cells)
 	plain := stripANSI(renderTranscriptCells(cells))
 	require.Contains(t, plain, "● Ran 1 shell command")
-	require.Contains(t, plain, "└ $ sleep 10 (30s)")
+	require.Contains(t, plain, "└ $ sleep 10")
+	require.NotContains(t, plain, "[terminates in 30s]")
 	require.NotContains(t, plain, "run_command")
 }

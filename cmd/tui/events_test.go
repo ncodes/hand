@@ -172,7 +172,7 @@ func TestToolCallPayloadToTUIMessage_ExtractsRunCommandDetail(t *testing.T) {
 	require.Equal(t, toolInvocationStartedMsg{
 		ID:     "call_1",
 		Name:   "run_command",
-		Detail: `sleep 10 && echo "Done" (8s)`,
+		Detail: `sleep 10 && echo "Done" [terminates in 8s]`,
 	}, msg)
 }
 
