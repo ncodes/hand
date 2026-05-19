@@ -210,7 +210,7 @@ func (m model) selectedTranscriptText() string {
 		end = len(content)
 	}
 
-	return strings.TrimSpace(content[start:end])
+	return compactTranscriptSelectionBlankLines(strings.TrimSpace(content[start:end]))
 }
 
 func (m model) getSelectionContent() string {
@@ -219,6 +219,44 @@ func (m model) getSelectionContent() string {
 	}
 
 	return m.transcript.GetContent()
+}
+
+func compactTranscriptSelectionBlankLines(text string) string {
+	lines := strings.Split(text, "\n")
+	compact := make([]string, 0, len(lines))
+	blank := false
+	for _, line := range lines {
+		if isTranscriptSelectionVisualPaddingLine(line) {
+			continue
+		}
+		if strings.TrimSpace(line) == "" {
+			if blank {
+				continue
+			}
+			blank = true
+			compact = append(compact, "")
+			continue
+		}
+
+		blank = false
+		compact = append(compact, line)
+	}
+
+	return strings.Join(compact, "\n")
+}
+
+func isTranscriptSelectionVisualPaddingLine(line string) bool {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return false
+	}
+	for _, char := range line {
+		if char != '▀' && char != '▄' {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (s transcriptSelection) offsetBounds() (int, int) {

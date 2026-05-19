@@ -672,6 +672,17 @@ func TestSpaceBetweenBottomStatusPanel_HandlesMissingAndNarrowSides(t *testing.T
 	require.Equal(t, "left · right", stripANSI(spaceBetweenBottomStatusPanel("left", "right", 1)))
 }
 
+func TestCompactTranscriptSelectionBlankLines_CollapsesVisualPaddingRuns(t *testing.T) {
+	require.Equal(t,
+		"❯ first\n\nHand: second",
+		compactTranscriptSelectionBlankLines("❯ first\n\n\nHand: second"),
+	)
+	require.Equal(t,
+		"❯ first\n\nHand: second",
+		compactTranscriptSelectionBlankLines("❯ first\n"+strings.Repeat("▄", 40)+"\n"+strings.Repeat("▀", 40)+"\n\nHand: second"),
+	)
+}
+
 func TestModel_UpdateResizesTranscriptAndInput(t *testing.T) {
 	runModel := newModel()
 	updated, cmd := runModel.Update(tea.WindowSizeMsg{Width: 100, Height: 30})

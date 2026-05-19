@@ -196,8 +196,13 @@ func TestRenderTranscriptCells_RendersCompletedRunCommandsWithPastTense(t *testi
 func TestRenderTranscriptCell_RendersUserMessageBox(t *testing.T) {
 	rendered := renderTranscriptCellWithWidth("You: Some message.", 40)
 	plain := stripANSI(rendered)
+	lines := strings.Split(plain, "\n")
 
 	require.Contains(t, plain, "❯ Some message.")
+	require.Len(t, lines, 3)
+	require.Equal(t, strings.Repeat("▄", 40), lines[0])
+	require.Equal(t, "❯ Some message.", strings.TrimRight(lines[1], " "))
+	require.Equal(t, strings.Repeat("▀", 40), lines[2])
 	require.NotContains(t, plain, "┌")
 	require.NotContains(t, plain, "│")
 	require.NotContains(t, plain, "└")
@@ -212,9 +217,11 @@ func TestRenderTranscriptCell_RendersMultilineUserMessageWithSinglePrompt(t *tes
 	plain := stripANSI(rendered)
 	lines := strings.Split(plain, "\n")
 
-	require.Len(t, lines, 2)
-	require.Equal(t, "❯ hello", strings.TrimRight(lines[0], " "))
-	require.Equal(t, "  friend", strings.TrimRight(lines[1], " "))
+	require.Len(t, lines, 4)
+	require.Equal(t, strings.Repeat("▄", 40), lines[0])
+	require.Equal(t, "❯ hello", strings.TrimRight(lines[1], " "))
+	require.Equal(t, "  friend", strings.TrimRight(lines[2], " "))
+	require.Equal(t, strings.Repeat("▀", 40), lines[3])
 	require.Equal(t, 1, strings.Count(plain, "❯"))
 	require.Contains(t, rendered, "\x1b[")
 }

@@ -109,6 +109,9 @@ func renderUserTranscriptCell(body string, width int) string {
 		return ""
 	}
 
+	rendered = append([]string{renderUserTranscriptTopHeightStrip(contentWidth)}, rendered...)
+	rendered = append(rendered, renderUserTranscriptBottomHeightStrip(contentWidth))
+
 	return strings.Join(rendered, "\n")
 }
 
@@ -146,6 +149,20 @@ func renderUserTranscriptFiller(width int) string {
 	return lipgloss.NewStyle().
 		Background(lipgloss.Color(userTranscriptBackground)).
 		Render(strings.Repeat(" ", max(width, 0)))
+}
+
+func renderUserTranscriptTopHeightStrip(width int) string {
+	return renderUserTranscriptHeightStrip("▄", width)
+}
+
+func renderUserTranscriptBottomHeightStrip(width int) string {
+	return renderUserTranscriptHeightStrip("▀", width)
+}
+
+func renderUserTranscriptHeightStrip(block string, width int) string {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color(userTranscriptBackground)).
+		Render(strings.Repeat(block, max(width, 0)))
 }
 
 func renderTranscriptCellBody(kind transcriptCellKind, body string, width int) string {
