@@ -192,25 +192,25 @@ func TestRenderTranscriptCells_RendersToolElapsedTime(t *testing.T) {
 
 func TestRenderTranscriptCells_RendersRunCommandsWithShellLayout(t *testing.T) {
 	rendered := renderTranscriptCells([]string{
-		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 && echo "Done" [terminates in 8s]`),
+		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 && echo "Done" [timeout 8s]`),
 	})
 	plain := stripANSI(rendered)
 
 	require.Contains(t, plain, "● Running 1 shell command…")
-	require.Contains(t, plain, `└ $ sleep 10 && echo "Done" [terminates in 8s]`)
+	require.Contains(t, plain, `└ $ sleep 10 && echo "Done" [timeout 8s]`)
 	require.NotContains(t, plain, "ctrl+b")
 	require.Contains(t, rendered, "\x1b[")
 }
 
 func TestRenderTranscriptCells_RendersCompletedRunCommandsWithPastTense(t *testing.T) {
 	rendered := renderTranscriptCells([]string{
-		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 [terminates in 30s]`, true),
+		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 [timeout 30s]`, true),
 	})
 	plain := stripANSI(rendered)
 
 	require.Contains(t, plain, "● Ran 1 shell command")
 	require.Contains(t, plain, "└ $ sleep 10")
-	require.NotContains(t, plain, "[terminates in 30s]")
+	require.NotContains(t, plain, "[timeout 30s]")
 	require.NotContains(t, plain, "Running")
 	require.NotContains(t, plain, "…")
 	require.Contains(t, rendered, "\x1b[")
@@ -229,26 +229,40 @@ func TestRenderTranscriptCells_NormalizesLegacyRunCommandTimeouts(t *testing.T) 
 	})
 	plain := stripANSI(rendered)
 
-	require.Contains(t, plain, "└ $ sleep 10 [terminates in 30s] (6s)")
+	require.Contains(t, plain, "└ $ sleep 10 [timeout 30s] (6s)")
 	require.NotContains(t, plain, "sleep 10 (30s) (6s)")
 }
 
 func TestRenderTranscriptCells_RemovesRunCommandTimeoutHintWhenCompleted(t *testing.T) {
 	startedAt := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
-	rendered := renderTranscriptCells([]string{
-		toolOperationTranscriptCellWithTiming(
-			"call_1",
-			"run_command",
-			"sleep 10 [terminates in 30s]",
-			startedAt,
-			startedAt.Add(6*time.Second),
-			true,
-		),
-	})
-	plain := stripANSI(rendered)
+	cases := []struct {
+		name       string
+		detail     string
+		notContain string
+	}{
+		{name: "current timeout hint", detail: "sleep 10 [timeout 30s]", notContain: "[timeout 30s]"},
+		{name: "legacy termination hint", detail: "sleep 10 [terminates in 30s]", notContain: "[terminates in 30s]"},
+		{name: "legacy parenthetical timeout", detail: "sleep 10 (30s)", notContain: "sleep 10 (30s) (6s)"},
+	}
 
-	require.Contains(t, plain, "└ $ sleep 10 (6s)")
-	require.NotContains(t, plain, "[terminates in 30s]")
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			rendered := renderTranscriptCells([]string{
+				toolOperationTranscriptCellWithTiming(
+					"call_1",
+					"run_command",
+					tt.detail,
+					startedAt,
+					startedAt.Add(6*time.Second),
+					true,
+				),
+			})
+			plain := stripANSI(rendered)
+
+			require.Contains(t, plain, "└ $ sleep 10 (6s)")
+			require.NotContains(t, plain, tt.notContain)
+		})
+	}
 }
 
 func TestRenderTranscriptCell_RendersUserMessageBox(t *testing.T) {
@@ -462,11 +476,117 @@ func TestSessionTimelineToTranscriptCells_UsesPersistedToolCallInputForToolDetai
 	})
 
 	require.Equal(t, []string{
-		toolOperationTranscriptCell("call_1", "run_command", "sleep 10 [terminates in 30s]", true),
+		toolOperationTranscriptCellWithTiming(
+			"call_1",
+			"run_command",
+			"sleep 10 [timeout 30s]",
+			now,
+			now.Add(time.Second),
+			true,
+		),
 	}, cells)
 	plain := stripANSI(renderTranscriptCells(cells))
 	require.Contains(t, plain, "● Ran 1 shell command")
-	require.Contains(t, plain, "└ $ sleep 10")
-	require.NotContains(t, plain, "[terminates in 30s]")
+	require.Contains(t, plain, "└ $ sleep 10 (1s)")
+	require.NotContains(t, plain, "[timeout 30s]")
 	require.NotContains(t, plain, "run_command")
+}
+
+func TestSessionTimelineToTranscriptCells_RendersHydratedRunCommandLikeLiveTrace(t *testing.T) {
+	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
+	hydratedCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
+		Messages: []agent.SessionTimelineMessage{
+			{Message: handmsg.Message{
+				Role:      handmsg.RoleAssistant,
+				ToolCalls: []handmsg.ToolCall{{ID: "call_1", Name: "run_command", Input: `{"command":"sleep 10","timeout_seconds":30}`}},
+				CreatedAt: now,
+			}},
+			{Message: handmsg.Message{
+				Role:       handmsg.RoleTool,
+				Name:       "run_command",
+				ToolCallID: "call_1",
+				Content:    `{"output":"done"}`,
+				CreatedAt:  now.Add(6 * time.Second),
+			}},
+		},
+	})
+	liveCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
+		TraceEvents: []agent.SessionTimelineTraceEvent{
+			{Event: storage.TraceEvent{
+				Type:      trace.EvtToolInvocationStarted,
+				Timestamp: now,
+				Payload: map[string]any{
+					"id":     "call_1",
+					"name":   "run_command",
+					"detail": "sleep 10 [timeout 30s]",
+				},
+			}},
+			{Event: storage.TraceEvent{
+				Type:      trace.EvtToolInvocationCompleted,
+				Timestamp: now.Add(6 * time.Second),
+				Payload: map[string]any{
+					"tool_call_id": "call_1",
+					"name":         "run_command",
+				},
+			}},
+		},
+	})
+
+	hydratedPlain := stripANSI(renderTranscriptCells(hydratedCells))
+	livePlain := stripANSI(renderTranscriptCells(liveCells))
+	require.Contains(t, hydratedPlain, "● Ran 1 shell command")
+	require.Contains(t, livePlain, "● Ran 1 shell command")
+	require.NotContains(t, hydratedPlain, "[timeout 30s]")
+	require.NotContains(t, livePlain, "[timeout 30s]")
+	require.Contains(t, hydratedPlain, "└ $ sleep 10 (6s)")
+	require.Contains(t, livePlain, "└ $ sleep 10 (6s)")
+	require.Equal(t, livePlain, hydratedPlain)
+}
+
+func TestSessionTimelineToTranscriptCells_RendersHydratedListFilesLikeLiveTrace(t *testing.T) {
+	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
+	detail := "list_files(include_hidden=false max_entries=50 path=. recursive=false)"
+	hydratedCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
+		Messages: []agent.SessionTimelineMessage{
+			{Message: handmsg.Message{
+				Role:      handmsg.RoleAssistant,
+				ToolCalls: []handmsg.ToolCall{{ID: "call_1", Name: "list_files", Input: `{"path":".","recursive":false,"include_hidden":false,"max_entries":50}`}},
+				CreatedAt: now,
+			}},
+			{Message: handmsg.Message{
+				Role:       handmsg.RoleTool,
+				Name:       "list_files",
+				ToolCallID: "call_1",
+				Content:    `{"output":"done"}`,
+				CreatedAt:  now.Add(time.Second),
+			}},
+		},
+	})
+	liveCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
+		TraceEvents: []agent.SessionTimelineTraceEvent{
+			{Event: storage.TraceEvent{
+				Type:      trace.EvtToolInvocationStarted,
+				Timestamp: now,
+				Payload: map[string]any{
+					"id":     "call_1",
+					"name":   "list_files",
+					"detail": detail,
+				},
+			}},
+			{Event: storage.TraceEvent{
+				Type:      trace.EvtToolInvocationCompleted,
+				Timestamp: now.Add(time.Second),
+				Payload: map[string]any{
+					"tool_call_id": "call_1",
+					"name":         "list_files",
+				},
+			}},
+		},
+	})
+
+	hydratedPlain := stripANSI(renderTranscriptCells(hydratedCells))
+	livePlain := stripANSI(renderTranscriptCells(liveCells))
+	require.Contains(t, hydratedPlain, "● List Files (1s)")
+	require.Contains(t, hydratedPlain, "└ "+detail+" (1s)")
+	require.Equal(t, livePlain, hydratedPlain)
 }

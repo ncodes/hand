@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -255,6 +256,9 @@ func getRPCTraceToolDetail(name any, fields map[string]any) string {
 	case "Web Search", "Memory Search":
 		return getRPCSearchToolDetail(inputFields)
 	default:
+		if isRPCGenericToolDetailEnabled(toolName) {
+			return getRPCGenericToolDetail(toolName, inputFields)
+		}
 		return ""
 	}
 }
@@ -292,6 +296,80 @@ func getRPCSearchToolDetail(inputFields map[string]any) string {
 	}
 
 	return `Search "` + strings.ReplaceAll(sanitized, `"`, `'`) + `"`
+}
+
+func isRPCGenericToolDetailEnabled(name string) bool {
+	switch strings.TrimSpace(strings.ToLower(name)) {
+	case "list_files":
+		return true
+	default:
+		return false
+	}
+}
+
+func getRPCGenericToolDetail(name string, inputFields map[string]any) string {
+	name = strings.TrimSpace(name)
+	if name == "" || len(inputFields) == 0 {
+		return ""
+	}
+
+	keys := make([]string, 0, len(inputFields))
+	for key, value := range inputFields {
+		if strings.TrimSpace(key) == "" || isRPCEmptyToolInputValue(value) {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	if len(keys) == 0 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, strings.TrimSpace(key)+"="+formatRPCGenericToolInputValue(key, inputFields[key]))
+	}
+
+	return name + "(" + strings.Join(parts, " ") + ")"
+}
+
+func isRPCEmptyToolInputValue(value any) bool {
+	switch typed := value.(type) {
+	case nil:
+		return true
+	case string:
+		return strings.TrimSpace(typed) == ""
+	case []any:
+		return len(typed) == 0
+	case map[string]any:
+		return len(typed) == 0
+	default:
+		return false
+	}
+}
+
+func formatRPCGenericToolInputValue(key string, value any) string {
+	switch typed := value.(type) {
+	case string:
+		sanitized, _ := guardrails.NewRedactor().Sanitize(typed).(string)
+		if strings.EqualFold(strings.TrimSpace(key), "path") {
+			return shortenRPCTraceToolPath(sanitized, 42)
+		}
+		return truncateRPCTraceToolDetail(sanitized, 60)
+	case float64:
+		return strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%.1f", typed), "0"), ".")
+	case bool:
+		if typed {
+			return "true"
+		}
+		return "false"
+	default:
+		data, err := json.Marshal(typed)
+		if err != nil {
+			return truncateRPCTraceToolDetail(fmt.Sprintf("%v", typed), 60)
+		}
+		return truncateRPCTraceToolDetail(string(data), 60)
+	}
 }
 
 func getRPCMapString(fields map[string]any, keys ...string) string {
@@ -333,7 +411,7 @@ func getRPCToolActionName(name string) string {
 	case "memory_search", "search_memory", "memory":
 		return "Memory Search"
 	default:
-		return ""
+		return humanizeRPCToolActionName(name)
 	}
 }
 
@@ -354,7 +432,63 @@ func appendRPCToolTimeout(command string, raw any) string {
 		return command
 	}
 
-	return command + " (" + strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%.1f", timeout), "0"), ".") + "s)"
+	return command + " [timeout " + strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%.1f", timeout), "0"), ".") + "s]"
+}
+
+func shortenRPCTraceToolPath(path string, limit int) string {
+	path = strings.Join(strings.Fields(strings.TrimSpace(path)), " ")
+	if limit <= 0 {
+		return path
+	}
+
+	runes := []rune(path)
+	if len(runes) <= limit {
+		return path
+	}
+	if limit <= 5 {
+		return string(runes[:limit])
+	}
+
+	separator := "/"
+	if strings.Contains(path, "\\") && !strings.Contains(path, "/") {
+		separator = "\\"
+	}
+	parts := strings.FieldsFunc(path, func(r rune) bool {
+		return r == '/' || r == '\\'
+	})
+	tail := ""
+	if len(parts) > 0 {
+		tail = parts[len(parts)-1]
+	}
+	if tail == "" {
+		return truncateRPCTraceToolDetail(path, limit)
+	}
+
+	tailRunes := []rune(tail)
+	if len(tailRunes)+5 >= limit {
+		return "..." + separator + string(tailRunes[max(len(tailRunes)-(limit-4), 0):])
+	}
+
+	prefixLimit := limit - len(tailRunes) - 4
+	prefix := string(runes[:max(prefixLimit, 1)])
+
+	return strings.TrimRight(prefix, `/\`) + separator + "..." + separator + tail
+}
+
+func humanizeRPCToolActionName(name string) string {
+	parts := strings.FieldsFunc(strings.TrimSpace(name), func(r rune) bool {
+		return r == '_' || r == '-' || r == ' '
+	})
+	for index, part := range parts {
+		if part == "" {
+			continue
+		}
+		runes := []rune(strings.ToLower(part))
+		runes[0] = []rune(strings.ToUpper(string(runes[0])))[0]
+		parts[index] = string(runes)
+	}
+
+	return strings.Join(parts, " ")
 }
 
 func truncateRPCTraceToolDetail(value string, limit int) string {

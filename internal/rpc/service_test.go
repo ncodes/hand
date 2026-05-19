@@ -499,7 +499,7 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 			expected: map[string]any{
 				"id":     "call_1",
 				"name":   "run_command",
-				"detail": `sleep 10 && echo "Done" (8s)`,
+				"detail": `sleep 10 && echo "Done" [timeout 8s]`,
 			},
 			ok: true,
 		},
@@ -530,6 +530,21 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 				"id":     "call_3",
 				"name":   "memory_search",
 				"detail": `Search "what does the user prefer for commit messages"`,
+			},
+			ok: true,
+		},
+		{
+			name:      "list files detail",
+			eventType: trace.EvtToolInvocationStarted,
+			payload: map[string]any{
+				"ID":    "call_4",
+				"Name":  "list_files",
+				"Input": `{"path":".","recursive":false,"include_hidden":false,"max_entries":50}`,
+			},
+			expected: map[string]any{
+				"id":     "call_4",
+				"name":   "list_files",
+				"detail": "list_files(include_hidden=false max_entries=50 path=. recursive=false)",
 			},
 			ok: true,
 		},

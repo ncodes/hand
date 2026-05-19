@@ -11,7 +11,7 @@ import (
 )
 
 var runToolLegacyTimeoutPattern = regexp.MustCompile(`\s+\(([0-9]+(?:\.[0-9]+)?s)\)$`)
-var runToolTerminationHintPattern = regexp.MustCompile(`\s+\[terminates in [^\]]+\]`)
+var runToolTimeoutHintPattern = regexp.MustCompile(`\s+\[(?:terminates in|timeout) [^\]]+\]`)
 
 type toolDisplaySpec struct {
 	inputDetail  func(map[string]any) string
@@ -271,7 +271,7 @@ func appendToolTimeout(command string, raw any) string {
 		return command
 	}
 
-	return command + " [terminates in " + formatToolTimeoutSeconds(timeout) + "s]"
+	return command + " [timeout " + formatToolTimeoutSeconds(timeout) + "s]"
 }
 
 func formatToolTimeoutSeconds(timeout float64) string {
@@ -284,13 +284,14 @@ func normalizeRunToolDetailText(detail string, completed bool) string {
 		return detail
 	}
 	if completed {
-		return strings.TrimSpace(runToolTerminationHintPattern.ReplaceAllString(detail, ""))
+		detail = runToolTimeoutHintPattern.ReplaceAllString(detail, "")
+		return strings.TrimSpace(runToolLegacyTimeoutPattern.ReplaceAllString(detail, ""))
 	}
-	if strings.Contains(detail, "[terminates in ") {
+	if strings.Contains(detail, "[timeout ") || strings.Contains(detail, "[terminates in ") {
 		return detail
 	}
 
-	return runToolLegacyTimeoutPattern.ReplaceAllString(detail, " [terminates in $1]")
+	return runToolLegacyTimeoutPattern.ReplaceAllString(detail, " [timeout $1]")
 }
 
 func truncateToolDetail(value string, limit int) string {

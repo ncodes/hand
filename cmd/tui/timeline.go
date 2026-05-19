@@ -80,9 +80,9 @@ func getSessionTimelineDisplayName(timeline rpcclient.SessionTimeline) string {
 
 func sessionTimelineToTranscriptCells(timeline rpcclient.SessionTimeline) []string {
 	entries := make([]transcriptTimelineEntry, 0, len(timeline.Messages)+len(timeline.TraceEvents))
-	toolDetails := getTimelineToolCallDetails(timeline.Messages)
+	toolCalls := getTimelineToolCallDetails(timeline.Messages)
 	for index, message := range timeline.Messages {
-		if cell := timelineMessageToTranscriptCell(message.Message, toolDetails); cell != "" {
+		if cell := timelineMessageToTranscriptCell(message.Message, toolCalls); cell != "" {
 			entries = append(entries, transcriptTimelineEntry{
 				at:    message.Message.CreatedAt,
 				order: index * 2,
@@ -149,7 +149,7 @@ func isMessageBackedTimelineEvent(msg any) bool {
 	}
 }
 
-func timelineMessageToTranscriptCell(message handmsg.Message, toolDetails map[string]string) string {
+func timelineMessageToTranscriptCell(message handmsg.Message, toolCalls map[string]timelineToolCallDetail) string {
 	content := strings.TrimSpace(message.Content)
 	if content == "" && len(message.ToolCalls) == 0 {
 		return ""
@@ -171,10 +171,13 @@ func timelineMessageToTranscriptCell(message handmsg.Message, toolDetails map[st
 		if name == "" {
 			name = "tool"
 		}
-		return toolOperationTranscriptCell(
+		toolCall := toolCalls[strings.TrimSpace(message.ToolCallID)]
+		return toolOperationTranscriptCellWithTiming(
 			message.ToolCallID,
 			name,
-			toolDetails[strings.TrimSpace(message.ToolCallID)],
+			toolCall.detail,
+			toolCall.startedAt,
+			message.CreatedAt,
 			true,
 		)
 	default:
@@ -185,16 +188,22 @@ func timelineMessageToTranscriptCell(message handmsg.Message, toolDetails map[st
 	}
 }
 
-func getTimelineToolCallDetails(messages []agent.SessionTimelineMessage) map[string]string {
-	details := map[string]string{}
+type timelineToolCallDetail struct {
+	detail    string
+	startedAt time.Time
+}
+
+func getTimelineToolCallDetails(messages []agent.SessionTimelineMessage) map[string]timelineToolCallDetail {
+	details := map[string]timelineToolCallDetail{}
 	for _, message := range messages {
 		for _, toolCall := range message.Message.ToolCalls {
 			id := strings.TrimSpace(toolCall.ID)
 			if id == "" {
 				continue
 			}
-			if detail := getToolInputDisplayDetail(toolCall.Name, toolCall.Input); detail != "" {
-				details[id] = detail
+			details[id] = timelineToolCallDetail{
+				detail:    getToolInputDisplayDetail(toolCall.Name, toolCall.Input),
+				startedAt: message.Message.CreatedAt,
 			}
 		}
 	}
