@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 var thinkingComposerInterval = 140 * time.Millisecond
@@ -21,7 +22,7 @@ var thinkingComposerBorderColors = []string{
 type thinkingComposerTickMsg struct{}
 
 func (m *model) startThinkingComposer() tea.Cmd {
-	if !m.isThinkingComposerVisible() {
+	if !m.isModelThinking() {
 		m.thinkingComposerActive = false
 		return nil
 	}
@@ -34,7 +35,7 @@ func (m *model) startThinkingComposer() tea.Cmd {
 }
 
 func (m *model) updateThinkingComposer() (tea.Model, tea.Cmd) {
-	if !m.isThinkingComposerVisible() {
+	if !m.isModelThinking() {
 		m.thinkingComposerActive = false
 		return *m, nil
 	}
@@ -47,6 +48,20 @@ func (m model) isThinkingComposerVisible() bool {
 	return m.thinkingComposerEnabled && m.isModelThinking()
 }
 
+func renderThinkingStatusCell(frame int) string {
+	const text = "Thinking"
+
+	var builder strings.Builder
+	for index, char := range text {
+		color := getThinkingStatusColor(frame + index)
+		builder.WriteString(lipgloss.NewStyle().
+			Foreground(lipgloss.Color(color)).
+			Render(string(char)))
+	}
+
+	return builder.String()
+}
+
 func (m model) isModelThinking() bool {
 	return m.responding &&
 		strings.TrimSpace(m.live) == "" &&
@@ -54,6 +69,19 @@ func (m model) isModelThinking() bool {
 }
 
 func getThinkingComposerBorderColor(frame int) string {
+	if len(thinkingComposerBorderColors) == 0 {
+		return "8"
+	}
+
+	index := frame % len(thinkingComposerBorderColors)
+	if index < 0 {
+		index += len(thinkingComposerBorderColors)
+	}
+
+	return thinkingComposerBorderColors[index]
+}
+
+func getThinkingStatusColor(frame int) string {
 	if len(thinkingComposerBorderColors) == 0 {
 		return "8"
 	}

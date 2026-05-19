@@ -622,6 +622,20 @@ func TestModel_RenderBottomStatusPanelShowsThinkingWhenComposerAnimationDisabled
 	require.Contains(t, content, "Thinking")
 }
 
+func TestModel_RenderBottomStatusPanelAnimatesThinkingStatus(t *testing.T) {
+	runModel := newModel()
+	runModel.responding = true
+	runModel.thinkingComposerFrame = 0
+	first := runModel.renderBottomStatusPanel()
+
+	runModel.thinkingComposerFrame = 1
+	second := runModel.renderBottomStatusPanel()
+
+	require.Contains(t, stripANSI(first), "Thinking")
+	require.Contains(t, stripANSI(second), "Thinking")
+	require.NotEqual(t, first, second)
+}
+
 func TestGetPanelHorizontalPadding_DisablesPaddingWhenNarrow(t *testing.T) {
 	require.Equal(t, 0, getPanelHorizontalPadding(2))
 	require.Equal(t, panelHorizontalPadding, getPanelHorizontalPadding(3))
@@ -2114,8 +2128,8 @@ func TestModel_ThinkingComposerBorderCanBeDisabled(t *testing.T) {
 
 	require.False(t, runModel.thinkingComposerEnabled)
 	require.False(t, runModel.isThinkingComposerVisible())
-	require.Nil(t, runModel.startThinkingComposer())
-	require.False(t, runModel.thinkingComposerActive)
+	require.NotNil(t, runModel.startThinkingComposer())
+	require.True(t, runModel.thinkingComposerActive)
 	require.Equal(t, "8", runModel.getInputFrameBorderColor())
 }
 

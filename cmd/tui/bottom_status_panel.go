@@ -15,7 +15,7 @@ func (m model) renderBottomStatusPanel() string {
 
 	segments := []string{m.modelName, status}
 	if m.isModelThinking() {
-		segments = append([]string{"Thinking"}, segments...)
+		segments = append([]string{renderThinkingStatusCell(m.thinkingComposerFrame)}, segments...)
 	}
 
 	left := joinBottomStatusPanelSegments(segments, contentWidth)
