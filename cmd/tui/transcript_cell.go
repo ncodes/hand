@@ -326,8 +326,7 @@ func renderToolTranscriptGroup(group toolTranscriptGroup, frame int) string {
 		Bold(true).
 		Render(getToolTranscriptDot(completed, frame)) +
 		lipgloss.NewStyle().
-			Foreground(lipgloss.Color("214")).
-			Bold(true).
+			Foreground(lipgloss.Color("250")).
 			Render(" "+getToolTranscriptTitle(action, completed))
 
 	details := make([]string, 0, len(group.details))
