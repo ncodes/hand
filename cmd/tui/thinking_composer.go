@@ -19,6 +19,12 @@ var thinkingComposerBorderColors = []string{
 	"81",
 }
 
+const (
+	thinkingStatusBaseColor    = "8"
+	thinkingStatusEdgeColor    = "7"
+	thinkingStatusShimmerColor = "15"
+)
+
 type thinkingComposerTickMsg struct{}
 
 func (m *model) startThinkingComposer() tea.Cmd {
@@ -53,8 +59,9 @@ func renderThinkingStatusCell(frame int) string {
 
 	var builder strings.Builder
 	for index, char := range text {
-		color := getThinkingStatusColor(frame + index)
+		color := getThinkingStatusColor(index, frame, len(text))
 		builder.WriteString(lipgloss.NewStyle().
+			Inline(true).
 			Foreground(lipgloss.Color(color)).
 			Render(string(char)))
 	}
@@ -81,17 +88,37 @@ func getThinkingComposerBorderColor(frame int) string {
 	return thinkingComposerBorderColors[index]
 }
 
-func getThinkingStatusColor(frame int) string {
-	if len(thinkingComposerBorderColors) == 0 {
-		return "8"
+func getThinkingStatusColor(index, frame, length int) string {
+	if length <= 0 {
+		return thinkingStatusBaseColor
 	}
 
-	index := frame % len(thinkingComposerBorderColors)
+	shimmerIndex := frame % length
+	if shimmerIndex < 0 {
+		shimmerIndex += length
+	}
+	if index == shimmerIndex {
+		return thinkingStatusShimmerColor
+	}
+	if index == wrapThinkingStatusIndex(shimmerIndex-1, length) ||
+		index == wrapThinkingStatusIndex(shimmerIndex+1, length) {
+		return thinkingStatusEdgeColor
+	}
+
+	return thinkingStatusBaseColor
+}
+
+func wrapThinkingStatusIndex(index, length int) int {
+	if length <= 0 {
+		return 0
+	}
+
+	index %= length
 	if index < 0 {
-		index += len(thinkingComposerBorderColors)
+		index += length
 	}
 
-	return thinkingComposerBorderColors[index]
+	return index
 }
 
 func thinkingComposerTickCmd() tea.Cmd {

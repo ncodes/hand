@@ -636,6 +636,26 @@ func TestModel_RenderBottomStatusPanelAnimatesThinkingStatus(t *testing.T) {
 	require.NotEqual(t, first, second)
 }
 
+func TestGetThinkingStatusColor_UsesGrayBaseAndThreeCharacterShimmer(t *testing.T) {
+	require.Equal(t, thinkingStatusShimmerColor, getThinkingStatusColor(0, 0, len("Thinking")))
+	require.Equal(t, thinkingStatusEdgeColor, getThinkingStatusColor(1, 0, len("Thinking")))
+	require.Equal(t, thinkingStatusEdgeColor, getThinkingStatusColor(len("Thinking")-1, 0, len("Thinking")))
+	require.Equal(t, thinkingStatusBaseColor, getThinkingStatusColor(2, 0, len("Thinking")))
+	require.Equal(t, thinkingStatusShimmerColor, getThinkingStatusColor(1, 1, len("Thinking")))
+	require.Equal(t, thinkingStatusShimmerColor, getThinkingStatusColor(len("Thinking")-1, -1, len("Thinking")))
+	require.Equal(t, thinkingStatusBaseColor, getThinkingStatusColor(0, 0, 0))
+}
+
+func TestModel_RenderBottomStatusPanelKeepsMutedCellsWhenThinking(t *testing.T) {
+	runModel := newModel()
+	runModel.responding = true
+
+	content := runModel.renderBottomStatusPanel()
+
+	require.Contains(t, content, renderBottomStatusMutedCell("GPT 5.5"))
+	require.Contains(t, content, renderBottomStatusMutedCell(defaultStatus))
+}
+
 func TestGetPanelHorizontalPadding_DisablesPaddingWhenNarrow(t *testing.T) {
 	require.Equal(t, 0, getPanelHorizontalPadding(2))
 	require.Equal(t, panelHorizontalPadding, getPanelHorizontalPadding(3))
@@ -649,7 +669,7 @@ func TestJoinBottomStatusPanelSegments_HandlesEmptySingleAndNarrowValues(t *test
 
 func TestSpaceBetweenBottomStatusPanel_HandlesMissingAndNarrowSides(t *testing.T) {
 	require.Equal(t, "right", spaceBetweenBottomStatusPanel("", "right", 20))
-	require.Equal(t, "left · right", spaceBetweenBottomStatusPanel("left", "right", 1))
+	require.Equal(t, "left · right", stripANSI(spaceBetweenBottomStatusPanel("left", "right", 1)))
 }
 
 func TestModel_UpdateResizesTranscriptAndInput(t *testing.T) {
