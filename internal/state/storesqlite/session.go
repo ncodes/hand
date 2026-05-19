@@ -34,6 +34,8 @@ type CheckpointPatch = base.CheckpointPatch
 // sessionModel stores durable session-level state and compaction progress.
 type sessionModel struct {
 	ID                           string `gorm:"primaryKey"`
+	Title                        string `gorm:"type:text"`
+	TitleSource                  string
 	CreatedAt                    time.Time
 	UpdatedAt                    time.Time
 	LastPromptTokens             int
@@ -56,8 +58,10 @@ func (sessionModel) TableName() string {
 
 // archiveModel stores metadata for archived session message sets.
 type archiveModel struct {
-	ID              string    `gorm:"primaryKey"`
-	SourceSessionID string    `gorm:"index;not null"`
+	ID              string `gorm:"primaryKey"`
+	SourceSessionID string `gorm:"index;not null"`
+	Title           string `gorm:"type:text"`
+	TitleSource     string
 	ArchivedAt      time.Time `gorm:"index"`
 	ExpiresAt       time.Time `gorm:"index"`
 	CreatedAt       time.Time
@@ -197,11 +201,16 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 		if session.ReflectionCheckpointOffset == 0 {
 			session.ReflectionCheckpointOffset = existing.ReflectionCheckpointOffset
 		}
+		if strings.TrimSpace(session.Title) == "" {
+			session.Title = existing.Title
+			session.TitleSource = existing.TitleSource
+		}
 
 		session.UpdatedAt = time.Now().UTC()
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
+	session.Title, session.TitleSource = base.NormalizeSessionTitleMetadata(session.Title, session.TitleSource)
 
 	if session.CreatedAt.IsZero() {
 		session.CreatedAt = time.Now().UTC()
@@ -229,6 +238,8 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 		ID:                           session.ID,
 		LastPromptTokens:             session.LastPromptTokens,
 		ReflectionCheckpointOffset:   session.ReflectionCheckpointOffset,
+		Title:                        session.Title,
+		TitleSource:                  session.TitleSource,
 		UpdatedAt:                    session.UpdatedAt,
 	}
 
@@ -1050,6 +1061,15 @@ func (s *Store) CreateArchive(ctx context.Context, archive ArchivedSession) erro
 
 	var sourceIDs []string
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var sourceSession sessionModel
+		if err := tx.First(&sourceSession, "id = ?", archive.SourceSessionID).Error; err != nil {
+			return err
+		}
+		archive.Title, archive.TitleSource = base.NormalizeSessionTitleMetadata(
+			sourceSession.Title,
+			sourceSession.TitleSource,
+		)
+
 		var source []messageModel
 		if err := tx.Where("session_id = ?", archive.SourceSessionID).Order("sequence asc").
 			Find(&source).Error; err != nil {
@@ -1064,6 +1084,8 @@ func (s *Store) CreateArchive(ctx context.Context, archive ArchivedSession) erro
 		record := archiveModel{
 			ID:              archive.ID,
 			SourceSessionID: archive.SourceSessionID,
+			Title:           archive.Title,
+			TitleSource:     archive.TitleSource,
 			ArchivedAt:      archive.ArchivedAt,
 			ExpiresAt:       archive.ExpiresAt,
 		}
@@ -1104,6 +1126,8 @@ func (s *Store) CreateArchive(ctx context.Context, archive ArchivedSession) erro
 					"compaction_status":               "",
 					"compaction_target_message_count": 0,
 					"compaction_target_offset":        0,
+					"title":                           "",
+					"title_source":                    "",
 				}).Error
 		}
 
@@ -1383,6 +1407,8 @@ func archiveModelToArchivedSession(record archiveModel) (ArchivedSession, error)
 	return base.NormalizeCreateArchive(ArchivedSession{
 		ID:              record.ID,
 		SourceSessionID: record.SourceSessionID,
+		Title:           record.Title,
+		TitleSource:     record.TitleSource,
 		ArchivedAt:      record.ArchivedAt,
 		ExpiresAt:       record.ExpiresAt,
 	})
@@ -1394,6 +1420,7 @@ func sessionModelToSession(record sessionModel) (Session, error) {
 		return Session{}, errors.New("session id is required")
 	}
 
+	title, titleSource := base.NormalizeSessionTitleMetadata(record.Title, record.TitleSource)
 	session := Session{
 		CreatedAt: record.CreatedAt,
 		Compaction: base.SessionCompaction{
@@ -1410,6 +1437,8 @@ func sessionModelToSession(record sessionModel) (Session, error) {
 		ID:                         id,
 		LastPromptTokens:           record.LastPromptTokens,
 		ReflectionCheckpointOffset: record.ReflectionCheckpointOffset,
+		Title:                      title,
+		TitleSource:                titleSource,
 	}
 
 	if !record.CreatedAt.IsZero() {

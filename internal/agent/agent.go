@@ -102,6 +102,8 @@ type SessionTimelineOptions struct {
 
 type SessionTimeline struct {
 	SessionID             string
+	Title                 string
+	TitleSource           string
 	Messages              []SessionTimelineMessage
 	TraceEvents           []SessionTimelineTraceEvent
 	MessagesHasMore       bool
@@ -290,6 +292,9 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 	)
 	reply, err := turn.Run(ctx, msg, opts)
 	a.turnMessages = turn.Messages()
+	if err == nil {
+		a.maybeGenerateSessionTitle(ctx, turn.sessionID)
+	}
 
 	return reply, err
 }

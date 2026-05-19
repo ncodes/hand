@@ -590,6 +590,8 @@ func (m *Manager) clearIdleDefaultSession(ctx context.Context, now time.Time) er
 		}
 
 		session.Compaction = storage.SessionCompaction{}
+		session.Title = ""
+		session.TitleSource = ""
 		session.UpdatedAt = now
 
 		if err := m.store.Save(ctx, session); err != nil {

@@ -672,6 +672,8 @@ func getGRPCError(err error) error {
 func sessionToProtoSummary(session storage.Session) *handpb.SessionSummary {
 	return &handpb.SessionSummary{
 		Id:            session.ID,
+		Title:         session.Title,
+		TitleSource:   session.TitleSource,
 		UpdatedAtUnix: session.UpdatedAt.Unix(),
 	}
 }
@@ -679,6 +681,8 @@ func sessionToProtoSummary(session storage.Session) *handpb.SessionSummary {
 func sessionTimelineToProtoResponse(timeline agent.SessionTimeline) *handpb.GetSessionTimelineResponse {
 	response := &handpb.GetSessionTimelineResponse{
 		Id:                    timeline.SessionID,
+		Title:                 timeline.Title,
+		TitleSource:           timeline.TitleSource,
 		MessagesHasMore:       timeline.MessagesHasMore,
 		TracesHasMore:         timeline.TracesHasMore,
 		TracesTruncatedBefore: timeline.TracesTruncatedBefore,

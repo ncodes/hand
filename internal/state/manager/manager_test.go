@@ -1028,6 +1028,33 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 			require.EqualError(t, manager.clearIdleDefaultSession(context.Background(), now), "save failed")
 		})
 
+		t.Run("clears default title after archive", func(t *testing.T) {
+			now := time.Now().UTC()
+			var saved storage.Session
+
+			manager, err := NewManager(&storagemock.Store{
+				GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+					return storage.Session{
+						ID:          storage.DefaultSessionID,
+						Title:       "Old Default Work",
+						TitleSource: storage.SessionTitleSourceGenerated,
+						UpdatedAt:   now.Add(-2 * time.Hour),
+					}, true, nil
+				},
+				GetMessagesFunc: func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error) {
+					return []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now.Add(-3 * time.Hour)}}, nil
+				},
+				SaveFunc: func(_ context.Context, session storage.Session) error {
+					saved = session
+					return nil
+				},
+			}, time.Hour, 24*time.Hour)
+			require.NoError(t, err)
+			require.NoError(t, manager.clearIdleDefaultSession(context.Background(), now))
+			require.Empty(t, saved.Title)
+			require.Empty(t, saved.TitleSource)
+		})
+
 		t.Run("active session with messages is a no-op", func(t *testing.T) {
 			now := time.Now().UTC()
 			called := false

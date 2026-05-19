@@ -346,6 +346,8 @@ type SessionSummary struct {
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	UpdatedAtUnix int64                  `protobuf:"varint,2,opt,name=updated_at_unix,json=updatedAtUnix,proto3" json:"updated_at_unix,omitempty"`
 	MessageCount  int32                  `protobuf:"varint,3,opt,name=message_count,json=messageCount,proto3" json:"message_count,omitempty"`
+	Title         string                 `protobuf:"bytes,4,opt,name=title,proto3" json:"title,omitempty"`
+	TitleSource   string                 `protobuf:"bytes,5,opt,name=title_source,json=titleSource,proto3" json:"title_source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -399,6 +401,20 @@ func (x *SessionSummary) GetMessageCount() int32 {
 		return x.MessageCount
 	}
 	return 0
+}
+
+func (x *SessionSummary) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *SessionSummary) GetTitleSource() string {
+	if x != nil {
+		return x.TitleSource
+	}
+	return ""
 }
 
 type CreateSessionRequest struct {
@@ -1623,6 +1639,8 @@ type GetSessionTimelineResponse struct {
 	TracesTruncatedBefore bool                         `protobuf:"varint,6,opt,name=traces_truncated_before,json=tracesTruncatedBefore,proto3" json:"traces_truncated_before,omitempty"`
 	FirstTraceSequence    int32                        `protobuf:"varint,7,opt,name=first_trace_sequence,json=firstTraceSequence,proto3" json:"first_trace_sequence,omitempty"`
 	LastTraceSequence     int32                        `protobuf:"varint,8,opt,name=last_trace_sequence,json=lastTraceSequence,proto3" json:"last_trace_sequence,omitempty"`
+	Title                 string                       `protobuf:"bytes,9,opt,name=title,proto3" json:"title,omitempty"`
+	TitleSource           string                       `protobuf:"bytes,10,opt,name=title_source,json=titleSource,proto3" json:"title_source,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -1711,6 +1729,20 @@ func (x *GetSessionTimelineResponse) GetLastTraceSequence() int32 {
 		return x.LastTraceSequence
 	}
 	return 0
+}
+
+func (x *GetSessionTimelineResponse) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *GetSessionTimelineResponse) GetTitleSource() string {
+	if x != nil {
+		return x.TitleSource
+	}
+	return ""
 }
 
 type GetSessionResponse_Context struct {
@@ -1828,11 +1860,13 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\aChannel\x12\x17\n" +
 	"\x13CHANNEL_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tASSISTANT\x10\x01\x12\r\n" +
-	"\tREASONING\x10\x02\"m\n" +
+	"\tREASONING\x10\x02\"\xa6\x01\n" +
 	"\x0eSessionSummary\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12&\n" +
 	"\x0fupdated_at_unix\x18\x02 \x01(\x03R\rupdatedAtUnix\x12#\n" +
-	"\rmessage_count\x18\x03 \x01(\x05R\fmessageCount\"&\n" +
+	"\rmessage_count\x18\x03 \x01(\x05R\fmessageCount\x12\x14\n" +
+	"\x05title\x18\x04 \x01(\tR\x05title\x12!\n" +
+	"\ftitle_source\x18\x05 \x01(\tR\vtitleSource\"&\n" +
 	"\x14CreateSessionRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"J\n" +
 	"\x15CreateSessionResponse\x121\n" +
@@ -1929,7 +1963,7 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\bsequence\x18\x02 \x01(\x05R\bsequence\x12\x12\n" +
 	"\x04type\x18\x03 \x01(\tR\x04type\x128\n" +
 	"\ttimestamp\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12!\n" +
-	"\fpayload_json\x18\x05 \x01(\tR\vpayloadJson\"\x9e\x03\n" +
+	"\fpayload_json\x18\x05 \x01(\tR\vpayloadJson\"\xd7\x03\n" +
 	"\x1aGetSessionTimelineResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12;\n" +
 	"\bmessages\x18\x02 \x03(\v2\x1f.hand.v1.SessionTimelineMessageR\bmessages\x12E\n" +
@@ -1938,7 +1972,10 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\x0ftraces_has_more\x18\x05 \x01(\bR\rtracesHasMore\x126\n" +
 	"\x17traces_truncated_before\x18\x06 \x01(\bR\x15tracesTruncatedBefore\x120\n" +
 	"\x14first_trace_sequence\x18\a \x01(\x05R\x12firstTraceSequence\x12.\n" +
-	"\x13last_trace_sequence\x18\b \x01(\x05R\x11lastTraceSequence2\xca\x05\n" +
+	"\x13last_trace_sequence\x18\b \x01(\x05R\x11lastTraceSequence\x12\x14\n" +
+	"\x05title\x18\t \x01(\tR\x05title\x12!\n" +
+	"\ftitle_source\x18\n" +
+	" \x01(\tR\vtitleSource2\xca\x05\n" +
 	"\vHandService\x12;\n" +
 	"\aRespond\x12\x17.hand.v1.RespondRequest\x1a\x15.hand.v1.RespondEvent0\x01\x12N\n" +
 	"\rCreateSession\x12\x1d.hand.v1.CreateSessionRequest\x1a\x1e.hand.v1.CreateSessionResponse\x12K\n" +

@@ -42,6 +42,8 @@ func (a *Agent) GetSessionTimeline(ctx context.Context, opts SessionTimelineOpti
 
 	return SessionTimeline{
 		SessionID:             session.ID,
+		Title:                 session.Title,
+		TitleSource:           session.TitleSource,
 		Messages:              messages,
 		TraceEvents:           traceEvents,
 		MessagesHasMore:       messagesHasMore,

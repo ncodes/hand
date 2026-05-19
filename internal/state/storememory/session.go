@@ -43,8 +43,13 @@ func (s *Store) Save(_ context.Context, session Session) error {
 		if session.ReflectionCheckpointOffset == 0 {
 			session.ReflectionCheckpointOffset = existing.ReflectionCheckpointOffset
 		}
+		if strings.TrimSpace(session.Title) == "" {
+			session.Title = existing.Title
+			session.TitleSource = existing.TitleSource
+		}
 		session.UpdatedAt = time.Now().UTC()
 	}
+	session.Title, session.TitleSource = base.NormalizeSessionTitleMetadata(session.Title, session.TitleSource)
 
 	if session.CreatedAt.IsZero() {
 		session.CreatedAt = time.Now().UTC()
@@ -612,6 +617,12 @@ func (s *Store) CreateArchive(ctx context.Context, archive ArchivedSession) erro
 		s.mu.Unlock()
 		return errors.New("source session has no messages")
 	}
+	if source, ok := s.sessions[normalized.SourceSessionID]; ok {
+		normalized.Title, normalized.TitleSource = base.NormalizeSessionTitleMetadata(
+			source.Title,
+			source.TitleSource,
+		)
+	}
 	sourceIDs = search.SourceIDsFromMessages(normalized.SourceSessionID, sourceMessages)
 
 	s.archiveMessages[normalized.ID] = cloneMessages(sourceMessages)
@@ -626,6 +637,8 @@ func (s *Store) CreateArchive(ctx context.Context, archive ArchivedSession) erro
 		}
 	} else if session, ok := s.sessions[normalized.SourceSessionID]; ok {
 		session.Compaction = base.SessionCompaction{}
+		session.Title = ""
+		session.TitleSource = ""
 		s.sessions[normalized.SourceSessionID] = session
 	}
 	s.mu.Unlock()

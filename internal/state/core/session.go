@@ -9,6 +9,8 @@ import (
 const DefaultSessionID = "default"
 const SessionIDPrefix = "ses_"
 const ArchiveIDPrefix = "arc_"
+const SessionTitleSourceGenerated = "generated"
+const SessionTitleSourceManual = "manual"
 
 func NewSessionID() (string, error) {
 	return nanoid.Generate(SessionIDPrefix)
@@ -25,6 +27,8 @@ type Session struct {
 	EpisodicCheckpointOffset   int
 	LastPromptTokens           int
 	ReflectionCheckpointOffset int
+	Title                      string
+	TitleSource                string
 	UpdatedAt                  time.Time
 }
 
@@ -56,6 +60,8 @@ type SessionCompaction struct {
 type ArchivedSession struct {
 	ID              string
 	SourceSessionID string
+	Title           string
+	TitleSource     string
 	ArchivedAt      time.Time
 	ExpiresAt       time.Time
 }

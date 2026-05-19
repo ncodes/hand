@@ -76,7 +76,7 @@ func NewCommand() *cli.Command {
 						return err
 					}
 					for _, session := range sessions {
-						if _, err := fmt.Fprintln(sessionOutput, session.ID); err != nil {
+						if _, err := fmt.Fprintln(sessionOutput, getSessionListLabel(session.ID, session.Title)); err != nil {
 							return err
 						}
 					}
@@ -230,6 +230,19 @@ func NewCommand() *cli.Command {
 			},
 		},
 	}
+}
+
+func getSessionListLabel(id string, title string) string {
+	id = strings.TrimSpace(id)
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return id
+	}
+	if id == "" {
+		return title
+	}
+
+	return fmt.Sprintf("%s (%s)", title, id)
 }
 
 func formatSessionTime(t time.Time) string {

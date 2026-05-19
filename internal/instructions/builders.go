@@ -382,6 +382,21 @@ Return JSON only with this exact shape:
 Output rules: Do not include markdown fences or extra commentary.`)
 }
 
+func BuildSessionTitle() Instructions {
+	return New(`
+# Session Title Task
+
+Create a short title for the provided chat excerpt.
+
+Rules:
+- Return plain text only.
+- Use 3-8 words when possible.
+- Do not use quotes.
+- Do not end with punctuation.
+- Do not include the words chat, conversation, or session.
+- Prefer the user's actual topic over generic assistant behavior.`)
+}
+
 func BuildRecallSessionSummaryWindow(windowIndex, windowCount int) Instructions {
 	return New(
 		fmt.Sprintf(`

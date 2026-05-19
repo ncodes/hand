@@ -56,7 +56,10 @@ func TestNewCommandSessionListCallsRPC(t *testing.T) {
 	var output bytes.Buffer
 	sessionOutput = &output
 
-	stub := &agentstub.AgentServiceStub{Sessions: []storage.Session{{ID: "default"}, {ID: "project-a"}}}
+	stub := &agentstub.AgentServiceStub{Sessions: []storage.Session{
+		{ID: "default", Title: "Daily Planning", TitleSource: storage.SessionTitleSourceGenerated},
+		{ID: "project-a"},
+	}}
 	newClient = func(context.Context, *config.Config) (rpcclient.SessionClient, error) {
 		return stub, nil
 	}
@@ -64,7 +67,7 @@ func TestNewCommandSessionListCallsRPC(t *testing.T) {
 	err := NewCommand().Run(context.Background(), []string{"session", "list"})
 
 	require.NoError(t, err)
-	require.Equal(t, "default\nproject-a\n", output.String())
+	require.Equal(t, "Daily Planning (default)\nproject-a\n", output.String())
 }
 
 func TestNewCommandSessionListUsesProfileRuntimeEndpoint(t *testing.T) {
@@ -255,6 +258,51 @@ func TestNewCommandSessionStatusCallsRPC(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "id=project-a created_at=2024-05-01T08:00:00Z updated_at=2024-05-02T09:00:00Z compaction_status=succeeded offset=12 size=20 length=128000 used=64000 remaining=64000 pct_used=0.5000 pct_remaining=0.5000\n", output.String())
+}
+
+func TestGetSessionListLabel(t *testing.T) {
+	tests := []struct {
+		name  string
+		id    string
+		title string
+		want  string
+	}{
+		{
+			name:  "title and id",
+			id:    " default ",
+			title: " Daily Planning ",
+			want:  "Daily Planning (default)",
+		},
+		{
+			name: "id only",
+			id:   " project-a ",
+			want: "project-a",
+		},
+		{
+			name:  "title only",
+			title: " Daily Planning ",
+			want:  "Daily Planning",
+		},
+		{
+			name: "empty",
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, getSessionListLabel(tt.id, tt.title))
+		})
+	}
+}
+
+func TestFormatSessionTime(t *testing.T) {
+	require.Empty(t, formatSessionTime(time.Time{}))
+	require.Equal(
+		t,
+		"2024-05-01T07:00:00Z",
+		formatSessionTime(time.Date(2024, 5, 1, 8, 0, 0, 0, time.FixedZone("test", 3600))),
+	)
 }
 
 func setSessionTestProfile(t *testing.T) {

@@ -1131,6 +1131,35 @@ func TestSQLiteStore_SaveRejectsInvalidSessionID(t *testing.T) {
 	require.EqualError(t, err, "session id must be a valid ses_ nanoid")
 }
 
+func TestSQLiteStore_SavePersistsSessionTitle(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	require.NoError(t, store.Save(context.Background(), Session{
+		ID:          testSessionA,
+		Title:       "  Project Planning  ",
+		TitleSource: base.SessionTitleSourceGenerated,
+	}))
+
+	session, ok, err := store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "Project Planning", session.Title)
+	require.Equal(t, base.SessionTitleSourceGenerated, session.TitleSource)
+
+	sessions, err := store.List(context.Background())
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	require.Equal(t, "Project Planning", sessions[0].Title)
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
+	session, ok, err = store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "Project Planning", session.Title)
+	require.Equal(t, base.SessionTitleSourceGenerated, session.TitleSource)
+}
+
 func TestSQLiteStore_SavePreservesExistingCreatedAtAndAllowsPromptTokenOverwrite(t *testing.T) {
 	store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)
@@ -1307,6 +1336,74 @@ func TestSQLiteStore_CreateArchiveClearsDefaultSessionCompactionMetadata(t *test
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, SessionCompaction{}, session.Compaction)
+}
+
+func TestSQLiteStore_CreateArchiveCopiesAndClearsDefaultSessionTitle(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{
+		ID:          DefaultSessionID,
+		Title:       "Default Research",
+		TitleSource: base.SessionTitleSourceGenerated,
+		UpdatedAt:   now,
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+	}))
+
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              testArchiveA,
+		SourceSessionID: DefaultSessionID,
+		ArchivedAt:      now,
+		ExpiresAt:       now.Add(time.Hour),
+	}))
+
+	archive, ok, err := store.GetArchive(context.Background(), testArchiveA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "Default Research", archive.Title)
+	require.Equal(t, base.SessionTitleSourceGenerated, archive.TitleSource)
+
+	session, ok, err := store.Get(context.Background(), DefaultSessionID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Empty(t, session.Title)
+	require.Empty(t, session.TitleSource)
+}
+
+func TestSQLiteStore_CreateArchiveCopiesNonDefaultSessionTitle(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Save(context.Background(), Session{
+		ID:          testSessionA,
+		Title:       "Project Research",
+		TitleSource: base.SessionTitleSourceGenerated,
+		UpdatedAt:   now,
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+	}))
+
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              testArchiveB,
+		SourceSessionID: testSessionA,
+		ArchivedAt:      now,
+		ExpiresAt:       now.Add(time.Hour),
+	}))
+
+	archive, ok, err := store.GetArchive(context.Background(), testArchiveB)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "Project Research", archive.Title)
+	require.Equal(t, base.SessionTitleSourceGenerated, archive.TitleSource)
+
+	_, ok, err = store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.False(t, ok)
 }
 
 func TestSQLiteStore_SaveTrimsIDOnCreate(t *testing.T) {

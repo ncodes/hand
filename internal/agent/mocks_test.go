@@ -72,6 +72,7 @@ func (nonSearchMemoryProvider) Close() error {
 
 type timelineErrorStore struct {
 	*storagememory.Store
+	countErr   error
 	messageErr error
 	traceErr   error
 }
@@ -81,6 +82,10 @@ func (s *timelineErrorStore) Get(ctx context.Context, id string) (storage.Sessio
 }
 
 func (s *timelineErrorStore) CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error) {
+	if s.countErr != nil {
+		return 0, s.countErr
+	}
+
 	return 0, nil
 }
 
@@ -118,6 +123,10 @@ func (s *timelineTraceGapErrorStore) Get(ctx context.Context, id string) (storag
 
 func (s *timelineTraceGapErrorStore) GetMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) ([]handmsg.Message, error) {
 	return nil, nil
+}
+
+func (s *timelineTraceGapErrorStore) CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error) {
+	return 0, nil
 }
 
 func (s *timelineTraceGapErrorStore) ListTraceEvents(ctx context.Context, query storage.TraceQuery) (storage.TraceResult, error) {

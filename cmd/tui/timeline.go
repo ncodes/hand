@@ -12,6 +12,7 @@ import (
 	"github.com/wandxy/hand/internal/agent"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
 )
 
@@ -45,11 +46,7 @@ func loadSessionTimelineCmd(ctx context.Context, client sessionTimelineLoader) t
 func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.Cmd {
 	cells := sessionTimelineToTranscriptCells(timeline)
 	if len(cells) == 0 {
-		sessionID := strings.TrimSpace(timeline.SessionID)
-		if sessionID == "" {
-			sessionID = "session"
-		}
-		cells = []string{fmt.Sprintf("%s has no visible timeline yet.", sessionID)}
+		cells = []string{fmt.Sprintf("%s has no visible timeline yet.", getSessionTimelineDisplayName(timeline))}
 	}
 
 	m.messages = cells
@@ -58,12 +55,26 @@ func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.C
 	m.stream.Reset()
 	m.setTranscriptContent()
 	var cmd tea.Cmd
-	if sessionID := strings.TrimSpace(timeline.SessionID); sessionID != "" {
-		cmd = m.setStatus(sessionID + " · hydrated")
-	}
+	cmd = m.setStatus(getSessionTimelineDisplayName(timeline) + " · hydrated")
 	m.resize()
 
 	return cmd
+}
+
+func getSessionTimelineDisplayName(timeline rpcclient.SessionTimeline) string {
+	title := strings.TrimSpace(timeline.Title)
+	sessionID := strings.TrimSpace(timeline.SessionID)
+	if title != "" {
+		if sessionID == storage.DefaultSessionID {
+			return fmt.Sprintf("%s (%s)", title, sessionID)
+		}
+		return title
+	}
+	if sessionID != "" {
+		return sessionID
+	}
+
+	return "session"
 }
 
 func sessionTimelineToTranscriptCells(timeline rpcclient.SessionTimeline) []string {

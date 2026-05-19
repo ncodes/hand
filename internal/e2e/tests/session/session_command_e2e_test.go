@@ -6,17 +6,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/config"
+	sessioncmd "github.com/wandxy/hand/cmd/session"
 	"github.com/wandxy/hand/internal/e2e"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	"github.com/wandxy/hand/internal/profile"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -42,7 +44,6 @@ func Test_E2E_SessionCommand_CreateSessionViaRPCSmoke(t *testing.T) {
 }
 
 func Test_E2E_SessionCommand_CreateListUseCurrentAndChatFlow(t *testing.T) {
-	// Shared boilerplate for these tests.
 	newSessionHarness := func(t *testing.T) *e2e.RPCHarness {
 		home := t.TempDir() + "/hand-home"
 		h, err := e2e.NewDefaultRPCHarness(
@@ -62,7 +63,6 @@ func Test_E2E_SessionCommand_CreateListUseCurrentAndChatFlow(t *testing.T) {
 		assert.Equal(t, sessionID+"\n", output)
 	}
 
-	// Each sub-test sets up its own session state.
 	t.Run("Create sessions", func(t *testing.T) {
 		h := newSessionHarness(t)
 
@@ -175,6 +175,7 @@ func Test_E2E_SessionCommand_PersistenceCompactionStatusAndSummaryReuse(t *testi
 		e2e.OutputTextStep("reply 5"),
 	)
 	summaryClient := e2e.NewClient(
+		e2e.OutputTextStep("Turn Planning"),
 		e2e.OutputTextStep("no durable memory to flush"),
 		e2e.OutputTextStep(`{"session_summary":"Older context","current_task":"Continue helping","discoveries":["Saved summary"],"open_questions":[],"next_actions":["Answer the next turn"]}`),
 		e2e.OutputTextStep("no durable memory to flush"),
@@ -245,21 +246,20 @@ func Test_E2E_SessionCommand_PersistenceCompactionStatusAndSummaryReuse(t *testi
 func runSessionCommand(t *testing.T, h *e2e.RPCHarness, args ...string) (string, error) {
 	t.Helper()
 
-	originalNewClient := newClient
-	originalOutput := sessionOutput
-	t.Cleanup(func() {
-		newClient = originalNewClient
-		sessionOutput = originalOutput
-	})
-
-	newClient = func(ctx context.Context, _ *config.Config) (rpcclient.SessionClient, error) {
-		return h.Client(ctx)
-	}
+	originalProfile := profile.Active()
+	profileHome := filepath.Join(t.TempDir(), "profile")
+	require.NoError(t, os.MkdirAll(profileHome, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte(h.ConfigFileContents()), 0o600))
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: "session-e2e", HomeDir: profileHome}))
 
 	var output bytes.Buffer
-	sessionOutput = &output
+	previousOutput := sessioncmd.SetOutput(&output)
+	t.Cleanup(func() {
+		sessioncmd.SetOutput(previousOutput)
+		profile.SetActive(originalProfile)
+	})
 
-	err := NewCommand().Run(context.Background(), args)
+	err := sessioncmd.NewCommand().Run(context.Background(), args)
 	return output.String(), err
 }
 

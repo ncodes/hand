@@ -348,6 +348,8 @@ func protoSessionTimelineToTimeline(resp *handpb.GetSessionTimelineResponse) (Se
 
 	timeline := SessionTimeline{
 		SessionID:             resp.GetId(),
+		Title:                 resp.GetTitle(),
+		TitleSource:           resp.GetTitleSource(),
 		MessagesHasMore:       resp.GetMessagesHasMore(),
 		TracesHasMore:         resp.GetTracesHasMore(),
 		TracesTruncatedBefore: resp.GetTracesTruncatedBefore(),
@@ -427,8 +429,10 @@ func protoSessionSummaryToSession(summary *handpb.SessionSummary) storage.Sessio
 	}
 
 	return storage.Session{
-		ID:        summary.GetId(),
-		UpdatedAt: time.Unix(summary.GetUpdatedAtUnix(), 0).UTC(),
+		ID:          summary.GetId(),
+		Title:       summary.GetTitle(),
+		TitleSource: summary.GetTitleSource(),
+		UpdatedAt:   time.Unix(summary.GetUpdatedAtUnix(), 0).UTC(),
 	}
 }
 

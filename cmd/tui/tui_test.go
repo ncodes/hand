@@ -339,6 +339,7 @@ func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 	updated, cmd := runModel.Update(sessionTimelineLoadedMsg{
 		Timeline: rpcclient.SessionTimeline{
 			SessionID: "default",
+			Title:     "Daily Planning",
 			Messages: []agent.SessionTimelineMessage{{
 				Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "older answer"},
 			}},
@@ -349,7 +350,7 @@ func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 	runModel = updated.(model)
 	require.Equal(t, []string{"Hand: older answer"}, runModel.messages)
 	require.Contains(t, stripANSI(runModel.transcript.View()), "older answer")
-	require.Equal(t, "default · hydrated", runModel.status.Text())
+	require.Equal(t, "Daily Planning (default) · hydrated", runModel.status.Text())
 }
 
 func TestModel_UpdateReportsTimelineLoadFailure(t *testing.T) {
@@ -793,6 +794,7 @@ func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 
 	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{
 		SessionID: "project-a",
+		Title:     "Project Planning",
 		Messages:  messages,
 		TraceEvents: []agent.SessionTimelineTraceEvent{{
 			Event: storage.TraceEvent{
@@ -803,7 +805,7 @@ func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 	})
 
 	content := stripANSI(runModel.transcript.View())
-	require.Equal(t, "project-a · hydrated", runModel.status.Text())
+	require.Equal(t, "Project Planning · hydrated", runModel.status.Text())
 	require.Equal(t, "You: hello", runModel.messages[len(runModel.messages)-3])
 	require.Equal(t, "Hand: hi", runModel.messages[len(runModel.messages)-2])
 	require.Equal(t, toolOperationTranscriptCell("call_1", "read_file", ""), runModel.messages[len(runModel.messages)-1])
@@ -831,7 +833,7 @@ func TestModel_HydrateSessionTimelineShowsFallbackForMissingSessionID(t *testing
 
 	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{})
 
-	require.Equal(t, defaultStatus, runModel.status.Text())
+	require.Equal(t, "session · hydrated", runModel.status.Text())
 	require.Equal(t, []string{"session has no visible timeline yet."}, runModel.messages)
 	require.Contains(t, runModel.transcript.View(), "session has no visible timeline yet.")
 }

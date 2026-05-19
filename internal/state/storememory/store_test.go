@@ -943,6 +943,34 @@ func TestMemoryStore_SaveRejectsInvalidSessionID(t *testing.T) {
 	require.EqualError(t, store.Save(context.Background(), Session{ID: "ses_invalid"}), "session id must be a valid ses_ nanoid")
 }
 
+func TestMemoryStore_SavePersistsSessionTitle(t *testing.T) {
+	store := NewStore()
+
+	require.NoError(t, store.Save(context.Background(), Session{
+		ID:          testSessionA,
+		Title:       "  Project Planning  ",
+		TitleSource: base.SessionTitleSourceGenerated,
+	}))
+
+	session, ok, err := store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "Project Planning", session.Title)
+	require.Equal(t, base.SessionTitleSourceGenerated, session.TitleSource)
+
+	sessions, err := store.List(context.Background())
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	require.Equal(t, "Project Planning", sessions[0].Title)
+
+	require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA}))
+	session, ok, err = store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "Project Planning", session.Title)
+	require.Equal(t, base.SessionTitleSourceGenerated, session.TitleSource)
+}
+
 func TestMemoryStore_NilReceiverErrors(t *testing.T) {
 	var store *Store
 
@@ -1567,6 +1595,72 @@ func TestMemoryStore_CreateArchiveClearsDefaultSessionCompactionMetadata(t *test
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, base.SessionCompaction{}, session.Compaction)
+}
+
+func TestMemoryStore_CreateArchiveCopiesAndClearsDefaultSessionTitle(t *testing.T) {
+	store := NewStore()
+	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
+
+	require.NoError(t, store.Save(context.Background(), Session{
+		ID:          DefaultSessionID,
+		Title:       "Default Research",
+		TitleSource: base.SessionTitleSourceGenerated,
+		UpdatedAt:   now,
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), DefaultSessionID, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+	}))
+
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              testArchiveA,
+		SourceSessionID: DefaultSessionID,
+		ArchivedAt:      now,
+		ExpiresAt:       now.Add(time.Hour),
+	}))
+
+	archive, ok, err := store.GetArchive(context.Background(), testArchiveA)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "Default Research", archive.Title)
+	require.Equal(t, base.SessionTitleSourceGenerated, archive.TitleSource)
+
+	session, ok, err := store.Get(context.Background(), DefaultSessionID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Empty(t, session.Title)
+	require.Empty(t, session.TitleSource)
+}
+
+func TestMemoryStore_CreateArchiveCopiesNonDefaultSessionTitle(t *testing.T) {
+	store := NewStore()
+	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
+
+	require.NoError(t, store.Save(context.Background(), Session{
+		ID:          testSessionA,
+		Title:       "Project Research",
+		TitleSource: base.SessionTitleSourceGenerated,
+		UpdatedAt:   now,
+	}))
+	require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
+	}))
+
+	require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
+		ID:              testArchiveB,
+		SourceSessionID: testSessionA,
+		ArchivedAt:      now,
+		ExpiresAt:       now.Add(time.Hour),
+	}))
+
+	archive, ok, err := store.GetArchive(context.Background(), testArchiveB)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "Project Research", archive.Title)
+	require.Equal(t, base.SessionTitleSourceGenerated, archive.TitleSource)
+
+	_, ok, err = store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.False(t, ok)
 }
 
 func TestMemoryStore_SaveTrimsIDOnCreate(t *testing.T) {

@@ -64,8 +64,32 @@ func NormalizeCreateArchive(archive ArchivedSession) (ArchivedSession, error) {
 		return ArchivedSession{}, errors.New("archive expiry is required")
 	}
 	archive.ExpiresAt = archive.ExpiresAt.UTC()
+	archive.Title, archive.TitleSource = NormalizeSessionTitleMetadata(archive.Title, archive.TitleSource)
 
 	return archive, nil
+}
+
+func NormalizeSessionTitle(title string) string {
+	return strings.TrimSpace(title)
+}
+
+func NormalizeSessionTitleSource(source string) string {
+	source = strings.TrimSpace(source)
+	switch source {
+	case SessionTitleSourceGenerated, SessionTitleSourceManual:
+		return source
+	default:
+		return ""
+	}
+}
+
+func NormalizeSessionTitleMetadata(title string, source string) (string, string) {
+	title = NormalizeSessionTitle(title)
+	if title == "" {
+		return "", ""
+	}
+
+	return title, NormalizeSessionTitleSource(source)
 }
 
 func CloneMessages(messages []handmsg.Message) []handmsg.Message {

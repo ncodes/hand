@@ -19,6 +19,9 @@ func TestAgent_GetSessionTimelineReturnsPagedMessagesAndTraceEvents(t *testing.T
 	manager := mustNewStateManager(t)
 	session, err := manager.Resolve(ctx, "")
 	require.NoError(t, err)
+	session.Title = "Daily Planning"
+	session.TitleSource = storage.SessionTitleSourceGenerated
+	require.NoError(t, manager.Save(ctx, session))
 	firstMessageAt := time.Date(2026, 5, 16, 10, 0, 0, 0, time.UTC)
 	require.NoError(t, manager.AppendMessages(ctx, session.ID, []handmsg.Message{
 		{Role: handmsg.RoleUser, Content: "one", CreatedAt: firstMessageAt},
@@ -45,6 +48,8 @@ func TestAgent_GetSessionTimelineReturnsPagedMessagesAndTraceEvents(t *testing.T
 
 	require.NoError(t, err)
 	require.Equal(t, session.ID, timeline.SessionID)
+	require.Equal(t, "Daily Planning", timeline.Title)
+	require.Equal(t, storage.SessionTitleSourceGenerated, timeline.TitleSource)
 	require.True(t, timeline.MessagesHasMore)
 	require.Len(t, timeline.Messages, 1)
 	require.Equal(t, 1, timeline.Messages[0].Offset)
@@ -260,6 +265,13 @@ func TestAgent_GetSessionTimelineReturnsStateErrors(t *testing.T) {
 
 func TestAgent_GetSessionTimelineReturnsMessageAndTraceErrors(t *testing.T) {
 	manager, err := statemanager.NewManager(&timelineErrorStore{
+		countErr: errors.New("count failed"),
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	_, err = (&Agent{stateMgr: manager}).GetSessionTimeline(context.Background(), SessionTimelineOptions{})
+	require.EqualError(t, err, "count failed")
+
+	manager, err = statemanager.NewManager(&timelineErrorStore{
 		messageErr: errors.New("messages failed"),
 	}, time.Hour, 24*time.Hour)
 	require.NoError(t, err)

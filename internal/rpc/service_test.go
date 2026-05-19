@@ -717,13 +717,19 @@ func (s *bufferedReplyStub) Respond(_ context.Context, _ string, opts agent.Resp
 }
 
 func TestService_CreateSessionReturnsSummary(t *testing.T) {
-	stub := &agentstub.AgentServiceStub{CreatedSession: storage.Session{ID: "project-a"}}
+	stub := &agentstub.AgentServiceStub{CreatedSession: storage.Session{
+		ID:          "project-a",
+		Title:       "Project Planning",
+		TitleSource: storage.SessionTitleSourceGenerated,
+	}}
 	svc := NewService(stub)
 
 	resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{Id: "project-a"})
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", resp.GetSession().GetId())
+	require.Equal(t, "Project Planning", resp.GetSession().GetTitle())
+	require.Equal(t, storage.SessionTitleSourceGenerated, resp.GetSession().GetTitleSource())
 }
 
 func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
@@ -765,7 +771,10 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 }
 
 func TestService_ListSessionsReturnsItems(t *testing.T) {
-	stub := &agentstub.AgentServiceStub{Sessions: []storage.Session{{ID: "default"}, {ID: "project-a"}}}
+	stub := &agentstub.AgentServiceStub{Sessions: []storage.Session{
+		{ID: "default", Title: "Daily Planning", TitleSource: storage.SessionTitleSourceGenerated},
+		{ID: "project-a"},
+	}}
 	svc := NewService(stub)
 
 	resp, err := svc.ListSessions(context.Background(), &handpb.ListSessionsRequest{})
@@ -773,6 +782,8 @@ func TestService_ListSessionsReturnsItems(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.GetSessions(), 2)
 	require.Equal(t, "default", resp.GetSessions()[0].GetId())
+	require.Equal(t, "Daily Planning", resp.GetSessions()[0].GetTitle())
+	require.Equal(t, storage.SessionTitleSourceGenerated, resp.GetSessions()[0].GetTitleSource())
 	require.Equal(t, "project-a", resp.GetSessions()[1].GetId())
 }
 
@@ -1158,7 +1169,9 @@ func TestService_GetSessionTimelineReturnsMessagesAndSanitizedTraceEvents(t *tes
 	traceAt := time.Date(2026, 5, 16, 11, 0, 0, 0, time.UTC)
 	stub := &agentstub.AgentServiceStub{
 		TimelineResult: agent.SessionTimeline{
-			SessionID: "default",
+			SessionID:   "default",
+			Title:       "Daily Planning",
+			TitleSource: storage.SessionTitleSourceGenerated,
 			Messages: []agent.SessionTimelineMessage{{
 				Offset: 2,
 				Message: handmsg.Message{
@@ -1213,6 +1226,8 @@ func TestService_GetSessionTimelineReturnsMessagesAndSanitizedTraceEvents(t *tes
 		TraceLimit:    4,
 	}, stub.TimelineOptions)
 	require.Equal(t, "default", resp.GetId())
+	require.Equal(t, "Daily Planning", resp.GetTitle())
+	require.Equal(t, storage.SessionTitleSourceGenerated, resp.GetTitleSource())
 	require.True(t, resp.GetMessagesHasMore())
 	require.True(t, resp.GetTracesHasMore())
 	require.True(t, resp.GetTracesTruncatedBefore())

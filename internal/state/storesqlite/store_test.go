@@ -42,6 +42,10 @@ func TestSQLiteStore_NewStoreValidationAndSchema(t *testing.T) {
 	require.True(t, store.db.Migrator().HasTable(&traceEventModel{}))
 	require.True(t, store.db.Migrator().HasColumn(&sessionModel{}, "episodic_checkpoint_offset"))
 	require.True(t, store.db.Migrator().HasColumn(&sessionModel{}, "reflection_checkpoint_offset"))
+	require.True(t, store.db.Migrator().HasColumn(&sessionModel{}, "title"))
+	require.True(t, store.db.Migrator().HasColumn(&sessionModel{}, "title_source"))
+	require.True(t, store.db.Migrator().HasColumn(&archiveModel{}, "title"))
+	require.True(t, store.db.Migrator().HasColumn(&archiveModel{}, "title_source"))
 	require.False(t, store.db.Migrator().HasColumn(&sessionModel{}, "messages"))
 }
 

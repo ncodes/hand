@@ -121,6 +121,44 @@ func TestNormalizeCreateArchive(t *testing.T) {
 		require.Equal(t, archivedAt.UTC(), archive.ArchivedAt)
 		require.Equal(t, expiresAt.UTC(), archive.ExpiresAt)
 	})
+
+	t.Run("normalizes title metadata", func(t *testing.T) {
+		archive, err := NormalizeCreateArchive(ArchivedSession{
+			ID:              testArchiveIDAlt,
+			SourceSessionID: testArchiveSessionID,
+			Title:           "  Project Planning  ",
+			TitleSource:     "  generated  ",
+			ExpiresAt:       time.Now().UTC().Add(time.Hour),
+		})
+		require.NoError(t, err)
+		require.Equal(t, "Project Planning", archive.Title)
+		require.Equal(t, SessionTitleSourceGenerated, archive.TitleSource)
+
+		archive, err = NormalizeCreateArchive(ArchivedSession{
+			ID:              testArchiveIDAlt,
+			SourceSessionID: testArchiveSessionID,
+			Title:           "  ",
+			TitleSource:     SessionTitleSourceGenerated,
+			ExpiresAt:       time.Now().UTC().Add(time.Hour),
+		})
+		require.NoError(t, err)
+		require.Empty(t, archive.Title)
+		require.Empty(t, archive.TitleSource)
+	})
+}
+
+func TestNormalizeSessionTitleMetadata(t *testing.T) {
+	title, source := NormalizeSessionTitleMetadata("  Planning Notes  ", "  manual  ")
+	require.Equal(t, "Planning Notes", title)
+	require.Equal(t, SessionTitleSourceManual, source)
+
+	title, source = NormalizeSessionTitleMetadata("Planning Notes", "unknown")
+	require.Equal(t, "Planning Notes", title)
+	require.Empty(t, source)
+
+	title, source = NormalizeSessionTitleMetadata("  ", SessionTitleSourceGenerated)
+	require.Empty(t, title)
+	require.Empty(t, source)
 }
 
 func TestCloneMessages(t *testing.T) {

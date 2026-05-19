@@ -12,6 +12,7 @@ import (
 	"github.com/wandxy/hand/internal/agent"
 	protomock "github.com/wandxy/hand/internal/mocks/proto"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
+	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
 )
 
@@ -164,6 +165,8 @@ func TestClient_CreateSessionReturnsSummary(t *testing.T) {
 		CreateResp: &handpb.CreateSessionResponse{
 			Session: &handpb.SessionSummary{
 				Id:            "project-a",
+				Title:         "Project Planning",
+				TitleSource:   storage.SessionTitleSourceGenerated,
 				UpdatedAtUnix: time.Unix(10, 0).UTC().Unix(),
 			},
 		},
@@ -174,6 +177,8 @@ func TestClient_CreateSessionReturnsSummary(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", session.ID)
+	require.Equal(t, "Project Planning", session.Title)
+	require.Equal(t, storage.SessionTitleSourceGenerated, session.TitleSource)
 	require.Equal(t, "project-a", stub.CreateReq.GetId())
 }
 
@@ -181,7 +186,7 @@ func TestClient_ListSessionsReturnsItems(t *testing.T) {
 	stub := &protomock.HandServiceClientStub{
 		ListResp: &handpb.ListSessionsResponse{
 			Sessions: []*handpb.SessionSummary{
-				{Id: "default", UpdatedAtUnix: 10},
+				{Id: "default", Title: "Daily Planning", TitleSource: storage.SessionTitleSourceGenerated, UpdatedAtUnix: 10},
 				{Id: "project-a", UpdatedAtUnix: 20},
 			},
 		},
@@ -194,6 +199,8 @@ func TestClient_ListSessionsReturnsItems(t *testing.T) {
 	require.NotNil(t, stub.ListReq)
 	require.Len(t, sessions, 2)
 	require.Equal(t, "default", sessions[0].ID)
+	require.Equal(t, "Daily Planning", sessions[0].Title)
+	require.Equal(t, storage.SessionTitleSourceGenerated, sessions[0].TitleSource)
 	require.Equal(t, "project-a", sessions[1].ID)
 }
 
@@ -319,7 +326,9 @@ func TestClient_GetSessionTimelineReturnsResult(t *testing.T) {
 	messageAt := time.Date(2026, 5, 16, 10, 0, 0, 0, time.UTC)
 	traceAt := time.Date(2026, 5, 16, 11, 0, 0, 0, time.UTC)
 	stub := &protomock.HandServiceClientStub{TimelineResp: &handpb.GetSessionTimelineResponse{
-		Id: "default",
+		Id:          "default",
+		Title:       "Daily Planning",
+		TitleSource: storage.SessionTitleSourceGenerated,
 		Messages: []*handpb.SessionTimelineMessage{{
 			Offset:     2,
 			Id:         7,
@@ -364,6 +373,8 @@ func TestClient_GetSessionTimelineReturnsResult(t *testing.T) {
 	require.EqualValues(t, 3, stub.TimelineReq.GetTraceOffset())
 	require.EqualValues(t, 4, stub.TimelineReq.GetTraceLimit())
 	require.Equal(t, "default", result.SessionID)
+	require.Equal(t, "Daily Planning", result.Title)
+	require.Equal(t, storage.SessionTitleSourceGenerated, result.TitleSource)
 	require.True(t, result.MessagesHasMore)
 	require.True(t, result.TracesHasMore)
 	require.True(t, result.TracesTruncatedBefore)
