@@ -585,6 +585,43 @@ func TestModel_RenderBottomStatusPanelMovesContextToRight(t *testing.T) {
 	require.Greater(t, strings.Index(content, "60,000 used"), strings.Index(content, "default session"))
 }
 
+func TestModel_RenderBottomStatusPanelShowsThinkingBeforeModel(t *testing.T) {
+	runModel := newModel()
+	runModel.responding = true
+
+	content := stripANSI(runModel.renderBottomStatusPanel())
+
+	require.Contains(t, content, "Thinking")
+	require.Contains(t, content, "GPT 5.5")
+	require.Less(t, strings.Index(content, "Thinking"), strings.Index(content, "GPT 5.5"))
+}
+
+func TestModel_RenderBottomStatusPanelHidesThinkingWhenNotThinking(t *testing.T) {
+	runModel := newModel()
+	runModel.responding = true
+	runModel.live = "Hand: hello"
+
+	content := stripANSI(runModel.renderBottomStatusPanel())
+
+	require.NotContains(t, content, "Thinking")
+}
+
+func TestModel_RenderBottomStatusPanelShowsThinkingWhenComposerAnimationDisabled(t *testing.T) {
+	disabled := false
+	runModel := newModelWithClientContextAndConfig(
+		context.Background(),
+		nil,
+		&config.Config{TUI: config.TUIConfig{ThinkingComposer: &disabled}},
+	)
+	runModel.responding = true
+
+	content := stripANSI(runModel.renderBottomStatusPanel())
+
+	require.False(t, runModel.isThinkingComposerVisible())
+	require.True(t, runModel.isModelThinking())
+	require.Contains(t, content, "Thinking")
+}
+
 func TestGetPanelHorizontalPadding_DisablesPaddingWhenNarrow(t *testing.T) {
 	require.Equal(t, 0, getPanelHorizontalPadding(2))
 	require.Equal(t, panelHorizontalPadding, getPanelHorizontalPadding(3))

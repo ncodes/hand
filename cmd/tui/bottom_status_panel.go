@@ -13,7 +13,12 @@ func (m model) renderBottomStatusPanel() string {
 	contentWidth := getPanelContentWidth(availableWidth)
 	status := m.status.Text()
 
-	left := joinBottomStatusPanelSegments([]string{m.modelName, status}, contentWidth)
+	segments := []string{m.modelName, status}
+	if m.isModelThinking() {
+		segments = append([]string{"Thinking"}, segments...)
+	}
+
+	left := joinBottomStatusPanelSegments(segments, contentWidth)
 	right := strings.TrimSpace(m.context)
 	if m.hasPendingExitConfirmation() {
 		left = status

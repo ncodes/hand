@@ -44,8 +44,11 @@ func (m *model) updateThinkingComposer() (tea.Model, tea.Cmd) {
 }
 
 func (m model) isThinkingComposerVisible() bool {
-	return m.thinkingComposerEnabled &&
-		m.responding &&
+	return m.thinkingComposerEnabled && m.isModelThinking()
+}
+
+func (m model) isModelThinking() bool {
+	return m.responding &&
 		strings.TrimSpace(m.live) == "" &&
 		!m.hasRunningToolTranscriptCells()
 }
