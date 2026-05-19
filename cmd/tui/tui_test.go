@@ -788,6 +788,26 @@ func TestModel_UpdateScrollsTranscriptWithMouseWheel(t *testing.T) {
 	require.Less(t, runModel.transcript.YOffset(), bottomOffset)
 }
 
+func TestModel_UpdateDoesNotScrollTranscriptWhenTypingComposerText(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+	}
+	runModel.setTranscriptContent()
+	bottomOffset := runModel.transcript.YOffset()
+	require.True(t, runModel.transcript.AtBottom())
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'k', Text: "k"}))
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "k", runModel.input.Value())
+	require.Equal(t, bottomOffset, runModel.transcript.YOffset())
+	require.True(t, runModel.transcript.AtBottom())
+}
+
 func TestModel_ViewShowsJumpToBottomWhenTranscriptIsNotAtBottom(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 10

@@ -203,6 +203,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.scrollTranscriptWithKey(msg) {
 			return m, nil
 		}
+
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(msg)
+		m.resize()
+		return m, cmd
 	case tea.MouseWheelMsg:
 		return m.updateTranscriptWithScrollTracking(msg)
 	case tea.MouseClickMsg:
