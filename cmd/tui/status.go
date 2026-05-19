@@ -8,7 +8,9 @@ import (
 )
 
 const (
-	defaultStatus        = "default session · ready · ctrl+c twice to quit"
+	defaultSessionTitle  = "default session"
+	defaultStatus        = statusReadySuffix
+	statusReadySuffix    = "enter to send · ctrl+c to quit"
 	statusAutoHideWindow = 3 * time.Second
 
 	exitConfirmationWindow = 2 * time.Second
@@ -46,11 +48,15 @@ func (s statusModel) Text() string {
 		return text
 	}
 
-	return "ready"
+	return "enter to send · ctrl+c to quit"
 }
 
 func (s statusModel) hasTransient() bool {
 	return !s.startedAt.IsZero()
+}
+
+func (s *statusModel) setDefault(text string) {
+	s.defaultText = strings.TrimSpace(text)
 }
 
 func (s *statusModel) setTransient(text string) tea.Cmd {
@@ -83,6 +89,19 @@ func (s *statusModel) expire(msg statusExpiredMsg) {
 
 func (m *model) setStatus(text string) tea.Cmd {
 	return m.status.setTransient(text)
+}
+
+func (m *model) setDefaultStatus(text string) {
+	m.status.setDefault(text)
+}
+
+func (m *model) setSessionTitle(text string) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		text = defaultSessionTitle
+	}
+
+	m.sessionTitle = text
 }
 
 func (m model) statusExpireCmd() tea.Cmd {

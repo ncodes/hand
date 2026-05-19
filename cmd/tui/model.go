@@ -16,7 +16,8 @@ const (
 	defaultWidth  = 80
 	defaultHeight = 24
 
-	inputChromeHeight = inputFrameChromeHeight + bottomStatusPanelHeight
+	transcriptComposerGapHeight = 1
+	inputChromeHeight           = inputFrameChromeHeight + bottomStatusPanelHeight + transcriptComposerGapHeight
 )
 
 // model is the root Bubble Tea application state for the interactive shell.
@@ -26,6 +27,7 @@ type model struct {
 	width                      int
 	height                     int
 	status                     statusModel
+	sessionTitle               string
 	modelName                  string
 	context                    string
 	messages                   []string
@@ -81,6 +83,7 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 		width:                   defaultWidth,
 		height:                  defaultHeight,
 		status:                  newStatusModel(),
+		sessionTitle:            defaultSessionTitle,
 		modelName:               "GPT 5.5",
 		context:                 "60,000 used · 65%",
 		showIntro:               true,

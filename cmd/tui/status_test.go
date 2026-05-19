@@ -7,12 +7,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStatusModel_TextFallsBackToDefaultAndReady(t *testing.T) {
+func TestStatusModel_TextFallsBackToDefaultAndSubmitHint(t *testing.T) {
 	status := newStatusModel()
 	require.Equal(t, defaultStatus, status.Text())
 
 	status.defaultText = ""
-	require.Equal(t, "ready", status.Text())
+	require.Equal(t, "enter to send · ctrl+c to quit", status.Text())
 }
 
 func TestStatusModel_SetTransientExpiresMatchingStatus(t *testing.T) {

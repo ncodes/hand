@@ -276,7 +276,7 @@ func TestModel_ViewRendersShellAreas(t *testing.T) {
 	require.Contains(t, content, inputPrompt+"Ask Hand...")
 	require.Contains(t, content, "Ask Hand...")
 	require.Contains(t, content, "GPT 5.5")
-	require.Contains(t, content, "ready")
+	require.Contains(t, content, "enter to send")
 }
 
 func TestModel_InitFocusesInput(t *testing.T) {
@@ -335,6 +335,10 @@ func TestLoadSessionTimelineCmdReturnsLoadFailure(t *testing.T) {
 
 func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 	runModel := newModel()
+	now := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
+	originalTime := currentTime
+	currentTime = func() time.Time { return now }
+	t.Cleanup(func() { currentTime = originalTime })
 
 	updated, cmd := runModel.Update(sessionTimelineLoadedMsg{
 		Timeline: rpcclient.SessionTimeline{
@@ -350,7 +354,13 @@ func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 	runModel = updated.(model)
 	require.Equal(t, []string{"Hand: older answer"}, runModel.messages)
 	require.Contains(t, stripANSI(runModel.transcript.View()), "older answer")
-	require.Equal(t, "Daily Planning (default) · hydrated", runModel.status.Text())
+	require.Equal(t, "Daily Planning (default)", runModel.sessionTitle)
+	require.Equal(t, "hydrated", runModel.status.Text())
+
+	updated, _ = runModel.Update(statusExpiredMsg{startedAt: now})
+	runModel = updated.(model)
+	require.Equal(t, "Daily Planning (default)", runModel.sessionTitle)
+	require.Equal(t, defaultStatus, runModel.status.Text())
 }
 
 func TestModel_UpdateReportsTimelineLoadFailure(t *testing.T) {
@@ -655,6 +665,15 @@ func TestModel_RenderBottomStatusPanelKeepsMutedCellsWhenThinking(t *testing.T) 
 
 	require.Contains(t, content, renderBottomStatusMutedCell("GPT 5.5"))
 	require.Contains(t, content, renderBottomStatusMutedCell(defaultStatus))
+	require.Contains(t, content, renderBottomStatusMutedCell(defaultSessionTitle))
+}
+
+func TestSpaceAroundBottomStatusPanel_CentersTitle(t *testing.T) {
+	content := stripANSI(spaceAroundBottomStatusPanel("model", "Project Planning", "context", 60))
+
+	require.Equal(t, 22, strings.Index(content, "Project Planning"))
+	require.True(t, strings.HasPrefix(content, "model"))
+	require.True(t, strings.HasSuffix(content, "context"))
 }
 
 func TestGetPanelHorizontalPadding_DisablesPaddingWhenNarrow(t *testing.T) {
@@ -664,7 +683,7 @@ func TestGetPanelHorizontalPadding_DisablesPaddingWhenNarrow(t *testing.T) {
 
 func TestJoinBottomStatusPanelSegments_HandlesEmptySingleAndNarrowValues(t *testing.T) {
 	require.Empty(t, joinBottomStatusPanelSegments([]string{" ", ""}, 20))
-	require.Equal(t, "ready", joinBottomStatusPanelSegments([]string{"ready"}, 20))
+	require.Equal(t, "enter to send · ctrl+c to quit", joinBottomStatusPanelSegments([]string{"enter to send · ctrl+c to quit"}, 40))
 	require.Equal(t, "model · status", joinBottomStatusPanelSegments([]string{"model", "status"}, 5))
 }
 
@@ -805,7 +824,8 @@ func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 	})
 
 	content := stripANSI(runModel.transcript.View())
-	require.Equal(t, "Project Planning · hydrated", runModel.status.Text())
+	require.Equal(t, "Project Planning", runModel.sessionTitle)
+	require.Equal(t, "hydrated", runModel.status.Text())
 	require.Equal(t, "You: hello", runModel.messages[len(runModel.messages)-3])
 	require.Equal(t, "Hand: hi", runModel.messages[len(runModel.messages)-2])
 	require.Equal(t, toolOperationTranscriptCell("call_1", "read_file", ""), runModel.messages[len(runModel.messages)-1])
@@ -823,7 +843,8 @@ func TestModel_HydrateSessionTimelineShowsEmptySession(t *testing.T) {
 
 	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{SessionID: "empty"})
 
-	require.Equal(t, "empty · hydrated", runModel.status.Text())
+	require.Equal(t, "empty", runModel.sessionTitle)
+	require.Equal(t, "hydrated", runModel.status.Text())
 	require.Equal(t, []string{"empty has no visible timeline yet."}, runModel.messages)
 	require.Contains(t, runModel.transcript.View(), "empty has no visible timeline yet.")
 }
@@ -833,7 +854,8 @@ func TestModel_HydrateSessionTimelineShowsFallbackForMissingSessionID(t *testing
 
 	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{})
 
-	require.Equal(t, "session · hydrated", runModel.status.Text())
+	require.Equal(t, "session", runModel.sessionTitle)
+	require.Equal(t, "hydrated", runModel.status.Text())
 	require.Equal(t, []string{"session has no visible timeline yet."}, runModel.messages)
 	require.Contains(t, runModel.transcript.View(), "session has no visible timeline yet.")
 }
@@ -2530,7 +2552,7 @@ func TestModel_UpdateLimitsPromptRowsToAvailableHeight(t *testing.T) {
 	}, "\n"))
 	runModel.resize()
 
-	require.Equal(t, 2, runModel.input.Height())
+	require.Equal(t, 1, runModel.input.Height())
 	require.Equal(t, 1, runModel.transcript.Height())
 }
 

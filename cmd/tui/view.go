@@ -10,6 +10,7 @@ func (m model) View() tea.View {
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
 		m.renderTranscript(),
+		renderTranscriptComposerGap(),
 		m.renderInput(),
 	)
 	view := tea.NewView(content)
@@ -17,4 +18,8 @@ func (m model) View() tea.View {
 	view.MouseMode = tea.MouseModeCellMotion
 
 	return view
+}
+
+func renderTranscriptComposerGap() string {
+	return ""
 }

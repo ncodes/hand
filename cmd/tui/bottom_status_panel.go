@@ -22,16 +22,18 @@ func (m model) renderBottomStatusPanel() string {
 	}
 
 	left := joinBottomStatusPanelRenderedSegments(segments, contentWidth)
+	center := renderBottomStatusMutedCell(m.sessionTitle)
 	right := renderBottomStatusMutedCell(m.context)
 	if m.hasPendingExitConfirmation() {
 		left = renderBottomStatusMutedCell(status)
+		center = ""
 		right = ""
 	}
 
 	return lipgloss.NewStyle().
 		Padding(0, horizontalPadding).
 		Width(availableWidth).
-		Render(spaceBetweenBottomStatusPanel(left, right, contentWidth))
+		Render(spaceAroundBottomStatusPanel(left, center, right, contentWidth))
 }
 
 func renderBottomStatusMutedCell(text string) string {
@@ -118,4 +120,41 @@ func spaceBetweenBottomStatusPanel(left, right string, width int) string {
 	}
 
 	return left + strings.Repeat(" ", gap) + right
+}
+
+// spaceAroundBottomStatusPanel centers the session title while keeping metadata at the edges.
+func spaceAroundBottomStatusPanel(left, center, right string, width int) string {
+	left = strings.TrimSpace(left)
+	center = strings.TrimSpace(center)
+	right = strings.TrimSpace(right)
+	if center == "" {
+		return spaceBetweenBottomStatusPanel(left, right, width)
+	}
+
+	leftWidth := lipgloss.Width(left)
+	centerWidth := lipgloss.Width(center)
+	rightWidth := lipgloss.Width(right)
+	centerStart := max((width-centerWidth)/2, leftWidth+1)
+	rightStart := width - rightWidth
+	if right == "" {
+		rightStart = width
+	}
+	if centerStart+centerWidth >= rightStart {
+		return spaceBetweenBottomStatusPanel(
+			joinBottomStatusPanelRenderedSegments([]string{left, center}, width),
+			right,
+			width,
+		)
+	}
+
+	var out strings.Builder
+	out.WriteString(left)
+	out.WriteString(strings.Repeat(" ", max(centerStart-lipgloss.Width(out.String()), 1)))
+	out.WriteString(center)
+	if right != "" {
+		out.WriteString(strings.Repeat(" ", max(rightStart-lipgloss.Width(out.String()), 1)))
+		out.WriteString(right)
+	}
+
+	return out.String()
 }

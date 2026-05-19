@@ -55,7 +55,10 @@ func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.C
 	m.stream.Reset()
 	m.setTranscriptContent()
 	var cmd tea.Cmd
-	cmd = m.setStatus(getSessionTimelineDisplayName(timeline) + " · hydrated")
+	displayName := getSessionTimelineDisplayName(timeline)
+	m.setSessionTitle(displayName)
+	m.setDefaultStatus(defaultStatus)
+	cmd = m.setStatus("hydrated")
 	m.resize()
 
 	return cmd

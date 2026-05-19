@@ -357,7 +357,7 @@ func renderToolTranscriptGroup(group toolTranscriptGroup, frame int) string {
 	}
 
 	branchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	detailStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	detailStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
 	lines := []string{header}
 	for index, detail := range details {
 		branch := "├"
@@ -402,7 +402,7 @@ func renderRunTranscriptGroup(group toolTranscriptGroup, frame int) string {
 			Foreground(lipgloss.Color("250")).
 			Render(" "+noun+suffix)
 
-	detailStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	detailStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
 	branchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 	lines := []string{header}
 	for index, detail := range group.details {
