@@ -27,6 +27,10 @@ func renderTranscriptCells(cells []string) string {
 }
 
 func renderTranscriptCellsWithWidth(cells []string, width int) string {
+	return renderTranscriptCellsWithFrame(cells, width, 0)
+}
+
+func renderTranscriptCellsWithFrame(cells []string, width int, frame int) string {
 	rendered := make([]string, 0, len(cells))
 	var toolGroup *toolTranscriptGroup
 	for _, cell := range cells {
@@ -37,7 +41,7 @@ func renderTranscriptCellsWithWidth(cells []string, width int) string {
 
 		if toolCell, ok := parseToolTranscriptCell(cell); ok {
 			if toolGroup == nil || toolGroup.action != toolCell.action {
-				flushToolTranscriptGroup(&rendered, &toolGroup)
+				flushToolTranscriptGroup(&rendered, &toolGroup, frame)
 			}
 			if toolGroup == nil {
 				toolGroup = &toolTranscriptGroup{action: toolCell.action}
@@ -46,12 +50,12 @@ func renderTranscriptCellsWithWidth(cells []string, width int) string {
 			continue
 		}
 
-		flushToolTranscriptGroup(&rendered, &toolGroup)
+		flushToolTranscriptGroup(&rendered, &toolGroup, frame)
 		if renderedCell := renderTranscriptCellWithWidth(cell, width); renderedCell != "" {
 			rendered = append(rendered, renderedCell)
 		}
 	}
-	flushToolTranscriptGroup(&rendered, &toolGroup)
+	flushToolTranscriptGroup(&rendered, &toolGroup, frame)
 
 	return strings.Join(rendered, "\n\n")
 }
@@ -64,7 +68,7 @@ func renderTranscriptCellWithWidth(cell string, width int) string {
 	if toolCell, ok := parseToolTranscriptCell(cell); ok {
 		group := toolTranscriptGroup{action: toolCell.action}
 		group.add(toolCell)
-		return renderToolTranscriptGroup(group)
+		return renderToolTranscriptGroup(group, 0)
 	}
 
 	kind, label, body := parseTranscriptCell(cell)
@@ -204,10 +208,11 @@ type toolTranscriptCell struct {
 }
 
 type toolTranscriptGroup struct {
-	action    string
-	details   []string
-	seenIDs   map[string]bool
-	completed bool
+	action       string
+	details      []string
+	seenIDs      map[string]bool
+	completedIDs map[string]bool
+	completed    bool
 }
 
 func toolOperationTranscriptCell(id string, name string, detail string, completed ...bool) string {
@@ -273,15 +278,17 @@ func (group *toolTranscriptGroup) add(cell toolTranscriptCell) {
 		if group.seenIDs == nil {
 			group.seenIDs = map[string]bool{}
 		}
-		if group.seenIDs[id] {
-			if cell.completed {
-				group.completed = true
+		if cell.completed {
+			if group.completedIDs == nil {
+				group.completedIDs = map[string]bool{}
 			}
+			group.completedIDs[id] = true
+		}
+		if group.seenIDs[id] {
 			return
 		}
 		group.seenIDs[id] = true
-	}
-	if cell.completed {
+	} else if cell.completed {
 		group.completed = true
 	}
 
@@ -294,33 +301,34 @@ func (group *toolTranscriptGroup) add(cell toolTranscriptCell) {
 	}
 }
 
-func flushToolTranscriptGroup(rendered *[]string, group **toolTranscriptGroup) {
+func flushToolTranscriptGroup(rendered *[]string, group **toolTranscriptGroup, frame int) {
 	if group == nil || *group == nil {
 		return
 	}
-	if cell := renderToolTranscriptGroup(**group); cell != "" {
+	if cell := renderToolTranscriptGroup(**group, frame); cell != "" {
 		*rendered = append(*rendered, cell)
 	}
 	*group = nil
 }
 
-func renderToolTranscriptGroup(group toolTranscriptGroup) string {
+func renderToolTranscriptGroup(group toolTranscriptGroup, frame int) string {
 	action := strings.TrimSpace(group.action)
 	if action == "" {
 		action = "Tool"
 	}
 	if action == "Run" {
-		return renderRunTranscriptGroup(group)
+		return renderRunTranscriptGroup(group, frame)
 	}
+	completed := group.isCompleted()
 
 	header := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(getToolTranscriptDotColor(group.completed))).
+		Foreground(lipgloss.Color(getToolTranscriptDotColor(completed))).
 		Bold(true).
-		Render("●") +
+		Render(getToolTranscriptDot(completed, frame)) +
 		lipgloss.NewStyle().
 			Foreground(lipgloss.Color("214")).
 			Bold(true).
-			Render(" "+getToolTranscriptTitle(action, group.completed))
+			Render(" "+getToolTranscriptTitle(action, completed))
 
 	details := make([]string, 0, len(group.details))
 	for _, detail := range group.details {
@@ -346,7 +354,7 @@ func renderToolTranscriptGroup(group toolTranscriptGroup) string {
 	return strings.Join(lines, "\n")
 }
 
-func renderRunTranscriptGroup(group toolTranscriptGroup) string {
+func renderRunTranscriptGroup(group toolTranscriptGroup, frame int) string {
 	count := len(group.details)
 	if count == 0 {
 		count = 1
@@ -358,14 +366,15 @@ func renderRunTranscriptGroup(group toolTranscriptGroup) string {
 	}
 	verb := "Running"
 	suffix := "…"
-	if group.completed {
+	completed := group.isCompleted()
+	if completed {
 		verb = "Ran"
 		suffix = ""
 	}
 	header := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(getToolTranscriptDotColor(group.completed))).
+		Foreground(lipgloss.Color(getToolTranscriptDotColor(completed))).
 		Bold(true).
-		Render("●") +
+		Render(getToolTranscriptDot(completed, frame)) +
 		lipgloss.NewStyle().
 			Foreground(lipgloss.Color("250")).
 			Render(" "+verb+" ") +
@@ -391,6 +400,20 @@ func renderRunTranscriptGroup(group toolTranscriptGroup) string {
 	return strings.Join(lines, "\n")
 }
 
+func (group toolTranscriptGroup) isCompleted() bool {
+	if len(group.seenIDs) == 0 {
+		return group.completed
+	}
+
+	for id := range group.seenIDs {
+		if !group.completedIDs[id] {
+			return false
+		}
+	}
+
+	return true
+}
+
 func getToolActionName(name string) string {
 	normalized := strings.TrimSpace(strings.ToLower(name))
 	normalized = strings.ReplaceAll(normalized, "-", "_")
@@ -414,6 +437,20 @@ func getToolTranscriptDotColor(completed bool) string {
 	}
 
 	return "250"
+}
+
+func getToolTranscriptDot(completed bool, frame int) string {
+	if completed {
+		return "●"
+	}
+
+	frames := []string{"●", "◖", "◐", "◗", "●", "◔"}
+	index := frame % len(frames)
+	if index < 0 {
+		index += len(frames)
+	}
+
+	return frames[index]
 }
 
 func getToolTranscriptTitle(action string, completed bool) string {

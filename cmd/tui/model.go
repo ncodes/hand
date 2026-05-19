@@ -42,6 +42,8 @@ type model struct {
 	responseTranscriptFollow   bool
 	responseTranscriptScrolled bool
 	events                     <-chan tea.Msg
+	toolAnimationFrame         int
+	toolAnimationActive        bool
 	exitAt                     time.Time
 	allowShell                 bool
 	selection                  transcriptSelection
@@ -106,6 +108,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case statusExpiredMsg:
 		m.status.expire(msg)
 		return m, nil
+	case toolAnimationTickMsg:
+		return m.updateToolAnimation()
 	case assistantTextDeltaMsg:
 		return m, m.applyTUIMessage(msg)
 	case assistantResponseCompletedMsg:

@@ -58,7 +58,7 @@ func (m *model) renderTranscriptContent() string {
 		headerWidth = getPanelContentWidth(m.width)
 	}
 	content := strings.TrimSpace(m.renderHeaderWithWidth(headerWidth))
-	if cellsText := strings.TrimSpace(renderTranscriptCellsWithWidth(cells, headerWidth)); cellsText != "" {
+	if cellsText := strings.TrimSpace(renderTranscriptCellsWithFrame(cells, headerWidth, m.toolAnimationFrame)); cellsText != "" {
 		content = strings.Join([]string{content, cellsText}, "\n\n")
 	}
 
@@ -122,9 +122,12 @@ func (m *model) applyTUIMessage(msg any) tea.Cmd {
 	case sessionErrorMsg:
 		m.addTranscriptMessage(value)
 		return m.setStatus("response failed")
-	case toolInvocationStartedMsg,
-		toolInvocationCompletedMsg,
-		safetyEventMsg:
+	case toolInvocationStartedMsg:
+		m.addTranscriptMessage(value)
+		return m.startToolAnimation()
+	case toolInvocationCompletedMsg:
+		m.addTranscriptMessage(value)
+	case safetyEventMsg:
 		m.addTranscriptMessage(value)
 	}
 

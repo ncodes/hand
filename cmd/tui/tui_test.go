@@ -1933,13 +1933,17 @@ func TestWaitForResponseEventReturnsQueuedAndClosedMessages(t *testing.T) {
 func TestModel_UpdateAddsTraceMessagesToTranscript(t *testing.T) {
 	runModel := newModel()
 
-	for _, msg := range []tea.Msg{
+	for index, msg := range []tea.Msg{
 		toolInvocationStartedMsg{Name: "read_file"},
 		toolInvocationCompletedMsg{Name: "read_file"},
 		safetyEventMsg{Action: "blocked", FindingIDs: []string{"prompt_exfiltration"}},
 	} {
 		updated, cmd := runModel.Update(msg)
-		require.Nil(t, cmd)
+		if index == 0 {
+			require.NotNil(t, cmd)
+		} else {
+			require.Nil(t, cmd)
+		}
 		runModel = updated.(model)
 	}
 
@@ -1948,6 +1952,39 @@ func TestModel_UpdateAddsTraceMessagesToTranscript(t *testing.T) {
 		toolOperationTranscriptCell("", "read_file", "", true),
 		"Safety: blocked: prompt_exfiltration",
 	}, runModel.messages)
+}
+
+func TestModel_UpdateAnimatesRunningToolTranscriptDot(t *testing.T) {
+	originalInterval := toolAnimationInterval
+	t.Cleanup(func() {
+		toolAnimationInterval = originalInterval
+	})
+	toolAnimationInterval = time.Nanosecond
+	runModel := newModel()
+
+	updated, cmd := runModel.Update(toolInvocationStartedMsg{ID: "call_1", Name: "web_search"})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.toolAnimationActive)
+	require.Contains(t, stripANSI(runModel.transcript.View()), "● Web Search")
+	require.Equal(t, toolAnimationTickMsg{}, cmd())
+
+	updated, cmd = runModel.Update(toolAnimationTickMsg{})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 1, runModel.toolAnimationFrame)
+	require.Contains(t, stripANSI(runModel.transcript.View()), "◖ Web Search")
+
+	updated, cmd = runModel.Update(toolInvocationCompletedMsg{ID: "call_1", Name: "web_search"})
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Contains(t, stripANSI(runModel.transcript.View()), "● Searched")
+
+	updated, cmd = runModel.Update(toolAnimationTickMsg{})
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.toolAnimationActive)
+	require.Contains(t, stripANSI(runModel.transcript.View()), "● Searched")
 }
 
 func TestModel_UpdatePreventsOverlappingPromptSubmission(t *testing.T) {

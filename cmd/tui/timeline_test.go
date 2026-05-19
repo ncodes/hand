@@ -131,6 +131,19 @@ func TestRenderTranscriptCells_DeduplicatesStartedAndCompletedToolEvents(t *test
 	require.Equal(t, 1, strings.Count(plain, "web_search"))
 }
 
+func TestRenderTranscriptCells_AnimatesRunningToolDot(t *testing.T) {
+	cells := []string{toolOperationTranscriptCell("call_1", "web_search", "")}
+	first := stripANSI(renderTranscriptCellsWithFrame(cells, 80, 0))
+	next := stripANSI(renderTranscriptCellsWithFrame(cells, 80, 1))
+	completed := stripANSI(renderTranscriptCellsWithFrame([]string{
+		toolOperationTranscriptCell("call_1", "web_search", "", true),
+	}, 80, 1))
+
+	require.Contains(t, first, "● Web Search")
+	require.Contains(t, next, "◖ Web Search")
+	require.Contains(t, completed, "● Searched")
+}
+
 func TestRenderTranscriptCells_RendersRunCommandsWithShellLayout(t *testing.T) {
 	rendered := renderTranscriptCells([]string{
 		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 && echo "Done" (8s)`),
