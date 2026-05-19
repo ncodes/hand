@@ -350,15 +350,10 @@ func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 		},
 	})
 
-	require.NotNil(t, cmd)
+	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.Equal(t, []string{"Hand: older answer"}, runModel.messages)
 	require.Contains(t, stripANSI(runModel.transcript.View()), "older answer")
-	require.Equal(t, "Daily Planning (default)", runModel.sessionTitle)
-	require.Equal(t, "hydrated", runModel.status.Text())
-
-	updated, _ = runModel.Update(statusExpiredMsg{startedAt: now})
-	runModel = updated.(model)
 	require.Equal(t, "Daily Planning (default)", runModel.sessionTitle)
 	require.Equal(t, defaultStatus, runModel.status.Text())
 }
@@ -825,7 +820,7 @@ func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 
 	content := stripANSI(runModel.transcript.View())
 	require.Equal(t, "Project Planning", runModel.sessionTitle)
-	require.Equal(t, "hydrated", runModel.status.Text())
+	require.Equal(t, defaultStatus, runModel.status.Text())
 	require.Equal(t, "You: hello", runModel.messages[len(runModel.messages)-3])
 	require.Equal(t, "Hand: hi", runModel.messages[len(runModel.messages)-2])
 	require.Equal(t, toolOperationTranscriptCell("call_1", "read_file", ""), runModel.messages[len(runModel.messages)-1])
@@ -844,7 +839,7 @@ func TestModel_HydrateSessionTimelineShowsEmptySession(t *testing.T) {
 	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{SessionID: "empty"})
 
 	require.Equal(t, "empty", runModel.sessionTitle)
-	require.Equal(t, "hydrated", runModel.status.Text())
+	require.Equal(t, defaultStatus, runModel.status.Text())
 	require.Equal(t, []string{"empty has no visible timeline yet."}, runModel.messages)
 	require.Contains(t, runModel.transcript.View(), "empty has no visible timeline yet.")
 }
@@ -855,7 +850,7 @@ func TestModel_HydrateSessionTimelineShowsFallbackForMissingSessionID(t *testing
 	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{})
 
 	require.Equal(t, "session", runModel.sessionTitle)
-	require.Equal(t, "hydrated", runModel.status.Text())
+	require.Equal(t, defaultStatus, runModel.status.Text())
 	require.Equal(t, []string{"session has no visible timeline yet."}, runModel.messages)
 	require.Contains(t, runModel.transcript.View(), "session has no visible timeline yet.")
 }
