@@ -2,6 +2,7 @@ package tui
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/wandxy/hand/internal/agent"
@@ -24,13 +25,15 @@ type assistantResponseCompletedMsg struct {
 }
 
 type toolInvocationStartedMsg struct {
-	ID   string
-	Name string
+	ID     string
+	Name   string
+	Detail string
 }
 
 type toolInvocationCompletedMsg struct {
-	ID   string
-	Name string
+	ID     string
+	Name   string
+	Detail string
 }
 
 type safetyEventMsg struct {
@@ -93,9 +96,17 @@ func traceEventToTUIMessage(event trace.Event) (any, bool) {
 func toolCallPayloadToTUIMessage(payload any) (any, bool) {
 	switch value := payload.(type) {
 	case models.ToolCall:
-		return toolInvocationStartedMsg{ID: strings.TrimSpace(value.ID), Name: strings.TrimSpace(value.Name)}, true
+		return toolInvocationStartedMsg{
+			ID:     strings.TrimSpace(value.ID),
+			Name:   strings.TrimSpace(value.Name),
+			Detail: getToolInputDisplayDetail(value.Name, value.Input),
+		}, true
 	case handmsg.ToolCall:
-		return toolInvocationStartedMsg{ID: strings.TrimSpace(value.ID), Name: strings.TrimSpace(value.Name)}, true
+		return toolInvocationStartedMsg{
+			ID:     strings.TrimSpace(value.ID),
+			Name:   strings.TrimSpace(value.Name),
+			Detail: getToolInputDisplayDetail(value.Name, value.Input),
+		}, true
 	default:
 		name := getPayloadString(payload, "name", "tool")
 		id := getPayloadString(payload, "id", "tool_call_id")
@@ -103,14 +114,21 @@ func toolCallPayloadToTUIMessage(payload any) (any, bool) {
 			return nil, false
 		}
 
-		return toolInvocationStartedMsg{ID: id, Name: name}, true
+		return toolInvocationStartedMsg{
+			ID:     id,
+			Name:   name,
+			Detail: getPayloadString(payload, "detail"),
+		}, true
 	}
 }
 
 func toolMessagePayloadToTUIMessage(payload any) (any, bool) {
 	switch value := payload.(type) {
 	case handmsg.Message:
-		return toolInvocationCompletedMsg{ID: strings.TrimSpace(value.ToolCallID), Name: strings.TrimSpace(value.Name)}, true
+		return toolInvocationCompletedMsg{
+			ID:   strings.TrimSpace(value.ToolCallID),
+			Name: strings.TrimSpace(value.Name),
+		}, true
 	default:
 		name := getPayloadString(payload, "name", "tool")
 		id := getPayloadString(payload, "tool_call_id", "id")
@@ -118,8 +136,85 @@ func toolMessagePayloadToTUIMessage(payload any) (any, bool) {
 			return nil, false
 		}
 
-		return toolInvocationCompletedMsg{ID: id, Name: name}, true
+		return toolInvocationCompletedMsg{
+			ID:     id,
+			Name:   name,
+			Detail: getPayloadString(payload, "detail"),
+		}, true
 	}
+}
+
+func getToolInputDisplayDetail(name string, input string) string {
+	if getToolActionName(name) != "Run" {
+		return ""
+	}
+
+	var fields map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(input)), &fields); err != nil {
+		return ""
+	}
+
+	command := getMapString(fields, "command")
+	if command == "" {
+		return ""
+	}
+
+	args := getMapStringSlice(fields, "args")
+	if len(args) == 0 {
+		return appendToolTimeout(command, fields["timeout_seconds"])
+	}
+
+	parts := append([]string{command}, args...)
+	for index, part := range parts {
+		parts[index] = shellQuoteCommandPart(part)
+	}
+
+	return appendToolTimeout(strings.Join(parts, " "), fields["timeout_seconds"])
+}
+
+func getMapString(fields map[string]any, key string) string {
+	value, _ := fields[key].(string)
+	return strings.TrimSpace(value)
+}
+
+func getMapStringSlice(fields map[string]any, key string) []string {
+	raw, ok := fields[key].([]any)
+	if !ok {
+		return nil
+	}
+
+	values := make([]string, 0, len(raw))
+	for _, value := range raw {
+		text, ok := value.(string)
+		if !ok {
+			continue
+		}
+		if text = strings.TrimSpace(text); text != "" {
+			values = append(values, text)
+		}
+	}
+
+	return values
+}
+
+func shellQuoteCommandPart(value string) string {
+	if value == "" {
+		return "''"
+	}
+	if strings.ContainsAny(value, " \t\n\"'\\$&|;()<>*?![]{}") {
+		return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+	}
+
+	return value
+}
+
+func appendToolTimeout(command string, raw any) string {
+	timeout, ok := raw.(float64)
+	if !ok || timeout <= 0 {
+		return command
+	}
+
+	return command + " (" + strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%.1f", timeout), "0"), ".") + "s)"
 }
 
 func safetyPayloadToTUIMessage(kind string, payload any) (any, bool) {

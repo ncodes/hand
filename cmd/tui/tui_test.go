@@ -721,10 +721,11 @@ func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 	require.Equal(t, "project-a · hydrated", runModel.status.Text())
 	require.Equal(t, "You: hello", runModel.messages[len(runModel.messages)-3])
 	require.Equal(t, "Hand: hi", runModel.messages[len(runModel.messages)-2])
-	require.Equal(t, "Tool started: read_file", runModel.messages[len(runModel.messages)-1])
+	require.Equal(t, toolOperationTranscriptCell("call_1", "read_file", ""), runModel.messages[len(runModel.messages)-1])
 	require.Contains(t, content, "❯ hello")
 	require.Contains(t, content, "Hand: hi")
-	require.Contains(t, content, "Tool started: read_file")
+	require.Contains(t, content, "● Read")
+	require.Contains(t, content, "└ read_file")
 	require.NotContains(t, content, "older 00")
 	require.NotContains(t, content, "stale cell")
 	require.True(t, runModel.transcript.AtBottom())
@@ -1054,7 +1055,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	runModel := newModel()
 	runModel.height = 40
 	runModel.resize()
-	runModel.messages = []string{"You: first", "Hand: second", "Tool started: read_file"}
+	runModel.messages = []string{"You: first", "Hand: second", toolOperationTranscriptCell("", "read_file", "")}
 	runModel.setTranscriptContent()
 	runModel.resize()
 	runModel.transcript.GotoTop()
@@ -1943,8 +1944,8 @@ func TestModel_UpdateAddsTraceMessagesToTranscript(t *testing.T) {
 	}
 
 	require.Equal(t, []string{
-		"Tool started: read_file",
-		"Tool completed: read_file",
+		toolOperationTranscriptCell("", "read_file", ""),
+		toolOperationTranscriptCell("", "read_file", "", true),
 		"Safety: blocked: prompt_exfiltration",
 	}, runModel.messages)
 }

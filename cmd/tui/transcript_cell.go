@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -27,11 +28,30 @@ func renderTranscriptCells(cells []string) string {
 
 func renderTranscriptCellsWithWidth(cells []string, width int) string {
 	rendered := make([]string, 0, len(cells))
+	var toolGroup *toolTranscriptGroup
 	for _, cell := range cells {
-		if cell = strings.TrimSpace(cell); cell != "" {
-			rendered = append(rendered, renderTranscriptCellWithWidth(cell, width))
+		cell = strings.TrimSpace(cell)
+		if cell == "" {
+			continue
+		}
+
+		if toolCell, ok := parseToolTranscriptCell(cell); ok {
+			if toolGroup == nil || toolGroup.action != toolCell.action {
+				flushToolTranscriptGroup(&rendered, &toolGroup)
+			}
+			if toolGroup == nil {
+				toolGroup = &toolTranscriptGroup{action: toolCell.action}
+			}
+			toolGroup.add(toolCell)
+			continue
+		}
+
+		flushToolTranscriptGroup(&rendered, &toolGroup)
+		if renderedCell := renderTranscriptCellWithWidth(cell, width); renderedCell != "" {
+			rendered = append(rendered, renderedCell)
 		}
 	}
+	flushToolTranscriptGroup(&rendered, &toolGroup)
 
 	return strings.Join(rendered, "\n\n")
 }
@@ -41,6 +61,12 @@ func renderTranscriptCell(cell string) string {
 }
 
 func renderTranscriptCellWithWidth(cell string, width int) string {
+	if toolCell, ok := parseToolTranscriptCell(cell); ok {
+		group := toolTranscriptGroup{action: toolCell.action}
+		group.add(toolCell)
+		return renderToolTranscriptGroup(group)
+	}
+
 	kind, label, body := parseTranscriptCell(cell)
 	if strings.TrimSpace(body) == "" {
 		return ""
@@ -168,4 +194,263 @@ func transcriptCellLabelStyle(kind transcriptCellKind) lipgloss.Style {
 	default:
 		return style.Foreground(lipgloss.Color("244"))
 	}
+}
+
+type toolTranscriptCell struct {
+	id        string
+	action    string
+	detail    string
+	completed bool
+}
+
+type toolTranscriptGroup struct {
+	action    string
+	details   []string
+	seenIDs   map[string]bool
+	completed bool
+}
+
+func toolOperationTranscriptCell(id string, name string, detail string, completed ...bool) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+
+	detail = normalizeToolTranscriptDetail(detail)
+	if detail == "" {
+		detail = name
+	}
+	statusLine := ""
+	if len(completed) > 0 && completed[0] {
+		statusLine = "\nstatus: completed"
+	}
+	if id = strings.TrimSpace(id); id != "" {
+		return fmt.Sprintf("Tool %s:\nid: %s\ndetail: %s%s", getToolActionName(name), id, detail, statusLine)
+	}
+
+	return fmt.Sprintf("Tool %s:\ndetail: %s%s", getToolActionName(name), detail, statusLine)
+}
+
+func parseToolTranscriptCell(cell string) (toolTranscriptCell, bool) {
+	kind, label, body := parseTranscriptCell(cell)
+	if kind != transcriptCellTool {
+		return toolTranscriptCell{}, false
+	}
+
+	label = strings.TrimSpace(strings.TrimPrefix(label, "Tool"))
+	action := strings.Trim(strings.TrimSpace(label), ":")
+	if action == "" {
+		action = "Tool"
+	}
+
+	result := toolTranscriptCell{action: action, detail: strings.TrimSpace(body)}
+	for _, line := range strings.Split(body, "\n") {
+		key, value, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		switch strings.TrimSpace(strings.ToLower(key)) {
+		case "id":
+			result.id = strings.TrimSpace(value)
+		case "detail":
+			result.detail = normalizeToolTranscriptDetail(value)
+		case "status":
+			result.completed = strings.EqualFold(strings.TrimSpace(value), "completed")
+		}
+	}
+	if strings.TrimSpace(result.detail) == "" {
+		result.detail = strings.TrimSpace(action)
+	}
+
+	return result, true
+}
+
+func (group *toolTranscriptGroup) add(cell toolTranscriptCell) {
+	if group == nil {
+		return
+	}
+	if id := strings.TrimSpace(cell.id); id != "" {
+		if group.seenIDs == nil {
+			group.seenIDs = map[string]bool{}
+		}
+		if group.seenIDs[id] {
+			if cell.completed {
+				group.completed = true
+			}
+			return
+		}
+		group.seenIDs[id] = true
+	}
+	if cell.completed {
+		group.completed = true
+	}
+
+	detail := strings.TrimSpace(cell.detail)
+	if detail == "" {
+		detail = strings.TrimSpace(cell.action)
+	}
+	if detail != "" {
+		group.details = append(group.details, detail)
+	}
+}
+
+func flushToolTranscriptGroup(rendered *[]string, group **toolTranscriptGroup) {
+	if group == nil || *group == nil {
+		return
+	}
+	if cell := renderToolTranscriptGroup(**group); cell != "" {
+		*rendered = append(*rendered, cell)
+	}
+	*group = nil
+}
+
+func renderToolTranscriptGroup(group toolTranscriptGroup) string {
+	action := strings.TrimSpace(group.action)
+	if action == "" {
+		action = "Tool"
+	}
+	if action == "Run" {
+		return renderRunTranscriptGroup(group)
+	}
+
+	header := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(getToolTranscriptDotColor(group.completed))).
+		Bold(true).
+		Render("●") +
+		lipgloss.NewStyle().
+			Foreground(lipgloss.Color("214")).
+			Bold(true).
+			Render(" "+getToolTranscriptTitle(action, group.completed))
+
+	details := make([]string, 0, len(group.details))
+	for _, detail := range group.details {
+		if detail = strings.TrimSpace(detail); detail != "" {
+			details = append(details, detail)
+		}
+	}
+	if len(details) == 0 {
+		return header
+	}
+
+	branchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	detailStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	lines := []string{header}
+	for index, detail := range details {
+		branch := "├"
+		if index == len(details)-1 {
+			branch = "└"
+		}
+		lines = append(lines, "  "+branchStyle.Render(branch)+" "+detailStyle.Render(detail))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func renderRunTranscriptGroup(group toolTranscriptGroup) string {
+	count := len(group.details)
+	if count == 0 {
+		count = 1
+	}
+
+	noun := "shell command"
+	if count != 1 {
+		noun = "shell commands"
+	}
+	verb := "Running"
+	suffix := "…"
+	if group.completed {
+		verb = "Ran"
+		suffix = ""
+	}
+	header := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(getToolTranscriptDotColor(group.completed))).
+		Bold(true).
+		Render("●") +
+		lipgloss.NewStyle().
+			Foreground(lipgloss.Color("250")).
+			Render(" "+verb+" ") +
+		lipgloss.NewStyle().
+			Foreground(lipgloss.Color("255")).
+			Bold(true).
+			Render(fmt.Sprintf("%d", count)) +
+		lipgloss.NewStyle().
+			Foreground(lipgloss.Color("250")).
+			Render(" "+noun+suffix)
+
+	detailStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	branchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	lines := []string{header}
+	for index, detail := range group.details {
+		branch := "├"
+		if index == len(group.details)-1 {
+			branch = "└"
+		}
+		lines = append(lines, "  "+branchStyle.Render(branch)+" "+detailStyle.Render("$ "+detail))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func getToolActionName(name string) string {
+	normalized := strings.TrimSpace(strings.ToLower(name))
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	switch normalized {
+	case "read", "read_file", "view_file", "open_file", "cat":
+		return "Read"
+	case "write", "write_file", "edit_file", "apply_patch", "create_file":
+		return "Write"
+	case "web_search", "search_web", "search", "web":
+		return "Web Search"
+	case "exec", "exec_command", "run", "run_command", "shell", "bash", "process":
+		return "Run"
+	default:
+		return humanizeToolActionName(name)
+	}
+}
+
+func getToolTranscriptDotColor(completed bool) string {
+	if completed {
+		return "83"
+	}
+
+	return "250"
+}
+
+func getToolTranscriptTitle(action string, completed bool) string {
+	if !completed {
+		return action
+	}
+
+	switch strings.TrimSpace(action) {
+	case "Run":
+		return "Ran"
+	case "Write":
+		return "Wrote"
+	case "Web Search":
+		return "Searched"
+	case "Read":
+		return "Read"
+	default:
+		return strings.TrimSpace(action)
+	}
+}
+
+func normalizeToolTranscriptDetail(detail string) string {
+	return strings.Join(strings.Fields(strings.TrimSpace(detail)), " ")
+}
+
+func humanizeToolActionName(name string) string {
+	parts := strings.FieldsFunc(strings.TrimSpace(name), func(r rune) bool {
+		return r == '_' || r == '-' || r == ' '
+	})
+	for index, part := range parts {
+		if part == "" {
+			continue
+		}
+		runes := []rune(strings.ToLower(part))
+		runes[0] = []rune(strings.ToUpper(string(runes[0])))[0]
+		parts[index] = string(runes)
+	}
+
+	return strings.Join(parts, " ")
 }

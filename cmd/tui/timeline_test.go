@@ -33,12 +33,12 @@ func TestTimelineMessageToTranscriptCell_MapsVisibleRoles(t *testing.T) {
 		{
 			name:    "tool",
 			message: handmsg.Message{Role: handmsg.RoleTool, Name: "read_file", Content: "done"},
-			want:    "Tool read_file: done",
+			want:    toolOperationTranscriptCell("", "read_file", "", true),
 		},
 		{
 			name:    "tool fallback",
 			message: handmsg.Message{Role: handmsg.RoleTool, Content: "done"},
-			want:    "Tool tool: done",
+			want:    toolOperationTranscriptCell("", "tool", "", true),
 		},
 		{
 			name:    "unknown",
@@ -54,7 +54,7 @@ func TestTimelineMessageToTranscriptCell_MapsVisibleRoles(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, timelineMessageToTranscriptCell(tt.message))
+			require.Equal(t, tt.want, timelineMessageToTranscriptCell(tt.message, nil))
 		})
 	}
 }
@@ -68,8 +68,8 @@ func TestTUIMessageToTranscriptCell_MapsLiveDisplayMessages(t *testing.T) {
 		{name: "user", msg: userMessageAcceptedMsg{Text: "hello"}, want: "You: hello"},
 		{name: "assistant delta", msg: assistantTextDeltaMsg{Text: "hi"}, want: "Hand: hi"},
 		{name: "assistant complete", msg: assistantResponseCompletedMsg{Text: "done"}, want: "Hand: done"},
-		{name: "tool started", msg: toolInvocationStartedMsg{Name: "read_file"}, want: "Tool started: read_file"},
-		{name: "tool completed", msg: toolInvocationCompletedMsg{Name: "read_file"}, want: "Tool completed: read_file"},
+		{name: "tool started", msg: toolInvocationStartedMsg{Name: "read_file"}, want: toolOperationTranscriptCell("", "read_file", "")},
+		{name: "tool completed", msg: toolInvocationCompletedMsg{Name: "read_file"}, want: toolOperationTranscriptCell("", "read_file", "", true)},
 		{name: "safety", msg: safetyEventMsg{Action: "blocked", FindingIDs: []string{"prompt_exfiltration"}}, want: "Safety: blocked: prompt_exfiltration"},
 		{name: "error", msg: sessionErrorMsg{Message: "failed"}, want: "Error: failed"},
 		{name: "empty", msg: userMessageAcceptedMsg{Text: " "}, want: ""},
@@ -85,7 +85,7 @@ func TestTUIMessageToTranscriptCell_MapsLiveDisplayMessages(t *testing.T) {
 
 func TestRenderTranscriptCell_StylesCanonicalCells(t *testing.T) {
 	rendered := renderTranscriptCells([]string{
-		timelineMessageToTranscriptCell(handmsg.Message{Role: handmsg.RoleUser, Content: "hello"}),
+		timelineMessageToTranscriptCell(handmsg.Message{Role: handmsg.RoleUser, Content: "hello"}, nil),
 		tuiMessageToTranscriptCell(assistantResponseCompletedMsg{Text: "hi"}),
 		tuiMessageToTranscriptCell(toolInvocationStartedMsg{Name: "read_file"}),
 		tuiMessageToTranscriptCell(safetyEventMsg{Action: "blocked"}),
@@ -96,12 +96,63 @@ func TestRenderTranscriptCell_StylesCanonicalCells(t *testing.T) {
 	require.Contains(t, plain, "❯ hello")
 	require.NotContains(t, plain, "┌")
 	require.NotContains(t, plain, "│ ❯ hello")
-	require.NotContains(t, plain, "└")
 	require.NotContains(t, plain, "You: hello")
 	require.Contains(t, plain, "Hand: hi")
-	require.Contains(t, plain, "Tool started: read_file")
+	require.Contains(t, plain, "● Read")
+	require.Contains(t, plain, "└ read_file")
 	require.Contains(t, plain, "Safety: blocked")
 	require.Contains(t, plain, "Error: failed")
+	require.Contains(t, rendered, "\x1b[")
+}
+
+func TestRenderTranscriptCells_GroupsAdjacentToolOperationsByAction(t *testing.T) {
+	rendered := renderTranscriptCells([]string{
+		toolOperationTranscriptCell("call_1", "write_file", ""),
+		toolOperationTranscriptCell("call_2", "write_file", ""),
+		toolOperationTranscriptCell("call_3", "read_file", ""),
+	})
+	plain := stripANSI(rendered)
+
+	require.Equal(t, 1, strings.Count(plain, "● Write"))
+	require.Equal(t, 1, strings.Count(plain, "● Read"))
+	require.Contains(t, plain, "├ write_file")
+	require.Contains(t, plain, "└ write_file")
+	require.Contains(t, plain, "└ read_file")
+}
+
+func TestRenderTranscriptCells_DeduplicatesStartedAndCompletedToolEvents(t *testing.T) {
+	rendered := renderTranscriptCells([]string{
+		toolOperationTranscriptCell("call_1", "web_search", ""),
+		toolOperationTranscriptCell("call_1", "web_search", "", true),
+	})
+	plain := stripANSI(rendered)
+
+	require.Equal(t, 1, strings.Count(plain, "● Searched"))
+	require.Equal(t, 1, strings.Count(plain, "web_search"))
+}
+
+func TestRenderTranscriptCells_RendersRunCommandsWithShellLayout(t *testing.T) {
+	rendered := renderTranscriptCells([]string{
+		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 && echo "Done" (8s)`),
+	})
+	plain := stripANSI(rendered)
+
+	require.Contains(t, plain, "● Running 1 shell command…")
+	require.Contains(t, plain, `└ $ sleep 10 && echo "Done" (8s)`)
+	require.NotContains(t, plain, "ctrl+b")
+	require.Contains(t, rendered, "\x1b[")
+}
+
+func TestRenderTranscriptCells_RendersCompletedRunCommandsWithPastTense(t *testing.T) {
+	rendered := renderTranscriptCells([]string{
+		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 (30s)`, true),
+	})
+	plain := stripANSI(rendered)
+
+	require.Contains(t, plain, "● Ran 1 shell command")
+	require.Contains(t, plain, "└ $ sleep 10 (30s)")
+	require.NotContains(t, plain, "Running")
+	require.NotContains(t, plain, "…")
 	require.Contains(t, rendered, "\x1b[")
 }
 
@@ -250,7 +301,7 @@ func TestSessionTimelineToTranscriptCells_SkipsMessageBackedTraceDuplicates(t *t
 	require.Equal(t, []string{
 		"You: hello there",
 		"Hand: hello back",
-		"Tool started: read_file",
+		toolOperationTranscriptCell("", "read_file", ""),
 	}, cells)
 }
 
@@ -281,9 +332,38 @@ func TestSessionTimelineToTranscriptCells_InterleavesMessagesAndTraceEventsByTim
 	require.Equal(t, []string{
 		"You: older prompt",
 		"Hand: older answer",
-		"Tool started: web_search",
-		"Tool completed: web_search",
+		toolOperationTranscriptCell("", "web_search", ""),
+		toolOperationTranscriptCell("", "web_search", "", true),
 		"You: Hi",
 		"Hand: Hi there",
 	}, cells)
+}
+
+func TestSessionTimelineToTranscriptCells_UsesPersistedToolCallInputForToolDetails(t *testing.T) {
+	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
+
+	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
+		Messages: []agent.SessionTimelineMessage{
+			{Message: handmsg.Message{
+				Role:      handmsg.RoleAssistant,
+				ToolCalls: []handmsg.ToolCall{{ID: "call_1", Name: "run_command", Input: `{"command":"sleep 10","timeout_seconds":30}`}},
+				CreatedAt: now,
+			}},
+			{Message: handmsg.Message{
+				Role:       handmsg.RoleTool,
+				Name:       "run_command",
+				ToolCallID: "call_1",
+				Content:    `{"output":"done"}`,
+				CreatedAt:  now.Add(time.Second),
+			}},
+		},
+	})
+
+	require.Equal(t, []string{
+		toolOperationTranscriptCell("call_1", "run_command", "sleep 10 (30s)", true),
+	}, cells)
+	plain := stripANSI(renderTranscriptCells(cells))
+	require.Contains(t, plain, "● Ran 1 shell command")
+	require.Contains(t, plain, "└ $ sleep 10 (30s)")
+	require.NotContains(t, plain, "run_command")
 }

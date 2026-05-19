@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/wandxy/hand/internal/agent"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/internal/trace"
@@ -67,8 +68,9 @@ func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.C
 
 func sessionTimelineToTranscriptCells(timeline rpcclient.SessionTimeline) []string {
 	entries := make([]transcriptTimelineEntry, 0, len(timeline.Messages)+len(timeline.TraceEvents))
+	toolDetails := getTimelineToolCallDetails(timeline.Messages)
 	for index, message := range timeline.Messages {
-		if cell := timelineMessageToTranscriptCell(message.Message); cell != "" {
+		if cell := timelineMessageToTranscriptCell(message.Message, toolDetails); cell != "" {
 			entries = append(entries, transcriptTimelineEntry{
 				at:    message.Message.CreatedAt,
 				order: index * 2,
@@ -135,26 +137,57 @@ func isMessageBackedTimelineEvent(msg any) bool {
 	}
 }
 
-func timelineMessageToTranscriptCell(message handmsg.Message) string {
+func timelineMessageToTranscriptCell(message handmsg.Message, toolDetails map[string]string) string {
 	content := strings.TrimSpace(message.Content)
-	if content == "" {
+	if content == "" && len(message.ToolCalls) == 0 {
 		return ""
 	}
 
 	switch message.Role {
 	case handmsg.RoleUser:
+		if content == "" {
+			return ""
+		}
 		return "You: " + content
 	case handmsg.RoleAssistant:
+		if content == "" {
+			return ""
+		}
 		return "Hand: " + content
 	case handmsg.RoleTool:
 		name := strings.TrimSpace(message.Name)
 		if name == "" {
 			name = "tool"
 		}
-		return "Tool " + name + ": " + content
+		return toolOperationTranscriptCell(
+			message.ToolCallID,
+			name,
+			toolDetails[strings.TrimSpace(message.ToolCallID)],
+			true,
+		)
 	default:
+		if content == "" {
+			return ""
+		}
 		return strings.TrimSpace(string(message.Role)) + ": " + content
 	}
+}
+
+func getTimelineToolCallDetails(messages []agent.SessionTimelineMessage) map[string]string {
+	details := map[string]string{}
+	for _, message := range messages {
+		for _, toolCall := range message.Message.ToolCalls {
+			id := strings.TrimSpace(toolCall.ID)
+			if id == "" {
+				continue
+			}
+			if detail := getToolInputDisplayDetail(toolCall.Name, toolCall.Input); detail != "" {
+				details[id] = detail
+			}
+		}
+	}
+
+	return details
 }
 
 func tuiMessageToTranscriptCell(msg any) string {
@@ -172,13 +205,9 @@ func tuiMessageToTranscriptCell(msg any) string {
 			return "Hand: " + text
 		}
 	case toolInvocationStartedMsg:
-		if name := strings.TrimSpace(value.Name); name != "" {
-			return "Tool started: " + name
-		}
+		return toolOperationTranscriptCell(value.ID, value.Name, value.Detail)
 	case toolInvocationCompletedMsg:
-		if name := strings.TrimSpace(value.Name); name != "" {
-			return "Tool completed: " + name
-		}
+		return toolOperationTranscriptCell(value.ID, value.Name, value.Detail, true)
 	case safetyEventMsg:
 		return safetyEventToTranscriptCell(value)
 	case sessionErrorMsg:

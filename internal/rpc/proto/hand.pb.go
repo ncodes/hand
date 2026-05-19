@@ -1381,6 +1381,7 @@ type SessionTimelineToolCall struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Input         string                 `protobuf:"bytes,3,opt,name=input,proto3" json:"input,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1425,6 +1426,13 @@ func (x *SessionTimelineToolCall) GetId() string {
 func (x *SessionTimelineToolCall) GetName() string {
 	if x != nil {
 		return x.Name
+	}
+	return ""
+}
+
+func (x *SessionTimelineToolCall) GetInput() string {
+	if x != nil {
+		return x.Input
 	}
 	return ""
 }
@@ -1899,10 +1907,11 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\rmessage_limit\x18\x03 \x01(\x05R\fmessageLimit\x12!\n" +
 	"\ftrace_offset\x18\x04 \x01(\x05R\vtraceOffset\x12\x1f\n" +
 	"\vtrace_limit\x18\x05 \x01(\x05R\n" +
-	"traceLimit\"=\n" +
+	"traceLimit\"S\n" +
 	"\x17SessionTimelineToolCall\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"\xa0\x02\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
+	"\x05input\x18\x03 \x01(\tR\x05input\"\xa0\x02\n" +
 	"\x16SessionTimelineMessage\x12\x16\n" +
 	"\x06offset\x18\x01 \x01(\x05R\x06offset\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\x04R\x02id\x12\x12\n" +

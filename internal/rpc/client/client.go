@@ -378,8 +378,9 @@ func timelineMessageFromProto(message *handpb.SessionTimelineMessage) agent.Sess
 	toolCalls := make([]handmsg.ToolCall, 0, len(message.GetToolCalls()))
 	for _, toolCall := range message.GetToolCalls() {
 		toolCalls = append(toolCalls, handmsg.ToolCall{
-			ID:   strings.TrimSpace(toolCall.GetId()),
-			Name: strings.TrimSpace(toolCall.GetName()),
+			ID:    strings.TrimSpace(toolCall.GetId()),
+			Name:  strings.TrimSpace(toolCall.GetName()),
+			Input: strings.TrimSpace(toolCall.GetInput()),
 		})
 	}
 

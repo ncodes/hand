@@ -489,6 +489,21 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 			ok:        true,
 		},
 		{
+			name:      "run command detail",
+			eventType: trace.EvtToolInvocationStarted,
+			payload: map[string]any{
+				"ID":    "call_1",
+				"Name":  "run_command",
+				"Input": `{"command":"sleep 10 && echo \"Done\"","timeout_seconds":8}`,
+			},
+			expected: map[string]any{
+				"id":     "call_1",
+				"name":   "run_command",
+				"detail": `sleep 10 && echo "Done" (8s)`,
+			},
+			ok: true,
+		},
+		{
 			name:      "tool invocation started without public fields",
 			eventType: trace.EvtToolInvocationStarted,
 			payload:   map[string]any{"input": "SECRET=example"},
@@ -1123,7 +1138,7 @@ func TestService_GetSessionTimelineReturnsMessagesAndSanitizedTraceEvents(t *tes
 					ToolCallID: "call_1",
 					Content:    "file content",
 					CreatedAt:  createdAt,
-					ToolCalls:  []handmsg.ToolCall{{ID: "call_2", Name: "search"}},
+					ToolCalls:  []handmsg.ToolCall{{ID: "call_2", Name: "search", Input: `{"query":"hello"}`}},
 				},
 			}},
 			TraceEvents: []agent.SessionTimelineTraceEvent{{
@@ -1184,6 +1199,7 @@ func TestService_GetSessionTimelineReturnsMessagesAndSanitizedTraceEvents(t *tes
 	require.Len(t, resp.GetMessages()[0].GetToolCalls(), 1)
 	require.Equal(t, "call_2", resp.GetMessages()[0].GetToolCalls()[0].GetId())
 	require.Equal(t, "search", resp.GetMessages()[0].GetToolCalls()[0].GetName())
+	require.Equal(t, `{"query":"hello"}`, resp.GetMessages()[0].GetToolCalls()[0].GetInput())
 	require.Len(t, resp.GetTraceEvents(), 1)
 	require.EqualValues(t, 9, resp.GetTraceEvents()[0].GetId())
 	require.EqualValues(t, 3, resp.GetTraceEvents()[0].GetSequence())

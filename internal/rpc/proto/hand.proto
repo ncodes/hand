@@ -167,6 +167,7 @@ message GetSessionTimelineRequest {
 message SessionTimelineToolCall {
   string id = 1;
   string name = 2;
+  string input = 3;
 }
 
 message SessionTimelineMessage {

@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/wandxy/hand/internal/agent"
+	"github.com/wandxy/hand/internal/guardrails"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
@@ -166,6 +168,9 @@ func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
 		if name, ok := getRPCTraceValue(fields, "name", "Name", "tool"); ok {
 			result["name"] = name
 		}
+		if detail := getRPCTraceToolDetail(result["name"], fields); detail != "" {
+			result["detail"] = detail
+		}
 		return result, len(result) > 0
 	case trace.EvtToolInvocationCompleted:
 		result := map[string]any{}
@@ -219,6 +224,96 @@ func getRPCTraceValue(fields map[string]any, keys ...string) (any, bool) {
 	}
 
 	return nil, false
+}
+
+func getRPCTraceToolDetail(name any, fields map[string]any) string {
+	toolName, _ := name.(string)
+	if strings.TrimSpace(toolName) == "" || getRPCToolActionName(toolName) != "Run" {
+		return ""
+	}
+
+	input, ok := getRPCTraceValue(fields, "input", "Input")
+	if !ok {
+		return ""
+	}
+
+	inputText, _ := input.(string)
+	inputText = strings.TrimSpace(inputText)
+	if inputText == "" {
+		return ""
+	}
+
+	var inputFields map[string]any
+	if err := json.Unmarshal([]byte(inputText), &inputFields); err != nil {
+		return ""
+	}
+
+	command, _ := inputFields["command"].(string)
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return ""
+	}
+
+	args := getRPCStringSlice(inputFields["args"])
+	if len(args) > 0 {
+		parts := append([]string{command}, args...)
+		for index, part := range parts {
+			parts[index] = shellQuoteRPCCommandPart(part)
+		}
+		command = strings.Join(parts, " ")
+	}
+	command = appendRPCToolTimeout(command, inputFields["timeout_seconds"])
+
+	sanitized, _ := guardrails.NewRedactor().Sanitize(command).(string)
+	return strings.TrimSpace(sanitized)
+}
+
+func getRPCStringSlice(raw any) []string {
+	values, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		text, _ := value.(string)
+		if text = strings.TrimSpace(text); text != "" {
+			result = append(result, text)
+		}
+	}
+
+	return result
+}
+
+func getRPCToolActionName(name string) string {
+	normalized := strings.TrimSpace(strings.ToLower(name))
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	switch normalized {
+	case "exec", "exec_command", "run", "run_command", "shell", "bash", "process":
+		return "Run"
+	default:
+		return ""
+	}
+}
+
+func shellQuoteRPCCommandPart(value string) string {
+	if value == "" {
+		return "''"
+	}
+	if strings.ContainsAny(value, " \t\n\"'\\$&|;()<>*?![]{}") {
+		return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+	}
+
+	return value
+}
+
+func appendRPCToolTimeout(command string, raw any) string {
+	timeout, ok := raw.(float64)
+	if !ok || timeout <= 0 {
+		return command
+	}
+
+	return command + " (" + strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%.1f", timeout), "0"), ".") + "s)"
 }
 
 func getRPCSafetyFindings(raw any) []map[string]any {
@@ -562,8 +657,9 @@ func timelineMessageToProto(record agent.SessionTimelineMessage) *handpb.Session
 	}
 	for _, toolCall := range message.ToolCalls {
 		protoMessage.ToolCalls = append(protoMessage.ToolCalls, &handpb.SessionTimelineToolCall{
-			Id:   strings.TrimSpace(toolCall.ID),
-			Name: strings.TrimSpace(toolCall.Name),
+			Id:    strings.TrimSpace(toolCall.ID),
+			Name:  strings.TrimSpace(toolCall.Name),
+			Input: strings.TrimSpace(toolCall.Input),
 		})
 	}
 

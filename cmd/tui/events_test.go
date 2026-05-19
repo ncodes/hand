@@ -125,6 +125,21 @@ func TestToolCallPayloadToTUIMessage_ConvertsMessageToolCall(t *testing.T) {
 	require.NotContains(t, fmt.Sprintf("%#v", msg), "secret.txt")
 }
 
+func TestToolCallPayloadToTUIMessage_ExtractsRunCommandDetail(t *testing.T) {
+	msg, ok := toolCallPayloadToTUIMessage(models.ToolCall{
+		ID:    "call_1",
+		Name:  "run_command",
+		Input: `{"command":"sleep 10 && echo \"Done\"","timeout_seconds":8}`,
+	})
+
+	require.True(t, ok)
+	require.Equal(t, toolInvocationStartedMsg{
+		ID:     "call_1",
+		Name:   "run_command",
+		Detail: `sleep 10 && echo "Done" (8s)`,
+	}, msg)
+}
+
 func TestToolCallPayloadToTUIMessage_IgnoresPayloadWithoutIdentity(t *testing.T) {
 	msg, ok := toolCallPayloadToTUIMessage(map[string]any{"input": `{"path":"secret.txt"}`})
 

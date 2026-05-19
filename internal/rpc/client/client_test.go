@@ -329,8 +329,9 @@ func TestClient_GetSessionTimelineReturnsResult(t *testing.T) {
 			Content:    "file content",
 			CreatedAt:  timestamppb.New(messageAt),
 			ToolCalls: []*handpb.SessionTimelineToolCall{{
-				Id:   "call_2",
-				Name: "search",
+				Id:    "call_2",
+				Name:  "search",
+				Input: `{"query":"hello"}`,
 			}},
 		}},
 		TraceEvents: []*handpb.SessionTimelineTraceEvent{{
@@ -379,6 +380,7 @@ func TestClient_GetSessionTimelineReturnsResult(t *testing.T) {
 	require.Len(t, result.Messages[0].Message.ToolCalls, 1)
 	require.Equal(t, "call_2", result.Messages[0].Message.ToolCalls[0].ID)
 	require.Equal(t, "search", result.Messages[0].Message.ToolCalls[0].Name)
+	require.Equal(t, `{"query":"hello"}`, result.Messages[0].Message.ToolCalls[0].Input)
 	require.Len(t, result.TraceEvents, 1)
 	require.EqualValues(t, 9, result.TraceEvents[0].Event.ID)
 	require.Equal(t, 3, result.TraceEvents[0].Event.Sequence)
