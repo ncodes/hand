@@ -68,6 +68,9 @@ func (m *model) submitPrompt() tea.Cmd {
 	switch input.Kind {
 	case composerInputPrompt:
 		m.messages = append(m.messages, "You: "+input.Text)
+		m.clearComposer()
+		m.resize()
+		m.setTranscriptContent()
 		cmd = tea.Batch(cmd, m.startResponse(input.Text))
 		promptSubmitted = true
 	case composerInputCommand:
@@ -76,10 +79,7 @@ func (m *model) submitPrompt() tea.Cmd {
 		cmd = tea.Batch(cmd, m.handleLocalCommand(input))
 	}
 	if promptSubmitted {
-		m.setTranscriptContent()
-		if m.responding {
-			m.responseTranscriptFollow = m.transcript.AtBottom()
-		}
+		return cmd
 	} else if m.responding {
 		m.setTranscriptContentForResponseUpdate()
 	} else {

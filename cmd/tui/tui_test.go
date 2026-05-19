@@ -1546,6 +1546,39 @@ func TestModel_SubmitPromptScrollsTranscriptToBottom(t *testing.T) {
 	require.Contains(t, stripANSI(runModel.transcript.View()), "❯ hello")
 }
 
+func TestModel_SubmitPromptStartsResponseFollowFromSettledBottom(t *testing.T) {
+	runModel := newModelWithClient(&fakeTUIChatClient{})
+	runModel.height = 10
+	runModel.resize()
+	runModel.messages = make([]string, 0, 30)
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+	}
+	runModel.setTranscriptContent()
+	runModel.transcript.GotoTop()
+	runModel.input.SetValue(strings.Join([]string{
+		"first line",
+		"second line",
+		"third line",
+		"fourth line",
+	}, "\n"))
+
+	cmd := runModel.submitPrompt()
+
+	require.NotNil(t, cmd)
+	require.True(t, runModel.responding)
+	require.True(t, runModel.responseTranscriptFollow)
+	require.False(t, runModel.responseTranscriptScrolled)
+	require.True(t, runModel.transcript.AtBottom())
+
+	updated, cmd := runModel.Update(responseCompletedMsg{ResponseID: runModel.responseID, Text: "final"})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.transcript.AtBottom())
+	require.Contains(t, stripANSI(runModel.transcript.View()), "Hand: final")
+}
+
 func TestRespondToPromptCmd_StreamsDeltasTraceEventsAndCompletion(t *testing.T) {
 	client := &fakeTUIChatClient{
 		reply: "hello world",

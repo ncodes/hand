@@ -90,6 +90,7 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 		return nil
 	}
 
+	shouldFollowTranscript := m.responseTranscriptFollow && !m.responseTranscriptScrolled
 	if msg.Err != nil {
 		errorMsg := sessionErrorMsg{Message: msg.Err.Error()}
 		m.addTranscriptMessage(errorMsg)
@@ -105,6 +106,10 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 	m.responseTranscriptFollow = false
 	m.responseTranscriptScrolled = false
 	m.events = nil
+	if shouldFollowTranscript {
+		m.resize()
+		m.transcript.GotoBottom()
+	}
 	return nil
 }
 
