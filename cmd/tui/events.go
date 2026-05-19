@@ -154,7 +154,7 @@ func getToolInputDisplayDetail(name string, input string) string {
 	switch getToolActionName(name) {
 	case "Run":
 		return getRunToolDisplayDetail(fields)
-	case "Web Search":
+	case "Web Search", "Memory Search":
 		return getSearchToolDisplayDetail(fields)
 	default:
 		return ""

@@ -519,6 +519,21 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 			ok: true,
 		},
 		{
+			name:      "memory search detail",
+			eventType: trace.EvtToolInvocationStarted,
+			payload: map[string]any{
+				"ID":    "call_3",
+				"Name":  "memory_search",
+				"Input": `{"query":"what does the user prefer for commit messages"}`,
+			},
+			expected: map[string]any{
+				"id":     "call_3",
+				"name":   "memory_search",
+				"detail": `Search "what does the user prefer for commit messages"`,
+			},
+			ok: true,
+		},
+		{
 			name:      "tool invocation started without public fields",
 			eventType: trace.EvtToolInvocationStarted,
 			payload:   map[string]any{"input": "SECRET=example"},

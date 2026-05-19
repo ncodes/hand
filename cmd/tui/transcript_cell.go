@@ -423,6 +423,8 @@ func getToolActionName(name string) string {
 		return "Write"
 	case "web_search", "search_web", "search", "web":
 		return "Web Search"
+	case "memory_search", "search_memory", "memory":
+		return "Memory Search"
 	case "exec", "exec_command", "run", "run_command", "shell", "bash", "process":
 		return "Run"
 	default:
@@ -453,6 +455,14 @@ func getToolTranscriptDot(completed bool, frame int) string {
 }
 
 func getToolTranscriptTitle(action string, completed bool) string {
+	if strings.TrimSpace(action) == "Memory Search" {
+		if completed {
+			return "Searched Memory"
+		}
+
+		return "Searching Memory"
+	}
+
 	if !completed {
 		return action
 	}

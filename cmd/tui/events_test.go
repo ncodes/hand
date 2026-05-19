@@ -155,6 +155,21 @@ func TestToolCallPayloadToTUIMessage_ExtractsWebSearchDetail(t *testing.T) {
 	}, msg)
 }
 
+func TestToolCallPayloadToTUIMessage_ExtractsMemorySearchDetail(t *testing.T) {
+	msg, ok := toolCallPayloadToTUIMessage(models.ToolCall{
+		ID:    "call_1",
+		Name:  "memory_search",
+		Input: `{"query":"what does the user prefer for commit messages"}`,
+	})
+
+	require.True(t, ok)
+	require.Equal(t, toolInvocationStartedMsg{
+		ID:     "call_1",
+		Name:   "memory_search",
+		Detail: `Search "what does the user prefer for commit messages"`,
+	}, msg)
+}
+
 func TestToolCallPayloadToTUIMessage_IgnoresPayloadWithoutIdentity(t *testing.T) {
 	msg, ok := toolCallPayloadToTUIMessage(map[string]any{"input": `{"path":"secret.txt"}`})
 

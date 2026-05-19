@@ -132,6 +132,29 @@ func TestRenderTranscriptCells_DeduplicatesStartedAndCompletedToolEvents(t *test
 	require.NotContains(t, plain, "web_search")
 }
 
+func TestRenderTranscriptCells_RendersMemorySearchLikeSearch(t *testing.T) {
+	rendered := renderTranscriptCells([]string{
+		toolOperationTranscriptCell("call_1", "memory_search", `Search "commit preferences"`),
+		toolOperationTranscriptCell("call_1", "memory_search", `Search "commit preferences"`, true),
+	})
+	plain := stripANSI(rendered)
+
+	require.Contains(t, plain, "● Searched Memory")
+	require.Contains(t, plain, `Search "commit preferences"`)
+	require.NotContains(t, plain, "memory_search")
+}
+
+func TestRenderTranscriptCells_RendersRunningMemorySearchTitle(t *testing.T) {
+	rendered := renderTranscriptCells([]string{
+		toolOperationTranscriptCell("call_1", "memory_search", `Search "commit preferences"`),
+	})
+	plain := stripANSI(rendered)
+
+	require.Contains(t, plain, "● Searching Memory")
+	require.Contains(t, plain, `Search "commit preferences"`)
+	require.NotContains(t, plain, "Memory Search")
+}
+
 func TestRenderTranscriptCells_AnimatesRunningToolDot(t *testing.T) {
 	cells := []string{toolOperationTranscriptCell("call_1", "web_search", "")}
 	first := stripANSI(renderTranscriptCellsWithFrame(cells, 80, 0))

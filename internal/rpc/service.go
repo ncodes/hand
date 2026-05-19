@@ -252,7 +252,7 @@ func getRPCTraceToolDetail(name any, fields map[string]any) string {
 	switch action {
 	case "Run":
 		return getRPCRunToolDetail(inputFields)
-	case "Web Search":
+	case "Web Search", "Memory Search":
 		return getRPCSearchToolDetail(inputFields)
 	default:
 		return ""
@@ -330,6 +330,8 @@ func getRPCToolActionName(name string) string {
 		return "Run"
 	case "web_search", "search_web", "search", "web":
 		return "Web Search"
+	case "memory_search", "search_memory", "memory":
+		return "Memory Search"
 	default:
 		return ""
 	}
