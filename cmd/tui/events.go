@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/wandxy/hand/internal/agent"
+	"github.com/wandxy/hand/internal/guardrails"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/trace"
@@ -145,15 +146,22 @@ func toolMessagePayloadToTUIMessage(payload any) (any, bool) {
 }
 
 func getToolInputDisplayDetail(name string, input string) string {
-	if getToolActionName(name) != "Run" {
-		return ""
-	}
-
 	var fields map[string]any
 	if err := json.Unmarshal([]byte(strings.TrimSpace(input)), &fields); err != nil {
 		return ""
 	}
 
+	switch getToolActionName(name) {
+	case "Run":
+		return getRunToolDisplayDetail(fields)
+	case "Web Search":
+		return getSearchToolDisplayDetail(fields)
+	default:
+		return ""
+	}
+}
+
+func getRunToolDisplayDetail(fields map[string]any) string {
 	command := getMapString(fields, "command")
 	if command == "" {
 		return ""
@@ -172,9 +180,30 @@ func getToolInputDisplayDetail(name string, input string) string {
 	return appendToolTimeout(strings.Join(parts, " "), fields["timeout_seconds"])
 }
 
-func getMapString(fields map[string]any, key string) string {
-	value, _ := fields[key].(string)
-	return strings.TrimSpace(value)
+func getSearchToolDisplayDetail(fields map[string]any) string {
+	query := getMapString(fields, "query", "q", "search_query")
+	if query == "" {
+		return ""
+	}
+
+	sanitized, _ := guardrails.NewRedactor().Sanitize(query).(string)
+	sanitized = truncateToolDetail(sanitized, 80)
+	if sanitized == "" {
+		return ""
+	}
+
+	return `Search "` + strings.ReplaceAll(sanitized, `"`, `'`) + `"`
+}
+
+func getMapString(fields map[string]any, keys ...string) string {
+	for _, key := range keys {
+		value, _ := fields[key].(string)
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+
+	return ""
 }
 
 func getMapStringSlice(fields map[string]any, key string) []string {
@@ -215,6 +244,23 @@ func appendToolTimeout(command string, raw any) string {
 	}
 
 	return command + " (" + strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%.1f", timeout), "0"), ".") + "s)"
+}
+
+func truncateToolDetail(value string, limit int) string {
+	value = strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+	if limit <= 0 {
+		return value
+	}
+
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	if limit <= 3 {
+		return string(runes[:limit])
+	}
+
+	return string(runes[:limit-3]) + "..."
 }
 
 func safetyPayloadToTUIMessage(kind string, payload any) (any, bool) {

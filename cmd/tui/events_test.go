@@ -140,6 +140,21 @@ func TestToolCallPayloadToTUIMessage_ExtractsRunCommandDetail(t *testing.T) {
 	}, msg)
 }
 
+func TestToolCallPayloadToTUIMessage_ExtractsWebSearchDetail(t *testing.T) {
+	msg, ok := toolCallPayloadToTUIMessage(models.ToolCall{
+		ID:    "call_1",
+		Name:  "web_search",
+		Input: `{"query":"what is todays news about open source ai releases and model updates happening around the world"}`,
+	})
+
+	require.True(t, ok)
+	require.Equal(t, toolInvocationStartedMsg{
+		ID:     "call_1",
+		Name:   "web_search",
+		Detail: `Search "what is todays news about open source ai releases and model updates happening..."`,
+	}, msg)
+}
+
 func TestToolCallPayloadToTUIMessage_IgnoresPayloadWithoutIdentity(t *testing.T) {
 	msg, ok := toolCallPayloadToTUIMessage(map[string]any{"input": `{"path":"secret.txt"}`})
 

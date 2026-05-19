@@ -122,13 +122,14 @@ func TestRenderTranscriptCells_GroupsAdjacentToolOperationsByAction(t *testing.T
 
 func TestRenderTranscriptCells_DeduplicatesStartedAndCompletedToolEvents(t *testing.T) {
 	rendered := renderTranscriptCells([]string{
-		toolOperationTranscriptCell("call_1", "web_search", ""),
-		toolOperationTranscriptCell("call_1", "web_search", "", true),
+		toolOperationTranscriptCell("call_1", "web_search", `Search "what is todays news..."`),
+		toolOperationTranscriptCell("call_1", "web_search", `Search "what is todays news..."`, true),
 	})
 	plain := stripANSI(rendered)
 
 	require.Equal(t, 1, strings.Count(plain, "● Searched"))
-	require.Equal(t, 1, strings.Count(plain, "web_search"))
+	require.Equal(t, 1, strings.Count(plain, `Search "what is todays news..."`))
+	require.NotContains(t, plain, "web_search")
 }
 
 func TestRenderTranscriptCells_AnimatesRunningToolDot(t *testing.T) {

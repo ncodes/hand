@@ -504,6 +504,21 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 			ok: true,
 		},
 		{
+			name:      "web search detail",
+			eventType: trace.EvtToolInvocationStarted,
+			payload: map[string]any{
+				"ID":    "call_2",
+				"Name":  "web_search",
+				"Input": `{"query":"what is todays news about open source ai releases and model updates happening around the world"}`,
+			},
+			expected: map[string]any{
+				"id":     "call_2",
+				"name":   "web_search",
+				"detail": `Search "what is todays news about open source ai releases and model updates happening..."`,
+			},
+			ok: true,
+		},
+		{
 			name:      "tool invocation started without public fields",
 			eventType: trace.EvtToolInvocationStarted,
 			payload:   map[string]any{"input": "SECRET=example"},

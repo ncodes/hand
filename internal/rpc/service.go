@@ -228,7 +228,8 @@ func getRPCTraceValue(fields map[string]any, keys ...string) (any, bool) {
 
 func getRPCTraceToolDetail(name any, fields map[string]any) string {
 	toolName, _ := name.(string)
-	if strings.TrimSpace(toolName) == "" || getRPCToolActionName(toolName) != "Run" {
+	action := getRPCToolActionName(toolName)
+	if strings.TrimSpace(toolName) == "" || action == "" {
 		return ""
 	}
 
@@ -248,8 +249,18 @@ func getRPCTraceToolDetail(name any, fields map[string]any) string {
 		return ""
 	}
 
-	command, _ := inputFields["command"].(string)
-	command = strings.TrimSpace(command)
+	switch action {
+	case "Run":
+		return getRPCRunToolDetail(inputFields)
+	case "Web Search":
+		return getRPCSearchToolDetail(inputFields)
+	default:
+		return ""
+	}
+}
+
+func getRPCRunToolDetail(inputFields map[string]any) string {
+	command := getRPCMapString(inputFields, "command")
 	if command == "" {
 		return ""
 	}
@@ -266,6 +277,32 @@ func getRPCTraceToolDetail(name any, fields map[string]any) string {
 
 	sanitized, _ := guardrails.NewRedactor().Sanitize(command).(string)
 	return strings.TrimSpace(sanitized)
+}
+
+func getRPCSearchToolDetail(inputFields map[string]any) string {
+	query := getRPCMapString(inputFields, "query", "q", "search_query")
+	if query == "" {
+		return ""
+	}
+
+	sanitized, _ := guardrails.NewRedactor().Sanitize(query).(string)
+	sanitized = truncateRPCTraceToolDetail(sanitized, 80)
+	if sanitized == "" {
+		return ""
+	}
+
+	return `Search "` + strings.ReplaceAll(sanitized, `"`, `'`) + `"`
+}
+
+func getRPCMapString(fields map[string]any, keys ...string) string {
+	for _, key := range keys {
+		value, _ := fields[key].(string)
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+
+	return ""
 }
 
 func getRPCStringSlice(raw any) []string {
@@ -291,6 +328,8 @@ func getRPCToolActionName(name string) string {
 	switch normalized {
 	case "exec", "exec_command", "run", "run_command", "shell", "bash", "process":
 		return "Run"
+	case "web_search", "search_web", "search", "web":
+		return "Web Search"
 	default:
 		return ""
 	}
@@ -314,6 +353,23 @@ func appendRPCToolTimeout(command string, raw any) string {
 	}
 
 	return command + " (" + strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%.1f", timeout), "0"), ".") + "s)"
+}
+
+func truncateRPCTraceToolDetail(value string, limit int) string {
+	value = strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+	if limit <= 0 {
+		return value
+	}
+
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	if limit <= 3 {
+		return string(runes[:limit])
+	}
+
+	return string(runes[:limit-3]) + "..."
 }
 
 func getRPCSafetyFindings(raw any) []map[string]any {
