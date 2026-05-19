@@ -70,8 +70,22 @@ func getToolDisplaySpecForAction(action string) toolDisplaySpec {
 		return toolDisplaySpec{
 			inputDetail: getSearchToolDisplayDetail,
 		}
+	case "Memory Extract":
+		return toolDisplaySpec{branchDetail: getStaticToolBranchDetail("Extract memories")}
+	case "Memory Add":
+		return toolDisplaySpec{branchDetail: getStaticToolBranchDetail("Add memory")}
+	case "Memory Update":
+		return toolDisplaySpec{branchDetail: getStaticToolBranchDetail("Update memory")}
+	case "Memory Delete":
+		return toolDisplaySpec{branchDetail: getStaticToolBranchDetail("Delete memory")}
 	default:
 		return toolDisplaySpec{}
+	}
+}
+
+func getStaticToolBranchDetail(label string) func(string, bool) string {
+	return func(string, bool) string {
+		return label
 	}
 }
 

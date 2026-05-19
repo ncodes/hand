@@ -410,6 +410,14 @@ func getRPCToolActionName(name string) string {
 		return "Web Search"
 	case "memory_search", "search_memory", "memory":
 		return "Memory Search"
+	case "memory_extract", "extract_memory":
+		return "Memory Extract"
+	case "memory_add", "add_memory":
+		return "Memory Add"
+	case "memory_update", "update_memory":
+		return "Memory Update"
+	case "memory_delete", "delete_memory":
+		return "Memory Delete"
 	default:
 		return humanizeRPCToolActionName(name)
 	}

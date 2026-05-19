@@ -24,6 +24,31 @@ func TestOpenSQLite_ValidatesPath(t *testing.T) {
 	require.EqualError(t, err, "sqlite path is required")
 }
 
+func TestOpenSQLite_ConfiguresSQLiteConnection(t *testing.T) {
+	db, err := OpenSQLite(filepath.Join(t.TempDir(), "state.db"))
+	require.NoError(t, err)
+
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, sqlDB.Close())
+	})
+
+	require.Equal(t, 1, sqlDB.Stats().MaxOpenConnections)
+
+	var busyTimeout int
+	require.NoError(t, db.Raw(`PRAGMA busy_timeout`).Scan(&busyTimeout).Error)
+	require.Equal(t, 10000, busyTimeout)
+
+	var journalMode string
+	require.NoError(t, db.Raw(`PRAGMA journal_mode`).Scan(&journalMode).Error)
+	require.Equal(t, "wal", journalMode)
+
+	var foreignKeys int
+	require.NoError(t, db.Raw(`PRAGMA foreign_keys`).Scan(&foreignKeys).Error)
+	require.Equal(t, 1, foreignKeys)
+}
+
 func TestOpen_OpensSQLiteAtStateDBPath(t *testing.T) {
 	homeDir := t.TempDir()
 	setProfileHome(t, homeDir)

@@ -438,7 +438,8 @@ func renderToolTranscriptGroup(group toolTranscriptGroup, frame int) string {
 		if index == len(details)-1 {
 			branch = "└"
 		}
-		lines = append(lines, "  "+branchStyle.Render(branch)+" "+detailStyle.Render(detail.text+renderToolTranscriptDuration(detail)))
+		detailText := getToolBranchDisplayDetail(group.action, detail.text, detail.completed)
+		lines = append(lines, "  "+branchStyle.Render(branch)+" "+detailStyle.Render(detailText+renderToolTranscriptDuration(detail)))
 	}
 
 	return strings.Join(lines, "\n")
@@ -559,6 +560,14 @@ func getToolActionName(name string) string {
 		return "Web Search"
 	case "memory_search", "search_memory", "memory":
 		return "Memory Search"
+	case "memory_extract", "extract_memory":
+		return "Memory Extract"
+	case "memory_add", "add_memory":
+		return "Memory Add"
+	case "memory_update", "update_memory":
+		return "Memory Update"
+	case "memory_delete", "delete_memory":
+		return "Memory Delete"
 	case "exec", "exec_command", "run", "run_command", "shell", "bash", "process":
 		return "Run"
 	default:
@@ -589,12 +598,37 @@ func getToolTranscriptDot(completed bool, frame int) string {
 }
 
 func getToolTranscriptTitle(action string, completed bool) string {
-	if strings.TrimSpace(action) == "Memory Search" {
+	switch strings.TrimSpace(action) {
+	case "Memory Search":
 		if completed {
 			return "Searched Memory"
 		}
 
 		return "Searching Memory"
+	case "Memory Extract":
+		if completed {
+			return "Extracted Memory"
+		}
+
+		return "Extracting Memory"
+	case "Memory Add":
+		if completed {
+			return "Added Memory"
+		}
+
+		return "Adding Memory"
+	case "Memory Update":
+		if completed {
+			return "Updated Memory"
+		}
+
+		return "Updating Memory"
+	case "Memory Delete":
+		if completed {
+			return "Deleted Memory"
+		}
+
+		return "Deleting Memory"
 	}
 
 	if !completed {

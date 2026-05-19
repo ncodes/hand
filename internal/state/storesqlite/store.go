@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	handdb "github.com/wandxy/hand/internal/db"
 	"github.com/wandxy/hand/internal/state/search"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -88,9 +88,7 @@ func gormOpenSQLite(path string) (*Store, error) {
 		return nil, fmt.Errorf("failed to create session db directory: %w", err)
 	}
 
-	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
+	db, err := handdb.OpenSQLite(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open session db: %w", err)
 	}

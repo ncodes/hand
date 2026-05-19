@@ -156,6 +156,63 @@ func TestRenderTranscriptCells_RendersRunningMemorySearchTitle(t *testing.T) {
 	require.NotContains(t, plain, "Memory Search")
 }
 
+func TestRenderTranscriptCells_RendersMemoryToolsWithFriendlyText(t *testing.T) {
+	cases := []struct {
+		name      string
+		tool      string
+		running   string
+		completed string
+		branch    string
+	}{
+		{
+			name:      "extract",
+			tool:      "memory_extract",
+			running:   "Extracting Memory",
+			completed: "Extracted Memory",
+			branch:    "Extract memories",
+		},
+		{
+			name:      "add",
+			tool:      "memory_add",
+			running:   "Adding Memory",
+			completed: "Added Memory",
+			branch:    "Add memory",
+		},
+		{
+			name:      "update",
+			tool:      "memory_update",
+			running:   "Updating Memory",
+			completed: "Updated Memory",
+			branch:    "Update memory",
+		},
+		{
+			name:      "delete",
+			tool:      "memory_delete",
+			running:   "Deleting Memory",
+			completed: "Deleted Memory",
+			branch:    "Delete memory",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			running := stripANSI(renderTranscriptCells([]string{
+				toolOperationTranscriptCell("call_1", tt.tool, ""),
+			}))
+			completed := stripANSI(renderTranscriptCells([]string{
+				toolOperationTranscriptCell("call_1", tt.tool, "", true),
+			}))
+
+			require.Contains(t, running, "● "+tt.running)
+			require.Contains(t, running, "└ "+tt.branch)
+			require.Contains(t, completed, "● "+tt.completed)
+			require.Contains(t, completed, "└ "+tt.branch)
+			require.NotContains(t, running, tt.tool)
+			require.NotContains(t, completed, tt.tool)
+		})
+	}
+}
+
 func TestRenderTranscriptCells_AnimatesRunningToolDot(t *testing.T) {
 	cells := []string{toolOperationTranscriptCell("call_1", "web_search", "")}
 	first := stripANSI(renderTranscriptCellsWithFrame(cells, 80, 0))

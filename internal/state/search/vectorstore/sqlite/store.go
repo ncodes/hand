@@ -12,16 +12,21 @@ import (
 	"time"
 
 	sqlitevec "github.com/asg017/sqlite-vec-go-bindings/cgo"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
+	handdb "github.com/wandxy/hand/internal/db"
 	"github.com/wandxy/hand/internal/state/search/vectorstore"
 )
 
 const (
 	recordsTable    = "vector_records"
 	recordTagsTable = "vector_record_tags"
+)
+
+const (
+	sqliteBusyRetryAttempts = 5
+	sqliteBusyRetryDelay    = 25 * time.Millisecond
 )
 
 type Record = vectorstore.Record
@@ -57,9 +62,7 @@ func NewStore(path string) (*Store, error) {
 		return nil, fmt.Errorf("failed to create vector db directory: %w", err)
 	}
 
-	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
+	db, err := handdb.OpenSQLite(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open vector db: %w", err)
 	}
@@ -86,25 +89,30 @@ func (s *Store) Upsert(ctx context.Context, records []Record) error {
 	if len(records) == 0 {
 		return nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		ensuredDimensions := make(map[int]struct{}, len(records))
-		for _, record := range records {
-			if err := vectorstore.ValidateRecord(record); err != nil {
-				return err
-			}
-			if _, ok := ensuredDimensions[record.Dimensions]; !ok {
-				if err := ensureIndexTable(tx, record.Dimensions); err != nil {
+	return withSQLiteBusyRetry(ctx, func() error {
+		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			ensuredDimensions := make(map[int]struct{}, len(records))
+			for _, record := range records {
+				if err := vectorstore.ValidateRecord(record); err != nil {
 					return err
 				}
-				ensuredDimensions[record.Dimensions] = struct{}{}
+				if _, ok := ensuredDimensions[record.Dimensions]; !ok {
+					if err := ensureIndexTable(tx, record.Dimensions); err != nil {
+						return err
+					}
+					ensuredDimensions[record.Dimensions] = struct{}{}
+				}
+				if err := upsertRecord(tx, record); err != nil {
+					return err
+				}
 			}
-			if err := upsertRecord(tx, record); err != nil {
-				return err
-			}
-		}
 
-		return nil
+			return nil
+		})
 	})
 }
 
@@ -810,6 +818,48 @@ func validateSearchSourceIDs(sourceIDs []string) error {
 	}
 
 	return nil
+}
+
+func withSQLiteBusyRetry(ctx context.Context, fn func() error) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	var err error
+	for attempt := 0; attempt <= sqliteBusyRetryAttempts; attempt++ {
+		if err = fn(); !isSQLiteBusyError(err) {
+			return err
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+		if attempt == sqliteBusyRetryAttempts {
+			return err
+		}
+
+		delay := sqliteBusyRetryDelay * time.Duration(1<<attempt)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+
+	return err
+}
+
+func isSQLiteBusyError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	value := strings.ToLower(err.Error())
+	return strings.Contains(value, "database is locked") ||
+		strings.Contains(value, "database table is locked") ||
+		strings.Contains(value, "sqlite_busy") ||
+		strings.Contains(value, "sqlite_locked")
 }
 
 type recordRefRow struct {

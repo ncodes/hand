@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"math"
 	"os"
 	"path/filepath"
@@ -75,6 +76,32 @@ func TestStore_NilStoreErrors(t *testing.T) {
 		EmbeddingModel: "text-embedding-test",
 	})
 	require.EqualError(t, err, "vector store is required")
+}
+
+func TestWithSQLiteBusyRetry_RetriesBusyErrors(t *testing.T) {
+	attempts := 0
+	err := withSQLiteBusyRetry(context.Background(), func() error {
+		attempts++
+		if attempts < 3 {
+			return errors.New("failed to insert vector record: database is locked")
+		}
+
+		return nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 3, attempts)
+}
+
+func TestWithSQLiteBusyRetry_DoesNotRetryNonBusyErrors(t *testing.T) {
+	attempts := 0
+	err := withSQLiteBusyRetry(context.Background(), func() error {
+		attempts++
+		return errors.New("failed to insert vector record: disk full")
+	})
+
+	require.EqualError(t, err, "failed to insert vector record: disk full")
+	require.Equal(t, 1, attempts)
 }
 
 func TestStore_SharesSessionDatabase(t *testing.T) {
