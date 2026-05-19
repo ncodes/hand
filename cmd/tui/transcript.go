@@ -82,7 +82,8 @@ func (m *model) scrollTranscriptWithKey(msg tea.KeyPressMsg) bool {
 	case tea.KeyHome:
 		m.transcript.GotoTop()
 	case tea.KeyEnd:
-		m.transcript.GotoBottom()
+		m.jumpTranscriptToBottom()
+		return true
 	default:
 		return false
 	}

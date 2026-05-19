@@ -181,6 +181,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "shift+enter":
 			return m.insertInputNewline()
+		case "ctrl+end":
+			m.jumpTranscriptToBottom()
+			return m, nil
 		case "enter":
 			cmd := m.submitPrompt()
 			return m, cmd
@@ -203,6 +206,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseWheelMsg:
 		return m.updateTranscriptWithScrollTracking(msg)
 	case tea.MouseClickMsg:
+		if m.clicksJumpToBottomIndicator(msg) {
+			m.jumpTranscriptToBottom()
+			return m, nil
+		}
 		if m.startTranscriptSelection(msg) {
 			return m, nil
 		}

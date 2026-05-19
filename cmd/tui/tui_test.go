@@ -788,6 +788,54 @@ func TestModel_UpdateScrollsTranscriptWithMouseWheel(t *testing.T) {
 	require.Less(t, runModel.transcript.YOffset(), bottomOffset)
 }
 
+func TestModel_ViewShowsJumpToBottomWhenTranscriptIsNotAtBottom(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+	}
+	runModel.setTranscriptContent()
+	require.True(t, runModel.transcript.AtBottom())
+	require.NotContains(t, stripANSI(runModel.View().Content), jumpToBottomLabel)
+
+	runModel.transcript.GotoTop()
+
+	require.False(t, runModel.transcript.AtBottom())
+	require.Contains(t, stripANSI(runModel.View().Content), jumpToBottomLabel)
+}
+
+func TestModel_UpdateJumpsTranscriptToBottomFromIndicatorAndShortcut(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+	}
+	runModel.setTranscriptContent()
+	bottomOffset := runModel.transcript.YOffset()
+	runModel.transcript.GotoTop()
+
+	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		X:      runModel.width / 2,
+		Y:      runModel.getJumpToBottomIndicatorRow(),
+	}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, bottomOffset, runModel.transcript.YOffset())
+	require.True(t, runModel.transcript.AtBottom())
+
+	runModel.transcript.GotoTop()
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnd, Mod: tea.ModCtrl}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, bottomOffset, runModel.transcript.YOffset())
+	require.True(t, runModel.transcript.AtBottom())
+}
+
 func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 14
