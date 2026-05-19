@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/muesli/reflow/wordwrap"
 )
 
 type transcriptCellKind string
@@ -16,6 +17,9 @@ const (
 	transcriptCellError     transcriptCellKind = "error"
 	transcriptCellSystem    transcriptCellKind = "system"
 )
+
+const userTranscriptPrompt = inputPrompt
+const userTranscriptBackground = "#151515"
 
 func renderTranscriptCells(cells []string) string {
 	return renderTranscriptCellsWithWidth(cells, defaultWidth)
@@ -42,6 +46,10 @@ func renderTranscriptCellWithWidth(cell string, width int) string {
 		return ""
 	}
 
+	if kind == transcriptCellUser {
+		return renderUserTranscriptCell(body, width)
+	}
+
 	labelStyle := transcriptCellLabelStyle(kind)
 	if label == "" {
 		return renderTranscriptCellBody(kind, body, width)
@@ -52,6 +60,62 @@ func renderTranscriptCellWithWidth(cell string, width int) string {
 	}
 
 	return labelStyle.Render(label+":") + " " + body
+}
+
+func renderUserTranscriptCell(body string, width int) string {
+	contentWidth := max(width, 1)
+	wrapWidth := max(contentWidth-lipgloss.Width(userTranscriptPrompt), 1)
+
+	lines := strings.Split(strings.TrimSpace(body), "\n")
+	rendered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		for _, wrapped := range strings.Split(wordwrap.String(strings.TrimSpace(line), wrapWidth), "\n") {
+			if strings.TrimSpace(wrapped) != "" {
+				rendered = append(rendered, renderUserTranscriptLine(wrapped, contentWidth, len(rendered) == 0))
+			}
+		}
+	}
+	if len(rendered) == 0 {
+		return ""
+	}
+
+	return strings.Join(rendered, "\n")
+}
+
+func renderUserTranscriptLine(text string, width int, showPrompt bool) string {
+	prefix := renderUserTranscriptContinuationPrefix()
+	if showPrompt {
+		prefix = renderUserTranscriptPrompt()
+	}
+	message := renderUserTranscriptText(text)
+	usedWidth := lipgloss.Width(userTranscriptPrompt) + lipgloss.Width(text)
+	filler := renderUserTranscriptFiller(max(width-usedWidth, 0))
+
+	return prefix + message + filler
+}
+
+func renderUserTranscriptPrompt() string {
+	return lipgloss.NewStyle().
+		Background(lipgloss.Color(userTranscriptBackground)).
+		Foreground(lipgloss.Color("245")).
+		Render(userTranscriptPrompt)
+}
+
+func renderUserTranscriptContinuationPrefix() string {
+	return renderUserTranscriptFiller(lipgloss.Width(userTranscriptPrompt))
+}
+
+func renderUserTranscriptText(text string) string {
+	return lipgloss.NewStyle().
+		Background(lipgloss.Color(userTranscriptBackground)).
+		Foreground(lipgloss.Color("252")).
+		Render(text)
+}
+
+func renderUserTranscriptFiller(width int) string {
+	return lipgloss.NewStyle().
+		Background(lipgloss.Color(userTranscriptBackground)).
+		Render(strings.Repeat(" ", max(width, 0)))
 }
 
 func renderTranscriptCellBody(kind transcriptCellKind, body string, width int) string {

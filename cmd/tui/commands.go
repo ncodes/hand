@@ -22,7 +22,7 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 	}
 
 	if m.responding {
-		m.setTranscriptContentForActiveTurn()
+		m.setTranscriptContentForResponseUpdate()
 	} else {
 		m.setTranscriptContent()
 	}
@@ -35,7 +35,7 @@ func (m *model) handleLocalCommand(input composerInput) tea.Cmd {
 		cmd = m.setStatus("local commands are disabled")
 		m.messages = append(m.messages, "Local command blocked: !"+input.Args)
 		if m.responding {
-			m.setTranscriptContentForActiveTurn()
+			m.setTranscriptContentForResponseUpdate()
 		} else {
 			m.setTranscriptContent()
 		}
@@ -45,7 +45,7 @@ func (m *model) handleLocalCommand(input composerInput) tea.Cmd {
 	cmd = m.setStatus("local command execution is not connected yet")
 	m.messages = append(m.messages, "Local command queued: !"+input.Args)
 	if m.responding {
-		m.setTranscriptContentForActiveTurn()
+		m.setTranscriptContentForResponseUpdate()
 	} else {
 		m.setTranscriptContent()
 	}

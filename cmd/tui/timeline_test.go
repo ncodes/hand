@@ -93,11 +93,41 @@ func TestRenderTranscriptCell_StylesCanonicalCells(t *testing.T) {
 	})
 
 	plain := stripANSI(rendered)
-	require.Contains(t, plain, "You: hello")
+	require.Contains(t, plain, "❯ hello")
+	require.NotContains(t, plain, "┌")
+	require.NotContains(t, plain, "│ ❯ hello")
+	require.NotContains(t, plain, "└")
+	require.NotContains(t, plain, "You: hello")
 	require.Contains(t, plain, "Hand: hi")
 	require.Contains(t, plain, "Tool started: read_file")
 	require.Contains(t, plain, "Safety: blocked")
 	require.Contains(t, plain, "Error: failed")
+	require.Contains(t, rendered, "\x1b[")
+}
+
+func TestRenderTranscriptCell_RendersUserMessageBox(t *testing.T) {
+	rendered := renderTranscriptCellWithWidth("You: Some message.", 40)
+	plain := stripANSI(rendered)
+
+	require.Contains(t, plain, "❯ Some message.")
+	require.NotContains(t, plain, "┌")
+	require.NotContains(t, plain, "│")
+	require.NotContains(t, plain, "└")
+	require.NotContains(t, plain, "You:")
+	require.Contains(t, rendered, "\x1b[")
+	require.Contains(t, rendered, "48;2;21;21;21")
+	require.Contains(t, rendered, "48;2;21;21;21mSome message")
+}
+
+func TestRenderTranscriptCell_RendersMultilineUserMessageWithSinglePrompt(t *testing.T) {
+	rendered := renderTranscriptCellWithWidth("You: hello\nfriend", 40)
+	plain := stripANSI(rendered)
+	lines := strings.Split(plain, "\n")
+
+	require.Len(t, lines, 2)
+	require.Equal(t, "❯ hello", strings.TrimRight(lines[0], " "))
+	require.Equal(t, "  friend", strings.TrimRight(lines[1], " "))
+	require.Equal(t, 1, strings.Count(plain, "❯"))
 	require.Contains(t, rendered, "\x1b[")
 }
 
@@ -170,8 +200,9 @@ func TestRenderTranscriptCell_DoesNotRenderUserMarkdown(t *testing.T) {
 	rendered := renderTranscriptCellWithWidth("You: # literal\n\n- keep", 60)
 	plain := stripANSI(rendered)
 
-	require.Contains(t, plain, "You: # literal")
-	require.Contains(t, plain, "- keep")
+	require.Contains(t, plain, "❯ # literal")
+	require.Contains(t, plain, "  - keep")
+	require.Equal(t, 1, strings.Count(plain, "❯"))
 }
 
 func TestRenderMarkdownForTranscript_LeavesPlainTextAlone(t *testing.T) {

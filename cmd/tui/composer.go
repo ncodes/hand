@@ -77,8 +77,11 @@ func (m *model) submitPrompt() tea.Cmd {
 	}
 	if promptSubmitted {
 		m.setTranscriptContent()
+		if m.responding {
+			m.responseTranscriptFollow = m.transcript.AtBottom()
+		}
 	} else if m.responding {
-		m.setTranscriptContentForActiveTurn()
+		m.setTranscriptContentForResponseUpdate()
 	} else {
 		m.setTranscriptContent()
 	}

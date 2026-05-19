@@ -73,6 +73,7 @@ func (m *model) updateTranscript(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) scrollTranscriptWithKey(msg tea.KeyPressMsg) bool {
+	offset := m.transcript.YOffset()
 	switch msg.Key().Code {
 	case tea.KeyPgUp:
 		m.transcript.PageUp()
@@ -85,8 +86,31 @@ func (m *model) scrollTranscriptWithKey(msg tea.KeyPressMsg) bool {
 	default:
 		return false
 	}
+	m.markResponseTranscriptScrolled(offset, true)
 
 	return true
+}
+
+func (m *model) updateTranscriptWithScrollTracking(msg tea.Msg) (tea.Model, tea.Cmd) {
+	offset := m.transcript.YOffset()
+	_, cmd := m.updateTranscript(msg)
+	m.markResponseTranscriptScrolled(offset, true)
+
+	return *m, cmd
+}
+
+func (m *model) markResponseTranscriptScrolled(previousOffset int, scrollInput bool) {
+	if !m.responding {
+		return
+	}
+	if scrollInput || m.transcript.YOffset() != previousOffset {
+		m.stopFollowingResponseTranscript()
+	}
+}
+
+func (m *model) stopFollowingResponseTranscript() {
+	m.responseTranscriptScrolled = true
+	m.responseTranscriptFollow = false
 }
 
 func (m *model) applyTUIMessage(msg any) tea.Cmd {
@@ -111,7 +135,7 @@ func (m *model) addTranscriptMessage(msg any) {
 	if cell := tuiMessageToTranscriptCell(msg); cell != "" {
 		m.messages = append(m.messages, cell)
 		if m.responding {
-			m.setTranscriptContentForActiveTurn()
+			m.setTranscriptContentForResponseUpdate()
 		} else {
 			m.setTranscriptContent()
 		}
@@ -126,7 +150,7 @@ func (m *model) appendAssistantDelta(delta string) {
 
 	m.stream.Add(delta)
 	m.live = assistantTranscriptCell(m.stream.Render())
-	m.setTranscriptContentForActiveTurn()
+	m.setTranscriptContentForResponseUpdate()
 	m.resize()
 }
 
@@ -139,15 +163,28 @@ func (m *model) completeAssistantResponse(text string) {
 	}
 	if strings.TrimSpace(reply) == "" {
 		m.live = ""
-		m.setTranscriptContentForActiveTurn()
+		m.setTranscriptContentAfterResponseCompletion()
 		m.resize()
 		return
 	}
 
 	m.messages = append(m.messages, assistantTranscriptCell(reply))
 	m.live = ""
-	m.setTranscriptContentForActiveTurn()
+	m.setTranscriptContentAfterResponseCompletion()
 	m.resize()
+}
+
+func (m *model) setTranscriptContentAfterResponseCompletion() {
+	m.setTranscriptContentForResponseUpdate()
+}
+
+func (m *model) setTranscriptContentForResponseUpdate() {
+	if m.responding && m.responseTranscriptFollow && !m.responseTranscriptScrolled {
+		m.setTranscriptContent()
+		return
+	}
+
+	m.setTranscriptContentForActiveTurn()
 }
 
 func assistantTranscriptCell(text string) string {

@@ -20,29 +20,31 @@ const (
 
 // model is the root Bubble Tea application state for the interactive shell.
 type model struct {
-	transcript viewport.Model
-	input      textarea.Model
-	width      int
-	height     int
-	status     statusModel
-	modelName  string
-	context    string
-	messages   []string
-	live       string
-	showIntro  bool
-	stream     markdownStreamCollector
-	history    []string
-	historyAt  int
-	draft      string
-	chatClient rpcclient.ChatAPI
-	timeline   sessionTimelineLoader
-	chatCtx    context.Context
-	responding bool
-	responseID int
-	events     <-chan tea.Msg
-	exitAt     time.Time
-	allowShell bool
-	selection  transcriptSelection
+	transcript                 viewport.Model
+	input                      textarea.Model
+	width                      int
+	height                     int
+	status                     statusModel
+	modelName                  string
+	context                    string
+	messages                   []string
+	live                       string
+	showIntro                  bool
+	stream                     markdownStreamCollector
+	history                    []string
+	historyAt                  int
+	draft                      string
+	chatClient                 rpcclient.ChatAPI
+	timeline                   sessionTimelineLoader
+	chatCtx                    context.Context
+	responding                 bool
+	responseID                 int
+	responseTranscriptFollow   bool
+	responseTranscriptScrolled bool
+	events                     <-chan tea.Msg
+	exitAt                     time.Time
+	allowShell                 bool
+	selection                  transcriptSelection
 }
 
 // newModel builds the initial TUI state and sizes child components.
@@ -178,7 +180,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	case tea.MouseWheelMsg:
-		return m.updateTranscript(msg)
+		return m.updateTranscriptWithScrollTracking(msg)
 	case tea.MouseClickMsg:
 		if m.startTranscriptSelection(msg) {
 			return m, nil

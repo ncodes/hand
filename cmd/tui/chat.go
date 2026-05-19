@@ -76,6 +76,8 @@ func (m *model) startResponse(prompt string) tea.Cmd {
 	m.responseID++
 	m.events = events
 	m.responding = true
+	m.responseTranscriptFollow = m.transcript.AtBottom()
+	m.responseTranscriptScrolled = false
 
 	return tea.Batch(
 		respondToPromptCmd(m.chatClient, m.responseID, m.chatCtx, prompt, events),
@@ -92,12 +94,16 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 		errorMsg := sessionErrorMsg{Message: msg.Err.Error()}
 		m.addTranscriptMessage(errorMsg)
 		m.responding = false
+		m.responseTranscriptFollow = false
+		m.responseTranscriptScrolled = false
 		m.events = nil
 		return m.setStatus("response failed")
 	}
 
 	m.completeAssistantResponse(msg.Text)
 	m.responding = false
+	m.responseTranscriptFollow = false
+	m.responseTranscriptScrolled = false
 	m.events = nil
 	return nil
 }

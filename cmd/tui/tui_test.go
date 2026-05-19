@@ -722,7 +722,7 @@ func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 	require.Equal(t, "You: hello", runModel.messages[len(runModel.messages)-3])
 	require.Equal(t, "Hand: hi", runModel.messages[len(runModel.messages)-2])
 	require.Equal(t, "Tool started: read_file", runModel.messages[len(runModel.messages)-1])
-	require.Contains(t, content, "You: hello")
+	require.Contains(t, content, "❯ hello")
 	require.Contains(t, content, "Hand: hi")
 	require.Contains(t, content, "Tool started: read_file")
 	require.NotContains(t, content, "older 00")
@@ -907,7 +907,7 @@ func TestModel_UpdateAppendsPromptOnEnter(t *testing.T) {
 
 	content := stripANSI(mainModel.View().Content)
 	require.Contains(t, content, "██████")
-	require.Contains(t, content, "You: Summarize tests")
+	require.Contains(t, content, "❯ Summarize tests")
 	require.Contains(t, content, "60,000 used")
 }
 
@@ -1058,7 +1058,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	runModel.setTranscriptContent()
 	runModel.resize()
 	runModel.transcript.GotoTop()
-	firstRow := getTranscriptContentRow(t, runModel, "You: first")
+	firstRow := getTranscriptContentRow(t, runModel, "❯ first")
 	secondRow := getTranscriptContentRow(t, runModel, "Hand: second")
 	require.GreaterOrEqual(t, runModel.transcript.Height(), 3)
 
@@ -1078,7 +1078,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
-	require.Contains(t, runModel.transcript.View(), "38;5;39")
+	require.Contains(t, runModel.transcript.View(), "48;2;21;21;21")
 	require.Contains(t, runModel.transcript.View(), "38;5;83")
 
 	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
@@ -1092,9 +1092,13 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	require.False(t, runModel.selection.dragging)
 	require.True(t, runModel.selection.active)
 	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
-	require.Contains(t, runModel.transcript.View(), "38;5;39")
+	require.Contains(t, runModel.transcript.View(), "48;2;21;21;21")
 	require.Contains(t, runModel.transcript.View(), "38;5;83")
-	require.Equal(t, "You: first\n\nHand: second", copied)
+	require.Equal(t, strings.Join([]string{
+		"❯ first",
+		"",
+		"Hand: second",
+	}, "\n"), trimTrailingLineSpaces(copied))
 	require.Equal(t, defaultStatus, runModel.status.Text())
 }
 
@@ -1538,7 +1542,7 @@ func TestModel_SubmitPromptScrollsTranscriptToBottom(t *testing.T) {
 
 	require.NotNil(t, cmd)
 	require.True(t, runModel.transcript.AtBottom())
-	require.Contains(t, stripANSI(runModel.transcript.View()), "You: hello")
+	require.Contains(t, stripANSI(runModel.transcript.View()), "❯ hello")
 }
 
 func TestRespondToPromptCmd_StreamsDeltasTraceEventsAndCompletion(t *testing.T) {
@@ -1643,7 +1647,7 @@ func TestModel_UpdatePreservesTranscriptScrollDuringActiveResponse(t *testing.T)
 	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
 }
 
-func TestModel_UpdatePreservesBottomOffsetDuringActiveResponse(t *testing.T) {
+func TestModel_UpdateFollowsBottomDuringActiveResponse(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 10
 	runModel.resize()
@@ -1653,8 +1657,8 @@ func TestModel_UpdatePreservesBottomOffsetDuringActiveResponse(t *testing.T) {
 	}
 	runModel.setTranscriptContent()
 	require.True(t, runModel.transcript.AtBottom())
-	offsetBefore := runModel.transcript.YOffset()
 	runModel.responding = true
+	runModel.responseTranscriptFollow = true
 	runModel.responseID = 4
 	runModel.events = make(chan tea.Msg)
 
@@ -1665,8 +1669,168 @@ func TestModel_UpdatePreservesBottomOffsetDuringActiveResponse(t *testing.T) {
 
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, offsetBefore, runModel.transcript.YOffset())
+	require.True(t, runModel.transcript.AtBottom())
 	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "Hand: streamed")
+	require.Contains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
+}
+
+func TestModel_UpdateKeepsFollowingBottomWhenResponseCompletesAfterStream(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	runModel.messages = make([]string, 0, 30)
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+	}
+	runModel.setTranscriptContent()
+	require.True(t, runModel.transcript.AtBottom())
+	runModel.responding = true
+	runModel.responseTranscriptFollow = true
+	runModel.responseID = 4
+	runModel.events = make(chan tea.Msg)
+
+	updated, cmd := runModel.Update(responseEventMsg{
+		ResponseID: 4,
+		Message:    assistantTextDeltaMsg{Text: "streamed"},
+	})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.transcript.AtBottom())
+
+	updated, cmd = runModel.Update(responseCompletedMsg{ResponseID: 4})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.transcript.AtBottom())
+	require.Contains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
+}
+
+func TestModel_UpdateScrollsToBottomWhenResponseCompletesWhileViewportIsAtBottom(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	runModel.messages = make([]string, 0, 30)
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+	}
+	runModel.setTranscriptContent()
+	require.True(t, runModel.transcript.AtBottom())
+	runModel.responding = true
+	runModel.responseTranscriptFollow = true
+	runModel.responseID = 4
+	runModel.events = make(chan tea.Msg)
+
+	updated, cmd := runModel.Update(responseCompletedMsg{ResponseID: 4, Text: "final"})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.transcript.AtBottom())
+	require.Contains(t, stripANSI(runModel.transcript.View()), "Hand: final")
+}
+
+func TestModel_UpdateDoesNotScrollToBottomWhenResponseCompletesAfterManualScroll(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	runModel.messages = make([]string, 0, 30)
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+	}
+	runModel.setTranscriptContent()
+	runModel.responding = true
+	runModel.responseTranscriptFollow = true
+	runModel.responseID = 4
+	runModel.events = make(chan tea.Msg)
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyHome}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.responseTranscriptScrolled)
+	offsetBefore := runModel.transcript.YOffset()
+
+	updated, cmd = runModel.Update(responseEventMsg{
+		ResponseID: 4,
+		Message:    assistantTextDeltaMsg{Text: "streamed"},
+	})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	updated, cmd = runModel.Update(responseCompletedMsg{ResponseID: 4})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, offsetBefore, runModel.transcript.YOffset())
+	require.False(t, runModel.transcript.AtBottom())
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
+}
+
+func TestModel_UpdateDisablesFollowModeOnWheelDuringActiveResponse(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	runModel.messages = make([]string, 0, 30)
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+	}
+	runModel.setTranscriptContent()
+	require.True(t, runModel.transcript.AtBottom())
+	runModel.responding = true
+	runModel.responseTranscriptFollow = true
+	runModel.responseID = 4
+	runModel.events = make(chan tea.Msg)
+
+	updated, cmd := runModel.Update(tea.MouseWheelMsg(tea.Mouse{
+		Button: tea.MouseWheelUp,
+		X:      getPanelHorizontalPadding(runModel.width),
+		Y:      runModel.transcript.Height() - 1,
+	}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.responseTranscriptScrolled)
+	require.False(t, runModel.responseTranscriptFollow)
+	offsetBefore := runModel.transcript.YOffset()
+
+	updated, cmd = runModel.Update(responseEventMsg{
+		ResponseID: 4,
+		Message:    assistantTextDeltaMsg{Text: "streamed"},
+	})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, offsetBefore, runModel.transcript.YOffset())
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
+}
+
+func TestModel_UpdateDoesNotScrollToBottomWhenResponseArrivesAwayFromBottom(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	runModel.messages = make([]string, 0, 30)
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+	}
+	runModel.setTranscriptContent()
+	runModel.transcript.GotoTop()
+	offsetBefore := runModel.transcript.YOffset()
+	runModel.responding = true
+	runModel.responseID = 4
+	runModel.events = make(chan tea.Msg)
+
+	updated, cmd := runModel.Update(responseEventMsg{
+		ResponseID: 4,
+		Message:    assistantTextDeltaMsg{Text: "streamed"},
+	})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	updated, cmd = runModel.Update(responseCompletedMsg{ResponseID: 4})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, offsetBefore, runModel.transcript.YOffset())
+	require.False(t, runModel.transcript.AtBottom())
 	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: streamed")
 }
 
@@ -1968,7 +2132,7 @@ func TestModel_UpdatePreservesLiveAssistantCellDuringStreaming(t *testing.T) {
 	require.Equal(t, []string{"You: hello"}, runModel.messages)
 	require.Equal(t, "Hand: first line\npartial", runModel.live)
 	content := stripANSI(runModel.transcript.View())
-	require.Contains(t, content, "You: hello")
+	require.Contains(t, content, "❯ hello")
 	require.Contains(t, content, "Hand: first line")
 	require.Contains(t, content, "partial")
 }
@@ -2192,6 +2356,15 @@ func getTranscriptContentRow(t *testing.T, runModel model, needle string) int {
 
 	t.Fatalf("transcript row containing %q not found in %q", needle, runModel.transcript.GetContent())
 	return 0
+}
+
+func trimTrailingLineSpaces(value string) string {
+	lines := strings.Split(value, "\n")
+	for index, line := range lines {
+		lines[index] = strings.TrimRight(line, " ")
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func newTUITestRootCommand(action func(context.Context, *cli.Command) error) *cli.Command {
