@@ -84,5 +84,5 @@ func loadTUICommandModel(ctx context.Context, cmd *cli.Command) (model, func(), 
 		_ = client.Close()
 	}
 
-	return newModelWithClientContext(ctx, client), cleanup, nil
+	return newModelWithClientContextAndConfig(ctx, client, cfg), cleanup, nil
 }

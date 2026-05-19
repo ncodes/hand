@@ -53,6 +53,7 @@ const (
 	DefaultProfileTraceEnabled         = true
 	DefaultProfileTraceDiskEnabled     = true
 	DefaultProfileTraceDatabaseEnabled = true
+	DefaultTUIThinkingComposerEnabled  = true
 	DefaultSafetyInputEnabled          = true
 	DefaultSafetyOutputEnabled         = true
 	DefaultSafetyPIIEnabled            = false

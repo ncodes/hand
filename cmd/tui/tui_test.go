@@ -142,6 +142,8 @@ rpc:
   port: 45678
 models:
   verify: false
+tui:
+  thinkingComposer: false
 `), 0o600))
 
 	client := &fakeTUIChatClient{}
@@ -164,6 +166,7 @@ models:
 	require.NoError(t, err)
 	require.Equal(t, config.RPCConfig{Address: "127.0.0.2", Port: 45678}, gotRPC)
 	require.Same(t, client, runModel.chatClient)
+	require.False(t, runModel.thinkingComposerEnabled)
 	require.NotNil(t, cleanup)
 	cleanup()
 	require.True(t, client.closed)
@@ -1521,6 +1524,7 @@ func TestModel_SubmitPromptStartsRPCResponse(t *testing.T) {
 
 	require.NotNil(t, cmd)
 	require.True(t, runModel.responding)
+	require.True(t, runModel.thinkingComposerActive)
 	require.Equal(t, []string{"You: hello"}, runModel.messages)
 	require.Empty(t, runModel.input.Value())
 	require.Equal(t, []string{"hello"}, runModel.history)
@@ -2018,6 +2022,64 @@ func TestModel_UpdateAnimatesRunningToolTranscriptDot(t *testing.T) {
 	runModel = updated.(model)
 	require.False(t, runModel.toolAnimationActive)
 	require.Contains(t, stripANSI(runModel.transcript.View()), "● Searched")
+}
+
+func TestModel_UpdateAnimatesThinkingComposerBorder(t *testing.T) {
+	originalInterval := thinkingComposerInterval
+	t.Cleanup(func() {
+		thinkingComposerInterval = originalInterval
+	})
+	thinkingComposerInterval = time.Nanosecond
+	runModel := newModel()
+	runModel.responding = true
+
+	cmd := runModel.startThinkingComposer()
+	require.NotNil(t, cmd)
+	require.True(t, runModel.thinkingComposerActive)
+	require.Equal(t, getThinkingComposerBorderColor(0), runModel.getInputFrameBorderColor())
+	require.Equal(t, thinkingComposerTickMsg{}, cmd())
+
+	updated, cmd := runModel.Update(thinkingComposerTickMsg{})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 1, runModel.thinkingComposerFrame)
+	require.Equal(t, getThinkingComposerBorderColor(1), runModel.getInputFrameBorderColor())
+
+	runModel.live = "Hand: hello"
+	updated, cmd = runModel.Update(thinkingComposerTickMsg{})
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.thinkingComposerActive)
+	require.Equal(t, "8", runModel.getInputFrameBorderColor())
+}
+
+func TestModel_ThinkingComposerBorderWaitsForRunningTool(t *testing.T) {
+	runModel := newModel()
+	runModel.responding = true
+	runModel.messages = []string{toolOperationTranscriptCell("call_1", "web_search", "")}
+
+	require.False(t, runModel.isThinkingComposerVisible())
+	require.Equal(t, "8", runModel.getInputFrameBorderColor())
+
+	runModel.messages = []string{toolOperationTranscriptCell("call_1", "web_search", "", true)}
+	require.True(t, runModel.isThinkingComposerVisible())
+	require.Equal(t, getThinkingComposerBorderColor(0), runModel.getInputFrameBorderColor())
+}
+
+func TestModel_ThinkingComposerBorderCanBeDisabled(t *testing.T) {
+	disabled := false
+	runModel := newModelWithClientContextAndConfig(
+		context.Background(),
+		nil,
+		&config.Config{TUI: config.TUIConfig{ThinkingComposer: &disabled}},
+	)
+	runModel.responding = true
+
+	require.False(t, runModel.thinkingComposerEnabled)
+	require.False(t, runModel.isThinkingComposerVisible())
+	require.Nil(t, runModel.startThinkingComposer())
+	require.False(t, runModel.thinkingComposerActive)
+	require.Equal(t, "8", runModel.getInputFrameBorderColor())
 }
 
 func TestModel_UpdatePreventsOverlappingPromptSubmission(t *testing.T) {

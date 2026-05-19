@@ -68,12 +68,20 @@ func (m model) renderInput() string {
 		BorderBottom(true).
 		BorderLeft(true).
 		Background(lipgloss.Color(inputFrameBackground)).
-		BorderForeground(lipgloss.Color("8")).
+		BorderForeground(lipgloss.Color(m.getInputFrameBorderColor())).
 		Padding(inputFrameVerticalPadding, inputFrameHorizontalPadding).
 		Width(getInputBoxWidth(m.width)).
 		Render(m.input.View())
 
 	return lipgloss.JoinVertical(lipgloss.Left, inputBox, m.renderBottomStatusPanel())
+}
+
+func (m model) getInputFrameBorderColor() string {
+	if !m.isThinkingComposerVisible() {
+		return "8"
+	}
+
+	return getThinkingComposerBorderColor(m.thinkingComposerFrame)
 }
 
 // resize distributes terminal rows between transcript and composer.

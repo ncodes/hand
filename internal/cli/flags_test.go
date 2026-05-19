@@ -110,6 +110,22 @@ func TestApplyConfigOverrides_AppliesModelStream(t *testing.T) {
 	require.False(t, cfg.StreamEnabled())
 }
 
+func TestApplyConfigOverrides_AppliesTUIThinkingComposer(t *testing.T) {
+	cfg := &config.Config{}
+	var cmd *cli.Command
+	cmd = &cli.Command{Flags: RootFlags(nil, nil)}
+	cmd.Action = func(context.Context, *cli.Command) error {
+		ApplyConfigOverrides(cmd, cfg)
+		return nil
+	}
+
+	err := cmd.Run(context.Background(), []string{"hand", "--tui.thinking-composer=false"})
+
+	require.NoError(t, err)
+	cfg.Normalize()
+	require.False(t, cfg.TUIThinkingComposerEnabled())
+}
+
 func TestApplyConfigOverrides_AppliesFilesystemRootsAndExecRules(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

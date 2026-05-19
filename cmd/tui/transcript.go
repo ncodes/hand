@@ -127,6 +127,7 @@ func (m *model) applyTUIMessage(msg any) tea.Cmd {
 		return m.startToolAnimation()
 	case toolInvocationCompletedMsg:
 		m.addTranscriptMessage(value)
+		return m.startThinkingComposer()
 	case safetyEventMsg:
 		m.addTranscriptMessage(value)
 	}

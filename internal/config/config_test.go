@@ -190,6 +190,7 @@ func TestNewDefaultConfig_ReturnsIndependentConfig(t *testing.T) {
 	require.False(t, *second.Safety.PII)
 	require.NotEqual(t, "mutated", second.FS.Roots[0])
 	require.True(t, *DefaultConfig.Models.Verify)
+	require.True(t, *DefaultConfig.TUI.ThinkingComposer)
 	require.True(t, *DefaultConfig.Safety.Input)
 	require.True(t, *DefaultConfig.Safety.Output)
 	require.False(t, *DefaultConfig.Safety.PII)
@@ -762,6 +763,24 @@ safety:
 	require.True(t, cfg.InputSafetyEnabled())
 	require.False(t, cfg.OutputSafetyEnabled())
 	require.True(t, cfg.OutputPIIRedactionEnabled())
+}
+
+func TestLoad_UsesTUIConfigFromConfigAndEnv(t *testing.T) {
+	clearEnvKeys(t, "HAND_TUI_THINKING_COMPOSER")
+
+	dir := t.TempDir()
+	envPath := filepath.Join(dir, ".env")
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(envPath, []byte("HAND_TUI_THINKING_COMPOSER=true\n"), 0o600))
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+tui:
+  thinkingComposer: false
+`), 0o600))
+
+	cfg, err := Load(envPath, configPath)
+
+	require.NoError(t, err)
+	require.True(t, cfg.TUIThinkingComposerEnabled())
 }
 
 func TestConfig_SafetyDefaultsAndValidation(t *testing.T) {
@@ -2099,6 +2118,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 		"HAND_MEMORY_EPISODIC_WINDOW_SIZE", "HAND_MEMORY_EPISODIC_MAX_WINDOWS",
 		"HAND_MEMORY_EPISODIC_MAX_WINDOW_CHARS", "HAND_MEMORY_EPISODIC_MAX_WINDOW_TOKENS",
 		"HAND_MEMORY_EPISODIC_MAX_RETRIES",
+		"HAND_TUI_THINKING_COMPOSER",
 		"HAND_FIRECRAWL_API_KEY", "HAND_FIRECRAWL_API_URL", "HAND_PARALLEL_API_KEY", "HAND_TAVILY_API_KEY", "HAND_EXA_API_KEY",
 	)
 
@@ -2149,6 +2169,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	t.Setenv("HAND_MEMORY_EPISODIC_MAX_WINDOW_TOKENS", "1000")
 	t.Setenv("HAND_MEMORY_EPISODIC_MAX_RETRIES", "2")
 	t.Setenv("HAND_MEMORY_WRITE_ENABLED", "false")
+	t.Setenv("HAND_TUI_THINKING_COMPOSER", "false")
 
 	applyEnvOverrides(cfg)
 
@@ -2158,6 +2179,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.Equal(t, "openai-key", cfg.Models.OpenAIAPIKey)
 	require.Equal(t, "openrouter-key", cfg.Models.OpenRouterAPIKey)
 	require.Equal(t, "memory", cfg.Storage.Backend)
+	require.False(t, cfg.TUIThinkingComposerEnabled())
 	require.Equal(t, 2*time.Hour, cfg.Session.DefaultIdleExpiry)
 	require.Equal(t, 48*time.Hour, cfg.Session.ArchiveRetention)
 	require.True(t, cfg.Search.Vector.Enabled)

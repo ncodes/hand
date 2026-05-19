@@ -80,6 +80,7 @@ func (m *model) startResponse(prompt string) tea.Cmd {
 	m.responseTranscriptScrolled = false
 
 	return tea.Batch(
+		m.startThinkingComposer(),
 		respondToPromptCmd(m.chatClient, m.responseID, m.chatCtx, prompt, events),
 		waitForResponseEvent(m.responseID, events),
 	)
@@ -97,6 +98,7 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 		m.responding = false
 		m.responseTranscriptFollow = false
 		m.responseTranscriptScrolled = false
+		m.thinkingComposerActive = false
 		m.events = nil
 		return m.setStatus("response failed")
 	}
@@ -105,6 +107,7 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 	m.responding = false
 	m.responseTranscriptFollow = false
 	m.responseTranscriptScrolled = false
+	m.thinkingComposerActive = false
 	m.events = nil
 	if shouldFollowTranscript {
 		m.resize()

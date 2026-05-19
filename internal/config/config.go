@@ -42,6 +42,7 @@ type Config struct {
 	Log           LogConfig                    `yaml:"log"`
 	Debug         DebugConfig                  `yaml:"debug"`
 	Trace         TraceConfig                  `yaml:"trace"`
+	TUI           TUIConfig                    `yaml:"tui"`
 	Web           WebConfig                    `yaml:"web"`
 	Safety        SafetyConfig                 `yaml:"safety"`
 	Rules         RulesConfig                  `yaml:"rules"`
@@ -225,6 +226,10 @@ type TraceDatabaseConfig struct {
 	MaxEventsPerSession int   `yaml:"maxEventsPerSession"`
 }
 
+type TUIConfig struct {
+	ThinkingComposer *bool `yaml:"thinkingComposer"`
+}
+
 type SafetyConfig struct {
 	Input  *bool `yaml:"input"`
 	Output *bool `yaml:"output"`
@@ -406,6 +411,9 @@ var DefaultConfig = Config{
 			Enabled:             new(constants.DefaultProfileTraceDatabaseEnabled),
 			MaxEventsPerSession: constants.DefaultTraceMaxEventsPerSession,
 		},
+	},
+	TUI: TUIConfig{
+		ThinkingComposer: new(constants.DefaultTUIThinkingComposerEnabled),
 	},
 	Safety: SafetyConfig{
 		Input:  new(constants.DefaultSafetyInputEnabled),
@@ -619,6 +627,7 @@ func cloneConfig(cfg Config) Config {
 	cfg.Cap.Browser = cloneBoolPtr(cfg.Cap.Browser)
 	cfg.Trace.Disk.Enabled = cloneBoolPtr(cfg.Trace.Disk.Enabled)
 	cfg.Trace.Database.Enabled = cloneBoolPtr(cfg.Trace.Database.Enabled)
+	cfg.TUI.ThinkingComposer = cloneBoolPtr(cfg.TUI.ThinkingComposer)
 	cfg.Safety.Input = cloneBoolPtr(cfg.Safety.Input)
 	cfg.Safety.Output = cloneBoolPtr(cfg.Safety.Output)
 	cfg.Safety.PII = cloneBoolPtr(cfg.Safety.PII)
@@ -867,6 +876,9 @@ func applyEnvOverrides(cfg *Config) {
 		if maxEvents, err := strconv.Atoi(value); err == nil {
 			cfg.Trace.Database.MaxEventsPerSession = maxEvents
 		}
+	}
+	if value, ok := parseOptionalBoolEnv("HAND_TUI_THINKING_COMPOSER"); ok {
+		cfg.TUI.ThinkingComposer = new(value)
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_WEB_PROVIDER")); value != "" {
 		cfg.Web.Provider = value
@@ -1271,6 +1283,9 @@ func (c *Config) normalizeFields() {
 	if c.Trace.Database.MaxEventsPerSession <= 0 {
 		c.Trace.Database.MaxEventsPerSession = constants.DefaultTraceMaxEventsPerSession
 	}
+	if c.TUI.ThinkingComposer == nil {
+		c.TUI.ThinkingComposer = new(constants.DefaultTUIThinkingComposerEnabled)
+	}
 	if c.Safety.Input == nil {
 		c.Safety.Input = new(constants.DefaultSafetyInputEnabled)
 	}
@@ -1512,6 +1527,15 @@ func (c *Config) OutputPIIRedactionEnabled() bool {
 
 	c.normalizeFields()
 	return getBoolValueDefault(c.Safety.PII, constants.DefaultSafetyPIIEnabled)
+}
+
+func (c *Config) TUIThinkingComposerEnabled() bool {
+	if c == nil {
+		return constants.DefaultTUIThinkingComposerEnabled
+	}
+
+	c.normalizeFields()
+	return getBoolValueDefault(c.TUI.ThinkingComposer, constants.DefaultTUIThinkingComposerEnabled)
 }
 
 func (c *Config) ModelMaxRetriesEffective() int {

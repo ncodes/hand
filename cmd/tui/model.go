@@ -8,6 +8,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/wandxy/hand/internal/config"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 )
 
@@ -44,6 +45,9 @@ type model struct {
 	events                     <-chan tea.Msg
 	toolAnimationFrame         int
 	toolAnimationActive        bool
+	thinkingComposerFrame      int
+	thinkingComposerActive     bool
+	thinkingComposerEnabled    bool
 	exitAt                     time.Time
 	allowShell                 bool
 	selection                  transcriptSelection
@@ -59,23 +63,31 @@ func newModelWithClient(client rpcclient.ChatAPI) model {
 }
 
 func newModelWithClientContext(ctx context.Context, client rpcclient.ChatAPI) model {
+	return newModelWithClientContextAndConfig(ctx, client, nil)
+}
+
+func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.ChatAPI, cfg *config.Config) model {
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	if cfg == nil {
+		cfg = config.NewDefaultConfig()
 	}
 
 	history, err := loadPromptHistory()
 	appModel := model{
-		transcript: newTranscript(),
-		input:      newInputComposer(),
-		width:      defaultWidth,
-		height:     defaultHeight,
-		status:     newStatusModel(),
-		modelName:  "GPT 5.5",
-		context:    "60,000 used · 65%",
-		showIntro:  true,
-		history:    history,
-		chatClient: client,
-		chatCtx:    ctx,
+		transcript:              newTranscript(),
+		input:                   newInputComposer(),
+		width:                   defaultWidth,
+		height:                  defaultHeight,
+		status:                  newStatusModel(),
+		modelName:               "GPT 5.5",
+		context:                 "60,000 used · 65%",
+		showIntro:               true,
+		history:                 history,
+		chatClient:              client,
+		chatCtx:                 ctx,
+		thinkingComposerEnabled: cfg.TUIThinkingComposerEnabled(),
 	}
 	if timeline, ok := client.(sessionTimelineLoader); ok {
 		appModel.timeline = timeline
@@ -110,6 +122,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case toolAnimationTickMsg:
 		return m.updateToolAnimation()
+	case thinkingComposerTickMsg:
+		return m.updateThinkingComposer()
 	case assistantTextDeltaMsg:
 		return m, m.applyTUIMessage(msg)
 	case assistantResponseCompletedMsg:

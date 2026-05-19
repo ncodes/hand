@@ -153,6 +153,12 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value:  config.Get().Trace.Database.MaxEventsPerSession,
 			Hidden: true,
 		},
+		&cli.BoolFlag{
+			Name:   "tui.thinking-composer",
+			Usage:  "Animate the TUI composer border while the model is thinking",
+			Value:  config.Get().TUIThinkingComposerEnabled(),
+			Hidden: true,
+		},
 		&cli.StringFlag{
 			Name:   "web.provider",
 			Usage:  "Web provider: firecrawl, parallel, tavily, exa, or native",
@@ -486,6 +492,9 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("trace.database.max-events-per-session") {
 		cfg.Trace.Database.MaxEventsPerSession = cmd.Int("trace.database.max-events-per-session")
+	}
+	if cmd.IsSet("tui.thinking-composer") {
+		cfg.TUI.ThinkingComposer = new(cmd.Bool("tui.thinking-composer"))
 	}
 	if cmd.IsSet("web.provider") {
 		cfg.Web.Provider = strings.TrimSpace(cmd.String("web.provider"))
