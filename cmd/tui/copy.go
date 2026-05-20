@@ -15,11 +15,8 @@ func (m *model) copyTranscript() tea.Cmd {
 	if text == "" {
 		return m.setStatus("transcript is empty")
 	}
-	if err := writeClipboard(text); err != nil {
-		return m.setStatus("copy failed")
-	}
 
-	return m.setStatus("transcript copied")
+	return m.runEffect(copyTranscriptEffect{Text: text})
 }
 
 func (m model) transcriptText() string {

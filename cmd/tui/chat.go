@@ -75,7 +75,7 @@ func (m *model) startResponse(prompt string) tea.Cmd {
 	events := make(chan tea.Msg, 32)
 	m.responseID++
 	m.events = events
-	m.responding = true
+	m.applyAction(setRespondingAction{Responding: true, ResponseID: m.responseID})
 	m.responseTranscriptFollow = m.transcript.AtBottom()
 	m.responseTranscriptScrolled = false
 	m.clearReasoningTranscriptState()
@@ -96,7 +96,7 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 	if msg.Err != nil {
 		errorMsg := sessionErrorMsg{Message: msg.Err.Error()}
 		m.addTranscriptMessage(errorMsg)
-		m.responding = false
+		m.applyAction(setRespondingAction{Responding: false, ResponseID: m.responseID})
 		m.responseTranscriptFollow = false
 		m.responseTranscriptScrolled = false
 		m.thinkingComposerActive = false
@@ -105,7 +105,7 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 	}
 
 	m.completeAssistantResponse(msg.Text)
-	m.responding = false
+	m.applyAction(setRespondingAction{Responding: false, ResponseID: m.responseID})
 	m.responseTranscriptFollow = false
 	m.responseTranscriptScrolled = false
 	m.thinkingComposerActive = false

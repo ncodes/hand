@@ -28,8 +28,8 @@ func (m model) renderTranscriptComposerGap() string {
 	}
 
 	label := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("252")).
-		Background(lipgloss.Color("238")).
+		Foreground(lipgloss.Color(defaultTUITheme.JumpToBottomForeground)).
+		Background(lipgloss.Color(defaultTUITheme.JumpToBottomBackground)).
 		Padding(0, 1).
 		Render(jumpToBottomLabel)
 
@@ -48,7 +48,7 @@ func (m model) clicksJumpToBottomIndicator(msg tea.MouseClickMsg) bool {
 }
 
 func (m model) getJumpToBottomIndicatorRow() int {
-	return m.getTranscriptTop() + max(m.transcript.Height(), 1)
+	return getTUILayout(m.width, m.height, m.input.Height()).JumpToBottom.Y
 }
 
 func (m *model) jumpTranscriptToBottom() {

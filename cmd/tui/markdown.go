@@ -307,8 +307,8 @@ func renderCompactMarkdownTableCell(cell string) string {
 	cell = renderCompactInlineDelimited(cell, "**", lipgloss.NewStyle().Bold(true))
 	cell = renderCompactInlineDelimited(cell, "__", lipgloss.NewStyle().Bold(true))
 	cell = renderCompactInlineDelimited(cell, "`", lipgloss.NewStyle().
-		Foreground(lipgloss.Color("250")).
-		Background(lipgloss.Color("#1A1A1A")))
+		Foreground(lipgloss.Color(defaultTUITheme.MarkdownCodeForeground)).
+		Background(lipgloss.Color(defaultTUITheme.MarkdownCodeBackground)))
 
 	return cell
 }
@@ -337,7 +337,7 @@ func renderCompactMarkdownLinks(value string) string {
 		hrefEnd += hrefStart
 		output.WriteString(value[:labelStart])
 		output.WriteString(lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")).
+			Foreground(lipgloss.Color(defaultTUITheme.MarkdownLinkForeground)).
 			Underline(true).
 			Render(value[labelStart+1 : labelEnd]))
 		value = value[hrefEnd+1:]

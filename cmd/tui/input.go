@@ -16,7 +16,6 @@ const (
 	bottomStatusPanelHeight     = 1
 	minInputHeight              = 1
 	inputPrompt                 = "❯ "
-	inputFrameBackground        = "#050505"
 )
 
 // newInputComposer creates the multiline prompt editor.
@@ -67,7 +66,7 @@ func (m model) renderInput() string {
 		BorderRight(true).
 		BorderBottom(true).
 		BorderLeft(true).
-		Background(lipgloss.Color(inputFrameBackground)).
+		Background(lipgloss.Color(defaultTUITheme.InputFrameBackground)).
 		BorderForeground(lipgloss.Color(m.getInputFrameBorderColor())).
 		Padding(inputFrameVerticalPadding, inputFrameHorizontalPadding).
 		Width(getInputBoxWidth(m.width)).
@@ -78,7 +77,7 @@ func (m model) renderInput() string {
 
 func (m model) getInputFrameBorderColor() string {
 	if !m.isThinkingComposerVisible() {
-		return "8"
+		return defaultTUITheme.InputFrameBorder
 	}
 
 	return getThinkingComposerBorderColor(m.thinkingComposerFrame)
@@ -88,11 +87,11 @@ func (m model) getInputFrameBorderColor() string {
 func (m *model) resize() {
 	m.input.SetWidth(getInputInnerWidth(m.width))
 	inputHeight := m.getInputHeight()
-	transcriptHeight := max(m.height-inputHeight-inputChromeHeight, 1)
+	layout := getTUILayout(m.width, m.height, inputHeight)
 
 	m.input.SetHeight(inputHeight)
-	m.transcript.SetWidth(getPanelContentWidth(m.width))
-	m.transcript.SetHeight(transcriptHeight)
+	m.transcript.SetWidth(layout.Transcript.Width)
+	m.transcript.SetHeight(layout.Transcript.Height)
 }
 
 // getInputHeight returns the visible composer height constrained by the screen.

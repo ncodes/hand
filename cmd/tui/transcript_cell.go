@@ -23,7 +23,6 @@ const (
 )
 
 const userTranscriptPrompt = inputPrompt
-const userTranscriptBackground = "#151515"
 
 type transcriptRenderContext struct {
 	Width int
@@ -225,33 +224,8 @@ func renderTranscriptCellsWithWidth(cells []transcriptCell, width int) string {
 }
 
 func renderTranscriptCellsWithFrame(cells []transcriptCell, width int, frame int) string {
-	rendered := make([]string, 0, len(cells))
-	var toolGroup *toolTranscriptGroup
 	ctx := transcriptRenderContext{Width: width, Frame: frame, Now: currentTime()}
-	for _, cell := range cells {
-		if cell == nil || cell.IsEmpty() {
-			continue
-		}
-
-		if toolCell, ok := cell.(toolTranscriptCell); ok {
-			if toolGroup == nil || toolGroup.action != toolCell.action {
-				flushToolTranscriptGroup(&rendered, &toolGroup, frame)
-			}
-			if toolGroup == nil {
-				toolGroup = &toolTranscriptGroup{action: toolCell.action}
-			}
-			toolGroup.add(toolCell)
-			continue
-		}
-
-		flushToolTranscriptGroup(&rendered, &toolGroup, frame)
-		if renderedCell := cell.Render(ctx); renderedCell != "" {
-			rendered = append(rendered, renderedCell)
-		}
-	}
-	flushToolTranscriptGroup(&rendered, &toolGroup, frame)
-
-	return strings.Join(rendered, "\n\n")
+	return defaultTranscriptRenderer.RenderCells(cells, ctx)
 }
 
 func renderUserTranscriptCell(body string, width int) string {
@@ -291,8 +265,8 @@ func renderUserTranscriptLine(text string, width int, showPrompt bool) string {
 
 func renderUserTranscriptPrompt() string {
 	return lipgloss.NewStyle().
-		Background(lipgloss.Color(userTranscriptBackground)).
-		Foreground(lipgloss.Color("245")).
+		Background(lipgloss.Color(defaultTUITheme.UserTranscriptBackground)).
+		Foreground(lipgloss.Color(defaultTUITheme.UserTranscriptPrompt)).
 		Render(userTranscriptPrompt)
 }
 
@@ -302,14 +276,14 @@ func renderUserTranscriptContinuationPrefix() string {
 
 func renderUserTranscriptText(text string) string {
 	return lipgloss.NewStyle().
-		Background(lipgloss.Color(userTranscriptBackground)).
-		Foreground(lipgloss.Color("252")).
+		Background(lipgloss.Color(defaultTUITheme.UserTranscriptBackground)).
+		Foreground(lipgloss.Color(defaultTUITheme.UserTranscriptText)).
 		Render(text)
 }
 
 func renderUserTranscriptFiller(width int) string {
 	return lipgloss.NewStyle().
-		Background(lipgloss.Color(userTranscriptBackground)).
+		Background(lipgloss.Color(defaultTUITheme.UserTranscriptBackground)).
 		Render(strings.Repeat(" ", max(width, 0)))
 }
 
@@ -323,17 +297,17 @@ func renderUserTranscriptBottomHeightStrip(width int) string {
 
 func renderUserTranscriptHeightStrip(block string, width int) string {
 	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(userTranscriptBackground)).
+		Foreground(lipgloss.Color(defaultTUITheme.UserTranscriptBackground)).
 		Render(strings.Repeat(block, max(width, 0)))
 }
 
 func renderReasoningTranscriptCell(body string, width int) string {
 	contentWidth := max(width, 1)
 	wrapWidth := max(contentWidth-4, 1)
-	dotStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
-	branchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	dotStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolBranch))
+	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolTitle))
+	branchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolBranch))
+	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolDetail))
 
 	lines := strings.Split(strings.TrimSpace(body), "\n")
 	reasoningLines := make([]string, 0, len(lines))
@@ -375,7 +349,7 @@ func renderThoughtTranscriptCell(body string) string {
 	}
 
 	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("244")).
+		Foreground(lipgloss.Color(defaultTUITheme.ToolBranch)).
 		Render("Thought for " + duration)
 }
 
@@ -433,7 +407,7 @@ func (cell toolTranscriptCell) Kind() transcriptCellKind {
 func (cell toolTranscriptCell) Render(ctx transcriptRenderContext) string {
 	group := toolTranscriptGroup{action: cell.action}
 	group.add(cell)
-	return renderToolTranscriptGroup(group, ctx.Frame)
+	return renderToolTranscriptGroupWithContext(group, ctx)
 }
 
 func (cell toolTranscriptCell) PlainText() string {
@@ -555,39 +529,58 @@ func (group *toolTranscriptGroup) mergeToolTranscriptCell(id string, cell toolTr
 }
 
 func flushToolTranscriptGroup(rendered *[]string, group **toolTranscriptGroup, frame int) {
+	flushToolTranscriptGroupWithContext(
+		rendered,
+		group,
+		transcriptRenderContext{Frame: frame, Now: currentTime()},
+	)
+}
+
+func flushToolTranscriptGroupWithContext(
+	rendered *[]string,
+	group **toolTranscriptGroup,
+	ctx transcriptRenderContext,
+) {
 	if group == nil || *group == nil {
 		return
 	}
-	if cell := renderToolTranscriptGroup(**group, frame); cell != "" {
+	if cell := renderToolTranscriptGroupWithContext(**group, ctx); cell != "" {
 		*rendered = append(*rendered, cell)
 	}
 	*group = nil
 }
 
 func renderToolTranscriptGroup(group toolTranscriptGroup, frame int) string {
+	return renderToolTranscriptGroupWithContext(
+		group,
+		transcriptRenderContext{Frame: frame, Now: currentTime()},
+	)
+}
+
+func renderToolTranscriptGroupWithContext(group toolTranscriptGroup, ctx transcriptRenderContext) string {
 	action := strings.TrimSpace(group.action)
 	if action == "" {
 		action = "Tool"
 	}
 	if action == "Run" {
-		return renderRunTranscriptGroup(group, frame)
+		return renderRunTranscriptGroup(group, ctx)
 	}
 	completed := group.isCompleted()
 
 	headerTitle := getToolTranscriptTitle(action, completed)
 	headerDuration := ""
 	if len(group.details) == 1 {
-		headerDuration = renderToolTranscriptDuration(group.details[0])
+		headerDuration = renderToolTranscriptDuration(group.details[0], ctx.Now)
 	}
 	header := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(getToolTranscriptDotColor(completed))).
 		Bold(true).
-		Render(getToolTranscriptDot(completed, frame)) +
+		Render(getToolTranscriptDot(completed, ctx.Frame)) +
 		lipgloss.NewStyle().
-			Foreground(lipgloss.Color("250")).
+			Foreground(lipgloss.Color(defaultTUITheme.ToolTitle)).
 			Render(" "+headerTitle) +
 		lipgloss.NewStyle().
-			Foreground(lipgloss.Color("246")).
+			Foreground(lipgloss.Color(defaultTUITheme.ToolDetail)).
 			Render(headerDuration)
 
 	details := make([]toolTranscriptDetail, 0, len(group.details))
@@ -600,8 +593,8 @@ func renderToolTranscriptGroup(group toolTranscriptGroup, frame int) string {
 		return header
 	}
 
-	branchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	detailStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
+	branchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolBranch))
+	detailStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolDetail))
 	lines := []string{header}
 	for index, detail := range details {
 		branch := "├"
@@ -609,7 +602,7 @@ func renderToolTranscriptGroup(group toolTranscriptGroup, frame int) string {
 			branch = "└"
 		}
 		detailText := getToolBranchDisplayDetail(group.action, detail.text, detail.completed)
-		lines = append(lines, "  "+branchStyle.Render(branch)+" "+renderToolBranchDetail(detailText, renderToolTranscriptDuration(detail), detailStyle))
+		lines = append(lines, "  "+branchStyle.Render(branch)+" "+renderToolBranchDetail(detailText, renderToolTranscriptDuration(detail, ctx.Now), detailStyle))
 	}
 
 	return strings.Join(lines, "\n")
@@ -626,9 +619,9 @@ func renderToolBranchDetail(detail string, duration string, style lipgloss.Style
 	for _, part := range parts {
 		switch {
 		case isToolDiffAdditionToken(part):
-			rendered = append(rendered, lipgloss.NewStyle().Foreground(lipgloss.Color("83")).Render(part))
+			rendered = append(rendered, lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolAddition)).Render(part))
 		case isToolDiffRemovalToken(part):
-			rendered = append(rendered, lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Render(part))
+			rendered = append(rendered, lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolDeletion)).Render(part))
 		default:
 			rendered = append(rendered, style.Render(part))
 		}
@@ -658,7 +651,7 @@ func isToolSignedNumberToken(value string, sign byte) bool {
 	return true
 }
 
-func renderRunTranscriptGroup(group toolTranscriptGroup, frame int) string {
+func renderRunTranscriptGroup(group toolTranscriptGroup, ctx transcriptRenderContext) string {
 	count := len(group.details)
 	if count == 0 {
 		count = 1
@@ -678,20 +671,20 @@ func renderRunTranscriptGroup(group toolTranscriptGroup, frame int) string {
 	header := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(getToolTranscriptDotColor(completed))).
 		Bold(true).
-		Render(getToolTranscriptDot(completed, frame)) +
+		Render(getToolTranscriptDot(completed, ctx.Frame)) +
 		lipgloss.NewStyle().
-			Foreground(lipgloss.Color("250")).
+			Foreground(lipgloss.Color(defaultTUITheme.ToolTitle)).
 			Render(" "+verb+" ") +
 		lipgloss.NewStyle().
-			Foreground(lipgloss.Color("255")).
+			Foreground(lipgloss.Color(defaultTUITheme.UserTranscriptText)).
 			Bold(true).
 			Render(fmt.Sprintf("%d", count)) +
 		lipgloss.NewStyle().
-			Foreground(lipgloss.Color("250")).
+			Foreground(lipgloss.Color(defaultTUITheme.ToolTitle)).
 			Render(" "+noun+suffix)
 
-	detailStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
-	branchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	detailStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolDetail))
+	branchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolBranch))
 	lines := []string{header}
 	for index, detail := range group.details {
 		branch := "├"
@@ -699,14 +692,14 @@ func renderRunTranscriptGroup(group toolTranscriptGroup, frame int) string {
 			branch = "└"
 		}
 		detailText := getToolBranchDisplayDetail(group.action, detail.text, detail.completed)
-		lines = append(lines, "  "+branchStyle.Render(branch)+" "+detailStyle.Render("$ "+detailText+renderToolTranscriptDuration(detail)))
+		lines = append(lines, "  "+branchStyle.Render(branch)+" "+detailStyle.Render("$ "+detailText+renderToolTranscriptDuration(detail, ctx.Now)))
 	}
 
 	return strings.Join(lines, "\n")
 }
 
-func renderToolTranscriptDuration(detail toolTranscriptDetail) string {
-	duration := getToolTranscriptDuration(detail)
+func renderToolTranscriptDuration(detail toolTranscriptDetail, now time.Time) string {
+	duration := getToolTranscriptDuration(detail, now)
 	if duration <= 0 {
 		return ""
 	}
@@ -714,11 +707,14 @@ func renderToolTranscriptDuration(detail toolTranscriptDetail) string {
 	return " (" + formatToolTranscriptDuration(duration) + ")"
 }
 
-func getToolTranscriptDuration(detail toolTranscriptDetail) time.Duration {
+func getToolTranscriptDuration(detail toolTranscriptDetail, now time.Time) time.Duration {
 	if detail.startedAt.IsZero() {
 		return 0
 	}
 	end := detail.completedAt
+	if end.IsZero() {
+		end = now
+	}
 	if end.IsZero() {
 		end = currentTime()
 	}
@@ -794,10 +790,10 @@ func getToolActionName(name string) string {
 
 func getToolTranscriptDotColor(completed bool) string {
 	if completed {
-		return "83"
+		return defaultTUITheme.ToolCompletedDot
 	}
 
-	return "250"
+	return defaultTUITheme.ToolRunningDot
 }
 
 func getToolTranscriptDot(completed bool, frame int) string {

@@ -67,11 +67,11 @@ func (m *model) submitPrompt() tea.Cmd {
 	promptSubmitted := false
 	switch input.Kind {
 	case composerInputPrompt:
-		m.messages = append(m.messages, userTranscriptCell{text: input.Text})
+		m.applyAction(appendTranscriptCellAction{Cell: userTranscriptCell{text: input.Text}})
 		m.clearComposer()
 		m.resize()
 		m.setTranscriptContent()
-		cmd = tea.Batch(cmd, m.startResponse(input.Text))
+		cmd = tea.Batch(cmd, m.runEffect(sendPromptEffect{Text: input.Text}))
 		promptSubmitted = true
 	case composerInputCommand:
 		cmd = tea.Batch(cmd, m.handleSlashCommand(input))

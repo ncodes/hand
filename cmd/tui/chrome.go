@@ -36,7 +36,6 @@ const (
 	noticeBarLead     = "Use "
 	noticeBarLink     = "/changelogs"
 	noticeBarTail     = " to see what changed"
-	noticeBarBG       = "#292929"
 )
 
 var handBannerColors = []color.Color{
@@ -60,7 +59,7 @@ func (m model) renderHeaderWithWidth(width int) string {
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderBottom(true).
-		BorderForeground(lipgloss.Color("#242424")).
+		BorderForeground(lipgloss.Color(defaultTUITheme.NoticeBorder)).
 		Width(width).
 		Render(contentModel.renderHeaderContent())
 }
@@ -81,7 +80,7 @@ func (m model) renderNoticeBar() string {
 	content := renderNoticeBarContent(renderNoticeBarLeft(), renderNoticeBarRight(), m.width)
 
 	return lipgloss.NewStyle().
-		Background(lipgloss.Color(noticeBarBG)).
+		Background(lipgloss.Color(defaultTUITheme.NoticeBackground)).
 		Foreground(lipgloss.Color("15")).
 		Width(m.width).
 		Render(content)
@@ -101,7 +100,7 @@ func renderNoticeBarContent(left string, right string, width int) string {
 	}
 
 	spacer := lipgloss.NewStyle().
-		Background(lipgloss.Color(noticeBarBG)).
+		Background(lipgloss.Color(defaultTUITheme.NoticeBackground)).
 		Render(strings.Repeat(" ", spacerWidth))
 
 	return left + spacer + right
@@ -111,11 +110,11 @@ func renderNoticeBarContent(left string, right string, width int) string {
 func renderNoticeBarLeft() string {
 	muted := lipgloss.NewStyle().
 		Padding(0, 0, 0, 1).
-		Background(lipgloss.Color(noticeBarBG)).
-		Foreground(lipgloss.Color("#A0A0A0"))
+		Background(lipgloss.Color(defaultTUITheme.NoticeBackground)).
+		Foreground(lipgloss.Color(defaultTUITheme.NoticeMuted))
 	highlight := lipgloss.NewStyle().
-		Background(lipgloss.Color(noticeBarBG)).
-		Foreground(lipgloss.Color("#FFFFFF"))
+		Background(lipgloss.Color(defaultTUITheme.NoticeBackground)).
+		Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground))
 
 	return muted.Render(noticeBarLeftLead) +
 		highlight.Render(noticeBarName)
@@ -124,11 +123,11 @@ func renderNoticeBarLeft() string {
 // renderNoticeBarRight styles the right-side notice command hint.
 func renderNoticeBarRight() string {
 	muted := lipgloss.NewStyle().
-		Background(lipgloss.Color(noticeBarBG)).
-		Foreground(lipgloss.Color("#A0A0A0"))
+		Background(lipgloss.Color(defaultTUITheme.NoticeBackground)).
+		Foreground(lipgloss.Color(defaultTUITheme.NoticeMuted))
 	highlight := lipgloss.NewStyle().
-		Background(lipgloss.Color(noticeBarBG)).
-		Foreground(lipgloss.Color("#FFFFFF"))
+		Background(lipgloss.Color(defaultTUITheme.NoticeBackground)).
+		Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground))
 
 	return muted.Render(noticeBarLead) +
 		highlight.Render(noticeBarLink) +

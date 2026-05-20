@@ -1,0 +1,125 @@
+package tui
+
+import (
+	"strings"
+	"time"
+)
+
+type tuiAction interface {
+	apply(*tuiState)
+}
+
+type setViewportSizeAction struct {
+	Width  int
+	Height int
+}
+
+type appendTranscriptCellAction struct {
+	Cell transcriptCell
+}
+
+type setTranscriptCellsAction struct {
+	Cells []transcriptCell
+}
+
+type setLiveTranscriptCellAction struct {
+	Cell transcriptCell
+}
+
+type clearTranscriptAction struct{}
+
+type setSessionTitleAction struct {
+	Title string
+}
+
+type setRespondingAction struct {
+	Responding bool
+	ResponseID int
+}
+
+func (action setViewportSizeAction) apply(state *tuiState) {
+	if state == nil {
+		return
+	}
+
+	state.width = max(action.Width, 1)
+	state.height = max(action.Height, 1)
+}
+
+func (action appendTranscriptCellAction) apply(state *tuiState) {
+	if state == nil || action.Cell == nil || action.Cell.IsEmpty() {
+		return
+	}
+
+	state.messages = append(state.messages, action.Cell)
+	state.showIntro = false
+}
+
+func (action setTranscriptCellsAction) apply(state *tuiState) {
+	if state == nil {
+		return
+	}
+
+	state.messages = cloneTranscriptCells(action.Cells)
+	state.showIntro = len(state.messages) == 0
+}
+
+func (action setLiveTranscriptCellAction) apply(state *tuiState) {
+	if state == nil {
+		return
+	}
+
+	state.live = action.Cell
+}
+
+func (clearTranscriptAction) apply(state *tuiState) {
+	if state == nil {
+		return
+	}
+
+	state.messages = nil
+	state.live = nil
+	state.showIntro = false
+	state.stream.Reset()
+	state.reasoningStartedAt = time.Time{}
+	state.reasoningMessageIndex = -1
+}
+
+func (action setSessionTitleAction) apply(state *tuiState) {
+	if state == nil {
+		return
+	}
+
+	state.sessionTitle = strings.TrimSpace(action.Title)
+	if state.sessionTitle == "" {
+		state.sessionTitle = defaultSessionTitle
+	}
+}
+
+func (action setRespondingAction) apply(state *tuiState) {
+	if state == nil {
+		return
+	}
+
+	state.responding = action.Responding
+	state.responseID = action.ResponseID
+}
+
+func (m *model) applyAction(action tuiAction) {
+	if action == nil {
+		return
+	}
+
+	action.apply(&m.tuiState)
+}
+
+func cloneTranscriptCells(cells []transcriptCell) []transcriptCell {
+	if len(cells) == 0 {
+		return nil
+	}
+
+	cloned := make([]transcriptCell, len(cells))
+	copy(cloned, cells)
+
+	return cloned
+}

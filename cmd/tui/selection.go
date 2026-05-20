@@ -103,7 +103,7 @@ func (m model) transcriptSelectionPointFromMouse(mouse tea.Mouse) (transcriptSel
 }
 
 func (m model) getTranscriptTop() int {
-	return 0
+	return getTUILayout(m.width, m.height, m.input.Height()).Transcript.Y
 }
 
 func (m model) isMouseInTranscript(mouse tea.Mouse) bool {
@@ -120,19 +120,14 @@ func (m model) transcriptSelectionPointFromVisualLine(
 		return transcriptSelectionPoint{}, false
 	}
 
-	content := ansi.Strip(m.transcript.GetContent())
-	lines := strings.Split(content, "\n")
+	document := newRenderedTranscriptDocument(m.transcript.GetContent())
+	lines := document.PlainLines()
 	if !m.transcript.SoftWrap {
 		if visualLine >= len(lines) {
 			return transcriptSelectionPoint{}, false
 		}
 
-		return getTranscriptSelectionPoint(
-			lines,
-			visualLine,
-			x,
-			getTranscriptLineOffset(lines, visualLine),
-		), true
+		return getTranscriptSelectionPointFromDocument(document, visualLine, x), true
 	}
 
 	width := max(
@@ -140,20 +135,15 @@ func (m model) transcriptSelectionPointFromVisualLine(
 		1,
 	)
 	offset := 0
-	lineOffset := 0
 	for index, line := range lines {
 		height := getWrappedTranscriptLineHeight(line, width)
 		if visualLine >= offset && visualLine < offset+height {
 			wrappedColumn := (visualLine-offset)*width + max(min(x, width), 0)
 
-			return getTranscriptSelectionPoint(lines, index, wrappedColumn, lineOffset), true
+			return getTranscriptSelectionPointFromDocument(document, index, wrappedColumn), true
 		}
 
 		offset += height
-		lineOffset += len(line)
-		if index < len(lines)-1 {
-			lineOffset++
-		}
 	}
 
 	return transcriptSelectionPoint{}, false
@@ -201,7 +191,8 @@ func (m model) selectedTranscriptText() string {
 		return ""
 	}
 
-	content := ansi.Strip(m.getSelectionContent())
+	document := newRenderedTranscriptDocument(m.getSelectionContent())
+	content := document.PlainText
 	start, end := m.selection.offsetBounds()
 	if start == end || start >= len(content) {
 		return ""
@@ -282,6 +273,24 @@ func getTranscriptSelectionPoint(
 	return transcriptSelectionPoint{
 		line:   lineIndex,
 		offset: lineOffset + byteOffset,
+	}
+}
+
+func getTranscriptSelectionPointFromDocument(
+	document renderedTranscriptDocument,
+	lineIndex int,
+	column int,
+) transcriptSelectionPoint {
+	if lineIndex < 0 || lineIndex >= len(document.Lines) {
+		return transcriptSelectionPoint{}
+	}
+
+	line := document.Lines[lineIndex]
+	byteOffset := getByteOffsetForDisplayColumn(line.PlainText, column)
+
+	return transcriptSelectionPoint{
+		line:   lineIndex,
+		offset: line.StartOffset + byteOffset,
 	}
 }
 

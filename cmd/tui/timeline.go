@@ -51,13 +51,13 @@ func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.C
 		}
 	}
 
-	m.messages = cells
-	m.live = nil
+	m.applyAction(setTranscriptCellsAction{Cells: cells})
+	m.applyAction(setLiveTranscriptCellAction{})
 	m.showIntro = false
 	m.stream.Reset()
 	m.setTranscriptContent()
 	displayName := getSessionTimelineDisplayName(timeline)
-	m.setSessionTitle(displayName)
+	m.applyAction(setSessionTitleAction{Title: displayName})
 	m.setDefaultStatus(defaultStatus)
 	m.resize()
 

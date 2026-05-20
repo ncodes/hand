@@ -96,12 +96,7 @@ func (m *model) setDefaultStatus(text string) {
 }
 
 func (m *model) setSessionTitle(text string) {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		text = defaultSessionTitle
-	}
-
-	m.sessionTitle = text
+	m.applyAction(setSessionTitleAction{Title: text})
 }
 
 func (m model) statusExpireCmd() tea.Cmd {

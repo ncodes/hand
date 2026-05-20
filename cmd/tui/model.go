@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"time"
 
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/viewport"
@@ -22,39 +21,13 @@ const (
 
 // model is the root Bubble Tea application state for the interactive shell.
 type model struct {
-	transcript                 viewport.Model
-	input                      textarea.Model
-	width                      int
-	height                     int
-	status                     statusModel
-	sessionTitle               string
-	modelName                  string
-	context                    string
-	messages                   []transcriptCell
-	live                       transcriptCell
-	showIntro                  bool
-	stream                     markdownStreamCollector
-	reasoningStartedAt         time.Time
-	reasoningMessageIndex      int
-	history                    []string
-	historyAt                  int
-	draft                      string
-	chatClient                 rpcclient.ChatAPI
-	timeline                   sessionTimelineLoader
-	chatCtx                    context.Context
-	responding                 bool
-	responseID                 int
-	responseTranscriptFollow   bool
-	responseTranscriptScrolled bool
-	events                     <-chan tea.Msg
-	toolAnimationFrame         int
-	toolAnimationActive        bool
-	thinkingComposerFrame      int
-	thinkingComposerActive     bool
-	thinkingComposerEnabled    bool
-	exitAt                     time.Time
-	allowShell                 bool
-	selection                  transcriptSelection
+	transcript viewport.Model
+	input      textarea.Model
+	tuiState
+	chatClient rpcclient.ChatAPI
+	timeline   sessionTimelineLoader
+	chatCtx    context.Context
+	events     <-chan tea.Msg
 }
 
 // newModel builds the initial TUI state and sizes child components.
@@ -80,25 +53,15 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 
 	history, err := loadPromptHistory()
 	appModel := model{
-		transcript:              newTranscript(),
-		input:                   newInputComposer(),
-		width:                   defaultWidth,
-		height:                  defaultHeight,
-		status:                  newStatusModel(),
-		sessionTitle:            defaultSessionTitle,
-		modelName:               "GPT 5.5",
-		context:                 "60,000 used · 65%",
-		showIntro:               true,
-		reasoningMessageIndex:   -1,
-		history:                 history,
-		chatClient:              client,
-		chatCtx:                 ctx,
-		thinkingComposerEnabled: cfg.TUIThinkingComposerEnabled(),
+		transcript: newTranscript(),
+		input:      newInputComposer(),
+		tuiState:   newTUIState(history, cfg.TUIThinkingComposerEnabled()),
+		chatClient: client,
+		chatCtx:    ctx,
 	}
 	if timeline, ok := client.(sessionTimelineLoader); ok {
 		appModel.timeline = timeline
 	}
-	appModel.historyAt = len(appModel.history)
 	if err != nil {
 		appModel.status.setTransient("prompt history unavailable")
 	}
@@ -110,15 +73,14 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 
 // Init focuses the input composer when Bubble Tea starts the program.
 func (m model) Init() tea.Cmd {
-	return tea.Batch(m.input.Focus(), m.statusExpireCmd(), loadSessionTimelineCmd(m.chatCtx, m.timeline))
+	return tea.Batch(m.input.Focus(), m.statusExpireCmd(), m.runEffect(loadSessionTimelineEffect{}))
 }
 
 // Update handles terminal events and delegates ordinary input to child models.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = max(msg.Width, 1)
-		m.height = max(msg.Height, 1)
+		m.applyAction(setViewportSizeAction{Width: msg.Width, Height: msg.Height})
 		m.resize()
 		return m, nil
 	case exitConfirmationExpiredMsg:

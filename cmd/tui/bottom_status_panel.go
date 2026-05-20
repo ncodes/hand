@@ -52,7 +52,7 @@ func renderBottomStatusMutedText(text string) string {
 
 	return lipgloss.NewStyle().
 		Inline(true).
-		Foreground(lipgloss.Color("8")).
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
 		Render(text)
 }
 

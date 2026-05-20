@@ -143,7 +143,7 @@ func (m *model) applyTUIMessage(msg any) tea.Cmd {
 
 func (m *model) addTranscriptMessage(msg any) {
 	if cell := tuiMessageToTranscriptCell(msg); cell != nil && !cell.IsEmpty() {
-		m.messages = append(m.messages, cell)
+		m.applyAction(appendTranscriptCellAction{Cell: cell})
 		if m.responding {
 			m.setTranscriptContentForResponseUpdate()
 		} else {
@@ -180,7 +180,7 @@ func (m *model) appendAssistantDelta(delta string) {
 	}
 
 	m.stream.Add(delta)
-	m.live = assistantTranscriptCell{text: m.stream.Render()}
+	m.applyAction(setLiveTranscriptCellAction{Cell: assistantTranscriptCell{text: m.stream.Render()}})
 	m.setTranscriptContentForResponseUpdate()
 	m.resize()
 }
@@ -193,7 +193,7 @@ func (m *model) completeAssistantResponse(text string) {
 		m.stream.Reset()
 	}
 	if strings.TrimSpace(reply) == "" {
-		m.live = nil
+		m.applyAction(setLiveTranscriptCellAction{})
 		m.collapseReasoningTranscript()
 		m.setTranscriptContentAfterResponseCompletion()
 		m.resize()
@@ -201,8 +201,8 @@ func (m *model) completeAssistantResponse(text string) {
 	}
 
 	m.collapseReasoningTranscript()
-	m.messages = append(m.messages, assistantTranscriptCell{text: reply})
-	m.live = nil
+	m.applyAction(appendTranscriptCellAction{Cell: assistantTranscriptCell{text: reply}})
+	m.applyAction(setLiveTranscriptCellAction{})
 	m.setTranscriptContentAfterResponseCompletion()
 	m.resize()
 }
