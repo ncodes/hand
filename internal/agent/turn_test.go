@@ -616,7 +616,7 @@ func TestTurn_RunReturnsAppendSessionErrorAfterAssistantResponse(t *testing.T) {
 }
 
 func TestTurn_RunStreamsDeltasImmediatelyWhenNoToolsAreAvailable(t *testing.T) {
-	turn, _ := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{
+	turn, manager := newTestTurnHarness(t, nil, tools.NewInMemoryRegistry(), &mocks.ModelClientStub{
 		Responses: []*models.Response{{OutputText: "reply"}},
 		Deltas: [][]models.StreamDelta{{
 			{Channel: models.StreamChannelReasoning, Text: "thinking"},
@@ -640,6 +640,15 @@ func TestTurn_RunStreamsDeltasImmediatelyWhenNoToolsAreAvailable(t *testing.T) {
 		{Kind: EventKindTextDelta, Channel: "assistant", Text: "re"},
 		{Kind: EventKindTextDelta, Channel: "assistant", Text: "ply"},
 	}, events)
+
+	traceResult, err := manager.ListTraceEvents(context.Background(), storage.TraceQuery{
+		SessionID: turn.sessionID,
+		Types:     []string{trace.EvtModelReasoningCompleted},
+	})
+	require.NoError(t, err)
+	require.Len(t, traceResult.Events, 1)
+	reasoningEvent := traceResult.Events[0]
+	require.Equal(t, float64(1000), reasoningEvent.Payload.(map[string]any)["duration_ms"])
 }
 
 func TestTurn_RunFansOutTraceEventsWhenCallbackIsProvided(t *testing.T) {

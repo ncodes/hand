@@ -150,7 +150,6 @@ func renderUserTranscriptHeightStrip(block string, width int) string {
 func renderReasoningTranscriptCell(body string, width int) string {
 	contentWidth := max(width, 1)
 	wrapWidth := max(contentWidth-4, 1)
-	dotStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolBranch))
 	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolTitle))
 	branchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolBranch))
 	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(defaultTUITheme.ToolDetail))
@@ -167,7 +166,7 @@ func renderReasoningTranscriptCell(body string, width int) string {
 		return ""
 	}
 
-	rendered := []string{dotStyle.Render("◌") + " " + titleStyle.Render("Thinking")}
+	rendered := []string{titleStyle.Render("Thinking")}
 	first := true
 	for _, line := range reasoningLines {
 		for _, wrapped := range strings.Split(wordwrap.String(line, wrapWidth), "\n") {

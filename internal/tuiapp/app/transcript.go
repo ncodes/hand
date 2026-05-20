@@ -125,6 +125,8 @@ func (m *model) applyTUIMessage(msg any) tea.Cmd {
 		}
 	case assistantResponseCompletedMsg:
 		m.completeAssistantResponse(value.Text)
+	case reasoningCompletedMsg:
+		m.addTranscriptMessage(value)
 	case sessionErrorMsg:
 		m.addTranscriptMessage(value)
 		return m.setStatus("response failed")

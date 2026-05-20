@@ -179,7 +179,3 @@ func getTimelineToolCallDetails(messages []agent.SessionTimelineMessage) map[str
 func tuiMessageToTranscriptCell(msg any) transcriptCell {
 	return defaultTranscriptCellFactory.FromTUIMessage(msg)
 }
-
-func safetyEventToTranscriptCell(msg safetyEventMsg) transcriptCell {
-	return defaultTranscriptCellFactory.Safety(msg)
-}

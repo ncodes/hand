@@ -15,6 +15,7 @@ const (
 	EvtUserMessageAccepted                        = "user.message.accepted"
 	EvtModelRequest                               = "model.request"
 	EvtModelResponse                              = "model.response"
+	EvtModelReasoningCompleted                    = "model.reasoning.completed"
 	EvtFinalAssistantResponse                     = "final.assistant.response"
 	EvtToolInvocationStarted                      = "tool.invocation.started"
 	EvtToolInvocationCompleted                    = "tool.invocation.completed"

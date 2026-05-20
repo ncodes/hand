@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -97,6 +98,16 @@ func TestTraceEventToTUIMessage_ConvertsAssistantResponseCompleted(t *testing.T)
 
 	require.True(t, ok)
 	require.Equal(t, assistantResponseCompletedMsg{Text: "done"}, msg)
+}
+
+func TestTraceEventToTUIMessage_ConvertsReasoningCompleted(t *testing.T) {
+	msg, ok := traceEventToTUIMessage(trace.Event{
+		Type:    trace.EvtModelReasoningCompleted,
+		Payload: map[string]any{"duration_ms": float64(2500)},
+	})
+
+	require.True(t, ok)
+	require.Equal(t, reasoningCompletedMsg{Duration: 2500 * time.Millisecond}, msg)
 }
 
 func TestTraceEventToTUIMessage_ConvertsToolInvocationStarted(t *testing.T) {

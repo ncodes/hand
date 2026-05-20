@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	ctxbuilder "github.com/wandxy/hand/internal/agent/context"
 	"github.com/wandxy/hand/internal/agent/context/compaction"
@@ -299,12 +300,21 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			Msg("model request dispatch started")
 
 		var resp *models.Response
+		var reasoningStartedAt time.Time
+		var reasoningEndedAt time.Time
 		if streamingEnabled {
 			deltas := make([]Event, 0, 16)
 			allowLiveDelivery := opts.OnEvent != nil
 			resp, err = t.modelClient.CompleteStream(ctx, request, func(delta models.StreamDelta) {
 				if delta.Text == "" {
 					return
+				}
+				if delta.Channel == models.StreamChannelReasoning {
+					now := time.Now().UTC()
+					if reasoningStartedAt.IsZero() {
+						reasoningStartedAt = now
+					}
+					reasoningEndedAt = now
 				}
 				event := Event{Kind: EventKindTextDelta, Channel: string(delta.Channel), Text: delta.Text}
 				if allowLiveDelivery {
@@ -343,6 +353,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			return "", err
 		}
 
+		t.recordModelReasoningCompleted(reasoningStartedAt, reasoningEndedAt)
 		recordModelResponse(traceSession, resp)
 
 		agentLog.Info().
@@ -500,6 +511,40 @@ func (t *Turn) applyAssistantOutputSafety(traceSession trace.Session, output str
 	}
 
 	return result.Content
+}
+
+func (t *Turn) recordModelReasoningCompleted(startedAt time.Time, endedAt time.Time) {
+	if t == nil || t.stateMgr == nil || t.sessionID == "" || startedAt.IsZero() {
+		return
+	}
+	if endedAt.IsZero() || endedAt.Before(startedAt) {
+		endedAt = startedAt
+	}
+
+	duration := max(endedAt.Sub(startedAt).Round(time.Millisecond), time.Second)
+
+	event := storage.TraceEvent{
+		SessionID: t.sessionID,
+		Type:      trace.EvtModelReasoningCompleted,
+		Timestamp: endedAt,
+		Payload:   map[string]any{"duration_ms": duration.Milliseconds()},
+	}
+	if _, err := t.stateMgr.AppendTraceEvent(t.ctx, event); err != nil {
+		if !errors.Is(err, storage.ErrTraceStoreUnsupported) {
+			agentLog.Warn().
+				Err(err).
+				Str("event", trace.EvtModelReasoningCompleted).
+				Str("session_id", t.sessionID).
+				Msg("failed to persist reasoning completion trace")
+		}
+		return
+	}
+
+	agentLog.Debug().
+		Str("event", trace.EvtModelReasoningCompleted).
+		Str("session_id", t.sessionID).
+		Int64("duration_ms", duration.Milliseconds()).
+		Msg("model reasoning completed")
 }
 
 func (t *Turn) getOutputRedactor() guardrails.Redactor {

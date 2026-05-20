@@ -198,6 +198,9 @@ func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
 			result["step_count"] = len(steps)
 		}
 		return result, true
+	case trace.EvtModelReasoningCompleted:
+		result := getRPCTraceFields(fields, "duration_ms")
+		return result, len(result) > 0
 	case trace.EvtFinalAssistantResponse:
 		result := getRPCTraceFields(fields, "message", "text")
 		return result, len(result) > 0

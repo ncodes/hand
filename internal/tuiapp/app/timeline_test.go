@@ -264,7 +264,7 @@ func TestRenderTranscriptCell_RendersReasoningDeltas(t *testing.T) {
 	rendered := renderTranscriptTestCellWithWidth(reasoningTranscriptCell{text: "first token\nsecond token"}, 40)
 
 	plain := stripANSI(rendered)
-	require.Contains(t, plain, "◌ Thinking")
+	require.Contains(t, plain, "Thinking")
 	require.Contains(t, plain, "└ first token")
 	require.Contains(t, plain, "  second token")
 	require.NotContains(t, plain, "Reasoning:")
@@ -763,6 +763,30 @@ func TestSessionTimelineToTranscriptCells_InterleavesMessagesAndTraceEventsByTim
 		transcriptCellPlainText(toolTranscriptTestCellWithTiming("", "web_search", "", time.Time{}, now.Add(3*time.Second), true)),
 		"You: Hi",
 		"Hand: Hi there",
+	}, transcriptCellPlainTexts(cells))
+}
+
+func TestSessionTimelineToTranscriptCells_RendersPersistedThoughtSummary(t *testing.T) {
+	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
+
+	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
+		Messages: []agent.SessionTimelineMessage{
+			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "think", CreatedAt: now}},
+			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "done", CreatedAt: now.Add(2 * time.Second)}},
+		},
+		TraceEvents: []agent.SessionTimelineTraceEvent{{
+			Event: storage.TraceEvent{
+				Type:      trace.EvtModelReasoningCompleted,
+				Timestamp: now.Add(time.Second),
+				Payload:   map[string]any{"duration_ms": float64(2000)},
+			},
+		}},
+	})
+
+	require.Equal(t, []string{
+		"You: think",
+		"Thought: 2s",
+		"Hand: done",
 	}, transcriptCellPlainTexts(cells))
 }
 

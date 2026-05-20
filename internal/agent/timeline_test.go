@@ -12,6 +12,7 @@ import (
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	storagemock "github.com/wandxy/hand/internal/state/mock"
+	"github.com/wandxy/hand/internal/trace"
 )
 
 func TestAgent_GetSessionTimelineReturnsPagedMessagesAndTraceEvents(t *testing.T) {
@@ -89,6 +90,38 @@ func TestAgent_GetSessionTimelineDefaultsToRecentMessageTail(t *testing.T) {
 	require.Equal(t, 2, timeline.Messages[0].Offset)
 	require.Equal(t, "latest user", timeline.Messages[len(timeline.Messages)-2].Message.Content)
 	require.Equal(t, "latest assistant", timeline.Messages[len(timeline.Messages)-1].Message.Content)
+}
+
+func TestAgent_GetSessionTimelineDefaultsToRecentTraceTail(t *testing.T) {
+	ctx := context.Background()
+	manager := mustNewStateManager(t)
+	session, err := manager.Resolve(ctx, "")
+	require.NoError(t, err)
+
+	traceAt := time.Date(2026, 5, 16, 11, 0, 0, 0, time.UTC)
+	for index := 0; index < defaultSessionTimelineLimit+2; index++ {
+		eventType := "old"
+		if index == defaultSessionTimelineLimit+1 {
+			eventType = trace.EvtModelReasoningCompleted
+		}
+		_, err := manager.AppendTraceEvent(ctx, storage.TraceEvent{
+			SessionID: session.ID,
+			Type:      eventType,
+			Timestamp: traceAt.Add(time.Duration(index) * time.Second),
+			Payload:   map[string]any{"duration_ms": int64(2000)},
+		})
+		require.NoError(t, err)
+	}
+
+	timeline, err := (&Agent{stateMgr: manager}).GetSessionTimeline(ctx, SessionTimelineOptions{})
+
+	require.NoError(t, err)
+	require.True(t, timeline.TracesHasMore)
+	require.True(t, timeline.TracesTruncatedBefore)
+	require.Len(t, timeline.TraceEvents, defaultSessionTimelineLimit)
+	require.Equal(t, 3, timeline.FirstTraceSequence)
+	require.Equal(t, defaultSessionTimelineLimit+2, timeline.LastTraceSequence)
+	require.Equal(t, trace.EvtModelReasoningCompleted, timeline.TraceEvents[len(timeline.TraceEvents)-1].Event.Type)
 }
 
 func TestAgent_GetSessionTimelineReportsRetainedTraceGap(t *testing.T) {

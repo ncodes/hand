@@ -103,22 +103,30 @@ func (a *Agent) loadTimelineTraceEvents(
 	sessionID string,
 	opts SessionTimelineOptions,
 ) ([]SessionTimelineTraceEvent, bool, bool, error) {
+
 	limit := getTimelineLimit(opts.TraceLimit)
+
 	query := storage.TraceQuery{
 		SessionID:   sessionID,
 		Limit:       limit + 1,
 		MinSequence: opts.TraceOffset,
 	}
+
+	defaultRecentTail := opts.TraceOffset == 0 && opts.TraceLimit <= 0
+	if defaultRecentTail {
+		query.Desc = true
+	}
+
 	result, err := a.stateMgr.ListTraceEvents(ctx, query)
 	if err != nil {
 		if errors.Is(err, storage.ErrTraceStoreUnsupported) {
 			return nil, false, false, nil
 		}
-
 		return nil, false, false, err
 	}
 
 	events := result.Events
+
 	truncatedBefore, err := a.hasTruncatedTraceHistory(ctx, sessionID, opts.TraceOffset, events)
 	if err != nil {
 		return nil, false, false, err
@@ -129,12 +137,24 @@ func (a *Agent) loadTimelineTraceEvents(
 		events = events[:limit]
 	}
 
+	if defaultRecentTail {
+		reverseTraceEvents(events)
+	}
+
 	timelineEvents := make([]SessionTimelineTraceEvent, 0, len(events))
 	for _, event := range events {
-		timelineEvents = append(timelineEvents, SessionTimelineTraceEvent{Event: storage.CloneTraceEvent(event)})
+		timelineEvents = append(timelineEvents, SessionTimelineTraceEvent{
+			Event: storage.CloneTraceEvent(event),
+		})
 	}
 
 	return timelineEvents, hasMore, truncatedBefore, nil
+}
+
+func reverseTraceEvents(events []storage.TraceEvent) {
+	for left, right := 0, len(events)-1; left < right; left, right = left+1, right-1 {
+		events[left], events[right] = events[right], events[left]
+	}
 }
 
 func (a *Agent) hasTruncatedTraceHistory(

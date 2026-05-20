@@ -24,6 +24,10 @@ type assistantResponseCompletedMsg struct {
 	Text string
 }
 
+type reasoningCompletedMsg struct {
+	Duration time.Duration
+}
+
 type toolInvocationStartedMsg struct {
 	ID        string
 	Name      string
@@ -76,6 +80,10 @@ func traceEventToTUIMessage(event trace.Event) (any, bool) {
 	case trace.EvtFinalAssistantResponse:
 		if text := getPayloadString(event.Payload, "message", "text"); text != "" {
 			return assistantResponseCompletedMsg{Text: text}, true
+		}
+	case trace.EvtModelReasoningCompleted:
+		if duration := getPayloadDuration(event.Payload, "duration_ms"); duration > 0 {
+			return reasoningCompletedMsg{Duration: duration}, true
 		}
 	case trace.EvtToolInvocationStarted:
 		msg, ok := toolCallPayloadToTUIMessage(event.Payload)
@@ -208,6 +216,35 @@ func getPayloadBool(payload any, key string) bool {
 	}
 
 	return false
+}
+
+func getPayloadDuration(payload any, key string) time.Duration {
+	fields := getPayloadFields(payload)
+	value, ok := fields[key]
+	if !ok {
+		return 0
+	}
+
+	switch typed := value.(type) {
+	case float64:
+		return time.Duration(typed) * time.Millisecond
+	case float32:
+		return time.Duration(typed) * time.Millisecond
+	case int:
+		return time.Duration(typed) * time.Millisecond
+	case int64:
+		return time.Duration(typed) * time.Millisecond
+	case int32:
+		return time.Duration(typed) * time.Millisecond
+	case json.Number:
+		milliseconds, err := typed.Int64()
+		if err != nil {
+			return 0
+		}
+		return time.Duration(milliseconds) * time.Millisecond
+	default:
+		return 0
+	}
 }
 
 func getPayloadFields(payload any) map[string]any {
