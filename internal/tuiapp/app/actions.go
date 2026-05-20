@@ -3,6 +3,9 @@ package tui
 import (
 	"strings"
 	"time"
+
+	tuistate "github.com/wandxy/hand/internal/tuiapp/state"
+	tuitranscript "github.com/wandxy/hand/internal/tuiapp/transcript"
 )
 
 type tuiAction interface {
@@ -47,8 +50,9 @@ func (action setViewportSizeAction) apply(state *tuiState) {
 		return
 	}
 
-	state.width = max(action.Width, 1)
-	state.height = max(action.Height, 1)
+	viewport := tuistate.NormalizeViewport(action.Width, action.Height)
+	state.width = viewport.Width
+	state.height = viewport.Height
 }
 
 func (action appendTranscriptCellAction) apply(state *tuiState) {
@@ -130,12 +134,5 @@ func (m *model) applyAction(action tuiAction) {
 }
 
 func cloneTranscriptCells(cells []transcriptCell) []transcriptCell {
-	if len(cells) == 0 {
-		return nil
-	}
-
-	cloned := make([]transcriptCell, len(cells))
-	copy(cloned, cells)
-
-	return cloned
+	return tuitranscript.CloneCells(cells)
 }

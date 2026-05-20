@@ -1,56 +1,28 @@
 package tui
 
 import (
-	"strings"
-
 	tea "charm.land/bubbletea/v2"
+
+	tuicomposer "github.com/wandxy/hand/internal/tuiapp/composer"
 )
 
-type composerInputKind int
+type composerInputKind = tuicomposer.InputKind
 
 const (
-	composerInputEmpty composerInputKind = iota
-	composerInputPrompt
-	composerInputCommand
-	composerInputLocalCommand
+	composerInputEmpty        = tuicomposer.InputEmpty
+	composerInputPrompt       = tuicomposer.InputPrompt
+	composerInputCommand      = tuicomposer.InputCommand
+	composerInputLocalCommand = tuicomposer.InputLocalCommand
 )
 
-type composerInput struct {
-	Kind composerInputKind
-	Text string
-	Name string
-	Args string
-}
+type composerInput = tuicomposer.Input
 
 func parseComposerInput(value string) composerInput {
-	text := strings.TrimSpace(value)
-	if text == "" {
-		return composerInput{Kind: composerInputEmpty}
-	}
-
-	if command, ok := strings.CutPrefix(text, "/"); ok {
-		name, args, _ := strings.Cut(strings.TrimSpace(command), " ")
-		return composerInput{
-			Kind: composerInputCommand,
-			Text: text,
-			Name: strings.ToLower(strings.TrimSpace(name)),
-			Args: strings.TrimSpace(args),
-		}
-	}
-
-	if command, ok := strings.CutPrefix(text, "!"); ok {
-		return composerInput{
-			Kind: composerInputLocalCommand,
-			Text: text,
-			Args: strings.TrimSpace(command),
-		}
-	}
-
-	return composerInput{Kind: composerInputPrompt, Text: text}
+	return tuicomposer.ParseInput(value)
 }
 
 func normalizeComposerPaste(value string) string {
-	return strings.TrimRight(value, "\r\n")
+	return tuicomposer.NormalizePaste(value)
 }
 
 // submitPrompt routes a non-empty composer value to prompt or command handling.

@@ -11,8 +11,8 @@ func TestStatusModel_TextFallsBackToDefaultAndSubmitHint(t *testing.T) {
 	status := newStatusModel()
 	require.Equal(t, defaultStatus, status.Text())
 
-	status.defaultText = ""
-	require.Equal(t, "enter to send · ctrl+c to quit", status.Text())
+	setStatusDefault(&status, "")
+	require.Equal(t, statusReadySuffix, status.Text())
 }
 
 func TestStatusModel_SetTransientExpiresMatchingStatus(t *testing.T) {
@@ -26,40 +26,39 @@ func TestStatusModel_SetTransientExpiresMatchingStatus(t *testing.T) {
 	}
 
 	status := newStatusModel()
-	cmd := status.setTransient("saved")
+	cmd := setStatusTransient(&status, "saved")
 
 	require.NotNil(t, cmd)
-	require.True(t, status.hasTransient())
+	require.True(t, statusHasTransient(status))
 	require.Equal(t, "saved", status.Text())
 
-	status.expire(statusExpiredMsg{startedAt: now.Add(time.Second)})
+	expireStatus(&status, statusExpiredMsg{startedAt: now.Add(time.Second)})
 	require.Equal(t, "saved", status.Text())
 
-	status.expire(statusExpiredMsg{startedAt: now})
-	require.False(t, status.hasTransient())
+	expireStatus(&status, statusExpiredMsg{startedAt: now})
+	require.False(t, statusHasTransient(status))
 	require.Equal(t, defaultStatus, status.Text())
 }
 
 func TestStatusModel_SetTransientBlankClearsStatus(t *testing.T) {
 	status := newStatusModel()
-	status.text = "saved"
-	status.startedAt = time.Date(2026, 5, 17, 10, 0, 0, 0, time.UTC)
+	status.SetTransient("saved", time.Date(2026, 5, 17, 10, 0, 0, 0, time.UTC))
 
-	cmd := status.setTransient(" ")
+	cmd := setStatusTransient(&status, " ")
 
 	require.Nil(t, cmd)
-	require.False(t, status.hasTransient())
+	require.False(t, statusHasTransient(status))
 	require.Equal(t, defaultStatus, status.Text())
 }
 
 func TestStatusModel_SetTransientUsesDefaultWindowWhenUnset(t *testing.T) {
 	status := newStatusModel()
-	status.hideAfter = 0
+	status.SetHideAfter(0)
 
-	cmd := status.setTransient("saved")
+	cmd := setStatusTransient(&status, "saved")
 
 	require.NotNil(t, cmd)
-	require.True(t, status.hasTransient())
+	require.True(t, statusHasTransient(status))
 	require.Equal(t, "saved", status.Text())
 }
 
@@ -74,8 +73,8 @@ func TestStatusModel_SetTransientExpirationCommandReturnsStartedAt(t *testing.T)
 	}
 
 	status := newStatusModel()
-	status.hideAfter = time.Nanosecond
-	cmd := status.setTransient("saved")
+	status.SetHideAfter(time.Nanosecond)
+	cmd := setStatusTransient(&status, "saved")
 
 	require.NotNil(t, cmd)
 	require.Equal(t, statusExpiredMsg{startedAt: now}, cmd())

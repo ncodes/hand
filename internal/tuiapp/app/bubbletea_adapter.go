@@ -15,7 +15,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case exitConfirmationExpiredMsg:
 		return m.expireExitConfirmation(msg), nil
 	case statusExpiredMsg:
-		m.status.expire(msg)
+		expireStatus(&m.status, msg)
 		return m, nil
 	case toolAnimationTickMsg:
 		return m.updateToolAnimation()

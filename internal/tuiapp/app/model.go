@@ -63,10 +63,18 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 		appModel.timeline = timeline
 	}
 	if err != nil {
-		appModel.status.setTransient("prompt history unavailable")
+		setStatusTransient(&appModel.status, "prompt history unavailable")
 	}
 	appModel.resize()
 	appModel.setTranscriptContent()
 
 	return appModel
+}
+
+func NewModelWithClientContextAndConfig(
+	ctx context.Context,
+	client rpcclient.ChatAPI,
+	cfg *config.Config,
+) tea.Model {
+	return newModelWithClientContextAndConfig(ctx, client, cfg)
 }

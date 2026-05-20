@@ -14,19 +14,13 @@ import (
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
+	tuirpc "github.com/wandxy/hand/internal/tuiapp/rpc"
 )
 
-type sessionTimelineLoader interface {
-	GetSessionTimeline(context.Context, rpcclient.SessionTimelineOptions) (rpcclient.SessionTimeline, error)
-}
-
-type sessionTimelineLoadedMsg struct {
-	Timeline rpcclient.SessionTimeline
-}
-
-type sessionTimelineLoadFailedMsg struct {
-	Err error
-}
+type sessionTimelineLoader = tuirpc.SessionTimelineLoader
+type SessionTimelineLoader = tuirpc.SessionTimelineLoader
+type sessionTimelineLoadedMsg = tuirpc.SessionTimelineLoaded
+type sessionTimelineLoadFailedMsg = tuirpc.SessionTimelineLoadFailed
 
 func loadSessionTimelineCmd(ctx context.Context, client sessionTimelineLoader) tea.Cmd {
 	if client == nil {

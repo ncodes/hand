@@ -1,6 +1,6 @@
-package tui
+package render
 
-type tuiTheme struct {
+type Theme struct {
 	InputFrameBackground     string
 	InputFrameBorder         string
 	UserTranscriptBackground string
@@ -25,7 +25,7 @@ type tuiTheme struct {
 	MarkdownLinkForeground   string
 }
 
-var defaultTUITheme = tuiTheme{
+var DefaultTheme = Theme{
 	InputFrameBackground:     "#050505",
 	InputFrameBorder:         "8",
 	UserTranscriptBackground: "#151515",

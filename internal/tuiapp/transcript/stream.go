@@ -1,13 +1,13 @@
-package tui
+package transcript
 
 import "strings"
 
-type markdownStreamCollector struct {
+type MarkdownStreamCollector struct {
 	stable []string
 	tail   string
 }
 
-func (c *markdownStreamCollector) Add(delta string) []string {
+func (c *MarkdownStreamCollector) Add(delta string) []string {
 	if delta == "" {
 		return nil
 	}
@@ -25,18 +25,18 @@ func (c *markdownStreamCollector) Add(delta string) []string {
 	return []string{chunk}
 }
 
-func (c markdownStreamCollector) Render() string {
+func (c MarkdownStreamCollector) Render() string {
 	return strings.Join(c.stable, "") + c.tail
 }
 
-func (c *markdownStreamCollector) Finalize() string {
+func (c *MarkdownStreamCollector) Finalize() string {
 	text := c.Render()
 	c.Reset()
 
 	return text
 }
 
-func (c *markdownStreamCollector) Reset() {
+func (c *MarkdownStreamCollector) Reset() {
 	c.stable = nil
 	c.tail = ""
 }

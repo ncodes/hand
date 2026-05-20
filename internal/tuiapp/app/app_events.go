@@ -3,44 +3,23 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	tuievents "github.com/wandxy/hand/internal/tuiapp/events"
 )
 
-type tuiEvent interface {
-	tuiEvent()
-}
+type tuiEvent = tuievents.Event
 
-type viewportResizedEvent struct {
-	Width  int
-	Height int
-}
+type viewportResizedEvent = tuievents.ViewportResizedEvent
 
-type submitComposerEvent struct{}
-type copyTranscriptEvent struct{}
-type jumpTranscriptToBottomEvent struct{}
-type showPreviousPromptEvent struct{}
-type showNextPromptEvent struct{}
-type insertInputNewlineEvent struct{}
-type deleteInputLineEvent struct{}
+type submitComposerEvent = tuievents.SubmitComposerEvent
+type copyTranscriptEvent = tuievents.CopyTranscriptEvent
+type jumpTranscriptToBottomEvent = tuievents.JumpTranscriptToBottomEvent
+type showPreviousPromptEvent = tuievents.ShowPreviousPromptEvent
+type showNextPromptEvent = tuievents.ShowNextPromptEvent
+type insertInputNewlineEvent = tuievents.InsertInputNewlineEvent
+type deleteInputLineEvent = tuievents.DeleteInputLineEvent
 
-type applyTUIMessageEvent struct {
-	Message any
-}
-
-type hydrateTimelineEvent struct {
-	Timeline rpcclient.SessionTimeline
-}
-
-func (viewportResizedEvent) tuiEvent()        {}
-func (submitComposerEvent) tuiEvent()         {}
-func (copyTranscriptEvent) tuiEvent()         {}
-func (jumpTranscriptToBottomEvent) tuiEvent() {}
-func (showPreviousPromptEvent) tuiEvent()     {}
-func (showNextPromptEvent) tuiEvent()         {}
-func (insertInputNewlineEvent) tuiEvent()     {}
-func (deleteInputLineEvent) tuiEvent()        {}
-func (applyTUIMessageEvent) tuiEvent()        {}
-func (hydrateTimelineEvent) tuiEvent()        {}
+type applyTUIMessageEvent = tuievents.ApplyTUIMessageEvent
+type hydrateTimelineEvent = tuievents.HydrateTimelineEvent
 
 func (m model) handleAppEvent(event tuiEvent) (model, tea.Cmd) {
 	switch value := event.(type) {

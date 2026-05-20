@@ -6,22 +6,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	tuirpc "github.com/wandxy/hand/internal/tuiapp/rpc"
 )
 
-type responseEventMsg struct {
-	ResponseID int
-	Message    tea.Msg
-}
-
-type responseEventsClosedMsg struct {
-	ResponseID int
-}
-
-type responseCompletedMsg struct {
-	ResponseID int
-	Text       string
-	Err        error
-}
+type responseEventMsg = tuirpc.ResponseEvent
+type responseEventsClosedMsg = tuirpc.ResponseEventsClosed
+type responseCompletedMsg = tuirpc.ResponseCompleted
 
 func respondToPromptCmd(
 	client rpcclient.ChatAPI,
