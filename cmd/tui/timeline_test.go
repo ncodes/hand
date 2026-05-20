@@ -14,6 +14,59 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 )
 
+func transcriptCellPlainText(cell transcriptCell) string {
+	if cell == nil || cell.IsEmpty() {
+		return ""
+	}
+
+	return cell.PlainText()
+}
+
+func transcriptCellPlainTexts(cells []transcriptCell) []string {
+	values := make([]string, 0, len(cells))
+	for _, cell := range cells {
+		if value := transcriptCellPlainText(cell); value != "" {
+			values = append(values, value)
+		}
+	}
+
+	return values
+}
+
+func renderTranscriptTestCellWithWidth(cell transcriptCell, width int) string {
+	if cell == nil || cell.IsEmpty() {
+		return ""
+	}
+	if toolCell, ok := cell.(toolTranscriptCell); ok {
+		group := toolTranscriptGroup{action: toolCell.action}
+		group.add(toolCell)
+		return renderToolTranscriptGroup(group, 0)
+	}
+
+	return cell.Render(transcriptRenderContext{Width: width, Now: currentTime()})
+}
+
+func renderTranscriptTestCell(cell transcriptCell) string {
+	return renderTranscriptTestCellWithWidth(cell, defaultWidth)
+}
+
+func toolTranscriptTestCell(id string, name string, detail string, completed ...bool) transcriptCell {
+	isCompleted := len(completed) > 0 && completed[0]
+
+	return newToolTranscriptCell(id, name, detail, time.Time{}, time.Time{}, isCompleted)
+}
+
+func toolTranscriptTestCellWithTiming(
+	id string,
+	name string,
+	detail string,
+	startedAt time.Time,
+	completedAt time.Time,
+	completed bool,
+) transcriptCell {
+	return newToolTranscriptCell(id, name, detail, startedAt, completedAt, completed)
+}
+
 func TestTimelineMessageToTranscriptCell_MapsVisibleRoles(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -33,12 +86,12 @@ func TestTimelineMessageToTranscriptCell_MapsVisibleRoles(t *testing.T) {
 		{
 			name:    "tool",
 			message: handmsg.Message{Role: handmsg.RoleTool, Name: "read_file", Content: "done"},
-			want:    toolOperationTranscriptCell("", "read_file", "", true),
+			want:    transcriptCellPlainText(toolTranscriptTestCell("", "read_file", "", true)),
 		},
 		{
 			name:    "tool fallback",
 			message: handmsg.Message{Role: handmsg.RoleTool, Content: "done"},
-			want:    toolOperationTranscriptCell("", "tool", "", true),
+			want:    transcriptCellPlainText(toolTranscriptTestCell("", "tool", "", true)),
 		},
 		{
 			name:    "unknown",
@@ -54,7 +107,7 @@ func TestTimelineMessageToTranscriptCell_MapsVisibleRoles(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, legacyTranscriptCellString(timelineMessageToTranscriptCell(tt.message, nil)))
+			require.Equal(t, tt.want, transcriptCellPlainText(timelineMessageToTranscriptCell(tt.message, nil)))
 		})
 	}
 }
@@ -69,8 +122,8 @@ func TestTUIMessageToTranscriptCell_MapsLiveDisplayMessages(t *testing.T) {
 		{name: "assistant delta", msg: assistantTextDeltaMsg{Text: "hi"}, want: "Hand: hi"},
 		{name: "reasoning delta", msg: assistantTextDeltaMsg{Channel: "reasoning", Text: "thinking"}, want: "Reasoning: thinking"},
 		{name: "assistant complete", msg: assistantResponseCompletedMsg{Text: "done"}, want: "Hand: done"},
-		{name: "tool started", msg: toolInvocationStartedMsg{Name: "read_file"}, want: toolOperationTranscriptCell("", "read_file", "")},
-		{name: "tool completed", msg: toolInvocationCompletedMsg{Name: "read_file"}, want: toolOperationTranscriptCell("", "read_file", "", true)},
+		{name: "tool started", msg: toolInvocationStartedMsg{Name: "read_file"}, want: transcriptCellPlainText(toolTranscriptTestCell("", "read_file", ""))},
+		{name: "tool completed", msg: toolInvocationCompletedMsg{Name: "read_file"}, want: transcriptCellPlainText(toolTranscriptTestCell("", "read_file", "", true))},
 		{name: "safety", msg: safetyEventMsg{Action: "blocked", FindingIDs: []string{"prompt_exfiltration"}}, want: "Safety: blocked: prompt_exfiltration"},
 		{name: "error", msg: sessionErrorMsg{Message: "failed"}, want: "Error: failed"},
 		{name: "empty", msg: userMessageAcceptedMsg{Text: " "}, want: ""},
@@ -79,7 +132,7 @@ func TestTUIMessageToTranscriptCell_MapsLiveDisplayMessages(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, legacyTranscriptCellString(tuiMessageToTranscriptCell(tt.msg)))
+			require.Equal(t, tt.want, transcriptCellPlainText(tuiMessageToTranscriptCell(tt.msg)))
 		})
 	}
 }
@@ -204,7 +257,7 @@ func TestRenderTranscriptCell_StylesCanonicalCells(t *testing.T) {
 }
 
 func TestRenderTranscriptCell_RendersReasoningDeltas(t *testing.T) {
-	rendered := renderTranscriptCellWithWidth("Reasoning: first token\nsecond token", 40)
+	rendered := renderTranscriptTestCellWithWidth(reasoningTranscriptCell{text: "first token\nsecond token"}, 40)
 
 	plain := stripANSI(rendered)
 	require.Contains(t, plain, "◌ Thinking")
@@ -214,7 +267,7 @@ func TestRenderTranscriptCell_RendersReasoningDeltas(t *testing.T) {
 }
 
 func TestRenderTranscriptCell_RendersCollapsedThought(t *testing.T) {
-	rendered := renderTranscriptCellWithWidth("Thought: 3s", 40)
+	rendered := renderTranscriptTestCellWithWidth(thoughtTranscriptCell{duration: 3 * time.Second}, 40)
 
 	plain := stripANSI(rendered)
 	require.Equal(t, "Thought for 3s", plain)
@@ -222,10 +275,10 @@ func TestRenderTranscriptCell_RendersCollapsedThought(t *testing.T) {
 }
 
 func TestRenderTranscriptCells_GroupsAdjacentToolOperationsByAction(t *testing.T) {
-	rendered := renderTranscriptCells([]string{
-		toolOperationTranscriptCell("call_1", "write_file", ""),
-		toolOperationTranscriptCell("call_2", "write_file", ""),
-		toolOperationTranscriptCell("call_3", "read_file", ""),
+	rendered := renderTranscriptCells([]transcriptCell{
+		toolTranscriptTestCell("call_1", "write_file", ""),
+		toolTranscriptTestCell("call_2", "write_file", ""),
+		toolTranscriptTestCell("call_3", "read_file", ""),
 	})
 	plain := stripANSI(rendered)
 
@@ -237,9 +290,9 @@ func TestRenderTranscriptCells_GroupsAdjacentToolOperationsByAction(t *testing.T
 }
 
 func TestRenderTranscriptCells_DeduplicatesStartedAndCompletedToolEvents(t *testing.T) {
-	rendered := renderTranscriptCells([]string{
-		toolOperationTranscriptCell("call_1", "web_search", `Search "what is todays news..."`),
-		toolOperationTranscriptCell("call_1", "web_search", `Search "what is todays news..."`, true),
+	rendered := renderTranscriptCells([]transcriptCell{
+		toolTranscriptTestCell("call_1", "web_search", `Search "what is todays news..."`),
+		toolTranscriptTestCell("call_1", "web_search", `Search "what is todays news..."`, true),
 	})
 	plain := stripANSI(rendered)
 
@@ -249,9 +302,9 @@ func TestRenderTranscriptCells_DeduplicatesStartedAndCompletedToolEvents(t *test
 }
 
 func TestRenderTranscriptCells_RendersMemorySearchLikeSearch(t *testing.T) {
-	rendered := renderTranscriptCells([]string{
-		toolOperationTranscriptCell("call_1", "memory_search", `Search "commit preferences"`),
-		toolOperationTranscriptCell("call_1", "memory_search", `Search "commit preferences"`, true),
+	rendered := renderTranscriptCells([]transcriptCell{
+		toolTranscriptTestCell("call_1", "memory_search", `Search "commit preferences"`),
+		toolTranscriptTestCell("call_1", "memory_search", `Search "commit preferences"`, true),
 	})
 	plain := stripANSI(rendered)
 
@@ -261,8 +314,8 @@ func TestRenderTranscriptCells_RendersMemorySearchLikeSearch(t *testing.T) {
 }
 
 func TestRenderTranscriptCells_RendersRunningMemorySearchTitle(t *testing.T) {
-	rendered := renderTranscriptCells([]string{
-		toolOperationTranscriptCell("call_1", "memory_search", `Search "commit preferences"`),
+	rendered := renderTranscriptCells([]transcriptCell{
+		toolTranscriptTestCell("call_1", "memory_search", `Search "commit preferences"`),
 	})
 	plain := stripANSI(rendered)
 
@@ -311,11 +364,11 @@ func TestRenderTranscriptCells_RendersMemoryToolsWithFriendlyText(t *testing.T) 
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			running := stripANSI(renderTranscriptCells([]string{
-				toolOperationTranscriptCell("call_1", tt.tool, ""),
+			running := stripANSI(renderTranscriptCells([]transcriptCell{
+				toolTranscriptTestCell("call_1", tt.tool, ""),
 			}))
-			completed := stripANSI(renderTranscriptCells([]string{
-				toolOperationTranscriptCell("call_1", tt.tool, "", true),
+			completed := stripANSI(renderTranscriptCells([]transcriptCell{
+				toolTranscriptTestCell("call_1", tt.tool, "", true),
 			}))
 
 			require.Contains(t, running, "● "+tt.running)
@@ -329,11 +382,11 @@ func TestRenderTranscriptCells_RendersMemoryToolsWithFriendlyText(t *testing.T) 
 }
 
 func TestRenderTranscriptCells_AnimatesRunningToolDot(t *testing.T) {
-	cells := []string{toolOperationTranscriptCell("call_1", "web_search", "")}
+	cells := []transcriptCell{toolTranscriptTestCell("call_1", "web_search", "")}
 	first := stripANSI(renderTranscriptCellsWithFrame(cells, 80, 0))
 	next := stripANSI(renderTranscriptCellsWithFrame(cells, 80, 1))
-	completed := stripANSI(renderTranscriptCellsWithFrame([]string{
-		toolOperationTranscriptCell("call_1", "web_search", "", true),
+	completed := stripANSI(renderTranscriptCellsWithFrame([]transcriptCell{
+		toolTranscriptTestCell("call_1", "web_search", "", true),
 	}, 80, 1))
 
 	require.Contains(t, first, "● Web Search")
@@ -349,11 +402,11 @@ func TestRenderTranscriptCells_RendersToolElapsedTime(t *testing.T) {
 		return startedAt.Add(10 * time.Second)
 	}
 
-	running := stripANSI(renderTranscriptCells([]string{
-		toolOperationTranscriptCellWithTiming("call_1", "list_files", "", startedAt, time.Time{}, false),
+	running := stripANSI(renderTranscriptCells([]transcriptCell{
+		toolTranscriptTestCellWithTiming("call_1", "list_files", "", startedAt, time.Time{}, false),
 	}))
-	completed := stripANSI(renderTranscriptCells([]string{
-		toolOperationTranscriptCellWithTiming("call_1", "list_files", "", startedAt, startedAt.Add(12*time.Second), true),
+	completed := stripANSI(renderTranscriptCells([]transcriptCell{
+		toolTranscriptTestCellWithTiming("call_1", "list_files", "", startedAt, startedAt.Add(12*time.Second), true),
 	}))
 
 	require.Contains(t, running, "● List Files (10s)")
@@ -364,8 +417,8 @@ func TestRenderTranscriptCells_RendersToolElapsedTime(t *testing.T) {
 
 func TestRenderTranscriptCells_RendersFileToolDetails(t *testing.T) {
 	startedAt := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
-	rendered := renderTranscriptCells([]string{
-		toolOperationTranscriptCellWithTiming(
+	rendered := renderTranscriptCells([]transcriptCell{
+		toolTranscriptTestCellWithTiming(
 			"call_1",
 			"write_file",
 			"write_file file.txt",
@@ -373,7 +426,7 @@ func TestRenderTranscriptCells_RendersFileToolDetails(t *testing.T) {
 			startedAt.Add(30*time.Second),
 			true,
 		),
-		toolOperationTranscriptCellWithTiming(
+		toolTranscriptTestCellWithTiming(
 			"call_2",
 			"patch",
 			"patch file.txt +1 -1",
@@ -381,7 +434,7 @@ func TestRenderTranscriptCells_RendersFileToolDetails(t *testing.T) {
 			startedAt.Add(30*time.Second),
 			true,
 		),
-		toolOperationTranscriptCellWithTiming(
+		toolTranscriptTestCellWithTiming(
 			"call_3",
 			"patch",
 			"patch",
@@ -389,7 +442,7 @@ func TestRenderTranscriptCells_RendersFileToolDetails(t *testing.T) {
 			startedAt.Add(30*time.Second),
 			true,
 		),
-		toolOperationTranscriptCellWithTiming(
+		toolTranscriptTestCellWithTiming(
 			"call_4",
 			"read_file",
 			"read_file file.txt",
@@ -413,8 +466,8 @@ func TestRenderTranscriptCells_RendersFileToolDetails(t *testing.T) {
 
 func TestRenderTranscriptCells_RendersSearchFilesDetail(t *testing.T) {
 	startedAt := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
-	rendered := renderTranscriptCells([]string{
-		toolOperationTranscriptCellWithTiming(
+	rendered := renderTranscriptCells([]transcriptCell{
+		toolTranscriptTestCellWithTiming(
 			"call_1",
 			"search_files",
 			`Search "println" in .`,
@@ -431,8 +484,8 @@ func TestRenderTranscriptCells_RendersSearchFilesDetail(t *testing.T) {
 }
 
 func TestRenderTranscriptCells_RendersRunCommandsWithShellLayout(t *testing.T) {
-	rendered := renderTranscriptCells([]string{
-		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 && echo "Done" [timeout 8s]`),
+	rendered := renderTranscriptCells([]transcriptCell{
+		toolTranscriptTestCell("call_1", "run_command", `sleep 10 && echo "Done" [timeout 8s]`),
 	})
 	plain := stripANSI(rendered)
 
@@ -443,8 +496,8 @@ func TestRenderTranscriptCells_RendersRunCommandsWithShellLayout(t *testing.T) {
 }
 
 func TestRenderTranscriptCells_RendersCompletedRunCommandsWithPastTense(t *testing.T) {
-	rendered := renderTranscriptCells([]string{
-		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 [timeout 30s]`, true),
+	rendered := renderTranscriptCells([]transcriptCell{
+		toolTranscriptTestCell("call_1", "run_command", `sleep 10 [timeout 30s]`, true),
 	})
 	plain := stripANSI(rendered)
 
@@ -464,8 +517,8 @@ func TestRenderTranscriptCells_NormalizesLegacyRunCommandTimeouts(t *testing.T) 
 		return startedAt.Add(6 * time.Second)
 	}
 
-	rendered := renderTranscriptCells([]string{
-		toolOperationTranscriptCellWithTiming("call_1", "run_command", "sleep 10 (30s)", startedAt, time.Time{}, false),
+	rendered := renderTranscriptCells([]transcriptCell{
+		toolTranscriptTestCellWithTiming("call_1", "run_command", "sleep 10 (30s)", startedAt, time.Time{}, false),
 	})
 	plain := stripANSI(rendered)
 
@@ -487,8 +540,8 @@ func TestRenderTranscriptCells_RemovesRunCommandTimeoutHintWhenCompleted(t *test
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			rendered := renderTranscriptCells([]string{
-				toolOperationTranscriptCellWithTiming(
+			rendered := renderTranscriptCells([]transcriptCell{
+				toolTranscriptTestCellWithTiming(
 					"call_1",
 					"run_command",
 					tt.detail,
@@ -506,7 +559,7 @@ func TestRenderTranscriptCells_RemovesRunCommandTimeoutHintWhenCompleted(t *test
 }
 
 func TestRenderTranscriptCell_RendersUserMessageBox(t *testing.T) {
-	rendered := renderTranscriptCellWithWidth("You: Some message.", 40)
+	rendered := renderTranscriptTestCellWithWidth(userTranscriptCell{text: "Some message."}, 40)
 	plain := stripANSI(rendered)
 	lines := strings.Split(plain, "\n")
 
@@ -525,7 +578,7 @@ func TestRenderTranscriptCell_RendersUserMessageBox(t *testing.T) {
 }
 
 func TestRenderTranscriptCell_RendersMultilineUserMessageWithSinglePrompt(t *testing.T) {
-	rendered := renderTranscriptCellWithWidth("You: hello\nfriend", 40)
+	rendered := renderTranscriptTestCellWithWidth(userTranscriptCell{text: "hello\nfriend"}, 40)
 	plain := stripANSI(rendered)
 	lines := strings.Split(plain, "\n")
 
@@ -539,8 +592,8 @@ func TestRenderTranscriptCell_RendersMultilineUserMessageWithSinglePrompt(t *tes
 }
 
 func TestRenderTranscriptCell_RendersAssistantMarkdown(t *testing.T) {
-	rendered := renderTranscriptCellWithWidth(
-		"Hand: # Title\n\n## Key Complications\n\n### What Could Happen Next\n\n- first\n- second\n\n```go\nfmt.Println(\"hi\")\n```",
+	rendered := renderTranscriptTestCellWithWidth(
+		assistantTranscriptCell{text: "# Title\n\n## Key Complications\n\n### What Could Happen Next\n\n- first\n- second\n\n```go\nfmt.Println(\"hi\")\n```"},
 		60,
 	)
 	plain := stripANSI(rendered)
@@ -576,12 +629,12 @@ func TestRenderTranscriptCells_AlignsAssistantMarkdownWithThoughtCell(t *testing
 }
 
 func TestRenderTranscriptCell_RendersCompactMarkdownTables(t *testing.T) {
-	rendered := renderTranscriptCellWithWidth(strings.Join([]string{
-		"Hand: | **Issue** | Details |",
+	rendered := renderTranscriptTestCellWithWidth(assistantTranscriptCell{text: strings.Join([]string{
+		"| **Issue** | Details |",
 		"| --- | --- |",
 		"| [One](https://example.com) | `Short` |",
 		"| Two | Also **short** |",
-	}, "\n"), 120)
+	}, "\n")}, 120)
 	plain := stripANSI(rendered)
 	lines := strings.Split(plain, "\n")
 
@@ -601,13 +654,13 @@ func TestRenderTranscriptCell_RendersCompactMarkdownTables(t *testing.T) {
 }
 
 func TestRenderTranscriptCell_KeepsTableCloseToPrecedingHeading(t *testing.T) {
-	rendered := renderTranscriptCellWithWidth(strings.Join([]string{
-		"Hand: ## Key Complications",
+	rendered := renderTranscriptTestCellWithWidth(assistantTranscriptCell{text: strings.Join([]string{
+		"## Key Complications",
 		"",
 		"| Issue | Details |",
 		"| --- | --- |",
 		"| One | Short |",
-	}, "\n"), 120)
+	}, "\n")}, 120)
 	lines := strings.Split(stripANSI(rendered), "\n")
 	headingIndex := indexLineContaining(lines, "Key Complications")
 	tableIndex := indexLineContaining(lines, "┌───────┬─────────┐")
@@ -618,7 +671,7 @@ func TestRenderTranscriptCell_KeepsTableCloseToPrecedingHeading(t *testing.T) {
 }
 
 func TestRenderTranscriptCell_DoesNotRenderUserMarkdown(t *testing.T) {
-	rendered := renderTranscriptCellWithWidth("You: # literal\n\n- keep", 60)
+	rendered := renderTranscriptTestCellWithWidth(userTranscriptCell{text: "# literal\n\n- keep"}, 60)
 	plain := stripANSI(rendered)
 
 	require.Contains(t, plain, "❯ # literal")
@@ -671,8 +724,8 @@ func TestSessionTimelineToTranscriptCells_SkipsMessageBackedTraceDuplicates(t *t
 	require.Equal(t, []string{
 		"You: hello there",
 		"Hand: hello back",
-		toolOperationTranscriptCellWithTiming("", "read_file", "", now.Add(2*time.Second), time.Time{}, false),
-	}, legacyTranscriptCellStrings(cells))
+		transcriptCellPlainText(toolTranscriptTestCellWithTiming("", "read_file", "", now.Add(2*time.Second), time.Time{}, false)),
+	}, transcriptCellPlainTexts(cells))
 }
 
 func TestSessionTimelineToTranscriptCells_InterleavesMessagesAndTraceEventsByTime(t *testing.T) {
@@ -702,11 +755,11 @@ func TestSessionTimelineToTranscriptCells_InterleavesMessagesAndTraceEventsByTim
 	require.Equal(t, []string{
 		"You: older prompt",
 		"Hand: older answer",
-		toolOperationTranscriptCellWithTiming("", "web_search", "", now.Add(2*time.Second), time.Time{}, false),
-		toolOperationTranscriptCellWithTiming("", "web_search", "", time.Time{}, now.Add(3*time.Second), true),
+		transcriptCellPlainText(toolTranscriptTestCellWithTiming("", "web_search", "", now.Add(2*time.Second), time.Time{}, false)),
+		transcriptCellPlainText(toolTranscriptTestCellWithTiming("", "web_search", "", time.Time{}, now.Add(3*time.Second), true)),
 		"You: Hi",
 		"Hand: Hi there",
-	}, legacyTranscriptCellStrings(cells))
+	}, transcriptCellPlainTexts(cells))
 }
 
 func TestSessionTimelineToTranscriptCells_UsesPersistedToolCallInputForToolDetails(t *testing.T) {
@@ -730,15 +783,15 @@ func TestSessionTimelineToTranscriptCells_UsesPersistedToolCallInputForToolDetai
 	})
 
 	require.Equal(t, []string{
-		toolOperationTranscriptCellWithTiming(
+		transcriptCellPlainText(toolTranscriptTestCellWithTiming(
 			"call_1",
 			"run_command",
 			"sleep 10 [timeout 30s]",
 			now,
 			now.Add(time.Second),
 			true,
-		),
-	}, legacyTranscriptCellStrings(cells))
+		)),
+	}, transcriptCellPlainTexts(cells))
 	plain := stripANSI(renderTranscriptCells(cells))
 	require.Contains(t, plain, "● Ran 1 shell command")
 	require.Contains(t, plain, "└ $ sleep 10 (1s)")
