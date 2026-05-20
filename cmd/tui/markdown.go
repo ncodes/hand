@@ -47,6 +47,8 @@ func glamourRenderMarkdown(markdown string, width int) (string, error) {
 func transcriptMarkdownStyle() glamouransi.StyleConfig {
 	style := styles.DarkStyleConfig
 	style.Heading.Color = nil
+	style.CodeBlock.Theme = "monokai"
+	style.CodeBlock.Chroma = nil
 	clearHeadingPrefix(&style.H1)
 	clearHeadingPrefix(&style.H2)
 	clearHeadingPrefix(&style.H3)
