@@ -43,6 +43,10 @@ func getToolBranchDisplayDetail(action string, detail string, completed bool) st
 
 func getToolDisplaySpec(name string) toolDisplaySpec {
 	switch normalizeToolDisplayName(name) {
+	case "search_files":
+		return toolDisplaySpec{
+			inputDetail: getSearchFilesToolDisplayDetail,
+		}
 	case "read", "read_file", "view_file", "open_file", "cat":
 		return toolDisplaySpec{
 			inputDetail: func(fields map[string]any) string {
@@ -184,6 +188,29 @@ func getSearchToolDisplayDetail(fields map[string]any) string {
 	return `Search "` + strings.ReplaceAll(sanitized, `"`, `'`) + `"`
 }
 
+func getSearchFilesToolDisplayDetail(fields map[string]any) string {
+	pattern := getMapString(fields, "pattern", "query", "q")
+	if pattern == "" {
+		return ""
+	}
+
+	sanitized, _ := guardrails.NewRedactor().Sanitize(pattern).(string)
+	sanitized = truncateToolDetail(sanitized, 80)
+	if sanitized == "" {
+		return ""
+	}
+
+	detail := `Search "` + strings.ReplaceAll(sanitized, `"`, `'`) + `"`
+	if path := getToolDisplayPath(fields); path != "" {
+		detail += " in " + path
+	}
+	if maxResults := formatOptionalToolNumber(fields["max_results"]); maxResults != "" {
+		detail += " max_results=" + maxResults
+	}
+
+	return detail
+}
+
 func getPathToolDisplayDetail(name string, fields map[string]any) string {
 	path := getToolDisplayPath(fields)
 	if path == "" {
@@ -305,6 +332,23 @@ func isEmptyToolInputValue(value any) bool {
 		return len(typed) == 0
 	default:
 		return false
+	}
+}
+
+func formatOptionalToolNumber(value any) string {
+	switch typed := value.(type) {
+	case float64:
+		if typed <= 0 {
+			return ""
+		}
+		return strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%.1f", typed), "0"), ".")
+	case int:
+		if typed <= 0 {
+			return ""
+		}
+		return fmt.Sprintf("%d", typed)
+	default:
+		return ""
 	}
 }
 

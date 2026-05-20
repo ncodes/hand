@@ -255,6 +255,8 @@ func getRPCTraceToolDetail(name any, fields map[string]any) string {
 		return getRPCRunToolDetail(inputFields)
 	case "Web Search", "Memory Search":
 		return getRPCSearchToolDetail(inputFields)
+	case "Search Files":
+		return getRPCSearchFilesToolDetail(inputFields)
 	case "Read", "Write":
 		return getRPCPathToolDetail(toolName, inputFields)
 	case "Patch":
@@ -300,6 +302,29 @@ func getRPCSearchToolDetail(inputFields map[string]any) string {
 	}
 
 	return `Search "` + strings.ReplaceAll(sanitized, `"`, `'`) + `"`
+}
+
+func getRPCSearchFilesToolDetail(inputFields map[string]any) string {
+	pattern := getRPCMapString(inputFields, "pattern", "query", "q")
+	if pattern == "" {
+		return ""
+	}
+
+	sanitized, _ := guardrails.NewRedactor().Sanitize(pattern).(string)
+	sanitized = truncateRPCTraceToolDetail(sanitized, 80)
+	if sanitized == "" {
+		return ""
+	}
+
+	detail := `Search "` + strings.ReplaceAll(sanitized, `"`, `'`) + `"`
+	if path := getRPCDisplayPath(inputFields); path != "" {
+		detail += " in " + path
+	}
+	if maxResults := formatOptionalRPCToolNumber(inputFields["max_results"]); maxResults != "" {
+		detail += " max_results=" + maxResults
+	}
+
+	return detail
 }
 
 func getRPCPathToolDetail(name string, inputFields map[string]any) string {
@@ -430,6 +455,23 @@ func isRPCEmptyToolInputValue(value any) bool {
 	}
 }
 
+func formatOptionalRPCToolNumber(value any) string {
+	switch typed := value.(type) {
+	case float64:
+		if typed <= 0 {
+			return ""
+		}
+		return strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%.1f", typed), "0"), ".")
+	case int:
+		if typed <= 0 {
+			return ""
+		}
+		return fmt.Sprintf("%d", typed)
+	default:
+		return ""
+	}
+}
+
 func formatRPCGenericToolInputValue(key string, value any) string {
 	switch typed := value.(type) {
 	case string:
@@ -496,6 +538,8 @@ func getRPCToolActionName(name string) string {
 		return "Run"
 	case "web_search", "search_web", "search", "web":
 		return "Web Search"
+	case "search_files":
+		return "Search Files"
 	case "memory_search", "search_memory", "memory":
 		return "Memory Search"
 	case "memory_extract", "extract_memory":

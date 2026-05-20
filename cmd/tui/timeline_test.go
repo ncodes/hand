@@ -296,6 +296,25 @@ func TestRenderTranscriptCells_RendersFileToolDetails(t *testing.T) {
 	require.Contains(t, rendered, "\x1b[38;5;203m-1")
 }
 
+func TestRenderTranscriptCells_RendersSearchFilesDetail(t *testing.T) {
+	startedAt := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
+	rendered := renderTranscriptCells([]string{
+		toolOperationTranscriptCellWithTiming(
+			"call_1",
+			"search_files",
+			`Search "println" in .`,
+			startedAt,
+			startedAt.Add(3*time.Second),
+			true,
+		),
+	})
+	plain := stripANSI(rendered)
+
+	require.Contains(t, plain, "● Searched Files (3s)")
+	require.Contains(t, plain, `└ Search "println" in . (3s)`)
+	require.NotContains(t, plain, "search_files")
+}
+
 func TestRenderTranscriptCells_RendersRunCommandsWithShellLayout(t *testing.T) {
 	rendered := renderTranscriptCells([]string{
 		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 && echo "Done" [timeout 8s]`),

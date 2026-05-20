@@ -534,6 +534,21 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 			ok: true,
 		},
 		{
+			name:      "search files detail",
+			eventType: trace.EvtToolInvocationStarted,
+			payload: map[string]any{
+				"ID":    "call_8",
+				"Name":  "search_files",
+				"Input": `{"pattern":"println","path":".","max_results":10}`,
+			},
+			expected: map[string]any{
+				"id":     "call_8",
+				"name":   "search_files",
+				"detail": `Search "println" in . max_results=10`,
+			},
+			ok: true,
+		},
+		{
 			name:      "list files detail",
 			eventType: trace.EvtToolInvocationStarted,
 			payload: map[string]any{

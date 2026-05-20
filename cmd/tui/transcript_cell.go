@@ -603,6 +603,8 @@ func getToolActionName(name string) string {
 		return "Patch"
 	case "web_search", "search_web", "search", "web":
 		return "Web Search"
+	case "search_files":
+		return "Search Files"
 	case "memory_search", "search_memory", "memory":
 		return "Memory Search"
 	case "memory_extract", "extract_memory":
@@ -674,6 +676,12 @@ func getToolTranscriptTitle(action string, completed bool) string {
 		}
 
 		return "Deleting Memory"
+	case "Search Files":
+		if completed {
+			return "Searched Files"
+		}
+
+		return "Searching Files"
 	}
 
 	if !completed {

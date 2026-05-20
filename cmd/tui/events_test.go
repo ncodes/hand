@@ -259,6 +259,21 @@ func TestToolCallPayloadToTUIMessage_ExtractsMemorySearchDetail(t *testing.T) {
 	}, msg)
 }
 
+func TestToolCallPayloadToTUIMessage_ExtractsSearchFilesDetail(t *testing.T) {
+	msg, ok := toolCallPayloadToTUIMessage(models.ToolCall{
+		ID:    "call_1",
+		Name:  "search_files",
+		Input: `{"pattern":"println","path":".","max_results":10}`,
+	})
+
+	require.True(t, ok)
+	require.Equal(t, toolInvocationStartedMsg{
+		ID:     "call_1",
+		Name:   "search_files",
+		Detail: `Search "println" in . max_results=10`,
+	}, msg)
+}
+
 func TestToolCallPayloadToTUIMessage_IgnoresPayloadWithoutIdentity(t *testing.T) {
 	msg, ok := toolCallPayloadToTUIMessage(map[string]any{"input": `{"path":"secret.txt"}`})
 
