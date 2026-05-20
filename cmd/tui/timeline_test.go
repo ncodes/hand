@@ -67,6 +67,7 @@ func TestTUIMessageToTranscriptCell_MapsLiveDisplayMessages(t *testing.T) {
 	}{
 		{name: "user", msg: userMessageAcceptedMsg{Text: "hello"}, want: "You: hello"},
 		{name: "assistant delta", msg: assistantTextDeltaMsg{Text: "hi"}, want: "Hand: hi"},
+		{name: "reasoning delta", msg: assistantTextDeltaMsg{Channel: "reasoning", Text: "thinking"}, want: "Reasoning: thinking"},
 		{name: "assistant complete", msg: assistantResponseCompletedMsg{Text: "done"}, want: "Hand: done"},
 		{name: "tool started", msg: toolInvocationStartedMsg{Name: "read_file"}, want: toolOperationTranscriptCell("", "read_file", "")},
 		{name: "tool completed", msg: toolInvocationCompletedMsg{Name: "read_file"}, want: toolOperationTranscriptCell("", "read_file", "", true)},
@@ -104,6 +105,15 @@ func TestRenderTranscriptCell_StylesCanonicalCells(t *testing.T) {
 	require.Contains(t, plain, "Safety: blocked")
 	require.Contains(t, plain, "Error: failed")
 	require.Contains(t, rendered, "\x1b[")
+}
+
+func TestRenderTranscriptCell_RendersReasoningDeltas(t *testing.T) {
+	rendered := renderTranscriptCellWithWidth("Reasoning: first token\nsecond token", 40)
+
+	plain := stripANSI(rendered)
+	require.Contains(t, plain, "> first token")
+	require.Contains(t, plain, "> second token")
+	require.NotContains(t, plain, "Reasoning:")
 }
 
 func TestRenderTranscriptCells_GroupsAdjacentToolOperationsByAction(t *testing.T) {

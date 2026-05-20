@@ -117,7 +117,11 @@ func (m *model) stopFollowingResponseTranscript() {
 func (m *model) applyTUIMessage(msg any) tea.Cmd {
 	switch value := msg.(type) {
 	case assistantTextDeltaMsg:
-		m.appendAssistantDelta(value.Text)
+		if isReasoningDeltaChannel(value.Channel) {
+			m.appendReasoningDelta(value.Text)
+		} else {
+			m.appendAssistantDelta(value.Text)
+		}
 	case assistantResponseCompletedMsg:
 		m.completeAssistantResponse(value.Text)
 	case sessionErrorMsg:
@@ -146,6 +150,22 @@ func (m *model) addTranscriptMessage(msg any) {
 		}
 		m.resize()
 	}
+}
+
+func (m *model) appendReasoningDelta(delta string) {
+	cell := reasoningTranscriptCell(delta)
+	if cell == "" {
+		return
+	}
+
+	if len(m.messages) > 0 && isReasoningTranscriptCell(m.messages[len(m.messages)-1]) {
+		m.messages[len(m.messages)-1] = appendReasoningTranscriptCell(m.messages[len(m.messages)-1], delta)
+	} else {
+		m.messages = append(m.messages, cell)
+	}
+
+	m.setTranscriptContentForResponseUpdate()
+	m.resize()
 }
 
 func (m *model) appendAssistantDelta(delta string) {
@@ -198,4 +218,34 @@ func assistantTranscriptCell(text string) string {
 	}
 
 	return "Hand: " + text
+}
+
+func reasoningTranscriptCell(text string) string {
+	if strings.TrimSpace(text) == "" {
+		return ""
+	}
+
+	return "Reasoning: " + strings.TrimSpace(text)
+}
+
+func appendReasoningTranscriptCell(cell string, delta string) string {
+	text := strings.TrimSpace(delta)
+	if text == "" {
+		return cell
+	}
+
+	if !isReasoningTranscriptCell(cell) {
+		return reasoningTranscriptCell(text)
+	}
+
+	return strings.TrimSpace(cell) + "\n" + text
+}
+
+func isReasoningTranscriptCell(cell string) bool {
+	kind, _, _ := parseTranscriptCell(cell)
+	return kind == transcriptCellReasoning
+}
+
+func isReasoningDeltaChannel(channel string) bool {
+	return strings.TrimSpace(strings.ToLower(channel)) == "reasoning"
 }

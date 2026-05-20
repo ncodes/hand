@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -200,6 +201,9 @@ func (c *OpenAIClient) completeChatStream(
 
 		if onTextDelta != nil {
 			for _, choice := range chunk.Choices {
+				if reasoning := getChatStreamReasoningDelta(choice.Delta); reasoning != "" {
+					onTextDelta(StreamDelta{Channel: StreamChannelReasoning, Text: reasoning})
+				}
 				if choice.Delta.Content != "" {
 					onTextDelta(StreamDelta{Channel: StreamChannelAssistant, Text: choice.Delta.Content})
 				}
@@ -211,6 +215,38 @@ func (c *OpenAIClient) completeChatStream(
 	}
 
 	return extractChatCompletionsResponse(&acc.ChatCompletion)
+}
+
+func getChatStreamReasoningDelta(delta openai.ChatCompletionChunkChoiceDelta) string {
+	for _, key := range []string{"reasoning", "reasoning_content", "reasoning_text"} {
+		field, ok := delta.JSON.ExtraFields[key]
+		if !ok || !field.Valid() {
+			continue
+		}
+
+		var text string
+		if err := json.Unmarshal([]byte(field.Raw()), &text); err == nil {
+			return text
+		}
+	}
+
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(delta.RawJSON()), &rawFields); err != nil {
+		return ""
+	}
+	for _, key := range []string{"reasoning", "reasoning_content", "reasoning_text"} {
+		raw, ok := rawFields[key]
+		if !ok {
+			continue
+		}
+
+		var text string
+		if err := json.Unmarshal(raw, &text); err == nil {
+			return text
+		}
+	}
+
+	return ""
 }
 
 func (c *OpenAIClient) completeResponsesStream(

@@ -1282,6 +1282,30 @@ func TestOpenAIClient_CompleteChatStreamReturnsResponseAndDeltas(t *testing.T) {
 	}, deltas)
 }
 
+func TestOpenAIClient_CompleteChatStreamEmitsReasoningDeltas(t *testing.T) {
+	server := newChatStreamServer(t, []string{
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"thinking"}}]}`,
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{"content":"answer"}}]}`,
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":2,"total_tokens":12}}`,
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{createChatStream: caller}
+
+	var deltas []StreamDelta
+	resp, err := client.CompleteStream(context.Background(), chatStreamRequest(), func(delta StreamDelta) {
+		deltas = append(deltas, delta)
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "answer", resp.OutputText)
+	require.Equal(t, []StreamDelta{
+		{Channel: StreamChannelReasoning, Text: "thinking"},
+		{Channel: StreamChannelAssistant, Text: "answer"},
+	}, deltas)
+}
+
 func TestOpenAIClient_CompleteChatStreamSkipsEmptyDeltas(t *testing.T) {
 	server := newChatStreamServer(t, []string{
 		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":0,"model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","content":""}}]}`,

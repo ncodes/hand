@@ -219,6 +219,9 @@ func tuiMessageToTranscriptCell(msg any) string {
 		}
 	case assistantTextDeltaMsg:
 		if text := strings.TrimSpace(value.Text); text != "" {
+			if isReasoningDeltaChannel(value.Channel) {
+				return reasoningTranscriptCell(text)
+			}
 			return "Hand: " + text
 		}
 	case assistantResponseCompletedMsg:

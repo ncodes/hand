@@ -2463,6 +2463,34 @@ func TestModel_UpdateConvertsLiveAssistantCellToHistoryAtCompletion(t *testing.T
 	require.Contains(t, content, "partial")
 }
 
+func TestModel_UpdateRendersReasoningDeltasOutsideAssistantStream(t *testing.T) {
+	runModel := newModel()
+	runModel.messages = []string{"You: hello"}
+	runModel.setTranscriptContent()
+
+	updated, cmd := runModel.Update(assistantTextDeltaMsg{Channel: "reasoning", Text: "first token"})
+	require.Nil(t, cmd)
+	updated, cmd = updated.(model).Update(assistantTextDeltaMsg{Channel: "reasoning", Text: "second token"})
+	require.Nil(t, cmd)
+	updated, cmd = updated.(model).Update(assistantTextDeltaMsg{Text: "answer"})
+	require.Nil(t, cmd)
+	updated, cmd = updated.(model).Update(assistantResponseCompletedMsg{})
+	require.Nil(t, cmd)
+
+	runModel = updated.(model)
+	require.Empty(t, runModel.live)
+	require.Equal(t, []string{
+		"You: hello",
+		"Reasoning: first token\nsecond token",
+		"Hand: answer",
+	}, runModel.messages)
+	content := stripANSI(runModel.transcript.View())
+	require.Contains(t, content, "> first token")
+	require.Contains(t, content, "> second token")
+	require.Contains(t, content, "answer")
+	require.NotContains(t, content, "Reasoning:")
+}
+
 func TestModel_UpdateStreamedRenderMatchesCommittedAssistantText(t *testing.T) {
 	runModel := newModel()
 	deltas := []string{"# Title\n", "\n- one", "\n- two\n", "tail\n\n"}
