@@ -192,16 +192,13 @@ func (m model) selectedTranscriptText() string {
 	}
 
 	document := newRenderedTranscriptDocument(m.getSelectionContent())
-	content := document.PlainText
 	start, end := m.selection.offsetBounds()
-	if start == end || start >= len(content) {
+	text := document.PlainRange(start, end)
+	if text == "" {
 		return ""
 	}
-	if end > len(content) {
-		end = len(content)
-	}
 
-	return compactTranscriptSelectionBlankLines(strings.TrimSpace(content[start:end]))
+	return compactTranscriptSelectionBlankLines(strings.TrimSpace(text))
 }
 
 func (m model) getSelectionContent() string {
@@ -281,11 +278,11 @@ func getTranscriptSelectionPointFromDocument(
 	lineIndex int,
 	column int,
 ) transcriptSelectionPoint {
-	if lineIndex < 0 || lineIndex >= len(document.Lines) {
+	line, ok := document.Line(lineIndex)
+	if !ok {
 		return transcriptSelectionPoint{}
 	}
 
-	line := document.Lines[lineIndex]
 	byteOffset := getByteOffsetForDisplayColumn(line.PlainText, column)
 
 	return transcriptSelectionPoint{

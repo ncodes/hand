@@ -163,10 +163,13 @@ func (m *model) appendReasoningDelta(delta string) {
 	}
 
 	if len(m.messages) > 0 && m.messages[len(m.messages)-1].Kind() == transcriptCellReasoning {
-		m.messages[len(m.messages)-1] = appendReasoningTranscriptCell(m.messages[len(m.messages)-1], delta)
+		m.applyAction(replaceTranscriptCellAction{
+			Index: len(m.messages) - 1,
+			Cell:  appendReasoningTranscriptCell(m.messages[len(m.messages)-1], delta),
+		})
 		m.reasoningMessageIndex = len(m.messages) - 1
 	} else {
-		m.messages = append(m.messages, cell)
+		m.applyAction(appendTranscriptCellAction{Cell: cell})
 		m.reasoningMessageIndex = len(m.messages) - 1
 	}
 
@@ -231,7 +234,10 @@ func (m *model) collapseReasoningTranscript() {
 		duration = time.Second
 	}
 
-	m.messages[index] = thoughtTranscriptCell{duration: duration}
+	m.applyAction(replaceTranscriptCellAction{
+		Index: index,
+		Cell:  thoughtTranscriptCell{duration: duration},
+	})
 	m.clearReasoningTranscriptState()
 }
 

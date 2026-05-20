@@ -118,51 +118,56 @@ func getTraceEventTimestamp(event trace.Event) time.Time {
 func toolCallPayloadToTUIMessage(payload any) (any, bool) {
 	switch value := payload.(type) {
 	case models.ToolCall:
-		return toolInvocationStartedMsg{
-			ID:     strings.TrimSpace(value.ID),
-			Name:   strings.TrimSpace(value.Name),
-			Detail: getToolInputDisplayDetail(value.Name, value.Input),
-		}, true
+		msg, ok := toolInvocationStartedMsgFromModelToolCall(value, time.Time{})
+		if !ok {
+			return nil, false
+		}
+		return msg, true
 	case handmsg.ToolCall:
-		return toolInvocationStartedMsg{
-			ID:     strings.TrimSpace(value.ID),
-			Name:   strings.TrimSpace(value.Name),
-			Detail: getToolInputDisplayDetail(value.Name, value.Input),
-		}, true
+		msg, ok := toolInvocationStartedMsgFromMessageToolCall(value, time.Time{})
+		if !ok {
+			return nil, false
+		}
+		return msg, true
 	default:
 		name := getPayloadString(payload, "name", "tool")
 		id := getPayloadString(payload, "id", "tool_call_id")
-		if name == "" && id == "" {
+		msg, ok := newToolInvocationStartedMsg(
+			id,
+			name,
+			getPayloadString(payload, "detail"),
+			time.Time{},
+		)
+		if !ok {
 			return nil, false
 		}
 
-		return toolInvocationStartedMsg{
-			ID:     id,
-			Name:   name,
-			Detail: getPayloadString(payload, "detail"),
-		}, true
+		return msg, true
 	}
 }
 
 func toolMessagePayloadToTUIMessage(payload any) (any, bool) {
 	switch value := payload.(type) {
 	case handmsg.Message:
-		return toolInvocationCompletedMsg{
-			ID:   strings.TrimSpace(value.ToolCallID),
-			Name: strings.TrimSpace(value.Name),
-		}, true
+		msg, ok := toolInvocationCompletedMsgFromMessage(value, time.Time{})
+		if !ok {
+			return nil, false
+		}
+		return msg, true
 	default:
 		name := getPayloadString(payload, "name", "tool")
 		id := getPayloadString(payload, "tool_call_id", "id")
-		if name == "" && id == "" {
+		msg, ok := newToolInvocationCompletedMsg(
+			id,
+			name,
+			getPayloadString(payload, "detail"),
+			time.Time{},
+		)
+		if !ok {
 			return nil, false
 		}
 
-		return toolInvocationCompletedMsg{
-			ID:     id,
-			Name:   name,
-			Detail: getPayloadString(payload, "detail"),
-		}, true
+		return msg, true
 	}
 }
 

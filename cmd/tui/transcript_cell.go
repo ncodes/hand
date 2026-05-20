@@ -72,7 +72,7 @@ func (cell userTranscriptCell) Kind() transcriptCellKind {
 }
 
 func (cell userTranscriptCell) Render(ctx transcriptRenderContext) string {
-	return renderUserTranscriptCell(cell.text, ctx.Width)
+	return defaultTranscriptRenderer.RenderCell(cell, ctx)
 }
 
 func (cell userTranscriptCell) PlainText() string {
@@ -92,7 +92,7 @@ func (cell assistantTranscriptCell) Kind() transcriptCellKind {
 }
 
 func (cell assistantTranscriptCell) Render(ctx transcriptRenderContext) string {
-	return renderMarkdownForTranscript(cell.text, ctx.Width)
+	return defaultTranscriptRenderer.RenderCell(cell, ctx)
 }
 
 func (cell assistantTranscriptCell) PlainText() string {
@@ -112,7 +112,7 @@ func (cell reasoningTranscriptCell) Kind() transcriptCellKind {
 }
 
 func (cell reasoningTranscriptCell) Render(ctx transcriptRenderContext) string {
-	return renderReasoningTranscriptCell(cell.text, ctx.Width)
+	return defaultTranscriptRenderer.RenderCell(cell, ctx)
 }
 
 func (cell reasoningTranscriptCell) PlainText() string {
@@ -131,8 +131,8 @@ func (cell thoughtTranscriptCell) Kind() transcriptCellKind {
 	return transcriptCellThought
 }
 
-func (cell thoughtTranscriptCell) Render(transcriptRenderContext) string {
-	return renderThoughtTranscriptCell(formatToolTranscriptDuration(cell.duration))
+func (cell thoughtTranscriptCell) Render(ctx transcriptRenderContext) string {
+	return defaultTranscriptRenderer.RenderCell(cell, ctx)
 }
 
 func (cell thoughtTranscriptCell) PlainText() string {
@@ -151,8 +151,8 @@ func (cell safetyTranscriptCell) Kind() transcriptCellKind {
 	return transcriptCellSafety
 }
 
-func (cell safetyTranscriptCell) Render(transcriptRenderContext) string {
-	return transcriptCellLabelStyle(transcriptCellSafety).Render("Safety:") + " " + cell.safetyText()
+func (cell safetyTranscriptCell) Render(ctx transcriptRenderContext) string {
+	return defaultTranscriptRenderer.RenderCell(cell, ctx)
 }
 
 func (cell safetyTranscriptCell) PlainText() string {
@@ -183,8 +183,8 @@ func (cell errorTranscriptCell) Kind() transcriptCellKind {
 	return transcriptCellError
 }
 
-func (cell errorTranscriptCell) Render(transcriptRenderContext) string {
-	return transcriptCellLabelStyle(transcriptCellError).Render("Error:") + " " + strings.TrimSpace(cell.message)
+func (cell errorTranscriptCell) Render(ctx transcriptRenderContext) string {
+	return defaultTranscriptRenderer.RenderCell(cell, ctx)
 }
 
 func (cell errorTranscriptCell) PlainText() string {
@@ -204,7 +204,7 @@ func (cell systemTranscriptCell) Kind() transcriptCellKind {
 }
 
 func (cell systemTranscriptCell) Render(ctx transcriptRenderContext) string {
-	return renderMarkdownForTranscript(cell.text, ctx.Width)
+	return defaultTranscriptRenderer.RenderCell(cell, ctx)
 }
 
 func (cell systemTranscriptCell) PlainText() string {
@@ -405,9 +405,7 @@ func (cell toolTranscriptCell) Kind() transcriptCellKind {
 }
 
 func (cell toolTranscriptCell) Render(ctx transcriptRenderContext) string {
-	group := toolTranscriptGroup{action: cell.action}
-	group.add(cell)
-	return renderToolTranscriptGroupWithContext(group, ctx)
+	return defaultTranscriptRenderer.RenderCell(cell, ctx)
 }
 
 func (cell toolTranscriptCell) PlainText() string {
@@ -558,6 +556,10 @@ func renderToolTranscriptGroup(group toolTranscriptGroup, frame int) string {
 }
 
 func renderToolTranscriptGroupWithContext(group toolTranscriptGroup, ctx transcriptRenderContext) string {
+	return defaultToolTranscriptRenderer.RenderGroup(group, ctx)
+}
+
+func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptRenderContext) string {
 	action := strings.TrimSpace(group.action)
 	if action == "" {
 		action = "Tool"

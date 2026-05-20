@@ -18,7 +18,28 @@ func (lipglossTranscriptRenderer) RenderCell(cell transcriptCell, ctx transcript
 		return ""
 	}
 
-	return cell.Render(ctx)
+	switch value := cell.(type) {
+	case userTranscriptCell:
+		return renderUserTranscriptCell(value.text, ctx.Width)
+	case assistantTranscriptCell:
+		return renderMarkdownForTranscript(value.text, ctx.Width)
+	case reasoningTranscriptCell:
+		return renderReasoningTranscriptCell(value.text, ctx.Width)
+	case thoughtTranscriptCell:
+		return renderThoughtTranscriptCell(formatToolTranscriptDuration(value.duration))
+	case safetyTranscriptCell:
+		return transcriptCellLabelStyle(transcriptCellSafety).Render("Safety:") + " " + value.safetyText()
+	case errorTranscriptCell:
+		return transcriptCellLabelStyle(transcriptCellError).Render("Error:") + " " + strings.TrimSpace(value.message)
+	case systemTranscriptCell:
+		return renderMarkdownForTranscript(value.text, ctx.Width)
+	case toolTranscriptCell:
+		group := toolTranscriptGroup{action: value.action}
+		group.add(value)
+		return renderToolTranscriptGroupWithContext(group, ctx)
+	default:
+		return ""
+	}
 }
 
 func (renderer lipglossTranscriptRenderer) RenderCells(cells []transcriptCell, ctx transcriptRenderContext) string {

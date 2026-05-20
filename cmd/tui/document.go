@@ -60,3 +60,28 @@ func (doc renderedTranscriptDocument) PlainLines() []string {
 
 	return lines
 }
+
+func (doc renderedTranscriptDocument) PlainRange(start int, end int) string {
+	if start > end {
+		start, end = end, start
+	}
+	if start == end || start >= len(doc.PlainText) {
+		return ""
+	}
+	if start < 0 {
+		start = 0
+	}
+	if end > len(doc.PlainText) {
+		end = len(doc.PlainText)
+	}
+
+	return doc.PlainText[start:end]
+}
+
+func (doc renderedTranscriptDocument) Line(index int) (renderedTranscriptLine, bool) {
+	if index < 0 || index >= len(doc.Lines) {
+		return renderedTranscriptLine{}, false
+	}
+
+	return doc.Lines[index], true
+}

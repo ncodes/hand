@@ -80,9 +80,7 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.applyAction(setViewportSizeAction{Width: msg.Width, Height: msg.Height})
-		m.resize()
-		return m, nil
+		return m.handleAppEvent(viewportResizedEvent{Width: msg.Width, Height: msg.Height})
 	case exitConfirmationExpiredMsg:
 		return m.expireExitConfirmation(msg), nil
 	case statusExpiredMsg:
@@ -93,14 +91,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case thinkingComposerTickMsg:
 		return m.updateThinkingComposer()
 	case assistantTextDeltaMsg:
-		return m, m.applyTUIMessage(msg)
+		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 	case assistantResponseCompletedMsg:
-		return m, m.applyTUIMessage(msg)
+		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 	case responseEventMsg:
 		if !m.isActiveResponse(msg.ResponseID) {
 			return m, nil
 		}
-		cmd := m.applyTUIMessage(msg.Message)
+		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg.Message})
+		m = next
 		if m.events != nil {
 			cmd = tea.Batch(cmd, waitForResponseEvent(msg.ResponseID, m.events))
 		}
@@ -113,17 +112,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case responseCompletedMsg:
 		return m, m.completeResponse(msg)
 	case sessionTimelineLoadedMsg:
-		return m, m.hydrateSessionTimeline(msg.Timeline)
+		return m.handleAppEvent(hydrateTimelineEvent{Timeline: msg.Timeline})
 	case sessionTimelineLoadFailedMsg:
 		return m, m.setStatus("session timeline unavailable")
 	case sessionErrorMsg:
-		return m, m.applyTUIMessage(msg)
+		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 	case toolInvocationStartedMsg:
-		return m, m.applyTUIMessage(msg)
+		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 	case toolInvocationCompletedMsg:
-		return m, m.applyTUIMessage(msg)
+		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 	case safetyEventMsg:
-		return m, m.applyTUIMessage(msg)
+		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 	case tea.PasteMsg:
 		msg.Content = normalizeComposerPaste(msg.Content)
 		m.resizeInputForValue(m.input.Value() + msg.Content)
@@ -135,35 +134,30 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m.confirmExit()
 		case "ctrl+y":
-			return m, m.copyTranscript()
+			return m.handleAppEvent(copyTranscriptEvent{})
 		case "esc":
 			return m, nil
 		case "ctrl+p":
-			m.showPreviousPrompt()
-			return m, nil
+			return m.handleAppEvent(showPreviousPromptEvent{})
 		case "ctrl+n":
-			m.showNextPrompt()
-			return m, nil
+			return m.handleAppEvent(showNextPromptEvent{})
 		case "shift+enter":
-			return m.insertInputNewline()
+			return m.handleAppEvent(insertInputNewlineEvent{})
 		case "ctrl+end":
-			m.jumpTranscriptToBottom()
-			return m, nil
+			return m.handleAppEvent(jumpTranscriptToBottomEvent{})
 		case "enter":
-			cmd := m.submitPrompt()
-			return m, cmd
+			return m.handleAppEvent(submitComposerEvent{})
 		}
 		if isInputLineDeleteKey(msg) {
-			return m.deleteInputLine()
+			return m.handleAppEvent(deleteInputLineEvent{})
 		}
 		if m.shouldUseHistoryKey(msg) {
 			switch msg.Key().Code {
 			case tea.KeyUp:
-				m.showPreviousPrompt()
+				return m.handleAppEvent(showPreviousPromptEvent{})
 			case tea.KeyDown:
-				m.showNextPrompt()
+				return m.handleAppEvent(showNextPromptEvent{})
 			}
-			return m, nil
 		}
 		if m.scrollTranscriptWithKey(msg) {
 			return m, nil
@@ -177,8 +171,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateTranscriptWithScrollTracking(msg)
 	case tea.MouseClickMsg:
 		if m.clicksJumpToBottomIndicator(msg) {
-			m.jumpTranscriptToBottom()
-			return m, nil
+			return m.handleAppEvent(jumpTranscriptToBottomEvent{})
 		}
 		if m.startTranscriptSelection(msg) {
 			return m, nil

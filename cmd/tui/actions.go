@@ -28,6 +28,11 @@ type setLiveTranscriptCellAction struct {
 
 type clearTranscriptAction struct{}
 
+type replaceTranscriptCellAction struct {
+	Index int
+	Cell  transcriptCell
+}
+
 type setSessionTitleAction struct {
 	Title string
 }
@@ -83,6 +88,17 @@ func (clearTranscriptAction) apply(state *tuiState) {
 	state.stream.Reset()
 	state.reasoningStartedAt = time.Time{}
 	state.reasoningMessageIndex = -1
+}
+
+func (action replaceTranscriptCellAction) apply(state *tuiState) {
+	if state == nil || action.Index < 0 || action.Index >= len(state.messages) {
+		return
+	}
+	if action.Cell == nil || action.Cell.IsEmpty() {
+		return
+	}
+
+	state.messages[action.Index] = action.Cell
 }
 
 func (action setSessionTitleAction) apply(state *tuiState) {

@@ -152,42 +152,7 @@ func sessionTimelineToTranscriptCells(timeline rpcclient.SessionTimeline) []tran
 }
 
 func timelineMessageToTranscriptCell(message handmsg.Message, toolCalls map[string]timelineToolCallDetail) transcriptCell {
-	content := strings.TrimSpace(message.Content)
-	if content == "" && len(message.ToolCalls) == 0 {
-		return nil
-	}
-
-	switch message.Role {
-	case handmsg.RoleUser:
-		if content == "" {
-			return nil
-		}
-		return userTranscriptCell{text: content}
-	case handmsg.RoleAssistant:
-		if content == "" {
-			return nil
-		}
-		return assistantTranscriptCell{text: content}
-	case handmsg.RoleTool:
-		name := strings.TrimSpace(message.Name)
-		if name == "" {
-			name = "tool"
-		}
-		toolCall := toolCalls[strings.TrimSpace(message.ToolCallID)]
-		return newToolTranscriptCell(
-			message.ToolCallID,
-			name,
-			toolCall.detail,
-			toolCall.startedAt,
-			message.CreatedAt,
-			true,
-		)
-	default:
-		if content == "" {
-			return nil
-		}
-		return systemTranscriptCell{text: strings.TrimSpace(string(message.Role)) + ": " + content}
-	}
+	return defaultTranscriptCellFactory.FromTimelineMessage(message, toolCalls)
 }
 
 type timelineToolCallDetail struct {
@@ -203,9 +168,13 @@ func getTimelineToolCallDetails(messages []agent.SessionTimelineMessage) map[str
 			if id == "" {
 				continue
 			}
+			startedMsg, _ := toolInvocationStartedMsgFromMessageToolCall(
+				toolCall,
+				message.Message.CreatedAt,
+			)
 			details[id] = timelineToolCallDetail{
-				detail:    getToolInputDisplayDetail(toolCall.Name, toolCall.Input),
-				startedAt: message.Message.CreatedAt,
+				detail:    startedMsg.Detail,
+				startedAt: startedMsg.StartedAt,
 			}
 		}
 	}
@@ -214,40 +183,9 @@ func getTimelineToolCallDetails(messages []agent.SessionTimelineMessage) map[str
 }
 
 func tuiMessageToTranscriptCell(msg any) transcriptCell {
-	switch value := msg.(type) {
-	case userMessageAcceptedMsg:
-		if text := strings.TrimSpace(value.Text); text != "" {
-			return userTranscriptCell{text: text}
-		}
-	case assistantTextDeltaMsg:
-		if text := strings.TrimSpace(value.Text); text != "" {
-			if isReasoningDeltaChannel(value.Channel) {
-				return newReasoningTranscriptCell(text, currentTime())
-			}
-			return assistantTranscriptCell{text: text}
-		}
-	case assistantResponseCompletedMsg:
-		if text := strings.TrimSpace(value.Text); text != "" {
-			return assistantTranscriptCell{text: text}
-		}
-	case toolInvocationStartedMsg:
-		return newToolTranscriptCell(value.ID, value.Name, value.Detail, value.StartedAt, time.Time{}, false)
-	case toolInvocationCompletedMsg:
-		return newToolTranscriptCell(value.ID, value.Name, value.Detail, time.Time{}, value.CompletedAt, true)
-	case safetyEventMsg:
-		return safetyEventToTranscriptCell(value)
-	case sessionErrorMsg:
-		if message := strings.TrimSpace(value.Message); message != "" {
-			return errorTranscriptCell{message: message}
-		}
-	}
-
-	return nil
+	return defaultTranscriptCellFactory.FromTUIMessage(msg)
 }
 
 func safetyEventToTranscriptCell(msg safetyEventMsg) transcriptCell {
-	return safetyTranscriptCell{
-		action:     strings.TrimSpace(msg.Action),
-		findingIDs: msg.FindingIDs,
-	}
+	return defaultTranscriptCellFactory.Safety(msg)
 }
