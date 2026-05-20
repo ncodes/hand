@@ -247,6 +247,55 @@ func TestRenderTranscriptCells_RendersToolElapsedTime(t *testing.T) {
 	require.Contains(t, completed, "└ list_files (12s)")
 }
 
+func TestRenderTranscriptCells_RendersFileToolDetails(t *testing.T) {
+	startedAt := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
+	rendered := renderTranscriptCells([]string{
+		toolOperationTranscriptCellWithTiming(
+			"call_1",
+			"write_file",
+			"write_file file.txt",
+			startedAt,
+			startedAt.Add(30*time.Second),
+			true,
+		),
+		toolOperationTranscriptCellWithTiming(
+			"call_2",
+			"patch",
+			"patch file.txt +1 -1",
+			startedAt,
+			startedAt.Add(30*time.Second),
+			true,
+		),
+		toolOperationTranscriptCellWithTiming(
+			"call_3",
+			"patch",
+			"patch",
+			startedAt,
+			startedAt.Add(30*time.Second),
+			true,
+		),
+		toolOperationTranscriptCellWithTiming(
+			"call_4",
+			"read_file",
+			"read_file file.txt",
+			startedAt,
+			startedAt.Add(30*time.Second),
+			true,
+		),
+	})
+	plain := stripANSI(rendered)
+
+	require.Contains(t, plain, "● Wrote (30s)")
+	require.Contains(t, plain, "└ write_file file.txt (30s)")
+	require.Contains(t, plain, "● Patch")
+	require.Contains(t, plain, "├ patch file.txt +1 -1 (30s)")
+	require.Contains(t, plain, "└ patch (30s)")
+	require.Contains(t, plain, "● Read (30s)")
+	require.Contains(t, plain, "└ read_file file.txt (30s)")
+	require.Contains(t, rendered, "\x1b[38;5;83m+1")
+	require.Contains(t, rendered, "\x1b[38;5;203m-1")
+}
+
 func TestRenderTranscriptCells_RendersRunCommandsWithShellLayout(t *testing.T) {
 	rendered := renderTranscriptCells([]string{
 		toolOperationTranscriptCell("call_1", "run_command", `sleep 10 && echo "Done" [timeout 8s]`),
@@ -645,5 +694,118 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedListFilesLikeLiveTrace(
 	livePlain := stripANSI(renderTranscriptCells(liveCells))
 	require.Contains(t, hydratedPlain, "● List Files (1s)")
 	require.Contains(t, hydratedPlain, "└ "+detail+" (1s)")
+	require.Equal(t, livePlain, hydratedPlain)
+}
+
+func TestSessionTimelineToTranscriptCells_RendersHydratedFileToolsLikeLiveTrace(t *testing.T) {
+	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
+	hydratedCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
+		Messages: []agent.SessionTimelineMessage{
+			{Message: handmsg.Message{
+				Role: handmsg.RoleAssistant,
+				ToolCalls: []handmsg.ToolCall{
+					{
+						ID:    "call_1",
+						Name:  "write_file",
+						Input: `{"path":"file.txt","content":"SECRET=example"}`,
+					},
+					{
+						ID:    "call_2",
+						Name:  "patch",
+						Input: `{"patch":"--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n"}`,
+					},
+					{
+						ID:    "call_3",
+						Name:  "read_file",
+						Input: `{"path":"file.txt"}`,
+					},
+				},
+				CreatedAt: now,
+			}},
+			{Message: handmsg.Message{
+				Role:       handmsg.RoleTool,
+				Name:       "write_file",
+				ToolCallID: "call_1",
+				Content:    `{"output":"done"}`,
+				CreatedAt:  now.Add(30 * time.Second),
+			}},
+			{Message: handmsg.Message{
+				Role:       handmsg.RoleTool,
+				Name:       "patch",
+				ToolCallID: "call_2",
+				Content:    `{"output":"done"}`,
+				CreatedAt:  now.Add(30 * time.Second),
+			}},
+			{Message: handmsg.Message{
+				Role:       handmsg.RoleTool,
+				Name:       "read_file",
+				ToolCallID: "call_3",
+				Content:    `{"output":"done"}`,
+				CreatedAt:  now.Add(30 * time.Second),
+			}},
+		},
+	})
+	liveCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
+		TraceEvents: []agent.SessionTimelineTraceEvent{
+			{Event: storage.TraceEvent{
+				Type:      trace.EvtToolInvocationStarted,
+				Timestamp: now,
+				Payload: map[string]any{
+					"id":     "call_1",
+					"name":   "write_file",
+					"detail": "write_file file.txt",
+				},
+			}},
+			{Event: storage.TraceEvent{
+				Type:      trace.EvtToolInvocationCompleted,
+				Timestamp: now.Add(30 * time.Second),
+				Payload: map[string]any{
+					"tool_call_id": "call_1",
+					"name":         "write_file",
+				},
+			}},
+			{Event: storage.TraceEvent{
+				Type:      trace.EvtToolInvocationStarted,
+				Timestamp: now.Add(31 * time.Second),
+				Payload: map[string]any{
+					"id":     "call_2",
+					"name":   "patch",
+					"detail": "patch file.txt +1 -1",
+				},
+			}},
+			{Event: storage.TraceEvent{
+				Type:      trace.EvtToolInvocationCompleted,
+				Timestamp: now.Add(61 * time.Second),
+				Payload: map[string]any{
+					"tool_call_id": "call_2",
+					"name":         "patch",
+				},
+			}},
+			{Event: storage.TraceEvent{
+				Type:      trace.EvtToolInvocationStarted,
+				Timestamp: now.Add(62 * time.Second),
+				Payload: map[string]any{
+					"id":     "call_3",
+					"name":   "read_file",
+					"detail": "read_file file.txt",
+				},
+			}},
+			{Event: storage.TraceEvent{
+				Type:      trace.EvtToolInvocationCompleted,
+				Timestamp: now.Add(92 * time.Second),
+				Payload: map[string]any{
+					"tool_call_id": "call_3",
+					"name":         "read_file",
+				},
+			}},
+		},
+	})
+
+	hydratedPlain := stripANSI(renderTranscriptCells(hydratedCells))
+	livePlain := stripANSI(renderTranscriptCells(liveCells))
+	require.Contains(t, hydratedPlain, "└ write_file file.txt (30s)")
+	require.Contains(t, hydratedPlain, "└ patch file.txt +1 -1 (30s)")
+	require.Contains(t, hydratedPlain, "└ read_file file.txt (30s)")
+	require.NotContains(t, hydratedPlain, "SECRET=example")
 	require.Equal(t, livePlain, hydratedPlain)
 }

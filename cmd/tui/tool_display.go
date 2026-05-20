@@ -42,6 +42,27 @@ func getToolBranchDisplayDetail(action string, detail string, completed bool) st
 }
 
 func getToolDisplaySpec(name string) toolDisplaySpec {
+	switch normalizeToolDisplayName(name) {
+	case "read", "read_file", "view_file", "open_file", "cat":
+		return toolDisplaySpec{
+			inputDetail: func(fields map[string]any) string {
+				return getPathToolDisplayDetail(name, fields)
+			},
+		}
+	case "write", "write_file", "edit_file", "create_file":
+		return toolDisplaySpec{
+			inputDetail: func(fields map[string]any) string {
+				return getPathToolDisplayDetail(name, fields)
+			},
+		}
+	case "patch", "apply_patch":
+		return toolDisplaySpec{
+			inputDetail: func(fields map[string]any) string {
+				return getPatchToolDisplayDetail(name, fields)
+			},
+		}
+	}
+
 	action := getToolActionName(name)
 	spec := getToolDisplaySpecForAction(action)
 	if spec.inputDetail != nil || spec.branchDetail != nil {
@@ -57,6 +78,11 @@ func getToolDisplaySpec(name string) toolDisplaySpec {
 	}
 
 	return toolDisplaySpec{}
+}
+
+func normalizeToolDisplayName(name string) string {
+	name = strings.TrimSpace(strings.ToLower(name))
+	return strings.ReplaceAll(name, "-", "_")
 }
 
 func getToolDisplaySpecForAction(action string) toolDisplaySpec {
@@ -156,6 +182,84 @@ func getSearchToolDisplayDetail(fields map[string]any) string {
 	}
 
 	return `Search "` + strings.ReplaceAll(sanitized, `"`, `'`) + `"`
+}
+
+func getPathToolDisplayDetail(name string, fields map[string]any) string {
+	path := getToolDisplayPath(fields)
+	if path == "" {
+		return ""
+	}
+
+	return strings.TrimSpace(name) + " " + path
+}
+
+func getPatchToolDisplayDetail(name string, fields map[string]any) string {
+	patch := getMapString(fields, "patch", "diff", "unified_diff")
+	path, added, removed := getPatchToolDisplaySummary(patch)
+	if path == "" {
+		path = getToolDisplayPath(fields)
+	}
+
+	parts := []string{strings.TrimSpace(name)}
+	if path != "" {
+		parts = append(parts, path)
+	}
+	if added > 0 || removed > 0 {
+		parts = append(parts, fmt.Sprintf("+%d -%d", added, removed))
+	}
+
+	return strings.Join(parts, " ")
+}
+
+func getToolDisplayPath(fields map[string]any) string {
+	path := getMapString(fields, "path", "file", "filepath", "filename")
+	if path == "" {
+		return ""
+	}
+
+	sanitized, _ := guardrails.NewRedactor().Sanitize(path).(string)
+	return shortenToolPath(sanitized, 42)
+}
+
+func getPatchToolDisplaySummary(patch string) (string, int, int) {
+	var path string
+	added := 0
+	removed := 0
+
+	for _, line := range strings.Split(patch, "\n") {
+		switch {
+		case strings.HasPrefix(line, "+++ "):
+			candidate := normalizePatchToolPath(strings.TrimSpace(strings.TrimPrefix(line, "+++ ")))
+			if candidate != "" && candidate != "/dev/null" {
+				path = candidate
+			}
+		case strings.HasPrefix(line, "--- "):
+			if path == "" {
+				candidate := normalizePatchToolPath(strings.TrimSpace(strings.TrimPrefix(line, "--- ")))
+				if candidate != "" && candidate != "/dev/null" {
+					path = candidate
+				}
+			}
+		case strings.HasPrefix(line, "+"):
+			added++
+		case strings.HasPrefix(line, "-"):
+			removed++
+		}
+	}
+
+	if path != "" {
+		sanitized, _ := guardrails.NewRedactor().Sanitize(path).(string)
+		path = shortenToolPath(sanitized, 42)
+	}
+
+	return path, added, removed
+}
+
+func normalizePatchToolPath(path string) string {
+	path = strings.TrimSpace(path)
+	path = strings.TrimPrefix(path, "a/")
+	path = strings.TrimPrefix(path, "b/")
+	return strings.Trim(path, `"`)
 }
 
 func getMapString(fields map[string]any, keys ...string) string {

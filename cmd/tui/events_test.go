@@ -105,24 +105,31 @@ func TestTraceEventToTUIMessage_ConvertsToolInvocationStarted(t *testing.T) {
 		Payload: models.ToolCall{
 			ID:    "call_1",
 			Name:  "read_file",
-			Input: `{"path":"secret.txt"}`,
+			Input: `{"path":"notes.txt"}`,
 		},
 	})
 
 	require.True(t, ok)
-	require.Equal(t, toolInvocationStartedMsg{ID: "call_1", Name: "read_file"}, msg)
+	require.Equal(t, toolInvocationStartedMsg{
+		ID:     "call_1",
+		Name:   "read_file",
+		Detail: "read_file notes.txt",
+	}, msg)
 }
 
 func TestToolCallPayloadToTUIMessage_ConvertsMessageToolCall(t *testing.T) {
 	msg, ok := toolCallPayloadToTUIMessage(handmsg.ToolCall{
 		ID:    " call_1 ",
 		Name:  " read_file ",
-		Input: `{"path":"secret.txt"}`,
+		Input: `{"path":"notes.txt"}`,
 	})
 
 	require.True(t, ok)
-	require.Equal(t, toolInvocationStartedMsg{ID: "call_1", Name: "read_file"}, msg)
-	require.NotContains(t, fmt.Sprintf("%#v", msg), "secret.txt")
+	require.Equal(t, toolInvocationStartedMsg{
+		ID:     "call_1",
+		Name:   "read_file",
+		Detail: "read_file notes.txt",
+	}, msg)
 }
 
 func TestToolCallPayloadToTUIMessage_ExtractsGenericToolParams(t *testing.T) {
@@ -144,6 +151,52 @@ func TestToolCallPayloadToTUIMessage_ExtractsGenericToolParams(t *testing.T) {
 		Name:   "list_files",
 		Detail: "list_files(includeHidden=false maxEntries=50 path=/tmp/project recursive=true)",
 	}, msg)
+}
+
+func TestToolCallPayloadToTUIMessage_ExtractsFileToolDetails(t *testing.T) {
+	cases := []struct {
+		name     string
+		toolName string
+		input    string
+		detail   string
+	}{
+		{
+			name:     "read file",
+			toolName: "read_file",
+			input:    `{"path":"notes/file.txt"}`,
+			detail:   "read_file notes/file.txt",
+		},
+		{
+			name:     "write file",
+			toolName: "write_file",
+			input:    `{"path":"notes/file.txt","content":"SECRET=example"}`,
+			detail:   "write_file notes/file.txt",
+		},
+		{
+			name:     "patch",
+			toolName: "patch",
+			input:    `{"patch":"--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n"}`,
+			detail:   "patch file.txt +1 -1",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			msg, ok := toolCallPayloadToTUIMessage(models.ToolCall{
+				ID:    "call_1",
+				Name:  tt.toolName,
+				Input: tt.input,
+			})
+
+			require.True(t, ok)
+			require.Equal(t, toolInvocationStartedMsg{
+				ID:     "call_1",
+				Name:   tt.toolName,
+				Detail: tt.detail,
+			}, msg)
+			require.NotContains(t, fmt.Sprintf("%#v", msg), "SECRET=example")
+		})
+	}
 }
 
 func TestToolCallPayloadToTUIMessage_ShortensLongListFilesPath(t *testing.T) {

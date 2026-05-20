@@ -255,6 +255,10 @@ func getRPCTraceToolDetail(name any, fields map[string]any) string {
 		return getRPCRunToolDetail(inputFields)
 	case "Web Search", "Memory Search":
 		return getRPCSearchToolDetail(inputFields)
+	case "Read", "Write":
+		return getRPCPathToolDetail(toolName, inputFields)
+	case "Patch":
+		return getRPCPatchToolDetail(toolName, inputFields)
 	default:
 		if isRPCGenericToolDetailEnabled(toolName) {
 			return getRPCGenericToolDetail(toolName, inputFields)
@@ -296,6 +300,84 @@ func getRPCSearchToolDetail(inputFields map[string]any) string {
 	}
 
 	return `Search "` + strings.ReplaceAll(sanitized, `"`, `'`) + `"`
+}
+
+func getRPCPathToolDetail(name string, inputFields map[string]any) string {
+	path := getRPCDisplayPath(inputFields)
+	if path == "" {
+		return ""
+	}
+
+	return strings.TrimSpace(name) + " " + path
+}
+
+func getRPCPatchToolDetail(name string, inputFields map[string]any) string {
+	patch := getRPCMapString(inputFields, "patch", "diff", "unified_diff")
+	path, added, removed := getRPCPatchToolSummary(patch)
+	if path == "" {
+		path = getRPCDisplayPath(inputFields)
+	}
+
+	parts := []string{strings.TrimSpace(name)}
+	if path != "" {
+		parts = append(parts, path)
+	}
+	if added > 0 || removed > 0 {
+		parts = append(parts, fmt.Sprintf("+%d -%d", added, removed))
+	}
+
+	return strings.Join(parts, " ")
+}
+
+func getRPCDisplayPath(inputFields map[string]any) string {
+	path := getRPCMapString(inputFields, "path", "file", "filepath", "filename")
+	if path == "" {
+		return ""
+	}
+
+	sanitized, _ := guardrails.NewRedactor().Sanitize(path).(string)
+	return shortenRPCTraceToolPath(sanitized, 42)
+}
+
+func getRPCPatchToolSummary(patch string) (string, int, int) {
+	var path string
+	added := 0
+	removed := 0
+
+	for _, line := range strings.Split(patch, "\n") {
+		switch {
+		case strings.HasPrefix(line, "+++ "):
+			candidate := normalizeRPCPatchToolPath(strings.TrimSpace(strings.TrimPrefix(line, "+++ ")))
+			if candidate != "" && candidate != "/dev/null" {
+				path = candidate
+			}
+		case strings.HasPrefix(line, "--- "):
+			if path == "" {
+				candidate := normalizeRPCPatchToolPath(strings.TrimSpace(strings.TrimPrefix(line, "--- ")))
+				if candidate != "" && candidate != "/dev/null" {
+					path = candidate
+				}
+			}
+		case strings.HasPrefix(line, "+"):
+			added++
+		case strings.HasPrefix(line, "-"):
+			removed++
+		}
+	}
+
+	if path != "" {
+		sanitized, _ := guardrails.NewRedactor().Sanitize(path).(string)
+		path = shortenRPCTraceToolPath(sanitized, 42)
+	}
+
+	return path, added, removed
+}
+
+func normalizeRPCPatchToolPath(path string) string {
+	path = strings.TrimSpace(path)
+	path = strings.TrimPrefix(path, "a/")
+	path = strings.TrimPrefix(path, "b/")
+	return strings.Trim(path, `"`)
 }
 
 func isRPCGenericToolDetailEnabled(name string) bool {
@@ -404,6 +486,12 @@ func getRPCToolActionName(name string) string {
 	normalized := strings.TrimSpace(strings.ToLower(name))
 	normalized = strings.ReplaceAll(normalized, "-", "_")
 	switch normalized {
+	case "read", "read_file", "view_file", "open_file", "cat":
+		return "Read"
+	case "write", "write_file", "edit_file", "create_file":
+		return "Write"
+	case "patch", "apply_patch":
+		return "Patch"
 	case "exec", "exec_command", "run", "run_command", "shell", "bash", "process":
 		return "Run"
 	case "web_search", "search_web", "search", "web":

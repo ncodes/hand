@@ -549,6 +549,51 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 			ok: true,
 		},
 		{
+			name:      "read file detail",
+			eventType: trace.EvtToolInvocationStarted,
+			payload: map[string]any{
+				"ID":    "call_5",
+				"Name":  "read_file",
+				"Input": `{"path":"notes/file.txt"}`,
+			},
+			expected: map[string]any{
+				"id":     "call_5",
+				"name":   "read_file",
+				"detail": "read_file notes/file.txt",
+			},
+			ok: true,
+		},
+		{
+			name:      "write file detail excludes content",
+			eventType: trace.EvtToolInvocationStarted,
+			payload: map[string]any{
+				"ID":    "call_6",
+				"Name":  "write_file",
+				"Input": `{"path":"notes/file.txt","content":"SECRET=example"}`,
+			},
+			expected: map[string]any{
+				"id":     "call_6",
+				"name":   "write_file",
+				"detail": "write_file notes/file.txt",
+			},
+			ok: true,
+		},
+		{
+			name:      "patch detail",
+			eventType: trace.EvtToolInvocationStarted,
+			payload: map[string]any{
+				"ID":    "call_7",
+				"Name":  "patch",
+				"Input": `{"patch":"--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n"}`,
+			},
+			expected: map[string]any{
+				"id":     "call_7",
+				"name":   "patch",
+				"detail": "patch file.txt +1 -1",
+			},
+			ok: true,
+		},
+		{
 			name:      "tool invocation started without public fields",
 			eventType: trace.EvtToolInvocationStarted,
 			payload:   map[string]any{"input": "SECRET=example"},

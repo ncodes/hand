@@ -439,10 +439,53 @@ func renderToolTranscriptGroup(group toolTranscriptGroup, frame int) string {
 			branch = "└"
 		}
 		detailText := getToolBranchDisplayDetail(group.action, detail.text, detail.completed)
-		lines = append(lines, "  "+branchStyle.Render(branch)+" "+detailStyle.Render(detailText+renderToolTranscriptDuration(detail)))
+		lines = append(lines, "  "+branchStyle.Render(branch)+" "+renderToolBranchDetail(detailText, renderToolTranscriptDuration(detail), detailStyle))
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func renderToolBranchDetail(detail string, duration string, style lipgloss.Style) string {
+	detail = strings.TrimSpace(detail)
+	if detail == "" {
+		return style.Render(duration)
+	}
+
+	parts := strings.Fields(detail)
+	rendered := make([]string, 0, len(parts))
+	for _, part := range parts {
+		switch {
+		case isToolDiffAdditionToken(part):
+			rendered = append(rendered, lipgloss.NewStyle().Foreground(lipgloss.Color("83")).Render(part))
+		case isToolDiffRemovalToken(part):
+			rendered = append(rendered, lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Render(part))
+		default:
+			rendered = append(rendered, style.Render(part))
+		}
+	}
+
+	return strings.Join(rendered, style.Render(" ")) + style.Render(duration)
+}
+
+func isToolDiffAdditionToken(value string) bool {
+	return isToolSignedNumberToken(value, '+')
+}
+
+func isToolDiffRemovalToken(value string) bool {
+	return isToolSignedNumberToken(value, '-')
+}
+
+func isToolSignedNumberToken(value string, sign byte) bool {
+	if len(value) < 2 || value[0] != sign {
+		return false
+	}
+	for _, r := range value[1:] {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+
+	return true
 }
 
 func renderRunTranscriptGroup(group toolTranscriptGroup, frame int) string {
@@ -554,8 +597,10 @@ func getToolActionName(name string) string {
 	switch normalized {
 	case "read", "read_file", "view_file", "open_file", "cat":
 		return "Read"
-	case "write", "write_file", "edit_file", "apply_patch", "create_file":
+	case "write", "write_file", "edit_file", "create_file":
 		return "Write"
+	case "patch", "apply_patch":
+		return "Patch"
 	case "web_search", "search_web", "search", "web":
 		return "Web Search"
 	case "memory_search", "search_memory", "memory":
@@ -644,6 +689,8 @@ func getToolTranscriptTitle(action string, completed bool) string {
 		return "Searched"
 	case "Read":
 		return "Read"
+	case "Patch":
+		return "Patch"
 	default:
 		return strings.TrimSpace(action)
 	}
