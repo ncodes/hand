@@ -78,6 +78,7 @@ func (m *model) startResponse(prompt string) tea.Cmd {
 	m.responding = true
 	m.responseTranscriptFollow = m.transcript.AtBottom()
 	m.responseTranscriptScrolled = false
+	m.clearReasoningTranscriptState()
 
 	return tea.Batch(
 		m.startThinkingComposer(),

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -157,11 +158,16 @@ func (m *model) appendReasoningDelta(delta string) {
 	if cell == "" {
 		return
 	}
+	if m.reasoningStartedAt.IsZero() {
+		m.reasoningStartedAt = currentTime()
+	}
 
 	if len(m.messages) > 0 && isReasoningTranscriptCell(m.messages[len(m.messages)-1]) {
 		m.messages[len(m.messages)-1] = appendReasoningTranscriptCell(m.messages[len(m.messages)-1], delta)
+		m.reasoningMessageIndex = len(m.messages) - 1
 	} else {
 		m.messages = append(m.messages, cell)
+		m.reasoningMessageIndex = len(m.messages) - 1
 	}
 
 	m.setTranscriptContentForResponseUpdate()
@@ -188,11 +194,13 @@ func (m *model) completeAssistantResponse(text string) {
 	}
 	if strings.TrimSpace(reply) == "" {
 		m.live = ""
+		m.collapseReasoningTranscript()
 		m.setTranscriptContentAfterResponseCompletion()
 		m.resize()
 		return
 	}
 
+	m.collapseReasoningTranscript()
 	m.messages = append(m.messages, assistantTranscriptCell(reply))
 	m.live = ""
 	m.setTranscriptContentAfterResponseCompletion()
@@ -220,25 +228,52 @@ func assistantTranscriptCell(text string) string {
 	return "Hand: " + text
 }
 
+func (m *model) collapseReasoningTranscript() {
+	index := m.reasoningMessageIndex
+	if index < 0 || index >= len(m.messages) || !isReasoningTranscriptCell(m.messages[index]) {
+		return
+	}
+
+	duration := currentTime().Sub(m.reasoningStartedAt).Round(time.Second)
+	if m.reasoningStartedAt.IsZero() || duration <= 0 {
+		duration = time.Second
+	}
+
+	m.messages[index] = thoughtTranscriptCell(duration)
+	m.clearReasoningTranscriptState()
+}
+
+func (m *model) clearReasoningTranscriptState() {
+	m.reasoningStartedAt = time.Time{}
+	m.reasoningMessageIndex = -1
+}
+
+func thoughtTranscriptCell(duration time.Duration) string {
+	if duration <= 0 {
+		duration = time.Second
+	}
+
+	return "Thought: " + formatToolTranscriptDuration(duration)
+}
+
 func reasoningTranscriptCell(text string) string {
 	if strings.TrimSpace(text) == "" {
 		return ""
 	}
 
-	return "Reasoning: " + strings.TrimSpace(text)
+	return "Reasoning: " + text
 }
 
 func appendReasoningTranscriptCell(cell string, delta string) string {
-	text := strings.TrimSpace(delta)
-	if text == "" {
+	if strings.TrimSpace(delta) == "" {
 		return cell
 	}
 
 	if !isReasoningTranscriptCell(cell) {
-		return reasoningTranscriptCell(text)
+		return reasoningTranscriptCell(delta)
 	}
 
-	return strings.TrimSpace(cell) + "\n" + text
+	return cell + delta
 }
 
 func isReasoningTranscriptCell(cell string) bool {

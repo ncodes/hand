@@ -34,6 +34,8 @@ type model struct {
 	live                       string
 	showIntro                  bool
 	stream                     markdownStreamCollector
+	reasoningStartedAt         time.Time
+	reasoningMessageIndex      int
 	history                    []string
 	historyAt                  int
 	draft                      string
@@ -87,6 +89,7 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 		modelName:               "GPT 5.5",
 		context:                 "60,000 used · 65%",
 		showIntro:               true,
+		reasoningMessageIndex:   -1,
 		history:                 history,
 		chatClient:              client,
 		chatCtx:                 ctx,

@@ -2464,16 +2464,22 @@ func TestModel_UpdateConvertsLiveAssistantCellToHistoryAtCompletion(t *testing.T
 }
 
 func TestModel_UpdateRendersReasoningDeltasOutsideAssistantStream(t *testing.T) {
+	now := time.Date(2026, 5, 20, 11, 0, 0, 0, time.UTC)
+	originalCurrentTime := currentTime
+	t.Cleanup(func() { currentTime = originalCurrentTime })
+	currentTime = func() time.Time { return now }
+
 	runModel := newModel()
 	runModel.messages = []string{"You: hello"}
 	runModel.setTranscriptContent()
 
-	updated, cmd := runModel.Update(assistantTextDeltaMsg{Channel: "reasoning", Text: "first token"})
+	updated, cmd := runModel.Update(assistantTextDeltaMsg{Channel: "reasoning", Text: "first "})
 	require.Nil(t, cmd)
-	updated, cmd = updated.(model).Update(assistantTextDeltaMsg{Channel: "reasoning", Text: "second token"})
+	updated, cmd = updated.(model).Update(assistantTextDeltaMsg{Channel: "reasoning", Text: "token"})
 	require.Nil(t, cmd)
 	updated, cmd = updated.(model).Update(assistantTextDeltaMsg{Text: "answer"})
 	require.Nil(t, cmd)
+	now = now.Add(3 * time.Second)
 	updated, cmd = updated.(model).Update(assistantResponseCompletedMsg{})
 	require.Nil(t, cmd)
 
@@ -2481,14 +2487,14 @@ func TestModel_UpdateRendersReasoningDeltasOutsideAssistantStream(t *testing.T) 
 	require.Empty(t, runModel.live)
 	require.Equal(t, []string{
 		"You: hello",
-		"Reasoning: first token\nsecond token",
+		"Thought: 3s",
 		"Hand: answer",
 	}, runModel.messages)
 	content := stripANSI(runModel.transcript.View())
-	require.Contains(t, content, "> first token")
-	require.Contains(t, content, "> second token")
+	require.Contains(t, content, "Thought for 3s")
 	require.Contains(t, content, "answer")
 	require.NotContains(t, content, "Reasoning:")
+	require.NotContains(t, content, "first token")
 }
 
 func TestModel_UpdateStreamedRenderMatchesCommittedAssistantText(t *testing.T) {

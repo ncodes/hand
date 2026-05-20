@@ -15,6 +15,7 @@ const (
 	transcriptCellUser      transcriptCellKind = "user"
 	transcriptCellAssistant transcriptCellKind = "assistant"
 	transcriptCellReasoning transcriptCellKind = "reasoning"
+	transcriptCellThought   transcriptCellKind = "thought"
 	transcriptCellTool      transcriptCellKind = "tool"
 	transcriptCellSafety    transcriptCellKind = "safety"
 	transcriptCellError     transcriptCellKind = "error"
@@ -86,6 +87,9 @@ func renderTranscriptCellWithWidth(cell string, width int) string {
 	}
 	if kind == transcriptCellReasoning {
 		return renderReasoningTranscriptCell(body, width)
+	}
+	if kind == transcriptCellThought {
+		return renderThoughtTranscriptCell(body)
 	}
 
 	labelStyle := transcriptCellLabelStyle(kind)
@@ -175,26 +179,54 @@ func renderUserTranscriptHeightStrip(block string, width int) string {
 
 func renderReasoningTranscriptCell(body string, width int) string {
 	contentWidth := max(width, 1)
-	wrapWidth := max(contentWidth-2, 1)
-	prefixStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
+	wrapWidth := max(contentWidth-4, 1)
+	dotStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
+	branchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 
 	lines := strings.Split(strings.TrimSpace(body), "\n")
-	rendered := make([]string, 0, len(lines))
+	reasoningLines := make([]string, 0, len(lines))
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
+		if line != "" {
+			reasoningLines = append(reasoningLines, line)
 		}
+	}
+	if len(reasoningLines) == 0 {
+		return ""
+	}
+
+	rendered := []string{dotStyle.Render("◌") + " " + titleStyle.Render("Thinking")}
+	first := true
+	for _, line := range reasoningLines {
 		for _, wrapped := range strings.Split(wordwrap.String(line, wrapWidth), "\n") {
 			wrapped = strings.TrimSpace(wrapped)
-			if wrapped != "" {
-				rendered = append(rendered, prefixStyle.Render("> ")+textStyle.Render(wrapped))
+			if wrapped == "" {
+				continue
 			}
+
+			branch := "  "
+			if first {
+				branch = "└ "
+				first = false
+			}
+			rendered = append(rendered, "  "+branchStyle.Render(branch)+textStyle.Render(wrapped))
 		}
 	}
 
 	return strings.Join(rendered, "\n")
+}
+
+func renderThoughtTranscriptCell(body string) string {
+	duration := strings.TrimSpace(body)
+	if duration == "" {
+		return ""
+	}
+
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("244")).
+		Render("Thought for " + duration)
 }
 
 func renderTranscriptCellBody(kind transcriptCellKind, body string, width int) string {
@@ -222,6 +254,8 @@ func parseTranscriptCell(cell string) (transcriptCellKind, string, string) {
 		return transcriptCellAssistant, label, body
 	case label == "Reasoning":
 		return transcriptCellReasoning, label, body
+	case label == "Thought":
+		return transcriptCellThought, label, body
 	case label == "Safety":
 		return transcriptCellSafety, label, body
 	case label == "Error":
@@ -242,6 +276,8 @@ func transcriptCellLabelStyle(kind transcriptCellKind) lipgloss.Style {
 		return style.Foreground(lipgloss.Color("83"))
 	case transcriptCellReasoning:
 		return style.Foreground(lipgloss.Color("246"))
+	case transcriptCellThought:
+		return style.Foreground(lipgloss.Color("244"))
 	case transcriptCellTool:
 		return style.Foreground(lipgloss.Color("214"))
 	case transcriptCellSafety:

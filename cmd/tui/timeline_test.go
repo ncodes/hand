@@ -111,9 +111,18 @@ func TestRenderTranscriptCell_RendersReasoningDeltas(t *testing.T) {
 	rendered := renderTranscriptCellWithWidth("Reasoning: first token\nsecond token", 40)
 
 	plain := stripANSI(rendered)
-	require.Contains(t, plain, "> first token")
-	require.Contains(t, plain, "> second token")
+	require.Contains(t, plain, "◌ Thinking")
+	require.Contains(t, plain, "└ first token")
+	require.Contains(t, plain, "  second token")
 	require.NotContains(t, plain, "Reasoning:")
+}
+
+func TestRenderTranscriptCell_RendersCollapsedThought(t *testing.T) {
+	rendered := renderTranscriptCellWithWidth("Thought: 3s", 40)
+
+	plain := stripANSI(rendered)
+	require.Equal(t, "Thought for 3s", plain)
+	require.NotContains(t, plain, "Thought:")
 }
 
 func TestRenderTranscriptCells_GroupsAdjacentToolOperationsByAction(t *testing.T) {

@@ -10,6 +10,7 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 		m.live = ""
 		m.showIntro = false
 		m.stream.Reset()
+		m.clearReasoningTranscriptState()
 		cmd = m.setStatus("transcript cleared")
 	case "help":
 		m.messages = append(m.messages, "Commands: /clear, /copy, /help")
