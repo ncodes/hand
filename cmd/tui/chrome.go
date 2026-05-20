@@ -38,147 +38,86 @@ const (
 	noticeBarTail     = " to see what changed"
 )
 
-var handBannerColors = []color.Color{
-	lipgloss.Color("38"),
-	lipgloss.Color("44"),
-	lipgloss.Color("49"),
-	lipgloss.Color("48"),
-	lipgloss.Color("83"),
-}
-
 // renderHeader draws the fixed title bar.
 func (m model) renderHeader() string {
 	return m.renderHeaderWithWidth(m.width)
 }
 
 func (m model) renderHeaderWithWidth(width int) string {
-	width = max(width, 1)
-	contentModel := m
-	contentModel.width = width
-
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderBottom(true).
-		BorderForeground(lipgloss.Color(defaultTUITheme.NoticeBorder)).
-		Width(width).
-		Render(contentModel.renderHeaderContent())
-}
-
-// renderHeaderContent arranges the banner and runtime info panel.
-func (m model) renderHeaderContent() string {
-	parts := []string{m.renderNoticeBar()}
-	for range noticeBarMarginBottom {
-		parts = append(parts, "")
-	}
-	parts = append(parts, m.renderHeaderBody())
-
-	return strings.Join(parts, "\n")
+	return defaultChromeRenderer.RenderHeader(getHeaderPanel(m, width))
 }
 
 // renderNoticeBar draws the solid announcement row above the banner.
 func (m model) renderNoticeBar() string {
-	content := renderNoticeBarContent(renderNoticeBarLeft(), renderNoticeBarRight(), m.width)
-
-	return lipgloss.NewStyle().
-		Background(lipgloss.Color(defaultTUITheme.NoticeBackground)).
-		Foreground(lipgloss.Color("15")).
-		Width(m.width).
-		Render(content)
-}
-
-// renderNoticeBarContent joins notice bar segments with a styled spacer.
-func renderNoticeBarContent(left string, right string, width int) string {
-	left = strings.TrimSpace(left)
-	right = strings.TrimSpace(right)
-	if width <= lipgloss.Width(left) || right == "" {
-		return left
-	}
-
-	spacerWidth := width - lipgloss.Width(left) - lipgloss.Width(right)
-	if spacerWidth < 1 {
-		return left
-	}
-
-	spacer := lipgloss.NewStyle().
-		Background(lipgloss.Color(defaultTUITheme.NoticeBackground)).
-		Render(strings.Repeat(" ", spacerWidth))
-
-	return left + spacer + right
+	return defaultChromeRenderer.RenderNoticeBar(getNoticePanel(m.width))
 }
 
 // renderNoticeBarLeft highlights the user name while keeping the greeting muted.
 func renderNoticeBarLeft() string {
-	muted := lipgloss.NewStyle().
-		Padding(0, 0, 0, 1).
-		Background(lipgloss.Color(defaultTUITheme.NoticeBackground)).
-		Foreground(lipgloss.Color(defaultTUITheme.NoticeMuted))
-	highlight := lipgloss.NewStyle().
-		Background(lipgloss.Color(defaultTUITheme.NoticeBackground)).
-		Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground))
-
-	return muted.Render(noticeBarLeftLead) +
-		highlight.Render(noticeBarName)
+	return renderNoticePanelLeft(getNoticePanel(defaultWidth))
 }
 
 // renderNoticeBarRight styles the right-side notice command hint.
 func renderNoticeBarRight() string {
-	muted := lipgloss.NewStyle().
-		Background(lipgloss.Color(defaultTUITheme.NoticeBackground)).
-		Foreground(lipgloss.Color(defaultTUITheme.NoticeMuted))
-	highlight := lipgloss.NewStyle().
-		Background(lipgloss.Color(defaultTUITheme.NoticeBackground)).
-		Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground))
-
-	return muted.Render(noticeBarLead) +
-		highlight.Render(noticeBarLink) +
-		muted.Padding(0, 1, 0, 0).Render(noticeBarTail)
+	return renderNoticePanelRight(getNoticePanel(defaultWidth))
 }
 
 // renderHeaderBody arranges the banner and runtime info panel.
 func (m model) renderHeaderBody() string {
-	banner := m.getHeaderBanner()
-	left := renderHandBanner(banner)
-	right := m.renderHeaderInfoPanel()
-	if right == "" {
-		return left
-	}
-
-	right = alignHeaderInfoPanel(right, lipgloss.Height(banner))
-	availableLeftWidth := max(m.width-lipgloss.Width(right)-headerGapWidth, lipgloss.Width(banner))
-	left = lipgloss.NewStyle().
-		Width(availableLeftWidth).
-		Render(left)
-
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", headerGapWidth), right)
+	return renderHeaderBody(getHeaderPanel(m, m.width))
 }
 
 // renderHeaderInfoPanel renders the right-hand runtime information panel.
 func (m model) renderHeaderInfoPanel() string {
-	rows := getHeaderInfoRows(m)
-	infoWidth := getHeaderInfoWidth(rows)
-	if m.width < lipgloss.Width(handBanner)+headerGapWidth+infoWidth {
-		return ""
-	}
-
-	lines := make([]string, 0, len(rows))
-	for _, row := range rows {
-		key := lipgloss.NewStyle().
-			Width(headerInfoKeyWidth).
-			Align(lipgloss.Right).
-			Render(row.key)
-
-		lines = append(lines, key+": "+row.value)
-	}
-
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("8")).
-		Width(infoWidth).
-		Render(strings.Join(lines, "\n"))
+	return renderHeaderInfoPanel(getHeaderPanel(m, m.width))
 }
 
 type headerInfoRow struct {
 	key   string
 	value string
+}
+
+type headerPanel struct {
+	Width      int
+	Banner     string
+	Notice     noticePanel
+	InfoRows   []headerInfoRow
+	ShowInfo   bool
+	BannerRows []color.Color
+}
+
+type noticePanel struct {
+	Width    int
+	LeftLead string
+	Name     string
+	Lead     string
+	Link     string
+	Tail     string
+}
+
+func getHeaderPanel(m model, width int) headerPanel {
+	width = max(width, 1)
+	rows := getHeaderInfoRows(m)
+	infoWidth := getHeaderInfoWidth(rows)
+
+	return headerPanel{
+		Width:    width,
+		Banner:   getHeaderBanner(width),
+		Notice:   getNoticePanel(width),
+		InfoRows: rows,
+		ShowInfo: width >= lipgloss.Width(handBanner)+headerGapWidth+infoWidth,
+	}
+}
+
+func getNoticePanel(width int) noticePanel {
+	return noticePanel{
+		Width:    max(width, 1),
+		LeftLead: noticeBarLeftLead,
+		Name:     noticeBarName,
+		Lead:     noticeBarLead,
+		Link:     noticeBarLink,
+		Tail:     noticeBarTail,
+	}
 }
 
 // getHeaderInfoRows returns the runtime metadata rows shown in the header.
@@ -227,10 +166,14 @@ func getModelDisplayName(name string) string {
 
 // getHeaderBanner returns the widest banner that can fit without clipping.
 func (m model) getHeaderBanner() string {
-	if m.width >= lipgloss.Width(handBanner) {
+	return getHeaderBanner(m.width)
+}
+
+func getHeaderBanner(width int) string {
+	if width >= lipgloss.Width(handBanner) {
 		return handBanner
 	}
-	if m.width >= lipgloss.Width(compactHandBanner) {
+	if width >= lipgloss.Width(compactHandBanner) {
 		return compactHandBanner
 	}
 
@@ -239,14 +182,7 @@ func (m model) getHeaderBanner() string {
 
 // renderHandBanner renders the generated figlet masthead.
 func renderHandBanner(banner string) string {
-	lines := strings.Split(banner, "\n")
-	for index, line := range lines {
-		lines[index] = lipgloss.NewStyle().
-			Foreground(getHandBannerColor(index)).
-			Render(line)
-	}
-
-	return strings.Join(lines, "\n")
+	return renderHandBannerWithColors(banner, nil)
 }
 
 // getHandBannerColor returns the stable lolcat-inspired color for a banner row.

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
@@ -231,6 +232,79 @@ func TestTranscriptCellInterface_IsPureData(t *testing.T) {
 	require.False(t, hasRender)
 }
 
+func TestChromePanelData_SeparatesModelStateFromRendering(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 120
+	runModel.modelName = "openai/gpt-4o-mini"
+
+	panel := getHeaderPanel(runModel, runModel.width)
+
+	require.Equal(t, 120, panel.Width)
+	require.Equal(t, handBanner, panel.Banner)
+	require.True(t, panel.ShowInfo)
+	require.Equal(t, "Welcome, ", panel.Notice.LeftLead)
+	require.Equal(t, "/changelogs", panel.Notice.Link)
+	require.Contains(t, headerInfoRowsToPlainText(panel.InfoRows), "model=gpt-4o-mini")
+}
+
+func TestChromeRenderer_RendersHeaderAndNoticeFromPanelData(t *testing.T) {
+	runModel := newModel()
+	panel := getHeaderPanel(runModel, 96)
+	renderer := lipglossChromeRenderer{}
+
+	header := stripANSI(renderer.RenderHeader(panel))
+	notice := stripANSI(renderer.RenderNoticeBar(panel.Notice))
+
+	require.Contains(t, header, "Welcome, Kennedy")
+	require.Contains(t, header, "Use /changelogs to see what changed")
+	require.Contains(t, header, "░██")
+	require.Contains(t, notice, "Welcome, Kennedy")
+	require.Equal(t, 96, lipgloss.Width(strings.Split(notice, "\n")[0]))
+}
+
+func TestBottomStatusPanelData_SeparatesModelStateFromRendering(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 100
+	runModel.responding = true
+	runModel.thinkingComposerFrame = 2
+	runModel.sessionTitle = "Project Planning"
+	runModel.exitAt = time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
+
+	panel := getBottomStatusPanel(getInputBoxWidth(runModel.width), runModel)
+
+	require.Equal(t, getInputBoxWidth(runModel.width), panel.Width)
+	require.Equal(t, getPanelContentWidth(panel.Width), panel.ContentWidth)
+	require.Equal(t, "GPT 5.5", panel.ModelName)
+	require.Equal(t, "Project Planning", panel.SessionTitle)
+	require.True(t, panel.Thinking)
+	require.Equal(t, 2, panel.ThinkingFrame)
+	require.True(t, panel.ExitConfirmation)
+}
+
+func TestBottomStatusPanelRenderer_RendersFromPanelData(t *testing.T) {
+	renderer := lipglossBottomStatusPanelRenderer{}
+	panel := bottomStatusPanel{
+		Width:             80,
+		HorizontalPadding: 1,
+		ContentWidth:      78,
+		ModelName:         "GPT 5.5",
+		Status:            statusReadySuffix,
+		SessionTitle:      "Project Planning",
+		Context:           "60,000 used",
+		Thinking:          true,
+		ThinkingFrame:     1,
+	}
+
+	content := stripANSI(renderer.Render(panel))
+
+	require.Equal(t, 80, lipgloss.Width(content))
+	require.Contains(t, content, "Thinking")
+	require.Contains(t, content, "GPT 5.5")
+	require.Contains(t, content, "Project Planning")
+	require.Contains(t, content, "60,000 used")
+	require.Less(t, strings.Index(content, "Thinking"), strings.Index(content, "GPT 5.5"))
+}
+
 func trimRightSnapshotLines(value string) string {
 	lines := strings.Split(strings.TrimSpace(value), "\n")
 	for index, line := range lines {
@@ -238,6 +312,15 @@ func trimRightSnapshotLines(value string) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func headerInfoRowsToPlainText(rows []headerInfoRow) string {
+	parts := make([]string, 0, len(rows))
+	for _, row := range rows {
+		parts = append(parts, row.key+"="+row.value)
+	}
+
+	return strings.Join(parts, "\n")
 }
 
 func TestTranscriptCellFactory_BuildsToolCellsSharedByLiveAndHydratedPaths(t *testing.T) {

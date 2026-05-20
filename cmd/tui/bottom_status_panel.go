@@ -1,160 +1,35 @@
 package tui
 
-import (
-	"strings"
-
-	"charm.land/lipgloss/v2"
-)
-
 // renderBottomStatusPanel renders the compact bottom status panel below the composer.
 func (m model) renderBottomStatusPanel() string {
 	availableWidth := getInputBoxWidth(m.width)
-	horizontalPadding := getPanelHorizontalPadding(availableWidth)
-	contentWidth := getPanelContentWidth(availableWidth)
-	status := m.status.Text()
-
-	segments := []string{
-		renderBottomStatusMutedCell(m.modelName),
-		renderBottomStatusMutedCell(status),
-	}
-	if m.isModelThinking() {
-		segments = append([]string{renderThinkingStatusCell(m.thinkingComposerFrame)}, segments...)
-	}
-
-	left := joinBottomStatusPanelRenderedSegments(segments, contentWidth)
-	center := renderBottomStatusMutedCell(m.sessionTitle)
-	right := renderBottomStatusMutedCell(m.context)
-	if m.hasPendingExitConfirmation() {
-		left = renderBottomStatusMutedCell(status)
-		center = ""
-		right = ""
-	}
-
-	return lipgloss.NewStyle().
-		Padding(0, horizontalPadding).
-		Width(availableWidth).
-		Render(spaceAroundBottomStatusPanel(left, center, right, contentWidth))
+	return defaultBottomStatusPanelRenderer.Render(getBottomStatusPanel(availableWidth, m))
 }
 
-func renderBottomStatusMutedCell(text string) string {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return ""
-	}
-
-	return renderBottomStatusMutedText(text)
+type bottomStatusPanel struct {
+	Width             int
+	HorizontalPadding int
+	ContentWidth      int
+	ModelName         string
+	Status            string
+	SessionTitle      string
+	Context           string
+	Thinking          bool
+	ThinkingFrame     int
+	ExitConfirmation  bool
 }
 
-func renderBottomStatusMutedText(text string) string {
-	if text == "" {
-		return ""
+func getBottomStatusPanel(width int, m model) bottomStatusPanel {
+	return bottomStatusPanel{
+		Width:             max(width, 1),
+		HorizontalPadding: getPanelHorizontalPadding(width),
+		ContentWidth:      getPanelContentWidth(width),
+		ModelName:         m.modelName,
+		Status:            m.status.Text(),
+		SessionTitle:      m.sessionTitle,
+		Context:           m.context,
+		Thinking:          m.isModelThinking(),
+		ThinkingFrame:     m.thinkingComposerFrame,
+		ExitConfirmation:  m.hasPendingExitConfirmation(),
 	}
-
-	return lipgloss.NewStyle().
-		Inline(true).
-		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
-		Render(text)
-}
-
-func joinBottomStatusPanelRenderedSegments(segments []string, width int) string {
-	visible := make([]string, 0, len(segments))
-	for _, segment := range segments {
-		if segment = strings.TrimSpace(segment); segment != "" {
-			visible = append(visible, segment)
-		}
-	}
-	if len(visible) == 0 {
-		return ""
-	}
-	if len(visible) == 1 {
-		return visible[0]
-	}
-
-	wideSeparator := renderBottomStatusMutedText("  ·  ")
-	value := strings.Join(visible, wideSeparator)
-	if lipgloss.Width(value) <= width {
-		return value
-	}
-
-	return strings.Join(visible, renderBottomStatusMutedText(" · "))
-}
-
-// joinBottomStatusPanelSegments joins metadata while preserving narrow-screen fallback.
-func joinBottomStatusPanelSegments(segments []string, width int) string {
-	visible := make([]string, 0, len(segments))
-	for _, segment := range segments {
-		if segment = strings.TrimSpace(segment); segment != "" {
-			visible = append(visible, segment)
-		}
-	}
-	if len(visible) == 0 {
-		return ""
-	}
-	if len(visible) == 1 {
-		return visible[0]
-	}
-
-	separator := "  ·  "
-	value := strings.Join(visible, separator)
-	if lipgloss.Width(value) <= width {
-		return value
-	}
-
-	return strings.Join(visible, " · ")
-}
-
-// spaceBetweenBottomStatusPanel pushes context usage to the right edge when possible.
-func spaceBetweenBottomStatusPanel(left, right string, width int) string {
-	left = strings.TrimSpace(left)
-	right = strings.TrimSpace(right)
-	if left == "" {
-		return right
-	}
-	if right == "" {
-		return left
-	}
-
-	gap := width - lipgloss.Width(left) - lipgloss.Width(right)
-	if gap <= 0 {
-		return left + renderBottomStatusMutedText(" · ") + right
-	}
-
-	return left + strings.Repeat(" ", gap) + right
-}
-
-// spaceAroundBottomStatusPanel centers the session title while keeping metadata at the edges.
-func spaceAroundBottomStatusPanel(left, center, right string, width int) string {
-	left = strings.TrimSpace(left)
-	center = strings.TrimSpace(center)
-	right = strings.TrimSpace(right)
-	if center == "" {
-		return spaceBetweenBottomStatusPanel(left, right, width)
-	}
-
-	leftWidth := lipgloss.Width(left)
-	centerWidth := lipgloss.Width(center)
-	rightWidth := lipgloss.Width(right)
-	centerStart := max((width-centerWidth)/2, leftWidth+1)
-	rightStart := width - rightWidth
-	if right == "" {
-		rightStart = width
-	}
-	if centerStart+centerWidth >= rightStart {
-		return spaceBetweenBottomStatusPanel(
-			joinBottomStatusPanelRenderedSegments([]string{left, center}, width),
-			right,
-			width,
-		)
-	}
-
-	var out strings.Builder
-	out.WriteString(left)
-	out.WriteString(strings.Repeat(" ", max(centerStart-lipgloss.Width(out.String()), 1)))
-	out.WriteString(center)
-	if right != "" {
-		out.WriteString(strings.Repeat(" ", max(rightStart-lipgloss.Width(out.String()), 1)))
-		out.WriteString(right)
-	}
-
-	return out.String()
 }
