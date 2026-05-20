@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
@@ -127,7 +128,40 @@ func TestTranscriptRenderer_UsesRenderContextTimeForRunningTools(t *testing.T) {
 	require.Contains(t, stripANSI(rendered), "read_file a.txt (3s)")
 }
 
-func TestTranscriptCell_RenderDelegatesToRenderer(t *testing.T) {
+func TestTranscriptRenderer_VisualSnapshot(t *testing.T) {
+	startedAt := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
+	rendered := defaultTranscriptRenderer.RenderCells(
+		[]transcriptCell{
+			userTranscriptCell{text: "hello"},
+			thoughtTranscriptCell{duration: 2 * time.Second},
+			assistantTranscriptCell{text: "**Done**"},
+			toolTranscriptTestCellWithTiming(
+				"call_1",
+				"read_file",
+				"read_file notes.txt",
+				startedAt,
+				startedAt.Add(3*time.Second),
+				true,
+			),
+		},
+		transcriptRenderContext{Width: 48, Now: startedAt.Add(3 * time.Second)},
+	)
+
+	require.Equal(t, strings.TrimSpace(`
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+❯ hello
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
+Thought for 2s
+
+Done
+
+● Read (3s)
+  └ read_file notes.txt (3s)
+`), trimRightSnapshotLines(stripANSI(rendered)))
+}
+
+func TestTranscriptRenderer_RendersCellsWithoutCellRenderMethods(t *testing.T) {
 	original := defaultTranscriptRenderer
 	t.Cleanup(func() {
 		defaultTranscriptRenderer = original
@@ -135,11 +169,75 @@ func TestTranscriptCell_RenderDelegatesToRenderer(t *testing.T) {
 	renderer := recordingTranscriptRenderer{output: "rendered"}
 	defaultTranscriptRenderer = &renderer
 
-	output := assistantTranscriptCell{text: "hello"}.Render(transcriptRenderContext{Width: 20})
+	output := defaultTranscriptRenderer.RenderCell(
+		assistantTranscriptCell{text: "hello"},
+		transcriptRenderContext{Width: 20},
+	)
 
 	require.Equal(t, "rendered", output)
 	require.Equal(t, transcriptCellAssistant, renderer.kind)
 	require.Equal(t, 20, renderer.ctx.Width)
+}
+
+func TestModelView_FullScreenLayoutSnapshot(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 64
+	runModel.height = 18
+	runModel.messages = []transcriptCell{
+		userTranscriptCell{text: "hello"},
+		assistantTranscriptCell{text: "Hi"},
+	}
+	runModel.showIntro = false
+	runModel.resize()
+	runModel.setTranscriptContent()
+
+	view := stripANSI(runModel.View().Content)
+
+	require.Contains(t, view, "░██")
+	require.Contains(t, view, "❯ hello")
+	require.Contains(t, view, "Hi")
+	require.Contains(t, view, "Ask Hand...")
+	require.Contains(t, view, "GPT 5.5")
+	require.Contains(t, view, statusReadySuffix)
+	require.Less(t, strings.Index(view, "❯ hello"), strings.Index(view, "Ask Hand..."))
+	require.Less(t, strings.Index(view, "Ask Hand..."), strings.Index(view, statusReadySuffix))
+}
+
+func TestBubbleTeaAdapter_UpdatesInputOnlyForPlainTyping(t *testing.T) {
+	runModel := newModel()
+	for i := 0; i < 20; i++ {
+		runModel.messages = append(runModel.messages, assistantTranscriptCell{text: strings.Repeat("line\n", 4)})
+	}
+	runModel.resize()
+	runModel.setTranscriptContent()
+	runModel.transcript.SetYOffset(max(runModel.transcript.TotalLineCount()-2, 0))
+	offset := runModel.transcript.YOffset()
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+	require.NotNil(t, updated)
+	require.NotNil(t, cmd)
+	next := updated.(model)
+
+	require.Equal(t, offset, next.transcript.YOffset())
+	require.Equal(t, "a", next.input.Value())
+}
+
+func TestTranscriptCellInterface_IsPureData(t *testing.T) {
+	var cell transcriptCell = assistantTranscriptCell{text: "hello"}
+	_, hasRender := any(cell).(interface {
+		Render(transcriptRenderContext) string
+	})
+
+	require.False(t, hasRender)
+}
+
+func trimRightSnapshotLines(value string) string {
+	lines := strings.Split(strings.TrimSpace(value), "\n")
+	for index, line := range lines {
+		lines[index] = strings.TrimRight(line, " ")
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func TestTranscriptCellFactory_BuildsToolCellsSharedByLiveAndHydratedPaths(t *testing.T) {

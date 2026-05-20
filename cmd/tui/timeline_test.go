@@ -43,7 +43,7 @@ func renderTranscriptTestCellWithWidth(cell transcriptCell, width int) string {
 		return renderToolTranscriptGroup(group, 0)
 	}
 
-	return cell.Render(transcriptRenderContext{Width: width, Now: currentTime()})
+	return defaultTranscriptRenderer.RenderCell(cell, transcriptRenderContext{Width: width, Now: currentTime()})
 }
 
 func renderTranscriptTestCell(cell transcriptCell) string {
@@ -211,7 +211,11 @@ func TestTranscriptCells_ExposeTypedCellContract(t *testing.T) {
 			require.Equal(t, tt.kind, tt.cell.Kind())
 			require.False(t, tt.cell.IsEmpty())
 			require.Equal(t, tt.plainText, tt.cell.PlainText())
-			require.Contains(t, stripANSI(tt.cell.Render(transcriptRenderContext{Width: 40, Now: completedAt})), tt.renderText)
+			rendered := defaultTranscriptRenderer.RenderCell(
+				tt.cell,
+				transcriptRenderContext{Width: 40, Now: completedAt},
+			)
+			require.Contains(t, stripANSI(rendered), tt.renderText)
 		})
 	}
 }
