@@ -54,7 +54,7 @@ func TestTimelineMessageToTranscriptCell_MapsVisibleRoles(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, timelineMessageToTranscriptCell(tt.message, nil))
+			require.Equal(t, tt.want, legacyTranscriptCellString(timelineMessageToTranscriptCell(tt.message, nil)))
 		})
 	}
 }
@@ -79,13 +79,109 @@ func TestTUIMessageToTranscriptCell_MapsLiveDisplayMessages(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, tuiMessageToTranscriptCell(tt.msg))
+			require.Equal(t, tt.want, legacyTranscriptCellString(tuiMessageToTranscriptCell(tt.msg)))
 		})
 	}
 }
 
+func TestTranscriptCells_ExposeTypedCellContract(t *testing.T) {
+	startedAt := time.Date(2026, 5, 20, 9, 0, 0, 0, time.UTC)
+	completedAt := startedAt.Add(2 * time.Second)
+	cases := []struct {
+		name       string
+		cell       transcriptCell
+		kind       transcriptCellKind
+		plainText  string
+		renderText string
+	}{
+		{
+			name:       "user",
+			cell:       userTranscriptCell{text: "hello"},
+			kind:       transcriptCellUser,
+			plainText:  "You: hello",
+			renderText: "❯ hello",
+		},
+		{
+			name:       "assistant",
+			cell:       assistantTranscriptCell{text: "hi"},
+			kind:       transcriptCellAssistant,
+			plainText:  "Hand: hi",
+			renderText: "hi",
+		},
+		{
+			name:       "reasoning",
+			cell:       reasoningTranscriptCell{text: "thinking", startedAt: startedAt},
+			kind:       transcriptCellReasoning,
+			plainText:  "Reasoning: thinking",
+			renderText: "Thinking",
+		},
+		{
+			name:       "thought",
+			cell:       thoughtTranscriptCell{duration: 3 * time.Second},
+			kind:       transcriptCellThought,
+			plainText:  "Thought: 3s",
+			renderText: "Thought for 3s",
+		},
+		{
+			name:       "safety",
+			cell:       safetyTranscriptCell{action: "blocked", findingIDs: []string{"prompt_exfiltration"}},
+			kind:       transcriptCellSafety,
+			plainText:  "Safety: blocked: prompt_exfiltration",
+			renderText: "Safety: blocked: prompt_exfiltration",
+		},
+		{
+			name:       "error",
+			cell:       errorTranscriptCell{message: "failed"},
+			kind:       transcriptCellError,
+			plainText:  "Error: failed",
+			renderText: "Error: failed",
+		},
+		{
+			name:       "system",
+			cell:       systemTranscriptCell{text: "note"},
+			kind:       transcriptCellSystem,
+			plainText:  "note",
+			renderText: "note",
+		},
+		{
+			name:       "tool",
+			cell:       newToolTranscriptCell("call_1", "list_files", "list_files(path=.)", startedAt, completedAt, true),
+			kind:       transcriptCellTool,
+			plainText:  "Tool List Files:\nid: call_1\ndetail: list_files(path=.)\nstarted_at: 2026-05-20T09:00:00Z\ncompleted_at: 2026-05-20T09:00:02Z\nstatus: completed",
+			renderText: "List Files",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NotNil(t, tt.cell)
+			require.Equal(t, tt.kind, tt.cell.Kind())
+			require.False(t, tt.cell.IsEmpty())
+			require.Equal(t, tt.plainText, tt.cell.PlainText())
+			require.Contains(t, stripANSI(tt.cell.Render(transcriptRenderContext{Width: 40, Now: completedAt})), tt.renderText)
+		})
+	}
+}
+
+func TestTranscriptCells_ReportEmptyState(t *testing.T) {
+	cases := []transcriptCell{
+		userTranscriptCell{text: " "},
+		assistantTranscriptCell{text: " "},
+		reasoningTranscriptCell{text: " "},
+		thoughtTranscriptCell{},
+		safetyTranscriptCell{},
+		errorTranscriptCell{},
+		systemTranscriptCell{text: " "},
+	}
+
+	for _, cell := range cases {
+		require.True(t, cell.IsEmpty())
+		require.Empty(t, cell.PlainText())
+	}
+}
+
 func TestRenderTranscriptCell_StylesCanonicalCells(t *testing.T) {
-	rendered := renderTranscriptCells([]string{
+	rendered := renderTranscriptCells([]transcriptCell{
 		timelineMessageToTranscriptCell(handmsg.Message{Role: handmsg.RoleUser, Content: "hello"}, nil),
 		tuiMessageToTranscriptCell(assistantResponseCompletedMsg{Text: "hi"}),
 		tuiMessageToTranscriptCell(toolInvocationStartedMsg{Name: "read_file"}),
@@ -465,6 +561,20 @@ func TestRenderTranscriptCell_RendersAssistantMarkdown(t *testing.T) {
 	require.NotContains(t, rendered, "\x1b[48;5;63m")
 }
 
+func TestRenderTranscriptCells_AlignsAssistantMarkdownWithThoughtCell(t *testing.T) {
+	rendered := renderTranscriptCellsWithWidth([]transcriptCell{
+		thoughtTranscriptCell{duration: time.Second},
+		assistantTranscriptCell{text: "**54 sensors are working.**\n\nRechecked: 9 containers."},
+	}, 80)
+	lines := strings.Split(stripANSI(rendered), "\n")
+
+	thoughtLine := indexLineContaining(lines, "Thought for 1s")
+	answerLine := indexLineContaining(lines, "54 sensors are working.")
+	require.NotEqual(t, -1, thoughtLine)
+	require.NotEqual(t, -1, answerLine)
+	require.Equal(t, countLeadingSpaces(lines[thoughtLine]), countLeadingSpaces(lines[answerLine]))
+}
+
 func TestRenderTranscriptCell_RendersCompactMarkdownTables(t *testing.T) {
 	rendered := renderTranscriptCellWithWidth(strings.Join([]string{
 		"Hand: | **Issue** | Details |",
@@ -562,7 +672,7 @@ func TestSessionTimelineToTranscriptCells_SkipsMessageBackedTraceDuplicates(t *t
 		"You: hello there",
 		"Hand: hello back",
 		toolOperationTranscriptCellWithTiming("", "read_file", "", now.Add(2*time.Second), time.Time{}, false),
-	}, cells)
+	}, legacyTranscriptCellStrings(cells))
 }
 
 func TestSessionTimelineToTranscriptCells_InterleavesMessagesAndTraceEventsByTime(t *testing.T) {
@@ -596,7 +706,7 @@ func TestSessionTimelineToTranscriptCells_InterleavesMessagesAndTraceEventsByTim
 		toolOperationTranscriptCellWithTiming("", "web_search", "", time.Time{}, now.Add(3*time.Second), true),
 		"You: Hi",
 		"Hand: Hi there",
-	}, cells)
+	}, legacyTranscriptCellStrings(cells))
 }
 
 func TestSessionTimelineToTranscriptCells_UsesPersistedToolCallInputForToolDetails(t *testing.T) {
@@ -628,7 +738,7 @@ func TestSessionTimelineToTranscriptCells_UsesPersistedToolCallInputForToolDetai
 			now.Add(time.Second),
 			true,
 		),
-	}, cells)
+	}, legacyTranscriptCellStrings(cells))
 	plain := stripANSI(renderTranscriptCells(cells))
 	require.Contains(t, plain, "● Ran 1 shell command")
 	require.Contains(t, plain, "└ $ sleep 10 (1s)")

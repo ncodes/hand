@@ -42,13 +42,13 @@ func (m *model) setTranscriptContentForActiveTurn() {
 }
 
 func (m *model) renderTranscriptContent() string {
-	cells := make([]string, 0, len(m.messages)+1)
+	cells := make([]transcriptCell, 0, len(m.messages)+1)
 	cells = append(cells, m.messages...)
-	if strings.TrimSpace(m.live) != "" {
+	if m.live != nil && !m.live.IsEmpty() {
 		cells = append(cells, m.live)
 	}
 	if len(cells) == 0 && m.showIntro {
-		cells = append(cells, "Welcome to Hand TUI.\n\nThe interactive shell is ready.")
+		cells = append(cells, systemTranscriptCell{text: "Welcome to Hand TUI.\n\nThe interactive shell is ready."})
 	}
 	if len(cells) > 0 {
 		m.showIntro = false
@@ -142,7 +142,7 @@ func (m *model) applyTUIMessage(msg any) tea.Cmd {
 }
 
 func (m *model) addTranscriptMessage(msg any) {
-	if cell := tuiMessageToTranscriptCell(msg); cell != "" {
+	if cell := tuiMessageToTranscriptCell(msg); cell != nil && !cell.IsEmpty() {
 		m.messages = append(m.messages, cell)
 		if m.responding {
 			m.setTranscriptContentForResponseUpdate()
@@ -154,15 +154,15 @@ func (m *model) addTranscriptMessage(msg any) {
 }
 
 func (m *model) appendReasoningDelta(delta string) {
-	cell := reasoningTranscriptCell(delta)
-	if cell == "" {
+	cell := newReasoningTranscriptCell(delta, currentTime())
+	if cell == nil || cell.IsEmpty() {
 		return
 	}
 	if m.reasoningStartedAt.IsZero() {
 		m.reasoningStartedAt = currentTime()
 	}
 
-	if len(m.messages) > 0 && isReasoningTranscriptCell(m.messages[len(m.messages)-1]) {
+	if len(m.messages) > 0 && m.messages[len(m.messages)-1].Kind() == transcriptCellReasoning {
 		m.messages[len(m.messages)-1] = appendReasoningTranscriptCell(m.messages[len(m.messages)-1], delta)
 		m.reasoningMessageIndex = len(m.messages) - 1
 	} else {
@@ -180,7 +180,7 @@ func (m *model) appendAssistantDelta(delta string) {
 	}
 
 	m.stream.Add(delta)
-	m.live = assistantTranscriptCell(m.stream.Render())
+	m.live = assistantTranscriptCell{text: m.stream.Render()}
 	m.setTranscriptContentForResponseUpdate()
 	m.resize()
 }
@@ -193,7 +193,7 @@ func (m *model) completeAssistantResponse(text string) {
 		m.stream.Reset()
 	}
 	if strings.TrimSpace(reply) == "" {
-		m.live = ""
+		m.live = nil
 		m.collapseReasoningTranscript()
 		m.setTranscriptContentAfterResponseCompletion()
 		m.resize()
@@ -201,8 +201,8 @@ func (m *model) completeAssistantResponse(text string) {
 	}
 
 	m.collapseReasoningTranscript()
-	m.messages = append(m.messages, assistantTranscriptCell(reply))
-	m.live = ""
+	m.messages = append(m.messages, assistantTranscriptCell{text: reply})
+	m.live = nil
 	m.setTranscriptContentAfterResponseCompletion()
 	m.resize()
 }
@@ -220,17 +220,9 @@ func (m *model) setTranscriptContentForResponseUpdate() {
 	m.setTranscriptContentForActiveTurn()
 }
 
-func assistantTranscriptCell(text string) string {
-	if strings.TrimSpace(text) == "" {
-		return ""
-	}
-
-	return "Hand: " + text
-}
-
 func (m *model) collapseReasoningTranscript() {
 	index := m.reasoningMessageIndex
-	if index < 0 || index >= len(m.messages) || !isReasoningTranscriptCell(m.messages[index]) {
+	if index < 0 || index >= len(m.messages) || m.messages[index].Kind() != transcriptCellReasoning {
 		return
 	}
 
@@ -239,7 +231,7 @@ func (m *model) collapseReasoningTranscript() {
 		duration = time.Second
 	}
 
-	m.messages[index] = thoughtTranscriptCell(duration)
+	m.messages[index] = thoughtTranscriptCell{duration: duration}
 	m.clearReasoningTranscriptState()
 }
 
@@ -248,37 +240,26 @@ func (m *model) clearReasoningTranscriptState() {
 	m.reasoningMessageIndex = -1
 }
 
-func thoughtTranscriptCell(duration time.Duration) string {
-	if duration <= 0 {
-		duration = time.Second
-	}
-
-	return "Thought: " + formatToolTranscriptDuration(duration)
-}
-
-func reasoningTranscriptCell(text string) string {
+func newReasoningTranscriptCell(text string, startedAt time.Time) transcriptCell {
 	if strings.TrimSpace(text) == "" {
-		return ""
+		return nil
 	}
 
-	return "Reasoning: " + text
+	return reasoningTranscriptCell{text: text, startedAt: startedAt}
 }
 
-func appendReasoningTranscriptCell(cell string, delta string) string {
+func appendReasoningTranscriptCell(cell transcriptCell, delta string) transcriptCell {
 	if strings.TrimSpace(delta) == "" {
 		return cell
 	}
 
-	if !isReasoningTranscriptCell(cell) {
-		return reasoningTranscriptCell(delta)
+	reasoningCell, ok := cell.(reasoningTranscriptCell)
+	if !ok {
+		return newReasoningTranscriptCell(delta, currentTime())
 	}
 
-	return cell + delta
-}
-
-func isReasoningTranscriptCell(cell string) bool {
-	kind, _, _ := parseTranscriptCell(cell)
-	return kind == transcriptCellReasoning
+	reasoningCell.text += delta
+	return reasoningCell
 }
 
 func isReasoningDeltaChannel(channel string) bool {

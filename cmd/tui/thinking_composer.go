@@ -71,7 +71,7 @@ func renderThinkingStatusCell(frame int) string {
 
 func (m model) isModelThinking() bool {
 	return m.responding &&
-		strings.TrimSpace(m.live) == "" &&
+		(m.live == nil || m.live.IsEmpty()) &&
 		!m.hasRunningToolTranscriptCells()
 }
 

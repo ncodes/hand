@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -47,10 +46,10 @@ func toolAnimationTickCmd() tea.Cmd {
 	})
 }
 
-func hasRunningToolTranscriptCell(cells []string) bool {
+func hasRunningToolTranscriptCell(cells []transcriptCell) bool {
 	var toolGroup *toolTranscriptGroup
 	for _, cell := range cells {
-		toolCell, ok := parseToolTranscriptCell(strings.TrimSpace(cell))
+		toolCell, ok := cell.(toolTranscriptCell)
 		if !ok {
 			if toolGroup != nil && !toolGroup.isCompleted() {
 				return true

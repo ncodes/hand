@@ -46,11 +46,13 @@ func loadSessionTimelineCmd(ctx context.Context, client sessionTimelineLoader) t
 func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.Cmd {
 	cells := sessionTimelineToTranscriptCells(timeline)
 	if len(cells) == 0 {
-		cells = []string{fmt.Sprintf("%s has no visible timeline yet.", getSessionTimelineDisplayName(timeline))}
+		cells = []transcriptCell{
+			systemTranscriptCell{text: fmt.Sprintf("%s has no visible timeline yet.", getSessionTimelineDisplayName(timeline))},
+		}
 	}
 
 	m.messages = cells
-	m.live = ""
+	m.live = nil
 	m.showIntro = false
 	m.stream.Reset()
 	m.setTranscriptContent()
@@ -78,55 +80,10 @@ func getSessionTimelineDisplayName(timeline rpcclient.SessionTimeline) string {
 	return "session"
 }
 
-func sessionTimelineToTranscriptCells(timeline rpcclient.SessionTimeline) []string {
-	entries := make([]transcriptTimelineEntry, 0, len(timeline.Messages)+len(timeline.TraceEvents))
-	toolCalls := getTimelineToolCallDetails(timeline.Messages)
-	for index, message := range timeline.Messages {
-		if cell := timelineMessageToTranscriptCell(message.Message, toolCalls); cell != "" {
-			entries = append(entries, transcriptTimelineEntry{
-				at:    message.Message.CreatedAt,
-				order: index * 2,
-				cell:  cell,
-			})
-		}
-	}
-	hasMessageTranscript := len(entries) > 0
-	for index, event := range timeline.TraceEvents {
-		traceEvent := trace.Event{
-			Type:      event.Event.Type,
-			Timestamp: event.Event.Timestamp,
-			Payload:   event.Event.Payload,
-		}
-		if msg, ok := traceEventToTUIMessage(traceEvent); ok {
-			if hasMessageTranscript && isMessageBackedTimelineEvent(msg) {
-				continue
-			}
-			if cell := tuiMessageToTranscriptCell(msg); cell != "" {
-				entries = append(entries, transcriptTimelineEntry{
-					at:    event.Event.Timestamp,
-					order: index*2 + 1,
-					cell:  cell,
-				})
-			}
-		}
-	}
-
-	sort.SliceStable(entries, func(left int, right int) bool {
-		return entries[left].less(entries[right])
-	})
-
-	cells := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		cells = append(cells, entry.cell)
-	}
-
-	return cells
-}
-
 type transcriptTimelineEntry struct {
 	at    time.Time
 	order int
-	cell  string
+	cell  transcriptCell
 }
 
 func (entry transcriptTimelineEntry) less(other transcriptTimelineEntry) bool {
@@ -149,30 +106,75 @@ func isMessageBackedTimelineEvent(msg any) bool {
 	}
 }
 
-func timelineMessageToTranscriptCell(message handmsg.Message, toolCalls map[string]timelineToolCallDetail) string {
+func sessionTimelineToTranscriptCells(timeline rpcclient.SessionTimeline) []transcriptCell {
+	entries := make([]transcriptTimelineEntry, 0, len(timeline.Messages)+len(timeline.TraceEvents))
+	toolCalls := getTimelineToolCallDetails(timeline.Messages)
+	for index, message := range timeline.Messages {
+		if cell := timelineMessageToTranscriptCell(message.Message, toolCalls); cell != nil && !cell.IsEmpty() {
+			entries = append(entries, transcriptTimelineEntry{
+				at:    message.Message.CreatedAt,
+				order: index * 2,
+				cell:  cell,
+			})
+		}
+	}
+	hasMessageTranscript := len(entries) > 0
+	for index, event := range timeline.TraceEvents {
+		traceEvent := trace.Event{
+			Type:      event.Event.Type,
+			Timestamp: event.Event.Timestamp,
+			Payload:   event.Event.Payload,
+		}
+		if msg, ok := traceEventToTUIMessage(traceEvent); ok {
+			if hasMessageTranscript && isMessageBackedTimelineEvent(msg) {
+				continue
+			}
+			if cell := tuiMessageToTranscriptCell(msg); cell != nil && !cell.IsEmpty() {
+				entries = append(entries, transcriptTimelineEntry{
+					at:    event.Event.Timestamp,
+					order: index*2 + 1,
+					cell:  cell,
+				})
+			}
+		}
+	}
+
+	sort.SliceStable(entries, func(left int, right int) bool {
+		return entries[left].less(entries[right])
+	})
+
+	cells := make([]transcriptCell, 0, len(entries))
+	for _, entry := range entries {
+		cells = append(cells, entry.cell)
+	}
+
+	return cells
+}
+
+func timelineMessageToTranscriptCell(message handmsg.Message, toolCalls map[string]timelineToolCallDetail) transcriptCell {
 	content := strings.TrimSpace(message.Content)
 	if content == "" && len(message.ToolCalls) == 0 {
-		return ""
+		return nil
 	}
 
 	switch message.Role {
 	case handmsg.RoleUser:
 		if content == "" {
-			return ""
+			return nil
 		}
-		return "You: " + content
+		return userTranscriptCell{text: content}
 	case handmsg.RoleAssistant:
 		if content == "" {
-			return ""
+			return nil
 		}
-		return "Hand: " + content
+		return assistantTranscriptCell{text: content}
 	case handmsg.RoleTool:
 		name := strings.TrimSpace(message.Name)
 		if name == "" {
 			name = "tool"
 		}
 		toolCall := toolCalls[strings.TrimSpace(message.ToolCallID)]
-		return toolOperationTranscriptCellWithTiming(
+		return newToolTranscriptCell(
 			message.ToolCallID,
 			name,
 			toolCall.detail,
@@ -182,9 +184,9 @@ func timelineMessageToTranscriptCell(message handmsg.Message, toolCalls map[stri
 		)
 	default:
 		if content == "" {
-			return ""
+			return nil
 		}
-		return strings.TrimSpace(string(message.Role)) + ": " + content
+		return systemTranscriptCell{text: strings.TrimSpace(string(message.Role)) + ": " + content}
 	}
 }
 
@@ -211,46 +213,41 @@ func getTimelineToolCallDetails(messages []agent.SessionTimelineMessage) map[str
 	return details
 }
 
-func tuiMessageToTranscriptCell(msg any) string {
+func tuiMessageToTranscriptCell(msg any) transcriptCell {
 	switch value := msg.(type) {
 	case userMessageAcceptedMsg:
 		if text := strings.TrimSpace(value.Text); text != "" {
-			return "You: " + text
+			return userTranscriptCell{text: text}
 		}
 	case assistantTextDeltaMsg:
 		if text := strings.TrimSpace(value.Text); text != "" {
 			if isReasoningDeltaChannel(value.Channel) {
-				return reasoningTranscriptCell(text)
+				return newReasoningTranscriptCell(text, currentTime())
 			}
-			return "Hand: " + text
+			return assistantTranscriptCell{text: text}
 		}
 	case assistantResponseCompletedMsg:
 		if text := strings.TrimSpace(value.Text); text != "" {
-			return "Hand: " + text
+			return assistantTranscriptCell{text: text}
 		}
 	case toolInvocationStartedMsg:
-		return toolOperationTranscriptCellWithTiming(value.ID, value.Name, value.Detail, value.StartedAt, time.Time{}, false)
+		return newToolTranscriptCell(value.ID, value.Name, value.Detail, value.StartedAt, time.Time{}, false)
 	case toolInvocationCompletedMsg:
-		return toolOperationTranscriptCellWithTiming(value.ID, value.Name, value.Detail, time.Time{}, value.CompletedAt, true)
+		return newToolTranscriptCell(value.ID, value.Name, value.Detail, time.Time{}, value.CompletedAt, true)
 	case safetyEventMsg:
 		return safetyEventToTranscriptCell(value)
 	case sessionErrorMsg:
 		if message := strings.TrimSpace(value.Message); message != "" {
-			return "Error: " + message
+			return errorTranscriptCell{message: message}
 		}
 	}
 
-	return ""
+	return nil
 }
 
-func safetyEventToTranscriptCell(msg safetyEventMsg) string {
-	parts := []string{"Safety"}
-	if action := strings.TrimSpace(msg.Action); action != "" {
-		parts = append(parts, action)
+func safetyEventToTranscriptCell(msg safetyEventMsg) transcriptCell {
+	return safetyTranscriptCell{
+		action:     strings.TrimSpace(msg.Action),
+		findingIDs: msg.FindingIDs,
 	}
-	if len(msg.FindingIDs) > 0 {
-		parts = append(parts, strings.Join(msg.FindingIDs, ", "))
-	}
-
-	return strings.Join(parts, ": ")
 }

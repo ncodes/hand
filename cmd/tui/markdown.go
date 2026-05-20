@@ -25,7 +25,7 @@ func renderMarkdownForTranscript(markdown string, width int) string {
 	if err != nil {
 		return markdown
 	}
-	if rendered = strings.TrimSpace(rendered); rendered != "" {
+	if rendered = trimRenderedMarkdown(rendered); rendered != "" {
 		return rendered
 	}
 
@@ -111,7 +111,81 @@ func trimRenderedMarkdown(output string) string {
 		lines = lines[:len(lines)-1]
 	}
 
+	return removeCommonRenderedMarkdownLeftMargin(strings.Join(lines, "\n"))
+}
+
+func removeCommonRenderedMarkdownLeftMargin(output string) string {
+	lines := strings.Split(output, "\n")
+	margin := -1
+	for _, line := range lines {
+		stripped := xansi.Strip(line)
+		if strings.TrimSpace(stripped) == "" {
+			continue
+		}
+
+		leading := countLeadingSpaces(stripped)
+		if margin < 0 || leading < margin {
+			margin = leading
+		}
+	}
+	if margin <= 0 {
+		return output
+	}
+
+	for index, line := range lines {
+		lines[index] = trimLeadingSpaces(line, margin)
+	}
+
 	return strings.Join(lines, "\n")
+}
+
+func countLeadingSpaces(value string) int {
+	count := 0
+	for _, r := range value {
+		if r != ' ' {
+			break
+		}
+		count++
+	}
+
+	return count
+}
+
+func trimLeadingSpaces(value string, count int) string {
+	if count <= 0 || value == "" {
+		return value
+	}
+
+	var output strings.Builder
+	removed := 0
+	for index := 0; index < len(value); {
+		if removed < count && value[index] == ' ' {
+			removed++
+			index++
+			continue
+		}
+		if value[index] == '\x1b' {
+			end := index + 1
+			if end < len(value) && value[end] == '[' {
+				end++
+				for end < len(value) {
+					ch := value[end]
+					end++
+					if ch >= '@' && ch <= '~' {
+						break
+					}
+				}
+			}
+			output.WriteString(value[index:end])
+			index = end
+			continue
+		}
+
+		output.WriteString(value[index:])
+		break
+	}
+
+	return output.String()
 }
 
 func indentMarkdownBlock(block string) string {

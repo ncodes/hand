@@ -67,7 +67,7 @@ func (m *model) submitPrompt() tea.Cmd {
 	promptSubmitted := false
 	switch input.Kind {
 	case composerInputPrompt:
-		m.messages = append(m.messages, "You: "+input.Text)
+		m.messages = append(m.messages, userTranscriptCell{text: input.Text})
 		m.clearComposer()
 		m.resize()
 		m.setTranscriptContent()

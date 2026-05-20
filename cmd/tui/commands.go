@@ -7,13 +7,13 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 	switch input.Name {
 	case "clear":
 		m.messages = nil
-		m.live = ""
+		m.live = nil
 		m.showIntro = false
 		m.stream.Reset()
 		m.clearReasoningTranscriptState()
 		cmd = m.setStatus("transcript cleared")
 	case "help":
-		m.messages = append(m.messages, "Commands: /clear, /copy, /help")
+		m.messages = append(m.messages, systemTranscriptCell{text: "Commands: /clear, /copy, /help"})
 	case "copy":
 		cmd = m.copyTranscript()
 	case "":
@@ -34,7 +34,7 @@ func (m *model) handleLocalCommand(input composerInput) tea.Cmd {
 	var cmd tea.Cmd
 	if !m.allowShell {
 		cmd = m.setStatus("local commands are disabled")
-		m.messages = append(m.messages, "Local command blocked: !"+input.Args)
+		m.messages = append(m.messages, systemTranscriptCell{text: "Local command blocked: !" + input.Args})
 		if m.responding {
 			m.setTranscriptContentForResponseUpdate()
 		} else {
@@ -44,7 +44,7 @@ func (m *model) handleLocalCommand(input composerInput) tea.Cmd {
 	}
 
 	cmd = m.setStatus("local command execution is not connected yet")
-	m.messages = append(m.messages, "Local command queued: !"+input.Args)
+	m.messages = append(m.messages, systemTranscriptCell{text: "Local command queued: !" + input.Args})
 	if m.responding {
 		m.setTranscriptContentForResponseUpdate()
 	} else {

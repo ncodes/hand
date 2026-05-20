@@ -352,7 +352,7 @@ func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, []string{"Hand: older answer"}, runModel.messages)
+	require.Equal(t, []string{"Hand: older answer"}, legacyTranscriptCellStrings(runModel.messages))
 	require.Contains(t, stripANSI(runModel.transcript.View()), "older answer")
 	require.Equal(t, "Daily Planning (default)", runModel.sessionTitle)
 	require.Equal(t, defaultStatus, runModel.status.Text())
@@ -605,7 +605,7 @@ func TestModel_RenderBottomStatusPanelShowsThinkingBeforeModel(t *testing.T) {
 func TestModel_RenderBottomStatusPanelHidesThinkingWhenNotThinking(t *testing.T) {
 	runModel := newModel()
 	runModel.responding = true
-	runModel.live = "Hand: hello"
+	runModel.live = legacyTranscriptCellFromString("Hand: hello")
 
 	content := stripANSI(runModel.renderBottomStatusPanel())
 
@@ -716,9 +716,9 @@ func TestModel_UpdateScrollsTranscriptWithPagingKeys(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 10
 	runModel.resize()
-	runModel.messages = make([]string, 0, 30)
+	runModel.messages = make([]transcriptCell, 0, 30)
 	for index := 0; index < 30; index++ {
-		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
 	bottomOffset := runModel.transcript.YOffset()
@@ -753,9 +753,9 @@ func TestModel_UpdateScrollsHeaderWithTranscript(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 10
 	runModel.resize()
-	runModel.messages = make([]string, 0, 30)
+	runModel.messages = make([]transcriptCell, 0, 30)
 	for index := 0; index < 30; index++ {
-		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
 	runModel.transcript.GotoTop()
@@ -773,9 +773,9 @@ func TestModel_UpdateScrollsTranscriptWithMouseWheel(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 10
 	runModel.resize()
-	runModel.messages = make([]string, 0, 30)
+	runModel.messages = make([]transcriptCell, 0, 30)
 	for index := 0; index < 30; index++ {
-		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
 	bottomOffset := runModel.transcript.YOffset()
@@ -793,7 +793,7 @@ func TestModel_UpdateDoesNotScrollTranscriptWhenTypingComposerText(t *testing.T)
 	runModel.height = 10
 	runModel.resize()
 	for index := 0; index < 30; index++ {
-		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
 	bottomOffset := runModel.transcript.YOffset()
@@ -813,7 +813,7 @@ func TestModel_ViewShowsJumpToBottomWhenTranscriptIsNotAtBottom(t *testing.T) {
 	runModel.height = 10
 	runModel.resize()
 	for index := 0; index < 30; index++ {
-		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
 	require.True(t, runModel.transcript.AtBottom())
@@ -830,7 +830,7 @@ func TestModel_UpdateJumpsTranscriptToBottomFromIndicatorAndShortcut(t *testing.
 	runModel.height = 10
 	runModel.resize()
 	for index := 0; index < 30; index++ {
-		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
 	bottomOffset := runModel.transcript.YOffset()
@@ -860,7 +860,7 @@ func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 14
 	runModel.resize()
-	runModel.messages = []string{"stale cell"}
+	runModel.messages = legacyTranscriptCells([]string{"stale cell"})
 	runModel.transcript.SetContent("stale cell")
 
 	messages := make([]agent.SessionTimelineMessage, 0, 20)
@@ -889,9 +889,9 @@ func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 	content := stripANSI(runModel.transcript.View())
 	require.Equal(t, "Project Planning", runModel.sessionTitle)
 	require.Equal(t, defaultStatus, runModel.status.Text())
-	require.Equal(t, "You: hello", runModel.messages[len(runModel.messages)-3])
-	require.Equal(t, "Hand: hi", runModel.messages[len(runModel.messages)-2])
-	require.Equal(t, toolOperationTranscriptCell("call_1", "read_file", ""), runModel.messages[len(runModel.messages)-1])
+	require.Equal(t, "You: hello", legacyTranscriptCellString(runModel.messages[len(runModel.messages)-3]))
+	require.Equal(t, "Hand: hi", legacyTranscriptCellString(runModel.messages[len(runModel.messages)-2]))
+	require.Equal(t, toolOperationTranscriptCell("call_1", "read_file", ""), legacyTranscriptCellString(runModel.messages[len(runModel.messages)-1]))
 	require.Contains(t, content, "❯ hello")
 	require.Contains(t, content, "hi")
 	require.NotContains(t, content, "Hand: hi")
@@ -909,7 +909,7 @@ func TestModel_HydrateSessionTimelineShowsEmptySession(t *testing.T) {
 
 	require.Equal(t, "empty", runModel.sessionTitle)
 	require.Equal(t, defaultStatus, runModel.status.Text())
-	require.Equal(t, []string{"empty has no visible timeline yet."}, runModel.messages)
+	require.Equal(t, []string{"empty has no visible timeline yet."}, legacyTranscriptCellStrings(runModel.messages))
 	require.Contains(t, runModel.transcript.View(), "empty has no visible timeline yet.")
 }
 
@@ -920,7 +920,7 @@ func TestModel_HydrateSessionTimelineShowsFallbackForMissingSessionID(t *testing
 
 	require.Equal(t, "session", runModel.sessionTitle)
 	require.Equal(t, defaultStatus, runModel.status.Text())
-	require.Equal(t, []string{"session has no visible timeline yet."}, runModel.messages)
+	require.Equal(t, []string{"session has no visible timeline yet."}, legacyTranscriptCellStrings(runModel.messages))
 	require.Contains(t, runModel.transcript.View(), "session has no visible timeline yet.")
 }
 
@@ -988,6 +988,9 @@ func TestModel_UpdateQuitsOnSecondQuickCtrlC(t *testing.T) {
 		time.Date(2026, 5, 16, 9, 0, 1, 0, time.UTC),
 	}
 	currentTime = func() time.Time {
+		if len(times) == 0 {
+			return time.Date(2026, 5, 16, 9, 0, 1, 0, time.UTC)
+		}
 		value := times[0]
 		times = times[1:]
 		return value
@@ -1012,6 +1015,9 @@ func TestModel_UpdateDoesNotQuitOnSlowSecondCtrlC(t *testing.T) {
 		time.Date(2026, 5, 16, 9, 0, 3, 0, time.UTC),
 	}
 	currentTime = func() time.Time {
+		if len(times) == 0 {
+			return time.Date(2026, 5, 16, 9, 0, 3, 0, time.UTC)
+		}
 		value := times[0]
 		times = times[1:]
 		return value
@@ -1077,7 +1083,7 @@ func TestModel_UpdateAppendsPromptOnEnter(t *testing.T) {
 
 	mainModel := updated.(model)
 	require.Empty(t, mainModel.input.Value())
-	require.Equal(t, []string{"You: Summarize tests"}, mainModel.messages)
+	require.Equal(t, []string{"You: Summarize tests"}, legacyTranscriptCellStrings(mainModel.messages))
 
 	content := stripANSI(mainModel.View().Content)
 	require.Contains(t, content, "██████")
@@ -1087,8 +1093,8 @@ func TestModel_UpdateAppendsPromptOnEnter(t *testing.T) {
 
 func TestModel_UpdateHandlesClearCommand(t *testing.T) {
 	runModel := newModel()
-	runModel.messages = []string{"You: stale", "Hand: stale"}
-	runModel.live = "Hand: live"
+	runModel.messages = legacyTranscriptCells([]string{"You: stale", "Hand: stale"})
+	runModel.live = legacyTranscriptCellFromString("Hand: live")
 	runModel.stream.Add("live")
 	runModel.input.SetValue("/clear")
 	runModel.setTranscriptContent()
@@ -1097,7 +1103,7 @@ func TestModel_UpdateHandlesClearCommand(t *testing.T) {
 
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
-	require.Empty(t, runModel.messages)
+	require.Empty(t, legacyTranscriptCellStrings(runModel.messages))
 	require.Empty(t, runModel.live)
 	require.Empty(t, runModel.input.Value())
 	require.Empty(t, runModel.stream.Render())
@@ -1120,7 +1126,7 @@ func TestModel_UpdateHandlesHelpCommand(t *testing.T) {
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, []string{"Commands: /clear, /copy, /help"}, runModel.messages)
+	require.Equal(t, []string{"Commands: /clear, /copy, /help"}, legacyTranscriptCellStrings(runModel.messages))
 	require.Empty(t, runModel.input.Value())
 	require.Contains(t, stripANSI(runModel.transcript.View()), "Commands: /clear, /copy, /help")
 }
@@ -1136,7 +1142,7 @@ func TestModel_UpdateCopiesTranscriptToClipboard(t *testing.T) {
 		return nil
 	}
 	runModel := newModel()
-	runModel.messages = []string{"You: hello", "Hand: hi"}
+	runModel.messages = legacyTranscriptCells([]string{"You: hello", "Hand: hi"})
 	runModel.setTranscriptContent()
 	runModel.input.SetValue("/copy")
 
@@ -1160,7 +1166,7 @@ func TestModel_UpdateCopiesTranscriptWithShortcut(t *testing.T) {
 		return nil
 	}
 	runModel := newModel()
-	runModel.messages = []string{"Hand: shortcut"}
+	runModel.messages = legacyTranscriptCells([]string{"Hand: shortcut"})
 	runModel.setTranscriptContent()
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'y', Mod: tea.ModCtrl}))
@@ -1183,8 +1189,8 @@ func TestModel_CopyTranscriptReportsEmptyTranscript(t *testing.T) {
 
 func TestModel_TranscriptTextIncludesLiveAssistantCell(t *testing.T) {
 	runModel := newModel()
-	runModel.messages = []string{"You: hello"}
-	runModel.live = "Hand: streaming"
+	runModel.messages = legacyTranscriptCells([]string{"You: hello"})
+	runModel.live = legacyTranscriptCellFromString("Hand: streaming")
 
 	require.Equal(t, "You: hello\n\nHand: streaming", runModel.transcriptText())
 }
@@ -1205,7 +1211,7 @@ func TestModel_UpdateReportsClipboardFailure(t *testing.T) {
 		return errors.New("clipboard unavailable")
 	}
 	runModel := newModel()
-	runModel.messages = []string{"Hand: hi"}
+	runModel.messages = legacyTranscriptCells([]string{"Hand: hi"})
 	runModel.setTranscriptContent()
 	runModel.input.SetValue("/copy")
 
@@ -1228,7 +1234,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	runModel := newModel()
 	runModel.height = 40
 	runModel.resize()
-	runModel.messages = []string{"You: first", "Hand: second", toolOperationTranscriptCell("", "read_file", "")}
+	runModel.messages = legacyTranscriptCells([]string{"You: first", "Hand: second", toolOperationTranscriptCell("", "read_file", "")})
 	runModel.setTranscriptContent()
 	runModel.resize()
 	runModel.transcript.GotoTop()
@@ -1287,7 +1293,7 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 40
 	runModel.resize()
-	runModel.messages = []string{"Hand: second"}
+	runModel.messages = legacyTranscriptCells([]string{"Hand: second"})
 	runModel.setTranscriptContent()
 	runModel.resize()
 	runModel.transcript.GotoTop()
@@ -1327,7 +1333,7 @@ func TestModel_UpdateSelectsTranscriptTextCharacterByCharacter(t *testing.T) {
 
 func TestModel_UpdateIgnoresNonLeftMouseSelectionStart(t *testing.T) {
 	runModel := newModel()
-	runModel.messages = []string{"Hand: first"}
+	runModel.messages = legacyTranscriptCells([]string{"Hand: first"})
 	runModel.setTranscriptContent()
 
 	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
@@ -1341,7 +1347,7 @@ func TestModel_UpdateIgnoresNonLeftMouseSelectionStart(t *testing.T) {
 
 func TestModel_UpdateIgnoresSelectionMotionAndReleaseWithoutDrag(t *testing.T) {
 	runModel := newModel()
-	runModel.messages = []string{"Hand: first"}
+	runModel.messages = legacyTranscriptCells([]string{"Hand: first"})
 	runModel.setTranscriptContent()
 
 	updated, cmd := runModel.Update(tea.MouseMotionMsg(tea.Mouse{
@@ -1363,7 +1369,7 @@ func TestModel_UpdateIgnoresSelectionMotionAndReleaseWithoutDrag(t *testing.T) {
 
 func TestModel_UpdateKeepsSelectionWhenDraggingOutsideTranscript(t *testing.T) {
 	runModel := newModel()
-	runModel.messages = []string{"Hand: first"}
+	runModel.messages = legacyTranscriptCells([]string{"Hand: first"})
 	runModel.setTranscriptContent()
 	top := runModel.getTranscriptTop()
 
@@ -1398,7 +1404,7 @@ func TestModel_UpdateDoesNotCopyBlankMouseSelection(t *testing.T) {
 		return nil
 	}
 	runModel := newModel()
-	runModel.messages = []string{"   "}
+	runModel.messages = legacyTranscriptCells([]string{"   "})
 	runModel.transcript.SetContent("   ")
 	top := runModel.getTranscriptTop()
 
@@ -1431,7 +1437,7 @@ func TestModel_UpdateReportsMouseSelectionCopyFailure(t *testing.T) {
 		return errors.New("clipboard unavailable")
 	}
 	runModel := newModel()
-	runModel.messages = []string{"Hand: first"}
+	runModel.messages = legacyTranscriptCells([]string{"Hand: first"})
 	runModel.setTranscriptContent()
 	runModel.resize()
 	runModel.transcript.GotoTop()
@@ -1456,7 +1462,7 @@ func TestModel_UpdateReportsMouseSelectionCopyFailure(t *testing.T) {
 
 func TestModel_UpdateIgnoresMouseSelectionOutsideTranscript(t *testing.T) {
 	runModel := newModel()
-	runModel.messages = []string{"Hand: first"}
+	runModel.messages = legacyTranscriptCells([]string{"Hand: first"})
 	runModel.setTranscriptContent()
 	runModel.resize()
 	belowTranscript := runModel.getTranscriptTop() + runModel.transcript.Height()
@@ -1611,7 +1617,7 @@ func TestGetDisplayColumnForByteOffsetHandlesWideCharacters(t *testing.T) {
 
 func TestModel_SetTranscriptContentClearsMouseSelection(t *testing.T) {
 	runModel := newModel()
-	runModel.messages = []string{"Hand: stale"}
+	runModel.messages = legacyTranscriptCells([]string{"Hand: stale"})
 	runModel.setTranscriptContent()
 	runModel.selection = transcriptSelection{
 		active: true,
@@ -1621,7 +1627,7 @@ func TestModel_SetTranscriptContentClearsMouseSelection(t *testing.T) {
 	runModel.applyTranscriptSelectionStyle()
 	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
 
-	runModel.messages = []string{"Hand: refreshed"}
+	runModel.messages = legacyTranscriptCells([]string{"Hand: refreshed"})
 	runModel.setTranscriptContent()
 
 	require.False(t, runModel.selection.active)
@@ -1638,7 +1644,7 @@ func TestModel_UpdateReportsUnknownCommand(t *testing.T) {
 
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
-	require.Empty(t, runModel.messages)
+	require.Empty(t, legacyTranscriptCellStrings(runModel.messages))
 	require.Equal(t, "unknown command: /missing", runModel.status.Text())
 	require.Empty(t, runModel.input.Value())
 }
@@ -1651,7 +1657,7 @@ func TestModel_UpdateReportsEmptyCommand(t *testing.T) {
 
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
-	require.Empty(t, runModel.messages)
+	require.Empty(t, legacyTranscriptCellStrings(runModel.messages))
 	require.Equal(t, "empty command", runModel.status.Text())
 	require.Empty(t, runModel.input.Value())
 }
@@ -1665,7 +1671,7 @@ func TestModel_UpdateBlocksLocalCommandWhenShellIsDisabled(t *testing.T) {
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.Equal(t, "local commands are disabled", runModel.status.Text())
-	require.Equal(t, []string{"Local command blocked: !ls -la"}, runModel.messages)
+	require.Equal(t, []string{"Local command blocked: !ls -la"}, legacyTranscriptCellStrings(runModel.messages))
 	require.Empty(t, runModel.input.Value())
 	require.Contains(t, stripANSI(runModel.transcript.View()), "Local command blocked: !ls -la")
 }
@@ -1680,7 +1686,7 @@ func TestModel_UpdateQueuesLocalCommandWhenShellIsAllowed(t *testing.T) {
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.Equal(t, "local command execution is not connected yet", runModel.status.Text())
-	require.Equal(t, []string{"Local command queued: !pwd"}, runModel.messages)
+	require.Equal(t, []string{"Local command queued: !pwd"}, legacyTranscriptCellStrings(runModel.messages))
 	require.Empty(t, runModel.input.Value())
 }
 
@@ -1694,7 +1700,7 @@ func TestModel_SubmitPromptStartsRPCResponse(t *testing.T) {
 	require.NotNil(t, cmd)
 	require.True(t, runModel.responding)
 	require.True(t, runModel.thinkingComposerActive)
-	require.Equal(t, []string{"You: hello"}, runModel.messages)
+	require.Equal(t, []string{"You: hello"}, legacyTranscriptCellStrings(runModel.messages))
 	require.Empty(t, runModel.input.Value())
 	require.Equal(t, []string{"hello"}, runModel.history)
 	require.Zero(t, client.calls)
@@ -1704,9 +1710,9 @@ func TestModel_SubmitPromptScrollsTranscriptToBottom(t *testing.T) {
 	runModel := newModelWithClient(&fakeTUIChatClient{})
 	runModel.height = 10
 	runModel.resize()
-	runModel.messages = make([]string, 0, 30)
+	runModel.messages = make([]transcriptCell, 0, 30)
 	for index := 0; index < 30; index++ {
-		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
 	runModel.transcript.GotoTop()
@@ -1723,9 +1729,9 @@ func TestModel_SubmitPromptStartsResponseFollowFromSettledBottom(t *testing.T) {
 	runModel := newModelWithClient(&fakeTUIChatClient{})
 	runModel.height = 10
 	runModel.resize()
-	runModel.messages = make([]string, 0, 30)
+	runModel.messages = make([]transcriptCell, 0, 30)
 	for index := 0; index < 30; index++ {
-		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
 	runModel.transcript.GotoTop()
@@ -1814,7 +1820,7 @@ func TestModel_UpdateAppliesResponseEventsAndCompletion(t *testing.T) {
 
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, "Hand: hello", runModel.live)
+	require.Equal(t, "Hand: hello", legacyTranscriptCellString(runModel.live))
 
 	updated, cmd = runModel.Update(responseCompletedMsg{ResponseID: 4, Text: "hello final"})
 
@@ -1823,16 +1829,16 @@ func TestModel_UpdateAppliesResponseEventsAndCompletion(t *testing.T) {
 	require.False(t, runModel.responding)
 	require.Nil(t, runModel.events)
 	require.Empty(t, runModel.live)
-	require.Equal(t, []string{"Hand: hello final"}, runModel.messages)
+	require.Equal(t, []string{"Hand: hello final"}, legacyTranscriptCellStrings(runModel.messages))
 }
 
 func TestModel_UpdatePreservesTranscriptScrollDuringActiveResponse(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 10
 	runModel.resize()
-	runModel.messages = make([]string, 0, 30)
+	runModel.messages = make([]transcriptCell, 0, 30)
 	for index := 0; index < 30; index++ {
-		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
 	bottomOffset := runModel.transcript.YOffset()
@@ -1859,9 +1865,9 @@ func TestModel_UpdateFollowsBottomDuringActiveResponse(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 10
 	runModel.resize()
-	runModel.messages = make([]string, 0, 30)
+	runModel.messages = make([]transcriptCell, 0, 30)
 	for index := 0; index < 30; index++ {
-		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
 	require.True(t, runModel.transcript.AtBottom())
@@ -1886,9 +1892,9 @@ func TestModel_UpdateKeepsFollowingBottomWhenResponseCompletesAfterStream(t *tes
 	runModel := newModel()
 	runModel.height = 10
 	runModel.resize()
-	runModel.messages = make([]string, 0, 30)
+	runModel.messages = make([]transcriptCell, 0, 30)
 	for index := 0; index < 30; index++ {
-		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
 	require.True(t, runModel.transcript.AtBottom())
@@ -1919,9 +1925,9 @@ func TestModel_UpdateScrollsToBottomWhenResponseCompletesWhileViewportIsAtBottom
 	runModel := newModel()
 	runModel.height = 10
 	runModel.resize()
-	runModel.messages = make([]string, 0, 30)
+	runModel.messages = make([]transcriptCell, 0, 30)
 	for index := 0; index < 30; index++ {
-		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
 	require.True(t, runModel.transcript.AtBottom())
@@ -1943,9 +1949,9 @@ func TestModel_UpdateDoesNotScrollToBottomWhenResponseCompletesAfterManualScroll
 	runModel := newModel()
 	runModel.height = 10
 	runModel.resize()
-	runModel.messages = make([]string, 0, 30)
+	runModel.messages = make([]transcriptCell, 0, 30)
 	for index := 0; index < 30; index++ {
-		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
 	runModel.responding = true
@@ -1979,9 +1985,9 @@ func TestModel_UpdateDisablesFollowModeOnWheelDuringActiveResponse(t *testing.T)
 	runModel := newModel()
 	runModel.height = 10
 	runModel.resize()
-	runModel.messages = make([]string, 0, 30)
+	runModel.messages = make([]transcriptCell, 0, 30)
 	for index := 0; index < 30; index++ {
-		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
 	require.True(t, runModel.transcript.AtBottom())
@@ -2017,9 +2023,9 @@ func TestModel_UpdateDoesNotScrollToBottomWhenResponseArrivesAwayFromBottom(t *t
 	runModel := newModel()
 	runModel.height = 10
 	runModel.resize()
-	runModel.messages = make([]string, 0, 30)
+	runModel.messages = make([]transcriptCell, 0, 30)
 	for index := 0; index < 30; index++ {
-		runModel.messages = append(runModel.messages, fmt.Sprintf("Message %02d", index))
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
 	runModel.transcript.GotoTop()
@@ -2060,7 +2066,7 @@ func TestModel_UpdateSurfacesRPCErrorInStatusAndTranscript(t *testing.T) {
 	require.False(t, runModel.responding)
 	require.Nil(t, runModel.events)
 	require.Equal(t, "response failed", runModel.status.Text())
-	require.Equal(t, []string{"Error: daemon unavailable"}, runModel.messages)
+	require.Equal(t, []string{"Error: daemon unavailable"}, legacyTranscriptCellStrings(runModel.messages))
 }
 
 func TestModel_UpdateAppliesSessionErrorMessage(t *testing.T) {
@@ -2071,14 +2077,14 @@ func TestModel_UpdateAppliesSessionErrorMessage(t *testing.T) {
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.Equal(t, "response failed", runModel.status.Text())
-	require.Equal(t, []string{"Error: daemon unavailable"}, runModel.messages)
+	require.Equal(t, []string{"Error: daemon unavailable"}, legacyTranscriptCellStrings(runModel.messages))
 }
 
 func TestModel_UpdateIgnoresStaleResponseEvents(t *testing.T) {
 	runModel := newModel()
 	runModel.responding = false
 	runModel.responseID = 3
-	runModel.messages = []string{"Hand: final"}
+	runModel.messages = legacyTranscriptCells([]string{"Hand: final"})
 	runModel.setTranscriptContent()
 
 	updated, cmd := runModel.Update(responseEventMsg{
@@ -2089,7 +2095,7 @@ func TestModel_UpdateIgnoresStaleResponseEvents(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.Empty(t, runModel.live)
-	require.Equal(t, []string{"Hand: final"}, runModel.messages)
+	require.Equal(t, []string{"Hand: final"}, legacyTranscriptCellStrings(runModel.messages))
 	require.NotContains(t, stripANSI(runModel.transcript.View()), "late delta")
 }
 
@@ -2119,7 +2125,7 @@ func TestModel_UpdateIgnoresStaleResponseCompletion(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.True(t, runModel.responding)
-	require.Empty(t, runModel.messages)
+	require.Empty(t, legacyTranscriptCellStrings(runModel.messages))
 }
 
 func TestWaitForResponseEventReturnsQueuedAndClosedMessages(t *testing.T) {
@@ -2160,7 +2166,7 @@ func TestModel_UpdateAddsTraceMessagesToTranscript(t *testing.T) {
 		toolOperationTranscriptCell("", "read_file", ""),
 		toolOperationTranscriptCell("", "read_file", "", true),
 		"Safety: blocked: prompt_exfiltration",
-	}, runModel.messages)
+	}, legacyTranscriptCellStrings(runModel.messages))
 }
 
 func TestModel_UpdateAnimatesRunningToolTranscriptDot(t *testing.T) {
@@ -2217,7 +2223,7 @@ func TestModel_UpdateAnimatesThinkingComposerBorder(t *testing.T) {
 	require.Equal(t, 1, runModel.thinkingComposerFrame)
 	require.Equal(t, getThinkingComposerBorderColor(1), runModel.getInputFrameBorderColor())
 
-	runModel.live = "Hand: hello"
+	runModel.live = legacyTranscriptCellFromString("Hand: hello")
 	updated, cmd = runModel.Update(thinkingComposerTickMsg{})
 	require.Nil(t, cmd)
 	runModel = updated.(model)
@@ -2228,12 +2234,12 @@ func TestModel_UpdateAnimatesThinkingComposerBorder(t *testing.T) {
 func TestModel_ThinkingComposerBorderWaitsForRunningTool(t *testing.T) {
 	runModel := newModel()
 	runModel.responding = true
-	runModel.messages = []string{toolOperationTranscriptCell("call_1", "web_search", "")}
+	runModel.messages = legacyTranscriptCells([]string{toolOperationTranscriptCell("call_1", "web_search", "")})
 
 	require.False(t, runModel.isThinkingComposerVisible())
 	require.Equal(t, "8", runModel.getInputFrameBorderColor())
 
-	runModel.messages = []string{toolOperationTranscriptCell("call_1", "web_search", "", true)}
+	runModel.messages = legacyTranscriptCells([]string{toolOperationTranscriptCell("call_1", "web_search", "", true)})
 	require.True(t, runModel.isThinkingComposerVisible())
 	require.Equal(t, getThinkingComposerBorderColor(0), runModel.getInputFrameBorderColor())
 }
@@ -2265,7 +2271,7 @@ func TestModel_UpdatePreventsOverlappingPromptSubmission(t *testing.T) {
 	runModel = updated.(model)
 	require.Equal(t, "response already in progress", runModel.status.Text())
 	require.Equal(t, "second prompt", runModel.input.Value())
-	require.Empty(t, runModel.messages)
+	require.Empty(t, legacyTranscriptCellStrings(runModel.messages))
 	require.Empty(t, runModel.history)
 }
 
@@ -2279,7 +2285,7 @@ func TestModel_UpdateKeepsCommandsLocalDuringActiveResponse(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.True(t, runModel.responding)
-	require.Equal(t, []string{"Commands: /clear, /copy, /help"}, runModel.messages)
+	require.Equal(t, []string{"Commands: /clear, /copy, /help"}, legacyTranscriptCellStrings(runModel.messages))
 	require.Empty(t, runModel.input.Value())
 }
 
@@ -2427,15 +2433,15 @@ func TestModel_UpdateLetsMultilineInputUseArrowKeys(t *testing.T) {
 
 func TestModel_UpdatePreservesLiveAssistantCellDuringStreaming(t *testing.T) {
 	runModel := newModel()
-	runModel.messages = []string{"You: hello"}
+	runModel.messages = legacyTranscriptCells([]string{"You: hello"})
 	runModel.setTranscriptContent()
 
 	updated, cmd := runModel.Update(assistantTextDeltaMsg{Text: "first line\npartial"})
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, []string{"You: hello"}, runModel.messages)
-	require.Equal(t, "Hand: first line\npartial", runModel.live)
+	require.Equal(t, []string{"You: hello"}, legacyTranscriptCellStrings(runModel.messages))
+	require.Equal(t, "Hand: first line\npartial", legacyTranscriptCellString(runModel.live))
 	content := stripANSI(runModel.transcript.View())
 	require.Contains(t, content, "❯ hello")
 	require.Contains(t, content, "first line")
@@ -2445,7 +2451,7 @@ func TestModel_UpdatePreservesLiveAssistantCellDuringStreaming(t *testing.T) {
 
 func TestModel_UpdateConvertsLiveAssistantCellToHistoryAtCompletion(t *testing.T) {
 	runModel := newModel()
-	runModel.messages = []string{"You: hello"}
+	runModel.messages = legacyTranscriptCells([]string{"You: hello"})
 	runModel.setTranscriptContent()
 
 	updated, cmd := runModel.Update(assistantTextDeltaMsg{Text: "first line\npartial"})
@@ -2455,7 +2461,7 @@ func TestModel_UpdateConvertsLiveAssistantCellToHistoryAtCompletion(t *testing.T
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.Empty(t, runModel.live)
-	require.Equal(t, []string{"You: hello", "Hand: first line\npartial"}, runModel.messages)
+	require.Equal(t, []string{"You: hello", "Hand: first line\npartial"}, legacyTranscriptCellStrings(runModel.messages))
 	require.Equal(t, "", runModel.stream.Render())
 	content := stripANSI(runModel.transcript.View())
 	require.Contains(t, content, "first line")
@@ -2470,7 +2476,7 @@ func TestModel_UpdateRendersReasoningDeltasOutsideAssistantStream(t *testing.T) 
 	currentTime = func() time.Time { return now }
 
 	runModel := newModel()
-	runModel.messages = []string{"You: hello"}
+	runModel.messages = legacyTranscriptCells([]string{"You: hello"})
 	runModel.setTranscriptContent()
 
 	updated, cmd := runModel.Update(assistantTextDeltaMsg{Channel: "reasoning", Text: "first "})
@@ -2489,7 +2495,7 @@ func TestModel_UpdateRendersReasoningDeltasOutsideAssistantStream(t *testing.T) 
 		"You: hello",
 		"Thought: 3s",
 		"Hand: answer",
-	}, runModel.messages)
+	}, legacyTranscriptCellStrings(runModel.messages))
 	content := stripANSI(runModel.transcript.View())
 	require.Contains(t, content, "Thought for 3s")
 	require.Contains(t, content, "answer")
@@ -2511,13 +2517,13 @@ func TestModel_UpdateStreamedRenderMatchesCommittedAssistantText(t *testing.T) {
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, []string{live}, runModel.messages)
+	require.Equal(t, []string{legacyTranscriptCellString(live)}, legacyTranscriptCellStrings(runModel.messages))
 	require.Empty(t, runModel.live)
 }
 
 func TestModel_UpdateUsesFinalAssistantTextAtCompletion(t *testing.T) {
 	runModel := newModel()
-	runModel.messages = []string{"You: hello"}
+	runModel.messages = legacyTranscriptCells([]string{"You: hello"})
 	runModel.setTranscriptContent()
 
 	updated, cmd := runModel.Update(assistantTextDeltaMsg{Text: "draft"})
@@ -2527,7 +2533,7 @@ func TestModel_UpdateUsesFinalAssistantTextAtCompletion(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.Empty(t, runModel.live)
-	require.Equal(t, []string{"You: hello", "Hand: final"}, runModel.messages)
+	require.Equal(t, []string{"You: hello", "Hand: final"}, legacyTranscriptCellStrings(runModel.messages))
 	require.NotContains(t, stripANSI(runModel.transcript.View()), "draft")
 }
 
@@ -2539,7 +2545,7 @@ func TestModel_UpdatePreservesFinalAssistantWhitespace(t *testing.T) {
 	updated, cmd = updated.(model).Update(assistantResponseCompletedMsg{Text: "final\n\n"})
 
 	require.Nil(t, cmd)
-	require.Equal(t, []string{"Hand: final\n\n"}, updated.(model).messages)
+	require.Equal(t, []string{"Hand: final\n\n"}, legacyTranscriptCellStrings(updated.(model).messages))
 }
 
 func TestModel_UpdateIgnoresEmptyAssistantDelta(t *testing.T) {
@@ -2549,12 +2555,12 @@ func TestModel_UpdateIgnoresEmptyAssistantDelta(t *testing.T) {
 
 	require.Nil(t, cmd)
 	require.Empty(t, updated.(model).live)
-	require.Empty(t, updated.(model).messages)
+	require.Empty(t, legacyTranscriptCellStrings(updated.(model).messages))
 }
 
 func TestModel_UpdateClearsEmptyAssistantCompletion(t *testing.T) {
 	runModel := newModel()
-	runModel.live = "Hand: draft"
+	runModel.live = legacyTranscriptCellFromString("Hand: draft")
 	runModel.stream.Add("   ")
 
 	updated, cmd := runModel.Update(assistantResponseCompletedMsg{})
@@ -2562,12 +2568,12 @@ func TestModel_UpdateClearsEmptyAssistantCompletion(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.Empty(t, runModel.live)
-	require.Empty(t, runModel.messages)
+	require.Empty(t, legacyTranscriptCellStrings(runModel.messages))
 	require.Empty(t, runModel.stream.Render())
 }
 
 func TestAssistantTranscriptCell_IgnoresBlankText(t *testing.T) {
-	require.Empty(t, assistantTranscriptCell(" \n\t "))
+	require.True(t, assistantTranscriptCell{text: " \n\t "}.IsEmpty())
 }
 
 func TestModel_UpdateInsertsPromptNewlineOnShiftEnter(t *testing.T) {
@@ -2588,7 +2594,7 @@ func TestModel_UpdateInsertsPromptNewlineOnShiftEnter(t *testing.T) {
 	require.Zero(t, runModel.input.ScrollYOffset())
 	require.Contains(t, stripANSI(runModel.input.View()), "first line")
 	require.Equal(t, 1, strings.Count(stripANSI(runModel.input.View()), strings.TrimSpace(inputPrompt)))
-	require.Empty(t, runModel.messages)
+	require.Empty(t, legacyTranscriptCellStrings(runModel.messages))
 }
 
 func TestModel_UpdateDeletesCurrentPromptLineOnCommandDelete(t *testing.T) {
@@ -2615,7 +2621,7 @@ func TestModel_UpdateDeletesCurrentPromptLineOnCommandDelete(t *testing.T) {
 
 			runModel = updated.(model)
 			require.Equal(t, "first line\n", runModel.input.Value())
-			require.Empty(t, runModel.messages)
+			require.Empty(t, legacyTranscriptCellStrings(runModel.messages))
 		})
 	}
 }
@@ -2665,7 +2671,7 @@ func TestModel_UpdateIgnoresEmptyEnter(t *testing.T) {
 	require.Nil(t, cmd)
 
 	runModel = updated.(model)
-	require.Empty(t, runModel.messages)
+	require.Empty(t, legacyTranscriptCellStrings(runModel.messages))
 }
 
 func TestModel_UpdateClampsTinyWindowSize(t *testing.T) {

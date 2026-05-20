@@ -23,14 +23,21 @@ func (m *model) copyTranscript() tea.Cmd {
 }
 
 func (m model) transcriptText() string {
-	cells := make([]string, 0, len(m.messages)+1)
+	cells := make([]transcriptCell, 0, len(m.messages)+1)
 	cells = append(cells, m.messages...)
-	if strings.TrimSpace(m.live) != "" {
+	if m.live != nil && !m.live.IsEmpty() {
 		cells = append(cells, m.live)
 	}
 	if len(cells) == 0 {
 		return strings.TrimSpace(ansi.Strip(m.transcript.GetContent()))
 	}
 
-	return strings.TrimSpace(strings.Join(cells, "\n\n"))
+	parts := make([]string, 0, len(cells))
+	for _, cell := range cells {
+		if cell != nil && !cell.IsEmpty() {
+			parts = append(parts, cell.PlainText())
+		}
+	}
+
+	return strings.TrimSpace(strings.Join(parts, "\n\n"))
 }

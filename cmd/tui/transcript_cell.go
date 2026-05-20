@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,24 +26,216 @@ const (
 const userTranscriptPrompt = inputPrompt
 const userTranscriptBackground = "#151515"
 
-func renderTranscriptCells(cells []string) string {
+type transcriptRenderContext struct {
+	Width int
+	Frame int
+	Now   time.Time
+}
+
+type transcriptCell interface {
+	Kind() transcriptCellKind
+	Render(transcriptRenderContext) string
+	PlainText() string
+	IsEmpty() bool
+}
+
+type userTranscriptCell struct {
+	text string
+}
+
+type assistantTranscriptCell struct {
+	text string
+}
+
+type reasoningTranscriptCell struct {
+	text      string
+	startedAt time.Time
+}
+
+type thoughtTranscriptCell struct {
+	duration time.Duration
+}
+
+type safetyTranscriptCell struct {
+	action     string
+	findingIDs []string
+}
+
+type errorTranscriptCell struct {
+	message string
+}
+
+type systemTranscriptCell struct {
+	text string
+}
+
+func (cell userTranscriptCell) Kind() transcriptCellKind {
+	return transcriptCellUser
+}
+
+func (cell userTranscriptCell) Render(ctx transcriptRenderContext) string {
+	return renderUserTranscriptCell(cell.text, ctx.Width)
+}
+
+func (cell userTranscriptCell) PlainText() string {
+	if cell.IsEmpty() {
+		return ""
+	}
+
+	return "You: " + strings.TrimSpace(cell.text)
+}
+
+func (cell userTranscriptCell) IsEmpty() bool {
+	return strings.TrimSpace(cell.text) == ""
+}
+
+func (cell assistantTranscriptCell) Kind() transcriptCellKind {
+	return transcriptCellAssistant
+}
+
+func (cell assistantTranscriptCell) Render(ctx transcriptRenderContext) string {
+	return renderMarkdownForTranscript(cell.text, ctx.Width)
+}
+
+func (cell assistantTranscriptCell) PlainText() string {
+	if cell.IsEmpty() {
+		return ""
+	}
+
+	return "Hand: " + cell.text
+}
+
+func (cell assistantTranscriptCell) IsEmpty() bool {
+	return strings.TrimSpace(cell.text) == ""
+}
+
+func (cell reasoningTranscriptCell) Kind() transcriptCellKind {
+	return transcriptCellReasoning
+}
+
+func (cell reasoningTranscriptCell) Render(ctx transcriptRenderContext) string {
+	return renderReasoningTranscriptCell(cell.text, ctx.Width)
+}
+
+func (cell reasoningTranscriptCell) PlainText() string {
+	if cell.IsEmpty() {
+		return ""
+	}
+
+	return "Reasoning: " + cell.text
+}
+
+func (cell reasoningTranscriptCell) IsEmpty() bool {
+	return strings.TrimSpace(cell.text) == ""
+}
+
+func (cell thoughtTranscriptCell) Kind() transcriptCellKind {
+	return transcriptCellThought
+}
+
+func (cell thoughtTranscriptCell) Render(transcriptRenderContext) string {
+	return renderThoughtTranscriptCell(formatToolTranscriptDuration(cell.duration))
+}
+
+func (cell thoughtTranscriptCell) PlainText() string {
+	if cell.IsEmpty() {
+		return ""
+	}
+
+	return "Thought: " + formatToolTranscriptDuration(cell.duration)
+}
+
+func (cell thoughtTranscriptCell) IsEmpty() bool {
+	return cell.duration <= 0
+}
+
+func (cell safetyTranscriptCell) Kind() transcriptCellKind {
+	return transcriptCellSafety
+}
+
+func (cell safetyTranscriptCell) Render(transcriptRenderContext) string {
+	return transcriptCellLabelStyle(transcriptCellSafety).Render("Safety:") + " " + cell.safetyText()
+}
+
+func (cell safetyTranscriptCell) PlainText() string {
+	if cell.IsEmpty() {
+		return ""
+	}
+
+	return "Safety: " + cell.safetyText()
+}
+
+func (cell safetyTranscriptCell) IsEmpty() bool {
+	return strings.TrimSpace(cell.safetyText()) == ""
+}
+
+func (cell safetyTranscriptCell) safetyText() string {
+	parts := []string{}
+	if action := strings.TrimSpace(cell.action); action != "" {
+		parts = append(parts, action)
+	}
+	if len(cell.findingIDs) > 0 {
+		parts = append(parts, strings.Join(cell.findingIDs, ", "))
+	}
+
+	return strings.Join(parts, ": ")
+}
+
+func (cell errorTranscriptCell) Kind() transcriptCellKind {
+	return transcriptCellError
+}
+
+func (cell errorTranscriptCell) Render(transcriptRenderContext) string {
+	return transcriptCellLabelStyle(transcriptCellError).Render("Error:") + " " + strings.TrimSpace(cell.message)
+}
+
+func (cell errorTranscriptCell) PlainText() string {
+	if cell.IsEmpty() {
+		return ""
+	}
+
+	return "Error: " + strings.TrimSpace(cell.message)
+}
+
+func (cell errorTranscriptCell) IsEmpty() bool {
+	return strings.TrimSpace(cell.message) == ""
+}
+
+func (cell systemTranscriptCell) Kind() transcriptCellKind {
+	return transcriptCellSystem
+}
+
+func (cell systemTranscriptCell) Render(ctx transcriptRenderContext) string {
+	return renderMarkdownForTranscript(cell.text, ctx.Width)
+}
+
+func (cell systemTranscriptCell) PlainText() string {
+	return strings.TrimSpace(cell.text)
+}
+
+func (cell systemTranscriptCell) IsEmpty() bool {
+	return strings.TrimSpace(cell.text) == ""
+}
+
+func renderTranscriptCells(cells any) string {
 	return renderTranscriptCellsWithWidth(cells, defaultWidth)
 }
 
-func renderTranscriptCellsWithWidth(cells []string, width int) string {
+func renderTranscriptCellsWithWidth(cells any, width int) string {
 	return renderTranscriptCellsWithFrame(cells, width, 0)
 }
 
-func renderTranscriptCellsWithFrame(cells []string, width int, frame int) string {
-	rendered := make([]string, 0, len(cells))
+func renderTranscriptCellsWithFrame(cells any, width int, frame int) string {
+	normalized := normalizeTranscriptCells(cells)
+	rendered := make([]string, 0, len(normalized))
 	var toolGroup *toolTranscriptGroup
-	for _, cell := range cells {
-		cell = strings.TrimSpace(cell)
-		if cell == "" {
+	ctx := transcriptRenderContext{Width: width, Frame: frame, Now: currentTime()}
+	for _, cell := range normalized {
+		if cell == nil || cell.IsEmpty() {
 			continue
 		}
 
-		if toolCell, ok := parseToolTranscriptCell(cell); ok {
+		if toolCell, ok := cell.(toolTranscriptCell); ok {
 			if toolGroup == nil || toolGroup.action != toolCell.action {
 				flushToolTranscriptGroup(&rendered, &toolGroup, frame)
 			}
@@ -54,7 +247,7 @@ func renderTranscriptCellsWithFrame(cells []string, width int, frame int) string
 		}
 
 		flushToolTranscriptGroup(&rendered, &toolGroup, frame)
-		if renderedCell := renderTranscriptCellWithWidth(cell, width); renderedCell != "" {
+		if renderedCell := cell.Render(ctx); renderedCell != "" {
 			rendered = append(rendered, renderedCell)
 		}
 	}
@@ -63,45 +256,57 @@ func renderTranscriptCellsWithFrame(cells []string, width int, frame int) string
 	return strings.Join(rendered, "\n\n")
 }
 
+func normalizeTranscriptCells(cells any) []transcriptCell {
+	switch value := cells.(type) {
+	case nil:
+		return nil
+	case []transcriptCell:
+		return value
+	case []string:
+		normalized := make([]transcriptCell, 0, len(value))
+		for _, cell := range value {
+			if normalizedCell := legacyTranscriptCellFromString(cell); normalizedCell != nil && !normalizedCell.IsEmpty() {
+				normalized = append(normalized, normalizedCell)
+			}
+		}
+		return normalized
+	default:
+		return nil
+	}
+}
+
+func legacyTranscriptCells(cells []string) []transcriptCell {
+	return normalizeTranscriptCells(cells)
+}
+
+func legacyTranscriptCellStrings(cells []transcriptCell) []string {
+	values := make([]string, 0, len(cells))
+	for _, cell := range cells {
+		if value := legacyTranscriptCellString(cell); value != "" {
+			values = append(values, value)
+		}
+	}
+
+	return values
+}
+
 func renderTranscriptCell(cell string) string {
 	return renderTranscriptCellWithWidth(cell, defaultWidth)
 }
 
 func renderTranscriptCellWithWidth(cell string, width int) string {
-	if toolCell, ok := parseToolTranscriptCell(cell); ok {
+	normalized := legacyTranscriptCellFromString(cell)
+	if normalized == nil || normalized.IsEmpty() {
+		return ""
+	}
+
+	if toolCell, ok := normalized.(toolTranscriptCell); ok {
 		group := toolTranscriptGroup{action: toolCell.action}
 		group.add(toolCell)
 		return renderToolTranscriptGroup(group, 0)
 	}
 
-	kind, label, body := parseTranscriptCell(cell)
-	if strings.TrimSpace(body) == "" {
-		return ""
-	}
-
-	if kind == transcriptCellUser {
-		return renderUserTranscriptCell(body, width)
-	}
-	if kind == transcriptCellAssistant {
-		return renderTranscriptCellBody(kind, body, width)
-	}
-	if kind == transcriptCellReasoning {
-		return renderReasoningTranscriptCell(body, width)
-	}
-	if kind == transcriptCellThought {
-		return renderThoughtTranscriptCell(body)
-	}
-
-	labelStyle := transcriptCellLabelStyle(kind)
-	if label == "" {
-		return renderTranscriptCellBody(kind, body, width)
-	}
-
-	if rendered := renderTranscriptCellBody(kind, body, width); rendered != body {
-		return labelStyle.Render(label+":") + "\n" + rendered
-	}
-
-	return labelStyle.Render(label+":") + " " + body
+	return normalized.Render(transcriptRenderContext{Width: width, Frame: 0, Now: currentTime()})
 }
 
 func renderUserTranscriptCell(body string, width int) string {
@@ -267,6 +472,68 @@ func parseTranscriptCell(cell string) (transcriptCellKind, string, string) {
 	}
 }
 
+func legacyTranscriptCellFromString(cell string) transcriptCell {
+	cell = strings.TrimSpace(cell)
+	if cell == "" {
+		return nil
+	}
+	if toolCell, ok := parseToolTranscriptCell(cell); ok {
+		return toolCell
+	}
+
+	kind, label, body := parseTranscriptCell(cell)
+	if strings.TrimSpace(body) == "" {
+		return nil
+	}
+
+	switch kind {
+	case transcriptCellUser:
+		return userTranscriptCell{text: body}
+	case transcriptCellAssistant:
+		return assistantTranscriptCell{text: body}
+	case transcriptCellReasoning:
+		return reasoningTranscriptCell{text: body}
+	case transcriptCellThought:
+		return thoughtTranscriptCell{duration: parseThoughtTranscriptDuration(body)}
+	case transcriptCellSafety:
+		return safetyTranscriptCellFromLegacyBody(body)
+	case transcriptCellError:
+		return errorTranscriptCell{message: body}
+	default:
+		if strings.TrimSpace(label) != "" {
+			return systemTranscriptCell{text: strings.TrimSpace(label) + ": " + body}
+		}
+		return systemTranscriptCell{text: body}
+	}
+}
+
+func parseThoughtTranscriptDuration(value string) time.Duration {
+	secondsText := strings.TrimSuffix(strings.TrimSpace(value), "s")
+	seconds, err := strconv.Atoi(secondsText)
+	if err != nil || seconds <= 0 {
+		return 0
+	}
+
+	return time.Duration(seconds) * time.Second
+}
+
+func safetyTranscriptCellFromLegacyBody(body string) transcriptCell {
+	parts := strings.Split(body, ":")
+	cell := safetyTranscriptCell{}
+	if len(parts) > 0 {
+		cell.action = strings.TrimSpace(parts[0])
+	}
+	if len(parts) > 1 {
+		for _, finding := range strings.Split(strings.Join(parts[1:], ":"), ",") {
+			if finding = strings.TrimSpace(finding); finding != "" {
+				cell.findingIDs = append(cell.findingIDs, finding)
+			}
+		}
+	}
+
+	return cell
+}
+
 func transcriptCellLabelStyle(kind transcriptCellKind) lipgloss.Style {
 	style := lipgloss.NewStyle().Bold(true)
 	switch kind {
@@ -314,10 +581,28 @@ type toolTranscriptGroup struct {
 	completed    bool
 }
 
+func (cell toolTranscriptCell) Kind() transcriptCellKind {
+	return transcriptCellTool
+}
+
+func (cell toolTranscriptCell) Render(ctx transcriptRenderContext) string {
+	group := toolTranscriptGroup{action: cell.action}
+	group.add(cell)
+	return renderToolTranscriptGroup(group, ctx.Frame)
+}
+
+func (cell toolTranscriptCell) PlainText() string {
+	return legacyTranscriptCellString(cell)
+}
+
+func (cell toolTranscriptCell) IsEmpty() bool {
+	return strings.TrimSpace(cell.action) == "" && strings.TrimSpace(cell.detail) == ""
+}
+
 func toolOperationTranscriptCell(id string, name string, detail string, completed ...bool) string {
 	isCompleted := len(completed) > 0 && completed[0]
 
-	return toolOperationTranscriptCellWithTiming(id, name, detail, time.Time{}, time.Time{}, isCompleted)
+	return legacyTranscriptCellString(newToolTranscriptCell(id, name, detail, time.Time{}, time.Time{}, isCompleted))
 }
 
 func toolOperationTranscriptCellWithTiming(
@@ -328,31 +613,70 @@ func toolOperationTranscriptCellWithTiming(
 	completedAt time.Time,
 	completed bool,
 ) string {
+	return legacyTranscriptCellString(newToolTranscriptCell(id, name, detail, startedAt, completedAt, completed))
+}
+
+func newToolTranscriptCell(
+	id string,
+	name string,
+	detail string,
+	startedAt time.Time,
+	completedAt time.Time,
+	completed bool,
+) transcriptCell {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return ""
+		return nil
 	}
 
 	detail = normalizeToolTranscriptDetail(detail)
 	if detail == "" {
 		detail = name
 	}
+
+	return toolTranscriptCell{
+		id:          strings.TrimSpace(id),
+		action:      getToolActionName(name),
+		detail:      detail,
+		startedAt:   startedAt,
+		completedAt: completedAt,
+		completed:   completed,
+	}
+}
+
+func legacyTranscriptCellString(cell transcriptCell) string {
+	if cell == nil || cell.IsEmpty() {
+		return ""
+	}
+
+	if toolCell, ok := cell.(toolTranscriptCell); ok {
+		return legacyToolTranscriptCellString(toolCell)
+	}
+
+	return cell.PlainText()
+}
+
+func legacyToolTranscriptCellString(cell toolTranscriptCell) string {
+	action := strings.TrimSpace(cell.action)
+	if action == "" {
+		return ""
+	}
 	lines := []string{}
-	if id = strings.TrimSpace(id); id != "" {
+	if id := strings.TrimSpace(cell.id); id != "" {
 		lines = append(lines, "id: "+id)
 	}
-	lines = append(lines, "detail: "+detail)
-	if !startedAt.IsZero() {
-		lines = append(lines, "started_at: "+startedAt.UTC().Format(time.RFC3339Nano))
+	lines = append(lines, "detail: "+strings.TrimSpace(cell.detail))
+	if !cell.startedAt.IsZero() {
+		lines = append(lines, "started_at: "+cell.startedAt.UTC().Format(time.RFC3339Nano))
 	}
-	if !completedAt.IsZero() {
-		lines = append(lines, "completed_at: "+completedAt.UTC().Format(time.RFC3339Nano))
+	if !cell.completedAt.IsZero() {
+		lines = append(lines, "completed_at: "+cell.completedAt.UTC().Format(time.RFC3339Nano))
 	}
-	if completed {
+	if cell.completed {
 		lines = append(lines, "status: completed")
 	}
 
-	return fmt.Sprintf("Tool %s:\n%s", getToolActionName(name), strings.Join(lines, "\n"))
+	return fmt.Sprintf("Tool %s:\n%s", action, strings.Join(lines, "\n"))
 }
 
 func parseToolTranscriptCell(cell string) (toolTranscriptCell, bool) {

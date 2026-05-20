@@ -30,8 +30,8 @@ type model struct {
 	sessionTitle               string
 	modelName                  string
 	context                    string
-	messages                   []string
-	live                       string
+	messages                   []transcriptCell
+	live                       transcriptCell
 	showIntro                  bool
 	stream                     markdownStreamCollector
 	reasoningStartedAt         time.Time
