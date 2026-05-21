@@ -51,6 +51,34 @@ func TestSetConfigValue_UpdatesTypedValues(t *testing.T) {
 	require.Zero(t, *cfg.Reranker.Overrides["memory_reflection"].MaxCandidates)
 }
 
+func TestGetConfigValues_ReadsTypedValues(t *testing.T) {
+	clearEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	resetSetConfigProfileState(t)
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	configPath := writeSetConfigProfileConfig(t, home, "work")
+
+	_, err := SetConfigValues("", configPath, []ConfigUpdate{
+		{Path: "search.enableRank", Value: "true"},
+		{Path: "session.defaultIdleExpiry", Value: "2h"},
+		{Path: "reranker.overrides.memory_reflection.type", Value: "llm"},
+	})
+	require.NoError(t, err)
+
+	values, err := GetConfigValues("", configPath, []string{
+		"search.enableRank",
+		"session.defaultIdleExpiry",
+		"reranker.overrides.memory_reflection.type",
+	})
+	require.NoError(t, err)
+	require.Equal(t, []ConfigValue{
+		{Path: "search.enableRerank", Value: "true"},
+		{Path: "session.defaultIdleExpiry", Value: "2h0m0s"},
+		{Path: "reranker.overrides.memory_reflection.type", Value: "llm"},
+	}, values)
+}
+
 func TestSetConfigValues_UpdatesMultipleFieldsAtomically(t *testing.T) {
 	clearEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
 	resetSetConfigProfileState(t)

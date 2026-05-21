@@ -36,7 +36,7 @@ func TestNewCommand_RegistersTUICommand(t *testing.T) {
 	}
 
 	require.Contains(t, names, "tui")
-	require.Contains(t, names, "set-config")
+	require.Contains(t, names, "config")
 }
 
 func TestNewCommand_UsesConfigFileValues(t *testing.T) {

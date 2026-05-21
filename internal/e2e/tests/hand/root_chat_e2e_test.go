@@ -20,7 +20,7 @@ import (
 	urfavecli "github.com/urfave/cli/v3"
 
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
-	setconfigcmd "github.com/wandxy/hand/cmd/hand/setconfig"
+	configcmd "github.com/wandxy/hand/cmd/hand/configcmd"
 	profilecmd "github.com/wandxy/hand/cmd/profile"
 	sessioncmd "github.com/wandxy/hand/cmd/session"
 	tracecmd "github.com/wandxy/hand/cmd/trace"
@@ -1242,9 +1242,9 @@ func newRootChatCommand(output io.Writer) *urfavecli.Command {
 		Flags:       append(handcli.RootFlags(&envFile, &configFile), handcli.RequestInstructFlag()),
 		Commands: []*urfavecli.Command{
 			doctorcmd.NewCommand(),
+			configcmd.NewCommand(output),
 			profilecmd.NewCommand(),
 			sessioncmd.NewCommand(),
-			setconfigcmd.NewCommand(output),
 			tracecmd.NewCommand(),
 			tuicmd.NewCommand(),
 			upcmd.NewCommand(),

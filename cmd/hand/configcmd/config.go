@@ -1,0 +1,220 @@
+package configcmd
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+
+	cli "github.com/urfave/cli/v3"
+
+	handcli "github.com/wandxy/hand/internal/cli"
+	"github.com/wandxy/hand/internal/config"
+)
+
+func NewCommand(output io.Writer) *cli.Command {
+	if output == nil {
+		output = io.Discard
+	}
+
+	return &cli.Command{
+		Name:  "config",
+		Usage: "Manage profile configuration",
+		Commands: []*cli.Command{
+			newGetCommand(output),
+			newSetCommand(output),
+		},
+	}
+}
+
+func newGetCommand(output io.Writer) *cli.Command {
+	return &cli.Command{
+		Name:      "get",
+		Usage:     "Get values from the selected profile config",
+		ArgsUsage: "<path>...",
+		Flags:     []cli.Flag{handcli.ProfileFlag()},
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			paths, err := getConfigGetPaths(cmd)
+			if err != nil {
+				return err
+			}
+
+			inputs, err := resolveKnownConfigInputs(cmd)
+			if err != nil {
+				return err
+			}
+			if err := config.PreloadEnvFile(inputs.EnvPath); err != nil {
+				return err
+			}
+
+			values, err := handcli.GetConfigValues(inputs.EnvPath, inputs.ConfigPath, paths)
+			if err != nil {
+				return err
+			}
+			if len(values) == 1 {
+				_, err = fmt.Fprintln(output, values[0].Value)
+				return err
+			}
+			for _, value := range values {
+				if _, err := fmt.Fprintf(output, "%s=%s\n", value.Path, value.Value); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		},
+	}
+}
+
+func newSetCommand(output io.Writer) *cli.Command {
+	return &cli.Command{
+		Name:      "set",
+		Usage:     "Set values in the selected profile config file",
+		ArgsUsage: "<path> <value>|<path=value>...",
+		Flags:     []cli.Flag{handcli.ProfileFlag()},
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			updates, err := getSetConfigUpdates(cmd)
+			if err != nil {
+				return err
+			}
+
+			inputs, err := resolveKnownConfigInputs(cmd)
+			if err != nil {
+				return err
+			}
+			if err := config.PreloadEnvFile(inputs.EnvPath); err != nil {
+				return err
+			}
+
+			oldValues, err := handcli.GetConfigValues(inputs.EnvPath, inputs.ConfigPath, getUpdatePaths(updates))
+			if err != nil {
+				return err
+			}
+			updatedPaths, err := handcli.SetConfigValues(inputs.EnvPath, inputs.ConfigPath, updates)
+			if err != nil {
+				return err
+			}
+
+			if len(updatedPaths) == 1 {
+				_, err = fmt.Fprintf(output, "%s (prev=%s)\n", updates[0].Value, oldValues[0].Value)
+				return err
+			}
+			for index, updatedPath := range updatedPaths {
+				if _, err := fmt.Fprintf(
+					output,
+					"%s=%s (prev=%s)\n",
+					updatedPath,
+					updates[index].Value,
+					oldValues[index].Value,
+				); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	}
+}
+
+func getUpdatePaths(updates []handcli.ConfigUpdate) []string {
+	paths := make([]string, 0, len(updates))
+	for _, update := range updates {
+		paths = append(paths, update.Path)
+	}
+
+	return paths
+}
+
+func resolveKnownConfigInputs(cmd *cli.Command) (handcli.ConfigInputs, error) {
+	inputs, err := handcli.ResolveConfigInputs(cmd)
+	if err != nil {
+		return handcli.ConfigInputs{}, err
+	}
+	if !hasExplicitProfile(cmd) {
+		return inputs, nil
+	}
+
+	info, err := os.Stat(inputs.Profile.HomeDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return handcli.ConfigInputs{}, fmt.Errorf("unknown profile %q", inputs.Profile.Name)
+		}
+		return handcli.ConfigInputs{}, fmt.Errorf("read profile %q: %w", inputs.Profile.Name, err)
+	}
+	if !info.IsDir() {
+		return handcli.ConfigInputs{}, fmt.Errorf("profile %q is not a directory", inputs.Profile.Name)
+	}
+
+	return inputs, nil
+}
+
+func hasExplicitProfile(cmd *cli.Command) bool {
+	if cmd == nil {
+		return false
+	}
+	for _, candidate := range cmd.Lineage() {
+		if candidate.IsSet("profile") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func getConfigGetPaths(cmd *cli.Command) ([]string, error) {
+	if cmd == nil || cmd.Args().Len() == 0 {
+		return nil, fmt.Errorf("config path is required")
+	}
+
+	paths := make([]string, 0, cmd.Args().Len())
+	for _, arg := range cmd.Args().Slice() {
+		path := strings.TrimSpace(arg)
+		if path == "" {
+			return nil, fmt.Errorf("config path is required")
+		}
+		paths = append(paths, path)
+	}
+
+	return paths, nil
+}
+
+func getSetConfigUpdates(cmd *cli.Command) ([]handcli.ConfigUpdate, error) {
+	if cmd == nil {
+		return nil, fmt.Errorf("config path and value are required")
+	}
+
+	args := cmd.Args().Slice()
+	updates := make([]handcli.ConfigUpdate, 0, len(args))
+	for index := 0; index < len(args); index++ {
+		raw := strings.TrimSpace(args[index])
+		if raw == "" {
+			return nil, fmt.Errorf("config path and value are required")
+		}
+
+		path, value, ok := strings.Cut(raw, "=")
+		if ok {
+			path = strings.TrimSpace(path)
+			if path == "" {
+				return nil, fmt.Errorf("config path and value are required")
+			}
+			updates = append(updates, handcli.ConfigUpdate{Path: path, Value: strings.TrimSpace(value)})
+			continue
+		}
+
+		if index+1 >= len(args) {
+			return nil, fmt.Errorf("config path and value are required")
+		}
+		path = strings.TrimSpace(raw)
+		if path == "" {
+			return nil, fmt.Errorf("config path and value are required")
+		}
+		updates = append(updates, handcli.ConfigUpdate{Path: path, Value: strings.TrimSpace(args[index+1])})
+		index++
+	}
+
+	if len(updates) == 0 {
+		return nil, fmt.Errorf("config path and value are required")
+	}
+
+	return updates, nil
+}

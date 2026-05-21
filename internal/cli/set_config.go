@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -25,6 +26,43 @@ type configPathStep struct {
 type ConfigUpdate struct {
 	Path  string
 	Value string
+}
+
+type ConfigValue struct {
+	Path  string
+	Value string
+}
+
+func GetConfigValues(envPath string, configPath string, paths []string) ([]ConfigValue, error) {
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("config path is required")
+	}
+
+	cfg, err := config.Load(envPath, configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	values := make([]ConfigValue, 0, len(paths))
+	root := reflect.ValueOf(*cfg)
+	for _, path := range paths {
+		normalizedPath := NormalizeConfigPathAlias(path)
+		value, err := getConfigPathValue(root, normalizedPath)
+		if err != nil {
+			return nil, err
+		}
+
+		formatted, err := configValueToString(value)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", normalizedPath, err)
+		}
+		values = append(values, ConfigValue{
+			Path:  normalizedPath,
+			Value: formatted,
+		})
+	}
+
+	return values, nil
 }
 
 func SetConfigValue(envPath string, configPath string, path string, value string) (string, error) {
@@ -201,6 +239,53 @@ func resolveConfigPath(path string) ([]configPathStep, reflect.Type, error) {
 	return steps, current, nil
 }
 
+func getConfigPathValue(current reflect.Value, path string) (reflect.Value, error) {
+	path = NormalizeConfigPathAlias(path)
+	parts := strings.Split(path, ".")
+	if len(parts) == 0 {
+		return reflect.Value{}, fmt.Errorf("config path is required")
+	}
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return reflect.Value{}, fmt.Errorf("invalid config path %q", path)
+		}
+
+		for current.Kind() == reflect.Pointer {
+			if current.IsNil() {
+				return reflect.Value{}, nil
+			}
+			current = current.Elem()
+		}
+		if current.Type() == durationType {
+			return reflect.Value{}, fmt.Errorf("config path %q has extra segment %q", path, part)
+		}
+
+		switch current.Kind() {
+		case reflect.Struct:
+			field, _, ok := findConfigField(current.Type(), part)
+			if !ok {
+				return reflect.Value{}, fmt.Errorf("unknown config path %q", path)
+			}
+			current = current.FieldByIndex(field.Index)
+		case reflect.Map:
+			if current.Type().Key().Kind() != reflect.String {
+				return reflect.Value{}, fmt.Errorf("unsupported config map path %q", path)
+			}
+			next := current.MapIndex(reflect.ValueOf(part))
+			if !next.IsValid() {
+				return reflect.Value{}, fmt.Errorf("unknown config path %q", path)
+			}
+			current = next
+		default:
+			return reflect.Value{}, fmt.Errorf("config path %q has extra segment %q", path, part)
+		}
+	}
+
+	return current, nil
+}
+
 func NormalizeConfigPathAlias(path string) string {
 	path = strings.TrimSpace(path)
 	switch strings.ToLower(path) {
@@ -237,6 +322,46 @@ func getYAMLFieldName(field reflect.StructField) string {
 	}
 
 	return name
+}
+
+func configValueToString(value reflect.Value) (string, error) {
+	if !value.IsValid() {
+		return "null", nil
+	}
+
+	for value.Kind() == reflect.Pointer {
+		if value.IsNil() {
+			return "null", nil
+		}
+		value = value.Elem()
+	}
+
+	if value.Type() == durationType {
+		return value.Interface().(time.Duration).String(), nil
+	}
+
+	switch value.Kind() {
+	case reflect.Bool:
+		return strconv.FormatBool(value.Bool()), nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return strconv.FormatInt(value.Int(), 10), nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return strconv.FormatUint(value.Uint(), 10), nil
+	case reflect.Float32, reflect.Float64:
+		return strconv.FormatFloat(value.Float(), 'f', -1, value.Type().Bits()), nil
+	case reflect.String:
+		return value.String(), nil
+	default:
+		if !value.CanInterface() {
+			return "", fmt.Errorf("cannot read config value")
+		}
+
+		data, err := json.Marshal(value.Interface())
+		if err != nil {
+			return "", err
+		}
+		return string(data), nil
+	}
 }
 
 func configValueToYAMLNode(value string, target reflect.Type) (*yaml.Node, error) {

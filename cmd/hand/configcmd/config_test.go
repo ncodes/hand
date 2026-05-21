@@ -1,4 +1,4 @@
-package setconfig
+package configcmd
 
 import (
 	"bytes"
@@ -30,7 +30,8 @@ func TestCommand_UpdatesSelectedProfileConfig(t *testing.T) {
 	require.NoError(t, cmd.Run(context.Background(), []string{
 		"hand",
 		"--profile", "work",
-		"set-config",
+		"config",
+		"set",
 		"search.enableRank",
 		"true",
 	}))
@@ -38,7 +39,78 @@ func TestCommand_UpdatesSelectedProfileConfig(t *testing.T) {
 	cfg, err := config.Load("", configPath)
 	require.NoError(t, err)
 	require.True(t, *cfg.Search.EnableRerank)
-	require.Equal(t, "search.enableRerank=true\n", output.String())
+	require.Equal(t, "true (prev=false)\n", output.String())
+}
+
+func TestCommand_GetsSelectedProfileConfigValues(t *testing.T) {
+	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	resetSetConfigProfileState(t)
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	_ = writeCommandProfileConfig(t, home, "safety-manual")
+
+	var output bytes.Buffer
+	cmd := newTestRootCommand(&output)
+
+	require.NoError(t, cmd.Run(context.Background(), []string{
+		"hand",
+		"config",
+		"get",
+		"-p", "safety-manual",
+		"safety.pii",
+		"search.enableRank",
+	}))
+
+	require.Equal(t, "safety.pii=false\nsearch.enableRerank=false\n", output.String())
+}
+
+func TestCommand_GetsSelectedProfileConfigValuesWithTrailingProfileFlag(t *testing.T) {
+	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	resetSetConfigProfileState(t)
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	_ = writeCommandProfileConfig(t, home, "safety-manual")
+
+	var output bytes.Buffer
+	cmd := newTestRootCommand(&output)
+
+	require.NoError(t, cmd.Run(context.Background(), []string{
+		"hand",
+		"config",
+		"get",
+		"safety.pii",
+		"--profile", "safety-manual",
+	}))
+
+	require.Equal(t, "false\n", output.String())
+}
+
+func TestCommand_GetRejectsUnknownProfile(t *testing.T) {
+	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	resetSetConfigProfileState(t)
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	cmd := newTestRootCommand(nil)
+
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"config",
+		"get",
+		"--profile", "missing",
+		"safety.pii",
+	})
+
+	require.EqualError(t, err, `unknown profile "missing"`)
+}
+
+func TestCommand_GetRequiresPath(t *testing.T) {
+	cmd := newTestRootCommand(nil)
+	err := cmd.Run(context.Background(), []string{"hand", "config", "get"})
+
+	require.EqualError(t, err, "config path is required")
 }
 
 func TestCommand_UpdatesSelectedProfileConfigWithInlineValueAndLocalProfileFlag(t *testing.T) {
@@ -54,7 +126,8 @@ func TestCommand_UpdatesSelectedProfileConfigWithInlineValueAndLocalProfileFlag(
 
 	require.NoError(t, cmd.Run(context.Background(), []string{
 		"hand",
-		"set-config",
+		"config",
+		"set",
 		"-p", "safety-manual",
 		"safety.pii=true",
 	}))
@@ -63,7 +136,26 @@ func TestCommand_UpdatesSelectedProfileConfigWithInlineValueAndLocalProfileFlag(
 	require.NoError(t, err)
 	require.NotNil(t, cfg.Safety.PII)
 	require.True(t, *cfg.Safety.PII)
-	require.Equal(t, "safety.pii=true\n", output.String())
+	require.Equal(t, "true (prev=false)\n", output.String())
+}
+
+func TestCommand_SetRejectsUnknownProfile(t *testing.T) {
+	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	resetSetConfigProfileState(t)
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	cmd := newTestRootCommand(nil)
+
+	err := cmd.Run(context.Background(), []string{
+		"hand",
+		"config",
+		"set",
+		"-p", "missing",
+		"safety.pii=true",
+	})
+
+	require.EqualError(t, err, `unknown profile "missing"`)
 }
 
 func TestCommand_UpdatesMultipleSelectedProfileConfigValues(t *testing.T) {
@@ -80,7 +172,8 @@ func TestCommand_UpdatesMultipleSelectedProfileConfigValues(t *testing.T) {
 	require.NoError(t, cmd.Run(context.Background(), []string{
 		"hand",
 		"--profile", "work",
-		"set-config",
+		"config",
+		"set",
 		"search.enableRank=true",
 		"safety.pii=true",
 	}))
@@ -90,7 +183,7 @@ func TestCommand_UpdatesMultipleSelectedProfileConfigValues(t *testing.T) {
 	require.True(t, *cfg.Search.EnableRerank)
 	require.NotNil(t, cfg.Safety.PII)
 	require.True(t, *cfg.Safety.PII)
-	require.Equal(t, "search.enableRerank=true\nsafety.pii=true\n", output.String())
+	require.Equal(t, "search.enableRerank=true (prev=false)\nsafety.pii=true (prev=false)\n", output.String())
 }
 
 func TestCommand_UpdatesMultipleSelectedProfileConfigValuesWithSpacedPairs(t *testing.T) {
@@ -107,7 +200,8 @@ func TestCommand_UpdatesMultipleSelectedProfileConfigValuesWithSpacedPairs(t *te
 	require.NoError(t, cmd.Run(context.Background(), []string{
 		"hand",
 		"--profile", "work",
-		"set-config",
+		"config",
+		"set",
 		"search.enableRank", "true",
 		"safety.pii", "true",
 	}))
@@ -117,12 +211,12 @@ func TestCommand_UpdatesMultipleSelectedProfileConfigValuesWithSpacedPairs(t *te
 	require.True(t, *cfg.Search.EnableRerank)
 	require.NotNil(t, cfg.Safety.PII)
 	require.True(t, *cfg.Safety.PII)
-	require.Equal(t, "search.enableRerank=true\nsafety.pii=true\n", output.String())
+	require.Equal(t, "search.enableRerank=true (prev=false)\nsafety.pii=true (prev=false)\n", output.String())
 }
 
 func TestCommand_RequiresPathAndValue(t *testing.T) {
 	cmd := newTestRootCommand(nil)
-	err := cmd.Run(context.Background(), []string{"hand", "set-config", "search.enableRerank"})
+	err := cmd.Run(context.Background(), []string{"hand", "config", "set", "search.enableRerank"})
 
 	require.EqualError(t, err, "config path and value are required")
 }

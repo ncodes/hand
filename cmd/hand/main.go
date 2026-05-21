@@ -11,7 +11,7 @@ import (
 	cli "github.com/urfave/cli/v3"
 
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
-	setconfigcmd "github.com/wandxy/hand/cmd/hand/setconfig"
+	configcmd "github.com/wandxy/hand/cmd/hand/configcmd"
 	profilecmd "github.com/wandxy/hand/cmd/profile"
 	sessioncmd "github.com/wandxy/hand/cmd/session"
 	tracecmd "github.com/wandxy/hand/cmd/trace"
@@ -105,10 +105,10 @@ func newCommand() *cli.Command {
 		Flags:                         append(handcli.RootFlags(&envFile, &configFile), handcli.RequestInstructFlag()),
 		Commands: []*cli.Command{
 			newDatabaseCommand(),
+			configcmd.NewCommand(rootOutput),
 			doctorcmd.NewCommand(),
 			profilecmd.NewCommand(),
 			sessioncmd.NewCommand(),
-			setconfigcmd.NewCommand(rootOutput),
 			tracecmd.NewCommand(),
 			tuicmd.NewCommand(),
 			upcmd.NewCommand(),
