@@ -145,11 +145,12 @@ func (factory transcriptCellFactory) FromTimelineMessage(
 			name = "tool"
 		}
 		toolCall := toolCalls[strings.TrimSpace(message.ToolCallID)]
+		planState := mergePlanToolDisplayState(toolCall.planState, getToolOutputDisplayState(name, content))
 		return factory.Tool(toolTranscriptCellInput{
 			ID:          message.ToolCallID,
 			Name:        name,
 			Detail:      toolCall.detail,
-			PlanState:   toolCall.planState,
+			PlanState:   planState,
 			StartedAt:   toolCall.startedAt,
 			CompletedAt: message.CreatedAt,
 			Completed:   true,

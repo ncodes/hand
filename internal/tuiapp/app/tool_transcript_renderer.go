@@ -53,6 +53,12 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 			if strings.TrimSpace(detail.text) == "" && detail.planState == nil {
 				continue
 			}
+			if shouldSkipToolTranscriptBranch(action, completed, detail) {
+				continue
+			}
+			if strings.TrimSpace(action) == "Plan" && getPlanToolBranchDetail(detail.planState, detail.completed) == "" {
+				continue
+			}
 			details = append(details, detail)
 		}
 	}
@@ -81,6 +87,30 @@ func shouldRenderToolTranscriptBranches(action string) bool {
 		return false
 	default:
 		return true
+	}
+}
+
+func shouldSkipToolTranscriptBranch(action string, completed bool, detail toolTranscriptDetail) bool {
+	if strings.TrimSpace(action) != "Plan" || !completed || detail.planState == nil {
+		return false
+	}
+
+	return isGenericPlanInputState(detail.planState)
+}
+
+func isGenericPlanInputState(state *trace.PlanToolState) bool {
+	if state == nil {
+		return false
+	}
+	if len(state.Changes) > 0 || state.TotalCount > 0 || state.CompletedCount > 0 {
+		return false
+	}
+
+	switch state.Operation {
+	case trace.PlanToolOperationUpdate, trace.PlanToolOperationClearCompleted:
+		return state.ChangedCount > 0
+	default:
+		return false
 	}
 }
 

@@ -814,6 +814,40 @@ func TestService_MaybeRefreshSummary_SavesSummaryAndRecordsTrace(t *testing.T) {
 	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionSucceeded)
 }
 
+func TestService_MaybeRefreshSummary_SanitizesToolCallGroups(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+	client := &mocks.ModelClientStub{
+		Responses: []*models.Response{{
+			OutputText: `{"session_summary":"Older work","current_task":"",
+				"discoveries":[],"open_questions":[],"next_actions":[]}`,
+		}},
+	}
+	history := summaryTestHistory(10)
+	history[0] = handmsg.Message{
+		Role: handmsg.RoleAssistant,
+		ToolCalls: []handmsg.ToolCall{{
+			ID:   "call-1",
+			Name: "time",
+		}},
+	}
+	history[1] = handmsg.Message{Role: handmsg.RoleUser, Content: "next turn"}
+	service := summaryTestService(summaryTestConfig(true), client, summaryTestStore(history))
+
+	err := service.MaybeRefreshSummary(context.Background(), &State{}, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: traceSession,
+	})
+	require.NoError(t, err)
+	require.Len(t, client.Requests, 1)
+	require.Len(t, client.Requests[0].Messages, 3)
+	require.Equal(t, handmsg.RoleAssistant, client.Requests[0].Messages[0].Role)
+	require.Equal(t, handmsg.RoleTool, client.Requests[0].Messages[1].Role)
+	require.Equal(t, "call-1", client.Requests[0].Messages[1].ToolCallID)
+	require.Contains(t, client.Requests[0].Messages[1].Content, "Tool result unavailable")
+	require.Equal(t, handmsg.RoleUser, client.Requests[0].Messages[2].Role)
+}
+
 func TestService_MaybeRefreshSummary_MarksCompactionFailedAndRetries(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
 	store := summaryTestStore(summaryTestHistory(10))

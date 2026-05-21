@@ -10,6 +10,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	ctxbuilder "github.com/wandxy/hand/internal/agent/context"
 	"github.com/wandxy/hand/internal/agent/context/compaction"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
@@ -1386,6 +1387,7 @@ func (s *Service) refreshSummary(
 		}
 		summaryMessages = append(summaryMessages, handmsg.CloneMessages(messages)...)
 	}
+	summaryMessages = ctxbuilder.New().Build(ctxbuilder.Input{SessionHistory: summaryMessages})
 
 	log.Debug().
 		Str("session_id", input.SessionID).

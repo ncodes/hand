@@ -87,12 +87,13 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 					Int("completed", summarizePlan(plan).Completed).
 					Int("cancelled", summarizePlan(plan).Cancelled).
 					Msg("plan tool read completed")
-				return encodePlanOutput(plan)
+				return encodePlanOutput(plan, nil)
 			}
 
 			var (
-				plan envtypes.Plan
-				err  error
+				before = runtime.GetPlan(sessionID)
+				plan   envtypes.Plan
+				err    error
 			)
 
 			if req.Merge {
@@ -157,7 +158,8 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				return common.ToolError("invalid_input", err.Error()), nil
 			}
 
-			recordPlanEvent(ctx, sessionID, plan)
+			changes := getPlanChanges(before, plan)
+			recordPlanEvent(ctx, sessionID, plan, changes)
 
 			if req.ClearCompleted && len(plan.Steps) == 0 {
 				recordPlanCleared(ctx, sessionID, plan)
@@ -174,7 +176,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				Int("cancelled", summary.Cancelled).
 				Msg("plan tool update completed")
 
-			return encodePlanOutput(plan)
+			return encodePlanOutput(plan, changes)
 		}),
 	}
 }
@@ -258,7 +260,7 @@ func decodePartialPlanSteps(rawSteps []map[string]any) ([]envtypes.PartialPlanSt
 	return steps, nil
 }
 
-func encodePlanOutput(plan envtypes.Plan) (tools.Result, error) {
+func encodePlanOutput(plan envtypes.Plan, changes []trace.PlanToolChange) (tools.Result, error) {
 	summary := summarizePlan(plan)
 	activeStepID := ""
 
@@ -269,12 +271,17 @@ func encodePlanOutput(plan envtypes.Plan) (tools.Result, error) {
 		}
 	}
 
-	return common.EncodeOutput(map[string]any{
+	output := map[string]any{
 		"steps":          plan.Steps,
 		"summary":        summary,
 		"active_step_id": activeStepID,
 		"explanation":    strings.TrimSpace(plan.Explanation),
-	})
+	}
+	if len(changes) > 0 {
+		output["changes"] = changes
+	}
+
+	return common.EncodeOutput(output)
 }
 
 func summarizePlan(plan envtypes.Plan) envtypes.PlanSummary {
@@ -296,7 +303,84 @@ func summarizePlan(plan envtypes.Plan) envtypes.PlanSummary {
 	return summary
 }
 
-func recordPlanEvent(ctx context.Context, sessionID string, plan envtypes.Plan) {
+func getPlanChanges(before envtypes.Plan, after envtypes.Plan) []trace.PlanToolChange {
+	beforeByID := make(map[string]envtypes.PlanStep, len(before.Steps))
+	beforeIndexByID := make(map[string]int, len(before.Steps))
+	afterByID := make(map[string]envtypes.PlanStep, len(after.Steps))
+	afterIndexByID := make(map[string]int, len(after.Steps))
+
+	for index, step := range before.Steps {
+		beforeByID[step.ID] = step
+		beforeIndexByID[step.ID] = index + 1
+	}
+	for index, step := range after.Steps {
+		afterByID[step.ID] = step
+		afterIndexByID[step.ID] = index + 1
+	}
+
+	changes := make([]trace.PlanToolChange, 0)
+	for _, step := range after.Steps {
+		previous, existed := beforeByID[step.ID]
+		if !existed {
+			changes = append(changes, trace.PlanToolChange{
+				Index:  afterIndexByID[step.ID],
+				ID:     step.ID,
+				Action: "added",
+			})
+			continue
+		}
+		if previous.Content == step.Content && previous.Status == step.Status {
+			continue
+		}
+
+		action := "updated"
+		switch step.Status {
+		case envtypes.PlanStatusCompleted:
+			if previous.Status != step.Status {
+				action = "completed"
+			}
+		case envtypes.PlanStatusCancelled:
+			if previous.Status != step.Status {
+				action = "cancelled"
+			}
+		}
+		changes = append(changes, trace.PlanToolChange{
+			Index:  afterIndexByID[step.ID],
+			ID:     step.ID,
+			Action: action,
+			Fields: getPlanStepChangedFields(previous, step),
+		})
+	}
+	for _, step := range before.Steps {
+		if _, ok := afterByID[step.ID]; ok {
+			continue
+		}
+		changes = append(changes, trace.PlanToolChange{
+			Index:  beforeIndexByID[step.ID],
+			ID:     step.ID,
+			Action: "removed",
+		})
+	}
+	if len(changes) == 0 {
+		return nil
+	}
+
+	return changes
+}
+
+func getPlanStepChangedFields(before envtypes.PlanStep, after envtypes.PlanStep) []string {
+	fields := make([]string, 0, 2)
+	if before.Status != after.Status {
+		fields = append(fields, "status")
+	}
+	if before.Content != after.Content {
+		fields = append(fields, "content")
+	}
+
+	return fields
+}
+
+func recordPlanEvent(ctx context.Context, sessionID string, plan envtypes.Plan, changes []trace.PlanToolChange) {
 	recorder := tools.TraceRecorderFromContext(ctx)
 	if recorder == nil {
 		return
@@ -308,6 +392,7 @@ func recordPlanEvent(ctx context.Context, sessionID string, plan envtypes.Plan) 
 		Summary:      planSummaryToTracePayload(summarizePlan(plan)),
 		ActiveStepID: getActivePlanStepID(plan),
 		Explanation:  strings.TrimSpace(plan.Explanation),
+		Changes:      append([]trace.PlanToolChange(nil), changes...),
 	})
 }
 

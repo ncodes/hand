@@ -455,32 +455,36 @@ func TestRenderTranscriptCells_RendersWebExtractWithFriendlyText(t *testing.T) {
 func TestRenderTranscriptCells_RendersPlanWithFriendlyText(t *testing.T) {
 	startedAt := time.Date(2026, 5, 20, 23, 0, 0, 0, time.UTC)
 	cases := []struct {
-		name      string
-		state     *trace.PlanToolState
-		running   string
-		completed string
-		branch    string
+		name            string
+		state           *trace.PlanToolState
+		running         string
+		completed       string
+		runningBranch   string
+		completedBranch string
 	}{
 		{
-			name:      "read",
-			state:     &trace.PlanToolState{Operation: trace.PlanToolOperationRead},
-			running:   "● Reading plan (4s)",
-			completed: "● Plan read (4s)",
-			branch:    "Read current plan",
+			name:            "read",
+			state:           &trace.PlanToolState{Operation: trace.PlanToolOperationRead},
+			running:         "● Reading plan (4s)",
+			completed:       "● Plan read (4s)",
+			runningBranch:   "Read current plan",
+			completedBranch: "",
 		},
 		{
-			name:      "update",
-			state:     &trace.PlanToolState{Operation: trace.PlanToolOperationUpdate, ChangedCount: 1},
-			running:   "● Updating plan (4s)",
-			completed: "● Plan updated (4s)",
-			branch:    "Updated 1 task",
+			name:            "update",
+			state:           &trace.PlanToolState{Operation: trace.PlanToolOperationUpdate, ChangedCount: 1},
+			running:         "● Updating plan (4s)",
+			completed:       "● Plan updated (4s)",
+			runningBranch:   "Updated 1 task",
+			completedBranch: "",
 		},
 		{
-			name:      "clear completed",
-			state:     &trace.PlanToolState{Operation: trace.PlanToolOperationClearCompleted, ChangedCount: 1},
-			running:   "● Clearing completed plan steps (4s)",
-			completed: "● Plan cleared (4s)",
-			branch:    "Cleared 1 task",
+			name:            "clear completed",
+			state:           &trace.PlanToolState{Operation: trace.PlanToolOperationClearCompleted, ChangedCount: 1},
+			running:         "● Clearing completed plan steps (4s)",
+			completed:       "● Plan cleared (4s)",
+			runningBranch:   "Cleared 1 task",
+			completedBranch: "",
 		},
 	}
 
@@ -494,10 +498,14 @@ func TestRenderTranscriptCells_RendersPlanWithFriendlyText(t *testing.T) {
 			}, transcriptRenderContext{Width: 80, Now: startedAt.Add(4 * time.Second)}))
 
 			require.Contains(t, running, tt.running)
-			require.Contains(t, running, "└ "+tt.branch)
+			require.Contains(t, running, "└ "+tt.runningBranch)
 			require.NotContains(t, running, "plan_tool")
 			require.Contains(t, completed, tt.completed)
-			require.Contains(t, completed, "└ "+tt.branch)
+			if tt.completedBranch == "" {
+				require.NotContains(t, completed, "└")
+			} else {
+				require.Contains(t, completed, "└ "+tt.completedBranch)
+			}
 			require.NotContains(t, completed, "plan_tool")
 		})
 	}
@@ -512,10 +520,74 @@ func TestRenderTranscriptCells_RendersCompletedPlanSummaryBranch(t *testing.T) {
 		branch string
 	}{
 		{
-			name:   "partial update",
-			input:  &trace.PlanToolState{Operation: trace.PlanToolOperationUpdate, ChangedCount: 1},
-			output: &trace.PlanToolState{TotalCount: 3, CompletedCount: 1},
-			branch: "Updated 1 task of 3",
+			name:  "partial update",
+			input: &trace.PlanToolState{Operation: trace.PlanToolOperationUpdate, ChangedCount: 1},
+			output: &trace.PlanToolState{
+				TotalCount:     3,
+				CompletedCount: 1,
+				Changes:        []trace.PlanToolChange{{Index: 2, ID: "step-2", Action: "completed"}},
+			},
+			branch: "Task 2 completed",
+		},
+		{
+			name:  "content update",
+			input: &trace.PlanToolState{Operation: trace.PlanToolOperationUpdate, ChangedCount: 1},
+			output: &trace.PlanToolState{
+				TotalCount: 3,
+				Changes: []trace.PlanToolChange{
+					{Index: 1, ID: "step-1", Action: "updated", Fields: []string{"content"}},
+				},
+			},
+			branch: "Task 1 content updated",
+		},
+		{
+			name:  "status update",
+			input: &trace.PlanToolState{Operation: trace.PlanToolOperationUpdate, ChangedCount: 1},
+			output: &trace.PlanToolState{
+				TotalCount: 3,
+				Changes: []trace.PlanToolChange{
+					{Index: 2, ID: "step-2", Action: "updated", Fields: []string{"status"}},
+				},
+			},
+			branch: "Task 2 status updated",
+		},
+		{
+			name:  "content and status update",
+			input: &trace.PlanToolState{Operation: trace.PlanToolOperationUpdate, ChangedCount: 1},
+			output: &trace.PlanToolState{
+				TotalCount: 3,
+				Changes: []trace.PlanToolChange{
+					{Index: 3, ID: "step-3", Action: "updated", Fields: []string{"status", "content"}},
+				},
+			},
+			branch: "Task 3 status+content updated",
+		},
+		{
+			name:  "many mixed updates",
+			input: &trace.PlanToolState{Operation: trace.PlanToolOperationUpdate, ChangedCount: 3},
+			output: &trace.PlanToolState{
+				TotalCount:     3,
+				CompletedCount: 2,
+				Changes: []trace.PlanToolChange{
+					{Index: 1, ID: "step-1", Action: "completed"},
+					{Index: 2, ID: "step-2", Action: "completed"},
+					{Index: 3, ID: "step-3", Action: "updated"},
+				},
+			},
+			branch: "Completed 2 tasks",
+		},
+		{
+			name:  "many status updates",
+			input: &trace.PlanToolState{Operation: trace.PlanToolOperationUpdate, ChangedCount: 3},
+			output: &trace.PlanToolState{
+				TotalCount: 3,
+				Changes: []trace.PlanToolChange{
+					{Index: 1, ID: "step-1", Action: "updated", Fields: []string{"status"}},
+					{Index: 2, ID: "step-2", Action: "updated", Fields: []string{"status"}},
+					{Index: 3, ID: "step-3", Action: "updated", Fields: []string{"status"}},
+				},
+			},
+			branch: "Updated status for 3 tasks",
 		},
 		{
 			name:   "all completed",
@@ -543,6 +615,77 @@ func TestRenderTranscriptCells_RendersCompletedPlanSummaryBranch(t *testing.T) {
 			require.NotContains(t, rendered, "plan_tool")
 		})
 	}
+}
+
+func TestTimelineMessageToTranscriptCell_MergesPlanOutputState(t *testing.T) {
+	startedAt := time.Date(2026, 5, 20, 23, 0, 0, 0, time.UTC)
+	completedAt := startedAt.Add(4 * time.Second)
+	cell := timelineMessageToTranscriptCell(
+		handmsg.Message{
+			Role:       handmsg.RoleTool,
+			Name:       "plan_tool",
+			ToolCallID: "call_1",
+			Content: `{
+				"name": "plan_tool",
+				"output": "{\"summary\":{\"total\":3,\"completed\":1},\"changes\":[{\"index\":2,\"id\":\"step-2\",\"action\":\"completed\"}]}"
+			}`,
+			CreatedAt: completedAt,
+		},
+		map[string]timelineToolCallDetail{
+			"call_1": {
+				planState: &trace.PlanToolState{
+					Operation:    trace.PlanToolOperationUpdate,
+					ChangedCount: 3,
+				},
+				startedAt: startedAt,
+			},
+		},
+	)
+
+	rendered := stripANSI(defaultTranscriptRenderer.RenderCells(
+		[]transcriptCell{cell},
+		transcriptRenderContext{Width: 80, Now: completedAt},
+	))
+	require.Contains(t, rendered, "└ Task 2 completed")
+	require.NotContains(t, rendered, "Updated 3 tasks")
+}
+
+func TestRenderTranscriptCells_HidesCompletedPlanInputFallback(t *testing.T) {
+	startedAt := time.Date(2026, 5, 20, 23, 0, 0, 0, time.UTC)
+	completedAt := startedAt.Add(4 * time.Second)
+	rendered := stripANSI(defaultTranscriptRenderer.RenderCells([]transcriptCell{
+		toolTranscriptTestCellWithPlanState(
+			"call_1",
+			"plan_tool",
+			&trace.PlanToolState{
+				Operation:    trace.PlanToolOperationUpdate,
+				ChangedCount: 3,
+			},
+			startedAt,
+			completedAt,
+			true,
+		),
+		toolTranscriptTestCellWithPlanState(
+			"call_2",
+			"plan_tool",
+			&trace.PlanToolState{
+				Operation:      trace.PlanToolOperationUpdate,
+				ChangedCount:   2,
+				TotalCount:     3,
+				CompletedCount: 1,
+				Changes: []trace.PlanToolChange{
+					{Index: 1, ID: "step-1", Action: "completed", Fields: []string{"status"}},
+					{Index: 2, ID: "step-2", Action: "updated", Fields: []string{"status"}},
+				},
+			},
+			startedAt,
+			completedAt,
+			true,
+		),
+	}, transcriptRenderContext{Width: 80, Now: completedAt}))
+
+	require.Contains(t, rendered, "Task 1 completed; Task 2 status updated")
+	require.NotContains(t, rendered, "Updated 3 tasks")
 }
 
 func TestRenderTranscriptCells_AnimatesRunningToolDot(t *testing.T) {

@@ -378,15 +378,6 @@ func renderToolTranscriptGroupWithContext(group toolTranscriptGroup, ctx transcr
 	return defaultToolTranscriptRenderer.RenderGroup(group, ctx)
 }
 
-func parseToolTranscriptTime(value string) time.Time {
-	parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(value))
-	if err != nil {
-		return time.Time{}
-	}
-
-	return parsed
-}
-
 func (group toolTranscriptGroup) isCompleted() bool {
 	if len(group.seenIDs) == 0 {
 		return group.completed

@@ -105,6 +105,10 @@ func TestPlanTool_MergeStatusOnlyUpdate(t *testing.T) {
 	require.Equal(t, "step-2", payload.ActiveStepID)
 	require.Equal(t, "completed", payload.Steps[0].Status)
 	require.Equal(t, "in_progress", payload.Steps[1].Status)
+	require.Equal(t, []trace.PlanToolChange{
+		{Index: 1, ID: "step-1", Action: "completed", Fields: []string{"status"}},
+		{Index: 2, ID: "step-2", Action: "updated", Fields: []string{"status"}},
+	}, payload.Changes)
 }
 
 func TestPlanTool_MergeContentOnlyUpdateAndAppend(t *testing.T) {
@@ -125,6 +129,10 @@ func TestPlanTool_MergeContentOnlyUpdateAndAppend(t *testing.T) {
 	require.Equal(t, "Implement feature thoroughly", payload.Steps[0].Content)
 	require.Equal(t, "in_progress", payload.Steps[0].Status)
 	require.Equal(t, "step-2", payload.Steps[1].ID)
+	require.Equal(t, []trace.PlanToolChange{
+		{Index: 1, ID: "step-1", Action: "updated", Fields: []string{"content"}},
+		{Index: 2, ID: "step-2", Action: "added"},
+	}, payload.Changes)
 }
 
 func TestPlanTool_ClearCompletedRemovesTerminalSteps(t *testing.T) {
@@ -228,6 +236,9 @@ func TestPlanTool_RecordsPlanUpdatedAndClearedEvents(t *testing.T) {
 	require.Len(t, traceSession.Events, 2)
 	require.Equal(t, trace.EvtPlanUpdated, traceSession.Events[0].Type)
 	require.Equal(t, trace.EvtPlanCleared, traceSession.Events[1].Type)
+	updatedPayload, ok := traceSession.Events[0].Payload.(trace.PlanEventPayload)
+	require.True(t, ok)
+	require.Empty(t, updatedPayload.Changes)
 }
 
 func registerPlanRuntime(t *testing.T, root string, policy guardrails.CommandPolicy) tools.Registry {
@@ -259,10 +270,11 @@ func requireInvalidInputError(t *testing.T, result tools.Result, message string)
 }
 
 type planToolOutput struct {
-	Steps        []envtypes.PlanStep  `json:"steps"`
-	Summary      envtypes.PlanSummary `json:"summary"`
-	ActiveStepID string               `json:"active_step_id"`
-	Explanation  string               `json:"explanation"`
+	Steps        []envtypes.PlanStep    `json:"steps"`
+	Summary      envtypes.PlanSummary   `json:"summary"`
+	ActiveStepID string                 `json:"active_step_id"`
+	Explanation  string                 `json:"explanation"`
+	Changes      []trace.PlanToolChange `json:"changes"`
 }
 
 func decodePlanOutputForTest(t *testing.T, raw string) planToolOutput {

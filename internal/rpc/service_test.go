@@ -645,7 +645,10 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 			payload: map[string]any{
 				"ToolCallID": "call_10",
 				"Name":       "plan_tool",
-				"Content":    `{"summary":{"total":3,"completed":1}}`,
+				"Content": `{
+					"name": "plan_tool",
+					"output": "{\"summary\":{\"total\":3,\"completed\":1},\"changes\":[{\"index\":2,\"id\":\"step-2\",\"action\":\"completed\",\"fields\":[\"status\"]}]}"
+				}`,
 			},
 			expected: map[string]any{
 				"tool_call_id": "call_10",
@@ -653,6 +656,9 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 				"plan_state": map[string]any{
 					"total_count":     3,
 					"completed_count": 1,
+					"changes": []map[string]any{
+						{"index": 2, "id": "step-2", "action": "completed", "fields": []string{"status"}},
+					},
 				},
 			},
 			ok: true,

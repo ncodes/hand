@@ -205,16 +205,39 @@ func getPlanToolInputDisplayState(fields map[string]any) *trace.PlanToolState {
 }
 
 func getPlanToolOutputDisplayState(fields map[string]any) *trace.PlanToolState {
+	fields = getPlanToolOutputFields(fields)
 	summary, _ := fields["summary"].(map[string]any)
 	return &trace.PlanToolState{
 		TotalCount:     getMapNumber(summary, "total"),
 		CompletedCount: getMapNumber(summary, "completed"),
+		Changes:        getPlanToolChanges(fields["changes"]),
 	}
+}
+
+func getPlanToolOutputFields(fields map[string]any) map[string]any {
+	if len(fields) == 0 || fields["summary"] != nil || fields["changes"] != nil {
+		return fields
+	}
+
+	output, ok := fields["output"].(string)
+	if !ok || strings.TrimSpace(output) == "" {
+		return fields
+	}
+
+	unwrapped := map[string]any{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &unwrapped); err != nil {
+		return fields
+	}
+	if len(unwrapped) == 0 {
+		return fields
+	}
+
+	return unwrapped
 }
 
 func getPlanToolBranchDetail(state *trace.PlanToolState, completed bool) string {
 	if state == nil {
-		return "Updated plan"
+		return ""
 	}
 
 	switch state.Operation {
@@ -222,29 +245,32 @@ func getPlanToolBranchDetail(state *trace.PlanToolState, completed bool) string 
 		if completed && state.TotalCount > 0 {
 			return fmt.Sprintf("Found %s", formatTaskCount(state.TotalCount))
 		}
+		if completed {
+			return ""
+		}
 
 		return "Read current plan"
 	case trace.PlanToolOperationClearCompleted:
 		if state.ChangedCount > 0 {
 			return fmt.Sprintf("Cleared %s", formatTaskCount(state.ChangedCount))
 		}
+		if completed {
+			return ""
+		}
 
 		return "Cleared completed tasks"
 	default:
+		if detail := getPlanToolChangeBranchDetail(state.Changes); detail != "" {
+			return detail
+		}
 		if completed && state.TotalCount > 0 && state.CompletedCount == state.TotalCount {
 			return fmt.Sprintf("Completed all %s", formatTaskCount(state.TotalCount))
 		}
-		if completed && state.TotalCount > 0 && state.ChangedCount > 0 && state.ChangedCount < state.TotalCount {
-			return fmt.Sprintf("Updated %s of %d", formatTaskCount(state.ChangedCount), state.TotalCount)
-		}
-		if completed && state.TotalCount > 0 && state.ChangedCount == state.TotalCount {
-			return fmt.Sprintf("Updated all %s", formatTaskCount(state.TotalCount))
-		}
-		if state.ChangedCount > 0 {
+		if !completed && state.ChangedCount > 0 {
 			return fmt.Sprintf("Updated %s", formatTaskCount(state.ChangedCount))
 		}
 
-		return "Updated plan"
+		return ""
 	}
 }
 
@@ -254,6 +280,7 @@ func clonePlanToolDisplayState(state *trace.PlanToolState) *trace.PlanToolState 
 	}
 
 	cloned := *state
+	cloned.Changes = append([]trace.PlanToolChange(nil), state.Changes...)
 	return &cloned
 }
 
@@ -286,8 +313,218 @@ func mergePlanToolDisplayState(current *trace.PlanToolState, next *trace.PlanToo
 	if next.CompletedCount > 0 {
 		merged.CompletedCount = next.CompletedCount
 	}
+	if len(next.Changes) > 0 {
+		merged.Changes = append([]trace.PlanToolChange(nil), next.Changes...)
+	}
 
 	return &merged
+}
+
+func getPlanToolChanges(value any) []trace.PlanToolChange {
+	items, ok := value.([]any)
+	if !ok || len(items) == 0 {
+		return nil
+	}
+
+	changes := make([]trace.PlanToolChange, 0, len(items))
+	for _, item := range items {
+		fields, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		change := trace.PlanToolChange{
+			Index:  getMapNumber(fields, "index"),
+			ID:     getMapString(fields, "id"),
+			Action: getMapString(fields, "action"),
+			Fields: getMapStringSlice(fields, "fields"),
+		}
+		if change.Index == 0 && change.ID == "" && change.Action == "" {
+			continue
+		}
+		changes = append(changes, change)
+	}
+	if len(changes) == 0 {
+		return nil
+	}
+
+	return changes
+}
+
+func getPlanToolChangeBranchDetail(changes []trace.PlanToolChange) string {
+	if len(changes) == 0 {
+		return ""
+	}
+
+	if len(changes) > 2 {
+		return getPlanToolChangeSummary(changes)
+	}
+
+	parts := make([]string, 0, len(changes))
+	for _, change := range changes {
+		part := getPlanToolChangeText(change)
+		if part == "" {
+			continue
+		}
+		parts = append(parts, part)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return strings.Join(parts, "; ")
+}
+
+func getPlanToolChangeSummary(changes []trace.PlanToolChange) string {
+	type summaryKey struct {
+		action string
+		fields string
+	}
+
+	counts := map[summaryKey]int{}
+	order := make([]string, 0, len(changes))
+	for _, change := range changes {
+		action := strings.TrimSpace(strings.ToLower(change.Action))
+		if action == "" {
+			continue
+		}
+		fields := ""
+		if action == "updated" {
+			fields = getPlanToolUpdatedFieldsLabel(change.Fields)
+		}
+		key := summaryKey{action: action, fields: fields}
+		if _, ok := counts[key]; !ok {
+			order = append(order, action+"\x00"+fields)
+		}
+		counts[key]++
+	}
+	if len(order) == 0 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(order))
+	for _, raw := range order {
+		action, fields, _ := strings.Cut(raw, "\x00")
+		key := summaryKey{action: action, fields: fields}
+		label := getPlanToolChangeSummaryLabel(action, fields, counts[key])
+		if label != "" {
+			parts = append(parts, label)
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return strings.Join(parts, "; ")
+}
+
+func getPlanToolChangeSummaryLabel(action string, fields string, count int) string {
+	if count <= 0 {
+		return ""
+	}
+
+	switch action {
+	case "added":
+		return "Added " + formatTaskCount(count)
+	case "completed":
+		return "Completed " + formatTaskCount(count)
+	case "cancelled":
+		return "Cancelled " + formatTaskCount(count)
+	case "removed":
+		return "Removed " + formatTaskCount(count)
+	case "updated":
+		if fields != "" {
+			return "Updated " + fields + " for " + formatTaskCount(count)
+		}
+
+		return ""
+	default:
+		return capitalizePlanToolChangeAction(action) + " " + formatTaskCount(count)
+	}
+}
+
+func capitalizePlanToolChangeAction(action string) string {
+	action = strings.TrimSpace(action)
+	if action == "" {
+		return ""
+	}
+
+	return strings.ToUpper(action[:1]) + action[1:]
+}
+
+func getPlanToolChangeText(change trace.PlanToolChange) string {
+	action := strings.TrimSpace(strings.ToLower(change.Action))
+	if action == "" {
+		return ""
+	}
+
+	subject := "Task"
+	if change.Index > 0 {
+		subject = fmt.Sprintf("Task %d", change.Index)
+	}
+
+	switch action {
+	case "added":
+		return subject + " added"
+	case "completed":
+		return subject + " completed"
+	case "cancelled":
+		return subject + " cancelled"
+	case "removed":
+		return subject + " removed"
+	case "updated":
+		if label := getPlanToolUpdatedFieldsLabel(change.Fields); label != "" {
+			return subject + " " + label + " updated"
+		}
+
+		return ""
+	default:
+		return subject + " " + action
+	}
+}
+
+func getPlanToolUpdatedFieldsLabel(fields []string) string {
+	fields = normalizePlanToolChangedFields(fields)
+	if len(fields) == 0 {
+		return ""
+	}
+
+	if len(fields) == 1 {
+		switch fields[0] {
+		case "content":
+			return "content"
+		case "status":
+			return "status"
+		default:
+			return fields[0]
+		}
+	}
+
+	return strings.Join(fields, "+")
+}
+
+func normalizePlanToolChangedFields(fields []string) []string {
+	if len(fields) == 0 {
+		return nil
+	}
+
+	seen := map[string]struct{}{}
+	result := make([]string, 0, len(fields))
+	for _, field := range fields {
+		field = strings.TrimSpace(strings.ToLower(field))
+		if field == "" {
+			continue
+		}
+		if _, ok := seen[field]; ok {
+			continue
+		}
+		seen[field] = struct{}{}
+		result = append(result, field)
+	}
+	if len(result) == 0 {
+		return nil
+	}
+
+	return result
 }
 
 func formatTaskCount(count int) string {

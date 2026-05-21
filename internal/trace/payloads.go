@@ -87,6 +87,7 @@ type PlanEventPayload struct {
 	ActiveStepID string             `json:"active_step_id,omitempty"`
 	Explanation  string             `json:"explanation,omitempty"`
 	Source       string             `json:"source,omitempty"`
+	Changes      []PlanToolChange   `json:"changes,omitempty"`
 }
 
 type PlanStepPayload struct {
@@ -227,6 +228,14 @@ type PlanToolState struct {
 	ChangedCount   int               `json:"changed_count,omitempty"`
 	TotalCount     int               `json:"total_count,omitempty"`
 	CompletedCount int               `json:"completed_count,omitempty"`
+	Changes        []PlanToolChange  `json:"changes,omitempty"`
+}
+
+type PlanToolChange struct {
+	Index  int      `json:"index,omitempty"`
+	ID     string   `json:"id,omitempty"`
+	Action string   `json:"action,omitempty"`
+	Fields []string `json:"fields,omitempty"`
 }
 
 type ToolInvocationStartedPayload struct {
@@ -419,6 +428,67 @@ func ToolInvocationCompletedPayloadFrom(payload any) (ToolInvocationCompletedPay
 	return result, result.ToolCallID != "" || result.Name != ""
 }
 
+func PlanToolInputState(input string) *PlanToolState {
+	fields := map[string]any{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(input)), &fields); err != nil {
+		return nil
+	}
+	steps, hasSteps := fields["steps"]
+	if !hasSteps || steps == nil {
+		return &PlanToolState{Operation: PlanToolOperationRead}
+	}
+
+	operation := PlanToolOperationUpdate
+	if clearCompleted, _ := fields["clear_completed"].(bool); clearCompleted {
+		operation = PlanToolOperationClearCompleted
+	}
+
+	return &PlanToolState{
+		Operation:    operation,
+		ChangedCount: len(anySlice(fields["steps"])),
+	}
+}
+
+func PlanToolOutputState(output string) *PlanToolState {
+	fields := map[string]any{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &fields); err != nil {
+		return nil
+	}
+	fields = unwrapPlanToolOutputFields(fields)
+
+	summary, _ := fields["summary"].(map[string]any)
+	if len(summary) == 0 && fields["changes"] == nil {
+		return nil
+	}
+
+	return &PlanToolState{
+		TotalCount:     payloadInt(summary["total"]),
+		CompletedCount: payloadInt(summary["completed"]),
+		Changes:        planToolChangesFromAny(fields["changes"]),
+	}
+}
+
+func unwrapPlanToolOutputFields(fields map[string]any) map[string]any {
+	if len(fields) == 0 || fields["summary"] != nil || fields["changes"] != nil {
+		return fields
+	}
+
+	output, ok := fields["output"].(string)
+	if !ok || strings.TrimSpace(output) == "" {
+		return fields
+	}
+
+	unwrapped := map[string]any{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &unwrapped); err != nil {
+		return fields
+	}
+	if len(unwrapped) == 0 {
+		return fields
+	}
+
+	return unwrapped
+}
+
 func PayloadFields(payload any) map[string]any {
 	if payload == nil {
 		return nil
@@ -438,6 +508,15 @@ func PayloadFields(payload any) map[string]any {
 	}
 
 	return fields
+}
+
+func anySlice(value any) []any {
+	switch items := value.(type) {
+	case []any:
+		return items
+	default:
+		return nil
+	}
 }
 
 func PayloadString(fields map[string]any, keys ...string) string {
@@ -493,7 +572,61 @@ func planToolStateFromAny(value any) *PlanToolState {
 		ChangedCount:   payloadInt(fields["changed_count"]),
 		TotalCount:     payloadInt(fields["total_count"]),
 		CompletedCount: payloadInt(fields["completed_count"]),
+		Changes:        planToolChangesFromAny(fields["changes"]),
 	}
+}
+
+func planToolChangesFromAny(value any) []PlanToolChange {
+	items, ok := value.([]any)
+	if !ok || len(items) == 0 {
+		return nil
+	}
+
+	changes := make([]PlanToolChange, 0, len(items))
+	for _, item := range items {
+		fields := PayloadFields(item)
+		if len(fields) == 0 {
+			continue
+		}
+		change := PlanToolChange{
+			Index:  payloadInt(fields["index"]),
+			ID:     PayloadString(fields, "id", "ID"),
+			Action: PayloadString(fields, "action", "Action"),
+			Fields: payloadStringSlice(fields["fields"]),
+		}
+		if change.Index == 0 && change.ID == "" && change.Action == "" {
+			continue
+		}
+		changes = append(changes, change)
+	}
+	if len(changes) == 0 {
+		return nil
+	}
+
+	return changes
+}
+
+func payloadStringSlice(value any) []string {
+	items, ok := value.([]any)
+	if !ok || len(items) == 0 {
+		return nil
+	}
+
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		text, ok := item.(string)
+		if !ok {
+			continue
+		}
+		if text = strings.TrimSpace(text); text != "" {
+			result = append(result, text)
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+
+	return result
 }
 
 func payloadInt(value any) int {

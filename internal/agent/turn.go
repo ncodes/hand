@@ -432,9 +432,10 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				Msg("tool invocation started")
 
 			traceSession.Record(trace.EvtToolInvocationStarted, trace.ToolInvocationStartedPayload{
-				ID:    toolCall.ID,
-				Name:  toolCall.Name,
-				Input: toolCall.Input,
+				ID:        toolCall.ID,
+				Name:      toolCall.Name,
+				Input:     toolCall.Input,
+				PlanState: getPlanToolInputState(toolCall.Name, toolCall.Input),
 			})
 			toolCtx := tools.WithTraceRecorder(t.getToolContext(ctx), traceSession)
 			toolMessage := t.invokeTool(toolCtx, toolCall)
@@ -442,6 +443,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				ToolCallID: toolMessage.ToolCallID,
 				Name:       toolMessage.Name,
 				Content:    toolMessage.Content,
+				PlanState:  getPlanToolOutputState(toolMessage.Name, toolMessage.Content),
 			})
 
 			agentLog.Info().
@@ -615,6 +617,22 @@ func safetyEventPayloadFromOptions(opts guardrails.SafetyTracePayloadOptions) tr
 		Refusal:       strings.TrimSpace(opts.Refusal),
 		Findings:      guardrails.SafetyFindingLogFields(opts.Findings),
 	}
+}
+
+func getPlanToolInputState(name string, input string) *trace.PlanToolState {
+	if strings.TrimSpace(strings.ToLower(name)) != "plan_tool" {
+		return nil
+	}
+
+	return trace.PlanToolInputState(input)
+}
+
+func getPlanToolOutputState(name string, output string) *trace.PlanToolState {
+	if strings.TrimSpace(strings.ToLower(name)) != "plan_tool" {
+		return nil
+	}
+
+	return trace.PlanToolOutputState(output)
 }
 
 func (t *Turn) getStateSessionID() string {

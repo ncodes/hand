@@ -366,7 +366,10 @@ func TestToolMessagePayloadToTUIMessage_ExtractsPlanDetail(t *testing.T) {
 		Role:       handmsg.RoleTool,
 		Name:       "plan_tool",
 		ToolCallID: "call_1",
-		Content:    `{"summary":{"total":3,"completed":1}}`,
+		Content: `{
+			"name": "plan_tool",
+			"output": "{\"summary\":{\"total\":3,\"completed\":1},\"changes\":[{\"index\":2,\"id\":\"step-2\",\"action\":\"completed\",\"fields\":[\"status\"]}]}"
+		}`,
 	})
 
 	require.True(t, ok)
@@ -376,6 +379,9 @@ func TestToolMessagePayloadToTUIMessage_ExtractsPlanDetail(t *testing.T) {
 		PlanState: &trace.PlanToolState{
 			TotalCount:     3,
 			CompletedCount: 1,
+			Changes: []trace.PlanToolChange{
+				{Index: 2, ID: "step-2", Action: "completed", Fields: []string{"status"}},
+			},
 		},
 	}, msg)
 }

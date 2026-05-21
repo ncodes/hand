@@ -177,7 +177,9 @@ func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
 		if detail := getRPCTraceToolDetail(result["name"], fields); detail != "" {
 			result["detail"] = detail
 		}
-		if planState := getRPCTracePlanInputState(result["name"], fields); len(planState) > 0 {
+		if planState := planToolStateToRPC(toolPayload.PlanState); len(planState) > 0 {
+			result["plan_state"] = planState
+		} else if planState := getRPCTracePlanInputState(result["name"], fields); len(planState) > 0 {
 			result["plan_state"] = planState
 		}
 		return result, len(result) > 0
@@ -193,7 +195,9 @@ func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
 		if toolPayload.Name != "" {
 			result["name"] = toolPayload.Name
 		}
-		if planState := getRPCTracePlanOutputState(result["name"], fields); len(planState) > 0 {
+		if planState := planToolStateToRPC(toolPayload.PlanState); len(planState) > 0 {
+			result["plan_state"] = planState
+		} else if planState := getRPCTracePlanOutputState(result["name"], fields); len(planState) > 0 {
 			result["plan_state"] = planState
 		}
 		return result, len(result) > 0
@@ -257,6 +261,9 @@ func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
 		if summary := getRPCPlanSummary(planPayload.Summary); len(summary) > 0 {
 			result["summary"] = summary
 		}
+		if len(planPayload.Changes) > 0 {
+			result["changes"] = planChangesToRPC(planPayload.Changes)
+		}
 		return result, true
 	case trace.EvtModelReasoningCompleted:
 		reasoningPayload, ok := typedPayload.(trace.ModelReasoningCompletedPayload)
@@ -284,6 +291,65 @@ func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func planToolStateToRPC(state *trace.PlanToolState) map[string]any {
+	if state == nil {
+		return nil
+	}
+
+	result := map[string]any{}
+	if state.Operation != "" {
+		result["operation"] = string(state.Operation)
+	}
+	if state.ChangedCount != 0 {
+		result["changed_count"] = state.ChangedCount
+	}
+	if state.TotalCount != 0 {
+		result["total_count"] = state.TotalCount
+	}
+	if state.CompletedCount != 0 {
+		result["completed_count"] = state.CompletedCount
+	}
+	if len(state.Changes) > 0 {
+		result["changes"] = planChangesToRPC(state.Changes)
+	}
+	if len(result) == 0 {
+		return nil
+	}
+
+	return result
+}
+
+func planChangesToRPC(changes []trace.PlanToolChange) []map[string]any {
+	if len(changes) == 0 {
+		return nil
+	}
+
+	result := make([]map[string]any, 0, len(changes))
+	for _, change := range changes {
+		item := map[string]any{}
+		if change.Index > 0 {
+			item["index"] = change.Index
+		}
+		if change.ID != "" {
+			item["id"] = change.ID
+		}
+		if change.Action != "" {
+			item["action"] = change.Action
+		}
+		if len(change.Fields) > 0 {
+			item["fields"] = append([]string(nil), change.Fields...)
+		}
+		if len(item) > 0 {
+			result = append(result, item)
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+
+	return result
 }
 
 func getRPCTraceValue(fields map[string]any, keys ...string) (any, bool) {
@@ -372,15 +438,78 @@ func getRPCTracePlanOutputState(name any, fields map[string]any) map[string]any 
 	if err := json.Unmarshal([]byte(contentText), &outputFields); err != nil {
 		return nil
 	}
+	outputFields = getRPCTracePlanOutputFields(outputFields)
 	summary, _ := outputFields["summary"].(map[string]any)
 	if len(summary) == 0 {
 		return nil
 	}
 
-	return map[string]any{
+	state := map[string]any{
 		"total_count":     getRPCNumber(summary["total"]),
 		"completed_count": getRPCNumber(summary["completed"]),
 	}
+	if changes := getRPCTracePlanChanges(outputFields["changes"]); len(changes) > 0 {
+		state["changes"] = changes
+	}
+
+	return state
+}
+
+func getRPCTracePlanOutputFields(fields map[string]any) map[string]any {
+	if len(fields) == 0 || fields["summary"] != nil || fields["changes"] != nil {
+		return fields
+	}
+
+	output, ok := fields["output"].(string)
+	if !ok || strings.TrimSpace(output) == "" {
+		return fields
+	}
+
+	unwrapped := map[string]any{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &unwrapped); err != nil {
+		return fields
+	}
+	if len(unwrapped) == 0 {
+		return fields
+	}
+
+	return unwrapped
+}
+
+func getRPCTracePlanChanges(raw any) []map[string]any {
+	items := getRPCAnySlice(raw)
+	if len(items) == 0 {
+		return nil
+	}
+
+	changes := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		fields, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		change := map[string]any{}
+		if index := getRPCNumber(fields["index"]); index > 0 {
+			change["index"] = index
+		}
+		if id := getRPCMapString(fields, "id"); id != "" {
+			change["id"] = id
+		}
+		if action := getRPCMapString(fields, "action"); action != "" {
+			change["action"] = action
+		}
+		if changedFields := getRPCStringSlice(fields["fields"]); len(changedFields) > 0 {
+			change["fields"] = changedFields
+		}
+		if len(change) > 0 {
+			changes = append(changes, change)
+		}
+	}
+	if len(changes) == 0 {
+		return nil
+	}
+
+	return changes
 }
 
 func getRPCTraceToolInputFields(fields map[string]any) map[string]any {

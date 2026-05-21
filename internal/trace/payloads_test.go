@@ -130,6 +130,14 @@ func TestToolInvocationCompletedPayloadFrom_DecodesStructAndMapPayloads(t *testi
 		"plan_state": map[string]any{
 			"total_count":     float64(3),
 			"completed_count": float64(1),
+			"changes": []any{
+				map[string]any{
+					"index":  float64(2),
+					"id":     "step-2",
+					"action": "completed",
+					"fields": []any{"status"},
+				},
+			},
 		},
 	})
 
@@ -140,6 +148,36 @@ func TestToolInvocationCompletedPayloadFrom_DecodesStructAndMapPayloads(t *testi
 		PlanState: &PlanToolState{
 			TotalCount:     3,
 			CompletedCount: 1,
+			Changes: []PlanToolChange{
+				{Index: 2, ID: "step-2", Action: "completed", Fields: []string{"status"}},
+			},
 		},
 	}, payload)
+}
+
+func TestPlanToolOutputState_DecodesSummaryAndChanges(t *testing.T) {
+	state := PlanToolOutputState(`{"summary":{"total":3,"completed":1},"changes":[{"index":2,"id":"step-2","action":"completed","fields":["status"]}]}`)
+
+	require.Equal(t, &PlanToolState{
+		TotalCount:     3,
+		CompletedCount: 1,
+		Changes: []PlanToolChange{
+			{Index: 2, ID: "step-2", Action: "completed", Fields: []string{"status"}},
+		},
+	}, state)
+}
+
+func TestPlanToolOutputState_DecodesToolMessageEnvelope(t *testing.T) {
+	state := PlanToolOutputState(`{
+		"name": "plan_tool",
+		"output": "{\"summary\":{\"total\":3,\"completed\":1},\"changes\":[{\"index\":2,\"id\":\"step-2\",\"action\":\"completed\",\"fields\":[\"status\"]}]}"
+	}`)
+
+	require.Equal(t, &PlanToolState{
+		TotalCount:     3,
+		CompletedCount: 1,
+		Changes: []PlanToolChange{
+			{Index: 2, ID: "step-2", Action: "completed", Fields: []string{"status"}},
+		},
+	}, state)
 }
