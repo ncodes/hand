@@ -150,9 +150,10 @@ func timelineMessageToTranscriptCell(message handmsg.Message, toolCalls map[stri
 }
 
 type timelineToolCallDetail struct {
-	detail    string
-	planState *trace.PlanToolState
-	startedAt time.Time
+	detail       string
+	planState    *trace.PlanToolState
+	processState *trace.ProcessToolState
+	startedAt    time.Time
 }
 
 func getTimelineToolCallDetails(messages []agent.SessionTimelineMessage) map[string]timelineToolCallDetail {
@@ -168,9 +169,10 @@ func getTimelineToolCallDetails(messages []agent.SessionTimelineMessage) map[str
 				message.Message.CreatedAt,
 			)
 			details[id] = timelineToolCallDetail{
-				detail:    startedMsg.Detail,
-				planState: startedMsg.PlanState,
-				startedAt: startedMsg.StartedAt,
+				detail:       startedMsg.Detail,
+				planState:    startedMsg.PlanState,
+				processState: startedMsg.ProcessState,
+				startedAt:    startedMsg.StartedAt,
 			}
 		}
 	}

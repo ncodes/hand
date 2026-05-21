@@ -78,6 +78,22 @@ func getToolOutputDisplayState(name string, output string) *trace.PlanToolState 
 	return spec.outputState(fields)
 }
 
+func getToolInputProcessDisplayState(name string, input string) *trace.ProcessToolState {
+	if getToolActionName(name) != "Process" {
+		return nil
+	}
+
+	return trace.ProcessToolInputState(input)
+}
+
+func getToolOutputProcessDisplayState(name string, output string) *trace.ProcessToolState {
+	if getToolActionName(name) != "Process" {
+		return nil
+	}
+
+	return trace.ProcessToolOutputState(output)
+}
+
 func getToolBranchDisplayDetail(action string, detail string, completed bool) string {
 	spec := getToolDisplaySpecForAction(action)
 	if spec.branchDetail == nil {
@@ -90,6 +106,13 @@ func getToolBranchDisplayDetail(action string, detail string, completed bool) st
 func getToolTranscriptBranchDisplayDetail(action string, detail toolTranscriptDetail) string {
 	if strings.TrimSpace(action) == "Plan" {
 		return getPlanToolBranchDetail(detail.planState, detail.completed)
+	}
+	if strings.TrimSpace(action) == "Process" {
+		if branch := getProcessToolBranchDetail(detail.processState, detail.completed); branch != "" {
+			return branch
+		}
+
+		return strings.TrimSpace(detail.text)
 	}
 
 	return getToolBranchDisplayDetail(action, detail.text, detail.completed)
@@ -318,6 +341,198 @@ func mergePlanToolDisplayState(current *trace.PlanToolState, next *trace.PlanToo
 	}
 
 	return &merged
+}
+
+func getProcessToolBranchDetail(state *trace.ProcessToolState, completed bool) string {
+	if state == nil {
+		return ""
+	}
+	if detail := getProcessToolErrorDetail(state); detail != "" {
+		return detail
+	}
+
+	switch state.Operation {
+	case trace.ProcessToolOperationStart:
+		if completed {
+			return getProcessToolStatusDetail(state)
+		}
+
+		return firstNonEmptyToolDisplay(state.Command, "Start process")
+	case trace.ProcessToolOperationStatus:
+		if completed {
+			return getProcessToolStatusDetail(state)
+		}
+
+		return firstNonEmptyToolDisplay(state.ProcessID, "Check process status")
+	case trace.ProcessToolOperationRead:
+		if completed {
+			return getProcessToolOutputDetail(state)
+		}
+
+		return firstNonEmptyToolDisplay(state.ProcessID, "Read process output")
+	case trace.ProcessToolOperationStop:
+		if completed {
+			return getProcessToolStatusDetail(state)
+		}
+
+		return firstNonEmptyToolDisplay(state.ProcessID, "Stop process")
+	case trace.ProcessToolOperationList:
+		if completed {
+			return fmt.Sprintf("Found %s", formatProcessCount(state.Count))
+		}
+
+		return ""
+	default:
+		return getProcessToolStatusDetail(state)
+	}
+}
+
+func getProcessToolErrorDetail(state *trace.ProcessToolState) string {
+	if state == nil {
+		return ""
+	}
+
+	message := strings.TrimSpace(state.Error)
+	if message == "" {
+		return ""
+	}
+
+	prefix := "Failed"
+	if state.Operation != "" {
+		prefix = strings.TrimSpace(string(state.Operation)) + " failed"
+	}
+	if code := strings.TrimSpace(state.ErrorCode); code != "" {
+		return prefix + ": " + message + " (" + code + ")"
+	}
+
+	return prefix + ": " + message
+}
+
+func getProcessToolStatusDetail(state *trace.ProcessToolState) string {
+	if state == nil {
+		return ""
+	}
+
+	parts := []string{}
+	if state.ProcessID != "" {
+		parts = append(parts, state.ProcessID)
+	}
+	if state.Status != "" {
+		parts = append(parts, state.Status)
+	}
+	if state.ExitCode != nil {
+		parts = append(parts, fmt.Sprintf("exit %d", *state.ExitCode))
+	}
+	if len(parts) > 0 {
+		return strings.Join(parts, " ")
+	}
+
+	return strings.TrimSpace(state.Command)
+}
+
+func getProcessToolOutputDetail(state *trace.ProcessToolState) string {
+	parts := []string{}
+	if state.ProcessID != "" {
+		parts = append(parts, state.ProcessID)
+	}
+	parts = append(
+		parts,
+		formatProcessBytes(state.StdoutBytes)+" stdout",
+		formatProcessBytes(state.StderrBytes)+" stderr",
+	)
+
+	return strings.Join(parts, " ")
+}
+
+func cloneProcessToolDisplayState(state *trace.ProcessToolState) *trace.ProcessToolState {
+	if state == nil {
+		return nil
+	}
+
+	cloned := *state
+	if state.ExitCode != nil {
+		cloned.ExitCode = new(*state.ExitCode)
+	}
+
+	return &cloned
+}
+
+func mergeProcessToolDisplayState(current *trace.ProcessToolState, next *trace.ProcessToolState) *trace.ProcessToolState {
+	if current == nil && next == nil {
+		return nil
+	}
+	if current == nil {
+		return cloneProcessToolDisplayState(next)
+	}
+	if next == nil {
+		return cloneProcessToolDisplayState(current)
+	}
+
+	merged := *current
+	if next.Operation != "" {
+		merged.Operation = next.Operation
+	}
+	if next.ProcessID != "" {
+		merged.ProcessID = next.ProcessID
+	}
+	if next.Command != "" {
+		merged.Command = next.Command
+	}
+	if next.Status != "" {
+		merged.Status = next.Status
+	}
+	if next.ExitCode != nil {
+		merged.ExitCode = new(*next.ExitCode)
+	} else if current.ExitCode != nil {
+		merged.ExitCode = new(*current.ExitCode)
+	}
+	if next.StdoutBytes != 0 {
+		merged.StdoutBytes = next.StdoutBytes
+	}
+	if next.StderrBytes != 0 {
+		merged.StderrBytes = next.StderrBytes
+	}
+	if next.Count != 0 {
+		merged.Count = next.Count
+	}
+	if next.ErrorCode != "" {
+		merged.ErrorCode = next.ErrorCode
+	}
+	if next.Error != "" {
+		merged.Error = next.Error
+	}
+
+	return &merged
+}
+
+func hasProcessToolError(state *trace.ProcessToolState) bool {
+	return state != nil && strings.TrimSpace(state.Error) != ""
+}
+
+func formatProcessBytes(value int) string {
+	if value < 0 {
+		value = 0
+	}
+
+	return fmt.Sprintf("%dB", value)
+}
+
+func formatProcessCount(value int) string {
+	if value == 1 {
+		return "1 process"
+	}
+
+	return fmt.Sprintf("%d processes", value)
+}
+
+func firstNonEmptyToolDisplay(values ...string) string {
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+
+	return ""
 }
 
 func getPlanToolChanges(value any) []trace.PlanToolChange {

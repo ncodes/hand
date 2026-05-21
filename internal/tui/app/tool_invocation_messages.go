@@ -35,6 +35,7 @@ func newToolInvocationStartedMsgWithState(
 	name string,
 	detail string,
 	planState *trace.PlanToolState,
+	processState *trace.ProcessToolState,
 	startedAt time.Time,
 ) (toolInvocationStartedMsg, bool) {
 	msg, ok := newToolInvocationStartedMsg(id, name, detail, startedAt)
@@ -42,6 +43,7 @@ func newToolInvocationStartedMsgWithState(
 		return toolInvocationStartedMsg{}, false
 	}
 	msg.PlanState = planState
+	msg.ProcessState = processState
 	return msg, true
 }
 
@@ -71,6 +73,7 @@ func newToolInvocationCompletedMsgWithState(
 	name string,
 	detail string,
 	planState *trace.PlanToolState,
+	processState *trace.ProcessToolState,
 	completedAt time.Time,
 ) (toolInvocationCompletedMsg, bool) {
 	msg, ok := newToolInvocationCompletedMsg(id, name, detail, completedAt)
@@ -78,6 +81,7 @@ func newToolInvocationCompletedMsgWithState(
 		return toolInvocationCompletedMsg{}, false
 	}
 	msg.PlanState = planState
+	msg.ProcessState = processState
 	return msg, true
 }
 
@@ -90,6 +94,7 @@ func toolInvocationStartedMsgFromModelToolCall(
 		toolCall.Name,
 		getToolInputDisplayDetail(toolCall.Name, toolCall.Input),
 		getToolInputDisplayState(toolCall.Name, toolCall.Input),
+		getToolInputProcessDisplayState(toolCall.Name, toolCall.Input),
 		startedAt,
 	)
 }
@@ -103,6 +108,7 @@ func toolInvocationStartedMsgFromMessageToolCall(
 		toolCall.Name,
 		getToolInputDisplayDetail(toolCall.Name, toolCall.Input),
 		getToolInputDisplayState(toolCall.Name, toolCall.Input),
+		getToolInputProcessDisplayState(toolCall.Name, toolCall.Input),
 		startedAt,
 	)
 }
@@ -116,6 +122,7 @@ func toolInvocationCompletedMsgFromMessage(
 		message.Name,
 		getToolOutputDisplayDetail(message.Name, message.Content),
 		getToolOutputDisplayState(message.Name, message.Content),
+		getToolOutputProcessDisplayState(message.Name, message.Content),
 		completedAt,
 	)
 }

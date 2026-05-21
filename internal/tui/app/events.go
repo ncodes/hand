@@ -28,19 +28,21 @@ type reasoningCompletedMsg struct {
 }
 
 type toolInvocationStartedMsg struct {
-	ID        string
-	Name      string
-	Detail    string
-	PlanState *trace.PlanToolState
-	StartedAt time.Time
+	ID           string
+	Name         string
+	Detail       string
+	PlanState    *trace.PlanToolState
+	ProcessState *trace.ProcessToolState
+	StartedAt    time.Time
 }
 
 type toolInvocationCompletedMsg struct {
-	ID          string
-	Name        string
-	Detail      string
-	PlanState   *trace.PlanToolState
-	CompletedAt time.Time
+	ID           string
+	Name         string
+	Detail       string
+	PlanState    *trace.PlanToolState
+	ProcessState *trace.ProcessToolState
+	CompletedAt  time.Time
 }
 
 type safetyEventMsg struct {
@@ -169,6 +171,7 @@ func toolCallPayloadToTUIMessage(payload any) (any, bool) {
 			toolPayload.Name,
 			toolPayload.Detail,
 			toolPayload.PlanState,
+			toolPayload.ProcessState,
 			time.Time{},
 		)
 		if !ok {
@@ -197,6 +200,7 @@ func toolMessagePayloadToTUIMessage(payload any) (any, bool) {
 			toolPayload.Name,
 			toolPayload.Detail,
 			toolPayload.PlanState,
+			toolPayload.ProcessState,
 			time.Time{},
 		)
 		if !ok {

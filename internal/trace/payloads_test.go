@@ -104,6 +104,25 @@ func TestToolInvocationStartedPayloadFrom_DecodesStructAndMapPayloads(t *testing
 			ChangedCount: 3,
 		},
 	}, payload)
+
+	payload, ok = ToolInvocationStartedPayloadFrom(map[string]any{
+		"id":   "call_3",
+		"name": "process",
+		"process_state": map[string]any{
+			"operation": "start",
+			"command":   "sleep 10",
+		},
+	})
+
+	require.True(t, ok)
+	require.Equal(t, ToolInvocationStartedPayload{
+		ID:   "call_3",
+		Name: "process",
+		ProcessState: &ProcessToolState{
+			Operation: ProcessToolOperationStart,
+			Command:   "sleep 10",
+		},
+	}, payload)
 }
 
 func TestToolInvocationCompletedPayloadFrom_DecodesStructAndMapPayloads(t *testing.T) {
@@ -153,6 +172,30 @@ func TestToolInvocationCompletedPayloadFrom_DecodesStructAndMapPayloads(t *testi
 			},
 		},
 	}, payload)
+
+	payload, ok = ToolInvocationCompletedPayloadFrom(map[string]any{
+		"tool_call_id": "call_3",
+		"name":         "process",
+		"process_state": map[string]any{
+			"process_id":   "proc_1",
+			"status":       "exited",
+			"exit_code":    float64(0),
+			"stdout_bytes": float64(12),
+		},
+	})
+
+	exitCode := 0
+	require.True(t, ok)
+	require.Equal(t, ToolInvocationCompletedPayload{
+		ToolCallID: "call_3",
+		Name:       "process",
+		ProcessState: &ProcessToolState{
+			ProcessID:   "proc_1",
+			Status:      "exited",
+			ExitCode:    &exitCode,
+			StdoutBytes: 12,
+		},
+	}, payload)
 }
 
 func TestPlanToolOutputState_DecodesSummaryAndChanges(t *testing.T) {
@@ -180,4 +223,51 @@ func TestPlanToolOutputState_DecodesToolMessageEnvelope(t *testing.T) {
 			{Index: 2, ID: "step-2", Action: "completed", Fields: []string{"status"}},
 		},
 	}, state)
+}
+
+func TestProcessToolInputState_DecodesActions(t *testing.T) {
+	require.Equal(t, &ProcessToolState{
+		Operation: ProcessToolOperationStart,
+		Command:   "sleep 10",
+	}, ProcessToolInputState(`{"action":"start","command":"sleep","args":["10"]}`))
+
+	require.Equal(t, &ProcessToolState{
+		Operation: ProcessToolOperationRead,
+		ProcessID: "proc_1",
+	}, ProcessToolInputState(`{"action":"read","process_id":"proc_1"}`))
+
+	require.Equal(t, &ProcessToolState{
+		Operation: ProcessToolOperationList,
+	}, ProcessToolInputState(`{"action":"list"}`))
+}
+
+func TestProcessToolOutputState_DecodesProcessAndOutput(t *testing.T) {
+	exitCode := 0
+
+	require.Equal(t, &ProcessToolState{
+		ProcessID:   "proc_1",
+		Command:     "printf hello",
+		Status:      "exited",
+		ExitCode:    &exitCode,
+		StdoutBytes: 5,
+	}, ProcessToolOutputState(`{"process":{"id":"proc_1","command":"printf","args":["hello"],"status":"exited","exit_code":0,"stdout_bytes":5}}`))
+
+	require.Equal(t, &ProcessToolState{
+		Operation:   ProcessToolOperationRead,
+		ProcessID:   "proc_1",
+		Status:      "running",
+		StdoutBytes: 12,
+		StderrBytes: 3,
+	}, ProcessToolOutputState(`{"process":{"id":"proc_1","status":"running"},"output":{"stdout_bytes":12,"stderr_bytes":3}}`))
+
+	require.Equal(t, &ProcessToolState{
+		Operation: ProcessToolOperationList,
+		Count:     2,
+	}, ProcessToolOutputState(`{"processes":[{"id":"proc_1"},{"id":"proc_2"}]}`))
+
+	require.Equal(t, &ProcessToolState{
+		Status:    "failed",
+		ErrorCode: "process_start_failed",
+		Error:     "address already in use",
+	}, ProcessToolOutputState(`{"name":"process","error":{"code":"process_start_failed","message":"address already in use"}}`))
 }

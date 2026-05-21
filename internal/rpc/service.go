@@ -157,8 +157,7 @@ func traceEventToProtoRespondEvent(event trace.Event) (*handpb.RespondEvent, boo
 	return protoEvent, true
 }
 
-func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
-	fields := trace.PayloadFields(payload)
+func getRPCTracePayload(eventType string, payload any) (any, bool) {
 	typedPayload, payloadOK := trace.DecodePayload(eventType, payload)
 
 	switch eventType {
@@ -167,40 +166,26 @@ func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
 		if !payloadOK || !ok {
 			return nil, false
 		}
-		result := map[string]any{}
-		if toolPayload.ID != "" {
-			result["id"] = toolPayload.ID
+		result := rpcToolInvocationStartedPayload{
+			ID:     strings.TrimSpace(toolPayload.ID),
+			Name:   strings.TrimSpace(toolPayload.Name),
+			Detail: getRPCTraceToolDetail(toolPayload.Name, toolPayload.Input),
 		}
-		if toolPayload.Name != "" {
-			result["name"] = toolPayload.Name
-		}
-		if detail := getRPCTraceToolDetail(result["name"], fields); detail != "" {
-			result["detail"] = detail
-		}
-		if planState := planToolStateToRPC(toolPayload.PlanState); len(planState) > 0 {
-			result["plan_state"] = planState
-		} else if planState := getRPCTracePlanInputState(result["name"], fields); len(planState) > 0 {
-			result["plan_state"] = planState
-		}
-		return result, len(result) > 0
+		result.PlanState = toolPayload.PlanState
+		result.ProcessState = toolPayload.ProcessState
+		return result, result.hasData()
 	case trace.EvtToolInvocationCompleted:
 		toolPayload, ok := typedPayload.(trace.ToolInvocationCompletedPayload)
 		if !payloadOK || !ok {
 			return nil, false
 		}
-		result := map[string]any{}
-		if toolPayload.ToolCallID != "" {
-			result["tool_call_id"] = toolPayload.ToolCallID
+		result := rpcToolInvocationCompletedPayload{
+			ToolCallID: strings.TrimSpace(toolPayload.ToolCallID),
+			Name:       strings.TrimSpace(toolPayload.Name),
 		}
-		if toolPayload.Name != "" {
-			result["name"] = toolPayload.Name
-		}
-		if planState := planToolStateToRPC(toolPayload.PlanState); len(planState) > 0 {
-			result["plan_state"] = planState
-		} else if planState := getRPCTracePlanOutputState(result["name"], fields); len(planState) > 0 {
-			result["plan_state"] = planState
-		}
-		return result, len(result) > 0
+		result.PlanState = toolPayload.PlanState
+		result.ProcessState = toolPayload.ProcessState
+		return result, result.hasData()
 	case trace.EvtInputSafetyBlocked,
 		trace.EvtOutputSafetyApplied,
 		trace.EvtToolOutputSafetyApplied,
@@ -210,18 +195,12 @@ func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
 		if !payloadOK || !ok {
 			return nil, false
 		}
-		result := map[string]any{"action": safetyPayload.Action}
-		if safetyPayload.Blocked {
-			result["blocked"] = safetyPayload.Blocked
-		}
-		if safetyPayload.Redacted {
-			result["redacted"] = safetyPayload.Redacted
-		}
-		if safetyPayload.Refusal != "" {
-			result["refusal"] = safetyPayload.Refusal
-		}
-		if findings := getRPCSafetyFindingSummaries(safetyPayload.Findings); len(findings) > 0 {
-			result["findings"] = findings
+		result := rpcSafetyEventPayload{
+			Action:   strings.TrimSpace(safetyPayload.Action),
+			Blocked:  safetyPayload.Blocked,
+			Redacted: safetyPayload.Redacted,
+			Refusal:  strings.TrimSpace(safetyPayload.Refusal),
+			Findings: getRPCSafetyFindingSummaries(safetyPayload.Findings),
 		}
 		return result, true
 	case trace.EvtSessionFailed:
@@ -229,40 +208,26 @@ func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
 		if !payloadOK || !ok {
 			return nil, false
 		}
-		result := map[string]any{}
-		if sessionPayload.Error != "" {
-			result["error"] = sessionPayload.Error
+		result := trace.SessionFailedPayload{
+			Error:   strings.TrimSpace(sessionPayload.Error),
+			Message: strings.TrimSpace(sessionPayload.Message),
 		}
-		if sessionPayload.Message != "" {
-			result["message"] = sessionPayload.Message
-		}
-		return result, len(result) > 0
+		return result, result.Error != "" || result.Message != ""
 	case trace.EvtPlanHydrated:
 		planPayload, ok := typedPayload.(trace.PlanEventPayload)
 		if !payloadOK || !ok {
 			return nil, false
 		}
-		result := map[string]any{}
-		if planPayload.SessionID != "" {
-			result["session_id"] = planPayload.SessionID
-		}
-		if planPayload.Source != "" {
-			result["source"] = planPayload.Source
-		}
-		if planPayload.ActiveStepID != "" {
-			result["active_step_id"] = planPayload.ActiveStepID
-		}
-		if planPayload.Explanation != "" {
-			result["explanation"] = planPayload.Explanation
+		result := rpcPlanHydratedPayload{
+			SessionID:    strings.TrimSpace(planPayload.SessionID),
+			Source:       strings.TrimSpace(planPayload.Source),
+			ActiveStepID: strings.TrimSpace(planPayload.ActiveStepID),
+			Explanation:  strings.TrimSpace(planPayload.Explanation),
+			Summary:      getRPCPlanSummary(planPayload.Summary),
+			Changes:      append([]trace.PlanToolChange(nil), planPayload.Changes...),
 		}
 		if len(planPayload.Steps) > 0 {
-			result["step_count"] = len(planPayload.Steps)
-		}
-		if summary := getRPCPlanSummary(planPayload.Summary); len(summary) > 0 {
-			result["summary"] = summary
-		}
-		if len(planPayload.Changes) > 0 {
-			result["changes"] = planChangesToRPC(planPayload.Changes)
+			result.StepCount = len(planPayload.Steps)
 		}
 		return result, true
 	case trace.EvtModelReasoningCompleted:
@@ -270,106 +235,85 @@ func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
 		if !payloadOK || !ok {
 			return nil, false
 		}
-		result := map[string]any{}
-		if reasoningPayload.DurationMS != 0 {
-			result["duration_ms"] = reasoningPayload.DurationMS
-		}
-		return result, len(result) > 0
+		result := trace.ModelReasoningCompletedPayload{DurationMS: reasoningPayload.DurationMS}
+		return result, result.DurationMS != 0
 	case trace.EvtFinalAssistantResponse:
 		finalPayload, ok := typedPayload.(trace.FinalAssistantResponsePayload)
 		if !payloadOK || !ok {
 			return nil, false
 		}
-		result := map[string]any{}
-		if finalPayload.Message != "" {
-			result["message"] = finalPayload.Message
+		result := trace.FinalAssistantResponsePayload{
+			Message: strings.TrimSpace(finalPayload.Message),
+			Text:    strings.TrimSpace(finalPayload.Text),
 		}
-		if finalPayload.Text != "" {
-			result["text"] = finalPayload.Text
-		}
-		return result, len(result) > 0
+		return result, result.Message != "" || result.Text != ""
 	default:
 		return nil, false
 	}
 }
 
-func planToolStateToRPC(state *trace.PlanToolState) map[string]any {
-	if state == nil {
-		return nil
-	}
-
-	result := map[string]any{}
-	if state.Operation != "" {
-		result["operation"] = string(state.Operation)
-	}
-	if state.ChangedCount != 0 {
-		result["changed_count"] = state.ChangedCount
-	}
-	if state.TotalCount != 0 {
-		result["total_count"] = state.TotalCount
-	}
-	if state.CompletedCount != 0 {
-		result["completed_count"] = state.CompletedCount
-	}
-	if len(state.Changes) > 0 {
-		result["changes"] = planChangesToRPC(state.Changes)
-	}
-	if len(result) == 0 {
-		return nil
-	}
-
-	return result
+type rpcToolInvocationStartedPayload struct {
+	ID           string                  `json:"id,omitempty"`
+	Name         string                  `json:"name,omitempty"`
+	Detail       string                  `json:"detail,omitempty"`
+	PlanState    *trace.PlanToolState    `json:"plan_state,omitempty"`
+	ProcessState *trace.ProcessToolState `json:"process_state,omitempty"`
 }
 
-func planChangesToRPC(changes []trace.PlanToolChange) []map[string]any {
-	if len(changes) == 0 {
-		return nil
-	}
-
-	result := make([]map[string]any, 0, len(changes))
-	for _, change := range changes {
-		item := map[string]any{}
-		if change.Index > 0 {
-			item["index"] = change.Index
-		}
-		if change.ID != "" {
-			item["id"] = change.ID
-		}
-		if change.Action != "" {
-			item["action"] = change.Action
-		}
-		if len(change.Fields) > 0 {
-			item["fields"] = append([]string(nil), change.Fields...)
-		}
-		if len(item) > 0 {
-			result = append(result, item)
-		}
-	}
-	if len(result) == 0 {
-		return nil
-	}
-
-	return result
+func (p rpcToolInvocationStartedPayload) hasData() bool {
+	return p.ID != "" ||
+		p.Name != "" ||
+		p.Detail != "" ||
+		p.PlanState != nil ||
+		p.ProcessState != nil
 }
 
-func getRPCTraceValue(fields map[string]any, keys ...string) (any, bool) {
-	for _, key := range keys {
-		if value, ok := fields[key]; ok {
-			return value, true
-		}
-	}
-
-	return nil, false
+type rpcToolInvocationCompletedPayload struct {
+	ToolCallID   string                  `json:"tool_call_id,omitempty"`
+	Name         string                  `json:"name,omitempty"`
+	PlanState    *trace.PlanToolState    `json:"plan_state,omitempty"`
+	ProcessState *trace.ProcessToolState `json:"process_state,omitempty"`
 }
 
-func getRPCTraceToolDetail(name any, fields map[string]any) string {
-	toolName, _ := name.(string)
+func (p rpcToolInvocationCompletedPayload) hasData() bool {
+	return p.ToolCallID != "" ||
+		p.Name != "" ||
+		p.PlanState != nil ||
+		p.ProcessState != nil
+}
+
+type rpcSafetyEventPayload struct {
+	Action   string                    `json:"action,omitempty"`
+	Blocked  bool                      `json:"blocked,omitempty"`
+	Redacted bool                      `json:"redacted,omitempty"`
+	Refusal  string                    `json:"refusal,omitempty"`
+	Findings []rpcSafetyFindingSummary `json:"findings,omitempty"`
+}
+
+type rpcSafetyFindingSummary struct {
+	ID       string `json:"id,omitempty"`
+	Category string `json:"category,omitempty"`
+	Severity string `json:"severity,omitempty"`
+}
+
+type rpcPlanHydratedPayload struct {
+	SessionID    string                    `json:"session_id,omitempty"`
+	Source       string                    `json:"source,omitempty"`
+	ActiveStepID string                    `json:"active_step_id,omitempty"`
+	Explanation  string                    `json:"explanation,omitempty"`
+	StepCount    int                       `json:"step_count,omitempty"`
+	Summary      *trace.PlanSummaryPayload `json:"summary,omitempty"`
+	Changes      []trace.PlanToolChange    `json:"changes,omitempty"`
+}
+
+func getRPCTraceToolDetail(name string, input string) string {
+	toolName := strings.TrimSpace(name)
 	action := getRPCToolActionName(toolName)
 	if strings.TrimSpace(toolName) == "" || action == "" {
 		return ""
 	}
 
-	inputFields := getRPCTraceToolInputFields(fields)
+	inputFields := getRPCTraceToolInputFields(input)
 	if inputFields == nil {
 		return ""
 	}
@@ -393,133 +337,8 @@ func getRPCTraceToolDetail(name any, fields map[string]any) string {
 	}
 }
 
-func getRPCTracePlanInputState(name any, fields map[string]any) map[string]any {
-	toolName, _ := name.(string)
-	if getRPCToolActionName(toolName) != "Plan" {
-		return nil
-	}
-
-	inputFields := getRPCTraceToolInputFields(fields)
-	if inputFields == nil {
-		return nil
-	}
-	if steps, ok := inputFields["steps"]; !ok || steps == nil {
-		return map[string]any{"operation": "read"}
-	}
-
-	operation := "update"
-	if clearCompleted, _ := inputFields["clear_completed"].(bool); clearCompleted {
-		operation = "clear_completed"
-	}
-
-	return map[string]any{
-		"operation":     operation,
-		"changed_count": len(getRPCAnySlice(inputFields["steps"])),
-	}
-}
-
-func getRPCTracePlanOutputState(name any, fields map[string]any) map[string]any {
-	toolName, _ := name.(string)
-	if getRPCToolActionName(toolName) != "Plan" {
-		return nil
-	}
-
-	content, ok := getRPCTraceValue(fields, "content", "Content")
-	if !ok {
-		return nil
-	}
-	contentText, _ := content.(string)
-	contentText = strings.TrimSpace(contentText)
-	if contentText == "" {
-		return nil
-	}
-
-	var outputFields map[string]any
-	if err := json.Unmarshal([]byte(contentText), &outputFields); err != nil {
-		return nil
-	}
-	outputFields = getRPCTracePlanOutputFields(outputFields)
-	summary, _ := outputFields["summary"].(map[string]any)
-	if len(summary) == 0 {
-		return nil
-	}
-
-	state := map[string]any{
-		"total_count":     getRPCNumber(summary["total"]),
-		"completed_count": getRPCNumber(summary["completed"]),
-	}
-	if changes := getRPCTracePlanChanges(outputFields["changes"]); len(changes) > 0 {
-		state["changes"] = changes
-	}
-
-	return state
-}
-
-func getRPCTracePlanOutputFields(fields map[string]any) map[string]any {
-	if len(fields) == 0 || fields["summary"] != nil || fields["changes"] != nil {
-		return fields
-	}
-
-	output, ok := fields["output"].(string)
-	if !ok || strings.TrimSpace(output) == "" {
-		return fields
-	}
-
-	unwrapped := map[string]any{}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &unwrapped); err != nil {
-		return fields
-	}
-	if len(unwrapped) == 0 {
-		return fields
-	}
-
-	return unwrapped
-}
-
-func getRPCTracePlanChanges(raw any) []map[string]any {
-	items := getRPCAnySlice(raw)
-	if len(items) == 0 {
-		return nil
-	}
-
-	changes := make([]map[string]any, 0, len(items))
-	for _, item := range items {
-		fields, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		change := map[string]any{}
-		if index := getRPCNumber(fields["index"]); index > 0 {
-			change["index"] = index
-		}
-		if id := getRPCMapString(fields, "id"); id != "" {
-			change["id"] = id
-		}
-		if action := getRPCMapString(fields, "action"); action != "" {
-			change["action"] = action
-		}
-		if changedFields := getRPCStringSlice(fields["fields"]); len(changedFields) > 0 {
-			change["fields"] = changedFields
-		}
-		if len(change) > 0 {
-			changes = append(changes, change)
-		}
-	}
-	if len(changes) == 0 {
-		return nil
-	}
-
-	return changes
-}
-
-func getRPCTraceToolInputFields(fields map[string]any) map[string]any {
-	input, ok := getRPCTraceValue(fields, "input", "Input")
-	if !ok {
-		return nil
-	}
-
-	inputText, _ := input.(string)
-	inputText = strings.TrimSpace(inputText)
+func getRPCTraceToolInputFields(input string) map[string]any {
+	inputText := strings.TrimSpace(input)
 	if inputText == "" {
 		return nil
 	}
@@ -787,26 +606,6 @@ func getRPCStringSlice(raw any) []string {
 	return result
 }
 
-func getRPCAnySlice(raw any) []any {
-	values, ok := raw.([]any)
-	if !ok {
-		return nil
-	}
-
-	return values
-}
-
-func getRPCNumber(raw any) int {
-	switch typed := raw.(type) {
-	case float64:
-		return int(typed)
-	case int:
-		return typed
-	default:
-		return 0
-	}
-}
-
 func getRPCToolActionName(name string) string {
 	normalized := strings.TrimSpace(strings.ToLower(name))
 	normalized = strings.ReplaceAll(normalized, "-", "_")
@@ -817,7 +616,9 @@ func getRPCToolActionName(name string) string {
 		return "Write"
 	case "patch", "apply_patch":
 		return "Patch"
-	case "exec", "exec_command", "run", "run_command", "shell", "bash", "process":
+	case "process":
+		return "Process"
+	case "exec", "exec_command", "run", "run_command", "shell", "bash":
 		return "Run"
 	case "web_search", "search_web", "search", "web":
 		return "Web Search"
@@ -933,16 +734,15 @@ func truncateRPCTraceToolDetail(value string, limit int) string {
 	return string(runes[:limit-3]) + "..."
 }
 
-func getRPCSafetyFindingSummaries(findings []map[string]string) []map[string]any {
-	summaries := make([]map[string]any, 0, len(findings))
+func getRPCSafetyFindingSummaries(findings []map[string]string) []rpcSafetyFindingSummary {
+	summaries := make([]rpcSafetyFindingSummary, 0, len(findings))
 	for _, finding := range findings {
-		summary := map[string]any{}
-		for _, key := range []string{"id", "category", "severity"} {
-			if value := strings.TrimSpace(finding[key]); value != "" {
-				summary[key] = value
-			}
+		summary := rpcSafetyFindingSummary{
+			ID:       strings.TrimSpace(finding["id"]),
+			Category: strings.TrimSpace(finding["category"]),
+			Severity: strings.TrimSpace(finding["severity"]),
 		}
-		if len(summary) > 0 {
+		if summary.ID != "" || summary.Category != "" || summary.Severity != "" {
 			summaries = append(summaries, summary)
 		}
 	}
@@ -950,25 +750,16 @@ func getRPCSafetyFindingSummaries(findings []map[string]string) []map[string]any
 	return summaries
 }
 
-func getRPCPlanSummary(summary trace.PlanSummaryPayload) map[string]any {
-	result := map[string]any{}
-	if summary.Total != 0 {
-		result["total"] = summary.Total
-	}
-	if summary.Pending != 0 {
-		result["pending"] = summary.Pending
-	}
-	if summary.InProgress != 0 {
-		result["in_progress"] = summary.InProgress
-	}
-	if summary.Completed != 0 {
-		result["completed"] = summary.Completed
-	}
-	if summary.Cancelled != 0 {
-		result["cancelled"] = summary.Cancelled
+func getRPCPlanSummary(summary trace.PlanSummaryPayload) *trace.PlanSummaryPayload {
+	if summary.Total == 0 &&
+		summary.Pending == 0 &&
+		summary.InProgress == 0 &&
+		summary.Completed == 0 &&
+		summary.Cancelled == 0 {
+		return nil
 	}
 
-	return result
+	return &summary
 }
 
 func (s *Service) CreateSession(ctx context.Context, req *handpb.CreateSessionRequest) (*handpb.CreateSessionResponse, error) {

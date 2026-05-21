@@ -199,22 +199,24 @@ func renderTranscriptCellsWithFrame(cells []transcriptCell, width int, frame int
 }
 
 type toolTranscriptCell struct {
-	id          string
-	action      string
-	detail      string
-	planState   *trace.PlanToolState
-	startedAt   time.Time
-	completedAt time.Time
-	completed   bool
+	id           string
+	action       string
+	detail       string
+	planState    *trace.PlanToolState
+	processState *trace.ProcessToolState
+	startedAt    time.Time
+	completedAt  time.Time
+	completed    bool
 }
 
 type toolTranscriptDetail struct {
-	id          string
-	text        string
-	planState   *trace.PlanToolState
-	startedAt   time.Time
-	completedAt time.Time
-	completed   bool
+	id           string
+	text         string
+	planState    *trace.PlanToolState
+	processState *trace.ProcessToolState
+	startedAt    time.Time
+	completedAt  time.Time
+	completed    bool
 }
 
 type toolTranscriptGroup struct {
@@ -234,7 +236,10 @@ func (cell toolTranscriptCell) PlainText() string {
 }
 
 func (cell toolTranscriptCell) IsEmpty() bool {
-	return strings.TrimSpace(cell.action) == "" && strings.TrimSpace(cell.detail) == "" && cell.planState == nil
+	return strings.TrimSpace(cell.action) == "" &&
+		strings.TrimSpace(cell.detail) == "" &&
+		cell.planState == nil &&
+		cell.processState == nil
 }
 
 func newToolTranscriptCell(
@@ -242,6 +247,7 @@ func newToolTranscriptCell(
 	name string,
 	detail string,
 	planState *trace.PlanToolState,
+	processState *trace.ProcessToolState,
 	startedAt time.Time,
 	completedAt time.Time,
 	completed bool,
@@ -252,18 +258,19 @@ func newToolTranscriptCell(
 	}
 
 	detail = normalizeToolTranscriptDetail(detail)
-	if detail == "" && planState == nil {
+	if detail == "" && planState == nil && processState == nil {
 		detail = name
 	}
 
 	return toolTranscriptCell{
-		id:          strings.TrimSpace(id),
-		action:      getToolActionName(name),
-		detail:      detail,
-		planState:   planState,
-		startedAt:   startedAt,
-		completedAt: completedAt,
-		completed:   completed,
+		id:           strings.TrimSpace(id),
+		action:       getToolActionName(name),
+		detail:       detail,
+		planState:    planState,
+		processState: processState,
+		startedAt:    startedAt,
+		completedAt:  completedAt,
+		completed:    completed,
 	}
 }
 
@@ -317,14 +324,15 @@ func (group *toolTranscriptGroup) add(cell toolTranscriptCell) {
 	if detail == "" {
 		detail = strings.TrimSpace(cell.action)
 	}
-	if detail != "" || cell.planState != nil {
+	if detail != "" || cell.planState != nil || cell.processState != nil {
 		group.details = append(group.details, toolTranscriptDetail{
-			id:          strings.TrimSpace(cell.id),
-			text:        detail,
-			planState:   clonePlanToolDisplayState(cell.planState),
-			startedAt:   cell.startedAt,
-			completedAt: cell.completedAt,
-			completed:   cell.completed,
+			id:           strings.TrimSpace(cell.id),
+			text:         detail,
+			planState:    clonePlanToolDisplayState(cell.planState),
+			processState: cloneProcessToolDisplayState(cell.processState),
+			startedAt:    cell.startedAt,
+			completedAt:  cell.completedAt,
+			completed:    cell.completed,
 		})
 	}
 }
@@ -345,6 +353,9 @@ func (group *toolTranscriptGroup) mergeToolTranscriptCell(id string, cell toolTr
 		}
 		if merged := mergePlanToolDisplayState(group.details[index].planState, cell.planState); merged != nil {
 			group.details[index].planState = merged
+		}
+		if merged := mergeProcessToolDisplayState(group.details[index].processState, cell.processState); merged != nil {
+			group.details[index].processState = merged
 		}
 		if group.details[index].text == "" {
 			group.details[index].text = cell.detail
@@ -424,7 +435,9 @@ func getToolActionName(name string) string {
 		return "Memory Delete"
 	case "session_message", "session_messages":
 		return "Session Messages"
-	case "exec", "exec_command", "run", "run_command", "shell", "bash", "process":
+	case "process":
+		return "Process"
+	case "exec", "exec_command", "run", "run_command", "shell", "bash":
 		return "Run"
 	default:
 		return humanizeToolActionName(name)

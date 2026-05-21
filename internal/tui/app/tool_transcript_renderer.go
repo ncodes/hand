@@ -14,6 +14,11 @@ type toolTranscriptRenderer struct{}
 
 var defaultToolTranscriptRenderer = toolTranscriptRenderer{}
 
+type processToolDetailGroupKey struct {
+	operation trace.ProcessToolOperation
+	target    string
+}
+
 func (toolTranscriptRenderer) RenderGroup(
 	group toolTranscriptGroup,
 	ctx transcriptRenderContext,
@@ -50,7 +55,7 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 	details := make([]toolTranscriptDetail, 0, len(group.details))
 	if shouldRenderToolTranscriptBranches(action) {
 		for _, detail := range group.details {
-			if strings.TrimSpace(detail.text) == "" && detail.planState == nil {
+			if strings.TrimSpace(detail.text) == "" && detail.planState == nil && detail.processState == nil {
 				continue
 			}
 			if shouldSkipToolTranscriptBranch(action, completed, detail) {
@@ -59,8 +64,14 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 			if strings.TrimSpace(action) == "Plan" && getPlanToolBranchDetail(detail.planState, detail.completed) == "" {
 				continue
 			}
+			if strings.TrimSpace(action) == "Process" && getProcessToolBranchDetail(detail.processState, detail.completed) == "" {
+				continue
+			}
 			details = append(details, detail)
 		}
+	}
+	if action == "Process" {
+		details = compactProcessToolTranscriptDetails(details)
 	}
 	if len(details) == 0 {
 		return header
@@ -266,6 +277,8 @@ func getToolTranscriptTitle(action string, completed bool, details []toolTranscr
 	switch strings.TrimSpace(action) {
 	case "Plan":
 		return getPlanToolTranscriptTitle(getPlanToolTranscriptOperation(details), completed)
+	case "Process":
+		return getProcessToolTranscriptTitle(getProcessToolTranscriptOperation(details), completed, details)
 	case "Memory Search":
 		if completed {
 			return "Searched Memory"
@@ -346,6 +359,196 @@ func getToolTranscriptTitle(action string, completed bool, details []toolTranscr
 	default:
 		return strings.TrimSpace(action)
 	}
+}
+
+func getProcessToolTranscriptTitle(
+	operation trace.ProcessToolOperation,
+	completed bool,
+	details []toolTranscriptDetail,
+) string {
+	if completed && hasOnlyProcessToolTranscriptErrors(details) {
+		return "Process failed"
+	}
+
+	switch operation {
+	case trace.ProcessToolOperationStart:
+		if completed {
+			return "Process started"
+		}
+
+		return "Starting process"
+	case trace.ProcessToolOperationStatus:
+		if completed {
+			if status := getProcessToolTranscriptStatus(details); status != "" {
+				return "Process " + status
+			}
+
+			return "Process status checked"
+		}
+
+		return "Checking process"
+	case trace.ProcessToolOperationRead:
+		if completed {
+			return "Output read"
+		}
+
+		return "Reading process output"
+	case trace.ProcessToolOperationStop:
+		if completed {
+			return "Process stopped"
+		}
+
+		return "Stopping process"
+	case trace.ProcessToolOperationList:
+		if completed {
+			return "Listed processes"
+		}
+
+		return "Listing processes"
+	default:
+		if completed {
+			return "Process updated"
+		}
+
+		return "Processing"
+	}
+}
+
+func hasOnlyProcessToolTranscriptErrors(details []toolTranscriptDetail) bool {
+	foundProcess := false
+	for _, detail := range details {
+		if detail.processState == nil {
+			continue
+		}
+		foundProcess = true
+		if !hasProcessToolError(detail.processState) {
+			return false
+		}
+	}
+
+	return foundProcess
+}
+
+func compactProcessToolTranscriptDetails(details []toolTranscriptDetail) []toolTranscriptDetail {
+	if len(details) <= 1 {
+		return details
+	}
+
+	type groupState struct {
+		failedCount int
+		lastFailed  *toolTranscriptDetail
+		lastSuccess *toolTranscriptDetail
+	}
+
+	groups := map[processToolDetailGroupKey]*groupState{}
+	order := make([]processToolDetailGroupKey, 0, len(details))
+	for _, detail := range details {
+		key := getProcessToolDetailGroupKey(detail)
+		if key.operation == "" {
+			key.operation = trace.ProcessToolOperation(detail.text)
+		}
+		state := groups[key]
+		if state == nil {
+			state = &groupState{}
+			groups[key] = state
+			order = append(order, key)
+		}
+
+		copied := detail
+		if hasProcessToolError(detail.processState) {
+			state.failedCount++
+			state.lastFailed = &copied
+			continue
+		}
+		state.lastSuccess = &copied
+	}
+
+	if len(order) == 0 {
+		return details
+	}
+
+	result := make([]toolTranscriptDetail, 0, len(order)*2)
+	for _, key := range order {
+		state := groups[key]
+		if state == nil {
+			continue
+		}
+		if state.failedCount > 0 {
+			failed := processToolFailedAttemptDetail(state.failedCount, state.lastFailed)
+			if failed.text != "" || failed.processState != nil {
+				result = append(result, failed)
+			}
+		}
+		if state.lastSuccess != nil {
+			result = append(result, *state.lastSuccess)
+			continue
+		}
+		if state.lastFailed != nil && state.failedCount == 0 {
+			result = append(result, *state.lastFailed)
+		}
+	}
+	if len(result) == 0 {
+		return details
+	}
+
+	return result
+}
+
+func getProcessToolDetailGroupKey(detail toolTranscriptDetail) processToolDetailGroupKey {
+	state := detail.processState
+	if state == nil {
+		return processToolDetailGroupKey{}
+	}
+
+	target := strings.TrimSpace(state.ProcessID)
+	if state.Operation == trace.ProcessToolOperationStart || target == "" {
+		target = strings.TrimSpace(state.Command)
+	}
+
+	return processToolDetailGroupKey{operation: state.Operation, target: target}
+}
+
+func processToolFailedAttemptDetail(count int, detail *toolTranscriptDetail) toolTranscriptDetail {
+	if detail == nil || count <= 0 {
+		return toolTranscriptDetail{}
+	}
+
+	message := strings.TrimSpace(detail.processState.Error)
+	if message == "" {
+		message = "unknown error"
+	}
+
+	noun := "attempt"
+	if count != 1 {
+		noun = "attempts"
+	}
+	copied := *detail
+	copied.text = fmt.Sprintf("Failed %d %s: %s", count, noun, message)
+	copied.processState = nil
+	return copied
+}
+
+func getProcessToolTranscriptOperation(details []toolTranscriptDetail) trace.ProcessToolOperation {
+	for _, detail := range details {
+		if detail.processState != nil && detail.processState.Operation != "" {
+			return detail.processState.Operation
+		}
+	}
+
+	return ""
+}
+
+func getProcessToolTranscriptStatus(details []toolTranscriptDetail) string {
+	for index := len(details) - 1; index >= 0; index-- {
+		if details[index].processState == nil {
+			continue
+		}
+		if status := strings.TrimSpace(details[index].processState.Status); status != "" {
+			return status
+		}
+	}
+
+	return ""
 }
 
 func getPlanToolTranscriptTitle(operation string, completed bool) string {

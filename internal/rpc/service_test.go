@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"testing"
@@ -555,6 +556,10 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 				"ID":    "call_9",
 				"Name":  "plan_tool",
 				"Input": `{"steps":[{"id":"step-1","content":"Inspect","status":"pending"},{"id":"step-2","content":"Test","status":"pending"}]}`,
+				"plan_state": map[string]any{
+					"operation":     "update",
+					"changed_count": 2,
+				},
 			},
 			expected: map[string]any{
 				"id":   "call_9",
@@ -562,6 +567,28 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 				"plan_state": map[string]any{
 					"operation":     "update",
 					"changed_count": 2,
+				},
+			},
+			ok: true,
+		},
+		{
+			name:      "process input state",
+			eventType: trace.EvtToolInvocationStarted,
+			payload: map[string]any{
+				"ID":    "call_11",
+				"Name":  "process",
+				"Input": `{"action":"start","command":"sleep","args":["10"]}`,
+				"process_state": map[string]any{
+					"operation": "start",
+					"command":   "sleep 10",
+				},
+			},
+			expected: map[string]any{
+				"id":   "call_11",
+				"name": "process",
+				"process_state": map[string]any{
+					"operation": "start",
+					"command":   "sleep 10",
 				},
 			},
 			ok: true,
@@ -649,6 +676,13 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 					"name": "plan_tool",
 					"output": "{\"summary\":{\"total\":3,\"completed\":1},\"changes\":[{\"index\":2,\"id\":\"step-2\",\"action\":\"completed\",\"fields\":[\"status\"]}]}"
 				}`,
+				"plan_state": map[string]any{
+					"total_count":     3,
+					"completed_count": 1,
+					"changes": []any{
+						map[string]any{"index": 2, "id": "step-2", "action": "completed", "fields": []any{"status"}},
+					},
+				},
 			},
 			expected: map[string]any{
 				"tool_call_id": "call_10",
@@ -659,6 +693,34 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 					"changes": []map[string]any{
 						{"index": 2, "id": "step-2", "action": "completed", "fields": []string{"status"}},
 					},
+				},
+			},
+			ok: true,
+		},
+		{
+			name:      "process output state",
+			eventType: trace.EvtToolInvocationCompleted,
+			payload: map[string]any{
+				"ToolCallID": "call_12",
+				"Name":       "process",
+				"Content":    `{"process":{"id":"proc_1","status":"running"},"output":{"stdout_bytes":12,"stderr_bytes":3}}`,
+				"process_state": map[string]any{
+					"operation":    "read",
+					"process_id":   "proc_1",
+					"status":       "running",
+					"stdout_bytes": 12,
+					"stderr_bytes": 3,
+				},
+			},
+			expected: map[string]any{
+				"tool_call_id": "call_12",
+				"name":         "process",
+				"process_state": map[string]any{
+					"operation":    "read",
+					"process_id":   "proc_1",
+					"status":       "running",
+					"stdout_bytes": 12,
+					"stderr_bytes": 3,
 				},
 			},
 			ok: true,
@@ -741,7 +803,11 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 				return
 			}
 
-			require.Equal(t, tt.expected, actual)
+			expectedJSON, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			actualJSON, err := json.Marshal(actual)
+			require.NoError(t, err)
+			require.JSONEq(t, string(expectedJSON), string(actualJSON))
 		})
 	}
 }

@@ -238,20 +238,45 @@ type PlanToolChange struct {
 	Fields []string `json:"fields,omitempty"`
 }
 
+type ProcessToolOperation string
+
+const (
+	ProcessToolOperationStart  ProcessToolOperation = "start"
+	ProcessToolOperationStatus ProcessToolOperation = "status"
+	ProcessToolOperationRead   ProcessToolOperation = "read"
+	ProcessToolOperationStop   ProcessToolOperation = "stop"
+	ProcessToolOperationList   ProcessToolOperation = "list"
+)
+
+type ProcessToolState struct {
+	Operation   ProcessToolOperation `json:"operation,omitempty"`
+	ProcessID   string               `json:"process_id,omitempty"`
+	Command     string               `json:"command,omitempty"`
+	Status      string               `json:"status,omitempty"`
+	ExitCode    *int                 `json:"exit_code,omitempty"`
+	StdoutBytes int                  `json:"stdout_bytes,omitempty"`
+	StderrBytes int                  `json:"stderr_bytes,omitempty"`
+	Count       int                  `json:"count,omitempty"`
+	ErrorCode   string               `json:"error_code,omitempty"`
+	Error       string               `json:"error,omitempty"`
+}
+
 type ToolInvocationStartedPayload struct {
-	ID        string         `json:"id,omitempty"`
-	Name      string         `json:"name,omitempty"`
-	Input     string         `json:"input,omitempty"`
-	Detail    string         `json:"detail,omitempty"`
-	PlanState *PlanToolState `json:"plan_state,omitempty"`
+	ID           string            `json:"id,omitempty"`
+	Name         string            `json:"name,omitempty"`
+	Input        string            `json:"input,omitempty"`
+	Detail       string            `json:"detail,omitempty"`
+	PlanState    *PlanToolState    `json:"plan_state,omitempty"`
+	ProcessState *ProcessToolState `json:"process_state,omitempty"`
 }
 
 type ToolInvocationCompletedPayload struct {
-	ToolCallID string         `json:"tool_call_id,omitempty"`
-	Name       string         `json:"name,omitempty"`
-	Content    string         `json:"content,omitempty"`
-	Detail     string         `json:"detail,omitempty"`
-	PlanState  *PlanToolState `json:"plan_state,omitempty"`
+	ToolCallID   string            `json:"tool_call_id,omitempty"`
+	Name         string            `json:"name,omitempty"`
+	Content      string            `json:"content,omitempty"`
+	Detail       string            `json:"detail,omitempty"`
+	PlanState    *PlanToolState    `json:"plan_state,omitempty"`
+	ProcessState *ProcessToolState `json:"process_state,omitempty"`
 }
 
 func DecodePayload(eventType string, payload any) (any, bool) {
@@ -390,11 +415,12 @@ func ToolInvocationStartedPayloadFrom(payload any) (ToolInvocationStartedPayload
 	}
 
 	result := ToolInvocationStartedPayload{
-		ID:        PayloadString(fields, "id", "ID", "tool_call_id", "ToolCallID"),
-		Name:      PayloadString(fields, "name", "Name", "tool"),
-		Input:     PayloadString(fields, "input", "Input"),
-		Detail:    PayloadString(fields, "detail", "Detail"),
-		PlanState: planToolStateFromAny(fields["plan_state"]),
+		ID:           PayloadString(fields, "id", "ID", "tool_call_id", "ToolCallID"),
+		Name:         PayloadString(fields, "name", "Name", "tool"),
+		Input:        PayloadString(fields, "input", "Input"),
+		Detail:       PayloadString(fields, "detail", "Detail"),
+		PlanState:    planToolStateFromAny(fields["plan_state"]),
+		ProcessState: processToolStateFromAny(fields["process_state"]),
 	}
 
 	return result, result.ID != "" || result.Name != ""
@@ -418,11 +444,12 @@ func ToolInvocationCompletedPayloadFrom(payload any) (ToolInvocationCompletedPay
 	}
 
 	result := ToolInvocationCompletedPayload{
-		ToolCallID: PayloadString(fields, "tool_call_id", "ToolCallID", "id", "ID"),
-		Name:       PayloadString(fields, "name", "Name", "tool"),
-		Content:    PayloadString(fields, "content", "Content"),
-		Detail:     PayloadString(fields, "detail", "Detail"),
-		PlanState:  planToolStateFromAny(fields["plan_state"]),
+		ToolCallID:   PayloadString(fields, "tool_call_id", "ToolCallID", "id", "ID"),
+		Name:         PayloadString(fields, "name", "Name", "tool"),
+		Content:      PayloadString(fields, "content", "Content"),
+		Detail:       PayloadString(fields, "detail", "Detail"),
+		PlanState:    planToolStateFromAny(fields["plan_state"]),
+		ProcessState: processToolStateFromAny(fields["process_state"]),
 	}
 
 	return result, result.ToolCallID != "" || result.Name != ""
@@ -466,6 +493,69 @@ func PlanToolOutputState(output string) *PlanToolState {
 		CompletedCount: payloadInt(summary["completed"]),
 		Changes:        planToolChangesFromAny(fields["changes"]),
 	}
+}
+
+func ProcessToolInputState(input string) *ProcessToolState {
+	fields := map[string]any{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(input)), &fields); err != nil {
+		return nil
+	}
+
+	operation := ProcessToolOperation(strings.TrimSpace(strings.ToLower(PayloadString(fields, "action"))))
+	switch operation {
+	case ProcessToolOperationStart:
+		command := formatProcessCommand(PayloadString(fields, "command"), payloadStringSlice(fields["args"]))
+		return &ProcessToolState{Operation: operation, Command: command}
+	case ProcessToolOperationStatus, ProcessToolOperationRead, ProcessToolOperationStop:
+		return &ProcessToolState{Operation: operation, ProcessID: PayloadString(fields, "process_id")}
+	case ProcessToolOperationList:
+		return &ProcessToolState{Operation: operation}
+	default:
+		return nil
+	}
+}
+
+func ProcessToolOutputState(output string) *ProcessToolState {
+	fields := map[string]any{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &fields); err != nil {
+		return nil
+	}
+
+	if state := processToolErrorState(fields["error"]); state != nil {
+		return state
+	}
+
+	if rawProcesses, ok := fields["processes"]; ok {
+		return &ProcessToolState{
+			Operation: ProcessToolOperationList,
+			Count:     len(anySlice(rawProcesses)),
+		}
+	}
+
+	processFields := PayloadFields(fields["process"])
+	if len(processFields) == 0 {
+		return nil
+	}
+
+	state := &ProcessToolState{
+		ProcessID: PayloadString(processFields, "id", "ID"),
+		Command: formatProcessCommand(
+			PayloadString(processFields, "command", "Command"),
+			payloadStringSlice(processFields["args"])),
+		Status:      PayloadString(processFields, "status", "Status"),
+		ExitCode:    payloadIntPtr(processFields["exit_code"]),
+		StdoutBytes: payloadInt(processFields["stdout_bytes"]),
+		StderrBytes: payloadInt(processFields["stderr_bytes"]),
+	}
+
+	if _, hasOutput := fields["output"]; hasOutput {
+		state.Operation = ProcessToolOperationRead
+		outputFields := PayloadFields(fields["output"])
+		state.StdoutBytes = payloadInt(outputFields["stdout_bytes"])
+		state.StderrBytes = payloadInt(outputFields["stderr_bytes"])
+	}
+
+	return state
 }
 
 func unwrapPlanToolOutputFields(fields map[string]any) map[string]any {
@@ -576,6 +666,49 @@ func planToolStateFromAny(value any) *PlanToolState {
 	}
 }
 
+func processToolStateFromAny(value any) *ProcessToolState {
+	fields := PayloadFields(value)
+	if len(fields) == 0 {
+		return nil
+	}
+
+	return &ProcessToolState{
+		Operation:   ProcessToolOperation(PayloadString(fields, "operation", "Operation")),
+		ProcessID:   PayloadString(fields, "process_id", "ProcessID"),
+		Command:     PayloadString(fields, "command", "Command"),
+		Status:      PayloadString(fields, "status", "Status"),
+		ExitCode:    payloadIntPtr(fields["exit_code"]),
+		StdoutBytes: payloadInt(fields["stdout_bytes"]),
+		StderrBytes: payloadInt(fields["stderr_bytes"]),
+		Count:       payloadInt(fields["count"]),
+		ErrorCode:   PayloadString(fields, "error_code", "ErrorCode"),
+		Error:       PayloadString(fields, "error", "Error"),
+	}
+}
+
+func processToolErrorState(value any) *ProcessToolState {
+	switch typed := value.(type) {
+	case nil:
+		return nil
+	case string:
+		if message := strings.TrimSpace(typed); message != "" {
+			return &ProcessToolState{Status: "failed", Error: message}
+		}
+		return nil
+	default:
+		fields := PayloadFields(typed)
+		if len(fields) == 0 {
+			return nil
+		}
+		message := PayloadString(fields, "message", "Message")
+		code := PayloadString(fields, "code", "Code")
+		if message == "" && code == "" {
+			return nil
+		}
+		return &ProcessToolState{Status: "failed", ErrorCode: code, Error: message}
+	}
+}
+
 func planToolChangesFromAny(value any) []PlanToolChange {
 	items, ok := value.([]any)
 	if !ok || len(items) == 0 {
@@ -606,6 +739,34 @@ func planToolChangesFromAny(value any) []PlanToolChange {
 	return changes
 }
 
+func formatProcessCommand(command string, args []string) string {
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return ""
+	}
+	if len(args) == 0 {
+		return command
+	}
+
+	parts := append([]string{command}, args...)
+	for index, part := range parts {
+		parts[index] = shellQuotePayloadPart(part)
+	}
+
+	return strings.Join(parts, " ")
+}
+
+func shellQuotePayloadPart(value string) string {
+	if value == "" {
+		return "''"
+	}
+	if strings.ContainsAny(value, " \t\n\"'\\$&|;()<>*?![]{}") {
+		return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+	}
+
+	return value
+}
+
 func payloadStringSlice(value any) []string {
 	items, ok := value.([]any)
 	if !ok || len(items) == 0 {
@@ -629,25 +790,45 @@ func payloadStringSlice(value any) []string {
 	return result
 }
 
+func payloadIntPtr(value any) *int {
+	parsed, ok := payloadIntOK(value)
+	if !ok {
+		return nil
+	}
+
+	return &parsed
+}
+
 func payloadInt(value any) int {
+	parsed, ok := payloadIntOK(value)
+	if !ok {
+		return 0
+	}
+
+	return parsed
+}
+
+func payloadIntOK(value any) (int, bool) {
 	switch typed := value.(type) {
+	case nil:
+		return 0, false
 	case float64:
-		return int(typed)
+		return int(typed), true
 	case float32:
-		return int(typed)
+		return int(typed), true
 	case int:
-		return typed
+		return typed, true
 	case int64:
-		return int(typed)
+		return int(typed), true
 	case int32:
-		return int(typed)
+		return int(typed), true
 	case json.Number:
 		parsed, err := typed.Int64()
 		if err != nil {
-			return 0
+			return 0, false
 		}
-		return int(parsed)
+		return int(parsed), true
 	default:
-		return 0
+		return 0, false
 	}
 }

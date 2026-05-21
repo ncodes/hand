@@ -11,13 +11,14 @@ import (
 type transcriptCellFactory struct{}
 
 type toolTranscriptCellInput struct {
-	ID          string
-	Name        string
-	Detail      string
-	PlanState   *trace.PlanToolState
-	StartedAt   time.Time
-	CompletedAt time.Time
-	Completed   bool
+	ID           string
+	Name         string
+	Detail       string
+	PlanState    *trace.PlanToolState
+	ProcessState *trace.ProcessToolState
+	StartedAt    time.Time
+	CompletedAt  time.Time
+	Completed    bool
 }
 
 var defaultTranscriptCellFactory = transcriptCellFactory{}
@@ -56,6 +57,7 @@ func (transcriptCellFactory) Tool(input toolTranscriptCellInput) transcriptCell 
 		input.Name,
 		input.Detail,
 		input.PlanState,
+		input.ProcessState,
 		input.StartedAt,
 		input.CompletedAt,
 		input.Completed,
@@ -101,20 +103,22 @@ func (factory transcriptCellFactory) FromTUIMessage(msg any) transcriptCell {
 		return factory.Thought(value.Duration)
 	case toolInvocationStartedMsg:
 		return factory.Tool(toolTranscriptCellInput{
-			ID:        value.ID,
-			Name:      value.Name,
-			Detail:    value.Detail,
-			PlanState: value.PlanState,
-			StartedAt: value.StartedAt,
+			ID:           value.ID,
+			Name:         value.Name,
+			Detail:       value.Detail,
+			PlanState:    value.PlanState,
+			ProcessState: value.ProcessState,
+			StartedAt:    value.StartedAt,
 		})
 	case toolInvocationCompletedMsg:
 		return factory.Tool(toolTranscriptCellInput{
-			ID:          value.ID,
-			Name:        value.Name,
-			Detail:      value.Detail,
-			PlanState:   value.PlanState,
-			CompletedAt: value.CompletedAt,
-			Completed:   true,
+			ID:           value.ID,
+			Name:         value.Name,
+			Detail:       value.Detail,
+			PlanState:    value.PlanState,
+			ProcessState: value.ProcessState,
+			CompletedAt:  value.CompletedAt,
+			Completed:    true,
 		})
 	case safetyEventMsg:
 		return factory.Safety(value)
@@ -146,14 +150,16 @@ func (factory transcriptCellFactory) FromTimelineMessage(
 		}
 		toolCall := toolCalls[strings.TrimSpace(message.ToolCallID)]
 		planState := mergePlanToolDisplayState(toolCall.planState, getToolOutputDisplayState(name, content))
+		processState := mergeProcessToolDisplayState(toolCall.processState, getToolOutputProcessDisplayState(name, content))
 		return factory.Tool(toolTranscriptCellInput{
-			ID:          message.ToolCallID,
-			Name:        name,
-			Detail:      toolCall.detail,
-			PlanState:   planState,
-			StartedAt:   toolCall.startedAt,
-			CompletedAt: message.CreatedAt,
-			Completed:   true,
+			ID:           message.ToolCallID,
+			Name:         name,
+			Detail:       toolCall.detail,
+			PlanState:    planState,
+			ProcessState: processState,
+			StartedAt:    toolCall.startedAt,
+			CompletedAt:  message.CreatedAt,
+			Completed:    true,
 		})
 	default:
 		return factory.System(strings.TrimSpace(string(message.Role)) + ": " + content)

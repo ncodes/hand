@@ -432,18 +432,20 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				Msg("tool invocation started")
 
 			traceSession.Record(trace.EvtToolInvocationStarted, trace.ToolInvocationStartedPayload{
-				ID:        toolCall.ID,
-				Name:      toolCall.Name,
-				Input:     toolCall.Input,
-				PlanState: getPlanToolInputState(toolCall.Name, toolCall.Input),
+				ID:           toolCall.ID,
+				Name:         toolCall.Name,
+				Input:        toolCall.Input,
+				PlanState:    getPlanToolInputState(toolCall.Name, toolCall.Input),
+				ProcessState: getProcessToolInputState(toolCall.Name, toolCall.Input),
 			})
 			toolCtx := tools.WithTraceRecorder(t.getToolContext(ctx), traceSession)
 			toolMessage := t.invokeTool(toolCtx, toolCall)
 			traceSession.Record(trace.EvtToolInvocationCompleted, trace.ToolInvocationCompletedPayload{
-				ToolCallID: toolMessage.ToolCallID,
-				Name:       toolMessage.Name,
-				Content:    toolMessage.Content,
-				PlanState:  getPlanToolOutputState(toolMessage.Name, toolMessage.Content),
+				ToolCallID:   toolMessage.ToolCallID,
+				Name:         toolMessage.Name,
+				Content:      toolMessage.Content,
+				PlanState:    getPlanToolOutputState(toolMessage.Name, toolMessage.Content),
+				ProcessState: getProcessToolOutputState(toolMessage.Name, toolMessage.Content),
 			})
 
 			agentLog.Info().
@@ -633,6 +635,22 @@ func getPlanToolOutputState(name string, output string) *trace.PlanToolState {
 	}
 
 	return trace.PlanToolOutputState(output)
+}
+
+func getProcessToolInputState(name string, input string) *trace.ProcessToolState {
+	if strings.TrimSpace(strings.ToLower(name)) != "process" {
+		return nil
+	}
+
+	return trace.ProcessToolInputState(input)
+}
+
+func getProcessToolOutputState(name string, output string) *trace.ProcessToolState {
+	if strings.TrimSpace(strings.ToLower(name)) != "process" {
+		return nil
+	}
+
+	return trace.ProcessToolOutputState(output)
 }
 
 func (t *Turn) getStateSessionID() string {

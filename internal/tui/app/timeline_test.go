@@ -53,7 +53,7 @@ func renderTranscriptTestCell(cell transcriptCell) string {
 func toolTranscriptTestCell(id string, name string, detail string, completed ...bool) transcriptCell {
 	isCompleted := len(completed) > 0 && completed[0]
 
-	return newToolTranscriptCell(id, name, detail, nil, time.Time{}, time.Time{}, isCompleted)
+	return newToolTranscriptCell(id, name, detail, nil, nil, time.Time{}, time.Time{}, isCompleted)
 }
 
 func toolTranscriptTestCellWithTiming(
@@ -64,7 +64,7 @@ func toolTranscriptTestCellWithTiming(
 	completedAt time.Time,
 	completed bool,
 ) transcriptCell {
-	return newToolTranscriptCell(id, name, detail, nil, startedAt, completedAt, completed)
+	return newToolTranscriptCell(id, name, detail, nil, nil, startedAt, completedAt, completed)
 }
 
 func toolTranscriptTestCellWithPlanState(
@@ -75,7 +75,18 @@ func toolTranscriptTestCellWithPlanState(
 	completedAt time.Time,
 	completed bool,
 ) transcriptCell {
-	return newToolTranscriptCell(id, name, "", planState, startedAt, completedAt, completed)
+	return newToolTranscriptCell(id, name, "", planState, nil, startedAt, completedAt, completed)
+}
+
+func toolTranscriptTestCellWithProcessState(
+	id string,
+	name string,
+	processState *trace.ProcessToolState,
+	startedAt time.Time,
+	completedAt time.Time,
+	completed bool,
+) transcriptCell {
+	return newToolTranscriptCell(id, name, "", nil, processState, startedAt, completedAt, completed)
 }
 
 func TestTimelineMessageToTranscriptCell_MapsVisibleRoles(t *testing.T) {
@@ -209,7 +220,7 @@ func TestTranscriptCells_ExposeTypedCellContract(t *testing.T) {
 		},
 		{
 			name:       "tool",
-			cell:       newToolTranscriptCell("call_1", "list_files", "list_files(path=.)", nil, startedAt, completedAt, true),
+			cell:       newToolTranscriptCell("call_1", "list_files", "list_files(path=.)", nil, nil, startedAt, completedAt, true),
 			kind:       transcriptCellTool,
 			plainText:  "Tool List Files:\nid: call_1\ndetail: list_files(path=.)\nstarted_at: 2026-05-20T09:00:00Z\ncompleted_at: 2026-05-20T09:00:02Z\nstatus: completed",
 			renderText: "List Files",
@@ -465,6 +476,140 @@ func TestRenderTranscriptCells_RendersTimeWithFriendlyText(t *testing.T) {
 	require.NotContains(t, running, "└")
 	require.Contains(t, completed, "● Checked time (2s)")
 	require.NotContains(t, completed, "└")
+}
+
+func TestRenderTranscriptCells_RendersProcessActionsWithFriendlyText(t *testing.T) {
+	startedAt := time.Date(2026, 5, 20, 23, 0, 0, 0, time.UTC)
+	exitCode := 0
+	cases := []struct {
+		name      string
+		input     *trace.ProcessToolState
+		output    *trace.ProcessToolState
+		header    string
+		branch    string
+		completed bool
+	}{
+		{
+			name:   "running start",
+			input:  &trace.ProcessToolState{Operation: trace.ProcessToolOperationStart, Command: "sleep 10"},
+			header: "● Starting process (2s)",
+			branch: "└ sleep 10 (2s)",
+		},
+		{
+			name:      "completed start",
+			input:     &trace.ProcessToolState{Operation: trace.ProcessToolOperationStart, Command: "sleep 10"},
+			output:    &trace.ProcessToolState{ProcessID: "proc_1", Status: "running"},
+			header:    "● Process started (2s)",
+			branch:    "└ proc_1 running (2s)",
+			completed: true,
+		},
+		{
+			name:      "status",
+			input:     &trace.ProcessToolState{Operation: trace.ProcessToolOperationStatus, ProcessID: "proc_1"},
+			output:    &trace.ProcessToolState{ProcessID: "proc_1", Status: "exited", ExitCode: &exitCode},
+			header:    "● Process exited (2s)",
+			branch:    "└ proc_1 exited exit 0 (2s)",
+			completed: true,
+		},
+		{
+			name:      "read",
+			input:     &trace.ProcessToolState{Operation: trace.ProcessToolOperationRead, ProcessID: "proc_1"},
+			output:    &trace.ProcessToolState{Operation: trace.ProcessToolOperationRead, ProcessID: "proc_1", StdoutBytes: 120, StderrBytes: 5},
+			header:    "● Output read (2s)",
+			branch:    "└ proc_1 120B stdout 5B stderr (2s)",
+			completed: true,
+		},
+		{
+			name:      "stop",
+			input:     &trace.ProcessToolState{Operation: trace.ProcessToolOperationStop, ProcessID: "proc_1"},
+			output:    &trace.ProcessToolState{ProcessID: "proc_1", Status: "stopped"},
+			header:    "● Process stopped (2s)",
+			branch:    "└ proc_1 stopped (2s)",
+			completed: true,
+		},
+		{
+			name:      "list",
+			input:     &trace.ProcessToolState{Operation: trace.ProcessToolOperationList},
+			output:    &trace.ProcessToolState{Operation: trace.ProcessToolOperationList, Count: 3},
+			header:    "● Listed processes (2s)",
+			branch:    "└ Found 3 processes (2s)",
+			completed: true,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			cells := []transcriptCell{
+				toolTranscriptTestCellWithProcessState("call_1", "process", tt.input, startedAt, time.Time{}, false),
+			}
+			if tt.completed {
+				cells = append(
+					cells,
+					toolTranscriptTestCellWithProcessState("call_1", "process", tt.output, time.Time{}, startedAt.Add(2*time.Second), true),
+				)
+			}
+
+			rendered := stripANSI(defaultTranscriptRenderer.RenderCells(
+				cells,
+				transcriptRenderContext{Width: 80, Now: startedAt.Add(2 * time.Second)},
+			))
+
+			require.Contains(t, rendered, tt.header)
+			require.Contains(t, rendered, tt.branch)
+			require.NotContains(t, rendered, "└ process")
+		})
+	}
+}
+
+func TestRenderTranscriptCells_GroupsConsecutiveProcessRetries(t *testing.T) {
+	startedAt := time.Date(2026, 5, 20, 23, 0, 0, 0, time.UTC)
+	command := "python3 -m http.server 8000"
+	cells := []transcriptCell{
+		thoughtTranscriptCell{duration: time.Second},
+		toolTranscriptTestCellWithProcessState(
+			"call_1",
+			"process",
+			&trace.ProcessToolState{Operation: trace.ProcessToolOperationStart, Command: command},
+			startedAt,
+			time.Time{},
+			false,
+		),
+		toolTranscriptTestCellWithProcessState(
+			"call_1",
+			"process",
+			&trace.ProcessToolState{Status: "failed", ErrorCode: "process_start_failed", Error: "address already in use"},
+			time.Time{},
+			startedAt.Add(time.Second),
+			true,
+		),
+		thoughtTranscriptCell{duration: time.Second},
+		toolTranscriptTestCellWithProcessState(
+			"call_2",
+			"process",
+			&trace.ProcessToolState{Operation: trace.ProcessToolOperationStart, Command: command},
+			startedAt.Add(2*time.Second),
+			time.Time{},
+			false,
+		),
+		toolTranscriptTestCellWithProcessState(
+			"call_2",
+			"process",
+			&trace.ProcessToolState{ProcessID: "proc_1", Status: "running"},
+			time.Time{},
+			startedAt.Add(3*time.Second),
+			true,
+		),
+	}
+
+	rendered := stripANSI(defaultTranscriptRenderer.RenderCells(
+		cells,
+		transcriptRenderContext{Width: 80, Now: startedAt.Add(4 * time.Second)},
+	))
+
+	require.Equal(t, 1, strings.Count(rendered, "Process started"))
+	require.Equal(t, 1, strings.Count(rendered, "Thought for 1s"))
+	require.Contains(t, rendered, "Failed 1 attempt: address already in use")
+	require.Contains(t, rendered, "proc_1 running")
 }
 
 func TestRenderTranscriptCells_RendersPlanWithFriendlyText(t *testing.T) {
