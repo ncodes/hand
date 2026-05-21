@@ -740,29 +740,12 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 	}
 }
 
-func TestGetRPCSafetyFindings_HandlesPayloadShapes(t *testing.T) {
-	require.Equal(t,
-		[]map[string]any{{"id": "secret", "severity": "high"}},
-		getRPCSafetyFindings([]map[string]string{{
-			"id":       "secret",
-			"severity": "high",
-			"sample":   "SECRET=example",
-		}}),
-	)
-	require.Empty(t, getRPCSafetyFindings([]any{
-		"bad",
-		map[string]any{"sample": "SECRET=example"},
-	}))
-	require.Nil(t, getRPCSafetyFindings("not an array"))
-	require.Nil(t, getRPCSafetyFindings(make(chan int)))
-}
-
-func TestGetPayloadFields_HandlesPayloadShapes(t *testing.T) {
-	require.Nil(t, getPayloadFields(nil))
-	require.Nil(t, getPayloadFields("not an object"))
-	require.Nil(t, getPayloadFields(make(chan int)))
-	require.Equal(t, map[string]any{"name": "read_file"}, getPayloadFields(map[string]any{"name": "read_file"}))
-	require.Equal(t, map[string]any{"Name": "read_file"}, getPayloadFields(struct {
+func TestPayloadFields_HandlesPayloadShapes(t *testing.T) {
+	require.Nil(t, trace.PayloadFields(nil))
+	require.Nil(t, trace.PayloadFields("not an object"))
+	require.Nil(t, trace.PayloadFields(make(chan int)))
+	require.Equal(t, map[string]any{"name": "read_file"}, trace.PayloadFields(map[string]any{"name": "read_file"}))
+	require.Equal(t, map[string]any{"Name": "read_file"}, trace.PayloadFields(struct {
 		Name string
 	}{Name: "read_file"}))
 }

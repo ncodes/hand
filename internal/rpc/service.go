@@ -158,16 +158,21 @@ func traceEventToProtoRespondEvent(event trace.Event) (*handpb.RespondEvent, boo
 }
 
 func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
-	fields := getPayloadFields(payload)
+	fields := trace.PayloadFields(payload)
+	typedPayload, payloadOK := trace.DecodePayload(eventType, payload)
 
 	switch eventType {
 	case trace.EvtToolInvocationStarted:
-		result := map[string]any{}
-		if id, ok := getRPCTraceValue(fields, "id", "ID", "tool_call_id", "ToolCallID"); ok {
-			result["id"] = id
+		toolPayload, ok := typedPayload.(trace.ToolInvocationStartedPayload)
+		if !payloadOK || !ok {
+			return nil, false
 		}
-		if name, ok := getRPCTraceValue(fields, "name", "Name", "tool"); ok {
-			result["name"] = name
+		result := map[string]any{}
+		if toolPayload.ID != "" {
+			result["id"] = toolPayload.ID
+		}
+		if toolPayload.Name != "" {
+			result["name"] = toolPayload.Name
 		}
 		if detail := getRPCTraceToolDetail(result["name"], fields); detail != "" {
 			result["detail"] = detail
@@ -177,53 +182,108 @@ func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
 		}
 		return result, len(result) > 0
 	case trace.EvtToolInvocationCompleted:
-		result := map[string]any{}
-		if id, ok := getRPCTraceValue(fields, "tool_call_id", "ToolCallID", "id", "ID"); ok {
-			result["tool_call_id"] = id
+		toolPayload, ok := typedPayload.(trace.ToolInvocationCompletedPayload)
+		if !payloadOK || !ok {
+			return nil, false
 		}
-		if name, ok := getRPCTraceValue(fields, "name", "Name", "tool"); ok {
-			result["name"] = name
+		result := map[string]any{}
+		if toolPayload.ToolCallID != "" {
+			result["tool_call_id"] = toolPayload.ToolCallID
+		}
+		if toolPayload.Name != "" {
+			result["name"] = toolPayload.Name
 		}
 		if planState := getRPCTracePlanOutputState(result["name"], fields); len(planState) > 0 {
 			result["plan_state"] = planState
 		}
 		return result, len(result) > 0
 	case trace.EvtInputSafetyBlocked,
-		trace.EvtOutputSafetyApplied:
-		result := getRPCTraceFields(fields, "action", "refusal", "blocked", "redacted")
-		if findings := getRPCSafetyFindings(fields["findings"]); len(findings) > 0 {
+		trace.EvtOutputSafetyApplied,
+		trace.EvtToolOutputSafetyApplied,
+		trace.EvtLoadedContentSafetyBlocked,
+		trace.EvtMemorySafetyBlocked:
+		safetyPayload, ok := typedPayload.(trace.SafetyEventPayload)
+		if !payloadOK || !ok {
+			return nil, false
+		}
+		result := map[string]any{"action": safetyPayload.Action}
+		if safetyPayload.Blocked {
+			result["blocked"] = safetyPayload.Blocked
+		}
+		if safetyPayload.Redacted {
+			result["redacted"] = safetyPayload.Redacted
+		}
+		if safetyPayload.Refusal != "" {
+			result["refusal"] = safetyPayload.Refusal
+		}
+		if findings := getRPCSafetyFindingSummaries(safetyPayload.Findings); len(findings) > 0 {
 			result["findings"] = findings
 		}
 		return result, true
 	case trace.EvtSessionFailed:
-		result := getRPCTraceFields(fields, "error", "message")
+		sessionPayload, ok := typedPayload.(trace.SessionFailedPayload)
+		if !payloadOK || !ok {
+			return nil, false
+		}
+		result := map[string]any{}
+		if sessionPayload.Error != "" {
+			result["error"] = sessionPayload.Error
+		}
+		if sessionPayload.Message != "" {
+			result["message"] = sessionPayload.Message
+		}
 		return result, len(result) > 0
 	case trace.EvtPlanHydrated:
-		result := getRPCTraceFields(fields, "session_id", "summary", "active_step_id", "source")
-		if steps, ok := fields["steps"].([]any); ok {
-			result["step_count"] = len(steps)
+		planPayload, ok := typedPayload.(trace.PlanEventPayload)
+		if !payloadOK || !ok {
+			return nil, false
+		}
+		result := map[string]any{}
+		if planPayload.SessionID != "" {
+			result["session_id"] = planPayload.SessionID
+		}
+		if planPayload.Source != "" {
+			result["source"] = planPayload.Source
+		}
+		if planPayload.ActiveStepID != "" {
+			result["active_step_id"] = planPayload.ActiveStepID
+		}
+		if planPayload.Explanation != "" {
+			result["explanation"] = planPayload.Explanation
+		}
+		if len(planPayload.Steps) > 0 {
+			result["step_count"] = len(planPayload.Steps)
+		}
+		if summary := getRPCPlanSummary(planPayload.Summary); len(summary) > 0 {
+			result["summary"] = summary
 		}
 		return result, true
 	case trace.EvtModelReasoningCompleted:
-		result := getRPCTraceFields(fields, "duration_ms")
+		reasoningPayload, ok := typedPayload.(trace.ModelReasoningCompletedPayload)
+		if !payloadOK || !ok {
+			return nil, false
+		}
+		result := map[string]any{}
+		if reasoningPayload.DurationMS != 0 {
+			result["duration_ms"] = reasoningPayload.DurationMS
+		}
 		return result, len(result) > 0
 	case trace.EvtFinalAssistantResponse:
-		result := getRPCTraceFields(fields, "message", "text")
+		finalPayload, ok := typedPayload.(trace.FinalAssistantResponsePayload)
+		if !payloadOK || !ok {
+			return nil, false
+		}
+		result := map[string]any{}
+		if finalPayload.Message != "" {
+			result["message"] = finalPayload.Message
+		}
+		if finalPayload.Text != "" {
+			result["text"] = finalPayload.Text
+		}
 		return result, len(result) > 0
 	default:
 		return nil, false
 	}
-}
-
-func getRPCTraceFields(fields map[string]any, keys ...string) map[string]any {
-	result := make(map[string]any, len(keys))
-	for _, key := range keys {
-		if value, ok := fields[key]; ok {
-			result[key] = value
-		}
-	}
-
-	return result
 }
 
 func getRPCTraceValue(fields map[string]any, keys ...string) (any, bool) {
@@ -744,53 +804,42 @@ func truncateRPCTraceToolDetail(value string, limit int) string {
 	return string(runes[:limit-3]) + "..."
 }
 
-func getRPCSafetyFindings(raw any) []map[string]any {
-	values, ok := raw.([]any)
-	if !ok {
-		data, err := json.Marshal(raw)
-		if err != nil {
-			return nil
+func getRPCSafetyFindingSummaries(findings []map[string]string) []map[string]any {
+	summaries := make([]map[string]any, 0, len(findings))
+	for _, finding := range findings {
+		summary := map[string]any{}
+		for _, key := range []string{"id", "category", "severity"} {
+			if value := strings.TrimSpace(finding[key]); value != "" {
+				summary[key] = value
+			}
 		}
-		if err := json.Unmarshal(data, &values); err != nil {
-			return nil
-		}
-	}
-
-	findings := make([]map[string]any, 0, len(values))
-	for _, value := range values {
-		fields, ok := value.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		finding := getRPCTraceFields(fields, "id", "category", "severity")
-		if len(finding) > 0 {
-			findings = append(findings, finding)
+		if len(summary) > 0 {
+			summaries = append(summaries, summary)
 		}
 	}
 
-	return findings
+	return summaries
 }
 
-func getPayloadFields(payload any) map[string]any {
-	if payload == nil {
-		return nil
+func getRPCPlanSummary(summary trace.PlanSummaryPayload) map[string]any {
+	result := map[string]any{}
+	if summary.Total != 0 {
+		result["total"] = summary.Total
 	}
-	if fields, ok := payload.(map[string]any); ok {
-		return fields
+	if summary.Pending != 0 {
+		result["pending"] = summary.Pending
+	}
+	if summary.InProgress != 0 {
+		result["in_progress"] = summary.InProgress
+	}
+	if summary.Completed != 0 {
+		result["completed"] = summary.Completed
+	}
+	if summary.Cancelled != 0 {
+		result["cancelled"] = summary.Cancelled
 	}
 
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil
-	}
-
-	var fields map[string]any
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return nil
-	}
-
-	return fields
+	return result
 }
 
 func (s *Service) CreateSession(ctx context.Context, req *handpb.CreateSessionRequest) (*handpb.CreateSessionResponse, error) {

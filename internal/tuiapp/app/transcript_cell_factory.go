@@ -5,6 +5,7 @@ import (
 	"time"
 
 	handmsg "github.com/wandxy/hand/internal/messages"
+	"github.com/wandxy/hand/internal/trace"
 )
 
 type transcriptCellFactory struct{}
@@ -13,7 +14,7 @@ type toolTranscriptCellInput struct {
 	ID          string
 	Name        string
 	Detail      string
-	PlanState   *planToolDisplayState
+	PlanState   *trace.PlanToolState
 	StartedAt   time.Time
 	CompletedAt time.Time
 	Completed   bool

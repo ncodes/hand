@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/wandxy/hand/internal/trace"
 )
 
 type transcriptCellKind string
@@ -200,7 +202,7 @@ type toolTranscriptCell struct {
 	id          string
 	action      string
 	detail      string
-	planState   *planToolDisplayState
+	planState   *trace.PlanToolState
 	startedAt   time.Time
 	completedAt time.Time
 	completed   bool
@@ -209,7 +211,7 @@ type toolTranscriptCell struct {
 type toolTranscriptDetail struct {
 	id          string
 	text        string
-	planState   *planToolDisplayState
+	planState   *trace.PlanToolState
 	startedAt   time.Time
 	completedAt time.Time
 	completed   bool
@@ -239,7 +241,7 @@ func newToolTranscriptCell(
 	id string,
 	name string,
 	detail string,
-	planState *planToolDisplayState,
+	planState *trace.PlanToolState,
 	startedAt time.Time,
 	completedAt time.Time,
 	completed bool,

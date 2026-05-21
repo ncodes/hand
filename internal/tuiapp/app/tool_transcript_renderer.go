@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
+
+	"github.com/wandxy/hand/internal/trace"
 )
 
 type toolTranscriptRenderer struct{}
@@ -339,11 +341,11 @@ func getPlanToolTranscriptOperation(details []toolTranscriptDetail) string {
 			continue
 		}
 		switch detail.planState.Operation {
-		case planToolDisplayOperationRead:
+		case trace.PlanToolOperationRead:
 			return "read"
-		case planToolDisplayOperationClearCompleted:
+		case trace.PlanToolOperationClearCompleted:
 			return "clear_completed"
-		case planToolDisplayOperationUpdate:
+		case trace.PlanToolOperationUpdate:
 			return "update"
 		}
 	}

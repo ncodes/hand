@@ -70,7 +70,7 @@ func toolTranscriptTestCellWithTiming(
 func toolTranscriptTestCellWithPlanState(
 	id string,
 	name string,
-	planState *planToolDisplayState,
+	planState *trace.PlanToolState,
 	startedAt time.Time,
 	completedAt time.Time,
 	completed bool,
@@ -456,28 +456,28 @@ func TestRenderTranscriptCells_RendersPlanWithFriendlyText(t *testing.T) {
 	startedAt := time.Date(2026, 5, 20, 23, 0, 0, 0, time.UTC)
 	cases := []struct {
 		name      string
-		state     *planToolDisplayState
+		state     *trace.PlanToolState
 		running   string
 		completed string
 		branch    string
 	}{
 		{
 			name:      "read",
-			state:     &planToolDisplayState{Operation: planToolDisplayOperationRead},
+			state:     &trace.PlanToolState{Operation: trace.PlanToolOperationRead},
 			running:   "● Reading plan (4s)",
 			completed: "● Plan read (4s)",
 			branch:    "Read current plan",
 		},
 		{
 			name:      "update",
-			state:     &planToolDisplayState{Operation: planToolDisplayOperationUpdate, ChangedCount: 1},
+			state:     &trace.PlanToolState{Operation: trace.PlanToolOperationUpdate, ChangedCount: 1},
 			running:   "● Updating plan (4s)",
 			completed: "● Plan updated (4s)",
 			branch:    "Updated 1 task",
 		},
 		{
 			name:      "clear completed",
-			state:     &planToolDisplayState{Operation: planToolDisplayOperationClearCompleted, ChangedCount: 1},
+			state:     &trace.PlanToolState{Operation: trace.PlanToolOperationClearCompleted, ChangedCount: 1},
 			running:   "● Clearing completed plan steps (4s)",
 			completed: "● Plan cleared (4s)",
 			branch:    "Cleared 1 task",
@@ -507,26 +507,26 @@ func TestRenderTranscriptCells_RendersCompletedPlanSummaryBranch(t *testing.T) {
 	startedAt := time.Date(2026, 5, 20, 23, 0, 0, 0, time.UTC)
 	cases := []struct {
 		name   string
-		input  *planToolDisplayState
-		output *planToolDisplayState
+		input  *trace.PlanToolState
+		output *trace.PlanToolState
 		branch string
 	}{
 		{
 			name:   "partial update",
-			input:  &planToolDisplayState{Operation: planToolDisplayOperationUpdate, ChangedCount: 1},
-			output: &planToolDisplayState{TotalCount: 3, CompletedCount: 1},
+			input:  &trace.PlanToolState{Operation: trace.PlanToolOperationUpdate, ChangedCount: 1},
+			output: &trace.PlanToolState{TotalCount: 3, CompletedCount: 1},
 			branch: "Updated 1 task of 3",
 		},
 		{
 			name:   "all completed",
-			input:  &planToolDisplayState{Operation: planToolDisplayOperationUpdate, ChangedCount: 3},
-			output: &planToolDisplayState{TotalCount: 3, CompletedCount: 3},
+			input:  &trace.PlanToolState{Operation: trace.PlanToolOperationUpdate, ChangedCount: 3},
+			output: &trace.PlanToolState{TotalCount: 3, CompletedCount: 3},
 			branch: "Completed all 3 tasks",
 		},
 		{
 			name:   "read",
-			input:  &planToolDisplayState{Operation: planToolDisplayOperationRead},
-			output: &planToolDisplayState{TotalCount: 3, CompletedCount: 1},
+			input:  &trace.PlanToolState{Operation: trace.PlanToolOperationRead},
+			output: &trace.PlanToolState{TotalCount: 3, CompletedCount: 1},
 			branch: "Found 3 tasks",
 		},
 	}

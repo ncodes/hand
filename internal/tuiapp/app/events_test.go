@@ -145,8 +145,8 @@ func TestTraceEventToTUIMessage_ConvertsStreamedPlanInvocationStarted(t *testing
 	require.Equal(t, toolInvocationStartedMsg{
 		ID:   "call_1",
 		Name: "plan_tool",
-		PlanState: &planToolDisplayState{
-			Operation:    planToolDisplayOperationUpdate,
+		PlanState: &trace.PlanToolState{
+			Operation:    trace.PlanToolOperationUpdate,
 			ChangedCount: 3,
 		},
 	}, msg)
@@ -318,26 +318,26 @@ func TestToolCallPayloadToTUIMessage_ExtractsPlanDetail(t *testing.T) {
 	cases := []struct {
 		name  string
 		input string
-		want  *planToolDisplayState
+		want  *trace.PlanToolState
 	}{
 		{
 			name:  "read",
 			input: `{}`,
-			want:  &planToolDisplayState{Operation: planToolDisplayOperationRead},
+			want:  &trace.PlanToolState{Operation: trace.PlanToolOperationRead},
 		},
 		{
 			name:  "update",
 			input: `{"steps":[{"id":"step-1","content":"Inspect","status":"pending"}]}`,
-			want: &planToolDisplayState{
-				Operation:    planToolDisplayOperationUpdate,
+			want: &trace.PlanToolState{
+				Operation:    trace.PlanToolOperationUpdate,
 				ChangedCount: 1,
 			},
 		},
 		{
 			name:  "clear completed",
 			input: `{"steps":[{"id":"step-1","content":"Done","status":"completed"}],"clear_completed":true}`,
-			want: &planToolDisplayState{
-				Operation:    planToolDisplayOperationClearCompleted,
+			want: &trace.PlanToolState{
+				Operation:    trace.PlanToolOperationClearCompleted,
 				ChangedCount: 1,
 			},
 		},
@@ -373,7 +373,7 @@ func TestToolMessagePayloadToTUIMessage_ExtractsPlanDetail(t *testing.T) {
 	require.Equal(t, toolInvocationCompletedMsg{
 		ID:   "call_1",
 		Name: "plan_tool",
-		PlanState: &planToolDisplayState{
+		PlanState: &trace.PlanToolState{
 			TotalCount:     3,
 			CompletedCount: 1,
 		},
@@ -433,7 +433,7 @@ func TestTraceEventToTUIMessage_ConvertsStreamedPlanInvocationCompleted(t *testi
 	require.Equal(t, toolInvocationCompletedMsg{
 		ID:   "call_1",
 		Name: "plan_tool",
-		PlanState: &planToolDisplayState{
+		PlanState: &trace.PlanToolState{
 			TotalCount:     3,
 			CompletedCount: 1,
 		},
@@ -593,40 +593,36 @@ func TestSafetyPayloadToTUIMessage_IgnoresEmptyKind(t *testing.T) {
 }
 
 func TestPayloadHelpers_HandleMalformedAndConvertedPayloads(t *testing.T) {
-	require.Nil(t, getPayloadFields(nil))
-	require.Nil(t, getPayloadFields(make(chan int)))
-	require.Nil(t, getPayloadFields("not an object"))
-	require.Equal(t, map[string]any{"name": "read_file"}, getPayloadFields(map[string]any{"name": "read_file"}))
+	require.Nil(t, trace.PayloadFields(nil))
+	require.Nil(t, trace.PayloadFields(make(chan int)))
+	require.Nil(t, trace.PayloadFields("not an object"))
+	require.Equal(t, map[string]any{"name": "read_file"}, trace.PayloadFields(map[string]any{"name": "read_file"}))
 
-	fields := getPayloadFields(struct {
+	fields := trace.PayloadFields(struct {
 		Name string `json:"name"`
 	}{
 		Name: "read_file",
 	})
 	require.Equal(t, map[string]any{"name": "read_file"}, fields)
-
-	require.False(t, getPayloadBool(map[string]any{"blocked": "true"}, "blocked"))
-	require.False(t, getPayloadBool(map[string]any{"redacted": true}, "blocked"))
 }
 
 func TestGetSafetyFindingIDs_HandlesSupportedShapes(t *testing.T) {
-	require.Nil(t, getSafetyFindingIDs(nil))
-	require.Nil(t, getSafetyFindingIDs(map[string]any{"findings": "secret_exfiltration"}))
+	require.Nil(t, getSafetyFindingIDsFromTypedPayload(trace.SafetyEventPayload{}))
 
-	ids := getSafetyFindingIDs(map[string]any{
-		"findings": []map[string]string{
+	ids := getSafetyFindingIDsFromTypedPayload(trace.SafetyEventPayload{
+		Findings: []map[string]string{
 			{"id": "secret_exfiltration"},
 			{"id": " "},
 		},
 	})
 	require.Equal(t, []string{"secret_exfiltration"}, ids)
 
-	ids = getSafetyFindingIDs(map[string]any{
-		"findings": []any{
-			map[string]any{"id": "prompt_exfiltration"},
-			map[string]any{"id": " "},
-			"not a finding",
-		},
+	decoded, ok := trace.DecodePayload(trace.EvtInputSafetyBlocked, map[string]any{
+		"findings": []any{map[string]any{"id": "prompt_exfiltration"}, map[string]any{"id": " "}},
 	})
+	require.True(t, ok)
+	payload, ok := decoded.(trace.SafetyEventPayload)
+	require.True(t, ok)
+	ids = getSafetyFindingIDsFromTypedPayload(payload)
 	require.Equal(t, []string{"prompt_exfiltration"}, ids)
 }

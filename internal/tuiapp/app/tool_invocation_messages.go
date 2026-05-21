@@ -6,6 +6,7 @@ import (
 
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/internal/trace"
 )
 
 func newToolInvocationStartedMsg(
@@ -33,7 +34,7 @@ func newToolInvocationStartedMsgWithState(
 	id string,
 	name string,
 	detail string,
-	planState *planToolDisplayState,
+	planState *trace.PlanToolState,
 	startedAt time.Time,
 ) (toolInvocationStartedMsg, bool) {
 	msg, ok := newToolInvocationStartedMsg(id, name, detail, startedAt)
@@ -69,7 +70,7 @@ func newToolInvocationCompletedMsgWithState(
 	id string,
 	name string,
 	detail string,
-	planState *planToolDisplayState,
+	planState *trace.PlanToolState,
 	completedAt time.Time,
 ) (toolInvocationCompletedMsg, bool) {
 	msg, ok := newToolInvocationCompletedMsg(id, name, detail, completedAt)

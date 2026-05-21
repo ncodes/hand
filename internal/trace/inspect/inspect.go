@@ -303,60 +303,6 @@ type rawEvent struct {
 	Payload   json.RawMessage `json:"payload,omitempty"`
 }
 
-type userMessagePayload struct {
-	Message string `json:"message"`
-}
-
-type contextEventPayload struct {
-	Source           string `json:"source"`
-	PromptTokens     int    `json:"prompt_tokens"`
-	CompletionTokens int    `json:"completion_tokens"`
-	TotalTokens      int    `json:"total_tokens"`
-	ContextLimit     int    `json:"context_limit"`
-	TriggerThreshold int    `json:"trigger_threshold"`
-	WarnThreshold    int    `json:"warn_threshold"`
-}
-
-type summaryEventPayload struct {
-	SessionID          string    `json:"session_id"`
-	SourceEndOffset    int       `json:"source_end_offset"`
-	SourceMessageCount int       `json:"source_message_count"`
-	UpdatedAt          time.Time `json:"updated_at"`
-	Error              string    `json:"error"`
-}
-
-type compactionEventPayload struct {
-	SessionID          string    `json:"session_id"`
-	Status             string    `json:"status"`
-	TargetMessageCount int       `json:"target_message_count"`
-	TargetOffset       int       `json:"target_offset"`
-	RequestedAt        time.Time `json:"requested_at"`
-	StartedAt          time.Time `json:"started_at"`
-	CompletedAt        time.Time `json:"completed_at"`
-	FailedAt           time.Time `json:"failed_at"`
-	Error              string    `json:"error"`
-}
-
-type planEventPayload struct {
-	SessionID    string          `json:"session_id"`
-	Steps        []PlanStepView  `json:"steps"`
-	Summary      PlanSummaryView `json:"summary"`
-	ActiveStepID string          `json:"active_step_id"`
-	Explanation  string          `json:"explanation"`
-	Source       string          `json:"source"`
-}
-
-type safetyEventPayload struct {
-	SessionID     string              `json:"session_id"`
-	Source        string              `json:"source"`
-	Action        string              `json:"action"`
-	ContentLength int                 `json:"content_length"`
-	Blocked       bool                `json:"blocked"`
-	Redacted      bool                `json:"redacted"`
-	Refusal       string              `json:"refusal"`
-	Findings      []map[string]string `json:"findings"`
-}
-
 func NewStore(directory string) *Store {
 	return &Store{directory: strings.TrimSpace(directory)}
 }
@@ -539,10 +485,11 @@ func LoadSessionFile(path string) (SessionDetail, error) {
 }
 
 func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEvent) {
+	typedPayload, payloadOK := handtrace.DecodePayloadJSON(event.Type, event.Payload)
+
 	switch event.Type {
 	case handtrace.EvtChatStarted:
-		var payload handtrace.Metadata
-		if json.Unmarshal(event.Payload, &payload) == nil {
+		if payload, ok := typedPayload.(handtrace.Metadata); payloadOK && ok {
 			detail.Summary.AgentName = payload.AgentName
 			detail.Summary.Model = payload.Model
 			detail.Summary.APIMode = payload.APIMode
@@ -557,15 +504,13 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 			return
 		}
 	case handtrace.EvtUserMessageAccepted:
-		var payload userMessagePayload
-		if json.Unmarshal(event.Payload, &payload) == nil {
-			timelineEvent.UserMessage = &UserMessageView{Message: payload.Message}
+		if payload, ok := typedPayload.(handtrace.UserMessageAcceptedPayload); payloadOK && ok {
+			timelineEvent.UserMessage = &UserMessageView{Message: firstNonEmpty(payload.Message, payload.Text)}
 			detail.Summary.FinalStatus = "in_progress"
 			return
 		}
 	case handtrace.EvtModelRequest:
-		var payload models.Request
-		if json.Unmarshal(event.Payload, &payload) == nil {
+		if payload, ok := typedPayload.(models.Request); payloadOK && ok {
 			timelineEvent.ModelRequest = buildRequestView(payload)
 			if detail.Summary.Model == "" {
 				detail.Summary.Model = payload.Model
@@ -577,14 +522,12 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 			return
 		}
 	case handtrace.EvtModelResponse:
-		var payload models.Response
-		if json.Unmarshal(event.Payload, &payload) == nil {
+		if payload, ok := typedPayload.(models.Response); payloadOK && ok {
 			timelineEvent.ModelResponse = buildSessionMessagesResponseView(payload)
 			return
 		}
 	case handtrace.EvtToolInvocationStarted:
-		var payload models.ToolCall
-		if json.Unmarshal(event.Payload, &payload) == nil {
+		if payload, ok := typedPayload.(handtrace.ToolInvocationStartedPayload); payloadOK && ok {
 			timelineEvent.ToolInvocation = &ToolInvocationView{
 				Phase: "started",
 				ID:    payload.ID,
@@ -595,8 +538,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 			return
 		}
 	case handtrace.EvtToolInvocationCompleted:
-		var payload handmsg.Message
-		if json.Unmarshal(event.Payload, &payload) == nil {
+		if payload, ok := typedPayload.(handtrace.ToolInvocationCompletedPayload); payloadOK && ok {
 			timelineEvent.ToolInvocation = &ToolInvocationView{
 				Phase:      "completed",
 				Name:       payload.Name,
@@ -608,16 +550,14 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 			return
 		}
 	case handtrace.EvtFinalAssistantResponse:
-		var payload map[string]string
-		if json.Unmarshal(event.Payload, &payload) == nil {
-			timelineEvent.FinalResponse = &FinalResponseView{Message: strings.TrimSpace(payload["message"])}
+		if payload, ok := typedPayload.(handtrace.FinalAssistantResponsePayload); payloadOK && ok {
+			timelineEvent.FinalResponse = &FinalResponseView{Message: firstNonEmpty(payload.Message, payload.Text)}
 			detail.Summary.FinalStatus = "completed"
 			return
 		}
 	case handtrace.EvtSessionFailed:
-		var payload map[string]string
-		if json.Unmarshal(event.Payload, &payload) == nil {
-			timelineEvent.Failure = &FailureView{Error: strings.TrimSpace(payload["error"])}
+		if payload, ok := typedPayload.(handtrace.SessionFailedPayload); payloadOK && ok {
+			timelineEvent.Failure = &FailureView{Error: firstNonEmpty(payload.Error, payload.Message)}
 			detail.Summary.FinalStatus = "failed"
 			return
 		}
@@ -626,8 +566,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 		return
 	case handtrace.EvtContextPreflight, handtrace.EvtContextCompactionTriggered,
 		handtrace.EvtContextCompactionWarning, handtrace.EvtContextPostflightUsage:
-		var payload contextEventPayload
-		if json.Unmarshal(event.Payload, &payload) == nil {
+		if payload, ok := typedPayload.(handtrace.ContextEventPayload); payloadOK && ok {
 			timelineEvent.ContextEvent = &ContextEventView{
 				Source:           payload.Source,
 				PromptTokens:     payload.PromptTokens,
@@ -643,8 +582,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 	case handtrace.EvtSummaryRequested, handtrace.EvtSummarySaved, handtrace.EvtSummaryFailed,
 		handtrace.EvtSummaryParseFailed, handtrace.EvtSummaryApplied,
 		handtrace.EvtRecallSummaryRequested, handtrace.EvtRecallSummarySaved, handtrace.EvtRecallSummaryFailed:
-		var payload summaryEventPayload
-		if json.Unmarshal(event.Payload, &payload) == nil {
+		if payload, ok := typedPayload.(handtrace.SummaryEventPayload); payloadOK && ok {
 			timelineEvent.SummaryEvent = &SummaryEventView{
 				SessionID:          payload.SessionID,
 				SourceEndOffset:    payload.SourceEndOffset,
@@ -657,8 +595,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 		}
 	case handtrace.EvtContextCompactionPending, handtrace.EvtContextCompactionRunning,
 		handtrace.EvtContextCompactionSucceeded, handtrace.EvtContextCompactionFailed:
-		var payload compactionEventPayload
-		if json.Unmarshal(event.Payload, &payload) == nil {
+		if payload, ok := typedPayload.(handtrace.CompactionEventPayload); payloadOK && ok {
 			timelineEvent.CompactionEvent = &CompactionEventView{
 				SessionID:          payload.SessionID,
 				Status:             payload.Status,
@@ -674,18 +611,21 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 			return
 		}
 	case handtrace.EvtWorkspaceRulesTruncated:
-		var payload WorkspaceRulesView
-		if json.Unmarshal(event.Payload, &payload) == nil {
-			timelineEvent.WorkspaceRules = &payload
+		if payload, ok := typedPayload.(handtrace.WorkspaceRulesTruncatedPayload); payloadOK && ok {
+			timelineEvent.WorkspaceRules = &WorkspaceRulesView{
+				OriginalLength:   payload.OriginalLength,
+				TruncatedLength:  payload.TruncatedLength,
+				MaxContentLength: payload.MaxContentLength,
+				Marker:           payload.Marker,
+			}
 			return
 		}
 	case handtrace.EvtPlanUpdated, handtrace.EvtPlanCleared, handtrace.EvtPlanHydrated:
-		var payload planEventPayload
-		if json.Unmarshal(event.Payload, &payload) == nil {
+		if payload, ok := typedPayload.(handtrace.PlanEventPayload); payloadOK && ok {
 			timelineEvent.PlanEvent = &PlanEventView{
 				SessionID:    payload.SessionID,
-				Steps:        payload.Steps,
-				Summary:      payload.Summary,
+				Steps:        planStepViewsFromPayload(payload.Steps),
+				Summary:      planSummaryViewFromPayload(payload.Summary),
 				ActiveStepID: payload.ActiveStepID,
 				Explanation:  strings.TrimSpace(payload.Explanation),
 				Source:       strings.TrimSpace(payload.Source),
@@ -695,8 +635,7 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 	case handtrace.EvtInputSafetyBlocked, handtrace.EvtOutputSafetyApplied,
 		handtrace.EvtToolOutputSafetyApplied, handtrace.EvtLoadedContentSafetyBlocked,
 		handtrace.EvtMemorySafetyBlocked:
-		var payload safetyEventPayload
-		if json.Unmarshal(event.Payload, &payload) == nil {
+		if payload, ok := typedPayload.(handtrace.SafetyEventPayload); payloadOK && ok {
 			timelineEvent.SafetyEvent = &SafetyEventView{
 				SessionID:     strings.TrimSpace(payload.SessionID),
 				Source:        strings.TrimSpace(payload.Source),
@@ -765,6 +704,33 @@ func buildSessionMessagesResponseView(payload models.Response) *ModelResponseVie
 		OutputText:        payload.OutputText,
 		RequiresToolCalls: payload.RequiresToolCalls,
 		ToolCalls:         buildToolCallViews(payload.ToolCalls),
+	}
+}
+
+func planStepViewsFromPayload(steps []handtrace.PlanStepPayload) []PlanStepView {
+	if len(steps) == 0 {
+		return nil
+	}
+
+	views := make([]PlanStepView, 0, len(steps))
+	for _, step := range steps {
+		views = append(views, PlanStepView{
+			ID:      step.ID,
+			Content: step.Content,
+			Status:  step.Status,
+		})
+	}
+
+	return views
+}
+
+func planSummaryViewFromPayload(summary handtrace.PlanSummaryPayload) PlanSummaryView {
+	return PlanSummaryView{
+		Total:      summary.Total,
+		Pending:    summary.Pending,
+		InProgress: summary.InProgress,
+		Completed:  summary.Completed,
+		Cancelled:  summary.Cancelled,
 	}
 }
 
@@ -851,4 +817,15 @@ func compactJSON(value []byte) string {
 	}
 
 	return out.String()
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+
+	return ""
 }

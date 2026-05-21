@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/wandxy/hand/internal/guardrails"
+	"github.com/wandxy/hand/internal/trace"
 )
 
 var runToolLegacyTimeoutPattern = regexp.MustCompile(`\s+\(([0-9]+(?:\.[0-9]+)?s)\)$`)
@@ -16,24 +17,9 @@ var runToolTimeoutHintPattern = regexp.MustCompile(`\s+\[(?:terminates in|timeou
 type toolDisplaySpec struct {
 	inputDetail  func(map[string]any) string
 	outputDetail func(map[string]any) string
-	inputState   func(map[string]any) *planToolDisplayState
-	outputState  func(map[string]any) *planToolDisplayState
+	inputState   func(map[string]any) *trace.PlanToolState
+	outputState  func(map[string]any) *trace.PlanToolState
 	branchDetail func(string, bool) string
-}
-
-type planToolDisplayOperation string
-
-const (
-	planToolDisplayOperationRead           planToolDisplayOperation = "read"
-	planToolDisplayOperationUpdate         planToolDisplayOperation = "update"
-	planToolDisplayOperationClearCompleted planToolDisplayOperation = "clear_completed"
-)
-
-type planToolDisplayState struct {
-	Operation      planToolDisplayOperation
-	ChangedCount   int
-	TotalCount     int
-	CompletedCount int
 }
 
 func getToolInputDisplayDetail(name string, input string) string {
@@ -50,7 +36,7 @@ func getToolInputDisplayDetail(name string, input string) string {
 	return spec.inputDetail(fields)
 }
 
-func getToolInputDisplayState(name string, input string) *planToolDisplayState {
+func getToolInputDisplayState(name string, input string) *trace.PlanToolState {
 	var fields map[string]any
 	if err := json.Unmarshal([]byte(strings.TrimSpace(input)), &fields); err != nil {
 		return nil
@@ -78,7 +64,7 @@ func getToolOutputDisplayDetail(name string, output string) string {
 	return spec.outputDetail(fields)
 }
 
-func getToolOutputDisplayState(name string, output string) *planToolDisplayState {
+func getToolOutputDisplayState(name string, output string) *trace.PlanToolState {
 	var fields map[string]any
 	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &fields); err != nil {
 		return nil
@@ -198,47 +184,47 @@ func getStaticToolBranchDetail(label string) func(string, bool) string {
 	}
 }
 
-func getPlanToolInputDisplayState(fields map[string]any) *planToolDisplayState {
+func getPlanToolInputDisplayState(fields map[string]any) *trace.PlanToolState {
 	steps, hasSteps := fields["steps"]
 	if !hasSteps || steps == nil {
-		return &planToolDisplayState{Operation: planToolDisplayOperationRead}
+		return &trace.PlanToolState{Operation: trace.PlanToolOperationRead}
 	}
 
 	stepCount := len(getMapAnySlice(fields, "steps"))
 	if clearCompleted, _ := fields["clear_completed"].(bool); clearCompleted {
-		return &planToolDisplayState{
-			Operation:    planToolDisplayOperationClearCompleted,
+		return &trace.PlanToolState{
+			Operation:    trace.PlanToolOperationClearCompleted,
 			ChangedCount: stepCount,
 		}
 	}
 
-	return &planToolDisplayState{
-		Operation:    planToolDisplayOperationUpdate,
+	return &trace.PlanToolState{
+		Operation:    trace.PlanToolOperationUpdate,
 		ChangedCount: stepCount,
 	}
 }
 
-func getPlanToolOutputDisplayState(fields map[string]any) *planToolDisplayState {
+func getPlanToolOutputDisplayState(fields map[string]any) *trace.PlanToolState {
 	summary, _ := fields["summary"].(map[string]any)
-	return &planToolDisplayState{
+	return &trace.PlanToolState{
 		TotalCount:     getMapNumber(summary, "total"),
 		CompletedCount: getMapNumber(summary, "completed"),
 	}
 }
 
-func getPlanToolBranchDetail(state *planToolDisplayState, completed bool) string {
+func getPlanToolBranchDetail(state *trace.PlanToolState, completed bool) string {
 	if state == nil {
 		return "Updated plan"
 	}
 
 	switch state.Operation {
-	case planToolDisplayOperationRead:
+	case trace.PlanToolOperationRead:
 		if completed && state.TotalCount > 0 {
 			return fmt.Sprintf("Found %s", formatTaskCount(state.TotalCount))
 		}
 
 		return "Read current plan"
-	case planToolDisplayOperationClearCompleted:
+	case trace.PlanToolOperationClearCompleted:
 		if state.ChangedCount > 0 {
 			return fmt.Sprintf("Cleared %s", formatTaskCount(state.ChangedCount))
 		}
@@ -262,7 +248,7 @@ func getPlanToolBranchDetail(state *planToolDisplayState, completed bool) string
 	}
 }
 
-func clonePlanToolDisplayState(state *planToolDisplayState) *planToolDisplayState {
+func clonePlanToolDisplayState(state *trace.PlanToolState) *trace.PlanToolState {
 	if state == nil {
 		return nil
 	}
@@ -271,7 +257,7 @@ func clonePlanToolDisplayState(state *planToolDisplayState) *planToolDisplayStat
 	return &cloned
 }
 
-func mergePlanToolDisplayState(current *planToolDisplayState, next *planToolDisplayState) *planToolDisplayState {
+func mergePlanToolDisplayState(current *trace.PlanToolState, next *trace.PlanToolState) *trace.PlanToolState {
 	if current == nil && next == nil {
 		return nil
 	}
@@ -287,8 +273,8 @@ func mergePlanToolDisplayState(current *planToolDisplayState, next *planToolDisp
 		merged.Operation = next.Operation
 	}
 	if next.Operation != "" &&
-		merged.Operation != planToolDisplayOperationRead &&
-		merged.Operation != planToolDisplayOperationClearCompleted {
+		merged.Operation != trace.PlanToolOperationRead &&
+		merged.Operation != trace.PlanToolOperationClearCompleted {
 		merged.Operation = next.Operation
 	}
 	if next.ChangedCount > 0 {

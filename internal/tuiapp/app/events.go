@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"encoding/json"
 	"strings"
 	"time"
 
@@ -32,7 +31,7 @@ type toolInvocationStartedMsg struct {
 	ID        string
 	Name      string
 	Detail    string
-	PlanState *planToolDisplayState
+	PlanState *trace.PlanToolState
 	StartedAt time.Time
 }
 
@@ -40,7 +39,7 @@ type toolInvocationCompletedMsg struct {
 	ID          string
 	Name        string
 	Detail      string
-	PlanState   *planToolDisplayState
+	PlanState   *trace.PlanToolState
 	CompletedAt time.Time
 }
 
@@ -74,18 +73,23 @@ func agentEventToTUIMessage(event agent.Event) (any, bool) {
 }
 
 func traceEventToTUIMessage(event trace.Event) (any, bool) {
+	typedPayload, payloadOK := trace.DecodePayload(event.Type, event.Payload)
+
 	switch strings.TrimSpace(event.Type) {
 	case trace.EvtUserMessageAccepted:
-		if text := getPayloadString(event.Payload, "message", "text"); text != "" {
+		payload, ok := typedPayload.(trace.UserMessageAcceptedPayload)
+		if text := firstNonEmptyTUI(payload.Message, payload.Text); payloadOK && ok && text != "" {
 			return userMessageAcceptedMsg{Text: text}, true
 		}
 	case trace.EvtFinalAssistantResponse:
-		if text := getPayloadString(event.Payload, "message", "text"); text != "" {
+		payload, ok := typedPayload.(trace.FinalAssistantResponsePayload)
+		if text := firstNonEmptyTUI(payload.Message, payload.Text); payloadOK && ok && text != "" {
 			return assistantResponseCompletedMsg{Text: text}, true
 		}
 	case trace.EvtModelReasoningCompleted:
-		if duration := getPayloadDuration(event.Payload, "duration_ms"); duration > 0 {
-			return reasoningCompletedMsg{Duration: duration}, true
+		payload, ok := typedPayload.(trace.ModelReasoningCompletedPayload)
+		if payloadOK && ok && payload.DurationMS > 0 {
+			return reasoningCompletedMsg{Duration: time.Duration(payload.DurationMS) * time.Millisecond}, true
 		}
 	case trace.EvtToolInvocationStarted:
 		msg, ok := toolCallPayloadToTUIMessage(event.Payload)
@@ -113,7 +117,8 @@ func traceEventToTUIMessage(event trace.Event) (any, bool) {
 		trace.EvtLoadedContentSafetyBlocked:
 		return safetyPayloadToTUIMessage(event.Type, event.Payload)
 	case trace.EvtSessionFailed:
-		if message := getPayloadString(event.Payload, "error", "message"); message != "" {
+		payload, ok := typedPayload.(trace.SessionFailedPayload)
+		if message := firstNonEmptyTUI(payload.Error, payload.Message); payloadOK && ok && message != "" {
 			return sessionErrorMsg{Message: message}, true
 		}
 	}
@@ -140,13 +145,15 @@ func toolCallPayloadToTUIMessage(payload any) (any, bool) {
 		}
 		return msg, true
 	default:
-		name := getPayloadString(payload, "name", "tool")
-		id := getPayloadString(payload, "id", "tool_call_id")
+		toolPayload, ok := trace.ToolInvocationStartedPayloadFrom(payload)
+		if !ok {
+			return nil, false
+		}
 		msg, ok := newToolInvocationStartedMsgWithState(
-			id,
-			name,
-			getPayloadString(payload, "detail"),
-			getPayloadPlanToolDisplayState(payload),
+			toolPayload.ID,
+			toolPayload.Name,
+			toolPayload.Detail,
+			toolPayload.PlanState,
 			time.Time{},
 		)
 		if !ok {
@@ -166,13 +173,15 @@ func toolMessagePayloadToTUIMessage(payload any) (any, bool) {
 		}
 		return msg, true
 	default:
-		name := getPayloadString(payload, "name", "tool")
-		id := getPayloadString(payload, "tool_call_id", "id")
+		toolPayload, ok := trace.ToolInvocationCompletedPayloadFrom(payload)
+		if !ok {
+			return nil, false
+		}
 		msg, ok := newToolInvocationCompletedMsgWithState(
-			id,
-			name,
-			getPayloadString(payload, "detail"),
-			getPayloadPlanToolDisplayState(payload),
+			toolPayload.ToolCallID,
+			toolPayload.Name,
+			toolPayload.Detail,
+			toolPayload.PlanState,
 			time.Time{},
 		)
 		if !ok {
@@ -184,13 +193,22 @@ func toolMessagePayloadToTUIMessage(payload any) (any, bool) {
 }
 
 func safetyPayloadToTUIMessage(kind string, payload any) (any, bool) {
+	typedPayload, ok := payload.(trace.SafetyEventPayload)
+	if !ok {
+		decoded, decodedOK := trace.DecodePayload(kind, payload)
+		typedPayload, ok = decoded.(trace.SafetyEventPayload)
+		if !decodedOK || !ok {
+			return nil, false
+		}
+	}
+
 	msg := safetyEventMsg{
 		Kind:       strings.TrimSpace(kind),
-		Action:     getPayloadString(payload, "action"),
-		Refusal:    getPayloadString(payload, "refusal"),
-		Blocked:    getPayloadBool(payload, "blocked"),
-		Redacted:   getPayloadBool(payload, "redacted"),
-		FindingIDs: getSafetyFindingIDs(payload),
+		Action:     strings.TrimSpace(typedPayload.Action),
+		Refusal:    strings.TrimSpace(typedPayload.Refusal),
+		Blocked:    typedPayload.Blocked,
+		Redacted:   typedPayload.Redacted,
+		FindingIDs: getSafetyFindingIDsFromTypedPayload(typedPayload),
 	}
 	if msg.Kind == "" {
 		return nil, false
@@ -199,160 +217,26 @@ func safetyPayloadToTUIMessage(kind string, payload any) (any, bool) {
 	return msg, true
 }
 
-func getPayloadString(payload any, keys ...string) string {
-	fields := getPayloadFields(payload)
-	for _, key := range keys {
-		if value, ok := fields[key]; ok {
-			if text, ok := value.(string); ok {
-				return strings.TrimSpace(text)
-			}
+func firstNonEmptyTUI(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
 		}
 	}
 
 	return ""
 }
 
-func getPayloadBool(payload any, key string) bool {
-	fields := getPayloadFields(payload)
-	if value, ok := fields[key]; ok {
-		result, _ := value.(bool)
-		return result
-	}
-
-	return false
-}
-
-func getPayloadPlanToolDisplayState(payload any) *planToolDisplayState {
-	fields := getPayloadFields(payload)
-	raw, ok := fields["plan_state"]
-	if !ok {
+func getSafetyFindingIDsFromTypedPayload(payload trace.SafetyEventPayload) []string {
+	if len(payload.Findings) == 0 {
 		return nil
 	}
 
-	stateFields := getPayloadFields(raw)
-	if len(stateFields) == 0 {
-		return nil
-	}
-
-	return &planToolDisplayState{
-		Operation:      planToolDisplayOperation(getPayloadString(stateFields, "operation")),
-		ChangedCount:   getPayloadInt(stateFields, "changed_count"),
-		TotalCount:     getPayloadInt(stateFields, "total_count"),
-		CompletedCount: getPayloadInt(stateFields, "completed_count"),
-	}
-}
-
-func getPayloadInt(payload any, key string) int {
-	fields := getPayloadFields(payload)
-	value, ok := fields[key]
-	if !ok {
-		return 0
-	}
-
-	switch typed := value.(type) {
-	case float64:
-		return int(typed)
-	case int:
-		return typed
-	case json.Number:
-		parsed, err := typed.Int64()
-		if err != nil {
-			return 0
-		}
-		return int(parsed)
-	default:
-		return 0
-	}
-}
-
-func getPayloadDuration(payload any, key string) time.Duration {
-	fields := getPayloadFields(payload)
-	value, ok := fields[key]
-	if !ok {
-		return 0
-	}
-
-	switch typed := value.(type) {
-	case float64:
-		return time.Duration(typed) * time.Millisecond
-	case float32:
-		return time.Duration(typed) * time.Millisecond
-	case int:
-		return time.Duration(typed) * time.Millisecond
-	case int64:
-		return time.Duration(typed) * time.Millisecond
-	case int32:
-		return time.Duration(typed) * time.Millisecond
-	case json.Number:
-		milliseconds, err := typed.Int64()
-		if err != nil {
-			return 0
-		}
-		return time.Duration(milliseconds) * time.Millisecond
-	default:
-		return 0
-	}
-}
-
-func getPayloadFields(payload any) map[string]any {
-	if payload == nil {
-		return nil
-	}
-	if fields, ok := payload.(map[string]any); ok {
-		return fields
-	}
-
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil
-	}
-
-	var fields map[string]any
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return nil
-	}
-
-	return fields
-}
-
-func getSafetyFindingIDs(payload any) []string {
-	fields := getPayloadFields(payload)
-	rawFindings, ok := fields["findings"]
-	if !ok {
-		return nil
-	}
-
-	switch findings := rawFindings.(type) {
-	case []map[string]string:
-		return getSafetyFindingIDsFromStringMaps(findings)
-	case []any:
-		return getSafetyFindingIDsFromValues(findings)
-	default:
-		return nil
-	}
-}
-
-func getSafetyFindingIDsFromStringMaps(findings []map[string]string) []string {
-	ids := make([]string, 0, len(findings))
-	for _, finding := range findings {
+	ids := make([]string, 0, len(payload.Findings))
+	for _, finding := range payload.Findings {
 		id := strings.TrimSpace(finding["id"])
 		if id != "" {
-			ids = append(ids, id)
-		}
-	}
-
-	return ids
-}
-
-func getSafetyFindingIDsFromValues(findings []any) []string {
-	ids := make([]string, 0, len(findings))
-	for _, rawFinding := range findings {
-		finding, ok := rawFinding.(map[string]any)
-		if !ok {
-			continue
-		}
-		id, _ := finding["id"].(string)
-		if id = strings.TrimSpace(id); id != "" {
 			ids = append(ids, id)
 		}
 	}

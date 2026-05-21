@@ -151,7 +151,7 @@ func timelineMessageToTranscriptCell(message handmsg.Message, toolCalls map[stri
 
 type timelineToolCallDetail struct {
 	detail    string
-	planState *planToolDisplayState
+	planState *trace.PlanToolState
 	startedAt time.Time
 }
 
