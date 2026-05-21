@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	cli "github.com/urfave/cli/v3"
 
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
+	setconfigcmd "github.com/wandxy/hand/cmd/hand/setconfig"
 	profilecmd "github.com/wandxy/hand/cmd/profile"
 	sessioncmd "github.com/wandxy/hand/cmd/session"
 	tracecmd "github.com/wandxy/hand/cmd/trace"
@@ -20,8 +20,6 @@ import (
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/profile"
-	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	"github.com/wandxy/hand/internal/runtime"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -33,11 +31,6 @@ var (
 	envFile              = ".env"
 	configFile           = "config.yaml"
 	rootOutput io.Writer = os.Stdout
-)
-
-const (
-	rootColorGray  = "\x1b[90m"
-	rootColorReset = "\x1b[0m"
 )
 
 const rootHelpTemplate = `HAND_NAME:
@@ -83,13 +76,6 @@ COPYRIGHT:
    {{template "copyrightTemplate" .}}{{end}}
 `
 
-var newChatClient = func(ctx context.Context, cfg *config.Config) (rpcclient.ChatClient, error) {
-	return rpcclient.NewClient(ctx, rpcclient.Options{
-		Address: cfg.RPC.Address,
-		Port:    cfg.RPC.Port,
-	})
-}
-
 func main() {
 	if err := configureProfileDefaults(os.Args); err != nil {
 		log.Fatal().Err(err).Msg("Failed to resolve profile")
@@ -122,82 +108,17 @@ func newCommand() *cli.Command {
 			doctorcmd.NewCommand(),
 			profilecmd.NewCommand(),
 			sessioncmd.NewCommand(),
+			setconfigcmd.NewCommand(rootOutput),
 			tracecmd.NewCommand(),
 			tuicmd.NewCommand(),
 			upcmd.NewCommand(),
 		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			message := strings.TrimSpace(strings.Join(cmd.Args().Slice(), " "))
-			if message == "" {
-				return cli.ShowAppHelp(cmd)
-			}
-
-			cfg, _, err := handcli.LoadConfig(cmd)
-			if err != nil {
-				return err
-			}
-
-			handcli.ApplyConfigOverrides(cmd, cfg)
-
-			endpoint, err := runtime.ResolveRPC(ctx, cmd, cfg)
-			if err != nil {
-				return err
-			}
-			cfg.RPC = endpoint
-
-			config.Set(cfg)
-			_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
-			logutils.SetLogLevel(cfg.Log.Level)
-
-			client, err := newChatClient(ctx, cfg)
-			if err != nil {
-				return err
-			}
-			defer client.Close()
-
-			instruct := ""
-			if cmd.IsSet("instruct") {
-				instruct = cfg.Session.Instruct
-			}
-
-			opts := rpcclient.RespondOptions{
-				Instruct:  instruct,
-				SessionID: strings.TrimSpace(cmd.String("session")),
-				Stream:    cfg.Models.Main.Stream,
-			}
-			if cfg.StreamEnabled() {
-				opts.OnEvent = func(event rpcclient.Event) {
-					_, _ = fmt.Fprint(rootOutput, formatChatEvent(cfg, event))
-				}
-			}
-
-			reply, err := client.Respond(ctx, message, opts)
-			if err != nil {
-				return err
-			}
-
-			if cfg.StreamEnabled() {
-				_, err = fmt.Fprintln(rootOutput)
-				return err
-			}
-
-			_, err = fmt.Fprintln(rootOutput, reply)
-			return err
-		},
+		Action: handcli.NewMainAction(handcli.MainActionOptions{
+			Output: rootOutput,
+		}),
 	}
 
 	return cmd
-}
-
-func formatChatEvent(cfg *config.Config, event rpcclient.Event) string {
-	if event.TraceEvent != nil {
-		return ""
-	}
-	if strings.TrimSpace(event.Channel) != "reasoning" || cfg == nil || cfg.Log.NoColor {
-		return event.Text
-	}
-
-	return rootColorGray + event.Text + rootColorReset
 }
 
 func getEnvFile(args []string) string {

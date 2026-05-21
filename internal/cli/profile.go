@@ -63,9 +63,15 @@ func LoadConfig(cmd *cli.Command) (*config.Config, ConfigInputs, error) {
 }
 
 func getCommandProfile(cmd *cli.Command) string {
-	if cmd == nil || !cmd.IsSet("profile") {
+	if cmd == nil {
 		return ""
 	}
 
-	return strings.TrimSpace(cmd.String("profile"))
+	for _, candidate := range cmd.Lineage() {
+		if candidate.IsSet("profile") {
+			return strings.TrimSpace(candidate.String("profile"))
+		}
+	}
+
+	return ""
 }

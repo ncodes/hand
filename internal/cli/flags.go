@@ -14,14 +14,7 @@ const AppDescription = constants.AppDescription
 
 func RootFlags(envFile, configFile *string) []cli.Flag {
 	flags := []cli.Flag{
-		&cli.StringFlag{
-			Name:    "profile",
-			Aliases: []string{"p"},
-			Usage:   "Profile name for profile-local config, env, and runtime metadata",
-			Sources: cli.NewValueSourceChain(
-				cli.EnvVar(profile.EnvName),
-			),
-		},
+		ProfileFlag(),
 		&cli.StringFlag{
 			Name:  "name",
 			Usage: "The name of your hand",
@@ -395,6 +388,17 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 	}
 
 	return flags
+}
+
+func ProfileFlag() cli.Flag {
+	return &cli.StringFlag{
+		Name:    "profile",
+		Aliases: []string{"p"},
+		Usage:   "Profile name for profile-local config, env, and runtime metadata",
+		Sources: cli.NewValueSourceChain(
+			cli.EnvVar(profile.EnvName),
+		),
+	}
 }
 
 func RequestInstructFlag() cli.Flag {

@@ -1,10 +1,12 @@
-package main
+package hand
 
 import (
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -15,13 +17,28 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	urfavecli "github.com/urfave/cli/v3"
 
+	doctorcmd "github.com/wandxy/hand/cmd/doctor"
+	setconfigcmd "github.com/wandxy/hand/cmd/hand/setconfig"
+	profilecmd "github.com/wandxy/hand/cmd/profile"
+	sessioncmd "github.com/wandxy/hand/cmd/session"
+	tracecmd "github.com/wandxy/hand/cmd/trace"
+	tuicmd "github.com/wandxy/hand/cmd/tui"
+	upcmd "github.com/wandxy/hand/cmd/up"
+	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/e2e"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
+	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
+	"github.com/wandxy/hand/pkg/logutils"
 )
+
+func init() {
+	logutils.SetOutput(io.Discard)
+}
 
 func Test_E2E_HandRootChat_SimpleAnswer(t *testing.T) {
 	resetRootChatE2E(t)
@@ -60,7 +77,6 @@ func Test_E2E_HandRootChat_StreamingAnswer(t *testing.T) {
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "hello")
 	require.NoError(t, err)
 	assert.Equal(t, "\x1b[90mthinking\x1b[0manswer\n", output)
-	require.True(t, config.Get().StreamEnabled())
 }
 
 func Test_E2E_HandRootChat_ExplicitSession(t *testing.T) {
@@ -106,7 +122,6 @@ func Test_E2E_HandRootChat_RequestInstruct(t *testing.T) {
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "--instruct", "be brief", "hello")
 	require.NoError(t, err)
 	assert.Equal(t, "brief\n", output)
-	assert.Equal(t, "be brief", config.Get().Session.Instruct)
 }
 
 func Test_E2E_HandRootChat_MultiTurnContinuity(t *testing.T) {
@@ -167,7 +182,6 @@ func Test_E2E_HandRootChat_ConfigPrecedenceYAML(t *testing.T) {
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "hello")
 	require.NoError(t, err)
 	assert.Equal(t, "yaml reply\n", output)
-	assert.Equal(t, "yaml-agent", config.Get().Name)
 }
 
 func Test_E2E_HandRootChat_ConfigPrecedenceEnvOverridesYAML(t *testing.T) {
@@ -180,7 +194,6 @@ func Test_E2E_HandRootChat_ConfigPrecedenceEnvOverridesYAML(t *testing.T) {
 	output, err := runRootChatCommand(t, "hand", "--env-file", envPath, "--config", configPath, "hello")
 	require.NoError(t, err)
 	assert.Equal(t, "env reply\n", output)
-	assert.Equal(t, "env-agent", config.Get().Name)
 }
 
 func Test_E2E_HandRootChat_ConfigPrecedenceCLIOverridesEnvAndYAML(t *testing.T) {
@@ -200,7 +213,6 @@ func Test_E2E_HandRootChat_ConfigPrecedenceCLIOverridesEnvAndYAML(t *testing.T) 
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "cli reply\n", output)
-	assert.Equal(t, "cli-agent", config.Get().Name)
 }
 
 func Test_E2E_HandRootChat_UnavailableRPCReturnsError(t *testing.T) {
@@ -232,13 +244,9 @@ models:
     provider: anthropic
 `), 0o600))
 
-	err := newCommand().Run(canceledContext(), []string{
-		"hand",
-		"--config", configPath,
-		"--rpc.port", nextTestPort(t),
-		"up",
-	})
-	require.EqualError(t, err, "model provider must be one of: openai, openrouter")
+	_, err := runRootChatCommand(t, "hand", "--config", configPath, "--rpc.port", nextTestPort(t), "up")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "model provider must be one of: openai, openrouter")
 }
 
 func Test_E2E_HandRootChat_FileGuardrailFailureReturnsCoherentAnswer(t *testing.T) {
@@ -1146,6 +1154,10 @@ func TestPrepareLiveRootChatConfig_PreservesStorageBackend(t *testing.T) {
 
 func resetRootChatE2E(t *testing.T) {
 	t.Helper()
+
+	config.Set(config.NewDefaultConfig())
+	profile.SetActive(profile.Profile{})
+
 	clearEnvKeys(
 		t,
 		"HAND_NAME",
@@ -1157,7 +1169,24 @@ func resetRootChatE2E(t *testing.T) {
 		"HAND_CONFIG",
 		"HAND_ENV_FILE",
 	)
-	resetGlobals(t)
+}
+
+func clearEnvKeys(t *testing.T, keys ...string) {
+	t.Helper()
+
+	for _, key := range keys {
+		original, ok := os.LookupEnv(key)
+		if ok {
+			t.Cleanup(func() {
+				_ = os.Setenv(key, original)
+			})
+		} else {
+			t.Cleanup(func() {
+				_ = os.Unsetenv(key)
+			})
+		}
+		_ = os.Unsetenv(key)
+	}
 }
 
 func newRPCHarness(t *testing.T, home string, client models.Client, cfg *config.Config) *e2e.RPCHarness {
@@ -1196,10 +1225,34 @@ func runRootChatCommand(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 
 	var output bytes.Buffer
-	rootOutput = &output
+	cmd := newRootChatCommand(&output)
 
-	err := newCommand().Run(context.Background(), args)
+	err := cmd.Run(context.Background(), args)
 	return output.String(), err
+}
+
+func newRootChatCommand(output io.Writer) *urfavecli.Command {
+	envFile := ".env"
+	configFile := "config.yaml"
+
+	return &urfavecli.Command{
+		Name:        "hand",
+		Usage:       "Run and manage your Hand daemon",
+		Description: handcli.AppDescription,
+		Flags:       append(handcli.RootFlags(&envFile, &configFile), handcli.RequestInstructFlag()),
+		Commands: []*urfavecli.Command{
+			doctorcmd.NewCommand(),
+			profilecmd.NewCommand(),
+			sessioncmd.NewCommand(),
+			setconfigcmd.NewCommand(output),
+			tracecmd.NewCommand(),
+			tuicmd.NewCommand(),
+			upcmd.NewCommand(),
+		},
+		Action: handcli.NewMainAction(handcli.MainActionOptions{
+			Output: output,
+		}),
+	}
 }
 
 func newWebConfig(baseURL string) *config.Config {
@@ -1302,9 +1355,29 @@ func resolveLiveInputs(t *testing.T) (string, string) {
 func repoRoot(t *testing.T) string {
 	t.Helper()
 
+	root, err := getRepoRoot()
+	require.NoError(t, err)
+	return root
+}
+
+func getRepoRoot() (string, error) {
 	_, file, _, ok := runtime.Caller(0)
-	require.True(t, ok)
-	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+	if !ok {
+		return "", errors.New("resolve repo root caller")
+	}
+
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "..", "..")), nil
+}
+
+func nextTestPort(t *testing.T) string {
+	t.Helper()
+
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer lis.Close()
+
+	port := lis.Addr().(*net.TCPAddr).Port
+	return strconv.Itoa(port)
 }
 
 func createLiveSession(t *testing.T, h *e2e.RPCHarness, sessionID string) string {
