@@ -87,6 +87,53 @@ func TestManager_ReadSupportsIncrementalCursors(t *testing.T) {
 	require.False(t, output.StdoutCursorExpired)
 }
 
+func TestManager_ResolvesProcessByLabel(t *testing.T) {
+	manager := &DefaultManager{}
+
+	req := testPrintRequest("hello", 32)
+	req.Label = "sleep_5min"
+	info, err := manager.Start(context.Background(), testSessionID, req)
+	require.NoError(t, err)
+	require.Equal(t, "sleep_5min", info.Label)
+	require.NotEqual(t, info.ID, info.Label)
+
+	current, err := manager.Get(testSessionID, "sleep_5min")
+	require.NoError(t, err)
+	require.Equal(t, info.ID, current.ID)
+	require.Equal(t, "sleep_5min", current.Label)
+
+	require.Eventually(t, func() bool {
+		current, getErr := manager.Get(testSessionID, "sleep_5min")
+		require.NoError(t, getErr)
+		return current.Status == StatusExited
+	}, 5*time.Second, 20*time.Millisecond)
+
+	output, err := manager.Read(testSessionID, ReadRequest{ProcessID: "sleep_5min"})
+	require.NoError(t, err)
+	require.Equal(t, "hello", output.Stdout)
+
+	stopped, err := manager.Stop(context.Background(), testSessionID, "sleep_5min")
+	require.NoError(t, err)
+	require.Equal(t, info.ID, stopped.ID)
+}
+
+func TestManager_StartRejectsDuplicateLabel(t *testing.T) {
+	manager := &DefaultManager{}
+
+	first := testSleepRequest()
+	first.Label = "server"
+	info, err := manager.Start(context.Background(), testSessionID, first)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = manager.Stop(context.Background(), testSessionID, info.ID)
+	})
+
+	second := testSleepRequest()
+	second.Label = "server"
+	_, err = manager.Start(context.Background(), testSessionID, second)
+	require.EqualError(t, err, "process label already exists")
+}
+
 func TestManager_ReadMarksExpiredCursorWhenWindowHasAdvanced(t *testing.T) {
 	manager := &DefaultManager{}
 

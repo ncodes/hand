@@ -67,6 +67,7 @@ func (s *DefaultManager) Start(ctx context.Context, sessionID string, req StartR
 		return Info{}, errors.New("command is required")
 	}
 	sessionID = normalizeProcessSessionID(sessionID)
+	label := strings.TrimSpace(req.Label)
 
 	cmd := buildCommand(context.Background(), command, req.Args)
 	configureCommand(cmd)
@@ -110,6 +111,12 @@ func (s *DefaultManager) Start(ctx context.Context, sessionID string, req StartR
 		s.stale[sessionID] = make(map[string]struct{})
 	}
 	s.cleanupLocked(sessionID)
+	if label != "" && s.hasProcessLabelLocked(sessionID, label) {
+		s.mu.Unlock()
+		_ = cmd.Process.Kill()
+		_, _ = cmd.Process.Wait()
+		return Info{}, errors.New("process label already exists")
+	}
 	if limit := s.maxTracked(); limit > 0 && len(s.processes[sessionID]) >= limit {
 		s.mu.Unlock()
 		_ = cmd.Process.Kill()
@@ -125,6 +132,7 @@ func (s *DefaultManager) Start(ctx context.Context, sessionID string, req StartR
 		done:   make(chan struct{}),
 		info: Info{
 			ID:        processID,
+			Label:     label,
 			Command:   command,
 			Args:      append([]string(nil), req.Args...),
 			CWD:       strings.TrimSpace(req.CWD),
@@ -287,6 +295,9 @@ func (s *DefaultManager) lookup(sessionID string, processID string) (*trackedPro
 	s.mu.Lock()
 	process := s.processes[sessionID][processID]
 	_, stale := s.stale[sessionID][processID]
+	if process == nil {
+		process = s.lookupByLabelLocked(sessionID, processID)
+	}
 	if stale && process == nil {
 		delete(s.stale[sessionID], processID)
 	}
@@ -300,6 +311,31 @@ func (s *DefaultManager) lookup(sessionID string, processID string) (*trackedPro
 	}
 
 	return process, nil
+}
+
+func (s *DefaultManager) hasProcessLabelLocked(sessionID string, label string) bool {
+	return s.lookupByLabelLocked(sessionID, label) != nil
+}
+
+func (s *DefaultManager) lookupByLabelLocked(sessionID string, label string) *trackedProcess {
+	label = strings.TrimSpace(label)
+	if label == "" {
+		return nil
+	}
+
+	for _, process := range s.processes[sessionID] {
+		if process == nil {
+			continue
+		}
+		process.mu.Lock()
+		matches := process.info.Label == label
+		process.mu.Unlock()
+		if matches {
+			return process
+		}
+	}
+
+	return nil
 }
 
 func (s *DefaultManager) nextProcessIDLocked(sessionID string) string {

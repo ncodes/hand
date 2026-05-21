@@ -133,12 +133,21 @@ func TestProcess_ToolStartDelegatesToRuntime(t *testing.T) {
 			require.Equal(t, []string{"hello"}, req.Args)
 			require.Equal(t, "workspace", req.CWD)
 			require.Equal(t, map[string]string{"KEY": "value"}, req.Env)
+			require.Equal(t, "printer", req.Label)
 			require.Equal(t, 32, req.OutputBufferBytes)
-			return processenv.Info{ID: "proc_1", Command: req.Command, Args: req.Args, CWD: req.CWD, Status: processenv.StatusRunning, StartedAt: startedAt}, nil
+			return processenv.Info{
+				ID:        "proc_1",
+				Label:     req.Label,
+				Command:   req.Command,
+				Args:      req.Args,
+				CWD:       req.CWD,
+				Status:    processenv.StatusRunning,
+				StartedAt: startedAt,
+			}, nil
 		},
 	}).Handler.Invoke(tools.WithSessionID(context.Background(), "session-1"), tools.Call{
 		Name:  "process",
-		Input: `{"action":"start","command":" printf ","args":["hello"],"cwd":" workspace ","env":{"KEY":"value"},"output_buffer_bytes":32}`,
+		Input: `{"action":"start","command":" printf ","args":["hello"],"cwd":" workspace ","env":{"KEY":"value"},"label":" printer ","output_buffer_bytes":32}`,
 	})
 
 	require.NoError(t, err)
@@ -147,7 +156,29 @@ func TestProcess_ToolStartDelegatesToRuntime(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
 	require.Equal(t, "proc_1", payload.Process.ID)
+	require.Equal(t, "printer", payload.Process.Label)
 	require.Equal(t, processenv.StatusRunning, payload.Process.Status)
+}
+
+func TestProcess_ToolStatusAcceptsLabel(t *testing.T) {
+	result, err := Definition(&toolmocks.Runtime{
+		GetProcessFunc: func(sessionID string, processID string) (processenv.Info, error) {
+			require.Equal(t, "default", sessionID)
+			require.Equal(t, "sleep_5min", processID)
+			return processenv.Info{ID: "proc_1", Label: "sleep_5min", Status: processenv.StatusRunning}, nil
+		},
+	}).Handler.Invoke(context.Background(), tools.Call{
+		Name:  "process",
+		Input: `{"action":"status","process_id":"sleep_5min"}`,
+	})
+
+	require.NoError(t, err)
+	var payload struct {
+		Process processenv.Info `json:"process"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Equal(t, "proc_1", payload.Process.ID)
+	require.Equal(t, "sleep_5min", payload.Process.Label)
 }
 
 func TestProcess_ToolUsesChildSessionIDForChildState(t *testing.T) {

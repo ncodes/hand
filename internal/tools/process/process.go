@@ -22,6 +22,7 @@ type input struct {
 	Args         []string          `json:"args"`
 	Cwd          string            `json:"cwd"`
 	Env          map[string]string `json:"env"`
+	Label        string            `json:"label"`
 	OutputBytes  *int              `json:"output_buffer_bytes"`
 	ProcessID    string            `json:"process_id"`
 	StdoutCursor *int              `json:"stdout_cursor"`
@@ -56,10 +57,13 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 					"type": "string",
 				},
 			},
+			"label": common.StringSchema(
+				"Optional human-friendly label for action=start. The tool still returns a canonical process id; status, read, and stop can use either the returned id or this label.",
+			),
 			"output_buffer_bytes": common.IntegerSchema(
 				"Optional maximum bytes to retain per stdout/stderr buffer for action=start.",
 			),
-			"process_id": common.StringSchema("Tracked process identifier. Required for status, read, and stop."),
+			"process_id": common.StringSchema("Tracked process identifier or label. Required for status, read, and stop."),
 			"stdout_cursor": common.IntegerSchema(
 				"Optional stdout cursor from a previous read for incremental reads on action=read.",
 			),
@@ -131,6 +135,7 @@ func handleStart(
 		Bool("cwd_provided", strings.TrimSpace(req.Cwd) != "").
 		Int("args_count", len(req.Args)).
 		Int("env_overrides", len(req.Env)).
+		Bool("label_provided", strings.TrimSpace(req.Label) != "").
 		Bool("output_buffer_limit", req.OutputBytes != nil).
 		Msg("process tool start requested")
 
@@ -149,6 +154,7 @@ func handleStart(
 		Args:              append([]string(nil), req.Args...),
 		CWD:               strings.TrimSpace(req.Cwd),
 		Env:               cloneEnv(req.Env),
+		Label:             strings.TrimSpace(req.Label),
 		OutputBufferBytes: outputBufferBytes,
 	})
 	if err != nil {

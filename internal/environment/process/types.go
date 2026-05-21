@@ -25,6 +25,7 @@ type StartRequest struct {
 	Args              []string
 	CWD               string
 	Env               map[string]string
+	Label             string
 	OutputBufferBytes int
 }
 
@@ -36,6 +37,7 @@ type ReadRequest struct {
 
 type Info struct {
 	ID              string     `json:"id"`
+	Label           string     `json:"label,omitempty"`
 	Command         string     `json:"command"`
 	Args            []string   `json:"args,omitempty"`
 	CWD             string     `json:"cwd,omitempty"`
