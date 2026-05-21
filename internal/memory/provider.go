@@ -240,6 +240,7 @@ func (p *MemoryProvider) LoadPinned(ctx context.Context, query SearchQuery) ([]M
 func (p *MemoryProvider) loadStorePinned(ctx context.Context, query SearchQuery) ([]MemoryItem, error) {
 	storeQuery := query
 	storeQuery.Text = ""
+	storeQuery.RerankerUseCase = statecore.MemoryRerankerUseCasePinned
 	storeQuery.Kinds = []Kind{KindPinned}
 	storeQuery.Statuses = []Status{StatusActive}
 

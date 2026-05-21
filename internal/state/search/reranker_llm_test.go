@@ -152,6 +152,25 @@ func TestLLMReranker_ReturnsEmptyResultForEmptyCandidates(t *testing.T) {
 	require.Empty(t, client.requests)
 }
 
+func TestLLMReranker_RespectsExplicitZeroCandidateBound(t *testing.T) {
+	client := &llmRerankerModelStub{}
+	reranker := NewLLMReranker(LLMRerankerOptions{
+		Client:           client,
+		Model:            "openai/gpt-4.1-mini",
+		MaxCandidates:    0,
+		MaxCandidatesSet: true,
+		Enabled:          true,
+	})
+
+	result, err := reranker.Rerank(context.Background(), RerankRequest{
+		Candidates: []Candidate{testSessionCandidate("candidate-a", 0, 0, 1, time.Time{})},
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Items)
+	require.Empty(t, client.requests)
+}
+
 func TestLLMReranker_TruncatesCandidateTextAndBoundsModelInput(t *testing.T) {
 	client := &llmRerankerModelStub{
 		responses: []*models.Response{llmRerankModelResponse("candidate-a")},
@@ -182,6 +201,28 @@ func TestLLMReranker_TruncatesCandidateTextAndBoundsModelInput(t *testing.T) {
 	require.Len(t, payload.Candidates, 1)
 	require.Equal(t, "abcd", payload.Candidates[0].Text)
 	require.Empty(t, truncateString("abcdef", 0))
+
+	client = &llmRerankerModelStub{
+		responses: []*models.Response{llmRerankModelResponse("candidate-a")},
+	}
+	reranker = NewLLMReranker(LLMRerankerOptions{
+		Client:                   client,
+		Model:                    "openai/gpt-4.1-mini",
+		MaxCandidates:            1,
+		MaxCandidateTextChars:    0,
+		MaxCandidateTextCharsSet: true,
+		Enabled:                  true,
+	})
+
+	result, err = reranker.Rerank(context.Background(), RerankRequest{
+		Candidates: []Candidate{candidate},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"candidate-a"}, rerankIDs(result))
+	require.Len(t, client.requests, 1)
+	require.NoError(t, json.Unmarshal([]byte(client.requests[0].Messages[0].Content), &payload))
+	require.Empty(t, payload.Candidates[0].Text)
 }
 
 func TestLLMReranker_UsesSmallerRequestCandidateBound(t *testing.T) {

@@ -303,6 +303,7 @@ func (p *MemoryProvider) RunPromotionBackground(
 
 	unevaluated := false
 	result, err := p.manager.SearchMemory(ctx, SearchQuery{
+		RerankerUseCase:    RerankerUseCasePromotion,
 		Statuses:           []Status{StatusCandidate},
 		PromotionEvaluated: &unevaluated,
 		Limit:              opts.Limit,
@@ -370,9 +371,10 @@ func (p *MemoryProvider) loadMemoryByID(
 	statuses []Status,
 ) (MemoryItem, error) {
 	result, err := p.manager.SearchMemory(ctx, SearchQuery{
-		IDs:      []string{strings.TrimSpace(id)},
-		Statuses: statuses,
-		Limit:    1,
+		RerankerUseCase: RerankerUseCasePromotion,
+		IDs:             []string{strings.TrimSpace(id)},
+		Statuses:        statuses,
+		Limit:           1,
 	})
 	if err != nil {
 		return MemoryItem{}, err
@@ -397,9 +399,10 @@ func (p *MemoryProvider) relatedPromotionMemories(
 	}
 
 	result, err := p.manager.SearchMemory(ctx, SearchQuery{
-		Text:     text,
-		Statuses: []Status{StatusActive},
-		Limit:    5,
+		Text:            text,
+		RerankerUseCase: RerankerUseCasePromotion,
+		Statuses:        []Status{StatusActive},
+		Limit:           5,
 	})
 	if err != nil {
 		return nil, err

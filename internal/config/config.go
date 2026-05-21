@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -179,12 +180,31 @@ type WriteMemoryConfig struct {
 }
 
 type RerankerConfig struct {
-	Enabled               *bool  `yaml:"enabled"`
-	Type                  string `yaml:"type"`
-	Model                 string `yaml:"model"`
-	MaxCandidates         int    `yaml:"maxCandidates"`
-	MaxCandidateTextChars int    `yaml:"maxCandidateTextChars"`
-	MaxOutputTokens       int    `yaml:"maxOutputTokens"`
+	Enabled               *bool                             `yaml:"enabled"`
+	Type                  string                            `yaml:"type"`
+	Model                 string                            `yaml:"model"`
+	MaxCandidates         int                               `yaml:"maxCandidates"`
+	MaxCandidateTextChars int                               `yaml:"maxCandidateTextChars"`
+	MaxOutputTokens       int                               `yaml:"maxOutputTokens"`
+	Overrides             map[string]RerankerOverrideConfig `yaml:"overrides"`
+}
+
+type RerankerOverrideConfig struct {
+	Type                  string `yaml:"type,omitempty"`
+	Model                 string `yaml:"model,omitempty"`
+	MaxCandidates         *int   `yaml:"maxCandidates,omitempty"`
+	MaxCandidateTextChars *int   `yaml:"maxCandidateTextChars,omitempty"`
+	MaxOutputTokens       *int   `yaml:"maxOutputTokens,omitempty"`
+}
+
+type RerankerEffectiveConfig struct {
+	Type                     string
+	Model                    string
+	MaxCandidates            int
+	MaxCandidatesSet         bool
+	MaxCandidateTextChars    int
+	MaxCandidateTextCharsSet bool
+	MaxOutputTokens          int
 }
 
 type CompactionConfig struct {
@@ -454,8 +474,14 @@ var DefaultConfig = Config{
 	Reranker: RerankerConfig{
 		Enabled:               new(constants.DefaultProfileRerankerEnabled),
 		Type:                  constants.RerankerDeterministic,
-		MaxCandidates:         constants.DefaultHybridRetrievalCandidateLimit,
-		MaxCandidateTextChars: constants.DefaultLLMRerankerMaxCandidateTextLen,
+		MaxCandidates:         constants.DefaultProfileRerankerMaxCandidates,
+		MaxCandidateTextChars: constants.DefaultProfileRerankerMaxCandidateTextChars,
+		MaxOutputTokens:       constants.DefaultProfileRerankerMaxOutputTokens,
+		Overrides: map[string]RerankerOverrideConfig{
+			"memory_episodic_extraction": {Type: constants.RerankerLLM},
+			"memory_promotion":           {Type: constants.RerankerLLM},
+			"memory_reflection":          {Type: constants.RerankerLLM},
+		},
 	},
 	Compaction: CompactionConfig{
 		Enabled:        new(constants.DefaultProfileCompactionEnabled),
@@ -619,6 +645,7 @@ func cloneConfig(cfg Config) Config {
 	cfg.Memory.Promotion.Enabled = cloneBoolPtr(cfg.Memory.Promotion.Enabled)
 	cfg.Memory.Write.Enabled = cloneBoolPtr(cfg.Memory.Write.Enabled)
 	cfg.Reranker.Enabled = cloneBoolPtr(cfg.Reranker.Enabled)
+	cfg.Reranker.Overrides = cloneRerankerOverrides(cfg.Reranker.Overrides)
 	cfg.Compaction.Enabled = cloneBoolPtr(cfg.Compaction.Enabled)
 	cfg.Cap.Filesystem = cloneBoolPtr(cfg.Cap.Filesystem)
 	cfg.Cap.Network = cloneBoolPtr(cfg.Cap.Network)
@@ -645,6 +672,23 @@ func cloneConfig(cfg Config) Config {
 	cfg.Personalities = clonePersonalityConfigs(cfg.Personalities)
 
 	return cfg
+}
+
+func cloneRerankerOverrides(overrides map[string]RerankerOverrideConfig) map[string]RerankerOverrideConfig {
+	if len(overrides) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string]RerankerOverrideConfig, len(overrides))
+	maps.Copy(cloned, overrides)
+	for useCase, override := range cloned {
+		override.MaxCandidates = cloneIntPtr(override.MaxCandidates)
+		override.MaxCandidateTextChars = cloneIntPtr(override.MaxCandidateTextChars)
+		override.MaxOutputTokens = cloneIntPtr(override.MaxOutputTokens)
+		cloned[useCase] = override
+	}
+
+	return cloned
 }
 
 func clonePersonalityConfigs(values map[string]PersonalityConfig) map[string]PersonalityConfig {
@@ -1173,6 +1217,12 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.Reranker.MaxOutputTokens = maxTokens
 		}
 	}
+	if value := strings.TrimSpace(os.Getenv("HAND_RERANKER_OVERRIDES")); value != "" {
+		var overrides map[string]RerankerOverrideConfig
+		if err := json.Unmarshal([]byte(value), &overrides); err == nil {
+			cfg.Reranker.Overrides = overrides
+		}
+	}
 
 	if value, ok := parseOptionalBoolEnv("HAND_COMPACTION_ENABLED"); ok {
 		cfg.Compaction.Enabled = new(value)
@@ -1232,6 +1282,7 @@ func (c *Config) normalizeFields() {
 	c.Memory.Backend = strings.TrimSpace(strings.ToLower(c.Memory.Backend))
 	c.Reranker.Type = strings.TrimSpace(strings.ToLower(c.Reranker.Type))
 	c.Reranker.Model = strings.TrimSpace(c.Reranker.Model)
+	c.Reranker.Overrides = normalizeRerankerOverrides(c.Reranker.Overrides)
 	c.normalizePersonalities()
 
 	if c.Models.Main.Name == "" {
@@ -1399,6 +1450,29 @@ func (c *Config) normalizeFields() {
 		c.Memory.Write.Enabled = new(constants.DefaultProfileMemoryWriteEnabled)
 	}
 
+}
+
+func normalizeRerankerOverrides(overrides map[string]RerankerOverrideConfig) map[string]RerankerOverrideConfig {
+	if len(overrides) == 0 {
+		return nil
+	}
+
+	normalized := make(map[string]RerankerOverrideConfig, len(overrides))
+	for key, override := range overrides {
+		key = strings.TrimSpace(strings.ToLower(key))
+		if key == "" {
+			continue
+		}
+
+		override.Type = strings.TrimSpace(strings.ToLower(override.Type))
+		override.Model = strings.TrimSpace(override.Model)
+		normalized[key] = override
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+
+	return normalized
 }
 
 func (c *Config) normalizePersonalities() {
@@ -1646,6 +1720,53 @@ func (c *Config) RerankerModelEffective() string {
 	}
 
 	return c.SummaryModelEffective()
+}
+
+func (c *Config) RerankerOverrideEffective(override RerankerOverrideConfig) RerankerEffectiveConfig {
+	if c == nil {
+		return RerankerEffectiveConfig{}
+	}
+
+	c.normalizeFields()
+
+	rerankerType := strings.TrimSpace(strings.ToLower(override.Type))
+	if rerankerType == "" {
+		rerankerType = c.RerankerEffective()
+	}
+
+	model := strings.TrimSpace(override.Model)
+	if model == "" {
+		model = c.RerankerModelEffective()
+	}
+
+	maxCandidates := c.Reranker.MaxCandidates
+	maxCandidatesSet := maxCandidates != 0
+	if override.MaxCandidates != nil {
+		maxCandidates = *override.MaxCandidates
+		maxCandidatesSet = true
+	}
+
+	maxCandidateTextChars := c.Reranker.MaxCandidateTextChars
+	maxCandidateTextCharsSet := maxCandidateTextChars != 0
+	if override.MaxCandidateTextChars != nil {
+		maxCandidateTextChars = *override.MaxCandidateTextChars
+		maxCandidateTextCharsSet = true
+	}
+
+	maxOutputTokens := c.Reranker.MaxOutputTokens
+	if override.MaxOutputTokens != nil {
+		maxOutputTokens = *override.MaxOutputTokens
+	}
+
+	return RerankerEffectiveConfig{
+		Type:                     rerankerType,
+		Model:                    model,
+		MaxCandidates:            maxCandidates,
+		MaxCandidatesSet:         maxCandidatesSet,
+		MaxCandidateTextChars:    maxCandidateTextChars,
+		MaxCandidateTextCharsSet: maxCandidateTextCharsSet,
+		MaxOutputTokens:          maxOutputTokens,
+	}
 }
 
 func (c *Config) summaryModelBaseURLEffective() string {
@@ -2056,10 +2177,8 @@ func (c *Config) validateSearchVectorSettings() error {
 }
 
 func (c *Config) validateRerankerSettings() error {
-	switch c.RerankerEffective() {
-	case constants.RerankerDeterministic, constants.RerankerNoop, constants.RerankerLLM:
-	default:
-		return errors.New("reranker type must be one of: deterministic, noop, llm")
+	if err := validateRerankerType(c.RerankerEffective()); err != nil {
+		return err
 	}
 	if c.Reranker.MaxCandidates < 0 {
 		return errors.New("reranker max candidates must be non-negative")
@@ -2070,13 +2189,45 @@ func (c *Config) validateRerankerSettings() error {
 	if c.Reranker.MaxOutputTokens < 0 {
 		return errors.New("reranker max output tokens must be non-negative")
 	}
-	if c.RerankerEffective() == constants.RerankerLLM {
-		if c.RerankerModelEffective() == "" {
-			return errors.New("reranker model is required")
+	for useCase, override := range c.Reranker.Overrides {
+		if err := c.validateRerankerOverride(useCase, override); err != nil {
+			return err
 		}
 	}
 
 	return nil
+}
+
+func (c *Config) validateRerankerOverride(useCase string, override RerankerOverrideConfig) error {
+	useCase = strings.TrimSpace(useCase)
+	if useCase == "" {
+		return errors.New("reranker override use case is required")
+	}
+	if strings.TrimSpace(override.Type) != "" {
+		if err := validateRerankerType(override.Type); err != nil {
+			return fmt.Errorf("reranker override %q: %w", useCase, err)
+		}
+	}
+	if override.MaxCandidates != nil && *override.MaxCandidates < 0 {
+		return fmt.Errorf("reranker override %q max candidates must be non-negative", useCase)
+	}
+	if override.MaxCandidateTextChars != nil && *override.MaxCandidateTextChars < 0 {
+		return fmt.Errorf("reranker override %q max candidate text chars must be non-negative", useCase)
+	}
+	if override.MaxOutputTokens != nil && *override.MaxOutputTokens < 0 {
+		return fmt.Errorf("reranker override %q max output tokens must be non-negative", useCase)
+	}
+
+	return nil
+}
+
+func validateRerankerType(rerankerType string) error {
+	switch strings.TrimSpace(strings.ToLower(rerankerType)) {
+	case constants.RerankerDeterministic, constants.RerankerNoop, constants.RerankerLLM:
+		return nil
+	default:
+		return errors.New("reranker type must be one of: deterministic, noop, llm")
+	}
 }
 
 func (c *Config) validateEmbeddingModelExists(ctx context.Context, auth ModelAuth) error {

@@ -179,12 +179,21 @@ func TestNewDefaultConfig_ReturnsIndependentConfig(t *testing.T) {
 	require.NotEmpty(t, first.FS.Roots)
 	require.Equal(t, constants.RerankerDeterministic, first.Reranker.Type)
 	require.Equal(t, constants.RerankerDeterministic, first.RerankerEffective())
+	require.Equal(t, constants.DefaultProfileRerankerMaxCandidates, first.Reranker.MaxCandidates)
+	require.Equal(t, constants.DefaultProfileRerankerMaxCandidateTextChars, first.Reranker.MaxCandidateTextChars)
+	require.Equal(t, constants.DefaultProfileRerankerMaxOutputTokens, first.Reranker.MaxOutputTokens)
+	require.Equal(t, map[string]RerankerOverrideConfig{
+		"memory_episodic_extraction": {Type: constants.RerankerLLM},
+		"memory_promotion":           {Type: constants.RerankerLLM},
+		"memory_reflection":          {Type: constants.RerankerLLM},
+	}, first.Reranker.Overrides)
 
 	*first.Models.Verify = false
 	*first.Safety.Input = false
 	*first.Safety.Output = false
 	*first.Safety.PII = true
 	first.FS.Roots[0] = "mutated"
+	first.Reranker.Overrides["memory_reflection"] = RerankerOverrideConfig{Type: constants.RerankerNoop}
 
 	require.True(t, *second.Models.Verify)
 	require.True(t, *second.Safety.Input)
@@ -196,6 +205,8 @@ func TestNewDefaultConfig_ReturnsIndependentConfig(t *testing.T) {
 	require.True(t, *DefaultConfig.Safety.Input)
 	require.True(t, *DefaultConfig.Safety.Output)
 	require.False(t, *DefaultConfig.Safety.PII)
+	require.Equal(t, constants.RerankerLLM, second.Reranker.Overrides["memory_reflection"].Type)
+	require.Equal(t, constants.RerankerLLM, DefaultConfig.Reranker.Overrides["memory_reflection"].Type)
 }
 
 func TestConfig_ToYAMLAndSaveYAML(t *testing.T) {
@@ -215,6 +226,11 @@ func TestConfig_ToYAMLAndSaveYAML(t *testing.T) {
 	require.True(t, getBoolValue(loaded.Safety.Input))
 	require.True(t, getBoolValue(loaded.Safety.Output))
 	require.False(t, getBoolValue(loaded.Safety.PII))
+	require.Equal(t, map[string]RerankerOverrideConfig{
+		"memory_episodic_extraction": {Type: constants.RerankerLLM},
+		"memory_promotion":           {Type: constants.RerankerLLM},
+		"memory_reflection":          {Type: constants.RerankerLLM},
+	}, loaded.Reranker.Overrides)
 }
 
 func TestLoad_PersonalitiesParseNormalizeAndResolveSoulPaths(t *testing.T) {
@@ -2111,7 +2127,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 		"HAND_MODEL_EMBEDDING_MODEL", "HAND_SEARCH_VECTOR_REQUIRED",
 		"HAND_SEARCH_VECTOR_REBUILD_BATCH_SIZE", "HAND_SEARCH_ENABLE_RERANK", "HAND_RERANKER_ENABLED",
 		"HAND_RERANKER_TYPE", "HAND_RERANKER_MODEL", "HAND_RERANKER_MAX_CANDIDATES",
-		"HAND_RERANKER_MAX_CANDIDATE_TEXT_CHARS", "HAND_RERANKER_MAX_OUTPUT_TOKENS",
+		"HAND_RERANKER_MAX_CANDIDATE_TEXT_CHARS", "HAND_RERANKER_MAX_OUTPUT_TOKENS", "HAND_RERANKER_OVERRIDES",
 		"HAND_COMPACTION_ENABLED", "HAND_COMPACTION_TRIGGER_PERCENT", "HAND_COMPACTION_WARN_PERCENT",
 		"HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER", "HAND_MEMORY_BACKEND",
 		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS",
@@ -2147,6 +2163,7 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	t.Setenv("HAND_RERANKER_MAX_CANDIDATES", "12")
 	t.Setenv("HAND_RERANKER_MAX_CANDIDATE_TEXT_CHARS", "700")
 	t.Setenv("HAND_RERANKER_MAX_OUTPUT_TOKENS", "256")
+	t.Setenv("HAND_RERANKER_OVERRIDES", `{"memory_reflection":{"type":"llm","model":"openai/gpt-4o-mini","maxCandidates":7,"maxCandidateTextChars":500,"maxOutputTokens":96}}`)
 	t.Setenv("HAND_COMPACTION_ENABLED", "false")
 	t.Setenv("HAND_COMPACTION_TRIGGER_PERCENT", "0.5")
 	t.Setenv("HAND_COMPACTION_WARN_PERCENT", "0.8")
@@ -2196,6 +2213,13 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.Equal(t, 12, cfg.Reranker.MaxCandidates)
 	require.Equal(t, 700, cfg.Reranker.MaxCandidateTextChars)
 	require.Equal(t, 256, cfg.Reranker.MaxOutputTokens)
+	require.Equal(t, RerankerOverrideConfig{
+		Type:                  constants.RerankerLLM,
+		Model:                 "openai/gpt-4o-mini",
+		MaxCandidates:         testIntPtr(7),
+		MaxCandidateTextChars: testIntPtr(500),
+		MaxOutputTokens:       testIntPtr(96),
+	}, cfg.Reranker.Overrides["memory_reflection"])
 	require.False(t, getBoolValue(cfg.Compaction.Enabled))
 	require.Equal(t, 0.5, cfg.Compaction.TriggerPercent)
 	require.Equal(t, 0.8, cfg.Compaction.WarnPercent)
@@ -3094,6 +3118,13 @@ reranker:
   maxCandidates: 11
   maxCandidateTextChars: 600
   maxOutputTokens: 128
+  overrides:
+    memory_reflection:
+      type: llm
+      model: openai/gpt-4o-mini
+      maxCandidates: 7
+      maxCandidateTextChars: 500
+      maxOutputTokens: 96
 `), 0o600))
 
 	cfg, err := Load("", configPath)
@@ -3114,6 +3145,13 @@ reranker:
 	require.Equal(t, 11, cfg.Reranker.MaxCandidates)
 	require.Equal(t, 600, cfg.Reranker.MaxCandidateTextChars)
 	require.Equal(t, 128, cfg.Reranker.MaxOutputTokens)
+	require.Equal(t, RerankerOverrideConfig{
+		Type:                  constants.RerankerLLM,
+		Model:                 "openai/gpt-4o-mini",
+		MaxCandidates:         testIntPtr(7),
+		MaxCandidateTextChars: testIntPtr(500),
+		MaxOutputTokens:       testIntPtr(96),
+	}, cfg.Reranker.Overrides["memory_reflection"])
 }
 
 func TestConfig_NormalizeDefaultsSessionSettings(t *testing.T) {
@@ -3131,6 +3169,148 @@ func TestConfig_NormalizeDefaultsSessionSettings(t *testing.T) {
 	require.Nil(t, cfg.Reranker.Enabled)
 	require.Empty(t, cfg.Reranker.Type)
 	require.Equal(t, constants.RerankerDeterministic, cfg.RerankerEffective())
+}
+
+func TestConfig_RerankerEffectiveDefaults(t *testing.T) {
+	require.Equal(t, constants.RerankerDeterministic, (*Config)(nil).RerankerEffective())
+	require.Equal(t, "", (*Config)(nil).RerankerModelEffective())
+	require.Empty(t, (*Config)(nil).RerankerOverrideEffective(RerankerOverrideConfig{}))
+
+	cfg := &Config{
+		Models: ModelsConfig{
+			Main: MainModelConfig{Name: "openai/main"},
+		},
+		Reranker: RerankerConfig{Model: "openai/reranker"},
+	}
+
+	require.Equal(t, "openai/reranker", cfg.RerankerModelEffective())
+
+	cfg.Reranker.Model = ""
+	cfg.Models.Summary.Name = "openai/summary"
+	require.Equal(t, "openai/summary", cfg.RerankerModelEffective())
+}
+
+func TestConfig_RerankerOverrideEffectiveInheritsGlobalValues(t *testing.T) {
+	cfg := &Config{
+		Models: ModelsConfig{
+			Main:    MainModelConfig{Name: "main-model"},
+			Summary: SummaryModelConfig{Name: "summary-model"},
+		},
+		Reranker: RerankerConfig{
+			Type:                  constants.RerankerLLM,
+			Model:                 "global-reranker",
+			MaxCandidates:         20,
+			MaxCandidateTextChars: 1200,
+			MaxOutputTokens:       64,
+		},
+	}
+
+	effective := cfg.RerankerOverrideEffective(RerankerOverrideConfig{})
+
+	require.Equal(t, constants.RerankerLLM, effective.Type)
+	require.Equal(t, "global-reranker", effective.Model)
+	require.Equal(t, 20, effective.MaxCandidates)
+	require.True(t, effective.MaxCandidatesSet)
+	require.Equal(t, 1200, effective.MaxCandidateTextChars)
+	require.True(t, effective.MaxCandidateTextCharsSet)
+	require.Equal(t, 64, effective.MaxOutputTokens)
+
+	effective = cfg.RerankerOverrideEffective(RerankerOverrideConfig{
+		Type:                  constants.RerankerNoop,
+		Model:                 "override-reranker",
+		MaxCandidates:         testIntPtr(0),
+		MaxCandidateTextChars: testIntPtr(0),
+		MaxOutputTokens:       testIntPtr(0),
+	})
+
+	require.Equal(t, constants.RerankerNoop, effective.Type)
+	require.Equal(t, "override-reranker", effective.Model)
+	require.Zero(t, effective.MaxCandidates)
+	require.True(t, effective.MaxCandidatesSet)
+	require.Zero(t, effective.MaxCandidateTextChars)
+	require.True(t, effective.MaxCandidateTextCharsSet)
+	require.Zero(t, effective.MaxOutputTokens)
+
+	cfg.Reranker.MaxCandidates = 0
+	cfg.Reranker.MaxCandidateTextChars = 0
+	effective = cfg.RerankerOverrideEffective(RerankerOverrideConfig{})
+
+	require.Zero(t, effective.MaxCandidates)
+	require.False(t, effective.MaxCandidatesSet)
+	require.Zero(t, effective.MaxCandidateTextChars)
+	require.False(t, effective.MaxCandidateTextCharsSet)
+}
+
+func TestNormalizeRerankerOverrides_CleansKeysAndValues(t *testing.T) {
+	require.Nil(t, cloneRerankerOverrides(nil))
+	require.Nil(t, normalizeRerankerOverrides(map[string]RerankerOverrideConfig{
+		" ": {Type: constants.RerankerLLM},
+	}))
+
+	overrides := map[string]RerankerOverrideConfig{
+		" Memory_Reflection ": {
+			Type:          " LLM ",
+			Model:         " openai/gpt-4o-mini ",
+			MaxCandidates: testIntPtr(7),
+		},
+	}
+	normalized := normalizeRerankerOverrides(overrides)
+
+	require.Equal(t, RerankerOverrideConfig{
+		Type:          constants.RerankerLLM,
+		Model:         "openai/gpt-4o-mini",
+		MaxCandidates: testIntPtr(7),
+	}, normalized["memory_reflection"])
+	require.NotSame(t, &overrides, &normalized)
+
+	cloned := cloneRerankerOverrides(normalized)
+	*cloned["memory_reflection"].MaxCandidates = 9
+	require.Equal(t, 7, *normalized["memory_reflection"].MaxCandidates)
+	cloned["memory_reflection"] = RerankerOverrideConfig{Type: constants.RerankerNoop}
+	require.Equal(t, constants.RerankerLLM, normalized["memory_reflection"].Type)
+}
+
+func TestValidateRerankerOverride_RejectsInvalidValues(t *testing.T) {
+	cfg := &Config{}
+
+	require.NoError(t, cfg.validateRerankerSettings())
+	cfg.Reranker.Type = constants.RerankerLLM
+	cfg.Reranker.Model = "openai/gpt-4o-mini"
+	require.NoError(t, cfg.validateRerankerSettings())
+	require.NoError(t, cfg.validateRerankerOverride("memory_reflection", RerankerOverrideConfig{
+		Type:  constants.RerankerLLM,
+		Model: "openai/gpt-4o-mini",
+	}))
+	require.NoError(t, cfg.validateRerankerOverride("memory_reflection", RerankerOverrideConfig{}))
+	require.EqualError(
+		t,
+		cfg.validateRerankerOverride("", RerankerOverrideConfig{Type: constants.RerankerDeterministic}),
+		"reranker override use case is required",
+	)
+	require.EqualError(
+		t,
+		cfg.validateRerankerOverride("memory_reflection", RerankerOverrideConfig{
+			Type:          constants.RerankerDeterministic,
+			MaxCandidates: testIntPtr(-1),
+		}),
+		`reranker override "memory_reflection" max candidates must be non-negative`,
+	)
+	require.EqualError(
+		t,
+		cfg.validateRerankerOverride("memory_reflection", RerankerOverrideConfig{
+			Type:                  constants.RerankerDeterministic,
+			MaxCandidateTextChars: testIntPtr(-1),
+		}),
+		`reranker override "memory_reflection" max candidate text chars must be non-negative`,
+	)
+	require.EqualError(
+		t,
+		cfg.validateRerankerOverride("memory_reflection", RerankerOverrideConfig{
+			Type:            constants.RerankerDeterministic,
+			MaxOutputTokens: testIntPtr(-1),
+		}),
+		`reranker override "memory_reflection" max output tokens must be non-negative`,
+	)
 }
 
 func TestConfig_ValidateRejectsInvalidSessionSettings(t *testing.T) {
@@ -3240,6 +3420,24 @@ func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {
 				cfg.Reranker.MaxOutputTokens = -1
 			},
 			err: "reranker max output tokens must be non-negative",
+		},
+		{
+			name: "unsupported reranker override",
+			mutate: func(cfg *Config) {
+				cfg.Reranker.Overrides = map[string]RerankerOverrideConfig{
+					"memory_reflection": {Type: "magic"},
+				}
+			},
+			err: `reranker override "memory_reflection": reranker type must be one of: deterministic, noop, llm`,
+		},
+		{
+			name: "negative reranker override max candidates",
+			mutate: func(cfg *Config) {
+				cfg.Reranker.Overrides = map[string]RerankerOverrideConfig{
+					"memory_reflection": {Type: constants.RerankerDeterministic, MaxCandidates: testIntPtr(-1)},
+				}
+			},
+			err: `reranker override "memory_reflection" max candidates must be non-negative`,
 		},
 		{
 			name: "missing api key",
@@ -3484,6 +3682,7 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 				"maxCandidates",
 				"maxCandidateTextChars",
 				"maxOutputTokens",
+				"overrides",
 			})
 			requireYAMLKeys(t, content, "compaction", []string{"enabled", "triggerPercent", "warnPercent"})
 			requireYAMLKeys(t, content, "cap", []string{"fs", "net", "exec", "mem", "browser"})
@@ -3589,4 +3788,8 @@ func setProfileHome(t *testing.T, home string) {
 		profile.SetActive(original)
 	})
 	profile.SetActive(profile.Profile{Name: "test", HomeDir: home})
+}
+
+func testIntPtr(value int) *int {
+	return &value
 }

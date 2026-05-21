@@ -135,12 +135,13 @@ func buildMemorySearchQuery(req input) (memory.SearchQuery, tools.Result) {
 	}
 
 	return memory.SearchQuery{
-		Text:     query,
-		Kinds:    kinds,
-		Statuses: []memory.Status{memory.StatusActive},
-		Tags:     cleanStrings(req.Filters.Tags),
-		Limit:    limit,
-		MaxChars: maxChars,
+		Text:            query,
+		RerankerUseCase: memory.RerankerUseCaseToolSearch,
+		Kinds:           kinds,
+		Statuses:        []memory.Status{memory.StatusActive},
+		Tags:            cleanStrings(req.Filters.Tags),
+		Limit:           limit,
+		MaxChars:        maxChars,
 	}, tools.Result{}
 }
 

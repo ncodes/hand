@@ -158,8 +158,9 @@ func (s Service) extractWindow(
 	}
 
 	existing, err := s.memory.Search(ctx, storage.MemorySearchQuery{
-		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
-		Statuses: []storage.MemoryStatus{storage.MemoryStatusCandidate, storage.MemoryStatusActive},
+		RerankerUseCase: storage.MemoryRerankerUseCaseEpisodicExtraction,
+		Kinds:           []storage.MemoryKind{storage.MemoryKindEpisodic},
+		Statuses:        []storage.MemoryStatus{storage.MemoryStatusCandidate, storage.MemoryStatusActive},
 		// Treat the source window as complete once any active/candidate memory exists
 		// for it, even if that window produced multiple candidate IDs.
 		Tags:  []string{getSourceRangeTag(req.SessionID, window.Start, window.End)},
@@ -291,10 +292,11 @@ func (s Service) checkEpisodicCandidateRedundancy(
 	// duplicate candidates generated from overlapping windows or repeated tool
 	// invocations, including candidates whose source-range tag differs.
 	result, err := s.memory.Search(ctx, storage.MemorySearchQuery{
-		Text:     text,
-		Kinds:    []storage.MemoryKind{storage.MemoryKindEpisodic},
-		Statuses: []storage.MemoryStatus{storage.MemoryStatusCandidate, storage.MemoryStatusActive},
-		Limit:    5,
+		Text:            text,
+		RerankerUseCase: storage.MemoryRerankerUseCaseEpisodicExtraction,
+		Kinds:           []storage.MemoryKind{storage.MemoryKindEpisodic},
+		Statuses:        []storage.MemoryStatus{storage.MemoryStatusCandidate, storage.MemoryStatusActive},
+		Limit:           5,
 	})
 	if err != nil {
 		return "", nil, err

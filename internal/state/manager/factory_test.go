@@ -646,6 +646,33 @@ func TestStoreReranker_SelectsConfiguredReranker(t *testing.T) {
 			wantType: search.LLMReranker{},
 		},
 		{
+			name: "use case override",
+			cfg: config.Config{
+				Models: config.ModelsConfig{
+					Main: config.MainModelConfig{
+						Name:    "openai/gpt-4o-mini",
+						APIMode: constants.DefaultModelAPIModeCompletions,
+					},
+				},
+				Search: config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+				Reranker: config.RerankerConfig{
+					Type: search.RerankerDeterministic,
+					Overrides: map[string]config.RerankerOverrideConfig{
+						"memory_reflection": {
+							Type:                  search.RerankerLLM,
+							Model:                 "openai/gpt-4o-mini",
+							MaxCandidates:         managerTestIntPtr(3),
+							MaxCandidateTextChars: managerTestIntPtr(40),
+							MaxOutputTokens:       managerTestIntPtr(50),
+						},
+					},
+				},
+			},
+			client:   &storeTestModelClient{},
+			wantName: search.RerankerDeterministic,
+			wantType: search.UseCaseReranker{},
+		},
+		{
 			name: "invalid reranker",
 			cfg: config.Config{
 				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
@@ -673,6 +700,26 @@ func TestStoreReranker_SelectsConfiguredReranker(t *testing.T) {
 			require.Equal(t, tt.wantName, reranker.Name())
 		})
 	}
+}
+
+func TestConfiguredRerankerOverrides_ReturnsNilWithoutOverrides(t *testing.T) {
+	overrides, err := configuredRerankerOverrides(&config.Config{}, nil)
+
+	require.NoError(t, err)
+	require.Nil(t, overrides)
+}
+
+func TestConfiguredRerankerOverrides_ReturnsConstructionError(t *testing.T) {
+	overrides, err := configuredRerankerOverrides(&config.Config{
+		Reranker: config.RerankerConfig{
+			Overrides: map[string]config.RerankerOverrideConfig{
+				"memory_reflection": {Type: search.RerankerLLM},
+			},
+		},
+	}, nil)
+
+	require.Nil(t, overrides)
+	require.EqualError(t, err, "reranker model client is required")
 }
 
 func TestOpenStore_DefaultVectorStores(t *testing.T) {
@@ -941,4 +988,8 @@ func setProfileHome(t *testing.T, home string) {
 		profile.SetActive(original)
 	})
 	profile.SetActive(profile.Profile{Name: "test", HomeDir: home})
+}
+
+func managerTestIntPtr(value int) *int {
+	return &value
 }

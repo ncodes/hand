@@ -47,26 +47,29 @@ const (
 	// DefaultPlatform is the fallback runtime platform identifier.
 	DefaultPlatform = "cli"
 	// DefaultStorageBackend is the fallback state storage backend.
-	DefaultStorageBackend              = "sqlite"
-	DefaultProfileLogLevel             = "debug"
-	DefaultProfileDebugRequests        = true
-	DefaultProfileTraceEnabled         = true
-	DefaultProfileTraceDiskEnabled     = true
-	DefaultProfileTraceDatabaseEnabled = true
-	DefaultTUIThinkingComposerEnabled  = true
-	DefaultSafetyInputEnabled          = true
-	DefaultSafetyOutputEnabled         = true
-	DefaultSafetyPIIEnabled            = false
-	DefaultProfileCapabilityFilesystem = true
-	DefaultProfileCapabilityNetwork    = true
-	DefaultProfileCapabilityExec       = true
-	DefaultProfileCapabilityMemory     = true
-	DefaultProfileCapabilityBrowser    = false
-	DefaultProfileSearchEnableRerank   = true
-	DefaultProfileSearchVectorEnabled  = true
-	DefaultProfileSearchVectorRequired = true
-	DefaultProfileRerankerEnabled      = true
-	DefaultProfileCompactionEnabled    = true
+	DefaultStorageBackend                       = "sqlite"
+	DefaultProfileLogLevel                      = "debug"
+	DefaultProfileDebugRequests                 = true
+	DefaultProfileTraceEnabled                  = true
+	DefaultProfileTraceDiskEnabled              = true
+	DefaultProfileTraceDatabaseEnabled          = true
+	DefaultTUIThinkingComposerEnabled           = true
+	DefaultSafetyInputEnabled                   = true
+	DefaultSafetyOutputEnabled                  = true
+	DefaultSafetyPIIEnabled                     = false
+	DefaultProfileCapabilityFilesystem          = true
+	DefaultProfileCapabilityNetwork             = true
+	DefaultProfileCapabilityExec                = true
+	DefaultProfileCapabilityMemory              = true
+	DefaultProfileCapabilityBrowser             = false
+	DefaultProfileSearchEnableRerank            = true
+	DefaultProfileSearchVectorEnabled           = true
+	DefaultProfileSearchVectorRequired          = true
+	DefaultProfileRerankerEnabled               = true
+	DefaultProfileRerankerMaxCandidates         = 20
+	DefaultProfileRerankerMaxCandidateTextChars = 500
+	DefaultProfileRerankerMaxOutputTokens       = 0
+	DefaultProfileCompactionEnabled             = true
 	// DefaultSessionIdleExpiry is the fallback duration before idle sessions expire.
 	DefaultSessionIdleExpiry = 24 * time.Hour
 	// DefaultArchiveRetention is the fallback duration archived sessions are retained.

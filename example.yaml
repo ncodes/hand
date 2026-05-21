@@ -89,9 +89,16 @@
 #   enabled: true
 #   type: "deterministic"
 #   model: ""
-#   maxCandidates: 100
-#   maxCandidateTextChars: 1200
+#   maxCandidates: 20
+#   maxCandidateTextChars: 500
 #   maxOutputTokens: 0
+#   overrides:
+#     memory_episodic_extraction:
+#       type: "llm"
+#     memory_promotion:
+#       type: "llm"
+#     memory_reflection:
+#       type: "llm"
 # compaction:
 #   enabled: true
 #   triggerPercent: 0.85

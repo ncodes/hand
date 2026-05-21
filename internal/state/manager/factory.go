@@ -234,7 +234,51 @@ func storeReranker(
 		return nil, nil
 	}
 
-	switch cfg.RerankerEffective() {
+	defaultReranker, err := configuredReranker(cfg, client, config.RerankerOverrideConfig{})
+	if err != nil {
+		return nil, err
+	}
+
+	overrides, err := configuredRerankerOverrides(cfg, client)
+	if err != nil {
+		return nil, err
+	}
+	if len(overrides) == 0 {
+		return defaultReranker, nil
+	}
+
+	return search.UseCaseReranker{
+		Default:  defaultReranker,
+		Override: overrides,
+		Fallback: search.DeterministicReranker{},
+	}, nil
+}
+
+func configuredRerankerOverrides(cfg *config.Config, client models.Client) (map[string]search.Reranker, error) {
+	if len(cfg.Reranker.Overrides) == 0 {
+		return nil, nil
+	}
+
+	overrides := make(map[string]search.Reranker, len(cfg.Reranker.Overrides))
+	for useCase, override := range cfg.Reranker.Overrides {
+		reranker, err := configuredReranker(cfg, client, override)
+		if err != nil {
+			return nil, err
+		}
+		overrides[strings.TrimSpace(strings.ToLower(useCase))] = reranker
+	}
+
+	return overrides, nil
+}
+
+func configuredReranker(
+	cfg *config.Config,
+	client models.Client,
+	override config.RerankerOverrideConfig,
+) (search.Reranker, error) {
+	reranker := cfg.RerankerOverrideEffective(override)
+
+	switch reranker.Type {
 	case search.RerankerDeterministic:
 		return search.DeterministicReranker{}, nil
 	case search.RerankerNoop:
@@ -245,15 +289,17 @@ func storeReranker(
 		}
 
 		return search.NewLLMReranker(search.LLMRerankerOptions{
-			Fallback:              search.DeterministicReranker{},
-			Client:                client,
-			Model:                 cfg.RerankerModelEffective(),
-			APIMode:               cfg.SummaryModelAPIModeEffective(),
-			MaxCandidates:         cfg.Reranker.MaxCandidates,
-			MaxCandidateTextChars: cfg.Reranker.MaxCandidateTextChars,
-			MaxOutputTokens:       int64(cfg.Reranker.MaxOutputTokens),
-			Enabled:               true,
-			DebugRequests:         cfg.Debug.Requests,
+			Fallback:                 search.DeterministicReranker{},
+			Client:                   client,
+			Model:                    reranker.Model,
+			APIMode:                  cfg.SummaryModelAPIModeEffective(),
+			MaxCandidates:            reranker.MaxCandidates,
+			MaxCandidatesSet:         reranker.MaxCandidatesSet,
+			MaxCandidateTextChars:    reranker.MaxCandidateTextChars,
+			MaxCandidateTextCharsSet: reranker.MaxCandidateTextCharsSet,
+			MaxOutputTokens:          int64(reranker.MaxOutputTokens),
+			Enabled:                  true,
+			DebugRequests:            cfg.Debug.Requests,
 		}), nil
 	default:
 		return nil, errors.New("reranker type must be one of: deterministic, noop, llm")

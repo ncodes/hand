@@ -34,6 +34,16 @@ type SearchHit = statecore.MemorySearchHit
 type SearchResult = statecore.MemorySearchResult
 type DeleteRequest = statecore.MemoryDeleteRequest
 
+const (
+	RerankerUseCaseDefault            = statecore.MemoryRerankerUseCaseDefault
+	RerankerUseCaseTurnRetrieval      = statecore.MemoryRerankerUseCaseTurnRetrieval
+	RerankerUseCaseToolSearch         = statecore.MemoryRerankerUseCaseToolSearch
+	RerankerUseCasePinned             = statecore.MemoryRerankerUseCasePinned
+	RerankerUseCasePromotion          = statecore.MemoryRerankerUseCasePromotion
+	RerankerUseCaseReflection         = statecore.MemoryRerankerUseCaseReflection
+	RerankerUseCaseEpisodicExtraction = statecore.MemoryRerankerUseCaseEpisodicExtraction
+)
+
 type UpdateRequest struct {
 	ID          string
 	Reason      string

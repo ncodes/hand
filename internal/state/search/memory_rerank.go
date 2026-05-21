@@ -59,7 +59,7 @@ func RerankMemoryHits(
 
 	result, err := RerankWithFallback(ctx, reranker, DeterministicReranker{}, RerankRequest{
 		Query:      query.Text,
-		Caller:     "memory_search",
+		Caller:     getMemoryRerankCaller(query),
 		SourceKind: SourceKindMemoryItem,
 		Candidates: candidates,
 		Options: RerankOptions{
@@ -84,6 +84,14 @@ func RerankMemoryHits(
 	}
 
 	return state.MemorySearchResult{Hits: reranked}, nil
+}
+
+func getMemoryRerankCaller(query state.MemorySearchQuery) string {
+	if caller := strings.TrimSpace(strings.ToLower(query.RerankerUseCase)); caller != "" {
+		return caller
+	}
+
+	return state.MemoryRerankerUseCaseDefault
 }
 
 func MemoryResultLimit(limit int) int {

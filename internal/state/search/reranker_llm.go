@@ -19,15 +19,17 @@ const (
 )
 
 type LLMRerankerOptions struct {
-	Fallback              Reranker
-	Client                models.Client
-	Model                 string
-	APIMode               string
-	MaxCandidates         int
-	MaxCandidateTextChars int
-	MaxOutputTokens       int64
-	Enabled               bool
-	DebugRequests         bool
+	Fallback                 Reranker
+	Client                   models.Client
+	Model                    string
+	APIMode                  string
+	MaxCandidates            int
+	MaxCandidatesSet         bool
+	MaxCandidateTextChars    int
+	MaxCandidateTextCharsSet bool
+	MaxOutputTokens          int64
+	Enabled                  bool
+	DebugRequests            bool
 }
 
 type LLMReranker struct {
@@ -160,10 +162,10 @@ func normalizeLLMRerankerOptions(options LLMRerankerOptions) LLMRerankerOptions 
 	if options.Fallback == nil {
 		options.Fallback = DeterministicReranker{}
 	}
-	if options.MaxCandidates == 0 {
+	if !options.MaxCandidatesSet && options.MaxCandidates == 0 {
 		options.MaxCandidates = defaultLLMRerankerMaxCandidates
 	}
-	if options.MaxCandidateTextChars <= 0 {
+	if !options.MaxCandidateTextCharsSet && options.MaxCandidateTextChars <= 0 {
 		options.MaxCandidateTextChars = defaultLLMRerankerMaxCandidateTextLen
 	}
 

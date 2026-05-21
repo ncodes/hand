@@ -154,6 +154,13 @@ func TestRerankMemoryHits_UsesFakeRerankerAndFallback(t *testing.T) {
 	require.Equal(t, []string{"mem_a", "mem_b"}, memoryHitIDs(result))
 }
 
+func TestGetMemoryRerankCaller_UsesQueryUseCase(t *testing.T) {
+	require.Equal(t, state.MemoryRerankerUseCaseDefault, getMemoryRerankCaller(state.MemorySearchQuery{}))
+	require.Equal(t, "memory_reflection", getMemoryRerankCaller(state.MemorySearchQuery{
+		RerankerUseCase: " Memory_Reflection ",
+	}))
+}
+
 func TestRerankMemoryHits_ReturnsRerankerErrors(t *testing.T) {
 	result, err := RerankMemoryHits(context.Background(), state.MemorySearchQuery{Text: "plan"}, []state.MemorySearchHit{
 		{Item: state.MemoryItem{ID: "mem_a", Status: state.MemoryStatusActive, Text: "plan"}, Score: 1},

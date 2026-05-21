@@ -53,12 +53,13 @@ func TestMemorySearch_DefinitionSearchesRuntimeWithFilters(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, memory.SearchQuery{
-		Text:     "pnpm",
-		Kinds:    []memory.Kind{memory.KindSemantic},
-		Statuses: []memory.Status{memory.StatusActive},
-		Tags:     []string{"tooling"},
-		Limit:    3,
-		MaxChars: 200,
+		Text:            "pnpm",
+		RerankerUseCase: memory.RerankerUseCaseToolSearch,
+		Kinds:           []memory.Kind{memory.KindSemantic},
+		Statuses:        []memory.Status{memory.StatusActive},
+		Tags:            []string{"tooling"},
+		Limit:           3,
+		MaxChars:        200,
 	}, capturedQuery)
 
 	var payload output

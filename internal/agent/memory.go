@@ -68,9 +68,10 @@ func (t *Turn) retrieveMemoryInstruction(
 		})
 
 		pinned, err := pinnedProvider.LoadPinned(ctx, memory.SearchQuery{
-			Statuses: []memory.Status{memory.StatusActive},
-			Limit:    pinnedMemoryRetrievalLimit,
-			MaxChars: pinnedMemoryRetrievalItemChars,
+			RerankerUseCase: memory.RerankerUseCasePinned,
+			Statuses:        []memory.Status{memory.StatusActive},
+			Limit:           pinnedMemoryRetrievalLimit,
+			MaxChars:        pinnedMemoryRetrievalItemChars,
 		})
 		if err != nil {
 			recordMemoryRetrievalFailed(traceSession, provider.Name(), "load_pinned", err)
@@ -90,7 +91,8 @@ func (t *Turn) retrieveMemoryInstruction(
 		})
 
 		query := memory.SearchQuery{
-			Text: strings.TrimSpace(userText),
+			Text:            strings.TrimSpace(userText),
+			RerankerUseCase: memory.RerankerUseCaseTurnRetrieval,
 			Kinds: []memory.Kind{
 				memory.KindSemantic,
 				memory.KindEpisodic,

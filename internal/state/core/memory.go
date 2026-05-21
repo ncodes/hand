@@ -83,6 +83,7 @@ func (item MemoryItem) GuardrailSource() string {
 type MemorySearchQuery struct {
 	Text                     string
 	SessionID                string
+	RerankerUseCase          string
 	IDs                      []string
 	Kinds                    []MemoryKind
 	Statuses                 []MemoryStatus
@@ -94,6 +95,16 @@ type MemorySearchQuery struct {
 	PromotionEvaluatedBefore time.Time
 	PromotionEvaluatedAfter  time.Time
 }
+
+const (
+	MemoryRerankerUseCaseDefault            = "memory_search"
+	MemoryRerankerUseCaseTurnRetrieval      = "memory_retrieval"
+	MemoryRerankerUseCaseToolSearch         = "memory_tool_search"
+	MemoryRerankerUseCasePinned             = "memory_pinned"
+	MemoryRerankerUseCasePromotion          = "memory_promotion"
+	MemoryRerankerUseCaseReflection         = "memory_reflection"
+	MemoryRerankerUseCaseEpisodicExtraction = "memory_episodic_extraction"
+)
 
 type SessionMemoryQuery struct {
 	SessionID string

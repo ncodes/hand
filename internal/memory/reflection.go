@@ -355,11 +355,12 @@ func (p *MemoryProvider) shouldReflectSession(
 func (p *MemoryProvider) hasUnreflectedReflectionSources(ctx context.Context, sessionID string) (bool, error) {
 	unreflected := false
 	result, err := p.manager.SearchMemory(ctx, SearchQuery{
-		SessionID: strings.TrimSpace(sessionID),
-		Kinds:     []Kind{KindEpisodic},
-		Statuses:  []Status{StatusCandidate, StatusActive},
-		Limit:     1,
-		Reflected: &unreflected,
+		SessionID:       strings.TrimSpace(sessionID),
+		RerankerUseCase: RerankerUseCaseReflection,
+		Kinds:           []Kind{KindEpisodic},
+		Statuses:        []Status{StatusCandidate, StatusActive},
+		Limit:           1,
+		Reflected:       &unreflected,
 	})
 	if err != nil {
 		return false, err
@@ -409,11 +410,12 @@ func (p *MemoryProvider) loadReflectionSources(
 	// candidates can later become sources themselves, but not until they are
 	// written and then selected by a future pass.
 	result, err := p.manager.SearchMemory(ctx, SearchQuery{
-		SessionID: req.SessionID,
-		Kinds:     []Kind{KindEpisodic},
-		Statuses:  []Status{StatusCandidate, StatusActive},
-		Limit:     req.Limit,
-		Reflected: &unreflected,
+		SessionID:       req.SessionID,
+		RerankerUseCase: RerankerUseCaseReflection,
+		Kinds:           []Kind{KindEpisodic},
+		Statuses:        []Status{StatusCandidate, StatusActive},
+		Limit:           req.Limit,
+		Reflected:       &unreflected,
 	})
 	if err != nil {
 		return nil, err
@@ -443,10 +445,11 @@ func (p *MemoryProvider) loadReflectionRelated(
 		// Related memories are context, not sources. They help the generator and
 		// duplicate checks understand what the system already knows.
 		result, err := p.manager.SearchMemory(ctx, SearchQuery{
-			Text:     text,
-			Kinds:    []Kind{KindPinned, KindSemantic, KindProcedural},
-			Statuses: []Status{StatusCandidate, StatusActive},
-			Limit:    req.RelatedLimit,
+			Text:            text,
+			RerankerUseCase: RerankerUseCaseReflection,
+			Kinds:           []Kind{KindPinned, KindSemantic, KindProcedural},
+			Statuses:        []Status{StatusCandidate, StatusActive},
+			Limit:           req.RelatedLimit,
 		})
 		if err != nil {
 			return nil, err
@@ -486,10 +489,11 @@ func (p *MemoryProvider) checkReflectionCandidateRedundancy(
 	// Search across reflected memory of any kind. A semantic reflection and a
 	// pinned reflection can be duplicates even though their final use differs.
 	result, err := p.manager.SearchMemory(ctx, SearchQuery{
-		Text:      text,
-		Statuses:  []Status{StatusCandidate, StatusActive},
-		Limit:     5,
-		Reflected: &reflected,
+		Text:            text,
+		RerankerUseCase: RerankerUseCaseReflection,
+		Statuses:        []Status{StatusCandidate, StatusActive},
+		Limit:           5,
+		Reflected:       &reflected,
 	})
 	if err != nil {
 		return "", err
