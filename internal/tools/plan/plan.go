@@ -302,12 +302,12 @@ func recordPlanEvent(ctx context.Context, sessionID string, plan envtypes.Plan) 
 		return
 	}
 
-	recorder.Record(trace.EvtPlanUpdated, map[string]any{
-		"session_id":     sessionID,
-		"steps":          plan.Steps,
-		"summary":        summarizePlan(plan),
-		"active_step_id": getActivePlanStepID(plan),
-		"explanation":    strings.TrimSpace(plan.Explanation),
+	recorder.Record(trace.EvtPlanUpdated, trace.PlanEventPayload{
+		SessionID:    sessionID,
+		Steps:        planStepsToTracePayload(plan.Steps),
+		Summary:      planSummaryToTracePayload(summarizePlan(plan)),
+		ActiveStepID: getActivePlanStepID(plan),
+		Explanation:  strings.TrimSpace(plan.Explanation),
 	})
 }
 
@@ -317,13 +317,40 @@ func recordPlanCleared(ctx context.Context, sessionID string, plan envtypes.Plan
 		return
 	}
 
-	recorder.Record(trace.EvtPlanCleared, map[string]any{
-		"session_id":     sessionID,
-		"steps":          plan.Steps,
-		"summary":        summarizePlan(plan),
-		"active_step_id": "",
-		"explanation":    strings.TrimSpace(plan.Explanation),
+	recorder.Record(trace.EvtPlanCleared, trace.PlanEventPayload{
+		SessionID:    sessionID,
+		Steps:        planStepsToTracePayload(plan.Steps),
+		Summary:      planSummaryToTracePayload(summarizePlan(plan)),
+		ActiveStepID: "",
+		Explanation:  strings.TrimSpace(plan.Explanation),
 	})
+}
+
+func planStepsToTracePayload(steps []envtypes.PlanStep) []trace.PlanStepPayload {
+	if len(steps) == 0 {
+		return nil
+	}
+
+	payload := make([]trace.PlanStepPayload, 0, len(steps))
+	for _, step := range steps {
+		payload = append(payload, trace.PlanStepPayload{
+			ID:      step.ID,
+			Content: step.Content,
+			Status:  string(step.Status),
+		})
+	}
+
+	return payload
+}
+
+func planSummaryToTracePayload(summary envtypes.PlanSummary) trace.PlanSummaryPayload {
+	return trace.PlanSummaryPayload{
+		Total:      summary.Total,
+		Pending:    summary.Pending,
+		InProgress: summary.InProgress,
+		Completed:  summary.Completed,
+		Cancelled:  summary.Cancelled,
+	}
 }
 
 func getActivePlanStepID(plan envtypes.Plan) string {

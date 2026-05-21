@@ -138,10 +138,10 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 		Int("max_calls", cfg.Memory.Flush.MaxCalls).
 		Int("tool_count", len(flushTools)).
 		Msg("memory flush started before context loss")
-	traceSession.Record(trace.EvtMemoryFlushStarted, map[string]any{
-		"trigger":    trigger,
-		"max_calls":  cfg.Memory.Flush.MaxCalls,
-		"tool_count": len(flushTools),
+	traceSession.Record(trace.EvtMemoryFlushStarted, trace.MemoryEventPayload{
+		Trigger:   trigger,
+		MaxCalls:  cfg.Memory.Flush.MaxCalls,
+		ToolCount: len(flushTools),
 	})
 
 	callCount := 0
@@ -169,10 +169,10 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 			Int("message_count", len(request.Messages)).
 			Int("tool_count", len(request.Tools)).
 			Msg("memory flush model request prepared")
-		traceSession.Record(trace.EvtMemoryFlushModelRequested, map[string]any{
-			"trigger":       trigger,
-			"message_count": len(request.Messages),
-			"tool_count":    len(request.Tools),
+		traceSession.Record(trace.EvtMemoryFlushModelRequested, trace.MemoryEventPayload{
+			Trigger:      trigger,
+			MessageCount: len(request.Messages),
+			ToolCount:    len(request.Tools),
 		})
 		recordModelRequest(traceSession, request)
 
@@ -192,10 +192,10 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 				Str("status", "no_op").
 				Int("tool_calls", callCount).
 				Msg("memory flush completed before context loss")
-			traceSession.Record(trace.EvtMemoryFlushCompleted, map[string]any{
-				"trigger":    trigger,
-				"status":     "no_op",
-				"tool_calls": callCount,
+			traceSession.Record(trace.EvtMemoryFlushCompleted, trace.MemoryEventPayload{
+				Trigger:   trigger,
+				Status:    "no_op",
+				ToolCalls: callCount,
 			})
 			return nil
 		}
@@ -227,10 +227,10 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 				Str("tool", toolCall.Name).
 				Str("tool_call_id", toolCall.ID).
 				Msg("memory flush write tool requested")
-			traceSession.Record(trace.EvtMemoryFlushWriteRequested, map[string]any{
-				"trigger":      trigger,
-				"tool":         toolCall.Name,
-				"tool_call_id": toolCall.ID,
+			traceSession.Record(trace.EvtMemoryFlushWriteRequested, trace.MemoryEventPayload{
+				Trigger:    trigger,
+				Tool:       toolCall.Name,
+				ToolCallID: toolCall.ID,
 			})
 
 			toolCtx := tools.WithTraceRecorder(t.getToolContext(flushCtx), traceSession)
@@ -322,9 +322,9 @@ func recordMemoryFlushFailure(traceSession trace.Session, trigger string, err er
 		Str("event", event).
 		Str("trigger", trigger).
 		Msg("memory flush failed before context loss")
-	traceSession.Record(event, map[string]any{
-		"trigger": trigger,
-		"error":   err.Error(),
+	traceSession.Record(event, trace.MemoryEventPayload{
+		Trigger: trigger,
+		Error:   err.Error(),
 	})
 }
 
@@ -342,10 +342,10 @@ func recordMemoryFlushCompleted(
 		Str("status", status).
 		Int("tool_calls", toolCalls).
 		Msg("memory flush completed before context loss")
-	traceSession.Record(trace.EvtMemoryFlushCompleted, map[string]any{
-		"trigger":    trigger,
-		"status":     status,
-		"tool_calls": toolCalls,
+	traceSession.Record(trace.EvtMemoryFlushCompleted, trace.MemoryEventPayload{
+		Trigger:   trigger,
+		Status:    status,
+		ToolCalls: toolCalls,
 	})
 }
 
@@ -356,8 +356,8 @@ func recordMemoryFlushSkipped(traceSession trace.Session, trigger string, reason
 		Str("trigger", trigger).
 		Str("reason", reason).
 		Msg("memory flush skipped before context loss")
-	traceSession.Record(trace.EvtMemoryFlushSkipped, map[string]any{
-		"trigger": trigger,
-		"reason":  reason,
+	traceSession.Record(trace.EvtMemoryFlushSkipped, trace.MemoryEventPayload{
+		Trigger: trigger,
+		Reason:  reason,
 	})
 }

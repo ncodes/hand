@@ -346,17 +346,17 @@ func requireOutputSafetyTrace(t *testing.T, harness *e2e.Harness, findingID stri
 		if event.Type != trace.EvtOutputSafetyApplied {
 			continue
 		}
-		payload, ok := event.Payload.(map[string]any)
+		payload, ok := trace.DecodePayload(event.Type, event.Payload)
 		require.True(t, ok)
-		require.NotContains(t, payload, "message")
-		require.NotContains(t, payload, "output")
+		safetyPayload, ok := payload.(trace.SafetyEventPayload)
+		require.True(t, ok)
 		if findingID == "redacted" {
-			require.Equal(t, true, payload["redacted"])
-			require.Equal(t, false, payload["blocked"])
+			require.True(t, safetyPayload.Redacted)
+			require.False(t, safetyPayload.Blocked)
 			return
 		}
-		require.Equal(t, true, payload["blocked"])
-		requireSafetyTraceFinding(t, payload, findingID, "assistant")
+		require.True(t, safetyPayload.Blocked)
+		requireSafetyTraceFinding(t, safetyPayload, findingID, "assistant")
 		return
 	}
 
@@ -378,15 +378,15 @@ func requireInputSafetyTrace(t *testing.T, harness *e2e.Harness, findingID strin
 		if event.Type != trace.EvtInputSafetyBlocked {
 			continue
 		}
-		payload, ok := event.Payload.(map[string]any)
+		payload, ok := trace.DecodePayload(event.Type, event.Payload)
 		require.True(t, ok)
-		require.Equal(t, true, payload["blocked"])
-		require.Equal(t, false, payload["redacted"])
-		require.Equal(t, "blocked", payload["action"])
-		require.Equal(t, "user", payload["source"])
-		require.NotContains(t, payload, "message")
-		require.NotContains(t, payload, "input")
-		requireSafetyTraceFinding(t, payload, findingID, "user")
+		safetyPayload, ok := payload.(trace.SafetyEventPayload)
+		require.True(t, ok)
+		require.True(t, safetyPayload.Blocked)
+		require.False(t, safetyPayload.Redacted)
+		require.Equal(t, "blocked", safetyPayload.Action)
+		require.Equal(t, "user", safetyPayload.Source)
+		requireSafetyTraceFinding(t, safetyPayload, findingID, "user")
 		return
 	}
 
@@ -401,22 +401,16 @@ func requireNoInputSafetyTrace(t *testing.T, harness *e2e.Harness) {
 	}
 }
 
-func requireSafetyTraceFinding(t *testing.T, payload map[string]any, findingID string, source string) {
+func requireSafetyTraceFinding(t *testing.T, payload trace.SafetyEventPayload, findingID string, source string) {
 	t.Helper()
 
-	findings, ok := payload["findings"].([]any)
-	require.True(t, ok)
-	for _, raw := range findings {
-		finding, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
+	for _, finding := range payload.Findings {
 		if finding["id"] == findingID && finding["source"] == source {
 			return
 		}
 	}
 
-	require.Failf(t, "expected safety finding", "finding_id=%s source=%s findings=%v", findingID, source, findings)
+	require.Failf(t, "expected safety finding", "finding_id=%s source=%s findings=%v", findingID, source, payload.Findings)
 }
 
 func requirePublicToolList(t *testing.T, content string) {

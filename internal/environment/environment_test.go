@@ -2004,14 +2004,14 @@ func TestEnvironment_NewTraceSessionForRunRecordsLineageMetadata(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.Events, 1)
 	require.Equal(t, trace.EvtChatStarted, result.Events[0].Type)
-	statePayload, ok := result.Events[0].Payload.(map[string]any)
+	statePayload, ok := result.Events[0].Payload.(trace.Metadata)
 	require.True(t, ok)
-	require.Equal(t, parentID, statePayload["public_session_id"])
-	require.Equal(t, childID, statePayload["effective_session_id"])
-	require.Equal(t, childID, statePayload["child_session_id"])
-	require.Equal(t, parentID, statePayload["parent_session_id"])
-	require.Equal(t, "run_trace", statePayload["run_id"])
-	require.Equal(t, "researcher", statePayload["personality_name"])
+	require.Equal(t, parentID, statePayload.PublicSessionID)
+	require.Equal(t, childID, statePayload.EffectiveSessionID)
+	require.Equal(t, childID, statePayload.ChildSessionID)
+	require.Equal(t, parentID, statePayload.ParentSessionID)
+	require.Equal(t, "run_trace", statePayload.RunID)
+	require.Equal(t, "researcher", statePayload.PersonalityName)
 }
 
 func TestEnvironment_NewTraceSessionForRunReturnsNoopWithoutTraceFactory(t *testing.T) {

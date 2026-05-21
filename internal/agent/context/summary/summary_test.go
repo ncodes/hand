@@ -1854,11 +1854,11 @@ func TestState_RecordSummaryApplied_RecordsEvent(t *testing.T) {
 
 	require.Len(t, traceSession.Events, 1)
 	require.Equal(t, trace.EvtSummaryApplied, traceSession.Events[0].Type)
-	require.Equal(t, map[string]any{
-		"session_id":           storage.DefaultSessionID,
-		"source_end_offset":    2,
-		"source_message_count": 10,
-		"updated_at":           updatedAt,
+	require.Equal(t, trace.SummaryEventPayload{
+		SessionID:          storage.DefaultSessionID,
+		SourceEndOffset:    2,
+		SourceMessageCount: 10,
+		UpdatedAt:          updatedAt,
 	}, traceSession.Events[0].Payload)
 }
 

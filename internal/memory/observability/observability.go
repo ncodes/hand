@@ -81,9 +81,13 @@ type tracer struct {
 	traceSession trace.Session
 }
 
-func (t tracer) Record(_ context.Context, event string, fields map[string]any) {
+func (t tracer) Record(_ context.Context, event string, payload any) {
 	if t.traceSession == nil || strings.TrimSpace(event) == "" {
 		return
 	}
-	t.traceSession.Record(event, fields)
+	payload, ok := trace.DecodePayload(event, payload)
+	if !ok {
+		payload = trace.PayloadFields(payload)
+	}
+	t.traceSession.Record(event, payload)
 }

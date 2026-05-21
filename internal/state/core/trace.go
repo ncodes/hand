@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -54,9 +55,13 @@ func cloneTracePayload(payload any) any {
 		return nil
 	}
 
-	var cloned any
-	_ = json.Unmarshal(data, &cloned)
-	return cloned
+	payloadType := reflect.TypeOf(payload)
+	cloned := reflect.New(payloadType)
+	if err := json.Unmarshal(data, cloned.Interface()); err != nil {
+		return nil
+	}
+
+	return cloned.Elem().Interface()
 }
 
 func TraceEventMatchesQuery(event TraceEvent, query TraceQuery) bool {

@@ -38,12 +38,12 @@ func recordPreflightCompactionTrace(
 	}
 
 	estimate := getCompactionEvaluator(cfg).Evaluate(request, lastPromptTokens)
-	payload := map[string]any{
-		"source":            estimate.Source,
-		"prompt_tokens":     estimate.PromptTokens,
-		"context_limit":     estimate.ContextLimit,
-		"trigger_threshold": estimate.TriggerThreshold,
-		"warn_threshold":    estimate.WarnThreshold,
+	payload := trace.ContextEventPayload{
+		Source:           estimate.Source,
+		PromptTokens:     estimate.PromptTokens,
+		ContextLimit:     estimate.ContextLimit,
+		TriggerThreshold: estimate.TriggerThreshold,
+		WarnThreshold:    estimate.WarnThreshold,
 	}
 
 	traceSession.Record(trace.EvtContextPreflight, payload)

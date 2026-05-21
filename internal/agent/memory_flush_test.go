@@ -95,7 +95,9 @@ func TestTurn_RunFlushesMemoryBeforeCompaction(t *testing.T) {
 	require.Contains(t, eventTypes, trace.EvtMemoryFlushCompleted)
 	require.Contains(t, eventTypes, trace.EvtContextCompactionRunning)
 	completed := traceSession.Events[memoryFlushTraceEventIndex(eventTypes, trace.EvtMemoryFlushCompleted)]
-	require.Equal(t, "tool_executed", completed.Payload.(map[string]any)["status"])
+	payload, ok := completed.Payload.(trace.MemoryEventPayload)
+	require.True(t, ok)
+	require.Equal(t, "tool_executed", payload.Status)
 }
 
 func TestTurn_FlushMemoryBeforeContextLossUsesSummaryClientAndModel(t *testing.T) {
@@ -584,7 +586,9 @@ func TestTurn_FlushMemoryBeforeContextLossHandlesUnsupportedAndBoundedToolCalls(
 	require.Contains(t, eventTypes, trace.EvtMemoryFlushSkipped)
 	require.Contains(t, eventTypes, trace.EvtMemoryFlushCompleted)
 	completed := traceSession.Events[memoryFlushTraceEventIndex(eventTypes, trace.EvtMemoryFlushCompleted)]
-	require.Equal(t, "bounded", completed.Payload.(map[string]any)["status"])
+	payload, ok := completed.Payload.(trace.MemoryEventPayload)
+	require.True(t, ok)
+	require.Equal(t, "bounded", payload.Status)
 }
 
 func TestTurn_FlushMemoryBeforeContextLossReturnsAssistantAndToolMessageNormalizationErrors(t *testing.T) {
@@ -635,7 +639,9 @@ func TestTurn_FlushMemoryBeforeContextLossRecordsNoOpCompletion(t *testing.T) {
 	eventTypes := memoryFlushTraceEventTypes(traceSession)
 	require.Contains(t, eventTypes, trace.EvtMemoryFlushCompleted)
 	completed := traceSession.Events[memoryFlushTraceEventIndex(eventTypes, trace.EvtMemoryFlushCompleted)]
-	require.Equal(t, "no_op", completed.Payload.(map[string]any)["status"])
+	payload, ok := completed.Payload.(trace.MemoryEventPayload)
+	require.True(t, ok)
+	require.Equal(t, "no_op", payload.Status)
 }
 
 func TestTurn_FlushMemoryBeforeContextLossUsesDefaultConfigWhenMissing(t *testing.T) {

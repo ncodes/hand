@@ -479,9 +479,5 @@ type providerTraceRecorder struct {
 }
 
 func (r providerTraceRecorder) Record(event string, payload any) {
-	fields, ok := payload.(map[string]any)
-	if !ok {
-		fields = map[string]any{"payload": payload}
-	}
-	traceRecord(r.ctx, r.obs, event, fields)
+	traceRecord(r.ctx, r.obs, event, payload)
 }

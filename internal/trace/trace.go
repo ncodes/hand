@@ -387,7 +387,7 @@ func (s *jsonlSession) recordUnlocked(eventType string, payload any) {
 		Timestamp: time.Now().UTC(),
 	}
 	if payload != nil {
-		event.Payload = s.redactor.Sanitize(payload)
+		event.Payload = sanitizeTracePayload(event.Type, payload, s.redactor)
 	}
 	if err := s.encoder.Encode(event); err != nil {
 		log.Warn().Err(err).Str("tracePath", s.path).Str("eventType", event.Type).Msg("Failed to write trace event")
@@ -453,7 +453,7 @@ func (s *stateSession) recordUnlocked(eventType string, payload any) {
 		Timestamp: s.now().UTC(),
 	}
 	if payload != nil {
-		event.Payload = s.redactor.Sanitize(payload)
+		event.Payload = sanitizeTracePayload(event.Type, payload, s.redactor)
 	}
 	if _, err := s.store.AppendTraceEvent(s.ctx, event); err != nil {
 		log.Warn().Err(err).Str("sessionID", s.id).Str("eventType", event.Type).Msg("Failed to write state trace event")
@@ -464,6 +464,22 @@ func (s *stateSession) recordUnlocked(eventType string, payload any) {
 			log.Warn().Err(err).Str("sessionID", s.id).Msg("Failed to prune state trace events")
 		}
 	}
+}
+
+func sanitizeTracePayload(eventType string, payload any, redactor guardrails.Redactor) any {
+	if redactor == nil {
+		redactor = guardrails.NewRedactor()
+	}
+
+	sanitized := redactor.Sanitize(payload)
+	if _, ok := payload.(map[string]any); ok {
+		return sanitized
+	}
+	if typed, ok := DecodePayload(eventType, sanitized); ok {
+		return typed
+	}
+
+	return sanitized
 }
 
 func (s *stateSession) Close() {

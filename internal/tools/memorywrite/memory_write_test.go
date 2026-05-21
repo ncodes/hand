@@ -598,21 +598,21 @@ func requireMemorySafetyBlockedTrace(
 ) {
 	t.Helper()
 
-	var payload map[string]any
+	var payload trace.SafetyEventPayload
+	found := false
 	for _, event := range traceSession.events {
 		if event.eventType == trace.EvtMemorySafetyBlocked {
-			payload = event.payload.(map[string]any)
+			var ok bool
+			payload, ok = event.payload.(trace.SafetyEventPayload)
+			require.True(t, ok)
+			found = true
 			break
 		}
 	}
-	require.NotNil(t, payload)
-	require.Equal(t, true, payload["blocked"])
-	require.Equal(t, expectedAction, payload["action"])
-	require.Equal(t, expectedRedacted, payload["redacted"])
-	require.NotEmpty(t, payload["source"])
-	require.NotContains(t, payload, "content")
-	require.NotContains(t, payload, "text")
-	require.NotContains(t, payload, "input")
-	require.NotContains(t, payload, "message")
-	require.NotZero(t, payload["content_length"])
+	require.True(t, found)
+	require.True(t, payload.Blocked)
+	require.Equal(t, expectedAction, payload.Action)
+	require.Equal(t, expectedRedacted, payload.Redacted)
+	require.NotEmpty(t, payload.Source)
+	require.NotZero(t, payload.ContentLength)
 }

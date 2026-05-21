@@ -20,12 +20,15 @@ func (l *fakeLogger) Warn(string, map[string]any)  {}
 func (l *fakeLogger) Error(string, map[string]any) {}
 
 type fakeTracer struct {
-	events []string
-	fields []map[string]any
+	events   []string
+	fields   []map[string]any
+	payloads []any
 }
 
-func (t *fakeTracer) Record(_ context.Context, event string, fields map[string]any) {
+func (t *fakeTracer) Record(_ context.Context, event string, payload any) {
 	t.events = append(t.events, event)
+	t.payloads = append(t.payloads, payload)
+	fields, _ := payload.(map[string]any)
 	t.fields = append(t.fields, fields)
 }
 

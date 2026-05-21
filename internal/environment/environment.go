@@ -550,11 +550,11 @@ func (e *environment) NewTraceSessionForRun(runCtx runcontext.Context) trace.Ses
 func (e *environment) openTraceSession(sessionID string, metadata trace.Metadata) trace.Session {
 	session := e.traces.OpenSession(e.ctx, sessionID, metadata)
 	if e.workspace.Truncated {
-		session.Record(trace.EvtWorkspaceRulesTruncated, map[string]any{
-			"original_length":    e.workspace.OriginalLength,
-			"truncated_length":   e.workspace.TruncatedLength,
-			"max_content_length": e.workspace.MaxContentLength,
-			"marker":             e.workspace.TruncationMarker,
+		session.Record(trace.EvtWorkspaceRulesTruncated, trace.WorkspaceRulesTruncatedPayload{
+			OriginalLength:   e.workspace.OriginalLength,
+			TruncatedLength:  e.workspace.TruncatedLength,
+			MaxContentLength: e.workspace.MaxContentLength,
+			Marker:           e.workspace.TruncationMarker,
 		})
 	}
 

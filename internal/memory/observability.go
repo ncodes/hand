@@ -18,7 +18,7 @@ type Logger interface {
 // optimized for humans watching the process; traces are optimized for debugging
 // complete timelines.
 type Tracer interface {
-	Record(context.Context, string, map[string]any)
+	Record(context.Context, string, any)
 }
 
 // Observability bundles optional log and trace sinks. Nil sinks are valid so
@@ -35,11 +35,11 @@ func logDebug(obs Observability, message string, fields map[string]any) {
 	obs.Logger().Debug(message, fields)
 }
 
-func traceRecord(ctx context.Context, obs Observability, event string, fields map[string]any) {
+func traceRecord(ctx context.Context, obs Observability, event string, payload any) {
 	if obs == nil || obs.Tracer() == nil {
 		return
 	}
-	obs.Tracer().Record(ctx, event, fields)
+	obs.Tracer().Record(ctx, event, payload)
 }
 
 // buildObservationFields standardizes the fields present on provider events so log

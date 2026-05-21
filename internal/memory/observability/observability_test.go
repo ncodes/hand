@@ -7,6 +7,8 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wandxy/hand/internal/trace"
 )
 
 type recordingTraceSession struct {
@@ -67,5 +69,5 @@ func TestTracer_RecordsEvents(t *testing.T) {
 	tracer{}.Record(context.Background(), "memory.search.skipped", nil)
 
 	require.Equal(t, []string{"memory.search.completed"}, traceSession.events)
-	require.Equal(t, []any{map[string]any{"result_count": 1}}, traceSession.payload)
+	require.Equal(t, []any{trace.MemoryEventPayload{ResultCount: 1}}, traceSession.payload)
 }

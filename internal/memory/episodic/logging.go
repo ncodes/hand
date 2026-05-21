@@ -23,7 +23,11 @@ func recordTrace(recorder TraceRecorder, event string, payload map[string]any) {
 	if recorder == nil {
 		return
 	}
-	recorder.Record(event, payload)
+	typedPayload, ok := trace.DecodePayload(event, payload)
+	if !ok {
+		typedPayload = payload
+	}
+	recorder.Record(event, typedPayload)
 }
 
 // getTracePayload adds the common extraction coordinates to every event so a trace
@@ -77,7 +81,11 @@ func recordBackgroundTrace(
 	if recorder == nil {
 		return
 	}
-	recorder.Record(event, payload)
+	typedPayload, ok := trace.DecodePayload(event, payload)
+	if !ok {
+		typedPayload = payload
+	}
+	recorder.Record(event, typedPayload)
 }
 
 // getBackgroundPayload keeps background events compact. Empty session/reason fields

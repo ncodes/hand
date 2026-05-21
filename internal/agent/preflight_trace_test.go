@@ -26,11 +26,11 @@ func TestRecordPreflightCompactionTrace_EmitsUnifiedPreflightEvent(t *testing.T)
 	require.Len(t, traceSession.Events, 1)
 	require.Equal(t, trace.EvtContextPreflight, traceSession.Events[0].Type)
 
-	payload, ok := traceSession.Events[0].Payload.(map[string]any)
+	payload, ok := traceSession.Events[0].Payload.(trace.ContextEventPayload)
 	require.True(t, ok)
-	require.Equal(t, "actual", payload["source"])
-	require.Equal(t, 200, payload["prompt_tokens"])
-	require.Equal(t, 1000, payload["context_limit"])
+	require.Equal(t, "actual", payload.Source)
+	require.Equal(t, 200, payload.PromptTokens)
+	require.Equal(t, 1000, payload.ContextLimit)
 }
 
 func TestRecordPreflightCompactionTrace_SkipsEventsWhenDisabled(t *testing.T) {

@@ -428,7 +428,7 @@ func TestBackgroundContext(t *testing.T) {
 	require.Same(t, ctx, getBackgroundContext(ctx))
 }
 
-func TestProviderTraceRecorder_RecordWrapsNonMapPayload(t *testing.T) {
+func TestProviderTraceRecorder_RecordForwardsPayload(t *testing.T) {
 	tracer := &fakeTracer{}
 	recorder := providerTraceRecorder{
 		ctx: context.Background(),
@@ -438,7 +438,7 @@ func TestProviderTraceRecorder_RecordWrapsNonMapPayload(t *testing.T) {
 	recorder.Record("memory.custom", "payload")
 
 	require.Equal(t, []string{"memory.custom"}, tracer.events)
-	require.Equal(t, map[string]any{"payload": "payload"}, tracer.fields[0])
+	require.Equal(t, "payload", tracer.payloads[0])
 }
 
 func TestDefaultMemoryProvider_SearchWriteDeleteAndObservability(t *testing.T) {

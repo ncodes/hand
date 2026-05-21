@@ -431,14 +431,14 @@ func recordToolOutputSafety(
 	if result.Blocked {
 		action = "blocked"
 	}
-	recorder.Record(trace.EvtToolOutputSafetyApplied, guardrails.SafetyTracePayload(guardrails.SafetyTracePayloadOptions{
+	recorder.Record(trace.EvtToolOutputSafetyApplied, trace.SafetyEventPayload{
 		Source:        "tool." + strings.TrimSpace(toolName),
 		Action:        action,
 		ContentLength: len([]rune(output)),
 		Blocked:       result.Blocked,
 		Redacted:      result.Redacted,
-		Findings:      result.Findings,
-	}))
+		Findings:      guardrails.SafetyFindingLogFields(result.Findings),
+	})
 }
 
 func toolResultMessage(toolCall models.ToolCall, result map[string]any) handmsg.Message {

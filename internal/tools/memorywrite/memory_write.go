@@ -309,14 +309,14 @@ func recordMemoryWriteSafetyBlocked(recorder tools.TraceRecorder, result memoryW
 	if result.Redacted && !result.Blocked {
 		action = "redacted"
 	}
-	recorder.Record(trace.EvtMemorySafetyBlocked, guardrails.SafetyTracePayload(guardrails.SafetyTracePayloadOptions{
+	recorder.Record(trace.EvtMemorySafetyBlocked, trace.SafetyEventPayload{
 		Source:        result.Source,
 		Action:        action,
 		ContentLength: result.ContentLength,
 		Blocked:       result.Blocked || result.Redacted,
 		Redacted:      result.Redacted,
-		Findings:      result.Findings,
-	}))
+		Findings:      guardrails.SafetyFindingLogFields(result.Findings),
+	})
 }
 
 func parseKind(value string) (memory.Kind, error) {

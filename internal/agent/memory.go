@@ -54,17 +54,17 @@ func (t *Turn) retrieveMemoryInstruction(
 	}
 
 	items := make([]memory.MemoryItem, 0, pinnedMemoryRetrievalLimit+searchMemoryRetrievalLimit)
-	pinnedTraceItems := []map[string]any(nil)
-	searchTraceHits := []map[string]any(nil)
+	pinnedTraceItems := []trace.MemoryTraceItem(nil)
+	searchTraceHits := []trace.MemoryTraceItem(nil)
 	retrievedHitCount := 0
 	filteredSearchHitCount := 0
 
 	if caps.SupportsPinned && supportsPinnedProvider {
-		recordMemoryRetrievalEvent(traceSession, trace.EvtMemoryRetrievalStarted, map[string]any{
-			"provider":  provider.Name(),
-			"operation": "load_pinned",
-			"limit":     pinnedMemoryRetrievalLimit,
-			"max_chars": pinnedMemoryRetrievalItemChars,
+		recordMemoryRetrievalEvent(traceSession, trace.EvtMemoryRetrievalStarted, trace.MemoryEventPayload{
+			Provider:  provider.Name(),
+			Operation: "load_pinned",
+			Limit:     pinnedMemoryRetrievalLimit,
+			MaxChars:  pinnedMemoryRetrievalItemChars,
 		})
 
 		pinned, err := pinnedProvider.LoadPinned(ctx, memory.SearchQuery{
@@ -83,11 +83,11 @@ func (t *Turn) retrieveMemoryInstruction(
 	}
 
 	if caps.SupportsSearch && supportsSearchProvider {
-		recordMemoryRetrievalEvent(traceSession, trace.EvtMemoryRetrievalStarted, map[string]any{
-			"provider":  provider.Name(),
-			"operation": "search",
-			"limit":     searchMemoryRetrievalLimit,
-			"max_chars": searchMemoryRetrievalItemChars,
+		recordMemoryRetrievalEvent(traceSession, trace.EvtMemoryRetrievalStarted, trace.MemoryEventPayload{
+			Provider:  provider.Name(),
+			Operation: "search",
+			Limit:     searchMemoryRetrievalLimit,
+			MaxChars:  searchMemoryRetrievalItemChars,
 		})
 
 		query := memory.SearchQuery{
@@ -116,15 +116,15 @@ func (t *Turn) retrieveMemoryInstruction(
 
 	items = sanitizeMemoryItemsForPrompt(items, traceSession)
 
-	recordMemoryRetrievalEvent(traceSession, trace.EvtMemoryRetrieved, map[string]any{
-		"provider":              provider.Name(),
-		"hit_count":             retrievedHitCount,
-		"injected_count":        len(items),
-		"pinned_items":          pinnedTraceItems,
-		"search_hits":           searchTraceHits,
-		"search_min_score":      searchMemoryRetrievalMinScore,
-		"search_filtered_count": filteredSearchHitCount,
-		"injected_items":        memoryRetrievalTraceItems(items),
+	recordMemoryRetrievalEvent(traceSession, trace.EvtMemoryRetrieved, trace.MemoryEventPayload{
+		Provider:            provider.Name(),
+		HitCount:            retrievedHitCount,
+		InjectedCount:       len(items),
+		PinnedItems:         pinnedTraceItems,
+		SearchHits:          searchTraceHits,
+		SearchMinScore:      searchMemoryRetrievalMinScore,
+		SearchFilteredCount: filteredSearchHitCount,
+		InjectedItems:       memoryRetrievalTraceItems(items),
 	})
 
 	return instruct.BuildMemoryContext(
@@ -144,7 +144,7 @@ func filterSearchHitsForTurnMemory(hits []memory.SearchHit) []memory.SearchHit {
 	return filtered
 }
 
-func recordMemoryRetrievalEvent(traceSession trace.Session, event string, payload map[string]any) {
+func recordMemoryRetrievalEvent(traceSession trace.Session, event string, payload trace.MemoryEventPayload) {
 	if traceSession == nil {
 		return
 	}
@@ -158,10 +158,10 @@ func recordMemoryRetrievalFailed(
 	err error,
 ) {
 	if traceSession != nil {
-		traceSession.Record(trace.EvtMemoryRetrievalFailed, map[string]any{
-			"provider":  strings.TrimSpace(providerName),
-			"operation": strings.TrimSpace(operation),
-			"error":     err.Error(),
+		traceSession.Record(trace.EvtMemoryRetrievalFailed, trace.MemoryEventPayload{
+			Provider:  strings.TrimSpace(providerName),
+			Operation: strings.TrimSpace(operation),
+			Error:     err.Error(),
 		})
 	}
 	agentLog.Warn().
@@ -180,36 +180,36 @@ func searchHitsToMemoryItems(hits []memory.SearchHit) []memory.MemoryItem {
 	return items
 }
 
-func memoryRetrievalTraceHits(hits []memory.SearchHit) []map[string]any {
-	items := make([]map[string]any, 0, len(hits))
+func memoryRetrievalTraceHits(hits []memory.SearchHit) []trace.MemoryTraceItem {
+	items := make([]trace.MemoryTraceItem, 0, len(hits))
 	for _, hit := range hits {
 		item := memoryRetrievalTraceItem(hit.Item)
-		item["score"] = hit.Score
-		item["lexical_score"] = hit.LexicalScore
-		item["vector_score"] = hit.VectorScore
+		item.Score = hit.Score
+		item.LexicalScore = hit.LexicalScore
+		item.VectorScore = hit.VectorScore
 		items = append(items, item)
 	}
 	return items
 }
 
-func memoryRetrievalTraceItems(memoryItems []memory.MemoryItem) []map[string]any {
-	items := make([]map[string]any, 0, len(memoryItems))
+func memoryRetrievalTraceItems(memoryItems []memory.MemoryItem) []trace.MemoryTraceItem {
+	items := make([]trace.MemoryTraceItem, 0, len(memoryItems))
 	for _, item := range memoryItems {
 		items = append(items, memoryRetrievalTraceItem(item))
 	}
 	return items
 }
 
-func memoryRetrievalTraceItem(item memory.MemoryItem) map[string]any {
-	return map[string]any{
-		"id":           strings.TrimSpace(item.ID),
-		"kind":         string(item.Kind),
-		"status":       string(item.Status),
-		"title":        truncateMemoryTraceText(item.Title),
-		"text_chars":   len([]rune(strings.TrimSpace(item.Text))),
-		"confidence":   item.Confidence,
-		"reflected":    item.Reflected,
-		"source_count": len(item.SourceLinks),
+func memoryRetrievalTraceItem(item memory.MemoryItem) trace.MemoryTraceItem {
+	return trace.MemoryTraceItem{
+		ID:          strings.TrimSpace(item.ID),
+		Kind:        string(item.Kind),
+		Status:      string(item.Status),
+		Title:       truncateMemoryTraceText(item.Title),
+		TextChars:   len([]rune(strings.TrimSpace(item.Text))),
+		Confidence:  item.Confidence,
+		Reflected:   item.Reflected,
+		SourceCount: len(item.SourceLinks),
 	}
 }
 
@@ -272,13 +272,13 @@ func recordMemorySafetyBlocked(
 		return
 	}
 
-	traceSession.Record(trace.EvtMemorySafetyBlocked, guardrails.SafetyTracePayload(guardrails.SafetyTracePayloadOptions{
+	traceSession.Record(trace.EvtMemorySafetyBlocked, trace.SafetyEventPayload{
 		Source:        source,
 		Action:        "blocked",
 		ContentLength: len([]rune(content)),
 		Blocked:       true,
-		Findings:      findings,
-	}))
+		Findings:      guardrails.SafetyFindingLogFields(findings),
+	})
 }
 
 func getMemoryPromptText(value string) string {

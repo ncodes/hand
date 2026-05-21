@@ -202,13 +202,13 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		plan := t.env.CurrentPlan(t.getStateSessionID())
 		traceSession.Record(
 			trace.EvtPlanHydrated,
-			map[string]any{
-				"session_id":     t.getStateSessionID(),
-				"steps":          plan.Steps,
-				"summary":        summarizeHydratedPlan(plan),
-				"active_step_id": getActiveHydratedPlanStepID(plan),
-				"explanation":    strings.TrimSpace(plan.Explanation),
-				"source":         "history",
+			trace.PlanEventPayload{
+				SessionID:    t.getStateSessionID(),
+				Steps:        hydratedPlanStepsToTracePayload(plan.Steps),
+				Summary:      hydratedPlanSummaryToTracePayload(summarizeHydratedPlan(plan)),
+				ActiveStepID: getActiveHydratedPlanStepID(plan),
+				Explanation:  strings.TrimSpace(plan.Explanation),
+				Source:       "history",
 			},
 		)
 	}
@@ -223,17 +223,17 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 	userMessage, err := handmsg.NewMessage(handmsg.RoleUser, msg)
 	if err != nil {
-		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 		return "", err
 	}
 
 	t.emittedMessages = append(t.emittedMessages, userMessage)
 	if err := t.appendSessionMessages([]handmsg.Message{userMessage}); err != nil {
-		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 		return "", err
 	}
 
-	traceSession.Record(trace.EvtUserMessageAccepted, map[string]any{"message": msg})
+	traceSession.Record(trace.EvtUserMessageAccepted, trace.UserMessageAcceptedPayload{Message: msg})
 
 	t.memoryInstruction = t.retrieveMemoryInstruction(ctx, msg, traceSession)
 
@@ -245,13 +245,13 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 	for budget.Consume() {
 		if err := ctx.Err(); err != nil {
-			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 			return "", err
 		}
 
 		availableToolDefinitions, err := t.availableToolDefinitions()
 		if err != nil {
-			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 			return "", err
 		}
 
@@ -335,7 +335,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				Bool("stream", streamingEnabled).
 				Str("error_kind", getAgentModelErrorKind(err)).
 				Msg("model request dispatch failed")
-			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 			return "", err
 		}
 
@@ -349,7 +349,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				Bool("stream", streamingEnabled).
 				Str("error_kind", "missing_response").
 				Msg("model request dispatch failed")
-			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 			return "", err
 		}
 
@@ -380,17 +380,17 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 			assistantMessage, err := handmsg.NewMessage(handmsg.RoleAssistant, reply)
 			if err != nil {
-				traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 				return "", err
 			}
 
 			t.emittedMessages = append(t.emittedMessages, assistantMessage)
 			if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
-				traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 				return "", err
 			}
 
-			traceSession.Record(trace.EvtFinalAssistantResponse, map[string]any{"message": reply})
+			traceSession.Record(trace.EvtFinalAssistantResponse, trace.FinalAssistantResponsePayload{Message: reply})
 
 			agentLog.Info().
 				Str("session_id", t.sessionID).
@@ -401,26 +401,26 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 		if len(resp.ToolCalls) == 0 {
 			err = errors.New("model requested tool execution without tool calls")
-			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 			return "", err
 		}
 
 		assistantMessage, err := assistantToolCallMessageFromResponse(resp)
 		if err != nil {
-			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 			return "", err
 		}
 
 		t.emittedMessages = append(t.emittedMessages, assistantMessage)
 
 		if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
-			traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 			return "", err
 		}
 
 		for _, toolCall := range resp.ToolCalls {
 			if err := ctx.Err(); err != nil {
-				traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 				return "", err
 			}
 
@@ -431,10 +431,18 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				Str("tool_call_id", toolCall.ID).
 				Msg("tool invocation started")
 
-			traceSession.Record(trace.EvtToolInvocationStarted, toolCall)
+			traceSession.Record(trace.EvtToolInvocationStarted, trace.ToolInvocationStartedPayload{
+				ID:    toolCall.ID,
+				Name:  toolCall.Name,
+				Input: toolCall.Input,
+			})
 			toolCtx := tools.WithTraceRecorder(t.getToolContext(ctx), traceSession)
 			toolMessage := t.invokeTool(toolCtx, toolCall)
-			traceSession.Record(trace.EvtToolInvocationCompleted, toolMessage)
+			traceSession.Record(trace.EvtToolInvocationCompleted, trace.ToolInvocationCompletedPayload{
+				ToolCallID: toolMessage.ToolCallID,
+				Name:       toolMessage.Name,
+				Content:    toolMessage.Content,
+			})
 
 			agentLog.Info().
 				Str("event", "tool invocation completed").
@@ -447,14 +455,14 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 			toolMessage, err = normalizeTurnMessage(toolMessage)
 			if err != nil {
-				traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 				return "", err
 			}
 
 			t.emittedMessages = append(t.emittedMessages, toolMessage)
 
 			if err := t.appendSessionMessages([]handmsg.Message{toolMessage}); err != nil {
-				traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 				return "", err
 			}
 		}
@@ -527,7 +535,7 @@ func (t *Turn) recordModelReasoningCompleted(startedAt time.Time, endedAt time.T
 		SessionID: t.sessionID,
 		Type:      trace.EvtModelReasoningCompleted,
 		Timestamp: endedAt,
-		Payload:   map[string]any{"duration_ms": duration.Milliseconds()},
+		Payload:   trace.ModelReasoningCompletedPayload{DurationMS: duration.Milliseconds()},
 	}
 	if _, err := t.stateMgr.AppendTraceEvent(t.ctx, event); err != nil {
 		if !errors.Is(err, storage.ErrTraceStoreUnsupported) {
@@ -563,12 +571,12 @@ func (t *Turn) recordLoadedContentSafety(traceSession trace.Session) {
 	}
 
 	for _, event := range t.env.SafetyTraceEvents() {
-		traceSession.Record(trace.EvtLoadedContentSafetyBlocked, guardrails.SafetyTracePayload(event))
+		traceSession.Record(trace.EvtLoadedContentSafetyBlocked, safetyEventPayloadFromOptions(event))
 	}
 }
 
-func getInputSafetyTracePayload(sessionID string, content string, result guardrails.InputSafetyResult) map[string]any {
-	return guardrails.SafetyTracePayload(guardrails.SafetyTracePayloadOptions{
+func getInputSafetyTracePayload(sessionID string, content string, result guardrails.InputSafetyResult) trace.SafetyEventPayload {
+	return safetyEventPayloadFromOptions(guardrails.SafetyTracePayloadOptions{
 		SessionID:     sessionID,
 		Source:        "user",
 		Action:        "blocked",
@@ -579,12 +587,12 @@ func getInputSafetyTracePayload(sessionID string, content string, result guardra
 	})
 }
 
-func getOutputSafetyTracePayload(sessionID string, content string, result guardrails.OutputSafetyResult) map[string]any {
+func getOutputSafetyTracePayload(sessionID string, content string, result guardrails.OutputSafetyResult) trace.SafetyEventPayload {
 	action := "redacted"
 	if result.Blocked {
 		action = "blocked"
 	}
-	return guardrails.SafetyTracePayload(guardrails.SafetyTracePayloadOptions{
+	return safetyEventPayloadFromOptions(guardrails.SafetyTracePayloadOptions{
 		SessionID:     sessionID,
 		Source:        "assistant",
 		Action:        action,
@@ -594,6 +602,19 @@ func getOutputSafetyTracePayload(sessionID string, content string, result guardr
 		Findings:      result.Findings,
 		Refusal:       result.RefusalMessage,
 	})
+}
+
+func safetyEventPayloadFromOptions(opts guardrails.SafetyTracePayloadOptions) trace.SafetyEventPayload {
+	return trace.SafetyEventPayload{
+		SessionID:     strings.TrimSpace(opts.SessionID),
+		Source:        strings.TrimSpace(opts.Source),
+		Action:        strings.TrimSpace(opts.Action),
+		ContentLength: opts.ContentLength,
+		Blocked:       opts.Blocked,
+		Redacted:      opts.Redacted,
+		Refusal:       strings.TrimSpace(opts.Refusal),
+		Findings:      guardrails.SafetyFindingLogFields(opts.Findings),
+	}
 }
 
 func (t *Turn) getStateSessionID() string {
@@ -657,7 +678,7 @@ func (t *Turn) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg
 func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBudget, traceSession trace.Session) (string, error) {
 	ctx = normalizeContext(ctx)
 	if err := ctx.Err(); err != nil {
-		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 		return "", err
 	}
 
@@ -670,7 +691,10 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 		DebugRequests: t.cfg.Debug.Requests,
 	}
 
-	traceSession.Record(trace.EvtSummaryFallbackStarted, map[string]any{"remaining_iterations": budget.Remaining()})
+	traceSession.Record(
+		trace.EvtSummaryFallbackStarted,
+		trace.SummaryFallbackStartedPayload{RemainingIterations: budget.Remaining()},
+	)
 	t.summary.RecordSummaryApplied(traceSession)
 	recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
 	recordModelRequest(traceSession, request)
@@ -697,7 +721,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 			Str("error_kind", getAgentModelErrorKind(err)).
 			Msg("summary fallback model request failed")
 		wrapped := fmt.Errorf("iteration limit reached and summary failed: %w", err)
-		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": wrapped.Error()})
+		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: wrapped.Error()})
 		return "", wrapped
 	}
 
@@ -711,7 +735,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 			Str("model", t.cfg.Models.Main.Name).
 			Str("error_kind", "missing_response").
 			Msg("summary fallback model request failed")
-		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 		return "", err
 	}
 
@@ -733,7 +757,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 
 	if resp.RequiresToolCalls {
 		err = fmt.Errorf("iteration limit reached and summary requested more tools")
-		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 		return "", err
 	}
 
@@ -741,17 +765,17 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 
 	assistantMessage, err := handmsg.NewMessage(handmsg.RoleAssistant, reply)
 	if err != nil {
-		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 		return "", err
 	}
 
 	t.emittedMessages = append(t.emittedMessages, assistantMessage)
 	if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
-		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 		return "", err
 	}
 
-	traceSession.Record(trace.EvtFinalAssistantResponse, map[string]any{"message": reply})
+	traceSession.Record(trace.EvtFinalAssistantResponse, trace.FinalAssistantResponsePayload{Message: reply})
 	return reply, nil
 }
 
@@ -973,6 +997,33 @@ func summarizeHydratedPlan(plan envtypes.Plan) envtypes.PlanSummary {
 	return summary
 }
 
+func hydratedPlanStepsToTracePayload(steps []envtypes.PlanStep) []trace.PlanStepPayload {
+	if len(steps) == 0 {
+		return nil
+	}
+
+	payload := make([]trace.PlanStepPayload, 0, len(steps))
+	for _, step := range steps {
+		payload = append(payload, trace.PlanStepPayload{
+			ID:      step.ID,
+			Content: step.Content,
+			Status:  string(step.Status),
+		})
+	}
+
+	return payload
+}
+
+func hydratedPlanSummaryToTracePayload(summary envtypes.PlanSummary) trace.PlanSummaryPayload {
+	return trace.PlanSummaryPayload{
+		Total:      summary.Total,
+		Pending:    summary.Pending,
+		InProgress: summary.InProgress,
+		Completed:  summary.Completed,
+		Cancelled:  summary.Cancelled,
+	}
+}
+
 func getActiveHydratedPlanStepID(plan envtypes.Plan) string {
 	for _, step := range plan.Steps {
 		if step.Status == envtypes.PlanStatusInProgress {
@@ -1017,15 +1068,15 @@ func (t *Turn) recordPostflightUsage(traceSession trace.Session, resp *models.Re
 
 	t.lastPromptTokens = resp.PromptTokens
 	if err := t.stateMgr.UpdateLastPromptTokens(t.ctx, t.sessionID, resp.PromptTokens); err != nil {
-		traceSession.Record(trace.EvtSessionFailed, map[string]any{"error": err.Error()})
+		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 		return err
 	}
 
-	traceSession.Record(trace.EvtContextPostflightUsage, map[string]any{
-		"source":            compaction.ActualSource,
-		"prompt_tokens":     resp.PromptTokens,
-		"completion_tokens": resp.CompletionTokens,
-		"total_tokens":      resp.TotalTokens,
+	traceSession.Record(trace.EvtContextPostflightUsage, trace.ContextEventPayload{
+		Source:           compaction.ActualSource,
+		PromptTokens:     resp.PromptTokens,
+		CompletionTokens: resp.CompletionTokens,
+		TotalTokens:      resp.TotalTokens,
 	})
 
 	return nil

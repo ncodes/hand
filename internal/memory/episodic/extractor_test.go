@@ -560,8 +560,8 @@ func TestService_ExtractCapsDirectBudgetInputs(t *testing.T) {
 
 	require.NoError(t, err)
 	started := tracePayloadFor(t, recorder, trace.EvtMemoryExtractionStarted)
-	require.Equal(t, MaxWindowChars, started["max_window_chars"])
-	require.Equal(t, MaxWindowTokens, started["max_window_tokens"])
+	require.Equal(t, float64(MaxWindowChars), started["max_window_chars"])
+	require.Equal(t, float64(MaxWindowTokens), started["max_window_tokens"])
 }
 
 func TestService_ExtractReturnsValidationAndProviderErrors(t *testing.T) {
@@ -641,7 +641,7 @@ func TestService_ExtractUsesInjectedClock(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, result.Windows)
 	completed := tracePayloadFor(t, recorder, trace.EvtMemoryExtractionCompleted)
-	require.Equal(t, int64(2000), completed["duration_ms"])
+	require.Equal(t, float64(2000), completed["duration_ms"])
 }
 
 func TestService_NormalizeRequestBoundsAndErrors(t *testing.T) {
@@ -1246,8 +1246,8 @@ func tracePayloadFor(t *testing.T, recorder *recordingTrace, name string) map[st
 		if event.name != name {
 			continue
 		}
-		payload, ok := event.payload.(map[string]any)
-		require.True(t, ok)
+		payload := trace.PayloadFields(event.payload)
+		require.NotNil(t, payload)
 		return payload
 	}
 	require.FailNow(t, "trace event not found", name)
@@ -1262,8 +1262,8 @@ func tracePayloadsFor(t *testing.T, recorder *recordingTrace, name string) strin
 		if event.name != name {
 			continue
 		}
-		payload, ok := event.payload.(map[string]any)
-		require.True(t, ok)
+		payload := trace.PayloadFields(event.payload)
+		require.NotNil(t, payload)
 		payloads.WriteString(fmt.Sprint(payload))
 		payloads.WriteString("\n")
 	}

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"strings"
 	"time"
 
@@ -726,8 +725,7 @@ func (s *Service) refreshRecallSummary(
 		}
 
 		err := errors.New("recall windows are required")
-		input.TraceSession.Record(trace.EvtRecallSummaryFailed, mergeSummaryTracePayload(payload,
-			map[string]any{"error": err.Error()}))
+		input.TraceSession.Record(trace.EvtRecallSummaryFailed, summaryTracePayloadWithError(payload, err.Error()))
 		return nil, err
 	}
 
@@ -735,8 +733,7 @@ func (s *Service) refreshRecallSummary(
 	for idx, window := range plan.Windows {
 		summary, err := s.summarizeRecallWindow(ctx, state, input.SessionID, plan, window, idx+1, len(plan.Windows))
 		if err != nil {
-			input.TraceSession.Record(trace.EvtRecallSummaryFailed, mergeSummaryTracePayload(payload,
-				map[string]any{"error": err.Error()}))
+			input.TraceSession.Record(trace.EvtRecallSummaryFailed, summaryTracePayloadWithError(payload, err.Error()))
 			return nil, err
 		}
 		chunkSummaries = append(chunkSummaries, summary)
@@ -744,8 +741,7 @@ func (s *Service) refreshRecallSummary(
 
 	finalSummary, err := s.synthesizeRecallSummaries(ctx, state, input.SessionID, plan, chunkSummaries)
 	if err != nil {
-		input.TraceSession.Record(trace.EvtRecallSummaryFailed, mergeSummaryTracePayload(payload,
-			map[string]any{"error": err.Error()}))
+		input.TraceSession.Record(trace.EvtRecallSummaryFailed, summaryTracePayloadWithError(payload, err.Error()))
 		return nil, err
 	}
 
@@ -1384,7 +1380,7 @@ func (s *Service) refreshSummary(
 			Offset: startOffset,
 		})
 		if err != nil {
-			failedPayload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
+			failedPayload := summaryTracePayloadWithError(payload, err.Error())
 			input.TraceSession.Record(trace.EvtSummaryFailed, failedPayload)
 			return nil, err
 		}
@@ -1411,21 +1407,21 @@ func (s *Service) refreshSummary(
 	}
 	resp, err := s.generateSummaryResponse(ctx, request)
 	if err != nil {
-		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
+		payload := summaryTracePayloadWithError(payload, err.Error())
 		input.TraceSession.Record(trace.EvtSummaryFailed, payload)
 		return nil, err
 	}
 
 	if resp == nil {
 		err = errors.New("model response is required")
-		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
+		payload := summaryTracePayloadWithError(payload, err.Error())
 		input.TraceSession.Record(trace.EvtSummaryFailed, payload)
 		return nil, err
 	}
 
 	if resp.RequiresToolCalls {
 		err = errors.New("summary requested tool calls")
-		payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
+		payload := summaryTracePayloadWithError(payload, err.Error())
 		input.TraceSession.Record(trace.EvtSummaryFailed, payload)
 		return nil, err
 	}
@@ -1440,7 +1436,7 @@ func (s *Service) refreshSummary(
 	)
 	if err != nil {
 		if errors.Is(err, errSummaryResponseEmpty) {
-			payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
+			payload := summaryTracePayloadWithError(payload, err.Error())
 			input.TraceSession.Record(trace.EvtSummaryFailed, payload)
 			return nil, err
 		}
@@ -1448,9 +1444,7 @@ func (s *Service) refreshSummary(
 		summaryParsePath = "plain_text_fallback"
 		log.Warn().Str("session_id", input.SessionID).Err(err).Msg("structured summary parse failed, using fallback")
 
-		input.TraceSession.Record(trace.EvtSummaryParseFailed, mergeSummaryTracePayload(payload, map[string]any{
-			"error": err.Error(),
-		}))
+		input.TraceSession.Record(trace.EvtSummaryParseFailed, summaryTracePayloadWithError(payload, err.Error()))
 
 		summary, err = buildFallbackSummary(
 			input.SessionID,
@@ -1460,7 +1454,7 @@ func (s *Service) refreshSummary(
 			plan.RequestedAt,
 		)
 		if err != nil {
-			payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
+			payload := summaryTracePayloadWithError(payload, err.Error())
 			input.TraceSession.Record(trace.EvtSummaryFailed, payload)
 			return nil, err
 		}
@@ -1480,7 +1474,7 @@ func (s *Service) refreshSummary(
 
 	if persist {
 		if err := s.store.SaveSummary(ctx, summaryRecord); err != nil {
-			payload := mergeSummaryTracePayload(payload, map[string]any{"error": err.Error()})
+			payload := summaryTracePayloadWithError(payload, err.Error())
 			input.TraceSession.Record(trace.EvtSummaryFailed, payload)
 			return nil, err
 		}
@@ -1916,43 +1910,42 @@ func buildSummaryTracePayload(
 	sourceEndOffset,
 	sourceMessageCount int,
 	updatedAt time.Time,
-) map[string]any {
-	return map[string]any{
-		"session_id":           sessionID,
-		"source_end_offset":    sourceEndOffset,
-		"source_message_count": sourceMessageCount,
-		"updated_at":           updatedAt,
+) trace.SummaryEventPayload {
+	return trace.SummaryEventPayload{
+		SessionID:          sessionID,
+		SourceEndOffset:    sourceEndOffset,
+		SourceMessageCount: sourceMessageCount,
+		UpdatedAt:          updatedAt,
 	}
 }
 
-func mergeSummaryTracePayload(base map[string]any, extra map[string]any) map[string]any {
-	merged := make(map[string]any, len(base)+len(extra))
-	maps.Copy(merged, base)
-	maps.Copy(merged, extra)
+func summaryTracePayloadWithError(base trace.SummaryEventPayload, failure string) trace.SummaryEventPayload {
+	merged := base
+	merged.Error = strings.TrimSpace(failure)
 	return merged
 }
 
-func buildCompactionTracePayload(sessionID string, state storage.SessionCompaction, failure string) map[string]any {
-	payload := map[string]any{
-		"session_id":           sessionID,
-		"status":               state.Status,
-		"target_message_count": state.TargetMessageCount,
-		"target_offset":        state.TargetOffset,
+func buildCompactionTracePayload(sessionID string, state storage.SessionCompaction, failure string) trace.CompactionEventPayload {
+	payload := trace.CompactionEventPayload{
+		SessionID:          sessionID,
+		Status:             string(state.Status),
+		TargetMessageCount: state.TargetMessageCount,
+		TargetOffset:       state.TargetOffset,
 	}
 	if !state.RequestedAt.IsZero() {
-		payload["requested_at"] = state.RequestedAt
+		payload.RequestedAt = state.RequestedAt
 	}
 	if !state.StartedAt.IsZero() {
-		payload["started_at"] = state.StartedAt
+		payload.StartedAt = state.StartedAt
 	}
 	if !state.CompletedAt.IsZero() {
-		payload["completed_at"] = state.CompletedAt
+		payload.CompletedAt = state.CompletedAt
 	}
 	if !state.FailedAt.IsZero() {
-		payload["failed_at"] = state.FailedAt
+		payload.FailedAt = state.FailedAt
 	}
 	if strings.TrimSpace(failure) != "" {
-		payload["error"] = strings.TrimSpace(failure)
+		payload.Error = strings.TrimSpace(failure)
 	}
 
 	return payload
