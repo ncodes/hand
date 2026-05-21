@@ -75,7 +75,7 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 
 func shouldRenderToolTranscriptBranches(action string) bool {
 	switch strings.TrimSpace(action) {
-	case "Session Messages", "Session Search":
+	case "Session Messages", "Session Search", "Web Extract":
 		return false
 	default:
 		return true
@@ -280,6 +280,12 @@ func getToolTranscriptTitle(action string, completed bool) string {
 		}
 
 		return "Searching Session"
+	case "Web Extract":
+		if completed {
+			return "Extraction finished"
+		}
+
+		return "Extracting from web"
 	}
 
 	if !completed {

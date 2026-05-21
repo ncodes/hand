@@ -424,6 +424,23 @@ func TestRenderTranscriptCells_RendersSessionSearchWithFriendlyText(t *testing.T
 	require.NotContains(t, completed, "session_search")
 }
 
+func TestRenderTranscriptCells_RendersWebExtractWithFriendlyText(t *testing.T) {
+	startedAt := time.Date(2026, 5, 20, 23, 0, 0, 0, time.UTC)
+	running := stripANSI(defaultTranscriptRenderer.RenderCells([]transcriptCell{
+		toolTranscriptTestCellWithTiming("call_1", "web_extract", "web_extract", startedAt, time.Time{}, false),
+	}, transcriptRenderContext{Width: 80, Now: startedAt.Add(4 * time.Second)}))
+	completed := stripANSI(defaultTranscriptRenderer.RenderCells([]transcriptCell{
+		toolTranscriptTestCellWithTiming("call_1", "web_extract", "web_extract", startedAt, startedAt.Add(4*time.Second), true),
+	}, transcriptRenderContext{Width: 80, Now: startedAt.Add(4 * time.Second)}))
+
+	require.Contains(t, running, "● Extracting from web (4s)")
+	require.NotContains(t, running, "└")
+	require.NotContains(t, running, "web_extract")
+	require.Contains(t, completed, "● Extraction finished (4s)")
+	require.NotContains(t, completed, "└")
+	require.NotContains(t, completed, "web_extract")
+}
+
 func TestRenderTranscriptCells_AnimatesRunningToolDot(t *testing.T) {
 	cells := []transcriptCell{toolTranscriptTestCell("call_1", "web_search", "")}
 	first := stripANSI(renderTranscriptCellsWithFrame(cells, 80, 0))

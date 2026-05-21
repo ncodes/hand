@@ -411,6 +411,8 @@ func getToolActionName(name string) string {
 		return "Patch"
 	case "web_search", "search_web", "search", "web":
 		return "Web Search"
+	case "web_extract", "extract_web":
+		return "Web Extract"
 	case "search_files":
 		return "Search Files"
 	case "session_search", "search_session":
