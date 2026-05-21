@@ -385,6 +385,45 @@ func TestRenderTranscriptCells_RendersMemoryToolsWithFriendlyText(t *testing.T) 
 	}
 }
 
+func TestRenderTranscriptCells_RendersSessionMessagesWithFriendlyText(t *testing.T) {
+	running := stripANSI(renderTranscriptCells([]transcriptCell{
+		toolTranscriptTestCell("call_1", "session_messages", ""),
+	}))
+	completed := stripANSI(renderTranscriptCells([]transcriptCell{
+		toolTranscriptTestCell("call_1", "session_messages", "", true),
+	}))
+	withDetail := stripANSI(renderTranscriptCells([]transcriptCell{
+		toolTranscriptTestCell("call_1", "session_messages", "session_messages(offset_start=3 offset_end=9)", true),
+	}))
+
+	require.Contains(t, running, "● Fetching Session Messages")
+	require.NotContains(t, running, "└")
+	require.NotContains(t, running, "session_messages")
+	require.Contains(t, completed, "● Fetched Session Messages")
+	require.NotContains(t, completed, "└")
+	require.NotContains(t, completed, "session_messages")
+	require.Contains(t, withDetail, "● Fetched Session Messages")
+	require.NotContains(t, withDetail, "└")
+	require.NotContains(t, withDetail, "session_messages")
+}
+
+func TestRenderTranscriptCells_RendersSessionSearchWithFriendlyText(t *testing.T) {
+	startedAt := time.Date(2026, 5, 20, 23, 0, 0, 0, time.UTC)
+	running := stripANSI(defaultTranscriptRenderer.RenderCells([]transcriptCell{
+		toolTranscriptTestCellWithTiming("call_1", "session_search", `Search "favorite color"`, startedAt, time.Time{}, false),
+	}, transcriptRenderContext{Width: 80, Now: startedAt.Add(45 * time.Second)}))
+	completed := stripANSI(defaultTranscriptRenderer.RenderCells([]transcriptCell{
+		toolTranscriptTestCellWithTiming("call_1", "session_search", `Search "favorite color"`, startedAt, startedAt.Add(45*time.Second), true),
+	}, transcriptRenderContext{Width: 80, Now: startedAt.Add(45 * time.Second)}))
+
+	require.Contains(t, running, "● Searching Session (45s)")
+	require.NotContains(t, running, "└")
+	require.NotContains(t, running, "session_search")
+	require.Contains(t, completed, "● Searched Session (45s)")
+	require.NotContains(t, completed, "└")
+	require.NotContains(t, completed, "session_search")
+}
+
 func TestRenderTranscriptCells_AnimatesRunningToolDot(t *testing.T) {
 	cells := []transcriptCell{toolTranscriptTestCell("call_1", "web_search", "")}
 	first := stripANSI(renderTranscriptCellsWithFrame(cells, 80, 0))
@@ -923,6 +962,59 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedListFilesLikeLiveTrace(
 	livePlain := stripANSI(renderTranscriptCells(liveCells))
 	require.Contains(t, hydratedPlain, "● List Files (1s)")
 	require.Contains(t, hydratedPlain, "└ "+detail+" (1s)")
+	require.Equal(t, livePlain, hydratedPlain)
+}
+
+func TestSessionTimelineToTranscriptCells_RendersHydratedSessionMessagesLikeLiveTrace(t *testing.T) {
+	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
+	detail := "session_messages(anchor_message_id=42 before=2 after=3 max_chars=1200)"
+	hydratedCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
+		Messages: []agent.SessionTimelineMessage{
+			{Message: handmsg.Message{
+				Role: handmsg.RoleAssistant,
+				ToolCalls: []handmsg.ToolCall{{
+					ID:    "call_1",
+					Name:  "session_messages",
+					Input: `{"anchor_message_id":42,"before":2,"after":3,"max_chars":1200}`,
+				}},
+				CreatedAt: now,
+			}},
+			{Message: handmsg.Message{
+				Role:       handmsg.RoleTool,
+				Name:       "session_messages",
+				ToolCallID: "call_1",
+				Content:    `{"messages":[]}`,
+				CreatedAt:  now.Add(time.Second),
+			}},
+		},
+	})
+	liveCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
+		TraceEvents: []agent.SessionTimelineTraceEvent{
+			{Event: storage.TraceEvent{
+				Type:      trace.EvtToolInvocationStarted,
+				Timestamp: now,
+				Payload: map[string]any{
+					"id":     "call_1",
+					"name":   "session_messages",
+					"detail": detail,
+				},
+			}},
+			{Event: storage.TraceEvent{
+				Type:      trace.EvtToolInvocationCompleted,
+				Timestamp: now.Add(time.Second),
+				Payload: map[string]any{
+					"tool_call_id": "call_1",
+					"name":         "session_messages",
+				},
+			}},
+		},
+	})
+
+	hydratedPlain := stripANSI(renderTranscriptCells(hydratedCells))
+	livePlain := stripANSI(renderTranscriptCells(liveCells))
+	require.Contains(t, hydratedPlain, "● Fetched Session Messages (1s)")
+	require.NotContains(t, hydratedPlain, "└")
+	require.NotContains(t, hydratedPlain, detail)
 	require.Equal(t, livePlain, hydratedPlain)
 }
 

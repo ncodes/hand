@@ -270,6 +270,26 @@ func TestToolCallPayloadToTUIMessage_ExtractsMemorySearchDetail(t *testing.T) {
 	}, msg)
 }
 
+func TestToolCallPayloadToTUIMessage_ExtractsSessionMessagesDetail(t *testing.T) {
+	msg, ok := toolCallPayloadToTUIMessage(models.ToolCall{
+		ID:   "call_1",
+		Name: "session_messages",
+		Input: `{
+			"anchor_message_id": 42,
+			"before": 2,
+			"after": 3,
+			"max_chars": 1200
+		}`,
+	})
+
+	require.True(t, ok)
+	require.Equal(t, toolInvocationStartedMsg{
+		ID:     "call_1",
+		Name:   "session_messages",
+		Detail: "session_messages(anchor_message_id=42 before=2 after=3 max_chars=1200)",
+	}, msg)
+}
+
 func TestToolCallPayloadToTUIMessage_ExtractsSearchFilesDetail(t *testing.T) {
 	msg, ok := toolCallPayloadToTUIMessage(models.ToolCall{
 		ID:    "call_1",

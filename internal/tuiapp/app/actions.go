@@ -92,6 +92,7 @@ func (clearTranscriptAction) apply(state *tuiState) {
 	state.stream.Reset()
 	state.reasoningStartedAt = time.Time{}
 	state.reasoningMessageIndex = -1
+	state.reasoningMessageIndices = nil
 }
 
 func (action replaceTranscriptCellAction) apply(state *tuiState) {

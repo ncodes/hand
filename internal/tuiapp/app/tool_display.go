@@ -96,7 +96,7 @@ func getToolDisplaySpecForAction(action string) toolDisplaySpec {
 			inputDetail:  getRunToolDisplayDetail,
 			branchDetail: normalizeRunToolDetailText,
 		}
-	case "Web Search", "Memory Search":
+	case "Web Search", "Memory Search", "Session Search":
 		return toolDisplaySpec{
 			inputDetail: getSearchToolDisplayDetail,
 		}
@@ -108,6 +108,11 @@ func getToolDisplaySpecForAction(action string) toolDisplaySpec {
 		return toolDisplaySpec{branchDetail: getStaticToolBranchDetail("Update memory")}
 	case "Memory Delete":
 		return toolDisplaySpec{branchDetail: getStaticToolBranchDetail("Delete memory")}
+	case "Session Messages":
+		return toolDisplaySpec{
+			inputDetail:  getSessionMessagesToolDisplayDetail,
+			branchDetail: getSessionMessagesToolBranchDetail,
+		}
 	default:
 		return toolDisplaySpec{}
 	}
@@ -209,6 +214,62 @@ func getSearchFilesToolDisplayDetail(fields map[string]any) string {
 	}
 
 	return detail
+}
+
+func getSessionMessagesToolDisplayDetail(fields map[string]any) string {
+	keys := []string{
+		"session_id",
+		"message_ids",
+		"anchor_message_id",
+		"offset_start",
+		"offset_end",
+		"before",
+		"after",
+		"max_chars",
+	}
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if part := getSessionMessagesToolParam(key, fields[key]); part != "" {
+			parts = append(parts, part)
+		}
+	}
+
+	if len(parts) == 0 {
+		return "session_messages()"
+	}
+
+	return "session_messages(" + strings.Join(parts, " ") + ")"
+}
+
+func getSessionMessagesToolBranchDetail(detail string, _ bool) string {
+	detail = strings.TrimSpace(detail)
+	if detail == "" || normalizeToolDisplayName(detail) == "session_messages" ||
+		normalizeToolDisplayName(detail) == "session_message" {
+		return "session_messages()"
+	}
+
+	return detail
+}
+
+func getSessionMessagesToolParam(key string, value any) string {
+	key = strings.TrimSpace(key)
+	if key == "" || isEmptyToolInputValue(value) {
+		return ""
+	}
+	if key == "message_ids" {
+		ids := formatToolInputValueForKey(key, value)
+		if ids == "" {
+			return ""
+		}
+
+		return key + "=" + ids
+	}
+	formatted := formatToolInputValueForKey(key, value)
+	if formatted == "" || formatted == "0" {
+		return ""
+	}
+
+	return key + "=" + formatted
 }
 
 func getPathToolDisplayDetail(name string, fields map[string]any) string {
@@ -341,12 +402,46 @@ func formatOptionalToolNumber(value any) string {
 		if typed <= 0 {
 			return ""
 		}
-		return strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%.1f", typed), "0"), ".")
+	case float32:
+		if typed <= 0 {
+			return ""
+		}
 	case int:
 		if typed <= 0 {
 			return ""
 		}
+	case int64:
+		if typed <= 0 {
+			return ""
+		}
+	case int32:
+		if typed <= 0 {
+			return ""
+		}
+	}
+
+	formatted := formatToolInputNumber(value)
+	if formatted == "0" {
+		return ""
+	}
+
+	return formatted
+}
+
+func formatToolInputNumber(value any) string {
+	switch typed := value.(type) {
+	case float64:
+		return strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%.1f", typed), "0"), ".")
+	case float32:
+		return strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%.1f", typed), "0"), ".")
+	case int:
 		return fmt.Sprintf("%d", typed)
+	case int64:
+		return fmt.Sprintf("%d", typed)
+	case int32:
+		return fmt.Sprintf("%d", typed)
+	case json.Number:
+		return strings.TrimSpace(typed.String())
 	default:
 		return ""
 	}

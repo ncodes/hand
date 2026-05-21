@@ -177,6 +177,8 @@ func TestNewDefaultConfig_ReturnsIndependentConfig(t *testing.T) {
 	require.True(t, first.OutputSafetyEnabled())
 	require.False(t, first.OutputPIIRedactionEnabled())
 	require.NotEmpty(t, first.FS.Roots)
+	require.Equal(t, constants.RerankerDeterministic, first.Reranker.Type)
+	require.Equal(t, constants.RerankerDeterministic, first.RerankerEffective())
 
 	*first.Models.Verify = false
 	*first.Safety.Input = false

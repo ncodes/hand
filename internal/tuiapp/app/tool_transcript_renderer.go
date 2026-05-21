@@ -46,8 +46,11 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 			Render(headerDuration)
 
 	details := make([]toolTranscriptDetail, 0, len(group.details))
-	for _, detail := range group.details {
-		if strings.TrimSpace(detail.text) != "" {
+	if shouldRenderToolTranscriptBranches(action) {
+		for _, detail := range group.details {
+			if strings.TrimSpace(detail.text) == "" {
+				continue
+			}
 			details = append(details, detail)
 		}
 	}
@@ -68,6 +71,15 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func shouldRenderToolTranscriptBranches(action string) bool {
+	switch strings.TrimSpace(action) {
+	case "Session Messages", "Session Search":
+		return false
+	default:
+		return true
+	}
 }
 
 func renderToolBranchDetail(detail string, duration string, style lipgloss.Style) string {
@@ -256,6 +268,18 @@ func getToolTranscriptTitle(action string, completed bool) string {
 		}
 
 		return "Searching Files"
+	case "Session Messages":
+		if completed {
+			return "Fetched Session Messages"
+		}
+
+		return "Fetching Session Messages"
+	case "Session Search":
+		if completed {
+			return "Searched Session"
+		}
+
+		return "Searching Session"
 	}
 
 	if !completed {

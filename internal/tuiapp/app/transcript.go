@@ -121,16 +121,19 @@ func (m *model) applyTUIMessage(msg any) tea.Cmd {
 		if isReasoningDeltaChannel(value.Channel) {
 			m.appendReasoningDelta(value.Text)
 		} else {
+			m.collapseCurrentReasoningTranscript()
 			m.appendAssistantDelta(value.Text)
 		}
 	case assistantResponseCompletedMsg:
 		m.completeAssistantResponse(value.Text)
 	case reasoningCompletedMsg:
-		m.addTranscriptMessage(value)
+		m.completeReasoningTranscript(value.Duration)
 	case sessionErrorMsg:
+		m.collapseCurrentReasoningTranscript()
 		m.addTranscriptMessage(value)
 		return m.setStatus("response failed")
 	case toolInvocationStartedMsg:
+		m.collapseCurrentReasoningTranscript()
 		m.addTranscriptMessage(value)
 		return m.startToolAnimation()
 	case toolInvocationCompletedMsg:
@@ -165,14 +168,15 @@ func (m *model) appendReasoningDelta(delta string) {
 	}
 
 	if len(m.messages) > 0 && m.messages[len(m.messages)-1].Kind() == transcriptCellReasoning {
+		index := len(m.messages) - 1
 		m.applyAction(replaceTranscriptCellAction{
-			Index: len(m.messages) - 1,
-			Cell:  appendReasoningTranscriptCell(m.messages[len(m.messages)-1], delta),
+			Index: index,
+			Cell:  appendReasoningTranscriptCell(m.messages[index], delta),
 		})
-		m.reasoningMessageIndex = len(m.messages) - 1
+		m.trackReasoningTranscriptIndex(index)
 	} else {
 		m.applyAction(appendTranscriptCellAction{Cell: cell})
-		m.reasoningMessageIndex = len(m.messages) - 1
+		m.trackReasoningTranscriptIndex(len(m.messages) - 1)
 	}
 
 	m.setTranscriptContentForResponseUpdate()
@@ -199,13 +203,13 @@ func (m *model) completeAssistantResponse(text string) {
 	}
 	if strings.TrimSpace(reply) == "" {
 		m.applyAction(setLiveTranscriptCellAction{})
-		m.collapseReasoningTranscript()
+		m.collapseCurrentReasoningTranscript()
 		m.setTranscriptContentAfterResponseCompletion()
 		m.resize()
 		return
 	}
 
-	m.collapseReasoningTranscript()
+	m.collapseCurrentReasoningTranscript()
 	m.applyAction(appendTranscriptCellAction{Cell: assistantTranscriptCell{text: reply}})
 	m.applyAction(setLiveTranscriptCellAction{})
 	m.setTranscriptContentAfterResponseCompletion()
@@ -226,26 +230,146 @@ func (m *model) setTranscriptContentForResponseUpdate() {
 }
 
 func (m *model) collapseReasoningTranscript() {
-	index := m.reasoningMessageIndex
-	if index < 0 || index >= len(m.messages) || m.messages[index].Kind() != transcriptCellReasoning {
-		return
-	}
+	m.collapseCurrentReasoningTranscript()
+}
 
-	duration := currentTime().Sub(m.reasoningStartedAt).Round(time.Second)
-	if m.reasoningStartedAt.IsZero() || duration <= 0 {
+func (m *model) completeReasoningTranscript(duration time.Duration) {
+	if duration <= 0 {
 		duration = time.Second
 	}
 
-	m.applyAction(replaceTranscriptCellAction{
-		Index: index,
-		Cell:  thoughtTranscriptCell{duration: duration},
-	})
-	m.clearReasoningTranscriptState()
+	index, ok := m.getCurrentReasoningTranscriptIndex()
+	if !ok {
+		return
+	}
+
+	m.replaceReasoningTranscriptCellWithThought(index, duration)
 }
 
 func (m *model) clearReasoningTranscriptState() {
 	m.reasoningStartedAt = time.Time{}
 	m.reasoningMessageIndex = -1
+	m.reasoningMessageIndices = nil
+}
+
+func (m *model) trackReasoningTranscriptIndex(index int) {
+	m.reasoningMessageIndex = index
+	if index < 0 {
+		return
+	}
+	for _, existing := range m.reasoningMessageIndices {
+		if existing == index {
+			return
+		}
+	}
+
+	m.reasoningMessageIndices = append(m.reasoningMessageIndices, index)
+}
+
+func (m model) hasActiveReasoningTranscriptCells() bool {
+	return len(m.getActiveReasoningTranscriptIndices()) > 0
+}
+
+func (m model) getCurrentReasoningTranscriptIndex() (int, bool) {
+	if m.reasoningMessageIndex >= 0 &&
+		m.reasoningMessageIndex < len(m.messages) &&
+		m.messages[m.reasoningMessageIndex] != nil &&
+		m.messages[m.reasoningMessageIndex].Kind() == transcriptCellReasoning {
+		return m.reasoningMessageIndex, true
+	}
+
+	for index := len(m.reasoningMessageIndices) - 1; index >= 0; index-- {
+		messageIndex := m.reasoningMessageIndices[index]
+		if messageIndex < 0 || messageIndex >= len(m.messages) || m.messages[messageIndex] == nil {
+			continue
+		}
+		if m.messages[messageIndex].Kind() == transcriptCellReasoning {
+			return messageIndex, true
+		}
+	}
+
+	return -1, false
+}
+
+func (m model) getActiveReasoningTranscriptIndices() []int {
+	seen := map[int]bool{}
+	indices := make([]int, 0, len(m.reasoningMessageIndices)+1)
+	for _, index := range append(append([]int{}, m.reasoningMessageIndices...), m.reasoningMessageIndex) {
+		if seen[index] || index < 0 || index >= len(m.messages) {
+			continue
+		}
+		if m.messages[index] == nil || m.messages[index].Kind() != transcriptCellReasoning {
+			continue
+		}
+		seen[index] = true
+		indices = append(indices, index)
+	}
+
+	return indices
+}
+
+func (m *model) collapseCurrentReasoningTranscript() {
+	index, ok := m.getCurrentReasoningTranscriptIndex()
+	if !ok {
+		return
+	}
+
+	duration := m.getReasoningTranscriptDuration(index, currentTime())
+	m.replaceReasoningTranscriptCellWithThought(index, duration)
+}
+
+func (m model) getReasoningTranscriptDuration(index int, endedAt time.Time) time.Duration {
+	if index < 0 || index >= len(m.messages) || m.messages[index] == nil {
+		return time.Second
+	}
+
+	cell, ok := m.messages[index].(reasoningTranscriptCell)
+	if !ok || cell.startedAt.IsZero() {
+		if m.reasoningStartedAt.IsZero() {
+			return time.Second
+		}
+		return normalizeThoughtDuration(endedAt.Sub(m.reasoningStartedAt).Round(time.Second))
+	}
+
+	return normalizeThoughtDuration(endedAt.Sub(cell.startedAt).Round(time.Second))
+}
+
+func (m *model) replaceReasoningTranscriptCellWithThought(index int, duration time.Duration) {
+	m.applyAction(replaceTranscriptCellAction{
+		Index: index,
+		Cell:  thoughtTranscriptCell{duration: normalizeThoughtDuration(duration)},
+	})
+	m.untrackReasoningTranscriptIndex(index)
+	if !m.hasActiveReasoningTranscriptCells() {
+		m.clearReasoningTranscriptState()
+	}
+	if m.responding {
+		m.setTranscriptContentForResponseUpdate()
+	} else {
+		m.setTranscriptContent()
+	}
+	m.resize()
+}
+
+func (m *model) untrackReasoningTranscriptIndex(index int) {
+	next := m.reasoningMessageIndices[:0]
+	for _, existing := range m.reasoningMessageIndices {
+		if existing != index {
+			next = append(next, existing)
+		}
+	}
+	m.reasoningMessageIndices = next
+	if m.reasoningMessageIndex == index {
+		m.reasoningMessageIndex = -1
+	}
+}
+
+func normalizeThoughtDuration(duration time.Duration) time.Duration {
+	if duration <= 0 {
+		return time.Second
+	}
+
+	return duration
 }
 
 func newReasoningTranscriptCell(text string, startedAt time.Time) transcriptCell {

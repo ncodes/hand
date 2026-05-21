@@ -453,7 +453,7 @@ var DefaultConfig = Config{
 	},
 	Reranker: RerankerConfig{
 		Enabled:               new(constants.DefaultProfileRerankerEnabled),
-		Type:                  constants.RerankerLLM,
+		Type:                  constants.RerankerDeterministic,
 		MaxCandidates:         constants.DefaultHybridRetrievalCandidateLimit,
 		MaxCandidateTextChars: constants.DefaultLLMRerankerMaxCandidateTextLen,
 	},

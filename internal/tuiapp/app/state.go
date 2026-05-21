@@ -17,6 +17,7 @@ type tuiState struct {
 	stream                     markdownStreamCollector
 	reasoningStartedAt         time.Time
 	reasoningMessageIndex      int
+	reasoningMessageIndices    []int
 	history                    []string
 	historyAt                  int
 	draft                      string

@@ -413,6 +413,8 @@ func getToolActionName(name string) string {
 		return "Web Search"
 	case "search_files":
 		return "Search Files"
+	case "session_search", "search_session":
+		return "Session Search"
 	case "memory_search", "search_memory", "memory":
 		return "Memory Search"
 	case "memory_extract", "extract_memory":
@@ -423,6 +425,8 @@ func getToolActionName(name string) string {
 		return "Memory Update"
 	case "memory_delete", "delete_memory":
 		return "Memory Delete"
+	case "session_message", "session_messages":
+		return "Session Messages"
 	case "exec", "exec_command", "run", "run_command", "shell", "bash", "process":
 		return "Run"
 	default:

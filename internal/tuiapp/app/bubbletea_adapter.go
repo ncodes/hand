@@ -25,6 +25,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 	case assistantResponseCompletedMsg:
 		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
+	case reasoningCompletedMsg:
+		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 	case responseEventMsg:
 		return m.handleResponseEvent(msg)
 	case responseEventsClosedMsg:

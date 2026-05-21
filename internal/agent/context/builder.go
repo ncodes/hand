@@ -1,6 +1,8 @@
 package context
 
 import (
+	"strings"
+
 	"github.com/wandxy/hand/internal/messages"
 )
 
@@ -31,5 +33,82 @@ func (b *Builder) Build(input Input) []messages.Message {
 	built = append(built, messages.CloneMessages(input.PrefixMessages)...)
 	built = append(built, messages.CloneMessages(input.SessionHistory)...)
 	built = append(built, messages.CloneMessages(input.EmittedMessages)...)
-	return built
+	return sanitizeToolCallMessageGroups(built)
+}
+
+func sanitizeToolCallMessageGroups(input []messages.Message) []messages.Message {
+	if len(input) == 0 {
+		return nil
+	}
+
+	sanitized := make([]messages.Message, 0, len(input))
+	for index := 0; index < len(input); index++ {
+		message := input[index]
+		if message.Role == messages.RoleTool {
+			continue
+		}
+		if message.Role != messages.RoleAssistant || len(message.ToolCalls) == 0 {
+			sanitized = append(sanitized, message)
+			continue
+		}
+
+		toolMessages := mapImmediateToolMessages(input, index+1)
+		sanitized = append(sanitized, message)
+		for _, toolCall := range message.ToolCalls {
+			toolCallID := strings.TrimSpace(toolCall.ID)
+			if toolCallID == "" {
+				continue
+			}
+			toolMessage, ok := toolMessages[toolCallID]
+			if !ok {
+				toolMessage = unavailableToolResultMessage(toolCall)
+			}
+			sanitized = append(sanitized, toolMessage)
+		}
+
+		index += countImmediateToolMessages(input[index+1:])
+	}
+
+	return sanitized
+}
+
+func mapImmediateToolMessages(input []messages.Message, start int) map[string]messages.Message {
+	result := map[string]messages.Message{}
+	for index := start; index < len(input); index++ {
+		message := input[index]
+		if message.Role != messages.RoleTool {
+			break
+		}
+		toolCallID := strings.TrimSpace(message.ToolCallID)
+		if toolCallID == "" {
+			continue
+		}
+		if _, exists := result[toolCallID]; exists {
+			continue
+		}
+		result[toolCallID] = message
+	}
+
+	return result
+}
+
+func countImmediateToolMessages(input []messages.Message) int {
+	count := 0
+	for _, message := range input {
+		if message.Role != messages.RoleTool {
+			break
+		}
+		count++
+	}
+
+	return count
+}
+
+func unavailableToolResultMessage(toolCall messages.ToolCall) messages.Message {
+	return messages.Message{
+		Role:       messages.RoleTool,
+		Name:       strings.TrimSpace(toolCall.Name),
+		ToolCallID: strings.TrimSpace(toolCall.ID),
+		Content:    "[Tool result unavailable: the previous run ended before this tool response was recorded.]",
+	}
 }

@@ -2255,9 +2255,9 @@ func TestModel_UpdateRendersReasoningDeltasOutsideAssistantStream(t *testing.T) 
 	require.Nil(t, cmd)
 	updated, cmd = updated.(model).Update(assistantTextDeltaMsg{Channel: "reasoning", Text: "token"})
 	require.Nil(t, cmd)
+	now = now.Add(3 * time.Second)
 	updated, cmd = updated.(model).Update(assistantTextDeltaMsg{Text: "answer"})
 	require.Nil(t, cmd)
-	now = now.Add(3 * time.Second)
 	updated, cmd = updated.(model).Update(assistantResponseCompletedMsg{})
 	require.Nil(t, cmd)
 
@@ -2273,6 +2273,56 @@ func TestModel_UpdateRendersReasoningDeltasOutsideAssistantStream(t *testing.T) 
 	require.Contains(t, content, "answer")
 	require.NotContains(t, content, "Reasoning:")
 	require.NotContains(t, content, "first token")
+}
+
+func TestModel_UpdateReasoningCompletedCollapsesEarlierThinkingCell(t *testing.T) {
+	now := time.Date(2026, 5, 20, 11, 0, 0, 0, time.UTC)
+	originalCurrentTime := currentTime
+	t.Cleanup(func() { currentTime = originalCurrentTime })
+	currentTime = func() time.Time { return now }
+
+	runModel := newModel()
+	runModel.responding = true
+	runModel.messages = []transcriptCell{userTranscriptCell{text: "hello"}}
+	runModel.setTranscriptContent()
+
+	updated, cmd := runModel.Update(assistantTextDeltaMsg{Channel: "reasoning", Text: "checking messages"})
+	require.Nil(t, cmd)
+	now = now.Add(5 * time.Second)
+	updated, cmd = updated.(model).Update(toolInvocationStartedMsg{
+		ID:   "call_1",
+		Name: "session_messages",
+	})
+	require.NotNil(t, cmd)
+	updated, cmd = updated.(model).Update(toolInvocationCompletedMsg{
+		ID:   "call_1",
+		Name: "session_messages",
+	})
+	require.NotNil(t, cmd)
+	updated, cmd = updated.(model).Update(assistantTextDeltaMsg{Channel: "reasoning", Text: "checking again"})
+	require.Nil(t, cmd)
+	now = now.Add(17 * time.Second)
+	updated, cmd = updated.(model).Update(reasoningCompletedMsg{Duration: 17 * time.Second})
+	require.Nil(t, cmd)
+	updated, cmd = updated.(model).Update(assistantResponseCompletedMsg{Text: "done"})
+	require.Nil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, []string{
+		"You: hello",
+		"Thought: 5s",
+		transcriptCellPlainText(toolTranscriptTestCell("call_1", "session_messages", "")),
+		transcriptCellPlainText(toolTranscriptTestCell("call_1", "session_messages", "", true)),
+		"Thought: 17s",
+		"Hand: done",
+	}, transcriptCellPlainTexts(runModel.messages))
+	content := stripANSI(runModel.transcript.View())
+	require.Contains(t, content, "Thought for 5s")
+	require.Contains(t, content, "Thought for 17s")
+	require.Contains(t, content, "Fetched Session Messages")
+	require.NotContains(t, content, "Thinking")
+	require.NotContains(t, content, "checking messages")
+	require.NotContains(t, content, "checking again")
 }
 
 func TestModel_UpdateStreamedRenderMatchesCommittedAssistantText(t *testing.T) {
