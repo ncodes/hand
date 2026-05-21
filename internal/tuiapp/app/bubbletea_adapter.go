@@ -21,6 +21,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateToolAnimation()
 	case thinkingComposerTickMsg:
 		return m.updateThinkingComposer()
+	case transcriptSelectionAutoScrollTickMsg:
+		return m.updateTranscriptSelectionAutoScroll()
 	case assistantTextDeltaMsg:
 		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 	case assistantResponseCompletedMsg:
@@ -65,8 +67,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	case tea.MouseMotionMsg:
-		if m.updateTranscriptSelection(msg) {
-			return m, nil
+		if handled, cmd := m.updateTranscriptSelection(msg); handled {
+			return m, cmd
 		}
 	case tea.MouseReleaseMsg:
 		if cmd := m.finishTranscriptSelection(msg); cmd != nil {

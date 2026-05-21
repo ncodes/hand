@@ -3,12 +3,17 @@ package tui
 import (
 	"math"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/rivo/uniseg"
 )
+
+const transcriptSelectionAutoScrollInterval = 60 * time.Millisecond
+
+type transcriptSelectionAutoScrollTickMsg struct{}
 
 type transcriptSelectionPoint struct {
 	line   int
@@ -21,6 +26,9 @@ type transcriptSelection struct {
 	content  string
 	start    transcriptSelectionPoint
 	end      transcriptSelectionPoint
+	mouse    tea.Mouse
+	scroll   int
+	ticking  bool
 }
 
 func (m *model) startTranscriptSelection(msg tea.MouseClickMsg) bool {
@@ -45,26 +53,21 @@ func (m *model) startTranscriptSelection(msg tea.MouseClickMsg) bool {
 		content:  m.transcript.GetContent(),
 		start:    point,
 		end:      point,
+		mouse:    msg.Mouse(),
 	}
 	m.applyTranscriptSelectionStyle()
 
 	return true
 }
 
-func (m *model) updateTranscriptSelection(msg tea.MouseMotionMsg) bool {
+func (m *model) updateTranscriptSelection(msg tea.MouseMotionMsg) (bool, tea.Cmd) {
 	if !m.selection.dragging {
-		return false
+		return false, nil
 	}
 
-	point, ok := m.transcriptSelectionPointFromMouse(msg.Mouse())
-	if !ok {
-		return false
-	}
+	cmd := m.updateTranscriptSelectionForMouse(msg.Mouse())
 
-	m.selection.end = point
-	m.applyTranscriptSelectionStyle()
-
-	return true
+	return true, cmd
 }
 
 func (m *model) finishTranscriptSelection(msg tea.MouseReleaseMsg) tea.Cmd {
@@ -72,10 +75,10 @@ func (m *model) finishTranscriptSelection(msg tea.MouseReleaseMsg) tea.Cmd {
 		return nil
 	}
 
-	if point, ok := m.transcriptSelectionPointFromMouse(msg.Mouse()); ok {
-		m.selection.end = point
-	}
+	m.updateTranscriptSelectionForMouse(msg.Mouse())
 	m.selection.dragging = false
+	m.selection.scroll = 0
+	m.selection.ticking = false
 	m.applyTranscriptSelectionStyle()
 
 	text := m.selectedTranscriptText()
@@ -90,6 +93,66 @@ func (m *model) finishTranscriptSelection(msg tea.MouseReleaseMsg) tea.Cmd {
 	return nil
 }
 
+func (m *model) updateTranscriptSelectionForMouse(mouse tea.Mouse) tea.Cmd {
+	m.selection.mouse = mouse
+	m.selection.scroll = m.transcriptSelectionScrollDirection(mouse)
+
+	if m.selection.scroll != 0 {
+		m.scrollTranscriptSelection(m.selection.scroll)
+	}
+	if point, ok := m.transcriptSelectionPointFromMouseClamped(mouse); ok {
+		m.selection.end = point
+	}
+	m.applyTranscriptSelectionStyle()
+
+	if m.selection.scroll == 0 || m.selection.ticking {
+		return nil
+	}
+
+	m.selection.ticking = true
+	return transcriptSelectionAutoScrollTickCmd()
+}
+
+func (m *model) updateTranscriptSelectionAutoScroll() (tea.Model, tea.Cmd) {
+	if !m.selection.dragging {
+		m.selection.scroll = 0
+		m.selection.ticking = false
+		return *m, nil
+	}
+
+	m.selection.ticking = false
+	cmd := m.updateTranscriptSelectionForMouse(m.selection.mouse)
+
+	return *m, cmd
+}
+
+func (m *model) scrollTranscriptSelection(direction int) {
+	previousOffset := m.transcript.YOffset()
+	switch {
+	case direction < 0:
+		m.transcript.ScrollUp(1)
+	case direction > 0:
+		m.transcript.ScrollDown(1)
+	}
+	m.markResponseTranscriptScrolled(previousOffset, false)
+}
+
+func (m model) transcriptSelectionScrollDirection(mouse tea.Mouse) int {
+	if m.transcript.Height() <= 0 {
+		return 0
+	}
+
+	row := mouse.Y - m.getTranscriptTop()
+	switch {
+	case row <= 0 && m.transcript.YOffset() > 0:
+		return -1
+	case row >= m.transcript.Height()-1 && !m.transcript.AtBottom():
+		return 1
+	default:
+		return 0
+	}
+}
+
 func (m model) transcriptSelectionPointFromMouse(mouse tea.Mouse) (transcriptSelectionPoint, bool) {
 	top := m.getTranscriptTop()
 	row := mouse.Y - top
@@ -97,6 +160,18 @@ func (m model) transcriptSelectionPointFromMouse(mouse tea.Mouse) (transcriptSel
 		return transcriptSelectionPoint{}, false
 	}
 
+	x := max(mouse.X-getPanelHorizontalPadding(m.width), 0)
+
+	return m.transcriptSelectionPointFromVisualLine(m.transcript.YOffset()+row, x)
+}
+
+func (m model) transcriptSelectionPointFromMouseClamped(mouse tea.Mouse) (transcriptSelectionPoint, bool) {
+	if m.transcript.Height() <= 0 {
+		return transcriptSelectionPoint{}, false
+	}
+
+	top := m.getTranscriptTop()
+	row := min(max(mouse.Y-top, 0), m.transcript.Height()-1)
 	x := max(mouse.X-getPanelHorizontalPadding(m.width), 0)
 
 	return m.transcriptSelectionPointFromVisualLine(m.transcript.YOffset()+row, x)
@@ -177,6 +252,12 @@ func (m *model) applyTranscriptSelectionStyle() {
 func (m *model) clearTranscriptSelection() {
 	m.selection = transcriptSelection{}
 	m.transcript.ClearHighlights()
+}
+
+func transcriptSelectionAutoScrollTickCmd() tea.Cmd {
+	return tea.Tick(transcriptSelectionAutoScrollInterval, func(time.Time) tea.Msg {
+		return transcriptSelectionAutoScrollTickMsg{}
+	})
 }
 
 func (m *model) restoreTranscriptContentAfterSelection() {

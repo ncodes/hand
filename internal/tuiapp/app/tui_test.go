@@ -1166,6 +1166,92 @@ func TestModel_UpdateKeepsSelectionWhenDraggingOutsideTranscript(t *testing.T) {
 	require.Equal(t, start, runModel.selection.end)
 }
 
+func TestModel_UpdateAutoScrollsTranscriptSelectionAtBottomEdge(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 40
+	runModel.height = 12
+	runModel.resize()
+	runModel.transcript.SetWidth(20)
+	runModel.transcript.SetHeight(3)
+	runModel.transcript.SetContent(strings.Join([]string{
+		"line 00",
+		"line 01",
+		"line 02",
+		"line 03",
+		"line 04",
+		"line 05",
+	}, "\n"))
+	runModel.transcript.GotoTop()
+	top := runModel.getTranscriptTop()
+
+	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		X:      getPanelHorizontalPadding(runModel.width),
+		Y:      top,
+	}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+
+	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		X:      getPanelHorizontalPadding(runModel.width) + len("line 03"),
+		Y:      top + runModel.transcript.Height(),
+	}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 1, runModel.transcript.YOffset())
+	require.Contains(t, runModel.selectedTranscriptText(), "line 03")
+
+	updated, cmd = runModel.Update(transcriptSelectionAutoScrollTickMsg{})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 2, runModel.transcript.YOffset())
+	require.Contains(t, runModel.selectedTranscriptText(), "line 04")
+}
+
+func TestModel_UpdateAutoScrollsTranscriptSelectionAtTopEdge(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 40
+	runModel.height = 12
+	runModel.resize()
+	runModel.transcript.SetWidth(20)
+	runModel.transcript.SetHeight(3)
+	runModel.transcript.SetContent(strings.Join([]string{
+		"line 00",
+		"line 01",
+		"line 02",
+		"line 03",
+		"line 04",
+		"line 05",
+	}, "\n"))
+	runModel.transcript.SetYOffset(3)
+	top := runModel.getTranscriptTop()
+
+	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		X:      getPanelHorizontalPadding(runModel.width),
+		Y:      top + runModel.transcript.Height() - 1,
+	}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+
+	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		X:      getPanelHorizontalPadding(runModel.width),
+		Y:      top - 1,
+	}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 2, runModel.transcript.YOffset())
+	require.Contains(t, runModel.selectedTranscriptText(), "line 02")
+
+	updated, cmd = runModel.Update(transcriptSelectionAutoScrollTickMsg{})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 1, runModel.transcript.YOffset())
+	require.Contains(t, runModel.selectedTranscriptText(), "line 01")
+}
+
 func TestModel_UpdateDoesNotCopyBlankMouseSelection(t *testing.T) {
 	originalWriteClipboard := writeClipboard
 	t.Cleanup(func() {
