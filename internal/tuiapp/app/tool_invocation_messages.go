@@ -29,6 +29,21 @@ func newToolInvocationStartedMsg(
 	}, true
 }
 
+func newToolInvocationStartedMsgWithState(
+	id string,
+	name string,
+	detail string,
+	planState *planToolDisplayState,
+	startedAt time.Time,
+) (toolInvocationStartedMsg, bool) {
+	msg, ok := newToolInvocationStartedMsg(id, name, detail, startedAt)
+	if !ok {
+		return toolInvocationStartedMsg{}, false
+	}
+	msg.PlanState = planState
+	return msg, true
+}
+
 func newToolInvocationCompletedMsg(
 	id string,
 	name string,
@@ -50,14 +65,30 @@ func newToolInvocationCompletedMsg(
 	}, true
 }
 
+func newToolInvocationCompletedMsgWithState(
+	id string,
+	name string,
+	detail string,
+	planState *planToolDisplayState,
+	completedAt time.Time,
+) (toolInvocationCompletedMsg, bool) {
+	msg, ok := newToolInvocationCompletedMsg(id, name, detail, completedAt)
+	if !ok {
+		return toolInvocationCompletedMsg{}, false
+	}
+	msg.PlanState = planState
+	return msg, true
+}
+
 func toolInvocationStartedMsgFromModelToolCall(
 	toolCall models.ToolCall,
 	startedAt time.Time,
 ) (toolInvocationStartedMsg, bool) {
-	return newToolInvocationStartedMsg(
+	return newToolInvocationStartedMsgWithState(
 		toolCall.ID,
 		toolCall.Name,
 		getToolInputDisplayDetail(toolCall.Name, toolCall.Input),
+		getToolInputDisplayState(toolCall.Name, toolCall.Input),
 		startedAt,
 	)
 }
@@ -66,10 +97,11 @@ func toolInvocationStartedMsgFromMessageToolCall(
 	toolCall handmsg.ToolCall,
 	startedAt time.Time,
 ) (toolInvocationStartedMsg, bool) {
-	return newToolInvocationStartedMsg(
+	return newToolInvocationStartedMsgWithState(
 		toolCall.ID,
 		toolCall.Name,
 		getToolInputDisplayDetail(toolCall.Name, toolCall.Input),
+		getToolInputDisplayState(toolCall.Name, toolCall.Input),
 		startedAt,
 	)
 }
@@ -78,10 +110,11 @@ func toolInvocationCompletedMsgFromMessage(
 	message handmsg.Message,
 	completedAt time.Time,
 ) (toolInvocationCompletedMsg, bool) {
-	return newToolInvocationCompletedMsg(
+	return newToolInvocationCompletedMsgWithState(
 		message.ToolCallID,
 		message.Name,
-		"",
+		getToolOutputDisplayDetail(message.Name, message.Content),
+		getToolOutputDisplayState(message.Name, message.Content),
 		completedAt,
 	)
 }

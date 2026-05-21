@@ -151,6 +151,7 @@ func timelineMessageToTranscriptCell(message handmsg.Message, toolCalls map[stri
 
 type timelineToolCallDetail struct {
 	detail    string
+	planState *planToolDisplayState
 	startedAt time.Time
 }
 
@@ -168,6 +169,7 @@ func getTimelineToolCallDetails(messages []agent.SessionTimelineMessage) map[str
 			)
 			details[id] = timelineToolCallDetail{
 				detail:    startedMsg.Detail,
+				planState: startedMsg.PlanState,
 				startedAt: startedMsg.StartedAt,
 			}
 		}

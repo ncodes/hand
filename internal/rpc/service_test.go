@@ -549,6 +549,24 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 			ok: true,
 		},
 		{
+			name:      "plan input state",
+			eventType: trace.EvtToolInvocationStarted,
+			payload: map[string]any{
+				"ID":    "call_9",
+				"Name":  "plan_tool",
+				"Input": `{"steps":[{"id":"step-1","content":"Inspect","status":"pending"},{"id":"step-2","content":"Test","status":"pending"}]}`,
+			},
+			expected: map[string]any{
+				"id":   "call_9",
+				"name": "plan_tool",
+				"plan_state": map[string]any{
+					"operation":     "update",
+					"changed_count": 2,
+				},
+			},
+			ok: true,
+		},
+		{
 			name:      "list files detail",
 			eventType: trace.EvtToolInvocationStarted,
 			payload: map[string]any{
@@ -620,6 +638,24 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 			payload:   map[string]any{"ToolCallID": "call_2", "Name": "write_file", "content": "TOKEN=value"},
 			expected:  map[string]any{"tool_call_id": "call_2", "name": "write_file"},
 			ok:        true,
+		},
+		{
+			name:      "plan output state",
+			eventType: trace.EvtToolInvocationCompleted,
+			payload: map[string]any{
+				"ToolCallID": "call_10",
+				"Name":       "plan_tool",
+				"Content":    `{"summary":{"total":3,"completed":1}}`,
+			},
+			expected: map[string]any{
+				"tool_call_id": "call_10",
+				"name":         "plan_tool",
+				"plan_state": map[string]any{
+					"total_count":     3,
+					"completed_count": 1,
+				},
+			},
+			ok: true,
 		},
 		{
 			name:      "output safety applied",

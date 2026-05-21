@@ -172,6 +172,9 @@ func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
 		if detail := getRPCTraceToolDetail(result["name"], fields); detail != "" {
 			result["detail"] = detail
 		}
+		if planState := getRPCTracePlanInputState(result["name"], fields); len(planState) > 0 {
+			result["plan_state"] = planState
+		}
 		return result, len(result) > 0
 	case trace.EvtToolInvocationCompleted:
 		result := map[string]any{}
@@ -180,6 +183,9 @@ func getRPCTracePayload(eventType string, payload any) (map[string]any, bool) {
 		}
 		if name, ok := getRPCTraceValue(fields, "name", "Name", "tool"); ok {
 			result["name"] = name
+		}
+		if planState := getRPCTracePlanOutputState(result["name"], fields); len(planState) > 0 {
+			result["plan_state"] = planState
 		}
 		return result, len(result) > 0
 	case trace.EvtInputSafetyBlocked,
@@ -237,19 +243,8 @@ func getRPCTraceToolDetail(name any, fields map[string]any) string {
 		return ""
 	}
 
-	input, ok := getRPCTraceValue(fields, "input", "Input")
-	if !ok {
-		return ""
-	}
-
-	inputText, _ := input.(string)
-	inputText = strings.TrimSpace(inputText)
-	if inputText == "" {
-		return ""
-	}
-
-	var inputFields map[string]any
-	if err := json.Unmarshal([]byte(inputText), &inputFields); err != nil {
+	inputFields := getRPCTraceToolInputFields(fields)
+	if inputFields == nil {
 		return ""
 	}
 
@@ -270,6 +265,82 @@ func getRPCTraceToolDetail(name any, fields map[string]any) string {
 		}
 		return ""
 	}
+}
+
+func getRPCTracePlanInputState(name any, fields map[string]any) map[string]any {
+	toolName, _ := name.(string)
+	if getRPCToolActionName(toolName) != "Plan" {
+		return nil
+	}
+
+	inputFields := getRPCTraceToolInputFields(fields)
+	if inputFields == nil {
+		return nil
+	}
+	if steps, ok := inputFields["steps"]; !ok || steps == nil {
+		return map[string]any{"operation": "read"}
+	}
+
+	operation := "update"
+	if clearCompleted, _ := inputFields["clear_completed"].(bool); clearCompleted {
+		operation = "clear_completed"
+	}
+
+	return map[string]any{
+		"operation":     operation,
+		"changed_count": len(getRPCAnySlice(inputFields["steps"])),
+	}
+}
+
+func getRPCTracePlanOutputState(name any, fields map[string]any) map[string]any {
+	toolName, _ := name.(string)
+	if getRPCToolActionName(toolName) != "Plan" {
+		return nil
+	}
+
+	content, ok := getRPCTraceValue(fields, "content", "Content")
+	if !ok {
+		return nil
+	}
+	contentText, _ := content.(string)
+	contentText = strings.TrimSpace(contentText)
+	if contentText == "" {
+		return nil
+	}
+
+	var outputFields map[string]any
+	if err := json.Unmarshal([]byte(contentText), &outputFields); err != nil {
+		return nil
+	}
+	summary, _ := outputFields["summary"].(map[string]any)
+	if len(summary) == 0 {
+		return nil
+	}
+
+	return map[string]any{
+		"total_count":     getRPCNumber(summary["total"]),
+		"completed_count": getRPCNumber(summary["completed"]),
+	}
+}
+
+func getRPCTraceToolInputFields(fields map[string]any) map[string]any {
+	input, ok := getRPCTraceValue(fields, "input", "Input")
+	if !ok {
+		return nil
+	}
+
+	inputText, _ := input.(string)
+	inputText = strings.TrimSpace(inputText)
+	if inputText == "" {
+		return nil
+	}
+
+	var inputFields map[string]any
+	if err := json.Unmarshal([]byte(inputText), &inputFields); err != nil {
+		return nil
+	}
+
+	return inputFields
 }
 
 func getRPCRunToolDetail(inputFields map[string]any) string {
@@ -527,6 +598,26 @@ func getRPCStringSlice(raw any) []string {
 	return result
 }
 
+func getRPCAnySlice(raw any) []any {
+	values, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+
+	return values
+}
+
+func getRPCNumber(raw any) int {
+	switch typed := raw.(type) {
+	case float64:
+		return int(typed)
+	case int:
+		return typed
+	default:
+		return 0
+	}
+}
+
 func getRPCToolActionName(name string) string {
 	normalized := strings.TrimSpace(strings.ToLower(name))
 	normalized = strings.ReplaceAll(normalized, "-", "_")
@@ -553,6 +644,8 @@ func getRPCToolActionName(name string) string {
 		return "Memory Update"
 	case "memory_delete", "delete_memory":
 		return "Memory Delete"
+	case "plan", "plan_tool", "update_plan":
+		return "Plan"
 	default:
 		return humanizeRPCToolActionName(name)
 	}

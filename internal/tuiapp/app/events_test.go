@@ -128,6 +128,30 @@ func TestTraceEventToTUIMessage_ConvertsToolInvocationStarted(t *testing.T) {
 	}, msg)
 }
 
+func TestTraceEventToTUIMessage_ConvertsStreamedPlanInvocationStarted(t *testing.T) {
+	msg, ok := traceEventToTUIMessage(trace.Event{
+		Type: trace.EvtToolInvocationStarted,
+		Payload: map[string]any{
+			"id":   "call_1",
+			"name": "plan_tool",
+			"plan_state": map[string]any{
+				"operation":     "update",
+				"changed_count": float64(3),
+			},
+		},
+	})
+
+	require.True(t, ok)
+	require.Equal(t, toolInvocationStartedMsg{
+		ID:   "call_1",
+		Name: "plan_tool",
+		PlanState: &planToolDisplayState{
+			Operation:    planToolDisplayOperationUpdate,
+			ChangedCount: 3,
+		},
+	}, msg)
+}
+
 func TestToolCallPayloadToTUIMessage_ConvertsMessageToolCall(t *testing.T) {
 	msg, ok := toolCallPayloadToTUIMessage(handmsg.ToolCall{
 		ID:    " call_1 ",
@@ -290,6 +314,72 @@ func TestToolCallPayloadToTUIMessage_ExtractsSessionMessagesDetail(t *testing.T)
 	}, msg)
 }
 
+func TestToolCallPayloadToTUIMessage_ExtractsPlanDetail(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  *planToolDisplayState
+	}{
+		{
+			name:  "read",
+			input: `{}`,
+			want:  &planToolDisplayState{Operation: planToolDisplayOperationRead},
+		},
+		{
+			name:  "update",
+			input: `{"steps":[{"id":"step-1","content":"Inspect","status":"pending"}]}`,
+			want: &planToolDisplayState{
+				Operation:    planToolDisplayOperationUpdate,
+				ChangedCount: 1,
+			},
+		},
+		{
+			name:  "clear completed",
+			input: `{"steps":[{"id":"step-1","content":"Done","status":"completed"}],"clear_completed":true}`,
+			want: &planToolDisplayState{
+				Operation:    planToolDisplayOperationClearCompleted,
+				ChangedCount: 1,
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			msg, ok := toolCallPayloadToTUIMessage(models.ToolCall{
+				ID:    "call_1",
+				Name:  "plan_tool",
+				Input: tt.input,
+			})
+
+			require.True(t, ok)
+			require.Equal(t, toolInvocationStartedMsg{
+				ID:        "call_1",
+				Name:      "plan_tool",
+				PlanState: tt.want,
+			}, msg)
+		})
+	}
+}
+
+func TestToolMessagePayloadToTUIMessage_ExtractsPlanDetail(t *testing.T) {
+	msg, ok := toolMessagePayloadToTUIMessage(handmsg.Message{
+		Role:       handmsg.RoleTool,
+		Name:       "plan_tool",
+		ToolCallID: "call_1",
+		Content:    `{"summary":{"total":3,"completed":1}}`,
+	})
+
+	require.True(t, ok)
+	require.Equal(t, toolInvocationCompletedMsg{
+		ID:   "call_1",
+		Name: "plan_tool",
+		PlanState: &planToolDisplayState{
+			TotalCount:     3,
+			CompletedCount: 1,
+		},
+	}, msg)
+}
+
 func TestToolCallPayloadToTUIMessage_ExtractsSearchFilesDetail(t *testing.T) {
 	msg, ok := toolCallPayloadToTUIMessage(models.ToolCall{
 		ID:    "call_1",
@@ -324,6 +414,30 @@ func TestTraceEventToTUIMessage_ConvertsToolInvocationCompleted(t *testing.T) {
 
 	require.True(t, ok)
 	require.Equal(t, toolInvocationCompletedMsg{ID: "call_1", Name: "read_file"}, msg)
+}
+
+func TestTraceEventToTUIMessage_ConvertsStreamedPlanInvocationCompleted(t *testing.T) {
+	msg, ok := traceEventToTUIMessage(trace.Event{
+		Type: trace.EvtToolInvocationCompleted,
+		Payload: map[string]any{
+			"tool_call_id": "call_1",
+			"name":         "plan_tool",
+			"plan_state": map[string]any{
+				"total_count":     float64(3),
+				"completed_count": float64(1),
+			},
+		},
+	})
+
+	require.True(t, ok)
+	require.Equal(t, toolInvocationCompletedMsg{
+		ID:   "call_1",
+		Name: "plan_tool",
+		PlanState: &planToolDisplayState{
+			TotalCount:     3,
+			CompletedCount: 1,
+		},
+	}, msg)
 }
 
 func TestToolMessagePayloadToTUIMessage_IgnoresPayloadWithoutIdentity(t *testing.T) {

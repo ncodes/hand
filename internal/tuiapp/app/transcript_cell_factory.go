@@ -13,6 +13,7 @@ type toolTranscriptCellInput struct {
 	ID          string
 	Name        string
 	Detail      string
+	PlanState   *planToolDisplayState
 	StartedAt   time.Time
 	CompletedAt time.Time
 	Completed   bool
@@ -53,6 +54,7 @@ func (transcriptCellFactory) Tool(input toolTranscriptCellInput) transcriptCell 
 		input.ID,
 		input.Name,
 		input.Detail,
+		input.PlanState,
 		input.StartedAt,
 		input.CompletedAt,
 		input.Completed,
@@ -101,6 +103,7 @@ func (factory transcriptCellFactory) FromTUIMessage(msg any) transcriptCell {
 			ID:        value.ID,
 			Name:      value.Name,
 			Detail:    value.Detail,
+			PlanState: value.PlanState,
 			StartedAt: value.StartedAt,
 		})
 	case toolInvocationCompletedMsg:
@@ -108,6 +111,7 @@ func (factory transcriptCellFactory) FromTUIMessage(msg any) transcriptCell {
 			ID:          value.ID,
 			Name:        value.Name,
 			Detail:      value.Detail,
+			PlanState:   value.PlanState,
 			CompletedAt: value.CompletedAt,
 			Completed:   true,
 		})
@@ -144,6 +148,7 @@ func (factory transcriptCellFactory) FromTimelineMessage(
 			ID:          message.ToolCallID,
 			Name:        name,
 			Detail:      toolCall.detail,
+			PlanState:   toolCall.planState,
 			StartedAt:   toolCall.startedAt,
 			CompletedAt: message.CreatedAt,
 			Completed:   true,

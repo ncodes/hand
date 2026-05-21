@@ -32,6 +32,7 @@ type toolInvocationStartedMsg struct {
 	ID        string
 	Name      string
 	Detail    string
+	PlanState *planToolDisplayState
 	StartedAt time.Time
 }
 
@@ -39,6 +40,7 @@ type toolInvocationCompletedMsg struct {
 	ID          string
 	Name        string
 	Detail      string
+	PlanState   *planToolDisplayState
 	CompletedAt time.Time
 }
 
@@ -140,10 +142,11 @@ func toolCallPayloadToTUIMessage(payload any) (any, bool) {
 	default:
 		name := getPayloadString(payload, "name", "tool")
 		id := getPayloadString(payload, "id", "tool_call_id")
-		msg, ok := newToolInvocationStartedMsg(
+		msg, ok := newToolInvocationStartedMsgWithState(
 			id,
 			name,
 			getPayloadString(payload, "detail"),
+			getPayloadPlanToolDisplayState(payload),
 			time.Time{},
 		)
 		if !ok {
@@ -165,10 +168,11 @@ func toolMessagePayloadToTUIMessage(payload any) (any, bool) {
 	default:
 		name := getPayloadString(payload, "name", "tool")
 		id := getPayloadString(payload, "tool_call_id", "id")
-		msg, ok := newToolInvocationCompletedMsg(
+		msg, ok := newToolInvocationCompletedMsgWithState(
 			id,
 			name,
 			getPayloadString(payload, "detail"),
+			getPayloadPlanToolDisplayState(payload),
 			time.Time{},
 		)
 		if !ok {
@@ -216,6 +220,49 @@ func getPayloadBool(payload any, key string) bool {
 	}
 
 	return false
+}
+
+func getPayloadPlanToolDisplayState(payload any) *planToolDisplayState {
+	fields := getPayloadFields(payload)
+	raw, ok := fields["plan_state"]
+	if !ok {
+		return nil
+	}
+
+	stateFields := getPayloadFields(raw)
+	if len(stateFields) == 0 {
+		return nil
+	}
+
+	return &planToolDisplayState{
+		Operation:      planToolDisplayOperation(getPayloadString(stateFields, "operation")),
+		ChangedCount:   getPayloadInt(stateFields, "changed_count"),
+		TotalCount:     getPayloadInt(stateFields, "total_count"),
+		CompletedCount: getPayloadInt(stateFields, "completed_count"),
+	}
+}
+
+func getPayloadInt(payload any, key string) int {
+	fields := getPayloadFields(payload)
+	value, ok := fields[key]
+	if !ok {
+		return 0
+	}
+
+	switch typed := value.(type) {
+	case float64:
+		return int(typed)
+	case int:
+		return typed
+	case json.Number:
+		parsed, err := typed.Int64()
+		if err != nil {
+			return 0
+		}
+		return int(parsed)
+	default:
+		return 0
+	}
 }
 
 func getPayloadDuration(payload any, key string) time.Duration {

@@ -29,7 +29,7 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 	}
 	completed := group.isCompleted()
 
-	headerTitle := getToolTranscriptTitle(action, completed)
+	headerTitle := getToolTranscriptTitle(action, completed, group.details)
 	headerDuration := ""
 	if len(group.details) == 1 {
 		headerDuration = renderToolTranscriptDuration(group.details[0], ctx.Now)
@@ -48,7 +48,7 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 	details := make([]toolTranscriptDetail, 0, len(group.details))
 	if shouldRenderToolTranscriptBranches(action) {
 		for _, detail := range group.details {
-			if strings.TrimSpace(detail.text) == "" {
+			if strings.TrimSpace(detail.text) == "" && detail.planState == nil {
 				continue
 			}
 			details = append(details, detail)
@@ -66,7 +66,7 @@ func renderToolTranscriptGroupContent(group toolTranscriptGroup, ctx transcriptR
 		if index == len(details)-1 {
 			branch = "└"
 		}
-		detailText := getToolBranchDisplayDetail(group.action, detail.text, detail.completed)
+		detailText := getToolTranscriptBranchDisplayDetail(group.action, detail)
 		lines = append(lines, "  "+branchStyle.Render(branch)+" "+renderToolBranchDetail(detailText, renderToolTranscriptDuration(detail, ctx.Now), detailStyle))
 	}
 
@@ -165,7 +165,7 @@ func renderRunTranscriptGroup(group toolTranscriptGroup, ctx transcriptRenderCon
 		if index == len(group.details)-1 {
 			branch = "└"
 		}
-		detailText := getToolBranchDisplayDetail(group.action, detail.text, detail.completed)
+		detailText := getToolTranscriptBranchDisplayDetail(group.action, detail)
 		lines = append(lines, "  "+branchStyle.Render(branch)+" "+detailStyle.Render("$ "+detailText+renderToolTranscriptDuration(detail, ctx.Now)))
 	}
 
@@ -230,8 +230,10 @@ func getToolTranscriptDot(completed bool, frame int) string {
 	return frames[index]
 }
 
-func getToolTranscriptTitle(action string, completed bool) string {
+func getToolTranscriptTitle(action string, completed bool, details []toolTranscriptDetail) string {
 	switch strings.TrimSpace(action) {
+	case "Plan":
+		return getPlanToolTranscriptTitle(getPlanToolTranscriptOperation(details), completed)
 	case "Memory Search":
 		if completed {
 			return "Searched Memory"
@@ -306,4 +308,45 @@ func getToolTranscriptTitle(action string, completed bool) string {
 	default:
 		return strings.TrimSpace(action)
 	}
+}
+
+func getPlanToolTranscriptTitle(operation string, completed bool) string {
+	switch operation {
+	case "read":
+		if completed {
+			return "Plan read"
+		}
+
+		return "Reading plan"
+	case "clear_completed":
+		if completed {
+			return "Plan cleared"
+		}
+
+		return "Clearing completed plan steps"
+	default:
+		if completed {
+			return "Plan updated"
+		}
+
+		return "Updating plan"
+	}
+}
+
+func getPlanToolTranscriptOperation(details []toolTranscriptDetail) string {
+	for _, detail := range details {
+		if detail.planState == nil {
+			continue
+		}
+		switch detail.planState.Operation {
+		case planToolDisplayOperationRead:
+			return "read"
+		case planToolDisplayOperationClearCompleted:
+			return "clear_completed"
+		case planToolDisplayOperationUpdate:
+			return "update"
+		}
+	}
+
+	return "update"
 }

@@ -15,7 +15,25 @@ var runToolTimeoutHintPattern = regexp.MustCompile(`\s+\[(?:terminates in|timeou
 
 type toolDisplaySpec struct {
 	inputDetail  func(map[string]any) string
+	outputDetail func(map[string]any) string
+	inputState   func(map[string]any) *planToolDisplayState
+	outputState  func(map[string]any) *planToolDisplayState
 	branchDetail func(string, bool) string
+}
+
+type planToolDisplayOperation string
+
+const (
+	planToolDisplayOperationRead           planToolDisplayOperation = "read"
+	planToolDisplayOperationUpdate         planToolDisplayOperation = "update"
+	planToolDisplayOperationClearCompleted planToolDisplayOperation = "clear_completed"
+)
+
+type planToolDisplayState struct {
+	Operation      planToolDisplayOperation
+	ChangedCount   int
+	TotalCount     int
+	CompletedCount int
 }
 
 func getToolInputDisplayDetail(name string, input string) string {
@@ -32,6 +50,48 @@ func getToolInputDisplayDetail(name string, input string) string {
 	return spec.inputDetail(fields)
 }
 
+func getToolInputDisplayState(name string, input string) *planToolDisplayState {
+	var fields map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(input)), &fields); err != nil {
+		return nil
+	}
+
+	spec := getToolDisplaySpec(name)
+	if spec.inputState == nil {
+		return nil
+	}
+
+	return spec.inputState(fields)
+}
+
+func getToolOutputDisplayDetail(name string, output string) string {
+	var fields map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &fields); err != nil {
+		return ""
+	}
+
+	spec := getToolDisplaySpec(name)
+	if spec.outputDetail == nil {
+		return ""
+	}
+
+	return spec.outputDetail(fields)
+}
+
+func getToolOutputDisplayState(name string, output string) *planToolDisplayState {
+	var fields map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &fields); err != nil {
+		return nil
+	}
+
+	spec := getToolDisplaySpec(name)
+	if spec.outputState == nil {
+		return nil
+	}
+
+	return spec.outputState(fields)
+}
+
 func getToolBranchDisplayDetail(action string, detail string, completed bool) string {
 	spec := getToolDisplaySpecForAction(action)
 	if spec.branchDetail == nil {
@@ -39,6 +99,14 @@ func getToolBranchDisplayDetail(action string, detail string, completed bool) st
 	}
 
 	return spec.branchDetail(detail, completed)
+}
+
+func getToolTranscriptBranchDisplayDetail(action string, detail toolTranscriptDetail) string {
+	if strings.TrimSpace(action) == "Plan" {
+		return getPlanToolBranchDetail(detail.planState, detail.completed)
+	}
+
+	return getToolBranchDisplayDetail(action, detail.text, detail.completed)
 }
 
 func getToolDisplaySpec(name string) toolDisplaySpec {
@@ -69,7 +137,8 @@ func getToolDisplaySpec(name string) toolDisplaySpec {
 
 	action := getToolActionName(name)
 	spec := getToolDisplaySpecForAction(action)
-	if spec.inputDetail != nil || spec.branchDetail != nil {
+	if spec.inputDetail != nil || spec.outputDetail != nil || spec.inputState != nil ||
+		spec.outputState != nil || spec.branchDetail != nil {
 		return spec
 	}
 
@@ -100,6 +169,11 @@ func getToolDisplaySpecForAction(action string) toolDisplaySpec {
 		return toolDisplaySpec{
 			inputDetail: getSearchToolDisplayDetail,
 		}
+	case "Plan":
+		return toolDisplaySpec{
+			inputState:  getPlanToolInputDisplayState,
+			outputState: getPlanToolOutputDisplayState,
+		}
 	case "Memory Extract":
 		return toolDisplaySpec{branchDetail: getStaticToolBranchDetail("Extract memories")}
 	case "Memory Add":
@@ -122,6 +196,120 @@ func getStaticToolBranchDetail(label string) func(string, bool) string {
 	return func(string, bool) string {
 		return label
 	}
+}
+
+func getPlanToolInputDisplayState(fields map[string]any) *planToolDisplayState {
+	steps, hasSteps := fields["steps"]
+	if !hasSteps || steps == nil {
+		return &planToolDisplayState{Operation: planToolDisplayOperationRead}
+	}
+
+	stepCount := len(getMapAnySlice(fields, "steps"))
+	if clearCompleted, _ := fields["clear_completed"].(bool); clearCompleted {
+		return &planToolDisplayState{
+			Operation:    planToolDisplayOperationClearCompleted,
+			ChangedCount: stepCount,
+		}
+	}
+
+	return &planToolDisplayState{
+		Operation:    planToolDisplayOperationUpdate,
+		ChangedCount: stepCount,
+	}
+}
+
+func getPlanToolOutputDisplayState(fields map[string]any) *planToolDisplayState {
+	summary, _ := fields["summary"].(map[string]any)
+	return &planToolDisplayState{
+		TotalCount:     getMapNumber(summary, "total"),
+		CompletedCount: getMapNumber(summary, "completed"),
+	}
+}
+
+func getPlanToolBranchDetail(state *planToolDisplayState, completed bool) string {
+	if state == nil {
+		return "Updated plan"
+	}
+
+	switch state.Operation {
+	case planToolDisplayOperationRead:
+		if completed && state.TotalCount > 0 {
+			return fmt.Sprintf("Found %s", formatTaskCount(state.TotalCount))
+		}
+
+		return "Read current plan"
+	case planToolDisplayOperationClearCompleted:
+		if state.ChangedCount > 0 {
+			return fmt.Sprintf("Cleared %s", formatTaskCount(state.ChangedCount))
+		}
+
+		return "Cleared completed tasks"
+	default:
+		if completed && state.TotalCount > 0 && state.CompletedCount == state.TotalCount {
+			return fmt.Sprintf("Completed all %s", formatTaskCount(state.TotalCount))
+		}
+		if completed && state.TotalCount > 0 && state.ChangedCount > 0 && state.ChangedCount < state.TotalCount {
+			return fmt.Sprintf("Updated %s of %d", formatTaskCount(state.ChangedCount), state.TotalCount)
+		}
+		if completed && state.TotalCount > 0 && state.ChangedCount == state.TotalCount {
+			return fmt.Sprintf("Updated all %s", formatTaskCount(state.TotalCount))
+		}
+		if state.ChangedCount > 0 {
+			return fmt.Sprintf("Updated %s", formatTaskCount(state.ChangedCount))
+		}
+
+		return "Updated plan"
+	}
+}
+
+func clonePlanToolDisplayState(state *planToolDisplayState) *planToolDisplayState {
+	if state == nil {
+		return nil
+	}
+
+	cloned := *state
+	return &cloned
+}
+
+func mergePlanToolDisplayState(current *planToolDisplayState, next *planToolDisplayState) *planToolDisplayState {
+	if current == nil && next == nil {
+		return nil
+	}
+	if current == nil {
+		return clonePlanToolDisplayState(next)
+	}
+	if next == nil {
+		return clonePlanToolDisplayState(current)
+	}
+
+	merged := *current
+	if merged.Operation == "" {
+		merged.Operation = next.Operation
+	}
+	if next.Operation != "" &&
+		merged.Operation != planToolDisplayOperationRead &&
+		merged.Operation != planToolDisplayOperationClearCompleted {
+		merged.Operation = next.Operation
+	}
+	if next.ChangedCount > 0 {
+		merged.ChangedCount = next.ChangedCount
+	}
+	if next.TotalCount > 0 {
+		merged.TotalCount = next.TotalCount
+	}
+	if next.CompletedCount > 0 {
+		merged.CompletedCount = next.CompletedCount
+	}
+
+	return &merged
+}
+
+func formatTaskCount(count int) string {
+	if count == 1 {
+		return "1 task"
+	}
+
+	return fmt.Sprintf("%d tasks", count)
 }
 
 func isGenericToolParamDisplayEnabled(name string) bool {
@@ -379,6 +567,31 @@ func getMapStringSlice(fields map[string]any, key string) []string {
 	}
 
 	return values
+}
+
+func getMapAnySlice(fields map[string]any, key string) []any {
+	raw, ok := fields[key].([]any)
+	if !ok {
+		return nil
+	}
+
+	return raw
+}
+
+func getMapNumber(fields map[string]any, key string) int {
+	value, ok := fields[key]
+	if !ok {
+		return 0
+	}
+
+	switch typed := value.(type) {
+	case float64:
+		return int(typed)
+	case int:
+		return typed
+	default:
+		return 0
+	}
 }
 
 func isEmptyToolInputValue(value any) bool {

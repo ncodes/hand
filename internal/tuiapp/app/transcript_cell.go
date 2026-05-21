@@ -200,6 +200,7 @@ type toolTranscriptCell struct {
 	id          string
 	action      string
 	detail      string
+	planState   *planToolDisplayState
 	startedAt   time.Time
 	completedAt time.Time
 	completed   bool
@@ -208,6 +209,7 @@ type toolTranscriptCell struct {
 type toolTranscriptDetail struct {
 	id          string
 	text        string
+	planState   *planToolDisplayState
 	startedAt   time.Time
 	completedAt time.Time
 	completed   bool
@@ -230,13 +232,14 @@ func (cell toolTranscriptCell) PlainText() string {
 }
 
 func (cell toolTranscriptCell) IsEmpty() bool {
-	return strings.TrimSpace(cell.action) == "" && strings.TrimSpace(cell.detail) == ""
+	return strings.TrimSpace(cell.action) == "" && strings.TrimSpace(cell.detail) == "" && cell.planState == nil
 }
 
 func newToolTranscriptCell(
 	id string,
 	name string,
 	detail string,
+	planState *planToolDisplayState,
 	startedAt time.Time,
 	completedAt time.Time,
 	completed bool,
@@ -247,7 +250,7 @@ func newToolTranscriptCell(
 	}
 
 	detail = normalizeToolTranscriptDetail(detail)
-	if detail == "" {
+	if detail == "" && planState == nil {
 		detail = name
 	}
 
@@ -255,6 +258,7 @@ func newToolTranscriptCell(
 		id:          strings.TrimSpace(id),
 		action:      getToolActionName(name),
 		detail:      detail,
+		planState:   planState,
 		startedAt:   startedAt,
 		completedAt: completedAt,
 		completed:   completed,
@@ -311,10 +315,11 @@ func (group *toolTranscriptGroup) add(cell toolTranscriptCell) {
 	if detail == "" {
 		detail = strings.TrimSpace(cell.action)
 	}
-	if detail != "" {
+	if detail != "" || cell.planState != nil {
 		group.details = append(group.details, toolTranscriptDetail{
 			id:          strings.TrimSpace(cell.id),
 			text:        detail,
+			planState:   clonePlanToolDisplayState(cell.planState),
 			startedAt:   cell.startedAt,
 			completedAt: cell.completedAt,
 			completed:   cell.completed,
@@ -336,19 +341,14 @@ func (group *toolTranscriptGroup) mergeToolTranscriptCell(id string, cell toolTr
 		if cell.completed {
 			group.details[index].completed = true
 		}
+		if merged := mergePlanToolDisplayState(group.details[index].planState, cell.planState); merged != nil {
+			group.details[index].planState = merged
+		}
 		if group.details[index].text == "" {
 			group.details[index].text = cell.detail
 		}
 		return
 	}
-}
-
-func flushToolTranscriptGroup(rendered *[]string, group **toolTranscriptGroup, frame int) {
-	flushToolTranscriptGroupWithContext(
-		rendered,
-		group,
-		transcriptRenderContext{Frame: frame, Now: currentTime()},
-	)
 }
 
 func flushToolTranscriptGroupWithContext(
@@ -413,6 +413,8 @@ func getToolActionName(name string) string {
 		return "Web Search"
 	case "web_extract", "extract_web":
 		return "Web Extract"
+	case "plan", "plan_tool", "update_plan":
+		return "Plan"
 	case "search_files":
 		return "Search Files"
 	case "session_search", "search_session":

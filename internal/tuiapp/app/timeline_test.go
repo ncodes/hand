@@ -53,7 +53,7 @@ func renderTranscriptTestCell(cell transcriptCell) string {
 func toolTranscriptTestCell(id string, name string, detail string, completed ...bool) transcriptCell {
 	isCompleted := len(completed) > 0 && completed[0]
 
-	return newToolTranscriptCell(id, name, detail, time.Time{}, time.Time{}, isCompleted)
+	return newToolTranscriptCell(id, name, detail, nil, time.Time{}, time.Time{}, isCompleted)
 }
 
 func toolTranscriptTestCellWithTiming(
@@ -64,7 +64,18 @@ func toolTranscriptTestCellWithTiming(
 	completedAt time.Time,
 	completed bool,
 ) transcriptCell {
-	return newToolTranscriptCell(id, name, detail, startedAt, completedAt, completed)
+	return newToolTranscriptCell(id, name, detail, nil, startedAt, completedAt, completed)
+}
+
+func toolTranscriptTestCellWithPlanState(
+	id string,
+	name string,
+	planState *planToolDisplayState,
+	startedAt time.Time,
+	completedAt time.Time,
+	completed bool,
+) transcriptCell {
+	return newToolTranscriptCell(id, name, "", planState, startedAt, completedAt, completed)
 }
 
 func TestTimelineMessageToTranscriptCell_MapsVisibleRoles(t *testing.T) {
@@ -198,7 +209,7 @@ func TestTranscriptCells_ExposeTypedCellContract(t *testing.T) {
 		},
 		{
 			name:       "tool",
-			cell:       newToolTranscriptCell("call_1", "list_files", "list_files(path=.)", startedAt, completedAt, true),
+			cell:       newToolTranscriptCell("call_1", "list_files", "list_files(path=.)", nil, startedAt, completedAt, true),
 			kind:       transcriptCellTool,
 			plainText:  "Tool List Files:\nid: call_1\ndetail: list_files(path=.)\nstarted_at: 2026-05-20T09:00:00Z\ncompleted_at: 2026-05-20T09:00:02Z\nstatus: completed",
 			renderText: "List Files",
@@ -439,6 +450,99 @@ func TestRenderTranscriptCells_RendersWebExtractWithFriendlyText(t *testing.T) {
 	require.Contains(t, completed, "● Extraction finished (4s)")
 	require.NotContains(t, completed, "└")
 	require.NotContains(t, completed, "web_extract")
+}
+
+func TestRenderTranscriptCells_RendersPlanWithFriendlyText(t *testing.T) {
+	startedAt := time.Date(2026, 5, 20, 23, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name      string
+		state     *planToolDisplayState
+		running   string
+		completed string
+		branch    string
+	}{
+		{
+			name:      "read",
+			state:     &planToolDisplayState{Operation: planToolDisplayOperationRead},
+			running:   "● Reading plan (4s)",
+			completed: "● Plan read (4s)",
+			branch:    "Read current plan",
+		},
+		{
+			name:      "update",
+			state:     &planToolDisplayState{Operation: planToolDisplayOperationUpdate, ChangedCount: 1},
+			running:   "● Updating plan (4s)",
+			completed: "● Plan updated (4s)",
+			branch:    "Updated 1 task",
+		},
+		{
+			name:      "clear completed",
+			state:     &planToolDisplayState{Operation: planToolDisplayOperationClearCompleted, ChangedCount: 1},
+			running:   "● Clearing completed plan steps (4s)",
+			completed: "● Plan cleared (4s)",
+			branch:    "Cleared 1 task",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			running := stripANSI(defaultTranscriptRenderer.RenderCells([]transcriptCell{
+				toolTranscriptTestCellWithPlanState("call_1", "plan_tool", tt.state, startedAt, time.Time{}, false),
+			}, transcriptRenderContext{Width: 80, Now: startedAt.Add(4 * time.Second)}))
+			completed := stripANSI(defaultTranscriptRenderer.RenderCells([]transcriptCell{
+				toolTranscriptTestCellWithPlanState("call_1", "plan_tool", tt.state, startedAt, startedAt.Add(4*time.Second), true),
+			}, transcriptRenderContext{Width: 80, Now: startedAt.Add(4 * time.Second)}))
+
+			require.Contains(t, running, tt.running)
+			require.Contains(t, running, "└ "+tt.branch)
+			require.NotContains(t, running, "plan_tool")
+			require.Contains(t, completed, tt.completed)
+			require.Contains(t, completed, "└ "+tt.branch)
+			require.NotContains(t, completed, "plan_tool")
+		})
+	}
+}
+
+func TestRenderTranscriptCells_RendersCompletedPlanSummaryBranch(t *testing.T) {
+	startedAt := time.Date(2026, 5, 20, 23, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name   string
+		input  *planToolDisplayState
+		output *planToolDisplayState
+		branch string
+	}{
+		{
+			name:   "partial update",
+			input:  &planToolDisplayState{Operation: planToolDisplayOperationUpdate, ChangedCount: 1},
+			output: &planToolDisplayState{TotalCount: 3, CompletedCount: 1},
+			branch: "Updated 1 task of 3",
+		},
+		{
+			name:   "all completed",
+			input:  &planToolDisplayState{Operation: planToolDisplayOperationUpdate, ChangedCount: 3},
+			output: &planToolDisplayState{TotalCount: 3, CompletedCount: 3},
+			branch: "Completed all 3 tasks",
+		},
+		{
+			name:   "read",
+			input:  &planToolDisplayState{Operation: planToolDisplayOperationRead},
+			output: &planToolDisplayState{TotalCount: 3, CompletedCount: 1},
+			branch: "Found 3 tasks",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			rendered := stripANSI(defaultTranscriptRenderer.RenderCells([]transcriptCell{
+				toolTranscriptTestCellWithPlanState("call_1", "plan_tool", tt.input, startedAt, time.Time{}, false),
+				toolTranscriptTestCellWithPlanState("call_1", "plan_tool", tt.output, time.Time{}, startedAt.Add(4*time.Second), true),
+			}, transcriptRenderContext{Width: 80, Now: startedAt.Add(4 * time.Second)}))
+
+			require.Contains(t, rendered, "● ")
+			require.Contains(t, rendered, "└ "+tt.branch)
+			require.NotContains(t, rendered, "plan_tool")
+		})
+	}
 }
 
 func TestRenderTranscriptCells_AnimatesRunningToolDot(t *testing.T) {
