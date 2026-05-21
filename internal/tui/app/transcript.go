@@ -19,10 +19,7 @@ func newTranscript() viewport.Model {
 
 // renderTranscript draws the conversation viewport.
 func (m model) renderTranscript() string {
-	horizontalPadding := getPanelHorizontalPadding(m.width)
-
 	return lipgloss.NewStyle().
-		Padding(0, horizontalPadding).
 		Width(m.width).
 		Height(max(m.transcript.Height(), 1)).
 		Render(m.transcript.View())
@@ -41,6 +38,19 @@ func (m *model) setTranscriptContentForActiveTurn() {
 	m.transcript.SetYOffset(offset)
 }
 
+func (m *model) refreshTranscriptContentAfterResize() {
+	offset := m.transcript.YOffset()
+	wasAtBottom := m.transcript.AtBottom()
+	m.clearTranscriptSelection()
+	m.transcript.SetContent(m.renderTranscriptContent())
+	if wasAtBottom {
+		m.transcript.GotoBottom()
+		return
+	}
+
+	m.transcript.SetYOffset(offset)
+}
+
 func (m *model) renderTranscriptContent() string {
 	cells := make([]transcriptCell, 0, len(m.messages)+1)
 	cells = append(cells, m.messages...)
@@ -54,16 +64,50 @@ func (m *model) renderTranscriptContent() string {
 		m.showIntro = false
 	}
 
-	headerWidth := m.transcript.Width()
-	if headerWidth <= 0 {
-		headerWidth = getPanelContentWidth(m.width)
+	transcriptWidth := m.transcript.Width()
+	if transcriptWidth <= 0 {
+		transcriptWidth = max(m.width, 1)
 	}
-	content := strings.TrimSpace(m.renderHeaderWithWidth(headerWidth))
-	if cellsText := strings.TrimSpace(renderTranscriptCellsWithFrame(cells, headerWidth, m.toolAnimationFrame)); cellsText != "" {
+	content := strings.Trim(m.renderHeaderWithWidth(transcriptWidth), "\n")
+	if cellsText := strings.Trim(m.renderTranscriptBodyCells(cells), "\n"); strings.TrimSpace(cellsText) != "" {
 		content = strings.Join([]string{content, cellsText}, "\n\n")
 	}
 
 	return content
+}
+
+func (m model) renderTranscriptBodyCells(cells []transcriptCell) string {
+	contentWidth := getPanelContentWidth(m.width)
+	if contentWidth <= 0 {
+		contentWidth = max(m.transcript.Width(), 1)
+	}
+	cellsText := renderTranscriptCellsWithFrame(cells, contentWidth, m.toolAnimationFrame)
+	if strings.TrimSpace(cellsText) == "" {
+		return ""
+	}
+
+	padding := getPanelHorizontalPadding(m.width)
+	if padding <= 0 {
+		return cellsText
+	}
+
+	return indentTranscriptBodyCells(cellsText, padding)
+}
+
+func indentTranscriptBodyCells(content string, padding int) string {
+	if padding <= 0 || content == "" {
+		return content
+	}
+
+	prefix := strings.Repeat(" ", padding)
+	lines := strings.Split(content, "\n")
+	for index := range lines {
+		if lines[index] != "" {
+			lines[index] = prefix + lines[index]
+		}
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (m *model) updateTranscript(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -221,6 +265,7 @@ func (m *model) setTranscriptContentAfterResponseCompletion() {
 }
 
 func (m *model) setTranscriptContentForResponseUpdate() {
+	m.resize()
 	if m.responding && m.responseTranscriptFollow && !m.responseTranscriptScrolled {
 		m.setTranscriptContent()
 		return

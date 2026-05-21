@@ -330,6 +330,19 @@ func TestModel_ViewUsesCompactBannerWhenFullBannerDoesNotFit(t *testing.T) {
 	require.NotContains(t, content, "░██")
 }
 
+func TestRenderHeaderBody_FillsAvailableWidthWhenInfoIsVisible(t *testing.T) {
+	runModel := newModel()
+	panel := getHeaderPanel(runModel, 120)
+	content := stripANSI(renderHeaderBody(panel))
+
+	for _, line := range strings.Split(content, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		require.Equal(t, panel.Width, lipgloss.Width(line))
+	}
+}
+
 func TestModel_ViewRendersBottomStatusPanelBelowComposer(t *testing.T) {
 	runModel := newModel()
 	content := stripANSI(runModel.View().Content)
@@ -486,10 +499,13 @@ func TestModel_UpdateResizesTranscriptAndInput(t *testing.T) {
 	resized := updated.(model)
 	require.Equal(t, 100, resized.width)
 	require.Equal(t, 30, resized.height)
-	require.Equal(t, getPanelContentWidth(100), resized.transcript.Width())
+	require.Equal(t, 100, resized.transcript.Width())
 	require.LessOrEqual(t, resized.input.Width(), 100)
 	require.GreaterOrEqual(t, resized.transcript.Height(), 1)
 	require.Equal(t, 1, resized.input.Height())
+	lines := strings.Split(stripANSI(resized.transcript.GetContent()), "\n")
+	require.NotEmpty(t, lines)
+	require.Equal(t, 100, lipgloss.Width(lines[0]))
 }
 
 func TestModel_UpdateScrollsTranscriptWithPagingKeys(t *testing.T) {
@@ -547,6 +563,22 @@ func TestModel_UpdateScrollsHeaderWithTranscript(t *testing.T) {
 	runModel = updated.(model)
 	require.NotContains(t, stripANSI(runModel.transcript.View()), "Welcome, Kennedy")
 	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "Welcome, Kennedy")
+}
+
+func TestModel_RenderTranscriptContentPreservesFullWidthHeader(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 120
+	runModel.resize()
+	runModel.setTranscriptContent()
+	lines := strings.Split(stripANSI(runModel.transcript.GetContent()), "\n")
+	viewLines := strings.Split(stripANSI(runModel.View().Content), "\n")
+
+	require.NotEmpty(t, lines)
+	require.Equal(t, runModel.width, lipgloss.Width(lines[0]))
+	require.True(t, strings.HasPrefix(lines[0], " Welcome, Kennedy"))
+	require.NotEmpty(t, viewLines)
+	require.Equal(t, runModel.width, lipgloss.Width(viewLines[0]))
+	require.True(t, strings.HasPrefix(viewLines[0], " Welcome, Kennedy"))
 }
 
 func TestModel_UpdateScrollsTranscriptWithMouseWheel(t *testing.T) {
@@ -689,8 +721,8 @@ func TestModel_HydrateSessionTimelineShowsEmptySession(t *testing.T) {
 
 	require.Equal(t, "empty", runModel.sessionTitle)
 	require.Equal(t, defaultStatus, runModel.status.Text())
-	require.Equal(t, []string{"empty has no visible timeline yet."}, transcriptCellPlainTexts(runModel.messages))
-	require.Contains(t, runModel.transcript.View(), "empty has no visible timeline yet.")
+	require.Empty(t, transcriptCellPlainTexts(runModel.messages))
+	require.NotContains(t, runModel.transcript.View(), "empty has no visible timeline yet.")
 }
 
 func TestModel_HydrateSessionTimelineShowsFallbackForMissingSessionID(t *testing.T) {
@@ -700,8 +732,8 @@ func TestModel_HydrateSessionTimelineShowsFallbackForMissingSessionID(t *testing
 
 	require.Equal(t, "session", runModel.sessionTitle)
 	require.Equal(t, defaultStatus, runModel.status.Text())
-	require.Equal(t, []string{"session has no visible timeline yet."}, transcriptCellPlainTexts(runModel.messages))
-	require.Contains(t, runModel.transcript.View(), "session has no visible timeline yet.")
+	require.Empty(t, transcriptCellPlainTexts(runModel.messages))
+	require.NotContains(t, runModel.transcript.View(), "session has no visible timeline yet.")
 }
 
 func TestModel_UpdateIgnoresEsc(t *testing.T) {
@@ -1800,6 +1832,36 @@ func TestModel_UpdateFollowsBottomDuringActiveResponse(t *testing.T) {
 	require.True(t, runModel.transcript.AtBottom())
 	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "streamed")
 	require.Contains(t, stripANSI(runModel.transcript.View()), "streamed")
+}
+
+func TestModel_UpdateFollowsBottomWhenToolCallGrowsTranscript(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	runModel.messages = make([]transcriptCell, 0, 30)
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
+	}
+	runModel.setTranscriptContent()
+	require.True(t, runModel.transcript.AtBottom())
+	runModel.responding = true
+	runModel.responseTranscriptFollow = true
+	runModel.responseID = 4
+	runModel.events = make(chan tea.Msg)
+
+	updated, cmd := runModel.Update(responseEventMsg{
+		ResponseID: 4,
+		Message: toolInvocationStartedMsg{
+			ID:     "call_1",
+			Name:   "run_command",
+			Detail: "printf " + strings.Repeat("long-output ", 40),
+		},
+	})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.transcript.AtBottom())
+	require.Contains(t, stripANSI(runModel.transcript.View()), "long-output")
 }
 
 func TestModel_UpdateKeepsFollowingBottomWhenResponseCompletesAfterStream(t *testing.T) {

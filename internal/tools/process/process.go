@@ -67,10 +67,10 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 				"Optional stderr cursor from a previous read for incremental reads on action=read.",
 			),
 			"stdout_bytes": common.IntegerSchema(
-				"Optional maximum stdout bytes to return for action=read.",
+				"Optional maximum stdout bytes to return from stdout_cursor, or from the beginning when no cursor is provided, for action=read.",
 			),
 			"stderr_bytes": common.IntegerSchema(
-				"Optional maximum stderr bytes to return for action=read.",
+				"Optional maximum stderr bytes to return from stderr_cursor, or from the beginning when no cursor is provided, for action=read.",
 			),
 		}, "action"),
 		Handler: tools.HandlerFunc(func(ctx context.Context, call tools.Call) (tools.Result, error) {
@@ -139,7 +139,7 @@ func handleStart(
 		return common.ToolError("invalid_input", "command is required for start")
 	}
 
-	outputBufferBytes, err := resolveBufferLimit(req.OutputBytes, "output_buffer_bytes")
+	outputBufferBytes, err := resolveOutputBufferLimit(req.OutputBytes, "output_buffer_bytes")
 	if err != nil {
 		return common.ToolError("invalid_input", err.Error())
 	}
@@ -199,12 +199,6 @@ func handleRead(ctx context.Context, runtime envtypes.Runtime, action string, re
 	if processID == "" {
 		return common.ToolError("invalid_input", "process_id is required for read")
 	}
-	if req.StdoutCursor != nil && req.StdoutBytes != nil {
-		return common.ToolError("invalid_input", "stdout_cursor cannot be combined with stdout_bytes")
-	}
-	if req.StderrCursor != nil && req.StderrBytes != nil {
-		return common.ToolError("invalid_input", "stderr_cursor cannot be combined with stderr_bytes")
-	}
 
 	stdoutCursor, err := resolveCursor(req.StdoutCursor, "stdout_cursor")
 	if err != nil {
@@ -224,6 +218,8 @@ func handleRead(ctx context.Context, runtime envtypes.Runtime, action string, re
 	if err != nil {
 		return common.ToolError("invalid_input", err.Error())
 	}
+	stdoutCursor = defaultCursor(stdoutCursor)
+	stderrCursor = defaultCursor(stderrCursor)
 
 	info, err := runtime.GetProcess(sessionID, processID)
 	if err != nil {
@@ -241,11 +237,17 @@ func handleRead(ctx context.Context, runtime envtypes.Runtime, action string, re
 		return common.ToolError("tool_error", err.Error())
 	}
 
-	if stdoutCursor == nil {
-		output.Stdout = trimRecentOutput(output.Stdout, stdoutLimit)
+	if stdout, bytesRead, limited := limitOutput(output.Stdout, stdoutLimit); limited && !output.StdoutCursorExpired {
+		output.Stdout = stdout
+		output.NextStdoutCursor = *stdoutCursor + bytesRead
+	} else {
+		output.Stdout = stdout
 	}
-	if stderrCursor == nil {
-		output.Stderr = trimRecentOutput(output.Stderr, stderrLimit)
+	if stderr, bytesRead, limited := limitOutput(output.Stderr, stderrLimit); limited && !output.StderrCursorExpired {
+		output.Stderr = stderr
+		output.NextStderrCursor = *stderrCursor + bytesRead
+	} else {
+		output.Stderr = stderr
 	}
 
 	logProcessComplete(action, info.Status, info.ID, len(output.Stdout), len(output.Stderr), true)
@@ -346,18 +348,38 @@ func validateActionFields(action string, req input) error {
 		return nil
 	}
 
-	switch {
-	case req.StdoutCursor != nil:
-		return fmt.Errorf("stdout_cursor is only supported for read")
-	case req.StderrCursor != nil:
-		return fmt.Errorf("stderr_cursor is only supported for read")
-	case req.StdoutBytes != nil:
-		return fmt.Errorf("stdout_bytes is only supported for read")
-	case req.StderrBytes != nil:
-		return fmt.Errorf("stderr_bytes is only supported for read")
-	default:
+	fields := make([]string, 0, 4)
+	if hasPositiveInt(req.StdoutCursor) {
+		fields = append(fields, "stdout_cursor")
+	}
+	if hasPositiveInt(req.StderrCursor) {
+		fields = append(fields, "stderr_cursor")
+	}
+	if hasPositiveInt(req.StdoutBytes) {
+		fields = append(fields, "stdout_bytes")
+	}
+	if hasPositiveInt(req.StderrBytes) {
+		fields = append(fields, "stderr_bytes")
+	}
+	if len(fields) == 0 {
 		return nil
 	}
+
+	message := fmt.Sprintf(
+		"invalid process %s request: %s %s only valid for action=read",
+		action,
+		strings.Join(fields, ", "),
+		pluralVerb(len(fields), "is", "are"),
+	)
+	if action == "start" {
+		message += "; use output_buffer_bytes to configure retained output"
+	}
+
+	return fmt.Errorf("%s", message)
+}
+
+func hasPositiveInt(value *int) bool {
+	return value != nil && *value > 0
 }
 
 func resolveBufferLimit(value *int, field string) (int, error) {
@@ -366,6 +388,16 @@ func resolveBufferLimit(value *int, field string) (int, error) {
 	}
 	if *value <= 0 {
 		return 0, fmt.Errorf("%s must be greater than zero", field)
+	}
+	return *value, nil
+}
+
+func resolveOutputBufferLimit(value *int, field string) (int, error) {
+	if value == nil || *value == 0 {
+		return 0, nil
+	}
+	if *value < 0 {
+		return 0, fmt.Errorf("%s must be greater than or equal to zero", field)
 	}
 	return *value, nil
 }
@@ -381,17 +413,39 @@ func resolveCursor(value *int, field string) (*int, error) {
 	return &cursor, nil
 }
 
-func trimRecentOutput(value string, maxBytes int) string {
-	if maxBytes <= 0 || len(value) <= maxBytes {
+func pluralVerb(count int, singular string, plural string) string {
+	if count == 1 {
+		return singular
+	}
+
+	return plural
+}
+
+func defaultCursor(value *int) *int {
+	if value != nil {
 		return value
 	}
 
-	data := []byte(value[len(value)-maxBytes:])
-	for len(data) > 0 && !utf8.Valid(data) {
-		data = data[1:]
+	cursor := 0
+	return &cursor
+}
+
+func limitOutput(value string, maxBytes int) (string, int, bool) {
+	if maxBytes <= 0 {
+		return value, len([]byte(value)), false
 	}
 
-	return string(data)
+	data := []byte(value)
+	if len(data) <= maxBytes {
+		return value, len(data), false
+	}
+
+	data = data[:maxBytes]
+	for len(data) > 0 && !utf8.Valid(data) {
+		data = data[:len(data)-1]
+	}
+
+	return string(data), len(data), true
 }
 
 func cloneEnv(env map[string]string) map[string]string {

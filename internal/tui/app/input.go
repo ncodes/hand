@@ -90,7 +90,7 @@ func (m *model) resize() {
 	layout := getTUILayout(m.width, m.height, inputHeight)
 
 	m.input.SetHeight(inputHeight)
-	m.transcript.SetWidth(layout.Transcript.Width)
+	m.transcript.SetWidth(layout.Composer.Width)
 	m.transcript.SetHeight(layout.Transcript.Height)
 }
 

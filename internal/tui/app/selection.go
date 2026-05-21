@@ -214,6 +214,9 @@ func (m model) transcriptSelectionPointFromVisualLine(
 		height := getWrappedTranscriptLineHeight(line, width)
 		if visualLine >= offset && visualLine < offset+height {
 			wrappedColumn := (visualLine-offset)*width + max(min(x, width), 0)
+			if hasTranscriptBodyIndent(line, getPanelHorizontalPadding(m.width)) {
+				wrappedColumn += getPanelHorizontalPadding(m.width)
+			}
 
 			return getTranscriptSelectionPointFromDocument(document, index, wrappedColumn), true
 		}
@@ -222,6 +225,14 @@ func (m model) transcriptSelectionPointFromVisualLine(
 	}
 
 	return transcriptSelectionPoint{}, false
+}
+
+func hasTranscriptBodyIndent(line string, padding int) bool {
+	if padding <= 0 {
+		return false
+	}
+
+	return strings.HasPrefix(line, strings.Repeat(" ", padding))
 }
 
 func getWrappedTranscriptLineHeight(line string, width int) int {
@@ -278,8 +289,23 @@ func (m model) selectedTranscriptText() string {
 	if text == "" {
 		return ""
 	}
+	text = removeTranscriptSelectionBodyIndent(text, getPanelHorizontalPadding(m.width))
 
 	return compactTranscriptSelectionBlankLines(strings.TrimSpace(text))
+}
+
+func removeTranscriptSelectionBodyIndent(text string, padding int) string {
+	if padding <= 0 || text == "" {
+		return text
+	}
+
+	prefix := strings.Repeat(" ", padding)
+	lines := strings.Split(text, "\n")
+	for index := range lines {
+		lines[index] = strings.TrimPrefix(lines[index], prefix)
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (m model) getSelectionContent() string {

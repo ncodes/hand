@@ -266,6 +266,11 @@ func TestProcessToolOutputState_DecodesProcessAndOutput(t *testing.T) {
 	}, ProcessToolOutputState(`{"processes":[{"id":"proc_1"},{"id":"proc_2"}]}`))
 
 	require.Equal(t, &ProcessToolState{
+		Operation: ProcessToolOperationList,
+		Count:     1,
+	}, ProcessToolOutputState(`{"name":"process","output":"{\"processes\":[{\"id\":\"proc_1\"}]}"}`))
+
+	require.Equal(t, &ProcessToolState{
 		Status:    "failed",
 		ErrorCode: "process_start_failed",
 		Error:     "address already in use",

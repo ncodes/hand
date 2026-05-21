@@ -524,6 +524,7 @@ func ProcessToolOutputState(output string) *ProcessToolState {
 	if state := processToolErrorState(fields["error"]); state != nil {
 		return state
 	}
+	fields = unwrapToolOutputFields(fields)
 
 	if rawProcesses, ok := fields["processes"]; ok {
 		return &ProcessToolState{
@@ -556,6 +557,27 @@ func ProcessToolOutputState(output string) *ProcessToolState {
 	}
 
 	return state
+}
+
+func unwrapToolOutputFields(fields map[string]any) map[string]any {
+	if len(fields) == 0 || fields["process"] != nil || fields["processes"] != nil {
+		return fields
+	}
+
+	output, ok := fields["output"].(string)
+	if !ok || strings.TrimSpace(output) == "" {
+		return fields
+	}
+
+	unwrapped := map[string]any{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &unwrapped); err != nil {
+		return fields
+	}
+	if len(unwrapped) == 0 {
+		return fields
+	}
+
+	return unwrapped
 }
 
 func unwrapPlanToolOutputFields(fields map[string]any) map[string]any {

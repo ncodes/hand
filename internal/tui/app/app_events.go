@@ -26,6 +26,7 @@ func (m model) handleAppEvent(event tuiEvent) (model, tea.Cmd) {
 	case viewportResizedEvent:
 		m.applyAction(setViewportSizeAction{Width: value.Width, Height: value.Height})
 		m.resize()
+		m.refreshTranscriptContentAfterResize()
 		return m, nil
 	case submitComposerEvent:
 		return m, m.submitPrompt()

@@ -50,23 +50,28 @@ func TestProcess_ToolRejectsReadOnlyFieldsForNonReadActions(t *testing.T) {
 	}{
 		{
 			name:    "start next stdout cursor",
-			input:   `{"action":"start","command":"printf","stdout_cursor":0}`,
-			message: "stdout_cursor is only supported for read",
+			input:   `{"action":"start","command":"printf","stdout_cursor":1}`,
+			message: "invalid process start request: stdout_cursor is only valid for action=read; use output_buffer_bytes to configure retained output",
+		},
+		{
+			name:    "start multiple read fields",
+			input:   `{"action":"start","command":"printf","stdout_bytes":16,"stderr_cursor":1}`,
+			message: "invalid process start request: stderr_cursor, stdout_bytes are only valid for action=read; use output_buffer_bytes to configure retained output",
 		},
 		{
 			name:    "status next stderr cursor",
-			input:   `{"action":"status","process_id":"proc_1","stderr_cursor":0}`,
-			message: "stderr_cursor is only supported for read",
+			input:   `{"action":"status","process_id":"proc_1","stderr_cursor":1}`,
+			message: "invalid process status request: stderr_cursor is only valid for action=read",
 		},
 		{
 			name:    "stop stdout bytes",
 			input:   `{"action":"stop","process_id":"proc_1","stdout_bytes":16}`,
-			message: "stdout_bytes is only supported for read",
+			message: "invalid process stop request: stdout_bytes is only valid for action=read",
 		},
 		{
 			name:    "list stderr bytes",
 			input:   `{"action":"list","stderr_bytes":16}`,
-			message: "stderr_bytes is only supported for read",
+			message: "invalid process list request: stderr_bytes is only valid for action=read",
 		},
 	}
 
@@ -79,6 +84,42 @@ func TestProcess_ToolRejectsReadOnlyFieldsForNonReadActions(t *testing.T) {
 
 			require.NoError(t, err)
 			requireToolError(t, result.Error, "invalid_input", tc.message)
+		})
+	}
+}
+
+func TestProcess_ToolIgnoresZeroReadOnlyFieldsForNonReadActions(t *testing.T) {
+	definition := Definition(&toolmocks.Runtime{
+		StartProcessFunc: func(context.Context, string, processenv.StartRequest) (processenv.Info, error) {
+			return processenv.Info{ID: "proc_1", Status: processenv.StatusRunning}, nil
+		},
+		GetProcessFunc: func(string, string) (processenv.Info, error) {
+			return processenv.Info{ID: "proc_1", Status: processenv.StatusRunning}, nil
+		},
+		StopProcessFunc: func(context.Context, string, string) (processenv.Info, error) {
+			return processenv.Info{ID: "proc_1", Status: processenv.StatusStopped}, nil
+		},
+		ListProcessesFunc: func(string) []processenv.Info {
+			return nil
+		},
+	})
+
+	testCases := []string{
+		`{"action":"start","command":"printf","stdout_cursor":0}`,
+		`{"action":"status","process_id":"proc_1","stderr_cursor":0}`,
+		`{"action":"stop","process_id":"proc_1","stdout_bytes":0}`,
+		`{"action":"list","stderr_bytes":0}`,
+	}
+
+	for _, input := range testCases {
+		t.Run(input, func(t *testing.T) {
+			result, err := definition.Handler.Invoke(context.Background(), tools.Call{
+				Name:  "process",
+				Input: input,
+			})
+
+			require.NoError(t, err)
+			require.Empty(t, result.Error)
 		})
 	}
 }
@@ -161,14 +202,29 @@ func TestProcess_ToolRequiresCommandForStart(t *testing.T) {
 	requireToolError(t, result.Error, "invalid_input", "command is required for start")
 }
 
-func TestProcess_ToolValidatesOutputBufferBytesForStart(t *testing.T) {
-	result, err := Definition(&toolmocks.Runtime{}).Handler.Invoke(context.Background(), tools.Call{
+func TestProcess_ToolAllowsZeroOutputBufferBytesForStart(t *testing.T) {
+	result, err := Definition(&toolmocks.Runtime{
+		StartProcessFunc: func(_ context.Context, _ string, req processenv.StartRequest) (processenv.Info, error) {
+			require.Zero(t, req.OutputBufferBytes)
+			return processenv.Info{ID: "proc_1", Status: processenv.StatusRunning}, nil
+		},
+	}).Handler.Invoke(context.Background(), tools.Call{
 		Name:  "process",
 		Input: `{"action":"start","command":"printf","output_buffer_bytes":0}`,
 	})
 
 	require.NoError(t, err)
-	requireToolError(t, result.Error, "invalid_input", "output_buffer_bytes must be greater than zero")
+	require.Empty(t, result.Error)
+}
+
+func TestProcess_ToolValidatesOutputBufferBytesForStart(t *testing.T) {
+	result, err := Definition(&toolmocks.Runtime{}).Handler.Invoke(context.Background(), tools.Call{
+		Name:  "process",
+		Input: `{"action":"start","command":"printf","output_buffer_bytes":-1}`,
+	})
+
+	require.NoError(t, err)
+	requireToolError(t, result.Error, "invalid_input", "output_buffer_bytes must be greater than or equal to zero")
 }
 
 func TestProcess_ToolStatusReturnsProcess(t *testing.T) {
@@ -218,8 +274,10 @@ func TestProcess_ToolReadReturnsTrimmedOutput(t *testing.T) {
 		ReadProcessFunc: func(sessionID string, req processenv.ReadRequest) (processenv.Output, error) {
 			require.Equal(t, "default", sessionID)
 			require.Equal(t, "proc_1", req.ProcessID)
-			require.Nil(t, req.StdoutCursor)
-			require.Nil(t, req.StderrCursor)
+			require.NotNil(t, req.StdoutCursor)
+			require.Equal(t, 0, *req.StdoutCursor)
+			require.NotNil(t, req.StderrCursor)
+			require.Equal(t, 0, *req.StderrCursor)
 			return processenv.Output{Stdout: "abcdef", Stderr: "uvwxyz", StdoutBytes: 6, StderrBytes: 6}, nil
 		},
 	}).Handler.Invoke(context.Background(), tools.Call{
@@ -233,8 +291,10 @@ func TestProcess_ToolReadReturnsTrimmedOutput(t *testing.T) {
 		Output  processenv.Output `json:"output"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
-	require.Equal(t, "def", payload.Output.Stdout)
-	require.Equal(t, "yz", payload.Output.Stderr)
+	require.Equal(t, "abc", payload.Output.Stdout)
+	require.Equal(t, "uv", payload.Output.Stderr)
+	require.Equal(t, 3, payload.Output.NextStdoutCursor)
+	require.Equal(t, 2, payload.Output.NextStderrCursor)
 }
 
 func TestProcess_ToolReadTrimPreservesUTF8(t *testing.T) {
@@ -247,7 +307,8 @@ func TestProcess_ToolReadTrimPreservesUTF8(t *testing.T) {
 		ReadProcessFunc: func(sessionID string, req processenv.ReadRequest) (processenv.Output, error) {
 			require.Equal(t, "default", sessionID)
 			require.Equal(t, "proc_1", req.ProcessID)
-			require.Nil(t, req.StdoutCursor)
+			require.NotNil(t, req.StdoutCursor)
+			require.Equal(t, 0, *req.StdoutCursor)
 			return processenv.Output{Stdout: "AéB", StdoutBytes: len("AéB")}, nil
 		},
 	}).Handler.Invoke(context.Background(), tools.Call{
@@ -260,7 +321,8 @@ func TestProcess_ToolReadTrimPreservesUTF8(t *testing.T) {
 		Output processenv.Output `json:"output"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
-	require.Equal(t, "B", payload.Output.Stdout)
+	require.Equal(t, "A", payload.Output.Stdout)
+	require.Equal(t, 1, payload.Output.NextStdoutCursor)
 }
 
 func TestProcess_ToolReadReturnsRuntimeGetError(t *testing.T) {
@@ -327,7 +389,8 @@ func TestProcess_ToolReadSupportsCursorSemantics(t *testing.T) {
 			require.Equal(t, "proc_1", req.ProcessID)
 			require.NotNil(t, req.StdoutCursor)
 			require.Equal(t, 3, *req.StdoutCursor)
-			require.Nil(t, req.StderrCursor)
+			require.NotNil(t, req.StderrCursor)
+			require.Equal(t, 0, *req.StderrCursor)
 			return processenv.Output{
 				Stdout:              "def",
 				StdoutBytes:         6,
@@ -350,24 +413,47 @@ func TestProcess_ToolReadSupportsCursorSemantics(t *testing.T) {
 	require.True(t, payload.Output.StdoutCursorExpired)
 }
 
-func TestProcess_ToolReadRejectsInvalidCursorCombinations(t *testing.T) {
+func TestProcess_ToolReadSupportsCursorAndLimit(t *testing.T) {
+	result, err := Definition(&toolmocks.Runtime{
+		GetProcessFunc: func(sessionID string, processID string) (processenv.Info, error) {
+			require.Equal(t, "default", sessionID)
+			require.Equal(t, "proc_1", processID)
+			return processenv.Info{ID: processID, Status: processenv.StatusRunning}, nil
+		},
+		ReadProcessFunc: func(sessionID string, req processenv.ReadRequest) (processenv.Output, error) {
+			require.Equal(t, "default", sessionID)
+			require.Equal(t, "proc_1", req.ProcessID)
+			require.NotNil(t, req.StdoutCursor)
+			require.Equal(t, 2, *req.StdoutCursor)
+			require.NotNil(t, req.StderrCursor)
+			require.Equal(t, 1, *req.StderrCursor)
+			return processenv.Output{
+				Stdout:           "cdef",
+				Stderr:           "vwxyz",
+				StdoutBytes:      6,
+				StderrBytes:      6,
+				NextStdoutCursor: 6,
+				NextStderrCursor: 6,
+			}, nil
+		},
+	}).Handler.Invoke(context.Background(), tools.Call{
+		Name:  "process",
+		Input: `{"action":"read","process_id":"proc_1","stdout_cursor":2,"stdout_bytes":3,"stderr_cursor":1,"stderr_bytes":2}`,
+	})
+
+	require.NoError(t, err)
+	var payload struct {
+		Output processenv.Output `json:"output"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
+	require.Equal(t, "cde", payload.Output.Stdout)
+	require.Equal(t, "vw", payload.Output.Stderr)
+	require.Equal(t, 5, payload.Output.NextStdoutCursor)
+	require.Equal(t, 3, payload.Output.NextStderrCursor)
+}
+
+func TestProcess_ToolReadRejectsInvalidCursors(t *testing.T) {
 	result, err := Definition(&toolmocks.Runtime{}).Handler.Invoke(context.Background(), tools.Call{
-		Name:  "process",
-		Input: `{"action":"read","process_id":"proc_1","stdout_cursor":0,"stdout_bytes":4}`,
-	})
-
-	require.NoError(t, err)
-	requireToolError(t, result.Error, "invalid_input", "stdout_cursor cannot be combined with stdout_bytes")
-
-	result, err = Definition(&toolmocks.Runtime{}).Handler.Invoke(context.Background(), tools.Call{
-		Name:  "process",
-		Input: `{"action":"read","process_id":"proc_1","stderr_cursor":0,"stderr_bytes":4}`,
-	})
-
-	require.NoError(t, err)
-	requireToolError(t, result.Error, "invalid_input", "stderr_cursor cannot be combined with stderr_bytes")
-
-	result, err = Definition(&toolmocks.Runtime{}).Handler.Invoke(context.Background(), tools.Call{
 		Name:  "process",
 		Input: `{"action":"read","process_id":"proc_1","stdout_cursor":-1}`,
 	})
@@ -394,7 +480,8 @@ func TestProcess_ToolReadSupportsStderrCursorSemantics(t *testing.T) {
 		ReadProcessFunc: func(sessionID string, req processenv.ReadRequest) (processenv.Output, error) {
 			require.Equal(t, "default", sessionID)
 			require.Equal(t, "proc_1", req.ProcessID)
-			require.Nil(t, req.StdoutCursor)
+			require.NotNil(t, req.StdoutCursor)
+			require.Equal(t, 0, *req.StdoutCursor)
 			require.NotNil(t, req.StderrCursor)
 			require.Equal(t, 2, *req.StderrCursor)
 			return processenv.Output{
@@ -416,8 +503,9 @@ func TestProcess_ToolReadSupportsStderrCursorSemantics(t *testing.T) {
 		Output processenv.Output `json:"output"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &payload))
-	require.Equal(t, "def", payload.Output.Stdout)
+	require.Equal(t, "abc", payload.Output.Stdout)
 	require.Equal(t, "xyz", payload.Output.Stderr)
+	require.Equal(t, 3, payload.Output.NextStdoutCursor)
 	require.Equal(t, 3, payload.Output.NextStderrCursor)
 }
 

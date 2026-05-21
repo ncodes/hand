@@ -39,11 +39,6 @@ func loadSessionTimelineCmd(ctx context.Context, client sessionTimelineLoader) t
 
 func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.Cmd {
 	cells := sessionTimelineToTranscriptCells(timeline)
-	if len(cells) == 0 {
-		cells = []transcriptCell{
-			systemTranscriptCell{text: fmt.Sprintf("%s has no visible timeline yet.", getSessionTimelineDisplayName(timeline))},
-		}
-	}
 
 	m.applyAction(setTranscriptCellsAction{Cells: cells})
 	m.applyAction(setLiveTranscriptCellAction{})
