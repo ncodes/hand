@@ -581,6 +581,27 @@ func TestModel_RenderTranscriptContentPreservesFullWidthHeader(t *testing.T) {
 	require.True(t, strings.HasPrefix(viewLines[0], " Welcome, Kennedy"))
 }
 
+func TestModel_RenderTranscriptContentKeepsFirstPromptCloseToHeader(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 80
+	runModel.messages = []transcriptCell{userTranscriptCell{text: "hello"}}
+	runModel.resize()
+	runModel.setTranscriptContent()
+
+	lines := strings.Split(stripANSI(runModel.transcript.GetContent()), "\n")
+	firstPromptRow := -1
+	for index, line := range lines {
+		if strings.Contains(line, "❯ hello") {
+			firstPromptRow = index
+			break
+		}
+	}
+
+	require.Greater(t, firstPromptRow, 0)
+	require.NotEmpty(t, strings.TrimSpace(lines[firstPromptRow-2]))
+	require.True(t, strings.Contains(lines[firstPromptRow-1], "▄"))
+}
+
 func TestModel_UpdateScrollsTranscriptWithMouseWheel(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 10
