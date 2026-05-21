@@ -5,11 +5,16 @@ GO_SQLITE_TAGS ?= sqlite_fts5
 LIVE_CONFIG ?= $(CURDIR)/config.yaml
 LIVE_ENV_FILE ?= $(CURDIR)/.env
 
-.PHONY: install-tools build-proto build test test-spec test-live test-live-sqlite test-live-memory test-live-all lint install
+.PHONY: install-tools install-hooks build-proto build test test-spec test-live test-live-sqlite test-live-memory test-live-all lint install
 
 install-tools:
 	@$(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
 	@$(GO) install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.76.0
+
+install-hooks:
+	@git config core.hooksPath .githooks
+	@chmod +x .githooks/commit-msg
+	@echo "Installed git hooks from .githooks"
 
 build-proto:
 	@PATH="$(PATH):$(HOME)/go/bin" protoc \
