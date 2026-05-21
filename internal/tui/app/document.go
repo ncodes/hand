@@ -1,6 +1,6 @@
 package tui
 
-import tuitranscript "github.com/wandxy/hand/internal/tuiapp/transcript"
+import tuitranscript "github.com/wandxy/hand/internal/tui/transcript"
 
 type renderedTranscriptDocument = tuitranscript.RenderedDocument
 type renderedTranscriptLine = tuitranscript.RenderedLine

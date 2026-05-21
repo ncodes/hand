@@ -542,6 +542,22 @@ func TestTraceEventToTUIMessage_ConvertsSessionError(t *testing.T) {
 	require.Equal(t, sessionErrorMsg{Message: "model unavailable"}, msg)
 }
 
+func TestTraceEventToTUIMessage_IgnoresUserStoppedSessionError(t *testing.T) {
+	for _, message := range []string{
+		"context canceled",
+		"context_canceled",
+		"rpc error: code = Canceled desc = context canceled",
+	} {
+		msg, ok := traceEventToTUIMessage(trace.Event{
+			Type:    trace.EvtSessionFailed,
+			Payload: map[string]any{"error": message},
+		})
+
+		require.False(t, ok)
+		require.Nil(t, msg)
+	}
+}
+
 func TestTraceEventToTUIMessage_UsesFallbackPayloadKeys(t *testing.T) {
 	userMsg, ok := traceEventToTUIMessage(trace.Event{
 		Type:    trace.EvtUserMessageAccepted,

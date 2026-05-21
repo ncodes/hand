@@ -119,11 +119,26 @@ func traceEventToTUIMessage(event trace.Event) (any, bool) {
 	case trace.EvtSessionFailed:
 		payload, ok := typedPayload.(trace.SessionFailedPayload)
 		if message := firstNonEmptyTUI(payload.Error, payload.Message); payloadOK && ok && message != "" {
+			if isUserStoppedSessionError(message) {
+				return nil, false
+			}
 			return sessionErrorMsg{Message: message}, true
 		}
 	}
 
 	return nil, false
+}
+
+func isUserStoppedSessionError(message string) bool {
+	message = strings.TrimSpace(strings.ToLower(message))
+	if message == "" {
+		return false
+	}
+
+	return message == "context canceled" ||
+		message == "context_canceled" ||
+		strings.Contains(message, "context canceled") ||
+		strings.Contains(message, "context_canceled")
 }
 
 func getTraceEventTimestamp(event trace.Event) time.Time {

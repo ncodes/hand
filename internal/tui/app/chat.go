@@ -6,7 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	tuirpc "github.com/wandxy/hand/internal/tuiapp/rpc"
+	tuirpc "github.com/wandxy/hand/internal/tui/rpc"
 )
 
 type responseEventMsg = tuirpc.ResponseEvent
@@ -62,9 +62,19 @@ func (m *model) startResponse(prompt string) tea.Cmd {
 		return nil
 	}
 
+	if m.responseCancel != nil {
+		m.responseCancel()
+	}
+	responseCtx := m.chatCtx
+	if responseCtx == nil {
+		responseCtx = context.Background()
+	}
+	responseCtx, cancel := context.WithCancel(responseCtx)
+
 	events := make(chan tea.Msg, 32)
 	m.responseID++
 	m.events = events
+	m.responseCancel = cancel
 	m.applyAction(setRespondingAction{Responding: true, ResponseID: m.responseID})
 	m.responseTranscriptFollow = m.transcript.AtBottom()
 	m.responseTranscriptScrolled = false
@@ -72,7 +82,7 @@ func (m *model) startResponse(prompt string) tea.Cmd {
 
 	return tea.Batch(
 		m.startThinkingComposer(),
-		respondToPromptCmd(m.chatClient, m.responseID, m.chatCtx, prompt, events),
+		respondToPromptCmd(m.chatClient, m.responseID, responseCtx, prompt, events),
 		waitForResponseEvent(m.responseID, events),
 	)
 }
@@ -91,6 +101,7 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 		m.responseTranscriptScrolled = false
 		m.thinkingComposerActive = false
 		m.events = nil
+		m.responseCancel = nil
 		return m.setStatus("response failed")
 	}
 
@@ -100,11 +111,31 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 	m.responseTranscriptScrolled = false
 	m.thinkingComposerActive = false
 	m.events = nil
+	m.responseCancel = nil
 	if shouldFollowTranscript {
 		m.resize()
 		m.transcript.GotoBottom()
 	}
 	return nil
+}
+
+func (m *model) cancelActiveResponse() tea.Cmd {
+	if !m.responding {
+		return nil
+	}
+
+	if m.responseCancel != nil {
+		m.responseCancel()
+	}
+	m.applyAction(setRespondingAction{Responding: false, ResponseID: m.responseID})
+	m.responseTranscriptFollow = false
+	m.responseTranscriptScrolled = false
+	m.thinkingComposerActive = false
+	m.toolAnimationActive = false
+	m.responseCancel = nil
+	m.events = nil
+
+	return m.setStatus("response cancelled")
 }
 
 func (m model) isActiveResponse(responseID int) bool {

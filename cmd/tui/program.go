@@ -10,7 +10,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	handruntime "github.com/wandxy/hand/internal/runtime"
-	tuiapp "github.com/wandxy/hand/internal/tuiapp/app"
+	tui "github.com/wandxy/hand/internal/tui/app"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -24,7 +24,7 @@ var newProgram = func(model tea.Model) programRunner {
 
 type tuiClient interface {
 	rpcclient.ChatAPI
-	tuiapp.SessionTimelineLoader
+	tui.SessionTimelineLoader
 	Close() error
 }
 
@@ -64,5 +64,5 @@ func loadTUICommandModel(ctx context.Context, cmd *cli.Command) (tea.Model, func
 		_ = client.Close()
 	}
 
-	return tuiapp.NewModelWithClientContextAndConfig(ctx, client, cfg), cleanup, nil
+	return tui.NewModelWithClientContextAndConfig(ctx, client, cfg), cleanup, nil
 }

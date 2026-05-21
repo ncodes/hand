@@ -452,6 +452,21 @@ func TestRenderTranscriptCells_RendersWebExtractWithFriendlyText(t *testing.T) {
 	require.NotContains(t, completed, "web_extract")
 }
 
+func TestRenderTranscriptCells_RendersTimeWithFriendlyText(t *testing.T) {
+	startedAt := time.Date(2026, 5, 20, 23, 0, 0, 0, time.UTC)
+	running := stripANSI(defaultTranscriptRenderer.RenderCells([]transcriptCell{
+		toolTranscriptTestCellWithTiming("call_1", "time", "time", startedAt, time.Time{}, false),
+	}, transcriptRenderContext{Width: 80, Now: startedAt.Add(2 * time.Second)}))
+	completed := stripANSI(defaultTranscriptRenderer.RenderCells([]transcriptCell{
+		toolTranscriptTestCellWithTiming("call_1", "time", "time", startedAt, startedAt.Add(2*time.Second), true),
+	}, transcriptRenderContext{Width: 80, Now: startedAt.Add(2 * time.Second)}))
+
+	require.Contains(t, running, "● Checking time (2s)")
+	require.NotContains(t, running, "└")
+	require.Contains(t, completed, "● Checked time (2s)")
+	require.NotContains(t, completed, "└")
+}
+
 func TestRenderTranscriptCells_RendersPlanWithFriendlyText(t *testing.T) {
 	startedAt := time.Date(2026, 5, 20, 23, 0, 0, 0, time.UTC)
 	cases := []struct {
@@ -1066,6 +1081,29 @@ func TestSessionTimelineToTranscriptCells_InterleavesMessagesAndTraceEventsByTim
 		transcriptCellPlainText(toolTranscriptTestCellWithTiming("", "web_search", "", time.Time{}, now.Add(3*time.Second), true)),
 		"You: Hi",
 		"Hand: Hi there",
+	}, transcriptCellPlainTexts(cells))
+}
+
+func TestSessionTimelineToTranscriptCells_SkipsUserStoppedSessionErrors(t *testing.T) {
+	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
+
+	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
+		Messages: []agent.SessionTimelineMessage{
+			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "hi", CreatedAt: now}},
+			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "hello", CreatedAt: now.Add(2 * time.Second)}},
+		},
+		TraceEvents: []agent.SessionTimelineTraceEvent{{
+			Event: storage.TraceEvent{
+				Type:      trace.EvtSessionFailed,
+				Timestamp: now.Add(time.Second),
+				Payload:   map[string]any{"error": "context canceled"},
+			},
+		}},
+	})
+
+	require.Equal(t, []string{
+		"You: hi",
+		"Hand: hello",
 	}, transcriptCellPlainTexts(cells))
 }
 

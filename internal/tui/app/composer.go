@@ -3,7 +3,7 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 
-	tuicomposer "github.com/wandxy/hand/internal/tuiapp/composer"
+	tuicomposer "github.com/wandxy/hand/internal/tui/composer"
 )
 
 type composerInputKind = tuicomposer.InputKind

@@ -7,7 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/wandxy/hand/internal/datadir"
-	tuicomposer "github.com/wandxy/hand/internal/tuiapp/composer"
+	tuicomposer "github.com/wandxy/hand/internal/tui/composer"
 )
 
 const maxPromptHistory = tuicomposer.MaxPromptHistory

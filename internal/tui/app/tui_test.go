@@ -49,6 +49,16 @@ func TestModel_ViewRendersShellAreas(t *testing.T) {
 	require.Contains(t, content, "enter to send")
 }
 
+func TestModel_ViewShowsCancelHintDuringActiveResponse(t *testing.T) {
+	runModel := newModel()
+	runModel.responding = true
+
+	content := stripANSI(runModel.View().Content)
+
+	require.Contains(t, content, "esc to stop")
+	require.NotContains(t, content, "enter to send")
+}
+
 func TestModel_InitFocusesInput(t *testing.T) {
 	runModel := newModel()
 
@@ -429,7 +439,7 @@ func TestModel_RenderBottomStatusPanelKeepsMutedCellsWhenThinking(t *testing.T) 
 	content := runModel.renderBottomStatusPanel()
 
 	require.Contains(t, content, renderBottomStatusMutedCell("GPT 5.5"))
-	require.Contains(t, content, renderBottomStatusMutedCell(defaultStatus))
+	require.Contains(t, content, renderBottomStatusMutedCell(statusCancelSuffix))
 	require.Contains(t, content, renderBottomStatusMutedCell(defaultSessionTitle))
 }
 
@@ -1562,6 +1572,52 @@ func TestModel_SubmitPromptStartsRPCResponse(t *testing.T) {
 	require.Empty(t, runModel.input.Value())
 	require.Equal(t, []string{"hello"}, runModel.history)
 	require.Zero(t, client.calls)
+	require.NotNil(t, runModel.responseCancel)
+}
+
+func TestModel_UpdateEscapeCancelsActiveResponse(t *testing.T) {
+	responseCtx, cancel := context.WithCancel(context.Background())
+	runModel := newModelWithClientContext(responseCtx, &fakeTUIChatClient{})
+	runModel.responding = true
+	runModel.responseID = 4
+	runModel.responseCancel = cancel
+	runModel.responseTranscriptFollow = true
+	runModel.thinkingComposerActive = true
+	runModel.toolAnimationActive = true
+	runModel.events = make(chan tea.Msg)
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.responding)
+	require.False(t, runModel.responseTranscriptFollow)
+	require.False(t, runModel.thinkingComposerActive)
+	require.False(t, runModel.toolAnimationActive)
+	require.Nil(t, runModel.responseCancel)
+	require.Nil(t, runModel.events)
+	require.Equal(t, "response cancelled", runModel.status.Text())
+	require.ErrorIs(t, responseCtx.Err(), context.Canceled)
+}
+
+func TestModel_UpdateEscapeIgnoresStaleCancelledCompletion(t *testing.T) {
+	runModel := newModel()
+	runModel.responding = true
+	runModel.responseID = 4
+	runModel.responseCancel = func() {}
+	runModel.events = make(chan tea.Msg)
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	updated, cmd = runModel.Update(responseCompletedMsg{ResponseID: 4, Err: context.Canceled})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.responding)
+	require.Empty(t, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, "response cancelled", runModel.status.Text())
 }
 
 func TestModel_SubmitPromptScrollsTranscriptToBottom(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	tuistate "github.com/wandxy/hand/internal/tuiapp/state"
-	tuitranscript "github.com/wandxy/hand/internal/tuiapp/transcript"
+	tuistate "github.com/wandxy/hand/internal/tui/state"
+	tuitranscript "github.com/wandxy/hand/internal/tui/transcript"
 )
 
 type tuiAction interface {

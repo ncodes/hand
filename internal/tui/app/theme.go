@@ -1,6 +1,6 @@
 package tui
 
-import tuirender "github.com/wandxy/hand/internal/tuiapp/render"
+import tuirender "github.com/wandxy/hand/internal/tui/render"
 
 type tuiTheme = tuirender.Theme
 

@@ -5,13 +5,14 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	tuistatus "github.com/wandxy/hand/internal/tuiapp/status"
+	tuistatus "github.com/wandxy/hand/internal/tui/status"
 )
 
 const (
 	defaultSessionTitle    = tuistatus.DefaultSessionTitle
 	defaultStatus          = tuistatus.DefaultText
 	statusReadySuffix      = tuistatus.ReadySuffix
+	statusCancelSuffix     = "esc to stop · ctrl+c to quit"
 	statusAutoHideWindow   = tuistatus.AutoHideWindow
 	exitConfirmationWindow = tuistatus.ExitConfirmationWindow
 )
@@ -63,6 +64,14 @@ func (m *model) setStatus(text string) tea.Cmd {
 
 func (m *model) setDefaultStatus(text string) {
 	setStatusDefault(&m.status, text)
+}
+
+func (m model) bottomStatusText() string {
+	if m.responding && !statusHasTransient(m.status) {
+		return statusCancelSuffix
+	}
+
+	return m.status.Text()
 }
 
 func (m *model) setSessionTitle(text string) {

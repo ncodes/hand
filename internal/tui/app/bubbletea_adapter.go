@@ -111,7 +111,8 @@ func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool)
 		next, cmd := m.handleAppEvent(copyTranscriptEvent{})
 		return next, cmd, true
 	case "esc":
-		return m, nil, true
+		cmd := m.cancelActiveResponse()
+		return m, cmd, true
 	case "ctrl+p":
 		next, cmd := m.handleAppEvent(showPreviousPromptEvent{})
 		return next, cmd, true

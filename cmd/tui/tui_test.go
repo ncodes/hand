@@ -14,7 +14,7 @@ import (
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	tuiapp "github.com/wandxy/hand/internal/tuiapp/app"
+	tui "github.com/wandxy/hand/internal/tui/app"
 )
 
 type fakeProgram struct {
@@ -272,4 +272,4 @@ func (c *fakeTUIChatClient) Close() error {
 	return nil
 }
 
-var _ tuiapp.SessionTimelineLoader = (*fakeTUIChatClient)(nil)
+var _ tui.SessionTimelineLoader = (*fakeTUIChatClient)(nil)

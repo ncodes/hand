@@ -14,7 +14,7 @@ import (
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
-	tuirpc "github.com/wandxy/hand/internal/tuiapp/rpc"
+	tuirpc "github.com/wandxy/hand/internal/tui/rpc"
 )
 
 type sessionTimelineLoader = tuirpc.SessionTimelineLoader

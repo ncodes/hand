@@ -275,6 +275,7 @@ func TestBottomStatusPanelData_SeparatesModelStateFromRendering(t *testing.T) {
 	require.Equal(t, getInputBoxWidth(runModel.width), panel.Width)
 	require.Equal(t, getPanelContentWidth(panel.Width), panel.ContentWidth)
 	require.Equal(t, "GPT 5.5", panel.ModelName)
+	require.Equal(t, statusCancelSuffix, panel.Status)
 	require.Equal(t, "Project Planning", panel.SessionTitle)
 	require.True(t, panel.Thinking)
 	require.Equal(t, 2, panel.ThinkingFrame)

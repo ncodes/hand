@@ -1,6 +1,6 @@
 package tui
 
-import tuilayout "github.com/wandxy/hand/internal/tuiapp/layout"
+import tuilayout "github.com/wandxy/hand/internal/tui/layout"
 
 const panelHorizontalPadding = tuilayout.PanelHorizontalPadding
 

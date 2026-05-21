@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"time"
 )
 
@@ -23,6 +24,7 @@ type tuiState struct {
 	draft                      string
 	responding                 bool
 	responseID                 int
+	responseCancel             context.CancelFunc
 	responseTranscriptFollow   bool
 	responseTranscriptScrolled bool
 	toolAnimationFrame         int
