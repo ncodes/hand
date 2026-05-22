@@ -19,9 +19,13 @@ type tuiLayout struct {
 }
 
 func getTUILayout(width int, height int, inputHeight int) tuiLayout {
+	return getTUILayoutWithInputChromeHeight(width, height, inputHeight, baseInputChromeHeight)
+}
+
+func getTUILayoutWithInputChromeHeight(width int, height int, inputHeight int, chromeHeight int) tuiLayout {
 	return tuiLayoutFromRegions(tuilayout.Compute(width, height, inputHeight, tuilayout.Metrics{
 		MinInputHeight:              minInputHeight,
-		InputChromeHeight:           inputChromeHeight,
+		InputChromeHeight:           chromeHeight,
 		InputFrameChromeHeight:      inputFrameChromeHeight,
 		TranscriptComposerGapHeight: transcriptComposerGapHeight,
 		BottomStatusPanelHeight:     bottomStatusPanelHeight,

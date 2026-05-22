@@ -68,5 +68,10 @@ func (m model) getMainPaneWidth() int {
 }
 
 func (m model) getTUILayout(inputHeight int) tuiLayout {
-	return getTUILayout(m.width, m.height, inputHeight)
+	return getTUILayoutWithInputChromeHeight(
+		m.width,
+		m.height,
+		inputHeight,
+		m.getInputChromeHeightForValue(m.input.Value()),
+	)
 }

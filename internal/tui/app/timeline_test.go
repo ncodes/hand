@@ -1040,8 +1040,8 @@ func TestRenderTranscriptCell_RendersUserMessageBox(t *testing.T) {
 	require.NotContains(t, plain, "└")
 	require.NotContains(t, plain, "You:")
 	require.Contains(t, rendered, "\x1b[")
-	require.Contains(t, rendered, "48;2;21;21;21")
-	require.Contains(t, rendered, "48;2;21;21;21mSome message")
+	require.Contains(t, rendered, "48;5;235")
+	require.Contains(t, rendered, "48;5;235mSome message")
 }
 
 func TestRenderTranscriptCell_RendersMultilineUserMessageWithSinglePrompt(t *testing.T) {

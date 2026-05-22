@@ -16,7 +16,7 @@ const (
 	defaultHeight = 24
 
 	transcriptComposerGapHeight = 1
-	inputChromeHeight           = inputFrameChromeHeight + bottomStatusPanelHeight + transcriptComposerGapHeight
+	baseInputChromeHeight       = inputFrameChromeHeight + bottomStatusPanelHeight + transcriptComposerGapHeight
 )
 
 // model is the root Bubble Tea application state for the interactive shell.

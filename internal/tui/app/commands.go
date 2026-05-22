@@ -1,6 +1,21 @@
 package tui
 
-import tea "charm.land/bubbletea/v2"
+import (
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+)
+
+type slashCommandDefinition struct {
+	Name        string
+	Description string
+}
+
+var slashCommandDefinitions = []slashCommandDefinition{
+	{Name: "clear", Description: "Clear the transcript"},
+	{Name: "copy", Description: "Copy the transcript"},
+	{Name: "help", Description: "Show supported commands"},
+}
 
 func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 	var cmd tea.Cmd
@@ -9,7 +24,7 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 		m.applyAction(clearTranscriptAction{})
 		cmd = m.setStatus("transcript cleared")
 	case "help":
-		m.applyAction(appendTranscriptCellAction{Cell: systemTranscriptCell{text: "Commands: /clear, /copy, /help"}})
+		m.applyAction(appendTranscriptCellAction{Cell: systemTranscriptCell{text: getSlashCommandHelpText()}})
 	case "copy":
 		cmd = m.copyTranscript()
 	case "":
@@ -24,6 +39,15 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 		m.setTranscriptContent()
 	}
 	return cmd
+}
+
+func getSlashCommandHelpText() string {
+	commands := make([]string, 0, len(slashCommandDefinitions))
+	for _, command := range slashCommandDefinitions {
+		commands = append(commands, "/"+command.Name)
+	}
+
+	return "Commands: " + strings.Join(commands, ", ")
 }
 
 func (m *model) handleLocalCommand(input composerInput) tea.Cmd {

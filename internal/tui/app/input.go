@@ -73,7 +73,13 @@ func (m model) renderInput() string {
 		Width(getInputBoxWidth(width)).
 		Render(m.input.View())
 
-	return lipgloss.JoinVertical(lipgloss.Left, inputBox, m.renderBottomStatusPanel())
+	parts := make([]string, 0, 3)
+	if commandMenu := m.renderCommandMenu(); commandMenu != "" {
+		parts = append(parts, commandMenu)
+	}
+	parts = append(parts, inputBox, m.renderBottomStatusPanel())
+
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 func (m model) getInputFrameBorderColor() string {
@@ -102,7 +108,7 @@ func (m model) getInputHeight() int {
 }
 
 func (m model) getInputHeightForValue(value string) int {
-	availableHeight := max(m.height-inputChromeHeight-1, minInputHeight)
+	availableHeight := max(m.height-m.getInputChromeHeightForValue(value)-1, minInputHeight)
 	contentWidth := m.input.Width()
 	if contentWidth <= 0 {
 		contentWidth = getInputInnerWidth(m.getMainPaneWidth())
@@ -115,13 +121,14 @@ func (m model) getInputHeightForValue(value string) int {
 func (m *model) resizeInputForValue(value string) {
 	m.input.SetWidth(getInputInnerWidth(m.getMainPaneWidth()))
 	m.input.SetHeight(m.getInputHeightForValue(value))
+	m.updateCommandMenuForInput(value)
 }
 
 // insertInputNewline expands the composer before adding a newline.
 func (m model) insertInputNewline() (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	inputWidth := getInputInnerWidth(m.getMainPaneWidth())
-	availableHeight := max(m.height-inputChromeHeight-1, minInputHeight)
+	availableHeight := max(m.height-m.getInputChromeHeightForValue(m.input.Value()+"\n")-1, minInputHeight)
 	m.input.SetWidth(inputWidth)
 	m.input.SetHeight(min(getInputHeight(m.input.Value()+"\n", m.input.Width()), availableHeight))
 	m.input, cmd = m.input.Update(tea.KeyPressMsg{Code: tea.KeyEnter})

@@ -6,8 +6,6 @@ import (
 	tuicomposer "github.com/wandxy/hand/internal/tui/composer"
 )
 
-type composerInputKind = tuicomposer.InputKind
-
 const (
 	composerInputEmpty        = tuicomposer.InputEmpty
 	composerInputPrompt       = tuicomposer.InputPrompt
@@ -65,6 +63,7 @@ func (m *model) submitPrompt() tea.Cmd {
 
 func (m *model) clearComposer() {
 	m.input.SetValue("")
+	m.commandMenuOffset = 0
 	m.historyAt = len(m.history)
 	m.draft = ""
 }

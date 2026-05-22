@@ -63,6 +63,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.updateInputComposer(msg)
 	case tea.MouseWheelMsg:
+		if m.scrollCommandMenuWithMouse(msg) {
+			return m, nil
+		}
 		return m.updateTranscriptWithScrollTracking(msg)
 	case tea.MouseClickMsg:
 		if m.clicksJumpToBottomIndicator(msg) {
@@ -72,6 +75,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	case tea.MouseMotionMsg:
+		if m.updateCommandMenuHover(msg) {
+			return m, nil
+		}
 		if handled, cmd := m.updateTranscriptSelection(msg); handled {
 			return m, cmd
 		}
@@ -102,6 +108,7 @@ func (m model) handlePasteMsg(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 	msg.Content = normalizeComposerPaste(msg.Content)
 	m.resizeInputForValue(m.input.Value() + msg.Content)
 	m.input, _ = m.input.Update(msg)
+	m.updateCommandMenuForInput(m.input.Value())
 	m.resize()
 
 	return m, nil
@@ -141,9 +148,15 @@ func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool)
 	if m.shouldUseHistoryKey(msg) {
 		switch msg.Key().Code {
 		case tea.KeyUp:
+			if m.scrollCommandMenu(-1) {
+				return m, nil, true
+			}
 			next, cmd := m.handleAppEvent(showPreviousPromptEvent{})
 			return next, cmd, true
 		case tea.KeyDown:
+			if m.scrollCommandMenu(1) {
+				return m, nil, true
+			}
 			next, cmd := m.handleAppEvent(showNextPromptEvent{})
 			return next, cmd, true
 		}
@@ -159,6 +172,7 @@ func (m model) updateBubbleTeaChildren(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
+	m.updateCommandMenuForInput(m.input.Value())
 	cmds = append(cmds, cmd)
 	m.transcript, cmd = m.transcript.Update(msg)
 	cmds = append(cmds, cmd)
@@ -170,6 +184,7 @@ func (m model) updateBubbleTeaChildren(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) updateInputComposer(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
+	m.updateCommandMenuForInput(m.input.Value())
 	m.resize()
 
 	return m, cmd

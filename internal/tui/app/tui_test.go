@@ -40,7 +40,7 @@ func TestModel_ViewRendersShellAreas(t *testing.T) {
 
 	require.True(t, view.AltScreen)
 	require.Equal(t, tea.MouseModeCellMotion, view.MouseMode)
-	require.Contains(t, view.Content, "48;2;21;21;21")
+	require.Contains(t, view.Content, "48;5;235")
 	require.Contains(t, content, "██████")
 	require.Contains(t, content, "/changelogs")
 	require.Contains(t, content, inputPrompt+"Ask Hand...")
@@ -248,11 +248,11 @@ func TestModel_RenderNoticeBarFillsRow(t *testing.T) {
 func TestModel_RenderNoticeBarUsesConfiguredColors(t *testing.T) {
 	content := newModel().renderNoticeBar()
 
-	require.Contains(t, content, "48;2;21;21;21")
-	require.Contains(t, renderNoticeBarLeft(), "38;2;160;160;160")
-	require.Contains(t, renderNoticeBarLeft(), "38;2;255;255;255")
-	require.Contains(t, renderNoticeBarRight(), "38;2;160;160;160")
-	require.Contains(t, renderNoticeBarRight(), "38;2;255;255;255")
+	require.Contains(t, content, "48;5;235")
+	require.Contains(t, renderNoticeBarLeft(), "38;5;246")
+	require.Contains(t, renderNoticeBarLeft(), "97")
+	require.Contains(t, renderNoticeBarRight(), "38;5;246")
+	require.Contains(t, renderNoticeBarRight(), "97")
 }
 
 func TestRenderNoticeBarContent_HidesRightTextWhenTooNarrow(t *testing.T) {
@@ -1124,7 +1124,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
-	require.Contains(t, runModel.transcript.View(), "48;2;21;21;21")
+	require.Contains(t, runModel.transcript.View(), "48;5;235")
 
 	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
 		Button: tea.MouseLeft,
@@ -1137,7 +1137,7 @@ func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing
 	require.False(t, runModel.selection.dragging)
 	require.True(t, runModel.selection.active)
 	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
-	require.Contains(t, runModel.transcript.View(), "48;2;21;21;21")
+	require.Contains(t, runModel.transcript.View(), "48;5;235")
 	require.Equal(t, strings.Join([]string{
 		"❯ first",
 		"",
