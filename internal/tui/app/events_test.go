@@ -361,6 +361,31 @@ func TestToolCallPayloadToTUIMessage_ExtractsPlanDetail(t *testing.T) {
 	}
 }
 
+func TestTraceEventToTUIMessage_ConvertsPlanEvents(t *testing.T) {
+	msg, ok := traceEventToTUIMessage(trace.Event{
+		Type: trace.EvtPlanUpdated,
+		Payload: trace.PlanEventPayload{
+			ActiveStepID: "step-2",
+			Steps: []trace.PlanStepPayload{
+				{ID: "step-1", Content: "Inspect", Status: "completed"},
+				{ID: "step-2", Content: "Patch", Status: "in_progress"},
+			},
+			Summary: trace.PlanSummaryPayload{Total: 2, Completed: 1, InProgress: 1},
+		},
+	})
+
+	require.True(t, ok)
+	require.Equal(t, planEventMsg{
+		Kind:       trace.EvtPlanUpdated,
+		ActiveStep: "step-2",
+		Steps: []trace.PlanStepPayload{
+			{ID: "step-1", Content: "Inspect", Status: "completed"},
+			{ID: "step-2", Content: "Patch", Status: "in_progress"},
+		},
+		Summary: trace.PlanSummaryPayload{Total: 2, Completed: 1, InProgress: 1},
+	}, msg)
+}
+
 func TestToolMessagePayloadToTUIMessage_ExtractsPlanDetail(t *testing.T) {
 	msg, ok := toolMessagePayloadToTUIMessage(handmsg.Message{
 		Role:       handmsg.RoleTool,

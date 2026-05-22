@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"strings"
-
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -31,18 +29,7 @@ func (m model) renderAppFrame(mainContent string) string {
 		return mainContent
 	}
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, mainContent, renderRightSidebar(sidebarWidth, m.height))
-}
-
-func renderRightSidebar(width int, height int) string {
-	width = max(width, 1)
-	height = max(height, 1)
-
-	return lipgloss.NewStyle().
-		Background(lipgloss.Color(defaultTUITheme.SidebarBackground)).
-		Width(width).
-		Height(height).
-		Render(strings.Repeat("\n", height-1))
+	return lipgloss.JoinHorizontal(lipgloss.Top, mainContent, renderRightSidebar(sidebarWidth, m.height, m.sidebarPlan))
 }
 
 func (m model) renderTranscriptComposerGap() string {

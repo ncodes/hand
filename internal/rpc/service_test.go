@@ -762,13 +762,40 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 				"session_id": "default",
 				"source":     "history",
 				"summary":    map[string]any{"total": 1},
-				"steps":      []any{map[string]any{"content": "SECRET=example"}},
+				"steps":      []any{map[string]any{"id": "step-1", "content": "Inspect", "status": "pending"}},
 			},
 			expected: map[string]any{
 				"session_id": "default",
 				"source":     "history",
 				"summary":    map[string]any{"total": 1},
-				"step_count": 1,
+				"steps": []map[string]any{{
+					"id":      "step-1",
+					"content": "Inspect",
+					"status":  "pending",
+				}},
+			},
+			ok: true,
+		},
+		{
+			name:      "plan updated",
+			eventType: trace.EvtPlanUpdated,
+			payload: map[string]any{
+				"session_id":     "default",
+				"active_step_id": "step-2",
+				"summary":        map[string]any{"total": 2, "in_progress": 1},
+				"steps": []any{
+					map[string]any{"id": "step-1", "content": "Inspect", "status": "completed"},
+					map[string]any{"id": "step-2", "content": "Patch", "status": "in_progress"},
+				},
+			},
+			expected: map[string]any{
+				"session_id":     "default",
+				"active_step_id": "step-2",
+				"summary":        map[string]any{"total": 2, "in_progress": 1},
+				"steps": []map[string]any{
+					{"id": "step-1", "content": "Inspect", "status": "completed"},
+					{"id": "step-2", "content": "Patch", "status": "in_progress"},
+				},
 			},
 			ok: true,
 		},

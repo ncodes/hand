@@ -7,6 +7,8 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
+	"github.com/wandxy/hand/internal/trace"
 )
 
 // newTranscript creates the scrollable conversation viewport.
@@ -186,9 +188,26 @@ func (m *model) applyTUIMessage(msg any) tea.Cmd {
 		return m.startThinkingComposer()
 	case safetyEventMsg:
 		m.addTranscriptMessage(value)
+	case planEventMsg:
+		m.updateSidebarPlan(planEventToSidebarUpdate(value))
 	}
 
 	return nil
+}
+
+func planEventToSidebarUpdate(msg planEventMsg) planSidebarUpdatedMsg {
+	if msg.Kind == trace.EvtPlanCleared {
+		return planSidebarUpdatedMsg{Cleared: true}
+	}
+
+	return planSidebarUpdatedMsg{
+		Plan: sidebarPlanModel{
+			Steps:        append([]trace.PlanStepPayload(nil), msg.Steps...),
+			Summary:      msg.Summary,
+			ActiveStepID: strings.TrimSpace(msg.ActiveStep),
+			Explanation:  strings.TrimSpace(msg.Explanation),
+		},
+	}
 }
 
 func (m *model) addTranscriptMessage(msg any) {

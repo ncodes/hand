@@ -213,21 +213,21 @@ func getRPCTracePayload(eventType string, payload any) (any, bool) {
 			Message: strings.TrimSpace(sessionPayload.Message),
 		}
 		return result, result.Error != "" || result.Message != ""
-	case trace.EvtPlanHydrated:
+	case trace.EvtPlanUpdated,
+		trace.EvtPlanCleared,
+		trace.EvtPlanHydrated:
 		planPayload, ok := typedPayload.(trace.PlanEventPayload)
 		if !payloadOK || !ok {
 			return nil, false
 		}
-		result := rpcPlanHydratedPayload{
+		result := rpcPlanPayload{
 			SessionID:    strings.TrimSpace(planPayload.SessionID),
 			Source:       strings.TrimSpace(planPayload.Source),
 			ActiveStepID: strings.TrimSpace(planPayload.ActiveStepID),
 			Explanation:  strings.TrimSpace(planPayload.Explanation),
+			Steps:        getRPCPlanSteps(planPayload.Steps),
 			Summary:      getRPCPlanSummary(planPayload.Summary),
 			Changes:      append([]trace.PlanToolChange(nil), planPayload.Changes...),
-		}
-		if len(planPayload.Steps) > 0 {
-			result.StepCount = len(planPayload.Steps)
 		}
 		return result, true
 	case trace.EvtModelReasoningCompleted:
@@ -296,12 +296,12 @@ type rpcSafetyFindingSummary struct {
 	Severity string `json:"severity,omitempty"`
 }
 
-type rpcPlanHydratedPayload struct {
+type rpcPlanPayload struct {
 	SessionID    string                    `json:"session_id,omitempty"`
 	Source       string                    `json:"source,omitempty"`
 	ActiveStepID string                    `json:"active_step_id,omitempty"`
 	Explanation  string                    `json:"explanation,omitempty"`
-	StepCount    int                       `json:"step_count,omitempty"`
+	Steps        []trace.PlanStepPayload   `json:"steps,omitempty"`
 	Summary      *trace.PlanSummaryPayload `json:"summary,omitempty"`
 	Changes      []trace.PlanToolChange    `json:"changes,omitempty"`
 }
@@ -760,6 +760,29 @@ func getRPCPlanSummary(summary trace.PlanSummaryPayload) *trace.PlanSummaryPaylo
 	}
 
 	return &summary
+}
+
+func getRPCPlanSteps(steps []trace.PlanStepPayload) []trace.PlanStepPayload {
+	if len(steps) == 0 {
+		return nil
+	}
+
+	result := make([]trace.PlanStepPayload, 0, len(steps))
+	for _, step := range steps {
+		item := trace.PlanStepPayload{
+			ID:      strings.TrimSpace(step.ID),
+			Content: strings.TrimSpace(step.Content),
+			Status:  strings.TrimSpace(step.Status),
+		}
+		if item.ID != "" || item.Content != "" || item.Status != "" {
+			result = append(result, item)
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+
+	return result
 }
 
 func (s *Service) CreateSession(ctx context.Context, req *handpb.CreateSessionRequest) (*handpb.CreateSessionResponse, error) {

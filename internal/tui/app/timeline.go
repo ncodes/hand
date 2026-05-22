@@ -64,6 +64,7 @@ func loadSessionTitleCmd(ctx context.Context, client sessionTitleLoader) tea.Cmd
 
 func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.Cmd {
 	cells := sessionTimelineToTranscriptCells(timeline)
+	m.hydrateSidebarPlanFromTimeline(timeline)
 
 	m.applyAction(setTranscriptCellsAction{Cells: cells})
 	m.applyAction(setLiveTranscriptCellAction{})
@@ -76,6 +77,23 @@ func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.C
 	m.resize()
 
 	return nil
+}
+
+func (m *model) hydrateSidebarPlanFromTimeline(timeline rpcclient.SessionTimeline) {
+	m.sidebarPlan = sidebarPlanModel{}
+	for _, event := range timeline.TraceEvents {
+		msg, ok := traceEventToTUIMessage(trace.Event{
+			Type:      event.Event.Type,
+			Timestamp: event.Event.Timestamp,
+			Payload:   event.Event.Payload,
+		})
+		if !ok {
+			continue
+		}
+		if planMsg, ok := msg.(planEventMsg); ok {
+			m.updateSidebarPlan(planEventToSidebarUpdate(planMsg))
+		}
+	}
 }
 
 func (m *model) refreshSessionTitle(timeline rpcclient.SessionTimeline) {

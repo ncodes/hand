@@ -726,6 +726,115 @@ func TestModel_UpdateTogglesSidebarWithControlOptionB(t *testing.T) {
 	require.Empty(t, runModel.input.Value())
 }
 
+func TestRenderRightSidebarShowsChecklistStates(t *testing.T) {
+	content := stripANSI(renderRightSidebar(28, 12, sidebarPlanModel{
+		Steps: []trace.PlanStepPayload{
+			{ID: "step-1", Content: "Done task", Status: "completed"},
+			{ID: "step-2", Content: "Active task", Status: "in_progress"},
+			{ID: "step-3", Content: "Pending task", Status: "pending"},
+			{ID: "step-4", Content: "Cancelled task", Status: "cancelled"},
+		},
+	}))
+
+	require.Contains(t, content, "Checklist")
+	require.Contains(t, content, "● Done task")
+	require.Contains(t, content, "● Active task")
+	require.Contains(t, content, "○ Pending task")
+	require.Contains(t, content, "× Cancelled task")
+	require.Equal(t, 28, lipgloss.Width(strings.Split(content, "\n")[0]))
+}
+
+func TestRenderRightSidebarShowsEmptyPlanState(t *testing.T) {
+	content := stripANSI(renderRightSidebar(28, 6, sidebarPlanModel{}))
+
+	require.Contains(t, content, "Checklist")
+	require.Contains(t, content, "No active plan")
+}
+
+func TestRenderRightSidebarWrapsLongChecklistItems(t *testing.T) {
+	content := stripANSI(renderRightSidebar(24, 8, sidebarPlanModel{
+		Steps: []trace.PlanStepPayload{{
+			ID:      "step-1",
+			Content: "This is a very long checklist item that should wrap",
+			Status:  "pending",
+		}},
+	}))
+
+	require.Contains(t, content, "○ This is a very")
+	require.Contains(t, content, "  checklist item")
+}
+
+func TestModel_UpdatePlanEventUpdatesSidebarWithoutOpeningIt(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 120
+	runModel.resize()
+
+	require.False(t, runModel.sidebarVisible)
+
+	cmd := runModel.applyTUIMessage(planEventMsg{
+		Kind: trace.EvtPlanUpdated,
+		Steps: []trace.PlanStepPayload{
+			{ID: "step-1", Content: "Inspect", Status: "pending"},
+		},
+		Summary: trace.PlanSummaryPayload{Total: 1, Pending: 1},
+	})
+
+	require.Nil(t, cmd)
+	require.False(t, runModel.sidebarVisible)
+	require.Equal(t, []trace.PlanStepPayload{{ID: "step-1", Content: "Inspect", Status: "pending"}}, runModel.sidebarPlan.Steps)
+}
+
+func TestModel_HydrateSessionTimelineRestoresLatestSidebarPlan(t *testing.T) {
+	runModel := newModel()
+	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{
+		TraceEvents: []agent.SessionTimelineTraceEvent{
+			{
+				Event: storage.TraceEvent{
+					Type: trace.EvtPlanUpdated,
+					Payload: map[string]any{
+						"steps": []any{
+							map[string]any{"id": "step-1", "content": "Old", "status": "pending"},
+						},
+					},
+				},
+			},
+			{
+				Event: storage.TraceEvent{
+					Type: trace.EvtPlanUpdated,
+					Payload: map[string]any{
+						"steps": []any{
+							map[string]any{"id": "step-1", "content": "Done", "status": "completed"},
+							map[string]any{"id": "step-2", "content": "Now", "status": "in_progress"},
+						},
+						"summary": map[string]any{"total": 2, "completed": 1, "in_progress": 1},
+					},
+				},
+			},
+		},
+	})
+
+	require.Equal(t, []trace.PlanStepPayload{
+		{ID: "step-1", Content: "Done", Status: "completed"},
+		{ID: "step-2", Content: "Now", Status: "in_progress"},
+	}, runModel.sidebarPlan.Steps)
+	require.Equal(t, 2, runModel.sidebarPlan.Summary.Total)
+}
+
+func TestModel_HydrateSessionTimelineClearsSidebarPlan(t *testing.T) {
+	runModel := newModel()
+	runModel.sidebarPlan = sidebarPlanModel{
+		Steps: []trace.PlanStepPayload{{ID: "step-1", Content: "Old", Status: "pending"}},
+	}
+
+	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{
+		TraceEvents: []agent.SessionTimelineTraceEvent{{
+			Event: storage.TraceEvent{Type: trace.EvtPlanCleared, Payload: map[string]any{}},
+		}},
+	})
+
+	require.Empty(t, runModel.sidebarPlan.Steps)
+}
+
 func TestModel_ViewShowsJumpToBottomWhenTranscriptIsNotAtBottom(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 10
