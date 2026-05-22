@@ -19,13 +19,34 @@ func parseComposerInput(value string) composerInput {
 	return tuicomposer.ParseInput(value)
 }
 
+func (m model) parseComposerInputForSubmit() composerInput {
+	input := parseComposerInput(m.input.Value())
+	if input.Kind != composerInputCommand {
+		return input
+	}
+	if input.Name == "" && m.commandMenuSelected == 0 {
+		return input
+	}
+
+	command, ok := m.getSelectedSlashCommand()
+	if !ok {
+		return input
+	}
+
+	return composerInput{
+		Kind: composerInputCommand,
+		Text: "/" + command.Name,
+		Name: command.Name,
+	}
+}
+
 func normalizeComposerPaste(value string) string {
 	return tuicomposer.NormalizePaste(value)
 }
 
 // submitPrompt routes a non-empty composer value to prompt or command handling.
 func (m *model) submitPrompt() tea.Cmd {
-	input := parseComposerInput(m.input.Value())
+	input := m.parseComposerInputForSubmit()
 	if input.Kind == composerInputEmpty {
 		return nil
 	}

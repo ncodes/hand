@@ -110,6 +110,20 @@ func getVisibleSlashCommands(value string, offset int, height int) []slashComman
 	return commands[offset:end]
 }
 
+func (m model) getSelectedSlashCommand() (slashCommandDefinition, bool) {
+	if !m.isCommandMenuVisible() {
+		return slashCommandDefinition{}, false
+	}
+
+	commands := getFilteredSlashCommands(m.input.Value())
+	if len(commands) == 0 {
+		return slashCommandDefinition{}, false
+	}
+
+	selection := clampCommandMenuSelection(m.commandMenuSelected, len(commands))
+	return commands[selection], true
+}
+
 func getFilteredSlashCommands(value string) []slashCommandDefinition {
 	prefix := getSlashCommandPrefix(value)
 	if prefix == "" {

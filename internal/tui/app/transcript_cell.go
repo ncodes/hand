@@ -11,14 +11,15 @@ import (
 type transcriptCellKind string
 
 const (
-	transcriptCellUser      transcriptCellKind = "user"
-	transcriptCellAssistant transcriptCellKind = "assistant"
-	transcriptCellReasoning transcriptCellKind = "reasoning"
-	transcriptCellThought   transcriptCellKind = "thought"
-	transcriptCellTool      transcriptCellKind = "tool"
-	transcriptCellSafety    transcriptCellKind = "safety"
-	transcriptCellError     transcriptCellKind = "error"
-	transcriptCellSystem    transcriptCellKind = "system"
+	transcriptCellUser       transcriptCellKind = "user"
+	transcriptCellAssistant  transcriptCellKind = "assistant"
+	transcriptCellReasoning  transcriptCellKind = "reasoning"
+	transcriptCellThought    transcriptCellKind = "thought"
+	transcriptCellTool       transcriptCellKind = "tool"
+	transcriptCellSafety     transcriptCellKind = "safety"
+	transcriptCellError      transcriptCellKind = "error"
+	transcriptCellSystem     transcriptCellKind = "system"
+	transcriptCellCompaction transcriptCellKind = "compaction"
 )
 
 const userTranscriptPrompt = inputPrompt
@@ -63,6 +64,10 @@ type errorTranscriptCell struct {
 
 type systemTranscriptCell struct {
 	text string
+}
+
+type manualCompactionTranscriptCell struct {
+	state manualCompactionState
 }
 
 func (cell userTranscriptCell) Kind() transcriptCellKind {
@@ -183,6 +188,22 @@ func (cell systemTranscriptCell) PlainText() string {
 
 func (cell systemTranscriptCell) IsEmpty() bool {
 	return strings.TrimSpace(cell.text) == ""
+}
+
+func (cell manualCompactionTranscriptCell) Kind() transcriptCellKind {
+	return transcriptCellCompaction
+}
+
+func (cell manualCompactionTranscriptCell) PlainText() string {
+	if cell.IsEmpty() {
+		return ""
+	}
+
+	return cell.state.displayText()
+}
+
+func (cell manualCompactionTranscriptCell) IsEmpty() bool {
+	return strings.TrimSpace(cell.state.displayText()) == ""
 }
 
 func renderTranscriptCells(cells []transcriptCell) string {

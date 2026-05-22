@@ -5,10 +5,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	storage "github.com/wandxy/hand/internal/state/core"
 	tuistatus "github.com/wandxy/hand/internal/tui/status"
 )
 
 const (
+	defaultSessionID       = storage.DefaultSessionID
 	defaultSessionTitle    = tuistatus.DefaultSessionTitle
 	defaultStatus          = tuistatus.DefaultText
 	statusReadySuffix      = tuistatus.ReadySuffix

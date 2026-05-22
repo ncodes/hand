@@ -230,6 +230,25 @@ func getRPCTracePayload(eventType string, payload any) (any, bool) {
 			Changes:      append([]trace.PlanToolChange(nil), planPayload.Changes...),
 		}
 		return result, true
+	case trace.EvtContextCompactionPending,
+		trace.EvtContextCompactionRunning,
+		trace.EvtContextCompactionSucceeded,
+		trace.EvtContextCompactionFailed:
+		compactionPayload, ok := typedPayload.(trace.CompactionEventPayload)
+		if !payloadOK || !ok {
+			return nil, false
+		}
+		return trace.CompactionEventPayload{
+			SessionID:          strings.TrimSpace(compactionPayload.SessionID),
+			Status:             strings.TrimSpace(compactionPayload.Status),
+			TargetMessageCount: compactionPayload.TargetMessageCount,
+			TargetOffset:       compactionPayload.TargetOffset,
+			RequestedAt:        compactionPayload.RequestedAt,
+			StartedAt:          compactionPayload.StartedAt,
+			CompletedAt:        compactionPayload.CompletedAt,
+			FailedAt:           compactionPayload.FailedAt,
+			Error:              strings.TrimSpace(compactionPayload.Error),
+		}, true
 	case trace.EvtModelReasoningCompleted:
 		reasoningPayload, ok := typedPayload.(trace.ModelReasoningCompletedPayload)
 		if !payloadOK || !ok {

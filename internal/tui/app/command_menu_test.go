@@ -23,6 +23,7 @@ func TestCommandMenu_RendersAboveComposerForSlashInput(t *testing.T) {
 	require.NotEqual(t, -1, inputIndex)
 	require.Less(t, commandIndex, inputIndex)
 	require.Contains(t, content, "Clear the transcript")
+	require.Contains(t, content, "Compact the current session")
 	require.Contains(t, content, "Copy the transcript")
 	require.Contains(t, content, "Show supported commands")
 }
@@ -69,10 +70,11 @@ func TestCommandMenu_FiltersCommandsByPrefix(t *testing.T) {
 
 	menu := stripANSI(runModel.renderCommandMenu())
 
+	require.Contains(t, menu, "/compact")
 	require.Contains(t, menu, "/copy")
 	require.NotContains(t, menu, "/clear")
 	require.NotContains(t, menu, "/help")
-	require.Equal(t, 1, runModel.getCommandMenuHeight())
+	require.Equal(t, 2, runModel.getCommandMenuHeight())
 	require.Zero(t, runModel.commandMenuSelected)
 }
 

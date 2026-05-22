@@ -40,6 +40,11 @@ type setSessionTitleAction struct {
 	Title string
 }
 
+type setSessionAction struct {
+	ID    string
+	Title string
+}
+
 type setRespondingAction struct {
 	Responding bool
 	ResponseID int
@@ -115,6 +120,18 @@ func (action setSessionTitleAction) apply(state *tuiState) {
 	if state.sessionTitle == "" {
 		state.sessionTitle = defaultSessionTitle
 	}
+}
+
+func (action setSessionAction) apply(state *tuiState) {
+	if state == nil {
+		return
+	}
+
+	state.sessionID = strings.TrimSpace(action.ID)
+	if state.sessionID == "" {
+		state.sessionID = defaultSessionID
+	}
+	setSessionTitleAction{Title: action.Title}.apply(state)
 }
 
 func (action setRespondingAction) apply(state *tuiState) {

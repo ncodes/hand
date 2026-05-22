@@ -219,6 +219,13 @@ func TestTranscriptCells_ExposeTypedCellContract(t *testing.T) {
 			renderText: "note",
 		},
 		{
+			name:       "compaction",
+			cell:       manualCompactionTranscriptCell{state: manualCompactionState{Status: "succeeded"}},
+			kind:       transcriptCellCompaction,
+			plainText:  "Manual compaction completed",
+			renderText: "Manual compaction completed",
+		},
+		{
 			name:       "tool",
 			cell:       newToolTranscriptCell("call_1", "list_files", "list_files(path=.)", nil, nil, startedAt, completedAt, true),
 			kind:       transcriptCellTool,
@@ -238,6 +245,9 @@ func TestTranscriptCells_ExposeTypedCellContract(t *testing.T) {
 				transcriptRenderContext{Width: 40, Now: completedAt},
 			)
 			require.Contains(t, stripANSI(rendered), tt.renderText)
+			if tt.kind == transcriptCellCompaction {
+				require.Equal(t, 2, strings.Count(stripANSI(rendered), strings.Repeat("─", 40)))
+			}
 		})
 	}
 }
@@ -427,6 +437,16 @@ func TestRenderTranscriptCells_RendersSessionMessagesWithFriendlyText(t *testing
 	require.Contains(t, withDetail, "● Fetched Session Messages")
 	require.NotContains(t, withDetail, "└")
 	require.NotContains(t, withDetail, "session_messages")
+}
+
+func TestRenderTranscriptCells_CompactsConsecutiveManualCompactionEvents(t *testing.T) {
+	rendered := stripANSI(renderTranscriptCells([]transcriptCell{
+		manualCompactionTranscriptCell{state: manualCompactionState{Status: "running"}},
+		manualCompactionTranscriptCell{state: manualCompactionState{Status: "succeeded"}},
+	}))
+
+	require.NotContains(t, rendered, "Manual compaction started")
+	require.Contains(t, rendered, "Manual compaction completed")
 }
 
 func TestRenderTranscriptCells_RendersSessionSearchWithFriendlyText(t *testing.T) {

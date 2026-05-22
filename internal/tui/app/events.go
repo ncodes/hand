@@ -58,6 +58,10 @@ type sessionErrorMsg struct {
 	Message string
 }
 
+type manualCompactionMsg struct {
+	State manualCompactionState
+}
+
 func agentEventToTUIMessage(event agent.Event) (any, bool) {
 	if event.TraceEvent != nil {
 		return traceEventToTUIMessage(*event.TraceEvent)
@@ -125,6 +129,17 @@ func traceEventToTUIMessage(event trace.Event) (any, bool) {
 				return nil, false
 			}
 			return sessionErrorMsg{Message: message}, true
+		}
+	case trace.EvtContextCompactionPending,
+		trace.EvtContextCompactionRunning,
+		trace.EvtContextCompactionSucceeded,
+		trace.EvtContextCompactionFailed:
+		payload, ok := typedPayload.(trace.CompactionEventPayload)
+		if !payloadOK || !ok {
+			return nil, false
+		}
+		if state := manualCompactionStateFromTraceEvent(event.Type, payload); state.isVisible() {
+			return manualCompactionMsg{State: state}, true
 		}
 	}
 

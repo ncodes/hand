@@ -70,8 +70,10 @@ func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.C
 	m.showIntro = false
 	m.stream.Reset()
 	m.setTranscriptContent()
-	displayName := getSessionTimelineDisplayName(timeline)
-	m.applyAction(setSessionTitleAction{Title: displayName})
+	m.applyAction(setSessionAction{
+		ID:    timeline.SessionID,
+		Title: getSessionTimelineDisplayName(timeline),
+	})
 	m.setDefaultStatus(defaultStatus)
 	m.resize()
 
@@ -79,7 +81,10 @@ func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.C
 }
 
 func (m *model) refreshSessionTitleFromSession(session storage.Session) {
-	m.applyAction(setSessionTitleAction{Title: getSessionDisplayName(session)})
+	m.applyAction(setSessionAction{
+		ID:    session.ID,
+		Title: getSessionDisplayName(session),
+	})
 }
 
 func getSessionDisplayName(session storage.Session) string {

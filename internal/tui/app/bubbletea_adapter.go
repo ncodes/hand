@@ -49,6 +49,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case sessionErrorMsg:
 		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
+	case compactSessionCompletedMsg:
+		return m, m.completeCompactSession(msg)
 	case toolInvocationStartedMsg:
 		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 	case toolInvocationCompletedMsg:
@@ -105,6 +107,10 @@ func (m model) handleResponseEvent(msg responseEventMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) handlePasteMsg(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	if m.manualCompactionActive {
+		return m, nil
+	}
+
 	msg.Content = normalizeComposerPaste(msg.Content)
 	m.resizeInputForValue(m.input.Value() + msg.Content)
 	m.input, _ = m.input.Update(msg)
@@ -119,6 +125,12 @@ func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool)
 	case "ctrl+c":
 		next, cmd := m.confirmExit()
 		return next, cmd, true
+	}
+	if m.manualCompactionActive {
+		return m, nil, true
+	}
+
+	switch msg.Keystroke() {
 	case "ctrl+y":
 		next, cmd := m.handleAppEvent(copyTranscriptEvent{})
 		return next, cmd, true

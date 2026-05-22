@@ -267,6 +267,13 @@ func (c *fakeTUIChatClient) GetSessionTimeline(
 	return rpcclient.SessionTimeline{}, nil
 }
 
+func (c *fakeTUIChatClient) CompactSession(
+	context.Context,
+	string,
+) (rpcclient.CompactSessionResult, error) {
+	return rpcclient.CompactSessionResult{}, nil
+}
+
 func (c *fakeTUIChatClient) Close() error {
 	c.closed = true
 	return nil

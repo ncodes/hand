@@ -87,6 +87,15 @@ func (transcriptCellFactory) System(text string) transcriptCell {
 	return systemTranscriptCell{text: text}
 }
 
+func (transcriptCellFactory) ManualCompaction(state manualCompactionState) transcriptCell {
+	cell := manualCompactionTranscriptCell{state: state}
+	if cell.IsEmpty() {
+		return nil
+	}
+
+	return cell
+}
+
 func (factory transcriptCellFactory) FromTUIMessage(msg any) transcriptCell {
 	switch value := msg.(type) {
 	case userMessageAcceptedMsg:
@@ -124,6 +133,8 @@ func (factory transcriptCellFactory) FromTUIMessage(msg any) transcriptCell {
 		return factory.Safety(value)
 	case sessionErrorMsg:
 		return factory.Error(value.Message)
+	case manualCompactionMsg:
+		return factory.ManualCompaction(value.State)
 	default:
 		return nil
 	}

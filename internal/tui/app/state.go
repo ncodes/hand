@@ -9,6 +9,7 @@ type tuiState struct {
 	width                      int
 	height                     int
 	status                     statusModel
+	sessionID                  string
 	sessionTitle               string
 	modelName                  string
 	context                    string
@@ -32,6 +33,8 @@ type tuiState struct {
 	thinkingComposerFrame      int
 	thinkingComposerActive     bool
 	thinkingComposerEnabled    bool
+	manualCompactionActive     bool
+	manualCompactionIndex      int
 	commandMenuOffset          int
 	commandMenuSelected        int
 	commandMenuPrefix          string
@@ -45,11 +48,13 @@ func newTUIState(history []string, thinkingComposerEnabled bool) tuiState {
 		width:                    defaultWidth,
 		height:                   defaultHeight,
 		status:                   newStatusModel(),
+		sessionID:                defaultSessionID,
 		sessionTitle:             defaultSessionTitle,
 		modelName:                "GPT 5.5",
 		context:                  "60,000 used · 65%",
 		showIntro:                true,
 		reasoningMessageIndex:    -1,
+		manualCompactionIndex:    -1,
 		history:                  history,
 		historyAt:                len(history),
 		thinkingComposerEnabled:  thinkingComposerEnabled,

@@ -16,6 +16,7 @@ type Theme struct {
 	ToolDetail               string
 	ToolAddition             string
 	ToolDeletion             string
+	Separator                string
 	NoticeBackground         string
 	NoticeBorder             string
 	NoticeMuted              string
@@ -41,6 +42,7 @@ var DefaultTheme = Theme{
 	ToolDetail:               "246",
 	ToolAddition:             "83",
 	ToolDeletion:             "203",
+	Separator:                "234",
 	NoticeBackground:         "235",
 	NoticeBorder:             "238",
 	NoticeMuted:              "246",

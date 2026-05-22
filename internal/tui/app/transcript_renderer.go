@@ -38,6 +38,8 @@ func (lipglossTranscriptRenderer) RenderCell(cell transcriptCell, ctx transcript
 		return transcriptCellLabelStyle(transcriptCellError).Render("Error:") + " " + strings.TrimSpace(value.message)
 	case systemTranscriptCell:
 		return renderMarkdownForTranscript(value.text, ctx.Width)
+	case manualCompactionTranscriptCell:
+		return renderManualCompactionCell(value, ctx)
 	case toolTranscriptCell:
 		group := toolTranscriptGroup{action: value.action}
 		group.add(value)
@@ -49,6 +51,7 @@ func (lipglossTranscriptRenderer) RenderCell(cell transcriptCell, ctx transcript
 
 func (renderer lipglossTranscriptRenderer) RenderCells(cells []transcriptCell, ctx transcriptRenderContext) string {
 	cells = compactConsecutiveProcessToolAttemptCells(cells)
+	cells = compactConsecutiveManualCompactionCells(cells)
 	rendered := make([]string, 0, len(cells))
 	var toolGroup *toolTranscriptGroup
 	for _, cell := range cells {
@@ -75,6 +78,27 @@ func (renderer lipglossTranscriptRenderer) RenderCells(cells []transcriptCell, c
 	flushToolTranscriptGroupWithContext(&rendered, &toolGroup, ctx)
 
 	return strings.Join(rendered, "\n\n")
+}
+
+func compactConsecutiveManualCompactionCells(cells []transcriptCell) []transcriptCell {
+	if len(cells) <= 1 {
+		return cells
+	}
+
+	compacted := make([]transcriptCell, 0, len(cells))
+	for _, cell := range cells {
+		if _, ok := cell.(manualCompactionTranscriptCell); ok {
+			if len(compacted) > 0 {
+				if _, previousOK := compacted[len(compacted)-1].(manualCompactionTranscriptCell); previousOK {
+					compacted[len(compacted)-1] = cell
+					continue
+				}
+			}
+		}
+		compacted = append(compacted, cell)
+	}
+
+	return compacted
 }
 
 func compactConsecutiveProcessToolAttemptCells(cells []transcriptCell) []transcriptCell {

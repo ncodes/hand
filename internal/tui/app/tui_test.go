@@ -142,14 +142,27 @@ func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 			Messages: []agent.SessionTimelineMessage{{
 				Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "older answer"},
 			}},
+			TraceEvents: []agent.SessionTimelineTraceEvent{{
+				Event: storage.TraceEvent{
+					Type:      trace.EvtContextCompactionSucceeded,
+					Timestamp: now,
+					Payload: trace.CompactionEventPayload{
+						SessionID: "default",
+						Status:    string(storage.CompactionStatusSucceeded),
+					},
+				},
+			}},
 		},
 	})
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, []string{"Hand: older answer"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"Manual compaction completed", "Hand: older answer"}, transcriptCellPlainTexts(runModel.messages))
 	require.Contains(t, stripANSI(runModel.transcript.View()), "older answer")
+	require.Equal(t, defaultSessionID, runModel.sessionID)
 	require.Equal(t, "Daily Planning (default)", runModel.sessionTitle)
+	require.Contains(t, transcriptCellPlainTexts(runModel.messages), "Manual compaction completed")
+	require.Contains(t, stripANSI(runModel.View().Content), "Manual compaction completed")
 	require.Equal(t, defaultStatus, runModel.status.Text())
 }
 
@@ -988,9 +1001,134 @@ func TestModel_UpdateHandlesHelpCommand(t *testing.T) {
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, []string{"Commands: /clear, /copy, /help"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"Commands: /clear, /compact, /copy, /help"}, transcriptCellPlainTexts(runModel.messages))
 	require.Empty(t, runModel.input.Value())
-	require.Contains(t, stripANSI(runModel.transcript.View()), "Commands: /clear, /copy, /help")
+	require.Contains(t, stripANSI(runModel.transcript.View()), "Commands: /clear, /compact, /copy, /help")
+}
+
+func TestModel_UpdateHandlesCompactCommand(t *testing.T) {
+	client := &fakeTUIChatClient{
+		compactResult: rpcclient.CompactSessionResult{
+			SessionID:          "default",
+			SourceMessageCount: 12,
+		},
+	}
+	runModel := newModelWithClient(client)
+	runModel.input.SetValue("/compact")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "compaction started", runModel.status.Text())
+	require.True(t, runModel.manualCompactionActive)
+	require.Empty(t, runModel.input.Value())
+	require.Equal(t, []string{"Manual compaction started"}, transcriptCellPlainTexts(runModel.messages))
+	require.Contains(t, stripANSI(runModel.View().Content), "Manual compaction started")
+
+	msg := compactSessionMessageFromBatch(t, cmd)
+	updated, cmd = runModel.Update(msg)
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 1, client.compactCalls)
+	require.Equal(t, defaultSessionID, client.compactID)
+	require.Equal(t, "session compacted", runModel.status.Text())
+	require.False(t, runModel.manualCompactionActive)
+	require.Equal(t, []string{"Manual compaction completed"}, transcriptCellPlainTexts(runModel.messages))
+	require.Contains(t, stripANSI(runModel.View().Content), "Manual compaction completed")
+}
+
+func TestModel_UpdateDisablesInputDuringCompactCommand(t *testing.T) {
+	runModel := newModelWithClient(&fakeTUIChatClient{})
+	runModel.input.SetValue("/compact")
+
+	updated, _ := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	runModel = updated.(model)
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Empty(t, runModel.input.Value())
+	require.True(t, runModel.manualCompactionActive)
+}
+
+func TestModel_UpdateSubmitsSelectedCommandMenuItem(t *testing.T) {
+	client := &fakeTUIChatClient{
+		compactResult: rpcclient.CompactSessionResult{
+			SessionID:          "default",
+			SourceMessageCount: 4,
+		},
+	}
+	runModel := newModelWithClient(client)
+	runModel.input.SetValue("/")
+	runModel.updateCommandMenuForInput("/")
+	require.True(t, runModel.scrollCommandMenu(1))
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "compaction started", runModel.status.Text())
+	require.Empty(t, runModel.input.Value())
+
+	msg := compactSessionMessageFromBatch(t, cmd)
+	_, _ = runModel.Update(msg)
+
+	require.Equal(t, 1, client.compactCalls)
+	require.Equal(t, defaultSessionID, client.compactID)
+}
+
+func TestModel_UpdateHandlesCompactCommandForCurrentSessionID(t *testing.T) {
+	client := &fakeTUIChatClient{
+		compactResult: rpcclient.CompactSessionResult{
+			SessionID:          "project-a",
+			SourceMessageCount: 7,
+		},
+	}
+	runModel := newModelWithClient(client)
+	runModel.refreshSessionTitleFromSession(storage.Session{ID: "project-a", Title: "Project A"})
+	runModel.input.SetValue("/compact")
+
+	_, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	msg := compactSessionMessageFromBatch(t, cmd)
+	_, _ = runModel.Update(msg)
+
+	require.Equal(t, 1, client.compactCalls)
+	require.Equal(t, "project-a", client.compactID)
+}
+
+func TestModel_UpdateReportsCompactCommandFailure(t *testing.T) {
+	expectedErr := errors.New("summary failed")
+	runModel := newModelWithClient(&fakeTUIChatClient{compactErr: expectedErr})
+	runModel.input.SetValue("/compact")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	msg := compactSessionMessageFromBatch(t, cmd)
+	updated, cmd = runModel.Update(msg)
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "compaction failed", runModel.status.Text())
+	require.False(t, runModel.manualCompactionActive)
+	require.Equal(t, []string{"Manual compaction failed: summary failed"}, transcriptCellPlainTexts(runModel.messages))
+	require.Contains(t, stripANSI(runModel.View().Content), "Manual compaction failed")
+}
+
+func TestModel_UpdateReportsCompactCommandUnavailable(t *testing.T) {
+	runModel := newModel()
+	runModel.input.SetValue("/compact")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "compaction unavailable", runModel.status.Text())
 }
 
 func TestModel_UpdateCopiesTranscriptToClipboard(t *testing.T) {
@@ -1782,7 +1920,9 @@ func TestModel_UpdateRefreshesSessionTitleAfterResponseCompletes(t *testing.T) {
 	updated, cmd = runModel.Update(msg)
 
 	require.Nil(t, cmd)
-	require.Equal(t, "Daily Planning (default)", updated.(model).sessionTitle)
+	runModel = updated.(model)
+	require.Equal(t, defaultSessionID, runModel.sessionID)
+	require.Equal(t, "Daily Planning (default)", runModel.sessionTitle)
 }
 
 func TestRespondToPromptCmd_StreamsDeltasTraceEventsAndCompletion(t *testing.T) {
@@ -2341,7 +2481,7 @@ func TestModel_UpdateKeepsCommandsLocalDuringActiveResponse(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.True(t, runModel.responding)
-	require.Equal(t, []string{"Commands: /clear, /copy, /help"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"Commands: /clear, /compact, /copy, /help"}, transcriptCellPlainTexts(runModel.messages))
 	require.Empty(t, runModel.input.Value())
 }
 
@@ -2820,10 +2960,28 @@ func trimTrailingLineSpaces(value string) string {
 	return strings.Join(lines, "\n")
 }
 
+func compactSessionMessageFromBatch(t *testing.T, cmd tea.Cmd) compactSessionCompletedMsg {
+	t.Helper()
+
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+	for _, child := range batch {
+		if msg, ok := child().(compactSessionCompletedMsg); ok {
+			return msg
+		}
+	}
+
+	t.Fatal("compact session message not found")
+	return compactSessionCompletedMsg{}
+}
+
 type fakeTUIChatClient struct {
 	events              []rpcclient.Event
 	reply               string
 	err                 error
+	compactResult       rpcclient.CompactSessionResult
+	compactErr          error
+	compactID           string
 	timeline            rpcclient.SessionTimeline
 	timelineErr         error
 	currentSession      storage.Session
@@ -2831,6 +2989,7 @@ type fakeTUIChatClient struct {
 	message             string
 	stream              bool
 	calls               int
+	compactCalls        int
 	timelineCalls       int
 	currentSessionCalls int
 	closed              bool
@@ -2853,6 +3012,12 @@ func (c *fakeTUIChatClient) Respond(
 	}
 
 	return c.reply, c.err
+}
+
+func (c *fakeTUIChatClient) CompactSession(_ context.Context, id string) (rpcclient.CompactSessionResult, error) {
+	c.compactCalls++
+	c.compactID = id
+	return c.compactResult, c.compactErr
 }
 
 func (c *fakeTUIChatClient) GetSessionTimeline(
