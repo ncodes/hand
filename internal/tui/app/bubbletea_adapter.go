@@ -162,14 +162,16 @@ func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool)
 
 func isSidebarToggleKey(msg tea.KeyPressMsg) bool {
 	switch msg.Keystroke() {
-	case "alt+meta+b", "alt+super+b":
+	case "ctrl+alt+b", "alt+meta+b", "alt+super+b":
 		return true
 	}
 
 	key := msg.Key()
 	return (key.Code == 'b' || key.Code == 'B') &&
 		key.Mod.Contains(tea.ModAlt) &&
-		(key.Mod.Contains(tea.ModSuper) || key.Mod.Contains(tea.ModMeta))
+		(key.Mod.Contains(tea.ModCtrl) ||
+			key.Mod.Contains(tea.ModSuper) ||
+			key.Mod.Contains(tea.ModMeta))
 }
 
 func (m *model) toggleSidebar() {

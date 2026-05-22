@@ -705,6 +705,27 @@ func TestModel_UpdateTogglesSidebarWithCommandOptionB(t *testing.T) {
 	require.Equal(t, 120, runModel.transcript.Width())
 }
 
+func TestModel_UpdateTogglesSidebarWithControlOptionB(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 120
+	runModel.resize()
+	runModel.setTranscriptContent()
+
+	require.False(t, runModel.sidebarVisible)
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{
+		Code: 'b',
+		Text: "b",
+		Mod:  tea.ModCtrl | tea.ModAlt,
+	}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.sidebarVisible)
+	require.Equal(t, getMainPaneWidth(120), runModel.transcript.Width())
+	require.Empty(t, runModel.input.Value())
+}
+
 func TestModel_ViewShowsJumpToBottomWhenTranscriptIsNotAtBottom(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 10
