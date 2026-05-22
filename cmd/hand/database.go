@@ -38,12 +38,13 @@ func resetConfiguredDatabase(_ context.Context, cmd *cli.Command) error {
 		return errors.New("database reset requires --force")
 	}
 
-	cfg, _, err := handcli.LoadConfig(cmd)
+	cfg, inputs, err := handcli.LoadConfig(cmd)
 	if err != nil {
 		return err
 	}
 
 	handcli.ApplyConfigOverrides(cmd, cfg)
+	handcli.AddStartupFilesystemRoots(cfg, inputs)
 
 	if strings.TrimSpace(strings.ToLower(cfg.Storage.Backend)) != "sqlite" {
 		return errors.New("database reset requires sqlite storage backend")

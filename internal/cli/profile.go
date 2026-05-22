@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 
 	cli "github.com/urfave/cli/v3"
@@ -60,6 +62,55 @@ func LoadConfig(cmd *cli.Command) (*config.Config, ConfigInputs, error) {
 	}
 
 	return cfg, inputs, nil
+}
+
+func AddStartupFilesystemRoots(cfg *config.Config, inputs ConfigInputs) {
+	if cfg == nil {
+		return
+	}
+
+	roots := make([]string, 0, 2)
+	if !cfg.FS.NoProfileAccess {
+		roots = append(roots, inputs.Profile.HomeDir)
+	} else {
+		cfg.FS.Roots = removeFilesystemRoot(cfg.FS.Roots, inputs.Profile.HomeDir)
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		roots = append(roots, cwd)
+	}
+	config.AddFilesystemRoots(cfg, roots...)
+}
+
+func removeFilesystemRoot(roots []string, target string) []string {
+	target = strings.TrimSpace(target)
+	if target == "" {
+		return roots
+	}
+
+	normalizedTarget := normalizeFilesystemRootTarget(target)
+	filtered := make([]string, 0, len(roots))
+	for _, root := range roots {
+		if normalizeFilesystemRootTarget(root) == normalizedTarget {
+			continue
+		}
+		filtered = append(filtered, root)
+	}
+
+	return filtered
+}
+
+func normalizeFilesystemRootTarget(root string) string {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return ""
+	}
+	if filepath.IsAbs(root) {
+		return filepath.Clean(root)
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		return filepath.Clean(filepath.Join(cwd, root))
+	}
+	return filepath.Clean(root)
 }
 
 func getCommandProfile(cmd *cli.Command) string {

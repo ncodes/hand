@@ -185,6 +185,48 @@ models:
 	require.Equal(t, "debug", got.Log.Level)
 }
 
+func TestAddStartupFilesystemRoots_NormalizesConfiguredRootsAndAddsStartupRoots(t *testing.T) {
+	profileHome := t.TempDir()
+	workingDir := t.TempDir()
+	t.Chdir(workingDir)
+	cfg := &config.Config{
+		FS: config.FSConfig{Roots: []string{"./workspace"}},
+	}
+	inputs := ConfigInputs{
+		Profile: profile.Profile{HomeDir: profileHome},
+	}
+
+	AddStartupFilesystemRoots(cfg, inputs)
+
+	require.Equal(t, []string{
+		filepath.Join(workingDir, "workspace"),
+		profileHome,
+		workingDir,
+	}, cfg.FS.Roots)
+}
+
+func TestAddStartupFilesystemRoots_SkipsProfileHomeWhenProfileAccessDisabled(t *testing.T) {
+	profileHome := t.TempDir()
+	workingDir := t.TempDir()
+	t.Chdir(workingDir)
+	cfg := &config.Config{
+		FS: config.FSConfig{
+			NoProfileAccess: true,
+			Roots:           []string{profileHome, "./workspace"},
+		},
+	}
+	inputs := ConfigInputs{
+		Profile: profile.Profile{HomeDir: profileHome},
+	}
+
+	AddStartupFilesystemRoots(cfg, inputs)
+
+	require.Equal(t, []string{
+		filepath.Join(workingDir, "workspace"),
+		workingDir,
+	}, cfg.FS.Roots)
+}
+
 func TestLoadConfig_ReturnsConfigLoadError(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

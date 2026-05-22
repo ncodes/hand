@@ -173,6 +173,7 @@ func TestNewDefaultConfig_ReturnsIndependentConfig(t *testing.T) {
 	require.Empty(t, first.Web.Provider)
 	require.Equal(t, DefaultConfig.RPC.Address, first.RPC.Address)
 	require.Equal(t, DefaultConfig.RPC.Port, first.RPC.Port)
+	require.True(t, first.FS.NoProfileAccess)
 	require.True(t, first.InputSafetyEnabled())
 	require.True(t, first.OutputSafetyEnabled())
 	require.False(t, first.OutputPIIRedactionEnabled())
@@ -3013,8 +3014,10 @@ func TestConfig_NormalizeKeepsExplicitTraceDiskDir(t *testing.T) {
 
 func TestLoad_UsesFilesystemRootsAndExecRulesFromConfig(t *testing.T) {
 	clearEnvKeys(t, "HAND_FS_ROOTS", "HAND_EXEC_ALLOW", "HAND_EXEC_ASK", "HAND_EXEC_DENY")
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.yaml")
+	configDir := t.TempDir()
+	workingDir := t.TempDir()
+	t.Chdir(workingDir)
+	configPath := filepath.Join(configDir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
@@ -3044,12 +3047,42 @@ exec:
 
 	require.NoError(t, err)
 	require.Equal(t, []string{
-		filepath.Join(dir),
-		filepath.Join(dir, "nested"),
+		filepath.Join(workingDir),
+		filepath.Join(workingDir, "nested"),
 	}, cfg.FS.Roots)
 	require.Equal(t, []string{"git status"}, cfg.Exec.Allow)
 	require.Equal(t, []string{"git push"}, cfg.Exec.Ask)
 	require.Equal(t, []string{"git reset --hard"}, cfg.Exec.Deny)
+}
+
+func TestLoad_DefaultsNoProfileAccessToTrueWhenOmitted(t *testing.T) {
+	clearEnvKeys(t, "HAND_CONFIG")
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+
+	require.NoError(t, err)
+	require.True(t, cfg.FS.NoProfileAccess)
+}
+
+func TestLoad_AllowsNoProfileAccessOverrideFromConfig(t *testing.T) {
+	clearEnvKeys(t, "HAND_CONFIG")
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: config-agent
+fs:
+  noProfileAccess: false
+`), 0o600))
+
+	cfg, err := Load("", configPath)
+
+	require.NoError(t, err)
+	require.False(t, cfg.FS.NoProfileAccess)
 }
 
 func TestLoad_UsesFilesystemRootsAndExecRulesFromEnv(t *testing.T) {

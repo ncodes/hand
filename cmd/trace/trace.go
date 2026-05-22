@@ -55,11 +55,12 @@ func newViewCommand() *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			cfg, _, err := handcli.LoadConfig(cmd)
+			cfg, inputs, err := handcli.LoadConfig(cmd)
 			if err != nil {
 				return err
 			}
 			handcli.ApplyConfigOverrides(cmd, cfg)
+			handcli.AddStartupFilesystemRoots(cfg, inputs)
 			config.Set(cfg)
 			_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
 			logutils.SetLogLevel(cfg.Log.Level)

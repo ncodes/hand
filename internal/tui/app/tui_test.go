@@ -343,6 +343,20 @@ func TestRenderHeaderBody_FillsAvailableWidthWhenInfoIsVisible(t *testing.T) {
 	}
 }
 
+func TestRenderHeaderBody_InsetsBannerAndInfo(t *testing.T) {
+	runModel := newModel()
+	panel := getHeaderPanel(runModel, 120)
+	content := stripANSI(renderHeaderBody(panel))
+
+	for _, line := range strings.Split(content, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		require.True(t, strings.HasPrefix(line, " "))
+		require.True(t, strings.HasSuffix(line, " "))
+	}
+}
+
 func TestModel_ViewRendersBottomStatusPanelBelowComposer(t *testing.T) {
 	runModel := newModel()
 	content := stripANSI(runModel.View().Content)

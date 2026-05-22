@@ -38,12 +38,13 @@ var newTUIChatClient = func(ctx context.Context, cfg *config.Config) (tuiClient,
 var loadCommandModel = loadTUICommandModel
 
 func loadTUICommandModel(ctx context.Context, cmd *cli.Command) (tea.Model, func(), error) {
-	cfg, _, err := handcli.LoadConfig(cmd)
+	cfg, inputs, err := handcli.LoadConfig(cmd)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	handcli.ApplyConfigOverrides(cmd, cfg)
+	handcli.AddStartupFilesystemRoots(cfg, inputs)
 
 	endpoint, err := handruntime.ResolveRPC(ctx, cmd, cfg)
 	if err != nil {

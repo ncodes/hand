@@ -89,7 +89,8 @@ type RPCConfig struct {
 }
 
 type FSConfig struct {
-	Roots []string `yaml:"roots"`
+	NoProfileAccess bool     `yaml:"noProfileAccess"`
+	Roots           []string `yaml:"roots"`
 }
 
 type ExecConfig struct {
@@ -415,6 +416,9 @@ var DefaultConfig = Config{
 	RPC: RPCConfig{
 		Address: constants.DefaultRPCAddress,
 		Port:    constants.DefaultRPCPort,
+	},
+	FS: FSConfig{
+		NoProfileAccess: true,
 	},
 	Log: LogConfig{
 		Level: constants.DefaultProfileLogLevel,
@@ -768,11 +772,19 @@ func (c *Config) resolvePaths(baseDir string) {
 		return
 	}
 
-	c.FS.Roots = getPathsFromBase(c.FS.Roots, baseDir)
+	c.FS.Roots = getPathsFromBase(c.FS.Roots, getWorkingDirectory())
 	c.Web.BlockedDomainFiles = getPathsFromBase(c.Web.BlockedDomainFiles, baseDir)
 	c.Web.NativeAllowedHostFiles = getPathsFromBase(c.Web.NativeAllowedHostFiles, baseDir)
 	c.Web.NativeBlockedHostFiles = getPathsFromBase(c.Web.NativeBlockedHostFiles, baseDir)
 	c.resolvePersonalitySoulPaths(baseDir)
+}
+
+func AddFilesystemRoots(cfg *Config, roots ...string) {
+	if cfg == nil {
+		return
+	}
+
+	cfg.FS.Roots = normalizeFSRoots(append(cfg.FS.Roots, roots...))
 }
 
 func (c *Config) resolvePersonalitySoulPaths(baseDir string) {
@@ -1899,6 +1911,14 @@ func getPathsFromBase(values []string, baseDir string) []string {
 	}
 
 	return resolved
+}
+
+func getWorkingDirectory() string {
+	cwd, err := getwd()
+	if err != nil {
+		return ""
+	}
+	return cwd
 }
 
 func getDefaultFSRoots() []string {

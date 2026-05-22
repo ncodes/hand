@@ -26,6 +26,7 @@ const (
 	headerBorderHeight    = 1
 	noticeBarHeight       = 1
 	noticeBarMarginBottom = 1
+	headerBodyPadding     = 1
 	headerInfoKeyWidth    = 9
 	headerGapWidth        = 2
 )
@@ -99,14 +100,19 @@ func getHeaderPanel(m model, width int) headerPanel {
 	width = max(width, 1)
 	rows := getHeaderInfoRows(m)
 	infoWidth := getHeaderInfoWidth(rows)
+	bodyWidth := getHeaderBodyContentWidth(width)
 
 	return headerPanel{
 		Width:    width,
-		Banner:   getHeaderBanner(width),
+		Banner:   getHeaderBanner(bodyWidth),
 		Notice:   getNoticePanel(width),
 		InfoRows: rows,
-		ShowInfo: width >= lipgloss.Width(handBanner)+headerGapWidth+infoWidth,
+		ShowInfo: bodyWidth >= lipgloss.Width(handBanner)+headerGapWidth+infoWidth,
 	}
+}
+
+func getHeaderBodyContentWidth(width int) int {
+	return max(width-headerBodyPadding*2, 1)
 }
 
 func getNoticePanel(width int) noticePanel {

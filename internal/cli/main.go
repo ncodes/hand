@@ -43,12 +43,13 @@ func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Comm
 			return urfavecli.ShowAppHelp(cmd)
 		}
 
-		cfg, _, err := LoadConfig(cmd)
+		cfg, inputs, err := LoadConfig(cmd)
 		if err != nil {
 			return err
 		}
 
 		ApplyConfigOverrides(cmd, cfg)
+		AddStartupFilesystemRoots(cfg, inputs)
 
 		endpoint, err := runtime.ResolveRPC(ctx, cmd, cfg)
 		if err != nil {

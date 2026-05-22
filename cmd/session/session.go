@@ -253,12 +253,13 @@ func formatSessionTime(t time.Time) string {
 }
 
 func getSessionClient(ctx context.Context, cmd *cli.Command) (rpcclient.SessionClient, error) {
-	cfg, _, err := handcli.LoadConfig(cmd)
+	cfg, inputs, err := handcli.LoadConfig(cmd)
 	if err != nil {
 		return nil, err
 	}
 
 	handcli.ApplyConfigOverrides(cmd, cfg)
+	handcli.AddStartupFilesystemRoots(cfg, inputs)
 
 	endpoint, err := runtime.ResolveRPC(ctx, cmd, cfg)
 	if err != nil {

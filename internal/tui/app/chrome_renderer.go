@@ -107,19 +107,38 @@ func renderNoticePanelRight(panel noticePanel) string {
 }
 
 func renderHeaderBody(panel headerPanel) string {
+	bodyWidth := getHeaderBodyContentWidth(panel.Width)
 	left := renderHandBannerWithColors(panel.Banner, panel.BannerRows)
 	right := renderHeaderInfoPanel(panel)
 	if right == "" {
-		return left
+		return padHeaderBody(left, panel.Width)
 	}
 
 	right = alignHeaderInfoPanel(right, lipgloss.Height(panel.Banner))
-	availableLeftWidth := max(panel.Width-lipgloss.Width(right)-headerGapWidth, lipgloss.Width(panel.Banner))
+	availableLeftWidth := max(bodyWidth-lipgloss.Width(right)-headerGapWidth, lipgloss.Width(panel.Banner))
 	left = lipgloss.NewStyle().
 		Width(availableLeftWidth).
 		Render(left)
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", headerGapWidth), right)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", headerGapWidth), right)
+	return padHeaderBody(body, panel.Width)
+}
+
+func padHeaderBody(body string, width int) string {
+	width = max(width, 1)
+	lines := strings.Split(body, "\n")
+	for index, line := range lines {
+		lineWidth := lipgloss.Width(line)
+		if width <= headerBodyPadding*2 || lineWidth >= width {
+			lines[index] = line
+			continue
+		}
+
+		rightPadding := max(width-lineWidth-headerBodyPadding, 0)
+		lines[index] = strings.Repeat(" ", headerBodyPadding) + line + strings.Repeat(" ", rightPadding)
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func renderHeaderInfoPanel(panel headerPanel) string {

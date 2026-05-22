@@ -41,6 +41,7 @@ func NewCommand() *cli.Command {
 			cfg, inputs, err := handcli.LoadConfig(cmd)
 			if err == nil {
 				handcli.ApplyConfigOverrides(cmd, cfg)
+				handcli.AddStartupFilesystemRoots(cfg, inputs)
 			}
 
 			report := diagnostics.Build(inputs.EnvPath, inputs.ConfigPath, cfg, err)
