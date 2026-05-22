@@ -32,6 +32,7 @@ type tuiState struct {
 	thinkingComposerFrame      int
 	thinkingComposerActive     bool
 	thinkingComposerEnabled    bool
+	sidebarVisible             bool
 	exitAt                     time.Time
 	allowShell                 bool
 	selection                  transcriptSelection

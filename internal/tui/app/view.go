@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -9,17 +11,38 @@ const jumpToBottomLabel = "Jump to bottom (ctrl+End) ↓"
 
 // View composes the scrollable transcript and fixed input composer.
 func (m model) View() tea.View {
-	content := lipgloss.JoinVertical(
+	mainContent := lipgloss.JoinVertical(
 		lipgloss.Left,
 		m.renderTranscript(),
 		m.renderTranscriptComposerGap(),
 		m.renderInput(),
 	)
+	content := m.renderAppFrame(mainContent)
 	view := tea.NewView(content)
 	view.AltScreen = true
 	view.MouseMode = tea.MouseModeCellMotion
 
 	return view
+}
+
+func (m model) renderAppFrame(mainContent string) string {
+	sidebarWidth := m.getRightSidebarWidth()
+	if sidebarWidth <= 0 {
+		return mainContent
+	}
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, mainContent, renderRightSidebar(sidebarWidth, m.height))
+}
+
+func renderRightSidebar(width int, height int) string {
+	width = max(width, 1)
+	height = max(height, 1)
+
+	return lipgloss.NewStyle().
+		Background(lipgloss.Color(defaultTUITheme.SidebarBackground)).
+		Width(width).
+		Height(height).
+		Render(strings.Repeat("\n", height-1))
 }
 
 func (m model) renderTranscriptComposerGap() string {
@@ -34,7 +57,7 @@ func (m model) renderTranscriptComposerGap() string {
 		Render(jumpToBottomLabel)
 
 	return lipgloss.NewStyle().
-		Width(m.width).
+		Width(m.getMainPaneWidth()).
 		Align(lipgloss.Center).
 		Render(label)
 }
@@ -48,7 +71,7 @@ func (m model) clicksJumpToBottomIndicator(msg tea.MouseClickMsg) bool {
 }
 
 func (m model) getJumpToBottomIndicatorRow() int {
-	return getTUILayout(m.width, m.height, m.input.Height()).JumpToBottom.Y
+	return m.getTUILayout(m.input.Height()).JumpToBottom.Y
 }
 
 func (m *model) jumpTranscriptToBottom() {
@@ -61,4 +84,20 @@ func (m *model) jumpTranscriptToBottom() {
 		m.responseTranscriptFollow = true
 		m.responseTranscriptScrolled = false
 	}
+}
+
+func (m model) getMainPaneWidth() int {
+	return getMainPaneWidthForSidebar(m.width, m.sidebarVisible)
+}
+
+func (m model) getRightSidebarWidth() int {
+	if !m.sidebarVisible {
+		return 0
+	}
+
+	return getRightSidebarWidth(m.width)
+}
+
+func (m model) getTUILayout(inputHeight int) tuiLayout {
+	return getTUILayoutForSidebar(m.width, m.height, inputHeight, m.sidebarVisible)
 }

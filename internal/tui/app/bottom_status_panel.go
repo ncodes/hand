@@ -2,7 +2,7 @@ package tui
 
 // renderBottomStatusPanel renders the compact bottom status panel below the composer.
 func (m model) renderBottomStatusPanel() string {
-	availableWidth := getInputBoxWidth(m.width)
+	availableWidth := getInputBoxWidth(m.getMainPaneWidth())
 	return defaultBottomStatusPanelRenderer.Render(getBottomStatusPanel(availableWidth, m))
 }
 

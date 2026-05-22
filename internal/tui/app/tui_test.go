@@ -40,7 +40,7 @@ func TestModel_ViewRendersShellAreas(t *testing.T) {
 
 	require.True(t, view.AltScreen)
 	require.Equal(t, tea.MouseModeCellMotion, view.MouseMode)
-	require.Contains(t, view.Content, "48;2;41;41;41")
+	require.Contains(t, view.Content, "48;2;21;21;21")
 	require.Contains(t, content, "██████")
 	require.Contains(t, content, "/changelogs")
 	require.Contains(t, content, inputPrompt+"Ask Hand...")
@@ -248,7 +248,7 @@ func TestModel_RenderNoticeBarFillsRow(t *testing.T) {
 func TestModel_RenderNoticeBarUsesConfiguredColors(t *testing.T) {
 	content := newModel().renderNoticeBar()
 
-	require.Contains(t, content, "48;2;41;41;41")
+	require.Contains(t, content, "48;2;21;21;21")
 	require.Contains(t, renderNoticeBarLeft(), "38;2;160;160;160")
 	require.Contains(t, renderNoticeBarLeft(), "38;2;255;255;255")
 	require.Contains(t, renderNoticeBarRight(), "38;2;160;160;160")
@@ -526,15 +526,16 @@ func TestModel_UpdateResizesTranscriptAndInput(t *testing.T) {
 	require.Nil(t, cmd)
 
 	resized := updated.(model)
+	mainWidth := resized.getMainPaneWidth()
 	require.Equal(t, 100, resized.width)
 	require.Equal(t, 30, resized.height)
-	require.Equal(t, 100, resized.transcript.Width())
-	require.LessOrEqual(t, resized.input.Width(), 100)
+	require.Equal(t, mainWidth, resized.transcript.Width())
+	require.LessOrEqual(t, resized.input.Width(), mainWidth)
 	require.GreaterOrEqual(t, resized.transcript.Height(), 1)
 	require.Equal(t, 1, resized.input.Height())
 	lines := strings.Split(stripANSI(resized.transcript.GetContent()), "\n")
 	require.NotEmpty(t, lines)
-	require.Equal(t, 100, lipgloss.Width(lines[0]))
+	require.Equal(t, mainWidth, lipgloss.Width(lines[0]))
 }
 
 func TestModel_UpdateScrollsTranscriptWithPagingKeys(t *testing.T) {
@@ -594,16 +595,17 @@ func TestModel_UpdateScrollsHeaderWithTranscript(t *testing.T) {
 	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "Welcome, Kennedy")
 }
 
-func TestModel_RenderTranscriptContentPreservesFullWidthHeader(t *testing.T) {
+func TestModel_RenderTranscriptContentPreservesMainPaneHeader(t *testing.T) {
 	runModel := newModel()
 	runModel.width = 120
 	runModel.resize()
 	runModel.setTranscriptContent()
 	lines := strings.Split(stripANSI(runModel.transcript.GetContent()), "\n")
 	viewLines := strings.Split(stripANSI(runModel.View().Content), "\n")
+	mainWidth := runModel.getMainPaneWidth()
 
 	require.NotEmpty(t, lines)
-	require.Equal(t, runModel.width, lipgloss.Width(lines[0]))
+	require.Equal(t, mainWidth, lipgloss.Width(lines[0]))
 	require.True(t, strings.HasPrefix(lines[0], " Welcome, Kennedy"))
 	require.NotEmpty(t, viewLines)
 	require.Equal(t, runModel.width, lipgloss.Width(viewLines[0]))
@@ -668,6 +670,39 @@ func TestModel_UpdateDoesNotScrollTranscriptWhenTypingComposerText(t *testing.T)
 	require.Equal(t, "k", runModel.input.Value())
 	require.Equal(t, bottomOffset, runModel.transcript.YOffset())
 	require.True(t, runModel.transcript.AtBottom())
+}
+
+func TestModel_UpdateTogglesSidebarWithCommandOptionB(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 120
+	runModel.resize()
+	runModel.setTranscriptContent()
+
+	require.False(t, runModel.sidebarVisible)
+	require.Equal(t, 120, runModel.transcript.Width())
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{
+		Code: 'b',
+		Text: "b",
+		Mod:  tea.ModAlt | tea.ModSuper,
+	}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.sidebarVisible)
+	require.Equal(t, getMainPaneWidth(120), runModel.transcript.Width())
+	require.Empty(t, runModel.input.Value())
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{
+		Code: 'b',
+		Text: "b",
+		Mod:  tea.ModAlt | tea.ModSuper,
+	}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.sidebarVisible)
+	require.Equal(t, 120, runModel.transcript.Width())
 }
 
 func TestModel_ViewShowsJumpToBottomWhenTranscriptIsNotAtBottom(t *testing.T) {

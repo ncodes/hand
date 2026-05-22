@@ -160,7 +160,7 @@ func (m model) transcriptSelectionPointFromMouse(mouse tea.Mouse) (transcriptSel
 		return transcriptSelectionPoint{}, false
 	}
 
-	x := max(mouse.X-getPanelHorizontalPadding(m.width), 0)
+	x := max(mouse.X-getPanelHorizontalPadding(m.getMainPaneWidth()), 0)
 
 	return m.transcriptSelectionPointFromVisualLine(m.transcript.YOffset()+row, x)
 }
@@ -172,13 +172,13 @@ func (m model) transcriptSelectionPointFromMouseClamped(mouse tea.Mouse) (transc
 
 	top := m.getTranscriptTop()
 	row := min(max(mouse.Y-top, 0), m.transcript.Height()-1)
-	x := max(mouse.X-getPanelHorizontalPadding(m.width), 0)
+	x := max(mouse.X-getPanelHorizontalPadding(m.getMainPaneWidth()), 0)
 
 	return m.transcriptSelectionPointFromVisualLine(m.transcript.YOffset()+row, x)
 }
 
 func (m model) getTranscriptTop() int {
-	return getTUILayout(m.width, m.height, m.input.Height()).Transcript.Y
+	return m.getTUILayout(m.input.Height()).Transcript.Y
 }
 
 func (m model) isMouseInTranscript(mouse tea.Mouse) bool {
@@ -214,8 +214,9 @@ func (m model) transcriptSelectionPointFromVisualLine(
 		height := getWrappedTranscriptLineHeight(line, width)
 		if visualLine >= offset && visualLine < offset+height {
 			wrappedColumn := (visualLine-offset)*width + max(min(x, width), 0)
-			if hasTranscriptBodyIndent(line, getPanelHorizontalPadding(m.width)) {
-				wrappedColumn += getPanelHorizontalPadding(m.width)
+			padding := getPanelHorizontalPadding(m.getMainPaneWidth())
+			if hasTranscriptBodyIndent(line, padding) {
+				wrappedColumn += padding
 			}
 
 			return getTranscriptSelectionPointFromDocument(document, index, wrappedColumn), true
@@ -289,7 +290,7 @@ func (m model) selectedTranscriptText() string {
 	if text == "" {
 		return ""
 	}
-	text = removeTranscriptSelectionBodyIndent(text, getPanelHorizontalPadding(m.width))
+	text = removeTranscriptSelectionBodyIndent(text, getPanelHorizontalPadding(m.getMainPaneWidth()))
 
 	return compactTranscriptSelectionBlankLines(strings.TrimSpace(text))
 }

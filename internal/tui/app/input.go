@@ -60,6 +60,7 @@ func renderInputPrompt(info textarea.PromptInfo) string {
 
 // renderInput draws the composer and its model/context/status row.
 func (m model) renderInput() string {
+	width := m.getMainPaneWidth()
 	inputBox := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderTop(true).
@@ -69,7 +70,7 @@ func (m model) renderInput() string {
 		Background(lipgloss.Color(defaultTUITheme.InputFrameBackground)).
 		BorderForeground(lipgloss.Color(m.getInputFrameBorderColor())).
 		Padding(inputFrameVerticalPadding, inputFrameHorizontalPadding).
-		Width(getInputBoxWidth(m.width)).
+		Width(getInputBoxWidth(width)).
 		Render(m.input.View())
 
 	return lipgloss.JoinVertical(lipgloss.Left, inputBox, m.renderBottomStatusPanel())
@@ -85,9 +86,10 @@ func (m model) getInputFrameBorderColor() string {
 
 // resize distributes terminal rows between transcript and composer.
 func (m *model) resize() {
-	m.input.SetWidth(getInputInnerWidth(m.width))
+	width := m.getMainPaneWidth()
+	m.input.SetWidth(getInputInnerWidth(width))
 	inputHeight := m.getInputHeight()
-	layout := getTUILayout(m.width, m.height, inputHeight)
+	layout := m.getTUILayout(inputHeight)
 
 	m.input.SetHeight(inputHeight)
 	m.transcript.SetWidth(layout.Composer.Width)
@@ -103,7 +105,7 @@ func (m model) getInputHeightForValue(value string) int {
 	availableHeight := max(m.height-inputChromeHeight-1, minInputHeight)
 	contentWidth := m.input.Width()
 	if contentWidth <= 0 {
-		contentWidth = getInputInnerWidth(m.width)
+		contentWidth = getInputInnerWidth(m.getMainPaneWidth())
 	}
 	contentHeight := getInputHeight(value, contentWidth)
 
@@ -111,14 +113,14 @@ func (m model) getInputHeightForValue(value string) int {
 }
 
 func (m *model) resizeInputForValue(value string) {
-	m.input.SetWidth(getInputInnerWidth(m.width))
+	m.input.SetWidth(getInputInnerWidth(m.getMainPaneWidth()))
 	m.input.SetHeight(m.getInputHeightForValue(value))
 }
 
 // insertInputNewline expands the composer before adding a newline.
 func (m model) insertInputNewline() (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	inputWidth := getInputInnerWidth(m.width)
+	inputWidth := getInputInnerWidth(m.getMainPaneWidth())
 	availableHeight := max(m.height-inputChromeHeight-1, minInputHeight)
 	m.input.SetWidth(inputWidth)
 	m.input.SetHeight(min(getInputHeight(m.input.Value()+"\n", m.input.Width()), availableHeight))

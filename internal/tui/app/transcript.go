@@ -20,7 +20,7 @@ func newTranscript() viewport.Model {
 // renderTranscript draws the conversation viewport.
 func (m model) renderTranscript() string {
 	return lipgloss.NewStyle().
-		Width(m.width).
+		Width(m.getMainPaneWidth()).
 		Height(max(m.transcript.Height(), 1)).
 		Render(m.transcript.View())
 }
@@ -66,7 +66,7 @@ func (m *model) renderTranscriptContent() string {
 
 	transcriptWidth := m.transcript.Width()
 	if transcriptWidth <= 0 {
-		transcriptWidth = max(m.width, 1)
+		transcriptWidth = m.getMainPaneWidth()
 	}
 	content := strings.Trim(m.renderHeaderWithWidth(transcriptWidth), "\n")
 	if cellsText := strings.Trim(m.renderTranscriptBodyCells(cells), "\n"); strings.TrimSpace(cellsText) != "" {
@@ -77,16 +77,17 @@ func (m *model) renderTranscriptContent() string {
 }
 
 func (m model) renderTranscriptBodyCells(cells []transcriptCell) string {
-	contentWidth := getPanelContentWidth(m.width)
+	width := max(m.transcript.Width(), m.getMainPaneWidth())
+	contentWidth := getPanelContentWidth(width)
 	if contentWidth <= 0 {
-		contentWidth = max(m.transcript.Width(), 1)
+		contentWidth = max(width, 1)
 	}
 	cellsText := renderTranscriptCellsWithFrame(cells, contentWidth, m.toolAnimationFrame)
 	if strings.TrimSpace(cellsText) == "" {
 		return ""
 	}
 
-	padding := getPanelHorizontalPadding(m.width)
+	padding := getPanelHorizontalPadding(width)
 	if padding <= 0 {
 		return cellsText
 	}

@@ -65,12 +65,13 @@ func TestTUIAction_SetSessionTitleFallsBackToDefault(t *testing.T) {
 
 func TestTUILayout_ComputesStableRegions(t *testing.T) {
 	layout := getTUILayout(100, 30, 2)
+	mainWidth := getMainPaneWidth(100)
 
 	require.Equal(t, 0, layout.Transcript.Y)
-	require.Equal(t, 100, layout.Composer.Width)
+	require.Equal(t, mainWidth, layout.Composer.Width)
 	require.Equal(t, layout.Transcript.Height, layout.JumpToBottom.Y)
 	require.Equal(t, layout.JumpToBottom.Y+transcriptComposerGapHeight, layout.Composer.Y)
-	require.Equal(t, getPanelContentWidth(100), layout.PanelContentWidth)
+	require.Equal(t, getPanelContentWidth(mainWidth), layout.PanelContentWidth)
 }
 
 func TestRenderedTranscriptDocument_StripsAnsiAndTracksOffsets(t *testing.T) {
