@@ -1291,12 +1291,20 @@ func TestService_GetSessionRejectsInvalidState(t *testing.T) {
 }
 
 func TestService_CurrentSessionReturnsValue(t *testing.T) {
-	svc := NewService(&agentstub.AgentServiceStub{CurrentSessionID: storage.DefaultSessionID})
+	svc := NewService(&agentstub.AgentServiceStub{
+		CurrentSessionResult: storage.Session{
+			ID:          storage.DefaultSessionID,
+			Title:       "Daily Planning",
+			TitleSource: storage.SessionTitleSourceGenerated,
+		},
+	})
 
 	resp, err := svc.CurrentSession(context.Background(), &handpb.CurrentSessionRequest{})
 
 	require.NoError(t, err)
 	require.Equal(t, storage.DefaultSessionID, resp.GetId())
+	require.Equal(t, "Daily Planning", resp.GetTitle())
+	require.Equal(t, storage.SessionTitleSourceGenerated, resp.GetTitleSource())
 }
 
 func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {

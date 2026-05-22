@@ -22,6 +22,16 @@ type SessionTimelineLoader = tuirpc.SessionTimelineLoader
 type sessionTimelineLoadedMsg = tuirpc.SessionTimelineLoaded
 type sessionTimelineLoadFailedMsg = tuirpc.SessionTimelineLoadFailed
 
+type sessionTitleLoader interface {
+	CurrentSession(context.Context) (storage.Session, error)
+}
+
+type sessionTitleLoadedMsg struct {
+	Session storage.Session
+}
+
+type sessionTitleLoadFailedMsg struct{}
+
 func loadSessionTimelineCmd(ctx context.Context, client sessionTimelineLoader) tea.Cmd {
 	if client == nil {
 		return nil
@@ -34,6 +44,21 @@ func loadSessionTimelineCmd(ctx context.Context, client sessionTimelineLoader) t
 		}
 
 		return sessionTimelineLoadedMsg{Timeline: timeline}
+	}
+}
+
+func loadSessionTitleCmd(ctx context.Context, client sessionTitleLoader) tea.Cmd {
+	if client == nil {
+		return nil
+	}
+
+	return func() tea.Msg {
+		session, err := client.CurrentSession(ctx)
+		if err != nil {
+			return sessionTitleLoadFailedMsg{}
+		}
+
+		return sessionTitleLoadedMsg{Session: session}
 	}
 }
 
@@ -53,9 +78,17 @@ func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.C
 	return nil
 }
 
-func getSessionTimelineDisplayName(timeline rpcclient.SessionTimeline) string {
-	title := strings.TrimSpace(timeline.Title)
-	sessionID := strings.TrimSpace(timeline.SessionID)
+func (m *model) refreshSessionTitle(timeline rpcclient.SessionTimeline) {
+	m.applyAction(setSessionTitleAction{Title: getSessionTimelineDisplayName(timeline)})
+}
+
+func (m *model) refreshSessionTitleFromSession(session storage.Session) {
+	m.applyAction(setSessionTitleAction{Title: getSessionDisplayName(session)})
+}
+
+func getSessionDisplayName(session storage.Session) string {
+	title := strings.TrimSpace(session.Title)
+	sessionID := strings.TrimSpace(session.ID)
 	if title != "" {
 		if sessionID == storage.DefaultSessionID {
 			return fmt.Sprintf("%s (%s)", title, sessionID)
@@ -67,6 +100,13 @@ func getSessionTimelineDisplayName(timeline rpcclient.SessionTimeline) string {
 	}
 
 	return "session"
+}
+
+func getSessionTimelineDisplayName(timeline rpcclient.SessionTimeline) string {
+	return getSessionDisplayName(storage.Session{
+		ID:    timeline.SessionID,
+		Title: timeline.Title,
+	})
 }
 
 type transcriptTimelineEntry struct {

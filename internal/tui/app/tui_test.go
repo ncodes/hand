@@ -113,6 +113,21 @@ func TestLoadSessionTimelineCmdReturnsLoadFailure(t *testing.T) {
 	require.Equal(t, sessionTimelineLoadFailedMsg{Err: expectedErr}, cmd())
 }
 
+func TestLoadSessionTitleCmdReturnsLoadedTitle(t *testing.T) {
+	client := &fakeTUIChatClient{
+		currentSession: storage.Session{
+			ID:    "default",
+			Title: "Daily Planning",
+		},
+	}
+
+	cmd := loadSessionTitleCmd(context.Background(), client)
+
+	require.NotNil(t, cmd)
+	require.Equal(t, sessionTitleLoadedMsg{Session: client.currentSession}, cmd())
+	require.Equal(t, 1, client.currentSessionCalls)
+}
+
 func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 	runModel := newModel()
 	now := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
@@ -1733,11 +1748,39 @@ func TestModel_SubmitPromptStartsResponseFollowFromSettledBottom(t *testing.T) {
 
 	updated, cmd := runModel.Update(responseCompletedMsg{ResponseID: runModel.responseID, Text: "final"})
 
-	require.Nil(t, cmd)
+	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.True(t, runModel.transcript.AtBottom())
 	require.Contains(t, stripANSI(runModel.transcript.View()), "final")
 	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: final")
+}
+
+func TestModel_UpdateRefreshesSessionTitleAfterResponseCompletes(t *testing.T) {
+	client := &fakeTUIChatClient{
+		currentSession: storage.Session{
+			ID:    "default",
+			Title: "Daily Planning",
+		},
+	}
+	runModel := newModelWithClient(client)
+	runModel.sessionTitle = defaultSessionTitle
+	runModel.responding = true
+	runModel.responseID = 4
+	runModel.events = make(chan tea.Msg)
+
+	updated, cmd := runModel.Update(responseCompletedMsg{ResponseID: 4, Text: "final"})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, defaultSessionTitle, runModel.sessionTitle)
+
+	msg := cmd()
+	require.Equal(t, 1, client.currentSessionCalls)
+
+	updated, cmd = runModel.Update(msg)
+
+	require.Nil(t, cmd)
+	require.Equal(t, "Daily Planning (default)", updated.(model).sessionTitle)
 }
 
 func TestRespondToPromptCmd_StreamsDeltasTraceEventsAndCompletion(t *testing.T) {
@@ -2776,16 +2819,19 @@ func trimTrailingLineSpaces(value string) string {
 }
 
 type fakeTUIChatClient struct {
-	events        []rpcclient.Event
-	reply         string
-	err           error
-	timeline      rpcclient.SessionTimeline
-	timelineErr   error
-	message       string
-	stream        bool
-	calls         int
-	timelineCalls int
-	closed        bool
+	events              []rpcclient.Event
+	reply               string
+	err                 error
+	timeline            rpcclient.SessionTimeline
+	timelineErr         error
+	currentSession      storage.Session
+	currentSessionErr   error
+	message             string
+	stream              bool
+	calls               int
+	timelineCalls       int
+	currentSessionCalls int
+	closed              bool
 }
 
 func (c *fakeTUIChatClient) Respond(
@@ -2813,6 +2859,11 @@ func (c *fakeTUIChatClient) GetSessionTimeline(
 ) (rpcclient.SessionTimeline, error) {
 	c.timelineCalls++
 	return c.timeline, c.timelineErr
+}
+
+func (c *fakeTUIChatClient) CurrentSession(context.Context) (storage.Session, error) {
+	c.currentSessionCalls++
+	return c.currentSession, c.currentSessionErr
 }
 
 func (c *fakeTUIChatClient) Close() error {

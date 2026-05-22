@@ -113,11 +113,11 @@ func NewCommand() *cli.Command {
 					}
 					defer client.Close()
 
-					id, err := client.CurrentSession(ctx)
+					session, err := client.CurrentSession(ctx)
 					if err != nil {
 						return err
 					}
-					_, err = fmt.Fprintln(sessionOutput, id)
+					_, err = fmt.Fprintln(sessionOutput, session.ID)
 					return err
 				},
 			},

@@ -42,6 +42,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleAppEvent(hydrateTimelineEvent{Timeline: msg.Timeline})
 	case sessionTimelineLoadFailedMsg:
 		return m, m.setStatus("session timeline unavailable")
+	case sessionTitleLoadedMsg:
+		m.refreshSessionTitleFromSession(msg.Session)
+		return m, nil
+	case sessionTitleLoadFailedMsg:
+		return m, nil
 	case sessionErrorMsg:
 		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 	case toolInvocationStartedMsg:

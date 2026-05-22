@@ -85,6 +85,8 @@ message CurrentSessionRequest {}
 
 message CurrentSessionResponse {
   string id = 1;
+  string title = 2;
+  string title_source = 3;
 }
 
 message CompactSessionRequest {

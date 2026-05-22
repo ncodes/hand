@@ -21,6 +21,7 @@ import (
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	"github.com/wandxy/hand/internal/models"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -43,8 +44,8 @@ func Test_E2E_UpCommand_BootsAndServesRPC(t *testing.T) {
 
 	stub := &agentstub.AgentRunnerStub{
 		AgentServiceStub: agentstub.AgentServiceStub{
-			Reply:            "hello from up",
-			CurrentSessionID: "default",
+			Reply:                "hello from up",
+			CurrentSessionResult: storage.Session{ID: "default"},
 		},
 	}
 	newAgentRunner = func(_ context.Context, cfg *config.Config, modelClient, summaryClient models.Client) agentRunner {
@@ -115,7 +116,7 @@ rpc:
 
 	current, err := client.CurrentSession(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, "default", current)
+	assert.Equal(t, "default", current.ID)
 	assert.Contains(t, startupBuffer.String(), "cli-up")
 	assert.Contains(t, startupBuffer.String(), fmt.Sprintf("127.0.0.1:%d", port))
 }

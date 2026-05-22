@@ -88,7 +88,7 @@ func TestWaitForRPC(t *testing.T) {
 
 		current, err := client.CurrentSession(context.Background())
 		require.NoError(t, err)
-		assert.Equal(t, "default", current)
+		assert.Equal(t, "default", current.ID)
 	})
 
 	t.Run("times out when client cannot connect", func(t *testing.T) {

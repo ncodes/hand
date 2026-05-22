@@ -41,7 +41,7 @@ type Harness struct {
 
 type harnessAgent interface {
 	Respond(context.Context, string, agent.RespondOptions) (string, error)
-	CurrentSession(context.Context) (string, error)
+	CurrentSession(context.Context) (storage.Session, error)
 }
 
 type harnessSessionAgent interface {
@@ -217,11 +217,12 @@ func (h *Harness) Send(ctx context.Context, req RootChatRequest) (RootChatResult
 
 	sessionID := strings.TrimSpace(req.SessionID)
 	if sessionID == "" {
-		sessionID, err = h.agent.CurrentSession(normalizeHarnessContext(ctx))
+		session, err := h.agent.CurrentSession(normalizeHarnessContext(ctx))
 		if err != nil {
 			h.writeStderr(err.Error())
 			return RootChatResult{}, err
 		}
+		sessionID = session.ID
 	}
 
 	return RootChatResult{
@@ -242,10 +243,11 @@ func (h *Harness) Messages(ctx context.Context, sessionID string) ([]handmsg.Mes
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		var err error
-		sessionID, err = h.agent.CurrentSession(normalizeHarnessContext(ctx))
+		session, err := h.agent.CurrentSession(normalizeHarnessContext(ctx))
 		if err != nil {
 			return nil, err
 		}
+		sessionID = session.ID
 	}
 
 	return h.inspectStore.GetMessages(normalizeHarnessContext(ctx), sessionID, storage.MessageQueryOptions{})

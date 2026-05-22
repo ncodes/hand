@@ -123,7 +123,7 @@ func TestNewCommandSessionCurrentCallsRPC(t *testing.T) {
 	var output bytes.Buffer
 	sessionOutput = &output
 
-	stub := &agentstub.AgentServiceStub{CurrentSessionID: storage.DefaultSessionID}
+	stub := &agentstub.AgentServiceStub{CurrentSessionResult: storage.Session{ID: storage.DefaultSessionID}}
 	newClient = func(context.Context, *config.Config) (rpcclient.SessionClient, error) {
 		return stub, nil
 	}

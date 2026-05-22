@@ -215,13 +215,19 @@ func TestClient_UseSessionSendsSessionID(t *testing.T) {
 }
 
 func TestClient_CurrentSessionReturnsValue(t *testing.T) {
-	stub := &protomock.HandServiceClientStub{CurrentResp: &handpb.CurrentSessionResponse{Id: "project-a"}}
+	stub := &protomock.HandServiceClientStub{CurrentResp: &handpb.CurrentSessionResponse{
+		Id:          "project-a",
+		Title:       "Project Planning",
+		TitleSource: storage.SessionTitleSourceGenerated,
+	}}
 	client := &Client{client: stub}
 
-	id, err := client.CurrentSession(context.Background())
+	session, err := client.CurrentSession(context.Background())
 
 	require.NoError(t, err)
-	require.Equal(t, "project-a", id)
+	require.Equal(t, "project-a", session.ID)
+	require.Equal(t, "Project Planning", session.Title)
+	require.Equal(t, storage.SessionTitleSourceGenerated, session.TitleSource)
 }
 
 func TestClient_CompactSessionReturnsResult(t *testing.T) {

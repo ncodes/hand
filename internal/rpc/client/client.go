@@ -48,7 +48,7 @@ type SessionAPI interface {
 	CreateSession(context.Context, string) (storage.Session, error)
 	ListSessions(context.Context) ([]storage.Session, error)
 	UseSession(context.Context, string) error
-	CurrentSession(context.Context) (string, error)
+	CurrentSession(context.Context) (storage.Session, error)
 	CompactSession(context.Context, string) (CompactSessionResult, error)
 	RepairSession(context.Context, RepairSessionOptions) (RepairSessionResult, error)
 	GetSession(context.Context, string) (ContextStatus, error)
@@ -234,13 +234,17 @@ func (c *Client) UseSession(ctx context.Context, id string) error {
 	return err
 }
 
-func (c *Client) CurrentSession(ctx context.Context) (string, error) {
+func (c *Client) CurrentSession(ctx context.Context) (storage.Session, error) {
 	resp, err := c.client.CurrentSession(ctx, &handpb.CurrentSessionRequest{})
 	if err != nil {
-		return "", err
+		return storage.Session{}, err
 	}
 
-	return resp.GetId(), nil
+	return storage.Session{
+		ID:          resp.GetId(),
+		Title:       resp.GetTitle(),
+		TitleSource: resp.GetTitleSource(),
+	}, nil
 }
 
 func (c *Client) CompactSession(ctx context.Context, id string) (CompactSessionResult, error) {

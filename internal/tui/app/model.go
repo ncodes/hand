@@ -26,6 +26,7 @@ type model struct {
 	tuiState
 	chatClient rpcclient.ChatAPI
 	timeline   sessionTimelineLoader
+	title      sessionTitleLoader
 	chatCtx    context.Context
 	events     <-chan tea.Msg
 }
@@ -61,6 +62,9 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	}
 	if timeline, ok := client.(sessionTimelineLoader); ok {
 		appModel.timeline = timeline
+	}
+	if title, ok := client.(sessionTitleLoader); ok {
+		appModel.title = title
 	}
 	if err != nil {
 		setStatusTransient(&appModel.status, "prompt history unavailable")

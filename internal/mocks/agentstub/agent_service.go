@@ -2,6 +2,7 @@ package agentstub
 
 import (
 	"context"
+	"strings"
 
 	"github.com/wandxy/hand/internal/agent"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
@@ -10,26 +11,26 @@ import (
 )
 
 type AgentServiceStub struct {
-	ChatInput        string
-	RespondOptions   rpcclient.RespondOptions
-	Reply            string
-	Deltas           []string
-	Events           []agent.Event
-	RespondErr       error
-	Err              error
-	CloseErr         error
-	Closed           bool
-	CreatedSession   storage.Session
-	Sessions         []storage.Session
-	UsedSessionID    string
-	CurrentSessionID string
-	CompactResult    rpcclient.CompactSessionResult
-	RepairOptions    agent.RepairSessionOptions
-	RepairResult     search.VectorRepairResult
-	SummaryResult    storage.SessionSummary
-	StatusResult     rpcclient.ContextStatus
-	TimelineOptions  agent.SessionTimelineOptions
-	TimelineResult   agent.SessionTimeline
+	ChatInput            string
+	RespondOptions       rpcclient.RespondOptions
+	Reply                string
+	Deltas               []string
+	Events               []agent.Event
+	RespondErr           error
+	Err                  error
+	CloseErr             error
+	Closed               bool
+	CreatedSession       storage.Session
+	Sessions             []storage.Session
+	UsedSessionID        string
+	CurrentSessionResult storage.Session
+	CompactResult        rpcclient.CompactSessionResult
+	RepairOptions        agent.RepairSessionOptions
+	RepairResult         search.VectorRepairResult
+	SummaryResult        storage.SessionSummary
+	StatusResult         rpcclient.ContextStatus
+	TimelineOptions      agent.SessionTimelineOptions
+	TimelineResult       agent.SessionTimeline
 }
 
 func (s *AgentServiceStub) Respond(_ context.Context, msg string, opts rpcclient.RespondOptions) (string, error) {
@@ -74,8 +75,12 @@ func (s *AgentServiceStub) UseSession(_ context.Context, id string) error {
 	return s.Err
 }
 
-func (s *AgentServiceStub) CurrentSession(context.Context) (string, error) {
-	return s.CurrentSessionID, s.Err
+func (s *AgentServiceStub) CurrentSession(context.Context) (storage.Session, error) {
+	if strings.TrimSpace(s.CurrentSessionResult.ID) != "" || strings.TrimSpace(s.CurrentSessionResult.Title) != "" {
+		return s.CurrentSessionResult, s.Err
+	}
+
+	return storage.Session{}, s.Err
 }
 
 func (s *AgentServiceStub) RecallSessionSummary(context.Context, string) (storage.SessionSummary, error) {

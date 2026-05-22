@@ -39,11 +39,11 @@ func (s harnessAgentStub) Respond(_ context.Context, _ string, opts agent.Respon
 	return s.reply, nil
 }
 
-func (s harnessAgentStub) CurrentSession(context.Context) (string, error) {
+func (s harnessAgentStub) CurrentSession(context.Context) (storage.Session, error) {
 	if s.currentErr != nil {
-		return "", s.currentErr
+		return storage.Session{}, s.currentErr
 	}
-	return s.current, nil
+	return storage.Session{ID: s.current}, nil
 }
 
 func (s *harnessAgentStub) CreateSession(context.Context, string) (storage.Session, error) {
@@ -154,11 +154,11 @@ func (s rpcAdapterClientStub) Respond(context.Context, string, rpcclient.Respond
 	return s.reply, nil
 }
 
-func (s rpcAdapterClientStub) CurrentSession(context.Context) (string, error) {
+func (s rpcAdapterClientStub) CurrentSession(context.Context) (storage.Session, error) {
 	if s.currentErr != nil {
-		return "", s.currentErr
+		return storage.Session{}, s.currentErr
 	}
-	return "default", nil
+	return storage.Session{ID: "default"}, nil
 }
 
 func (s rpcAdapterClientStub) Close() error {

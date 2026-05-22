@@ -42,7 +42,7 @@ type ServiceAPI interface {
 	CreateSession(context.Context, string) (storage.Session, error)
 	ListSessions(context.Context) ([]storage.Session, error)
 	UseSession(context.Context, string) error
-	CurrentSession(context.Context) (string, error)
+	CurrentSession(context.Context) (storage.Session, error)
 	RecallSessionSummary(context.Context, string) (storage.SessionSummary, error)
 	CompactSession(context.Context, string) (CompactSessionResult, error)
 	RepairSession(context.Context, RepairSessionOptions) (RepairSessionResult, error)
@@ -507,16 +507,30 @@ func (a *Agent) UseSession(ctx context.Context, id string) error {
 	return a.stateMgr.UseSession(ctx, targetSession.ID)
 }
 
-func (a *Agent) CurrentSession(ctx context.Context) (string, error) {
+func (a *Agent) CurrentSession(ctx context.Context) (storage.Session, error) {
 	if a == nil {
-		return "", errors.New("agent is required")
+		return storage.Session{}, errors.New("agent is required")
 	}
 
 	if !a.initialized || a.stateMgr == nil {
-		return "", errors.New("environment has not been initialized")
+		return storage.Session{}, errors.New("environment has not been initialized")
 	}
 
-	return a.stateMgr.CurrentSession(normalizeContext(ctx))
+	ctx = normalizeContext(ctx)
+	id, err := a.stateMgr.CurrentSession(ctx)
+	if err != nil {
+		return storage.Session{}, err
+	}
+
+	session, ok, err := a.stateMgr.Get(ctx, id)
+	if err != nil {
+		return storage.Session{}, err
+	}
+	if !ok {
+		return storage.Session{}, fmt.Errorf("session %q not found", id)
+	}
+
+	return session, nil
 }
 
 func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionResult, error) {

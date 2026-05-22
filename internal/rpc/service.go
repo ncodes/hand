@@ -834,12 +834,18 @@ func (s *Service) CurrentSession(ctx context.Context, req *handpb.CurrentSession
 		return nil, status.Error(codes.InvalidArgument, "current session request is required")
 	}
 
-	id, err := s.api.CurrentSession(ctx)
+	session, err := s.api.CurrentSession(ctx)
 	if err != nil {
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.CurrentSessionResponse{Id: id}, nil
+	response := &handpb.CurrentSessionResponse{
+		Id:          session.ID,
+		Title:       session.Title,
+		TitleSource: session.TitleSource,
+	}
+
+	return response, nil
 }
 
 func (s *Service) CompactSession(

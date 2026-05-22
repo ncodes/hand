@@ -378,7 +378,7 @@ func TestAgent_SessionLifecycleMethods(t *testing.T) {
 
 	current, err := agent.CurrentSession(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, created.ID, current)
+	require.Equal(t, created.ID, current.ID)
 
 	err = agent.UseSession(context.Background(), "not-a-session-id")
 	require.EqualError(t, err, "session id must be a valid ses_ nanoid")

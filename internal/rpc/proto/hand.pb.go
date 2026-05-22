@@ -712,6 +712,8 @@ func (*CurrentSessionRequest) Descriptor() ([]byte, []int) {
 type CurrentSessionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	TitleSource   string                 `protobuf:"bytes,3,opt,name=title_source,json=titleSource,proto3" json:"title_source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -749,6 +751,20 @@ func (*CurrentSessionResponse) Descriptor() ([]byte, []int) {
 func (x *CurrentSessionResponse) GetId() string {
 	if x != nil {
 		return x.Id
+	}
+	return ""
+}
+
+func (x *CurrentSessionResponse) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *CurrentSessionResponse) GetTitleSource() string {
+	if x != nil {
+		return x.TitleSource
 	}
 	return ""
 }
@@ -1878,9 +1894,11 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"$\n" +
 	"\x12UseSessionResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x17\n" +
-	"\x15CurrentSessionRequest\"(\n" +
+	"\x15CurrentSessionRequest\"a\n" +
 	"\x16CurrentSessionResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"'\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12!\n" +
+	"\ftitle_source\x18\x03 \x01(\tR\vtitleSource\"'\n" +
 	"\x15CompactSessionRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\xa9\x02\n" +
 	"\x16CompactSessionResponse\x12\x0e\n" +

@@ -116,7 +116,7 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 		m.resize()
 		m.transcript.GotoBottom()
 	}
-	return nil
+	return loadSessionTitleCmd(m.chatCtx, m.title)
 }
 
 func (m *model) cancelActiveResponse() tea.Cmd {
