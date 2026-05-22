@@ -20,8 +20,6 @@ type Theme struct {
 	NoticeBorder             string
 	NoticeMuted              string
 	NoticeForeground         string
-	SidebarBackground        string
-	SidebarBorder            string
 	MarkdownCodeBackground   string
 	MarkdownCodeForeground   string
 	MarkdownLinkForeground   string
@@ -47,8 +45,6 @@ var DefaultTheme = Theme{
 	NoticeBorder:             "#242424",
 	NoticeMuted:              "#A0A0A0",
 	NoticeForeground:         "#FFFFFF",
-	SidebarBackground:        "#151515",
-	SidebarBorder:            "#242424",
 	MarkdownCodeBackground:   "#1A1A1A",
 	MarkdownCodeForeground:   "250",
 	MarkdownLinkForeground:   "39",

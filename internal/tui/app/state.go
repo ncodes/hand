@@ -32,8 +32,6 @@ type tuiState struct {
 	thinkingComposerFrame      int
 	thinkingComposerActive     bool
 	thinkingComposerEnabled    bool
-	sidebarVisible             bool
-	sidebarPlan                sidebarPlanModel
 	exitAt                     time.Time
 	allowShell                 bool
 	selection                  transcriptSelection

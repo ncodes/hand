@@ -170,6 +170,14 @@ func TestBuildBase_IncludesToolUseGuidance(t *testing.T) {
 	require.Contains(t, instructions[0].Value, "do not claim to have used a tool when no tool was used")
 }
 
+func TestBuildBase_IncludesFormattingGuidance(t *testing.T) {
+	instructions := BuildBase("Hand")
+	require.Contains(t, instructions[0].Value, "Formatting:")
+	require.Contains(t, instructions[0].Value, "Write for terminal display")
+	require.Contains(t, instructions[0].Value, "Use markdown tables only for compact values")
+	require.Contains(t, instructions[0].Value, "Do not use tables for long prose")
+}
+
 func TestBuildBase_IncludesInstructionSafetyGuidance(t *testing.T) {
 	instructions := BuildBase("Hand")
 	require.Contains(t, instructions[0].Value, "Instruction safety:")

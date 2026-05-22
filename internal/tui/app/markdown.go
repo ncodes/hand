@@ -12,6 +12,17 @@ import (
 
 const transcriptMarkdownMargin = 2
 
+type transcriptMarkdownRenderer interface {
+	Render(string) (string, error)
+}
+
+var newTranscriptMarkdownRenderer = func(width int) (transcriptMarkdownRenderer, error) {
+	return glamour.NewTermRenderer(
+		glamour.WithStyles(transcriptMarkdownStyle()),
+		glamour.WithWordWrap(max(width, 1)),
+	)
+}
+
 func renderMarkdownForTranscript(markdown string, width int) string {
 	markdown = strings.TrimSpace(markdown)
 	if markdown == "" || !hasTranscriptMarkdown(markdown) {
@@ -33,10 +44,7 @@ func renderMarkdownForTranscript(markdown string, width int) string {
 }
 
 func glamourRenderMarkdown(markdown string, width int) (string, error) {
-	renderer, err := glamour.NewTermRenderer(
-		glamour.WithStyles(transcriptMarkdownStyle()),
-		glamour.WithWordWrap(max(width, 1)),
-	)
+	renderer, err := newTranscriptMarkdownRenderer(width)
 	if err != nil {
 		return "", err
 	}
@@ -94,7 +102,7 @@ func renderMarkdownWithCompactTables(markdown string, width int) string {
 		for tableEnd < len(lines) && isMarkdownTableRow(lines[tableEnd]) {
 			tableEnd++
 		}
-		rendered = append(rendered, indentMarkdownBlock(renderCompactMarkdownTable(lines[index:tableEnd])))
+		rendered = append(rendered, renderCompactMarkdownTable(lines[index:tableEnd], width))
 		index = tableEnd
 	}
 	flushMarkdown()
@@ -225,9 +233,6 @@ func isMarkdownTableRow(line string) bool {
 
 func isMarkdownTableSeparator(line string) bool {
 	cells := splitMarkdownTableRowRaw(line)
-	if len(cells) == 0 {
-		return false
-	}
 	for _, cell := range cells {
 		cell = strings.Trim(cell, " :-")
 		if cell != "" {
@@ -238,7 +243,7 @@ func isMarkdownTableSeparator(line string) bool {
 	return true
 }
 
-func renderCompactMarkdownTable(lines []string) string {
+func renderCompactMarkdownTable(lines []string, width int) string {
 	if len(lines) < 2 {
 		return strings.Join(lines, "\n")
 	}
@@ -253,9 +258,6 @@ func renderCompactMarkdownTable(lines []string) string {
 	for _, row := range rows {
 		columnCount = max(columnCount, len(row))
 	}
-	if columnCount == 0 {
-		return strings.Join(lines, "\n")
-	}
 
 	widths := make([]int, columnCount)
 	for _, row := range rows {
@@ -264,6 +266,9 @@ func renderCompactMarkdownTable(lines []string) string {
 				widths[index] = max(widths[index], xansi.StringWidth(row[index]))
 			}
 		}
+	}
+	if compactMarkdownTableWidth(widths) > maxCompactMarkdownTableWidth(width) {
+		return renderMarkdownTableAsLabeledRows(rows)
 	}
 
 	rendered := make([]string, 0, len(rows)*2+1)
@@ -277,6 +282,53 @@ func renderCompactMarkdownTable(lines []string) string {
 	rendered = append(rendered, renderCompactMarkdownTableBorder(widths, "└", "┴", "┘"))
 
 	return strings.Join(rendered, "\n")
+}
+
+func compactMarkdownTableWidth(widths []int) int {
+	if len(widths) == 0 {
+		return 0
+	}
+
+	total := 3
+	for _, width := range widths {
+		total += width + 3
+	}
+
+	return total
+}
+
+func maxCompactMarkdownTableWidth(width int) int {
+	return max(width-transcriptMarkdownMargin, 1)
+}
+
+func renderMarkdownTableAsLabeledRows(rows [][]string) string {
+	if len(rows) <= 1 {
+		return ""
+	}
+
+	headers := rows[0]
+	rendered := make([]string, 0, len(rows)-1)
+	for _, row := range rows[1:] {
+		fields := make([]string, 0, len(headers))
+		for index, header := range headers {
+			if strings.TrimSpace(header) == "" {
+				continue
+			}
+			value := ""
+			if index < len(row) {
+				value = strings.TrimSpace(row[index])
+			}
+			if value == "" {
+				continue
+			}
+			fields = append(fields, header+": "+value)
+		}
+		if len(fields) > 0 {
+			rendered = append(rendered, strings.Join(fields, "\n"))
+		}
+	}
+
+	return strings.Join(rendered, "\n\n")
 }
 
 func splitMarkdownTableRow(line string) []string {

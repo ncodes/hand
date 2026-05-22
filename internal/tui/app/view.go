@@ -15,21 +15,11 @@ func (m model) View() tea.View {
 		m.renderTranscriptComposerGap(),
 		m.renderInput(),
 	)
-	content := m.renderAppFrame(mainContent)
-	view := tea.NewView(content)
+	view := tea.NewView(mainContent)
 	view.AltScreen = true
 	view.MouseMode = tea.MouseModeCellMotion
 
 	return view
-}
-
-func (m model) renderAppFrame(mainContent string) string {
-	sidebarWidth := m.getRightSidebarWidth()
-	if sidebarWidth <= 0 {
-		return mainContent
-	}
-
-	return lipgloss.JoinHorizontal(lipgloss.Top, mainContent, renderRightSidebar(sidebarWidth, m.height, m.sidebarPlan))
 }
 
 func (m model) renderTranscriptComposerGap() string {
@@ -74,17 +64,9 @@ func (m *model) jumpTranscriptToBottom() {
 }
 
 func (m model) getMainPaneWidth() int {
-	return getMainPaneWidthForSidebar(m.width, m.sidebarVisible)
-}
-
-func (m model) getRightSidebarWidth() int {
-	if !m.sidebarVisible {
-		return 0
-	}
-
-	return getRightSidebarWidth(m.width)
+	return getMainPaneWidth(m.width)
 }
 
 func (m model) getTUILayout(inputHeight int) tuiLayout {
-	return getTUILayoutForSidebar(m.width, m.height, inputHeight, m.sidebarVisible)
+	return getTUILayout(m.width, m.height, inputHeight)
 }

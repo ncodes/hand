@@ -108,11 +108,6 @@ func (m model) handlePasteMsg(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
-	if isSidebarToggleKey(msg) {
-		m.toggleSidebar()
-		return m, nil, true
-	}
-
 	switch msg.Keystroke() {
 	case "ctrl+c":
 		next, cmd := m.confirmExit()
@@ -158,30 +153,6 @@ func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool)
 	}
 
 	return m, nil, false
-}
-
-func isSidebarToggleKey(msg tea.KeyPressMsg) bool {
-	switch msg.Keystroke() {
-	case "ctrl+alt+b", "alt+meta+b", "alt+super+b":
-		return true
-	}
-
-	key := msg.Key()
-	return (key.Code == 'b' || key.Code == 'B') &&
-		key.Mod.Contains(tea.ModAlt) &&
-		(key.Mod.Contains(tea.ModCtrl) ||
-			key.Mod.Contains(tea.ModSuper) ||
-			key.Mod.Contains(tea.ModMeta))
-}
-
-func (m *model) toggleSidebar() {
-	m.sidebarVisible = !m.sidebarVisible
-	wasAtBottom := m.transcript.AtBottom()
-	m.resize()
-	m.refreshTranscriptContentAfterResize()
-	if wasAtBottom {
-		m.transcript.GotoBottom()
-	}
 }
 
 func (m model) updateBubbleTeaChildren(msg tea.Msg) (tea.Model, tea.Cmd) {

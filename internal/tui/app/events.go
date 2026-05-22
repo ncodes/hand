@@ -54,14 +54,6 @@ type safetyEventMsg struct {
 	FindingIDs []string
 }
 
-type planEventMsg struct {
-	Kind        string
-	Steps       []trace.PlanStepPayload
-	Summary     trace.PlanSummaryPayload
-	ActiveStep  string
-	Explanation string
-}
-
 type sessionErrorMsg struct {
 	Message string
 }
@@ -126,19 +118,6 @@ func traceEventToTUIMessage(event trace.Event) (any, bool) {
 		trace.EvtToolOutputSafetyApplied,
 		trace.EvtLoadedContentSafetyBlocked:
 		return safetyPayloadToTUIMessage(event.Type, event.Payload)
-	case trace.EvtPlanUpdated,
-		trace.EvtPlanCleared,
-		trace.EvtPlanHydrated:
-		payload, ok := typedPayload.(trace.PlanEventPayload)
-		if payloadOK && ok {
-			return planEventMsg{
-				Kind:        strings.TrimSpace(event.Type),
-				Steps:       append([]trace.PlanStepPayload(nil), payload.Steps...),
-				Summary:     payload.Summary,
-				ActiveStep:  strings.TrimSpace(payload.ActiveStepID),
-				Explanation: strings.TrimSpace(payload.Explanation),
-			}, true
-		}
 	case trace.EvtSessionFailed:
 		payload, ok := typedPayload.(trace.SessionFailedPayload)
 		if message := firstNonEmptyTUI(payload.Error, payload.Message); payloadOK && ok && message != "" {
