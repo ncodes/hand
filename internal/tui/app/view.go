@@ -23,7 +23,7 @@ func (m model) View() tea.View {
 }
 
 func (m model) renderTranscriptComposerGap() string {
-	if m.transcript.AtBottom() {
+	if m.transcript.AtBottom() || m.isCommandMenuVisible() {
 		return ""
 	}
 
@@ -40,7 +40,7 @@ func (m model) renderTranscriptComposerGap() string {
 }
 
 func (m model) clicksJumpToBottomIndicator(msg tea.MouseClickMsg) bool {
-	if msg.Button != tea.MouseLeft || m.transcript.AtBottom() {
+	if msg.Button != tea.MouseLeft || m.transcript.AtBottom() || m.isCommandMenuVisible() {
 		return false
 	}
 

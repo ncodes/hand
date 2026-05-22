@@ -27,6 +27,29 @@ func TestCommandMenu_RendersAboveComposerForSlashInput(t *testing.T) {
 	require.Contains(t, content, "Show supported commands")
 }
 
+func TestCommandMenu_HidesJumpToBottomPanel(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
+	}
+	runModel.setTranscriptContent()
+	runModel.transcript.GotoTop()
+	require.Contains(t, stripANSI(runModel.View().Content), jumpToBottomLabel)
+
+	runModel.input.SetValue("/")
+	runModel.updateCommandMenuForInput(runModel.input.Value())
+	runModel.resize()
+
+	require.NotContains(t, stripANSI(runModel.View().Content), jumpToBottomLabel)
+	require.False(t, runModel.clicksJumpToBottomIndicator(tea.MouseClickMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		X:      runModel.width / 2,
+		Y:      runModel.getJumpToBottomIndicatorRow(),
+	})))
+}
+
 func TestCommandMenu_HidesForPromptInput(t *testing.T) {
 	runModel := newModel()
 	runModel.input.SetValue("hello")
