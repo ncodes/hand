@@ -119,7 +119,7 @@ func trimRenderedMarkdown(output string) string {
 		lines = lines[:len(lines)-1]
 	}
 
-	return removeCommonRenderedMarkdownLeftMargin(strings.Join(lines, "\n"))
+	return alignRenderedMarkdownListContinuations(removeCommonRenderedMarkdownLeftMargin(strings.Join(lines, "\n")))
 }
 
 func removeCommonRenderedMarkdownLeftMargin(output string) string {
@@ -145,6 +145,69 @@ func removeCommonRenderedMarkdownLeftMargin(output string) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func alignRenderedMarkdownListContinuations(output string) string {
+	lines := strings.Split(output, "\n")
+	continuationIndent := 0
+	inList := false
+	for index, line := range lines {
+		stripped := xansi.Strip(line)
+		if strings.TrimSpace(stripped) == "" {
+			inList = false
+			continuationIndent = 0
+			continue
+		}
+		if indent, ok := renderedMarkdownListContinuationIndent(stripped); ok {
+			inList = true
+			continuationIndent = indent
+			continue
+		}
+		if !inList || isRenderedMarkdownBlockStart(stripped) {
+			inList = false
+			continuationIndent = 0
+			continue
+		}
+
+		leading := countLeadingSpaces(stripped)
+		if leading < continuationIndent {
+			lines[index] = strings.Repeat(" ", continuationIndent-leading) + line
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func renderedMarkdownListContinuationIndent(line string) (int, bool) {
+	leading := countLeadingSpaces(line)
+	trimmed := strings.TrimLeft(line, " ")
+	if strings.HasPrefix(trimmed, "• ") ||
+		strings.HasPrefix(trimmed, "- ") ||
+		strings.HasPrefix(trimmed, "* ") ||
+		strings.HasPrefix(trimmed, "+ ") {
+		return leading + 2, true
+	}
+
+	for index, char := range trimmed {
+		if char >= '0' && char <= '9' {
+			continue
+		}
+		if char == '.' && strings.HasPrefix(trimmed[index:], ". ") {
+			return leading + index + 2, true
+		}
+		break
+	}
+
+	return 0, false
+}
+
+func isRenderedMarkdownBlockStart(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmed, "```") ||
+		strings.HasPrefix(trimmed, "│") ||
+		strings.HasPrefix(trimmed, "┌") ||
+		strings.HasPrefix(trimmed, "├") ||
+		strings.HasPrefix(trimmed, "└")
 }
 
 func countLeadingSpaces(value string) int {

@@ -71,6 +71,23 @@ func TestRenderTranscriptCells_AlignsAssistantMarkdownWithThoughtCell(t *testing
 	require.Equal(t, countLeadingSpaces(lines[thoughtLine]), countLeadingSpaces(lines[answerLine]))
 }
 
+func TestRenderTranscriptCell_IndentsWrappedMarkdownListContinuations(t *testing.T) {
+	rendered := renderTranscriptTestCellWithWidth(assistantTranscriptCell{text: strings.Join([]string{
+		"- Court nullifies INEC's membership deadline - A Federal High Court ruling that INEC cannot shorten the statutory 120-day period.",
+		"- Otedola to invest $100m in Dangote Refinery - Billionaire backs a billion private placement.",
+	}, "\n")}, 54)
+	lines := strings.Split(stripANSI(rendered), "\n")
+
+	firstBullet := indexLineContaining(lines, "Court nullifies")
+	firstContinuation := indexLineContaining(lines, "ruling that INEC")
+	secondBullet := indexLineContaining(lines, "Otedola to invest")
+	require.NotEqual(t, -1, firstBullet)
+	require.NotEqual(t, -1, firstContinuation)
+	require.NotEqual(t, -1, secondBullet)
+	require.Greater(t, countLeadingSpaces(lines[firstContinuation]), countLeadingSpaces(lines[firstBullet]))
+	require.Equal(t, countLeadingSpaces(lines[firstBullet]), countLeadingSpaces(lines[secondBullet]))
+}
+
 func TestRenderTranscriptCell_RendersCompactMarkdownTables(t *testing.T) {
 	rendered := renderTranscriptTestCellWithWidth(assistantTranscriptCell{text: strings.Join([]string{
 		"| **Issue** | Details |",
