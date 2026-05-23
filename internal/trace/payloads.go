@@ -64,6 +64,7 @@ type SummaryEventPayload struct {
 type CompactionEventPayload struct {
 	SessionID          string    `json:"session_id,omitempty"`
 	Status             string    `json:"status,omitempty"`
+	Auto               bool      `json:"auto,omitempty"`
 	TargetMessageCount int       `json:"target_message_count,omitempty"`
 	TargetOffset       int       `json:"target_offset,omitempty"`
 	RequestedAt        time.Time `json:"requested_at,omitempty"`

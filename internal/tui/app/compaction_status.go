@@ -9,23 +9,30 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 )
 
+const autoCompactionLabel = "Automatic compaction"
 const manualCompactionLabel = "Manual compaction"
 const manualCompactionShimmerStep = 4
 
 type manualCompactionState struct {
 	Status string
 	Error  string
+	Label  string
 }
 
 func manualCompactionStateFromTraceEvent(eventType string, payload any) manualCompactionState {
 	compaction, _ := payload.(trace.CompactionEventPayload)
+	label := manualCompactionLabel
+	if compaction.Auto {
+		label = autoCompactionLabel
+	}
+
 	switch strings.TrimSpace(eventType) {
 	case trace.EvtContextCompactionPending, trace.EvtContextCompactionRunning:
-		return manualCompactionState{Status: "running"}
+		return manualCompactionState{Status: "running", Label: label}
 	case trace.EvtContextCompactionSucceeded:
-		return manualCompactionState{Status: "succeeded"}
+		return manualCompactionState{Status: "succeeded", Label: label}
 	case trace.EvtContextCompactionFailed:
-		return manualCompactionState{Status: "failed", Error: compaction.Error}
+		return manualCompactionState{Status: "failed", Error: compaction.Error, Label: label}
 	default:
 		return manualCompactionState{}
 	}
@@ -45,16 +52,21 @@ func (state manualCompactionState) isInProgress() bool {
 }
 
 func (state manualCompactionState) displayText() string {
+	label := strings.TrimSpace(state.Label)
+	if label == "" {
+		label = manualCompactionLabel
+	}
+
 	switch strings.TrimSpace(strings.ToLower(state.Status)) {
 	case "pending", "running", "started":
-		return manualCompactionLabel + " started"
+		return label + " started"
 	case "succeeded", "completed":
-		return manualCompactionLabel + " completed"
+		return label + " completed"
 	case "failed":
 		if err := strings.TrimSpace(state.Error); err != "" {
-			return manualCompactionLabel + " failed: " + err
+			return label + " failed: " + err
 		}
-		return manualCompactionLabel + " failed"
+		return label + " failed"
 	default:
 		return ""
 	}
@@ -62,7 +74,7 @@ func (state manualCompactionState) displayText() string {
 
 func (m *model) startManualCompactionStatus() tea.Cmd {
 	m.manualCompactionActive = true
-	cell := manualCompactionTranscriptCell{state: manualCompactionState{Status: "running"}}
+	cell := manualCompactionTranscriptCell{state: manualCompactionState{Status: "running", Label: manualCompactionLabel}}
 	m.applyAction(appendTranscriptCellAction{Cell: cell})
 	m.manualCompactionIndex = len(m.messages) - 1
 	m.input.Blur()
@@ -72,9 +84,9 @@ func (m *model) startManualCompactionStatus() tea.Cmd {
 }
 
 func (m *model) completeManualCompactionStatus(err error) {
-	state := manualCompactionState{Status: "succeeded"}
+	state := manualCompactionState{Status: "succeeded", Label: manualCompactionLabel}
 	if err != nil {
-		state = manualCompactionState{Status: "failed", Error: err.Error()}
+		state = manualCompactionState{Status: "failed", Error: err.Error(), Label: manualCompactionLabel}
 	}
 
 	if m.manualCompactionIndex >= 0 && m.manualCompactionIndex < len(m.messages) {

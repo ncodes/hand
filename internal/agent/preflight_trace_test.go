@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -21,6 +22,7 @@ func TestRecordPreflightCompactionTrace_EmitsUnifiedPreflightEvent(t *testing.T)
 		},
 		models.Request{Instructions: "hello"},
 		200,
+		true,
 	)
 
 	require.Len(t, traceSession.Events, 1)
@@ -44,9 +46,33 @@ func TestRecordPreflightCompactionTrace_SkipsEventsWhenDisabled(t *testing.T) {
 		},
 		models.Request{Instructions: "hello"},
 		0,
+		true,
 	)
 
 	require.Empty(t, traceSession.Events)
+}
+
+func TestRecordPreflightCompactionTrace_SkipsTriggeredEventWhenContextCannotCompact(t *testing.T) {
+	traceSession := &mocks.TraceSessionStub{}
+
+	recordPreflightCompactionTrace(
+		traceSession,
+		&config.Config{
+			Models:     config.ModelsConfig{Main: config.MainModelConfig{ContextLength: 100}},
+			Compaction: config.CompactionConfig{TriggerPercent: 0.5, WarnPercent: 0.8},
+		},
+		models.Request{Instructions: strings.Repeat("a", 400)},
+		0,
+		false,
+	)
+
+	eventTypes := make([]string, 0, len(traceSession.Events))
+	for _, event := range traceSession.Events {
+		eventTypes = append(eventTypes, event.Type)
+	}
+	require.Contains(t, eventTypes, trace.EvtContextPreflight)
+	require.Contains(t, eventTypes, trace.EvtContextCompactionWarning)
+	require.NotContains(t, eventTypes, trace.EvtContextCompactionTriggered)
 }
 
 func TestCompactionEvaluator_UsesDefaultsWhenConfigIsNil(t *testing.T) {

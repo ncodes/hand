@@ -209,9 +209,10 @@ type RerankerEffectiveConfig struct {
 }
 
 type CompactionConfig struct {
-	Enabled        *bool   `yaml:"enabled"`
-	TriggerPercent float64 `yaml:"triggerPercent"`
-	WarnPercent    float64 `yaml:"warnPercent"`
+	Enabled           *bool   `yaml:"enabled"`
+	TriggerPercent    float64 `yaml:"triggerPercent"`
+	WarnPercent       float64 `yaml:"warnPercent"`
+	RecentSessionTail *int    `yaml:"recentSessionTail"`
 }
 
 type CapConfig struct {
@@ -220,6 +221,18 @@ type CapConfig struct {
 	Exec       *bool `yaml:"exec"`
 	Memory     *bool `yaml:"mem"`
 	Browser    *bool `yaml:"browser"`
+}
+
+func (c *Config) CompactionRecentSessionTailEffective() int {
+	if c == nil || c.Compaction.RecentSessionTail == nil {
+		return constants.RecentSessionTail
+	}
+
+	if *c.Compaction.RecentSessionTail < 0 {
+		return 0
+	}
+
+	return *c.Compaction.RecentSessionTail
 }
 
 type LogConfig struct {
@@ -488,9 +501,10 @@ var DefaultConfig = Config{
 		},
 	},
 	Compaction: CompactionConfig{
-		Enabled:        new(constants.DefaultProfileCompactionEnabled),
-		TriggerPercent: constants.DefaultCompactionTrigger,
-		WarnPercent:    constants.DefaultCompactionWarn,
+		Enabled:           new(constants.DefaultProfileCompactionEnabled),
+		TriggerPercent:    constants.DefaultCompactionTrigger,
+		WarnPercent:       constants.DefaultCompactionWarn,
+		RecentSessionTail: new(constants.RecentSessionTail),
 	},
 	Memory: MemoryConfig{
 		Enabled:  new(constants.DefaultProfileMemoryEnabled),
@@ -651,6 +665,7 @@ func cloneConfig(cfg Config) Config {
 	cfg.Reranker.Enabled = cloneBoolPtr(cfg.Reranker.Enabled)
 	cfg.Reranker.Overrides = cloneRerankerOverrides(cfg.Reranker.Overrides)
 	cfg.Compaction.Enabled = cloneBoolPtr(cfg.Compaction.Enabled)
+	cfg.Compaction.RecentSessionTail = cloneIntPtr(cfg.Compaction.RecentSessionTail)
 	cfg.Cap.Filesystem = cloneBoolPtr(cfg.Cap.Filesystem)
 	cfg.Cap.Network = cloneBoolPtr(cfg.Cap.Network)
 	cfg.Cap.Exec = cloneBoolPtr(cfg.Cap.Exec)
@@ -1425,6 +1440,9 @@ func (c *Config) normalizeFields() {
 	if c.Compaction.WarnPercent <= 0 {
 		c.Compaction.WarnPercent = constants.DefaultCompactionWarn
 	}
+	if c.Compaction.RecentSessionTail == nil {
+		c.Compaction.RecentSessionTail = new(constants.RecentSessionTail)
+	}
 	if c.Memory.Enabled == nil {
 		c.Memory.Enabled = new(constants.DefaultProfileMemoryEnabled)
 	}
@@ -2062,6 +2080,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Compaction.WarnPercent < c.Compaction.TriggerPercent {
 		return errors.New("compaction warn percent must be greater than or equal to compaction trigger percent")
+	}
+	if c.Compaction.RecentSessionTail != nil && *c.Compaction.RecentSessionTail < 0 {
+		return errors.New("compaction recent session tail must be greater than or equal to zero")
 	}
 
 	if c.VerifyEnabled() {

@@ -3585,6 +3585,7 @@ compaction:
   enabled: false
   triggerPercent: 0.7
   warnPercent: 0.9
+  recentSessionTail: 3
 `), 0o600))
 
 	cfg, err := Load("", configPath)
@@ -3593,6 +3594,7 @@ compaction:
 	require.False(t, getBoolValue(cfg.Compaction.Enabled))
 	require.Equal(t, 0.7, cfg.Compaction.TriggerPercent)
 	require.Equal(t, 0.9, cfg.Compaction.WarnPercent)
+	require.Equal(t, 3, cfg.CompactionRecentSessionTailEffective())
 }
 
 func TestConfig_NormalizeDefaultsCompactionSettings(t *testing.T) {
@@ -3602,6 +3604,7 @@ func TestConfig_NormalizeDefaultsCompactionSettings(t *testing.T) {
 	require.True(t, getBoolValue(cfg.Compaction.Enabled))
 	require.Equal(t, 0.85, cfg.Compaction.TriggerPercent)
 	require.Equal(t, 0.95, cfg.Compaction.WarnPercent)
+	require.Equal(t, 8, cfg.CompactionRecentSessionTailEffective())
 }
 
 func TestConfig_ValidateRejectsInvalidCompactionSettings(t *testing.T) {
@@ -3621,6 +3624,36 @@ func TestConfig_ValidateRejectsInvalidCompactionSettings(t *testing.T) {
 	err := cfg.Validate()
 	require.EqualError(t, err, "compaction warn percent must be greater than or equal to "+
 		"compaction trigger percent")
+}
+
+func TestConfig_ValidateRejectsInvalidCompactionRecentSessionTail(t *testing.T) {
+	invalidTail := -1
+	cfg := &Config{
+		Name: "daemon",
+		Models: ModelsConfig{
+			Key: "key",
+			Main: MainModelConfig{
+				Name:          "openai/model",
+				ContextLength: 128000,
+				Provider:      "openrouter",
+				BaseURL:       "https://example.com",
+				APIMode:       constants.DefaultModelAPIModeCompletions,
+			},
+		},
+		RPC:     RPCConfig{Address: "127.0.0.1", Port: 50051},
+		Session: SessionConfig{MaxIterations: 1, DefaultIdleExpiry: time.Hour, ArchiveRetention: 24 * time.Hour},
+		Log:     LogConfig{Level: "info"},
+		Storage: StorageConfig{Backend: "memory"},
+		Compaction: CompactionConfig{
+			Enabled:           new(true),
+			TriggerPercent:    0.85,
+			WarnPercent:       0.95,
+			RecentSessionTail: &invalidTail,
+		},
+	}
+
+	err := cfg.Validate()
+	require.EqualError(t, err, "compaction recent session tail must be greater than or equal to zero")
 }
 
 func TestConfigExamples_EnvFilesListSupportedEnvironmentKeys(t *testing.T) {

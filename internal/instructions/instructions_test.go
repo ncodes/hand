@@ -132,6 +132,89 @@ func TestInstructions_WithoutNameReturnsAllInstructionsWhenMissing(t *testing.T)
 	require.Equal(t, original, original.WithoutName("config.instruct"))
 }
 
+func TestInstructions_SetSkipsBlankUnnamedInstruction(t *testing.T) {
+	original := Instructions{{Value: "base"}}
+	updated := original.Set(Instruction{Value: "   "})
+	require.Equal(t, original, updated)
+}
+
+func TestInstructions_SetAppendsUnnamedInstruction(t *testing.T) {
+	original := Instructions{{Value: "base"}}
+	updated := original.Set(Instruction{Value: " extra "})
+	require.Equal(t, Instructions{{Value: "base"}, {Value: "extra"}}, updated)
+}
+
+func TestInstructions_SetRemovesNamedInstruction(t *testing.T) {
+	original := Instructions{
+		{Value: "base"},
+		{Name: "request.instruct", Value: "temporary"},
+	}
+	updated := original.Set(Instruction{Name: " request.instruct ", Value: "   "})
+	require.Equal(t, Instructions{{Value: "base"}}, updated)
+	require.Equal(t, Instructions{
+		{Value: "base"},
+		{Name: "request.instruct", Value: "temporary"},
+	}, original)
+}
+
+func TestInstructions_SetUpdatesNamedInstructionWithoutMutatingInput(t *testing.T) {
+	original := Instructions{
+		{Value: "base"},
+		{Name: "request.instruct", Value: "temporary"},
+	}
+
+	updated := original.Set(Instruction{Name: " request.instruct ", Value: " updated "})
+	require.Equal(t, Instructions{
+		{Value: "base"},
+		{Name: "request.instruct", Value: "updated"},
+	}, updated)
+	require.Equal(t, Instructions{
+		{Value: "base"},
+		{Name: "request.instruct", Value: "temporary"},
+	}, original)
+}
+
+func TestInstructions_SetIgnoresEmptyMissingNamedInstruction(t *testing.T) {
+	original := Instructions{{Value: "base"}}
+	updated := original.Set(Instruction{Name: "request.instruct", Value: "   "})
+	require.Equal(t, original, updated)
+}
+
+func TestInstructions_SetAppendsMissingNamedInstruction(t *testing.T) {
+	original := Instructions{{Value: "base"}}
+	updated := original.Set(Instruction{Name: " request.instruct ", Value: " temporary "})
+	require.Equal(t, Instructions{
+		{Value: "base"},
+		{Name: "request.instruct", Value: "temporary"},
+	}, updated)
+}
+
+func TestInstructions_SetAppendsUpdatesRemovesAndIgnoresEmptyValues(t *testing.T) {
+	base := Instructions{{Name: "existing", Value: "old"}}
+
+	result := base.Set(Instruction{Name: " new ", Value: " value "})
+	require.Equal(t, Instructions{
+		{Name: "existing", Value: "old"},
+		{Name: "new", Value: "value"},
+	}, result)
+
+	result = result.Set(Instruction{Name: "existing", Value: " updated "})
+	require.Equal(t, "updated", result[0].Value)
+	require.Equal(t, "old", base[0].Value)
+
+	result = result.Set(Instruction{Name: "existing", Value: " "})
+	require.Equal(t, Instructions{{Name: "new", Value: "value"}}, result)
+
+	result = result.Set(Instruction{Value: " unnamed "})
+	require.Equal(t, Instructions{
+		{Name: "new", Value: "value"},
+		{Value: "unnamed"},
+	}, result)
+
+	require.Equal(t, result, result.Set(Instruction{}))
+	require.Equal(t, result, result.Set(Instruction{Name: "missing", Value: " "}))
+}
+
 func TestBuildBase_ReturnsInstructionList(t *testing.T) {
 	instructions := BuildBase("Wandxie")
 	require.Len(t, instructions, 1)

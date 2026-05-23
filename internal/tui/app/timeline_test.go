@@ -441,12 +441,12 @@ func TestRenderTranscriptCells_RendersSessionMessagesWithFriendlyText(t *testing
 
 func TestRenderTranscriptCells_CompactsConsecutiveManualCompactionEvents(t *testing.T) {
 	rendered := stripANSI(renderTranscriptCells([]transcriptCell{
-		manualCompactionTranscriptCell{state: manualCompactionState{Status: "running"}},
-		manualCompactionTranscriptCell{state: manualCompactionState{Status: "succeeded"}},
+		manualCompactionTranscriptCell{state: manualCompactionState{Status: "running", Label: autoCompactionLabel}},
+		manualCompactionTranscriptCell{state: manualCompactionState{Status: "succeeded", Label: autoCompactionLabel}},
 	}))
 
-	require.NotContains(t, rendered, "Manual compaction started")
-	require.Contains(t, rendered, "Manual compaction completed")
+	require.NotContains(t, rendered, "Automatic compaction started")
+	require.Contains(t, rendered, "Automatic compaction completed")
 }
 
 func TestRenderTranscriptCells_RendersSessionSearchWithFriendlyText(t *testing.T) {

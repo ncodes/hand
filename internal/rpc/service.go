@@ -241,6 +241,7 @@ func getRPCTracePayload(eventType string, payload any) (any, bool) {
 		return trace.CompactionEventPayload{
 			SessionID:          strings.TrimSpace(compactionPayload.SessionID),
 			Status:             strings.TrimSpace(compactionPayload.Status),
+			Auto:               compactionPayload.Auto,
 			TargetMessageCount: compactionPayload.TargetMessageCount,
 			TargetOffset:       compactionPayload.TargetOffset,
 			RequestedAt:        compactionPayload.RequestedAt,

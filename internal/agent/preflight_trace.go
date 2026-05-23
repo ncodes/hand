@@ -32,6 +32,7 @@ func recordPreflightCompactionTrace(
 	cfg *config.Config,
 	request models.Request,
 	lastPromptTokens int,
+	canCompact bool,
 ) {
 	if !isCompactionEnabled(cfg) {
 		return
@@ -48,7 +49,7 @@ func recordPreflightCompactionTrace(
 
 	traceSession.Record(trace.EvtContextPreflight, payload)
 
-	if estimate.Triggered() {
+	if estimate.Triggered() && canCompact {
 		agentLog.Info().
 			Str("source", estimate.Source).
 			Int("prompt_tokens", estimate.PromptTokens).
@@ -58,7 +59,7 @@ func recordPreflightCompactionTrace(
 		traceSession.Record(trace.EvtContextCompactionTriggered, payload)
 	}
 
-	if estimate.Warning() && !estimate.Triggered() {
+	if estimate.Warning() && (!estimate.Triggered() || !canCompact) {
 		agentLog.Warn().
 			Int("prompt_tokens", estimate.PromptTokens).
 			Int("warn_threshold", estimate.WarnThreshold).

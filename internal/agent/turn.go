@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,13 +9,11 @@ import (
 
 	ctxbuilder "github.com/wandxy/hand/internal/agent/context"
 	"github.com/wandxy/hand/internal/agent/context/compaction"
-	agentsummary "github.com/wandxy/hand/internal/agent/context/summary"
+	summarizer "github.com/wandxy/hand/internal/agent/context/summary"
 	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
-	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	handmsg "github.com/wandxy/hand/internal/messages"
@@ -29,53 +26,74 @@ import (
 )
 
 const requestInstructionName = "request.instruct"
-const planHydrationPageSize = constants.PlanHydrationPageSize
 
 // Turn executes a single response turn against a resolved session.
 type Turn struct {
-	// ctx is the request context used for session writes during the turn.
+	// Request context for session writes during the turn.
 	ctx context.Context
-	// cfg provides model and execution settings for the turn.
+
+	// Model and execution settings for the turn.
 	cfg *config.Config
-	// modelClient executes model requests for the turn.
+
+	// Model client responsible for model requests for the turn.
 	modelClient models.Client
-	// summaryClient executes compaction/summary model requests; when nil, modelClient is used.
+
+	// Summary client for compaction/summary model requests. Falls back to modelClient if nil.
 	summaryClient models.Client
-	// stateMgr resolves sessions and persists turn messages.
+
+	// State manager used for session resolution and persisting turn messages.
 	stateMgr *statemanager.Manager
-	// summaryService loads and refreshes persisted summary state for the turn.
-	summaryService *agentsummary.Service
-	// invokeToolFn performs tool execution for requested tool calls.
+
+	// Loads/persists summary state for the turn.
+	summaryService *summarizer.Service
+
+	// Tool invocation function for executing tool calls.
 	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message
-	// env supplies tools, instructions, tracing, and iteration budget.
+
+	// Supplies tools, instructions, tracing, iteration budget.
 	env environment.Environment
-	// contextBuilder assembles the model-visible message context for the turn.
+
+	// Builds model-visible message context for the turn.
 	contextBuilder *ctxbuilder.Builder
-	// instructions is the request-scoped instruction set sent to the model.
+
+	// Base instruction set sent to model.
 	instructions instruct.Instructions
-	// memoryInstruction contains retrieved durable memory for the current turn.
+
+	// Per-call guidance from RespondOptions.Instruct.
+	requestInstruction instruct.Instruction
+
+	// Durable memory retrieved for the current turn.
 	memoryInstruction instruct.Instruction
-	// sessionHistory contains persisted messages loaded before the turn starts.
+
+	// Persisted messages loaded before the turn starts.
 	sessionHistory []handmsg.Message
-	// emittedMessages contains messages produced during the current turn.
+
+	// Messages emitted during the current turn.
 	emittedMessages []handmsg.Message
-	// summary contains persisted summary state used in active context assembly.
-	summary *agentsummary.State
-	// sessionHistoryOffset is the absolute persisted offset represented by sessionHistory[0].
+
+	// Summary state used for active context assembly.
+	summary *summarizer.State
+
+	// Offset represented by sessionHistory[0].
 	sessionHistoryOffset int
-	// sessionID identifies the session being read from and written to.
+
+	// Session ID being read/written to.
 	sessionID string
-	// runCtx carries effective state identity, personality, profile, and lineage for this run.
+
+	// State identity, profile, and lineage for this run.
 	runCtx runcontext.Context
-	// lastPromptTokens stores the most recent actual prompt token count for the session.
+
+	// Most recent actual prompt token count.
 	lastPromptTokens int
-	// summaryRefreshAttempted prevents multiple summary refresh attempts in one turn.
-	summaryRefreshAttempted bool
-	// planHydrated indicates whether plan state was restored from session history.
+
+	// Tracks context size last evaluated for summary refresh.
+	summaryRefreshAttemptedMessageCount int
+
+	// Indicates if plan state was restored from session history.
 	planHydrated bool
 }
 
-// NewTurn constructs a Turn with the dependencies needed for one response turn.
+// NewTurn constructs a Turn object with required dependencies for a single response turn.
 func NewTurn(
 	cfg *config.Config,
 	modelClient models.Client,
@@ -87,6 +105,7 @@ func NewTurn(
 	if summaryClient == nil {
 		summaryClient = modelClient
 	}
+
 	return &Turn{
 		cfg:            cfg,
 		modelClient:    modelClient,
@@ -98,6 +117,8 @@ func NewTurn(
 	}
 }
 
+// load initializes all the dependencies, session, summary, instructions, message history,
+// and plan state for a new Turn execution. Returns error if required initializations fail.
 func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 	if t == nil {
 		return errors.New("agent is required")
@@ -119,43 +140,56 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 		return errors.New("state manager is required")
 	}
 
+	// Lazy-init summary service.
 	if t.summaryService == nil {
-		t.summaryService = agentsummary.NewService(t.cfg, t.modelClient, t.summaryClient, t.stateMgr)
+		t.summaryService = summarizer.NewService(t.cfg, t.modelClient, t.summaryClient, t.stateMgr)
 	}
 
+	// Resolve and load session for the turn; fail if not found.
 	session, err := t.stateMgr.Resolve(ctx, opts.SessionID)
 	if err != nil {
 		return err
 	}
 
+	// Load active summary state for context assembly.
 	summary, err := t.summaryService.Load(ctx, session.ID)
 	if err != nil {
 		return err
 	}
 
+	// Offset for loading messages, using summary end if available.
 	tailOffset := 0
 	if summary != nil && summary.Current != nil {
 		tailOffset = max(summary.Current.SourceEndOffset, 0)
 	}
 
+	// Load messages after the (possibly summarized) offset.
 	messages, err := t.stateMgr.GetMessages(ctx, session.ID, storage.MessageQueryOptions{Offset: tailOffset})
 	if err != nil {
 		return err
 	}
+
+	// Assign all loaded state to this Turn instance.
 	t.ctx = ctx
 	t.instructions = t.env.Instructions()
+	t.requestInstruction = instruct.Instruction{}
 	t.memoryInstruction = instruct.Instruction{}
 	t.sessionHistory = messages
 	t.emittedMessages = nil
 	t.summary = summary
 	t.sessionHistoryOffset = tailOffset
 	t.sessionID = session.ID
+
+	// New identity context for session run.
 	t.runCtx, err = newRootRunContext(session.ID)
 	if err != nil {
 		return err
 	}
+
 	t.lastPromptTokens = session.LastPromptTokens
-	t.summaryRefreshAttempted = false
+	t.summaryRefreshAttemptedMessageCount = 0
+
+	// Optionally hydrate restored plan from session history.
 	t.planHydrated, err = t.hydratePlanFromHistory(ctx, t.getStateSessionID())
 	if err != nil {
 		return err
@@ -171,33 +205,33 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 	return nil
 }
 
-// Run executes the turn and returns the assistant reply.
+// Run executes the turn's logic, handling instructions, tool actions, tracing,
+// safety enforcement, and returns the final assistant reply for this turn.
 func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string, error) {
+	// Initialize all turn state and dependencies.
 	if err := t.load(ctx, opts); err != nil {
 		return "", err
 	}
 
-	requestInstruct := strings.TrimSpace(opts.Instruct)
-	if requestInstruct != "" {
-		t.instructions = setInstruction(t.instructions, instruct.Instruction{
+	// Inject per-request instruction if present.
+	if requestInstruct := strings.TrimSpace(opts.Instruct); requestInstruct != "" {
+		t.requestInstruction = instruct.Instruction{
 			Name:  requestInstructionName,
 			Value: requestInstruct,
-		})
-		defer func() {
-			t.instructions = t.instructions.WithoutName(requestInstructionName)
-		}()
+		}
 	}
 
+	// Set up trace session for visibility/diagnostics. Include fanout if tracing callback specified.
 	traceSession := t.env.NewTraceSessionForRun(t.runCtx)
-
 	if opts.OnTraceEvent != nil {
 		traceSession = newFanoutTraceSession(traceSession, t.getStateSessionID(), opts.OnTraceEvent)
 	}
-
 	defer traceSession.Close()
 
+	// Log content safety events from environment, from history/context.
 	t.recordLoadedContentSafety(traceSession)
 
+	// Trace hydrated plan if restored from session/history.
 	if t.planHydrated {
 		plan := t.env.CurrentPlan(t.getStateSessionID())
 		traceSession.Record(
@@ -213,6 +247,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		)
 	}
 
+	// Content safety: block & log if user input is not permitted.
 	if t.cfg.InputSafetyEnabled() {
 		inputSafety := guardrails.CheckInputSafety(msg, "user")
 		if inputSafety.Blocked {
@@ -221,13 +256,15 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		}
 	}
 
+	// Compose and emit user's input message to session.
 	userMessage, err := handmsg.NewMessage(handmsg.RoleUser, msg)
 	if err != nil {
 		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 		return "", err
 	}
-
 	t.emittedMessages = append(t.emittedMessages, userMessage)
+
+	// Append user message to session history.
 	if err := t.appendSessionMessages([]handmsg.Message{userMessage}); err != nil {
 		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 		return "", err
@@ -235,26 +272,34 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 	traceSession.Record(trace.EvtUserMessageAccepted, trace.UserMessageAcceptedPayload{Message: msg})
 
+	// Retrieve memory instruction for this input.
 	t.memoryInstruction = t.retrieveMemoryInstruction(ctx, msg, traceSession)
 
+	// Set up multi-step iteration budget for LLM/tool call loop.
 	budget := t.env.NewIterationBudget()
+
+	// Check if streaming is enabled on config/override.
 	streamingEnabled := t.cfg.StreamEnabled()
 	if opts.Stream != nil {
 		streamingEnabled = *opts.Stream
 	}
 
+	// Main iteration loop: tries to get a valid response or perform tool actions until budget exhausted.
 	for budget.Consume() {
+		// Check for context cancellation.
 		if err := ctx.Err(); err != nil {
 			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 			return "", err
 		}
 
+		// Query available tool definitions for this turn; may vary per session/tool policy.
 		availableToolDefinitions, err := t.availableToolDefinitions()
 		if err != nil {
 			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 			return "", err
 		}
 
+		// Build model request and assemble all prompt-side context for completion.
 		request := models.Request{
 			Model:         t.cfg.Models.Main.Name,
 			APIMode:       t.cfg.Models.Main.APIMode,
@@ -264,27 +309,16 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			DebugRequests: t.cfg.Debug.Requests,
 		}
 
-		if !t.summaryRefreshAttempted {
-			t.summaryRefreshAttempted = true
-			t.maybeFlushMemoryBeforeCompaction(ctx, request, traceSession)
-			_ = t.summaryService.MaybeRefreshSummary(ctx, t.summary, agentsummary.RefreshInput{
-				LastPromptTokens: t.lastPromptTokens,
-				Request:          request,
-				SessionID:        t.sessionID,
-				TraceSession:     traceSession,
-			})
-			t.trimSessionHistoryToSummary()
-		}
+		// Refresh summary and possibly adjust session context after model request construction.
+		t.maybeRefreshSummary(ctx, request, traceSession)
 
-		// Refresh may persist a new session summary; rebuild instructions after it.
+		// Rebuild prompt/context after summary possibly changed.
 		request.Instructions = t.buildRequestInstructions(availableToolDefinitions)
-
-		// Attach the current context to the request
 		request.Messages = t.Context()
 
-		// Record trace events
+		// Trace summary application and preflight compaction/model events.
 		t.summary.RecordSummaryApplied(traceSession)
-		recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
+		recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens, t.canCompactPersistedHistory())
 		recordModelRequest(traceSession, request)
 
 		agentLog.Info().
@@ -299,12 +333,14 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			Bool("debug_requests", t.cfg.Debug.Requests).
 			Msg("model request dispatch started")
 
-		var resp *models.Response
-		var reasoningStartedAt time.Time
-		var reasoningEndedAt time.Time
+		// --- Make model inference call (streaming or blocking) ---
+		var (
+			resp               *models.Response
+			reasoningStartedAt time.Time
+			reasoningEndedAt   time.Time
+		)
+
 		if streamingEnabled {
-			deltas := make([]Event, 0, 16)
-			allowLiveDelivery := opts.OnEvent != nil
 			resp, err = t.modelClient.CompleteStream(ctx, request, func(delta models.StreamDelta) {
 				if delta.Text == "" {
 					return
@@ -317,15 +353,16 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 					reasoningEndedAt = now
 				}
 				event := Event{Kind: EventKindTextDelta, Channel: string(delta.Channel), Text: delta.Text}
-				if allowLiveDelivery {
+				if opts.OnEvent != nil {
 					opts.OnEvent(event)
-					return
 				}
-				deltas = append(deltas, event)
 			})
 		} else {
+			// Blocking, non-stream model completion.
 			resp, err = t.modelClient.Complete(ctx, request)
 		}
+
+		// Model request failed or provided no response.
 		if err != nil {
 			agentLog.Warn().
 				Str("event", "model request dispatch failed").
@@ -353,6 +390,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			return "", err
 		}
 
+		// Mark model inference timing for diagnostics/storage.
 		t.recordModelReasoningCompleted(reasoningStartedAt, reasoningEndedAt)
 		recordModelResponse(traceSession, resp)
 
@@ -371,10 +409,12 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			Bool("requires_tool_calls", resp.RequiresToolCalls).
 			Msg("model response received")
 
+		// Record postflight token usage for usage/analytics.
 		if err := t.recordPostflightUsage(traceSession, resp); err != nil {
 			return "", err
 		}
 
+		// -- Assistant textual reply path (no tool calls required) --
 		if !resp.RequiresToolCalls {
 			reply := t.applyAssistantOutputSafety(traceSession, resp.OutputText, streamingEnabled)
 
@@ -384,14 +424,16 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				return "", err
 			}
 
+			// Append assistant message to emitted messages.
 			t.emittedMessages = append(t.emittedMessages, assistantMessage)
+
+			// Append assistant message to session history.
 			if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
 				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 				return "", err
 			}
 
 			traceSession.Record(trace.EvtFinalAssistantResponse, trace.FinalAssistantResponsePayload{Message: reply})
-
 			agentLog.Info().
 				Str("session_id", t.sessionID).
 				Msg("turn completed")
@@ -399,31 +441,37 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			return reply, nil
 		}
 
+		// -- Tool call required path --
+
+		// If model asks for tool calls, ensure at least one is present.
 		if len(resp.ToolCalls) == 0 {
 			err = errors.New("model requested tool execution without tool calls")
 			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 			return "", err
 		}
 
+		// Represent tool call(s) as assistant message in session.
 		assistantMessage, err := assistantToolCallMessageFromResponse(resp)
 		if err != nil {
 			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 			return "", err
 		}
 
+		// Append assistant message to emitted messages.
 		t.emittedMessages = append(t.emittedMessages, assistantMessage)
-
 		if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
 			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 			return "", err
 		}
 
+		// For each tool call: execute, trace, and record as tool message.
 		for _, toolCall := range resp.ToolCalls {
 			if err := ctx.Err(); err != nil {
 				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 				return "", err
 			}
 
+			// Start tool invocation logging.
 			agentLog.Info().
 				Str("event", "tool invocation started").
 				Str("relationship", "tool_call_from_current_model_response").
@@ -438,8 +486,11 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				PlanState:    getPlanToolInputState(toolCall.Name, toolCall.Input),
 				ProcessState: getProcessToolInputState(toolCall.Name, toolCall.Input),
 			})
+
+			// Invoke tool and get tool message.
 			toolCtx := tools.WithTraceRecorder(t.getToolContext(ctx), traceSession)
 			toolMessage := t.invokeTool(toolCtx, toolCall)
+
 			traceSession.Record(trace.EvtToolInvocationCompleted, trace.ToolInvocationCompletedPayload{
 				ToolCallID:   toolMessage.ToolCallID,
 				Name:         toolMessage.Name,
@@ -457,6 +508,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				Int("output_bytes", len(toolMessage.Content)).
 				Msg("tool invocation completed")
 
+			// Normalize tool message and check for serialization/safety invariants.
 			toolMessage, err = normalizeTurnMessage(toolMessage)
 			if err != nil {
 				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
@@ -464,7 +516,6 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			}
 
 			t.emittedMessages = append(t.emittedMessages, toolMessage)
-
 			if err := t.appendSessionMessages([]handmsg.Message{toolMessage}); err != nil {
 				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 				return "", err
@@ -472,6 +523,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		}
 	}
 
+	// If iteration budget is exhausted, fallback to summary-based result and finish.
 	agentLog.Warn().
 		Str("session_id", t.sessionID).
 		Msg("iteration budget exhausted, falling back to summary")
@@ -484,6 +536,8 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 	return reply, nil
 }
 
+// trimSessionHistoryToSummary trims session history up to summary end offset.
+// Used after summary compaction and context refresh events.
 func (t *Turn) trimSessionHistoryToSummary() {
 	if t == nil || t.summary == nil || t.summary.Current == nil {
 		return
@@ -505,10 +559,54 @@ func (t *Turn) trimSessionHistoryToSummary() {
 	t.sessionHistoryOffset = targetOffset
 }
 
+// maybeRefreshSummary refreshes summary context if the message count has grown since last summary attempt.
+// It may update summary state and trims session history if needed.
+func (t *Turn) maybeRefreshSummary(ctx context.Context, request models.Request, traceSession trace.Session) {
+	if t == nil || t.summaryService == nil {
+		return
+	}
+
+	messageCount := len(request.Messages)
+	if messageCount <= 0 || messageCount <= t.summaryRefreshAttemptedMessageCount {
+		return
+	}
+
+	// Flush memory before compaction.
+	t.maybeFlushMemoryBeforeCompaction(ctx, request, traceSession)
+
+	// Maybe refresh summary.
+	previousHistoryOffset := t.sessionHistoryOffset
+	t.summaryRefreshAttemptedMessageCount = messageCount
+	_ = t.summaryService.MaybeRefreshSummary(ctx, t.summary, summarizer.RefreshInput{
+		LastPromptTokens: t.lastPromptTokens,
+		Request:          request,
+		SessionID:        t.sessionID,
+		TraceSession:     traceSession,
+	})
+
+	t.trimSessionHistoryToSummary()
+
+	// Reset prompt tokens if session history offset changed.
+	if t.sessionHistoryOffset != previousHistoryOffset {
+		t.lastPromptTokens = 0
+	}
+}
+
+// canCompactPersistedHistory returns true if the session history is large enough to be compacted.
+func (t *Turn) canCompactPersistedHistory() bool {
+	if t == nil {
+		return false
+	}
+	return len(t.sessionHistory) > t.cfg.CompactionRecentSessionTailEffective()
+}
+
+// appendSessionMessages persists new emitted messages to the session state.
 func (t *Turn) appendSessionMessages(messages []handmsg.Message) error {
 	return t.stateMgr.AppendMessages(t.ctx, t.sessionID, messages)
 }
 
+// applyAssistantOutputSafety performs output safety checks on assistant responses if enabled.
+// For streaming, checks are deferred to client side.
 func (t *Turn) applyAssistantOutputSafety(traceSession trace.Session, output string, streamingEnabled bool) string {
 	if streamingEnabled {
 		return output
@@ -525,6 +623,7 @@ func (t *Turn) applyAssistantOutputSafety(traceSession trace.Session, output str
 	return result.Content
 }
 
+// recordModelReasoningCompleted logs and saves model inference duration for a turn.
 func (t *Turn) recordModelReasoningCompleted(startedAt time.Time, endedAt time.Time) {
 	if t == nil || t.stateMgr == nil || t.sessionID == "" || startedAt.IsZero() {
 		return
@@ -559,16 +658,17 @@ func (t *Turn) recordModelReasoningCompleted(startedAt time.Time, endedAt time.T
 		Msg("model reasoning completed")
 }
 
+// getOutputRedactor returns a redactor instance configured for the session and output PII settings.
 func (t *Turn) getOutputRedactor() guardrails.Redactor {
 	if t == nil || t.cfg == nil {
 		return guardrails.NewRedactorWithOptions(guardrails.RedactorOptions{DisablePII: true})
 	}
-
 	return guardrails.NewRedactorWithOptions(guardrails.RedactorOptions{
 		DisablePII: !t.cfg.OutputPIIRedactionEnabled(),
 	})
 }
 
+// recordLoadedContentSafety emits trace events for any content safety violations loaded for this session.
 func (t *Turn) recordLoadedContentSafety(traceSession trace.Session) {
 	if t == nil || t.env == nil || traceSession == nil {
 		return
@@ -579,6 +679,7 @@ func (t *Turn) recordLoadedContentSafety(traceSession trace.Session) {
 	}
 }
 
+// getInputSafetyTracePayload builds a standardized payload for a blocked input safety event.
 func getInputSafetyTracePayload(sessionID string, content string, result guardrails.InputSafetyResult) trace.SafetyEventPayload {
 	return safetyEventPayloadFromOptions(guardrails.SafetyTracePayloadOptions{
 		SessionID:     sessionID,
@@ -591,6 +692,7 @@ func getInputSafetyTracePayload(sessionID string, content string, result guardra
 	})
 }
 
+// getOutputSafetyTracePayload builds a standardized payload for assistant output safety check results.
 func getOutputSafetyTracePayload(sessionID string, content string, result guardrails.OutputSafetyResult) trace.SafetyEventPayload {
 	action := "redacted"
 	if result.Blocked {
@@ -608,6 +710,7 @@ func getOutputSafetyTracePayload(sessionID string, content string, result guardr
 	})
 }
 
+// safetyEventPayloadFromOptions normalizes guardrail trace payloads for logging/tracing.
 func safetyEventPayloadFromOptions(opts guardrails.SafetyTracePayloadOptions) trace.SafetyEventPayload {
 	return trace.SafetyEventPayload{
 		SessionID:     strings.TrimSpace(opts.SessionID),
@@ -621,38 +724,39 @@ func safetyEventPayloadFromOptions(opts guardrails.SafetyTracePayloadOptions) tr
 	}
 }
 
+// getPlanToolInputState returns plan tool state representation for tracing if name/type matches.
 func getPlanToolInputState(name string, input string) *trace.PlanToolState {
 	if strings.TrimSpace(strings.ToLower(name)) != "plan_tool" {
 		return nil
 	}
-
 	return trace.PlanToolInputState(input)
 }
 
+// getPlanToolOutputState returns plan tool output state for tracing where matched.
 func getPlanToolOutputState(name string, output string) *trace.PlanToolState {
 	if strings.TrimSpace(strings.ToLower(name)) != "plan_tool" {
 		return nil
 	}
-
 	return trace.PlanToolOutputState(output)
 }
 
+// getProcessToolInputState returns process tool input state for tracing where matched.
 func getProcessToolInputState(name string, input string) *trace.ProcessToolState {
 	if strings.TrimSpace(strings.ToLower(name)) != "process" {
 		return nil
 	}
-
 	return trace.ProcessToolInputState(input)
 }
 
+// getProcessToolOutputState returns process tool output state for tracing where matched.
 func getProcessToolOutputState(name string, output string) *trace.ProcessToolState {
 	if strings.TrimSpace(strings.ToLower(name)) != "process" {
 		return nil
 	}
-
 	return trace.ProcessToolOutputState(output)
 }
 
+// getStateSessionID reports the canonical session ID for trace/state operations for this turn.
 func (t *Turn) getStateSessionID() string {
 	if t == nil {
 		return storage.DefaultSessionID
@@ -664,22 +768,21 @@ func (t *Turn) getStateSessionID() string {
 	if value := strings.TrimSpace(t.sessionID); value != "" {
 		return value
 	}
-
 	return t.runCtx.StateSessionID()
 }
 
+// getToolContext produces a context carrying the relevant session/run metadata for tools.
 func (t *Turn) getToolContext(ctx context.Context) context.Context {
 	if t == nil {
 		return tools.WithSessionID(ctx, "")
 	}
-
 	if strings.TrimSpace(t.runCtx.Session.PublicID) != "" {
 		return tools.WithRunContext(ctx, t.runCtx)
 	}
-
 	return tools.WithSessionID(ctx, t.sessionID)
 }
 
+// availableToolDefinitions resolves tool definitions available for this turn, using environment/tool policy.
 func (t *Turn) availableToolDefinitions() ([]models.ToolDefinition, error) {
 	if t == nil || t.env == nil || t.env.Tools() == nil {
 		return nil, nil
@@ -694,10 +797,10 @@ func (t *Turn) availableToolDefinitions() ([]models.ToolDefinition, error) {
 	for _, definition := range definitions {
 		toolsList = append(toolsList, modelToolDefinitionFromToolDefinition(definition))
 	}
-
 	return toolsList, nil
 }
 
+// invokeTool executes a tool call, optionally using turn's tool invocation handler.
 func (t *Turn) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
 	if t.invokeToolFn == nil {
 		return handmsg.Message{
@@ -711,6 +814,8 @@ func (t *Turn) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg
 	return t.invokeToolFn(ctx, t.env, toolCall)
 }
 
+// summaryFallback runs the fallback summary request and returns the assistant reply
+// when iteration budget was exhausted and a summary response is needed for completion.
 func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBudget, traceSession trace.Session) (string, error) {
 	ctx = normalizeContext(ctx)
 	if err := ctx.Err(); err != nil {
@@ -732,7 +837,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 		trace.SummaryFallbackStartedPayload{RemainingIterations: budget.Remaining()},
 	)
 	t.summary.RecordSummaryApplied(traceSession)
-	recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens)
+	recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens, t.canCompactPersistedHistory())
 	recordModelRequest(traceSession, request)
 
 	agentLog.Info().
@@ -815,6 +920,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 	return reply, nil
 }
 
+// getAgentModelErrorKind standardizes error kind reporting for model errors.
 func getAgentModelErrorKind(err error) string {
 	if err == nil {
 		return ""
@@ -837,10 +943,7 @@ func getAgentModelErrorKind(err error) string {
 	}
 }
 
-// buildRequestInstructions assembles the system prompt sent to the model in this order:
-// planning policy, hydrated active plan context, remaining base instructions, optional
-// persisted summary instructions, optional environment context, optional request-scoped
-// instruction, then any extra blocks.
+// buildRequestInstructions assembles the system prompt/instructions for the model in recommended order.
 func (t *Turn) buildRequestInstructions(
 	activeToolDefinitions []models.ToolDefinition,
 	extra ...instruct.Instructions,
@@ -851,13 +954,7 @@ func (t *Turn) buildRequestInstructions(
 
 	instructions := t.instructions
 
-	// Hold request-scoped guidance aside so it can be appended after the summary.
-	requestInstruction, hasRequestInstruction := instructions.GetByName(requestInstructionName)
-	if hasRequestInstruction {
-		instructions = instructions.WithoutName(requestInstructionName)
-	}
-
-	// Prepend hydrated plan context and keep planning policy ahead of it when present.
+	// Plan context: prepend plan instructions and policy if present.
 	if planInstructions := t.renderPlanInstructions(); planInstructions != "" {
 		if policy, ok := instructions.GetByName(instruct.PlanningPolicyInstructionName); ok {
 			instructions = instruct.New(policy.Value).
@@ -868,207 +965,32 @@ func (t *Turn) buildRequestInstructions(
 		}
 	}
 
-	// Add persisted summary instructions after base instructions and plan context.
+	// Add any summary instructions from summary state.
 	if t.summary != nil {
 		if summaryInstructions, ok := t.summary.RenderSummaryInstructions(); ok {
 			instructions = instructions.Append(instruct.Instruction{Value: summaryInstructions})
 		}
 	}
 
+	// Add memory retrieved for this turn.
 	instructions = instructions.Append(t.memoryInstruction)
 
+	// Add environment context (tools, capabilities).
 	environmentContext := t.buildEnvironmentContextInstruction(activeToolDefinitions)
 	instructions = instructions.Append(environmentContext)
 
-	// Append the per-request instruction after summary and environment context.
-	if hasRequestInstruction {
-		instructions = instructions.Append(requestInstruction)
-	}
+	// Add single-turn request instruction if provided.
+	instructions = instructions.Append(t.requestInstruction)
 
-	// Append any caller-provided extras last, such as summary-fallback guidance.
+	// Add any final extra instruction blocks (e.g. fallback summary).
 	for _, block := range extra {
 		instructions = instructions.Append(block...)
 	}
 
 	return instructions.String()
 }
-func (t *Turn) hydratePlanFromMessages(messages []handmsg.Message) bool {
-	if t == nil || t.env == nil {
-		return false
-	}
 
-	empty := envtypes.Plan{}
-	for _, message := range messages {
-		if message.Role != handmsg.RoleTool || message.Name != "plan_tool" {
-			continue
-		}
-
-		plan, ok := decodeHydratedPlan(message.Content)
-		if !ok {
-			continue
-		}
-
-		t.env.HydratePlan(t.getStateSessionID(), plan)
-		return true
-	}
-
-	t.env.HydratePlan(t.getStateSessionID(), empty)
-	return false
-}
-
-func (t *Turn) renderPlanInstructions() string {
-	if t == nil || t.env == nil {
-		return ""
-	}
-
-	plan := t.env.CurrentPlan(t.getStateSessionID())
-	activeSteps := make([]envtypes.PlanStep, 0, len(plan.Steps))
-	for _, step := range plan.Steps {
-		if step.Status == envtypes.PlanStatusCompleted || step.Status == envtypes.PlanStatusCancelled {
-			continue
-		}
-		activeSteps = append(activeSteps, step)
-	}
-	if len(activeSteps) == 0 {
-		return ""
-	}
-
-	lines := []string{
-		"# Plan Context",
-		"",
-		"## Active Plan",
-	}
-	for _, step := range activeSteps {
-		lines = append(lines, "- ["+step.Status+"] "+step.Content)
-	}
-	if explanation := strings.TrimSpace(plan.Explanation); explanation != "" {
-		lines = append(lines, "", "## Plan Update Reason", "", explanation)
-	}
-
-	return strings.Join(lines, "\n")
-}
-
-func decodeHydratedPlan(content string) (envtypes.Plan, bool) {
-	type toolMessageEnvelope struct {
-		Output string `json:"output"`
-	}
-
-	var envelope toolMessageEnvelope
-	if err := json.Unmarshal([]byte(content), &envelope); err == nil && strings.TrimSpace(envelope.Output) != "" {
-		if plan, ok := decodeHydratedPlanPayload(envelope.Output); ok {
-			return plan, true
-		}
-	}
-
-	return decodeHydratedPlanPayload(content)
-}
-
-func decodeHydratedPlanPayload(content string) (envtypes.Plan, bool) {
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(content), &raw); err != nil {
-		return envtypes.Plan{}, false
-	}
-
-	stepsRaw, ok := raw["steps"]
-	if !ok {
-		return envtypes.Plan{}, false
-	}
-
-	var steps []envtypes.PlanStep
-	if err := json.Unmarshal(stepsRaw, &steps); err != nil {
-		return envtypes.Plan{}, false
-	}
-
-	explanation := ""
-	if explanationRaw, ok := raw["explanation"]; ok {
-		_ = json.Unmarshal(explanationRaw, &explanation)
-	}
-
-	plan := envtypes.Plan{Steps: steps, Explanation: strings.TrimSpace(explanation)}
-	if err := envtypes.ValidatePlan(plan); err != nil {
-		return envtypes.Plan{}, false
-	}
-
-	return plan, true
-}
-
-func (t *Turn) hydratePlanFromHistory(ctx context.Context, sessionID string) (bool, error) {
-	offset := 0
-	for {
-		messages, err := t.stateMgr.GetMessages(ctx, sessionID, storage.MessageQueryOptions{
-			Role:   handmsg.RoleTool,
-			Name:   "plan_tool",
-			Order:  storage.MessageOrderDesc,
-			Limit:  planHydrationPageSize,
-			Offset: offset,
-		})
-		if err != nil {
-			return false, err
-		}
-		if len(messages) == 0 {
-			t.env.HydratePlan(sessionID, envtypes.Plan{})
-			return false, nil
-		}
-		if t.hydratePlanFromMessages(messages) {
-			return true, nil
-		}
-		offset += len(messages)
-	}
-}
-
-func summarizeHydratedPlan(plan envtypes.Plan) envtypes.PlanSummary {
-	summary := envtypes.PlanSummary{Total: len(plan.Steps)}
-	for _, step := range plan.Steps {
-		switch step.Status {
-		case envtypes.PlanStatusPending:
-			summary.Pending++
-		case envtypes.PlanStatusInProgress:
-			summary.InProgress++
-		case envtypes.PlanStatusCompleted:
-			summary.Completed++
-		case envtypes.PlanStatusCancelled:
-			summary.Cancelled++
-		}
-	}
-	return summary
-}
-
-func hydratedPlanStepsToTracePayload(steps []envtypes.PlanStep) []trace.PlanStepPayload {
-	if len(steps) == 0 {
-		return nil
-	}
-
-	payload := make([]trace.PlanStepPayload, 0, len(steps))
-	for _, step := range steps {
-		payload = append(payload, trace.PlanStepPayload{
-			ID:      step.ID,
-			Content: step.Content,
-			Status:  string(step.Status),
-		})
-	}
-
-	return payload
-}
-
-func hydratedPlanSummaryToTracePayload(summary envtypes.PlanSummary) trace.PlanSummaryPayload {
-	return trace.PlanSummaryPayload{
-		Total:      summary.Total,
-		Pending:    summary.Pending,
-		InProgress: summary.InProgress,
-		Completed:  summary.Completed,
-		Cancelled:  summary.Cancelled,
-	}
-}
-
-func getActiveHydratedPlanStepID(plan envtypes.Plan) string {
-	for _, step := range plan.Steps {
-		if step.Status == envtypes.PlanStatusInProgress {
-			return step.ID
-		}
-	}
-	return ""
-}
-
+// newRootRunContext creates a normalized run context from the session ID and active profile (if any).
 func newRootRunContext(sessionID string) (runcontext.Context, error) {
 	runCtx, err := runcontext.NewParent(sessionID)
 	if err != nil {
@@ -1082,6 +1004,7 @@ func newRootRunContext(sessionID string) (runcontext.Context, error) {
 	return runCtx.Normalize()
 }
 
+// Context rebuilds prompt-visible message context for a model turn, combining summary/prefix/history/emitted.
 func (t *Turn) Context() []handmsg.Message {
 	builder := t.contextBuilder
 	if builder == nil {
@@ -1097,6 +1020,7 @@ func (t *Turn) Context() []handmsg.Message {
 	})
 }
 
+// recordPostflightUsage persists post-model token usage for analytics and session tracking.
 func (t *Turn) recordPostflightUsage(traceSession trace.Session, resp *models.Response) error {
 	if t == nil || resp == nil || resp.PromptTokens <= 0 {
 		return nil
@@ -1118,7 +1042,8 @@ func (t *Turn) recordPostflightUsage(traceSession trace.Session, resp *models.Re
 	return nil
 }
 
-// Messages returns the messages emitted during the turn.
+// Messages returns copies of all assistant and tool messages emitted during this turn.
+// Used in testing and downstream consumers.
 func (t *Turn) Messages() []handmsg.Message {
 	if len(t.emittedMessages) == 0 {
 		return nil
@@ -1130,40 +1055,7 @@ func (t *Turn) Messages() []handmsg.Message {
 	return messages
 }
 
+// normalizeTurnMessage calls handmsg.NormalizeMessage to check/standardize a turn message for correctness.
 func normalizeTurnMessage(message handmsg.Message) (handmsg.Message, error) {
 	return handmsg.NormalizeMessage(message)
-}
-
-func setInstruction(instructions instruct.Instructions, instruction instruct.Instruction) instruct.Instructions {
-	instruction.Name = strings.TrimSpace(instruction.Name)
-	instruction.Value = strings.TrimSpace(instruction.Value)
-
-	if instruction.Name == "" {
-		if instruction.Value == "" {
-			return instructions
-		}
-
-		return append(instructions, instruction)
-	}
-
-	for idx, existing := range instructions {
-		if existing.Name != instruction.Name {
-			continue
-		}
-
-		if instruction.Value == "" {
-			return append(instructions[:idx], instructions[idx+1:]...)
-		}
-
-		updated := make(instruct.Instructions, len(instructions))
-		copy(updated, instructions)
-		updated[idx] = instruction
-		return updated
-	}
-
-	if instruction.Value == "" {
-		return instructions
-	}
-
-	return append(instructions, instruction)
 }

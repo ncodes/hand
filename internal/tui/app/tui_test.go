@@ -149,6 +149,7 @@ func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 					Payload: trace.CompactionEventPayload{
 						SessionID: "default",
 						Status:    string(storage.CompactionStatusSucceeded),
+						Auto:      true,
 					},
 				},
 			}},
@@ -157,13 +158,25 @@ func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, []string{"Manual compaction completed", "Hand: older answer"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"Automatic compaction completed", "Hand: older answer"}, transcriptCellPlainTexts(runModel.messages))
 	require.Contains(t, stripANSI(runModel.transcript.View()), "older answer")
 	require.Equal(t, defaultSessionID, runModel.sessionID)
 	require.Equal(t, "Daily Planning (default)", runModel.sessionTitle)
-	require.Contains(t, transcriptCellPlainTexts(runModel.messages), "Manual compaction completed")
-	require.Contains(t, stripANSI(runModel.View().Content), "Manual compaction completed")
+	require.Contains(t, transcriptCellPlainTexts(runModel.messages), "Automatic compaction completed")
+	require.Contains(t, stripANSI(runModel.View().Content), "Automatic compaction completed")
 	require.Equal(t, defaultStatus, runModel.status.Text())
+}
+
+func TestModel_ApplyTUIMessageRendersLiveAutoCompactionTrace(t *testing.T) {
+	runModel := newModel()
+
+	cmd := runModel.applyTUIMessage(manualCompactionMsg{
+		State: manualCompactionState{Status: "succeeded", Label: autoCompactionLabel},
+	})
+
+	require.Nil(t, cmd)
+	require.Equal(t, []string{"Automatic compaction completed"}, transcriptCellPlainTexts(runModel.messages))
+	require.Contains(t, stripANSI(runModel.View().Content), "Automatic compaction completed")
 }
 
 func TestModel_UpdateReportsTimelineLoadFailure(t *testing.T) {

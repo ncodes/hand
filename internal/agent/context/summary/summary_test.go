@@ -101,7 +101,7 @@ func TestService_MaybeRefreshSummary_DoesNotTransitionCompactionWhenRefreshIsNot
 		{
 			name:    "history too short",
 			cfg:     summaryTestConfig(true),
-			history: summaryTestHistory(RecentSessionTail),
+			history: summaryTestHistory(summaryTestRecentTail()),
 			memory:  &State{},
 			request: summaryTriggerRequest(),
 		},
@@ -190,7 +190,7 @@ func TestService_MaybeRefreshSummary_RecordsCompactionFailureWhenSessionIsMissin
 
 func TestService_MaybeRefreshSummary_SkipsWhenHistoryIsTooShort(t *testing.T) {
 	client := &mocks.ModelClientStub{}
-	service := summaryTestService(summaryTestConfig(true), client, summaryTestStore(summaryTestHistory(RecentSessionTail)))
+	service := summaryTestService(summaryTestConfig(true), client, summaryTestStore(summaryTestHistory(summaryTestRecentTail())))
 	mem := &State{}
 	err := service.MaybeRefreshSummary(context.Background(), mem, RefreshInput{
 		Request:      summaryTriggerRequest(),
@@ -199,6 +199,33 @@ func TestService_MaybeRefreshSummary_SkipsWhenHistoryIsTooShort(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Zero(t, client.CallCount)
+}
+
+func TestService_MaybeRefreshSummary_UsesConfiguredRecentSessionTail(t *testing.T) {
+	client := &mocks.ModelClientStub{Responses: []*models.Response{{
+		OutputText: `{
+			"session_summary": "Configured tail",
+			"current_task": "Keep going",
+			"discoveries": [],
+			"open_questions": [],
+			"next_actions": []
+		}`,
+	}}}
+	recentTail := 2
+	cfg := summaryTestConfig(true)
+	cfg.Compaction.RecentSessionTail = &recentTail
+	service := summaryTestService(cfg, client, summaryTestStore(summaryTestHistory(5)))
+	mem := &State{}
+
+	err := service.MaybeRefreshSummary(context.Background(), mem, RefreshInput{
+		Request:      summaryTriggerRequest(),
+		SessionID:    storage.DefaultSessionID,
+		TraceSession: &mocks.TraceSessionStub{},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, mem.Current)
+	require.Equal(t, 3, mem.Current.SourceEndOffset)
+	require.Equal(t, 5, mem.Current.SourceMessageCount)
 }
 
 func TestService_MaybeRefreshSummary_SkipsWhenEstimateDoesNotTrigger(t *testing.T) {
@@ -811,7 +838,8 @@ func TestService_MaybeRefreshSummary_SavesSummaryAndRecordsTrace(t *testing.T) {
 	requireSummaryEvent(t, traceSession.Events, trace.EvtSummarySaved)
 	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionPending)
 	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionRunning)
-	requireSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionSucceeded)
+	payload := requireCompactionSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionSucceeded)
+	require.True(t, payload.Auto)
 }
 
 func TestService_MaybeRefreshSummary_SanitizesToolCallGroups(t *testing.T) {
@@ -969,7 +997,7 @@ func TestService_CompactSession_ReturnsCountMessagesError(t *testing.T) {
 
 func TestService_CompactSession_ReturnsHistoryTooShort(t *testing.T) {
 	traceSession := &mocks.TraceSessionStub{}
-	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, summaryTestStore(summaryTestHistory(RecentSessionTail)))
+	svc := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, summaryTestStore(summaryTestHistory(summaryTestRecentTail())))
 
 	_, err := svc.CompactSession(context.Background(), storage.Session{ID: storage.DefaultSessionID}, traceSession)
 	require.EqualError(t, err, "session history is too short to compact")
@@ -1009,6 +1037,8 @@ func TestService_CompactSession_ReturnsSummary(t *testing.T) {
 	require.Equal(t, 1, client.CallCount)
 	requireSummaryEvent(t, traceSession.Events, trace.EvtSummaryRequested)
 	requireSummaryEvent(t, traceSession.Events, trace.EvtSummarySaved)
+	payload := requireCompactionSummaryEvent(t, traceSession.Events, trace.EvtContextCompactionSucceeded)
+	require.False(t, payload.Auto)
 }
 
 func TestService_CompactSession_ReconcilesWhenExistingSummaryCoversTarget(t *testing.T) {
@@ -2029,6 +2059,10 @@ func summaryTestConfig(enabled bool) *config.Config {
 	}
 }
 
+func summaryTestRecentTail() int {
+	return summaryTestConfig(true).CompactionRecentSessionTailEffective()
+}
+
 func summaryTriggerRequest() models.Request {
 	return models.Request{
 		Instructions: "summary",
@@ -2113,6 +2147,21 @@ func requireSummaryEvent(t *testing.T, events []trace.Event, eventType string) {
 	}
 
 	require.Fail(t, "missing trace event", eventType)
+}
+
+func requireCompactionSummaryEvent(t *testing.T, events []trace.Event, eventType string) trace.CompactionEventPayload {
+	t.Helper()
+	for _, event := range events {
+		if event.Type != eventType {
+			continue
+		}
+		payload, ok := event.Payload.(trace.CompactionEventPayload)
+		require.True(t, ok)
+		return payload
+	}
+
+	require.Fail(t, "missing trace event", eventType)
+	return trace.CompactionEventPayload{}
 }
 
 func requireSummaryEventAbsent(t *testing.T, events []trace.Event, eventType string) {

@@ -11,7 +11,7 @@ var toolAnimationInterval = 180 * time.Millisecond
 type toolAnimationTickMsg struct{}
 
 func (m *model) startToolAnimation() tea.Cmd {
-	if !m.hasRunningToolTranscriptCells() && !m.manualCompactionActive {
+	if !m.hasRunningToolTranscriptCells() && !m.hasRunningCompactionTranscriptCells() && !m.manualCompactionActive {
 		m.toolAnimationActive = false
 		return nil
 	}
@@ -24,7 +24,7 @@ func (m *model) startToolAnimation() tea.Cmd {
 }
 
 func (m *model) updateToolAnimation() (tea.Model, tea.Cmd) {
-	if !m.hasRunningToolTranscriptCells() && !m.manualCompactionActive {
+	if !m.hasRunningToolTranscriptCells() && !m.hasRunningCompactionTranscriptCells() && !m.manualCompactionActive {
 		m.toolAnimationActive = false
 		return *m, nil
 	}
@@ -42,6 +42,17 @@ func (m *model) updateToolAnimation() (tea.Model, tea.Cmd) {
 
 func (m model) hasRunningToolTranscriptCells() bool {
 	return hasRunningToolTranscriptCell(m.messages)
+}
+
+func (m model) hasRunningCompactionTranscriptCells() bool {
+	for _, cell := range m.messages {
+		compactionCell, ok := cell.(manualCompactionTranscriptCell)
+		if ok && compactionCell.state.isInProgress() {
+			return true
+		}
+	}
+
+	return false
 }
 
 func toolAnimationTickCmd() tea.Cmd {

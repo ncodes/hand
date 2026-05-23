@@ -21,8 +21,6 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 )
 
-const RecentSessionTail = constants.RecentSessionTail
-
 type SessionSummaryPlanner string
 
 const SessionSummaryPlannerRetainRecentTail SessionSummaryPlanner = "retain_recent_tail"
@@ -89,6 +87,7 @@ type refreshPlan struct {
 	RequestedAt        time.Time
 	TargetMessageCount int
 	TargetOffset       int
+	Auto               bool
 }
 
 type recallPlan struct {
@@ -180,31 +179,35 @@ func (s *Service) refreshSummaryState(
 		return errors.New("summary store is required")
 	}
 
+	auto := !force
 	if !force && !s.compactionOn {
 		return nil
 	}
 
 	totalCount, err := s.store.CountMessages(ctx, input.SessionID, storage.MessageQueryOptions{})
 	if err != nil {
-		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayloadWithAuto(
 			input.SessionID,
 			storage.SessionCompaction{Status: storage.CompactionStatusFailed},
-			err.Error()),
+			err.Error(),
+			auto),
 		)
 		return err
 	}
 
-	if totalCount <= RecentSessionTail {
+	recentTail := s.recentTail
+	if totalCount <= recentTail {
 		return nil
 	}
 
 	plan := forcedPlan
 	if !force {
-		targetOffset := totalCount - RecentSessionTail
+		targetOffset := totalCount - recentTail
 		plan = refreshPlan{
 			RequestedAt:        s.currentTime(),
 			TargetMessageCount: totalCount,
 			TargetOffset:       targetOffset,
+			Auto:               true,
 		}
 	}
 
@@ -216,20 +219,20 @@ func (s *Service) refreshSummaryState(
 	if state.Current != nil && state.Current.SourceEndOffset >= plan.TargetOffset {
 		session, ok, err := s.store.Get(ctx, input.SessionID)
 		if err != nil {
-			input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
+			input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayloadWithAuto(input.SessionID, storage.SessionCompaction{
 				Status:             storage.CompactionStatusFailed,
 				TargetMessageCount: totalCount,
 				TargetOffset:       plan.TargetOffset,
-			}, err.Error()))
+			}, err.Error(), plan.Auto))
 			return err
 		}
 		if !ok {
 			err = errors.New("session not found")
-			input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
+			input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayloadWithAuto(input.SessionID, storage.SessionCompaction{
 				Status:             storage.CompactionStatusFailed,
 				TargetMessageCount: totalCount,
 				TargetOffset:       plan.TargetOffset,
-			}, err.Error()))
+			}, err.Error(), plan.Auto))
 			return err
 		}
 
@@ -245,20 +248,20 @@ func (s *Service) refreshSummaryState(
 
 	session, ok, err := s.store.Get(ctx, input.SessionID)
 	if err != nil {
-		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayloadWithAuto(input.SessionID, storage.SessionCompaction{
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: totalCount,
 			TargetOffset:       plan.TargetOffset,
-		}, err.Error()))
+		}, err.Error(), plan.Auto))
 		return err
 	}
 	if !ok {
 		err = errors.New("session not found")
-		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayloadWithAuto(input.SessionID, storage.SessionCompaction{
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: totalCount,
 			TargetOffset:       plan.TargetOffset,
-		}, err.Error()))
+		}, err.Error(), plan.Auto))
 		return err
 	}
 
@@ -267,53 +270,53 @@ func (s *Service) refreshSummaryState(
 		Str("trigger_source", getCompactionTriggerSource(force)).
 		Int("existing_summary_end_offset", existingSummaryEndOffset).
 		Int("messages_to_summarize", max(plan.TargetOffset-existingSummaryEndOffset, 0)).
-		Int("tail_messages_retained", RecentSessionTail).
+		Int("tail_messages_retained", recentTail).
 		Int("target_offset", plan.TargetOffset).
 		Int("total_messages", plan.TargetMessageCount).
 		Msg("compaction plan created")
 
 	if err := s.transitionCompactionPending(ctx, &session, plan, input.TraceSession); err != nil {
-		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayloadWithAuto(input.SessionID, storage.SessionCompaction{
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: plan.TargetMessageCount,
 			TargetOffset:       plan.TargetOffset,
-		}, err.Error()))
+		}, err.Error(), plan.Auto))
 		return err
 	}
 
 	if err := s.transitionCompactionRunning(ctx, &session, plan, input.TraceSession); err != nil {
-		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayloadWithAuto(input.SessionID, storage.SessionCompaction{
 			RequestedAt:        plan.RequestedAt,
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: plan.TargetMessageCount,
 			TargetOffset:       plan.TargetOffset,
-		}, err.Error()))
+		}, err.Error(), plan.Auto))
 		return err
 	}
 
 	if _, err := s.refreshSummary(ctx, state, input, plan, true); err != nil {
 		if transErr := s.transitionCompactionFailed(ctx, &session, plan, err, input.TraceSession); transErr != nil {
 			wrapped := fmt.Errorf("mark compaction failed: %w", transErr)
-			input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
+			input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayloadWithAuto(input.SessionID, storage.SessionCompaction{
 				RequestedAt:        plan.RequestedAt,
 				StartedAt:          session.Compaction.StartedAt,
 				Status:             storage.CompactionStatusFailed,
 				TargetMessageCount: plan.TargetMessageCount,
 				TargetOffset:       plan.TargetOffset,
-			}, wrapped.Error()))
+			}, wrapped.Error(), plan.Auto))
 			return wrapped
 		}
 		return err
 	}
 
 	if err := s.transitionCompactionSucceeded(ctx, &session, plan, input.TraceSession); err != nil {
-		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(input.SessionID, storage.SessionCompaction{
+		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayloadWithAuto(input.SessionID, storage.SessionCompaction{
 			RequestedAt:        plan.RequestedAt,
 			StartedAt:          session.Compaction.StartedAt,
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: plan.TargetMessageCount,
 			TargetOffset:       plan.TargetOffset,
-		}, err.Error()))
+		}, err.Error(), plan.Auto))
 		return err
 	}
 
@@ -498,7 +501,7 @@ func (s *Service) summarizeSessionPlan(totalCount int, opts SummarizeSessionOpti
 
 	switch planner {
 	case SessionSummaryPlannerRetainRecentTail:
-		retainedTailMessages := RecentSessionTail
+		retainedTailMessages := s.recentTail
 		if opts.RetainedTailMessages != nil {
 			retainedTailMessages = *opts.RetainedTailMessages
 		}
@@ -1659,7 +1662,9 @@ func (s *Service) transitionCompactionPending(
 		return err
 	}
 
-	recorder.Record(trace.EvtContextCompactionPending, buildCompactionTracePayload(session.ID, session.Compaction, ""))
+	recorder.Record(
+		trace.EvtContextCompactionPending,
+		buildCompactionTracePayloadWithAuto(session.ID, session.Compaction, "", plan.Auto))
 	return nil
 }
 
@@ -1682,12 +1687,16 @@ func (s *Service) transitionCompactionRunning(
 		return err
 	}
 
-	recorder.Record(trace.EvtContextCompactionRunning, buildCompactionTracePayload(session.ID, session.Compaction, ""))
+	recorder.Record(
+		trace.EvtContextCompactionRunning,
+		buildCompactionTracePayloadWithAuto(session.ID, session.Compaction, "", plan.Auto))
+
 	log.Debug().
 		Str("session_id", session.ID).
 		Int("target_offset", plan.TargetOffset).
 		Int("target_message_count", plan.TargetMessageCount).
 		Msg("compaction running")
+
 	return nil
 }
 
@@ -1712,12 +1721,15 @@ func (s *Service) transitionCompactionSucceeded(
 		return err
 	}
 
-	recorder.Record(trace.EvtContextCompactionSucceeded, buildCompactionTracePayload(session.ID, session.Compaction, ""))
+	recorder.Record(trace.EvtContextCompactionSucceeded,
+		buildCompactionTracePayloadWithAuto(session.ID, session.Compaction, "", plan.Auto))
+
 	log.Info().
 		Str("session_id", session.ID).
 		Int("target_offset", plan.TargetOffset).
 		Int("target_message_count", plan.TargetMessageCount).
 		Msg("compaction completed")
+
 	return nil
 }
 
@@ -1738,13 +1750,13 @@ func (s *Service) reconcileCompactionSucceeded(
 	}
 
 	if err := s.transitionCompactionSucceeded(ctx, session, plan, recorder); err != nil {
-		recorder.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(session.ID, storage.SessionCompaction{
+		recorder.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayloadWithAuto(session.ID, storage.SessionCompaction{
 			RequestedAt:        session.Compaction.RequestedAt,
 			StartedAt:          session.Compaction.StartedAt,
 			Status:             storage.CompactionStatusFailed,
 			TargetMessageCount: plan.TargetMessageCount,
 			TargetOffset:       plan.TargetOffset,
-		}, err.Error()))
+		}, err.Error(), plan.Auto))
 		return err
 	}
 
@@ -1756,7 +1768,7 @@ func (s *Service) transitionCompactionFailed(
 	session *storage.Session,
 	plan refreshPlan,
 	cause error,
-	recorder traceRecorder,
+	traceRecorder traceRecorder,
 ) error {
 	if session == nil {
 		return errors.New("session is required")
@@ -1775,11 +1787,13 @@ func (s *Service) transitionCompactionFailed(
 
 	log.Error().Str("session_id", session.ID).Str("cause", session.Compaction.LastError).Msg("compaction failed")
 
-	recorder.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayload(
+	traceRecorder.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayloadWithAuto(
 		session.ID,
 		session.Compaction,
 		session.Compaction.LastError,
+		plan.Auto,
 	))
+
 	log.Warn().
 		Str("session_id", session.ID).
 		Int("target_offset", plan.TargetOffset).
@@ -1928,9 +1942,19 @@ func summaryTracePayloadWithError(base trace.SummaryEventPayload, failure string
 }
 
 func buildCompactionTracePayload(sessionID string, state storage.SessionCompaction, failure string) trace.CompactionEventPayload {
+	return buildCompactionTracePayloadWithAuto(sessionID, state, failure, false)
+}
+
+func buildCompactionTracePayloadWithAuto(
+	sessionID string,
+	state storage.SessionCompaction,
+	failure string,
+	auto bool,
+) trace.CompactionEventPayload {
 	payload := trace.CompactionEventPayload{
 		SessionID:          sessionID,
 		Status:             string(state.Status),
+		Auto:               auto,
 		TargetMessageCount: state.TargetMessageCount,
 		TargetOffset:       state.TargetOffset,
 	}
@@ -1989,4 +2013,8 @@ func getSummaryCompactionEvaluator(cfg *config.Config) *compaction.Evaluator {
 		cfg.Compaction.TriggerPercent,
 		cfg.Compaction.WarnPercent,
 	)
+}
+
+func getSummaryRecentSessionTail(cfg *config.Config) int {
+	return cfg.CompactionRecentSessionTailEffective()
 }

@@ -33,6 +33,7 @@ type Service struct {
 	summaryProvider string
 	apiMode         string
 	debugRequests   bool
+	recentTail      int
 	now             func() time.Time
 }
 
@@ -60,6 +61,7 @@ func NewService(cfg *config.Config, modelClient, summaryClient models.Client, su
 		store:         summaryStore,
 		evaluator:     getSummaryCompactionEvaluator(cfg),
 		compactionOn:  isSummaryCompactionEnabled(cfg),
+		recentTail:    getSummaryRecentSessionTail(cfg),
 		now:           func() time.Time { return time.Now().UTC() },
 	}
 

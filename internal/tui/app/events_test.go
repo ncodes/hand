@@ -110,6 +110,22 @@ func TestTraceEventToTUIMessage_ConvertsReasoningCompleted(t *testing.T) {
 	require.Equal(t, reasoningCompletedMsg{Duration: 2500 * time.Millisecond}, msg)
 }
 
+func TestTraceEventToTUIMessage_ConvertsAutoCompactionEvent(t *testing.T) {
+	msg, ok := traceEventToTUIMessage(trace.Event{
+		Type: trace.EvtContextCompactionSucceeded,
+		Payload: map[string]any{
+			"session_id": "default",
+			"status":     "succeeded",
+			"auto":       true,
+		},
+	})
+
+	require.True(t, ok)
+	require.Equal(t, manualCompactionMsg{
+		State: manualCompactionState{Status: "succeeded", Label: autoCompactionLabel},
+	}, msg)
+}
+
 func TestTraceEventToTUIMessage_ConvertsToolInvocationStarted(t *testing.T) {
 	msg, ok := traceEventToTUIMessage(trace.Event{
 		Type: trace.EvtToolInvocationStarted,
