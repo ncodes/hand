@@ -36,6 +36,7 @@ func (b *Builder) Build(input Input) []messages.Message {
 	return sanitizeToolCallMessageGroups(built)
 }
 
+// sanitizeToolCallMessageGroups keeps assistant tool calls adjacent to their tool results.
 func sanitizeToolCallMessageGroups(input []messages.Message) []messages.Message {
 	if len(input) == 0 {
 		return nil
@@ -52,6 +53,9 @@ func sanitizeToolCallMessageGroups(input []messages.Message) []messages.Message 
 			continue
 		}
 
+		// OpenAI-style tool calling requires tool results immediately after the
+		// assistant message that requested them. If the previous run ended before
+		// a result was recorded, synthesize a failure result to keep context valid.
 		toolMessages := mapImmediateToolMessages(input, index+1)
 		sanitized = append(sanitized, message)
 		for _, toolCall := range message.ToolCalls {
@@ -72,6 +76,7 @@ func sanitizeToolCallMessageGroups(input []messages.Message) []messages.Message 
 	return sanitized
 }
 
+// mapImmediateToolMessages maps only the contiguous tool result messages after start.
 func mapImmediateToolMessages(input []messages.Message, start int) map[string]messages.Message {
 	result := map[string]messages.Message{}
 	for index := start; index < len(input); index++ {
@@ -92,6 +97,7 @@ func mapImmediateToolMessages(input []messages.Message, start int) map[string]me
 	return result
 }
 
+// countImmediateToolMessages counts contiguous tool messages at the start of a slice.
 func countImmediateToolMessages(input []messages.Message) int {
 	count := 0
 	for _, message := range input {
@@ -104,6 +110,7 @@ func countImmediateToolMessages(input []messages.Message) int {
 	return count
 }
 
+// unavailableToolResultMessage creates a placeholder result for missing persisted tool output.
 func unavailableToolResultMessage(toolCall messages.ToolCall) messages.Message {
 	return messages.Message{
 		Role:       messages.RoleTool,

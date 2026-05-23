@@ -23,13 +23,16 @@ import (
 
 type SessionSummaryPlanner string
 
+// SessionSummaryPlannerRetainRecentTail summarizes all but the configured recent tail.
 const SessionSummaryPlannerRetainRecentTail SessionSummaryPlanner = "retain_recent_tail"
 
+// SummarizeSessionOptions controls forced persisted summary generation.
 type SummarizeSessionOptions struct {
 	Planner              SessionSummaryPlanner
 	RetainedTailMessages *int
 }
 
+// SummaryState is the in-memory form of a persisted session summary.
 type SummaryState struct {
 	SessionID          string
 	SourceEndOffset    int
@@ -42,6 +45,7 @@ type SummaryState struct {
 	NextActions        []string
 }
 
+// summaryPayload is the structured model response expected from the summary model.
 type summaryPayload struct {
 	SessionSummary string   `json:"session_summary"`
 	CurrentTask    string   `json:"current_task"`
@@ -50,6 +54,7 @@ type summaryPayload struct {
 	NextActions    []string `json:"next_actions"`
 }
 
+// summaryStructuredOutput asks compatible providers for a strict summary JSON object.
 var summaryStructuredOutput = &models.StructuredOutput{
 	Name:        "session_summary",
 	Description: "Structured handoff summary for compacted conversation history.",
@@ -83,6 +88,7 @@ var summaryStructuredOutput = &models.StructuredOutput{
 	},
 }
 
+// refreshPlan describes the persisted prefix that a compaction pass should summarize.
 type refreshPlan struct {
 	RequestedAt        time.Time
 	TargetMessageCount int
@@ -90,6 +96,7 @@ type refreshPlan struct {
 	Auto               bool
 }
 
+// recallPlan describes temporary recall windows that should be summarized and merged.
 type recallPlan struct {
 	RequestedAt        time.Time
 	TargetMessageCount int
@@ -97,6 +104,7 @@ type recallPlan struct {
 	Windows            []recallWindow
 }
 
+// recallWindow represents a half-open message offset range [StartOffset, EndOffset).
 type recallWindow struct {
 	StartOffset int
 	EndOffset   int
@@ -107,6 +115,7 @@ var maxRecallWindowTokens = constants.RecallWindowTokens
 var maxRecallMergeSummaries = constants.RecallMergeSummaries
 var maxRecallMergeTokens = constants.RecallMergeTokens
 
+// SummaryFromStorage converts a persisted summary into active summary state.
 func SummaryFromStorage(summary storage.SessionSummary) *SummaryState {
 	if summary.SessionID == "" || summary.SessionSummary == "" {
 		return nil
@@ -200,6 +209,8 @@ func (s *Service) refreshSummaryState(
 		return nil
 	}
 
+	// Automatic compaction always retains the configured recent tail. Forced
+	// compaction receives its target from SummarizeSession.
 	plan := forcedPlan
 	if !force {
 		targetOffset := totalCount - recentTail
@@ -216,6 +227,8 @@ func (s *Service) refreshSummaryState(
 		existingSummaryEndOffset = state.Current.SourceEndOffset
 	}
 
+	// If a previous compaction already wrote the summary but crashed before
+	// marking the session succeeded, reconcile status instead of summarizing again.
 	if state.Current != nil && state.Current.SourceEndOffset >= plan.TargetOffset {
 		session, ok, err := s.store.Get(ctx, input.SessionID)
 		if err != nil {
@@ -239,6 +252,8 @@ func (s *Service) refreshSummaryState(
 		return s.reconcileCompactionSucceeded(ctx, &session, plan, input.TraceSession)
 	}
 
+	// In automatic mode, persisted history may be compactable but the actual
+	// request may still be below threshold, so skip until the evaluator triggers.
 	if !force {
 		estimate := s.evaluator.Evaluate(input.Request, input.LastPromptTokens)
 		if !estimate.Triggered() {
@@ -275,6 +290,8 @@ func (s *Service) refreshSummaryState(
 		Int("total_messages", plan.TargetMessageCount).
 		Msg("compaction plan created")
 
+	// Persist status transitions before doing model work so live clients and
+	// hydration can show in-progress compaction.
 	if err := s.transitionCompactionPending(ctx, &session, plan, input.TraceSession); err != nil {
 		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayloadWithAuto(input.SessionID, storage.SessionCompaction{
 			Status:             storage.CompactionStatusFailed,
@@ -294,6 +311,8 @@ func (s *Service) refreshSummaryState(
 		return err
 	}
 
+	// refreshSummary performs the model call and writes the new summary. Any
+	// failure after "running" is reflected into durable compaction status.
 	if _, err := s.refreshSummary(ctx, state, input, plan, true); err != nil {
 		if transErr := s.transitionCompactionFailed(ctx, &session, plan, err, input.TraceSession); transErr != nil {
 			wrapped := fmt.Errorf("mark compaction failed: %w", transErr)
@@ -493,6 +512,7 @@ func (s *Service) SummarizeSession(
 	return state.Current, nil
 }
 
+// summarizeSessionPlan computes the persisted compaction target for a forced summary request.
 func (s *Service) summarizeSessionPlan(totalCount int, opts SummarizeSessionOptions) (refreshPlan, error) {
 	planner := opts.Planner
 	if planner == "" {
@@ -1000,6 +1020,8 @@ func (s *Service) synthesizeSummaryStates(
 		batches := getPlannedRecallSummaryBatches(state, current)
 		next := make([]*SummaryState, 0, len(batches))
 		for idx, batch := range batches {
+			// Each batch is summarized as text because the model is merging
+			// summary records, not original conversation messages.
 			resp, err := s.generateSummaryResponse(ctx, models.Request{
 				Model:        s.summaryModel,
 				APIMode:      s.apiMode,
@@ -1091,6 +1113,7 @@ func getPlannedRecallSummaryBatches(state *State, summaries []*SummaryState) [][
 	return batches
 }
 
+// buildRecallChunkInstructions builds the prompt for summarizing one recall window.
 func buildRecallChunkInstructions(state *State, windowIndex int, windowCount int) instruct.Instructions {
 	instructions := instruct.BuildRecallSessionSummaryWindow(windowIndex, windowCount)
 
@@ -1105,6 +1128,7 @@ func buildRecallChunkInstructions(state *State, windowIndex int, windowCount int
 	return instructions
 }
 
+// buildRecallSynthesisInstructions builds the prompt for merging recall summaries.
 func buildRecallSynthesisInstructions(state *State, batchIndex int, batchCount int) instruct.Instructions {
 	instructions := instruct.BuildRecallSessionSummarySynthesis(batchIndex, batchCount)
 
@@ -1119,6 +1143,7 @@ func buildRecallSynthesisInstructions(state *State, batchIndex int, batchCount i
 	return instructions
 }
 
+// buildRecallChunkTextInstructions builds the prompt for one oversized-window text chunk.
 func buildRecallChunkTextInstructions(
 	state *State,
 	windowIndex int,
@@ -1286,6 +1311,7 @@ func parseSummaryResponse(
 	return summary, nil
 }
 
+// estimateSummaryTokens estimates token usage for a summary request.
 func estimateSummaryTokens(instructions string, messages []handmsg.Message) int {
 	return compaction.EstimateRequestRough(models.Request{
 		Instructions: instructions,
@@ -1293,6 +1319,7 @@ func estimateSummaryTokens(instructions string, messages []handmsg.Message) int 
 	})
 }
 
+// cloneSummaryState returns a detached copy of summary state.
 func cloneSummaryState(summary *SummaryState) *SummaryState {
 	if summary == nil {
 		return nil
@@ -1311,6 +1338,7 @@ func cloneSummaryState(summary *SummaryState) *SummaryState {
 	})
 }
 
+// cloneSummaryStates returns detached copies of summary state pointers.
 func cloneSummaryStates(summaries []*SummaryState) []*SummaryState {
 	if len(summaries) == 0 {
 		return nil
@@ -1617,6 +1645,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 	return resp, nil
 }
 
+// getSummaryModelErrorKind classifies summary model failures for logs.
 func getSummaryModelErrorKind(err error) string {
 	if err == nil {
 		return ""
@@ -1641,6 +1670,7 @@ func getSummaryModelErrorKind(err error) string {
 	}
 }
 
+// transitionCompactionPending persists and traces the pending compaction state.
 func (s *Service) transitionCompactionPending(
 	ctx context.Context,
 	session *storage.Session,
@@ -1668,6 +1698,7 @@ func (s *Service) transitionCompactionPending(
 	return nil
 }
 
+// transitionCompactionRunning persists and traces the running compaction state.
 func (s *Service) transitionCompactionRunning(
 	ctx context.Context,
 	session *storage.Session,
@@ -1700,6 +1731,7 @@ func (s *Service) transitionCompactionRunning(
 	return nil
 }
 
+// transitionCompactionSucceeded persists and traces successful compaction state.
 func (s *Service) transitionCompactionSucceeded(
 	ctx context.Context,
 	session *storage.Session,
@@ -1733,6 +1765,7 @@ func (s *Service) transitionCompactionSucceeded(
 	return nil
 }
 
+// reconcileCompactionSucceeded repairs durable compaction status after a completed summary.
 func (s *Service) reconcileCompactionSucceeded(
 	ctx context.Context,
 	session *storage.Session,
@@ -1763,6 +1796,7 @@ func (s *Service) reconcileCompactionSucceeded(
 	return nil
 }
 
+// transitionCompactionFailed persists and traces failed compaction state.
 func (s *Service) transitionCompactionFailed(
 	ctx context.Context,
 	session *storage.Session,
@@ -1804,6 +1838,7 @@ func (s *Service) transitionCompactionFailed(
 	return nil
 }
 
+// getCompactionTriggerSource renders a stable source label for logs and traces.
 func getCompactionTriggerSource(force bool) string {
 	if force {
 		return "manual"
@@ -1812,6 +1847,7 @@ func getCompactionTriggerSource(force bool) string {
 	return "preflight_threshold_exceeded"
 }
 
+// currentTime returns the service clock in UTC.
 func (s *Service) currentTime() time.Time {
 	if s != nil && s.now != nil {
 		now := s.now()
@@ -1823,6 +1859,7 @@ func (s *Service) currentTime() time.Time {
 	return time.Now().UTC()
 }
 
+// RecordSummaryApplied emits a trace event when summary context is applied to a request.
 func (m *State) RecordSummaryApplied(traceSession trace.Session) {
 	if m == nil || traceSession == nil || m.Current == nil {
 		return
@@ -1841,6 +1878,7 @@ func (m *State) RecordSummaryApplied(traceSession trace.Session) {
 	)
 }
 
+// parseSummary parses structured summary JSON into SummaryState.
 func parseSummary(
 	sessionID string,
 	sourceEndOffset,
@@ -1878,6 +1916,7 @@ func parseSummary(
 
 var errSummaryResponseEmpty = errors.New("summary response is empty")
 
+// buildFallbackSummary treats non-empty unstructured model output as the summary text.
 func buildFallbackSummary(
 	sessionID string,
 	sourceEndOffset,
@@ -1904,10 +1943,12 @@ func buildFallbackSummary(
 	return summary, nil
 }
 
+// normalizeSummaryText trims whitespace and Markdown fences.
 func normalizeSummaryText(raw string) string {
 	return strings.TrimSpace(stripMarkdownFence(raw))
 }
 
+// stripMarkdownFence removes one surrounding Markdown code fence if present.
 func stripMarkdownFence(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if !strings.HasPrefix(raw, "```") {
@@ -1921,6 +1962,7 @@ func stripMarkdownFence(raw string) string {
 	return strings.TrimSpace(raw)
 }
 
+// buildSummaryTracePayload creates the common summary trace payload.
 func buildSummaryTracePayload(
 	sessionID string,
 	sourceEndOffset,
@@ -1935,16 +1977,19 @@ func buildSummaryTracePayload(
 	}
 }
 
+// summaryTracePayloadWithError attaches an error to a summary trace payload.
 func summaryTracePayloadWithError(base trace.SummaryEventPayload, failure string) trace.SummaryEventPayload {
 	merged := base
 	merged.Error = strings.TrimSpace(failure)
 	return merged
 }
 
+// buildCompactionTracePayload creates a manual compaction trace payload.
 func buildCompactionTracePayload(sessionID string, state storage.SessionCompaction, failure string) trace.CompactionEventPayload {
 	return buildCompactionTracePayloadWithAuto(sessionID, state, failure, false)
 }
 
+// buildCompactionTracePayloadWithAuto creates a compaction trace payload with source metadata.
 func buildCompactionTracePayloadWithAuto(
 	sessionID string,
 	state storage.SessionCompaction,
@@ -1977,6 +2022,7 @@ func buildCompactionTracePayloadWithAuto(
 	return payload
 }
 
+// renderSummaryList renders one optional list section in summary instructions.
 func renderSummaryList(title string, values []string) string {
 	lines := make([]string, 0, len(values))
 	for _, value := range values {
@@ -1995,6 +2041,7 @@ func renderSummaryList(title string, values []string) string {
 	return "# " + title + "\n\n" + strings.Join(lines, "\n")
 }
 
+// isSummaryCompactionEnabled reports whether summary compaction is enabled.
 func isSummaryCompactionEnabled(cfg *config.Config) bool {
 	if cfg == nil || cfg.Compaction.Enabled == nil {
 		return true
@@ -2003,6 +2050,7 @@ func isSummaryCompactionEnabled(cfg *config.Config) bool {
 	return *cfg.Compaction.Enabled
 }
 
+// getSummaryCompactionEvaluator builds the evaluator used by summary compaction.
 func getSummaryCompactionEvaluator(cfg *config.Config) *compaction.Evaluator {
 	if cfg == nil {
 		return compaction.NewEvaluator(0, 0, 0)
@@ -2015,6 +2063,7 @@ func getSummaryCompactionEvaluator(cfg *config.Config) *compaction.Evaluator {
 	)
 }
 
+// getSummaryRecentSessionTail reads the effective retained-tail setting.
 func getSummaryRecentSessionTail(cfg *config.Config) int {
 	return cfg.CompactionRecentSessionTailEffective()
 }

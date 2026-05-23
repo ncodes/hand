@@ -46,6 +46,7 @@ func newFanoutTraceSession(
 	}
 }
 
+// ID returns the primary trace session ID when available, otherwise the fallback session ID.
 func (s fanoutTraceSession) ID() string {
 	if s.primary != nil {
 		if id := strings.TrimSpace(s.primary.ID()); id != "" {
@@ -56,6 +57,7 @@ func (s fanoutTraceSession) ID() string {
 	return s.sessionID
 }
 
+// Record writes all events to the primary trace and streams selected redacted events live.
 func (s fanoutTraceSession) Record(eventType string, payload any) {
 	if s.primary != nil {
 		s.primary.Record(eventType, payload)
@@ -64,6 +66,8 @@ func (s fanoutTraceSession) Record(eventType string, payload any) {
 		return
 	}
 
+	// Live trace payloads may be rendered immediately in the TUI, so sanitize
+	// before they leave the trace subsystem.
 	event := trace.Event{
 		SessionID: s.ID(),
 		Type:      strings.TrimSpace(eventType),
@@ -76,12 +80,14 @@ func (s fanoutTraceSession) Record(eventType string, payload any) {
 	s.onEvent(event)
 }
 
+// Close closes the primary trace session.
 func (s fanoutTraceSession) Close() {
 	if s.primary != nil {
 		s.primary.Close()
 	}
 }
 
+// isStreamableTraceEvent whitelists trace events that are useful during a live response.
 func isStreamableTraceEvent(eventType string) bool {
 	switch strings.TrimSpace(eventType) {
 	case trace.EvtToolInvocationStarted,

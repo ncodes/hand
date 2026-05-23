@@ -12,6 +12,7 @@ const (
 	maxSessionTimelineLimit     = 500
 )
 
+// GetSessionTimeline loads transcript messages and trace events for TUI hydration.
 func (a *Agent) GetSessionTimeline(ctx context.Context, opts SessionTimelineOptions) (SessionTimeline, error) {
 	if a == nil {
 		return SessionTimeline{}, errors.New("agent is required")
@@ -54,6 +55,7 @@ func (a *Agent) GetSessionTimeline(ctx context.Context, opts SessionTimelineOpti
 	}, nil
 }
 
+// loadTimelineMessages returns ordered messages plus a flag indicating older messages exist.
 func (a *Agent) loadTimelineMessages(
 	ctx context.Context,
 	sessionID string,
@@ -62,6 +64,8 @@ func (a *Agent) loadTimelineMessages(
 	limit := getTimelineLimit(opts.MessageLimit)
 	offset := opts.MessageOffset
 	hasMoreBefore := false
+	// With default options, hydrate the most recent tail rather than the oldest
+	// messages so the TUI opens near the active conversation.
 	if opts.MessageOffset == 0 && opts.MessageLimit <= 0 {
 		count, err := a.stateMgr.CountMessages(ctx, sessionID, storage.MessageQueryOptions{})
 		if err != nil {
@@ -98,6 +102,7 @@ func (a *Agent) loadTimelineMessages(
 	return timelineMessages, hasMore, nil
 }
 
+// loadTimelineTraceEvents returns ordered trace events plus pagination/truncation flags.
 func (a *Agent) loadTimelineTraceEvents(
 	ctx context.Context,
 	sessionID string,
@@ -114,6 +119,8 @@ func (a *Agent) loadTimelineTraceEvents(
 
 	defaultRecentTail := opts.TraceOffset == 0 && opts.TraceLimit <= 0
 	if defaultRecentTail {
+		// Query descending for the recent tail, then reverse below so renderers
+		// still receive chronological trace order.
 		query.Desc = true
 	}
 
@@ -151,12 +158,14 @@ func (a *Agent) loadTimelineTraceEvents(
 	return timelineEvents, hasMore, truncatedBefore, nil
 }
 
+// reverseTraceEvents reverses a trace slice in place.
 func reverseTraceEvents(events []storage.TraceEvent) {
 	for left, right := 0, len(events)-1; left < right; left, right = left+1, right-1 {
 		events[left], events[right] = events[right], events[left]
 	}
 }
 
+// hasTruncatedTraceHistory reports whether earlier trace rows were pruned or omitted.
 func (a *Agent) hasTruncatedTraceHistory(
 	ctx context.Context,
 	sessionID string,
@@ -185,6 +194,7 @@ func (a *Agent) hasTruncatedTraceHistory(
 	return result.Events[0].Sequence > 1, nil
 }
 
+// checkTimelineOptions validates pagination offsets and limits.
 func checkTimelineOptions(opts SessionTimelineOptions) error {
 	if opts.MessageOffset < 0 {
 		return errors.New("message offset must be greater than or equal to zero")
@@ -202,6 +212,7 @@ func checkTimelineOptions(opts SessionTimelineOptions) error {
 	return nil
 }
 
+// getTimelineLimit applies default and maximum page sizes.
 func getTimelineLimit(limit int) int {
 	if limit <= 0 {
 		return defaultSessionTimelineLimit
@@ -213,6 +224,7 @@ func getTimelineLimit(limit int) int {
 	return limit
 }
 
+// getFirstTraceSequence returns the first loaded trace sequence, or zero when empty.
 func getFirstTraceSequence(events []SessionTimelineTraceEvent) int {
 	if len(events) == 0 {
 		return 0
@@ -221,6 +233,7 @@ func getFirstTraceSequence(events []SessionTimelineTraceEvent) int {
 	return events[0].Event.Sequence
 }
 
+// getLastTraceSequence returns the last loaded trace sequence, or zero when empty.
 func getLastTraceSequence(events []SessionTimelineTraceEvent) int {
 	if len(events) == 0 {
 		return 0

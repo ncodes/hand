@@ -180,6 +180,7 @@ func NewAgent(ctx context.Context, cfg *config.Config, modelClient models.Client
 	}
 }
 
+// Start opens state, prepares the runtime environment, and marks the agent ready for requests.
 func (a *Agent) Start(ctx context.Context) error {
 	if a == nil {
 		return errors.New("agent is required")
@@ -191,6 +192,8 @@ func (a *Agent) Start(ctx context.Context) error {
 	ctx = normalizeContext(ctx)
 	a.ctx = ctx
 
+	// State is started before environment preparation because tools may need
+	// session, trace, memory, or vector-store access during Prepare.
 	if err := a.ensureStateManager(); err != nil {
 		return err
 	}
@@ -199,6 +202,8 @@ func (a *Agent) Start(ctx context.Context) error {
 		return err
 	}
 
+	// Environment setup wires the durable state and summary model client into
+	// tools so they can execute with the same runtime identity as the agent.
 	a.env = newEnvironment(ctx, a.cfg)
 	a.env.SetStateManager(a.stateMgr)
 	a.env.SetModelClient(a.summaryClient)
@@ -214,6 +219,7 @@ func (a *Agent) Start(ctx context.Context) error {
 	return nil
 }
 
+// Close flushes memory candidates when configured and then closes state resources.
 func (a *Agent) Close() error {
 	if a == nil || a.stateMgr == nil {
 		return nil
@@ -226,6 +232,8 @@ func (a *Agent) Close() error {
 	ctx := normalizeContext(a.ctx)
 	sessionID, err := a.stateMgr.CurrentSession(ctx)
 	if err == nil && strings.TrimSpace(sessionID) != "" {
+		// Controlled shutdown can lose recent context, so give memory extraction
+		// one last chance to preserve useful facts before closing storage.
 		traceSession := trace.NoopSession()
 		if a.env != nil {
 			traceSession = a.openTraceSessionForSession(sessionID)
@@ -237,6 +245,7 @@ func (a *Agent) Close() error {
 	return a.stateMgr.Close()
 }
 
+// Respond executes one user turn in the active or requested session.
 func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (string, error) {
 	if a == nil {
 		return "", errors.New("agent is required")
@@ -264,6 +273,8 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 		return "", errors.New("environment has not been initialized")
 	}
 
+	// Tests may construct an initialized agent with a nil environment. In that
+	// case we lazily prepare one here, but normal app startup goes through Start.
 	env := a.env
 	if env == nil {
 		env = newEnvironment(ctx, a.cfg)
@@ -282,6 +293,8 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 
 	agentLog.Info().Str("session_id", opts.SessionID).Str("model", a.cfg.Models.Main.Name).Msg("responding to user message")
 
+	// Turn owns per-response state such as loaded history, retrieved memory,
+	// request instruction overrides, streaming callbacks, and emitted messages.
 	turn := NewTurn(
 		a.cfg,
 		a.modelClient,
@@ -299,6 +312,7 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 	return reply, err
 }
 
+// TurnMessages returns a defensive copy of messages emitted by the most recent turn.
 func (a *Agent) TurnMessages() []handmsg.Message {
 	if a == nil || len(a.turnMessages) == 0 {
 		return nil
@@ -309,6 +323,7 @@ func (a *Agent) TurnMessages() []handmsg.Message {
 	return messages
 }
 
+// availableToolDefinitions resolves tools available under the current environment policy.
 func (a *Agent) availableToolDefinitions() ([]models.ToolDefinition, error) {
 	if a == nil || a.env == nil || a.env.Tools() == nil {
 		return nil, nil
@@ -327,14 +342,17 @@ func (a *Agent) availableToolDefinitions() ([]models.ToolDefinition, error) {
 	return toolsList, nil
 }
 
+// invokeTool executes a model-requested tool using the agent's current environment.
 func (a *Agent) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
 	return a.invokeToolWithEnvironment(ctx, a.env, toolCall)
 }
 
+// getRootRunContext creates the root run identity for a public session ID.
 func (a *Agent) getRootRunContext(sessionID string) (runcontext.Context, error) {
 	return newRootRunContext(sessionID)
 }
 
+// openTraceSessionForSession opens a trace stream scoped to a session's root run.
 func (a *Agent) openTraceSessionForSession(sessionID string) trace.Session {
 	if a == nil || a.env == nil {
 		return trace.NoopSession()
@@ -348,6 +366,7 @@ func (a *Agent) openTraceSessionForSession(sessionID string) trace.Session {
 	return a.env.NewTraceSessionForRun(runCtx)
 }
 
+// invokeToolWithEnvironment executes a tool using a supplied environment.
 func (a *Agent) invokeToolWithEnvironment(
 	ctx context.Context,
 	env environment.Environment,
@@ -356,6 +375,7 @@ func (a *Agent) invokeToolWithEnvironment(
 	return invokeToolWithEnvironment(ctx, env, toolCall, a.summaryClient, a.cfg)
 }
 
+// invokeToolWithEnvironment adapts the tool registry response into a model-visible tool message.
 func invokeToolWithEnvironment(
 	ctx context.Context,
 	env environment.Environment,
@@ -365,11 +385,15 @@ func invokeToolWithEnvironment(
 ) handmsg.Message {
 	result := map[string]any{"name": toolCall.Name}
 
+	// A missing registry is represented as a tool result instead of panicking so
+	// the model sees a normal tool failure and the turn can complete cleanly.
 	if env == nil || env.Tools() == nil {
 		result["error"] = "tool registry is required"
 		return toolResultMessage(toolCall, result)
 	}
 
+	// Web extraction can perform secondary summarization; thread the summary
+	// client through context so the tool does not need to know about Agent.
 	ctx = webextract.WithSummarizer(ctx, webextract.NewExtractSummarizer(summaryClient, cfg))
 
 	toolResult, err := env.Tools().Invoke(ctx, tools.Call{
@@ -394,6 +418,7 @@ func invokeToolWithEnvironment(
 	return toolResultMessage(toolCall, result)
 }
 
+// sanitizeToolOutputForModel applies output guardrails before tool output is returned to the model.
 func sanitizeToolOutputForModel(ctx context.Context, toolName string, output string, cfg *config.Config) string {
 	output = strings.TrimSpace(output)
 	if output == "" {
@@ -416,6 +441,7 @@ func sanitizeToolOutputForModel(ctx context.Context, toolName string, output str
 	return strings.TrimSpace(result.Content)
 }
 
+// recordToolOutputSafety records redaction/blocking decisions for tool output.
 func recordToolOutputSafety(
 	ctx context.Context,
 	toolName string,
@@ -441,6 +467,7 @@ func recordToolOutputSafety(
 	})
 }
 
+// toolResultMessage serializes a tool result map into the assistant conversation format.
 func toolResultMessage(toolCall models.ToolCall, result map[string]any) handmsg.Message {
 	raw, marshalErr := jsonMarshal(result)
 	content := ""
@@ -453,6 +480,7 @@ func toolResultMessage(toolCall models.ToolCall, result map[string]any) handmsg.
 	return handmsg.Message{Role: handmsg.RoleTool, Name: toolCall.Name, ToolCallID: toolCall.ID, Content: content}
 }
 
+// CreateSession creates or returns a named session through the state manager.
 func (a *Agent) CreateSession(ctx context.Context, id string) (storage.Session, error) {
 	if a == nil {
 		return storage.Session{}, errors.New("agent is required")
@@ -465,6 +493,7 @@ func (a *Agent) CreateSession(ctx context.Context, id string) (storage.Session, 
 	return a.stateMgr.CreateSession(normalizeContext(ctx), id)
 }
 
+// ListSessions returns all known sessions.
 func (a *Agent) ListSessions(ctx context.Context) ([]storage.Session, error) {
 	if a == nil {
 		return nil, errors.New("agent is required")
@@ -477,6 +506,7 @@ func (a *Agent) ListSessions(ctx context.Context) ([]storage.Session, error) {
 	return a.stateMgr.ListSessions(normalizeContext(ctx))
 }
 
+// UseSession switches the current session and flushes memory for the previous one when needed.
 func (a *Agent) UseSession(ctx context.Context, id string) error {
 	if a == nil {
 		return errors.New("agent is required")
@@ -496,6 +526,8 @@ func (a *Agent) UseSession(ctx context.Context, id string) error {
 	if currentErr == nil &&
 		strings.TrimSpace(currentSessionID) != "" &&
 		strings.TrimSpace(currentSessionID) != targetSession.ID {
+		// Switching sessions can leave useful recent context behind, so run the
+		// same memory preservation path used for shutdown/compaction.
 		traceSession := trace.NoopSession()
 		if a.env != nil {
 			traceSession = a.openTraceSessionForSession(currentSessionID)
@@ -507,6 +539,7 @@ func (a *Agent) UseSession(ctx context.Context, id string) error {
 	return a.stateMgr.UseSession(ctx, targetSession.ID)
 }
 
+// CurrentSession returns the full current session record.
 func (a *Agent) CurrentSession(ctx context.Context) (storage.Session, error) {
 	if a == nil {
 		return storage.Session{}, errors.New("agent is required")
@@ -533,6 +566,7 @@ func (a *Agent) CurrentSession(ctx context.Context) (storage.Session, error) {
 	return session, nil
 }
 
+// CompactSession forces persisted compaction for a session and returns compacted context metrics.
 func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionResult, error) {
 	summary, session, err := a.summarizeSession(ctx, id, agentsummary.SummarizeSessionOptions{})
 	if err != nil {
@@ -549,6 +583,7 @@ func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionRe
 	}, nil
 }
 
+// RepairSession rebuilds or checks session vector indexes.
 func (a *Agent) RepairSession(
 	ctx context.Context,
 	opts RepairSessionOptions,
@@ -596,6 +631,8 @@ func (a *Agent) RecallSessionSummary(ctx context.Context, id string) (storage.Se
 
 	agentLog.Info().Str("session_id", session.ID).Msg("manual recall session summary requested")
 
+	// Recall summaries are temporary: they are useful for inspection and
+	// retrieval, but they should not advance the session compaction offset.
 	traceSession := trace.NoopSession()
 	if a.env != nil {
 		traceSession = a.openTraceSessionForSession(session.ID)
@@ -628,6 +665,7 @@ func (a *Agent) RecallSessionSummary(ctx context.Context, id string) (storage.Se
 	return result, nil
 }
 
+// summarizeSession forces a persisted summary/compaction pass for a session.
 func (a *Agent) summarizeSession(
 	ctx context.Context,
 	id string,
@@ -653,6 +691,8 @@ func (a *Agent) summarizeSession(
 
 	agentLog.Info().Str("session_id", session.ID).Msg("manual session summary requested")
 
+	// Manual compaction is another context-loss boundary, so memory extraction
+	// runs before the summary replaces old messages in active context.
 	traceSession := trace.NoopSession()
 	if a.env != nil {
 		traceSession = a.openTraceSessionForSession(session.ID)
@@ -686,6 +726,7 @@ func (a *Agent) summarizeSession(
 	}, session, nil
 }
 
+// ContextStatus reports prompt-token and compaction status for a session.
 func (a *Agent) ContextStatus(ctx context.Context, id string) (ContextStatus, error) {
 	if a == nil {
 		return ContextStatus{}, errors.New("agent is required")
@@ -730,10 +771,12 @@ func (a *Agent) ContextStatus(ctx context.Context, id string) (ContextStatus, er
 	return status, nil
 }
 
+// GetSession is the compatibility alias for ContextStatus.
 func (a *Agent) GetSession(ctx context.Context, id string) (ContextStatus, error) {
 	return a.ContextStatus(ctx, id)
 }
 
+// ensureStateManager lazily opens storage and creates the state manager.
 func (a *Agent) ensureStateManager() error {
 	if a == nil {
 		return errors.New("agent is required")
@@ -763,6 +806,7 @@ func (a *Agent) ensureStateManager() error {
 	return nil
 }
 
+// cachedRecallSummary returns a cached recall summary only when it still covers the full session.
 func (a *Agent) cachedRecallSummary(sessionID string, messageCount int) (storage.SessionSummary, bool) {
 	if a == nil || a.recallSummaryCache == nil {
 		return storage.SessionSummary{}, false
@@ -781,6 +825,7 @@ func (a *Agent) cachedRecallSummary(sessionID string, messageCount int) (storage
 	return summary, true
 }
 
+// storeRecallSummary stores a defensive copy through the recall summary cache.
 func (a *Agent) storeRecallSummary(summary storage.SessionSummary) {
 	if a == nil || a.recallSummaryCache == nil || strings.TrimSpace(summary.SessionID) == "" {
 		return
@@ -789,10 +834,12 @@ func (a *Agent) storeRecallSummary(summary storage.SessionSummary) {
 	a.recallSummaryCache.Set(summary.SessionID, summary)
 }
 
+// isFullRecallSummary reports whether a cached summary covers every message in the session.
 func isFullRecallSummary(summary storage.SessionSummary, messageCount int) bool {
 	return summary.SourceMessageCount == messageCount && summary.SourceEndOffset == messageCount
 }
 
+// getDurationOrDefault chooses fallback when value is unset or invalid.
 func getDurationOrDefault(value, fallback time.Duration) time.Duration {
 	if value > 0 {
 		return value
@@ -800,6 +847,7 @@ func getDurationOrDefault(value, fallback time.Duration) time.Duration {
 	return fallback
 }
 
+// normalizeToolError preserves structured tool errors when possible.
 func normalizeToolError(raw string) any {
 	var toolErr tools.Error
 	if err := json.Unmarshal([]byte(raw), &toolErr); err == nil &&
@@ -811,6 +859,7 @@ func normalizeToolError(raw string) any {
 	return raw
 }
 
+// normalizeContext replaces a nil context with context.Background.
 func normalizeContext(ctx context.Context) context.Context {
 	if ctx == nil {
 		return context.Background()
@@ -818,6 +867,7 @@ func normalizeContext(ctx context.Context) context.Context {
 	return ctx
 }
 
+// modelToolDefinitionFromToolDefinition converts registry tool definitions into model tool definitions.
 func modelToolDefinitionFromToolDefinition(definition tools.Definition) models.ToolDefinition {
 	return models.ToolDefinition{
 		Name:        definition.Name,
@@ -826,6 +876,7 @@ func modelToolDefinitionFromToolDefinition(definition tools.Definition) models.T
 	}
 }
 
+// assistantToolCallMessageFromResponse converts model tool calls into a persisted assistant message.
 func assistantToolCallMessageFromResponse(resp *models.Response) (handmsg.Message, error) {
 	return normalizeTurnMessage(handmsg.Message{
 		Role:      handmsg.RoleAssistant,
@@ -834,10 +885,12 @@ func assistantToolCallMessageFromResponse(resp *models.Response) (handmsg.Messag
 	})
 }
 
+// recordModelRequest records the full model request shape for trace inspection.
 func recordModelRequest(traceSession trace.Session, request models.Request) {
 	traceSession.Record(trace.EvtModelRequest, request)
 }
 
+// recordModelResponse records model response metadata while dropping assistant text from traces.
 func recordModelResponse(traceSession trace.Session, resp *models.Response) {
 	if resp == nil {
 		traceSession.Record(trace.EvtModelResponse, resp)
@@ -849,6 +902,7 @@ func recordModelResponse(traceSession trace.Session, resp *models.Response) {
 	traceSession.Record(trace.EvtModelResponse, safeResponse)
 }
 
+// modelToolCallsToContextToolCalls converts model tool calls into session message tool calls.
 func modelToolCallsToContextToolCalls(toolCalls []models.ToolCall) []handmsg.ToolCall {
 	if len(toolCalls) == 0 {
 		return nil

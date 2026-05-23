@@ -14,6 +14,7 @@ import (
 
 const maxSessionTitleRunes = 80
 
+// maybeGenerateSessionTitle fills an empty session title after the first useful exchange.
 func (a *Agent) maybeGenerateSessionTitle(ctx context.Context, sessionID string) {
 	if a == nil || a.cfg == nil || a.stateMgr == nil || a.summaryClient == nil {
 		return
@@ -22,6 +23,7 @@ func (a *Agent) maybeGenerateSessionTitle(ctx context.Context, sessionID string)
 		return
 	}
 
+	// Titles are generated once. User/session-provided titles are left intact.
 	session, ok, err := a.stateMgr.Get(ctx, sessionID)
 	if err != nil || !ok || strings.TrimSpace(session.Title) != "" {
 		return
@@ -40,6 +42,8 @@ func (a *Agent) maybeGenerateSessionTitle(ctx context.Context, sessionID string)
 		return
 	}
 
+	// The fallback keeps the UI useful even if the summary model fails or
+	// returns a generic/banned title.
 	title := a.generateSessionTitle(ctx, contextText)
 	if title == "" {
 		title = fallback
@@ -50,6 +54,7 @@ func (a *Agent) maybeGenerateSessionTitle(ctx context.Context, sessionID string)
 	_ = a.stateMgr.Save(ctx, session)
 }
 
+// isSameModelClient reports whether two model clients are the same comparable value.
 func isSameModelClient(left models.Client, right models.Client) bool {
 	if left == nil || right == nil {
 		return left == nil && right == nil
@@ -64,6 +69,7 @@ func isSameModelClient(left models.Client, right models.Client) bool {
 	return leftValue.Interface() == rightValue.Interface()
 }
 
+// generateSessionTitle asks the summary model for a short title.
 func (a *Agent) generateSessionTitle(ctx context.Context, contextText string) string {
 	resp, err := a.summaryClient.Complete(ctx, models.Request{
 		Model:           a.cfg.SummaryModelEffective(),
@@ -81,6 +87,7 @@ func (a *Agent) generateSessionTitle(ctx context.Context, contextText string) st
 	return normalizeGeneratedSessionTitle(resp.OutputText)
 }
 
+// getSessionTitleContext builds a compact title prompt from early user/assistant messages.
 func getSessionTitleContext(messages []handmsg.Message) (string, string) {
 	userText := ""
 	assistantText := ""
@@ -117,6 +124,7 @@ func getSessionTitleContext(messages []handmsg.Message) (string, string) {
 	return contextText, fallbackSessionTitleFromUserMessage(userText)
 }
 
+// normalizeGeneratedSessionTitle trims model punctuation, whitespace, and generic titles.
 func normalizeGeneratedSessionTitle(title string) string {
 	title = strings.TrimSpace(title)
 	title = strings.Trim(title, "\"'`")
@@ -133,6 +141,7 @@ func normalizeGeneratedSessionTitle(title string) string {
 	return title
 }
 
+// fallbackSessionTitleFromUserMessage derives a title from the first user message.
 func fallbackSessionTitleFromUserMessage(message string) string {
 	words := strings.Fields(strings.TrimSpace(message))
 	if len(words) == 0 {
@@ -150,6 +159,7 @@ func fallbackSessionTitleFromUserMessage(message string) string {
 	return trimTitleRunes(title, maxSessionTitleRunes)
 }
 
+// hasBannedSessionTitleWord rejects overly generic generated titles.
 func hasBannedSessionTitleWord(title string) bool {
 	for _, word := range strings.Fields(strings.ToLower(title)) {
 		word = strings.TrimFunc(word, func(r rune) bool {
@@ -164,6 +174,7 @@ func hasBannedSessionTitleWord(title string) bool {
 	return false
 }
 
+// trimTitleRunes trims a title to a rune limit without changing encoding boundaries.
 func trimTitleRunes(title string, limit int) string {
 	if limit <= 0 {
 		return ""

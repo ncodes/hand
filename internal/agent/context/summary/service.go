@@ -12,6 +12,8 @@ import (
 	storage "github.com/wandxy/hand/internal/state/core"
 )
 
+// SummaryStore describes the persisted session operations needed by summary
+// loading, refresh, and compaction paths.
 type SummaryStore interface {
 	Get(context.Context, string) (storage.Session, bool, error)
 	Save(context.Context, storage.Session) error
@@ -21,6 +23,7 @@ type SummaryStore interface {
 	CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error)
 }
 
+// Service owns summary retrieval and refresh decisions for a turn.
 type Service struct {
 	modelClient     models.Client
 	summaryClient   models.Client
@@ -37,6 +40,8 @@ type Service struct {
 	now             func() time.Time
 }
 
+// RefreshInput contains the current model request and token state used to
+// decide whether summary compaction should run.
 type RefreshInput struct {
 	LastPromptTokens int
 	Request          models.Request
@@ -44,6 +49,7 @@ type RefreshInput struct {
 	TraceSession     traceRecorder
 }
 
+// traceRecorder is the small trace surface summary refresh needs.
 type traceRecorder interface {
 	Record(string, any)
 }

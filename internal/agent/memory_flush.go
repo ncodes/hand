@@ -25,6 +25,7 @@ var memoryFlushToolNames = map[string]struct{}{
 	"memory_delete":  {},
 }
 
+// maybeFlushMemoryBeforeCompaction preserves useful facts before automatic compaction drops context.
 func (t *Turn) maybeFlushMemoryBeforeCompaction(
 	ctx context.Context,
 	request models.Request,
@@ -39,6 +40,7 @@ func (t *Turn) maybeFlushMemoryBeforeCompaction(
 	}
 }
 
+// maybeFlushMemoryBeforeContextLoss preserves memory before session switches or shutdown.
 func (a *Agent) maybeFlushMemoryBeforeContextLoss(
 	ctx context.Context,
 	sessionID string,
@@ -49,6 +51,8 @@ func (a *Agent) maybeFlushMemoryBeforeContextLoss(
 		return
 	}
 
+	// Reuse a Turn so memory flush sees the same context-building, tool context,
+	// and session state paths as a normal response.
 	turn := NewTurn(a.cfg, a.modelClient, a.summaryClient, a.stateMgr, nil, a.env)
 	if err := turn.load(ctx, RespondOptions{SessionID: sessionID}); err != nil {
 		recordMemoryFlushFailure(traceSession, trigger, err)
@@ -59,6 +63,7 @@ func (a *Agent) maybeFlushMemoryBeforeContextLoss(
 	}
 }
 
+// shouldFlushMemoryBeforeContextLoss checks agent-level prerequisites for memory flush.
 func (a *Agent) shouldFlushMemoryBeforeContextLoss() bool {
 	if a == nil || a.cfg == nil || !a.initialized || a.stateMgr == nil || a.env == nil {
 		return false
@@ -70,6 +75,7 @@ func (a *Agent) shouldFlushMemoryBeforeContextLoss() bool {
 	return true
 }
 
+// shouldFlushMemoryBeforeCompaction checks whether this request is likely to compact context.
 func (t *Turn) shouldFlushMemoryBeforeCompaction(request models.Request) bool {
 	if t == nil ||
 		t.cfg == nil ||
@@ -88,6 +94,7 @@ func (t *Turn) shouldFlushMemoryBeforeCompaction(request models.Request) bool {
 		Triggered()
 }
 
+// flushMemoryBeforeContextLoss asks the model to write durable memories before context is lost.
 func (t *Turn) flushMemoryBeforeContextLoss(
 	ctx context.Context,
 	trigger string,
@@ -120,6 +127,8 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 		return errors.New("memory flush model client is required")
 	}
 
+	// Respect a separate flush timeout so preservation cannot hang compaction or
+	// shutdown indefinitely.
 	flushCtx := ctx
 	var cancel context.CancelFunc
 	if cfg.Memory.Flush.Timeout > 0 {
@@ -127,6 +136,8 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 		defer cancel()
 	}
 
+	// Seed the flush model with the same context the next model request would
+	// have seen, plus an explicit request to extract durable memory.
 	messages := append(handmsg.CloneMessages(t.Context()), handmsg.Message{
 		Role:    handmsg.RoleUser,
 		Content: instruct.BuildMemoryFlushRequest(trigger),
@@ -176,6 +187,8 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 		})
 		recordModelRequest(traceSession, request)
 
+		// The flush loop allows the model to request one or more memory write
+		// tools, bounded by MaxCalls so it cannot consume the turn.
 		resp, err := flushClient.Complete(flushCtx, request)
 		if err != nil {
 			return err
@@ -218,6 +231,8 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 				recordMemoryFlushSkipped(traceSession, trigger, "unsupported_tool:"+strings.TrimSpace(toolCall.Name))
 				continue
 			}
+			// memory_extract needs the active session id; normalize only that tool
+			// so other memory tools retain the model-provided input shape.
 			toolCall = t.normalizeMemoryFlushToolCall(toolCall)
 
 			agentLog.Debug().
@@ -251,6 +266,7 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 	return nil
 }
 
+// normalizeMemoryFlushToolCall injects session_id into memory_extract calls.
 func (t *Turn) normalizeMemoryFlushToolCall(toolCall models.ToolCall) models.ToolCall {
 	if t == nil || strings.TrimSpace(toolCall.Name) != "memory_extract" {
 		return toolCall
@@ -278,6 +294,7 @@ func (t *Turn) normalizeMemoryFlushToolCall(toolCall models.ToolCall) models.Too
 	return toolCall
 }
 
+// invokeFlushTool uses the turn hook when present, otherwise invokes directly through the environment.
 func (t *Turn) invokeFlushTool(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
 	if t.invokeToolFn != nil {
 		return t.invokeTool(ctx, toolCall)
@@ -286,6 +303,7 @@ func (t *Turn) invokeFlushTool(ctx context.Context, toolCall models.ToolCall) ha
 	return invokeToolWithEnvironment(ctx, t.env, toolCall, t.summaryClient, t.cfg)
 }
 
+// availableMemoryFlushToolDefinitions returns only memory tools that are safe during flush.
 func (t *Turn) availableMemoryFlushToolDefinitions() ([]models.ToolDefinition, error) {
 	if t == nil || t.env == nil || t.env.Tools() == nil {
 		return nil, nil
@@ -307,6 +325,7 @@ func (t *Turn) availableMemoryFlushToolDefinitions() ([]models.ToolDefinition, e
 	return flushTools, nil
 }
 
+// recordMemoryFlushFailure records a failed or timed-out memory flush.
 func recordMemoryFlushFailure(traceSession trace.Session, trigger string, err error) {
 	if err == nil {
 		return
@@ -328,6 +347,7 @@ func recordMemoryFlushFailure(traceSession trace.Session, trigger string, err er
 	})
 }
 
+// recordMemoryFlushCompleted records successful memory flush termination.
 func recordMemoryFlushCompleted(
 	traceSession trace.Session,
 	trigger string,
@@ -349,6 +369,7 @@ func recordMemoryFlushCompleted(
 	})
 }
 
+// recordMemoryFlushSkipped records a non-fatal reason memory flush did no work.
 func recordMemoryFlushSkipped(traceSession trace.Session, trigger string, reason string) {
 	reason = strings.TrimSpace(reason)
 	agentLog.Debug().

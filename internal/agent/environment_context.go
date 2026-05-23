@@ -19,6 +19,7 @@ var (
 	environmentContextGetwd = os.Getwd
 )
 
+// buildEnvironmentContextInstruction renders runtime facts the model needs for this turn.
 func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models.ToolDefinition) instruct.Instruction {
 	if t == nil {
 		return instruct.Instruction{Name: instruct.EnvironmentContextInstructionName}
@@ -36,6 +37,8 @@ func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models
 		SessionID:        t.sessionID,
 	}
 
+	// Config provides static runtime facts such as provider, model, API mode,
+	// and allowed filesystem roots.
 	if t.cfg != nil {
 		ctx.Platform = t.cfg.Platform
 		ctx.FilesystemRoots = getFilesystemRoots(t.cfg.FS.Roots, workingDirectory)
@@ -52,6 +55,8 @@ func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models
 		ctx.WebProvider = t.cfg.Web.Provider
 	}
 
+	// The live environment can override platform and capability details because
+	// tool policy may be narrower than the static config.
 	if t.env != nil {
 		policy := t.env.ToolPolicy()
 		ctx.Platform = getFirstNonEmpty(ctx.Platform, policy.Platform)
@@ -74,6 +79,7 @@ func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models
 	return instruct.BuildEnvironmentContext(ctx)
 }
 
+// getEnvironmentTimezone returns a human-readable timezone description.
 func getEnvironmentTimezone(now time.Time) string {
 	if now.IsZero() || now.Location() == nil {
 		return ""
@@ -94,6 +100,7 @@ func getEnvironmentTimezone(now time.Time) string {
 	)
 }
 
+// getTimezoneOffset formats a seconds-east-of-UTC offset as +/-HH:MM.
 func getTimezoneOffset(offset int) string {
 	sign := "+"
 	if offset < 0 {
@@ -103,6 +110,7 @@ func getTimezoneOffset(offset int) string {
 	return sign + fmt.Sprintf("%02d:%02d", offset/3600, (offset%3600)/60)
 }
 
+// getFilesystemRoots normalizes configured roots and falls back to the process working directory.
 func getFilesystemRoots(configured []string, workingDirectory string) []string {
 	roots := configured
 	if len(roots) == 0 && strings.TrimSpace(workingDirectory) != "" {
@@ -111,6 +119,7 @@ func getFilesystemRoots(configured []string, workingDirectory string) []string {
 	return guardrails.NormalizeRoots(roots)
 }
 
+// getActiveToolNames returns sorted unique tool names visible to the model.
 func getActiveToolNames(definitions []models.ToolDefinition) []string {
 	names := make([]string, 0, len(definitions))
 	for _, definition := range definitions {
@@ -119,6 +128,7 @@ func getActiveToolNames(definitions []models.ToolDefinition) []string {
 	return sortedUnique(names)
 }
 
+// getActiveToolGroups returns sorted unique tool group names for active tools.
 func getActiveToolGroups(groups []tools.Group) []string {
 	names := make([]string, 0, len(groups))
 	for _, group := range groups {
@@ -127,6 +137,7 @@ func getActiveToolGroups(groups []tools.Group) []string {
 	return sortedUnique(names)
 }
 
+// sortedUnique trims, deduplicates, and sorts a string list for stable prompts.
 func sortedUnique(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	cleaned := make([]string, 0, len(values))
@@ -145,6 +156,7 @@ func sortedUnique(values []string) []string {
 	return cleaned
 }
 
+// getFirstNonEmpty returns first when set, otherwise a trimmed second value.
 func getFirstNonEmpty(first, second string) string {
 	if strings.TrimSpace(first) != "" {
 		return first

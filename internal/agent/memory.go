@@ -23,6 +23,7 @@ const (
 
 var sanitizeMemoryPromptValue = guardrails.Sanitize
 
+// retrieveMemoryInstruction loads pinned and searched memory, sanitizes it, and renders model instructions.
 func (t *Turn) retrieveMemoryInstruction(
 	ctx context.Context,
 	userText string,
@@ -59,6 +60,8 @@ func (t *Turn) retrieveMemoryInstruction(
 	retrievedHitCount := 0
 	filteredSearchHitCount := 0
 
+	// Pinned memory is loaded independently of the user query because it
+	// represents durable user or session facts that should always be nearby.
 	if caps.SupportsPinned && supportsPinnedProvider {
 		recordMemoryRetrievalEvent(traceSession, trace.EvtMemoryRetrievalStarted, trace.MemoryEventPayload{
 			Provider:  provider.Name(),
@@ -82,6 +85,8 @@ func (t *Turn) retrieveMemoryInstruction(
 		}
 	}
 
+	// Search memory is query-sensitive and then filtered by minimum score so
+	// weak vector matches do not dilute the prompt.
 	if caps.SupportsSearch && supportsSearchProvider {
 		recordMemoryRetrievalEvent(traceSession, trace.EvtMemoryRetrievalStarted, trace.MemoryEventPayload{
 			Provider:  provider.Name(),
@@ -114,6 +119,7 @@ func (t *Turn) retrieveMemoryInstruction(
 		}
 	}
 
+	// All retrieved memory is treated as prompt-visible untrusted content.
 	items = sanitizeMemoryItemsForPrompt(items, traceSession)
 
 	recordMemoryRetrievalEvent(traceSession, trace.EvtMemoryRetrieved, trace.MemoryEventPayload{
@@ -133,6 +139,7 @@ func (t *Turn) retrieveMemoryInstruction(
 	)
 }
 
+// filterSearchHitsForTurnMemory keeps only search hits strong enough for turn context injection.
 func filterSearchHitsForTurnMemory(hits []memory.SearchHit) []memory.SearchHit {
 	filtered := make([]memory.SearchHit, 0, len(hits))
 	for _, hit := range hits {
@@ -144,6 +151,7 @@ func filterSearchHitsForTurnMemory(hits []memory.SearchHit) []memory.SearchHit {
 	return filtered
 }
 
+// recordMemoryRetrievalEvent records memory retrieval trace events when tracing is enabled.
 func recordMemoryRetrievalEvent(traceSession trace.Session, event string, payload trace.MemoryEventPayload) {
 	if traceSession == nil {
 		return
@@ -151,6 +159,7 @@ func recordMemoryRetrievalEvent(traceSession trace.Session, event string, payloa
 	traceSession.Record(event, payload)
 }
 
+// recordMemoryRetrievalFailed records and logs recoverable memory retrieval failures.
 func recordMemoryRetrievalFailed(
 	traceSession trace.Session,
 	providerName string,
@@ -172,6 +181,7 @@ func recordMemoryRetrievalFailed(
 		Msg("memory retrieval failed")
 }
 
+// searchHitsToMemoryItems unwraps memory items from ranked search hits.
 func searchHitsToMemoryItems(hits []memory.SearchHit) []memory.MemoryItem {
 	items := make([]memory.MemoryItem, 0, len(hits))
 	for _, hit := range hits {
@@ -180,6 +190,7 @@ func searchHitsToMemoryItems(hits []memory.SearchHit) []memory.MemoryItem {
 	return items
 }
 
+// memoryRetrievalTraceHits renders search hits with score metadata for trace payloads.
 func memoryRetrievalTraceHits(hits []memory.SearchHit) []trace.MemoryTraceItem {
 	items := make([]trace.MemoryTraceItem, 0, len(hits))
 	for _, hit := range hits {
@@ -192,6 +203,7 @@ func memoryRetrievalTraceHits(hits []memory.SearchHit) []trace.MemoryTraceItem {
 	return items
 }
 
+// memoryRetrievalTraceItems renders memory items for trace payloads.
 func memoryRetrievalTraceItems(memoryItems []memory.MemoryItem) []trace.MemoryTraceItem {
 	items := make([]trace.MemoryTraceItem, 0, len(memoryItems))
 	for _, item := range memoryItems {
@@ -200,6 +212,7 @@ func memoryRetrievalTraceItems(memoryItems []memory.MemoryItem) []trace.MemoryTr
 	return items
 }
 
+// memoryRetrievalTraceItem reduces a memory item to safe trace metadata.
 func memoryRetrievalTraceItem(item memory.MemoryItem) trace.MemoryTraceItem {
 	return trace.MemoryTraceItem{
 		ID:          strings.TrimSpace(item.ID),
@@ -213,6 +226,7 @@ func memoryRetrievalTraceItem(item memory.MemoryItem) trace.MemoryTraceItem {
 	}
 }
 
+// truncateMemoryTraceText caps memory trace titles to a compact display length.
 func truncateMemoryTraceText(value string) string {
 	value = strings.TrimSpace(value)
 	runes := []rune(value)
@@ -222,6 +236,7 @@ func truncateMemoryTraceText(value string) string {
 	return string(runes[:120])
 }
 
+// sanitizeMemoryItemsForPrompt filters blocked memory and returns prompt-safe memory items.
 func sanitizeMemoryItemsForPrompt(input []memory.MemoryItem, traceSession trace.Session) []memory.MemoryItem {
 	items := make([]memory.MemoryItem, 0, len(input))
 	for _, item := range input {
@@ -234,10 +249,12 @@ func sanitizeMemoryItemsForPrompt(input []memory.MemoryItem, traceSession trace.
 	return items
 }
 
+// sanitizeMemoryItemForPrompt sanitizes one memory item without trace recording.
 func sanitizeMemoryItemForPrompt(item memory.MemoryItem) (memory.MemoryItem, bool) {
 	return sanitizeMemoryItemForPromptWithTrace(item, nil)
 }
 
+// sanitizeMemoryItemForPromptWithTrace sanitizes and safety-scans one memory item.
 func sanitizeMemoryItemForPromptWithTrace(item memory.MemoryItem, traceSession trace.Session) (memory.MemoryItem, bool) {
 	if item.Status != memory.StatusActive {
 		return memory.MemoryItem{}, false
@@ -250,6 +267,8 @@ func sanitizeMemoryItemForPromptWithTrace(item memory.MemoryItem, traceSession t
 		return memory.MemoryItem{}, false
 	}
 
+	// Scan the final title/text pair because either field may contain content
+	// from past tool output or user-provided text.
 	scanned := guardrails.SafetyScan(
 		content,
 		item.GuardrailSource(),
@@ -262,6 +281,7 @@ func sanitizeMemoryItemForPromptWithTrace(item memory.MemoryItem, traceSession t
 	return item, true
 }
 
+// recordMemorySafetyBlocked records blocked memory content as a safety trace.
 func recordMemorySafetyBlocked(
 	traceSession trace.Session,
 	source string,
@@ -281,6 +301,7 @@ func recordMemorySafetyBlocked(
 	})
 }
 
+// getMemoryPromptText redacts PII and normalizes memory text before prompt injection.
 func getMemoryPromptText(value string) string {
 	sanitized, ok := sanitizeMemoryPromptValue(value).(string)
 	if !ok {
@@ -289,6 +310,7 @@ func getMemoryPromptText(value string) string {
 	return strings.TrimSpace(sanitized)
 }
 
+// memoryItemsToContextItems converts memory records into instruction-rendering items.
 func memoryItemsToContextItems(items []memory.MemoryItem) []instruct.MemoryContextItem {
 	contextItems := make([]instruct.MemoryContextItem, 0, len(items))
 	for _, item := range items {

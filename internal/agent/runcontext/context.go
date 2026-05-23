@@ -263,6 +263,8 @@ func ApplyMemoryProvenance(
 		item.Metadata = make(map[string]string)
 	}
 
+	// Store normalized run identity on the memory item so later retrieval can
+	// explain which profile, personality, session, and state mode produced it.
 	setMetadata(item.Metadata, MemoryMetadataPublicSessionID, runCtx.Session.PublicID)
 	setMetadata(item.Metadata, MemoryMetadataEffectiveSessionID, runCtx.Session.EffectiveID)
 	setMetadata(item.Metadata, MemoryMetadataParentSessionID, runCtx.Lineage.ParentSessionID)
@@ -280,6 +282,7 @@ func ApplyMemoryProvenance(
 	return item
 }
 
+// normalizeStateMode maps unknown or empty state modes to the shared default.
 func normalizeStateMode(value string) string {
 	switch strings.TrimSpace(strings.ToLower(value)) {
 	case StateModeIsolated:
@@ -291,6 +294,7 @@ func normalizeStateMode(value string) string {
 	}
 }
 
+// getChildSessionID returns the child/effective session only for child runs.
 func getChildSessionID(runCtx Context) string {
 	if strings.TrimSpace(runCtx.Lineage.ParentSessionID) == "" {
 		return ""
@@ -302,12 +306,14 @@ func getChildSessionID(runCtx Context) string {
 	return runCtx.Session.EffectiveID
 }
 
+// setMetadata writes non-empty metadata values after trimming whitespace.
 func setMetadata(metadata map[string]string, key string, value string) {
 	if value = strings.TrimSpace(value); value != "" {
 		metadata[key] = value
 	}
 }
 
+// fillSourceLink backfills missing provenance fields on a source link.
 func fillSourceLink(link *storage.MemorySourceLink, runCtx Context, trigger string) {
 	if link == nil {
 		return
