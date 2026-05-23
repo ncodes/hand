@@ -29,6 +29,26 @@ func TestFanoutTraceSession_RecordFansOutStreamableEvents(t *testing.T) {
 	require.NotContains(t, fmt.Sprintf("%#v", streamed[0].Payload), "SECRET=example")
 }
 
+func TestFanoutTraceSession_RecordFansOutCompactionEvents(t *testing.T) {
+	primary := &recordingTraceSession{id: "default"}
+	var streamed []trace.Event
+	session := newFanoutTraceSession(primary, "fallback", func(event trace.Event) {
+		streamed = append(streamed, event)
+	})
+
+	session.Record(trace.EvtContextCompactionRunning, trace.CompactionEventPayload{
+		SessionID: "default",
+		Status:    "running",
+		Auto:      true,
+	})
+
+	require.Len(t, primary.events, 1)
+	require.Equal(t, trace.EvtContextCompactionRunning, primary.events[0].Type)
+	require.Len(t, streamed, 1)
+	require.Equal(t, trace.EvtContextCompactionRunning, streamed[0].Type)
+	require.Equal(t, "default", streamed[0].SessionID)
+}
+
 func TestFanoutTraceSession_RecordSkipsNonStreamableEvents(t *testing.T) {
 	primary := &recordingTraceSession{id: "default"}
 	var streamed []trace.Event

@@ -96,6 +96,10 @@ func isStreamableTraceEvent(eventType string) bool {
 		trace.EvtOutputSafetyApplied,
 		trace.EvtSessionFailed,
 		trace.EvtPlanHydrated,
+		trace.EvtContextCompactionPending,
+		trace.EvtContextCompactionRunning,
+		trace.EvtContextCompactionSucceeded,
+		trace.EvtContextCompactionFailed,
 		trace.EvtFinalAssistantResponse:
 		return true
 	default:
