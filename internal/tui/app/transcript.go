@@ -280,10 +280,6 @@ func (m *model) setTranscriptContentForResponseUpdate() {
 	m.setTranscriptContentForActiveTurn()
 }
 
-func (m *model) collapseReasoningTranscript() {
-	m.collapseCurrentReasoningTranscript()
-}
-
 func (m *model) completeReasoningTranscript(duration time.Duration) {
 	if duration <= 0 {
 		duration = time.Second
