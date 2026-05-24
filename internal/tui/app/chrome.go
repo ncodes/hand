@@ -22,6 +22,12 @@ const compactHandBanner = ` _  _              _
 
 const tinyHandBanner = `Hand`
 
+const handHeaderMark = `   █ █ █  
+░█ █ █ █ █
+ ░████████
+  ░█░█░█▀ 
+   ▀▀▀▀▀  `
+
 const (
 	headerBorderHeight    = 1
 	noticeBarHeight       = 1
@@ -81,6 +87,7 @@ type headerInfoRow struct {
 type headerPanel struct {
 	Width      int
 	Banner     string
+	Mark       string
 	Notice     noticePanel
 	InfoRows   []headerInfoRow
 	ShowInfo   bool
@@ -101,13 +108,17 @@ func getHeaderPanel(m model, width int) headerPanel {
 	rows := getHeaderInfoRows(m)
 	infoWidth := getHeaderInfoWidth(rows)
 	bodyWidth := getHeaderBodyContentWidth(width)
+	banner := getHeaderBanner(bodyWidth)
+	mark := getHeaderMark(bodyWidth, banner)
+	bannerWidth := getHeaderBannerGroupWidth(mark, banner)
 
 	return headerPanel{
 		Width:    width,
-		Banner:   getHeaderBanner(bodyWidth),
+		Banner:   banner,
+		Mark:     mark,
 		Notice:   getNoticePanel(width),
 		InfoRows: rows,
-		ShowInfo: bodyWidth >= lipgloss.Width(handBanner)+headerGapWidth+infoWidth,
+		ShowInfo: bodyWidth >= bannerWidth+headerGapWidth+infoWidth,
 	}
 }
 
@@ -184,6 +195,26 @@ func getHeaderBanner(width int) string {
 	}
 
 	return tinyHandBanner
+}
+
+func getHeaderMark(width int, banner string) string {
+	if banner != handBanner {
+		return ""
+	}
+	if width < lipgloss.Width(handHeaderMark)+headerGapWidth+lipgloss.Width(handBanner) {
+		return ""
+	}
+
+	return handHeaderMark
+}
+
+func getHeaderBannerGroupWidth(mark string, banner string) int {
+	width := lipgloss.Width(banner)
+	if mark == "" {
+		return width
+	}
+
+	return lipgloss.Width(mark) + headerGapWidth + width
 }
 
 // renderHandBanner renders the generated figlet masthead.

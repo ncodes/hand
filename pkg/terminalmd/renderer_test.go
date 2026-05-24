@@ -150,7 +150,7 @@ func TestRenderer_RendersFencedCodeWithChromaHighlighting(t *testing.T) {
 func TestRenderer_RendersMermaidFencesAsDiagramBlocks(t *testing.T) {
 	rendered, err := NewRenderer(Options{Width: 80}).Render(strings.Join([]string{
 		"```mermaid",
-		"flowchart TD",
+		"flowchart LR",
 		"  A[Start] --> B{Ready?}",
 		"  B -->|yes| C[Ship]",
 		"```",
@@ -158,10 +158,57 @@ func TestRenderer_RendersMermaidFencesAsDiagramBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	plain := xansi.Strip(rendered)
-	require.Contains(t, plain, "Mermaid diagram")
-	require.Contains(t, plain, "flowchart TD")
+	require.Contains(t, plain, "Mermaid source (visual render unavailable)")
+	require.Contains(t, plain, "flowchart LR")
 	require.Contains(t, plain, "A[Start] --> B{Ready?}")
 	require.Contains(t, plain, "B -->|yes| C[Ship]")
+	require.NotContains(t, plain, "```mermaid")
+}
+
+func TestRenderer_RendersMermaidFencesThroughGoldmarkMermaid(t *testing.T) {
+	rendered, err := NewRenderer(Options{Width: 80}).Render(strings.Join([]string{
+		"Before",
+		"",
+		"```mermaid",
+		"sequenceDiagram",
+		"  Alice->>Bob: Hello",
+		"```",
+		"",
+		"After",
+	}, "\n"))
+	require.NoError(t, err)
+
+	plain := xansi.Strip(rendered)
+	require.Contains(t, plain, "Before")
+	require.Contains(t, plain, "Mermaid source (visual render unavailable)")
+	require.Contains(t, plain, "sequenceDiagram")
+	require.Contains(t, plain, "Alice->>Bob: Hello")
+	require.Contains(t, plain, "After")
+	require.NotContains(t, plain, "```mermaid")
+	require.NotContains(t, plain, "<script")
+}
+
+func TestRenderer_RendersUnfencedMermaidBlocks(t *testing.T) {
+	rendered, err := NewRenderer(Options{Width: 80}).Render(strings.Join([]string{
+		"Here's the Mermaid diagram in a copyable format:",
+		"",
+		"flowchart LR",
+		"  A[User Login] --> B{Validate Credentials}",
+		"  B -->|Valid| C[Grant Access]",
+		"  B -->|Invalid| D[Show Error]",
+		"",
+		"Done.",
+	}, "\n"))
+	require.NoError(t, err)
+
+	plain := xansi.Strip(rendered)
+	require.Contains(t, plain, "Here's the Mermaid diagram in a copyable format:")
+	require.Contains(t, plain, "Mermaid source (visual render unavailable)")
+	require.Contains(t, plain, "flowchart LR")
+	require.Contains(t, plain, "A[User Login] --> B{Validate Credentials}")
+	require.Contains(t, plain, "B -->|Valid| C[Grant Access]")
+	require.Contains(t, plain, "B -->|Invalid| D[Show Error]")
+	require.Contains(t, plain, "Done.")
 	require.NotContains(t, plain, "```mermaid")
 }
 

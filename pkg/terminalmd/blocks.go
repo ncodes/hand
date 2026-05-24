@@ -8,6 +8,7 @@ import (
 	goldast "github.com/yuin/goldmark/ast"
 	extast "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/text"
+	goldmermaid "go.abhg.dev/goldmark/mermaid"
 )
 
 func (r *Renderer) renderWithTableBlocks(markdown string) []string {
@@ -35,6 +36,21 @@ func (r *Renderer) renderWithTableBlocks(markdown string) []string {
 		if isFenceLine(line) {
 			inFence = !inFence
 			chunk = append(chunk, line)
+			continue
+		}
+		// Models often introduce a Mermaid diagram as plain copyable text
+		// instead of a fenced ```mermaid block. Detect that shape before
+		// Goldmark parses it as normal paragraphs.
+		if !inFence && IsMermaidDiagramStart(line) {
+			flushChunk()
+			diagramLines := []string{line}
+			index++
+			for index < len(lines) && strings.TrimSpace(lines[index]) != "" {
+				diagramLines = append(diagramLines, lines[index])
+				index++
+			}
+			index--
+			blocks = append(blocks, r.renderMermaidDiagram(strings.Join(diagramLines, "\n"), ""))
 			continue
 		}
 		// A table is header row + separator row + optional body rows. Once found,
@@ -99,6 +115,8 @@ func (r *Renderer) renderBlock(node goldast.Node, source []byte, indent string) 
 		return r.renderCode(n.Language(source), n.Text(source), indent)
 	case *goldast.CodeBlock:
 		return r.renderCode(nil, n.Text(source), indent)
+	case *goldmermaid.Block:
+		return r.renderMermaidDiagram(string(n.Lines().Value(source)), indent)
 	case *goldast.HTMLBlock:
 		// Raw HTML has no native terminal equivalent here. Preserve visible text
 		// and common line breaks instead of leaking tags into the transcript.

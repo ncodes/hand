@@ -6,6 +6,7 @@ import (
 	"github.com/yuin/goldmark"
 	emoji "github.com/yuin/goldmark-emoji"
 	"github.com/yuin/goldmark/extension"
+	goldmermaid "go.abhg.dev/goldmark/mermaid"
 )
 
 const defaultWidth = 80
@@ -89,6 +90,7 @@ func NewRenderer(opts Options) *Renderer {
 			goldmark.WithExtensions(
 				extension.GFM,
 				emoji.Emoji,
+				&goldmermaid.Extender{NoScript: true},
 			),
 		),
 	}

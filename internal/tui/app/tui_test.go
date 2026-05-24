@@ -361,6 +361,28 @@ func TestModel_ViewKeepsBannerFullWhenInfoPanelWouldClipIt(t *testing.T) {
 	require.NotContains(t, content, "provider: openrouter")
 }
 
+func TestModel_ViewShowsHeaderMarkNextToFullBanner(t *testing.T) {
+	runModel := newModel()
+	runModel.width = lipgloss.Width(handHeaderMark) + headerGapWidth + lipgloss.Width(handBanner) + headerBodyPadding*2
+	runModel.resize()
+	content := stripANSI(runModel.renderHeader())
+
+	require.Contains(t, content, "░████████  ░██")
+	require.Contains(t, content, "░█░█░█▀")
+	require.Contains(t, content, "   █ █ █")
+	require.Contains(t, content, "   ▀▀▀▀▀  ")
+}
+
+func TestModel_ViewHidesHeaderMarkWhenFullBannerWouldClip(t *testing.T) {
+	runModel := newModel()
+	runModel.width = lipgloss.Width(handHeaderMark) + headerGapWidth + lipgloss.Width(handBanner) + headerBodyPadding*2 - 1
+	runModel.resize()
+	content := stripANSI(runModel.renderHeader())
+
+	require.Contains(t, content, "░██     ░██")
+	require.NotContains(t, content, "░█░█░█▀")
+}
+
 func TestModel_ViewUsesCompactBannerWhenFullBannerDoesNotFit(t *testing.T) {
 	runModel := newModel()
 	runModel.width = lipgloss.Width(handBanner) - 1

@@ -53,6 +53,7 @@ func hasTranscriptMarkdown(value string) bool {
 			strings.HasPrefix(line, "```"),
 			strings.HasPrefix(line, "~~~"),
 			strings.HasPrefix(line, "|"),
+			terminalmd.IsMermaidDiagramStart(line),
 			isSetextHeadingUnderline(line),
 			isOrderedMarkdownListItem(line):
 			return true

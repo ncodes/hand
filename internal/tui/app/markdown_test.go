@@ -101,6 +101,21 @@ func TestRenderTranscriptCell_RendersCompactMarkdownTables(t *testing.T) {
 	}
 }
 
+func TestRenderTranscriptCell_DetectsUnfencedMermaidFlowchart(t *testing.T) {
+	rendered := renderTranscriptTestCellWithWidth(assistantTranscriptCell{text: strings.Join([]string{
+		"flowchart LR",
+		"  A[Start] --> B{Decision}",
+		"  B -->|Yes| C[Action 1]",
+		"  B -->|No| D[Action 2]",
+	}, "\n")}, 80)
+	plain := stripANSI(rendered)
+
+	require.Contains(t, plain, "Mermaid source (visual render unavailable)")
+	require.Contains(t, plain, "flowchart LR")
+	require.Contains(t, plain, "A[Start] --> B{Decision}")
+	require.Contains(t, plain, "B -->|Yes| C[Action 1]")
+}
+
 func TestRenderTranscriptCell_RendersWideMarkdownTablesAsLabeledRows(t *testing.T) {
 	rendered := renderTranscriptTestCellWithWidth(assistantTranscriptCell{text: strings.Join([]string{
 		"| Source | Story |",
