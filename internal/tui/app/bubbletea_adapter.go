@@ -37,11 +37,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case responseCompletedMsg:
-		return m, m.completeResponse(msg)
+		cmd := m.completeResponse(msg)
+		return m, cmd
 	case sessionTimelineLoadedMsg:
 		return m.handleAppEvent(hydrateTimelineEvent{Timeline: msg.Timeline})
 	case sessionTimelineLoadFailedMsg:
-		return m, m.setStatus("session timeline unavailable")
+		cmd := m.setStatus("session timeline unavailable")
+		return m, cmd
 	case sessionTitleLoadedMsg:
 		m.refreshSessionTitleFromSession(msg.Session)
 		return m, nil
@@ -50,7 +52,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sessionErrorMsg:
 		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 	case compactSessionCompletedMsg:
-		return m, m.completeCompactSession(msg)
+		cmd := m.completeCompactSession(msg)
+		return m, cmd
 	case toolInvocationStartedMsg:
 		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 	case toolInvocationCompletedMsg:

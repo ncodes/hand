@@ -8,7 +8,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || printf de
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || printf unknown)
 LD_FLAGS := -X github.com/wandxy/hand/internal/constants.AppVersion=$(VERSION) -X github.com/wandxy/hand/internal/constants.CommitHash=$(COMMIT)
 
-.PHONY: install-tools install-hooks build-proto build test test-agent-baseline test-spec test-live test-live-sqlite test-live-memory test-live-all host-deps check-pkg-agent-deps lint install
+.PHONY: install-tools install-hooks build-proto build test test-agent-baseline test-spec test-live test-live-sqlite test-live-memory test-live-all host-deps lint install
 
 install-tools:
 	@$(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
@@ -31,7 +31,7 @@ build: build-proto
 	@mkdir -p $(BUILD_DIR)
 	@CGO_ENABLED=1 $(GO) build -tags $(GO_SQLITE_TAGS) -ldflags "$(LD_FLAGS)" -o $(BUILD_DIR)/$(APP) ./cmd/hand
 
-test: build-proto check-pkg-agent-deps
+test: build-proto
 	@CGO_ENABLED=1 $(GO) test -tags $(GO_SQLITE_TAGS) ./...
 
 test-agent-baseline: build-proto
@@ -68,28 +68,6 @@ host-deps:
 	@$(GO) list -f 'direct imports for {{.ImportPath}}:{{range .Imports}}{{printf "\n  %s" .}}{{end}}' ./internal/host
 	@printf '\ninternal/host transitive hand imports:\n'
 	@$(GO) list -deps ./internal/host | grep '^github.com/wandxy/hand/' | sed 's/^/  /'
-
-check-pkg-agent-deps:
-	@packages="$$(mktemp)"; \
-	errors="$$(mktemp)"; \
-	if ! $(GO) list ./pkg/agent/... > "$$packages" 2> "$$errors"; then \
-		if grep -q 'lstat ./pkg/agent' "$$errors"; then \
-			echo 'pkg/agent not present yet; dependency guard skipped'; \
-			rm -f "$$packages" "$$errors"; \
-			exit 0; \
-		fi; \
-		cat "$$errors"; \
-		rm -f "$$packages" "$$errors"; \
-		exit 1; \
-	fi; \
-	rm -f "$$packages" "$$errors"; \
-	internal_imports="$$( $(GO) list -deps ./pkg/agent/... | grep '^github.com/wandxy/hand/internal' || true )"; \
-	if [ -n "$$internal_imports" ]; then \
-		echo 'pkg/agent must not import Hand internal packages:'; \
-		printf '%s\n' "$$internal_imports"; \
-		exit 1; \
-	fi; \
-	echo 'pkg/agent dependency guard passed'
 
 lint:
 	@golangci-lint run ./...

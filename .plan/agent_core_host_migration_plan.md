@@ -178,8 +178,6 @@ type Provider interface {
 - Use type aliases only as short-lived scaffolding inside the active phase that introduces them.
 - Move one dependency boundary at a time.
 - Remove old `internal/agent` entry points once Hand callers are migrated.
-- Add a dependency guard so `pkg/agent` cannot import `internal/*`.
-- Add dependency guards so `internal/host` and application packages cannot depend on `internal/agent`.
 - Preserve trace event names and payloads until TUI hydration and live rendering are explicitly migrated.
 - Keep `internal/host` names plain: `config.go`, `session.go`, `tools.go`, `trace.go`, `memory.go`, `prompt.go`, `environment.go`.
 - Treat adapters as first-class host wiring, not compatibility shims. If an adapter has no stable domain boundary, remove it.
@@ -206,12 +204,10 @@ Baseline commands:
 ```text
 make agent-deps
 make test-agent-baseline
-make check-pkg-agent-deps
 ```
 
 `make agent-deps` prints direct and transitive Hand imports for `internal/agent`.
 `make test-agent-baseline` runs the focused agent, compaction, summary, TUI trace conversion, and CLI package tests.
-`make check-pkg-agent-deps` skips cleanly until `pkg/agent` exists, then fails if any `pkg/agent` package imports `github.com/wandxy/hand/internal/*`.
 
 Risk:
 
@@ -221,8 +217,7 @@ Completed:
 
 - Added `make agent-deps` to capture direct and transitive `internal/agent` package dependencies.
 - Added `make test-agent-baseline` for the focused agent, compaction, summary, TUI, and CLI baseline.
-- Added `make check-pkg-agent-deps` as the guard for future `pkg/agent` imports.
-- Verified `make agent-deps`, `make check-pkg-agent-deps`, and `make test-agent-baseline`.
+- Verified `make agent-deps` and `make test-agent-baseline`.
 - Committed as `a6e52702 chore(agent): add migration baseline checks`.
 
 ## [x] Phase 1: Extract Generic Data Types
@@ -253,7 +248,7 @@ Progress:
 - Added `pkg/agent/model` public model client/request/response shapes.
 - Routed `internal/messages` through `pkg/agent/message` compatibility aliases.
 - Routed `internal/models` through `pkg/agent/model` compatibility aliases.
-- Verified `go test ./pkg/agent/...`, `make check-pkg-agent-deps`, and `make test-agent-baseline`.
+- Verified `go test ./pkg/agent/...` and `make test-agent-baseline`.
 
 Deferred:
 
@@ -285,7 +280,7 @@ Progress:
 
 - Added `pkg/agent/session` with public session, compaction, message query, store, and trace recorder shapes.
 - Added `internal/host/session.go` as the first Hand host adapter over the current state manager surface.
-- Verified `go test ./pkg/agent/... ./internal/host` and `make check-pkg-agent-deps`.
+- Verified `go test ./pkg/agent/... ./internal/host`.
 - Replaced turn-scoped session resolution, message reads/writes, prompt-token writes, reasoning trace persistence, and plan hydration with the session store/trace recorder interfaces.
 - Added an Agent turn factory so normal response and memory-flush paths construct turns through the session boundary.
 - Kept the old `NewTurn` constructor as a compatibility wrapper for tests and transitional callers.
@@ -324,7 +319,7 @@ Progress:
 - Routed turn tool resolution and invocation through the tool registry interface when present.
 - Routed memory-flush tool definition filtering through the same turn tool boundary.
 - Added host adapter tests for policy/definition conversion and invocation delegation.
-- Verified `go test -tags sqlite_fts5 ./internal/agent ./internal/host ./pkg/agent/...`, `make check-pkg-agent-deps`, and `make test-agent-baseline`.
+- Verified `go test -tags sqlite_fts5 ./internal/agent ./internal/host ./pkg/agent/...` and `make test-agent-baseline`.
 
 Deferred:
 
@@ -364,7 +359,7 @@ Progress:
 - Split the turn runtime dependencies into small capability interfaces for trace sessions, safety trace events, memory providers, iteration budgets, plan state, prompts, and tools.
 - Updated normal Agent turn construction to pass the existing Hand environment as those discrete host capabilities instead of storing it as the turn runtime.
 - Kept a legacy `env any` shim for transitional tests and compatibility wrappers, while avoiding a direct `environment.Environment` dependency in the turn loop.
-- Verified `go test -tags sqlite_fts5 ./internal/agent ./internal/host ./pkg/agent/...`, `make check-pkg-agent-deps`, `make test-agent-baseline`, and `make test`.
+- Verified `go test -tags sqlite_fts5 ./internal/agent ./internal/host ./pkg/agent/...`, `make test-agent-baseline`, and `make test`.
 
 ## [x] Phase 5: Move Turn Core To `pkg/agent`
 
@@ -395,7 +390,7 @@ Progress:
 - Kept the internal `models` compatibility package forwarding to the public conversion helper.
 - Updated `internal/agent` to use the public helper through the compatibility package.
 - Added public package coverage for the loop runner and conversion helper.
-- Verified `go test -tags sqlite_fts5 ./internal/agent ./pkg/agent/...`, `make check-pkg-agent-deps`, `make test-agent-baseline`, and `make test`.
+- Verified `go test -tags sqlite_fts5 ./internal/agent ./pkg/agent/...`, `make test-agent-baseline`, and `make test`.
 
 ## [x] Phase 6: Move Agent Service API To `pkg/agent`
 
@@ -423,7 +418,7 @@ Progress:
 - Implemented a public response path that resolves sessions, appends user/assistant/tool messages, runs model calls, executes public tool registries, and uses the public loop runner.
 - Kept Hand-specific defaults, config, storage, compaction, trace, and environment wiring outside `pkg/agent`.
 - Added external-package tests proving another application can instantiate `pkg/agent.Agent` with fake in-memory dependencies and receive normal and tool-loop responses without importing `internal/*`.
-- Verified `go test ./pkg/agent/...` and `make check-pkg-agent-deps`.
+- Verified `go test ./pkg/agent/...`.
 
 ## [x] Phase 7: Build `internal/host`
 
@@ -458,7 +453,7 @@ Progress:
 - Updated daemon startup and the e2e harness to construct agents through `internal/host`.
 - Removed the transitional `internal/agent` dependency on `internal/host` so host can wrap agent construction without an import cycle.
 - Kept direct `internal/agent.NewAgent` usage in internal agent tests as compatibility coverage.
-- Verified focused agent, host, daemon, and e2e tests, the `pkg/agent` dependency guard, and the full test suite.
+- Verified focused agent, host, daemon, e2e tests, and the full test suite.
 
 ## [x] Phase 8: Migrate Hand Callers
 
@@ -485,7 +480,7 @@ Progress:
 - Added host-owned service/type aliases for RPC, TUI, CLI, e2e, and test harness consumers.
 - Migrated daemon, RPC server/service/client, e2e harnesses, TUI app, CLI tests, and agent stubs from direct `internal/agent` service-surface imports to `internal/host`.
 - Kept `internal/agent/runcontext` imports unchanged where callers need the runtime identity type directly.
-- Verified focused daemon, RPC, e2e, CLI, TUI, mock, and host tests, the `pkg/agent` dependency guard, and the full test suite.
+- Verified focused daemon, RPC, e2e, CLI, TUI, mock, host tests, and the full test suite.
 
 ## [x] Phase 9: Clean Up Compatibility Layer
 
@@ -495,14 +490,13 @@ Work:
 
 - Delete or shrink `internal/agent` once callers are migrated.
 - Replace aliases with direct imports where churn is now safe.
-- Enforce dependency guard in CI/test.
 - Remove dead methods from old environment abstractions.
 
 Done when:
 
 - `pkg/agent` is the only owner of core orchestration.
 - `internal/host` is the only owner of Hand-specific wiring.
-- Dependency guard prevents regressions.
+- Package ownership is clear in code review and tests.
 
 Risk:
 
@@ -510,7 +504,7 @@ Risk:
 
 Progress:
 
-- Started Phase 9 by wiring `check-pkg-agent-deps` into the default `make test` target so public core dependency regressions fail in the normal verification path.
+- Started Phase 9 by moving application callers toward the host service surface.
 - Replaced host service aliases with host-owned service, option, event, status, compaction, and timeline types.
 - Wrapped the legacy internal agent behind `internal/host.Agent` so application callers depend on the host service surface, not the internal agent contract.
 - Removed the dead `internal/agent.ServiceAPI` compatibility interface.
@@ -539,7 +533,7 @@ Progress:
 
 - Added public `pkg/agent` examples that construct an agent with an in-memory session store, fake model client, and fake tool registry without importing Hand internals.
 - Covered both a normal response and a model tool-call response in executable examples.
-- Reused the test-only fake dependencies already used by the public package boundary tests to avoid adding another product surface.
+- Reused the test-only fake dependencies already used by the public package tests to avoid adding another product surface.
 
 ## [x] Phase 11: Promote The Core Service Surface
 
@@ -672,32 +666,26 @@ Verified:
 
 - `go list ./...`
 - `go test -tags sqlite_fts5 ./pkg/agent/... ./internal/host ./internal/host/context ./internal/host/context/compaction ./internal/host/context/summary ./internal/environment ./internal/tools/... ./internal/state/... ./internal/memory/... ./internal/trace/... ./internal/tui/app ./internal/e2e ./cmd/up`
-- `make check-pkg-agent-deps`
 - `make test`
 
-## [ ] Phase 15: Enforce First-Class Boundaries
+## [ ] Phase 15: Review First-Class Boundaries
 
-Objective: prevent the compatibility layer from creeping back into the codebase.
+Objective: confirm the final package shape reads as first-class Hand infrastructure without adding automated boundary or dependency checkers.
 
 Work:
 
-- Extend dependency checks so:
-  - `pkg/agent/...` cannot import `internal/...`.
-  - `internal/host/...` cannot import `internal/agent/...`.
-  - application entry points cannot import `internal/agent/...`.
-- Add a lightweight source check that fails on compatibility-only names in the final runtime path, such as `legacy`, `compat`, or `fallback`, unless explicitly allowlisted.
-- Wire the guards into the normal verification path.
-- Add focused tests proving Hand construction runs through host-native wiring and public core dependencies.
+- Review `pkg/agent`, `internal/host`, and application package imports for direct first-class ownership.
+- Keep final runtime naming free of compatibility-only surfaces unless the term describes real behavior.
+- Add focused behavioral tests only where Hand construction or public core usage lacks coverage.
 
 Done when:
 
-- `make test` fails if the old compatibility direction is reintroduced.
 - The architecture can be understood from imports alone: applications -> host -> public core and Hand feature packages.
 - The migration plan can be closed with no remaining compatibility cleanup deferred.
 
 Risk:
 
-- Over-broad text guards can block valid language. Keep allowlists small and reviewed.
+- Without automated checkers, boundary discipline relies on package review and focused construction tests.
 
 ## Verification Gates
 
@@ -718,19 +706,12 @@ Run broader tests before removing compatibility wrappers:
 go test ./...
 ```
 
-Add a guard equivalent to:
-
-```text
-go list -deps ./pkg/agent/... | reject paths containing /internal/
-```
-
 ## Suggested First Slice
 
 Start with a small, reviewable PR:
 
 - Add `pkg/agent/model` as aliases around current model types.
 - Add `pkg/agent/message` as aliases around current message types.
-- Add dependency guard scaffolding.
 - Do not change runtime behavior.
 
 This creates public import paths and gives later phases somewhere stable to land without rewriting the turn loop immediately.

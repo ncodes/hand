@@ -31,6 +31,7 @@ type tuiState struct {
 	responseCancel             context.CancelFunc
 	responseTranscriptFollow   bool
 	responseTranscriptScrolled bool
+	responseRunningToolCount   int
 	toolAnimationFrame         int
 	toolAnimationActive        bool
 	thinkingComposerFrame      int

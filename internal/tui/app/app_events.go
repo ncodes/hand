@@ -29,9 +29,11 @@ func (m model) handleAppEvent(event tuiEvent) (model, tea.Cmd) {
 		m.refreshTranscriptContentAfterResize()
 		return m, nil
 	case submitComposerEvent:
-		return m, m.submitPrompt()
+		cmd := m.submitPrompt()
+		return m, cmd
 	case copyTranscriptEvent:
-		return m, m.copyTranscript()
+		cmd := m.copyTranscript()
+		return m, cmd
 	case jumpTranscriptToBottomEvent:
 		m.jumpTranscriptToBottom()
 		return m, nil
@@ -50,9 +52,11 @@ func (m model) handleAppEvent(event tuiEvent) (model, tea.Cmd) {
 		next, _ := updated.(model)
 		return next, cmd
 	case applyTUIMessageEvent:
-		return m, m.applyTUIMessage(value.Message)
+		cmd := m.applyTUIMessage(value.Message)
+		return m, cmd
 	case hydrateTimelineEvent:
-		return m, m.hydrateSessionTimeline(value.Timeline)
+		cmd := m.hydrateSessionTimeline(value.Timeline)
+		return m, cmd
 	default:
 		return m, nil
 	}

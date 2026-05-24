@@ -179,10 +179,17 @@ func (m *model) applyTUIMessage(msg any) tea.Cmd {
 		return m.setStatus("response failed")
 	case toolInvocationStartedMsg:
 		m.collapseCurrentReasoningTranscript()
+		m.responseRunningToolCount++
 		m.addTranscriptMessage(value)
 		return m.startToolAnimation()
 	case toolInvocationCompletedMsg:
 		m.addTranscriptMessage(value)
+		if m.responseRunningToolCount > 0 {
+			m.responseRunningToolCount--
+		}
+		if m.responseRunningToolCount == 0 {
+			m.toolAnimationActive = false
+		}
 		return m.startThinkingComposer()
 	case safetyEventMsg:
 		m.addTranscriptMessage(value)

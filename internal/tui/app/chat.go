@@ -78,6 +78,10 @@ func (m *model) startResponse(prompt string) tea.Cmd {
 	m.applyAction(setRespondingAction{Responding: true, ResponseID: m.responseID})
 	m.responseTranscriptFollow = m.transcript.AtBottom()
 	m.responseTranscriptScrolled = false
+	m.responseRunningToolCount = 0
+	m.toolAnimationActive = false
+	m.stream.Reset()
+	m.applyAction(setLiveTranscriptCellAction{})
 	m.clearReasoningTranscriptState()
 
 	return tea.Batch(
@@ -99,6 +103,7 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 		m.applyAction(setRespondingAction{Responding: false, ResponseID: m.responseID})
 		m.responseTranscriptFollow = false
 		m.responseTranscriptScrolled = false
+		m.responseRunningToolCount = 0
 		m.thinkingComposerActive = false
 		m.events = nil
 		m.responseCancel = nil
@@ -109,6 +114,7 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 	m.applyAction(setRespondingAction{Responding: false, ResponseID: m.responseID})
 	m.responseTranscriptFollow = false
 	m.responseTranscriptScrolled = false
+	m.responseRunningToolCount = 0
 	m.thinkingComposerActive = false
 	m.events = nil
 	m.responseCancel = nil
@@ -130,6 +136,7 @@ func (m *model) cancelActiveResponse() tea.Cmd {
 	m.applyAction(setRespondingAction{Responding: false, ResponseID: m.responseID})
 	m.responseTranscriptFollow = false
 	m.responseTranscriptScrolled = false
+	m.responseRunningToolCount = 0
 	m.thinkingComposerActive = false
 	m.toolAnimationActive = false
 	m.responseCancel = nil

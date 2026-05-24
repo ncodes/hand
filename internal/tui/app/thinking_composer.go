@@ -72,7 +72,7 @@ func renderThinkingStatusCell(frame int) string {
 func (m model) isModelThinking() bool {
 	return m.responding &&
 		(m.live == nil || m.live.IsEmpty()) &&
-		!m.hasRunningToolTranscriptCells()
+		m.responseRunningToolCount == 0
 }
 
 func getThinkingComposerBorderColor(frame int) string {

@@ -1949,6 +1949,25 @@ func TestModel_SubmitPromptStartsRPCResponse(t *testing.T) {
 	require.NotNil(t, runModel.responseCancel)
 }
 
+func TestModel_UpdateEnterStartsThinkingResponse(t *testing.T) {
+	client := &fakeTUIChatClient{reply: "hello back"}
+	runModel := newModelWithClient(client)
+	runModel.input.SetValue("hello")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.responding)
+	require.True(t, runModel.thinkingComposerActive)
+	require.True(t, runModel.isModelThinking())
+	require.Contains(t, stripANSI(runModel.renderBottomStatusPanel()), "Thinking")
+	require.Equal(t, []string{"You: hello"}, transcriptCellPlainTexts(runModel.messages))
+	require.Empty(t, runModel.input.Value())
+	require.Zero(t, client.calls)
+	require.NotNil(t, runModel.responseCancel)
+}
+
 func TestModel_UpdateEscapeCancelsActiveResponse(t *testing.T) {
 	responseCtx, cancel := context.WithCancel(context.Background())
 	runModel := newModelWithClientContext(responseCtx, &fakeTUIChatClient{})
@@ -2582,14 +2601,33 @@ func TestModel_UpdateAnimatesThinkingComposerBorder(t *testing.T) {
 func TestModel_ThinkingComposerBorderWaitsForRunningTool(t *testing.T) {
 	runModel := newModel()
 	runModel.responding = true
+	runModel.responseRunningToolCount = 1
 	runModel.messages = []transcriptCell{toolTranscriptTestCell("call_1", "web_search", "")}
 
 	require.False(t, runModel.isThinkingComposerVisible())
 	require.Equal(t, "8", runModel.getInputFrameBorderColor())
 
+	runModel.responseRunningToolCount = 0
 	runModel.messages = []transcriptCell{toolTranscriptTestCell("call_1", "web_search", "", true)}
 	require.True(t, runModel.isThinkingComposerVisible())
 	require.Equal(t, getThinkingComposerBorderColor(0), runModel.getInputFrameBorderColor())
+}
+
+func TestModel_ThinkingComposerIgnoresStaleRunningToolCells(t *testing.T) {
+	client := &fakeTUIChatClient{reply: "hello back"}
+	runModel := newModelWithClient(client)
+	runModel.messages = []transcriptCell{toolTranscriptTestCell("old_call", "web_search", "")}
+	runModel.setTranscriptContent()
+	runModel.input.SetValue("hello")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.responding)
+	require.True(t, runModel.isModelThinking())
+	require.True(t, runModel.isThinkingComposerVisible())
+	require.Contains(t, stripANSI(runModel.renderBottomStatusPanel()), "Thinking")
 }
 
 func TestModel_ThinkingComposerBorderCanBeDisabled(t *testing.T) {
