@@ -95,8 +95,7 @@ func (r *Renderer) renderGoldmarkBlocks(markdown string) []string {
 func (r *Renderer) renderBlock(node goldast.Node, source []byte, indent string) string {
 	switch n := node.(type) {
 	case *goldast.Heading:
-		text := r.renderInlineChildren(n, source)
-		return indent + r.style(r.opts.Theme.Heading).Render(text)
+		return r.renderHeading(n, source, indent)
 	case *goldast.Paragraph:
 		text := r.renderInlineChildren(n, source)
 		lines := wrapANSI(text, r.opts.Width, indent, indent)
@@ -141,23 +140,60 @@ func (r *Renderer) renderBlock(node goldast.Node, source []byte, indent string) 
 	}
 }
 
+// renderHeading gives terminal headings a visible hierarchy instead of showing
+// raw Markdown marker characters. The first level gets a distinctive transcript
+// mark and stronger styling, while lower levels stay compact and scannable.
+func (r *Renderer) renderHeading(node *goldast.Heading, source []byte, indent string) string {
+	text := r.renderInlineChildren(node, source)
+	if text == "" {
+		return ""
+	}
+
+	style := r.opts.Theme.Heading
+	style.Bold = true
+
+	if node.Level == 1 {
+		marker := r.style(style).Render("● ")
+		style.Italic = true
+		style.Underline = true
+		return indent + marker + r.style(style).Render(text)
+	}
+
+	return indent + r.style(style).Render(text)
+}
+
 // renderList renders ordered and unordered lists with terminal-friendly markers.
 //
 // Unordered list markers are normalized to a bullet regardless of whether the
 // source used -, *, +, or a model-generated Unicode bullet.
 func (r *Renderer) renderList(list *goldast.List, source []byte, indent string) string {
+	return r.renderListWithDepth(list, source, indent, 0)
+}
+
+func (r *Renderer) renderListWithDepth(list *goldast.List, source []byte, indent string, depth int) string {
 	lines := make([]string, 0)
 	number := list.Start
 	for item := list.FirstChild(); item != nil; item = item.NextSibling() {
-		prefix := "• "
+		prefix := unorderedListPrefix(depth)
 		if list.IsOrdered() {
 			prefix = strconv.Itoa(number) + ". "
 			number++
 		}
-		itemLines := r.renderListItem(item, source, indent, prefix)
+		itemLines := r.renderListItem(item, source, indent, prefix, depth)
 		lines = append(lines, itemLines...)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func unorderedListPrefix(depth int) string {
+	switch depth % 3 {
+	case 1:
+		return "◦ "
+	case 2:
+		return "▪ "
+	default:
+		return "• "
+	}
 }
 
 // renderListItem renders one list item with hanging indentation.
@@ -165,7 +201,7 @@ func (r *Renderer) renderList(list *goldast.List, source []byte, indent string) 
 // The first content line gets the marker prefix. All wrapped continuation lines
 // get spaces equal to the marker width, so long bullet items align below their
 // text rather than below the bullet.
-func (r *Renderer) renderListItem(node goldast.Node, source []byte, indent string, prefix string) []string {
+func (r *Renderer) renderListItem(node goldast.Node, source []byte, indent string, prefix string, depth int) []string {
 	contentPrefix := indent + prefix
 	continuation := indent + strings.Repeat(" ", ansi.StringWidth(prefix))
 	lines := make([]string, 0)
@@ -214,7 +250,7 @@ func (r *Renderer) renderListItem(node goldast.Node, source []byte, indent strin
 			firstParagraph = false
 		case *goldast.List:
 			// Nested lists start at the continuation column of the parent item.
-			nested := r.renderList(n, source, continuation)
+			nested := r.renderListWithDepth(n, source, continuation, depth+1)
 			lines = append(lines, strings.Split(nested, "\n")...)
 			firstParagraph = false
 		default:

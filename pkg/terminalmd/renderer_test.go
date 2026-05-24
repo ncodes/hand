@@ -19,10 +19,30 @@ func TestRenderer_RendersHeadingsParagraphsAndBlockquotes(t *testing.T) {
 	require.NoError(t, err)
 
 	plain := xansi.Strip(rendered)
-	require.Contains(t, plain, "Conflict / Geopolitics")
+	require.Contains(t, plain, "● Conflict / Geopolitics")
 	require.Contains(t, plain, "A short paragraph with strong text.")
 	require.Contains(t, plain, "│ quoted context")
 	require.NotContains(t, plain, "# Conflict")
+	require.Contains(t, rendered, "\x1b[")
+}
+
+func TestRenderer_RendersHeadingHierarchyWithoutMarkdownMarkers(t *testing.T) {
+	rendered, err := NewRenderer(Options{Width: 80}).Render(strings.Join([]string{
+		"# Getting Started with Markdown",
+		"",
+		"## Basic Syntax",
+		"",
+		"### Headings",
+	}, "\n"))
+	require.NoError(t, err)
+
+	plain := xansi.Strip(rendered)
+	require.Contains(t, plain, "● Getting Started with Markdown")
+	require.Contains(t, plain, "Basic Syntax")
+	require.Contains(t, plain, "Headings")
+	require.NotContains(t, plain, "# Getting Started")
+	require.NotContains(t, plain, "## Basic")
+	require.NotContains(t, plain, "### Headings")
 	require.Contains(t, rendered, "\x1b[")
 }
 
@@ -66,6 +86,26 @@ func TestRenderer_RendersUnicodeBulletArtifactsAsMarkdownLists(t *testing.T) {
 	require.NotEqual(t, -1, secondBullet)
 	require.Greater(t, countLeadingSpaces(lines[firstContinuation]), countLeadingSpaces(lines[firstBullet]))
 	require.Equal(t, countLeadingSpaces(lines[firstBullet]), countLeadingSpaces(lines[secondBullet]))
+}
+
+func TestRenderer_RendersNestedUnorderedListsWithDepthMarkers(t *testing.T) {
+	rendered, err := NewRenderer(Options{Width: 80}).Render(strings.Join([]string{
+		"- Item one",
+		"- Item two",
+		"- Item three",
+		"  - Nested item A",
+		"  - Nested item B",
+		"    - Deeply nested",
+	}, "\n"))
+	require.NoError(t, err)
+
+	lines := strings.Split(xansi.Strip(rendered), "\n")
+	require.Contains(t, lines, "• Item one")
+	require.Contains(t, lines, "• Item two")
+	require.Contains(t, lines, "• Item three")
+	require.Contains(t, lines, "  ◦ Nested item A")
+	require.Contains(t, lines, "  ◦ Nested item B")
+	require.Contains(t, lines, "    ▪ Deeply nested")
 }
 
 func TestRenderer_RendersNumberedAndTaskLists(t *testing.T) {

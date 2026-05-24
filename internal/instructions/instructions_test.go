@@ -263,6 +263,8 @@ func TestBuildBase_IncludesFormattingGuidance(t *testing.T) {
 	require.Contains(t, instructions[0].Value, "Do not create markdown files unnecessarily")
 	require.Contains(t, instructions[0].Value, "Prefer outputting\n  markdown content directly in the reply")
 	require.Contains(t, instructions[0].Value, "explicitly\n  asks you to write that content to a markdown file")
+	require.Contains(t, instructions[0].Value, "Do not wrap Markdown intended for display")
+	require.Contains(t, instructions[0].Value, "use markdown fences only when the user asks for literal\n  Markdown source")
 	require.Contains(t, instructions[0].Value, "Prefer box-drawing or Unicode diagrams")
 	require.Contains(t, instructions[0].Value, "directly readable in terminal output")
 }

@@ -8,7 +8,7 @@ func normalizeCommonMarkdownArtifacts(markdown string) string {
 		prefixLen := len(line) - len(strings.TrimLeft(line, " \t"))
 		prefix := line[:prefixLen]
 		trimmed := line[prefixLen:]
-		for _, marker := range []string{"• ", "‣ ", "◦ "} {
+		for _, marker := range []string{"• ", "‣ ", "◦ ", "○ ", "▪ "} {
 			if strings.HasPrefix(trimmed, marker) {
 				lines[index] = prefix + "- " + strings.TrimPrefix(trimmed, marker)
 				break

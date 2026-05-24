@@ -95,6 +95,9 @@ Formatting:
 - Do not create markdown files unnecessarily. Prefer outputting
   markdown content directly in the reply unless the user explicitly
   asks you to write that content to a markdown file.
+- Do not wrap Markdown intended for display in a markdown code
+  fence; use markdown fences only when the user asks for literal
+  Markdown source.
 - Prefer box-drawing or Unicode diagrams for diagrams that must be
   directly readable in terminal output.
 

@@ -16,7 +16,7 @@ func TestRenderTranscriptCell_RendersAssistantMarkdown(t *testing.T) {
 	plain := stripANSI(rendered)
 
 	require.NotContains(t, plain, "Hand:")
-	require.Contains(t, plain, "Title")
+	require.Contains(t, plain, "● Title")
 	require.Contains(t, plain, "Key Complications")
 	require.Contains(t, plain, "What Could Happen Next")
 	require.Contains(t, plain, "first")
