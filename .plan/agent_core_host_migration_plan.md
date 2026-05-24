@@ -1,0 +1,510 @@
+# Agent Core Host Migration Plan
+
+## Goal
+
+Make the agent core reusable outside Hand by moving application-agnostic orchestration into `pkg/agent` and keeping Hand-specific wiring in `internal/host`.
+
+External applications should be able to instantiate an agent with their own model client, session store, tool registry, trace sink, memory provider, and prompt/instruction provider without importing Hand internals.
+
+## Non-Goals
+
+- Do not change CLI, TUI, RPC, storage, memory, tracing, or tool behavior during extraction.
+- Do not move Hand-native tools into `pkg/agent`.
+- Do not make `pkg/agent` depend on any `internal/*` package.
+- Do not redesign prompts, compaction, planning, or memory semantics while moving boundaries.
+
+## Target Shape
+
+```text
+pkg/agent
+  agent.go
+  turn.go
+  options.go
+  event.go
+  config.go
+
+pkg/agent/message
+pkg/agent/model
+pkg/agent/session
+pkg/agent/tool
+pkg/agent/trace
+pkg/agent/memory
+pkg/agent/prompt
+
+internal/host
+  config.go
+  session.go
+  tools.go
+  trace.go
+  memory.go
+  prompt.go
+  environment.go
+```
+
+`pkg/agent` owns reusable orchestration. `internal/host` owns Hand defaults and adapts current Hand packages into the reusable interfaces.
+
+## Public Constructor Sketch
+
+```go
+agent, err := agent.New(agent.Options{
+	Config:        agent.Config{MaxIterations: 6, Stream: true},
+	ModelClient:   modelClient,
+	SummaryClient: summaryClient,
+	Sessions:      sessionStore,
+	Tools:         toolRegistry,
+	Trace:         traceFactory,
+	Memory:        memoryProvider,
+	Prompts:       promptProvider,
+	Logger:        logger,
+})
+```
+
+Hand then becomes one host:
+
+```go
+core, err := host.NewAgent(ctx, host.Options{
+	Config: config,
+	Profile: profile,
+})
+```
+
+Other applications can build their own host package and pass their own implementations to `pkg/agent`.
+
+## Core Interfaces
+
+### Model
+
+Keep the current model shape mostly intact and move it behind `pkg/agent/model`.
+
+```go
+type Client interface {
+	Complete(context.Context, Request) (*Response, error)
+	CompleteStream(context.Context, Request, func(StreamDelta)) (*Response, error)
+}
+```
+
+### Session
+
+Expose only what the turn loop needs, not the full Hand state manager.
+
+```go
+type Store interface {
+	Resolve(context.Context, string) (Session, error)
+	GetMessages(context.Context, string, MessageQuery) ([]message.Message, error)
+	AppendMessages(context.Context, string, []message.Message) error
+	UpdateLastPromptTokens(context.Context, string, int) error
+}
+```
+
+Trace persistence can either be part of a trace sink or a small optional interface.
+
+### Tools
+
+Separate tool definitions from Hand's native tool registry.
+
+```go
+type Registry interface {
+	Resolve(Policy) ([]Definition, error)
+	Invoke(context.Context, Call) message.Message
+}
+```
+
+Hand's current tool system becomes an adapter in `internal/host/tools.go`.
+
+### Trace
+
+Keep trace events generic, with Hand-specific hydration/rendering outside the core.
+
+```go
+type Factory interface {
+	NewSession(RunContext) Session
+}
+
+type Session interface {
+	Record(EventType, any)
+	Close()
+}
+```
+
+### Memory
+
+Core should know only that memory can produce prompt context and accept compaction flush hooks.
+
+```go
+type Provider interface {
+	LoadPromptInstruction(context.Context, Query) (prompt.Instruction, error)
+	FlushBeforeCompaction(context.Context, FlushInput) error
+}
+```
+
+### Prompts
+
+Move instruction assembly behind explicit prompt inputs.
+
+```go
+type Provider interface {
+	LoadBaseInstructions(context.Context, RunContext) (prompt.Instructions, error)
+	BuildEnvironmentInstruction(context.Context, EnvironmentInput) (prompt.Instruction, error)
+}
+```
+
+## Migration Rules
+
+- Each phase must compile and pass focused tests before the next phase.
+- Use type aliases temporarily when they reduce churn.
+- Move one dependency boundary at a time.
+- Keep old `internal/agent` entry points as wrappers until Hand callers are migrated.
+- Add a dependency guard so `pkg/agent` cannot import `internal/*`.
+- Preserve trace event names and payloads until TUI hydration and live rendering are explicitly migrated.
+- Keep `internal/host` names plain: `config.go`, `session.go`, `tools.go`, `trace.go`, `memory.go`, `prompt.go`, `environment.go`.
+
+## [x] Phase 0: Baseline And Dependency Map
+
+Objective: freeze current behavior before extraction.
+
+Work:
+
+- Capture current package dependencies with `go list`.
+- Add or identify focused tests for `internal/agent`, summary compaction, trace streaming, tool turns, and TUI trace conversion.
+- Add a dependency check target or test that can later enforce no `internal/*` imports from `pkg/agent`.
+
+Done when:
+
+- Existing agent and TUI tests pass.
+- There is a clear dependency graph for current `internal/agent`.
+- The first migration PR can be reviewed as behavior-preserving.
+
+Baseline commands:
+
+```text
+make agent-deps
+make test-agent-baseline
+make check-pkg-agent-deps
+```
+
+`make agent-deps` prints direct and transitive Hand imports for `internal/agent`.
+`make test-agent-baseline` runs the focused agent, compaction, summary, TUI trace conversion, and CLI package tests.
+`make check-pkg-agent-deps` skips cleanly until `pkg/agent` exists, then fails if any `pkg/agent` package imports `github.com/wandxy/hand/internal/*`.
+
+Risk:
+
+- Existing tests may not cover enough of the turn loop. Add focused tests before moving code that touches request assembly, tool loops, or compaction.
+
+Completed:
+
+- Added `make agent-deps` to capture direct and transitive `internal/agent` package dependencies.
+- Added `make test-agent-baseline` for the focused agent, compaction, summary, TUI, and CLI baseline.
+- Added `make check-pkg-agent-deps` as the guard for future `pkg/agent` imports.
+- Verified `make agent-deps`, `make check-pkg-agent-deps`, and `make test-agent-baseline`.
+- Committed as `a6e52702 chore(agent): add migration baseline checks`.
+
+## [x] Phase 1: Extract Generic Data Types
+
+Objective: move generic request, response, message, and event data shapes into public packages.
+
+Work:
+
+- Move or alias `internal/models` into `pkg/agent/model`.
+- Move or alias `internal/messages` into `pkg/agent/message`.
+- Move generic agent event types into `pkg/agent`.
+- Update internal callers through aliases first to avoid one huge diff.
+
+Done when:
+
+- Current code compiles with aliases.
+- No behavior changes are introduced.
+- Existing tests pass.
+
+Risk:
+
+- Broad import churn can obscure behavior changes. Prefer aliases first, then direct imports in later phases.
+
+Progress:
+
+- Added `pkg/agent/event` public event shapes.
+- Added `pkg/agent/message` public message shapes and behavior tests.
+- Added `pkg/agent/model` public model client/request/response shapes.
+- Routed `internal/messages` through `pkg/agent/message` compatibility aliases.
+- Routed `internal/models` through `pkg/agent/model` compatibility aliases.
+- Verified `go test ./pkg/agent/...`, `make check-pkg-agent-deps`, and `make test-agent-baseline`.
+
+Deferred:
+
+- Keep the Hand trace-backed `internal/agent.Event` shape until the trace boundary is extracted.
+- Migrate direct internal callers to public packages later when broader import churn is safer.
+
+## [x] Phase 2: Define Session Store Boundary
+
+Objective: replace direct `state/manager` usage in the core with a small session interface.
+
+Work:
+
+- Add `pkg/agent/session.Store`.
+- Implement `internal/host/session.go` adapter over the existing state manager.
+- Change turn loading, appending, prompt-token updates, and trace persistence to use the interface.
+- Keep state search, SQLite, vector stores, and profile data inside Hand internals.
+
+Done when:
+
+- `Turn` no longer depends directly on `internal/state/manager`.
+- Hand behavior is unchanged.
+- Session timeline and compaction still read current state correctly.
+
+Risk:
+
+- The current state manager exposes more than the agent needs. Resist leaking the whole manager through the interface.
+
+Progress:
+
+- Added `pkg/agent/session` with public session, compaction, message query, store, and trace recorder shapes.
+- Added `internal/host/session.go` as the first Hand host adapter over the current state manager surface.
+- Verified `go test ./pkg/agent/... ./internal/host` and `make check-pkg-agent-deps`.
+- Replaced turn-scoped session resolution, message reads/writes, prompt-token writes, reasoning trace persistence, and plan hydration with the session store/trace recorder interfaces.
+- Added an Agent turn factory so normal response and memory-flush paths construct turns through the session boundary.
+- Kept the old `NewTurn` constructor as a compatibility wrapper for tests and transitional callers.
+
+Deferred:
+
+- Broader Agent service methods still use the state manager until the public Agent API moves in later phases.
+- Summary compaction still uses the existing summary store interface until summary is extracted from Hand internals.
+
+## [x] Phase 3: Define Tool Boundary
+
+Objective: make the core execute abstract tools while Hand supplies its native tools.
+
+Work:
+
+- Add `pkg/agent/tool.Registry`, `Definition`, `Call`, and `Policy`.
+- Implement `internal/host/tools.go` adapter over existing `internal/tools`.
+- Move tool resolution and invocation in `Turn` to the registry interface.
+- Preserve current tool trace payloads.
+
+Done when:
+
+- `pkg/agent` can request tool definitions and invoke tools without importing Hand tools.
+- Tool-call turns, plan tool state, and process tool state still trace correctly.
+
+Risk:
+
+- Tool context currently carries Hand run/session metadata. Keep that metadata in host context injection, not in core tool types.
+
+Progress:
+
+- Added `pkg/agent/tool` with public registry, call, definition, policy, group, and capability shapes.
+- Added conversion helpers between public tool calls/definitions and model calls/definitions.
+- Added `internal/host/tools.go` to adapt the current Hand environment tool registry into the public tool registry boundary.
+- Moved normal `Agent` turn construction onto the public tool registry while keeping the legacy `NewTurn` wrapper behavior-preserving for tests and transitional callers.
+- Routed turn tool resolution and invocation through the tool registry interface when present.
+- Routed memory-flush tool definition filtering through the same turn tool boundary.
+- Added host adapter tests for policy/definition conversion and invocation delegation.
+- Verified `go test -tags sqlite_fts5 ./internal/agent ./internal/host ./pkg/agent/...`, `make check-pkg-agent-deps`, and `make test-agent-baseline`.
+
+Deferred:
+
+- `internal/agent` still uses Hand environment and tool-context helpers until Phase 4 extracts trace, memory, and prompt/environment boundaries.
+- Agent-level helper methods still expose the older environment-backed tool path until the public Agent API moves in later phases.
+
+## [x] Phase 4: Define Trace, Memory, And Prompt Boundaries
+
+Objective: remove remaining Hand environment coupling from the turn loop.
+
+Work:
+
+- Add `pkg/agent/trace` session/factory interfaces.
+- Add `pkg/agent/memory` provider interface.
+- Add `pkg/agent/prompt` instruction types or move current `internal/instructions` behind aliases.
+- Implement host adapters for current environment, memory provider, safety trace events, and prompt instructions.
+- Split plan hydration interfaces from the concrete Hand environment.
+
+Done when:
+
+- The turn loop no longer depends on `internal/environment`.
+- Trace events still stream live and hydrate from persisted state.
+- Memory retrieval and flush-before-compaction behavior are unchanged.
+
+Risk:
+
+- `environment.Environment` currently mixes tools, prompts, tracing, memory, and plan state. Extract it gradually instead of replacing it in one pass.
+
+Progress:
+
+- Added `pkg/agent/prompt` with public prompt provider, instruction, run-context, and environment-input shapes.
+- Added `pkg/agent/trace` with public trace session/factory/event shapes.
+- Added `pkg/agent/memory` with public prompt-retrieval and compaction-flush provider shapes.
+- Added `internal/host/prompt.go` to adapt Hand environment instructions into the public prompt boundary.
+- Routed normal Agent turn construction through the host prompt provider.
+- Updated `Turn.load` to load base instructions through the prompt provider when present, with the legacy environment path retained for transitional tests and callers.
+- Split the turn runtime dependencies into small capability interfaces for trace sessions, safety trace events, memory providers, iteration budgets, plan state, prompts, and tools.
+- Updated normal Agent turn construction to pass the existing Hand environment as those discrete host capabilities instead of storing it as the turn runtime.
+- Kept a legacy `env any` shim for transitional tests and compatibility wrappers, while avoiding a direct `environment.Environment` dependency in the turn loop.
+- Verified `go test -tags sqlite_fts5 ./internal/agent ./internal/host ./pkg/agent/...`, `make check-pkg-agent-deps`, `make test-agent-baseline`, and `make test`.
+
+## [x] Phase 5: Move Turn Core To `pkg/agent`
+
+Objective: move the reusable turn loop after its dependencies are abstract.
+
+Work:
+
+- Move `turn.go`, preflight tracing, summary fallback flow, and context assembly pieces that are not Hand-specific into `pkg/agent`.
+- Keep compaction and summary logic public only where needed.
+- Keep a compatibility wrapper in `internal/agent` if callers still import it.
+
+Done when:
+
+- `pkg/agent` owns the model/tool iteration loop.
+- `internal/agent` contains little or no orchestration logic.
+- Tests prove tool turns, streaming, compaction, safety, memory, and plan hydration still work.
+
+Risk:
+
+- The turn loop is high-blast-radius. Move after interfaces are stable and preserve logs/traces carefully.
+
+Progress:
+
+- Added `pkg/agent.RunModelToolLoop` as the public reusable model/tool loop runner.
+- Updated `internal/agent.Turn` to delegate repeated model/tool iteration, completion detection, and exhausted-budget fallback to the public loop runner.
+- Kept Hand-specific compaction, memory, safety, persistence, trace, streaming, and tool execution behavior in the turn step hook so behavior remains stable during migration.
+- Moved generic model-to-message tool-call conversion into `pkg/agent/model`.
+- Kept the internal `models` compatibility package forwarding to the public conversion helper.
+- Updated `internal/agent` to use the public helper through the compatibility package.
+- Added public package coverage for the loop runner and conversion helper.
+- Verified `go test -tags sqlite_fts5 ./internal/agent ./pkg/agent/...`, `make check-pkg-agent-deps`, `make test-agent-baseline`, and `make test`.
+
+## Phase 6: Move Agent Service API To `pkg/agent`
+
+Objective: expose the reusable Agent constructor and public API.
+
+Work:
+
+- Move `Agent`, `Options`, `RespondOptions`, `CompactSessionResult`, `ContextStatus`, and response event types into `pkg/agent`.
+- Keep Hand-specific defaults out of the constructor.
+- Keep `internal/agent` as a thin compatibility wrapper or remove it after all callers migrate.
+
+Done when:
+
+- Another Go package can instantiate `pkg/agent.Agent` with fake in-memory dependencies.
+- A minimal external integration test can respond to a message without importing `internal/*`.
+
+Risk:
+
+- Public API can harden too early. Keep exported surface small and add only what a host actually needs.
+
+## Phase 7: Build `internal/host`
+
+Objective: make Hand a host of the reusable core.
+
+Work:
+
+- Create `internal/host` with plain adapter files:
+  - `config.go`
+  - `session.go`
+  - `tools.go`
+  - `trace.go`
+  - `memory.go`
+  - `prompt.go`
+  - `environment.go`
+- Move Hand-specific construction from `internal/agent.NewAgent` into host assembly.
+- Keep profile, datadir, constants, SQLite, vector search, native tools, and TUI/RPC trace choices inside the host.
+
+Done when:
+
+- Daemon, RPC, CLI, and TUI construct the agent through `internal/host`.
+- `pkg/agent` has no Hand-specific imports.
+
+Risk:
+
+- Host can become a dumping ground. Keep it as wiring/adapters only; business logic belongs either in `pkg/agent` or existing internal feature packages.
+
+## Phase 8: Migrate Hand Callers
+
+Objective: switch application entry points to the new host/core split.
+
+Work:
+
+- Update daemon startup to call `host.NewAgent`.
+- Update RPC service construction and tests.
+- Update any direct `internal/agent` imports in TUI, CLI, and tests.
+- Keep CLI behavior and config keys unchanged.
+
+Done when:
+
+- `hand up`, `hand version`, manual compaction, auto compaction, normal turns, and TUI transcript rendering behave as before.
+- There are no important application callers left on the compatibility wrapper.
+
+Risk:
+
+- RPC and TUI may depend on concrete internal event shapes. Migrate those carefully with type aliases where possible.
+
+## Phase 9: Clean Up Compatibility Layer
+
+Objective: remove transitional aliases and obsolete package paths.
+
+Work:
+
+- Delete or shrink `internal/agent` once callers are migrated.
+- Replace aliases with direct imports where churn is now safe.
+- Enforce dependency guard in CI/test.
+- Remove dead methods from old environment abstractions.
+
+Done when:
+
+- `pkg/agent` is the only owner of core orchestration.
+- `internal/host` is the only owner of Hand-specific wiring.
+- Dependency guard prevents regressions.
+
+Risk:
+
+- Removing aliases too early can make review painful. Do this only after behavior is stable.
+
+## Phase 10: External Integration Example
+
+Objective: prove the reusable package works outside Hand.
+
+Work:
+
+- Add a small test-only integration using in-memory session store, fake model, and one fake tool.
+- Optionally add a compact example package if needed later.
+- Keep documentation minimal unless requested.
+
+Done when:
+
+- The example/test constructs `pkg/agent.Agent` without importing Hand internals.
+- The example covers a normal response and a tool-call response.
+
+Risk:
+
+- Avoid turning the example into another product surface. It exists to verify the package boundary.
+
+## Verification Gates
+
+Run focused tests after each phase:
+
+```text
+go test ./internal/agent
+go test ./internal/tui/app
+go test ./cmd/hand
+go test ./pkg/agent/...
+```
+
+Run broader tests before removing compatibility wrappers:
+
+```text
+go test ./...
+```
+
+Add a guard equivalent to:
+
+```text
+go list -deps ./pkg/agent/... | reject paths containing /internal/
+```
+
+## Suggested First Slice
+
+Start with a small, reviewable PR:
+
+- Add `pkg/agent/model` as aliases around current model types.
+- Add `pkg/agent/message` as aliases around current message types.
+- Add dependency guard scaffolding.
+- Do not change runtime behavior.
+
+This creates public import paths and gives later phases somewhere stable to land without rewriting the turn loop immediately.

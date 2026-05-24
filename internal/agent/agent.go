@@ -897,14 +897,5 @@ func recordModelResponse(traceSession trace.Session, resp *models.Response) {
 
 // modelToolCallsToContextToolCalls converts model tool calls into session message tool calls.
 func modelToolCallsToContextToolCalls(toolCalls []models.ToolCall) []handmsg.ToolCall {
-	if len(toolCalls) == 0 {
-		return nil
-	}
-
-	normalized := make([]handmsg.ToolCall, 0, len(toolCalls))
-	for _, toolCall := range toolCalls {
-		normalized = append(normalized, handmsg.ToolCall{ID: toolCall.ID, Name: toolCall.Name, Input: toolCall.Input})
-	}
-
-	return normalized
+	return models.ToolCallsToMessageToolCalls(toolCalls)
 }

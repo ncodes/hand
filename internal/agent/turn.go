@@ -24,6 +24,7 @@ import (
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
+	agentcore "github.com/wandxy/hand/pkg/agent"
 	agentprompt "github.com/wandxy/hand/pkg/agent/prompt"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
 	agenttool "github.com/wandxy/hand/pkg/agent/tool"
@@ -524,18 +525,18 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 	}
 
 	// Main iteration loop: tries to get a valid response or perform tool actions until budget exhausted.
-	for budget.Consume() {
+	runStep := func(ctx context.Context) (agentcore.LoopDecision, error) {
 		// Check for context cancellation.
 		if err := ctx.Err(); err != nil {
 			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-			return "", err
+			return agentcore.LoopDecision{}, err
 		}
 
 		// Query available tool definitions for this turn; may vary per session/tool policy.
 		availableToolDefinitions, err := t.availableToolDefinitions()
 		if err != nil {
 			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-			return "", err
+			return agentcore.LoopDecision{}, err
 		}
 
 		// Build model request and assemble all prompt-side context for completion.
@@ -612,7 +613,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				Str("error_kind", getAgentModelErrorKind(err)).
 				Msg("model request dispatch failed")
 			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-			return "", err
+			return agentcore.LoopDecision{}, err
 		}
 
 		if resp == nil {
@@ -626,7 +627,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				Str("error_kind", "missing_response").
 				Msg("model request dispatch failed")
 			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-			return "", err
+			return agentcore.LoopDecision{}, err
 		}
 
 		// Mark model inference timing for diagnostics/storage.
@@ -650,7 +651,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 		// Record postflight token usage for usage/analytics.
 		if err := t.recordPostflightUsage(traceSession, resp); err != nil {
-			return "", err
+			return agentcore.LoopDecision{}, err
 		}
 
 		// -- Assistant textual reply path (no tool calls required) --
@@ -660,7 +661,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			assistantMessage, err := handmsg.NewMessage(handmsg.RoleAssistant, reply)
 			if err != nil {
 				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-				return "", err
+				return agentcore.LoopDecision{}, err
 			}
 
 			// Append assistant message to emitted messages.
@@ -669,7 +670,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			// Append assistant message to session history.
 			if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
 				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-				return "", err
+				return agentcore.LoopDecision{}, err
 			}
 
 			traceSession.Record(trace.EvtFinalAssistantResponse, trace.FinalAssistantResponsePayload{Message: reply})
@@ -677,7 +678,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				Str("session_id", t.sessionID).
 				Msg("turn completed")
 
-			return reply, nil
+			return agentcore.LoopDecision{Done: true, Reply: reply}, nil
 		}
 
 		// -- Tool call required path --
@@ -686,28 +687,28 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 		if len(resp.ToolCalls) == 0 {
 			err = errors.New("model requested tool execution without tool calls")
 			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-			return "", err
+			return agentcore.LoopDecision{}, err
 		}
 
 		// Represent tool call(s) as assistant message in session.
 		assistantMessage, err := assistantToolCallMessageFromResponse(resp)
 		if err != nil {
 			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-			return "", err
+			return agentcore.LoopDecision{}, err
 		}
 
 		// Append assistant message to emitted messages.
 		t.emittedMessages = append(t.emittedMessages, assistantMessage)
 		if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
 			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-			return "", err
+			return agentcore.LoopDecision{}, err
 		}
 
 		// For each tool call: execute, trace, and record as tool message.
 		for _, toolCall := range resp.ToolCalls {
 			if err := ctx.Err(); err != nil {
 				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-				return "", err
+				return agentcore.LoopDecision{}, err
 			}
 
 			// Start tool invocation logging.
@@ -751,28 +752,30 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 			toolMessage, err = normalizeTurnMessage(toolMessage)
 			if err != nil {
 				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-				return "", err
+				return agentcore.LoopDecision{}, err
 			}
 
 			t.emittedMessages = append(t.emittedMessages, toolMessage)
 			if err := t.appendSessionMessages([]handmsg.Message{toolMessage}); err != nil {
 				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-				return "", err
+				return agentcore.LoopDecision{}, err
 			}
 		}
+		return agentcore.LoopDecision{}, nil
 	}
 
-	// If iteration budget is exhausted, fallback to summary-based result and finish.
-	agentLog.Warn().
-		Str("session_id", t.sessionID).
-		Msg("iteration budget exhausted, falling back to summary")
+	return agentcore.RunModelToolLoop(ctx, agentcore.ModelToolLoopOptions{
+		Consume: budget.Consume,
+		RunStep: runStep,
+		OnExhausted: func(ctx context.Context) (string, error) {
+			// If iteration budget is exhausted, fallback to summary-based result and finish.
+			agentLog.Warn().
+				Str("session_id", t.sessionID).
+				Msg("iteration budget exhausted, falling back to summary")
 
-	reply, err := t.summaryFallback(ctx, budget, traceSession)
-	if err != nil {
-		return "", err
-	}
-
-	return reply, nil
+			return t.summaryFallback(ctx, budget, traceSession)
+		},
+	})
 }
 
 // trimSessionHistoryToSummary trims session history up to summary end offset.

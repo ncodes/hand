@@ -69,3 +69,20 @@ type ToolCall struct {
 	Name  string
 	Input string
 }
+
+func ToolCallsToMessageToolCalls(toolCalls []ToolCall) []message.ToolCall {
+	if len(toolCalls) == 0 {
+		return nil
+	}
+
+	converted := make([]message.ToolCall, 0, len(toolCalls))
+	for _, toolCall := range toolCalls {
+		converted = append(converted, message.ToolCall{
+			ID:    toolCall.ID,
+			Name:  toolCall.Name,
+			Input: toolCall.Input,
+		})
+	}
+
+	return converted
+}

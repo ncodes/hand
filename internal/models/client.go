@@ -27,3 +27,5 @@ type Response = agentmodel.Response
 type ToolDefinition = agentmodel.ToolDefinition
 
 type ToolCall = agentmodel.ToolCall
+
+var ToolCallsToMessageToolCalls = agentmodel.ToolCallsToMessageToolCalls
