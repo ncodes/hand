@@ -573,7 +573,7 @@ Progress:
 - Updated RPC, TUI, e2e, CLI tests, and stubs to assert against public core service types where those types are reusable.
 - Verified focused public core, host, agent, RPC, TUI, e2e, CLI, and stub packages with SQLite FTS5 tags.
 
-## [ ] Phase 12: Move Remaining Turn Runtime Into `pkg/agent`
+## [x] Phase 12: Move Remaining Turn Runtime Into `pkg/agent`
 
 Objective: make the reusable core own the full turn lifecycle instead of delegating only the model/tool loop.
 
@@ -594,6 +594,14 @@ Done when:
 Risk:
 
 - This phase has high blast radius. Move with focused tests for normal turns, tool turns, streaming, compaction re-checks, memory flush, output safety, and summary fallback.
+
+Progress:
+
+- Added `pkg/agent.RunTurnLifecycle` to own the reusable turn lifecycle order: load, request instruction setup, trace/session opening, preparation hooks, input checks, user message acceptance, memory loading, model/tool iteration, and exhaustion fallback.
+- Moved lifecycle behavior coverage into `pkg/agent` tests.
+- Updated `internal/agent.Turn.Run` to delegate the top-level lifecycle to `pkg/agent` while keeping Hand-specific safety, memory, summary, trace, persistence, and model request details behind callbacks.
+- Removed the production `internal/agent.NewTurn` compatibility constructor. The old constructor shape now exists only as package-local test support for existing focused turn tests.
+- Kept Hand runtime construction on the explicit `NewTurnWithSessionStore` dependency path.
 
 ## [ ] Phase 13: Rebuild `internal/host` As Native Hand Runtime Wiring
 

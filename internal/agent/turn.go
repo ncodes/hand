@@ -448,222 +448,263 @@ func (t *Turn) legacyToolPolicy() (tools.Policy, bool) {
 // Run executes the turn's logic, handling instructions, tool actions, tracing,
 // safety enforcement, and returns the final assistant reply for this turn.
 func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string, error) {
-	// Initialize all turn state and dependencies.
-	if err := t.load(ctx, opts); err != nil {
-		return "", err
-	}
+	var traceSession trace.Session
+	budget := envbudget.New(0)
+	streamingEnabled := false
 
-	// Inject per-request instruction if present.
-	if requestInstruct := strings.TrimSpace(opts.Instruct); requestInstruct != "" {
-		t.requestInstruction = instruct.Instruction{
-			Name:  requestInstructionName,
-			Value: requestInstruct,
-		}
-	}
+	return agentcore.RunTurnLifecycle(ctx, msg, opts, agentcore.TurnLifecycle{
+		Load: t.load,
+		SetRequestInstruction: func(requestInstruct string) {
+			if requestInstruct == "" {
+				return
+			}
 
-	// Set up trace session for visibility/diagnostics. Include fanout if tracing callback specified.
-	traceSession := t.newTraceSessionForRun()
-	if opts.TraceEvents && opts.OnEvent != nil {
-		traceSession = newFanoutTraceSession(traceSession, t.getStateSessionID(), func(event trace.Event) {
-			opts.OnEvent(Event{
-				Kind:       EventKindTrace,
-				TraceEvent: &event,
-			})
-		})
-	}
-	defer traceSession.Close()
+			t.requestInstruction = instruct.Instruction{
+				Name:  requestInstructionName,
+				Value: requestInstruct,
+			}
+		},
+		Open: func(context.Context, RespondOptions) (agentcore.TurnCloser, error) {
+			traceSession = t.newTraceSessionForRun()
+			if opts.TraceEvents && opts.OnEvent != nil {
+				traceSession = newFanoutTraceSession(traceSession, t.getStateSessionID(), func(event trace.Event) {
+					opts.OnEvent(Event{
+						Kind:       EventKindTrace,
+						TraceEvent: &event,
+					})
+				})
+			}
 
-	// Log content safety events from environment, from history/context.
-	t.recordLoadedContentSafety(traceSession)
+			return traceSession, nil
+		},
+		Prepare: func(context.Context) error {
+			t.recordLoadedContentSafety(traceSession)
 
-	// Trace hydrated plan if restored from session/history.
-	if t.planHydrated {
-		plan := t.currentPlan(t.getStateSessionID())
-		traceSession.Record(
-			trace.EvtPlanHydrated,
-			trace.PlanEventPayload{
-				SessionID:    t.getStateSessionID(),
-				Steps:        hydratedPlanStepsToTracePayload(plan.Steps),
-				Summary:      hydratedPlanSummaryToTracePayload(summarizeHydratedPlan(plan)),
-				ActiveStepID: getActiveHydratedPlanStepID(plan),
-				Explanation:  strings.TrimSpace(plan.Explanation),
-				Source:       "history",
-			},
-		)
-	}
+			if t.planHydrated {
+				plan := t.currentPlan(t.getStateSessionID())
+				traceSession.Record(
+					trace.EvtPlanHydrated,
+					trace.PlanEventPayload{
+						SessionID:    t.getStateSessionID(),
+						Steps:        hydratedPlanStepsToTracePayload(plan.Steps),
+						Summary:      hydratedPlanSummaryToTracePayload(summarizeHydratedPlan(plan)),
+						ActiveStepID: getActiveHydratedPlanStepID(plan),
+						Explanation:  strings.TrimSpace(plan.Explanation),
+						Source:       "history",
+					},
+				)
+			}
 
-	// Content safety: block & log if user input is not permitted.
-	if t.cfg.InputSafetyEnabled() {
-		inputSafety := guardrails.CheckInputSafety(msg, "user")
-		if inputSafety.Blocked {
+			return nil
+		},
+		CheckInput: func(_ context.Context, msg string) (agentcore.InputCheck, error) {
+			if !t.cfg.InputSafetyEnabled() {
+				return agentcore.InputCheck{}, nil
+			}
+
+			inputSafety := guardrails.CheckInputSafety(msg, "user")
+			if !inputSafety.Blocked {
+				return agentcore.InputCheck{}, nil
+			}
+
 			traceSession.Record(trace.EvtInputSafetyBlocked, getInputSafetyTracePayload(t.sessionID, msg, inputSafety))
-			return inputSafety.RefusalMessage, nil
-		}
-	}
+			return agentcore.InputCheck{Blocked: true, Reply: inputSafety.RefusalMessage}, nil
+		},
+		AcceptUserMessage: func(_ context.Context, msg string) error {
+			userMessage, err := handmsg.NewMessage(handmsg.RoleUser, msg)
+			if err != nil {
+				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
+				return err
+			}
+			t.emittedMessages = append(t.emittedMessages, userMessage)
 
-	// Compose and emit user's input message to session.
-	userMessage, err := handmsg.NewMessage(handmsg.RoleUser, msg)
-	if err != nil {
-		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-		return "", err
-	}
-	t.emittedMessages = append(t.emittedMessages, userMessage)
+			if err := t.appendSessionMessages([]handmsg.Message{userMessage}); err != nil {
+				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
+				return err
+			}
 
-	// Append user message to session history.
-	if err := t.appendSessionMessages([]handmsg.Message{userMessage}); err != nil {
-		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-		return "", err
-	}
+			traceSession.Record(trace.EvtUserMessageAccepted, trace.UserMessageAcceptedPayload{Message: msg})
+			return nil
+		},
+		LoadMemory: func(ctx context.Context, msg string) error {
+			t.memoryInstruction = t.retrieveMemoryInstruction(ctx, msg, traceSession)
+			budget = t.newIterationBudget()
+			streamingEnabled = t.cfg.StreamEnabled()
+			if opts.Stream != nil {
+				streamingEnabled = *opts.Stream
+			}
+			return nil
+		},
+		ConsumeIteration: func() bool {
+			return budget.Consume()
+		},
+		RunStep: func(ctx context.Context) (agentcore.LoopDecision, error) {
+			// Check for context cancellation.
+			if err := ctx.Err(); err != nil {
+				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
+				return agentcore.LoopDecision{}, err
+			}
 
-	traceSession.Record(trace.EvtUserMessageAccepted, trace.UserMessageAcceptedPayload{Message: msg})
+			// Query available tool definitions for this turn; may vary per session/tool policy.
+			availableToolDefinitions, err := t.availableToolDefinitions()
+			if err != nil {
+				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
+				return agentcore.LoopDecision{}, err
+			}
 
-	// Retrieve memory instruction for this input.
-	t.memoryInstruction = t.retrieveMemoryInstruction(ctx, msg, traceSession)
+			// Build model request and assemble all prompt-side context for completion.
+			request := models.Request{
+				Model:         t.cfg.Models.Main.Name,
+				APIMode:       t.cfg.Models.Main.APIMode,
+				Instructions:  t.buildRequestInstructions(availableToolDefinitions),
+				Messages:      t.Context(),
+				Tools:         availableToolDefinitions,
+				DebugRequests: t.cfg.Debug.Requests,
+			}
 
-	// Set up multi-step iteration budget for LLM/tool call loop.
-	budget := t.newIterationBudget()
+			// Refresh summary and possibly adjust session context after model request construction.
+			t.maybeRefreshSummary(ctx, request, traceSession)
 
-	// Check if streaming is enabled on config/override.
-	streamingEnabled := t.cfg.StreamEnabled()
-	if opts.Stream != nil {
-		streamingEnabled = *opts.Stream
-	}
+			// Rebuild prompt/context after summary possibly changed.
+			request.Instructions = t.buildRequestInstructions(availableToolDefinitions)
+			request.Messages = t.Context()
 
-	// Main iteration loop: tries to get a valid response or perform tool actions until budget exhausted.
-	runStep := func(ctx context.Context) (agentcore.LoopDecision, error) {
-		// Check for context cancellation.
-		if err := ctx.Err(); err != nil {
-			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-			return agentcore.LoopDecision{}, err
-		}
+			// Trace summary application and preflight compaction/model events.
+			t.summary.RecordSummaryApplied(traceSession)
+			recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens, t.canCompactPersistedHistory())
+			recordModelRequest(traceSession, request)
 
-		// Query available tool definitions for this turn; may vary per session/tool policy.
-		availableToolDefinitions, err := t.availableToolDefinitions()
-		if err != nil {
-			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-			return agentcore.LoopDecision{}, err
-		}
+			agentLog.Info().
+				Str("event", "model request dispatch started").
+				Str("plan", "assemble_context_send_model_stream_or_complete_handle_response").
+				Str("provider", t.cfg.Models.Main.Provider).
+				Str("mode", t.cfg.Models.Main.APIMode).
+				Str("model", t.cfg.Models.Main.Name).
+				Bool("stream", streamingEnabled).
+				Int("context_messages", len(request.Messages)).
+				Int("tools", len(request.Tools)).
+				Bool("debug_requests", t.cfg.Debug.Requests).
+				Msg("model request dispatch started")
 
-		// Build model request and assemble all prompt-side context for completion.
-		request := models.Request{
-			Model:         t.cfg.Models.Main.Name,
-			APIMode:       t.cfg.Models.Main.APIMode,
-			Instructions:  t.buildRequestInstructions(availableToolDefinitions),
-			Messages:      t.Context(),
-			Tools:         availableToolDefinitions,
-			DebugRequests: t.cfg.Debug.Requests,
-		}
+			// --- Make model inference call (streaming or blocking) ---
+			var (
+				resp               *models.Response
+				reasoningStartedAt time.Time
+				reasoningEndedAt   time.Time
+			)
 
-		// Refresh summary and possibly adjust session context after model request construction.
-		t.maybeRefreshSummary(ctx, request, traceSession)
-
-		// Rebuild prompt/context after summary possibly changed.
-		request.Instructions = t.buildRequestInstructions(availableToolDefinitions)
-		request.Messages = t.Context()
-
-		// Trace summary application and preflight compaction/model events.
-		t.summary.RecordSummaryApplied(traceSession)
-		recordPreflightCompactionTrace(traceSession, t.cfg, request, t.lastPromptTokens, t.canCompactPersistedHistory())
-		recordModelRequest(traceSession, request)
-
-		agentLog.Info().
-			Str("event", "model request dispatch started").
-			Str("plan", "assemble_context_send_model_stream_or_complete_handle_response").
-			Str("provider", t.cfg.Models.Main.Provider).
-			Str("mode", t.cfg.Models.Main.APIMode).
-			Str("model", t.cfg.Models.Main.Name).
-			Bool("stream", streamingEnabled).
-			Int("context_messages", len(request.Messages)).
-			Int("tools", len(request.Tools)).
-			Bool("debug_requests", t.cfg.Debug.Requests).
-			Msg("model request dispatch started")
-
-		// --- Make model inference call (streaming or blocking) ---
-		var (
-			resp               *models.Response
-			reasoningStartedAt time.Time
-			reasoningEndedAt   time.Time
-		)
-
-		if streamingEnabled {
-			resp, err = t.modelClient.CompleteStream(ctx, request, func(delta models.StreamDelta) {
-				if delta.Text == "" {
-					return
-				}
-				if delta.Channel == models.StreamChannelReasoning {
-					now := time.Now().UTC()
-					if reasoningStartedAt.IsZero() {
-						reasoningStartedAt = now
+			if streamingEnabled {
+				resp, err = t.modelClient.CompleteStream(ctx, request, func(delta models.StreamDelta) {
+					if delta.Text == "" {
+						return
 					}
-					reasoningEndedAt = now
-				}
-				event := Event{Kind: EventKindTextDelta, Channel: string(delta.Channel), Text: delta.Text}
-				if opts.OnEvent != nil {
-					opts.OnEvent(event)
-				}
-			})
-		} else {
-			// Blocking, non-stream model completion.
-			resp, err = t.modelClient.Complete(ctx, request)
-		}
+					if delta.Channel == models.StreamChannelReasoning {
+						now := time.Now().UTC()
+						if reasoningStartedAt.IsZero() {
+							reasoningStartedAt = now
+						}
+						reasoningEndedAt = now
+					}
+					event := Event{Kind: EventKindTextDelta, Channel: string(delta.Channel), Text: delta.Text}
+					if opts.OnEvent != nil {
+						opts.OnEvent(event)
+					}
+				})
+			} else {
+				// Blocking, non-stream model completion.
+				resp, err = t.modelClient.Complete(ctx, request)
+			}
 
-		// Model request failed or provided no response.
-		if err != nil {
-			agentLog.Warn().
-				Str("event", "model request dispatch failed").
+			// Model request failed or provided no response.
+			if err != nil {
+				agentLog.Warn().
+					Str("event", "model request dispatch failed").
+					Str("provider", t.cfg.Models.Main.Provider).
+					Str("mode", t.cfg.Models.Main.APIMode).
+					Str("model", t.cfg.Models.Main.Name).
+					Bool("stream", streamingEnabled).
+					Str("error_kind", getAgentModelErrorKind(err)).
+					Msg("model request dispatch failed")
+				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
+				return agentcore.LoopDecision{}, err
+			}
+
+			if resp == nil {
+				err = errors.New("model response is required")
+				agentLog.Warn().
+					Str("event", "model request dispatch failed").
+					Str("provider", t.cfg.Models.Main.Provider).
+					Str("mode", t.cfg.Models.Main.APIMode).
+					Str("model", t.cfg.Models.Main.Name).
+					Bool("stream", streamingEnabled).
+					Str("error_kind", "missing_response").
+					Msg("model request dispatch failed")
+				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
+				return agentcore.LoopDecision{}, err
+			}
+
+			// Mark model inference timing for diagnostics/storage.
+			t.recordModelReasoningCompleted(reasoningStartedAt, reasoningEndedAt)
+			recordModelResponse(traceSession, resp)
+
+			agentLog.Info().
+				Str("event", "model response received").
+				Str("relationship", "response_to_current_turn_model_request").
 				Str("provider", t.cfg.Models.Main.Provider).
 				Str("mode", t.cfg.Models.Main.APIMode).
 				Str("model", t.cfg.Models.Main.Name).
+				Str("response_model", resp.Model).
 				Bool("stream", streamingEnabled).
-				Str("error_kind", getAgentModelErrorKind(err)).
-				Msg("model request dispatch failed")
-			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-			return agentcore.LoopDecision{}, err
-		}
+				Int("prompt_tokens", resp.PromptTokens).
+				Int("completion_tokens", resp.CompletionTokens).
+				Int("total_tokens", resp.TotalTokens).
+				Int("tool_call_count", len(resp.ToolCalls)).
+				Bool("requires_tool_calls", resp.RequiresToolCalls).
+				Msg("model response received")
 
-		if resp == nil {
-			err = errors.New("model response is required")
-			agentLog.Warn().
-				Str("event", "model request dispatch failed").
-				Str("provider", t.cfg.Models.Main.Provider).
-				Str("mode", t.cfg.Models.Main.APIMode).
-				Str("model", t.cfg.Models.Main.Name).
-				Bool("stream", streamingEnabled).
-				Str("error_kind", "missing_response").
-				Msg("model request dispatch failed")
-			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-			return agentcore.LoopDecision{}, err
-		}
+			// Record postflight token usage for usage/analytics.
+			if err := t.recordPostflightUsage(traceSession, resp); err != nil {
+				return agentcore.LoopDecision{}, err
+			}
 
-		// Mark model inference timing for diagnostics/storage.
-		t.recordModelReasoningCompleted(reasoningStartedAt, reasoningEndedAt)
-		recordModelResponse(traceSession, resp)
+			// -- Assistant textual reply path (no tool calls required) --
+			if !resp.RequiresToolCalls {
+				reply := t.applyAssistantOutputSafety(traceSession, resp.OutputText, streamingEnabled)
 
-		agentLog.Info().
-			Str("event", "model response received").
-			Str("relationship", "response_to_current_turn_model_request").
-			Str("provider", t.cfg.Models.Main.Provider).
-			Str("mode", t.cfg.Models.Main.APIMode).
-			Str("model", t.cfg.Models.Main.Name).
-			Str("response_model", resp.Model).
-			Bool("stream", streamingEnabled).
-			Int("prompt_tokens", resp.PromptTokens).
-			Int("completion_tokens", resp.CompletionTokens).
-			Int("total_tokens", resp.TotalTokens).
-			Int("tool_call_count", len(resp.ToolCalls)).
-			Bool("requires_tool_calls", resp.RequiresToolCalls).
-			Msg("model response received")
+				assistantMessage, err := handmsg.NewMessage(handmsg.RoleAssistant, reply)
+				if err != nil {
+					traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
+					return agentcore.LoopDecision{}, err
+				}
 
-		// Record postflight token usage for usage/analytics.
-		if err := t.recordPostflightUsage(traceSession, resp); err != nil {
-			return agentcore.LoopDecision{}, err
-		}
+				// Append assistant message to emitted messages.
+				t.emittedMessages = append(t.emittedMessages, assistantMessage)
 
-		// -- Assistant textual reply path (no tool calls required) --
-		if !resp.RequiresToolCalls {
-			reply := t.applyAssistantOutputSafety(traceSession, resp.OutputText, streamingEnabled)
+				// Append assistant message to session history.
+				if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
+					traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
+					return agentcore.LoopDecision{}, err
+				}
 
-			assistantMessage, err := handmsg.NewMessage(handmsg.RoleAssistant, reply)
+				traceSession.Record(trace.EvtFinalAssistantResponse, trace.FinalAssistantResponsePayload{Message: reply})
+				agentLog.Info().
+					Str("session_id", t.sessionID).
+					Msg("turn completed")
+
+				return agentcore.LoopDecision{Done: true, Reply: reply}, nil
+			}
+
+			// -- Tool call required path --
+
+			// If model asks for tool calls, ensure at least one is present.
+			if len(resp.ToolCalls) == 0 {
+				err = errors.New("model requested tool execution without tool calls")
+				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
+				return agentcore.LoopDecision{}, err
+			}
+
+			// Represent tool call(s) as assistant message in session.
+			assistantMessage, err := assistantToolCallMessageFromResponse(resp)
 			if err != nil {
 				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 				return agentcore.LoopDecision{}, err
@@ -671,107 +712,70 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 			// Append assistant message to emitted messages.
 			t.emittedMessages = append(t.emittedMessages, assistantMessage)
-
-			// Append assistant message to session history.
 			if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
 				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 				return agentcore.LoopDecision{}, err
 			}
 
-			traceSession.Record(trace.EvtFinalAssistantResponse, trace.FinalAssistantResponsePayload{Message: reply})
-			agentLog.Info().
-				Str("session_id", t.sessionID).
-				Msg("turn completed")
+			// For each tool call: execute, trace, and record as tool message.
+			for _, toolCall := range resp.ToolCalls {
+				if err := ctx.Err(); err != nil {
+					traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
+					return agentcore.LoopDecision{}, err
+				}
 
-			return agentcore.LoopDecision{Done: true, Reply: reply}, nil
-		}
+				// Start tool invocation logging.
+				agentLog.Info().
+					Str("event", "tool invocation started").
+					Str("relationship", "tool_call_from_current_model_response").
+					Str("tool", toolCall.Name).
+					Str("tool_call_id", toolCall.ID).
+					Msg("tool invocation started")
 
-		// -- Tool call required path --
+				traceSession.Record(trace.EvtToolInvocationStarted, trace.ToolInvocationStartedPayload{
+					ID:           toolCall.ID,
+					Name:         toolCall.Name,
+					Input:        toolCall.Input,
+					PlanState:    getPlanToolInputState(toolCall.Name, toolCall.Input),
+					ProcessState: getProcessToolInputState(toolCall.Name, toolCall.Input),
+				})
 
-		// If model asks for tool calls, ensure at least one is present.
-		if len(resp.ToolCalls) == 0 {
-			err = errors.New("model requested tool execution without tool calls")
-			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-			return agentcore.LoopDecision{}, err
-		}
+				// Invoke tool and get tool message.
+				toolCtx := tools.WithTraceRecorder(t.getToolContext(ctx), traceSession)
+				toolMessage := t.invokeTool(toolCtx, toolCall)
 
-		// Represent tool call(s) as assistant message in session.
-		assistantMessage, err := assistantToolCallMessageFromResponse(resp)
-		if err != nil {
-			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-			return agentcore.LoopDecision{}, err
-		}
+				traceSession.Record(trace.EvtToolInvocationCompleted, trace.ToolInvocationCompletedPayload{
+					ToolCallID:   toolMessage.ToolCallID,
+					Name:         toolMessage.Name,
+					Content:      toolMessage.Content,
+					PlanState:    getPlanToolOutputState(toolMessage.Name, toolMessage.Content),
+					ProcessState: getProcessToolOutputState(toolMessage.Name, toolMessage.Content),
+				})
 
-		// Append assistant message to emitted messages.
-		t.emittedMessages = append(t.emittedMessages, assistantMessage)
-		if err := t.appendSessionMessages([]handmsg.Message{assistantMessage}); err != nil {
-			traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-			return agentcore.LoopDecision{}, err
-		}
+				agentLog.Info().
+					Str("event", "tool invocation completed").
+					Str("relationship", "tool_result_for_current_model_response").
+					Str("tool", toolCall.Name).
+					Str("tool_call_id", toolCall.ID).
+					Int("output_chars", len([]rune(toolMessage.Content))).
+					Int("output_bytes", len(toolMessage.Content)).
+					Msg("tool invocation completed")
 
-		// For each tool call: execute, trace, and record as tool message.
-		for _, toolCall := range resp.ToolCalls {
-			if err := ctx.Err(); err != nil {
-				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-				return agentcore.LoopDecision{}, err
+				// Normalize tool message and check for serialization/safety invariants.
+				toolMessage, err = normalizeTurnMessage(toolMessage)
+				if err != nil {
+					traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
+					return agentcore.LoopDecision{}, err
+				}
+
+				t.emittedMessages = append(t.emittedMessages, toolMessage)
+				if err := t.appendSessionMessages([]handmsg.Message{toolMessage}); err != nil {
+					traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
+					return agentcore.LoopDecision{}, err
+				}
 			}
-
-			// Start tool invocation logging.
-			agentLog.Info().
-				Str("event", "tool invocation started").
-				Str("relationship", "tool_call_from_current_model_response").
-				Str("tool", toolCall.Name).
-				Str("tool_call_id", toolCall.ID).
-				Msg("tool invocation started")
-
-			traceSession.Record(trace.EvtToolInvocationStarted, trace.ToolInvocationStartedPayload{
-				ID:           toolCall.ID,
-				Name:         toolCall.Name,
-				Input:        toolCall.Input,
-				PlanState:    getPlanToolInputState(toolCall.Name, toolCall.Input),
-				ProcessState: getProcessToolInputState(toolCall.Name, toolCall.Input),
-			})
-
-			// Invoke tool and get tool message.
-			toolCtx := tools.WithTraceRecorder(t.getToolContext(ctx), traceSession)
-			toolMessage := t.invokeTool(toolCtx, toolCall)
-
-			traceSession.Record(trace.EvtToolInvocationCompleted, trace.ToolInvocationCompletedPayload{
-				ToolCallID:   toolMessage.ToolCallID,
-				Name:         toolMessage.Name,
-				Content:      toolMessage.Content,
-				PlanState:    getPlanToolOutputState(toolMessage.Name, toolMessage.Content),
-				ProcessState: getProcessToolOutputState(toolMessage.Name, toolMessage.Content),
-			})
-
-			agentLog.Info().
-				Str("event", "tool invocation completed").
-				Str("relationship", "tool_result_for_current_model_response").
-				Str("tool", toolCall.Name).
-				Str("tool_call_id", toolCall.ID).
-				Int("output_chars", len([]rune(toolMessage.Content))).
-				Int("output_bytes", len(toolMessage.Content)).
-				Msg("tool invocation completed")
-
-			// Normalize tool message and check for serialization/safety invariants.
-			toolMessage, err = normalizeTurnMessage(toolMessage)
-			if err != nil {
-				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-				return agentcore.LoopDecision{}, err
-			}
-
-			t.emittedMessages = append(t.emittedMessages, toolMessage)
-			if err := t.appendSessionMessages([]handmsg.Message{toolMessage}); err != nil {
-				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-				return agentcore.LoopDecision{}, err
-			}
-		}
-		return agentcore.LoopDecision{}, nil
-	}
-
-	return agentcore.RunModelToolLoop(ctx, agentcore.ModelToolLoopOptions{
-		Consume: budget.Consume,
-		RunStep: runStep,
+			return agentcore.LoopDecision{}, nil
+		},
 		OnExhausted: func(ctx context.Context) (string, error) {
 			// If iteration budget is exhausted, fallback to summary-based result and finish.
 			agentLog.Warn().
