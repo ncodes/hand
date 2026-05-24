@@ -196,20 +196,13 @@ func renderHeaderInfoCell(row headerInfoRow, width int) string {
 	}
 
 	key := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(defaultTUITheme.ToolBranch)).
 		Width(headerInfoKeyWidth).
 		Align(lipgloss.Right).
 		Render(row.key)
-	separator := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(defaultTUITheme.ToolBranch)).
-		Render(": ")
-	value := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(defaultTUITheme.ToolDetail)).
-		Render(row.value)
 
 	return lipgloss.NewStyle().
 		Width(width).
-		Render(key + separator + value)
+		Render(key + ": " + row.value)
 }
 
 func renderHandBannerWithColors(banner string, colors []color.Color) string {

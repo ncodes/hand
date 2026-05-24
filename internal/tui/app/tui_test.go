@@ -336,12 +336,16 @@ func TestModel_ViewAlignsHeaderInfoKeys(t *testing.T) {
 	}
 }
 
-func TestRenderHeaderInfoCell_DimsKeyAndHighlightsValue(t *testing.T) {
-	content := renderHeaderInfoCell(headerInfoRow{key: "model", value: "minimax-m2.7"}, 32)
+func TestRenderHeaderInfoPanel_UsesOneColorForBothColumns(t *testing.T) {
+	panel := getHeaderPanel(newModel(), 180)
+	content := renderHeaderInfoPanel(panel)
+	modelCell := renderBottomStatusMutedCell("model")
 
-	require.Contains(t, content, "38;5;"+defaultTUITheme.ToolBranch)
-	require.Contains(t, content, "38;5;"+defaultTUITheme.ToolDetail)
-	require.Contains(t, stripANSI(content), "model: minimax-m2.7")
+	require.Equal(t, lipgloss.Height(content), strings.Count(content, "\x1b[90m"))
+	require.Contains(t, modelCell, "\x1b[90m")
+	require.NotContains(t, content, "38;5;"+defaultTUITheme.ToolDetail)
+	require.Contains(t, stripANSI(content), "version:")
+	require.Contains(t, stripANSI(content), "model:")
 }
 
 func TestModel_ViewSizesHeaderInfoPanelToValues(t *testing.T) {
