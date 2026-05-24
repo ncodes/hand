@@ -460,7 +460,7 @@ Progress:
 - Kept `internal/agent/runcontext` imports unchanged where callers need the runtime identity type directly.
 - Verified focused daemon, RPC, e2e, CLI, TUI, mock, and host tests, the `pkg/agent` dependency guard, and the full test suite.
 
-## Phase 9: Clean Up Compatibility Layer
+## [x] Phase 9: Clean Up Compatibility Layer
 
 Objective: remove transitional aliases and obsolete package paths.
 
@@ -480,6 +480,14 @@ Done when:
 Risk:
 
 - Removing aliases too early can make review painful. Do this only after behavior is stable.
+
+Progress:
+
+- Started Phase 9 by wiring `check-pkg-agent-deps` into the default `make test` target so public core dependency regressions fail in the normal verification path.
+- Replaced host service aliases with host-owned service, option, event, status, compaction, and timeline types.
+- Wrapped the legacy internal agent behind `internal/host.Agent` so application callers depend on the host service surface, not the internal agent contract.
+- Removed the dead `internal/agent.ServiceAPI` compatibility interface.
+- Kept the remaining `internal/agent/runcontext` imports as runtime identity dependencies; moving that type is a separate package-boundary cleanup.
 
 ## Phase 10: External Integration Example
 

@@ -1,30 +1,101 @@
 package host
 
-import "github.com/wandxy/hand/internal/agent"
+import (
+	"context"
+	"time"
 
-const (
-	EventKindTextDelta = agent.EventKindTextDelta
-	EventKindTrace     = agent.EventKindTrace
+	handmsg "github.com/wandxy/hand/internal/messages"
+	storage "github.com/wandxy/hand/internal/state/core"
+	"github.com/wandxy/hand/internal/state/search"
+	"github.com/wandxy/hand/internal/trace"
 )
 
-type ServiceAPI = agent.ServiceAPI
+const (
+	EventKindTextDelta = "text_delta"
+	EventKindTrace     = "trace_event"
+)
 
-type RespondOptions = agent.RespondOptions
+type ServiceAPI interface {
+	Respond(context.Context, string, RespondOptions) (string, error)
+	CreateSession(context.Context, string) (storage.Session, error)
+	ListSessions(context.Context) ([]storage.Session, error)
+	UseSession(context.Context, string) error
+	CurrentSession(context.Context) (storage.Session, error)
+	RecallSessionSummary(context.Context, string) (storage.SessionSummary, error)
+	CompactSession(context.Context, string) (CompactSessionResult, error)
+	RepairSession(context.Context, RepairSessionOptions) (RepairSessionResult, error)
+	ContextStatus(context.Context, string) (ContextStatus, error)
+	GetSessionTimeline(context.Context, SessionTimelineOptions) (SessionTimeline, error)
+}
 
-type Event = agent.Event
+type RespondOptions struct {
+	Instruct     string
+	SessionID    string
+	Stream       *bool
+	OnEvent      func(Event)
+	OnTraceEvent func(trace.Event)
+}
 
-type CompactSessionResult = agent.CompactSessionResult
+type Event struct {
+	Kind       string
+	Channel    string
+	Text       string
+	TraceEvent *trace.Event
+}
 
-type RepairSessionOptions = agent.RepairSessionOptions
+type CompactSessionResult struct {
+	SessionID            string
+	SourceEndOffset      int
+	SourceMessageCount   int
+	UpdatedAt            time.Time
+	CurrentContextLength int
+	TotalContextLength   int
+}
 
-type RepairSessionResult = agent.RepairSessionResult
+type RepairSessionOptions = search.VectorRepairOptions
 
-type ContextStatus = agent.ContextStatus
+type RepairSessionResult = search.VectorRepairResult
 
-type SessionTimelineOptions = agent.SessionTimelineOptions
+type ContextStatus struct {
+	SessionID        string
+	Offset           int
+	Size             int
+	Length           int
+	Used             int
+	Remaining        int
+	UsedPct          float64
+	RemainingPct     float64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	CompactionStatus string
+}
 
-type SessionTimeline = agent.SessionTimeline
+type SessionTimelineOptions struct {
+	SessionID     string
+	MessageOffset int
+	MessageLimit  int
+	TraceOffset   int
+	TraceLimit    int
+}
 
-type SessionTimelineMessage = agent.SessionTimelineMessage
+type SessionTimeline struct {
+	SessionID             string
+	Title                 string
+	TitleSource           string
+	Messages              []SessionTimelineMessage
+	TraceEvents           []SessionTimelineTraceEvent
+	MessagesHasMore       bool
+	TracesHasMore         bool
+	TracesTruncatedBefore bool
+	FirstTraceSequence    int
+	LastTraceSequence     int
+}
 
-type SessionTimelineTraceEvent = agent.SessionTimelineTraceEvent
+type SessionTimelineMessage struct {
+	Message handmsg.Message
+	Offset  int
+}
+
+type SessionTimelineTraceEvent struct {
+	Event storage.TraceEvent
+}

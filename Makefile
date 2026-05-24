@@ -31,7 +31,7 @@ build: build-proto
 	@mkdir -p $(BUILD_DIR)
 	@CGO_ENABLED=1 $(GO) build -tags $(GO_SQLITE_TAGS) -ldflags "$(LD_FLAGS)" -o $(BUILD_DIR)/$(APP) ./cmd/hand
 
-test: build-proto
+test: build-proto check-pkg-agent-deps
 	@CGO_ENABLED=1 $(GO) test -tags $(GO_SQLITE_TAGS) ./...
 
 test-agent-baseline: build-proto
