@@ -13,7 +13,12 @@ func (a *Agent) newTurn(
 	runtimeEnv environment.Environment,
 	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message,
 ) *Turn {
+	if invokeToolFn == nil {
+		invokeToolFn = a.invokeToolWithEnvironment
+	}
+
 	sessionStore := host.NewSessionStore(a.stateMgr)
+	toolRegistry := host.NewToolRegistry(runtimeEnv, invokeToolFn)
 
 	return NewTurnWithSessionStore(
 		a.cfg,
@@ -22,7 +27,9 @@ func (a *Agent) newTurn(
 		a.stateMgr,
 		sessionStore,
 		sessionStore,
-		invokeToolFn,
+		toolRegistry,
+		host.ToolPolicyFromEnvironment(runtimeEnv),
+		nil,
 		runtimeEnv,
 	)
 }

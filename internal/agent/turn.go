@@ -23,6 +23,7 @@ import (
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
+	agenttool "github.com/wandxy/hand/pkg/agent/tool"
 )
 
 const requestInstructionName = "request.instruct"
@@ -53,7 +54,13 @@ type Turn struct {
 	// Summary store used to lazily build the summary service with current turn config.
 	summaryStore summarizer.SummaryStore
 
-	// Tool invocation function for executing tool calls.
+	// Tool registry used to resolve and invoke model-visible tools.
+	toolRegistry agenttool.Registry
+
+	// Tool policy used to filter tool definitions for this runtime.
+	toolPolicy agenttool.Policy
+
+	// Tool invocation function for executing tool calls during legacy tests and wrappers.
 	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message
 
 	// Supplies tools, instructions, tracing, iteration budget.
@@ -107,6 +114,8 @@ func NewTurnWithSessionStore(
 	summaryStore summarizer.SummaryStore,
 	sessionStore agentsession.Store,
 	traceRecorder agentsession.TraceRecorder,
+	toolRegistry agenttool.Registry,
+	toolPolicy agenttool.Policy,
 	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message,
 	runtimeEnv environment.Environment,
 ) *Turn {
@@ -121,6 +130,8 @@ func NewTurnWithSessionStore(
 		summaryStore:   summaryStore,
 		sessionStore:   sessionStore,
 		traceRecorder:  traceRecorder,
+		toolRegistry:   toolRegistry,
+		toolPolicy:     toolPolicy,
 		invokeToolFn:   invokeToolFn,
 		env:            runtimeEnv,
 		contextBuilder: ctxbuilder.New(),
@@ -796,7 +807,20 @@ func (t *Turn) getToolContext(ctx context.Context) context.Context {
 
 // availableToolDefinitions resolves tool definitions available for this turn, using environment/tool policy.
 func (t *Turn) availableToolDefinitions() ([]models.ToolDefinition, error) {
-	if t == nil || t.env == nil || t.env.Tools() == nil {
+	if t == nil {
+		return nil, nil
+	}
+
+	if t.toolRegistry != nil {
+		definitions, err := t.toolRegistry.Resolve(t.toolPolicy)
+		if err != nil {
+			return nil, err
+		}
+
+		return agenttool.DefinitionsToModel(definitions), nil
+	}
+
+	if t.env == nil || t.env.Tools() == nil {
 		return nil, nil
 	}
 
@@ -814,7 +838,7 @@ func (t *Turn) availableToolDefinitions() ([]models.ToolDefinition, error) {
 
 // invokeTool executes a tool call, optionally using turn's tool invocation handler.
 func (t *Turn) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
-	if t.invokeToolFn == nil {
+	if t == nil {
 		return handmsg.Message{
 			Role:       handmsg.RoleTool,
 			Name:       toolCall.Name,
@@ -823,7 +847,24 @@ func (t *Turn) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg
 		}
 	}
 
-	return t.invokeToolFn(ctx, t.env, toolCall)
+	if t.invokeToolFn != nil {
+		return t.invokeToolFn(ctx, t.env, toolCall)
+	}
+
+	if t.toolRegistry != nil {
+		return t.toolRegistry.Invoke(ctx, agenttool.CallFromModel(toolCall))
+	}
+
+	if t.env != nil {
+		return invokeToolWithEnvironment(ctx, t.env, toolCall, t.summaryClient, t.cfg)
+	}
+
+	return handmsg.Message{
+		Role:       handmsg.RoleTool,
+		Name:       toolCall.Name,
+		ToolCallID: toolCall.ID,
+		Content:    `{"error":"tool invocation is required"}`,
+	}
 }
 
 // summaryFallback runs the fallback summary request and returns the assistant reply

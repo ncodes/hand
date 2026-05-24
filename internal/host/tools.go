@@ -1,0 +1,130 @@
+package host
+
+import (
+	"context"
+
+	"github.com/wandxy/hand/internal/environment"
+	handmsg "github.com/wandxy/hand/internal/messages"
+	"github.com/wandxy/hand/internal/models"
+	handtools "github.com/wandxy/hand/internal/tools"
+	agenttool "github.com/wandxy/hand/pkg/agent/tool"
+)
+
+type ToolInvoker func(context.Context, environment.Environment, models.ToolCall) handmsg.Message
+
+type ToolRegistry struct {
+	env    environment.Environment
+	invoke ToolInvoker
+}
+
+func NewToolRegistry(env environment.Environment, invoke ToolInvoker) *ToolRegistry {
+	return &ToolRegistry{env: env, invoke: invoke}
+}
+
+func (r *ToolRegistry) Resolve(policy agenttool.Policy) ([]agenttool.Definition, error) {
+	if r == nil || r.env == nil || r.env.Tools() == nil {
+		return nil, nil
+	}
+
+	if isEmptyToolPolicy(policy) {
+		policy = ToolPolicyFromEnvironment(r.env)
+	}
+
+	definitions, err := r.env.Tools().Resolve(toolsPolicyFromAgentPolicy(policy))
+	if err != nil {
+		return nil, err
+	}
+
+	return agentDefinitionsFromToolsDefinitions(definitions), nil
+}
+
+func (r *ToolRegistry) Invoke(ctx context.Context, call agenttool.Call) handmsg.Message {
+	if r == nil || r.invoke == nil {
+		return handmsg.Message{
+			Role:       handmsg.RoleTool,
+			Name:       call.Name,
+			ToolCallID: call.ID,
+			Content:    `{"error":"tool invocation is required"}`,
+		}
+	}
+
+	return r.invoke(ctx, r.env, agenttool.CallToModel(call))
+}
+
+func ToolPolicyFromEnvironment(env environment.Environment) agenttool.Policy {
+	if env == nil {
+		return agenttool.Policy{}
+	}
+
+	return agentPolicyFromToolsPolicy(env.ToolPolicy())
+}
+
+func agentPolicyFromToolsPolicy(policy handtools.Policy) agenttool.Policy {
+	return agenttool.Policy{
+		GroupNames:   append([]string(nil), policy.GroupNames...),
+		Capabilities: agentCapabilitiesFromToolsCapabilities(policy.Capabilities),
+		Platform:     policy.Platform,
+	}
+}
+
+func toolsPolicyFromAgentPolicy(policy agenttool.Policy) handtools.Policy {
+	return handtools.Policy{
+		GroupNames:   append([]string(nil), policy.GroupNames...),
+		Capabilities: toolsCapabilitiesFromAgentCapabilities(policy.Capabilities),
+		Platform:     policy.Platform,
+	}
+}
+
+func agentDefinitionsFromToolsDefinitions(definitions handtools.Definitions) []agenttool.Definition {
+	if len(definitions) == 0 {
+		return nil
+	}
+
+	result := make([]agenttool.Definition, 0, len(definitions))
+	for _, definition := range definitions {
+		result = append(result, agentDefinitionFromToolsDefinition(definition))
+	}
+
+	return result
+}
+
+func agentDefinitionFromToolsDefinition(definition handtools.Definition) agenttool.Definition {
+	return agenttool.Definition{
+		Name:        definition.Name,
+		Description: definition.Description,
+		InputSchema: definition.InputSchema,
+		Groups:      append([]string(nil), definition.Groups...),
+		Requires:    agentCapabilitiesFromToolsCapabilities(definition.Requires),
+		Platforms:   append([]string(nil), definition.Platforms...),
+	}
+}
+
+func agentCapabilitiesFromToolsCapabilities(capabilities handtools.Capabilities) agenttool.Capabilities {
+	return agenttool.Capabilities{
+		Filesystem: capabilities.Filesystem,
+		Network:    capabilities.Network,
+		Exec:       capabilities.Exec,
+		Browser:    capabilities.Browser,
+		Memory:     capabilities.Memory,
+	}
+}
+
+func toolsCapabilitiesFromAgentCapabilities(capabilities agenttool.Capabilities) handtools.Capabilities {
+	return handtools.Capabilities{
+		Filesystem: capabilities.Filesystem,
+		Network:    capabilities.Network,
+		Exec:       capabilities.Exec,
+		Browser:    capabilities.Browser,
+		Memory:     capabilities.Memory,
+	}
+}
+
+func isEmptyToolPolicy(policy agenttool.Policy) bool {
+	return len(policy.GroupNames) == 0 &&
+		policy.Platform == "" &&
+		!policy.Capabilities.Filesystem &&
+		!policy.Capabilities.Network &&
+		!policy.Capabilities.Exec &&
+		!policy.Capabilities.Browser &&
+		!policy.Capabilities.Memory
+}

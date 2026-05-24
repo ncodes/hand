@@ -294,24 +294,23 @@ func (t *Turn) normalizeMemoryFlushToolCall(toolCall models.ToolCall) models.Too
 	return toolCall
 }
 
-// invokeFlushTool uses the turn hook when present, otherwise invokes directly through the environment.
+// invokeFlushTool uses the turn's tool boundary so memory flush follows normal tool behavior.
 func (t *Turn) invokeFlushTool(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
-	if t.invokeToolFn != nil {
-		return t.invokeTool(ctx, toolCall)
+	if t == nil || (t.invokeToolFn == nil && t.toolRegistry == nil && t.env == nil) {
+		return invokeToolWithEnvironment(ctx, nil, toolCall, nil, nil)
 	}
 
-	return invokeToolWithEnvironment(ctx, t.env, toolCall, t.summaryClient, t.cfg)
+	return t.invokeTool(ctx, toolCall)
 }
 
 // availableMemoryFlushToolDefinitions returns only memory tools that are safe during flush.
 func (t *Turn) availableMemoryFlushToolDefinitions() ([]models.ToolDefinition, error) {
-	if t == nil || t.env == nil || t.env.Tools() == nil {
-		return nil, nil
-	}
-
-	definitions, err := t.env.Tools().Resolve(t.env.ToolPolicy())
+	definitions, err := t.availableToolDefinitions()
 	if err != nil {
 		return nil, err
+	}
+	if len(definitions) == 0 {
+		return nil, nil
 	}
 
 	flushTools := make([]models.ToolDefinition, 0, len(memoryFlushToolNames))
@@ -319,7 +318,7 @@ func (t *Turn) availableMemoryFlushToolDefinitions() ([]models.ToolDefinition, e
 		if _, ok := memoryFlushToolNames[definition.Name]; !ok {
 			continue
 		}
-		flushTools = append(flushTools, modelToolDefinitionFromToolDefinition(definition))
+		flushTools = append(flushTools, definition)
 	}
 
 	return flushTools, nil

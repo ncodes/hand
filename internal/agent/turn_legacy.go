@@ -10,6 +10,7 @@ import (
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/state/manager"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
+	agenttool "github.com/wandxy/hand/pkg/agent/tool"
 )
 
 // NewTurn keeps the existing Hand constructor while the turn loop moves behind reusable boundaries.
@@ -24,6 +25,11 @@ func NewTurn(
 	if summaryClient == nil {
 		summaryClient = modelClient
 	}
+	if invokeToolFn == nil {
+		invokeToolFn = func(ctx context.Context, env environment.Environment, toolCall models.ToolCall) handmsg.Message {
+			return invokeToolWithEnvironment(ctx, env, toolCall, summaryClient, cfg)
+		}
+	}
 
 	var sessionStore agentsession.Store
 	var traceRecorder agentsession.TraceRecorder
@@ -32,7 +38,6 @@ func NewTurn(
 		sessionStore = store
 		traceRecorder = store
 	}
-
 	return NewTurnWithSessionStore(
 		cfg,
 		modelClient,
@@ -40,6 +45,8 @@ func NewTurn(
 		stateMgr,
 		sessionStore,
 		traceRecorder,
+		nil,
+		agenttool.Policy{},
 		invokeToolFn,
 		runtimeEnv,
 	)
