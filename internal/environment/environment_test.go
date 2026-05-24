@@ -656,7 +656,7 @@ func TestEnvironment_PrepareIncludesConfiguredNameAndToolGuidance(t *testing.T) 
 	require.Equal(t, instruct.PlanningPolicyInstructionName, instructions[0].Name)
 	require.Contains(t, instructions[0].Value, "Use plan_tool for tasks with 3 or more meaningful steps")
 	require.Contains(t, instructions[1].Value, "Test Agent is the user's personal agent")
-	require.Contains(t, instructions[1].Value, "Use tools when they materially improve correctness or allow real action")
+	require.Contains(t, instructions[1].Value, "Use tools only when they improve correctness")
 }
 
 func TestEnvironment_SetStateManager(t *testing.T) {

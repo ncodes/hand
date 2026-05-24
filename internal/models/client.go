@@ -1,73 +1,29 @@
 package models
 
-import (
-	"context"
+import agentmodel "github.com/wandxy/hand/pkg/agent/model"
 
-	"github.com/wandxy/hand/internal/constants"
-	handmsg "github.com/wandxy/hand/internal/messages"
-)
+type Client = agentmodel.Client
 
-type Client interface {
-	Complete(ctx context.Context, req Request) (*Response, error)
-	CompleteStream(ctx context.Context, req Request, onTextDelta func(StreamDelta)) (*Response, error)
-}
-
-type StreamChannel string
+type StreamChannel = agentmodel.StreamChannel
 
 const (
-	StreamChannelAssistant StreamChannel = "assistant"
-	StreamChannelReasoning StreamChannel = "reasoning"
+	StreamChannelAssistant = agentmodel.StreamChannelAssistant
+	StreamChannelReasoning = agentmodel.StreamChannelReasoning
 )
 
-type StreamDelta struct {
-	Channel StreamChannel
-	Text    string
-}
+type StreamDelta = agentmodel.StreamDelta
 
 const (
-	// APIModeCompletions selects the chat completions API path (OpenAI-compatible /v1/chat/completions).
-	APIModeCompletions = constants.DefaultModelAPIModeCompletions
-	APIModeResponses   = constants.DefaultModelAPIModeResponses
+	APIModeCompletions = agentmodel.APIModeCompletions
+	APIModeResponses   = agentmodel.APIModeResponses
 )
 
-type Request struct {
-	Model            string
-	APIMode          string
-	Instructions     string
-	Messages         []handmsg.Message
-	Tools            []ToolDefinition
-	StructuredOutput *StructuredOutput
-	MaxOutputTokens  int64
-	Temperature      float64
-	DebugRequests    bool
-}
+type Request = agentmodel.Request
 
-type StructuredOutput struct {
-	Name        string
-	Description string
-	Schema      map[string]any
-	Strict      bool
-}
+type StructuredOutput = agentmodel.StructuredOutput
 
-type Response struct {
-	ID                string
-	Model             string
-	OutputText        string
-	ToolCalls         []ToolCall
-	RequiresToolCalls bool
-	PromptTokens      int
-	CompletionTokens  int
-	TotalTokens       int
-}
+type Response = agentmodel.Response
 
-type ToolDefinition struct {
-	Name        string
-	Description string
-	InputSchema map[string]any
-}
+type ToolDefinition = agentmodel.ToolDefinition
 
-type ToolCall struct {
-	ID    string
-	Name  string
-	Input string
-}
+type ToolCall = agentmodel.ToolCall
