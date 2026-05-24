@@ -1,0 +1,93 @@
+package agent_test
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/wandxy/hand/pkg/agent"
+	"github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/hand/pkg/agent/model"
+	"github.com/wandxy/hand/pkg/agent/session"
+	"github.com/wandxy/hand/pkg/agent/tool"
+)
+
+func ExampleAgent_Respond() {
+	store := newMemorySessionStore()
+	client := &fakeModelClient{
+		complete: func(context.Context, model.Request) (*model.Response, error) {
+			return &model.Response{OutputText: "hello from an embedded agent"}, nil
+		},
+	}
+
+	core, err := agent.New(agent.Options{
+		Model:        "example-model",
+		APIMode:      model.APIModeCompletions,
+		ModelClient:  client,
+		SessionStore: store,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	reply, err := core.Respond(context.Background(), "hello", agent.RespondOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(reply)
+	// Output: hello from an embedded agent
+}
+
+func ExampleAgent_Respond_withToolCall() {
+	store := newMemorySessionStore()
+	registry := &fakeToolRegistry{
+		invoke: func(context.Context, tool.Call) message.Message {
+			return message.Message{
+				Role:       message.RoleTool,
+				Name:       "lookup",
+				ToolCallID: "call_1",
+				Content:    `{"answer":"from tool"}`,
+			}
+		},
+	}
+	client := &fakeModelClient{}
+	client.complete = func(_ context.Context, request model.Request) (*model.Response, error) {
+		if len(request.Messages) == 1 {
+			return &model.Response{
+				RequiresToolCalls: true,
+				ToolCalls: []model.ToolCall{{
+					ID:    "call_1",
+					Name:  "lookup",
+					Input: `{"query":"hello"}`,
+				}},
+			}, nil
+		}
+
+		return &model.Response{OutputText: "used the tool"}, nil
+	}
+
+	core, err := agent.New(agent.Options{
+		Model:         "example-model",
+		APIMode:       model.APIModeCompletions,
+		ModelClient:   client,
+		SessionStore:  store,
+		ToolRegistry:  registry,
+		MaxIterations: 2,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	reply, err := core.Respond(context.Background(), "hello", agent.RespondOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(reply)
+	fmt.Println(len(registry.calls))
+	// Output:
+	// used the tool
+	// 1
+}
+
+var _ session.Store = (*memorySessionStore)(nil)

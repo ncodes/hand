@@ -489,7 +489,7 @@ Progress:
 - Removed the dead `internal/agent.ServiceAPI` compatibility interface.
 - Kept the remaining `internal/agent/runcontext` imports as runtime identity dependencies; moving that type is a separate package-boundary cleanup.
 
-## Phase 10: External Integration Example
+## [x] Phase 10: External Integration Example
 
 Objective: prove the reusable package works outside Hand.
 
@@ -507,6 +507,12 @@ Done when:
 Risk:
 
 - Avoid turning the example into another product surface. It exists to verify the package boundary.
+
+Progress:
+
+- Added public `pkg/agent` examples that construct an agent with an in-memory session store, fake model client, and fake tool registry without importing Hand internals.
+- Covered both a normal response and a model tool-call response in executable examples.
+- Reused the test-only fake dependencies already used by the public package boundary tests to avoid adding another product surface.
 
 ## Verification Gates
 
