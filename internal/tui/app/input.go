@@ -52,10 +52,17 @@ func setInputTransparentStyles(input *textarea.Model) {
 // renderInputPrompt shows the arrow only on the first visible row.
 func renderInputPrompt(info textarea.PromptInfo) string {
 	if info.LineNumber == 0 {
-		return inputPrompt
+		return renderComposerInputPrompt()
 	}
 
 	return ""
+}
+
+func renderComposerInputPrompt() string {
+	return lipgloss.NewStyle().
+		Background(lipgloss.NoColor{}).
+		Foreground(lipgloss.Color(defaultTUITheme.UserTranscriptPrompt)).
+		Render(inputPrompt)
 }
 
 // renderInput draws the composer and its model/context/status row.
@@ -67,7 +74,6 @@ func (m model) renderInput() string {
 		BorderRight(true).
 		BorderBottom(true).
 		BorderLeft(true).
-		Background(lipgloss.Color(defaultTUITheme.InputFrameBackground)).
 		BorderForeground(lipgloss.Color(m.getInputFrameBorderColor())).
 		Padding(inputFrameVerticalPadding, inputFrameHorizontalPadding).
 		Width(getInputBoxWidth(width)).

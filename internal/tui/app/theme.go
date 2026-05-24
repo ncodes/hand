@@ -1,7 +1,110 @@
 package tui
 
-import tuirender "github.com/wandxy/hand/internal/tui/render"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
+	tuirender "github.com/wandxy/hand/internal/tui/render"
+	"github.com/wandxy/hand/pkg/termtheme"
+)
 
 type tuiTheme = tuirender.Theme
 
-var defaultTUITheme = tuirender.DefaultTheme
+var detectTerminalTheme = func() termtheme.Result {
+	return termtheme.Detect(80 * time.Millisecond)
+}
+
+var defaultTUITheme = loadDefaultTUITheme()
+
+func loadDefaultTUITheme() tuiTheme {
+	return adaptTUITheme(tuirender.DefaultTheme, detectTerminalTheme())
+}
+
+func adaptTUITheme(base tuiTheme, result termtheme.Result) tuiTheme {
+	if strings.TrimSpace(strings.ToLower(result.Theme)) != "dark" || result.Error != "" {
+		return base
+	}
+
+	background, ok := parseThemeHexColor(result.Background)
+	if !ok || isNearBlackThemeColor(background) {
+		return base
+	}
+
+	theme := base
+	theme.InputFrameBackground = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.06).Hex()
+	theme.InputFrameBorder = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.28).Hex()
+	theme.UserTranscriptBackground = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.055).Hex()
+	theme.Separator = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.22).Hex()
+	theme.NoticeBackground = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.10).Hex()
+	theme.NoticeBorder = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.30).Hex()
+	theme.MarkdownCodeBackground = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.14).Hex()
+	theme.JumpToBottomBackground = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.18).Hex()
+
+	return theme
+}
+
+type themeRGB struct {
+	R int
+	G int
+	B int
+}
+
+func (c themeRGB) Hex() string {
+	return fmt.Sprintf("#%02x%02x%02x", clampThemeColor(c.R), clampThemeColor(c.G), clampThemeColor(c.B))
+}
+
+func parseThemeHexColor(value string) (themeRGB, bool) {
+	value = strings.TrimSpace(value)
+	if len(value) != 7 || !strings.HasPrefix(value, "#") {
+		return themeRGB{}, false
+	}
+
+	red, err := strconv.ParseInt(value[1:3], 16, 32)
+	if err != nil {
+		return themeRGB{}, false
+	}
+
+	green, err := strconv.ParseInt(value[3:5], 16, 32)
+	if err != nil {
+		return themeRGB{}, false
+	}
+
+	blue, err := strconv.ParseInt(value[5:7], 16, 32)
+	if err != nil {
+		return themeRGB{}, false
+	}
+
+	return themeRGB{R: int(red), G: int(green), B: int(blue)}, true
+}
+
+func isNearBlackThemeColor(color themeRGB) bool {
+	return color.R <= 8 && color.G <= 8 && color.B <= 8
+}
+
+func mixThemeColor(from themeRGB, to themeRGB, amount float64) themeRGB {
+	if amount < 0 {
+		amount = 0
+	}
+	if amount > 1 {
+		amount = 1
+	}
+
+	return themeRGB{
+		R: int(float64(from.R) + (float64(to.R)-float64(from.R))*amount),
+		G: int(float64(from.G) + (float64(to.G)-float64(from.G))*amount),
+		B: int(float64(from.B) + (float64(to.B)-float64(from.B))*amount),
+	}
+}
+
+func clampThemeColor(value int) int {
+	if value < 0 {
+		return 0
+	}
+	if value > 255 {
+		return 255
+	}
+
+	return value
+}

@@ -143,7 +143,7 @@ func getHeaderInfoRows(m model) []headerInfoRow {
 		{key: "version", value: getRuntimeValue(info.Version, "dev")},
 		{key: "commit", value: getRuntimeValue(info.Commit, "unknown")},
 		{key: "profile", value: getRuntimeValue(info.Profile, "default")},
-		{key: "session", value: getRuntimeValue(m.sessionTitle, m.sessionID)},
+		{key: "session", value: getRuntimeValue(m.sessionID, "default")},
 		{key: "provider", value: getRuntimeValue(info.Provider, "openrouter")},
 		{key: "model", value: getModelDisplayName(getRuntimeValue(m.modelName, info.Model))},
 		{key: "summary", value: getModelDisplayName(info.SummaryModel)},

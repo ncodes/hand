@@ -264,7 +264,7 @@ func TestModel_ViewRendersHeaderInfoPanelWhenWide(t *testing.T) {
 	require.Contains(t, content, "version: dev")
 	require.Contains(t, content, "commit: unknown")
 	require.Contains(t, content, "profile: work")
-	require.Contains(t, content, "session: default session")
+	require.Contains(t, content, "session: default")
 	require.Contains(t, content, "provider: openai")
 	require.Contains(t, content, "model: gpt-4o-mini")
 	require.Contains(t, content, "summary: gpt-4o")
@@ -334,6 +334,14 @@ func TestModel_ViewAlignsHeaderInfoKeys(t *testing.T) {
 			require.Equal(t, rightColonIndex, strings.LastIndex(line, ":"))
 		}
 	}
+}
+
+func TestRenderHeaderInfoCell_DimsKeyAndHighlightsValue(t *testing.T) {
+	content := renderHeaderInfoCell(headerInfoRow{key: "model", value: "minimax-m2.7"}, 32)
+
+	require.Contains(t, content, "38;5;"+defaultTUITheme.ToolBranch)
+	require.Contains(t, content, "38;5;"+defaultTUITheme.ToolDetail)
+	require.Contains(t, stripANSI(content), "model: minimax-m2.7")
 }
 
 func TestModel_ViewSizesHeaderInfoPanelToValues(t *testing.T) {
@@ -462,6 +470,13 @@ func TestModel_RenderInputUsesCompleteComposerFrame(t *testing.T) {
 	require.Contains(t, lines[1], inputPrompt+"Ask Hand...")
 	require.True(t, strings.HasPrefix(lines[2], "╰"))
 	require.True(t, strings.HasSuffix(strings.TrimRight(lines[2], " "), "╯"))
+}
+
+func TestRenderComposerInputPrompt_HasNoBackgroundColor(t *testing.T) {
+	prompt := renderComposerInputPrompt()
+
+	require.Contains(t, stripANSI(prompt), inputPrompt)
+	require.NotContains(t, prompt, "[48;")
 }
 
 func TestModel_RenderBottomStatusPanelMovesContextToRight(t *testing.T) {
