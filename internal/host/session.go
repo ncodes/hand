@@ -85,33 +85,6 @@ func (s *SessionStore) AppendTraceEvent(
 	return agentTraceEventFromStorageTraceEvent(stored), nil
 }
 
-func agentSessionFromStorageSession(value storage.Session) agentsession.Session {
-	return agentsession.Session{
-		CreatedAt:                  value.CreatedAt,
-		Compaction:                 agentCompactionFromStorageCompaction(value.Compaction),
-		ID:                         value.ID,
-		EpisodicCheckpointOffset:   value.EpisodicCheckpointOffset,
-		LastPromptTokens:           value.LastPromptTokens,
-		ReflectionCheckpointOffset: value.ReflectionCheckpointOffset,
-		Title:                      value.Title,
-		TitleSource:                value.TitleSource,
-		UpdatedAt:                  value.UpdatedAt,
-	}
-}
-
-func agentCompactionFromStorageCompaction(value storage.SessionCompaction) agentsession.Compaction {
-	return agentsession.Compaction{
-		CompletedAt:        value.CompletedAt,
-		FailedAt:           value.FailedAt,
-		LastError:          value.LastError,
-		RequestedAt:        value.RequestedAt,
-		StartedAt:          value.StartedAt,
-		Status:             agentsession.CompactionStatus(value.Status),
-		TargetMessageCount: value.TargetMessageCount,
-		TargetOffset:       value.TargetOffset,
-	}
-}
-
 func messageQueryToStorageMessageQuery(value agentsession.MessageQuery) storage.MessageQueryOptions {
 	return storage.MessageQueryOptions{
 		Archived: value.Archived,
@@ -120,27 +93,5 @@ func messageQueryToStorageMessageQuery(value agentsession.MessageQuery) storage.
 		Order:    value.Order,
 		Offset:   value.Offset,
 		Role:     handmsg.Role(value.Role),
-	}
-}
-
-func storageTraceEventFromAgentTraceEvent(value agentsession.TraceEvent) storage.TraceEvent {
-	return storage.TraceEvent{
-		ID:        value.ID,
-		SessionID: value.SessionID,
-		Sequence:  value.Sequence,
-		Type:      value.Type,
-		Timestamp: value.Timestamp,
-		Payload:   value.Payload,
-	}
-}
-
-func agentTraceEventFromStorageTraceEvent(value storage.TraceEvent) agentsession.TraceEvent {
-	return agentsession.TraceEvent{
-		ID:        value.ID,
-		SessionID: value.SessionID,
-		Sequence:  value.Sequence,
-		Type:      value.Type,
-		Timestamp: value.Timestamp,
-		Payload:   value.Payload,
 	}
 }

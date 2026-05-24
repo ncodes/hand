@@ -398,7 +398,7 @@ Progress:
 - Added external-package tests proving another application can instantiate `pkg/agent.Agent` with fake in-memory dependencies and receive normal and tool-loop responses without importing `internal/*`.
 - Verified `go test ./pkg/agent/...` and `make check-pkg-agent-deps`.
 
-## Phase 7: Build `internal/host`
+## [x] Phase 7: Build `internal/host`
 
 Objective: make Hand a host of the reusable core.
 
@@ -423,6 +423,15 @@ Done when:
 Risk:
 
 - Host can become a dumping ground. Keep it as wiring/adapters only; business logic belongs either in `pkg/agent` or existing internal feature packages.
+
+Progress:
+
+- Added `internal/host.NewAgent` as the application-facing Hand agent constructor.
+- Added host-owned `config.go`, `environment.go`, `memory.go`, `session.go`, `trace.go`, `tools.go`, and `prompt.go` adapter seams.
+- Updated daemon startup and the e2e harness to construct agents through `internal/host`.
+- Removed the transitional `internal/agent` dependency on `internal/host` so host can wrap agent construction without an import cycle.
+- Kept direct `internal/agent.NewAgent` usage in internal agent tests as compatibility coverage.
+- Verified focused agent, host, daemon, and e2e tests, the `pkg/agent` dependency guard, and the full test suite.
 
 ## Phase 8: Migrate Hand Callers
 

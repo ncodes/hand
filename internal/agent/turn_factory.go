@@ -1,20 +1,23 @@
 package agent
 
 import (
+	"context"
+
 	"github.com/wandxy/hand/internal/environment"
-	"github.com/wandxy/hand/internal/host"
+	handmsg "github.com/wandxy/hand/internal/messages"
+	"github.com/wandxy/hand/internal/models"
+	agenttool "github.com/wandxy/hand/pkg/agent/tool"
 )
 
 func (a *Agent) newTurn(
 	runtimeEnv environment.Environment,
-	invokeToolFn host.ToolInvoker,
+	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message,
 ) *Turn {
 	if invokeToolFn == nil {
 		invokeToolFn = a.invokeToolWithEnvironment
 	}
 
-	sessionStore := host.NewSessionStore(a.stateMgr)
-	toolRegistry := host.NewToolRegistry(runtimeEnv, invokeToolFn)
+	sessionStore := legacySessionStore{manager: a.stateMgr}
 
 	return NewTurnWithSessionStore(
 		a.cfg,
@@ -23,15 +26,17 @@ func (a *Agent) newTurn(
 		a.stateMgr,
 		sessionStore,
 		sessionStore,
-		toolRegistry,
-		host.ToolPolicyFromEnvironment(runtimeEnv),
-		host.NewPromptProvider(runtimeEnv),
-		runtimeEnv,
-		runtimeEnv,
-		runtimeEnv,
-		runtimeEnv,
-		runtimeEnv,
-		runtimeEnv,
 		nil,
+		agenttool.Policy{},
+		legacyPromptProvider{env: runtimeEnv},
+		runtimeEnv,
+		runtimeEnv,
+		runtimeEnv,
+		runtimeEnv,
+		runtimeEnv,
+		runtimeEnv,
+		func(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
+			return invokeToolFn(ctx, runtimeEnv, toolCall)
+		},
 	)
 }

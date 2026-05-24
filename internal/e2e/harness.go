@@ -13,6 +13,7 @@ import (
 	"github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
+	"github.com/wandxy/hand/internal/host"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/profile"
@@ -83,7 +84,7 @@ func NewHarness(ctx context.Context, opts HarnessOptions) (*Harness, error) {
 	}
 
 	runCtx, cancel := context.WithCancel(normalizeHarnessContext(ctx))
-	ag := agent.NewAgent(runCtx, cfg, opts.ModelClient, opts.SummaryClient)
+	ag := host.NewAgent(runCtx, cfg, opts.ModelClient, opts.SummaryClient)
 	if err := ag.Start(runCtx); err != nil {
 		cancel()
 		restoreEnv()
