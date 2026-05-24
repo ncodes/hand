@@ -603,7 +603,7 @@ Progress:
 - Removed the production `internal/agent.NewTurn` compatibility constructor. The old constructor shape now exists only as package-local test support for existing focused turn tests.
 - Kept Hand runtime construction on the explicit `NewTurnWithSessionStore` dependency path.
 
-## [ ] Phase 13: Rebuild `internal/host` As Native Hand Runtime Wiring
+## [x] Phase 13: Rebuild `internal/host` As Native Hand Runtime Wiring
 
 Objective: make the host package read like Hand's intended runtime assembly layer, not a bridge from old internals to new core.
 
@@ -624,6 +624,18 @@ Done when:
 Risk:
 
 - Host can become too broad. It should compose dependencies, not own business logic that belongs in the core or existing feature packages.
+
+Completed:
+
+- Replaced the wrapper-only `internal/host.Agent` with host-owned runtime assembly and turn execution.
+- `internal/host.NewAgent` now starts a host runtime that owns state, environment, tools, traces, memory, summaries, timelines, and session operations directly.
+- Host startup now builds a public `pkg/agent.Agent` from Hand model, session, tool, and prompt dependencies.
+- Removed the root `internal/agent` import from `internal/host`; remaining imports from `internal/agent/context` and `internal/agent/runcontext` are tracked for Phase 14 package-path cleanup.
+- Renamed the host runtime files by domain so the package no longer reads as a compatibility bridge.
+
+Verified:
+
+- `go test -tags sqlite_fts5 ./internal/host ./cmd/up ./internal/e2e ./internal/rpc ./internal/rpc/client ./internal/tui/app ./internal/cli ./internal/mocks/agentstub`
 
 ## [ ] Phase 14: Delete Compatibility Package Paths
 

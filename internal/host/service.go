@@ -4,7 +4,6 @@ import (
 	"context"
 
 	storage "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
 	agentcore "github.com/wandxy/hand/pkg/agent"
 )
 
@@ -20,7 +19,3 @@ type ServiceAPI interface {
 	ContextStatus(context.Context, string) (agentcore.ContextStatus, error)
 	GetSessionTimeline(context.Context, agentcore.SessionTimelineOptions) (agentcore.SessionTimeline, error)
 }
-
-type RepairSessionOptions = search.VectorRepairOptions
-
-type RepairSessionResult = search.VectorRepairResult
