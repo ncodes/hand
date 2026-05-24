@@ -198,7 +198,7 @@ func TestModelView_FullScreenLayoutSnapshot(t *testing.T) {
 	require.Contains(t, view, "❯ hello")
 	require.Contains(t, view, "Hi")
 	require.Contains(t, view, "Ask Hand...")
-	require.Contains(t, view, "GPT 5.5")
+	require.Contains(t, view, "minimax-m2.7")
 	require.Contains(t, view, statusReadySuffix)
 	require.Less(t, strings.Index(view, "❯ hello"), strings.Index(view, "Ask Hand..."))
 	require.Less(t, strings.Index(view, "Ask Hand..."), strings.Index(view, statusReadySuffix))
@@ -234,12 +234,12 @@ func TestTranscriptCellInterface_IsPureData(t *testing.T) {
 
 func TestChromePanelData_SeparatesModelStateFromRendering(t *testing.T) {
 	runModel := newModel()
-	runModel.width = 120
+	runModel.width = 180
 	runModel.modelName = "openai/gpt-4o-mini"
 
 	panel := getHeaderPanel(runModel, runModel.width)
 
-	require.Equal(t, 120, panel.Width)
+	require.Equal(t, 180, panel.Width)
 	require.Equal(t, handBanner, panel.Banner)
 	require.True(t, panel.ShowInfo)
 	require.Equal(t, "Welcome, ", panel.Notice.LeftLead)
@@ -274,7 +274,7 @@ func TestBottomStatusPanelData_SeparatesModelStateFromRendering(t *testing.T) {
 
 	require.Equal(t, getInputBoxWidth(runModel.width), panel.Width)
 	require.Equal(t, getPanelContentWidth(panel.Width), panel.ContentWidth)
-	require.Equal(t, "GPT 5.5", panel.ModelName)
+	require.Equal(t, "minimax-m2.7", panel.ModelName)
 	require.Equal(t, statusCancelSuffix, panel.Status)
 	require.Equal(t, "Project Planning", panel.SessionTitle)
 	require.True(t, panel.Thinking)

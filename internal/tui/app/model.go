@@ -53,6 +53,7 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	}
 
 	history, err := loadPromptHistory()
+	runtimeInfo := runtimeInfoFromConfig(cfg)
 	appModel := model{
 		transcript: newTranscript(),
 		input:      newInputComposer(),
@@ -60,6 +61,8 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 		chatClient: client,
 		chatCtx:    ctx,
 	}
+	appModel.runtimeInfo = runtimeInfo
+	appModel.modelName = getModelDisplayName(runtimeInfo.Model)
 	if timeline, ok := client.(sessionTimelineLoader); ok {
 		appModel.timeline = timeline
 	}

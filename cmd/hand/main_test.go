@@ -18,6 +18,7 @@ import (
 	profilecmd "github.com/wandxy/hand/cmd/profile"
 	upcmd "github.com/wandxy/hand/cmd/up"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
 	"github.com/wandxy/hand/internal/profile"
 	"github.com/wandxy/hand/pkg/logutils"
@@ -37,6 +38,7 @@ func TestNewCommand_RegistersTUICommand(t *testing.T) {
 
 	require.Contains(t, names, "tui")
 	require.Contains(t, names, "config")
+	require.Contains(t, names, "version")
 }
 
 func TestNewCommand_UsesConfigFileValues(t *testing.T) {
@@ -467,6 +469,34 @@ func TestNewCommand_RootActionShowsHelp(t *testing.T) {
 	require.Contains(t, output.String(), "hand --config ./config.yaml trace view --listen 127.0.0.1:9090")
 }
 
+func TestNewCommand_VersionCommandShowsVersionAndCommit(t *testing.T) {
+	resetGlobals(t)
+	setBuildInfo(t, "1.2.3", "abc1234")
+
+	var output bytes.Buffer
+	rootOutput = &output
+	cmd := newCommand()
+	err := cmd.Run(context.Background(), []string{"hand", "version"})
+	require.NoError(t, err)
+
+	require.Equal(t, "hand version 1.2.3\ncommit abc1234\n", output.String())
+}
+
+func TestNewCommand_VersionFlagShowsVersionAndCommit(t *testing.T) {
+	resetGlobals(t)
+	setBuildInfo(t, "1.2.3", "abc1234")
+
+	for _, flag := range []string{"--version", "-v"} {
+		var output bytes.Buffer
+		cmd := newCommand()
+		cmd.Writer = &output
+		err := cmd.Run(context.Background(), []string{"hand", flag})
+		require.NoError(t, err)
+
+		require.Contains(t, output.String(), "hand version 1.2.3 (commit abc1234)")
+	}
+}
+
 func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
 	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
@@ -669,6 +699,18 @@ func resetGlobals(t *testing.T) {
 	config.Set(nil)
 	t.Setenv("HOME", t.TempDir())
 	profile.SetActive(profile.Profile{})
+}
+
+func setBuildInfo(t *testing.T, version string, commit string) {
+	t.Helper()
+	originalVersion := constants.AppVersion
+	originalCommit := constants.CommitHash
+	t.Cleanup(func() {
+		constants.AppVersion = originalVersion
+		constants.CommitHash = originalCommit
+	})
+	constants.AppVersion = version
+	constants.CommitHash = commit
 }
 
 func newOpenRouterModelsServer(t *testing.T, model string) string {

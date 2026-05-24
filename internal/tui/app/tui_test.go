@@ -45,7 +45,7 @@ func TestModel_ViewRendersShellAreas(t *testing.T) {
 	require.Contains(t, content, "/changelogs")
 	require.Contains(t, content, inputPrompt+"Ask Hand...")
 	require.Contains(t, content, "Ask Hand...")
-	require.Contains(t, content, "GPT 5.5")
+	require.Contains(t, content, "minimax-m2.7")
 	require.Contains(t, content, "enter to send")
 }
 
@@ -245,19 +245,33 @@ func TestModel_StatusExpireCmdReturnsExpirationMessage(t *testing.T) {
 }
 
 func TestModel_ViewRendersHeaderInfoPanelWhenWide(t *testing.T) {
-	runModel := newModel()
-	runModel.width = 120
+	cfg := config.NewDefaultConfig()
+	cfg.Models.Main.Provider = "openai"
+	cfg.Models.Main.Name = "openai/gpt-4o-mini"
+	cfg.Models.Summary.Provider = "openrouter"
+	cfg.Models.Summary.Name = "openai/gpt-4o"
+	cfg.Models.Embedding.Provider = "openai"
+	cfg.Models.Embedding.Name = "openai/text-embedding-3-large"
+	cfg.Storage.Backend = "memory"
+	runModel := newModelWithClientContextAndConfig(context.Background(), nil, cfg)
+	runModel.runtimeInfo.Profile = "work"
+	runModel.width = 180
 	runModel.resize()
 	content := stripANSI(runModel.renderHeader())
 
 	require.Contains(t, content, "Welcome, Kennedy")
 	require.Contains(t, content, "Use /changelogs to see what changed")
-	require.Contains(t, content, "version: v0.1 alpha")
-	require.Contains(t, content, "provider: openrouter")
-	require.Contains(t, content, "model: GPT 5.5")
-	require.Contains(t, content, "embedding: text-embedding-3-small")
-	require.Contains(t, content, "summary: gpt-4o-mini")
-	require.NotContains(t, content, "summary: openai/gpt-4o-mini")
+	require.Contains(t, content, "version: dev")
+	require.Contains(t, content, "commit: unknown")
+	require.Contains(t, content, "profile: work")
+	require.Contains(t, content, "session: default session")
+	require.Contains(t, content, "provider: openai")
+	require.Contains(t, content, "model: gpt-4o-mini")
+	require.Contains(t, content, "summary: gpt-4o")
+	require.Contains(t, content, "embedding: text-embedding-3-large")
+	require.Contains(t, content, "storage: memory")
+	require.Contains(t, content, "streaming: on")
+	require.NotContains(t, content, "summary: openai/gpt-4o")
 }
 
 func TestModel_RenderNoticeBarFillsRow(t *testing.T) {
@@ -302,32 +316,34 @@ func TestRenderNoticeBarContent_FillsWidthWithSpacer(t *testing.T) {
 
 func TestModel_ViewAlignsHeaderInfoKeys(t *testing.T) {
 	runModel := newModel()
-	runModel.width = 120
+	runModel.width = 180
 	runModel.resize()
 	lines := strings.Split(stripANSI(runModel.renderHeaderInfoPanel()), "\n")
+	rows := getHeaderInfoRows(runModel)
+	columnWidth := getHeaderInfoColumnWidth(rows)
+	leftColonIndex := headerInfoKeyWidth
+	rightColonIndex := columnWidth + headerInfoColumnGap + headerInfoKeyWidth
 
-	colonIndex := -1
+	require.Len(t, lines, (len(rows)+1)/2)
 	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		index := strings.Index(line, ":")
-		require.NotEqual(t, -1, index)
-		if colonIndex == -1 {
-			colonIndex = index
-			continue
+		require.Equal(t, leftColonIndex, strings.Index(line, ":"))
+		if strings.Count(line, ":") > 1 {
+			require.Equal(t, rightColonIndex, strings.LastIndex(line, ":"))
 		}
-		require.Equal(t, colonIndex, index)
 	}
 }
 
 func TestModel_ViewSizesHeaderInfoPanelToValues(t *testing.T) {
 	runModel := newModel()
-	runModel.width = 120
+	runModel.width = 180
 	runModel.resize()
 	content := stripANSI(runModel.renderHeaderInfoPanel())
+	columnWidth := headerInfoKeyWidth + 2 + lipgloss.Width("text-embedding-3-small")
 
-	require.Equal(t, headerInfoKeyWidth+2+lipgloss.Width("text-embedding-3-small"), lipgloss.Width(content))
+	require.Equal(t, columnWidth*2+headerInfoColumnGap, lipgloss.Width(content))
 }
 
 func TestModel_ViewVerticallyCentersHeaderInfoPanel(t *testing.T) {
@@ -424,7 +440,7 @@ func TestModel_ViewRendersBottomStatusPanelBelowComposer(t *testing.T) {
 	runModel := newModel()
 	content := stripANSI(runModel.View().Content)
 	inputIndex := strings.Index(content, inputPrompt+"Ask Hand...")
-	infoIndex := strings.LastIndex(content, "GPT 5.5")
+	infoIndex := strings.LastIndex(content, "minimax-m2.7")
 
 	require.NotEqual(t, -1, inputIndex)
 	require.NotEqual(t, -1, infoIndex)
@@ -454,11 +470,12 @@ func TestModel_RenderBottomStatusPanelMovesContextToRight(t *testing.T) {
 
 	require.True(t, strings.HasPrefix(content, " "))
 	require.Equal(t, runModel.width, lipgloss.Width(content))
-	require.Contains(t, content, "GPT 5.5")
+	require.Contains(t, content, "minimax-m2.7")
 	require.Contains(t, content, "default session")
-	require.Contains(t, content, "60,000 used · 65%")
+	require.Contains(t, content, "60,000")
+	require.Contains(t, content, "used · 65%")
 	require.GreaterOrEqual(t, strings.Count(content, "  "), 1)
-	require.Greater(t, strings.Index(content, "60,000 used"), strings.Index(content, "default session"))
+	require.Greater(t, strings.Index(content, "60,000"), strings.Index(content, "default session"))
 }
 
 func TestModel_RenderBottomStatusPanelShowsThinkingBeforeModel(t *testing.T) {
@@ -468,8 +485,8 @@ func TestModel_RenderBottomStatusPanelShowsThinkingBeforeModel(t *testing.T) {
 	content := stripANSI(runModel.renderBottomStatusPanel())
 
 	require.Contains(t, content, "Thinking")
-	require.Contains(t, content, "GPT 5.5")
-	require.Less(t, strings.Index(content, "Thinking"), strings.Index(content, "GPT 5.5"))
+	require.Contains(t, content, "minimax-m2.7")
+	require.Less(t, strings.Index(content, "Thinking"), strings.Index(content, "minimax-m2.7"))
 }
 
 func TestModel_RenderBottomStatusPanelHidesThinkingWhenNotThinking(t *testing.T) {
@@ -528,7 +545,7 @@ func TestModel_RenderBottomStatusPanelKeepsMutedCellsWhenThinking(t *testing.T) 
 
 	content := runModel.renderBottomStatusPanel()
 
-	require.Contains(t, content, renderBottomStatusMutedCell("GPT 5.5"))
+	require.Contains(t, content, renderBottomStatusMutedCell("minimax-m2.7"))
 	require.Contains(t, content, renderBottomStatusMutedCell(statusCancelSuffix))
 	require.Contains(t, content, renderBottomStatusMutedCell(defaultSessionTitle))
 }
@@ -676,9 +693,11 @@ func TestModel_RenderTranscriptContentKeepsFirstPromptCloseToHeader(t *testing.T
 		}
 	}
 
-	require.Greater(t, firstPromptRow, 0)
-	require.NotEmpty(t, strings.TrimSpace(lines[firstPromptRow-2]))
+	require.Greater(t, firstPromptRow, 2)
+	require.NotEmpty(t, strings.TrimSpace(lines[firstPromptRow-3]))
+	require.Empty(t, strings.TrimSpace(lines[firstPromptRow-2]))
 	require.Empty(t, strings.TrimSpace(lines[firstPromptRow-1]))
+	require.NotContains(t, lines[firstPromptRow-2], "▄")
 	require.NotContains(t, lines[firstPromptRow-1], "▄")
 }
 
@@ -962,7 +981,7 @@ func TestModel_RenderBottomStatusPanelShowsCtrlCNoticeOnRightOnly(t *testing.T) 
 	content := stripANSI(runModel.renderBottomStatusPanel())
 
 	require.Contains(t, content, "Press Ctrl-C again to exit")
-	require.NotContains(t, content, "GPT 5.5")
+	require.NotContains(t, content, "minimax-m2.7")
 	require.NotContains(t, content, "60,000 used")
 	require.Equal(t, 0, strings.Index(strings.TrimLeft(content, " "), "Press Ctrl-C again to exit"))
 }
@@ -1075,7 +1094,8 @@ func TestModel_UpdateAppendsPromptOnEnter(t *testing.T) {
 	content := stripANSI(mainModel.View().Content)
 	require.Contains(t, content, "██████")
 	require.Contains(t, content, "❯ Summarize tests")
-	require.Contains(t, content, "60,000 used")
+	require.Contains(t, content, "60,000")
+	require.Contains(t, content, "used · 65%")
 }
 
 func TestModel_UpdateHandlesClearCommand(t *testing.T) {

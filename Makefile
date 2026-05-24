@@ -4,6 +4,9 @@ GO ?= /opt/homebrew/Cellar/go/1.26.1/libexec/bin/go
 GO_SQLITE_TAGS ?= sqlite_fts5
 LIVE_CONFIG ?= $(CURDIR)/config.yaml
 LIVE_ENV_FILE ?= $(CURDIR)/.env
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || printf dev)
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || printf unknown)
+LD_FLAGS := -X github.com/wandxy/hand/internal/constants.AppVersion=$(VERSION) -X github.com/wandxy/hand/internal/constants.CommitHash=$(COMMIT)
 
 .PHONY: install-tools install-hooks build-proto build test test-spec test-live test-live-sqlite test-live-memory test-live-all lint install
 
@@ -26,7 +29,7 @@ build-proto:
 
 build: build-proto
 	@mkdir -p $(BUILD_DIR)
-	@CGO_ENABLED=1 $(GO) build -tags $(GO_SQLITE_TAGS) -o $(BUILD_DIR)/$(APP) ./cmd/hand
+	@CGO_ENABLED=1 $(GO) build -tags $(GO_SQLITE_TAGS) -ldflags "$(LD_FLAGS)" -o $(BUILD_DIR)/$(APP) ./cmd/hand
 
 test: build-proto
 	@CGO_ENABLED=1 $(GO) test -tags $(GO_SQLITE_TAGS) ./...
@@ -57,4 +60,4 @@ lint:
 	@golangci-lint run ./...
 
 install: build-proto
-	@CGO_ENABLED=1 $(GO) install -tags $(GO_SQLITE_TAGS) ./cmd/hand
+	@CGO_ENABLED=1 $(GO) install -tags $(GO_SQLITE_TAGS) -ldflags "$(LD_FLAGS)" ./cmd/hand

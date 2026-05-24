@@ -101,10 +101,12 @@ func newCommand() *cli.Command {
 		Name:                          "hand",
 		Usage:                         "Run and manage your Hand daemon",
 		Description:                   handcli.AppDescription,
+		Version:                       formatRootVersion(),
 		CustomRootCommandHelpTemplate: rootHelpTemplate,
 		Flags:                         append(handcli.RootFlags(&envFile, &configFile), handcli.RequestInstructFlag()),
 		Commands: []*cli.Command{
 			newDatabaseCommand(),
+			newVersionCommand(rootOutput),
 			configcmd.NewCommand(rootOutput),
 			doctorcmd.NewCommand(),
 			profilecmd.NewCommand(),

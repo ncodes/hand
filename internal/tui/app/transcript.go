@@ -70,7 +70,7 @@ func (m *model) renderTranscriptContent() string {
 	}
 	content := strings.Trim(m.renderHeaderWithWidth(transcriptWidth), "\n")
 	if cellsText := strings.Trim(m.renderTranscriptBodyCells(cells), "\n"); strings.TrimSpace(cellsText) != "" {
-		content = strings.Join([]string{content, cellsText}, "\n")
+		content = strings.Join([]string{content, cellsText}, "\n\n")
 	}
 
 	return content

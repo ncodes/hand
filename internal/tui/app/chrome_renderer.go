@@ -28,9 +28,6 @@ func (lipglossChromeRenderer) RenderHeader(panel headerPanel) string {
 	width := max(panel.Width, 1)
 
 	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderBottom(true).
-		BorderForeground(lipgloss.Color(defaultTUITheme.NoticeBorder)).
 		Width(width).
 		Render(renderHeaderContent(panel))
 }
@@ -156,20 +153,56 @@ func renderHeaderInfoPanel(panel headerPanel) string {
 		return ""
 	}
 
-	lines := make([]string, 0, len(panel.InfoRows))
-	for _, row := range panel.InfoRows {
-		key := lipgloss.NewStyle().
-			Width(headerInfoKeyWidth).
-			Align(lipgloss.Right).
-			Render(row.key)
+	leftRows, rightRows := splitHeaderInfoRows(panel.InfoRows)
+	columnWidth := getHeaderInfoColumnWidth(panel.InfoRows)
+	lines := make([]string, 0, max(len(leftRows), len(rightRows)))
+	for index := range max(len(leftRows), len(rightRows)) {
+		left := renderHeaderInfoCell(getHeaderInfoRowAt(leftRows, index), columnWidth)
+		if len(rightRows) == 0 {
+			lines = append(lines, left)
+			continue
+		}
 
-		lines = append(lines, key+": "+row.value)
+		right := renderHeaderInfoCell(getHeaderInfoRowAt(rightRows, index), columnWidth)
+		lines = append(lines, left+strings.Repeat(" ", headerInfoColumnGap)+right)
 	}
 
 	return lipgloss.NewStyle().
 		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
 		Width(getHeaderInfoWidth(panel.InfoRows)).
 		Render(strings.Join(lines, "\n"))
+}
+
+func splitHeaderInfoRows(rows []headerInfoRow) ([]headerInfoRow, []headerInfoRow) {
+	if len(rows) <= 1 {
+		return rows, nil
+	}
+
+	midpoint := (len(rows) + 1) / 2
+	return rows[:midpoint], rows[midpoint:]
+}
+
+func getHeaderInfoRowAt(rows []headerInfoRow, index int) headerInfoRow {
+	if index < 0 || index >= len(rows) {
+		return headerInfoRow{}
+	}
+
+	return rows[index]
+}
+
+func renderHeaderInfoCell(row headerInfoRow, width int) string {
+	if row == (headerInfoRow{}) {
+		return strings.Repeat(" ", max(width, 0))
+	}
+
+	key := lipgloss.NewStyle().
+		Width(headerInfoKeyWidth).
+		Align(lipgloss.Right).
+		Render(row.key)
+
+	return lipgloss.NewStyle().
+		Width(width).
+		Render(key + ": " + row.value)
 }
 
 func renderHandBannerWithColors(banner string, colors []color.Color) string {

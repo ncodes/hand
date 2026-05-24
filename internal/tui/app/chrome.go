@@ -5,8 +5,6 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-
-	"github.com/wandxy/hand/internal/constants"
 )
 
 const handBanner = `░██     ░██  ██████   ███████      ░██
@@ -34,6 +32,7 @@ const (
 	noticeBarMarginBottom = 1
 	headerBodyPadding     = 1
 	headerInfoKeyWidth    = 9
+	headerInfoColumnGap   = 2
 	headerGapWidth        = 2
 )
 
@@ -139,17 +138,32 @@ func getNoticePanel(width int) noticePanel {
 
 // getHeaderInfoRows returns the runtime metadata rows shown in the header.
 func getHeaderInfoRows(m model) []headerInfoRow {
+	info := m.runtimeInfo
 	return []headerInfoRow{
-		{key: "version", value: "v0.1 alpha"},
-		{key: "provider", value: "openrouter"},
-		{key: "model", value: getModelDisplayName(m.modelName)},
-		{key: "embedding", value: getModelDisplayName("text-embedding-3-small")},
-		{key: "summary", value: getModelDisplayName(constants.DefaultProfileSummaryModel)},
+		{key: "version", value: getRuntimeValue(info.Version, "dev")},
+		{key: "commit", value: getRuntimeValue(info.Commit, "unknown")},
+		{key: "profile", value: getRuntimeValue(info.Profile, "default")},
+		{key: "session", value: getRuntimeValue(m.sessionTitle, m.sessionID)},
+		{key: "provider", value: getRuntimeValue(info.Provider, "openrouter")},
+		{key: "model", value: getModelDisplayName(getRuntimeValue(m.modelName, info.Model))},
+		{key: "summary", value: getModelDisplayName(info.SummaryModel)},
+		{key: "embedding", value: getModelDisplayName(info.EmbeddingModel)},
+		{key: "storage", value: getRuntimeValue(info.Storage, "sqlite")},
+		{key: "streaming", value: getRuntimeValue(info.Streaming, "on")},
 	}
 }
 
 // getHeaderInfoWidth returns the narrowest panel width that keeps values intact.
 func getHeaderInfoWidth(rows []headerInfoRow) int {
+	columnWidth := getHeaderInfoColumnWidth(rows)
+	if len(rows) <= 1 {
+		return columnWidth
+	}
+
+	return columnWidth*2 + headerInfoColumnGap
+}
+
+func getHeaderInfoColumnWidth(rows []headerInfoRow) int {
 	maxValueWidth := 0
 	for _, row := range rows {
 		maxValueWidth = max(maxValueWidth, lipgloss.Width(row.value))

@@ -3,6 +3,8 @@ package tui
 import (
 	"context"
 	"time"
+
+	"github.com/wandxy/hand/internal/constants"
 )
 
 type tuiState struct {
@@ -12,6 +14,7 @@ type tuiState struct {
 	sessionID                  string
 	sessionTitle               string
 	modelName                  string
+	runtimeInfo                runtimeInfo
 	context                    string
 	messages                   []transcriptCell
 	live                       transcriptCell
@@ -50,7 +53,8 @@ func newTUIState(history []string, thinkingComposerEnabled bool) tuiState {
 		status:                   newStatusModel(),
 		sessionID:                defaultSessionID,
 		sessionTitle:             defaultSessionTitle,
-		modelName:                "GPT 5.5",
+		modelName:                getModelDisplayName(constants.DefaultProfileModel),
+		runtimeInfo:              defaultRuntimeInfo(),
 		context:                  "60,000 used · 65%",
 		showIntro:                true,
 		reasoningMessageIndex:    -1,
