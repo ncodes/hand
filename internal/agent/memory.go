@@ -29,11 +29,19 @@ func (t *Turn) retrieveMemoryInstruction(
 	userText string,
 	traceSession trace.Session,
 ) instruct.Instruction {
-	if t == nil || t.cfg == nil || !t.cfg.MemoryEnabled() || !t.cfg.MemoryRetrievalEnabled() || t.env == nil {
+	if t == nil || t.cfg == nil || !t.cfg.MemoryEnabled() || !t.cfg.MemoryRetrievalEnabled() {
 		return instruct.Instruction{Name: instruct.MemoryContextInstructionName}
 	}
 
-	provider := t.env.MemoryProvider()
+	source, _ := t.env.(memoryProviderSource)
+	if source == nil {
+		source = t.memoryProviders
+	}
+	if source == nil {
+		return instruct.Instruction{Name: instruct.MemoryContextInstructionName}
+	}
+
+	provider := source.MemoryProvider()
 	if provider == nil {
 		return instruct.Instruction{Name: instruct.MemoryContextInstructionName}
 	}

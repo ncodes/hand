@@ -12,12 +12,17 @@ import (
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/tools"
+	agenttool "github.com/wandxy/hand/pkg/agent/tool"
 )
 
 var (
 	environmentContextNow   = time.Now
 	environmentContextGetwd = os.Getwd
 )
+
+type toolGroupLister interface {
+	ListGroups() []agenttool.Group
+}
 
 // buildEnvironmentContextInstruction renders runtime facts the model needs for this turn.
 func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models.ToolDefinition) instruct.Instruction {
@@ -55,10 +60,9 @@ func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models
 		ctx.WebProvider = t.cfg.Web.Provider
 	}
 
-	// The live environment can override platform and capability details because
-	// tool policy may be narrower than the static config.
-	if t.env != nil {
-		policy := t.env.ToolPolicy()
+	// The live tool policy can override platform and capability details because
+	// it may be narrower than the static config.
+	if policy, ok := t.getActiveToolPolicy(); ok {
 		ctx.Platform = getFirstNonEmpty(ctx.Platform, policy.Platform)
 		ctx.Capabilities = instruct.EnvironmentCapabilities{
 			Filesystem: policy.Capabilities.Filesystem,
@@ -69,14 +73,70 @@ func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models
 		}
 		ctx.HasCapabilities = true
 
-		if len(activeToolDefinitions) > 0 && t.env.Tools() != nil {
-			ctx.ActiveToolGroups = getActiveToolGroups(t.env.Tools().ListGroups())
+		if groups := t.getActiveToolGroups(); len(activeToolDefinitions) > 0 && len(groups) > 0 {
+			ctx.ActiveToolGroups = getActiveToolGroups(groups)
 		}
 	}
 
 	ctx.ActiveTools = getActiveToolNames(activeToolDefinitions)
 
 	return instruct.BuildEnvironmentContext(ctx)
+}
+
+func (t *Turn) getActiveToolPolicy() (agenttool.Policy, bool) {
+	if t == nil {
+		return agenttool.Policy{}, false
+	}
+	if policy, ok := t.legacyToolPolicy(); ok {
+		return agentToolPolicyFromToolsPolicy(policy), true
+	}
+	if t.toolRegistry != nil {
+		return t.toolPolicy, true
+	}
+	return agenttool.Policy{}, false
+}
+
+func (t *Turn) getActiveToolGroups() []agenttool.Group {
+	if t == nil {
+		return nil
+	}
+	if registry, ok := t.legacyToolRegistry(); ok {
+		return agentToolGroupsFromToolsGroups(registry.ListGroups())
+	}
+	if groupLister, ok := t.toolRegistry.(toolGroupLister); ok {
+		return groupLister.ListGroups()
+	}
+	return nil
+}
+
+func agentToolPolicyFromToolsPolicy(policy tools.Policy) agenttool.Policy {
+	return agenttool.Policy{
+		GroupNames: append([]string(nil), policy.GroupNames...),
+		Capabilities: agenttool.Capabilities{
+			Filesystem: policy.Capabilities.Filesystem,
+			Network:    policy.Capabilities.Network,
+			Exec:       policy.Capabilities.Exec,
+			Browser:    policy.Capabilities.Browser,
+			Memory:     policy.Capabilities.Memory,
+		},
+		Platform: policy.Platform,
+	}
+}
+
+func agentToolGroupsFromToolsGroups(groups []tools.Group) []agenttool.Group {
+	if len(groups) == 0 {
+		return nil
+	}
+
+	result := make([]agenttool.Group, 0, len(groups))
+	for _, group := range groups {
+		result = append(result, agenttool.Group{
+			Name:     group.Name,
+			Tools:    append([]string(nil), group.Tools...),
+			Includes: append([]string(nil), group.Includes...),
+		})
+	}
+	return result
 }
 
 // getEnvironmentTimezone returns a human-readable timezone description.
@@ -129,7 +189,7 @@ func getActiveToolNames(definitions []models.ToolDefinition) []string {
 }
 
 // getActiveToolGroups returns sorted unique tool group names for active tools.
-func getActiveToolGroups(groups []tools.Group) []string {
+func getActiveToolGroups(groups []agenttool.Group) []string {
 	names := make([]string, 0, len(groups))
 	for _, group := range groups {
 		names = append(names, group.Name)

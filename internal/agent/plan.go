@@ -19,7 +19,7 @@ const planHydrationPageSize = constants.PlanHydrationPageSize
 // It returns true if a plan was found and hydrated in the environment, otherwise false.
 // If not found, it hydrates an empty plan into the environment as a fallback.
 func (t *Turn) hydratePlanFromMessages(messages []handmsg.Message) bool {
-	if t == nil || t.env == nil {
+	if t == nil || (t.plans == nil && t.env == nil) {
 		return false
 	}
 
@@ -38,23 +38,23 @@ func (t *Turn) hydratePlanFromMessages(messages []handmsg.Message) bool {
 			continue
 		}
 
-		t.env.HydratePlan(t.getStateSessionID(), plan)
+		t.hydratePlan(t.getStateSessionID(), plan)
 		return true
 	}
 
 	// No plan found, hydrate empty.
-	t.env.HydratePlan(t.getStateSessionID(), empty)
+	t.hydratePlan(t.getStateSessionID(), empty)
 	return false
 }
 
 // renderPlanInstructions returns an instruction-formatted string representation for the active plan.
 // Returns a Markdown string describing current active plan steps and optional plan explanation.
 func (t *Turn) renderPlanInstructions() string {
-	if t == nil || t.env == nil {
+	if t == nil {
 		return ""
 	}
 
-	plan := t.env.CurrentPlan(t.getStateSessionID())
+	plan := t.currentPlan(t.getStateSessionID())
 
 	// Filter for steps that are not completed/cancelled.
 	activeSteps := make([]envtypes.PlanStep, 0, len(plan.Steps))
@@ -160,7 +160,7 @@ func (t *Turn) hydratePlanFromHistory(ctx context.Context, sessionID string) (bo
 
 		// If there are no more messages, hydrate empty and stop.
 		if len(messages) == 0 {
-			t.env.HydratePlan(sessionID, envtypes.Plan{})
+			t.hydratePlan(sessionID, envtypes.Plan{})
 			return false, nil
 		}
 

@@ -85,7 +85,8 @@ func (t *Turn) shouldFlushMemoryBeforeCompaction(request models.Request) bool {
 		return false
 	}
 
-	if t.modelClient == nil || t.env == nil || t.env.Tools() == nil {
+	if _, _, hasLegacyTools := t.legacyToolRegistryAndPolicy(); t.modelClient == nil ||
+		(t.toolRegistry == nil && t.invokeToolFn == nil && !hasLegacyTools) {
 		return false
 	}
 
@@ -296,7 +297,10 @@ func (t *Turn) normalizeMemoryFlushToolCall(toolCall models.ToolCall) models.Too
 
 // invokeFlushTool uses the turn's tool boundary so memory flush follows normal tool behavior.
 func (t *Turn) invokeFlushTool(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
-	if t == nil || (t.invokeToolFn == nil && t.toolRegistry == nil && t.env == nil) {
+	if t == nil {
+		return invokeToolWithEnvironment(ctx, nil, toolCall, nil, nil)
+	}
+	if _, _, hasLegacyTools := t.legacyToolRegistryAndPolicy(); t.invokeToolFn == nil && t.toolRegistry == nil && !hasLegacyTools {
 		return invokeToolWithEnvironment(ctx, nil, toolCall, nil, nil)
 	}
 

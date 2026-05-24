@@ -38,6 +38,28 @@ func (r *ToolRegistry) Resolve(policy agenttool.Policy) ([]agenttool.Definition,
 	return agentDefinitionsFromToolsDefinitions(definitions), nil
 }
 
+func (r *ToolRegistry) ListGroups() []agenttool.Group {
+	if r == nil || r.env == nil || r.env.Tools() == nil {
+		return nil
+	}
+
+	groups := r.env.Tools().ListGroups()
+	if len(groups) == 0 {
+		return nil
+	}
+
+	result := make([]agenttool.Group, 0, len(groups))
+	for _, group := range groups {
+		result = append(result, agenttool.Group{
+			Name:     group.Name,
+			Tools:    append([]string(nil), group.Tools...),
+			Includes: append([]string(nil), group.Includes...),
+		})
+	}
+
+	return result
+}
+
 func (r *ToolRegistry) Invoke(ctx context.Context, call agenttool.Call) handmsg.Message {
 	if r == nil || r.invoke == nil {
 		return handmsg.Message{

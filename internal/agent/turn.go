@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -12,21 +13,50 @@ import (
 	summarizer "github.com/wandxy/hand/internal/agent/context/summary"
 	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/environment"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
+	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
+	"github.com/wandxy/hand/internal/memory"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
+	agentprompt "github.com/wandxy/hand/pkg/agent/prompt"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
 	agenttool "github.com/wandxy/hand/pkg/agent/tool"
 )
 
 const requestInstructionName = "request.instruct"
+
+type traceSessionFactory interface {
+	NewTraceSessionForRun(runcontext.Context) trace.Session
+}
+
+type safetyTraceEventSource interface {
+	SafetyTraceEvents() []guardrails.SafetyTracePayloadOptions
+}
+
+type memoryProviderSource interface {
+	MemoryProvider() memory.Provider
+}
+
+type iterationBudgetFactory interface {
+	NewIterationBudget() envbudget.IterationBudget
+}
+
+type planStateStore interface {
+	CurrentPlan(string) envtypes.Plan
+	HydratePlan(string, envtypes.Plan)
+}
+
+type legacyToolRegistry interface {
+	ListGroups() []tools.Group
+	Resolve(tools.Policy) (tools.Definitions, error)
+	Invoke(context.Context, tools.Call) (tools.Result, error)
+}
 
 // Turn executes a single response turn against a resolved session.
 type Turn struct {
@@ -60,11 +90,29 @@ type Turn struct {
 	// Tool policy used to filter tool definitions for this runtime.
 	toolPolicy agenttool.Policy
 
-	// Tool invocation function for executing tool calls during legacy tests and wrappers.
-	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message
+	// Prompt provider supplies reusable prompt inputs from the host runtime.
+	promptProvider agentprompt.Provider
 
-	// Supplies tools, instructions, tracing, iteration budget.
-	env environment.Environment
+	// Trace sessions are opened by the host runtime.
+	traceSessions traceSessionFactory
+
+	// Safety events loaded by the host runtime are replayed into the turn trace.
+	safetyEvents safetyTraceEventSource
+
+	// Memory provider source supplies durable memory for prompt retrieval.
+	memoryProviders memoryProviderSource
+
+	// Iteration budget factory controls model/tool loop limits.
+	iterationBudgets iterationBudgetFactory
+
+	// Plan state store keeps active plan context for the turn.
+	plans planStateStore
+
+	// env is a legacy runtime shim for transitional tests and wrappers.
+	env any
+
+	// Tool invocation function for executing tool calls during legacy tests and wrappers.
+	invokeToolFn any
 
 	// Builds model-visible message context for the turn.
 	contextBuilder *ctxbuilder.Builder
@@ -116,25 +164,37 @@ func NewTurnWithSessionStore(
 	traceRecorder agentsession.TraceRecorder,
 	toolRegistry agenttool.Registry,
 	toolPolicy agenttool.Policy,
-	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message,
-	runtimeEnv environment.Environment,
+	promptProvider agentprompt.Provider,
+	traceSessions traceSessionFactory,
+	safetyEvents safetyTraceEventSource,
+	memoryProviders memoryProviderSource,
+	iterationBudgets iterationBudgetFactory,
+	plans planStateStore,
+	legacyRuntime any,
+	invokeToolFn any,
 ) *Turn {
 	if summaryClient == nil {
 		summaryClient = modelClient
 	}
 
 	return &Turn{
-		cfg:            cfg,
-		modelClient:    modelClient,
-		summaryClient:  summaryClient,
-		summaryStore:   summaryStore,
-		sessionStore:   sessionStore,
-		traceRecorder:  traceRecorder,
-		toolRegistry:   toolRegistry,
-		toolPolicy:     toolPolicy,
-		invokeToolFn:   invokeToolFn,
-		env:            runtimeEnv,
-		contextBuilder: ctxbuilder.New(),
+		cfg:              cfg,
+		modelClient:      modelClient,
+		summaryClient:    summaryClient,
+		summaryStore:     summaryStore,
+		sessionStore:     sessionStore,
+		traceRecorder:    traceRecorder,
+		toolRegistry:     toolRegistry,
+		toolPolicy:       toolPolicy,
+		promptProvider:   promptProvider,
+		traceSessions:    traceSessions,
+		safetyEvents:     safetyEvents,
+		memoryProviders:  memoryProviders,
+		iterationBudgets: iterationBudgets,
+		plans:            plans,
+		env:              legacyRuntime,
+		invokeToolFn:     invokeToolFn,
+		contextBuilder:   ctxbuilder.New(),
 	}
 }
 
@@ -153,7 +213,7 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 		return errors.New("model client is required")
 	}
 
-	if t.env == nil {
+	if !t.hasRuntimeCapabilities() {
 		return errors.New("runtime environment is required")
 	}
 
@@ -192,9 +252,20 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 		return err
 	}
 
+	// New identity context for session run.
+	t.runCtx, err = newRootRunContext(session.ID)
+	if err != nil {
+		return err
+	}
+
+	instructions, err := t.loadBaseInstructions(ctx, session.ID)
+	if err != nil {
+		return err
+	}
+
 	// Assign all loaded state to this Turn instance.
 	t.ctx = ctx
-	t.instructions = t.env.Instructions()
+	t.instructions = instructions
 	t.requestInstruction = instruct.Instruction{}
 	t.memoryInstruction = instruct.Instruction{}
 	t.sessionHistory = messages
@@ -202,12 +273,6 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 	t.summary = summary
 	t.sessionHistoryOffset = tailOffset
 	t.sessionID = session.ID
-
-	// New identity context for session run.
-	t.runCtx, err = newRootRunContext(session.ID)
-	if err != nil {
-		return err
-	}
 
 	t.lastPromptTokens = session.LastPromptTokens
 	t.summaryRefreshAttemptedMessageCount = 0
@@ -228,6 +293,157 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 	return nil
 }
 
+func (t *Turn) loadBaseInstructions(ctx context.Context, sessionID string) (instruct.Instructions, error) {
+	if t == nil {
+		return nil, nil
+	}
+
+	if t.promptProvider != nil {
+		instructions, err := t.promptProvider.LoadBaseInstructions(ctx, agentprompt.RunContext{
+			SessionID:          sessionID,
+			PublicSessionID:    t.runCtx.Session.PublicID,
+			EffectiveSessionID: t.runCtx.Session.EffectiveID,
+			ProfileName:        t.runCtx.ProfileName,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		return instructionsFromPromptInstructions(instructions), nil
+	}
+
+	return nil, nil
+}
+
+func (t *Turn) hasRuntimeCapabilities() bool {
+	return t != nil &&
+		(t.promptProvider != nil ||
+			t.traceSessions != nil ||
+			t.safetyEvents != nil ||
+			t.memoryProviders != nil ||
+			t.iterationBudgets != nil ||
+			t.plans != nil ||
+			t.toolRegistry != nil ||
+			t.invokeToolFn != nil ||
+			t.env != nil)
+}
+
+func instructionsFromPromptInstructions(instructions agentprompt.Instructions) instruct.Instructions {
+	if len(instructions) == 0 {
+		return nil
+	}
+
+	result := make(instruct.Instructions, 0, len(instructions))
+	for _, instruction := range instructions {
+		result = append(result, instruct.Instruction{
+			Name:  instruction.Name,
+			Value: instruction.Value,
+		})
+	}
+
+	return result
+}
+
+func (t *Turn) newTraceSessionForRun() trace.Session {
+	if t == nil {
+		return trace.NoopSession()
+	}
+	if source, ok := t.env.(traceSessionFactory); ok {
+		return source.NewTraceSessionForRun(t.runCtx)
+	}
+	if t.traceSessions == nil {
+		return trace.NoopSession()
+	}
+
+	return t.traceSessions.NewTraceSessionForRun(t.runCtx)
+}
+
+func (t *Turn) newIterationBudget() envbudget.IterationBudget {
+	if t == nil {
+		return envbudget.New(0)
+	}
+	if source, ok := t.env.(iterationBudgetFactory); ok {
+		return source.NewIterationBudget()
+	}
+	if t.iterationBudgets == nil {
+		return envbudget.New(0)
+	}
+
+	return t.iterationBudgets.NewIterationBudget()
+}
+
+func (t *Turn) currentPlan(sessionID string) envtypes.Plan {
+	if t == nil {
+		return envtypes.Plan{}
+	}
+	if source, ok := t.env.(planStateStore); ok {
+		return source.CurrentPlan(sessionID)
+	}
+	if t.plans == nil {
+		return envtypes.Plan{}
+	}
+
+	return t.plans.CurrentPlan(sessionID)
+}
+
+func (t *Turn) hydratePlan(sessionID string, plan envtypes.Plan) {
+	if t == nil {
+		return
+	}
+	if store, ok := t.env.(planStateStore); ok {
+		store.HydratePlan(sessionID, plan)
+		return
+	}
+	if t.plans == nil {
+		return
+	}
+
+	t.plans.HydratePlan(sessionID, plan)
+}
+
+func (t *Turn) legacyToolRegistryAndPolicy() (legacyToolRegistry, tools.Policy, bool) {
+	registry, ok := t.legacyToolRegistry()
+	if !ok || registry == nil {
+		return nil, tools.Policy{}, false
+	}
+
+	policy, _ := t.legacyToolPolicy()
+	return registry, policy, true
+}
+
+func (t *Turn) legacyToolRegistry() (legacyToolRegistry, bool) {
+	if t == nil || t.env == nil {
+		return nil, false
+	}
+
+	method := reflect.ValueOf(t.env).MethodByName("Tools")
+	if !method.IsValid() || method.Type().NumIn() != 0 || method.Type().NumOut() != 1 {
+		return nil, false
+	}
+
+	result := method.Call(nil)[0]
+	if !result.IsValid() || result.IsNil() {
+		return nil, false
+	}
+
+	registry, ok := result.Interface().(legacyToolRegistry)
+	return registry, ok
+}
+
+func (t *Turn) legacyToolPolicy() (tools.Policy, bool) {
+	if t == nil || t.env == nil {
+		return tools.Policy{}, false
+	}
+
+	method := reflect.ValueOf(t.env).MethodByName("ToolPolicy")
+	if !method.IsValid() || method.Type().NumIn() != 0 || method.Type().NumOut() != 1 {
+		return tools.Policy{}, false
+	}
+
+	policy, ok := method.Call(nil)[0].Interface().(tools.Policy)
+	return policy, ok
+}
+
 // Run executes the turn's logic, handling instructions, tool actions, tracing,
 // safety enforcement, and returns the final assistant reply for this turn.
 func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string, error) {
@@ -245,7 +461,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 	}
 
 	// Set up trace session for visibility/diagnostics. Include fanout if tracing callback specified.
-	traceSession := t.env.NewTraceSessionForRun(t.runCtx)
+	traceSession := t.newTraceSessionForRun()
 	if opts.OnTraceEvent != nil {
 		traceSession = newFanoutTraceSession(traceSession, t.getStateSessionID(), opts.OnTraceEvent)
 	}
@@ -256,7 +472,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 	// Trace hydrated plan if restored from session/history.
 	if t.planHydrated {
-		plan := t.env.CurrentPlan(t.getStateSessionID())
+		plan := t.currentPlan(t.getStateSessionID())
 		traceSession.Record(
 			trace.EvtPlanHydrated,
 			trace.PlanEventPayload{
@@ -299,7 +515,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 	t.memoryInstruction = t.retrieveMemoryInstruction(ctx, msg, traceSession)
 
 	// Set up multi-step iteration budget for LLM/tool call loop.
-	budget := t.env.NewIterationBudget()
+	budget := t.newIterationBudget()
 
 	// Check if streaming is enabled on config/override.
 	streamingEnabled := t.cfg.StreamEnabled()
@@ -693,11 +909,19 @@ func (t *Turn) getOutputRedactor() guardrails.Redactor {
 
 // recordLoadedContentSafety emits trace events for any content safety violations loaded for this session.
 func (t *Turn) recordLoadedContentSafety(traceSession trace.Session) {
-	if t == nil || t.env == nil || traceSession == nil {
+	if t == nil || traceSession == nil {
 		return
 	}
 
-	for _, event := range t.env.SafetyTraceEvents() {
+	source, _ := t.env.(safetyTraceEventSource)
+	if source == nil {
+		source = t.safetyEvents
+	}
+	if source == nil {
+		return
+	}
+
+	for _, event := range source.SafetyTraceEvents() {
 		traceSession.Record(trace.EvtLoadedContentSafetyBlocked, safetyEventPayloadFromOptions(event))
 	}
 }
@@ -811,6 +1035,19 @@ func (t *Turn) availableToolDefinitions() ([]models.ToolDefinition, error) {
 		return nil, nil
 	}
 
+	if registry, policy, ok := t.legacyToolRegistryAndPolicy(); ok {
+		definitions, err := registry.Resolve(policy)
+		if err != nil {
+			return nil, err
+		}
+
+		toolsList := make([]models.ToolDefinition, 0, len(definitions))
+		for _, definition := range definitions {
+			toolsList = append(toolsList, modelToolDefinitionFromToolDefinition(definition))
+		}
+		return toolsList, nil
+	}
+
 	if t.toolRegistry != nil {
 		definitions, err := t.toolRegistry.Resolve(t.toolPolicy)
 		if err != nil {
@@ -820,20 +1057,7 @@ func (t *Turn) availableToolDefinitions() ([]models.ToolDefinition, error) {
 		return agenttool.DefinitionsToModel(definitions), nil
 	}
 
-	if t.env == nil || t.env.Tools() == nil {
-		return nil, nil
-	}
-
-	definitions, err := t.env.Tools().Resolve(t.env.ToolPolicy())
-	if err != nil {
-		return nil, err
-	}
-
-	toolsList := make([]models.ToolDefinition, 0, len(definitions))
-	for _, definition := range definitions {
-		toolsList = append(toolsList, modelToolDefinitionFromToolDefinition(definition))
-	}
-	return toolsList, nil
+	return nil, nil
 }
 
 // invokeTool executes a tool call, optionally using turn's tool invocation handler.
@@ -848,15 +1072,17 @@ func (t *Turn) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg
 	}
 
 	if t.invokeToolFn != nil {
-		return t.invokeToolFn(ctx, t.env, toolCall)
+		if message, ok := t.invokeToolWithLegacyHook(ctx, toolCall); ok {
+			return message
+		}
 	}
 
 	if t.toolRegistry != nil {
 		return t.toolRegistry.Invoke(ctx, agenttool.CallFromModel(toolCall))
 	}
 
-	if t.env != nil {
-		return invokeToolWithEnvironment(ctx, t.env, toolCall, t.summaryClient, t.cfg)
+	if registry, _, ok := t.legacyToolRegistryAndPolicy(); ok {
+		return t.invokeToolWithLegacyRuntime(ctx, registry, toolCall)
 	}
 
 	return handmsg.Message{
@@ -865,6 +1091,64 @@ func (t *Turn) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg
 		ToolCallID: toolCall.ID,
 		Content:    `{"error":"tool invocation is required"}`,
 	}
+}
+
+func (t *Turn) invokeToolWithLegacyRuntime(
+	ctx context.Context,
+	registry legacyToolRegistry,
+	toolCall models.ToolCall,
+) handmsg.Message {
+	result := map[string]any{"name": toolCall.Name}
+	if registry == nil {
+		result["error"] = "tool registry is required"
+		return toolResultMessage(toolCall, result)
+	}
+
+	toolResult, err := registry.Invoke(ctx, tools.Call{
+		Name:   toolCall.Name,
+		Input:  toolCall.Input,
+		Source: "model",
+	})
+	if err != nil {
+		result["error"] = err.Error()
+	}
+	if strings.TrimSpace(toolResult.Error) != "" {
+		result["error"] = normalizeToolError(strings.TrimSpace(toolResult.Error))
+	}
+	if strings.TrimSpace(toolResult.Output) != "" {
+		result["output"] = sanitizeToolOutputForModel(ctx, toolCall.Name, toolResult.Output, t.cfg)
+	}
+
+	return toolResultMessage(toolCall, result)
+}
+
+func (t *Turn) invokeToolWithLegacyHook(ctx context.Context, toolCall models.ToolCall) (handmsg.Message, bool) {
+	switch invoke := t.invokeToolFn.(type) {
+	case func(context.Context, models.ToolCall) handmsg.Message:
+		return invoke(ctx, toolCall), true
+	}
+
+	value := reflect.ValueOf(t.invokeToolFn)
+	if !value.IsValid() || value.Kind() != reflect.Func || value.Type().NumIn() != 3 || value.Type().NumOut() != 1 {
+		return handmsg.Message{}, false
+	}
+	if !value.Type().Out(0).AssignableTo(reflect.TypeOf(handmsg.Message{})) {
+		return handmsg.Message{}, false
+	}
+
+	args := []reflect.Value{
+		reflect.ValueOf(ctx),
+		reflect.Zero(value.Type().In(1)),
+		reflect.ValueOf(toolCall),
+	}
+	if t.env != nil {
+		envValue := reflect.ValueOf(t.env)
+		if envValue.Type().AssignableTo(value.Type().In(1)) {
+			args[1] = envValue
+		}
+	}
+
+	return value.Call(args)[0].Interface().(handmsg.Message), true
 }
 
 // summaryFallback runs the fallback summary request and returns the assistant reply

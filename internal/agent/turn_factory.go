@@ -1,17 +1,13 @@
 package agent
 
 import (
-	"context"
-
 	"github.com/wandxy/hand/internal/environment"
 	"github.com/wandxy/hand/internal/host"
-	handmsg "github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/models"
 )
 
 func (a *Agent) newTurn(
 	runtimeEnv environment.Environment,
-	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message,
+	invokeToolFn host.ToolInvoker,
 ) *Turn {
 	if invokeToolFn == nil {
 		invokeToolFn = a.invokeToolWithEnvironment
@@ -29,7 +25,13 @@ func (a *Agent) newTurn(
 		sessionStore,
 		toolRegistry,
 		host.ToolPolicyFromEnvironment(runtimeEnv),
-		nil,
+		host.NewPromptProvider(runtimeEnv),
 		runtimeEnv,
+		runtimeEnv,
+		runtimeEnv,
+		runtimeEnv,
+		runtimeEnv,
+		runtimeEnv,
+		nil,
 	)
 }

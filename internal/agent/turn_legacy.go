@@ -9,6 +9,7 @@ import (
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/state/manager"
+	agentprompt "github.com/wandxy/hand/pkg/agent/prompt"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
 	agenttool "github.com/wandxy/hand/pkg/agent/tool"
 )
@@ -25,7 +26,7 @@ func NewTurn(
 	if summaryClient == nil {
 		summaryClient = modelClient
 	}
-	if invokeToolFn == nil {
+	if invokeToolFn == nil && runtimeEnv != nil {
 		invokeToolFn = func(ctx context.Context, env environment.Environment, toolCall models.ToolCall) handmsg.Message {
 			return invokeToolWithEnvironment(ctx, env, toolCall, summaryClient, cfg)
 		}
@@ -38,6 +39,31 @@ func NewTurn(
 		sessionStore = store
 		traceRecorder = store
 	}
+	var toolRegistry agenttool.Registry
+	var promptProvider agentprompt.Provider
+	var traceSessions traceSessionFactory
+	var safetyEvents safetyTraceEventSource
+	var memoryProviders memoryProviderSource
+	var iterationBudgets iterationBudgetFactory
+	var plans planStateStore
+	var legacyRuntime any
+	var toolInvoker any
+	if runtimeEnv != nil {
+		toolRegistry = host.NewToolRegistry(runtimeEnv, invokeToolFn)
+		promptProvider = host.NewPromptProvider(runtimeEnv)
+		traceSessions = runtimeEnv
+		safetyEvents = runtimeEnv
+		memoryProviders = runtimeEnv
+		iterationBudgets = runtimeEnv
+		plans = runtimeEnv
+		legacyRuntime = runtimeEnv
+	}
+	if invokeToolFn != nil {
+		toolInvoker = func(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
+			return invokeToolFn(ctx, runtimeEnv, toolCall)
+		}
+	}
+
 	return NewTurnWithSessionStore(
 		cfg,
 		modelClient,
@@ -45,9 +71,15 @@ func NewTurn(
 		stateMgr,
 		sessionStore,
 		traceRecorder,
-		nil,
-		agenttool.Policy{},
-		invokeToolFn,
-		runtimeEnv,
+		toolRegistry,
+		host.ToolPolicyFromEnvironment(runtimeEnv),
+		promptProvider,
+		traceSessions,
+		safetyEvents,
+		memoryProviders,
+		iterationBudgets,
+		plans,
+		legacyRuntime,
+		toolInvoker,
 	)
 }
