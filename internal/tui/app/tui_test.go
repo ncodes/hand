@@ -678,6 +678,82 @@ func TestModel_UpdateScrollsTranscriptWithMouseWheel(t *testing.T) {
 	require.Less(t, runModel.transcript.YOffset(), bottomOffset)
 }
 
+func TestModel_UpdateOpensTranscriptLinkWithClick(t *testing.T) {
+	originalOpenExternalLink := openExternalLink
+	t.Cleanup(func() {
+		openExternalLink = originalOpenExternalLink
+	})
+
+	opened := ""
+	openExternalLink = func(raw string) error {
+		opened = raw
+		return nil
+	}
+
+	runModel := newModel()
+	runModel.width = 100
+	runModel.height = 20
+	runModel.resize()
+	runModel.messages = []transcriptCell{
+		assistantTranscriptCell{text: "Read [docs](https://example.com/docs) for details."},
+	}
+	runModel.setTranscriptContent()
+	runModel.transcript.GotoTop()
+
+	lines := strings.Split(stripANSI(runModel.transcript.View()), "\n")
+	row := indexLineContaining(lines, "docs")
+	require.NotEqual(t, -1, row)
+	column := strings.Index(lines[row], "docs")
+	require.NotEqual(t, -1, column)
+
+	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		X:      column,
+		Y:      runModel.getTranscriptTop() + row,
+	}))
+
+	require.Nil(t, cmd)
+	require.Equal(t, "https://example.com/docs", opened)
+	require.False(t, updated.(model).selection.active)
+}
+
+func TestModel_UpdateDoesNotOpenTranscriptLinkWithRightClick(t *testing.T) {
+	originalOpenExternalLink := openExternalLink
+	t.Cleanup(func() {
+		openExternalLink = originalOpenExternalLink
+	})
+
+	openExternalLink = func(string) error {
+		t.Fatal("right click should not open external link")
+		return nil
+	}
+
+	runModel := newModel()
+	runModel.width = 100
+	runModel.height = 20
+	runModel.resize()
+	runModel.messages = []transcriptCell{
+		assistantTranscriptCell{text: "Read [docs](https://example.com/docs) for details."},
+	}
+	runModel.setTranscriptContent()
+	runModel.transcript.GotoTop()
+
+	lines := strings.Split(stripANSI(runModel.transcript.View()), "\n")
+	row := indexLineContaining(lines, "docs")
+	require.NotEqual(t, -1, row)
+	column := strings.Index(lines[row], "docs")
+	require.NotEqual(t, -1, column)
+
+	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
+		Button: tea.MouseRight,
+		X:      column,
+		Y:      runModel.getTranscriptTop() + row,
+	}))
+
+	require.Nil(t, cmd)
+	require.False(t, updated.(model).selection.active)
+}
+
 func TestModel_UpdateDoesNotScrollTranscriptWhenTypingComposerText(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 10

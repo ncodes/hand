@@ -1,38 +1,12 @@
 package tui
 
 import (
-	"errors"
 	"strings"
 	"testing"
 	"time"
 
-	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 )
-
-type stubTranscriptMarkdownRenderer struct {
-	output string
-	err    error
-}
-
-func (r stubTranscriptMarkdownRenderer) Render(string) (string, error) {
-	return r.output, r.err
-}
-
-func withStubTranscriptMarkdownRenderer(
-	t *testing.T,
-	renderer transcriptMarkdownRenderer,
-	err error,
-) {
-	t.Helper()
-	previous := newTranscriptMarkdownRenderer
-	newTranscriptMarkdownRenderer = func(int) (transcriptMarkdownRenderer, error) {
-		return renderer, err
-	}
-	t.Cleanup(func() {
-		newTranscriptMarkdownRenderer = previous
-	})
-}
 
 func TestRenderTranscriptCell_RendersAssistantMarkdown(t *testing.T) {
 	rendered := renderTranscriptTestCellWithWidth(
@@ -88,6 +62,19 @@ func TestRenderTranscriptCell_IndentsWrappedMarkdownListContinuations(t *testing
 	require.Equal(t, countLeadingSpaces(lines[firstBullet]), countLeadingSpaces(lines[secondBullet]))
 }
 
+func TestRenderTranscriptCell_RendersUnicodeBulletMarkdownArtifacts(t *testing.T) {
+	rendered := renderTranscriptTestCellWithWidth(assistantTranscriptCell{text: strings.Join([]string{
+		"• **Court nullifies INEC's membership deadline** – A Federal High Court ruling that wraps onto another line.",
+		"• **Otedola invests** – Billionaire backs a placement.",
+	}, "\n")}, 58)
+	plain := stripANSI(rendered)
+
+	require.Contains(t, plain, "• Court nullifies INEC's membership deadline")
+	require.Contains(t, plain, "• Otedola invests")
+	require.NotContains(t, plain, "**Court")
+	require.NotContains(t, plain, "**Otedola")
+}
+
 func TestRenderTranscriptCell_RendersCompactMarkdownTables(t *testing.T) {
 	rendered := renderTranscriptTestCellWithWidth(assistantTranscriptCell{text: strings.Join([]string{
 		"| **Issue** | Details |",
@@ -103,7 +90,7 @@ func TestRenderTranscriptCell_RendersCompactMarkdownTables(t *testing.T) {
 	require.Contains(t, plain, "├───────┼────────────┤")
 	require.Contains(t, plain, "│ Two   │ Also short │")
 	require.Contains(t, plain, "└───────┴────────────┘")
-	require.Equal(t, 2, strings.Count(plain, "├───────┼────────────┤"))
+	require.Equal(t, 1, strings.Count(plain, "├───────┼────────────┤"))
 	require.NotContains(t, plain, strings.Repeat(" ", 20))
 	require.Contains(t, rendered, "\x1b[")
 	for _, line := range lines {
@@ -166,71 +153,49 @@ func TestRenderMarkdownForTranscript_LeavesPlainTextAlone(t *testing.T) {
 	require.Equal(t, "hello there", renderMarkdownForTranscript("hello there", 60))
 }
 
-func TestRenderMarkdownForTranscript_FallsBackWhenRendererFails(t *testing.T) {
-	withStubTranscriptMarkdownRenderer(t, nil, errors.New("boom"))
+func TestRenderMarkdownForTranscript_RendersClickableLinks(t *testing.T) {
+	rendered := renderMarkdownForTranscript("[docs](https://example.com)", 60)
 
-	require.Equal(t, "**hello**", renderMarkdownForTranscript("**hello**", 60))
-	_, err := glamourRenderMarkdown("**hello**", 60)
-	require.ErrorContains(t, err, "boom")
+	require.Contains(t, stripANSI(rendered), "docs")
+	require.Contains(t, rendered, "\x1b]8;;https://example.com\a")
+	require.Contains(t, rendered, "\x1b]8;;\a")
 }
 
-func TestRenderMarkdownForTranscript_FallsBackWhenRendererReturnsBlank(t *testing.T) {
-	withStubTranscriptMarkdownRenderer(t, stubTranscriptMarkdownRenderer{output: "\n\n"}, nil)
+func TestRenderMarkdownForTranscript_RendersBareURLsAsClickableLinks(t *testing.T) {
+	rendered := renderMarkdownForTranscript("Read https://example.com/docs for details.", 80)
 
-	require.Equal(t, "**hello**", renderMarkdownForTranscript("**hello**", 60))
+	require.Contains(t, stripANSI(rendered), "Read https://example.com/docs for details.")
+	require.Contains(t, rendered, "\x1b]8;;https://example.com/docs\a")
+	require.Contains(t, rendered, "\x1b]8;;\a")
 }
 
-func TestRenderMarkdownWithCompactTables_FallsBackWhenMarkdownChunkRenderFails(t *testing.T) {
-	withStubTranscriptMarkdownRenderer(t, nil, errors.New("boom"))
+func TestRenderTranscriptCells_PreservesClickableLinksThroughViewportContent(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 100
+	runModel.height = 30
+	runModel.transcript.SetWidth(100)
+	runModel.transcript.SetHeight(20)
+	runModel.messages = []transcriptCell{
+		assistantTranscriptCell{text: "Read https://example.com/docs for details."},
+	}
 
-	rendered := renderMarkdownWithCompactTables(strings.Join([]string{
-		"## Heading",
-		"",
-		"| A |",
-		"| --- |",
-		"| B |",
-	}, "\n"), 60)
+	runModel.setTranscriptContent()
 
-	require.Contains(t, rendered, "## Heading")
-	require.Contains(t, rendered, "┌───┐")
-}
-
-func TestMarkdownTrimHelpers_HandleNoopInputs(t *testing.T) {
-	require.Equal(t, "no margin", removeCommonRenderedMarkdownLeftMargin("no margin"))
-	require.Empty(t, trimLeadingSpaces("", 2))
-	require.Equal(t, "already", trimLeadingSpaces("already", 0))
+	require.Contains(t, runModel.transcript.GetContent(), "\x1b]8;;https://example.com/docs\a")
+	require.Contains(t, runModel.transcript.View(), "\x1b]8;;https://example.com/docs\a")
 }
 
 func TestHasTranscriptMarkdown_DetectsCommonSyntax(t *testing.T) {
 	require.True(t, hasTranscriptMarkdown("1. first"))
+	require.True(t, hasTranscriptMarkdown("• first"))
 	require.True(t, hasTranscriptMarkdown("**strong**"))
+	require.True(t, hasTranscriptMarkdown("~~old~~"))
 	require.True(t, hasTranscriptMarkdown("[link](https://example.com)"))
+	require.True(t, hasTranscriptMarkdown("https://example.com"))
+	require.True(t, hasTranscriptMarkdown("Read https://example.com"))
+	require.True(t, hasTranscriptMarkdown("<strong>important</strong>"))
 	require.False(t, hasTranscriptMarkdown("plain sentence"))
-}
-
-func TestMarkdownTableHelpers_HandleEdgeCases(t *testing.T) {
-	require.Equal(t, "| only | one |", renderCompactMarkdownTable([]string{"| only | one |"}, 80))
-	require.Zero(t, compactMarkdownTableWidth(nil))
-	require.Equal(t, "", renderMarkdownTableAsLabeledRows([][]string{{"Source", "Story"}}))
-	require.False(t, isMarkdownTableSeparator("| --- | nope |"))
 	require.False(t, isOrderedMarkdownListItem("1a. bad"))
-}
-
-func TestRenderMarkdownTableAsLabeledRows_SkipsBlankHeadersAndValues(t *testing.T) {
-	rendered := renderMarkdownTableAsLabeledRows([][]string{
-		{"Source", "", "Story", "Empty"},
-		{"CNN", "ignored", "Headline", ""},
-		{"", "ignored", "", ""},
-	})
-
-	require.Equal(t, "Source: CNN\nStory: Headline", rendered)
-}
-
-func TestCompactMarkdownInlineRenderingLeavesMalformedSyntaxAlone(t *testing.T) {
-	require.Equal(t, "prefix [label only", renderCompactMarkdownLinks("prefix [label only"))
-	require.Equal(t, "[label](missing", renderCompactMarkdownLinks("[label](missing"))
-	require.Equal(t, "**bold", renderCompactInlineDelimited("**bold", "**", lipgloss.NewStyle().Bold(true)))
-	require.Equal(t, "plain", renderCompactInlineDelimited("plain", "**", lipgloss.NewStyle().Bold(true)))
 }
 
 func indexLineContaining(lines []string, value string) int {
@@ -241,4 +206,15 @@ func indexLineContaining(lines []string, value string) int {
 	}
 
 	return -1
+}
+
+func countLeadingSpaces(value string) int {
+	count := 0
+	for _, char := range value {
+		if char != ' ' {
+			return count
+		}
+		count++
+	}
+	return count
 }

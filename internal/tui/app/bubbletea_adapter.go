@@ -70,6 +70,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.updateTranscriptWithScrollTracking(msg)
 	case tea.MouseClickMsg:
+		if cmd, ok := m.openTranscriptLinkAtMouse(msg); ok {
+			return m, cmd
+		}
 		if m.clicksJumpToBottomIndicator(msg) {
 			return m.handleAppEvent(jumpTranscriptToBottomEvent{})
 		}
