@@ -7,7 +7,6 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
@@ -18,7 +17,6 @@ import (
 	"github.com/wandxy/hand/internal/memory"
 	memguardrails "github.com/wandxy/hand/internal/memory/guardrails"
 	memoryobservability "github.com/wandxy/hand/internal/memory/observability"
-	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/personality"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
@@ -41,6 +39,8 @@ import (
 	"github.com/wandxy/hand/internal/tools/writefile"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/internal/workspace"
+	models "github.com/wandxy/hand/pkg/agent/model"
+	"github.com/wandxy/hand/pkg/agent/runcontext"
 )
 
 var (

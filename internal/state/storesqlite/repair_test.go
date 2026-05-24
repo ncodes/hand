@@ -13,8 +13,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/state/search"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 

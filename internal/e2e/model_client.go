@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/models"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 type RequestAssert func(models.Request) error

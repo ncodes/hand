@@ -3,7 +3,7 @@ package core
 import (
 	"time"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 // SearchMessageOptions controls session message search filtering and limits.

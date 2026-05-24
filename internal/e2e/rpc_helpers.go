@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/wandxy/hand/internal/config"
-	handmsg "github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/models"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 var rpcHelperListen = net.Listen

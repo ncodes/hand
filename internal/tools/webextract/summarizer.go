@@ -8,9 +8,9 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	instruct "github.com/wandxy/hand/internal/instructions"
-	handmsg "github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/models"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 type Summarizer interface {

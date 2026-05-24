@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/state/core"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 type Store struct {

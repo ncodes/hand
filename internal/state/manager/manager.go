@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 type Manager struct {

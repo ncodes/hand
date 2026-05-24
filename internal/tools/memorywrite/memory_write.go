@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/wandxy/hand/internal/agent/runcontext"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/instructions"
@@ -13,6 +12,7 @@ import (
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
 	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/hand/pkg/agent/runcontext"
 )
 
 type sourceLinkInput struct {
@@ -244,7 +244,7 @@ func memoryItemFromAddInput(
 		item.Metadata["source_session_id"] = sessionID
 	}
 	if hasRunContext {
-		item = runcontext.ApplyMemoryProvenance(item, runCtx, trigger)
+		item = memory.ApplyRunProvenance(item, runCtx, trigger)
 	}
 	if item.Title == "" && item.Text == "" {
 		return memory.MemoryItem{}, errors.New("memory title or text is required")

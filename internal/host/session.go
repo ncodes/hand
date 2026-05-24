@@ -6,8 +6,8 @@ import (
 
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/state/core"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 var errSessionManagerRequired = errors.New("session manager is required")

@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	e2e "github.com/wandxy/hand/internal/e2e"
-	handmsg "github.com/wandxy/hand/internal/messages"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 func TestE2E_InputSafety_BlocksPromptExfiltrationBeforeModelDispatch(t *testing.T) {

@@ -7,10 +7,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/environment"
-	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/mocks"
-	"github.com/wandxy/hand/internal/models"
 	handtools "github.com/wandxy/hand/internal/tools"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/hand/pkg/agent/model"
 	agenttool "github.com/wandxy/hand/pkg/agent/tool"
 )
 

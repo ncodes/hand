@@ -8,10 +8,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	base "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
 	vectormemory "github.com/wandxy/hand/internal/state/search/vectorstore/memory"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 

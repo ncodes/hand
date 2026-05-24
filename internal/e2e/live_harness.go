@@ -12,7 +12,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/models"
+	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 var newLiveModelClient = models.NewOpenAIClient

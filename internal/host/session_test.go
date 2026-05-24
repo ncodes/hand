@@ -7,11 +7,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/pkg/agent/message"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/state/core"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 func TestNewSessionStoreImplementsAgentSessionInterfaces(t *testing.T) {
@@ -81,14 +80,14 @@ func TestSessionStoreGetMessagesConvertsQuery(t *testing.T) {
 		Name:     "tool",
 		Order:    agentsession.MessageOrderDesc,
 		Offset:   2,
-		Role:     message.RoleAssistant,
+		Role:     handmsg.RoleAssistant,
 	})
 	require.NoError(t, err)
-	require.Equal(t, []message.Message{{Role: message.RoleAssistant, Content: "hello"}}, messages)
+	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "hello"}}, messages)
 }
 
 func TestSessionStoreAppendMessagesDelegates(t *testing.T) {
-	expected := []message.Message{{Role: message.RoleUser, Content: "hello"}}
+	expected := []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}
 	store := NewSessionStore(&sessionManagerStub{
 		AppendMessagesFunc: func(_ context.Context, id string, messages []handmsg.Message) error {
 			require.Equal(t, "default", id)

@@ -3,8 +3,8 @@ package memory
 import (
 	"context"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	statecore "github.com/wandxy/hand/internal/state/core"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 type fakeLogger struct {

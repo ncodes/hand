@@ -15,10 +15,10 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	base "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
 	storagevectorsqlite "github.com/wandxy/hand/internal/state/search/vectorstore/sqlite"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 

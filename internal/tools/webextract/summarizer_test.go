@@ -9,8 +9,8 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
-	"github.com/wandxy/hand/internal/models"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
+	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 type modelClientStub struct {

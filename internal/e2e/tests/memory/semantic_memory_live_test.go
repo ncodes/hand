@@ -11,9 +11,9 @@ import (
 
 	e2e "github.com/wandxy/hand/internal/e2e"
 	livememory "github.com/wandxy/hand/internal/memory"
-	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
+	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 func TestLiveSemanticMemoryCreatedByReflectionAndPromotion(t *testing.T) {

@@ -14,13 +14,13 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
 	"github.com/wandxy/hand/internal/trace"
 	agent "github.com/wandxy/hand/pkg/agent"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
 )
 

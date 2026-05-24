@@ -14,7 +14,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
@@ -25,8 +24,6 @@ import (
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
-	"github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/personality"
 	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
@@ -36,6 +33,9 @@ import (
 	"github.com/wandxy/hand/internal/tools/memorywrite"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/internal/workspace"
+	messages "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/hand/pkg/agent/model"
+	"github.com/wandxy/hand/pkg/agent/runcontext"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 

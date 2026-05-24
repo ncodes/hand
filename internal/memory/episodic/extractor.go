@@ -13,9 +13,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/wandxy/hand/internal/constants"
-	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 const (

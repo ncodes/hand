@@ -6,13 +6,13 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	handdb "github.com/wandxy/hand/internal/db"
-	"github.com/wandxy/hand/internal/models"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
 	vectormemory "github.com/wandxy/hand/internal/state/search/vectorstore/memory"
 	vectorsqlite "github.com/wandxy/hand/internal/state/search/vectorstore/sqlite"
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
 	storagesqlite "github.com/wandxy/hand/internal/state/storesqlite"
+	models "github.com/wandxy/hand/pkg/agent/model"
 	"gorm.io/gorm"
 )
 

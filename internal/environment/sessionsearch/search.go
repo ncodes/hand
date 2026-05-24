@@ -8,9 +8,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/wandxy/hand/internal/constants"
-	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 const (

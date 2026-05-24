@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
@@ -12,10 +11,11 @@ import (
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
-	"github.com/wandxy/hand/internal/models"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
+	models "github.com/wandxy/hand/pkg/agent/model"
+	"github.com/wandxy/hand/pkg/agent/runcontext"
 )
 
 type ModelClientStub struct {

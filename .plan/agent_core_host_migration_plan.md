@@ -637,7 +637,7 @@ Verified:
 
 - `go test -tags sqlite_fts5 ./internal/host ./cmd/up ./internal/e2e ./internal/rpc ./internal/rpc/client ./internal/tui/app ./internal/cli ./internal/mocks/agentstub`
 
-## [ ] Phase 14: Delete Compatibility Package Paths
+## [x] Phase 14: Delete Compatibility Package Paths
 
 Objective: remove obsolete internal package paths and aliases after the native host/core split is complete.
 
@@ -658,6 +658,22 @@ Done when:
 Risk:
 
 - Large import churn can hide regressions. Use mechanical import updates where possible, then inspect behavioral diffs separately.
+
+Completed:
+
+- Removed the obsolete root `internal/agent` package after host-native runtime ownership was established.
+- Moved context assembly, compaction, and summary packages from `internal/agent/context` to `internal/host/context`.
+- Moved runtime identity from `internal/agent/runcontext` to `pkg/agent/runcontext` and updated producers/consumers.
+- Moved message search helpers into `pkg/agent/message` and the OpenAI-compatible model client into `pkg/agent/model`.
+- Removed the `internal/messages` and `internal/models` alias packages after updating callers to public agent packages.
+- Updated the focused baseline Make target to use host-owned package paths.
+
+Verified:
+
+- `go list ./...`
+- `go test -tags sqlite_fts5 ./pkg/agent/... ./internal/host ./internal/host/context ./internal/host/context/compaction ./internal/host/context/summary ./internal/environment ./internal/tools/... ./internal/state/... ./internal/memory/... ./internal/trace/... ./internal/tui/app ./internal/e2e ./cmd/up`
+- `make check-pkg-agent-deps`
+- `make test`
 
 ## [ ] Phase 15: Enforce First-Class Boundaries
 
@@ -688,7 +704,9 @@ Risk:
 Run focused tests after each phase:
 
 ```text
-go test ./internal/agent
+go test ./internal/host
+go test ./internal/host/context/compaction
+go test ./internal/host/context/summary
 go test ./internal/tui/app
 go test ./cmd/hand
 go test ./pkg/agent/...

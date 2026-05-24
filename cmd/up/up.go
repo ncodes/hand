@@ -21,10 +21,10 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/diagnostics"
 	"github.com/wandxy/hand/internal/host"
-	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/profile"
 	"github.com/wandxy/hand/internal/rpc/server"
 	handruntime "github.com/wandxy/hand/internal/runtime"
+	models "github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 

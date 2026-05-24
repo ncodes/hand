@@ -10,9 +10,9 @@ import (
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/memory/episodic"
 	pinnedmemory "github.com/wandxy/hand/internal/memory/pinned"
-	handmsg "github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/models"
 	statecore "github.com/wandxy/hand/internal/state/core"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 const ProviderDefaultMemory = constants.MemoryProviderDefault

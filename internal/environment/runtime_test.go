@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/environment/planstore"
 	"github.com/wandxy/hand/internal/environment/process"
 	"github.com/wandxy/hand/internal/environment/sessionmessages"
@@ -17,10 +16,11 @@ import (
 	"github.com/wandxy/hand/internal/guardrails"
 	handmemory "github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/memory/episodic"
-	"github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	memory "github.com/wandxy/hand/internal/state/storememory"
+	messages "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/hand/pkg/agent/runcontext"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 

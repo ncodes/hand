@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/wandxy/hand/internal/constants"
-	handmsg "github.com/wandxy/hand/internal/messages"
 	state "github.com/wandxy/hand/internal/state/core"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 const DefaultVectorRepairBatchSize = constants.DefaultVectorRepairBatchSize

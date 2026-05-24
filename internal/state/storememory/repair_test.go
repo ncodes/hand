@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/state/search"
 	vectormemory "github.com/wandxy/hand/internal/state/search/vectorstore/memory"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 func TestStore_RepairVectorStore(t *testing.T) {

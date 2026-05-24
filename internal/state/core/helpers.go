@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 

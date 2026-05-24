@@ -12,9 +12,9 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	e2e "github.com/wandxy/hand/internal/e2e"
-	handmsg "github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/models"
 	storage "github.com/wandxy/hand/internal/state/core"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 

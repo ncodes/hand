@@ -15,11 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
-	handmsg "github.com/wandxy/hand/internal/messages"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
 	agent "github.com/wandxy/hand/pkg/agent"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
 )
 

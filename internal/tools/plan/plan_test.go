@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/environment"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
@@ -17,6 +16,7 @@ import (
 	nativemocks "github.com/wandxy/hand/internal/tools/mocks"
 	plantool "github.com/wandxy/hand/internal/tools/plan"
 	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/hand/pkg/agent/runcontext"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 const (

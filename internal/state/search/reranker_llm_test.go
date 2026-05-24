@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/models"
+	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 type llmRerankerModelStub struct {

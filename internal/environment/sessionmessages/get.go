@@ -7,9 +7,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 func Get(

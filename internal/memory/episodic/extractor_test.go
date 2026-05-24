@@ -11,12 +11,12 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
-	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	statemock "github.com/wandxy/hand/internal/state/mock"
 	storememory "github.com/wandxy/hand/internal/state/storememory"
 	"github.com/wandxy/hand/internal/trace"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 

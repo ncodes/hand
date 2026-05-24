@@ -10,8 +10,8 @@ import (
 
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
-	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/tools"
+	models "github.com/wandxy/hand/pkg/agent/model"
 	agenttool "github.com/wandxy/hand/pkg/agent/tool"
 )
 

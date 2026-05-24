@@ -8,10 +8,10 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	instruct "github.com/wandxy/hand/internal/instructions"
-	handmsg "github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 const memoryFlushTriggerCompression = "compression"

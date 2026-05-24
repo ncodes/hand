@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	state "github.com/wandxy/hand/internal/state/core"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 // MessageIndexRow is one searchable text row derived from a session message.

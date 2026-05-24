@@ -23,8 +23,8 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
-	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/profile"
+	models "github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 

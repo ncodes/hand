@@ -8,7 +8,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || printf de
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || printf unknown)
 LD_FLAGS := -X github.com/wandxy/hand/internal/constants.AppVersion=$(VERSION) -X github.com/wandxy/hand/internal/constants.CommitHash=$(COMMIT)
 
-.PHONY: install-tools install-hooks build-proto build test test-agent-baseline test-spec test-live test-live-sqlite test-live-memory test-live-all agent-deps check-pkg-agent-deps lint install
+.PHONY: install-tools install-hooks build-proto build test test-agent-baseline test-spec test-live test-live-sqlite test-live-memory test-live-all host-deps check-pkg-agent-deps lint install
 
 install-tools:
 	@$(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
@@ -36,9 +36,9 @@ test: build-proto check-pkg-agent-deps
 
 test-agent-baseline: build-proto
 	@CGO_ENABLED=1 $(GO) test -tags $(GO_SQLITE_TAGS) \
-		./internal/agent \
-		./internal/agent/context/compaction \
-		./internal/agent/context/summary \
+		./internal/host \
+		./internal/host/context/compaction \
+		./internal/host/context/summary \
 		./internal/tui/app \
 		./cmd/hand
 
@@ -64,10 +64,10 @@ test-live-memory:
 
 test-live-all: test-live-sqlite test-live-memory
 
-agent-deps:
-	@$(GO) list -f 'direct imports for {{.ImportPath}}:{{range .Imports}}{{printf "\n  %s" .}}{{end}}' ./internal/agent
-	@printf '\ninternal/agent transitive hand imports:\n'
-	@$(GO) list -deps ./internal/agent | grep '^github.com/wandxy/hand/' | sed 's/^/  /'
+host-deps:
+	@$(GO) list -f 'direct imports for {{.ImportPath}}:{{range .Imports}}{{printf "\n  %s" .}}{{end}}' ./internal/host
+	@printf '\ninternal/host transitive hand imports:\n'
+	@$(GO) list -deps ./internal/host | grep '^github.com/wandxy/hand/' | sed 's/^/  /'
 
 check-pkg-agent-deps:
 	@packages="$$(mktemp)"; \

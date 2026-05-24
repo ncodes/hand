@@ -16,9 +16,9 @@ import (
 
 	sessioncmd "github.com/wandxy/hand/cmd/session"
 	"github.com/wandxy/hand/internal/e2e"
-	handmsg "github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/profile"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 

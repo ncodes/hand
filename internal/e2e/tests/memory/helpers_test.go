@@ -13,12 +13,12 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	handdb "github.com/wandxy/hand/internal/db"
 	e2e "github.com/wandxy/hand/internal/e2e"
-	handmsg "github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/models"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/state/search"
 	vectorsqlite "github.com/wandxy/hand/internal/state/search/vectorstore/sqlite"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 type liveMemoryStore interface {

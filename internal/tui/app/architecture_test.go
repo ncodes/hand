@@ -9,7 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 func TestTUIAction_SetViewportSizeBoundsValues(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/state/search/vectorstore"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 func StableSessionMessageID(sessionID string, messageID uint) string {

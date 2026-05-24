@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 type Store interface {

@@ -17,8 +17,6 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
-	handmsg "github.com/wandxy/hand/internal/messages"
-	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
@@ -26,6 +24,8 @@ import (
 	vectorsqlite "github.com/wandxy/hand/internal/state/search/vectorstore/sqlite"
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
 	storagesqlite "github.com/wandxy/hand/internal/state/storesqlite"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	models "github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 

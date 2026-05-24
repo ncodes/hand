@@ -7,8 +7,8 @@ import (
 
 	"github.com/wandxy/hand/internal/constants"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
-	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/trace"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
 )
 

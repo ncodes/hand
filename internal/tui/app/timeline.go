@@ -9,12 +9,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
 	tuirpc "github.com/wandxy/hand/internal/tui/rpc"
 	agent "github.com/wandxy/hand/pkg/agent"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 type sessionTimelineLoader = tuirpc.SessionTimelineLoader

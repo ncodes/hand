@@ -9,11 +9,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	handmsg "github.com/wandxy/hand/internal/messages"
 	storage "github.com/wandxy/hand/internal/state/core"
 	storagemock "github.com/wandxy/hand/internal/state/mock"
 	"github.com/wandxy/hand/internal/state/search"
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
+	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
