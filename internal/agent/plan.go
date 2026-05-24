@@ -8,8 +8,8 @@ import (
 	"github.com/wandxy/hand/internal/constants"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	handmsg "github.com/wandxy/hand/internal/messages"
-	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
+	agentsession "github.com/wandxy/hand/pkg/agent/session"
 )
 
 // Number of tool messages to retrieve at a time while searching for a plan.
@@ -147,10 +147,10 @@ func (t *Turn) hydratePlanFromHistory(ctx context.Context, sessionID string) (bo
 
 	for {
 		// Load a page of tool messages that might contain a plan.
-		messages, err := t.stateMgr.GetMessages(ctx, sessionID, storage.MessageQueryOptions{
+		messages, err := t.sessionStore.GetMessages(ctx, sessionID, agentsession.MessageQuery{
 			Role:   handmsg.RoleTool,
 			Name:   "plan_tool",
-			Order:  storage.MessageOrderDesc,
+			Order:  agentsession.MessageOrderDesc,
 			Limit:  planHydrationPageSize,
 			Offset: offset,
 		})

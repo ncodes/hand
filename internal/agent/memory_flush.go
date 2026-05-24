@@ -53,7 +53,7 @@ func (a *Agent) maybeFlushMemoryBeforeContextLoss(
 
 	// Reuse a Turn so memory flush sees the same context-building, tool context,
 	// and session state paths as a normal response.
-	turn := NewTurn(a.cfg, a.modelClient, a.summaryClient, a.stateMgr, nil, a.env)
+	turn := a.newTurn(a.env, nil)
 	if err := turn.load(ctx, RespondOptions{SessionID: sessionID}); err != nil {
 		recordMemoryFlushFailure(traceSession, trigger, err)
 		return

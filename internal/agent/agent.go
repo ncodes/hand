@@ -295,14 +295,7 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (s
 
 	// Turn owns per-response state such as loaded history, retrieved memory,
 	// request instruction overrides, streaming callbacks, and emitted messages.
-	turn := NewTurn(
-		a.cfg,
-		a.modelClient,
-		a.summaryClient,
-		a.stateMgr,
-		a.invokeToolWithEnvironment,
-		env,
-	)
+	turn := a.newTurn(env, a.invokeToolWithEnvironment)
 	reply, err := turn.Run(ctx, msg, opts)
 	a.turnMessages = turn.Messages()
 	if err == nil {

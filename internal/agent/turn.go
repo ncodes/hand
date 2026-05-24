@@ -20,9 +20,9 @@ import (
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
-	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
+	agentsession "github.com/wandxy/hand/pkg/agent/session"
 )
 
 const requestInstructionName = "request.instruct"
@@ -41,11 +41,17 @@ type Turn struct {
 	// Summary client for compaction/summary model requests. Falls back to modelClient if nil.
 	summaryClient models.Client
 
-	// State manager used for session resolution and persisting turn messages.
-	stateMgr *statemanager.Manager
+	// Session store used for turn-scoped session reads and writes.
+	sessionStore agentsession.Store
+
+	// Trace recorder used for turn-scoped persisted trace writes.
+	traceRecorder agentsession.TraceRecorder
 
 	// Loads/persists summary state for the turn.
 	summaryService *summarizer.Service
+
+	// Summary store used to lazily build the summary service with current turn config.
+	summaryStore summarizer.SummaryStore
 
 	// Tool invocation function for executing tool calls.
 	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message
@@ -93,12 +99,14 @@ type Turn struct {
 	planHydrated bool
 }
 
-// NewTurn constructs a Turn object with required dependencies for a single response turn.
-func NewTurn(
+// NewTurnWithSessionStore constructs a Turn object with reusable session dependencies.
+func NewTurnWithSessionStore(
 	cfg *config.Config,
 	modelClient models.Client,
 	summaryClient models.Client,
-	stateMgr *statemanager.Manager,
+	summaryStore summarizer.SummaryStore,
+	sessionStore agentsession.Store,
+	traceRecorder agentsession.TraceRecorder,
 	invokeToolFn func(context.Context, environment.Environment, models.ToolCall) handmsg.Message,
 	runtimeEnv environment.Environment,
 ) *Turn {
@@ -110,7 +118,9 @@ func NewTurn(
 		cfg:            cfg,
 		modelClient:    modelClient,
 		summaryClient:  summaryClient,
-		stateMgr:       stateMgr,
+		summaryStore:   summaryStore,
+		sessionStore:   sessionStore,
+		traceRecorder:  traceRecorder,
 		invokeToolFn:   invokeToolFn,
 		env:            runtimeEnv,
 		contextBuilder: ctxbuilder.New(),
@@ -136,19 +146,21 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 		return errors.New("runtime environment is required")
 	}
 
-	if t.stateMgr == nil {
-		return errors.New("state manager is required")
-	}
-
-	// Lazy-init summary service.
-	if t.summaryService == nil {
-		t.summaryService = summarizer.NewService(t.cfg, t.modelClient, t.summaryClient, t.stateMgr)
+	if t.sessionStore == nil {
+		return errors.New("session store is required")
 	}
 
 	// Resolve and load session for the turn; fail if not found.
-	session, err := t.stateMgr.Resolve(ctx, opts.SessionID)
+	session, err := t.sessionStore.Resolve(ctx, opts.SessionID)
 	if err != nil {
 		return err
+	}
+
+	if t.summaryService == nil {
+		if t.summaryStore == nil {
+			return errors.New("summary store is required")
+		}
+		t.summaryService = summarizer.NewService(t.cfg, t.modelClient, t.summaryClient, t.summaryStore)
 	}
 
 	// Load active summary state for context assembly.
@@ -164,7 +176,7 @@ func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
 	}
 
 	// Load messages after the (possibly summarized) offset.
-	messages, err := t.stateMgr.GetMessages(ctx, session.ID, storage.MessageQueryOptions{Offset: tailOffset})
+	messages, err := t.sessionStore.GetMessages(ctx, session.ID, agentsession.MessageQuery{Offset: tailOffset})
 	if err != nil {
 		return err
 	}
@@ -602,7 +614,7 @@ func (t *Turn) canCompactPersistedHistory() bool {
 
 // appendSessionMessages persists new emitted messages to the session state.
 func (t *Turn) appendSessionMessages(messages []handmsg.Message) error {
-	return t.stateMgr.AppendMessages(t.ctx, t.sessionID, messages)
+	return t.sessionStore.AppendMessages(t.ctx, t.sessionID, messages)
 }
 
 // applyAssistantOutputSafety performs output safety checks on assistant responses if enabled.
@@ -625,7 +637,7 @@ func (t *Turn) applyAssistantOutputSafety(traceSession trace.Session, output str
 
 // recordModelReasoningCompleted logs and saves model inference duration for a turn.
 func (t *Turn) recordModelReasoningCompleted(startedAt time.Time, endedAt time.Time) {
-	if t == nil || t.stateMgr == nil || t.sessionID == "" || startedAt.IsZero() {
+	if t == nil || t.traceRecorder == nil || t.sessionID == "" || startedAt.IsZero() {
 		return
 	}
 	if endedAt.IsZero() || endedAt.Before(startedAt) {
@@ -634,13 +646,13 @@ func (t *Turn) recordModelReasoningCompleted(startedAt time.Time, endedAt time.T
 
 	duration := max(endedAt.Sub(startedAt).Round(time.Millisecond), time.Second)
 
-	event := storage.TraceEvent{
+	event := agentsession.TraceEvent{
 		SessionID: t.sessionID,
 		Type:      trace.EvtModelReasoningCompleted,
 		Timestamp: endedAt,
 		Payload:   trace.ModelReasoningCompletedPayload{DurationMS: duration.Milliseconds()},
 	}
-	if _, err := t.stateMgr.AppendTraceEvent(t.ctx, event); err != nil {
+	if _, err := t.traceRecorder.AppendTraceEvent(t.ctx, event); err != nil {
 		if !errors.Is(err, storage.ErrTraceStoreUnsupported) {
 			agentLog.Warn().
 				Err(err).
@@ -1027,7 +1039,7 @@ func (t *Turn) recordPostflightUsage(traceSession trace.Session, resp *models.Re
 	}
 
 	t.lastPromptTokens = resp.PromptTokens
-	if err := t.stateMgr.UpdateLastPromptTokens(t.ctx, t.sessionID, resp.PromptTokens); err != nil {
+	if err := t.sessionStore.UpdateLastPromptTokens(t.ctx, t.sessionID, resp.PromptTokens); err != nil {
 		traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
 		return err
 	}

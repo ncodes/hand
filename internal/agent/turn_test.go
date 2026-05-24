@@ -90,13 +90,12 @@ func TestTurn_LoadRejectsMissingManager(t *testing.T) {
 	)
 
 	err := turn.load(context.Background(), RespondOptions{})
-	require.EqualError(t, err, "state manager is required")
+	require.EqualError(t, err, "session store is required")
 }
 
 func TestTurn_LoadRejectsMissingConfig(t *testing.T) {
 	turn := &Turn{
 		modelClient: &mocks.ModelClientStub{},
-		stateMgr:    mustNewStateManager(t),
 		env: &mocks.EnvironmentStub{
 			InstructionsList: nil,
 			ToolRegistry:     tools.NewInMemoryRegistry(),
@@ -109,8 +108,7 @@ func TestTurn_LoadRejectsMissingConfig(t *testing.T) {
 
 func TestTurn_LoadRejectsMissingModelClient(t *testing.T) {
 	turn := &Turn{
-		cfg:      testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
-		stateMgr: mustNewStateManager(t),
+		cfg: testSessionConfig(&config.Config{Name: "Test Agent", Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "test-model"}}}),
 		env: &mocks.EnvironmentStub{
 			InstructionsList: nil,
 			ToolRegistry:     tools.NewInMemoryRegistry(),
