@@ -3033,6 +3033,45 @@ func TestModel_UpdateInsertsPromptNewlineOnShiftEnter(t *testing.T) {
 	require.Empty(t, transcriptCellPlainTexts(runModel.messages))
 }
 
+func TestModel_UpdateInsertsPromptNewlineOnTerminalModifiedEnterFallbacks(t *testing.T) {
+	tests := []struct {
+		name string
+		key  tea.KeyPressMsg
+	}{
+		{
+			name: "alt_enter",
+			key: tea.KeyPressMsg{
+				Code: tea.KeyEnter,
+				Mod:  tea.ModAlt,
+			},
+		},
+		{
+			name: "ctrl_j",
+			key: tea.KeyPressMsg{
+				Code: 'j',
+				Mod:  tea.ModCtrl,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runModel := newModel()
+			runModel.input.SetValue("first line")
+
+			updated, cmd := runModel.Update(tt.key)
+
+			if cmd != nil {
+				cmd()
+			}
+			runModel = updated.(model)
+			require.Equal(t, "first line\n", runModel.input.Value())
+			require.Equal(t, 2, runModel.input.Height())
+			require.Empty(t, transcriptCellPlainTexts(runModel.messages))
+		})
+	}
+}
+
 func TestModel_UpdateDeletesCurrentPromptLineOnCommandDelete(t *testing.T) {
 	tests := []struct {
 		name string

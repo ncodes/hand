@@ -149,7 +149,7 @@ func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool)
 	case "ctrl+n":
 		next, cmd := m.handleAppEvent(showNextPromptEvent{})
 		return next, cmd, true
-	case "shift+enter":
+	case "shift+enter", "alt+enter", "ctrl+j":
 		next, cmd := m.handleAppEvent(insertInputNewlineEvent{})
 		return next, cmd, true
 	case "ctrl+end":
