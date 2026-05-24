@@ -370,7 +370,7 @@ Progress:
 - Added public package coverage for the loop runner and conversion helper.
 - Verified `go test -tags sqlite_fts5 ./internal/agent ./pkg/agent/...`, `make check-pkg-agent-deps`, `make test-agent-baseline`, and `make test`.
 
-## Phase 6: Move Agent Service API To `pkg/agent`
+## [x] Phase 6: Move Agent Service API To `pkg/agent`
 
 Objective: expose the reusable Agent constructor and public API.
 
@@ -388,6 +388,15 @@ Done when:
 Risk:
 
 - Public API can harden too early. Keep exported surface small and add only what a host actually needs.
+
+Progress:
+
+- Added a public `pkg/agent.Agent` with `Options`, `RespondOptions`, `Responder`, `CompactSessionResult`, and `ContextStatus`.
+- Added `pkg/agent.New` and `pkg/agent.NewAgent` constructors that accept public model, session, tool, and prompt dependencies.
+- Implemented a public response path that resolves sessions, appends user/assistant/tool messages, runs model calls, executes public tool registries, and uses the public loop runner.
+- Kept Hand-specific defaults, config, storage, compaction, trace, and environment wiring outside `pkg/agent`.
+- Added external-package tests proving another application can instantiate `pkg/agent.Agent` with fake in-memory dependencies and receive normal and tool-loop responses without importing `internal/*`.
+- Verified `go test ./pkg/agent/...` and `make check-pkg-agent-deps`.
 
 ## Phase 7: Build `internal/host`
 
