@@ -4,10 +4,10 @@ import (
 	"context"
 	"strings"
 
-	agent "github.com/wandxy/hand/internal/host"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
+	agent "github.com/wandxy/hand/pkg/agent"
 )
 
 type AgentServiceStub struct {
@@ -25,7 +25,7 @@ type AgentServiceStub struct {
 	UsedSessionID        string
 	CurrentSessionResult storage.Session
 	CompactResult        rpcclient.CompactSessionResult
-	RepairOptions        agent.RepairSessionOptions
+	RepairOptions        search.VectorRepairOptions
 	RepairResult         search.VectorRepairResult
 	SummaryResult        storage.SessionSummary
 	StatusResult         rpcclient.ContextStatus
@@ -93,8 +93,8 @@ func (s *AgentServiceStub) CompactSession(context.Context, string) (rpcclient.Co
 
 func (s *AgentServiceStub) RepairSession(
 	_ context.Context,
-	opts agent.RepairSessionOptions,
-) (agent.RepairSessionResult, error) {
+	opts search.VectorRepairOptions,
+) (search.VectorRepairResult, error) {
 	s.RepairOptions = opts
 	return s.RepairResult, s.Err
 }

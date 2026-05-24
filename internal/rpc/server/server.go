@@ -1,7 +1,7 @@
 package server
 
 import (
-	agent "github.com/wandxy/hand/internal/host"
+	"github.com/wandxy/hand/internal/host"
 	"github.com/wandxy/hand/internal/rpc"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	"google.golang.org/grpc"
@@ -13,7 +13,7 @@ type Options struct {
 	Health bool
 }
 
-func New(service agent.ServiceAPI, opts Options) *grpc.Server {
+func New(service host.ServiceAPI, opts Options) *grpc.Server {
 	server := grpc.NewServer()
 	handpb.RegisterHandServiceServer(server, rpc.NewService(service))
 

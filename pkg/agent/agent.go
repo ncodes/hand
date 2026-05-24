@@ -33,10 +33,11 @@ type Options struct {
 }
 
 type RespondOptions struct {
-	Instruct  string
-	SessionID string
-	Stream    *bool
-	OnEvent   func(Event)
+	Instruct    string
+	SessionID   string
+	Stream      *bool
+	TraceEvents bool
+	OnEvent     func(Event)
 }
 
 type Agent struct {

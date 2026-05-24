@@ -41,7 +41,31 @@ internal/host
   environment.go
 ```
 
-`pkg/agent` owns reusable orchestration. `internal/host` owns Hand defaults and adapts current Hand packages into the reusable interfaces.
+`pkg/agent` owns reusable orchestration. `internal/host` owns Hand defaults and wires current Hand packages into the reusable interfaces.
+
+The final architecture must not look like a compatibility bridge. Hand should use the public agent core as first-class infrastructure, with `internal/host` acting as the native Hand runtime assembly layer.
+
+## Final Architecture Target
+
+The migration is not complete while Hand still depends on compatibility aliases, fallback constructors, legacy turn wrappers, or host types that only exist to mimic the old `internal/agent` surface.
+
+The intended final shape is:
+
+- `pkg/agent` contains the reusable agent core, public runtime types, and orchestration contracts.
+- `internal/host` is the Hand runtime composition package. It constructs `pkg/agent.Agent` directly from Hand config, state, tools, prompts, traces, memory, and environment services.
+- Hand application packages depend on `internal/host` for construction and on public/shared packages for data types. They do not depend on `internal/agent`.
+- `internal/agent` is deleted or reduced to non-orchestration feature code only if a real Hand-specific feature remains there. It must not be a compatibility facade.
+- Adapters are allowed only when they represent real ownership boundaries, such as Hand state to agent session store, Hand tools to agent tool registry, or Hand traces to agent trace sink. They must be named by their domain, not by compatibility.
+
+Forbidden end-state patterns:
+
+- No `legacy`, `compat`, `fallback`, or wrapper-only runtime paths.
+- No public type aliases whose only purpose is preserving old internal import paths.
+- No constructors that silently choose between old and new runtime paths.
+- No reflection-based or nil-fallback adaptation to support obsolete callers.
+- No host service surface that mirrors `internal/agent` just because callers used to expect it.
+- No `internal/host` import of `internal/agent`.
+- No application caller imports from `internal/agent`.
 
 ## Public Constructor Sketch
 
@@ -151,12 +175,15 @@ type Provider interface {
 ## Migration Rules
 
 - Each phase must compile and pass focused tests before the next phase.
-- Use type aliases temporarily when they reduce churn.
+- Use type aliases only as short-lived scaffolding inside the active phase that introduces them.
 - Move one dependency boundary at a time.
-- Keep old `internal/agent` entry points as wrappers until Hand callers are migrated.
+- Remove old `internal/agent` entry points once Hand callers are migrated.
 - Add a dependency guard so `pkg/agent` cannot import `internal/*`.
+- Add dependency guards so `internal/host` and application packages cannot depend on `internal/agent`.
 - Preserve trace event names and payloads until TUI hydration and live rendering are explicitly migrated.
 - Keep `internal/host` names plain: `config.go`, `session.go`, `tools.go`, `trace.go`, `memory.go`, `prompt.go`, `environment.go`.
+- Treat adapters as first-class host wiring, not compatibility shims. If an adapter has no stable domain boundary, remove it.
+- Prefer direct construction and explicit dependencies over fallback behavior.
 
 ## [x] Phase 0: Baseline And Dependency Map
 
@@ -513,6 +540,128 @@ Progress:
 - Added public `pkg/agent` examples that construct an agent with an in-memory session store, fake model client, and fake tool registry without importing Hand internals.
 - Covered both a normal response and a model tool-call response in executable examples.
 - Reused the test-only fake dependencies already used by the public package boundary tests to avoid adding another product surface.
+
+## [x] Phase 11: Promote The Core Service Surface
+
+Objective: make `pkg/agent` own every reusable service type so the host does not mirror the old internal service contract.
+
+Work:
+
+- Move reusable response options, stream events, context status, compaction results, and timeline/status data into `pkg/agent` or focused public subpackages.
+- Keep Hand-only presentation or RPC details in `internal/host`, `internal/rpc`, or `internal/tui`.
+- Replace host aliases and wrapper-only types with direct use of the public core types where they are genuinely reusable.
+- Remove any type whose only purpose is keeping the old `internal/agent` shape alive.
+- Update tests to assert behavior against the public core and host-native surfaces, not compatibility aliases.
+
+Done when:
+
+- `internal/host` no longer defines service types by copying or aliasing old `internal/agent` types.
+- Application callers use either `internal/host` construction types or `pkg/agent` core types directly.
+- No service-surface type exists only to preserve a migrated import path.
+
+Risk:
+
+- Moving too much into `pkg/agent` can make Hand-specific details public. Keep public types limited to reusable agent concepts.
+
+Progress:
+
+- Moved the reusable response, event, context status, compaction result, and session timeline shapes into `pkg/agent`.
+- Added public timeline records backed by `pkg/agent/message` and `pkg/agent/session` instead of Hand storage internals.
+- Changed `internal/host.ServiceAPI` to use public agent service types directly while keeping Hand-only storage, summary, and repair methods in the host boundary.
+- Removed host-owned copied response/status/timeline structs and wrapper conversion helpers.
+- Collapsed live trace streaming into the public `agent.Event` stream with an explicit `TraceEvents` opt-in flag.
+- Updated RPC, TUI, e2e, CLI tests, and stubs to assert against public core service types where those types are reusable.
+- Verified focused public core, host, agent, RPC, TUI, e2e, CLI, and stub packages with SQLite FTS5 tags.
+
+## [ ] Phase 12: Move Remaining Turn Runtime Into `pkg/agent`
+
+Objective: make the reusable core own the full turn lifecycle instead of delegating only the model/tool loop.
+
+Work:
+
+- Move request assembly, context building, summary fallback control flow, tool-turn continuation, streaming event production, prompt-token accounting hooks, and cancellation handling into `pkg/agent`.
+- Keep Hand-specific compaction storage, memory extraction, trace payload conversion, safety policy, and plan persistence behind explicit dependencies.
+- Replace legacy turn construction with a single public runtime constructor that receives all dependencies explicitly.
+- Remove nil-driven fallback paths that switch between legacy environment behavior and public interfaces.
+- Keep logs and trace events behavior-preserving while moving ownership.
+
+Done when:
+
+- `pkg/agent` owns the turn lifecycle, not only a loop helper.
+- Hand passes dependencies into the core explicitly through host wiring.
+- There is no `internal/agent.NewTurn` compatibility constructor or equivalent fallback path.
+
+Risk:
+
+- This phase has high blast radius. Move with focused tests for normal turns, tool turns, streaming, compaction re-checks, memory flush, output safety, and summary fallback.
+
+## [ ] Phase 13: Rebuild `internal/host` As Native Hand Runtime Wiring
+
+Objective: make the host package read like Hand's intended runtime assembly layer, not a bridge from old internals to new core.
+
+Work:
+
+- Make `internal/host.NewAgent` construct `pkg/agent.Agent` directly.
+- Split host wiring by domain: config, sessions, tools, traces, memory, prompts, safety, compaction, plans, and runtime identity.
+- Rename or delete adapters that describe their transitional role instead of their domain responsibility.
+- Remove any wrapper that delegates wholesale to `internal/agent.Agent`.
+- Keep Hand policies and defaults in host-owned constructors with explicit dependencies.
+
+Done when:
+
+- `internal/host` imports `pkg/agent` but does not import `internal/agent`.
+- Daemon, RPC, TUI, CLI, and e2e construction paths use the native host assembly.
+- The host package has no compatibility naming, compatibility comments, or fallback runtime branches.
+
+Risk:
+
+- Host can become too broad. It should compose dependencies, not own business logic that belongs in the core or existing feature packages.
+
+## [ ] Phase 14: Delete Compatibility Package Paths
+
+Objective: remove obsolete internal package paths and aliases after the native host/core split is complete.
+
+Work:
+
+- Delete or shrink `internal/agent` after all orchestration has moved.
+- Replace `internal/models` and `internal/messages` compatibility aliases with direct imports from `pkg/agent/model` and `pkg/agent/message`, or delete them if no longer needed.
+- Move runtime identity types out of `internal/agent/runcontext` into `pkg/agent/runcontext` or a first-class non-compatibility internal package.
+- Remove dead tests that only prove compatibility wrappers.
+- Update package comments and names so remaining packages describe real ownership.
+
+Done when:
+
+- `go list ./...` shows no application or host dependency on `internal/agent`.
+- Remaining internal packages are feature packages, not compatibility package paths.
+- Import paths and package names match the final architecture.
+
+Risk:
+
+- Large import churn can hide regressions. Use mechanical import updates where possible, then inspect behavioral diffs separately.
+
+## [ ] Phase 15: Enforce First-Class Boundaries
+
+Objective: prevent the compatibility layer from creeping back into the codebase.
+
+Work:
+
+- Extend dependency checks so:
+  - `pkg/agent/...` cannot import `internal/...`.
+  - `internal/host/...` cannot import `internal/agent/...`.
+  - application entry points cannot import `internal/agent/...`.
+- Add a lightweight source check that fails on compatibility-only names in the final runtime path, such as `legacy`, `compat`, or `fallback`, unless explicitly allowlisted.
+- Wire the guards into the normal verification path.
+- Add focused tests proving Hand construction runs through host-native wiring and public core dependencies.
+
+Done when:
+
+- `make test` fails if the old compatibility direction is reintroduced.
+- The architecture can be understood from imports alone: applications -> host -> public core and Hand feature packages.
+- The migration plan can be closed with no remaining compatibility cleanup deferred.
+
+Risk:
+
+- Over-broad text guards can block valid language. Keep allowlists small and reviewed.
 
 ## Verification Gates
 

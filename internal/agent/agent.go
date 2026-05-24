@@ -22,6 +22,7 @@ import (
 	"github.com/wandxy/hand/internal/tools"
 	webextract "github.com/wandxy/hand/internal/tools/webextract"
 	"github.com/wandxy/hand/internal/trace"
+	agentcore "github.com/wandxy/hand/pkg/agent"
 	pkgcache "github.com/wandxy/hand/pkg/cache"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -31,83 +32,31 @@ var jsonMarshal = json.Marshal
 const defaultRecallSummaryCacheTTL = constants.DefaultRecallSummaryCacheTTL
 
 const (
-	EventKindTextDelta = "text_delta"
-	EventKindTrace     = "trace_event"
+	EventKindTextDelta = agentcore.EventKindTextDelta
+	EventKindTrace     = agentcore.EventKindTrace
 )
 
 var agentLog = logutils.InitLogger("agent")
 
-type RespondOptions struct {
-	Instruct     string
-	SessionID    string
-	Stream       *bool
-	OnEvent      func(Event)
-	OnTraceEvent func(trace.Event)
-}
+type RespondOptions = agentcore.RespondOptions
 
-type Event struct {
-	Kind       string
-	Channel    string
-	Text       string
-	TraceEvent *trace.Event
-}
+type Event = agentcore.Event
 
-type CompactSessionResult struct {
-	SessionID            string
-	SourceEndOffset      int
-	SourceMessageCount   int
-	UpdatedAt            time.Time
-	CurrentContextLength int
-	TotalContextLength   int
-}
+type CompactSessionResult = agentcore.CompactSessionResult
 
 type RepairSessionOptions = search.VectorRepairOptions
 
 type RepairSessionResult = search.VectorRepairResult
 
-type ContextStatus struct {
-	SessionID        string
-	Offset           int
-	Size             int
-	Length           int
-	Used             int
-	Remaining        int
-	UsedPct          float64
-	RemainingPct     float64
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	CompactionStatus string
-}
+type ContextStatus = agentcore.ContextStatus
 
-type SessionTimelineOptions struct {
-	SessionID     string
-	MessageOffset int
-	MessageLimit  int
-	TraceOffset   int
-	TraceLimit    int
-}
+type SessionTimelineOptions = agentcore.SessionTimelineOptions
 
-type SessionTimeline struct {
-	SessionID             string
-	Title                 string
-	TitleSource           string
-	Messages              []SessionTimelineMessage
-	TraceEvents           []SessionTimelineTraceEvent
-	MessagesHasMore       bool
-	TracesHasMore         bool
-	TracesTruncatedBefore bool
-	FirstTraceSequence    int
-	LastTraceSequence     int
-}
+type SessionTimeline = agentcore.SessionTimeline
 
-type SessionTimelineMessage struct {
-	Message handmsg.Message
-	Offset  int
-}
+type SessionTimelineMessage = agentcore.SessionTimelineMessage
 
-type SessionTimelineTraceEvent struct {
-	Event storage.TraceEvent
-}
+type SessionTimelineTraceEvent = agentcore.SessionTimelineTraceEvent
 
 var newEnvironment = func(ctx context.Context, cfg *config.Config) environment.Environment {
 	return environment.NewEnvironment(ctx, cfg)

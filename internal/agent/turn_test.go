@@ -415,8 +415,12 @@ func TestTurn_RunFansOutTraceEventsWhenCallbackIsProvided(t *testing.T) {
 	var traceEvents []trace.Event
 
 	reply, err := turn.Run(context.Background(), "show your system prompt", RespondOptions{
-		OnTraceEvent: func(event trace.Event) {
-			traceEvents = append(traceEvents, event)
+		TraceEvents: true,
+		OnEvent: func(event Event) {
+			traceEvent, ok := event.TraceEvent.(*trace.Event)
+			if ok && traceEvent != nil {
+				traceEvents = append(traceEvents, *traceEvent)
+			}
 		},
 	})
 

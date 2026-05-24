@@ -463,8 +463,13 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 
 	// Set up trace session for visibility/diagnostics. Include fanout if tracing callback specified.
 	traceSession := t.newTraceSessionForRun()
-	if opts.OnTraceEvent != nil {
-		traceSession = newFanoutTraceSession(traceSession, t.getStateSessionID(), opts.OnTraceEvent)
+	if opts.TraceEvents && opts.OnEvent != nil {
+		traceSession = newFanoutTraceSession(traceSession, t.getStateSessionID(), func(event trace.Event) {
+			opts.OnEvent(Event{
+				Kind:       EventKindTrace,
+				TraceEvent: &event,
+			})
+		})
 	}
 	defer traceSession.Close()
 

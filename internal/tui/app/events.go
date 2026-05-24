@@ -4,10 +4,10 @@ import (
 	"strings"
 	"time"
 
-	agent "github.com/wandxy/hand/internal/host"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/models"
 	"github.com/wandxy/hand/internal/trace"
+	agent "github.com/wandxy/hand/pkg/agent"
 )
 
 type userMessageAcceptedMsg struct {
@@ -63,8 +63,8 @@ type manualCompactionMsg struct {
 }
 
 func agentEventToTUIMessage(event agent.Event) (any, bool) {
-	if event.TraceEvent != nil {
-		return traceEventToTUIMessage(*event.TraceEvent)
+	if traceEvent, ok := traceEventFromAgentEvent(event); ok {
+		return traceEventToTUIMessage(traceEvent)
 	}
 	if event.Text == "" {
 		return nil, false
@@ -76,6 +76,20 @@ func agentEventToTUIMessage(event agent.Event) (any, bool) {
 	}
 
 	return assistantTextDeltaMsg{Channel: channel, Text: event.Text}, true
+}
+
+func traceEventFromAgentEvent(event agent.Event) (trace.Event, bool) {
+	switch value := event.TraceEvent.(type) {
+	case trace.Event:
+		return value, true
+	case *trace.Event:
+		if value == nil {
+			return trace.Event{}, false
+		}
+		return *value, true
+	default:
+		return trace.Event{}, false
+	}
 }
 
 func traceEventToTUIMessage(event trace.Event) (any, bool) {

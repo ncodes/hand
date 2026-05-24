@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	storage "github.com/wandxy/hand/internal/state/core"
+	agentsession "github.com/wandxy/hand/pkg/agent/session"
 )
 
 const (
@@ -151,7 +152,7 @@ func (a *Agent) loadTimelineTraceEvents(
 	timelineEvents := make([]SessionTimelineTraceEvent, 0, len(events))
 	for _, event := range events {
 		timelineEvents = append(timelineEvents, SessionTimelineTraceEvent{
-			Event: storage.CloneTraceEvent(event),
+			Event: timelineTraceEventFromStorageTraceEvent(event),
 		})
 	}
 
@@ -240,4 +241,15 @@ func getLastTraceSequence(events []SessionTimelineTraceEvent) int {
 	}
 
 	return events[len(events)-1].Event.Sequence
+}
+
+func timelineTraceEventFromStorageTraceEvent(event storage.TraceEvent) agentsession.TraceEvent {
+	return agentsession.TraceEvent{
+		ID:        event.ID,
+		SessionID: event.SessionID,
+		Sequence:  event.Sequence,
+		Type:      event.Type,
+		Timestamp: event.Timestamp,
+		Payload:   storage.CloneTraceEvent(event).Payload,
+	}
 }

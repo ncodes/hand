@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	agent "github.com/wandxy/hand/internal/host"
+	"github.com/wandxy/hand/internal/host"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"google.golang.org/grpc"
 
@@ -49,7 +49,7 @@ func NewRPCHarness(ctx context.Context, opts HarnessOptions) (*RPCHarness, error
 		return nil, errors.New("e2e rpc listener must be tcp")
 	}
 
-	serviceAPI, ok := base.agent.(agent.ServiceAPI)
+	serviceAPI, ok := base.agent.(host.ServiceAPI)
 	if !ok {
 		_ = lis.Close()
 		_ = base.Close()

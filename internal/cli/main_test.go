@@ -15,12 +15,12 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/wandxy/hand/internal/config"
-	agent "github.com/wandxy/hand/internal/host"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	"github.com/wandxy/hand/internal/profile"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/internal/runtime"
 	"github.com/wandxy/hand/internal/trace"
+	agent "github.com/wandxy/hand/pkg/agent"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 

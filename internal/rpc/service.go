@@ -10,10 +10,12 @@ import (
 	"time"
 
 	"github.com/wandxy/hand/internal/guardrails"
-	agent "github.com/wandxy/hand/internal/host"
+	"github.com/wandxy/hand/internal/host"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
+	agent "github.com/wandxy/hand/pkg/agent"
+	agentsession "github.com/wandxy/hand/pkg/agent/session"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -22,11 +24,11 @@ import (
 // Service is the RPC service that wraps the agent-facing service interface.
 type Service struct {
 	handpb.UnimplementedHandServiceServer
-	api agent.ServiceAPI
+	api host.ServiceAPI
 }
 
 // NewService creates a new RPC service that wraps the shared service interface.
-func NewService(api agent.ServiceAPI) *Service {
+func NewService(api host.ServiceAPI) *Service {
 	return &Service{api: api}
 }
 
@@ -46,30 +48,23 @@ func (s *Service) Respond(req *handpb.RespondRequest, stream handpb.HandService_
 	streamed := false
 	var sendErr error
 	opts := agent.RespondOptions{
-		Instruct:  req.Instruct,
-		SessionID: req.GetId(),
-		Stream:    req.Stream,
+		Instruct:    req.Instruct,
+		SessionID:   req.GetId(),
+		Stream:      req.Stream,
+		TraceEvents: true,
 		OnEvent: func(event agent.Event) {
 			if sendErr != nil {
 				return
 			}
-			protoEvent, ok := agentEventToProtoRespondEvent(event)
+			protoEvent, ok := eventToProtoRespondEvent(event)
 			if !ok {
 				return
 			}
-			streamed = true
+			if protoEvent.GetType() == handpb.RespondEvent_TEXT_DELTA {
+				streamed = true
+			}
 			sendErr = stream.Send(protoEvent)
 		},
-	}
-	opts.OnTraceEvent = func(event trace.Event) {
-		if sendErr != nil {
-			return
-		}
-		protoEvent, ok := traceEventToProtoRespondEvent(event)
-		if !ok {
-			return
-		}
-		sendErr = stream.Send(protoEvent)
 	}
 
 	reply, err := s.api.Respond(ctx, req.Message, opts)
@@ -104,8 +99,15 @@ func (s *Service) Respond(req *handpb.RespondRequest, stream handpb.HandService_
 	})
 }
 
-func agentEventToProtoRespondEvent(event agent.Event) (*handpb.RespondEvent, bool) {
+func eventToProtoRespondEvent(event agent.Event) (*handpb.RespondEvent, bool) {
 	kind := strings.TrimSpace(event.Kind)
+	if kind == agent.EventKindTrace {
+		traceEvent, ok := traceEventFromAgentEvent(event)
+		if !ok {
+			return nil, false
+		}
+		return traceEventToProtoRespondEvent(traceEvent)
+	}
 	if kind != "" && kind != agent.EventKindTextDelta {
 		return nil, false
 	}
@@ -115,6 +117,20 @@ func agentEventToProtoRespondEvent(event agent.Event) (*handpb.RespondEvent, boo
 		Text:    event.Text,
 		Channel: agentChannelToProtoStreamChannel(event.Channel),
 	}, true
+}
+
+func traceEventFromAgentEvent(event agent.Event) (trace.Event, bool) {
+	switch value := event.TraceEvent.(type) {
+	case trace.Event:
+		return value, true
+	case *trace.Event:
+		if value == nil {
+			return trace.Event{}, false
+		}
+		return *value, true
+	default:
+		return trace.Event{}, false
+	}
 }
 
 func agentChannelToProtoStreamChannel(channel string) handpb.RespondEvent_Channel {
@@ -940,7 +956,7 @@ func (s *Service) RepairSession(
 		return nil, status.Error(codes.InvalidArgument, "repair session vector options are required")
 	}
 
-	result, err := s.api.RepairSession(ctx, agent.RepairSessionOptions{
+	result, err := s.api.RepairSession(ctx, host.RepairSessionOptions{
 		SessionID: req.GetVector().GetId(),
 		Full:      req.GetVector().GetFull(),
 	})
@@ -1116,7 +1132,7 @@ func timelineMessageToProto(record agent.SessionTimelineMessage) *handpb.Session
 	return protoMessage
 }
 
-func timelineTraceEventToProto(event storage.TraceEvent) (*handpb.SessionTimelineTraceEvent, bool) {
+func timelineTraceEventToProto(event agentsession.TraceEvent) (*handpb.SessionTimelineTraceEvent, bool) {
 	payload, ok := getRPCTracePayload(event.Type, event.Payload)
 	if !ok {
 		return nil, false

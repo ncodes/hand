@@ -18,6 +18,7 @@ import (
 	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
+	agentcore "github.com/wandxy/hand/pkg/agent"
 )
 
 var setHarnessEnv = os.Setenv
@@ -40,7 +41,7 @@ type Harness struct {
 }
 
 type harnessAgent interface {
-	Respond(context.Context, string, host.RespondOptions) (string, error)
+	Respond(context.Context, string, agentcore.RespondOptions) (string, error)
 	CurrentSession(context.Context) (storage.Session, error)
 }
 
@@ -54,7 +55,7 @@ type harnessTurnMessagesAgent interface {
 }
 
 type harnessCompactionAgent interface {
-	CompactSession(context.Context, string) (host.CompactSessionResult, error)
+	CompactSession(context.Context, string) (agentcore.CompactSessionResult, error)
 }
 
 var openHarnessInspectStore = openInspectStore
@@ -156,14 +157,14 @@ func (h *Harness) UseSession(ctx context.Context, id string) error {
 	return agent.UseSession(normalizeHarnessContext(ctx), id)
 }
 
-func (h *Harness) CompactSession(ctx context.Context, id string) (host.CompactSessionResult, error) {
+func (h *Harness) CompactSession(ctx context.Context, id string) (agentcore.CompactSessionResult, error) {
 	if h == nil || h.agent == nil {
-		return host.CompactSessionResult{}, errors.New("e2e harness is required")
+		return agentcore.CompactSessionResult{}, errors.New("e2e harness is required")
 	}
 
 	compactor, ok := h.agent.(harnessCompactionAgent)
 	if !ok {
-		return host.CompactSessionResult{}, errors.New("e2e harness compaction is unavailable")
+		return agentcore.CompactSessionResult{}, errors.New("e2e harness compaction is unavailable")
 	}
 
 	return compactor.CompactSession(normalizeHarnessContext(ctx), id)
@@ -201,11 +202,11 @@ func (h *Harness) Send(ctx context.Context, req RootChatRequest) (RootChatResult
 	}
 
 	events := make([]Event, 0, 4)
-	reply, err := h.agent.Respond(normalizeHarnessContext(ctx), req.Message, host.RespondOptions{
+	reply, err := h.agent.Respond(normalizeHarnessContext(ctx), req.Message, agentcore.RespondOptions{
 		Instruct:  req.Instruct,
 		SessionID: req.SessionID,
 		Stream:    req.Stream,
-		OnEvent: func(event host.Event) {
+		OnEvent: func(event agentcore.Event) {
 			events = append(events, Event{Channel: event.Channel, Text: event.Text})
 			h.writeStdout(event.Text)
 		},

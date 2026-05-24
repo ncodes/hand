@@ -15,11 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
-	agent "github.com/wandxy/hand/internal/host"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
+	agent "github.com/wandxy/hand/pkg/agent"
+	agentsession "github.com/wandxy/hand/pkg/agent/session"
 )
 
 func TestMain(m *testing.M) {
@@ -143,7 +144,7 @@ func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 				Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "older answer"},
 			}},
 			TraceEvents: []agent.SessionTimelineTraceEvent{{
-				Event: storage.TraceEvent{
+				Event: agentsession.TraceEvent{
 					Type:      trace.EvtContextCompactionSucceeded,
 					Timestamp: now,
 					Payload: trace.CompactionEventPayload{
@@ -906,7 +907,7 @@ func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 		Title:     "Project Planning",
 		Messages:  messages,
 		TraceEvents: []agent.SessionTimelineTraceEvent{{
-			Event: storage.TraceEvent{
+			Event: agentsession.TraceEvent{
 				Type:    trace.EvtToolInvocationStarted,
 				Payload: map[string]any{"id": "call_1", "name": "read_file"},
 			},

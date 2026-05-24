@@ -7,11 +7,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	agent "github.com/wandxy/hand/internal/host"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	"github.com/wandxy/hand/internal/rpc/client"
-	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
+	agent "github.com/wandxy/hand/pkg/agent"
+	agentsession "github.com/wandxy/hand/pkg/agent/session"
 )
 
 func transcriptCellPlainText(cell transcriptCell) string {
@@ -1094,12 +1094,12 @@ func TestSessionTimelineToTranscriptCells_SkipsMessageBackedTraceDuplicates(t *t
 			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "hello back", CreatedAt: now.Add(time.Second)}},
 		},
 		TraceEvents: []agent.SessionTimelineTraceEvent{
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtFinalAssistantResponse,
 				Timestamp: now.Add(time.Second),
 				Payload:   map[string]any{"message": "hello back"},
 			}},
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationStarted,
 				Timestamp: now.Add(2 * time.Second),
 				Payload:   map[string]any{"name": "read_file"},
@@ -1125,12 +1125,12 @@ func TestSessionTimelineToTranscriptCells_InterleavesMessagesAndTraceEventsByTim
 			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "Hi there", CreatedAt: now.Add(11 * time.Second)}},
 		},
 		TraceEvents: []agent.SessionTimelineTraceEvent{
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationStarted,
 				Timestamp: now.Add(2 * time.Second),
 				Payload:   map[string]any{"name": "web_search"},
 			}},
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationCompleted,
 				Timestamp: now.Add(3 * time.Second),
 				Payload:   map[string]any{"name": "web_search"},
@@ -1157,7 +1157,7 @@ func TestSessionTimelineToTranscriptCells_SkipsUserStoppedSessionErrors(t *testi
 			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "hello", CreatedAt: now.Add(2 * time.Second)}},
 		},
 		TraceEvents: []agent.SessionTimelineTraceEvent{{
-			Event: storage.TraceEvent{
+			Event: agentsession.TraceEvent{
 				Type:      trace.EvtSessionFailed,
 				Timestamp: now.Add(time.Second),
 				Payload:   map[string]any{"error": "context canceled"},
@@ -1180,7 +1180,7 @@ func TestSessionTimelineToTranscriptCells_RendersPersistedThoughtSummary(t *test
 			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "done", CreatedAt: now.Add(2 * time.Second)}},
 		},
 		TraceEvents: []agent.SessionTimelineTraceEvent{{
-			Event: storage.TraceEvent{
+			Event: agentsession.TraceEvent{
 				Type:      trace.EvtModelReasoningCompleted,
 				Timestamp: now.Add(time.Second),
 				Payload:   map[string]any{"duration_ms": float64(2000)},
@@ -1252,7 +1252,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedRunCommandLikeLiveTrace
 	})
 	liveCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
 		TraceEvents: []agent.SessionTimelineTraceEvent{
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationStarted,
 				Timestamp: now,
 				Payload: map[string]any{
@@ -1261,7 +1261,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedRunCommandLikeLiveTrace
 					"detail": "sleep 10 [timeout 30s]",
 				},
 			}},
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationCompleted,
 				Timestamp: now.Add(6 * time.Second),
 				Payload: map[string]any{
@@ -1304,7 +1304,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedListFilesLikeLiveTrace(
 	})
 	liveCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
 		TraceEvents: []agent.SessionTimelineTraceEvent{
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationStarted,
 				Timestamp: now,
 				Payload: map[string]any{
@@ -1313,7 +1313,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedListFilesLikeLiveTrace(
 					"detail": detail,
 				},
 			}},
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationCompleted,
 				Timestamp: now.Add(time.Second),
 				Payload: map[string]any{
@@ -1356,7 +1356,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedSessionMessagesLikeLive
 	})
 	liveCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
 		TraceEvents: []agent.SessionTimelineTraceEvent{
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationStarted,
 				Timestamp: now,
 				Payload: map[string]any{
@@ -1365,7 +1365,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedSessionMessagesLikeLive
 					"detail": detail,
 				},
 			}},
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationCompleted,
 				Timestamp: now.Add(time.Second),
 				Payload: map[string]any{
@@ -1434,7 +1434,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedFileToolsLikeLiveTrace(
 	})
 	liveCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
 		TraceEvents: []agent.SessionTimelineTraceEvent{
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationStarted,
 				Timestamp: now,
 				Payload: map[string]any{
@@ -1443,7 +1443,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedFileToolsLikeLiveTrace(
 					"detail": "write_file file.txt",
 				},
 			}},
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationCompleted,
 				Timestamp: now.Add(30 * time.Second),
 				Payload: map[string]any{
@@ -1451,7 +1451,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedFileToolsLikeLiveTrace(
 					"name":         "write_file",
 				},
 			}},
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationStarted,
 				Timestamp: now.Add(31 * time.Second),
 				Payload: map[string]any{
@@ -1460,7 +1460,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedFileToolsLikeLiveTrace(
 					"detail": "patch file.txt +1 -1",
 				},
 			}},
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationCompleted,
 				Timestamp: now.Add(61 * time.Second),
 				Payload: map[string]any{
@@ -1468,7 +1468,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedFileToolsLikeLiveTrace(
 					"name":         "patch",
 				},
 			}},
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationStarted,
 				Timestamp: now.Add(62 * time.Second),
 				Payload: map[string]any{
@@ -1477,7 +1477,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedFileToolsLikeLiveTrace(
 					"detail": "read_file file.txt",
 				},
 			}},
-			{Event: storage.TraceEvent{
+			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationCompleted,
 				Timestamp: now.Add(92 * time.Second),
 				Payload: map[string]any{

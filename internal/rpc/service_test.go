@@ -14,13 +14,14 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	agent "github.com/wandxy/hand/internal/host"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
 	"github.com/wandxy/hand/internal/trace"
+	agent "github.com/wandxy/hand/pkg/agent"
+	agentsession "github.com/wandxy/hand/pkg/agent/session"
 )
 
 type respondStreamServerStub struct {
@@ -328,7 +329,7 @@ func TestService_RespondMapsStreamChannelFromAgent(t *testing.T) {
 }
 
 func TestAgentEventToProtoRespondEvent_UsesTextDeltaKind(t *testing.T) {
-	event, ok := agentEventToProtoRespondEvent(agent.Event{
+	event, ok := eventToProtoRespondEvent(agent.Event{
 		Kind:    agent.EventKindTextDelta,
 		Channel: "reasoning",
 		Text:    "thinking",
@@ -341,7 +342,7 @@ func TestAgentEventToProtoRespondEvent_UsesTextDeltaKind(t *testing.T) {
 }
 
 func TestAgentEventToProtoRespondEvent_IgnoresNonTextKinds(t *testing.T) {
-	event, ok := agentEventToProtoRespondEvent(agent.Event{Kind: agent.EventKindTrace})
+	event, ok := eventToProtoRespondEvent(agent.Event{Kind: agent.EventKindTrace})
 
 	require.False(t, ok)
 	require.Nil(t, event)
@@ -873,10 +874,8 @@ type traceRespondStub struct {
 }
 
 func (s *traceRespondStub) Respond(_ context.Context, _ string, opts agent.RespondOptions) (string, error) {
-	if opts.OnTraceEvent != nil {
-		opts.OnTraceEvent(s.traceEvent)
-	}
 	if opts.OnEvent != nil {
+		opts.OnEvent(agent.Event{Kind: agent.EventKindTrace, TraceEvent: &s.traceEvent})
 		opts.OnEvent(agent.Event{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: "safe"})
 	}
 	return "safe", nil
@@ -896,8 +895,8 @@ func (s *traceSequenceRespondStub) Respond(_ context.Context, _ string, opts age
 		}
 	}
 	for _, event := range s.traceEvents {
-		if opts.OnTraceEvent != nil {
-			opts.OnTraceEvent(event)
+		if opts.OnEvent != nil {
+			opts.OnEvent(agent.Event{Kind: agent.EventKindTrace, TraceEvent: &event})
 		}
 	}
 
@@ -1393,7 +1392,7 @@ func TestService_GetSessionTimelineReturnsMessagesAndSanitizedTraceEvents(t *tes
 				},
 			}},
 			TraceEvents: []agent.SessionTimelineTraceEvent{{
-				Event: storage.TraceEvent{
+				Event: agentsession.TraceEvent{
 					ID:        9,
 					Sequence:  3,
 					Type:      trace.EvtInputSafetyBlocked,
@@ -1468,7 +1467,7 @@ func TestService_GetSessionTimelineSkipsNonDisplayTraceEvents(t *testing.T) {
 		TimelineResult: agent.SessionTimeline{
 			SessionID: "default",
 			TraceEvents: []agent.SessionTimelineTraceEvent{{
-				Event: storage.TraceEvent{
+				Event: agentsession.TraceEvent{
 					Sequence: 5,
 					Type:     trace.EvtModelRequest,
 					Payload:  map[string]any{"authorization": "Bearer secret"},
@@ -1488,7 +1487,7 @@ func TestService_GetSessionTimelineSkipsNonDisplayTraceEvents(t *testing.T) {
 }
 
 func TestTimelineTraceEventToProtoRejectsUnsafePayloadShapes(t *testing.T) {
-	event, ok := timelineTraceEventToProto(storage.TraceEvent{
+	event, ok := timelineTraceEventToProto(agentsession.TraceEvent{
 		Type:    trace.EvtSessionFailed,
 		Payload: map[string]any{"error": make(chan int)},
 	})

@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	agent "github.com/wandxy/hand/internal/host"
 	protomock "github.com/wandxy/hand/internal/mocks/proto"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
+	agent "github.com/wandxy/hand/pkg/agent"
 )
 
 func TestClient_RespondSendsInstruct(t *testing.T) {
@@ -127,16 +127,18 @@ func TestClient_RespondExposesTraceEvents(t *testing.T) {
 	require.Equal(t, "safe", reply)
 	require.Len(t, events, 2)
 	require.Equal(t, agent.EventKindTrace, events[0].Kind)
-	require.NotNil(t, events[0].TraceEvent)
-	require.Equal(t, "default", events[0].TraceEvent.SessionID)
-	require.Equal(t, trace.EvtInputSafetyBlocked, events[0].TraceEvent.Type)
-	require.Equal(t, timestamp, events[0].TraceEvent.Timestamp)
+	traceEvent, ok := events[0].TraceEvent.(*trace.Event)
+	require.True(t, ok)
+	require.NotNil(t, traceEvent)
+	require.Equal(t, "default", traceEvent.SessionID)
+	require.Equal(t, trace.EvtInputSafetyBlocked, traceEvent.Type)
+	require.Equal(t, timestamp, traceEvent.Timestamp)
 	require.Equal(t, map[string]any{
 		"blocked": true,
 		"findings": []any{
 			map[string]any{"id": "prompt_exfiltration"},
 		},
-	}, events[0].TraceEvent.Payload)
+	}, traceEvent.Payload)
 	require.Equal(t, Event{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: "safe"}, events[1])
 }
 

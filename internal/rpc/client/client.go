@@ -12,12 +12,13 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	agent "github.com/wandxy/hand/internal/host"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
 	"github.com/wandxy/hand/internal/trace"
+	agent "github.com/wandxy/hand/pkg/agent"
+	agentsession "github.com/wandxy/hand/pkg/agent/session"
 )
 
 type Client struct {
@@ -417,7 +418,7 @@ func timelineTraceEventFromProto(event *handpb.SessionTimelineTraceEvent) (agent
 	}
 
 	return agent.SessionTimelineTraceEvent{
-		Event: storage.TraceEvent{
+		Event: agentsession.TraceEvent{
 			ID:        uint(event.GetId()),
 			Sequence:  int(event.GetSequence()),
 			Type:      strings.TrimSpace(event.GetType()),
