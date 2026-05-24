@@ -14,8 +14,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/config"
+	agent "github.com/wandxy/hand/internal/host"
 	handmsg "github.com/wandxy/hand/internal/messages"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"

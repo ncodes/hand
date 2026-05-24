@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/wandxy/hand/internal/agent"
+	agent "github.com/wandxy/hand/internal/host"
 	"github.com/wandxy/hand/internal/rpc"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	"google.golang.org/grpc"

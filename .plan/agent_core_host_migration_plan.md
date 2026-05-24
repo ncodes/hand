@@ -433,7 +433,7 @@ Progress:
 - Kept direct `internal/agent.NewAgent` usage in internal agent tests as compatibility coverage.
 - Verified focused agent, host, daemon, and e2e tests, the `pkg/agent` dependency guard, and the full test suite.
 
-## Phase 8: Migrate Hand Callers
+## [x] Phase 8: Migrate Hand Callers
 
 Objective: switch application entry points to the new host/core split.
 
@@ -452,6 +452,13 @@ Done when:
 Risk:
 
 - RPC and TUI may depend on concrete internal event shapes. Migrate those carefully with type aliases where possible.
+
+Progress:
+
+- Added host-owned service/type aliases for RPC, TUI, CLI, e2e, and test harness consumers.
+- Migrated daemon, RPC server/service/client, e2e harnesses, TUI app, CLI tests, and agent stubs from direct `internal/agent` service-surface imports to `internal/host`.
+- Kept `internal/agent/runcontext` imports unchanged where callers need the runtime identity type directly.
+- Verified focused daemon, RPC, e2e, CLI, TUI, mock, and host tests, the `pkg/agent` dependency guard, and the full test suite.
 
 ## Phase 9: Clean Up Compatibility Layer
 

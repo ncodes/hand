@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
 	"github.com/wandxy/hand/internal/host"
@@ -41,7 +40,7 @@ type Harness struct {
 }
 
 type harnessAgent interface {
-	Respond(context.Context, string, agent.RespondOptions) (string, error)
+	Respond(context.Context, string, host.RespondOptions) (string, error)
 	CurrentSession(context.Context) (storage.Session, error)
 }
 
@@ -55,7 +54,7 @@ type harnessTurnMessagesAgent interface {
 }
 
 type harnessCompactionAgent interface {
-	CompactSession(context.Context, string) (agent.CompactSessionResult, error)
+	CompactSession(context.Context, string) (host.CompactSessionResult, error)
 }
 
 var openHarnessInspectStore = openInspectStore
@@ -157,14 +156,14 @@ func (h *Harness) UseSession(ctx context.Context, id string) error {
 	return agent.UseSession(normalizeHarnessContext(ctx), id)
 }
 
-func (h *Harness) CompactSession(ctx context.Context, id string) (agent.CompactSessionResult, error) {
+func (h *Harness) CompactSession(ctx context.Context, id string) (host.CompactSessionResult, error) {
 	if h == nil || h.agent == nil {
-		return agent.CompactSessionResult{}, errors.New("e2e harness is required")
+		return host.CompactSessionResult{}, errors.New("e2e harness is required")
 	}
 
 	compactor, ok := h.agent.(harnessCompactionAgent)
 	if !ok {
-		return agent.CompactSessionResult{}, errors.New("e2e harness compaction is unavailable")
+		return host.CompactSessionResult{}, errors.New("e2e harness compaction is unavailable")
 	}
 
 	return compactor.CompactSession(normalizeHarnessContext(ctx), id)
@@ -202,11 +201,11 @@ func (h *Harness) Send(ctx context.Context, req RootChatRequest) (RootChatResult
 	}
 
 	events := make([]Event, 0, 4)
-	reply, err := h.agent.Respond(normalizeHarnessContext(ctx), req.Message, agent.RespondOptions{
+	reply, err := h.agent.Respond(normalizeHarnessContext(ctx), req.Message, host.RespondOptions{
 		Instruct:  req.Instruct,
 		SessionID: req.SessionID,
 		Stream:    req.Stream,
-		OnEvent: func(event agent.Event) {
+		OnEvent: func(event host.Event) {
 			events = append(events, Event{Channel: event.Channel, Text: event.Text})
 			h.writeStdout(event.Text)
 		},

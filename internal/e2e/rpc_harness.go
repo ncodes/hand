@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/wandxy/hand/internal/agent"
+	agent "github.com/wandxy/hand/internal/host"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"google.golang.org/grpc"
 

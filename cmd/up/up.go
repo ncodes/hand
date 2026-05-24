@@ -17,7 +17,6 @@ import (
 	cli "github.com/urfave/cli/v3"
 	"google.golang.org/grpc"
 
-	handagent "github.com/wandxy/hand/internal/agent"
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/diagnostics"
@@ -31,7 +30,7 @@ import (
 
 type agentRunner interface {
 	Start(context.Context) error
-	handagent.ServiceAPI
+	host.ServiceAPI
 }
 
 const (

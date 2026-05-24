@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/wandxy/hand/internal/agent"
+	agent "github.com/wandxy/hand/internal/host"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"

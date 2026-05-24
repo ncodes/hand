@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/guardrails"
+	agent "github.com/wandxy/hand/internal/host"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
