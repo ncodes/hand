@@ -150,9 +150,8 @@ func TestTranscriptRenderer_VisualSnapshot(t *testing.T) {
 	)
 
 	require.Equal(t, strings.TrimSpace(`
-▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 ❯ hello
-▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
 
 Thought for 2s
 

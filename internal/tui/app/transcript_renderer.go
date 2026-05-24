@@ -202,8 +202,8 @@ func renderUserTranscriptCell(body string, width int) string {
 		return ""
 	}
 
-	rendered = append([]string{renderUserTranscriptTopHeightStrip(contentWidth)}, rendered...)
-	rendered = append(rendered, renderUserTranscriptBottomHeightStrip(contentWidth))
+	rendered = append([]string{renderUserTranscriptFiller(contentWidth)}, rendered...)
+	rendered = append(rendered, renderUserTranscriptFiller(contentWidth))
 
 	return strings.Join(rendered, "\n")
 }
@@ -242,20 +242,6 @@ func renderUserTranscriptFiller(width int) string {
 	return lipgloss.NewStyle().
 		Background(lipgloss.Color(defaultTUITheme.UserTranscriptBackground)).
 		Render(strings.Repeat(" ", max(width, 0)))
-}
-
-func renderUserTranscriptTopHeightStrip(width int) string {
-	return renderUserTranscriptHeightStrip("▄", width)
-}
-
-func renderUserTranscriptBottomHeightStrip(width int) string {
-	return renderUserTranscriptHeightStrip("▀", width)
-}
-
-func renderUserTranscriptHeightStrip(block string, width int) string {
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(defaultTUITheme.UserTranscriptBackground)).
-		Render(strings.Repeat(block, max(width, 0)))
 }
 
 func renderReasoningTranscriptCell(body string, width int) string {
