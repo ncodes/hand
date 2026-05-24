@@ -24,6 +24,8 @@ type Theme struct {
 	MarkdownCodeBackground   string
 	MarkdownCodeForeground   string
 	MarkdownLinkForeground   string
+	CompactionText           string
+	CompactionSeparator      string
 }
 
 var DefaultTheme = Theme{
@@ -50,4 +52,6 @@ var DefaultTheme = Theme{
 	MarkdownCodeBackground:   "235",
 	MarkdownCodeForeground:   "250",
 	MarkdownLinkForeground:   "39",
+	CompactionText:           "246",
+	CompactionSeparator:      "234",
 }

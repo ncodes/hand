@@ -23,16 +23,33 @@ func loadDefaultTUITheme() tuiTheme {
 }
 
 func adaptTUITheme(base tuiTheme, result termtheme.Result) tuiTheme {
-	if strings.TrimSpace(strings.ToLower(result.Theme)) != "dark" || result.Error != "" {
+	if result.Error != "" {
 		return base
 	}
 
 	background, ok := parseThemeHexColor(result.Background)
-	if !ok || isNearBlackThemeColor(background) {
+	if !ok {
 		return base
 	}
 
+	switch strings.TrimSpace(strings.ToLower(result.Theme)) {
+	case "dark":
+		return adaptDarkTUITheme(base, background)
+	case "light":
+		return adaptLightTUITheme(base, background)
+	default:
+		return base
+	}
+}
+
+func adaptDarkTUITheme(base tuiTheme, background themeRGB) tuiTheme {
 	theme := base
+	theme.CompactionText = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.22).Hex()
+	theme.CompactionSeparator = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.11).Hex()
+	if isNearBlackThemeColor(background) {
+		return theme
+	}
+
 	theme.InputFrameBackground = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.06).Hex()
 	theme.InputFrameBorder = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.28).Hex()
 	theme.UserTranscriptBackground = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.055).Hex()
@@ -41,6 +58,14 @@ func adaptTUITheme(base tuiTheme, result termtheme.Result) tuiTheme {
 	theme.NoticeBorder = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.30).Hex()
 	theme.MarkdownCodeBackground = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.14).Hex()
 	theme.JumpToBottomBackground = mixThemeColor(background, themeRGB{R: 255, G: 255, B: 255}, 0.18).Hex()
+
+	return theme
+}
+
+func adaptLightTUITheme(base tuiTheme, background themeRGB) tuiTheme {
+	theme := base
+	theme.CompactionText = mixThemeColor(background, themeRGB{}, 0.42).Hex()
+	theme.CompactionSeparator = mixThemeColor(background, themeRGB{}, 0.18).Hex()
 
 	return theme
 }

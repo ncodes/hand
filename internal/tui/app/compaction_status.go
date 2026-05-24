@@ -113,7 +113,7 @@ func renderManualCompactionCell(cell manualCompactionTranscriptCell, ctx transcr
 	line := ""
 	if !cell.state.isInProgress() {
 		line += lipgloss.NewStyle().
-			Foreground(lipgloss.Color(defaultTUITheme.ToolTitle)).
+			Foreground(lipgloss.Color(defaultTUITheme.CompactionText)).
 			Render(text)
 	} else {
 		line += renderManualCompactionShimmer(text, ctx.Frame)
@@ -121,7 +121,7 @@ func renderManualCompactionCell(cell manualCompactionTranscriptCell, ctx transcr
 
 	width := max(ctx.Width, 1)
 	separator := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(defaultTUITheme.Separator)).
+		Foreground(lipgloss.Color(defaultTUITheme.CompactionSeparator)).
 		Render(strings.Repeat("─", width))
 
 	return strings.Join([]string{
