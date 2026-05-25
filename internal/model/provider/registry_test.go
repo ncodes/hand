@@ -96,6 +96,22 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, APIOpenAIEmbeddings, embedding.API)
 	require.Equal(t, []InputKind{InputText}, embedding.Input)
+
+	sonnet, ok := registry.GetModel("anthropic", "anthropic/claude-sonnet-4-5")
+	require.True(t, ok)
+	require.Equal(t, "Claude Sonnet 4.5", sonnet.Name)
+	require.Equal(t, APIAnthropicMessages, sonnet.API)
+	require.Equal(t, []InputKind{InputText, InputImage}, sonnet.Input)
+	require.Equal(t, 200000, sonnet.ContextWindow)
+	require.Equal(t, 64000, sonnet.MaxTokens)
+
+	opus, ok := registry.GetModel("anthropic", "anthropic/claude-opus-4-1")
+	require.True(t, ok)
+	require.Equal(t, APIAnthropicMessages, opus.API)
+
+	haiku, ok := registry.GetModel("anthropic", "anthropic/claude-3-haiku-20240307")
+	require.True(t, ok)
+	require.Equal(t, APIAnthropicMessages, haiku.API)
 }
 
 func TestRegistry_ReturnsCopies(t *testing.T) {

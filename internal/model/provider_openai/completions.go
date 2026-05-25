@@ -11,6 +11,7 @@ import (
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/shared"
 
+	models "github.com/wandxy/hand/internal/model"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
@@ -74,10 +75,10 @@ func (c *OpenAIClient) completeChatStream(
 		if onTextDelta != nil {
 			for _, choice := range chunk.Choices {
 				if reasoning := getChatStreamReasoningDelta(choice.Delta); reasoning != "" {
-					onTextDelta(StreamDelta{Channel: StreamChannelReasoning, Text: reasoning})
+					onTextDelta(StreamDelta{Channel: models.StreamChannelReasoning, Text: reasoning})
 				}
 				if choice.Delta.Content != "" {
-					onTextDelta(StreamDelta{Channel: StreamChannelAssistant, Text: choice.Delta.Content})
+					onTextDelta(StreamDelta{Channel: models.StreamChannelAssistant, Text: choice.Delta.Content})
 				}
 			}
 		}

@@ -10,6 +10,7 @@ require (
 	charm.land/lipgloss/v2 v2.0.2
 	codeberg.org/readeck/go-readability/v2 v2.1.1
 	github.com/alecthomas/chroma/v2 v2.20.0
+	github.com/anthropics/anthropic-sdk-go v1.45.0
 	github.com/asg017/sqlite-vec-go-bindings v0.1.6
 	github.com/atotto/clipboard v0.1.4
 	github.com/bluekeyes/go-gitdiff v0.8.1
@@ -32,6 +33,15 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1
+)
+
+require (
+	github.com/bahlo/generic-list-go v0.2.0 // indirect
+	github.com/buger/jsonparser v1.1.2 // indirect
+	github.com/invopop/jsonschema v0.13.0 // indirect
+	github.com/mailru/easyjson v0.7.7 // indirect
+	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1 // indirect
+	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 )
 
 require (

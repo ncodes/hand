@@ -2812,6 +2812,31 @@ func TestConfig_ValidateAllowsResponsesModeWithOpenRouter(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestConfig_ValidateAllowsAnthropicMessagesModel(t *testing.T) {
+	cfg := &Config{
+		Name: "test-agent",
+		Models: ModelsConfig{
+			Providers: map[string]ProviderModelConfig{"anthropic": {APIKey: "test-key"}},
+			Main: MainModelConfig{
+				Name:     "anthropic/claude-sonnet-4-5",
+				Provider: "anthropic",
+			},
+			Summary: SummaryModelConfig{
+				Name: "anthropic/claude-3-haiku-20240307",
+			},
+		},
+		RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
+		Log: LogConfig{Level: "info"},
+	}
+
+	err := cfg.Validate()
+
+	require.NoError(t, err)
+	require.Equal(t, modelprovider.APIAnthropicMessages, cfg.Models.Main.API)
+	require.Equal(t, constants.DefaultAnthropicBaseURL, cfg.Models.Main.BaseURL)
+	require.Equal(t, 200000, cfg.Models.Main.ContextLength)
+}
+
 func TestLoad_UsesDebugTraceSettingsFromConfig(t *testing.T) {
 	clearEnvKeys(t,
 		"HAND_TRACE_ENABLED",

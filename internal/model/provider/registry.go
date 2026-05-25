@@ -372,5 +372,32 @@ func defaultModels() []ModelDefinition {
 			Input:         []InputKind{InputText},
 			ContextWindow: 8191,
 		},
+		{
+			ID:            "anthropic/claude-sonnet-4-5",
+			Name:          "Claude Sonnet 4.5",
+			Provider:      constants.ModelProviderAnthropic,
+			API:           APIAnthropicMessages,
+			Input:         []InputKind{InputText, InputImage},
+			ContextWindow: 200000,
+			MaxTokens:     64000,
+		},
+		{
+			ID:            "anthropic/claude-opus-4-1",
+			Name:          "Claude Opus 4.1",
+			Provider:      constants.ModelProviderAnthropic,
+			API:           APIAnthropicMessages,
+			Input:         []InputKind{InputText, InputImage},
+			ContextWindow: 200000,
+			MaxTokens:     32000,
+		},
+		{
+			ID:            "anthropic/claude-3-haiku-20240307",
+			Name:          "Claude 3 Haiku",
+			Provider:      constants.ModelProviderAnthropic,
+			API:           APIAnthropicMessages,
+			Input:         []InputKind{InputText, InputImage},
+			ContextWindow: 200000,
+			MaxTokens:     4096,
+		},
 	}
 }

@@ -7,10 +7,12 @@ import (
 	"strings"
 	"sync"
 
+	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/openai/openai-go/v3/option"
 
 	models "github.com/wandxy/hand/internal/model"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	provider_anthropic "github.com/wandxy/hand/internal/model/provider_anthropic"
 	provider_openai "github.com/wandxy/hand/internal/model/provider_openai"
 )
 
@@ -56,12 +58,16 @@ type ResolvedClientRequest struct {
 // OpenAIClientBuilder constructs an OpenAI-compatible model client for one API route.
 type OpenAIClientBuilder func(string, string, ...option.RequestOption) (models.Client, error)
 
+// AnthropicClientBuilder constructs an Anthropic Messages model client.
+type AnthropicClientBuilder func(string, ...anthropicoption.RequestOption) (models.Client, error)
+
 // ClientFactory constructs model clients from registry-backed provider definitions.
 type ClientFactory struct {
-	Registry     *modelprovider.Registry
-	OpenAIClient OpenAIClientBuilder
-	mu           sync.Mutex
-	clients      map[string]models.Client
+	Registry        *modelprovider.Registry
+	OpenAIClient    OpenAIClientBuilder
+	AnthropicClient AnthropicClientBuilder
+	mu              sync.Mutex
+	clients         map[string]models.Client
 }
 
 // NewClientFactory returns a model client factory backed by registry.
@@ -71,9 +77,10 @@ func NewClientFactory(registry *modelprovider.Registry) *ClientFactory {
 	}
 
 	return &ClientFactory{
-		Registry:     registry,
-		OpenAIClient: newOpenAIClient,
-		clients:      make(map[string]models.Client),
+		Registry:        registry,
+		OpenAIClient:    newOpenAIClient,
+		AnthropicClient: newAnthropicClient,
+		clients:         make(map[string]models.Client),
 	}
 }
 
@@ -147,6 +154,8 @@ func (f *ClientFactory) NewClient(req ClientRequest) (models.Client, error) {
 	switch resolved.API.ID {
 	case modelprovider.APIOpenAICompletions, modelprovider.APIOpenAIResponses:
 		return f.cachedClient(resolved)
+	case modelprovider.APIAnthropicMessages:
+		return f.cachedClient(resolved)
 	default:
 		return nil, fmt.Errorf("model API %q is not supported for chat clients", resolved.API.ID)
 	}
@@ -171,7 +180,7 @@ func (f *ClientFactory) cachedClient(req ResolvedClientRequest) (models.Client, 
 		f.mu.Unlock()
 	}
 
-	client, err := f.newOpenAIClient(req)
+	client, err := f.newClient(req)
 	if err != nil {
 		return nil, err
 	}
@@ -185,6 +194,17 @@ func (f *ClientFactory) cachedClient(req ResolvedClientRequest) (models.Client, 
 	}
 
 	return client, nil
+}
+
+func (f *ClientFactory) newClient(req ResolvedClientRequest) (models.Client, error) {
+	switch req.API.ID {
+	case modelprovider.APIOpenAICompletions, modelprovider.APIOpenAIResponses:
+		return f.newOpenAIClient(req)
+	case modelprovider.APIAnthropicMessages:
+		return f.newAnthropicClient(req)
+	default:
+		return nil, fmt.Errorf("model API %q is not supported for chat clients", req.API.ID)
+	}
 }
 
 func (f *ClientFactory) newOpenAIClient(req ResolvedClientRequest) (models.Client, error) {
@@ -202,6 +222,31 @@ func (f *ClientFactory) newOpenAIClient(req ResolvedClientRequest) (models.Clien
 	}
 
 	client, err := builder(req.APIKey, req.API.ID, opts...)
+	if err != nil {
+		return nil, err
+	}
+	if client == nil {
+		return nil, errors.New("model client is required")
+	}
+
+	return client, nil
+}
+
+func (f *ClientFactory) newAnthropicClient(req ResolvedClientRequest) (models.Client, error) {
+	builder := newAnthropicClient
+	if f != nil && f.AnthropicClient != nil {
+		builder = f.AnthropicClient
+	}
+
+	opts := []anthropicoption.RequestOption{
+		anthropicoption.WithBaseURL(req.BaseURL),
+		anthropicoption.WithMaxRetries(req.MaxRetries),
+	}
+	for _, key := range sortedHeaderKeys(req.Headers) {
+		opts = append(opts, anthropicoption.WithHeader(key, req.Headers[key]))
+	}
+
+	client, err := builder(req.APIKey, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -266,4 +311,8 @@ func normalizeID(value string) string {
 
 func newOpenAIClient(apiKey, api string, opts ...option.RequestOption) (models.Client, error) {
 	return provider_openai.NewOpenAIClient(apiKey, api, opts...)
+}
+
+func newAnthropicClient(apiKey string, opts ...anthropicoption.RequestOption) (models.Client, error) {
+	return provider_anthropic.NewAnthropicClient(apiKey, opts...)
 }

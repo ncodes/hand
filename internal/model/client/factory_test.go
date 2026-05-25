@@ -4,11 +4,13 @@ import (
 	"errors"
 	"testing"
 
+	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/stretchr/testify/require"
 
 	models "github.com/wandxy/hand/internal/model"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	provider_anthropic "github.com/wandxy/hand/internal/model/provider_anthropic"
 	provider_openai "github.com/wandxy/hand/internal/model/provider_openai"
 )
 
@@ -200,6 +202,51 @@ func TestClientFactory_NewClientRoutesRequestsThroughResolvedAPI(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, client)
 	require.Equal(t, modelprovider.APIOpenAIResponses, capturedAPI)
+}
+
+func TestClientFactory_NewClientBuildsAnthropicClient(t *testing.T) {
+	var capturedKey string
+	var capturedOptions int
+	factory := NewClientFactory(modelprovider.DefaultRegistry())
+	factory.AnthropicClient = func(apiKey string, opts ...anthropicoption.RequestOption) (models.Client, error) {
+		capturedKey = apiKey
+		capturedOptions = len(opts)
+		return &provider_anthropic.AnthropicClient{}, nil
+	}
+
+	client, err := factory.NewClient(ClientRequest{
+		Provider:   "anthropic",
+		APIKey:     "key",
+		Headers:    map[string]string{"x-test": "value"},
+		MaxRetries: 3,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	require.Equal(t, "key", capturedKey)
+	require.Equal(t, 3, capturedOptions)
+}
+
+func TestClientFactory_NewClientReturnsAnthropicBuilderError(t *testing.T) {
+	factory := NewClientFactory(modelprovider.DefaultRegistry())
+	factory.AnthropicClient = func(string, ...anthropicoption.RequestOption) (models.Client, error) {
+		return nil, errors.New("anthropic build failed")
+	}
+
+	_, err := factory.NewClient(ClientRequest{Provider: "anthropic"})
+
+	require.EqualError(t, err, "anthropic build failed")
+}
+
+func TestClientFactory_NewClientRejectsNilAnthropicClient(t *testing.T) {
+	factory := NewClientFactory(modelprovider.DefaultRegistry())
+	factory.AnthropicClient = func(string, ...anthropicoption.RequestOption) (models.Client, error) {
+		return nil, nil
+	}
+
+	_, err := factory.NewClient(ClientRequest{Provider: "anthropic"})
+
+	require.EqualError(t, err, "model client is required")
 }
 
 func TestClientFactory_NewClientReturnsResolveError(t *testing.T) {

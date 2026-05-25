@@ -10,6 +10,7 @@ import (
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/openai/openai-go/v3/shared"
 
+	models "github.com/wandxy/hand/internal/model"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
@@ -85,11 +86,11 @@ func (c *OpenAIClient) completeResponsesStream(
 func handleResponsesStreamEvent(event responses.ResponseStreamEventUnion) (StreamDelta, *responses.Response, error) {
 	switch event.Type {
 	case "response.output_text.delta":
-		return StreamDelta{Channel: StreamChannelAssistant, Text: event.AsResponseOutputTextDelta().Delta}, nil, nil
+		return StreamDelta{Channel: models.StreamChannelAssistant, Text: event.AsResponseOutputTextDelta().Delta}, nil, nil
 	case "response.reasoning_text.delta":
-		return StreamDelta{Channel: StreamChannelReasoning, Text: event.AsResponseReasoningTextDelta().Delta}, nil, nil
+		return StreamDelta{Channel: models.StreamChannelReasoning, Text: event.AsResponseReasoningTextDelta().Delta}, nil, nil
 	case "response.reasoning_summary_text.delta":
-		return StreamDelta{Channel: StreamChannelReasoning, Text: event.AsResponseReasoningSummaryTextDelta().Delta}, nil, nil
+		return StreamDelta{Channel: models.StreamChannelReasoning, Text: event.AsResponseReasoningSummaryTextDelta().Delta}, nil, nil
 	case "response.completed":
 		completed := event.AsResponseCompleted()
 		return StreamDelta{}, &completed.Response, nil

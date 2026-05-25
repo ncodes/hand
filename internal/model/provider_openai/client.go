@@ -3,13 +3,14 @@ package provider_openai
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/packages/ssestream"
 	"github.com/openai/openai-go/v3/responses"
+
+	models "github.com/wandxy/hand/internal/model"
 )
 
 // OpenAIClient sends normalized model requests through OpenAI-compatible APIs.
@@ -130,14 +131,9 @@ func (c *OpenAIClient) complete(
 		logModelClientRequestCompleted(normalizedReq, stream, resp)
 	}()
 
-	var handler openAIAPIHandler
-	switch c.api {
-	case APIOpenAICompletions:
+	var handler openAIAPIHandler = responsesHandler{}
+	if normalizedReq.API == models.APIOpenAICompletions {
 		handler = chatCompletionsHandler{}
-	case APIOpenAIResponses:
-		handler = responsesHandler{}
-	default:
-		return nil, fmt.Errorf("model API %q is not supported", normalizedReq.API)
 	}
 
 	return handler.Complete(ctx, c, normalizedReq, stream, onTextDelta)

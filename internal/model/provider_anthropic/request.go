@@ -1,17 +1,16 @@
-package provider_openai
+package provider_anthropic
 
 import (
 	"errors"
-	"slices"
 	"strings"
 
-	models "github.com/wandxy/hand/internal/model"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
+const defaultMaxOutputTokens int64 = 4096
+
 type normalizedGenerateRequest struct {
 	Model            string
-	API              string
 	Instructions     string
 	Messages         []handmsg.Message
 	Tools            []ToolDefinition
@@ -40,48 +39,30 @@ func normalizeGenerateRequest(req Request) (normalizedGenerateRequest, error) {
 		return normalizedGenerateRequest{}, err
 	}
 
-	api, err := normalizeRequestAPI(req.API)
-	if err != nil {
-		return normalizedGenerateRequest{}, err
+	maxOutputTokens := req.MaxOutputTokens
+	if maxOutputTokens <= 0 {
+		maxOutputTokens = defaultMaxOutputTokens
 	}
 
 	return normalizedGenerateRequest{
 		Model:            model,
-		API:              api,
 		Instructions:     strings.TrimSpace(req.Instructions),
 		Messages:         messages,
 		Tools:            tools,
 		StructuredOutput: normalizeStructuredOutput(req.StructuredOutput),
-		MaxOutputTokens:  req.MaxOutputTokens,
+		MaxOutputTokens:  maxOutputTokens,
 		Temperature:      req.Temperature,
 		DebugRequests:    req.DebugRequests,
 	}, nil
 }
 
-func normalizeRequestAPI(api string) (string, error) {
-	api = strings.TrimSpace(strings.ToLower(api))
-	switch api {
-	case models.APIOpenAICompletions, models.APIOpenAIResponses:
-		return api, nil
-	case "":
-		return "", errors.New("model API is required")
-	default:
-		return "", errors.New("model API must be one of: openai-completions, openai-responses")
-	}
-}
-
 func normalizeStructuredOutput(value *StructuredOutput) *StructuredOutput {
-	if value == nil {
-		return nil
-	}
-
-	name := strings.TrimSpace(value.Name)
-	if name == "" || len(value.Schema) == 0 {
+	if value == nil || len(value.Schema) == 0 {
 		return nil
 	}
 
 	return &StructuredOutput{
-		Name:        name,
+		Name:        strings.TrimSpace(value.Name),
 		Description: strings.TrimSpace(value.Description),
 		Schema:      value.Schema,
 		Strict:      value.Strict,
@@ -100,11 +81,9 @@ func normalizeMessages(messages []handmsg.Message) ([]handmsg.Message, error) {
 		}
 
 		switch role {
-		case handmsg.RoleDeveloper:
-			return nil, errors.New("developer messages must be provided via instructions")
-		case handmsg.RoleUser, handmsg.RoleAssistant, handmsg.RoleTool:
+		case handmsg.RoleDeveloper, handmsg.RoleUser, handmsg.RoleAssistant, handmsg.RoleTool:
 		default:
-			return nil, errors.New("message role must be one of user, assistant, or tool; developer messages must be provided via instructions")
+			return nil, errors.New("message role must be one of developer, user, assistant, or tool")
 		}
 
 		if content == "" && !(role == handmsg.RoleAssistant && len(toolCalls) > 0) {
@@ -171,79 +150,4 @@ func normalizeToolCalls(toolCalls []handmsg.ToolCall) ([]handmsg.ToolCall, error
 	}
 
 	return normalized, nil
-}
-
-func normalizeStrictJSONSchema(schema map[string]any) map[string]any {
-	if len(schema) == 0 {
-		return nil
-	}
-
-	return normalizeStrictJSONSchemaValue(schema).(map[string]any)
-}
-
-func normalizeStrictJSONSchemaValue(value any) any {
-	switch typed := value.(type) {
-	case map[string]any:
-		cloned := make(map[string]any, len(typed))
-		for key, item := range typed {
-			cloned[key] = normalizeStrictJSONSchemaValue(item)
-		}
-
-		schemaType, _ := cloned["type"].(string)
-		properties, _ := cloned["properties"].(map[string]any)
-		if schemaType == "object" && len(properties) > 0 {
-			for key, property := range properties {
-				if propertySchema, ok := property.(map[string]any); ok && isUnsupportedStrictJSONObjectProperty(propertySchema) {
-					delete(properties, key)
-				}
-			}
-
-			required := make([]string, 0, len(properties))
-			for key := range properties {
-				required = append(required, key)
-			}
-			slices.Sort(required)
-			cloned["required"] = required
-		}
-
-		return cloned
-	case []any:
-		cloned := make([]any, 0, len(typed))
-		for _, item := range typed {
-			cloned = append(cloned, normalizeStrictJSONSchemaValue(item))
-		}
-		return cloned
-	default:
-		return value
-	}
-}
-
-func isUnsupportedStrictJSONObjectProperty(schema map[string]any) bool {
-	if len(schema) == 0 {
-		return false
-	}
-
-	schemaType, _ := schema["type"].(string)
-	if schemaType != "object" {
-		return false
-	}
-
-	properties, _ := schema["properties"].(map[string]any)
-	if len(properties) > 0 {
-		return false
-	}
-
-	additionalProperties, ok := schema["additionalProperties"]
-	if !ok {
-		return false
-	}
-
-	switch typed := additionalProperties.(type) {
-	case bool:
-		return typed
-	case map[string]any:
-		return true
-	default:
-		return true
-	}
 }

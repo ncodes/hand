@@ -1,18 +1,15 @@
-package provider_openai
+package provider_anthropic
 
 import models "github.com/wandxy/hand/internal/model"
 
-// Client is the provider-neutral model client contract implemented by OpenAIClient.
+// Client is the provider-neutral model client contract implemented by AnthropicClient.
 type Client = models.Client
 
-// Request is the provider-neutral model request accepted by OpenAIClient.
+// Request is the provider-neutral model request accepted by AnthropicClient.
 type Request = models.Request
 
-// Response is the provider-neutral model response returned by OpenAIClient.
+// Response is the provider-neutral model response returned by AnthropicClient.
 type Response = models.Response
-
-// StreamChannel identifies the kind of streaming text delta.
-type StreamChannel = models.StreamChannel
 
 // StreamDelta is a single streaming text or reasoning update.
 type StreamDelta = models.StreamDelta
