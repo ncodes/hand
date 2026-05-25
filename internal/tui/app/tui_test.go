@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
+	agentapi "github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/config"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
@@ -78,7 +79,7 @@ func TestModel_InitLoadsExistingSessionTimeline(t *testing.T) {
 	client := &fakeTUIChatClient{
 		timeline: rpcclient.SessionTimeline{
 			SessionID: "default",
-			Messages: []agent.SessionTimelineMessage{{
+			Messages: []agentapi.SessionTimelineMessage{{
 				Message: handmsg.Message{Role: handmsg.RoleUser, Content: "older prompt"},
 			}},
 		},
@@ -140,10 +141,10 @@ func TestModel_UpdateHydratesLoadedSessionTimeline(t *testing.T) {
 		Timeline: rpcclient.SessionTimeline{
 			SessionID: "default",
 			Title:     "Daily Planning",
-			Messages: []agent.SessionTimelineMessage{{
+			Messages: []agentapi.SessionTimelineMessage{{
 				Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "older answer"},
 			}},
-			TraceEvents: []agent.SessionTimelineTraceEvent{{
+			TraceEvents: []agentapi.SessionTimelineTraceEvent{{
 				Event: agentsession.TraceEvent{
 					Type:      trace.EvtContextCompactionSucceeded,
 					Timestamp: now,
@@ -891,22 +892,22 @@ func TestModel_HydrateSessionTimelineReplacesVisibleTranscript(t *testing.T) {
 	runModel.messages = []transcriptCell{systemTranscriptCell{text: "stale cell"}}
 	runModel.transcript.SetContent("stale cell")
 
-	messages := make([]agent.SessionTimelineMessage, 0, 20)
+	messages := make([]agentapi.SessionTimelineMessage, 0, 20)
 	for index := 0; index < 18; index++ {
-		messages = append(messages, agent.SessionTimelineMessage{
+		messages = append(messages, agentapi.SessionTimelineMessage{
 			Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: fmt.Sprintf("older %02d", index)},
 		})
 	}
 	messages = append(messages,
-		agent.SessionTimelineMessage{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "hello"}},
-		agent.SessionTimelineMessage{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "hi"}},
+		agentapi.SessionTimelineMessage{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "hello"}},
+		agentapi.SessionTimelineMessage{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "hi"}},
 	)
 
 	runModel.hydrateSessionTimeline(rpcclient.SessionTimeline{
 		SessionID: "project-a",
 		Title:     "Project Planning",
 		Messages:  messages,
-		TraceEvents: []agent.SessionTimelineTraceEvent{{
+		TraceEvents: []agentapi.SessionTimelineTraceEvent{{
 			Event: agentsession.TraceEvent{
 				Type:    trace.EvtToolInvocationStarted,
 				Payload: map[string]any{"id": "call_1", "name": "read_file"},

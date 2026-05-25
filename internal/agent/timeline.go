@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	storage "github.com/wandxy/hand/internal/state/core"
-	agentcore "github.com/wandxy/hand/pkg/agent"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
 )
 
@@ -15,35 +14,35 @@ const (
 )
 
 // GetSessionTimeline loads transcript messages and trace events for TUI hydration.
-func (a *Agent) GetSessionTimeline(ctx context.Context, opts agentcore.SessionTimelineOptions) (agentcore.SessionTimeline, error) {
+func (a *Agent) GetSessionTimeline(ctx context.Context, opts SessionTimelineOptions) (SessionTimeline, error) {
 	if a == nil {
-		return agentcore.SessionTimeline{}, errors.New("agent is required")
+		return SessionTimeline{}, errors.New("agent is required")
 	}
 	if a.stateMgr == nil {
-		return agentcore.SessionTimeline{}, errors.New("state manager is required")
+		return SessionTimeline{}, errors.New("state manager is required")
 	}
 
 	if err := checkTimelineOptions(opts); err != nil {
-		return agentcore.SessionTimeline{}, err
+		return SessionTimeline{}, err
 	}
 
 	ctx = normalizeContext(ctx)
 	session, err := a.stateMgr.Resolve(ctx, opts.SessionID)
 	if err != nil {
-		return agentcore.SessionTimeline{}, err
+		return SessionTimeline{}, err
 	}
 
 	messages, messagesHasMore, err := a.loadTimelineMessages(ctx, session.ID, opts)
 	if err != nil {
-		return agentcore.SessionTimeline{}, err
+		return SessionTimeline{}, err
 	}
 
 	traceEvents, tracesHasMore, tracesTruncatedBefore, err := a.loadTimelineTraceEvents(ctx, session.ID, opts)
 	if err != nil {
-		return agentcore.SessionTimeline{}, err
+		return SessionTimeline{}, err
 	}
 
-	return agentcore.SessionTimeline{
+	return SessionTimeline{
 		SessionID:             session.ID,
 		Title:                 session.Title,
 		TitleSource:           session.TitleSource,
@@ -61,8 +60,8 @@ func (a *Agent) GetSessionTimeline(ctx context.Context, opts agentcore.SessionTi
 func (a *Agent) loadTimelineMessages(
 	ctx context.Context,
 	sessionID string,
-	opts agentcore.SessionTimelineOptions,
-) ([]agentcore.SessionTimelineMessage, bool, error) {
+	opts SessionTimelineOptions,
+) ([]SessionTimelineMessage, bool, error) {
 	limit := getTimelineLimit(opts.MessageLimit)
 	offset := opts.MessageOffset
 	hasMoreBefore := false
@@ -93,9 +92,9 @@ func (a *Agent) loadTimelineMessages(
 		messages = messages[:limit]
 	}
 
-	timelineMessages := make([]agentcore.SessionTimelineMessage, 0, len(messages))
+	timelineMessages := make([]SessionTimelineMessage, 0, len(messages))
 	for index, message := range messages {
-		timelineMessages = append(timelineMessages, agentcore.SessionTimelineMessage{
+		timelineMessages = append(timelineMessages, SessionTimelineMessage{
 			Offset:  offset + index,
 			Message: message,
 		})
@@ -108,8 +107,8 @@ func (a *Agent) loadTimelineMessages(
 func (a *Agent) loadTimelineTraceEvents(
 	ctx context.Context,
 	sessionID string,
-	opts agentcore.SessionTimelineOptions,
-) ([]agentcore.SessionTimelineTraceEvent, bool, bool, error) {
+	opts SessionTimelineOptions,
+) ([]SessionTimelineTraceEvent, bool, bool, error) {
 
 	limit := getTimelineLimit(opts.TraceLimit)
 
@@ -150,9 +149,9 @@ func (a *Agent) loadTimelineTraceEvents(
 		reverseTraceEvents(events)
 	}
 
-	timelineEvents := make([]agentcore.SessionTimelineTraceEvent, 0, len(events))
+	timelineEvents := make([]SessionTimelineTraceEvent, 0, len(events))
 	for _, event := range events {
-		timelineEvents = append(timelineEvents, agentcore.SessionTimelineTraceEvent{
+		timelineEvents = append(timelineEvents, SessionTimelineTraceEvent{
 			Event: timelineTraceEventFromStorageTraceEvent(event),
 		})
 	}
@@ -197,7 +196,7 @@ func (a *Agent) hasTruncatedTraceHistory(
 }
 
 // checkTimelineOptions validates pagination offsets and limits.
-func checkTimelineOptions(opts agentcore.SessionTimelineOptions) error {
+func checkTimelineOptions(opts SessionTimelineOptions) error {
 	if opts.MessageOffset < 0 {
 		return errors.New("message offset must be greater than or equal to zero")
 	}
@@ -227,7 +226,7 @@ func getTimelineLimit(limit int) int {
 }
 
 // getFirstTraceSequence returns the first loaded trace sequence, or zero when empty.
-func getFirstTraceSequence(events []agentcore.SessionTimelineTraceEvent) int {
+func getFirstTraceSequence(events []SessionTimelineTraceEvent) int {
 	if len(events) == 0 {
 		return 0
 	}
@@ -236,7 +235,7 @@ func getFirstTraceSequence(events []agentcore.SessionTimelineTraceEvent) int {
 }
 
 // getLastTraceSequence returns the last loaded trace sequence, or zero when empty.
-func getLastTraceSequence(events []agentcore.SessionTimelineTraceEvent) int {
+func getLastTraceSequence(events []SessionTimelineTraceEvent) int {
 	if len(events) == 0 {
 		return 0
 	}

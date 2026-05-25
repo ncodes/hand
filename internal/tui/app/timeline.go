@@ -9,11 +9,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	agentapi "github.com/wandxy/hand/internal/agent"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
 	tuirpc "github.com/wandxy/hand/internal/tui/rpc"
-	agent "github.com/wandxy/hand/pkg/agent"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
@@ -194,7 +194,7 @@ type timelineToolCallDetail struct {
 	startedAt    time.Time
 }
 
-func getTimelineToolCallDetails(messages []agent.SessionTimelineMessage) map[string]timelineToolCallDetail {
+func getTimelineToolCallDetails(messages []agentapi.SessionTimelineMessage) map[string]timelineToolCallDetail {
 	details := map[string]timelineToolCallDetail{}
 	for _, message := range messages {
 		for _, toolCall := range message.Message.ToolCalls {

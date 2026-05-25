@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	agentapi "github.com/wandxy/hand/internal/agent"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
@@ -40,10 +41,10 @@ type CompactSessionResult = agent.CompactSessionResult
 type ContextStatus = agent.ContextStatus
 
 // SessionTimelineOptions mirrors agent timeline query options at this package boundary.
-type SessionTimelineOptions = agent.SessionTimelineOptions
+type SessionTimelineOptions = agentapi.SessionTimelineOptions
 
 // SessionTimeline mirrors the agent timeline type at this package boundary.
-type SessionTimeline = agent.SessionTimeline
+type SessionTimeline = agentapi.SessionTimeline
 
 // RepairSessionOptions aliases search.VectorRepairOptions at this package boundary.
 type RepairSessionOptions = search.VectorRepairOptions
@@ -378,8 +379,8 @@ func protoSessionTimelineToTimeline(resp *handpb.GetSessionTimelineResponse) (Se
 		TracesTruncatedBefore: resp.GetTracesTruncatedBefore(),
 		FirstTraceSequence:    int(resp.GetFirstTraceSequence()),
 		LastTraceSequence:     int(resp.GetLastTraceSequence()),
-		Messages:              make([]agent.SessionTimelineMessage, 0, len(resp.GetMessages())),
-		TraceEvents:           make([]agent.SessionTimelineTraceEvent, 0, len(resp.GetTraceEvents())),
+		Messages:              make([]agentapi.SessionTimelineMessage, 0, len(resp.GetMessages())),
+		TraceEvents:           make([]agentapi.SessionTimelineTraceEvent, 0, len(resp.GetTraceEvents())),
 	}
 	for _, message := range resp.GetMessages() {
 		timeline.Messages = append(timeline.Messages, timelineMessageFromProto(message))
@@ -395,9 +396,9 @@ func protoSessionTimelineToTimeline(resp *handpb.GetSessionTimelineResponse) (Se
 	return timeline, nil
 }
 
-func timelineMessageFromProto(message *handpb.SessionTimelineMessage) agent.SessionTimelineMessage {
+func timelineMessageFromProto(message *handpb.SessionTimelineMessage) agentapi.SessionTimelineMessage {
 	if message == nil {
-		return agent.SessionTimelineMessage{}
+		return agentapi.SessionTimelineMessage{}
 	}
 
 	toolCalls := make([]handmsg.ToolCall, 0, len(message.GetToolCalls()))
@@ -409,7 +410,7 @@ func timelineMessageFromProto(message *handpb.SessionTimelineMessage) agent.Sess
 		})
 	}
 
-	return agent.SessionTimelineMessage{
+	return agentapi.SessionTimelineMessage{
 		Offset: int(message.GetOffset()),
 		Message: handmsg.Message{
 			ID:         uint(message.GetId()),
@@ -423,19 +424,19 @@ func timelineMessageFromProto(message *handpb.SessionTimelineMessage) agent.Sess
 	}
 }
 
-func timelineTraceEventFromProto(event *handpb.SessionTimelineTraceEvent) (agent.SessionTimelineTraceEvent, error) {
+func timelineTraceEventFromProto(event *handpb.SessionTimelineTraceEvent) (agentapi.SessionTimelineTraceEvent, error) {
 	if event == nil {
-		return agent.SessionTimelineTraceEvent{}, nil
+		return agentapi.SessionTimelineTraceEvent{}, nil
 	}
 
 	var payload any
 	if payloadJSON := strings.TrimSpace(event.GetPayloadJson()); payloadJSON != "" {
 		if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
-			return agent.SessionTimelineTraceEvent{}, err
+			return agentapi.SessionTimelineTraceEvent{}, err
 		}
 	}
 
-	return agent.SessionTimelineTraceEvent{
+	return agentapi.SessionTimelineTraceEvent{
 		Event: agentsession.TraceEvent{
 			ID:        uint(event.GetId()),
 			Sequence:  int(event.GetSequence()),

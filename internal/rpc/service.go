@@ -1031,7 +1031,7 @@ func (s *Service) GetSessionTimeline(
 		return nil, status.Error(codes.InvalidArgument, "get session timeline request is required")
 	}
 
-	result, err := s.api.GetSessionTimeline(ctx, agent.SessionTimelineOptions{
+	result, err := s.api.GetSessionTimeline(ctx, handagent.SessionTimelineOptions{
 		SessionID:     req.GetId(),
 		MessageOffset: int(req.GetMessageOffset()),
 		MessageLimit:  int(req.GetMessageLimit()),
@@ -1083,7 +1083,7 @@ func sessionToProtoSummary(session storage.Session) *handpb.SessionSummary {
 	}
 }
 
-func sessionTimelineToProtoResponse(timeline agent.SessionTimeline) *handpb.GetSessionTimelineResponse {
+func sessionTimelineToProtoResponse(timeline handagent.SessionTimeline) *handpb.GetSessionTimelineResponse {
 	response := &handpb.GetSessionTimelineResponse{
 		Id:                    timeline.SessionID,
 		Title:                 timeline.Title,
@@ -1110,7 +1110,7 @@ func sessionTimelineToProtoResponse(timeline agent.SessionTimeline) *handpb.GetS
 	return response
 }
 
-func timelineMessageToProto(record agent.SessionTimelineMessage) *handpb.SessionTimelineMessage {
+func timelineMessageToProto(record handagent.SessionTimelineMessage) *handpb.SessionTimelineMessage {
 	message := record.Message
 	protoMessage := &handpb.SessionTimelineMessage{
 		Offset:     int32(record.Offset),

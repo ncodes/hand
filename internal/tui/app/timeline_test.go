@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	agentapi "github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/internal/trace"
-	agent "github.com/wandxy/hand/pkg/agent"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
 )
@@ -1089,11 +1089,11 @@ func TestRenderTranscriptCell_RendersMultilineUserMessageWithSinglePrompt(t *tes
 func TestSessionTimelineToTranscriptCells_SkipsMessageBackedTraceDuplicates(t *testing.T) {
 	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
 	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
-		Messages: []agent.SessionTimelineMessage{
+		Messages: []agentapi.SessionTimelineMessage{
 			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "hello there", CreatedAt: now}},
 			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "hello back", CreatedAt: now.Add(time.Second)}},
 		},
-		TraceEvents: []agent.SessionTimelineTraceEvent{
+		TraceEvents: []agentapi.SessionTimelineTraceEvent{
 			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtFinalAssistantResponse,
 				Timestamp: now.Add(time.Second),
@@ -1118,13 +1118,13 @@ func TestSessionTimelineToTranscriptCells_InterleavesMessagesAndTraceEventsByTim
 	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
 
 	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
-		Messages: []agent.SessionTimelineMessage{
+		Messages: []agentapi.SessionTimelineMessage{
 			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "older prompt", CreatedAt: now}},
 			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "older answer", CreatedAt: now.Add(time.Second)}},
 			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "Hi", CreatedAt: now.Add(10 * time.Second)}},
 			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "Hi there", CreatedAt: now.Add(11 * time.Second)}},
 		},
-		TraceEvents: []agent.SessionTimelineTraceEvent{
+		TraceEvents: []agentapi.SessionTimelineTraceEvent{
 			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationStarted,
 				Timestamp: now.Add(2 * time.Second),
@@ -1152,11 +1152,11 @@ func TestSessionTimelineToTranscriptCells_SkipsUserStoppedSessionErrors(t *testi
 	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
 
 	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
-		Messages: []agent.SessionTimelineMessage{
+		Messages: []agentapi.SessionTimelineMessage{
 			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "hi", CreatedAt: now}},
 			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "hello", CreatedAt: now.Add(2 * time.Second)}},
 		},
-		TraceEvents: []agent.SessionTimelineTraceEvent{{
+		TraceEvents: []agentapi.SessionTimelineTraceEvent{{
 			Event: agentsession.TraceEvent{
 				Type:      trace.EvtSessionFailed,
 				Timestamp: now.Add(time.Second),
@@ -1175,11 +1175,11 @@ func TestSessionTimelineToTranscriptCells_RendersPersistedThoughtSummary(t *test
 	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
 
 	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
-		Messages: []agent.SessionTimelineMessage{
+		Messages: []agentapi.SessionTimelineMessage{
 			{Message: handmsg.Message{Role: handmsg.RoleUser, Content: "think", CreatedAt: now}},
 			{Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "done", CreatedAt: now.Add(2 * time.Second)}},
 		},
-		TraceEvents: []agent.SessionTimelineTraceEvent{{
+		TraceEvents: []agentapi.SessionTimelineTraceEvent{{
 			Event: agentsession.TraceEvent{
 				Type:      trace.EvtModelReasoningCompleted,
 				Timestamp: now.Add(time.Second),
@@ -1199,7 +1199,7 @@ func TestSessionTimelineToTranscriptCells_UsesPersistedToolCallInputForToolDetai
 	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
 
 	cells := sessionTimelineToTranscriptCells(client.SessionTimeline{
-		Messages: []agent.SessionTimelineMessage{
+		Messages: []agentapi.SessionTimelineMessage{
 			{Message: handmsg.Message{
 				Role:      handmsg.RoleAssistant,
 				ToolCalls: []handmsg.ToolCall{{ID: "call_1", Name: "run_command", Input: `{"command":"sleep 10","timeout_seconds":30}`}},
@@ -1235,7 +1235,7 @@ func TestSessionTimelineToTranscriptCells_UsesPersistedToolCallInputForToolDetai
 func TestSessionTimelineToTranscriptCells_RendersHydratedRunCommandLikeLiveTrace(t *testing.T) {
 	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
 	hydratedCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
-		Messages: []agent.SessionTimelineMessage{
+		Messages: []agentapi.SessionTimelineMessage{
 			{Message: handmsg.Message{
 				Role:      handmsg.RoleAssistant,
 				ToolCalls: []handmsg.ToolCall{{ID: "call_1", Name: "run_command", Input: `{"command":"sleep 10","timeout_seconds":30}`}},
@@ -1251,7 +1251,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedRunCommandLikeLiveTrace
 		},
 	})
 	liveCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
-		TraceEvents: []agent.SessionTimelineTraceEvent{
+		TraceEvents: []agentapi.SessionTimelineTraceEvent{
 			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationStarted,
 				Timestamp: now,
@@ -1287,7 +1287,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedListFilesLikeLiveTrace(
 	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
 	detail := "list_files(include_hidden=false max_entries=50 path=. recursive=false)"
 	hydratedCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
-		Messages: []agent.SessionTimelineMessage{
+		Messages: []agentapi.SessionTimelineMessage{
 			{Message: handmsg.Message{
 				Role:      handmsg.RoleAssistant,
 				ToolCalls: []handmsg.ToolCall{{ID: "call_1", Name: "list_files", Input: `{"path":".","recursive":false,"include_hidden":false,"max_entries":50}`}},
@@ -1303,7 +1303,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedListFilesLikeLiveTrace(
 		},
 	})
 	liveCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
-		TraceEvents: []agent.SessionTimelineTraceEvent{
+		TraceEvents: []agentapi.SessionTimelineTraceEvent{
 			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationStarted,
 				Timestamp: now,
@@ -1335,7 +1335,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedSessionMessagesLikeLive
 	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
 	detail := "session_messages(anchor_message_id=42 before=2 after=3 max_chars=1200)"
 	hydratedCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
-		Messages: []agent.SessionTimelineMessage{
+		Messages: []agentapi.SessionTimelineMessage{
 			{Message: handmsg.Message{
 				Role: handmsg.RoleAssistant,
 				ToolCalls: []handmsg.ToolCall{{
@@ -1355,7 +1355,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedSessionMessagesLikeLive
 		},
 	})
 	liveCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
-		TraceEvents: []agent.SessionTimelineTraceEvent{
+		TraceEvents: []agentapi.SessionTimelineTraceEvent{
 			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationStarted,
 				Timestamp: now,
@@ -1387,7 +1387,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedSessionMessagesLikeLive
 func TestSessionTimelineToTranscriptCells_RendersHydratedFileToolsLikeLiveTrace(t *testing.T) {
 	now := time.Date(2026, 5, 18, 15, 0, 0, 0, time.UTC)
 	hydratedCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
-		Messages: []agent.SessionTimelineMessage{
+		Messages: []agentapi.SessionTimelineMessage{
 			{Message: handmsg.Message{
 				Role: handmsg.RoleAssistant,
 				ToolCalls: []handmsg.ToolCall{
@@ -1433,7 +1433,7 @@ func TestSessionTimelineToTranscriptCells_RendersHydratedFileToolsLikeLiveTrace(
 		},
 	})
 	liveCells := sessionTimelineToTranscriptCells(client.SessionTimeline{
-		TraceEvents: []agent.SessionTimelineTraceEvent{
+		TraceEvents: []agentapi.SessionTimelineTraceEvent{
 			{Event: agentsession.TraceEvent{
 				Type:      trace.EvtToolInvocationStarted,
 				Timestamp: now,

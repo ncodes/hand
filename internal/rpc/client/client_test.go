@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	agentapi "github.com/wandxy/hand/internal/agent"
 	protomock "github.com/wandxy/hand/internal/mocks/proto"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
@@ -366,7 +367,7 @@ func TestClient_GetSessionTimelineReturnsResult(t *testing.T) {
 	}}
 	client := &Client{client: stub}
 
-	result, err := client.GetSessionTimeline(context.Background(), agent.SessionTimelineOptions{
+	result, err := client.GetSessionTimeline(context.Background(), agentapi.SessionTimelineOptions{
 		SessionID:     " default ",
 		MessageOffset: 2,
 		MessageLimit:  1,
@@ -411,13 +412,13 @@ func TestClient_GetSessionTimelineReturnsResult(t *testing.T) {
 func TestClient_GetSessionTimelineReturnsDecodeErrors(t *testing.T) {
 	client := &Client{client: &protomock.HandServiceClientStub{}}
 
-	_, err := client.GetSessionTimeline(context.Background(), agent.SessionTimelineOptions{})
+	_, err := client.GetSessionTimeline(context.Background(), agentapi.SessionTimelineOptions{})
 	require.EqualError(t, err, "hand: get session timeline response is required")
 
 	client = &Client{client: &protomock.HandServiceClientStub{TimelineResp: &handpb.GetSessionTimelineResponse{
 		TraceEvents: []*handpb.SessionTimelineTraceEvent{{PayloadJson: "{"}},
 	}}}
-	_, err = client.GetSessionTimeline(context.Background(), agent.SessionTimelineOptions{})
+	_, err = client.GetSessionTimeline(context.Background(), agentapi.SessionTimelineOptions{})
 	require.Error(t, err)
 }
 
@@ -425,7 +426,7 @@ func TestClient_GetSessionTimelineReturnsRPCError(t *testing.T) {
 	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
 	client := &Client{client: stub}
 
-	_, err := client.GetSessionTimeline(context.Background(), agent.SessionTimelineOptions{})
+	_, err := client.GetSessionTimeline(context.Background(), agentapi.SessionTimelineOptions{})
 
 	require.ErrorIs(t, err, context.Canceled)
 }

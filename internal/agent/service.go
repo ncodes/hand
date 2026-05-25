@@ -19,5 +19,5 @@ type ServiceAPI interface {
 	CompactSession(context.Context, string) (agentcore.CompactSessionResult, error)
 	RepairSession(context.Context, search.VectorRepairOptions) (search.VectorRepairResult, error)
 	ContextStatus(context.Context, string) (agentcore.ContextStatus, error)
-	GetSessionTimeline(context.Context, agentcore.SessionTimelineOptions) (agentcore.SessionTimeline, error)
+	GetSessionTimeline(context.Context, SessionTimelineOptions) (SessionTimeline, error)
 }

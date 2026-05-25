@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	agentapi "github.com/wandxy/hand/internal/agent"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
@@ -1375,11 +1376,11 @@ func TestService_GetSessionTimelineReturnsMessagesAndSanitizedTraceEvents(t *tes
 	createdAt := time.Date(2026, 5, 16, 10, 0, 0, 0, time.UTC)
 	traceAt := time.Date(2026, 5, 16, 11, 0, 0, 0, time.UTC)
 	stub := &agentstub.AgentServiceStub{
-		TimelineResult: agent.SessionTimeline{
+		TimelineResult: agentapi.SessionTimeline{
 			SessionID:   "default",
 			Title:       "Daily Planning",
 			TitleSource: storage.SessionTitleSourceGenerated,
-			Messages: []agent.SessionTimelineMessage{{
+			Messages: []agentapi.SessionTimelineMessage{{
 				Offset: 2,
 				Message: handmsg.Message{
 					ID:         7,
@@ -1391,7 +1392,7 @@ func TestService_GetSessionTimelineReturnsMessagesAndSanitizedTraceEvents(t *tes
 					ToolCalls:  []handmsg.ToolCall{{ID: "call_2", Name: "search", Input: `{"query":"hello"}`}},
 				},
 			}},
-			TraceEvents: []agent.SessionTimelineTraceEvent{{
+			TraceEvents: []agentapi.SessionTimelineTraceEvent{{
 				Event: agentsession.TraceEvent{
 					ID:        9,
 					Sequence:  3,
@@ -1425,7 +1426,7 @@ func TestService_GetSessionTimelineReturnsMessagesAndSanitizedTraceEvents(t *tes
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, agent.SessionTimelineOptions{
+	require.Equal(t, agentapi.SessionTimelineOptions{
 		SessionID:     "default",
 		MessageOffset: 2,
 		MessageLimit:  1,
@@ -1464,9 +1465,9 @@ func TestService_GetSessionTimelineReturnsMessagesAndSanitizedTraceEvents(t *tes
 
 func TestService_GetSessionTimelineSkipsNonDisplayTraceEvents(t *testing.T) {
 	svc := NewService(&agentstub.AgentServiceStub{
-		TimelineResult: agent.SessionTimeline{
+		TimelineResult: agentapi.SessionTimeline{
 			SessionID: "default",
-			TraceEvents: []agent.SessionTimelineTraceEvent{{
+			TraceEvents: []agentapi.SessionTimelineTraceEvent{{
 				Event: agentsession.TraceEvent{
 					Sequence: 5,
 					Type:     trace.EvtModelRequest,

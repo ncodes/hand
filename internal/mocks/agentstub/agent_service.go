@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	agentapi "github.com/wandxy/hand/internal/agent"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
@@ -30,8 +31,8 @@ type AgentServiceStub struct {
 	RepairResult         search.VectorRepairResult
 	SummaryResult        storage.SessionSummary
 	StatusResult         rpcclient.ContextStatus
-	TimelineOptions      agent.SessionTimelineOptions
-	TimelineResult       agent.SessionTimeline
+	TimelineOptions      agentapi.SessionTimelineOptions
+	TimelineResult       agentapi.SessionTimeline
 }
 
 func (s *AgentServiceStub) Respond(_ context.Context, msg string, opts rpcclient.RespondOptions) (string, error) {
@@ -110,8 +111,8 @@ func (s *AgentServiceStub) ContextStatus(context.Context, string) (agent.Context
 
 func (s *AgentServiceStub) GetSessionTimeline(
 	_ context.Context,
-	opts agent.SessionTimelineOptions,
-) (agent.SessionTimeline, error) {
+	opts agentapi.SessionTimelineOptions,
+) (agentapi.SessionTimeline, error) {
 	s.TimelineOptions = opts
 	return s.TimelineResult, s.Err
 }
