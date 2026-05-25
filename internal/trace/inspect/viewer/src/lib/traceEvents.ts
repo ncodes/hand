@@ -8,7 +8,13 @@ export function summarize(detail?: TraceDetail): TraceMetrics {
   const events = detail?.timeline ?? [];
   const contextEvents = events.map((event) => event.context_event).filter(Boolean);
   const timestamps = events.map((event) => new Date(event.timestamp ?? "").getTime()).filter((value) => !Number.isNaN(value));
-  const maxTokens = Math.max(0, ...contextEvents.map((event) => event.total_tokens || 0));
+  const tokenValues = contextEvents.map((event) => event.total_tokens || 0).filter((value) => value > 0);
+  const latestTokenEvent = [...contextEvents].reverse().find((event) => (event.total_tokens || 0) > 0);
+  const latestEstimatedTokenEvent = [...contextEvents].reverse().find((event) => contextTokenValue(event) > 0);
+  const currentTokens = latestTokenEvent
+    ? latestTokenEvent.total_tokens || 0
+    : contextTokenValue(latestEstimatedTokenEvent);
+  const maxTokens = Math.max(0, ...tokenValues);
   const contextLimit = Math.max(1, ...contextEvents.map((event) => event.context_limit || 0));
 
   return {
@@ -18,10 +24,15 @@ export function summarize(detail?: TraceDetail): TraceMetrics {
     modelRequests: events.filter((event) => event.model_request).length,
     modelResponses: events.filter((event) => event.model_response).length,
     warnings: events.filter((event) => eventSeverity(event) !== "info").length,
+    currentTokens,
     maxTokens,
     contextLimit,
     duration: timestamps.length > 1 ? formatDuration(Math.max(...timestamps) - Math.min(...timestamps)) : "n/a",
   };
+}
+
+export function contextTokenValue(event?: { prompt_tokens?: number; total_tokens?: number } | null): number {
+  return event?.total_tokens || event?.prompt_tokens || 0;
 }
 
 export function filterTimeline(events: TraceEvent[], activeGroups: Set<string>, severity: string, query: string): TraceEvent[] {
@@ -54,7 +65,7 @@ export function eventPreview(event: TraceEvent): string {
   if (event.tool_invocation) return `${event.tool_invocation.name || "tool"} ${event.tool_invocation.phase || ""}`;
   if (event.model_request) return `${event.model_request.model || "model"} · ${event.model_request.context?.message_count || 0} messages`;
   if (event.model_response) return event.model_response.output_text || `${event.model_response.tool_calls?.length || 0} tool calls`;
-  if (event.context_event) return `${compactNumber(event.context_event.total_tokens || 0)} tokens`;
+  if (event.context_event) return `${compactNumber(contextTokenValue(event.context_event))} tokens`;
   if (event.summary_event) return event.summary_event.error || `source offset ${event.summary_event.source_end_offset || 0}`;
   if (event.plan_event) return `${event.plan_event.summary?.completed || 0}/${event.plan_event.summary?.total || 0} steps complete`;
   if (event.workspace_rules) return `truncated to ${compactNumber(event.workspace_rules.truncated_length || 0)} chars`;

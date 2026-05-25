@@ -1814,6 +1814,24 @@ func TestService_TransitionCompactionSucceeded(t *testing.T) {
 		err := service.transitionCompactionSucceeded(context.Background(), session, plan, &mocks.TraceSessionStub{})
 		require.EqualError(t, err, "save failed")
 	})
+
+	t.Run("clears stale prompt tokens", func(t *testing.T) {
+		var saved storage.Session
+		service := summaryTestService(summaryTestConfig(true), &mocks.ModelClientStub{}, &storagemock.Store{
+			SaveFunc: func(_ context.Context, session storage.Session) error {
+				saved = session
+				return nil
+			},
+		})
+		session := &storage.Session{
+			ID:               storage.DefaultSessionID,
+			LastPromptTokens: 80520,
+		}
+
+		require.NoError(t, service.transitionCompactionSucceeded(context.Background(), session, plan, &mocks.TraceSessionStub{}))
+		require.Zero(t, saved.LastPromptTokens)
+		require.Zero(t, session.LastPromptTokens)
+	})
 }
 
 func TestService_ReconcileCompactionSucceeded(t *testing.T) {

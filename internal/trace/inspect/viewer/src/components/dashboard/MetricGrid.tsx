@@ -11,7 +11,7 @@ export function MetricGrid({ metrics }: MetricGridProps) {
     ["Events", metrics.events, "Total trace records"],
     ["Tool Calls", metrics.toolCalls, `${metrics.toolFailures} failed`],
     ["Model Requests", metrics.modelRequests, `${metrics.modelResponses} responses`],
-    ["Context Tokens", compactNumber(metrics.maxTokens), "Peak observed"],
+    ["Context Tokens", compactNumber(metrics.currentTokens), `Peak ${compactNumber(metrics.maxTokens)}`],
     ["Warnings", metrics.warnings, "Compaction/rules"],
     ["Duration", metrics.duration, "Session span"],
   ];

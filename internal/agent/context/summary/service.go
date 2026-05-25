@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/agent/context/compaction"
+	"github.com/wandxy/hand/internal/config"
 	storage "github.com/wandxy/hand/internal/state/core"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	models "github.com/wandxy/hand/pkg/agent/model"

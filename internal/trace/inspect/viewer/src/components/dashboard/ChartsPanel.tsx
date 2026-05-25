@@ -27,10 +27,10 @@ export function ChartsPanel({ detail, metrics, expandedCharts, setExpandedCharts
     .map((event) => ({
       index: event.index,
       time: formatTimeOnly(event.timestamp),
-      total: event.context_event.total_tokens,
+      total: event.context_event?.total_tokens || 0,
     }));
   const tokenPoints = allTokenPoints.slice(-MAX_TOKEN_USAGE_POINTS);
-  const gauge = Math.min(100, Math.round((metrics.maxTokens / Math.max(metrics.contextLimit, 1)) * 100));
+  const gauge = Math.min(100, Math.round((metrics.currentTokens / Math.max(metrics.contextLimit, 1)) * 100));
 
   function toggleChart(id: string) {
     const next = new Set(expandedCharts);
@@ -107,7 +107,7 @@ export function ChartsPanel({ detail, metrics, expandedCharts, setExpandedCharts
             </div>
           </div>
         </div>
-        <div className={`${expandedCharts.has("budget") ? "max-[880px]:block" : "max-[880px]:hidden"} mt-4 text-center text-xs text-stone-500`}>{compactNumber(metrics.maxTokens)} / {compactNumber(metrics.contextLimit)} tokens</div>
+        <div className={`${expandedCharts.has("budget") ? "max-[880px]:block" : "max-[880px]:hidden"} mt-4 text-center text-xs text-stone-500`}>{compactNumber(metrics.currentTokens)} / {compactNumber(metrics.contextLimit)} tokens</div>
       </Card>
     </section>
   );

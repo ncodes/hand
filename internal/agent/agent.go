@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
+	agentsummary "github.com/wandxy/hand/internal/agent/context/summary"
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment"
 	"github.com/wandxy/hand/internal/guardrails"
-	agentsummary "github.com/wandxy/hand/internal/agent/context/summary"
-	"github.com/wandxy/hand/internal/agent/runcontext"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/state/search"
@@ -70,7 +70,7 @@ type Agent struct {
 	initialized        bool
 }
 
-// NewAgent constructs an Agent with its runtime dependencies.
+// NewAgent returns an Agent with its runtime dependencies wired in.
 // When optionalSummary is empty or its first element is nil, summary/compaction calls use modelClient.
 func NewAgent(ctx context.Context, cfg *config.Config, modelClient models.Client, optionalSummary ...models.Client) *Agent {
 	var summaryClient models.Client
@@ -100,14 +100,15 @@ func (a *Agent) Start(ctx context.Context) error {
 
 	ctx = normalizeContext(ctx)
 	a.ctx = ctx
+	var err error
 
 	// State is started before environment preparation because tools may need
 	// session, trace, memory, or vector-store access during Prepare.
-	if err := a.ensureStateManager(); err != nil {
+	if err = a.ensureStateManager(); err != nil {
 		return err
 	}
 
-	if err := a.stateMgr.Start(ctx); err != nil {
+	if err = a.stateMgr.Start(ctx); err != nil {
 		return err
 	}
 
@@ -120,11 +121,10 @@ func (a *Agent) Start(ctx context.Context) error {
 		return err
 	}
 
-	core, err := a.buildCoreAgent()
+	a.core, err = a.buildCoreAgent()
 	if err != nil {
 		return err
 	}
-	a.core = core
 
 	a.turnMessages = nil
 	a.initialized = true
@@ -185,9 +185,6 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts agentcore.RespondO
 	if a.cfg == nil {
 		return "", errors.New("config is required")
 	}
-	if !a.initialized && a.env == nil {
-		return "", errors.New("environment has not been initialized")
-	}
 	if a.modelClient == nil {
 		return "", errors.New("model client is required")
 	}
@@ -201,33 +198,21 @@ func (a *Agent) Respond(ctx context.Context, msg string, opts agentcore.RespondO
 		return "", err
 	}
 
-	if !a.initialized || a.stateMgr == nil {
+	if !a.initialized || a.stateMgr == nil || a.env == nil {
 		return "", errors.New("environment has not been initialized")
 	}
 
-	// Tests may construct an initialized agent with a nil environment. In that
-	// case we lazily prepare one here, but normal app startup goes through Start.
-	env := a.env
-	if env == nil {
-		env = NewEnvironment(ctx, a.cfg)
-		env.SetStateManager(a.stateMgr)
-		env.SetModelClient(a.summaryClient)
-		if err := env.Prepare(); err != nil {
-			return "", err
-		}
-	}
-
-	if env.Tools() == nil {
+	if a.env.Tools() == nil {
 		return "", errors.New("tool registry is required")
 	}
 
-	a.env = env
-
-	agentLog.Info().Str("session_id", opts.SessionID).Str("model", a.cfg.Models.Main.Name).Msg("responding to user message")
+	agentLog.Info().Str("session_id", opts.SessionID).
+		Str("model", a.cfg.Models.Main.Name).
+		Msg("responding to user message")
 
 	// Turn owns per-response state such as loaded history, retrieved memory,
 	// request instruction overrides, streaming callbacks, and emitted messages.
-	turn := a.newTurn(env, a.invokeToolWithEnvironment)
+	turn := a.newTurn(a.env, a.invokeToolWithEnvironment)
 	reply, err := turn.Run(ctx, msg, opts)
 	a.turnMessages = turn.Messages()
 	if err == nil {
@@ -271,8 +256,7 @@ func (a *Agent) openTraceSessionForSession(sessionID string) trace.Session {
 func (a *Agent) invokeToolWithEnvironment(
 	ctx context.Context,
 	env environment.Environment,
-	toolCall models.ToolCall,
-) handmsg.Message {
+	toolCall models.ToolCall) handmsg.Message {
 	return invokeToolWithEnvironment(ctx, env, toolCall, a.summaryClient, a.cfg)
 }
 
@@ -726,7 +710,7 @@ func (a *Agent) cachedRecallSummary(sessionID string, messageCount int) (storage
 	return summary, true
 }
 
-// storeRecallSummary stores a defensive copy through the recall summary cache.
+// storeRecallSummary stores a defensive copy in the recall summary cache.
 func (a *Agent) storeRecallSummary(summary storage.SessionSummary) {
 	if a == nil || a.recallSummaryCache == nil || strings.TrimSpace(summary.SessionID) == "" {
 		return

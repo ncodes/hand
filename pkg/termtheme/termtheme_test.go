@@ -62,12 +62,22 @@ func withTerminalHooks(t *testing.T, tty terminal, openErr error, rawErr error) 
 	oldOpenTTY := openTTY
 	oldMakeRaw := makeRaw
 	oldRestoreTerm := restoreTerm
+	oldLookupEnv := lookupEnv
+	oldSetNonblock := setNonblock
 	t.Cleanup(func() {
 		openTTY = oldOpenTTY
 		makeRaw = oldMakeRaw
 		restoreTerm = oldRestoreTerm
+		lookupEnv = oldLookupEnv
+		setNonblock = oldSetNonblock
 	})
 
+	lookupEnv = func(key string) (string, bool) {
+		return "", false
+	}
+	setNonblock = func(int, bool) error {
+		return nil
+	}
 	openTTY = func() (terminal, error) {
 		return tty, openErr
 	}
@@ -80,6 +90,20 @@ func withTerminalHooks(t *testing.T, tty terminal, openErr error, rawErr error) 
 	}
 	restoreTerm = func(uintptr, *term.State) error {
 		return nil
+	}
+}
+
+func withEnv(t *testing.T, values map[string]string) {
+	t.Helper()
+
+	oldLookupEnv := lookupEnv
+	t.Cleanup(func() {
+		lookupEnv = oldLookupEnv
+	})
+
+	lookupEnv = func(key string) (string, bool) {
+		value, ok := values[key]
+		return value, ok
 	}
 }
 
@@ -149,6 +173,43 @@ func TestDetectOpenTTYError(t *testing.T) {
 	}
 }
 
+func TestDetectUsesExplicitBackgroundEnvironment(t *testing.T) {
+	withEnv(t, map[string]string{"HAND_TUI_BACKGROUND": "#1e1e2e"})
+
+	res := Detect(time.Millisecond)
+	if res.Theme != "dark" || res.Background != "#1e1e2e" || res.Source != "environment" || res.Error != "" {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+}
+
+func TestDetectPrefersOSC11OverCOLORFGBGEnvironment(t *testing.T) {
+	terminal := &mockTerminal{
+		reads: []mockRead{{value: "\x1b]11;#1e1e2e\x07"}},
+	}
+	withTerminalHooks(t, terminal, nil, nil)
+	lookupEnv = func(key string) (string, bool) {
+		return "15;0", key == "COLORFGBG"
+	}
+
+	res := Detect(time.Millisecond)
+	if res.Theme != "dark" || res.Background != "#1e1e2e" || res.Source != "osc11" || res.Error != "" {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+}
+
+func TestDetectUsesCOLORFGBGEnvironmentFallback(t *testing.T) {
+	terminal := &mockTerminal{}
+	withTerminalHooks(t, terminal, nil, nil)
+	lookupEnv = func(key string) (string, bool) {
+		return "15;0", key == "COLORFGBG"
+	}
+
+	res := Detect(time.Millisecond)
+	if res.Theme != "dark" || res.Background != "#000000" || res.Source != "environment" || res.Error != "" {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+}
+
 func TestDetectQueryError(t *testing.T) {
 	terminal := &mockTerminal{}
 	withTerminalHooks(t, terminal, nil, errors.New("raw failed"))
@@ -209,9 +270,7 @@ func TestQueryBackgroundReadError(t *testing.T) {
 }
 
 func TestQueryBackgroundTimeout(t *testing.T) {
-	terminal := &mockTerminal{
-		reads: []mockRead{{wait: make(chan struct{})}},
-	}
+	terminal := &mockTerminal{}
 	withTerminalHooks(t, terminal, nil, nil)
 
 	_, err := queryBackground(terminal, time.Millisecond)
@@ -228,7 +287,7 @@ func TestReadResponseAccumulatesUntilTerminator(t *testing.T) {
 		},
 	}
 
-	response, err := readResponse(terminal)
+	response, err := readResponse(terminal, time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}

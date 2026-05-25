@@ -3,12 +3,14 @@ package termtheme
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/x/term"
+	"golang.org/x/sys/unix"
 )
 
 type Result struct {
@@ -31,23 +33,29 @@ var (
 	}
 	makeRaw     = term.MakeRaw
 	restoreTerm = term.Restore
+	lookupEnv   = os.LookupEnv
+	setNonblock = unix.SetNonblock
 )
 
 func Detect(timeout time.Duration) Result {
+	if result, ok := detectExplicitEnvironment(); ok {
+		return result
+	}
+
 	terminal, err := openTTY()
 	if err != nil {
-		return Result{Theme: "unknown", Source: "tty", Error: err.Error()}
+		return detectEnvironmentFallback(Result{Theme: "unknown", Source: "tty", Error: err.Error()})
 	}
 	defer terminal.Close()
 
 	response, err := queryBackground(terminal, timeout)
 	if err != nil {
-		return Result{Theme: "unknown", Source: "osc11", Error: err.Error()}
+		return detectEnvironmentFallback(Result{Theme: "unknown", Source: "osc11", Error: err.Error()})
 	}
 
 	background, err := ParseOSC11(response)
 	if err != nil {
-		return Result{Theme: "unknown", Source: "osc11", Error: err.Error()}
+		return detectEnvironmentFallback(Result{Theme: "unknown", Source: "osc11", Error: err.Error()})
 	}
 
 	return Result{
@@ -55,6 +63,53 @@ func Detect(timeout time.Duration) Result {
 		Background: background,
 		Source:     "osc11",
 	}
+}
+
+func detectExplicitEnvironment() (Result, bool) {
+	if value, ok := lookupEnv("HAND_TUI_BACKGROUND"); ok {
+		background := strings.TrimSpace(strings.ToLower(value))
+		if _, err := parseHexBackground(background); err == nil {
+			return Result{
+				Theme:      ThemeFromBackground(background),
+				Background: background,
+				Source:     "environment",
+			}, true
+		}
+	}
+
+	return Result{}, false
+}
+
+func detectEnvironmentFallback(fallback Result) Result {
+	if result, ok := detectThemeEnvironmentFallback(); ok {
+		return result
+	}
+
+	return fallback
+}
+
+func detectThemeEnvironmentFallback() (Result, bool) {
+	value, ok := lookupEnv("COLORFGBG")
+	if !ok {
+		return Result{}, false
+	}
+
+	parts := strings.Split(value, ";")
+	if len(parts) == 0 {
+		return Result{}, false
+	}
+	backgroundIndex, err := strconv.Atoi(strings.TrimSpace(parts[len(parts)-1]))
+	if err != nil {
+		return Result{}, false
+	}
+	if backgroundIndex >= 0 && backgroundIndex <= 6 {
+		return Result{Theme: "dark", Background: "#000000", Source: "environment"}, true
+	}
+	if backgroundIndex >= 7 && backgroundIndex <= 15 {
+		return Result{Theme: "light", Background: "#ffffff", Source: "environment"}, true
+	}
+
+	return Result{}, false
 }
 
 func ParseOSC11(response string) (string, error) {
@@ -80,9 +135,14 @@ func ParseOSC11(response string) (string, error) {
 }
 
 func ThemeFromBackground(background string) string {
-	red, _ := strconv.ParseInt(background[1:3], 16, 32)
-	green, _ := strconv.ParseInt(background[3:5], 16, 32)
-	blue, _ := strconv.ParseInt(background[5:7], 16, 32)
+	color, err := parseHexBackground(background)
+	if err != nil {
+		return "unknown"
+	}
+
+	red := color[0]
+	green := color[1]
+	blue := color[2]
 	luminance := 0.2126*float64(red)/255 + 0.7152*float64(green)/255 + 0.0722*float64(blue)/255
 
 	if luminance > 0.5 {
@@ -90,6 +150,31 @@ func ThemeFromBackground(background string) string {
 	}
 
 	return "dark"
+}
+
+func parseHexBackground(background string) ([3]int64, error) {
+	var color [3]int64
+	if len(background) != 7 || !strings.HasPrefix(background, "#") {
+		return color, fmt.Errorf("invalid background color: %q", background)
+	}
+
+	red, err := strconv.ParseInt(background[1:3], 16, 32)
+	if err != nil {
+		return color, err
+	}
+	green, err := strconv.ParseInt(background[3:5], 16, 32)
+	if err != nil {
+		return color, err
+	}
+	blue, err := strconv.ParseInt(background[5:7], 16, 32)
+	if err != nil {
+		return color, err
+	}
+
+	color[0] = red
+	color[1] = green
+	color[2] = blue
+	return color, nil
 }
 
 func queryBackground(terminal terminal, timeout time.Duration) (string, error) {
@@ -100,33 +185,20 @@ func queryBackground(terminal terminal, timeout time.Duration) (string, error) {
 	}
 	defer restoreTerm(fd, state)
 
+	if err := setNonblock(int(fd), true); err != nil {
+		return "", err
+	}
+	defer setNonblock(int(fd), false)
+
 	if _, err := terminal.WriteString("\x1b]11;?\x07"); err != nil {
 		return "", err
 	}
 
-	response := make(chan string, 1)
-	readErr := make(chan error, 1)
-
-	go func() {
-		value, err := readResponse(terminal)
-		if err != nil {
-			readErr <- err
-			return
-		}
-		response <- value
-	}()
-
-	select {
-	case value := <-response:
-		return value, nil
-	case err := <-readErr:
-		return "", err
-	case <-time.After(timeout):
-		return "", errors.New("terminal did not respond to OSC 11")
-	}
+	return readResponse(terminal, timeout)
 }
 
-func readResponse(terminal terminal) (string, error) {
+func readResponse(terminal terminal, timeout time.Duration) (string, error) {
+	deadline := time.Now().Add(timeout)
 	var builder strings.Builder
 	buffer := make([]byte, 64)
 
@@ -140,7 +212,20 @@ func readResponse(terminal terminal) (string, error) {
 			}
 		}
 		if err != nil {
+			if errors.Is(err, unix.EAGAIN) || errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, io.EOF) {
+				if time.Now().After(deadline) {
+					return "", errors.New("terminal did not respond to OSC 11")
+				}
+				time.Sleep(time.Millisecond)
+				continue
+			}
 			return "", err
+		}
+		if n == 0 {
+			if time.Now().After(deadline) {
+				return "", errors.New("terminal did not respond to OSC 11")
+			}
+			time.Sleep(time.Millisecond)
 		}
 	}
 }

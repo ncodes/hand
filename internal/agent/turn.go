@@ -155,7 +155,7 @@ type Turn struct {
 	planHydrated bool
 }
 
-// NewTurnWithSessionStore constructs a Turn object with reusable session dependencies.
+// NewTurnWithSessionStore returns a turn with reusable session dependencies.
 func NewTurnWithSessionStore(
 	cfg *config.Config,
 	modelClient models.Client,

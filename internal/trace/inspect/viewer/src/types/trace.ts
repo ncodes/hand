@@ -93,6 +93,7 @@ export type TraceModelResponse = {
 };
 
 export type TraceContextEvent = {
+  prompt_tokens?: number;
   total_tokens?: number;
   context_limit?: number;
 };
@@ -116,6 +117,7 @@ export type TraceMetrics = {
   modelRequests: number;
   modelResponses: number;
   warnings: number;
+  currentTokens: number;
   maxTokens: number;
   contextLimit: number;
   duration: string;

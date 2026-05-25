@@ -10,10 +10,10 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
 	ctxbuilder "github.com/wandxy/hand/internal/agent/context"
 	"github.com/wandxy/hand/internal/agent/context/compaction"
+	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
@@ -1750,6 +1750,7 @@ func (s *Service) transitionCompactionSucceeded(
 	session.Compaction.Status = storage.CompactionStatusSucceeded
 	session.Compaction.TargetMessageCount = plan.TargetMessageCount
 	session.Compaction.TargetOffset = plan.TargetOffset
+	session.LastPromptTokens = 0
 
 	if err := s.store.Save(ctx, *session); err != nil {
 		return err

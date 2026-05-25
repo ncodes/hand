@@ -12,6 +12,7 @@ import (
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/respjson"
 	"github.com/openai/openai-go/v3/packages/ssestream"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/rs/zerolog"
@@ -962,6 +963,26 @@ func TestOpenAIClient_ChatLogsModelClientRequestFailure(t *testing.T) {
 	require.NotContains(t, output, "hello")
 }
 
+func TestGetModelClientErrorKind_ClassifiesErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "nil", err: nil, want: ""},
+		{name: "context canceled", err: context.Canceled, want: "context_canceled"},
+		{name: "deadline exceeded", err: context.DeadlineExceeded, want: "timeout"},
+		{name: "json", err: errors.New("invalid json payload"), want: "decode_failed"},
+		{name: "timeout text", err: errors.New("request timeout"), want: "timeout"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, getModelClientErrorKind(tt.err))
+		})
+	}
+}
+
 func TestNormalizeGenerateRequestDefaultsAPIMode(t *testing.T) {
 	normalized, err := normalizeGenerateRequest(Request{Model: "test-model", Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}})
 	require.NoError(t, err)
@@ -1304,6 +1325,28 @@ func TestOpenAIClient_CompleteChatStreamEmitsReasoningDeltas(t *testing.T) {
 		{Channel: StreamChannelReasoning, Text: "thinking"},
 		{Channel: StreamChannelAssistant, Text: "answer"},
 	}, deltas)
+}
+
+func TestGetChatStreamReasoningDelta_ReadsExtraFields(t *testing.T) {
+	delta := openai.ChatCompletionChunkChoiceDelta{}
+	delta.JSON.ExtraFields = map[string]respjson.Field{
+		"reasoning": respjson.NewField(`"thinking"`),
+	}
+
+	require.Equal(t, "thinking", getChatStreamReasoningDelta(delta))
+}
+
+func TestGetChatStreamReasoningDelta_IgnoresInvalidExtraFieldJSON(t *testing.T) {
+	delta := openai.ChatCompletionChunkChoiceDelta{}
+	delta.JSON.ExtraFields = map[string]respjson.Field{
+		"reasoning": respjson.NewField(`{"text":"thinking"}`),
+	}
+
+	require.Empty(t, getChatStreamReasoningDelta(delta))
+}
+
+func TestGetChatStreamReasoningDelta_IgnoresInvalidRawJSON(t *testing.T) {
+	require.Empty(t, getChatStreamReasoningDelta(openai.ChatCompletionChunkChoiceDelta{}))
 }
 
 func TestOpenAIClient_CompleteChatStreamSkipsEmptyDeltas(t *testing.T) {
