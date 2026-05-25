@@ -3902,7 +3902,7 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 func supportedEnvironmentKeys(t *testing.T) []string {
 	t.Helper()
 
-	content := readTextFile(t, "config.go")
+	content := readTextFile(t, "env.go")
 	patterns := []*regexp.Regexp{
 		regexp.MustCompile(`os\.Getenv\("([A-Z0-9_]+)"\)`),
 		regexp.MustCompile(`parseOptionalBoolEnv\("([A-Z0-9_]+)"\)`),
