@@ -49,15 +49,6 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_EMBEDDING_MODEL")); value != "" {
 		cfg.Models.Embedding.Name = value
 	}
-	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_KEY")); value != "" {
-		cfg.Models.Key = value
-	}
-	if value := strings.TrimSpace(os.Getenv("HAND_OPENAI_API_KEY")); value != "" {
-		cfg.Models.OpenAIAPIKey = value
-	}
-	if value := strings.TrimSpace(os.Getenv("HAND_OPENROUTER_API_KEY")); value != "" {
-		cfg.Models.OpenRouterAPIKey = value
-	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_BASE_URL")); value != "" {
 		cfg.Models.Main.BaseURL = value
 	}

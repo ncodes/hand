@@ -27,8 +27,10 @@ func Test_E2E_DoctorCommand_ConfigPassAndFail(t *testing.T) {
 		require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
   verify: false
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: openai/gpt-4o-mini
     provider: openrouter
@@ -41,6 +43,8 @@ models:
 	})
 
 	t.Run("fails clearly for invalid config", func(t *testing.T) {
+		t.Setenv("OPENROUTER_API_KEY", "")
+
 		configPath := filepath.Join(t.TempDir(), "config.yaml")
 		require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
@@ -55,7 +59,7 @@ search:
 
 		output, err := runDoctorCommand(t, "hand", "--config", configPath, "doctor")
 		fmt.Println(output)
-		require.EqualError(t, err, "doctor checks failed: config validation: model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key; model auth: model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
+		require.EqualError(t, err, "doctor checks failed: config validation: model API key is required; set a provider API key, provider env var, or role apiKey; model auth: model API key is required; set a provider API key, provider env var, or role apiKey")
 		assert.Contains(t, output, "config validation")
 		assert.Contains(t, output, "model auth")
 	})

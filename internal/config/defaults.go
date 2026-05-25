@@ -168,6 +168,7 @@ func NewDefaultConfig() *Config {
 func cloneConfig(cfg Config) Config {
 	cfg.Models.Verify = cloneBoolPtr(cfg.Models.Verify)
 	cfg.Models.MaxRetries = cloneIntPtr(cfg.Models.MaxRetries)
+	cfg.Models.Providers = cloneProviderModelConfigs(cfg.Models.Providers)
 	cfg.Models.Main.Stream = cloneBoolPtr(cfg.Models.Main.Stream)
 	cfg.Search.EnableRerank = cloneBoolPtr(cfg.Search.EnableRerank)
 	cfg.Memory.Enabled = cloneBoolPtr(cfg.Memory.Enabled)
@@ -221,6 +222,20 @@ func cloneRerankerOverrides(overrides map[string]RerankerOverrideConfig) map[str
 		override.MaxCandidateTextChars = cloneIntPtr(override.MaxCandidateTextChars)
 		override.MaxOutputTokens = cloneIntPtr(override.MaxOutputTokens)
 		cloned[useCase] = override
+	}
+
+	return cloned
+}
+
+func cloneProviderModelConfigs(values map[string]ProviderModelConfig) map[string]ProviderModelConfig {
+	if len(values) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string]ProviderModelConfig, len(values))
+	for provider, value := range values {
+		value.APIKeyEnv = slices.Clone(value.APIKeyEnv)
+		cloned[provider] = value
 	}
 
 	return cloned

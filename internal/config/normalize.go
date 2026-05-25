@@ -19,12 +19,13 @@ func (c *Config) normalizeFields() {
 	c.Models.Main.Provider = strings.TrimSpace(strings.ToLower(c.Models.Main.Provider))
 	c.Models.Embedding.Provider = strings.TrimSpace(strings.ToLower(c.Models.Embedding.Provider))
 	c.Models.Embedding.Name = strings.TrimSpace(c.Models.Embedding.Name)
-	c.Models.Key = strings.TrimSpace(c.Models.Key)
-	c.Models.OpenAIAPIKey = strings.TrimSpace(c.Models.OpenAIAPIKey)
-	c.Models.OpenRouterAPIKey = strings.TrimSpace(c.Models.OpenRouterAPIKey)
+	c.Models.Providers = normalizeProviderModelConfigs(c.Models.Providers)
+	c.Models.Main.APIKey = strings.TrimSpace(c.Models.Main.APIKey)
 	c.Models.Main.BaseURL = strings.TrimSpace(c.Models.Main.BaseURL)
 	c.Models.Summary.Provider = strings.TrimSpace(strings.ToLower(c.Models.Summary.Provider))
+	c.Models.Summary.APIKey = strings.TrimSpace(c.Models.Summary.APIKey)
 	c.Models.Summary.BaseURL = strings.TrimSpace(c.Models.Summary.BaseURL)
+	c.Models.Embedding.APIKey = strings.TrimSpace(c.Models.Embedding.APIKey)
 	c.Models.Main.API = strings.TrimSpace(strings.ToLower(c.Models.Main.API))
 	c.Models.Summary.API = strings.TrimSpace(strings.ToLower(c.Models.Summary.API))
 	c.Log.Level = strings.TrimSpace(strings.ToLower(c.Log.Level))
@@ -221,6 +222,29 @@ func (c *Config) normalizeFields() {
 		c.Memory.Write.Enabled = new(constants.DefaultProfileMemoryWriteEnabled)
 	}
 
+}
+
+func normalizeProviderModelConfigs(values map[string]ProviderModelConfig) map[string]ProviderModelConfig {
+	if len(values) == 0 {
+		return nil
+	}
+
+	normalized := make(map[string]ProviderModelConfig, len(values))
+	for provider, value := range values {
+		provider = strings.TrimSpace(strings.ToLower(provider))
+		if provider == "" {
+			continue
+		}
+
+		value.APIKey = strings.TrimSpace(value.APIKey)
+		value.APIKeyEnv = dedupeAndTrim(value.APIKeyEnv)
+		normalized[provider] = value
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+
+	return normalized
 }
 
 func normalizeRerankerOverrides(overrides map[string]RerankerOverrideConfig) map[string]RerankerOverrideConfig {

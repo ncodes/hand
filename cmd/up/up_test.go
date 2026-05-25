@@ -90,7 +90,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
-		"--model.key", "flag-key",
+		"--model.api-key", "flag-key",
 		"--model.base-url", serverURL,
 		"--rpc.address", "0.0.0.0",
 		"--rpc.port", "6000",
@@ -104,7 +104,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Equal(t, "flag-agent", cfg.Name)
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Main.Name)
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
-	require.Equal(t, "flag-key", cfg.Models.Key)
+	require.Equal(t, "flag-key", cfg.Models.Providers["openrouter"].APIKey)
 	require.Equal(t, serverURL, cfg.Models.Main.BaseURL)
 	require.Equal(t, "0.0.0.0", cfg.RPC.Address)
 	require.Equal(t, 6000, cfg.RPC.Port)
@@ -383,7 +383,7 @@ func TestServeRPC_WritesRuntimeMetadataWithActualPort(t *testing.T) {
 func TestNewAgentRunnerImpl_ReturnsAgent(t *testing.T) {
 	cfg := &config.Config{
 		Name:   "t",
-		Models: config.ModelsConfig{Key: "k", Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"}},
+		Models: config.ModelsConfig{Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "k"}}, Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"}},
 	}
 	cfg.Normalize()
 
@@ -552,7 +552,7 @@ func TestNewCommand_ReturnsStartupOutputError(t *testing.T) {
 		"--name", "x",
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
-		"--model.key", "k",
+		"--model.api-key", "k",
 		"--models.verify", "false",
 		"--rpc.address", "127.0.0.1",
 		"--rpc.port", "50051",
@@ -592,7 +592,7 @@ func TestNewCommand_ReturnsModelClientFactoryError(t *testing.T) {
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
-		"--model.key", "flag-key",
+		"--model.api-key", "flag-key",
 		"--model.base-url", serverURL,
 		"--models.verify", "false",
 		"--rpc.address", "127.0.0.1",
@@ -624,7 +624,7 @@ func TestNewCommand_ReturnsResolveSummaryAuthError(t *testing.T) {
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
-		"--model.key", "flag-key",
+		"--model.api-key", "flag-key",
 		"--model.base-url", serverURL,
 		"--models.verify", "false",
 		"--rpc.address", "127.0.0.1",
@@ -636,6 +636,7 @@ func TestNewCommand_ReturnsResolveSummaryAuthError(t *testing.T) {
 
 func TestNewCommand_ReturnsSecondModelClientFactoryError(t *testing.T) {
 	isolateCommandProfile(t)
+	t.Setenv("OPENAI_API_KEY", "openai-key")
 	origFactory := modelClientFactory
 	origServe := serveRPC
 	t.Cleanup(func() {
@@ -664,7 +665,7 @@ func TestNewCommand_ReturnsSecondModelClientFactoryError(t *testing.T) {
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
-		"--model.key", "flag-key",
+		"--model.api-key", "flag-key",
 		"--model.base-url", serverURL,
 		"--model.summary-provider", "openai",
 		"--model.summary-base-url", "https://api.openai.com/v1",
@@ -678,6 +679,7 @@ func TestNewCommand_ReturnsSecondModelClientFactoryError(t *testing.T) {
 
 func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 	isolateCommandProfile(t)
+	t.Setenv("OPENAI_API_KEY", "openai-key")
 	origFactory := modelClientFactory
 	origRunner := newAgentRunner
 	origServe := serveRPC
@@ -710,7 +712,7 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
-		"--model.key", "router-key",
+		"--model.api-key", "router-key",
 		"--model.base-url", serverURL,
 		"--model.summary-provider", "openai",
 		"--model.summary-base-url", "https://openai.example/v1",
@@ -735,7 +737,7 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 			Model:      "openai/gpt-4o-mini",
 			Provider:   "openai",
 			API:        modelprovider.APIOpenAIResponses,
-			APIKey:     "router-key",
+			APIKey:     "openai-key",
 			BaseURL:    "https://openai.example/v1",
 			MaxRetries: constants.DefaultModelMaxRetries,
 		},
@@ -772,7 +774,7 @@ func TestNewCommand_ReturnsAgentStartError(t *testing.T) {
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
-		"--model.key", "flag-key",
+		"--model.api-key", "flag-key",
 		"--model.base-url", serverURL,
 		"--models.verify", "false",
 		"--rpc.address", "127.0.0.1",
@@ -784,6 +786,7 @@ func TestNewCommand_ReturnsAgentStartError(t *testing.T) {
 
 func TestNewCommand_UsesSeparateSummaryClientWhenAuthDiffers(t *testing.T) {
 	isolateCommandProfile(t)
+	t.Setenv("OPENAI_API_KEY", "openai-key")
 	original := config.Get()
 	originalNewAgentRunner := newAgentRunner
 	originalServeGRPC := serveRPC
@@ -826,7 +829,7 @@ func TestNewCommand_UsesSeparateSummaryClientWhenAuthDiffers(t *testing.T) {
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
-		"--model.key", "flag-key",
+		"--model.api-key", "flag-key",
 		"--model.base-url", serverURL,
 		"--model.summary-provider", "openai",
 		"--model.summary-base-url", "https://api.openai.com/v1",
@@ -860,7 +863,7 @@ func TestNewCommand_ReturnsValidationError(t *testing.T) {
 		"--name", "flag-agent",
 		"--model", "",
 		"--model.provider", "openrouter",
-		"--model.key", "",
+		"--model.api-key", "",
 		"up",
 	})
 
@@ -892,6 +895,7 @@ func isolateCommandProfile(t *testing.T) {
 
 func clearEnv(t *testing.T, keys ...string) {
 	t.Helper()
+	keys = append(keys, "OPENAI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "COPILOT_GITHUB_TOKEN")
 
 	for _, key := range keys {
 		original, ok := os.LookupEnv(key)

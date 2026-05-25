@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -308,6 +309,19 @@ func (c *Config) summaryModelBaseURLEffective() string {
 	return getDefaultBaseURLForProvider(sum, sumAPI)
 }
 
+func (c *Config) summaryAPIKeyEffective() string {
+	if key := strings.TrimSpace(c.Models.Summary.APIKey); key != "" {
+		return key
+	}
+
+	if c.SummaryProviderEffective() == c.Models.Main.Provider &&
+		c.SummaryModelAPIEffective() == c.MainModelAPIEffective() {
+		return c.Models.Main.APIKey
+	}
+
+	return ""
+}
+
 func (c *Config) ResolveSummaryModelAuth() (ModelAuth, error) {
 	if c == nil {
 		return ModelAuth{}, errors.New("config is required")
@@ -315,16 +329,20 @@ func (c *Config) ResolveSummaryModelAuth() (ModelAuth, error) {
 
 	c.Normalize()
 
-	prov := c.SummaryProviderEffective()
 	auth := ModelAuth{
-		Provider: prov,
+		Provider: c.SummaryProviderEffective(),
 		API:      getModelAPIID(c.SummaryModelAPIEffective()),
 		BaseURL:  c.summaryModelBaseURLEffective(),
 	}
 
-	auth.APIKey = c.resolveAPIKeyForProvider(prov)
+	apiKey, source, err := c.resolveCredentialForProvider(auth.Provider, c.summaryAPIKeyEffective())
+	if err != nil {
+		return ModelAuth{}, err
+	}
+	auth.APIKey = apiKey
+	auth.CredentialSource = source
 	if strings.TrimSpace(auth.APIKey) == "" {
-		return ModelAuth{}, errors.New("model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
+		return ModelAuth{}, errors.New("model API key is required; set a provider API key, provider env var, or role apiKey")
 	}
 
 	return auth, nil
@@ -354,8 +372,13 @@ func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
 		Provider: provider,
 		API:      modelprovider.APIOpenAIEmbeddings,
 		BaseURL:  getDefaultBaseURLForProvider(provider, modelprovider.APIOpenAIEmbeddings),
-		APIKey:   c.resolveAPIKeyForProvider(provider),
 	}
+	apiKey, source, err := c.resolveCredentialForProvider(provider, c.Models.Embedding.APIKey)
+	if err != nil {
+		return ModelAuth{}, err
+	}
+	auth.APIKey = apiKey
+	auth.CredentialSource = source
 	if strings.TrimSpace(auth.APIKey) == "" {
 		return ModelAuth{}, errors.New("embedding API key is required")
 	}
@@ -389,30 +412,72 @@ func (c *Config) ResolveModelAuth() (ModelAuth, error) {
 		BaseURL:  c.Models.Main.BaseURL,
 	}
 
-	auth.APIKey = c.resolveAPIKeyForProvider(c.Models.Main.Provider)
+	apiKey, source, err := c.resolveCredentialForProvider(c.Models.Main.Provider, c.Models.Main.APIKey)
+	if err != nil {
+		return ModelAuth{}, err
+	}
+	auth.APIKey = apiKey
+	auth.CredentialSource = source
 	if strings.TrimSpace(auth.APIKey) == "" {
-		return ModelAuth{}, errors.New("model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
+		return ModelAuth{}, errors.New("model API key is required; set a provider API key, " +
+			"provider env var, or role apiKey")
 	}
 
 	return auth, nil
 }
 
-func (c *Config) resolveAPIKeyForProvider(provider string) string {
-	switch provider {
-	case "openrouter":
-		return getFirstNonEmpty(c.Models.OpenRouterAPIKey, c.Models.Key)
-	case "openai":
-		return getFirstNonEmpty(c.Models.OpenAIAPIKey, c.Models.Key)
-	default:
-		return c.Models.Key
+func (c *Config) resolveCredentialForProvider(
+	provider string,
+	roleAPIKey string,
+) (string, ModelCredentialSource, error) {
+	provider = strings.TrimSpace(strings.ToLower(provider))
+	if value := strings.TrimSpace(roleAPIKey); value != "" {
+		return value, ModelCredentialSource{Kind: ModelCredentialSourceRoleConfig}, nil
 	}
-}
 
-func getFirstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
+	providerConfig := c.Models.Providers[provider]
+	if value := strings.TrimSpace(providerConfig.APIKey); value != "" {
+		return value, ModelCredentialSource{Kind: ModelCredentialSourceProviderConfig, Name: provider}, nil
+	}
+
+	if value, envName := getCredentialFromEnv(providerConfig.APIKeyEnv); value != "" {
+		return value, ModelCredentialSource{Kind: ModelCredentialSourceProviderEnv, Name: envName}, nil
+	}
+
+	if providerDef, ok := modelRegistry.GetProvider(provider); ok {
+		if value, envName := getCredentialFromEnv(providerDef.APIKeyEnv); value != "" {
+			return value, ModelCredentialSource{Kind: ModelCredentialSourceProviderEnv, Name: envName}, nil
 		}
 	}
-	return ""
+
+	if loadModelProviderToken == nil {
+		return "", ModelCredentialSource{}, nil
+	}
+
+	stored, err := loadModelProviderToken(provider)
+	if err != nil {
+		return "", ModelCredentialSource{}, err
+	}
+	if value := strings.TrimSpace(stored.Token); value != "" {
+		return value, ModelCredentialSource{
+			Kind:      ModelCredentialSourceTokenStore,
+			Name:      provider,
+			HasExpiry: stored.ExpiresAt != nil,
+		}, nil
+	}
+
+	return "", ModelCredentialSource{}, nil
+}
+
+func getCredentialFromEnv(keys []string) (string, string) {
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value, key
+		}
+	}
+	return "", ""
 }

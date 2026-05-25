@@ -17,12 +17,17 @@ const (
 	ModelProviderOpenRouter = "openrouter"
 	// ModelProviderOpenAI identifies OpenAI-backed model access.
 	ModelProviderOpenAI = "openai"
+	// ModelProviderAnthropic identifies Anthropic-backed model access.
+	ModelProviderAnthropic = "anthropic"
+	// ModelProviderGitHubCopilot identifies GitHub Copilot-backed model access.
+	ModelProviderGitHubCopilot = "github-copilot"
 	// DefaultOpenRouterBaseURL is the default OpenRouter API base URL.
 	DefaultOpenRouterBaseURL           = "https://openrouter.ai/api/v1"
 	DefaultOpenRouterResponsesBaseURL  = "https://openrouter.ai/api/v1/responses"
 	DefaultOpenRouterEmbeddingsBaseURL = "https://openrouter.ai/api/v1/embeddings"
 	DefaultOpenAIBaseURL               = "https://api.openai.com/v1"
 	DefaultOpenAIEmbeddingsBaseURL     = "https://api.openai.com/v1/embeddings"
+	DefaultAnthropicBaseURL            = "https://api.anthropic.com"
 	// DefaultModelMaxRetries is the fallback retry count for model calls.
 	DefaultModelMaxRetries    = 2
 	DefaultProfileModelStream = true

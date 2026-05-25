@@ -36,11 +36,14 @@ type Config struct {
 }
 
 var (
-	globalConfig  *Config
-	configMu      sync.RWMutex
-	loadDotEnv    = godotenv.Load
-	getwd         = os.Getwd
-	modelRegistry = modelprovider.DefaultRegistry()
+	globalConfig           *Config
+	configMu               sync.RWMutex
+	loadDotEnv             = godotenv.Load
+	getwd                  = os.Getwd
+	modelRegistry          = modelprovider.DefaultRegistry()
+	loadModelProviderToken = func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, nil
+	}
 )
 
 const (

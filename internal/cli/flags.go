@@ -29,7 +29,7 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:   "model.key",
+			Name:   "model.api-key",
 			Usage:  "Authentication key for the selected model provider",
 			Hidden: true,
 		},
@@ -443,8 +443,17 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	if cmd.IsSet("model.provider") {
 		cfg.Models.Main.Provider = strings.TrimSpace(cmd.String("model.provider"))
 	}
-	if cmd.IsSet("model.key") {
-		cfg.Models.Key = strings.TrimSpace(cmd.String("model.key"))
+	if cmd.IsSet("model.api-key") {
+		provider := strings.TrimSpace(strings.ToLower(cfg.Models.Main.Provider))
+		if provider == "" {
+			provider = constants.DefaultModelProvider
+		}
+		if cfg.Models.Providers == nil {
+			cfg.Models.Providers = make(map[string]config.ProviderModelConfig)
+		}
+		providerConfig := cfg.Models.Providers[provider]
+		providerConfig.APIKey = strings.TrimSpace(cmd.String("model.api-key"))
+		cfg.Models.Providers[provider] = providerConfig
 	}
 	if cmd.IsSet("model.base-url") {
 		cfg.Models.Main.BaseURL = strings.TrimSpace(cmd.String("model.base-url"))

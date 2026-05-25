@@ -238,15 +238,17 @@ func Test_E2E_HandStartup_InvalidConfigBlocksStartup(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: openai/gpt-4o-mini
-    provider: anthropic
+    provider: unsupported
 `), 0o600))
 
 	_, err := runRootChatCommand(t, "hand", "--config", configPath, "--rpc.port", nextTestPort(t), "up")
 	require.Error(t, err)
-	require.ErrorContains(t, err, "model provider must be one of: openai, openrouter")
+	require.ErrorContains(t, err, "model provider must be one of: anthropic, github-copilot, openai, openrouter")
 }
 
 func Test_E2E_HandRootChat_FileGuardrailFailureReturnsCoherentAnswer(t *testing.T) {
@@ -1173,6 +1175,7 @@ func resetRootChatE2E(t *testing.T) {
 
 func clearEnvKeys(t *testing.T, keys ...string) {
 	t.Helper()
+	keys = append(keys, "OPENAI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "COPILOT_GITHUB_TOKEN")
 
 	for _, key := range keys {
 		original, ok := os.LookupEnv(key)

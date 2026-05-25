@@ -52,7 +52,22 @@ func TestDefaultRegistry_RegistersBuiltInProviders(t *testing.T) {
 	require.Equal(t, constants.DefaultOpenAIEmbeddingsBaseURL, registry.GetBaseURL("openai", APIOpenAIEmbeddings))
 	require.Equal(t, []string{"OPENAI_API_KEY"}, openai.APIKeyEnv)
 
+	anthropic, ok := registry.GetProvider(constants.ModelProviderAnthropic)
+	require.True(t, ok)
+	require.Equal(t, APIAnthropicMessages, anthropic.DefaultAPI)
+	require.Equal(t, constants.DefaultAnthropicBaseURL, registry.GetBaseURL("anthropic", ""))
+	require.Equal(t, constants.DefaultAnthropicBaseURL, registry.GetBaseURL("anthropic", APIAnthropicMessages))
+	require.Equal(t, []string{"ANTHROPIC_API_KEY"}, anthropic.APIKeyEnv)
+
+	copilot, ok := registry.GetProvider(constants.ModelProviderGitHubCopilot)
+	require.True(t, ok)
+	require.Equal(t, APIOpenAIResponses, copilot.DefaultAPI)
+	require.Equal(t, []string{"COPILOT_GITHUB_TOKEN"}, copilot.APIKeyEnv)
+	require.True(t, copilot.SupportsOAuth)
+
 	require.ElementsMatch(t, []string{
+		constants.ModelProviderAnthropic,
+		constants.ModelProviderGitHubCopilot,
 		constants.ModelProviderOpenAI,
 		constants.ModelProviderOpenRouter,
 	}, registry.GetProviderIDs())

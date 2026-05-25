@@ -4,13 +4,24 @@
 # models:
 #   verify: true
 #   maxRetries: 2
-#   key: "replace-with-your-model-key"
-#   openaiApiKey: "replace-with-your-openai-key"
-#   openrouterApiKey: "replace-with-your-openrouter-key"
+#   providers:
+#     openrouter:
+#       apiKeyEnv:
+#         - OPENROUTER_API_KEY
+#     openai:
+#       apiKeyEnv:
+#         - OPENAI_API_KEY
+#     anthropic:
+#       apiKeyEnv:
+#         - ANTHROPIC_API_KEY
+#     github-copilot:
+#       apiKeyEnv:
+#         - COPILOT_GITHUB_TOKEN
 #   main:
 #     name: "openai/gpt-4o-mini"
 #     provider: "openrouter"
 #     api: "openai-responses"
+#     apiKey: ""
 #     baseUrl: "https://openrouter.ai/api/v1/responses"
 #     stream: true
 #     contextLength: 128000
@@ -18,10 +29,12 @@
 #     name: "anthropic/claude-3.5-haiku"
 #     provider: "openai"
 #     api: "openai-responses"
+#     apiKey: ""
 #     baseUrl: "https://api.openai.com/v1"
 #   embedding:
 #     name: ""
 #     provider: ""
+#     apiKey: ""
 #     baseUrl: ""
 
 # rpc:

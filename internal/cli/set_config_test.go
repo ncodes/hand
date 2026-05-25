@@ -14,7 +14,7 @@ import (
 )
 
 func TestSetConfigValue_UpdatesTypedValues(t *testing.T) {
-	clearEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	clearEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -52,7 +52,7 @@ func TestSetConfigValue_UpdatesTypedValues(t *testing.T) {
 }
 
 func TestGetConfigValues_ReadsTypedValues(t *testing.T) {
-	clearEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	clearEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -80,7 +80,7 @@ func TestGetConfigValues_ReadsTypedValues(t *testing.T) {
 }
 
 func TestSetConfigValues_UpdatesMultipleFieldsAtomically(t *testing.T) {
-	clearEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	clearEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -103,7 +103,7 @@ func TestSetConfigValues_UpdatesMultipleFieldsAtomically(t *testing.T) {
 }
 
 func TestSetConfigValue_RejectsInvalidPathOrValue(t *testing.T) {
-	clearEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	clearEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -127,7 +127,7 @@ func TestSetConfigValue_RejectsInvalidPathOrValue(t *testing.T) {
 }
 
 func TestSetConfigValues_DoesNotWritePartialBatchOnInvalidValue(t *testing.T) {
-	clearEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	clearEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -167,7 +167,9 @@ func writeSetConfigProfileConfig(t *testing.T, home string, name string) string 
 name: test-agent
 models:
   verify: false
-  key: test-key
+  providers:
+    openrouter:
+      apiKey: test-key
   main:
     name: openai/gpt-4o-mini
     provider: openrouter

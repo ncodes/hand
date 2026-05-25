@@ -376,7 +376,7 @@ func TestOpenStore_ValidatesVectorStoreFactories(t *testing.T) {
 		store, err := OpenStore(&config.Config{
 			Storage: config.StorageConfig{Backend: "sqlite"},
 			Models: config.ModelsConfig{
-				Key:       "key",
+				Providers: map[string]config.ProviderModelConfig{"openai": {APIKey: "key"}},
 				Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"},
 			},
 			Search: config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
@@ -407,7 +407,7 @@ func TestOpenStore_ValidatesVectorStoreFactories(t *testing.T) {
 		store, err := OpenStore(&config.Config{
 			Storage: config.StorageConfig{Backend: "sqlite"},
 			Models: config.ModelsConfig{
-				Key:       "key",
+				Providers: map[string]config.ProviderModelConfig{"openai": {APIKey: "key"}},
 				Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"},
 			},
 			Search: config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
@@ -735,7 +735,7 @@ func TestOpenStore_DefaultVectorStores(t *testing.T) {
 func TestDefaultStoreEmbeddingProviderReturnsProvider(t *testing.T) {
 	provider, err := defaultStoreEmbeddingProvider(&config.Config{
 		Models: config.ModelsConfig{
-			Key:       "key",
+			Providers: map[string]config.ProviderModelConfig{"openai": {APIKey: "key"}},
 			Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"},
 		},
 	})

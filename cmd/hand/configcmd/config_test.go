@@ -17,7 +17,7 @@ import (
 )
 
 func TestCommand_UpdatesSelectedProfileConfig(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -43,7 +43,7 @@ func TestCommand_UpdatesSelectedProfileConfig(t *testing.T) {
 }
 
 func TestCommand_GetsSelectedProfileConfigValues(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -66,7 +66,7 @@ func TestCommand_GetsSelectedProfileConfigValues(t *testing.T) {
 }
 
 func TestCommand_GetsSelectedProfileConfigValuesWithTrailingProfileFlag(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -88,7 +88,7 @@ func TestCommand_GetsSelectedProfileConfigValuesWithTrailingProfileFlag(t *testi
 }
 
 func TestCommand_GetRejectsUnknownProfile(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -114,7 +114,7 @@ func TestCommand_GetRequiresPath(t *testing.T) {
 }
 
 func TestCommand_UpdatesSelectedProfileConfigWithInlineValueAndLocalProfileFlag(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -140,7 +140,7 @@ func TestCommand_UpdatesSelectedProfileConfigWithInlineValueAndLocalProfileFlag(
 }
 
 func TestCommand_SetRejectsUnknownProfile(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -159,7 +159,7 @@ func TestCommand_SetRejectsUnknownProfile(t *testing.T) {
 }
 
 func TestCommand_UpdatesMultipleSelectedProfileConfigValues(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -187,7 +187,7 @@ func TestCommand_UpdatesMultipleSelectedProfileConfigValues(t *testing.T) {
 }
 
 func TestCommand_UpdatesMultipleSelectedProfileConfigValuesWithSpacedPairs(t *testing.T) {
-	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_MODEL_KEY")
+	clearSetConfigEnv(t, "HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "OPENROUTER_API_KEY")
 	resetSetConfigProfileState(t)
 
 	home := t.TempDir()
@@ -233,6 +233,7 @@ func newTestRootCommand(output io.Writer) *cli.Command {
 
 func clearSetConfigEnv(t *testing.T, keys ...string) {
 	t.Helper()
+	keys = append(keys, "OPENAI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "COPILOT_GITHUB_TOKEN")
 
 	for _, key := range keys {
 		original, ok := os.LookupEnv(key)
@@ -269,7 +270,9 @@ func writeCommandProfileConfig(t *testing.T, home string, name string) string {
 name: test-agent
 models:
   verify: false
-  key: test-key
+  providers:
+    openrouter:
+      apiKey: test-key
   main:
     name: openai/gpt-4o-mini
     provider: openrouter

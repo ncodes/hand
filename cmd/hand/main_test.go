@@ -42,7 +42,7 @@ func TestNewCommand_RegistersTUICommand(t *testing.T) {
 }
 
 func TestNewCommand_UsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -52,7 +52,9 @@ func TestNewCommand_UsesConfigFileValues(t *testing.T) {
 name: config-agent
 models:
   verify: false
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: openai/gpt-4o-mini
     provider: openrouter
@@ -79,7 +81,7 @@ search:
 	cfg := config.Get()
 	require.Equal(t, "config-agent", cfg.Name)
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
-	require.Equal(t, "config-key", cfg.Models.Key)
+	require.Equal(t, "config-key", cfg.Models.Providers["openrouter"].APIKey)
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Main.Name)
 	require.Equal(t, serverURL, cfg.Models.Main.BaseURL)
 	require.Equal(t, "error", cfg.Log.Level)
@@ -87,7 +89,7 @@ search:
 }
 
 func TestNewCommand_UsesEnvOverConfigFile(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -98,7 +100,7 @@ func TestNewCommand_UsesEnvOverConfigFile(t *testing.T) {
 HAND_NAME=env-agent
 HAND_MODEL=openai/gpt-4o-mini
 HAND_MODEL_PROVIDER=openrouter
-HAND_MODEL_KEY=env-key
+OPENROUTER_API_KEY=env-key
 HAND_MODEL_BASE_URL=`+serverURL+`
 HAND_LOG_LEVEL=warn
 HAND_LOG_NO_COLOR=false
@@ -107,7 +109,9 @@ HAND_LOG_NO_COLOR=false
 name: config-agent
 models:
   verify: false
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: openai/gpt-4o-mini
     provider: openrouter
@@ -135,7 +139,10 @@ search:
 	cfg := config.Get()
 	require.Equal(t, "env-agent", cfg.Name)
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
-	require.Equal(t, "env-key", cfg.Models.Key)
+	auth, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "config-key", auth.APIKey)
+	require.Equal(t, config.ModelCredentialSource{Kind: config.ModelCredentialSourceProviderConfig, Name: "openrouter"}, auth.CredentialSource)
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Main.Name)
 	require.Equal(t, serverURL, cfg.Models.Main.BaseURL)
 	require.Equal(t, "warn", cfg.Log.Level)
@@ -143,7 +150,7 @@ search:
 }
 
 func TestNewCommand_DefaultsProviderWhenEmpty(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -169,11 +176,11 @@ search:
 		"--rpc.port", nextTestPort(t),
 		"up",
 	})
-	require.EqualError(t, err, "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
+	require.EqualError(t, err, "model API key is required; set a provider API key, provider env var, or role apiKey")
 }
 
 func TestNewCommand_DefaultsBaseURLWhenProviderIsImplicit(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -182,7 +189,9 @@ func TestNewCommand_DefaultsBaseURLWhenProviderIsImplicit(t *testing.T) {
 name: config-agent
 models:
   verify: false
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: openai/gpt-4o-mini
 log:
@@ -206,7 +215,7 @@ storage:
 }
 
 func TestNewCommand_UsesMappedBaseURLWhenProviderSetAndBaseURLUnset(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -215,7 +224,9 @@ func TestNewCommand_UsesMappedBaseURLWhenProviderSetAndBaseURLUnset(t *testing.T
 name: config-agent
 models:
   verify: false
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: openai/gpt-4o-mini
     provider: openrouter
@@ -241,7 +252,7 @@ storage:
 }
 
 func TestNewCommand_FlagsOverrideEnvAndConfig(t *testing.T) {
-	clearEnvKeys(t, "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -253,7 +264,7 @@ func TestNewCommand_FlagsOverrideEnvAndConfig(t *testing.T) {
 HAND_NAME=env-agent
 HAND_MODEL=openai/gpt-4o-mini
 HAND_MODEL_PROVIDER=openrouter
-HAND_MODEL_KEY=env-key
+OPENROUTER_API_KEY=env-key
 HAND_MODEL_BASE_URL=`+serverURL+`
 HAND_LOG_LEVEL=warn
 HAND_LOG_NO_COLOR=false
@@ -261,7 +272,9 @@ HAND_LOG_NO_COLOR=false
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: openai/gpt-4o-mini
     provider: openrouter
@@ -281,7 +294,7 @@ storage:
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
-		"--model.key", "flag-key",
+		"--model.api-key", "flag-key",
 		"--model.base-url", serverURL,
 		"--rpc.port", nextTestPort(t),
 		"--log.level", "debug",
@@ -293,7 +306,7 @@ storage:
 	cfg := config.Get()
 	require.Equal(t, "flag-agent", cfg.Name)
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
-	require.Equal(t, "flag-key", cfg.Models.Key)
+	require.Equal(t, "flag-key", cfg.Models.Providers["openrouter"].APIKey)
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Main.Name)
 	require.Equal(t, serverURL, cfg.Models.Main.BaseURL)
 	require.Equal(t, "debug", cfg.Log.Level)
@@ -301,7 +314,7 @@ storage:
 }
 
 func TestNewCommand_RunsUpCommandExplicitly(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -310,7 +323,9 @@ func TestNewCommand_RunsUpCommandExplicitly(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: openai/gpt-4o-mini
     provider: openrouter
@@ -334,7 +349,7 @@ storage:
 	require.Equal(t, "config-agent", cfg.Name)
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Main.Name)
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
-	require.Equal(t, "config-key", cfg.Models.Key)
+	require.Equal(t, "config-key", cfg.Models.Providers["openrouter"].APIKey)
 	require.Equal(t, serverURL, cfg.Models.Main.BaseURL)
 }
 
@@ -502,7 +517,7 @@ func TestNewCommand_VersionFlagShowsVersionAndCommit(t *testing.T) {
 }
 
 func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	cmd := newCommand()
@@ -511,7 +526,7 @@ func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
-		"--model.key", "flag-key",
+		"--model.api-key", "flag-key",
 		"--models.verify=false",
 		"doctor",
 	})
@@ -519,7 +534,7 @@ func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
 }
 
 func TestNewCommand_RejectsUnsupportedProvider(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -527,10 +542,12 @@ func TestNewCommand_RejectsUnsupportedProvider(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openai:
+      apiKey: config-key
   main:
     name: openai/gpt-4o-mini
-    provider: anthropic
+    provider: unsupported
     baseUrl: https://config.example/v1
 `), 0o600))
 
@@ -541,11 +558,11 @@ models:
 		"--rpc.port", nextTestPort(t),
 		"up",
 	})
-	require.EqualError(t, err, "model provider must be one of: openai, openrouter")
+	require.EqualError(t, err, "model provider must be one of: anthropic, github-copilot, openai, openrouter")
 }
 
 func TestNewCommand_UsesDirectClientWhenProviderIsOpenai(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetGlobals(t)
 
 	dir := t.TempDir()
@@ -553,7 +570,9 @@ func TestNewCommand_UsesDirectClientWhenProviderIsOpenai(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openai:
+      apiKey: config-key
   main:
     name: openai/gpt-4o-mini
     provider: openai
@@ -662,6 +681,7 @@ storage:
 
 func clearEnvKeys(t *testing.T, keys ...string) {
 	t.Helper()
+	keys = append(keys, "OPENAI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "COPILOT_GITHUB_TOKEN")
 	for _, key := range keys {
 		original, ok := os.LookupEnv(key)
 		if ok {

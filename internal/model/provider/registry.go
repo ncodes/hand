@@ -285,6 +285,26 @@ func defaultProviders() []ProviderDefinition {
 				APIOpenAIEmbeddings:  constants.DefaultOpenAIEmbeddingsBaseURL,
 			},
 		},
+		{
+			ID:             constants.ModelProviderAnthropic,
+			DisplayName:    "Anthropic",
+			DefaultAPI:     APIAnthropicMessages,
+			APIKeyEnv:      []string{"ANTHROPIC_API_KEY"},
+			SupportsModels: true,
+			SupportsAPIKey: true,
+			BaseURLs: map[string]string{
+				APIAnthropicMessages: constants.DefaultAnthropicBaseURL,
+			},
+		},
+		{
+			ID:             constants.ModelProviderGitHubCopilot,
+			DisplayName:    "GitHub Copilot",
+			DefaultAPI:     APIOpenAIResponses,
+			APIKeyEnv:      []string{"COPILOT_GITHUB_TOKEN"},
+			SupportsModels: true,
+			SupportsAPIKey: true,
+			SupportsOAuth:  true,
+		},
 	}
 }
 

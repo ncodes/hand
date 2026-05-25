@@ -311,6 +311,7 @@ func newProfileInputCommand(t *testing.T, action func(*cli.Command) error) *cli.
 
 func clearEnv(t *testing.T, keys ...string) {
 	t.Helper()
+	keys = append(keys, "OPENAI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "COPILOT_GITHUB_TOKEN")
 
 	for _, key := range keys {
 		original, ok := os.LookupEnv(key)

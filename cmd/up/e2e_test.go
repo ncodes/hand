@@ -68,8 +68,10 @@ func Test_E2E_UpCommand_BootsAndServesRPC(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(fmt.Sprintf(`
 name: yaml-up
 models:
-  key: config-key
   verify: false
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: openai/gpt-4o-mini
     provider: openrouter

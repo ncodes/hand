@@ -54,7 +54,7 @@ func TestNewLiveClients(t *testing.T) {
 
 		cfg := &config.Config{
 			Models: config.ModelsConfig{
-				Key:        "router-key",
+				Providers:  map[string]config.ProviderModelConfig{"openrouter": {APIKey: "router-key"}},
 				MaxRetries: &retries,
 				Main:       config.MainModelConfig{Provider: "openrouter", BaseURL: "https://router.example/v1"},
 			},
@@ -84,11 +84,13 @@ func TestNewLiveClients(t *testing.T) {
 
 		cfg := &config.Config{
 			Models: config.ModelsConfig{
-				Key:          "router-key",
-				OpenAIAPIKey: "openai-key",
-				MaxRetries:   &retries,
-				Main:         config.MainModelConfig{Provider: "openrouter"},
-				Summary:      config.SummaryModelConfig{Provider: "openai", BaseURL: "https://openai.example/v1"},
+				Providers: map[string]config.ProviderModelConfig{
+					"openrouter": {APIKey: "router-key"},
+					"openai":     {APIKey: "openai-key"},
+				},
+				MaxRetries: &retries,
+				Main:       config.MainModelConfig{Provider: "openrouter"},
+				Summary:    config.SummaryModelConfig{Provider: "openai", BaseURL: "https://openai.example/v1"},
 			},
 		}
 
@@ -127,7 +129,7 @@ func TestNewLiveClients(t *testing.T) {
 		}
 
 		cfg := &config.Config{
-			Models: config.ModelsConfig{Key: "router-key", Main: config.MainModelConfig{Provider: "openrouter"}},
+			Models: config.ModelsConfig{Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "router-key"}}, Main: config.MainModelConfig{Provider: "openrouter"}},
 		}
 
 		modelClient, summaryClient, err := NewLiveClients(cfg)
@@ -138,23 +140,25 @@ func TestNewLiveClients(t *testing.T) {
 	})
 
 	t.Run("returns main auth error", func(t *testing.T) {
+		t.Setenv("OPENROUTER_API_KEY", "")
 		liveModelClientFactoryInstance = originalFactory
 
 		modelClient, summaryClient, err := NewLiveClients(&config.Config{})
 		require.Error(t, err)
 		assert.Nil(t, modelClient)
 		assert.Nil(t, summaryClient)
-		assert.EqualError(t, err, "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
+		assert.EqualError(t, err, "model API key is required; set a provider API key, provider env var, or role apiKey")
 	})
 
 	t.Run("returns summary auth error", func(t *testing.T) {
+		t.Setenv("OPENAI_API_KEY", "")
 		liveModelClientFactoryInstance = originalFactory
 
 		cfg := &config.Config{
 			Models: config.ModelsConfig{
-				OpenRouterAPIKey: "router-key",
-				Main:             config.MainModelConfig{Provider: "openrouter"},
-				Summary:          config.SummaryModelConfig{Provider: "openai"},
+				Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "router-key"}},
+				Main:      config.MainModelConfig{Provider: "openrouter"},
+				Summary:   config.SummaryModelConfig{Provider: "openai"},
 			},
 		}
 
@@ -162,7 +166,7 @@ func TestNewLiveClients(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, modelClient)
 		assert.Nil(t, summaryClient)
-		assert.EqualError(t, err, "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
+		assert.EqualError(t, err, "model API key is required; set a provider API key, provider env var, or role apiKey")
 	})
 
 	t.Run("returns summary client factory error", func(t *testing.T) {
@@ -178,11 +182,13 @@ func TestNewLiveClients(t *testing.T) {
 		retries := 1
 		cfg := &config.Config{
 			Models: config.ModelsConfig{
-				Key:          "router-key",
-				OpenAIAPIKey: "openai-key",
-				MaxRetries:   &retries,
-				Main:         config.MainModelConfig{Provider: "openrouter"},
-				Summary:      config.SummaryModelConfig{Provider: "openai", BaseURL: "https://openai.example/v1"},
+				Providers: map[string]config.ProviderModelConfig{
+					"openrouter": {APIKey: "router-key"},
+					"openai":     {APIKey: "openai-key"},
+				},
+				MaxRetries: &retries,
+				Main:       config.MainModelConfig{Provider: "openrouter"},
+				Summary:    config.SummaryModelConfig{Provider: "openai", BaseURL: "https://openai.example/v1"},
 			},
 		}
 
@@ -218,7 +224,7 @@ func TestNewLiveHarnessAndRPCHarness(t *testing.T) {
 		dir := t.TempDir()
 		envPath := filepath.Join(dir, ".env")
 		configPath := filepath.Join(dir, "config.yaml")
-		require.NoError(t, os.WriteFile(envPath, []byte("HAND_MODEL_KEY=test-key\n"), 0o600))
+		require.NoError(t, os.WriteFile(envPath, []byte("OPENROUTER_API_KEY=test-key\n"), 0o600))
 		require.NoError(t, os.WriteFile(configPath, []byte(`
 name: live-test
 models:
@@ -272,18 +278,34 @@ storage:
 	})
 
 	t.Run("returns live client error", func(t *testing.T) {
+		previousFactory := liveModelClientFactoryInstance
+		defer func() {
+			liveModelClientFactoryInstance = previousFactory
+		}()
+
 		loadLiveConfig = func(string, string) (*config.Config, error) {
-			return &config.Config{Models: config.ModelsConfig{Main: config.MainModelConfig{Provider: "openrouter"}}}, nil
+			return &config.Config{
+				Models: config.ModelsConfig{
+					Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "router-key"}},
+					Main:      config.MainModelConfig{Provider: "openrouter"},
+				},
+			}, nil
+		}
+		liveModelClientFactoryInstance = liveModelClientFactoryStub{
+			newClient: func(modelclient.ClientRequest) (models.Client, error) {
+				return nil, errors.New("client failed")
+			},
 		}
 
 		_, err := NewLiveHarness(context.Background(), filepath.Join(t.TempDir(), "hand-home"), "", "config.yaml")
 		require.Error(t, err)
+		assert.EqualError(t, err, "client failed")
 	})
 
 	t.Run("returns harness construction error", func(t *testing.T) {
 		loadLiveConfig = func(string, string) (*config.Config, error) {
 			return &config.Config{
-				Models: config.ModelsConfig{Key: "router-key", Main: config.MainModelConfig{Provider: "openrouter"}},
+				Models: config.ModelsConfig{Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "router-key"}}, Main: config.MainModelConfig{Provider: "openrouter"}},
 			}, nil
 		}
 		newLiveHarness = func(context.Context, HarnessOptions) (*Harness, error) {
@@ -298,7 +320,7 @@ storage:
 	t.Run("returns rpc harness construction error", func(t *testing.T) {
 		loadLiveConfig = func(string, string) (*config.Config, error) {
 			return &config.Config{
-				Models: config.ModelsConfig{Key: "router-key", Main: config.MainModelConfig{Provider: "openrouter"}},
+				Models: config.ModelsConfig{Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "router-key"}}, Main: config.MainModelConfig{Provider: "openrouter"}},
 			}, nil
 		}
 		newLiveRPCHarness = func(context.Context, HarnessOptions) (*RPCHarness, error) {

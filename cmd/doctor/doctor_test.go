@@ -37,7 +37,7 @@ func TestNewCommand_PrintsPassingReport(t *testing.T) {
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
-		"--model.key", "flag-key",
+		"--model.api-key", "flag-key",
 		"--models.verify=false",
 		"doctor",
 	})
@@ -61,7 +61,9 @@ func TestNewCommand_PrintsSafetyModeFromConfig(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: flag-agent
 models:
-  key: flag-key
+  providers:
+    openrouter:
+      apiKey: flag-key
   main:
     name: openai/gpt-4o-mini
     provider: openrouter
@@ -110,7 +112,7 @@ search:
 		"--model", "openai/gpt-4o-mini",
 		"doctor",
 	})
-	require.EqualError(t, err, "doctor checks failed: config validation: model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key; model auth: model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
+	require.EqualError(t, err, "doctor checks failed: config validation: model API key is required; set a provider API key, provider env var, or role apiKey; model auth: model API key is required; set a provider API key, provider env var, or role apiKey")
 	require.Contains(t, output.String(), "[\x1b[31mFAIL\x1b[0m] config validation")
 	require.Contains(t, output.String(), "[\x1b[31mFAIL\x1b[0m] model auth")
 	require.Contains(t, output.String(), "safety: input=enabled, output=enabled, pii=disabled")
@@ -132,7 +134,7 @@ func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
 		"--name", "flag-agent",
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
-		"--model.key", "flag-key",
+		"--model.api-key", "flag-key",
 		"--log.no-color",
 		"--models.verify=false",
 		"doctor",
@@ -170,6 +172,7 @@ func isolateProfile(t *testing.T) {
 
 func clearEnv(t *testing.T, keys ...string) {
 	t.Helper()
+	keys = append(keys, "OPENAI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "COPILOT_GITHUB_TOKEN")
 
 	for _, key := range keys {
 		original, ok := os.LookupEnv(key)

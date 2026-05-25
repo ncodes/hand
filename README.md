@@ -17,8 +17,8 @@ The long-term dream for Hand is a personal agent that can understand your workfl
    - `cp example.env .env`
    - `cp example.yaml config.yaml`
 2. Uncomment the values you want to use and replace the placeholder key values.
-3. Set at least `HAND_NAME`, `HAND_MODEL`, `HAND_MODEL_PROVIDER`, and one auth value:
-   `HAND_MODEL_KEY`, `HAND_OPENAI_API_KEY`, or `HAND_OPENROUTER_API_KEY`.
+3. Set at least `HAND_NAME`, `HAND_MODEL`, `HAND_MODEL_PROVIDER`, and a provider auth value such as
+   `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, or `COPILOT_GITHUB_TOKEN`.
 4. Start the daemon:
 
 ```bash
@@ -34,7 +34,7 @@ go run ./cmd/hand \
   --name Daemon \
   --model qwen/qwen3.5-27b \
   --model.provider openrouter \
-  --model.key "$HAND_MODEL_KEY" \
+  --model.api-key "$OPENROUTER_API_KEY" \
   "hello"
 ```
 
@@ -50,7 +50,6 @@ Config file values:
 - `model.summaryModel`
 - `model.provider`
 - `model.summaryProvider`
-- `model.key`
 - `model.baseUrl`
 - `model.summaryBaseUrl`
 - `model.api`
@@ -70,9 +69,10 @@ Env equivalents:
 - `HAND_MODEL_SUMMARY`
 - `HAND_MODEL_PROVIDER`
 - `HAND_MODEL_SUMMARY_PROVIDER`
-- `HAND_MODEL_KEY`
-- `HAND_OPENAI_API_KEY`
-- `HAND_OPENROUTER_API_KEY`
+- `OPENAI_API_KEY`
+- `OPENROUTER_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `COPILOT_GITHUB_TOKEN`
 - `HAND_MODEL_BASE_URL`
 - `HAND_MODEL_SUMMARY_BASE_URL`
 - `HAND_MODEL_API`
@@ -91,6 +91,8 @@ Env equivalents:
 Supported `model.provider` values (default when unset: `openrouter`):
 - `openrouter`: routes model requests through the OpenRouter API
 - `openai`: uses the official OpenAI client with its default base URL (https://api.openai.com/v1), sending requests directly to the OpenAI API.
+- `anthropic`: Anthropic provider definition for Anthropic-native APIs
+- `github-copilot`: token-backed GitHub Copilot provider definition
 
 Current config direction:
 - put stable defaults in `config.yaml`
@@ -100,11 +102,11 @@ Current config direction:
 Typical model settings:
 - `model.name`: provider model slug such as `qwen/qwen3.5-27b`
 - `model.summaryModel`: optional slug for compaction/summary; defaults to `model.name` when unset
-- `model.provider`: `openrouter` or `openai`
+- `model.provider`: `openrouter`, `openai`, `anthropic`, or `github-copilot`
 - `model.summaryProvider`: optional provider for compaction/summary API calls; defaults to `model.provider` when unset
-- `model.key`: generic provider API key fallback
-- `model.openaiApiKey`: provider-specific OpenAI API key
-- `model.openrouterApiKey`: provider-specific OpenRouter API key
+- `models.providers.<provider>.apiKey`: provider-specific static API key
+- `models.providers.<provider>.apiKeyEnv`: provider-specific environment key lookup order
+- `models.main.apiKey`, `models.summary.apiKey`, `models.embedding.apiKey`: role-specific API keys
 - `model.baseUrl`: explicit provider base URL when needed
 - `model.summaryBaseUrl`: base URL for the summary provider when it differs from the main provider (optional)
 - `model.api`: `openai-completions` or `openai-responses` for chat requests

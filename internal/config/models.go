@@ -1,15 +1,37 @@
 package config
 
+import "time"
+
+type ModelCredentialSourceKind string
+
+const (
+	// ModelCredentialSourceRoleConfig means the credential came from the concrete model role config.
+	ModelCredentialSourceRoleConfig ModelCredentialSourceKind = "role-config"
+
+	// ModelCredentialSourceProviderConfig means the credential came from provider-specific config.
+	ModelCredentialSourceProviderConfig ModelCredentialSourceKind = "provider-config"
+
+	// ModelCredentialSourceProviderEnv means the credential came from a provider-specific environment variable.
+	ModelCredentialSourceProviderEnv ModelCredentialSourceKind = "provider-env"
+
+	// ModelCredentialSourceTokenStore means the credential came from a local OAuth or subscription token store.
+	ModelCredentialSourceTokenStore ModelCredentialSourceKind = "token-store"
+)
+
 // ModelsConfig contains provider credentials and model-specific settings.
 type ModelsConfig struct {
-	Verify           *bool                `yaml:"verify"`
-	MaxRetries       *int                 `yaml:"maxRetries"`
-	Key              string               `yaml:"key"`
-	OpenAIAPIKey     string               `yaml:"openaiApiKey"`
-	OpenRouterAPIKey string               `yaml:"openrouterApiKey"`
-	Main             MainModelConfig      `yaml:"main"`
-	Summary          SummaryModelConfig   `yaml:"summary"`
-	Embedding        EmbeddingModelConfig `yaml:"embedding"`
+	Verify     *bool                          `yaml:"verify"`
+	MaxRetries *int                           `yaml:"maxRetries"`
+	Providers  map[string]ProviderModelConfig `yaml:"providers"`
+	Main       MainModelConfig                `yaml:"main"`
+	Summary    SummaryModelConfig             `yaml:"summary"`
+	Embedding  EmbeddingModelConfig           `yaml:"embedding"`
+}
+
+// ProviderModelConfig describes static credential settings for one model provider.
+type ProviderModelConfig struct {
+	APIKey    string   `yaml:"apiKey"`
+	APIKeyEnv []string `yaml:"apiKeyEnv"`
 }
 
 // MainModelConfig selects the model used for normal agent turns.
@@ -17,6 +39,7 @@ type MainModelConfig struct {
 	Name          string `yaml:"name"`
 	Provider      string `yaml:"provider"`
 	API           string `yaml:"api"`
+	APIKey        string `yaml:"apiKey"`
 	BaseURL       string `yaml:"baseUrl"`
 	ContextLength int    `yaml:"contextLength"`
 	Stream        *bool  `yaml:"stream"`
@@ -27,6 +50,7 @@ type SummaryModelConfig struct {
 	Name     string `yaml:"name"`
 	Provider string `yaml:"provider"`
 	API      string `yaml:"api"`
+	APIKey   string `yaml:"apiKey"`
 	BaseURL  string `yaml:"baseUrl"`
 }
 
@@ -34,15 +58,30 @@ type SummaryModelConfig struct {
 type EmbeddingModelConfig struct {
 	Name     string `yaml:"name"`
 	Provider string `yaml:"provider"`
+	APIKey   string `yaml:"apiKey"`
 	BaseURL  string `yaml:"baseUrl"`
+}
+
+// ModelCredentialSource describes credential provenance without containing the credential value.
+type ModelCredentialSource struct {
+	Kind      ModelCredentialSourceKind
+	Name      string
+	HasExpiry bool
+}
+
+// StoredModelCredential describes a locally stored provider token.
+type StoredModelCredential struct {
+	Token     string
+	ExpiresAt *time.Time
 }
 
 // ModelAuth describes authentication metadata for a model provider.
 type ModelAuth struct {
-	Provider string
-	API      string
-	APIKey   string
-	BaseURL  string
+	Provider         string
+	API              string
+	APIKey           string
+	BaseURL          string
+	CredentialSource ModelCredentialSource
 }
 
 // ModelMetadata describes metadata attached to model records.

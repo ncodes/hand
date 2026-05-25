@@ -25,7 +25,7 @@ import (
 )
 
 func TestNewMainAction_TreatsUnknownArgsAsChat(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL",
+	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
 		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetMainActionState(t)
 
@@ -52,7 +52,7 @@ func TestNewMainAction_TreatsUnknownArgsAsChat(t *testing.T) {
 }
 
 func TestNewMainAction_UsesProfileConfigAndEnv(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_LOG_LEVEL",
+	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_LOG_LEVEL",
 		"HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE")
 	resetMainActionState(t)
 	home := t.TempDir()
@@ -84,7 +84,7 @@ models:
 }
 
 func TestNewMainAction_UsesProfileRuntimeEndpoint(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_LOG_LEVEL",
+	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_LOG_LEVEL",
 		"HAND_CONFIG", "HAND_ENV_FILE", "HAND_PROFILE", "HAND_RPC_ADDRESS", "HAND_RPC_PORT")
 	resetMainActionState(t)
 	home := t.TempDir()
@@ -124,7 +124,7 @@ models:
 }
 
 func TestNewMainAction_ForwardsInstruct(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL",
+	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
 		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetMainActionState(t)
 
@@ -144,7 +144,7 @@ func TestNewMainAction_ForwardsInstruct(t *testing.T) {
 }
 
 func TestNewMainAction_ForwardsSessionID(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL",
+	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
 		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetMainActionState(t)
 
@@ -164,7 +164,7 @@ func TestNewMainAction_ForwardsSessionID(t *testing.T) {
 }
 
 func TestNewMainAction_StreamsOutput(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL",
+	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
 		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetMainActionState(t)
 
@@ -187,7 +187,7 @@ func TestNewMainAction_StreamsOutput(t *testing.T) {
 }
 
 func TestNewMainAction_StylesReasoningOutput(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL",
+	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
 		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetMainActionState(t)
 
@@ -214,7 +214,7 @@ func TestNewMainAction_StylesReasoningOutput(t *testing.T) {
 }
 
 func TestNewMainAction_DoesNotStyleReasoningWhenNoColor(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL",
+	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
 		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetMainActionState(t)
 
@@ -242,7 +242,7 @@ func TestNewMainAction_DoesNotStyleReasoningWhenNoColor(t *testing.T) {
 }
 
 func TestNewMainAction_IgnoresTraceEvents(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL",
+	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
 		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetMainActionState(t)
 
@@ -270,7 +270,7 @@ func TestNewMainAction_IgnoresTraceEvents(t *testing.T) {
 }
 
 func TestNewMainAction_DoesNotForwardConfiguredInstruct(t *testing.T) {
-	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_MODEL_BASE_URL",
+	clearEnv(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL",
 		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_CONFIG", "HAND_ENV_FILE")
 	resetMainActionState(t)
 
@@ -279,7 +279,9 @@ func TestNewMainAction_DoesNotForwardConfiguredInstruct(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: openai/gpt-4o-mini
     provider: openrouter

@@ -31,6 +31,16 @@ func stubModelMetadataResolver(t *testing.T, fn func(context.Context, *Config, M
 	})
 }
 
+func stubModelProviderToken(t *testing.T, fn func(string) (StoredModelCredential, error)) {
+	t.Helper()
+
+	original := loadModelProviderToken
+	loadModelProviderToken = fn
+	t.Cleanup(func() {
+		loadModelProviderToken = original
+	})
+}
+
 func stubProviderDefaultBaseURL(t *testing.T, provider string, apiID string, value string) {
 	t.Helper()
 
@@ -80,7 +90,7 @@ func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestPreloadEnvFile_LoadsValues(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY", "HAND_OPENROUTER_API_KEY",
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS", "HAND_LOG_LEVEL",
 		"HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS", "HAND_RULES_FILES", "HAND_SESSION_INSTRUCT", "HAND_PLATFORM", "HAND_CAP_FS", "HAND_CAP_NET",
 		"HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER", "HAND_MEMORY_BACKEND",
@@ -92,9 +102,8 @@ func TestPreloadEnvFile_LoadsValues(t *testing.T) {
 HAND_NAME=env-agent
 HAND_MODEL=env-model
 HAND_MODEL_PROVIDER=openrouter
-HAND_MODEL_KEY=env-key
-HAND_OPENAI_API_KEY=openai-env-key
-HAND_OPENROUTER_API_KEY=openrouter-env-key
+OPENAI_API_KEY=openai-env-key
+OPENROUTER_API_KEY=openrouter-env-key
 HAND_MODEL_BASE_URL=https://env.example/v1
 HAND_RPC_ADDRESS=0.0.0.0
 HAND_RPC_PORT=6000
@@ -122,9 +131,8 @@ HAND_MEMORY_PINNED_MAX_ITEM_CHARS=500
 	require.Equal(t, "env-agent", os.Getenv("HAND_NAME"))
 	require.Equal(t, "env-model", os.Getenv("HAND_MODEL"))
 	require.Equal(t, "openrouter", os.Getenv("HAND_MODEL_PROVIDER"))
-	require.Equal(t, "env-key", os.Getenv("HAND_MODEL_KEY"))
-	require.Equal(t, "openai-env-key", os.Getenv("HAND_OPENAI_API_KEY"))
-	require.Equal(t, "openrouter-env-key", os.Getenv("HAND_OPENROUTER_API_KEY"))
+	require.Equal(t, "openai-env-key", os.Getenv("OPENAI_API_KEY"))
+	require.Equal(t, "openrouter-env-key", os.Getenv("OPENROUTER_API_KEY"))
 	require.Equal(t, "https://env.example/v1", os.Getenv("HAND_MODEL_BASE_URL"))
 	require.Equal(t, "0.0.0.0", os.Getenv("HAND_RPC_ADDRESS"))
 	require.Equal(t, "6000", os.Getenv("HAND_RPC_PORT"))
@@ -149,15 +157,15 @@ HAND_MEMORY_PINNED_MAX_ITEM_CHARS=500
 }
 
 func TestPreloadEnvFile_DoesNotOverrideShellEnv(t *testing.T) {
-	clearEnvKeys(t, "HAND_MODEL_KEY")
-	t.Setenv("HAND_MODEL_KEY", "shell-key")
+	clearEnvKeys(t, "OPENROUTER_API_KEY")
+	t.Setenv("OPENROUTER_API_KEY", "shell-key")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
-	require.NoError(t, os.WriteFile(envPath, []byte("HAND_MODEL_KEY=env-key\n"), 0o600))
+	require.NoError(t, os.WriteFile(envPath, []byte("OPENROUTER_API_KEY=env-key\n"), 0o600))
 
 	require.NoError(t, PreloadEnvFile(envPath))
-	require.Equal(t, "shell-key", os.Getenv("HAND_MODEL_KEY"))
+	require.Equal(t, "shell-key", os.Getenv("OPENROUTER_API_KEY"))
 }
 
 func TestPreloadEnvFile_ReturnsErrorForUnreadablePath(t *testing.T) {
@@ -418,8 +426,8 @@ func TestLoad_ReturnsPreloadEnvFileError(t *testing.T) {
 }
 
 func TestLoad_UsesConfigFileValues(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY",
-		"HAND_OPENROUTER_API_KEY",
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY",
+		"OPENROUTER_API_KEY",
 		"HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS",
 		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR",
 		"HAND_MODEL_MAX_RETRIES",
@@ -444,11 +452,11 @@ func TestLoad_UsesConfigFileValues(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
   maxRetries: 4
   main:
     name: config-model
     provider: openrouter
+    apiKey: config-key
     baseUrl: https://config.example/v1
 rpc:
   address: 0.0.0.0
@@ -534,7 +542,7 @@ rules:
 	require.Equal(t, "config-agent", cfg.Name)
 	require.Equal(t, "config-model", cfg.Models.Main.Name)
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
-	require.Equal(t, "config-key", cfg.Models.Key)
+	require.Equal(t, "config-key", cfg.Models.Main.APIKey)
 	require.Equal(t, "https://config.example/v1", cfg.Models.Main.BaseURL)
 	require.Equal(t, 4, cfg.ModelMaxRetriesEffective())
 	require.Equal(t, "0.0.0.0", cfg.RPC.Address)
@@ -594,8 +602,8 @@ rules:
 }
 
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY",
-		"HAND_OPENROUTER_API_KEY",
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY",
+		"OPENROUTER_API_KEY",
 		"HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS",
 		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR",
 		"HAND_MODEL_MAX_RETRIES",
@@ -626,7 +634,7 @@ func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 HAND_NAME=env-agent
 HAND_MODEL=env-model
 HAND_MODEL_PROVIDER=openrouter
-HAND_MODEL_KEY=env-key
+OPENROUTER_API_KEY=env-key
 HAND_MODEL_BASE_URL=https://env.example/v1
 HAND_MODEL_MAX_RETRIES=0
 HAND_RPC_ADDRESS=127.0.0.1
@@ -678,11 +686,11 @@ HAND_MEMORY_PROMOTION_LIMIT=8
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
   maxRetries: 4
   main:
     name: config-model
     provider: openrouter
+    apiKey: config-key
     baseUrl: https://config.example/v1
 rpc:
   address: 0.0.0.0
@@ -721,7 +729,10 @@ rules:
 	require.Equal(t, "env-agent", cfg.Name)
 	require.Equal(t, "env-model", cfg.Models.Main.Name)
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
-	require.Equal(t, "env-key", cfg.Models.Key)
+	auth, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "config-key", auth.APIKey)
+	require.Equal(t, ModelCredentialSource{Kind: ModelCredentialSourceRoleConfig}, auth.CredentialSource)
 	require.Equal(t, "https://env.example/v1", cfg.Models.Main.BaseURL)
 	require.Equal(t, 0, cfg.ModelMaxRetriesEffective())
 	require.Equal(t, "127.0.0.1", cfg.RPC.Address)
@@ -866,7 +877,9 @@ func TestLoad_UsesOpenRouterModelMetadataWhenContextLengthIsUnset(t *testing.T) 
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: openai/gpt-4o-mini
     provider: openrouter
@@ -893,7 +906,9 @@ func TestLoad_UsesProviderMetadataWhenConfiguredContextLengthIsTooLarge(t *testi
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openai:
+      apiKey: config-key
   main:
     name: gpt-4.1-nano
     provider: openai
@@ -920,7 +935,9 @@ func TestLoad_PreservesSmallerConfiguredContextLengthThanProviderMetadata(t *tes
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: gpt-4.1-nano
     provider: openai
@@ -949,8 +966,10 @@ func TestLoad_SkipsProviderModelMetadataWhenVerificationIsDisabled(t *testing.T)
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
   verify: false
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: openai/gpt-4o-mini
     provider: openrouter
@@ -1038,7 +1057,9 @@ func TestLoad_IgnoresInvalidMaxIterationsEnvOverride(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: config-model
     provider: openrouter
@@ -1058,8 +1079,8 @@ log:
 }
 
 func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY",
-		"HAND_OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_MODEL_MAX_RETRIES",
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY",
+		"OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_MODEL_MAX_RETRIES",
 		"HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS")
 
 	cfg, err := Load("", filepath.Join(t.TempDir(), "missing.yaml"))
@@ -1081,8 +1102,8 @@ func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
 }
 
 func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
-	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY",
-		"HAND_OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_MODEL_MAX_RETRIES",
+	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY",
+		"OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_MODEL_MAX_RETRIES",
 		"HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS")
 
 	dir := t.TempDir()
@@ -1143,8 +1164,8 @@ func TestSet_StoresConfigGlobally(t *testing.T) {
 	cfg := &Config{
 		Name: "Test Agent",
 		Models: ModelsConfig{
-			Key:  "test-key",
-			Main: MainModelConfig{Name: "test-model", Provider: "openai"},
+			Providers: map[string]ProviderModelConfig{"openai": {APIKey: "test-key"}},
+			Main:      MainModelConfig{Name: "test-model", Provider: "openai"},
 		},
 		Log: LogConfig{Level: "debug"},
 	}
@@ -1153,12 +1174,14 @@ func TestSet_StoresConfigGlobally(t *testing.T) {
 }
 
 func TestConfig_ValidateRequiresKey(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "")
+
 	cfg := &Config{
 		Name:   "test-agent",
 		Models: ModelsConfig{Main: MainModelConfig{Name: constants.DefaultModel}},
 		Log:    LogConfig{Level: "info"},
 	}
-	require.EqualError(t, cfg.Validate(), "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
+	require.EqualError(t, cfg.Validate(), "model API key is required; set a provider API key, provider env var, or role apiKey")
 	require.Equal(t, constants.DefaultModelProvider, cfg.Models.Main.Provider)
 	require.Equal(t, getDefaultBaseURLForProvider(constants.DefaultModelProvider, modelprovider.APIOpenAIResponses), cfg.Models.Main.BaseURL)
 }
@@ -1172,8 +1195,8 @@ func TestConfig_ResolveModelAuthUsesOpenRouterSpecificKey(t *testing.T) {
 	cfg := &Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			OpenRouterAPIKey: "openrouter-key",
-			Main:             MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "openrouter-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
 		},
 	}
 
@@ -1189,8 +1212,8 @@ func TestConfig_ResolveModelAuthUsesOpenAISpecificKey(t *testing.T) {
 	cfg := &Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			OpenAIAPIKey: "openai-key",
-			Main:         MainModelConfig{Name: constants.DefaultModel, Provider: "openai"},
+			Providers: map[string]ProviderModelConfig{"openai": {APIKey: "openai-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openai"},
 		},
 	}
 
@@ -1206,8 +1229,8 @@ func TestConfig_ResolveModelAuthAcceptsOpenAIProviderAlias(t *testing.T) {
 	cfg := &Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			OpenAIAPIKey: "openai-key",
-			Main:         MainModelConfig{Name: constants.DefaultModel, Provider: "openai"},
+			Providers: map[string]ProviderModelConfig{"openai": {APIKey: "openai-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openai"},
 		},
 	}
 
@@ -1219,27 +1242,154 @@ func TestConfig_ResolveModelAuthAcceptsOpenAIProviderAlias(t *testing.T) {
 	require.Equal(t, "https://api.openai.com/v1", auth.BaseURL)
 }
 
-func TestConfig_ResolveModelAuthFallsBackToModelKey(t *testing.T) {
+func TestConfig_ResolveModelAuthUsesCredentialResolverOrder(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "registry-env-key")
+	t.Setenv("CUSTOM_OPENROUTER_KEY", "provider-env-key")
+	expiresAt := time.Now().Add(time.Hour)
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, "openrouter", provider)
+		return StoredModelCredential{Token: "store-key", ExpiresAt: &expiresAt}, nil
+	})
+
 	cfg := &Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			Key:  "generic-key",
-			Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
+			Providers: map[string]ProviderModelConfig{
+				"openrouter": {
+					APIKey:    "provider-config-key",
+					APIKeyEnv: []string{"CUSTOM_OPENROUTER_KEY"},
+				},
+			},
+			Main: MainModelConfig{
+				Name:     constants.DefaultModel,
+				Provider: "openrouter",
+				APIKey:   "role-key",
+			},
 		},
 	}
 
 	auth, err := cfg.ResolveModelAuth()
-
 	require.NoError(t, err)
-	require.Equal(t, "generic-key", auth.APIKey)
+	require.Equal(t, "role-key", auth.APIKey)
+	require.Equal(t, ModelCredentialSource{Kind: ModelCredentialSourceRoleConfig}, auth.CredentialSource)
+
+	cfg.Models.Main.APIKey = ""
+	auth, err = cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "provider-config-key", auth.APIKey)
+	require.Equal(t, ModelCredentialSource{
+		Kind: ModelCredentialSourceProviderConfig,
+		Name: "openrouter",
+	}, auth.CredentialSource)
+
+	cfg.Models.Providers["openrouter"] = ProviderModelConfig{APIKeyEnv: []string{"CUSTOM_OPENROUTER_KEY"}}
+	auth, err = cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "provider-env-key", auth.APIKey)
+	require.Equal(t, ModelCredentialSource{
+		Kind: ModelCredentialSourceProviderEnv,
+		Name: "CUSTOM_OPENROUTER_KEY",
+	}, auth.CredentialSource)
+
+	cfg.Models.Providers["openrouter"] = ProviderModelConfig{}
+	auth, err = cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "registry-env-key", auth.APIKey)
+	require.Equal(t, ModelCredentialSource{
+		Kind: ModelCredentialSourceProviderEnv,
+		Name: "OPENROUTER_API_KEY",
+	}, auth.CredentialSource)
+
+	t.Setenv("OPENROUTER_API_KEY", "")
+	auth, err = cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "store-key", auth.APIKey)
+	require.Equal(t, ModelCredentialSource{
+		Kind:      ModelCredentialSourceTokenStore,
+		Name:      "openrouter",
+		HasExpiry: true,
+	}, auth.CredentialSource)
+}
+
+func TestConfig_ResolveSummaryModelAuthUsesMainRoleKeyWhenRouteMatches(t *testing.T) {
+	cfg := &Config{
+		Name: "test-agent",
+		Models: ModelsConfig{
+			Main: MainModelConfig{
+				Name:     constants.DefaultModel,
+				Provider: "openrouter",
+				APIKey:   "main-role-key",
+			},
+		},
+	}
+
+	main, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	summary, err := cfg.ResolveSummaryModelAuth()
+	require.NoError(t, err)
+
+	require.True(t, ModelAuthEqual(main, summary))
+	require.Equal(t, "main-role-key", summary.APIKey)
+	require.Equal(t, ModelCredentialSource{Kind: ModelCredentialSourceRoleConfig}, summary.CredentialSource)
+}
+
+func TestConfig_ResolveSummaryModelAuthUsesSummaryRoleKeyWhenSet(t *testing.T) {
+	cfg := &Config{
+		Name: "test-agent",
+		Models: ModelsConfig{
+			Main:    MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter", APIKey: "main-role-key"},
+			Summary: SummaryModelConfig{APIKey: "summary-role-key"},
+		},
+	}
+
+	auth, err := cfg.ResolveSummaryModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "summary-role-key", auth.APIKey)
+	require.Equal(t, ModelCredentialSource{Kind: ModelCredentialSourceRoleConfig}, auth.CredentialSource)
+}
+
+func TestConfig_ResolveModelAuthUsesProviderTokenStore(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "")
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, "openai", provider)
+		return StoredModelCredential{Token: "stored-token"}, nil
+	})
+
+	cfg := &Config{
+		Name:   "test-agent",
+		Models: ModelsConfig{Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "stored-token", auth.APIKey)
+	require.Equal(t, ModelCredentialSource{
+		Kind: ModelCredentialSourceTokenStore,
+		Name: "openai",
+	}, auth.CredentialSource)
+}
+
+func TestConfig_ResolveModelAuthReturnsProviderTokenStoreError(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "")
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, errors.New("token store failed")
+	})
+
+	cfg := &Config{
+		Name:   "test-agent",
+		Models: ModelsConfig{Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+	}
+
+	_, err := cfg.ResolveModelAuth()
+	require.EqualError(t, err, "token store failed")
 }
 
 func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 	cfg := &Config{
 		Models: ModelsConfig{
-			OpenRouterAPIKey: "router-key",
-			Main:             MainModelConfig{Provider: "openrouter"},
-			Embedding:        EmbeddingModelConfig{Provider: "openrouter"},
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "router-key"}},
+			Main:      MainModelConfig{Provider: "openrouter"},
+			Embedding: EmbeddingModelConfig{Provider: "openrouter"},
 		},
 	}
 
@@ -1247,17 +1397,18 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, ModelAuth{
-		Provider: "openrouter",
-		API:      modelprovider.APIOpenAIEmbeddings,
-		APIKey:   "router-key",
-		BaseURL:  "https://openrouter.ai/api/v1/embeddings",
+		Provider:         "openrouter",
+		API:              modelprovider.APIOpenAIEmbeddings,
+		APIKey:           "router-key",
+		BaseURL:          "https://openrouter.ai/api/v1/embeddings",
+		CredentialSource: ModelCredentialSource{Kind: ModelCredentialSourceProviderConfig, Name: "openrouter"},
 	}, auth)
 
 	cfg = &Config{
 		Models: ModelsConfig{
-			OpenRouterAPIKey: "router-key",
-			Main:             MainModelConfig{Provider: "openrouter", API: modelprovider.APIOpenAIResponses},
-			Embedding:        EmbeddingModelConfig{Provider: "openrouter"},
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "router-key"}},
+			Main:      MainModelConfig{Provider: "openrouter", API: modelprovider.APIOpenAIResponses},
+			Embedding: EmbeddingModelConfig{Provider: "openrouter"},
 		},
 	}
 
@@ -1268,8 +1419,8 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 
 	cfg = &Config{
 		Models: ModelsConfig{
-			OpenRouterAPIKey: "router-key",
-			Main:             MainModelConfig{Provider: "openrouter"},
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "router-key"}},
+			Main:      MainModelConfig{Provider: "openrouter"},
 		},
 	}
 
@@ -1277,17 +1428,18 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, ModelAuth{
-		Provider: "openrouter",
-		API:      modelprovider.APIOpenAIEmbeddings,
-		APIKey:   "router-key",
-		BaseURL:  "https://openrouter.ai/api/v1/embeddings",
+		Provider:         "openrouter",
+		API:              modelprovider.APIOpenAIEmbeddings,
+		APIKey:           "router-key",
+		BaseURL:          "https://openrouter.ai/api/v1/embeddings",
+		CredentialSource: ModelCredentialSource{Kind: ModelCredentialSourceProviderConfig, Name: "openrouter"},
 	}, auth)
 
 	cfg = &Config{
 		Models: ModelsConfig{
-			OpenAIAPIKey: "openai-key",
-			Main:         MainModelConfig{Provider: "openrouter"},
-			Embedding:    EmbeddingModelConfig{Provider: "openai"},
+			Providers: map[string]ProviderModelConfig{"openai": {APIKey: "openai-key"}},
+			Main:      MainModelConfig{Provider: "openrouter"},
+			Embedding: EmbeddingModelConfig{Provider: "openai"},
 		},
 	}
 
@@ -1295,19 +1447,34 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, ModelAuth{
-		Provider: "openai",
-		API:      modelprovider.APIOpenAIEmbeddings,
-		APIKey:   "openai-key",
-		BaseURL:  "https://api.openai.com/v1/embeddings",
+		Provider:         "openai",
+		API:              modelprovider.APIOpenAIEmbeddings,
+		APIKey:           "openai-key",
+		BaseURL:          "https://api.openai.com/v1/embeddings",
+		CredentialSource: ModelCredentialSource{Kind: ModelCredentialSourceProviderConfig, Name: "openai"},
 	}, auth)
 
+	cfg = &Config{
+		Models: ModelsConfig{
+			Embedding: EmbeddingModelConfig{
+				Provider: "openai",
+				APIKey:   "embedding-role-key",
+			},
+		},
+	}
+	auth, err = cfg.ResolveEmbeddingModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "embedding-role-key", auth.APIKey)
+	require.Equal(t, ModelCredentialSource{Kind: ModelCredentialSourceRoleConfig}, auth.CredentialSource)
+
+	t.Setenv("OPENAI_API_KEY", "")
 	_, err = (&Config{Models: ModelsConfig{Embedding: EmbeddingModelConfig{Provider: "openai"}}}).ResolveEmbeddingModelAuth()
 	require.EqualError(t, err, "embedding API key is required")
 
 	_, err = (&Config{
-		Models: ModelsConfig{Key: "key", Embedding: EmbeddingModelConfig{Provider: "test"}},
+		Models: ModelsConfig{Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "key"}}, Embedding: EmbeddingModelConfig{Provider: "test"}},
 	}).ResolveEmbeddingModelAuth()
-	require.EqualError(t, err, "embedding provider must be one of: openai, openrouter")
+	require.EqualError(t, err, "embedding provider must be one of: anthropic, github-copilot, openai, openrouter")
 }
 
 func TestConfig_ModelEmbeddingProviderEffective(t *testing.T) {
@@ -1334,8 +1501,8 @@ func TestConfig_ValidateAllowsProviderSpecificAuthWithoutModelKey(t *testing.T) 
 	cfg := &Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			OpenRouterAPIKey: "openrouter-key",
-			Main:             MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "openrouter-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
 		},
 		Log: LogConfig{Level: "info"},
 	}
@@ -1351,8 +1518,7 @@ func TestConfig_ValidateNormalizesFields(t *testing.T) {
 	cfg := &Config{
 		Name: "  Test Agent  ",
 		Models: ModelsConfig{
-			Key:  "  test-key  ",
-			Main: MainModelConfig{Name: "  openai/test-model  ", Provider: " OpenRouter "},
+			Main: MainModelConfig{Name: "  openai/test-model  ", Provider: " OpenRouter ", APIKey: "  test-key  "},
 		},
 		Log: LogConfig{Level: " WARN "},
 	}
@@ -1361,14 +1527,14 @@ func TestConfig_ValidateNormalizesFields(t *testing.T) {
 	require.Equal(t, "Test Agent", cfg.Name)
 	require.Equal(t, "openai/test-model", cfg.Models.Main.Name)
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
-	require.Equal(t, "test-key", cfg.Models.Key)
+	require.Equal(t, "test-key", cfg.Models.Main.APIKey)
 	require.Equal(t, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAIResponses), cfg.Models.Main.BaseURL)
 	require.Equal(t, "warn", cfg.Log.Level)
 }
 
 func TestConfig_ValidateRequiresName(t *testing.T) {
 	err := (&Config{
-		Models: ModelsConfig{Key: "test-key", Main: MainModelConfig{Name: constants.DefaultModel}},
+		Models: ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: constants.DefaultModel}},
 		Log:    LogConfig{Level: "info"},
 	}).Validate()
 	require.EqualError(t, err, "name is required; set HAND_NAME, provide it in config, or use --name")
@@ -1395,9 +1561,9 @@ func TestConfig_ValidateAcceptsValidPersonalitySettings(t *testing.T) {
 	cfg := &Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			Verify: new(false),
-			Key:    "test-key",
-			Main:   MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
+			Verify:    new(false),
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
 		},
 		Personalities: map[string]PersonalityConfig{
 			"Researcher": {
@@ -1454,7 +1620,7 @@ func TestConfig_ValidatePersonalitySettings(t *testing.T) {
 		{
 			name:          "invalid model provider",
 			personality:   PersonalityConfig{Model: MainModelConfig{Provider: "other"}},
-			expectedError: "personalities.researcher.model.provider must be one of: openai, openrouter",
+			expectedError: "personalities.researcher.model.provider must be one of: anthropic, github-copilot, openai, openrouter",
 		},
 		{
 			name:          "invalid model api mode",
@@ -1481,7 +1647,7 @@ func TestConfig_ValidateDefaultsModelWhenEmpty(t *testing.T) {
 		return ModelMetadata{Exists: true}, nil
 	})
 
-	cfg := &Config{Name: "test-agent", Models: ModelsConfig{Key: "test-key"}, Log: LogConfig{Level: "info"}}
+	cfg := &Config{Name: "test-agent", Models: ModelsConfig{Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "test-key"}}}, Log: LogConfig{Level: "info"}}
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, constants.DefaultModel, cfg.Models.Main.Name)
 }
@@ -1489,7 +1655,7 @@ func TestConfig_ValidateDefaultsModelWhenEmpty(t *testing.T) {
 func TestConfig_ValidateRejectsModelWithoutOwnerPrefix(t *testing.T) {
 	err := (&Config{
 		Name:   "test-agent",
-		Models: ModelsConfig{Key: "test-key", Main: MainModelConfig{Name: "gpt-4o-mini", Provider: "openai"}},
+		Models: ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: "gpt-4o-mini", Provider: "openai"}},
 		RPC:    RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log:    LogConfig{Level: "info"},
 	}).Validate()
@@ -1504,7 +1670,7 @@ func TestConfig_ValidateRejectsModelWithEmptyOwnerOrName(t *testing.T) {
 		t.Run(model, func(t *testing.T) {
 			err := (&Config{
 				Name:   "test-agent",
-				Models: ModelsConfig{Key: "test-key", Main: MainModelConfig{Name: model, Provider: "openai"}},
+				Models: ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: model, Provider: "openai"}},
 				RPC:    RPCConfig{Address: "127.0.0.1", Port: 50051},
 				Log:    LogConfig{Level: "info"},
 			}).Validate()
@@ -1519,12 +1685,12 @@ func TestConfig_ValidateRejectsUnsupportedProvider(t *testing.T) {
 	err := (&Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			Key:  "test-key",
-			Main: MainModelConfig{Name: constants.DefaultModel, Provider: "anthropic", BaseURL: openRouterDefault},
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "missing", BaseURL: openRouterDefault},
 		},
 		Log: LogConfig{Level: "info"},
 	}).Validate()
-	require.EqualError(t, err, "model provider must be one of: openai, openrouter")
+	require.EqualError(t, err, "model provider must be one of: anthropic, github-copilot, openai, openrouter")
 }
 
 func TestConfig_ValidateRejectsUnknownOpenRouterModel(t *testing.T) {
@@ -1534,7 +1700,7 @@ func TestConfig_ValidateRejectsUnknownOpenRouterModel(t *testing.T) {
 
 	err := (&Config{
 		Name:   "test-agent",
-		Models: ModelsConfig{Key: "test-key", Main: MainModelConfig{Name: "openai/gpt-unknown", Provider: "openrouter"}},
+		Models: ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: "openai/gpt-unknown", Provider: "openrouter"}},
 		RPC:    RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log:    LogConfig{Level: "info"},
 	}).Validate()
@@ -1546,9 +1712,9 @@ func TestConfig_ValidateRejectsInvalidSummaryModelSlug(t *testing.T) {
 	err := (&Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			Key:     "test-key",
-			Main:    MainModelConfig{Name: constants.DefaultModel, Provider: "openai"},
-			Summary: SummaryModelConfig{Name: "gpt-4o-mini"},
+			Providers: map[string]ProviderModelConfig{"openai": {APIKey: "test-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openai"},
+			Summary:   SummaryModelConfig{Name: "gpt-4o-mini"},
 		},
 		RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log: LogConfig{Level: "info"},
@@ -1569,9 +1735,9 @@ func TestConfig_ValidateRejectsUnknownSummaryModel(t *testing.T) {
 	err := (&Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			Key:     "test-key",
-			Main:    MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
-			Summary: SummaryModelConfig{Name: "openai/gpt-unknown-summary"},
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
+			Summary:   SummaryModelConfig{Name: "openai/gpt-unknown-summary"},
 		},
 		RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log: LogConfig{Level: "info"},
@@ -1619,9 +1785,9 @@ func TestConfig_ResolveSummaryModelAuth_UsesSummaryAPIForDefaultBaseURL(t *testi
 	cfg := &Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			Key:     "k",
-			Main:    MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter", API: modelprovider.APIOpenAICompletions},
-			Summary: SummaryModelConfig{API: modelprovider.APIOpenAIResponses},
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "k"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter", API: modelprovider.APIOpenAICompletions},
+			Summary:   SummaryModelConfig{API: modelprovider.APIOpenAIResponses},
 		},
 	}
 	cfg.Normalize()
@@ -1634,7 +1800,7 @@ func TestConfig_ResolveSummaryModelAuth_UsesSummaryAPIForDefaultBaseURL(t *testi
 func TestConfig_ResolveSummaryModelAuthMatchesMainWhenUnset(t *testing.T) {
 	cfg := &Config{
 		Name:   "test-agent",
-		Models: ModelsConfig{Key: "k", Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"}},
+		Models: ModelsConfig{Main: MainModelConfig{APIKey: "k", Name: constants.DefaultModel, Provider: "openrouter"}},
 	}
 
 	main, err := cfg.ResolveModelAuth()
@@ -1648,7 +1814,10 @@ func TestConfig_ResolveSummaryModelAuthUsesOpenAIWhenSummaryProviderDiffers(t *t
 	cfg := &Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			Key:     "k",
+			Providers: map[string]ProviderModelConfig{
+				"openrouter": {APIKey: "k"},
+				"openai":     {APIKey: "k"},
+			},
 			Main:    MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
 			Summary: SummaryModelConfig{Provider: "openai", BaseURL: "https://api.example/v1"},
 		},
@@ -1666,24 +1835,24 @@ func TestConfig_ValidateRejectsInvalidSummaryProvider(t *testing.T) {
 	err := (&Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			Key:     "test-key",
-			Main:    MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
-			Summary: SummaryModelConfig{Provider: "anthropic"},
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
+			Summary:   SummaryModelConfig{Provider: "missing"},
 		},
 		RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log: LogConfig{Level: "info"},
 	}).Validate()
 
-	require.EqualError(t, err, "summary model provider must be one of: openai, openrouter")
+	require.EqualError(t, err, "summary model provider must be one of: anthropic, github-copilot, openai, openrouter")
 }
 
 func TestConfig_ValidateRejectsInvalidSummaryModelAPI(t *testing.T) {
 	err := (&Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			Key:     "test-key",
-			Main:    MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
-			Summary: SummaryModelConfig{API: "invalid"},
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
+			Summary:   SummaryModelConfig{API: "invalid"},
 		},
 		RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log: LogConfig{Level: "info"},
@@ -1700,10 +1869,10 @@ func TestConfig_ValidateAcceptsSummaryModelAPIResponses(t *testing.T) {
 	err := (&Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			Verify:  new(false),
-			Key:     "test-key",
-			Main:    MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
-			Summary: SummaryModelConfig{API: modelprovider.APIOpenAIResponses},
+			Verify:    new(false),
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
+			Summary:   SummaryModelConfig{API: modelprovider.APIOpenAIResponses},
 		},
 		RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log: LogConfig{Level: "info"},
@@ -1720,10 +1889,10 @@ func TestConfig_ValidateAcceptsSummaryModelAPICompletions(t *testing.T) {
 	err := (&Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			Verify:  new(false),
-			Key:     "test-key",
-			Main:    MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
-			Summary: SummaryModelConfig{API: modelprovider.APIOpenAICompletions},
+			Verify:    new(false),
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
+			Summary:   SummaryModelConfig{API: modelprovider.APIOpenAICompletions},
 		},
 		RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log: LogConfig{Level: "info"},
@@ -1754,7 +1923,7 @@ func TestConfig_ValidateReturnsOpenRouterLookupFailure(t *testing.T) {
 
 	err := (&Config{
 		Name:   "test-agent",
-		Models: ModelsConfig{Key: "test-key", Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"}},
+		Models: ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: constants.DefaultModel, Provider: "openrouter"}},
 		RPC:    RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log:    LogConfig{Level: "info"},
 	}).Validate()
@@ -1769,7 +1938,7 @@ func TestConfig_ValidateRejectsUnknownOpenAIModel(t *testing.T) {
 
 	err := (&Config{
 		Name:   "test-agent",
-		Models: ModelsConfig{Key: "test-key", Main: MainModelConfig{Name: "openai/gpt-unknown", Provider: "openai"}},
+		Models: ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: "openai/gpt-unknown", Provider: "openai"}},
 		RPC:    RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log:    LogConfig{Level: "info"},
 	}).Validate()
@@ -1781,9 +1950,9 @@ func TestConfig_ValidateRejectsInvalidLogLevel(t *testing.T) {
 	err := (&Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			Verify: new(false),
-			Key:    "test-key",
-			Main:   MainModelConfig{Name: constants.DefaultModel, Provider: "openai"},
+			Verify:    new(false),
+			Providers: map[string]ProviderModelConfig{"openai": {APIKey: "test-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openai"},
 		},
 		Log: LogConfig{Level: "trace"},
 	}).Validate()
@@ -1797,7 +1966,7 @@ func TestConfig_ValidateAllowsEmptyProviderAndLogLevel(t *testing.T) {
 
 	err := (&Config{
 		Name:   "test-agent",
-		Models: ModelsConfig{Key: "test-key", Main: MainModelConfig{Name: constants.DefaultModel}},
+		Models: ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: constants.DefaultModel}},
 	}).Validate()
 	require.NoError(t, err)
 }
@@ -1805,7 +1974,7 @@ func TestConfig_ValidateAllowsEmptyProviderAndLogLevel(t *testing.T) {
 func TestConfig_ValidateRejectsEmptyRPCAddress(t *testing.T) {
 	cfg := &Config{
 		Name:   "test-agent",
-		Models: ModelsConfig{Key: "test-key", Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+		Models: ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: constants.DefaultModel, Provider: "openai"}},
 		RPC:    RPCConfig{Address: "   ", Port: 50051},
 		Log:    LogConfig{Level: "info"},
 	}
@@ -1816,7 +1985,7 @@ func TestConfig_ValidateRejectsEmptyRPCAddress(t *testing.T) {
 func TestConfig_ValidateRejectsInvalidRPCPort(t *testing.T) {
 	cfg := &Config{
 		Name:   "test-agent",
-		Models: ModelsConfig{Key: "test-key", Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+		Models: ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: constants.DefaultModel, Provider: "openai"}},
 		RPC:    RPCConfig{Address: "127.0.0.1", Port: -1},
 		Log:    LogConfig{Level: "info"},
 	}
@@ -1827,7 +1996,7 @@ func TestConfig_ValidateRejectsInvalidRPCPort(t *testing.T) {
 func TestConfig_ValidateAllowsZeroRPCPortForDynamicBind(t *testing.T) {
 	cfg := &Config{
 		Name:   "test-agent",
-		Models: ModelsConfig{Key: "test-key", Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+		Models: ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: constants.DefaultModel, Provider: "openai"}},
 		RPC:    RPCConfig{Address: "127.0.0.1", Port: 0},
 		Log:    LogConfig{Level: "info"},
 	}
@@ -1838,7 +2007,7 @@ func TestConfig_ValidateAllowsZeroRPCPortForDynamicBind(t *testing.T) {
 func TestConfig_ValidateRejectsInvalidMaxIterations(t *testing.T) {
 	cfg := &Config{
 		Name:    "test-agent",
-		Models:  ModelsConfig{Key: "test-key", Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+		Models:  ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: constants.DefaultModel, Provider: "openai"}},
 		RPC:     RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Session: SessionConfig{MaxIterations: -1},
 		Log:     LogConfig{Level: "info"},
@@ -1853,7 +2022,7 @@ func TestConfig_ValidateRejectsNegativeModelMaxRetries(t *testing.T) {
 	cfg := &Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			Key:        "test-key",
+			Providers:  map[string]ProviderModelConfig{"openai": {APIKey: "test-key"}},
 			MaxRetries: &retries,
 			Main:       MainModelConfig{Name: constants.DefaultModel, Provider: "openai"},
 		},
@@ -1869,7 +2038,7 @@ func TestConfig_ValidateRejectsNegativeModelMaxRetries(t *testing.T) {
 func TestConfig_ValidateRejectsCompactionThresholdsAboveOrEqualOne(t *testing.T) {
 	err := (&Config{
 		Name:       "test-agent",
-		Models:     ModelsConfig{Key: "test-key", Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+		Models:     ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: constants.DefaultModel, Provider: "openai"}},
 		RPC:        RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Session:    SessionConfig{MaxIterations: 1, DefaultIdleExpiry: time.Hour, ArchiveRetention: 24 * time.Hour},
 		Log:        LogConfig{Level: "info"},
@@ -1881,7 +2050,7 @@ func TestConfig_ValidateRejectsCompactionThresholdsAboveOrEqualOne(t *testing.T)
 
 	err = (&Config{
 		Name:       "test-agent",
-		Models:     ModelsConfig{Key: "test-key", Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+		Models:     ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: constants.DefaultModel, Provider: "openai"}},
 		RPC:        RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Session:    SessionConfig{MaxIterations: 1, DefaultIdleExpiry: time.Hour, ArchiveRetention: 24 * time.Hour},
 		Log:        LogConfig{Level: "info"},
@@ -2026,7 +2195,7 @@ func TestConfig_NormalizeUsesMappedBaseURLWhenProviderWasExplicitlySet(t *testin
 
 func TestConfig_NormalizeKeepsOpenaiProvider(t *testing.T) {
 	cfg := &Config{
-		Models: ModelsConfig{Key: "test-key", Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+		Models: ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: constants.DefaultModel, Provider: "openai"}},
 		Log:    LogConfig{Level: "info"},
 	}
 	cfg.Normalize()
@@ -2074,8 +2243,12 @@ func TestConfig_NormalizeTrimsAndLowercasesFields(t *testing.T) {
 	cfg := &Config{
 		Name: "  Test Agent  ",
 		Models: ModelsConfig{
-			Key:  "  test-key  ",
-			Main: MainModelConfig{Name: "  test-model  ", Provider: " OpenRouter ", BaseURL: "  https://example.com/v1  "},
+			Main: MainModelConfig{
+				Name:     "  test-model  ",
+				Provider: " OpenRouter ",
+				APIKey:   "  test-key  ",
+				BaseURL:  "  https://example.com/v1  ",
+			},
 		},
 		Log: LogConfig{Level: " WARN "},
 	}
@@ -2083,7 +2256,7 @@ func TestConfig_NormalizeTrimsAndLowercasesFields(t *testing.T) {
 	require.Equal(t, "Test Agent", cfg.Name)
 	require.Equal(t, "test-model", cfg.Models.Main.Name)
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
-	require.Equal(t, "test-key", cfg.Models.Key)
+	require.Equal(t, "test-key", cfg.Models.Main.APIKey)
 	require.Equal(t, "https://example.com/v1", cfg.Models.Main.BaseURL)
 	require.Equal(t, "warn", cfg.Log.Level)
 }
@@ -2152,7 +2325,7 @@ func TestResolveModelAuth_CoversDefaultBranchAndNilReceiver(t *testing.T) {
 	require.EqualError(t, err, "config is required")
 
 	cfg = &Config{
-		Models: ModelsConfig{Key: "key", Main: MainModelConfig{Provider: "custom"}},
+		Models: ModelsConfig{Main: MainModelConfig{APIKey: "key", Provider: "custom"}},
 	}
 	auth, err := cfg.ResolveModelAuth()
 	require.NoError(t, err)
@@ -2161,7 +2334,7 @@ func TestResolveModelAuth_CoversDefaultBranchAndNilReceiver(t *testing.T) {
 
 func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	clearEnvKeys(t,
-		"HAND_MODEL_CONTEXT_LENGTH", "HAND_MODELS_VERIFY", "HAND_MODEL_MAX_RETRIES", "HAND_OPENAI_API_KEY", "HAND_OPENROUTER_API_KEY",
+		"HAND_MODEL_CONTEXT_LENGTH", "HAND_MODELS_VERIFY", "HAND_MODEL_MAX_RETRIES", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
 		"HAND_STORAGE_BACKEND", "HAND_SESSION_DEFAULT_IDLE_EXPIRY", "HAND_SESSION_ARCHIVE_RETENTION",
 		"HAND_SEARCH_VECTOR_ENABLED", "HAND_MODEL_EMBEDDING_PROVIDER",
 		"HAND_MODEL_EMBEDDING_MODEL", "HAND_SEARCH_VECTOR_REQUIRED",
@@ -2186,8 +2359,8 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	t.Setenv("HAND_MODEL_CONTEXT_LENGTH", "64000")
 	t.Setenv("HAND_MODELS_VERIFY", "false")
 	t.Setenv("HAND_MODEL_MAX_RETRIES", "0")
-	t.Setenv("HAND_OPENAI_API_KEY", "openai-key")
-	t.Setenv("HAND_OPENROUTER_API_KEY", "openrouter-key")
+	t.Setenv("OPENAI_API_KEY", "openai-key")
+	t.Setenv("OPENROUTER_API_KEY", "openrouter-key")
 	t.Setenv("HAND_STORAGE_BACKEND", "memory")
 	t.Setenv("HAND_SESSION_DEFAULT_IDLE_EXPIRY", "2h")
 	t.Setenv("HAND_SESSION_ARCHIVE_RETENTION", "48h")
@@ -2235,8 +2408,6 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.Equal(t, 64000, cfg.Models.Main.ContextLength)
 	require.False(t, getBoolValue(cfg.Models.Verify))
 	require.Equal(t, 0, cfg.ModelMaxRetriesEffective())
-	require.Equal(t, "openai-key", cfg.Models.OpenAIAPIKey)
-	require.Equal(t, "openrouter-key", cfg.Models.OpenRouterAPIKey)
 	require.Equal(t, "memory", cfg.Storage.Backend)
 	require.False(t, cfg.TUIThinkingComposerEnabled())
 	require.Equal(t, 2*time.Hour, cfg.Session.DefaultIdleExpiry)
@@ -2410,17 +2581,26 @@ func TestDefaultBaseURLForProvider_DefaultsEmptyAPI(t *testing.T) {
 func TestModelProviders_CoverDayOneProviderBaseURLs(t *testing.T) {
 	require.True(t, hasModelProvider("openai"))
 	require.True(t, hasModelProvider("openrouter"))
-	require.Equal(t, "openai, openrouter", getModelProviderList())
+	require.True(t, hasModelProvider("anthropic"))
+	require.True(t, hasModelProvider("github-copilot"))
+	require.Equal(t, "anthropic, github-copilot, openai, openrouter", getModelProviderList())
 	openai, ok := modelRegistry.GetProvider("openai")
 	require.True(t, ok)
 	require.Equal(t, "openai", openai.ID)
 	openrouter, ok := modelRegistry.GetProvider("openrouter")
 	require.True(t, ok)
 	require.Equal(t, "openrouter", openrouter.ID)
+	anthropic, ok := modelRegistry.GetProvider("anthropic")
+	require.True(t, ok)
+	require.Equal(t, []string{"ANTHROPIC_API_KEY"}, anthropic.APIKeyEnv)
+	copilot, ok := modelRegistry.GetProvider("github-copilot")
+	require.True(t, ok)
+	require.Equal(t, []string{"COPILOT_GITHUB_TOKEN"}, copilot.APIKeyEnv)
 
 	require.Equal(t, constants.DefaultOpenAIBaseURL, getDefaultBaseURLForProvider("openai", modelprovider.APIOpenAICompletions))
 	require.Equal(t, constants.DefaultOpenAIBaseURL, getDefaultBaseURLForProvider("openai", modelprovider.APIOpenAIResponses))
 	require.Equal(t, constants.DefaultOpenAIEmbeddingsBaseURL, getDefaultBaseURLForProvider("openai", modelprovider.APIOpenAIEmbeddings))
+	require.Equal(t, constants.DefaultAnthropicBaseURL, getDefaultBaseURLForProvider("anthropic", modelprovider.APIAnthropicMessages))
 	require.Equal(t, constants.DefaultOpenRouterBaseURL, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAICompletions))
 	require.Equal(t, constants.DefaultOpenRouterResponsesBaseURL, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAIResponses))
 	require.Equal(t, constants.DefaultOpenRouterEmbeddingsBaseURL, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAIEmbeddings))
@@ -2434,19 +2614,21 @@ func TestConfig_ModelSlotsResolveProviderBaseURLsThroughRegistry(t *testing.T) {
 	cfg := &Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			Key: "test-key",
 			Main: MainModelConfig{
 				Name:     constants.DefaultModel,
 				Provider: "openrouter",
 				API:      modelprovider.APIOpenAICompletions,
+				APIKey:   "router-key",
 			},
 			Summary: SummaryModelConfig{
 				Provider: "openai",
 				API:      modelprovider.APIOpenAIResponses,
+				APIKey:   "openai-key",
 			},
 			Embedding: EmbeddingModelConfig{
 				Name:     constants.DefaultProfileEmbeddingModel,
 				Provider: "openrouter",
+				APIKey:   "embedding-key",
 			},
 		},
 	}
@@ -2454,28 +2636,31 @@ func TestConfig_ModelSlotsResolveProviderBaseURLsThroughRegistry(t *testing.T) {
 	mainAuth, err := cfg.ResolveModelAuth()
 	require.NoError(t, err)
 	require.Equal(t, ModelAuth{
-		Provider: "openrouter",
-		API:      modelprovider.APIOpenAICompletions,
-		APIKey:   "test-key",
-		BaseURL:  "https://registry.openrouter.example/v1",
+		Provider:         "openrouter",
+		API:              modelprovider.APIOpenAICompletions,
+		APIKey:           "router-key",
+		BaseURL:          "https://registry.openrouter.example/v1",
+		CredentialSource: ModelCredentialSource{Kind: ModelCredentialSourceRoleConfig},
 	}, mainAuth)
 
 	summaryAuth, err := cfg.ResolveSummaryModelAuth()
 	require.NoError(t, err)
 	require.Equal(t, ModelAuth{
-		Provider: "openai",
-		API:      modelprovider.APIOpenAIResponses,
-		APIKey:   "test-key",
-		BaseURL:  "https://registry.openai.example/v1",
+		Provider:         "openai",
+		API:              modelprovider.APIOpenAIResponses,
+		APIKey:           "openai-key",
+		BaseURL:          "https://registry.openai.example/v1",
+		CredentialSource: ModelCredentialSource{Kind: ModelCredentialSourceRoleConfig},
 	}, summaryAuth)
 
 	embeddingAuth, err := cfg.ResolveEmbeddingModelAuth()
 	require.NoError(t, err)
 	require.Equal(t, ModelAuth{
-		Provider: "openrouter",
-		API:      modelprovider.APIOpenAIEmbeddings,
-		APIKey:   "test-key",
-		BaseURL:  "https://registry.openrouter.example/v1/embeddings",
+		Provider:         "openrouter",
+		API:              modelprovider.APIOpenAIEmbeddings,
+		APIKey:           "embedding-key",
+		BaseURL:          "https://registry.openrouter.example/v1/embeddings",
+		CredentialSource: ModelCredentialSource{Kind: ModelCredentialSourceRoleConfig},
 	}, embeddingAuth)
 }
 
@@ -2496,33 +2681,37 @@ func TestConfig_NilReceiver_StreamAndSummaryHelpers(t *testing.T) {
 }
 
 func TestConfig_ResolveSummaryModelAuth_FailsWhenSummaryProviderHasNoKey(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "")
+
 	cfg := &Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			OpenRouterAPIKey: "router-only",
-			Main:             MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
-			Summary:          SummaryModelConfig{Provider: "openai", BaseURL: "https://api.openai.com/v1"},
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "router-only"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
+			Summary:   SummaryModelConfig{Provider: "openai", BaseURL: "https://api.openai.com/v1"},
 		},
 	}
 	cfg.Normalize()
 
 	_, err := cfg.ResolveSummaryModelAuth()
-	require.EqualError(t, err, "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
+	require.EqualError(t, err, "model API key is required; set a provider API key, provider env var, or role apiKey")
 }
 
 func TestConfig_Validate_ReturnsSummaryAuthErrorWhenOpenAIKeyMissing(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "")
+
 	err := (&Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			OpenRouterAPIKey: "router-only",
-			Main:             MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
-			Summary:          SummaryModelConfig{Provider: "openai"},
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "router-only"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
+			Summary:   SummaryModelConfig{Provider: "openai"},
 		},
 		RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log: LogConfig{Level: "info"},
 	}).Validate()
 
-	require.EqualError(t, err, "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
+	require.EqualError(t, err, "model API key is required; set a provider API key, provider env var, or role apiKey")
 }
 
 func TestResolveModelMetadataForSlug_EmptySlug(t *testing.T) {
@@ -2556,9 +2745,9 @@ func TestApplyProviderModelMetadata_CoversEarlyReturns(t *testing.T) {
 	}
 	cfg = &Config{
 		Models: ModelsConfig{
-			Verify: new(true),
-			Key:    "test-key",
-			Main:   MainModelConfig{Name: constants.DefaultModel, Provider: "openai"},
+			Verify:    new(true),
+			Providers: map[string]ProviderModelConfig{"openai": {APIKey: "test-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openai"},
 		},
 	}
 	cfg.Normalize()
@@ -2911,6 +3100,7 @@ func (errReader) Read([]byte) (int, error) {
 
 func clearEnvKeys(t *testing.T, keys ...string) {
 	t.Helper()
+	keys = append(keys, "OPENAI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "COPILOT_GITHUB_TOKEN")
 	for _, key := range keys {
 		original, ok := os.LookupEnv(key)
 		if ok {
@@ -2934,7 +3124,9 @@ func TestLoad_UsesModelAPIFromConfig(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: config-model
     provider: openai
@@ -2961,7 +3153,9 @@ func TestLoad_UsesModelAPIFromEnvOverride(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: config-model
     provider: openai
@@ -2984,8 +3178,8 @@ func TestConfig_ValidateRejectsInvalidAPI(t *testing.T) {
 			err := (&Config{
 				Name: "test-agent",
 				Models: ModelsConfig{
-					Key:  "test-key",
-					Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai", API: mode},
+					Providers: map[string]ProviderModelConfig{"openai": {APIKey: "test-key"}},
+					Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openai", API: mode},
 				},
 				RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
 				Log: LogConfig{Level: "info"},
@@ -2999,9 +3193,9 @@ func TestConfig_ValidateAllowsResponsesModeWithOpenRouter(t *testing.T) {
 	err := (&Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
-			Verify: new(false),
-			Key:    "test-key",
-			Main:   MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter", API: modelprovider.APIOpenAIResponses},
+			Verify:    new(false),
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter", API: modelprovider.APIOpenAIResponses},
 		},
 		RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log: LogConfig{Level: "info"},
@@ -3023,7 +3217,9 @@ func TestLoad_UsesDebugTraceSettingsFromConfig(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: config-model
     provider: openai
@@ -3075,7 +3271,9 @@ HAND_TRACE_DATABASE_MAX_EVENTS_PER_SESSION=77
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: config-model
     provider: openai
@@ -3136,7 +3334,9 @@ func TestLoad_UsesFilesystemRootsAndExecRulesFromConfig(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: config-model
     provider: openai
@@ -3210,7 +3410,9 @@ func TestLoad_UsesFilesystemRootsAndExecRulesFromEnv(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  key: config-key
+  providers:
+    openrouter:
+      apiKey: config-key
   main:
     name: config-model
     provider: openai
@@ -3465,9 +3667,9 @@ func TestConfig_ValidateRejectsInvalidSessionSettings(t *testing.T) {
 	cfg := &Config{
 		Name: "daemon",
 		Models: ModelsConfig{
-			Verify: new(false),
-			Key:    "key",
-			Main:   MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
+			Verify:    new(false),
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "key"}},
+			Main:      MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
 		},
 		RPC:     RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Session: SessionConfig{MaxIterations: 1},
@@ -3483,9 +3685,9 @@ func TestConfig_ValidateRejectsInvalidMemoryBackend(t *testing.T) {
 	cfg := &Config{
 		Name: "daemon",
 		Models: ModelsConfig{
-			Verify: new(false),
-			Key:    "key",
-			Main:   MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
+			Verify:    new(false),
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "key"}},
+			Main:      MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
 		},
 		RPC:     RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Session: SessionConfig{MaxIterations: 1},
@@ -3503,7 +3705,7 @@ func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {
 		Name: "daemon",
 		Models: ModelsConfig{
 			Verify:    new(false),
-			Key:       "key",
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "key"}},
 			Main:      MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
 			Embedding: EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"},
 		},
@@ -3532,7 +3734,7 @@ func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {
 			mutate: func(cfg *Config) {
 				cfg.Models.Embedding.Provider = "test"
 			},
-			err: "embedding provider must be one of: openai, openrouter",
+			err: "embedding provider must be one of: anthropic, github-copilot, openai, openrouter",
 		},
 		{
 			name: "negative batch size",
@@ -3590,9 +3792,8 @@ func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {
 		{
 			name: "missing api key",
 			mutate: func(cfg *Config) {
-				cfg.Models.Key = ""
-				cfg.Models.OpenAIAPIKey = ""
-				cfg.Models.OpenRouterAPIKey = ""
+				t.Setenv("OPENAI_API_KEY", "")
+				cfg.Models.Providers = nil
 			},
 			err: "embedding API key is required",
 		},
@@ -3628,7 +3829,7 @@ func TestConfig_ValidateVerifiesEmbeddingModelWithoutContextRequirement(t *testi
 		Name: "daemon",
 		Models: ModelsConfig{
 			Verify:    new(true),
-			Key:       "key",
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "key"}},
 			Main:      MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
 			Embedding: EmbeddingModelConfig{Name: "openai/text-embedding-3-small", Provider: "openrouter"},
 		},
@@ -3661,7 +3862,7 @@ func TestConfig_ValidateRejectsUnknownEmbeddingModel(t *testing.T) {
 		Name: "daemon",
 		Models: ModelsConfig{
 			Verify:    new(true),
-			Key:       "key",
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "key"}},
 			Main:      MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
 			Embedding: EmbeddingModelConfig{Name: "openai/text-embedding-missing", Provider: "openrouter"},
 		},
@@ -3726,8 +3927,8 @@ func TestConfig_ValidateRejectsInvalidCompactionSettings(t *testing.T) {
 	cfg := &Config{
 		Name: "daemon",
 		Models: ModelsConfig{
-			Key:  "key",
-			Main: MainModelConfig{Name: "openai/model", ContextLength: 128000, Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "key"}},
+			Main:      MainModelConfig{Name: "openai/model", ContextLength: 128000, Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
 		},
 		RPC:        RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Session:    SessionConfig{MaxIterations: 1, DefaultIdleExpiry: time.Hour, ArchiveRetention: 24 * time.Hour},
@@ -3746,7 +3947,7 @@ func TestConfig_ValidateRejectsInvalidCompactionRecentSessionTail(t *testing.T) 
 	cfg := &Config{
 		Name: "daemon",
 		Models: ModelsConfig{
-			Key: "key",
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "key"}},
 			Main: MainModelConfig{
 				Name:          "openai/model",
 				ContextLength: 128000,
@@ -3791,9 +3992,23 @@ func TestConfigExamples_EnvFilesListSupportedEnvironmentKeys(t *testing.T) {
 				require.Regexp(t, regexp.MustCompile(`(?m)^#?\s*`+regexp.QuoteMeta(key)+`=`), content, key)
 			}
 			for _, match := range regexp.MustCompile(`(?m)^#?\s*([A-Z][A-Z0-9_]*)=`).FindAllStringSubmatch(content, -1) {
-				require.Truef(t, strings.HasPrefix(match[1], "HAND_"), "env key %q must use HAND_ prefix", match[1])
+				require.Truef(
+					t,
+					strings.HasPrefix(match[1], "HAND_") || hasNativeProviderEnvKey(match[1]),
+					"env key %q must use HAND_ prefix or be a provider-native credential key",
+					match[1],
+				)
 			}
 		})
+	}
+}
+
+func hasNativeProviderEnvKey(key string) bool {
+	switch key {
+	case "OPENAI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "COPILOT_GITHUB_TOKEN":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -3820,9 +4035,7 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 			requireYAMLKeys(t, content, "models", []string{
 				"verify",
 				"maxRetries",
-				"key",
-				"openaiApiKey",
-				"openrouterApiKey",
+				"providers",
 				"main",
 				"summary",
 				"embedding",

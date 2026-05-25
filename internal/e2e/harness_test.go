@@ -71,9 +71,9 @@ func TestNewHarness_RealConfigLoadAndEnvOverride(t *testing.T) {
 	spec.Config = ConfigInput{
 		ConfigFilePath: configPath,
 		Env: map[string]string{
-			"HAND_NAME":         "Env Hand",
-			"HAND_MODEL_KEY":    "env-key",
-			"HAND_MODEL_STREAM": "false",
+			"HAND_NAME":          "Env Hand",
+			"OPENROUTER_API_KEY": "env-key",
+			"HAND_MODEL_STREAM":  "false",
 		},
 	}
 
