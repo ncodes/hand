@@ -404,24 +404,35 @@ type ModelMetadata struct {
 	ContextLength int
 }
 
+type modelProviderDefinition struct {
+	ID              string
+	DefaultBaseURLs map[string]string
+}
+
 var (
-	globalConfig            *Config
-	configMu                sync.RWMutex
-	loadDotEnv              = godotenv.Load
-	getwd                   = os.Getwd
-	httpClient              = &http.Client{Timeout: 5 * time.Second}
-	modelDocsBaseURL        = "https://developers.openai.com/api/docs/models"
-	resolveModelMeta        = fetchModelMetadataFromProvider
-	providerDefaultBaseURLs = map[string]map[string]string{
+	globalConfig     *Config
+	configMu         sync.RWMutex
+	loadDotEnv       = godotenv.Load
+	getwd            = os.Getwd
+	httpClient       = &http.Client{Timeout: 5 * time.Second}
+	modelDocsBaseURL = "https://developers.openai.com/api/docs/models"
+	resolveModelMeta = fetchModelMetadataFromProvider
+	modelProviders   = map[string]modelProviderDefinition{
 		constants.ModelProviderOpenRouter: {
-			constants.DefaultModelAPIModeCompletions: constants.DefaultOpenRouterBaseURL,
-			"responses":                              constants.DefaultOpenRouterResponsesBaseURL,
-			"embeddings":                             constants.DefaultOpenRouterEmbeddingsBaseURL,
+			ID: constants.ModelProviderOpenRouter,
+			DefaultBaseURLs: map[string]string{
+				constants.DefaultModelAPIModeCompletions: constants.DefaultOpenRouterBaseURL,
+				"responses":                              constants.DefaultOpenRouterResponsesBaseURL,
+				"embeddings":                             constants.DefaultOpenRouterEmbeddingsBaseURL,
+			},
 		},
 		constants.ModelProviderOpenAI: {
-			constants.DefaultModelAPIModeCompletions: constants.DefaultOpenAIBaseURL,
-			"responses":                              constants.DefaultOpenAIBaseURL,
-			"embeddings":                             constants.DefaultOpenAIEmbeddingsBaseURL,
+			ID: constants.ModelProviderOpenAI,
+			DefaultBaseURLs: map[string]string{
+				constants.DefaultModelAPIModeCompletions: constants.DefaultOpenAIBaseURL,
+				"responses":                              constants.DefaultOpenAIBaseURL,
+				"embeddings":                             constants.DefaultOpenAIEmbeddingsBaseURL,
+			},
 		},
 	}
 )
@@ -1593,8 +1604,8 @@ func isProviderDefaultBaseURL(value string) bool {
 		return false
 	}
 
-	for _, modes := range providerDefaultBaseURLs {
-		for _, baseURL := range modes {
+	for _, providerDef := range modelProviders {
+		for _, baseURL := range providerDef.DefaultBaseURLs {
 			if value == strings.TrimSpace(baseURL) {
 				return true
 			}
@@ -1621,17 +1632,33 @@ func getDefaultBaseURLForProvider(provider, apiMode string) string {
 		apiMode = constants.DefaultModelAPIModeCompletions
 	}
 
-	modes, ok := providerDefaultBaseURLs[provider]
+	providerDef, ok := modelProviders[provider]
 	if !ok {
 		return ""
 	}
 
-	u, ok := modes[apiMode]
+	u, ok := providerDef.DefaultBaseURLs[apiMode]
 	if !ok {
 		return ""
 	}
 
 	return u
+}
+
+func hasModelProvider(provider string) bool {
+	provider = strings.TrimSpace(strings.ToLower(provider))
+	_, ok := modelProviders[provider]
+	return ok
+}
+
+func modelProviderList() string {
+	ids := make([]string, 0, len(modelProviders))
+	for id := range modelProviders {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	return strings.Join(ids, ", ")
 }
 
 func (c *Config) VerifyEnabled() bool {
@@ -2049,13 +2076,13 @@ func (c *Config) Validate() error {
 		return errors.New("summary model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
 	}
 
-	if _, ok := providerDefaultBaseURLs[strings.TrimSpace(strings.ToLower(c.Models.Main.Provider))]; !ok {
-		return errors.New("model provider must be one of: openai, openrouter")
+	if !hasModelProvider(c.Models.Main.Provider) {
+		return fmt.Errorf("model provider must be one of: %s", modelProviderList())
 	}
 
 	if c.Models.Summary.Provider != "" {
-		if _, ok := providerDefaultBaseURLs[c.Models.Summary.Provider]; !ok {
-			return errors.New("summary model provider must be one of: openai, openrouter")
+		if !hasModelProvider(c.Models.Summary.Provider) {
+			return fmt.Errorf("summary model provider must be one of: %s", modelProviderList())
 		}
 	}
 
@@ -2223,8 +2250,8 @@ func validatePersonalityConfig(name string, personality PersonalityConfig) error
 		return fmt.Errorf("personalities.%s.model.name must use the format <owner>/<name>", name)
 	}
 	if personality.Model.Provider != "" {
-		if _, ok := providerDefaultBaseURLs[personality.Model.Provider]; !ok {
-			return fmt.Errorf("personalities.%s.model.provider must be one of: openai, openrouter", name)
+		if !hasModelProvider(personality.Model.Provider) {
+			return fmt.Errorf("personalities.%s.model.provider must be one of: %s", name, modelProviderList())
 		}
 	}
 	switch personality.Model.APIMode {
@@ -2241,8 +2268,8 @@ func (c *Config) validateSearchVectorSettings() error {
 		return nil
 	}
 	provider := c.ModelEmbeddingProviderEffective()
-	if _, ok := providerDefaultBaseURLs[provider]; !ok {
-		return errors.New("embedding provider must be one of: openai, openrouter")
+	if !hasModelProvider(provider) {
+		return fmt.Errorf("embedding provider must be one of: %s", modelProviderList())
 	}
 	if c.Models.Embedding.Name == "" {
 		return errors.New("embedding model is required")
@@ -2355,8 +2382,8 @@ func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
 	c.Normalize()
 
 	provider := c.ModelEmbeddingProviderEffective()
-	if _, ok := providerDefaultBaseURLs[provider]; !ok {
-		return ModelAuth{}, errors.New("embedding provider must be one of: openai, openrouter")
+	if !hasModelProvider(provider) {
+		return ModelAuth{}, fmt.Errorf("embedding provider must be one of: %s", modelProviderList())
 	}
 
 	auth := ModelAuth{

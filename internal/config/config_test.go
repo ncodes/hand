@@ -33,10 +33,11 @@ func stubModelMetadataResolver(t *testing.T, fn func(context.Context, *Config, M
 func stubProviderDefaultBaseURL(t *testing.T, provider string, mode string, value string) {
 	t.Helper()
 
-	original := providerDefaultBaseURLs[provider][mode]
-	providerDefaultBaseURLs[provider][mode] = value
+	definition := modelProviders[provider]
+	original := definition.DefaultBaseURLs[mode]
+	definition.DefaultBaseURLs[mode] = value
 	t.Cleanup(func() {
-		providerDefaultBaseURLs[provider][mode] = original
+		definition.DefaultBaseURLs[mode] = original
 	})
 }
 
@@ -2366,6 +2367,71 @@ func TestDefaultBaseURLForProvider_DefaultsEmptyAPIMode(t *testing.T) {
 	require.Equal(t, "https://api.openai.com/v1", getDefaultBaseURLForProvider("openai", "responses"))
 	require.Equal(t, "https://openrouter.ai/api/v1/embeddings", getDefaultBaseURLForProvider("openrouter", "embeddings"))
 	require.Equal(t, "https://api.openai.com/v1/embeddings", getDefaultBaseURLForProvider("openai", "embeddings"))
+}
+
+func TestModelProviders_CoverDayOneProviderBaseURLs(t *testing.T) {
+	require.True(t, hasModelProvider("openai"))
+	require.True(t, hasModelProvider("openrouter"))
+	require.Equal(t, "openai, openrouter", modelProviderList())
+	require.Equal(t, "openai", modelProviders["openai"].ID)
+	require.Equal(t, "openrouter", modelProviders["openrouter"].ID)
+
+	require.Equal(t, constants.DefaultOpenAIBaseURL, getDefaultBaseURLForProvider("openai", constants.DefaultModelAPIModeCompletions))
+	require.Equal(t, constants.DefaultOpenAIBaseURL, getDefaultBaseURLForProvider("openai", constants.DefaultModelAPIModeResponses))
+	require.Equal(t, constants.DefaultOpenAIEmbeddingsBaseURL, getDefaultBaseURLForProvider("openai", "embeddings"))
+	require.Equal(t, constants.DefaultOpenRouterBaseURL, getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIModeCompletions))
+	require.Equal(t, constants.DefaultOpenRouterResponsesBaseURL, getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIModeResponses))
+	require.Equal(t, constants.DefaultOpenRouterEmbeddingsBaseURL, getDefaultBaseURLForProvider("openrouter", "embeddings"))
+}
+
+func TestConfig_ModelSlotsResolveProviderBaseURLsThroughRegistry(t *testing.T) {
+	stubProviderDefaultBaseURL(t, "openrouter", constants.DefaultModelAPIModeCompletions, "https://registry.openrouter.example/v1")
+	stubProviderDefaultBaseURL(t, "openai", constants.DefaultModelAPIModeResponses, "https://registry.openai.example/v1")
+	stubProviderDefaultBaseURL(t, "openrouter", "embeddings", "https://registry.openrouter.example/v1/embeddings")
+
+	cfg := &Config{
+		Name: "test-agent",
+		Models: ModelsConfig{
+			Key: "test-key",
+			Main: MainModelConfig{
+				Name:     constants.DefaultModel,
+				Provider: "openrouter",
+				APIMode:  constants.DefaultModelAPIModeCompletions,
+			},
+			Summary: SummaryModelConfig{
+				Provider: "openai",
+				APIMode:  constants.DefaultModelAPIModeResponses,
+			},
+			Embedding: EmbeddingModelConfig{
+				Name:     constants.DefaultProfileEmbeddingModel,
+				Provider: "openrouter",
+			},
+		},
+	}
+
+	mainAuth, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, ModelAuth{
+		Provider: "openrouter",
+		APIKey:   "test-key",
+		BaseURL:  "https://registry.openrouter.example/v1",
+	}, mainAuth)
+
+	summaryAuth, err := cfg.ResolveSummaryModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, ModelAuth{
+		Provider: "openai",
+		APIKey:   "test-key",
+		BaseURL:  "https://registry.openai.example/v1",
+	}, summaryAuth)
+
+	embeddingAuth, err := cfg.ResolveEmbeddingModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, ModelAuth{
+		Provider: "openrouter",
+		APIKey:   "test-key",
+		BaseURL:  "https://registry.openrouter.example/v1/embeddings",
+	}, embeddingAuth)
 }
 
 func TestDefaultBaseURLForProvider_ReturnsEmptyForUnknownMode(t *testing.T) {

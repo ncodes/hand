@@ -83,12 +83,23 @@ var postShutdownServeErrHook = func(err error) error { return err }
 
 var writeRuntimeMetadata = handruntime.WriteActive
 
-// openAIClientFactory is swapped in tests to simulate client construction failures.
-var openAIClientFactory = models.NewOpenAIClient
+type modelClientFactoryFunc func(config.ModelAuth, int) (models.Client, error)
+
+var modelClientFactory modelClientFactoryFunc = newOpenAIModelClient
 
 // resolveSummaryAuth resolves summary model credentials (hooked in tests).
 var resolveSummaryAuth = func(cfg *config.Config) (config.ModelAuth, error) {
 	return cfg.ResolveSummaryModelAuth()
+}
+
+func newOpenAIModelClient(auth config.ModelAuth, maxRetries int) (models.Client, error) {
+	clientOptions := make([]option.RequestOption, 0, 2)
+	if strings.TrimSpace(auth.BaseURL) != "" {
+		clientOptions = append(clientOptions, option.WithBaseURL(auth.BaseURL))
+	}
+	clientOptions = append(clientOptions, option.WithMaxRetries(maxRetries))
+
+	return models.NewOpenAIClient(auth.APIKey, clientOptions...)
 }
 
 func renderStartupPanel(cfg *config.Config) string {
@@ -317,13 +328,7 @@ func NewCommand() *cli.Command {
 			}
 			startupLog.Msg("Starting Hand services")
 
-			clientOptions := make([]option.RequestOption, 0, 2)
-			if cfg.Models.Main.BaseURL != "" {
-				clientOptions = append(clientOptions, option.WithBaseURL(cfg.Models.Main.BaseURL))
-			}
-			clientOptions = append(clientOptions, option.WithMaxRetries(cfg.ModelMaxRetriesEffective()))
-
-			modelClient, err := openAIClientFactory(auth.APIKey, clientOptions...)
+			modelClient, err := modelClientFactory(auth, cfg.ModelMaxRetriesEffective())
 			if err != nil {
 				return err
 			}
@@ -337,12 +342,7 @@ func NewCommand() *cli.Command {
 			if config.ModelAuthEqual(auth, summaryAuth) {
 				summaryClient = modelClient
 			} else {
-				summaryOpts := make([]option.RequestOption, 0, 2)
-				if strings.TrimSpace(summaryAuth.BaseURL) != "" {
-					summaryOpts = append(summaryOpts, option.WithBaseURL(summaryAuth.BaseURL))
-				}
-				summaryOpts = append(summaryOpts, option.WithMaxRetries(cfg.ModelMaxRetriesEffective()))
-				summaryClient, err = openAIClientFactory(summaryAuth.APIKey, summaryOpts...)
+				summaryClient, err = modelClientFactory(summaryAuth, cfg.ModelMaxRetriesEffective())
 				if err != nil {
 					return err
 				}

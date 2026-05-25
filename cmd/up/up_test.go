@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openai/openai-go/v3/option"
 	"github.com/stretchr/testify/require"
 	cli "github.com/urfave/cli/v3"
 	"google.golang.org/grpc"
@@ -558,18 +557,18 @@ func TestNewCommand_ReturnsStartupOutputError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestNewCommand_ReturnsOpenAIClientFactoryError(t *testing.T) {
+func TestNewCommand_ReturnsModelClientFactoryError(t *testing.T) {
 	isolateCommandProfile(t)
-	origFactory := openAIClientFactory
+	origFactory := modelClientFactory
 	origServe := serveRPC
 	t.Cleanup(func() {
-		openAIClientFactory = origFactory
+		modelClientFactory = origFactory
 		serveRPC = origServe
 	})
 
 	serveRPC = func(context.Context, *config.Config, agentRunner) error { return nil }
-	openAIClientFactory = func(string, ...option.RequestOption) (*models.OpenAIClient, error) {
-		return nil, errors.New("openai factory boom")
+	modelClientFactory = func(config.ModelAuth, int) (models.Client, error) {
+		return nil, errors.New("model factory boom")
 	}
 
 	configFile := ""
@@ -587,7 +586,7 @@ func TestNewCommand_ReturnsOpenAIClientFactoryError(t *testing.T) {
 		"--rpc.port", "50051",
 		"up",
 	})
-	require.EqualError(t, err, "openai factory boom")
+	require.EqualError(t, err, "model factory boom")
 }
 
 func TestNewCommand_ReturnsResolveSummaryAuthError(t *testing.T) {
@@ -622,22 +621,22 @@ func TestNewCommand_ReturnsResolveSummaryAuthError(t *testing.T) {
 	require.EqualError(t, err, "summary auth boom")
 }
 
-func TestNewCommand_ReturnsSecondOpenAIClientFactoryError(t *testing.T) {
+func TestNewCommand_ReturnsSecondModelClientFactoryError(t *testing.T) {
 	isolateCommandProfile(t)
-	origFactory := openAIClientFactory
+	origFactory := modelClientFactory
 	origServe := serveRPC
 	t.Cleanup(func() {
-		openAIClientFactory = origFactory
+		modelClientFactory = origFactory
 		serveRPC = origServe
 	})
 
 	serveRPC = func(context.Context, *config.Config, agentRunner) error { return nil }
 
 	var n int
-	openAIClientFactory = func(key string, opts ...option.RequestOption) (*models.OpenAIClient, error) {
+	modelClientFactory = func(auth config.ModelAuth, retries int) (models.Client, error) {
 		n++
 		if n == 1 {
-			return models.NewOpenAIClient(key, opts...)
+			return newOpenAIModelClient(auth, retries)
 		}
 		return nil, errors.New("summary client boom")
 	}
@@ -660,6 +659,55 @@ func TestNewCommand_ReturnsSecondOpenAIClientFactoryError(t *testing.T) {
 		"up",
 	})
 	require.EqualError(t, err, "summary client boom")
+}
+
+func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
+	isolateCommandProfile(t)
+	origFactory := modelClientFactory
+	origRunner := newAgentRunner
+	origServe := serveRPC
+	origStartupOutput := startupOutput
+	t.Cleanup(func() {
+		modelClientFactory = origFactory
+		newAgentRunner = origRunner
+		serveRPC = origServe
+		startupOutput = origStartupOutput
+	})
+
+	var calls []config.ModelAuth
+	modelClientFactory = func(auth config.ModelAuth, maxRetries int) (models.Client, error) {
+		calls = append(calls, auth)
+		require.Equal(t, constants.DefaultModelMaxRetries, maxRetries)
+		return &models.OpenAIClient{}, nil
+	}
+	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client) agentRunner {
+		return &agentstub.AgentRunnerStub{}
+	}
+	serveRPC = func(context.Context, *config.Config, agentRunner) error { return nil }
+	startupOutput = io.Discard
+
+	configFile := ""
+	cmd := newRootCommandForTest(&configFile)
+	serverURL := newOpenRouterModelsServer(t, "openai/gpt-4o-mini")
+	require.NoError(t, cmd.Run(context.Background(), []string{
+		"hand",
+		"--name", "flag-agent",
+		"--model", "openai/gpt-4o-mini",
+		"--model.provider", "openrouter",
+		"--model.key", "router-key",
+		"--model.base-url", serverURL,
+		"--model.summary-provider", "openai",
+		"--model.summary-base-url", "https://openai.example/v1",
+		"--models.verify", "false",
+		"--rpc.address", "127.0.0.1",
+		"--rpc.port", "50051",
+		"up",
+	}))
+
+	require.Equal(t, []config.ModelAuth{
+		{Provider: "openrouter", APIKey: "router-key", BaseURL: serverURL},
+		{Provider: "openai", APIKey: "router-key", BaseURL: "https://openai.example/v1"},
+	}, calls)
 }
 
 func TestNewCommand_ReturnsAgentStartError(t *testing.T) {

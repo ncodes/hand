@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openai/openai-go/v3/option"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	cli "github.com/urfave/cli/v3"
@@ -31,11 +30,11 @@ func init() {
 
 func Test_E2E_UpCommand_BootsAndServesRPC(t *testing.T) {
 	originalRunner := newAgentRunner
-	originalFactory := openAIClientFactory
+	originalFactory := modelClientFactory
 	originalOutput := startupOutput
 	t.Cleanup(func() {
 		newAgentRunner = originalRunner
-		openAIClientFactory = originalFactory
+		modelClientFactory = originalFactory
 		startupOutput = originalOutput
 	})
 
@@ -54,7 +53,7 @@ func Test_E2E_UpCommand_BootsAndServesRPC(t *testing.T) {
 		require.NotNil(t, summaryClient)
 		return stub
 	}
-	openAIClientFactory = func(string, ...option.RequestOption) (*models.OpenAIClient, error) {
+	modelClientFactory = func(config.ModelAuth, int) (models.Client, error) {
 		return &models.OpenAIClient{}, nil
 	}
 
