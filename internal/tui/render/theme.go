@@ -1,5 +1,6 @@
 package render
 
+// Theme defines colors used by the TUI renderer.
 type Theme struct {
 	InputFrameBackground     string
 	InputFrameBorder         string
@@ -28,6 +29,7 @@ type Theme struct {
 	CompactionSeparator      string
 }
 
+// DefaultTheme returns the default color palette used by the TUI renderer.
 var DefaultTheme = Theme{
 	InputFrameBackground:     "232",
 	InputFrameBorder:         "8",

@@ -18,10 +18,12 @@ const (
 	maxCount     = constants.WebSearchToolMaxCount
 )
 
+// Options configures this package operation.
 type Options struct {
 	WebsitePolicy guardrails.WebsitePolicy
 }
 
+// Definition returns the model-visible tool definition.
 func Definition(provider webintegration.Provider, options ...Options) tools.Definition {
 	type input struct {
 		Query string `json:"query"`

@@ -2,6 +2,7 @@ package composer
 
 import "strings"
 
+// InputKind classifies composer input before submission.
 type InputKind int
 
 const (
@@ -11,6 +12,7 @@ const (
 	InputLocalCommand
 )
 
+// Input describes input for input.
 type Input struct {
 	Kind InputKind
 	Text string
@@ -18,6 +20,7 @@ type Input struct {
 	Args string
 }
 
+// ParseInput classifies raw composer input as a command or chat message.
 func ParseInput(value string) Input {
 	text := strings.TrimSpace(value)
 	if text == "" {
@@ -45,6 +48,7 @@ func ParseInput(value string) Input {
 	return Input{Kind: InputPrompt, Text: text}
 }
 
+// NormalizePaste normalizes paste.
 func NormalizePaste(value string) string {
 	return strings.TrimRight(value, "\r\n")
 }

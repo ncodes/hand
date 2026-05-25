@@ -9,6 +9,7 @@ import (
 
 const tavilyDefaultBaseURL = "https://api.tavily.com"
 
+// TavilyProvider sends web requests to Tavily.
 type TavilyProvider struct {
 	client                   *httpClient
 	maxCharsPerResult        int
@@ -16,6 +17,7 @@ type TavilyProvider struct {
 	maxExtractResponseBytes  int
 }
 
+// NewTavily returns a web provider backed by Tavily.
 func NewTavily(opts Options) (Provider, error) {
 	opts = opts.Normalize()
 	if opts.APIKey == "" {

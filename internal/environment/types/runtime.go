@@ -12,6 +12,7 @@ import (
 	"github.com/wandxy/hand/internal/memory/episodic"
 )
 
+// Runtime exposes environment services needed by tool implementations.
 type Runtime interface {
 	// Policy management
 	FilePolicy() guardrails.FilesystemPolicy

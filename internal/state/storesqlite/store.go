@@ -13,12 +13,14 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// Store persists sessions, messages, memory, and traces in SQLite.
 type Store struct {
 	vectors        *vectorConfig
 	memoryReranker search.Reranker
 	db             *gorm.DB
 }
 
+// NewStore returns a store backed by the supplied dependencies.
 func NewStore(path string) (*Store, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -33,6 +35,7 @@ func NewStore(path string) (*Store, error) {
 	return backend, nil
 }
 
+// NewStoreFromDB returns a store using an existing database handle.
 func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 	if db == nil {
 		return nil, errors.New("session db is required")

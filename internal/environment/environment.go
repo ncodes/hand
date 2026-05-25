@@ -7,13 +7,13 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
 	"github.com/wandxy/hand/internal/environment/budget"
 	"github.com/wandxy/hand/internal/environment/planstore"
 	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
 	memguardrails "github.com/wandxy/hand/internal/memory/guardrails"
@@ -51,6 +51,7 @@ var (
 
 const configInstructInstructionName = "config.instruct"
 
+// Environment exposes runtime services used by tools and agent turns.
 type Environment interface {
 	// Prepare registers native tools and builds system instructions from config,
 	// personality overlays, workspace rules, and optional config instruct. Call once
@@ -102,6 +103,7 @@ type environment struct {
 	safetyEvents []guardrails.SafetyTracePayloadOptions
 }
 
+// ToolRegistry resolves model-visible tool definitions and invokers.
 type ToolRegistry interface {
 	GetGroup(string) (tools.Group, bool)
 	List() tools.Definitions
@@ -142,6 +144,7 @@ func (e *environment) MemoryProvider() memory.Provider {
 	return e.memory
 }
 
+// NewEnvironment builds the runtime environment from config and process dependencies.
 func NewEnvironment(ctx context.Context, cfg *config.Config) Environment {
 	registry := tools.NewInMemoryRegistry()
 

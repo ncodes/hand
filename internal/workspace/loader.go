@@ -29,6 +29,7 @@ var (
 	getwd = os.Getwd
 )
 
+// Result contains loaded instruction text and related metadata.
 type Result struct {
 	Content          string
 	Found            bool
@@ -40,12 +41,14 @@ type Result struct {
 	SafetyEvents     []guardrails.SafetyTracePayloadOptions
 }
 
+// DefaultInstructionFiles returns the default instruction files.
 func DefaultInstructionFiles() []string {
 	files := make([]string, len(defaultInstructionFiles))
 	copy(files, defaultInstructionFiles)
 	return files
 }
 
+// NormalizeRulePaths normalizes rule paths.
 func NormalizeRulePaths(files []string) []string {
 	normalized := make([]string, 0, len(files))
 	seen := make(map[string]struct{}, len(files))
@@ -66,6 +69,7 @@ func NormalizeRulePaths(files []string) []string {
 	return normalized
 }
 
+// Load reads workspace instruction files from the current working directory.
 func Load(files ...string) (Result, error) {
 	root, err := getwd()
 	if err != nil {
@@ -75,6 +79,7 @@ func Load(files ...string) (Result, error) {
 	return LoadFromRoot(root, files...)
 }
 
+// LoadFromRoot reads workspace instruction files from root.
 func LoadFromRoot(root string, files ...string) (Result, error) {
 	root = strings.TrimSpace(root)
 	if root == "" {

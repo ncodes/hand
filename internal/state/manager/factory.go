@@ -41,6 +41,7 @@ func OpenStore(cfg *config.Config) (storage.Store, error) {
 	return OpenStoreWithRerankerClient(cfg, nil)
 }
 
+// OpenStoreWithRerankerClient opens store with reranker client.
 func OpenStoreWithRerankerClient(
 	cfg *config.Config,
 	rerankerClient models.Client,

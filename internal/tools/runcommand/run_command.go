@@ -21,6 +21,7 @@ import (
 var currentGOOS = goruntime.GOOS
 var commandContext = common.CommandContext
 
+// Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Command        string            `json:"command"`

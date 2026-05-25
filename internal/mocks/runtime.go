@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/internal/agent/runcontext"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
@@ -18,6 +18,7 @@ import (
 	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
+// ModelClientStub is a test stub for model client.
 type ModelClientStub struct {
 	Requests  []models.Request
 	Responses []*models.Response
@@ -73,6 +74,7 @@ func (s *ModelClientStub) CompleteStream(_ context.Context, req models.Request, 
 
 var _ environment.Environment = (*EnvironmentStub)(nil)
 
+// EnvironmentStub is a test stub for environment.
 type EnvironmentStub struct {
 	PrepareErr       error
 	InstructionsList instruct.Instructions
@@ -151,6 +153,7 @@ func (s *EnvironmentStub) HydratePlan(sessionID string, plan envtypes.Plan) {
 
 func (s *EnvironmentStub) SetStateManager(*statemanager.Manager) {}
 
+// ToolRegistryStub is a test stub for tool registry.
 type ToolRegistryStub struct {
 	Definitions    tools.Definitions
 	Groups         []tools.Group
@@ -187,6 +190,7 @@ func (s *ToolRegistryStub) Invoke(context.Context, tools.Call) (tools.Result, er
 	return s.Result, s.Err
 }
 
+// TraceSessionStub is a test stub for trace session.
 type TraceSessionStub struct {
 	SessionID string
 	Events    []trace.Event

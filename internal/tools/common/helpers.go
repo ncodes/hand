@@ -32,6 +32,7 @@ const (
 	MaxTimeout       = constants.ToolMaxTimeout
 )
 
+// DecodeInput decodes raw tool-call arguments into input.
 func DecodeInput(call tools.Call, target any) tools.Result {
 	if strings.TrimSpace(call.Input) == "" {
 		call.Input = "{}"
@@ -43,6 +44,7 @@ func DecodeInput(call tools.Call, target any) tools.Result {
 	return tools.Result{}
 }
 
+// EncodeOutput encodes a tool result as JSON text.
 func EncodeOutput(value any) (tools.Result, error) {
 	raw, err := json.Marshal(value)
 	if err != nil {
@@ -52,10 +54,12 @@ func EncodeOutput(value any) (tools.Result, error) {
 	return tools.Result{Output: string(raw)}, nil
 }
 
+// ToolError returns the error text from a recorded tool output.
 func ToolError(code, message string) tools.Result {
 	return tools.Result{Error: tools.Error{Code: code, Message: message}.String()}
 }
 
+// FileError returns a file-oriented tool error response.
 func FileError(err error) tools.Result {
 	if err == nil {
 		return tools.Result{}
@@ -81,6 +85,7 @@ func FileError(err error) tools.Result {
 	}
 }
 
+// HiddenPath reports whether path should be hidden from filesystem tool listings.
 func HiddenPath(path string) bool {
 	for part := range strings.SplitSeq(filepath.ToSlash(path), "/") {
 		if strings.HasPrefix(part, ".") && part != "." && part != ".." {
@@ -91,6 +96,7 @@ func HiddenPath(path string) bool {
 	return false
 }
 
+// NormalizedDisplayPath normalizes display path.
 func NormalizedDisplayPath(path string) string {
 	if path == "" {
 		return "."
@@ -99,6 +105,7 @@ func NormalizedDisplayPath(path string) string {
 	return filepath.ToSlash(path)
 }
 
+// TrimOutput truncates long tool output to a bounded display string.
 func TrimOutput(value string, limit int) string {
 	if len(value) <= limit {
 		return value
@@ -107,6 +114,7 @@ func TrimOutput(value string, limit int) string {
 	return value[:limit]
 }
 
+// WithTimeoutSeconds adds a timeout_seconds schema field when limits are configured.
 func WithTimeoutSeconds(value int) int {
 	if value <= 0 {
 		return DefaultTimeout
@@ -118,6 +126,7 @@ func WithTimeoutSeconds(value int) int {
 	return value
 }
 
+// JoinStrings joins non-empty strings with sep.
 func JoinStrings(parts ...string) string {
 	filtered := make([]string, 0, len(parts))
 	for _, part := range parts {
@@ -131,6 +140,7 @@ func JoinStrings(parts ...string) string {
 	return strings.Join(filtered, " ")
 }
 
+// ObjectSchema builds a JSON object schema for tool input.
 func ObjectSchema(properties map[string]any, required ...string) map[string]any {
 	if properties == nil {
 		properties = map[string]any{}
@@ -149,6 +159,7 @@ func ObjectSchema(properties map[string]any, required ...string) map[string]any 
 	return schema
 }
 
+// StringSchema builds a JSON string schema for tool input.
 func StringSchema(description string) map[string]any {
 	return map[string]any{
 		"type":        "string",
@@ -156,6 +167,7 @@ func StringSchema(description string) map[string]any {
 	}
 }
 
+// BooleanSchema builds a JSON boolean schema for tool input.
 func BooleanSchema(description string) map[string]any {
 	return map[string]any{
 		"type":        "boolean",
@@ -163,6 +175,7 @@ func BooleanSchema(description string) map[string]any {
 	}
 }
 
+// IntegerSchema builds a JSON integer schema for tool input.
 func IntegerSchema(description string) map[string]any {
 	return map[string]any{
 		"type":        "integer",

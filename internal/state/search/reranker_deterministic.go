@@ -15,6 +15,7 @@ const (
 	defaultRerankFusedWeight   = constants.DefaultRerankFusedWeight
 )
 
+// DeterministicReranker reranks deterministic candidates.
 type DeterministicReranker struct{}
 
 func (DeterministicReranker) Name() string {

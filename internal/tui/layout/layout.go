@@ -1,7 +1,9 @@
 package layout
 
+// PanelHorizontalPadding is the package-level panel horizontal padding constant.
 const PanelHorizontalPadding = 1
 
+// Rect describes terminal layout geometry.
 type Rect struct {
 	X      int
 	Y      int
@@ -9,6 +11,7 @@ type Rect struct {
 	Height int
 }
 
+// Regions describes terminal layout geometry.
 type Regions struct {
 	Transcript         Rect
 	JumpToBottom       Rect
@@ -18,6 +21,7 @@ type Regions struct {
 	PanelHorizontalPad int
 }
 
+// Metrics records metrics for display or diagnostics.
 type Metrics struct {
 	MinInputHeight              int
 	InputChromeHeight           int
@@ -26,6 +30,7 @@ type Metrics struct {
 	BottomStatusPanelHeight     int
 }
 
+// PanelPadding returns the padding used around a panel.
 func PanelPadding(width int) int {
 	if width <= PanelHorizontalPadding*2 {
 		return 0
@@ -34,12 +39,14 @@ func PanelPadding(width int) int {
 	return PanelHorizontalPadding
 }
 
+// PanelContentWidth returns the content width remaining inside panel padding.
 func PanelContentWidth(width int) int {
 	padding := PanelPadding(width)
 
 	return max(width-padding*2, 1)
 }
 
+// Compute calculates transcript, composer, and status bar regions for the terminal size.
 func Compute(width int, height int, inputHeight int, metrics Metrics) Regions {
 	width = max(width, 1)
 	height = max(height, 1)

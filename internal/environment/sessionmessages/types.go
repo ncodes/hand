@@ -5,6 +5,7 @@ import (
 	"slices"
 )
 
+// SessionMessagesRequest describes a session messages request.
 type SessionMessagesRequest struct {
 	SessionID       string `json:"session_id,omitempty"`
 	AnchorMessageID uint   `json:"anchor_message_id,omitempty"`
@@ -16,12 +17,14 @@ type SessionMessagesRequest struct {
 	MaxChars        int    `json:"max_chars,omitempty"`
 }
 
+// SessionMessagesResponse describes a session messages response.
 type SessionMessagesResponse struct {
 	SessionID string                 `json:"session_id"`
 	Messages  []SessionMessageRecord `json:"messages"`
 	Truncated bool                   `json:"truncated,omitempty"`
 }
 
+// SessionMessageRecord represents one persisted session message record.
 type SessionMessageRecord struct {
 	MessageID  uint                    `json:"message_id"`
 	Offset     int                     `json:"offset"`
@@ -35,6 +38,7 @@ type SessionMessageRecord struct {
 	Truncated  bool                    `json:"truncated,omitempty"`
 }
 
+// SessionToolCallRecord represents one persisted session tool call record.
 type SessionToolCallRecord struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
@@ -42,6 +46,7 @@ type SessionToolCallRecord struct {
 	Truncated bool   `json:"truncated,omitempty"`
 }
 
+// SessionMessagesSelector classifies session messages selector.
 type SessionMessagesSelector string
 
 const (

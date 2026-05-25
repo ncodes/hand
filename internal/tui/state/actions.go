@@ -1,5 +1,6 @@
 package state
 
+// ViewportSizeAction represents a viewport size action.
 type ViewportSizeAction struct {
 	Width  int
 	Height int

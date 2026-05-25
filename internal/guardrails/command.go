@@ -5,12 +5,14 @@ import (
 	"strings"
 )
 
+// CommandPolicy defines command policy settings.
 type CommandPolicy struct {
 	Allow []string
 	Ask   []string
 	Deny  []string
 }
 
+// CommandDecision is the result of evaluating a shell command against policy.
 type CommandDecision string
 
 const (
@@ -19,6 +21,7 @@ const (
 	CommandDenied           CommandDecision = "denied"
 )
 
+// CommandEvaluation describes command evaluation.
 type CommandEvaluation struct {
 	Decision CommandDecision
 	Rule     string
@@ -161,6 +164,7 @@ func (p CommandPolicy) Normalize() CommandPolicy {
 	return p
 }
 
+// EvaluateCommand classifies a shell command against the command safety policy.
 func EvaluateCommand(policy CommandPolicy, command string, args []string) CommandEvaluation {
 	policy = policy.Normalize()
 	tokens := getCommandTokens(command, args)

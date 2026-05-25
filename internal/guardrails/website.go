@@ -5,13 +5,16 @@ import (
 	"strings"
 )
 
+// WebsitePolicy defines website policy settings.
 type WebsitePolicy struct {
 	Enabled bool
 	Rules   []WebsiteRule
 }
 
+// WebsiteRule classifies website safety rules.
 type WebsiteRule = domainRule
 
+// WebsiteBlock describes one blocked website rule.
 type WebsiteBlock struct {
 	URL     string
 	Host    string
@@ -20,6 +23,7 @@ type WebsiteBlock struct {
 	Message string
 }
 
+// NewWebsitePolicy returns a website safety policy compiled from blocked website rules.
 func NewWebsitePolicy(enabled bool, domains, files []string) WebsitePolicy {
 	rules := appendDomainRules(nil, domains, "config")
 	rules = appendDomainRulesFromFiles(rules, files)

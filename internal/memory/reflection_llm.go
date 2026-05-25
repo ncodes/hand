@@ -31,6 +31,7 @@ type LLMReflectionGenerator struct {
 	options LLMReflectionGeneratorOptions
 }
 
+// NewLLMReflectionGenerator returns a reflection generator backed by a model client.
 func NewLLMReflectionGenerator(options LLMReflectionGeneratorOptions) (*LLMReflectionGenerator, error) {
 	if options.Client == nil {
 		return nil, errors.New("memory reflection model client is required")

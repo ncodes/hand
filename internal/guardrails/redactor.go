@@ -9,14 +9,17 @@ import (
 
 var jsonUnmarshal = json.Unmarshal
 
+// Redactor removes sensitive values from text before display or trace output.
 type Redactor interface {
 	Sanitize(any) any
 }
 
+// RedactorOptions toggles optional redaction categories.
 type RedactorOptions struct {
 	DisablePII bool
 }
 
+// DefaultRedactor redacts text using the package default policy.
 type DefaultRedactor struct {
 	options RedactorOptions
 }
@@ -45,10 +48,12 @@ var (
 	}
 )
 
+// NewRedactor returns a redactor with default options.
 func NewRedactor() Redactor {
 	return DefaultRedactor{}
 }
 
+// NewRedactorWithOptions returns a redactor using the supplied options.
 func NewRedactorWithOptions(options RedactorOptions) Redactor {
 	return DefaultRedactor{options: options}
 }
@@ -57,6 +62,7 @@ func (redactor DefaultRedactor) Sanitize(value any) any {
 	return sanitizeValue(value, redactor.options)
 }
 
+// Sanitize redacts configured sensitive values from text.
 func Sanitize(value any) any {
 	return sanitizeValue(value, RedactorOptions{})
 }

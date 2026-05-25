@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// SafetyCategory classifies safety findings by policy area.
 type SafetyCategory string
 
 const (
@@ -18,6 +19,7 @@ const (
 	SafetyCategorySuspiciousToolCoercion  SafetyCategory = "suspicious_tool_use_coercion"
 )
 
+// SafetyFindingID identifies a specific safety finding.
 type SafetyFindingID string
 
 const (
@@ -62,6 +64,7 @@ var outputLeakPatterns = []threatPattern{
 	},
 }
 
+// SafetyFinding describes safety finding.
 type SafetyFinding struct {
 	ID       SafetyFindingID
 	Category SafetyCategory
@@ -69,6 +72,7 @@ type SafetyFinding struct {
 	Source   string
 }
 
+// InputSafetyResult contains findings from input safety checks.
 type InputSafetyResult struct {
 	Allowed        bool
 	Blocked        bool
@@ -76,6 +80,7 @@ type InputSafetyResult struct {
 	Findings       []SafetyFinding
 }
 
+// OutputSafetyResult contains findings from output safety checks.
 type OutputSafetyResult struct {
 	Content        string
 	Blocked        bool
@@ -84,6 +89,7 @@ type OutputSafetyResult struct {
 	Findings       []SafetyFinding
 }
 
+// UntrustedContentSafetyResult contains findings from untrusted-content checks.
 type UntrustedContentSafetyResult struct {
 	Content  string
 	Blocked  bool
@@ -91,6 +97,7 @@ type UntrustedContentSafetyResult struct {
 	Findings []SafetyFinding
 }
 
+// CheckInputSafety checks input safety.
 func CheckInputSafety(content, source string) InputSafetyResult {
 	findings := findSafetyFindings(content, source)
 	if len(findings) == 0 {
@@ -104,6 +111,7 @@ func CheckInputSafety(content, source string) InputSafetyResult {
 	}
 }
 
+// CheckOutputSafety checks output safety.
 func CheckOutputSafety(content, source string, redactor Redactor) OutputSafetyResult {
 	if redactor == nil {
 		redactor = NewRedactor()
@@ -133,6 +141,7 @@ func CheckOutputSafety(content, source string, redactor Redactor) OutputSafetyRe
 	}
 }
 
+// CheckUntrustedContentSafety checks untrusted content safety.
 func CheckUntrustedContentSafety(content, source string, redactor Redactor) UntrustedContentSafetyResult {
 	if redactor == nil {
 		redactor = NewRedactor()

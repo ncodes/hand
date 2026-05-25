@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// Candidate is a ranked search candidate before final fusion.
 type Candidate struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -24,6 +25,7 @@ type Candidate struct {
 	MessageID    uint
 }
 
+// ScoreDirection declares whether higher or lower candidate scores rank first.
 type ScoreDirection int
 
 const (
@@ -31,6 +33,7 @@ const (
 	ScoreLowerIsBetter
 )
 
+// ValidateCandidate checks that a search candidate has usable identity and score fields.
 func ValidateCandidate(candidate Candidate) error {
 	if strings.TrimSpace(candidate.ID) == "" {
 		return errors.New("candidate id is required")
@@ -70,6 +73,7 @@ func ValidateCandidate(candidate Candidate) error {
 	return nil
 }
 
+// SortCandidates sorts sort candidates.
 func SortCandidates(candidates []Candidate) {
 	sort.SliceStable(candidates, func(i int, j int) bool {
 		left := candidates[i]
@@ -91,6 +95,7 @@ func SortCandidates(candidates []Candidate) {
 	})
 }
 
+// NormalizeScores normalizes scores.
 func NormalizeScores(scores []float64, direction ScoreDirection) ([]float64, error) {
 	if len(scores) == 0 {
 		return nil, nil

@@ -21,6 +21,7 @@ const (
 	defaultEmbeddingMaxRetries        = constants.DefaultEmbeddingMaxRetries
 )
 
+// EmbeddingProviderOptions controls embedding provider.
 type EmbeddingProviderOptions struct {
 	HTTPClient        *http.Client
 	Provider          string
@@ -32,6 +33,7 @@ type EmbeddingProviderOptions struct {
 	MaxRetries        int
 }
 
+// EmbeddingProvider creates embeddings through the configured model client.
 type EmbeddingProvider struct {
 	client            *http.Client
 	provider          string
@@ -43,6 +45,7 @@ type EmbeddingProvider struct {
 	maxRetries        int
 }
 
+// NewEmbeddingProvider returns an embedding provider selected from config.
 func NewEmbeddingProvider(opts EmbeddingProviderOptions) (*EmbeddingProvider, error) {
 	provider := strings.TrimSpace(strings.ToLower(opts.Provider))
 	if provider == "" {

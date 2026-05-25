@@ -12,6 +12,7 @@ import (
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
+// Get returns session messages selected by offset, message ID, or anchor window.
 func Get(
 	ctx context.Context,
 	manager *statemanager.Manager,

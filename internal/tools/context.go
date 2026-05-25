@@ -6,6 +6,7 @@ import (
 	"github.com/wandxy/hand/internal/agent/runcontext"
 )
 
+// TraceRecorder records tool events emitted during execution.
 type TraceRecorder interface {
 	Record(string, any)
 }
@@ -13,6 +14,7 @@ type TraceRecorder interface {
 type sessionIDContextKey struct{}
 type traceRecorderContextKey struct{}
 
+// WithSessionID describes the active session id on ctx.
 func WithSessionID(ctx context.Context, sessionID string) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
@@ -20,6 +22,7 @@ func WithSessionID(ctx context.Context, sessionID string) context.Context {
 	return context.WithValue(ctx, sessionIDContextKey{}, sessionID)
 }
 
+// WithRunContext describes the active run context on ctx supplied to prompts.
 func WithRunContext(ctx context.Context, runCtx runcontext.Context) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
@@ -33,6 +36,7 @@ func WithRunContext(ctx context.Context, runCtx runcontext.Context) context.Cont
 	return WithSessionID(ctx, runCtx.StateSessionID())
 }
 
+// SessionIDFromContext returns the active session ID stored on ctx.
 func SessionIDFromContext(ctx context.Context) string {
 	if ctx == nil {
 		return ""
@@ -44,10 +48,12 @@ func SessionIDFromContext(ctx context.Context) string {
 	return sessionID
 }
 
+// RunContextFromContext runs context from context.
 func RunContextFromContext(ctx context.Context) (runcontext.Context, bool) {
 	return runcontext.FromContext(ctx)
 }
 
+// WithTraceRecorder describes a trace recorder on ctx.
 func WithTraceRecorder(ctx context.Context, recorder TraceRecorder) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
@@ -55,6 +61,7 @@ func WithTraceRecorder(ctx context.Context, recorder TraceRecorder) context.Cont
 	return context.WithValue(ctx, traceRecorderContextKey{}, recorder)
 }
 
+// TraceRecorderFromContext returns the trace recorder stored on ctx.
 func TraceRecorderFromContext(ctx context.Context) TraceRecorder {
 	if ctx == nil {
 		return nil

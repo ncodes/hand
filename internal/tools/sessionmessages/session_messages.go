@@ -21,6 +21,7 @@ const (
 	maxMaxChars         = constants.SessionMessagesToolMaxChars
 )
 
+// Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:             "session_messages",

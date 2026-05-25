@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// UseCaseReranker reranks use case candidates.
 type UseCaseReranker struct {
 	Default  Reranker
 	Override map[string]Reranker

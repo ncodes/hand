@@ -18,6 +18,7 @@ const (
 	defaultLLMRerankerMaxCandidateTextLen = constants.DefaultLLMRerankerMaxCandidateTextLen
 )
 
+// LLMRerankerOptions controls llm reranker.
 type LLMRerankerOptions struct {
 	Fallback                 Reranker
 	Client                   models.Client
@@ -32,6 +33,7 @@ type LLMRerankerOptions struct {
 	DebugRequests            bool
 }
 
+// LLMReranker reranks llm candidates.
 type LLMReranker struct {
 	options LLMRerankerOptions
 }
@@ -40,6 +42,7 @@ func (LLMReranker) Name() string {
 	return RerankerLLM
 }
 
+// NewLLMReranker returns a reranker backed by an LLM.
 func NewLLMReranker(options LLMRerankerOptions) Reranker {
 	if !options.Enabled {
 		retrievalLog.Trace().

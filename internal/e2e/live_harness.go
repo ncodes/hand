@@ -29,6 +29,7 @@ const (
 	LiveClassificationExpectationFailed = "expectation_failed"
 )
 
+// LiveArtifact describes an artifact written during a live e2e run.
 type LiveArtifact struct {
 	Scenario       string    `json:"scenario"`
 	Prompt         string    `json:"prompt"`
@@ -39,6 +40,7 @@ type LiveArtifact struct {
 	FinishedAt     time.Time `json:"finished_at"`
 }
 
+// NewLiveClients returns live model clients for e2e scenarios.
 func NewLiveClients(cfg *config.Config) (models.Client, models.Client, error) {
 	if cfg == nil {
 		return nil, nil, errors.New("live harness config is required")
@@ -76,6 +78,7 @@ func NewLiveClients(cfg *config.Config) (models.Client, models.Client, error) {
 	return modelClient, summaryClient, nil
 }
 
+// NewLiveHarness returns an e2e harness wired to live model clients.
 func NewLiveHarness(ctx context.Context, home, envFile, configFile string) (*Harness, error) {
 	cfg, err := loadLiveConfig(strings.TrimSpace(envFile), strings.TrimSpace(configFile))
 	if err != nil {
@@ -95,6 +98,7 @@ func NewLiveHarness(ctx context.Context, home, envFile, configFile string) (*Har
 	})
 }
 
+// NewLiveRPCHarness returns an RPC e2e harness wired to live model clients.
 func NewLiveRPCHarness(ctx context.Context, home, envFile, configFile string) (*RPCHarness, error) {
 	cfg, err := loadLiveConfig(strings.TrimSpace(envFile), strings.TrimSpace(configFile))
 	if err != nil {
@@ -123,6 +127,7 @@ func getLiveClientOptions(baseURL string, maxRetries int) []option.RequestOption
 	return opts
 }
 
+// DefaultLiveArtifactDir returns the directory used for live e2e artifacts.
 func DefaultLiveArtifactDir(override string) string {
 	if strings.TrimSpace(override) != "" {
 		return strings.TrimSpace(override)
@@ -131,6 +136,7 @@ func DefaultLiveArtifactDir(override string) string {
 	return filepath.Join(os.TempDir(), "hand-live-artifacts")
 }
 
+// RunLiveScenario runs live scenario.
 func RunLiveScenario(
 	name string,
 	prompt string,
@@ -176,6 +182,7 @@ func RunLiveScenario(
 	return artifact, nil
 }
 
+// WriteLiveArtifact describes an artifact written during a live e2e run.
 func WriteLiveArtifact(dir string, artifact LiveArtifact) error {
 	dir = strings.TrimSpace(dir)
 	if dir == "" {

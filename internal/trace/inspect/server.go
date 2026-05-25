@@ -17,6 +17,7 @@ var assets embed.FS
 
 var readAssetFile = fs.ReadFile
 
+// App serves trace-inspection pages and JSON endpoints.
 type App struct {
 	store          *Store
 	memoryProvider SessionMemoryProvider
@@ -24,6 +25,7 @@ type App struct {
 	password       string
 }
 
+// NewApp returns the HTTP application used by trace inspection.
 func NewApp(directory string) *App {
 	return &App{store: NewStore(directory)}
 }

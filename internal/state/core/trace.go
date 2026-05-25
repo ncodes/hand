@@ -10,8 +10,10 @@ import (
 	"time"
 )
 
+// ErrTraceStoreUnsupported is returned when a store does not persist trace events.
 var ErrTraceStoreUnsupported = errors.New("trace store is not supported")
 
+// TraceEvent represents a trace event.
 type TraceEvent struct {
 	ID        uint
 	SessionID string
@@ -21,6 +23,7 @@ type TraceEvent struct {
 	Payload   any
 }
 
+// TraceQuery describes filters and limits for trace lookup.
 type TraceQuery struct {
 	SessionID   string
 	Types       []string
@@ -30,16 +33,19 @@ type TraceQuery struct {
 	Desc        bool
 }
 
+// TraceResult contains trace events returned by a query.
 type TraceResult struct {
 	Events []TraceEvent
 }
 
+// TraceStore persists and queries trace events.
 type TraceStore interface {
 	AppendTraceEvent(context.Context, TraceEvent) (TraceEvent, error)
 	ListTraceEvents(context.Context, TraceQuery) (TraceResult, error)
 	PruneTraceEvents(context.Context, string, int) error
 }
 
+// CloneTraceEvent clones clone trace event.
 func CloneTraceEvent(event TraceEvent) TraceEvent {
 	event.Payload = cloneTracePayload(event.Payload)
 	return event
@@ -64,6 +70,7 @@ func cloneTracePayload(payload any) any {
 	return cloned.Elem().Interface()
 }
 
+// TraceEventMatchesQuery reports whether event satisfies query filters.
 func TraceEventMatchesQuery(event TraceEvent, query TraceQuery) bool {
 	if sessionID := strings.TrimSpace(query.SessionID); sessionID != "" && event.SessionID != sessionID {
 		return false
@@ -78,6 +85,7 @@ func TraceEventMatchesQuery(event TraceEvent, query TraceQuery) bool {
 	return true
 }
 
+// NormalizeTraceTypes normalizes trace types.
 func NormalizeTraceTypes(types []string) []string {
 	seen := make(map[string]struct{}, len(types))
 	results := make([]string, 0, len(types))

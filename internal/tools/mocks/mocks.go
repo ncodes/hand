@@ -15,6 +15,7 @@ import (
 	"github.com/wandxy/hand/internal/tools"
 )
 
+// Runtime exposes environment-backed services to tools.
 type Runtime struct {
 	FilePolicyValue              guardrails.FilesystemPolicy
 	CommandPolicyValue           guardrails.CommandPolicy
@@ -151,6 +152,7 @@ func (r *Runtime) MergePlan(string, []envtypes.PartialPlanStep, string, bool) (e
 func (r *Runtime) ClearPlan(string) envtypes.Plan    { return envtypes.Plan{} }
 func (r *Runtime) HydratePlan(string, envtypes.Plan) {}
 
+// NewRuntime returns a runtime implementation bound to env.
 func NewRuntime(root string, policy guardrails.CommandPolicy) *Runtime {
 	return &Runtime{
 		FilePolicyValue:    guardrails.FilesystemPolicy{Roots: guardrails.NormalizeRoots([]string{root})},
@@ -158,6 +160,7 @@ func NewRuntime(root string, policy guardrails.CommandPolicy) *Runtime {
 	}
 }
 
+// RegisterRuntime registers mock runtime tool definitions with registry.
 func RegisterRuntime(
 	t *testing.T,
 	root string,
@@ -177,11 +180,13 @@ func RegisterRuntime(
 	return registry
 }
 
+// QuoteJSON returns value encoded as a JSON string literal.
 func QuoteJSON(value string) string {
 	raw, _ := json.Marshal(value)
 	return string(raw)
 }
 
+// FailingPlanRuntime is a mock runtime whose plan operations fail.
 type FailingPlanRuntime struct {
 	Runtime    envtypes.Runtime
 	MergeErr   error
@@ -265,11 +270,13 @@ func (d *FailingPlanRuntime) HydratePlan(sessionID string, plan envtypes.Plan) {
 	d.Runtime.HydratePlan(sessionID, plan)
 }
 
+// RecordedEvent represents a recorded event.
 type RecordedEvent struct {
 	Type    string
 	Payload any
 }
 
+// TraceRecorder describes trace recorder.
 type TraceRecorder struct {
 	Events []RecordedEvent
 }

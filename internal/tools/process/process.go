@@ -31,6 +31,7 @@ type input struct {
 	StderrBytes  *int              `json:"stderr_bytes"`
 }
 
+// Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:        "process",

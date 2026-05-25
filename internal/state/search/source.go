@@ -9,14 +9,17 @@ import (
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
+// StableSessionMessageID returns the stable vector source ID for a session message.
 func StableSessionMessageID(sessionID string, messageID uint) string {
 	return fmt.Sprintf("%s:%s:%d", SourceKindSessionMessage, strings.TrimSpace(sessionID), messageID)
 }
 
+// StableMemoryItemID returns the stable vector source ID for a memory item.
 func StableMemoryItemID(memoryID string) string {
 	return fmt.Sprintf("%s:%s", SourceKindMemoryItem, strings.TrimSpace(memoryID))
 }
 
+// MemoryIDFromSourceID extracts a memory ID from a vector source ID.
 func MemoryIDFromSourceID(sourceID string) (string, bool) {
 	value, ok := strings.CutPrefix(sourceID, string(SourceKindMemoryItem)+":")
 	if !ok {
@@ -30,10 +33,12 @@ func MemoryIDFromSourceID(sourceID string) (string, bool) {
 	return value, true
 }
 
+// SourceIDForMessage returns the vector source ID for a session message.
 func SourceIDForMessage(sessionID string, messageID uint) string {
 	return StableSessionMessageID(strings.TrimSpace(sessionID), messageID)
 }
 
+// SourceIDsFromMessages returns vector source IDs for session messages.
 func SourceIDsFromMessages(sessionID string, messages []handmsg.Message) []string {
 	if len(messages) == 0 {
 		return nil
@@ -47,6 +52,7 @@ func SourceIDsFromMessages(sessionID string, messages []handmsg.Message) []strin
 	return sourceIDs
 }
 
+// MessageRefFromSourceID extracts a session/message reference from a vector source ID.
 func MessageRefFromSourceID(sourceID string) (string, uint, bool) {
 	value, ok := strings.CutPrefix(sourceID, string(SourceKindSessionMessage)+":")
 	if !ok {

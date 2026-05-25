@@ -9,10 +9,12 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
+// Options configures the RPC server.
 type Options struct {
 	Health bool
 }
 
+// New returns a gRPC server registered with the Hand service.
 func New(service handagent.ServiceAPI, opts Options) *grpc.Server {
 	server := grpc.NewServer()
 	handpb.RegisterHandServiceServer(server, rpc.NewService(service))

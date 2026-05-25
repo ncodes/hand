@@ -13,6 +13,7 @@ const (
 	ExitConfirmationWindow = 2 * time.Second
 )
 
+// Model describes the status bar text rendered by the tui.
 type Model struct {
 	defaultText string
 	text        string
@@ -20,6 +21,7 @@ type Model struct {
 	hideAfter   time.Duration
 }
 
+// New returns a status model with the supplied initial text.
 func New() Model {
 	return Model{
 		defaultText: DefaultText,

@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// SafetyScanResult contains findings from a safety scan.
 type SafetyScanResult struct {
 	Content  string
 	Blocked  bool
@@ -49,6 +50,7 @@ var (
 	}
 )
 
+// SafetyScan scans text for configured safety policy violations.
 func SafetyScan(content, source string) SafetyScanResult {
 	findings := findSafetyFindings(content, source)
 	if len(findings) == 0 {

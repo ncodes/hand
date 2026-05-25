@@ -62,6 +62,7 @@ func (p nativeFetchPolicy) Check(ctx context.Context, parsed *url.URL) error {
 	return p.websiteCheck(ctx, parsed.String())
 }
 
+// NativeProvider uses the built-in web search and extraction implementation.
 type NativeProvider struct {
 	client                   *http.Client
 	makeClient               func() *http.Client
@@ -73,6 +74,7 @@ type NativeProvider struct {
 	maxExtractResponseBytes  int
 }
 
+// NewNative returns the built-in web provider.
 func NewNative(opts Options) (Provider, error) {
 	opts = opts.Normalize()
 

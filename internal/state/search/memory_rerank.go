@@ -8,6 +8,7 @@ import (
 	state "github.com/wandxy/hand/internal/state/core"
 )
 
+// MemoryRerankOptions controls memory rerank.
 type MemoryRerankOptions struct {
 	Reranker      Reranker
 	MaxCandidates int
@@ -16,6 +17,7 @@ type MemoryRerankOptions struct {
 
 const memoryVectorEvidenceThreshold = 0.75
 
+// FilterMemoryHitsForEvidence keeps memory hits suitable for evidence in a model prompt.
 func FilterMemoryHitsForEvidence(
 	query state.MemorySearchQuery,
 	hits []state.MemorySearchHit,
@@ -33,6 +35,7 @@ func FilterMemoryHitsForEvidence(
 	return filtered
 }
 
+// RerankMemoryHits reranks memory hits for the supplied query.
 func RerankMemoryHits(
 	ctx context.Context,
 	query state.MemorySearchQuery,
@@ -94,6 +97,7 @@ func getMemoryRerankCaller(query state.MemorySearchQuery) string {
 	return state.MemoryRerankerUseCaseDefault
 }
 
+// MemoryResultLimit returns the configured memory result limit with defaults applied.
 func MemoryResultLimit(limit int) int {
 	if limit <= 0 {
 		return 10
@@ -102,6 +106,7 @@ func MemoryResultLimit(limit int) int {
 	return limit
 }
 
+// MemoryCandidateLimit returns the configured memory candidate limit with defaults applied.
 func MemoryCandidateLimit(resultLimit int) int {
 	resultLimit = MemoryResultLimit(resultLimit)
 	candidateLimit := resultLimit * 4

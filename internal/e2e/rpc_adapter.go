@@ -19,10 +19,12 @@ var rpcclientNewClient = func(ctx context.Context, opts rpcclient.Options) (rpcC
 	return rpcclient.NewClient(ctx, opts)
 }
 
+// RPCAdapter adapts agent operations to the rpc harness.
 type RPCAdapter struct {
 	harness *RPCHarness
 }
 
+// NewRPCAdapter returns an adapter that drives agent turns through RPC.
 func NewRPCAdapter(harness *RPCHarness) *RPCAdapter {
 	return &RPCAdapter{harness: harness}
 }

@@ -8,12 +8,14 @@ import (
 	"github.com/wandxy/hand/internal/config"
 )
 
+// ConfigOptions customizes the default e2e config.
 type ConfigOptions struct {
 	Name           string
 	StorageBackend string
 	Stream         bool
 }
 
+// DefaultSpec returns the default e2e scenario specification.
 func DefaultSpec(home string) HarnessSpec {
 	home = strings.TrimSpace(home)
 	dataDir := filepath.Join(home, "data")
@@ -31,6 +33,7 @@ func DefaultSpec(home string) HarnessSpec {
 	}
 }
 
+// DefaultConfig returns the default e2e harness configuration.
 func DefaultConfig(opts ConfigOptions) *config.Config {
 	stream := opts.Stream
 

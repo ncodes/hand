@@ -36,16 +36,28 @@ var ErrAmbiguousTraceFiles = errors.New("multiple trace files match session id")
 // traceTimeLayout is the UTC timestamp prefix for new trace filenames: "<layout>-<session_id>.jsonl".
 const traceTimeLayout = "20060102T150405.000000000Z"
 
+/*
+Trace sessions record durable, inspectable events for one agent session.
+
+Factories hide where events are written: JSONL files for local inspection,
+state stores for database-backed timelines, or multiple sinks when callers need
+both. Recording code should depend on the Session interface and avoid caring
+about storage details.
+*/
+
+// Session records trace events for one logical agent run.
 type Session interface {
 	ID() string
 	Record(string, any)
 	Close()
 }
 
+// Factory opens trace sessions for a storage backend.
 type Factory interface {
 	OpenSession(context.Context, string, Metadata) Session
 }
 
+// Metadata describes the run associated with a trace session.
 type Metadata struct {
 	AgentName          string     `json:"agent_name"`
 	Model              string     `json:"model"`
@@ -64,6 +76,7 @@ type Metadata struct {
 	TraceDir           string     `json:"trace_dir,omitempty"`
 }
 
+// Event is one persisted trace record.
 type Event struct {
 	SessionID string    `json:"session_id"`
 	Type      string    `json:"type"`
@@ -71,6 +84,7 @@ type Event struct {
 	Payload   any       `json:"payload,omitempty"`
 }
 
+// JSONLFactory opens trace sessions for a specific backend.
 type JSONLFactory struct {
 	directory string
 	redactor  guardrails.Redactor
@@ -78,12 +92,14 @@ type JSONLFactory struct {
 	pathLocks sync.Map // path -> *sync.Mutex
 }
 
+// StateStore persists trace events for state-backed traces.
 type StateStore interface {
 	AppendTraceEvent(context.Context, storage.TraceEvent) (storage.TraceEvent, error)
 	ListTraceEvents(context.Context, storage.TraceQuery) (storage.TraceResult, error)
 	PruneTraceEvents(context.Context, string, int) error
 }
 
+// StateFactory opens trace sessions for a specific backend.
 type StateFactory struct {
 	store               StateStore
 	redactor            guardrails.Redactor
@@ -126,6 +142,7 @@ type noopSession struct{}
 
 type noopFactory struct{}
 
+// NewFileFactory returns a trace factory that writes JSONL files under dir.
 func NewFileFactory(directory string, redactor guardrails.Redactor) *JSONLFactory {
 	if redactor == nil {
 		redactor = guardrails.NewRedactor()
@@ -138,6 +155,7 @@ func NewFileFactory(directory string, redactor guardrails.Redactor) *JSONLFactor
 	}
 }
 
+// NewStateFactory returns a trace factory that persists events through store.
 func NewStateFactory(store StateStore, redactor guardrails.Redactor, maxEventsPerSession int) *StateFactory {
 	if redactor == nil {
 		redactor = guardrails.NewRedactor()
@@ -151,6 +169,7 @@ func NewStateFactory(store StateStore, redactor guardrails.Redactor, maxEventsPe
 	}
 }
 
+// NewMultiFactory returns a trace factory that records each event through every factory.
 func NewMultiFactory(factories ...Factory) Factory {
 	filtered := make([]Factory, 0, len(factories))
 	for _, factory := range factories {
@@ -167,10 +186,12 @@ func NewMultiFactory(factories ...Factory) Factory {
 	return multiFactory{factories: filtered}
 }
 
+// NoopFactory returns a trace factory that discards events.
 func NoopFactory() Factory {
 	return noopFactory{}
 }
 
+// NoopSession returns a trace session that discards events.
 func NoopSession() Session {
 	return noopSession{}
 }

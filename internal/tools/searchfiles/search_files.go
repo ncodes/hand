@@ -32,6 +32,7 @@ var (
 	walkDir        = common.WalkDir
 )
 
+// Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Pattern       string `json:"pattern"`

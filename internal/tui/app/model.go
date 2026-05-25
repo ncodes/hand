@@ -78,6 +78,7 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	return appModel
 }
 
+// NewModelWithClientContextAndConfig returns a model with client context and config.
 func NewModelWithClientContextAndConfig(
 	ctx context.Context,
 	client rpcclient.ChatAPI,

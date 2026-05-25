@@ -33,7 +33,7 @@ func NewService(api handagent.ServiceAPI) *Service {
 	return &Service{api: api}
 }
 
-// Respond handles a respond request and returns a response.
+// Respond sends a chat request to the service and returns the completed response.
 func (s *Service) Respond(req *handpb.RespondRequest, stream handpb.HandService_RespondServer) error {
 	if s == nil {
 		return status.Error(codes.Internal, "service is required")

@@ -21,6 +21,7 @@ var grpcServe = func(srv *grpc.Server, lis net.Listener) error {
 	return srv.Serve(lis)
 }
 
+// RPCHarness drives rpc e2e scenarios.
 type RPCHarness struct {
 	*Harness
 	address string
@@ -30,6 +31,7 @@ type RPCHarness struct {
 	err     error
 }
 
+// NewRPCHarness returns an RPC-backed e2e harness.
 func NewRPCHarness(ctx context.Context, opts HarnessOptions) (*RPCHarness, error) {
 	base, err := newBaseHarness(ctx, opts)
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
+// DefaultVectorRepairBatchSize is the package-level default vector repair batch size constant.
 const DefaultVectorRepairBatchSize = constants.DefaultVectorRepairBatchSize
 
 // VectorRepairOptions controls selective or full vector repair for session messages.

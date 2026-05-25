@@ -6,20 +6,32 @@ import (
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
+// DefaultSessionID is the package-level default session id constant.
 const DefaultSessionID = "default"
+
+// SessionIDPrefix is the package-level session id prefix constant.
 const SessionIDPrefix = "ses_"
+
+// ArchiveIDPrefix is the package-level archive id prefix constant.
 const ArchiveIDPrefix = "arc_"
+
+// SessionTitleSourceGenerated is the package-level session title source generated constant.
 const SessionTitleSourceGenerated = "generated"
+
+// SessionTitleSourceManual is the package-level session title source manual constant.
 const SessionTitleSourceManual = "manual"
 
+// NewSessionID returns a newly generated session ID.
 func NewSessionID() (string, error) {
 	return nanoid.Generate(SessionIDPrefix)
 }
 
+// NewArchiveID returns a newly generated archive ID.
 func NewArchiveID() (string, error) {
 	return nanoid.Generate(ArchiveIDPrefix)
 }
 
+// Session describes an active conversation session.
 type Session struct {
 	CreatedAt                  time.Time
 	Compaction                 SessionCompaction
@@ -32,11 +44,13 @@ type Session struct {
 	UpdatedAt                  time.Time
 }
 
+// CheckpointPatch describes changes to apply to checkpoint state.
 type CheckpointPatch struct {
 	EpisodicOffset   *int
 	ReflectionOffset *int
 }
 
+// SessionCompactionStatus records whether session history has been compacted.
 type SessionCompactionStatus string
 
 const (
@@ -46,6 +60,7 @@ const (
 	CompactionStatusFailed    SessionCompactionStatus = "failed"
 )
 
+// SessionCompaction records compaction metadata for a session.
 type SessionCompaction struct {
 	CompletedAt        time.Time
 	FailedAt           time.Time
@@ -57,6 +72,7 @@ type SessionCompaction struct {
 	TargetOffset       int
 }
 
+// ArchivedSession describes a session moved to archive storage.
 type ArchivedSession struct {
 	ID              string
 	SourceSessionID string
@@ -66,6 +82,7 @@ type ArchivedSession struct {
 	ExpiresAt       time.Time
 }
 
+// SessionSummary summarizes session state.
 type SessionSummary struct {
 	SessionID          string
 	SourceEndOffset    int

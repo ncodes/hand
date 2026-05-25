@@ -21,30 +21,42 @@ import (
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
 )
 
+// Client wraps a gRPC connection to the Hand service.
 type Client struct {
 	conn   *grpc.ClientConn
 	client handpb.HandServiceClient
 }
 
+// RespondOptions mirrors agent response options at this package boundary.
 type RespondOptions = agent.RespondOptions
+
+// Event aliases agent.Event at this package boundary.
 type Event = agent.Event
 
+// CompactSessionResult aliases agent.CompactSessionResult at this package boundary.
 type CompactSessionResult = agent.CompactSessionResult
 
+// ContextStatus aliases agent.ContextStatus at this package boundary.
 type ContextStatus = agent.ContextStatus
 
+// SessionTimelineOptions mirrors agent timeline query options at this package boundary.
 type SessionTimelineOptions = agent.SessionTimelineOptions
 
+// SessionTimeline mirrors the agent timeline type at this package boundary.
 type SessionTimeline = agent.SessionTimeline
 
+// RepairSessionOptions aliases search.VectorRepairOptions at this package boundary.
 type RepairSessionOptions = search.VectorRepairOptions
 
+// RepairSessionResult aliases search.VectorRepairResult at this package boundary.
 type RepairSessionResult = search.VectorRepairResult
 
+// ChatAPI is the chat surface exposed by local and RPC clients.
 type ChatAPI interface {
 	Respond(context.Context, string, RespondOptions) (string, error)
 }
 
+// SessionAPI is the session-management surface exposed by local and RPC clients.
 type SessionAPI interface {
 	CreateSession(context.Context, string) (storage.Session, error)
 	ListSessions(context.Context) ([]storage.Session, error)
@@ -56,31 +68,37 @@ type SessionAPI interface {
 	GetSessionTimeline(context.Context, SessionTimelineOptions) (SessionTimeline, error)
 }
 
+// ServiceAPI combines chat and session operations.
 type ServiceAPI interface {
 	ChatAPI
 	SessionAPI
 }
 
+// ChatClient is a closable client that can run chat turns.
 type ChatClient interface {
 	ChatAPI
 	Close() error
 }
 
+// SessionClient is a closable client for session operations.
 type SessionClient interface {
 	SessionAPI
 	Close() error
 }
 
+// ClientAPI is the complete closable RPC client surface.
 type ClientAPI interface {
 	ServiceAPI
 	Close() error
 }
 
+// Options configures this package operation.
 type Options struct {
 	Address string
 	Port    int
 }
 
+// NewClient returns a client configured with the supplied dependencies.
 func NewClient(ctx context.Context, opts Options) (*Client, error) {
 	address := strings.TrimSpace(opts.Address)
 	if address == "" {

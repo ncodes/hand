@@ -23,6 +23,7 @@ var (
 	readDir = os.ReadDir
 )
 
+// Options configures this package operation.
 type Options struct {
 	Enabled      *bool
 	MaxChars     int

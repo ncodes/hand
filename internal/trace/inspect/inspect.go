@@ -27,10 +27,12 @@ var (
 	newScanner    = bufio.NewScanner
 )
 
+// Store loads trace inspection data from JSONL trace files.
 type Store struct {
 	directory string
 }
 
+// SessionSummary summarizes session state.
 type SessionSummary struct {
 	ID          string    `json:"id"`
 	Path        string    `json:"path"`
@@ -44,6 +46,7 @@ type SessionSummary struct {
 	LoadError   string    `json:"load_error,omitempty"`
 }
 
+// SessionDetail contains the timeline, memory view, and warnings for one trace session.
 type SessionDetail struct {
 	Summary   SessionSummary     `json:"summary"`
 	Timeline  []TimelineEvent    `json:"timeline"`
@@ -52,12 +55,14 @@ type SessionDetail struct {
 	LoadError string             `json:"load_error,omitempty"`
 }
 
+// SessionMemoryView is the trace-inspection view for session memory.
 type SessionMemoryView struct {
 	Source    string       `json:"source"`
 	Items     []MemoryView `json:"items,omitempty"`
 	LoadError string       `json:"load_error,omitempty"`
 }
 
+// MemoryView is the trace-inspection view for memory.
 type MemoryView struct {
 	ID          string             `json:"id"`
 	Kind        string             `json:"kind"`
@@ -72,6 +77,7 @@ type MemoryView struct {
 	UpdatedAt   time.Time          `json:"updated_at,omitempty"`
 }
 
+// MemorySourceView is the trace-inspection view for memory source.
 type MemorySourceView struct {
 	SessionID     string `json:"session_id,omitempty"`
 	MessageIDs    []uint `json:"message_ids,omitempty"`
@@ -81,6 +87,7 @@ type MemorySourceView struct {
 	CreatedReason string `json:"created_reason,omitempty"`
 }
 
+// SessionMemoryProvider loads memory linked to a trace-inspected session.
 type SessionMemoryProvider interface {
 	ListSessionMemories(context.Context, string) ([]storage.MemoryItem, error)
 }
@@ -118,6 +125,7 @@ func memoryItemToMemoryView(item storage.MemoryItem) MemoryView {
 	}
 }
 
+// TimelineEvent represents a timeline event.
 type TimelineEvent struct {
 	Index             int                  `json:"index"`
 	Type              string               `json:"type"`
@@ -140,6 +148,7 @@ type TimelineEvent struct {
 	GenericPayloadRaw string               `json:"generic_payload_raw,omitempty"`
 }
 
+// StartedMetadataView is the trace-inspection view for started metadata.
 type StartedMetadataView struct {
 	AgentName string `json:"agent_name,omitempty"`
 	Model     string `json:"model,omitempty"`
@@ -148,10 +157,12 @@ type StartedMetadataView struct {
 	TraceDir  string `json:"trace_dir,omitempty"`
 }
 
+// UserMessageView is the trace-inspection view for user message.
 type UserMessageView struct {
 	Message string `json:"message"`
 }
 
+// ModelRequestView is the trace-inspection view for model request.
 type ModelRequestView struct {
 	Sequence        int              `json:"sequence"`
 	Model           string           `json:"model,omitempty"`
@@ -165,6 +176,7 @@ type ModelRequestView struct {
 	Tools           []ToolDefinition `json:"tools,omitempty"`
 }
 
+// RequestMetrics records request metrics for display or diagnostics.
 type RequestMetrics struct {
 	InstructionChars int `json:"instruction_chars"`
 	MessageCount     int `json:"message_count"`
@@ -173,6 +185,7 @@ type RequestMetrics struct {
 	ToolCallCount    int `json:"tool_call_count"`
 }
 
+// MessageView is the trace-inspection view for message.
 type MessageView struct {
 	Role         string         `json:"role,omitempty"`
 	Name         string         `json:"name,omitempty"`
@@ -183,11 +196,13 @@ type MessageView struct {
 	ToolCalls    []ToolCallView `json:"tool_calls,omitempty"`
 }
 
+// ToolDefinition describes a model-visible tool definition.
 type ToolDefinition struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 }
 
+// ModelResponseView is the trace-inspection view for model response.
 type ModelResponseView struct {
 	Sequence          int            `json:"sequence"`
 	ID                string         `json:"id,omitempty"`
@@ -197,12 +212,14 @@ type ModelResponseView struct {
 	ToolCalls         []ToolCallView `json:"tool_calls,omitempty"`
 }
 
+// ToolCallView is the trace-inspection view for tool call.
 type ToolCallView struct {
 	ID    string `json:"id,omitempty"`
 	Name  string `json:"name,omitempty"`
 	Input string `json:"input,omitempty"`
 }
 
+// ToolInvocationView is the trace-inspection view for tool invocation.
 type ToolInvocationView struct {
 	Phase      string `json:"phase"`
 	ID         string `json:"id,omitempty"`
@@ -213,18 +230,22 @@ type ToolInvocationView struct {
 	ToolCallID string `json:"tool_call_id,omitempty"`
 }
 
+// FinalResponseView is the trace-inspection view for final response.
 type FinalResponseView struct {
 	Message string `json:"message"`
 }
 
+// FailureView is the trace-inspection view for failure.
 type FailureView struct {
 	Error string `json:"error"`
 }
 
+// SummaryFallbackView is the trace-inspection view for summary fallback.
 type SummaryFallbackView struct {
 	Payload string `json:"payload,omitempty"`
 }
 
+// ContextEventView is the trace-inspection view for context event.
 type ContextEventView struct {
 	Source           string `json:"source,omitempty"`
 	PromptTokens     int    `json:"prompt_tokens,omitempty"`
@@ -235,6 +256,7 @@ type ContextEventView struct {
 	WarnThreshold    int    `json:"warn_threshold,omitempty"`
 }
 
+// SummaryEventView is the trace-inspection view for summary event.
 type SummaryEventView struct {
 	SessionID          string    `json:"session_id,omitempty"`
 	SourceEndOffset    int       `json:"source_end_offset,omitempty"`
@@ -243,6 +265,7 @@ type SummaryEventView struct {
 	Error              string    `json:"error,omitempty"`
 }
 
+// CompactionEventView is the trace-inspection view for compaction event.
 type CompactionEventView struct {
 	SessionID          string    `json:"session_id,omitempty"`
 	Status             string    `json:"status,omitempty"`
@@ -256,6 +279,7 @@ type CompactionEventView struct {
 	Error              string    `json:"error,omitempty"`
 }
 
+// WorkspaceRulesView is the trace-inspection view for workspace rules.
 type WorkspaceRulesView struct {
 	OriginalLength   int    `json:"original_length,omitempty"`
 	TruncatedLength  int    `json:"truncated_length,omitempty"`
@@ -263,6 +287,7 @@ type WorkspaceRulesView struct {
 	Marker           string `json:"marker,omitempty"`
 }
 
+// PlanEventView is the trace-inspection view for plan event.
 type PlanEventView struct {
 	SessionID    string          `json:"session_id,omitempty"`
 	Steps        []PlanStepView  `json:"steps,omitempty"`
@@ -272,12 +297,14 @@ type PlanEventView struct {
 	Source       string          `json:"source,omitempty"`
 }
 
+// PlanStepView is the trace-inspection view for plan step.
 type PlanStepView struct {
 	ID      string `json:"id,omitempty"`
 	Content string `json:"content,omitempty"`
 	Status  string `json:"status,omitempty"`
 }
 
+// PlanSummaryView is the trace-inspection view for plan summary.
 type PlanSummaryView struct {
 	Total      int `json:"total"`
 	Pending    int `json:"pending"`
@@ -286,6 +313,7 @@ type PlanSummaryView struct {
 	Cancelled  int `json:"cancelled"`
 }
 
+// SafetyEventView is the trace-inspection view for safety event.
 type SafetyEventView struct {
 	SessionID     string              `json:"session_id,omitempty"`
 	Source        string              `json:"source,omitempty"`
@@ -304,6 +332,7 @@ type rawEvent struct {
 	Payload   json.RawMessage `json:"payload,omitempty"`
 }
 
+// NewStore returns a store backed by the supplied dependencies.
 func NewStore(directory string) *Store {
 	return &Store{directory: strings.TrimSpace(directory)}
 }
@@ -398,6 +427,7 @@ func getSessionPath(directory, id string) (string, error) {
 	return handtrace.ResolveTraceFilePath(directory, id)
 }
 
+// LoadSessionFile loads session file.
 func LoadSessionFile(path string) (SessionDetail, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {

@@ -13,6 +13,7 @@ var (
 	newStateManager = statemanager.NewManager
 )
 
+// ConfigureStateProvider wires state-backed trace inspection into app.
 func ConfigureStateProvider(cfg *config.Config, app *App) error {
 	if cfg == nil || app == nil {
 		return nil

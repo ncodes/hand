@@ -13,10 +13,12 @@ import (
 	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
+// Summarizer produces a concise summary for extracted web content.
 type Summarizer interface {
 	SummarizeExtract(context.Context, SummaryInput) (string, error)
 }
 
+// SummaryInput describes input for summary.
 type SummaryInput struct {
 	URL                  string
 	Title                string
@@ -36,6 +38,7 @@ type summarizeOptions struct {
 	SummarizeRefusalThresholdChars int
 }
 
+// ExtractSummarizer describes extract summarizer.
 type ExtractSummarizer struct {
 	Client        models.Client
 	Model         string
@@ -43,6 +46,7 @@ type ExtractSummarizer struct {
 	DebugRequests bool
 }
 
+// NewExtractSummarizer returns a summarizer backed by a model client.
 func NewExtractSummarizer(client models.Client, cfg *config.Config) Summarizer {
 	if client == nil || cfg == nil {
 		return nil
@@ -59,6 +63,7 @@ func NewExtractSummarizer(client models.Client, cfg *config.Config) Summarizer {
 	}
 }
 
+// WithSummarizer replaces the summarizer used by the web extract tool.
 func WithSummarizer(ctx context.Context, summarizer Summarizer) context.Context {
 	if summarizer == nil {
 		return ctx

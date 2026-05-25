@@ -23,16 +23,19 @@ type configPathStep struct {
 	key string
 }
 
+// ConfigUpdate describes config update.
 type ConfigUpdate struct {
 	Path  string
 	Value string
 }
 
+// ConfigValue describes config value.
 type ConfigValue struct {
 	Path  string
 	Value string
 }
 
+// GetConfigValues returns config values.
 func GetConfigValues(envPath string, configPath string, paths []string) ([]ConfigValue, error) {
 	if len(paths) == 0 {
 		return nil, fmt.Errorf("config path is required")
@@ -65,6 +68,7 @@ func GetConfigValues(envPath string, configPath string, paths []string) ([]Confi
 	return values, nil
 }
 
+// SetConfigValue updates config value.
 func SetConfigValue(envPath string, configPath string, path string, value string) (string, error) {
 	updatedPaths, err := SetConfigValues(envPath, configPath, []ConfigUpdate{{Path: path, Value: value}})
 	if err != nil {
@@ -77,6 +81,7 @@ func SetConfigValue(envPath string, configPath string, path string, value string
 	return updatedPaths[0], nil
 }
 
+// SetConfigValues updates config values.
 func SetConfigValues(envPath string, configPath string, updates []ConfigUpdate) ([]string, error) {
 	configPath = strings.TrimSpace(configPath)
 	if configPath == "" {
@@ -286,6 +291,7 @@ func getConfigPathValue(current reflect.Value, path string) (reflect.Value, erro
 	return current, nil
 }
 
+// NormalizeConfigPathAlias normalizes config path alias.
 func NormalizeConfigPathAlias(path string) string {
 	path = strings.TrimSpace(path)
 	switch strings.ToLower(path) {

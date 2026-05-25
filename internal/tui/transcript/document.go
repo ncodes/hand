@@ -6,12 +6,14 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+// RenderedDocument describes rendered document.
 type RenderedDocument struct {
 	Content   string
 	PlainText string
 	Lines     []RenderedLine
 }
 
+// RenderedLine describes rendered line.
 type RenderedLine struct {
 	Text        string
 	PlainText   string
@@ -19,6 +21,7 @@ type RenderedLine struct {
 	EndOffset   int
 }
 
+// NewRenderedDocument returns a rendered transcript document with line offsets indexed.
 func NewRenderedDocument(content string) RenderedDocument {
 	plainText := ansi.Strip(content)
 	plainLines := strings.Split(plainText, "\n")

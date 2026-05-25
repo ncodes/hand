@@ -1,5 +1,6 @@
 package sessionsearch
 
+// SessionSearchRequest describes a session search request.
 type SessionSearchRequest struct {
 	SessionID       string `json:"session_id,omitempty"`
 	IgnoreSessionID string `json:"ignore_session_id,omitempty"`
@@ -9,6 +10,7 @@ type SessionSearchRequest struct {
 	MaxResults      int    `json:"max_results,omitempty"`
 }
 
+// SessionSearchResult contains messages matched by a session search.
 type SessionSearchResult struct {
 	SessionID      string                    `json:"session_id"`
 	SessionCreated string                    `json:"session_created_at,omitempty"`
@@ -18,6 +20,7 @@ type SessionSearchResult struct {
 	Messages       []SessionSearchMessageHit `json:"messages"`
 }
 
+// SessionSearchMessageHit represents one matched session search message result.
 type SessionSearchMessageHit struct {
 	MessageID     uint   `json:"message_id"`
 	Role          string `json:"role"`

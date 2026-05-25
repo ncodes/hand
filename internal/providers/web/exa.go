@@ -10,6 +10,7 @@ import (
 
 const exaDefaultBaseURL = "https://api.exa.ai"
 
+// ExaProvider sends web requests to Exa.
 type ExaProvider struct {
 	client                   *httpClient
 	maxCharsPerResult        int
@@ -17,6 +18,7 @@ type ExaProvider struct {
 	maxExtractResponseBytes  int
 }
 
+// NewExa returns a web provider backed by Exa.
 func NewExa(opts Options) (Provider, error) {
 	opts = opts.Normalize()
 	if opts.APIKey == "" {

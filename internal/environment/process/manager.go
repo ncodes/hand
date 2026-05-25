@@ -15,13 +15,19 @@ import (
 	"github.com/wandxy/hand/internal/constants"
 )
 
+// DefaultOutputBufferBytes is the package-level default output buffer bytes constant.
 const DefaultOutputBufferBytes = constants.DefaultProcessOutputBufferBytes
+
+// DefaultMaxTracked is the package-level default max tracked constant.
 const DefaultMaxTracked = constants.DefaultProcessMaxTracked
+
+// DefaultStopGracePeriod is the package-level default stop grace period constant.
 const DefaultStopGracePeriod = constants.DefaultProcessStopGracePeriod
 
 var commandContext = exec.CommandContext
 var currentGOOS = goruntime.GOOS
 
+// DefaultManager manages default.
 type DefaultManager struct {
 	mu              sync.Mutex
 	processes       map[string]map[string]*trackedProcess

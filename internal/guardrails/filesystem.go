@@ -15,16 +15,19 @@ var (
 	readPath = os.ReadFile
 )
 
+// FilesystemPolicy defines filesystem policy settings.
 type FilesystemPolicy struct {
 	Roots []string
 }
 
+// ResolvedPath describes resolved path.
 type ResolvedPath struct {
 	Root     string
 	Absolute string
 	Relative string
 }
 
+// NormalizeRoots normalizes roots.
 func NormalizeRoots(roots []string) []string {
 	if len(roots) == 0 {
 		return nil
@@ -116,6 +119,7 @@ func (p FilesystemPolicy) EnsureWithin(path string) error {
 	return err
 }
 
+// ReadTextFile reads a UTF-8 text file after applying filesystem policy checks.
 func ReadTextFile(path string, maxBytes int64) ([]byte, error) {
 	info, err := statPath(path)
 	if err != nil {
@@ -145,6 +149,7 @@ func ReadTextFile(path string, maxBytes int64) ([]byte, error) {
 	return content, nil
 }
 
+// IsBinary reports whether data appears to contain binary content.
 func IsBinary(content []byte) bool {
 	if len(content) == 0 {
 		return false

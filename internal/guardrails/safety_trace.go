@@ -2,6 +2,7 @@ package guardrails
 
 import "strings"
 
+// SafetyTracePayloadOptions controls safety trace payload.
 type SafetyTracePayloadOptions struct {
 	SessionID     string
 	Source        string
@@ -13,6 +14,7 @@ type SafetyTracePayloadOptions struct {
 	Findings      []SafetyFinding
 }
 
+// SafetyTracePayload converts a safety finding into trace payload fields.
 func SafetyTracePayload(opts SafetyTracePayloadOptions) map[string]any {
 	payload := map[string]any{
 		"action":         strings.TrimSpace(opts.Action),
@@ -34,6 +36,7 @@ func SafetyTracePayload(opts SafetyTracePayloadOptions) map[string]any {
 	return payload
 }
 
+// SafetyFindingLogFields converts a safety finding into structured log fields.
 func SafetyFindingLogFields(findings []SafetyFinding) []map[string]string {
 	if len(findings) == 0 {
 		return nil

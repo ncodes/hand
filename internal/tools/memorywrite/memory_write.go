@@ -5,9 +5,9 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/tools"
@@ -71,6 +71,7 @@ type deleteOutput struct {
 	Deleted bool   `json:"deleted"`
 }
 
+// AddDefinition returns the memory-write tool definition for adding memory.
 func AddDefinition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:             "memory_add",
@@ -128,6 +129,7 @@ func AddDefinition(runtime envtypes.Runtime) tools.Definition {
 	}
 }
 
+// UpdateDefinition returns the memory-write tool definition for updating memory.
 func UpdateDefinition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:             "memory_update",
@@ -178,6 +180,7 @@ func UpdateDefinition(runtime envtypes.Runtime) tools.Definition {
 	}
 }
 
+// DeleteDefinition returns the memory-write tool definition for deleting memory.
 func DeleteDefinition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:             "memory_delete",

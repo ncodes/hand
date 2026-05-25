@@ -12,6 +12,7 @@ import (
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
+// Manager manages manager.
 type Manager struct {
 	store             storage.Store
 	defaultIdleExpiry time.Duration
@@ -23,6 +24,7 @@ type Manager struct {
 var generateSessionID = storage.NewSessionID
 var generateArchiveID = storage.NewArchiveID
 
+// NewManager returns a state manager backed by the supplied store.
 func NewManager(store storage.Store, defaultIdleExpiry, archiveRetention time.Duration) (*Manager, error) {
 	if store == nil {
 		return nil, errors.New("store is required")

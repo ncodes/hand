@@ -15,27 +15,53 @@ import (
 	"github.com/wandxy/hand/internal/state/search/vectorstore"
 )
 
+// Record aliases vectorstore.Record at this package boundary.
 type Record = vectorstore.Record
+
+// DeleteRequest aliases vectorstore.DeleteRequest at this package boundary.
 type DeleteRequest = vectorstore.DeleteRequest
+
+// SearchRequest aliases vectorstore.SearchRequest at this package boundary.
 type SearchRequest = vectorstore.SearchRequest
+
+// SearchResult aliases vectorstore.SearchResult at this package boundary.
 type SearchResult = vectorstore.SearchResult
+
+// SearchMatch aliases vectorstore.SearchMatch at this package boundary.
 type SearchMatch = vectorstore.SearchMatch
+
+// ListRequest aliases vectorstore.ListRequest at this package boundary.
 type ListRequest = vectorstore.ListRequest
+
+// ListResult aliases vectorstore.ListResult at this package boundary.
 type ListResult = vectorstore.ListResult
+
+// Filter aliases vectorstore.Filter at this package boundary.
 type Filter = vectorstore.Filter
+
+// StoreMetadata aliases vectorstore.StoreMetadata at this package boundary.
 type StoreMetadata = vectorstore.StoreMetadata
+
+// ModelMetadata aliases vectorstore.ModelMetadata at this package boundary.
 type ModelMetadata = vectorstore.ModelMetadata
+
+// SourceKind classifies the domain object represented by a vector source ID.
 type SourceKind = vectorstore.SourceKind
 
+// SourceKindSessionMessage is the package-level source kind session message constant.
 const SourceKindSessionMessage = vectorstore.SourceKindSessionMessage
+
+// SourceKindMemoryItem is the package-level source kind memory item constant.
 const SourceKindMemoryItem = vectorstore.SourceKindMemoryItem
 
+// Store keeps vector records in process memory.
 type Store struct {
 	mu      sync.RWMutex
 	records map[string]Record
 	indexes map[indexKey]*hnsw.Graph[string]
 }
 
+// NewStore returns a store backed by the supplied dependencies.
 func NewStore() *Store {
 	return &Store{
 		records: make(map[string]Record),

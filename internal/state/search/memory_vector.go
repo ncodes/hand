@@ -7,6 +7,7 @@ import (
 	statememory "github.com/wandxy/hand/internal/state/core"
 )
 
+// MemoryVectorTags builds vector tags for a memory item.
 func MemoryVectorTags(item statememory.MemoryItem) []string {
 	tags := make([]string, 0, 4+len(item.Tags))
 	if kind := strings.TrimSpace(string(item.Kind)); kind != "" {
@@ -28,6 +29,7 @@ func MemoryVectorTags(item statememory.MemoryItem) []string {
 	return NormalizeVectorTags(tags)
 }
 
+// MemoryVectorSessionID extracts the session ID associated with memory vector tags.
 func MemoryVectorSessionID(item statememory.MemoryItem) string {
 	if sessionID := strings.TrimSpace(item.Metadata["source_session_id"]); sessionID != "" {
 		return sessionID
@@ -41,6 +43,7 @@ func MemoryVectorSessionID(item statememory.MemoryItem) string {
 	return ""
 }
 
+// MemoryVectorTag builds one key/value vector tag.
 func MemoryVectorTag(key string, value string) string {
 	return strings.TrimSpace(key) + ":" + strings.TrimSpace(value)
 }

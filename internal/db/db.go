@@ -19,6 +19,7 @@ import (
 
 const sqliteBusyTimeout = 10 * time.Second
 
+// Open opens the configured database connection.
 func Open(cfg *config.Config) (*gorm.DB, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
@@ -27,6 +28,7 @@ func Open(cfg *config.Config) (*gorm.DB, error) {
 	return OpenSQLite(datadir.StateDBPath())
 }
 
+// OpenSQLite opens a SQLite database and applies connection settings.
 func OpenSQLite(path string) (*gorm.DB, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -50,6 +52,7 @@ func OpenSQLite(path string) (*gorm.DB, error) {
 	return db, nil
 }
 
+// ConfigureSQLite applies SQLite pragmas used by Hand stores.
 func ConfigureSQLite(db *gorm.DB) error {
 	if db == nil {
 		return errors.New("sqlite db is required")

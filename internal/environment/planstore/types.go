@@ -13,23 +13,27 @@ const (
 	PlanStatusCancelled  = "cancelled"
 )
 
+// PlanStep describes one plan step.
 type PlanStep struct {
 	ID      string `json:"id"`
 	Content string `json:"content"`
 	Status  string `json:"status"`
 }
 
+// PartialPlanStep describes one partial plan step.
 type PartialPlanStep struct {
 	ID      string  `json:"id"`
 	Content *string `json:"content,omitempty"`
 	Status  *string `json:"status,omitempty"`
 }
 
+// Plan describes the current plan state.
 type Plan struct {
 	Steps       []PlanStep `json:"steps"`
 	Explanation string     `json:"explanation,omitempty"`
 }
 
+// PlanSummary summarizes plan state.
 type PlanSummary struct {
 	Total      int `json:"total"`
 	Pending    int `json:"pending"`
@@ -38,6 +42,7 @@ type PlanSummary struct {
 	Cancelled  int `json:"cancelled"`
 }
 
+// ValidatePlan checks that a plan has usable steps and statuses.
 func ValidatePlan(plan Plan) error {
 	active := 0
 	for idx, step := range plan.Steps {
@@ -67,6 +72,7 @@ func ValidatePlan(plan Plan) error {
 	return nil
 }
 
+// ValidPlanStatus reports whether status is accepted by the plan store.
 func ValidPlanStatus(status string) bool {
 	switch strings.TrimSpace(status) {
 	case PlanStatusPending,

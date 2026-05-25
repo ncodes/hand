@@ -7,6 +7,7 @@ import (
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
+// Store defines the persistence operations required by this package.
 type Store interface {
 	// Session management
 	Save(ctx context.Context, session Session) error

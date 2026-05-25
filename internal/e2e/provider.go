@@ -7,18 +7,21 @@ import (
 	"sync"
 )
 
+// ProviderRequest describes a provider request.
 type ProviderRequest struct {
 	Method string
 	Path   string
 	Body   string
 }
 
+// ProviderResponse describes a provider response.
 type ProviderResponse struct {
 	StatusCode int
 	Headers    http.Header
 	Body       string
 }
 
+// Provider is a scripted model provider used by e2e harnesses.
 type Provider struct {
 	server   *httptest.Server
 	response ProviderResponse
@@ -26,6 +29,7 @@ type Provider struct {
 	requests []ProviderRequest
 }
 
+// NewProvider returns a provider selected from config.
 func NewProvider(resp ProviderResponse) *Provider {
 	provider := &Provider{response: resp}
 	provider.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

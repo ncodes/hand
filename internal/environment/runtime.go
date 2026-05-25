@@ -6,12 +6,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/environment/planstore"
 	"github.com/wandxy/hand/internal/environment/process"
 	"github.com/wandxy/hand/internal/environment/sessionmessages"
 	"github.com/wandxy/hand/internal/environment/sessionsearch"
 	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/memory/episodic"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
@@ -19,6 +19,7 @@ import (
 
 var getwd = os.Getwd
 
+// Runtime exposes environment-backed services to tools.
 type Runtime struct {
 	filePolicy    guardrails.FilesystemPolicy
 	commandPolicy guardrails.CommandPolicy
@@ -28,6 +29,7 @@ type Runtime struct {
 	memory        memory.Provider
 }
 
+// NewRuntime returns a runtime implementation bound to env.
 func NewRuntime(roots []string, policy guardrails.CommandPolicy, stateMgr *statemanager.Manager) *Runtime {
 	if len(roots) == 0 {
 		cwd, err := getwd()

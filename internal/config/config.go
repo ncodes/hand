@@ -26,6 +26,7 @@ import (
 	"github.com/wandxy/hand/internal/datadir"
 )
 
+// Config is the root runtime configuration for Hand.
 type Config struct {
 	Name          string                       `yaml:"name"`
 	Platform      string                       `yaml:"platform"`
@@ -50,6 +51,7 @@ type Config struct {
 	Personalities map[string]PersonalityConfig `yaml:"personalities"`
 }
 
+// ModelsConfig contains provider credentials and model-specific settings.
 type ModelsConfig struct {
 	Verify           *bool                `yaml:"verify"`
 	MaxRetries       *int                 `yaml:"maxRetries"`
@@ -61,6 +63,7 @@ type ModelsConfig struct {
 	Embedding        EmbeddingModelConfig `yaml:"embedding"`
 }
 
+// MainModelConfig selects the model used for normal agent turns.
 type MainModelConfig struct {
 	Name          string `yaml:"name"`
 	Provider      string `yaml:"provider"`
@@ -70,6 +73,7 @@ type MainModelConfig struct {
 	Stream        *bool  `yaml:"stream"`
 }
 
+// SummaryModelConfig selects the model used for summaries and compaction.
 type SummaryModelConfig struct {
 	Name     string `yaml:"name"`
 	Provider string `yaml:"provider"`
@@ -77,32 +81,38 @@ type SummaryModelConfig struct {
 	BaseURL  string `yaml:"baseUrl"`
 }
 
+// EmbeddingModelConfig selects the model used for vector embeddings.
 type EmbeddingModelConfig struct {
 	Name     string `yaml:"name"`
 	Provider string `yaml:"provider"`
 	BaseURL  string `yaml:"baseUrl"`
 }
 
+// RPCConfig contains daemon RPC address and port settings.
 type RPCConfig struct {
 	Address string `yaml:"address"`
 	Port    int    `yaml:"port"`
 }
 
+// FSConfig contains filesystem access policy settings.
 type FSConfig struct {
 	NoProfileAccess bool     `yaml:"noProfileAccess"`
 	Roots           []string `yaml:"roots"`
 }
 
+// ExecConfig contains command execution allow/ask/deny policy settings.
 type ExecConfig struct {
 	Allow []string `yaml:"allow"`
 	Ask   []string `yaml:"ask"`
 	Deny  []string `yaml:"deny"`
 }
 
+// StorageConfig selects the durable state backend.
 type StorageConfig struct {
 	Backend string `yaml:"backend"`
 }
 
+// SessionConfig contains turn limits, session instructions, and retention settings.
 type SessionConfig struct {
 	MaxIterations     int           `yaml:"maxIterations"`
 	Instruct          string        `yaml:"instruct"`
@@ -110,17 +120,20 @@ type SessionConfig struct {
 	ArchiveRetention  time.Duration `yaml:"archiveRetention"`
 }
 
+// SearchConfig controls retrieval and reranking behavior.
 type SearchConfig struct {
 	EnableRerank *bool              `yaml:"enableRerank"`
 	Vector       SearchVectorConfig `yaml:"vector"`
 }
 
+// SearchVectorConfig controls vector indexing and repair behavior.
 type SearchVectorConfig struct {
 	Enabled          bool `yaml:"enabled"`
 	Required         bool `yaml:"required"`
 	RebuildBatchSize int  `yaml:"rebuildBatchSize"`
 }
 
+// MemoryConfig controls memory providers, retrieval, writes, and background jobs.
 type MemoryConfig struct {
 	Enabled    *bool                  `yaml:"enabled"`
 	Provider   string                 `yaml:"provider"`
@@ -134,16 +147,19 @@ type MemoryConfig struct {
 	Write      WriteMemoryConfig      `yaml:"write"`
 }
 
+// PinnedMemoryConfig controls always-in-context memory limits.
 type PinnedMemoryConfig struct {
 	Enabled      *bool `yaml:"enabled"`
 	MaxChars     int   `yaml:"maxChars"`
 	MaxItemChars int   `yaml:"maxItemChars"`
 }
 
+// RetrievalMemoryConfig toggles retrieval-backed memory.
 type RetrievalMemoryConfig struct {
 	Enabled *bool `yaml:"enabled"`
 }
 
+// FlushMemoryConfig controls memory extraction during session flush.
 type FlushMemoryConfig struct {
 	Enabled         *bool         `yaml:"enabled"`
 	MaxCalls        int           `yaml:"maxCalls"`
@@ -151,6 +167,7 @@ type FlushMemoryConfig struct {
 	Timeout         time.Duration `yaml:"timeout"`
 }
 
+// EpisodicMemoryConfig controls background episodic memory extraction.
 type EpisodicMemoryConfig struct {
 	Enabled         *bool         `yaml:"enabled"`
 	Interval        time.Duration `yaml:"interval"`
@@ -163,6 +180,7 @@ type EpisodicMemoryConfig struct {
 	MaxRetries      int           `yaml:"maxRetries"`
 }
 
+// ReflectionMemoryConfig controls promotion from episodic memories into reflections.
 type ReflectionMemoryConfig struct {
 	Enabled      *bool         `yaml:"enabled"`
 	Interval     time.Duration `yaml:"interval"`
@@ -170,16 +188,19 @@ type ReflectionMemoryConfig struct {
 	RelatedLimit int           `yaml:"relatedLimit"`
 }
 
+// PromotionMemoryConfig controls memory lifecycle promotion.
 type PromotionMemoryConfig struct {
 	Enabled  *bool         `yaml:"enabled"`
 	Interval time.Duration `yaml:"interval"`
 	Limit    int           `yaml:"limit"`
 }
 
+// WriteMemoryConfig toggles model-initiated memory writes.
 type WriteMemoryConfig struct {
 	Enabled *bool `yaml:"enabled"`
 }
 
+// RerankerConfig controls retrieval reranker type, model, limits, and overrides.
 type RerankerConfig struct {
 	Enabled               *bool                             `yaml:"enabled"`
 	Type                  string                            `yaml:"type"`
@@ -190,6 +211,7 @@ type RerankerConfig struct {
 	Overrides             map[string]RerankerOverrideConfig `yaml:"overrides"`
 }
 
+// RerankerOverrideConfig overrides reranker settings for one use case.
 type RerankerOverrideConfig struct {
 	Type                  string `yaml:"type,omitempty"`
 	Model                 string `yaml:"model,omitempty"`
@@ -198,6 +220,7 @@ type RerankerOverrideConfig struct {
 	MaxOutputTokens       *int   `yaml:"maxOutputTokens,omitempty"`
 }
 
+// RerankerEffectiveConfig is the resolved reranker configuration after defaults and overrides are applied.
 type RerankerEffectiveConfig struct {
 	Type                     string
 	Model                    string
@@ -208,6 +231,7 @@ type RerankerEffectiveConfig struct {
 	MaxOutputTokens          int
 }
 
+// CompactionConfig controls automatic session-summary compaction thresholds.
 type CompactionConfig struct {
 	Enabled           *bool   `yaml:"enabled"`
 	TriggerPercent    float64 `yaml:"triggerPercent"`
@@ -215,6 +239,7 @@ type CompactionConfig struct {
 	RecentSessionTail *int    `yaml:"recentSessionTail"`
 }
 
+// CapConfig contains capability overrides for filesystem, network, exec, memory, and browser access.
 type CapConfig struct {
 	Filesystem *bool `yaml:"fs"`
 	Network    *bool `yaml:"net"`
@@ -235,41 +260,49 @@ func (c *Config) CompactionRecentSessionTailEffective() int {
 	return *c.Compaction.RecentSessionTail
 }
 
+// LogConfig controls terminal logging level and color output.
 type LogConfig struct {
 	Level   string `yaml:"level"`
 	NoColor bool   `yaml:"noColor"`
 }
 
+// DebugConfig toggles debug-only request logging.
 type DebugConfig struct {
 	Requests bool `yaml:"requests"`
 }
 
+// TraceConfig controls trace collection backends.
 type TraceConfig struct {
 	Enabled  bool                `yaml:"enabled"`
 	Disk     TraceDiskConfig     `yaml:"disk"`
 	Database TraceDatabaseConfig `yaml:"database"`
 }
 
+// TraceDiskConfig controls JSONL trace writing.
 type TraceDiskConfig struct {
 	Enabled *bool  `yaml:"enabled"`
 	Dir     string `yaml:"dir"`
 }
 
+// TraceDatabaseConfig controls database-backed trace persistence.
 type TraceDatabaseConfig struct {
 	Enabled             *bool `yaml:"enabled"`
 	MaxEventsPerSession int   `yaml:"maxEventsPerSession"`
 }
 
+// TUIConfig contains terminal UI feature settings.
 type TUIConfig struct {
 	ThinkingComposer *bool `yaml:"thinkingComposer"`
 }
 
+// SafetyConfig toggles input, output, and PII safety checks.
 type SafetyConfig struct {
 	Input  *bool `yaml:"input"`
 	Output *bool `yaml:"output"`
 	PII    *bool `yaml:"pii"`
 }
 
+// WebConfig controls web provider credentials, limits, cache, and host policies.
 type WebConfig struct {
 	Provider                     string        `yaml:"provider"`
 	APIKey                       string        `yaml:"apiKey"`
@@ -291,10 +324,12 @@ type WebConfig struct {
 	ExtractRefusalThresholdChars int           `yaml:"extractRefusalThresholdChars"`
 }
 
+// RulesConfig lists additional workspace rule files to load.
 type RulesConfig struct {
 	Files []string `yaml:"files"`
 }
 
+// PersonalityConfig applies per-personality instructions, model, memory, and tool overrides.
 type PersonalityConfig struct {
 	Soul          string                  `yaml:"soul"`
 	Instruct      string                  `yaml:"instruct"`
@@ -305,6 +340,7 @@ type PersonalityConfig struct {
 	MaxIterations int                     `yaml:"maxIterations"`
 }
 
+// PersonalityMemoryConfig overrides memory features for a personality.
 type PersonalityMemoryConfig struct {
 	Pinned     *bool `yaml:"pinned"`
 	Retrieval  *bool `yaml:"retrieval"`
@@ -315,6 +351,7 @@ type PersonalityMemoryConfig struct {
 	Flush      *bool `yaml:"flush"`
 }
 
+// PersonalityToolsConfig overrides tool capabilities for a personality.
 type PersonalityToolsConfig struct {
 	Filesystem *bool  `yaml:"fs"`
 	Network    *bool  `yaml:"net"`
@@ -354,12 +391,14 @@ func (c *WebConfig) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
+// ModelAuth describes authentication metadata for a model provider.
 type ModelAuth struct {
 	Provider string
 	APIKey   string
 	BaseURL  string
 }
 
+// ModelMetadata describes metadata attached to model records.
 type ModelMetadata struct {
 	Exists        bool
 	ContextLength int
@@ -551,6 +590,7 @@ var DefaultConfig = Config{
 	},
 }
 
+// PreloadEnvFile loads environment variables from an optional env file before config resolution.
 func PreloadEnvFile(path string) error {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -564,6 +604,7 @@ func PreloadEnvFile(path string) error {
 	return nil
 }
 
+// Load reads configuration from disk and applies environment overrides.
 func Load(envPath, configPath string) (*Config, error) {
 	if err := PreloadEnvFile(envPath); err != nil {
 		return nil, err
@@ -582,6 +623,7 @@ func Load(envPath, configPath string) (*Config, error) {
 	return cfg, nil
 }
 
+// Get returns a configuration value addressed by path.
 func Get() *Config {
 	configMu.RLock()
 	defer configMu.RUnlock()
@@ -750,6 +792,7 @@ func cloneIntPtr(value *int) *int {
 	return new(*value)
 }
 
+// Set updates a configuration value addressed by path.
 func Set(cfg *Config) {
 	configMu.Lock()
 	defer configMu.Unlock()
@@ -794,6 +837,7 @@ func (c *Config) resolvePaths(baseDir string) {
 	c.resolvePersonalitySoulPaths(baseDir)
 }
 
+// AddFilesystemRoots appends filesystem roots to cfg after normalizing them.
 func AddFilesystemRoots(cfg *Config, roots ...string) {
 	if cfg == nil {
 		return

@@ -20,6 +20,7 @@ const (
 	sessionSearchSnippetRunes      = constants.SessionSearchSnippetRunes
 )
 
+// Search finds session messages matching the supplied query.
 func Search(
 	ctx context.Context,
 	manager *statemanager.Manager,

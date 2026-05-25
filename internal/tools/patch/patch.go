@@ -22,6 +22,7 @@ var (
 	writeFile = common.WriteFile
 )
 
+// Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Patch string `json:"patch"`

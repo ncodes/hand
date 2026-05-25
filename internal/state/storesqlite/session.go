@@ -20,18 +20,37 @@ import (
 const currentSessionStateKey = "current_session"
 const sessionMessageSearchTable = "session_message_search"
 
+// Session aliases base.Session at this package boundary.
 type Session = base.Session
+
+// ArchivedSession aliases base.ArchivedSession at this package boundary.
 type ArchivedSession = base.ArchivedSession
+
+// MessageQueryOptions aliases base.MessageQueryOptions at this package boundary.
 type MessageQueryOptions = base.MessageQueryOptions
+
+// SearchMessageOptions aliases base.SearchMessageOptions at this package boundary.
 type SearchMessageOptions = base.SearchMessageOptions
+
+// SearchMessageResult aliases base.SearchMessageResult at this package boundary.
 type SearchMessageResult = base.SearchMessageResult
+
+// SessionSummary aliases base.SessionSummary at this package boundary.
 type SessionSummary = base.SessionSummary
+
+// SessionCompaction aliases base.SessionCompaction at this package boundary.
 type SessionCompaction = base.SessionCompaction
+
+// SessionCompactionStatus records whether session history has been compacted.
 type SessionCompactionStatus = base.SessionCompactionStatus
+
+// MessageRecord aliases base.MessageRecord at this package boundary.
 type MessageRecord = base.MessageRecord
+
+// CheckpointPatch aliases base.CheckpointPatch at this package boundary.
 type CheckpointPatch = base.CheckpointPatch
 
-// sessionModel stores durable session-level state and compaction progress.
+// sessionModel describes durable session-level state and compaction progress.
 type sessionModel struct {
 	ID                           string `gorm:"primaryKey"`
 	Title                        string `gorm:"type:text"`
@@ -56,7 +75,7 @@ func (sessionModel) TableName() string {
 	return "sessions"
 }
 
-// archiveModel stores metadata for archived session message sets.
+// archiveModel describes metadata for archived session message sets.
 type archiveModel struct {
 	ID              string `gorm:"primaryKey"`
 	SourceSessionID string `gorm:"index;not null"`
@@ -72,7 +91,7 @@ func (archiveModel) TableName() string {
 	return "session_archives"
 }
 
-// stateModel stores small named session state values such as the current session.
+// stateModel describes small named session state values such as the current session.
 type stateModel struct {
 	Key       string `gorm:"primaryKey"`
 	Value     string `gorm:"not null"`
@@ -85,7 +104,7 @@ func (stateModel) TableName() string {
 	return "session_state"
 }
 
-// summaryModel stores the latest generated summary for a session.
+// summaryModel describes the latest generated summary for a session.
 type summaryModel struct {
 	SessionID          string `gorm:"primaryKey"`
 	SourceEndOffset    int
@@ -103,7 +122,7 @@ func (summaryModel) TableName() string {
 	return "session_summaries"
 }
 
-// messageModel stores active session messages in append order.
+// messageModel describes active session messages in append order.
 type messageModel struct {
 	ID         uint `gorm:"primaryKey"`
 	SessionID  string
@@ -125,7 +144,7 @@ func (messageModel) TableName() string {
 	return "session_messages"
 }
 
-// archivedMessageModel stores messages moved out of an active session archive.
+// archivedMessageModel describes messages moved out of an active session archive.
 type archivedMessageModel struct {
 	ID         uint `gorm:"primaryKey"`
 	ArchiveID  string
@@ -966,7 +985,7 @@ func (s *Store) GetMessage(
 	return messageModels([]messageModel{record}).messages()[0], true, nil
 }
 
-// SaveSummary stores or replaces a session summary.
+// SaveSummary summarizes or replaces a session state.
 func (s *Store) SaveSummary(ctx context.Context, summary SessionSummary) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")

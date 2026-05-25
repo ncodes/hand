@@ -57,6 +57,7 @@ type sourceLink struct {
 	CreatedReason string `json:"created_reason,omitempty"`
 }
 
+// Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:        "memory_search",

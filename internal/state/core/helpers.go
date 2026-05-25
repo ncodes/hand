@@ -9,6 +9,7 @@ import (
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
+// ValidateSessionID checks that id can be used as a persisted session ID.
 func ValidateSessionID(id string) error {
 	id = strings.TrimSpace(id)
 	if id == "" {
@@ -26,6 +27,7 @@ func ValidateSessionID(id string) error {
 	return nil
 }
 
+// ValidateArchiveID checks that id can be used as an archived session ID.
 func ValidateArchiveID(id string) error {
 	id = strings.TrimSpace(id)
 	if id == "" {
@@ -39,6 +41,7 @@ func ValidateArchiveID(id string) error {
 	return nil
 }
 
+// NormalizeCreateArchive normalizes create archive.
 func NormalizeCreateArchive(archive ArchivedSession) (ArchivedSession, error) {
 	archive.ID = strings.TrimSpace(archive.ID)
 	if err := ValidateArchiveID(archive.ID); err != nil {
@@ -69,10 +72,12 @@ func NormalizeCreateArchive(archive ArchivedSession) (ArchivedSession, error) {
 	return archive, nil
 }
 
+// NormalizeSessionTitle normalizes session title.
 func NormalizeSessionTitle(title string) string {
 	return strings.TrimSpace(title)
 }
 
+// NormalizeSessionTitleSource normalizes session title source.
 func NormalizeSessionTitleSource(source string) string {
 	source = strings.TrimSpace(source)
 	switch source {
@@ -83,6 +88,7 @@ func NormalizeSessionTitleSource(source string) string {
 	}
 }
 
+// NormalizeSessionTitleMetadata normalizes session title metadata.
 func NormalizeSessionTitleMetadata(title string, source string) (string, string) {
 	title = NormalizeSessionTitle(title)
 	if title == "" {
@@ -92,10 +98,12 @@ func NormalizeSessionTitleMetadata(title string, source string) (string, string)
 	return title, NormalizeSessionTitleSource(source)
 }
 
+// CloneMessages clones clone messages.
 func CloneMessages(messages []handmsg.Message) []handmsg.Message {
 	return handmsg.CloneMessages(messages)
 }
 
+// NormalizeSessionSummary normalizes session summary.
 func NormalizeSessionSummary(summary SessionSummary) (SessionSummary, error) {
 	summary.SessionID = strings.TrimSpace(summary.SessionID)
 	if err := ValidateSessionID(summary.SessionID); err != nil {
@@ -137,6 +145,7 @@ func NormalizeSessionSummary(summary SessionSummary) (SessionSummary, error) {
 	return summary, nil
 }
 
+// CloneSessionSummary clones clone session summary.
 func CloneSessionSummary(summary SessionSummary) SessionSummary {
 	cloned := summary
 	cloned.Discoveries = cloneStrings(summary.Discoveries)

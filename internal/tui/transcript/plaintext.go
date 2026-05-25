@@ -1,10 +1,12 @@
 package transcript
 
+// PlainTextCell exposes terminal cell text without styling.
 type PlainTextCell interface {
 	PlainText() string
 	IsEmpty() bool
 }
 
+// PlainTexts renders cells into their plain text strings.
 func PlainTexts[T PlainTextCell](cells []T) []string {
 	if len(cells) == 0 {
 		return nil
@@ -23,6 +25,7 @@ func PlainTexts[T PlainTextCell](cells []T) []string {
 	return values
 }
 
+// CloneCells clones clone cells.
 func CloneCells[T any](cells []T) []T {
 	if len(cells) == 0 {
 		return nil

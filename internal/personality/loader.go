@@ -22,12 +22,14 @@ var (
 	resolveDisplayPath = getDisplayPath
 )
 
+// Result contains loaded instruction text and related metadata.
 type Result struct {
 	Content      string
 	Found        bool
 	SafetyEvents []guardrails.SafetyTracePayloadOptions
 }
 
+// LoadOptions selects the profile, workspace, and configured personality sources to load.
 type LoadOptions struct {
 	ProfileHome       string
 	WorkspaceRoot     string
@@ -36,6 +38,7 @@ type LoadOptions struct {
 	AllowWorkspace    bool
 }
 
+// Load reads the configured personality instructions.
 func Load(opts LoadOptions) (Result, error) {
 	opts.ProfileHome = strings.TrimSpace(opts.ProfileHome)
 	if opts.ProfileHome == "" {

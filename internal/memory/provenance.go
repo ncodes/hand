@@ -18,6 +18,7 @@ const (
 	MemoryMetadataEffectiveSessionID = "source_effective_session_id"
 )
 
+// ApplyRunProvenance applies run provenance.
 func ApplyRunProvenance(
 	item MemoryItem,
 	runCtx runcontext.Context,

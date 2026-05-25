@@ -15,6 +15,7 @@ import (
 	"github.com/wandxy/hand/internal/tools/common"
 )
 
+// Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Path       string `json:"path"`

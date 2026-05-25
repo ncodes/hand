@@ -6,6 +6,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 )
 
+// SafetySummary formats safety findings for CLI output.
 func SafetySummary(cfg *config.Config) string {
 	return fmt.Sprintf(
 		"input=%s, output=%s, pii=%s",

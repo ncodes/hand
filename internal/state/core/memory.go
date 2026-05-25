@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// MemoryKind classifies stored memories by use and origin.
 type MemoryKind string
 
 const (
@@ -18,6 +19,7 @@ const (
 	MemoryKindProcedural MemoryKind = "procedural"
 )
 
+// MemoryStatus tracks lifecycle state for memory items.
 type MemoryStatus string
 
 const (
@@ -27,6 +29,7 @@ const (
 	MemoryStatusDeleted    MemoryStatus = "deleted"
 )
 
+// MemorySourceLink describes memory source link.
 type MemorySourceLink struct {
 	SessionID         string
 	MessageIDs        []uint
@@ -43,6 +46,7 @@ type MemorySourceLink struct {
 	SourceTrigger     string
 }
 
+// MemoryItem represents one memory item.
 type MemoryItem struct {
 	ID                   string
 	Kind                 MemoryKind
@@ -59,6 +63,7 @@ type MemoryItem struct {
 	PromotionEvaluatedAt time.Time
 }
 
+// MemoryPatch describes changes to apply to memory state.
 type MemoryPatch struct {
 	ID                   string
 	Kind                 *MemoryKind
@@ -80,6 +85,7 @@ func (item MemoryItem) GuardrailSource() string {
 	return "memory"
 }
 
+// MemorySearchQuery describes filters and limits for memory search lookup.
 type MemorySearchQuery struct {
 	Text                     string
 	SessionID                string
@@ -106,6 +112,7 @@ const (
 	MemoryRerankerUseCaseEpisodicExtraction = "memory_episodic_extraction"
 )
 
+// SessionMemoryQuery describes filters and limits for session memory lookup.
 type SessionMemoryQuery struct {
 	SessionID string
 	Kinds     []MemoryKind
@@ -113,6 +120,7 @@ type SessionMemoryQuery struct {
 	Limit     int
 }
 
+// MemorySearchHit represents one matched memory search result.
 type MemorySearchHit struct {
 	Item         MemoryItem
 	Score        float64
@@ -120,19 +128,23 @@ type MemorySearchHit struct {
 	VectorScore  float64
 }
 
+// MemorySearchResult contains memory hits matched by a search query.
 type MemorySearchResult struct {
 	Hits []MemorySearchHit
 }
 
+// SessionMemoriesResult contains memories linked to a session.
 type SessionMemoriesResult struct {
 	Items []MemoryItem
 }
 
+// MemoryDeleteRequest describes a memory delete request.
 type MemoryDeleteRequest struct {
 	ID     string
 	Reason string
 }
 
+// MemoryStore persists and searches memory items.
 type MemoryStore interface {
 	SearchMemory(context.Context, MemorySearchQuery) (MemorySearchResult, error)
 	ListSessionMemories(context.Context, SessionMemoryQuery) (SessionMemoriesResult, error)
@@ -160,6 +172,7 @@ func (item MemoryItem) Clone() MemoryItem {
 	return item
 }
 
+// ApplyMemoryPatch applies memory patch.
 func ApplyMemoryPatch(item MemoryItem, patch MemoryPatch, updatedAt time.Time) MemoryItem {
 	if patch.Kind != nil {
 		item.Kind = *patch.Kind
@@ -203,6 +216,7 @@ func ApplyMemoryPatch(item MemoryItem, patch MemoryPatch, updatedAt time.Time) M
 	return item.Clone()
 }
 
+// NormalizeMemoryTags normalizes memory tags.
 func NormalizeMemoryTags(tags []string) []string {
 	seen := make(map[string]struct{}, len(tags))
 	results := make([]string, 0, len(tags))
@@ -221,6 +235,7 @@ func NormalizeMemoryTags(tags []string) []string {
 	return results
 }
 
+// NormalizeMemoryIDs normalizes memory i ds.
 func NormalizeMemoryIDs(ids []string) []string {
 	seen := make(map[string]struct{}, len(ids))
 	results := make([]string, 0, len(ids))
@@ -239,6 +254,7 @@ func NormalizeMemoryIDs(ids []string) []string {
 	return results
 }
 
+// CheckMemoryMatchesQuery checks memory matches query.
 func CheckMemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
 	if sessionID := strings.TrimSpace(query.SessionID); sessionID != "" && !CheckMemoryBelongsToSession(item, sessionID) {
 		return false
@@ -287,6 +303,7 @@ func CheckMemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
 	return strings.Contains(strings.ToLower(item.Title), text) || strings.Contains(strings.ToLower(item.Text), text)
 }
 
+// CheckMemoryMatchesSessionQuery checks memory matches session query.
 func CheckMemoryMatchesSessionQuery(item MemoryItem, query SessionMemoryQuery) bool {
 	sessionID := strings.TrimSpace(query.SessionID)
 	if sessionID == "" || !CheckMemoryBelongsToSession(item, sessionID) {
@@ -302,6 +319,7 @@ func CheckMemoryMatchesSessionQuery(item MemoryItem, query SessionMemoryQuery) b
 	return item.Status == MemoryStatusActive
 }
 
+// CheckMemoryBelongsToSession checks memory belongs to session.
 func CheckMemoryBelongsToSession(item MemoryItem, sessionID string) bool {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
@@ -317,6 +335,7 @@ func CheckMemoryBelongsToSession(item MemoryItem, sessionID string) bool {
 	return strings.TrimSpace(item.Metadata["source_session_id"]) == sessionID
 }
 
+// GetSimpleMemoryScore returns a lightweight score for memory ranking.
 func GetSimpleMemoryScore(item MemoryItem, query string) float64 {
 	query = strings.TrimSpace(strings.ToLower(query))
 	if query == "" {
@@ -333,6 +352,7 @@ func GetSimpleMemoryScore(item MemoryItem, query string) float64 {
 	return score
 }
 
+// HasAllMemoryTags reports whether tags contain every required tag.
 func HasAllMemoryTags(itemTags []string, queryTags []string) bool {
 	tags := make(map[string]struct{}, len(itemTags))
 	for _, tag := range itemTags {
@@ -346,6 +366,7 @@ func HasAllMemoryTags(itemTags []string, queryTags []string) bool {
 	return true
 }
 
+// MemoryKindsToStrings converts memory kinds to their string values.
 func MemoryKindsToStrings(kinds []MemoryKind) []string {
 	values := make([]string, 0, len(kinds))
 	for _, kind := range kinds {
@@ -357,6 +378,7 @@ func MemoryKindsToStrings(kinds []MemoryKind) []string {
 	return values
 }
 
+// MemoryStatusesToStrings converts memory statuses to their string values.
 func MemoryStatusesToStrings(statuses []MemoryStatus) []string {
 	values := make([]string, 0, len(statuses))
 	for _, status := range statuses {
@@ -368,6 +390,7 @@ func MemoryStatusesToStrings(statuses []MemoryStatus) []string {
 	return values
 }
 
+// MemoryValueToLikePattern escapes a memory value for SQL LIKE matching.
 func MemoryValueToLikePattern(value string) string {
 	replacer := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 	return "%" + replacer.Replace(value) + "%"

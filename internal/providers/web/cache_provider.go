@@ -12,6 +12,7 @@ import (
 
 var webLog = logutils.InitLogger("providers.web")
 
+// CacheOptions configures the provider name, TTL, and clock used for web cache entries.
 type CacheOptions struct {
 	ProviderName string
 	TTL          time.Duration
@@ -25,6 +26,7 @@ type cachedProvider struct {
 	extract      *pkgcache.Cache[string, ExtractResult]
 }
 
+// NewCachedProvider wraps provider with an in-memory response cache.
 func NewCachedProvider(provider Provider, opts CacheOptions) Provider {
 	if provider == nil || opts.TTL <= 0 {
 		return provider

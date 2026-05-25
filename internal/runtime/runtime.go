@@ -55,7 +55,7 @@ func WriteActive(address string, port int) (Metadata, error) {
 	return Write(active, address, port)
 }
 
-// Write stores runtime metadata under the supplied profile home.
+// Write describes runtime metadata under the supplied profile home.
 func Write(active profile.Profile, address string, port int) (Metadata, error) {
 	active = profile.WithMetadataPaths(active)
 	if strings.TrimSpace(active.RuntimePath) == "" {

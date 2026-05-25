@@ -20,6 +20,7 @@ import (
 var rpcHelperListen = net.Listen
 var rpcHelperNewClient = rpcclient.NewClient
 
+// RPCConfigOptions controls rpc config.
 type RPCConfigOptions struct {
 	Name     string
 	Stream   bool
@@ -27,6 +28,7 @@ type RPCConfigOptions struct {
 	NoColor  bool
 }
 
+// NewDefaultRPCHarness returns an RPC harness with default test dependencies.
 func NewDefaultRPCHarness(
 	ctx context.Context,
 	home string,
@@ -44,6 +46,7 @@ func NewDefaultRPCHarness(
 	})
 }
 
+// ReserveRPCPort reserves an available localhost port for an RPC test server.
 func ReserveRPCPort() (int, error) {
 	lis, err := rpcHelperListen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -59,6 +62,7 @@ func ReserveRPCPort() (int, error) {
 	return tcpAddr.Port, nil
 }
 
+// WaitForRPC waits until an RPC endpoint accepts connections.
 func WaitForRPC(address string, port int, timeout time.Duration) (*rpcclient.Client, error) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
@@ -80,6 +84,7 @@ func WaitForRPC(address string, port int, timeout time.Duration) (*rpcclient.Cli
 	return nil, fmt.Errorf("rpc server did not become ready on %s:%d", strings.TrimSpace(address), port)
 }
 
+// WriteRPCConfigFile writes a temporary RPC config file for tests.
 func WriteRPCConfigFile(dir, address string, port int, opts RPCConfigOptions) (string, error) {
 	name := strings.TrimSpace(opts.Name)
 	if name == "" {
@@ -116,6 +121,7 @@ log:
 	return path, nil
 }
 
+// MissingTools returns the expected missing-tool names from err.
 func MissingTools(names ...string) RequestAssert {
 	missing := make([]string, len(names))
 	copy(missing, names)
@@ -137,6 +143,7 @@ func MissingTools(names ...string) RequestAssert {
 	}
 }
 
+// CombineChecks joins multiple e2e assertions into one check.
 func CombineChecks(checks ...RequestAssert) RequestAssert {
 	return func(req models.Request) error {
 		for _, check := range checks {
@@ -152,6 +159,7 @@ func CombineChecks(checks ...RequestAssert) RequestAssert {
 	}
 }
 
+// ToolMessagePresent checks that a tool message for name appears in the session.
 func ToolMessagePresent(expectedID, expectedName string) RequestAssert {
 	return func(req models.Request) error {
 		for _, message := range req.Messages {
@@ -171,6 +179,7 @@ func ToolMessagePresent(expectedID, expectedName string) RequestAssert {
 	}
 }
 
+// ToolOutputString returns a string field from a recorded tool output.
 func ToolOutputString(expectedID, expectedName string, check func(string) error) RequestAssert {
 	return func(req models.Request) error {
 		output, err := getToolEnvelopeOutput(req, expectedID, expectedName)
@@ -181,6 +190,7 @@ func ToolOutputString(expectedID, expectedName string, check func(string) error)
 	}
 }
 
+// ToolOutputJSON decodes recorded tool output into target.
 func ToolOutputJSON(expectedID, expectedName string, check func(map[string]any) error) RequestAssert {
 	return func(req models.Request) error {
 		output, err := getToolEnvelopeOutput(req, expectedID, expectedName)
@@ -197,6 +207,7 @@ func ToolOutputJSON(expectedID, expectedName string, check func(map[string]any) 
 	}
 }
 
+// ToolError returns the error text from a recorded tool output.
 func ToolError(expectedID, expectedName, expectedCode, expectedMessage string) RequestAssert {
 	return func(req models.Request) error {
 		for _, message := range req.Messages {

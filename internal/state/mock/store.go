@@ -8,6 +8,7 @@ import (
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
+// Store records state-store calls for tests.
 type Store struct {
 	GetFunc                   func(context.Context, string) (storage.Session, bool, error)
 	GetSummaryFunc            func(context.Context, string) (storage.SessionSummary, bool, error)

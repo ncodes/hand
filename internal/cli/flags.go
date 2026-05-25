@@ -10,8 +10,10 @@ import (
 	"github.com/wandxy/hand/internal/profile"
 )
 
+// AppDescription is the package-level app description constant.
 const AppDescription = constants.AppDescription
 
+// RootFlags returns CLI flags shared by root commands.
 func RootFlags(envFile, configFile *string) []cli.Flag {
 	flags := []cli.Flag{
 		ProfileFlag(),
@@ -390,6 +392,7 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 	return flags
 }
 
+// ProfileFlag returns the persistent profile selection flag.
 func ProfileFlag() cli.Flag {
 	return &cli.StringFlag{
 		Name:    "profile",
@@ -401,6 +404,7 @@ func ProfileFlag() cli.Flag {
 	}
 }
 
+// RequestInstructFlag returns the flag for one-turn instruction text.
 func RequestInstructFlag() cli.Flag {
 	return &cli.StringFlag{
 		Name:  "instruct",
@@ -409,6 +413,7 @@ func RequestInstructFlag() cli.Flag {
 	}
 }
 
+// PersistentInstructFlag returns the flag for persisted instruction text.
 func PersistentInstructFlag() cli.Flag {
 	return &cli.StringFlag{
 		Name:  "instruct",
@@ -417,6 +422,7 @@ func PersistentInstructFlag() cli.Flag {
 	}
 }
 
+// ApplyConfigOverrides applies config overrides.
 func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	if cfg == nil || cmd == nil {
 		return

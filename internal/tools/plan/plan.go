@@ -12,6 +12,7 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 )
 
+// Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	type input struct {
 		Steps          []map[string]any `json:"steps"`

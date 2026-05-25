@@ -81,7 +81,7 @@ type StateManager interface {
 	UpdateCheckpoints(context.Context, string, storage.CheckpointPatch) error
 }
 
-// MemoryRepository provides existing-memory lookup and episode recording for extraction.
+// MemoryRepository supports existing-memory lookup and episode recording for extraction.
 type MemoryRepository interface {
 	Search(context.Context, storage.MemorySearchQuery) (storage.MemorySearchResult, error)
 	RecordEpisode(context.Context, EpisodeRecord) (storage.MemoryItem, error)
@@ -132,7 +132,7 @@ type episodeCandidate struct {
 	Text string
 	// Confidence is the extractor's confidence in the proposed memory item.
 	Confidence float64
-	// Metadata stores structured details for the proposed memory item.
+	// Metadata describes metadata attached to structured details for the proposed memory item records.
 	Metadata map[string]string
 	// SourceLinks optionally overrides the source links attached to the memory item.
 	SourceLinks []storage.MemorySourceLink

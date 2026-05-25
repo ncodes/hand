@@ -2,6 +2,7 @@ package guardrails
 
 import "net/netip"
 
+// DefaultBlockedAddressPrefixes lists network address prefixes blocked by default.
 var DefaultBlockedAddressPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("0.0.0.0/8"),
 	netip.MustParsePrefix("100.64.0.0/10"),
@@ -19,6 +20,7 @@ var DefaultBlockedAddressPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("2002::/16"),
 }
 
+// SafeAddr reports whether addr avoids blocked loopback and private network prefixes.
 func SafeAddr(addr netip.Addr, blockedPrefixes []netip.Prefix) bool {
 	addr = addr.Unmap()
 	if !addr.IsValid() ||

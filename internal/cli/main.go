@@ -19,13 +19,16 @@ const (
 	rootColorReset = "\x1b[0m"
 )
 
+// NewChatClientFunc creates a chat client for CLI commands.
 type NewChatClientFunc func(context.Context, *config.Config) (rpcclient.ChatClient, error)
 
+// MainActionOptions controls main action.
 type MainActionOptions struct {
 	Output        io.Writer
 	NewChatClient NewChatClientFunc
 }
 
+// NewMainAction returns the root CLI action wired to the supplied chat client factory.
 func NewMainAction(opts MainActionOptions) func(context.Context, *urfavecli.Command) error {
 	output := opts.Output
 	if output == nil {
@@ -105,6 +108,7 @@ func newDefaultChatClient(ctx context.Context, cfg *config.Config) (rpcclient.Ch
 	})
 }
 
+// FormatChatEvent formats one streamed chat event for terminal output.
 func FormatChatEvent(cfg *config.Config, event rpcclient.Event) string {
 	if event.TraceEvent != nil {
 		return ""

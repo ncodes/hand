@@ -13,10 +13,12 @@ var (
 	userHomeDir = os.UserHomeDir
 )
 
+// ProjectHomeDir returns the per-project Hand data directory.
 func ProjectHomeDir() string {
 	return HomeDir()
 }
 
+// HomeDir returns the configured Hand home directory.
 func HomeDir() string {
 	if active := profile.Active(); strings.TrimSpace(active.HomeDir) != "" {
 		return active.HomeDir
@@ -48,18 +50,22 @@ func loadUserHomeDir() string {
 	return home
 }
 
+// DataDir returns the directory used for persistent Hand data.
 func DataDir() string {
 	return filepath.Join(HomeDir(), "data")
 }
 
+// DebugTraceDir returns the directory used for debug trace files.
 func DebugTraceDir() string {
 	return filepath.Join(HomeDir(), "traces")
 }
 
+// StateDBPath returns the path to the project state database.
 func StateDBPath() string {
 	return filepath.Join(DataDir(), "state.db")
 }
 
+// SessionDBPath returns the path to the project session database.
 func SessionDBPath() string {
 	return filepath.Join(DataDir(), "session.db")
 }

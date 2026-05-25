@@ -10,6 +10,7 @@ import (
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 )
 
+// HandServiceClientStub is a test stub for hand service client.
 type HandServiceClientStub struct {
 	Req          *handpb.RespondRequest
 	Events       []*handpb.RespondEvent

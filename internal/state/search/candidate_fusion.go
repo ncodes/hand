@@ -16,7 +16,7 @@ const (
 	ReciprocalRankFusionConstant         = constants.ReciprocalRankFusionConstant
 )
 
-// CandidateMatch stores ranking metadata for a lexical, vector, or reranked search candidate.
+// CandidateMatch represents one matched ranking metadata for a lexical, vector, or reranked search candidate result.
 type CandidateMatch struct {
 	SessionID       string
 	MatchedText     string
@@ -37,7 +37,7 @@ type SearchCandidate interface {
 	CandidateMatchRef() *CandidateMatch
 }
 
-// SearchCandidateSet stores candidates keyed by their stable source identifier.
+// SearchCandidateSet describes candidates keyed by their stable source identifier.
 type SearchCandidateSet[K comparable, C SearchCandidate] map[K]C
 
 // Merge folds vector candidates into the set, preserving lexical metadata when present.

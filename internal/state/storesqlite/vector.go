@@ -43,6 +43,7 @@ func (candidate *searchCandidate) CandidateMatchRef() *search.CandidateMatch {
 	return &candidate.CandidateMatch
 }
 
+// VectorStoreOptions aliases search.VectorStoreOptions at this package boundary.
 type VectorStoreOptions = search.VectorStoreOptions
 
 // vectorConfig holds normalized vector dependencies and operational limits.
@@ -728,7 +729,7 @@ type messageRef struct {
 // messageRefs is a typed slice for building tuple queries by message reference.
 type messageRefs []messageRef
 
-// messageLookup stores messages keyed by session/message reference.
+// messageLookup describes messages keyed by session/message reference.
 type messageLookup map[string]messageModel
 
 // unique removes duplicate message references while preserving first occurrence order.
@@ -773,7 +774,7 @@ func (lookup messageLookup) get(ref messageRef) (messageModel, bool) {
 	return record, ok
 }
 
-// set stores a message for a reference.
+// set describes a message for a reference.
 func (lookup messageLookup) set(ref messageRef, record messageModel) {
 	lookup[ref.key()] = record
 }

@@ -12,11 +12,22 @@ import (
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
+// Session aliases base.Session at this package boundary.
 type Session = base.Session
+
+// ArchivedSession aliases base.ArchivedSession at this package boundary.
 type ArchivedSession = base.ArchivedSession
+
+// MessageQueryOptions aliases base.MessageQueryOptions at this package boundary.
 type MessageQueryOptions = base.MessageQueryOptions
+
+// SessionSummary aliases base.SessionSummary at this package boundary.
 type SessionSummary = base.SessionSummary
+
+// MessageRecord aliases base.MessageRecord at this package boundary.
 type MessageRecord = base.MessageRecord
+
+// CheckpointPatch aliases base.CheckpointPatch at this package boundary.
 type CheckpointPatch = base.CheckpointPatch
 
 func (s *Store) Save(_ context.Context, session Session) error {

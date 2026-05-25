@@ -23,6 +23,7 @@ import (
 
 var setHarnessEnv = os.Setenv
 
+// HarnessOptions wires an e2e scenario to config and scripted model clients.
 type HarnessOptions struct {
 	Spec          HarnessSpec
 	Config        *config.Config
@@ -30,6 +31,7 @@ type HarnessOptions struct {
 	SummaryClient models.Client
 }
 
+// Harness drives harness e2e scenarios.
 type Harness struct {
 	cfg          *config.Config
 	agent        harnessAgent
@@ -60,6 +62,7 @@ type harnessCompactionAgent interface {
 
 var openHarnessInspectStore = openInspectStore
 
+// NewHarness returns an e2e harness using the supplied provider and options.
 func NewHarness(ctx context.Context, opts HarnessOptions) (*Harness, error) {
 	if err := opts.Spec.Validate(); err != nil {
 		return nil, err

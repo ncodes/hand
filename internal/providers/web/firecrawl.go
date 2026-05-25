@@ -9,6 +9,7 @@ import (
 
 const firecrawlDefaultBaseURL = "https://api.firecrawl.dev"
 
+// FirecrawlProvider sends web requests to Firecrawl.
 type FirecrawlProvider struct {
 	client                   *httpClient
 	maxCharsPerResult        int
@@ -16,6 +17,7 @@ type FirecrawlProvider struct {
 	maxExtractResponseBytes  int
 }
 
+// NewFirecrawl returns a web provider backed by Firecrawl.
 func NewFirecrawl(opts Options) (Provider, error) {
 	opts = opts.Normalize()
 	if opts.APIKey == "" && opts.BaseURL == "" {

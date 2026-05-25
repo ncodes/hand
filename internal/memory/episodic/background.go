@@ -19,6 +19,7 @@ const (
 	backgroundTrigger            = "background"
 )
 
+// BackgroundOptions controls background episodic extraction cadence, windows, and retries.
 type BackgroundOptions struct {
 	Enabled         bool
 	Interval        time.Duration
@@ -31,12 +32,14 @@ type BackgroundOptions struct {
 	MaxRetries      int
 }
 
+// BackgroundRequest describes a background request.
 type BackgroundRequest struct {
 	Options BackgroundOptions
 	RunID   string
 	Trace   TraceRecorder
 }
 
+// BackgroundResult summarizes background extraction work across sessions.
 type BackgroundResult struct {
 	RunID        string                    `json:"run_id"`
 	Sessions     []BackgroundSessionResult `json:"sessions,omitempty"`
@@ -48,6 +51,7 @@ type BackgroundResult struct {
 	RetryCount   int                       `json:"retry_count"`
 }
 
+// BackgroundSessionResult summarizes background extraction work for one session.
 type BackgroundSessionResult struct {
 	SessionID    string `json:"session_id"`
 	MessageCount int    `json:"message_count"`
@@ -58,6 +62,7 @@ type BackgroundSessionResult struct {
 	Error        string `json:"error,omitempty"`
 }
 
+// BackgroundStateManager exposes session and memory operations used by background extraction.
 type BackgroundStateManager interface {
 	StateManager
 	ListSessions(context.Context) ([]storage.Session, error)

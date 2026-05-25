@@ -24,6 +24,7 @@ type input struct {
 	MaxWindowTokens int    `json:"max_window_tokens,omitempty"`
 }
 
+// Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:             "memory_extract",

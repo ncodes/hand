@@ -5,6 +5,7 @@ import (
 	"sync"
 )
 
+// Store defines the persistence operations required by this package.
 type Store interface {
 	Get(string) Plan
 	Replace(string, Plan) (Plan, error)
@@ -13,6 +14,7 @@ type Store interface {
 	Hydrate(string, Plan)
 }
 
+// MemoryPlanStore keeps the active plan in process memory.
 type MemoryPlanStore struct {
 	mu    sync.Mutex
 	plans map[string]Plan
@@ -134,6 +136,7 @@ func (s *MemoryPlanStore) Hydrate(sessionID string, plan Plan) {
 	s.plans[normalizeSessionID(sessionID)] = ClonePlan(plan)
 }
 
+// ClonePlan clones clone plan.
 func ClonePlan(plan Plan) Plan {
 	cloned := Plan{Explanation: plan.Explanation}
 	if len(plan.Steps) > 0 {

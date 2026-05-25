@@ -2,6 +2,7 @@ package transcript
 
 import "strings"
 
+// MarkdownStreamCollector describes markdown stream collector.
 type MarkdownStreamCollector struct {
 	stable []string
 	tail   string

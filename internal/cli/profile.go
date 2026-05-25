@@ -64,6 +64,7 @@ func LoadConfig(cmd *cli.Command) (*config.Config, ConfigInputs, error) {
 	return cfg, inputs, nil
 }
 
+// AddStartupFilesystemRoots adds startup filesystem roots to cfg from CLI flags.
 func AddStartupFilesystemRoots(cfg *config.Config, inputs ConfigInputs) {
 	if cfg == nil {
 		return

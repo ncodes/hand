@@ -9,6 +9,7 @@ import (
 
 const parallelDefaultBaseURL = "https://api.parallel.ai"
 
+// ParallelProvider fans web requests out to multiple providers.
 type ParallelProvider struct {
 	client                   *httpClient
 	maxCharsPerResult        int
@@ -16,6 +17,7 @@ type ParallelProvider struct {
 	maxExtractResponseBytes  int
 }
 
+// NewParallel returns a provider that queries multiple web providers concurrently.
 func NewParallel(opts Options) (Provider, error) {
 	opts = opts.Normalize()
 	if opts.APIKey == "" {

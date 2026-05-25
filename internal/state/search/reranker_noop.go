@@ -2,6 +2,7 @@ package search
 
 import "context"
 
+// NoopReranker reranks noop candidates.
 type NoopReranker struct{}
 
 func (NoopReranker) Name() string {

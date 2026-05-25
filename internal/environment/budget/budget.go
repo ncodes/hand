@@ -1,9 +1,11 @@
 package budget
 
+// IterationBudget describes iteration budget.
 type IterationBudget struct {
 	remaining int
 }
 
+// New returns an iteration budget with the supplied limit.
 func New(limit int) IterationBudget {
 	return IterationBudget{remaining: limit}
 }

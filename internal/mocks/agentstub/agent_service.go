@@ -10,6 +10,7 @@ import (
 	agent "github.com/wandxy/hand/pkg/agent"
 )
 
+// AgentServiceStub is a test stub for agent service.
 type AgentServiceStub struct {
 	ChatInput            string
 	RespondOptions       rpcclient.RespondOptions
@@ -120,6 +121,7 @@ func (s *AgentServiceStub) Close() error {
 	return s.CloseErr
 }
 
+// AgentRunnerStub is a test stub for agent runner.
 type AgentRunnerStub struct {
 	AgentServiceStub
 	StartFunc func(context.Context) error

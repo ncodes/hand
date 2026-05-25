@@ -202,7 +202,7 @@ func WithMetadataPaths(profile Profile) Profile {
 	return profile
 }
 
-// SetActive stores profile as the active process-local profile.
+// SetActive describes profile as the active process-local profile.
 func SetActive(profile Profile) {
 	activeMu.Lock()
 	defer activeMu.Unlock()

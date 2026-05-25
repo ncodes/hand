@@ -2,13 +2,16 @@ package guardrails
 
 import "strings"
 
+// HostPolicy defines host policy settings.
 type HostPolicy struct {
 	AllowRules []HostRule
 	DenyRules  []HostRule
 }
 
+// HostRule classifies host safety rules.
 type HostRule = domainRule
 
+// HostBlock describes one blocked host rule.
 type HostBlock struct {
 	Host    string
 	Rule    string
@@ -16,6 +19,7 @@ type HostBlock struct {
 	Message string
 }
 
+// NewHostPolicy returns a host safety policy compiled from blocked host rules.
 func NewHostPolicy(allowHosts, denyHosts, allowFiles, denyFiles []string) HostPolicy {
 	allowRules := appendDomainRules(nil, allowHosts, "config")
 	allowRules = appendDomainRulesFromFiles(allowRules, allowFiles)

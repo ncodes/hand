@@ -16,6 +16,7 @@ import (
 
 const maxURLs = constants.WebExtractToolMaxURLs
 
+// Options configures this package operation.
 type Options struct {
 	MaxExtractCharPerResult        int
 	MinSummarizeChars              int
@@ -33,6 +34,7 @@ type extractPolicyStats struct {
 	ProviderRequested int
 }
 
+// Definition returns the model-visible tool definition.
 func Definition(provider webprovider.Provider, options ...Options) tools.Definition {
 	type input struct {
 		URLs        []string `json:"urls"`

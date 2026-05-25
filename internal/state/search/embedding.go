@@ -7,10 +7,12 @@ import (
 	"strings"
 )
 
+// Embedder creates vector embeddings for model inputs.
 type Embedder interface {
 	Embed(context.Context, EmbeddingRequest) (EmbeddingResult, error)
 }
 
+// EmbeddingRequest describes an embedding request.
 type EmbeddingRequest struct {
 	Model        string
 	Relationship string
@@ -18,24 +20,28 @@ type EmbeddingRequest struct {
 	Inputs       []EmbeddingInput
 }
 
+// EmbeddingInput describes input for embedding.
 type EmbeddingInput struct {
 	ID         string
 	Text       string
 	SourceKind SourceKind
 }
 
+// EmbeddingResult contains embedding vectors returned for a request.
 type EmbeddingResult struct {
 	Model      string
 	Items      []Embedding
 	Dimensions int
 }
 
+// Embedding contains one vector for one embedding input.
 type Embedding struct {
 	ID          string
 	ContentHash string
 	Vector      []float64
 }
 
+// ValidateEmbeddingRequest checks that an embedding request has model input.
 func ValidateEmbeddingRequest(req EmbeddingRequest) error {
 	if strings.TrimSpace(req.Model) == "" {
 		return errors.New("embedding model is required")
@@ -69,6 +75,7 @@ func ValidateEmbeddingRequest(req EmbeddingRequest) error {
 	return nil
 }
 
+// ValidateEmbeddingResult checks that embedding output matches the requested inputs.
 func ValidateEmbeddingResult(req EmbeddingRequest, result EmbeddingResult) error {
 	if err := ValidateEmbeddingRequest(req); err != nil {
 		return err

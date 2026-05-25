@@ -23,6 +23,7 @@ var (
 	ErrUnsupportedProvider   = errors.New("unsupported web provider")
 )
 
+// SearchResult contains matches returned by a search request.
 type SearchResult struct {
 	Title    string
 	URL      string
@@ -30,6 +31,7 @@ type SearchResult struct {
 	Position int
 }
 
+// ExtractResult contains readable content extracted from a web page.
 type ExtractResult struct {
 	URL                string `json:"url"`
 	Title              string `json:"title,omitempty"`
@@ -44,6 +46,7 @@ type ExtractResult struct {
 	Error              string `json:"error,omitempty"`
 }
 
+// Provider searches the web and extracts readable page content.
 type Provider interface {
 	Search(context.Context, string, int) ([]SearchResult, error)
 	Extract(context.Context, []string) ([]ExtractResult, error)
@@ -51,6 +54,7 @@ type Provider interface {
 
 type extractOptionsContextKey struct{}
 
+// ExtractOptions controls format, size limits, query context, and website policy for extraction.
 type ExtractOptions struct {
 	Format        string
 	MaxChars      int
@@ -58,6 +62,7 @@ type ExtractOptions struct {
 	WebsitePolicy guardrails.WebsitePolicy
 }
 
+// Options configures the selected web provider and its search/extraction limits.
 type Options struct {
 	Provider                string
 	APIKey                  string
@@ -91,10 +96,12 @@ func (o Options) Normalize() Options {
 	return o
 }
 
+// WithExtractOptions describes extract options on ctx.
 func WithExtractOptions(ctx context.Context, opts ExtractOptions) context.Context {
 	return context.WithValue(ctx, extractOptionsContextKey{}, opts.Normalize())
 }
 
+// ExtractOptionsFromContext returns extract options stored on ctx.
 func ExtractOptionsFromContext(ctx context.Context) ExtractOptions {
 	if ctx == nil {
 		return ExtractOptions{}
@@ -142,6 +149,7 @@ func getExtractWebsitePolicy(ctx context.Context) guardrails.WebsitePolicy {
 	return ExtractOptionsFromContext(ctx).WebsitePolicy
 }
 
+// SupportedProvider reports whether supported provider is supported.
 func SupportedProvider(name string) bool {
 	switch strings.TrimSpace(strings.ToLower(name)) {
 	case ProviderFirecrawl, ProviderParallel, ProviderTavily, ProviderExa, ProviderNative:
@@ -151,6 +159,7 @@ func SupportedProvider(name string) bool {
 	}
 }
 
+// ResolveOptions resolves options.
 func ResolveOptions(cfg *config.Config) (Options, error) {
 	var opts Options
 	if cfg != nil {
@@ -295,6 +304,7 @@ func truncateToMaxBytes(value string, maxBytes int) (string, bool) {
 	return strings.TrimSpace(string(data)), true
 }
 
+// NewProvider returns a provider selected from config.
 func NewProvider(cfg *config.Config) (Provider, error) {
 	opts, err := ResolveOptions(cfg)
 	if err != nil {

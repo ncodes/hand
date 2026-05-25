@@ -29,29 +29,55 @@ const (
 	sqliteBusyRetryDelay    = 25 * time.Millisecond
 )
 
+// Record aliases vectorstore.Record at this package boundary.
 type Record = vectorstore.Record
+
+// DeleteRequest aliases vectorstore.DeleteRequest at this package boundary.
 type DeleteRequest = vectorstore.DeleteRequest
+
+// SearchRequest aliases vectorstore.SearchRequest at this package boundary.
 type SearchRequest = vectorstore.SearchRequest
+
+// SearchResult aliases vectorstore.SearchResult at this package boundary.
 type SearchResult = vectorstore.SearchResult
+
+// SearchMatch aliases vectorstore.SearchMatch at this package boundary.
 type SearchMatch = vectorstore.SearchMatch
+
+// ListRequest aliases vectorstore.ListRequest at this package boundary.
 type ListRequest = vectorstore.ListRequest
+
+// ListResult aliases vectorstore.ListResult at this package boundary.
 type ListResult = vectorstore.ListResult
+
+// Filter aliases vectorstore.Filter at this package boundary.
 type Filter = vectorstore.Filter
+
+// StoreMetadata aliases vectorstore.StoreMetadata at this package boundary.
 type StoreMetadata = vectorstore.StoreMetadata
+
+// ModelMetadata aliases vectorstore.ModelMetadata at this package boundary.
 type ModelMetadata = vectorstore.ModelMetadata
+
+// SourceKind classifies the domain object represented by a vector source ID.
 type SourceKind = vectorstore.SourceKind
 
+// SourceKindSessionMessage is the package-level source kind session message constant.
 const SourceKindSessionMessage = vectorstore.SourceKindSessionMessage
+
+// SourceKindMemoryItem is the package-level source kind memory item constant.
 const SourceKindMemoryItem = vectorstore.SourceKindMemoryItem
 
 func init() {
 	sqlitevec.Auto()
 }
 
+// Store persists vector records in SQLite.
 type Store struct {
 	db *gorm.DB
 }
 
+// NewStore returns a store backed by the supplied dependencies.
 func NewStore(path string) (*Store, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -70,6 +96,7 @@ func NewStore(path string) (*Store, error) {
 	return NewStoreFromDB(db)
 }
 
+// NewStoreFromDB returns a store using an existing database handle.
 func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 	if db == nil {
 		return nil, errors.New("vector db is required")

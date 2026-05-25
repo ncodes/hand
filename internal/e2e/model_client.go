@@ -12,8 +12,10 @@ import (
 	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
+// RequestAssert validates a scripted model request in e2e tests.
 type RequestAssert func(models.Request) error
 
+// Step describes one step.
 type Step struct {
 	Response *models.Response
 	Stream   []models.StreamDelta
@@ -21,6 +23,7 @@ type Step struct {
 	Check    RequestAssert
 }
 
+// Client wraps a gRPC connection to the Hand service.
 type Client struct {
 	mu       sync.Mutex
 	steps    []Step
@@ -28,6 +31,7 @@ type Client struct {
 	call     int
 }
 
+// NewClient returns a client configured with the supplied dependencies.
 func NewClient(steps ...Step) *Client {
 	clonedSteps := make([]Step, len(steps))
 	copy(clonedSteps, steps)
@@ -35,10 +39,12 @@ func NewClient(steps ...Step) *Client {
 	return &Client{steps: clonedSteps}
 }
 
+// NewTextClient returns a scripted model client that emits text responses.
 func NewTextClient(text string) *Client {
 	return NewClient(OutputTextStep(text))
 }
 
+// NewToolClient returns a scripted model client that emits tool calls.
 func NewToolClient(toolCall models.ToolCall, finalText string) *Client {
 	return NewClient(
 		ToolStep(toolCall),
@@ -49,18 +55,21 @@ func NewToolClient(toolCall models.ToolCall, finalText string) *Client {
 	)
 }
 
+// OutputTextStep returns a scripted text response step.
 func OutputTextStep(text string) Step {
 	return Step{
 		Response: &models.Response{OutputText: strings.TrimSpace(text)},
 	}
 }
 
+// StreamStep returns a scripted streaming response step.
 func StreamStep(text string, deltas ...models.StreamDelta) Step {
 	step := OutputTextStep(text)
 	step.Stream = append([]models.StreamDelta(nil), deltas...)
 	return step
 }
 
+// ToolStep returns a scripted tool-call response step.
 func ToolStep(toolCall models.ToolCall) Step {
 	trimmed := models.ToolCall{
 		ID:    strings.TrimSpace(toolCall.ID),
@@ -76,6 +85,7 @@ func ToolStep(toolCall models.ToolCall) Step {
 	}
 }
 
+// AssertToolRoundTrip returns an assertion for a complete tool-call round trip.
 func AssertToolRoundTrip(toolCall models.ToolCall) RequestAssert {
 	expectedID := strings.TrimSpace(toolCall.ID)
 	expectedName := strings.TrimSpace(toolCall.Name)

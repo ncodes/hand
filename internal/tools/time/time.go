@@ -12,6 +12,7 @@ import (
 
 var now = time.Now
 
+// Definition returns the model-visible tool definition.
 func Definition() tools.Definition {
 	return tools.Definition{
 		Name:        "time",

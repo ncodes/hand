@@ -23,7 +23,7 @@ func (i Instructions) First() Instruction {
 	return i[0]
 }
 
-// New constructs a new Instructions slice from a variadic list of string values,
+// New returns an Instructions slice from a variadic list of string values,
 // treating each string as the Value of a new Instruction with an empty Name.
 func New(values ...string) Instructions {
 	instructions := make(Instructions, 0, len(values))

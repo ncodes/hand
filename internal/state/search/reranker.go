@@ -20,11 +20,13 @@ const (
 	RerankerLLM           = constants.RerankerLLM
 )
 
+// Reranker orders candidate items for a query.
 type Reranker interface {
 	Name() string
 	Rerank(context.Context, RerankRequest) (RerankResult, error)
 }
 
+// RerankRequest describes a rerank request.
 type RerankRequest struct {
 	Options    RerankOptions
 	Query      string
@@ -34,6 +36,7 @@ type RerankRequest struct {
 	Candidates []Candidate
 }
 
+// RerankOptions controls ranking directions, weights, and candidate limits.
 type RerankOptions struct {
 	LexicalDirection ScoreDirection
 	VectorDirection  ScoreDirection
@@ -45,16 +48,19 @@ type RerankOptions struct {
 	RecencyWeight    float64
 }
 
+// RerankResult contains the ordered output from a reranker.
 type RerankResult struct {
 	Reranker string
 	Items    []RerankItem
 }
 
+// RerankItem represents one rerank item.
 type RerankItem struct {
 	CandidateID string
 	Score       float64
 }
 
+// RerankWithFallback reranks candidates and falls back to original order on failure.
 func RerankWithFallback(
 	ctx context.Context,
 	primary Reranker,
@@ -96,6 +102,7 @@ func RerankWithFallback(
 	return result, nil
 }
 
+// ValidateRerankResult checks that reranker output is complete and well-formed.
 func ValidateRerankResult(candidates []Candidate, result RerankResult) error {
 	if len(candidates) == 0 {
 		if len(result.Items) != 0 {
@@ -166,6 +173,7 @@ func rerankFallback(ctx context.Context, fallback Reranker, req RerankRequest) (
 	return result, err
 }
 
+// ValidateReranker checks that a reranker behaves consistently for valid requests.
 func ValidateReranker(reranker Reranker) error {
 	if reranker == nil {
 		return nil

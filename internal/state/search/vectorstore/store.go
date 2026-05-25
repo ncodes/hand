@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// SourceKind classifies the domain object represented by a vector source ID.
 type SourceKind string
 
 const (
@@ -19,6 +20,7 @@ const (
 	SourceKindMemoryItem     SourceKind = "memory_item"
 )
 
+// Store defines the persistence operations required by this package.
 type Store interface {
 	Upsert(context.Context, []Record) error
 	Delete(context.Context, DeleteRequest) error
@@ -26,10 +28,12 @@ type Store interface {
 	Metadata(context.Context) (StoreMetadata, error)
 }
 
+// RecordLister lists vector records for repair and inspection.
 type RecordLister interface {
 	List(context.Context, ListRequest) (ListResult, error)
 }
 
+// Record represents one vectorized source item persisted in a vector store.
 type Record struct {
 	ID             string
 	SourceKind     SourceKind
@@ -46,11 +50,13 @@ type Record struct {
 	UpdatedAt      time.Time
 }
 
+// DeleteRequest selects vector records to remove.
 type DeleteRequest struct {
 	SourceKind SourceKind
 	SourceIDs  []string
 }
 
+// SearchRequest contains vector search input, filters, and limits.
 type SearchRequest struct {
 	Filter         Filter
 	QueryVector    []float64
@@ -59,6 +65,7 @@ type SearchRequest struct {
 	Dimensions     int
 }
 
+// Filter narrows vector records by source, session, role, tool, or tags.
 type Filter struct {
 	SourceKind      SourceKind
 	SourceIDs       []string
@@ -70,34 +77,41 @@ type Filter struct {
 	TagGroups       [][]string
 }
 
+// SearchResult contains matches returned by a search request.
 type SearchResult struct {
 	Matches []SearchMatch
 }
 
+// ListRequest selects vector records to enumerate.
 type ListRequest struct {
 	Filter         Filter
 	EmbeddingModel string
 }
 
+// ListResult contains records returned by a vector-list request.
 type ListResult struct {
 	Records []Record
 }
 
+// SearchMatch represents one matched search result.
 type SearchMatch struct {
 	Record Record
 	Score  float64
 }
 
+// StoreMetadata describes metadata attached to store records.
 type StoreMetadata struct {
 	Models []ModelMetadata
 }
 
+// ModelMetadata describes metadata attached to model records.
 type ModelMetadata struct {
 	Model      string
 	Dimensions int
 	Count      int
 }
 
+// ValidateRecord checks that a vector record can be stored and searched.
 func ValidateRecord(record Record) error {
 	if strings.TrimSpace(record.ID) == "" {
 		return errors.New("vector id is required")
@@ -132,6 +146,7 @@ func ValidateRecord(record Record) error {
 	return nil
 }
 
+// ValidateSearchRequest checks that a vector search request has valid input and limits.
 func ValidateSearchRequest(req SearchRequest) error {
 	if strings.TrimSpace(req.EmbeddingModel) == "" {
 		return errors.New("vector search embedding model is required")
@@ -163,6 +178,7 @@ func ValidateSearchRequest(req SearchRequest) error {
 	return nil
 }
 
+// ValidateListRequest checks that a vector list request has valid filters and limits.
 func ValidateListRequest(req ListRequest) error {
 	if strings.TrimSpace(req.EmbeddingModel) == "" {
 		return errors.New("vector list embedding model is required")
@@ -188,6 +204,7 @@ func ValidateListRequest(req ListRequest) error {
 	return nil
 }
 
+// ValidateDeleteRequest checks that a vector delete request specifies what to remove.
 func ValidateDeleteRequest(req DeleteRequest) error {
 	if err := ValidateRequiredSourceKind(req.SourceKind, "source kind"); err != nil {
 		return err
@@ -207,15 +224,18 @@ func ValidateDeleteRequest(req DeleteRequest) error {
 	return nil
 }
 
+// ContentHash returns a stable hash for vectorized content.
 func ContentHash(text string) string {
 	sum := sha256.Sum256([]byte(text))
 	return hex.EncodeToString(sum[:])
 }
 
+// IsRecordStale reports whether record metadata differs from the expected model or content hash.
 func IsRecordStale(record Record, text string) bool {
 	return record.ContentHash != ContentHash(text)
 }
 
+// NormalizeTags normalizes tags.
 func NormalizeTags(tags []string) []string {
 	normalized := make([]string, 0, len(tags))
 	seen := make(map[string]struct{}, len(tags))
@@ -234,6 +254,7 @@ func NormalizeTags(tags []string) []string {
 	return normalized
 }
 
+// NormalizeTagGroups normalizes tag groups.
 func NormalizeTagGroups(groups [][]string) [][]string {
 	normalized := make([][]string, 0, len(groups))
 	seen := make(map[string]struct{}, len(groups))
@@ -255,6 +276,7 @@ func NormalizeTagGroups(groups [][]string) [][]string {
 	return normalized
 }
 
+// ValidateRequiredSourceKind checks that kind is one of the supported vector source kinds.
 func ValidateRequiredSourceKind(sourceKind SourceKind, field string) error {
 	if strings.TrimSpace(string(sourceKind)) == "" {
 		return fmt.Errorf("%s is required", field)
@@ -263,6 +285,7 @@ func ValidateRequiredSourceKind(sourceKind SourceKind, field string) error {
 	return ValidateOptionalSourceKind(sourceKind, field)
 }
 
+// ValidateOptionalSourceKind checks that a non-empty kind is one of the supported vector source kinds.
 func ValidateOptionalSourceKind(sourceKind SourceKind, field string) error {
 	if strings.TrimSpace(string(sourceKind)) == "" {
 		return nil

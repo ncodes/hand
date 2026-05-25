@@ -18,6 +18,8 @@ import (
 )
 
 type sessionTimelineLoader = tuirpc.SessionTimelineLoader
+
+// SessionTimelineLoader aliases tuirpc.SessionTimelineLoader at this package boundary.
 type SessionTimelineLoader = tuirpc.SessionTimelineLoader
 type sessionTimelineLoadedMsg = tuirpc.SessionTimelineLoaded
 type sessionTimelineLoadFailedMsg = tuirpc.SessionTimelineLoadFailed

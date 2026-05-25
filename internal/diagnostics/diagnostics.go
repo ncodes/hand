@@ -16,6 +16,7 @@ var (
 	}
 )
 
+// Status identifies the result of one diagnostics check.
 type Status string
 
 const (
@@ -24,16 +25,19 @@ const (
 	StatusFail Status = "fail"
 )
 
+// Check describes one diagnostics probe and its result.
 type Check struct {
 	Name    string
 	Status  Status
 	Message string
 }
 
+// Report contains the full diagnostics output.
 type Report struct {
 	Checks []Check
 }
 
+// Build runs diagnostics checks and returns a report.
 func Build(envPath, configPath string, cfg *config.Config, loadErr error) Report {
 	report := Report{
 		Checks: []Check{

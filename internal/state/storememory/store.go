@@ -8,6 +8,7 @@ import (
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
+// Store keeps sessions, messages, memory, and traces in process memory.
 type Store struct {
 	vectors         *search.VectorConfig
 	memoryReranker  search.Reranker
@@ -25,6 +26,7 @@ type Store struct {
 	nextTraceID     uint
 }
 
+// NewStore returns a store backed by the supplied dependencies.
 func NewStore() *Store {
 	return &Store{
 		sessions:        make(map[string]Session),

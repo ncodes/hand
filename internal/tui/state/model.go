@@ -1,10 +1,12 @@
 package state
 
+// Viewport tracks terminal viewport dimensions.
 type Viewport struct {
 	Width  int
 	Height int
 }
 
+// NormalizeViewport normalizes viewport.
 func NormalizeViewport(width int, height int) Viewport {
 	return Viewport{
 		Width:  max(width, 1),

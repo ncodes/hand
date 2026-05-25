@@ -9,11 +9,13 @@ import (
 	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
+// SessionFailedPayload is the trace payload for session failed.
 type SessionFailedPayload struct {
 	Error   string `json:"error,omitempty"`
 	Message string `json:"message,omitempty"`
 }
 
+// SafetyEventPayload is the trace payload for safety event.
 type SafetyEventPayload struct {
 	SessionID     string              `json:"session_id,omitempty"`
 	Source        string              `json:"source,omitempty"`
@@ -25,24 +27,29 @@ type SafetyEventPayload struct {
 	Findings      []map[string]string `json:"findings,omitempty"`
 }
 
+// UserMessageAcceptedPayload is the trace payload for user message accepted.
 type UserMessageAcceptedPayload struct {
 	Message string `json:"message,omitempty"`
 	Text    string `json:"text,omitempty"`
 }
 
+// ModelReasoningCompletedPayload is the trace payload for model reasoning completed.
 type ModelReasoningCompletedPayload struct {
 	DurationMS int64 `json:"duration_ms,omitempty"`
 }
 
+// FinalAssistantResponsePayload is the trace payload for final assistant response.
 type FinalAssistantResponsePayload struct {
 	Message string `json:"message,omitempty"`
 	Text    string `json:"text,omitempty"`
 }
 
+// SummaryFallbackStartedPayload is the trace payload for summary fallback started.
 type SummaryFallbackStartedPayload struct {
 	RemainingIterations int `json:"remaining_iterations,omitempty"`
 }
 
+// ContextEventPayload is the trace payload for context event.
 type ContextEventPayload struct {
 	Source           string `json:"source,omitempty"`
 	PromptTokens     int    `json:"prompt_tokens,omitempty"`
@@ -53,6 +60,7 @@ type ContextEventPayload struct {
 	WarnThreshold    int    `json:"warn_threshold,omitempty"`
 }
 
+// SummaryEventPayload is the trace payload for summary event.
 type SummaryEventPayload struct {
 	SessionID          string    `json:"session_id,omitempty"`
 	SourceEndOffset    int       `json:"source_end_offset,omitempty"`
@@ -61,6 +69,7 @@ type SummaryEventPayload struct {
 	Error              string    `json:"error,omitempty"`
 }
 
+// CompactionEventPayload is the trace payload for compaction event.
 type CompactionEventPayload struct {
 	SessionID          string    `json:"session_id,omitempty"`
 	Status             string    `json:"status,omitempty"`
@@ -74,6 +83,7 @@ type CompactionEventPayload struct {
 	Error              string    `json:"error,omitempty"`
 }
 
+// WorkspaceRulesTruncatedPayload is the trace payload for workspace rules truncated.
 type WorkspaceRulesTruncatedPayload struct {
 	OriginalLength   int    `json:"original_length,omitempty"`
 	TruncatedLength  int    `json:"truncated_length,omitempty"`
@@ -81,6 +91,7 @@ type WorkspaceRulesTruncatedPayload struct {
 	Marker           string `json:"marker,omitempty"`
 }
 
+// PlanEventPayload is the trace payload for plan event.
 type PlanEventPayload struct {
 	SessionID    string             `json:"session_id,omitempty"`
 	Steps        []PlanStepPayload  `json:"steps,omitempty"`
@@ -91,12 +102,14 @@ type PlanEventPayload struct {
 	Changes      []PlanToolChange   `json:"changes,omitempty"`
 }
 
+// PlanStepPayload is the trace payload for plan step.
 type PlanStepPayload struct {
 	ID      string `json:"id,omitempty"`
 	Content string `json:"content,omitempty"`
 	Status  string `json:"status,omitempty"`
 }
 
+// PlanSummaryPayload is the trace payload for plan summary.
 type PlanSummaryPayload struct {
 	Total      int `json:"total,omitempty"`
 	Pending    int `json:"pending,omitempty"`
@@ -105,6 +118,7 @@ type PlanSummaryPayload struct {
 	Cancelled  int `json:"cancelled,omitempty"`
 }
 
+// MemoryEventPayload is the trace payload for memory event.
 type MemoryEventPayload struct {
 	SessionID                string            `json:"session_id,omitempty"`
 	MemoryID                 string            `json:"memory_id,omitempty"`
@@ -202,6 +216,7 @@ type MemoryEventPayload struct {
 	CompletedAt              time.Time         `json:"completed_at,omitempty"`
 }
 
+// MemoryTraceItem represents one memory trace item.
 type MemoryTraceItem struct {
 	ID           string  `json:"id,omitempty"`
 	Kind         string  `json:"kind,omitempty"`
@@ -216,6 +231,7 @@ type MemoryTraceItem struct {
 	VectorScore  float64 `json:"vector_score,omitempty"`
 }
 
+// PlanToolOperation classifies plan-tool trace operations.
 type PlanToolOperation string
 
 const (
@@ -224,6 +240,7 @@ const (
 	PlanToolOperationClearCompleted PlanToolOperation = "clear_completed"
 )
 
+// PlanToolState describes plan tool state.
 type PlanToolState struct {
 	Operation      PlanToolOperation `json:"operation,omitempty"`
 	ChangedCount   int               `json:"changed_count,omitempty"`
@@ -232,6 +249,7 @@ type PlanToolState struct {
 	Changes        []PlanToolChange  `json:"changes,omitempty"`
 }
 
+// PlanToolChange describes plan tool change.
 type PlanToolChange struct {
 	Index  int      `json:"index,omitempty"`
 	ID     string   `json:"id,omitempty"`
@@ -239,6 +257,7 @@ type PlanToolChange struct {
 	Fields []string `json:"fields,omitempty"`
 }
 
+// ProcessToolOperation classifies process-tool trace operations.
 type ProcessToolOperation string
 
 const (
@@ -249,6 +268,7 @@ const (
 	ProcessToolOperationList   ProcessToolOperation = "list"
 )
 
+// ProcessToolState describes process tool state.
 type ProcessToolState struct {
 	Operation   ProcessToolOperation `json:"operation,omitempty"`
 	ProcessID   string               `json:"process_id,omitempty"`
@@ -262,6 +282,7 @@ type ProcessToolState struct {
 	Error       string               `json:"error,omitempty"`
 }
 
+// ToolInvocationStartedPayload is the trace payload for tool invocation started.
 type ToolInvocationStartedPayload struct {
 	ID           string            `json:"id,omitempty"`
 	Name         string            `json:"name,omitempty"`
@@ -271,6 +292,7 @@ type ToolInvocationStartedPayload struct {
 	ProcessState *ProcessToolState `json:"process_state,omitempty"`
 }
 
+// ToolInvocationCompletedPayload is the trace payload for tool invocation completed.
 type ToolInvocationCompletedPayload struct {
 	ToolCallID   string            `json:"tool_call_id,omitempty"`
 	Name         string            `json:"name,omitempty"`
@@ -280,6 +302,7 @@ type ToolInvocationCompletedPayload struct {
 	ProcessState *ProcessToolState `json:"process_state,omitempty"`
 }
 
+// DecodePayload converts a stored trace payload into its concrete event payload type.
 func DecodePayload(eventType string, payload any) (any, bool) {
 	switch strings.TrimSpace(eventType) {
 	case EvtChatStarted:
@@ -384,6 +407,7 @@ func DecodePayload(eventType string, payload any) (any, bool) {
 	}
 }
 
+// DecodePayloadJSON decodes raw JSON into the concrete payload for eventType.
 func DecodePayloadJSON(eventType string, payload json.RawMessage) (any, bool) {
 	if len(payload) == 0 {
 		return DecodePayload(eventType, nil)
@@ -392,6 +416,7 @@ func DecodePayloadJSON(eventType string, payload json.RawMessage) (any, bool) {
 	return DecodePayload(eventType, payload)
 }
 
+// ToolInvocationStartedPayloadFrom builds a trace payload from a model tool call.
 func ToolInvocationStartedPayloadFrom(payload any) (ToolInvocationStartedPayload, bool) {
 	switch value := payload.(type) {
 	case ToolInvocationStartedPayload:
@@ -427,6 +452,7 @@ func ToolInvocationStartedPayloadFrom(payload any) (ToolInvocationStartedPayload
 	return result, result.ID != "" || result.Name != ""
 }
 
+// ToolInvocationCompletedPayloadFrom builds a trace payload from a tool response message.
 func ToolInvocationCompletedPayloadFrom(payload any) (ToolInvocationCompletedPayload, bool) {
 	switch value := payload.(type) {
 	case ToolInvocationCompletedPayload:
@@ -456,6 +482,7 @@ func ToolInvocationCompletedPayloadFrom(payload any) (ToolInvocationCompletedPay
 	return result, result.ToolCallID != "" || result.Name != ""
 }
 
+// PlanToolInputState extracts plan state from a plan tool input payload.
 func PlanToolInputState(input string) *PlanToolState {
 	fields := map[string]any{}
 	if err := json.Unmarshal([]byte(strings.TrimSpace(input)), &fields); err != nil {
@@ -477,6 +504,7 @@ func PlanToolInputState(input string) *PlanToolState {
 	}
 }
 
+// PlanToolOutputState extracts plan state from a plan tool output payload.
 func PlanToolOutputState(output string) *PlanToolState {
 	fields := map[string]any{}
 	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &fields); err != nil {
@@ -496,6 +524,7 @@ func PlanToolOutputState(output string) *PlanToolState {
 	}
 }
 
+// ProcessToolInputState extracts process state from a process tool input payload.
 func ProcessToolInputState(input string) *ProcessToolState {
 	fields := map[string]any{}
 	if err := json.Unmarshal([]byte(strings.TrimSpace(input)), &fields); err != nil {
@@ -516,6 +545,7 @@ func ProcessToolInputState(input string) *ProcessToolState {
 	}
 }
 
+// ProcessToolOutputState extracts process state from a process tool output payload.
 func ProcessToolOutputState(output string) *ProcessToolState {
 	fields := map[string]any{}
 	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &fields); err != nil {
@@ -602,6 +632,7 @@ func unwrapPlanToolOutputFields(fields map[string]any) map[string]any {
 	return unwrapped
 }
 
+// PayloadFields returns structured fields for a trace payload.
 func PayloadFields(payload any) map[string]any {
 	if payload == nil {
 		return nil
@@ -632,6 +663,7 @@ func anySlice(value any) []any {
 	}
 }
 
+// PayloadString returns a concise display string for a trace payload.
 func PayloadString(fields map[string]any, keys ...string) string {
 	for _, key := range keys {
 		value, ok := fields[key]

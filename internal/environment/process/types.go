@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Manager starts, reads, lists, and stops managed processes.
 type Manager interface {
 	Start(context.Context, string, StartRequest) (Info, error)
 	Get(string, string) (Info, error)
@@ -20,6 +21,7 @@ const (
 	StatusStopped = "stopped"
 )
 
+// StartRequest describes a start request.
 type StartRequest struct {
 	Command           string
 	Args              []string
@@ -29,12 +31,14 @@ type StartRequest struct {
 	OutputBufferBytes int
 }
 
+// ReadRequest describes a read request.
 type ReadRequest struct {
 	ProcessID    string
 	StdoutCursor *int
 	StderrCursor *int
 }
 
+// Info describes info returned to callers.
 type Info struct {
 	ID              string     `json:"id"`
 	Label           string     `json:"label,omitempty"`
@@ -51,6 +55,7 @@ type Info struct {
 	StderrTruncated bool       `json:"stderr_truncated,omitempty"`
 }
 
+// Output contains output from output.
 type Output struct {
 	Stdout              string `json:"stdout"`
 	Stderr              string `json:"stderr"`

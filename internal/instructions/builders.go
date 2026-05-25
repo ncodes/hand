@@ -18,12 +18,24 @@ const (
 	MemoryDeleteInstructionName       = "tool.memory_delete"
 )
 
+/*
+Instruction builders centralize the text sent to models for core behavior,
+runtime context, tool usage, memory workflows, summaries, and web extraction.
+
+Keeping these prompts in one package makes the hidden instruction contract
+auditable: callers pass structured context in, and builders return named
+instructions that can be traced without scattering prompt text through the
+agent runtime.
+*/
+
+// MemoryContextItem represents one memory context item.
 type MemoryContextItem struct {
 	Kind  string
 	Title string
 	Text  string
 }
 
+// EnvironmentContext describes environment context supplied to prompts.
 type EnvironmentContext struct {
 	Now              time.Time
 	Timezone         string
@@ -45,6 +57,7 @@ type EnvironmentContext struct {
 	SessionID        string
 }
 
+// EnvironmentCapabilities describes runtime capabilities exposed to prompts.
 type EnvironmentCapabilities struct {
 	Filesystem bool
 	Network    bool
@@ -53,6 +66,7 @@ type EnvironmentCapabilities struct {
 	Browser    bool
 }
 
+// BuildBase builds base.
 func BuildBase(name string) Instructions {
 	agentName := strings.TrimSpace(name)
 	if agentName == "" {
@@ -109,6 +123,7 @@ Response style:
 	))
 }
 
+// BuildEnvironmentContext builds environment context.
 func BuildEnvironmentContext(ctx EnvironmentContext) Instruction {
 	lines := []string{"# Environment Context", ""}
 
@@ -200,6 +215,7 @@ func BuildEnvironmentContext(ctx EnvironmentContext) Instruction {
 	}
 }
 
+// BuildMemoryContext builds memory context.
 func BuildMemoryContext(items []MemoryContextItem, maxChars int) Instruction {
 	if len(items) == 0 {
 		return Instruction{Name: MemoryContextInstructionName}
@@ -236,6 +252,7 @@ func renderMemoryContextItem(item MemoryContextItem) string {
 	return strings.Join(parts, "; ")
 }
 
+// BuildPlanningPolicy builds planning policy.
 func BuildPlanningPolicy() Instruction {
 	return Instruction{
 		Name: PlanningPolicyInstructionName,
@@ -250,6 +267,7 @@ If a step becomes invalid or fails, cancel it and add a revised replacement step
 	}
 }
 
+// BuildSessionSearchGuidance builds session search guidance.
 func BuildSessionSearchGuidance() Instruction {
 	return Instruction{
 		Name: SessionSearchInstructionName,
@@ -262,6 +280,7 @@ Do not treat session_search as long-term memory for stable user preferences or d
 	}
 }
 
+// BuildSessionMessagesGuidance builds session messages guidance.
 func BuildSessionMessagesGuidance() Instruction {
 	return Instruction{
 		Name: SessionMessagesInstructionName,
@@ -275,6 +294,7 @@ Do not use session_messages as a substitute for transcript search, ranking, or u
 	}
 }
 
+// BuildMemoryExtractGuidance builds memory extract guidance.
 func BuildMemoryExtractGuidance() Instruction {
 	return Instruction{
 		Name: MemoryExtractInstructionName,
@@ -289,6 +309,7 @@ Treat memory_extract as a deliberate capture action: it creates source-linked du
 	}
 }
 
+// BuildMemoryAddGuidance builds memory add guidance.
 func BuildMemoryAddGuidance() Instruction {
 	return Instruction{
 		Name: MemoryAddInstructionName,
@@ -301,6 +322,7 @@ Do not use memory_add for guesses, sensitive inferences, low-importance details,
 	}
 }
 
+// BuildMemoryUpdateGuidance builds memory update guidance.
 func BuildMemoryUpdateGuidance() Instruction {
 	return Instruction{
 		Name: MemoryUpdateInstructionName,
@@ -313,6 +335,7 @@ Do not use memory_update to silently rewrite unrelated memory, broaden scope bey
 	}
 }
 
+// BuildMemoryDeleteGuidance builds memory delete guidance.
 func BuildMemoryDeleteGuidance() Instruction {
 	return Instruction{
 		Name: MemoryDeleteInstructionName,
@@ -324,6 +347,7 @@ Provide a concise reason tied to the user's request. Deletion is a lifecycle tra
 	}
 }
 
+// BuildMemoryFlushGuidance builds memory flush guidance.
 func BuildMemoryFlushGuidance(trigger string) Instruction {
 	trigger = strings.TrimSpace(trigger)
 	if trigger == "" {
@@ -344,6 +368,7 @@ Do not call more than one tool. If there is nothing durable to preserve, do not 
 	}
 }
 
+// BuildMemoryFlushRequest builds memory flush request.
 func BuildMemoryFlushRequest(trigger string) string {
 	trigger = strings.TrimSpace(trigger)
 	if trigger == "" {
@@ -356,6 +381,7 @@ If any such durable information is present, call exactly one available memory to
 If there is nothing durable to preserve, reply only with "no durable memory to flush".`)
 }
 
+// BuildEpisodicExtractionInstructions builds episodic extraction instructions.
 func BuildEpisodicExtractionInstructions() string {
 	return strings.TrimSpace(`Extract curated episodic memory candidates from bounded session messages and task trace events.
 Return only JSON matching the schema. Do not store raw transcript windows.
@@ -384,6 +410,7 @@ Reject low-signal, speculative, temporary, unsafe, socially trivial, or purely c
 Keep candidate text concise, source-grounded, and useful for future continuity. Preserve uncertainty in metadata when evidence is incomplete.`)
 }
 
+// BuildSummary builds summary.
 func BuildSummary(iterationsLeft int) Instructions {
 	instructions := New()
 	if iterationsLeft <= 5 {
@@ -395,6 +422,7 @@ func BuildSummary(iterationsLeft int) Instructions {
 	return instructions
 }
 
+// BuildSessionSummary builds session summary.
 func BuildSessionSummary() Instructions {
 	return New(`
 # Session Summary Task
@@ -419,6 +447,7 @@ Return JSON only with this exact shape:
 Output rules: Do not include markdown fences or extra commentary.`)
 }
 
+// BuildSessionTitle builds session title.
 func BuildSessionTitle() Instructions {
 	return New(`
 # Session Title Task
@@ -434,6 +463,7 @@ Rules:
 - Prefer the user's actual topic over generic assistant behavior.`)
 }
 
+// BuildRecallSessionSummaryWindow builds recall session summary window.
 func BuildRecallSessionSummaryWindow(windowIndex, windowCount int) Instructions {
 	return New(
 		fmt.Sprintf(`
@@ -454,6 +484,7 @@ Do not add claims that are not supported by this recall window.`,
 	)
 }
 
+// BuildRecallSessionSummarySynthesis builds recall session summary synthesis.
 func BuildRecallSessionSummarySynthesis(batchIndex, batchCount int) Instructions {
 	return New(fmt.Sprintf(`
 # Recall Session Summary Synthesis
@@ -470,6 +501,7 @@ Do not add claims that are not supported by the recall window summaries.`,
 	)
 }
 
+// BuildRecallSessionSummaryChunk builds recall session summary chunk.
 func BuildRecallSessionSummaryChunk(windowIndex, windowCount, chunkIndex, chunkCount int) Instructions {
 	return New(fmt.Sprintf(`
 # Recall Session Summary Chunk
@@ -491,6 +523,7 @@ Do not add claims that are not supported by this recall chunk.`,
 	)
 }
 
+// BuildWebExtractSummary builds web extract summary.
 func BuildWebExtractSummary(maxSummaryChars int) string {
 	return fmt.Sprintf(`
 # Web Extract Summary
@@ -503,6 +536,7 @@ Do not add claims that are not supported by the extracted content.
 Keep the summary under %d characters.`, maxSummaryChars)
 }
 
+// BuildWebExtractChunkSummary builds web extract chunk summary.
 func BuildWebExtractChunkSummary(maxSummaryChars, chunkIndex, chunkCount int) string {
 	return fmt.Sprintf(`
 # Web Extract Chunk Summary
@@ -514,6 +548,7 @@ Do not add context from other chunks or claims that are not supported by this ch
 Keep the chunk summary under %d characters.`, chunkIndex, chunkCount, maxSummaryChars)
 }
 
+// BuildWebExtractSynthesis builds web extract synthesis.
 func BuildWebExtractSynthesis(maxSummaryChars int) string {
 	return fmt.Sprintf(`
 # Web Extract Summary Synthesis
@@ -525,6 +560,7 @@ Do not add claims that are not supported by the chunk summaries.
 Keep the final summary under %d characters.`, maxSummaryChars)
 }
 
+// BuildRetrievalRerank builds retrieval rerank.
 func BuildRetrievalRerank() string {
 	return strings.Join([]string{
 		"Rank the retrieval candidates for the query.",

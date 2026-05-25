@@ -8,6 +8,7 @@ import (
 	statecore "github.com/wandxy/hand/internal/state/core"
 )
 
+// Kind classifies memory records by use and origin.
 type Kind = statecore.MemoryKind
 
 const (
@@ -17,6 +18,7 @@ const (
 	KindProcedural = statecore.MemoryKindProcedural
 )
 
+// Status tracks lifecycle state for memory records.
 type Status = statecore.MemoryStatus
 
 const (
@@ -26,12 +28,25 @@ const (
 	StatusDeleted    = statecore.MemoryStatusDeleted
 )
 
+// SourceLink aliases statecore.MemorySourceLink at this package boundary.
 type SourceLink = statecore.MemorySourceLink
+
+// MemoryItem aliases statecore.MemoryItem at this package boundary.
 type MemoryItem = statecore.MemoryItem
+
+// MemoryPatch aliases statecore.MemoryPatch at this package boundary.
 type MemoryPatch = statecore.MemoryPatch
+
+// SearchQuery aliases statecore.MemorySearchQuery at this package boundary.
 type SearchQuery = statecore.MemorySearchQuery
+
+// SearchHit aliases statecore.MemorySearchHit at this package boundary.
 type SearchHit = statecore.MemorySearchHit
+
+// SearchResult aliases statecore.MemorySearchResult at this package boundary.
 type SearchResult = statecore.MemorySearchResult
+
+// DeleteRequest aliases statecore.MemoryDeleteRequest at this package boundary.
 type DeleteRequest = statecore.MemoryDeleteRequest
 
 const (
@@ -44,12 +59,14 @@ const (
 	RerankerUseCaseEpisodicExtraction = statecore.MemoryRerankerUseCaseEpisodicExtraction
 )
 
+// UpdateRequest describes a memory replacement request.
 type UpdateRequest struct {
 	ID          string
 	Reason      string
 	Replacement MemoryItem
 }
 
+// UpdateResult reports the previous memory, replacement, and lifecycle changes.
 type UpdateResult struct {
 	Previous    MemoryItem
 	Replacement MemoryItem
@@ -75,17 +92,30 @@ type Capabilities struct {
 	SupportsObservability       bool
 }
 
+// EpisodeRecord aliases episodic.EpisodeRecord at this package boundary.
 type EpisodeRecord = episodic.EpisodeRecord
+
+// ExtractionRequest aliases episodic.Request at this package boundary.
 type ExtractionRequest = episodic.Request
+
+// ExtractionResult aliases episodic.Result at this package boundary.
 type ExtractionResult = episodic.Result
+
+// ExtractionWindowResult aliases episodic.WindowResult at this package boundary.
 type ExtractionWindowResult = episodic.WindowResult
+
+// EpisodicBackgroundOptions aliases episodic.BackgroundOptions at this package boundary.
 type EpisodicBackgroundOptions = episodic.BackgroundOptions
+
+// TraceRecorder aliases episodic.TraceRecorder at this package boundary.
 type TraceRecorder = episodic.TraceRecorder
 
+// SemanticRecord wraps a promoted semantic memory item.
 type SemanticRecord struct {
 	Item MemoryItem
 }
 
+// ProceduralRecord wraps a promoted procedural memory item.
 type ProceduralRecord struct {
 	Item MemoryItem
 }
@@ -108,6 +138,7 @@ type ReflectionBackgroundOptions struct {
 	RelatedLimit int
 }
 
+// ReflectionResult contains promoted memories and lifecycle changes from reflection.
 type ReflectionResult struct {
 	SessionID    string
 	SourceCount  int
@@ -126,6 +157,7 @@ type ReflectionGenerationRequest struct {
 	Limit     int
 }
 
+// ReflectionGenerationResult contains generated reflection candidates and trace metadata.
 type ReflectionGenerationResult struct {
 	Items []MemoryItem
 }
@@ -155,6 +187,7 @@ type PromotionBackgroundOptions struct {
 	Reason   string
 }
 
+// LifecycleResult records memory status changes from a promotion or replacement.
 type LifecycleResult struct {
 	Item     MemoryItem
 	Related  []MemoryItem
@@ -220,6 +253,7 @@ type WriteProvider interface {
 	Delete(context.Context, DeleteRequest) error
 }
 
+// UpdateProvider applies memory updates and lifecycle transitions.
 type UpdateProvider interface {
 	Update(context.Context, UpdateRequest) (UpdateResult, error)
 }

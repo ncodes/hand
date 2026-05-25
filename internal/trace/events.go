@@ -194,14 +194,17 @@ var allTraceEventTypes = []string{
 	EvtPlanHydrated,
 }
 
+// AllTraceEventTypes returns every known trace event type.
 func AllTraceEventTypes() []string {
 	return append([]string(nil), allTraceEventTypes...)
 }
 
+// EpisodicMemoryTraceEventTypes returns trace event types emitted by episodic memory workflows.
 func EpisodicMemoryTraceEventTypes() []string {
 	return append([]string(nil), episodicMemoryTraceEventTypes...)
 }
 
+// IsEpisodicMemoryTraceEventType reports whether eventType belongs to episodic memory workflows.
 func IsEpisodicMemoryTraceEventType(eventType string) bool {
 	eventType = strings.TrimSpace(eventType)
 	return slices.Contains(episodicMemoryTraceEventTypes, eventType)

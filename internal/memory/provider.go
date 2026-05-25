@@ -15,11 +15,16 @@ import (
 	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
+// ProviderDefaultMemory is the package-level provider default memory constant.
 const ProviderDefaultMemory = constants.MemoryProviderDefault
 
+// ErrUnknownProvider is returned when memory provider config names an unsupported provider.
 var ErrUnknownProvider = errors.New("unknown memory provider")
+
+// ErrUnknownBackend is returned when memory provider config names an unsupported backend.
 var ErrUnknownBackend = errors.New("unknown memory backend")
 
+// Options configures this package operation.
 type Options struct {
 	Guardrails           Guardrails
 	Observability        Observability
@@ -38,6 +43,7 @@ type Options struct {
 	PromotionPolicy      PromotionPolicy
 }
 
+// PinnedOptions aliases pinnedmemory.Options at this package boundary.
 type PinnedOptions = pinnedmemory.Options
 
 // StateManager is the persistence and session-history contract the provider

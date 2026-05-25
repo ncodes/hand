@@ -19,6 +19,7 @@ type input struct {
 	MaxResults int    `json:"max_results"`
 }
 
+// Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
 		Name:             "session_search",
