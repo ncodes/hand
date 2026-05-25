@@ -22,7 +22,6 @@ func TestBuild_ReturnsPassingReportForValidConfig(t *testing.T) {
 		Name: "test-agent",
 		Models: config.ModelsConfig{
 			Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
-			Verify:    new(bool),
 			Main:      config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
 		},
 		Log: config.LogConfig{Level: "info"},
@@ -79,7 +78,6 @@ func TestBuild_ReturnsValidationFailureWhileAuthStillPasses(t *testing.T) {
 		Name: "test-agent",
 		Models: config.ModelsConfig{
 			Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
-			Verify:    new(bool),
 			Main:      config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
 		},
 		Log: config.LogConfig{Level: "trace"},
@@ -121,7 +119,6 @@ func TestBuild_IncludesSummaryModelChecksWhenSummaryAuthDiffersFromMain(t *testi
 	report := Build(".env", "config.yaml", &config.Config{
 		Name: "test-agent",
 		Models: config.ModelsConfig{
-			Verify: new(false),
 			Providers: map[string]config.ProviderModelConfig{
 				"openrouter": {APIKey: "test-key"},
 				"openai":     {APIKey: "test-key"},
@@ -152,7 +149,6 @@ func TestBuild_ReturnsSummaryBaseURLFailureWhenSummaryURLInvalid(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
 		Name: "test-agent",
 		Models: config.ModelsConfig{
-			Verify: new(false),
 			Providers: map[string]config.ProviderModelConfig{
 				"openrouter": {APIKey: "test-key"},
 				"openai":     {APIKey: "test-key"},
@@ -181,7 +177,6 @@ func TestBuild_ReturnsSummaryModelAuthFailureWhenSummaryResolveFails(t *testing.
 	report := Build(".env", "config.yaml", &config.Config{
 		Name: "test-agent",
 		Models: config.ModelsConfig{
-			Verify:    new(false),
 			Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
 			Main:      config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
 		},

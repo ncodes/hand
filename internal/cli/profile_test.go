@@ -163,7 +163,6 @@ func TestLoadConfig_UsesProfileConfigAndEnvDefaults(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte(`
 name: profile-agent
 models:
-  verify: false
 `), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, ".env"), []byte("HAND_LOG_LEVEL=debug\n"), 0o600))
 

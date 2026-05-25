@@ -24,7 +24,6 @@ var DefaultConfig = Config{
 		Embedding: EmbeddingModelConfig{
 			Name: constants.DefaultProfileEmbeddingModel,
 		},
-		Verify:     new(constants.DefaultProfileModelVerify),
 		MaxRetries: new(constants.DefaultModelMaxRetries),
 	},
 	Session: SessionConfig{
@@ -166,7 +165,6 @@ func NewDefaultConfig() *Config {
 }
 
 func cloneConfig(cfg Config) Config {
-	cfg.Models.Verify = cloneBoolPtr(cfg.Models.Verify)
 	cfg.Models.MaxRetries = cloneIntPtr(cfg.Models.MaxRetries)
 	cfg.Models.Providers = cloneProviderModelConfigs(cfg.Models.Providers)
 	cfg.Models.Main.Stream = cloneBoolPtr(cfg.Models.Main.Stream)

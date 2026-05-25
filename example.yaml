@@ -2,7 +2,6 @@
 # platform: "cli"
 
 # models:
-#   verify: true
 #   maxRetries: 2
 #   providers:
 #     openrouter:

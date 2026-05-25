@@ -132,7 +132,6 @@ rpc:
   address: 127.0.0.2
   port: 45678
 models:
-  verify: false
 tui:
   thinkingComposer: false
 `), 0o600))
@@ -187,7 +186,6 @@ func TestLoadTUICommandModel_ReturnsRPCResolutionError(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte(`
 name: tui-agent
 models:
-  verify: false
 `), 0o600))
 
 	cmd := newTUITestRootCommand(func(ctx context.Context, cmd *cli.Command) error {
@@ -218,7 +216,6 @@ rpc:
   address: 127.0.0.2
   port: 45678
 models:
-  verify: false
 `), 0o600))
 
 	expectedErr := errors.New("client unavailable")

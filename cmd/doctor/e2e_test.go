@@ -27,7 +27,6 @@ func Test_E2E_DoctorCommand_ConfigPassAndFail(t *testing.T) {
 		require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  verify: false
   providers:
     openrouter:
       apiKey: config-key

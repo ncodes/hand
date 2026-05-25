@@ -148,6 +148,18 @@ func TestRegistry_MissingLookupsReturnFalse(t *testing.T) {
 	require.False(t, ok)
 	require.Empty(t, registry.GetBaseURL("missing", APIOpenAIResponses))
 	require.Empty(t, registry.GetBaseURL(constants.ModelProviderOpenAI, "missing"))
+	require.False(t, registry.SupportsProviderAPI("missing", APIOpenAIResponses))
+	require.False(t, registry.SupportsProviderAPI(constants.ModelProviderOpenAI, "missing"))
+}
+
+func TestRegistry_SupportsProviderAPI(t *testing.T) {
+	registry := DefaultRegistry()
+
+	require.True(t, registry.SupportsProviderAPI(constants.ModelProviderOpenRouter, ""))
+	require.True(t, registry.SupportsProviderAPI(constants.ModelProviderOpenRouter, APIOpenAICompletions))
+	require.True(t, registry.SupportsProviderAPI(constants.ModelProviderOpenAI, APIOpenAIEmbeddings))
+	require.True(t, registry.SupportsProviderAPI(constants.ModelProviderAnthropic, APIAnthropicMessages))
+	require.False(t, registry.SupportsProviderAPI(constants.ModelProviderAnthropic, APIOpenAIResponses))
 }
 
 func TestRegistry_NormalizesDefinitionsAndSkipsIncompleteEntries(t *testing.T) {

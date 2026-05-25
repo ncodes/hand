@@ -63,7 +63,6 @@ func TestNewMainAction_UsesProfileConfigAndEnv(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte(`
 name: profile-agent
 models:
-  verify: false
 `), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, ".env"), []byte("HAND_LOG_LEVEL=debug\n"), 0o600))
 
@@ -101,7 +100,6 @@ func TestNewMainAction_UsesProfileRuntimeEndpoint(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte(`
 name: profile-agent
 models:
-  verify: false
 `), 0o600))
 	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: profileHome}))
 	port := listener.Addr().(*net.TCPAddr).Port

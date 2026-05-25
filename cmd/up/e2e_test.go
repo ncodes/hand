@@ -68,7 +68,6 @@ func Test_E2E_UpCommand_BootsAndServesRPC(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(fmt.Sprintf(`
 name: yaml-up
 models:
-  verify: false
   providers:
     openrouter:
       apiKey: config-key

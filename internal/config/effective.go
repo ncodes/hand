@@ -51,15 +51,6 @@ func getModelAPIID(apiID string) string {
 	return api.ID
 }
 
-func hasGenerationAPI(apiID string) bool {
-	api, ok := getModelAPI(apiID)
-	if !ok {
-		return false
-	}
-
-	return api.ID == modelprovider.APIOpenAICompletions || api.ID == modelprovider.APIOpenAIResponses
-}
-
 func hasModelProvider(provider string) bool {
 	_, ok := modelRegistry.GetProvider(provider)
 	return ok
@@ -72,12 +63,19 @@ func getModelProviderList() string {
 	return strings.Join(ids, ", ")
 }
 
-func (c *Config) VerifyEnabled() bool {
-	if c == nil {
-		return true
+func getModelAPIList(allowed map[string]struct{}) string {
+	ids := modelRegistry.GetAPIIDs()
+	if len(allowed) != 0 {
+		ids = ids[:0]
+		for id := range allowed {
+			if _, ok := modelRegistry.GetAPI(id); ok {
+				ids = append(ids, id)
+			}
+		}
 	}
+	sort.Strings(ids)
 
-	return getBoolValueDefault(c.Models.Verify, true)
+	return strings.Join(ids, ", ")
 }
 
 func (c *Config) StreamEnabled() bool {

@@ -166,7 +166,6 @@ func writeSetConfigProfileConfig(t *testing.T, home string, name string) string 
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: test-agent
 models:
-  verify: false
   providers:
     openrouter:
       apiKey: test-key

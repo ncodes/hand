@@ -78,12 +78,6 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Value:  config.Get().Models.Main.API,
 			Hidden: true,
 		},
-		&cli.BoolFlag{
-			Name:   "models.verify",
-			Usage:  "Verify model existence and clamp configured context length against provider metadata",
-			Value:  config.Get().VerifyEnabled(),
-			Hidden: true,
-		},
 		&cli.IntFlag{
 			Name:   "model.max-retries",
 			Usage:  "Maximum SDK retry attempts for model requests; set 0 to disable retries",
@@ -469,9 +463,6 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	}
 	if cmd.IsSet("model.api") {
 		cfg.Models.Main.API = strings.TrimSpace(cmd.String("model.api"))
-	}
-	if cmd.IsSet("models.verify") {
-		cfg.Models.Verify = new(cmd.Bool("models.verify"))
 	}
 	if cmd.IsSet("model.max-retries") {
 		retries := cmd.Int("model.max-retries")

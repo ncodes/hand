@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -41,7 +40,7 @@ func Load(envPath, configPath string) (*Config, error) {
 	applyEnvOverrides(cfg)
 	requestedContextLength := cfg.Models.Main.ContextLength
 	cfg.Normalize()
-	applyProviderModelMetadata(context.Background(), cfg, requestedContextLength)
+	applyRegistryModelMetadata(cfg, requestedContextLength)
 
 	return cfg, nil
 }

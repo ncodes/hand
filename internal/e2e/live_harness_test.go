@@ -228,7 +228,6 @@ func TestNewLiveHarnessAndRPCHarness(t *testing.T) {
 		require.NoError(t, os.WriteFile(configPath, []byte(`
 name: live-test
 models:
-  verify: false
   main:
     name: openai/gpt-4o-mini
     provider: openrouter

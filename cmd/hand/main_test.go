@@ -51,7 +51,6 @@ func TestNewCommand_UsesConfigFileValues(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  verify: false
   providers:
     openrouter:
       apiKey: config-key
@@ -108,7 +107,6 @@ HAND_LOG_NO_COLOR=false
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  verify: false
   providers:
     openrouter:
       apiKey: config-key
@@ -188,7 +186,6 @@ func TestNewCommand_DefaultsBaseURLWhenProviderIsImplicit(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  verify: false
   providers:
     openrouter:
       apiKey: config-key
@@ -223,7 +220,6 @@ func TestNewCommand_UsesMappedBaseURLWhenProviderSetAndBaseURLUnset(t *testing.T
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
-  verify: false
   providers:
     openrouter:
       apiKey: config-key
@@ -527,7 +523,6 @@ func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
 		"--model.api-key", "flag-key",
-		"--models.verify=false",
 		"doctor",
 	})
 	require.NoError(t, err)

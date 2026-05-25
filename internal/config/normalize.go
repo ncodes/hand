@@ -60,9 +60,6 @@ func (c *Config) normalizeFields() {
 	if c.Models.Main.Stream == nil {
 		c.Models.Main.Stream = new(constants.DefaultProfileModelStream)
 	}
-	if c.Models.Verify == nil {
-		c.Models.Verify = new(constants.DefaultProfileModelVerify)
-	}
 	if c.Models.MaxRetries == nil {
 		c.Models.MaxRetries = new(constants.DefaultModelMaxRetries)
 	}

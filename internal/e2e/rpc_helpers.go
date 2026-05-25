@@ -94,7 +94,6 @@ func WriteRPCConfigFile(dir, address string, port int, opts RPCConfigOptions) (s
 	content := fmt.Sprintf(
 		`name: %s
 models:
-  verify: false
   main:
     stream: %t
 rpc:

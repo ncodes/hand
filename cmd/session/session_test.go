@@ -83,7 +83,7 @@ func TestNewCommandSessionListUsesProfileRuntimeEndpoint(t *testing.T) {
 	home := t.TempDir()
 	profileHome := filepath.Join(home, ".hand", "profiles", "work")
 	require.NoError(t, os.MkdirAll(profileHome, 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte("models:\n  verify: false\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(profileHome, "config.yaml"), []byte("models:\n"), 0o600))
 	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: "work", HomeDir: profileHome}))
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")

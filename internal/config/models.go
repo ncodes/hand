@@ -20,7 +20,6 @@ const (
 
 // ModelsConfig contains provider credentials and model-specific settings.
 type ModelsConfig struct {
-	Verify     *bool                          `yaml:"verify"`
 	MaxRetries *int                           `yaml:"maxRetries"`
 	Providers  map[string]ProviderModelConfig `yaml:"providers"`
 	Main       MainModelConfig                `yaml:"main"`
@@ -82,10 +81,4 @@ type ModelAuth struct {
 	APIKey           string
 	BaseURL          string
 	CredentialSource ModelCredentialSource
-}
-
-// ModelMetadata describes metadata attached to model records.
-type ModelMetadata struct {
-	Exists        bool
-	ContextLength int
 }

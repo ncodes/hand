@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -16,11 +15,13 @@ func (c *Config) Validate() error {
 		return errors.New("config is required")
 	}
 
+	requestedContextLength := c.Models.Main.ContextLength
 	if err := c.validatePersonalityNames(); err != nil {
 		return err
 	}
 
 	c.Normalize()
+	applyRegistryModelMetadata(c, requestedContextLength)
 
 	if err := c.validatePersonalities(); err != nil {
 		return err
@@ -48,6 +49,10 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	if err := c.validateModelSettings(); err != nil {
+		return err
+	}
+
 	if err := c.validateRerankerSettings(); err != nil {
 		return err
 	}
@@ -56,13 +61,11 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	auth, err := c.ResolveModelAuth()
-	if err != nil {
+	if _, err := c.ResolveModelAuth(); err != nil {
 		return err
 	}
 
-	summaryAuth, err := c.ResolveSummaryModelAuth()
-	if err != nil {
+	if _, err := c.ResolveSummaryModelAuth(); err != nil {
 		return err
 	}
 
@@ -80,16 +83,6 @@ func (c *Config) Validate() error {
 	}
 	if c.ModelMaxRetriesEffective() < 0 {
 		return errors.New("model max retries must be greater than or equal to zero; use --model.max-retries")
-	}
-
-	if !hasGenerationAPI(c.Models.Main.API) {
-		return errors.New("model API must be one of: openai-completions, openai-responses")
-	}
-
-	if c.Models.Summary.API != "" {
-		if !hasGenerationAPI(c.Models.Summary.API) {
-			return errors.New("summary model API must be one of: openai-completions, openai-responses")
-		}
 	}
 
 	if c.Storage.Backend != "memory" && c.Storage.Backend != "sqlite" {
@@ -111,35 +104,50 @@ func (c *Config) Validate() error {
 		return errors.New("compaction recent session tail must be greater than or equal to zero")
 	}
 
-	if c.VerifyEnabled() {
-		verifySlots := []modelVerifySlot{{field: "models.main.name", slug: c.Models.Main.Name}}
-		if c.Models.Summary.Name != "" && c.Models.Summary.Name != c.Models.Main.Name {
-			verifySlots = append(verifySlots, modelVerifySlot{field: "models.summary.name", slug: c.Models.Summary.Name})
-		}
-
-		for _, slot := range verifySlots {
-			slotAuth := auth
-			if slot.field == "models.summary.name" {
-				slotAuth = summaryAuth
-			}
-			verifyCfg := *c
-			verifyCfg.Models.Main.Name = slot.slug
-			meta, err := resolveModelMeta(context.Background(), &verifyCfg, slotAuth)
-			if err != nil {
-				return fmt.Errorf("%s: %w", slot.field, err)
-			}
-			if !meta.Exists {
-				return fmt.Errorf("%s: %w", slot.field, newUnknownModelError(auth.Provider, slot.slug))
-			}
-		}
-	}
-
 	switch strings.TrimSpace(strings.ToLower(c.Log.Level)) {
 	case "", "debug", "info", "warn", "error":
 		return nil
 	default:
 		return errors.New("log level must be one of debug, info, warn, or error; use --log.level")
 	}
+}
+
+func (c *Config) validateModelSettings() error {
+	if err := validateModelRoleAPI("model API", c.MainModelAPIEffective(), modelGenerationAPIs()); err != nil {
+		return err
+	}
+	if err := validateProviderAPI("model API", c.Models.Main.Provider, c.MainModelAPIEffective()); err != nil {
+		return err
+	}
+	if err := validateRegistryModel(
+		"models.main.name",
+		c.Models.Main.Provider,
+		c.MainModelAPIEffective(),
+		c.Models.Main.Name,
+		modelGenerationAPIs(),
+	); err != nil {
+		return err
+	}
+
+	summaryProvider := c.SummaryProviderEffective()
+	summaryAPI := c.SummaryModelAPIEffective()
+	if err := validateModelRoleAPI("summary model API", summaryAPI, modelGenerationAPIs()); err != nil {
+		return err
+	}
+	if err := validateProviderAPI("summary model API", summaryProvider, summaryAPI); err != nil {
+		return err
+	}
+	if err := validateRegistryModel(
+		"models.summary.name",
+		summaryProvider,
+		summaryAPI,
+		c.SummaryModelEffective(),
+		modelGenerationAPIs(),
+	); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Config) validatePersonalityNames() error {
@@ -210,9 +218,9 @@ func validatePersonalityConfig(name string, personality PersonalityConfig) error
 		}
 	}
 	switch personality.Model.API {
-	case "", modelprovider.APIOpenAICompletions, modelprovider.APIOpenAIResponses:
+	case "", modelprovider.APIOpenAICompletions, modelprovider.APIOpenAIResponses, modelprovider.APIAnthropicMessages:
 	default:
-		return fmt.Errorf("personalities.%s.model.api must be one of: openai-completions, openai-responses", name)
+		return fmt.Errorf("personalities.%s.model.api must be one of: %s", name, getModelAPIList(modelGenerationAPIs()))
 	}
 
 	return nil
@@ -236,7 +244,19 @@ func (c *Config) validateSearchVectorSettings() error {
 	if err != nil {
 		return err
 	}
-	if err := c.validateEmbeddingModelExists(context.Background(), auth); err != nil {
+	if err := validateProviderAPI("embedding model API", auth.Provider, auth.API); err != nil {
+		return err
+	}
+	if err := validateModelRoleAPI("embedding model API", auth.API, modelEmbeddingAPIs()); err != nil {
+		return err
+	}
+	if err := validateRegistryModel(
+		"models.embedding.name",
+		auth.Provider,
+		auth.API,
+		c.Models.Embedding.Name,
+		modelEmbeddingAPIs(),
+	); err != nil {
 		return err
 	}
 
@@ -295,36 +315,4 @@ func validateRerankerType(rerankerType string) error {
 	default:
 		return errors.New("reranker type must be one of: deterministic, noop, llm")
 	}
-}
-
-func (c *Config) validateEmbeddingModelExists(ctx context.Context, auth ModelAuth) error {
-	if !c.VerifyEnabled() {
-		return nil
-	}
-
-	var (
-		meta ModelMetadata
-		err  error
-	)
-	switch strings.TrimSpace(strings.ToLower(auth.Provider)) {
-	case "openrouter":
-		meta, err = fetchOpenRouterModelEndpoints(
-			ctx,
-			getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAICompletions),
-			c.Models.Embedding.Name,
-			auth.APIKey,
-		)
-	case "openai":
-		meta, err = fetchOpenAIModelExists(ctx, c.Models.Embedding.Name)
-	default:
-		return fmt.Errorf("models.embedding.name: unsupported model provider %q", auth.Provider)
-	}
-	if err != nil {
-		return fmt.Errorf("models.embedding.name: %w", err)
-	}
-	if !meta.Exists {
-		return fmt.Errorf("models.embedding.name: %w", newUnknownModelError(auth.Provider, c.Models.Embedding.Name))
-	}
-
-	return nil
 }

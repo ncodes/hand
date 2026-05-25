@@ -32,9 +32,6 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.Models.Main.ContextLength = contextLength
 		}
 	}
-	if value := strings.TrimSpace(strings.ToLower(os.Getenv("HAND_MODELS_VERIFY"))); value != "" {
-		cfg.Models.Verify = new(value == "1" || value == "true" || value == "yes")
-	}
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_MAX_RETRIES")); value != "" {
 		if retries, err := strconv.Atoi(value); err == nil {
 			cfg.Models.MaxRetries = &retries

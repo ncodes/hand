@@ -34,7 +34,6 @@ type liveMemoryVectorIndex struct {
 func loadProductionConfigForLiveMemoryE2E(t *testing.T, spec e2e.HarnessSpec) *config.Config {
 	t.Helper()
 
-	t.Setenv("HAND_MODELS_VERIFY", "false")
 	cfg, err := config.Load("", filepath.Join(getRepoRoot(t), "config.yaml"))
 	require.NoError(t, err)
 

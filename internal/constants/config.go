@@ -31,7 +31,6 @@ const (
 	// DefaultModelMaxRetries is the fallback retry count for model calls.
 	DefaultModelMaxRetries    = 2
 	DefaultProfileModelStream = true
-	DefaultProfileModelVerify = true
 )
 
 const (

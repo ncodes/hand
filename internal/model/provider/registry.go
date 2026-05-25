@@ -35,15 +35,16 @@ type APIDefinition struct {
 
 // ProviderDefinition describes provider-level routing, defaults, and credential metadata.
 type ProviderDefinition struct {
-	ID             string
-	DisplayName    string
-	DefaultAPI     string
-	BaseURLs       map[string]string
-	Headers        map[string]string
-	APIKeyEnv      []string
-	SupportsModels bool
-	SupportsAPIKey bool
-	SupportsOAuth  bool
+	ID                 string
+	DisplayName        string
+	DefaultAPI         string
+	BaseURLs           map[string]string
+	Headers            map[string]string
+	APIKeyEnv          []string
+	SupportsModels     bool
+	RequiresKnownModel bool
+	SupportsAPIKey     bool
+	SupportsOAuth      bool
 }
 
 // ModelDefinition describes provider-specific model metadata used for resolution and validation.
@@ -209,6 +210,27 @@ func (r *Registry) GetBaseURL(providerID, apiID string) string {
 	}
 
 	return strings.TrimSpace(provider.BaseURLs[apiID])
+}
+
+// SupportsProviderAPI reports whether the provider can use the given API.
+func (r *Registry) SupportsProviderAPI(providerID, apiID string) bool {
+	provider, ok := r.GetProvider(providerID)
+	if !ok {
+		return false
+	}
+
+	apiID = normalizeID(apiID)
+	if apiID == "" {
+		apiID = provider.DefaultAPI
+	}
+	if apiID == "" {
+		return false
+	}
+
+	if provider.DefaultAPI == apiID {
+		return true
+	}
+	return strings.TrimSpace(provider.BaseURLs[apiID]) != ""
 }
 
 func normalizeID(value string) string {
