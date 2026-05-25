@@ -715,11 +715,8 @@ func TestModel_RenderTranscriptContentKeepsFirstPromptCloseToHeader(t *testing.T
 	}
 
 	require.Greater(t, firstPromptRow, 2)
-	require.NotEmpty(t, strings.TrimSpace(lines[firstPromptRow-3]))
-	require.Empty(t, strings.TrimSpace(lines[firstPromptRow-2]))
-	require.Empty(t, strings.TrimSpace(lines[firstPromptRow-1]))
-	require.NotContains(t, lines[firstPromptRow-2], "▄")
-	require.NotContains(t, lines[firstPromptRow-1], "▄")
+	require.NotEmpty(t, strings.TrimSpace(lines[firstPromptRow-1]))
+	require.Contains(t, lines[firstPromptRow-1], "▄")
 }
 
 func TestModel_UpdateScrollsTranscriptWithMouseWheel(t *testing.T) {

@@ -149,17 +149,18 @@ func TestTranscriptRenderer_VisualSnapshot(t *testing.T) {
 		transcriptRenderContext{Width: 48, Now: startedAt.Add(3 * time.Second)},
 	)
 
-	require.Equal(t, strings.TrimSpace(`
-❯ hello
-
-
-Thought for 2s
-
-Done
-
-● Read (3s)
-  └ read_file notes.txt (3s)
-`), trimRightSnapshotLines(stripANSI(rendered)))
+	require.Equal(t, strings.Join([]string{
+		strings.Repeat("▄", 48),
+		"❯ hello",
+		strings.Repeat("▀", 48),
+		"",
+		"Thought for 2s",
+		"",
+		"Done",
+		"",
+		"● Read (3s)",
+		"  └ read_file notes.txt (3s)",
+	}, "\n"), trimRightSnapshotLines(stripANSI(rendered)))
 }
 
 func TestTranscriptRenderer_RendersCellsWithoutCellRenderMethods(t *testing.T) {
