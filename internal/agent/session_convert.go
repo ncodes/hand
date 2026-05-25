@@ -1,4 +1,4 @@
-package host
+package agent
 
 import (
 	agentsession "github.com/wandxy/hand/pkg/agent/session"

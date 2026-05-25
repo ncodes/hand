@@ -1,4 +1,4 @@
-package host
+package agent
 
 import (
 	"context"
@@ -10,17 +10,22 @@ import (
 	agenttool "github.com/wandxy/hand/pkg/agent/tool"
 )
 
+// ToolInvoker executes a model tool call against the prepared environment.
 type ToolInvoker func(context.Context, environment.Environment, models.ToolCall) handmsg.Message
 
+// ToolRegistry adapts the environment tool registry into the core agent tool
+// interface.
 type ToolRegistry struct {
 	env    environment.Environment
 	invoke ToolInvoker
 }
 
+// NewToolRegistry returns a tool registry adapter backed by env.
 func NewToolRegistry(env environment.Environment, invoke ToolInvoker) *ToolRegistry {
 	return &ToolRegistry{env: env, invoke: invoke}
 }
 
+// Resolve loads model-visible tool definitions allowed by policy.
 func (r *ToolRegistry) Resolve(policy agenttool.Policy) ([]agenttool.Definition, error) {
 	if r == nil || r.env == nil || r.env.Tools() == nil {
 		return nil, nil
@@ -38,6 +43,7 @@ func (r *ToolRegistry) Resolve(policy agenttool.Policy) ([]agenttool.Definition,
 	return agentDefinitionsFromToolsDefinitions(definitions), nil
 }
 
+// ListGroups returns the environment tool groups exposed to the agent layer.
 func (r *ToolRegistry) ListGroups() []agenttool.Group {
 	if r == nil || r.env == nil || r.env.Tools() == nil {
 		return nil
@@ -60,6 +66,7 @@ func (r *ToolRegistry) ListGroups() []agenttool.Group {
 	return result
 }
 
+// Invoke executes a model tool call and returns the resulting tool message.
 func (r *ToolRegistry) Invoke(ctx context.Context, call agenttool.Call) handmsg.Message {
 	if r == nil || r.invoke == nil {
 		return handmsg.Message{
@@ -73,6 +80,8 @@ func (r *ToolRegistry) Invoke(ctx context.Context, call agenttool.Call) handmsg.
 	return r.invoke(ctx, r.env, agenttool.CallToModel(call))
 }
 
+// ToolPolicyFromEnvironment converts the active environment tool policy into
+// the core agent policy shape.
 func ToolPolicyFromEnvironment(env environment.Environment) agenttool.Policy {
 	if env == nil {
 		return agenttool.Policy{}

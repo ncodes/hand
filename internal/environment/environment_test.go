@@ -22,6 +22,7 @@ import (
 	envsessionmessages "github.com/wandxy/hand/internal/environment/sessionmessages"
 	envsessionsearch "github.com/wandxy/hand/internal/environment/sessionsearch"
 	"github.com/wandxy/hand/internal/guardrails"
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/personality"
@@ -35,7 +36,6 @@ import (
 	"github.com/wandxy/hand/internal/workspace"
 	messages "github.com/wandxy/hand/pkg/agent/message"
 	models "github.com/wandxy/hand/pkg/agent/model"
-	"github.com/wandxy/hand/pkg/agent/runcontext"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 

@@ -1,4 +1,4 @@
-package host
+package agent
 
 import (
 	"context"
@@ -12,6 +12,8 @@ import (
 
 var errSessionManagerRequired = errors.New("session manager is required")
 
+// SessionManager is the durable session surface the agent adapts into the core
+// agent session interfaces.
 type SessionManager interface {
 	Resolve(context.Context, string) (storage.Session, error)
 	GetMessages(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
@@ -20,14 +22,18 @@ type SessionManager interface {
 	AppendTraceEvent(context.Context, storage.TraceEvent) (storage.TraceEvent, error)
 }
 
+// SessionStore adapts the agent state manager to pkg/agent session and trace
+// interfaces.
 type SessionStore struct {
 	manager SessionManager
 }
 
+// NewSessionStore returns an adapter around manager for the core agent loop.
 func NewSessionStore(manager SessionManager) *SessionStore {
 	return &SessionStore{manager: manager}
 }
 
+// Resolve loads and converts a durable session into the core agent session shape.
 func (s *SessionStore) Resolve(ctx context.Context, id string) (agentsession.Session, error) {
 	if s == nil || s.manager == nil {
 		return agentsession.Session{}, errSessionManagerRequired
@@ -41,6 +47,7 @@ func (s *SessionStore) Resolve(ctx context.Context, id string) (agentsession.Ses
 	return agentSessionFromStorageSession(resolved), nil
 }
 
+// GetMessages loads stored messages using the core agent query shape.
 func (s *SessionStore) GetMessages(
 	ctx context.Context,
 	id string,
@@ -53,6 +60,7 @@ func (s *SessionStore) GetMessages(
 	return s.manager.GetMessages(ctx, id, messageQueryToStorageMessageQuery(query))
 }
 
+// AppendMessages persists messages emitted by the core agent loop.
 func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
 	if s == nil || s.manager == nil {
 		return errSessionManagerRequired
@@ -61,6 +69,8 @@ func (s *SessionStore) AppendMessages(ctx context.Context, id string, messages [
 	return s.manager.AppendMessages(ctx, id, messages)
 }
 
+// UpdateLastPromptTokens records provider-reported prompt usage for compaction
+// decisions.
 func (s *SessionStore) UpdateLastPromptTokens(ctx context.Context, id string, tokens int) error {
 	if s == nil || s.manager == nil {
 		return errSessionManagerRequired
@@ -69,6 +79,7 @@ func (s *SessionStore) UpdateLastPromptTokens(ctx context.Context, id string, to
 	return s.manager.UpdateLastPromptTokens(ctx, id, tokens)
 }
 
+// AppendTraceEvent persists a trace event emitted by the core agent loop.
 func (s *SessionStore) AppendTraceEvent(
 	ctx context.Context,
 	event agentsession.TraceEvent,

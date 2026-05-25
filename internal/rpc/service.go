@@ -9,10 +9,11 @@ import (
 	"strings"
 	"time"
 
+	handagent "github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/guardrails"
-	"github.com/wandxy/hand/internal/host"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
+	"github.com/wandxy/hand/internal/state/search"
 	"github.com/wandxy/hand/internal/trace"
 	agent "github.com/wandxy/hand/pkg/agent"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
@@ -24,11 +25,11 @@ import (
 // Service is the RPC service that wraps the agent-facing service interface.
 type Service struct {
 	handpb.UnimplementedHandServiceServer
-	api host.ServiceAPI
+	api handagent.ServiceAPI
 }
 
 // NewService creates a new RPC service that wraps the shared service interface.
-func NewService(api host.ServiceAPI) *Service {
+func NewService(api handagent.ServiceAPI) *Service {
 	return &Service{api: api}
 }
 
@@ -956,7 +957,7 @@ func (s *Service) RepairSession(
 		return nil, status.Error(codes.InvalidArgument, "repair session vector options are required")
 	}
 
-	result, err := s.api.RepairSession(ctx, host.RepairSessionOptions{
+	result, err := s.api.RepairSession(ctx, search.VectorRepairOptions{
 		SessionID: req.GetVector().GetId(),
 		Full:      req.GetVector().GetFull(),
 	})

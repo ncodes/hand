@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/internal/host"
+	handagent "github.com/wandxy/hand/internal/agent"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	models "github.com/wandxy/hand/pkg/agent/model"
@@ -33,7 +33,7 @@ func TestRPCAdapter_HappyPathMatchesDirectHarness(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			service, ok := h.agent.(host.ServiceAPI)
+			service, ok := h.agent.(handagent.ServiceAPI)
 			require.True(t, ok)
 
 			return adapterHarness{
@@ -107,7 +107,7 @@ func TestRPCAdapter_ExplicitSessionMatchesDirectHarness(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			service, ok := h.agent.(host.ServiceAPI)
+			service, ok := h.agent.(handagent.ServiceAPI)
 			require.True(t, ok)
 
 			return adapterHarness{

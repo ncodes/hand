@@ -1,4 +1,4 @@
-package host
+package agent
 
 import (
 	"context"
@@ -12,7 +12,8 @@ import (
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment"
 	"github.com/wandxy/hand/internal/guardrails"
-	agentsummary "github.com/wandxy/hand/internal/host/context/summary"
+	agentsummary "github.com/wandxy/hand/internal/agent/context/summary"
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/state/search"
@@ -22,7 +23,6 @@ import (
 	agentcore "github.com/wandxy/hand/pkg/agent"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	models "github.com/wandxy/hand/pkg/agent/model"
-	"github.com/wandxy/hand/pkg/agent/runcontext"
 	pkgcache "github.com/wandxy/hand/pkg/cache"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -37,26 +37,6 @@ const (
 )
 
 var agentLog = logutils.InitLogger("agent")
-
-type RespondOptions = agentcore.RespondOptions
-
-type Event = agentcore.Event
-
-type CompactSessionResult = agentcore.CompactSessionResult
-
-type RepairSessionOptions = search.VectorRepairOptions
-
-type RepairSessionResult = search.VectorRepairResult
-
-type ContextStatus = agentcore.ContextStatus
-
-type SessionTimelineOptions = agentcore.SessionTimelineOptions
-
-type SessionTimeline = agentcore.SessionTimeline
-
-type SessionTimelineMessage = agentcore.SessionTimelineMessage
-
-type SessionTimelineTraceEvent = agentcore.SessionTimelineTraceEvent
 
 var runRecallSessionSummary = func(
 	service *agentsummary.Service,
@@ -198,7 +178,7 @@ func (a *Agent) Close() error {
 }
 
 // Respond executes one user turn in the active or requested session.
-func (a *Agent) Respond(ctx context.Context, msg string, opts RespondOptions) (string, error) {
+func (a *Agent) Respond(ctx context.Context, msg string, opts agentcore.RespondOptions) (string, error) {
 	if a == nil {
 		return "", errors.New("agent is required")
 	}
@@ -266,30 +246,6 @@ func (a *Agent) TurnMessages() []handmsg.Message {
 	messages := make([]handmsg.Message, len(a.turnMessages))
 	copy(messages, a.turnMessages)
 	return messages
-}
-
-// availableToolDefinitions resolves tools available under the current environment policy.
-func (a *Agent) availableToolDefinitions() ([]models.ToolDefinition, error) {
-	if a == nil || a.env == nil || a.env.Tools() == nil {
-		return nil, nil
-	}
-
-	definitions, err := a.env.Tools().Resolve(a.env.ToolPolicy())
-	if err != nil {
-		return nil, err
-	}
-
-	toolsList := make([]models.ToolDefinition, 0, len(definitions))
-	for _, definition := range definitions {
-		toolsList = append(toolsList, modelToolDefinitionFromToolDefinition(definition))
-	}
-
-	return toolsList, nil
-}
-
-// invokeTool executes a model-requested tool using the agent's current environment.
-func (a *Agent) invokeTool(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
-	return a.invokeToolWithEnvironment(ctx, a.env, toolCall)
 }
 
 // getRootRunContext creates the root run identity for a public session ID.
@@ -512,13 +468,13 @@ func (a *Agent) CurrentSession(ctx context.Context) (storage.Session, error) {
 }
 
 // CompactSession forces persisted compaction for a session and returns compacted context metrics.
-func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionResult, error) {
+func (a *Agent) CompactSession(ctx context.Context, id string) (agentcore.CompactSessionResult, error) {
 	summary, session, err := a.summarizeSession(ctx, id, agentsummary.SummarizeSessionOptions{})
 	if err != nil {
-		return CompactSessionResult{}, err
+		return agentcore.CompactSessionResult{}, err
 	}
 
-	return CompactSessionResult{
+	return agentcore.CompactSessionResult{
 		SessionID:            summary.SessionID,
 		SourceEndOffset:      summary.SourceEndOffset,
 		SourceMessageCount:   summary.SourceMessageCount,
@@ -531,13 +487,13 @@ func (a *Agent) CompactSession(ctx context.Context, id string) (CompactSessionRe
 // RepairSession rebuilds or checks session vector indexes.
 func (a *Agent) RepairSession(
 	ctx context.Context,
-	opts RepairSessionOptions,
-) (RepairSessionResult, error) {
+	opts search.VectorRepairOptions,
+) (search.VectorRepairResult, error) {
 	if a == nil {
-		return RepairSessionResult{}, errors.New("agent is required")
+		return search.VectorRepairResult{}, errors.New("agent is required")
 	}
 	if !a.initialized || a.stateMgr == nil {
-		return RepairSessionResult{}, errors.New("environment has not been initialized")
+		return search.VectorRepairResult{}, errors.New("environment has not been initialized")
 	}
 
 	return a.stateMgr.RepairVectorStore(normalizeContext(ctx), opts)
@@ -672,32 +628,32 @@ func (a *Agent) summarizeSession(
 }
 
 // ContextStatus reports prompt-token and compaction status for a session.
-func (a *Agent) ContextStatus(ctx context.Context, id string) (ContextStatus, error) {
+func (a *Agent) ContextStatus(ctx context.Context, id string) (agentcore.ContextStatus, error) {
 	if a == nil {
-		return ContextStatus{}, errors.New("agent is required")
+		return agentcore.ContextStatus{}, errors.New("agent is required")
 	}
 	if a.cfg == nil {
-		return ContextStatus{}, errors.New("config is required")
+		return agentcore.ContextStatus{}, errors.New("config is required")
 	}
 	if !a.initialized || a.stateMgr == nil {
-		return ContextStatus{}, errors.New("environment has not been initialized")
+		return agentcore.ContextStatus{}, errors.New("environment has not been initialized")
 	}
 
 	session, err := a.stateMgr.Resolve(normalizeContext(ctx), id)
 	if err != nil {
-		return ContextStatus{}, err
+		return agentcore.ContextStatus{}, err
 	}
 
 	summary, _, err := a.stateMgr.GetSummary(normalizeContext(ctx), session.ID)
 	if err != nil {
-		return ContextStatus{}, err
+		return agentcore.ContextStatus{}, err
 	}
 
 	total := max(a.cfg.Models.Main.ContextLength, 0)
 	used := max(session.LastPromptTokens, 0)
 	remaining := max(total-used, 0)
 
-	status := ContextStatus{
+	status := agentcore.ContextStatus{
 		SessionID:        session.ID,
 		Offset:           max(summary.SourceEndOffset, 0),
 		Size:             max(summary.SourceMessageCount, 0),
@@ -717,7 +673,7 @@ func (a *Agent) ContextStatus(ctx context.Context, id string) (ContextStatus, er
 }
 
 // GetSession returns the same context status shape used by session inspection.
-func (a *Agent) GetSession(ctx context.Context, id string) (ContextStatus, error) {
+func (a *Agent) GetSession(ctx context.Context, id string) (agentcore.ContextStatus, error) {
 	return a.ContextStatus(ctx, id)
 }
 

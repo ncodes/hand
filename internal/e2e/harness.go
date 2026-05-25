@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	handagent "github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
-	"github.com/wandxy/hand/internal/host"
 	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
@@ -84,7 +84,7 @@ func NewHarness(ctx context.Context, opts HarnessOptions) (*Harness, error) {
 	}
 
 	runCtx, cancel := context.WithCancel(normalizeHarnessContext(ctx))
-	ag := host.NewAgent(runCtx, cfg, opts.ModelClient, opts.SummaryClient)
+	ag := handagent.NewAgent(runCtx, cfg, opts.ModelClient, opts.SummaryClient)
 	if err := ag.Start(runCtx); err != nil {
 		cancel()
 		restoreEnv()

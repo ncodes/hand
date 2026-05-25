@@ -1,4 +1,4 @@
-package host
+package agent
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"github.com/wandxy/hand/internal/environment"
 )
 
+// EnvironmentFactory constructs the runtime environment for an Agent.
 type EnvironmentFactory func(context.Context, *config.Config) environment.Environment
 
+// NewEnvironment is the production environment factory used during Agent startup.
 var NewEnvironment EnvironmentFactory = environment.NewEnvironment

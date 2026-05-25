@@ -11,10 +11,10 @@ import (
 	"github.com/wandxy/hand/internal/environment/sessionmessages"
 	"github.com/wandxy/hand/internal/environment/sessionsearch"
 	"github.com/wandxy/hand/internal/guardrails"
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/memory/episodic"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
-	"github.com/wandxy/hand/pkg/agent/runcontext"
 )
 
 var getwd = os.Getwd
@@ -229,7 +229,7 @@ func (r *Runtime) RecordSemanticMemory(
 		record.Item = memory.ApplyRunProvenance(
 			record.Item,
 			runCtx,
-			record.Item.Metadata[runcontext.MemoryMetadataTrigger],
+			record.Item.Metadata[memory.MemoryMetadataTrigger],
 		)
 	}
 
@@ -248,7 +248,7 @@ func (r *Runtime) RecordProceduralMemory(
 		record.Item = memory.ApplyRunProvenance(
 			record.Item,
 			runCtx,
-			record.Item.Metadata[runcontext.MemoryMetadataTrigger],
+			record.Item.Metadata[memory.MemoryMetadataTrigger],
 		)
 	}
 
@@ -277,7 +277,7 @@ func (r *Runtime) UpdateMemory(ctx context.Context, req memory.UpdateRequest) (m
 		req.Replacement = memory.ApplyRunProvenance(
 			req.Replacement,
 			runCtx,
-			req.Replacement.Metadata[runcontext.MemoryMetadataTrigger],
+			req.Replacement.Metadata[memory.MemoryMetadataTrigger],
 		)
 	}
 

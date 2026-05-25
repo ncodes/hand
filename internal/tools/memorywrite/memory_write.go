@@ -7,12 +7,12 @@ import (
 
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/tools/common"
 	"github.com/wandxy/hand/internal/trace"
-	"github.com/wandxy/hand/pkg/agent/runcontext"
 )
 
 type sourceLinkInput struct {

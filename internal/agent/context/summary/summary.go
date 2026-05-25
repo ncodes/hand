@@ -12,8 +12,8 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
-	ctxbuilder "github.com/wandxy/hand/internal/host/context"
-	"github.com/wandxy/hand/internal/host/context/compaction"
+	ctxbuilder "github.com/wandxy/hand/internal/agent/context"
+	"github.com/wandxy/hand/internal/agent/context/compaction"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
@@ -21,6 +21,8 @@ import (
 	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
+// SessionSummaryPlanner selects how forced persisted summaries choose the
+// message range to compact.
 type SessionSummaryPlanner string
 
 // SessionSummaryPlannerRetainRecentTail summarizes all but the configured recent tail.

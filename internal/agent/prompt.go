@@ -1,4 +1,4 @@
-package host
+package agent
 
 import (
 	"context"
@@ -8,14 +8,18 @@ import (
 	agentprompt "github.com/wandxy/hand/pkg/agent/prompt"
 )
 
+// PromptProvider adapts environment instructions into the core agent prompt
+// provider interface.
 type PromptProvider struct {
 	env environment.Environment
 }
 
+// NewPromptProvider returns a prompt provider backed by env.
 func NewPromptProvider(env environment.Environment) *PromptProvider {
 	return &PromptProvider{env: env}
 }
 
+// LoadBaseInstructions returns static environment instructions for a model run.
 func (p *PromptProvider) LoadBaseInstructions(
 	context.Context,
 	agentprompt.RunContext,
@@ -27,6 +31,9 @@ func (p *PromptProvider) LoadBaseInstructions(
 	return promptInstructionsFromInstructions(p.env.Instructions()), nil
 }
 
+// BuildEnvironmentInstruction is reserved for dynamic environment prompt
+// material. Host currently supplies environment context through base
+// instructions and turn assembly, so this returns an empty instruction.
 func (p *PromptProvider) BuildEnvironmentInstruction(
 	context.Context,
 	agentprompt.EnvironmentInput,

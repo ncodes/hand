@@ -6,43 +6,34 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandxy/hand/pkg/nanoid"
+	statecore "github.com/wandxy/hand/internal/state/core"
 )
 
 const (
-	DefaultSessionID = "default"
-	SessionIDPrefix  = "ses_"
-
+	// DefaultSessionID is the canonical fallback session for root runs.
+	DefaultSessionID = statecore.DefaultSessionID
+	// SessionIDPrefix is the required prefix for generated run session IDs.
+	SessionIDPrefix = statecore.SessionIDPrefix
 	// StateModeShared lets a child run read and write the same state namespace as its parent.
 	StateModeShared = "shared"
 	// StateModeIsolated gives a child run a separate state namespace.
 	StateModeIsolated = "isolated"
 	// StateModeReadonly lets a child run read parent state without writing back to it.
 	StateModeReadonly = "readonly"
-
-	// MemoryMetadataSourceProfile records the profile that produced a memory item.
-	MemoryMetadataSourceProfile = "source_profile"
-	// MemoryMetadataSourcePersonality records the personality that produced a memory item.
-	MemoryMetadataSourcePersonality = "source_personality"
-	// MemoryMetadataParentSessionID records the public parent session for child-produced memory.
-	MemoryMetadataParentSessionID = "source_parent_session_id"
-	// MemoryMetadataChildSessionID records the effective child session for child-produced memory.
-	MemoryMetadataChildSessionID = "source_child_session_id"
-	// MemoryMetadataRunID records the agent run that produced a memory item.
-	MemoryMetadataRunID = "source_run_id"
-	// MemoryMetadataStateMode records whether the producing run used shared, isolated, or readonly state.
-	MemoryMetadataStateMode = "source_state_mode"
-	// MemoryMetadataTrigger records the memory path that produced the item.
-	MemoryMetadataTrigger = "source_trigger"
-	// MemoryMetadataPublicSessionID records the user-facing session ID.
-	MemoryMetadataPublicSessionID = "source_public_session_id"
-	// MemoryMetadataEffectiveSessionID records the state namespace session ID used by the run.
-	MemoryMetadataEffectiveSessionID = "source_effective_session_id"
 )
 
 type contextKey struct{}
 
-// Context describes the profile, session, personality, state mode, and lineage for one agent run.
+// Context describes the profile, session, personality, state mode, and lineage
+// for one agent-managed run.
+//
+// A run can have two session identifiers:
+//   - Session.PublicID is the user-facing conversation/session.
+//   - Session.EffectiveID is the namespace used for mutable run state.
+//
+// Parent runs usually use the same value for both IDs. Child runs keep the
+// public parent session for user-visible provenance while using their own
+// effective session when state isolation is requested.
 type Context struct {
 	ProfileName string
 	Session     Session
@@ -51,7 +42,8 @@ type Context struct {
 	Lineage     Lineage
 }
 
-// Session separates the user-facing session ID from the effective state namespace ID.
+// Session separates user-visible session identity from the state namespace used
+// while executing a run.
 type Session struct {
 	PublicID    string
 	EffectiveID string
@@ -62,12 +54,12 @@ type Personality struct {
 	Name string
 }
 
-// State describes how a run should access persisted state.
+// State describes how a run should read or write persisted state.
 type State struct {
 	Mode string
 }
 
-// Lineage links child runs back to their parent session and run metadata.
+// Lineage links child runs back to their parent session and spawning run.
 type Lineage struct {
 	ParentSessionID string
 	ChildSessionID  string
@@ -87,7 +79,8 @@ type ChildOptions struct {
 	CompletedAt     time.Time
 }
 
-// PersonalityOptions controls how a named personality is applied to an existing context.
+// PersonalityOptions controls how a named personality is applied to an existing
+// run context without changing the session lineage.
 type PersonalityOptions struct {
 	PersonalityName string
 	StateMode       string
@@ -166,7 +159,8 @@ func (runCtx Context) NewPersonality(opts PersonalityOptions) (Context, error) {
 	return personalityCtx.Normalize()
 }
 
-// Normalize trims values, fills defaults, validates session IDs, and normalizes state mode.
+// Normalize trims values, fills default session/state fields, and validates all
+// session IDs carried by the run context.
 func (runCtx Context) Normalize() (Context, error) {
 	runCtx.ProfileName = strings.TrimSpace(runCtx.ProfileName)
 
@@ -250,7 +244,6 @@ func FromContext(ctx context.Context) (Context, bool) {
 	return runCtx, true
 }
 
-// normalizeStateMode maps unknown or empty state modes to the shared default.
 func normalizeStateMode(value string) string {
 	switch strings.TrimSpace(strings.ToLower(value)) {
 	case StateModeIsolated:
@@ -262,36 +255,8 @@ func normalizeStateMode(value string) string {
 	}
 }
 
-// getChildSessionID returns the child/effective session only for child runs.
-func getChildSessionID(runCtx Context) string {
-	if strings.TrimSpace(runCtx.Lineage.ParentSessionID) == "" {
-		return ""
-	}
-	if strings.TrimSpace(runCtx.Lineage.ChildSessionID) != "" {
-		return runCtx.Lineage.ChildSessionID
-	}
-
-	return runCtx.Session.EffectiveID
-}
-
-// setMetadata writes non-empty metadata values after trimming whitespace.
-func SetMetadata(metadata map[string]string, key string, value string) {
-	if value = strings.TrimSpace(value); value != "" {
-		metadata[key] = value
-	}
-}
-
+// ValidateSessionID validates agent run session IDs with the same rules as
+// durable state sessions.
 func ValidateSessionID(id string) error {
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return errors.New("session id is required")
-	}
-	if id == DefaultSessionID {
-		return nil
-	}
-	if !strings.HasPrefix(id, SessionIDPrefix) || nanoid.ValidateID(id) != nil {
-		return errors.New("session id must be a valid ses_ nanoid")
-	}
-
-	return nil
+	return statecore.ValidateSessionID(id)
 }

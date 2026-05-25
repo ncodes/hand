@@ -3,7 +3,19 @@ package memory
 import (
 	"strings"
 
-	"github.com/wandxy/hand/pkg/agent/runcontext"
+	"github.com/wandxy/hand/internal/agent/runcontext"
+)
+
+const (
+	MemoryMetadataSourceProfile      = "source_profile"
+	MemoryMetadataSourcePersonality  = "source_personality"
+	MemoryMetadataParentSessionID    = "source_parent_session_id"
+	MemoryMetadataChildSessionID     = "source_child_session_id"
+	MemoryMetadataRunID              = "source_run_id"
+	MemoryMetadataStateMode          = "source_state_mode"
+	MemoryMetadataTrigger            = "source_trigger"
+	MemoryMetadataPublicSessionID    = "source_public_session_id"
+	MemoryMetadataEffectiveSessionID = "source_effective_session_id"
 )
 
 func ApplyRunProvenance(
@@ -21,21 +33,27 @@ func ApplyRunProvenance(
 		item.Metadata = make(map[string]string)
 	}
 
-	runcontext.SetMetadata(item.Metadata, runcontext.MemoryMetadataPublicSessionID, runCtx.Session.PublicID)
-	runcontext.SetMetadata(item.Metadata, runcontext.MemoryMetadataEffectiveSessionID, runCtx.Session.EffectiveID)
-	runcontext.SetMetadata(item.Metadata, runcontext.MemoryMetadataParentSessionID, runCtx.Lineage.ParentSessionID)
-	runcontext.SetMetadata(item.Metadata, runcontext.MemoryMetadataChildSessionID, getRunChildSessionID(runCtx))
-	runcontext.SetMetadata(item.Metadata, runcontext.MemoryMetadataRunID, runCtx.Lineage.RunID)
-	runcontext.SetMetadata(item.Metadata, runcontext.MemoryMetadataSourcePersonality, runCtx.Personality.Name)
-	runcontext.SetMetadata(item.Metadata, runcontext.MemoryMetadataStateMode, runCtx.State.Mode)
-	runcontext.SetMetadata(item.Metadata, runcontext.MemoryMetadataSourceProfile, runCtx.ProfileName)
-	runcontext.SetMetadata(item.Metadata, runcontext.MemoryMetadataTrigger, trigger)
+	setMetadata(item.Metadata, MemoryMetadataPublicSessionID, runCtx.Session.PublicID)
+	setMetadata(item.Metadata, MemoryMetadataEffectiveSessionID, runCtx.Session.EffectiveID)
+	setMetadata(item.Metadata, MemoryMetadataParentSessionID, runCtx.Lineage.ParentSessionID)
+	setMetadata(item.Metadata, MemoryMetadataChildSessionID, getRunChildSessionID(runCtx))
+	setMetadata(item.Metadata, MemoryMetadataRunID, runCtx.Lineage.RunID)
+	setMetadata(item.Metadata, MemoryMetadataSourcePersonality, runCtx.Personality.Name)
+	setMetadata(item.Metadata, MemoryMetadataStateMode, runCtx.State.Mode)
+	setMetadata(item.Metadata, MemoryMetadataSourceProfile, runCtx.ProfileName)
+	setMetadata(item.Metadata, MemoryMetadataTrigger, trigger)
 
 	for index := range item.SourceLinks {
 		fillSourceLinkProvenance(&item.SourceLinks[index], runCtx, trigger)
 	}
 
 	return item
+}
+
+func setMetadata(metadata map[string]string, key string, value string) {
+	if value = strings.TrimSpace(value); value != "" {
+		metadata[key] = value
+	}
 }
 
 func getRunChildSessionID(runCtx runcontext.Context) string {

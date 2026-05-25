@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandxy/hand/pkg/agent/runcontext"
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
@@ -28,15 +28,15 @@ func TestApplyRunProvenance_AddsLineageMetadataAndSourceLinks(t *testing.T) {
 		SourceLinks: []SourceLink{{SessionID: parentID, MessageIDs: []uint{1}}},
 	}, child, "tool_write")
 
-	require.Equal(t, parentID, item.Metadata[runcontext.MemoryMetadataPublicSessionID])
-	require.Equal(t, childID, item.Metadata[runcontext.MemoryMetadataEffectiveSessionID])
-	require.Equal(t, parentID, item.Metadata[runcontext.MemoryMetadataParentSessionID])
-	require.Equal(t, childID, item.Metadata[runcontext.MemoryMetadataChildSessionID])
-	require.Equal(t, "run_memory", item.Metadata[runcontext.MemoryMetadataRunID])
-	require.Equal(t, "researcher", item.Metadata[runcontext.MemoryMetadataSourcePersonality])
-	require.Equal(t, runcontext.StateModeReadonly, item.Metadata[runcontext.MemoryMetadataStateMode])
-	require.Equal(t, "work", item.Metadata[runcontext.MemoryMetadataSourceProfile])
-	require.Equal(t, "tool_write", item.Metadata[runcontext.MemoryMetadataTrigger])
+	require.Equal(t, parentID, item.Metadata[MemoryMetadataPublicSessionID])
+	require.Equal(t, childID, item.Metadata[MemoryMetadataEffectiveSessionID])
+	require.Equal(t, parentID, item.Metadata[MemoryMetadataParentSessionID])
+	require.Equal(t, childID, item.Metadata[MemoryMetadataChildSessionID])
+	require.Equal(t, "run_memory", item.Metadata[MemoryMetadataRunID])
+	require.Equal(t, "researcher", item.Metadata[MemoryMetadataSourcePersonality])
+	require.Equal(t, runcontext.StateModeReadonly, item.Metadata[MemoryMetadataStateMode])
+	require.Equal(t, "work", item.Metadata[MemoryMetadataSourceProfile])
+	require.Equal(t, "tool_write", item.Metadata[MemoryMetadataTrigger])
 	require.Equal(t, parentID, item.SourceLinks[0].ParentSessionID)
 	require.Equal(t, childID, item.SourceLinks[0].ChildSessionID)
 	require.Equal(t, "run_memory", item.SourceLinks[0].RunID)

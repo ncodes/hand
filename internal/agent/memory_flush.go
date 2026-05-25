@@ -1,4 +1,4 @@
-package host
+package agent
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
+	agentcore "github.com/wandxy/hand/pkg/agent"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	models "github.com/wandxy/hand/pkg/agent/model"
 )
@@ -54,7 +55,7 @@ func (a *Agent) maybeFlushMemoryBeforeContextLoss(
 	// Reuse a Turn so memory flush sees the same context-building, tool context,
 	// and session state paths as a normal response.
 	turn := a.newTurn(a.env, nil)
-	if err := turn.load(ctx, RespondOptions{SessionID: sessionID}); err != nil {
+	if err := turn.load(ctx, agentcore.RespondOptions{SessionID: sessionID}); err != nil {
 		recordMemoryFlushFailure(traceSession, trigger, err)
 		return
 	}
@@ -250,12 +251,9 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 			})
 
 			toolCtx := tools.WithTraceRecorder(t.getToolContext(flushCtx), traceSession)
-			toolMessage := t.invokeFlushTool(toolCtx, toolCall)
-			toolMessage, err = normalizeTurnMessage(toolMessage)
-			if err != nil {
+			if _, err := normalizeTurnMessage(t.invokeFlushTool(toolCtx, toolCall)); err != nil {
 				return err
 			}
-			messages = append(messages, toolMessage)
 
 			recordMemoryFlushCompleted(traceSession, trigger, t.sessionID, "tool_executed", callCount)
 			return nil

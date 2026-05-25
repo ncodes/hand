@@ -182,7 +182,8 @@ func TestFromContext_ReturnsNormalizedRunContext(t *testing.T) {
 }
 
 func TestFromContext_HandlesNilMissingAndInvalidContexts(t *testing.T) {
-	ctx := WithContext(nil, Context{Session: Session{PublicID: DefaultSessionID}})
+	var nilContext context.Context
+	ctx := WithContext(nilContext, Context{Session: Session{PublicID: DefaultSessionID}})
 	runCtx, ok := FromContext(ctx)
 	require.True(t, ok)
 	require.Equal(t, DefaultSessionID, runCtx.StateSessionID())
@@ -191,7 +192,7 @@ func TestFromContext_HandlesNilMissingAndInvalidContexts(t *testing.T) {
 	_, ok = FromContext(invalidCtx)
 	require.False(t, ok)
 
-	_, ok = FromContext(nil)
+	_, ok = FromContext(nilContext)
 	require.False(t, ok)
 
 	_, ok = FromContext(context.Background())

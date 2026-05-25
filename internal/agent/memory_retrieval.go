@@ -1,4 +1,4 @@
-package host
+package agent
 
 import (
 	"context"
@@ -255,11 +255,6 @@ func sanitizeMemoryItemsForPrompt(input []memory.MemoryItem, traceSession trace.
 		items = append(items, sanitized)
 	}
 	return items
-}
-
-// sanitizeMemoryItemForPrompt sanitizes one memory item without trace recording.
-func sanitizeMemoryItemForPrompt(item memory.MemoryItem) (memory.MemoryItem, bool) {
-	return sanitizeMemoryItemForPromptWithTrace(item, nil)
 }
 
 // sanitizeMemoryItemForPromptWithTrace sanitizes and safety-scans one memory item.

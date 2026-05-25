@@ -13,6 +13,7 @@ import (
 	"github.com/wandxy/hand/internal/environment/budget"
 	"github.com/wandxy/hand/internal/environment/planstore"
 	"github.com/wandxy/hand/internal/guardrails"
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
 	memguardrails "github.com/wandxy/hand/internal/memory/guardrails"
@@ -40,7 +41,6 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/internal/workspace"
 	models "github.com/wandxy/hand/pkg/agent/model"
-	"github.com/wandxy/hand/pkg/agent/runcontext"
 )
 
 var (

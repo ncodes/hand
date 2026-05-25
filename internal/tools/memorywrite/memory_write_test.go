@@ -8,13 +8,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/tools"
 	toolmocks "github.com/wandxy/hand/internal/tools/mocks"
 	"github.com/wandxy/hand/internal/trace"
-	"github.com/wandxy/hand/pkg/agent/runcontext"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
@@ -121,15 +121,15 @@ func TestMemoryAdd_DefinitionPreservesSessionLineage(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Empty(t, result.Error)
-	require.Equal(t, parentID, recorded.Item.Metadata[runcontext.MemoryMetadataPublicSessionID])
-	require.Equal(t, childID, recorded.Item.Metadata[runcontext.MemoryMetadataEffectiveSessionID])
-	require.Equal(t, parentID, recorded.Item.Metadata[runcontext.MemoryMetadataParentSessionID])
-	require.Equal(t, childID, recorded.Item.Metadata[runcontext.MemoryMetadataChildSessionID])
-	require.Equal(t, "run_memory", recorded.Item.Metadata[runcontext.MemoryMetadataRunID])
-	require.Equal(t, "researcher", recorded.Item.Metadata[runcontext.MemoryMetadataSourcePersonality])
-	require.Equal(t, runcontext.StateModeIsolated, recorded.Item.Metadata[runcontext.MemoryMetadataStateMode])
-	require.Equal(t, "work", recorded.Item.Metadata[runcontext.MemoryMetadataSourceProfile])
-	require.Equal(t, "tool_write", recorded.Item.Metadata[runcontext.MemoryMetadataTrigger])
+	require.Equal(t, parentID, recorded.Item.Metadata[memory.MemoryMetadataPublicSessionID])
+	require.Equal(t, childID, recorded.Item.Metadata[memory.MemoryMetadataEffectiveSessionID])
+	require.Equal(t, parentID, recorded.Item.Metadata[memory.MemoryMetadataParentSessionID])
+	require.Equal(t, childID, recorded.Item.Metadata[memory.MemoryMetadataChildSessionID])
+	require.Equal(t, "run_memory", recorded.Item.Metadata[memory.MemoryMetadataRunID])
+	require.Equal(t, "researcher", recorded.Item.Metadata[memory.MemoryMetadataSourcePersonality])
+	require.Equal(t, runcontext.StateModeIsolated, recorded.Item.Metadata[memory.MemoryMetadataStateMode])
+	require.Equal(t, "work", recorded.Item.Metadata[memory.MemoryMetadataSourceProfile])
+	require.Equal(t, "tool_write", recorded.Item.Metadata[memory.MemoryMetadataTrigger])
 	require.Equal(t, childID, recorded.Item.SourceLinks[0].ChildSessionID)
 	require.Equal(t, parentID, recorded.Item.SourceLinks[0].ParentSessionID)
 	require.Equal(t, "run_memory", recorded.Item.SourceLinks[0].RunID)

@@ -14,13 +14,13 @@ import (
 	"github.com/wandxy/hand/internal/environment/sessionmessages"
 	"github.com/wandxy/hand/internal/environment/sessionsearch"
 	"github.com/wandxy/hand/internal/guardrails"
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	handmemory "github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/memory/episodic"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	memory "github.com/wandxy/hand/internal/state/storememory"
 	messages "github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/agent/runcontext"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
@@ -611,27 +611,27 @@ func TestRuntime_MemoryWriteAppliesSessionLineage(t *testing.T) {
 	item := handmemory.MemoryItem{
 		ID: "mem_candidate",
 		Metadata: map[string]string{
-			runcontext.MemoryMetadataTrigger: "episodic_extraction",
+			handmemory.MemoryMetadataTrigger: "episodic_extraction",
 		},
 		SourceLinks: []handmemory.SourceLink{{SessionID: parentID, MessageIDs: []uint{1}}},
 	}
 
 	_, err = runtime.RecordSemanticMemory(ctx, handmemory.SemanticRecord{Item: item})
 	require.NoError(t, err)
-	require.Equal(t, childID, provider.semanticRecord.Item.Metadata[runcontext.MemoryMetadataEffectiveSessionID])
-	require.Equal(t, parentID, provider.semanticRecord.Item.Metadata[runcontext.MemoryMetadataParentSessionID])
-	require.Equal(t, "episodic_extraction", provider.semanticRecord.Item.Metadata[runcontext.MemoryMetadataTrigger])
+	require.Equal(t, childID, provider.semanticRecord.Item.Metadata[handmemory.MemoryMetadataEffectiveSessionID])
+	require.Equal(t, parentID, provider.semanticRecord.Item.Metadata[handmemory.MemoryMetadataParentSessionID])
+	require.Equal(t, "episodic_extraction", provider.semanticRecord.Item.Metadata[handmemory.MemoryMetadataTrigger])
 	require.Equal(t, childID, provider.semanticRecord.Item.SourceLinks[0].ChildSessionID)
 
 	_, err = runtime.RecordProceduralMemory(ctx, handmemory.ProceduralRecord{Item: item})
 	require.NoError(t, err)
-	require.Equal(t, childID, provider.proceduralRecord.Item.Metadata[runcontext.MemoryMetadataEffectiveSessionID])
-	require.Equal(t, parentID, provider.proceduralRecord.Item.Metadata[runcontext.MemoryMetadataParentSessionID])
-	require.Equal(t, "episodic_extraction", provider.proceduralRecord.Item.Metadata[runcontext.MemoryMetadataTrigger])
+	require.Equal(t, childID, provider.proceduralRecord.Item.Metadata[handmemory.MemoryMetadataEffectiveSessionID])
+	require.Equal(t, parentID, provider.proceduralRecord.Item.Metadata[handmemory.MemoryMetadataParentSessionID])
+	require.Equal(t, "episodic_extraction", provider.proceduralRecord.Item.Metadata[handmemory.MemoryMetadataTrigger])
 	require.Equal(t, childID, provider.proceduralRecord.Item.SourceLinks[0].ChildSessionID)
 
 	_, err = runtime.UpdateMemory(ctx, handmemory.UpdateRequest{ID: "mem_old", Replacement: item})
 	require.NoError(t, err)
-	require.Equal(t, childID, provider.updateRequest.Replacement.Metadata[runcontext.MemoryMetadataEffectiveSessionID])
+	require.Equal(t, childID, provider.updateRequest.Replacement.Metadata[handmemory.MemoryMetadataEffectiveSessionID])
 	require.Equal(t, parentID, provider.updateRequest.Replacement.SourceLinks[0].ParentSessionID)
 }

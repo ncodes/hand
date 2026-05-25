@@ -1,8 +1,8 @@
-package host
+package agent
 
 import (
 	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/host/context/compaction"
+	"github.com/wandxy/hand/internal/agent/context/compaction"
 	"github.com/wandxy/hand/internal/trace"
 	models "github.com/wandxy/hand/pkg/agent/model"
 )

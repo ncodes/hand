@@ -17,10 +17,10 @@ import (
 	cli "github.com/urfave/cli/v3"
 	"google.golang.org/grpc"
 
+	handagent "github.com/wandxy/hand/internal/agent"
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/diagnostics"
-	"github.com/wandxy/hand/internal/host"
 	"github.com/wandxy/hand/internal/profile"
 	"github.com/wandxy/hand/internal/rpc/server"
 	handruntime "github.com/wandxy/hand/internal/runtime"
@@ -30,7 +30,7 @@ import (
 
 type agentRunner interface {
 	Start(context.Context) error
-	host.ServiceAPI
+	handagent.ServiceAPI
 }
 
 const (
@@ -57,7 +57,7 @@ func newAgentRunnerImpl(
 	modelClient,
 	summaryClient models.Client,
 ) agentRunner {
-	return host.NewAgent(ctx, cfg, modelClient, summaryClient)
+	return handagent.NewAgent(ctx, cfg, modelClient, summaryClient)
 }
 
 // newAgentRunner is swapped in tests to stub the agent.

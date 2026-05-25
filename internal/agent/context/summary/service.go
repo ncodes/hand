@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/host/context/compaction"
+	"github.com/wandxy/hand/internal/agent/context/compaction"
 	storage "github.com/wandxy/hand/internal/state/core"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	models "github.com/wandxy/hand/pkg/agent/model"

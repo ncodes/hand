@@ -9,13 +9,13 @@ import (
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 	models "github.com/wandxy/hand/pkg/agent/model"
-	"github.com/wandxy/hand/pkg/agent/runcontext"
 )
 
 type ModelClientStub struct {

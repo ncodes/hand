@@ -1,4 +1,4 @@
-package host
+package agent
 
 import (
 	"context"
@@ -8,13 +8,14 @@ import (
 	"strings"
 	"time"
 
+	ctxbuilder "github.com/wandxy/hand/internal/agent/context"
+	"github.com/wandxy/hand/internal/agent/context/compaction"
+	summarizer "github.com/wandxy/hand/internal/agent/context/summary"
+	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/config"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envtypes "github.com/wandxy/hand/internal/environment/types"
 	"github.com/wandxy/hand/internal/guardrails"
-	ctxbuilder "github.com/wandxy/hand/internal/host/context"
-	"github.com/wandxy/hand/internal/host/context/compaction"
-	summarizer "github.com/wandxy/hand/internal/host/context/summary"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
 	"github.com/wandxy/hand/internal/profile"
@@ -25,7 +26,6 @@ import (
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	models "github.com/wandxy/hand/pkg/agent/model"
 	agentprompt "github.com/wandxy/hand/pkg/agent/prompt"
-	"github.com/wandxy/hand/pkg/agent/runcontext"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
 	agenttool "github.com/wandxy/hand/pkg/agent/tool"
 )
@@ -91,13 +91,13 @@ type Turn struct {
 	// Tool policy used to filter tool definitions for this runtime.
 	toolPolicy agenttool.Policy
 
-	// Prompt provider supplies reusable prompt inputs from the host runtime.
+	// Prompt provider supplies reusable prompt inputs from the agent runtime.
 	promptProvider agentprompt.Provider
 
-	// Trace sessions are opened by the host runtime.
+	// Trace sessions are opened by the agent runtime.
 	traceSessions traceSessionFactory
 
-	// Safety events loaded by the host runtime are replayed into the turn trace.
+	// Safety events loaded by the agent runtime are replayed into the turn trace.
 	safetyEvents safetyTraceEventSource
 
 	// Memory provider source supplies durable memory for prompt retrieval.
@@ -121,7 +121,7 @@ type Turn struct {
 	// Base instruction set sent to model.
 	instructions instruct.Instructions
 
-	// Per-call guidance from RespondOptions.Instruct.
+	// Per-call guidance from agentcore.RespondOptions.Instruct.
 	requestInstruction instruct.Instruction
 
 	// Durable memory retrieved for the current turn.
@@ -201,7 +201,7 @@ func NewTurnWithSessionStore(
 
 // load initializes all the dependencies, session, summary, instructions, message history,
 // and plan state for a new Turn execution. Returns error if required initializations fail.
-func (t *Turn) load(ctx context.Context, opts RespondOptions) error {
+func (t *Turn) load(ctx context.Context, opts agentcore.RespondOptions) error {
 	if t == nil {
 		return errors.New("agent is required")
 	}
@@ -447,7 +447,7 @@ func (t *Turn) environmentToolPolicy() (tools.Policy, bool) {
 
 // Run executes the turn's logic, handling instructions, tool actions, tracing,
 // safety enforcement, and returns the final assistant reply for this turn.
-func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string, error) {
+func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOptions) (string, error) {
 	var traceSession trace.Session
 	budget := envbudget.New(0)
 	streamingEnabled := false
@@ -464,11 +464,11 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 				Value: requestInstruct,
 			}
 		},
-		Open: func(context.Context, RespondOptions) (agentcore.TurnCloser, error) {
+		Open: func(context.Context, agentcore.RespondOptions) (agentcore.TurnCloser, error) {
 			traceSession = t.newTraceSessionForRun()
 			if opts.TraceEvents && opts.OnEvent != nil {
 				traceSession = newFanoutTraceSession(traceSession, t.getStateSessionID(), func(event trace.Event) {
-					opts.OnEvent(Event{
+					opts.OnEvent(agentcore.Event{
 						Kind:       EventKindTrace,
 						TraceEvent: &event,
 					})
@@ -605,7 +605,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts RespondOptions) (string
 						}
 						reasoningEndedAt = now
 					}
-					event := Event{Kind: EventKindTextDelta, Channel: string(delta.Channel), Text: delta.Text}
+					event := agentcore.Event{Kind: EventKindTextDelta, Channel: string(delta.Channel), Text: delta.Text}
 					if opts.OnEvent != nil {
 						opts.OnEvent(event)
 					}
