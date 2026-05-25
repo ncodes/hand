@@ -10,13 +10,13 @@ type LoopDecision struct {
 	Done  bool
 }
 
-type ModelToolLoopOptions struct {
+type LoopOptions struct {
 	Consume     func() bool
 	RunStep     func(context.Context) (LoopDecision, error)
 	OnExhausted func(context.Context) (string, error)
 }
 
-func RunModelToolLoop(ctx context.Context, opts ModelToolLoopOptions) (string, error) {
+func RunLoop(ctx context.Context, opts LoopOptions) (string, error) {
 	if opts.Consume == nil {
 		return "", errors.New("loop budget consumer is required")
 	}

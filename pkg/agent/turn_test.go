@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunModelToolLoop_ReturnsReplyWhenStepCompletes(t *testing.T) {
+func TestRunLoop_ReturnsReplyWhenStepCompletes(t *testing.T) {
 	remaining := 2
 
-	reply, err := RunModelToolLoop(context.Background(), ModelToolLoopOptions{
+	reply, err := RunLoop(context.Background(), LoopOptions{
 		Consume: func() bool {
 			remaining--
 			return remaining >= 0
@@ -25,8 +25,8 @@ func TestRunModelToolLoop_ReturnsReplyWhenStepCompletes(t *testing.T) {
 	require.Equal(t, "done", reply)
 }
 
-func TestRunModelToolLoop_CallsFallbackWhenBudgetExhausts(t *testing.T) {
-	reply, err := RunModelToolLoop(context.Background(), ModelToolLoopOptions{
+func TestRunLoop_CallsFallbackWhenBudgetExhausts(t *testing.T) {
+	reply, err := RunLoop(context.Background(), LoopOptions{
 		Consume: func() bool { return false },
 		RunStep: func(context.Context) (LoopDecision, error) {
 			return LoopDecision{}, nil
@@ -40,10 +40,10 @@ func TestRunModelToolLoop_CallsFallbackWhenBudgetExhausts(t *testing.T) {
 	require.Equal(t, "fallback", reply)
 }
 
-func TestRunModelToolLoop_PropagatesStepErrors(t *testing.T) {
+func TestRunLoop_PropagatesStepErrors(t *testing.T) {
 	expected := errors.New("step failed")
 
-	reply, err := RunModelToolLoop(context.Background(), ModelToolLoopOptions{
+	reply, err := RunLoop(context.Background(), LoopOptions{
 		Consume: func() bool { return true },
 		RunStep: func(context.Context) (LoopDecision, error) {
 			return LoopDecision{}, expected
@@ -54,16 +54,16 @@ func TestRunModelToolLoop_PropagatesStepErrors(t *testing.T) {
 	require.ErrorIs(t, err, expected)
 }
 
-func TestRunModelToolLoop_RequiresCallbacks(t *testing.T) {
-	_, err := RunModelToolLoop(context.Background(), ModelToolLoopOptions{})
+func TestRunLoop_RequiresCallbacks(t *testing.T) {
+	_, err := RunLoop(context.Background(), LoopOptions{})
 	require.EqualError(t, err, "loop budget consumer is required")
 
-	_, err = RunModelToolLoop(context.Background(), ModelToolLoopOptions{
+	_, err = RunLoop(context.Background(), LoopOptions{
 		Consume: func() bool { return true },
 	})
 	require.EqualError(t, err, "loop step is required")
 
-	_, err = RunModelToolLoop(context.Background(), ModelToolLoopOptions{
+	_, err = RunLoop(context.Background(), LoopOptions{
 		Consume: func() bool { return false },
 		RunStep: func(context.Context) (LoopDecision, error) {
 			return LoopDecision{}, nil

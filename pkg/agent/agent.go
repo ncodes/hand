@@ -157,7 +157,7 @@ func (a *Agent) Respond(ctx context.Context, input string, opts RespondOptions) 
 		return LoopDecision{}, nil
 	}
 
-	return RunModelToolLoop(ctx, ModelToolLoopOptions{
+	return RunLoop(ctx, LoopOptions{
 		Consume: func() bool {
 			if remainingIterations <= 0 {
 				return false

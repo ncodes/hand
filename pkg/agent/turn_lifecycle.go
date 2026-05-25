@@ -85,7 +85,7 @@ func RunTurnLifecycle(
 		}
 	}
 
-	return RunModelToolLoop(ctx, ModelToolLoopOptions{
+	return RunLoop(ctx, LoopOptions{
 		Consume:     lifecycle.ConsumeIteration,
 		RunStep:     lifecycle.RunStep,
 		OnExhausted: lifecycle.OnExhausted,
