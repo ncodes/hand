@@ -9,13 +9,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openai/openai-go/v3/option"
-
 	"github.com/wandxy/hand/internal/config"
+	modelclient "github.com/wandxy/hand/internal/model/client"
 	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
-var newLiveModelClient = models.NewOpenAIClient
+type liveModelClientFactory interface {
+	NewClient(modelclient.ClientRequest) (models.Client, error)
+}
+
+var liveModelClientFactoryInstance liveModelClientFactory = modelclient.NewDefaultClientFactory()
 var loadLiveConfig = config.Load
 var newLiveHarness = NewHarness
 var newLiveRPCHarness = NewRPCHarness
@@ -51,10 +54,7 @@ func NewLiveClients(cfg *config.Config) (models.Client, models.Client, error) {
 		return nil, nil, err
 	}
 
-	modelClient, err := newLiveModelClient(
-		auth.APIKey,
-		getLiveClientOptions(cfg.Models.Main.BaseURL, cfg.ModelMaxRetriesEffective())...,
-	)
+	modelClient, err := liveModelClientFactoryInstance.NewClient(liveClientRequest(modelclient.ModelRoleMain, cfg.Models.Main.Name, auth, cfg.ModelMaxRetriesEffective()))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -67,10 +67,7 @@ func NewLiveClients(cfg *config.Config) (models.Client, models.Client, error) {
 		return modelClient, modelClient, nil
 	}
 
-	summaryClient, err := newLiveModelClient(
-		summaryAuth.APIKey,
-		getLiveClientOptions(summaryAuth.BaseURL, cfg.ModelMaxRetriesEffective())...,
-	)
+	summaryClient, err := liveModelClientFactoryInstance.NewClient(liveClientRequest(modelclient.ModelRoleSummary, cfg.SummaryModelEffective(), summaryAuth, cfg.ModelMaxRetriesEffective()))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -118,13 +115,21 @@ func NewLiveRPCHarness(ctx context.Context, home, envFile, configFile string) (*
 	})
 }
 
-func getLiveClientOptions(baseURL string, maxRetries int) []option.RequestOption {
-	opts := make([]option.RequestOption, 0, 2)
-	if strings.TrimSpace(baseURL) != "" {
-		opts = append(opts, option.WithBaseURL(strings.TrimSpace(baseURL)))
+func liveClientRequest(
+	role modelclient.ModelRole,
+	model string,
+	auth config.ModelAuth,
+	maxRetries int,
+) modelclient.ClientRequest {
+	return modelclient.ClientRequest{
+		Role:       role,
+		Model:      model,
+		Provider:   auth.Provider,
+		API:        auth.API,
+		APIKey:     auth.APIKey,
+		BaseURL:    auth.BaseURL,
+		MaxRetries: maxRetries,
 	}
-	opts = append(opts, option.WithMaxRetries(maxRetries))
-	return opts
 }
 
 // DefaultLiveArtifactDir returns the directory used for live e2e artifacts.

@@ -17,6 +17,7 @@ import (
 
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
+	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	"github.com/wandxy/hand/internal/profile"
 )
 
@@ -33,12 +34,43 @@ func stubModelMetadataResolver(t *testing.T, fn func(context.Context, *Config, M
 func stubProviderDefaultBaseURL(t *testing.T, provider string, mode string, value string) {
 	t.Helper()
 
-	definition := modelProviders[provider]
-	original := definition.DefaultBaseURLs[mode]
-	definition.DefaultBaseURLs[mode] = value
+	api, ok := getModelAPIForMode(mode)
+	require.True(t, ok)
+	originalRegistry := modelRegistry
+	modelRegistry = registryWithProviderBaseURL(t, originalRegistry, provider, api.ID, value)
 	t.Cleanup(func() {
-		definition.DefaultBaseURLs[mode] = original
+		modelRegistry = originalRegistry
 	})
+}
+
+func registryWithProviderBaseURL(
+	t *testing.T,
+	registry *modelprovider.Registry,
+	provider string,
+	api string,
+	value string,
+) *modelprovider.Registry {
+	t.Helper()
+
+	apis := []modelprovider.APIDefinition{
+		{ID: modelprovider.APIOpenAICompletions, RequestMode: constants.DefaultModelAPIModeCompletions},
+		{ID: modelprovider.APIOpenAIResponses, RequestMode: constants.DefaultModelAPIModeResponses},
+		{ID: modelprovider.APIOpenAIEmbeddings, RequestMode: "embeddings"},
+	}
+	providers := make([]modelprovider.ProviderDefinition, 0, len(registry.GetProviderIDs()))
+	matched := false
+	for _, providerID := range registry.GetProviderIDs() {
+		definition, ok := registry.GetProvider(providerID)
+		require.True(t, ok)
+		if providerID == provider {
+			matched = true
+			definition.BaseURLs[api] = value
+		}
+		providers = append(providers, definition)
+	}
+	require.True(t, matched)
+
+	return modelprovider.NewRegistry(apis, providers, nil)
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -1216,6 +1248,7 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ModelAuth{
 		Provider: "openrouter",
+		API:      modelprovider.APIOpenAIEmbeddings,
 		APIKey:   "router-key",
 		BaseURL:  "https://openrouter.ai/api/v1/embeddings",
 	}, auth)
@@ -1245,6 +1278,7 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ModelAuth{
 		Provider: "openrouter",
+		API:      modelprovider.APIOpenAIEmbeddings,
 		APIKey:   "router-key",
 		BaseURL:  "https://openrouter.ai/api/v1/embeddings",
 	}, auth)
@@ -1262,6 +1296,7 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ModelAuth{
 		Provider: "openai",
+		API:      modelprovider.APIOpenAIEmbeddings,
 		APIKey:   "openai-key",
 		BaseURL:  "https://api.openai.com/v1/embeddings",
 	}, auth)
@@ -1700,12 +1735,16 @@ func TestConfig_ValidateAcceptsSummaryModelAPIModeCompletions(t *testing.T) {
 
 func TestConfig_ModelAuthEqual(t *testing.T) {
 	require.True(t, ModelAuthEqual(
-		ModelAuth{Provider: "openai", BaseURL: "http://a", APIKey: "k"},
-		ModelAuth{Provider: "openai", BaseURL: "http://a", APIKey: "k"},
+		ModelAuth{Provider: "openai", API: modelprovider.APIOpenAIResponses, BaseURL: "http://a", APIKey: "k"},
+		ModelAuth{Provider: "openai", API: modelprovider.APIOpenAIResponses, BaseURL: "http://a", APIKey: "k"},
 	))
 	require.False(t, ModelAuthEqual(
-		ModelAuth{Provider: "openai", BaseURL: "http://a", APIKey: "k"},
-		ModelAuth{Provider: "openrouter", BaseURL: "http://a", APIKey: "k"},
+		ModelAuth{Provider: "openai", API: modelprovider.APIOpenAIResponses, BaseURL: "http://a", APIKey: "k"},
+		ModelAuth{Provider: "openrouter", API: modelprovider.APIOpenAIResponses, BaseURL: "http://a", APIKey: "k"},
+	))
+	require.False(t, ModelAuthEqual(
+		ModelAuth{Provider: "openai", API: modelprovider.APIOpenAIResponses, BaseURL: "http://a", APIKey: "k"},
+		ModelAuth{Provider: "openai", API: modelprovider.APIOpenAICompletions, BaseURL: "http://a", APIKey: "k"},
 	))
 }
 
@@ -2372,9 +2411,13 @@ func TestDefaultBaseURLForProvider_DefaultsEmptyAPIMode(t *testing.T) {
 func TestModelProviders_CoverDayOneProviderBaseURLs(t *testing.T) {
 	require.True(t, hasModelProvider("openai"))
 	require.True(t, hasModelProvider("openrouter"))
-	require.Equal(t, "openai, openrouter", modelProviderList())
-	require.Equal(t, "openai", modelProviders["openai"].ID)
-	require.Equal(t, "openrouter", modelProviders["openrouter"].ID)
+	require.Equal(t, "openai, openrouter", getModelProviderList())
+	openai, ok := modelRegistry.GetProvider("openai")
+	require.True(t, ok)
+	require.Equal(t, "openai", openai.ID)
+	openrouter, ok := modelRegistry.GetProvider("openrouter")
+	require.True(t, ok)
+	require.Equal(t, "openrouter", openrouter.ID)
 
 	require.Equal(t, constants.DefaultOpenAIBaseURL, getDefaultBaseURLForProvider("openai", constants.DefaultModelAPIModeCompletions))
 	require.Equal(t, constants.DefaultOpenAIBaseURL, getDefaultBaseURLForProvider("openai", constants.DefaultModelAPIModeResponses))
@@ -2413,6 +2456,7 @@ func TestConfig_ModelSlotsResolveProviderBaseURLsThroughRegistry(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ModelAuth{
 		Provider: "openrouter",
+		API:      modelprovider.APIOpenAICompletions,
 		APIKey:   "test-key",
 		BaseURL:  "https://registry.openrouter.example/v1",
 	}, mainAuth)
@@ -2421,6 +2465,7 @@ func TestConfig_ModelSlotsResolveProviderBaseURLsThroughRegistry(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ModelAuth{
 		Provider: "openai",
+		API:      modelprovider.APIOpenAIResponses,
 		APIKey:   "test-key",
 		BaseURL:  "https://registry.openai.example/v1",
 	}, summaryAuth)
@@ -2429,6 +2474,7 @@ func TestConfig_ModelSlotsResolveProviderBaseURLsThroughRegistry(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ModelAuth{
 		Provider: "openrouter",
+		API:      modelprovider.APIOpenAIEmbeddings,
 		APIKey:   "test-key",
 		BaseURL:  "https://registry.openrouter.example/v1/embeddings",
 	}, embeddingAuth)
@@ -2934,16 +2980,20 @@ log:
 }
 
 func TestConfig_ValidateRejectsInvalidAPIMode(t *testing.T) {
-	err := (&Config{
-		Name: "test-agent",
-		Models: ModelsConfig{
-			Key:  "test-key",
-			Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai", APIMode: "invalid"},
-		},
-		RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
-		Log: LogConfig{Level: "info"},
-	}).Validate()
-	require.EqualError(t, err, "model api mode must be one of: completions, responses; use --model.api-mode")
+	for _, mode := range []string{"invalid", "embeddings"} {
+		t.Run(mode, func(t *testing.T) {
+			err := (&Config{
+				Name: "test-agent",
+				Models: ModelsConfig{
+					Key:  "test-key",
+					Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai", APIMode: mode},
+				},
+				RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
+				Log: LogConfig{Level: "info"},
+			}).Validate()
+			require.EqualError(t, err, "model api mode must be one of: completions, responses; use --model.api-mode")
+		})
+	}
 }
 
 func TestConfig_ValidateAllowsResponsesModeWithOpenRouter(t *testing.T) {

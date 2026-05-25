@@ -19,6 +19,7 @@ import (
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
+	"github.com/wandxy/hand/internal/tui/render"
 	agent "github.com/wandxy/hand/pkg/agent"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
@@ -26,12 +27,15 @@ import (
 
 func TestMain(m *testing.M) {
 	original := promptHistoryPath
+	originalTheme := defaultTUITheme
 	_ = original()
 	promptHistoryPath = func() string {
 		return ""
 	}
+	defaultTUITheme = render.DefaultTheme
 	code := m.Run()
 	promptHistoryPath = original
+	defaultTUITheme = originalTheme
 	os.Exit(code)
 }
 

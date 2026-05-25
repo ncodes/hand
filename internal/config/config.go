@@ -24,6 +24,7 @@ import (
 
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
+	modelprovider "github.com/wandxy/hand/internal/model/provider"
 )
 
 // Config is the root runtime configuration for Hand.
@@ -394,6 +395,7 @@ func (c *WebConfig) UnmarshalYAML(value *yaml.Node) error {
 // ModelAuth describes authentication metadata for a model provider.
 type ModelAuth struct {
 	Provider string
+	API      string
 	APIKey   string
 	BaseURL  string
 }
@@ -404,11 +406,6 @@ type ModelMetadata struct {
 	ContextLength int
 }
 
-type modelProviderDefinition struct {
-	ID              string
-	DefaultBaseURLs map[string]string
-}
-
 var (
 	globalConfig     *Config
 	configMu         sync.RWMutex
@@ -417,24 +414,7 @@ var (
 	httpClient       = &http.Client{Timeout: 5 * time.Second}
 	modelDocsBaseURL = "https://developers.openai.com/api/docs/models"
 	resolveModelMeta = fetchModelMetadataFromProvider
-	modelProviders   = map[string]modelProviderDefinition{
-		constants.ModelProviderOpenRouter: {
-			ID: constants.ModelProviderOpenRouter,
-			DefaultBaseURLs: map[string]string{
-				constants.DefaultModelAPIModeCompletions: constants.DefaultOpenRouterBaseURL,
-				"responses":                              constants.DefaultOpenRouterResponsesBaseURL,
-				"embeddings":                             constants.DefaultOpenRouterEmbeddingsBaseURL,
-			},
-		},
-		constants.ModelProviderOpenAI: {
-			ID: constants.ModelProviderOpenAI,
-			DefaultBaseURLs: map[string]string{
-				constants.DefaultModelAPIModeCompletions: constants.DefaultOpenAIBaseURL,
-				"responses":                              constants.DefaultOpenAIBaseURL,
-				"embeddings":                             constants.DefaultOpenAIEmbeddingsBaseURL,
-			},
-		},
-	}
+	modelRegistry    = modelprovider.DefaultRegistry()
 )
 
 var contextWindowPatternOAI = regexp.MustCompile(`([0-9][0-9,]*)(?:\s|<!--[^>]*-->)+context window`)
@@ -1604,8 +1584,12 @@ func isProviderDefaultBaseURL(value string) bool {
 		return false
 	}
 
-	for _, providerDef := range modelProviders {
-		for _, baseURL := range providerDef.DefaultBaseURLs {
+	for _, providerID := range modelRegistry.GetProviderIDs() {
+		providerDef, ok := modelRegistry.GetProvider(providerID)
+		if !ok {
+			continue
+		}
+		for _, baseURL := range providerDef.BaseURLs {
 			if value == strings.TrimSpace(baseURL) {
 				return true
 			}
@@ -1626,36 +1610,43 @@ func (c *Config) Normalize() {
 }
 
 func getDefaultBaseURLForProvider(provider, apiMode string) string {
-	provider = strings.TrimSpace(strings.ToLower(provider))
-	apiMode = strings.TrimSpace(strings.ToLower(apiMode))
-	if apiMode == "" {
-		apiMode = constants.DefaultModelAPIModeCompletions
-	}
-
-	providerDef, ok := modelProviders[provider]
+	api, ok := getModelAPIForMode(apiMode)
 	if !ok {
 		return ""
 	}
 
-	u, ok := providerDef.DefaultBaseURLs[apiMode]
+	return modelRegistry.GetBaseURL(provider, api.ID)
+}
+
+func getModelAPIForMode(apiMode string) (modelprovider.APIDefinition, bool) {
+	return modelRegistry.GetRequestModeAPI(apiMode)
+}
+
+func getModelAPIIDForMode(apiMode string) string {
+	api, ok := getModelAPIForMode(apiMode)
 	if !ok {
 		return ""
 	}
 
-	return u
+	return api.ID
+}
+
+func hasGenerationAPIForMode(apiMode string) bool {
+	api, ok := getModelAPIForMode(apiMode)
+	if !ok {
+		return false
+	}
+
+	return api.ID == modelprovider.APIOpenAICompletions || api.ID == modelprovider.APIOpenAIResponses
 }
 
 func hasModelProvider(provider string) bool {
-	provider = strings.TrimSpace(strings.ToLower(provider))
-	_, ok := modelProviders[provider]
+	_, ok := modelRegistry.GetProvider(provider)
 	return ok
 }
 
-func modelProviderList() string {
-	ids := make([]string, 0, len(modelProviders))
-	for id := range modelProviders {
-		ids = append(ids, id)
-	}
+func getModelProviderList() string {
+	ids := modelRegistry.GetProviderIDs()
 	sort.Strings(ids)
 
 	return strings.Join(ids, ", ")
@@ -1897,6 +1888,7 @@ func (c *Config) ResolveSummaryModelAuth() (ModelAuth, error) {
 	prov := c.SummaryProviderEffective()
 	auth := ModelAuth{
 		Provider: prov,
+		API:      getModelAPIIDForMode(c.SummaryModelAPIModeEffective()),
 		BaseURL:  c.summaryModelBaseURLEffective(),
 	}
 
@@ -1908,9 +1900,10 @@ func (c *Config) ResolveSummaryModelAuth() (ModelAuth, error) {
 	return auth, nil
 }
 
-// ModelAuthEqual reports whether two auth values describe the same provider, endpoint, and key.
+// ModelAuthEqual reports whether two auth values describe the same provider, API, endpoint, and key.
 func ModelAuthEqual(a, b ModelAuth) bool {
 	return strings.TrimSpace(strings.ToLower(a.Provider)) == strings.TrimSpace(strings.ToLower(b.Provider)) &&
+		strings.TrimSpace(strings.ToLower(a.API)) == strings.TrimSpace(strings.ToLower(b.API)) &&
 		strings.TrimSpace(a.BaseURL) == strings.TrimSpace(b.BaseURL) &&
 		strings.TrimSpace(a.APIKey) == strings.TrimSpace(b.APIKey)
 }
@@ -2077,12 +2070,12 @@ func (c *Config) Validate() error {
 	}
 
 	if !hasModelProvider(c.Models.Main.Provider) {
-		return fmt.Errorf("model provider must be one of: %s", modelProviderList())
+		return fmt.Errorf("model provider must be one of: %s", getModelProviderList())
 	}
 
 	if c.Models.Summary.Provider != "" {
 		if !hasModelProvider(c.Models.Summary.Provider) {
-			return fmt.Errorf("summary model provider must be one of: %s", modelProviderList())
+			return fmt.Errorf("summary model provider must be one of: %s", getModelProviderList())
 		}
 	}
 
@@ -2120,18 +2113,12 @@ func (c *Config) Validate() error {
 		return errors.New("model max retries must be greater than or equal to zero; use --model.max-retries")
 	}
 
-	switch c.Models.Main.APIMode {
-	case constants.DefaultModelAPIModeCompletions:
-	case "responses":
-	default:
+	if !hasGenerationAPIForMode(c.Models.Main.APIMode) {
 		return errors.New("model api mode must be one of: completions, responses; use --model.api-mode")
 	}
 
 	if c.Models.Summary.APIMode != "" {
-		switch c.Models.Summary.APIMode {
-		case constants.DefaultModelAPIModeCompletions:
-		case "responses":
-		default:
+		if !hasGenerationAPIForMode(c.Models.Summary.APIMode) {
 			return errors.New("summary model api mode must be one of: completions, responses; " +
 				"use --model.summary-api-mode")
 		}
@@ -2251,7 +2238,7 @@ func validatePersonalityConfig(name string, personality PersonalityConfig) error
 	}
 	if personality.Model.Provider != "" {
 		if !hasModelProvider(personality.Model.Provider) {
-			return fmt.Errorf("personalities.%s.model.provider must be one of: %s", name, modelProviderList())
+			return fmt.Errorf("personalities.%s.model.provider must be one of: %s", name, getModelProviderList())
 		}
 	}
 	switch personality.Model.APIMode {
@@ -2269,7 +2256,7 @@ func (c *Config) validateSearchVectorSettings() error {
 	}
 	provider := c.ModelEmbeddingProviderEffective()
 	if !hasModelProvider(provider) {
-		return fmt.Errorf("embedding provider must be one of: %s", modelProviderList())
+		return fmt.Errorf("embedding provider must be one of: %s", getModelProviderList())
 	}
 	if c.Models.Embedding.Name == "" {
 		return errors.New("embedding model is required")
@@ -2383,11 +2370,12 @@ func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
 
 	provider := c.ModelEmbeddingProviderEffective()
 	if !hasModelProvider(provider) {
-		return ModelAuth{}, fmt.Errorf("embedding provider must be one of: %s", modelProviderList())
+		return ModelAuth{}, fmt.Errorf("embedding provider must be one of: %s", getModelProviderList())
 	}
 
 	auth := ModelAuth{
 		Provider: provider,
+		API:      modelprovider.APIOpenAIEmbeddings,
 		BaseURL:  getDefaultBaseURLForProvider(provider, "embeddings"),
 		APIKey:   c.resolveAPIKeyForProvider(provider),
 	}
@@ -2420,6 +2408,7 @@ func (c *Config) ResolveModelAuth() (ModelAuth, error) {
 
 	auth := ModelAuth{
 		Provider: c.Models.Main.Provider,
+		API:      getModelAPIIDForMode(c.Models.Main.APIMode),
 		BaseURL:  c.Models.Main.BaseURL,
 	}
 

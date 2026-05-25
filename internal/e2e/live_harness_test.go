@@ -9,18 +9,28 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openai/openai-go/v3/option"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
+	modelclient "github.com/wandxy/hand/internal/model/client"
+	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
+type liveModelClientFactoryStub struct {
+	newClient func(modelclient.ClientRequest) (models.Client, error)
+}
+
+func (s liveModelClientFactoryStub) NewClient(req modelclient.ClientRequest) (models.Client, error) {
+	return s.newClient(req)
+}
+
 func TestNewLiveClients(t *testing.T) {
-	originalFactory := newLiveModelClient
+	originalFactory := liveModelClientFactoryInstance
 	t.Cleanup(func() {
-		newLiveModelClient = originalFactory
+		liveModelClientFactoryInstance = originalFactory
 	})
 
 	t.Run("requires config", func(t *testing.T) {
@@ -33,16 +43,12 @@ func TestNewLiveClients(t *testing.T) {
 
 	t.Run("reuses main client when auth matches", func(t *testing.T) {
 		retries := 3
-		var calls []struct {
-			key  string
-			opts int
-		}
-		newLiveModelClient = func(key string, opts ...option.RequestOption) (*models.OpenAIClient, error) {
-			calls = append(calls, struct {
-				key  string
-				opts int
-			}{key: key, opts: len(opts)})
-			return &models.OpenAIClient{}, nil
+		var calls []modelclient.ClientRequest
+		liveModelClientFactoryInstance = liveModelClientFactoryStub{
+			newClient: func(req modelclient.ClientRequest) (models.Client, error) {
+				calls = append(calls, req)
+				return &models.OpenAIClient{}, nil
+			},
 		}
 
 		cfg := &config.Config{
@@ -59,16 +65,20 @@ func TestNewLiveClients(t *testing.T) {
 		require.NotNil(t, summaryClient)
 		assert.Same(t, modelClient, summaryClient)
 		require.Len(t, calls, 1)
-		assert.Equal(t, "router-key", calls[0].key)
-		assert.Equal(t, 2, calls[0].opts)
+		assert.Equal(t, modelclient.ModelRoleMain, calls[0].Role)
+		assert.Equal(t, "router-key", calls[0].APIKey)
+		assert.Equal(t, "https://router.example/v1", calls[0].BaseURL)
+		assert.Equal(t, 3, calls[0].MaxRetries)
 	})
 
 	t.Run("builds distinct summary client when auth differs", func(t *testing.T) {
 		retries := 1
-		var keys []string
-		newLiveModelClient = func(key string, _ ...option.RequestOption) (*models.OpenAIClient, error) {
-			keys = append(keys, key)
-			return &models.OpenAIClient{}, nil
+		var calls []modelclient.ClientRequest
+		liveModelClientFactoryInstance = liveModelClientFactoryStub{
+			newClient: func(req modelclient.ClientRequest) (models.Client, error) {
+				calls = append(calls, req)
+				return &models.OpenAIClient{}, nil
+			},
 		}
 
 		cfg := &config.Config{
@@ -86,12 +96,33 @@ func TestNewLiveClients(t *testing.T) {
 		require.NotNil(t, modelClient)
 		require.NotNil(t, summaryClient)
 		assert.NotSame(t, modelClient, summaryClient)
-		assert.Equal(t, []string{"router-key", "openai-key"}, keys)
+		assert.Equal(t, []modelclient.ClientRequest{
+			{
+				Role:       modelclient.ModelRoleMain,
+				Model:      constants.DefaultModel,
+				Provider:   "openrouter",
+				API:        modelprovider.APIOpenAICompletions,
+				APIKey:     "router-key",
+				BaseURL:    constants.DefaultOpenRouterBaseURL,
+				MaxRetries: 1,
+			},
+			{
+				Role:       modelclient.ModelRoleSummary,
+				Model:      constants.DefaultModel,
+				Provider:   "openai",
+				API:        modelprovider.APIOpenAICompletions,
+				APIKey:     "openai-key",
+				BaseURL:    "https://openai.example/v1",
+				MaxRetries: 1,
+			},
+		}, calls)
 	})
 
 	t.Run("returns factory errors", func(t *testing.T) {
-		newLiveModelClient = func(string, ...option.RequestOption) (*models.OpenAIClient, error) {
-			return nil, errors.New("client failed")
+		liveModelClientFactoryInstance = liveModelClientFactoryStub{
+			newClient: func(modelclient.ClientRequest) (models.Client, error) {
+				return nil, errors.New("client failed")
+			},
 		}
 
 		cfg := &config.Config{
@@ -106,7 +137,7 @@ func TestNewLiveClients(t *testing.T) {
 	})
 
 	t.Run("returns main auth error", func(t *testing.T) {
-		newLiveModelClient = originalFactory
+		liveModelClientFactoryInstance = originalFactory
 
 		modelClient, summaryClient, err := NewLiveClients(&config.Config{})
 		require.Error(t, err)
@@ -116,7 +147,7 @@ func TestNewLiveClients(t *testing.T) {
 	})
 
 	t.Run("returns summary auth error", func(t *testing.T) {
-		newLiveModelClient = originalFactory
+		liveModelClientFactoryInstance = originalFactory
 
 		cfg := &config.Config{
 			Models: config.ModelsConfig{
@@ -134,11 +165,13 @@ func TestNewLiveClients(t *testing.T) {
 	})
 
 	t.Run("returns summary client factory error", func(t *testing.T) {
-		newLiveModelClient = func(key string, _ ...option.RequestOption) (*models.OpenAIClient, error) {
-			if key == "openai-key" {
-				return nil, errors.New("summary client failed")
-			}
-			return &models.OpenAIClient{}, nil
+		liveModelClientFactoryInstance = liveModelClientFactoryStub{
+			newClient: func(req modelclient.ClientRequest) (models.Client, error) {
+				if req.APIKey == "openai-key" {
+					return nil, errors.New("summary client failed")
+				}
+				return &models.OpenAIClient{}, nil
+			},
 		}
 
 		retries := 1
@@ -161,19 +194,21 @@ func TestNewLiveClients(t *testing.T) {
 }
 
 func TestNewLiveHarnessAndRPCHarness(t *testing.T) {
-	originalFactory := newLiveModelClient
+	originalFactory := liveModelClientFactoryInstance
 	originalLoad := loadLiveConfig
 	originalNewHarness := newLiveHarness
 	originalNewRPCHarness := newLiveRPCHarness
 	t.Cleanup(func() {
-		newLiveModelClient = originalFactory
+		liveModelClientFactoryInstance = originalFactory
 		loadLiveConfig = originalLoad
 		newLiveHarness = originalNewHarness
 		newLiveRPCHarness = originalNewRPCHarness
 	})
 
-	newLiveModelClient = func(string, ...option.RequestOption) (*models.OpenAIClient, error) {
-		return &models.OpenAIClient{}, nil
+	liveModelClientFactoryInstance = liveModelClientFactoryStub{
+		newClient: func(modelclient.ClientRequest) (models.Client, error) {
+			return &models.OpenAIClient{}, nil
+		},
 	}
 
 	writeConfig := func(t *testing.T) (string, string) {
@@ -292,14 +327,6 @@ storage:
 		_, err := NewLiveRPCHarness(context.Background(), filepath.Join(t.TempDir(), "hand-home"), "", "config.yaml")
 		require.Error(t, err)
 	})
-}
-
-func TestLiveClientOptions(t *testing.T) {
-	opts := getLiveClientOptions("", 2)
-	require.Len(t, opts, 1)
-
-	opts = getLiveClientOptions(" https://example.com/v1 ", 2)
-	require.Len(t, opts, 2)
 }
 
 func TestDefaultLiveArtifactDir(t *testing.T) {

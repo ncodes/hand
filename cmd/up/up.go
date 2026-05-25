@@ -12,7 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/openai/openai-go/v3/option"
 	"github.com/rs/zerolog/log"
 	cli "github.com/urfave/cli/v3"
 	"google.golang.org/grpc"
@@ -21,6 +20,7 @@ import (
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/diagnostics"
+	modelclient "github.com/wandxy/hand/internal/model/client"
 	"github.com/wandxy/hand/internal/profile"
 	"github.com/wandxy/hand/internal/rpc/server"
 	handruntime "github.com/wandxy/hand/internal/runtime"
@@ -83,23 +83,32 @@ var postShutdownServeErrHook = func(err error) error { return err }
 
 var writeRuntimeMetadata = handruntime.WriteActive
 
-type modelClientFactoryFunc func(config.ModelAuth, int) (models.Client, error)
+type modelClientFactoryAPI interface {
+	NewClient(modelclient.ClientRequest) (models.Client, error)
+}
 
-var modelClientFactory modelClientFactoryFunc = newOpenAIModelClient
+var modelClientFactory modelClientFactoryAPI = modelclient.NewDefaultClientFactory()
 
 // resolveSummaryAuth resolves summary model credentials (hooked in tests).
 var resolveSummaryAuth = func(cfg *config.Config) (config.ModelAuth, error) {
 	return cfg.ResolveSummaryModelAuth()
 }
 
-func newOpenAIModelClient(auth config.ModelAuth, maxRetries int) (models.Client, error) {
-	clientOptions := make([]option.RequestOption, 0, 2)
-	if strings.TrimSpace(auth.BaseURL) != "" {
-		clientOptions = append(clientOptions, option.WithBaseURL(auth.BaseURL))
+func modelClientRequest(
+	role modelclient.ModelRole,
+	model string,
+	auth config.ModelAuth,
+	maxRetries int,
+) modelclient.ClientRequest {
+	return modelclient.ClientRequest{
+		Role:       role,
+		Model:      model,
+		Provider:   auth.Provider,
+		API:        auth.API,
+		APIKey:     auth.APIKey,
+		BaseURL:    auth.BaseURL,
+		MaxRetries: maxRetries,
 	}
-	clientOptions = append(clientOptions, option.WithMaxRetries(maxRetries))
-
-	return models.NewOpenAIClient(auth.APIKey, clientOptions...)
 }
 
 func renderStartupPanel(cfg *config.Config) string {
@@ -328,7 +337,14 @@ func NewCommand() *cli.Command {
 			}
 			startupLog.Msg("Starting Hand services")
 
-			modelClient, err := modelClientFactory(auth, cfg.ModelMaxRetriesEffective())
+			modelClient, err := modelClientFactory.NewClient(
+				modelClientRequest(
+					modelclient.ModelRoleMain,
+					cfg.Models.Main.Name,
+					auth,
+					cfg.ModelMaxRetriesEffective(),
+				),
+			)
 			if err != nil {
 				return err
 			}
@@ -342,7 +358,7 @@ func NewCommand() *cli.Command {
 			if config.ModelAuthEqual(auth, summaryAuth) {
 				summaryClient = modelClient
 			} else {
-				summaryClient, err = modelClientFactory(summaryAuth, cfg.ModelMaxRetriesEffective())
+				summaryClient, err = modelClientFactory.NewClient(modelClientRequest(modelclient.ModelRoleSummary, cfg.SummaryModelEffective(), summaryAuth, cfg.ModelMaxRetriesEffective()))
 				if err != nil {
 					return err
 				}

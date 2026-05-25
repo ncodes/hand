@@ -22,10 +22,20 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
+	modelclient "github.com/wandxy/hand/internal/model/client"
+	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	"github.com/wandxy/hand/internal/profile"
 	models "github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/logutils"
 )
+
+type modelClientFactoryStub struct {
+	newClient func(modelclient.ClientRequest) (models.Client, error)
+}
+
+func (s modelClientFactoryStub) NewClient(req modelclient.ClientRequest) (models.Client, error) {
+	return s.newClient(req)
+}
 
 func init() {
 	logutils.SetOutput(io.Discard)
@@ -567,8 +577,10 @@ func TestNewCommand_ReturnsModelClientFactoryError(t *testing.T) {
 	})
 
 	serveRPC = func(context.Context, *config.Config, agentRunner) error { return nil }
-	modelClientFactory = func(config.ModelAuth, int) (models.Client, error) {
-		return nil, errors.New("model factory boom")
+	modelClientFactory = modelClientFactoryStub{
+		newClient: func(modelclient.ClientRequest) (models.Client, error) {
+			return nil, errors.New("model factory boom")
+		},
 	}
 
 	configFile := ""
@@ -633,12 +645,14 @@ func TestNewCommand_ReturnsSecondModelClientFactoryError(t *testing.T) {
 	serveRPC = func(context.Context, *config.Config, agentRunner) error { return nil }
 
 	var n int
-	modelClientFactory = func(auth config.ModelAuth, retries int) (models.Client, error) {
-		n++
-		if n == 1 {
-			return newOpenAIModelClient(auth, retries)
-		}
-		return nil, errors.New("summary client boom")
+	modelClientFactory = modelClientFactoryStub{
+		newClient: func(modelclient.ClientRequest) (models.Client, error) {
+			n++
+			if n == 1 {
+				return &models.OpenAIClient{}, nil
+			}
+			return nil, errors.New("summary client boom")
+		},
 	}
 
 	configFile := ""
@@ -674,11 +688,12 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 		startupOutput = origStartupOutput
 	})
 
-	var calls []config.ModelAuth
-	modelClientFactory = func(auth config.ModelAuth, maxRetries int) (models.Client, error) {
-		calls = append(calls, auth)
-		require.Equal(t, constants.DefaultModelMaxRetries, maxRetries)
-		return &models.OpenAIClient{}, nil
+	var calls []modelclient.ClientRequest
+	modelClientFactory = modelClientFactoryStub{
+		newClient: func(req modelclient.ClientRequest) (models.Client, error) {
+			calls = append(calls, req)
+			return &models.OpenAIClient{}, nil
+		},
 	}
 	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client) agentRunner {
 		return &agentstub.AgentRunnerStub{}
@@ -704,9 +719,25 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 		"up",
 	}))
 
-	require.Equal(t, []config.ModelAuth{
-		{Provider: "openrouter", APIKey: "router-key", BaseURL: serverURL},
-		{Provider: "openai", APIKey: "router-key", BaseURL: "https://openai.example/v1"},
+	require.Equal(t, []modelclient.ClientRequest{
+		{
+			Role:       modelclient.ModelRoleMain,
+			Model:      "openai/gpt-4o-mini",
+			Provider:   "openrouter",
+			API:        modelprovider.APIOpenAICompletions,
+			APIKey:     "router-key",
+			BaseURL:    serverURL,
+			MaxRetries: constants.DefaultModelMaxRetries,
+		},
+		{
+			Role:       modelclient.ModelRoleSummary,
+			Model:      "openai/gpt-4o-mini",
+			Provider:   "openai",
+			API:        modelprovider.APIOpenAICompletions,
+			APIKey:     "router-key",
+			BaseURL:    "https://openai.example/v1",
+			MaxRetries: constants.DefaultModelMaxRetries,
+		},
 	}, calls)
 }
 
