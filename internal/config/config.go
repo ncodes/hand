@@ -68,7 +68,7 @@ type ModelsConfig struct {
 type MainModelConfig struct {
 	Name          string `yaml:"name"`
 	Provider      string `yaml:"provider"`
-	APIMode       string `yaml:"apiMode"`
+	API           string `yaml:"api"`
 	BaseURL       string `yaml:"baseUrl"`
 	ContextLength int    `yaml:"contextLength"`
 	Stream        *bool  `yaml:"stream"`
@@ -78,7 +78,7 @@ type MainModelConfig struct {
 type SummaryModelConfig struct {
 	Name     string `yaml:"name"`
 	Provider string `yaml:"provider"`
-	APIMode  string `yaml:"apiMode"`
+	API      string `yaml:"api"`
 	BaseURL  string `yaml:"baseUrl"`
 }
 
@@ -439,8 +439,8 @@ var DefaultConfig = Config{
 			Provider:      constants.ModelProviderOpenRouter,
 			Stream:        new(constants.DefaultProfileModelStream),
 			ContextLength: constants.DefaultContextLength,
-			APIMode:       constants.DefaultModelAPIModeCompletions,
-			BaseURL:       constants.DefaultOpenRouterBaseURL,
+			API:           modelprovider.APIOpenAIResponses,
+			BaseURL:       constants.DefaultOpenRouterResponsesBaseURL,
 		},
 		Summary: SummaryModelConfig{
 			Name: constants.DefaultProfileSummaryModel,
@@ -929,11 +929,11 @@ func applyEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_SUMMARY_BASE_URL")); value != "" {
 		cfg.Models.Summary.BaseURL = value
 	}
-	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_API_MODE")); value != "" {
-		cfg.Models.Main.APIMode = value
+	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_API")); value != "" {
+		cfg.Models.Main.API = value
 	}
-	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_SUMMARY_API_MODE")); value != "" {
-		cfg.Models.Summary.APIMode = value
+	if value := strings.TrimSpace(os.Getenv("HAND_MODEL_SUMMARY_API")); value != "" {
+		cfg.Models.Summary.API = value
 	}
 	if value := strings.TrimSpace(os.Getenv("HAND_RPC_ADDRESS")); value != "" {
 		cfg.RPC.Address = value
@@ -1319,8 +1319,8 @@ func (c *Config) normalizeFields() {
 	c.Models.Main.BaseURL = strings.TrimSpace(c.Models.Main.BaseURL)
 	c.Models.Summary.Provider = strings.TrimSpace(strings.ToLower(c.Models.Summary.Provider))
 	c.Models.Summary.BaseURL = strings.TrimSpace(c.Models.Summary.BaseURL)
-	c.Models.Main.APIMode = strings.TrimSpace(strings.ToLower(c.Models.Main.APIMode))
-	c.Models.Summary.APIMode = strings.TrimSpace(strings.ToLower(c.Models.Summary.APIMode))
+	c.Models.Main.API = strings.TrimSpace(strings.ToLower(c.Models.Main.API))
+	c.Models.Summary.API = strings.TrimSpace(strings.ToLower(c.Models.Summary.API))
 	c.Log.Level = strings.TrimSpace(strings.ToLower(c.Log.Level))
 	c.Trace.Disk.Dir = strings.TrimSpace(c.Trace.Disk.Dir)
 	c.Web.Provider = strings.TrimSpace(strings.ToLower(c.Web.Provider))
@@ -1367,8 +1367,8 @@ func (c *Config) normalizeFields() {
 		c.Models.Main.Provider = constants.DefaultModelProvider
 	}
 
-	if c.Models.Main.APIMode == "" {
-		c.Models.Main.APIMode = constants.DefaultModelAPIModeCompletions
+	if c.Models.Main.API == "" {
+		c.Models.Main.API = getDefaultAPIForProvider(c.Models.Main.Provider)
 	}
 
 	if c.Log.Level == "" {
@@ -1557,7 +1557,7 @@ func (c *Config) normalizePersonalities() {
 		personality.Tools.Memory = strings.TrimSpace(strings.ToLower(personality.Tools.Memory))
 		personality.Model.Name = strings.TrimSpace(personality.Model.Name)
 		personality.Model.Provider = strings.TrimSpace(strings.ToLower(personality.Model.Provider))
-		personality.Model.APIMode = strings.TrimSpace(strings.ToLower(personality.Model.APIMode))
+		personality.Model.API = strings.TrimSpace(strings.ToLower(personality.Model.API))
 		personality.Model.BaseURL = strings.TrimSpace(personality.Model.BaseURL)
 		normalized[name] = personality
 	}
@@ -1569,7 +1569,7 @@ func (c *Config) applyDefaultModelBaseURL() {
 		return
 	}
 
-	mapped := getDefaultBaseURLForProvider(c.Models.Main.Provider, c.Models.Main.APIMode)
+	mapped := getDefaultBaseURLForProvider(c.Models.Main.Provider, c.Models.Main.API)
 	if mapped == "" {
 		return
 	}
@@ -1609,8 +1609,12 @@ func (c *Config) Normalize() {
 	c.applyDefaultModelBaseURL()
 }
 
-func getDefaultBaseURLForProvider(provider, apiMode string) string {
-	api, ok := getModelAPIForMode(apiMode)
+func getDefaultBaseURLForProvider(provider, apiID string) string {
+	if strings.TrimSpace(apiID) == "" {
+		return modelRegistry.GetBaseURL(provider, "")
+	}
+
+	api, ok := getModelAPI(apiID)
 	if !ok {
 		return ""
 	}
@@ -1618,12 +1622,26 @@ func getDefaultBaseURLForProvider(provider, apiMode string) string {
 	return modelRegistry.GetBaseURL(provider, api.ID)
 }
 
-func getModelAPIForMode(apiMode string) (modelprovider.APIDefinition, bool) {
-	return modelRegistry.GetRequestModeAPI(apiMode)
+func getDefaultAPIForProvider(provider string) string {
+	definition, ok := modelRegistry.GetProvider(provider)
+	if !ok {
+		return ""
+	}
+
+	return definition.DefaultAPI
 }
 
-func getModelAPIIDForMode(apiMode string) string {
-	api, ok := getModelAPIForMode(apiMode)
+func getModelAPI(apiID string) (modelprovider.APIDefinition, bool) {
+	apiID = strings.TrimSpace(strings.ToLower(apiID))
+	if apiID == "" {
+		return modelprovider.APIDefinition{}, false
+	}
+
+	return modelRegistry.GetAPI(apiID)
+}
+
+func getModelAPIID(apiID string) string {
+	api, ok := getModelAPI(apiID)
 	if !ok {
 		return ""
 	}
@@ -1631,8 +1649,8 @@ func getModelAPIIDForMode(apiMode string) string {
 	return api.ID
 }
 
-func hasGenerationAPIForMode(apiMode string) bool {
-	api, ok := getModelAPIForMode(apiMode)
+func hasGenerationAPI(apiID string) bool {
+	api, ok := getModelAPI(apiID)
 	if !ok {
 		return false
 	}
@@ -1739,17 +1757,28 @@ func (c *Config) SummaryProviderEffective() string {
 	return c.Models.Main.Provider
 }
 
-func (c *Config) SummaryModelAPIModeEffective() string {
+// MainModelAPIEffective returns the registry API ID for the main model.
+func (c *Config) MainModelAPIEffective() string {
 	if c == nil {
 		return ""
 	}
 
 	c.normalizeFields()
-	if c.Models.Summary.APIMode != "" {
-		return c.Models.Summary.APIMode
+	return getModelAPIID(c.Models.Main.API)
+}
+
+// SummaryModelAPIEffective returns the registry API ID for the summary model.
+func (c *Config) SummaryModelAPIEffective() string {
+	if c == nil {
+		return ""
 	}
 
-	return c.Models.Main.APIMode
+	c.normalizeFields()
+	if c.Models.Summary.API != "" {
+		return getModelAPIID(c.Models.Summary.API)
+	}
+
+	return getModelAPIID(c.Models.Main.API)
 }
 
 func (c *Config) RerankerEffective() string {
@@ -1864,10 +1893,10 @@ func (c *Config) RerankerOverrideEffective(override RerankerOverrideConfig) Rera
 func (c *Config) summaryModelBaseURLEffective() string {
 	main := c.Models.Main.Provider
 	sum := c.SummaryProviderEffective()
-	sumMode := c.SummaryModelAPIModeEffective()
-	mainMode := c.Models.Main.APIMode
+	sumAPI := c.SummaryModelAPIEffective()
+	mainAPI := c.MainModelAPIEffective()
 
-	if sum == main && sumMode == mainMode {
+	if sum == main && sumAPI == mainAPI {
 		return c.Models.Main.BaseURL
 	}
 
@@ -1875,7 +1904,7 @@ func (c *Config) summaryModelBaseURLEffective() string {
 		return u
 	}
 
-	return getDefaultBaseURLForProvider(sum, sumMode)
+	return getDefaultBaseURLForProvider(sum, sumAPI)
 }
 
 func (c *Config) ResolveSummaryModelAuth() (ModelAuth, error) {
@@ -1888,7 +1917,7 @@ func (c *Config) ResolveSummaryModelAuth() (ModelAuth, error) {
 	prov := c.SummaryProviderEffective()
 	auth := ModelAuth{
 		Provider: prov,
-		API:      getModelAPIIDForMode(c.SummaryModelAPIModeEffective()),
+		API:      getModelAPIID(c.SummaryModelAPIEffective()),
 		BaseURL:  c.summaryModelBaseURLEffective(),
 	}
 
@@ -2113,14 +2142,13 @@ func (c *Config) Validate() error {
 		return errors.New("model max retries must be greater than or equal to zero; use --model.max-retries")
 	}
 
-	if !hasGenerationAPIForMode(c.Models.Main.APIMode) {
-		return errors.New("model api mode must be one of: completions, responses; use --model.api-mode")
+	if !hasGenerationAPI(c.Models.Main.API) {
+		return errors.New("model API must be one of: openai-completions, openai-responses")
 	}
 
-	if c.Models.Summary.APIMode != "" {
-		if !hasGenerationAPIForMode(c.Models.Summary.APIMode) {
-			return errors.New("summary model api mode must be one of: completions, responses; " +
-				"use --model.summary-api-mode")
+	if c.Models.Summary.API != "" {
+		if !hasGenerationAPI(c.Models.Summary.API) {
+			return errors.New("summary model API must be one of: openai-completions, openai-responses")
 		}
 	}
 
@@ -2241,10 +2269,10 @@ func validatePersonalityConfig(name string, personality PersonalityConfig) error
 			return fmt.Errorf("personalities.%s.model.provider must be one of: %s", name, getModelProviderList())
 		}
 	}
-	switch personality.Model.APIMode {
-	case "", constants.DefaultModelAPIModeCompletions, constants.DefaultModelAPIModeResponses:
+	switch personality.Model.API {
+	case "", modelprovider.APIOpenAICompletions, modelprovider.APIOpenAIResponses:
 	default:
-		return fmt.Errorf("personalities.%s.model.apiMode must be one of: completions, responses", name)
+		return fmt.Errorf("personalities.%s.model.api must be one of: openai-completions, openai-responses", name)
 	}
 
 	return nil
@@ -2342,7 +2370,7 @@ func (c *Config) validateEmbeddingModelExists(ctx context.Context, auth ModelAut
 	case "openrouter":
 		meta, err = fetchOpenRouterModelEndpoints(
 			ctx,
-			getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIModeCompletions),
+			getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAICompletions),
 			c.Models.Embedding.Name,
 			auth.APIKey,
 		)
@@ -2376,7 +2404,7 @@ func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
 	auth := ModelAuth{
 		Provider: provider,
 		API:      modelprovider.APIOpenAIEmbeddings,
-		BaseURL:  getDefaultBaseURLForProvider(provider, "embeddings"),
+		BaseURL:  getDefaultBaseURLForProvider(provider, modelprovider.APIOpenAIEmbeddings),
 		APIKey:   c.resolveAPIKeyForProvider(provider),
 	}
 	if strings.TrimSpace(auth.APIKey) == "" {
@@ -2408,7 +2436,7 @@ func (c *Config) ResolveModelAuth() (ModelAuth, error) {
 
 	auth := ModelAuth{
 		Provider: c.Models.Main.Provider,
-		API:      getModelAPIIDForMode(c.Models.Main.APIMode),
+		API:      getModelAPIID(c.Models.Main.API),
 		BaseURL:  c.Models.Main.BaseURL,
 	}
 
@@ -2537,7 +2565,7 @@ func fetchOpenRouterModelMetadata(ctx context.Context, baseURL, model, apiKey st
 
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
-		baseURL = getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIModeCompletions)
+		baseURL = getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAICompletions)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/models", nil)
@@ -2597,7 +2625,7 @@ func fetchOpenRouterModelEndpoints(ctx context.Context, baseURL, model, apiKey s
 
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
-		baseURL = getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIModeCompletions)
+		baseURL = getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAICompletions)
 	}
 
 	req, err := http.NewRequestWithContext(

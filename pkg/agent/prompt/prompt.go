@@ -23,7 +23,7 @@ type EnvironmentInput struct {
 	SummaryModel    string
 	ModelProvider   string
 	SummaryProvider string
-	APIMode         string
+	API             string
 	Platform        string
 	WebProvider     string
 	Capabilities    Capabilities

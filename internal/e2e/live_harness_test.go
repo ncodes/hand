@@ -14,9 +14,10 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
+	models "github.com/wandxy/hand/internal/model"
 	modelclient "github.com/wandxy/hand/internal/model/client"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	models "github.com/wandxy/hand/pkg/agent/model"
+	provider_openai "github.com/wandxy/hand/internal/model/provider_openai"
 )
 
 type liveModelClientFactoryStub struct {
@@ -47,7 +48,7 @@ func TestNewLiveClients(t *testing.T) {
 		liveModelClientFactoryInstance = liveModelClientFactoryStub{
 			newClient: func(req modelclient.ClientRequest) (models.Client, error) {
 				calls = append(calls, req)
-				return &models.OpenAIClient{}, nil
+				return &provider_openai.OpenAIClient{}, nil
 			},
 		}
 
@@ -77,7 +78,7 @@ func TestNewLiveClients(t *testing.T) {
 		liveModelClientFactoryInstance = liveModelClientFactoryStub{
 			newClient: func(req modelclient.ClientRequest) (models.Client, error) {
 				calls = append(calls, req)
-				return &models.OpenAIClient{}, nil
+				return &provider_openai.OpenAIClient{}, nil
 			},
 		}
 
@@ -101,16 +102,16 @@ func TestNewLiveClients(t *testing.T) {
 				Role:       modelclient.ModelRoleMain,
 				Model:      constants.DefaultModel,
 				Provider:   "openrouter",
-				API:        modelprovider.APIOpenAICompletions,
+				API:        modelprovider.APIOpenAIResponses,
 				APIKey:     "router-key",
-				BaseURL:    constants.DefaultOpenRouterBaseURL,
+				BaseURL:    constants.DefaultOpenRouterResponsesBaseURL,
 				MaxRetries: 1,
 			},
 			{
 				Role:       modelclient.ModelRoleSummary,
 				Model:      constants.DefaultModel,
 				Provider:   "openai",
-				API:        modelprovider.APIOpenAICompletions,
+				API:        modelprovider.APIOpenAIResponses,
 				APIKey:     "openai-key",
 				BaseURL:    "https://openai.example/v1",
 				MaxRetries: 1,
@@ -170,7 +171,7 @@ func TestNewLiveClients(t *testing.T) {
 				if req.APIKey == "openai-key" {
 					return nil, errors.New("summary client failed")
 				}
-				return &models.OpenAIClient{}, nil
+				return &provider_openai.OpenAIClient{}, nil
 			},
 		}
 
@@ -207,7 +208,7 @@ func TestNewLiveHarnessAndRPCHarness(t *testing.T) {
 
 	liveModelClientFactoryInstance = liveModelClientFactoryStub{
 		newClient: func(modelclient.ClientRequest) (models.Client, error) {
-			return &models.OpenAIClient{}, nil
+			return &provider_openai.OpenAIClient{}, nil
 		},
 	}
 

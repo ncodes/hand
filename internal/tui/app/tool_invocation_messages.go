@@ -4,9 +4,9 @@ import (
 	"strings"
 	"time"
 
+	models "github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/internal/trace"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 func newToolInvocationStartedMsg(

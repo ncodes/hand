@@ -51,6 +51,7 @@ func TestNewCommand_UsesConfigFileValues(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
+  verify: false
   key: config-key
   main:
     name: openai/gpt-4o-mini
@@ -105,6 +106,7 @@ HAND_LOG_NO_COLOR=false
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
+  verify: false
   key: config-key
   main:
     name: openai/gpt-4o-mini
@@ -179,6 +181,7 @@ func TestNewCommand_DefaultsBaseURLWhenProviderIsImplicit(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
+  verify: false
   key: config-key
   main:
     name: openai/gpt-4o-mini
@@ -199,7 +202,7 @@ storage:
 
 	cfg := config.Get()
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
-	require.Equal(t, "https://openrouter.ai/api/v1", cfg.Models.Main.BaseURL)
+	require.Equal(t, "https://openrouter.ai/api/v1/responses", cfg.Models.Main.BaseURL)
 }
 
 func TestNewCommand_UsesMappedBaseURLWhenProviderSetAndBaseURLUnset(t *testing.T) {
@@ -211,6 +214,7 @@ func TestNewCommand_UsesMappedBaseURLWhenProviderSetAndBaseURLUnset(t *testing.T
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
+  verify: false
   key: config-key
   main:
     name: openai/gpt-4o-mini
@@ -233,7 +237,7 @@ storage:
 
 	cfg := config.Get()
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
-	require.Equal(t, "https://openrouter.ai/api/v1", cfg.Models.Main.BaseURL)
+	require.Equal(t, "https://openrouter.ai/api/v1/responses", cfg.Models.Main.BaseURL)
 }
 
 func TestNewCommand_FlagsOverrideEnvAndConfig(t *testing.T) {
@@ -508,6 +512,7 @@ func TestNewCommand_RunsDoctorCommandExplicitly(t *testing.T) {
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
 		"--model.key", "flag-key",
+		"--models.verify=false",
 		"doctor",
 	})
 	require.NoError(t, err)

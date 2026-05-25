@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	models "github.com/wandxy/hand/internal/model"
 	statecore "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 func TestMemoryProvider_ReflectStoresGeneratedCandidates(t *testing.T) {

@@ -7,22 +7,22 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
+	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	storage "github.com/wandxy/hand/internal/state/core"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
-func TestNewService_LogsWhenSummaryProviderAndAPIModeDifferFromMain(t *testing.T) {
+func TestNewService_LogsWhenSummaryProviderAndAPIDifferFromMain(t *testing.T) {
 	cfg := &config.Config{
 		Name: "t",
 		Models: config.ModelsConfig{
 			Main: config.MainModelConfig{
 				Name:          "openai/gpt-4o-mini",
 				Provider:      "openrouter",
-				APIMode:       constants.DefaultModelAPIModeCompletions,
+				API:           modelprovider.APIOpenAICompletions,
 				ContextLength: 100,
 			},
-			Summary: config.SummaryModelConfig{Provider: "openai", APIMode: "responses"},
+			Summary: config.SummaryModelConfig{Provider: "openai", API: modelprovider.APIOpenAIResponses},
 		},
 	}
 	cfg.Normalize()

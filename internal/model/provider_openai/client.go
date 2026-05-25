@@ -1,0 +1,144 @@
+package provider_openai
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	openai "github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/ssestream"
+	"github.com/openai/openai-go/v3/responses"
+)
+
+// OpenAIClient sends normalized model requests through OpenAI-compatible APIs.
+type OpenAIClient struct {
+	api                  string
+	createChatCompletion func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error)
+	createChatStream     func(context.Context, openai.ChatCompletionNewParams) *ssestream.Stream[openai.ChatCompletionChunk]
+	createResponse       func(context.Context, responses.ResponseNewParams) (*responses.Response, error)
+	createResponseStream func(context.Context, responses.ResponseNewParams) *ssestream.Stream[responses.ResponseStreamEventUnion]
+}
+
+// openAIAPIHandler converts and dispatches one supported OpenAI-compatible API shape.
+type openAIAPIHandler interface {
+	Complete(context.Context, *OpenAIClient, normalizedGenerateRequest, bool, func(StreamDelta)) (*Response, error)
+}
+
+// newOpenAICompletionCaller builds the SDK caller for non-streaming chat completions requests.
+var newOpenAICompletionCaller = func(opts ...option.RequestOption) func(
+	context.Context,
+	openai.ChatCompletionNewParams,
+) (*openai.ChatCompletion, error) {
+	client := openai.NewClient(opts...)
+	return func(ctx context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+		return client.Chat.Completions.New(ctx, params)
+	}
+}
+
+// newOpenAIResponseCaller builds the SDK caller for non-streaming responses requests.
+var newOpenAIResponseCaller = func(opts ...option.RequestOption) func(
+	context.Context,
+	responses.ResponseNewParams,
+) (*responses.Response, error) {
+	client := openai.NewClient(opts...)
+	return func(ctx context.Context, params responses.ResponseNewParams) (*responses.Response, error) {
+		return client.Responses.New(ctx, params)
+	}
+}
+
+// newOpenAICompletionStreamCaller builds the SDK caller for streaming chat completions requests.
+var newOpenAICompletionStreamCaller = func(opts ...option.RequestOption) func(
+	context.Context,
+	openai.ChatCompletionNewParams,
+) *ssestream.Stream[openai.ChatCompletionChunk] {
+	client := openai.NewClient(opts...)
+	return func(ctx context.Context, params openai.ChatCompletionNewParams) *ssestream.Stream[openai.ChatCompletionChunk] {
+		return client.Chat.Completions.NewStreaming(ctx, params)
+	}
+}
+
+// newOpenAIResponseStreamCaller builds the SDK caller for streaming responses requests.
+var newOpenAIResponseStreamCaller = func(opts ...option.RequestOption) func(
+	context.Context,
+	responses.ResponseNewParams,
+) *ssestream.Stream[responses.ResponseStreamEventUnion] {
+	client := openai.NewClient(opts...)
+	return func(ctx context.Context, params responses.ResponseNewParams) *ssestream.Stream[responses.ResponseStreamEventUnion] {
+		return client.Responses.NewStreaming(ctx, params)
+	}
+}
+
+// NewOpenAIClient returns a client configured with the supplied API route, API key, and SDK options.
+func NewOpenAIClient(apiKey, api string, opts ...option.RequestOption) (*OpenAIClient, error) {
+	normalizedAPI, err := normalizeRequestAPI(api)
+	if err != nil {
+		return nil, err
+	}
+
+	clientOptions := make([]option.RequestOption, 0, len(opts)+1)
+	if trimmed := strings.TrimSpace(apiKey); trimmed != "" {
+		clientOptions = append(clientOptions, option.WithAPIKey(trimmed))
+	}
+	clientOptions = append(clientOptions, opts...)
+
+	return &OpenAIClient{
+		api:                  normalizedAPI,
+		createChatCompletion: newOpenAICompletionCaller(clientOptions...),
+		createChatStream:     newOpenAICompletionStreamCaller(clientOptions...),
+		createResponse:       newOpenAIResponseCaller(clientOptions...),
+		createResponseStream: newOpenAIResponseStreamCaller(clientOptions...),
+	}, nil
+}
+
+// Complete sends a request to the configured OpenAI-compatible API and returns the normalized response.
+func (c *OpenAIClient) Complete(ctx context.Context, req Request) (*Response, error) {
+	return c.complete(ctx, req, false, nil)
+}
+
+// CompleteStream sends a streaming request and reports text or reasoning deltas as they arrive.
+func (c *OpenAIClient) CompleteStream(ctx context.Context, req Request, onTextDelta func(StreamDelta)) (*Response, error) {
+	return c.complete(ctx, req, true, onTextDelta)
+}
+
+// complete normalizes a provider-neutral request and routes it to the selected API handler.
+func (c *OpenAIClient) complete(
+	ctx context.Context,
+	req Request,
+	stream bool,
+	onTextDelta func(StreamDelta),
+) (resp *Response, err error) {
+	if c == nil {
+		return nil, errors.New("model client is required")
+	}
+
+	req.API = c.api
+
+	normalizedReq, err := normalizeGenerateRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	logModelClientRequestStarted(normalizedReq, stream)
+
+	defer func() {
+		if err != nil {
+			logModelClientRequestFailed(normalizedReq, stream, err)
+			return
+		}
+		logModelClientRequestCompleted(normalizedReq, stream, resp)
+	}()
+
+	var handler openAIAPIHandler
+	switch c.api {
+	case APIOpenAICompletions:
+		handler = chatCompletionsHandler{}
+	case APIOpenAIResponses:
+		handler = responsesHandler{}
+	default:
+		return nil, fmt.Errorf("model API %q is not supported", normalizedReq.API)
+	}
+
+	return handler.Complete(ctx, c, normalizedReq, stream, onTextDelta)
+}

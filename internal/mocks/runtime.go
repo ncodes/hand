@@ -12,10 +12,10 @@ import (
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
+	models "github.com/wandxy/hand/internal/model"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 // ModelClientStub is a test stub for model client.

@@ -328,7 +328,7 @@ func TestBuildEnvironmentContext_ReturnsNamedInstructionWithRuntimeFacts(t *test
 		SummaryModel:     "openai/gpt-4o-mini",
 		ModelProvider:    "openrouter",
 		SummaryProvider:  "openai",
-		APIMode:          "responses",
+		API:              "openai-responses",
 		WebProvider:      "tavily",
 		SessionID:        "ses_123",
 	})
@@ -350,7 +350,7 @@ func TestBuildEnvironmentContext_ReturnsNamedInstructionWithRuntimeFacts(t *test
 	require.Contains(t, instruction.Value, "- Summary model: openai/gpt-4o-mini")
 	require.Contains(t, instruction.Value, "- Model provider: openrouter")
 	require.Contains(t, instruction.Value, "- Summary model provider: openai")
-	require.Contains(t, instruction.Value, "- API mode: responses")
+	require.Contains(t, instruction.Value, "- API: openai-responses")
 	require.Contains(t, instruction.Value, "- Web provider: tavily")
 	require.Contains(t, instruction.Value, "- Session ID: ses_123")
 }

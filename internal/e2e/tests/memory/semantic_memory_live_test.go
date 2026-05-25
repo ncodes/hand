@@ -11,9 +11,9 @@ import (
 
 	e2e "github.com/wandxy/hand/internal/e2e"
 	livememory "github.com/wandxy/hand/internal/memory"
+	models "github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 func TestLiveSemanticMemoryCreatedByReflectionAndPromotion(t *testing.T) {
@@ -50,7 +50,7 @@ func TestLiveSemanticMemoryCreatedByReflectionAndPromotion(t *testing.T) {
 		StateManager:  manager,
 		ModelClient:   recordingModelClient,
 		Model:         cfg.SummaryModelEffective(),
-		APIMode:       cfg.SummaryModelAPIModeEffective(),
+		API:           cfg.SummaryModelAPIEffective(),
 		DebugRequests: cfg.Debug.Requests,
 		ReflectionBackground: livememory.ReflectionBackgroundOptions{
 			Enabled:      true,

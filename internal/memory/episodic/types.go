@@ -3,9 +3,9 @@ package episodic
 import (
 	"context"
 
+	models "github.com/wandxy/hand/internal/model"
 	storage "github.com/wandxy/hand/internal/state/core"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 // Request configures episodic extraction for a session or bounded message range.
@@ -209,8 +209,8 @@ type LLMExtractorOptions struct {
 	Client models.Client
 	// Model is the model name used for extraction.
 	Model string
-	// APIMode selects the model API mode.
-	APIMode string
+	// API selects the model API.
+	API string
 	// MaxOutputTokens bounds the structured extraction response.
 	MaxOutputTokens int64
 	// DebugRequests enables model request debugging when supported.

@@ -7,9 +7,9 @@ import (
 
 	"github.com/wandxy/hand/internal/agent/context/compaction"
 	"github.com/wandxy/hand/internal/config"
+	models "github.com/wandxy/hand/internal/model"
 	storage "github.com/wandxy/hand/internal/state/core"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 // SummaryStore describes the persisted session operations needed by summary
@@ -34,7 +34,7 @@ type Service struct {
 	provider        string
 	summaryModel    string
 	summaryProvider string
-	apiMode         string
+	api             string
 	debugRequests   bool
 	recentTail      int
 	now             func() time.Time
@@ -76,7 +76,7 @@ func NewService(cfg *config.Config, modelClient, summaryClient models.Client, su
 		service.provider = cfg.Models.Main.Provider
 		service.summaryModel = cfg.SummaryModelEffective()
 		service.summaryProvider = cfg.SummaryProviderEffective()
-		service.apiMode = cfg.SummaryModelAPIModeEffective()
+		service.api = cfg.SummaryModelAPIEffective()
 		service.debugRequests = cfg.Debug.Requests
 	}
 
@@ -90,8 +90,8 @@ func NewService(cfg *config.Config, modelClient, summaryClient models.Client, su
 		logEvent = logEvent.Str("summary_provider", cfg.SummaryProviderEffective())
 	}
 
-	if cfg != nil && cfg.SummaryModelAPIModeEffective() != cfg.Models.Main.APIMode {
-		logEvent = logEvent.Str("summary_api_mode", cfg.SummaryModelAPIModeEffective())
+	if cfg != nil && cfg.SummaryModelAPIEffective() != cfg.MainModelAPIEffective() {
+		logEvent = logEvent.Str("summary_api", cfg.SummaryModelAPIEffective())
 	}
 
 	logEvent.Msg("summary service initialized")

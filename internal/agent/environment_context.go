@@ -10,8 +10,8 @@ import (
 
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
+	models "github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/internal/tools"
-	models "github.com/wandxy/hand/pkg/agent/model"
 	agenttool "github.com/wandxy/hand/pkg/agent/tool"
 )
 
@@ -42,7 +42,7 @@ func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models
 		SessionID:        t.sessionID,
 	}
 
-	// Config provides static runtime facts such as provider, model, API mode,
+	// Config provides static runtime facts such as provider, model, API,
 	// and allowed filesystem roots.
 	if t.cfg != nil {
 		ctx.Platform = t.cfg.Platform
@@ -56,7 +56,7 @@ func (t *Turn) buildEnvironmentContextInstruction(activeToolDefinitions []models
 			summaryProvider != t.cfg.Models.Main.Provider {
 			ctx.SummaryProvider = summaryProvider
 		}
-		ctx.APIMode = t.cfg.Models.Main.APIMode
+		ctx.API = t.cfg.MainModelAPIEffective()
 		ctx.WebProvider = t.cfg.Web.Provider
 	}
 

@@ -15,8 +15,9 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
+	models "github.com/wandxy/hand/internal/model"
+	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
@@ -25,7 +26,6 @@ import (
 	storagememory "github.com/wandxy/hand/internal/state/storememory"
 	storagesqlite "github.com/wandxy/hand/internal/state/storesqlite"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -637,7 +637,7 @@ func TestStoreReranker_SelectsConfiguredReranker(t *testing.T) {
 		{
 			name: search.RerankerLLM,
 			cfg: config.Config{
-				Models:   config.ModelsConfig{Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", APIMode: constants.DefaultModelAPIModeCompletions}},
+				Models:   config.ModelsConfig{Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", API: modelprovider.APIOpenAICompletions}},
 				Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
 				Reranker: config.RerankerConfig{Type: search.RerankerLLM, Model: "openai/gpt-4o-mini", MaxCandidates: 3, MaxCandidateTextChars: 40, MaxOutputTokens: 50},
 			},
@@ -650,8 +650,8 @@ func TestStoreReranker_SelectsConfiguredReranker(t *testing.T) {
 			cfg: config.Config{
 				Models: config.ModelsConfig{
 					Main: config.MainModelConfig{
-						Name:    "openai/gpt-4o-mini",
-						APIMode: constants.DefaultModelAPIModeCompletions,
+						Name: "openai/gpt-4o-mini",
+						API:  modelprovider.APIOpenAICompletions,
 					},
 				},
 				Search: config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},

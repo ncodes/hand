@@ -13,12 +13,12 @@ import (
 	handagent "github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/datadir"
+	models "github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	agentcore "github.com/wandxy/hand/pkg/agent"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 var setHarnessEnv = os.Setenv

@@ -2,7 +2,7 @@ export type TraceSessionSummary = {
   id: string;
   path?: string;
   model?: string;
-  api_mode?: string;
+  api?: string;
   agent_name?: string;
   final_status?: string;
   started_at?: string;

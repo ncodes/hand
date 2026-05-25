@@ -17,10 +17,6 @@ const (
 	ModelProviderOpenRouter = "openrouter"
 	// ModelProviderOpenAI identifies OpenAI-backed model access.
 	ModelProviderOpenAI = "openai"
-	// DefaultModelAPIModeCompletions is the fallback model API mode.
-	DefaultModelAPIModeCompletions = "completions"
-	// DefaultModelAPIModeResponses is the fallback model API mode.
-	DefaultModelAPIModeResponses = "responses"
 	// DefaultOpenRouterBaseURL is the default OpenRouter API base URL.
 	DefaultOpenRouterBaseURL           = "https://openrouter.ai/api/v1"
 	DefaultOpenRouterResponsesBaseURL  = "https://openrouter.ai/api/v1/responses"

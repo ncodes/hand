@@ -4,9 +4,9 @@ import (
 	"time"
 
 	"github.com/wandxy/hand/internal/config"
+	models "github.com/wandxy/hand/internal/model"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 // StateStoreOpener opens the durable state store used by the agent.

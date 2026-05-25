@@ -31,10 +31,10 @@ func stubModelMetadataResolver(t *testing.T, fn func(context.Context, *Config, M
 	})
 }
 
-func stubProviderDefaultBaseURL(t *testing.T, provider string, mode string, value string) {
+func stubProviderDefaultBaseURL(t *testing.T, provider string, apiID string, value string) {
 	t.Helper()
 
-	api, ok := getModelAPIForMode(mode)
+	api, ok := getModelAPI(apiID)
 	require.True(t, ok)
 	originalRegistry := modelRegistry
 	modelRegistry = registryWithProviderBaseURL(t, originalRegistry, provider, api.ID, value)
@@ -53,9 +53,9 @@ func registryWithProviderBaseURL(
 	t.Helper()
 
 	apis := []modelprovider.APIDefinition{
-		{ID: modelprovider.APIOpenAICompletions, RequestMode: constants.DefaultModelAPIModeCompletions},
-		{ID: modelprovider.APIOpenAIResponses, RequestMode: constants.DefaultModelAPIModeResponses},
-		{ID: modelprovider.APIOpenAIEmbeddings, RequestMode: "embeddings"},
+		{ID: modelprovider.APIOpenAICompletions},
+		{ID: modelprovider.APIOpenAIResponses},
+		{ID: modelprovider.APIOpenAIEmbeddings},
 	}
 	providers := make([]modelprovider.ProviderDefinition, 0, len(registry.GetProviderIDs()))
 	matched := false
@@ -81,7 +81,7 @@ func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func TestPreloadEnvFile_LoadsValues(t *testing.T) {
 	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY", "HAND_OPENROUTER_API_KEY",
-		"HAND_MODEL_BASE_URL", "HAND_MODEL_API_MODE", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS", "HAND_LOG_LEVEL",
+		"HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS", "HAND_LOG_LEVEL",
 		"HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS", "HAND_RULES_FILES", "HAND_SESSION_INSTRUCT", "HAND_PLATFORM", "HAND_CAP_FS", "HAND_CAP_NET",
 		"HAND_CAP_EXEC", "HAND_CAP_MEM", "HAND_CAP_BROWSER", "HAND_MEMORY_ENABLED", "HAND_MEMORY_PROVIDER", "HAND_MEMORY_BACKEND",
 		"HAND_MEMORY_PINNED_ENABLED", "HAND_MEMORY_PINNED_MAX_CHARS", "HAND_MEMORY_PINNED_MAX_ITEM_CHARS")
@@ -308,7 +308,7 @@ personalities:
     model:
       name: openai/gpt-4o-mini
       provider: OpenRouter
-      apiMode: Responses
+      api: openai-responses
       baseUrl: " https://models.example "
       stream: false
     maxIterations: 7
@@ -337,7 +337,7 @@ personalities:
 	require.Equal(t, personalityToolMemoryRead, researcher.Tools.Memory)
 	require.Equal(t, "openai/gpt-4o-mini", researcher.Model.Name)
 	require.Equal(t, "openrouter", researcher.Model.Provider)
-	require.Equal(t, "responses", researcher.Model.APIMode)
+	require.Equal(t, "openai-responses", researcher.Model.API)
 	require.Equal(t, "https://models.example", researcher.Model.BaseURL)
 	require.False(t, getBoolValueDefault(researcher.Model.Stream, true))
 	require.Equal(t, 7, researcher.MaxIterations)
@@ -420,7 +420,7 @@ func TestLoad_ReturnsPreloadEnvFileError(t *testing.T) {
 func TestLoad_UsesConfigFileValues(t *testing.T) {
 	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY",
 		"HAND_OPENROUTER_API_KEY",
-		"HAND_MODEL_BASE_URL", "HAND_MODEL_API_MODE", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS",
+		"HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS",
 		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR",
 		"HAND_MODEL_MAX_RETRIES",
 		"HAND_WEB_PROVIDER", "HAND_WEB_API_KEY", "HAND_WEB_BASE_URL", "HAND_WEB_MAX_CHAR_PER_RESULT",
@@ -596,7 +596,7 @@ rules:
 func TestLoad_UsesEnvOverConfigFile(t *testing.T) {
 	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY",
 		"HAND_OPENROUTER_API_KEY",
-		"HAND_MODEL_BASE_URL", "HAND_MODEL_API_MODE", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS",
+		"HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS",
 		"HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR",
 		"HAND_MODEL_MAX_RETRIES",
 		"HAND_WEB_PROVIDER", "HAND_WEB_API_KEY", "HAND_WEB_BASE_URL", "HAND_WEB_MAX_CHAR_PER_RESULT",
@@ -1029,7 +1029,7 @@ func TestFetchOpenAIModelMetadata(t *testing.T) {
 }
 
 func TestLoad_IgnoresInvalidMaxIterationsEnvOverride(t *testing.T) {
-	clearEnvKeys(t, "HAND_SESSION_MAX_ITERATIONS", "HAND_MODEL_API_MODE")
+	clearEnvKeys(t, "HAND_SESSION_MAX_ITERATIONS", "HAND_MODEL_API")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -1059,7 +1059,7 @@ log:
 
 func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
 	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY",
-		"HAND_OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_MODEL_API_MODE", "HAND_MODEL_MAX_RETRIES",
+		"HAND_OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_MODEL_MAX_RETRIES",
 		"HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS")
 
 	cfg, err := Load("", filepath.Join(t.TempDir(), "missing.yaml"))
@@ -1082,7 +1082,7 @@ func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
 
 func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
 	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "HAND_MODEL_KEY", "HAND_OPENAI_API_KEY",
-		"HAND_OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_MODEL_API_MODE", "HAND_MODEL_MAX_RETRIES",
+		"HAND_OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_MODEL_MAX_RETRIES",
 		"HAND_RPC_ADDRESS", "HAND_RPC_PORT", "HAND_SESSION_MAX_ITERATIONS", "HAND_LOG_LEVEL", "HAND_LOG_NO_COLOR", "HAND_DEBUG_REQUESTS")
 
 	dir := t.TempDir()
@@ -1160,7 +1160,7 @@ func TestConfig_ValidateRequiresKey(t *testing.T) {
 	}
 	require.EqualError(t, cfg.Validate(), "model key is required; set HAND_MODEL_KEY, provide it in config, or use --model.key")
 	require.Equal(t, constants.DefaultModelProvider, cfg.Models.Main.Provider)
-	require.Equal(t, getDefaultBaseURLForProvider(constants.DefaultModelProvider, constants.DefaultModelAPIModeCompletions), cfg.Models.Main.BaseURL)
+	require.Equal(t, getDefaultBaseURLForProvider(constants.DefaultModelProvider, modelprovider.APIOpenAIResponses), cfg.Models.Main.BaseURL)
 }
 
 func TestConfig_ValidateNilConfig(t *testing.T) {
@@ -1182,7 +1182,7 @@ func TestConfig_ResolveModelAuthUsesOpenRouterSpecificKey(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "openrouter", auth.Provider)
 	require.Equal(t, "openrouter-key", auth.APIKey)
-	require.Equal(t, getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIModeCompletions), auth.BaseURL)
+	require.Equal(t, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAIResponses), auth.BaseURL)
 }
 
 func TestConfig_ResolveModelAuthUsesOpenAISpecificKey(t *testing.T) {
@@ -1256,7 +1256,7 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 	cfg = &Config{
 		Models: ModelsConfig{
 			OpenRouterAPIKey: "router-key",
-			Main:             MainModelConfig{Provider: "openrouter", APIMode: "responses"},
+			Main:             MainModelConfig{Provider: "openrouter", API: modelprovider.APIOpenAIResponses},
 			Embedding:        EmbeddingModelConfig{Provider: "openrouter"},
 		},
 	}
@@ -1264,7 +1264,7 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 	auth, err = cfg.ResolveEmbeddingModelAuth()
 
 	require.NoError(t, err)
-	require.Equal(t, getDefaultBaseURLForProvider("openrouter", "embeddings"), auth.BaseURL)
+	require.Equal(t, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAIEmbeddings), auth.BaseURL)
 
 	cfg = &Config{
 		Models: ModelsConfig{
@@ -1362,7 +1362,7 @@ func TestConfig_ValidateNormalizesFields(t *testing.T) {
 	require.Equal(t, "openai/test-model", cfg.Models.Main.Name)
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
 	require.Equal(t, "test-key", cfg.Models.Key)
-	require.Equal(t, getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIModeCompletions), cfg.Models.Main.BaseURL)
+	require.Equal(t, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAIResponses), cfg.Models.Main.BaseURL)
 	require.Equal(t, "warn", cfg.Log.Level)
 }
 
@@ -1408,7 +1408,7 @@ func TestConfig_ValidateAcceptsValidPersonalitySettings(t *testing.T) {
 				Model: MainModelConfig{
 					Name:     "openai/gpt-4o-mini",
 					Provider: "OpenAI",
-					APIMode:  "Responses",
+					API:      modelprovider.APIOpenAIResponses,
 				},
 				MaxIterations: 3,
 			},
@@ -1421,7 +1421,7 @@ func TestConfig_ValidateAcceptsValidPersonalitySettings(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 	require.Contains(t, cfg.Personalities, "researcher")
 	require.Equal(t, "openai", cfg.Personalities["researcher"].Model.Provider)
-	require.Equal(t, "responses", cfg.Personalities["researcher"].Model.APIMode)
+	require.Equal(t, modelprovider.APIOpenAIResponses, cfg.Personalities["researcher"].Model.API)
 	require.Equal(t, personalityStateReadonly, cfg.Personalities["reviewer"].State)
 }
 
@@ -1458,8 +1458,8 @@ func TestConfig_ValidatePersonalitySettings(t *testing.T) {
 		},
 		{
 			name:          "invalid model api mode",
-			personality:   PersonalityConfig{Model: MainModelConfig{APIMode: "other"}},
-			expectedError: "personalities.researcher.model.apiMode must be one of: completions, responses",
+			personality:   PersonalityConfig{Model: MainModelConfig{API: "other"}},
+			expectedError: "personalities.researcher.model.api must be one of: openai-completions, openai-responses",
 		},
 	}
 
@@ -1515,7 +1515,7 @@ func TestConfig_ValidateRejectsModelWithEmptyOwnerOrName(t *testing.T) {
 }
 
 func TestConfig_ValidateRejectsUnsupportedProvider(t *testing.T) {
-	openRouterDefault := getDefaultBaseURLForProvider(constants.DefaultModelProvider, constants.DefaultModelAPIModeCompletions)
+	openRouterDefault := getDefaultBaseURLForProvider(constants.DefaultModelProvider, modelprovider.APIOpenAIResponses)
 	err := (&Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
@@ -1605,23 +1605,23 @@ func TestConfig_SummaryProviderEffective(t *testing.T) {
 	require.Equal(t, "openai", cfg.SummaryProviderEffective())
 }
 
-func TestConfig_SummaryModelAPIModeEffective(t *testing.T) {
-	cfg := &Config{Models: ModelsConfig{Main: MainModelConfig{APIMode: "responses"}}}
+func TestConfig_SummaryModelAPIEffective(t *testing.T) {
+	cfg := &Config{Models: ModelsConfig{Main: MainModelConfig{API: modelprovider.APIOpenAIResponses}}}
 	cfg.Normalize()
-	require.Equal(t, "responses", cfg.SummaryModelAPIModeEffective())
+	require.Equal(t, modelprovider.APIOpenAIResponses, cfg.SummaryModelAPIEffective())
 
-	cfg.Models.Summary.APIMode = constants.DefaultModelAPIModeCompletions
+	cfg.Models.Summary.API = modelprovider.APIOpenAICompletions
 	cfg.Normalize()
-	require.Equal(t, constants.DefaultModelAPIModeCompletions, cfg.SummaryModelAPIModeEffective())
+	require.Equal(t, modelprovider.APIOpenAICompletions, cfg.SummaryModelAPIEffective())
 }
 
-func TestConfig_ResolveSummaryModelAuth_UsesSummaryAPIModeForDefaultBaseURL(t *testing.T) {
+func TestConfig_ResolveSummaryModelAuth_UsesSummaryAPIForDefaultBaseURL(t *testing.T) {
 	cfg := &Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
 			Key:     "k",
-			Main:    MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter", APIMode: constants.DefaultModelAPIModeCompletions},
-			Summary: SummaryModelConfig{APIMode: "responses"},
+			Main:    MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter", API: modelprovider.APIOpenAICompletions},
+			Summary: SummaryModelConfig{API: modelprovider.APIOpenAIResponses},
 		},
 	}
 	cfg.Normalize()
@@ -1677,23 +1677,22 @@ func TestConfig_ValidateRejectsInvalidSummaryProvider(t *testing.T) {
 	require.EqualError(t, err, "summary model provider must be one of: openai, openrouter")
 }
 
-func TestConfig_ValidateRejectsInvalidSummaryModelAPIMode(t *testing.T) {
+func TestConfig_ValidateRejectsInvalidSummaryModelAPI(t *testing.T) {
 	err := (&Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
 			Key:     "test-key",
 			Main:    MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
-			Summary: SummaryModelConfig{APIMode: "invalid"},
+			Summary: SummaryModelConfig{API: "invalid"},
 		},
 		RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log: LogConfig{Level: "info"},
 	}).Validate()
 
-	require.EqualError(t, err, "summary model api mode must be one of: completions, responses; "+
-		"use --model.summary-api-mode")
+	require.EqualError(t, err, "summary model API must be one of: openai-completions, openai-responses")
 }
 
-func TestConfig_ValidateAcceptsSummaryModelAPIModeResponses(t *testing.T) {
+func TestConfig_ValidateAcceptsSummaryModelAPIResponses(t *testing.T) {
 	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
 		return ModelMetadata{Exists: true, ContextLength: constants.DefaultContextLength}, nil
 	})
@@ -1704,7 +1703,7 @@ func TestConfig_ValidateAcceptsSummaryModelAPIModeResponses(t *testing.T) {
 			Verify:  new(false),
 			Key:     "test-key",
 			Main:    MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
-			Summary: SummaryModelConfig{APIMode: "responses"},
+			Summary: SummaryModelConfig{API: modelprovider.APIOpenAIResponses},
 		},
 		RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log: LogConfig{Level: "info"},
@@ -1713,7 +1712,7 @@ func TestConfig_ValidateAcceptsSummaryModelAPIModeResponses(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestConfig_ValidateAcceptsSummaryModelAPIModeCompletions(t *testing.T) {
+func TestConfig_ValidateAcceptsSummaryModelAPICompletions(t *testing.T) {
 	stubModelMetadataResolver(t, func(context.Context, *Config, ModelAuth) (ModelMetadata, error) {
 		return ModelMetadata{Exists: true, ContextLength: constants.DefaultContextLength}, nil
 	})
@@ -1724,7 +1723,7 @@ func TestConfig_ValidateAcceptsSummaryModelAPIModeCompletions(t *testing.T) {
 			Verify:  new(false),
 			Key:     "test-key",
 			Main:    MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter"},
-			Summary: SummaryModelConfig{APIMode: constants.DefaultModelAPIModeCompletions},
+			Summary: SummaryModelConfig{API: modelprovider.APIOpenAICompletions},
 		},
 		RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log: LogConfig{Level: "info"},
@@ -1900,7 +1899,7 @@ func TestConfig_NormalizeDefaultsProviderWhenEmpty(t *testing.T) {
 	}
 	cfg.Normalize()
 	require.Equal(t, constants.DefaultModelProvider, cfg.Models.Main.Provider)
-	require.Equal(t, getDefaultBaseURLForProvider(constants.DefaultModelProvider, constants.DefaultModelAPIModeCompletions), cfg.Models.Main.BaseURL)
+	require.Equal(t, getDefaultBaseURLForProvider(constants.DefaultModelProvider, modelprovider.APIOpenAIResponses), cfg.Models.Main.BaseURL)
 }
 
 func TestConfig_NormalizeIgnoresNilReceiver(t *testing.T) {
@@ -1920,7 +1919,7 @@ func TestConfig_NormalizeDefaultsModelAndLogLevel(t *testing.T) {
 	require.True(t, getBoolValue(cfg.Cap.Exec))
 	require.True(t, getBoolValue(cfg.Cap.Memory))
 	require.False(t, getBoolValue(cfg.Cap.Browser))
-	require.Equal(t, getDefaultBaseURLForProvider(constants.DefaultModelProvider, constants.DefaultModelAPIModeCompletions), cfg.Models.Main.BaseURL)
+	require.Equal(t, getDefaultBaseURLForProvider(constants.DefaultModelProvider, modelprovider.APIOpenAIResponses), cfg.Models.Main.BaseURL)
 	require.Equal(t, "127.0.0.1", cfg.RPC.Address)
 	require.Equal(t, 50051, cfg.RPC.Port)
 	require.Equal(t, constants.DefaultMaxIterations, cfg.Session.MaxIterations)
@@ -2022,7 +2021,7 @@ func TestConfig_NormalizeUsesMappedBaseURLWhenProviderWasExplicitlySet(t *testin
 	}
 	cfg.Normalize()
 	require.Equal(t, constants.DefaultModelProvider, cfg.Models.Main.Provider)
-	require.Equal(t, getDefaultBaseURLForProvider(constants.DefaultModelProvider, constants.DefaultModelAPIModeCompletions), cfg.Models.Main.BaseURL)
+	require.Equal(t, getDefaultBaseURLForProvider(constants.DefaultModelProvider, modelprovider.APIOpenAIResponses), cfg.Models.Main.BaseURL)
 }
 
 func TestConfig_NormalizeKeepsOpenaiProvider(t *testing.T) {
@@ -2045,27 +2044,27 @@ func TestConfig_NormalizeRemapsInheritedProviderDefaultBaseURL(t *testing.T) {
 	require.Equal(t, "https://api.openai.com/v1", cfg.Models.Main.BaseURL)
 }
 
-func TestConfig_NormalizeDefaultBaseURLDependsOnAPIMode(t *testing.T) {
+func TestConfig_NormalizeDefaultBaseURLDependsOnAPI(t *testing.T) {
 	t.Run("openai uses api root for completions and responses", func(t *testing.T) {
-		for _, mode := range []string{constants.DefaultModelAPIModeCompletions, "responses"} {
-			cfg := &Config{Models: ModelsConfig{Main: MainModelConfig{Provider: "openai", APIMode: mode}}}
+		for _, mode := range []string{modelprovider.APIOpenAICompletions, modelprovider.APIOpenAIResponses} {
+			cfg := &Config{Models: ModelsConfig{Main: MainModelConfig{Provider: "openai", API: mode}}}
 			cfg.Normalize()
 			require.Equal(t, "https://api.openai.com/v1", cfg.Models.Main.BaseURL, mode)
 		}
 	})
 
 	t.Run("openrouter defaults differ by api mode", func(t *testing.T) {
-		cfgChat := &Config{Models: ModelsConfig{Main: MainModelConfig{Provider: "openrouter", APIMode: constants.DefaultModelAPIModeCompletions}}}
+		cfgChat := &Config{Models: ModelsConfig{Main: MainModelConfig{Provider: "openrouter", API: modelprovider.APIOpenAICompletions}}}
 		cfgChat.Normalize()
 		require.Equal(t, "https://openrouter.ai/api/v1", cfgChat.Models.Main.BaseURL)
 
-		cfgResp := &Config{Models: ModelsConfig{Main: MainModelConfig{Provider: "openrouter", APIMode: "responses"}}}
+		cfgResp := &Config{Models: ModelsConfig{Main: MainModelConfig{Provider: "openrouter", API: modelprovider.APIOpenAIResponses}}}
 		cfgResp.Normalize()
 		require.Equal(t, "https://openrouter.ai/api/v1/responses", cfgResp.Models.Main.BaseURL)
 	})
 
 	t.Run("unknown api mode does not fall back to default base url", func(t *testing.T) {
-		cfg := &Config{Models: ModelsConfig{Main: MainModelConfig{Provider: "openrouter", APIMode: "future-mode"}}}
+		cfg := &Config{Models: ModelsConfig{Main: MainModelConfig{Provider: "openrouter", API: "future-mode"}}}
 		cfg.Normalize()
 		require.Empty(t, cfg.Models.Main.BaseURL)
 	})
@@ -2375,23 +2374,23 @@ func TestApplyEnvOverrides_WebProviderSpecificFallback(t *testing.T) {
 func TestApplyEnvOverrides_SummaryModelAndRelatedEnv(t *testing.T) {
 	clearEnvKeys(t,
 		"HAND_MODEL_SUMMARY", "HAND_MODEL_SUMMARY_PROVIDER", "HAND_MODEL_SUMMARY_BASE_URL",
-		"HAND_MODEL_API_MODE", "HAND_MODEL_SUMMARY_API_MODE",
+		"HAND_MODEL_API", "HAND_MODEL_SUMMARY_API",
 	)
 
 	cfg := &Config{}
 	t.Setenv("HAND_MODEL_SUMMARY", "openai/gpt-4o-mini")
 	t.Setenv("HAND_MODEL_SUMMARY_PROVIDER", "openai")
 	t.Setenv("HAND_MODEL_SUMMARY_BASE_URL", "https://example.com/v1")
-	t.Setenv("HAND_MODEL_API_MODE", "responses")
-	t.Setenv("HAND_MODEL_SUMMARY_API_MODE", "responses")
+	t.Setenv("HAND_MODEL_API", "openai-responses")
+	t.Setenv("HAND_MODEL_SUMMARY_API", "openai-responses")
 
 	applyEnvOverrides(cfg)
 
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Summary.Name)
 	require.Equal(t, "openai", cfg.Models.Summary.Provider)
 	require.Equal(t, "https://example.com/v1", cfg.Models.Summary.BaseURL)
-	require.Equal(t, "responses", cfg.Models.Main.APIMode)
-	require.Equal(t, "responses", cfg.Models.Summary.APIMode)
+	require.Equal(t, "openai-responses", cfg.Models.Main.API)
+	require.Equal(t, "openai-responses", cfg.Models.Summary.API)
 }
 
 func TestNormalizeFields_NilReceiver_NoPanic(t *testing.T) {
@@ -2399,13 +2398,13 @@ func TestNormalizeFields_NilReceiver_NoPanic(t *testing.T) {
 	cfg.normalizeFields()
 }
 
-func TestDefaultBaseURLForProvider_DefaultsEmptyAPIMode(t *testing.T) {
-	require.Equal(t, "https://openrouter.ai/api/v1", getDefaultBaseURLForProvider("openrouter", ""))
-	require.Equal(t, "https://openrouter.ai/api/v1", getDefaultBaseURLForProvider("openrouter", "   "))
-	require.Equal(t, "https://api.openai.com/v1", getDefaultBaseURLForProvider("openai", constants.DefaultModelAPIModeCompletions))
-	require.Equal(t, "https://api.openai.com/v1", getDefaultBaseURLForProvider("openai", "responses"))
-	require.Equal(t, "https://openrouter.ai/api/v1/embeddings", getDefaultBaseURLForProvider("openrouter", "embeddings"))
-	require.Equal(t, "https://api.openai.com/v1/embeddings", getDefaultBaseURLForProvider("openai", "embeddings"))
+func TestDefaultBaseURLForProvider_DefaultsEmptyAPI(t *testing.T) {
+	require.Equal(t, "https://openrouter.ai/api/v1/responses", getDefaultBaseURLForProvider("openrouter", ""))
+	require.Equal(t, "https://openrouter.ai/api/v1/responses", getDefaultBaseURLForProvider("openrouter", "   "))
+	require.Equal(t, "https://api.openai.com/v1", getDefaultBaseURLForProvider("openai", modelprovider.APIOpenAICompletions))
+	require.Equal(t, "https://api.openai.com/v1", getDefaultBaseURLForProvider("openai", modelprovider.APIOpenAIResponses))
+	require.Equal(t, "https://openrouter.ai/api/v1/embeddings", getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAIEmbeddings))
+	require.Equal(t, "https://api.openai.com/v1/embeddings", getDefaultBaseURLForProvider("openai", modelprovider.APIOpenAIEmbeddings))
 }
 
 func TestModelProviders_CoverDayOneProviderBaseURLs(t *testing.T) {
@@ -2419,18 +2418,18 @@ func TestModelProviders_CoverDayOneProviderBaseURLs(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "openrouter", openrouter.ID)
 
-	require.Equal(t, constants.DefaultOpenAIBaseURL, getDefaultBaseURLForProvider("openai", constants.DefaultModelAPIModeCompletions))
-	require.Equal(t, constants.DefaultOpenAIBaseURL, getDefaultBaseURLForProvider("openai", constants.DefaultModelAPIModeResponses))
-	require.Equal(t, constants.DefaultOpenAIEmbeddingsBaseURL, getDefaultBaseURLForProvider("openai", "embeddings"))
-	require.Equal(t, constants.DefaultOpenRouterBaseURL, getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIModeCompletions))
-	require.Equal(t, constants.DefaultOpenRouterResponsesBaseURL, getDefaultBaseURLForProvider("openrouter", constants.DefaultModelAPIModeResponses))
-	require.Equal(t, constants.DefaultOpenRouterEmbeddingsBaseURL, getDefaultBaseURLForProvider("openrouter", "embeddings"))
+	require.Equal(t, constants.DefaultOpenAIBaseURL, getDefaultBaseURLForProvider("openai", modelprovider.APIOpenAICompletions))
+	require.Equal(t, constants.DefaultOpenAIBaseURL, getDefaultBaseURLForProvider("openai", modelprovider.APIOpenAIResponses))
+	require.Equal(t, constants.DefaultOpenAIEmbeddingsBaseURL, getDefaultBaseURLForProvider("openai", modelprovider.APIOpenAIEmbeddings))
+	require.Equal(t, constants.DefaultOpenRouterBaseURL, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAICompletions))
+	require.Equal(t, constants.DefaultOpenRouterResponsesBaseURL, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAIResponses))
+	require.Equal(t, constants.DefaultOpenRouterEmbeddingsBaseURL, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAIEmbeddings))
 }
 
 func TestConfig_ModelSlotsResolveProviderBaseURLsThroughRegistry(t *testing.T) {
-	stubProviderDefaultBaseURL(t, "openrouter", constants.DefaultModelAPIModeCompletions, "https://registry.openrouter.example/v1")
-	stubProviderDefaultBaseURL(t, "openai", constants.DefaultModelAPIModeResponses, "https://registry.openai.example/v1")
-	stubProviderDefaultBaseURL(t, "openrouter", "embeddings", "https://registry.openrouter.example/v1/embeddings")
+	stubProviderDefaultBaseURL(t, "openrouter", modelprovider.APIOpenAICompletions, "https://registry.openrouter.example/v1")
+	stubProviderDefaultBaseURL(t, "openai", modelprovider.APIOpenAIResponses, "https://registry.openai.example/v1")
+	stubProviderDefaultBaseURL(t, "openrouter", modelprovider.APIOpenAIEmbeddings, "https://registry.openrouter.example/v1/embeddings")
 
 	cfg := &Config{
 		Name: "test-agent",
@@ -2439,11 +2438,11 @@ func TestConfig_ModelSlotsResolveProviderBaseURLsThroughRegistry(t *testing.T) {
 			Main: MainModelConfig{
 				Name:     constants.DefaultModel,
 				Provider: "openrouter",
-				APIMode:  constants.DefaultModelAPIModeCompletions,
+				API:      modelprovider.APIOpenAICompletions,
 			},
 			Summary: SummaryModelConfig{
 				Provider: "openai",
-				APIMode:  constants.DefaultModelAPIModeResponses,
+				API:      modelprovider.APIOpenAIResponses,
 			},
 			Embedding: EmbeddingModelConfig{
 				Name:     constants.DefaultProfileEmbeddingModel,
@@ -2490,7 +2489,7 @@ func TestConfig_NilReceiver_StreamAndSummaryHelpers(t *testing.T) {
 	require.True(t, cfg.StreamEnabled())
 	require.Equal(t, "", cfg.SummaryModelEffective())
 	require.Equal(t, "", cfg.SummaryProviderEffective())
-	require.Equal(t, "", cfg.SummaryModelAPIModeEffective())
+	require.Equal(t, "", cfg.SummaryModelAPIEffective())
 
 	_, err := cfg.ResolveSummaryModelAuth()
 	require.EqualError(t, err, "config is required")
@@ -2927,8 +2926,8 @@ func clearEnvKeys(t *testing.T, keys ...string) {
 	}
 }
 
-func TestLoad_UsesModelAPIModeFromConfig(t *testing.T) {
-	clearEnvKeys(t, "HAND_MODEL_API_MODE")
+func TestLoad_UsesModelAPIFromConfig(t *testing.T) {
+	clearEnvKeys(t, "HAND_MODEL_API")
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -2939,7 +2938,7 @@ models:
   main:
     name: config-model
     provider: openai
-    apiMode: responses
+    api: openai-responses
 rpc:
   address: 127.0.0.1
   port: 50051
@@ -2949,16 +2948,16 @@ log:
 
 	cfg, err := Load("", configPath)
 	require.NoError(t, err)
-	require.Equal(t, "responses", cfg.Models.Main.APIMode)
+	require.Equal(t, "openai-responses", cfg.Models.Main.API)
 }
 
-func TestLoad_UsesModelAPIModeFromEnvOverride(t *testing.T) {
-	clearEnvKeys(t, "HAND_MODEL_API_MODE")
+func TestLoad_UsesModelAPIFromEnvOverride(t *testing.T) {
+	clearEnvKeys(t, "HAND_MODEL_API")
 
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
 	configPath := filepath.Join(dir, "config.yaml")
-	require.NoError(t, os.WriteFile(envPath, []byte("HAND_MODEL_API_MODE=responses\n"), 0o600))
+	require.NoError(t, os.WriteFile(envPath, []byte("HAND_MODEL_API=openai-responses\n"), 0o600))
 	require.NoError(t, os.WriteFile(configPath, []byte(`
 name: config-agent
 models:
@@ -2966,7 +2965,7 @@ models:
   main:
     name: config-model
     provider: openai
-    apiMode: completions
+    api: openai-completions
 rpc:
   address: 127.0.0.1
   port: 50051
@@ -2976,22 +2975,22 @@ log:
 
 	cfg, err := Load(envPath, configPath)
 	require.NoError(t, err)
-	require.Equal(t, "responses", cfg.Models.Main.APIMode)
+	require.Equal(t, "openai-responses", cfg.Models.Main.API)
 }
 
-func TestConfig_ValidateRejectsInvalidAPIMode(t *testing.T) {
+func TestConfig_ValidateRejectsInvalidAPI(t *testing.T) {
 	for _, mode := range []string{"invalid", "embeddings"} {
 		t.Run(mode, func(t *testing.T) {
 			err := (&Config{
 				Name: "test-agent",
 				Models: ModelsConfig{
 					Key:  "test-key",
-					Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai", APIMode: mode},
+					Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai", API: mode},
 				},
 				RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
 				Log: LogConfig{Level: "info"},
 			}).Validate()
-			require.EqualError(t, err, "model api mode must be one of: completions, responses; use --model.api-mode")
+			require.EqualError(t, err, "model API must be one of: openai-completions, openai-responses")
 		})
 	}
 }
@@ -3002,7 +3001,7 @@ func TestConfig_ValidateAllowsResponsesModeWithOpenRouter(t *testing.T) {
 		Models: ModelsConfig{
 			Verify: new(false),
 			Key:    "test-key",
-			Main:   MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter", APIMode: "responses"},
+			Main:   MainModelConfig{Name: constants.DefaultModel, Provider: "openrouter", API: modelprovider.APIOpenAIResponses},
 		},
 		RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log: LogConfig{Level: "info"},
@@ -3468,7 +3467,7 @@ func TestConfig_ValidateRejectsInvalidSessionSettings(t *testing.T) {
 		Models: ModelsConfig{
 			Verify: new(false),
 			Key:    "key",
-			Main:   MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", APIMode: constants.DefaultModelAPIModeCompletions},
+			Main:   MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
 		},
 		RPC:     RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Session: SessionConfig{MaxIterations: 1},
@@ -3486,7 +3485,7 @@ func TestConfig_ValidateRejectsInvalidMemoryBackend(t *testing.T) {
 		Models: ModelsConfig{
 			Verify: new(false),
 			Key:    "key",
-			Main:   MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", APIMode: constants.DefaultModelAPIModeCompletions},
+			Main:   MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
 		},
 		RPC:     RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Session: SessionConfig{MaxIterations: 1},
@@ -3505,7 +3504,7 @@ func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {
 		Models: ModelsConfig{
 			Verify:    new(false),
 			Key:       "key",
-			Main:      MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", APIMode: constants.DefaultModelAPIModeCompletions},
+			Main:      MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
 			Embedding: EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"},
 		},
 		RPC:        RPCConfig{Address: "127.0.0.1", Port: 50051},
@@ -3623,14 +3622,14 @@ func TestConfig_ValidateVerifiesEmbeddingModelWithoutContextRequirement(t *testi
 		_, _ = w.Write([]byte(`{"data":[]}`))
 	}))
 	t.Cleanup(server.Close)
-	stubProviderDefaultBaseURL(t, "openrouter", constants.DefaultModelAPIModeCompletions, server.URL)
+	stubProviderDefaultBaseURL(t, "openrouter", modelprovider.APIOpenAICompletions, server.URL)
 
 	cfg := Config{
 		Name: "daemon",
 		Models: ModelsConfig{
 			Verify:    new(true),
 			Key:       "key",
-			Main:      MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", APIMode: constants.DefaultModelAPIModeCompletions},
+			Main:      MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
 			Embedding: EmbeddingModelConfig{Name: "openai/text-embedding-3-small", Provider: "openrouter"},
 		},
 		RPC:        RPCConfig{Address: "127.0.0.1", Port: 50051},
@@ -3656,14 +3655,14 @@ func TestConfig_ValidateRejectsUnknownEmbeddingModel(t *testing.T) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	t.Cleanup(server.Close)
-	stubProviderDefaultBaseURL(t, "openrouter", constants.DefaultModelAPIModeCompletions, server.URL)
+	stubProviderDefaultBaseURL(t, "openrouter", modelprovider.APIOpenAICompletions, server.URL)
 
 	cfg := Config{
 		Name: "daemon",
 		Models: ModelsConfig{
 			Verify:    new(true),
 			Key:       "key",
-			Main:      MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", APIMode: constants.DefaultModelAPIModeCompletions},
+			Main:      MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
 			Embedding: EmbeddingModelConfig{Name: "openai/text-embedding-missing", Provider: "openrouter"},
 		},
 		RPC:        RPCConfig{Address: "127.0.0.1", Port: 50051},
@@ -3728,7 +3727,7 @@ func TestConfig_ValidateRejectsInvalidCompactionSettings(t *testing.T) {
 		Name: "daemon",
 		Models: ModelsConfig{
 			Key:  "key",
-			Main: MainModelConfig{Name: "openai/model", ContextLength: 128000, Provider: "openrouter", BaseURL: "https://example.com", APIMode: constants.DefaultModelAPIModeCompletions},
+			Main: MainModelConfig{Name: "openai/model", ContextLength: 128000, Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
 		},
 		RPC:        RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Session:    SessionConfig{MaxIterations: 1, DefaultIdleExpiry: time.Hour, ArchiveRetention: 24 * time.Hour},
@@ -3753,7 +3752,7 @@ func TestConfig_ValidateRejectsInvalidCompactionRecentSessionTail(t *testing.T) 
 				ContextLength: 128000,
 				Provider:      "openrouter",
 				BaseURL:       "https://example.com",
-				APIMode:       constants.DefaultModelAPIModeCompletions,
+				API:           modelprovider.APIOpenAICompletions,
 			},
 		},
 		RPC:     RPCConfig{Address: "127.0.0.1", Port: 50051},
@@ -3831,12 +3830,12 @@ func TestConfigExamples_YAMLFilesListSupportedConfigPaths(t *testing.T) {
 			requireYAMLKeys(t, content, "main", []string{
 				"name",
 				"provider",
-				"apiMode",
+				"api",
 				"baseUrl",
 				"stream",
 				"contextLength",
 			})
-			requireYAMLKeys(t, content, "summary", []string{"name", "provider", "apiMode", "baseUrl"})
+			requireYAMLKeys(t, content, "summary", []string{"name", "provider", "api", "baseUrl"})
 			requireYAMLKeys(t, content, "embedding", []string{"name", "provider"})
 			requireYAMLKeys(t, content, "rpc", []string{"address", "port"})
 			requireYAMLKeys(t, content, "fs", []string{"roots"})

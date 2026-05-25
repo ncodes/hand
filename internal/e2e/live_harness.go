@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/wandxy/hand/internal/config"
+	models "github.com/wandxy/hand/internal/model"
 	modelclient "github.com/wandxy/hand/internal/model/client"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 type liveModelClientFactory interface {

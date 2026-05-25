@@ -13,11 +13,11 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/mocks"
+	models "github.com/wandxy/hand/internal/model"
 	storage "github.com/wandxy/hand/internal/state/core"
 	storagemock "github.com/wandxy/hand/internal/state/mock"
 	"github.com/wandxy/hand/internal/trace"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 

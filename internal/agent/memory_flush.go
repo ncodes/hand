@@ -8,11 +8,11 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	instruct "github.com/wandxy/hand/internal/instructions"
+	models "github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 	agentcore "github.com/wandxy/hand/pkg/agent"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 const memoryFlushTriggerCompression = "compression"
@@ -165,7 +165,7 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 
 		request := models.Request{
 			Model:           cfg.SummaryModelEffective(),
-			APIMode:         cfg.SummaryModelAPIModeEffective(),
+			API:             cfg.SummaryModelAPIEffective(),
 			Instructions:    instruct.BuildMemoryFlushGuidance(trigger).Value,
 			Messages:        messages,
 			Tools:           flushTools,
@@ -178,7 +178,7 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 			Str("trigger", trigger).
 			Str("session_id", t.sessionID).
 			Str("model", request.Model).
-			Str("mode", request.APIMode).
+			Str("api", request.API).
 			Int("message_count", len(request.Messages)).
 			Int("tool_count", len(request.Tools)).
 			Msg("memory flush model request prepared")

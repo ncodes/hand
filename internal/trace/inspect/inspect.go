@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
+	models "github.com/wandxy/hand/internal/model"
 	storage "github.com/wandxy/hand/internal/state/core"
 	handtrace "github.com/wandxy/hand/internal/trace"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 var (
@@ -40,7 +40,7 @@ type SessionSummary struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 	AgentName   string    `json:"agent_name,omitempty"`
 	Model       string    `json:"model,omitempty"`
-	APIMode     string    `json:"api_mode,omitempty"`
+	API         string    `json:"api,omitempty"`
 	EventCount  int       `json:"event_count"`
 	FinalStatus string    `json:"final_status"`
 	LoadError   string    `json:"load_error,omitempty"`
@@ -152,7 +152,7 @@ type TimelineEvent struct {
 type StartedMetadataView struct {
 	AgentName string `json:"agent_name,omitempty"`
 	Model     string `json:"model,omitempty"`
-	APIMode   string `json:"api_mode,omitempty"`
+	API       string `json:"api,omitempty"`
 	Source    string `json:"source,omitempty"`
 	TraceDir  string `json:"trace_dir,omitempty"`
 }
@@ -166,7 +166,7 @@ type UserMessageView struct {
 type ModelRequestView struct {
 	Sequence        int              `json:"sequence"`
 	Model           string           `json:"model,omitempty"`
-	APIMode         string           `json:"api_mode,omitempty"`
+	API             string           `json:"api,omitempty"`
 	Instructions    string           `json:"instructions,omitempty"`
 	MaxOutputTokens int64            `json:"max_output_tokens"`
 	Temperature     float64          `json:"temperature"`
@@ -523,11 +523,11 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 		if payload, ok := typedPayload.(handtrace.Metadata); payloadOK && ok {
 			detail.Summary.AgentName = payload.AgentName
 			detail.Summary.Model = payload.Model
-			detail.Summary.APIMode = payload.APIMode
+			detail.Summary.API = payload.API
 			timelineEvent.StartedMetadata = &StartedMetadataView{
 				AgentName: payload.AgentName,
 				Model:     payload.Model,
-				APIMode:   payload.APIMode,
+				API:       payload.API,
 				Source:    payload.Source,
 				TraceDir:  payload.TraceDir,
 			}
@@ -546,8 +546,8 @@ func applyEvent(detail *SessionDetail, timelineEvent *TimelineEvent, event rawEv
 			if detail.Summary.Model == "" {
 				detail.Summary.Model = payload.Model
 			}
-			if detail.Summary.APIMode == "" {
-				detail.Summary.APIMode = payload.APIMode
+			if detail.Summary.API == "" {
+				detail.Summary.API = payload.API
 			}
 
 			return
@@ -718,7 +718,7 @@ func buildRequestView(payload models.Request) *ModelRequestView {
 
 	return &ModelRequestView{
 		Model:           payload.Model,
-		APIMode:         payload.APIMode,
+		API:             payload.API,
 		Instructions:    payload.Instructions,
 		MaxOutputTokens: payload.MaxOutputTokens,
 		Temperature:     payload.Temperature,

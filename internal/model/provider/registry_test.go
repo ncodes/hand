@@ -13,24 +13,22 @@ func TestDefaultRegistry_RegistersBuiltInAPIs(t *testing.T) {
 
 	completions, ok := registry.GetAPI(APIOpenAICompletions)
 	require.True(t, ok)
-	require.Equal(t, constants.DefaultModelAPIModeCompletions, completions.RequestMode)
-
-	responses, ok := registry.GetRequestModeAPI(constants.DefaultModelAPIModeResponses)
-	require.True(t, ok)
-	require.Equal(t, APIOpenAIResponses, responses.ID)
-	defaultAPI, ok := registry.GetRequestModeAPI("")
-	require.True(t, ok)
-	require.Equal(t, APIOpenAICompletions, defaultAPI.ID)
+	require.Equal(t, APIOpenAICompletions, completions.ID)
 
 	embeddings, ok := registry.GetAPI(APIOpenAIEmbeddings)
 	require.True(t, ok)
-	require.Equal(t, "embeddings", embeddings.RequestMode)
+	require.Equal(t, APIOpenAIEmbeddings, embeddings.ID)
 
 	require.ElementsMatch(t, []string{
 		APIOpenAICompletions,
 		APIOpenAIResponses,
 		APIOpenAIEmbeddings,
+		APIAnthropicMessages,
 	}, registry.GetAPIIDs())
+
+	anthropic, ok := registry.GetAPI(APIAnthropicMessages)
+	require.True(t, ok)
+	require.Equal(t, APIAnthropicMessages, anthropic.ID)
 }
 
 func TestDefaultRegistry_RegistersBuiltInProviders(t *testing.T) {
@@ -113,8 +111,6 @@ func TestRegistry_NilReceiverLookupsReturnFalse(t *testing.T) {
 
 	_, ok := registry.GetAPI(APIOpenAICompletions)
 	require.False(t, ok)
-	_, ok = registry.GetRequestModeAPI(constants.DefaultModelAPIModeCompletions)
-	require.False(t, ok)
 	_, ok = registry.GetProvider(constants.ModelProviderOpenAI)
 	require.False(t, ok)
 	_, ok = registry.GetModel(constants.ModelProviderOpenAI, constants.DefaultModel)
@@ -129,8 +125,6 @@ func TestRegistry_MissingLookupsReturnFalse(t *testing.T) {
 
 	_, ok := registry.GetAPI("missing")
 	require.False(t, ok)
-	_, ok = registry.GetRequestModeAPI("missing")
-	require.False(t, ok)
 	_, ok = registry.GetProvider("missing")
 	require.False(t, ok)
 	_, ok = registry.GetModel("missing", constants.DefaultModel)
@@ -144,8 +138,8 @@ func TestRegistry_MissingLookupsReturnFalse(t *testing.T) {
 func TestRegistry_NormalizesDefinitionsAndSkipsIncompleteEntries(t *testing.T) {
 	registry := NewRegistry(
 		[]APIDefinition{
-			{ID: " Custom-API ", RequestMode: " Custom-Mode "},
-			{ID: "   ", RequestMode: "ignored"},
+			{ID: " Custom-API "},
+			{ID: "   "},
 		},
 		[]ProviderDefinition{
 			{
@@ -181,9 +175,6 @@ func TestRegistry_NormalizesDefinitionsAndSkipsIncompleteEntries(t *testing.T) {
 	)
 
 	api, ok := registry.GetAPI("custom-api")
-	require.True(t, ok)
-	require.Equal(t, "custom-mode", api.RequestMode)
-	api, ok = registry.GetRequestModeAPI("custom-mode")
 	require.True(t, ok)
 	require.Equal(t, "custom-api", api.ID)
 

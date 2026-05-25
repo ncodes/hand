@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	models "github.com/wandxy/hand/internal/model"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 func TestNewLLMExtractor_ValidatesOptions(t *testing.T) {
@@ -42,7 +42,7 @@ func TestLLMExtractor_ExtractCandidatesUsesStructuredRequestAndParsesResponse(t 
 	extractor, err := NewLLMExtractor(LLMExtractorOptions{
 		Client:          client,
 		Model:           "test-model",
-		APIMode:         models.APIModeResponses,
+		API:             models.APIOpenAIResponses,
 		MaxOutputTokens: 42,
 		DebugRequests:   true,
 	})
@@ -70,7 +70,7 @@ func TestLLMExtractor_ExtractCandidatesUsesStructuredRequestAndParsesResponse(t 
 	require.Equal(t, []candidateRejection{{Kind: "window", Reason: "low_signal_line"}}, result.Rejections)
 	require.Len(t, client.requests, 1)
 	require.Equal(t, "test-model", client.requests[0].Model)
-	require.Equal(t, models.APIModeResponses, client.requests[0].APIMode)
+	require.Equal(t, models.APIOpenAIResponses, client.requests[0].API)
 	require.Equal(t, int64(42), client.requests[0].MaxOutputTokens)
 	require.True(t, client.requests[0].DebugRequests)
 	require.NotNil(t, client.requests[0].StructuredOutput)

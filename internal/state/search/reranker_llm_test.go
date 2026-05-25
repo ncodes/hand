@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	models "github.com/wandxy/hand/pkg/agent/model"
+	models "github.com/wandxy/hand/internal/model"
 )
 
 type llmRerankerModelStub struct {
@@ -67,7 +67,7 @@ func TestLLMReranker_RunsOnlyWhenEnabled(t *testing.T) {
 	reranker := NewLLMReranker(LLMRerankerOptions{
 		Client:          client,
 		Model:           "openai/gpt-4.1-mini",
-		APIMode:         models.APIModeResponses,
+		API:             models.APIOpenAIResponses,
 		MaxCandidates:   2,
 		MaxOutputTokens: 128,
 		Enabled:         true,
@@ -92,7 +92,7 @@ func TestLLMReranker_RunsOnlyWhenEnabled(t *testing.T) {
 	}, result.Items)
 	require.Len(t, client.requests, 1)
 	require.Equal(t, "openai/gpt-4.1-mini", client.requests[0].Model)
-	require.Equal(t, models.APIModeResponses, client.requests[0].APIMode)
+	require.Equal(t, models.APIOpenAIResponses, client.requests[0].API)
 	require.Equal(t, int64(128), client.requests[0].MaxOutputTokens)
 	require.True(t, client.requests[0].DebugRequests)
 	require.NotNil(t, client.requests[0].StructuredOutput)

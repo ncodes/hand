@@ -14,9 +14,9 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	e2e "github.com/wandxy/hand/internal/e2e"
 	instruct "github.com/wandxy/hand/internal/instructions"
+	models "github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/internal/trace"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 

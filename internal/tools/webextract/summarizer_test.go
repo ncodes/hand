@@ -8,9 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
-	"github.com/wandxy/hand/internal/constants"
+	models "github.com/wandxy/hand/internal/model"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 type modelClientStub struct {
@@ -53,7 +52,7 @@ func TestNewExtractSummarizer_UsesSummaryModelEffective(t *testing.T) {
 	modelSummarizer, ok := summarizer.(ExtractSummarizer)
 	require.True(t, ok)
 	require.Equal(t, "openai/gpt-4.1-mini", modelSummarizer.Model)
-	require.Equal(t, constants.DefaultModelAPIModeCompletions, modelSummarizer.APIMode)
+	require.Equal(t, models.APIOpenAIResponses, modelSummarizer.API)
 }
 
 func TestNewExtractSummarizer_FallsBackToMainModel(t *testing.T) {
@@ -86,7 +85,7 @@ func TestExtractSummarizer_SummarizeExtractBuildsModelRequest(t *testing.T) {
 	summarizer := ExtractSummarizer{
 		Client:        client,
 		Model:         "openai/gpt-4o-mini",
-		APIMode:       models.APIModeResponses,
+		API:           models.APIOpenAIResponses,
 		DebugRequests: true,
 	}
 
@@ -102,7 +101,7 @@ func TestExtractSummarizer_SummarizeExtractBuildsModelRequest(t *testing.T) {
 	require.Equal(t, "concise summary", summary)
 	require.Len(t, client.requests, 1)
 	require.Equal(t, "openai/gpt-4o-mini", client.requests[0].Model)
-	require.Equal(t, models.APIModeResponses, client.requests[0].APIMode)
+	require.Equal(t, models.APIOpenAIResponses, client.requests[0].API)
 	require.Contains(t, client.requests[0].Instructions, "# Web Extract Summary")
 	require.Contains(t, client.requests[0].Instructions, "under 500 characters")
 	require.Len(t, client.requests[0].Messages, 1)
@@ -121,9 +120,9 @@ func TestExtractSummarizer_SummarizeExtractChunksAndSynthesizesLargeContent(t *t
 		{OutputText: " final summary "},
 	}}
 	summarizer := ExtractSummarizer{
-		Client:  client,
-		Model:   "openai/gpt-4o-mini",
-		APIMode: models.APIModeResponses,
+		Client: client,
+		Model:  "openai/gpt-4o-mini",
+		API:    models.APIOpenAIResponses,
 	}
 
 	summary, err := summarizer.SummarizeExtract(context.Background(), SummaryInput{

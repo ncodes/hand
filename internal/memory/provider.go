@@ -10,9 +10,9 @@ import (
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/memory/episodic"
 	pinnedmemory "github.com/wandxy/hand/internal/memory/pinned"
+	models "github.com/wandxy/hand/internal/model"
 	statecore "github.com/wandxy/hand/internal/state/core"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 // ProviderDefaultMemory is the package-level provider default memory constant.
@@ -37,7 +37,7 @@ type Options struct {
 	PromotionBackground  PromotionBackgroundOptions
 	ModelClient          models.Client
 	Model                string
-	APIMode              string
+	API                  string
 	DebugRequests        bool
 	ReflectionGenerator  ReflectionGenerator
 	PromotionPolicy      PromotionPolicy
@@ -135,7 +135,7 @@ func NewFromManager(manager StateManager, opts Options) (*MemoryProvider, error)
 		extractor, err := episodic.NewLLMExtractor(episodic.LLMExtractorOptions{
 			Client:        opts.ModelClient,
 			Model:         opts.Model,
-			APIMode:       opts.APIMode,
+			API:           opts.API,
 			DebugRequests: opts.DebugRequests,
 		})
 		if err != nil {
@@ -152,7 +152,7 @@ func NewFromManager(manager StateManager, opts Options) (*MemoryProvider, error)
 			generator, err := NewLLMReflectionGenerator(LLMReflectionGeneratorOptions{
 				Client:        opts.ModelClient,
 				Model:         opts.Model,
-				APIMode:       opts.APIMode,
+				API:           opts.API,
 				DebugRequests: opts.DebugRequests,
 			})
 			if err != nil {

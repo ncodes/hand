@@ -26,7 +26,7 @@ func TestJSONLFactory_OpenSessionCreatesSessionAndWritesEvents(t *testing.T) {
 	dir := t.TempDir()
 	factory := NewFileFactory(dir, guardrails.NewRedactor())
 
-	session := factory.OpenSession(context.Background(), testTraceSessionID, Metadata{AgentName: "hand", Model: "gpt-5.1", APIMode: "responses", Source: "agent"})
+	session := factory.OpenSession(context.Background(), testTraceSessionID, Metadata{AgentName: "hand", Model: "gpt-5.1", API: "openai-responses", Source: "agent"})
 	require.Equal(t, testTraceSessionID, session.ID())
 	session.Record(EvtModelRequest, map[string]any{"authorization": "Bearer secret", "message": "hello"})
 	session.Close()
@@ -66,7 +66,7 @@ func TestMetadataOmitsUnsetLineageTimes(t *testing.T) {
 func TestJSONLFactory_OpenSessionSecondOpenAppendsWithoutDuplicateChatStarted(t *testing.T) {
 	dir := t.TempDir()
 	factory := NewFileFactory(dir, guardrails.NewRedactor())
-	meta := Metadata{AgentName: "hand", Model: "m", APIMode: "responses", Source: "agent"}
+	meta := Metadata{AgentName: "hand", Model: "m", API: "openai-responses", Source: "agent"}
 
 	s1 := factory.OpenSession(context.Background(), testTraceSessionID, meta)
 	s1.Record(EvtModelRequest, map[string]any{"n": 1})

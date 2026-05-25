@@ -18,10 +18,11 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/e2e"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
+	models "github.com/wandxy/hand/internal/model"
 	modelclient "github.com/wandxy/hand/internal/model/client"
+	provider_openai "github.com/wandxy/hand/internal/model/provider_openai"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
-	models "github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -56,7 +57,7 @@ func Test_E2E_UpCommand_BootsAndServesRPC(t *testing.T) {
 	}
 	modelClientFactory = modelClientFactoryStub{
 		newClient: func(modelclient.ClientRequest) (models.Client, error) {
-			return &models.OpenAIClient{}, nil
+			return &provider_openai.OpenAIClient{}, nil
 		},
 	}
 

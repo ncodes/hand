@@ -15,10 +15,10 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	instruct "github.com/wandxy/hand/internal/instructions"
+	models "github.com/wandxy/hand/internal/model"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 // SessionSummaryPlanner selects how forced persisted summaries choose the
@@ -827,7 +827,7 @@ func (s *Service) summarizeRecallWindow(
 
 	resp, err := s.generateSummaryResponse(ctx, models.Request{
 		Model:            s.summaryModel,
-		APIMode:          s.apiMode,
+		API:              s.api,
 		Instructions:     instructions,
 		Messages:         handmsg.CloneMessages(messages),
 		StructuredOutput: summaryStructuredOutput,
@@ -897,7 +897,7 @@ func (s *Service) summarizeOversizedRecallWindow(
 	for idx, chunk := range chunks {
 		resp, err := s.generateSummaryResponse(ctx, models.Request{
 			Model:            s.summaryModel,
-			APIMode:          s.apiMode,
+			API:              s.api,
 			Instructions:     buildRecallChunkTextInstructions(state, windowIndex, windowCount, idx+1, len(chunks)).String(),
 			Messages:         []handmsg.Message{{Role: handmsg.RoleUser, Content: chunk}},
 			StructuredOutput: summaryStructuredOutput,
@@ -1026,7 +1026,7 @@ func (s *Service) synthesizeSummaryStates(
 			// summary records, not original conversation messages.
 			resp, err := s.generateSummaryResponse(ctx, models.Request{
 				Model:        s.summaryModel,
-				APIMode:      s.apiMode,
+				API:          s.api,
 				Instructions: instructions(idx+1, len(batches)).String(),
 				Messages: []handmsg.Message{
 					{Role: handmsg.RoleUser, Content: renderRecallSummaryBatch(batch)},
@@ -1433,7 +1433,7 @@ func (s *Service) refreshSummary(
 
 	request := models.Request{
 		Model:            s.summaryModel,
-		APIMode:          s.apiMode,
+		API:              s.api,
 		Instructions:     instructions.String(),
 		Messages:         summaryMessages,
 		Tools:            nil,
@@ -1551,7 +1551,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 		Str("event", "compaction summary model request started").
 		Str("plan", "request_structured_summary_then_retry_unstructured_if_needed").
 		Str("provider", s.summaryProvider).
-		Str("mode", request.APIMode).
+		Str("api", request.API).
 		Str("model", request.Model).
 		Int("message_count", len(request.Messages)).
 		Bool("structured_output_request", request.StructuredOutput != nil).
@@ -1563,7 +1563,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 		event := summaryLog.Info().
 			Str("event", "compaction summary model request completed").
 			Str("provider", s.summaryProvider).
-			Str("mode", request.APIMode).
+			Str("api", request.API).
 			Str("model", request.Model).
 			Bool("structured_output_request", request.StructuredOutput != nil)
 		if resp != nil {
@@ -1584,7 +1584,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 			Err(err).
 			Str("event", "compaction summary model request failed").
 			Str("provider", s.summaryProvider).
-			Str("mode", request.APIMode).
+			Str("api", request.API).
 			Str("model", request.Model).
 			Str("error_kind", getSummaryModelErrorKind(err)).
 			Bool("structured_output_request", false).
@@ -1596,7 +1596,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 		Err(err).
 		Str("event", "compaction summary structured retry").
 		Str("provider", s.summaryProvider).
-		Str("mode", request.APIMode).
+		Str("api", request.API).
 		Str("model", request.Model).
 		Str("error_kind", getSummaryModelErrorKind(err)).
 		Msg("structured summary request failed, retrying without structured output")
@@ -1606,7 +1606,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 	summaryLog.Info().
 		Str("event", "compaction summary model retry started").
 		Str("provider", s.summaryProvider).
-		Str("mode", fallback.APIMode).
+		Str("api", fallback.API).
 		Str("model", fallback.Model).
 		Int("message_count", len(fallback.Messages)).
 		Bool("structured_output_request", false).
@@ -1619,7 +1619,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 			Err(err).
 			Str("event", "compaction summary model retry failed").
 			Str("provider", s.summaryProvider).
-			Str("mode", fallback.APIMode).
+			Str("api", fallback.API).
 			Str("model", fallback.Model).
 			Str("error_kind", getSummaryModelErrorKind(err)).
 			Bool("structured_output_request", false).
@@ -1630,7 +1630,7 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 	event := summaryLog.Info().
 		Str("event", "compaction summary model request completed").
 		Str("provider", s.summaryProvider).
-		Str("mode", fallback.APIMode).
+		Str("api", fallback.API).
 		Str("model", fallback.Model).
 		Bool("structured_output_request", false)
 	if resp != nil {

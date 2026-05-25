@@ -61,7 +61,7 @@ type Factory interface {
 type Metadata struct {
 	AgentName          string     `json:"agent_name"`
 	Model              string     `json:"model"`
-	APIMode            string     `json:"api_mode"`
+	API                string     `json:"api"`
 	Source             string     `json:"source"`
 	PublicSessionID    string     `json:"public_session_id,omitempty"`
 	EffectiveSessionID string     `json:"effective_session_id,omitempty"`

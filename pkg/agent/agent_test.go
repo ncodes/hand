@@ -6,9 +6,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/pkg/agent"
 	"github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/agent/session"
 	"github.com/wandxy/hand/pkg/agent/tool"
 )
@@ -26,7 +26,7 @@ func TestAgent_RespondCompletesWithPublicDependencies(t *testing.T) {
 
 	core, err := agent.NewAgent(agent.Options{
 		Model:        "test-model",
-		APIMode:      model.APIModeCompletions,
+		API:          model.APIOpenAICompletions,
 		ModelClient:  client,
 		SessionStore: store,
 	})
@@ -72,7 +72,7 @@ func TestAgent_RespondRunsToolLoopWithPublicDependencies(t *testing.T) {
 
 	core, err := agent.New(agent.Options{
 		Model:         "test-model",
-		APIMode:       model.APIModeCompletions,
+		API:           model.APIOpenAICompletions,
 		ModelClient:   client,
 		SessionStore:  store,
 		ToolRegistry:  registry,

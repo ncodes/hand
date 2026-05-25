@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/wandxy/hand/internal/constants"
-	models "github.com/wandxy/hand/pkg/agent/model"
+	models "github.com/wandxy/hand/internal/model"
 )
 
 const (

@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/agent/prompt"
 	"github.com/wandxy/hand/pkg/agent/session"
 	"github.com/wandxy/hand/pkg/agent/tool"
@@ -21,7 +21,7 @@ type Responder interface {
 
 type Options struct {
 	Model          string
-	APIMode        string
+	API            string
 	ModelClient    model.Client
 	SessionStore   session.Store
 	ToolRegistry   tool.Registry
@@ -191,7 +191,7 @@ func (a *Agent) buildRequest(
 
 	return model.Request{
 		Model:         a.opts.Model,
-		APIMode:       a.opts.APIMode,
+		API:           a.opts.API,
 		Instructions:  instructions,
 		Messages:      append(message.CloneMessages(history), emitted...),
 		Tools:         definitions,
@@ -252,7 +252,7 @@ func (a *Agent) buildInstructions(
 			SessionID:   sessionID,
 			ActiveTools: modelToolNames(definitions),
 			Model:       a.opts.Model,
-			APIMode:     a.opts.APIMode,
+			API:         a.opts.API,
 		})
 		if err != nil {
 			return "", err

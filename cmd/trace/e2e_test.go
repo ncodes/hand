@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/e2e"
-	models "github.com/wandxy/hand/pkg/agent/model"
+	models "github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 

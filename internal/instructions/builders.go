@@ -52,7 +52,7 @@ type EnvironmentContext struct {
 	SummaryModel     string
 	ModelProvider    string
 	SummaryProvider  string
-	APIMode          string
+	API              string
 	WebProvider      string
 	SessionID        string
 }
@@ -193,8 +193,8 @@ func BuildEnvironmentContext(ctx EnvironmentContext) Instruction {
 		lines = append(lines, fmt.Sprintf("- Summary model provider: %s", summaryProvider))
 	}
 
-	if apiMode := strings.TrimSpace(ctx.APIMode); apiMode != "" {
-		lines = append(lines, fmt.Sprintf("- API mode: %s", apiMode))
+	if api := strings.TrimSpace(ctx.API); api != "" {
+		lines = append(lines, fmt.Sprintf("- API: %s", api))
 	}
 
 	if webProvider := strings.TrimSpace(ctx.WebProvider); webProvider != "" {

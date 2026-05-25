@@ -20,11 +20,11 @@ import (
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/diagnostics"
+	models "github.com/wandxy/hand/internal/model"
 	modelclient "github.com/wandxy/hand/internal/model/client"
 	"github.com/wandxy/hand/internal/profile"
 	"github.com/wandxy/hand/internal/rpc/server"
 	handruntime "github.com/wandxy/hand/internal/runtime"
-	models "github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -142,8 +142,8 @@ func renderStartupPanel(cfg *config.Config) string {
 		fmt.Sprintf("%s %s", styleLabel("Summary provider", cfg.Log.NoColor), cfg.SummaryProviderEffective()),
 		fmt.Sprintf("%s %s", styleLabel("Storage", cfg.Log.NoColor), getEffectiveStorageBackend(cfg)),
 	}
-	if cfg.SummaryModelAPIModeEffective() != cfg.Models.Main.APIMode {
-		lines = append(lines, fmt.Sprintf("%s %s", styleLabel("Summary API mode", cfg.Log.NoColor), cfg.SummaryModelAPIModeEffective()))
+	if cfg.SummaryModelAPIEffective() != cfg.Models.Main.API {
+		lines = append(lines, fmt.Sprintf("%s %s", styleLabel("Summary API", cfg.Log.NoColor), cfg.SummaryModelAPIEffective()))
 	}
 	lines = append(lines,
 		fmt.Sprintf("%s %t", styleLabel("Streaming", cfg.Log.NoColor), cfg.StreamEnabled()),
@@ -321,7 +321,7 @@ func NewCommand() *cli.Command {
 				if cfg.RerankerEffective() == "llm" {
 					vectorLog = vectorLog.
 						Str("rerankModel", cfg.RerankerModelEffective()).
-						Str("rerankApiMode", cfg.SummaryModelAPIModeEffective())
+						Str("rerankAPI", cfg.SummaryModelAPIEffective())
 				}
 				vectorLog.Msg("Vector retrieval configured")
 			}

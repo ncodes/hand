@@ -14,6 +14,7 @@ import (
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment"
 	"github.com/wandxy/hand/internal/guardrails"
+	models "github.com/wandxy/hand/internal/model"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/state/search"
@@ -22,7 +23,6 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 	agentcore "github.com/wandxy/hand/pkg/agent"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 	pkgcache "github.com/wandxy/hand/pkg/cache"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -141,7 +141,7 @@ func (a *Agent) buildCoreAgent() (*agentcore.Agent, error) {
 
 	return agentcore.NewAgent(agentcore.Options{
 		Model:          a.cfg.Models.Main.Name,
-		APIMode:        a.cfg.Models.Main.APIMode,
+		API:            a.cfg.MainModelAPIEffective(),
 		ModelClient:    a.modelClient,
 		SessionStore:   NewSessionStore(a.stateMgr),
 		ToolRegistry:   NewToolRegistry(a.env, a.invokeToolWithEnvironment),

@@ -18,13 +18,13 @@ import (
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
+	models "github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/tools"
 	"github.com/wandxy/hand/internal/trace"
 	agentcore "github.com/wandxy/hand/pkg/agent"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 	agentprompt "github.com/wandxy/hand/pkg/agent/prompt"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
 	agenttool "github.com/wandxy/hand/pkg/agent/tool"
@@ -555,7 +555,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 			// Build model request and assemble all prompt-side context for completion.
 			request := models.Request{
 				Model:         t.cfg.Models.Main.Name,
-				APIMode:       t.cfg.Models.Main.APIMode,
+				API:           t.cfg.MainModelAPIEffective(),
 				Instructions:  t.buildRequestInstructions(availableToolDefinitions),
 				Messages:      t.Context(),
 				Tools:         availableToolDefinitions,
@@ -578,7 +578,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 				Str("event", "model request dispatch started").
 				Str("plan", "assemble_context_send_model_stream_or_complete_handle_response").
 				Str("provider", t.cfg.Models.Main.Provider).
-				Str("mode", t.cfg.Models.Main.APIMode).
+				Str("api", t.cfg.MainModelAPIEffective()).
 				Str("model", t.cfg.Models.Main.Name).
 				Bool("stream", streamingEnabled).
 				Int("context_messages", len(request.Messages)).
@@ -620,7 +620,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 				agentLog.Warn().
 					Str("event", "model request dispatch failed").
 					Str("provider", t.cfg.Models.Main.Provider).
-					Str("mode", t.cfg.Models.Main.APIMode).
+					Str("api", t.cfg.MainModelAPIEffective()).
 					Str("model", t.cfg.Models.Main.Name).
 					Bool("stream", streamingEnabled).
 					Str("error_kind", getAgentModelErrorKind(err)).
@@ -634,7 +634,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 				agentLog.Warn().
 					Str("event", "model request dispatch failed").
 					Str("provider", t.cfg.Models.Main.Provider).
-					Str("mode", t.cfg.Models.Main.APIMode).
+					Str("api", t.cfg.MainModelAPIEffective()).
 					Str("model", t.cfg.Models.Main.Name).
 					Bool("stream", streamingEnabled).
 					Str("error_kind", "missing_response").
@@ -651,7 +651,7 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 				Str("event", "model response received").
 				Str("relationship", "response_to_current_turn_model_request").
 				Str("provider", t.cfg.Models.Main.Provider).
-				Str("mode", t.cfg.Models.Main.APIMode).
+				Str("api", t.cfg.MainModelAPIEffective()).
 				Str("model", t.cfg.Models.Main.Name).
 				Str("response_model", resp.Model).
 				Bool("stream", streamingEnabled).
@@ -1174,7 +1174,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 
 	request := models.Request{
 		Model:         t.cfg.Models.Main.Name,
-		APIMode:       t.cfg.Models.Main.APIMode,
+		API:           t.cfg.MainModelAPIEffective(),
 		Instructions:  t.buildRequestInstructions(nil, instruct.BuildSummary(budget.Remaining())),
 		Messages:      t.Context(),
 		Tools:         nil,
@@ -1193,7 +1193,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 		Str("event", "summary fallback model request started").
 		Str("plan", "send_summary_fallback_prompt_without_tools").
 		Str("provider", t.cfg.Models.Main.Provider).
-		Str("mode", t.cfg.Models.Main.APIMode).
+		Str("api", t.cfg.MainModelAPIEffective()).
 		Str("model", t.cfg.Models.Main.Name).
 		Int("context_messages", len(request.Messages)).
 		Bool("debug_requests", t.cfg.Debug.Requests).
@@ -1206,7 +1206,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 			Str("event", "summary fallback model request failed").
 			Str("session_id", t.sessionID).
 			Str("provider", t.cfg.Models.Main.Provider).
-			Str("mode", t.cfg.Models.Main.APIMode).
+			Str("api", t.cfg.MainModelAPIEffective()).
 			Str("model", t.cfg.Models.Main.Name).
 			Str("error_kind", getAgentModelErrorKind(err)).
 			Msg("summary fallback model request failed")
@@ -1221,7 +1221,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 			Str("event", "summary fallback model request failed").
 			Str("session_id", t.sessionID).
 			Str("provider", t.cfg.Models.Main.Provider).
-			Str("mode", t.cfg.Models.Main.APIMode).
+			Str("api", t.cfg.MainModelAPIEffective()).
 			Str("model", t.cfg.Models.Main.Name).
 			Str("error_kind", "missing_response").
 			Msg("summary fallback model request failed")
@@ -1233,7 +1233,7 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 	agentLog.Info().
 		Str("event", "summary fallback model response received").
 		Str("provider", t.cfg.Models.Main.Provider).
-		Str("mode", t.cfg.Models.Main.APIMode).
+		Str("api", t.cfg.MainModelAPIEffective()).
 		Str("model", t.cfg.Models.Main.Name).
 		Str("response_model", resp.Model).
 		Int("prompt_tokens", resp.PromptTokens).

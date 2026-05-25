@@ -17,10 +17,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	models "github.com/wandxy/hand/internal/model"
 	storage "github.com/wandxy/hand/internal/state/core"
 	handtrace "github.com/wandxy/hand/internal/trace"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
@@ -33,7 +33,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			Payload: handtrace.Metadata{
 				AgentName: "Daemon",
 				Model:     "qwen/qwen3.5-27b",
-				APIMode:   "completions",
+				API:       "openai-completions",
 				Source:    "agent",
 				TraceDir:  ".hand/traces",
 			},
@@ -50,7 +50,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 38, 171759000, time.UTC),
 			Payload: models.Request{
 				Model:        "qwen/qwen3.5-27b",
-				APIMode:      "completions",
+				API:          "openai-completions",
 				Instructions: "Daemon is the user's personal agent.",
 				Messages: []handmsg.Message{
 					{
@@ -81,7 +81,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			Timestamp: time.Date(2026, 3, 29, 0, 27, 45, 171759000, time.UTC),
 			Payload: models.Request{
 				Model:       "qwen/qwen3.5-27b",
-				APIMode:     "completions",
+				API:         "openai-completions",
 				Messages:    []handmsg.Message{{Role: handmsg.RoleTool, Content: `{"entries":[]}`}},
 				Temperature: 0,
 			},
@@ -130,7 +130,7 @@ func Test_Store_ListSessions_BuildsSummariesAndDetail(t *testing.T) {
 			Payload: handtrace.Metadata{
 				AgentName: "Daemon",
 				Model:     "qwen/qwen3.5-27b",
-				APIMode:   "completions",
+				API:       "openai-completions",
 				Source:    "agent",
 			},
 		},
@@ -247,7 +247,7 @@ func Test_Store_GetSession_DecodesWorkspaceRulesTruncatedEvent(t *testing.T) {
 			Payload: handtrace.Metadata{
 				AgentName: "Daemon",
 				Model:     "openai/gpt-4o-mini",
-				APIMode:   "responses",
+				API:       "openai-responses",
 				Source:    "agent",
 			},
 		},
@@ -281,7 +281,7 @@ func Test_Store_GetSession_DecodesPlanEvents(t *testing.T) {
 			SessionID: "plan",
 			Type:      handtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 4, 7, 0, 0, 0, 0, time.UTC),
-			Payload:   handtrace.Metadata{AgentName: "Daemon", Model: "test-model", APIMode: "responses"},
+			Payload:   handtrace.Metadata{AgentName: "Daemon", Model: "test-model", API: "openai-responses"},
 		},
 		handtrace.Event{
 			SessionID: "plan",
@@ -572,7 +572,7 @@ func Test_App_Handler_ServesIndexAndSessionEndpoints(t *testing.T) {
 			Payload: handtrace.Metadata{
 				AgentName: "Daemon",
 				Model:     "model",
-				APIMode:   "completions",
+				API:       "openai-completions",
 			},
 		},
 	})
@@ -617,7 +617,7 @@ func Test_App_Handler_RequiresBasicAuthWhenConfigured(t *testing.T) {
 			Payload: handtrace.Metadata{
 				AgentName: "Daemon",
 				Model:     "model",
-				APIMode:   "completions",
+				API:       "openai-completions",
 			},
 		},
 	})
@@ -647,7 +647,7 @@ func Test_App_Handler_AttachesProviderMemoriesForSession(t *testing.T) {
 			SessionID: "session",
 			Type:      handtrace.EvtChatStarted,
 			Timestamp: time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
-			Payload:   handtrace.Metadata{AgentName: "Daemon", Model: "model", APIMode: "completions"},
+			Payload:   handtrace.Metadata{AgentName: "Daemon", Model: "model", API: "openai-completions"},
 		},
 	})
 
@@ -1013,15 +1013,15 @@ func Test_ApplyEvent_PreservesSummaryAndFallsBackToGenericPayload(t *testing.T) 
 	detail := SessionDetail{
 		Summary: SessionSummary{
 			Model:       "existing-model",
-			APIMode:     "responses",
+			API:         "openai-responses",
 			FinalStatus: "incomplete",
 		},
 	}
 	timelineEvent := TimelineEvent{}
 
 	requestPayload, err := json.Marshal(models.Request{
-		Model:   "new-model",
-		APIMode: "completions",
+		Model: "new-model",
+		API:   "openai-completions",
 	})
 	require.NoError(t, err)
 
@@ -1030,7 +1030,7 @@ func Test_ApplyEvent_PreservesSummaryAndFallsBackToGenericPayload(t *testing.T) 
 		Payload: requestPayload,
 	})
 	require.Equal(t, "existing-model", detail.Summary.Model)
-	require.Equal(t, "responses", detail.Summary.APIMode)
+	require.Equal(t, "openai-responses", detail.Summary.API)
 	require.NotNil(t, timelineEvent.ModelRequest)
 
 	timelineEvent = TimelineEvent{}
@@ -1048,7 +1048,7 @@ func Test_ApplyEvent_PreservesSummaryAndFallsBackToGenericPayload(t *testing.T) 
 		Payload: requestPayload,
 	})
 	require.Equal(t, "new-model", detail.Summary.Model)
-	require.Equal(t, "completions", detail.Summary.APIMode)
+	require.Equal(t, "openai-completions", detail.Summary.API)
 }
 
 func Test_App_Handler_HandleSessionPermissionAndInternalErrors(t *testing.T) {

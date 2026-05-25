@@ -3,8 +3,8 @@ package agent
 import (
 	"github.com/wandxy/hand/internal/agent/context/compaction"
 	"github.com/wandxy/hand/internal/config"
+	models "github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/internal/trace"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 // isCompactionEnabled reports whether context budget traces should consider compaction.

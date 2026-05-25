@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
+	models "github.com/wandxy/hand/internal/model"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 // SessionFailedPayload is the trace payload for session failed.

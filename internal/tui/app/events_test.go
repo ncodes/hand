@@ -8,11 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/guardrails"
+	models "github.com/wandxy/hand/internal/model"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	"github.com/wandxy/hand/internal/trace"
 	agent "github.com/wandxy/hand/pkg/agent"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 func TestAgentEventToTUIMessage_ConvertsAssistantDelta(t *testing.T) {

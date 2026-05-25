@@ -8,9 +8,9 @@ import (
 
 	"github.com/wandxy/hand/internal/environment"
 	"github.com/wandxy/hand/internal/mocks"
+	models "github.com/wandxy/hand/internal/model"
 	handtools "github.com/wandxy/hand/internal/tools"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 	agenttool "github.com/wandxy/hand/pkg/agent/tool"
 )
 

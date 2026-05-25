@@ -18,6 +18,7 @@ import (
 	"github.com/wandxy/hand/internal/memory"
 	memguardrails "github.com/wandxy/hand/internal/memory/guardrails"
 	memoryobservability "github.com/wandxy/hand/internal/memory/observability"
+	models "github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/internal/personality"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
@@ -40,7 +41,6 @@ import (
 	"github.com/wandxy/hand/internal/tools/writefile"
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/internal/workspace"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 var (
@@ -226,7 +226,7 @@ func (e *environment) prepareMemory() error {
 		MemoryBackend:  e.cfg.Memory.Backend,
 		ModelClient:    e.modelClient,
 		Model:          e.cfg.SummaryModelEffective(),
-		APIMode:        e.cfg.SummaryModelAPIModeEffective(),
+		API:            e.cfg.SummaryModelAPIEffective(),
 		DebugRequests:  e.cfg.Debug.Requests,
 		Pinned: memory.PinnedOptions{
 			Enabled:      e.cfg.Memory.Pinned.Enabled,
@@ -509,7 +509,7 @@ func (e *environment) NewTraceSession(sessionID string) trace.Session {
 	if e.cfg != nil {
 		metadata.AgentName = e.cfg.Name
 		metadata.Model = e.cfg.Models.Main.Name
-		metadata.APIMode = e.cfg.Models.Main.APIMode
+		metadata.API = e.cfg.Models.Main.API
 	}
 	metadata.PublicSessionID = sessionID
 	metadata.EffectiveSessionID = sessionID
@@ -530,7 +530,7 @@ func (e *environment) NewTraceSessionForRun(runCtx runcontext.Context) trace.Ses
 	if e.cfg != nil {
 		metadata.AgentName = e.cfg.Name
 		metadata.Model = e.cfg.Models.Main.Name
-		metadata.APIMode = e.cfg.Models.Main.APIMode
+		metadata.API = e.cfg.Models.Main.API
 	}
 	metadata.PublicSessionID = runCtx.Session.PublicID
 	metadata.EffectiveSessionID = runCtx.Session.EffectiveID

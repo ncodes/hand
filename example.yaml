@@ -10,14 +10,14 @@
 #   main:
 #     name: "openai/gpt-4o-mini"
 #     provider: "openrouter"
-#     apiMode: "completions"
-#     baseUrl: "https://openrouter.ai/api/v1"
+#     api: "openai-responses"
+#     baseUrl: "https://openrouter.ai/api/v1/responses"
 #     stream: true
 #     contextLength: 128000
 #   summary:
 #     name: "anthropic/claude-3.5-haiku"
 #     provider: "openai"
-#     apiMode: "responses"
+#     api: "openai-responses"
 #     baseUrl: "https://api.openai.com/v1"
 #   embedding:
 #     name: ""

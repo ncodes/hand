@@ -25,6 +25,8 @@ import (
 	"github.com/wandxy/hand/internal/guardrails"
 	instruct "github.com/wandxy/hand/internal/instructions"
 	"github.com/wandxy/hand/internal/memory"
+	models "github.com/wandxy/hand/internal/model"
+	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	"github.com/wandxy/hand/internal/personality"
 	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
@@ -35,7 +37,6 @@ import (
 	"github.com/wandxy/hand/internal/trace"
 	"github.com/wandxy/hand/internal/workspace"
 	messages "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/nanoid"
 )
 
@@ -1861,7 +1862,7 @@ func TestNewEnvironment_ConfiguresTraceFactoryWhenEnabled(t *testing.T) {
 	manager := newTestStateManager(t)
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:   "Test Agent",
-		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", APIMode: "responses"}},
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", API: modelprovider.APIOpenAIResponses}},
 		Trace:  config.TraceConfig{Enabled: true, Disk: config.TraceDiskConfig{Dir: dir}},
 	})
 	env.SetStateManager(manager)
@@ -1918,7 +1919,7 @@ func TestEnvironment_NewTraceSessionRecordsWorkspaceRuleTruncation(t *testing.T)
 	dir := t.TempDir()
 	cfg := &config.Config{
 		Name:   "Test Agent",
-		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", APIMode: "responses"}},
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", API: modelprovider.APIOpenAIResponses}},
 		Trace:  config.TraceConfig{Enabled: true, Disk: config.TraceDiskConfig{Dir: dir}},
 	}
 	env := NewEnvironment(gctx.Background(), cfg)
@@ -1958,7 +1959,7 @@ func TestEnvironment_NewTraceSessionForRunRecordsLineageMetadata(t *testing.T) {
 	manager := newTestStateManager(t)
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:   "Test Agent",
-		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", APIMode: "responses"}},
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", API: modelprovider.APIOpenAIResponses}},
 		Trace:  config.TraceConfig{Enabled: true, Disk: config.TraceDiskConfig{Dir: dir}},
 	})
 	env.SetStateManager(manager)
@@ -2038,7 +2039,7 @@ func TestEnvironment_NewTraceSessionWritesDiskAndDatabaseSinksByDefault(t *testi
 	manager := newTestStateManager(t)
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:   "Test Agent",
-		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", APIMode: "responses"}},
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", API: modelprovider.APIOpenAIResponses}},
 		Trace:  config.TraceConfig{Enabled: true, Disk: config.TraceDiskConfig{Dir: dir}},
 	})
 	env.SetStateManager(manager)
@@ -2065,7 +2066,7 @@ func TestEnvironment_NewTraceSessionCanDisableDiskSink(t *testing.T) {
 	manager := newTestStateManager(t)
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:   "Test Agent",
-		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", APIMode: "responses"}},
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", API: modelprovider.APIOpenAIResponses}},
 		Trace: config.TraceConfig{
 			Enabled: true,
 			Disk: config.TraceDiskConfig{
@@ -2098,7 +2099,7 @@ func TestEnvironment_NewTraceSessionCanDisableDatabaseSink(t *testing.T) {
 	manager := newTestStateManager(t)
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:   "Test Agent",
-		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", APIMode: "responses"}},
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-5.1", API: modelprovider.APIOpenAIResponses}},
 		Trace: config.TraceConfig{
 			Enabled:  true,
 			Disk:     config.TraceDiskConfig{Dir: dir},

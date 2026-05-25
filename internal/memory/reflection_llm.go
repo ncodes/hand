@@ -7,8 +7,8 @@ import (
 	"maps"
 	"strings"
 
+	models "github.com/wandxy/hand/internal/model"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 const defaultReflectionMaxOutputTokens int64 = 1600
@@ -19,7 +19,7 @@ const defaultReflectionMaxOutputTokens int64 = 1600
 type LLMReflectionGeneratorOptions struct {
 	Client          models.Client
 	Model           string
-	APIMode         string
+	API             string
 	MaxOutputTokens int64
 	DebugRequests   bool
 }
@@ -58,7 +58,7 @@ func (g *LLMReflectionGenerator) GenerateReflectionCandidates(
 	payload, _ := json.Marshal(reflectionGenerationRequestToModelPayload(req))
 	resp, err := g.options.Client.Complete(ctx, models.Request{
 		Model:            g.options.Model,
-		APIMode:          g.options.APIMode,
+		API:              g.options.API,
 		Instructions:     getReflectionInstructions(),
 		Messages:         []handmsg.Message{{Role: handmsg.RoleUser, Content: string(payload)}},
 		StructuredOutput: getReflectionStructuredOutput(),

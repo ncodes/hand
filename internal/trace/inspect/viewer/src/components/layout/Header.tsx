@@ -34,7 +34,7 @@ export function Header({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={summary?.final_status} />
-            <span className="rounded-full border border-violet-300/20 bg-violet-300/10 px-2.5 py-1 text-xs font-medium text-violet-200">{summary?.api_mode || "api unknown"}</span>
+            <span className="rounded-full border border-violet-300/20 bg-violet-300/10 px-2.5 py-1 text-xs font-medium text-violet-200">{summary?.api || "api unknown"}</span>
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-stone-300">{summary?.agent_name || "agent unknown"}</span>
           </div>
           <h2 className="mt-3 truncate text-2xl font-semibold tracking-tight">{summary?.id || "Select a trace session"}</h2>

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
+	models "github.com/wandxy/hand/internal/model"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 // RequestAssert validates a scripted model request in e2e tests.

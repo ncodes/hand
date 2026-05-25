@@ -53,8 +53,8 @@ Config file values:
 - `model.key`
 - `model.baseUrl`
 - `model.summaryBaseUrl`
-- `model.apiMode`
-- `model.summaryApiMode`
+- `model.api`
+- `model.summaryApi`
 - `model.stream`
 - `rpc.address`
 - `rpc.port`
@@ -75,8 +75,8 @@ Env equivalents:
 - `HAND_OPENROUTER_API_KEY`
 - `HAND_MODEL_BASE_URL`
 - `HAND_MODEL_SUMMARY_BASE_URL`
-- `HAND_MODEL_API_MODE`
-- `HAND_MODEL_SUMMARY_API_MODE`
+- `HAND_MODEL_API`
+- `HAND_MODEL_SUMMARY_API`
 - `HAND_MODEL_STREAM`
 - `HAND_RPC_ADDRESS`
 - `HAND_RPC_PORT`
@@ -107,8 +107,8 @@ Typical model settings:
 - `model.openrouterApiKey`: provider-specific OpenRouter API key
 - `model.baseUrl`: explicit provider base URL when needed
 - `model.summaryBaseUrl`: base URL for the summary provider when it differs from the main provider (optional)
-- `model.apiMode`: `completions` or `responses` for chat requests
-- `model.summaryApiMode`: optional; same values as `model.apiMode`, used for compaction/summary; defaults to `model.apiMode` when unset. When the effective summary mode or provider differs from the main chat settings, the summary client base URL is derived accordingly unless `model.summaryBaseUrl` is set.
+- `model.api`: `openai-completions` or `openai-responses` for chat requests
+- `model.summaryApi`: optional; same values as `model.api`, used for compaction/summary; defaults to `model.api` when unset. When the effective summary API or provider differs from the main chat settings, the summary client base URL is derived accordingly unless `model.summaryBaseUrl` is set.
 - `model.stream`: stream assistant text responses during chat requests; defaults to `true`
 - `rpc.address`: interface the daemon binds to
 - `rpc.port`: port the daemon binds to
@@ -159,7 +159,7 @@ Agent Runtime:
 - [x] Implement the synchronous tool-calling loop
 - [x] Add max-iteration and shared-budget logic
 - [ ] Add interrupt and cancel support
-- [x] Add request normalization for different API modes
+- [x] Add request normalization for different APIs
 - [ ] Add session log persistence for debugging
 - [ ] Expand prompt assembly and context injection layers
 

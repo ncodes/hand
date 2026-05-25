@@ -7,8 +7,9 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/stretchr/testify/require"
 
+	models "github.com/wandxy/hand/internal/model"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	models "github.com/wandxy/hand/pkg/agent/model"
+	provider_openai "github.com/wandxy/hand/internal/model/provider_openai"
 )
 
 func TestClientFactory_ResolveUsesRegistryDefaults(t *testing.T) {
@@ -162,10 +163,10 @@ func TestClientFactory_NewClientBuildsOpenAICompatibleClient(t *testing.T) {
 	var capturedKey string
 	var capturedOptions int
 	factory := NewClientFactory(modelprovider.DefaultRegistry())
-	factory.OpenAIClient = func(apiKey string, opts ...option.RequestOption) (models.Client, error) {
+	factory.OpenAIClient = func(apiKey string, _ string, opts ...option.RequestOption) (models.Client, error) {
 		capturedKey = apiKey
 		capturedOptions = len(opts)
-		return &models.OpenAIClient{}, nil
+		return &provider_openai.OpenAIClient{}, nil
 	}
 
 	client, err := factory.NewClient(ClientRequest{
@@ -181,6 +182,24 @@ func TestClientFactory_NewClientBuildsOpenAICompatibleClient(t *testing.T) {
 	require.NotNil(t, client)
 	require.Equal(t, "key", capturedKey)
 	require.Equal(t, 3, capturedOptions)
+}
+
+func TestClientFactory_NewClientRoutesRequestsThroughResolvedAPI(t *testing.T) {
+	var capturedAPI string
+	factory := NewClientFactory(modelprovider.DefaultRegistry())
+	factory.OpenAIClient = func(_ string, api string, _ ...option.RequestOption) (models.Client, error) {
+		capturedAPI = api
+		return &provider_openai.OpenAIClient{}, nil
+	}
+
+	client, err := factory.NewClient(ClientRequest{
+		Provider: "openai",
+		API:      modelprovider.APIOpenAIResponses,
+		BaseURL:  "https://api.example/v1",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	require.Equal(t, modelprovider.APIOpenAIResponses, capturedAPI)
 }
 
 func TestClientFactory_NewClientReturnsResolveError(t *testing.T) {
@@ -207,9 +226,9 @@ func TestClientFactory_NewClientUsesDefaultBuilder(t *testing.T) {
 func TestClientFactory_NewClientReusesEquivalentClients(t *testing.T) {
 	var builds int
 	factory := NewClientFactory(modelprovider.DefaultRegistry())
-	factory.OpenAIClient = func(string, ...option.RequestOption) (models.Client, error) {
+	factory.OpenAIClient = func(string, string, ...option.RequestOption) (models.Client, error) {
 		builds++
-		return &models.OpenAIClient{}, nil
+		return &provider_openai.OpenAIClient{}, nil
 	}
 
 	first, err := factory.NewClient(ClientRequest{
@@ -248,9 +267,9 @@ func TestClientFactory_NewClientInitializesNilCache(t *testing.T) {
 	var builds int
 	factory := NewClientFactory(modelprovider.DefaultRegistry())
 	factory.clients = nil
-	factory.OpenAIClient = func(string, ...option.RequestOption) (models.Client, error) {
+	factory.OpenAIClient = func(string, string, ...option.RequestOption) (models.Client, error) {
 		builds++
-		return &models.OpenAIClient{}, nil
+		return &provider_openai.OpenAIClient{}, nil
 	}
 
 	client, err := factory.NewClient(ClientRequest{
@@ -267,7 +286,7 @@ func TestClientFactory_NewClientInitializesNilCache(t *testing.T) {
 
 func TestClientFactory_NewClientReturnsBuilderError(t *testing.T) {
 	factory := NewClientFactory(modelprovider.DefaultRegistry())
-	factory.OpenAIClient = func(string, ...option.RequestOption) (models.Client, error) {
+	factory.OpenAIClient = func(string, string, ...option.RequestOption) (models.Client, error) {
 		return nil, errors.New("build failed")
 	}
 
@@ -278,6 +297,21 @@ func TestClientFactory_NewClientReturnsBuilderError(t *testing.T) {
 	})
 
 	require.EqualError(t, err, "build failed")
+}
+
+func TestClientFactory_NewClientRejectsNilBuiltClient(t *testing.T) {
+	factory := NewClientFactory(modelprovider.DefaultRegistry())
+	factory.OpenAIClient = func(string, string, ...option.RequestOption) (models.Client, error) {
+		return nil, nil
+	}
+
+	_, err := factory.NewClient(ClientRequest{
+		Provider: "openai",
+		API:      modelprovider.APIOpenAIResponses,
+		BaseURL:  "https://api.example/v1",
+	})
+
+	require.EqualError(t, err, "model client is required")
 }
 
 func TestClientFactory_NewClientRejectsUnsupportedChatAPI(t *testing.T) {

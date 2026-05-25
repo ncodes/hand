@@ -67,15 +67,15 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:   "model.summary-api-mode",
-			Usage:  "API mode for compaction/summary (completions or responses); defaults to --model.api-mode when unset",
-			Value:  config.Get().Models.Summary.APIMode,
+			Name:   "model.summary-api",
+			Usage:  "API for compaction/summary (openai-completions or openai-responses); defaults to --model.api when unset",
+			Value:  config.Get().Models.Summary.API,
 			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:   "model.api-mode",
-			Usage:  "Provider API mode: completions or responses",
-			Value:  config.Get().Models.Main.APIMode,
+			Name:   "model.api",
+			Usage:  "Provider API: openai-completions or openai-responses",
+			Value:  config.Get().Models.Main.API,
 			Hidden: true,
 		},
 		&cli.BoolFlag{
@@ -455,11 +455,11 @@ func ApplyConfigOverrides(cmd *cli.Command, cfg *config.Config) {
 	if cmd.IsSet("model.summary-base-url") {
 		cfg.Models.Summary.BaseURL = strings.TrimSpace(cmd.String("model.summary-base-url"))
 	}
-	if cmd.IsSet("model.summary-api-mode") {
-		cfg.Models.Summary.APIMode = strings.TrimSpace(cmd.String("model.summary-api-mode"))
+	if cmd.IsSet("model.summary-api") {
+		cfg.Models.Summary.API = strings.TrimSpace(cmd.String("model.summary-api"))
 	}
-	if cmd.IsSet("model.api-mode") {
-		cfg.Models.Main.APIMode = strings.TrimSpace(cmd.String("model.api-mode"))
+	if cmd.IsSet("model.api") {
+		cfg.Models.Main.API = strings.TrimSpace(cmd.String("model.api"))
 	}
 	if cmd.IsSet("models.verify") {
 		cfg.Models.Verify = new(cmd.Bool("models.verify"))

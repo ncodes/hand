@@ -7,9 +7,9 @@ import (
 	"unicode"
 
 	instruct "github.com/wandxy/hand/internal/instructions"
+	models "github.com/wandxy/hand/internal/model"
 	storage "github.com/wandxy/hand/internal/state/core"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 const maxSessionTitleRunes = 80
@@ -73,7 +73,7 @@ func isSameModelClient(left models.Client, right models.Client) bool {
 func (a *Agent) generateSessionTitle(ctx context.Context, contextText string) string {
 	resp, err := a.summaryClient.Complete(ctx, models.Request{
 		Model:           a.cfg.SummaryModelEffective(),
-		APIMode:         a.cfg.SummaryModelAPIModeEffective(),
+		API:             a.cfg.SummaryModelAPIEffective(),
 		Instructions:    instruct.BuildSessionTitle().String(),
 		Messages:        []handmsg.Message{{Role: handmsg.RoleUser, Content: contextText}},
 		MaxOutputTokens: 24,

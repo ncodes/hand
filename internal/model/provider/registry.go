@@ -13,6 +13,8 @@ const (
 	APIOpenAIResponses = "openai-responses"
 	// APIOpenAIEmbeddings identifies the OpenAI-compatible embeddings protocol.
 	APIOpenAIEmbeddings = "openai-embeddings"
+	// APIAnthropicMessages identifies the Anthropic Messages protocol.
+	APIAnthropicMessages = "anthropic-messages"
 )
 
 // InputKind describes an input modality supported by a model.
@@ -29,7 +31,6 @@ const (
 type APIDefinition struct {
 	ID          string
 	DisplayName string
-	RequestMode string
 }
 
 // ProviderDefinition describes provider-level routing, defaults, and credential metadata.
@@ -78,7 +79,6 @@ func NewRegistry(
 
 	for _, api := range apis {
 		api.ID = normalizeID(api.ID)
-		api.RequestMode = normalizeID(api.RequestMode)
 		if api.ID == "" {
 			continue
 		}
@@ -127,26 +127,6 @@ func (r *Registry) GetAPI(id string) (APIDefinition, bool) {
 
 	api, ok := r.apis[normalizeID(id)]
 	return api, ok
-}
-
-// GetRequestModeAPI looks up an API definition by the current config request mode.
-func (r *Registry) GetRequestModeAPI(mode string) (APIDefinition, bool) {
-	if r == nil {
-		return APIDefinition{}, false
-	}
-
-	mode = normalizeID(mode)
-	if mode == "" {
-		mode = constants.DefaultModelAPIModeCompletions
-	}
-
-	for _, api := range r.apis {
-		if api.RequestMode == mode {
-			return api, true
-		}
-	}
-
-	return APIDefinition{}, false
 }
 
 // GetProvider looks up a provider definition by ID.
@@ -261,17 +241,18 @@ func defaultAPIs() []APIDefinition {
 		{
 			ID:          APIOpenAICompletions,
 			DisplayName: "OpenAI Chat Completions",
-			RequestMode: constants.DefaultModelAPIModeCompletions,
 		},
 		{
 			ID:          APIOpenAIResponses,
 			DisplayName: "OpenAI Responses",
-			RequestMode: constants.DefaultModelAPIModeResponses,
 		},
 		{
 			ID:          APIOpenAIEmbeddings,
 			DisplayName: "OpenAI Embeddings",
-			RequestMode: "embeddings",
+		},
+		{
+			ID:          APIAnthropicMessages,
+			DisplayName: "Anthropic Messages",
 		},
 	}
 }

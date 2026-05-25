@@ -9,8 +9,9 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 
+	models "github.com/wandxy/hand/internal/model"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
-	models "github.com/wandxy/hand/pkg/agent/model"
+	provider_openai "github.com/wandxy/hand/internal/model/provider_openai"
 )
 
 // ModelRole identifies a model-consuming runtime role.
@@ -52,8 +53,8 @@ type ResolvedClientRequest struct {
 	MaxRetries int
 }
 
-// OpenAIClientBuilder constructs an OpenAI-compatible model client.
-type OpenAIClientBuilder func(string, ...option.RequestOption) (models.Client, error)
+// OpenAIClientBuilder constructs an OpenAI-compatible model client for one API route.
+type OpenAIClientBuilder func(string, string, ...option.RequestOption) (models.Client, error)
 
 // ClientFactory constructs model clients from registry-backed provider definitions.
 type ClientFactory struct {
@@ -200,7 +201,15 @@ func (f *ClientFactory) newOpenAIClient(req ResolvedClientRequest) (models.Clien
 		opts = append(opts, option.WithHeader(key, req.Headers[key]))
 	}
 
-	return builder(req.APIKey, opts...)
+	client, err := builder(req.APIKey, req.API.ID, opts...)
+	if err != nil {
+		return nil, err
+	}
+	if client == nil {
+		return nil, errors.New("model client is required")
+	}
+
+	return client, nil
 }
 
 func clientCacheKey(req ResolvedClientRequest) string {
@@ -255,6 +264,6 @@ func normalizeID(value string) string {
 	return strings.TrimSpace(strings.ToLower(value))
 }
 
-func newOpenAIClient(apiKey string, opts ...option.RequestOption) (models.Client, error) {
-	return models.NewOpenAIClient(apiKey, opts...)
+func newOpenAIClient(apiKey, api string, opts ...option.RequestOption) (models.Client, error) {
+	return provider_openai.NewOpenAIClient(apiKey, api, opts...)
 }

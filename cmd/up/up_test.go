@@ -22,10 +22,11 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
+	models "github.com/wandxy/hand/internal/model"
 	modelclient "github.com/wandxy/hand/internal/model/client"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	provider_openai "github.com/wandxy/hand/internal/model/provider_openai"
 	"github.com/wandxy/hand/internal/profile"
-	models "github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/logutils"
 )
 
@@ -277,12 +278,12 @@ func TestRenderStartupPanel_NilConfigReturnsBadgeOnly(t *testing.T) {
 	require.Equal(t, handBadge, out)
 }
 
-func TestRenderStartupPanel_IncludesSummaryProviderAndAPIModeWhenDistinct(t *testing.T) {
+func TestRenderStartupPanel_IncludesSummaryProviderAndAPIWhenDistinct(t *testing.T) {
 	cfg := &config.Config{
 		Name: "daemon",
 		Models: config.ModelsConfig{
-			Main:    config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter", APIMode: constants.DefaultModelAPIModeCompletions},
-			Summary: config.SummaryModelConfig{Provider: "openai", APIMode: "responses"},
+			Main:    config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter", API: modelprovider.APIOpenAICompletions},
+			Summary: config.SummaryModelConfig{Provider: "openai", API: modelprovider.APIOpenAIResponses},
 		},
 		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log: config.LogConfig{Level: "info", NoColor: true},
@@ -291,7 +292,7 @@ func TestRenderStartupPanel_IncludesSummaryProviderAndAPIModeWhenDistinct(t *tes
 
 	out := renderStartupPanel(cfg)
 	require.Contains(t, out, "Summary provider: openai")
-	require.Contains(t, out, "Summary API mode: responses")
+	require.Contains(t, out, "Summary API: openai-responses")
 }
 
 func TestServeRPC_ReturnsListenError(t *testing.T) {
@@ -386,9 +387,9 @@ func TestNewAgentRunnerImpl_ReturnsAgent(t *testing.T) {
 	}
 	cfg.Normalize()
 
-	mc, err := models.NewOpenAIClient("k")
+	mc, err := provider_openai.NewOpenAIClient("k", provider_openai.APIOpenAIResponses)
 	require.NoError(t, err)
-	sc, err := models.NewOpenAIClient("k")
+	sc, err := provider_openai.NewOpenAIClient("k", provider_openai.APIOpenAIResponses)
 	require.NoError(t, err)
 
 	r := newAgentRunnerImpl(context.Background(), cfg, mc, sc)
@@ -649,7 +650,7 @@ func TestNewCommand_ReturnsSecondModelClientFactoryError(t *testing.T) {
 		newClient: func(modelclient.ClientRequest) (models.Client, error) {
 			n++
 			if n == 1 {
-				return &models.OpenAIClient{}, nil
+				return &provider_openai.OpenAIClient{}, nil
 			}
 			return nil, errors.New("summary client boom")
 		},
@@ -692,7 +693,7 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 	modelClientFactory = modelClientFactoryStub{
 		newClient: func(req modelclient.ClientRequest) (models.Client, error) {
 			calls = append(calls, req)
-			return &models.OpenAIClient{}, nil
+			return &provider_openai.OpenAIClient{}, nil
 		},
 	}
 	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client) agentRunner {
@@ -724,7 +725,7 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 			Role:       modelclient.ModelRoleMain,
 			Model:      "openai/gpt-4o-mini",
 			Provider:   "openrouter",
-			API:        modelprovider.APIOpenAICompletions,
+			API:        modelprovider.APIOpenAIResponses,
 			APIKey:     "router-key",
 			BaseURL:    serverURL,
 			MaxRetries: constants.DefaultModelMaxRetries,
@@ -733,7 +734,7 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 			Role:       modelclient.ModelRoleSummary,
 			Model:      "openai/gpt-4o-mini",
 			Provider:   "openai",
-			API:        modelprovider.APIOpenAICompletions,
+			API:        modelprovider.APIOpenAIResponses,
 			APIKey:     "router-key",
 			BaseURL:    "https://openai.example/v1",
 			MaxRetries: constants.DefaultModelMaxRetries,

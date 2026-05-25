@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/wandxy/hand/internal/instructions"
+	models "github.com/wandxy/hand/internal/model"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 const defaultLLMExtractorMaxOutputTokens int64 = 1600
@@ -42,7 +42,7 @@ func (e *LLMExtractor) ExtractCandidates(ctx context.Context, req CandidateReque
 	payload, _ := json.Marshal(req)
 	resp, err := e.options.Client.Complete(ctx, models.Request{
 		Model:            e.options.Model,
-		APIMode:          e.options.APIMode,
+		API:              e.options.API,
 		Instructions:     instructions.BuildEpisodicExtractionInstructions(),
 		Messages:         []handmsg.Message{{Role: handmsg.RoleUser, Content: string(payload)}},
 		StructuredOutput: getLLMExtractorStructuredOutput(),

@@ -9,8 +9,8 @@ import (
 
 	"github.com/wandxy/hand/internal/constants"
 	instruct "github.com/wandxy/hand/internal/instructions"
+	models "github.com/wandxy/hand/internal/model"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 const (
@@ -23,7 +23,7 @@ type LLMRerankerOptions struct {
 	Fallback                 Reranker
 	Client                   models.Client
 	Model                    string
-	APIMode                  string
+	API                      string
 	MaxCandidates            int
 	MaxCandidatesSet         bool
 	MaxCandidateTextChars    int
@@ -94,7 +94,7 @@ func (r LLMReranker) Rerank(ctx context.Context, req RerankRequest) (RerankResul
 
 	rerankTraceLogEvent(req, RerankerLLM).
 		Str("model", options.Model).
-		Str("api_mode", options.APIMode).
+		Str("api", options.API).
 		Int("candidate_count", len(req.Candidates)).
 		Int("bounded_candidate_count", len(candidates)).
 		Int("max_candidate_text_chars", options.MaxCandidateTextChars).
@@ -148,7 +148,7 @@ func (r LLMReranker) modelRequest(req RerankRequest, candidates []Candidate, str
 
 	modelReq := models.Request{
 		Model:           options.Model,
-		APIMode:         options.APIMode,
+		API:             options.API,
 		Instructions:    instruct.BuildRetrievalRerank(),
 		Messages:        []handmsg.Message{{Role: handmsg.RoleUser, Content: string(data)}},
 		MaxOutputTokens: options.MaxOutputTokens,

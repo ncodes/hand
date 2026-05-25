@@ -13,7 +13,7 @@ Traces support debugging and inspection of a conversation over time: what was se
 | ---------- | --------------------------------------------------------------------------------------- |
 | `Factory`  | Opens a `Session` for a storage session id (`OpenSession(ctx, sessionID, Metadata)`).   |
 | `Session`  | `ID()`, `Record(eventType, payload)`, `Close()`.                                        |
-| `Metadata` | First-event payload: `agent_name`, `model`, `api_mode`, `source`, optional `trace_dir`. |
+| `Metadata` | First-event payload: `agent_name`, `model`, `api`, `source`, optional `trace_dir`. |
 | `Event`    | JSON shape: `session_id`, `type`, `timestamp`, `payload`.                               |
 
 
@@ -33,7 +33,7 @@ Event type strings are defined as constants in `events.go` (e.g. `EvtChatStarted
 
 | Constant           | Type string      | Meaning                                                                                                                   |
 | ------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `EvtChatStarted`   | `chat.started`   | Emitted automatically when the trace file is first created (empty file). Payload: `Metadata` (agent, model, API mode, source, trace directory). Not repeated on append to an existing file. |
+| `EvtChatStarted`   | `chat.started`   | Emitted automatically when the trace file is first created (empty file). Payload: `Metadata` (agent, model, API, source, trace directory). Not repeated on append to an existing file. |
 | `EvtSessionFailed` | `session.failed` | Unrecoverable or traced error. Payload is typically `{"error": "<message>"}`.                                             |
 
 

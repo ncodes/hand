@@ -8,9 +8,9 @@ import (
 
 	"github.com/wandxy/hand/internal/config"
 	instruct "github.com/wandxy/hand/internal/instructions"
+	models "github.com/wandxy/hand/internal/model"
 	webprovider "github.com/wandxy/hand/internal/providers/web"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
-	models "github.com/wandxy/hand/pkg/agent/model"
 )
 
 // Summarizer produces a concise summary for extracted web content.
@@ -42,7 +42,7 @@ type summarizeOptions struct {
 type ExtractSummarizer struct {
 	Client        models.Client
 	Model         string
-	APIMode       string
+	API           string
 	DebugRequests bool
 }
 
@@ -58,7 +58,7 @@ func NewExtractSummarizer(client models.Client, cfg *config.Config) Summarizer {
 	return ExtractSummarizer{
 		Client:        client,
 		Model:         normalized.SummaryModelEffective(),
-		APIMode:       normalized.SummaryModelAPIModeEffective(),
+		API:           normalized.SummaryModelAPIEffective(),
 		DebugRequests: normalized.Debug.Requests,
 	}
 }
@@ -132,7 +132,7 @@ func (s ExtractSummarizer) completeSummary(
 ) (string, error) {
 	resp, err := s.Client.Complete(ctx, models.Request{
 		Model:        s.Model,
-		APIMode:      s.APIMode,
+		API:          s.API,
 		Instructions: instructions,
 		Messages: []handmsg.Message{{
 			Role:    handmsg.RoleUser,

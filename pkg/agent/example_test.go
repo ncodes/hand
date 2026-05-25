@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/pkg/agent"
 	"github.com/wandxy/hand/pkg/agent/message"
-	"github.com/wandxy/hand/pkg/agent/model"
 	"github.com/wandxy/hand/pkg/agent/session"
 	"github.com/wandxy/hand/pkg/agent/tool"
 )
@@ -21,7 +21,7 @@ func ExampleAgent_Respond() {
 
 	core, err := agent.New(agent.Options{
 		Model:        "example-model",
-		APIMode:      model.APIModeCompletions,
+		API:          model.APIOpenAICompletions,
 		ModelClient:  client,
 		SessionStore: store,
 	})
@@ -68,7 +68,7 @@ func ExampleAgent_Respond_withToolCall() {
 
 	core, err := agent.New(agent.Options{
 		Model:         "example-model",
-		APIMode:       model.APIModeCompletions,
+		API:           model.APIOpenAICompletions,
 		ModelClient:   client,
 		SessionStore:  store,
 		ToolRegistry:  registry,

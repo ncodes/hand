@@ -7,8 +7,9 @@ import (
 )
 
 const (
-	APIModeCompletions = "completions"
-	APIModeResponses   = "responses"
+	APIOpenAICompletions = "openai-completions"
+	APIOpenAIResponses   = "openai-responses"
+	APIAnthropicMessages = "anthropic-messages"
 )
 
 type Client interface {
@@ -30,7 +31,7 @@ type StreamDelta struct {
 
 type Request struct {
 	Model            string
-	APIMode          string
+	API              string
 	Instructions     string
 	Messages         []message.Message
 	Tools            []ToolDefinition

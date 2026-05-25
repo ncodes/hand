@@ -1,4 +1,4 @@
-package model
+package provider_openai
 
 import (
 	"bytes"
@@ -50,7 +50,7 @@ func TestNewOpenAIClient_IncludesAPIKeyOptionWhenProvided(t *testing.T) {
 		}
 	}
 
-	client, err := NewOpenAIClient(" test-key ", option.WithBaseURL("https://example.com/v1"))
+	client, err := NewOpenAIClient(" test-key ", APIOpenAIResponses, option.WithBaseURL("https://example.com/v1"))
 	require.NoError(t, err)
 	require.NotNil(t, client)
 	require.Equal(t, 1, completionCalls)
@@ -82,7 +82,7 @@ func TestNewOpenAIClient_OmitsAPIKeyOptionWhenEmpty(t *testing.T) {
 		}
 	}
 
-	client, err := NewOpenAIClient("   ", option.WithBaseURL("https://example.com/v1"))
+	client, err := NewOpenAIClient("   ", APIOpenAIResponses, option.WithBaseURL("https://example.com/v1"))
 	require.NoError(t, err)
 	require.NotNil(t, client)
 	require.Equal(t, 1, completionOptCount)
@@ -134,18 +134,14 @@ func TestOpenAIClient_ChatRequiresClient(t *testing.T) {
 	require.EqualError(t, err, "model client is required")
 }
 
-func TestOpenAIClient_ChatRejectsInvalidAPIMode(t *testing.T) {
-	client := &OpenAIClient{}
-	_, err := client.Complete(context.Background(), Request{
-		Model:    "test-model",
-		APIMode:  "invalid",
-		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
-	})
-	require.EqualError(t, err, "model api mode must be one of: completions, responses")
+func TestNewOpenAIClient_RejectsInvalidAPI(t *testing.T) {
+	_, err := NewOpenAIClient("test-key", "invalid")
+
+	require.EqualError(t, err, "model API must be one of: openai-completions, openai-responses")
 }
 
 func TestOpenAIClient_ChatRequiresModel(t *testing.T) {
-	client := &OpenAIClient{}
+	client := &OpenAIClient{api: APIOpenAICompletions}
 
 	_, err := client.Complete(context.Background(), Request{
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
@@ -154,24 +150,32 @@ func TestOpenAIClient_ChatRequiresModel(t *testing.T) {
 }
 
 func TestOpenAIClient_ChatRequiresMessages(t *testing.T) {
-	client := &OpenAIClient{}
+	client := &OpenAIClient{api: APIOpenAICompletions}
 
 	_, err := client.Complete(context.Background(), Request{Model: "test-model"})
 	require.EqualError(t, err, "messages are required")
 }
 
-func TestOpenAIClient_ChatRequiresSelectedModeHandler(t *testing.T) {
+func TestOpenAIClient_ChatRequiresAPI(t *testing.T) {
 	client := &OpenAIClient{}
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
-		APIMode:  APIModeResponses,
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+	})
+	require.EqualError(t, err, "model API is required")
+}
+
+func TestOpenAIClient_ChatRequiresSelectedAPIHandler(t *testing.T) {
+	client := &OpenAIClient{api: APIOpenAIResponses}
+	_, err := client.Complete(context.Background(), Request{
+		Model:    "test-model",
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model client is required")
 }
 
 func TestOpenAIClient_ChatRequiresChatCompletionsHandler(t *testing.T) {
-	client := &OpenAIClient{createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+	client := &OpenAIClient{api: APIOpenAICompletions, createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
 		return &responses.Response{}, nil
 	}}
 
@@ -183,36 +187,40 @@ func TestOpenAIClient_ChatRequiresChatCompletionsHandler(t *testing.T) {
 }
 
 func TestOpenAIClient_ChatRejectsInvalidMessageRole(t *testing.T) {
-	client := &OpenAIClient{}
+	client := &OpenAIClient{api: APIOpenAICompletions}
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
+		API:      APIOpenAICompletions,
 		Messages: []handmsg.Message{{Role: handmsg.Role("invalid"), Content: "hello"}},
 	})
 	require.EqualError(t, err, "message role must be one of user, assistant, or tool; developer messages must be provided via instructions")
 }
 
 func TestOpenAIClient_ChatRejectsEmptyMessageContent(t *testing.T) {
-	client := &OpenAIClient{}
+	client := &OpenAIClient{api: APIOpenAICompletions}
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
+		API:      APIOpenAICompletions,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "   "}},
 	})
 	require.EqualError(t, err, "message content is required")
 }
 
 func TestOpenAIClient_ChatRejectsDeveloperMessageInConversation(t *testing.T) {
-	client := &OpenAIClient{}
+	client := &OpenAIClient{api: APIOpenAICompletions}
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
+		API:      APIOpenAICompletions,
 		Messages: []handmsg.Message{{Role: handmsg.RoleDeveloper, Content: "system"}},
 	})
 	require.EqualError(t, err, "developer messages must be provided via instructions")
 }
 
 func TestOpenAIClient_ChatRejectsBlankToolDefinitionName(t *testing.T) {
-	client := &OpenAIClient{}
+	client := &OpenAIClient{api: APIOpenAICompletions}
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
+		API:      APIOpenAICompletions,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 		Tools:    []ToolDefinition{{Name: "   "}},
 	})
@@ -222,6 +230,7 @@ func TestOpenAIClient_ChatRejectsBlankToolDefinitionName(t *testing.T) {
 func TestOpenAIClient_ChatReturnsAPIErrorChatCompletions(t *testing.T) {
 	expectedErr := errors.New("upstream failed")
 	client := &OpenAIClient{
+		api: APIOpenAICompletions,
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			return nil, expectedErr
 		},
@@ -229,6 +238,7 @@ func TestOpenAIClient_ChatReturnsAPIErrorChatCompletions(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
+		API:      APIOpenAICompletions,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.ErrorIs(t, err, expectedErr)
@@ -236,6 +246,7 @@ func TestOpenAIClient_ChatReturnsAPIErrorChatCompletions(t *testing.T) {
 
 func TestOpenAIClient_ChatRequiresChatCompletionsResponse(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAICompletions,
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			return nil, nil
 		},
@@ -243,6 +254,7 @@ func TestOpenAIClient_ChatRequiresChatCompletionsResponse(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
+		API:      APIOpenAICompletions,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model response is required")
@@ -251,6 +263,7 @@ func TestOpenAIClient_ChatRequiresChatCompletionsResponse(t *testing.T) {
 func TestOpenAIClient_ChatReturnsResponseAndBuildsChatCompletionsRequest(t *testing.T) {
 	var captured openai.ChatCompletionNewParams
 	client := &OpenAIClient{
+		api: APIOpenAICompletions,
 		createChatCompletion: func(_ context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			captured = params
 			return &openai.ChatCompletion{
@@ -265,6 +278,7 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsChatCompletionsRequest(t *test
 
 	resp, err := client.Complete(context.Background(), Request{
 		Model:        "test-model",
+		API:          APIOpenAICompletions,
 		Instructions: "  be concise  ",
 		Messages: []handmsg.Message{
 			{Role: handmsg.RoleUser, Content: "  hello  "},
@@ -293,6 +307,7 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsChatCompletionsRequest(t *test
 func TestOpenAIClient_ChatBuildsChatCompletionsStructuredOutputRequest(t *testing.T) {
 	var captured openai.ChatCompletionNewParams
 	client := &OpenAIClient{
+		api: APIOpenAICompletions,
 		createChatCompletion: func(_ context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			captured = params
 			return &openai.ChatCompletion{
@@ -307,6 +322,7 @@ func TestOpenAIClient_ChatBuildsChatCompletionsStructuredOutputRequest(t *testin
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
+		API:      APIOpenAICompletions,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 		StructuredOutput: &StructuredOutput{
 			Name:        "session_summary",
@@ -374,6 +390,7 @@ func TestExtractResponsesResponse_IncludesUsage(t *testing.T) {
 
 func TestOpenAIClient_ChatReturnsToolCallsFromChatCompletions(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAICompletions,
 		createChatCompletion: func(_ context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			raw, err := json.Marshal(params)
 			require.NoError(t, err)
@@ -398,6 +415,7 @@ func TestOpenAIClient_ChatReturnsToolCallsFromChatCompletions(t *testing.T) {
 
 	resp, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
+		API:      APIOpenAICompletions,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "what time is it?"}},
 		Tools:    []ToolDefinition{{Name: "time", Description: "Returns the current time.", InputSchema: map[string]any{"type": "object"}}},
 	})
@@ -408,6 +426,7 @@ func TestOpenAIClient_ChatReturnsToolCallsFromChatCompletions(t *testing.T) {
 
 func TestOpenAIClient_ChatUsesFallbackIDForChatCompletionToolCallWithoutID(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAICompletions,
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			return &openai.ChatCompletion{
 				Choices: []openai.ChatCompletionChoice{{
@@ -421,6 +440,7 @@ func TestOpenAIClient_ChatUsesFallbackIDForChatCompletionToolCallWithoutID(t *te
 
 	resp, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
+		API:      APIOpenAICompletions,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.NoError(t, err)
@@ -429,6 +449,7 @@ func TestOpenAIClient_ChatUsesFallbackIDForChatCompletionToolCallWithoutID(t *te
 
 func TestOpenAIClient_ChatRejectsChatCompletionToolCallWithoutName(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAICompletions,
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			return &openai.ChatCompletion{
 				Choices: []openai.ChatCompletionChoice{{
@@ -443,6 +464,7 @@ func TestOpenAIClient_ChatRejectsChatCompletionToolCallWithoutName(t *testing.T)
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
+		API:      APIOpenAICompletions,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "tool call name is required")
@@ -450,6 +472,7 @@ func TestOpenAIClient_ChatRejectsChatCompletionToolCallWithoutName(t *testing.T)
 
 func TestOpenAIClient_ChatRejectsChatCompletionResponseWithoutChoices(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAICompletions,
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			return &openai.ChatCompletion{ID: "resp_123"}, nil
 		},
@@ -457,6 +480,7 @@ func TestOpenAIClient_ChatRejectsChatCompletionResponseWithoutChoices(t *testing
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
+		API:      APIOpenAICompletions,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, `chat completion response "resp_123" contained no choices`)
@@ -464,6 +488,7 @@ func TestOpenAIClient_ChatRejectsChatCompletionResponseWithoutChoices(t *testing
 
 func TestOpenAIClient_ChatRejectsEmptyChatCompletionResponse(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAICompletions,
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			return &openai.ChatCompletion{
 				ID:    "resp_empty",
@@ -477,6 +502,7 @@ func TestOpenAIClient_ChatRejectsEmptyChatCompletionResponse(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
+		API:      APIOpenAICompletions,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model returned empty response")
@@ -484,6 +510,7 @@ func TestOpenAIClient_ChatRejectsEmptyChatCompletionResponse(t *testing.T) {
 
 func TestOpenAIClient_ChatUsesRefusalAsOutputText(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAICompletions,
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			return &openai.ChatCompletion{
 				ID:    "resp_refusal",
@@ -497,6 +524,7 @@ func TestOpenAIClient_ChatUsesRefusalAsOutputText(t *testing.T) {
 
 	resp, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
+		API:      APIOpenAICompletions,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.NoError(t, err)
@@ -506,6 +534,7 @@ func TestOpenAIClient_ChatUsesRefusalAsOutputText(t *testing.T) {
 func TestOpenAIClient_ChatReturnsResponseAndBuildsResponsesRequest(t *testing.T) {
 	var captured responses.ResponseNewParams
 	client := &OpenAIClient{
+		api: APIOpenAIResponses,
 		createResponse: func(_ context.Context, params responses.ResponseNewParams) (*responses.Response, error) {
 			captured = params
 			return &responses.Response{
@@ -524,7 +553,7 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsResponsesRequest(t *testing.T)
 
 	resp, err := client.Complete(context.Background(), Request{
 		Model:        "gpt-5.1",
-		APIMode:      APIModeResponses,
+		API:          APIOpenAIResponses,
 		Instructions: "  be concise  ",
 		Messages: []handmsg.Message{
 			{Role: handmsg.RoleUser, Content: "  hello  "},
@@ -554,9 +583,44 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsResponsesRequest(t *testing.T)
 	require.Contains(t, rawText, `"name":"time"`)
 }
 
+func TestOpenAIClient_ChatRoutesConfiguredAPIToResponses(t *testing.T) {
+	var responseCalled bool
+	client := &OpenAIClient{
+		api: APIOpenAIResponses,
+		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+			return nil, errors.New("completions should not be called")
+		},
+		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+			responseCalled = true
+			return &responses.Response{
+				ID:    "resp_api",
+				Model: "gpt-5.1",
+				Output: []responses.ResponseOutputItemUnion{{
+					Type: "message",
+					Content: []responses.ResponseOutputMessageContentUnion{{
+						Type: "output_text",
+						Text: "hello from explicit api",
+					}},
+				}},
+			}, nil
+		},
+	}
+
+	resp, err := client.Complete(context.Background(), Request{
+		Model:    "gpt-5.1",
+		API:      APIOpenAIResponses,
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+	})
+
+	require.NoError(t, err)
+	require.True(t, responseCalled)
+	require.Equal(t, &Response{ID: "resp_api", Model: "gpt-5.1", OutputText: "hello from explicit api"}, resp)
+}
+
 func TestOpenAIClient_ChatBuildsResponsesStructuredOutputRequest(t *testing.T) {
 	var captured responses.ResponseNewParams
 	client := &OpenAIClient{
+		api: APIOpenAIResponses,
 		createResponse: func(_ context.Context, params responses.ResponseNewParams) (*responses.Response, error) {
 			captured = params
 			return &responses.Response{
@@ -575,7 +639,7 @@ func TestOpenAIClient_ChatBuildsResponsesStructuredOutputRequest(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
-		APIMode:  APIModeResponses,
+		API:      APIOpenAIResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 		StructuredOutput: &StructuredOutput{
 			Name:        "session_summary",
@@ -598,6 +662,7 @@ func TestOpenAIClient_ChatBuildsResponsesStructuredOutputRequest(t *testing.T) {
 
 func TestOpenAIClient_ChatReturnsToolCallsFromResponses(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAIResponses,
 		createResponse: func(_ context.Context, params responses.ResponseNewParams) (*responses.Response, error) {
 			raw, err := json.Marshal(params)
 			require.NoError(t, err)
@@ -613,7 +678,7 @@ func TestOpenAIClient_ChatReturnsToolCallsFromResponses(t *testing.T) {
 
 	resp, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
-		APIMode:  APIModeResponses,
+		API:      APIOpenAIResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "what time is it?"}},
 		Tools:    []ToolDefinition{{Name: "time", Description: "Returns the current time.", InputSchema: map[string]any{"type": "object"}}},
 	})
@@ -625,6 +690,7 @@ func TestOpenAIClient_ChatReturnsToolCallsFromResponses(t *testing.T) {
 func TestOpenAIClient_ChatReturnsResponseErrorResponses(t *testing.T) {
 	expectedErr := errors.New("upstream failed")
 	client := &OpenAIClient{
+		api: APIOpenAIResponses,
 		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
 			return nil, expectedErr
 		},
@@ -632,7 +698,7 @@ func TestOpenAIClient_ChatReturnsResponseErrorResponses(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
-		APIMode:  APIModeResponses,
+		API:      APIOpenAIResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.ErrorIs(t, err, expectedErr)
@@ -640,6 +706,7 @@ func TestOpenAIClient_ChatReturnsResponseErrorResponses(t *testing.T) {
 
 func TestOpenAIClient_ChatRequiresResponsesResponse(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAIResponses,
 		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
 			return nil, nil
 		},
@@ -647,7 +714,7 @@ func TestOpenAIClient_ChatRequiresResponsesResponse(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
-		APIMode:  APIModeResponses,
+		API:      APIOpenAIResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model response is required")
@@ -655,6 +722,7 @@ func TestOpenAIClient_ChatRequiresResponsesResponse(t *testing.T) {
 
 func TestOpenAIClient_ChatUsesFallbackIDForResponseToolCallWithoutID(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAIResponses,
 		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
 			return &responses.Response{Output: []responses.ResponseOutputItemUnion{
 				responseOutputItemFromJSON(t, `{"type":"function_call","name":"time","arguments":"{}"}`),
@@ -664,7 +732,7 @@ func TestOpenAIClient_ChatUsesFallbackIDForResponseToolCallWithoutID(t *testing.
 
 	resp, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
-		APIMode:  APIModeResponses,
+		API:      APIOpenAIResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.NoError(t, err)
@@ -673,6 +741,7 @@ func TestOpenAIClient_ChatUsesFallbackIDForResponseToolCallWithoutID(t *testing.
 
 func TestOpenAIClient_ChatRejectsResponseToolCallWithoutName(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAIResponses,
 		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
 			return &responses.Response{Output: []responses.ResponseOutputItemUnion{
 				responseOutputItemFromJSON(t, `{"type":"function_call","call_id":"call-1","arguments":"{}"}`),
@@ -682,7 +751,7 @@ func TestOpenAIClient_ChatRejectsResponseToolCallWithoutName(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
-		APIMode:  APIModeResponses,
+		API:      APIOpenAIResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "tool call name is required")
@@ -690,6 +759,7 @@ func TestOpenAIClient_ChatRejectsResponseToolCallWithoutName(t *testing.T) {
 
 func TestOpenAIClient_ChatReturnsResponsesFailureError(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAIResponses,
 		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
 			return &responses.Response{
 				Status: responses.ResponseStatusFailed,
@@ -700,7 +770,7 @@ func TestOpenAIClient_ChatReturnsResponsesFailureError(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
-		APIMode:  APIModeResponses,
+		API:      APIOpenAIResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "provider failed")
@@ -708,6 +778,7 @@ func TestOpenAIClient_ChatReturnsResponsesFailureError(t *testing.T) {
 
 func TestOpenAIClient_ChatReturnsResponsesIncompleteErrorWithoutUsableOutput(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAIResponses,
 		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
 			return &responses.Response{
 				Status:            responses.ResponseStatusIncomplete,
@@ -718,7 +789,7 @@ func TestOpenAIClient_ChatReturnsResponsesIncompleteErrorWithoutUsableOutput(t *
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
-		APIMode:  APIModeResponses,
+		API:      APIOpenAIResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "response incomplete: max_output_tokens")
@@ -726,6 +797,7 @@ func TestOpenAIClient_ChatReturnsResponsesIncompleteErrorWithoutUsableOutput(t *
 
 func TestOpenAIClient_ChatReturnsResponsesIncompleteSuccessWithText(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAIResponses,
 		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
 			return &responses.Response{
 				ID:     "resp_123",
@@ -744,7 +816,7 @@ func TestOpenAIClient_ChatReturnsResponsesIncompleteSuccessWithText(t *testing.T
 
 	resp, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
-		APIMode:  APIModeResponses,
+		API:      APIOpenAIResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.NoError(t, err)
@@ -753,6 +825,7 @@ func TestOpenAIClient_ChatReturnsResponsesIncompleteSuccessWithText(t *testing.T
 
 func TestOpenAIClient_ChatRejectsUnexpectedResponsesStatus(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAIResponses,
 		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
 			return &responses.Response{Status: responses.ResponseStatusInProgress}, nil
 		},
@@ -760,7 +833,7 @@ func TestOpenAIClient_ChatRejectsUnexpectedResponsesStatus(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
-		APIMode:  APIModeResponses,
+		API:      APIOpenAIResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "response status is in_progress")
@@ -768,6 +841,7 @@ func TestOpenAIClient_ChatRejectsUnexpectedResponsesStatus(t *testing.T) {
 
 func TestOpenAIClient_ChatReturnsResponsesFailureErrorWithoutProviderMessage(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAIResponses,
 		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
 			return &responses.Response{Status: responses.ResponseStatusFailed}, nil
 		},
@@ -775,7 +849,7 @@ func TestOpenAIClient_ChatReturnsResponsesFailureErrorWithoutProviderMessage(t *
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
-		APIMode:  APIModeResponses,
+		API:      APIOpenAIResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "response failed")
@@ -783,6 +857,7 @@ func TestOpenAIClient_ChatReturnsResponsesFailureErrorWithoutProviderMessage(t *
 
 func TestOpenAIClient_ChatReturnsResponsesIncompleteErrorWithUnknownReason(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAIResponses,
 		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
 			return &responses.Response{Status: responses.ResponseStatusIncomplete}, nil
 		},
@@ -790,7 +865,7 @@ func TestOpenAIClient_ChatReturnsResponsesIncompleteErrorWithUnknownReason(t *te
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "gpt-5.1",
-		APIMode:  APIModeResponses,
+		API:      APIOpenAIResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "response incomplete: unknown")
@@ -869,6 +944,7 @@ func TestOpenAIClient_ChatLogsRequestDebugMetadataForChatCompletions(t *testing.
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 
 	client := &OpenAIClient{
+		api: APIOpenAICompletions,
 		createChatCompletion: func(_ context.Context, _ openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			return &openai.ChatCompletion{
 				ID:    "resp_123",
@@ -882,6 +958,7 @@ func TestOpenAIClient_ChatLogsRequestDebugMetadataForChatCompletions(t *testing.
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:         "test-model",
+		API:           APIOpenAICompletions,
 		Messages:      []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 		DebugRequests: true,
 	})
@@ -891,7 +968,7 @@ func TestOpenAIClient_ChatLogsRequestDebugMetadataForChatCompletions(t *testing.
 	require.Contains(t, output, "model client request completed")
 	require.Contains(t, output, "model request debug metadata")
 	require.Contains(t, output, `"provider":"openai-compatible"`)
-	require.Contains(t, output, `"mode":"completions"`)
+	require.Contains(t, output, `"api":"openai-completions"`)
 	require.Contains(t, output, `"message_count":1`)
 	require.Contains(t, output, `"tool_count":0`)
 	require.Contains(t, output, `"requires_tool_calls":false`)
@@ -912,19 +989,20 @@ func TestOpenAIClient_ChatLogsRequestDebugMetadataForResponses(t *testing.T) {
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 
 	client := &OpenAIClient{
+		api: APIOpenAIResponses,
 		createResponse: func(_ context.Context, _ responses.ResponseNewParams) (*responses.Response, error) {
 			return &responses.Response{ID: "resp_123", Model: "gpt-5.1", Output: []responses.ResponseOutputItemUnion{{Type: "message", Content: []responses.ResponseOutputMessageContentUnion{{Type: "output_text", Text: "hello back"}}}}}, nil
 		},
 	}
 
-	_, err := client.Complete(context.Background(), Request{Model: "gpt-5.1", APIMode: APIModeResponses, Instructions: "be concise", Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}, DebugRequests: true})
+	_, err := client.Complete(context.Background(), Request{Model: "gpt-5.1", API: APIOpenAIResponses, Instructions: "be concise", Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}, DebugRequests: true})
 	require.NoError(t, err)
 	output := buf.String()
 	require.Contains(t, output, "model client request started")
 	require.Contains(t, output, "model client request completed")
 	require.Contains(t, output, "model request debug metadata")
 	require.Contains(t, output, `"provider":"openai-compatible"`)
-	require.Contains(t, output, `"mode":"responses"`)
+	require.Contains(t, output, `"api":"openai-responses"`)
 	require.Contains(t, output, `"message_count":1`)
 	require.Contains(t, output, `"stream":false`)
 	require.NotContains(t, output, `"request"`)
@@ -944,6 +1022,7 @@ func TestOpenAIClient_ChatLogsModelClientRequestFailure(t *testing.T) {
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 
 	client := &OpenAIClient{
+		api: APIOpenAICompletions,
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			return nil, errors.New("upstream down")
 		},
@@ -951,6 +1030,7 @@ func TestOpenAIClient_ChatLogsModelClientRequestFailure(t *testing.T) {
 
 	_, err := client.Complete(context.Background(), Request{
 		Model:    "test-model",
+		API:      APIOpenAICompletions,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 
@@ -983,15 +1063,57 @@ func TestGetModelClientErrorKind_ClassifiesErrors(t *testing.T) {
 	}
 }
 
-func TestNormalizeGenerateRequestDefaultsAPIMode(t *testing.T) {
-	normalized, err := normalizeGenerateRequest(Request{Model: "test-model", Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}})
-	require.NoError(t, err)
-	require.Equal(t, APIModeCompletions, normalized.APIMode)
+func TestNormalizeGenerateRequestRequiresAPI(t *testing.T) {
+	_, err := normalizeGenerateRequest(Request{Model: "test-model", Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}}})
+	require.EqualError(t, err, "model API is required")
+}
+
+func TestNormalizeGenerateRequestAcceptsAPI(t *testing.T) {
+	tests := []struct {
+		name    string
+		api     string
+		wantAPI string
+	}{
+		{
+			name:    "completions",
+			api:     " OPENAI-COMPLETIONS ",
+			wantAPI: APIOpenAICompletions,
+		},
+		{
+			name:    "responses",
+			api:     " OPENAI-RESPONSES ",
+			wantAPI: APIOpenAIResponses,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			normalized, err := normalizeGenerateRequest(Request{
+				Model:    "test-model",
+				API:      tt.api,
+				Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, tt.wantAPI, normalized.API)
+		})
+	}
+}
+
+func TestNormalizeGenerateRequestRejectsInvalidExplicitAPI(t *testing.T) {
+	_, err := normalizeGenerateRequest(Request{
+		Model:    "test-model",
+		API:      APIAnthropicMessages,
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+	})
+
+	require.EqualError(t, err, "model API must be one of: openai-completions, openai-responses")
 }
 
 func TestBuildChatCompletionsRequestIncludesPlainAssistantMessage(t *testing.T) {
 	params := buildChatCompletionsRequest(normalizedGenerateRequest{
 		Model: "test-model",
+		API:   APIOpenAICompletions,
 		Messages: []handmsg.Message{{
 			Role:    handmsg.RoleAssistant,
 			Content: "hello back",
@@ -1007,6 +1129,7 @@ func TestBuildChatCompletionsRequestIncludesPlainAssistantMessage(t *testing.T) 
 func TestBuildChatCompletionsRequestIncludesAssistantToolCallContent(t *testing.T) {
 	params := buildChatCompletionsRequest(normalizedGenerateRequest{
 		Model: "test-model",
+		API:   APIOpenAICompletions,
 		Messages: []handmsg.Message{{
 			Role:      handmsg.RoleAssistant,
 			Content:   "calling tool",
@@ -1023,6 +1146,7 @@ func TestBuildChatCompletionsRequestIncludesAssistantToolCallContent(t *testing.
 func TestBuildChatCompletionsRequestIncludesToolMessages(t *testing.T) {
 	params := buildChatCompletionsRequest(normalizedGenerateRequest{
 		Model:        "test-model",
+		API:          APIOpenAICompletions,
 		Instructions: "be concise",
 		Messages: []handmsg.Message{
 			{Role: handmsg.RoleAssistant, ToolCalls: []handmsg.ToolCall{{ID: "call-1", Name: "time", Input: "{}"}}},
@@ -1232,6 +1356,7 @@ func newResponsesStreamServer(t *testing.T, events []string) *httptest.Server {
 func chatStreamRequest() Request {
 	return Request{
 		Model:    "test-model",
+		API:      APIOpenAICompletions,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	}
 }
@@ -1239,7 +1364,7 @@ func chatStreamRequest() Request {
 func responsesStreamRequest() Request {
 	return Request{
 		Model:    "gpt-5.1",
-		APIMode:  APIModeResponses,
+		API:      APIOpenAIResponses,
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	}
 }
@@ -1252,7 +1377,7 @@ func TestOpenAIClient_CompleteStreamDelegatesWithStreamFlag(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
-	client := &OpenAIClient{createChatStream: caller}
+	client := &OpenAIClient{api: APIOpenAICompletions, createChatStream: caller}
 
 	var deltas []StreamDelta
 	resp, err := client.CompleteStream(context.Background(), chatStreamRequest(), func(delta StreamDelta) {
@@ -1268,13 +1393,13 @@ func TestOpenAIClient_CompleteStreamDelegatesWithStreamFlag(t *testing.T) {
 }
 
 func TestOpenAIClient_StreamRequiresResponseStreamHandler(t *testing.T) {
-	client := &OpenAIClient{}
+	client := &OpenAIClient{api: APIOpenAIResponses}
 	_, err := client.CompleteStream(context.Background(), responsesStreamRequest(), nil)
 	require.EqualError(t, err, "model client is required")
 }
 
 func TestOpenAIClient_StreamRequiresChatStreamHandler(t *testing.T) {
-	client := &OpenAIClient{}
+	client := &OpenAIClient{api: APIOpenAICompletions}
 	_, err := client.CompleteStream(context.Background(), chatStreamRequest(), nil)
 	require.EqualError(t, err, "model client is required")
 }
@@ -1288,7 +1413,7 @@ func TestOpenAIClient_CompleteChatStreamReturnsResponseAndDeltas(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
-	client := &OpenAIClient{createChatStream: caller}
+	client := &OpenAIClient{api: APIOpenAICompletions, createChatStream: caller}
 
 	var deltas []StreamDelta
 	resp, err := client.CompleteStream(context.Background(), chatStreamRequest(), func(delta StreamDelta) {
@@ -1312,7 +1437,7 @@ func TestOpenAIClient_CompleteChatStreamEmitsReasoningDeltas(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
-	client := &OpenAIClient{createChatStream: caller}
+	client := &OpenAIClient{api: APIOpenAICompletions, createChatStream: caller}
 
 	var deltas []StreamDelta
 	resp, err := client.CompleteStream(context.Background(), chatStreamRequest(), func(delta StreamDelta) {
@@ -1358,7 +1483,7 @@ func TestOpenAIClient_CompleteChatStreamSkipsEmptyDeltas(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
-	client := &OpenAIClient{createChatStream: caller}
+	client := &OpenAIClient{api: APIOpenAICompletions, createChatStream: caller}
 
 	var deltas []StreamDelta
 	resp, err := client.CompleteStream(context.Background(), chatStreamRequest(), func(delta StreamDelta) {
@@ -1378,7 +1503,7 @@ func TestOpenAIClient_CompleteChatStreamHandlesNilCallback(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
-	client := &OpenAIClient{createChatStream: caller}
+	client := &OpenAIClient{api: APIOpenAICompletions, createChatStream: caller}
 
 	resp, err := client.CompleteStream(context.Background(), chatStreamRequest(), nil)
 
@@ -1388,6 +1513,7 @@ func TestOpenAIClient_CompleteChatStreamHandlesNilCallback(t *testing.T) {
 
 func TestOpenAIClient_CompleteChatStreamReturnsNilStreamError(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAICompletions,
 		createChatStream: func(context.Context, openai.ChatCompletionNewParams) *ssestream.Stream[openai.ChatCompletionChunk] {
 			return nil
 		},
@@ -1407,7 +1533,7 @@ func TestOpenAIClient_CompleteResponsesStreamReturnsResponseAndDeltas(t *testing
 	t.Cleanup(server.Close)
 
 	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
-	client := &OpenAIClient{createResponseStream: caller}
+	client := &OpenAIClient{api: APIOpenAIResponses, createResponseStream: caller}
 
 	var deltas []StreamDelta
 	resp, err := client.CompleteStream(context.Background(), responsesStreamRequest(), func(delta StreamDelta) {
@@ -1424,6 +1550,7 @@ func TestOpenAIClient_CompleteResponsesStreamReturnsResponseAndDeltas(t *testing
 
 func TestOpenAIClient_CompleteResponsesStreamReturnsNilStreamError(t *testing.T) {
 	client := &OpenAIClient{
+		api: APIOpenAIResponses,
 		createResponseStream: func(context.Context, responses.ResponseNewParams) *ssestream.Stream[responses.ResponseStreamEventUnion] {
 			return nil
 		},
@@ -1440,7 +1567,7 @@ func TestOpenAIClient_CompleteResponsesStreamRequiresFinalResponse(t *testing.T)
 	t.Cleanup(server.Close)
 
 	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
-	client := &OpenAIClient{createResponseStream: caller}
+	client := &OpenAIClient{api: APIOpenAIResponses, createResponseStream: caller}
 
 	_, err := client.CompleteStream(context.Background(), responsesStreamRequest(), nil)
 	require.EqualError(t, err, "model response is required")
@@ -1456,7 +1583,7 @@ func TestOpenAIClient_CompleteResponsesStreamSkipsEmptyTextDeltas(t *testing.T) 
 	t.Cleanup(server.Close)
 
 	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
-	client := &OpenAIClient{createResponseStream: caller}
+	client := &OpenAIClient{api: APIOpenAIResponses, createResponseStream: caller}
 
 	var deltas []StreamDelta
 	resp, err := client.CompleteStream(context.Background(), responsesStreamRequest(), func(delta StreamDelta) {
@@ -1686,15 +1813,16 @@ func TestOpenAIClient_StreamLogsDebugDumpForChatCompletions(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
-	client := &OpenAIClient{createChatStream: caller}
+	client := &OpenAIClient{api: APIOpenAICompletions, createChatStream: caller}
 
 	_, err := client.CompleteStream(context.Background(), Request{
 		Model:         "test-model",
+		API:           APIOpenAICompletions,
 		Messages:      []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 		DebugRequests: true,
 	}, nil)
 	require.NoError(t, err)
-	require.Contains(t, buf.String(), `"mode":"completions"`)
+	require.Contains(t, buf.String(), `"api":"openai-completions"`)
 }
 
 func TestOpenAIClient_StreamLogsDebugDumpForResponses(t *testing.T) {
@@ -1716,16 +1844,16 @@ func TestOpenAIClient_StreamLogsDebugDumpForResponses(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
-	client := &OpenAIClient{createResponseStream: caller}
+	client := &OpenAIClient{api: APIOpenAIResponses, createResponseStream: caller}
 
 	_, err := client.CompleteStream(context.Background(), Request{
 		Model:         "gpt-5.1",
-		APIMode:       APIModeResponses,
+		API:           APIOpenAIResponses,
 		Messages:      []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 		DebugRequests: true,
 	}, nil)
 	require.NoError(t, err)
-	require.Contains(t, buf.String(), `"mode":"responses"`)
+	require.Contains(t, buf.String(), `"api":"openai-responses"`)
 }
 
 func TestOpenAIClient_CompleteChatStreamReturnsStreamError(t *testing.T) {
@@ -1736,7 +1864,7 @@ func TestOpenAIClient_CompleteChatStreamReturnsStreamError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
-	client := &OpenAIClient{createChatStream: caller}
+	client := &OpenAIClient{api: APIOpenAICompletions, createChatStream: caller}
 
 	_, err := client.CompleteStream(context.Background(), chatStreamRequest(), nil)
 	require.Error(t, err)
@@ -1750,7 +1878,7 @@ func TestOpenAIClient_CompleteResponsesStreamReturnsStreamError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
-	client := &OpenAIClient{createResponseStream: caller}
+	client := &OpenAIClient{api: APIOpenAIResponses, createResponseStream: caller}
 
 	_, err := client.CompleteStream(context.Background(), responsesStreamRequest(), nil)
 	require.Error(t, err)
@@ -1763,7 +1891,7 @@ func TestOpenAIClient_CompleteResponsesStreamReturnsEventError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
-	client := &OpenAIClient{createResponseStream: caller}
+	client := &OpenAIClient{api: APIOpenAIResponses, createResponseStream: caller}
 
 	_, err := client.CompleteStream(context.Background(), responsesStreamRequest(), nil)
 	require.Error(t, err)
@@ -1777,7 +1905,7 @@ func TestOpenAIClient_CompleteChatStreamReturnsAccumulateError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	caller := newOpenAICompletionStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
-	client := &OpenAIClient{createChatStream: caller}
+	client := &OpenAIClient{api: APIOpenAICompletions, createChatStream: caller}
 
 	_, err := client.CompleteStream(context.Background(), chatStreamRequest(), nil)
 	require.EqualError(t, err, "failed to accumulate chat completion stream")
@@ -1802,11 +1930,13 @@ func TestLogRequestDebugMetadataOmitsRequestBody(t *testing.T) {
 	log.Logger = zerolog.New(buf)
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 
-	logRequestDebugMetadata(APIModeResponses)
+	logRequestDebugMetadata(normalizedGenerateRequest{
+		API: APIOpenAIResponses,
+	})
 
 	output := buf.String()
 	require.Contains(t, output, "model request debug metadata")
-	require.Contains(t, output, `"mode":"responses"`)
+	require.Contains(t, output, `"api":"openai-responses"`)
 	require.NotContains(t, output, `"request"`)
 	require.NotContains(t, output, "authorization")
 	require.NotContains(t, output, "api_key")

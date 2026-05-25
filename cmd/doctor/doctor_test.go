@@ -38,6 +38,7 @@ func TestNewCommand_PrintsPassingReport(t *testing.T) {
 		"--model", "openai/gpt-4o-mini",
 		"--model.provider", "openrouter",
 		"--model.key", "flag-key",
+		"--models.verify=false",
 		"doctor",
 	})
 	require.NoError(t, err)
@@ -133,6 +134,7 @@ func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
 		"--model.provider", "openrouter",
 		"--model.key", "flag-key",
 		"--log.no-color",
+		"--models.verify=false",
 		"doctor",
 	})
 	require.NoError(t, err)
