@@ -26,12 +26,20 @@ func (m model) renderTranscript() string {
 }
 
 func (m *model) setTranscriptContent() {
+	if m.isTranscriptSelectionDragActive() {
+		return
+	}
+
 	m.clearTranscriptSelection()
 	m.transcript.SetContent(m.renderTranscriptContent())
 	m.transcript.GotoBottom()
 }
 
 func (m *model) setTranscriptContentForActiveTurn() {
+	if m.isTranscriptSelectionDragActive() {
+		return
+	}
+
 	offset := m.transcript.YOffset()
 	m.clearTranscriptSelection()
 	m.transcript.SetContent(m.renderTranscriptContent())
@@ -39,6 +47,10 @@ func (m *model) setTranscriptContentForActiveTurn() {
 }
 
 func (m *model) refreshTranscriptContentAfterResize() {
+	if m.isTranscriptSelectionDragActive() {
+		return
+	}
+
 	offset := m.transcript.YOffset()
 	wasAtBottom := m.transcript.AtBottom()
 	m.clearTranscriptSelection()

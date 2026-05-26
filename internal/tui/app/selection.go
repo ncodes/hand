@@ -266,6 +266,10 @@ func (m *model) clearTranscriptSelection() {
 	m.transcript.ClearHighlights()
 }
 
+func (m model) isTranscriptSelectionDragActive() bool {
+	return m.selection.active && m.selection.dragging
+}
+
 func transcriptSelectionAutoScrollTickCmd() tea.Cmd {
 	return tea.Tick(transcriptSelectionAutoScrollInterval, func(time.Time) tea.Msg {
 		return transcriptSelectionAutoScrollTickMsg{}

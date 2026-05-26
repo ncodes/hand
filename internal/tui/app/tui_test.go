@@ -1552,6 +1552,92 @@ func TestModel_UpdateKeepsSelectionWhenDraggingOutsideTranscript(t *testing.T) {
 	require.Equal(t, start, runModel.selection.end)
 }
 
+func TestModel_UpdateKeepsSelectionDragDuringResponseUpdate(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 40
+	runModel.resize()
+	runModel.messages = []transcriptCell{
+		userTranscriptCell{text: "first"},
+		assistantTranscriptCell{text: "second"},
+	}
+	runModel.setTranscriptContent()
+	runModel.resize()
+	runModel.transcript.GotoTop()
+	firstRow := getTranscriptContentRow(t, runModel, "❯ first")
+	secondRow := getTranscriptContentRow(t, runModel, "second")
+
+	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		Y:      firstRow,
+	}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+
+	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		X:      getPanelHorizontalPadding(runModel.width) + len("second"),
+		Y:      secondRow,
+	}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.selection.dragging)
+	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
+
+	runModel.responding = true
+	runModel.responseID = 4
+	updated, cmd = runModel.Update(responseEventMsg{
+		ResponseID: 4,
+		Message:    assistantTextDeltaMsg{Text: "new response text"},
+	})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.selection.dragging)
+	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
+	require.Contains(t, runModel.selectedTranscriptText(), "first")
+	require.Contains(t, runModel.selectedTranscriptText(), "second")
+}
+
+func TestModel_UpdateKeepsSelectionDragDuringToolUpdate(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 40
+	runModel.resize()
+	runModel.messages = []transcriptCell{
+		userTranscriptCell{text: "first"},
+		assistantTranscriptCell{text: "second"},
+	}
+	runModel.setTranscriptContent()
+	runModel.resize()
+	runModel.transcript.GotoTop()
+	firstRow := getTranscriptContentRow(t, runModel, "❯ first")
+	secondRow := getTranscriptContentRow(t, runModel, "second")
+
+	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		Y:      firstRow,
+	}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+
+	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		X:      getPanelHorizontalPadding(runModel.width) + len("second"),
+		Y:      secondRow,
+	}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.selection.dragging)
+
+	updated, cmd = runModel.Update(toolInvocationCompletedMsg{Name: "read_file"})
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.selection.dragging)
+	require.Contains(t, runModel.transcript.View(), "\x1b[7m")
+	require.Contains(t, runModel.selectedTranscriptText(), "first")
+	require.Contains(t, runModel.selectedTranscriptText(), "second")
+}
+
 func TestModel_UpdateAutoScrollsTranscriptSelectionAtBottomEdge(t *testing.T) {
 	runModel := newModel()
 	runModel.width = 40
@@ -3160,6 +3246,56 @@ func TestModel_UpdateGrowsPromptForWrappedText(t *testing.T) {
 	runModel.resize()
 
 	require.Equal(t, 2, runModel.input.Height())
+}
+
+func TestModel_UpdateKeepsTranscriptAtBottomWhenPromptWrapGrowsComposer(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	for index := 0; index < 12; index++ {
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
+	}
+	runModel.setTranscriptContent()
+	require.True(t, runModel.transcript.AtBottom())
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	for i := 0; i < getInputInnerWidth(runModel.width)+2; i++ {
+		updated, cmd = runModel.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+		require.NotNil(t, cmd)
+		runModel = updated.(model)
+	}
+
+	require.Greater(t, runModel.input.Height(), 1)
+	require.True(t, runModel.transcript.AtBottom())
+	require.NotContains(t, stripANSI(runModel.View().Content), jumpToBottomLabel)
+}
+
+func TestModel_UpdateKeepsTranscriptAtBottomWhenNewlineGrowsComposer(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	for index := 0; index < 12; index++ {
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
+	}
+	runModel.setTranscriptContent()
+	runModel.input.SetValue("first line")
+	require.True(t, runModel.transcript.AtBottom())
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{
+		Code: tea.KeyEnter,
+		Mod:  tea.ModShift,
+	})
+	if cmd != nil {
+		cmd()
+	}
+	runModel = updated.(model)
+
+	require.Equal(t, 2, runModel.input.Height())
+	require.True(t, runModel.transcript.AtBottom())
+	require.NotContains(t, stripANSI(runModel.View().Content), jumpToBottomLabel)
 }
 
 func TestModel_UpdateShowsAllPromptRowsWhenSpaceAllows(t *testing.T) {

@@ -98,6 +98,8 @@ func (m model) getInputFrameBorderColor() string {
 
 // resize distributes terminal rows between transcript and composer.
 func (m *model) resize() {
+	wasAtBottom := m.transcript.AtBottom()
+
 	width := m.getMainPaneWidth()
 	m.input.SetWidth(getInputInnerWidth(width))
 	inputHeight := m.getInputHeight()
@@ -106,6 +108,9 @@ func (m *model) resize() {
 	m.input.SetHeight(inputHeight)
 	m.transcript.SetWidth(layout.Composer.Width)
 	m.transcript.SetHeight(layout.Transcript.Height)
+	if wasAtBottom {
+		m.transcript.GotoBottom()
+	}
 }
 
 // getInputHeight returns the visible composer height constrained by the screen.
