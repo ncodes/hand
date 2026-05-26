@@ -28,7 +28,6 @@ func respondToPromptCmd(
 		}
 
 		reply, err := client.Respond(ctx, prompt, rpcclient.RespondOptions{
-			Stream: new(true),
 			OnEvent: func(event rpcclient.Event) {
 				msg, ok := agentEventToTUIMessage(event)
 				if !ok {

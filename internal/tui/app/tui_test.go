@@ -2126,7 +2126,7 @@ func TestRespondToPromptCmd_StreamsDeltasTraceEventsAndCompletion(t *testing.T) 
 
 	require.Equal(t, responseCompletedMsg{ResponseID: 7, Text: "hello world"}, msg)
 	require.Equal(t, "hello", client.message)
-	require.True(t, client.stream)
+	require.False(t, client.streamSet)
 	require.Equal(t, assistantTextDeltaMsg{Channel: "assistant", Text: "hello "}, <-events)
 	require.Equal(t, toolInvocationStartedMsg{ID: "call_1", Name: "read_file"}, <-events)
 	_, ok := <-events
@@ -3270,6 +3270,7 @@ type fakeTUIChatClient struct {
 	currentSessionErr   error
 	message             string
 	stream              bool
+	streamSet           bool
 	calls               int
 	compactCalls        int
 	timelineCalls       int
@@ -3286,6 +3287,7 @@ func (c *fakeTUIChatClient) Respond(
 	c.message = message
 	if opts.Stream != nil {
 		c.stream = *opts.Stream
+		c.streamSet = true
 	}
 	for _, event := range c.events {
 		if opts.OnEvent != nil {

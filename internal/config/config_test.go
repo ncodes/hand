@@ -1072,6 +1072,53 @@ func TestLoad_IgnoresMissingConfigFile(t *testing.T) {
 	require.Equal(t, DefaultConfig.Log.Level, cfg.Log.Level)
 }
 
+func TestLoad_DefaultsOmittedMainAPIToSelectedProvider(t *testing.T) {
+	clearEnvKeys(t, "HAND_MODEL_API", "HAND_MODEL_PROVIDER", "HAND_MODEL_BASE_URL")
+
+	dir := t.TempDir()
+	envPath := filepath.Join(dir, ".env")
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(envPath, nil, 0o600))
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+name: anthropic-agent
+models:
+  providers:
+    anthropic:
+      apiKey: test-key
+  main:
+    name: claude-sonnet-4-5
+    provider: anthropic
+    stream: true
+rpc:
+  address: 127.0.0.1
+  port: 50051
+log:
+  level: info
+`), 0o600))
+
+	cfg, err := Load(envPath, configPath)
+
+	require.NoError(t, err)
+	require.Equal(t, modelprovider.APIAnthropicMessages, cfg.Models.Main.API)
+	require.Equal(t, constants.DefaultAnthropicBaseURL, cfg.Models.Main.BaseURL)
+}
+
+func TestLoad_PreservesExplicitMainAPIForValidation(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+models:
+  main:
+    provider: anthropic
+    api: openai-responses
+`), 0o600))
+
+	cfg, err := loadConfigFile(configPath)
+
+	require.NoError(t, err)
+	require.Equal(t, modelprovider.APIOpenAIResponses, cfg.Models.Main.API)
+}
+
 func TestLoad_ReturnsErrorForInvalidConfigFile(t *testing.T) {
 	clearEnvKeys(t, "HAND_NAME", "HAND_MODEL", "HAND_MODEL_PROVIDER", "OPENROUTER_API_KEY", "OPENAI_API_KEY",
 		"OPENROUTER_API_KEY", "HAND_MODEL_BASE_URL", "HAND_MODEL_API", "HAND_MODEL_MAX_RETRIES",

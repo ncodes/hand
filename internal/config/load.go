@@ -132,10 +132,56 @@ func loadConfigFile(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config file %q: %w", path, err)
 	}
+	clearInheritedModelAPIWhenOmitted(data, &cfg)
 
 	cfg.resolvePaths(baseDir)
 
 	return &cfg, nil
+}
+
+func clearInheritedModelAPIWhenOmitted(data []byte, cfg *Config) {
+	if cfg == nil || hasYAMLPath(data, "models", "main", "api") {
+		return
+	}
+	if modelRegistry.SupportsProviderAPI(cfg.Models.Main.Provider, cfg.Models.Main.API) {
+		return
+	}
+
+	cfg.Models.Main.API = ""
+}
+
+func hasYAMLPath(data []byte, path ...string) bool {
+	var root yaml.Node
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return false
+	}
+	if len(root.Content) == 0 {
+		return false
+	}
+
+	node := root.Content[0]
+	for _, segment := range path {
+		if node == nil || node.Kind != yaml.MappingNode {
+			return false
+		}
+		node = getYAMLMappingValue(node, segment)
+	}
+
+	return node != nil
+}
+
+func getYAMLMappingValue(node *yaml.Node, key string) *yaml.Node {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return nil
+	}
+
+	for index := 0; index+1 < len(node.Content); index += 2 {
+		if node.Content[index].Value == key {
+			return node.Content[index+1]
+		}
+	}
+
+	return nil
 }
 
 func (c *Config) resolvePaths(baseDir string) {
