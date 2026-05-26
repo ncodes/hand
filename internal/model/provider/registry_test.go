@@ -78,26 +78,36 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 
 	openAIModel, ok := registry.GetModel("openai", constants.DefaultModel)
 	require.True(t, ok)
+	require.Equal(t, constants.ModelProviderOpenAI, openAIModel.Owner)
 	require.Equal(t, APIOpenAIResponses, openAIModel.API)
 	require.Equal(t, []InputKind{InputText, InputImage}, openAIModel.Input)
 	require.Equal(t, constants.DefaultContextLength, openAIModel.ContextWindow)
 
 	openRouterModel, ok := registry.GetModel("openrouter", constants.DefaultProfileModel)
 	require.True(t, ok)
+	require.Equal(t, "minimax", openRouterModel.Owner)
 	require.Equal(t, APIOpenAIResponses, openRouterModel.API)
 	require.Equal(t, []InputKind{InputText}, openRouterModel.Input)
 
 	openRouterOpenAIModel, ok := registry.GetModel("openrouter", constants.DefaultModel)
 	require.True(t, ok)
+	require.Equal(t, constants.ModelProviderOpenAI, openRouterOpenAIModel.Owner)
 	require.Equal(t, APIOpenAIResponses, openRouterOpenAIModel.API)
 	require.Equal(t, []InputKind{InputText, InputImage}, openRouterOpenAIModel.Input)
 
+	_, ok = registry.GetModel("openrouter", "openai/"+constants.DefaultModel)
+	require.False(t, ok)
+
 	embedding, ok := registry.GetModel("openrouter", constants.DefaultProfileEmbeddingModel)
 	require.True(t, ok)
+	require.Equal(t, constants.ModelProviderOpenAI, embedding.Owner)
 	require.Equal(t, APIOpenAIEmbeddings, embedding.API)
 	require.Equal(t, []InputKind{InputText}, embedding.Input)
 
-	sonnet, ok := registry.GetModel("anthropic", "anthropic/claude-sonnet-4-5")
+	_, ok = registry.GetModel("openrouter", "openai/"+constants.DefaultProfileEmbeddingModel)
+	require.False(t, ok)
+
+	sonnet, ok := registry.GetModel("anthropic", "claude-sonnet-4-5")
 	require.True(t, ok)
 	require.Equal(t, "Claude Sonnet 4.5", sonnet.Name)
 	require.Equal(t, APIAnthropicMessages, sonnet.API)
@@ -105,11 +115,11 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	require.Equal(t, 200000, sonnet.ContextWindow)
 	require.Equal(t, 64000, sonnet.MaxTokens)
 
-	opus, ok := registry.GetModel("anthropic", "anthropic/claude-opus-4-1")
+	opus, ok := registry.GetModel("anthropic", "claude-opus-4-1")
 	require.True(t, ok)
 	require.Equal(t, APIAnthropicMessages, opus.API)
 
-	haiku, ok := registry.GetModel("anthropic", "anthropic/claude-3-haiku-20240307")
+	haiku, ok := registry.GetModel("anthropic", "claude-3-haiku-20240307")
 	require.True(t, ok)
 	require.Equal(t, APIAnthropicMessages, haiku.API)
 }

@@ -31,12 +31,12 @@ func (c *Config) Validate() error {
 		return errors.New("name is required; set HAND_NAME, provide it in config, or use --name")
 	}
 
-	if !isValidModelSlug(c.Models.Main.Name) {
-		return errors.New("model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
+	if !isValidModelID(c.Models.Main.Name) {
+		return errors.New("model is required")
 	}
 
-	if c.Models.Summary.Name != "" && !isValidModelSlug(c.Models.Summary.Name) {
-		return errors.New("summary model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
+	if c.Models.Summary.Name != "" && !isValidModelID(c.Models.Summary.Name) {
+		return errors.New("summary model is invalid")
 	}
 
 	if !hasModelProvider(c.Models.Main.Provider) {
@@ -209,8 +209,8 @@ func validatePersonalityConfig(name string, personality PersonalityConfig) error
 		return fmt.Errorf("personalities.%s.maxIterations must be non-negative", name)
 	}
 
-	if personality.Model.Name != "" && !isValidModelSlug(personality.Model.Name) {
-		return fmt.Errorf("personalities.%s.model.name must use the format <owner>/<name>", name)
+	if personality.Model.Name != "" && !isValidModelID(personality.Model.Name) {
+		return fmt.Errorf("personalities.%s.model.name is invalid", name)
 	}
 	if personality.Model.Provider != "" {
 		if !hasModelProvider(personality.Model.Provider) {

@@ -281,7 +281,7 @@ models:
     openrouter:
       apiKey: config-key
   main:
-    name: openai/gpt-4o-mini
+    name: gpt-4o-mini
     provider: openrouter
 session:
   instruct: be terse

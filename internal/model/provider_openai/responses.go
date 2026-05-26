@@ -137,7 +137,7 @@ func buildResponsesRequest(req normalizedGenerateRequest) responses.ResponseNewP
 							Text:        message.Content,
 						},
 					}},
-					fmt.Sprintf("assistant_%d", assistantIndex),
+					fmt.Sprintf("msg_assistant_%d", assistantIndex),
 					responses.ResponseOutputMessageStatusCompleted,
 				))
 			}

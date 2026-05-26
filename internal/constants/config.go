@@ -4,13 +4,13 @@ import "time"
 
 const (
 	// DefaultModel is the fallback model identifier.
-	DefaultModel = "openai/gpt-4o-mini"
+	DefaultModel = "gpt-4o-mini"
 	// DefaultProfileModel is the starter profile model identifier.
 	DefaultProfileModel = "minimax/minimax-m2.7"
 	// DefaultProfileSummaryModel is the starter profile summary model identifier.
 	DefaultProfileSummaryModel = DefaultModel
 	// DefaultProfileEmbeddingModel is the starter profile embedding model identifier.
-	DefaultProfileEmbeddingModel = "openai/text-embedding-3-small"
+	DefaultProfileEmbeddingModel = "text-embedding-3-small"
 	// DefaultModelProvider is the fallback model provider.
 	DefaultModelProvider = "openrouter"
 	// ModelProviderOpenRouter identifies OpenRouter-backed model access.
@@ -23,7 +23,7 @@ const (
 	ModelProviderGitHubCopilot = "github-copilot"
 	// DefaultOpenRouterBaseURL is the default OpenRouter API base URL.
 	DefaultOpenRouterBaseURL           = "https://openrouter.ai/api/v1"
-	DefaultOpenRouterResponsesBaseURL  = "https://openrouter.ai/api/v1/responses"
+	DefaultOpenRouterResponsesBaseURL  = "https://openrouter.ai/api/v1"
 	DefaultOpenRouterEmbeddingsBaseURL = "https://openrouter.ai/api/v1/embeddings"
 	DefaultOpenAIBaseURL               = "https://api.openai.com/v1"
 	DefaultOpenAIEmbeddingsBaseURL     = "https://api.openai.com/v1/embeddings"

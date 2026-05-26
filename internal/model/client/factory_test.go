@@ -19,19 +19,19 @@ func TestClientFactory_ResolveUsesRegistryDefaults(t *testing.T) {
 
 	resolved, err := factory.Resolve(ClientRequest{
 		Role:     ModelRoleMain,
-		Model:    "openai/gpt-4o-mini",
-		Provider: " openrouter ",
+		Model:    "gpt-4o-mini",
+		Provider: " openai ",
 		APIKey:   " key ",
 	})
 
 	require.NoError(t, err)
 	require.Equal(t, ModelRoleMain, resolved.Role)
 	require.True(t, resolved.ModelKnown)
-	require.Equal(t, "openai/gpt-4o-mini", resolved.Model.ID)
-	require.Equal(t, "openrouter", resolved.Provider.ID)
+	require.Equal(t, "gpt-4o-mini", resolved.Model.ID)
+	require.Equal(t, "openai", resolved.Provider.ID)
 	require.Equal(t, modelprovider.APIOpenAIResponses, resolved.API.ID)
 	require.Equal(t, "key", resolved.APIKey)
-	require.Equal(t, "https://openrouter.ai/api/v1/responses", resolved.BaseURL)
+	require.Equal(t, "https://api.openai.com/v1", resolved.BaseURL)
 }
 
 func TestNewClientFactory_UsesDefaultRegistryWhenNil(t *testing.T) {
@@ -163,10 +163,12 @@ func TestClientFactory_ResolveRejectsInvalidRequests(t *testing.T) {
 
 func TestClientFactory_NewClientBuildsOpenAICompatibleClient(t *testing.T) {
 	var capturedKey string
+	var capturedProvider string
 	var capturedOptions int
 	factory := NewClientFactory(modelprovider.DefaultRegistry())
-	factory.OpenAIClient = func(apiKey string, _ string, opts ...option.RequestOption) (models.Client, error) {
+	factory.OpenAIClient = func(apiKey string, _ string, provider string, _ *modelprovider.Registry, opts ...option.RequestOption) (models.Client, error) {
 		capturedKey = apiKey
+		capturedProvider = provider
 		capturedOptions = len(opts)
 		return &provider_openai.OpenAIClient{}, nil
 	}
@@ -183,13 +185,14 @@ func TestClientFactory_NewClientBuildsOpenAICompatibleClient(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, client)
 	require.Equal(t, "key", capturedKey)
+	require.Equal(t, "openai", capturedProvider)
 	require.Equal(t, 3, capturedOptions)
 }
 
 func TestClientFactory_NewClientRoutesRequestsThroughResolvedAPI(t *testing.T) {
 	var capturedAPI string
 	factory := NewClientFactory(modelprovider.DefaultRegistry())
-	factory.OpenAIClient = func(_ string, api string, _ ...option.RequestOption) (models.Client, error) {
+	factory.OpenAIClient = func(_ string, api string, _ string, _ *modelprovider.Registry, _ ...option.RequestOption) (models.Client, error) {
 		capturedAPI = api
 		return &provider_openai.OpenAIClient{}, nil
 	}
@@ -273,7 +276,7 @@ func TestClientFactory_NewClientUsesDefaultBuilder(t *testing.T) {
 func TestClientFactory_NewClientReusesEquivalentClients(t *testing.T) {
 	var builds int
 	factory := NewClientFactory(modelprovider.DefaultRegistry())
-	factory.OpenAIClient = func(string, string, ...option.RequestOption) (models.Client, error) {
+	factory.OpenAIClient = func(string, string, string, *modelprovider.Registry, ...option.RequestOption) (models.Client, error) {
 		builds++
 		return &provider_openai.OpenAIClient{}, nil
 	}
@@ -314,7 +317,7 @@ func TestClientFactory_NewClientInitializesNilCache(t *testing.T) {
 	var builds int
 	factory := NewClientFactory(modelprovider.DefaultRegistry())
 	factory.clients = nil
-	factory.OpenAIClient = func(string, string, ...option.RequestOption) (models.Client, error) {
+	factory.OpenAIClient = func(string, string, string, *modelprovider.Registry, ...option.RequestOption) (models.Client, error) {
 		builds++
 		return &provider_openai.OpenAIClient{}, nil
 	}
@@ -333,7 +336,7 @@ func TestClientFactory_NewClientInitializesNilCache(t *testing.T) {
 
 func TestClientFactory_NewClientReturnsBuilderError(t *testing.T) {
 	factory := NewClientFactory(modelprovider.DefaultRegistry())
-	factory.OpenAIClient = func(string, string, ...option.RequestOption) (models.Client, error) {
+	factory.OpenAIClient = func(string, string, string, *modelprovider.Registry, ...option.RequestOption) (models.Client, error) {
 		return nil, errors.New("build failed")
 	}
 
@@ -348,7 +351,7 @@ func TestClientFactory_NewClientReturnsBuilderError(t *testing.T) {
 
 func TestClientFactory_NewClientRejectsNilBuiltClient(t *testing.T) {
 	factory := NewClientFactory(modelprovider.DefaultRegistry())
-	factory.OpenAIClient = func(string, string, ...option.RequestOption) (models.Client, error) {
+	factory.OpenAIClient = func(string, string, string, *modelprovider.Registry, ...option.RequestOption) (models.Client, error) {
 		return nil, nil
 	}
 

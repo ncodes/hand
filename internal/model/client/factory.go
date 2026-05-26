@@ -55,8 +55,8 @@ type ResolvedClientRequest struct {
 	MaxRetries int
 }
 
-// OpenAIClientBuilder constructs an OpenAI-compatible model client for one API route.
-type OpenAIClientBuilder func(string, string, ...option.RequestOption) (models.Client, error)
+// OpenAIClientBuilder constructs an OpenAI-compatible model client for one provider/API route.
+type OpenAIClientBuilder func(string, string, string, *modelprovider.Registry, ...option.RequestOption) (models.Client, error)
 
 // AnthropicClientBuilder constructs an Anthropic Messages model client.
 type AnthropicClientBuilder func(string, ...anthropicoption.RequestOption) (models.Client, error)
@@ -221,7 +221,7 @@ func (f *ClientFactory) newOpenAIClient(req ResolvedClientRequest) (models.Clien
 		opts = append(opts, option.WithHeader(key, req.Headers[key]))
 	}
 
-	client, err := builder(req.APIKey, req.API.ID, opts...)
+	client, err := builder(req.APIKey, req.API.ID, req.Provider.ID, f.registry(), opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -309,8 +309,14 @@ func normalizeID(value string) string {
 	return strings.TrimSpace(strings.ToLower(value))
 }
 
-func newOpenAIClient(apiKey, api string, opts ...option.RequestOption) (models.Client, error) {
-	return provider_openai.NewOpenAIClient(apiKey, api, opts...)
+func newOpenAIClient(
+	apiKey string,
+	api string,
+	provider string,
+	registry *modelprovider.Registry,
+	opts ...option.RequestOption,
+) (models.Client, error) {
+	return provider_openai.NewOpenAIProviderClient(apiKey, api, provider, registry, opts...)
 }
 
 func newAnthropicClient(apiKey string, opts ...anthropicoption.RequestOption) (models.Client, error) {

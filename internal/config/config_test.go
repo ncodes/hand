@@ -342,7 +342,7 @@ personalities:
       exec: false
       mem: read
     model:
-      name: openai/gpt-4o-mini
+      name: gpt-4o-mini
       provider: OpenRouter
       api: openai-responses
       baseUrl: " https://models.example "
@@ -371,7 +371,7 @@ personalities:
 	require.True(t, getBoolValue(researcher.Tools.Network))
 	require.False(t, getBoolValue(researcher.Tools.Exec))
 	require.Equal(t, personalityToolMemoryRead, researcher.Tools.Memory)
-	require.Equal(t, "openai/gpt-4o-mini", researcher.Model.Name)
+	require.Equal(t, "gpt-4o-mini", researcher.Model.Name)
 	require.Equal(t, "openrouter", researcher.Model.Provider)
 	require.Equal(t, "openai-responses", researcher.Model.API)
 	require.Equal(t, "https://models.example", researcher.Model.BaseURL)
@@ -1534,7 +1534,7 @@ func TestConfig_ValidateAcceptsValidPersonalitySettings(t *testing.T) {
 					Memory: personalityToolMemoryWrite,
 				},
 				Model: MainModelConfig{
-					Name:     "openai/gpt-4o-mini",
+					Name:     "gpt-4o-mini",
 					Provider: "OpenAI",
 					API:      modelprovider.APIOpenAIResponses,
 				},
@@ -1576,8 +1576,8 @@ func TestConfig_ValidatePersonalitySettings(t *testing.T) {
 		},
 		{
 			name:          "invalid model name",
-			personality:   PersonalityConfig{Model: MainModelConfig{Name: "gpt-4o-mini"}},
-			expectedError: "personalities.researcher.model.name must use the format <owner>/<name>",
+			personality:   PersonalityConfig{Model: MainModelConfig{Name: "/gpt-4o-mini"}},
+			expectedError: "personalities.researcher.model.name is invalid",
 		},
 		{
 			name:          "invalid model provider",
@@ -1610,7 +1610,7 @@ func TestConfig_ValidateDefaultsModelWhenEmpty(t *testing.T) {
 	require.Equal(t, constants.DefaultModel, cfg.Models.Main.Name)
 }
 
-func TestConfig_ValidateRejectsModelWithoutOwnerPrefix(t *testing.T) {
+func TestConfig_ValidateAcceptsProviderNativeModelID(t *testing.T) {
 	err := (&Config{
 		Name:   "test-agent",
 		Models: ModelsConfig{Main: MainModelConfig{APIKey: "test-key", Name: "gpt-4o-mini", Provider: "openai"}},
@@ -1618,11 +1618,11 @@ func TestConfig_ValidateRejectsModelWithoutOwnerPrefix(t *testing.T) {
 		Log:    LogConfig{Level: "info"},
 	}).Validate()
 
-	require.EqualError(t, err, "model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
+	require.NoError(t, err)
 }
 
 func TestConfig_ValidateRejectsModelWithEmptyOwnerOrName(t *testing.T) {
-	cases := []string{"/gpt-4o-mini", "openai/", "openai/gpt-4o-mini/extra"}
+	cases := []string{"/gpt-4o-mini", "openai/", "gpt-4o-mini//extra"}
 
 	for _, model := range cases {
 		t.Run(model, func(t *testing.T) {
@@ -1633,7 +1633,7 @@ func TestConfig_ValidateRejectsModelWithEmptyOwnerOrName(t *testing.T) {
 				Log:    LogConfig{Level: "info"},
 			}).Validate()
 
-			require.EqualError(t, err, "model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
+			require.EqualError(t, err, "model is required")
 		})
 	}
 }
@@ -1768,10 +1768,10 @@ func TestConfig_ValidateRejectsKnownModelWithIncompatibleRole(t *testing.T) {
 		Log: LogConfig{Level: "info"},
 	}).Validate()
 
-	require.EqualError(t, err, `models.main.name "openai/text-embedding-3-small" is not compatible with this model role`)
+	require.EqualError(t, err, `models.main.name "text-embedding-3-small" is not compatible with this model role`)
 }
 
-func TestConfig_ValidateRejectsInvalidSummaryModelSlug(t *testing.T) {
+func TestConfig_ValidateAcceptsProviderNativeSummaryModelID(t *testing.T) {
 	err := (&Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
@@ -1783,7 +1783,7 @@ func TestConfig_ValidateRejectsInvalidSummaryModelSlug(t *testing.T) {
 		Log: LogConfig{Level: "info"},
 	}).Validate()
 
-	require.EqualError(t, err, "summary model must use the format <owner>/<name>; for example openai/gpt-4o-mini")
+	require.NoError(t, err)
 }
 
 func TestConfig_ValidateAllowsFreeFormSummaryModelForProviderThatSupportsModels(t *testing.T) {
@@ -1811,10 +1811,10 @@ func TestConfig_SummaryModelEffective(t *testing.T) {
 		cfg := &Config{
 			Models: ModelsConfig{
 				Main:    MainModelConfig{Name: constants.DefaultModel},
-				Summary: SummaryModelConfig{Name: "anthropic/claude-3.5-haiku"},
+				Summary: SummaryModelConfig{Name: "claude-3.5-haiku"},
 			},
 		}
-		require.Equal(t, "anthropic/claude-3.5-haiku", cfg.SummaryModelEffective())
+		require.Equal(t, "claude-3.5-haiku", cfg.SummaryModelEffective())
 	})
 }
 
@@ -1849,7 +1849,7 @@ func TestConfig_ResolveSummaryModelAuth_UsesSummaryAPIForDefaultBaseURL(t *testi
 
 	auth, err := cfg.ResolveSummaryModelAuth()
 	require.NoError(t, err)
-	require.Equal(t, "https://openrouter.ai/api/v1/responses", auth.BaseURL)
+	require.Equal(t, "https://openrouter.ai/api/v1", auth.BaseURL)
 }
 
 func TestConfig_ResolveSummaryModelAuthMatchesMainWhenUnset(t *testing.T) {
@@ -2238,7 +2238,7 @@ func TestConfig_NormalizeDefaultBaseURLDependsOnAPI(t *testing.T) {
 
 		cfgResp := &Config{Models: ModelsConfig{Main: MainModelConfig{Provider: "openrouter", API: modelprovider.APIOpenAIResponses}}}
 		cfgResp.Normalize()
-		require.Equal(t, "https://openrouter.ai/api/v1/responses", cfgResp.Models.Main.BaseURL)
+		require.Equal(t, "https://openrouter.ai/api/v1", cfgResp.Models.Main.BaseURL)
 	})
 
 	t.Run("unknown api mode does not fall back to default base url", func(t *testing.T) {
@@ -2363,11 +2363,11 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	t.Setenv("HAND_SEARCH_ENABLE_RERANK", "false")
 	t.Setenv("HAND_RERANKER_ENABLED", "false")
 	t.Setenv("HAND_RERANKER_TYPE", constants.RerankerLLM)
-	t.Setenv("HAND_RERANKER_MODEL", "openai/gpt-4o-mini")
+	t.Setenv("HAND_RERANKER_MODEL", "gpt-4o-mini")
 	t.Setenv("HAND_RERANKER_MAX_CANDIDATES", "12")
 	t.Setenv("HAND_RERANKER_MAX_CANDIDATE_TEXT_CHARS", "700")
 	t.Setenv("HAND_RERANKER_MAX_OUTPUT_TOKENS", "256")
-	t.Setenv("HAND_RERANKER_OVERRIDES", `{"memory_reflection":{"type":"llm","model":"openai/gpt-4o-mini","maxCandidates":7,"maxCandidateTextChars":500,"maxOutputTokens":96}}`)
+	t.Setenv("HAND_RERANKER_OVERRIDES", `{"memory_reflection":{"type":"llm","model":"gpt-4o-mini","maxCandidates":7,"maxCandidateTextChars":500,"maxOutputTokens":96}}`)
 	t.Setenv("HAND_COMPACTION_ENABLED", "false")
 	t.Setenv("HAND_COMPACTION_TRIGGER_PERCENT", "0.5")
 	t.Setenv("HAND_COMPACTION_WARN_PERCENT", "0.8")
@@ -2410,13 +2410,13 @@ func TestApplyEnvOverrides_CoversRemainingBranches(t *testing.T) {
 	require.False(t, getBoolValueDefault(cfg.Search.EnableRerank, true))
 	require.False(t, getBoolValueDefault(cfg.Reranker.Enabled, true))
 	require.Equal(t, constants.RerankerLLM, cfg.Reranker.Type)
-	require.Equal(t, "openai/gpt-4o-mini", cfg.Reranker.Model)
+	require.Equal(t, "gpt-4o-mini", cfg.Reranker.Model)
 	require.Equal(t, 12, cfg.Reranker.MaxCandidates)
 	require.Equal(t, 700, cfg.Reranker.MaxCandidateTextChars)
 	require.Equal(t, 256, cfg.Reranker.MaxOutputTokens)
 	require.Equal(t, RerankerOverrideConfig{
 		Type:                  constants.RerankerLLM,
-		Model:                 "openai/gpt-4o-mini",
+		Model:                 "gpt-4o-mini",
 		MaxCandidates:         testIntPtr(7),
 		MaxCandidateTextChars: testIntPtr(500),
 		MaxOutputTokens:       testIntPtr(96),
@@ -2539,7 +2539,7 @@ func TestApplyEnvOverrides_SummaryModelAndRelatedEnv(t *testing.T) {
 	)
 
 	cfg := &Config{}
-	t.Setenv("HAND_MODEL_SUMMARY", "openai/gpt-4o-mini")
+	t.Setenv("HAND_MODEL_SUMMARY", "gpt-4o-mini")
 	t.Setenv("HAND_MODEL_SUMMARY_PROVIDER", "openai")
 	t.Setenv("HAND_MODEL_SUMMARY_BASE_URL", "https://example.com/v1")
 	t.Setenv("HAND_MODEL_API", "openai-responses")
@@ -2547,7 +2547,7 @@ func TestApplyEnvOverrides_SummaryModelAndRelatedEnv(t *testing.T) {
 
 	applyEnvOverrides(cfg)
 
-	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Summary.Name)
+	require.Equal(t, "gpt-4o-mini", cfg.Models.Summary.Name)
 	require.Equal(t, "openai", cfg.Models.Summary.Provider)
 	require.Equal(t, "https://example.com/v1", cfg.Models.Summary.BaseURL)
 	require.Equal(t, "openai-responses", cfg.Models.Main.API)
@@ -2560,8 +2560,8 @@ func TestNormalizeFields_NilReceiver_NoPanic(t *testing.T) {
 }
 
 func TestDefaultBaseURLForProvider_DefaultsEmptyAPI(t *testing.T) {
-	require.Equal(t, "https://openrouter.ai/api/v1/responses", getDefaultBaseURLForProvider("openrouter", ""))
-	require.Equal(t, "https://openrouter.ai/api/v1/responses", getDefaultBaseURLForProvider("openrouter", "   "))
+	require.Equal(t, "https://openrouter.ai/api/v1", getDefaultBaseURLForProvider("openrouter", ""))
+	require.Equal(t, "https://openrouter.ai/api/v1", getDefaultBaseURLForProvider("openrouter", "   "))
 	require.Equal(t, "https://api.openai.com/v1", getDefaultBaseURLForProvider("openai", modelprovider.APIOpenAICompletions))
 	require.Equal(t, "https://api.openai.com/v1", getDefaultBaseURLForProvider("openai", modelprovider.APIOpenAIResponses))
 	require.Equal(t, "https://openrouter.ai/api/v1/embeddings", getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAIEmbeddings))
@@ -2818,11 +2818,11 @@ func TestConfig_ValidateAllowsAnthropicMessagesModel(t *testing.T) {
 		Models: ModelsConfig{
 			Providers: map[string]ProviderModelConfig{"anthropic": {APIKey: "test-key"}},
 			Main: MainModelConfig{
-				Name:     "anthropic/claude-sonnet-4-5",
+				Name:     "claude-sonnet-4-5",
 				Provider: "anthropic",
 			},
 			Summary: SummaryModelConfig{
-				Name: "anthropic/claude-3-haiku-20240307",
+				Name: "claude-3-haiku-20240307",
 			},
 		},
 		RPC: RPCConfig{Address: "127.0.0.1", Port: 50051},
@@ -3098,14 +3098,14 @@ search:
 reranker:
   enabled: false
   type: llm
-  model: openai/gpt-4o-mini
+  model: gpt-4o-mini
   maxCandidates: 11
   maxCandidateTextChars: 600
   maxOutputTokens: 128
   overrides:
     memory_reflection:
       type: llm
-      model: openai/gpt-4o-mini
+      model: gpt-4o-mini
       maxCandidates: 7
       maxCandidateTextChars: 500
       maxOutputTokens: 96
@@ -3125,13 +3125,13 @@ reranker:
 	require.False(t, getBoolValueDefault(cfg.Search.EnableRerank, true))
 	require.False(t, getBoolValueDefault(cfg.Reranker.Enabled, true))
 	require.Equal(t, constants.RerankerLLM, cfg.Reranker.Type)
-	require.Equal(t, "openai/gpt-4o-mini", cfg.Reranker.Model)
+	require.Equal(t, "gpt-4o-mini", cfg.Reranker.Model)
 	require.Equal(t, 11, cfg.Reranker.MaxCandidates)
 	require.Equal(t, 600, cfg.Reranker.MaxCandidateTextChars)
 	require.Equal(t, 128, cfg.Reranker.MaxOutputTokens)
 	require.Equal(t, RerankerOverrideConfig{
 		Type:                  constants.RerankerLLM,
-		Model:                 "openai/gpt-4o-mini",
+		Model:                 "gpt-4o-mini",
 		MaxCandidates:         testIntPtr(7),
 		MaxCandidateTextChars: testIntPtr(500),
 		MaxOutputTokens:       testIntPtr(96),
@@ -3234,7 +3234,7 @@ func TestNormalizeRerankerOverrides_CleansKeysAndValues(t *testing.T) {
 	overrides := map[string]RerankerOverrideConfig{
 		" Memory_Reflection ": {
 			Type:          " LLM ",
-			Model:         " openai/gpt-4o-mini ",
+			Model:         " gpt-4o-mini ",
 			MaxCandidates: testIntPtr(7),
 		},
 	}
@@ -3242,7 +3242,7 @@ func TestNormalizeRerankerOverrides_CleansKeysAndValues(t *testing.T) {
 
 	require.Equal(t, RerankerOverrideConfig{
 		Type:          constants.RerankerLLM,
-		Model:         "openai/gpt-4o-mini",
+		Model:         "gpt-4o-mini",
 		MaxCandidates: testIntPtr(7),
 	}, normalized["memory_reflection"])
 	require.NotSame(t, &overrides, &normalized)
@@ -3259,11 +3259,11 @@ func TestValidateRerankerOverride_RejectsInvalidValues(t *testing.T) {
 
 	require.NoError(t, cfg.validateRerankerSettings())
 	cfg.Reranker.Type = constants.RerankerLLM
-	cfg.Reranker.Model = "openai/gpt-4o-mini"
+	cfg.Reranker.Model = "gpt-4o-mini"
 	require.NoError(t, cfg.validateRerankerSettings())
 	require.NoError(t, cfg.validateRerankerOverride("memory_reflection", RerankerOverrideConfig{
 		Type:  constants.RerankerLLM,
-		Model: "openai/gpt-4o-mini",
+		Model: "gpt-4o-mini",
 	}))
 	require.NoError(t, cfg.validateRerankerOverride("memory_reflection", RerankerOverrideConfig{}))
 	require.EqualError(
@@ -3448,7 +3448,7 @@ func TestConfig_ValidateAcceptsRegistryEmbeddingModelWithoutContextRequirement(t
 		Models: ModelsConfig{
 			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "key"}},
 			Main:      MainModelConfig{Name: "openai/model", Provider: "openrouter", BaseURL: "https://example.com", API: modelprovider.APIOpenAICompletions},
-			Embedding: EmbeddingModelConfig{Name: "openai/text-embedding-3-small", Provider: "openrouter"},
+			Embedding: EmbeddingModelConfig{Name: "text-embedding-3-small", Provider: "openrouter"},
 		},
 		RPC:        RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Session:    SessionConfig{MaxIterations: 1, DefaultIdleExpiry: time.Hour, ArchiveRetention: 24 * time.Hour},

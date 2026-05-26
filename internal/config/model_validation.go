@@ -7,20 +7,24 @@ import (
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
 )
 
-func isValidModelSlug(value string) bool {
+func isValidModelID(value string) bool {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return false
 	}
 
-	owner, name, ok := strings.Cut(value, "/")
-	if !ok {
+	if strings.Count(value, "/") > 1 {
 		return false
 	}
 
-	owner = strings.TrimSpace(owner)
-	name = strings.TrimSpace(name)
-	return owner != "" && name != "" && !strings.Contains(name, "/")
+	segments := strings.SplitSeq(value, "/")
+	for segment := range segments {
+		if strings.TrimSpace(segment) == "" {
+			return false
+		}
+	}
+
+	return true
 }
 
 func applyRegistryModelMetadata(cfg *Config, requestedContextLength int) {

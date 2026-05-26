@@ -52,11 +52,11 @@ func TestEmbeddingProvider_EmbedReturnsValidatedEmbeddings(t *testing.T) {
 	}, result)
 }
 
-func TestEmbeddingProvider_EmbedAcceptsProviderPrefixedModelAlias(t *testing.T) {
+func TestEmbeddingProvider_EmbedUsesProviderNativeOpenAIModelID(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req embeddingProviderRequest
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
-		require.Equal(t, "provider/text-embedding-model", req.Model)
+		require.Equal(t, "text-embedding-model", req.Model)
 
 		_, _ = w.Write([]byte(`{
 			"model":"text-embedding-model",
@@ -67,12 +67,36 @@ func TestEmbeddingProvider_EmbedAcceptsProviderPrefixedModelAlias(t *testing.T) 
 
 	provider := newTestEmbeddingProvider(t, server.URL+"/embeddings", EmbeddingProviderOptions{})
 	result, err := provider.Embed(context.Background(), EmbeddingRequest{
-		Model:  "provider/text-embedding-model",
+		Model:  "openai/text-embedding-model",
 		Inputs: []EmbeddingInput{{ID: "one", Text: "first"}},
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, "provider/text-embedding-model", result.Model)
+	require.Equal(t, "openai/text-embedding-model", result.Model)
+	require.Equal(t, []float64{1, 0}, result.Items[0].Vector)
+}
+
+func TestEmbeddingProvider_EmbedConstructsOpenRouterEmbeddingModelID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req embeddingProviderRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		require.Equal(t, "openai/text-embedding-3-small", req.Model)
+
+		_, _ = w.Write([]byte(`{
+			"model":"openai/text-embedding-3-small",
+			"data":[{"index":0,"embedding":[1,0]}]
+		}`))
+	}))
+	defer server.Close()
+
+	provider := newTestEmbeddingProvider(t, server.URL+"/embeddings", EmbeddingProviderOptions{Provider: "openrouter"})
+	result, err := provider.Embed(context.Background(), EmbeddingRequest{
+		Model:  "text-embedding-3-small",
+		Inputs: []EmbeddingInput{{ID: "one", Text: "first"}},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "text-embedding-3-small", result.Model)
 	require.Equal(t, []float64{1, 0}, result.Items[0].Vector)
 }
 
@@ -404,7 +428,9 @@ func newTestEmbeddingProvider(
 ) *EmbeddingProvider {
 	t.Helper()
 
-	opts.Provider = "openai"
+	if opts.Provider == "" {
+		opts.Provider = "openai"
+	}
 	opts.APIKey = "test-key"
 	opts.EndpointURL = endpointURL
 	opts.Timeout = time.Second

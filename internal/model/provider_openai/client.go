@@ -11,10 +11,13 @@ import (
 	"github.com/openai/openai-go/v3/responses"
 
 	models "github.com/wandxy/hand/internal/model"
+	modelprovider "github.com/wandxy/hand/internal/model/provider"
 )
 
 // OpenAIClient sends normalized model requests through OpenAI-compatible APIs.
 type OpenAIClient struct {
+	provider             string
+	registry             *modelprovider.Registry
 	api                  string
 	createChatCompletion func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error)
 	createChatStream     func(context.Context, openai.ChatCompletionNewParams) *ssestream.Stream[openai.ChatCompletionChunk]
@@ -73,6 +76,17 @@ var newOpenAIResponseStreamCaller = func(opts ...option.RequestOption) func(
 
 // NewOpenAIClient returns a client configured with the supplied API route, API key, and SDK options.
 func NewOpenAIClient(apiKey, api string, opts ...option.RequestOption) (*OpenAIClient, error) {
+	return NewOpenAIProviderClient(apiKey, api, "openai", nil, opts...)
+}
+
+// NewOpenAIProviderClient returns an OpenAI-compatible client for a concrete provider.
+func NewOpenAIProviderClient(
+	apiKey string,
+	api string,
+	provider string,
+	registry *modelprovider.Registry,
+	opts ...option.RequestOption,
+) (*OpenAIClient, error) {
 	normalizedAPI, err := normalizeRequestAPI(api)
 	if err != nil {
 		return nil, err
@@ -85,6 +99,8 @@ func NewOpenAIClient(apiKey, api string, opts ...option.RequestOption) (*OpenAIC
 	clientOptions = append(clientOptions, opts...)
 
 	return &OpenAIClient{
+		provider:             normalizeProvider(provider),
+		registry:             registry,
 		api:                  normalizedAPI,
 		createChatCompletion: newOpenAICompletionCaller(clientOptions...),
 		createChatStream:     newOpenAICompletionStreamCaller(clientOptions...),
@@ -115,6 +131,7 @@ func (c *OpenAIClient) complete(
 	}
 
 	req.API = c.api
+	req.Model = c.getProviderModelID(req.Model)
 
 	normalizedReq, err := normalizeGenerateRequest(req)
 	if err != nil {
@@ -137,4 +154,44 @@ func (c *OpenAIClient) complete(
 	}
 
 	return handler.Complete(ctx, c, normalizedReq, stream, onTextDelta)
+}
+
+// getProviderModelID converts Hand's neutral model ID to the provider's routed ID.
+func (c *OpenAIClient) getProviderModelID(model string) string {
+	model = strings.TrimSpace(model)
+	switch normalizeProvider(c.provider) {
+	case "openai":
+		return strings.TrimPrefix(model, "openai/")
+	case "openrouter":
+		if owner := c.getModelOwner(model); owner != "" && !strings.Contains(model, "/") {
+			return owner + "/" + model
+		}
+	}
+
+	return model
+}
+
+func (c *OpenAIClient) getModelOwner(model string) string {
+	if c == nil {
+		return ""
+	}
+
+	modelDef, ok := c.registryOrDefault().GetModel(c.provider, model)
+	if !ok {
+		return ""
+	}
+
+	return strings.TrimSpace(modelDef.Owner)
+}
+
+func normalizeProvider(provider string) string {
+	return strings.TrimSpace(strings.ToLower(provider))
+}
+
+func (c *OpenAIClient) registryOrDefault() *modelprovider.Registry {
+	if c == nil || c.registry == nil {
+		return modelprovider.DefaultRegistry()
+	}
+
+	return c.registry
 }

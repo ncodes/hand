@@ -59,7 +59,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 
 	config.Set(nil)
 	configFile := ""
-	serverURL := newOpenRouterModelsServer(t, "openai/gpt-4o-mini")
+	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
 	runCalled := false
 	serveCalled := false
 	startupBuffer := &bytes.Buffer{}
@@ -88,7 +88,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.NoError(t, cmd.Run(context.Background(), []string{
 		"hand",
 		"--name", "flag-agent",
-		"--model", "openai/gpt-4o-mini",
+		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
 		"--model.api-key", "flag-key",
 		"--model.base-url", serverURL,
@@ -102,7 +102,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 
 	cfg := config.Get()
 	require.Equal(t, "flag-agent", cfg.Name)
-	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Main.Name)
+	require.Equal(t, "gpt-4o-mini", cfg.Models.Main.Name)
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
 	require.Equal(t, "flag-key", cfg.Models.Providers["openrouter"].APIKey)
 	require.Equal(t, serverURL, cfg.Models.Main.BaseURL)
@@ -120,7 +120,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, startupBuffer.String(), "Instance")
 	require.Contains(t, startupBuffer.String(), "flag-agent")
 	require.Contains(t, startupBuffer.String(), "Summary model")
-	require.Contains(t, startupBuffer.String(), "openai/gpt-4o-mini")
+	require.Contains(t, startupBuffer.String(), "gpt-4o-mini")
 	require.Contains(t, startupBuffer.String(), "Summary provider")
 	require.Contains(t, startupBuffer.String(), "Storage")
 	require.Contains(t, startupBuffer.String(), "sqlite")
@@ -140,9 +140,9 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.Contains(t, logOutput, "Configuration loaded")
 	require.Contains(t, logOutput, "Starting Hand services")
 	require.Contains(t, logOutput, "name=flag-agent")
-	require.Contains(t, logOutput, "model=openai/gpt-4o-mini")
+	require.Contains(t, logOutput, "model=gpt-4o-mini")
 	require.Contains(t, logOutput, "provider=openrouter")
-	require.Contains(t, logOutput, "summaryModel=openai/gpt-4o-mini")
+	require.Contains(t, logOutput, "summaryModel=gpt-4o-mini")
 	require.Contains(t, logOutput, "summaryProvider=openrouter")
 	require.Contains(t, logOutput, "storage=sqlite")
 	require.Contains(t, logOutput, "inputSafety=true")
@@ -159,7 +159,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	output := renderStartupPanel(&config.Config{
 		Name:   "daemon",
-		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter", Stream: new(false)}},
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter", Stream: new(false)}},
 		RPC:    config.RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log:    config.LogConfig{Level: "info", NoColor: true},
 		Debug:  config.DebugConfig{Requests: true},
@@ -168,7 +168,7 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 
 	require.NotContains(t, output, "\x1b[90m")
 	require.Contains(t, output, "Instance: daemon")
-	require.Contains(t, output, "Summary model: openai/gpt-4o-mini")
+	require.Contains(t, output, "Summary model: gpt-4o-mini")
 	require.Contains(t, output, "Summary provider: openrouter")
 	require.Contains(t, output, "Storage: sqlite")
 	require.Contains(t, output, "Streaming: false")
@@ -184,7 +184,7 @@ func TestRenderStartupPanel_IncludesSafetyMode(t *testing.T) {
 	piiSafety := true
 	output := renderStartupPanel(&config.Config{
 		Name:   "daemon",
-		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"}},
+		Models: config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"}},
 		RPC:    config.RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log:    config.LogConfig{Level: "info", NoColor: true},
 		Safety: config.SafetyConfig{
@@ -202,7 +202,7 @@ func TestRenderStartupPanel_IncludesEmbeddingModelWhenVectorEnabled(t *testing.T
 	output := renderStartupPanel(&config.Config{
 		Name: "daemon",
 		Models: config.ModelsConfig{
-			Main:      config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+			Main:      config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"},
 			Embedding: config.EmbeddingModelConfig{Name: "text-embedding-3-small", Provider: "openai"},
 		},
 		Search:   config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
@@ -220,7 +220,7 @@ func TestRenderStartupPanel_HidesEmbeddingModelWhenVectorDisabled(t *testing.T) 
 	output := renderStartupPanel(&config.Config{
 		Name: "daemon",
 		Models: config.ModelsConfig{
-			Main:      config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+			Main:      config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"},
 			Embedding: config.EmbeddingModelConfig{Name: "text-embedding-3-small"},
 		},
 		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051},
@@ -234,7 +234,7 @@ func TestRenderStartupPanel_HidesEmbeddingModelWhenVectorDisabled(t *testing.T) 
 func TestRenderStartupPanel_IncludesStorageBackend(t *testing.T) {
 	output := renderStartupPanel(&config.Config{
 		Name:    "daemon",
-		Models:  config.ModelsConfig{Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"}},
+		Models:  config.ModelsConfig{Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"}},
 		Storage: config.StorageConfig{Backend: "memory"},
 		RPC:     config.RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log:     config.LogConfig{Level: "info", NoColor: true},
@@ -247,14 +247,14 @@ func TestRenderStartupPanel_IncludesEffectiveSummaryModelAndProvider(t *testing.
 	output := renderStartupPanel(&config.Config{
 		Name: "daemon",
 		Models: config.ModelsConfig{
-			Main:    config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
-			Summary: config.SummaryModelConfig{Name: "openai/gpt-4o-mini", Provider: "openai"},
+			Main:    config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"},
+			Summary: config.SummaryModelConfig{Name: "gpt-4o-mini", Provider: "openai"},
 		},
 		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051},
 		Log: config.LogConfig{Level: "info", NoColor: true},
 	})
 
-	require.Contains(t, output, "Summary model: openai/gpt-4o-mini")
+	require.Contains(t, output, "Summary model: gpt-4o-mini")
 	require.Contains(t, output, "Summary provider: openai")
 }
 
@@ -282,7 +282,7 @@ func TestRenderStartupPanel_IncludesSummaryProviderAndAPIWhenDistinct(t *testing
 	cfg := &config.Config{
 		Name: "daemon",
 		Models: config.ModelsConfig{
-			Main:    config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter", API: modelprovider.APIOpenAICompletions},
+			Main:    config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter", API: modelprovider.APIOpenAICompletions},
 			Summary: config.SummaryModelConfig{Provider: "openai", API: modelprovider.APIOpenAIResponses},
 		},
 		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051},
@@ -383,13 +383,13 @@ func TestServeRPC_WritesRuntimeMetadataWithActualPort(t *testing.T) {
 func TestNewAgentRunnerImpl_ReturnsAgent(t *testing.T) {
 	cfg := &config.Config{
 		Name:   "t",
-		Models: config.ModelsConfig{Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "k"}}, Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"}},
+		Models: config.ModelsConfig{Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "k"}}, Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"}},
 	}
 	cfg.Normalize()
 
-	mc, err := provider_openai.NewOpenAIClient("k", provider_openai.APIOpenAIResponses)
+	mc, err := provider_openai.NewOpenAIClient("k", models.APIOpenAIResponses)
 	require.NoError(t, err)
-	sc, err := provider_openai.NewOpenAIClient("k", provider_openai.APIOpenAIResponses)
+	sc, err := provider_openai.NewOpenAIClient("k", models.APIOpenAIResponses)
 	require.NoError(t, err)
 
 	r := newAgentRunnerImpl(context.Background(), cfg, mc, sc)
@@ -550,7 +550,7 @@ func TestNewCommand_ReturnsStartupOutputError(t *testing.T) {
 	args := []string{
 		"hand",
 		"--name", "x",
-		"--model", "openai/gpt-4o-mini",
+		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
 		"--model.api-key", "k",
 		"--rpc.address", "127.0.0.1",
@@ -585,11 +585,11 @@ func TestNewCommand_ReturnsModelClientFactoryError(t *testing.T) {
 
 	configFile := ""
 	cmd := newRootCommandForTest(&configFile)
-	serverURL := newOpenRouterModelsServer(t, "openai/gpt-4o-mini")
+	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
 	err := cmd.Run(context.Background(), []string{
 		"hand",
 		"--name", "flag-agent",
-		"--model", "openai/gpt-4o-mini",
+		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
 		"--model.api-key", "flag-key",
 		"--model.base-url", serverURL,
@@ -616,11 +616,11 @@ func TestNewCommand_ReturnsResolveSummaryAuthError(t *testing.T) {
 
 	configFile := ""
 	cmd := newRootCommandForTest(&configFile)
-	serverURL := newOpenRouterModelsServer(t, "openai/gpt-4o-mini")
+	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
 	err := cmd.Run(context.Background(), []string{
 		"hand",
 		"--name", "flag-agent",
-		"--model", "openai/gpt-4o-mini",
+		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
 		"--model.api-key", "flag-key",
 		"--model.base-url", serverURL,
@@ -656,11 +656,11 @@ func TestNewCommand_ReturnsSecondModelClientFactoryError(t *testing.T) {
 
 	configFile := ""
 	cmd := newRootCommandForTest(&configFile)
-	serverURL := newOpenRouterModelsServer(t, "openai/gpt-4o-mini")
+	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
 	err := cmd.Run(context.Background(), []string{
 		"hand",
 		"--name", "flag-agent",
-		"--model", "openai/gpt-4o-mini",
+		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
 		"--model.api-key", "flag-key",
 		"--model.base-url", serverURL,
@@ -702,11 +702,11 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 
 	configFile := ""
 	cmd := newRootCommandForTest(&configFile)
-	serverURL := newOpenRouterModelsServer(t, "openai/gpt-4o-mini")
+	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
 	require.NoError(t, cmd.Run(context.Background(), []string{
 		"hand",
 		"--name", "flag-agent",
-		"--model", "openai/gpt-4o-mini",
+		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
 		"--model.api-key", "router-key",
 		"--model.base-url", serverURL,
@@ -720,7 +720,7 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 	require.Equal(t, []modelclient.ClientRequest{
 		{
 			Role:       modelclient.ModelRoleMain,
-			Model:      "openai/gpt-4o-mini",
+			Model:      "gpt-4o-mini",
 			Provider:   "openrouter",
 			API:        modelprovider.APIOpenAIResponses,
 			APIKey:     "router-key",
@@ -729,7 +729,7 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 		},
 		{
 			Role:       modelclient.ModelRoleSummary,
-			Model:      "openai/gpt-4o-mini",
+			Model:      "gpt-4o-mini",
 			Provider:   "openai",
 			API:        modelprovider.APIOpenAIResponses,
 			APIKey:     "openai-key",
@@ -763,11 +763,11 @@ func TestNewCommand_ReturnsAgentStartError(t *testing.T) {
 
 	configFile := ""
 	cmd := newRootCommandForTest(&configFile)
-	serverURL := newOpenRouterModelsServer(t, "openai/gpt-4o-mini")
+	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
 	err := cmd.Run(context.Background(), []string{
 		"hand",
 		"--name", "flag-agent",
-		"--model", "openai/gpt-4o-mini",
+		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
 		"--model.api-key", "flag-key",
 		"--model.base-url", serverURL,
@@ -796,7 +796,7 @@ func TestNewCommand_UsesSeparateSummaryClientWhenAuthDiffers(t *testing.T) {
 
 	config.Set(nil)
 	configFile := ""
-	serverURL := newOpenRouterModelsServer(t, "openai/gpt-4o-mini")
+	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
 	runCalled := false
 	serveCalled := false
 	startupOutput = io.Discard
@@ -821,7 +821,7 @@ func TestNewCommand_UsesSeparateSummaryClientWhenAuthDiffers(t *testing.T) {
 	require.NoError(t, cmd.Run(context.Background(), []string{
 		"hand",
 		"--name", "flag-agent",
-		"--model", "openai/gpt-4o-mini",
+		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
 		"--model.api-key", "flag-key",
 		"--model.base-url", serverURL,

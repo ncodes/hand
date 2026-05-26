@@ -17,15 +17,15 @@
 #       apiKeyEnv:
 #         - COPILOT_GITHUB_TOKEN
 #   main:
-#     name: "openai/gpt-4o-mini"
+#     name: "gpt-4o-mini"
 #     provider: "openrouter"
 #     api: "openai-responses"
 #     apiKey: ""
-#     baseUrl: "https://openrouter.ai/api/v1/responses"
+#     baseUrl: "https://openrouter.ai/api/v1"
 #     stream: true
 #     contextLength: 128000
 #   summary:
-#     name: "anthropic/claude-3.5-haiku"
+#     name: "claude-3.5-haiku"
 #     provider: "openai"
 #     api: "openai-responses"
 #     apiKey: ""

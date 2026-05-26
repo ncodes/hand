@@ -35,7 +35,7 @@ func TestNewCommand_PrintsPassingReport(t *testing.T) {
 	err := cmd.Run(context.Background(), []string{
 		"hand",
 		"--name", "flag-agent",
-		"--model", "openai/gpt-4o-mini",
+		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
 		"--model.api-key", "flag-key",
 		"doctor",
@@ -64,7 +64,7 @@ models:
     openrouter:
       apiKey: flag-key
   main:
-    name: openai/gpt-4o-mini
+    name: gpt-4o-mini
     provider: openrouter
 safety:
   input: false
@@ -107,7 +107,7 @@ search:
 		"hand",
 		"--config", configPath,
 		"--name", "flag-agent",
-		"--model", "openai/gpt-4o-mini",
+		"--model", "gpt-4o-mini",
 		"doctor",
 	})
 	require.EqualError(t, err, "doctor checks failed: config validation: model API key is required; set a provider API key, provider env var, or role apiKey; model auth: model API key is required; set a provider API key, provider env var, or role apiKey")
@@ -130,7 +130,7 @@ func TestNewCommand_DisablesColorWhenRequested(t *testing.T) {
 	err := cmd.Run(context.Background(), []string{
 		"hand",
 		"--name", "flag-agent",
-		"--model", "openai/gpt-4o-mini",
+		"--model", "gpt-4o-mini",
 		"--model.provider", "openrouter",
 		"--model.api-key", "flag-key",
 		"--log.no-color",

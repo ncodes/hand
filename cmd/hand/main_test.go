@@ -55,7 +55,7 @@ models:
     openrouter:
       apiKey: config-key
   main:
-    name: openai/gpt-4o-mini
+    name: gpt-4o-mini
     provider: openrouter
     baseUrl: `+serverURL+`
 log:
@@ -81,7 +81,7 @@ search:
 	require.Equal(t, "config-agent", cfg.Name)
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
 	require.Equal(t, "config-key", cfg.Models.Providers["openrouter"].APIKey)
-	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Main.Name)
+	require.Equal(t, "gpt-4o-mini", cfg.Models.Main.Name)
 	require.Equal(t, serverURL, cfg.Models.Main.BaseURL)
 	require.Equal(t, "error", cfg.Log.Level)
 	require.True(t, cfg.Log.NoColor)
@@ -208,7 +208,7 @@ storage:
 
 	cfg := config.Get()
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
-	require.Equal(t, "https://openrouter.ai/api/v1/responses", cfg.Models.Main.BaseURL)
+	require.Equal(t, "https://openrouter.ai/api/v1", cfg.Models.Main.BaseURL)
 }
 
 func TestNewCommand_UsesMappedBaseURLWhenProviderSetAndBaseURLUnset(t *testing.T) {
@@ -224,7 +224,7 @@ models:
     openrouter:
       apiKey: config-key
   main:
-    name: openai/gpt-4o-mini
+    name: gpt-4o-mini
     provider: openrouter
 log:
   level: info
@@ -244,7 +244,7 @@ storage:
 
 	cfg := config.Get()
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
-	require.Equal(t, "https://openrouter.ai/api/v1/responses", cfg.Models.Main.BaseURL)
+	require.Equal(t, "https://openrouter.ai/api/v1", cfg.Models.Main.BaseURL)
 }
 
 func TestNewCommand_FlagsOverrideEnvAndConfig(t *testing.T) {

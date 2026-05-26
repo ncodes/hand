@@ -51,6 +51,7 @@ type ProviderDefinition struct {
 type ModelDefinition struct {
 	ID            string
 	Name          string
+	Owner         string
 	Provider      string
 	API           string
 	Input         []InputKind
@@ -100,6 +101,7 @@ func NewRegistry(
 
 	for _, model := range models {
 		model.ID = strings.TrimSpace(model.ID)
+		model.Owner = normalizeID(model.Owner)
 		model.Provider = normalizeID(model.Provider)
 		model.API = normalizeID(model.API)
 		if model.Provider == "" || model.ID == "" {
@@ -326,78 +328,6 @@ func defaultProviders() []ProviderDefinition {
 			SupportsModels: true,
 			SupportsAPIKey: true,
 			SupportsOAuth:  true,
-		},
-	}
-}
-
-func defaultModels() []ModelDefinition {
-	return []ModelDefinition{
-		{
-			ID:            constants.DefaultModel,
-			Name:          "GPT-4o mini",
-			Provider:      constants.ModelProviderOpenAI,
-			API:           APIOpenAIResponses,
-			Input:         []InputKind{InputText, InputImage},
-			ContextWindow: constants.DefaultContextLength,
-		},
-		{
-			ID:            constants.DefaultProfileEmbeddingModel,
-			Name:          "Text Embedding 3 Small",
-			Provider:      constants.ModelProviderOpenAI,
-			API:           APIOpenAIEmbeddings,
-			Input:         []InputKind{InputText},
-			ContextWindow: 8191,
-		},
-		{
-			ID:            constants.DefaultProfileModel,
-			Name:          "MiniMax M2.7",
-			Provider:      constants.ModelProviderOpenRouter,
-			API:           APIOpenAIResponses,
-			Input:         []InputKind{InputText},
-			ContextWindow: constants.DefaultContextLength,
-		},
-		{
-			ID:            constants.DefaultModel,
-			Name:          "GPT-4o mini via OpenRouter",
-			Provider:      constants.ModelProviderOpenRouter,
-			API:           APIOpenAIResponses,
-			Input:         []InputKind{InputText, InputImage},
-			ContextWindow: constants.DefaultContextLength,
-		},
-		{
-			ID:            constants.DefaultProfileEmbeddingModel,
-			Name:          "Text Embedding 3 Small via OpenRouter",
-			Provider:      constants.ModelProviderOpenRouter,
-			API:           APIOpenAIEmbeddings,
-			Input:         []InputKind{InputText},
-			ContextWindow: 8191,
-		},
-		{
-			ID:            "anthropic/claude-sonnet-4-5",
-			Name:          "Claude Sonnet 4.5",
-			Provider:      constants.ModelProviderAnthropic,
-			API:           APIAnthropicMessages,
-			Input:         []InputKind{InputText, InputImage},
-			ContextWindow: 200000,
-			MaxTokens:     64000,
-		},
-		{
-			ID:            "anthropic/claude-opus-4-1",
-			Name:          "Claude Opus 4.1",
-			Provider:      constants.ModelProviderAnthropic,
-			API:           APIAnthropicMessages,
-			Input:         []InputKind{InputText, InputImage},
-			ContextWindow: 200000,
-			MaxTokens:     32000,
-		},
-		{
-			ID:            "anthropic/claude-3-haiku-20240307",
-			Name:          "Claude 3 Haiku",
-			Provider:      constants.ModelProviderAnthropic,
-			API:           APIAnthropicMessages,
-			Input:         []InputKind{InputText, InputImage},
-			ContextWindow: 200000,
-			MaxTokens:     4096,
 		},
 	}
 }

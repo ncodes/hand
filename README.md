@@ -100,7 +100,7 @@ Current config direction:
 - use CLI flags for one-off overrides
 
 Typical model settings:
-- `model.name`: provider model slug such as `qwen/qwen3.5-27b`
+- `model.name`: provider model ID such as `qwen/qwen3.5-27b`
 - `model.summaryModel`: optional slug for compaction/summary; defaults to `model.name` when unset
 - `model.provider`: `openrouter`, `openai`, `anthropic`, or `github-copilot`
 - `model.summaryProvider`: optional provider for compaction/summary API calls; defaults to `model.provider` when unset

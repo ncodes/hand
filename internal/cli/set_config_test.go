@@ -118,8 +118,8 @@ func TestSetConfigValue_RejectsInvalidPathOrValue(t *testing.T) {
 	_, err = SetConfigValue("", configPath, "search.enableRerank", "maybe")
 	require.EqualError(t, err, `search.enableRerank: expected bool, got "maybe"`)
 
-	_, err = SetConfigValue("", configPath, "models.main.name", "not-a-slug")
-	require.ErrorContains(t, err, "model must use the format <owner>/<name>")
+	_, err = SetConfigValue("", configPath, "models.main.name", "/not-a-model")
+	require.ErrorContains(t, err, "model is required")
 
 	after, err := os.ReadFile(configPath)
 	require.NoError(t, err)
@@ -170,7 +170,7 @@ models:
     openrouter:
       apiKey: test-key
   main:
-    name: openai/gpt-4o-mini
+    name: gpt-4o-mini
     provider: openrouter
 search:
   enableRerank: false

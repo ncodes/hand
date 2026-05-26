@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	models "github.com/wandxy/hand/internal/model"
+	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	"github.com/wandxy/hand/pkg/logutils"
 )
@@ -139,6 +140,41 @@ func TestNewOpenAIClient_RejectsInvalidAPI(t *testing.T) {
 	_, err := NewOpenAIClient("test-key", "invalid")
 
 	require.EqualError(t, err, "model API must be one of: openai-completions, openai-responses")
+}
+
+func TestOpenAIClient_GetProviderModelIDRoutesOpenRouterOpenAIModels(t *testing.T) {
+	openRouterClient := &OpenAIClient{provider: "openrouter"}
+	require.Equal(t, "openai/gpt-4o-mini", openRouterClient.getProviderModelID("gpt-4o-mini"))
+	require.Equal(t, "minimax/minimax-m2.7", openRouterClient.getProviderModelID("minimax/minimax-m2.7"))
+	require.Equal(t, "openai/gpt-4o-mini", openRouterClient.getProviderModelID("openai/gpt-4o-mini"))
+	require.Equal(t, "gpt-unknown", openRouterClient.getProviderModelID("gpt-unknown"))
+
+	openAIClient := &OpenAIClient{provider: "openai"}
+	require.Equal(t, "gpt-4o-mini", openAIClient.getProviderModelID("openai/gpt-4o-mini"))
+}
+
+func TestOpenAIClient_GetProviderModelIDUsesConfiguredRegistry(t *testing.T) {
+	registry := modelprovider.NewRegistry(
+		[]modelprovider.APIDefinition{{ID: models.APIOpenAIResponses}},
+		[]modelprovider.ProviderDefinition{{ID: "openrouter", DefaultAPI: models.APIOpenAIResponses}},
+		[]modelprovider.ModelDefinition{{
+			ID:       "custom-model",
+			Owner:    "custom-owner",
+			Provider: "openrouter",
+			API:      models.APIOpenAIResponses,
+		}},
+	)
+	client := &OpenAIClient{provider: "openrouter", registry: registry}
+
+	require.Equal(t, "custom-owner/custom-model", client.getProviderModelID("custom-model"))
+	require.Same(t, registry, client.registryOrDefault())
+}
+
+func TestOpenAIClient_GetModelOwnerHandlesNilClient(t *testing.T) {
+	var client *OpenAIClient
+
+	require.Empty(t, client.getModelOwner("gpt-4o-mini"))
+	require.NotNil(t, client.registryOrDefault())
 }
 
 func TestOpenAIClient_ChatRequiresModel(t *testing.T) {
@@ -577,6 +613,8 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsResponsesRequest(t *testing.T)
 	require.Contains(t, rawText, `"max_output_tokens":111`)
 	require.Contains(t, rawText, `"temperature":0.5`)
 	require.Contains(t, rawText, `"type":"message"`)
+	require.Contains(t, rawText, `"id":"msg_assistant_1"`)
+	require.NotContains(t, rawText, `"id":"assistant_1"`)
 	require.Contains(t, rawText, `"type":"input_text"`)
 	require.Contains(t, rawText, `"type":"function_call"`)
 	require.Contains(t, rawText, `"type":"function_call_output"`)

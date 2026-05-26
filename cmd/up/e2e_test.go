@@ -72,7 +72,7 @@ models:
     openrouter:
       apiKey: config-key
   main:
-    name: openai/gpt-4o-mini
+    name: gpt-4o-mini
     provider: openrouter
 rpc:
   address: 127.0.0.1

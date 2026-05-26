@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/wandxy/hand/internal/constants"
+	modelprovider "github.com/wandxy/hand/internal/model/provider"
 )
 
 const (
@@ -37,6 +38,7 @@ type EmbeddingProviderOptions struct {
 type EmbeddingProvider struct {
 	client            *http.Client
 	provider          string
+	registry          *modelprovider.Registry
 	apiKey            string
 	endpointURL       string
 	maxInputsPerBatch int
@@ -91,6 +93,7 @@ func NewEmbeddingProvider(opts EmbeddingProviderOptions) (*EmbeddingProvider, er
 	return &EmbeddingProvider{
 		client:            client,
 		provider:          provider,
+		registry:          modelprovider.DefaultRegistry(),
 		apiKey:            strings.TrimSpace(opts.APIKey),
 		endpointURL:       endpointURL,
 		maxInputsPerBatch: maxInputs,
@@ -252,7 +255,7 @@ func (p *EmbeddingProvider) embedBatchAttempt(
 	}
 
 	payload := embeddingProviderRequest{
-		Model:          strings.TrimSpace(model),
+		Model:          p.getEmbeddingProviderModelID(model),
 		Input:          getEmbeddingTexts(inputs),
 		EncodingFormat: "float",
 	}
@@ -355,6 +358,28 @@ func trimModelProviderPrefix(model string) string {
 	model = strings.TrimSpace(model)
 	if _, suffix, ok := strings.Cut(model, "/"); ok {
 		return suffix
+	}
+
+	return model
+}
+
+func (p *EmbeddingProvider) getEmbeddingProviderModelID(model string) string {
+	model = strings.TrimSpace(model)
+	switch p.provider {
+	case "openai":
+		return strings.TrimPrefix(model, "openai/")
+	case "openrouter":
+		registry := p.registry
+		if registry == nil {
+			registry = modelprovider.DefaultRegistry()
+		}
+		modelDef, ok := registry.GetModel(p.provider, model)
+		if !ok {
+			return model
+		}
+		if owner := strings.TrimSpace(modelDef.Owner); owner != "" && !strings.Contains(model, "/") {
+			return owner + "/" + model
+		}
 	}
 
 	return model

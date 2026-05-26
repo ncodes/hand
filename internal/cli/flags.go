@@ -35,12 +35,12 @@ func RootFlags(envFile, configFile *string) []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:  "model",
-			Usage: "Model slug to send to the provider, for example openai/gpt-4o-mini",
+			Usage: "Model ID to send to the provider, for example gpt-4o-mini",
 			Value: config.Get().Models.Main.Name,
 		},
 		&cli.StringFlag{
 			Name:  "model.summary",
-			Usage: "Optional model slug for compaction summarization; defaults to --model when unset",
+			Usage: "Optional model ID for compaction summarization; defaults to --model when unset",
 			Value: config.Get().Models.Summary.Name,
 		},
 		&cli.BoolFlag{

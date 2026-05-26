@@ -22,7 +22,7 @@ func TestBuild_ReturnsPassingReportForValidConfig(t *testing.T) {
 		Name: "test-agent",
 		Models: config.ModelsConfig{
 			Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
-			Main:      config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+			Main:      config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"},
 		},
 		Log: config.LogConfig{Level: "info"},
 	}, nil)
@@ -30,7 +30,7 @@ func TestBuild_ReturnsPassingReportForValidConfig(t *testing.T) {
 	require.False(t, report.HasFailures())
 	require.Contains(t, report.Checks, Check{Name: "config validation", Status: StatusPass, Message: "configuration is valid"})
 	require.Contains(t, report.Checks, Check{Name: "model auth", Status: StatusPass, Message: `resolved auth for provider "openrouter"`})
-	require.Contains(t, report.Checks, Check{Name: "model base URL", Status: StatusPass, Message: `using "https://openrouter.ai/api/v1/responses"`})
+	require.Contains(t, report.Checks, Check{Name: "model base URL", Status: StatusPass, Message: `using "https://openrouter.ai/api/v1"`})
 }
 
 func TestBuild_ReturnsLoadFailureWhenConfigLoadFails(t *testing.T) {
@@ -78,7 +78,7 @@ func TestBuild_ReturnsValidationFailureWhileAuthStillPasses(t *testing.T) {
 		Name: "test-agent",
 		Models: config.ModelsConfig{
 			Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
-			Main:      config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+			Main:      config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"},
 		},
 		Log: config.LogConfig{Level: "trace"},
 	}, nil)
@@ -102,7 +102,7 @@ func TestBuild_ReturnsModelAuthFailureWhenKeyIsMissing(t *testing.T) {
 	report := Build(".env", "config.yaml", &config.Config{
 		Name: "test-agent",
 		Models: config.ModelsConfig{
-			Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+			Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"},
 		},
 		Log: config.LogConfig{Level: "info"},
 	}, nil)
@@ -123,7 +123,7 @@ func TestBuild_IncludesSummaryModelChecksWhenSummaryAuthDiffersFromMain(t *testi
 				"openrouter": {APIKey: "test-key"},
 				"openai":     {APIKey: "test-key"},
 			},
-			Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+			Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"},
 			Summary: config.SummaryModelConfig{
 				Provider: "openai",
 				BaseURL:  "https://api.example/v1",
@@ -153,7 +153,7 @@ func TestBuild_ReturnsSummaryBaseURLFailureWhenSummaryURLInvalid(t *testing.T) {
 				"openrouter": {APIKey: "test-key"},
 				"openai":     {APIKey: "test-key"},
 			},
-			Main: config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+			Main: config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"},
 			Summary: config.SummaryModelConfig{
 				Provider: "openai",
 				BaseURL:  "://bad",
@@ -178,7 +178,7 @@ func TestBuild_ReturnsSummaryModelAuthFailureWhenSummaryResolveFails(t *testing.
 		Name: "test-agent",
 		Models: config.ModelsConfig{
 			Providers: map[string]config.ProviderModelConfig{"openrouter": {APIKey: "test-key"}},
-			Main:      config.MainModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+			Main:      config.MainModelConfig{Name: "gpt-4o-mini", Provider: "openrouter"},
 		},
 		Log: config.LogConfig{Level: "info"},
 	}, nil)

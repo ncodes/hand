@@ -31,7 +31,7 @@ models:
     openrouter:
       apiKey: config-key
   main:
-    name: openai/gpt-4o-mini
+    name: gpt-4o-mini
     provider: openrouter
 `), 0o600))
 
@@ -49,7 +49,7 @@ models:
 name: config-agent
 models:
   main:
-    name: openai/gpt-4o-mini
+    name: gpt-4o-mini
     provider: openrouter
 search:
   vector:
