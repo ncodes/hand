@@ -1,6 +1,6 @@
 package config
 
-import "time"
+import modelcredential "github.com/wandxy/hand/internal/model/credential"
 
 type ModelCredentialSourceKind string
 
@@ -68,11 +68,8 @@ type ModelCredentialSource struct {
 	HasExpiry bool
 }
 
-// StoredModelCredential describes a locally stored provider token.
-type StoredModelCredential struct {
-	Token     string
-	ExpiresAt *time.Time
-}
+// StoredModelCredential describes a locally stored provider credential.
+type StoredModelCredential = modelcredential.StoredCredential
 
 // ModelAuth describes authentication metadata for a model provider.
 type ModelAuth struct {

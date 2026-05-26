@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 	cli "github.com/urfave/cli/v3"
 
+	authcmd "github.com/wandxy/hand/cmd/auth"
 	doctorcmd "github.com/wandxy/hand/cmd/doctor"
 	configcmd "github.com/wandxy/hand/cmd/hand/configcmd"
 	profilecmd "github.com/wandxy/hand/cmd/profile"
@@ -105,6 +106,7 @@ func newCommand() *cli.Command {
 		CustomRootCommandHelpTemplate: rootHelpTemplate,
 		Flags:                         append(handcli.RootFlags(&envFile, &configFile), handcli.RequestInstructFlag()),
 		Commands: []*cli.Command{
+			authcmd.NewCommand(),
 			newDatabaseCommand(),
 			newVersionCommand(rootOutput),
 			configcmd.NewCommand(rootOutput),

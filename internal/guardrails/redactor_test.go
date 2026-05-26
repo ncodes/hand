@@ -24,8 +24,8 @@ func TestSanitizeRedactsSensitiveMapFields(t *testing.T) {
 }
 
 func TestSanitizeRedactsSensitiveJSONString(t *testing.T) {
-	value := Sanitize(`{"token":"abc","safe":"ok"}`)
-	require.Equal(t, `{"safe":"ok","token":"[REDACTED]"}`, value)
+	value := Sanitize(`{"key":"sk-secret","refresh":"refresh-secret","safe":"ok","token":"abc"}`)
+	require.Equal(t, `{"key":"[REDACTED]","refresh":"[REDACTED]","safe":"ok","token":"[REDACTED]"}`, value)
 }
 
 func TestSanitizeRedactsBearerAndKeyStrings(t *testing.T) {

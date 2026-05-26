@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -24,6 +25,19 @@ func stubModelProviderToken(t *testing.T, fn func(string) (StoredModelCredential
 	loadModelProviderToken = fn
 	t.Cleanup(func() {
 		loadModelProviderToken = original
+	})
+}
+
+func stubRefreshModelProviderToken(
+	t *testing.T,
+	fn func(context.Context, string) (StoredModelCredential, bool, error),
+) {
+	t.Helper()
+
+	original := refreshModelProviderToken
+	refreshModelProviderToken = fn
+	t.Cleanup(func() {
+		refreshModelProviderToken = original
 	})
 }
 
@@ -1199,7 +1213,7 @@ func TestConfig_ValidateRequiresKey(t *testing.T) {
 		Models: ModelsConfig{Main: MainModelConfig{Name: constants.DefaultModel}},
 		Log:    LogConfig{Level: "info"},
 	}
-	require.EqualError(t, cfg.Validate(), "model API key is required; set a provider API key, provider env var, or role apiKey")
+	require.ErrorContains(t, cfg.Validate(), "hand auth login openrouter")
 	require.Equal(t, constants.DefaultModelProvider, cfg.Models.Main.Provider)
 	require.Equal(t, getDefaultBaseURLForProvider(constants.DefaultModelProvider, modelprovider.APIOpenAIResponses), cfg.Models.Main.BaseURL)
 }
@@ -1264,9 +1278,13 @@ func TestConfig_ResolveModelAuthUsesCredentialResolverOrder(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "registry-env-key")
 	t.Setenv("CUSTOM_OPENROUTER_KEY", "provider-env-key")
 	expiresAt := time.Now().Add(time.Hour)
+	storedToken := "store-key"
 	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
 		require.Equal(t, "openrouter", provider)
-		return StoredModelCredential{Token: "store-key", ExpiresAt: &expiresAt}, nil
+		if storedToken == "" {
+			return StoredModelCredential{}, nil
+		}
+		return StoredModelCredential{Type: "oauth", Token: storedToken, ExpiresAt: &expiresAt}, nil
 	})
 
 	cfg := &Config{
@@ -1294,10 +1312,20 @@ func TestConfig_ResolveModelAuthUsesCredentialResolverOrder(t *testing.T) {
 	cfg.Models.Main.APIKey = ""
 	auth, err = cfg.ResolveModelAuth()
 	require.NoError(t, err)
-	require.Equal(t, "provider-config-key", auth.APIKey)
+	require.Equal(t, "store-key", auth.APIKey)
 	require.Equal(t, ModelCredentialSource{
-		Kind: ModelCredentialSourceProviderConfig,
-		Name: "openrouter",
+		Kind:      ModelCredentialSourceTokenStore,
+		Name:      "openrouter",
+		HasExpiry: true,
+	}, auth.CredentialSource)
+
+	storedToken = ""
+	auth, err = cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "provider-env-key", auth.APIKey)
+	require.Equal(t, ModelCredentialSource{
+		Kind: ModelCredentialSourceProviderEnv,
+		Name: "CUSTOM_OPENROUTER_KEY",
 	}, auth.CredentialSource)
 
 	cfg.Models.Providers["openrouter"] = ProviderModelConfig{APIKeyEnv: []string{"CUSTOM_OPENROUTER_KEY"}}
@@ -1319,13 +1347,13 @@ func TestConfig_ResolveModelAuthUsesCredentialResolverOrder(t *testing.T) {
 	}, auth.CredentialSource)
 
 	t.Setenv("OPENROUTER_API_KEY", "")
+	cfg.Models.Providers["openrouter"] = ProviderModelConfig{APIKey: "provider-config-key"}
 	auth, err = cfg.ResolveModelAuth()
 	require.NoError(t, err)
-	require.Equal(t, "store-key", auth.APIKey)
+	require.Equal(t, "provider-config-key", auth.APIKey)
 	require.Equal(t, ModelCredentialSource{
-		Kind:      ModelCredentialSourceTokenStore,
-		Name:      "openrouter",
-		HasExpiry: true,
+		Kind: ModelCredentialSourceProviderConfig,
+		Name: "openrouter",
 	}, auth.CredentialSource)
 }
 
@@ -1370,7 +1398,7 @@ func TestConfig_ResolveModelAuthUsesProviderTokenStore(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "")
 	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
 		require.Equal(t, "openai", provider)
-		return StoredModelCredential{Token: "stored-token"}, nil
+		return StoredModelCredential{Type: "oauth", Token: "stored-token"}, nil
 	})
 
 	cfg := &Config{
@@ -1384,6 +1412,81 @@ func TestConfig_ResolveModelAuthUsesProviderTokenStore(t *testing.T) {
 	require.Equal(t, ModelCredentialSource{
 		Kind: ModelCredentialSourceTokenStore,
 		Name: "openai",
+	}, auth.CredentialSource)
+}
+
+func TestConfig_ResolveModelAuthUsesStoredAPIKeyCredential(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "")
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, "openai", provider)
+		return StoredModelCredential{Type: "api_key", Key: "stored-api-key"}, nil
+	})
+
+	cfg := &Config{
+		Name:   "test-agent",
+		Models: ModelsConfig{Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "stored-api-key", auth.APIKey)
+	require.Equal(t, ModelCredentialSource{
+		Kind: ModelCredentialSourceTokenStore,
+		Name: "openai",
+	}, auth.CredentialSource)
+}
+
+func TestConfig_ResolveModelAuthRefreshesExpiredStoredCredential(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "")
+	expired := time.Now().Add(-time.Minute)
+	expiresAt := time.Now().Add(time.Hour)
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, "openai", provider)
+		return StoredModelCredential{Type: "oauth", Token: "expired-token", ExpiresAt: &expired}, nil
+	})
+	stubRefreshModelProviderToken(t, func(_ context.Context, provider string) (StoredModelCredential, bool, error) {
+		require.Equal(t, "openai", provider)
+		return StoredModelCredential{Type: "oauth", Token: "fresh-token", ExpiresAt: &expiresAt}, true, nil
+	})
+
+	cfg := &Config{
+		Name:   "test-agent",
+		Models: ModelsConfig{Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "fresh-token", auth.APIKey)
+	require.Equal(t, ModelCredentialSource{
+		Kind:      ModelCredentialSourceTokenStore,
+		Name:      "openai",
+		HasExpiry: true,
+	}, auth.CredentialSource)
+}
+
+func TestConfig_ResolveModelAuthSkipsExpiredStoredCredentialWithoutRefreshProvider(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "env-key")
+	expired := time.Now().Add(-time.Minute)
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, "openai", provider)
+		return StoredModelCredential{Type: "oauth", Token: "expired-token", ExpiresAt: &expired}, nil
+	})
+	stubRefreshModelProviderToken(t, func(_ context.Context, provider string) (StoredModelCredential, bool, error) {
+		require.Equal(t, "openai", provider)
+		return StoredModelCredential{}, false, nil
+	})
+
+	cfg := &Config{
+		Name:   "test-agent",
+		Models: ModelsConfig{Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "env-key", auth.APIKey)
+	require.Equal(t, ModelCredentialSource{
+		Kind: ModelCredentialSourceProviderEnv,
+		Name: "OPENAI_API_KEY",
 	}, auth.CredentialSource)
 }
 
@@ -1487,7 +1590,7 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 
 	t.Setenv("OPENAI_API_KEY", "")
 	_, err = (&Config{Models: ModelsConfig{Embedding: EmbeddingModelConfig{Provider: "openai"}}}).ResolveEmbeddingModelAuth()
-	require.EqualError(t, err, "embedding API key is required")
+	require.ErrorContains(t, err, "hand auth login openai")
 
 	_, err = (&Config{
 		Models: ModelsConfig{Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "key"}}, Embedding: EmbeddingModelConfig{Provider: "test"}},
@@ -2731,7 +2834,7 @@ func TestConfig_ResolveSummaryModelAuth_FailsWhenSummaryProviderHasNoKey(t *test
 	cfg.Normalize()
 
 	_, err := cfg.ResolveSummaryModelAuth()
-	require.EqualError(t, err, "model API key is required; set a provider API key, provider env var, or role apiKey")
+	require.ErrorContains(t, err, "hand auth login openai")
 }
 
 func TestConfig_Validate_ReturnsSummaryAuthErrorWhenOpenAIKeyMissing(t *testing.T) {
@@ -2748,7 +2851,7 @@ func TestConfig_Validate_ReturnsSummaryAuthErrorWhenOpenAIKeyMissing(t *testing.
 		Log: LogConfig{Level: "info"},
 	}).Validate()
 
-	require.EqualError(t, err, "model API key is required; set a provider API key, provider env var, or role apiKey")
+	require.ErrorContains(t, err, "hand auth login openai")
 }
 
 func TestNormalizeRulePaths_EmptyInput(t *testing.T) {
@@ -3473,7 +3576,7 @@ func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {
 				t.Setenv("OPENAI_API_KEY", "")
 				cfg.Models.Providers = nil
 			},
-			err: "embedding API key is required",
+			err: `embedding API key is required for provider "openai"; set a provider API key, provider env var, role apiKey, or run hand auth login openai`,
 		},
 	}
 

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/wandxy/hand/internal/constants"
+	modelcredential "github.com/wandxy/hand/internal/model/credential"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
 )
 
@@ -340,7 +342,7 @@ func (c *Config) ResolveSummaryModelAuth() (ModelAuth, error) {
 	auth.APIKey = apiKey
 	auth.CredentialSource = source
 	if strings.TrimSpace(auth.APIKey) == "" {
-		return ModelAuth{}, errors.New("model API key is required; set a provider API key, provider env var, or role apiKey")
+		return ModelAuth{}, newMissingModelCredentialError("model", auth.Provider)
 	}
 
 	return auth, nil
@@ -378,7 +380,7 @@ func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
 	auth.APIKey = apiKey
 	auth.CredentialSource = source
 	if strings.TrimSpace(auth.APIKey) == "" {
-		return ModelAuth{}, errors.New("embedding API key is required")
+		return ModelAuth{}, newMissingModelCredentialError("embedding", auth.Provider)
 	}
 
 	return auth, nil
@@ -417,8 +419,7 @@ func (c *Config) ResolveModelAuth() (ModelAuth, error) {
 	auth.APIKey = apiKey
 	auth.CredentialSource = source
 	if strings.TrimSpace(auth.APIKey) == "" {
-		return ModelAuth{}, errors.New("model API key is required; set a provider API key, " +
-			"provider env var, or role apiKey")
+		return ModelAuth{}, newMissingModelCredentialError("model", auth.Provider)
 	}
 
 	return auth, nil
@@ -433,11 +434,30 @@ func (c *Config) resolveCredentialForProvider(
 		return value, ModelCredentialSource{Kind: ModelCredentialSourceRoleConfig}, nil
 	}
 
-	providerConfig := c.Models.Providers[provider]
-	if value := strings.TrimSpace(providerConfig.APIKey); value != "" {
-		return value, ModelCredentialSource{Kind: ModelCredentialSourceProviderConfig, Name: provider}, nil
+	stored, err := loadStoredModelCredential(provider)
+	if err != nil {
+		return "", ModelCredentialSource{}, err
+	}
+	if modelcredential.IsExpired(stored) {
+		refreshed, ok, err := refreshStoredModelCredential(provider)
+		if err != nil {
+			return "", ModelCredentialSource{}, err
+		}
+		if ok {
+			stored = refreshed
+		} else {
+			stored = StoredModelCredential{}
+		}
+	}
+	if value := getStoredModelCredentialValue(stored); value != "" {
+		return value, ModelCredentialSource{
+			Kind:      ModelCredentialSourceTokenStore,
+			Name:      provider,
+			HasExpiry: stored.ExpiresAt != nil,
+		}, nil
 	}
 
+	providerConfig := c.Models.Providers[provider]
 	if value, envName := getCredentialFromEnv(providerConfig.APIKeyEnv); value != "" {
 		return value, ModelCredentialSource{Kind: ModelCredentialSourceProviderEnv, Name: envName}, nil
 	}
@@ -448,23 +468,43 @@ func (c *Config) resolveCredentialForProvider(
 		}
 	}
 
-	if loadModelProviderToken == nil {
-		return "", ModelCredentialSource{}, nil
-	}
-
-	stored, err := loadModelProviderToken(provider)
-	if err != nil {
-		return "", ModelCredentialSource{}, err
-	}
-	if value := strings.TrimSpace(stored.Token); value != "" {
-		return value, ModelCredentialSource{
-			Kind:      ModelCredentialSourceTokenStore,
-			Name:      provider,
-			HasExpiry: stored.ExpiresAt != nil,
-		}, nil
+	if value := strings.TrimSpace(providerConfig.APIKey); value != "" {
+		return value, ModelCredentialSource{Kind: ModelCredentialSourceProviderConfig, Name: provider}, nil
 	}
 
 	return "", ModelCredentialSource{}, nil
+}
+
+func refreshStoredModelCredential(provider string) (StoredModelCredential, bool, error) {
+	if refreshModelProviderToken == nil {
+		return StoredModelCredential{}, false, nil
+	}
+
+	return refreshModelProviderToken(context.Background(), provider)
+}
+
+func loadStoredModelCredential(provider string) (StoredModelCredential, error) {
+	if loadModelProviderToken == nil {
+		return StoredModelCredential{}, nil
+	}
+
+	credential, err := loadModelProviderToken(provider)
+	if err != nil {
+		return StoredModelCredential{}, err
+	}
+
+	return credential, nil
+}
+
+func getStoredModelCredentialValue(credential StoredModelCredential) string {
+	switch strings.TrimSpace(strings.ToLower(credential.Type)) {
+	case modelcredential.TypeAPIKey:
+		return strings.TrimSpace(credential.Key)
+	case modelcredential.TypeOAuth, "":
+		return strings.TrimSpace(credential.Token)
+	default:
+		return ""
+	}
 }
 
 func getCredentialFromEnv(keys []string) (string, string) {
@@ -478,4 +518,19 @@ func getCredentialFromEnv(keys []string) (string, string) {
 		}
 	}
 	return "", ""
+}
+
+func newMissingModelCredentialError(role string, provider string) error {
+	role = strings.TrimSpace(role)
+	if role == "" {
+		role = "model"
+	}
+	provider = strings.TrimSpace(strings.ToLower(provider))
+	if provider == "" {
+		return fmt.Errorf("%s API key is required; set a provider API key, provider env var, role apiKey, "+
+			"or run hand auth login <provider>", role)
+	}
+
+	return fmt.Errorf("%s API key is required for provider %q; set a provider API key, provider env var, role apiKey,"+
+		" or run hand auth login %s", role, provider, provider)
 }

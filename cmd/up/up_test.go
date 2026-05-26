@@ -860,7 +860,7 @@ func TestNewCommand_ReturnsValidationError(t *testing.T) {
 		"up",
 	})
 
-	require.EqualError(t, err, "embedding API key is required")
+	require.ErrorContains(t, err, "hand auth login openrouter")
 }
 
 func newRootCommandForTest(configFile *string) *cli.Command {

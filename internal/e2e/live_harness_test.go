@@ -147,7 +147,7 @@ func TestNewLiveClients(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, modelClient)
 		assert.Nil(t, summaryClient)
-		assert.EqualError(t, err, "model API key is required; set a provider API key, provider env var, or role apiKey")
+		assert.ErrorContains(t, err, "hand auth login openrouter")
 	})
 
 	t.Run("returns summary auth error", func(t *testing.T) {
@@ -166,7 +166,7 @@ func TestNewLiveClients(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, modelClient)
 		assert.Nil(t, summaryClient)
-		assert.EqualError(t, err, "model API key is required; set a provider API key, provider env var, or role apiKey")
+		assert.ErrorContains(t, err, "hand auth login openai")
 	})
 
 	t.Run("returns summary client factory error", func(t *testing.T) {

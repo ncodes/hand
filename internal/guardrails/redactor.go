@@ -29,7 +29,7 @@ var (
 	envAssignQuotedPattern = regexp.MustCompile(`(?i)([A-Z_]*(?:API_?KEY|ACCESS_TOKEN|REFRESH_TOKEN|AUTH_TOKEN|AUTH_SECRET|BEARER_TOKEN|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)[A-Z_]*)\s*=\s*"([^"]*)"`)
 	envAssignSinglePattern = regexp.MustCompile(`(?i)([A-Z_]*(?:API_?KEY|ACCESS_TOKEN|REFRESH_TOKEN|AUTH_TOKEN|AUTH_SECRET|BEARER_TOKEN|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)[A-Z_]*)\s*=\s*'([^']*)'`)
 	envAssignBarePattern   = regexp.MustCompile(`(?i)([A-Z_]*(?:API_?KEY|ACCESS_TOKEN|REFRESH_TOKEN|AUTH_TOKEN|AUTH_SECRET|BEARER_TOKEN|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)[A-Z_]*)\s*=\s*([^\s'"][^\s]*)`)
-	jsonFieldPattern       = regexp.MustCompile(`(?i)("(?:api_?[Kk]ey|token|secret|password|access_token|refresh_token|auth_token|bearer|secret_value|raw_secret|secret_input|key_material)")\s*:\s*"([^"]+)"`)
+	jsonFieldPattern       = regexp.MustCompile(`(?i)("(?:api_?[Kk]ey|key|token|secret|password|access_token|refresh_token|refresh|auth_token|bearer|secret_value|raw_secret|secret_input|key_material)")\s*:\s*"([^"]+)"`)
 	authHeaderPattern      = regexp.MustCompile(`(?i)(Authorization:\s*(?:Bearer|Basic|Token|ApiKey)\s+)(\S+)`)
 	bearerPattern          = regexp.MustCompile(`(?i)\b(Bearer\s+)(\S+)`)
 	telegramPattern        = regexp.MustCompile(`(?i)(bot)?(\d{8,}):([-A-Za-z0-9_]{30,})`)
@@ -43,7 +43,7 @@ var (
 	creditCardPattern      = regexp.MustCompile(`\b(?:\d[ -]?){13,19}\b`)
 	secretKeys             = []string{
 		"authorization", "api_key", "apikey", "openaiapikey", "openrouterapikey", "modelkey",
-		"token", "secret", "password", "credential", "accesstoken", "refreshtoken",
+		"key", "token", "secret", "password", "credential", "accesstoken", "refreshtoken", "refresh",
 		"authtoken", "bearer", "secretvalue", "rawsecret", "secretinput", "keymaterial",
 	}
 )

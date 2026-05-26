@@ -298,7 +298,7 @@ func TestOpenStore_ValidatesVectorConfig(t *testing.T) {
 				},
 				Search: config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
 			},
-			err: "embedding API key is required",
+			err: `embedding API key is required for provider "openai"; set a provider API key, provider env var, role apiKey, or run hand auth login openai`,
 		},
 		{
 			name: "unsupported provider",

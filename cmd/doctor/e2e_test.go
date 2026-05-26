@@ -58,7 +58,7 @@ search:
 
 		output, err := runDoctorCommand(t, "hand", "--config", configPath, "doctor")
 		fmt.Println(output)
-		require.EqualError(t, err, "doctor checks failed: config validation: model API key is required; set a provider API key, provider env var, or role apiKey; model auth: model API key is required; set a provider API key, provider env var, or role apiKey")
+		require.ErrorContains(t, err, "hand auth login openrouter")
 		assert.Contains(t, output, "config validation")
 		assert.Contains(t, output, "model auth")
 	})

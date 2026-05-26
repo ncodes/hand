@@ -111,7 +111,7 @@ func TestBuild_ReturnsModelAuthFailureWhenKeyIsMissing(t *testing.T) {
 	require.Contains(t, report.Checks, Check{
 		Name:    "model auth",
 		Status:  StatusFail,
-		Message: "model API key is required; set a provider API key, provider env var, or role apiKey",
+		Message: `model API key is required for provider "openrouter"; set a provider API key, provider env var, role apiKey, or run hand auth login openrouter`,
 	})
 }
 

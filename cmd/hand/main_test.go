@@ -139,8 +139,8 @@ search:
 	require.Equal(t, "openrouter", cfg.Models.Main.Provider)
 	auth, err := cfg.ResolveModelAuth()
 	require.NoError(t, err)
-	require.Equal(t, "config-key", auth.APIKey)
-	require.Equal(t, config.ModelCredentialSource{Kind: config.ModelCredentialSourceProviderConfig, Name: "openrouter"}, auth.CredentialSource)
+	require.Equal(t, "env-key", auth.APIKey)
+	require.Equal(t, config.ModelCredentialSource{Kind: config.ModelCredentialSourceProviderEnv, Name: "OPENROUTER_API_KEY"}, auth.CredentialSource)
 	require.Equal(t, "openai/gpt-4o-mini", cfg.Models.Main.Name)
 	require.Equal(t, serverURL, cfg.Models.Main.BaseURL)
 	require.Equal(t, "warn", cfg.Log.Level)
@@ -174,7 +174,7 @@ search:
 		"--rpc.port", nextTestPort(t),
 		"up",
 	})
-	require.EqualError(t, err, "model API key is required; set a provider API key, provider env var, or role apiKey")
+	require.ErrorContains(t, err, "hand auth login openrouter")
 }
 
 func TestNewCommand_DefaultsBaseURLWhenProviderIsImplicit(t *testing.T) {

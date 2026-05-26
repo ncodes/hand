@@ -110,7 +110,7 @@ search:
 		"--model", "gpt-4o-mini",
 		"doctor",
 	})
-	require.EqualError(t, err, "doctor checks failed: config validation: model API key is required; set a provider API key, provider env var, or role apiKey; model auth: model API key is required; set a provider API key, provider env var, or role apiKey")
+	require.ErrorContains(t, err, "hand auth login openrouter")
 	require.Contains(t, output.String(), "[\x1b[31mFAIL\x1b[0m] config validation")
 	require.Contains(t, output.String(), "[\x1b[31mFAIL\x1b[0m] model auth")
 	require.Contains(t, output.String(), "safety: input=enabled, output=enabled, pii=disabled")
