@@ -65,6 +65,7 @@ type EmbeddingModelConfig struct {
 type ModelCredentialSource struct {
 	Kind      ModelCredentialSourceKind
 	Name      string
+	Type      string
 	HasExpiry bool
 }
 
@@ -77,5 +78,6 @@ type ModelAuth struct {
 	API              string
 	APIKey           string
 	BaseURL          string
+	Headers          map[string]string
 	CredentialSource ModelCredentialSource
 }

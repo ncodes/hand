@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -83,6 +84,12 @@ type Status struct {
 type LoginOptions struct {
 	// Provider is the normalized provider ID to authenticate.
 	Provider string
+
+	// Input provides optional interactive input for browser login fallback flows.
+	Input io.Reader
+
+	// Output receives login instructions without exposing credential values.
+	Output io.Writer
 }
 
 // SubscriptionProvider logs in, refreshes, and prepares auth headers for a subscription provider.

@@ -14,6 +14,7 @@ import (
 
 	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/datadir"
+	modelcredential "github.com/wandxy/hand/internal/model/credential"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	"github.com/wandxy/hand/internal/profile"
 )
@@ -38,6 +39,19 @@ func stubRefreshModelProviderToken(
 	refreshModelProviderToken = fn
 	t.Cleanup(func() {
 		refreshModelProviderToken = original
+	})
+}
+
+func stubSubscriptionProvider(
+	t *testing.T,
+	fn func(string) (modelcredential.SubscriptionProvider, bool),
+) {
+	t.Helper()
+
+	original := getSubscriptionProvider
+	getSubscriptionProvider = fn
+	t.Cleanup(func() {
+		getSubscriptionProvider = original
 	})
 }
 
@@ -1241,6 +1255,10 @@ func TestConfig_ResolveModelAuthUsesOpenRouterSpecificKey(t *testing.T) {
 }
 
 func TestConfig_ResolveModelAuthUsesOpenAISpecificKey(t *testing.T) {
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, nil
+	})
+
 	cfg := &Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
@@ -1258,6 +1276,10 @@ func TestConfig_ResolveModelAuthUsesOpenAISpecificKey(t *testing.T) {
 }
 
 func TestConfig_ResolveModelAuthAcceptsOpenAIProviderAlias(t *testing.T) {
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, nil
+	})
+
 	cfg := &Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
@@ -1316,6 +1338,7 @@ func TestConfig_ResolveModelAuthUsesCredentialResolverOrder(t *testing.T) {
 	require.Equal(t, ModelCredentialSource{
 		Kind:      ModelCredentialSourceTokenStore,
 		Name:      "openrouter",
+		Type:      modelcredential.TypeOAuth,
 		HasExpiry: true,
 	}, auth.CredentialSource)
 
@@ -1403,7 +1426,7 @@ func TestConfig_ResolveModelAuthUsesProviderTokenStore(t *testing.T) {
 
 	cfg := &Config{
 		Name:   "test-agent",
-		Models: ModelsConfig{Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+		Models: ModelsConfig{Main: MainModelConfig{Name: "gpt-5.4-mini", Provider: "openai"}},
 	}
 
 	auth, err := cfg.ResolveModelAuth()
@@ -1412,6 +1435,42 @@ func TestConfig_ResolveModelAuthUsesProviderTokenStore(t *testing.T) {
 	require.Equal(t, ModelCredentialSource{
 		Kind: ModelCredentialSourceTokenStore,
 		Name: "openai",
+		Type: modelcredential.TypeOAuth,
+	}, auth.CredentialSource)
+}
+
+func TestConfig_ResolveModelAuthUsesOpenAISubscriptionHeaders(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "")
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, "openai", provider)
+		return StoredModelCredential{Type: modelcredential.TypeOAuth, Token: "stored-token"}, nil
+	})
+	stubSubscriptionProvider(t, func(provider string) (modelcredential.SubscriptionProvider, bool) {
+		require.Equal(t, "openai", provider)
+		return modelAuthSubscriptionProvider{
+			headers: map[string]string{
+				"Authorization":      "Bearer stored-token",
+				"ChatGPT-Account-ID": "acct-test",
+			},
+		}, true
+	})
+
+	cfg := &Config{
+		Name:   "test-agent",
+		Models: ModelsConfig{Main: MainModelConfig{Name: "gpt-5.4-mini", Provider: "openai"}},
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, constants.DefaultOpenAISubscriptionBaseURL, auth.BaseURL)
+	require.Equal(t, map[string]string{
+		"Authorization":      "Bearer stored-token",
+		"ChatGPT-Account-ID": "acct-test",
+	}, auth.Headers)
+	require.Equal(t, ModelCredentialSource{
+		Kind: ModelCredentialSourceTokenStore,
+		Name: "openai",
+		Type: modelcredential.TypeOAuth,
 	}, auth.CredentialSource)
 }
 
@@ -1424,7 +1483,7 @@ func TestConfig_ResolveModelAuthUsesStoredAPIKeyCredential(t *testing.T) {
 
 	cfg := &Config{
 		Name:   "test-agent",
-		Models: ModelsConfig{Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+		Models: ModelsConfig{Main: MainModelConfig{Name: "gpt-5.4-mini", Provider: "openai"}},
 	}
 
 	auth, err := cfg.ResolveModelAuth()
@@ -1433,6 +1492,7 @@ func TestConfig_ResolveModelAuthUsesStoredAPIKeyCredential(t *testing.T) {
 	require.Equal(t, ModelCredentialSource{
 		Kind: ModelCredentialSourceTokenStore,
 		Name: "openai",
+		Type: modelcredential.TypeAPIKey,
 	}, auth.CredentialSource)
 }
 
@@ -1451,7 +1511,7 @@ func TestConfig_ResolveModelAuthRefreshesExpiredStoredCredential(t *testing.T) {
 
 	cfg := &Config{
 		Name:   "test-agent",
-		Models: ModelsConfig{Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+		Models: ModelsConfig{Main: MainModelConfig{Name: "gpt-5.4-mini", Provider: "openai"}},
 	}
 
 	auth, err := cfg.ResolveModelAuth()
@@ -1460,8 +1520,25 @@ func TestConfig_ResolveModelAuthRefreshesExpiredStoredCredential(t *testing.T) {
 	require.Equal(t, ModelCredentialSource{
 		Kind:      ModelCredentialSourceTokenStore,
 		Name:      "openai",
+		Type:      modelcredential.TypeOAuth,
 		HasExpiry: true,
 	}, auth.CredentialSource)
+}
+
+func TestConfig_ResolveModelAuthRejectsOpenAISubscriptionModelWithoutOAuthSupport(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "")
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, "openai", provider)
+		return StoredModelCredential{Type: modelcredential.TypeOAuth, Token: "stored-token"}, nil
+	})
+
+	cfg := &Config{
+		Name:   "test-agent",
+		Models: ModelsConfig{Main: MainModelConfig{Name: constants.DefaultModel, Provider: "openai"}},
+	}
+
+	_, err := cfg.ResolveModelAuth()
+	require.EqualError(t, err, `model "gpt-4o-mini" is not available through OAuth for provider "openai"`)
 }
 
 func TestConfig_ResolveModelAuthSkipsExpiredStoredCredentialWithoutRefreshProvider(t *testing.T) {
@@ -1596,6 +1673,34 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 		Models: ModelsConfig{Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "key"}}, Embedding: EmbeddingModelConfig{Provider: "test"}},
 	}).ResolveEmbeddingModelAuth()
 	require.EqualError(t, err, "embedding provider must be one of: anthropic, github-copilot, openai, openrouter")
+}
+
+func TestConfig_ResolveEmbeddingModelAuthSkipsStoredOAuthCredential(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "env-api-key")
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, "openai", provider)
+		return StoredModelCredential{Type: modelcredential.TypeOAuth, Token: "subscription-token"}, nil
+	})
+	stubSubscriptionProvider(t, func(string) (modelcredential.SubscriptionProvider, bool) {
+		require.FailNow(t, "embedding auth must not request subscription headers")
+		return nil, false
+	})
+
+	cfg := &Config{
+		Name: "test-agent",
+		Models: ModelsConfig{
+			Main:      MainModelConfig{Name: constants.DefaultModel, Provider: "openai"},
+			Embedding: EmbeddingModelConfig{Name: constants.DefaultProfileEmbeddingModel},
+		},
+	}
+
+	auth, err := cfg.ResolveEmbeddingModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "env-api-key", auth.APIKey)
+	require.Equal(t, ModelCredentialSource{
+		Kind: ModelCredentialSourceProviderEnv,
+		Name: "OPENAI_API_KEY",
+	}, auth.CredentialSource)
 }
 
 func TestConfig_ModelEmbeddingProviderEffective(t *testing.T) {
@@ -2016,6 +2121,10 @@ func TestConfig_ResolveSummaryModelAuthMatchesMainWhenUnset(t *testing.T) {
 }
 
 func TestConfig_ResolveSummaryModelAuthUsesOpenAIWhenSummaryProviderDiffers(t *testing.T) {
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, nil
+	})
+
 	cfg := &Config{
 		Name: "test-agent",
 		Models: ModelsConfig{
@@ -2108,6 +2217,16 @@ func TestConfig_ModelAuthEqual(t *testing.T) {
 	require.False(t, ModelAuthEqual(
 		ModelAuth{Provider: "openai", API: modelprovider.APIOpenAIResponses, BaseURL: "http://a", APIKey: "k"},
 		ModelAuth{Provider: "openai", API: modelprovider.APIOpenAICompletions, BaseURL: "http://a", APIKey: "k"},
+	))
+	require.False(t, ModelAuthEqual(
+		ModelAuth{Provider: "openai", API: modelprovider.APIOpenAIResponses, BaseURL: "http://a", APIKey: "k"},
+		ModelAuth{
+			Provider: "openai",
+			API:      modelprovider.APIOpenAIResponses,
+			BaseURL:  "http://a",
+			APIKey:   "k",
+			Headers:  map[string]string{"Authorization": "Bearer token"},
+		},
 	))
 }
 
@@ -2808,20 +2927,254 @@ func TestDefaultBaseURLForProvider_ReturnsEmptyForUnknownMode(t *testing.T) {
 	require.Empty(t, getDefaultBaseURLForProvider("openrouter", "not-a-mode"))
 }
 
-func TestConfig_NilReceiver_StreamAndSummaryHelpers(t *testing.T) {
+func TestConfig_NilReceiver_EffectiveHelpers(t *testing.T) {
 	var cfg *Config
 
 	require.True(t, cfg.StreamEnabled())
+	require.Equal(t, constants.DefaultSafetyInputEnabled, cfg.InputSafetyEnabled())
+	require.Equal(t, constants.DefaultSafetyOutputEnabled, cfg.OutputSafetyEnabled())
+	require.False(t, cfg.OutputPIIRedactionEnabled())
+	require.Equal(t, constants.DefaultTUIThinkingComposerEnabled, cfg.TUIThinkingComposerEnabled())
+	require.Equal(t, constants.DefaultModelMaxRetries, cfg.ModelMaxRetriesEffective())
 	require.Equal(t, "", cfg.SummaryModelEffective())
 	require.Equal(t, "", cfg.SummaryProviderEffective())
+	require.Equal(t, "", cfg.MainModelAPIEffective())
 	require.Equal(t, "", cfg.SummaryModelAPIEffective())
+	require.Equal(t, constants.RerankerDeterministic, cfg.RerankerEffective())
+	require.False(t, cfg.MemoryEnabled())
+	require.False(t, cfg.MemoryRetrievalEnabled())
+	require.False(t, cfg.MemoryFlushEnabled())
+	require.False(t, cfg.MemoryWriteEnabled())
+	require.Equal(t, "", cfg.RerankerModelEffective())
+	require.Equal(t, RerankerEffectiveConfig{}, cfg.RerankerOverrideEffective(RerankerOverrideConfig{}))
 
 	_, err := cfg.ResolveSummaryModelAuth()
 	require.EqualError(t, err, "config is required")
+
+	_, err = cfg.ResolveEmbeddingModelAuth()
+	require.EqualError(t, err, "config is required")
+}
+
+func TestConfig_EffectiveAuthHelpersCoverFallbackBranches(t *testing.T) {
+	t.Setenv("EFFECTIVE_TEST_KEY", " env-value ")
+	require.Equal(t, "", getModelAPIID("missing"))
+	require.False(t, hasModelProvider("missing"))
+
+	value, name := getCredentialFromEnv([]string{" ", "EFFECTIVE_TEST_KEY"})
+	require.Equal(t, "env-value", value)
+	require.Equal(t, "EFFECTIVE_TEST_KEY", name)
+
+	value, name = getCredentialFromEnv([]string{" ", "MISSING_EFFECTIVE_TEST_KEY"})
+	require.Empty(t, value)
+	require.Empty(t, name)
+
+	require.Equal(t, "api-key", getStoredModelCredentialValue(StoredModelCredential{
+		Type: modelcredential.TypeAPIKey,
+		Key:  " api-key ",
+	}))
+	require.Equal(t, "oauth-token", getStoredModelCredentialValue(StoredModelCredential{
+		Type:  modelcredential.TypeOAuth,
+		Token: " oauth-token ",
+	}))
+	require.Equal(t, "bare-token", getStoredModelCredentialValue(StoredModelCredential{
+		Token: " bare-token ",
+	}))
+	require.Empty(t, getStoredModelCredentialValue(StoredModelCredential{Type: "unknown", Token: "token"}))
+
+	require.EqualError(
+		t,
+		newMissingModelCredentialError("", ""),
+		"model API key is required; set a provider API key, provider env var, role apiKey, or run hand auth login <provider>",
+	)
+}
+
+func TestConfig_StoredCredentialHeaderHelpersCoverFallbackBranches(t *testing.T) {
+	headers, err := getStoredModelCredentialHeaders("openai", StoredModelCredential{
+		Type: modelcredential.TypeAPIKey,
+		Key:  "key",
+	})
+	require.NoError(t, err)
+	require.Nil(t, headers)
+
+	original := getSubscriptionProvider
+	getSubscriptionProvider = nil
+	headers, err = getStoredModelCredentialHeaders("openai", StoredModelCredential{
+		Type:  modelcredential.TypeOAuth,
+		Token: "token",
+	})
+	require.NoError(t, err)
+	require.Nil(t, headers)
+	getSubscriptionProvider = original
+
+	stubSubscriptionProvider(t, func(string) (modelcredential.SubscriptionProvider, bool) {
+		return nil, false
+	})
+	headers, err = getStoredModelCredentialHeaders("openai", StoredModelCredential{
+		Type:  modelcredential.TypeOAuth,
+		Token: "token",
+	})
+	require.NoError(t, err)
+	require.Nil(t, headers)
+
+	stubSubscriptionProvider(t, func(string) (modelcredential.SubscriptionProvider, bool) {
+		return modelAuthSubscriptionProvider{
+			headers: map[string]string{
+				" Authorization ": " Bearer token ",
+				"blank":           " ",
+				" ":               "ignored",
+			},
+		}, true
+	})
+	headers, err = getStoredModelCredentialHeaders("openai", StoredModelCredential{
+		Type:  modelcredential.TypeOAuth,
+		Token: "token",
+	})
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"Authorization": "Bearer token"}, headers)
+
+	stubSubscriptionProvider(t, func(string) (modelcredential.SubscriptionProvider, bool) {
+		return modelAuthSubscriptionProvider{err: errors.New("headers failed")}, true
+	})
+	_, err = getStoredModelCredentialHeaders("openai", StoredModelCredential{
+		Type:  modelcredential.TypeOAuth,
+		Token: "token",
+	})
+	require.EqualError(t, err, "headers failed")
+}
+
+func TestConfig_OAuthModelSupportAndSubscriptionDefaultsFallbacks(t *testing.T) {
+	require.NoError(t, checkOAuthModelSupported("", "openai", ""))
+	require.NoError(t, checkOAuthModelSupported("model", "missing", "gpt-4o-mini"))
+	require.NoError(t, checkOAuthModelSupported("model", "anthropic", "claude-sonnet-4-5"))
+	require.EqualError(
+		t,
+		checkOAuthModelSupported("", "openai", constants.DefaultModel),
+		`model "gpt-4o-mini" is not available through OAuth for provider "openai"`,
+	)
+
+	auth := ModelAuth{}
+	auth.applySubscriptionDefaults()
+	require.Empty(t, auth.BaseURL)
+
+	auth = ModelAuth{
+		Provider: constants.ModelProviderOpenAI,
+		BaseURL:  "https://custom.example/v1",
+		CredentialSource: ModelCredentialSource{
+			Kind: ModelCredentialSourceTokenStore,
+			Type: modelcredential.TypeOAuth,
+		},
+	}
+	auth.applySubscriptionDefaults()
+	require.Equal(t, "https://custom.example/v1", auth.BaseURL)
+
+	auth.BaseURL = constants.DefaultOpenAIBaseURL
+	auth.applySubscriptionDefaults()
+	require.Equal(t, constants.DefaultOpenAISubscriptionBaseURL, auth.BaseURL)
+
+	var nilAuth *ModelAuth
+	nilAuth.applySubscriptionDefaults()
+}
+
+func TestConfig_StringMapHelpersNormalizeAndCompare(t *testing.T) {
+	require.Nil(t, normalizeStringMap(nil))
+	require.Nil(t, normalizeStringMap(map[string]string{" ": "ignored", "blank": " "}))
+	require.Equal(t, map[string]string{"A": "B"}, normalizeStringMap(map[string]string{" A ": " B "}))
+
+	require.True(t, stringMapsEqual(
+		map[string]string{" A ": " B "},
+		map[string]string{"A": "B"},
+	))
+	require.False(t, stringMapsEqual(
+		map[string]string{"A": "B"},
+		map[string]string{"A": "C"},
+	))
+	require.False(t, stringMapsEqual(
+		map[string]string{"A": "B"},
+		map[string]string{"A": "B", "C": "D"},
+	))
+}
+
+func TestConfig_StoredCredentialLoadAndRefreshFallbacks(t *testing.T) {
+	originalLoad := loadModelProviderToken
+	originalRefresh := refreshModelProviderToken
+	loadModelProviderToken = nil
+	refreshModelProviderToken = nil
+	t.Cleanup(func() {
+		loadModelProviderToken = originalLoad
+		refreshModelProviderToken = originalRefresh
+	})
+
+	credential, err := loadStoredModelCredential("openai")
+	require.NoError(t, err)
+	require.Equal(t, StoredModelCredential{}, credential)
+
+	refreshed, ok, err := refreshStoredModelCredential("openai")
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Equal(t, StoredModelCredential{}, refreshed)
+}
+
+func TestConfig_ResolveCredentialForProviderCoversRefreshBranches(t *testing.T) {
+	expired := time.Now().Add(-time.Hour)
+	cfg := &Config{}
+
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{
+			Type:      modelcredential.TypeOAuth,
+			Token:     "expired",
+			ExpiresAt: &expired,
+		}, nil
+	})
+	stubRefreshModelProviderToken(t, func(context.Context, string) (StoredModelCredential, bool, error) {
+		return StoredModelCredential{}, false, errors.New("refresh failed")
+	})
+	_, err := cfg.resolveCredentialForProvider("openai", "", true, "model", "gpt-5.4-mini")
+	require.EqualError(t, err, "refresh failed")
+
+	stubRefreshModelProviderToken(t, func(context.Context, string) (StoredModelCredential, bool, error) {
+		return StoredModelCredential{}, false, nil
+	})
+	credential, err := cfg.resolveCredentialForProvider("openai", "", true, "model", "gpt-5.4-mini")
+	require.NoError(t, err)
+	require.Equal(t, resolvedModelCredential{}, credential)
+
+	freshExpiry := time.Now().Add(time.Hour)
+	stubRefreshModelProviderToken(t, func(context.Context, string) (StoredModelCredential, bool, error) {
+		return StoredModelCredential{
+			Type:      modelcredential.TypeOAuth,
+			Token:     "fresh",
+			ExpiresAt: &freshExpiry,
+		}, true, nil
+	})
+	stubSubscriptionProvider(t, func(string) (modelcredential.SubscriptionProvider, bool) {
+		return modelAuthSubscriptionProvider{err: errors.New("headers failed")}, true
+	})
+	_, err = cfg.resolveCredentialForProvider("openai", "", true, "model", "gpt-5.4-mini")
+	require.EqualError(t, err, "headers failed")
+
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{
+			Type:      modelcredential.TypeAPIKey,
+			Key:       "expired-key",
+			ExpiresAt: &expired,
+		}, nil
+	})
+	stubRefreshModelProviderToken(t, func(context.Context, string) (StoredModelCredential, bool, error) {
+		return StoredModelCredential{
+			Type:      modelcredential.TypeOAuth,
+			Token:     "fresh",
+			ExpiresAt: &freshExpiry,
+		}, true, nil
+	})
+	_, err = cfg.resolveCredentialForProvider("openai", "", true, "model", constants.DefaultModel)
+	require.EqualError(t, err, `model "gpt-4o-mini" is not available through OAuth for provider "openai"`)
 }
 
 func TestConfig_ResolveSummaryModelAuth_FailsWhenSummaryProviderHasNoKey(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "")
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, nil
+	})
 
 	cfg := &Config{
 		Name: "test-agent",
@@ -2837,8 +3190,46 @@ func TestConfig_ResolveSummaryModelAuth_FailsWhenSummaryProviderHasNoKey(t *test
 	require.ErrorContains(t, err, "hand auth login openai")
 }
 
+func TestConfig_ResolveSummaryModelAuth_ReturnsCredentialResolverError(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "")
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, errors.New("store failed")
+	})
+
+	cfg := &Config{
+		Name: "test-agent",
+		Models: ModelsConfig{
+			Main: MainModelConfig{Name: "gpt-5.4-mini", Provider: "openai"},
+		},
+	}
+
+	_, err := cfg.ResolveSummaryModelAuth()
+	require.EqualError(t, err, "store failed")
+}
+
+func TestConfig_ResolveEmbeddingModelAuth_ReturnsCredentialResolverError(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "")
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, errors.New("store failed")
+	})
+
+	cfg := &Config{
+		Name: "test-agent",
+		Models: ModelsConfig{
+			Main:      MainModelConfig{Name: "gpt-5.4-mini", Provider: "openai"},
+			Embedding: EmbeddingModelConfig{Name: constants.DefaultProfileEmbeddingModel, Provider: "openai"},
+		},
+	}
+
+	_, err := cfg.ResolveEmbeddingModelAuth()
+	require.EqualError(t, err, "store failed")
+}
+
 func TestConfig_Validate_ReturnsSummaryAuthErrorWhenOpenAIKeyMissing(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "")
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, nil
+	})
 
 	err := (&Config{
 		Name: "test-agent",
@@ -2852,6 +3243,36 @@ func TestConfig_Validate_ReturnsSummaryAuthErrorWhenOpenAIKeyMissing(t *testing.
 	}).Validate()
 
 	require.ErrorContains(t, err, "hand auth login openai")
+}
+
+type modelAuthSubscriptionProvider struct {
+	headers map[string]string
+	err     error
+}
+
+func (p modelAuthSubscriptionProvider) Login(
+	context.Context,
+	modelcredential.LoginOptions,
+) (modelcredential.StoredCredential, error) {
+	return modelcredential.StoredCredential{}, nil
+}
+
+func (p modelAuthSubscriptionProvider) Refresh(
+	context.Context,
+	modelcredential.StoredCredential,
+) (modelcredential.StoredCredential, error) {
+	return modelcredential.StoredCredential{}, nil
+}
+
+func (p modelAuthSubscriptionProvider) AuthHeaders(
+	context.Context,
+	modelcredential.StoredCredential,
+) (map[string]string, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+
+	return p.headers, nil
 }
 
 func TestNormalizeRulePaths_EmptyInput(t *testing.T) {

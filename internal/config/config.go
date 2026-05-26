@@ -44,6 +44,7 @@ var (
 	modelRegistry             = modelprovider.DefaultRegistry()
 	loadModelProviderToken    = modelcredential.LoadStoredProviderCredential
 	refreshModelProviderToken = modelcredential.RefreshStoredProviderCredential
+	getSubscriptionProvider   = modelcredential.GetSubscriptionProvider
 )
 
 const (

@@ -18,7 +18,11 @@ import (
 	"github.com/wandxy/hand/internal/profile"
 )
 
-var authOutput io.Writer = os.Stdout
+var (
+	authOutput              io.Writer = os.Stdout
+	authInput               io.Reader = os.Stdin
+	getSubscriptionProvider           = modelcredential.GetSubscriptionProvider
+)
 
 func SetOutput(w io.Writer) io.Writer {
 	previous := authOutput
@@ -58,7 +62,7 @@ func newLoginCommand() *cli.Command {
 			&cli.StringFlag{Name: "expires-at", Usage: "OAuth token expiry time in RFC3339 format"},
 			&cli.StringSliceFlag{Name: "scope", Usage: "OAuth scope to store with --token"},
 		},
-		Action: func(_ context.Context, cmd *cli.Command) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 			provider, err := getAuthProviderArg(cmd)
 			if err != nil {
 				return err
@@ -68,7 +72,7 @@ func newLoginCommand() *cli.Command {
 				return err
 			}
 
-			credential, err := getLoginCredential(cmd)
+			credential, err := getLoginCredential(ctx, provider, cmd)
 			if err != nil {
 				return err
 			}
@@ -93,7 +97,7 @@ func newStatusCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			cfg, _ := loadStatusConfig(cmd)
+			cfg, _ := loadAuthConfig(cmd)
 			providers, err := getStatusProviders(cmd, store, cfg)
 			if err != nil {
 				return err
@@ -158,7 +162,11 @@ func getAuthStore(cmd *cli.Command) (*modelcredential.FileStore, error) {
 	return modelcredential.NewFileStore(""), nil
 }
 
-func getLoginCredential(cmd *cli.Command) (modelcredential.StoredCredential, error) {
+func getLoginCredential(
+	ctx context.Context,
+	provider string,
+	cmd *cli.Command,
+) (modelcredential.StoredCredential, error) {
 	apiKey := strings.TrimSpace(cmd.String("api-key"))
 	token := strings.TrimSpace(cmd.String("token"))
 	if apiKey != "" && token != "" {
@@ -168,7 +176,17 @@ func getLoginCredential(cmd *cli.Command) (modelcredential.StoredCredential, err
 		return modelcredential.StoredCredential{Type: modelcredential.TypeAPIKey, Key: apiKey}, nil
 	}
 	if token == "" {
-		return modelcredential.StoredCredential{}, fmt.Errorf("credential is required; pass --api-key or --token")
+		if subscriptionProvider, ok := getSubscriptionProvider(provider); ok {
+			return subscriptionProvider.Login(ctx, modelcredential.LoginOptions{
+				Provider: provider,
+				Input:    authInput,
+				Output:   authOutput,
+			})
+		}
+
+		return modelcredential.StoredCredential{}, fmt.Errorf(
+			"credential is required; pass --api-key or --token, or use a provider with subscription login",
+		)
 	}
 
 	credential := modelcredential.StoredCredential{
@@ -188,7 +206,7 @@ func getLoginCredential(cmd *cli.Command) (modelcredential.StoredCredential, err
 	return credential, nil
 }
 
-func loadStatusConfig(cmd *cli.Command) (*config.Config, error) {
+func loadAuthConfig(cmd *cli.Command) (*config.Config, error) {
 	cfg, _, err := handcli.LoadConfig(cmd)
 	if err != nil {
 		return nil, err

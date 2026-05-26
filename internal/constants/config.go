@@ -26,6 +26,7 @@ const (
 	DefaultOpenRouterResponsesBaseURL  = "https://openrouter.ai/api/v1"
 	DefaultOpenRouterEmbeddingsBaseURL = "https://openrouter.ai/api/v1/embeddings"
 	DefaultOpenAIBaseURL               = "https://api.openai.com/v1"
+	DefaultOpenAISubscriptionBaseURL   = "https://chatgpt.com/backend-api/codex"
 	DefaultOpenAIEmbeddingsBaseURL     = "https://api.openai.com/v1/embeddings"
 	DefaultAnthropicBaseURL            = "https://api.anthropic.com"
 	// DefaultModelMaxRetries is the fallback retry count for model calls.

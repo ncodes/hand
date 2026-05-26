@@ -51,6 +51,7 @@ func TestDefaultRegistry_RegistersBuiltInProviders(t *testing.T) {
 	require.Equal(t, constants.DefaultOpenAIBaseURL, registry.GetBaseURL("openai", APIOpenAIResponses))
 	require.Equal(t, constants.DefaultOpenAIEmbeddingsBaseURL, registry.GetBaseURL("openai", APIOpenAIEmbeddings))
 	require.Equal(t, []string{"OPENAI_API_KEY"}, openai.APIKeyEnv)
+	require.True(t, openai.SupportsOAuth)
 
 	anthropic, ok := registry.GetProvider(constants.ModelProviderAnthropic)
 	require.True(t, ok)
@@ -82,6 +83,71 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	require.Equal(t, APIOpenAIResponses, openAIModel.API)
 	require.Equal(t, []InputKind{InputText, InputImage}, openAIModel.Input)
 	require.Equal(t, constants.DefaultContextLength, openAIModel.ContextWindow)
+	require.False(t, openAIModel.SupportsOAuth)
+
+	openAISubscriptionModel, ok := registry.GetModel("openai", "gpt-5.4-mini")
+	require.True(t, ok)
+	require.Equal(t, constants.ModelProviderOpenAI, openAISubscriptionModel.Owner)
+	require.Equal(t, APIOpenAIResponses, openAISubscriptionModel.API)
+	require.True(t, openAISubscriptionModel.Reasoning)
+	require.True(t, openAISubscriptionModel.SupportsOAuth)
+	require.Equal(t, 272000, openAISubscriptionModel.ContextWindow)
+	require.Equal(t, 128000, openAISubscriptionModel.MaxTokens)
+
+	for _, modelID := range []string{
+		"gpt-5.2",
+		"gpt-5.3-codex",
+		"gpt-5.3-codex-spark",
+		"gpt-5.4",
+		"gpt-5.4-mini",
+		"gpt-5.5",
+	} {
+		model, ok := registry.GetModel("openai", modelID)
+		require.True(t, ok)
+		require.True(t, model.SupportsOAuth)
+	}
+
+	for _, modelID := range []string{
+		"gpt-4",
+		"gpt-4-turbo",
+		"gpt-4.1",
+		"gpt-4.1-mini",
+		"gpt-4.1-nano",
+		"gpt-4o",
+		"gpt-4o-2024-05-13",
+		"gpt-4o-2024-08-06",
+		"gpt-4o-2024-11-20",
+		"gpt-5",
+		"gpt-5-chat-latest",
+		"gpt-5-codex",
+		"gpt-5-mini",
+		"gpt-5-nano",
+		"gpt-5-pro",
+		"gpt-5.1",
+		"gpt-5.1-chat-latest",
+		"gpt-5.1-codex",
+		"gpt-5.1-codex-max",
+		"gpt-5.1-codex-mini",
+		"gpt-5.2-chat-latest",
+		"gpt-5.2-codex",
+		"gpt-5.2-pro",
+		"gpt-5.3-chat-latest",
+		"gpt-5.4-nano",
+		"gpt-5.4-pro",
+		"gpt-5.5-pro",
+		"o1",
+		"o1-pro",
+		"o3",
+		"o3-deep-research",
+		"o3-mini",
+		"o3-pro",
+		"o4-mini",
+		"o4-mini-deep-research",
+	} {
+		model, ok := registry.GetModel("openai", modelID)
+		require.True(t, ok)
+		require.False(t, model.SupportsOAuth)
+	}
 
 	openRouterModel, ok := registry.GetModel("openrouter", constants.DefaultProfileModel)
 	require.True(t, ok)
@@ -89,14 +155,21 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	require.Equal(t, APIOpenAIResponses, openRouterModel.API)
 	require.Equal(t, []InputKind{InputText}, openRouterModel.Input)
 
-	openRouterOpenAIModel, ok := registry.GetModel("openrouter", constants.DefaultModel)
+	openRouterOpenAIModel, ok := registry.GetModel("openrouter", "openai/"+constants.DefaultModel)
 	require.True(t, ok)
 	require.Equal(t, constants.ModelProviderOpenAI, openRouterOpenAIModel.Owner)
 	require.Equal(t, APIOpenAIResponses, openRouterOpenAIModel.API)
 	require.Equal(t, []InputKind{InputText, InputImage}, openRouterOpenAIModel.Input)
 
-	_, ok = registry.GetModel("openrouter", "openai/"+constants.DefaultModel)
+	_, ok = registry.GetModel("openrouter", constants.DefaultModel)
 	require.False(t, ok)
+
+	openRouterClaudeModel, ok := registry.GetModel("openrouter", "anthropic/claude-sonnet-4.5")
+	require.True(t, ok)
+	require.Equal(t, constants.ModelProviderAnthropic, openRouterClaudeModel.Owner)
+	require.Equal(t, APIOpenAIResponses, openRouterClaudeModel.API)
+	require.True(t, openRouterClaudeModel.Reasoning)
+	require.Equal(t, 1000000, openRouterClaudeModel.ContextWindow)
 
 	embedding, ok := registry.GetModel("openrouter", constants.DefaultProfileEmbeddingModel)
 	require.True(t, ok)
@@ -109,11 +182,17 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 
 	sonnet, ok := registry.GetModel("anthropic", "claude-sonnet-4-5")
 	require.True(t, ok)
-	require.Equal(t, "Claude Sonnet 4.5", sonnet.Name)
+	require.Equal(t, "Claude Sonnet 4.5 (latest)", sonnet.Name)
 	require.Equal(t, APIAnthropicMessages, sonnet.API)
 	require.Equal(t, []InputKind{InputText, InputImage}, sonnet.Input)
 	require.Equal(t, 200000, sonnet.ContextWindow)
 	require.Equal(t, 64000, sonnet.MaxTokens)
+
+	opus47, ok := registry.GetModel("anthropic", "claude-opus-4-7")
+	require.True(t, ok)
+	require.Equal(t, APIAnthropicMessages, opus47.API)
+	require.True(t, opus47.Reasoning)
+	require.Equal(t, 1000000, opus47.ContextWindow)
 
 	opus, ok := registry.GetModel("anthropic", "claude-opus-4-1")
 	require.True(t, ok)

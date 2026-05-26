@@ -1,0 +1,384 @@
+package provider_openai
+
+import (
+	"context"
+	cryptorand "crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"os/exec"
+	"runtime"
+	"strings"
+	"time"
+
+	"github.com/wandxy/hand/internal/constants"
+	modelcredential "github.com/wandxy/hand/internal/model/credential"
+)
+
+const (
+	openAISubscriptionClientID    = "app_EMoamEEZ73f0CkXaXp7hrann"
+	openAISubscriptionAuthorize   = "https://auth.openai.com/oauth/authorize"
+	openAISubscriptionToken       = "https://auth.openai.com/oauth/token"
+	openAISubscriptionRedirectURI = "http://localhost:1455/auth/callback"
+	openAISubscriptionScope       = "openid profile email offline_access"
+	openAISubscriptionOriginator  = "hand"
+)
+
+var (
+	openAIRandomReader = cryptorand.Reader
+	runOpenURLCommand  = func(name string, args ...string) error {
+		return exec.Command(name, args...).Start()
+	}
+)
+
+// OpenAISubscriptionProvider implements ChatGPT subscription OAuth for OpenAI models.
+type OpenAISubscriptionProvider struct {
+	AuthorizeURL string
+	TokenURL     string
+	RedirectURI  string
+	ListenAddr   string
+	HTTPClient   *http.Client
+	OpenBrowser  func(string) error
+	Now          func() time.Time
+}
+
+func init() {
+	modelcredential.RegisterSubscriptionProvider(constants.ModelProviderOpenAI, OpenAISubscriptionProvider{})
+}
+
+// Login completes the browser OAuth flow and returns a stored OAuth credential.
+func (p OpenAISubscriptionProvider) Login(
+	ctx context.Context,
+	options modelcredential.LoginOptions,
+) (modelcredential.StoredCredential, error) {
+	p = p.withDefaults()
+
+	codeVerifier, challenge, err := newOpenAIPKCE()
+	if err != nil {
+		return modelcredential.StoredCredential{}, err
+	}
+	state, err := randomOpenAIString(32)
+	if err != nil {
+		return modelcredential.StoredCredential{}, err
+	}
+
+	listener, redirectURI, err := p.listenForCallback()
+	if err != nil {
+		return modelcredential.StoredCredential{}, err
+	}
+	defer listener.Close()
+
+	codeCh := make(chan string, 1)
+	errCh := make(chan error, 1)
+	server := p.startCallbackServer(listener, state, codeCh, errCh)
+	defer server.Close()
+
+	authURL := p.getAuthorizeURL(redirectURI, state, challenge)
+	if options.Output != nil {
+		_, _ = fmt.Fprintf(options.Output, "Open this URL to authenticate OpenAI:\n%s\n", authURL)
+	}
+	if p.OpenBrowser != nil {
+		_ = p.OpenBrowser(authURL)
+	}
+
+	select {
+	case code := <-codeCh:
+		return p.exchangeCode(ctx, code, codeVerifier, redirectURI)
+	case err := <-errCh:
+		return modelcredential.StoredCredential{}, err
+	case <-ctx.Done():
+		return modelcredential.StoredCredential{}, ctx.Err()
+	}
+}
+
+// Refresh exchanges an expired access token for a fresh one.
+func (p OpenAISubscriptionProvider) Refresh(
+	ctx context.Context,
+	credential modelcredential.StoredCredential,
+) (modelcredential.StoredCredential, error) {
+	p = p.withDefaults()
+	refreshToken := strings.TrimSpace(credential.Refresh)
+	if refreshToken == "" {
+		return modelcredential.StoredCredential{}, errors.New("OpenAI subscription refresh token is required")
+	}
+
+	form := url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refreshToken},
+		"client_id":     {openAISubscriptionClientID},
+	}
+
+	next, err := p.postToken(ctx, form)
+	if err != nil {
+		return modelcredential.StoredCredential{}, err
+	}
+	if next.Refresh == "" {
+		next.Refresh = refreshToken
+	}
+
+	return next, nil
+}
+
+// AuthHeaders converts an OpenAI subscription token into request headers.
+func (p OpenAISubscriptionProvider) AuthHeaders(
+	_ context.Context,
+	credential modelcredential.StoredCredential,
+) (map[string]string, error) {
+	token := strings.TrimSpace(credential.Token)
+	if token == "" {
+		return nil, errors.New("OpenAI subscription access token is required")
+	}
+
+	accountID, err := getOpenAIAccountID(token)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{
+		"Authorization":      "Bearer " + token,
+		"ChatGPT-Account-ID": accountID,
+		"OpenAI-Beta":        "responses=experimental",
+		"Originator":         openAISubscriptionOriginator,
+		"User-Agent":         "Hand",
+	}, nil
+}
+
+func (p OpenAISubscriptionProvider) withDefaults() OpenAISubscriptionProvider {
+	if strings.TrimSpace(p.AuthorizeURL) == "" {
+		p.AuthorizeURL = openAISubscriptionAuthorize
+	}
+	if strings.TrimSpace(p.TokenURL) == "" {
+		p.TokenURL = openAISubscriptionToken
+	}
+	if strings.TrimSpace(p.RedirectURI) == "" {
+		p.RedirectURI = openAISubscriptionRedirectURI
+	}
+	if strings.TrimSpace(p.ListenAddr) == "" {
+		p.ListenAddr = "127.0.0.1:1455"
+	}
+	if p.HTTPClient == nil {
+		p.HTTPClient = http.DefaultClient
+	}
+	if p.OpenBrowser == nil {
+		p.OpenBrowser = openURLInBrowser
+	}
+	if p.Now == nil {
+		p.Now = time.Now
+	}
+
+	return p
+}
+
+func (p OpenAISubscriptionProvider) listenForCallback() (net.Listener, string, error) {
+	listener, err := net.Listen("tcp", p.ListenAddr)
+	if err != nil {
+		return nil, "", err
+	}
+
+	redirectURI := p.RedirectURI
+	if strings.HasSuffix(p.ListenAddr, ":0") {
+		host := "localhost"
+		if tcpAddr, ok := listener.Addr().(*net.TCPAddr); ok {
+			redirectURI = fmt.Sprintf("http://%s:%d/auth/callback", host, tcpAddr.Port)
+		}
+	}
+
+	return listener, redirectURI, nil
+}
+
+func (p OpenAISubscriptionProvider) startCallbackServer(
+	listener net.Listener,
+	state string,
+	codeCh chan<- string,
+	errCh chan<- error,
+) *http.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/auth/callback", func(w http.ResponseWriter, r *http.Request) {
+		if got := strings.TrimSpace(r.URL.Query().Get("state")); got != state {
+			http.Error(w, "invalid OAuth state", http.StatusBadRequest)
+			errCh <- errors.New("OpenAI OAuth state mismatch")
+			return
+		}
+		code := strings.TrimSpace(r.URL.Query().Get("code"))
+		if code == "" {
+			http.Error(w, "missing OAuth code", http.StatusBadRequest)
+			errCh <- errors.New("OpenAI OAuth code is required")
+			return
+		}
+
+		_, _ = io.WriteString(w, "OpenAI authentication complete. You can return to Hand.\n")
+		codeCh <- code
+	})
+
+	server := &http.Server{Handler: mux}
+	go func() {
+		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+		}
+	}()
+
+	return server
+}
+
+func (p OpenAISubscriptionProvider) getAuthorizeURL(
+	redirectURI string,
+	state string,
+	challenge string,
+) string {
+	values := url.Values{
+		"response_type":              {"code"},
+		"client_id":                  {openAISubscriptionClientID},
+		"redirect_uri":               {redirectURI},
+		"scope":                      {openAISubscriptionScope},
+		"state":                      {state},
+		"code_challenge":             {challenge},
+		"code_challenge_method":      {"S256"},
+		"id_token_add_organizations": {"true"},
+		"codex_cli_simplified_flow":  {"true"},
+		"originator":                 {openAISubscriptionOriginator},
+		"prompt":                     {"login"},
+	}
+
+	return strings.TrimRight(p.AuthorizeURL, "?") + "?" + values.Encode()
+}
+
+func (p OpenAISubscriptionProvider) exchangeCode(
+	ctx context.Context,
+	code string,
+	codeVerifier string,
+	redirectURI string,
+) (modelcredential.StoredCredential, error) {
+	form := url.Values{
+		"grant_type":    {"authorization_code"},
+		"client_id":     {openAISubscriptionClientID},
+		"code":          {code},
+		"code_verifier": {codeVerifier},
+		"redirect_uri":  {redirectURI},
+	}
+
+	return p.postToken(ctx, form)
+}
+
+func (p OpenAISubscriptionProvider) postToken(
+	ctx context.Context,
+	form url.Values,
+) (modelcredential.StoredCredential, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.TokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return modelcredential.StoredCredential{}, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := p.HTTPClient.Do(req)
+	if err != nil {
+		return modelcredential.StoredCredential{}, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return modelcredential.StoredCredential{}, err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return modelcredential.StoredCredential{}, fmt.Errorf("OpenAI token request failed: %s", resp.Status)
+	}
+
+	var token tokenResponse
+	if err := json.Unmarshal(body, &token); err != nil {
+		return modelcredential.StoredCredential{}, err
+	}
+	if strings.TrimSpace(token.AccessToken) == "" {
+		return modelcredential.StoredCredential{}, errors.New("OpenAI token response did not include an access token")
+	}
+
+	credential := modelcredential.StoredCredential{
+		Type:    modelcredential.TypeOAuth,
+		Token:   strings.TrimSpace(token.AccessToken),
+		Refresh: strings.TrimSpace(token.RefreshToken),
+		Scopes:  strings.Fields(token.Scope),
+	}
+	if token.ExpiresIn > 0 {
+		expiresAt := p.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
+		credential.ExpiresAt = &expiresAt
+	}
+
+	return credential, nil
+}
+
+type tokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int64  `json:"expires_in"`
+	Scope        string `json:"scope"`
+}
+
+func newOpenAIPKCE() (string, string, error) {
+	verifier, err := randomOpenAIString(64)
+	if err != nil {
+		return "", "", err
+	}
+
+	sum := sha256.Sum256([]byte(verifier))
+	challenge := base64.RawURLEncoding.EncodeToString(sum[:])
+	return verifier, challenge, nil
+}
+
+func randomOpenAIString(length int) (string, error) {
+	buf := make([]byte, length)
+	if _, err := io.ReadFull(openAIRandomReader, buf); err != nil {
+		return "", err
+	}
+
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+func getOpenAIAccountID(token string) (string, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) < 2 {
+		return "", errors.New("OpenAI subscription token must be a JWT with account metadata")
+	}
+
+	body, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("decode OpenAI subscription token: %w", err)
+	}
+
+	var claims map[string]any
+	if err := json.Unmarshal(body, &claims); err != nil {
+		return "", err
+	}
+
+	authClaims, ok := claims["https://api.openai.com/auth"].(map[string]any)
+	if !ok {
+		return "", errors.New("OpenAI subscription token is missing account metadata")
+	}
+	accountID, ok := authClaims["chatgpt_account_id"].(string)
+	if !ok || strings.TrimSpace(accountID) == "" {
+		return "", errors.New("OpenAI subscription token is missing account ID")
+	}
+
+	return strings.TrimSpace(accountID), nil
+}
+
+func openURLInBrowser(rawURL string) error {
+	name, args := getOpenURLCommand(runtime.GOOS, rawURL)
+	return runOpenURLCommand(name, args...)
+}
+
+func getOpenURLCommand(goos string, rawURL string) (string, []string) {
+	switch goos {
+	case "darwin":
+		return "open", []string{rawURL}
+	case "windows":
+		return "rundll32", []string{"url.dll,FileProtocolHandler", rawURL}
+	default:
+		return "xdg-open", []string{rawURL}
+	}
+}

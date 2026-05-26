@@ -45,6 +45,7 @@ var (
 		"authorization", "api_key", "apikey", "openaiapikey", "openrouterapikey", "modelkey",
 		"key", "token", "secret", "password", "credential", "accesstoken", "refreshtoken", "refresh",
 		"authtoken", "bearer", "secretvalue", "rawsecret", "secretinput", "keymaterial",
+		"chatgptaccountid",
 	}
 )
 

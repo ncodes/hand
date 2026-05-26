@@ -335,12 +335,20 @@ func (c *Config) ResolveSummaryModelAuth() (ModelAuth, error) {
 		BaseURL:  c.summaryModelBaseURLEffective(),
 	}
 
-	apiKey, source, err := c.resolveCredentialForProvider(auth.Provider, c.summaryAPIKeyEffective())
+	credential, err := c.resolveCredentialForProvider(
+		auth.Provider,
+		c.summaryAPIKeyEffective(),
+		true,
+		"summary model",
+		c.SummaryModelEffective(),
+	)
 	if err != nil {
 		return ModelAuth{}, err
 	}
-	auth.APIKey = apiKey
-	auth.CredentialSource = source
+	auth.APIKey = credential.Value
+	auth.Headers = credential.Headers
+	auth.CredentialSource = credential.Source
+	auth.applySubscriptionDefaults()
 	if strings.TrimSpace(auth.APIKey) == "" {
 		return ModelAuth{}, newMissingModelCredentialError("model", auth.Provider)
 	}
@@ -353,7 +361,8 @@ func ModelAuthEqual(a, b ModelAuth) bool {
 	return strings.TrimSpace(strings.ToLower(a.Provider)) == strings.TrimSpace(strings.ToLower(b.Provider)) &&
 		strings.TrimSpace(strings.ToLower(a.API)) == strings.TrimSpace(strings.ToLower(b.API)) &&
 		strings.TrimSpace(a.BaseURL) == strings.TrimSpace(b.BaseURL) &&
-		strings.TrimSpace(a.APIKey) == strings.TrimSpace(b.APIKey)
+		strings.TrimSpace(a.APIKey) == strings.TrimSpace(b.APIKey) &&
+		stringMapsEqual(a.Headers, b.Headers)
 }
 
 func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
@@ -373,12 +382,13 @@ func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
 		API:      modelprovider.APIOpenAIEmbeddings,
 		BaseURL:  getDefaultBaseURLForProvider(provider, modelprovider.APIOpenAIEmbeddings),
 	}
-	apiKey, source, err := c.resolveCredentialForProvider(provider, c.Models.Embedding.APIKey)
+	credential, err := c.resolveCredentialForProvider(provider, c.Models.Embedding.APIKey, false, "", "")
 	if err != nil {
 		return ModelAuth{}, err
 	}
-	auth.APIKey = apiKey
-	auth.CredentialSource = source
+	auth.APIKey = credential.Value
+	auth.Headers = credential.Headers
+	auth.CredentialSource = credential.Source
 	if strings.TrimSpace(auth.APIKey) == "" {
 		return ModelAuth{}, newMissingModelCredentialError("embedding", auth.Provider)
 	}
@@ -412,12 +422,20 @@ func (c *Config) ResolveModelAuth() (ModelAuth, error) {
 		BaseURL:  c.Models.Main.BaseURL,
 	}
 
-	apiKey, source, err := c.resolveCredentialForProvider(c.Models.Main.Provider, c.Models.Main.APIKey)
+	credential, err := c.resolveCredentialForProvider(
+		c.Models.Main.Provider,
+		c.Models.Main.APIKey,
+		true,
+		"model",
+		c.Models.Main.Name,
+	)
 	if err != nil {
 		return ModelAuth{}, err
 	}
-	auth.APIKey = apiKey
-	auth.CredentialSource = source
+	auth.APIKey = credential.Value
+	auth.Headers = credential.Headers
+	auth.CredentialSource = credential.Source
+	auth.applySubscriptionDefaults()
 	if strings.TrimSpace(auth.APIKey) == "" {
 		return ModelAuth{}, newMissingModelCredentialError("model", auth.Provider)
 	}
@@ -425,54 +443,212 @@ func (c *Config) ResolveModelAuth() (ModelAuth, error) {
 	return auth, nil
 }
 
+type resolvedModelCredential struct {
+	Value   string
+	Headers map[string]string
+	Source  ModelCredentialSource
+}
+
 func (c *Config) resolveCredentialForProvider(
 	provider string,
 	roleAPIKey string,
-) (string, ModelCredentialSource, error) {
+	allowOAuth bool,
+	oauthModelField string,
+	oauthModelID string,
+) (resolvedModelCredential, error) {
 	provider = strings.TrimSpace(strings.ToLower(provider))
 	if value := strings.TrimSpace(roleAPIKey); value != "" {
-		return value, ModelCredentialSource{Kind: ModelCredentialSourceRoleConfig}, nil
+		return resolvedModelCredential{
+			Value:  value,
+			Source: ModelCredentialSource{Kind: ModelCredentialSourceRoleConfig},
+		}, nil
 	}
 
 	stored, err := loadStoredModelCredential(provider)
 	if err != nil {
-		return "", ModelCredentialSource{}, err
+		return resolvedModelCredential{}, err
+	}
+	var oauthModelErr error
+	if strings.TrimSpace(strings.ToLower(stored.Type)) == modelcredential.TypeOAuth && !allowOAuth {
+		stored = StoredModelCredential{}
+	}
+	if strings.TrimSpace(strings.ToLower(stored.Type)) == modelcredential.TypeOAuth && allowOAuth {
+		if err := checkOAuthModelSupported(oauthModelField, provider, oauthModelID); err != nil {
+			oauthModelErr = err
+			stored = StoredModelCredential{}
+		}
 	}
 	if modelcredential.IsExpired(stored) {
 		refreshed, ok, err := refreshStoredModelCredential(provider)
 		if err != nil {
-			return "", ModelCredentialSource{}, err
+			return resolvedModelCredential{}, err
 		}
 		if ok {
 			stored = refreshed
 		} else {
 			stored = StoredModelCredential{}
 		}
+		if strings.TrimSpace(strings.ToLower(stored.Type)) == modelcredential.TypeOAuth && allowOAuth {
+			if err := checkOAuthModelSupported(oauthModelField, provider, oauthModelID); err != nil {
+				oauthModelErr = err
+				stored = StoredModelCredential{}
+			}
+		}
 	}
 	if value := getStoredModelCredentialValue(stored); value != "" {
-		return value, ModelCredentialSource{
-			Kind:      ModelCredentialSourceTokenStore,
-			Name:      provider,
-			HasExpiry: stored.ExpiresAt != nil,
+		headers, err := getStoredModelCredentialHeaders(provider, stored)
+		if err != nil {
+			return resolvedModelCredential{}, err
+		}
+
+		return resolvedModelCredential{
+			Value:   value,
+			Headers: headers,
+			Source: ModelCredentialSource{
+				Kind:      ModelCredentialSourceTokenStore,
+				Name:      provider,
+				Type:      strings.TrimSpace(strings.ToLower(stored.Type)),
+				HasExpiry: stored.ExpiresAt != nil,
+			},
 		}, nil
 	}
 
 	providerConfig := c.Models.Providers[provider]
 	if value, envName := getCredentialFromEnv(providerConfig.APIKeyEnv); value != "" {
-		return value, ModelCredentialSource{Kind: ModelCredentialSourceProviderEnv, Name: envName}, nil
+		return resolvedModelCredential{
+			Value:  value,
+			Source: ModelCredentialSource{Kind: ModelCredentialSourceProviderEnv, Name: envName},
+		}, nil
 	}
 
 	if providerDef, ok := modelRegistry.GetProvider(provider); ok {
 		if value, envName := getCredentialFromEnv(providerDef.APIKeyEnv); value != "" {
-			return value, ModelCredentialSource{Kind: ModelCredentialSourceProviderEnv, Name: envName}, nil
+			return resolvedModelCredential{
+				Value:  value,
+				Source: ModelCredentialSource{Kind: ModelCredentialSourceProviderEnv, Name: envName},
+			}, nil
 		}
 	}
 
 	if value := strings.TrimSpace(providerConfig.APIKey); value != "" {
-		return value, ModelCredentialSource{Kind: ModelCredentialSourceProviderConfig, Name: provider}, nil
+		return resolvedModelCredential{
+			Value:  value,
+			Source: ModelCredentialSource{Kind: ModelCredentialSourceProviderConfig, Name: provider},
+		}, nil
+	}
+	if oauthModelErr != nil {
+		return resolvedModelCredential{}, oauthModelErr
 	}
 
-	return "", ModelCredentialSource{}, nil
+	return resolvedModelCredential{}, nil
+}
+
+func getStoredModelCredentialHeaders(
+	provider string,
+	credential StoredModelCredential,
+) (map[string]string, error) {
+	if strings.TrimSpace(strings.ToLower(credential.Type)) != modelcredential.TypeOAuth {
+		return nil, nil
+	}
+
+	if getSubscriptionProvider == nil {
+		return nil, nil
+	}
+
+	subscriptionProvider, ok := getSubscriptionProvider(provider)
+	if !ok {
+		return nil, nil
+	}
+
+	headers, err := subscriptionProvider.AuthHeaders(context.Background(), credential)
+	if err != nil {
+		return nil, err
+	}
+
+	return normalizeStringMap(headers), nil
+}
+
+func checkOAuthModelSupported(
+	field string,
+	provider string,
+	modelID string,
+) error {
+	field = strings.TrimSpace(field)
+	if field == "" {
+		field = "model"
+	}
+	modelID = strings.TrimSpace(modelID)
+	if modelID == "" {
+		return nil
+	}
+
+	provider = strings.TrimSpace(strings.ToLower(provider))
+	providerDef, ok := modelRegistry.GetProvider(provider)
+	if !ok || !providerDef.SupportsOAuth {
+		return nil
+	}
+
+	model, ok := modelRegistry.GetModel(provider, modelID)
+	if !ok || !model.SupportsOAuth {
+		return fmt.Errorf("%s %q is not available through OAuth for provider %q", field, modelID, provider)
+	}
+
+	return nil
+}
+
+func (auth *ModelAuth) applySubscriptionDefaults() {
+	if auth == nil {
+		return
+	}
+	if auth.CredentialSource.Kind != ModelCredentialSourceTokenStore ||
+		auth.CredentialSource.Type != modelcredential.TypeOAuth {
+		return
+	}
+	if strings.TrimSpace(strings.ToLower(auth.Provider)) != constants.ModelProviderOpenAI {
+		return
+	}
+	if !isProviderDefaultBaseURL(auth.BaseURL) {
+		return
+	}
+
+	auth.BaseURL = constants.DefaultOpenAISubscriptionBaseURL
+}
+
+func normalizeStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	normalized := make(map[string]string, len(values))
+	for key, value := range values {
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" || value == "" {
+			continue
+		}
+		normalized[key] = value
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+
+	return normalized
+}
+
+func stringMapsEqual(a map[string]string, b map[string]string) bool {
+	a = normalizeStringMap(a)
+	b = normalizeStringMap(b)
+	if len(a) != len(b) {
+		return false
+	}
+
+	for key, value := range a {
+		if b[key] != value {
+			return false
+		}
+	}
+
+	return true
 }
 
 func refreshStoredModelCredential(provider string) (StoredModelCredential, bool, error) {

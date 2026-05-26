@@ -10,7 +10,8 @@ import (
 
 func TestSanitizeRedactsSensitiveMapFields(t *testing.T) {
 	value := Sanitize(map[string]any{
-		"authorization": "Bearer top-secret-token",
+		"authorization":      "Bearer top-secret-token",
+		"ChatGPT-Account-ID": "acct-secret",
 		"nested": map[string]any{
 			"api_key": "sk-123456",
 		},
@@ -19,6 +20,7 @@ func TestSanitizeRedactsSensitiveMapFields(t *testing.T) {
 
 	sanitized := value.(map[string]any)
 	require.Equal(t, "[REDACTED]", sanitized["authorization"])
+	require.Equal(t, "[REDACTED]", sanitized["ChatGPT-Account-ID"])
 	require.Equal(t, "hello", sanitized["safe"])
 	require.Equal(t, "[REDACTED]", sanitized["nested"].(map[string]any)["api_key"])
 }

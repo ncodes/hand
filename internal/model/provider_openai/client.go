@@ -159,13 +159,8 @@ func (c *OpenAIClient) complete(
 // getProviderModelID converts Hand's neutral model ID to the provider's routed ID.
 func (c *OpenAIClient) getProviderModelID(model string) string {
 	model = strings.TrimSpace(model)
-	switch normalizeProvider(c.provider) {
-	case "openai":
+	if normalizeProvider(c.provider) == "openai" {
 		return strings.TrimPrefix(model, "openai/")
-	case "openrouter":
-		if owner := c.getModelOwner(model); owner != "" && !strings.Contains(model, "/") {
-			return owner + "/" + model
-		}
 	}
 
 	return model

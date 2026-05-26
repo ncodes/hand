@@ -113,6 +113,7 @@ func TestNewOpenAICompletionCaller_UsesSDKClient(t *testing.T) {
 func TestNewOpenAIResponseCaller_UsesSDKClient(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/responses", r.URL.Path)
+		require.Equal(t, "Bearer test-key", r.Header.Get("Authorization"))
 		w.Header().Set("Content-Type", "application/json")
 		_, err := w.Write([]byte(`{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","output":[{"id":"msg_123","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"hello back","annotations":[]}]}],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"completed","text":{"format":{"type":"text"}}}`))
 		require.NoError(t, err)
@@ -130,6 +131,32 @@ func TestNewOpenAIResponseCaller_UsesSDKClient(t *testing.T) {
 	require.Equal(t, "hello back", resp.OutputText())
 }
 
+func TestNewOpenAIResponseCaller_UsesSubscriptionAuthorizationHeader(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/responses", r.URL.Path)
+		require.Equal(t, "Bearer subscription-token", r.Header.Get("Authorization"))
+		require.Equal(t, "acct-test", r.Header.Get("ChatGPT-Account-ID"))
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","output":[{"id":"msg_123","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"hello back","annotations":[]}]}],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"completed","text":{"format":{"type":"text"}}}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	caller := newOpenAIResponseCaller(
+		option.WithBaseURL(server.URL),
+		option.WithAPIKey("api-key-that-should-be-overridden"),
+		option.WithHeader("Authorization", "Bearer subscription-token"),
+		option.WithHeader("ChatGPT-Account-ID", "acct-test"),
+	)
+	resp, err := caller(context.Background(), responses.ResponseNewParams{
+		Model: "gpt-5.1",
+		Input: responses.ResponseNewParamsInputUnion{OfString: openai.String("hello")},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "resp_123", resp.ID)
+}
+
 func TestOpenAIClient_ChatRequiresClient(t *testing.T) {
 	var nilClient *OpenAIClient
 	_, err := nilClient.Complete(context.Background(), Request{})
@@ -144,7 +171,7 @@ func TestNewOpenAIClient_RejectsInvalidAPI(t *testing.T) {
 
 func TestOpenAIClient_GetProviderModelIDRoutesOpenRouterOpenAIModels(t *testing.T) {
 	openRouterClient := &OpenAIClient{provider: "openrouter"}
-	require.Equal(t, "openai/gpt-4o-mini", openRouterClient.getProviderModelID("gpt-4o-mini"))
+	require.Equal(t, "gpt-4o-mini", openRouterClient.getProviderModelID("gpt-4o-mini"))
 	require.Equal(t, "minimax/minimax-m2.7", openRouterClient.getProviderModelID("minimax/minimax-m2.7"))
 	require.Equal(t, "openai/gpt-4o-mini", openRouterClient.getProviderModelID("openai/gpt-4o-mini"))
 	require.Equal(t, "gpt-unknown", openRouterClient.getProviderModelID("gpt-unknown"))
@@ -166,7 +193,8 @@ func TestOpenAIClient_GetProviderModelIDUsesConfiguredRegistry(t *testing.T) {
 	)
 	client := &OpenAIClient{provider: "openrouter", registry: registry}
 
-	require.Equal(t, "custom-owner/custom-model", client.getProviderModelID("custom-model"))
+	require.Equal(t, "custom-model", client.getProviderModelID("custom-model"))
+	require.Equal(t, "custom-owner", client.getModelOwner("custom-model"))
 	require.Same(t, registry, client.registryOrDefault())
 }
 
@@ -610,6 +638,10 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsResponsesRequest(t *testing.T)
 	rawText := string(raw)
 	require.Contains(t, rawText, `"model":"gpt-5.1"`)
 	require.Contains(t, rawText, `"instructions":"be concise"`)
+	require.Contains(t, rawText, `"store":false`)
+	require.Contains(t, rawText, `"parallel_tool_calls":true`)
+	require.Contains(t, rawText, `"tool_choice":"auto"`)
+	require.Contains(t, rawText, `"include":["reasoning.encrypted_content"]`)
 	require.Contains(t, rawText, `"max_output_tokens":111`)
 	require.Contains(t, rawText, `"temperature":0.5`)
 	require.Contains(t, rawText, `"type":"message"`)
@@ -757,6 +789,22 @@ func TestOpenAIClient_ChatRequiresResponsesResponse(t *testing.T) {
 		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 	require.EqualError(t, err, "model response is required")
+}
+
+func TestOpenAIClient_ChatRejectsEmptyResponsesOutput(t *testing.T) {
+	client := &OpenAIClient{
+		api: models.APIOpenAIResponses,
+		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+			return &responses.Response{Status: responses.ResponseStatusCompleted}, nil
+		},
+	}
+
+	_, err := client.Complete(context.Background(), Request{
+		Model:    "gpt-5.1",
+		API:      models.APIOpenAIResponses,
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+	})
+	require.EqualError(t, err, "model response contained no text or tool calls")
 }
 
 func TestOpenAIClient_ChatUsesFallbackIDForResponseToolCallWithoutID(t *testing.T) {
@@ -1585,6 +1633,80 @@ func TestOpenAIClient_CompleteResponsesStreamReturnsResponseAndDeltas(t *testing
 		{Channel: models.StreamChannelAssistant, Text: "hello "},
 		{Channel: models.StreamChannelAssistant, Text: "back"},
 	}, deltas)
+}
+
+func TestOpenAIClient_CompleteResponsesStreamUsesDeltasWhenFinalResponseOmitsText(t *testing.T) {
+	completedResponse := `{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"completed","text":{"format":{"type":"text"}}}`
+	server := newResponsesStreamServer(t, []string{
+		`{"type":"response.output_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":"hello "}`,
+		`{"type":"response.output_text.delta","item_id":"item_1","output_index":0,"content_index":0,"delta":"back"}`,
+		fmt.Sprintf(`{"type":"response.completed","sequence_number":1,"response":%s}`, completedResponse),
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{api: models.APIOpenAIResponses, createResponseStream: caller}
+
+	resp, err := client.CompleteStream(context.Background(), responsesStreamRequest(), nil)
+
+	require.NoError(t, err)
+	require.Equal(t, "hello back", resp.OutputText)
+}
+
+func TestOpenAIClient_CompleteResponsesStreamUsesOutputTextDoneWhenFinalResponseOmitsText(t *testing.T) {
+	completedResponse := `{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"completed","text":{"format":{"type":"text"}}}`
+	server := newResponsesStreamServer(t, []string{
+		`{"type":"response.output_text.done","item_id":"item_1","output_index":0,"content_index":0,"text":"The latest time is 17:20.","logprobs":[]}`,
+		fmt.Sprintf(`{"type":"response.completed","sequence_number":1,"response":%s}`, completedResponse),
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{api: models.APIOpenAIResponses, createResponseStream: caller}
+
+	resp, err := client.CompleteStream(context.Background(), responsesStreamRequest(), nil)
+
+	require.NoError(t, err)
+	require.Equal(t, "The latest time is 17:20.", resp.OutputText)
+}
+
+func TestOpenAIClient_CompleteResponsesStreamUsesContentPartDoneWhenFinalResponseOmitsText(t *testing.T) {
+	completedResponse := `{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"completed","text":{"format":{"type":"text"}}}`
+	server := newResponsesStreamServer(t, []string{
+		`{"type":"response.content_part.done","item_id":"item_1","output_index":0,"content_index":0,"part":{"type":"output_text","text":"The latest time is 17:20.","annotations":[]},"sequence_number":1}`,
+		fmt.Sprintf(`{"type":"response.completed","sequence_number":2,"response":%s}`, completedResponse),
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{api: models.APIOpenAIResponses, createResponseStream: caller}
+
+	resp, err := client.CompleteStream(context.Background(), responsesStreamRequest(), nil)
+
+	require.NoError(t, err)
+	require.Equal(t, "The latest time is 17:20.", resp.OutputText)
+}
+
+func TestOpenAIClient_CompleteResponsesStreamUsesOutputItemDoneToolCallWhenFinalResponseOmitsOutput(t *testing.T) {
+	completedResponse := `{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"completed","text":{"format":{"type":"text"}}}`
+	server := newResponsesStreamServer(t, []string{
+		`{"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"call-1","name":"time","arguments":"{\"format\":\"rfc3339\"}"},"sequence_number":1}`,
+		fmt.Sprintf(`{"type":"response.completed","sequence_number":2,"response":%s}`, completedResponse),
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{api: models.APIOpenAIResponses, createResponseStream: caller}
+
+	resp, err := client.CompleteStream(context.Background(), responsesStreamRequest(), nil)
+
+	require.NoError(t, err)
+	require.True(t, resp.RequiresToolCalls)
+	require.Equal(t, []ToolCall{{
+		ID:    "call-1",
+		Name:  "time",
+		Input: `{"format":"rfc3339"}`,
+	}}, resp.ToolCalls)
 }
 
 func TestOpenAIClient_CompleteResponsesStreamReturnsNilStreamError(t *testing.T) {

@@ -60,13 +60,29 @@ func (c *OpenAIClient) completeResponsesStream(
 	}
 
 	var finalResponse *responses.Response
+	var streamToolCalls []ToolCall
+	var outputText strings.Builder
+	var finalizedOutputText string
 	for stream.Next() {
 		event := stream.Current()
+		if text := getResponsesStreamFinalText(event); text != "" {
+			finalizedOutputText = text
+		}
+		if toolCall, ok, err := getResponsesStreamToolCall(event, len(streamToolCalls)); err != nil {
+			return nil, err
+		} else if ok {
+			streamToolCalls = append(streamToolCalls, toolCall)
+		}
 		if textDelta, terminalResponse, err := handleResponsesStreamEvent(event); err != nil {
 			return nil, err
 		} else {
-			if onTextDelta != nil && textDelta.Text != "" {
-				onTextDelta(textDelta)
+			if textDelta.Text != "" {
+				if textDelta.Channel == models.StreamChannelAssistant {
+					outputText.WriteString(textDelta.Text)
+				}
+				if onTextDelta != nil {
+					onTextDelta(textDelta)
+				}
 			}
 			if terminalResponse != nil {
 				finalResponse = terminalResponse
@@ -80,17 +96,101 @@ func (c *OpenAIClient) completeResponsesStream(
 		return nil, errors.New("model response is required")
 	}
 
-	return extractResponsesResponse(finalResponse)
+	streamOutputText := strings.TrimSpace(finalizedOutputText)
+	if streamOutputText == "" {
+		streamOutputText = strings.TrimSpace(outputText.String())
+	}
+
+	return extractResponsesResponseWithFallback(finalResponse, streamOutputText, streamToolCalls)
+}
+
+func getResponsesStreamFinalText(event responses.ResponseStreamEventUnion) string {
+	switch event.Type {
+	case "response.output_text.done":
+		return strings.TrimSpace(event.AsResponseOutputTextDone().Text)
+	case "response.content_part.done":
+		part := event.AsResponseContentPartDone().Part
+		switch part.Type {
+		case "output_text":
+			return strings.TrimSpace(part.Text)
+		case "refusal":
+			return strings.TrimSpace(part.Refusal)
+		default:
+			return ""
+		}
+	case "response.output_item.done":
+		return getResponseOutputItemText(event.AsResponseOutputItemDone().Item)
+	default:
+		return ""
+	}
+}
+
+func getResponseOutputItemText(item responses.ResponseOutputItemUnion) string {
+	if item.Type != "message" {
+		return ""
+	}
+
+	message := item.AsMessage()
+	parts := make([]string, 0, len(message.Content))
+	for _, content := range message.Content {
+		switch content.Type {
+		case "output_text":
+			parts = append(parts, strings.TrimSpace(content.Text))
+		case "refusal":
+			parts = append(parts, strings.TrimSpace(content.Refusal))
+		}
+	}
+
+	return strings.TrimSpace(strings.Join(parts, ""))
+}
+
+func getResponsesStreamToolCall(event responses.ResponseStreamEventUnion, idx int) (ToolCall, bool, error) {
+	if event.Type != "response.output_item.done" {
+		return ToolCall{}, false, nil
+	}
+
+	return getResponseOutputItemToolCall(event.AsResponseOutputItemDone().Item, idx)
+}
+
+func getResponseOutputItemToolCall(item responses.ResponseOutputItemUnion, idx int) (ToolCall, bool, error) {
+	if item.Type != "function_call" {
+		return ToolCall{}, false, nil
+	}
+
+	functionCall := item.AsFunctionCall()
+	callID := strings.TrimSpace(functionCall.CallID)
+	name := strings.TrimSpace(functionCall.Name)
+	if name == "" {
+		return ToolCall{}, false, errors.New("tool call name is required")
+	}
+	if callID == "" {
+		callID = getFallbackToolCallID(name, idx)
+	}
+
+	return ToolCall{
+		ID:    callID,
+		Name:  name,
+		Input: strings.TrimSpace(functionCall.Arguments),
+	}, true, nil
 }
 
 func handleResponsesStreamEvent(event responses.ResponseStreamEventUnion) (StreamDelta, *responses.Response, error) {
 	switch event.Type {
 	case "response.output_text.delta":
-		return StreamDelta{Channel: models.StreamChannelAssistant, Text: event.AsResponseOutputTextDelta().Delta}, nil, nil
+		return StreamDelta{
+			Channel: models.StreamChannelAssistant,
+			Text:    event.AsResponseOutputTextDelta().Delta,
+		}, nil, nil
 	case "response.reasoning_text.delta":
-		return StreamDelta{Channel: models.StreamChannelReasoning, Text: event.AsResponseReasoningTextDelta().Delta}, nil, nil
+		return StreamDelta{
+			Channel: models.StreamChannelReasoning,
+			Text:    event.AsResponseReasoningTextDelta().Delta,
+		}, nil, nil
 	case "response.reasoning_summary_text.delta":
-		return StreamDelta{Channel: models.StreamChannelReasoning, Text: event.AsResponseReasoningSummaryTextDelta().Delta}, nil, nil
+		return StreamDelta{
+			Channel: models.StreamChannelReasoning,
+			Text:    event.AsResponseReasoningSummaryTextDelta().Delta,
+		}, nil, nil
 	case "response.completed":
 		completed := event.AsResponseCompleted()
 		return StreamDelta{}, &completed.Response, nil
@@ -150,8 +250,14 @@ func buildResponsesRequest(req normalizedGenerateRequest) responses.ResponseNewP
 	}
 
 	params := responses.ResponseNewParams{
-		Model: shared.ResponsesModel(req.Model),
-		Input: responses.ResponseNewParamsInputUnion{OfInputItemList: items},
+		Model:             shared.ResponsesModel(req.Model),
+		Input:             responses.ResponseNewParamsInputUnion{OfInputItemList: items},
+		Include:           []responses.ResponseIncludable{responses.ResponseIncludableReasoningEncryptedContent},
+		ParallelToolCalls: openai.Bool(true),
+		Store:             openai.Bool(false),
+		ToolChoice: responses.ResponseNewParamsToolChoiceUnion{
+			OfToolChoiceMode: openai.Opt(responses.ToolChoiceOptionsAuto),
+		},
 	}
 	if req.Instructions != "" {
 		params.Instructions = openai.String(req.Instructions)
@@ -182,6 +288,14 @@ func buildResponsesRequest(req normalizedGenerateRequest) responses.ResponseNewP
 }
 
 func extractResponsesResponse(resp *responses.Response) (*Response, error) {
+	return extractResponsesResponseWithFallback(resp, "", nil)
+}
+
+func extractResponsesResponseWithFallback(
+	resp *responses.Response,
+	fallbackOutputText string,
+	fallbackToolCalls []ToolCall,
+) (*Response, error) {
 	var toolCalls []ToolCall
 	for idx, item := range resp.Output {
 		if item.Type != "function_call" {
@@ -202,8 +316,14 @@ func extractResponsesResponse(resp *responses.Response) (*Response, error) {
 			Input: strings.TrimSpace(functionCall.Arguments),
 		})
 	}
+	if len(toolCalls) == 0 {
+		toolCalls = append(toolCalls, fallbackToolCalls...)
+	}
 
 	outputText := strings.TrimSpace(resp.OutputText())
+	if outputText == "" {
+		outputText = strings.TrimSpace(fallbackOutputText)
+	}
 	switch resp.Status {
 	case "", responses.ResponseStatusCompleted:
 	case responses.ResponseStatusFailed:
@@ -224,6 +344,9 @@ func extractResponsesResponse(resp *responses.Response) (*Response, error) {
 		}
 	default:
 		return nil, fmt.Errorf("response status is %s", resp.Status)
+	}
+	if outputText == "" && len(toolCalls) == 0 {
+		return nil, errors.New("model response contained no text or tool calls")
 	}
 
 	return &Response{

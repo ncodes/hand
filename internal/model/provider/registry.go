@@ -56,6 +56,7 @@ type ModelDefinition struct {
 	API           string
 	Input         []InputKind
 	Reasoning     bool
+	SupportsOAuth bool
 	ContextWindow int
 	MaxTokens     int
 }
@@ -303,6 +304,7 @@ func defaultProviders() []ProviderDefinition {
 			APIKeyEnv:      []string{"OPENAI_API_KEY"},
 			SupportsModels: true,
 			SupportsAPIKey: true,
+			SupportsOAuth:  true,
 			BaseURLs: map[string]string{
 				APIOpenAICompletions: constants.DefaultOpenAIBaseURL,
 				APIOpenAIResponses:   constants.DefaultOpenAIBaseURL,

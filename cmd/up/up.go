@@ -107,6 +107,7 @@ func modelClientRequest(
 		API:        auth.API,
 		APIKey:     auth.APIKey,
 		BaseURL:    auth.BaseURL,
+		Headers:    auth.Headers,
 		MaxRetries: maxRetries,
 	}
 }
