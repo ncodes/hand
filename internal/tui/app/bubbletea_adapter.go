@@ -102,6 +102,12 @@ func (m model) handleResponseEvent(msg responseEventMsg) (tea.Model, tea.Cmd) {
 	if !m.isActiveResponse(msg.ResponseID) {
 		return m, nil
 	}
+	if _, ok := msg.Message.(sessionErrorMsg); ok {
+		if m.events != nil {
+			return m, waitForResponseEvent(msg.ResponseID, m.events)
+		}
+		return m, nil
+	}
 
 	next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg.Message})
 	m = next

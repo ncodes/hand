@@ -72,7 +72,7 @@ func (transcriptCellFactory) Safety(msg safetyEventMsg) transcriptCell {
 }
 
 func (transcriptCellFactory) Error(message string) transcriptCell {
-	if message = strings.TrimSpace(message); message == "" {
+	if message = getUserFacingErrorMessage(message); message == "" {
 		return nil
 	}
 

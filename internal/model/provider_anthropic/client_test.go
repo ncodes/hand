@@ -119,7 +119,7 @@ func TestAnthropicClient_CompleteBuildsMessagesRequest(t *testing.T) {
 			tools := body["tools"].([]any)
 			require.Len(t, tools, 1)
 			require.Equal(t, "read_file", tools[0].(map[string]any)["name"])
-			require.Equal(t, true, tools[0].(map[string]any)["strict"])
+			require.Equal(t, false, tools[0].(map[string]any)["strict"])
 
 			format := body["output_config"].(map[string]any)["format"].(map[string]any)
 			require.Equal(t, "json_schema", format["type"])
@@ -165,6 +165,39 @@ func TestAnthropicClient_CompleteBuildsMessagesRequest(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "done", resp.OutputText)
+}
+
+func TestBuildAnthropicTools_PreservesMapLikeSchemas(t *testing.T) {
+	inputSchema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"env": map[string]any{
+				"type":                 "object",
+				"additionalProperties": map[string]any{"type": "string"},
+			},
+			"items": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type":                 "object",
+					"additionalProperties": true,
+				},
+			},
+		},
+		"additionalProperties": map[string]any{"type": "string"},
+	}
+
+	tools := buildAnthropicTools([]ToolDefinition{{
+		Name:        "custom",
+		InputSchema: inputSchema,
+	}})
+
+	raw, err := json.Marshal(tools)
+	require.NoError(t, err)
+	rawText := string(raw)
+	require.Contains(t, rawText, `"additionalProperties":{"type":"string"}`)
+	require.Contains(t, rawText, `"additionalProperties":true`)
+	require.Contains(t, rawText, `"strict":false`)
+	require.Equal(t, map[string]any{"type": "string"}, inputSchema["additionalProperties"])
 }
 
 func TestAnthropicClient_CompleteUsesDefaultMaxOutputTokens(t *testing.T) {

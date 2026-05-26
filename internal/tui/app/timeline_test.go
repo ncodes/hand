@@ -148,6 +148,13 @@ func TestTUIMessageToTranscriptCell_MapsLiveDisplayMessages(t *testing.T) {
 		{name: "tool completed", msg: toolInvocationCompletedMsg{Name: "read_file"}, want: transcriptCellPlainText(toolTranscriptTestCell("", "read_file", "", true))},
 		{name: "safety", msg: safetyEventMsg{Action: "blocked", FindingIDs: []string{"prompt_exfiltration"}}, want: "Safety: blocked: prompt_exfiltration"},
 		{name: "error", msg: sessionErrorMsg{Message: "failed"}, want: "Error: failed"},
+		{
+			name: "provider json error",
+			msg: sessionErrorMsg{
+				Message: `POST "https://api.anthropic.com/v1/messages": 400 Bad Request {"type":"error","error":{"type":"invalid_request_error","message":"additionalProperties must be false"}}`,
+			},
+			want: "Error: Model provider rejected the request: additionalProperties must be false",
+		},
 		{name: "empty", msg: userMessageAcceptedMsg{Text: " "}, want: ""},
 		{name: "unknown", msg: struct{}{}, want: ""},
 	}

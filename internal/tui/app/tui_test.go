@@ -2438,6 +2438,57 @@ func TestModel_UpdateSurfacesRPCErrorInStatusAndTranscript(t *testing.T) {
 	require.Equal(t, []string{"Error: daemon unavailable"}, transcriptCellPlainTexts(runModel.messages))
 }
 
+func TestModel_UpdateSurfacesProviderErrorAsFriendlyMessage(t *testing.T) {
+	runModel := newModel()
+	runModel.responding = true
+	runModel.responseID = 2
+	runModel.events = make(chan tea.Msg)
+
+	updated, cmd := runModel.Update(responseCompletedMsg{
+		ResponseID: 2,
+		Err: errors.New(
+			`POST "https://api.anthropic.com/v1/messages": 400 Bad Request ` +
+				`{"type":"error","error":{"type":"invalid_request_error","message":"tools.1.custom is not supported"}}`,
+		),
+	})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.responding)
+	require.Equal(
+		t,
+		[]string{"Error: Model provider rejected the request: tools.1.custom is not supported"},
+		transcriptCellPlainTexts(runModel.messages),
+	)
+}
+
+func TestModel_UpdateSuppressesLiveTraceErrorDuringActiveResponse(t *testing.T) {
+	runModel := newModel()
+	runModel.responding = true
+	runModel.responseID = 4
+	runModel.events = make(chan tea.Msg, 1)
+
+	updated, cmd := runModel.Update(responseEventMsg{
+		ResponseID: 4,
+		Message:    sessionErrorMsg{Message: "provider failed"},
+	})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.responding)
+	require.Empty(t, transcriptCellPlainTexts(runModel.messages))
+
+	updated, cmd = runModel.Update(responseCompletedMsg{
+		ResponseID: 4,
+		Err:        errors.New("provider failed"),
+	})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.responding)
+	require.Equal(t, []string{"Error: provider failed"}, transcriptCellPlainTexts(runModel.messages))
+}
+
 func TestModel_UpdateAppliesSessionErrorMessage(t *testing.T) {
 	runModel := newModel()
 

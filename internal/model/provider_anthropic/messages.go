@@ -109,7 +109,7 @@ func buildAnthropicTools(definitions []ToolDefinition) []anthropic.ToolUnionPara
 		}
 		tool := anthropic.ToolUnionParamOfTool(inputSchema, definition.Name)
 		tool.OfTool.Description = anthropic.String(definition.Description)
-		tool.OfTool.Strict = anthropic.Bool(true)
+		tool.OfTool.Strict = anthropic.Bool(false)
 		tools = append(tools, tool)
 	}
 
