@@ -50,6 +50,7 @@ func (lipglossTranscriptRenderer) RenderCell(cell transcriptCell, ctx transcript
 }
 
 func (renderer lipglossTranscriptRenderer) RenderCells(cells []transcriptCell, ctx transcriptRenderContext) string {
+	cells = compactMatchedToolTranscriptCells(cells)
 	cells = compactConsecutiveProcessToolAttemptCells(cells)
 	cells = compactConsecutiveManualCompactionCells(cells)
 	rendered := make([]string, 0, len(cells))
@@ -78,6 +79,46 @@ func (renderer lipglossTranscriptRenderer) RenderCells(cells []transcriptCell, c
 	flushToolTranscriptGroupWithContext(&rendered, &toolGroup, ctx)
 
 	return strings.Join(rendered, "\n\n")
+}
+
+func compactMatchedToolTranscriptCells(cells []transcriptCell) []transcriptCell {
+	if len(cells) <= 1 {
+		return cells
+	}
+
+	compacted := make([]transcriptCell, 0, len(cells))
+	toolIndexes := map[string]int{}
+	for _, cell := range cells {
+		if _, ok := cell.(userTranscriptCell); ok {
+			toolIndexes = map[string]int{}
+		}
+
+		toolCell, ok := cell.(toolTranscriptCell)
+		if !ok {
+			compacted = append(compacted, cell)
+			continue
+		}
+
+		id := strings.TrimSpace(toolCell.id)
+		if id == "" {
+			compacted = append(compacted, cell)
+			continue
+		}
+
+		if toolCell.completed {
+			if index, ok := toolIndexes[id]; ok {
+				if existing, existingOK := compacted[index].(toolTranscriptCell); existingOK {
+					compacted[index] = mergeToolTranscriptCells(existing, toolCell)
+					continue
+				}
+			}
+		}
+
+		toolIndexes[id] = len(compacted)
+		compacted = append(compacted, cell)
+	}
+
+	return compacted
 }
 
 func compactConsecutiveManualCompactionCells(cells []transcriptCell) []transcriptCell {

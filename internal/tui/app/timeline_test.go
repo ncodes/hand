@@ -344,6 +344,35 @@ func TestRenderTranscriptCells_DeduplicatesStartedAndCompletedToolEvents(t *test
 	require.NotContains(t, plain, "web_search")
 }
 
+func TestRenderTranscriptCells_DeduplicatesToolEventsAcrossSafetyCells(t *testing.T) {
+	rendered := renderTranscriptCells([]transcriptCell{
+		toolTranscriptTestCell("call_1", "web_extract", ""),
+		safetyTranscriptCell{action: "blocked", findingIDs: []string{"invisible_unicode"}},
+		toolTranscriptTestCell("call_1", "web_extract", "", true),
+	})
+	plain := stripANSI(rendered)
+
+	require.NotContains(t, plain, "Extracting from web")
+	require.Equal(t, 1, strings.Count(plain, "Extraction finished"))
+	require.Contains(t, plain, "Safety: blocked: invisible_unicode")
+}
+
+func TestRenderTranscriptCells_DoesNotDeduplicateToolEventsAcrossUserTurns(t *testing.T) {
+	rendered := renderTranscriptCells([]transcriptCell{
+		userTranscriptCell{text: "first"},
+		toolTranscriptTestCell("call_1", "web_extract", ""),
+		assistantTranscriptCell{text: "first done"},
+		userTranscriptCell{text: "second"},
+		toolTranscriptTestCell("call_1", "web_extract", "", true),
+	})
+	plain := stripANSI(rendered)
+
+	require.Contains(t, plain, "Extracting from web")
+	require.Contains(t, plain, "Extraction finished")
+	require.Contains(t, plain, "first")
+	require.Contains(t, plain, "second")
+}
+
 func TestRenderTranscriptCells_RendersMemorySearchLikeSearch(t *testing.T) {
 	rendered := renderTranscriptCells([]transcriptCell{
 		toolTranscriptTestCell("call_1", "memory_search", `Search "commit preferences"`),

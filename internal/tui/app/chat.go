@@ -56,7 +56,7 @@ func waitForResponseEvent(responseID int, events <-chan tea.Msg) tea.Cmd {
 	}
 }
 
-func (m *model) startResponse(prompt string) tea.Cmd {
+func (m *model) startResponse(prompt string, followTranscript bool) tea.Cmd {
 	if m.chatClient == nil {
 		return nil
 	}
@@ -75,7 +75,8 @@ func (m *model) startResponse(prompt string) tea.Cmd {
 	m.events = events
 	m.responseCancel = cancel
 	m.applyAction(setRespondingAction{Responding: true, ResponseID: m.responseID})
-	m.responseTranscriptFollow = m.transcript.AtBottom()
+	m.responseStartMessageIndex = len(m.messages)
+	m.responseTranscriptFollow = followTranscript
 	m.responseTranscriptScrolled = false
 	m.responseRunningToolCount = 0
 	m.toolAnimationActive = false

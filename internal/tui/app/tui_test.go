@@ -2101,7 +2101,7 @@ func TestModel_UpdateEscapeIgnoresStaleCancelledCompletion(t *testing.T) {
 	require.Equal(t, "response cancelled", runModel.status.Text())
 }
 
-func TestModel_SubmitPromptScrollsTranscriptToBottom(t *testing.T) {
+func TestModel_SubmitPromptPreservesTranscriptOffsetWhenAwayFromBottom(t *testing.T) {
 	runModel := newModelWithClient(&fakeTUIChatClient{})
 	runModel.height = 10
 	runModel.resize()
@@ -2111,13 +2111,17 @@ func TestModel_SubmitPromptScrollsTranscriptToBottom(t *testing.T) {
 	}
 	runModel.setTranscriptContent()
 	runModel.transcript.GotoTop()
+	offsetBefore := runModel.transcript.YOffset()
 	runModel.input.SetValue("hello")
 
 	cmd := runModel.submitPrompt()
 
 	require.NotNil(t, cmd)
-	require.True(t, runModel.transcript.AtBottom())
-	require.Contains(t, stripANSI(runModel.transcript.View()), "❯ hello")
+	require.Equal(t, offsetBefore, runModel.transcript.YOffset())
+	require.False(t, runModel.transcript.AtBottom())
+	require.False(t, runModel.responseTranscriptFollow)
+	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "❯ hello")
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "❯ hello")
 }
 
 func TestModel_SubmitPromptStartsResponseFollowFromSettledBottom(t *testing.T) {
@@ -2129,7 +2133,6 @@ func TestModel_SubmitPromptStartsResponseFollowFromSettledBottom(t *testing.T) {
 		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
 	}
 	runModel.setTranscriptContent()
-	runModel.transcript.GotoTop()
 	runModel.input.SetValue(strings.Join([]string{
 		"first line",
 		"second line",
@@ -2152,6 +2155,38 @@ func TestModel_SubmitPromptStartsResponseFollowFromSettledBottom(t *testing.T) {
 	require.True(t, runModel.transcript.AtBottom())
 	require.Contains(t, stripANSI(runModel.transcript.View()), "final")
 	require.NotContains(t, stripANSI(runModel.transcript.View()), "Hand: final")
+}
+
+func TestModel_SubmitPromptFollowsResponseAfterUserScrollsBackToBottom(t *testing.T) {
+	runModel := newModelWithClient(&fakeTUIChatClient{})
+	runModel.height = 10
+	runModel.resize()
+	runModel.messages = make([]transcriptCell, 0, 30)
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
+	}
+	runModel.setTranscriptContent()
+	runModel.transcript.GotoTop()
+	require.False(t, runModel.transcript.AtBottom())
+	runModel.transcript.GotoBottom()
+	require.True(t, runModel.transcript.AtBottom())
+	runModel.input.SetValue("hello")
+
+	cmd := runModel.submitPrompt()
+
+	require.NotNil(t, cmd)
+	require.True(t, runModel.responseTranscriptFollow)
+	require.True(t, runModel.transcript.AtBottom())
+
+	updated, cmd := runModel.Update(responseEventMsg{
+		ResponseID: runModel.responseID,
+		Message:    assistantTextDeltaMsg{Text: strings.Repeat("streamed ", 40)},
+	})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.transcript.AtBottom())
+	require.Contains(t, stripANSI(runModel.transcript.View()), "streamed")
 }
 
 func TestModel_UpdateRefreshesSessionTitleAfterResponseCompletes(t *testing.T) {
@@ -2474,6 +2509,47 @@ func TestModel_UpdateDisablesFollowModeOnWheelDuringActiveResponse(t *testing.T)
 	require.NotContains(t, stripANSI(runModel.transcript.View()), "streamed")
 }
 
+func TestModel_UpdateReenablesFollowModeWhenUserScrollsBackToBottom(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 10
+	runModel.resize()
+	runModel.messages = make([]transcriptCell, 0, 30)
+	for index := 0; index < 30; index++ {
+		runModel.messages = append(runModel.messages, systemTranscriptCell{text: fmt.Sprintf("Message %02d", index)})
+	}
+	runModel.setTranscriptContent()
+	require.True(t, runModel.transcript.AtBottom())
+	runModel.responding = true
+	runModel.responseTranscriptFollow = true
+	runModel.responseID = 4
+	runModel.events = make(chan tea.Msg)
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyHome}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.transcript.AtBottom())
+	require.True(t, runModel.responseTranscriptScrolled)
+	require.False(t, runModel.responseTranscriptFollow)
+
+	for !runModel.transcript.AtBottom() {
+		updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyPgDown}))
+		require.Nil(t, cmd)
+		runModel = updated.(model)
+	}
+	require.True(t, runModel.responseTranscriptFollow)
+	require.False(t, runModel.responseTranscriptScrolled)
+
+	updated, cmd = runModel.Update(responseEventMsg{
+		ResponseID: 4,
+		Message:    assistantTextDeltaMsg{Text: "streamed"},
+	})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.transcript.AtBottom())
+	require.Contains(t, stripANSI(runModel.transcript.View()), "streamed")
+}
+
 func TestModel_UpdateDoesNotScrollToBottomWhenResponseArrivesAwayFromBottom(t *testing.T) {
 	runModel := newModel()
 	runModel.height = 10
@@ -2672,6 +2748,60 @@ func TestModel_UpdateAddsTraceMessagesToTranscript(t *testing.T) {
 		transcriptCellPlainText(toolTranscriptTestCell("", "read_file", "")),
 		transcriptCellPlainText(toolTranscriptTestCell("", "read_file", "", true)),
 		"Safety: blocked: prompt_exfiltration",
+	}, transcriptCellPlainTexts(runModel.messages))
+}
+
+func TestModel_UpdateMergesCompletedToolAfterInterleavedSafetyEvent(t *testing.T) {
+	runModel := newModel()
+	runModel.responding = true
+	runModel.responseStartMessageIndex = len(runModel.messages)
+
+	for index, msg := range []tea.Msg{
+		toolInvocationStartedMsg{ID: "call_1", Name: "web_extract"},
+		safetyEventMsg{Action: "blocked", FindingIDs: []string{"invisible_unicode"}},
+		toolInvocationCompletedMsg{ID: "call_1", Name: "web_extract"},
+	} {
+		updated, cmd := runModel.Update(msg)
+		if index == 0 {
+			require.NotNil(t, cmd)
+		} else if index == 2 {
+			require.NotNil(t, cmd)
+		} else {
+			require.Nil(t, cmd)
+		}
+		runModel = updated.(model)
+	}
+
+	require.Equal(t, []string{
+		transcriptCellPlainText(toolTranscriptTestCell("call_1", "web_extract", "", true)),
+		"Safety: blocked: invisible_unicode",
+	}, transcriptCellPlainTexts(runModel.messages))
+	require.NotContains(t, stripANSI(runModel.transcript.View()), "Extracting from web")
+	require.Contains(t, stripANSI(runModel.transcript.View()), "Extraction finished")
+}
+
+func TestModel_UpdateDoesNotMergeCompletedToolBeforeCurrentResponse(t *testing.T) {
+	runModel := newModel()
+	runModel.messages = []transcriptCell{
+		userTranscriptCell{text: "first"},
+		toolTranscriptTestCell("call_1", "web_extract", ""),
+		assistantTranscriptCell{text: "first done"},
+		userTranscriptCell{text: "second"},
+	}
+	runModel.responding = true
+	runModel.responseStartMessageIndex = len(runModel.messages)
+	runModel.setTranscriptContent()
+
+	updated, cmd := runModel.Update(toolInvocationCompletedMsg{ID: "call_1", Name: "web_extract"})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, []string{
+		"You: first",
+		transcriptCellPlainText(toolTranscriptTestCell("call_1", "web_extract", "")),
+		"Hand: first done",
+		"You: second",
+		transcriptCellPlainText(toolTranscriptTestCell("call_1", "web_extract", "", true)),
 	}, transcriptCellPlainTexts(runModel.messages))
 }
 
@@ -3064,7 +3194,6 @@ func TestModel_UpdateReasoningCompletedCollapsesEarlierThinkingCell(t *testing.T
 	require.Equal(t, []string{
 		"You: hello",
 		"Thought: 5s",
-		transcriptCellPlainText(toolTranscriptTestCell("call_1", "session_messages", "")),
 		transcriptCellPlainText(toolTranscriptTestCell("call_1", "session_messages", "", true)),
 		"Thought: 17s",
 		"Hand: done",

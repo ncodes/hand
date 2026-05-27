@@ -7,7 +7,8 @@ type tuiEffect interface {
 }
 
 type sendPromptEffect struct {
-	Text string
+	Text             string
+	FollowTranscript bool
 }
 
 type copyTranscriptEffect struct {
@@ -28,7 +29,7 @@ func (loadSessionTimelineEffect) tuiEffect() {}
 func (m *model) runEffect(effect tuiEffect) tea.Cmd {
 	switch value := effect.(type) {
 	case sendPromptEffect:
-		return m.startResponse(value.Text)
+		return m.startResponse(value.Text, value.FollowTranscript)
 	case copyTranscriptEffect:
 		if err := writeClipboard(value.Text); err != nil {
 			return m.setStatus("copy failed")

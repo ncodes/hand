@@ -58,11 +58,19 @@ func (m *model) submitPrompt() tea.Cmd {
 	promptSubmitted := false
 	switch input.Kind {
 	case composerInputPrompt:
+		followTranscript := m.transcript.AtBottom()
 		m.applyAction(appendTranscriptCellAction{Cell: userTranscriptCell{text: input.Text}})
 		m.clearComposer()
 		m.resize()
-		m.setTranscriptContent()
-		cmd = tea.Batch(cmd, m.runEffect(sendPromptEffect{Text: input.Text}))
+		if followTranscript {
+			m.setTranscriptContent()
+		} else {
+			m.setTranscriptContentForActiveTurn()
+		}
+		cmd = tea.Batch(cmd, m.runEffect(sendPromptEffect{
+			Text:             input.Text,
+			FollowTranscript: followTranscript,
+		}))
 		promptSubmitted = true
 	case composerInputCommand:
 		cmd = tea.Batch(cmd, m.handleSlashCommand(input))

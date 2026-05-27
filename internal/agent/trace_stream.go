@@ -94,6 +94,7 @@ func isStreamableTraceEvent(eventType string) bool {
 		trace.EvtToolInvocationCompleted,
 		trace.EvtInputSafetyBlocked,
 		trace.EvtOutputSafetyApplied,
+		trace.EvtToolOutputSafetyApplied,
 		trace.EvtSessionFailed,
 		trace.EvtPlanHydrated,
 		trace.EvtContextCompactionPending,

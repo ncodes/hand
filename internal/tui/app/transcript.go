@@ -162,6 +162,11 @@ func (m *model) markResponseTranscriptScrolled(previousOffset int, scrollInput b
 	if !m.responding {
 		return
 	}
+	if m.transcript.AtBottom() {
+		m.responseTranscriptFollow = true
+		m.responseTranscriptScrolled = false
+		return
+	}
 	if scrollInput || m.transcript.YOffset() != previousOffset {
 		m.stopFollowingResponseTranscript()
 	}
@@ -217,6 +222,12 @@ func (m *model) applyTUIMessage(msg any) tea.Cmd {
 
 func (m *model) addTranscriptMessage(msg any) {
 	if cell := tuiMessageToTranscriptCell(msg); cell != nil && !cell.IsEmpty() {
+		if toolCell, ok := cell.(toolTranscriptCell); ok && toolCell.completed && m.mergeCompletedToolTranscriptCell(toolCell) {
+			m.refreshTranscriptContentAfterMessageUpdate()
+			m.resize()
+			return
+		}
+
 		m.applyAction(appendTranscriptCellAction{Cell: cell})
 		if m.responding {
 			m.setTranscriptContentForResponseUpdate()
@@ -225,6 +236,66 @@ func (m *model) addTranscriptMessage(msg any) {
 		}
 		m.resize()
 	}
+}
+
+func (m *model) mergeCompletedToolTranscriptCell(completed toolTranscriptCell) bool {
+	id := strings.TrimSpace(completed.id)
+	if id == "" {
+		return false
+	}
+
+	startIndex := 0
+	if m.responding && m.responseStartMessageIndex > 0 && m.responseStartMessageIndex <= len(m.messages) {
+		startIndex = m.responseStartMessageIndex
+	}
+
+	for index := len(m.messages) - 1; index >= startIndex; index-- {
+		existing, ok := m.messages[index].(toolTranscriptCell)
+		if !ok || strings.TrimSpace(existing.id) != id {
+			continue
+		}
+
+		m.applyAction(replaceTranscriptCellAction{
+			Index: index,
+			Cell:  mergeToolTranscriptCells(existing, completed),
+		})
+		return true
+	}
+
+	return false
+}
+
+func mergeToolTranscriptCells(existing toolTranscriptCell, completed toolTranscriptCell) toolTranscriptCell {
+	merged := existing
+	if strings.TrimSpace(merged.action) == "" {
+		merged.action = completed.action
+	}
+	if strings.TrimSpace(merged.detail) == "" {
+		merged.detail = completed.detail
+	}
+	merged.planState = mergePlanToolDisplayState(merged.planState, completed.planState)
+	merged.processState = mergeProcessToolDisplayState(merged.processState, completed.processState)
+	if merged.startedAt.IsZero() {
+		merged.startedAt = completed.startedAt
+	}
+	if !completed.completedAt.IsZero() {
+		merged.completedAt = completed.completedAt
+	}
+	if strings.TrimSpace(merged.id) == "" {
+		merged.id = completed.id
+	}
+	merged.completed = true
+
+	return merged
+}
+
+func (m *model) refreshTranscriptContentAfterMessageUpdate() {
+	if m.responding {
+		m.setTranscriptContentForResponseUpdate()
+		return
+	}
+
+	m.setTranscriptContent()
 }
 
 func (m *model) appendReasoningDelta(delta string) {
