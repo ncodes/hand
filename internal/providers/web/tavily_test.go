@@ -60,6 +60,7 @@ func TestNewTavily_UsesConfiguredMaxCharPerResult(t *testing.T) {
 func TestNewTavily_ReturnsCredentialError(t *testing.T) {
 	_, err := NewTavily(Options{})
 	require.EqualError(t, err, "tavily requires web API key")
+	require.ErrorIs(t, err, ErrProviderCredential)
 }
 
 func TestTavilyProvider_SearchNormalizesResults(t *testing.T) {

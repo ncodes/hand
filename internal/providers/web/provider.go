@@ -21,7 +21,18 @@ const (
 var (
 	ErrProviderNotConfigured = errors.New("web provider is not configured")
 	ErrUnsupportedProvider   = errors.New("unsupported web provider")
+	ErrProviderCredential    = errors.New("web provider credential is required")
 )
+
+type providerCredentialError string
+
+func (e providerCredentialError) Error() string {
+	return string(e)
+}
+
+func (e providerCredentialError) Is(target error) bool {
+	return target == ErrProviderCredential
+}
 
 // SearchResult contains matches returned by a search request.
 type SearchResult struct {
@@ -190,7 +201,7 @@ func ResolveOptions(cfg *config.Config) (Options, error) {
 	}
 
 	if opts.Provider == "" {
-		return Options{}, ErrProviderNotConfigured
+		opts.Provider = ProviderNative
 	}
 
 	opts = applyProviderDefaults(opts)

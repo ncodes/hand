@@ -39,6 +39,7 @@ func TestNewFirecrawl_BuildsFromAPIKeyOnly(t *testing.T) {
 func TestNewFirecrawl_ReturnsCredentialError(t *testing.T) {
 	_, err := NewFirecrawl(Options{})
 	require.EqualError(t, err, "firecrawl requires web API key or base URL")
+	require.ErrorIs(t, err, ErrProviderCredential)
 }
 
 func TestFirecrawlProvider_SearchNormalizesResults(t *testing.T) {

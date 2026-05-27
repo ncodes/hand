@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 )
@@ -21,7 +20,7 @@ type ParallelProvider struct {
 func NewParallel(opts Options) (Provider, error) {
 	opts = opts.Normalize()
 	if opts.APIKey == "" {
-		return nil, errors.New("parallel requires web API key")
+		return nil, providerCredentialError("parallel requires web API key")
 	}
 	if opts.BaseURL == "" {
 		opts.BaseURL = parallelDefaultBaseURL

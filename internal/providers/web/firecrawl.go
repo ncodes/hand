@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 )
@@ -21,7 +20,7 @@ type FirecrawlProvider struct {
 func NewFirecrawl(opts Options) (Provider, error) {
 	opts = opts.Normalize()
 	if opts.APIKey == "" && opts.BaseURL == "" {
-		return nil, errors.New("firecrawl requires web API key or base URL")
+		return nil, providerCredentialError("firecrawl requires web API key or base URL")
 	}
 	if opts.BaseURL == "" {
 		opts.BaseURL = firecrawlDefaultBaseURL

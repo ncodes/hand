@@ -320,7 +320,7 @@ func (e *environment) prepareTools() error {
 	webProvider, err := webprovider.NewProvider(e.cfg)
 
 	switch {
-	case errors.Is(err, webprovider.ErrProviderNotConfigured):
+	case errors.Is(err, webprovider.ErrProviderNotConfigured), errors.Is(err, webprovider.ErrProviderCredential):
 	case err != nil:
 		return err
 	default:
@@ -354,7 +354,8 @@ func (e *environment) prepareTools() error {
 			),
 		)
 
-		if e.cfg.Web.Provider != webprovider.ProviderNative {
+		webProviderName := strings.TrimSpace(strings.ToLower(e.cfg.Web.Provider))
+		if webProviderName != "" && webProviderName != webprovider.ProviderNative {
 			definitions = append(definitions,
 				websearch.Definition(
 					webProvider,

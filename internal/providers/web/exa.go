@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -22,7 +21,7 @@ type ExaProvider struct {
 func NewExa(opts Options) (Provider, error) {
 	opts = opts.Normalize()
 	if opts.APIKey == "" {
-		return nil, errors.New("exa requires web API key")
+		return nil, providerCredentialError("exa requires web API key")
 	}
 	if opts.BaseURL == "" {
 		opts.BaseURL = exaDefaultBaseURL

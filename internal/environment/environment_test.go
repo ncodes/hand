@@ -720,8 +720,26 @@ func TestEnvironment_PrepareRegistersNativeTools(t *testing.T) {
 	require.NotNil(t, tools)
 
 	definitions := tools.List()
-	require.Len(t, definitions, 16)
-	require.Equal(t, []string{"list_files", "memory_add", "memory_delete", "memory_extract", "memory_search", "memory_update", "patch", "plan_tool", "process", "read_file", "run_command", "search_files", "session_messages", "session_search", "time", "write_file"}, definitions.Names())
+	require.Len(t, definitions, 17)
+	require.Equal(t, []string{
+		"list_files",
+		"memory_add",
+		"memory_delete",
+		"memory_extract",
+		"memory_search",
+		"memory_update",
+		"patch",
+		"plan_tool",
+		"process",
+		"read_file",
+		"run_command",
+		"search_files",
+		"session_messages",
+		"session_search",
+		"time",
+		"web_extract",
+		"write_file",
+	}, definitions.Names())
 	for _, definition := range definitions {
 		require.Equal(t, []string{"core"}, definition.Groups)
 	}
@@ -1520,7 +1538,7 @@ func TestEnvironment_PrepareRegistersOnlyWebExtractForNativeProvider(t *testing.
 	require.False(t, definitions.Has("web_search"))
 }
 
-func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T) {
+func TestEnvironment_PrepareDefaultsUnsetWebProviderToNativeExtract(t *testing.T) {
 	previousPersonality := loadPersonality
 	previousWorkspace := loadWorkspaceRules
 	t.Cleanup(func() {
@@ -1542,21 +1560,36 @@ func TestEnvironment_PrepareSkipsWebSearchWhenProviderNotConfigured(t *testing.T
 	prepareTestEnvironment(t, env)
 
 	definitions := env.Tools().List()
-	require.Len(t, definitions, 16)
+	require.Len(t, definitions, 17)
 	require.False(t, definitions.Has("web_search"))
-	require.False(t, definitions.Has("web_extract"))
+	require.True(t, definitions.Has("web_extract"))
 }
 
-func TestEnvironment_PrepareReturnsWebProviderErrors(t *testing.T) {
+func TestEnvironment_PrepareSkipsWebToolsWhenProviderCredentialMissing(t *testing.T) {
+	previousPersonality := loadPersonality
+	previousWorkspace := loadWorkspaceRules
+	t.Cleanup(func() {
+		loadPersonality = previousPersonality
+		loadWorkspaceRules = previousWorkspace
+	})
+	loadPersonality = func(personality.LoadOptions) (personality.Result, error) {
+		return personality.Result{}, nil
+	}
+	loadWorkspaceRules = func(...string) (workspace.Result, error) {
+		return workspace.Result{}, nil
+	}
+
 	env := NewEnvironment(gctx.Background(), &config.Config{
 		Name:  "Test Agent",
 		Trace: config.TraceConfig{Disk: config.TraceDiskConfig{Dir: t.TempDir()}},
 		Web:   config.WebConfig{Provider: "parallel"},
 	})
-	env.SetStateManager(newTestStateManager(t))
 
-	err := env.Prepare()
-	require.EqualError(t, err, "parallel requires web API key")
+	prepareTestEnvironment(t, env)
+
+	definitions := env.Tools().List()
+	require.False(t, definitions.Has("web_search"))
+	require.False(t, definitions.Has("web_extract"))
 }
 
 func TestEnvironment_WebToolsResolveOnlyWithNetworkCapability(t *testing.T) {

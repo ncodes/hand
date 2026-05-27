@@ -54,6 +54,7 @@ func TestNewParallel_UsesConfiguredMaxCharPerResult(t *testing.T) {
 func TestNewParallel_ReturnsCredentialError(t *testing.T) {
 	_, err := NewParallel(Options{})
 	require.EqualError(t, err, "parallel requires web API key")
+	require.ErrorIs(t, err, ErrProviderCredential)
 }
 
 func TestParallelProvider_SearchNormalizesResults(t *testing.T) {

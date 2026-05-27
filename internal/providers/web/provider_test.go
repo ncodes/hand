@@ -289,9 +289,10 @@ func TestResolveOptions_RejectsUnsupportedProvider(t *testing.T) {
 	require.ErrorIs(t, err, ErrUnsupportedProvider)
 }
 
-func TestResolveOptions_RejectsMissingProviderConfiguration(t *testing.T) {
-	_, err := ResolveOptions(&config.Config{})
-	require.ErrorIs(t, err, ErrProviderNotConfigured)
+func TestResolveOptions_DefaultsMissingProviderToNative(t *testing.T) {
+	opts, err := ResolveOptions(&config.Config{})
+	require.NoError(t, err)
+	require.Equal(t, ProviderNative, opts.Provider)
 }
 
 func TestFillProviderDefaults_LeavesUnsupportedProviderUnchanged(t *testing.T) {
@@ -374,9 +375,10 @@ func TestNewProvider_ReturnsUnsupportedProviderError(t *testing.T) {
 	require.ErrorIs(t, err, ErrUnsupportedProvider)
 }
 
-func TestNewProvider_ReturnsNotConfiguredError(t *testing.T) {
-	_, err := NewProvider(nil)
-	require.ErrorIs(t, err, ErrProviderNotConfigured)
+func TestNewProvider_DefaultsMissingConfigToNative(t *testing.T) {
+	provider, err := NewProvider(nil)
+	require.NoError(t, err)
+	require.IsType(t, &NativeProvider{}, provider)
 }
 
 func TestNewProviderFromOptions_ReturnsUnsupportedProviderError(t *testing.T) {

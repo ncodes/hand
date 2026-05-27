@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 )
@@ -21,7 +20,7 @@ type TavilyProvider struct {
 func NewTavily(opts Options) (Provider, error) {
 	opts = opts.Normalize()
 	if opts.APIKey == "" {
-		return nil, errors.New("tavily requires web API key")
+		return nil, providerCredentialError("tavily requires web API key")
 	}
 	if opts.BaseURL == "" {
 		opts.BaseURL = tavilyDefaultBaseURL

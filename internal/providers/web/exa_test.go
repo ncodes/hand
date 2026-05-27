@@ -52,6 +52,7 @@ func TestNewExa_UsesConfiguredMaxCharPerResult(t *testing.T) {
 func TestNewExa_ReturnsCredentialError(t *testing.T) {
 	_, err := NewExa(Options{})
 	require.EqualError(t, err, "exa requires web API key")
+	require.ErrorIs(t, err, ErrProviderCredential)
 }
 
 func TestExaProvider_SearchNormalizesResults(t *testing.T) {
