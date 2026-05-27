@@ -10,6 +10,7 @@ import (
 	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/openai/openai-go/v3/option"
 
+	"github.com/wandxy/hand/internal/constants"
 	models "github.com/wandxy/hand/internal/model"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	provider_anthropic "github.com/wandxy/hand/internal/model/provider_anthropic"
@@ -228,6 +229,9 @@ func (f *ClientFactory) newOpenAIClient(req ResolvedClientRequest) (models.Clien
 	if client == nil {
 		return nil, errors.New("model client is required")
 	}
+	if openAIClient, ok := client.(*provider_openai.OpenAIClient); ok {
+		openAIClient.SetForceResponsesStream(isOpenAISubscriptionBaseURL(req.BaseURL))
+	}
 
 	return client, nil
 }
@@ -270,6 +274,11 @@ func clientCacheKey(req ResolvedClientRequest) string {
 	}
 
 	return strings.Join(parts, "\x00")
+}
+
+func isOpenAISubscriptionBaseURL(baseURL string) bool {
+	return strings.TrimRight(strings.TrimSpace(baseURL), "/") ==
+		strings.TrimRight(constants.DefaultOpenAISubscriptionBaseURL, "/")
 }
 
 func mergeHeaders(values ...map[string]string) map[string]string {

@@ -17,11 +17,12 @@ const defaultReflectionMaxOutputTokens int64 = 1600
 // model abstraction used by chat and episodic extraction. DebugRequests is
 // forwarded so reflection prompts can be inspected with the rest of model I/O.
 type LLMReflectionGeneratorOptions struct {
-	Client          models.Client
-	Model           string
-	API             string
-	MaxOutputTokens int64
-	DebugRequests   bool
+	Client                 models.Client
+	Model                  string
+	API                    string
+	MaxOutputTokens        int64
+	MaxOutputTokensEnabled *bool
+	DebugRequests          bool
 }
 
 // LLMReflectionGenerator is a proposal generator. It deliberately returns
@@ -39,7 +40,9 @@ func NewLLMReflectionGenerator(options LLMReflectionGeneratorOptions) (*LLMRefle
 	if strings.TrimSpace(options.Model) == "" {
 		return nil, errors.New("memory reflection model is required")
 	}
-	if options.MaxOutputTokens <= 0 {
+	if options.MaxOutputTokensEnabled != nil && !*options.MaxOutputTokensEnabled {
+		options.MaxOutputTokens = 0
+	} else if options.MaxOutputTokens <= 0 {
 		options.MaxOutputTokens = defaultReflectionMaxOutputTokens
 	}
 	return &LLMReflectionGenerator{options: options}, nil
@@ -210,6 +213,7 @@ func normalizeReflectionJSON(raw string) string {
 func getReflectionInstructions() string {
 	return strings.Join([]string{
 		"Reflect over episodic memory evidence and propose durable memory candidates.",
+		"Return JSON only with a candidates array matching the expected schema.",
 		"Only emit candidates supported by the provided source memories.",
 		"Allowed kinds are semantic, procedural, pinned, and episodic.",
 		"Every candidate must remain candidate-only; do not request activation, deletion, or supersession.",

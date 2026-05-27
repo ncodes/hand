@@ -213,6 +213,8 @@ type LLMExtractorOptions struct {
 	API string
 	// MaxOutputTokens bounds the structured extraction response.
 	MaxOutputTokens int64
+	// MaxOutputTokensEnabled controls whether MaxOutputTokens is sent to the provider.
+	MaxOutputTokensEnabled *bool
 	// DebugRequests enables model request debugging when supported.
 	DebugRequests bool
 }

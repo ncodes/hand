@@ -17,6 +17,7 @@ import (
 	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
+	appcredential "github.com/wandxy/hand/internal/credential"
 	"github.com/wandxy/hand/internal/datadir"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	envplanstore "github.com/wandxy/hand/internal/environment/planstore"
@@ -185,6 +186,38 @@ func TestEnvironment_PrepareConfiguresMemoryProviderWhenEnabled(t *testing.T) {
 
 	require.NoError(t, env.Prepare())
 	require.IsType(t, &memory.MemoryProvider{}, env.MemoryProvider())
+}
+
+func TestEnvironment_PrepareMemoryDisablesMaxOutputTokensForOpenAISubscription(t *testing.T) {
+	previousNewMemoryProvider := newMemoryProvider
+	t.Cleanup(func() {
+		newMemoryProvider = previousNewMemoryProvider
+	})
+	setProfileHome(t, t.TempDir())
+	require.NoError(t, appcredential.NewFileStore("").Set(constants.ModelProviderOpenAI, appcredential.StoredCredential{
+		Type:  appcredential.TypeOAuth,
+		Token: "subscription-token",
+	}))
+
+	var captured memory.Options
+	newMemoryProvider = func(_ string, opts memory.Options) (memory.Provider, error) {
+		captured = opts
+		return memoryProviderWithoutSearch{}, nil
+	}
+	env := NewEnvironment(gctx.Background(), &config.Config{
+		Name: "Test Agent",
+		Models: config.ModelsConfig{Main: config.MainModelConfig{
+			Name:     "gpt-5.4-mini",
+			Provider: constants.ModelProviderOpenAI,
+		}},
+		Memory: config.MemoryConfig{Provider: memory.ProviderDefaultMemory},
+	}).(*environment)
+	env.SetStateManager(newTestStateManager(t))
+	env.SetModelClient(environmentEpisodicModelClientStub())
+
+	require.NoError(t, env.prepareMemory())
+	require.NotNil(t, captured.MaxOutputTokensEnabled)
+	require.False(t, *captured.MaxOutputTokensEnabled)
 }
 
 func TestEnvironment_PrepareConfiguresDefaultMemoryProviderWithStateStore(t *testing.T) {

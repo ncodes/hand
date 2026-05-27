@@ -233,6 +233,8 @@ func TestConfig_ResolveModelAuthUsesProviderTokenStore(t *testing.T) {
 		Name: "openai",
 		Type: appcredential.TypeOAuth,
 	}, auth.CredentialSource)
+	require.False(t, auth.SupportsMaxOutputTokens())
+	require.False(t, cfg.SummaryModelSupportsMaxOutputTokens())
 }
 
 func TestConfig_ResolveModelAuthUsesOpenAISubscriptionHeaders(t *testing.T) {
@@ -884,6 +886,31 @@ func TestConfig_OAuthModelSupportAndSubscriptionDefaultsFallbacks(t *testing.T) 
 	auth.BaseURL = constants.DefaultOpenAIBaseURL
 	auth.applySubscriptionDefaults()
 	require.Equal(t, constants.DefaultOpenAISubscriptionBaseURL, auth.BaseURL)
+	require.False(t, auth.SupportsMaxOutputTokens())
+
+	auth.Provider = constants.ModelProviderAnthropic
+	require.True(t, auth.SupportsMaxOutputTokens())
+
+	auth.CredentialSource.Type = appcredential.TypeAPIKey
+	require.True(t, auth.SupportsMaxOutputTokens())
+
+	cfg := &Config{
+		Models: ModelsConfig{
+			Main: MainModelConfig{
+				Name:     "gpt-5.4-mini",
+				Provider: constants.ModelProviderOpenAI,
+				APIKey:   "key",
+			},
+		},
+	}
+	require.True(t, cfg.SummaryModelSupportsMaxOutputTokens())
+	require.True(t, (*Config)(nil).SummaryModelSupportsMaxOutputTokens())
+
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, errors.New("credential store unavailable")
+	})
+	cfg.Models.Main.APIKey = ""
+	require.True(t, cfg.SummaryModelSupportsMaxOutputTokens())
 
 	var nilAuth *ModelAuth
 	nilAuth.applySubscriptionDefaults()

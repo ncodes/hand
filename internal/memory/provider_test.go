@@ -222,6 +222,69 @@ func TestMemoryProvider_ExtractEpisodes(t *testing.T) {
 	require.Equal(t, 1, result.MessageCount)
 }
 
+func TestMemoryProvider_ExtractEpisodesPassesMaxOutputTokensOption(t *testing.T) {
+	ctx := context.Background()
+	store := storagememory.NewStore()
+	manager := newMemoryTestManager(t, store)
+	client := episodicModelClientStub()
+	maxOutputTokens := false
+	provider, err := NewFromManager(manager, Options{
+		ModelClient:            client,
+		Model:                  "test-model",
+		MaxOutputTokensEnabled: &maxOutputTokens,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, manager.Save(ctx, statecore.Session{ID: statecore.DefaultSessionID}))
+	require.NoError(t, manager.AppendMessages(ctx, statecore.DefaultSessionID, []handmsg.Message{{
+		Role:    handmsg.RoleUser,
+		Content: "Remember provider-owned extraction.",
+	}}))
+
+	_, err = provider.ExtractEpisodes(ctx, ExtractionRequest{
+		SessionID:      statecore.DefaultSessionID,
+		WindowSize:     1,
+		MaxWindowChars: 1000,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, client.requests, 1)
+	require.NotNil(t, client.requests[0].StructuredOutput)
+	require.Zero(t, client.requests[0].MaxOutputTokens)
+
+	client.response = &models.Response{OutputText: `{
+		"candidates": [{
+			"kind": "semantic",
+			"title": "Structured output option",
+			"text": "Memory provider passes the structured output option to reflection.",
+			"tags": ["memory"],
+			"confidence": 0.8,
+			"procedural": {
+				"trigger": "",
+				"steps": [],
+				"constraints": [],
+				"examples": [],
+				"expected_behavior": ""
+			},
+			"metadata": [{"key": "memory_importance", "value": "medium"}]
+		}]
+	}`}
+	reflection, err := provider.reflectionGenerator.GenerateReflectionCandidates(ctx, ReflectionGenerationRequest{
+		SessionID: statecore.DefaultSessionID,
+		Sources: []MemoryItem{{
+			ID:   "mem_episode_structured_output",
+			Kind: KindEpisodic,
+			Text: "Memory provider passes structured output options to model-backed features.",
+		}},
+		Limit: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, reflection.Items, 1)
+	require.Len(t, client.requests, 2)
+	require.NotNil(t, client.requests[1].StructuredOutput)
+	require.Zero(t, client.requests[1].MaxOutputTokens)
+}
+
 func TestMemoryProvider_ExtractEpisodesRequiresExtractor(t *testing.T) {
 	var provider *MemoryProvider
 

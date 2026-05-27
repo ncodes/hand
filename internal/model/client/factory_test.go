@@ -8,6 +8,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandxy/hand/internal/constants"
 	models "github.com/wandxy/hand/internal/model"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	provider_anthropic "github.com/wandxy/hand/internal/model/provider_anthropic"
@@ -187,6 +188,35 @@ func TestClientFactory_NewClientBuildsOpenAICompatibleClient(t *testing.T) {
 	require.Equal(t, "key", capturedKey)
 	require.Equal(t, "openai", capturedProvider)
 	require.Equal(t, 3, capturedOptions)
+}
+
+func TestClientFactory_NewClientForcesResponsesStreamForOpenAISubscription(t *testing.T) {
+	factory := NewClientFactory(modelprovider.DefaultRegistry())
+	factory.OpenAIClient = func(string, string, string, *modelprovider.Registry, ...option.RequestOption) (models.Client, error) {
+		return &provider_openai.OpenAIClient{}, nil
+	}
+
+	subscriptionClient, err := factory.NewClient(ClientRequest{
+		Provider: constants.ModelProviderOpenAI,
+		API:      modelprovider.APIOpenAIResponses,
+		BaseURL:  constants.DefaultOpenAISubscriptionBaseURL,
+	})
+	require.NoError(t, err)
+
+	openAIClient, ok := subscriptionClient.(*provider_openai.OpenAIClient)
+	require.True(t, ok)
+	require.True(t, openAIClient.ForceResponsesStreamEnabled())
+
+	apiClient, err := factory.NewClient(ClientRequest{
+		Provider: constants.ModelProviderOpenAI,
+		API:      modelprovider.APIOpenAIResponses,
+		BaseURL:  constants.DefaultOpenAIBaseURL,
+	})
+	require.NoError(t, err)
+
+	openAIClient, ok = apiClient.(*provider_openai.OpenAIClient)
+	require.True(t, ok)
+	require.False(t, openAIClient.ForceResponsesStreamEnabled())
 }
 
 func TestClientFactory_NewClientRoutesRequestsThroughResolvedAPI(t *testing.T) {

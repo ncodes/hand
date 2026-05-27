@@ -1,8 +1,11 @@
 package provider_openai
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"strings"
 
 	openai "github.com/openai/openai-go/v3"
@@ -19,6 +22,7 @@ type OpenAIClient struct {
 	provider             string
 	registry             *modelprovider.Registry
 	api                  string
+	forceResponsesStream bool
 	createChatCompletion func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error)
 	createChatStream     func(context.Context, openai.ChatCompletionNewParams) *ssestream.Stream[openai.ChatCompletionChunk]
 	createResponse       func(context.Context, responses.ResponseNewParams) (*responses.Response, error)
@@ -119,6 +123,18 @@ func (c *OpenAIClient) CompleteStream(ctx context.Context, req Request, onTextDe
 	return c.complete(ctx, req, true, onTextDelta)
 }
 
+// SetForceResponsesStream makes Responses Complete calls use the streaming transport.
+func (c *OpenAIClient) SetForceResponsesStream(enabled bool) {
+	if c != nil {
+		c.forceResponsesStream = enabled
+	}
+}
+
+// ForceResponsesStreamEnabled reports whether Responses Complete calls use the streaming transport.
+func (c *OpenAIClient) ForceResponsesStreamEnabled() bool {
+	return c != nil && c.forceResponsesStream
+}
+
 // complete normalizes a provider-neutral request and routes it to the selected API handler.
 func (c *OpenAIClient) complete(
 	ctx context.Context,
@@ -138,11 +154,13 @@ func (c *OpenAIClient) complete(
 		return nil, err
 	}
 
+	stream = stream || normalizedReq.API == models.APIOpenAIResponses && c.forceResponsesStream
 	logModelClientRequestStarted(normalizedReq, stream)
 
 	defer func() {
 		if err != nil {
 			logModelClientRequestFailed(normalizedReq, stream, err)
+			err = enrichModelClientError(err)
 			return
 		}
 		logModelClientRequestCompleted(normalizedReq, stream, resp)
@@ -154,6 +172,55 @@ func (c *OpenAIClient) complete(
 	}
 
 	return handler.Complete(ctx, c, normalizedReq, stream, onTextDelta)
+}
+
+func enrichModelClientError(err error) error {
+	detail := getModelClientProviderErrorDetail(err)
+	if detail == "" || strings.Contains(err.Error(), detail) {
+		return err
+	}
+
+	return fmt.Errorf("%w: %s", err, detail)
+}
+
+func getModelClientProviderErrorDetail(err error) string {
+	var apiErr *openai.Error
+	if !errors.As(err, &apiErr) || apiErr == nil {
+		return ""
+	}
+	if raw := strings.TrimSpace(apiErr.RawJSON()); raw != "" {
+		return truncateProviderErrorDetail(raw)
+	}
+	if body := readOpenAIErrorResponseBody(apiErr); body != "" {
+		return truncateProviderErrorDetail(body)
+	}
+
+	return truncateProviderErrorDetail(strings.TrimSpace(apiErr.Message))
+}
+
+func readOpenAIErrorResponseBody(apiErr *openai.Error) string {
+	if apiErr == nil || apiErr.Response == nil || apiErr.Response.Body == nil {
+		return ""
+	}
+
+	body, err := io.ReadAll(apiErr.Response.Body)
+	apiErr.Response.Body = io.NopCloser(bytes.NewBuffer(body))
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(string(body))
+}
+
+func truncateProviderErrorDetail(detail string) string {
+	const maxProviderErrorDetailChars = 2048
+
+	detail = strings.TrimSpace(detail)
+	if len(detail) <= maxProviderErrorDetailChars {
+		return detail
+	}
+
+	return detail[:maxProviderErrorDetailChars] + "...[truncated]"
 }
 
 // getProviderModelID converts Hand's neutral model ID to the provider's routed ID.

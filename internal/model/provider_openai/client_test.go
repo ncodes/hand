@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	openai "github.com/openai/openai-go/v3"
@@ -656,13 +658,15 @@ func TestOpenAIClient_ChatReturnsResponseAndBuildsResponsesRequest(t *testing.T)
 
 func TestOpenAIClient_ChatRoutesConfiguredAPIToResponses(t *testing.T) {
 	var responseCalled bool
+	var captured responses.ResponseNewParams
 	client := &OpenAIClient{
 		api: models.APIOpenAIResponses,
 		createChatCompletion: func(context.Context, openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 			return nil, errors.New("completions should not be called")
 		},
-		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+		createResponse: func(_ context.Context, params responses.ResponseNewParams) (*responses.Response, error) {
 			responseCalled = true
+			captured = params
 			return &responses.Response{
 				ID:    "resp_api",
 				Model: "gpt-5.1",
@@ -686,6 +690,11 @@ func TestOpenAIClient_ChatRoutesConfiguredAPIToResponses(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, responseCalled)
 	require.Equal(t, &Response{ID: "resp_api", Model: "gpt-5.1", OutputText: "hello from explicit api"}, resp)
+	raw, err := json.Marshal(captured)
+	require.NoError(t, err)
+	rawText := string(raw)
+	require.NotContains(t, rawText, `"tool_choice"`)
+	require.NotContains(t, rawText, `"parallel_tool_calls"`)
 }
 
 func TestOpenAIClient_ChatBuildsResponsesStructuredOutputRequest(t *testing.T) {
@@ -1128,6 +1137,42 @@ func TestOpenAIClient_ChatLogsModelClientRequestFailure(t *testing.T) {
 	require.Contains(t, output, `"error_kind":"operation_failed"`)
 	require.NotContains(t, output, `"request"`)
 	require.NotContains(t, output, "hello")
+}
+
+func TestOpenAIClient_ChatEnrichesAPIErrorWithResponseBody(t *testing.T) {
+	originalLogger := log.Logger
+	originalLevel := zerolog.GlobalLevel()
+	t.Cleanup(func() {
+		log.Logger = originalLogger
+		zerolog.SetGlobalLevel(originalLevel)
+	})
+
+	buf := &bytes.Buffer{}
+	log.Logger = zerolog.New(buf)
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+
+	request, err := http.NewRequest(http.MethodPost, "https://chatgpt.com/backend-api/codex/responses", nil)
+	require.NoError(t, err)
+	client := &OpenAIClient{
+		api: models.APIOpenAIResponses,
+		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+			return nil, &openai.Error{
+				Request:    request,
+				Response:   &http.Response{StatusCode: http.StatusBadRequest, Body: io.NopCloser(strings.NewReader(`{"message":"payload rejected"}`))},
+				StatusCode: http.StatusBadRequest,
+			}
+		},
+	}
+
+	_, err = client.Complete(context.Background(), Request{
+		Model:    "test-model",
+		API:      models.APIOpenAIResponses,
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+	})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `{"message":"payload rejected"}`)
+	require.Contains(t, buf.String(), `"provider_error":"{\"message\":\"payload rejected\"}"`)
 }
 
 func TestGetModelClientErrorKind_ClassifiesErrors(t *testing.T) {
@@ -1635,6 +1680,47 @@ func TestOpenAIClient_CompleteResponsesStreamReturnsResponseAndDeltas(t *testing
 	}, deltas)
 }
 
+func TestOpenAIClient_CompleteResponsesUsesStreamTransportWhenForced(t *testing.T) {
+	completedResponse := `{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","output":[{"id":"msg_123","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"hello back","annotations":[]}]}],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"completed","text":{"format":{"type":"text"}}}`
+	server := newResponsesStreamServer(t, []string{
+		fmt.Sprintf(`{"type":"response.completed","sequence_number":1,"response":%s}`, completedResponse),
+	})
+	t.Cleanup(server.Close)
+
+	var nonStreamCalled bool
+	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{
+		api:                  models.APIOpenAIResponses,
+		forceResponsesStream: true,
+		createResponseStream: caller,
+		createResponse: func(context.Context, responses.ResponseNewParams) (*responses.Response, error) {
+			nonStreamCalled = true
+			return nil, errors.New("non-stream response call should not be used")
+		},
+	}
+
+	resp, err := client.Complete(context.Background(), responsesStreamRequest())
+
+	require.NoError(t, err)
+	require.False(t, nonStreamCalled)
+	require.Equal(t, "hello back", resp.OutputText)
+}
+
+func TestOpenAIClient_ForceResponsesStreamAccessors(t *testing.T) {
+	var client *OpenAIClient
+	require.False(t, client.ForceResponsesStreamEnabled())
+	client.SetForceResponsesStream(true)
+
+	client = &OpenAIClient{}
+	require.False(t, client.ForceResponsesStreamEnabled())
+
+	client.SetForceResponsesStream(true)
+	require.True(t, client.ForceResponsesStreamEnabled())
+
+	client.SetForceResponsesStream(false)
+	require.False(t, client.ForceResponsesStreamEnabled())
+}
+
 func TestOpenAIClient_CompleteResponsesStreamUsesDeltasWhenFinalResponseOmitsText(t *testing.T) {
 	completedResponse := `{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"completed","text":{"format":{"type":"text"}}}`
 	server := newResponsesStreamServer(t, []string{
@@ -1687,6 +1773,27 @@ func TestOpenAIClient_CompleteResponsesStreamUsesContentPartDoneWhenFinalRespons
 	require.Equal(t, "The latest time is 17:20.", resp.OutputText)
 }
 
+func TestGetResponsesStreamFinalText_ReturnsContentPartRefusal(t *testing.T) {
+	var event responses.ResponseStreamEventUnion
+	require.NoError(t, event.UnmarshalJSON([]byte(`{"type":"response.content_part.done","item_id":"item_1","output_index":0,"content_index":0,"part":{"type":"refusal","refusal":"I cannot do that."},"sequence_number":1}`)))
+
+	require.Equal(t, "I cannot do that.", getResponsesStreamFinalText(event))
+}
+
+func TestGetResponsesStreamFinalText_IgnoresUnknownContentPart(t *testing.T) {
+	var event responses.ResponseStreamEventUnion
+	require.NoError(t, event.UnmarshalJSON([]byte(`{"type":"response.content_part.done","item_id":"item_1","output_index":0,"content_index":0,"part":{"type":"input_text","text":"ignored"},"sequence_number":1}`)))
+
+	require.Empty(t, getResponsesStreamFinalText(event))
+}
+
+func TestGetResponsesStreamFinalText_ReturnsOutputItemMessageText(t *testing.T) {
+	var event responses.ResponseStreamEventUnion
+	require.NoError(t, event.UnmarshalJSON([]byte(`{"type":"response.output_item.done","output_index":0,"item":{"id":"msg_123","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"Hello","annotations":[]},{"type":"refusal","refusal":"No"}]},"sequence_number":1}`)))
+
+	require.Equal(t, "HelloNo", getResponsesStreamFinalText(event))
+}
+
 func TestOpenAIClient_CompleteResponsesStreamUsesOutputItemDoneToolCallWhenFinalResponseOmitsOutput(t *testing.T) {
 	completedResponse := `{"id":"resp_123","object":"response","created_at":0,"model":"gpt-5.1","output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"completed","text":{"format":{"type":"text"}}}`
 	server := newResponsesStreamServer(t, []string{
@@ -1707,6 +1814,40 @@ func TestOpenAIClient_CompleteResponsesStreamUsesOutputItemDoneToolCallWhenFinal
 		Name:  "time",
 		Input: `{"format":"rfc3339"}`,
 	}}, resp.ToolCalls)
+}
+
+func TestGetResponseOutputItemToolCall_ReturnsFalseForNonFunctionItem(t *testing.T) {
+	item := responseOutputItemFromJSON(t, `{"id":"msg_123","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"hello","annotations":[]}]}`)
+
+	toolCall, ok, err := getResponseOutputItemToolCall(item, 0)
+
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Equal(t, ToolCall{}, toolCall)
+}
+
+func TestGetResponseOutputItemToolCall_UsesFallbackID(t *testing.T) {
+	item := responseOutputItemFromJSON(t, `{"type":"function_call","name":"time","arguments":"{}"}`)
+
+	toolCall, ok, err := getResponseOutputItemToolCall(item, 3)
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, ToolCall{ID: "functions.time:3", Name: "time", Input: "{}"}, toolCall)
+}
+
+func TestOpenAIClient_CompleteResponsesStreamRejectsToolCallWithoutName(t *testing.T) {
+	server := newResponsesStreamServer(t, []string{
+		`{"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"call-1","arguments":"{}"},"sequence_number":1}`,
+	})
+	t.Cleanup(server.Close)
+
+	caller := newOpenAIResponseStreamCaller(option.WithBaseURL(server.URL), option.WithAPIKey("test"))
+	client := &OpenAIClient{api: models.APIOpenAIResponses, createResponseStream: caller}
+
+	_, err := client.CompleteStream(context.Background(), responsesStreamRequest(), nil)
+
+	require.EqualError(t, err, "tool call name is required")
 }
 
 func TestOpenAIClient_CompleteResponsesStreamReturnsNilStreamError(t *testing.T) {

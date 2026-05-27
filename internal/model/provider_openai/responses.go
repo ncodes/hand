@@ -250,20 +250,20 @@ func buildResponsesRequest(req normalizedGenerateRequest) responses.ResponseNewP
 	}
 
 	params := responses.ResponseNewParams{
-		Model:             shared.ResponsesModel(req.Model),
-		Input:             responses.ResponseNewParamsInputUnion{OfInputItemList: items},
-		Include:           []responses.ResponseIncludable{responses.ResponseIncludableReasoningEncryptedContent},
-		ParallelToolCalls: openai.Bool(true),
-		Store:             openai.Bool(false),
-		ToolChoice: responses.ResponseNewParamsToolChoiceUnion{
-			OfToolChoiceMode: openai.Opt(responses.ToolChoiceOptionsAuto),
-		},
+		Model:   shared.ResponsesModel(req.Model),
+		Input:   responses.ResponseNewParamsInputUnion{OfInputItemList: items},
+		Include: []responses.ResponseIncludable{responses.ResponseIncludableReasoningEncryptedContent},
+		Store:   openai.Bool(false),
 	}
 	if req.Instructions != "" {
 		params.Instructions = openai.String(req.Instructions)
 	}
 	if len(req.Tools) > 0 {
 		params.Tools = buildResponsesTools(req.Tools)
+		params.ParallelToolCalls = openai.Bool(true)
+		params.ToolChoice = responses.ResponseNewParamsToolChoiceUnion{
+			OfToolChoiceMode: openai.Opt(responses.ToolChoiceOptionsAuto),
+		}
 	}
 	if req.MaxOutputTokens > 0 {
 		params.MaxOutputTokens = openai.Int(req.MaxOutputTokens)

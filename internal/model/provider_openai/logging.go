@@ -44,15 +44,18 @@ func logModelClientRequestCompleted(req normalizedGenerateRequest, stream bool, 
 }
 
 func logModelClientRequestFailed(req normalizedGenerateRequest, stream bool, err error) {
-	log.Debug().
+	event := log.Debug().
 		Str("event", "model client request failed").
 		Str("target", "openai_compatible_api").
 		Str("provider", "openai-compatible").
 		Str("api", req.API).
 		Str("model", req.Model).
 		Bool("stream", stream).
-		Str("error_kind", getModelClientErrorKind(err)).
-		Msg("model client request failed")
+		Str("error_kind", getModelClientErrorKind(err))
+	if detail := getModelClientProviderErrorDetail(err); detail != "" {
+		event = event.Str("provider_error", detail)
+	}
+	event.Msg("model client request failed")
 }
 
 func getModelClientErrorKind(err error) string {

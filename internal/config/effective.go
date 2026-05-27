@@ -613,6 +613,32 @@ func (auth *ModelAuth) applySubscriptionDefaults() {
 	auth.BaseURL = constants.DefaultOpenAISubscriptionBaseURL
 }
 
+// SupportsMaxOutputTokens reports whether the resolved model route can request
+// an explicit provider-enforced output token cap.
+func (auth ModelAuth) SupportsMaxOutputTokens() bool {
+	if auth.CredentialSource.Kind != ModelCredentialSourceTokenStore ||
+		auth.CredentialSource.Type != appcredential.TypeOAuth {
+		return true
+	}
+
+	return strings.TrimSpace(strings.ToLower(auth.Provider)) != constants.ModelProviderOpenAI
+}
+
+// SummaryModelSupportsMaxOutputTokens reports whether summary-model dependent
+// background jobs should request explicit output token caps.
+func (c *Config) SummaryModelSupportsMaxOutputTokens() bool {
+	if c == nil {
+		return true
+	}
+
+	auth, err := c.ResolveSummaryModelAuth()
+	if err != nil {
+		return true
+	}
+
+	return auth.SupportsMaxOutputTokens()
+}
+
 func normalizeStringMap(values map[string]string) map[string]string {
 	if len(values) == 0 {
 		return nil

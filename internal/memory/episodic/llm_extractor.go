@@ -22,7 +22,9 @@ func NewLLMExtractor(options LLMExtractorOptions) (*LLMExtractor, error) {
 	if strings.TrimSpace(options.Model) == "" {
 		return nil, errors.New("memory episode extractor model is required")
 	}
-	if options.MaxOutputTokens <= 0 {
+	if options.MaxOutputTokensEnabled != nil && !*options.MaxOutputTokensEnabled {
+		options.MaxOutputTokens = 0
+	} else if options.MaxOutputTokens <= 0 {
 		options.MaxOutputTokens = defaultLLMExtractorMaxOutputTokens
 	}
 	return &LLMExtractor{options: options}, nil

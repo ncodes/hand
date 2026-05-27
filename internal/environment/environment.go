@@ -219,15 +219,17 @@ func (e *environment) prepareMemory() error {
 		return nil
 	}
 
+	hasMaxOutputTokens := e.cfg.SummaryModelSupportsMaxOutputTokens()
 	opts := memory.Options{
-		Guardrails:     memguardrails.New(guardrails.NewRedactor()),
-		StateManager:   e.stateMgr,
-		StorageBackend: e.cfg.Storage.Backend,
-		MemoryBackend:  e.cfg.Memory.Backend,
-		ModelClient:    e.modelClient,
-		Model:          e.cfg.SummaryModelEffective(),
-		API:            e.cfg.SummaryModelAPIEffective(),
-		DebugRequests:  e.cfg.Debug.Requests,
+		Guardrails:             memguardrails.New(guardrails.NewRedactor()),
+		StateManager:           e.stateMgr,
+		StorageBackend:         e.cfg.Storage.Backend,
+		MemoryBackend:          e.cfg.Memory.Backend,
+		ModelClient:            e.modelClient,
+		Model:                  e.cfg.SummaryModelEffective(),
+		API:                    e.cfg.SummaryModelAPIEffective(),
+		MaxOutputTokensEnabled: &hasMaxOutputTokens,
+		DebugRequests:          e.cfg.Debug.Requests,
 		Pinned: memory.PinnedOptions{
 			Enabled:      e.cfg.Memory.Pinned.Enabled,
 			MaxChars:     e.cfg.Memory.Pinned.MaxChars,

@@ -26,21 +26,22 @@ var ErrUnknownBackend = errors.New("unknown memory backend")
 
 // Options configures this package operation.
 type Options struct {
-	Guardrails           Guardrails
-	Observability        Observability
-	StateManager         StateManager
-	StorageBackend       string
-	MemoryBackend        string
-	Pinned               PinnedOptions
-	EpisodicBackground   EpisodicBackgroundOptions
-	ReflectionBackground ReflectionBackgroundOptions
-	PromotionBackground  PromotionBackgroundOptions
-	ModelClient          models.Client
-	Model                string
-	API                  string
-	DebugRequests        bool
-	ReflectionGenerator  ReflectionGenerator
-	PromotionPolicy      PromotionPolicy
+	Guardrails             Guardrails
+	Observability          Observability
+	StateManager           StateManager
+	StorageBackend         string
+	MemoryBackend          string
+	Pinned                 PinnedOptions
+	EpisodicBackground     EpisodicBackgroundOptions
+	ReflectionBackground   ReflectionBackgroundOptions
+	PromotionBackground    PromotionBackgroundOptions
+	ModelClient            models.Client
+	Model                  string
+	API                    string
+	MaxOutputTokensEnabled *bool
+	DebugRequests          bool
+	ReflectionGenerator    ReflectionGenerator
+	PromotionPolicy        PromotionPolicy
 }
 
 // PinnedOptions aliases pinnedmemory.Options at this package boundary.
@@ -133,10 +134,11 @@ func NewFromManager(manager StateManager, opts Options) (*MemoryProvider, error)
 
 	if opts.ModelClient != nil {
 		extractor, err := episodic.NewLLMExtractor(episodic.LLMExtractorOptions{
-			Client:        opts.ModelClient,
-			Model:         opts.Model,
-			API:           opts.API,
-			DebugRequests: opts.DebugRequests,
+			Client:                 opts.ModelClient,
+			Model:                  opts.Model,
+			API:                    opts.API,
+			MaxOutputTokensEnabled: opts.MaxOutputTokensEnabled,
+			DebugRequests:          opts.DebugRequests,
 		})
 		if err != nil {
 			return nil, err
@@ -150,10 +152,11 @@ func NewFromManager(manager StateManager, opts Options) (*MemoryProvider, error)
 
 		if provider.reflectionGenerator == nil {
 			generator, err := NewLLMReflectionGenerator(LLMReflectionGeneratorOptions{
-				Client:        opts.ModelClient,
-				Model:         opts.Model,
-				API:           opts.API,
-				DebugRequests: opts.DebugRequests,
+				Client:                 opts.ModelClient,
+				Model:                  opts.Model,
+				API:                    opts.API,
+				MaxOutputTokensEnabled: opts.MaxOutputTokensEnabled,
+				DebugRequests:          opts.DebugRequests,
 			})
 			if err != nil {
 				return nil, err

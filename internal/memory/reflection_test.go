@@ -1246,6 +1246,35 @@ func TestLLMReflectionGenerator_GeneratesCandidatesWithMockedModel(t *testing.T)
 	require.Contains(t, client.requests[0].Instructions, "repeat the full title")
 }
 
+func TestLLMReflectionGenerator_CanSkipMaxOutputTokens(t *testing.T) {
+	maxOutputTokens := false
+	client := &memoryModelClientStub{
+		response: &models.Response{OutputText: `{"candidates":[]}`},
+	}
+	generator, err := NewLLMReflectionGenerator(LLMReflectionGeneratorOptions{
+		Client:                 client,
+		Model:                  "test-model",
+		MaxOutputTokensEnabled: &maxOutputTokens,
+	})
+	require.NoError(t, err)
+	require.Zero(t, generator.options.MaxOutputTokens)
+
+	result, err := generator.GenerateReflectionCandidates(context.Background(), ReflectionGenerationRequest{
+		SessionID: statecore.DefaultSessionID,
+		Sources: []MemoryItem{{
+			ID:   "mem_episode_model",
+			Kind: KindEpisodic,
+			Text: "The user asked for memory behavior tests.",
+		}},
+		Limit: 1,
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Items)
+	require.Len(t, client.requests, 1)
+	require.Zero(t, client.requests[0].MaxOutputTokens)
+}
+
 func TestReflectionModelResponseToGenerationResultUsesTypedProceduralFieldsForKind(t *testing.T) {
 	result, err := reflectionModelResponseToGenerationResult(&models.Response{OutputText: `{
 		"candidates": [{

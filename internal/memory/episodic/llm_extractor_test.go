@@ -109,6 +109,29 @@ func TestLLMExtractor_ExtractCandidatesParsesFencedJSONResponse(t *testing.T) {
 	require.Equal(t, "Implemented fenced JSON parsing.", result.Candidates[0].Text)
 }
 
+func TestLLMExtractor_ExtractCandidatesCanSkipMaxOutputTokens(t *testing.T) {
+	maxOutputTokens := false
+	client := &llmExtractorClientStub{
+		response: &models.Response{OutputText: `{
+			"candidates": [],
+			"rejections": [{"kind": "window", "reason": "low_signal"}]
+		}`},
+	}
+	extractor, err := NewLLMExtractor(LLMExtractorOptions{
+		Client:                 client,
+		Model:                  "test-model",
+		MaxOutputTokensEnabled: &maxOutputTokens,
+	})
+	require.NoError(t, err)
+	require.Zero(t, extractor.options.MaxOutputTokens)
+
+	_, err = extractor.ExtractCandidates(context.Background(), CandidateRequest{})
+
+	require.NoError(t, err)
+	require.Len(t, client.requests, 1)
+	require.Zero(t, client.requests[0].MaxOutputTokens)
+}
+
 func TestLLMExtractor_ExtractCandidatesReturnsClientAndParseErrors(t *testing.T) {
 	_, err := (*LLMExtractor)(nil).ExtractCandidates(context.Background(), CandidateRequest{})
 	require.EqualError(t, err, "memory episode extractor model client is required")
