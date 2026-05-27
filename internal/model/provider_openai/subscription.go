@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/wandxy/hand/internal/constants"
-	modelcredential "github.com/wandxy/hand/internal/model/credential"
+	appcredential "github.com/wandxy/hand/internal/credential"
 )
 
 const (
@@ -49,28 +49,28 @@ type OpenAISubscriptionProvider struct {
 }
 
 func init() {
-	modelcredential.RegisterSubscriptionProvider(constants.ModelProviderOpenAI, OpenAISubscriptionProvider{})
+	appcredential.RegisterSubscriptionProvider(constants.ModelProviderOpenAI, OpenAISubscriptionProvider{})
 }
 
 // Login completes the browser OAuth flow and returns a stored OAuth credential.
 func (p OpenAISubscriptionProvider) Login(
 	ctx context.Context,
-	options modelcredential.LoginOptions,
-) (modelcredential.StoredCredential, error) {
+	options appcredential.LoginOptions,
+) (appcredential.StoredCredential, error) {
 	p = p.withDefaults()
 
 	codeVerifier, challenge, err := newOpenAIPKCE()
 	if err != nil {
-		return modelcredential.StoredCredential{}, err
+		return appcredential.StoredCredential{}, err
 	}
 	state, err := randomOpenAIString(32)
 	if err != nil {
-		return modelcredential.StoredCredential{}, err
+		return appcredential.StoredCredential{}, err
 	}
 
 	listener, redirectURI, err := p.listenForCallback()
 	if err != nil {
-		return modelcredential.StoredCredential{}, err
+		return appcredential.StoredCredential{}, err
 	}
 	defer listener.Close()
 
@@ -91,21 +91,21 @@ func (p OpenAISubscriptionProvider) Login(
 	case code := <-codeCh:
 		return p.exchangeCode(ctx, code, codeVerifier, redirectURI)
 	case err := <-errCh:
-		return modelcredential.StoredCredential{}, err
+		return appcredential.StoredCredential{}, err
 	case <-ctx.Done():
-		return modelcredential.StoredCredential{}, ctx.Err()
+		return appcredential.StoredCredential{}, ctx.Err()
 	}
 }
 
 // Refresh exchanges an expired access token for a fresh one.
 func (p OpenAISubscriptionProvider) Refresh(
 	ctx context.Context,
-	credential modelcredential.StoredCredential,
-) (modelcredential.StoredCredential, error) {
+	credential appcredential.StoredCredential,
+) (appcredential.StoredCredential, error) {
 	p = p.withDefaults()
 	refreshToken := strings.TrimSpace(credential.Refresh)
 	if refreshToken == "" {
-		return modelcredential.StoredCredential{}, errors.New("OpenAI subscription refresh token is required")
+		return appcredential.StoredCredential{}, errors.New("OpenAI subscription refresh token is required")
 	}
 
 	form := url.Values{
@@ -116,7 +116,7 @@ func (p OpenAISubscriptionProvider) Refresh(
 
 	next, err := p.postToken(ctx, form)
 	if err != nil {
-		return modelcredential.StoredCredential{}, err
+		return appcredential.StoredCredential{}, err
 	}
 	if next.Refresh == "" {
 		next.Refresh = refreshToken
@@ -128,7 +128,7 @@ func (p OpenAISubscriptionProvider) Refresh(
 // AuthHeaders converts an OpenAI subscription token into request headers.
 func (p OpenAISubscriptionProvider) AuthHeaders(
 	_ context.Context,
-	credential modelcredential.StoredCredential,
+	credential appcredential.StoredCredential,
 ) (map[string]string, error) {
 	token := strings.TrimSpace(credential.Token)
 	if token == "" {
@@ -253,7 +253,7 @@ func (p OpenAISubscriptionProvider) exchangeCode(
 	code string,
 	codeVerifier string,
 	redirectURI string,
-) (modelcredential.StoredCredential, error) {
+) (appcredential.StoredCredential, error) {
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
 		"client_id":     {openAISubscriptionClientID},
@@ -268,38 +268,38 @@ func (p OpenAISubscriptionProvider) exchangeCode(
 func (p OpenAISubscriptionProvider) postToken(
 	ctx context.Context,
 	form url.Values,
-) (modelcredential.StoredCredential, error) {
+) (appcredential.StoredCredential, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.TokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return modelcredential.StoredCredential{}, err
+		return appcredential.StoredCredential{}, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := p.HTTPClient.Do(req)
 	if err != nil {
-		return modelcredential.StoredCredential{}, err
+		return appcredential.StoredCredential{}, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return modelcredential.StoredCredential{}, err
+		return appcredential.StoredCredential{}, err
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return modelcredential.StoredCredential{}, fmt.Errorf("OpenAI token request failed: %s", resp.Status)
+		return appcredential.StoredCredential{}, fmt.Errorf("OpenAI token request failed: %s", resp.Status)
 	}
 
 	var token tokenResponse
 	if err := json.Unmarshal(body, &token); err != nil {
-		return modelcredential.StoredCredential{}, err
+		return appcredential.StoredCredential{}, err
 	}
 	if strings.TrimSpace(token.AccessToken) == "" {
-		return modelcredential.StoredCredential{}, errors.New("OpenAI token response did not include an access token")
+		return appcredential.StoredCredential{}, errors.New("OpenAI token response did not include an access token")
 	}
 
-	credential := modelcredential.StoredCredential{
-		Type:    modelcredential.TypeOAuth,
+	credential := appcredential.StoredCredential{
+		Type:    appcredential.TypeOAuth,
 		Token:   strings.TrimSpace(token.AccessToken),
 		Refresh: strings.TrimSpace(token.RefreshToken),
 		Scopes:  strings.Fields(token.Scope),

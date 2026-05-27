@@ -1,6 +1,6 @@
 package config
 
-import modelcredential "github.com/wandxy/hand/internal/model/credential"
+import appcredential "github.com/wandxy/hand/internal/credential"
 
 type ModelCredentialSourceKind string
 
@@ -70,7 +70,7 @@ type ModelCredentialSource struct {
 }
 
 // StoredModelCredential describes a locally stored provider credential.
-type StoredModelCredential = modelcredential.StoredCredential
+type StoredModelCredential = appcredential.StoredCredential
 
 // ModelAuth describes authentication metadata for a model provider.
 type ModelAuth struct {

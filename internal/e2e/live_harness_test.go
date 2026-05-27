@@ -18,6 +18,7 @@ import (
 	modelclient "github.com/wandxy/hand/internal/model/client"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	provider_openai "github.com/wandxy/hand/internal/model/provider_openai"
+	"github.com/wandxy/hand/internal/profile"
 )
 
 type liveModelClientFactoryStub struct {
@@ -140,6 +141,7 @@ func TestNewLiveClients(t *testing.T) {
 	})
 
 	t.Run("returns main auth error", func(t *testing.T) {
+		setLiveHarnessTestProfile(t)
 		t.Setenv("OPENROUTER_API_KEY", "")
 		liveModelClientFactoryInstance = originalFactory
 
@@ -151,6 +153,7 @@ func TestNewLiveClients(t *testing.T) {
 	})
 
 	t.Run("returns summary auth error", func(t *testing.T) {
+		setLiveHarnessTestProfile(t)
 		t.Setenv("OPENAI_API_KEY", "")
 		liveModelClientFactoryInstance = originalFactory
 
@@ -197,6 +200,19 @@ func TestNewLiveClients(t *testing.T) {
 		assert.Nil(t, modelClient)
 		assert.Nil(t, summaryClient)
 		assert.EqualError(t, err, "summary client failed")
+	})
+}
+
+func setLiveHarnessTestProfile(t *testing.T) {
+	t.Helper()
+
+	original := profile.Active()
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{
+		Name:    "live-harness-test",
+		HomeDir: t.TempDir(),
+	}))
+	t.Cleanup(func() {
+		profile.SetActive(original)
 	})
 }
 

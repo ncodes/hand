@@ -1,0 +1,78 @@
+package config
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	"github.com/wandxy/hand/internal/constants"
+)
+
+func TestNewDefaultConfig_ReturnsIndependentConfig(t *testing.T) {
+	first := NewDefaultConfig()
+	second := NewDefaultConfig()
+
+	require.Equal(t, DefaultConfig.Models.Main.Name, first.Models.Main.Name)
+	require.Equal(t, DefaultConfig.Models.Main.Provider, first.Models.Main.Provider)
+	require.Empty(t, first.Web.Provider)
+	require.Equal(t, DefaultConfig.RPC.Address, first.RPC.Address)
+	require.Equal(t, DefaultConfig.RPC.Port, first.RPC.Port)
+	require.True(t, first.FS.NoProfileAccess)
+	require.True(t, first.InputSafetyEnabled())
+	require.True(t, first.OutputSafetyEnabled())
+	require.False(t, first.OutputPIIRedactionEnabled())
+	require.NotEmpty(t, first.FS.Roots)
+	require.Equal(t, constants.RerankerDeterministic, first.Reranker.Type)
+	require.Equal(t, constants.RerankerDeterministic, first.RerankerEffective())
+	require.Equal(t, constants.DefaultProfileRerankerMaxCandidates, first.Reranker.MaxCandidates)
+	require.Equal(t, constants.DefaultProfileRerankerMaxCandidateTextChars, first.Reranker.MaxCandidateTextChars)
+	require.Equal(t, constants.DefaultProfileRerankerMaxOutputTokens, first.Reranker.MaxOutputTokens)
+	require.Equal(t, map[string]RerankerOverrideConfig{
+		"memory_episodic_extraction": {Type: constants.RerankerLLM},
+		"memory_promotion":           {Type: constants.RerankerLLM},
+		"memory_reflection":          {Type: constants.RerankerLLM},
+	}, first.Reranker.Overrides)
+
+	*first.Safety.Input = false
+	*first.Safety.Output = false
+	*first.Safety.PII = true
+	first.FS.Roots[0] = "mutated"
+	first.Reranker.Overrides["memory_reflection"] = RerankerOverrideConfig{Type: constants.RerankerNoop}
+
+	require.True(t, *second.Safety.Input)
+	require.True(t, *second.Safety.Output)
+	require.False(t, *second.Safety.PII)
+	require.NotEqual(t, "mutated", second.FS.Roots[0])
+	require.True(t, *DefaultConfig.TUI.ThinkingComposer)
+	require.True(t, *DefaultConfig.Safety.Input)
+	require.True(t, *DefaultConfig.Safety.Output)
+	require.False(t, *DefaultConfig.Safety.PII)
+	require.Equal(t, constants.RerankerLLM, second.Reranker.Overrides["memory_reflection"].Type)
+	require.Equal(t, constants.RerankerLLM, DefaultConfig.Reranker.Overrides["memory_reflection"].Type)
+}
+
+func TestCloneConfig_ClonesPersonalityPointers(t *testing.T) {
+	cfg := Config{
+		Personalities: map[string]PersonalityConfig{
+			"researcher": {
+				Memory: PersonalityMemoryConfig{
+					Pinned: new(true),
+				},
+				Tools: PersonalityToolsConfig{
+					Filesystem: new(true),
+				},
+				Model: MainModelConfig{
+					Stream: new(false),
+				},
+			},
+		},
+	}
+
+	cloned := cloneConfig(cfg)
+	*cloned.Personalities["researcher"].Memory.Pinned = false
+	*cloned.Personalities["researcher"].Tools.Filesystem = false
+	*cloned.Personalities["researcher"].Model.Stream = true
+
+	require.True(t, *cfg.Personalities["researcher"].Memory.Pinned)
+	require.True(t, *cfg.Personalities["researcher"].Tools.Filesystem)
+	require.False(t, *cfg.Personalities["researcher"].Model.Stream)
+}

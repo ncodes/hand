@@ -18,14 +18,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	modelcredential "github.com/wandxy/hand/internal/model/credential"
+	appcredential "github.com/wandxy/hand/internal/credential"
 )
 
 func TestOpenAISubscriptionProvider_AuthHeadersUsesJWTAccountMetadata(t *testing.T) {
 	token := makeOpenAITestJWT(t, "acct-test")
 
-	headers, err := OpenAISubscriptionProvider{}.AuthHeaders(context.Background(), modelcredential.StoredCredential{
-		Type:  modelcredential.TypeOAuth,
+	headers, err := OpenAISubscriptionProvider{}.AuthHeaders(context.Background(), appcredential.StoredCredential{
+		Type:  appcredential.TypeOAuth,
 		Token: token,
 	})
 	require.NoError(t, err)
@@ -39,15 +39,15 @@ func TestOpenAISubscriptionProvider_AuthHeadersUsesJWTAccountMetadata(t *testing
 func TestOpenAISubscriptionProvider_AuthHeadersRejectsTokenWithoutAccountMetadata(t *testing.T) {
 	token := makeOpenAITestJWTWithClaims(t, map[string]any{"sub": "user"})
 
-	_, err := OpenAISubscriptionProvider{}.AuthHeaders(context.Background(), modelcredential.StoredCredential{
-		Type:  modelcredential.TypeOAuth,
+	_, err := OpenAISubscriptionProvider{}.AuthHeaders(context.Background(), appcredential.StoredCredential{
+		Type:  appcredential.TypeOAuth,
 		Token: token,
 	})
 	require.ErrorContains(t, err, "account metadata")
 }
 
 func TestOpenAISubscriptionProvider_AuthHeadersValidatesToken(t *testing.T) {
-	_, err := OpenAISubscriptionProvider{}.AuthHeaders(context.Background(), modelcredential.StoredCredential{})
+	_, err := OpenAISubscriptionProvider{}.AuthHeaders(context.Background(), appcredential.StoredCredential{})
 	require.ErrorContains(t, err, "access token is required")
 
 	_, err = getOpenAIAccountID("not-a-jwt")
@@ -84,8 +84,8 @@ func TestOpenAISubscriptionProvider_RefreshPostsRefreshGrantAndPreservesRefreshT
 		Now:         func() time.Time { return now },
 	}
 
-	credential, err := provider.Refresh(context.Background(), modelcredential.StoredCredential{
-		Type:    modelcredential.TypeOAuth,
+	credential, err := provider.Refresh(context.Background(), appcredential.StoredCredential{
+		Type:    appcredential.TypeOAuth,
 		Token:   makeOpenAITestJWT(t, "acct-old"),
 		Refresh: "refresh-secret",
 	})
@@ -100,7 +100,7 @@ func TestOpenAISubscriptionProvider_RefreshPostsRefreshGrantAndPreservesRefreshT
 }
 
 func TestOpenAISubscriptionProvider_RefreshValidatesAndPropagatesTokenErrors(t *testing.T) {
-	_, err := OpenAISubscriptionProvider{}.Refresh(context.Background(), modelcredential.StoredCredential{})
+	_, err := OpenAISubscriptionProvider{}.Refresh(context.Background(), appcredential.StoredCredential{})
 	require.ErrorContains(t, err, "refresh token is required")
 
 	for name, tc := range map[string]struct {
@@ -135,7 +135,7 @@ func TestOpenAISubscriptionProvider_RefreshValidatesAndPropagatesTokenErrors(t *
 				TokenURL:    server.URL,
 				OpenBrowser: func(string) error { return nil },
 			}
-			_, err := provider.Refresh(context.Background(), modelcredential.StoredCredential{Refresh: "refresh-secret"})
+			_, err := provider.Refresh(context.Background(), appcredential.StoredCredential{Refresh: "refresh-secret"})
 			require.ErrorContains(t, err, tc.want)
 		})
 	}
@@ -144,7 +144,7 @@ func TestOpenAISubscriptionProvider_RefreshValidatesAndPropagatesTokenErrors(t *
 		TokenURL:    "://bad-url",
 		OpenBrowser: func(string) error { return nil },
 	}
-	_, err = provider.Refresh(context.Background(), modelcredential.StoredCredential{Refresh: "refresh-secret"})
+	_, err = provider.Refresh(context.Background(), appcredential.StoredCredential{Refresh: "refresh-secret"})
 	require.Error(t, err)
 
 	provider = OpenAISubscriptionProvider{
@@ -154,7 +154,7 @@ func TestOpenAISubscriptionProvider_RefreshValidatesAndPropagatesTokenErrors(t *
 		})},
 		OpenBrowser: func(string) error { return nil },
 	}
-	_, err = provider.Refresh(context.Background(), modelcredential.StoredCredential{Refresh: "refresh-secret"})
+	_, err = provider.Refresh(context.Background(), appcredential.StoredCredential{Refresh: "refresh-secret"})
 	require.ErrorContains(t, err, "network down")
 }
 
@@ -186,7 +186,7 @@ func TestOpenAISubscriptionProvider_PostTokenHandlesReadErrorAndNoExpiry(t *test
 	}.withDefaults()
 	credential, err := provider.postToken(context.Background(), url.Values{})
 	require.NoError(t, err)
-	require.Equal(t, modelcredential.TypeOAuth, credential.Type)
+	require.Equal(t, appcredential.TypeOAuth, credential.Type)
 	require.NotEmpty(t, credential.Token)
 	require.Nil(t, credential.ExpiresAt)
 }
@@ -214,13 +214,13 @@ func TestOpenAISubscriptionProvider_LoginCompletesBrowserOAuthFlow(t *testing.T)
 	}
 
 	resultCh := make(chan struct {
-		credential modelcredential.StoredCredential
+		credential appcredential.StoredCredential
 		err        error
 	}, 1)
 	go func() {
-		credential, err := provider.Login(context.Background(), modelcredential.LoginOptions{})
+		credential, err := provider.Login(context.Background(), appcredential.LoginOptions{})
 		resultCh <- struct {
-			credential modelcredential.StoredCredential
+			credential appcredential.StoredCredential
 			err        error
 		}{credential: credential, err: err}
 	}()
@@ -247,7 +247,7 @@ func TestOpenAISubscriptionProvider_LoginCompletesBrowserOAuthFlow(t *testing.T)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var result struct {
-		credential modelcredential.StoredCredential
+		credential appcredential.StoredCredential
 		err        error
 	}
 	require.Eventually(t, func() bool {
@@ -259,7 +259,7 @@ func TestOpenAISubscriptionProvider_LoginCompletesBrowserOAuthFlow(t *testing.T)
 		}
 	}, time.Second, 10*time.Millisecond)
 	require.NoError(t, result.err)
-	require.Equal(t, modelcredential.TypeOAuth, result.credential.Type)
+	require.Equal(t, appcredential.TypeOAuth, result.credential.Type)
 	require.Equal(t, "refresh-new", result.credential.Refresh)
 	require.NotEmpty(t, result.credential.Token)
 }
@@ -274,7 +274,7 @@ func TestOpenAISubscriptionProvider_LoginHandlesCallbackErrorsAndContext(t *test
 			ListenAddr:  "127.0.0.1:0",
 			OpenBrowser: func(string) error { return nil },
 		}
-		_, err := provider.Login(context.Background(), modelcredential.LoginOptions{})
+		_, err := provider.Login(context.Background(), appcredential.LoginOptions{})
 		require.ErrorContains(t, err, "forced read failure")
 	})
 
@@ -283,7 +283,7 @@ func TestOpenAISubscriptionProvider_LoginHandlesCallbackErrorsAndContext(t *test
 			ListenAddr:  "127.0.0.1:-1",
 			OpenBrowser: func(string) error { return nil },
 		}
-		_, err := provider.Login(context.Background(), modelcredential.LoginOptions{})
+		_, err := provider.Login(context.Background(), appcredential.LoginOptions{})
 		require.Error(t, err)
 	})
 
@@ -296,7 +296,7 @@ func TestOpenAISubscriptionProvider_LoginHandlesCallbackErrorsAndContext(t *test
 			ListenAddr:  "127.0.0.1:0",
 			OpenBrowser: func(string) error { return nil },
 		}
-		_, err := provider.Login(ctx, modelcredential.LoginOptions{Output: &output})
+		_, err := provider.Login(ctx, appcredential.LoginOptions{Output: &output})
 		require.ErrorIs(t, err, context.Canceled)
 		require.Contains(t, output.String(), "Open this URL to authenticate OpenAI")
 	})
@@ -329,7 +329,7 @@ func TestOpenAISubscriptionProvider_LoginHandlesCallbackErrorsAndContext(t *test
 			ListenAddr:  "127.0.0.1:0",
 			OpenBrowser: func(string) error { return nil },
 		}
-		_, err := provider.Login(context.Background(), modelcredential.LoginOptions{})
+		_, err := provider.Login(context.Background(), appcredential.LoginOptions{})
 		require.ErrorContains(t, err, "forced read failure")
 	})
 }
@@ -431,7 +431,7 @@ func runOpenAILoginCallback(
 
 	resultCh := make(chan error, 1)
 	go func() {
-		_, err := provider.Login(context.Background(), modelcredential.LoginOptions{})
+		_, err := provider.Login(context.Background(), appcredential.LoginOptions{})
 		resultCh <- err
 	}()
 

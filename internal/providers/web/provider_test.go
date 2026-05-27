@@ -2,15 +2,21 @@ package web
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
+	appcredential "github.com/wandxy/hand/internal/credential"
+	"github.com/wandxy/hand/internal/profile"
 )
 
 func TestResolveOptions_UsesExplicitConfig(t *testing.T) {
+	setWebAuthTestProfile(t)
+
 	opts, err := ResolveOptions(&config.Config{
 		Web: config.WebConfig{
 			Provider:                "exa",
@@ -38,6 +44,95 @@ func TestResolveOptions_UsesExplicitConfig(t *testing.T) {
 	require.Equal(t, []string{"deny.txt"}, opts.NativeBlockedHostFiles)
 }
 
+func TestResolveOptions_UsesConfigAPIKeyBeforeStoredAndEnv(t *testing.T) {
+	home := setWebAuthTestProfile(t)
+	t.Setenv("EXA_API_KEY", "env-exa-key")
+	store := appcredential.NewFileStore(filepath.Join(home, "auth.json"))
+	require.NoError(t, store.Set(ProviderExa, appcredential.StoredCredential{
+		Type: appcredential.TypeAPIKey,
+		Key:  "stored-exa-key",
+	}))
+
+	opts, err := ResolveOptions(&config.Config{
+		Web: config.WebConfig{
+			Provider: ProviderExa,
+			APIKey:   "config-exa-key",
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, ProviderExa, opts.Provider)
+	require.Equal(t, "config-exa-key", opts.APIKey)
+}
+
+func TestResolveOptions_UsesStoredProviderAPIKeyBeforeEnv(t *testing.T) {
+	home := setWebAuthTestProfile(t)
+	t.Setenv("EXA_API_KEY", "env-exa-key")
+	store := appcredential.NewFileStore(filepath.Join(home, "auth.json"))
+	require.NoError(t, store.Set(ProviderExa, appcredential.StoredCredential{
+		Type: appcredential.TypeAPIKey,
+		Key:  "stored-exa-key",
+	}))
+
+	opts, err := ResolveOptions(&config.Config{
+		Web: config.WebConfig{
+			Provider: ProviderExa,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "stored-exa-key", opts.APIKey)
+}
+
+func TestResolveOptions_IgnoresStoredOAuthCredentialForWebProvider(t *testing.T) {
+	home := setWebAuthTestProfile(t)
+	store := appcredential.NewFileStore(filepath.Join(home, "auth.json"))
+	require.NoError(t, store.Set(ProviderExa, appcredential.StoredCredential{
+		Type:  appcredential.TypeOAuth,
+		Token: "oauth-token",
+	}))
+
+	opts, err := ResolveOptions(&config.Config{
+		Web: config.WebConfig{
+			Provider: ProviderExa,
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, opts.APIKey)
+}
+
+func TestResolveOptions_UsesProviderEnvWhenConfigAndStoredKeyAreMissing(t *testing.T) {
+	setWebAuthTestProfile(t)
+	t.Setenv("EXA_API_KEY", "env-exa-key")
+
+	opts, err := ResolveOptions(&config.Config{
+		Web: config.WebConfig{
+			Provider: ProviderExa,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "env-exa-key", opts.APIKey)
+}
+
+func TestResolveOptions_UsesGenericWebEnvWhenConfigStoredAndProviderEnvAreMissing(t *testing.T) {
+	setWebAuthTestProfile(t)
+	t.Setenv("HAND_WEB_API_KEY", "generic-web-key")
+
+	opts, err := ResolveOptions(&config.Config{
+		Web: config.WebConfig{
+			Provider: ProviderTavily,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "generic-web-key", opts.APIKey)
+}
+
+func TestResolveOptions_ReturnsStoredCredentialParseError(t *testing.T) {
+	home := setWebAuthTestProfile(t)
+	require.NoError(t, os.WriteFile(filepath.Join(home, "auth.json"), []byte("{"), 0o600))
+
+	_, err := ResolveOptions(&config.Config{Web: config.WebConfig{Provider: ProviderExa}})
+	require.ErrorContains(t, err, "parse credential store")
+}
+
 func TestOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {
 	opts := Options{
 		Provider:                " EXA ",
@@ -62,6 +157,33 @@ func TestOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {
 	require.Equal(t, []string{"blocked.example"}, opts.NativeBlockedHosts)
 	require.Equal(t, []string{"allow.txt"}, opts.NativeAllowedHostFiles)
 	require.Equal(t, []string{"deny.txt"}, opts.NativeBlockedHostFiles)
+}
+
+func setWebAuthTestProfile(t *testing.T) string {
+	t.Helper()
+
+	for _, key := range []string{
+		"HAND_FIRECRAWL_API_KEY",
+		"FIRECRAWL_API_KEY",
+		"HAND_PARALLEL_API_KEY",
+		"PARALLEL_API_KEY",
+		"HAND_TAVILY_API_KEY",
+		"TAVILY_API_KEY",
+		"HAND_EXA_API_KEY",
+		"EXA_API_KEY",
+		"HAND_WEB_API_KEY",
+	} {
+		t.Setenv(key, "")
+	}
+
+	original := profile.Active()
+	home := t.TempDir()
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: "test", HomeDir: home}))
+	t.Cleanup(func() {
+		profile.SetActive(original)
+	})
+
+	return home
 }
 
 func TestExtractOptionsNormalize_CleansFieldsAndNegativeLimit(t *testing.T) {
@@ -105,6 +227,8 @@ func TestExtractQuery_UsesRequestQueryWhenPresent(t *testing.T) {
 }
 
 func TestResolveOptions_UsesDetectedProviderFallback(t *testing.T) {
+	setWebAuthTestProfile(t)
+
 	opts, err := ResolveOptions(&config.Config{
 		Web: config.WebConfig{Provider: ProviderParallel, APIKey: "parallel-key"},
 	})
@@ -118,6 +242,8 @@ func TestResolveOptions_UsesDetectedProviderFallback(t *testing.T) {
 }
 
 func TestResolveOptions_UsesConfiguredBaseURL(t *testing.T) {
+	setWebAuthTestProfile(t)
+
 	opts, err := ResolveOptions(&config.Config{
 		Web: config.WebConfig{
 			Provider: ProviderTavily,
@@ -132,6 +258,8 @@ func TestResolveOptions_UsesConfiguredBaseURL(t *testing.T) {
 }
 
 func TestResolveOptions_UsesConfiguredFirecrawlBaseURL(t *testing.T) {
+	setWebAuthTestProfile(t)
+
 	opts, err := ResolveOptions(&config.Config{
 		Web: config.WebConfig{
 			Provider: ProviderFirecrawl,
@@ -144,6 +272,8 @@ func TestResolveOptions_UsesConfiguredFirecrawlBaseURL(t *testing.T) {
 }
 
 func TestResolveOptions_UsesConfiguredProviderWithoutAmbientEnvironment(t *testing.T) {
+	setWebAuthTestProfile(t)
+
 	opts, err := ResolveOptions(&config.Config{
 		Web: config.WebConfig{Provider: ProviderExa, APIKey: "generic-key"},
 	})
@@ -153,6 +283,8 @@ func TestResolveOptions_UsesConfiguredProviderWithoutAmbientEnvironment(t *testi
 }
 
 func TestResolveOptions_RejectsUnsupportedProvider(t *testing.T) {
+	setWebAuthTestProfile(t)
+
 	_, err := ResolveOptions(&config.Config{Web: config.WebConfig{Provider: "unknown"}})
 	require.ErrorIs(t, err, ErrUnsupportedProvider)
 }
@@ -236,6 +368,8 @@ func TestTruncateContent_ReportsTruncation(t *testing.T) {
 }
 
 func TestNewProvider_ReturnsUnsupportedProviderError(t *testing.T) {
+	setWebAuthTestProfile(t)
+
 	_, err := NewProvider(&config.Config{Web: config.WebConfig{Provider: "custom"}})
 	require.ErrorIs(t, err, ErrUnsupportedProvider)
 }
@@ -251,6 +385,8 @@ func TestNewProviderFromOptions_ReturnsUnsupportedProviderError(t *testing.T) {
 }
 
 func TestNewProvider_BuildsConcreteProviders(t *testing.T) {
+	setWebAuthTestProfile(t)
+
 	testCases := []struct {
 		name string
 		cfg  *config.Config

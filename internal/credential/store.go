@@ -18,7 +18,7 @@ const (
 	TypeOAuth = "oauth"
 )
 
-// StoredCredential is a persisted credential record for a model provider.
+// StoredCredential is a persisted credential record for a provider.
 type StoredCredential struct {
 	// Type identifies which credential fields are meaningful.
 	Type string `json:"type"`
@@ -104,7 +104,7 @@ type SubscriptionProvider interface {
 	AuthHeaders(context.Context, StoredCredential) (map[string]string, error)
 }
 
-// Store persists and refreshes model provider credentials.
+// Store persists and refreshes provider credentials.
 type Store interface {
 	// Get returns a credential for provider when one exists.
 	Get(provider string) (StoredCredential, bool, error)

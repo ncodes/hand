@@ -4,12 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
 	"github.com/wandxy/hand/internal/constants"
-	modelcredential "github.com/wandxy/hand/internal/model/credential"
+	appcredential "github.com/wandxy/hand/internal/credential"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
 )
 
@@ -469,16 +468,16 @@ func (c *Config) resolveCredentialForProvider(
 		return resolvedModelCredential{}, err
 	}
 	var oauthModelErr error
-	if strings.TrimSpace(strings.ToLower(stored.Type)) == modelcredential.TypeOAuth && !allowOAuth {
+	if strings.TrimSpace(strings.ToLower(stored.Type)) == appcredential.TypeOAuth && !allowOAuth {
 		stored = StoredModelCredential{}
 	}
-	if strings.TrimSpace(strings.ToLower(stored.Type)) == modelcredential.TypeOAuth && allowOAuth {
+	if strings.TrimSpace(strings.ToLower(stored.Type)) == appcredential.TypeOAuth && allowOAuth {
 		if err := checkOAuthModelSupported(oauthModelField, provider, oauthModelID); err != nil {
 			oauthModelErr = err
 			stored = StoredModelCredential{}
 		}
 	}
-	if modelcredential.IsExpired(stored) {
+	if appcredential.IsExpired(stored) {
 		refreshed, ok, err := refreshStoredModelCredential(provider)
 		if err != nil {
 			return resolvedModelCredential{}, err
@@ -488,7 +487,7 @@ func (c *Config) resolveCredentialForProvider(
 		} else {
 			stored = StoredModelCredential{}
 		}
-		if strings.TrimSpace(strings.ToLower(stored.Type)) == modelcredential.TypeOAuth && allowOAuth {
+		if strings.TrimSpace(strings.ToLower(stored.Type)) == appcredential.TypeOAuth && allowOAuth {
 			if err := checkOAuthModelSupported(oauthModelField, provider, oauthModelID); err != nil {
 				oauthModelErr = err
 				stored = StoredModelCredential{}
@@ -547,7 +546,7 @@ func getStoredModelCredentialHeaders(
 	provider string,
 	credential StoredModelCredential,
 ) (map[string]string, error) {
-	if strings.TrimSpace(strings.ToLower(credential.Type)) != modelcredential.TypeOAuth {
+	if strings.TrimSpace(strings.ToLower(credential.Type)) != appcredential.TypeOAuth {
 		return nil, nil
 	}
 
@@ -601,7 +600,7 @@ func (auth *ModelAuth) applySubscriptionDefaults() {
 		return
 	}
 	if auth.CredentialSource.Kind != ModelCredentialSourceTokenStore ||
-		auth.CredentialSource.Type != modelcredential.TypeOAuth {
+		auth.CredentialSource.Type != appcredential.TypeOAuth {
 		return
 	}
 	if strings.TrimSpace(strings.ToLower(auth.Provider)) != constants.ModelProviderOpenAI {
@@ -652,19 +651,19 @@ func stringMapsEqual(a map[string]string, b map[string]string) bool {
 }
 
 func refreshStoredModelCredential(provider string) (StoredModelCredential, bool, error) {
-	if refreshModelProviderToken == nil {
+	if refreshStoredProviderToken == nil {
 		return StoredModelCredential{}, false, nil
 	}
 
-	return refreshModelProviderToken(context.Background(), provider)
+	return refreshStoredProviderToken(context.Background(), provider)
 }
 
 func loadStoredModelCredential(provider string) (StoredModelCredential, error) {
-	if loadModelProviderToken == nil {
+	if loadStoredProviderToken == nil {
 		return StoredModelCredential{}, nil
 	}
 
-	credential, err := loadModelProviderToken(provider)
+	credential, err := loadStoredProviderToken(provider)
 	if err != nil {
 		return StoredModelCredential{}, err
 	}
@@ -674,26 +673,13 @@ func loadStoredModelCredential(provider string) (StoredModelCredential, error) {
 
 func getStoredModelCredentialValue(credential StoredModelCredential) string {
 	switch strings.TrimSpace(strings.ToLower(credential.Type)) {
-	case modelcredential.TypeAPIKey:
+	case appcredential.TypeAPIKey:
 		return strings.TrimSpace(credential.Key)
-	case modelcredential.TypeOAuth, "":
+	case appcredential.TypeOAuth, "":
 		return strings.TrimSpace(credential.Token)
 	default:
 		return ""
 	}
-}
-
-func getCredentialFromEnv(keys []string) (string, string) {
-	for _, key := range keys {
-		key = strings.TrimSpace(key)
-		if key == "" {
-			continue
-		}
-		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
-			return value, key
-		}
-	}
-	return "", ""
 }
 
 func newMissingModelCredentialError(role string, provider string) error {

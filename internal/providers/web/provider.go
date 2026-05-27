@@ -166,9 +166,14 @@ func ResolveOptions(cfg *config.Config) (Options, error) {
 		normalized := *cfg
 		normalized.Normalize()
 
+		apiKey, err := normalized.WebAPIKeyEffective()
+		if err != nil {
+			return Options{}, err
+		}
+
 		opts = Options{
 			Provider:                normalized.Web.Provider,
-			APIKey:                  normalized.Web.APIKey,
+			APIKey:                  apiKey,
 			BaseURL:                 normalized.Web.BaseURL,
 			MaxCharPerResult:        normalized.Web.MaxCharPerResult,
 			MaxExtractCharPerResult: normalized.Web.MaxExtractCharPerResult,

@@ -13,7 +13,7 @@ import (
 
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
-	modelcredential "github.com/wandxy/hand/internal/model/credential"
+	appcredential "github.com/wandxy/hand/internal/credential"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	"github.com/wandxy/hand/internal/profile"
 )
@@ -21,7 +21,7 @@ import (
 var (
 	authOutput              io.Writer = os.Stdout
 	authInput               io.Reader = os.Stdin
-	getSubscriptionProvider           = modelcredential.GetSubscriptionProvider
+	getSubscriptionProvider           = appcredential.GetSubscriptionProvider
 )
 
 func SetOutput(w io.Writer) io.Writer {
@@ -52,7 +52,7 @@ func NewCommand() *cli.Command {
 func newLoginCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "login",
-		Usage:     "Store credentials for a model provider",
+		Usage:     "Store credentials for a model or web provider",
 		ArgsUsage: "<provider>",
 		Flags: []cli.Flag{
 			handcli.ProfileFlag(),
@@ -89,7 +89,7 @@ func newLoginCommand() *cli.Command {
 func newStatusCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "status",
-		Usage:     "Show configured model provider credential sources",
+		Usage:     "Show configured provider credential sources",
 		ArgsUsage: "[provider...]",
 		Flags:     []cli.Flag{handcli.ProfileFlag()},
 		Action: func(_ context.Context, cmd *cli.Command) error {
@@ -121,7 +121,7 @@ func newStatusCommand() *cli.Command {
 func newLogoutCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "logout",
-		Usage:     "Remove stored credentials for a model provider",
+		Usage:     "Remove stored credentials for a model or web provider",
 		ArgsUsage: "<provider>",
 		Flags:     []cli.Flag{handcli.ProfileFlag()},
 		Action: func(_ context.Context, cmd *cli.Command) error {
@@ -151,7 +151,7 @@ func getAuthProviderArg(cmd *cli.Command) (string, error) {
 	return provider, nil
 }
 
-func getAuthStore(cmd *cli.Command) (*modelcredential.FileStore, error) {
+func getAuthStore(cmd *cli.Command) (*appcredential.FileStore, error) {
 	inputs, err := handcli.ResolveConfigInputs(cmd)
 	if err != nil {
 		return nil, err
@@ -159,38 +159,38 @@ func getAuthStore(cmd *cli.Command) (*modelcredential.FileStore, error) {
 
 	active := profile.WithMetadataPaths(inputs.Profile)
 	profile.SetActive(active)
-	return modelcredential.NewFileStore(""), nil
+	return appcredential.NewFileStore(""), nil
 }
 
 func getLoginCredential(
 	ctx context.Context,
 	provider string,
 	cmd *cli.Command,
-) (modelcredential.StoredCredential, error) {
+) (appcredential.StoredCredential, error) {
 	apiKey := strings.TrimSpace(cmd.String("api-key"))
 	token := strings.TrimSpace(cmd.String("token"))
 	if apiKey != "" && token != "" {
-		return modelcredential.StoredCredential{}, fmt.Errorf("use either --api-key or --token, not both")
+		return appcredential.StoredCredential{}, fmt.Errorf("use either --api-key or --token, not both")
 	}
 	if apiKey != "" {
-		return modelcredential.StoredCredential{Type: modelcredential.TypeAPIKey, Key: apiKey}, nil
+		return appcredential.StoredCredential{Type: appcredential.TypeAPIKey, Key: apiKey}, nil
 	}
 	if token == "" {
 		if subscriptionProvider, ok := getSubscriptionProvider(provider); ok {
-			return subscriptionProvider.Login(ctx, modelcredential.LoginOptions{
+			return subscriptionProvider.Login(ctx, appcredential.LoginOptions{
 				Provider: provider,
 				Input:    authInput,
 				Output:   authOutput,
 			})
 		}
 
-		return modelcredential.StoredCredential{}, fmt.Errorf(
+		return appcredential.StoredCredential{}, fmt.Errorf(
 			"credential is required; pass --api-key or --token, or use a provider with subscription login",
 		)
 	}
 
-	credential := modelcredential.StoredCredential{
-		Type:    modelcredential.TypeOAuth,
+	credential := appcredential.StoredCredential{
+		Type:    appcredential.TypeOAuth,
 		Token:   token,
 		Refresh: strings.TrimSpace(cmd.String("refresh-token")),
 		Scopes:  cmd.StringSlice("scope"),
@@ -198,7 +198,7 @@ func getLoginCredential(
 	if expiresAt := strings.TrimSpace(cmd.String("expires-at")); expiresAt != "" {
 		parsed, err := time.Parse(time.RFC3339, expiresAt)
 		if err != nil {
-			return modelcredential.StoredCredential{}, fmt.Errorf("parse --expires-at: %w", err)
+			return appcredential.StoredCredential{}, fmt.Errorf("parse --expires-at: %w", err)
 		}
 		credential.ExpiresAt = &parsed
 	}
@@ -216,7 +216,7 @@ func loadAuthConfig(cmd *cli.Command) (*config.Config, error) {
 
 func getStatusProviders(
 	cmd *cli.Command,
-	store modelcredential.Store,
+	store appcredential.Store,
 	cfg *config.Config,
 ) ([]string, error) {
 	if args := cmd.Args().Slice(); len(args) > 0 {
@@ -235,9 +235,16 @@ func getStatusProviders(
 	for _, provider := range modelprovider.DefaultRegistry().GetProviderIDs() {
 		seen[provider] = struct{}{}
 	}
+	for _, provider := range config.WebCredentialProviderIDs() {
+		seen[provider] = struct{}{}
+	}
 	if cfg != nil {
 		for provider := range cfg.Models.Providers {
 			seen[strings.TrimSpace(strings.ToLower(provider))] = struct{}{}
+		}
+		if provider := strings.TrimSpace(strings.ToLower(cfg.Web.Provider)); provider != "" &&
+			config.IsWebCredentialProvider(provider) {
+			seen[provider] = struct{}{}
 		}
 	}
 	stored, err := store.List()
@@ -260,21 +267,21 @@ func getStatusProviders(
 
 func getProviderAuthStatus(
 	provider string,
-	store modelcredential.Store,
+	store appcredential.Store,
 	cfg *config.Config,
-) (modelcredential.Status, error) {
-	status := modelcredential.Status{
+) (appcredential.Status, error) {
+	status := appcredential.Status{
 		Provider: provider,
-		Source:   modelcredential.CredentialSourceMissing,
+		Source:   appcredential.CredentialSourceMissing,
 	}
 
 	credential, ok, err := store.Get(provider)
 	if err != nil {
-		return modelcredential.Status{}, err
+		return appcredential.Status{}, err
 	}
 	if ok {
 		status.Configured = true
-		status.Source = modelcredential.CredentialSourceStored
+		status.Source = appcredential.CredentialSourceStored
 		status.Type = credential.Type
 		status.HasExpiry = credential.ExpiresAt != nil
 		status.Expired = credential.ExpiresAt != nil && !time.Now().Before(*credential.ExpiresAt)
@@ -283,7 +290,7 @@ func getProviderAuthStatus(
 
 	if _, envName := getProviderEnvCredential(provider, cfg); envName != "" {
 		status.Configured = true
-		status.Source = modelcredential.CredentialSourceEnvironment
+		status.Source = appcredential.CredentialSourceEnvironment
 		return status, nil
 	}
 
@@ -291,20 +298,25 @@ func getProviderAuthStatus(
 		providerConfig := cfg.Models.Providers[provider]
 		if strings.TrimSpace(providerConfig.APIKey) != "" {
 			status.Configured = true
-			status.Source = modelcredential.CredentialSourceConfig
+			status.Source = appcredential.CredentialSourceConfig
+			return status, nil
+		}
+		if config.GetWebProviderConfigAPIKey(provider, cfg) != "" {
+			status.Configured = true
+			status.Source = appcredential.CredentialSourceConfig
 		}
 	}
 
 	return status, nil
 }
 
-func formatAuthStatus(status modelcredential.Status) string {
+func formatAuthStatus(status appcredential.Status) string {
 	if !status.Configured {
 		return "missing"
 	}
 
 	switch status.Source {
-	case modelcredential.CredentialSourceStored:
+	case appcredential.CredentialSourceStored:
 		parts := []string{"stored"}
 		if status.Type != "" {
 			parts = append(parts, status.Type)
@@ -317,9 +329,9 @@ func formatAuthStatus(status modelcredential.Status) string {
 			}
 		}
 		return strings.Join(parts, " ")
-	case modelcredential.CredentialSourceEnvironment:
+	case appcredential.CredentialSourceEnvironment:
 		return "environment"
-	case modelcredential.CredentialSourceConfig:
+	case appcredential.CredentialSourceConfig:
 		return "provider-config"
 	default:
 		return string(status.Source)
@@ -335,6 +347,9 @@ func getProviderEnvCredential(provider string, cfg *config.Config) (string, stri
 
 	if providerDef, ok := modelprovider.DefaultRegistry().GetProvider(provider); ok {
 		return getFirstEnvValue(providerDef.APIKeyEnv)
+	}
+	if config.IsWebCredentialProvider(provider) {
+		return getFirstEnvValue(config.WebProviderAPIKeyEnv(provider))
 	}
 
 	return "", ""

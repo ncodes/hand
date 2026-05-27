@@ -12,7 +12,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	modelcredential "github.com/wandxy/hand/internal/model/credential"
+	"github.com/wandxy/hand/internal/config"
+	appcredential "github.com/wandxy/hand/internal/credential"
 	"github.com/wandxy/hand/internal/profile"
 )
 
@@ -27,10 +28,10 @@ func TestCommand_LoginStoresAPIKeyWithoutPrintingSecret(t *testing.T) {
 	require.NotContains(t, output.String(), "sk-secret-value")
 	require.Contains(t, output.String(), "openai credential stored")
 
-	credential, ok, err := modelcredential.NewFileStore(filepath.Join(home, "auth.json")).Get("openai")
+	credential, ok, err := appcredential.NewFileStore(filepath.Join(home, "auth.json")).Get("openai")
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, modelcredential.TypeAPIKey, credential.Type)
+	require.Equal(t, appcredential.TypeAPIKey, credential.Type)
 	require.Equal(t, "sk-secret-value", credential.Key)
 }
 
@@ -48,10 +49,10 @@ func TestCommand_LoginStoresOAuthTokenWithExpiry(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	credential, ok, err := modelcredential.NewFileStore(filepath.Join(home, "auth.json")).Get("github-copilot")
+	credential, ok, err := appcredential.NewFileStore(filepath.Join(home, "auth.json")).Get("github-copilot")
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, modelcredential.TypeOAuth, credential.Type)
+	require.Equal(t, appcredential.TypeOAuth, credential.Type)
 	require.Equal(t, "token-secret", credential.Token)
 	require.Equal(t, "refresh-secret", credential.Refresh)
 	require.Equal(t, []string{"read", "write"}, credential.Scopes)
@@ -85,10 +86,10 @@ func TestCommand_LoginUsesSubscriptionProviderWhenNoCredentialFlags(t *testing.T
 	t.Cleanup(func() { SetOutput(restoreOutput) })
 
 	previousProvider := getSubscriptionProvider
-	getSubscriptionProvider = func(provider string) (modelcredential.SubscriptionProvider, bool) {
+	getSubscriptionProvider = func(provider string) (appcredential.SubscriptionProvider, bool) {
 		require.Equal(t, "openai", provider)
 		return fakeSubscriptionProvider{
-			login: func(options modelcredential.LoginOptions) {
+			login: func(options appcredential.LoginOptions) {
 				require.Equal(t, "openai", options.Provider)
 				require.NotNil(t, options.Input)
 				require.NotNil(t, options.Output)
@@ -101,10 +102,10 @@ func TestCommand_LoginUsesSubscriptionProviderWhenNoCredentialFlags(t *testing.T
 	require.NoError(t, err)
 	require.NotContains(t, output.String(), "subscription-secret")
 
-	credential, ok, err := modelcredential.NewFileStore(filepath.Join(home, "auth.json")).Get("openai")
+	credential, ok, err := appcredential.NewFileStore(filepath.Join(home, "auth.json")).Get("openai")
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, modelcredential.TypeOAuth, credential.Type)
+	require.Equal(t, appcredential.TypeOAuth, credential.Type)
 	require.Equal(t, "subscription-secret", credential.Token)
 }
 
@@ -129,8 +130,8 @@ models:
     openrouter:
       apiKey: config-secret
 `), 0o600))
-	store := modelcredential.NewFileStore(filepath.Join(home, "auth.json"))
-	require.NoError(t, store.Set("openai", modelcredential.StoredCredential{Type: modelcredential.TypeAPIKey, Key: "stored-secret"}))
+	store := appcredential.NewFileStore(filepath.Join(home, "auth.json"))
+	require.NoError(t, store.Set("openai", appcredential.StoredCredential{Type: appcredential.TypeAPIKey, Key: "stored-secret"}))
 
 	err := NewCommand().Run(context.Background(), []string{"auth", "status", "openai", "anthropic", "openrouter"})
 	require.NoError(t, err)
@@ -142,6 +143,33 @@ models:
 	require.NotContains(t, output.String(), "config-secret")
 }
 
+func TestCommand_StatusReportsWebProviderSources(t *testing.T) {
+	home := setAuthTestProfile(t)
+	var output bytes.Buffer
+	restore := SetOutput(&output)
+	t.Cleanup(func() { SetOutput(restore) })
+	t.Setenv("EXA_API_KEY", "exa-env-secret")
+	require.NoError(t, os.WriteFile(filepath.Join(home, "config.yaml"), []byte(`
+web:
+  provider: tavily
+  apiKey: tavily-config-secret
+`), 0o600))
+	store := appcredential.NewFileStore(filepath.Join(home, "auth.json"))
+	require.NoError(t, store.Set("firecrawl", appcredential.StoredCredential{
+		Type: appcredential.TypeAPIKey,
+		Key:  "firecrawl-stored-secret",
+	}))
+
+	err := NewCommand().Run(context.Background(), []string{"auth", "status", "firecrawl", "exa", "tavily"})
+	require.NoError(t, err)
+	require.Contains(t, output.String(), "firecrawl: stored api_key")
+	require.Contains(t, output.String(), "exa: environment")
+	require.Contains(t, output.String(), "tavily: provider-config")
+	require.NotContains(t, output.String(), "firecrawl-stored-secret")
+	require.NotContains(t, output.String(), "exa-env-secret")
+	require.NotContains(t, output.String(), "tavily-config-secret")
+}
+
 func TestCommand_StatusReportsStoredOAuthExpiryStates(t *testing.T) {
 	home := setAuthTestProfile(t)
 	var output bytes.Buffer
@@ -150,14 +178,14 @@ func TestCommand_StatusReportsStoredOAuthExpiryStates(t *testing.T) {
 
 	expired := time.Now().Add(-time.Hour)
 	fresh := time.Now().Add(time.Hour)
-	store := modelcredential.NewFileStore(filepath.Join(home, "auth.json"))
-	require.NoError(t, store.Set("openai", modelcredential.StoredCredential{
-		Type:      modelcredential.TypeOAuth,
+	store := appcredential.NewFileStore(filepath.Join(home, "auth.json"))
+	require.NoError(t, store.Set("openai", appcredential.StoredCredential{
+		Type:      appcredential.TypeOAuth,
 		Token:     "old-token",
 		ExpiresAt: &expired,
 	}))
-	require.NoError(t, store.Set("anthropic", modelcredential.StoredCredential{
-		Type:      modelcredential.TypeOAuth,
+	require.NoError(t, store.Set("anthropic", appcredential.StoredCredential{
+		Type:      appcredential.TypeOAuth,
 		Token:     "fresh-token",
 		ExpiresAt: &fresh,
 	}))
@@ -202,6 +230,10 @@ func TestCommand_StatusReportsAllKnownProviders(t *testing.T) {
 	require.Contains(t, output.String(), "github-copilot: missing")
 	require.Contains(t, output.String(), "openai: missing")
 	require.Contains(t, output.String(), "openrouter: missing")
+	require.Contains(t, output.String(), "exa: missing")
+	require.Contains(t, output.String(), "firecrawl: missing")
+	require.Contains(t, output.String(), "parallel: missing")
+	require.Contains(t, output.String(), "tavily: missing")
 }
 
 func TestCommand_StatusReportsConfigAndStoredProvidersWithoutArgs(t *testing.T) {
@@ -215,9 +247,9 @@ models:
     custom-config:
       apiKey: config-secret
 `), 0o600))
-	store := modelcredential.NewFileStore(filepath.Join(home, "auth.json"))
-	require.NoError(t, store.Set("custom-stored", modelcredential.StoredCredential{
-		Type: modelcredential.TypeAPIKey,
+	store := appcredential.NewFileStore(filepath.Join(home, "auth.json"))
+	require.NoError(t, store.Set("custom-stored", appcredential.StoredCredential{
+		Type: appcredential.TypeAPIKey,
 		Key:  "stored-secret",
 	}))
 
@@ -248,8 +280,8 @@ func TestCommand_StatusReturnsOutputError(t *testing.T) {
 
 func TestCommand_LogoutRemovesStoredCredential(t *testing.T) {
 	home := setAuthTestProfile(t)
-	store := modelcredential.NewFileStore(filepath.Join(home, "auth.json"))
-	require.NoError(t, store.Set("openai", modelcredential.StoredCredential{Type: modelcredential.TypeAPIKey, Key: "stored-secret"}))
+	store := appcredential.NewFileStore(filepath.Join(home, "auth.json"))
+	require.NoError(t, store.Set("openai", appcredential.StoredCredential{Type: appcredential.TypeAPIKey, Key: "stored-secret"}))
 
 	err := NewCommand().Run(context.Background(), []string{"auth", "logout", "openai"})
 	require.NoError(t, err)
@@ -268,8 +300,8 @@ func TestCommand_LogoutValidatesProviderArg(t *testing.T) {
 
 func TestCommand_LogoutReturnsOutputError(t *testing.T) {
 	home := setAuthTestProfile(t)
-	store := modelcredential.NewFileStore(filepath.Join(home, "auth.json"))
-	require.NoError(t, store.Set("openai", modelcredential.StoredCredential{Type: modelcredential.TypeAPIKey, Key: "stored-secret"}))
+	store := appcredential.NewFileStore(filepath.Join(home, "auth.json"))
+	require.NoError(t, store.Set("openai", appcredential.StoredCredential{Type: appcredential.TypeAPIKey, Key: "stored-secret"}))
 	restore := SetOutput(errorWriter{})
 	t.Cleanup(func() { SetOutput(restore) })
 
@@ -300,9 +332,9 @@ func TestSetOutput_NilDiscardsOutput(t *testing.T) {
 }
 
 func TestFormatAuthStatus_ReturnsUnknownSourceValue(t *testing.T) {
-	status := modelcredential.Status{
+	status := appcredential.Status{
 		Configured: true,
-		Source:     modelcredential.CredentialSource("runtime"),
+		Source:     appcredential.CredentialSource("runtime"),
 	}
 
 	require.Equal(t, "runtime", formatAuthStatus(status))
@@ -315,8 +347,30 @@ func TestGetFirstEnvValue_SkipsBlankAndMissingKeys(t *testing.T) {
 	require.Empty(t, key)
 }
 
+func TestGetWebProviderEnvKeys_ReturnsGenericFallbackForUnknownProvider(t *testing.T) {
+	require.Equal(t, []string{"HAND_WEB_API_KEY"}, config.WebProviderAPIKeyEnv("custom"))
+}
+
 func setAuthTestProfile(t *testing.T) string {
 	t.Helper()
+
+	for _, key := range []string{
+		"OPENAI_API_KEY",
+		"OPENROUTER_API_KEY",
+		"ANTHROPIC_API_KEY",
+		"COPILOT_GITHUB_TOKEN",
+		"HAND_FIRECRAWL_API_KEY",
+		"FIRECRAWL_API_KEY",
+		"HAND_PARALLEL_API_KEY",
+		"PARALLEL_API_KEY",
+		"HAND_TAVILY_API_KEY",
+		"TAVILY_API_KEY",
+		"HAND_EXA_API_KEY",
+		"EXA_API_KEY",
+		"HAND_WEB_API_KEY",
+	} {
+		t.Setenv(key, "")
+	}
 
 	original := profile.Active()
 	home := t.TempDir()
@@ -334,32 +388,32 @@ func (errorWriter) Write([]byte) (int, error) {
 }
 
 type fakeSubscriptionProvider struct {
-	login func(modelcredential.LoginOptions)
+	login func(appcredential.LoginOptions)
 }
 
 func (p fakeSubscriptionProvider) Login(
 	_ context.Context,
-	options modelcredential.LoginOptions,
-) (modelcredential.StoredCredential, error) {
+	options appcredential.LoginOptions,
+) (appcredential.StoredCredential, error) {
 	if p.login != nil {
 		p.login(options)
 	}
-	return modelcredential.StoredCredential{
-		Type:  modelcredential.TypeOAuth,
+	return appcredential.StoredCredential{
+		Type:  appcredential.TypeOAuth,
 		Token: "subscription-secret",
 	}, nil
 }
 
 func (fakeSubscriptionProvider) Refresh(
 	context.Context,
-	modelcredential.StoredCredential,
-) (modelcredential.StoredCredential, error) {
-	return modelcredential.StoredCredential{}, nil
+	appcredential.StoredCredential,
+) (appcredential.StoredCredential, error) {
+	return appcredential.StoredCredential{}, nil
 }
 
 func (fakeSubscriptionProvider) AuthHeaders(
 	context.Context,
-	modelcredential.StoredCredential,
+	appcredential.StoredCredential,
 ) (map[string]string, error) {
 	return nil, nil
 }

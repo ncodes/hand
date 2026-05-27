@@ -7,7 +7,7 @@ import (
 
 	"github.com/joho/godotenv"
 
-	modelcredential "github.com/wandxy/hand/internal/model/credential"
+	appcredential "github.com/wandxy/hand/internal/credential"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
 )
 
@@ -37,14 +37,14 @@ type Config struct {
 }
 
 var (
-	globalConfig              *Config
-	configMu                  sync.RWMutex
-	loadDotEnv                = godotenv.Load
-	getwd                     = os.Getwd
-	modelRegistry             = modelprovider.DefaultRegistry()
-	loadModelProviderToken    = modelcredential.LoadStoredProviderCredential
-	refreshModelProviderToken = modelcredential.RefreshStoredProviderCredential
-	getSubscriptionProvider   = modelcredential.GetSubscriptionProvider
+	globalConfig               *Config
+	configMu                   sync.RWMutex
+	loadDotEnv                 = godotenv.Load
+	getwd                      = os.Getwd
+	modelRegistry              = modelprovider.DefaultRegistry()
+	loadStoredProviderToken    = appcredential.LoadStoredProviderCredential
+	refreshStoredProviderToken = appcredential.RefreshStoredProviderCredential
+	getSubscriptionProvider    = appcredential.GetSubscriptionProvider
 )
 
 const (
