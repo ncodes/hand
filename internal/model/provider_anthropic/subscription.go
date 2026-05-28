@@ -23,13 +23,13 @@ import (
 )
 
 const (
-	anthropicSubscriptionClientID    = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
-	anthropicSubscriptionAuthorize   = "https://claude.ai/oauth/authorize"
-	anthropicSubscriptionToken       = "https://platform.claude.com/v1/oauth/token"
-	anthropicSubscriptionRedirectURI = "http://localhost:53692/callback"
-	anthropicSubscriptionScope       = "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
-	anthropicOAuthBeta               = "oauth-2025-04-20"
-	anthropicClaudeCodeBeta          = "claude-code-20250219"
+	anthropicSubscriptionClientID     = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+	anthropicSubscriptionAuthorize    = "https://claude.ai/oauth/authorize"
+	anthropicSubscriptionToken        = "https://platform.claude.com/v1/oauth/token"
+	anthropicSubscriptionCallbackPath = "/callback"
+	anthropicSubscriptionScope        = "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
+	anthropicOAuthBeta                = "oauth-2025-04-20"
+	anthropicClaudeCodeBeta           = "claude-code-20250219"
 )
 
 var (
@@ -150,11 +150,8 @@ func (p AnthropicSubscriptionProvider) withDefaults() AnthropicSubscriptionProvi
 	if strings.TrimSpace(p.TokenURL) == "" {
 		p.TokenURL = anthropicSubscriptionToken
 	}
-	if strings.TrimSpace(p.RedirectURI) == "" {
-		p.RedirectURI = anthropicSubscriptionRedirectURI
-	}
 	if strings.TrimSpace(p.ListenAddr) == "" {
-		p.ListenAddr = "127.0.0.1:53692"
+		p.ListenAddr = "127.0.0.1:0"
 	}
 	if p.HTTPClient == nil {
 		p.HTTPClient = http.DefaultClient
@@ -175,14 +172,17 @@ func (p AnthropicSubscriptionProvider) listenForCallback() (net.Listener, string
 		return nil, "", err
 	}
 
-	redirectURI := p.RedirectURI
-	if strings.HasSuffix(p.ListenAddr, ":0") {
-		if tcpAddr, ok := listener.Addr().(*net.TCPAddr); ok {
-			redirectURI = fmt.Sprintf("http://localhost:%d/callback", tcpAddr.Port)
-		}
+	if redirectURI := strings.TrimSpace(p.RedirectURI); redirectURI != "" {
+		return listener, redirectURI, nil
 	}
 
-	return listener, redirectURI, nil
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		_ = listener.Close()
+		return nil, "", errors.New("Anthropic OAuth listener must be TCP")
+	}
+
+	return listener, fmt.Sprintf("http://localhost:%d%s", tcpAddr.Port, anthropicSubscriptionCallbackPath), nil
 }
 
 func (p AnthropicSubscriptionProvider) startCallbackServer(
@@ -192,7 +192,7 @@ func (p AnthropicSubscriptionProvider) startCallbackServer(
 	errCh chan<- error,
 ) *http.Server {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(anthropicSubscriptionCallbackPath, func(w http.ResponseWriter, r *http.Request) {
 		if got := strings.TrimSpace(r.URL.Query().Get("state")); got != state {
 			http.Error(w, "invalid OAuth state", http.StatusBadRequest)
 			errCh <- errors.New("Anthropic OAuth state mismatch")

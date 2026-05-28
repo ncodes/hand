@@ -330,20 +330,25 @@ func TestAnthropicSubscriptionProvider_WithDefaultsAndCallbackRedirectURI(t *tes
 	provider := AnthropicSubscriptionProvider{}.withDefaults()
 	require.Equal(t, anthropicSubscriptionAuthorize, provider.AuthorizeURL)
 	require.Equal(t, anthropicSubscriptionToken, provider.TokenURL)
-	require.Equal(t, anthropicSubscriptionRedirectURI, provider.RedirectURI)
-	require.Equal(t, "127.0.0.1:53692", provider.ListenAddr)
+	require.Empty(t, provider.RedirectURI)
+	require.Equal(t, "127.0.0.1:0", provider.ListenAddr)
 	require.NotNil(t, provider.HTTPClient)
 	require.NotNil(t, provider.OpenBrowser)
 	require.NotNil(t, provider.Now)
 
-	listener, redirectURI, err := AnthropicSubscriptionProvider{
+	listener, redirectURI, err := AnthropicSubscriptionProvider{}.withDefaults().listenForCallback()
+	require.NoError(t, err)
+	require.NoError(t, listener.Close())
+	require.Contains(t, redirectURI, anthropicSubscriptionCallbackPath)
+	require.NotContains(t, redirectURI, ":53692")
+
+	listener, redirectURI, err = AnthropicSubscriptionProvider{
 		RedirectURI: "http://custom.test/callback",
 		ListenAddr:  "127.0.0.1:0",
 	}.withDefaults().listenForCallback()
 	require.NoError(t, err)
 	require.NoError(t, listener.Close())
-	require.Contains(t, redirectURI, "/callback")
-	require.NotEqual(t, "http://custom.test/callback", redirectURI)
+	require.Equal(t, "http://custom.test/callback", redirectURI)
 }
 
 func TestAnthropicSubscriptionProvider_StartCallbackServerReportsServeError(t *testing.T) {
