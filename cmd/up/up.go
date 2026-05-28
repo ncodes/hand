@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc"
 
 	handagent "github.com/wandxy/hand/internal/agent"
+	"github.com/wandxy/hand/internal/brand"
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/diagnostics"
@@ -34,10 +35,11 @@ type agentRunner interface {
 }
 
 const (
-	handBadge  = "██   ██  █████  ███    ██ ██████\n███████ ██   ██ ████   ██ ██   ██\n██   ██ ███████ ██ ██  ██ ██   ██\n██   ██ ██   ██ ██  ████ ██████"
 	colorGray  = "\x1b[90m"
 	colorReset = "\x1b[0m"
 )
+
+var handBadge = joinStartupBanner(brand.Mark, brand.Wordmark)
 
 var startupOutput io.Writer = os.Stdout
 
@@ -133,8 +135,8 @@ func renderStartupPanel(cfg *config.Config) string {
 	}
 
 	lines := []string{
+		"",
 		styleStartup(handBadge, cfg.Log.NoColor),
-		styleStartup(handcli.AppDescription, cfg.Log.NoColor),
 		"",
 		fmt.Sprintf("%s %s", styleLabel("Instance", cfg.Log.NoColor), cfg.Name),
 		fmt.Sprintf("%s %s", styleLabel("Model", cfg.Log.NoColor), cfg.Models.Main.Name),
@@ -163,6 +165,26 @@ func renderStartupPanel(cfg *config.Config) string {
 	}
 
 	return strings.Join(lines, "\n") + "\n"
+}
+
+func joinStartupBanner(mark string, wordmark string) string {
+	markLines := strings.Split(mark, "\n")
+	wordmarkLines := strings.Split(wordmark, "\n")
+	lines := make([]string, 0, max(len(markLines), len(wordmarkLines)))
+
+	for index := range max(len(markLines), len(wordmarkLines)) {
+		lines = append(lines, getStartupBannerLine(markLines, index)+"  "+getStartupBannerLine(wordmarkLines, index))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func getStartupBannerLine(lines []string, index int) string {
+	if index < 0 || index >= len(lines) {
+		return ""
+	}
+
+	return lines[index]
 }
 
 func getConfigBoolDefault(value *bool, fallback bool) bool {

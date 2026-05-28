@@ -115,8 +115,11 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	require.True(t, runCalled)
 	require.True(t, serveCalled)
 
-	require.Contains(t, startupBuffer.String(), "\x1b[90m██   ██  █████  ███    ██ ██████")
-	require.Contains(t, startupBuffer.String(), handcli.AppDescription)
+	require.Contains(t, startupBuffer.String(), "\n\x1b[90m   █ █ █    ░██     ░██")
+	require.Contains(t, startupBuffer.String(), "░██     ░██░░████████ ███  ░██░░██████")
+	require.Contains(t, startupBuffer.String(), colorReset+"\n\n"+colorGray+"Instance")
+	require.NotContains(t, startupBuffer.String(), "██   ██  █████  ███    ██ ██████")
+	require.NotContains(t, startupBuffer.String(), handcli.AppDescription)
 	require.Contains(t, startupBuffer.String(), "Instance")
 	require.Contains(t, startupBuffer.String(), "flag-agent")
 	require.Contains(t, startupBuffer.String(), "Summary model")
@@ -167,6 +170,9 @@ func TestRenderStartupPanel_DisablesColorWhenRequested(t *testing.T) {
 	})
 
 	require.NotContains(t, output, "\x1b[90m")
+	require.Contains(t, output, "\n   █ █ █    ░██     ░██")
+	require.Contains(t, output, handBadge+"\n\nInstance")
+	require.NotContains(t, output, handcli.AppDescription)
 	require.Contains(t, output, "Instance: daemon")
 	require.Contains(t, output, "Summary model: gpt-4o-mini")
 	require.Contains(t, output, "Summary provider: openrouter")
