@@ -318,6 +318,7 @@ func defaultProviders() []ProviderDefinition {
 			APIKeyEnv:      []string{"ANTHROPIC_API_KEY"},
 			SupportsModels: true,
 			SupportsAPIKey: true,
+			SupportsOAuth:  true,
 			BaseURLs: map[string]string{
 				APIAnthropicMessages: constants.DefaultAnthropicBaseURL,
 			},

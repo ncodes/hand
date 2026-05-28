@@ -260,6 +260,39 @@ func TestClientFactory_NewClientBuildsAnthropicClient(t *testing.T) {
 	require.Equal(t, 3, capturedOptions)
 }
 
+func TestClientFactory_NewClientBuildsAnthropicOAuthClientWithoutAPIKey(t *testing.T) {
+	var capturedKey string
+	var capturedOptions int
+	factory := NewClientFactory(modelprovider.DefaultRegistry())
+	factory.AnthropicClient = func(apiKey string, opts ...anthropicoption.RequestOption) (models.Client, error) {
+		capturedKey = apiKey
+		capturedOptions = len(opts)
+		return &provider_anthropic.AnthropicClient{}, nil
+	}
+
+	client, err := factory.NewClient(ClientRequest{
+		Provider: "anthropic",
+		APIKey:   "oauth-token",
+		Headers: map[string]string{
+			"Authorization":  "Bearer oauth-token",
+			"anthropic-beta": "claude-code-20250219,oauth-2025-04-20",
+		},
+		MaxRetries: 3,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	require.Empty(t, capturedKey)
+	require.Equal(t, 4, capturedOptions)
+}
+
+func TestHasHeader(t *testing.T) {
+	require.True(t, hasHeader(map[string]string{" Authorization ": " Bearer token "}, "authorization"))
+	require.False(t, hasHeader(map[string]string{"Authorization": " "}, "authorization"))
+	require.False(t, hasHeader(map[string]string{"Authorization": "Bearer token"}, " "))
+	require.False(t, hasHeader(nil, "authorization"))
+}
+
 func TestClientFactory_NewClientReturnsAnthropicBuilderError(t *testing.T) {
 	factory := NewClientFactory(modelprovider.DefaultRegistry())
 	factory.AnthropicClient = func(string, ...anthropicoption.RequestOption) (models.Client, error) {

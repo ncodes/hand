@@ -59,6 +59,7 @@ func TestDefaultRegistry_RegistersBuiltInProviders(t *testing.T) {
 	require.Equal(t, constants.DefaultAnthropicBaseURL, registry.GetBaseURL("anthropic", ""))
 	require.Equal(t, constants.DefaultAnthropicBaseURL, registry.GetBaseURL("anthropic", APIAnthropicMessages))
 	require.Equal(t, []string{"ANTHROPIC_API_KEY"}, anthropic.APIKeyEnv)
+	require.True(t, anthropic.SupportsOAuth)
 
 	copilot, ok := registry.GetProvider(constants.ModelProviderGitHubCopilot)
 	require.True(t, ok)
@@ -185,6 +186,7 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	require.Equal(t, "Claude Sonnet 4.5 (latest)", sonnet.Name)
 	require.Equal(t, APIAnthropicMessages, sonnet.API)
 	require.Equal(t, []InputKind{InputText, InputImage}, sonnet.Input)
+	require.True(t, sonnet.SupportsOAuth)
 	require.Equal(t, 200000, sonnet.ContextWindow)
 	require.Equal(t, 64000, sonnet.MaxTokens)
 

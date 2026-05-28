@@ -250,12 +250,20 @@ func (f *ClientFactory) newAnthropicClient(req ResolvedClientRequest) (models.Cl
 		opts = append(opts, anthropicoption.WithHeader(key, req.Headers[key]))
 	}
 
-	client, err := builder(req.APIKey, opts...)
+	apiKey := req.APIKey
+	if hasHeader(req.Headers, "Authorization") {
+		apiKey = ""
+	}
+
+	client, err := builder(apiKey, opts...)
 	if err != nil {
 		return nil, err
 	}
 	if client == nil {
 		return nil, errors.New("model client is required")
+	}
+	if anthropicClient, ok := client.(*provider_anthropic.AnthropicClient); ok {
+		anthropicClient.SetSubscriptionAuth(hasHeader(req.Headers, "Authorization"))
 	}
 
 	return client, nil
@@ -279,6 +287,21 @@ func clientCacheKey(req ResolvedClientRequest) string {
 func isOpenAISubscriptionBaseURL(baseURL string) bool {
 	return strings.TrimRight(strings.TrimSpace(baseURL), "/") ==
 		strings.TrimRight(constants.DefaultOpenAISubscriptionBaseURL, "/")
+}
+
+func hasHeader(headers map[string]string, name string) bool {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" {
+		return false
+	}
+
+	for key, value := range headers {
+		if strings.ToLower(strings.TrimSpace(key)) == name && strings.TrimSpace(value) != "" {
+			return true
+		}
+	}
+
+	return false
 }
 
 func mergeHeaders(values ...map[string]string) map[string]string {

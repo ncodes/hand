@@ -15,7 +15,12 @@ import (
 
 func buildMessagesRequest(req normalizedGenerateRequest) (anthropic.MessageNewParams, error) {
 	messages := make([]anthropic.MessageParam, 0, len(req.Messages))
-	system := make([]anthropic.TextBlockParam, 0, 1)
+	system := make([]anthropic.TextBlockParam, 0, 2)
+	if req.SubscriptionAuth {
+		system = append(system, anthropic.TextBlockParam{
+			Text: "You are Claude Code, Anthropic's official CLI for Claude.",
+		})
+	}
 	if req.Instructions != "" {
 		system = append(system, anthropic.TextBlockParam{Text: req.Instructions})
 	}

@@ -16,6 +16,7 @@ import (
 type AnthropicClient struct {
 	createMessage       func(context.Context, anthropic.MessageNewParams) (*anthropic.Message, error)
 	createMessageStream func(context.Context, anthropic.MessageNewParams) *ssestream.Stream[anthropic.MessageStreamEventUnion]
+	subscriptionAuth    bool
 }
 
 // newAnthropicMessageCaller builds the SDK caller for non-streaming messages requests.
@@ -54,6 +55,15 @@ func NewAnthropicClient(apiKey string, opts ...option.RequestOption) (*Anthropic
 	}, nil
 }
 
+// SetSubscriptionAuth marks this client as using Anthropic subscription OAuth.
+func (c *AnthropicClient) SetSubscriptionAuth(enabled bool) {
+	if c == nil {
+		return
+	}
+
+	c.subscriptionAuth = enabled
+}
+
 // Complete sends a request to Anthropic Messages and returns the normalized response.
 func (c *AnthropicClient) Complete(ctx context.Context, req Request) (*Response, error) {
 	return c.complete(ctx, req, false, nil)
@@ -80,6 +90,7 @@ func (c *AnthropicClient) complete(
 	if err != nil {
 		return nil, err
 	}
+	normalizedReq.SubscriptionAuth = c.subscriptionAuth
 
 	logModelClientRequestStarted(normalizedReq, stream)
 	defer func() {

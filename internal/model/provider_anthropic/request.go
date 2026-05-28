@@ -18,6 +18,7 @@ type normalizedGenerateRequest struct {
 	MaxOutputTokens  int64
 	Temperature      float64
 	DebugRequests    bool
+	SubscriptionAuth bool
 }
 
 func normalizeGenerateRequest(req Request) (normalizedGenerateRequest, error) {

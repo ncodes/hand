@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,7 +17,12 @@ import (
 
 	models "github.com/wandxy/hand/internal/model"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
+	"github.com/wandxy/hand/pkg/logutils"
 )
+
+func init() {
+	logutils.SetOutput(io.Discard)
+}
 
 func TestNewAnthropicClient_IncludesAPIKeyOptionWhenProvided(t *testing.T) {
 	originalMessageFactory := newAnthropicMessageCaller
@@ -82,6 +88,44 @@ func TestNewAnthropicMessageCaller_UsesSDKClient(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "msg_123", resp.ID)
 	require.Equal(t, "hello back", resp.Content[0].Text)
+}
+
+func TestNewAnthropicClient_UsesBearerAuthWithoutAPIKey(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/messages", r.URL.Path)
+		require.Empty(t, r.Header.Get("x-api-key"))
+		require.Equal(t, "Bearer oauth-token", r.Header.Get("Authorization"))
+		require.Contains(t, r.Header.Get("anthropic-beta"), anthropicOAuthBeta)
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{
+			"id":"msg_123",
+			"type":"message",
+			"role":"assistant",
+			"model":"claude-sonnet-4-5",
+			"content":[{"type":"text","text":"hello back"}],
+			"stop_reason":"end_turn",
+			"stop_sequence":null,
+			"usage":{"input_tokens":3,"output_tokens":4}
+		}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := NewAnthropicClient(
+		"",
+		option.WithBaseURL(server.URL),
+		option.WithHeader("Authorization", "Bearer oauth-token"),
+		option.WithHeader("anthropic-beta", strings.Join([]string{anthropicClaudeCodeBeta, anthropicOAuthBeta}, ",")),
+	)
+	require.NoError(t, err)
+
+	resp, err := client.Complete(context.Background(), Request{
+		Model:    "claude-sonnet-4-5",
+		Messages: []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "hello back", resp.OutputText)
 }
 
 func TestAnthropicClient_CompleteBuildsMessagesRequest(t *testing.T) {
@@ -161,6 +205,27 @@ func TestAnthropicClient_CompleteBuildsMessagesRequest(t *testing.T) {
 		},
 		MaxOutputTokens: 123,
 		Temperature:     0.2,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "done", resp.OutputText)
+}
+
+func TestAnthropicClient_CompleteAddsSubscriptionIdentitySystemPrompt(t *testing.T) {
+	client := &AnthropicClient{
+		subscriptionAuth: true,
+		createMessage: func(_ context.Context, params anthropic.MessageNewParams) (*anthropic.Message, error) {
+			require.Len(t, params.System, 2)
+			require.Equal(t, "You are Claude Code, Anthropic's official CLI for Claude.", params.System[0].Text)
+			require.Equal(t, "base instructions", params.System[1].Text)
+			return testAnthropicTextMessage("msg_123", "claude-sonnet-4-5", "done"), nil
+		},
+	}
+
+	resp, err := client.Complete(context.Background(), Request{
+		Model:        "claude-sonnet-4-5",
+		Instructions: "base instructions",
+		Messages:     []handmsg.Message{{Role: handmsg.RoleUser, Content: "hello"}},
 	})
 
 	require.NoError(t, err)

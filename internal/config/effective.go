@@ -512,6 +512,30 @@ func (c *Config) resolveCredentialForProvider(
 		}, nil
 	}
 
+	if allowOAuth {
+		if value, envName := getProviderOAuthEnvCredential(provider); value != "" {
+			credential := StoredModelCredential{Type: appcredential.TypeOAuth, Token: value}
+			if err := checkOAuthModelSupported(oauthModelField, provider, oauthModelID); err != nil {
+				oauthModelErr = err
+			} else {
+				headers, err := getStoredModelCredentialHeaders(provider, credential)
+				if err != nil {
+					return resolvedModelCredential{}, err
+				}
+
+				return resolvedModelCredential{
+					Value:   value,
+					Headers: headers,
+					Source: ModelCredentialSource{
+						Kind: ModelCredentialSourceProviderEnv,
+						Name: envName,
+						Type: appcredential.TypeOAuth,
+					},
+				}, nil
+			}
+		}
+	}
+
 	providerConfig := c.Models.Providers[provider]
 	if value, envName := getCredentialFromEnv(providerConfig.APIKeyEnv); value != "" {
 		return resolvedModelCredential{
@@ -695,6 +719,15 @@ func loadStoredModelCredential(provider string) (StoredModelCredential, error) {
 	}
 
 	return credential, nil
+}
+
+func getProviderOAuthEnvCredential(provider string) (string, string) {
+	switch strings.TrimSpace(strings.ToLower(provider)) {
+	case constants.ModelProviderAnthropic:
+		return getCredentialFromEnv([]string{"ANTHROPIC_OAUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"})
+	default:
+		return "", ""
+	}
 }
 
 func getStoredModelCredentialValue(credential StoredModelCredential) string {

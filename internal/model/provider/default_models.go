@@ -451,6 +451,7 @@ func anthropicModel(
 		Provider:      constants.ModelProviderAnthropic,
 		API:           APIAnthropicMessages,
 		Input:         input,
+		SupportsOAuth: true,
 		ContextWindow: contextWindow,
 		MaxTokens:     maxTokens,
 	}

@@ -272,6 +272,154 @@ func TestConfig_ResolveModelAuthUsesOpenAISubscriptionHeaders(t *testing.T) {
 	}, auth.CredentialSource)
 }
 
+func TestConfig_ResolveModelAuthUsesAnthropicSubscriptionHeaders(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, "anthropic", provider)
+		return StoredModelCredential{Type: appcredential.TypeOAuth, Token: "stored-token"}, nil
+	})
+	stubSubscriptionProvider(t, func(provider string) (appcredential.SubscriptionProvider, bool) {
+		require.Equal(t, "anthropic", provider)
+		return modelAuthSubscriptionProvider{
+			headers: map[string]string{
+				"Authorization":  "Bearer stored-token",
+				"anthropic-beta": "claude-code-20250219,oauth-2025-04-20",
+			},
+		}, true
+	})
+
+	cfg := &Config{
+		Name:   "test-agent",
+		Models: ModelsConfig{Main: MainModelConfig{Name: "claude-sonnet-4-5", Provider: "anthropic"}},
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "stored-token", auth.APIKey)
+	require.Equal(t, constants.DefaultAnthropicBaseURL, auth.BaseURL)
+	require.Equal(t, map[string]string{
+		"Authorization":  "Bearer stored-token",
+		"anthropic-beta": "claude-code-20250219,oauth-2025-04-20",
+	}, auth.Headers)
+	require.Equal(t, ModelCredentialSource{
+		Kind: ModelCredentialSourceTokenStore,
+		Name: "anthropic",
+		Type: appcredential.TypeOAuth,
+	}, auth.CredentialSource)
+	require.True(t, auth.SupportsMaxOutputTokens())
+}
+
+func TestConfig_ResolveModelAuthUsesAnthropicOAuthEnvBeforeAPIKeyEnv(t *testing.T) {
+	t.Setenv("ANTHROPIC_OAUTH_TOKEN", "oauth-env-token")
+	t.Setenv("ANTHROPIC_API_KEY", "api-env-key")
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, "anthropic", provider)
+		return StoredModelCredential{}, nil
+	})
+	stubSubscriptionProvider(t, func(provider string) (appcredential.SubscriptionProvider, bool) {
+		require.Equal(t, "anthropic", provider)
+		return modelAuthSubscriptionProvider{
+			headers: map[string]string{
+				"Authorization":  "Bearer oauth-env-token",
+				"anthropic-beta": "claude-code-20250219,oauth-2025-04-20",
+			},
+		}, true
+	})
+
+	cfg := &Config{
+		Name:   "test-agent",
+		Models: ModelsConfig{Main: MainModelConfig{Name: "claude-sonnet-4-5", Provider: "anthropic"}},
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "oauth-env-token", auth.APIKey)
+	require.Equal(t, "Bearer oauth-env-token", auth.Headers["Authorization"])
+	require.Equal(t, ModelCredentialSource{
+		Kind: ModelCredentialSourceProviderEnv,
+		Name: "ANTHROPIC_OAUTH_TOKEN",
+		Type: appcredential.TypeOAuth,
+	}, auth.CredentialSource)
+}
+
+func TestConfig_ResolveModelAuthFallsBackFromUnsupportedAnthropicOAuthEnv(t *testing.T) {
+	t.Setenv("ANTHROPIC_OAUTH_TOKEN", "oauth-env-token")
+	t.Setenv("ANTHROPIC_API_KEY", "api-env-key")
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, "anthropic", provider)
+		return StoredModelCredential{}, nil
+	})
+
+	registry := modelprovider.NewRegistry(
+		[]modelprovider.APIDefinition{{ID: modelprovider.APIAnthropicMessages}},
+		[]modelprovider.ProviderDefinition{{
+			ID:            constants.ModelProviderAnthropic,
+			DefaultAPI:    modelprovider.APIAnthropicMessages,
+			APIKeyEnv:     []string{"ANTHROPIC_API_KEY"},
+			SupportsOAuth: true,
+			BaseURLs: map[string]string{
+				modelprovider.APIAnthropicMessages: constants.DefaultAnthropicBaseURL,
+			},
+		}},
+		[]modelprovider.ModelDefinition{{
+			ID:       "claude-api-only",
+			Provider: constants.ModelProviderAnthropic,
+			Owner:    constants.ModelProviderAnthropic,
+			API:      modelprovider.APIAnthropicMessages,
+		}},
+	)
+	stubModelRegistry(t, registry)
+
+	cfg := &Config{
+		Name:   "test-agent",
+		Models: ModelsConfig{Main: MainModelConfig{Name: "claude-api-only", Provider: "anthropic"}},
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "api-env-key", auth.APIKey)
+	require.Nil(t, auth.Headers)
+	require.Equal(t, ModelCredentialSource{
+		Kind: ModelCredentialSourceProviderEnv,
+		Name: "ANTHROPIC_API_KEY",
+	}, auth.CredentialSource)
+}
+
+func TestConfig_ResolveModelAuthReturnsUnsupportedAnthropicOAuthEnvError(t *testing.T) {
+	t.Setenv("ANTHROPIC_OAUTH_TOKEN", "oauth-env-token")
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, "anthropic", provider)
+		return StoredModelCredential{}, nil
+	})
+
+	registry := modelprovider.NewRegistry(
+		[]modelprovider.APIDefinition{{ID: modelprovider.APIAnthropicMessages}},
+		[]modelprovider.ProviderDefinition{{
+			ID:            constants.ModelProviderAnthropic,
+			DefaultAPI:    modelprovider.APIAnthropicMessages,
+			SupportsOAuth: true,
+			BaseURLs: map[string]string{
+				modelprovider.APIAnthropicMessages: constants.DefaultAnthropicBaseURL,
+			},
+		}},
+		[]modelprovider.ModelDefinition{{
+			ID:       "claude-api-only",
+			Provider: constants.ModelProviderAnthropic,
+			Owner:    constants.ModelProviderAnthropic,
+			API:      modelprovider.APIAnthropicMessages,
+		}},
+	)
+	stubModelRegistry(t, registry)
+
+	cfg := &Config{
+		Name:   "test-agent",
+		Models: ModelsConfig{Main: MainModelConfig{Name: "claude-api-only", Provider: "anthropic"}},
+	}
+
+	_, err := cfg.ResolveModelAuth()
+	require.EqualError(t, err, `model "claude-api-only" is not available through OAuth for provider "anthropic"`)
+}
+
 func TestConfig_ResolveModelAuthUsesStoredAPIKeyCredential(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "")
 	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
