@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/wandxy/hand/internal/config"
@@ -252,7 +253,11 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 			})
 
 			toolCtx := tools.WithTraceRecorder(t.getToolContext(flushCtx), traceSession)
-			if _, err := normalizeTurnMessage(t.invokeFlushTool(toolCtx, toolCall)); err != nil {
+			toolMessage, err := normalizeTurnMessage(t.invokeFlushTool(toolCtx, toolCall))
+			if err != nil {
+				return err
+			}
+			if err := getMemoryFlushToolError(toolMessage); err != nil {
 				return err
 			}
 
@@ -264,6 +269,73 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 	recordMemoryFlushCompleted(traceSession, trigger, t.sessionID, "bounded", callCount)
 
 	return nil
+}
+
+func getMemoryFlushToolError(message handmsg.Message) error {
+	if message.Role != handmsg.RoleTool {
+		return nil
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(message.Content)), &payload); err != nil {
+		return nil
+	}
+	errorValue, ok := payload["error"]
+	if !ok {
+		return nil
+	}
+
+	toolName := strings.TrimSpace(message.Name)
+	if toolName == "" {
+		toolName = getStringValue(payload["name"])
+	}
+	if toolName == "" {
+		toolName = "unknown"
+	}
+
+	text := getToolErrorText(errorValue)
+	if text == "" {
+		text = "tool failed"
+	}
+
+	return fmt.Errorf("memory flush tool %s failed: %s", toolName, text)
+}
+
+func getToolErrorText(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return getToolErrorStringText(typed)
+	case map[string]any:
+		if message := getStringValue(typed["message"]); message != "" {
+			return message
+		}
+		if code := getStringValue(typed["code"]); code != "" {
+			return code
+		}
+	}
+
+	return ""
+}
+
+func getToolErrorStringText(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(value), &payload); err == nil {
+		if text := getToolErrorText(payload); text != "" {
+			return text
+		}
+	}
+
+	return value
+}
+
+func getStringValue(value any) string {
+	text, _ := value.(string)
+	return strings.TrimSpace(text)
 }
 
 // normalizeMemoryFlushToolCall injects session_id into memory_extract calls.
