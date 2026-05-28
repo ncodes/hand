@@ -20,6 +20,7 @@ import (
 	"github.com/wandxy/hand/internal/brand"
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/diagnostics"
 	models "github.com/wandxy/hand/internal/model"
 	modelclient "github.com/wandxy/hand/internal/model/client"
@@ -35,8 +36,10 @@ type agentRunner interface {
 }
 
 const (
-	colorGray  = "\x1b[90m"
-	colorReset = "\x1b[0m"
+	colorGray              = "\x1b[90m"
+	colorReset             = "\x1b[0m"
+	startupLogoColumnWidth = 64
+	startupColumnGap       = 3
 )
 
 var handBadge = joinStartupBanner(brand.Mark, brand.Wordmark)
@@ -119,6 +122,18 @@ func renderStartupPanel(cfg *config.Config) string {
 		return handBadge
 	}
 
+	detailRows := getStartupDetailRows(cfg)
+	panel := renderStartupBannerPanel(handBadge, detailRows, cfg.Log.NoColor)
+
+	return "\n" + panel + "\n\n"
+}
+
+type startupDetailRow struct {
+	label string
+	value string
+}
+
+func getStartupDetailRows(cfg *config.Config) []startupDetailRow {
 	logStyle := "color"
 	debugRequests := "disabled"
 	if cfg.Log.NoColor {
@@ -134,37 +149,138 @@ func renderStartupPanel(cfg *config.Config) string {
 		traceStatus = fmt.Sprintf("enabled (%s)", traceDir)
 	}
 
-	lines := []string{
-		"",
-		styleStartup(handBadge, cfg.Log.NoColor),
-		"",
-		fmt.Sprintf("%s %s", styleLabel("Instance", cfg.Log.NoColor), cfg.Name),
-		fmt.Sprintf("%s %s", styleLabel("Model", cfg.Log.NoColor), cfg.Models.Main.Name),
-		fmt.Sprintf("%s %s", styleLabel("Provider", cfg.Log.NoColor), cfg.Models.Main.Provider),
-		fmt.Sprintf("%s %s", styleLabel("Summary model", cfg.Log.NoColor), cfg.SummaryModelEffective()),
-		fmt.Sprintf("%s %s", styleLabel("Summary provider", cfg.Log.NoColor), cfg.SummaryProviderEffective()),
-		fmt.Sprintf("%s %s", styleLabel("Storage", cfg.Log.NoColor), getEffectiveStorageBackend(cfg)),
+	rows := []startupDetailRow{
+		{label: "Version", value: formatStartupVersion()},
+		{label: "Instance", value: cfg.Name},
+		{label: "Model", value: cfg.Models.Main.Name},
+		{label: "Provider", value: cfg.Models.Main.Provider},
+		{label: "Summary model", value: cfg.SummaryModelEffective()},
+		{label: "Summary provider", value: cfg.SummaryProviderEffective()},
+		{label: "Storage", value: getEffectiveStorageBackend(cfg)},
 	}
 	if cfg.SummaryModelAPIEffective() != cfg.Models.Main.API {
-		lines = append(lines, fmt.Sprintf("%s %s", styleLabel("Summary API", cfg.Log.NoColor), cfg.SummaryModelAPIEffective()))
+		rows = append(rows, startupDetailRow{label: "Summary API", value: cfg.SummaryModelAPIEffective()})
 	}
-	lines = append(lines,
-		fmt.Sprintf("%s %t", styleLabel("Streaming", cfg.Log.NoColor), cfg.StreamEnabled()),
-		fmt.Sprintf("%s %s", styleLabel("RPC", cfg.Log.NoColor), fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)),
-		fmt.Sprintf("%s %s", styleLabel("Logs", cfg.Log.NoColor), fmt.Sprintf("%s (%s)", cfg.Log.Level, logStyle)),
-		fmt.Sprintf("%s %s", styleLabel("Debug requests", cfg.Log.NoColor), debugRequests),
-		fmt.Sprintf("%s %s", styleLabel("Traces", cfg.Log.NoColor), traceStatus),
-		fmt.Sprintf("%s %s", styleLabel("Safety", cfg.Log.NoColor), handcli.SafetySummary(cfg)),
+	rows = append(rows,
+		startupDetailRow{label: "Streaming", value: fmt.Sprintf("%t", cfg.StreamEnabled())},
+		startupDetailRow{label: "RPC", value: fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)},
+		startupDetailRow{label: "Logs", value: fmt.Sprintf("%s (%s)", cfg.Log.Level, logStyle)},
+		startupDetailRow{label: "Debug requests", value: debugRequests},
+		startupDetailRow{label: "Traces", value: traceStatus},
+		startupDetailRow{label: "Safety", value: handcli.SafetySummary(cfg)},
 	)
 	if cfg.Search.Vector.Enabled {
-		lines = append(lines,
-			fmt.Sprintf("%s %s", styleLabel("Embedding model", cfg.Log.NoColor), cfg.Models.Embedding.Name),
-			fmt.Sprintf("%s %s", styleLabel("Embedding provider", cfg.Log.NoColor), cfg.ModelEmbeddingProviderEffective()),
-			fmt.Sprintf("%s %s", styleLabel("Reranker", cfg.Log.NoColor), cfg.RerankerEffective()),
+		rows = append(rows,
+			startupDetailRow{label: "Embedding model", value: cfg.Models.Embedding.Name},
+			startupDetailRow{label: "Embedding provider", value: cfg.ModelEmbeddingProviderEffective()},
+			startupDetailRow{label: "Reranker", value: cfg.RerankerEffective()},
 		)
 	}
 
-	return strings.Join(lines, "\n") + "\n"
+	return rows
+}
+
+func formatStartupVersion() string {
+	version := strings.TrimSpace(constants.AppVersion)
+	if version == "" {
+		version = "dev"
+	}
+
+	commit := strings.TrimSpace(constants.CommitHash)
+	if commit == "" {
+		commit = "unknown"
+	}
+
+	return fmt.Sprintf("%s (commit %s)", version, commit)
+}
+
+func renderStartupBannerPanel(logo string, rows []startupDetailRow, noColor bool) string {
+	logoLines := centerStartupBlockLines(splitStartupLines(logo), startupLogoColumnWidth)
+	detailLines := renderStartupDetailLines(rows, noColor)
+	height := max(len(logoLines), len(detailLines))
+	logoLines = centerStartupBlockVertically(logoLines, height, startupLogoColumnWidth)
+	detailLines = padStartupBlockVertically(detailLines, height)
+
+	lines := make([]string, 0, height)
+	gap := strings.Repeat(" ", startupColumnGap)
+	divider := styleStartup("│", noColor)
+	for index := range height {
+		lines = append(lines, styleStartup(logoLines[index], noColor)+gap+divider+gap+detailLines[index])
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func renderStartupDetailLines(rows []startupDetailRow, noColor bool) []string {
+	lines := make([]string, 0, len(rows))
+	for _, row := range rows {
+		lines = append(lines, fmt.Sprintf("%s %s", styleLabel(row.label, noColor), row.value))
+	}
+
+	return lines
+}
+
+func splitStartupLines(value string) []string {
+	if value == "" {
+		return nil
+	}
+
+	return strings.Split(value, "\n")
+}
+
+func centerStartupBlockLines(lines []string, width int) []string {
+	centered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		centered = append(centered, centerStartupLine(line, width))
+	}
+
+	return centered
+}
+
+func centerStartupLine(line string, width int) string {
+	lineWidth := len([]rune(line))
+	if lineWidth >= width {
+		return line
+	}
+
+	leftPadding := (width - lineWidth) / 2
+	rightPadding := width - lineWidth - leftPadding
+	return strings.Repeat(" ", leftPadding) + line + strings.Repeat(" ", rightPadding)
+}
+
+func centerStartupBlockVertically(lines []string, height int, width int) []string {
+	if len(lines) >= height {
+		return lines
+	}
+
+	topPadding := (height - len(lines)) / 2
+	bottomPadding := height - len(lines) - topPadding
+	padded := make([]string, 0, height)
+	padded = appendStartupBlankLines(padded, topPadding, width)
+	padded = append(padded, lines...)
+	padded = appendStartupBlankLines(padded, bottomPadding, width)
+
+	return padded
+}
+
+func padStartupBlockVertically(lines []string, height int) []string {
+	if len(lines) >= height {
+		return lines
+	}
+
+	padded := make([]string, 0, height)
+	padded = append(padded, lines...)
+	padded = appendStartupBlankLines(padded, height-len(lines), 0)
+
+	return padded
+}
+
+func appendStartupBlankLines(lines []string, count int, width int) []string {
+	for range count {
+		lines = append(lines, strings.Repeat(" ", width))
+	}
+
+	return lines
 }
 
 func joinStartupBanner(mark string, wordmark string) string {
@@ -185,14 +301,6 @@ func getStartupBannerLine(lines []string, index int) string {
 	}
 
 	return lines[index]
-}
-
-func getConfigBoolDefault(value *bool, fallback bool) bool {
-	if value == nil {
-		return fallback
-	}
-
-	return *value
 }
 
 func getEffectiveStorageBackend(cfg *config.Config) string {
@@ -322,43 +430,12 @@ func NewCommand() *cli.Command {
 				return err
 			}
 
-			log.Info().
-				Str("name", cfg.Name).
-				Str("model", cfg.Models.Main.Name).
-				Str("provider", cfg.Models.Main.Provider).
-				Str("summaryModel", cfg.SummaryModelEffective()).
-				Str("summaryProvider", cfg.SummaryProviderEffective()).
-				Str("storage", getEffectiveStorageBackend(cfg)).
-				Bool("inputSafety", cfg.InputSafetyEnabled()).
-				Bool("outputSafety", cfg.OutputSafetyEnabled()).
-				Bool("piiSafety", cfg.OutputPIIRedactionEnabled()).
-				Msg("Configuration loaded")
+			log.Info().Msg("Configuration loaded")
 			if cfg.Search.Vector.Enabled {
-				vectorLog := log.Info().
-					Str("target", "session_and_memory_search").
-					Str("embeddingModel", cfg.Models.Embedding.Name).
-					Str("embeddingProvider", cfg.ModelEmbeddingProviderEffective()).
-					Bool("rerankerEnabled", getConfigBoolDefault(cfg.Reranker.Enabled, true)).
-					Bool("searchRerankEnabled", getConfigBoolDefault(cfg.Search.EnableRerank, true)).
-					Str("reranker", cfg.RerankerEffective())
-				if cfg.RerankerEffective() == "llm" {
-					vectorLog = vectorLog.
-						Str("rerankModel", cfg.RerankerModelEffective()).
-						Str("rerankAPI", cfg.SummaryModelAPIEffective())
-				}
-				vectorLog.Msg("Vector retrieval configured")
+				log.Info().Msg("Vector retrieval configured")
 			}
 
-			startupLog := log.Info().
-				Str("plan", "create_model_clients_start_agent_start_rpc_server").
-				Str("rpcEndpoint", fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)).
-				Bool("streaming", cfg.StreamEnabled()).
-				Bool("traceEnabled", cfg.Trace.Enabled)
-			if cfg.Trace.Enabled {
-				traceDir := strings.TrimSpace(cfg.Trace.Disk.Dir)
-				startupLog = startupLog.Str("traceDir", traceDir)
-			}
-			startupLog.Msg("Starting Hand services")
+			log.Info().Msg("Starting Hand services")
 
 			modelClient, err := modelClientFactory.NewClient(
 				modelClientRequest(

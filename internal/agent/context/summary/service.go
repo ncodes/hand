@@ -81,7 +81,6 @@ func NewService(cfg *config.Config, modelClient, summaryClient models.Client, su
 	}
 
 	logEvent := summaryLog.Debug().
-		Str("plan", "load_existing_summary_refresh_when_context_budget_requires_compaction").
 		Str("model", service.model).
 		Str("summary_model", service.summaryModel).
 		Bool("compaction_enabled", service.compactionOn)

@@ -286,7 +286,6 @@ func (t *Turn) load(ctx context.Context, opts agentcore.RespondOptions) error {
 
 	agentLog.Debug().
 		Str("session_id", session.ID).
-		Str("plan", "load_summary_load_history_hydrate_plan_prepare_instructions").
 		Int("history_offset", tailOffset).
 		Int("history_messages", len(messages)).
 		Msg("turn context loaded for response generation")
@@ -576,7 +575,6 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 
 			agentLog.Info().
 				Str("event", "model request dispatch started").
-				Str("plan", "assemble_context_send_model_stream_or_complete_handle_response").
 				Str("provider", t.cfg.Models.Main.Provider).
 				Str("api", t.cfg.MainModelAPIEffective()).
 				Str("model", t.cfg.Models.Main.Name).
@@ -1191,7 +1189,6 @@ func (t *Turn) summaryFallback(ctx context.Context, budget envbudget.IterationBu
 
 	agentLog.Info().
 		Str("event", "summary fallback model request started").
-		Str("plan", "send_summary_fallback_prompt_without_tools").
 		Str("provider", t.cfg.Models.Main.Provider).
 		Str("api", t.cfg.MainModelAPIEffective()).
 		Str("model", t.cfg.Models.Main.Name).

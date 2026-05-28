@@ -1549,7 +1549,6 @@ func (s *Service) generateSummaryResponse(ctx context.Context, request models.Re
 
 	summaryLog.Info().
 		Str("event", "compaction summary model request started").
-		Str("plan", "request_structured_summary_then_retry_unstructured_if_needed").
 		Str("provider", s.summaryProvider).
 		Str("api", request.API).
 		Str("model", request.Model).
