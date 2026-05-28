@@ -232,6 +232,11 @@ func TestOpenAISubscriptionProvider_LoginCompletesBrowserOAuthFlow(t *testing.T)
 	require.Equal(t, openAISubscriptionClientID, parsed.Query().Get("client_id"))
 	require.Equal(t, "S256", parsed.Query().Get("code_challenge_method"))
 	require.NotEmpty(t, parsed.Query().Get("code_challenge"))
+	require.Equal(t, openAISubscriptionScope, parsed.Query().Get("scope"))
+	require.Equal(t, "true", parsed.Query().Get("id_token_add_organizations"))
+	require.Equal(t, "true", parsed.Query().Get("codex_cli_simplified_flow"))
+	require.Equal(t, openAISubscriptionOriginator, parsed.Query().Get("originator"))
+	require.Empty(t, parsed.Query().Get("prompt"))
 
 	callbackURL := parsed.Query().Get("redirect_uri")
 	callback, err := url.Parse(callbackURL)
@@ -338,20 +343,28 @@ func TestOpenAISubscriptionProvider_WithDefaultsAndCallbackRedirectURI(t *testin
 	provider := OpenAISubscriptionProvider{}.withDefaults()
 	require.Equal(t, openAISubscriptionAuthorize, provider.AuthorizeURL)
 	require.Equal(t, openAISubscriptionToken, provider.TokenURL)
-	require.Equal(t, openAISubscriptionRedirectURI, provider.RedirectURI)
+	require.Empty(t, provider.RedirectURI)
 	require.Equal(t, "127.0.0.1:1455", provider.ListenAddr)
 	require.NotNil(t, provider.HTTPClient)
 	require.NotNil(t, provider.OpenBrowser)
 	require.NotNil(t, provider.Now)
 
-	listener, redirectURI, err := OpenAISubscriptionProvider{
+	listener, redirectURI, err := OpenAISubscriptionProvider{}.withDefaults().listenForCallback()
+	require.NoError(t, err)
+	require.NoError(t, listener.Close())
+	require.Contains(t, redirectURI, openAISubscriptionCallbackPath)
+	require.True(t,
+		strings.HasPrefix(redirectURI, "http://localhost:1455/") ||
+			strings.HasPrefix(redirectURI, "http://localhost:1457/"),
+	)
+
+	listener, redirectURI, err = OpenAISubscriptionProvider{
 		RedirectURI: "http://custom.test/callback",
 		ListenAddr:  "127.0.0.1:0",
 	}.withDefaults().listenForCallback()
 	require.NoError(t, err)
 	require.NoError(t, listener.Close())
-	require.Contains(t, redirectURI, "/auth/callback")
-	require.NotEqual(t, "http://custom.test/callback", redirectURI)
+	require.Equal(t, "http://custom.test/callback", redirectURI)
 }
 
 func TestOpenAISubscriptionProvider_StartCallbackServerReportsServeError(t *testing.T) {

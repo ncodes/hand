@@ -22,12 +22,14 @@ import (
 )
 
 const (
-	openAISubscriptionClientID    = "app_EMoamEEZ73f0CkXaXp7hrann"
-	openAISubscriptionAuthorize   = "https://auth.openai.com/oauth/authorize"
-	openAISubscriptionToken       = "https://auth.openai.com/oauth/token"
-	openAISubscriptionRedirectURI = "http://localhost:1455/auth/callback"
-	openAISubscriptionScope       = "openid profile email offline_access"
-	openAISubscriptionOriginator  = "hand"
+	openAISubscriptionClientID     = "app_EMoamEEZ73f0CkXaXp7hrann"
+	openAISubscriptionAuthorize    = "https://auth.openai.com/oauth/authorize"
+	openAISubscriptionToken        = "https://auth.openai.com/oauth/token"
+	openAISubscriptionCallbackPort = 1455
+	openAISubscriptionFallbackPort = 1457
+	openAISubscriptionCallbackPath = "/auth/callback"
+	openAISubscriptionScope        = "openid profile email offline_access api.connectors.read api.connectors.invoke"
+	openAISubscriptionOriginator   = "hand"
 )
 
 var (
@@ -156,11 +158,8 @@ func (p OpenAISubscriptionProvider) withDefaults() OpenAISubscriptionProvider {
 	if strings.TrimSpace(p.TokenURL) == "" {
 		p.TokenURL = openAISubscriptionToken
 	}
-	if strings.TrimSpace(p.RedirectURI) == "" {
-		p.RedirectURI = openAISubscriptionRedirectURI
-	}
 	if strings.TrimSpace(p.ListenAddr) == "" {
-		p.ListenAddr = "127.0.0.1:1455"
+		p.ListenAddr = fmt.Sprintf("127.0.0.1:%d", openAISubscriptionCallbackPort)
 	}
 	if p.HTTPClient == nil {
 		p.HTTPClient = http.DefaultClient
@@ -178,18 +177,28 @@ func (p OpenAISubscriptionProvider) withDefaults() OpenAISubscriptionProvider {
 func (p OpenAISubscriptionProvider) listenForCallback() (net.Listener, string, error) {
 	listener, err := net.Listen("tcp", p.ListenAddr)
 	if err != nil {
-		return nil, "", err
-	}
+		if p.ListenAddr != fmt.Sprintf("127.0.0.1:%d", openAISubscriptionCallbackPort) {
+			return nil, "", err
+		}
 
-	redirectURI := p.RedirectURI
-	if strings.HasSuffix(p.ListenAddr, ":0") {
-		host := "localhost"
-		if tcpAddr, ok := listener.Addr().(*net.TCPAddr); ok {
-			redirectURI = fmt.Sprintf("http://%s:%d/auth/callback", host, tcpAddr.Port)
+		p.ListenAddr = fmt.Sprintf("127.0.0.1:%d", openAISubscriptionFallbackPort)
+		listener, err = net.Listen("tcp", p.ListenAddr)
+		if err != nil {
+			return nil, "", err
 		}
 	}
 
-	return listener, redirectURI, nil
+	if redirectURI := strings.TrimSpace(p.RedirectURI); redirectURI != "" {
+		return listener, redirectURI, nil
+	}
+
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		_ = listener.Close()
+		return nil, "", errors.New("OpenAI OAuth listener must be TCP")
+	}
+
+	return listener, fmt.Sprintf("http://localhost:%d%s", tcpAddr.Port, openAISubscriptionCallbackPath), nil
 }
 
 func (p OpenAISubscriptionProvider) startCallbackServer(
@@ -199,7 +208,7 @@ func (p OpenAISubscriptionProvider) startCallbackServer(
 	errCh chan<- error,
 ) *http.Server {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/auth/callback", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(openAISubscriptionCallbackPath, func(w http.ResponseWriter, r *http.Request) {
 		if got := strings.TrimSpace(r.URL.Query().Get("state")); got != state {
 			http.Error(w, "invalid OAuth state", http.StatusBadRequest)
 			errCh <- errors.New("OpenAI OAuth state mismatch")
@@ -242,7 +251,6 @@ func (p OpenAISubscriptionProvider) getAuthorizeURL(
 		"id_token_add_organizations": {"true"},
 		"codex_cli_simplified_flow":  {"true"},
 		"originator":                 {openAISubscriptionOriginator},
-		"prompt":                     {"login"},
 	}
 
 	return strings.TrimRight(p.AuthorizeURL, "?") + "?" + values.Encode()
