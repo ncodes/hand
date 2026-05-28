@@ -293,7 +293,7 @@ func configuredReranker(
 			Fallback:                 search.DeterministicReranker{},
 			Client:                   client,
 			Model:                    reranker.Model,
-			API:                      cfg.SummaryModelAPIEffective(),
+			API:                      cfg.RerankerModelAPIEffectiveForModel(reranker.Model),
 			MaxCandidates:            reranker.MaxCandidates,
 			MaxCandidatesSet:         reranker.MaxCandidatesSet,
 			MaxCandidateTextChars:    reranker.MaxCandidateTextChars,

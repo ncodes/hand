@@ -63,6 +63,7 @@ type Agent struct {
 	core               *agentcore.Agent
 	modelClient        models.Client
 	summaryClient      models.Client
+	rerankerClient     models.Client
 	env                environment.Environment
 	stateMgr           *statemanager.Manager
 	recallSummaryCache *pkgcache.Cache[string, storage.SessionSummary]
@@ -71,20 +72,29 @@ type Agent struct {
 }
 
 // NewAgent returns an Agent with its runtime dependencies wired in.
-// When optionalSummary is empty or its first element is nil, summary/compaction calls use modelClient.
-func NewAgent(ctx context.Context, cfg *config.Config, modelClient models.Client, optionalSummary ...models.Client) *Agent {
+// When optional clients are missing, summary and reranker calls reuse modelClient.
+func NewAgent(ctx context.Context, cfg *config.Config, modelClient models.Client, optionalClients ...models.Client) *Agent {
 	var summaryClient models.Client
-	if len(optionalSummary) > 0 {
-		summaryClient = optionalSummary[0]
+	if len(optionalClients) > 0 {
+		summaryClient = optionalClients[0]
 	}
 	if summaryClient == nil {
 		summaryClient = modelClient
 	}
+	var rerankerClient models.Client
+	if len(optionalClients) > 1 {
+		rerankerClient = optionalClients[1]
+	}
+	if rerankerClient == nil {
+		rerankerClient = summaryClient
+	}
+
 	return &Agent{
 		ctx:                ctx,
 		cfg:                cfg,
 		modelClient:        modelClient,
 		summaryClient:      summaryClient,
+		rerankerClient:     rerankerClient,
 		recallSummaryCache: newRecallSummaryCache(),
 	}
 }
@@ -673,7 +683,7 @@ func (a *Agent) ensureStateManager() error {
 		return nil
 	}
 
-	store, err := OpenStateStore(a.cfg, a.summaryClient)
+	store, err := OpenStateStore(a.cfg, a.rerankerClient)
 	if err != nil {
 		return err
 	}

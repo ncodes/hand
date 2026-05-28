@@ -110,6 +110,7 @@ func modelGenerationAPIs() map[string]struct{} {
 
 func modelEmbeddingAPIs() map[string]struct{} {
 	return map[string]struct{}{
-		modelprovider.APIOpenAIEmbeddings: {},
+		modelprovider.APIOpenAIEmbeddings:     {},
+		modelprovider.APIOpenRouterEmbeddings: {},
 	}
 }

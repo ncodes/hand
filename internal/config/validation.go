@@ -276,6 +276,16 @@ func (c *Config) validateRerankerSettings() error {
 	if c.Reranker.MaxOutputTokens < 0 {
 		return errors.New("reranker max output tokens must be non-negative")
 	}
+	if c.RerankerEffective() == constants.RerankerLLM {
+		if err := c.validateRerankerModelRole(
+			"reranker model",
+			c.RerankerModelEffective(),
+			c.RerankerProviderEffective(),
+			c.RerankerModelAPIEffective(),
+		); err != nil {
+			return err
+		}
+	}
 	for useCase, override := range c.Reranker.Overrides {
 		if err := c.validateRerankerOverride(useCase, override); err != nil {
 			return err
@@ -295,6 +305,21 @@ func (c *Config) validateRerankerOverride(useCase string, override RerankerOverr
 			return fmt.Errorf("reranker override %q: %w", useCase, err)
 		}
 	}
+	reranker := c.RerankerOverrideEffective(override)
+	if reranker.Type == constants.RerankerLLM {
+		api := c.RerankerModelAPIEffectiveForModel(reranker.Model)
+		if err := c.validateRerankerModelRole(
+			fmt.Sprintf("reranker override %q model", useCase),
+			reranker.Model,
+			c.RerankerProviderEffective(),
+			api,
+		); err != nil {
+			return err
+		}
+		if api != c.RerankerModelAPIEffective() {
+			return fmt.Errorf("reranker override %q model API must match reranker model API", useCase)
+		}
+	}
 	if override.MaxCandidates != nil && *override.MaxCandidates < 0 {
 		return fmt.Errorf("reranker override %q max candidates must be non-negative", useCase)
 	}
@@ -303,6 +328,20 @@ func (c *Config) validateRerankerOverride(useCase string, override RerankerOverr
 	}
 	if override.MaxOutputTokens != nil && *override.MaxOutputTokens < 0 {
 		return fmt.Errorf("reranker override %q max output tokens must be non-negative", useCase)
+	}
+
+	return nil
+}
+
+func (c *Config) validateRerankerModelRole(field string, modelID string, provider string, api string) error {
+	if err := validateModelRoleAPI(field+" API", api, modelGenerationAPIs()); err != nil {
+		return err
+	}
+	if err := validateProviderAPI(field+" API", provider, api); err != nil {
+		return err
+	}
+	if err := validateRegistryModel(field, provider, api, modelID, modelGenerationAPIs()); err != nil {
+		return err
 	}
 
 	return nil

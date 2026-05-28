@@ -244,6 +244,38 @@ func (c *Config) RerankerModelEffective() string {
 	return c.SummaryModelEffective()
 }
 
+func (c *Config) RerankerProviderEffective() string {
+	if c == nil {
+		return ""
+	}
+
+	c.normalizeFields()
+	return c.SummaryProviderEffective()
+}
+
+func (c *Config) RerankerModelAPIEffective() string {
+	if c == nil {
+		return ""
+	}
+
+	c.normalizeFields()
+	return c.RerankerModelAPIEffectiveForModel(c.RerankerModelEffective())
+}
+
+func (c *Config) RerankerModelAPIEffectiveForModel(modelID string) string {
+	if c == nil {
+		return ""
+	}
+
+	c.normalizeFields()
+	provider := c.RerankerProviderEffective()
+	if model, ok := modelRegistry.GetModel(provider, modelID); ok {
+		return getModelAPIID(model.API)
+	}
+
+	return c.SummaryModelAPIEffective()
+}
+
 func (c *Config) RerankerOverrideEffective(override RerankerOverrideConfig) RerankerEffectiveConfig {
 	if c == nil {
 		return RerankerEffectiveConfig{}
@@ -321,6 +353,26 @@ func (c *Config) summaryAPIKeyEffective() string {
 	return ""
 }
 
+func (c *Config) rerankerModelBaseURLEffective() string {
+	provider := c.RerankerProviderEffective()
+	api := c.RerankerModelAPIEffective()
+
+	if provider == c.SummaryProviderEffective() && api == c.SummaryModelAPIEffective() {
+		return c.summaryModelBaseURLEffective()
+	}
+
+	return getDefaultBaseURLForProvider(provider, api)
+}
+
+func (c *Config) rerankerAPIKeyEffective() string {
+	if c.RerankerProviderEffective() == c.SummaryProviderEffective() &&
+		c.RerankerModelAPIEffective() == c.SummaryModelAPIEffective() {
+		return c.summaryAPIKeyEffective()
+	}
+
+	return ""
+}
+
 func (c *Config) ResolveSummaryModelAuth() (ModelAuth, error) {
 	if c == nil {
 		return ModelAuth{}, errors.New("config is required")
@@ -340,6 +392,40 @@ func (c *Config) ResolveSummaryModelAuth() (ModelAuth, error) {
 		true,
 		"summary model",
 		c.SummaryModelEffective(),
+	)
+	if err != nil {
+		return ModelAuth{}, err
+	}
+	auth.APIKey = credential.Value
+	auth.Headers = credential.Headers
+	auth.CredentialSource = credential.Source
+	auth.applySubscriptionDefaults()
+	if strings.TrimSpace(auth.APIKey) == "" {
+		return ModelAuth{}, newMissingModelCredentialError("model", auth.Provider)
+	}
+
+	return auth, nil
+}
+
+func (c *Config) ResolveRerankerModelAuth() (ModelAuth, error) {
+	if c == nil {
+		return ModelAuth{}, errors.New("config is required")
+	}
+
+	c.Normalize()
+
+	auth := ModelAuth{
+		Provider: c.RerankerProviderEffective(),
+		API:      c.RerankerModelAPIEffective(),
+		BaseURL:  c.rerankerModelBaseURLEffective(),
+	}
+
+	credential, err := c.resolveCredentialForProvider(
+		auth.Provider,
+		c.rerankerAPIKeyEffective(),
+		true,
+		"reranker model",
+		c.RerankerModelEffective(),
 	)
 	if err != nil {
 		return ModelAuth{}, err
@@ -375,11 +461,16 @@ func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
 	if !hasModelProvider(provider) {
 		return ModelAuth{}, fmt.Errorf("embedding provider must be one of: %s", getModelProviderList())
 	}
+	api := c.EmbeddingModelAPIEffective()
+	baseURL := strings.TrimSpace(c.Models.Embedding.BaseURL)
+	if baseURL == "" {
+		baseURL = getDefaultBaseURLForProvider(provider, api)
+	}
 
 	auth := ModelAuth{
 		Provider: provider,
-		API:      modelprovider.APIOpenAIEmbeddings,
-		BaseURL:  getDefaultBaseURLForProvider(provider, modelprovider.APIOpenAIEmbeddings),
+		API:      api,
+		BaseURL:  baseURL,
 	}
 	credential, err := c.resolveCredentialForProvider(provider, c.Models.Embedding.APIKey, false, "", "")
 	if err != nil {
@@ -393,6 +484,33 @@ func (c *Config) ResolveEmbeddingModelAuth() (ModelAuth, error) {
 	}
 
 	return auth, nil
+}
+
+func (c *Config) EmbeddingModelAPIEffective() string {
+	if c == nil {
+		return ""
+	}
+
+	c.normalizeFields()
+	if c.Models.Embedding.API != "" {
+		return getModelAPIID(c.Models.Embedding.API)
+	}
+
+	provider := c.ModelEmbeddingProviderEffective()
+	if model, ok := modelRegistry.GetModel(provider, c.Models.Embedding.Name); ok {
+		if _, ok := modelEmbeddingAPIs()[model.API]; ok {
+			return getModelAPIID(model.API)
+		}
+	}
+
+	if modelRegistry.SupportsProviderAPI(provider, modelprovider.APIOpenRouterEmbeddings) {
+		return modelprovider.APIOpenRouterEmbeddings
+	}
+	if modelRegistry.SupportsProviderAPI(provider, modelprovider.APIOpenAIEmbeddings) {
+		return modelprovider.APIOpenAIEmbeddings
+	}
+
+	return ""
 }
 
 func (c *Config) ModelEmbeddingProviderEffective() string {

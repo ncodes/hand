@@ -67,7 +67,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	startupOutput = startupBuffer
 	logutils.SetOutput(logBuffer)
 
-	newAgentRunner = func(_ context.Context, cfg *config.Config, modelClient, summaryClient models.Client) agentRunner {
+	newAgentRunner = func(_ context.Context, cfg *config.Config, modelClient, summaryClient, rerankerClient models.Client) agentRunner {
 		return &agentstub.AgentRunnerStub{
 			StartFunc: func(context.Context) error {
 				runCalled = true
@@ -413,7 +413,7 @@ func TestNewAgentRunnerImpl_ReturnsAgent(t *testing.T) {
 	sc, err := provider_openai.NewOpenAIClient("k", models.APIOpenAIResponses)
 	require.NoError(t, err)
 
-	r := newAgentRunnerImpl(context.Background(), cfg, mc, sc)
+	r := newAgentRunnerImpl(context.Background(), cfg, mc, sc, sc)
 	require.NotNil(t, r)
 }
 
@@ -715,7 +715,7 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 			return &provider_openai.OpenAIClient{}, nil
 		},
 	}
-	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client) agentRunner {
+	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
 		return &agentstub.AgentRunnerStub{}
 	}
 	serveRPC = func(context.Context, *config.Config, agentRunner) error { return nil }
@@ -760,6 +760,88 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 	}, calls)
 }
 
+func TestNewCommand_PassesSeparateRerankerClientWhenAuthDiffers(t *testing.T) {
+	isolateCommandProfile(t)
+	t.Setenv("HAND_RERANKER_TYPE", constants.RerankerLLM)
+	origFactory := modelClientFactory
+	origRunner := newAgentRunner
+	origServe := serveRPC
+	origStartupOutput := startupOutput
+	origResolveRerankerAuth := resolveRerankerAuth
+	t.Cleanup(func() {
+		modelClientFactory = origFactory
+		newAgentRunner = origRunner
+		serveRPC = origServe
+		startupOutput = origStartupOutput
+		resolveRerankerAuth = origResolveRerankerAuth
+	})
+
+	rerankerAuth := config.ModelAuth{
+		Provider: "anthropic",
+		API:      modelprovider.APIAnthropicMessages,
+		APIKey:   "reranker-key",
+		BaseURL:  "https://anthropic.example",
+	}
+	resolveRerankerAuth = func(*config.Config) (config.ModelAuth, error) {
+		return rerankerAuth, nil
+	}
+
+	var calls []modelclient.ClientRequest
+	clients := make([]models.Client, 0, 2)
+	modelClientFactory = modelClientFactoryStub{
+		newClient: func(req modelclient.ClientRequest) (models.Client, error) {
+			calls = append(calls, req)
+			client := &provider_openai.OpenAIClient{}
+			clients = append(clients, client)
+			return client, nil
+		},
+	}
+	newAgentRunner = func(_ context.Context, _ *config.Config, modelClient, summaryClient, rerankerClient models.Client) agentRunner {
+		require.Same(t, modelClient, summaryClient)
+		require.NotSame(t, modelClient, rerankerClient)
+		return &agentstub.AgentRunnerStub{}
+	}
+	serveRPC = func(context.Context, *config.Config, agentRunner) error { return nil }
+	startupOutput = io.Discard
+
+	configFile := ""
+	cmd := newRootCommandForTest(&configFile)
+	serverURL := newOpenRouterModelsServer(t, "gpt-4o-mini")
+	require.NoError(t, cmd.Run(context.Background(), []string{
+		"hand",
+		"--name", "flag-agent",
+		"--model", "gpt-4o-mini",
+		"--model.provider", "openrouter",
+		"--model.api-key", "router-key",
+		"--model.base-url", serverURL,
+		"--rpc.address", "127.0.0.1",
+		"--rpc.port", "50051",
+		"up",
+	}))
+
+	require.Len(t, clients, 2)
+	require.Equal(t, []modelclient.ClientRequest{
+		{
+			Role:       modelclient.ModelRoleMain,
+			Model:      "gpt-4o-mini",
+			Provider:   "openrouter",
+			API:        modelprovider.APIOpenAIResponses,
+			APIKey:     "router-key",
+			BaseURL:    serverURL,
+			MaxRetries: constants.DefaultModelMaxRetries,
+		},
+		{
+			Role:       modelclient.ModelRoleReranker,
+			Model:      "gpt-4o-mini",
+			Provider:   "anthropic",
+			API:        modelprovider.APIAnthropicMessages,
+			APIKey:     "reranker-key",
+			BaseURL:    "https://anthropic.example",
+			MaxRetries: constants.DefaultModelMaxRetries,
+		},
+	}, calls)
+}
+
 func TestNewCommand_ReturnsAgentStartError(t *testing.T) {
 	isolateCommandProfile(t)
 	origRunner := newAgentRunner
@@ -774,7 +856,7 @@ func TestNewCommand_ReturnsAgentStartError(t *testing.T) {
 		return nil
 	}
 
-	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client) agentRunner {
+	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
 		return &agentstub.AgentRunnerStub{
 			StartFunc: func(context.Context) error {
 				return errors.New("start failed")
@@ -823,7 +905,7 @@ func TestNewCommand_UsesSeparateSummaryClientWhenAuthDiffers(t *testing.T) {
 	startupOutput = io.Discard
 	logutils.SetOutput(io.Discard)
 
-	newAgentRunner = func(_ context.Context, cfg *config.Config, modelClient, summaryClient models.Client) agentRunner {
+	newAgentRunner = func(_ context.Context, cfg *config.Config, modelClient, summaryClient, rerankerClient models.Client) agentRunner {
 		require.NotSame(t, modelClient, summaryClient)
 		return &agentstub.AgentRunnerStub{
 			StartFunc: func(context.Context) error {

@@ -83,6 +83,7 @@ func registryWithProviderBaseURL(
 		{ID: modelprovider.APIOpenAICompletions},
 		{ID: modelprovider.APIOpenAIResponses},
 		{ID: modelprovider.APIOpenAIEmbeddings},
+		{ID: modelprovider.APIOpenRouterEmbeddings},
 	}
 	providers := make([]modelprovider.ProviderDefinition, 0, len(registry.GetProviderIDs()))
 	matched := false
@@ -106,6 +107,7 @@ func registryWithGenerationModel(providerID string, modelID string, contextWindo
 			{ID: modelprovider.APIOpenAICompletions},
 			{ID: modelprovider.APIOpenAIResponses},
 			{ID: modelprovider.APIOpenAIEmbeddings},
+			{ID: modelprovider.APIOpenRouterEmbeddings},
 		},
 		[]modelprovider.ProviderDefinition{
 			{
@@ -113,9 +115,9 @@ func registryWithGenerationModel(providerID string, modelID string, contextWindo
 				DefaultAPI:     modelprovider.APIOpenAIResponses,
 				SupportsModels: true,
 				BaseURLs: map[string]string{
-					modelprovider.APIOpenAICompletions: constants.DefaultOpenRouterBaseURL,
-					modelprovider.APIOpenAIResponses:   constants.DefaultOpenRouterResponsesBaseURL,
-					modelprovider.APIOpenAIEmbeddings:  constants.DefaultOpenRouterEmbeddingsBaseURL,
+					modelprovider.APIOpenAICompletions:    constants.DefaultOpenRouterBaseURL,
+					modelprovider.APIOpenAIResponses:      constants.DefaultOpenRouterResponsesBaseURL,
+					modelprovider.APIOpenRouterEmbeddings: constants.DefaultOpenRouterEmbeddingsBaseURL,
 				},
 			},
 			{

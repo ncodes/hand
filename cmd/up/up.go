@@ -68,9 +68,10 @@ func newAgentRunnerImpl(
 	ctx context.Context,
 	cfg *config.Config,
 	modelClient,
-	summaryClient models.Client,
+	summaryClient,
+	rerankerClient models.Client,
 ) agentRunner {
-	return handagent.NewAgent(ctx, cfg, modelClient, summaryClient)
+	return handagent.NewAgent(ctx, cfg, modelClient, summaryClient, rerankerClient)
 }
 
 // newAgentRunner is swapped in tests to stub the agent.
@@ -107,6 +108,10 @@ var resolveSummaryAuth = func(cfg *config.Config) (config.ModelAuth, error) {
 	return cfg.ResolveSummaryModelAuth()
 }
 
+var resolveRerankerAuth = func(cfg *config.Config) (config.ModelAuth, error) {
+	return cfg.ResolveRerankerModelAuth()
+}
+
 func modelClientRequest(
 	role modelclient.ModelRole,
 	model string,
@@ -123,6 +128,28 @@ func modelClientRequest(
 		Headers:    auth.Headers,
 		MaxRetries: maxRetries,
 	}
+}
+
+func rerankerModelClientRequired(cfg *config.Config) bool {
+	if cfg == nil || !cfg.Search.Vector.Enabled {
+		return false
+	}
+	if cfg.Reranker.Enabled != nil && !*cfg.Reranker.Enabled {
+		return false
+	}
+	if cfg.Search.EnableRerank != nil && !*cfg.Search.EnableRerank {
+		return false
+	}
+	if cfg.RerankerEffective() == constants.RerankerLLM {
+		return true
+	}
+	for _, override := range cfg.Reranker.Overrides {
+		if cfg.RerankerOverrideEffective(override).Type == constants.RerankerLLM {
+			return true
+		}
+	}
+
+	return false
 }
 
 func renderStartupPanel(cfg *config.Config) string {
@@ -473,7 +500,26 @@ func NewCommand() *cli.Command {
 				}
 			}
 
-			agent := newAgentRunner(ctx, cfg, modelClient, summaryClient)
+			rerankerClient := summaryClient
+			if rerankerModelClientRequired(cfg) {
+				rerankerAuth, err := resolveRerankerAuth(cfg)
+				if err != nil {
+					return err
+				}
+				switch {
+				case config.ModelAuthEqual(auth, rerankerAuth):
+					rerankerClient = modelClient
+				case config.ModelAuthEqual(summaryAuth, rerankerAuth):
+					rerankerClient = summaryClient
+				default:
+					rerankerClient, err = modelClientFactory.NewClient(modelClientRequest(modelclient.ModelRoleReranker, cfg.RerankerModelEffective(), rerankerAuth, cfg.ModelMaxRetriesEffective()))
+					if err != nil {
+						return err
+					}
+				}
+			}
+
+			agent := newAgentRunner(ctx, cfg, modelClient, summaryClient, rerankerClient)
 			if err := agent.Start(ctx); err != nil {
 				return err
 			}

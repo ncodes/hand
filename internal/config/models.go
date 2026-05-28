@@ -57,6 +57,7 @@ type SummaryModelConfig struct {
 type EmbeddingModelConfig struct {
 	Name     string `yaml:"name"`
 	Provider string `yaml:"provider"`
+	API      string `yaml:"api"`
 	APIKey   string `yaml:"apiKey"`
 	BaseURL  string `yaml:"baseUrl"`
 }

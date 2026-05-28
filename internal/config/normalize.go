@@ -19,6 +19,7 @@ func (c *Config) normalizeFields() {
 	c.Models.Main.Provider = strings.TrimSpace(strings.ToLower(c.Models.Main.Provider))
 	c.Models.Embedding.Provider = strings.TrimSpace(strings.ToLower(c.Models.Embedding.Provider))
 	c.Models.Embedding.Name = strings.TrimSpace(c.Models.Embedding.Name)
+	c.Models.Embedding.API = strings.TrimSpace(strings.ToLower(c.Models.Embedding.API))
 	c.Models.Providers = normalizeProviderModelConfigs(c.Models.Providers)
 	c.Models.Main.APIKey = strings.TrimSpace(c.Models.Main.APIKey)
 	c.Models.Main.BaseURL = strings.TrimSpace(c.Models.Main.BaseURL)

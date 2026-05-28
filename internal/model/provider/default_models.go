@@ -362,7 +362,7 @@ func defaultModels() []ModelDefinition {
 			Name:          "Text Embedding 3 Small via OpenRouter",
 			Owner:         constants.ModelProviderOpenAI,
 			Provider:      constants.ModelProviderOpenRouter,
-			API:           APIOpenAIEmbeddings,
+			API:           APIOpenRouterEmbeddings,
 			Input:         []InputKind{InputText},
 			ContextWindow: 8191,
 		},

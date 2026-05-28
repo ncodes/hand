@@ -578,7 +578,7 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ModelAuth{
 		Provider:         "openrouter",
-		API:              modelprovider.APIOpenAIEmbeddings,
+		API:              modelprovider.APIOpenRouterEmbeddings,
 		APIKey:           "router-key",
 		BaseURL:          "https://openrouter.ai/api/v1/embeddings",
 		CredentialSource: ModelCredentialSource{Kind: ModelCredentialSourceProviderConfig, Name: "openrouter"},
@@ -595,7 +595,7 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 	auth, err = cfg.ResolveEmbeddingModelAuth()
 
 	require.NoError(t, err)
-	require.Equal(t, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAIEmbeddings), auth.BaseURL)
+	require.Equal(t, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenRouterEmbeddings), auth.BaseURL)
 
 	cfg = &Config{
 		Models: ModelsConfig{
@@ -609,7 +609,7 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ModelAuth{
 		Provider:         "openrouter",
-		API:              modelprovider.APIOpenAIEmbeddings,
+		API:              modelprovider.APIOpenRouterEmbeddings,
 		APIKey:           "router-key",
 		BaseURL:          "https://openrouter.ai/api/v1/embeddings",
 		CredentialSource: ModelCredentialSource{Kind: ModelCredentialSourceProviderConfig, Name: "openrouter"},
@@ -655,6 +655,120 @@ func TestConfig_ResolveEmbeddingModelAuth(t *testing.T) {
 		Models: ModelsConfig{Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "key"}}, Embedding: EmbeddingModelConfig{Provider: "test"}},
 	}).ResolveEmbeddingModelAuth()
 	require.EqualError(t, err, "embedding provider must be one of: anthropic, github-copilot, openai, openrouter")
+}
+
+func TestConfig_ResolveEmbeddingModelAuthUsesRegistryModelAPIAndCustomProvider(t *testing.T) {
+	registry := modelprovider.NewRegistry(
+		[]modelprovider.APIDefinition{
+			{ID: modelprovider.APIOpenAIEmbeddings},
+		},
+		[]modelprovider.ProviderDefinition{{
+			ID:             "custom-embed",
+			DefaultAPI:     modelprovider.APIOpenAIEmbeddings,
+			SupportsModels: true,
+			SupportsAPIKey: true,
+			BaseURLs: map[string]string{
+				modelprovider.APIOpenAIEmbeddings: "https://embeddings.example/v1/embeddings",
+			},
+		}},
+		[]modelprovider.ModelDefinition{{
+			ID:       "custom-embedding-model",
+			Provider: "custom-embed",
+			API:      modelprovider.APIOpenAIEmbeddings,
+			Input:    []modelprovider.InputKind{modelprovider.InputText},
+		}},
+	)
+	stubModelRegistry(t, registry)
+
+	cfg := &Config{
+		Models: ModelsConfig{
+			Providers: map[string]ProviderModelConfig{"custom-embed": {APIKey: "custom-key"}},
+			Main:      MainModelConfig{Provider: "custom-embed"},
+			Embedding: EmbeddingModelConfig{
+				Name:     "custom-embedding-model",
+				Provider: "custom-embed",
+			},
+		},
+	}
+
+	auth, err := cfg.ResolveEmbeddingModelAuth()
+
+	require.NoError(t, err)
+	require.Equal(t, ModelAuth{
+		Provider:         "custom-embed",
+		API:              modelprovider.APIOpenAIEmbeddings,
+		APIKey:           "custom-key",
+		BaseURL:          "https://embeddings.example/v1/embeddings",
+		CredentialSource: ModelCredentialSource{Kind: ModelCredentialSourceProviderConfig, Name: "custom-embed"},
+	}, auth)
+}
+
+func TestConfig_ResolveEmbeddingModelAuthUsesExplicitAPIAndBaseURL(t *testing.T) {
+	cfg := &Config{
+		Models: ModelsConfig{
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "router-key"}},
+			Embedding: EmbeddingModelConfig{
+				Name:     "text-embedding-3-small",
+				Provider: "openrouter",
+				API:      modelprovider.APIOpenRouterEmbeddings,
+				BaseURL:  "https://proxy.example/embeddings",
+			},
+		},
+	}
+
+	auth, err := cfg.ResolveEmbeddingModelAuth()
+
+	require.NoError(t, err)
+	require.Equal(t, modelprovider.APIOpenRouterEmbeddings, auth.API)
+	require.Equal(t, "https://proxy.example/embeddings", auth.BaseURL)
+	require.Equal(t, "router-key", auth.APIKey)
+}
+
+func TestConfig_ResolveRerankerModelAuthUsesSummaryRoleByDefault(t *testing.T) {
+	cfg := &Config{
+		Models: ModelsConfig{
+			Providers: map[string]ProviderModelConfig{"openrouter": {APIKey: "router-key"}},
+			Main:      MainModelConfig{Provider: "openrouter"},
+			Summary:   SummaryModelConfig{Name: "openai/gpt-4o-mini", Provider: "openrouter"},
+		},
+	}
+
+	auth, err := cfg.ResolveRerankerModelAuth()
+
+	require.NoError(t, err)
+	require.Equal(t, ModelAuth{
+		Provider:         "openrouter",
+		API:              modelprovider.APIOpenAIResponses,
+		APIKey:           "router-key",
+		BaseURL:          constants.DefaultOpenRouterResponsesBaseURL,
+		CredentialSource: ModelCredentialSource{Kind: ModelCredentialSourceProviderConfig, Name: "openrouter"},
+	}, auth)
+	require.Equal(t, "openai/gpt-4o-mini", cfg.RerankerModelEffective())
+}
+
+func TestConfig_ResolveRerankerModelAuthUsesRegistryModelAPI(t *testing.T) {
+	t.Setenv("COPILOT_GITHUB_TOKEN", "")
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, nil
+	})
+
+	cfg := &Config{
+		Models: ModelsConfig{
+			Providers: map[string]ProviderModelConfig{"github-copilot": {APIKey: "copilot-key"}},
+			Main:      MainModelConfig{Name: "gpt-4.1", Provider: "github-copilot", API: modelprovider.APIOpenAICompletions},
+			Summary:   SummaryModelConfig{Name: "gpt-4.1", Provider: "github-copilot", API: modelprovider.APIOpenAICompletions},
+		},
+		Reranker: RerankerConfig{Model: "claude-sonnet-4.5"},
+	}
+
+	auth, err := cfg.ResolveRerankerModelAuth()
+
+	require.NoError(t, err)
+	require.Equal(t, constants.ModelProviderGitHubCopilot, auth.Provider)
+	require.Equal(t, modelprovider.APIAnthropicMessages, auth.API)
+	require.Equal(t, constants.DefaultGitHubCopilotBaseURL, auth.BaseURL)
+	require.Equal(t, "copilot-key", auth.APIKey)
+	require.Equal(t, modelprovider.APIAnthropicMessages, cfg.RerankerModelAPIEffective())
 }
 
 func TestConfig_ResolveEmbeddingModelAuthSkipsStoredOAuthCredential(t *testing.T) {
@@ -833,7 +947,7 @@ func TestDefaultBaseURLForProvider_DefaultsEmptyAPI(t *testing.T) {
 	require.Equal(t, "https://openrouter.ai/api/v1", getDefaultBaseURLForProvider("openrouter", "   "))
 	require.Equal(t, "https://api.openai.com/v1", getDefaultBaseURLForProvider("openai", modelprovider.APIOpenAICompletions))
 	require.Equal(t, "https://api.openai.com/v1", getDefaultBaseURLForProvider("openai", modelprovider.APIOpenAIResponses))
-	require.Equal(t, "https://openrouter.ai/api/v1/embeddings", getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAIEmbeddings))
+	require.Equal(t, "https://openrouter.ai/api/v1/embeddings", getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenRouterEmbeddings))
 	require.Equal(t, "https://api.openai.com/v1/embeddings", getDefaultBaseURLForProvider("openai", modelprovider.APIOpenAIEmbeddings))
 }
 
@@ -862,13 +976,13 @@ func TestModelProviders_CoverDayOneProviderBaseURLs(t *testing.T) {
 	require.Equal(t, constants.DefaultAnthropicBaseURL, getDefaultBaseURLForProvider("anthropic", modelprovider.APIAnthropicMessages))
 	require.Equal(t, constants.DefaultOpenRouterBaseURL, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAICompletions))
 	require.Equal(t, constants.DefaultOpenRouterResponsesBaseURL, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAIResponses))
-	require.Equal(t, constants.DefaultOpenRouterEmbeddingsBaseURL, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenAIEmbeddings))
+	require.Equal(t, constants.DefaultOpenRouterEmbeddingsBaseURL, getDefaultBaseURLForProvider("openrouter", modelprovider.APIOpenRouterEmbeddings))
 }
 
 func TestConfig_ModelSlotsResolveProviderBaseURLsThroughRegistry(t *testing.T) {
 	stubProviderDefaultBaseURL(t, "openrouter", modelprovider.APIOpenAICompletions, "https://registry.openrouter.example/v1")
 	stubProviderDefaultBaseURL(t, "openai", modelprovider.APIOpenAIResponses, "https://registry.openai.example/v1")
-	stubProviderDefaultBaseURL(t, "openrouter", modelprovider.APIOpenAIEmbeddings, "https://registry.openrouter.example/v1/embeddings")
+	stubProviderDefaultBaseURL(t, "openrouter", modelprovider.APIOpenRouterEmbeddings, "https://registry.openrouter.example/v1/embeddings")
 
 	cfg := &Config{
 		Name: "test-agent",
@@ -916,7 +1030,7 @@ func TestConfig_ModelSlotsResolveProviderBaseURLsThroughRegistry(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ModelAuth{
 		Provider:         "openrouter",
-		API:              modelprovider.APIOpenAIEmbeddings,
+		API:              modelprovider.APIOpenRouterEmbeddings,
 		APIKey:           "embedding-key",
 		BaseURL:          "https://registry.openrouter.example/v1/embeddings",
 		CredentialSource: ModelCredentialSource{Kind: ModelCredentialSourceRoleConfig},
@@ -946,9 +1060,16 @@ func TestConfig_NilReceiver_EffectiveHelpers(t *testing.T) {
 	require.False(t, cfg.MemoryFlushEnabled())
 	require.False(t, cfg.MemoryWriteEnabled())
 	require.Equal(t, "", cfg.RerankerModelEffective())
+	require.Equal(t, "", cfg.RerankerProviderEffective())
+	require.Equal(t, "", cfg.RerankerModelAPIEffective())
+	require.Equal(t, "", cfg.RerankerModelAPIEffectiveForModel("model"))
+	require.Equal(t, "", cfg.EmbeddingModelAPIEffective())
 	require.Equal(t, RerankerEffectiveConfig{}, cfg.RerankerOverrideEffective(RerankerOverrideConfig{}))
 
 	_, err := cfg.ResolveSummaryModelAuth()
+	require.EqualError(t, err, "config is required")
+
+	_, err = cfg.ResolveRerankerModelAuth()
 	require.EqualError(t, err, "config is required")
 
 	_, err = cfg.ResolveEmbeddingModelAuth()

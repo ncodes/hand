@@ -19,10 +19,15 @@ func TestDefaultRegistry_RegistersBuiltInAPIs(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, APIOpenAIEmbeddings, embeddings.ID)
 
+	openRouterEmbeddings, ok := registry.GetAPI(APIOpenRouterEmbeddings)
+	require.True(t, ok)
+	require.Equal(t, APIOpenRouterEmbeddings, openRouterEmbeddings.ID)
+
 	require.ElementsMatch(t, []string{
 		APIOpenAICompletions,
 		APIOpenAIResponses,
 		APIOpenAIEmbeddings,
+		APIOpenRouterEmbeddings,
 		APIAnthropicMessages,
 	}, registry.GetAPIIDs())
 
@@ -40,7 +45,7 @@ func TestDefaultRegistry_RegistersBuiltInProviders(t *testing.T) {
 	require.Equal(t, constants.DefaultOpenRouterResponsesBaseURL, registry.GetBaseURL("openrouter", ""))
 	require.Equal(t, constants.DefaultOpenRouterBaseURL, registry.GetBaseURL("openrouter", APIOpenAICompletions))
 	require.Equal(t, constants.DefaultOpenRouterResponsesBaseURL, registry.GetBaseURL("openrouter", APIOpenAIResponses))
-	require.Equal(t, constants.DefaultOpenRouterEmbeddingsBaseURL, registry.GetBaseURL("openrouter", APIOpenAIEmbeddings))
+	require.Equal(t, constants.DefaultOpenRouterEmbeddingsBaseURL, registry.GetBaseURL("openrouter", APIOpenRouterEmbeddings))
 	require.Equal(t, []string{"OPENROUTER_API_KEY"}, openrouter.APIKeyEnv)
 
 	openai, ok := registry.GetProvider(constants.ModelProviderOpenAI)
@@ -230,7 +235,7 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	embedding, ok := registry.GetModel("openrouter", constants.DefaultProfileEmbeddingModel)
 	require.True(t, ok)
 	require.Equal(t, constants.ModelProviderOpenAI, embedding.Owner)
-	require.Equal(t, APIOpenAIEmbeddings, embedding.API)
+	require.Equal(t, APIOpenRouterEmbeddings, embedding.API)
 	require.Equal(t, []InputKind{InputText}, embedding.Input)
 
 	_, ok = registry.GetModel("openrouter", "openai/"+constants.DefaultProfileEmbeddingModel)
@@ -319,6 +324,7 @@ func TestRegistry_SupportsProviderAPI(t *testing.T) {
 
 	require.True(t, registry.SupportsProviderAPI(constants.ModelProviderOpenRouter, ""))
 	require.True(t, registry.SupportsProviderAPI(constants.ModelProviderOpenRouter, APIOpenAICompletions))
+	require.True(t, registry.SupportsProviderAPI(constants.ModelProviderOpenRouter, APIOpenRouterEmbeddings))
 	require.True(t, registry.SupportsProviderAPI(constants.ModelProviderOpenAI, APIOpenAIEmbeddings))
 	require.True(t, registry.SupportsProviderAPI(constants.ModelProviderAnthropic, APIAnthropicMessages))
 	require.False(t, registry.SupportsProviderAPI(constants.ModelProviderAnthropic, APIOpenAIResponses))

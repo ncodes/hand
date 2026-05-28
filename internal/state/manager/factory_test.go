@@ -722,6 +722,39 @@ func TestConfiguredRerankerOverrides_ReturnsConstructionError(t *testing.T) {
 	require.EqualError(t, err, "reranker model client is required")
 }
 
+func TestConfiguredReranker_UsesRerankerModelAPI(t *testing.T) {
+	client := &storeTestModelClient{}
+	cfg := &config.Config{
+		Models: config.ModelsConfig{
+			Providers: map[string]config.ProviderModelConfig{"github-copilot": {APIKey: "key"}},
+			Main:      config.MainModelConfig{Name: "gpt-4.1", Provider: "github-copilot", API: modelprovider.APIOpenAICompletions},
+			Summary:   config.SummaryModelConfig{Name: "gpt-4.1", Provider: "github-copilot", API: modelprovider.APIOpenAICompletions},
+		},
+		Reranker: config.RerankerConfig{Type: search.RerankerLLM, Model: "claude-sonnet-4.5"},
+	}
+
+	reranker, err := configuredReranker(cfg, client, config.RerankerOverrideConfig{})
+	require.NoError(t, err)
+
+	_, err = reranker.Rerank(context.Background(), search.RerankRequest{
+		Query: "query",
+		Candidates: []search.Candidate{{
+			ID:           "candidate",
+			SourceKind:   search.SourceKindMemoryItem,
+			MemoryID:     "memory",
+			Text:         "candidate text",
+			LexicalScore: 1,
+			VectorScore:  1,
+			FusedScore:   1,
+		}},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, client.requests, 1)
+	require.Equal(t, modelprovider.APIAnthropicMessages, client.requests[0].API)
+	require.Equal(t, "claude-sonnet-4.5", client.requests[0].Model)
+}
+
 func TestOpenStore_DefaultVectorStores(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "vectors.db")), &gorm.Config{})
 	require.NoError(t, err)
@@ -790,17 +823,21 @@ type storeTestEmbeddingProvider struct {
 	requests []search.EmbeddingRequest
 }
 
-type storeTestModelClient struct{}
+type storeTestModelClient struct {
+	requests []models.Request
+}
 
-func (*storeTestModelClient) Complete(context.Context, models.Request) (*models.Response, error) {
+func (c *storeTestModelClient) Complete(_ context.Context, req models.Request) (*models.Response, error) {
+	c.requests = append(c.requests, req)
 	return &models.Response{OutputText: `{"items":[]}`}, nil
 }
 
-func (*storeTestModelClient) CompleteStream(
-	context.Context,
-	models.Request,
-	func(models.StreamDelta),
+func (c *storeTestModelClient) CompleteStream(
+	_ context.Context,
+	req models.Request,
+	_ func(models.StreamDelta),
 ) (*models.Response, error) {
+	c.requests = append(c.requests, req)
 	return &models.Response{OutputText: `{"items":[]}`}, nil
 }
 

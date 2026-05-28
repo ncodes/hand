@@ -460,3 +460,39 @@ func TestConfig_ValidateAllowsFreeFormEmbeddingModelForProviderThatSupportsModel
 
 	require.NoError(t, err)
 }
+
+func TestConfig_ValidateRejectsLLMRerankerOverrideWithDifferentAPI(t *testing.T) {
+	t.Setenv("COPILOT_GITHUB_TOKEN", "")
+	stubModelProviderToken(t, func(string) (StoredModelCredential, error) {
+		return StoredModelCredential{}, nil
+	})
+
+	cfg := Config{
+		Name: "daemon",
+		Models: ModelsConfig{
+			Providers: map[string]ProviderModelConfig{"github-copilot": {APIKey: "key"}},
+			Main:      MainModelConfig{Name: "gpt-4.1", Provider: "github-copilot", API: modelprovider.APIOpenAICompletions},
+			Summary:   SummaryModelConfig{Name: "gpt-4.1", Provider: "github-copilot", API: modelprovider.APIOpenAICompletions},
+		},
+		RPC:     RPCConfig{Address: "127.0.0.1", Port: 50051},
+		Session: SessionConfig{MaxIterations: 1, DefaultIdleExpiry: time.Hour, ArchiveRetention: 24 * time.Hour},
+		Log:     LogConfig{Level: "info"},
+		Storage: StorageConfig{Backend: "memory"},
+		Search:  SearchConfig{Vector: SearchVectorConfig{Enabled: true}},
+		Reranker: RerankerConfig{
+			Type:  constants.RerankerLLM,
+			Model: "gpt-4.1",
+			Overrides: map[string]RerankerOverrideConfig{
+				"memory_reflection": {
+					Type:  constants.RerankerLLM,
+					Model: "claude-sonnet-4.5",
+				},
+			},
+		},
+		Compaction: CompactionConfig{Enabled: new(true), TriggerPercent: 0.85, WarnPercent: 0.95},
+	}
+
+	err := cfg.Validate()
+
+	require.EqualError(t, err, `reranker override "memory_reflection" model API must match reranker model API`)
+}

@@ -49,7 +49,7 @@ func Test_E2E_UpCommand_BootsAndServesRPC(t *testing.T) {
 			CurrentSessionResult: storage.Session{ID: "default"},
 		},
 	}
-	newAgentRunner = func(_ context.Context, cfg *config.Config, modelClient, summaryClient models.Client) agentRunner {
+	newAgentRunner = func(_ context.Context, cfg *config.Config, modelClient, summaryClient, rerankerClient models.Client) agentRunner {
 		require.NotNil(t, cfg)
 		require.NotNil(t, modelClient)
 		require.NotNil(t, summaryClient)

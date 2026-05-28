@@ -13,6 +13,8 @@ const (
 	APIOpenAIResponses = "openai-responses"
 	// APIOpenAIEmbeddings identifies the OpenAI-compatible embeddings protocol.
 	APIOpenAIEmbeddings = "openai-embeddings"
+	// APIOpenRouterEmbeddings identifies the OpenRouter embeddings protocol.
+	APIOpenRouterEmbeddings = "openrouter-embeddings"
 	// APIAnthropicMessages identifies the Anthropic Messages protocol.
 	APIAnthropicMessages = "anthropic-messages"
 )
@@ -276,6 +278,10 @@ func defaultAPIs() []APIDefinition {
 			DisplayName: "OpenAI Embeddings",
 		},
 		{
+			ID:          APIOpenRouterEmbeddings,
+			DisplayName: "OpenRouter Embeddings",
+		},
+		{
 			ID:          APIAnthropicMessages,
 			DisplayName: "Anthropic Messages",
 		},
@@ -292,9 +298,9 @@ func defaultProviders() []ProviderDefinition {
 			SupportsModels: true,
 			SupportsAPIKey: true,
 			BaseURLs: map[string]string{
-				APIOpenAICompletions: constants.DefaultOpenRouterBaseURL,
-				APIOpenAIResponses:   constants.DefaultOpenRouterResponsesBaseURL,
-				APIOpenAIEmbeddings:  constants.DefaultOpenRouterEmbeddingsBaseURL,
+				APIOpenAICompletions:    constants.DefaultOpenRouterBaseURL,
+				APIOpenAIResponses:      constants.DefaultOpenRouterResponsesBaseURL,
+				APIOpenRouterEmbeddings: constants.DefaultOpenRouterEmbeddingsBaseURL,
 			},
 		},
 		{
