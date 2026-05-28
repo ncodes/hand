@@ -42,6 +42,14 @@ const (
 	startupColumnGap       = 3
 )
 
+var startupLogoColors = []string{
+	"\x1b[38;5;38m",
+	"\x1b[38;5;44m",
+	"\x1b[38;5;49m",
+	"\x1b[38;5;48m",
+	"\x1b[38;5;83m",
+}
+
 var handBadge = joinStartupBanner(brand.Mark, brand.Wordmark)
 
 var startupOutput io.Writer = os.Stdout
@@ -195,20 +203,45 @@ func formatStartupVersion() string {
 }
 
 func renderStartupBannerPanel(logo string, rows []startupDetailRow, noColor bool) string {
-	logoLines := centerStartupBlockLines(splitStartupLines(logo), startupLogoColumnWidth)
+	logoLines := splitStartupLines(logo)
 	detailLines := renderStartupDetailLines(rows, noColor)
 	height := max(len(logoLines), len(detailLines))
-	logoLines = centerStartupBlockVertically(logoLines, height, startupLogoColumnWidth)
+	logoLines = renderStartupLogoLines(logoLines, height, noColor)
 	detailLines = padStartupBlockVertically(detailLines, height)
 
 	lines := make([]string, 0, height)
 	gap := strings.Repeat(" ", startupColumnGap)
 	divider := styleStartup("│", noColor)
 	for index := range height {
-		lines = append(lines, styleStartup(logoLines[index], noColor)+gap+divider+gap+detailLines[index])
+		lines = append(lines, logoLines[index]+gap+divider+gap+detailLines[index])
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func renderStartupLogoLines(lines []string, height int, noColor bool) []string {
+	if len(lines) == 0 {
+		return padStartupBlockVertically(nil, height)
+	}
+
+	topPadding := max((height-len(lines))/2, 0)
+	rendered := make([]string, 0, height)
+	rendered = appendStartupBlankLines(rendered, topPadding, startupLogoColumnWidth)
+	for index, line := range lines {
+		rendered = append(rendered, styleStartupLogoLine(centerStartupLine(line, startupLogoColumnWidth), index, noColor))
+	}
+	rendered = appendStartupBlankLines(rendered, height-len(rendered), startupLogoColumnWidth)
+
+	return rendered
+}
+
+func styleStartupLogoLine(line string, index int, noColor bool) string {
+	if noColor {
+		return line
+	}
+
+	color := startupLogoColors[min(index, len(startupLogoColors)-1)]
+	return color + line + colorReset
 }
 
 func renderStartupDetailLines(rows []startupDetailRow, noColor bool) []string {
@@ -228,15 +261,6 @@ func splitStartupLines(value string) []string {
 	return strings.Split(value, "\n")
 }
 
-func centerStartupBlockLines(lines []string, width int) []string {
-	centered := make([]string, 0, len(lines))
-	for _, line := range lines {
-		centered = append(centered, centerStartupLine(line, width))
-	}
-
-	return centered
-}
-
 func centerStartupLine(line string, width int) string {
 	lineWidth := len([]rune(line))
 	if lineWidth >= width {
@@ -246,21 +270,6 @@ func centerStartupLine(line string, width int) string {
 	leftPadding := (width - lineWidth) / 2
 	rightPadding := width - lineWidth - leftPadding
 	return strings.Repeat(" ", leftPadding) + line + strings.Repeat(" ", rightPadding)
-}
-
-func centerStartupBlockVertically(lines []string, height int, width int) []string {
-	if len(lines) >= height {
-		return lines
-	}
-
-	topPadding := (height - len(lines)) / 2
-	bottomPadding := height - len(lines) - topPadding
-	padded := make([]string, 0, height)
-	padded = appendStartupBlankLines(padded, topPadding, width)
-	padded = append(padded, lines...)
-	padded = appendStartupBlankLines(padded, bottomPadding, width)
-
-	return padded
 }
 
 func padStartupBlockVertically(lines []string, height int) []string {
