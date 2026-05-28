@@ -64,6 +64,11 @@ func (c *AnthropicClient) SetSubscriptionAuth(enabled bool) {
 	c.subscriptionAuth = enabled
 }
 
+// SubscriptionAuthEnabled reports whether Anthropic subscription request shaping is enabled.
+func (c *AnthropicClient) SubscriptionAuthEnabled() bool {
+	return c != nil && c.subscriptionAuth
+}
+
 // Complete sends a request to Anthropic Messages and returns the normalized response.
 func (c *AnthropicClient) Complete(ctx context.Context, req Request) (*Response, error) {
 	return c.complete(ctx, req, false, nil)

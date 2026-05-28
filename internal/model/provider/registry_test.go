@@ -64,6 +64,10 @@ func TestDefaultRegistry_RegistersBuiltInProviders(t *testing.T) {
 	copilot, ok := registry.GetProvider(constants.ModelProviderGitHubCopilot)
 	require.True(t, ok)
 	require.Equal(t, APIOpenAIResponses, copilot.DefaultAPI)
+	require.Equal(t, constants.DefaultGitHubCopilotBaseURL, registry.GetBaseURL("github-copilot", ""))
+	require.Equal(t, constants.DefaultGitHubCopilotBaseURL, registry.GetBaseURL("github-copilot", APIOpenAICompletions))
+	require.Equal(t, constants.DefaultGitHubCopilotBaseURL, registry.GetBaseURL("github-copilot", APIOpenAIResponses))
+	require.Equal(t, constants.DefaultGitHubCopilotBaseURL, registry.GetBaseURL("github-copilot", APIAnthropicMessages))
 	require.Equal(t, []string{"COPILOT_GITHUB_TOKEN"}, copilot.APIKeyEnv)
 	require.True(t, copilot.SupportsOAuth)
 
@@ -106,6 +110,57 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 		model, ok := registry.GetModel("openai", modelID)
 		require.True(t, ok)
 		require.True(t, model.SupportsOAuth)
+	}
+
+	copilotResponsesModel, ok := registry.GetModel("github-copilot", "gpt-5.4-mini")
+	require.True(t, ok)
+	require.Equal(t, constants.ModelProviderGitHubCopilot, copilotResponsesModel.Owner)
+	require.Equal(t, APIOpenAIResponses, copilotResponsesModel.API)
+	require.True(t, copilotResponsesModel.SupportsOAuth)
+	require.True(t, copilotResponsesModel.Reasoning)
+	require.Equal(t, []InputKind{InputText, InputImage}, copilotResponsesModel.Input)
+
+	copilotCompletionModel, ok := registry.GetModel("github-copilot", "gpt-4o")
+	require.True(t, ok)
+	require.Equal(t, APIOpenAICompletions, copilotCompletionModel.API)
+	require.True(t, copilotCompletionModel.SupportsOAuth)
+
+	copilotAnthropicModel, ok := registry.GetModel("github-copilot", "claude-sonnet-4.5")
+	require.True(t, ok)
+	require.Equal(t, APIAnthropicMessages, copilotAnthropicModel.API)
+	require.True(t, copilotAnthropicModel.SupportsOAuth)
+
+	copilotAnthropicModel, ok = registry.GetModel("github-copilot", "claude-sonnet-4-5")
+	require.True(t, ok)
+	require.Equal(t, APIAnthropicMessages, copilotAnthropicModel.API)
+	require.True(t, copilotAnthropicModel.SupportsOAuth)
+
+	for modelID, api := range map[string]string{
+		"claude-haiku-4.5":       APIAnthropicMessages,
+		"claude-opus-4.5":        APIAnthropicMessages,
+		"claude-opus-4.6":        APIAnthropicMessages,
+		"claude-opus-4.7":        APIAnthropicMessages,
+		"claude-sonnet-4.5":      APIAnthropicMessages,
+		"claude-sonnet-4.6":      APIAnthropicMessages,
+		"gemini-2.5-pro":         APIOpenAICompletions,
+		"gemini-3-flash-preview": APIOpenAICompletions,
+		"gemini-3.1-pro-preview": APIOpenAICompletions,
+		"gemini-3.5-flash":       APIOpenAICompletions,
+		"gpt-4.1":                APIOpenAICompletions,
+		"gpt-4o":                 APIOpenAICompletions,
+		"gpt-5-mini":             APIOpenAIResponses,
+		"gpt-5.2":                APIOpenAIResponses,
+		"gpt-5.2-codex":          APIOpenAIResponses,
+		"gpt-5.3-codex":          APIOpenAIResponses,
+		"gpt-5.4":                APIOpenAIResponses,
+		"gpt-5.4-mini":           APIOpenAIResponses,
+		"gpt-5.5":                APIOpenAIResponses,
+		"grok-code-fast-1":       APIOpenAICompletions,
+	} {
+		model, ok := registry.GetModel("github-copilot", modelID)
+		require.True(t, ok, modelID)
+		require.Equal(t, api, model.API, modelID)
+		require.True(t, model.SupportsOAuth, modelID)
 	}
 
 	for _, modelID := range []string{

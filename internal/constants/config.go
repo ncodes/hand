@@ -29,6 +29,7 @@ const (
 	DefaultOpenAISubscriptionBaseURL   = "https://chatgpt.com/backend-api/codex"
 	DefaultOpenAIEmbeddingsBaseURL     = "https://api.openai.com/v1/embeddings"
 	DefaultAnthropicBaseURL            = "https://api.anthropic.com"
+	DefaultGitHubCopilotBaseURL        = "https://api.individual.githubcopilot.com"
 	// DefaultModelMaxRetries is the fallback retry count for model calls.
 	DefaultModelMaxRetries    = 2
 	DefaultProfileModelStream = true

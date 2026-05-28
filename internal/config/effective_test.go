@@ -342,6 +342,42 @@ func TestConfig_ResolveModelAuthUsesAnthropicOAuthEnvBeforeAPIKeyEnv(t *testing.
 	}, auth.CredentialSource)
 }
 
+func TestConfig_ResolveModelAuthUsesCopilotTokenEnvAsOAuth(t *testing.T) {
+	t.Setenv("COPILOT_GITHUB_TOKEN", "copilot-token")
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, "github-copilot", provider)
+		return StoredModelCredential{}, nil
+	})
+	stubSubscriptionProvider(t, func(provider string) (appcredential.SubscriptionProvider, bool) {
+		require.Equal(t, "github-copilot", provider)
+		return modelAuthSubscriptionProvider{
+			headers: map[string]string{
+				"Authorization": "Bearer copilot-token",
+				"X-Initiator":   "user",
+			},
+		}, true
+	})
+
+	cfg := &Config{
+		Name: "test-agent",
+		Models: ModelsConfig{
+			Main: MainModelConfig{Name: "gpt-5.4-mini", Provider: "github-copilot"},
+		},
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+	require.NoError(t, err)
+	require.Equal(t, "copilot-token", auth.APIKey)
+	require.Equal(t, constants.DefaultGitHubCopilotBaseURL, auth.BaseURL)
+	require.Equal(t, "Bearer copilot-token", auth.Headers["Authorization"])
+	require.Equal(t, "user", auth.Headers["X-Initiator"])
+	require.Equal(t, ModelCredentialSource{
+		Kind: ModelCredentialSourceProviderEnv,
+		Name: "COPILOT_GITHUB_TOKEN",
+		Type: appcredential.TypeOAuth,
+	}, auth.CredentialSource)
+}
+
 func TestConfig_ResolveModelAuthFallsBackFromUnsupportedAnthropicOAuthEnv(t *testing.T) {
 	t.Setenv("ANTHROPIC_OAUTH_TOKEN", "oauth-env-token")
 	t.Setenv("ANTHROPIC_API_KEY", "api-env-key")

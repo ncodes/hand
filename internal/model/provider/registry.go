@@ -331,6 +331,11 @@ func defaultProviders() []ProviderDefinition {
 			SupportsModels: true,
 			SupportsAPIKey: true,
 			SupportsOAuth:  true,
+			BaseURLs: map[string]string{
+				APIOpenAICompletions: constants.DefaultGitHubCopilotBaseURL,
+				APIOpenAIResponses:   constants.DefaultGitHubCopilotBaseURL,
+				APIAnthropicMessages: constants.DefaultGitHubCopilotBaseURL,
+			},
 		},
 	}
 }

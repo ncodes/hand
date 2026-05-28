@@ -8,6 +8,8 @@ import (
 
 func defaultModels() []ModelDefinition {
 	return []ModelDefinition{
+
+		// OpenAI models
 		openAIModel("gpt-4", "GPT-4", []InputKind{InputText}, 8192, 8192),
 		openAIModel("gpt-4-turbo", "GPT-4 Turbo", []InputKind{InputText, InputImage}, 128000, 4096),
 		openAIModel("gpt-4.1", "GPT-4.1", []InputKind{InputText, InputImage}, 1047576, 32768),
@@ -59,6 +61,36 @@ func defaultModels() []ModelDefinition {
 			Input:         []InputKind{InputText},
 			ContextWindow: 8191,
 		},
+
+		// GitHub Copilot models
+		gitHubCopilotAnthropicModel("claude-haiku-4.5", "Claude Haiku 4.5", []InputKind{InputText, InputImage}, 144000, 32000),
+		gitHubCopilotAnthropicModel("claude-opus-4.5", "Claude Opus 4.5", []InputKind{InputText, InputImage}, 160000, 32000),
+		gitHubCopilotAnthropicModel("claude-opus-4.6", "Claude Opus 4.6", []InputKind{InputText, InputImage}, 1000000, 64000),
+		gitHubCopilotAnthropicModel("claude-opus-4.7", "Claude Opus 4.7", []InputKind{InputText, InputImage}, 144000, 64000),
+		gitHubCopilotAnthropicModel("claude-sonnet-4.5", "Claude Sonnet 4.5", []InputKind{InputText, InputImage}, 144000, 32000),
+		gitHubCopilotAnthropicModel("claude-sonnet-4.6", "Claude Sonnet 4.6", []InputKind{InputText, InputImage}, 1000000, 32000),
+		gitHubCopilotAnthropicModel("claude-haiku-4-5", "Claude Haiku 4.5", []InputKind{InputText, InputImage}, 144000, 32000),
+		gitHubCopilotAnthropicModel("claude-opus-4-5", "Claude Opus 4.5", []InputKind{InputText, InputImage}, 160000, 32000),
+		gitHubCopilotAnthropicModel("claude-opus-4-6", "Claude Opus 4.6", []InputKind{InputText, InputImage}, 1000000, 64000),
+		gitHubCopilotAnthropicModel("claude-opus-4-7", "Claude Opus 4.7", []InputKind{InputText, InputImage}, 144000, 64000),
+		gitHubCopilotAnthropicModel("claude-sonnet-4-5", "Claude Sonnet 4.5", []InputKind{InputText, InputImage}, 144000, 32000),
+		gitHubCopilotAnthropicModel("claude-sonnet-4-6", "Claude Sonnet 4.6", []InputKind{InputText, InputImage}, 1000000, 32000),
+		gitHubCopilotCompletionModel("gemini-2.5-pro", "Gemini 2.5 Pro", []InputKind{InputText, InputImage}, false, 128000, 64000),
+		gitHubCopilotCompletionModel("gemini-3-flash-preview", "Gemini 3 Flash", []InputKind{InputText, InputImage}, true, 128000, 64000),
+		gitHubCopilotCompletionModel("gemini-3.1-pro-preview", "Gemini 3.1 Pro Preview", []InputKind{InputText, InputImage}, true, 128000, 64000),
+		gitHubCopilotCompletionModel("gemini-3.5-flash", "Gemini 3.5 Flash", []InputKind{InputText, InputImage}, true, 128000, 64000),
+		gitHubCopilotCompletionModel("gpt-4.1", "GPT-4.1", []InputKind{InputText, InputImage}, false, 128000, 16384),
+		gitHubCopilotCompletionModel("gpt-4o", "GPT-4o", []InputKind{InputText, InputImage}, false, 128000, 4096),
+		gitHubCopilotResponsesModel("gpt-5-mini", "GPT-5 mini", []InputKind{InputText, InputImage}, 264000, 64000),
+		gitHubCopilotResponsesModel("gpt-5.2", "GPT-5.2", []InputKind{InputText, InputImage}, 264000, 64000),
+		gitHubCopilotResponsesModel("gpt-5.2-codex", "GPT-5.2 Codex", []InputKind{InputText, InputImage}, 400000, 128000),
+		gitHubCopilotResponsesModel("gpt-5.3-codex", "GPT-5.3 Codex", []InputKind{InputText, InputImage}, 400000, 128000),
+		gitHubCopilotResponsesModel("gpt-5.4", "GPT-5.4", []InputKind{InputText, InputImage}, 400000, 128000),
+		gitHubCopilotResponsesModel("gpt-5.4-mini", "GPT-5.4 Mini", []InputKind{InputText, InputImage}, 400000, 128000),
+		gitHubCopilotResponsesModel("gpt-5.5", "GPT-5.5", []InputKind{InputText, InputImage}, 400000, 128000),
+		gitHubCopilotCompletionModel("grok-code-fast-1", "Grok Code Fast 1", []InputKind{InputText}, true, 128000, 64000),
+
+		// OpenRouter models
 		openRouterModel("ai21/jamba-large-1.7", "AI21: Jamba Large 1.7", []InputKind{InputText}, 256000, 4096),
 		openRouterReasoningModel("alibaba/tongyi-deepresearch-30b-a3b", "Tongyi DeepResearch 30B A3B", []InputKind{InputText}, 131072, 131072),
 		openRouterReasoningModel("amazon/nova-2-lite-v1", "Amazon: Nova 2 Lite", []InputKind{InputText, InputImage}, 1000000, 65535),
@@ -334,6 +366,8 @@ func defaultModels() []ModelDefinition {
 			Input:         []InputKind{InputText},
 			ContextWindow: 8191,
 		},
+
+		// Anthropic models
 		anthropicModel("claude-3-5-haiku-20241022", "Claude Haiku 3.5", []InputKind{InputText, InputImage}, 200000, 8192),
 		anthropicModel("claude-3-5-haiku-latest", "Claude Haiku 3.5 (latest)", []InputKind{InputText, InputImage}, 200000, 8192),
 		anthropicModel("claude-3-5-sonnet-20240620", "Claude Sonnet 3.5", []InputKind{InputText, InputImage}, 200000, 8192),
@@ -403,6 +437,60 @@ func openAISubscriptionModel(
 	model.SupportsOAuth = true
 
 	return model
+}
+
+func gitHubCopilotResponsesModel(
+	id string,
+	name string,
+	input []InputKind,
+	contextWindow int,
+	maxTokens int,
+) ModelDefinition {
+	return gitHubCopilotModel(id, name, APIOpenAIResponses, input, true, contextWindow, maxTokens)
+}
+
+func gitHubCopilotCompletionModel(
+	id string,
+	name string,
+	input []InputKind,
+	reasoning bool,
+	contextWindow int,
+	maxTokens int,
+) ModelDefinition {
+	return gitHubCopilotModel(id, name, APIOpenAICompletions, input, reasoning, contextWindow, maxTokens)
+}
+
+func gitHubCopilotAnthropicModel(
+	id string,
+	name string,
+	input []InputKind,
+	contextWindow int,
+	maxTokens int,
+) ModelDefinition {
+	return gitHubCopilotModel(id, name, APIAnthropicMessages, input, true, contextWindow, maxTokens)
+}
+
+func gitHubCopilotModel(
+	id string,
+	name string,
+	api string,
+	input []InputKind,
+	reasoning bool,
+	contextWindow int,
+	maxTokens int,
+) ModelDefinition {
+	return ModelDefinition{
+		ID:            id,
+		Name:          name,
+		Owner:         constants.ModelProviderGitHubCopilot,
+		Provider:      constants.ModelProviderGitHubCopilot,
+		API:           api,
+		Input:         input,
+		Reasoning:     reasoning,
+		SupportsOAuth: true,
+		ContextWindow: contextWindow,
+		MaxTokens:     maxTokens,
+	}
 }
 
 func openRouterModel(

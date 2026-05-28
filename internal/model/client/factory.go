@@ -14,6 +14,7 @@ import (
 	models "github.com/wandxy/hand/internal/model"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
 	provider_anthropic "github.com/wandxy/hand/internal/model/provider_anthropic"
+	_ "github.com/wandxy/hand/internal/model/provider_copilot"
 	provider_openai "github.com/wandxy/hand/internal/model/provider_openai"
 )
 
@@ -263,7 +264,10 @@ func (f *ClientFactory) newAnthropicClient(req ResolvedClientRequest) (models.Cl
 		return nil, errors.New("model client is required")
 	}
 	if anthropicClient, ok := client.(*provider_anthropic.AnthropicClient); ok {
-		anthropicClient.SetSubscriptionAuth(hasHeader(req.Headers, "Authorization"))
+		anthropicClient.SetSubscriptionAuth(
+			req.Provider.ID == constants.ModelProviderAnthropic &&
+				hasHeader(req.Headers, "Authorization"),
+		)
 	}
 
 	return client, nil

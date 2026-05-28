@@ -725,6 +725,8 @@ func getProviderOAuthEnvCredential(provider string) (string, string) {
 	switch strings.TrimSpace(strings.ToLower(provider)) {
 	case constants.ModelProviderAnthropic:
 		return getCredentialFromEnv([]string{"ANTHROPIC_OAUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"})
+	case constants.ModelProviderGitHubCopilot:
+		return getCredentialFromEnv([]string{"COPILOT_GITHUB_TOKEN"})
 	default:
 		return "", ""
 	}

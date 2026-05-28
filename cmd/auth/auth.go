@@ -15,6 +15,7 @@ import (
 	"github.com/wandxy/hand/internal/config"
 	appcredential "github.com/wandxy/hand/internal/credential"
 	modelprovider "github.com/wandxy/hand/internal/model/provider"
+	_ "github.com/wandxy/hand/internal/model/provider_copilot"
 	"github.com/wandxy/hand/internal/profile"
 )
 

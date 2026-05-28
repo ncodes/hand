@@ -284,6 +284,36 @@ func TestClientFactory_NewClientBuildsAnthropicOAuthClientWithoutAPIKey(t *testi
 	require.NotNil(t, client)
 	require.Empty(t, capturedKey)
 	require.Equal(t, 4, capturedOptions)
+	anthropicClient, ok := client.(*provider_anthropic.AnthropicClient)
+	require.True(t, ok)
+	require.True(t, anthropicClient.SubscriptionAuthEnabled())
+}
+
+func TestClientFactory_NewClientBuildsCopilotAnthropicBearerClientWithoutAnthropicSubscriptionAuth(t *testing.T) {
+	var capturedKey string
+	factory := NewClientFactory(modelprovider.DefaultRegistry())
+	factory.AnthropicClient = func(apiKey string, _ ...anthropicoption.RequestOption) (models.Client, error) {
+		capturedKey = apiKey
+		return &provider_anthropic.AnthropicClient{}, nil
+	}
+
+	client, err := factory.NewClient(ClientRequest{
+		Provider: "github-copilot",
+		API:      modelprovider.APIAnthropicMessages,
+		Model:    "claude-sonnet-4-5",
+		APIKey:   "copilot-token",
+		Headers: map[string]string{
+			"Authorization": "Bearer copilot-token",
+			"X-Initiator":   "user",
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	require.Empty(t, capturedKey)
+	anthropicClient, ok := client.(*provider_anthropic.AnthropicClient)
+	require.True(t, ok)
+	require.False(t, anthropicClient.SubscriptionAuthEnabled())
 }
 
 func TestHasHeader(t *testing.T) {
