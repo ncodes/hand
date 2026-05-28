@@ -102,6 +102,15 @@ func (m *model) resize() {
 
 	width := m.getMainPaneWidth()
 	m.input.SetWidth(getInputInnerWidth(width))
+	if m.shouldShowNamePrompt() {
+		m.transcript.SetWidth(width)
+		m.transcript.SetHeight(max(m.height, 1))
+		if wasAtBottom {
+			m.transcript.GotoBottom()
+		}
+		return
+	}
+
 	inputHeight := m.getInputHeight()
 	layout := m.getTUILayout(inputHeight)
 

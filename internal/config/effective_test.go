@@ -1221,6 +1221,29 @@ func TestConfig_OAuthModelSupportAndSubscriptionDefaultsFallbacks(t *testing.T) 
 	nilAuth.applySubscriptionDefaults()
 }
 
+func TestConfig_SummaryModelMaxOutputTokensEffective(t *testing.T) {
+	stubModelProviderToken(t, func(provider string) (StoredModelCredential, error) {
+		require.Equal(t, constants.ModelProviderOpenAI, provider)
+		return StoredModelCredential{Type: appcredential.TypeOAuth, Token: "stored-token"}, nil
+	})
+	cfg := &Config{
+		Models: ModelsConfig{
+			Main: MainModelConfig{
+				Name:     "gpt-5.4-mini",
+				Provider: constants.ModelProviderOpenAI,
+			},
+		},
+	}
+
+	require.Zero(t, cfg.SummaryModelMaxOutputTokensEffective(512))
+	require.Zero(t, cfg.SummaryModelMaxOutputTokensEffective(0))
+	require.Zero(t, cfg.SummaryModelMaxOutputTokensEffective(-1))
+
+	cfg.Models.Main.APIKey = "key"
+	require.Equal(t, int64(512), cfg.SummaryModelMaxOutputTokensEffective(512))
+	require.Equal(t, int64(512), (*Config)(nil).SummaryModelMaxOutputTokensEffective(512))
+}
+
 func TestConfig_StringMapHelpersNormalizeAndCompare(t *testing.T) {
 	require.Nil(t, normalizeStringMap(nil))
 	require.Nil(t, normalizeStringMap(map[string]string{" ": "ignored", "blank": " "}))

@@ -49,7 +49,7 @@ func (m model) renderHeaderWithWidth(width int) string {
 
 // renderNoticeBar draws the solid announcement row above the banner.
 func (m model) renderNoticeBar() string {
-	return defaultChromeRenderer.RenderNoticeBar(getNoticePanel(m.width))
+	return defaultChromeRenderer.RenderNoticeBar(getNoticePanel(m.width, m.userDisplayName()))
 }
 
 // renderNoticeBarLeft highlights the user name while keeping the greeting muted.
@@ -109,7 +109,7 @@ func getHeaderPanel(m model, width int) headerPanel {
 		Width:    width,
 		Banner:   banner,
 		Mark:     mark,
-		Notice:   getNoticePanel(width),
+		Notice:   getNoticePanel(width, m.userDisplayName()),
 		InfoRows: rows,
 		ShowInfo: bodyWidth >= bannerWidth+headerGapWidth+infoWidth,
 	}
@@ -119,11 +119,16 @@ func getHeaderBodyContentWidth(width int) int {
 	return max(width-headerBodyPadding*2, 1)
 }
 
-func getNoticePanel(width int) noticePanel {
+func getNoticePanel(width int, names ...string) noticePanel {
+	name := noticeBarName
+	if len(names) > 0 && strings.TrimSpace(names[0]) != "" {
+		name = strings.TrimSpace(names[0])
+	}
+
 	return noticePanel{
 		Width:    max(width, 1),
 		LeftLead: noticeBarLeftLead,
-		Name:     noticeBarName,
+		Name:     name,
 		Lead:     noticeBarLead,
 		Link:     noticeBarLink,
 		Tail:     noticeBarTail,

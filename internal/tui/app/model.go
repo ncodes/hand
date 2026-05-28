@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
@@ -23,6 +24,7 @@ const (
 type model struct {
 	transcript viewport.Model
 	input      textarea.Model
+	nameInput  textinput.Model
 	tuiState
 	chatClient    rpcclient.ChatAPI
 	timeline      sessionTimelineLoader
@@ -54,14 +56,20 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	}
 
 	history, err := loadPromptHistory()
+	userName, userNameSet, namePromptEnabled, userNameErr := loadProfileUserName()
 	runtimeInfo := runtimeInfoFromConfig(cfg)
 	appModel := model{
 		transcript: newTranscript(),
 		input:      newInputComposer(),
+		nameInput:  newNameInput(),
 		tuiState:   newTUIState(history, cfg.TUIThinkingComposerEnabled()),
 		chatClient: client,
 		chatCtx:    ctx,
 	}
+	if userNameSet {
+		appModel.userName = userName
+	}
+	appModel.namePromptEnabled = namePromptEnabled
 	appModel.runtimeInfo = runtimeInfo
 	appModel.modelName = getModelDisplayName(runtimeInfo.Model)
 	if timeline, ok := client.(sessionTimelineLoader); ok {
@@ -75,6 +83,9 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	}
 	if err != nil {
 		setStatusTransient(&appModel.status, "prompt history unavailable")
+	}
+	if userNameErr != nil {
+		setStatusTransient(&appModel.status, "user profile unavailable")
 	}
 	appModel.resize()
 	appModel.setTranscriptContent()

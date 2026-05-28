@@ -158,6 +158,7 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 	})
 
 	callCount := 0
+	maxOutputTokens := cfg.SummaryModelMaxOutputTokensEffective(cfg.Memory.Flush.MaxOutputTokens)
 	for callCount < cfg.Memory.Flush.MaxCalls {
 		if err := flushCtx.Err(); err != nil {
 			return err
@@ -169,7 +170,7 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 			Instructions:    instruct.BuildMemoryFlushGuidance(trigger).Value,
 			Messages:        messages,
 			Tools:           flushTools,
-			MaxOutputTokens: cfg.Memory.Flush.MaxOutputTokens,
+			MaxOutputTokens: maxOutputTokens,
 			DebugRequests:   cfg.Debug.Requests,
 		}
 

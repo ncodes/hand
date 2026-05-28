@@ -15,6 +15,10 @@ type tuiState struct {
 	status                     statusModel
 	sessionID                  string
 	sessionTitle               string
+	userName                   string
+	namePromptEnabled          bool
+	namePromptError            string
+	namePromptErrorStartedAt   time.Time
 	modelName                  string
 	runtimeInfo                runtimeInfo
 	context                    string

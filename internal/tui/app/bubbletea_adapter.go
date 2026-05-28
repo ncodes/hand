@@ -22,6 +22,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case statusExpiredMsg:
 		expireStatus(&m.status, msg)
 		return m, nil
+	case namePromptErrorExpiredMsg:
+		return m.expireNamePromptError(msg), nil
 	case toolAnimationTickMsg:
 		return m.updateToolAnimation()
 	case thinkingComposerTickMsg:
@@ -73,8 +75,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case safetyEventMsg:
 		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 	case tea.PasteMsg:
+		if m.shouldShowNamePrompt() {
+			return m.handleNamePromptPaste(msg)
+		}
 		return m.handlePasteMsg(msg)
 	case tea.KeyPressMsg:
+		if msg.Keystroke() == "ctrl+c" {
+			return m.confirmExit()
+		}
+		if m.shouldShowNamePrompt() {
+			return m.handleNamePromptKey(msg)
+		}
 		if next, cmd, ok := m.handleKeyPressMsg(msg); ok {
 			return next, cmd
 		}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 
 	agentapi "github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/profile"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
@@ -28,14 +30,30 @@ import (
 func TestMain(m *testing.M) {
 	original := promptHistoryPath
 	originalTheme := defaultTUITheme
+	originalProfile := profile.Active()
+	testProfileHome, _ := os.MkdirTemp("", "hand-tui-profile-*")
 	_ = original()
 	promptHistoryPath = func() string {
 		return ""
+	}
+	if testProfileHome != "" {
+		_ = os.WriteFile(
+			filepath.Join(testProfileHome, userNameFilename),
+			[]byte("{\"name\":\"Kennedy\"}\n"),
+			0o600,
+		)
+		profile.SetActive(profile.Profile{Name: profile.DefaultName, HomeDir: testProfileHome})
+	} else {
+		profile.SetActive(profile.Profile{})
 	}
 	defaultTUITheme = render.DefaultTheme
 	code := m.Run()
 	promptHistoryPath = original
 	defaultTUITheme = originalTheme
+	profile.SetActive(originalProfile)
+	if testProfileHome != "" {
+		_ = os.RemoveAll(testProfileHome)
+	}
 	os.Exit(code)
 }
 
@@ -49,6 +67,8 @@ func TestModel_ViewRendersShellAreas(t *testing.T) {
 	require.Contains(t, view.Content, "48;5;235")
 	require.Contains(t, content, "██████")
 	require.Contains(t, content, "/changelog")
+	require.Contains(t, content, "Hi, Kennedy")
+	require.Contains(t, content, emptyUserPromptQuestion)
 	require.Contains(t, content, inputPrompt+"Ask Hand...")
 	require.Contains(t, content, "Ask Hand...")
 	require.Contains(t, content, "minimax-m2.7")
@@ -77,6 +97,124 @@ func TestNewModelWithClientContextDefaultsNilContext(t *testing.T) {
 	runModel := newModelWithClientContext(nil, nil)
 
 	require.NotNil(t, runModel.chatCtx)
+}
+
+func TestNewModel_ShowsNamePromptForEmptyProfile(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+
+	runModel := newModel()
+	content := stripANSI(runModel.View().Content)
+
+	require.True(t, runModel.shouldShowNamePrompt())
+	require.Contains(t, content, "████████")
+	require.Contains(t, content, namePromptTitle)
+	require.Contains(t, content, namePromptPlaceholder)
+	require.Contains(t, content, namePromptSubmitHint)
+	require.NotContains(t, content, inputPrompt+"Ask Hand")
+	require.NotContains(t, content, "Welcome to Hand TUI")
+}
+
+func TestNewModel_LoadsSavedProfileName(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	require.NoError(t, os.WriteFile(
+		filepath.Join(home, userNameFilename),
+		[]byte("{\"name\":\"Nedy\"}\n"),
+		0o600,
+	))
+
+	runModel := newModel()
+
+	require.False(t, runModel.shouldShowNamePrompt())
+	require.Equal(t, "Nedy", runModel.userName)
+	require.Contains(t, stripANSI(runModel.renderHeader()), "Welcome, Nedy")
+}
+
+func TestNewModel_ShowsEmptyPromptForSavedProfileName(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	require.NoError(t, os.WriteFile(
+		filepath.Join(home, userNameFilename),
+		[]byte("{\"name\":\"Nedy\"}\n"),
+		0o600,
+	))
+
+	runModel := newModel()
+	content := stripANSI(runModel.View().Content)
+
+	require.True(t, runModel.shouldShowEmptyUserPrompt())
+	require.Contains(t, content, "██████")
+	require.Contains(t, content, "/changelog")
+	require.Contains(t, content, "Hi, Nedy")
+	require.Contains(t, content, emptyUserPromptQuestion)
+	require.Contains(t, content, inputPrompt+"Ask Hand")
+	require.NotContains(t, content, "Welcome to Hand TUI")
+}
+
+func TestModel_SubmitsNamePrompt(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	runModel := newModel()
+	runModel.nameInput.SetValue("  Nedy-Okpala  ")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	data, err := os.ReadFile(filepath.Join(home, userNameFilename))
+	require.NoError(t, err)
+	require.False(t, runModel.shouldShowNamePrompt())
+	require.Equal(t, "Nedy-Okpala", runModel.userName)
+	require.JSONEq(t, `{"name":"Nedy-Okpala"}`, string(data))
+	require.Contains(t, stripANSI(runModel.renderHeader()), "Welcome, Nedy-Okpala")
+}
+
+func TestModel_SubmitNamePromptRejectsInvalidName(t *testing.T) {
+	now := time.Date(2026, 5, 28, 20, 0, 0, 0, time.UTC)
+	originalCurrentTime := currentTime
+	t.Cleanup(func() {
+		currentTime = originalCurrentTime
+	})
+	currentTime = func() time.Time {
+		return now
+	}
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	runModel := newModel()
+	runModel.nameInput.SetValue("Nedy Okpala!")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	_, err := os.Stat(filepath.Join(home, userNameFilename))
+	require.True(t, os.IsNotExist(err))
+	require.True(t, runModel.shouldShowNamePrompt())
+	require.Empty(t, runModel.userName)
+	require.Equal(t, defaultStatus, runModel.status.Text())
+	require.Contains(t, stripANSI(runModel.View().Content), namePromptInvalidHint)
+
+	require.Equal(t, namePromptErrorExpiredMsg{startedAt: now}, cmd())
+	updated, cmd = runModel.Update(namePromptErrorExpiredMsg{startedAt: now})
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Empty(t, runModel.namePromptError)
+	require.Contains(t, stripANSI(runModel.View().Content), namePromptSubmitHint)
+	require.NotContains(t, stripANSI(runModel.View().Content), namePromptInvalidHint)
+}
+
+func TestModel_NamePromptAllowsCtrlCExit(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	runModel := newModel()
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'c', Mod: tea.ModCtrl}))
+	require.NotNil(t, cmd)
+
+	runModel = updated.(model)
+	require.Equal(t, "Press Ctrl-C again to exit", runModel.status.Text())
+	require.True(t, runModel.shouldShowNamePrompt())
 }
 
 func TestModel_InitLoadsExistingSessionTimeline(t *testing.T) {
@@ -242,7 +380,7 @@ func TestModel_UpdateReportsTimelineLoadFailure(t *testing.T) {
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.Equal(t, "session timeline unavailable", runModel.status.Text())
-	require.Contains(t, stripANSI(runModel.transcript.View()), "Welcome to Hand TUI")
+	require.Contains(t, stripANSI(runModel.View().Content), emptyUserPromptQuestion)
 }
 
 func TestModel_InitSchedulesLoadedTransientStatusExpiration(t *testing.T) {
@@ -676,6 +814,7 @@ func TestModel_UpdateResizesTranscriptAndInput(t *testing.T) {
 	lines := strings.Split(stripANSI(resized.transcript.GetContent()), "\n")
 	require.NotEmpty(t, lines)
 	require.Equal(t, mainWidth, lipgloss.Width(lines[0]))
+	require.Contains(t, stripANSI(resized.View().Content), emptyUserPromptQuestion)
 }
 
 func TestModel_UpdateScrollsTranscriptWithPagingKeys(t *testing.T) {
@@ -739,6 +878,7 @@ func TestModel_RenderTranscriptContentPreservesMainPaneHeader(t *testing.T) {
 	runModel := newModel()
 	runModel.width = 120
 	runModel.resize()
+	runModel.messages = []transcriptCell{systemTranscriptCell{text: "ready"}}
 	runModel.setTranscriptContent()
 	lines := strings.Split(stripANSI(runModel.transcript.GetContent()), "\n")
 	viewLines := strings.Split(stripANSI(runModel.View().Content), "\n")
@@ -1189,6 +1329,7 @@ func TestModel_UpdateHandlesClearCommand(t *testing.T) {
 	require.Empty(t, runModel.stream.Render())
 	require.Equal(t, "transcript cleared", runModel.status.Text())
 	content := stripANSI(runModel.transcript.View())
+	require.Contains(t, stripANSI(runModel.View().Content), emptyUserPromptQuestion)
 	require.Contains(t, content, "Welcome, Kennedy")
 	require.NotContains(t, content, "You: stale")
 	require.NotContains(t, content, "Hand: live")
@@ -3867,6 +4008,17 @@ func TestModel_UpdateClampsTinyWindowSize(t *testing.T) {
 
 func stripANSI(value string) string {
 	return ansi.Strip(value)
+}
+
+func setActiveTestProfile(t *testing.T, home string) {
+	t.Helper()
+
+	original := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(original)
+	})
+
+	profile.SetActive(profile.Profile{Name: profile.DefaultName, HomeDir: home})
 }
 
 func getTranscriptContentRow(t *testing.T, runModel model, needle string) int {

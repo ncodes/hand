@@ -781,6 +781,19 @@ func (c *Config) SummaryModelSupportsMaxOutputTokens() bool {
 	return auth.SupportsMaxOutputTokens()
 }
 
+// SummaryModelMaxOutputTokensEffective returns maxOutputTokens only when the
+// resolved summary model route supports the parameter.
+func (c *Config) SummaryModelMaxOutputTokensEffective(maxOutputTokens int64) int64 {
+	if maxOutputTokens <= 0 {
+		return 0
+	}
+	if !c.SummaryModelSupportsMaxOutputTokens() {
+		return 0
+	}
+
+	return maxOutputTokens
+}
+
 func normalizeStringMap(values map[string]string) map[string]string {
 	if len(values) == 0 {
 		return nil

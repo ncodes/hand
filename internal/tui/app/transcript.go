@@ -19,6 +19,10 @@ func newTranscript() viewport.Model {
 
 // renderTranscript draws the conversation viewport.
 func (m model) renderTranscript() string {
+	if m.shouldShowNamePrompt() {
+		return m.renderNamePrompt()
+	}
+
 	return lipgloss.NewStyle().
 		Width(m.getMainPaneWidth()).
 		Height(max(m.transcript.Height(), 1)).
@@ -68,6 +72,12 @@ func (m *model) renderTranscriptContent() string {
 	cells = append(cells, m.messages...)
 	if m.live != nil && !m.live.IsEmpty() {
 		cells = append(cells, m.live)
+	}
+	if len(cells) == 0 && m.shouldShowNamePrompt() {
+		return ""
+	}
+	if len(cells) == 0 && m.shouldShowEmptyUserPrompt() {
+		return m.renderEmptyUserPromptContent()
 	}
 	if len(cells) == 0 && m.showIntro {
 		cells = append(cells, systemTranscriptCell{text: "Welcome to Hand TUI.\n\nThe interactive shell is ready."})
