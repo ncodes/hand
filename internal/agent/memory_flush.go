@@ -21,10 +21,9 @@ const memoryFlushTriggerSessionReset = "session reset"
 const memoryFlushTriggerControlledExit = "controlled exit"
 
 var memoryFlushToolNames = map[string]struct{}{
-	"memory_extract": {},
-	"memory_add":     {},
-	"memory_update":  {},
-	"memory_delete":  {},
+	"memory_add":    {},
+	"memory_update": {},
+	"memory_delete": {},
 }
 
 // maybeFlushMemoryBeforeCompaction preserves useful facts before automatic compaction drops context.
@@ -235,10 +234,6 @@ func (t *Turn) flushMemoryBeforeContextLoss(
 				recordMemoryFlushSkipped(traceSession, trigger, "unsupported_tool:"+strings.TrimSpace(toolCall.Name))
 				continue
 			}
-			// memory_extract needs the active session id; normalize only that tool
-			// so other memory tools retain the model-provided input shape.
-			toolCall = t.normalizeMemoryFlushToolCall(toolCall)
-
 			agentLog.Debug().
 				Str("event", trace.EvtMemoryFlushWriteRequested).
 				Str("trigger", trigger).
@@ -333,39 +328,6 @@ func getToolErrorStringText(value string) string {
 	return value
 }
 
-func getStringValue(value any) string {
-	text, _ := value.(string)
-	return strings.TrimSpace(text)
-}
-
-// normalizeMemoryFlushToolCall injects session_id into memory_extract calls.
-func (t *Turn) normalizeMemoryFlushToolCall(toolCall models.ToolCall) models.ToolCall {
-	if t == nil || strings.TrimSpace(toolCall.Name) != "memory_extract" {
-		return toolCall
-	}
-
-	sessionID := strings.TrimSpace(t.sessionID)
-	if sessionID == "" {
-		return toolCall
-	}
-
-	input := map[string]any{}
-	if strings.TrimSpace(toolCall.Input) != "" {
-		if err := json.Unmarshal([]byte(toolCall.Input), &input); err != nil {
-			return toolCall
-		}
-	}
-	input["session_id"] = sessionID
-
-	raw, err := jsonMarshal(input)
-	if err != nil {
-		return toolCall
-	}
-
-	toolCall.Input = string(raw)
-	return toolCall
-}
-
 // invokeFlushTool uses the turn's tool boundary so memory flush follows normal tool behavior.
 func (t *Turn) invokeFlushTool(ctx context.Context, toolCall models.ToolCall) handmsg.Message {
 	if t == nil {
@@ -397,6 +359,11 @@ func (t *Turn) availableMemoryFlushToolDefinitions() ([]models.ToolDefinition, e
 	}
 
 	return flushTools, nil
+}
+
+func getStringValue(value any) string {
+	text, _ := value.(string)
+	return strings.TrimSpace(text)
 }
 
 // recordMemoryFlushFailure records a failed or timed-out memory flush.

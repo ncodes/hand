@@ -362,7 +362,7 @@ You have one bounded opportunity to preserve durable continuity before context i
 Prioritize durable user preferences, explicit corrections, decisions, recurring patterns, unresolved follow-ups, and high-signal relationship or continuity facts.
 Keep memories broad and durable. Do not preserve raw transcript snippets, transient task steps, low-signal details, guesses, sensitive inferences, or temporary state.
 When the transcript contains durable information in the priority categories above, call exactly one available memory tool to preserve the most important item before context loss.
-Use memory_extract when the durable information is best grounded in the recent transcript window. Use memory_add, memory_update, or memory_delete only when a governed explicit write is appropriate and source provenance is available.
+Use only direct write tools: memory_add, memory_update, or memory_delete.
 Include source provenance that ties writes to this session and message range whenever a write tool requires it.
 Do not call more than one tool. If there is nothing durable to preserve, do not call a tool and reply briefly with "no durable memory to flush".`),
 	}
@@ -377,7 +377,7 @@ func BuildMemoryFlushRequest(trigger string) string {
 
 	return strings.TrimSpace(`The ` + trigger + ` flush is starting now.
 Inspect the preceding session messages for durable user preferences, corrections, decisions, recurring patterns, unresolved follow-ups, and high-signal continuity facts.
-If any such durable information is present, call exactly one available memory tool now. Prefer memory_extract for transcript-grounded information.
+If any such durable information is present, call exactly one available direct write memory tool now: memory_add, memory_update, or memory_delete.
 If there is nothing durable to preserve, reply only with "no durable memory to flush".`)
 }
 
