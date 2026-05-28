@@ -104,7 +104,10 @@ func (m *model) completeCompactSession(msg compactSessionCompletedMsg) tea.Cmd {
 		return m.setStatus("compaction failed")
 	}
 
-	return m.setStatus("session compacted")
+	return tea.Batch(
+		m.setStatus("session compacted"),
+		loadSessionContextCmd(m.chatCtx, m.contextLoader, m.getCurrentSessionID()),
+	)
 }
 
 func (m *model) handleLocalCommand(input composerInput) tea.Cmd {

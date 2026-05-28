@@ -109,6 +109,36 @@ func TestModel_InitLoadsExistingSessionTimeline(t *testing.T) {
 	require.Equal(t, 1, client.timelineCalls)
 }
 
+func TestModel_InitLoadsSessionContextUsage(t *testing.T) {
+	client := &fakeTUIChatClient{
+		contextStatus: rpcclient.ContextStatus{
+			SessionID: "default",
+			Length:    128000,
+			Used:      64000,
+			UsedPct:   0.5,
+		},
+	}
+	runModel := newModelWithClient(client)
+
+	cmd := runModel.Init()
+
+	require.NotNil(t, cmd)
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+
+	var loaded sessionContextLoadedMsg
+	for _, child := range batch {
+		if msg, ok := child().(sessionContextLoadedMsg); ok {
+			loaded = msg
+			break
+		}
+	}
+
+	require.Equal(t, "default", client.contextSessionID)
+	require.Equal(t, 1, client.contextCalls)
+	require.Equal(t, 64000, loaded.Status.Used)
+}
+
 func TestLoadSessionTimelineCmdReturnsLoadFailure(t *testing.T) {
 	expectedErr := errors.New("timeline unavailable")
 	client := &fakeTUIChatClient{timelineErr: expectedErr}
@@ -117,6 +147,25 @@ func TestLoadSessionTimelineCmdReturnsLoadFailure(t *testing.T) {
 
 	require.NotNil(t, cmd)
 	require.Equal(t, sessionTimelineLoadFailedMsg{Err: expectedErr}, cmd())
+}
+
+func TestFormatSessionContextUsageUsesStatusValues(t *testing.T) {
+	status := rpcclient.ContextStatus{
+		Length:  128000,
+		Used:    64000,
+		UsedPct: 0.5,
+	}
+
+	require.Equal(t, "64,000 used · 50%", formatSessionContextUsage(status))
+}
+
+func TestFormatSessionContextUsageComputesMissingPercent(t *testing.T) {
+	status := rpcclient.ContextStatus{
+		Length: 200000,
+		Used:   130000,
+	}
+
+	require.Equal(t, "130,000 used · 65%", formatSessionContextUsage(status))
 }
 
 func TestLoadSessionTitleCmdReturnsLoadedTitle(t *testing.T) {
@@ -491,16 +540,17 @@ func TestRenderComposerInputPrompt_HasNoBackgroundColor(t *testing.T) {
 
 func TestModel_RenderBottomStatusPanelMovesContextToRight(t *testing.T) {
 	runModel := newModel()
+	runModel.context = "64,000 used · 50%"
 	content := stripANSI(runModel.renderBottomStatusPanel())
 
 	require.True(t, strings.HasPrefix(content, " "))
 	require.Equal(t, runModel.width, lipgloss.Width(content))
 	require.Contains(t, content, "minimax-m2.7")
 	require.Contains(t, content, "default session")
-	require.Contains(t, content, "60,000")
-	require.Contains(t, content, "used · 65%")
+	require.Contains(t, content, "64,000")
+	require.Contains(t, content, "used · 50%")
 	require.GreaterOrEqual(t, strings.Count(content, "  "), 1)
-	require.Greater(t, strings.Index(content, "60,000"), strings.Index(content, "default session"))
+	require.Greater(t, strings.Index(content, "64,000"), strings.Index(content, "default session"))
 }
 
 func TestModel_RenderBottomStatusPanelShowsThinkingBeforeModel(t *testing.T) {
@@ -1104,6 +1154,7 @@ func TestModel_UpdateKeepsPrintableTextInPrompt(t *testing.T) {
 
 func TestModel_UpdateAppendsPromptOnEnter(t *testing.T) {
 	runModel := newModel()
+	runModel.context = "64,000 used · 50%"
 	runModel.input.SetValue("Summarize tests")
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
@@ -1116,8 +1167,8 @@ func TestModel_UpdateAppendsPromptOnEnter(t *testing.T) {
 	content := stripANSI(mainModel.View().Content)
 	require.Contains(t, content, "██████")
 	require.Contains(t, content, "❯ Summarize tests")
-	require.Contains(t, content, "60,000")
-	require.Contains(t, content, "used · 65%")
+	require.Contains(t, content, "64,000")
+	require.Contains(t, content, "used · 50%")
 }
 
 func TestModel_UpdateHandlesClearCommand(t *testing.T) {
@@ -2208,8 +2259,18 @@ func TestModel_UpdateRefreshesSessionTitleAfterResponseCompletes(t *testing.T) {
 	runModel = updated.(model)
 	require.Equal(t, defaultSessionTitle, runModel.sessionTitle)
 
-	msg := cmd()
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+
+	var msg tea.Msg
+	for _, child := range batch {
+		if childMsg, ok := child().(sessionTitleLoadedMsg); ok {
+			msg = childMsg
+			break
+		}
+	}
 	require.Equal(t, 1, client.currentSessionCalls)
+	require.NotNil(t, msg)
 
 	updated, cmd = runModel.Update(msg)
 
@@ -3533,6 +3594,9 @@ type fakeTUIChatClient struct {
 	timelineErr         error
 	currentSession      storage.Session
 	currentSessionErr   error
+	contextStatus       rpcclient.ContextStatus
+	contextErr          error
+	contextSessionID    string
 	message             string
 	stream              bool
 	streamSet           bool
@@ -3540,6 +3604,7 @@ type fakeTUIChatClient struct {
 	compactCalls        int
 	timelineCalls       int
 	currentSessionCalls int
+	contextCalls        int
 	closed              bool
 }
 
@@ -3580,6 +3645,12 @@ func (c *fakeTUIChatClient) GetSessionTimeline(
 func (c *fakeTUIChatClient) CurrentSession(context.Context) (storage.Session, error) {
 	c.currentSessionCalls++
 	return c.currentSession, c.currentSessionErr
+}
+
+func (c *fakeTUIChatClient) GetSession(_ context.Context, id string) (rpcclient.ContextStatus, error) {
+	c.contextCalls++
+	c.contextSessionID = id
+	return c.contextStatus, c.contextErr
 }
 
 func (c *fakeTUIChatClient) Close() error {

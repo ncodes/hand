@@ -122,7 +122,10 @@ func (m *model) completeResponse(msg responseCompletedMsg) tea.Cmd {
 		m.resize()
 		m.transcript.GotoBottom()
 	}
-	return loadSessionTitleCmd(m.chatCtx, m.title)
+	return tea.Batch(
+		loadSessionTitleCmd(m.chatCtx, m.title),
+		loadSessionContextCmd(m.chatCtx, m.contextLoader, m.getCurrentSessionID()),
+	)
 }
 
 func (m *model) cancelActiveResponse() tea.Cmd {

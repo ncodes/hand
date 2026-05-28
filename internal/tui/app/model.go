@@ -24,11 +24,12 @@ type model struct {
 	transcript viewport.Model
 	input      textarea.Model
 	tuiState
-	chatClient rpcclient.ChatAPI
-	timeline   sessionTimelineLoader
-	title      sessionTitleLoader
-	chatCtx    context.Context
-	events     <-chan tea.Msg
+	chatClient    rpcclient.ChatAPI
+	timeline      sessionTimelineLoader
+	title         sessionTitleLoader
+	contextLoader sessionContextLoader
+	chatCtx       context.Context
+	events        <-chan tea.Msg
 }
 
 // newModel builds the initial TUI state and sizes child components.
@@ -68,6 +69,9 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	}
 	if title, ok := client.(sessionTitleLoader); ok {
 		appModel.title = title
+	}
+	if contextLoader, ok := client.(sessionContextLoader); ok {
+		appModel.contextLoader = contextLoader
 	}
 	if err != nil {
 		setStatusTransient(&appModel.status, "prompt history unavailable")

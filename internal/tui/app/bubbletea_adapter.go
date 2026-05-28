@@ -4,7 +4,12 @@ import tea "charm.land/bubbletea/v2"
 
 // Init focuses the input composer when Bubble Tea starts the program.
 func (m model) Init() tea.Cmd {
-	return tea.Batch(m.input.Focus(), m.statusExpireCmd(), m.runEffect(loadSessionTimelineEffect{}))
+	return tea.Batch(
+		m.input.Focus(),
+		m.statusExpireCmd(),
+		m.runEffect(loadSessionTimelineEffect{}),
+		loadSessionContextCmd(m.chatCtx, m.contextLoader, m.getCurrentSessionID()),
+	)
 }
 
 // Update adapts Bubble Tea terminal messages into app-level TUI events.
@@ -48,6 +53,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refreshSessionTitleFromSession(msg.Session)
 		return m, nil
 	case sessionTitleLoadFailedMsg:
+		return m, nil
+	case sessionContextLoadedMsg:
+		m.refreshSessionContext(msg.Status)
+		return m, nil
+	case sessionContextLoadFailedMsg:
 		return m, nil
 	case sessionErrorMsg:
 		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})

@@ -57,7 +57,6 @@ func newTUIState(history []string, thinkingComposerEnabled bool) tuiState {
 		sessionTitle:             defaultSessionTitle,
 		modelName:                getModelDisplayName(constants.DefaultProfileModel),
 		runtimeInfo:              defaultRuntimeInfo(),
-		context:                  "60,000 used · 65%",
 		showIntro:                true,
 		reasoningMessageIndex:    -1,
 		manualCompactionIndex:    -1,

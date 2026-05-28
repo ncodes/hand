@@ -79,7 +79,7 @@ func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.C
 	m.setDefaultStatus(defaultStatus)
 	m.resize()
 
-	return nil
+	return loadSessionContextCmd(m.chatCtx, m.contextLoader, m.getCurrentSessionID())
 }
 
 func (m *model) refreshSessionTitleFromSession(session storage.Session) {
