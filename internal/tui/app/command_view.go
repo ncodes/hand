@@ -1,0 +1,556 @@
+package tui
+
+import (
+	"strings"
+	"time"
+
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+)
+
+const (
+	commandViewMinHeight = 6
+	commandViewMaxHeight = 16
+	commandViewTitleGap  = 1
+)
+
+type commandViewPayload struct {
+	TitleIcon       string
+	TitleLeft       string
+	TitleSubtext    string
+	TitleRight      string
+	AccentColor     string
+	TitleRightColor string
+	Content         string
+}
+
+type commandViewSelectionAutoScrollTickMsg struct{}
+
+func (m model) isCommandViewVisible() bool {
+	return m.commandView.Visible
+}
+
+func (m *model) showCommandView(payload commandViewPayload) {
+	m.applyAction(showCommandViewAction{
+		TitleIcon:       payload.TitleIcon,
+		TitleLeft:       payload.TitleLeft,
+		TitleSubtext:    payload.TitleSubtext,
+		TitleRight:      payload.TitleRight,
+		AccentColor:     payload.AccentColor,
+		TitleRightColor: payload.TitleRightColor,
+		Content:         payload.Content,
+	})
+	m.resize()
+}
+
+func (m model) hideCommandView() model {
+	m.applyAction(hideCommandViewAction{})
+	m.resize()
+
+	return m
+}
+
+func (m model) getCommandViewHeight() int {
+	available := max(m.height-1, 1)
+	preferred := max(m.height/3, commandViewMinHeight)
+
+	return min(min(preferred, commandViewMaxHeight), available)
+}
+
+func (m model) renderCommandView() string {
+	frame := m.getCommandViewFrame()
+	content := frame.Content
+	if m.commandViewSelection.active {
+		start, end := m.commandViewSelection.offsetBounds()
+		content = renderCommandViewLines(commandViewContent{
+			Text: highlightTranscriptSelection(
+				m.commandViewSelection.content,
+				start,
+				end,
+				lipgloss.NewStyle().Reverse(true),
+			),
+			Width:  m.getCommandViewContentWidth(),
+			Height: m.getCommandViewContentHeight(),
+			Offset: m.commandViewOffset,
+		})
+	}
+
+	return lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(frame.BorderColor)).
+		Padding(0, 1).
+		Width(frame.Width).
+		Height(frame.Height).
+		Render(lipgloss.JoinVertical(lipgloss.Left, frame.Title, "", content))
+}
+
+func (m model) getCommandViewFrame() commandViewFrame {
+	height := m.getCommandViewHeight()
+	width := getInputBoxWidth(m.getMainPaneWidth())
+	contentWidth := max(width-4, 1)
+	contentHeight := max(height-2-commandViewTitleGap, 1)
+
+	accentColor := strings.TrimSpace(m.commandView.AccentColor)
+	if accentColor == "" {
+		accentColor = defaultTUITheme.NoticeForeground
+	}
+	rightColor := strings.TrimSpace(m.commandView.TitleRightColor)
+	if rightColor == "" {
+		rightColor = defaultTUITheme.MutedText
+	}
+
+	return commandViewFrame{
+		Width:       width,
+		Height:      height,
+		AccentColor: accentColor,
+		BorderColor: defaultTUITheme.InputFrameBorder,
+		Title: renderCommandViewTitle(commandViewTitle{
+			Icon:       m.commandView.TitleIcon,
+			Left:       defaultCommandViewTitle(m.commandView.TitleLeft),
+			Subtext:    m.commandView.TitleSubtext,
+			Right:      m.commandView.TitleRight,
+			Width:      contentWidth,
+			Accent:     accentColor,
+			Muted:      defaultTUITheme.MutedText,
+			RightColor: rightColor,
+		}),
+		Content: renderCommandViewContent(commandViewContent{
+			Text:   m.renderCommandViewContentText(),
+			Width:  contentWidth,
+			Height: contentHeight,
+			Offset: m.commandViewOffset,
+		}),
+	}
+}
+
+type commandViewFrame struct {
+	Width       int
+	Height      int
+	AccentColor string
+	BorderColor string
+	Title       string
+	Content     string
+}
+
+type commandViewTitle struct {
+	Icon       string
+	Left       string
+	Subtext    string
+	Right      string
+	Width      int
+	Accent     string
+	Muted      string
+	RightColor string
+}
+
+type commandViewContent struct {
+	Text   string
+	Width  int
+	Height int
+	Offset int
+}
+
+func renderCommandViewTitle(title commandViewTitle) string {
+	leftText := strings.TrimSpace(title.Left)
+	if icon := strings.TrimSpace(title.Icon); icon != "" {
+		leftText = icon + " " + leftText
+	}
+	left := lipgloss.NewStyle().
+		Inline(true).
+		Foreground(lipgloss.Color(title.Accent)).
+		Render(leftText)
+	subtext := strings.TrimSpace(title.Subtext)
+	if subtext != "" {
+		left += lipgloss.NewStyle().
+			Inline(true).
+			Foreground(lipgloss.Color(title.Muted)).
+			Render(" - " + subtext)
+	}
+	right := strings.TrimSpace(title.Right)
+	if right != "" {
+		right = lipgloss.NewStyle().
+			Inline(true).
+			Foreground(lipgloss.Color(title.RightColor)).
+			Render(right)
+	}
+
+	return spaceBetweenCommandViewTitle(left, right, max(title.Width, 1))
+}
+
+func renderCommandViewContent(content commandViewContent) string {
+	view := newCommandViewContentViewport(content)
+
+	return view.View()
+}
+
+func (m model) newCommandViewContentViewport(content commandViewContent) viewport.Model {
+	return newCommandViewContentViewport(content)
+}
+
+func newCommandViewContentViewport(content commandViewContent) viewport.Model {
+	text := strings.TrimSpace(content.Text)
+	if text == "" {
+		text = "No content available."
+	}
+
+	view := viewport.New(
+		viewport.WithWidth(max(content.Width, 1)),
+		viewport.WithHeight(max(content.Height, 1)),
+	)
+	view.SoftWrap = true
+	view.SetContent(text)
+	view.SetYOffset(max(content.Offset, 0))
+
+	return view
+}
+
+func renderCommandViewLines(content commandViewContent) string {
+	text := strings.TrimRight(content.Text, "\n")
+	if strings.TrimSpace(text) == "" {
+		text = "No content available."
+	}
+
+	view := viewport.New(
+		viewport.WithWidth(max(content.Width, 1)),
+		viewport.WithHeight(max(content.Height, 1)),
+	)
+	view.SoftWrap = false
+	view.SetContent(text)
+	view.SetYOffset(max(content.Offset, 0))
+
+	return view.View()
+}
+
+func spaceBetweenCommandViewTitle(left string, right string, width int) string {
+	left = strings.TrimSpace(left)
+	right = strings.TrimSpace(right)
+	if right == "" {
+		return left
+	}
+	if left == "" {
+		return right
+	}
+
+	gap := width - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap <= 0 {
+		return left + renderCommandViewTitleSeparator() + right
+	}
+
+	return left + strings.Repeat(" ", gap) + right
+}
+
+func renderCommandViewTitleSeparator() string {
+	return lipgloss.NewStyle().
+		Inline(true).
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		Render(" · ")
+}
+
+func defaultCommandViewTitle(value string) string {
+	value = strings.TrimSpace(value)
+	if value != "" {
+		return value
+	}
+
+	return "Command"
+}
+
+func (m *model) updateCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if !m.isCommandViewVisible() {
+		return *m, nil
+	}
+
+	offset := m.commandViewOffset
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		switch msg.Key().Code {
+		case tea.KeyUp:
+			offset--
+		case tea.KeyDown:
+			offset++
+		case tea.KeyPgUp:
+			offset -= max(m.getCommandViewHeight()-3, 1)
+		case tea.KeyPgDown:
+			offset += max(m.getCommandViewHeight()-3, 1)
+		case tea.KeyHome:
+			offset = 0
+		case tea.KeyEnd:
+			offset = 1 << 30
+		default:
+			return *m, nil
+		}
+	case tea.MouseWheelMsg:
+		switch msg.Mouse().Button {
+		case tea.MouseWheelUp:
+			offset--
+		case tea.MouseWheelDown:
+			offset++
+		default:
+			return *m, nil
+		}
+	default:
+		return *m, nil
+	}
+	m.clearCommandViewSelection()
+	m.commandViewOffset = m.clampCommandViewOffset(offset)
+
+	return *m, nil
+}
+
+func (m *model) copyCommandView() tea.Cmd {
+	text := m.commandViewPlainText()
+	if text == "" {
+		return m.setStatus("command view is empty")
+	}
+
+	return m.runEffect(copyTranscriptEffect{
+		Text:   text,
+		Status: "command view copied",
+	})
+}
+
+func (m *model) startCommandViewSelection(msg tea.MouseClickMsg) bool {
+	if msg.Button != tea.MouseLeft {
+		return false
+	}
+	if !m.isMouseInCommandViewContent(msg.Mouse()) {
+		return false
+	}
+
+	point, ok := m.commandViewSelectionPointFromMouse(msg.Mouse())
+	if !ok {
+		return false
+	}
+
+	m.commandViewSelection = commandViewSelection{
+		active:   true,
+		dragging: true,
+		content:  m.renderCommandViewSelectionDocument(),
+		start:    point,
+		end:      point,
+		mouse:    msg.Mouse(),
+	}
+
+	return true
+}
+
+func (m *model) updateCommandViewSelection(msg tea.MouseMotionMsg) (bool, tea.Cmd) {
+	if !m.commandViewSelection.dragging {
+		return false, nil
+	}
+
+	cmd := m.updateCommandViewSelectionForMouse(msg.Mouse())
+
+	return true, cmd
+}
+
+func (m *model) finishCommandViewSelection(msg tea.MouseReleaseMsg) (bool, tea.Cmd) {
+	if !m.commandViewSelection.dragging {
+		return false, nil
+	}
+
+	m.updateCommandViewSelectionForMouse(msg.Mouse())
+	m.commandViewSelection.dragging = false
+	m.commandViewSelection.scroll = 0
+	m.commandViewSelection.ticking = false
+
+	text := m.selectedCommandViewText()
+	if strings.TrimSpace(text) == "" {
+		m.clearCommandViewSelection()
+		return true, nil
+	}
+	if err := writeClipboard(text); err != nil {
+		return true, m.setStatus("copy failed")
+	}
+
+	return true, nil
+}
+
+func (m *model) updateCommandViewSelectionForMouse(mouse tea.Mouse) tea.Cmd {
+	m.commandViewSelection.mouse = mouse
+	m.commandViewSelection.scroll = m.commandViewSelectionScrollDirection(mouse)
+
+	if m.commandViewSelection.scroll != 0 {
+		m.commandViewOffset = m.clampCommandViewOffset(m.commandViewOffset + m.commandViewSelection.scroll)
+	}
+	if point, ok := m.commandViewSelectionPointFromMouseClamped(mouse); ok {
+		m.commandViewSelection.end = point
+	}
+	if m.commandViewSelection.scroll == 0 || m.commandViewSelection.ticking {
+		return nil
+	}
+
+	m.commandViewSelection.ticking = true
+	return commandViewSelectionAutoScrollTickCmd()
+}
+
+func (m *model) updateCommandViewSelectionAutoScroll() (tea.Model, tea.Cmd) {
+	if !m.commandViewSelection.dragging {
+		m.commandViewSelection.scroll = 0
+		m.commandViewSelection.ticking = false
+		return *m, nil
+	}
+
+	m.commandViewSelection.ticking = false
+	cmd := m.updateCommandViewSelectionForMouse(m.commandViewSelection.mouse)
+
+	return *m, cmd
+}
+
+func (m *model) clearCommandViewSelection() {
+	m.commandViewSelection = commandViewSelection{}
+}
+
+func (m model) selectedCommandViewText() string {
+	if !m.commandViewSelection.active {
+		return ""
+	}
+
+	document := newRenderedTranscriptDocument(m.commandViewSelection.content)
+	start, end := m.commandViewSelection.offsetBounds()
+	text := document.PlainRange(start, end)
+	if text == "" {
+		return ""
+	}
+
+	return compactTranscriptSelectionBlankLines(strings.TrimSpace(text))
+}
+
+func (m model) commandViewSelectionPointFromMouse(mouse tea.Mouse) (transcriptSelectionPoint, bool) {
+	if !m.isMouseInCommandViewContent(mouse) {
+		return transcriptSelectionPoint{}, false
+	}
+
+	row := m.commandViewOffset + mouse.Y - m.getCommandViewContentTop()
+	x := max(mouse.X-m.getCommandViewContentLeft(), 0)
+
+	return m.commandViewSelectionPointFromVisibleLine(row, x)
+}
+
+func (m model) commandViewSelectionPointFromMouseClamped(mouse tea.Mouse) (transcriptSelectionPoint, bool) {
+	lines := newRenderedTranscriptDocument(m.getCommandViewSelectionContent()).PlainLines()
+	if len(lines) == 0 {
+		return transcriptSelectionPoint{}, false
+	}
+
+	row := m.commandViewOffset + mouse.Y - m.getCommandViewContentTop()
+	row = min(max(row, 0), len(lines)-1)
+	x := max(mouse.X-m.getCommandViewContentLeft(), 0)
+
+	return m.commandViewSelectionPointFromVisibleLine(row, x)
+}
+
+func (m model) commandViewSelectionPointFromVisibleLine(
+	lineIndex int,
+	x int,
+) (transcriptSelectionPoint, bool) {
+	document := newRenderedTranscriptDocument(m.getCommandViewSelectionContent())
+	if lineIndex < 0 || lineIndex >= len(document.PlainLines()) {
+		return transcriptSelectionPoint{}, false
+	}
+
+	return getTranscriptSelectionPointFromDocument(document, lineIndex, x), true
+}
+
+func (m model) getCommandViewSelectionContent() string {
+	if m.commandViewSelection.content != "" {
+		return m.commandViewSelection.content
+	}
+
+	return m.renderCommandViewSelectionDocument()
+}
+
+func (m model) renderCommandViewSelectionDocument() string {
+	view := m.newCommandViewContentViewport(commandViewContent{
+		Text:   m.renderCommandViewContentText(),
+		Width:  m.getCommandViewContentWidth(),
+		Height: 1,
+		Offset: 0,
+	})
+	view.SetHeight(max(view.TotalLineCount(), 1))
+	view.SetYOffset(0)
+
+	return view.View()
+}
+
+func (m model) isMouseInCommandViewContent(mouse tea.Mouse) bool {
+	if !m.isCommandViewVisible() {
+		return false
+	}
+
+	row := mouse.Y - m.getCommandViewContentTop()
+	if row < 0 || row >= m.getCommandViewContentHeight() {
+		return false
+	}
+
+	col := mouse.X - m.getCommandViewContentLeft()
+	return col >= 0 && col < m.getCommandViewContentWidth()
+}
+
+func (m model) getCommandViewContentTop() int {
+	return m.getTUILayout(m.input.Height()).Composer.Y + 2 + commandViewTitleGap
+}
+
+func (m model) getCommandViewContentLeft() int {
+	return 2
+}
+
+func (m model) getCommandViewContentWidth() int {
+	return max(getInputBoxWidth(m.getMainPaneWidth())-4, 1)
+}
+
+func (m model) getCommandViewContentHeight() int {
+	return max(m.getCommandViewHeight()-2-commandViewTitleGap, 1)
+}
+
+func (m model) commandViewSelectionScrollDirection(mouse tea.Mouse) int {
+	row := mouse.Y - m.getCommandViewContentTop()
+	switch {
+	case row <= 0 && m.commandViewOffset > 0:
+		return -1
+	case row >= m.getCommandViewContentHeight()-1 &&
+		m.commandViewOffset < m.getCommandViewMaxYOffset():
+		return 1
+	default:
+		return 0
+	}
+}
+
+func (m model) getCommandViewMaxYOffset() int {
+	view := m.newCommandViewContentViewport(commandViewContent{
+		Text:   m.renderCommandViewContentText(),
+		Width:  m.getCommandViewContentWidth(),
+		Height: m.getCommandViewContentHeight(),
+	})
+
+	return max(view.TotalLineCount()-m.getCommandViewContentHeight(), 0)
+}
+
+func (m model) clampCommandViewOffset(offset int) int {
+	return min(max(offset, 0), m.getCommandViewMaxYOffset())
+}
+
+func (m model) renderCommandViewContentText() string {
+	return renderMarkdownForTranscript(m.commandView.Content, m.getCommandViewContentWidth())
+}
+
+func (m model) commandViewPlainText() string {
+	document := newRenderedTranscriptDocument(m.renderCommandViewSelectionDocument())
+
+	return strings.TrimSpace(document.PlainText)
+}
+
+func (s commandViewSelection) offsetBounds() (int, int) {
+	if s.start.offset <= s.end.offset {
+		return s.start.offset, s.end.offset
+	}
+
+	return s.end.offset, s.start.offset
+}
+
+func commandViewSelectionAutoScrollTickCmd() tea.Cmd {
+	return tea.Tick(transcriptSelectionAutoScrollInterval, func(_ time.Time) tea.Msg {
+		return commandViewSelectionAutoScrollTickMsg{}
+	})
+}

@@ -244,7 +244,7 @@ func TestChromePanelData_SeparatesModelStateFromRendering(t *testing.T) {
 	require.Equal(t, handBanner, panel.Banner)
 	require.True(t, panel.ShowInfo)
 	require.Equal(t, "Welcome, ", panel.Notice.LeftLead)
-	require.Equal(t, "/changelogs", panel.Notice.Link)
+	require.Equal(t, "/changelog", panel.Notice.Link)
 	require.Contains(t, headerInfoRowsToPlainText(panel.InfoRows), "model=gpt-4o-mini")
 }
 
@@ -257,7 +257,7 @@ func TestChromeRenderer_RendersHeaderAndNoticeFromPanelData(t *testing.T) {
 	notice := stripANSI(renderer.RenderNoticeBar(panel.Notice))
 
 	require.Contains(t, header, "Welcome, Kennedy")
-	require.Contains(t, header, "Use /changelogs to see what changed")
+	require.Contains(t, header, "Use /changelog to see what changed")
 	require.Contains(t, header, "░██")
 	require.Contains(t, notice, "Welcome, Kennedy")
 	require.Equal(t, 96, lipgloss.Width(strings.Split(notice, "\n")[0]))

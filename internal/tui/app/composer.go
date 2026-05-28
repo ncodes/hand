@@ -24,9 +24,6 @@ func (m model) parseComposerInputForSubmit() composerInput {
 	if input.Kind != composerInputCommand {
 		return input
 	}
-	if input.Name == "" && m.commandMenuSelected == 0 {
-		return input
-	}
 
 	command, ok := m.getSelectedSlashCommand()
 	if !ok {
@@ -93,6 +90,8 @@ func (m *model) submitPrompt() tea.Cmd {
 func (m *model) clearComposer() {
 	m.input.SetValue("")
 	m.commandMenuOffset = 0
+	m.commandMenuSelected = 0
+	m.commandMenuPrefix = ""
 	m.historyAt = len(m.history)
 	m.draft = ""
 }

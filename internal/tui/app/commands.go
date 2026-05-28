@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	changelog "github.com/wandxy/hand"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 )
 
@@ -15,6 +16,7 @@ type slashCommandDefinition struct {
 }
 
 var slashCommandDefinitions = []slashCommandDefinition{
+	{Name: "changelog", Description: "Show the latest changelog entry"},
 	{Name: "clear", Description: "Clear the transcript"},
 	{Name: "compact", Description: "Compact the current session"},
 	{Name: "copy", Description: "Copy the transcript"},
@@ -33,6 +35,15 @@ type compactSessionCompletedMsg struct {
 func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 	var cmd tea.Cmd
 	switch input.Name {
+	case "changelog":
+		m.showCommandView(commandViewPayload{
+			TitleIcon:       "✦",
+			TitleLeft:       "Changelog",
+			TitleSubtext:    "See what is new",
+			TitleRight:      "esc to close",
+			TitleRightColor: defaultTUITheme.MutedText,
+			Content:         changelog.Latest(),
+		})
 	case "clear":
 		m.applyAction(clearTranscriptAction{})
 		cmd = m.setStatus("transcript cleared")

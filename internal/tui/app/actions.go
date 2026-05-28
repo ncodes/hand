@@ -49,6 +49,18 @@ type setSessionContextAction struct {
 	Context string
 }
 
+type showCommandViewAction struct {
+	TitleIcon       string
+	TitleLeft       string
+	TitleSubtext    string
+	TitleRight      string
+	AccentColor     string
+	TitleRightColor string
+	Content         string
+}
+
+type hideCommandViewAction struct{}
+
 type setRespondingAction struct {
 	Responding bool
 	ResponseID int
@@ -144,6 +156,35 @@ func (action setSessionContextAction) apply(state *tuiState) {
 	}
 
 	state.context = strings.TrimSpace(action.Context)
+}
+
+func (action showCommandViewAction) apply(state *tuiState) {
+	if state == nil {
+		return
+	}
+
+	state.commandView = commandViewState{
+		Visible:         true,
+		TitleIcon:       strings.TrimSpace(action.TitleIcon),
+		TitleLeft:       strings.TrimSpace(action.TitleLeft),
+		TitleSubtext:    strings.TrimSpace(action.TitleSubtext),
+		TitleRight:      strings.TrimSpace(action.TitleRight),
+		AccentColor:     strings.TrimSpace(action.AccentColor),
+		TitleRightColor: strings.TrimSpace(action.TitleRightColor),
+		Content:         strings.TrimSpace(action.Content),
+	}
+	state.commandViewOffset = 0
+	state.commandViewSelection = commandViewSelection{}
+}
+
+func (hideCommandViewAction) apply(state *tuiState) {
+	if state == nil {
+		return
+	}
+
+	state.commandView = commandViewState{}
+	state.commandViewOffset = 0
+	state.commandViewSelection = commandViewSelection{}
 }
 
 func (action setRespondingAction) apply(state *tuiState) {

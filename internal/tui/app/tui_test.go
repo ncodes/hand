@@ -48,7 +48,7 @@ func TestModel_ViewRendersShellAreas(t *testing.T) {
 	require.Equal(t, tea.MouseModeCellMotion, view.MouseMode)
 	require.Contains(t, view.Content, "48;5;235")
 	require.Contains(t, content, "██████")
-	require.Contains(t, content, "/changelogs")
+	require.Contains(t, content, "/changelog")
 	require.Contains(t, content, inputPrompt+"Ask Hand...")
 	require.Contains(t, content, "Ask Hand...")
 	require.Contains(t, content, "minimax-m2.7")
@@ -315,7 +315,7 @@ func TestModel_ViewRendersHeaderInfoPanelWhenWide(t *testing.T) {
 	content := stripANSI(runModel.renderHeader())
 
 	require.Contains(t, content, "Welcome, Kennedy")
-	require.Contains(t, content, "Use /changelogs to see what changed")
+	require.Contains(t, content, "Use /changelog to see what changed")
 	require.Contains(t, content, "version: dev")
 	require.Contains(t, content, "commit: unknown")
 	require.Contains(t, content, "profile: work")
@@ -336,7 +336,7 @@ func TestModel_RenderNoticeBarFillsRow(t *testing.T) {
 
 	require.Len(t, lines, noticeBarHeight)
 	require.Contains(t, lines[0], "Welcome, Kennedy")
-	require.Contains(t, lines[0], "Use /changelogs to see what changed")
+	require.Contains(t, lines[0], "Use /changelog to see what changed")
 	require.Equal(t, 80, lipgloss.Width(lines[0]))
 }
 
@@ -351,7 +351,7 @@ func TestModel_RenderNoticeBarUsesConfiguredColors(t *testing.T) {
 }
 
 func TestRenderNoticeBarContent_HidesRightTextWhenTooNarrow(t *testing.T) {
-	content := stripANSI(renderNoticeBarContent("Welcome", "Use /changelogs", 8))
+	content := stripANSI(renderNoticeBarContent("Welcome", "Use /changelog", 8))
 
 	require.Equal(t, "Welcome", content)
 }
@@ -363,9 +363,9 @@ func TestRenderNoticeBarContent_HidesRightTextWhenMissing(t *testing.T) {
 }
 
 func TestRenderNoticeBarContent_FillsWidthWithSpacer(t *testing.T) {
-	content := stripANSI(renderNoticeBarContent("Welcome", "Use /changelogs", 30))
+	content := stripANSI(renderNoticeBarContent("Welcome", "Use /changelog", 30))
 
-	require.Equal(t, "Welcome        Use /changelogs", content)
+	require.Equal(t, "Welcome         Use /changelog", content)
 	require.Equal(t, 30, lipgloss.Width(content))
 }
 
@@ -1206,9 +1206,319 @@ func TestModel_UpdateHandlesHelpCommand(t *testing.T) {
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, []string{"Commands: /clear, /compact, /copy, /help"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"Commands: /changelog, /clear, /compact, /copy, /help"}, transcriptCellPlainTexts(runModel.messages))
 	require.Empty(t, runModel.input.Value())
-	require.Contains(t, stripANSI(runModel.transcript.View()), "Commands: /clear, /compact, /copy, /help")
+	require.Contains(t, stripANSI(runModel.transcript.View()), "Commands: /changelog, /clear, /compact, /copy, /help")
+}
+
+func TestModel_UpdateHandlesChangelogCommand(t *testing.T) {
+	runModel := newModel()
+	runModel.input.SetValue("/changelog")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Empty(t, runModel.input.Value())
+	require.Empty(t, runModel.messages)
+	require.True(t, runModel.isCommandViewVisible())
+	require.Equal(t, "✦", runModel.commandView.TitleIcon)
+	require.Equal(t, "Changelog", runModel.commandView.TitleLeft)
+	require.Equal(t, "See what is new", runModel.commandView.TitleSubtext)
+	require.Equal(t, "esc to close", runModel.commandView.TitleRight)
+	require.Empty(t, runModel.commandView.AccentColor)
+	require.Equal(t, defaultTUITheme.MutedText, runModel.commandView.TitleRightColor)
+
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "✦ Changelog")
+	require.Contains(t, content, "Changelog")
+	require.Contains(t, content, "See what is new")
+	require.Contains(t, content, "Unreleased")
+	require.Contains(t, content, "GitHub Copilot")
+	require.NotContains(t, content, "## Unreleased")
+	require.NotContains(t, content, "- Added")
+	require.Contains(t, content, "esc to close")
+	require.NotContains(t, content, inputPrompt+"Ask Hand")
+}
+
+func TestModel_UpdateSubmitsDefaultCommandMenuItemForBareSlash(t *testing.T) {
+	runModel := newModel()
+	runModel.input.SetValue("/")
+	runModel.updateCommandMenuForInput("/")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Empty(t, runModel.input.Value())
+	require.Zero(t, runModel.commandMenuSelected)
+	require.Zero(t, runModel.commandMenuOffset)
+	require.Empty(t, runModel.commandMenuPrefix)
+	require.True(t, runModel.isCommandViewVisible())
+	require.Equal(t, "Changelog", runModel.commandView.TitleLeft)
+}
+
+func TestModel_UpdateEscapeClosesCommandView(t *testing.T) {
+	runModel := newModel()
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft:  "Changelog",
+		TitleRight: "esc to close",
+		Content:    "latest updates",
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.isCommandViewVisible())
+	require.Contains(t, stripANSI(runModel.View().Content), inputPrompt+"Ask Hand")
+}
+
+func TestCommandViewFrame_UsesProvidedTitleColorsAndContent(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 80
+	runModel.showCommandView(commandViewPayload{
+		TitleIcon:       "◉",
+		TitleLeft:       "Release Notes",
+		TitleSubtext:    "New things",
+		TitleRight:      "esc",
+		AccentColor:     "203",
+		TitleRightColor: "83",
+		Content:         "latest update",
+	})
+
+	content := runModel.renderCommandView()
+	plain := stripANSI(content)
+
+	require.Contains(t, plain, "◉ Release Notes")
+	require.Contains(t, plain, "Release Notes")
+	require.Contains(t, plain, " - New things")
+	require.Contains(t, plain, "esc")
+	require.Contains(t, plain, "latest update")
+	require.Contains(t, content, "38;5;203")
+	require.Contains(t, content, "38;5;83")
+}
+
+func TestCommandViewFrame_UsesDefaultTitleAndMutedSubtitleColors(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 80
+	runModel.showCommandView(commandViewPayload{
+		TitleIcon:    "◉",
+		TitleLeft:    "Release Notes",
+		TitleSubtext: "New things",
+		Content:      "latest update",
+	})
+
+	frame := runModel.getCommandViewFrame()
+	title := lipgloss.NewStyle().
+		Inline(true).
+		Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground)).
+		Render("◉ Release Notes")
+	mutedSubtitle := lipgloss.NewStyle().
+		Inline(true).
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		Render(" - New things")
+
+	require.Equal(t, defaultTUITheme.NoticeForeground, frame.AccentColor)
+	require.Contains(t, frame.Title, title)
+	require.Contains(t, frame.Title, mutedSubtitle)
+}
+
+func TestCommandViewFrame_AddsGapBetweenTitleAndContent(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 80
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Release Notes",
+		Content:   "latest update",
+	})
+
+	lines := strings.Split(stripANSI(runModel.renderCommandView()), "\n")
+
+	require.GreaterOrEqual(t, len(lines), 4)
+	require.Contains(t, lines[1], "Release Notes")
+	require.NotContains(t, lines[2], "Release Notes")
+	require.NotContains(t, lines[2], "latest update")
+	require.Contains(t, lines[3], "latest update")
+}
+
+func TestCommandViewFrame_UsesComposerBorderColor(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 80
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft:   "Release Notes",
+		AccentColor: "203",
+		Content:     "latest update",
+	})
+
+	frame := runModel.getCommandViewFrame()
+
+	require.Equal(t, defaultTUITheme.InputFrameBorder, frame.BorderColor)
+}
+
+func TestCommandViewFrame_ScrollsContent(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 80
+	runModel.height = 18
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Long Output",
+		Content:   strings.Join([]string{"line 1", "line 2", "line 3", "line 4", "line 5", "line 6"}, "\n"),
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 1, runModel.commandViewOffset)
+	require.NotContains(t, stripANSI(runModel.renderCommandView()), "line 1")
+	require.Contains(t, stripANSI(runModel.renderCommandView()), "line 2")
+}
+
+func TestModel_UpdateCopiesCommandViewContent(t *testing.T) {
+	originalWriteClipboard := writeClipboard
+	t.Cleanup(func() {
+		writeClipboard = originalWriteClipboard
+	})
+	var copied string
+	writeClipboard = func(text string) error {
+		copied = text
+		return nil
+	}
+	runModel := newModel()
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Changelog",
+		Content:   "latest update",
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'y', Mod: tea.ModCtrl}))
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "latest update", copied)
+	require.Equal(t, "command view copied", runModel.status.Text())
+}
+
+func TestModel_UpdateCopiesRenderedCommandViewMarkdown(t *testing.T) {
+	originalWriteClipboard := writeClipboard
+	t.Cleanup(func() {
+		writeClipboard = originalWriteClipboard
+	})
+	var copied string
+	writeClipboard = func(text string) error {
+		copied = text
+		return nil
+	}
+	runModel := newModel()
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Notes",
+		Content:   "## Latest\n\n- Added markdown rendering",
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'y', Mod: tea.ModCtrl}))
+
+	require.NotNil(t, cmd)
+	_ = updated.(model)
+	require.Contains(t, copied, "Latest")
+	require.Contains(t, copied, "Added markdown rendering")
+	require.NotContains(t, copied, "## Latest")
+	require.NotContains(t, copied, "- Added")
+}
+
+func TestModel_UpdateSelectsCommandViewTextWithMouseAndCopiesOnRelease(t *testing.T) {
+	originalWriteClipboard := writeClipboard
+	t.Cleanup(func() {
+		writeClipboard = originalWriteClipboard
+	})
+	var copied string
+	writeClipboard = func(text string) error {
+		copied = text
+		return nil
+	}
+	runModel := newModel()
+	runModel.width = 80
+	runModel.height = 24
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Changelog",
+		Content:   "alpha\nbeta",
+	})
+	row := runModel.getCommandViewContentTop()
+	x := runModel.getCommandViewContentLeft()
+
+	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		X:      x,
+		Y:      row,
+	}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.commandViewSelection.dragging)
+
+	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		X:      x + len("alpha"),
+		Y:      row,
+	}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Contains(t, runModel.renderCommandView(), "\x1b[7m")
+
+	updated, cmd = runModel.Update(tea.MouseReleaseMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		X:      x + len("alpha"),
+		Y:      row,
+	}))
+
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.commandViewSelection.dragging)
+	require.True(t, runModel.commandViewSelection.active)
+	require.Contains(t, runModel.renderCommandView(), "\x1b[7m")
+	require.Equal(t, "alpha", copied)
+	require.Equal(t, "alpha", runModel.selectedCommandViewText())
+}
+
+func TestModel_UpdateAutoScrollsCommandViewSelection(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 80
+	runModel.height = 18
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Long Output",
+		Content: strings.Join([]string{
+			"line 1",
+			"line 2",
+			"line 3",
+			"line 4",
+			"line 5",
+			"line 6",
+		}, "\n"),
+	})
+	top := runModel.getCommandViewContentTop()
+	x := runModel.getCommandViewContentLeft()
+
+	updated, cmd := runModel.Update(tea.MouseClickMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		X:      x,
+		Y:      top,
+	}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+
+	updated, cmd = runModel.Update(tea.MouseMotionMsg(tea.Mouse{
+		Button: tea.MouseLeft,
+		X:      x + len("line 6"),
+		Y:      top + runModel.getCommandViewContentHeight(),
+	}))
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 1, runModel.commandViewOffset)
+	require.Contains(t, runModel.selectedCommandViewText(), "line 4")
+
+	updated, cmd = runModel.Update(commandViewSelectionAutoScrollTickMsg{})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 2, runModel.commandViewOffset)
+	require.Contains(t, runModel.selectedCommandViewText(), "line 5")
 }
 
 func TestModel_UpdateHandlesCompactCommand(t *testing.T) {
@@ -1270,6 +1580,7 @@ func TestModel_UpdateSubmitsSelectedCommandMenuItem(t *testing.T) {
 	runModel.input.SetValue("/")
 	runModel.updateCommandMenuForInput("/")
 	require.True(t, runModel.scrollCommandMenu(1))
+	require.True(t, runModel.scrollCommandMenu(1))
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 
@@ -1283,6 +1594,22 @@ func TestModel_UpdateSubmitsSelectedCommandMenuItem(t *testing.T) {
 
 	require.Equal(t, 1, client.compactCalls)
 	require.Equal(t, defaultSessionID, client.compactID)
+}
+
+func TestModel_UpdateSubmitsSelectedCommandMenuItemForCommandPrefix(t *testing.T) {
+	runModel := newModel()
+	runModel.messages = []transcriptCell{assistantTranscriptCell{text: "stale"}}
+	runModel.input.SetValue("/c")
+	runModel.updateCommandMenuForInput("/c")
+	require.True(t, runModel.scrollCommandMenu(1))
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Empty(t, runModel.input.Value())
+	require.Empty(t, runModel.messages)
+	require.Equal(t, "transcript cleared", runModel.status.Text())
 }
 
 func TestModel_UpdateHandlesCompactCommandForCurrentSessionID(t *testing.T) {
@@ -2030,17 +2357,14 @@ func TestModel_UpdateReportsUnknownCommand(t *testing.T) {
 	require.Empty(t, runModel.input.Value())
 }
 
-func TestModel_UpdateReportsEmptyCommand(t *testing.T) {
+func TestModel_HandleSlashCommandReportsEmptyCommand(t *testing.T) {
 	runModel := newModel()
-	runModel.input.SetValue("/")
 
-	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	cmd := runModel.handleSlashCommand(composerInput{Kind: composerInputCommand})
 
 	require.NotNil(t, cmd)
-	runModel = updated.(model)
 	require.Empty(t, transcriptCellPlainTexts(runModel.messages))
 	require.Equal(t, "empty command", runModel.status.Text())
-	require.Empty(t, runModel.input.Value())
 }
 
 func TestModel_UpdateBlocksLocalCommandWhenShellIsDisabled(t *testing.T) {
@@ -3001,7 +3325,7 @@ func TestModel_UpdateKeepsCommandsLocalDuringActiveResponse(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.True(t, runModel.responding)
-	require.Equal(t, []string{"Commands: /clear, /compact, /copy, /help"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"Commands: /changelog, /clear, /compact, /copy, /help"}, transcriptCellPlainTexts(runModel.messages))
 	require.Empty(t, runModel.input.Value())
 }
 

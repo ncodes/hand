@@ -28,6 +28,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateThinkingComposer()
 	case transcriptSelectionAutoScrollTickMsg:
 		return m.updateTranscriptSelectionAutoScroll()
+	case commandViewSelectionAutoScrollTickMsg:
+		return m.updateCommandViewSelectionAutoScroll()
 	case assistantTextDeltaMsg:
 		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 	case assistantResponseCompletedMsg:
@@ -78,11 +80,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.updateInputComposer(msg)
 	case tea.MouseWheelMsg:
+		if m.isCommandViewVisible() {
+			return m.updateCommandView(msg)
+		}
 		if m.scrollCommandMenuWithMouse(msg) {
 			return m, nil
 		}
 		return m.updateTranscriptWithScrollTracking(msg)
 	case tea.MouseClickMsg:
+		if m.isCommandViewVisible() {
+			if m.startCommandViewSelection(msg) {
+				return m, nil
+			}
+
+			return m, nil
+		}
 		if cmd, ok := m.openTranscriptLinkAtMouse(msg); ok {
 			return m, cmd
 		}
@@ -93,6 +105,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	case tea.MouseMotionMsg:
+		if handled, cmd := m.updateCommandViewSelection(msg); handled {
+			return m, cmd
+		}
 		if m.updateCommandMenuHover(msg) {
 			return m, nil
 		}
@@ -100,6 +115,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	case tea.MouseReleaseMsg:
+		if handled, cmd := m.finishCommandViewSelection(msg); handled {
+			return m, cmd
+		}
 		if cmd := m.finishTranscriptSelection(msg); cmd != nil {
 			return m, cmd
 		}
@@ -146,6 +164,16 @@ func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool)
 	switch msg.Keystroke() {
 	case "ctrl+c":
 		next, cmd := m.confirmExit()
+		return next, cmd, true
+	}
+	if m.isCommandViewVisible() {
+		if msg.Keystroke() == "esc" {
+			return m.hideCommandView(), nil, true
+		}
+		if msg.Keystroke() == "ctrl+y" {
+			return m, m.copyCommandView(), true
+		}
+		next, cmd := m.updateCommandView(msg)
 		return next, cmd, true
 	}
 	if m.manualCompactionActive {

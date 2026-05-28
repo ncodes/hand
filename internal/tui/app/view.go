@@ -9,11 +9,15 @@ const jumpToBottomLabel = "Jump to bottom (ctrl+End) ↓"
 
 // View composes the scrollable transcript and fixed input composer.
 func (m model) View() tea.View {
+	bottomPane := m.renderInput()
+	if m.isCommandViewVisible() {
+		bottomPane = m.renderCommandView()
+	}
 	mainContent := lipgloss.JoinVertical(
 		lipgloss.Left,
 		m.renderTranscript(),
 		m.renderTranscriptComposerGap(),
-		m.renderInput(),
+		bottomPane,
 	)
 	view := tea.NewView(mainContent)
 	view.AltScreen = true
@@ -23,7 +27,7 @@ func (m model) View() tea.View {
 }
 
 func (m model) renderTranscriptComposerGap() string {
-	if m.transcript.AtBottom() || m.isCommandMenuVisible() {
+	if m.transcript.AtBottom() || m.isCommandMenuVisible() || m.isCommandViewVisible() {
 		return ""
 	}
 
@@ -40,7 +44,7 @@ func (m model) renderTranscriptComposerGap() string {
 }
 
 func (m model) clicksJumpToBottomIndicator(msg tea.MouseClickMsg) bool {
-	if msg.Button != tea.MouseLeft || m.transcript.AtBottom() || m.isCommandMenuVisible() {
+	if msg.Button != tea.MouseLeft || m.transcript.AtBottom() || m.isCommandMenuVisible() || m.isCommandViewVisible() {
 		return false
 	}
 
@@ -68,6 +72,14 @@ func (m model) getMainPaneWidth() int {
 }
 
 func (m model) getTUILayout(inputHeight int) tuiLayout {
+	if m.isCommandViewVisible() {
+		return getTUILayoutWithBottomPaneHeight(
+			m.width,
+			m.height,
+			m.getCommandViewHeight(),
+		)
+	}
+
 	return getTUILayoutWithInputChromeHeight(
 		m.width,
 		m.height,

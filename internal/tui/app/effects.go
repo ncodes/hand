@@ -12,7 +12,8 @@ type sendPromptEffect struct {
 }
 
 type copyTranscriptEffect struct {
-	Text string
+	Text   string
+	Status string
 }
 
 type openLinkEffect struct {
@@ -33,6 +34,9 @@ func (m *model) runEffect(effect tuiEffect) tea.Cmd {
 	case copyTranscriptEffect:
 		if err := writeClipboard(value.Text); err != nil {
 			return m.setStatus("copy failed")
+		}
+		if value.Status != "" {
+			return m.setStatus(value.Status)
 		}
 
 		return m.setStatus("transcript copied")

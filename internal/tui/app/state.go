@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/wandxy/hand/internal/constants"
 )
 
@@ -43,9 +45,34 @@ type tuiState struct {
 	commandMenuOffset          int
 	commandMenuSelected        int
 	commandMenuPrefix          string
+	commandView                commandViewState
+	commandViewOffset          int
+	commandViewSelection       commandViewSelection
 	exitAt                     time.Time
 	allowShell                 bool
 	selection                  transcriptSelection
+}
+
+type commandViewState struct {
+	Visible         bool
+	TitleIcon       string
+	TitleLeft       string
+	TitleSubtext    string
+	TitleRight      string
+	AccentColor     string
+	TitleRightColor string
+	Content         string
+}
+
+type commandViewSelection struct {
+	active   bool
+	dragging bool
+	content  string
+	start    transcriptSelectionPoint
+	end      transcriptSelectionPoint
+	mouse    tea.Mouse
+	scroll   int
+	ticking  bool
 }
 
 func newTUIState(history []string, thinkingComposerEnabled bool) tuiState {

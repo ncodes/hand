@@ -34,7 +34,7 @@ const (
 	noticeBarLeftLead = "Welcome, "
 	noticeBarName     = "Kennedy"
 	noticeBarLead     = "Use "
-	noticeBarLink     = "/changelogs"
+	noticeBarLink     = "/changelog"
 	noticeBarTail     = " to see what changed"
 )
 

@@ -32,6 +32,16 @@ func getTUILayoutWithInputChromeHeight(width int, height int, inputHeight int, c
 	}))
 }
 
+func getTUILayoutWithBottomPaneHeight(width int, height int, bottomPaneHeight int) tuiLayout {
+	return tuiLayoutFromRegions(tuilayout.Compute(width, height, bottomPaneHeight, tuilayout.Metrics{
+		MinInputHeight:              1,
+		InputChromeHeight:           transcriptComposerGapHeight,
+		InputFrameChromeHeight:      0,
+		TranscriptComposerGapHeight: transcriptComposerGapHeight,
+		BottomStatusPanelHeight:     0,
+	}))
+}
+
 func getMainPaneWidth(width int) int {
 	return max(width, 1)
 }
