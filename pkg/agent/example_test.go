@@ -1,25 +1,24 @@
-package agent_test
+package agent
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/wandxy/hand/internal/model"
-	"github.com/wandxy/hand/pkg/agent"
 	"github.com/wandxy/hand/pkg/agent/message"
 	"github.com/wandxy/hand/pkg/agent/session"
 	"github.com/wandxy/hand/pkg/agent/tool"
 )
 
 func ExampleAgent_Respond() {
-	store := newMemorySessionStore()
-	client := &fakeModelClient{
+	store := newStubSessionStore()
+	client := &stubModelClient{
 		complete: func(context.Context, model.Request) (*model.Response, error) {
 			return &model.Response{OutputText: "hello from an embedded agent"}, nil
 		},
 	}
 
-	core, err := agent.New(agent.Options{
+	core, err := New(Options{
 		Model:        "example-model",
 		API:          model.APIOpenAICompletions,
 		ModelClient:  client,
@@ -29,7 +28,7 @@ func ExampleAgent_Respond() {
 		panic(err)
 	}
 
-	reply, err := core.Respond(context.Background(), "hello", agent.RespondOptions{})
+	reply, err := core.Respond(context.Background(), "hello", RespondOptions{})
 	if err != nil {
 		panic(err)
 	}
@@ -39,8 +38,8 @@ func ExampleAgent_Respond() {
 }
 
 func ExampleAgent_Respond_withToolCall() {
-	store := newMemorySessionStore()
-	registry := &fakeToolRegistry{
+	store := newStubSessionStore()
+	registry := &stubToolRegistry{
 		invoke: func(context.Context, tool.Call) message.Message {
 			return message.Message{
 				Role:       message.RoleTool,
@@ -50,7 +49,7 @@ func ExampleAgent_Respond_withToolCall() {
 			}
 		},
 	}
-	client := &fakeModelClient{}
+	client := &stubModelClient{}
 	client.complete = func(_ context.Context, request model.Request) (*model.Response, error) {
 		if len(request.Messages) == 1 {
 			return &model.Response{
@@ -66,7 +65,7 @@ func ExampleAgent_Respond_withToolCall() {
 		return &model.Response{OutputText: "used the tool"}, nil
 	}
 
-	core, err := agent.New(agent.Options{
+	core, err := New(Options{
 		Model:         "example-model",
 		API:           model.APIOpenAICompletions,
 		ModelClient:   client,
@@ -78,7 +77,7 @@ func ExampleAgent_Respond_withToolCall() {
 		panic(err)
 	}
 
-	reply, err := core.Respond(context.Background(), "hello", agent.RespondOptions{})
+	reply, err := core.Respond(context.Background(), "hello", RespondOptions{})
 	if err != nil {
 		panic(err)
 	}
@@ -90,4 +89,4 @@ func ExampleAgent_Respond_withToolCall() {
 	// 1
 }
 
-var _ session.Store = (*memorySessionStore)(nil)
+var _ session.Store = (*stubSessionStore)(nil)

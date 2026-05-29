@@ -60,10 +60,11 @@ type sourceLink struct {
 // Definition returns the model-visible tool definition.
 func Definition(runtime envtypes.Runtime) tools.Definition {
 	return tools.Definition{
-		Name:        "memory_search",
-		Description: "Search durable memory for relevant pinned, semantic, episodic, or procedural memories.",
-		Groups:      []string{"core"},
-		Requires:    tools.Capabilities{Memory: true},
+		Name:         "memory_search",
+		Description:  "Search durable memory for relevant pinned, semantic, episodic, or procedural memories.",
+		ParallelSafe: true,
+		Groups:       []string{"core"},
+		Requires:     tools.Capabilities{Memory: true},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"query": common.StringSchema("Search query for durable memory."),
 			"kinds": map[string]any{

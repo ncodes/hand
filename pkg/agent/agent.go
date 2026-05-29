@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/pkg/agent/message"
@@ -42,6 +43,19 @@ type RespondOptions struct {
 
 type Agent struct {
 	opts Options
+}
+
+type ToolCallExecutor func(context.Context, model.ToolCall) (message.Message, error)
+
+type ToolCallExecutionOptions struct {
+	ToolCalls   []model.ToolCall
+	Definitions []model.ToolDefinition
+	Execute     ToolCallExecutor
+}
+
+type ToolCallBatch struct {
+	ToolCalls []model.ToolCall
+	Parallel  bool
 }
 
 func New(opts Options) (*Agent, error) {
@@ -82,10 +96,7 @@ func (a *Agent) Respond(ctx context.Context, input string, opts RespondOptions) 
 		return "", err
 	}
 
-	userMessage, err := message.New(message.RoleUser, input)
-	if err != nil {
-		return "", err
-	}
+	userMessage, _ := message.New(message.RoleUser, input)
 	if err := a.opts.SessionStore.AppendMessages(ctx, resolved.ID, []message.Message{userMessage}); err != nil {
 		return "", err
 	}
@@ -143,16 +154,14 @@ func (a *Agent) Respond(ctx context.Context, input string, opts RespondOptions) 
 		}
 		emitted = append(emitted, assistantMessage)
 
-		for _, modelToolCall := range resp.ToolCalls {
-			toolMessage, err := message.Normalize(a.opts.ToolRegistry.Invoke(ctx, tool.CallFromModel(modelToolCall)))
-			if err != nil {
-				return LoopDecision{}, err
-			}
-			if err := a.opts.SessionStore.AppendMessages(ctx, resolved.ID, []message.Message{toolMessage}); err != nil {
-				return LoopDecision{}, err
-			}
-			emitted = append(emitted, toolMessage)
+		toolMessages, err := a.executeToolCalls(ctx, resp.ToolCalls, request.Tools)
+		if err != nil {
+			return LoopDecision{}, err
 		}
+		if err := a.opts.SessionStore.AppendMessages(ctx, resolved.ID, toolMessages); err != nil {
+			return LoopDecision{}, err
+		}
+		emitted = append(emitted, toolMessages...)
 
 		return LoopDecision{}, nil
 	}
@@ -214,6 +223,178 @@ func (a *Agent) complete(ctx context.Context, request model.Request, opts Respon
 	}
 
 	return a.opts.ModelClient.Complete(ctx, request)
+}
+
+type toolCallResult struct {
+	message message.Message
+	err     error
+}
+
+func (a *Agent) executeToolCalls(
+	ctx context.Context,
+	toolCalls []model.ToolCall,
+	definitions []model.ToolDefinition,
+) ([]message.Message, error) {
+	return ExecuteToolCalls(ctx, ToolCallExecutionOptions{
+		ToolCalls:   toolCalls,
+		Definitions: definitions,
+		Execute:     a.executeToolCall,
+	})
+}
+
+func ExecuteToolCalls(ctx context.Context, opts ToolCallExecutionOptions) ([]message.Message, error) {
+	if opts.Execute == nil {
+		return nil, errors.New("tool call executor is required")
+	}
+
+	batches := BuildToolCallBatches(opts.ToolCalls, opts.Definitions)
+	messages := make([]message.Message, 0, len(opts.ToolCalls))
+	for _, batch := range batches {
+		var batchMessages []message.Message
+		var err error
+		if batch.Parallel {
+			batchMessages, err = executeToolCallsParallel(ctx, batch.ToolCalls, opts.Execute)
+		} else {
+			batchMessages, err = executeToolCallsSequential(ctx, batch.ToolCalls, opts.Execute)
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		messages = append(messages, batchMessages...)
+	}
+
+	return messages, nil
+}
+
+func executeToolCallsSequential(
+	ctx context.Context,
+	toolCalls []model.ToolCall,
+	execute ToolCallExecutor,
+) ([]message.Message, error) {
+	messages := make([]message.Message, 0, len(toolCalls))
+	for _, modelToolCall := range toolCalls {
+		toolMessage, err := execute(ctx, modelToolCall)
+		if err != nil {
+			return nil, err
+		}
+
+		messages = append(messages, toolMessage)
+	}
+
+	return messages, nil
+}
+
+func executeToolCallsParallel(
+	ctx context.Context,
+	toolCalls []model.ToolCall,
+	execute ToolCallExecutor,
+) ([]message.Message, error) {
+	toolCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	results := make([]toolCallResult, len(toolCalls))
+	var wg sync.WaitGroup
+
+	for index, modelToolCall := range toolCalls {
+		index, modelToolCall := index, modelToolCall
+		wg.Go(func() {
+			toolMessage, err := execute(toolCtx, modelToolCall)
+			if err != nil {
+				cancel()
+			}
+			results[index] = toolCallResult{message: toolMessage, err: err}
+		})
+	}
+
+	wg.Wait()
+
+	messages := make([]message.Message, 0, len(results))
+	for _, result := range results {
+		messages = append(messages, result.message)
+	}
+	if err := getToolCallResultsError(results); err != nil {
+		return nil, err
+	}
+
+	return messages, nil
+}
+
+func (a *Agent) executeToolCall(ctx context.Context, modelToolCall model.ToolCall) (message.Message, error) {
+	if err := ctx.Err(); err != nil {
+		return message.Message{}, err
+	}
+
+	return message.Normalize(a.opts.ToolRegistry.Invoke(ctx, tool.CallFromModel(modelToolCall)))
+}
+
+func BuildToolCallBatches(
+	toolCalls []model.ToolCall,
+	definitions []model.ToolDefinition,
+) []ToolCallBatch {
+	parallelSafe := getParallelSafeToolNames(definitions)
+	batches := make([]ToolCallBatch, 0, len(toolCalls))
+	var current []model.ToolCall
+
+	for _, toolCall := range toolCalls {
+		name := strings.TrimSpace(toolCall.Name)
+		if name != "" && parallelSafe[name] {
+			current = append(current, toolCall)
+			continue
+		}
+
+		batches = appendToolCallBatch(batches, current)
+		current = nil
+		batches = append(batches, ToolCallBatch{ToolCalls: []model.ToolCall{toolCall}})
+	}
+
+	return appendToolCallBatch(batches, current)
+}
+
+func appendToolCallBatch(batches []ToolCallBatch, toolCalls []model.ToolCall) []ToolCallBatch {
+	if len(toolCalls) == 0 {
+		return batches
+	}
+
+	return append(batches, ToolCallBatch{
+		ToolCalls: toolCalls,
+		Parallel:  len(toolCalls) > 1,
+	})
+}
+
+func getParallelSafeToolNames(definitions []model.ToolDefinition) map[string]bool {
+	if len(definitions) == 0 {
+		return nil
+	}
+
+	names := make(map[string]bool)
+	for _, definition := range definitions {
+		name := strings.TrimSpace(definition.Name)
+		if name != "" && definition.ParallelSafe {
+			names[name] = true
+		}
+	}
+
+	return names
+}
+
+func getToolCallResultsError(results []toolCallResult) error {
+	var contextErr error
+	for _, result := range results {
+		if result.err == nil {
+			continue
+		}
+		if errors.Is(result.err, context.Canceled) || errors.Is(result.err, context.DeadlineExceeded) {
+			if contextErr == nil {
+				contextErr = result.err
+			}
+			continue
+		}
+
+		return result.err
+	}
+
+	return contextErr
 }
 
 func (a *Agent) resolveToolDefinitions() ([]model.ToolDefinition, error) {

@@ -51,8 +51,9 @@ func Definition(provider webprovider.Provider, options ...Options) tools.Definit
 		Name: "web_extract",
 		Description: "Extract readable content from one or more URLs. " +
 			"Use this to retrieve and read page contents after discovery.",
-		Groups:   []string{"core"},
-		Requires: tools.Capabilities{Network: true},
+		ParallelSafe: true,
+		Groups:       []string{"core"},
+		Requires:     tools.Capabilities{Network: true},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"urls": map[string]any{
 				"type":        "array",

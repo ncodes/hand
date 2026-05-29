@@ -33,10 +33,11 @@ func Definition(provider webintegration.Provider, options ...Options) tools.Defi
 	opts := getWebSearchOptions(options)
 
 	return tools.Definition{
-		Name:        "web_search",
-		Description: "Search the web for relevant pages. Use this for discovery and result-finding, not for full-page extraction.",
-		Groups:      []string{"core"},
-		Requires:    tools.Capabilities{Network: true},
+		Name:         "web_search",
+		Description:  "Search the web for relevant pages. Use this for discovery and result-finding, not for full-page extraction.",
+		ParallelSafe: true,
+		Groups:       []string{"core"},
+		Requires:     tools.Capabilities{Network: true},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"query": common.StringSchema("Search query to run."),
 			"count": common.IntegerSchema("Maximum number of results to return. Defaults to 5 and is capped at 10."),

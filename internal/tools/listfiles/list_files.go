@@ -30,10 +30,11 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 	}
 
 	return tools.Definition{
-		Name:        "list_files",
-		Description: "List files and directories under an allowed workspace root.",
-		Groups:      []string{"core"},
-		Requires:    tools.Capabilities{Filesystem: true},
+		Name:         "list_files",
+		Description:  "List files and directories under an allowed workspace root.",
+		ParallelSafe: true,
+		Groups:       []string{"core"},
+		Requires:     tools.Capabilities{Filesystem: true},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"path":           common.StringSchema("Path relative to an allowed workspace root. Defaults to the workspace root when omitted."),
 			"recursive":      common.BooleanSchema("When true, list directory contents recursively. Defaults to false."),

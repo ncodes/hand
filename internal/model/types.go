@@ -60,9 +60,10 @@ type Response struct {
 }
 
 type ToolDefinition struct {
-	Name        string
-	Description string
-	InputSchema map[string]any
+	Name         string
+	Description  string
+	InputSchema  map[string]any
+	ParallelSafe bool
 }
 
 type ToolCall struct {

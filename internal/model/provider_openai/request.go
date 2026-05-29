@@ -139,9 +139,10 @@ func normalizeToolDefinitions(definitions []ToolDefinition) ([]ToolDefinition, e
 			return nil, errors.New("tool name is required")
 		}
 		normalized = append(normalized, ToolDefinition{
-			Name:        name,
-			Description: strings.TrimSpace(definition.Description),
-			InputSchema: definition.InputSchema,
+			Name:         name,
+			Description:  strings.TrimSpace(definition.Description),
+			InputSchema:  definition.InputSchema,
+			ParallelSafe: definition.ParallelSafe,
 		})
 	}
 

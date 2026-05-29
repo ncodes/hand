@@ -765,9 +765,10 @@ func normalizeContext(ctx context.Context) context.Context {
 // modelToolDefinitionFromToolDefinition converts registry tool definitions into model tool definitions.
 func modelToolDefinitionFromToolDefinition(definition tools.Definition) models.ToolDefinition {
 	return models.ToolDefinition{
-		Name:        definition.Name,
-		Description: definition.Description,
-		InputSchema: definition.InputSchema,
+		Name:         definition.Name,
+		Description:  definition.Description,
+		InputSchema:  definition.InputSchema,
+		ParallelSafe: definition.ParallelSafe,
 	}
 }
 

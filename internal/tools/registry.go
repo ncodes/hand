@@ -108,6 +108,7 @@ type Definition struct {
 	Description      string
 	UsageInstruction instructions.Instruction
 	InputSchema      map[string]any
+	ParallelSafe     bool
 	Groups           []string
 	Requires         Capabilities
 	Platforms        []string

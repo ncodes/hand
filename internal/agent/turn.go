@@ -715,62 +715,16 @@ func (t *Turn) Run(ctx context.Context, msg string, opts agentcore.RespondOption
 				return agentcore.LoopDecision{}, err
 			}
 
-			// For each tool call: execute, trace, and record as tool message.
-			for _, toolCall := range resp.ToolCalls {
-				if err := ctx.Err(); err != nil {
-					traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-					return agentcore.LoopDecision{}, err
-				}
+			toolMessages, err := t.executeToolCalls(ctx, traceSession, resp.ToolCalls, availableToolDefinitions)
+			if err != nil {
+				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
+				return agentcore.LoopDecision{}, err
+			}
 
-				// Start tool invocation logging.
-				agentLog.Info().
-					Str("event", "tool invocation started").
-					Str("relationship", "tool_call_from_current_model_response").
-					Str("tool", toolCall.Name).
-					Str("tool_call_id", toolCall.ID).
-					Msg("tool invocation started")
-
-				traceSession.Record(trace.EvtToolInvocationStarted, trace.ToolInvocationStartedPayload{
-					ID:           toolCall.ID,
-					Name:         toolCall.Name,
-					Input:        toolCall.Input,
-					PlanState:    getPlanToolInputState(toolCall.Name, toolCall.Input),
-					ProcessState: getProcessToolInputState(toolCall.Name, toolCall.Input),
-				})
-
-				// Invoke tool and get tool message.
-				toolCtx := tools.WithTraceRecorder(t.getToolContext(ctx), traceSession)
-				toolMessage := t.invokeTool(toolCtx, toolCall)
-
-				traceSession.Record(trace.EvtToolInvocationCompleted, trace.ToolInvocationCompletedPayload{
-					ToolCallID:   toolMessage.ToolCallID,
-					Name:         toolMessage.Name,
-					Content:      toolMessage.Content,
-					PlanState:    getPlanToolOutputState(toolMessage.Name, toolMessage.Content),
-					ProcessState: getProcessToolOutputState(toolMessage.Name, toolMessage.Content),
-				})
-
-				agentLog.Info().
-					Str("event", "tool invocation completed").
-					Str("relationship", "tool_result_for_current_model_response").
-					Str("tool", toolCall.Name).
-					Str("tool_call_id", toolCall.ID).
-					Int("output_chars", len([]rune(toolMessage.Content))).
-					Int("output_bytes", len(toolMessage.Content)).
-					Msg("tool invocation completed")
-
-				// Normalize tool message and check for serialization/safety invariants.
-				toolMessage, err = normalizeTurnMessage(toolMessage)
-				if err != nil {
-					traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-					return agentcore.LoopDecision{}, err
-				}
-
-				t.emittedMessages = append(t.emittedMessages, toolMessage)
-				if err := t.appendSessionMessages([]handmsg.Message{toolMessage}); err != nil {
-					traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
-					return agentcore.LoopDecision{}, err
-				}
+			t.emittedMessages = append(t.emittedMessages, toolMessages...)
+			if err := t.appendSessionMessages(toolMessages); err != nil {
+				traceSession.Record(trace.EvtSessionFailed, trace.SessionFailedPayload{Error: err.Error()})
+				return agentcore.LoopDecision{}, err
 			}
 			return agentcore.LoopDecision{}, nil
 		},
@@ -1068,6 +1022,68 @@ func (t *Turn) availableToolDefinitions() ([]models.ToolDefinition, error) {
 	}
 
 	return nil, nil
+}
+
+func (t *Turn) executeToolCalls(
+	ctx context.Context,
+	traceSession trace.Session,
+	toolCalls []models.ToolCall,
+	definitions []models.ToolDefinition,
+) ([]handmsg.Message, error) {
+	return agentcore.ExecuteToolCalls(ctx, agentcore.ToolCallExecutionOptions{
+		ToolCalls:   toolCalls,
+		Definitions: definitions,
+		Execute: func(ctx context.Context, toolCall models.ToolCall) (handmsg.Message, error) {
+			return t.executeToolCall(ctx, traceSession, toolCall)
+		},
+	})
+}
+
+func (t *Turn) executeToolCall(
+	ctx context.Context,
+	traceSession trace.Session,
+	toolCall models.ToolCall,
+) (handmsg.Message, error) {
+	if err := ctx.Err(); err != nil {
+		return handmsg.Message{}, err
+	}
+
+	agentLog.Info().
+		Str("event", "tool invocation started").
+		Str("relationship", "tool_call_from_current_model_response").
+		Str("tool", toolCall.Name).
+		Str("tool_call_id", toolCall.ID).
+		Msg("tool invocation started")
+
+	traceSession.Record(trace.EvtToolInvocationStarted, trace.ToolInvocationStartedPayload{
+		ID:           toolCall.ID,
+		Name:         toolCall.Name,
+		Input:        toolCall.Input,
+		PlanState:    getPlanToolInputState(toolCall.Name, toolCall.Input),
+		ProcessState: getProcessToolInputState(toolCall.Name, toolCall.Input),
+	})
+
+	toolCtx := tools.WithTraceRecorder(t.getToolContext(ctx), traceSession)
+	toolMessage := t.invokeTool(toolCtx, toolCall)
+
+	traceSession.Record(trace.EvtToolInvocationCompleted, trace.ToolInvocationCompletedPayload{
+		ToolCallID:   toolMessage.ToolCallID,
+		Name:         toolMessage.Name,
+		Content:      toolMessage.Content,
+		PlanState:    getPlanToolOutputState(toolMessage.Name, toolMessage.Content),
+		ProcessState: getProcessToolOutputState(toolMessage.Name, toolMessage.Content),
+	})
+
+	agentLog.Info().
+		Str("event", "tool invocation completed").
+		Str("relationship", "tool_result_for_current_model_response").
+		Str("tool", toolCall.Name).
+		Str("tool_call_id", toolCall.ID).
+		Int("output_chars", len([]rune(toolMessage.Content))).
+		Int("output_bytes", len(toolMessage.Content)).
+		Msg("tool invocation completed")
+
+	return normalizeTurnMessage(toolMessage)
 }
 
 // invokeTool executes a tool call, optionally using turn's tool invocation handler.

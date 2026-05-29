@@ -18,10 +18,11 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 	}
 
 	return tools.Definition{
-		Name:        "read_file",
-		Description: "Read a text file from an allowed workspace root.",
-		Groups:      []string{"core"},
-		Requires:    tools.Capabilities{Filesystem: true},
+		Name:         "read_file",
+		Description:  "Read a text file from an allowed workspace root.",
+		ParallelSafe: true,
+		Groups:       []string{"core"},
+		Requires:     tools.Capabilities{Filesystem: true},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"path": common.StringSchema("Path to the text file relative to an allowed workspace root."),
 		}, "path"),

@@ -20,12 +20,13 @@ type Call struct {
 }
 
 type Definition struct {
-	Name        string
-	Description string
-	InputSchema map[string]any
-	Groups      []string
-	Requires    Capabilities
-	Platforms   []string
+	Name         string
+	Description  string
+	InputSchema  map[string]any
+	ParallelSafe bool
+	Groups       []string
+	Requires     Capabilities
+	Platforms    []string
 }
 
 type Group struct {
@@ -50,17 +51,19 @@ type Capabilities struct {
 
 func DefinitionFromModel(definition model.ToolDefinition) Definition {
 	return Definition{
-		Name:        definition.Name,
-		Description: definition.Description,
-		InputSchema: definition.InputSchema,
+		Name:         definition.Name,
+		Description:  definition.Description,
+		InputSchema:  definition.InputSchema,
+		ParallelSafe: definition.ParallelSafe,
 	}
 }
 
 func DefinitionToModel(definition Definition) model.ToolDefinition {
 	return model.ToolDefinition{
-		Name:        definition.Name,
-		Description: definition.Description,
-		InputSchema: definition.InputSchema,
+		Name:         definition.Name,
+		Description:  definition.Description,
+		InputSchema:  definition.InputSchema,
+		ParallelSafe: definition.ParallelSafe,
 	}
 }
 

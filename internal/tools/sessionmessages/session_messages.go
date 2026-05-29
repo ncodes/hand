@@ -27,6 +27,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 		Name:             "session_messages",
 		Description:      "Fetch exact session transcript messages by message id, anchor window, or offset range.",
 		UsageInstruction: instructions.BuildSessionMessagesGuidance(),
+		ParallelSafe:     true,
 		Groups:           []string{"core"},
 		Requires:         tools.Capabilities{Memory: true},
 		InputSchema: common.ObjectSchema(map[string]any{

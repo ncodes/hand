@@ -121,12 +121,13 @@ func agentDefinitionsFromToolsDefinitions(definitions handtools.Definitions) []a
 
 func agentDefinitionFromToolsDefinition(definition handtools.Definition) agenttool.Definition {
 	return agenttool.Definition{
-		Name:        definition.Name,
-		Description: definition.Description,
-		InputSchema: definition.InputSchema,
-		Groups:      append([]string(nil), definition.Groups...),
-		Requires:    agentCapabilitiesFromToolsCapabilities(definition.Requires),
-		Platforms:   append([]string(nil), definition.Platforms...),
+		Name:         definition.Name,
+		Description:  definition.Description,
+		InputSchema:  definition.InputSchema,
+		ParallelSafe: definition.ParallelSafe,
+		Groups:       append([]string(nil), definition.Groups...),
+		Requires:     agentCapabilitiesFromToolsCapabilities(definition.Requires),
+		Platforms:    append([]string(nil), definition.Platforms...),
 	}
 }
 

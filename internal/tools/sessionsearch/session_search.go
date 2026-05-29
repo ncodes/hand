@@ -25,6 +25,7 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 		Name:             "session_search",
 		Description:      "Search prior messages in the current session or other sessions.",
 		UsageInstruction: instructions.BuildSessionSearchGuidance(),
+		ParallelSafe:     true,
 		Groups:           []string{"core"},
 		Requires:         tools.Capabilities{Memory: true},
 		InputSchema: common.ObjectSchema(map[string]any{

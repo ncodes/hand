@@ -50,10 +50,11 @@ func Definition(runtime envtypes.Runtime) tools.Definition {
 	}
 
 	return tools.Definition{
-		Name:        "search_files",
-		Description: "Search file contents under an allowed workspace root.",
-		Groups:      []string{"core"},
-		Requires:    tools.Capabilities{Filesystem: true},
+		Name:         "search_files",
+		Description:  "Search file contents under an allowed workspace root.",
+		ParallelSafe: true,
+		Groups:       []string{"core"},
+		Requires:     tools.Capabilities{Filesystem: true},
 		InputSchema: common.ObjectSchema(map[string]any{
 			"pattern":        common.StringSchema("Text or pattern to search for within files."),
 			"path":           common.StringSchema("Path relative to an allowed workspace root to search within. Defaults to the workspace root when omitted."),

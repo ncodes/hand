@@ -137,3 +137,115 @@ func TestRunTurnLifecycle_ReturnsHookErrors(t *testing.T) {
 
 	require.ErrorIs(t, err, expected)
 }
+
+func TestRunTurnLifecycle_ReturnsLoadError(t *testing.T) {
+	expected := errors.New("load failed")
+
+	_, err := RunTurnLifecycle(context.Background(), "hello", RespondOptions{}, TurnLifecycle{
+		Load: func(context.Context, RespondOptions) error {
+			return expected
+		},
+		RunStep: func(context.Context) (LoopDecision, error) {
+			return LoopDecision{}, nil
+		},
+	})
+
+	require.ErrorIs(t, err, expected)
+}
+
+func TestRunTurnLifecycle_ReturnsOpenError(t *testing.T) {
+	expected := errors.New("open failed")
+
+	_, err := RunTurnLifecycle(context.Background(), "hello", RespondOptions{}, TurnLifecycle{
+		Load: func(context.Context, RespondOptions) error {
+			return nil
+		},
+		Open: func(context.Context, RespondOptions) (TurnCloser, error) {
+			return nil, expected
+		},
+		RunStep: func(context.Context) (LoopDecision, error) {
+			return LoopDecision{}, nil
+		},
+	})
+
+	require.ErrorIs(t, err, expected)
+}
+
+func TestRunTurnLifecycle_ClosesOpenedTurn(t *testing.T) {
+	closer := &testTurnCloser{}
+
+	reply, err := RunTurnLifecycle(context.Background(), "hello", RespondOptions{}, TurnLifecycle{
+		Load: func(context.Context, RespondOptions) error {
+			return nil
+		},
+		Open: func(context.Context, RespondOptions) (TurnCloser, error) {
+			return closer, nil
+		},
+		ConsumeIteration: func() bool {
+			return true
+		},
+		RunStep: func(context.Context) (LoopDecision, error) {
+			return LoopDecision{Done: true, Reply: "done"}, nil
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "done", reply)
+	require.True(t, closer.closed)
+}
+
+func TestRunTurnLifecycle_ReturnsOptionalHookErrors(t *testing.T) {
+	expected := errors.New("hook failed")
+
+	tests := []struct {
+		name      string
+		lifecycle TurnLifecycle
+	}{
+		{
+			name: "check input",
+			lifecycle: TurnLifecycle{
+				CheckInput: func(context.Context, string) (InputCheck, error) {
+					return InputCheck{}, expected
+				},
+			},
+		},
+		{
+			name: "accept user message",
+			lifecycle: TurnLifecycle{
+				AcceptUserMessage: func(context.Context, string) error {
+					return expected
+				},
+			},
+		},
+		{
+			name: "load memory",
+			lifecycle: TurnLifecycle{
+				LoadMemory: func(context.Context, string) error {
+					return expected
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.lifecycle.Load = func(context.Context, RespondOptions) error {
+				return nil
+			}
+			test.lifecycle.RunStep = func(context.Context) (LoopDecision, error) {
+				return LoopDecision{}, nil
+			}
+
+			_, err := RunTurnLifecycle(context.Background(), "hello", RespondOptions{}, test.lifecycle)
+			require.ErrorIs(t, err, expected)
+		})
+	}
+}
+
+type testTurnCloser struct {
+	closed bool
+}
+
+func (c *testTurnCloser) Close() {
+	c.closed = true
+}
