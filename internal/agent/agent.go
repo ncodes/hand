@@ -666,8 +666,8 @@ func (a *Agent) ContextStatus(ctx context.Context, id string) (agentcore.Context
 	return status, nil
 }
 
-// GetSession returns the same context status shape used by session inspection.
-func (a *Agent) GetSession(ctx context.Context, id string) (agentcore.ContextStatus, error) {
+// GetSessionStatus returns the same context status shape used by session inspection.
+func (a *Agent) GetSessionStatus(ctx context.Context, id string) (agentcore.ContextStatus, error) {
 	return a.ContextStatus(ctx, id)
 }
 

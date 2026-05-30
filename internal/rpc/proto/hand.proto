@@ -14,7 +14,7 @@ service HandService {
   rpc CurrentSession(CurrentSessionRequest) returns (CurrentSessionResponse);
   rpc CompactSession(CompactSessionRequest) returns (CompactSessionResponse);
   rpc RepairSession(RepairSessionRequest) returns (RepairSessionResponse);
-  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  rpc GetSessionStatus(GetSessionStatusRequest) returns (GetSessionStatusResponse);
   rpc GetSessionTimeline(GetSessionTimelineRequest) returns (GetSessionTimelineResponse);
 }
 
@@ -135,15 +135,15 @@ message VectorRepairResponse {
   int32 batches = 9;
 }
 
-message GetSessionRequestContext {
+message GetSessionStatusRequestContext {
   string id = 1;
 }
 
-message GetSessionRequest {
-  GetSessionRequestContext context = 1;
+message GetSessionStatusRequest {
+  GetSessionStatusRequestContext context = 1;
 }
 
-message GetSessionResponse {
+message GetSessionStatusResponse {
   string id = 1;
   Context context = 2;
   int32 size = 3;

@@ -117,7 +117,7 @@ func (s *AgentServiceStub) RepairSession(
 	return s.RepairResult, s.Err
 }
 
-func (s *AgentServiceStub) GetSession(context.Context, string) (rpcclient.ContextStatus, error) {
+func (s *AgentServiceStub) GetSessionStatus(context.Context, string) (rpcclient.ContextStatus, error) {
 	return s.StatusResult, s.Err
 }
 

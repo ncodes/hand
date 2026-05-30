@@ -186,7 +186,7 @@ func TestAgent_LifecycleHelpersValidateAndUseStateManager(t *testing.T) {
 	require.Equal(t, 0.25, status.UsedPct)
 	require.Equal(t, 0.75, status.RemainingPct)
 
-	status, err = core.GetSession(context.Background(), storage.DefaultSessionID)
+	status, err = core.GetSessionStatus(context.Background(), storage.DefaultSessionID)
 	require.NoError(t, err)
 	require.Equal(t, storage.DefaultSessionID, status.SessionID)
 

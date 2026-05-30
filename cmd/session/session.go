@@ -209,7 +209,7 @@ func NewCommand() *cli.Command {
 					}
 					defer client.Close()
 
-					result, err := client.GetSession(ctx, strings.TrimSpace(cmd.Args().First()))
+					result, err := client.GetSessionStatus(ctx, strings.TrimSpace(cmd.Args().First()))
 					if err != nil {
 						return err
 					}

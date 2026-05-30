@@ -71,7 +71,7 @@ type SessionAPI interface {
 	CurrentSession(context.Context) (storage.Session, error)
 	CompactSession(context.Context, string) (CompactSessionResult, error)
 	RepairSession(context.Context, RepairSessionOptions) (RepairSessionResult, error)
-	GetSession(context.Context, string) (ContextStatus, error)
+	GetSessionStatus(context.Context, string) (ContextStatus, error)
 	GetSessionTimeline(context.Context, SessionTimelineOptions) (SessionTimeline, error)
 }
 
@@ -327,16 +327,16 @@ func (c *Client) RepairSession(
 	}, nil
 }
 
-func (c *Client) GetSession(ctx context.Context, id string) (ContextStatus, error) {
-	resp, err := c.client.GetSession(ctx, &handpb.GetSessionRequest{
-		Context: &handpb.GetSessionRequestContext{Id: strings.TrimSpace(id)},
+func (c *Client) GetSessionStatus(ctx context.Context, id string) (ContextStatus, error) {
+	resp, err := c.client.GetSessionStatus(ctx, &handpb.GetSessionStatusRequest{
+		Context: &handpb.GetSessionStatusRequestContext{Id: strings.TrimSpace(id)},
 	})
 	if err != nil {
 		return ContextStatus{}, err
 	}
 	cctx := resp.GetContext()
 	if cctx == nil {
-		return ContextStatus{}, fmt.Errorf("hand: get session response context is required")
+		return ContextStatus{}, fmt.Errorf("hand: get session status response context is required")
 	}
 
 	return ContextStatus{

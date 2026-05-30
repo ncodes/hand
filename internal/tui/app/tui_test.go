@@ -3941,7 +3941,7 @@ func (c *fakeTUIChatClient) CurrentSession(context.Context) (storage.Session, er
 	return c.currentSession, c.currentSessionErr
 }
 
-func (c *fakeTUIChatClient) GetSession(_ context.Context, id string) (rpcclient.ContextStatus, error) {
+func (c *fakeTUIChatClient) GetSessionStatus(_ context.Context, id string) (rpcclient.ContextStatus, error) {
 	c.contextCalls++
 	c.contextSessionID = id
 	return c.contextStatus, c.contextErr

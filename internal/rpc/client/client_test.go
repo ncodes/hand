@@ -338,16 +338,16 @@ func TestClient_RepairSessionReturnsResult(t *testing.T) {
 	require.Equal(t, 10, result.Batches)
 }
 
-func TestClient_GetSessionReturnsResult(t *testing.T) {
+func TestClient_GetSessionStatusReturnsResult(t *testing.T) {
 	created := time.Date(2024, 4, 1, 10, 0, 0, 0, time.UTC)
 	updated := time.Date(2024, 4, 2, 11, 0, 0, 0, time.UTC)
-	stub := &protomock.HandServiceClientStub{StatusResp: &handpb.GetSessionResponse{
+	stub := &protomock.HandServiceClientStub{StatusResp: &handpb.GetSessionStatusResponse{
 		Id:               "project-a",
 		Size:             20,
 		CreatedAt:        timestamppb.New(created),
 		UpdatedAt:        timestamppb.New(updated),
 		CompactionStatus: "pending",
-		Context: &handpb.GetSessionResponse_Context{
+		Context: &handpb.GetSessionStatusResponse_Context{
 			Offset:       12,
 			Length:       128000,
 			Used:         64000,
@@ -358,7 +358,7 @@ func TestClient_GetSessionReturnsResult(t *testing.T) {
 	}}
 	client := &Client{client: stub}
 
-	result, err := client.GetSession(context.Background(), "project-a")
+	result, err := client.GetSessionStatus(context.Background(), "project-a")
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", stub.StatusReq.GetContext().GetId())

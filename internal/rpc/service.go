@@ -990,7 +990,7 @@ func (s *Service) RepairSession(
 	}, nil
 }
 
-func (s *Service) GetSession(ctx context.Context, req *handpb.GetSessionRequest) (*handpb.GetSessionResponse, error) {
+func (s *Service) GetSessionStatus(ctx context.Context, req *handpb.GetSessionStatusRequest) (*handpb.GetSessionStatusResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -998,10 +998,10 @@ func (s *Service) GetSession(ctx context.Context, req *handpb.GetSessionRequest)
 		return nil, status.Error(codes.Internal, "agent handler is required")
 	}
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "get session request is required")
+		return nil, status.Error(codes.InvalidArgument, "get session status request is required")
 	}
 	if req.GetContext() == nil {
-		return nil, status.Error(codes.InvalidArgument, "get session request context is required")
+		return nil, status.Error(codes.InvalidArgument, "get session status request context is required")
 	}
 
 	result, err := s.api.ContextStatus(ctx, req.GetContext().GetId())
@@ -1009,13 +1009,13 @@ func (s *Service) GetSession(ctx context.Context, req *handpb.GetSessionRequest)
 		return nil, getGRPCError(err)
 	}
 
-	return &handpb.GetSessionResponse{
+	return &handpb.GetSessionStatusResponse{
 		Id:               result.SessionID,
 		Size:             int32(result.Size),
 		CreatedAt:        timestamppb.New(result.CreatedAt),
 		UpdatedAt:        timestamppb.New(result.UpdatedAt),
 		CompactionStatus: result.CompactionStatus,
-		Context: &handpb.GetSessionResponse_Context{
+		Context: &handpb.GetSessionStatusResponse_Context{
 			Offset:       int32(result.Offset),
 			Length:       int32(result.Length),
 			Used:         int32(result.Used),

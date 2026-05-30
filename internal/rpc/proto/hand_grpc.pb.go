@@ -26,7 +26,7 @@ const (
 	HandService_CurrentSession_FullMethodName     = "/hand.v1.HandService/CurrentSession"
 	HandService_CompactSession_FullMethodName     = "/hand.v1.HandService/CompactSession"
 	HandService_RepairSession_FullMethodName      = "/hand.v1.HandService/RepairSession"
-	HandService_GetSession_FullMethodName         = "/hand.v1.HandService/GetSession"
+	HandService_GetSessionStatus_FullMethodName   = "/hand.v1.HandService/GetSessionStatus"
 	HandService_GetSessionTimeline_FullMethodName = "/hand.v1.HandService/GetSessionTimeline"
 )
 
@@ -41,7 +41,7 @@ type HandServiceClient interface {
 	CurrentSession(ctx context.Context, in *CurrentSessionRequest, opts ...grpc.CallOption) (*CurrentSessionResponse, error)
 	CompactSession(ctx context.Context, in *CompactSessionRequest, opts ...grpc.CallOption) (*CompactSessionResponse, error)
 	RepairSession(ctx context.Context, in *RepairSessionRequest, opts ...grpc.CallOption) (*RepairSessionResponse, error)
-	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error)
+	GetSessionStatus(ctx context.Context, in *GetSessionStatusRequest, opts ...grpc.CallOption) (*GetSessionStatusResponse, error)
 	GetSessionTimeline(ctx context.Context, in *GetSessionTimelineRequest, opts ...grpc.CallOption) (*GetSessionTimelineResponse, error)
 }
 
@@ -132,10 +132,10 @@ func (c *handServiceClient) RepairSession(ctx context.Context, in *RepairSession
 	return out, nil
 }
 
-func (c *handServiceClient) GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error) {
+func (c *handServiceClient) GetSessionStatus(ctx context.Context, in *GetSessionStatusRequest, opts ...grpc.CallOption) (*GetSessionStatusResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetSessionResponse)
-	err := c.cc.Invoke(ctx, HandService_GetSession_FullMethodName, in, out, cOpts...)
+	out := new(GetSessionStatusResponse)
+	err := c.cc.Invoke(ctx, HandService_GetSessionStatus_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +163,7 @@ type HandServiceServer interface {
 	CurrentSession(context.Context, *CurrentSessionRequest) (*CurrentSessionResponse, error)
 	CompactSession(context.Context, *CompactSessionRequest) (*CompactSessionResponse, error)
 	RepairSession(context.Context, *RepairSessionRequest) (*RepairSessionResponse, error)
-	GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error)
+	GetSessionStatus(context.Context, *GetSessionStatusRequest) (*GetSessionStatusResponse, error)
 	GetSessionTimeline(context.Context, *GetSessionTimelineRequest) (*GetSessionTimelineResponse, error)
 	mustEmbedUnimplementedHandServiceServer()
 }
@@ -196,8 +196,8 @@ func (UnimplementedHandServiceServer) CompactSession(context.Context, *CompactSe
 func (UnimplementedHandServiceServer) RepairSession(context.Context, *RepairSessionRequest) (*RepairSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RepairSession not implemented")
 }
-func (UnimplementedHandServiceServer) GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetSession not implemented")
+func (UnimplementedHandServiceServer) GetSessionStatus(context.Context, *GetSessionStatusRequest) (*GetSessionStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSessionStatus not implemented")
 }
 func (UnimplementedHandServiceServer) GetSessionTimeline(context.Context, *GetSessionTimelineRequest) (*GetSessionTimelineResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSessionTimeline not implemented")
@@ -342,20 +342,20 @@ func _HandService_RepairSession_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
-func _HandService_GetSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetSessionRequest)
+func _HandService_GetSessionStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSessionStatusRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(HandServiceServer).GetSession(ctx, in)
+		return srv.(HandServiceServer).GetSessionStatus(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: HandService_GetSession_FullMethodName,
+		FullMethod: HandService_GetSessionStatus_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HandServiceServer).GetSession(ctx, req.(*GetSessionRequest))
+		return srv.(HandServiceServer).GetSessionStatus(ctx, req.(*GetSessionStatusRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -410,8 +410,8 @@ var HandService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _HandService_RepairSession_Handler,
 		},
 		{
-			MethodName: "GetSession",
-			Handler:    _HandService_GetSession_Handler,
+			MethodName: "GetSessionStatus",
+			Handler:    _HandService_GetSessionStatus_Handler,
 		},
 		{
 			MethodName: "GetSessionTimeline",
