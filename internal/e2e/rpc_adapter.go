@@ -6,12 +6,11 @@ import (
 	"strings"
 
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
-	storage "github.com/wandxy/hand/internal/state/core"
 )
 
 type rpcClientAPI interface {
 	Respond(context.Context, string, rpcclient.RespondOptions) (string, error)
-	CurrentSession(context.Context) (storage.Session, error)
+	SessionAPI() rpcclient.SessionAPI
 	Close() error
 }
 
@@ -69,7 +68,7 @@ func (a *RPCAdapter) Send(ctx context.Context, req RootChatRequest) (RootChatRes
 
 	sessionID := strings.TrimSpace(req.SessionID)
 	if sessionID == "" {
-		session, err := client.CurrentSession(normalizeHarnessContext(ctx))
+		session, err := client.SessionAPI().Current(normalizeHarnessContext(ctx))
 		if err != nil {
 			return RootChatResult{}, err
 		}

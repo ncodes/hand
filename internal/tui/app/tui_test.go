@@ -3904,30 +3904,50 @@ func (c *fakeTUIChatClient) Respond(
 	return c.reply, c.err
 }
 
-func (c *fakeTUIChatClient) CompactSession(_ context.Context, id string) (rpcclient.CompactSessionResult, error) {
+func (c *fakeTUIChatClient) SessionAPI() rpcclient.SessionAPI {
+	return c
+}
+
+func (c *fakeTUIChatClient) Compact(_ context.Context, id string) (rpcclient.CompactSessionResult, error) {
 	c.compactCalls++
 	c.compactID = id
 	return c.compactResult, c.compactErr
 }
 
-func (c *fakeTUIChatClient) CreateSession(_ context.Context, id string) (storage.Session, error) {
+func (c *fakeTUIChatClient) Repair(
+	context.Context,
+	rpcclient.RepairSessionOptions,
+) (rpcclient.RepairSessionResult, error) {
+	return rpcclient.RepairSessionResult{}, nil
+}
+
+func (c *fakeTUIChatClient) Create(_ context.Context, id string) (storage.Session, error) {
 	c.createSessionCalls++
 	c.createSessionID = id
 	return c.createdSession, c.createSessionErr
 }
 
-func (c *fakeTUIChatClient) ListSessions(context.Context) ([]storage.Session, error) {
+func (c *fakeTUIChatClient) CreateWithOptions(
+	_ context.Context,
+	opts rpcclient.CreateSessionOptions,
+) (storage.Session, error) {
+	c.createSessionCalls++
+	c.createSessionID = opts.ID
+	return c.createdSession, c.createSessionErr
+}
+
+func (c *fakeTUIChatClient) List(context.Context) ([]storage.Session, error) {
 	c.listSessionCalls++
 	return c.sessions, c.listSessionsErr
 }
 
-func (c *fakeTUIChatClient) UseSession(_ context.Context, id string) error {
+func (c *fakeTUIChatClient) Use(_ context.Context, id string) error {
 	c.useSessionCalls++
 	c.usedSessionID = id
 	return c.useSessionErr
 }
 
-func (c *fakeTUIChatClient) GetSessionTimeline(
+func (c *fakeTUIChatClient) Timeline(
 	_ context.Context,
 	opts rpcclient.SessionTimelineOptions,
 ) (rpcclient.SessionTimeline, error) {
@@ -3936,12 +3956,12 @@ func (c *fakeTUIChatClient) GetSessionTimeline(
 	return c.timeline, c.timelineErr
 }
 
-func (c *fakeTUIChatClient) CurrentSession(context.Context) (storage.Session, error) {
+func (c *fakeTUIChatClient) Current(context.Context) (storage.Session, error) {
 	c.currentSessionCalls++
 	return c.currentSession, c.currentSessionErr
 }
 
-func (c *fakeTUIChatClient) GetSessionStatus(_ context.Context, id string) (rpcclient.ContextStatus, error) {
+func (c *fakeTUIChatClient) Status(_ context.Context, id string) (rpcclient.ContextStatus, error) {
 	c.contextCalls++
 	c.contextSessionID = id
 	return c.contextStatus, c.contextErr

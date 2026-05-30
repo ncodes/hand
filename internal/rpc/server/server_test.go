@@ -15,6 +15,7 @@ func TestNew_RegistersHandServiceWithoutHealth(t *testing.T) {
 
 	serviceInfo := server.GetServiceInfo()
 	require.Contains(t, serviceInfo, handpb.HandService_ServiceDesc.ServiceName)
+	require.Contains(t, serviceInfo, handpb.SessionService_ServiceDesc.ServiceName)
 	require.NotContains(t, serviceInfo, healthgrpc.Health_ServiceDesc.ServiceName)
 }
 
@@ -23,5 +24,6 @@ func TestNew_RegistersHealthWhenEnabled(t *testing.T) {
 
 	serviceInfo := server.GetServiceInfo()
 	require.Contains(t, serviceInfo, handpb.HandService_ServiceDesc.ServiceName)
+	require.Contains(t, serviceInfo, handpb.SessionService_ServiceDesc.ServiceName)
 	require.Contains(t, serviceInfo, healthgrpc.Health_ServiceDesc.ServiceName)
 }

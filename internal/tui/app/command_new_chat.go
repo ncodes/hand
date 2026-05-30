@@ -10,7 +10,7 @@ import (
 )
 
 type sessionCreator interface {
-	CreateSession(context.Context, string) (storage.Session, error)
+	Create(context.Context, string) (storage.Session, error)
 }
 
 type newChatCompletedMsg struct {
@@ -19,8 +19,8 @@ type newChatCompletedMsg struct {
 }
 
 func (m *model) startNewChat() tea.Cmd {
-	client, ok := m.chatClient.(sessionCreator)
-	if m.chatClient == nil || !ok {
+	client, ok := m.sessionClient.(sessionCreator)
+	if m.sessionClient == nil || !ok {
 		return m.setStatus("new chat unavailable")
 	}
 
@@ -36,7 +36,7 @@ func createNewChatCmd(ctx context.Context, client sessionCreator) tea.Cmd {
 			ctx = context.Background()
 		}
 
-		session, err := client.CreateSession(ctx, "")
+		session, err := client.Create(ctx, "")
 		return newChatCompletedMsg{Session: session, Err: err}
 	}
 }

@@ -14,10 +14,12 @@ type Options struct {
 	Health bool
 }
 
-// New returns a gRPC server registered with the Hand service.
+// New returns a gRPC server registered with the Hand RPC services.
 func New(service handagent.ServiceAPI, opts Options) *grpc.Server {
 	server := grpc.NewServer()
-	handpb.RegisterHandServiceServer(server, rpc.NewService(service))
+	rpcService := rpc.NewService(service)
+	handpb.RegisterHandServiceServer(server, rpcService)
+	handpb.RegisterSessionServiceServer(server, rpcService)
 
 	if opts.Health {
 		healthcheck := health.NewServer()

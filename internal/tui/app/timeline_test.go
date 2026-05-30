@@ -395,20 +395,20 @@ type startupTimelineFallbackClient struct {
 	timelineSessionIDs []string
 }
 
-func (c *startupTimelineFallbackClient) ListSessions(context.Context) ([]storage.Session, error) {
+func (c *startupTimelineFallbackClient) List(context.Context) ([]storage.Session, error) {
 	return c.sessions, nil
 }
 
-func (c *startupTimelineFallbackClient) CurrentSession(context.Context) (storage.Session, error) {
+func (c *startupTimelineFallbackClient) Current(context.Context) (storage.Session, error) {
 	return c.currentSession, nil
 }
 
-func (c *startupTimelineFallbackClient) UseSession(_ context.Context, id string) error {
+func (c *startupTimelineFallbackClient) Use(_ context.Context, id string) error {
 	c.usedSessionIDs = append(c.usedSessionIDs, id)
 	return nil
 }
 
-func (c *startupTimelineFallbackClient) GetSessionTimeline(
+func (c *startupTimelineFallbackClient) Timeline(
 	_ context.Context,
 	opts client.SessionTimelineOptions,
 ) (client.SessionTimeline, error) {

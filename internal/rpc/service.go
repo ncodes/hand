@@ -25,6 +25,7 @@ import (
 // Service is the RPC service that wraps the agent-facing service interface.
 type Service struct {
 	handpb.UnimplementedHandServiceServer
+	handpb.UnimplementedSessionServiceServer
 	api handagent.ServiceAPI
 }
 
@@ -815,7 +816,7 @@ func getRPCPlanSteps(steps []trace.PlanStepPayload) []trace.PlanStepPayload {
 	return result
 }
 
-func (s *Service) CreateSession(ctx context.Context, req *handpb.CreateSessionRequest) (*handpb.CreateSessionResponse, error) {
+func (s *Service) Create(ctx context.Context, req *handpb.CreateSessionRequest) (*handpb.CreateSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -850,7 +851,7 @@ func isCreateSessionAutoSwitchEnabled(req *handpb.CreateSessionRequest) bool {
 	return req.GetAutoSwitch()
 }
 
-func (s *Service) ListSessions(ctx context.Context, req *handpb.ListSessionsRequest) (*handpb.ListSessionsResponse, error) {
+func (s *Service) List(ctx context.Context, req *handpb.ListSessionsRequest) (*handpb.ListSessionsResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -874,7 +875,7 @@ func (s *Service) ListSessions(ctx context.Context, req *handpb.ListSessionsRequ
 	return &handpb.ListSessionsResponse{Sessions: items}, nil
 }
 
-func (s *Service) UseSession(ctx context.Context, req *handpb.UseSessionRequest) (*handpb.UseSessionResponse, error) {
+func (s *Service) Use(ctx context.Context, req *handpb.UseSessionRequest) (*handpb.UseSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -892,7 +893,7 @@ func (s *Service) UseSession(ctx context.Context, req *handpb.UseSessionRequest)
 	return &handpb.UseSessionResponse{Id: req.GetId()}, nil
 }
 
-func (s *Service) CurrentSession(ctx context.Context, req *handpb.CurrentSessionRequest) (*handpb.CurrentSessionResponse, error) {
+func (s *Service) Current(ctx context.Context, req *handpb.CurrentSessionRequest) (*handpb.CurrentSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -917,7 +918,7 @@ func (s *Service) CurrentSession(ctx context.Context, req *handpb.CurrentSession
 	return response, nil
 }
 
-func (s *Service) CompactSession(
+func (s *Service) Compact(
 	ctx context.Context,
 	req *handpb.CompactSessionRequest,
 ) (*handpb.CompactSessionResponse, error) {
@@ -946,7 +947,7 @@ func (s *Service) CompactSession(
 	}, nil
 }
 
-func (s *Service) RepairSession(
+func (s *Service) Repair(
 	ctx context.Context,
 	req *handpb.RepairSessionRequest,
 ) (*handpb.RepairSessionResponse, error) {
@@ -990,7 +991,7 @@ func (s *Service) RepairSession(
 	}, nil
 }
 
-func (s *Service) GetSessionStatus(ctx context.Context, req *handpb.GetSessionStatusRequest) (*handpb.GetSessionStatusResponse, error) {
+func (s *Service) Status(ctx context.Context, req *handpb.GetSessionStatusRequest) (*handpb.GetSessionStatusResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
 	}
@@ -1026,7 +1027,7 @@ func (s *Service) GetSessionStatus(ctx context.Context, req *handpb.GetSessionSt
 	}, nil
 }
 
-func (s *Service) GetSessionTimeline(
+func (s *Service) Timeline(
 	ctx context.Context,
 	req *handpb.GetSessionTimelineRequest,
 ) (*handpb.GetSessionTimelineResponse, error) {

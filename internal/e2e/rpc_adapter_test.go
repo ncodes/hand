@@ -66,7 +66,7 @@ func TestRPCAdapter_HappyPathMatchesDirectHarness(t *testing.T) {
 					}()
 
 					autoSwitch := false
-					_, createErr := client.CreateSessionWithOptions(ctx, rpcclient.CreateSessionOptions{
+					_, createErr := client.Session.CreateWithOptions(ctx, rpcclient.CreateSessionOptions{
 						ID:         id,
 						AutoSwitch: &autoSwitch,
 					})
@@ -144,7 +144,7 @@ func TestRPCAdapter_ExplicitSessionMatchesDirectHarness(t *testing.T) {
 					}()
 
 					autoSwitch := false
-					_, createErr := client.CreateSessionWithOptions(ctx, rpcclient.CreateSessionOptions{
+					_, createErr := client.Session.CreateWithOptions(ctx, rpcclient.CreateSessionOptions{
 						ID:         id,
 						AutoSwitch: &autoSwitch,
 					})

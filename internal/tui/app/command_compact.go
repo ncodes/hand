@@ -10,7 +10,7 @@ import (
 )
 
 type sessionCompactor interface {
-	CompactSession(context.Context, string) (rpcclient.CompactSessionResult, error)
+	Compact(context.Context, string) (rpcclient.CompactSessionResult, error)
 }
 
 type compactSessionCompletedMsg struct {
@@ -19,8 +19,8 @@ type compactSessionCompletedMsg struct {
 }
 
 func (m *model) startCompactSession() tea.Cmd {
-	client, ok := m.chatClient.(sessionCompactor)
-	if m.chatClient == nil || !ok {
+	client, ok := m.sessionClient.(sessionCompactor)
+	if m.sessionClient == nil || !ok {
 		return m.setStatus("compaction unavailable")
 	}
 
@@ -46,7 +46,7 @@ func compactSessionCmd(ctx context.Context, client sessionCompactor, sessionID s
 			ctx = context.Background()
 		}
 
-		result, err := client.CompactSession(ctx, strings.TrimSpace(sessionID))
+		result, err := client.Compact(ctx, strings.TrimSpace(sessionID))
 		return compactSessionCompletedMsg{Result: result, Err: err}
 	}
 }

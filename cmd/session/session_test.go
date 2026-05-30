@@ -34,7 +34,7 @@ func TestNewCommandSessionNewCallsRPC(t *testing.T) {
 	sessionOutput = &output
 
 	stub := &agentstub.AgentServiceStub{CreatedSession: storage.Session{ID: "project-a"}}
-	newClient = func(context.Context, *config.Config) (rpcclient.SessionClient, error) {
+	newClient = func(context.Context, *config.Config) (sessionClient, error) {
 		return stub, nil
 	}
 
@@ -60,7 +60,7 @@ func TestNewCommandSessionListCallsRPC(t *testing.T) {
 		{ID: "default", Title: "Daily Planning", TitleSource: storage.SessionTitleSourceGenerated},
 		{ID: "project-a"},
 	}}
-	newClient = func(context.Context, *config.Config) (rpcclient.SessionClient, error) {
+	newClient = func(context.Context, *config.Config) (sessionClient, error) {
 		return stub, nil
 	}
 
@@ -98,7 +98,7 @@ func TestNewCommandSessionListUsesProfileRuntimeEndpoint(t *testing.T) {
 	sessionOutput = io.Discard
 	stub := &agentstub.AgentServiceStub{Sessions: []storage.Session{{ID: "default"}}}
 	var got *config.Config
-	newClient = func(_ context.Context, cfg *config.Config) (rpcclient.SessionClient, error) {
+	newClient = func(_ context.Context, cfg *config.Config) (sessionClient, error) {
 		got = cfg
 		return stub, nil
 	}
@@ -124,7 +124,7 @@ func TestNewCommandSessionCurrentCallsRPC(t *testing.T) {
 	sessionOutput = &output
 
 	stub := &agentstub.AgentServiceStub{CurrentSessionResult: storage.Session{ID: storage.DefaultSessionID}}
-	newClient = func(context.Context, *config.Config) (rpcclient.SessionClient, error) {
+	newClient = func(context.Context, *config.Config) (sessionClient, error) {
 		return stub, nil
 	}
 
@@ -147,7 +147,7 @@ func TestNewCommandSessionUseCallsRPC(t *testing.T) {
 	sessionOutput = &output
 
 	stub := &agentstub.AgentServiceStub{}
-	newClient = func(context.Context, *config.Config) (rpcclient.SessionClient, error) {
+	newClient = func(context.Context, *config.Config) (sessionClient, error) {
 		return stub, nil
 	}
 
@@ -178,7 +178,7 @@ func TestNewCommandSessionCompactCallsRPC(t *testing.T) {
 		CurrentContextLength: 4000,
 		TotalContextLength:   128000,
 	}}
-	newClient = func(context.Context, *config.Config) (rpcclient.SessionClient, error) {
+	newClient = func(context.Context, *config.Config) (sessionClient, error) {
 		return stub, nil
 	}
 
@@ -211,7 +211,7 @@ func TestNewCommandSessionRepairCallsRPC(t *testing.T) {
 		DeletedSources:  9,
 		Batches:         10,
 	}}
-	newClient = func(context.Context, *config.Config) (rpcclient.SessionClient, error) {
+	newClient = func(context.Context, *config.Config) (sessionClient, error) {
 		return stub, nil
 	}
 
@@ -250,7 +250,7 @@ func TestNewCommandSessionStatusCallsRPC(t *testing.T) {
 		UpdatedAt:        updated,
 		CompactionStatus: "succeeded",
 	}}
-	newClient = func(context.Context, *config.Config) (rpcclient.SessionClient, error) {
+	newClient = func(context.Context, *config.Config) (sessionClient, error) {
 		return stub, nil
 	}
 

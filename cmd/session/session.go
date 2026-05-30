@@ -19,13 +19,18 @@ import (
 
 var (
 	sessionOutput io.Writer = os.Stdout
-	newClient               = func(ctx context.Context, cfg *config.Config) (rpcclient.SessionClient, error) {
+	newClient               = func(ctx context.Context, cfg *config.Config) (sessionClient, error) {
 		return rpcclient.NewClient(ctx, rpcclient.Options{
 			Address: cfg.RPC.Address,
 			Port:    cfg.RPC.Port,
 		})
 	}
 )
+
+type sessionClient interface {
+	Close() error
+	SessionAPI() rpcclient.SessionAPI
+}
 
 func SetOutput(w io.Writer) io.Writer {
 	previous := sessionOutput
@@ -52,9 +57,10 @@ func NewCommand() *cli.Command {
 						return err
 					}
 					defer client.Close()
+					sessions := client.SessionAPI()
 
 					autoSwitch := false
-					session, err := client.CreateSessionWithOptions(ctx, rpcclient.CreateSessionOptions{
+					session, err := sessions.CreateWithOptions(ctx, rpcclient.CreateSessionOptions{
 						ID:         strings.TrimSpace(cmd.Args().First()),
 						AutoSwitch: &autoSwitch,
 					})
@@ -74,8 +80,9 @@ func NewCommand() *cli.Command {
 						return err
 					}
 					defer client.Close()
+					sessionClient := client.SessionAPI()
 
-					sessions, err := client.ListSessions(ctx)
+					sessions, err := sessionClient.List(ctx)
 					if err != nil {
 						return err
 					}
@@ -98,9 +105,10 @@ func NewCommand() *cli.Command {
 						return err
 					}
 					defer client.Close()
+					sessions := client.SessionAPI()
 
 					id := strings.TrimSpace(cmd.Args().First())
-					if err := client.UseSession(ctx, id); err != nil {
+					if err := sessions.Use(ctx, id); err != nil {
 						return err
 					}
 					_, err = fmt.Fprintln(sessionOutput, id)
@@ -116,8 +124,9 @@ func NewCommand() *cli.Command {
 						return err
 					}
 					defer client.Close()
+					sessions := client.SessionAPI()
 
-					session, err := client.CurrentSession(ctx)
+					session, err := sessions.Current(ctx)
 					if err != nil {
 						return err
 					}
@@ -135,8 +144,9 @@ func NewCommand() *cli.Command {
 						return err
 					}
 					defer client.Close()
+					sessions := client.SessionAPI()
 
-					result, err := client.CompactSession(ctx, strings.TrimSpace(cmd.Args().First()))
+					result, err := sessions.Compact(ctx, strings.TrimSpace(cmd.Args().First()))
 					if err != nil {
 						return err
 					}
@@ -170,8 +180,9 @@ func NewCommand() *cli.Command {
 						return err
 					}
 					defer client.Close()
+					sessions := client.SessionAPI()
 
-					result, err := client.RepairSession(
+					result, err := sessions.Repair(
 						ctx,
 						rpcclient.RepairSessionOptions{
 							SessionID: strings.TrimSpace(cmd.Args().First()),
@@ -208,8 +219,9 @@ func NewCommand() *cli.Command {
 						return err
 					}
 					defer client.Close()
+					sessions := client.SessionAPI()
 
-					result, err := client.GetSessionStatus(ctx, strings.TrimSpace(cmd.Args().First()))
+					result, err := sessions.Status(ctx, strings.TrimSpace(cmd.Args().First()))
 					if err != nil {
 						return err
 					}
@@ -256,7 +268,7 @@ func formatSessionTime(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
-func getSessionClient(ctx context.Context, cmd *cli.Command) (rpcclient.SessionClient, error) {
+func getSessionClient(ctx context.Context, cmd *cli.Command) (sessionClient, error) {
 	cfg, inputs, err := handcli.LoadConfig(cmd)
 	if err != nil {
 		return nil, err

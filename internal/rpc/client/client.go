@@ -22,10 +22,15 @@ import (
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
 )
 
-// Client wraps a gRPC connection to the Hand service.
+// Client wraps a gRPC connection to the Hand RPC services.
 type Client struct {
-	conn   *grpc.ClientConn
-	client handpb.HandServiceClient
+	conn    *grpc.ClientConn
+	client  handpb.HandServiceClient
+	Session *SessionService
+}
+
+type SessionService struct {
+	client handpb.SessionServiceClient
 }
 
 // RespondOptions mirrors agent response options at this package boundary.
@@ -64,32 +69,26 @@ type ChatAPI interface {
 
 // SessionAPI is the session-management surface exposed by local and RPC clients.
 type SessionAPI interface {
-	CreateSession(context.Context, string) (storage.Session, error)
-	CreateSessionWithOptions(context.Context, CreateSessionOptions) (storage.Session, error)
-	ListSessions(context.Context) ([]storage.Session, error)
-	UseSession(context.Context, string) error
-	CurrentSession(context.Context) (storage.Session, error)
-	CompactSession(context.Context, string) (CompactSessionResult, error)
-	RepairSession(context.Context, RepairSessionOptions) (RepairSessionResult, error)
-	GetSessionStatus(context.Context, string) (ContextStatus, error)
-	GetSessionTimeline(context.Context, SessionTimelineOptions) (SessionTimeline, error)
+	Create(context.Context, string) (storage.Session, error)
+	CreateWithOptions(context.Context, CreateSessionOptions) (storage.Session, error)
+	List(context.Context) ([]storage.Session, error)
+	Use(context.Context, string) error
+	Current(context.Context) (storage.Session, error)
+	Compact(context.Context, string) (CompactSessionResult, error)
+	Repair(context.Context, RepairSessionOptions) (RepairSessionResult, error)
+	Status(context.Context, string) (ContextStatus, error)
+	Timeline(context.Context, SessionTimelineOptions) (SessionTimeline, error)
 }
 
 // ServiceAPI combines chat and session operations.
 type ServiceAPI interface {
 	ChatAPI
-	SessionAPI
+	SessionAPI() SessionAPI
 }
 
 // ChatClient is a closable client that can run chat turns.
 type ChatClient interface {
 	ChatAPI
-	Close() error
-}
-
-// SessionClient is a closable client for session operations.
-type SessionClient interface {
-	SessionAPI
 	Close() error
 }
 
@@ -123,9 +122,14 @@ func NewClient(ctx context.Context, opts Options) (*Client, error) {
 	}
 
 	return &Client{
-		conn:   conn,
-		client: handpb.NewHandServiceClient(conn),
+		conn:    conn,
+		client:  handpb.NewHandServiceClient(conn),
+		Session: NewSessionService(handpb.NewSessionServiceClient(conn)),
 	}, nil
+}
+
+func NewSessionService(client handpb.SessionServiceClient) *SessionService {
+	return &SessionService{client: client}
 }
 
 func (c *Client) Respond(ctx context.Context, message string, opts RespondOptions) (string, error) {
@@ -162,7 +166,7 @@ func (c *Client) Respond(ctx context.Context, message string, opts RespondOption
 				builder.WriteString(event.GetText())
 			}
 			if opts.OnEvent != nil {
-				opts.OnEvent(agent.Event{
+				opts.OnEvent(Event{
 					Kind:    agent.EventKindTextDelta,
 					Channel: protoStreamChannelToAgentChannel(event.GetChannel()),
 					Text:    event.GetText(),
@@ -172,7 +176,7 @@ func (c *Client) Respond(ctx context.Context, message string, opts RespondOption
 			if opts.OnEvent != nil {
 				traceEvent, ok := protoRespondTraceEventToTraceEvent(event)
 				if ok {
-					opts.OnEvent(agent.Event{
+					opts.OnEvent(Event{
 						Kind:       agent.EventKindTrace,
 						TraceEvent: &traceEvent,
 					})
@@ -228,17 +232,30 @@ func protoStreamChannelToAgentChannel(channel handpb.RespondEvent_Channel) strin
 	}
 }
 
-func (c *Client) CreateSession(ctx context.Context, id string) (storage.Session, error) {
-	return c.CreateSessionWithOptions(ctx, CreateSessionOptions{ID: id})
+func (c *Client) SessionAPI() SessionAPI {
+	if c == nil {
+		return nil
+	}
+
+	return c.Session
 }
 
-func (c *Client) CreateSessionWithOptions(ctx context.Context, opts CreateSessionOptions) (storage.Session, error) {
+func (s *SessionService) Create(ctx context.Context, id string) (storage.Session, error) {
+	return s.CreateWithOptions(ctx, CreateSessionOptions{ID: id})
+}
+
+func (s *SessionService) CreateWithOptions(ctx context.Context, opts CreateSessionOptions) (storage.Session, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return storage.Session{}, err
+	}
+
 	req := &handpb.CreateSessionRequest{Id: strings.TrimSpace(opts.ID)}
 	if opts.AutoSwitch != nil {
 		req.AutoSwitch = opts.AutoSwitch
 	}
 
-	resp, err := c.client.CreateSession(ctx, req)
+	resp, err := client.Create(ctx, req)
 	if err != nil {
 		return storage.Session{}, err
 	}
@@ -250,27 +267,42 @@ func (c *Client) CreateSessionWithOptions(ctx context.Context, opts CreateSessio
 	return protoSessionSummaryToSession(resp.GetSession()), nil
 }
 
-func (c *Client) ListSessions(ctx context.Context) ([]storage.Session, error) {
-	resp, err := c.client.ListSessions(ctx, &handpb.ListSessionsRequest{})
+func (s *SessionService) List(ctx context.Context) ([]storage.Session, error) {
+	client, err := s.getClient()
 	if err != nil {
 		return nil, err
 	}
 
-	sessions := make([]storage.Session, 0, len(resp.GetSessions()))
-	for _, session := range resp.GetSessions() {
-		sessions = append(sessions, protoSessionSummaryToSession(session))
+	resp, err := client.List(ctx, &handpb.ListSessionsRequest{})
+	if err != nil {
+		return nil, err
 	}
 
-	return sessions, nil
+	items := make([]storage.Session, 0, len(resp.GetSessions()))
+	for _, session := range resp.GetSessions() {
+		items = append(items, protoSessionSummaryToSession(session))
+	}
+
+	return items, nil
 }
 
-func (c *Client) UseSession(ctx context.Context, id string) error {
-	_, err := c.client.UseSession(ctx, &handpb.UseSessionRequest{Id: strings.TrimSpace(id)})
+func (s *SessionService) Use(ctx context.Context, id string) error {
+	client, err := s.getClient()
+	if err != nil {
+		return err
+	}
+
+	_, err = client.Use(ctx, &handpb.UseSessionRequest{Id: strings.TrimSpace(id)})
 	return err
 }
 
-func (c *Client) CurrentSession(ctx context.Context) (storage.Session, error) {
-	resp, err := c.client.CurrentSession(ctx, &handpb.CurrentSessionRequest{})
+func (s *SessionService) Current(ctx context.Context) (storage.Session, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return storage.Session{}, err
+	}
+
+	resp, err := client.Current(ctx, &handpb.CurrentSessionRequest{})
 	if err != nil {
 		return storage.Session{}, err
 	}
@@ -282,8 +314,13 @@ func (c *Client) CurrentSession(ctx context.Context) (storage.Session, error) {
 	}, nil
 }
 
-func (c *Client) CompactSession(ctx context.Context, id string) (CompactSessionResult, error) {
-	resp, err := c.client.CompactSession(ctx, &handpb.CompactSessionRequest{Id: strings.TrimSpace(id)})
+func (s *SessionService) Compact(ctx context.Context, id string) (CompactSessionResult, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return CompactSessionResult{}, err
+	}
+
+	resp, err := client.Compact(ctx, &handpb.CompactSessionRequest{Id: strings.TrimSpace(id)})
 	if err != nil {
 		return CompactSessionResult{}, err
 	}
@@ -298,11 +335,16 @@ func (c *Client) CompactSession(ctx context.Context, id string) (CompactSessionR
 	}, nil
 }
 
-func (c *Client) RepairSession(
+func (s *SessionService) Repair(
 	ctx context.Context,
 	opts RepairSessionOptions,
 ) (RepairSessionResult, error) {
-	resp, err := c.client.RepairSession(ctx, &handpb.RepairSessionRequest{
+	client, err := s.getClient()
+	if err != nil {
+		return RepairSessionResult{}, err
+	}
+
+	resp, err := client.Repair(ctx, &handpb.RepairSessionRequest{
 		Type: handpb.RepairSessionRequest_VECTOR,
 		Vector: &handpb.VectorRepairOption{
 			Id:   strings.TrimSpace(opts.SessionID),
@@ -327,8 +369,13 @@ func (c *Client) RepairSession(
 	}, nil
 }
 
-func (c *Client) GetSessionStatus(ctx context.Context, id string) (ContextStatus, error) {
-	resp, err := c.client.GetSessionStatus(ctx, &handpb.GetSessionStatusRequest{
+func (s *SessionService) Status(ctx context.Context, id string) (ContextStatus, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return ContextStatus{}, err
+	}
+
+	resp, err := client.Status(ctx, &handpb.GetSessionStatusRequest{
 		Context: &handpb.GetSessionStatusRequestContext{Id: strings.TrimSpace(id)},
 	})
 	if err != nil {
@@ -354,11 +401,16 @@ func (c *Client) GetSessionStatus(ctx context.Context, id string) (ContextStatus
 	}, nil
 }
 
-func (c *Client) GetSessionTimeline(
+func (s *SessionService) Timeline(
 	ctx context.Context,
 	opts SessionTimelineOptions,
 ) (SessionTimeline, error) {
-	resp, err := c.client.GetSessionTimeline(ctx, &handpb.GetSessionTimelineRequest{
+	client, err := s.getClient()
+	if err != nil {
+		return SessionTimeline{}, err
+	}
+
+	resp, err := client.Timeline(ctx, &handpb.GetSessionTimelineRequest{
 		Id:            strings.TrimSpace(opts.SessionID),
 		MessageOffset: int32(opts.MessageOffset),
 		MessageLimit:  int32(opts.MessageLimit),
@@ -370,6 +422,14 @@ func (c *Client) GetSessionTimeline(
 	}
 
 	return protoSessionTimelineToTimeline(resp)
+}
+
+func (s *SessionService) getClient() (handpb.SessionServiceClient, error) {
+	if s != nil && s.client != nil {
+		return s.client, nil
+	}
+
+	return nil, fmt.Errorf("hand: session service client is required")
 }
 
 func (c *Client) Close() error {

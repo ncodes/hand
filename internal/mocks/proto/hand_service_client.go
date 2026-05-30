@@ -39,41 +39,41 @@ func (s *HandServiceClientStub) Respond(_ context.Context, req *handpb.RespondRe
 	return &respondStreamStub{events: s.Events}, nil
 }
 
-func (s *HandServiceClientStub) CreateSession(_ context.Context, req *handpb.CreateSessionRequest, _ ...grpc.CallOption) (*handpb.CreateSessionResponse, error) {
+func (s *HandServiceClientStub) Create(_ context.Context, req *handpb.CreateSessionRequest, _ ...grpc.CallOption) (*handpb.CreateSessionResponse, error) {
 	s.CreateReq = req
 	return s.CreateResp, s.Err
 }
 
-func (s *HandServiceClientStub) ListSessions(_ context.Context, req *handpb.ListSessionsRequest, _ ...grpc.CallOption) (*handpb.ListSessionsResponse, error) {
+func (s *HandServiceClientStub) List(_ context.Context, req *handpb.ListSessionsRequest, _ ...grpc.CallOption) (*handpb.ListSessionsResponse, error) {
 	s.ListReq = req
 	return s.ListResp, s.Err
 }
 
-func (s *HandServiceClientStub) UseSession(_ context.Context, req *handpb.UseSessionRequest, _ ...grpc.CallOption) (*handpb.UseSessionResponse, error) {
+func (s *HandServiceClientStub) Use(_ context.Context, req *handpb.UseSessionRequest, _ ...grpc.CallOption) (*handpb.UseSessionResponse, error) {
 	s.UseReq = req
 	return &handpb.UseSessionResponse{Id: req.GetId()}, s.Err
 }
 
-func (s *HandServiceClientStub) CurrentSession(context.Context, *handpb.CurrentSessionRequest, ...grpc.CallOption) (*handpb.CurrentSessionResponse, error) {
+func (s *HandServiceClientStub) Current(context.Context, *handpb.CurrentSessionRequest, ...grpc.CallOption) (*handpb.CurrentSessionResponse, error) {
 	return s.CurrentResp, s.Err
 }
 
-func (s *HandServiceClientStub) CompactSession(_ context.Context, req *handpb.CompactSessionRequest, _ ...grpc.CallOption) (*handpb.CompactSessionResponse, error) {
+func (s *HandServiceClientStub) Compact(_ context.Context, req *handpb.CompactSessionRequest, _ ...grpc.CallOption) (*handpb.CompactSessionResponse, error) {
 	s.CompactReq = req
 	return s.CompactResp, s.Err
 }
 
-func (s *HandServiceClientStub) RepairSession(_ context.Context, req *handpb.RepairSessionRequest, _ ...grpc.CallOption) (*handpb.RepairSessionResponse, error) {
+func (s *HandServiceClientStub) Repair(_ context.Context, req *handpb.RepairSessionRequest, _ ...grpc.CallOption) (*handpb.RepairSessionResponse, error) {
 	s.RepairReq = req
 	return s.RepairResp, s.Err
 }
 
-func (s *HandServiceClientStub) GetSessionStatus(_ context.Context, req *handpb.GetSessionStatusRequest, _ ...grpc.CallOption) (*handpb.GetSessionStatusResponse, error) {
+func (s *HandServiceClientStub) Status(_ context.Context, req *handpb.GetSessionStatusRequest, _ ...grpc.CallOption) (*handpb.GetSessionStatusResponse, error) {
 	s.StatusReq = req
 	return s.StatusResp, s.Err
 }
 
-func (s *HandServiceClientStub) GetSessionTimeline(_ context.Context, req *handpb.GetSessionTimelineRequest, _ ...grpc.CallOption) (*handpb.GetSessionTimelineResponse, error) {
+func (s *HandServiceClientStub) Timeline(_ context.Context, req *handpb.GetSessionTimelineRequest, _ ...grpc.CallOption) (*handpb.GetSessionTimelineResponse, error) {
 	s.TimelineReq = req
 	return s.TimelineResp, s.Err
 }

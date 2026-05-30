@@ -24,8 +24,7 @@ var newProgram = func(model tea.Model) programRunner {
 
 type tuiClient interface {
 	rpcclient.ChatAPI
-	tui.SessionTimelineLoader
-	CompactSession(context.Context, string) (rpcclient.CompactSessionResult, error)
+	SessionAPI() rpcclient.SessionAPI
 	Close() error
 }
 

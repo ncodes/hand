@@ -13,7 +13,7 @@ import (
 )
 
 type sessionContextLoader interface {
-	GetSessionStatus(context.Context, string) (rpcclient.ContextStatus, error)
+	Status(context.Context, string) (rpcclient.ContextStatus, error)
 }
 
 type sessionContextLoadedMsg struct {
@@ -32,7 +32,7 @@ func loadSessionContextCmd(ctx context.Context, client sessionContextLoader, ses
 			ctx = context.Background()
 		}
 
-		status, err := client.GetSessionStatus(ctx, strings.TrimSpace(sessionID))
+		status, err := client.Status(ctx, strings.TrimSpace(sessionID))
 		if err != nil {
 			return sessionContextLoadFailedMsg{}
 		}

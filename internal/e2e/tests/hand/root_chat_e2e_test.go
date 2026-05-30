@@ -93,7 +93,7 @@ func Test_E2E_HandRootChat_ExplicitSession(t *testing.T) {
 	})
 
 	autoSwitch := false
-	_, err = client.CreateSessionWithOptions(context.Background(), rpcclient.CreateSessionOptions{
+	_, err = client.Session.CreateWithOptions(context.Background(), rpcclient.CreateSessionOptions{
 		ID:         sessionID,
 		AutoSwitch: &autoSwitch,
 	})
@@ -1398,7 +1398,7 @@ func createLiveSession(t *testing.T, h *e2e.RPCHarness, sessionID string) string
 	}()
 
 	autoSwitch := false
-	_, err = client.CreateSessionWithOptions(context.Background(), rpcclient.CreateSessionOptions{
+	_, err = client.Session.CreateWithOptions(context.Background(), rpcclient.CreateSessionOptions{
 		ID:         sessionID,
 		AutoSwitch: &autoSwitch,
 	})

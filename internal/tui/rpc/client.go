@@ -11,7 +11,7 @@ type ChatAPI = rpcclient.ChatAPI
 
 // SessionTimelineLoader loads session transcript and trace data for the TUI.
 type SessionTimelineLoader interface {
-	GetSessionTimeline(
+	Timeline(
 		ctx context.Context,
 		opts rpcclient.SessionTimelineOptions,
 	) (rpcclient.SessionTimeline, error)

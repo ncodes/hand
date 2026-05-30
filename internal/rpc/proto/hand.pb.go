@@ -2004,18 +2004,18 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\x13last_trace_sequence\x18\b \x01(\x05R\x11lastTraceSequence\x12\x14\n" +
 	"\x05title\x18\t \x01(\tR\x05title\x12!\n" +
 	"\ftitle_source\x18\n" +
-	" \x01(\tR\vtitleSource2\xdc\x05\n" +
+	" \x01(\tR\vtitleSource2J\n" +
 	"\vHandService\x12;\n" +
-	"\aRespond\x12\x17.hand.v1.RespondRequest\x1a\x15.hand.v1.RespondEvent0\x01\x12N\n" +
-	"\rCreateSession\x12\x1d.hand.v1.CreateSessionRequest\x1a\x1e.hand.v1.CreateSessionResponse\x12K\n" +
-	"\fListSessions\x12\x1c.hand.v1.ListSessionsRequest\x1a\x1d.hand.v1.ListSessionsResponse\x12E\n" +
-	"\n" +
-	"UseSession\x12\x1a.hand.v1.UseSessionRequest\x1a\x1b.hand.v1.UseSessionResponse\x12Q\n" +
-	"\x0eCurrentSession\x12\x1e.hand.v1.CurrentSessionRequest\x1a\x1f.hand.v1.CurrentSessionResponse\x12Q\n" +
-	"\x0eCompactSession\x12\x1e.hand.v1.CompactSessionRequest\x1a\x1f.hand.v1.CompactSessionResponse\x12N\n" +
-	"\rRepairSession\x12\x1d.hand.v1.RepairSessionRequest\x1a\x1e.hand.v1.RepairSessionResponse\x12W\n" +
-	"\x10GetSessionStatus\x12 .hand.v1.GetSessionStatusRequest\x1a!.hand.v1.GetSessionStatusResponse\x12]\n" +
-	"\x12GetSessionTimeline\x12\".hand.v1.GetSessionTimelineRequest\x1a#.hand.v1.GetSessionTimelineResponseB2Z0github.com/wandxy/hand/internal/rpc/proto;handpbb\x06proto3"
+	"\aRespond\x12\x17.hand.v1.RespondRequest\x1a\x15.hand.v1.RespondEvent0\x012\xe3\x04\n" +
+	"\x0eSessionService\x12G\n" +
+	"\x06Create\x12\x1d.hand.v1.CreateSessionRequest\x1a\x1e.hand.v1.CreateSessionResponse\x12C\n" +
+	"\x04List\x12\x1c.hand.v1.ListSessionsRequest\x1a\x1d.hand.v1.ListSessionsResponse\x12>\n" +
+	"\x03Use\x12\x1a.hand.v1.UseSessionRequest\x1a\x1b.hand.v1.UseSessionResponse\x12J\n" +
+	"\aCurrent\x12\x1e.hand.v1.CurrentSessionRequest\x1a\x1f.hand.v1.CurrentSessionResponse\x12J\n" +
+	"\aCompact\x12\x1e.hand.v1.CompactSessionRequest\x1a\x1f.hand.v1.CompactSessionResponse\x12G\n" +
+	"\x06Repair\x12\x1d.hand.v1.RepairSessionRequest\x1a\x1e.hand.v1.RepairSessionResponse\x12M\n" +
+	"\x06Status\x12 .hand.v1.GetSessionStatusRequest\x1a!.hand.v1.GetSessionStatusResponse\x12S\n" +
+	"\bTimeline\x12\".hand.v1.GetSessionTimelineRequest\x1a#.hand.v1.GetSessionTimelineResponseB2Z0github.com/wandxy/hand/internal/rpc/proto;handpbb\x06proto3"
 
 var (
 	file_internal_rpc_proto_hand_proto_rawDescOnce sync.Once
@@ -2084,23 +2084,23 @@ var file_internal_rpc_proto_hand_proto_depIdxs = []int32{
 	25, // 17: hand.v1.GetSessionTimelineResponse.messages:type_name -> hand.v1.SessionTimelineMessage
 	26, // 18: hand.v1.GetSessionTimelineResponse.trace_events:type_name -> hand.v1.SessionTimelineTraceEvent
 	3,  // 19: hand.v1.HandService.Respond:input_type -> hand.v1.RespondRequest
-	6,  // 20: hand.v1.HandService.CreateSession:input_type -> hand.v1.CreateSessionRequest
-	8,  // 21: hand.v1.HandService.ListSessions:input_type -> hand.v1.ListSessionsRequest
-	10, // 22: hand.v1.HandService.UseSession:input_type -> hand.v1.UseSessionRequest
-	12, // 23: hand.v1.HandService.CurrentSession:input_type -> hand.v1.CurrentSessionRequest
-	14, // 24: hand.v1.HandService.CompactSession:input_type -> hand.v1.CompactSessionRequest
-	16, // 25: hand.v1.HandService.RepairSession:input_type -> hand.v1.RepairSessionRequest
-	21, // 26: hand.v1.HandService.GetSessionStatus:input_type -> hand.v1.GetSessionStatusRequest
-	23, // 27: hand.v1.HandService.GetSessionTimeline:input_type -> hand.v1.GetSessionTimelineRequest
+	6,  // 20: hand.v1.SessionService.Create:input_type -> hand.v1.CreateSessionRequest
+	8,  // 21: hand.v1.SessionService.List:input_type -> hand.v1.ListSessionsRequest
+	10, // 22: hand.v1.SessionService.Use:input_type -> hand.v1.UseSessionRequest
+	12, // 23: hand.v1.SessionService.Current:input_type -> hand.v1.CurrentSessionRequest
+	14, // 24: hand.v1.SessionService.Compact:input_type -> hand.v1.CompactSessionRequest
+	16, // 25: hand.v1.SessionService.Repair:input_type -> hand.v1.RepairSessionRequest
+	21, // 26: hand.v1.SessionService.Status:input_type -> hand.v1.GetSessionStatusRequest
+	23, // 27: hand.v1.SessionService.Timeline:input_type -> hand.v1.GetSessionTimelineRequest
 	4,  // 28: hand.v1.HandService.Respond:output_type -> hand.v1.RespondEvent
-	7,  // 29: hand.v1.HandService.CreateSession:output_type -> hand.v1.CreateSessionResponse
-	9,  // 30: hand.v1.HandService.ListSessions:output_type -> hand.v1.ListSessionsResponse
-	11, // 31: hand.v1.HandService.UseSession:output_type -> hand.v1.UseSessionResponse
-	13, // 32: hand.v1.HandService.CurrentSession:output_type -> hand.v1.CurrentSessionResponse
-	15, // 33: hand.v1.HandService.CompactSession:output_type -> hand.v1.CompactSessionResponse
-	17, // 34: hand.v1.HandService.RepairSession:output_type -> hand.v1.RepairSessionResponse
-	22, // 35: hand.v1.HandService.GetSessionStatus:output_type -> hand.v1.GetSessionStatusResponse
-	27, // 36: hand.v1.HandService.GetSessionTimeline:output_type -> hand.v1.GetSessionTimelineResponse
+	7,  // 29: hand.v1.SessionService.Create:output_type -> hand.v1.CreateSessionResponse
+	9,  // 30: hand.v1.SessionService.List:output_type -> hand.v1.ListSessionsResponse
+	11, // 31: hand.v1.SessionService.Use:output_type -> hand.v1.UseSessionResponse
+	13, // 32: hand.v1.SessionService.Current:output_type -> hand.v1.CurrentSessionResponse
+	15, // 33: hand.v1.SessionService.Compact:output_type -> hand.v1.CompactSessionResponse
+	17, // 34: hand.v1.SessionService.Repair:output_type -> hand.v1.RepairSessionResponse
+	22, // 35: hand.v1.SessionService.Status:output_type -> hand.v1.GetSessionStatusResponse
+	27, // 36: hand.v1.SessionService.Timeline:output_type -> hand.v1.GetSessionTimelineResponse
 	28, // [28:37] is the sub-list for method output_type
 	19, // [19:28] is the sub-list for method input_type
 	19, // [19:19] is the sub-list for extension type_name
@@ -2123,7 +2123,7 @@ func file_internal_rpc_proto_hand_proto_init() {
 			NumEnums:      3,
 			NumMessages:   26,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_internal_rpc_proto_hand_proto_goTypes,
 		DependencyIndexes: file_internal_rpc_proto_hand_proto_depIdxs,

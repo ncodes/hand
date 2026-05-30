@@ -71,7 +71,7 @@ func WaitForRPC(address string, port int, timeout time.Duration) (*rpcclient.Cli
 			Port:    port,
 		})
 		if err == nil {
-			_, currentErr := client.CurrentSession(context.Background())
+			_, currentErr := client.Session.Current(context.Background())
 			if currentErr == nil {
 				return client, nil
 			}

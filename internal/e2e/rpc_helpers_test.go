@@ -86,7 +86,7 @@ func TestWaitForRPC(t *testing.T) {
 			require.NoError(t, client.Close())
 		})
 
-		current, err := client.CurrentSession(context.Background())
+		current, err := client.Session.Current(context.Background())
 		require.NoError(t, err)
 		assert.Equal(t, "default", current.ID)
 	})

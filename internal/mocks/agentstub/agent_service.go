@@ -67,9 +67,24 @@ func (s *AgentServiceStub) Respond(_ context.Context, msg string, opts rpcclient
 	return s.Reply, s.Err
 }
 
+func (s *AgentServiceStub) SessionAPI() rpcclient.SessionAPI {
+	return s
+}
+
+func (s *AgentServiceStub) Create(ctx context.Context, id string) (storage.Session, error) {
+	return s.CreateSession(ctx, id)
+}
+
 func (s *AgentServiceStub) CreateSession(_ context.Context, id string) (storage.Session, error) {
 	s.CreatedSessionID = id
 	return s.CreatedSession, s.Err
+}
+
+func (s *AgentServiceStub) CreateWithOptions(
+	ctx context.Context,
+	opts rpcclient.CreateSessionOptions,
+) (storage.Session, error) {
+	return s.CreateSessionWithOptions(ctx, opts)
 }
 
 func (s *AgentServiceStub) CreateSessionWithOptions(
@@ -81,8 +96,16 @@ func (s *AgentServiceStub) CreateSessionWithOptions(
 	return s.CreatedSession, s.Err
 }
 
+func (s *AgentServiceStub) List(ctx context.Context) ([]storage.Session, error) {
+	return s.ListSessions(ctx)
+}
+
 func (s *AgentServiceStub) ListSessions(context.Context) ([]storage.Session, error) {
 	return s.Sessions, s.Err
+}
+
+func (s *AgentServiceStub) Use(ctx context.Context, id string) error {
+	return s.UseSession(ctx, id)
 }
 
 func (s *AgentServiceStub) UseSession(_ context.Context, id string) error {
@@ -91,6 +114,10 @@ func (s *AgentServiceStub) UseSession(_ context.Context, id string) error {
 		return s.UseSessionErr
 	}
 	return s.Err
+}
+
+func (s *AgentServiceStub) Current(ctx context.Context) (storage.Session, error) {
+	return s.CurrentSession(ctx)
 }
 
 func (s *AgentServiceStub) CurrentSession(context.Context) (storage.Session, error) {
@@ -105,8 +132,19 @@ func (s *AgentServiceStub) RecallSessionSummary(context.Context, string) (storag
 	return s.SummaryResult, s.Err
 }
 
+func (s *AgentServiceStub) Compact(ctx context.Context, id string) (rpcclient.CompactSessionResult, error) {
+	return s.CompactSession(ctx, id)
+}
+
 func (s *AgentServiceStub) CompactSession(context.Context, string) (rpcclient.CompactSessionResult, error) {
 	return s.CompactResult, s.Err
+}
+
+func (s *AgentServiceStub) Repair(
+	ctx context.Context,
+	opts search.VectorRepairOptions,
+) (search.VectorRepairResult, error) {
+	return s.RepairSession(ctx, opts)
 }
 
 func (s *AgentServiceStub) RepairSession(
@@ -117,12 +155,23 @@ func (s *AgentServiceStub) RepairSession(
 	return s.RepairResult, s.Err
 }
 
+func (s *AgentServiceStub) Status(ctx context.Context, id string) (rpcclient.ContextStatus, error) {
+	return s.GetSessionStatus(ctx, id)
+}
+
 func (s *AgentServiceStub) GetSessionStatus(context.Context, string) (rpcclient.ContextStatus, error) {
 	return s.StatusResult, s.Err
 }
 
 func (s *AgentServiceStub) ContextStatus(context.Context, string) (agent.ContextStatus, error) {
 	return agent.ContextStatus(s.StatusResult), s.Err
+}
+
+func (s *AgentServiceStub) Timeline(
+	ctx context.Context,
+	opts agentapi.SessionTimelineOptions,
+) (agentapi.SessionTimeline, error) {
+	return s.GetSessionTimeline(ctx, opts)
 }
 
 func (s *AgentServiceStub) GetSessionTimeline(

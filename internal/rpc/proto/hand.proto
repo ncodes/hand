@@ -8,14 +8,17 @@ import "google/protobuf/timestamp.proto";
 
 service HandService {
   rpc Respond(RespondRequest) returns (stream RespondEvent);
-  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
-  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
-  rpc UseSession(UseSessionRequest) returns (UseSessionResponse);
-  rpc CurrentSession(CurrentSessionRequest) returns (CurrentSessionResponse);
-  rpc CompactSession(CompactSessionRequest) returns (CompactSessionResponse);
-  rpc RepairSession(RepairSessionRequest) returns (RepairSessionResponse);
-  rpc GetSessionStatus(GetSessionStatusRequest) returns (GetSessionStatusResponse);
-  rpc GetSessionTimeline(GetSessionTimelineRequest) returns (GetSessionTimelineResponse);
+}
+
+service SessionService {
+  rpc Create(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc List(ListSessionsRequest) returns (ListSessionsResponse);
+  rpc Use(UseSessionRequest) returns (UseSessionResponse);
+  rpc Current(CurrentSessionRequest) returns (CurrentSessionResponse);
+  rpc Compact(CompactSessionRequest) returns (CompactSessionResponse);
+  rpc Repair(RepairSessionRequest) returns (RepairSessionResponse);
+  rpc Status(GetSessionStatusRequest) returns (GetSessionStatusResponse);
+  rpc Timeline(GetSessionTimelineRequest) returns (GetSessionTimelineResponse);
 }
 
 message RespondRequest {

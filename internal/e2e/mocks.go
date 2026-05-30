@@ -154,11 +154,53 @@ func (s rpcAdapterClientStub) Respond(context.Context, string, rpcclient.Respond
 	return s.reply, nil
 }
 
-func (s rpcAdapterClientStub) CurrentSession(context.Context) (storage.Session, error) {
+func (s rpcAdapterClientStub) SessionAPI() rpcclient.SessionAPI {
+	return s
+}
+
+func (s rpcAdapterClientStub) Current(context.Context) (storage.Session, error) {
 	if s.currentErr != nil {
 		return storage.Session{}, s.currentErr
 	}
 	return storage.Session{ID: "default"}, nil
+}
+
+func (s rpcAdapterClientStub) Create(context.Context, string) (storage.Session, error) {
+	return storage.Session{}, nil
+}
+
+func (s rpcAdapterClientStub) CreateWithOptions(context.Context, rpcclient.CreateSessionOptions) (storage.Session, error) {
+	return storage.Session{}, nil
+}
+
+func (s rpcAdapterClientStub) List(context.Context) ([]storage.Session, error) {
+	return nil, nil
+}
+
+func (s rpcAdapterClientStub) Use(context.Context, string) error {
+	return nil
+}
+
+func (s rpcAdapterClientStub) Compact(context.Context, string) (rpcclient.CompactSessionResult, error) {
+	return rpcclient.CompactSessionResult{}, nil
+}
+
+func (s rpcAdapterClientStub) Repair(
+	context.Context,
+	rpcclient.RepairSessionOptions,
+) (rpcclient.RepairSessionResult, error) {
+	return rpcclient.RepairSessionResult{}, nil
+}
+
+func (s rpcAdapterClientStub) Status(context.Context, string) (rpcclient.ContextStatus, error) {
+	return rpcclient.ContextStatus{}, nil
+}
+
+func (s rpcAdapterClientStub) Timeline(
+	context.Context,
+	rpcclient.SessionTimelineOptions,
+) (rpcclient.SessionTimeline, error) {
+	return rpcclient.SessionTimeline{}, nil
 }
 
 func (s rpcAdapterClientStub) Close() error {

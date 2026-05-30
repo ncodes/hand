@@ -27,6 +27,7 @@ type model struct {
 	nameInput  textinput.Model
 	tuiState
 	chatClient    rpcclient.ChatAPI
+	sessionClient rpcclient.SessionAPI
 	timeline      sessionTimelineLoader
 	title         sessionTitleLoader
 	contextLoader sessionContextLoader
@@ -72,13 +73,19 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	appModel.namePromptEnabled = namePromptEnabled
 	appModel.runtimeInfo = runtimeInfo
 	appModel.modelName = getModelDisplayName(runtimeInfo.Model)
-	if timeline, ok := client.(sessionTimelineLoader); ok {
+	if sessions, ok := client.(rpcclient.SessionAPI); ok {
+		appModel.sessionClient = sessions
+	}
+	if provider, ok := client.(interface{ SessionAPI() rpcclient.SessionAPI }); ok {
+		appModel.sessionClient = provider.SessionAPI()
+	}
+	if timeline, ok := appModel.sessionClient.(sessionTimelineLoader); ok {
 		appModel.timeline = timeline
 	}
-	if title, ok := client.(sessionTitleLoader); ok {
+	if title, ok := appModel.sessionClient.(sessionTitleLoader); ok {
 		appModel.title = title
 	}
-	if contextLoader, ok := client.(sessionContextLoader); ok {
+	if contextLoader, ok := appModel.sessionClient.(sessionContextLoader); ok {
 		appModel.contextLoader = contextLoader
 	}
 	if err != nil {

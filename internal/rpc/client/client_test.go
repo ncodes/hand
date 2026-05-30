@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	agentapi "github.com/wandxy/hand/internal/agent"
 	protomock "github.com/wandxy/hand/internal/mocks/proto"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
@@ -174,9 +173,9 @@ func TestClient_CreateSessionReturnsSummary(t *testing.T) {
 			},
 		},
 	}
-	client := &Client{client: stub}
+	client := NewSessionService(stub)
 
-	session, err := client.CreateSession(context.Background(), "project-a")
+	session, err := client.Create(context.Background(), "project-a")
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", session.ID)
@@ -193,9 +192,9 @@ func TestClient_CreateSessionWithOptionsSendsAutoSwitch(t *testing.T) {
 			Session: &handpb.SessionSummary{Id: "project-a"},
 		},
 	}
-	client := &Client{client: stub}
+	client := NewSessionService(stub)
 
-	session, err := client.CreateSessionWithOptions(context.Background(), CreateSessionOptions{
+	session, err := client.CreateWithOptions(context.Background(), CreateSessionOptions{
 		ID:         " project-a ",
 		AutoSwitch: &autoSwitch,
 	})
@@ -209,9 +208,9 @@ func TestClient_CreateSessionWithOptionsSendsAutoSwitch(t *testing.T) {
 
 func TestClient_CreateSessionWithOptionsPropagatesError(t *testing.T) {
 	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
-	client := &Client{client: stub}
+	client := NewSessionService(stub)
 
-	session, err := client.CreateSessionWithOptions(context.Background(), CreateSessionOptions{ID: "project-a"})
+	session, err := client.CreateWithOptions(context.Background(), CreateSessionOptions{ID: "project-a"})
 
 	require.ErrorIs(t, err, context.Canceled)
 	require.Empty(t, session.ID)
@@ -220,9 +219,9 @@ func TestClient_CreateSessionWithOptionsPropagatesError(t *testing.T) {
 
 func TestClient_CreateSessionWithOptionsReturnsEmptySessionForMissingSummary(t *testing.T) {
 	stub := &protomock.HandServiceClientStub{CreateResp: &handpb.CreateSessionResponse{}}
-	client := &Client{client: stub}
+	client := NewSessionService(stub)
 
-	session, err := client.CreateSessionWithOptions(context.Background(), CreateSessionOptions{ID: "project-a"})
+	session, err := client.CreateWithOptions(context.Background(), CreateSessionOptions{ID: "project-a"})
 
 	require.NoError(t, err)
 	require.Empty(t, session.ID)
@@ -238,9 +237,9 @@ func TestClient_ListSessionsReturnsItems(t *testing.T) {
 			},
 		},
 	}
-	client := &Client{client: stub}
+	client := NewSessionService(stub)
 
-	sessions, err := client.ListSessions(context.Background())
+	sessions, err := client.List(context.Background())
 
 	require.NoError(t, err)
 	require.NotNil(t, stub.ListReq)
@@ -253,9 +252,9 @@ func TestClient_ListSessionsReturnsItems(t *testing.T) {
 
 func TestClient_UseSessionSendsSessionID(t *testing.T) {
 	stub := &protomock.HandServiceClientStub{}
-	client := &Client{client: stub}
+	client := NewSessionService(stub)
 
-	err := client.UseSession(context.Background(), "project-a")
+	err := client.Use(context.Background(), "project-a")
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", stub.UseReq.GetId())
@@ -267,9 +266,9 @@ func TestClient_CurrentSessionReturnsValue(t *testing.T) {
 		Title:       "Project Planning",
 		TitleSource: storage.SessionTitleSourceGenerated,
 	}}
-	client := &Client{client: stub}
+	client := NewSessionService(stub)
 
-	session, err := client.CurrentSession(context.Background())
+	session, err := client.Current(context.Background())
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", session.ID)
@@ -287,9 +286,9 @@ func TestClient_CompactSessionReturnsResult(t *testing.T) {
 		CurrentContextLength: 4000,
 		TotalContextLength:   128000,
 	}}
-	client := &Client{client: stub}
+	client := NewSessionService(stub)
 
-	result, err := client.CompactSession(context.Background(), "project-a")
+	result, err := client.Compact(context.Background(), "project-a")
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", stub.CompactReq.GetId())
@@ -316,9 +315,9 @@ func TestClient_RepairSessionReturnsResult(t *testing.T) {
 			Batches:         10,
 		},
 	}}
-	client := &Client{client: stub}
+	client := NewSessionService(stub)
 
-	result, err := client.RepairSession(context.Background(), RepairSessionOptions{
+	result, err := client.Repair(context.Background(), RepairSessionOptions{
 		SessionID: " project-a ",
 		Full:      true,
 	})
@@ -356,9 +355,9 @@ func TestClient_GetSessionStatusReturnsResult(t *testing.T) {
 			RemainingPct: 0.5,
 		},
 	}}
-	client := &Client{client: stub}
+	client := NewSessionService(stub)
 
-	result, err := client.GetSessionStatus(context.Background(), "project-a")
+	result, err := client.Status(context.Background(), "project-a")
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", stub.StatusReq.GetContext().GetId())
@@ -409,9 +408,9 @@ func TestClient_GetSessionTimelineReturnsResult(t *testing.T) {
 		FirstTraceSequence:    3,
 		LastTraceSequence:     3,
 	}}
-	client := &Client{client: stub}
+	client := NewSessionService(stub)
 
-	result, err := client.GetSessionTimeline(context.Background(), agentapi.SessionTimelineOptions{
+	result, err := client.Timeline(context.Background(), SessionTimelineOptions{
 		SessionID:     " default ",
 		MessageOffset: 2,
 		MessageLimit:  1,
@@ -454,23 +453,23 @@ func TestClient_GetSessionTimelineReturnsResult(t *testing.T) {
 }
 
 func TestClient_GetSessionTimelineReturnsDecodeErrors(t *testing.T) {
-	client := &Client{client: &protomock.HandServiceClientStub{}}
+	client := NewSessionService(&protomock.HandServiceClientStub{})
 
-	_, err := client.GetSessionTimeline(context.Background(), agentapi.SessionTimelineOptions{})
+	_, err := client.Timeline(context.Background(), SessionTimelineOptions{})
 	require.EqualError(t, err, "hand: get session timeline response is required")
 
-	client = &Client{client: &protomock.HandServiceClientStub{TimelineResp: &handpb.GetSessionTimelineResponse{
+	client = NewSessionService(&protomock.HandServiceClientStub{TimelineResp: &handpb.GetSessionTimelineResponse{
 		TraceEvents: []*handpb.SessionTimelineTraceEvent{{PayloadJson: "{"}},
-	}}}
-	_, err = client.GetSessionTimeline(context.Background(), agentapi.SessionTimelineOptions{})
+	}})
+	_, err = client.Timeline(context.Background(), SessionTimelineOptions{})
 	require.Error(t, err)
 }
 
 func TestClient_GetSessionTimelineReturnsRPCError(t *testing.T) {
 	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
-	client := &Client{client: stub}
+	client := NewSessionService(stub)
 
-	_, err := client.GetSessionTimeline(context.Background(), agentapi.SessionTimelineOptions{})
+	_, err := client.Timeline(context.Background(), SessionTimelineOptions{})
 
 	require.ErrorIs(t, err, context.Canceled)
 }

@@ -1126,7 +1126,7 @@ func TestService_CreateSessionReturnsSummary(t *testing.T) {
 	}}
 	svc := NewService(stub)
 
-	resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{Id: "project-a"})
+	resp, err := svc.Create(context.Background(), &handpb.CreateSessionRequest{Id: "project-a"})
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", resp.GetSession().GetId())
@@ -1141,7 +1141,7 @@ func TestService_CreateSessionCanSkipAutoSwitch(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{CreatedSession: storage.Session{ID: "project-a"}}
 	svc := NewService(stub)
 
-	resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{
+	resp, err := svc.Create(context.Background(), &handpb.CreateSessionRequest{
 		Id:         "project-a",
 		AutoSwitch: &autoSwitch,
 	})
@@ -1166,7 +1166,7 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{})
+		resp, err := svc.Create(context.Background(), &handpb.CreateSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1175,7 +1175,7 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{})
+		resp, err := svc.Create(context.Background(), &handpb.CreateSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1184,7 +1184,7 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil request", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{})
 
-		resp, err := svc.CreateSession(context.Background(), nil)
+		resp, err := svc.Create(context.Background(), nil)
 
 		requireStatusError(t, err, codes.InvalidArgument, "create session request is required")
 		require.Nil(t, resp)
@@ -1193,7 +1193,7 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session already exists")})
 
-		resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{Id: "project-a"})
+		resp, err := svc.Create(context.Background(), &handpb.CreateSessionRequest{Id: "project-a"})
 
 		requireStatusError(t, err, codes.AlreadyExists, "session already exists")
 		require.Nil(t, resp)
@@ -1205,7 +1205,7 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 			UseSessionErr:  errors.New("session not found"),
 		})
 
-		resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{Id: "project-a"})
+		resp, err := svc.Create(context.Background(), &handpb.CreateSessionRequest{Id: "project-a"})
 
 		requireStatusError(t, err, codes.NotFound, "session not found")
 		require.Nil(t, resp)
@@ -1219,7 +1219,7 @@ func TestService_ListSessionsReturnsItems(t *testing.T) {
 	}}
 	svc := NewService(stub)
 
-	resp, err := svc.ListSessions(context.Background(), &handpb.ListSessionsRequest{})
+	resp, err := svc.List(context.Background(), &handpb.ListSessionsRequest{})
 
 	require.NoError(t, err)
 	require.Len(t, resp.GetSessions(), 2)
@@ -1233,7 +1233,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.ListSessions(context.Background(), &handpb.ListSessionsRequest{})
+		resp, err := svc.List(context.Background(), &handpb.ListSessionsRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1242,7 +1242,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.ListSessions(context.Background(), &handpb.ListSessionsRequest{})
+		resp, err := svc.List(context.Background(), &handpb.ListSessionsRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1251,7 +1251,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 	t.Run("nil request", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{})
 
-		resp, err := svc.ListSessions(context.Background(), nil)
+		resp, err := svc.List(context.Background(), nil)
 
 		requireStatusError(t, err, codes.InvalidArgument, "list sessions request is required")
 		require.Nil(t, resp)
@@ -1260,7 +1260,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("boom")})
 
-		resp, err := svc.ListSessions(context.Background(), &handpb.ListSessionsRequest{})
+		resp, err := svc.List(context.Background(), &handpb.ListSessionsRequest{})
 
 		requireStatusError(t, err, codes.Internal, "boom")
 		require.Nil(t, resp)
@@ -1270,7 +1270,7 @@ func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 func TestService_UseSessionReturnsSessionID(t *testing.T) {
 	svc := NewService(&agentstub.AgentServiceStub{})
 
-	resp, err := svc.UseSession(context.Background(), &handpb.UseSessionRequest{Id: "project-a"})
+	resp, err := svc.Use(context.Background(), &handpb.UseSessionRequest{Id: "project-a"})
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", resp.GetId())
@@ -1280,7 +1280,7 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.UseSession(context.Background(), &handpb.UseSessionRequest{})
+		resp, err := svc.Use(context.Background(), &handpb.UseSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1289,7 +1289,7 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.UseSession(context.Background(), &handpb.UseSessionRequest{})
+		resp, err := svc.Use(context.Background(), &handpb.UseSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1298,7 +1298,7 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil request", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{})
 
-		resp, err := svc.UseSession(context.Background(), nil)
+		resp, err := svc.Use(context.Background(), nil)
 
 		requireStatusError(t, err, codes.InvalidArgument, "use session request is required")
 		require.Nil(t, resp)
@@ -1307,7 +1307,7 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
 
-		resp, err := svc.UseSession(context.Background(), &handpb.UseSessionRequest{Id: "project-a"})
+		resp, err := svc.Use(context.Background(), &handpb.UseSessionRequest{Id: "project-a"})
 
 		requireStatusError(t, err, codes.NotFound, "session not found")
 		require.Nil(t, resp)
@@ -1325,7 +1325,7 @@ func TestService_CompactSessionReturnsResult(t *testing.T) {
 		TotalContextLength:   128000,
 	}})
 
-	resp, err := svc.CompactSession(context.Background(), &handpb.CompactSessionRequest{Id: "project-a"})
+	resp, err := svc.Compact(context.Background(), &handpb.CompactSessionRequest{Id: "project-a"})
 
 	require.NoError(t, err)
 	require.Equal(t, "project-a", resp.GetId())
@@ -1340,7 +1340,7 @@ func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.CompactSession(context.Background(), &handpb.CompactSessionRequest{})
+		resp, err := svc.Compact(context.Background(), &handpb.CompactSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1349,7 +1349,7 @@ func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.CompactSession(context.Background(), &handpb.CompactSessionRequest{})
+		resp, err := svc.Compact(context.Background(), &handpb.CompactSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1358,7 +1358,7 @@ func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil request", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{})
 
-		resp, err := svc.CompactSession(context.Background(), nil)
+		resp, err := svc.Compact(context.Background(), nil)
 
 		requireStatusError(t, err, codes.InvalidArgument, "compact session request is required")
 		require.Nil(t, resp)
@@ -1367,7 +1367,7 @@ func TestService_CompactSessionRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
 
-		resp, err := svc.CompactSession(context.Background(), &handpb.CompactSessionRequest{Id: "project-a"})
+		resp, err := svc.Compact(context.Background(), &handpb.CompactSessionRequest{Id: "project-a"})
 
 		requireStatusError(t, err, codes.NotFound, "session not found")
 		require.Nil(t, resp)
@@ -1388,7 +1388,7 @@ func TestService_RepairSessionReturnsResult(t *testing.T) {
 	}}
 	svc := NewService(stub)
 
-	resp, err := svc.RepairSession(context.Background(), &handpb.RepairSessionRequest{
+	resp, err := svc.Repair(context.Background(), &handpb.RepairSessionRequest{
 		Type: handpb.RepairSessionRequest_VECTOR,
 		Vector: &handpb.VectorRepairOption{
 			Id:   "project-a",
@@ -1415,7 +1415,7 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.RepairSession(context.Background(), &handpb.RepairSessionRequest{})
+		resp, err := svc.Repair(context.Background(), &handpb.RepairSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1424,7 +1424,7 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.RepairSession(context.Background(), &handpb.RepairSessionRequest{})
+		resp, err := svc.Repair(context.Background(), &handpb.RepairSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1433,7 +1433,7 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil request", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{})
 
-		resp, err := svc.RepairSession(context.Background(), nil)
+		resp, err := svc.Repair(context.Background(), nil)
 
 		requireStatusError(t, err, codes.InvalidArgument, "repair session request is required")
 		require.Nil(t, resp)
@@ -1442,7 +1442,7 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	t.Run("unsupported type", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{})
 
-		resp, err := svc.RepairSession(context.Background(), &handpb.RepairSessionRequest{})
+		resp, err := svc.Repair(context.Background(), &handpb.RepairSessionRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "repair session type must be vector")
 		require.Nil(t, resp)
@@ -1451,7 +1451,7 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing vector options", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{})
 
-		resp, err := svc.RepairSession(context.Background(), &handpb.RepairSessionRequest{
+		resp, err := svc.Repair(context.Background(), &handpb.RepairSessionRequest{
 			Type: handpb.RepairSessionRequest_VECTOR,
 		})
 
@@ -1462,7 +1462,7 @@ func TestService_RepairSessionRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
 
-		resp, err := svc.RepairSession(context.Background(), &handpb.RepairSessionRequest{
+		resp, err := svc.Repair(context.Background(), &handpb.RepairSessionRequest{
 			Type: handpb.RepairSessionRequest_VECTOR,
 			Vector: &handpb.VectorRepairOption{
 				Id: "project-a",
@@ -1491,7 +1491,7 @@ func TestService_GetSessionStatusReturnsResult(t *testing.T) {
 		CompactionStatus: "running",
 	}})
 
-	resp, err := svc.GetSessionStatus(context.Background(), &handpb.GetSessionStatusRequest{
+	resp, err := svc.Status(context.Background(), &handpb.GetSessionStatusRequest{
 		Context: &handpb.GetSessionStatusRequestContext{Id: "project-a"},
 	})
 
@@ -1514,7 +1514,7 @@ func TestService_GetSessionStatusRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.GetSessionStatus(context.Background(), &handpb.GetSessionStatusRequest{})
+		resp, err := svc.Status(context.Background(), &handpb.GetSessionStatusRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1523,7 +1523,7 @@ func TestService_GetSessionStatusRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.GetSessionStatus(context.Background(), &handpb.GetSessionStatusRequest{})
+		resp, err := svc.Status(context.Background(), &handpb.GetSessionStatusRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1532,7 +1532,7 @@ func TestService_GetSessionStatusRejectsInvalidState(t *testing.T) {
 	t.Run("nil request", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{})
 
-		resp, err := svc.GetSessionStatus(context.Background(), nil)
+		resp, err := svc.Status(context.Background(), nil)
 
 		requireStatusError(t, err, codes.InvalidArgument, "get session status request is required")
 		require.Nil(t, resp)
@@ -1541,7 +1541,7 @@ func TestService_GetSessionStatusRejectsInvalidState(t *testing.T) {
 	t.Run("nil context", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{})
 
-		resp, err := svc.GetSessionStatus(context.Background(), &handpb.GetSessionStatusRequest{})
+		resp, err := svc.Status(context.Background(), &handpb.GetSessionStatusRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "get session status request context is required")
 		require.Nil(t, resp)
@@ -1550,7 +1550,7 @@ func TestService_GetSessionStatusRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("session not found")})
 
-		resp, err := svc.GetSessionStatus(context.Background(), &handpb.GetSessionStatusRequest{
+		resp, err := svc.Status(context.Background(), &handpb.GetSessionStatusRequest{
 			Context: &handpb.GetSessionStatusRequestContext{Id: "project-a"},
 		})
 
@@ -1568,7 +1568,7 @@ func TestService_CurrentSessionReturnsValue(t *testing.T) {
 		},
 	})
 
-	resp, err := svc.CurrentSession(context.Background(), &handpb.CurrentSessionRequest{})
+	resp, err := svc.Current(context.Background(), &handpb.CurrentSessionRequest{})
 
 	require.NoError(t, err)
 	require.Equal(t, storage.DefaultSessionID, resp.GetId())
@@ -1580,7 +1580,7 @@ func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.CurrentSession(context.Background(), &handpb.CurrentSessionRequest{})
+		resp, err := svc.Current(context.Background(), &handpb.CurrentSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1589,7 +1589,7 @@ func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.CurrentSession(context.Background(), &handpb.CurrentSessionRequest{})
+		resp, err := svc.Current(context.Background(), &handpb.CurrentSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1598,7 +1598,7 @@ func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {
 	t.Run("nil request", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{})
 
-		resp, err := svc.CurrentSession(context.Background(), nil)
+		resp, err := svc.Current(context.Background(), nil)
 
 		requireStatusError(t, err, codes.InvalidArgument, "current session request is required")
 		require.Nil(t, resp)
@@ -1607,7 +1607,7 @@ func TestService_CurrentSessionRejectsInvalidState(t *testing.T) {
 	t.Run("handler error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("boom")})
 
-		resp, err := svc.CurrentSession(context.Background(), &handpb.CurrentSessionRequest{})
+		resp, err := svc.Current(context.Background(), &handpb.CurrentSessionRequest{})
 
 		requireStatusError(t, err, codes.Internal, "boom")
 		require.Nil(t, resp)
@@ -1659,7 +1659,7 @@ func TestService_GetSessionTimelineReturnsMessagesAndSanitizedTraceEvents(t *tes
 	}
 	svc := NewService(stub)
 
-	resp, err := svc.GetSessionTimeline(context.Background(), &handpb.GetSessionTimelineRequest{
+	resp, err := svc.Timeline(context.Background(), &handpb.GetSessionTimelineRequest{
 		Id:            "default",
 		MessageOffset: 2,
 		MessageLimit:  1,
@@ -1721,7 +1721,7 @@ func TestService_GetSessionTimelineSkipsNonDisplayTraceEvents(t *testing.T) {
 		},
 	})
 
-	resp, err := svc.GetSessionTimeline(context.Background(), &handpb.GetSessionTimelineRequest{Id: "default"})
+	resp, err := svc.Timeline(context.Background(), &handpb.GetSessionTimelineRequest{Id: "default"})
 
 	require.NoError(t, err)
 	require.Empty(t, resp.GetTraceEvents())
@@ -1743,7 +1743,7 @@ func TestService_GetSessionTimelineRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service
 
-		resp, err := svc.GetSessionTimeline(context.Background(), &handpb.GetSessionTimelineRequest{})
+		resp, err := svc.Timeline(context.Background(), &handpb.GetSessionTimelineRequest{})
 
 		requireStatusError(t, err, codes.Internal, "service is required")
 		require.Nil(t, resp)
@@ -1752,7 +1752,7 @@ func TestService_GetSessionTimelineRejectsInvalidState(t *testing.T) {
 	t.Run("missing handler", func(t *testing.T) {
 		svc := NewService(nil)
 
-		resp, err := svc.GetSessionTimeline(context.Background(), &handpb.GetSessionTimelineRequest{})
+		resp, err := svc.Timeline(context.Background(), &handpb.GetSessionTimelineRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -1761,7 +1761,7 @@ func TestService_GetSessionTimelineRejectsInvalidState(t *testing.T) {
 	t.Run("nil request", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{})
 
-		resp, err := svc.GetSessionTimeline(context.Background(), nil)
+		resp, err := svc.Timeline(context.Background(), nil)
 
 		requireStatusError(t, err, codes.InvalidArgument, "get session timeline request is required")
 		require.Nil(t, resp)
@@ -1770,7 +1770,7 @@ func TestService_GetSessionTimelineRejectsInvalidState(t *testing.T) {
 	t.Run("handler validation error", func(t *testing.T) {
 		svc := NewService(&agentstub.AgentServiceStub{Err: errors.New("message offset must be greater than or equal to zero")})
 
-		resp, err := svc.GetSessionTimeline(context.Background(), &handpb.GetSessionTimelineRequest{})
+		resp, err := svc.Timeline(context.Background(), &handpb.GetSessionTimelineRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "message offset must be greater than or equal to zero")
 		require.Nil(t, resp)

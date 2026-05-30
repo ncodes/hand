@@ -19,15 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	HandService_Respond_FullMethodName            = "/hand.v1.HandService/Respond"
-	HandService_CreateSession_FullMethodName      = "/hand.v1.HandService/CreateSession"
-	HandService_ListSessions_FullMethodName       = "/hand.v1.HandService/ListSessions"
-	HandService_UseSession_FullMethodName         = "/hand.v1.HandService/UseSession"
-	HandService_CurrentSession_FullMethodName     = "/hand.v1.HandService/CurrentSession"
-	HandService_CompactSession_FullMethodName     = "/hand.v1.HandService/CompactSession"
-	HandService_RepairSession_FullMethodName      = "/hand.v1.HandService/RepairSession"
-	HandService_GetSessionStatus_FullMethodName   = "/hand.v1.HandService/GetSessionStatus"
-	HandService_GetSessionTimeline_FullMethodName = "/hand.v1.HandService/GetSessionTimeline"
+	HandService_Respond_FullMethodName = "/hand.v1.HandService/Respond"
 )
 
 // HandServiceClient is the client API for HandService service.
@@ -35,14 +27,6 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type HandServiceClient interface {
 	Respond(ctx context.Context, in *RespondRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RespondEvent], error)
-	CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
-	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
-	UseSession(ctx context.Context, in *UseSessionRequest, opts ...grpc.CallOption) (*UseSessionResponse, error)
-	CurrentSession(ctx context.Context, in *CurrentSessionRequest, opts ...grpc.CallOption) (*CurrentSessionResponse, error)
-	CompactSession(ctx context.Context, in *CompactSessionRequest, opts ...grpc.CallOption) (*CompactSessionResponse, error)
-	RepairSession(ctx context.Context, in *RepairSessionRequest, opts ...grpc.CallOption) (*RepairSessionResponse, error)
-	GetSessionStatus(ctx context.Context, in *GetSessionStatusRequest, opts ...grpc.CallOption) (*GetSessionStatusResponse, error)
-	GetSessionTimeline(ctx context.Context, in *GetSessionTimelineRequest, opts ...grpc.CallOption) (*GetSessionTimelineResponse, error)
 }
 
 type handServiceClient struct {
@@ -72,99 +56,11 @@ func (c *handServiceClient) Respond(ctx context.Context, in *RespondRequest, opt
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type HandService_RespondClient = grpc.ServerStreamingClient[RespondEvent]
 
-func (c *handServiceClient) CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CreateSessionResponse)
-	err := c.cc.Invoke(ctx, HandService_CreateSession_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *handServiceClient) ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListSessionsResponse)
-	err := c.cc.Invoke(ctx, HandService_ListSessions_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *handServiceClient) UseSession(ctx context.Context, in *UseSessionRequest, opts ...grpc.CallOption) (*UseSessionResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UseSessionResponse)
-	err := c.cc.Invoke(ctx, HandService_UseSession_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *handServiceClient) CurrentSession(ctx context.Context, in *CurrentSessionRequest, opts ...grpc.CallOption) (*CurrentSessionResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CurrentSessionResponse)
-	err := c.cc.Invoke(ctx, HandService_CurrentSession_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *handServiceClient) CompactSession(ctx context.Context, in *CompactSessionRequest, opts ...grpc.CallOption) (*CompactSessionResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CompactSessionResponse)
-	err := c.cc.Invoke(ctx, HandService_CompactSession_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *handServiceClient) RepairSession(ctx context.Context, in *RepairSessionRequest, opts ...grpc.CallOption) (*RepairSessionResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RepairSessionResponse)
-	err := c.cc.Invoke(ctx, HandService_RepairSession_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *handServiceClient) GetSessionStatus(ctx context.Context, in *GetSessionStatusRequest, opts ...grpc.CallOption) (*GetSessionStatusResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetSessionStatusResponse)
-	err := c.cc.Invoke(ctx, HandService_GetSessionStatus_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *handServiceClient) GetSessionTimeline(ctx context.Context, in *GetSessionTimelineRequest, opts ...grpc.CallOption) (*GetSessionTimelineResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetSessionTimelineResponse)
-	err := c.cc.Invoke(ctx, HandService_GetSessionTimeline_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // HandServiceServer is the server API for HandService service.
 // All implementations must embed UnimplementedHandServiceServer
 // for forward compatibility.
 type HandServiceServer interface {
 	Respond(*RespondRequest, grpc.ServerStreamingServer[RespondEvent]) error
-	CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
-	ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
-	UseSession(context.Context, *UseSessionRequest) (*UseSessionResponse, error)
-	CurrentSession(context.Context, *CurrentSessionRequest) (*CurrentSessionResponse, error)
-	CompactSession(context.Context, *CompactSessionRequest) (*CompactSessionResponse, error)
-	RepairSession(context.Context, *RepairSessionRequest) (*RepairSessionResponse, error)
-	GetSessionStatus(context.Context, *GetSessionStatusRequest) (*GetSessionStatusResponse, error)
-	GetSessionTimeline(context.Context, *GetSessionTimelineRequest) (*GetSessionTimelineResponse, error)
 	mustEmbedUnimplementedHandServiceServer()
 }
 
@@ -177,30 +73,6 @@ type UnimplementedHandServiceServer struct{}
 
 func (UnimplementedHandServiceServer) Respond(*RespondRequest, grpc.ServerStreamingServer[RespondEvent]) error {
 	return status.Error(codes.Unimplemented, "method Respond not implemented")
-}
-func (UnimplementedHandServiceServer) CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method CreateSession not implemented")
-}
-func (UnimplementedHandServiceServer) ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ListSessions not implemented")
-}
-func (UnimplementedHandServiceServer) UseSession(context.Context, *UseSessionRequest) (*UseSessionResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method UseSession not implemented")
-}
-func (UnimplementedHandServiceServer) CurrentSession(context.Context, *CurrentSessionRequest) (*CurrentSessionResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method CurrentSession not implemented")
-}
-func (UnimplementedHandServiceServer) CompactSession(context.Context, *CompactSessionRequest) (*CompactSessionResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method CompactSession not implemented")
-}
-func (UnimplementedHandServiceServer) RepairSession(context.Context, *RepairSessionRequest) (*RepairSessionResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method RepairSession not implemented")
-}
-func (UnimplementedHandServiceServer) GetSessionStatus(context.Context, *GetSessionStatusRequest) (*GetSessionStatusResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetSessionStatus not implemented")
-}
-func (UnimplementedHandServiceServer) GetSessionTimeline(context.Context, *GetSessionTimelineRequest) (*GetSessionTimelineResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetSessionTimeline not implemented")
 }
 func (UnimplementedHandServiceServer) mustEmbedUnimplementedHandServiceServer() {}
 func (UnimplementedHandServiceServer) testEmbeddedByValue()                     {}
@@ -234,190 +106,13 @@ func _HandService_Respond_Handler(srv interface{}, stream grpc.ServerStream) err
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type HandService_RespondServer = grpc.ServerStreamingServer[RespondEvent]
 
-func _HandService_CreateSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateSessionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(HandServiceServer).CreateSession(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: HandService_CreateSession_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HandServiceServer).CreateSession(ctx, req.(*CreateSessionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _HandService_ListSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListSessionsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(HandServiceServer).ListSessions(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: HandService_ListSessions_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HandServiceServer).ListSessions(ctx, req.(*ListSessionsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _HandService_UseSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UseSessionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(HandServiceServer).UseSession(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: HandService_UseSession_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HandServiceServer).UseSession(ctx, req.(*UseSessionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _HandService_CurrentSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CurrentSessionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(HandServiceServer).CurrentSession(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: HandService_CurrentSession_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HandServiceServer).CurrentSession(ctx, req.(*CurrentSessionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _HandService_CompactSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CompactSessionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(HandServiceServer).CompactSession(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: HandService_CompactSession_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HandServiceServer).CompactSession(ctx, req.(*CompactSessionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _HandService_RepairSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RepairSessionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(HandServiceServer).RepairSession(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: HandService_RepairSession_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HandServiceServer).RepairSession(ctx, req.(*RepairSessionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _HandService_GetSessionStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetSessionStatusRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(HandServiceServer).GetSessionStatus(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: HandService_GetSessionStatus_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HandServiceServer).GetSessionStatus(ctx, req.(*GetSessionStatusRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _HandService_GetSessionTimeline_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetSessionTimelineRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(HandServiceServer).GetSessionTimeline(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: HandService_GetSessionTimeline_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(HandServiceServer).GetSessionTimeline(ctx, req.(*GetSessionTimelineRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // HandService_ServiceDesc is the grpc.ServiceDesc for HandService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var HandService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "hand.v1.HandService",
 	HandlerType: (*HandServiceServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "CreateSession",
-			Handler:    _HandService_CreateSession_Handler,
-		},
-		{
-			MethodName: "ListSessions",
-			Handler:    _HandService_ListSessions_Handler,
-		},
-		{
-			MethodName: "UseSession",
-			Handler:    _HandService_UseSession_Handler,
-		},
-		{
-			MethodName: "CurrentSession",
-			Handler:    _HandService_CurrentSession_Handler,
-		},
-		{
-			MethodName: "CompactSession",
-			Handler:    _HandService_CompactSession_Handler,
-		},
-		{
-			MethodName: "RepairSession",
-			Handler:    _HandService_RepairSession_Handler,
-		},
-		{
-			MethodName: "GetSessionStatus",
-			Handler:    _HandService_GetSessionStatus_Handler,
-		},
-		{
-			MethodName: "GetSessionTimeline",
-			Handler:    _HandService_GetSessionTimeline_Handler,
-		},
-	},
+	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "Respond",
@@ -425,5 +120,373 @@ var HandService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
+	Metadata: "internal/rpc/proto/hand.proto",
+}
+
+const (
+	SessionService_Create_FullMethodName   = "/hand.v1.SessionService/Create"
+	SessionService_List_FullMethodName     = "/hand.v1.SessionService/List"
+	SessionService_Use_FullMethodName      = "/hand.v1.SessionService/Use"
+	SessionService_Current_FullMethodName  = "/hand.v1.SessionService/Current"
+	SessionService_Compact_FullMethodName  = "/hand.v1.SessionService/Compact"
+	SessionService_Repair_FullMethodName   = "/hand.v1.SessionService/Repair"
+	SessionService_Status_FullMethodName   = "/hand.v1.SessionService/Status"
+	SessionService_Timeline_FullMethodName = "/hand.v1.SessionService/Timeline"
+)
+
+// SessionServiceClient is the client API for SessionService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type SessionServiceClient interface {
+	Create(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
+	List(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
+	Use(ctx context.Context, in *UseSessionRequest, opts ...grpc.CallOption) (*UseSessionResponse, error)
+	Current(ctx context.Context, in *CurrentSessionRequest, opts ...grpc.CallOption) (*CurrentSessionResponse, error)
+	Compact(ctx context.Context, in *CompactSessionRequest, opts ...grpc.CallOption) (*CompactSessionResponse, error)
+	Repair(ctx context.Context, in *RepairSessionRequest, opts ...grpc.CallOption) (*RepairSessionResponse, error)
+	Status(ctx context.Context, in *GetSessionStatusRequest, opts ...grpc.CallOption) (*GetSessionStatusResponse, error)
+	Timeline(ctx context.Context, in *GetSessionTimelineRequest, opts ...grpc.CallOption) (*GetSessionTimelineResponse, error)
+}
+
+type sessionServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewSessionServiceClient(cc grpc.ClientConnInterface) SessionServiceClient {
+	return &sessionServiceClient{cc}
+}
+
+func (c *sessionServiceClient) Create(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateSessionResponse)
+	err := c.cc.Invoke(ctx, SessionService_Create_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sessionServiceClient) List(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSessionsResponse)
+	err := c.cc.Invoke(ctx, SessionService_List_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sessionServiceClient) Use(ctx context.Context, in *UseSessionRequest, opts ...grpc.CallOption) (*UseSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UseSessionResponse)
+	err := c.cc.Invoke(ctx, SessionService_Use_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sessionServiceClient) Current(ctx context.Context, in *CurrentSessionRequest, opts ...grpc.CallOption) (*CurrentSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CurrentSessionResponse)
+	err := c.cc.Invoke(ctx, SessionService_Current_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sessionServiceClient) Compact(ctx context.Context, in *CompactSessionRequest, opts ...grpc.CallOption) (*CompactSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompactSessionResponse)
+	err := c.cc.Invoke(ctx, SessionService_Compact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sessionServiceClient) Repair(ctx context.Context, in *RepairSessionRequest, opts ...grpc.CallOption) (*RepairSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RepairSessionResponse)
+	err := c.cc.Invoke(ctx, SessionService_Repair_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sessionServiceClient) Status(ctx context.Context, in *GetSessionStatusRequest, opts ...grpc.CallOption) (*GetSessionStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSessionStatusResponse)
+	err := c.cc.Invoke(ctx, SessionService_Status_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sessionServiceClient) Timeline(ctx context.Context, in *GetSessionTimelineRequest, opts ...grpc.CallOption) (*GetSessionTimelineResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSessionTimelineResponse)
+	err := c.cc.Invoke(ctx, SessionService_Timeline_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// SessionServiceServer is the server API for SessionService service.
+// All implementations must embed UnimplementedSessionServiceServer
+// for forward compatibility.
+type SessionServiceServer interface {
+	Create(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
+	List(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
+	Use(context.Context, *UseSessionRequest) (*UseSessionResponse, error)
+	Current(context.Context, *CurrentSessionRequest) (*CurrentSessionResponse, error)
+	Compact(context.Context, *CompactSessionRequest) (*CompactSessionResponse, error)
+	Repair(context.Context, *RepairSessionRequest) (*RepairSessionResponse, error)
+	Status(context.Context, *GetSessionStatusRequest) (*GetSessionStatusResponse, error)
+	Timeline(context.Context, *GetSessionTimelineRequest) (*GetSessionTimelineResponse, error)
+	mustEmbedUnimplementedSessionServiceServer()
+}
+
+// UnimplementedSessionServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedSessionServiceServer struct{}
+
+func (UnimplementedSessionServiceServer) Create(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Create not implemented")
+}
+func (UnimplementedSessionServiceServer) List(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method List not implemented")
+}
+func (UnimplementedSessionServiceServer) Use(context.Context, *UseSessionRequest) (*UseSessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Use not implemented")
+}
+func (UnimplementedSessionServiceServer) Current(context.Context, *CurrentSessionRequest) (*CurrentSessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Current not implemented")
+}
+func (UnimplementedSessionServiceServer) Compact(context.Context, *CompactSessionRequest) (*CompactSessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Compact not implemented")
+}
+func (UnimplementedSessionServiceServer) Repair(context.Context, *RepairSessionRequest) (*RepairSessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Repair not implemented")
+}
+func (UnimplementedSessionServiceServer) Status(context.Context, *GetSessionStatusRequest) (*GetSessionStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Status not implemented")
+}
+func (UnimplementedSessionServiceServer) Timeline(context.Context, *GetSessionTimelineRequest) (*GetSessionTimelineResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Timeline not implemented")
+}
+func (UnimplementedSessionServiceServer) mustEmbedUnimplementedSessionServiceServer() {}
+func (UnimplementedSessionServiceServer) testEmbeddedByValue()                        {}
+
+// UnsafeSessionServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to SessionServiceServer will
+// result in compilation errors.
+type UnsafeSessionServiceServer interface {
+	mustEmbedUnimplementedSessionServiceServer()
+}
+
+func RegisterSessionServiceServer(s grpc.ServiceRegistrar, srv SessionServiceServer) {
+	// If the following call panics, it indicates UnimplementedSessionServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&SessionService_ServiceDesc, srv)
+}
+
+func _SessionService_Create_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).Create(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_Create_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).Create(ctx, req.(*CreateSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SessionService_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).List(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_List_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).List(ctx, req.(*ListSessionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SessionService_Use_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UseSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).Use(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_Use_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).Use(ctx, req.(*UseSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SessionService_Current_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CurrentSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).Current(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_Current_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).Current(ctx, req.(*CurrentSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SessionService_Compact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompactSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).Compact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_Compact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).Compact(ctx, req.(*CompactSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SessionService_Repair_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RepairSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).Repair(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_Repair_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).Repair(ctx, req.(*RepairSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SessionService_Status_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSessionStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).Status(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_Status_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).Status(ctx, req.(*GetSessionStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SessionService_Timeline_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSessionTimelineRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).Timeline(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_Timeline_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).Timeline(ctx, req.(*GetSessionTimelineRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// SessionService_ServiceDesc is the grpc.ServiceDesc for SessionService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var SessionService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "hand.v1.SessionService",
+	HandlerType: (*SessionServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Create",
+			Handler:    _SessionService_Create_Handler,
+		},
+		{
+			MethodName: "List",
+			Handler:    _SessionService_List_Handler,
+		},
+		{
+			MethodName: "Use",
+			Handler:    _SessionService_Use_Handler,
+		},
+		{
+			MethodName: "Current",
+			Handler:    _SessionService_Current_Handler,
+		},
+		{
+			MethodName: "Compact",
+			Handler:    _SessionService_Compact_Handler,
+		},
+		{
+			MethodName: "Repair",
+			Handler:    _SessionService_Repair_Handler,
+		},
+		{
+			MethodName: "Status",
+			Handler:    _SessionService_Status_Handler,
+		},
+		{
+			MethodName: "Timeline",
+			Handler:    _SessionService_Timeline_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "internal/rpc/proto/hand.proto",
 }

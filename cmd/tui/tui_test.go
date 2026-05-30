@@ -14,6 +14,7 @@ import (
 	handcli "github.com/wandxy/hand/internal/cli"
 	"github.com/wandxy/hand/internal/config"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	storage "github.com/wandxy/hand/internal/state/core"
 	tui "github.com/wandxy/hand/internal/tui/app"
 )
 
@@ -257,18 +258,53 @@ func (c *fakeTUIChatClient) Respond(
 	return "", nil
 }
 
-func (c *fakeTUIChatClient) GetSessionTimeline(
+func (c *fakeTUIChatClient) SessionAPI() rpcclient.SessionAPI {
+	return c
+}
+
+func (c *fakeTUIChatClient) Timeline(
 	context.Context,
 	rpcclient.SessionTimelineOptions,
 ) (rpcclient.SessionTimeline, error) {
 	return rpcclient.SessionTimeline{}, nil
 }
 
-func (c *fakeTUIChatClient) CompactSession(
-	context.Context,
-	string,
-) (rpcclient.CompactSessionResult, error) {
+func (c *fakeTUIChatClient) Compact(context.Context, string) (rpcclient.CompactSessionResult, error) {
 	return rpcclient.CompactSessionResult{}, nil
+}
+
+func (c *fakeTUIChatClient) Create(context.Context, string) (storage.Session, error) {
+	return storage.Session{}, nil
+}
+
+func (c *fakeTUIChatClient) CreateWithOptions(
+	context.Context,
+	rpcclient.CreateSessionOptions,
+) (storage.Session, error) {
+	return storage.Session{}, nil
+}
+
+func (c *fakeTUIChatClient) List(context.Context) ([]storage.Session, error) {
+	return nil, nil
+}
+
+func (c *fakeTUIChatClient) Use(context.Context, string) error {
+	return nil
+}
+
+func (c *fakeTUIChatClient) Current(context.Context) (storage.Session, error) {
+	return storage.Session{}, nil
+}
+
+func (c *fakeTUIChatClient) Repair(
+	context.Context,
+	rpcclient.RepairSessionOptions,
+) (rpcclient.RepairSessionResult, error) {
+	return rpcclient.RepairSessionResult{}, nil
+}
+
+func (c *fakeTUIChatClient) Status(context.Context, string) (rpcclient.ContextStatus, error) {
+	return rpcclient.ContextStatus{}, nil
 }
 
 func (c *fakeTUIChatClient) Close() error {
