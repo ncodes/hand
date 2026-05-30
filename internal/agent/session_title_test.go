@@ -8,8 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
+	appcredential "github.com/wandxy/hand/internal/credential"
 	"github.com/wandxy/hand/internal/mocks"
 	models "github.com/wandxy/hand/internal/model"
+	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
@@ -69,6 +72,7 @@ func TestAgent_MaybeGenerateSessionTitleUsesSummaryModel(t *testing.T) {
 	require.Equal(t, "Useful Title", session.Title)
 	require.Equal(t, storage.SessionTitleSourceGenerated, session.TitleSource)
 	require.Len(t, summaryClient.Requests, 1)
+	require.Equal(t, int64(24), summaryClient.Requests[0].MaxOutputTokens)
 }
 
 func TestAgent_MaybeGenerateSessionTitleFallsBackWhenModelTitleInvalid(t *testing.T) {
@@ -159,13 +163,47 @@ func TestAgent_MaybeGenerateSessionTitleSkipsExistingMissingAndMessageErrors(t *
 	}
 }
 
+func TestAgent_GenerateSessionTitleOmitsMaxOutputTokensForOpenAISubscription(t *testing.T) {
+	setSessionTitleTestProfileHome(t, t.TempDir())
+	require.NoError(t, appcredential.NewFileStore("").Set(constants.ModelProviderOpenAI, appcredential.StoredCredential{
+		Type:  appcredential.TypeOAuth,
+		Token: "subscription-token",
+	}))
+
+	summaryClient := &mocks.ModelClientStub{Responses: []*models.Response{{OutputText: "Useful Title"}}}
+	core := &Agent{
+		cfg: &config.Config{Models: config.ModelsConfig{
+			Main: config.MainModelConfig{
+				Name:     "gpt-5.4-mini",
+				Provider: constants.ModelProviderOpenAI,
+				API:      models.APIOpenAIResponses,
+			},
+		}},
+		summaryClient: summaryClient,
+	}
+
+	require.Equal(t, "Useful Title", core.generateSessionTitle(context.Background(), "context"))
+	require.Len(t, summaryClient.Requests, 1)
+	require.Zero(t, summaryClient.Requests[0].MaxOutputTokens)
+}
+
 func getSessionTitleContextStringFallbackOnly(messages []handmsg.Message) string {
 	_, fallback := getSessionTitleContext(messages)
 	return fallback
 }
 
+func setSessionTitleTestProfileHome(t *testing.T, home string) {
+	t.Helper()
+
+	original := profile.Active()
+	t.Cleanup(func() {
+		profile.SetActive(original)
+	})
+	profile.SetActive(profile.Profile{Name: "test", HomeDir: home})
+}
+
 type nonComparableModelClient struct {
-	values []string
+	_ []string
 }
 
 func (c *nonComparableModelClient) Complete(context.Context, models.Request) (*models.Response, error) {

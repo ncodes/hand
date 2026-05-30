@@ -17,6 +17,7 @@ func respondToPromptCmd(
 	client rpcclient.ChatAPI,
 	responseID int,
 	ctx context.Context,
+	sessionID string,
 	prompt string,
 	events chan<- tea.Msg,
 ) tea.Cmd {
@@ -28,6 +29,7 @@ func respondToPromptCmd(
 		}
 
 		reply, err := client.Respond(ctx, prompt, rpcclient.RespondOptions{
+			SessionID: sessionID,
 			OnEvent: func(event rpcclient.Event) {
 				msg, ok := agentEventToTUIMessage(event)
 				if !ok {
@@ -86,7 +88,7 @@ func (m *model) startResponse(prompt string, followTranscript bool) tea.Cmd {
 
 	return tea.Batch(
 		m.startThinkingComposer(),
-		respondToPromptCmd(m.chatClient, m.responseID, responseCtx, prompt, events),
+		respondToPromptCmd(m.chatClient, m.responseID, responseCtx, m.getCurrentSessionID(), prompt, events),
 		waitForResponseEvent(m.responseID, events),
 	)
 }

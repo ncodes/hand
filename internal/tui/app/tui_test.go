@@ -2256,6 +2256,21 @@ func TestModel_SubmitPromptStartsRPCResponse(t *testing.T) {
 	require.NotNil(t, runModel.responseCancel)
 }
 
+func TestModel_SubmitPromptSendsCurrentSessionID(t *testing.T) {
+	client := &fakeTUIChatClient{reply: "hello back"}
+	runModel := newModelWithClient(client)
+	runModel.applyAction(setSessionAction{ID: "ses_current", Title: "Current"})
+	runModel.input.SetValue("hello")
+
+	cmd := runModel.submitPrompt()
+
+	require.NotNil(t, cmd)
+	msg := responseMessageFromBatch(t, cmd)
+
+	require.Equal(t, responseCompletedMsg{ResponseID: runModel.responseID, Text: "hello back"}, msg)
+	require.Equal(t, "ses_current", client.respondSessionID)
+}
+
 func TestModel_UpdateEnterStartsThinkingResponse(t *testing.T) {
 	client := &fakeTUIChatClient{reply: "hello back"}
 	runModel := newModelWithClient(client)
@@ -2472,10 +2487,11 @@ func TestRespondToPromptCmd_StreamsDeltasTraceEventsAndCompletion(t *testing.T) 
 	}
 	events := make(chan tea.Msg, 8)
 
-	msg := respondToPromptCmd(client, 7, context.Background(), "hello", events)()
+	msg := respondToPromptCmd(client, 7, context.Background(), "project-a", "hello", events)()
 
 	require.Equal(t, responseCompletedMsg{ResponseID: 7, Text: "hello world"}, msg)
 	require.Equal(t, "hello", client.message)
+	require.Equal(t, "project-a", client.respondSessionID)
 	require.False(t, client.streamSet)
 	require.Equal(t, assistantTextDeltaMsg{Channel: "assistant", Text: "hello "}, <-events)
 	require.Equal(t, toolInvocationStartedMsg{ID: "call_1", Name: "read_file"}, <-events)
@@ -2488,10 +2504,11 @@ func TestRespondToPromptCmd_ReturnsErrorCompletion(t *testing.T) {
 	client := &fakeTUIChatClient{err: expectedErr}
 	events := make(chan tea.Msg, 1)
 
-	msg := respondToPromptCmd(client, 3, nil, "hello", events)()
+	msg := respondToPromptCmd(client, 3, nil, "project-a", "hello", events)()
 
 	require.Equal(t, responseCompletedMsg{ResponseID: 3, Err: expectedErr}, msg)
 	require.Equal(t, "hello", client.message)
+	require.Equal(t, "project-a", client.respondSessionID)
 	_, ok := <-events
 	require.False(t, ok)
 }
@@ -3747,6 +3764,22 @@ func trimTrailingLineSpaces(value string) string {
 	return strings.Join(lines, "\n")
 }
 
+func responseMessageFromBatch(t *testing.T, cmd tea.Cmd) responseCompletedMsg {
+	t.Helper()
+
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+	for _, child := range batch {
+		msg, ok := child().(responseCompletedMsg)
+		if ok {
+			return msg
+		}
+	}
+
+	t.Fatal("response completion message not found")
+	return responseCompletedMsg{}
+}
+
 type fakeTUIChatClient struct {
 	events              []rpcclient.Event
 	reply               string
@@ -3754,6 +3787,7 @@ type fakeTUIChatClient struct {
 	compactResult       rpcclient.CompactSessionResult
 	compactErr          error
 	compactID           string
+	respondSessionID    string
 	createdSession      storage.Session
 	createSessionErr    error
 	createSessionID     string
@@ -3783,6 +3817,7 @@ func (c *fakeTUIChatClient) Respond(
 ) (string, error) {
 	c.calls++
 	c.message = message
+	c.respondSessionID = opts.SessionID
 	if opts.Stream != nil {
 		c.stream = *opts.Stream
 		c.streamSet = true

@@ -599,15 +599,6 @@ func toolExecutionTestMessageIDs(messages []handmsg.Message) []string {
 	return ids
 }
 
-func toolExecutionTestCallIDs(toolCalls []models.ToolCall) []string {
-	ids := make([]string, 0, len(toolCalls))
-	for _, toolCall := range toolCalls {
-		ids = append(ids, toolCall.ID)
-	}
-
-	return ids
-}
-
 func memoryRetrievalTestEventTypes(events []trace.Event) []string {
 	result := make([]string, 0, len(events))
 	for _, event := range events {

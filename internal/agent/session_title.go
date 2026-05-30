@@ -76,7 +76,7 @@ func (a *Agent) generateSessionTitle(ctx context.Context, contextText string) st
 		API:             a.cfg.SummaryModelAPIEffective(),
 		Instructions:    instruct.BuildSessionTitle().String(),
 		Messages:        []handmsg.Message{{Role: handmsg.RoleUser, Content: contextText}},
-		MaxOutputTokens: 24,
+		MaxOutputTokens: a.cfg.SummaryModelMaxOutputTokensEffective(24),
 		Temperature:     0,
 		DebugRequests:   a.cfg.Debug.Requests,
 	})

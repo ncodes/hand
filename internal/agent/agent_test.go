@@ -345,7 +345,8 @@ func TestAgentAndTurnSmallHelpers(t *testing.T) {
 	require.False(t, isFullRecallSummary(storage.SessionSummary{SourceMessageCount: 2, SourceEndOffset: 3}, 3))
 	require.Equal(t, time.Second, getDurationOrDefault(time.Second, time.Minute))
 	require.Equal(t, time.Minute, getDurationOrDefault(0, time.Minute))
-	require.Equal(t, context.Background(), normalizeContext(nil))
+	var ctx context.Context
+	require.Equal(t, context.Background(), normalizeContext(ctx))
 	require.Equal(t, "operation_failed", getAgentModelErrorKind(errors.New("bad")))
 	require.Equal(t, "timeout", getAgentModelErrorKind(context.DeadlineExceeded))
 	require.Equal(t, "context_canceled", getAgentModelErrorKind(context.Canceled))
