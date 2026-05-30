@@ -5,8 +5,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/wandxy/hand/internal/datadir/files"
 	"github.com/wandxy/hand/internal/profile"
 )
+
+const StateFilename = files.StateFilename
 
 var (
 	getenv      = os.Getenv

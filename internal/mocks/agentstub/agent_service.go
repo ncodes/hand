@@ -24,6 +24,7 @@ type AgentServiceStub struct {
 	Closed               bool
 	CreatedSession       storage.Session
 	CreatedSessionID     string
+	CreateSessionOptions rpcclient.CreateSessionOptions
 	Sessions             []storage.Session
 	UsedSessionID        string
 	UseSessionErr        error
@@ -68,6 +69,15 @@ func (s *AgentServiceStub) Respond(_ context.Context, msg string, opts rpcclient
 
 func (s *AgentServiceStub) CreateSession(_ context.Context, id string) (storage.Session, error) {
 	s.CreatedSessionID = id
+	return s.CreatedSession, s.Err
+}
+
+func (s *AgentServiceStub) CreateSessionWithOptions(
+	_ context.Context,
+	opts rpcclient.CreateSessionOptions,
+) (storage.Session, error) {
+	s.CreateSessionOptions = opts
+	s.CreatedSessionID = opts.ID
 	return s.CreatedSession, s.Err
 }
 

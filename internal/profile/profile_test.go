@@ -137,7 +137,7 @@ func TestResolve_ReturnsInvalidStoredCurrentProfileError(t *testing.T) {
 	path, err := CurrentPath(home)
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
-	require.NoError(t, os.WriteFile(path, []byte("work/team\n"), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(`{"current_profile":"work/team"}`+"\n"), 0o600))
 
 	_, err = Resolve(ResolveOptions{UserHomeDir: home})
 	require.EqualError(t, err, `invalid profile name "work/team": must match `+namePattern)
@@ -234,7 +234,7 @@ func TestCurrentPath(t *testing.T) {
 	path, err := CurrentPath(home)
 	require.NoError(t, err)
 
-	require.Equal(t, filepath.Join(home, ".hand", "current-profile"), path)
+	require.Equal(t, filepath.Join(home, ".hand", "state.json"), path)
 }
 
 func TestCurrentPath_ReturnsHomeDirError(t *testing.T) {
@@ -254,6 +254,47 @@ func TestLoadCurrentName_ReturnsFalseWhenMissing(t *testing.T) {
 	name, ok, err := LoadCurrentName(t.TempDir())
 	require.NoError(t, err)
 
+	require.Empty(t, name)
+	require.False(t, ok)
+}
+
+func TestLoadCurrentName_ReturnsFalseWhenStateFileEmpty(t *testing.T) {
+	home := t.TempDir()
+	path, err := CurrentPath(home)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte("  \n"), 0o600))
+
+	name, ok, err := LoadCurrentName(home)
+
+	require.NoError(t, err)
+	require.Empty(t, name)
+	require.False(t, ok)
+}
+
+func TestLoadCurrentName_ReturnsFalseWhenStateFileNull(t *testing.T) {
+	home := t.TempDir()
+	path, err := CurrentPath(home)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte("null\n"), 0o600))
+
+	name, ok, err := LoadCurrentName(home)
+
+	require.NoError(t, err)
+	require.Empty(t, name)
+	require.False(t, ok)
+}
+
+func TestLoadCurrentName_IgnoresLegacyCurrentProfileFile(t *testing.T) {
+	home := t.TempDir()
+	legacyPath := filepath.Join(home, ".hand", "current-profile")
+	require.NoError(t, os.MkdirAll(filepath.Dir(legacyPath), 0o700))
+	require.NoError(t, os.WriteFile(legacyPath, []byte("Work\n"), 0o600))
+
+	name, ok, err := LoadCurrentName(home)
+
+	require.NoError(t, err)
 	require.Empty(t, name)
 	require.False(t, ok)
 }
@@ -286,10 +327,22 @@ func TestLoadCurrentName_ReturnsInvalidStoredNameError(t *testing.T) {
 	path, err := CurrentPath(home)
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
-	require.NoError(t, os.WriteFile(path, []byte("work/team\n"), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(`{"current_profile":"work/team"}`+"\n"), 0o600))
 
 	_, _, err = LoadCurrentName(home)
 	require.EqualError(t, err, `invalid profile name "work/team": must match `+namePattern)
+}
+
+func TestLoadCurrentName_ReturnsParseStateError(t *testing.T) {
+	home := t.TempDir()
+	path, err := CurrentPath(home)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte("{"), 0o600))
+
+	_, _, err = LoadCurrentName(home)
+
+	require.ErrorContains(t, err, "parse profile state:")
 }
 
 func TestStoreCurrentNameAndLoadCurrentName(t *testing.T) {
@@ -303,6 +356,38 @@ func TestStoreCurrentNameAndLoadCurrentName(t *testing.T) {
 	require.Equal(t, "work", stored)
 	require.True(t, ok)
 	require.Equal(t, "work", name)
+}
+
+func TestStoreCurrentName_PreservesExistingStateFields(t *testing.T) {
+	home := t.TempDir()
+	path, err := CurrentPath(home)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte(`{"last_sessions":{"default":"session-a"}}`+"\n"), 0o600))
+
+	_, err = StoreCurrentName("Work", home)
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"current_profile": "work",
+		"last_sessions": {
+			"default": "session-a"
+		}
+	}`, string(data))
+}
+
+func TestStoreCurrentName_ReturnsLoadStateError(t *testing.T) {
+	home := t.TempDir()
+	path, err := CurrentPath(home)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte("{"), 0o600))
+
+	_, err = StoreCurrentName("Work", home)
+
+	require.ErrorContains(t, err, "parse profile state:")
 }
 
 func TestStoreCurrentName_RejectsInvalidName(t *testing.T) {
@@ -322,7 +407,10 @@ func TestStoreCurrentName_ReturnsWriteError(t *testing.T) {
 	home := t.TempDir()
 	path, err := CurrentPath(home)
 	require.NoError(t, err)
-	require.NoError(t, os.MkdirAll(path, 0o700))
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o500))
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Dir(path), 0o700)
+	})
 
 	_, err = StoreCurrentName("work", home)
 	require.ErrorContains(t, err, "write current profile:")

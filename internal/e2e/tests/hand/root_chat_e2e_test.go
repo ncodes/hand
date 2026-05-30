@@ -31,6 +31,7 @@ import (
 	"github.com/wandxy/hand/internal/e2e"
 	models "github.com/wandxy/hand/internal/model"
 	"github.com/wandxy/hand/internal/profile"
+	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	"github.com/wandxy/hand/pkg/logutils"
@@ -91,7 +92,11 @@ func Test_E2E_HandRootChat_ExplicitSession(t *testing.T) {
 		require.NoError(t, client.Close())
 	})
 
-	_, err = client.CreateSession(context.Background(), sessionID)
+	autoSwitch := false
+	_, err = client.CreateSessionWithOptions(context.Background(), rpcclient.CreateSessionOptions{
+		ID:         sessionID,
+		AutoSwitch: &autoSwitch,
+	})
 	require.NoError(t, err)
 
 	output, err := runRootChatCommand(t, "hand", "--config", configPath, "--session", sessionID, "hello")
@@ -1392,7 +1397,11 @@ func createLiveSession(t *testing.T, h *e2e.RPCHarness, sessionID string) string
 		require.NoError(t, client.Close())
 	}()
 
-	_, err = client.CreateSession(context.Background(), sessionID)
+	autoSwitch := false
+	_, err = client.CreateSessionWithOptions(context.Background(), rpcclient.CreateSessionOptions{
+		ID:         sessionID,
+		AutoSwitch: &autoSwitch,
+	})
 	require.NoError(t, err)
 	return sessionID
 }

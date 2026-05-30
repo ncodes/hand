@@ -142,12 +142,10 @@ func compactSessionMessageFromBatch(t *testing.T, cmd tea.Cmd) compactSessionCom
 
 	batch, ok := cmd().(tea.BatchMsg)
 	require.True(t, ok)
-	for _, child := range batch {
-		if msg, ok := child().(compactSessionCompletedMsg); ok {
-			return msg
-		}
-	}
+	require.Len(t, batch, 3)
 
-	t.Fatal("compact session message not found")
-	return compactSessionCompletedMsg{}
+	msg, ok := batch[2]().(compactSessionCompletedMsg)
+	require.True(t, ok)
+
+	return msg
 }

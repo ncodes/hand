@@ -9,18 +9,18 @@ const jumpToBottomLabel = "Jump to bottom (ctrl+End) ↓"
 
 // View composes the scrollable transcript and fixed input composer.
 func (m model) View() tea.View {
-	bottomPane := m.renderInput()
+	bottomPanel := m.renderInput()
 	if m.shouldShowNamePrompt() {
-		bottomPane = ""
+		bottomPanel = ""
 	}
 	if m.isCommandViewVisible() {
-		bottomPane = m.renderCommandView()
+		bottomPanel = m.renderCommandView()
 	}
 	mainContent := lipgloss.JoinVertical(
 		lipgloss.Left,
 		m.renderTranscript(),
-		m.renderTranscriptComposerGap(),
-		bottomPane,
+		m.renderJumpToBottom(),
+		bottomPanel,
 	)
 	view := tea.NewView(mainContent)
 	view.AltScreen = true
@@ -29,7 +29,7 @@ func (m model) View() tea.View {
 	return view
 }
 
-func (m model) renderTranscriptComposerGap() string {
+func (m model) renderJumpToBottom() string {
 	if m.shouldShowNamePrompt() {
 		return ""
 	}

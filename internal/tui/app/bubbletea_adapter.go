@@ -7,8 +7,7 @@ func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		m.input.Focus(),
 		m.statusExpireCmd(),
-		m.runEffect(loadSessionTimelineEffect{}),
-		loadSessionContextCmd(m.chatCtx, m.contextLoader, m.getCurrentSessionID()),
+		m.loadStartupSessionTimeline(),
 	)
 }
 

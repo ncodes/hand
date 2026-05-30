@@ -61,8 +61,13 @@ func (m *model) completeNewChat(msg newChatCompletedMsg) tea.Cmd {
 	m.setTranscriptContent()
 	m.resize()
 
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		m.setStatus("new chat created"),
 		loadSessionContextCmd(m.chatCtx, m.contextLoader, m.getCurrentSessionID()),
-	)
+	}
+	if err := saveLastSessionID(m.getCurrentSessionID()); err != nil {
+		cmds = append(cmds, m.setStatus("last session unavailable"))
+	}
+
+	return tea.Batch(cmds...)
 }

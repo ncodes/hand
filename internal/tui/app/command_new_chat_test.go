@@ -12,6 +12,8 @@ import (
 )
 
 func TestModel_UpdateHandlesNewChatCommand(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
 	client := &fakeTUIChatClient{
 		createdSession: storage.Session{ID: "session-new", Title: "Fresh Thread"},
 		contextStatus:  rpcclient.ContextStatus{SessionID: "session-new"},
@@ -48,6 +50,10 @@ func TestModel_UpdateHandlesNewChatCommand(t *testing.T) {
 
 	_ = sessionContextLoadedMessageFromBatch(t, cmd)
 	require.Equal(t, "session-new", client.contextSessionID)
+
+	rememberedID, err := loadLastSessionID()
+	require.NoError(t, err)
+	require.Equal(t, "session-new", rememberedID)
 }
 
 func TestModel_UpdateNewChatCancelsActiveResponse(t *testing.T) {
@@ -154,14 +160,12 @@ func newChatMessageFromBatch(t *testing.T, cmd tea.Cmd) newChatCompletedMsg {
 
 	batch, ok := cmd().(tea.BatchMsg)
 	require.True(t, ok)
-	for _, child := range batch {
-		if msg, ok := child().(newChatCompletedMsg); ok {
-			return msg
-		}
-	}
+	require.Len(t, batch, 2)
 
-	t.Fatal("new chat message not found")
-	return newChatCompletedMsg{}
+	msg, ok := batch[1]().(newChatCompletedMsg)
+	require.True(t, ok)
+
+	return msg
 }
 
 func sessionContextLoadedMessageFromBatch(t *testing.T, cmd tea.Cmd) sessionContextLoadedMsg {
@@ -169,12 +173,10 @@ func sessionContextLoadedMessageFromBatch(t *testing.T, cmd tea.Cmd) sessionCont
 
 	batch, ok := cmd().(tea.BatchMsg)
 	require.True(t, ok)
-	for index := len(batch) - 1; index >= 0; index-- {
-		if msg, ok := batch[index]().(sessionContextLoadedMsg); ok {
-			return msg
-		}
-	}
+	require.GreaterOrEqual(t, len(batch), 2)
 
-	t.Fatal("session context loaded message not found")
-	return sessionContextLoadedMsg{}
+	msg, ok := batch[1]().(sessionContextLoadedMsg)
+	require.True(t, ok)
+
+	return msg
 }

@@ -234,7 +234,7 @@ func TestModel_InitLoadsExistingSessionTimeline(t *testing.T) {
 	require.NotNil(t, cmd)
 	batch, ok := cmd().(tea.BatchMsg)
 	require.True(t, ok)
-	require.Len(t, batch, 3)
+	require.Len(t, batch, 2)
 
 	loaded, ok := batch[1]().(sessionTimelineLoadedMsg)
 	require.True(t, ok)
@@ -242,10 +242,13 @@ func TestModel_InitLoadsExistingSessionTimeline(t *testing.T) {
 	require.Equal(t, "default", loaded.Timeline.SessionID)
 	require.Len(t, loaded.Timeline.Messages, 1)
 	require.Equal(t, 1, client.timelineCalls)
+	require.Equal(t, defaultSessionID, client.usedSessionID)
+	require.Equal(t, defaultSessionID, client.timelineSessionID)
 }
 
 func TestModel_InitLoadsSessionContextUsage(t *testing.T) {
 	client := &fakeTUIChatClient{
+		timeline: rpcclient.SessionTimeline{SessionID: "default"},
 		contextStatus: rpcclient.ContextStatus{
 			SessionID: "default",
 			Length:    128000,
@@ -260,24 +263,95 @@ func TestModel_InitLoadsSessionContextUsage(t *testing.T) {
 	require.NotNil(t, cmd)
 	batch, ok := cmd().(tea.BatchMsg)
 	require.True(t, ok)
-	require.Len(t, batch, 3)
+	require.Len(t, batch, 2)
 
-	loaded, ok := batch[2]().(sessionContextLoadedMsg)
+	timelineMsg, ok := batch[1]().(sessionTimelineLoadedMsg)
 	require.True(t, ok)
+	updated, cmd := runModel.Update(timelineMsg)
+	require.NotNil(t, cmd)
+
+	loaded, ok := cmd().(sessionContextLoadedMsg)
+	require.True(t, ok)
+	runModel = updated.(model)
 
 	require.Equal(t, "default", client.contextSessionID)
 	require.Equal(t, 1, client.contextCalls)
 	require.Equal(t, 64000, loaded.Status.Used)
+	require.Equal(t, defaultSessionID, runModel.sessionID)
+}
+
+func TestModel_InitRestoresRememberedActiveSession(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	require.NoError(t, saveLastSessionID("session-saved"))
+	client := &fakeTUIChatClient{
+		sessions: []storage.Session{
+			{ID: defaultSessionID},
+			{ID: "session-saved", Title: "Saved Chat"},
+		},
+		timeline:      rpcclient.SessionTimeline{SessionID: "session-saved", Title: "Saved Chat"},
+		contextStatus: rpcclient.ContextStatus{SessionID: "session-saved"},
+	}
+	runModel := newModelWithClient(client)
+
+	cmd := runModel.Init()
+
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+	timelineMsg, ok := batch[1]().(sessionTimelineLoadedMsg)
+	require.True(t, ok)
+	updated, contextCmd := runModel.Update(timelineMsg)
+	runModel = updated.(model)
+
+	require.NotNil(t, contextCmd)
+	require.Equal(t, "session-saved", client.usedSessionID)
+	require.Equal(t, "session-saved", client.timelineSessionID)
+	require.Equal(t, "session-saved", runModel.sessionID)
+	require.Equal(t, "Saved Chat", runModel.sessionTitle)
+
+	rememberedID, err := loadLastSessionID()
+	require.NoError(t, err)
+	require.Equal(t, "session-saved", rememberedID)
+}
+
+func TestModel_InitFallsBackToDefaultWhenRememberedSessionIsNotActive(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	require.NoError(t, saveLastSessionID("session-archived"))
+	client := &fakeTUIChatClient{
+		sessions: []storage.Session{{ID: defaultSessionID}},
+		timeline: rpcclient.SessionTimeline{SessionID: defaultSessionID},
+	}
+	runModel := newModelWithClient(client)
+
+	cmd := runModel.Init()
+
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+	timelineMsg, ok := batch[1]().(sessionTimelineLoadedMsg)
+	require.True(t, ok)
+	updated, _ := runModel.Update(timelineMsg)
+	runModel = updated.(model)
+
+	require.Equal(t, 1, client.listSessionCalls)
+	require.Equal(t, defaultSessionID, client.usedSessionID)
+	require.Equal(t, defaultSessionID, client.timelineSessionID)
+	require.Equal(t, defaultSessionID, runModel.sessionID)
+
+	rememberedID, err := loadLastSessionID()
+	require.NoError(t, err)
+	require.Equal(t, defaultSessionID, rememberedID)
 }
 
 func TestLoadSessionTimelineCmdReturnsLoadFailure(t *testing.T) {
 	expectedErr := errors.New("timeline unavailable")
 	client := &fakeTUIChatClient{timelineErr: expectedErr}
 
-	cmd := loadSessionTimelineCmd(context.Background(), client)
+	cmd := loadSessionTimelineCmd(context.Background(), client, "session-a")
 
 	require.NotNil(t, cmd)
 	require.Equal(t, sessionTimelineLoadFailedMsg{Err: expectedErr}, cmd())
+	require.Equal(t, "session-a", client.timelineSessionID)
 }
 
 func TestFormatSessionContextUsageUsesStatusValues(t *testing.T) {
@@ -1161,7 +1235,7 @@ func TestModel_UpdatePromptsOnFirstCtrlC(t *testing.T) {
 	require.Equal(t, "Press Ctrl-C again to exit", updated.(model).status.Text())
 }
 
-func TestModel_UpdateFirstCtrlCTimeoutReturnsExpirationMessage(t *testing.T) {
+func TestModel_UpdateFirstCtrlCStoresExpirationTimestamp(t *testing.T) {
 	originalCurrentTime := currentTime
 	t.Cleanup(func() {
 		currentTime = originalCurrentTime
@@ -1172,11 +1246,14 @@ func TestModel_UpdateFirstCtrlCTimeoutReturnsExpirationMessage(t *testing.T) {
 	}
 
 	runModel := newModel()
-	_, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'c', Mod: tea.ModCtrl}))
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'c', Mod: tea.ModCtrl}))
 
 	require.NotNil(t, cmd)
-	msg := cmd()
-	require.Equal(t, exitConfirmationExpiredMsg{startedAt: now}, msg)
+	runModel = updated.(model)
+	require.Equal(t, now, runModel.exitAt)
+	runModel = runModel.expireExitConfirmation(exitConfirmationExpiredMsg{startedAt: now}).(model)
+	require.True(t, runModel.exitAt.IsZero())
+	require.Equal(t, defaultStatus, runModel.status.Text())
 }
 
 func TestModel_RenderBottomStatusPanelShowsCtrlCNoticeOnRightOnly(t *testing.T) {
@@ -3129,8 +3206,10 @@ func TestModel_ThinkingComposerBorderWaitsForRunningTool(t *testing.T) {
 }
 
 func TestModel_ThinkingComposerIgnoresStaleRunningToolCells(t *testing.T) {
+	setActiveTestProfile(t, t.TempDir())
 	client := &fakeTUIChatClient{reply: "hello back"}
 	runModel := newModelWithClient(client)
+	runModel.namePromptEnabled = false
 	runModel.messages = []transcriptCell{toolTranscriptTestCell("old_call", "web_search", "")}
 	runModel.setTranscriptContent()
 	runModel.input.SetValue("hello")
@@ -3326,9 +3405,7 @@ func TestModel_UpdateLetsMultilineInputUseArrowKeys(t *testing.T) {
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyUp}))
 
-	if cmd != nil {
-		cmd()
-	}
+	require.NotNil(t, cmd)
 	require.Equal(t, "first\nsecond", updated.(model).input.Value())
 }
 
@@ -3535,9 +3612,7 @@ func TestModel_UpdateInsertsPromptNewlineOnShiftEnter(t *testing.T) {
 		Mod:  tea.ModShift,
 	})
 
-	if cmd != nil {
-		cmd()
-	}
+	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.Equal(t, "first line\n", runModel.input.Value())
 	require.Equal(t, 2, runModel.input.Height())
@@ -3575,9 +3650,7 @@ func TestModel_UpdateInsertsPromptNewlineOnTerminalModifiedEnterFallbacks(t *tes
 
 			updated, cmd := runModel.Update(tt.key)
 
-			if cmd != nil {
-				cmd()
-			}
+			require.NotNil(t, cmd)
 			runModel = updated.(model)
 			require.Equal(t, "first line\n", runModel.input.Value())
 			require.Equal(t, 2, runModel.input.Height())
@@ -3604,9 +3677,7 @@ func TestModel_UpdateDeletesCurrentPromptLineOnCommandDelete(t *testing.T) {
 			runModel.input.SetValue("first line\nsecond line")
 
 			updated, cmd := runModel.Update(tea.KeyPressMsg(tt.key))
-			if cmd != nil {
-				cmd()
-			}
+			require.NotNil(t, cmd)
 
 			runModel = updated.(model)
 			require.Equal(t, "first line\n", runModel.input.Value())
@@ -3663,9 +3734,7 @@ func TestModel_UpdateKeepsTranscriptAtBottomWhenNewlineGrowsComposer(t *testing.
 		Code: tea.KeyEnter,
 		Mod:  tea.ModShift,
 	})
-	if cmd != nil {
-		cmd()
-	}
+	require.NotNil(t, cmd)
 	runModel = updated.(model)
 
 	require.Equal(t, 2, runModel.input.Height())
@@ -3769,15 +3838,12 @@ func responseMessageFromBatch(t *testing.T, cmd tea.Cmd) responseCompletedMsg {
 
 	batch, ok := cmd().(tea.BatchMsg)
 	require.True(t, ok)
-	for _, child := range batch {
-		msg, ok := child().(responseCompletedMsg)
-		if ok {
-			return msg
-		}
-	}
+	require.GreaterOrEqual(t, len(batch), 2)
 
-	t.Fatal("response completion message not found")
-	return responseCompletedMsg{}
+	msg, ok := batch[1]().(responseCompletedMsg)
+	require.True(t, ok)
+
+	return msg
 }
 
 type fakeTUIChatClient struct {
@@ -3791,8 +3857,13 @@ type fakeTUIChatClient struct {
 	createdSession      storage.Session
 	createSessionErr    error
 	createSessionID     string
+	sessions            []storage.Session
+	listSessionsErr     error
+	useSessionErr       error
+	usedSessionID       string
 	timeline            rpcclient.SessionTimeline
 	timelineErr         error
+	timelineSessionID   string
 	currentSession      storage.Session
 	currentSessionErr   error
 	contextStatus       rpcclient.ContextStatus
@@ -3804,6 +3875,8 @@ type fakeTUIChatClient struct {
 	calls               int
 	compactCalls        int
 	createSessionCalls  int
+	listSessionCalls    int
+	useSessionCalls     int
 	timelineCalls       int
 	currentSessionCalls int
 	contextCalls        int
@@ -3843,11 +3916,23 @@ func (c *fakeTUIChatClient) CreateSession(_ context.Context, id string) (storage
 	return c.createdSession, c.createSessionErr
 }
 
+func (c *fakeTUIChatClient) ListSessions(context.Context) ([]storage.Session, error) {
+	c.listSessionCalls++
+	return c.sessions, c.listSessionsErr
+}
+
+func (c *fakeTUIChatClient) UseSession(_ context.Context, id string) error {
+	c.useSessionCalls++
+	c.usedSessionID = id
+	return c.useSessionErr
+}
+
 func (c *fakeTUIChatClient) GetSessionTimeline(
 	_ context.Context,
-	_ rpcclient.SessionTimelineOptions,
+	opts rpcclient.SessionTimelineOptions,
 ) (rpcclient.SessionTimeline, error) {
 	c.timelineCalls++
+	c.timelineSessionID = opts.SessionID
 	return c.timeline, c.timelineErr
 }
 

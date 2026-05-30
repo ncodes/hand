@@ -53,7 +53,11 @@ func NewCommand() *cli.Command {
 					}
 					defer client.Close()
 
-					session, err := client.CreateSession(ctx, strings.TrimSpace(cmd.Args().First()))
+					autoSwitch := false
+					session, err := client.CreateSessionWithOptions(ctx, rpcclient.CreateSessionOptions{
+						ID:         strings.TrimSpace(cmd.Args().First()),
+						AutoSwitch: &autoSwitch,
+					})
 					if err != nil {
 						return err
 					}

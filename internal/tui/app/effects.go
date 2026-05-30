@@ -47,7 +47,7 @@ func (m *model) runEffect(effect tuiEffect) tea.Cmd {
 
 		return nil
 	case loadSessionTimelineEffect:
-		return loadSessionTimelineCmd(m.chatCtx, m.timeline)
+		return loadSessionTimelineCmd(m.chatCtx, m.timeline, m.getCurrentSessionID())
 	default:
 		return nil
 	}

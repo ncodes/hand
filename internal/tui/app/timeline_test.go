@@ -1,14 +1,19 @@
 package tui
 
 import (
+	"context"
+	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	agentapi "github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/rpc/client"
+	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/trace"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 	agentsession "github.com/wandxy/hand/pkg/agent/session"
@@ -89,6 +94,140 @@ func toolTranscriptTestCellWithProcessState(
 	return newToolTranscriptCell(id, name, "", nil, processState, startedAt, completedAt, completed)
 }
 
+func TestLoadSessionTimelineCmdHandlesNilClientAndNilContext(t *testing.T) {
+	require.Nil(t, loadSessionTimelineCmd(context.Background(), nil, "session-a"))
+
+	client := &fakeTUIChatClient{
+		timeline: client.SessionTimeline{SessionID: "session-a"},
+	}
+
+	cmd := loadSessionTimelineCmd(nil, client, " session-a ")
+
+	require.NotNil(t, cmd)
+	require.Equal(t, sessionTimelineLoadedMsg{Timeline: client.timeline}, cmd())
+	require.Equal(t, "session-a", client.timelineSessionID)
+}
+
+func TestLoadStartupSessionTimelineCmdHandlesNilClientAndNilContext(t *testing.T) {
+	require.Nil(t, loadStartupSessionTimelineCmd(context.Background(), nil, "session-a"))
+
+	client := &fakeTUIChatClient{
+		sessions: []storage.Session{{ID: "session-a"}},
+		timeline: client.SessionTimeline{SessionID: "session-a"},
+	}
+
+	cmd := loadStartupSessionTimelineCmd(nil, client, "session-a")
+
+	require.NotNil(t, cmd)
+	require.Equal(t, sessionTimelineLoadedMsg{Timeline: client.timeline}, cmd())
+	require.Equal(t, "session-a", client.usedSessionID)
+	require.Equal(t, "session-a", client.timelineSessionID)
+}
+
+func TestLoadStartupSessionTimelineCmdFallsBackWhenUseSessionFails(t *testing.T) {
+	client := &fakeTUIChatClient{
+		sessions:      []storage.Session{{ID: "session-a"}},
+		useSessionErr: errors.New("use failed"),
+		timeline:      client.SessionTimeline{SessionID: defaultSessionID},
+	}
+
+	cmd := loadStartupSessionTimelineCmd(context.Background(), client, "session-a")
+
+	require.NotNil(t, cmd)
+	require.Equal(t, sessionTimelineLoadedMsg{Timeline: client.timeline}, cmd())
+	require.Equal(t, 2, client.useSessionCalls)
+	require.Equal(t, defaultSessionID, client.usedSessionID)
+	require.Equal(t, defaultSessionID, client.timelineSessionID)
+}
+
+func TestLoadStartupSessionTimelineCmdFallsBackWhenRememberedTimelineFails(t *testing.T) {
+	client := &startupTimelineFallbackClient{
+		sessions: []storage.Session{{ID: "session-a"}},
+		timelines: map[string]client.SessionTimeline{
+			defaultSessionID: {SessionID: defaultSessionID},
+		},
+		errors: map[string]error{
+			"session-a": errors.New("timeline failed"),
+		},
+	}
+
+	cmd := loadStartupSessionTimelineCmd(context.Background(), client, "session-a")
+
+	require.NotNil(t, cmd)
+	require.Equal(t, sessionTimelineLoadedMsg{Timeline: client.timelines[defaultSessionID]}, cmd())
+	require.Equal(t, []string{"session-a", defaultSessionID}, client.usedSessionIDs)
+	require.Equal(t, []string{"session-a", defaultSessionID}, client.timelineSessionIDs)
+}
+
+func TestLoadStartupSessionTimelineCmdReturnsFailureWhenDefaultTimelineFails(t *testing.T) {
+	expected := errors.New("timeline failed")
+	client := &fakeTUIChatClient{timelineErr: expected}
+
+	cmd := loadStartupSessionTimelineCmd(context.Background(), client, defaultSessionID)
+
+	require.NotNil(t, cmd)
+	require.Equal(t, sessionTimelineLoadFailedMsg{Err: expected}, cmd())
+	require.Equal(t, defaultSessionID, client.usedSessionID)
+	require.Equal(t, defaultSessionID, client.timelineSessionID)
+}
+
+func TestModel_LoadStartupSessionTimelineFallsBackWhenRememberedStateIsUnreadable(t *testing.T) {
+	home := t.TempDir()
+	setActiveTestProfile(t, home)
+	require.NoError(t, os.WriteFile(appTUIStatePath(), []byte("{"), 0o600))
+	client := &fakeTUIChatClient{
+		timeline: client.SessionTimeline{SessionID: defaultSessionID},
+	}
+	runModel := newModelWithClient(client)
+
+	cmd := runModel.loadStartupSessionTimeline()
+
+	require.NotNil(t, cmd)
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+	require.Len(t, batch, 2)
+
+	msg, ok := batch[1]().(sessionTimelineLoadedMsg)
+	require.True(t, ok)
+	require.Equal(t, defaultSessionID, msg.Timeline.SessionID)
+	require.Equal(t, defaultSessionID, client.usedSessionID)
+}
+
+func TestGetStartupSessionIDUsesDefaultForBlankDefaultAndListErrors(t *testing.T) {
+	require.Equal(t, defaultSessionID, getStartupSessionID(context.Background(), &fakeTUIChatClient{}, " "))
+	require.Equal(t, defaultSessionID, getStartupSessionID(context.Background(), &fakeTUIChatClient{}, defaultSessionID))
+	require.Equal(t, defaultSessionID, getStartupSessionID(
+		context.Background(),
+		&fakeTUIChatClient{listSessionsErr: errors.New("list failed")},
+		"session-a",
+	))
+}
+
+func TestLoadSessionTitleCmdHandlesNilClientAndFailures(t *testing.T) {
+	require.Nil(t, loadSessionTitleCmd(context.Background(), nil))
+
+	client := &fakeTUIChatClient{currentSessionErr: errors.New("title failed")}
+
+	cmd := loadSessionTitleCmd(context.Background(), client)
+
+	require.NotNil(t, cmd)
+	require.Equal(t, sessionTitleLoadFailedMsg{}, cmd())
+	require.Equal(t, 1, client.currentSessionCalls)
+}
+
+func TestModel_HydrateSessionTimelineReportsLastSessionSaveFailure(t *testing.T) {
+	runModel := newModel()
+	homeFile, err := os.CreateTemp(t.TempDir(), "profile-home-*")
+	require.NoError(t, err)
+	require.NoError(t, homeFile.Close())
+	setActiveTestProfile(t, homeFile.Name())
+
+	cmd := runModel.hydrateSessionTimeline(client.SessionTimeline{SessionID: "session-a"})
+
+	require.NotNil(t, cmd)
+	require.Equal(t, "last session unavailable", runModel.status.Text())
+}
+
 func TestTimelineMessageToTranscriptCell_MapsVisibleRoles(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -132,6 +271,49 @@ func TestTimelineMessageToTranscriptCell_MapsVisibleRoles(t *testing.T) {
 			require.Equal(t, tt.want, transcriptCellPlainText(timelineMessageToTranscriptCell(tt.message, nil)))
 		})
 	}
+}
+
+func TestGetTimelineToolCallDetailsIgnoresBlankToolCallIDs(t *testing.T) {
+	details := getTimelineToolCallDetails([]agentapi.SessionTimelineMessage{{
+		Message: handmsg.Message{
+			ToolCalls: []handmsg.ToolCall{
+				{ID: " ", Name: "read_file"},
+				{ID: "call_1", Name: "read_file", Input: `{"path":"README.md"}`},
+			},
+		},
+	}})
+
+	require.Len(t, details, 1)
+	require.Contains(t, details, "call_1")
+}
+
+type startupTimelineFallbackClient struct {
+	sessions           []storage.Session
+	timelines          map[string]client.SessionTimeline
+	errors             map[string]error
+	usedSessionIDs     []string
+	timelineSessionIDs []string
+}
+
+func (c *startupTimelineFallbackClient) ListSessions(context.Context) ([]storage.Session, error) {
+	return c.sessions, nil
+}
+
+func (c *startupTimelineFallbackClient) UseSession(_ context.Context, id string) error {
+	c.usedSessionIDs = append(c.usedSessionIDs, id)
+	return nil
+}
+
+func (c *startupTimelineFallbackClient) GetSessionTimeline(
+	_ context.Context,
+	opts client.SessionTimelineOptions,
+) (client.SessionTimeline, error) {
+	c.timelineSessionIDs = append(c.timelineSessionIDs, opts.SessionID)
+	if err := c.errors[opts.SessionID]; err != nil {
+		return client.SessionTimeline{}, err
+	}
+
+	return c.timelines[opts.SessionID], nil
 }
 
 func TestTUIMessageToTranscriptCell_MapsLiveDisplayMessages(t *testing.T) {

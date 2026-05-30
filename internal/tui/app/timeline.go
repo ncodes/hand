@@ -28,25 +28,103 @@ type sessionTitleLoader interface {
 	CurrentSession(context.Context) (storage.Session, error)
 }
 
+type startupSessionLoader interface {
+	ListSessions(context.Context) ([]storage.Session, error)
+	UseSession(context.Context, string) error
+	GetSessionTimeline(context.Context, rpcclient.SessionTimelineOptions) (rpcclient.SessionTimeline, error)
+}
+
 type sessionTitleLoadedMsg struct {
 	Session storage.Session
 }
 
 type sessionTitleLoadFailedMsg struct{}
 
-func loadSessionTimelineCmd(ctx context.Context, client sessionTimelineLoader) tea.Cmd {
+func loadSessionTimelineCmd(ctx context.Context, client sessionTimelineLoader, sessionID string) tea.Cmd {
 	if client == nil {
 		return nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	return func() tea.Msg {
-		timeline, err := client.GetSessionTimeline(ctx, rpcclient.SessionTimelineOptions{})
+		timeline, err := client.GetSessionTimeline(ctx, rpcclient.SessionTimelineOptions{
+			SessionID: strings.TrimSpace(sessionID),
+		})
 		if err != nil {
 			return sessionTimelineLoadFailedMsg{Err: err}
 		}
 
 		return sessionTimelineLoadedMsg{Timeline: timeline}
 	}
+}
+
+func loadStartupSessionTimelineCmd(ctx context.Context, client startupSessionLoader, rememberedID string) tea.Cmd {
+	if client == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	return func() tea.Msg {
+		sessionID := getStartupSessionID(ctx, client, rememberedID)
+		if err := client.UseSession(ctx, sessionID); err != nil && sessionID != defaultSessionID {
+			sessionID = defaultSessionID
+			_ = client.UseSession(ctx, sessionID)
+		}
+
+		timeline, err := client.GetSessionTimeline(ctx, rpcclient.SessionTimelineOptions{SessionID: sessionID})
+		if err != nil && sessionID != defaultSessionID {
+			sessionID = defaultSessionID
+			_ = client.UseSession(ctx, sessionID)
+			timeline, err = client.GetSessionTimeline(ctx, rpcclient.SessionTimelineOptions{
+				SessionID: sessionID,
+			})
+		}
+		if err != nil {
+			return sessionTimelineLoadFailedMsg{Err: err}
+		}
+
+		return sessionTimelineLoadedMsg{Timeline: timeline}
+	}
+}
+
+func (m model) loadStartupSessionTimeline() tea.Cmd {
+	client, ok := m.chatClient.(startupSessionLoader)
+	if !ok {
+		return m.runEffect(loadSessionTimelineEffect{})
+	}
+
+	rememberedID, err := loadLastSessionID()
+	if err != nil {
+		return tea.Batch(
+			m.setStatus("last session unavailable"),
+			loadStartupSessionTimelineCmd(m.chatCtx, client, defaultSessionID),
+		)
+	}
+
+	return loadStartupSessionTimelineCmd(m.chatCtx, client, rememberedID)
+}
+
+func getStartupSessionID(ctx context.Context, client startupSessionLoader, rememberedID string) string {
+	rememberedID = strings.TrimSpace(rememberedID)
+	if rememberedID == "" || rememberedID == defaultSessionID {
+		return defaultSessionID
+	}
+
+	sessions, err := client.ListSessions(ctx)
+	if err != nil {
+		return defaultSessionID
+	}
+	for _, session := range sessions {
+		if strings.TrimSpace(session.ID) == rememberedID {
+			return rememberedID
+		}
+	}
+
+	return defaultSessionID
 }
 
 func loadSessionTitleCmd(ctx context.Context, client sessionTitleLoader) tea.Cmd {
@@ -79,7 +157,12 @@ func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.C
 	m.setDefaultStatus(defaultStatus)
 	m.resize()
 
-	return loadSessionContextCmd(m.chatCtx, m.contextLoader, m.getCurrentSessionID())
+	cmd := loadSessionContextCmd(m.chatCtx, m.contextLoader, m.getCurrentSessionID())
+	if err := saveLastSessionID(m.getCurrentSessionID()); err != nil {
+		return tea.Batch(m.setStatus("last session unavailable"), cmd)
+	}
+
+	return cmd
 }
 
 func (m *model) refreshSessionTitleFromSession(session storage.Session) {

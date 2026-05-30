@@ -65,6 +65,7 @@ type ChatAPI interface {
 // SessionAPI is the session-management surface exposed by local and RPC clients.
 type SessionAPI interface {
 	CreateSession(context.Context, string) (storage.Session, error)
+	CreateSessionWithOptions(context.Context, CreateSessionOptions) (storage.Session, error)
 	ListSessions(context.Context) ([]storage.Session, error)
 	UseSession(context.Context, string) error
 	CurrentSession(context.Context) (storage.Session, error)

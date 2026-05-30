@@ -2,6 +2,7 @@
 package profile
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/wandxy/hand/internal/datadir/files"
 )
 
 const (
@@ -47,6 +50,8 @@ type ResolveOptions struct {
 	UserHomeDir string
 }
 
+type stateFile map[string]any
+
 // Resolve returns the active profile from explicit options, environment, stored current, or the default.
 func Resolve(opts ResolveOptions) (Profile, error) {
 	homeDir, err := resolveHomeDir(opts.UserHomeDir)
@@ -83,14 +88,14 @@ func ProfilesDir(homeDir string) (string, error) {
 	return filepath.Join(root, "profiles"), nil
 }
 
-// CurrentPath returns the machine-local stored-current-profile selector path.
+// CurrentPath returns the machine-local app state path containing the current profile selector.
 func CurrentPath(homeDir string) (string, error) {
 	root, err := RootDir(homeDir)
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(root, "current-profile"), nil
+	return filepath.Join(root, files.StateFilename), nil
 }
 
 // LoadCurrentName returns the stored current profile name when configured.
@@ -100,21 +105,20 @@ func LoadCurrentName(homeDir string) (string, bool, error) {
 		return "", false, err
 	}
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", false, nil
-		}
-
-		return "", false, fmt.Errorf("read current profile: %w", err)
-	}
-
-	name, err := NormalizeName(string(data))
+	state, err := loadStateFile(path)
 	if err != nil {
 		return "", false, err
 	}
+	if value := strings.TrimSpace(getStateFileString(state, "current_profile")); value != "" {
+		name, err := NormalizeName(value)
+		if err != nil {
+			return "", false, err
+		}
 
-	return name, true, nil
+		return name, true, nil
+	}
+
+	return "", false, nil
 }
 
 // StoreCurrentName validates and stores the machine-local current profile name.
@@ -131,11 +135,52 @@ func StoreCurrentName(name string, homeDir string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return "", fmt.Errorf("create profile selector dir: %w", err)
 	}
-	if err := os.WriteFile(path, []byte(name+"\n"), 0o600); err != nil {
+	state, err := loadStateFile(path)
+	if err != nil {
+		return "", err
+	}
+	state["current_profile"] = name
+
+	data := encodeStateFile(state)
+	if err := os.WriteFile(path, append(data, '\n'), 0o600); err != nil {
 		return "", fmt.Errorf("write current profile: %w", err)
 	}
 
 	return name, nil
+}
+
+func loadStateFile(path string) (stateFile, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return stateFile{}, nil
+		}
+
+		return nil, fmt.Errorf("read current profile: %w", err)
+	}
+	if len(strings.TrimSpace(string(data))) == 0 {
+		return stateFile{}, nil
+	}
+
+	var state stateFile
+	if err := json.Unmarshal(data, &state); err != nil {
+		return nil, fmt.Errorf("parse profile state: %w", err)
+	}
+	if state == nil {
+		state = stateFile{}
+	}
+
+	return state, nil
+}
+
+func getStateFileString(state stateFile, key string) string {
+	value, _ := state[key].(string)
+	return strings.TrimSpace(value)
+}
+
+func encodeStateFile(state stateFile) []byte {
+	data, _ := json.MarshalIndent(state, "", "  ")
+	return data
 }
 
 // Init creates the profile home directory and returns the resolved profile.

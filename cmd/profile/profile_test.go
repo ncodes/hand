@@ -24,10 +24,10 @@ func TestCommandUseStoresCurrentProfile(t *testing.T) {
 	err := NewCommand().Run(context.Background(), []string{"profile", "use", "Work"})
 	require.NoError(t, err)
 
-	path := filepath.Join(home, ".hand", "current-profile")
+	path := filepath.Join(home, ".hand", "state.json")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
-	require.Equal(t, "work\n", string(data))
+	require.JSONEq(t, `{"current_profile":"work"}`, string(data))
 	require.Equal(t, "work\n", output.String())
 }
 
@@ -39,7 +39,7 @@ func TestCommandUseRejectsUnknownProfile(t *testing.T) {
 	err := NewCommand().Run(context.Background(), []string{"profile", "use", "Work"})
 	require.EqualError(t, err, `profile "work" does not exist; run `+"`hand profile init work` first")
 
-	path := filepath.Join(home, ".hand", "current-profile")
+	path := filepath.Join(home, ".hand", "state.json")
 	require.NoFileExists(t, path)
 }
 
@@ -85,9 +85,9 @@ func TestCommandCurrentReturnsInvalidStoredProfileError(t *testing.T) {
 	resetProfileCommand(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	currentPath := filepath.Join(home, ".hand", "current-profile")
+	currentPath := filepath.Join(home, ".hand", "state.json")
 	require.NoError(t, os.MkdirAll(filepath.Dir(currentPath), 0o700))
-	require.NoError(t, os.WriteFile(currentPath, []byte("work/team\n"), 0o600))
+	require.NoError(t, os.WriteFile(currentPath, []byte(`{"current_profile":"work/team"}`+"\n"), 0o600))
 
 	err := NewCommand().Run(context.Background(), []string{"profile", "current"})
 	require.EqualError(t, err, `invalid profile name "work/team": must match [a-zA-Z0-9][a-zA-Z0-9_-]{0,63}`)
