@@ -52,6 +52,11 @@ type RepairSessionOptions = search.VectorRepairOptions
 // RepairSessionResult aliases search.VectorRepairResult at this package boundary.
 type RepairSessionResult = search.VectorRepairResult
 
+type CreateSessionOptions struct {
+	ID         string
+	AutoSwitch *bool
+}
+
 // ChatAPI is the chat surface exposed by local and RPC clients.
 type ChatAPI interface {
 	Respond(context.Context, string, RespondOptions) (string, error)
@@ -223,7 +228,16 @@ func protoStreamChannelToAgentChannel(channel handpb.RespondEvent_Channel) strin
 }
 
 func (c *Client) CreateSession(ctx context.Context, id string) (storage.Session, error) {
-	resp, err := c.client.CreateSession(ctx, &handpb.CreateSessionRequest{Id: strings.TrimSpace(id)})
+	return c.CreateSessionWithOptions(ctx, CreateSessionOptions{ID: id})
+}
+
+func (c *Client) CreateSessionWithOptions(ctx context.Context, opts CreateSessionOptions) (storage.Session, error) {
+	req := &handpb.CreateSessionRequest{Id: strings.TrimSpace(opts.ID)}
+	if opts.AutoSwitch != nil {
+		req.AutoSwitch = opts.AutoSwitch
+	}
+
+	resp, err := c.client.CreateSession(ctx, req)
 	if err != nil {
 		return storage.Session{}, err
 	}

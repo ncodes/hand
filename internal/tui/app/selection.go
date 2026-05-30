@@ -70,9 +70,9 @@ func (m *model) updateTranscriptSelection(msg tea.MouseMotionMsg) (bool, tea.Cmd
 	return true, cmd
 }
 
-func (m *model) finishTranscriptSelection(msg tea.MouseReleaseMsg) tea.Cmd {
+func (m *model) finishTranscriptSelection(msg tea.MouseReleaseMsg) (bool, tea.Cmd) {
 	if !m.selection.dragging {
-		return nil
+		return false, nil
 	}
 
 	m.updateTranscriptSelectionForMouse(msg.Mouse())
@@ -84,13 +84,13 @@ func (m *model) finishTranscriptSelection(msg tea.MouseReleaseMsg) tea.Cmd {
 	text := m.selectedTranscriptText()
 	if strings.TrimSpace(text) == "" {
 		m.restoreTranscriptContentAfterSelection()
-		return nil
+		return true, nil
 	}
 	if err := writeClipboard(text); err != nil {
-		return m.setStatus("copy failed")
+		return true, m.setStatus("copy failed")
 	}
 
-	return nil
+	return true, nil
 }
 
 func (m *model) updateTranscriptSelectionForMouse(mouse tea.Mouse) tea.Cmd {

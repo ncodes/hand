@@ -94,7 +94,8 @@ func TestModel_InitFocusesInput(t *testing.T) {
 }
 
 func TestNewModelWithClientContextDefaultsNilContext(t *testing.T) {
-	runModel := newModelWithClientContext(nil, nil)
+	var ctx context.Context
+	runModel := newModelWithClientContext(ctx, nil)
 
 	require.NotNil(t, runModel.chatCtx)
 }
@@ -233,14 +234,10 @@ func TestModel_InitLoadsExistingSessionTimeline(t *testing.T) {
 	require.NotNil(t, cmd)
 	batch, ok := cmd().(tea.BatchMsg)
 	require.True(t, ok)
+	require.Len(t, batch, 3)
 
-	var loaded sessionTimelineLoadedMsg
-	for _, child := range batch {
-		if msg, ok := child().(sessionTimelineLoadedMsg); ok {
-			loaded = msg
-			break
-		}
-	}
+	loaded, ok := batch[1]().(sessionTimelineLoadedMsg)
+	require.True(t, ok)
 
 	require.Equal(t, "default", loaded.Timeline.SessionID)
 	require.Len(t, loaded.Timeline.Messages, 1)
@@ -263,14 +260,10 @@ func TestModel_InitLoadsSessionContextUsage(t *testing.T) {
 	require.NotNil(t, cmd)
 	batch, ok := cmd().(tea.BatchMsg)
 	require.True(t, ok)
+	require.Len(t, batch, 3)
 
-	var loaded sessionContextLoadedMsg
-	for _, child := range batch {
-		if msg, ok := child().(sessionContextLoadedMsg); ok {
-			loaded = msg
-			break
-		}
-	}
+	loaded, ok := batch[2]().(sessionContextLoadedMsg)
+	require.True(t, ok)
 
 	require.Equal(t, "default", client.contextSessionID)
 	require.Equal(t, 1, client.contextCalls)
@@ -1347,39 +1340,9 @@ func TestModel_UpdateHandlesHelpCommand(t *testing.T) {
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, []string{"Commands: /changelog, /clear, /compact, /copy, /help"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"Commands: /changelog, /clear, /compact, /copy, /help, /new-chat"}, transcriptCellPlainTexts(runModel.messages))
 	require.Empty(t, runModel.input.Value())
-	require.Contains(t, stripANSI(runModel.transcript.View()), "Commands: /changelog, /clear, /compact, /copy, /help")
-}
-
-func TestModel_UpdateHandlesChangelogCommand(t *testing.T) {
-	runModel := newModel()
-	runModel.input.SetValue("/changelog")
-
-	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-
-	require.Nil(t, cmd)
-	runModel = updated.(model)
-	require.Empty(t, runModel.input.Value())
-	require.Empty(t, runModel.messages)
-	require.True(t, runModel.isCommandViewVisible())
-	require.Equal(t, "✦", runModel.commandView.TitleIcon)
-	require.Equal(t, "Changelog", runModel.commandView.TitleLeft)
-	require.Equal(t, "See what is new", runModel.commandView.TitleSubtext)
-	require.Equal(t, "esc to close", runModel.commandView.TitleRight)
-	require.Empty(t, runModel.commandView.AccentColor)
-	require.Equal(t, defaultTUITheme.MutedText, runModel.commandView.TitleRightColor)
-
-	content := stripANSI(runModel.View().Content)
-	require.Contains(t, content, "✦ Changelog")
-	require.Contains(t, content, "Changelog")
-	require.Contains(t, content, "See what is new")
-	require.Contains(t, content, "Unreleased")
-	require.Contains(t, content, "GitHub Copilot")
-	require.NotContains(t, content, "## Unreleased")
-	require.NotContains(t, content, "- Added")
-	require.Contains(t, content, "esc to close")
-	require.NotContains(t, content, inputPrompt+"Ask Hand")
+	require.Contains(t, stripANSI(runModel.transcript.View()), "Commands: /changelog, /clear, /compact, /copy, /help, /new-chat")
 }
 
 func TestModel_UpdateSubmitsDefaultCommandMenuItemForBareSlash(t *testing.T) {
@@ -1660,238 +1623,6 @@ func TestModel_UpdateAutoScrollsCommandViewSelection(t *testing.T) {
 	runModel = updated.(model)
 	require.Equal(t, 2, runModel.commandViewOffset)
 	require.Contains(t, runModel.selectedCommandViewText(), "line 5")
-}
-
-func TestModel_UpdateHandlesCompactCommand(t *testing.T) {
-	client := &fakeTUIChatClient{
-		compactResult: rpcclient.CompactSessionResult{
-			SessionID:          "default",
-			SourceMessageCount: 12,
-		},
-	}
-	runModel := newModelWithClient(client)
-	runModel.input.SetValue("/compact")
-
-	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-
-	require.NotNil(t, cmd)
-	runModel = updated.(model)
-	require.Equal(t, "compaction started", runModel.status.Text())
-	require.True(t, runModel.manualCompactionActive)
-	require.Empty(t, runModel.input.Value())
-	require.Equal(t, []string{"Manual compaction started"}, transcriptCellPlainTexts(runModel.messages))
-	require.Contains(t, stripANSI(runModel.View().Content), "Manual compaction started")
-
-	msg := compactSessionMessageFromBatch(t, cmd)
-	updated, cmd = runModel.Update(msg)
-
-	require.NotNil(t, cmd)
-	runModel = updated.(model)
-	require.Equal(t, 1, client.compactCalls)
-	require.Equal(t, defaultSessionID, client.compactID)
-	require.Equal(t, "session compacted", runModel.status.Text())
-	require.False(t, runModel.manualCompactionActive)
-	require.Equal(t, []string{"Manual compaction completed"}, transcriptCellPlainTexts(runModel.messages))
-	require.Contains(t, stripANSI(runModel.View().Content), "Manual compaction completed")
-}
-
-func TestModel_UpdateDisablesInputDuringCompactCommand(t *testing.T) {
-	runModel := newModelWithClient(&fakeTUIChatClient{})
-	runModel.input.SetValue("/compact")
-
-	updated, _ := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-	runModel = updated.(model)
-
-	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
-
-	require.Nil(t, cmd)
-	runModel = updated.(model)
-	require.Empty(t, runModel.input.Value())
-	require.True(t, runModel.manualCompactionActive)
-}
-
-func TestModel_UpdateSubmitsSelectedCommandMenuItem(t *testing.T) {
-	client := &fakeTUIChatClient{
-		compactResult: rpcclient.CompactSessionResult{
-			SessionID:          "default",
-			SourceMessageCount: 4,
-		},
-	}
-	runModel := newModelWithClient(client)
-	runModel.input.SetValue("/")
-	runModel.updateCommandMenuForInput("/")
-	require.True(t, runModel.scrollCommandMenu(1))
-	require.True(t, runModel.scrollCommandMenu(1))
-
-	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-
-	require.NotNil(t, cmd)
-	runModel = updated.(model)
-	require.Equal(t, "compaction started", runModel.status.Text())
-	require.Empty(t, runModel.input.Value())
-
-	msg := compactSessionMessageFromBatch(t, cmd)
-	_, _ = runModel.Update(msg)
-
-	require.Equal(t, 1, client.compactCalls)
-	require.Equal(t, defaultSessionID, client.compactID)
-}
-
-func TestModel_UpdateSubmitsSelectedCommandMenuItemForCommandPrefix(t *testing.T) {
-	runModel := newModel()
-	runModel.messages = []transcriptCell{assistantTranscriptCell{text: "stale"}}
-	runModel.input.SetValue("/c")
-	runModel.updateCommandMenuForInput("/c")
-	require.True(t, runModel.scrollCommandMenu(1))
-
-	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-
-	require.NotNil(t, cmd)
-	runModel = updated.(model)
-	require.Empty(t, runModel.input.Value())
-	require.Empty(t, runModel.messages)
-	require.Equal(t, "transcript cleared", runModel.status.Text())
-}
-
-func TestModel_UpdateHandlesCompactCommandForCurrentSessionID(t *testing.T) {
-	client := &fakeTUIChatClient{
-		compactResult: rpcclient.CompactSessionResult{
-			SessionID:          "project-a",
-			SourceMessageCount: 7,
-		},
-	}
-	runModel := newModelWithClient(client)
-	runModel.refreshSessionTitleFromSession(storage.Session{ID: "project-a", Title: "Project A"})
-	runModel.input.SetValue("/compact")
-
-	_, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-	msg := compactSessionMessageFromBatch(t, cmd)
-	_, _ = runModel.Update(msg)
-
-	require.Equal(t, 1, client.compactCalls)
-	require.Equal(t, "project-a", client.compactID)
-}
-
-func TestModel_UpdateReportsCompactCommandFailure(t *testing.T) {
-	expectedErr := errors.New("summary failed")
-	runModel := newModelWithClient(&fakeTUIChatClient{compactErr: expectedErr})
-	runModel.input.SetValue("/compact")
-
-	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-
-	require.NotNil(t, cmd)
-	runModel = updated.(model)
-
-	msg := compactSessionMessageFromBatch(t, cmd)
-	updated, cmd = runModel.Update(msg)
-
-	require.NotNil(t, cmd)
-	runModel = updated.(model)
-	require.Equal(t, "compaction failed", runModel.status.Text())
-	require.False(t, runModel.manualCompactionActive)
-	require.Equal(t, []string{"Manual compaction failed: summary failed"}, transcriptCellPlainTexts(runModel.messages))
-	require.Contains(t, stripANSI(runModel.View().Content), "Manual compaction failed")
-}
-
-func TestModel_UpdateReportsCompactCommandUnavailable(t *testing.T) {
-	runModel := newModel()
-	runModel.input.SetValue("/compact")
-
-	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-
-	require.NotNil(t, cmd)
-	runModel = updated.(model)
-	require.Equal(t, "compaction unavailable", runModel.status.Text())
-}
-
-func TestModel_UpdateCopiesTranscriptToClipboard(t *testing.T) {
-	originalWriteClipboard := writeClipboard
-	t.Cleanup(func() {
-		writeClipboard = originalWriteClipboard
-	})
-	var copied string
-	writeClipboard = func(text string) error {
-		copied = text
-		return nil
-	}
-	runModel := newModel()
-	runModel.messages = []transcriptCell{userTranscriptCell{text: "hello"}, assistantTranscriptCell{text: "hi"}}
-	runModel.setTranscriptContent()
-	runModel.input.SetValue("/copy")
-
-	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-
-	require.NotNil(t, cmd)
-	runModel = updated.(model)
-	require.Equal(t, "You: hello\n\nHand: hi", copied)
-	require.Equal(t, "transcript copied", runModel.status.Text())
-	require.Empty(t, runModel.input.Value())
-}
-
-func TestModel_UpdateCopiesTranscriptWithShortcut(t *testing.T) {
-	originalWriteClipboard := writeClipboard
-	t.Cleanup(func() {
-		writeClipboard = originalWriteClipboard
-	})
-	var copied string
-	writeClipboard = func(text string) error {
-		copied = text
-		return nil
-	}
-	runModel := newModel()
-	runModel.messages = []transcriptCell{assistantTranscriptCell{text: "shortcut"}}
-	runModel.setTranscriptContent()
-
-	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'y', Mod: tea.ModCtrl}))
-
-	require.NotNil(t, cmd)
-	runModel = updated.(model)
-	require.Equal(t, "Hand: shortcut", copied)
-	require.Equal(t, "transcript copied", runModel.status.Text())
-}
-
-func TestModel_CopyTranscriptReportsEmptyTranscript(t *testing.T) {
-	runModel := newModel()
-	runModel.transcript.SetContent(" \n\t ")
-
-	cmd := runModel.copyTranscript()
-
-	require.NotNil(t, cmd)
-	require.Equal(t, "transcript is empty", runModel.status.Text())
-}
-
-func TestModel_TranscriptTextIncludesLiveAssistantCell(t *testing.T) {
-	runModel := newModel()
-	runModel.messages = []transcriptCell{userTranscriptCell{text: "hello"}}
-	runModel.live = assistantTranscriptCell{text: "streaming"}
-
-	require.Equal(t, "You: hello\n\nHand: streaming", runModel.transcriptText())
-}
-
-func TestModel_TranscriptTextFallsBackToViewportContent(t *testing.T) {
-	runModel := newModel()
-	runModel.transcript.SetContent("  saved viewport  ")
-
-	require.Equal(t, "saved viewport", runModel.transcriptText())
-}
-
-func TestModel_UpdateReportsClipboardFailure(t *testing.T) {
-	originalWriteClipboard := writeClipboard
-	t.Cleanup(func() {
-		writeClipboard = originalWriteClipboard
-	})
-	writeClipboard = func(string) error {
-		return errors.New("clipboard unavailable")
-	}
-	runModel := newModel()
-	runModel.messages = []transcriptCell{assistantTranscriptCell{text: "hi"}}
-	runModel.setTranscriptContent()
-	runModel.input.SetValue("/copy")
-
-	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-
-	require.NotNil(t, cmd)
-	require.Equal(t, "copy failed", updated.(model).status.Text())
 }
 
 func TestModel_UpdateSelectsTranscriptTextWithMouseAndCopiesOnRelease(t *testing.T) {
@@ -2506,34 +2237,6 @@ func TestModel_HandleSlashCommandReportsEmptyCommand(t *testing.T) {
 	require.NotNil(t, cmd)
 	require.Empty(t, transcriptCellPlainTexts(runModel.messages))
 	require.Equal(t, "empty command", runModel.status.Text())
-}
-
-func TestModel_UpdateBlocksLocalCommandWhenShellIsDisabled(t *testing.T) {
-	runModel := newModel()
-	runModel.input.SetValue("!ls -la")
-
-	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-
-	require.NotNil(t, cmd)
-	runModel = updated.(model)
-	require.Equal(t, "local commands are disabled", runModel.status.Text())
-	require.Equal(t, []string{"Local command blocked: !ls -la"}, transcriptCellPlainTexts(runModel.messages))
-	require.Empty(t, runModel.input.Value())
-	require.Contains(t, stripANSI(runModel.transcript.View()), "Local command blocked: !ls -la")
-}
-
-func TestModel_UpdateQueuesLocalCommandWhenShellIsAllowed(t *testing.T) {
-	runModel := newModel()
-	runModel.allowShell = true
-	runModel.input.SetValue("!pwd")
-
-	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-
-	require.NotNil(t, cmd)
-	runModel = updated.(model)
-	require.Equal(t, "local command execution is not connected yet", runModel.status.Text())
-	require.Equal(t, []string{"Local command queued: !pwd"}, transcriptCellPlainTexts(runModel.messages))
-	require.Empty(t, runModel.input.Value())
 }
 
 func TestModel_SubmitPromptStartsRPCResponse(t *testing.T) {
@@ -3466,7 +3169,7 @@ func TestModel_UpdateKeepsCommandsLocalDuringActiveResponse(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.True(t, runModel.responding)
-	require.Equal(t, []string{"Commands: /changelog, /clear, /compact, /copy, /help"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"Commands: /changelog, /clear, /compact, /copy, /help, /new-chat"}, transcriptCellPlainTexts(runModel.messages))
 	require.Empty(t, runModel.input.Value())
 }
 
@@ -4044,21 +3747,6 @@ func trimTrailingLineSpaces(value string) string {
 	return strings.Join(lines, "\n")
 }
 
-func compactSessionMessageFromBatch(t *testing.T, cmd tea.Cmd) compactSessionCompletedMsg {
-	t.Helper()
-
-	batch, ok := cmd().(tea.BatchMsg)
-	require.True(t, ok)
-	for _, child := range batch {
-		if msg, ok := child().(compactSessionCompletedMsg); ok {
-			return msg
-		}
-	}
-
-	t.Fatal("compact session message not found")
-	return compactSessionCompletedMsg{}
-}
-
 type fakeTUIChatClient struct {
 	events              []rpcclient.Event
 	reply               string
@@ -4066,6 +3754,9 @@ type fakeTUIChatClient struct {
 	compactResult       rpcclient.CompactSessionResult
 	compactErr          error
 	compactID           string
+	createdSession      storage.Session
+	createSessionErr    error
+	createSessionID     string
 	timeline            rpcclient.SessionTimeline
 	timelineErr         error
 	currentSession      storage.Session
@@ -4078,6 +3769,7 @@ type fakeTUIChatClient struct {
 	streamSet           bool
 	calls               int
 	compactCalls        int
+	createSessionCalls  int
 	timelineCalls       int
 	currentSessionCalls int
 	contextCalls        int
@@ -4108,6 +3800,12 @@ func (c *fakeTUIChatClient) CompactSession(_ context.Context, id string) (rpccli
 	c.compactCalls++
 	c.compactID = id
 	return c.compactResult, c.compactErr
+}
+
+func (c *fakeTUIChatClient) CreateSession(_ context.Context, id string) (storage.Session, error) {
+	c.createSessionCalls++
+	c.createSessionID = id
+	return c.createdSession, c.createSessionErr
 }
 
 func (c *fakeTUIChatClient) GetSessionTimeline(

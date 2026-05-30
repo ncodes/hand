@@ -62,11 +62,6 @@ func renderNoticeBarRight() string {
 	return renderNoticePanelRight(getNoticePanel(defaultWidth))
 }
 
-// renderHeaderBody arranges the banner and runtime info panel.
-func (m model) renderHeaderBody() string {
-	return renderHeaderBody(getHeaderPanel(m, m.width))
-}
-
 // renderHeaderInfoPanel renders the right-hand runtime information panel.
 func (m model) renderHeaderInfoPanel() string {
 	return renderHeaderInfoPanel(getHeaderPanel(m, m.width))
@@ -192,11 +187,6 @@ func getModelDisplayName(name string) string {
 	}
 
 	return name
-}
-
-// getHeaderBanner returns the widest banner that can fit without clipping.
-func (m model) getHeaderBanner() string {
-	return getHeaderBanner(m.width)
 }
 
 func getHeaderBanner(width int) string {

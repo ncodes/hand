@@ -1,0 +1,180 @@
+package tui
+
+import (
+	"errors"
+	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/stretchr/testify/require"
+
+	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	storage "github.com/wandxy/hand/internal/state/core"
+)
+
+func TestModel_UpdateHandlesNewChatCommand(t *testing.T) {
+	client := &fakeTUIChatClient{
+		createdSession: storage.Session{ID: "session-new", Title: "Fresh Thread"},
+		contextStatus:  rpcclient.ContextStatus{SessionID: "session-new"},
+	}
+	runModel := newModelWithClient(client)
+	runModel.messages = []transcriptCell{assistantTranscriptCell{text: "old transcript"}}
+	runModel.live = assistantTranscriptCell{text: "streaming"}
+	runModel.stream.Add("streaming")
+	runModel.input.SetValue("/new-chat")
+	runModel.setTranscriptContent()
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "creating new chat", runModel.status.Text())
+	require.Empty(t, runModel.input.Value())
+
+	msg := newChatMessageFromBatch(t, cmd)
+	updated, cmd = runModel.Update(msg)
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 1, client.createSessionCalls)
+	require.Empty(t, client.createSessionID)
+	require.Equal(t, "session-new", runModel.sessionID)
+	require.Equal(t, "Fresh Thread", runModel.sessionTitle)
+	require.Empty(t, runModel.messages)
+	require.Empty(t, runModel.live)
+	require.Empty(t, runModel.stream.Render())
+	require.False(t, runModel.responding)
+	require.False(t, runModel.showIntro)
+	require.Equal(t, "new chat created", runModel.status.Text())
+
+	_ = sessionContextLoadedMessageFromBatch(t, cmd)
+	require.Equal(t, "session-new", client.contextSessionID)
+}
+
+func TestModel_UpdateNewChatCancelsActiveResponse(t *testing.T) {
+	cancelled := false
+	client := &fakeTUIChatClient{
+		createdSession: storage.Session{ID: "session-new"},
+		contextStatus:  rpcclient.ContextStatus{SessionID: "session-new"},
+	}
+	runModel := newModelWithClient(client)
+	runModel.responding = true
+	runModel.responseCancel = func() { cancelled = true }
+	runModel.events = make(chan tea.Msg)
+	runModel.responseTranscriptFollow = true
+	runModel.responseTranscriptScrolled = true
+	runModel.responseRunningToolCount = 2
+	runModel.thinkingComposerActive = true
+	runModel.toolAnimationActive = true
+	runModel.input.SetValue("/new-chat")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+
+	msg := newChatMessageFromBatch(t, cmd)
+	updated, _ = runModel.Update(msg)
+
+	runModel = updated.(model)
+	require.True(t, cancelled)
+	require.False(t, runModel.responding)
+	require.Nil(t, runModel.responseCancel)
+	require.Nil(t, runModel.events)
+	require.False(t, runModel.responseTranscriptFollow)
+	require.False(t, runModel.responseTranscriptScrolled)
+	require.Zero(t, runModel.responseRunningToolCount)
+	require.False(t, runModel.thinkingComposerActive)
+	require.False(t, runModel.toolAnimationActive)
+	require.Equal(t, "session-new", runModel.sessionID)
+}
+
+func TestModel_UpdateUsesSessionIDForUntitledNewChat(t *testing.T) {
+	client := &fakeTUIChatClient{
+		createdSession: storage.Session{ID: "session-new"},
+		contextStatus:  rpcclient.ContextStatus{SessionID: "session-new"},
+	}
+	runModel := newModelWithClient(client)
+	runModel.input.SetValue("/new-chat")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+
+	msg := newChatMessageFromBatch(t, cmd)
+	updated, _ = runModel.Update(msg)
+
+	runModel = updated.(model)
+	require.Equal(t, "session-new", runModel.sessionID)
+	require.Equal(t, "session-new", runModel.sessionTitle)
+}
+
+func TestModel_UpdateReportsNewChatFailure(t *testing.T) {
+	expectedErr := errors.New("create failed")
+	runModel := newModelWithClient(&fakeTUIChatClient{createSessionErr: expectedErr})
+	runModel.messages = []transcriptCell{assistantTranscriptCell{text: "old transcript"}}
+	runModel.input.SetValue("/new-chat")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+
+	msg := newChatMessageFromBatch(t, cmd)
+	updated, cmd = runModel.Update(msg)
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "new chat failed", runModel.status.Text())
+	require.Equal(t, []string{"Hand: old transcript"}, transcriptCellPlainTexts(runModel.messages))
+}
+
+func TestModel_UpdateReportsNewChatFailureForEmptySessionID(t *testing.T) {
+	runModel := newModelWithClient(&fakeTUIChatClient{createdSession: storage.Session{Title: "Missing ID"}})
+	runModel.input.SetValue("/new-chat")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runModel = updated.(model)
+
+	msg := newChatMessageFromBatch(t, cmd)
+	updated, _ = runModel.Update(msg)
+
+	runModel = updated.(model)
+	require.Equal(t, "new chat failed", runModel.status.Text())
+	require.Equal(t, defaultSessionID, runModel.sessionID)
+}
+
+func TestModel_UpdateReportsNewChatUnavailable(t *testing.T) {
+	runModel := newModel()
+	runModel.input.SetValue("/new-chat")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, "new chat unavailable", runModel.status.Text())
+}
+
+func newChatMessageFromBatch(t *testing.T, cmd tea.Cmd) newChatCompletedMsg {
+	t.Helper()
+
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+	for _, child := range batch {
+		if msg, ok := child().(newChatCompletedMsg); ok {
+			return msg
+		}
+	}
+
+	t.Fatal("new chat message not found")
+	return newChatCompletedMsg{}
+}
+
+func sessionContextLoadedMessageFromBatch(t *testing.T, cmd tea.Cmd) sessionContextLoadedMsg {
+	t.Helper()
+
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+	for index := len(batch) - 1; index >= 0; index-- {
+		if msg, ok := batch[index]().(sessionContextLoadedMsg); ok {
+			return msg
+		}
+	}
+
+	t.Fatal("session context loaded message not found")
+	return sessionContextLoadedMsg{}
+}

@@ -14,127 +14,180 @@ func (m model) Init() tea.Cmd {
 
 // Update adapts Bubble Tea terminal messages into app-level TUI events.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		return m.handleAppEvent(viewportResizedEvent{Width: msg.Width, Height: msg.Height})
-	case exitConfirmationExpiredMsg:
-		return m.expireExitConfirmation(msg), nil
-	case statusExpiredMsg:
-		expireStatus(&m.status, msg)
-		return m, nil
-	case namePromptErrorExpiredMsg:
-		return m.expireNamePromptError(msg), nil
-	case toolAnimationTickMsg:
-		return m.updateToolAnimation()
-	case thinkingComposerTickMsg:
-		return m.updateThinkingComposer()
-	case transcriptSelectionAutoScrollTickMsg:
-		return m.updateTranscriptSelectionAutoScroll()
-	case commandViewSelectionAutoScrollTickMsg:
-		return m.updateCommandViewSelectionAutoScroll()
-	case assistantTextDeltaMsg:
-		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
-	case assistantResponseCompletedMsg:
-		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
-	case reasoningCompletedMsg:
-		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
-	case responseEventMsg:
-		return m.handleResponseEvent(msg)
-	case responseEventsClosedMsg:
-		if !m.isActiveResponse(msg.ResponseID) {
-			return m, nil
-		}
-		return m, nil
-	case responseCompletedMsg:
-		cmd := m.completeResponse(msg)
-		return m, cmd
-	case sessionTimelineLoadedMsg:
-		return m.handleAppEvent(hydrateTimelineEvent{Timeline: msg.Timeline})
-	case sessionTimelineLoadFailedMsg:
-		cmd := m.setStatus("session timeline unavailable")
-		return m, cmd
-	case sessionTitleLoadedMsg:
-		m.refreshSessionTitleFromSession(msg.Session)
-		return m, nil
-	case sessionTitleLoadFailedMsg:
-		return m, nil
-	case sessionContextLoadedMsg:
-		m.refreshSessionContext(msg.Status)
-		return m, nil
-	case sessionContextLoadFailedMsg:
-		return m, nil
-	case sessionErrorMsg:
-		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
-	case compactSessionCompletedMsg:
-		cmd := m.completeCompactSession(msg)
-		return m, cmd
-	case toolInvocationStartedMsg:
-		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
-	case toolInvocationCompletedMsg:
-		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
-	case safetyEventMsg:
-		return m.handleAppEvent(applyTUIMessageEvent{Message: msg})
-	case tea.PasteMsg:
-		if m.shouldShowNamePrompt() {
-			return m.handleNamePromptPaste(msg)
-		}
-		return m.handlePasteMsg(msg)
-	case tea.KeyPressMsg:
-		if msg.Keystroke() == "ctrl+c" {
-			return m.confirmExit()
-		}
-		if m.shouldShowNamePrompt() {
-			return m.handleNamePromptKey(msg)
-		}
-		if next, cmd, ok := m.handleKeyPressMsg(msg); ok {
-			return next, cmd
-		}
-		return m.updateInputComposer(msg)
-	case tea.MouseWheelMsg:
-		if m.isCommandViewVisible() {
-			return m.updateCommandView(msg)
-		}
-		if m.scrollCommandMenuWithMouse(msg) {
-			return m, nil
-		}
-		return m.updateTranscriptWithScrollTracking(msg)
-	case tea.MouseClickMsg:
-		if m.isCommandViewVisible() {
-			if m.startCommandViewSelection(msg) {
-				return m, nil
-			}
-
-			return m, nil
-		}
-		if cmd, ok := m.openTranscriptLinkAtMouse(msg); ok {
-			return m, cmd
-		}
-		if m.clicksJumpToBottomIndicator(msg) {
-			return m.handleAppEvent(jumpTranscriptToBottomEvent{})
-		}
-		if m.startTranscriptSelection(msg) {
-			return m, nil
-		}
-	case tea.MouseMotionMsg:
-		if handled, cmd := m.updateCommandViewSelection(msg); handled {
-			return m, cmd
-		}
-		if m.updateCommandMenuHover(msg) {
-			return m, nil
-		}
-		if handled, cmd := m.updateTranscriptSelection(msg); handled {
-			return m, cmd
-		}
-	case tea.MouseReleaseMsg:
-		if handled, cmd := m.finishCommandViewSelection(msg); handled {
-			return m, cmd
-		}
-		if cmd := m.finishTranscriptSelection(msg); cmd != nil {
-			return m, cmd
-		}
+	if next, cmd, handled := m.handleLifecycleMsg(msg); handled {
+		return next, cmd
+	}
+	if next, cmd, handled := m.handleAsyncMsg(msg); handled {
+		return next, cmd
+	}
+	if next, cmd, handled := m.handleTerminalMsg(msg); handled {
+		return next, cmd
 	}
 
 	return m.updateBubbleTeaChildren(msg)
+}
+
+func (m model) handleLifecycleMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		next, cmd := m.handleAppEvent(viewportResizedEvent{Width: msg.Width, Height: msg.Height})
+		return next, cmd, true
+	case exitConfirmationExpiredMsg:
+		return m.expireExitConfirmation(msg), nil, true
+	case statusExpiredMsg:
+		expireStatus(&m.status, msg)
+		return m, nil, true
+	case namePromptErrorExpiredMsg:
+		return m.expireNamePromptError(msg), nil, true
+	case toolAnimationTickMsg:
+		next, cmd := m.updateToolAnimation()
+		return next, cmd, true
+	case thinkingComposerTickMsg:
+		next, cmd := m.updateThinkingComposer()
+		return next, cmd, true
+	case transcriptSelectionAutoScrollTickMsg:
+		next, cmd := m.updateTranscriptSelectionAutoScroll()
+		return next, cmd, true
+	case commandViewSelectionAutoScrollTickMsg:
+		next, cmd := m.updateCommandViewSelectionAutoScroll()
+		return next, cmd, true
+	default:
+		return m, nil, false
+	}
+}
+
+func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case assistantTextDeltaMsg:
+		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
+		return next, cmd, true
+	case assistantResponseCompletedMsg:
+		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
+		return next, cmd, true
+	case reasoningCompletedMsg:
+		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
+		return next, cmd, true
+	case responseEventMsg:
+		next, cmd := m.handleResponseEvent(msg)
+		return next, cmd, true
+	case responseEventsClosedMsg:
+		if !m.isActiveResponse(msg.ResponseID) {
+			return m, nil, true
+		}
+		return m, nil, true
+	case responseCompletedMsg:
+		cmd := m.completeResponse(msg)
+		return m, cmd, true
+	case sessionTimelineLoadedMsg:
+		next, cmd := m.handleAppEvent(hydrateTimelineEvent{Timeline: msg.Timeline})
+		return next, cmd, true
+	case sessionTimelineLoadFailedMsg:
+		cmd := m.setStatus("session timeline unavailable")
+		return m, cmd, true
+	case sessionTitleLoadedMsg:
+		m.refreshSessionTitleFromSession(msg.Session)
+		return m, nil, true
+	case sessionTitleLoadFailedMsg:
+		return m, nil, true
+	case sessionContextLoadedMsg:
+		m.refreshSessionContext(msg.Status)
+		return m, nil, true
+	case sessionContextLoadFailedMsg:
+		return m, nil, true
+	case sessionErrorMsg:
+		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
+		return next, cmd, true
+	case compactSessionCompletedMsg:
+		cmd := m.completeCompactSession(msg)
+		return m, cmd, true
+	case newChatCompletedMsg:
+		cmd := m.completeNewChat(msg)
+		return m, cmd, true
+	case toolInvocationStartedMsg:
+		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
+		return next, cmd, true
+	case toolInvocationCompletedMsg:
+		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
+		return next, cmd, true
+	case safetyEventMsg:
+		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
+		return next, cmd, true
+	default:
+		return m, nil, false
+	}
+}
+
+func (m model) handleTerminalMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case tea.PasteMsg:
+		if m.shouldShowNamePrompt() {
+			next, cmd := m.handleNamePromptPaste(msg)
+			return next, cmd, true
+		}
+		next, cmd := m.handlePasteMsg(msg)
+		return next, cmd, true
+	case tea.KeyPressMsg:
+		if msg.Keystroke() == "ctrl+c" {
+			next, cmd := m.confirmExit()
+			return next, cmd, true
+		}
+		if m.shouldShowNamePrompt() {
+			next, cmd := m.handleNamePromptKey(msg)
+			return next, cmd, true
+		}
+		if next, cmd, ok := m.handleKeyPressMsg(msg); ok {
+			return next, cmd, true
+		}
+		next, cmd := m.updateInputComposer(msg)
+		return next, cmd, true
+	case tea.MouseWheelMsg:
+		if m.isCommandViewVisible() {
+			next, cmd := m.updateCommandView(msg)
+			return next, cmd, true
+		}
+		if m.scrollCommandMenuWithMouse(msg) {
+			return m, nil, true
+		}
+		next, cmd := m.updateTranscriptWithScrollTracking(msg)
+		return next, cmd, true
+	case tea.MouseClickMsg:
+		if m.isCommandViewVisible() {
+			if m.startCommandViewSelection(msg) {
+				return m, nil, true
+			}
+
+			return m, nil, true
+		}
+		if cmd, ok := m.openTranscriptLinkAtMouse(msg); ok {
+			return m, cmd, true
+		}
+		if m.clicksJumpToBottomIndicator(msg) {
+			next, cmd := m.handleAppEvent(jumpTranscriptToBottomEvent{})
+			return next, cmd, true
+		}
+		if m.startTranscriptSelection(msg) {
+			return m, nil, true
+		}
+	case tea.MouseMotionMsg:
+		if handled, cmd := m.updateCommandViewSelection(msg); handled {
+			return m, cmd, true
+		}
+		if m.updateCommandMenuHover(msg) {
+			return m, nil, true
+		}
+		if handled, cmd := m.updateTranscriptSelection(msg); handled {
+			return m, cmd, true
+		}
+	case tea.MouseReleaseMsg:
+		if handled, cmd := m.finishCommandViewSelection(msg); handled {
+			return m, cmd, true
+		}
+		if handled, cmd := m.finishTranscriptSelection(msg); handled {
+			return m, cmd, true
+		}
+	}
+
+	return m, nil, false
 }
 
 func (m model) handleResponseEvent(msg responseEventMsg) (tea.Model, tea.Cmd) {

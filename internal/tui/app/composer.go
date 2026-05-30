@@ -44,43 +44,58 @@ func normalizeComposerPaste(value string) string {
 // submitPrompt routes a non-empty composer value to prompt or command handling.
 func (m *model) submitPrompt() tea.Cmd {
 	input := m.parseComposerInputForSubmit()
+
 	if input.Kind == composerInputEmpty {
 		return nil
 	}
+
 	if input.Kind == composerInputPrompt && m.responding {
 		return m.setStatus("response already in progress")
 	}
 
 	cmd := m.addPromptHistory(input.Text)
 	promptSubmitted := false
+
 	switch input.Kind {
 	case composerInputPrompt:
 		followTranscript := m.transcript.AtBottom()
+
 		m.applyAction(appendTranscriptCellAction{Cell: userTranscriptCell{text: input.Text}})
 		m.clearComposer()
 		m.resize()
+
 		if followTranscript {
 			m.setTranscriptContent()
 		} else {
 			m.setTranscriptContentForActiveTurn()
 		}
-		cmd = tea.Batch(cmd, m.runEffect(sendPromptEffect{
-			Text:             input.Text,
-			FollowTranscript: followTranscript,
-		}))
+
+		cmd = tea.Batch(
+			cmd,
+			m.runEffect(sendPromptEffect{
+				Text:             input.Text,
+				FollowTranscript: followTranscript,
+			}),
+		)
 		promptSubmitted = true
+
 	case composerInputCommand:
 		cmd = tea.Batch(cmd, m.handleSlashCommand(input))
+
 	case composerInputLocalCommand:
 		cmd = tea.Batch(cmd, m.handleLocalCommand(input))
 	}
+
 	if promptSubmitted {
 		return cmd
-	} else if m.responding {
+	}
+
+	if m.responding {
 		m.setTranscriptContentForResponseUpdate()
 	} else {
 		m.setTranscriptContent()
 	}
+
 	m.clearComposer()
 	m.resize()
 

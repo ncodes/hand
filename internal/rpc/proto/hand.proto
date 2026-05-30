@@ -61,6 +61,7 @@ message SessionSummary {
 
 message CreateSessionRequest {
   string id = 1;
+  optional bool auto_switch = 2;
 }
 
 message CreateSessionResponse {

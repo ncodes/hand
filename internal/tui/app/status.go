@@ -15,7 +15,6 @@ const (
 	defaultStatus          = tuistatus.DefaultText
 	statusReadySuffix      = tuistatus.ReadySuffix
 	statusCancelSuffix     = "esc to stop · ctrl+c to quit"
-	statusAutoHideWindow   = tuistatus.AutoHideWindow
 	exitConfirmationWindow = tuistatus.ExitConfirmationWindow
 )
 
@@ -76,10 +75,6 @@ func (m model) bottomStatusText() string {
 	return m.status.Text()
 }
 
-func (m *model) setSessionTitle(text string) {
-	m.applyAction(setSessionTitleAction{Title: text})
-}
-
 func (m model) statusExpireCmd() tea.Cmd {
 	if !statusHasTransient(m.status) {
 		return nil
@@ -121,7 +116,7 @@ func (m model) expireExitConfirmation(msg exitConfirmationExpiredMsg) tea.Model 
 	}
 
 	m.exitAt = time.Time{}
-	expireStatus(&m.status, statusExpiredMsg{startedAt: msg.startedAt})
+	expireStatus(&m.status, statusExpiredMsg(msg))
 
 	return m
 }

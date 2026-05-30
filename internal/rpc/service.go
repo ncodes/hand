@@ -28,6 +28,8 @@ type Service struct {
 	api handagent.ServiceAPI
 }
 
+var marshalRPCJSON = json.Marshal
+
 // NewService creates a new RPC service that wraps the shared service interface.
 func NewService(api handagent.ServiceAPI) *Service {
 	return &Service{api: api}
@@ -154,7 +156,7 @@ func traceEventToProtoRespondEvent(event trace.Event) (*handpb.RespondEvent, boo
 		return nil, false
 	}
 
-	payloadJSON, err := json.Marshal(payload)
+	payloadJSON, err := marshalRPCJSON(payload)
 	if err != nil {
 		return nil, false
 	}
@@ -416,9 +418,6 @@ func getRPCSearchToolDetail(inputFields map[string]any) string {
 
 	sanitized, _ := guardrails.NewRedactor().Sanitize(query).(string)
 	sanitized = truncateRPCTraceToolDetail(sanitized, 80)
-	if sanitized == "" {
-		return ""
-	}
 
 	return `Search "` + strings.ReplaceAll(sanitized, `"`, `'`) + `"`
 }
@@ -431,9 +430,6 @@ func getRPCSearchFilesToolDetail(inputFields map[string]any) string {
 
 	sanitized, _ := guardrails.NewRedactor().Sanitize(pattern).(string)
 	sanitized = truncateRPCTraceToolDetail(sanitized, 80)
-	if sanitized == "" {
-		return ""
-	}
 
 	detail := `Search "` + strings.ReplaceAll(sanitized, `"`, `'`) + `"`
 	if path := getRPCDisplayPath(inputFields); path != "" {
@@ -743,9 +739,6 @@ func humanizeRPCToolActionName(name string) string {
 		return r == '_' || r == '-' || r == ' '
 	})
 	for index, part := range parts {
-		if part == "" {
-			continue
-		}
 		runes := []rune(strings.ToLower(part))
 		runes[0] = []rune(strings.ToUpper(string(runes[0])))[0]
 		parts[index] = string(runes)
@@ -837,8 +830,24 @@ func (s *Service) CreateSession(ctx context.Context, req *handpb.CreateSessionRe
 	if err != nil {
 		return nil, getGRPCError(err)
 	}
+	if isCreateSessionAutoSwitchEnabled(req) {
+		if err := s.api.UseSession(ctx, session.ID); err != nil {
+			return nil, getGRPCError(err)
+		}
+	}
 
 	return &handpb.CreateSessionResponse{Session: sessionToProtoSummary(session)}, nil
+}
+
+func isCreateSessionAutoSwitchEnabled(req *handpb.CreateSessionRequest) bool {
+	if req == nil {
+		return false
+	}
+	if req.AutoSwitch == nil {
+		return true
+	}
+
+	return req.GetAutoSwitch()
 }
 
 func (s *Service) ListSessions(ctx context.Context, req *handpb.ListSessionsRequest) (*handpb.ListSessionsResponse, error) {
@@ -1139,7 +1148,7 @@ func timelineTraceEventToProto(event agentsession.TraceEvent) (*handpb.SessionTi
 		return nil, false
 	}
 
-	payloadJSON, err := json.Marshal(payload)
+	payloadJSON, err := marshalRPCJSON(payload)
 	if err != nil {
 		return nil, false
 	}

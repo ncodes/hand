@@ -32,15 +32,7 @@ func (m model) isCommandViewVisible() bool {
 }
 
 func (m *model) showCommandView(payload commandViewPayload) {
-	m.applyAction(showCommandViewAction{
-		TitleIcon:       payload.TitleIcon,
-		TitleLeft:       payload.TitleLeft,
-		TitleSubtext:    payload.TitleSubtext,
-		TitleRight:      payload.TitleRight,
-		AccentColor:     payload.AccentColor,
-		TitleRightColor: payload.TitleRightColor,
-		Content:         payload.Content,
-	})
+	m.applyAction(showCommandViewAction(payload))
 	m.resize()
 }
 

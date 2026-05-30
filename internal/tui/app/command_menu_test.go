@@ -188,6 +188,22 @@ func TestCommandMenu_ArrowKeysMoveHighlight(t *testing.T) {
 	require.Equal(t, 0, runModel.commandMenuSelected)
 }
 
+func TestCommandMenu_SubmitsSelectedCommandForPrefix(t *testing.T) {
+	runModel := newModel()
+	runModel.messages = []transcriptCell{assistantTranscriptCell{text: "stale"}}
+	runModel.input.SetValue("/c")
+	runModel.updateCommandMenuForInput("/c")
+	require.True(t, runModel.scrollCommandMenu(1))
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.Empty(t, runModel.input.Value())
+	require.Empty(t, runModel.messages)
+	require.Equal(t, "transcript cleared", runModel.status.Text())
+}
+
 func TestCommandMenu_MouseHoverMovesHighlight(t *testing.T) {
 	runModel := newModel()
 	runModel.input.SetValue("/")

@@ -183,6 +183,50 @@ func TestClient_CreateSessionReturnsSummary(t *testing.T) {
 	require.Equal(t, "Project Planning", session.Title)
 	require.Equal(t, storage.SessionTitleSourceGenerated, session.TitleSource)
 	require.Equal(t, "project-a", stub.CreateReq.GetId())
+	require.Nil(t, stub.CreateReq.AutoSwitch)
+}
+
+func TestClient_CreateSessionWithOptionsSendsAutoSwitch(t *testing.T) {
+	autoSwitch := false
+	stub := &protomock.HandServiceClientStub{
+		CreateResp: &handpb.CreateSessionResponse{
+			Session: &handpb.SessionSummary{Id: "project-a"},
+		},
+	}
+	client := &Client{client: stub}
+
+	session, err := client.CreateSessionWithOptions(context.Background(), CreateSessionOptions{
+		ID:         " project-a ",
+		AutoSwitch: &autoSwitch,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "project-a", session.ID)
+	require.Equal(t, "project-a", stub.CreateReq.GetId())
+	require.NotNil(t, stub.CreateReq.AutoSwitch)
+	require.False(t, stub.CreateReq.GetAutoSwitch())
+}
+
+func TestClient_CreateSessionWithOptionsPropagatesError(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	client := &Client{client: stub}
+
+	session, err := client.CreateSessionWithOptions(context.Background(), CreateSessionOptions{ID: "project-a"})
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, session.ID)
+	require.Equal(t, "project-a", stub.CreateReq.GetId())
+}
+
+func TestClient_CreateSessionWithOptionsReturnsEmptySessionForMissingSummary(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{CreateResp: &handpb.CreateSessionResponse{}}
+	client := &Client{client: stub}
+
+	session, err := client.CreateSessionWithOptions(context.Background(), CreateSessionOptions{ID: "project-a"})
+
+	require.NoError(t, err)
+	require.Empty(t, session.ID)
+	require.Equal(t, "project-a", stub.CreateReq.GetId())
 }
 
 func TestClient_ListSessionsReturnsItems(t *testing.T) {

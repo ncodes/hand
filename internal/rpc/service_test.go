@@ -349,6 +349,33 @@ func TestAgentEventToProtoRespondEvent_IgnoresNonTextKinds(t *testing.T) {
 	require.Nil(t, event)
 }
 
+func TestAgentEventToProtoRespondEvent_IgnoresUnsupportedKinds(t *testing.T) {
+	event, ok := eventToProtoRespondEvent(agent.Event{Kind: "tool"})
+
+	require.False(t, ok)
+	require.Nil(t, event)
+}
+
+func TestTraceEventFromAgentEvent_HandlesSupportedAndUnsupportedShapes(t *testing.T) {
+	value := trace.Event{Type: trace.EvtSessionFailed}
+
+	actual, ok := traceEventFromAgentEvent(agent.Event{TraceEvent: value})
+	require.True(t, ok)
+	require.Equal(t, trace.EvtSessionFailed, actual.Type)
+
+	actual, ok = traceEventFromAgentEvent(agent.Event{TraceEvent: &value})
+	require.True(t, ok)
+	require.Equal(t, trace.EvtSessionFailed, actual.Type)
+
+	actual, ok = traceEventFromAgentEvent(agent.Event{TraceEvent: (*trace.Event)(nil)})
+	require.False(t, ok)
+	require.Empty(t, actual.Type)
+
+	actual, ok = traceEventFromAgentEvent(agent.Event{TraceEvent: "not trace"})
+	require.False(t, ok)
+	require.Empty(t, actual.Type)
+}
+
 func TestService_RespondMapsGRPCHandlerErrorToErrorEvent(t *testing.T) {
 	grpcErr := status.Error(codes.InvalidArgument, "bad request")
 	stub := &agentstub.AgentServiceStub{RespondErr: grpcErr}
@@ -474,6 +501,24 @@ func TestTraceEventToProtoRespondEvent_UsesCurrentTimeWhenTraceTimestampIsMissin
 	require.NotNil(t, event.GetTimestamp())
 	require.True(t, !event.GetTimestamp().AsTime().Before(before))
 	require.True(t, !event.GetTimestamp().AsTime().After(after))
+}
+
+func TestTraceEventToProtoRespondEvent_RejectsMarshalErrors(t *testing.T) {
+	original := marshalRPCJSON
+	t.Cleanup(func() {
+		marshalRPCJSON = original
+	})
+	marshalRPCJSON = func(any) ([]byte, error) {
+		return nil, errors.New("marshal failed")
+	}
+
+	event, ok := traceEventToProtoRespondEvent(trace.Event{
+		Type:    trace.EvtSessionFailed,
+		Payload: map[string]any{"error": "boom"},
+	})
+
+	require.False(t, ok)
+	require.Nil(t, event)
 }
 
 func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
@@ -802,6 +847,31 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 			ok: true,
 		},
 		{
+			name:      "compaction failed",
+			eventType: trace.EvtContextCompactionFailed,
+			payload: map[string]any{
+				"session_id":           "default",
+				"status":               "failed",
+				"auto":                 true,
+				"target_message_count": 12,
+				"target_offset":        4,
+				"error":                "boom",
+			},
+			expected: map[string]any{
+				"session_id":           "default",
+				"status":               "failed",
+				"auto":                 true,
+				"target_message_count": 12,
+				"target_offset":        4,
+				"requested_at":         "0001-01-01T00:00:00Z",
+				"started_at":           "0001-01-01T00:00:00Z",
+				"completed_at":         "0001-01-01T00:00:00Z",
+				"failed_at":            "0001-01-01T00:00:00Z",
+				"error":                "boom",
+			},
+			ok: true,
+		},
+		{
 			name:      "model reasoning completed",
 			eventType: trace.EvtModelReasoningCompleted,
 			payload:   map[string]any{"duration_ms": int64(2000), "text": "hidden reasoning"},
@@ -839,6 +909,138 @@ func TestGetRPCTracePayload_CoversStreamableTraceTypes(t *testing.T) {
 			require.JSONEq(t, string(expectedJSON), string(actualJSON))
 		})
 	}
+}
+
+func TestGetRPCTracePayload_RejectsInvalidPayloadShapes(t *testing.T) {
+	cases := []struct {
+		name      string
+		eventType string
+		payload   any
+	}{
+		{name: "tool invocation started", eventType: trace.EvtToolInvocationStarted, payload: "bad"},
+		{name: "tool invocation completed", eventType: trace.EvtToolInvocationCompleted, payload: "bad"},
+		{name: "safety", eventType: trace.EvtMemorySafetyBlocked, payload: "bad"},
+		{name: "session failed", eventType: trace.EvtSessionFailed, payload: "bad"},
+		{name: "plan", eventType: trace.EvtPlanCleared, payload: "bad"},
+		{name: "compaction", eventType: trace.EvtContextCompactionFailed, payload: "bad"},
+		{name: "reasoning", eventType: trace.EvtModelReasoningCompleted, payload: "bad"},
+		{name: "final response", eventType: trace.EvtFinalAssistantResponse, payload: "bad"},
+		{name: "empty session failure", eventType: trace.EvtSessionFailed, payload: map[string]any{"debug": "hidden"}},
+		{name: "empty reasoning", eventType: trace.EvtModelReasoningCompleted, payload: map[string]any{"duration_ms": 0}},
+		{name: "empty final response", eventType: trace.EvtFinalAssistantResponse, payload: map[string]any{"debug": "hidden"}},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			_, ok := getRPCTracePayload(tt.eventType, tt.payload)
+
+			require.False(t, ok)
+		})
+	}
+}
+
+func TestRPCTraceToolDetailHelpers_HandleEmptyAndMixedInputs(t *testing.T) {
+	require.Empty(t, getRPCTraceToolDetail("", "{}"))
+	require.Empty(t, getRPCTraceToolInputFields(""))
+	require.Empty(t, getRPCTraceToolDetail("web_search", "not-json"))
+	require.Empty(t, getRPCRunToolDetail(map[string]any{}))
+	require.Empty(t, getRPCSearchToolDetail(map[string]any{}))
+	require.Empty(t, getRPCSearchFilesToolDetail(map[string]any{}))
+	require.Empty(t, getRPCPathToolDetail("read_file", map[string]any{}))
+	require.Empty(t, getRPCDisplayPath(map[string]any{}))
+	require.Empty(t, getRPCGenericToolDetail("", map[string]any{"path": "."}))
+	require.Empty(t, getRPCGenericToolDetail("list_files", map[string]any{
+		"blank": "",
+		"nil":   nil,
+		"slice": []any{},
+		"map":   map[string]any{},
+	}))
+
+	require.Equal(t, "run 'hello world' 'it'\\''s ok'", getRPCRunToolDetail(map[string]any{
+		"command": "run",
+		"args":    []any{"hello world", "it's ok"},
+	}))
+	require.Equal(t, "Search \"needle\" in .", getRPCSearchFilesToolDetail(map[string]any{
+		"pattern": "needle",
+		"path":    ".",
+	}))
+	require.Equal(t, "patch notes/file.txt", getRPCPatchToolDetail("patch", map[string]any{
+		"path": "notes/file.txt",
+	}))
+	detail := getRPCGenericToolDetail("list_files", map[string]any{
+		"active":  true,
+		"count":   float64(2),
+		"extra":   map[string]any{"nested": "value"},
+		"missing": make(chan int),
+		"name":    "visible value",
+		"path":    "/a/b/c/d/e/f/g/h/i/j/k/very-long-file-name.txt",
+		"ratio":   float64(2.5),
+	})
+	require.Contains(t, detail, "active=true")
+	require.Contains(t, detail, "count=2")
+	require.Contains(t, detail, "extra={\"nested\":\"value\"}")
+	require.Contains(t, detail, "missing=")
+	require.Contains(t, detail, "name=visible value")
+	require.Contains(t, detail, "path=/a/b/c/d/e/f/g/.../very-long-file-name.txt")
+	require.Contains(t, detail, "ratio=2.5")
+}
+
+func TestRPCPrimitiveFormattingHelpers_HandleBoundaryInputs(t *testing.T) {
+	require.Empty(t, formatOptionalRPCToolNumber(float64(0)))
+	require.Empty(t, formatOptionalRPCToolNumber(0))
+	require.Empty(t, formatOptionalRPCToolNumber("7"))
+	require.Equal(t, "3", formatOptionalRPCToolNumber(float64(3)))
+	require.Equal(t, "4", formatOptionalRPCToolNumber(4))
+
+	require.Equal(t, []string{"one", "two"}, getRPCStringSlice([]any{"one", "", " two "}))
+	require.Nil(t, getRPCStringSlice("one"))
+	require.Equal(t, "''", shellQuoteRPCCommandPart(""))
+	require.Equal(t, "plain", shellQuoteRPCCommandPart("plain"))
+	require.Equal(t, "'two words'", shellQuoteRPCCommandPart("two words"))
+	require.Equal(t, "cmd", appendRPCToolTimeout("cmd", "bad"))
+
+	require.Equal(t, "abcdef", shortenRPCTraceToolPath("abcdef", 0))
+	require.Equal(t, "abc", shortenRPCTraceToolPath("abcdef", 3))
+	require.Equal(t, ".../long-file-name.txt", shortenRPCTraceToolPath("/a/b/c/long-file-name.txt", 22))
+	require.Equal(t, "C:\\U\\...\\file.txt", shortenRPCTraceToolPath(`C:\Users\Name\file.txt`, 16))
+	require.Equal(t, ".../alue", shortenRPCTraceToolPath("no-separator-value", 8))
+	require.Equal(t, "///...", shortenRPCTraceToolPath("///////", 6))
+	require.Equal(t, "////", shortenRPCTraceToolPath("////", 8))
+	require.Equal(t, "compact text", truncateRPCTraceToolDetail(" compact   text ", 0))
+	require.Equal(t, "abc", truncateRPCTraceToolDetail("abcdef", 3))
+}
+
+func TestRPCPlanHelpers_HandleEmptyValues(t *testing.T) {
+	require.Nil(t, getRPCPlanSummary(trace.PlanSummaryPayload{}))
+	require.Equal(t, &trace.PlanSummaryPayload{Total: 1}, getRPCPlanSummary(trace.PlanSummaryPayload{Total: 1}))
+	require.Nil(t, getRPCPlanSteps(nil))
+	require.Nil(t, getRPCPlanSteps([]trace.PlanStepPayload{{}}))
+	require.Equal(t, []trace.PlanStepPayload{{ID: "step-1"}}, getRPCPlanSteps([]trace.PlanStepPayload{{ID: " step-1 "}}))
+}
+
+func TestRPCToolActionName_RecognizesMemoryActions(t *testing.T) {
+	require.Equal(t, "Memory Extract", getRPCToolActionName("memory_extract"))
+	require.Equal(t, "Memory Add", getRPCToolActionName("memory_add"))
+	require.Equal(t, "Memory Update", getRPCToolActionName("memory_update"))
+	require.Equal(t, "Memory Delete", getRPCToolActionName("memory_delete"))
+}
+
+func TestTimelineTraceEventToProto_RejectsMarshalErrors(t *testing.T) {
+	original := marshalRPCJSON
+	t.Cleanup(func() {
+		marshalRPCJSON = original
+	})
+	marshalRPCJSON = func(any) ([]byte, error) {
+		return nil, errors.New("marshal failed")
+	}
+
+	event, ok := timelineTraceEventToProto(agentsession.TraceEvent{
+		Type:    trace.EvtSessionFailed,
+		Payload: map[string]any{"error": "boom"},
+	})
+
+	require.False(t, ok)
+	require.Nil(t, event)
 }
 
 func TestPayloadFields_HandlesPayloadShapes(t *testing.T) {
@@ -930,6 +1132,34 @@ func TestService_CreateSessionReturnsSummary(t *testing.T) {
 	require.Equal(t, "project-a", resp.GetSession().GetId())
 	require.Equal(t, "Project Planning", resp.GetSession().GetTitle())
 	require.Equal(t, storage.SessionTitleSourceGenerated, resp.GetSession().GetTitleSource())
+	require.Equal(t, "project-a", stub.CreatedSessionID)
+	require.Equal(t, "project-a", stub.UsedSessionID)
+}
+
+func TestService_CreateSessionCanSkipAutoSwitch(t *testing.T) {
+	autoSwitch := false
+	stub := &agentstub.AgentServiceStub{CreatedSession: storage.Session{ID: "project-a"}}
+	svc := NewService(stub)
+
+	resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{
+		Id:         "project-a",
+		AutoSwitch: &autoSwitch,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "project-a", resp.GetSession().GetId())
+	require.Equal(t, "project-a", stub.CreatedSessionID)
+	require.Empty(t, stub.UsedSessionID)
+}
+
+func TestIsCreateSessionAutoSwitchEnabled_DefaultsToEnabled(t *testing.T) {
+	autoSwitchOn := true
+	autoSwitchOff := false
+
+	require.False(t, isCreateSessionAutoSwitchEnabled(nil))
+	require.True(t, isCreateSessionAutoSwitchEnabled(&handpb.CreateSessionRequest{}))
+	require.True(t, isCreateSessionAutoSwitchEnabled(&handpb.CreateSessionRequest{AutoSwitch: &autoSwitchOn}))
+	require.False(t, isCreateSessionAutoSwitchEnabled(&handpb.CreateSessionRequest{AutoSwitch: &autoSwitchOff}))
 }
 
 func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
@@ -966,6 +1196,18 @@ func TestService_CreateSessionRejectsInvalidState(t *testing.T) {
 		resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{Id: "project-a"})
 
 		requireStatusError(t, err, codes.AlreadyExists, "session already exists")
+		require.Nil(t, resp)
+	})
+
+	t.Run("use session error", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{
+			CreatedSession: storage.Session{ID: "project-a"},
+			UseSessionErr:  errors.New("session not found"),
+		})
+
+		resp, err := svc.CreateSession(context.Background(), &handpb.CreateSessionRequest{Id: "project-a"})
+
+		requireStatusError(t, err, codes.NotFound, "session not found")
 		require.Nil(t, resp)
 	})
 }

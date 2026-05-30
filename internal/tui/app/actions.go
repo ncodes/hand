@@ -66,6 +66,8 @@ type setRespondingAction struct {
 	ResponseID int
 }
 
+type resetResponseStateAction struct{}
+
 func (action setViewportSizeAction) apply(state *tuiState) {
 	if state == nil {
 		return
@@ -194,6 +196,25 @@ func (action setRespondingAction) apply(state *tuiState) {
 
 	state.responding = action.Responding
 	state.responseID = action.ResponseID
+}
+
+func (resetResponseStateAction) apply(state *tuiState) {
+	if state == nil {
+		return
+	}
+
+	state.responding = false
+	state.responseTranscriptFollow = false
+	state.responseTranscriptScrolled = false
+	state.responseRunningToolCount = 0
+	state.thinkingComposerActive = false
+	state.toolAnimationActive = false
+	state.responseCancel = nil
+}
+
+func (m *model) resetResponseState() {
+	m.applyAction(resetResponseStateAction{})
+	m.events = nil
 }
 
 func (m *model) applyAction(action tuiAction) {

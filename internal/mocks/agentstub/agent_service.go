@@ -23,8 +23,10 @@ type AgentServiceStub struct {
 	CloseErr             error
 	Closed               bool
 	CreatedSession       storage.Session
+	CreatedSessionID     string
 	Sessions             []storage.Session
 	UsedSessionID        string
+	UseSessionErr        error
 	CurrentSessionResult storage.Session
 	CompactResult        rpcclient.CompactSessionResult
 	RepairOptions        search.VectorRepairOptions
@@ -64,7 +66,8 @@ func (s *AgentServiceStub) Respond(_ context.Context, msg string, opts rpcclient
 	return s.Reply, s.Err
 }
 
-func (s *AgentServiceStub) CreateSession(context.Context, string) (storage.Session, error) {
+func (s *AgentServiceStub) CreateSession(_ context.Context, id string) (storage.Session, error) {
+	s.CreatedSessionID = id
 	return s.CreatedSession, s.Err
 }
 
@@ -74,6 +77,9 @@ func (s *AgentServiceStub) ListSessions(context.Context) ([]storage.Session, err
 
 func (s *AgentServiceStub) UseSession(_ context.Context, id string) error {
 	s.UsedSessionID = id
+	if s.UseSessionErr != nil {
+		return s.UseSessionErr
+	}
 	return s.Err
 }
 
