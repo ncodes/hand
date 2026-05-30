@@ -1,0 +1,126 @@
+package agent
+
+import (
+	"fmt"
+	"runtime"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/wandxy/hand/internal/config"
+	instruct "github.com/wandxy/hand/internal/instructions"
+	"github.com/wandxy/hand/internal/mocks"
+	models "github.com/wandxy/hand/internal/model"
+	handtools "github.com/wandxy/hand/internal/tools"
+	agenttool "github.com/wandxy/hand/pkg/agent/tool"
+)
+
+func TestEnvironmentContextHelpersNormalizeStableValues(t *testing.T) {
+	require.Equal(t, "+01:30", getTimezoneOffset(90*60))
+	require.Equal(t, "-02:00", getTimezoneOffset(-2*3600))
+	require.Equal(t, []string{"alpha", "beta"}, sortedUnique([]string{" beta ", "alpha", "beta", ""}))
+	require.Equal(t, []string{"read", "write"}, getActiveToolNames([]models.ToolDefinition{
+		{Name: "write"},
+		{Name: "read"},
+		{Name: "read"},
+	}))
+	require.Equal(t, []string{"core", "extra"}, getActiveToolGroups([]agenttool.Group{
+		{Name: "extra"},
+		{Name: "core"},
+		{Name: "core"},
+	}))
+	require.Equal(t, " first ", getFirstNonEmpty(" first ", "second"))
+	require.Equal(t, "second", getFirstNonEmpty("", " second "))
+	root := t.TempDir()
+	require.Equal(t, []string{root}, getFilesystemRoots(nil, root))
+	require.Empty(t, getEnvironmentTimezone(time.Time{}))
+	require.Empty(t, getEnvironmentTimezone(time.Date(2026, 1, 1, 0, 0, 0, 0, time.FixedZone("", 3600))))
+	require.Equal(t, "WAT", getEnvironmentTimezone(time.Date(2026, 1, 1, 0, 0, 0, 0, time.FixedZone("WAT", 3600))))
+	require.Nil(t, agentToolGroupsFromToolsGroups(nil))
+	require.Equal(t, instruct.EnvironmentContextInstructionName, (*Turn)(nil).buildEnvironmentContextInstruction(nil).Name)
+	_, ok := (*Turn)(nil).getActiveToolPolicy()
+	require.False(t, ok)
+}
+
+func TestTurn_BuildEnvironmentContextInstructionUsesConfigAndToolPolicy(t *testing.T) {
+	now := time.Date(2026, 5, 29, 10, 0, 0, 0, time.FixedZone("WAT", 3600))
+	originalNow := environmentContextNow
+	originalGetwd := environmentContextGetwd
+	environmentContextNow = func() time.Time { return now }
+	environmentContextGetwd = func() (string, error) { return "/tmp/hand", nil }
+	t.Cleanup(func() {
+		environmentContextNow = originalNow
+		environmentContextGetwd = originalGetwd
+	})
+
+	turn := &Turn{
+		cfg: &config.Config{
+			Platform: "darwin",
+			Models: config.ModelsConfig{
+				Main:    config.MainModelConfig{Name: "main", Provider: "openai", API: models.APIOpenAIResponses},
+				Summary: config.SummaryModelConfig{Name: "summary", Provider: "anthropic", API: models.APIAnthropicMessages},
+			},
+			Web: config.WebConfig{Provider: "search"},
+		},
+		sessionID: "session-1",
+		env: &mocks.EnvironmentStub{
+			Policy: handtools.Policy{
+				Platform:     "linux",
+				Capabilities: handtools.Capabilities{Filesystem: true, Network: true},
+			},
+			ToolRegistry: &mocks.ToolRegistryStub{
+				Groups: []handtools.Group{{Name: "core"}, {Name: "search"}},
+			},
+		},
+	}
+
+	instruction := turn.buildEnvironmentContextInstruction([]models.ToolDefinition{
+		{Name: "web_search"},
+		{Name: "time"},
+	})
+
+	require.Equal(t, instruct.EnvironmentContextInstructionName, instruction.Name)
+	require.Equal(t, fmt.Sprintf(`# Environment Context
+
+- Current date: 2026-05-29
+- Current time: 2026-05-29T10:00:00+01:00
+- Timezone: WAT
+- OS: %s
+- Architecture: %s
+- Platform: darwin
+- Working directory: /tmp/hand
+- Filesystem roots: /tmp/hand
+- Capabilities: filesystem=true, network=true, exec=false, memory=false, browser=false
+- Active tool groups: core, search
+- Active tools: time, web_search
+- Model: main
+- Summary model: summary
+- Model provider: openai
+- Summary model provider: anthropic
+- API: openai-responses
+- Web provider: search
+- Session ID: session-1`, runtime.GOOS, runtime.GOARCH), instruction.Value)
+}
+
+func TestTurn_ActiveToolPolicyAndGroupsFallbackToCoreRegistry(t *testing.T) {
+	registry := &toolGroupRegistryStub{
+		groups: []agenttool.Group{{Name: "core", Tools: []string{"time"}}},
+	}
+	turn := &Turn{
+		toolRegistry: registry,
+		toolPolicy: agenttool.Policy{
+			Platform:     "linux",
+			Capabilities: agenttool.Capabilities{Exec: true},
+		},
+	}
+
+	policy, ok := turn.getActiveToolPolicy()
+	require.True(t, ok)
+	require.Equal(t, "linux", policy.Platform)
+	require.True(t, policy.Capabilities.Exec)
+	require.Equal(t, registry.groups, turn.getActiveToolGroups())
+	require.False(t, isEmptyToolPolicy(policy))
+	require.Nil(t, (*Turn)(nil).getActiveToolGroups())
+	require.Nil(t, (&Turn{}).getActiveToolGroups())
+}

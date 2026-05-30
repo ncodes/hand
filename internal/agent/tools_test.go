@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -79,6 +80,34 @@ func TestToolRegistry_InvokeDelegatesToHostInvoker(t *testing.T) {
 	require.Equal(t, "time", message.Name)
 	require.Equal(t, "call-1", message.ToolCallID)
 	require.Equal(t, `{"ok":true}`, message.Content)
+}
+
+func TestToolRegistry_NilAndListGroupPaths(t *testing.T) {
+	require.Nil(t, (*ToolRegistry)(nil).ListGroups())
+	definitions, err := (*ToolRegistry)(nil).Resolve(agenttool.Policy{})
+	require.NoError(t, err)
+	require.Nil(t, definitions)
+	message := (*ToolRegistry)(nil).Invoke(context.Background(), agenttool.Call{ID: "call", Name: "time"})
+	require.JSONEq(t, `{"error":"tool invocation is required"}`, message.Content)
+	require.Equal(t, agenttool.Policy{}, ToolPolicyFromEnvironment(nil))
+
+	stub := &mocks.ToolRegistryStub{
+		Groups: []handtools.Group{{Name: "core", Tools: []string{"time"}, Includes: []string{"read"}}},
+	}
+	registry := NewToolRegistry(&mocks.EnvironmentStub{ToolRegistry: stub}, nil)
+	require.Equal(t, []agenttool.Group{{Name: "core", Tools: []string{"time"}, Includes: []string{"read"}}}, registry.ListGroups())
+	require.Nil(t, NewToolRegistry(&mocks.EnvironmentStub{ToolRegistry: &mocks.ToolRegistryStub{}}, nil).ListGroups())
+
+	rootErr := errors.New("resolve failed")
+	definitions, err = NewToolRegistry(
+		&mocks.EnvironmentStub{
+			ToolRegistry: &mocks.ToolRegistryStub{ResolveErr: rootErr},
+		},
+		nil,
+	).Resolve(agenttool.Policy{Platform: "linux"})
+	require.ErrorIs(t, err, rootErr)
+	require.Nil(t, definitions)
+	require.Nil(t, agentDefinitionsFromToolsDefinitions(nil))
 }
 func TestTurn_ExecuteToolCallsParallel_AppendsResultsInModelOrder(t *testing.T) {
 	completed := make(chan string, 2)
@@ -299,29 +328,70 @@ func TestTurn_ExecuteToolCalls_ReturnsCancelledContext(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
-func toolExecutionTestMessage(toolCall models.ToolCall, content string) handmsg.Message {
-	return handmsg.Message{
-		Role:       handmsg.RoleTool,
-		Name:       toolCall.Name,
-		ToolCallID: toolCall.ID,
-		Content:    content,
-	}
-}
+func TestTurn_InvokeToolLegacyHookAndRuntimeFallbacks(t *testing.T) {
+	toolCall := models.ToolCall{ID: "call-1", Name: "time", Input: "{}"}
+	message := (*Turn)(nil).invokeTool(context.Background(), toolCall)
+	require.JSONEq(t, `{"error":"tool invocation is required"}`, message.Content)
 
-func toolExecutionTestMessageIDs(messages []handmsg.Message) []string {
-	ids := make([]string, 0, len(messages))
-	for _, message := range messages {
-		ids = append(ids, message.ToolCallID)
+	turn := &Turn{
+		invokeToolFn: func(_ context.Context, call models.ToolCall) handmsg.Message {
+			return toolExecutionTestMessage(call, `{"direct":true}`)
+		},
 	}
 
-	return ids
-}
+	message = turn.invokeTool(context.Background(), toolCall)
+	require.Equal(t, `{"direct":true}`, message.Content)
 
-func toolExecutionTestCallIDs(toolCalls []models.ToolCall) []string {
-	ids := make([]string, 0, len(toolCalls))
-	for _, toolCall := range toolCalls {
-		ids = append(ids, toolCall.ID)
+	env := &mocks.EnvironmentStub{}
+	turn = &Turn{
+		env: env,
+		invokeToolFn: func(_ context.Context, runtime environment.Environment, call models.ToolCall) handmsg.Message {
+			require.Same(t, env, runtime)
+			return toolExecutionTestMessage(call, `{"reflect":true}`)
+		},
 	}
+	message = turn.invokeTool(context.Background(), toolCall)
+	require.Equal(t, `{"reflect":true}`, message.Content)
 
-	return ids
+	turn = &Turn{invokeToolFn: "not a function"}
+	message = turn.invokeTool(context.Background(), toolCall)
+	require.JSONEq(t, `{"error":"tool invocation is required"}`, message.Content)
+
+	turn = &Turn{invokeToolFn: func(context.Context, environment.Environment, models.ToolCall) string { return "bad" }}
+	message = turn.invokeTool(context.Background(), toolCall)
+	require.JSONEq(t, `{"error":"tool invocation is required"}`, message.Content)
+
+	registry := &mocks.ToolRegistryStub{Result: handtools.Result{Output: `{"ok":true}`}}
+	turn = &Turn{env: &mocks.EnvironmentStub{ToolRegistry: registry}}
+	message = turn.invokeTool(context.Background(), toolCall)
+	require.Equal(t, map[string]any{
+		"name":   "time",
+		"output": `{"ok":true}`,
+	}, toolExecutionTestContent(t, message))
+
+	registry = &mocks.ToolRegistryStub{Err: errors.New("runtime failed")}
+	turn = &Turn{env: &mocks.EnvironmentStub{ToolRegistry: registry}}
+	message = turn.invokeTool(context.Background(), toolCall)
+	require.Equal(t, map[string]any{
+		"name":  "time",
+		"error": "runtime failed",
+	}, toolExecutionTestContent(t, message))
+
+	registry = &mocks.ToolRegistryStub{Result: handtools.Result{Error: handtools.Error{Code: "tool_error", Message: "failed"}.String()}}
+	turn = &Turn{env: &mocks.EnvironmentStub{ToolRegistry: registry}}
+	message = turn.invokeTool(context.Background(), toolCall)
+	require.Equal(t, map[string]any{
+		"name": "time",
+		"error": map[string]any{
+			"code":    "tool_error",
+			"message": "failed",
+		},
+	}, toolExecutionTestContent(t, message))
+
+	turn = &Turn{}
+	message = turn.invokeToolWithLegacyRuntime(context.Background(), nil, toolCall)
+	require.Equal(t, map[string]any{
+		"name":  "time",
+		"error": "tool registry is required",
+	}, toolExecutionTestContent(t, message))
 }

@@ -23,6 +23,19 @@ func TestNewSessionStoreImplementsAgentSessionInterfaces(t *testing.T) {
 	require.True(t, ok)
 }
 
+func TestSessionStore_ReturnsErrorWhenManagerMissing(t *testing.T) {
+	store := NewSessionStore(nil)
+
+	_, err := store.Resolve(context.Background(), "")
+	require.ErrorIs(t, err, errSessionManagerRequired)
+	_, err = store.GetMessages(context.Background(), "", agentsession.MessageQuery{})
+	require.ErrorIs(t, err, errSessionManagerRequired)
+	require.ErrorIs(t, store.AppendMessages(context.Background(), "", nil), errSessionManagerRequired)
+	require.ErrorIs(t, store.UpdateLastPromptTokens(context.Background(), "", 1), errSessionManagerRequired)
+	_, err = store.AppendTraceEvent(context.Background(), agentsession.TraceEvent{})
+	require.ErrorIs(t, err, errSessionManagerRequired)
+}
+
 func TestSessionStoreResolveConvertsSessionShape(t *testing.T) {
 	now := time.Date(2026, 5, 24, 12, 0, 0, 0, time.UTC)
 	store := NewSessionStore(&sessionManagerStub{
@@ -143,39 +156,4 @@ func TestSessionStoreAppendTraceEventConvertsTraceShape(t *testing.T) {
 		Timestamp: now,
 		Payload:   map[string]any{"ok": true},
 	}, event)
-}
-
-type sessionManagerStub struct {
-	ResolveFunc                func(context.Context, string) (storage.Session, error)
-	GetMessagesFunc            func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
-	AppendMessagesFunc         func(context.Context, string, []handmsg.Message) error
-	UpdateLastPromptTokensFunc func(context.Context, string, int) error
-	AppendTraceEventFunc       func(context.Context, storage.TraceEvent) (storage.TraceEvent, error)
-}
-
-func (s *sessionManagerStub) Resolve(ctx context.Context, id string) (storage.Session, error) {
-	return s.ResolveFunc(ctx, id)
-}
-
-func (s *sessionManagerStub) GetMessages(
-	ctx context.Context,
-	id string,
-	query storage.MessageQueryOptions,
-) ([]handmsg.Message, error) {
-	return s.GetMessagesFunc(ctx, id, query)
-}
-
-func (s *sessionManagerStub) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
-	return s.AppendMessagesFunc(ctx, id, messages)
-}
-
-func (s *sessionManagerStub) UpdateLastPromptTokens(ctx context.Context, id string, tokens int) error {
-	return s.UpdateLastPromptTokensFunc(ctx, id, tokens)
-}
-
-func (s *sessionManagerStub) AppendTraceEvent(
-	ctx context.Context,
-	event storage.TraceEvent,
-) (storage.TraceEvent, error) {
-	return s.AppendTraceEventFunc(ctx, event)
 }
