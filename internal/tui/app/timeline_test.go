@@ -228,6 +228,41 @@ func TestModel_HydrateSessionTimelineReportsLastSessionSaveFailure(t *testing.T)
 	require.Equal(t, "last session unavailable", runModel.status.Text())
 }
 
+func TestModel_HydrateSessionTimelineRendersCurrentSessionInChrome(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 180
+	runModel.resize()
+
+	runModel.hydrateSessionTimeline(client.SessionTimeline{
+		SessionID: "session-current",
+		Title:     "Current Session",
+		Messages: []agentapi.SessionTimelineMessage{{
+			Message: handmsg.Message{Role: handmsg.RoleAssistant, Content: "loaded"},
+		}},
+	})
+
+	content := stripANSI(runModel.transcript.GetContent())
+	require.Contains(t, content, "session-current")
+	require.NotContains(t, content, "session  default")
+}
+
+func TestModel_RefreshSessionTitleRendersCurrentSessionInChrome(t *testing.T) {
+	runModel := newModel()
+	runModel.width = 180
+	runModel.resize()
+	runModel.messages = []transcriptCell{assistantTranscriptCell{text: "loaded"}}
+	runModel.setTranscriptContent()
+
+	runModel.refreshSessionTitleFromSession(storage.Session{
+		ID:    "session-current",
+		Title: "Current Session",
+	})
+
+	content := stripANSI(runModel.transcript.GetContent())
+	require.Contains(t, content, "session-current")
+	require.NotContains(t, content, "session  default")
+}
+
 func TestTimelineMessageToTranscriptCell_MapsVisibleRoles(t *testing.T) {
 	cases := []struct {
 		name    string

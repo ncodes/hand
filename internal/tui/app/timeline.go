@@ -145,15 +145,15 @@ func loadSessionTitleCmd(ctx context.Context, client sessionTitleLoader) tea.Cmd
 func (m *model) hydrateSessionTimeline(timeline rpcclient.SessionTimeline) tea.Cmd {
 	cells := sessionTimelineToTranscriptCells(timeline)
 
+	m.applyAction(setSessionAction{
+		ID:    timeline.SessionID,
+		Title: getSessionTimelineDisplayName(timeline),
+	})
 	m.applyAction(setTranscriptCellsAction{Cells: cells})
 	m.applyAction(setLiveTranscriptCellAction{})
 	m.showIntro = false
 	m.stream.Reset()
 	m.setTranscriptContent()
-	m.applyAction(setSessionAction{
-		ID:    timeline.SessionID,
-		Title: getSessionTimelineDisplayName(timeline),
-	})
 	m.setDefaultStatus(defaultStatus)
 	m.resize()
 
@@ -170,6 +170,7 @@ func (m *model) refreshSessionTitleFromSession(session storage.Session) {
 		ID:    session.ID,
 		Title: getSessionDisplayName(session),
 	})
+	m.refreshTranscriptContentAfterResize()
 }
 
 func getSessionDisplayName(session storage.Session) string {
