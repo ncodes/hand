@@ -124,6 +124,57 @@ func TestLoadStartupSessionTimelineCmdHandlesNilClientAndNilContext(t *testing.T
 	require.Equal(t, "session-a", client.timelineSessionID)
 }
 
+func TestLoadStartupSessionTimelineCmdPrefersCurrentSession(t *testing.T) {
+	client := &fakeTUIChatClient{
+		sessions: []storage.Session{
+			{ID: "session-remembered"},
+			{ID: "session-current"},
+		},
+		currentSession: storage.Session{ID: "session-current"},
+		timeline:       client.SessionTimeline{SessionID: "session-current"},
+	}
+
+	cmd := loadStartupSessionTimelineCmd(context.Background(), client, "session-remembered")
+
+	require.NotNil(t, cmd)
+	require.Equal(t, sessionTimelineLoadedMsg{Timeline: client.timeline}, cmd())
+	require.Equal(t, "session-current", client.usedSessionID)
+	require.Equal(t, "session-current", client.timelineSessionID)
+	require.Equal(t, 1, client.currentSessionCalls)
+}
+
+func TestLoadStartupSessionTimelineCmdFallsBackToRememberedWhenCurrentSessionIsInactive(t *testing.T) {
+	client := &fakeTUIChatClient{
+		sessions: []storage.Session{
+			{ID: "session-remembered"},
+		},
+		currentSession: storage.Session{ID: "session-archived"},
+		timeline:       client.SessionTimeline{SessionID: "session-remembered"},
+	}
+
+	cmd := loadStartupSessionTimelineCmd(context.Background(), client, "session-remembered")
+
+	require.NotNil(t, cmd)
+	require.Equal(t, sessionTimelineLoadedMsg{Timeline: client.timeline}, cmd())
+	require.Equal(t, "session-remembered", client.usedSessionID)
+	require.Equal(t, "session-remembered", client.timelineSessionID)
+}
+
+func TestLoadStartupSessionTimelineCmdFallsBackToDefaultWhenCurrentAndRememberedAreInactive(t *testing.T) {
+	client := &fakeTUIChatClient{
+		sessions:       []storage.Session{{ID: defaultSessionID}},
+		currentSession: storage.Session{ID: "session-current-archived"},
+		timeline:       client.SessionTimeline{SessionID: defaultSessionID},
+	}
+
+	cmd := loadStartupSessionTimelineCmd(context.Background(), client, "session-remembered-archived")
+
+	require.NotNil(t, cmd)
+	require.Equal(t, sessionTimelineLoadedMsg{Timeline: client.timeline}, cmd())
+	require.Equal(t, defaultSessionID, client.usedSessionID)
+	require.Equal(t, defaultSessionID, client.timelineSessionID)
+}
+
 func TestLoadStartupSessionTimelineCmdFallsBackWhenUseSessionFails(t *testing.T) {
 	client := &fakeTUIChatClient{
 		sessions:      []storage.Session{{ID: "session-a"}},
@@ -194,13 +245,26 @@ func TestModel_LoadStartupSessionTimelineFallsBackWhenRememberedStateIsUnreadabl
 }
 
 func TestGetStartupSessionIDUsesDefaultForBlankDefaultAndListErrors(t *testing.T) {
-	require.Equal(t, defaultSessionID, getStartupSessionID(context.Background(), &fakeTUIChatClient{}, " "))
+	require.Equal(t, defaultSessionID, getStartupSessionID(
+		context.Background(),
+		&fakeTUIChatClient{sessions: []storage.Session{{ID: defaultSessionID}}},
+		" ",
+	))
 	require.Equal(t, defaultSessionID, getStartupSessionID(context.Background(), &fakeTUIChatClient{}, defaultSessionID))
 	require.Equal(t, defaultSessionID, getStartupSessionID(
 		context.Background(),
 		&fakeTUIChatClient{listSessionsErr: errors.New("list failed")},
 		"session-a",
 	))
+}
+
+func TestGetKnownStartupSessionIDMatchesOnlyKnownNonDefaultSessions(t *testing.T) {
+	sessions := []storage.Session{{ID: "session-a"}}
+
+	require.Empty(t, getKnownStartupSessionID(sessions, " "))
+	require.Equal(t, defaultSessionID, getKnownStartupSessionID(nil, defaultSessionID))
+	require.Equal(t, "session-a", getKnownStartupSessionID(sessions, " session-a "))
+	require.Empty(t, getKnownStartupSessionID(sessions, "session-missing"))
 }
 
 func TestLoadSessionTitleCmdHandlesNilClientAndFailures(t *testing.T) {
@@ -324,6 +388,7 @@ func TestGetTimelineToolCallDetailsIgnoresBlankToolCallIDs(t *testing.T) {
 
 type startupTimelineFallbackClient struct {
 	sessions           []storage.Session
+	currentSession     storage.Session
 	timelines          map[string]client.SessionTimeline
 	errors             map[string]error
 	usedSessionIDs     []string
@@ -332,6 +397,10 @@ type startupTimelineFallbackClient struct {
 
 func (c *startupTimelineFallbackClient) ListSessions(context.Context) ([]storage.Session, error) {
 	return c.sessions, nil
+}
+
+func (c *startupTimelineFallbackClient) CurrentSession(context.Context) (storage.Session, error) {
+	return c.currentSession, nil
 }
 
 func (c *startupTimelineFallbackClient) UseSession(_ context.Context, id string) error {

@@ -29,6 +29,7 @@ type sessionTitleLoader interface {
 }
 
 type startupSessionLoader interface {
+	CurrentSession(context.Context) (storage.Session, error)
 	ListSessions(context.Context) ([]storage.Session, error)
 	UseSession(context.Context, string) error
 	GetSessionTimeline(context.Context, rpcclient.SessionTimelineOptions) (rpcclient.SessionTimeline, error)
@@ -109,22 +110,41 @@ func (m model) loadStartupSessionTimeline() tea.Cmd {
 }
 
 func getStartupSessionID(ctx context.Context, client startupSessionLoader, rememberedID string) string {
-	rememberedID = strings.TrimSpace(rememberedID)
-	if rememberedID == "" || rememberedID == defaultSessionID {
-		return defaultSessionID
-	}
-
 	sessions, err := client.ListSessions(ctx)
 	if err != nil {
 		return defaultSessionID
 	}
-	for _, session := range sessions {
-		if strings.TrimSpace(session.ID) == rememberedID {
-			return rememberedID
+
+	currentSession, err := client.CurrentSession(ctx)
+	if err == nil {
+		if sessionID := getKnownStartupSessionID(sessions, currentSession.ID); sessionID != "" {
+			return sessionID
 		}
 	}
 
+	if sessionID := getKnownStartupSessionID(sessions, rememberedID); sessionID != "" {
+		return sessionID
+	}
+
 	return defaultSessionID
+}
+
+func getKnownStartupSessionID(sessions []storage.Session, id string) string {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return ""
+	}
+	if id == defaultSessionID {
+		return defaultSessionID
+	}
+
+	for _, session := range sessions {
+		if strings.TrimSpace(session.ID) == id {
+			return id
+		}
+	}
+
+	return ""
 }
 
 func loadSessionTitleCmd(ctx context.Context, client sessionTitleLoader) tea.Cmd {
