@@ -1,0 +1,622 @@
+package tui
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/stretchr/testify/require"
+
+	rpcclient "github.com/wandxy/hand/internal/rpc/client"
+	storage "github.com/wandxy/hand/internal/state/core"
+)
+
+func TestModel_UpdateHandlesChatsCommand(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	originalNow := chatsNow
+	chatsNow = func() time.Time { return now }
+	t.Cleanup(func() {
+		chatsNow = originalNow
+	})
+
+	client := &fakeTUIChatClient{sessions: []storage.Session{
+		{ID: "ses_current", Title: "This is a chat title", UpdatedAt: now.Add(-3 * 24 * time.Hour)},
+		{ID: "ses_other", Title: "Another chat title", UpdatedAt: now.Add(-4 * 24 * time.Hour)},
+		{ID: "ses_long", Title: "Another title and more yet another one", UpdatedAt: now.Add(-90 * time.Minute)},
+	}}
+	runModel := newModelWithClient(client)
+	runModel.width = 72
+	runModel.applyAction(setSessionAction{ID: "ses_current", Title: "This is a chat title"})
+	runModel.input.SetValue("/chats")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	msg := chatsLoadedMessageFromBatch(t, cmd)
+	require.Len(t, msg.Sessions, 3)
+	require.NoError(t, msg.Err)
+
+	updated, cmd = runModel.Update(msg)
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+
+	require.True(t, runModel.isCommandViewVisible())
+	require.Equal(t, "Chats", runModel.commandView.TitleLeft)
+	require.Equal(t, "esc to close", runModel.commandView.TitleRight)
+	require.Equal(t, commandViewKindChats, runModel.commandView.Kind)
+	require.Zero(t, runModel.commandView.Height)
+	require.Len(t, runModel.commandView.Chats, 3)
+	require.Zero(t, runModel.commandViewItemSelected)
+	require.Equal(t, 1, client.listSessionCalls)
+
+	content := stripANSI(runModel.View().Content)
+	require.Contains(t, content, "Chats")
+	require.Contains(t, content, " This is a chat title")
+	require.NotContains(t, content, "current This is a chat title")
+	require.Contains(t, content, "3d ago")
+	require.Contains(t, content, "Another chat title")
+	require.Contains(t, content, "4d ago")
+	require.Contains(t, content, "Another title and more")
+	require.Contains(t, content, "1h ago")
+	require.NotContains(t, content, inputPrompt+"Ask Hand")
+	require.Contains(t, runModel.renderCommandView(), "48;")
+}
+
+func TestLoadChatsCmdUsesBackgroundContextWhenNil(t *testing.T) {
+	client := &fakeTUIChatClient{sessions: []storage.Session{{ID: "ses_1"}}}
+
+	msg, ok := loadChatsCmd(nil, client)().(chatsLoadedMsg)
+
+	require.True(t, ok)
+	require.NoError(t, msg.Err)
+	require.Equal(t, []storage.Session{{ID: "ses_1"}}, msg.Sessions)
+	require.Equal(t, 1, client.listSessionCalls)
+}
+
+func TestModel_UpdateChatsCommandMovesSelectionWithArrowKeys(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	originalNow := chatsNow
+	chatsNow = func() time.Time { return now }
+	t.Cleanup(func() {
+		chatsNow = originalNow
+	})
+
+	runModel := newModelWithClient(&fakeTUIChatClient{})
+	runModel.height = 12
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats: []storage.Session{
+			{ID: "ses_1", Title: "One", UpdatedAt: now},
+			{ID: "ses_2", Title: "Two", UpdatedAt: now},
+			{ID: "ses_3", Title: "Three", UpdatedAt: now},
+			{ID: "ses_4", Title: "Four", UpdatedAt: now},
+			{ID: "ses_5", Title: "Five", UpdatedAt: now},
+			{ID: "ses_6", Title: "Six", UpdatedAt: now},
+		},
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 1, runModel.commandViewItemSelected)
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 2, runModel.commandViewItemSelected)
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyUp}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 1, runModel.commandViewItemSelected)
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnd}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 5, runModel.commandViewItemSelected)
+	require.Greater(t, runModel.commandViewOffset, 0)
+
+	content := stripANSI(runModel.renderCommandView())
+	require.Contains(t, content, "Six")
+	require.NotContains(t, content, "One")
+}
+
+func TestModel_UpdateChatsCommandCoversNavigationEdges(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	runModel := newModelWithClient(&fakeTUIChatClient{})
+	runModel.height = 12
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats: []storage.Session{
+			{ID: "ses_1", Title: "One", UpdatedAt: now},
+			{ID: "ses_2", Title: "Two", UpdatedAt: now},
+			{ID: "ses_3", Title: "Three", UpdatedAt: now},
+			{ID: "ses_4", Title: "Four", UpdatedAt: now},
+			{ID: "ses_5", Title: "Five", UpdatedAt: now},
+			{ID: "ses_6", Title: "Six", UpdatedAt: now},
+		},
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnd}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 5, runModel.commandViewItemSelected)
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyHome}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Zero(t, runModel.commandViewItemSelected)
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyPgDown}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Greater(t, runModel.commandViewItemSelected, 0)
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyPgUp}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Zero(t, runModel.commandViewItemSelected)
+
+	updated, cmd = runModel.Update(tea.MouseWheelMsg(tea.Mouse{Button: tea.MouseWheelDown}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Equal(t, 1, runModel.commandViewItemSelected)
+
+	updated, cmd = runModel.Update(tea.MouseWheelMsg(tea.Mouse{Button: tea.MouseWheelUp}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+	require.Zero(t, runModel.commandViewItemSelected)
+
+	updated, cmd = runModel.Update(tea.MouseWheelMsg(tea.Mouse{Button: tea.MouseLeft}))
+	require.Nil(t, cmd)
+	require.Equal(t, runModel.commandViewItemSelected, updated.(model).commandViewItemSelected)
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
+	require.Nil(t, cmd)
+	require.False(t, updated.(model).isCommandViewVisible())
+}
+
+func TestModel_UpdateChatsCommandIgnoresUnhandledMessagesAndEmptyList(t *testing.T) {
+	runModel := newModel()
+	runModel.showCommandView(commandViewPayload{TitleLeft: "Chats", Kind: commandViewKindChats})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
+	require.Nil(t, cmd)
+	require.Zero(t, updated.(model).commandViewItemSelected)
+
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_1", Title: "One"}},
+	})
+	updated, cmd = runModel.Update(tea.MouseClickMsg{})
+	require.Nil(t, cmd)
+	require.Zero(t, updated.(model).commandViewItemSelected)
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'x'}))
+	require.Nil(t, cmd)
+	require.Zero(t, updated.(model).commandViewItemSelected)
+
+	updated, cmd = runModel.updateChatsCommandView(statusExpiredMsg{})
+	require.Nil(t, cmd)
+	require.Zero(t, updated.(model).commandViewItemSelected)
+}
+
+func TestModel_UpdateChatsCommandSwitchesSelectedSession(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	client := &fakeTUIChatClient{
+		timeline: rpcclient.SessionTimeline{
+			SessionID: "ses_other",
+			Title:     "Other Chat",
+		},
+	}
+	runModel := newModelWithClient(client)
+	runModel.applyAction(setSessionAction{ID: "ses_current", Title: "Current Chat"})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats: []storage.Session{
+			{ID: "ses_current", Title: "Current Chat", UpdatedAt: now},
+			{ID: "ses_other", Title: "Other Chat", UpdatedAt: now},
+		},
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.False(t, runModel.isCommandViewVisible())
+	require.True(t, runModel.chatSwitching)
+	require.Equal(t, "switching chat", runModel.status.Text())
+
+	blocked, blockedCmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'x'}))
+	require.Nil(t, blockedCmd)
+	blockedModel := blocked.(model)
+	require.Empty(t, blockedModel.input.Value())
+	require.True(t, blockedModel.chatSwitching)
+
+	msg := chatSwitchTimelineMessageFromBatch(t, cmd)
+	require.Equal(t, "ses_other", client.usedSessionID)
+	require.Equal(t, "ses_other", client.timelineSessionID)
+	require.Equal(t, "ses_other", msg.Timeline.SessionID)
+
+	updated, cmd = runModel.Update(msg)
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.False(t, runModel.chatSwitching)
+	require.Equal(t, "ses_other", runModel.getCurrentSessionID())
+	require.Equal(t, "Other Chat", runModel.sessionTitle)
+	_, ok := cmd().(sessionContextLoadedMsg)
+	require.True(t, ok)
+	require.Equal(t, "ses_other", client.contextSessionID)
+}
+
+func TestModel_ChatSwitchingDisablesComposerUpdatePaths(t *testing.T) {
+	runModel := newModel()
+	runModel.chatSwitching = true
+
+	updated, cmd := runModel.handlePasteMsg(tea.PasteMsg{Content: "hello"})
+	require.Nil(t, cmd)
+	require.Empty(t, updated.(model).input.Value())
+
+	updated, cmd = runModel.updateInputComposer(tea.KeyPressMsg(tea.Key{Code: 'x'}))
+	require.Nil(t, cmd)
+	require.Empty(t, updated.(model).input.Value())
+
+	updated, cmd = runModel.updateBubbleTeaChildren(tea.KeyPressMsg(tea.Key{Code: 'x'}))
+	require.Nil(t, cmd)
+	require.Empty(t, updated.(model).input.Value())
+}
+
+func TestModel_UpdateChatsCommandSwitchSelectionFailures(t *testing.T) {
+	runModel := newModel()
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{Title: "Missing ID"}},
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.isCommandViewVisible())
+	require.Equal(t, "chat switch unavailable", runModel.status.Text())
+
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_other", Title: "Other"}},
+	})
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.isCommandViewVisible())
+	require.Equal(t, "chat switch unavailable", runModel.status.Text())
+}
+
+func TestModel_UpdateChatsCommandCancelsActiveResponseBeforeSwitching(t *testing.T) {
+	cancelled := atomic.Bool{}
+	runModel := newModelWithClient(&fakeTUIChatClient{
+		timeline: rpcclient.SessionTimeline{SessionID: "ses_other"},
+	})
+	runModel.responseCancel = func() { cancelled.Store(true) }
+	runModel.responding = true
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_other", Title: "Other"}},
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.True(t, cancelled.Load())
+	require.False(t, runModel.responding)
+	require.True(t, runModel.chatSwitching)
+}
+
+func TestModel_UpdateChatsCommandSelectingCurrentSessionClosesView(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	client := &fakeTUIChatClient{}
+	runModel := newModelWithClient(client)
+	runModel.applyAction(setSessionAction{ID: "ses_current", Title: "Current Chat"})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats: []storage.Session{
+			{ID: "ses_current", Title: "Current Chat", UpdatedAt: now},
+			{ID: "ses_other", Title: "Other Chat", UpdatedAt: now},
+		},
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.Nil(t, cmd)
+	runModel = updated.(model)
+
+	require.False(t, runModel.isCommandViewVisible())
+	require.Zero(t, client.useSessionCalls)
+	require.Zero(t, client.timelineCalls)
+}
+
+func TestSwitchChatSessionCmdHandlesFailures(t *testing.T) {
+	require.Nil(t, switchChatSessionCmd(context.Background(), nil, "ses_1"))
+
+	msg := switchChatSessionCmd(nil, &fakeTUIChatClient{}, " ")()
+	failed, ok := msg.(sessionTimelineLoadFailedMsg)
+	require.True(t, ok)
+	require.EqualError(t, failed.Err, "chat id is required")
+
+	expected := errors.New("use failed")
+	useClient := &fakeTUIChatClient{useSessionErr: expected}
+	msg = switchChatSessionCmd(context.Background(), useClient, "ses_1")()
+	failed, ok = msg.(sessionTimelineLoadFailedMsg)
+	require.True(t, ok)
+	require.ErrorIs(t, failed.Err, expected)
+	require.Equal(t, 1, useClient.useSessionCalls)
+	require.Equal(t, "ses_1", useClient.usedSessionID)
+	require.Zero(t, useClient.timelineCalls)
+
+	expected = errors.New("timeline failed")
+	timelineClient := &fakeTUIChatClient{timelineErr: expected}
+	msg = switchChatSessionCmd(context.Background(), timelineClient, "ses_1")()
+	failed, ok = msg.(sessionTimelineLoadFailedMsg)
+	require.True(t, ok)
+	require.ErrorIs(t, failed.Err, expected)
+	require.Equal(t, 1, timelineClient.useSessionCalls)
+	require.Equal(t, "ses_1", timelineClient.usedSessionID)
+	require.Equal(t, 1, timelineClient.timelineCalls)
+	require.Equal(t, "ses_1", timelineClient.timelineSessionID)
+}
+
+func TestRenderSelectedChatsCommandRowFillsWidth(t *testing.T) {
+	source := " Current Chat              1m ago "
+	row := renderSelectedChatsCommandRow(source, 34)
+
+	require.Equal(t, 34, lipgloss.Width(row))
+	require.Contains(t, row, "48;")
+	require.Contains(t, stripANSI(row), " Current Chat              1m ago ")
+
+	fallback := renderSelectedChatsCommandRowWithForeground("Current Chat", 16, " ")
+	explicit := renderSelectedChatsCommandRowWithForeground(
+		"Current Chat",
+		16,
+		defaultTUITheme.JumpToBottomForeground,
+	)
+	require.Equal(t, explicit, fallback)
+}
+
+func TestRenderChatsCommandViewContentMutesUnselectedRowsAndUsesSelectedForeground(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	originalNow := chatsNow
+	chatsNow = func() time.Time { return now }
+	t.Cleanup(func() {
+		chatsNow = originalNow
+	})
+
+	runModel := newModel()
+	runModel.applyAction(setSessionAction{ID: "ses_current", Title: "Current Chat"})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats: []storage.Session{
+			{ID: "ses_current", Title: "Current Chat", UpdatedAt: now},
+			{ID: "ses_other", Title: "Other Chat", UpdatedAt: now},
+		},
+	})
+
+	rendered := runModel.renderChatsCommandViewContent(commandViewContent{Width: 34, Height: 2})
+	plain := stripANSI(rendered)
+	currentRow := renderChatsCommandRow(
+		storage.Session{ID: "ses_current", Title: "Current Chat", UpdatedAt: now},
+		runModel.getCurrentSessionID(),
+		34,
+		now,
+	)
+	otherRow := renderChatsCommandRow(
+		storage.Session{ID: "ses_other", Title: "Other Chat", UpdatedAt: now},
+		runModel.getCurrentSessionID(),
+		34,
+		now,
+	)
+	expectedSelectedCurrent := renderSelectedChatsCommandRowWithForeground(
+		currentRow,
+		34,
+		defaultTUITheme.JumpToBottomForeground,
+	)
+	expectedMutedOther := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		Render(otherRow)
+
+	require.Equal(t, defaultTUITheme.JumpToBottomForeground, getChatsCommandRowForeground(false))
+	require.Equal(t, defaultTUITheme.JumpToBottomForeground, getChatsCommandRowForeground(true))
+	require.Contains(t, rendered, expectedSelectedCurrent)
+	require.Contains(t, rendered, expectedMutedOther)
+	require.Contains(t, plain, "Current Chat")
+	require.Contains(t, plain, "Other Chat")
+	require.NotContains(t, plain, "current Current Chat")
+
+	runModel.commandViewItemSelected = 1
+	rendered = runModel.renderChatsCommandViewContent(commandViewContent{Width: 34, Height: 2})
+	expectedSelectedOther := renderSelectedChatsCommandRowWithForeground(
+		otherRow,
+		34,
+		defaultTUITheme.JumpToBottomForeground,
+	)
+
+	require.Contains(t, rendered, expectedSelectedOther)
+}
+
+func TestModel_UpdateChatsCommandHandlesErrors(t *testing.T) {
+	expected := errors.New("list failed")
+	runModel := newModelWithClient(&fakeTUIChatClient{listSessionsErr: expected})
+	runModel.input.SetValue("/chats")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	msg := chatsLoadedMessageFromBatch(t, cmd)
+	updated, cmd = runModel.Update(msg)
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.False(t, runModel.isCommandViewVisible())
+	require.Equal(t, "chats unavailable", runModel.status.Text())
+}
+
+func TestModel_UpdateChatsCommandRequiresSessionClient(t *testing.T) {
+	runModel := newModel()
+	runModel.input.SetValue("/chats")
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.False(t, runModel.isCommandViewVisible())
+	require.Equal(t, "chats unavailable", runModel.status.Text())
+}
+
+func TestRenderChatsCommandContentAlignsActivityColumn(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	content := renderChatsCommandContent([]storage.Session{
+		{ID: "ses_current", Title: "Current Chat", UpdatedAt: now.Add(-time.Minute)},
+		{ID: "ses_old", Title: "Older Chat", UpdatedAt: now.Add(-48 * time.Hour)},
+	}, "ses_current", 34, now)
+
+	lines := strings.Split(content, "\n")
+	require.Len(t, lines, 2)
+	require.Equal(t, 34, lipgloss.Width(lines[0]))
+	require.Equal(t, 34, lipgloss.Width(lines[1]))
+	require.True(t, strings.HasPrefix(lines[0], " Current Chat"))
+	require.True(t, strings.HasSuffix(lines[0], "1m ago "))
+	require.True(t, strings.HasPrefix(lines[1], " Older Chat"))
+	require.True(t, strings.HasSuffix(lines[1], "2d ago "))
+}
+
+func TestRenderChatsCommandContentHandlesEmptyAndNarrowRows(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+
+	require.Equal(t, "No chats yet.", renderChatsCommandContent(nil, "", 34, now))
+	require.Empty(t, renderChatsCommandRow(storage.Session{Title: "Very long title", UpdatedAt: now}, "", 1, now))
+	require.Equal(t, "Very long title", truncateChatsCommandRow("Very long title", 0))
+	require.Equal(t, "Very…", truncateChatsCommandRow("Very long title", 5))
+}
+
+func TestRenderChatsCommandViewContentHandlesEmptyAndCurrentUnselected(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	originalNow := chatsNow
+	chatsNow = func() time.Time { return now }
+	t.Cleanup(func() {
+		chatsNow = originalNow
+	})
+
+	runModel := newModel()
+	require.Equal(t, "No chats yet.", runModel.renderChatsCommandViewContent(commandViewContent{}))
+
+	runModel.applyAction(setSessionAction{ID: "ses_current", Title: "Current Chat"})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats: []storage.Session{
+			{ID: "ses_current", Title: "Current Chat", UpdatedAt: now},
+			{ID: "ses_other", Title: "Other Chat", UpdatedAt: now},
+		},
+	})
+	runModel.commandViewItemSelected = 1
+
+	content := stripANSI(runModel.renderChatsCommandViewContent(commandViewContent{Width: 34, Height: 3}))
+
+	require.Contains(t, content, "Current Chat")
+	require.Contains(t, content, "Other Chat")
+}
+
+func TestRenderChatsCommandContentMovesCurrentSessionToTop(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	content := renderChatsCommandContent([]storage.Session{
+		{ID: "ses_old", Title: "Older Chat", UpdatedAt: now.Add(-48 * time.Hour)},
+		{ID: "ses_current", Title: "Current Chat", UpdatedAt: now.Add(-time.Minute)},
+		{ID: "ses_new", Title: "Newer Chat", UpdatedAt: now},
+	}, "ses_current", 34, now)
+
+	lines := strings.Split(content, "\n")
+
+	require.Len(t, lines, 3)
+	require.Contains(t, lines[0], "Current Chat")
+	require.Contains(t, lines[1], "Older Chat")
+	require.Contains(t, lines[2], "Newer Chat")
+	require.NotContains(t, content, "current Current Chat")
+}
+
+func TestOrderChatsCommandSessionsReturnsCopyForKnownEdgeCases(t *testing.T) {
+	sessions := []storage.Session{
+		{ID: "ses_current", Title: "Current"},
+		{ID: "ses_other", Title: "Other"},
+	}
+
+	blank := orderChatsCommandSessions(sessions, "")
+	missing := orderChatsCommandSessions(sessions, "missing")
+	first := orderChatsCommandSessions(sessions, "ses_current")
+
+	blank[0].Title = "mutated"
+	require.Equal(t, "Current", sessions[0].Title)
+	require.Equal(t, []storage.Session{{ID: "ses_current", Title: "Current"}, {ID: "ses_other", Title: "Other"}}, missing)
+	require.Equal(t, []storage.Session{{ID: "ses_current", Title: "Current"}, {ID: "ses_other", Title: "Other"}}, first)
+}
+
+func TestGetChatsCommandViewOffsetForSelectionHandlesAboveViewport(t *testing.T) {
+	require.Equal(t, 1, getChatsCommandViewOffsetForSelection(1, 3, 2, 6))
+}
+
+func TestFormatChatSessionActivity(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+
+	require.Equal(t, "unknown", formatChatSessionActivity(time.Time{}, now))
+	require.Equal(t, "just now", formatChatSessionActivity(now.Add(-30*time.Second), now))
+	require.Equal(t, "5m ago", formatChatSessionActivity(now.Add(-5*time.Minute), now))
+	require.Equal(t, "3h ago", formatChatSessionActivity(now.Add(-3*time.Hour), now))
+	require.Equal(t, "4d ago", formatChatSessionActivity(now.Add(-4*24*time.Hour), now))
+	require.Equal(t, "2mo ago", formatChatSessionActivity(now.Add(-65*24*time.Hour), now))
+	require.Equal(t, "1y ago", formatChatSessionActivity(now.Add(-400*24*time.Hour), now))
+	require.Equal(t, "just now", formatChatSessionActivity(now.Add(time.Hour), now))
+	require.Equal(t, "just now", formatChatSessionActivity(chatsNow(), time.Time{}))
+}
+
+func chatsLoadedMessageFromBatch(t *testing.T, cmd tea.Cmd) chatsLoadedMsg {
+	t.Helper()
+
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+	require.Len(t, batch, 2)
+
+	msg, ok := batch[1]().(chatsLoadedMsg)
+	require.True(t, ok)
+
+	return msg
+}
+
+func chatSwitchTimelineMessageFromBatch(t *testing.T, cmd tea.Cmd) sessionTimelineLoadedMsg {
+	t.Helper()
+
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+	require.Len(t, batch, 2)
+
+	msg, ok := batch[1]().(sessionTimelineLoadedMsg)
+	require.True(t, ok)
+
+	return msg
+}

@@ -71,6 +71,7 @@ func TestModel_UpdateSubmitsSelectedCommandMenuItem(t *testing.T) {
 	runModel.updateCommandMenuForInput("/")
 	require.True(t, runModel.scrollCommandMenu(1))
 	require.True(t, runModel.scrollCommandMenu(1))
+	require.True(t, runModel.scrollCommandMenu(1))
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 

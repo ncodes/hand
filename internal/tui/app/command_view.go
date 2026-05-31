@@ -7,12 +7,16 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
+	storage "github.com/wandxy/hand/internal/state/core"
 )
 
 const (
 	commandViewMinHeight = 6
 	commandViewMaxHeight = 16
 	commandViewTitleGap  = 1
+
+	commandViewKindChats = "chats"
 )
 
 type commandViewPayload struct {
@@ -23,6 +27,9 @@ type commandViewPayload struct {
 	AccentColor     string
 	TitleRightColor string
 	Content         string
+	Height          int
+	Kind            string
+	Chats           []storage.Session
 }
 
 type commandViewSelectionAutoScrollTickMsg struct{}
@@ -45,6 +52,10 @@ func (m model) hideCommandView() model {
 
 func (m model) getCommandViewHeight() int {
 	available := max(m.height-1, 1)
+	if m.commandView.Height > 0 {
+		return min(m.commandView.Height, available)
+	}
+
 	preferred := max(m.height/3, commandViewMinHeight)
 
 	return min(min(preferred, commandViewMaxHeight), available)
@@ -92,6 +103,20 @@ func (m model) getCommandViewFrame() commandViewFrame {
 		rightColor = defaultTUITheme.MutedText
 	}
 
+	content := renderCommandViewContent(commandViewContent{
+		Text:   m.renderCommandViewContentText(),
+		Width:  contentWidth,
+		Height: contentHeight,
+		Offset: m.commandViewOffset,
+	})
+	if m.isChatsCommandView() {
+		content = m.renderChatsCommandViewContent(commandViewContent{
+			Width:  contentWidth,
+			Height: contentHeight,
+			Offset: m.commandViewOffset,
+		})
+	}
+
 	return commandViewFrame{
 		Width:       width,
 		Height:      height,
@@ -107,12 +132,7 @@ func (m model) getCommandViewFrame() commandViewFrame {
 			Muted:      defaultTUITheme.MutedText,
 			RightColor: rightColor,
 		}),
-		Content: renderCommandViewContent(commandViewContent{
-			Text:   m.renderCommandViewContentText(),
-			Width:  contentWidth,
-			Height: contentHeight,
-			Offset: m.commandViewOffset,
-		}),
+		Content: content,
 	}
 }
 
@@ -251,6 +271,9 @@ func defaultCommandViewTitle(value string) string {
 func (m *model) updateCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !m.isCommandViewVisible() {
 		return *m, nil
+	}
+	if m.isChatsCommandView() {
+		return m.updateChatsCommandView(msg)
 	}
 
 	offset := m.commandViewOffset
@@ -510,6 +533,10 @@ func (m model) commandViewSelectionScrollDirection(mouse tea.Mouse) int {
 }
 
 func (m model) getCommandViewMaxYOffset() int {
+	if m.isChatsCommandView() {
+		return max(len(m.commandView.Chats)-m.getCommandViewContentHeight(), 0)
+	}
+
 	view := m.newCommandViewContentViewport(commandViewContent{
 		Text:   m.renderCommandViewContentText(),
 		Width:  m.getCommandViewContentWidth(),

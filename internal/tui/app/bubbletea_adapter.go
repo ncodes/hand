@@ -78,9 +78,11 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		cmd := m.completeResponse(msg)
 		return m, cmd, true
 	case sessionTimelineLoadedMsg:
+		m.chatSwitching = false
 		next, cmd := m.handleAppEvent(hydrateTimelineEvent{Timeline: msg.Timeline})
 		return next, cmd, true
 	case sessionTimelineLoadFailedMsg:
+		m.chatSwitching = false
 		cmd := m.setStatus("session timeline unavailable")
 		return m, cmd, true
 	case sessionTitleLoadedMsg:
@@ -101,6 +103,9 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		return m, cmd, true
 	case newChatCompletedMsg:
 		cmd := m.completeNewChat(msg)
+		return m, cmd, true
+	case chatsLoadedMsg:
+		cmd := m.completeChatsCommand(msg)
 		return m, cmd, true
 	case toolInvocationStartedMsg:
 		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
@@ -210,7 +215,7 @@ func (m model) handleResponseEvent(msg responseEventMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) handlePasteMsg(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
-	if m.manualCompactionActive {
+	if m.manualCompactionActive || m.chatSwitching {
 		return m, nil
 	}
 
@@ -240,6 +245,9 @@ func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool)
 		return next, cmd, true
 	}
 	if m.manualCompactionActive {
+		return m, nil, true
+	}
+	if m.chatSwitching {
 		return m, nil, true
 	}
 
@@ -294,6 +302,10 @@ func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool)
 }
 
 func (m model) updateBubbleTeaChildren(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.chatSwitching {
+		return m, nil
+	}
+
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
@@ -307,6 +319,10 @@ func (m model) updateBubbleTeaChildren(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) updateInputComposer(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.chatSwitching {
+		return m, nil
+	}
+
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
 	m.updateCommandMenuForInput(m.input.Value())

@@ -194,6 +194,7 @@ func TestCommandMenu_SubmitsSelectedCommandForPrefix(t *testing.T) {
 	runModel.input.SetValue("/c")
 	runModel.updateCommandMenuForInput("/c")
 	require.True(t, runModel.scrollCommandMenu(1))
+	require.True(t, runModel.scrollCommandMenu(1))
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 

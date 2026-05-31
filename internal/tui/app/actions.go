@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	storage "github.com/wandxy/hand/internal/state/core"
 	tuistate "github.com/wandxy/hand/internal/tui/state"
 	tuitranscript "github.com/wandxy/hand/internal/tui/transcript"
 )
@@ -57,6 +58,9 @@ type showCommandViewAction struct {
 	AccentColor     string
 	TitleRightColor string
 	Content         string
+	Height          int
+	Kind            string
+	Chats           []storage.Session
 }
 
 type hideCommandViewAction struct{}
@@ -167,6 +171,7 @@ func (action showCommandViewAction) apply(state *tuiState) {
 
 	state.commandView = commandViewState{
 		Visible:         true,
+		Kind:            strings.TrimSpace(action.Kind),
 		TitleIcon:       strings.TrimSpace(action.TitleIcon),
 		TitleLeft:       strings.TrimSpace(action.TitleLeft),
 		TitleSubtext:    strings.TrimSpace(action.TitleSubtext),
@@ -174,8 +179,11 @@ func (action showCommandViewAction) apply(state *tuiState) {
 		AccentColor:     strings.TrimSpace(action.AccentColor),
 		TitleRightColor: strings.TrimSpace(action.TitleRightColor),
 		Content:         strings.TrimSpace(action.Content),
+		Height:          max(action.Height, 0),
+		Chats:           append([]storage.Session(nil), action.Chats...),
 	}
 	state.commandViewOffset = 0
+	state.commandViewItemSelected = 0
 	state.commandViewSelection = commandViewSelection{}
 }
 
@@ -186,6 +194,7 @@ func (hideCommandViewAction) apply(state *tuiState) {
 
 	state.commandView = commandViewState{}
 	state.commandViewOffset = 0
+	state.commandViewItemSelected = 0
 	state.commandViewSelection = commandViewSelection{}
 }
 

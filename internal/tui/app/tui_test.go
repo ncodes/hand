@@ -1417,9 +1417,9 @@ func TestModel_UpdateHandlesHelpCommand(t *testing.T) {
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, []string{"Commands: /changelog, /clear, /compact, /copy, /help, /new-chat"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"Commands: /changelog, /chats, /clear, /compact, /copy, /help, /new-chat"}, transcriptCellPlainTexts(runModel.messages))
 	require.Empty(t, runModel.input.Value())
-	require.Contains(t, stripANSI(runModel.transcript.View()), "Commands: /changelog, /clear, /compact, /copy, /help, /new-chat")
+	require.Contains(t, stripANSI(runModel.transcript.View()), "Commands: /changelog, /chats, /clear, /compact, /copy, /help, /new-chat")
 }
 
 func TestModel_UpdateSubmitsDefaultCommandMenuItemForBareSlash(t *testing.T) {
@@ -1503,6 +1503,24 @@ func TestCommandViewFrame_UsesDefaultTitleAndMutedSubtitleColors(t *testing.T) {
 	require.Equal(t, defaultTUITheme.NoticeForeground, frame.AccentColor)
 	require.Contains(t, frame.Title, title)
 	require.Contains(t, frame.Title, mutedSubtitle)
+}
+
+func TestCommandViewFrame_UsesPayloadHeight(t *testing.T) {
+	runModel := newModel()
+	runModel.height = 30
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Content:   "latest update",
+		Height:    10,
+	})
+
+	frame := runModel.getCommandViewFrame()
+
+	require.Equal(t, 10, runModel.getCommandViewHeight())
+	require.Equal(t, 10, frame.Height)
+
+	runModel.height = 4
+	require.Equal(t, 3, runModel.getCommandViewHeight())
 }
 
 func TestCommandViewFrame_AddsGapBetweenTitleAndContent(t *testing.T) {
@@ -3265,7 +3283,7 @@ func TestModel_UpdateKeepsCommandsLocalDuringActiveResponse(t *testing.T) {
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.True(t, runModel.responding)
-	require.Equal(t, []string{"Commands: /changelog, /clear, /compact, /copy, /help, /new-chat"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{"Commands: /changelog, /chats, /clear, /compact, /copy, /help, /new-chat"}, transcriptCellPlainTexts(runModel.messages))
 	require.Empty(t, runModel.input.Value())
 }
 

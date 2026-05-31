@@ -13,6 +13,7 @@ type slashCommandDefinition struct {
 
 var slashCommandDefinitions = []slashCommandDefinition{
 	{Name: "changelog", Description: "Show the latest changelog entry"},
+	{Name: "chats", Description: "Show recent chat sessions"},
 	{Name: "clear", Description: "Clear the transcript"},
 	{Name: "compact", Description: "Compact the current session"},
 	{Name: "copy", Description: "Copy the transcript"},
@@ -25,6 +26,8 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 	switch input.Name {
 	case "changelog":
 		cmd = m.showChangelogCommand()
+	case "chats":
+		cmd = m.startChatsCommand()
 	case "clear":
 		m.applyAction(clearTranscriptAction{})
 		cmd = m.setStatus("transcript cleared")

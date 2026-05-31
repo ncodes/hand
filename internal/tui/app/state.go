@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/wandxy/hand/internal/constants"
+	storage "github.com/wandxy/hand/internal/state/core"
 )
 
 type tuiState struct {
@@ -46,12 +47,14 @@ type tuiState struct {
 	thinkingComposerEnabled    bool
 	manualCompactionActive     bool
 	manualCompactionIndex      int
+	chatSwitching              bool
 	commandMenuOffset          int
 	commandMenuSelected        int
 	commandMenuPrefix          string
 	commandView                commandViewState
 	commandViewOffset          int
 	commandViewSelection       commandViewSelection
+	commandViewItemSelected    int
 	exitAt                     time.Time
 	allowShell                 bool
 	selection                  transcriptSelection
@@ -59,6 +62,7 @@ type tuiState struct {
 
 type commandViewState struct {
 	Visible         bool
+	Kind            string
 	TitleIcon       string
 	TitleLeft       string
 	TitleSubtext    string
@@ -66,6 +70,8 @@ type commandViewState struct {
 	AccentColor     string
 	TitleRightColor string
 	Content         string
+	Height          int
+	Chats           []storage.Session
 }
 
 type commandViewSelection struct {
