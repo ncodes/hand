@@ -48,7 +48,7 @@ func TestModel_UpdateHandlesChatsCommand(t *testing.T) {
 
 	require.True(t, runModel.isCommandViewVisible())
 	require.Equal(t, "Chats", runModel.commandView.TitleLeft)
-	require.Equal(t, "esc to close", runModel.commandView.TitleRight)
+	require.Equal(t, "enter to open · d to archive · esc to close", runModel.commandView.TitleRight)
 	require.Equal(t, commandViewKindChats, runModel.commandView.Kind)
 	require.Zero(t, runModel.commandView.Height)
 	require.Len(t, runModel.commandView.Chats, 3)
@@ -305,6 +305,264 @@ func TestModel_UpdateChatsCommandSwitchSelectionFailures(t *testing.T) {
 	runModel = updated.(model)
 	require.False(t, runModel.isCommandViewVisible())
 	require.Equal(t, "chat switch unavailable", runModel.status.Text())
+}
+
+func TestModel_UpdateChatsCommandConfirmsAndCancelsArchive(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	runModel := newModelWithClient(&fakeTUIChatClient{})
+	runModel.applyAction(setSessionAction{ID: "ses_current", Title: "Current Chat"})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats: []storage.Session{
+			{ID: "ses_current", Title: "Current Chat", UpdatedAt: now},
+			{ID: "ses_other", Title: "Other Chat", UpdatedAt: now},
+		},
+	})
+	runModel.commandViewItemSelected = 1
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'd'}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.True(t, runModel.chatsArchiveConfirm)
+	require.Equal(t, "enter to archive · esc to cancel", runModel.commandView.TitleRight)
+	require.Equal(t, "press enter to archive chat", runModel.status.Text())
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.True(t, runModel.isCommandViewVisible())
+	require.False(t, runModel.chatsArchiveConfirm)
+	require.Equal(t, "enter to open · d to archive · esc to close", runModel.commandView.TitleRight)
+	require.Equal(t, "chat archive cancelled", runModel.status.Text())
+}
+
+func TestModel_CommandViewActionsClearArchiveConfirmation(t *testing.T) {
+	runModel := newModel()
+	runModel.chatsArchiveConfirm = true
+
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_other", Title: "Other"}},
+	})
+
+	require.False(t, runModel.chatsArchiveConfirm)
+
+	runModel.chatsArchiveConfirm = true
+	runModel = runModel.hideCommandView()
+
+	require.False(t, runModel.chatsArchiveConfirm)
+}
+
+func TestModel_UpdateChatsCommandArchivesSelectedSession(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	client := &fakeTUIChatClient{}
+	runModel := newModelWithClient(client)
+	runModel.applyAction(setSessionAction{ID: "ses_current", Title: "Current Chat"})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats: []storage.Session{
+			{ID: "ses_current", Title: "Current Chat", UpdatedAt: now},
+			{ID: "ses_other", Title: "Other Chat", UpdatedAt: now},
+			{ID: "ses_last", Title: "Last Chat", UpdatedAt: now},
+		},
+	})
+	runModel.commandViewItemSelected = 1
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'd'}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.False(t, runModel.chatsArchiveConfirm)
+	require.Equal(t, "archiving chat", runModel.status.Text())
+
+	msg := chatArchivedMessageFromBatch(t, cmd)
+	require.Equal(t, "ses_other", msg.ID)
+	require.NoError(t, msg.Err)
+	require.Equal(t, "ses_other", client.archivedSessionID)
+	require.Equal(t, 1, client.archiveSessionCalls)
+
+	updated, cmd = runModel.Update(msg)
+	runModel = updated.(model)
+
+	require.Equal(t, "chat archived", runModel.status.Text())
+	require.Len(t, runModel.commandView.Chats, 2)
+	require.Equal(t, "ses_current", runModel.commandView.Chats[0].ID)
+	require.Equal(t, "ses_last", runModel.commandView.Chats[1].ID)
+	require.Equal(t, 1, runModel.commandViewItemSelected)
+}
+
+func TestModel_UpdateChatsCommandKeepsSessionOnArchiveFailure(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	expected := errors.New("archive failed")
+	client := &fakeTUIChatClient{archiveSessionErr: expected}
+	runModel := newModelWithClient(client)
+	runModel.applyAction(setSessionAction{ID: "ses_current", Title: "Current Chat"})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats: []storage.Session{
+			{ID: "ses_current", Title: "Current Chat", UpdatedAt: now},
+			{ID: "ses_other", Title: "Other Chat", UpdatedAt: now},
+		},
+	})
+	runModel.commandViewItemSelected = 1
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'd'}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	msg := chatArchivedMessageFromBatch(t, cmd)
+	require.ErrorIs(t, msg.Err, expected)
+	require.Equal(t, "ses_other", client.archivedSessionID)
+	require.Equal(t, 1, client.archiveSessionCalls)
+
+	updated, cmd = runModel.Update(msg)
+	runModel = updated.(model)
+
+	require.Equal(t, "chat archive unavailable", runModel.status.Text())
+	require.Len(t, runModel.commandView.Chats, 2)
+	require.Equal(t, "ses_other", runModel.commandView.Chats[1].ID)
+	require.Equal(t, 1, runModel.commandViewItemSelected)
+}
+
+func TestModel_UpdateChatsCommandBlocksArchivingCurrentSession(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	client := &fakeTUIChatClient{}
+	runModel := newModelWithClient(client)
+	runModel.applyAction(setSessionAction{ID: "ses_current", Title: "Current Chat"})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_current", Title: "Current Chat", UpdatedAt: now}},
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'd'}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.False(t, runModel.chatsArchiveConfirm)
+	require.Equal(t, "current chat cannot be archived", runModel.status.Text())
+	require.Zero(t, client.archiveSessionCalls)
+
+	runModel.chatsArchiveConfirm = true
+	runModel.commandView.TitleRight = getChatsCommandTitleRight(true)
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.False(t, runModel.chatsArchiveConfirm)
+	require.Equal(t, "enter to open · d to archive · esc to close", runModel.commandView.TitleRight)
+	require.Equal(t, "current chat cannot be archived", runModel.status.Text())
+	require.Zero(t, client.archiveSessionCalls)
+}
+
+func TestModel_UpdateChatsCommandHandlesArchiveValidationFailures(t *testing.T) {
+	runModel := newModel()
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{Title: "Missing ID"}},
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'd'}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.chatsArchiveConfirm)
+	require.Equal(t, "chat archive unavailable", runModel.status.Text())
+
+	runModel.chatsArchiveConfirm = true
+	runModel.commandView.TitleRight = getChatsCommandTitleRight(true)
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.chatsArchiveConfirm)
+	require.Equal(t, "enter to open · d to archive · esc to close", runModel.commandView.TitleRight)
+	require.Equal(t, "chat archive unavailable", runModel.status.Text())
+
+	runModel = newModel()
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_other", Title: "Other"}},
+	})
+	runModel.chatsArchiveConfirm = true
+	runModel.commandView.TitleRight = getChatsCommandTitleRight(true)
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.chatsArchiveConfirm)
+	require.Equal(t, "enter to open · d to archive · esc to close", runModel.commandView.TitleRight)
+	require.Equal(t, "chat archive unavailable", runModel.status.Text())
+}
+
+func TestModel_UpdateChatsCommandRemovesLastArchivedSession(t *testing.T) {
+	runModel := newModelWithClient(&fakeTUIChatClient{})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_other", Title: "Other"}},
+	})
+	runModel.commandViewItemSelected = 0
+	runModel.commandViewOffset = 4
+
+	updated, cmd := runModel.Update(chatArchivedMsg{ID: "ses_other"})
+	runModel = updated.(model)
+
+	require.Equal(t, "chat archived", runModel.status.Text())
+	require.Empty(t, runModel.commandView.Chats)
+	require.Zero(t, runModel.commandViewItemSelected)
+	require.Zero(t, runModel.commandViewOffset)
+	_ = cmd
+}
+
+func TestModel_UpdateChatsCommandRejectsMalformedArchiveCompletion(t *testing.T) {
+	runModel := newModelWithClient(&fakeTUIChatClient{})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_other", Title: "Other"}},
+	})
+
+	updated, cmd := runModel.Update(chatArchivedMsg{ID: " "})
+	runModel = updated.(model)
+
+	require.Equal(t, "chat archive unavailable", runModel.status.Text())
+	require.Len(t, runModel.commandView.Chats, 1)
+	require.Equal(t, "ses_other", runModel.commandView.Chats[0].ID)
+	_ = cmd
+}
+
+func TestArchiveChatSessionCmdHandlesValidationAndNilClient(t *testing.T) {
+	require.Nil(t, archiveChatSessionCmd(context.Background(), nil, "ses_other"))
+
+	msg := archiveChatSessionCmd(context.Background(), &fakeTUIChatClient{}, " ")()
+	archived, ok := msg.(chatArchivedMsg)
+	require.True(t, ok)
+	require.EqualError(t, archived.Err, "chat id is required")
+	require.Empty(t, archived.ID)
+
+	client := &fakeTUIChatClient{}
+	msg = archiveChatSessionCmd(nil, client, " ses_other ")()
+	archived, ok = msg.(chatArchivedMsg)
+	require.True(t, ok)
+	require.NoError(t, archived.Err)
+	require.Equal(t, "ses_other", archived.ID)
+	require.Equal(t, "ses_other", client.archivedSessionID)
+	require.Equal(t, 1, client.archiveSessionCalls)
 }
 
 func TestModel_UpdateChatsCommandCancelsActiveResponseBeforeSwitching(t *testing.T) {
@@ -619,4 +877,22 @@ func chatSwitchTimelineMessageFromBatch(t *testing.T, cmd tea.Cmd) sessionTimeli
 	require.True(t, ok)
 
 	return msg
+}
+
+func chatArchivedMessageFromBatch(t *testing.T, cmd tea.Cmd) chatArchivedMsg {
+	t.Helper()
+
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+	require.Len(t, batch, 2)
+
+	for _, batchCmd := range batch {
+		msg, ok := batchCmd().(chatArchivedMsg)
+		if ok {
+			return msg
+		}
+	}
+
+	require.Fail(t, "archive completion message not found")
+	return chatArchivedMsg{}
 }

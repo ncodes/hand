@@ -55,6 +55,7 @@ type tuiState struct {
 	commandViewOffset          int
 	commandViewSelection       commandViewSelection
 	commandViewItemSelected    int
+	chatsArchiveConfirm        bool
 	exitAt                     time.Time
 	allowShell                 bool
 	selection                  transcriptSelection

@@ -300,6 +300,7 @@ func TestNewManager_ValidationAndNilManagerErrors(t *testing.T) {
 
 	require.EqualError(t, manager.UseSession(context.Background(), storage.DefaultSessionID), "state manager is required")
 	require.EqualError(t, manager.DeleteSession(context.Background(), storage.DefaultSessionID), "state manager is required")
+	require.EqualError(t, manager.ArchiveSession(context.Background(), testSessionA), "state manager is required")
 
 	current, err := manager.CurrentSession(context.Background())
 	require.EqualError(t, err, "state manager is required")
@@ -610,6 +611,40 @@ func TestManager_DeleteSessionKeepsArchives(t *testing.T) {
 	require.Equal(t, storage.DefaultSessionID, current)
 }
 
+func TestManager_ArchiveSessionMovesActiveSessionToArchive(t *testing.T) {
+	now := time.Date(2026, 3, 30, 14, 0, 0, 0, time.UTC)
+	store := storagememory.NewStore()
+	manager, err := NewManager(store, time.Hour, 48*time.Hour)
+	require.NoError(t, err)
+	manager.now = func() time.Time { return now }
+
+	_, err = manager.CreateSession(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "archive this", CreatedAt: now.Add(-time.Minute)},
+	}))
+	require.NoError(t, manager.UseSession(context.Background(), testSessionA))
+
+	require.NoError(t, manager.ArchiveSession(context.Background(), testSessionA))
+
+	_, ok, err := store.Get(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.False(t, ok)
+	archives, err := store.ListArchives(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.Len(t, archives, 1)
+	require.Equal(t, testSessionA, archives[0].SourceSessionID)
+	require.Equal(t, now, archives[0].ArchivedAt)
+	require.Equal(t, now.Add(48*time.Hour), archives[0].ExpiresAt)
+	messages, err := store.GetMessages(context.Background(), archives[0].ID, storage.MessageQueryOptions{Archived: true})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "archive this", messages[0].Content)
+	current, err := manager.CurrentSession(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, storage.DefaultSessionID, current)
+}
+
 func TestManager_CurrentSessionUsesStoredSelection(t *testing.T) {
 	store := storagememory.NewStore()
 	manager, err := NewManager(store, time.Hour, 24*time.Hour)
@@ -890,6 +925,39 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 		require.EqualError(t, manager.DeleteSession(context.Background(), testSessionA), "delete failed")
 
 		require.EqualError(t, manager.DeleteSession(context.Background(), "project-a"), "session id must be a valid ses_ nanoid")
+	})
+
+	t.Run("archive session validation and errors", func(t *testing.T) {
+		manager, err := NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		require.EqualError(t, manager.ArchiveSession(context.Background(), ""), "session id is required")
+		require.EqualError(t, manager.ArchiveSession(context.Background(), storage.DefaultSessionID), "default session cannot be archived")
+		require.EqualError(t, manager.ArchiveSession(context.Background(), "project-a"), "session id must be a valid ses_ nanoid")
+
+		manager, err = NewManager(&storagemock.Store{
+			CreateArchiveFunc: func(context.Context, storage.ArchivedSession) error {
+				return errors.New("archive failed")
+			},
+		}, time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		require.EqualError(t, manager.ArchiveSession(context.Background(), testSessionA), "archive failed")
+	})
+
+	t.Run("archive session generate id error", func(t *testing.T) {
+		originalGenerateArchiveID := generateArchiveID
+		generateArchiveID = func() (string, error) {
+			return "", errors.New("generate archive id failed")
+		}
+		t.Cleanup(func() {
+			generateArchiveID = originalGenerateArchiveID
+		})
+
+		manager, err := NewManager(&storagemock.Store{}, time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		require.EqualError(t, manager.ArchiveSession(context.Background(), testSessionA), "generate archive id failed")
 	})
 
 	t.Run("current session error", func(t *testing.T) {

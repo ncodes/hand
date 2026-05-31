@@ -25,9 +25,18 @@ type sessionSwitcher interface {
 	Timeline(context.Context, rpcclient.SessionTimelineOptions) (rpcclient.SessionTimeline, error)
 }
 
+type sessionArchiver interface {
+	Archive(context.Context, string) error
+}
+
 type chatsLoadedMsg struct {
 	Sessions []storage.Session
 	Err      error
+}
+
+type chatArchivedMsg struct {
+	ID  string
+	Err error
 }
 
 func (m *model) startChatsCommand() tea.Cmd {
@@ -60,7 +69,7 @@ func (m *model) completeChatsCommand(msg chatsLoadedMsg) tea.Cmd {
 
 	m.showCommandView(commandViewPayload{
 		TitleLeft:       "Chats",
-		TitleRight:      "esc to close",
+		TitleRight:      getChatsCommandTitleRight(false),
 		TitleRightColor: defaultTUITheme.MutedText,
 		Kind:            commandViewKindChats,
 		Chats:           orderChatsCommandSessions(msg.Sessions, m.getCurrentSessionID()),
@@ -218,6 +227,10 @@ func truncateChatsCommandRow(row string, width int) string {
 }
 
 func (m *model) updateChatsCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if archived, ok := msg.(chatArchivedMsg); ok {
+		return m.completeArchiveChatSession(archived)
+	}
+
 	if len(m.commandView.Chats) == 0 {
 		return *m, nil
 	}
@@ -238,8 +251,20 @@ func (m *model) updateChatsCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			selection -= max(m.getCommandViewContentHeight(), 1)
 		case tea.KeyPgDown:
 			selection += max(m.getCommandViewContentHeight(), 1)
+		case tea.KeyEsc:
+			if m.chatsArchiveConfirm {
+				m.chatsArchiveConfirm = false
+				m.commandView.TitleRight = getChatsCommandTitleRight(false)
+				return *m, m.setStatus("chat archive cancelled")
+			}
+			return *m, nil
 		case tea.KeyEnter:
+			if m.chatsArchiveConfirm {
+				return m.archiveSelectedChatSession()
+			}
 			return m.selectChatsCommandSession()
+		case 'd':
+			return m.confirmArchiveSelectedChatSession()
 		default:
 			return *m, nil
 		}
@@ -263,9 +288,117 @@ func (m *model) updateChatsCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.getCommandViewContentHeight(),
 		len(m.commandView.Chats),
 	)
+	m.chatsArchiveConfirm = false
+	m.commandView.TitleRight = getChatsCommandTitleRight(false)
 	m.clearCommandViewSelection()
 
 	return *m, nil
+}
+
+func getChatsCommandTitleRight(confirm bool) string {
+	if confirm {
+		return "enter to archive · esc to cancel"
+	}
+
+	return "enter to open · d to archive · esc to close"
+}
+
+func (m *model) confirmArchiveSelectedChatSession() (tea.Model, tea.Cmd) {
+	session := m.commandView.Chats[m.commandViewItemSelected]
+	sessionID := strings.TrimSpace(session.ID)
+	if sessionID == "" {
+		return *m, m.setStatus("chat archive unavailable")
+	}
+	if isCurrentChatSession(session, m.getCurrentSessionID()) {
+		return *m, m.setStatus("current chat cannot be archived")
+	}
+
+	m.chatsArchiveConfirm = true
+	m.commandView.TitleRight = getChatsCommandTitleRight(true)
+	return *m, m.setStatus("press enter to archive chat")
+}
+
+func (m *model) archiveSelectedChatSession() (tea.Model, tea.Cmd) {
+	session := m.commandView.Chats[m.commandViewItemSelected]
+	sessionID := strings.TrimSpace(session.ID)
+	if sessionID == "" {
+		m.chatsArchiveConfirm = false
+		m.commandView.TitleRight = getChatsCommandTitleRight(false)
+		return *m, m.setStatus("chat archive unavailable")
+	}
+	if isCurrentChatSession(session, m.getCurrentSessionID()) {
+		m.chatsArchiveConfirm = false
+		m.commandView.TitleRight = getChatsCommandTitleRight(false)
+		return *m, m.setStatus("current chat cannot be archived")
+	}
+
+	client, ok := m.sessionClient.(sessionArchiver)
+	if m.sessionClient == nil || !ok {
+		m.chatsArchiveConfirm = false
+		m.commandView.TitleRight = getChatsCommandTitleRight(false)
+		return *m, m.setStatus("chat archive unavailable")
+	}
+
+	m.chatsArchiveConfirm = false
+	m.commandView.TitleRight = getChatsCommandTitleRight(false)
+	return *m, tea.Batch(
+		m.setStatus("archiving chat"),
+		archiveChatSessionCmd(m.chatCtx, client, sessionID),
+	)
+}
+
+func archiveChatSessionCmd(ctx context.Context, client sessionArchiver, sessionID string) tea.Cmd {
+	if client == nil {
+		return nil
+	}
+
+	return func() tea.Msg {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+
+		sessionID = strings.TrimSpace(sessionID)
+		if sessionID == "" {
+			return chatArchivedMsg{Err: errors.New("chat id is required")}
+		}
+
+		err := client.Archive(ctx, sessionID)
+		return chatArchivedMsg{ID: sessionID, Err: err}
+	}
+}
+
+func (m *model) completeArchiveChatSession(msg chatArchivedMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		return *m, m.setStatus("chat archive unavailable")
+	}
+
+	sessionID := strings.TrimSpace(msg.ID)
+	if sessionID == "" {
+		return *m, m.setStatus("chat archive unavailable")
+	}
+
+	nextSessions := make([]storage.Session, 0, len(m.commandView.Chats))
+	for _, session := range m.commandView.Chats {
+		if strings.TrimSpace(session.ID) != sessionID {
+			nextSessions = append(nextSessions, session)
+		}
+	}
+	m.commandView.Chats = nextSessions
+	if len(nextSessions) == 0 {
+		m.commandViewItemSelected = 0
+		m.commandViewOffset = 0
+		return *m, m.setStatus("chat archived")
+	}
+
+	m.commandViewItemSelected = min(m.commandViewItemSelected, len(nextSessions)-1)
+	m.commandViewOffset = getChatsCommandViewOffsetForSelection(
+		m.commandViewItemSelected,
+		m.commandViewOffset,
+		m.getCommandViewContentHeight(),
+		len(nextSessions),
+	)
+
+	return *m, m.setStatus("chat archived")
 }
 
 func (m *model) selectChatsCommandSession() (tea.Model, tea.Cmd) {

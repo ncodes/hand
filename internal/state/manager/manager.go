@@ -503,6 +503,36 @@ func (m *Manager) DeleteSession(ctx context.Context, id string) error {
 	return m.store.Delete(ctx, id)
 }
 
+func (m *Manager) ArchiveSession(ctx context.Context, id string) error {
+	if m == nil {
+		return errors.New("state manager is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("session id is required")
+	}
+	if id == storage.DefaultSessionID {
+		return errors.New("default session cannot be archived")
+	}
+	if err := storage.ValidateSessionID(id); err != nil {
+		return err
+	}
+
+	archiveID, err := generateArchiveID()
+	if err != nil {
+		return err
+	}
+
+	now := m.now().UTC()
+	return m.store.CreateArchive(ctx, storage.ArchivedSession{
+		ID:              archiveID,
+		SourceSessionID: id,
+		ArchivedAt:      now,
+		ExpiresAt:       now.Add(m.archiveRetention),
+	})
+}
+
 func (m *Manager) UseSession(ctx context.Context, id string) error {
 	if m == nil {
 		return errors.New("state manager is required")

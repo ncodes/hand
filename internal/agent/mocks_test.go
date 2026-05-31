@@ -43,6 +43,8 @@ type stateStoreStub struct {
 	messagesErr    error
 	summaryErr     error
 	appendErr      error
+	archive        storage.ArchivedSession
+	archiveErr     error
 }
 
 func (s *stateStoreStub) Save(_ context.Context, session storage.Session) error {
@@ -200,8 +202,9 @@ func (s *stateStoreStub) GetSummary(
 
 func (s *stateStoreStub) DeleteSummary(context.Context, string) error { return nil }
 
-func (s *stateStoreStub) CreateArchive(context.Context, storage.ArchivedSession) error {
-	return nil
+func (s *stateStoreStub) CreateArchive(_ context.Context, archive storage.ArchivedSession) error {
+	s.archive = archive
+	return s.archiveErr
 }
 
 func (s *stateStoreStub) GetArchive(context.Context, string) (storage.ArchivedSession, bool, error) {

@@ -181,6 +181,10 @@ func (s rpcAdapterClientStub) Use(context.Context, string) error {
 	return nil
 }
 
+func (s rpcAdapterClientStub) Archive(context.Context, string) error {
+	return nil
+}
+
 func (s rpcAdapterClientStub) Compact(context.Context, string) (rpcclient.CompactSessionResult, error) {
 	return rpcclient.CompactSessionResult{}, nil
 }

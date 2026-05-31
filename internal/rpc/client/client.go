@@ -73,6 +73,7 @@ type SessionAPI interface {
 	CreateWithOptions(context.Context, CreateSessionOptions) (storage.Session, error)
 	List(context.Context) ([]storage.Session, error)
 	Use(context.Context, string) error
+	Archive(context.Context, string) error
 	Current(context.Context) (storage.Session, error)
 	Compact(context.Context, string) (CompactSessionResult, error)
 	Repair(context.Context, RepairSessionOptions) (RepairSessionResult, error)
@@ -293,6 +294,16 @@ func (s *SessionService) Use(ctx context.Context, id string) error {
 	}
 
 	_, err = client.Use(ctx, &handpb.UseSessionRequest{Id: strings.TrimSpace(id)})
+	return err
+}
+
+func (s *SessionService) Archive(ctx context.Context, id string) error {
+	client, err := s.getClient()
+	if err != nil {
+		return err
+	}
+
+	_, err = client.Archive(ctx, &handpb.ArchiveSessionRequest{Id: strings.TrimSpace(id)})
 	return err
 }
 

@@ -17,6 +17,11 @@ type SessionTimelineLoader interface {
 	) (rpcclient.SessionTimeline, error)
 }
 
+// SessionArchiver archives chat sessions for the TUI.
+type SessionArchiver interface {
+	Archive(ctx context.Context, id string) error
+}
+
 // Event is the streaming event type consumed by the TUI RPC client.
 type Event = rpcclient.Event
 

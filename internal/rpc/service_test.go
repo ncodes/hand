@@ -1314,6 +1314,55 @@ func TestService_UseSessionRejectsInvalidState(t *testing.T) {
 	})
 }
 
+func TestService_ArchiveSessionReturnsSessionID(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{}
+	svc := NewService(stub)
+
+	resp, err := svc.Archive(context.Background(), &handpb.ArchiveSessionRequest{Id: "project-a"})
+
+	require.NoError(t, err)
+	require.Equal(t, "project-a", resp.GetId())
+	require.Equal(t, "project-a", stub.ArchivedSessionID)
+}
+
+func TestService_ArchiveSessionRejectsInvalidState(t *testing.T) {
+	t.Run("nil receiver", func(t *testing.T) {
+		var svc *Service
+
+		resp, err := svc.Archive(context.Background(), &handpb.ArchiveSessionRequest{})
+
+		requireStatusError(t, err, codes.Internal, "service is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("missing handler", func(t *testing.T) {
+		svc := NewService(nil)
+
+		resp, err := svc.Archive(context.Background(), &handpb.ArchiveSessionRequest{})
+
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("nil request", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{})
+
+		resp, err := svc.Archive(context.Background(), nil)
+
+		requireStatusError(t, err, codes.InvalidArgument, "archive session request is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("handler error", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{ArchiveSessionErr: errors.New("session not found")})
+
+		resp, err := svc.Archive(context.Background(), &handpb.ArchiveSessionRequest{Id: "project-a"})
+
+		requireStatusError(t, err, codes.NotFound, "session not found")
+		require.Nil(t, resp)
+	})
+}
+
 func TestService_CompactSessionReturnsResult(t *testing.T) {
 	now := time.Unix(123, 0).UTC()
 	svc := NewService(&agentstub.AgentServiceStub{CompactResult: agent.CompactSessionResult{
@@ -1789,6 +1838,7 @@ func TestService_MapsDomainErrorsToGRPCCodes(t *testing.T) {
 		{name: "not found", err: errors.New("session not found"), code: codes.NotFound},
 		{name: "already exists", err: errors.New("session already exists"), code: codes.AlreadyExists},
 		{name: "cannot be deleted", err: errors.New("default session cannot be deleted"), code: codes.InvalidArgument},
+		{name: "cannot be archived", err: errors.New("default session cannot be archived"), code: codes.InvalidArgument},
 		{name: "canceled", err: context.Canceled, code: codes.Canceled},
 		{name: "deadline", err: context.DeadlineExceeded, code: codes.DeadlineExceeded},
 	}

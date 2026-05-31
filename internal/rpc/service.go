@@ -893,6 +893,24 @@ func (s *Service) Use(ctx context.Context, req *handpb.UseSessionRequest) (*hand
 	return &handpb.UseSessionResponse{Id: req.GetId()}, nil
 }
 
+func (s *Service) Archive(ctx context.Context, req *handpb.ArchiveSessionRequest) (*handpb.ArchiveSessionResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return nil, status.Error(codes.Internal, "agent handler is required")
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "archive session request is required")
+	}
+
+	if err := s.api.ArchiveSession(ctx, req.GetId()); err != nil {
+		return nil, getGRPCError(err)
+	}
+
+	return &handpb.ArchiveSessionResponse{Id: req.GetId()}, nil
+}
+
 func (s *Service) Current(ctx context.Context, req *handpb.CurrentSessionRequest) (*handpb.CurrentSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
@@ -1073,7 +1091,8 @@ func getGRPCError(err error) error {
 	case strings.HasSuffix(message, "is required"),
 		strings.Contains(message, "must be a valid"),
 		strings.Contains(message, "must be greater than or equal to"),
-		strings.Contains(message, "cannot be deleted"):
+		strings.Contains(message, "cannot be deleted"),
+		strings.Contains(message, "cannot be archived"):
 		return status.Error(codes.InvalidArgument, message)
 	case strings.HasSuffix(message, "not found"):
 		return status.Error(codes.NotFound, message)

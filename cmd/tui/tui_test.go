@@ -292,6 +292,10 @@ func (c *fakeTUIChatClient) Use(context.Context, string) error {
 	return nil
 }
 
+func (c *fakeTUIChatClient) Archive(context.Context, string) error {
+	return nil
+}
+
 func (c *fakeTUIChatClient) Current(context.Context) (storage.Session, error) {
 	return storage.Session{}, nil
 }

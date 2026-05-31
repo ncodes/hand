@@ -260,6 +260,22 @@ func TestClient_UseSessionSendsSessionID(t *testing.T) {
 	require.Equal(t, "project-a", stub.UseReq.GetId())
 }
 
+func TestClient_ArchiveSessionSendsSessionID(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{}
+	client := NewSessionService(stub)
+
+	err := client.Archive(context.Background(), " project-a ")
+
+	require.NoError(t, err)
+	require.Equal(t, "project-a", stub.ArchiveReq.GetId())
+}
+
+func TestClient_ArchiveSessionRequiresClient(t *testing.T) {
+	err := (*SessionService)(nil).Archive(context.Background(), "project-a")
+
+	require.EqualError(t, err, "hand: session service client is required")
+}
+
 func TestClient_CurrentSessionReturnsValue(t *testing.T) {
 	stub := &protomock.HandServiceClientStub{CurrentResp: &handpb.CurrentSessionResponse{
 		Id:          "project-a",

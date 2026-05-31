@@ -185,6 +185,7 @@ func (action showCommandViewAction) apply(state *tuiState) {
 	state.commandViewOffset = 0
 	state.commandViewItemSelected = 0
 	state.commandViewSelection = commandViewSelection{}
+	state.chatsArchiveConfirm = false
 }
 
 func (hideCommandViewAction) apply(state *tuiState) {
@@ -196,6 +197,7 @@ func (hideCommandViewAction) apply(state *tuiState) {
 	state.commandViewOffset = 0
 	state.commandViewItemSelected = 0
 	state.commandViewSelection = commandViewSelection{}
+	state.chatsArchiveConfirm = false
 }
 
 func (action setRespondingAction) apply(state *tuiState) {

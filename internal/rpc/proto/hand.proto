@@ -14,6 +14,7 @@ service SessionService {
   rpc Create(CreateSessionRequest) returns (CreateSessionResponse);
   rpc List(ListSessionsRequest) returns (ListSessionsResponse);
   rpc Use(UseSessionRequest) returns (UseSessionResponse);
+  rpc Archive(ArchiveSessionRequest) returns (ArchiveSessionResponse);
   rpc Current(CurrentSessionRequest) returns (CurrentSessionResponse);
   rpc Compact(CompactSessionRequest) returns (CompactSessionResponse);
   rpc Repair(RepairSessionRequest) returns (RepairSessionResponse);
@@ -82,6 +83,14 @@ message UseSessionRequest {
 }
 
 message UseSessionResponse {
+  string id = 1;
+}
+
+message ArchiveSessionRequest {
+  string id = 1;
+}
+
+message ArchiveSessionResponse {
   string id = 1;
 }
 

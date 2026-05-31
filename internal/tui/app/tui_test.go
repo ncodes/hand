@@ -3879,6 +3879,8 @@ type fakeTUIChatClient struct {
 	listSessionsErr     error
 	useSessionErr       error
 	usedSessionID       string
+	archiveSessionErr   error
+	archivedSessionID   string
 	timeline            rpcclient.SessionTimeline
 	timelineErr         error
 	timelineSessionID   string
@@ -3895,6 +3897,7 @@ type fakeTUIChatClient struct {
 	createSessionCalls  int
 	listSessionCalls    int
 	useSessionCalls     int
+	archiveSessionCalls int
 	timelineCalls       int
 	currentSessionCalls int
 	contextCalls        int
@@ -3963,6 +3966,12 @@ func (c *fakeTUIChatClient) Use(_ context.Context, id string) error {
 	c.useSessionCalls++
 	c.usedSessionID = id
 	return c.useSessionErr
+}
+
+func (c *fakeTUIChatClient) Archive(_ context.Context, id string) error {
+	c.archiveSessionCalls++
+	c.archivedSessionID = id
+	return c.archiveSessionErr
 }
 
 func (c *fakeTUIChatClient) Timeline(

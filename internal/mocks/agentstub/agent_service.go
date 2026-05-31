@@ -28,6 +28,8 @@ type AgentServiceStub struct {
 	Sessions             []storage.Session
 	UsedSessionID        string
 	UseSessionErr        error
+	ArchivedSessionID    string
+	ArchiveSessionErr    error
 	CurrentSessionResult storage.Session
 	CompactResult        rpcclient.CompactSessionResult
 	RepairOptions        search.VectorRepairOptions
@@ -112,6 +114,18 @@ func (s *AgentServiceStub) UseSession(_ context.Context, id string) error {
 	s.UsedSessionID = id
 	if s.UseSessionErr != nil {
 		return s.UseSessionErr
+	}
+	return s.Err
+}
+
+func (s *AgentServiceStub) Archive(ctx context.Context, id string) error {
+	return s.ArchiveSession(ctx, id)
+}
+
+func (s *AgentServiceStub) ArchiveSession(_ context.Context, id string) error {
+	s.ArchivedSessionID = id
+	if s.ArchiveSessionErr != nil {
+		return s.ArchiveSessionErr
 	}
 	return s.Err
 }

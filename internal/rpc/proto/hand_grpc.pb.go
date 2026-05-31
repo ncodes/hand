@@ -127,6 +127,7 @@ const (
 	SessionService_Create_FullMethodName   = "/hand.v1.SessionService/Create"
 	SessionService_List_FullMethodName     = "/hand.v1.SessionService/List"
 	SessionService_Use_FullMethodName      = "/hand.v1.SessionService/Use"
+	SessionService_Archive_FullMethodName  = "/hand.v1.SessionService/Archive"
 	SessionService_Current_FullMethodName  = "/hand.v1.SessionService/Current"
 	SessionService_Compact_FullMethodName  = "/hand.v1.SessionService/Compact"
 	SessionService_Repair_FullMethodName   = "/hand.v1.SessionService/Repair"
@@ -141,6 +142,7 @@ type SessionServiceClient interface {
 	Create(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
 	List(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
 	Use(ctx context.Context, in *UseSessionRequest, opts ...grpc.CallOption) (*UseSessionResponse, error)
+	Archive(ctx context.Context, in *ArchiveSessionRequest, opts ...grpc.CallOption) (*ArchiveSessionResponse, error)
 	Current(ctx context.Context, in *CurrentSessionRequest, opts ...grpc.CallOption) (*CurrentSessionResponse, error)
 	Compact(ctx context.Context, in *CompactSessionRequest, opts ...grpc.CallOption) (*CompactSessionResponse, error)
 	Repair(ctx context.Context, in *RepairSessionRequest, opts ...grpc.CallOption) (*RepairSessionResponse, error)
@@ -180,6 +182,16 @@ func (c *sessionServiceClient) Use(ctx context.Context, in *UseSessionRequest, o
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UseSessionResponse)
 	err := c.cc.Invoke(ctx, SessionService_Use_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sessionServiceClient) Archive(ctx context.Context, in *ArchiveSessionRequest, opts ...grpc.CallOption) (*ArchiveSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ArchiveSessionResponse)
+	err := c.cc.Invoke(ctx, SessionService_Archive_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -243,6 +255,7 @@ type SessionServiceServer interface {
 	Create(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
 	List(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
 	Use(context.Context, *UseSessionRequest) (*UseSessionResponse, error)
+	Archive(context.Context, *ArchiveSessionRequest) (*ArchiveSessionResponse, error)
 	Current(context.Context, *CurrentSessionRequest) (*CurrentSessionResponse, error)
 	Compact(context.Context, *CompactSessionRequest) (*CompactSessionResponse, error)
 	Repair(context.Context, *RepairSessionRequest) (*RepairSessionResponse, error)
@@ -266,6 +279,9 @@ func (UnimplementedSessionServiceServer) List(context.Context, *ListSessionsRequ
 }
 func (UnimplementedSessionServiceServer) Use(context.Context, *UseSessionRequest) (*UseSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Use not implemented")
+}
+func (UnimplementedSessionServiceServer) Archive(context.Context, *ArchiveSessionRequest) (*ArchiveSessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Archive not implemented")
 }
 func (UnimplementedSessionServiceServer) Current(context.Context, *CurrentSessionRequest) (*CurrentSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Current not implemented")
@@ -353,6 +369,24 @@ func _SessionService_Use_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SessionServiceServer).Use(ctx, req.(*UseSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SessionService_Archive_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ArchiveSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).Archive(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_Archive_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).Archive(ctx, req.(*ArchiveSessionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -465,6 +499,10 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Use",
 			Handler:    _SessionService_Use_Handler,
+		},
+		{
+			MethodName: "Archive",
+			Handler:    _SessionService_Archive_Handler,
 		},
 		{
 			MethodName: "Current",
