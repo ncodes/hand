@@ -98,11 +98,10 @@ func (s *SessionStore) AppendTraceEvent(
 
 func messageQueryToStorageMessageQuery(value agentsession.MessageQuery) storage.MessageQueryOptions {
 	return storage.MessageQueryOptions{
-		Archived: value.Archived,
-		Limit:    value.Limit,
-		Name:     value.Name,
-		Order:    value.Order,
-		Offset:   value.Offset,
-		Role:     handmsg.Role(value.Role),
+		Limit:  value.Limit,
+		Name:   value.Name,
+		Order:  value.Order,
+		Offset: value.Offset,
+		Role:   handmsg.Role(value.Role),
 	}
 }

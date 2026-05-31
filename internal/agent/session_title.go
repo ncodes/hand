@@ -24,7 +24,7 @@ func (a *Agent) maybeGenerateSessionTitle(ctx context.Context, sessionID string)
 	}
 
 	// Titles are generated once. User/session-provided titles are left intact.
-	session, ok, err := a.stateMgr.Get(ctx, sessionID)
+	session, ok, err := a.stateMgr.Get(ctx, sessionID, storage.SessionGetOptions{})
 	if err != nil || !ok || strings.TrimSpace(session.Title) != "" {
 		return
 	}

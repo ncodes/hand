@@ -232,7 +232,7 @@ func (s *Service) refreshSummaryState(
 	// If a previous compaction already wrote the summary but crashed before
 	// marking the session succeeded, reconcile status instead of summarizing again.
 	if state.Current != nil && state.Current.SourceEndOffset >= plan.TargetOffset {
-		session, ok, err := s.store.Get(ctx, input.SessionID)
+		session, ok, err := s.store.Get(ctx, input.SessionID, storage.SessionGetOptions{})
 		if err != nil {
 			input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayloadWithAuto(input.SessionID, storage.SessionCompaction{
 				Status:             storage.CompactionStatusFailed,
@@ -263,7 +263,7 @@ func (s *Service) refreshSummaryState(
 		}
 	}
 
-	session, ok, err := s.store.Get(ctx, input.SessionID)
+	session, ok, err := s.store.Get(ctx, input.SessionID, storage.SessionGetOptions{})
 	if err != nil {
 		input.TraceSession.Record(trace.EvtContextCompactionFailed, buildCompactionTracePayloadWithAuto(input.SessionID, storage.SessionCompaction{
 			Status:             storage.CompactionStatusFailed,

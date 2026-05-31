@@ -15,7 +15,7 @@ import (
 // SummaryStore describes the persisted session operations needed by summary
 // loading, refresh, and compaction paths.
 type SummaryStore interface {
-	Get(context.Context, string) (storage.Session, bool, error)
+	Get(context.Context, string, storage.SessionGetOptions) (storage.Session, bool, error)
 	Save(context.Context, storage.Session) error
 	GetSummary(context.Context, string) (storage.SessionSummary, bool, error)
 	SaveSummary(context.Context, storage.SessionSummary) error

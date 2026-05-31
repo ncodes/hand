@@ -75,12 +75,11 @@ func TestSessionStoreGetMessagesConvertsQuery(t *testing.T) {
 		GetMessagesFunc: func(_ context.Context, id string, query storage.MessageQueryOptions) ([]handmsg.Message, error) {
 			require.Equal(t, "default", id)
 			require.Equal(t, storage.MessageQueryOptions{
-				Archived: true,
-				Limit:    5,
-				Name:     "tool",
-				Order:    storage.MessageOrderDesc,
-				Offset:   2,
-				Role:     handmsg.RoleAssistant,
+				Limit:  5,
+				Name:   "tool",
+				Order:  storage.MessageOrderDesc,
+				Offset: 2,
+				Role:   handmsg.RoleAssistant,
 			}, query)
 
 			return []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "hello"}}, nil
@@ -88,12 +87,11 @@ func TestSessionStoreGetMessagesConvertsQuery(t *testing.T) {
 	})
 
 	messages, err := store.GetMessages(context.Background(), agentsession.DefaultID, agentsession.MessageQuery{
-		Archived: true,
-		Limit:    5,
-		Name:     "tool",
-		Order:    agentsession.MessageOrderDesc,
-		Offset:   2,
-		Role:     handmsg.RoleAssistant,
+		Limit:  5,
+		Name:   "tool",
+		Order:  agentsession.MessageOrderDesc,
+		Offset: 2,
+		Role:   handmsg.RoleAssistant,
 	})
 	require.NoError(t, err)
 	require.Equal(t, []handmsg.Message{{Role: handmsg.RoleAssistant, Content: "hello"}}, messages)

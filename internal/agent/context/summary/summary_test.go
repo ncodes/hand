@@ -126,7 +126,7 @@ func TestService_MaybeRefreshSummary_DoesNotTransitionCompactionWhenRefreshIsNot
 			})
 			require.NoError(t, err)
 
-			session, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+			session, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 			require.NoError(t, err)
 			require.True(t, ok)
 			require.Equal(t, storage.SessionCompaction{}, session.Compaction)
@@ -276,7 +276,7 @@ func TestService_MaybeRefreshSummary_SkipsWhenExistingSummaryAlreadyCoversTarget
 
 func TestService_MaybeRefreshSummary_ReconcilesStaleRunningStateWhenSummaryAlreadyCoversTarget(t *testing.T) {
 	store := summaryTestStore(summaryTestHistory(10))
-	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	session.Compaction = storage.SessionCompaction{
@@ -304,7 +304,7 @@ func TestService_MaybeRefreshSummary_ReconcilesStaleRunningStateWhenSummaryAlrea
 	})
 	require.NoError(t, err)
 
-	session, ok, err = store.Get(context.Background(), storage.DefaultSessionID)
+	session, ok, err = store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, storage.CompactionStatusSucceeded, session.Compaction.Status)
@@ -315,7 +315,7 @@ func TestService_MaybeRefreshSummary_ReconcilesStaleRunningStateWhenSummaryAlrea
 
 func TestService_MaybeRefreshSummary_ReconcilesCoveredSummaryWithoutTriggeringEstimate(t *testing.T) {
 	store := summaryTestStore(summaryTestHistory(10))
-	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	session.Compaction = storage.SessionCompaction{
@@ -345,7 +345,7 @@ func TestService_MaybeRefreshSummary_ReconcilesCoveredSummaryWithoutTriggeringEs
 	require.NoError(t, err)
 	require.Zero(t, client.CallCount)
 
-	session, ok, err = store.Get(context.Background(), storage.DefaultSessionID)
+	session, ok, err = store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, storage.CompactionStatusSucceeded, session.Compaction.Status)
@@ -827,7 +827,7 @@ func TestService_MaybeRefreshSummary_SavesSummaryAndRecordsTrace(t *testing.T) {
 
 	require.NotNil(t, mem.Current)
 	require.Equal(t, saved.SessionSummary, mem.Current.SessionSummary)
-	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, storage.CompactionStatusSucceeded, session.Compaction.Status)
@@ -890,7 +890,7 @@ func TestService_MaybeRefreshSummary_MarksCompactionFailedAndRetries(t *testing.
 	})
 	require.EqualError(t, err, "summary failed")
 
-	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, storage.CompactionStatusFailed, session.Compaction.Status)
@@ -910,7 +910,7 @@ func TestService_MaybeRefreshSummary_MarksCompactionFailedAndRetries(t *testing.
 	})
 	require.NoError(t, err)
 
-	session, ok, err = store.Get(context.Background(), storage.DefaultSessionID)
+	session, ok, err = store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, storage.CompactionStatusSucceeded, session.Compaction.Status)

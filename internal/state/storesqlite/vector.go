@@ -975,6 +975,38 @@ func (s *Store) deleteVectorRows(ctx context.Context, sourceIDs []string) error 
 	return nil
 }
 
+func (s *Store) deleteVectorRowsBySession(ctx context.Context, sessionID string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	if s == nil || s.vectors == nil || sessionID == "" {
+		return nil
+	}
+
+	req := search.VectorDeleteRequest{
+		SourceKind: search.SourceKindSessionMessage,
+		SessionID:  sessionID,
+	}
+
+	s.logVectorEvent("delete started").
+		Str("session_id", sessionID).
+		Str("source_kind", string(req.SourceKind)).
+		Msg("session vector delete started")
+
+	if err := s.vectors.Store.Delete(ctx, req); err != nil {
+		applySafeErrorLog(s.logVectorEvent("delete failed"), err).
+			Str("session_id", sessionID).
+			Str("source_kind", string(req.SourceKind)).
+			Msg("session vector delete failed")
+		return err
+	}
+
+	s.logVectorEvent("delete completed").
+		Str("session_id", sessionID).
+		Str("source_kind", string(req.SourceKind)).
+		Msg("session vector delete completed")
+
+	return nil
+}
+
 // handleVectorStoreError applies best-effort versus required vector indexing semantics.
 func (s *Store) handleVectorStoreError(err error) error {
 	if err == nil || s == nil || s.vectors == nil || !s.vectors.Required {
@@ -998,20 +1030,6 @@ func (records messageModels) sourceIDs() []string {
 	sourceIDs := make([]string, 0, len(records))
 	for _, record := range records {
 		sourceIDs = append(sourceIDs, messageToSourceID(record.SessionID, record.ID))
-	}
-
-	return sourceIDs
-}
-
-// messageIDsToSourceIDs returns vector source IDs for message IDs in one session.
-func messageIDsToSourceIDs(sessionID string, messageIDs []uint) []string {
-	if len(messageIDs) == 0 {
-		return nil
-	}
-
-	sourceIDs := make([]string, 0, len(messageIDs))
-	for _, messageID := range messageIDs {
-		sourceIDs = append(sourceIDs, messageToSourceID(sessionID, messageID))
 	}
 
 	return sourceIDs

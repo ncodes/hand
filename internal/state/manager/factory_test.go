@@ -477,11 +477,10 @@ func TestOpenStore_VectorRowsLifecycleEndToEnd(t *testing.T) {
 			return store.Session().Delete(ctx, sessionID)
 		},
 		"clear": func(ctx context.Context, store storage.Store, sessionID string) error {
-			return store.Session().ClearMessages(ctx, sessionID, storage.MessageQueryOptions{})
+			return store.Session().ClearMessages(ctx, sessionID)
 		},
 		"archive": func(ctx context.Context, store storage.Store, sessionID string) error {
-			_, err := store.Session().Archive(ctx, storage.SessionArchiveRequest{
-				SessionID: sessionID,
+			_, err := store.Session().Archive(ctx, sessionID, storage.SessionArchiveRequest{
 				ExpiresAt: time.Now().UTC().Add(time.Hour),
 			})
 			return err
@@ -505,7 +504,7 @@ func TestOpenStore_VectorRowsLifecycleEndToEnd(t *testing.T) {
 
 				require.NoError(t, operation(ctx, store, sessionID))
 				expectedRecords := 0
-				if backend == "memory" && name == "archive" {
+				if name == "archive" {
 					expectedRecords = 1
 				}
 				requireVectorRecordCount(t, lister, expectedRecords)

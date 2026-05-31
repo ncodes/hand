@@ -8,15 +8,11 @@ import (
 	"time"
 
 	base "github.com/wandxy/hand/internal/state/core"
-	"github.com/wandxy/hand/internal/state/search"
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
 // Session aliases base.Session at this package boundary.
 type Session = base.Session
-
-// ArchivedSession aliases base.ArchivedSession at this package boundary.
-type ArchivedSession = base.ArchivedSession
 
 // MessageQueryOptions aliases base.MessageQueryOptions at this package boundary.
 type MessageQueryOptions = base.MessageQueryOptions
@@ -129,7 +125,7 @@ func (s *Store) UpdateCheckpoints(_ context.Context, id string, patch Checkpoint
 	return nil
 }
 
-func (s *Store) Get(_ context.Context, id string) (Session, bool, error) {
+func (s *Store) Get(_ context.Context, id string, opts base.SessionGetOptions) (Session, bool, error) {
 	if s == nil {
 		return Session{}, false, errors.New("store is required")
 	}
@@ -138,10 +134,14 @@ func (s *Store) Get(_ context.Context, id string) (Session, bool, error) {
 	defer s.mu.RUnlock()
 
 	session, ok := s.sessions[strings.TrimSpace(id)]
+	if !ok || !sessionMatchesGetOptions(session, opts) {
+		return Session{}, false, nil
+	}
+
 	return session, ok, nil
 }
 
-func (s *Store) List(context.Context) ([]Session, error) {
+func (s *Store) List(_ context.Context, opts base.SessionListOptions) ([]Session, error) {
 	if s == nil {
 		return nil, errors.New("store is required")
 	}
@@ -151,6 +151,9 @@ func (s *Store) List(context.Context) ([]Session, error) {
 
 	sessions := make([]Session, 0, len(s.sessions))
 	for _, session := range s.sessions {
+		if !sessionMatchesListOptions(session, opts) {
+			continue
+		}
 		sessions = append(sessions, session)
 	}
 
@@ -163,6 +166,50 @@ func (s *Store) List(context.Context) ([]Session, error) {
 	})
 
 	return sessions, nil
+}
+
+func sessionMatchesGetOptions(session Session, opts base.SessionGetOptions) bool {
+	return opts.Archived == nil || session.Archived == *opts.Archived
+}
+
+func sessionMatchesListOptions(session Session, opts base.SessionListOptions) bool {
+	return opts.Archived == nil || session.Archived == *opts.Archived
+}
+
+func (s *Store) Rename(_ context.Context, req base.SessionRenameRequest) (Session, error) {
+	if s == nil {
+		return Session{}, errors.New("store is required")
+	}
+
+	req.SessionID = strings.TrimSpace(req.SessionID)
+	if err := base.ValidateSessionID(req.SessionID); err != nil {
+		return Session{}, err
+	}
+
+	title, titleSource := base.NormalizeSessionTitleMetadata(req.Title, req.TitleSource)
+	if title == "" {
+		return Session{}, errors.New("session title is required")
+	}
+
+	renamedAt := req.RenamedAt.UTC()
+	if renamedAt.IsZero() {
+		renamedAt = time.Now().UTC()
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	session, ok := s.sessions[req.SessionID]
+	if !ok {
+		return Session{}, errors.New("session not found")
+	}
+
+	session.Title = title
+	session.TitleSource = titleSource
+	session.UpdatedAt = renamedAt
+	s.sessions[req.SessionID] = session
+
+	return session, nil
 }
 
 func (s *Store) Delete(ctx context.Context, id string) error {
@@ -179,7 +226,6 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 		return errors.New("default session cannot be deleted")
 	}
 
-	var sourceIDs []string
 	s.mu.Lock()
 
 	if _, ok := s.sessions[id]; !ok {
@@ -187,7 +233,6 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 		return errors.New("session not found")
 	}
 
-	sourceIDs = search.SourceIDsFromMessages(id, s.messages[id])
 	delete(s.sessions, id)
 	delete(s.messages, id)
 	delete(s.summaries, id)
@@ -196,7 +241,7 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 	}
 	s.mu.Unlock()
 
-	return s.handleVectorStoreError(s.deleteVectorRows(ctx, sourceIDs))
+	return s.handleVectorStoreError(s.deleteVectorRowsBySession(ctx, id))
 }
 
 func (s *Store) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
@@ -254,23 +299,12 @@ func (s *Store) GetMessages(
 		return nil, nil
 	}
 
-	if !opts.Archived {
-		if err := base.ValidateSessionID(id); err != nil {
-			return nil, err
-		}
-	} else if err := base.ValidateSessionID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return nil, err
 	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	if opts.Archived {
-		if session, ok := s.sessions[id]; !ok || !session.Archived {
-			return nil, nil
-		}
-		return getMessagesForQuery(s.messages[id], opts), nil
-	}
 
 	return getMessagesForQuery(s.messages[id], opts), nil
 }
@@ -571,28 +605,17 @@ func (s *Store) CountMessages(_ context.Context, id string, opts MessageQueryOpt
 		return 0, nil
 	}
 
-	if !opts.Archived {
-		if err := base.ValidateSessionID(id); err != nil {
-			return 0, err
-		}
-	} else if err := base.ValidateSessionID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return 0, err
 	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if opts.Archived {
-		if session, ok := s.sessions[id]; !ok || !session.Archived {
-			return 0, nil
-		}
-		return len(filterMessages(s.messages[id], opts)), nil
-	}
-
 	return len(filterMessages(s.messages[id], opts)), nil
 }
 
-func (s *Store) GetMessage(_ context.Context, id string, index int, opts MessageQueryOptions) (handmsg.Message, bool, error) {
+func (s *Store) GetMessage(_ context.Context, id string, index int) (handmsg.Message, bool, error) {
 	if s == nil {
 		return handmsg.Message{}, false, errors.New("store is required")
 	}
@@ -602,27 +625,14 @@ func (s *Store) GetMessage(_ context.Context, id string, index int, opts Message
 		return handmsg.Message{}, false, nil
 	}
 
-	if !opts.Archived {
-		if err := base.ValidateSessionID(id); err != nil {
-			return handmsg.Message{}, false, err
-		}
-	} else if err := base.ValidateSessionID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return handmsg.Message{}, false, err
 	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var messages []handmsg.Message
-	if opts.Archived {
-		if session, ok := s.sessions[id]; !ok || !session.Archived {
-			return handmsg.Message{}, false, nil
-		}
-		messages = s.messages[id]
-	} else {
-		messages = s.messages[id]
-	}
-
+	messages := s.messages[id]
 	if index >= len(messages) {
 		return handmsg.Message{}, false, nil
 	}
@@ -630,24 +640,24 @@ func (s *Store) GetMessage(_ context.Context, id string, index int, opts Message
 	return cloneMessages(messages[index : index+1])[0], true, nil
 }
 
-func (s *Store) Archive(_ context.Context, req base.SessionArchiveRequest) (Session, error) {
+func (s *Store) Archive(_ context.Context, id string, req base.SessionArchiveRequest) (Session, error) {
 	if s == nil {
 		return Session{}, errors.New("store is required")
 	}
 
-	req.SessionID = strings.TrimSpace(req.SessionID)
-	if err := base.ValidateSessionID(req.SessionID); err != nil {
+	id = strings.TrimSpace(id)
+	if err := base.ValidateSessionID(id); err != nil {
 		return Session{}, err
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	source, ok := s.sessions[req.SessionID]
+	source, ok := s.sessions[id]
 	if !ok {
 		return Session{}, errors.New("session not found")
 	}
-	sourceMessages := s.messages[req.SessionID]
+	sourceMessages := s.messages[id]
 	if len(sourceMessages) == 0 {
 		return Session{}, errors.New("source session has no messages")
 	}
@@ -657,119 +667,39 @@ func (s *Store) Archive(_ context.Context, req base.SessionArchiveRequest) (Sess
 		return Session{}, err
 	}
 	s.sessions[session.ID] = session
-	if s.currentSession == req.SessionID {
+	if s.currentSession == id {
 		s.currentSession = ""
 	}
 
 	return session, nil
 }
 
-func (s *Store) GetArchive(_ context.Context, id string) (ArchivedSession, bool, error) {
-	if s == nil {
-		return ArchivedSession{}, false, errors.New("store is required")
-	}
-
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return ArchivedSession{}, false, nil
-	}
-	if err := base.ValidateSessionID(id); err != nil {
-		if archiveErr := base.ValidateArchiveID(id); archiveErr != nil {
-			return ArchivedSession{}, false, archiveErr
-		}
-
-		return ArchivedSession{}, false, nil
-	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	session, ok := s.sessions[id]
-	if !ok || !session.Archived {
-		return ArchivedSession{}, false, nil
-	}
-
-	return archivedSessionFromSession(session), true, nil
-}
-
-func (s *Store) ListArchives(_ context.Context, sourceSessionID string) ([]ArchivedSession, error) {
-	sessions, err := s.listArchivedSessions(sourceSessionID)
-	if err != nil {
-		return nil, err
-	}
-
-	archives := make([]ArchivedSession, 0, len(sessions))
-	for _, session := range sessions {
-		archives = append(archives, archivedSessionFromSession(session))
-	}
-
-	return archives, nil
-}
-
-func (s *Store) listArchivedSessions(sourceSessionID string) ([]Session, error) {
-	if s == nil {
-		return nil, errors.New("store is required")
-	}
-
-	sourceSessionID = strings.TrimSpace(sourceSessionID)
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	sessions := make([]Session, 0, len(s.sessions))
-	for _, session := range s.sessions {
-		if !session.Archived {
-			continue
-		}
-		if sourceSessionID != "" && session.ID != sourceSessionID {
-			continue
-		}
-		sessions = append(sessions, session)
-	}
-
-	sort.Slice(sessions, func(i, j int) bool {
-		if sessions[i].ArchivedAt.Equal(sessions[j].ArchivedAt) {
-			return sessions[i].ID < sessions[j].ID
-		}
-
-		return sessions[i].ArchivedAt.After(sessions[j].ArchivedAt)
-	})
-
-	return sessions, nil
-}
-
-func (s *Store) DeleteArchive(_ context.Context, archiveID string) error {
-	if s == nil {
-		return errors.New("store is required")
-	}
-
-	archiveID = strings.TrimSpace(archiveID)
-	if err := base.ValidateArchiveID(archiveID); err != nil {
-		return err
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return errors.New("archive not found")
-}
-
-func (s *Store) DeleteExpiredArchives(_ context.Context, now time.Time) error {
+func (s *Store) DeleteExpiredArchives(ctx context.Context, now time.Time) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
 
 	now = now.UTC()
 
+	var expiredSessionIDs []string
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	for id, session := range s.sessions {
 		if session.Archived && !session.ExpiresAt.IsZero() && !session.ExpiresAt.After(now) {
-			session.Archived = false
-			session.ArchivedAt = time.Time{}
-			session.ExpiresAt = time.Time{}
-			s.sessions[id] = session
+			expiredSessionIDs = append(expiredSessionIDs, id)
+			delete(s.sessions, id)
+			delete(s.messages, id)
+			delete(s.summaries, id)
+			if s.currentSession == id {
+				s.currentSession = ""
+			}
+		}
+	}
+	s.mu.Unlock()
+
+	for _, sessionID := range expiredSessionIDs {
+		if err := s.handleVectorStoreError(s.deleteVectorRowsBySession(ctx, sessionID)); err != nil {
+			return err
 		}
 	}
 
@@ -803,18 +733,7 @@ func (s *Store) Unarchive(_ context.Context, id string) (Session, error) {
 	return session, nil
 }
 
-func archivedSessionFromSession(session Session) ArchivedSession {
-	return ArchivedSession{
-		ID:              session.ID,
-		SourceSessionID: session.ID,
-		Title:           session.Title,
-		TitleSource:     session.TitleSource,
-		ArchivedAt:      session.ArchivedAt,
-		ExpiresAt:       session.ExpiresAt,
-	}
-}
-
-func (s *Store) ClearMessages(ctx context.Context, id string, opts MessageQueryOptions) error {
+func (s *Store) ClearMessages(ctx context.Context, id string) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
@@ -824,13 +743,7 @@ func (s *Store) ClearMessages(ctx context.Context, id string, opts MessageQueryO
 		return err
 	}
 
-	var sourceIDs []string
 	s.mu.Lock()
-
-	if opts.Archived {
-		s.mu.Unlock()
-		return errors.New("archive not found")
-	}
 
 	session, ok := s.sessions[id]
 	if !ok {
@@ -838,7 +751,6 @@ func (s *Store) ClearMessages(ctx context.Context, id string, opts MessageQueryO
 		return errors.New("session not found")
 	}
 
-	sourceIDs = search.SourceIDsFromMessages(id, s.messages[id])
 	delete(s.messages, id)
 	delete(s.summaries, id)
 	session.Compaction = base.SessionCompaction{}
@@ -846,7 +758,7 @@ func (s *Store) ClearMessages(ctx context.Context, id string, opts MessageQueryO
 	s.sessions[id] = session
 	s.mu.Unlock()
 
-	return s.handleVectorStoreError(s.deleteVectorRows(ctx, sourceIDs))
+	return s.handleVectorStoreError(s.deleteVectorRowsBySession(ctx, id))
 }
 
 func (s *Store) SaveSummary(_ context.Context, summary SessionSummary) error {
@@ -925,7 +837,8 @@ func (s *Store) SetCurrent(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, ok := s.sessions[id]; !ok {
+	session, ok := s.sessions[id]
+	if !ok || session.Archived {
 		return errors.New("session not found")
 	}
 
@@ -946,6 +859,18 @@ func (s *Store) Current(_ context.Context) (string, bool, error) {
 	}
 
 	return s.currentSession, true, nil
+}
+
+func (s *Store) ClearCurrent(_ context.Context) error {
+	if s == nil {
+		return errors.New("store is required")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.currentSession = ""
+	return nil
 }
 
 func cloneMessages(messages []handmsg.Message) []handmsg.Message {

@@ -151,9 +151,10 @@ func (s *Store) Delete(ctx context.Context, req DeleteRequest) error {
 		return err
 	}
 	sourceIDs := normalizeDeleteSourceIDs(req)
+	sessionID := strings.TrimSpace(req.SessionID)
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		rows, err := vectorRowsForSources(tx, req.SourceKind, sourceIDs)
+		rows, err := vectorRowsForDelete(tx, req.SourceKind, sourceIDs, sessionID)
 		if err != nil {
 			return err
 		}
@@ -174,11 +175,7 @@ func (s *Store) Delete(ctx context.Context, req DeleteRequest) error {
 				return fmt.Errorf("failed to delete vector record tags: %w", err)
 			}
 		}
-		if err := tx.Exec(
-			`DELETE FROM `+recordsTable+` WHERE source_kind = ? AND source_id IN ?`,
-			req.SourceKind,
-			sourceIDs,
-		).Error; err != nil {
+		if err := deleteVectorRecords(tx, req.SourceKind, sourceIDs, sessionID); err != nil {
 			return fmt.Errorf("failed to delete vector records: %w", err)
 		}
 
@@ -647,17 +644,64 @@ func recordRef(tx *gorm.DB, id string) (recordRefRow, bool, error) {
 	return row, true, nil
 }
 
-func vectorRowsForSources(tx *gorm.DB, sourceKind SourceKind, sourceIDs []string) ([]recordRefRow, error) {
+func vectorRowsForDelete(
+	tx *gorm.DB,
+	sourceKind SourceKind,
+	sourceIDs []string,
+	sessionID string,
+) ([]recordRefRow, error) {
 	var rows []recordRefRow
-	if err := tx.Raw(
-		`SELECT id, vector_rowid, dimensions FROM `+recordsTable+` WHERE source_kind = ? AND source_id IN ?`,
-		string(sourceKind),
-		sourceIDs,
-	).Scan(&rows).Error; err != nil {
+	query := tx.Table(recordsTable).Select("id, vector_rowid, dimensions").Where("source_kind = ?", string(sourceKind))
+	if len(sourceIDs) > 0 {
+		query = query.Where("source_id IN ?", sourceIDs)
+	}
+	if sessionID != "" {
+		query = query.Where("session_id = ?", sessionID)
+	}
+
+	if err := query.Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("failed to load vector record refs: %w", err)
 	}
 
 	return rows, nil
+}
+
+func deleteVectorRecords(
+	tx *gorm.DB,
+	sourceKind SourceKind,
+	sourceIDs []string,
+	sessionID string,
+) error {
+	query := tx.Exec(
+		getDeleteVectorRecordsSQL(sourceIDs, sessionID),
+		getDeleteVectorRecordsArgs(sourceKind, sourceIDs, sessionID)...,
+	)
+
+	return query.Error
+}
+
+func getDeleteVectorRecordsSQL(sourceIDs []string, sessionID string) string {
+	sqlText := `DELETE FROM ` + recordsTable + ` WHERE source_kind = ?`
+	if len(sourceIDs) > 0 {
+		sqlText += ` AND source_id IN ?`
+	}
+	if sessionID != "" {
+		sqlText += ` AND session_id = ?`
+	}
+
+	return sqlText
+}
+
+func getDeleteVectorRecordsArgs(sourceKind SourceKind, sourceIDs []string, sessionID string) []any {
+	args := []any{string(sourceKind)}
+	if len(sourceIDs) > 0 {
+		args = append(args, sourceIDs)
+	}
+	if sessionID != "" {
+		args = append(args, sessionID)
+	}
+
+	return args
 }
 
 func replaceRecordTags(tx *gorm.DB, recordID string, tags []string) error {

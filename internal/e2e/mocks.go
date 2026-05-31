@@ -77,11 +77,16 @@ type storageStoreStub struct {
 }
 
 func (s *storageStoreStub) Save(context.Context, storage.Session) error { return nil }
-func (s *storageStoreStub) Get(context.Context, string) (storage.Session, bool, error) {
+func (s *storageStoreStub) Get(context.Context, string, storage.SessionGetOptions) (storage.Session, bool, error) {
 	return storage.Session{}, false, nil
 }
-func (s *storageStoreStub) List(context.Context) ([]storage.Session, error) { return nil, nil }
-func (s *storageStoreStub) Delete(context.Context, string) error            { return nil }
+func (s *storageStoreStub) List(context.Context, storage.SessionListOptions) ([]storage.Session, error) {
+	return nil, nil
+}
+func (s *storageStoreStub) Delete(context.Context, string) error { return nil }
+func (s *storageStoreStub) Rename(context.Context, storage.SessionRenameRequest) (storage.Session, error) {
+	return storage.Session{}, nil
+}
 func (s *storageStoreStub) UpdateCheckpoints(context.Context, string, storage.CheckpointPatch) error {
 	return nil
 }
@@ -97,7 +102,7 @@ func (s *storageStoreStub) SearchMessages(context.Context, string, storage.Searc
 func (s *storageStoreStub) CountMessages(context.Context, string, storage.MessageQueryOptions) (int, error) {
 	return 0, nil
 }
-func (s *storageStoreStub) GetMessage(context.Context, string, int, storage.MessageQueryOptions) (handmsg.Message, bool, error) {
+func (s *storageStoreStub) GetMessage(context.Context, string, int) (handmsg.Message, bool, error) {
 	return handmsg.Message{}, false, nil
 }
 func (s *storageStoreStub) GetMessagesByIDs(context.Context, string, []uint) ([]storage.MessageRecord, error) {
@@ -112,7 +117,10 @@ func (s *storageStoreStub) GetSummary(context.Context, string) (storage.SessionS
 }
 func (s *storageStoreStub) DeleteSummary(context.Context, string) error { return nil }
 func (s *storageStoreStub) Session() storage.SessionStore               { return s }
-func (s *storageStoreStub) Archive(context.Context, storage.SessionArchiveRequest) (storage.Session, error) {
+func (s *storageStoreStub) Memory() (storage.MemoryStore, bool)         { return nil, false }
+func (s *storageStoreStub) Trace() (storage.TraceStore, bool)           { return nil, false }
+func (s *storageStoreStub) SupportsVectorSearch() bool                  { return false }
+func (s *storageStoreStub) Archive(context.Context, string, storage.SessionArchiveRequest) (storage.Session, error) {
 	return storage.Session{}, nil
 }
 func (s *storageStoreStub) Unarchive(context.Context, string) (storage.Session, error) {
@@ -121,23 +129,14 @@ func (s *storageStoreStub) Unarchive(context.Context, string) (storage.Session, 
 func (s *storageStoreStub) DeleteExpiredArchives(context.Context, time.Time) error {
 	return nil
 }
-func (s *storageStoreStub) CreateArchive(context.Context, storage.ArchivedSession) error {
-	return nil
-}
-func (s *storageStoreStub) GetArchive(context.Context, string) (storage.ArchivedSession, bool, error) {
-	return storage.ArchivedSession{}, false, nil
-}
-func (s *storageStoreStub) ListArchives(context.Context, string) ([]storage.ArchivedSession, error) {
-	return nil, nil
-}
-func (s *storageStoreStub) DeleteArchive(context.Context, string) error { return nil }
-func (s *storageStoreStub) ClearMessages(context.Context, string, storage.MessageQueryOptions) error {
+func (s *storageStoreStub) ClearMessages(context.Context, string) error {
 	return nil
 }
 func (s *storageStoreStub) SetCurrent(context.Context, string) error { return nil }
 func (s *storageStoreStub) Current(context.Context) (string, bool, error) {
 	return "", false, nil
 }
+func (s *storageStoreStub) ClearCurrent(context.Context) error { return nil }
 
 type stubAddr string
 

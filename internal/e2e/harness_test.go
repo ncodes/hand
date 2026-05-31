@@ -512,12 +512,12 @@ func TestStorageStoreStub_NoOpMethods(t *testing.T) {
 
 	require.NoError(t, store.Save(context.Background(), storage.Session{}))
 
-	session, ok, err := store.Get(context.Background(), "ses_test")
+	session, ok, err := store.Get(context.Background(), "ses_test", storage.SessionGetOptions{})
 	require.NoError(t, err)
 	assert.False(t, ok)
 	assert.Equal(t, storage.Session{}, session)
 
-	sessions, err := store.List(context.Background())
+	sessions, err := store.List(context.Background(), storage.SessionListOptions{})
 	require.NoError(t, err)
 	assert.Nil(t, sessions)
 
@@ -537,7 +537,7 @@ func TestStorageStoreStub_NoOpMethods(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, count)
 
-	message, found, err := store.GetMessage(context.Background(), "ses_test", 0, storage.MessageQueryOptions{})
+	message, found, err := store.GetMessage(context.Background(), "ses_test", 0)
 	require.NoError(t, err)
 	assert.False(t, found)
 	assert.Equal(t, handmsg.Message{}, message)
@@ -558,20 +558,8 @@ func TestStorageStoreStub_NoOpMethods(t *testing.T) {
 	assert.Equal(t, storage.SessionSummary{}, summary)
 
 	require.NoError(t, store.DeleteSummary(context.Background(), "ses_test"))
-	require.NoError(t, store.CreateArchive(context.Background(), storage.ArchivedSession{}))
-
-	archive, archiveFound, err := store.GetArchive(context.Background(), "arc_test")
-	require.NoError(t, err)
-	assert.False(t, archiveFound)
-	assert.Equal(t, storage.ArchivedSession{}, archive)
-
-	archives, err := store.ListArchives(context.Background(), "ses_test")
-	require.NoError(t, err)
-	assert.Nil(t, archives)
-
-	require.NoError(t, store.DeleteArchive(context.Background(), "arc_test"))
 	require.NoError(t, store.DeleteExpiredArchives(context.Background(), time.Now()))
-	require.NoError(t, store.ClearMessages(context.Background(), "ses_test", storage.MessageQueryOptions{}))
+	require.NoError(t, store.ClearMessages(context.Background(), "ses_test"))
 	require.NoError(t, store.SetCurrent(context.Background(), "ses_test"))
 
 	current, currentOK, err := store.Current(context.Background())

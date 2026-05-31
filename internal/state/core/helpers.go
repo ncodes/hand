@@ -27,51 +27,6 @@ func ValidateSessionID(id string) error {
 	return nil
 }
 
-// ValidateArchiveID checks that id can be used as an archived session ID.
-func ValidateArchiveID(id string) error {
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return errors.New("archive id is required")
-	}
-
-	if !strings.HasPrefix(id, ArchiveIDPrefix) || nanoid.ValidateID(id) != nil {
-		return errors.New("archive id must be a valid arc_ nanoid")
-	}
-
-	return nil
-}
-
-// NormalizeCreateArchive normalizes create archive.
-func NormalizeCreateArchive(archive ArchivedSession) (ArchivedSession, error) {
-	archive.ID = strings.TrimSpace(archive.ID)
-	if err := ValidateArchiveID(archive.ID); err != nil {
-		return ArchivedSession{}, err
-	}
-
-	archive.SourceSessionID = strings.TrimSpace(archive.SourceSessionID)
-	if err := ValidateSessionID(archive.SourceSessionID); err != nil {
-		if err.Error() == "session id is required" {
-			return ArchivedSession{}, errors.New("source session id is required")
-		}
-
-		return ArchivedSession{}, err
-	}
-
-	if archive.ArchivedAt.IsZero() {
-		archive.ArchivedAt = time.Now().UTC()
-	} else {
-		archive.ArchivedAt = archive.ArchivedAt.UTC()
-	}
-
-	if archive.ExpiresAt.IsZero() {
-		return ArchivedSession{}, errors.New("archive expiry is required")
-	}
-	archive.ExpiresAt = archive.ExpiresAt.UTC()
-	archive.Title, archive.TitleSource = NormalizeSessionTitleMetadata(archive.Title, archive.TitleSource)
-
-	return archive, nil
-}
-
 // MarkSessionArchived returns session with archive metadata applied.
 func MarkSessionArchived(session Session, archivedAt time.Time, expiresAt time.Time) (Session, error) {
 	session.ID = strings.TrimSpace(session.ID)

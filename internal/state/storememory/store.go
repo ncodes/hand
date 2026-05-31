@@ -39,3 +39,19 @@ func NewStore() *Store {
 func (s *Store) Session() base.SessionStore {
 	return s
 }
+
+func (s *Store) Memory() (base.MemoryStore, bool) {
+	if s == nil {
+		return nil, false
+	}
+
+	return s, true
+}
+
+func (s *Store) Trace() (base.TraceStore, bool) {
+	if s == nil {
+		return nil, false
+	}
+
+	return s, true
+}

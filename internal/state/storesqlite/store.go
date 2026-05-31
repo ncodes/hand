@@ -45,11 +45,9 @@ func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 
 	if err := db.AutoMigrate(
 		&sessionModel{},
-		&archiveModel{},
 		&stateModel{},
 		&summaryModel{},
 		&messageModel{},
-		&archivedMessageModel{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate session db: %w", err)
 	}
@@ -71,6 +69,22 @@ func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 
 func (s *Store) Session() base.SessionStore {
 	return s
+}
+
+func (s *Store) Memory() (base.MemoryStore, bool) {
+	if s == nil || s.db == nil {
+		return nil, false
+	}
+
+	return s, true
+}
+
+func (s *Store) Trace() (base.TraceStore, bool) {
+	if s == nil || s.db == nil {
+		return nil, false
+	}
+
+	return s, true
 }
 
 func (s *Store) Close() error {

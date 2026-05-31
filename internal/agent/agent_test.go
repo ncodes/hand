@@ -258,7 +258,7 @@ func TestAgent_LifecycleBranchesForCloseCreateUseAndStatus(t *testing.T) {
 	require.Equal(t, otherID, store.current)
 
 	require.NoError(t, core.ArchiveSession(context.Background(), otherID))
-	require.Equal(t, otherID, store.archive.SourceSessionID)
+	require.Equal(t, otherID, store.archive.ID)
 	require.False(t, store.archive.ArchivedAt.IsZero())
 
 	renamed, err := core.RenameSession(context.Background(), otherID, "Renamed Chat")
@@ -302,7 +302,7 @@ func TestAgent_EnsureStateManagerUsesPackageHooksAndCacheHelpers(t *testing.T) {
 		require.Same(t, rerankerClient, client)
 		return store, nil
 	}
-	NewStateManager = func(opened storage.SessionStore, idle time.Duration, archive time.Duration) (*statemanager.Manager, error) {
+	NewStateManager = func(opened storage.Store, idle time.Duration, archive time.Duration) (*statemanager.Manager, error) {
 		require.Same(t, store, opened)
 		require.Equal(t, 24*time.Hour, idle)
 		require.Equal(t, 30*24*time.Hour, archive)
@@ -351,7 +351,7 @@ func TestAgent_EnsureStateManagerPropagatesFactoryErrors(t *testing.T) {
 	OpenStateStore = func(*config.Config, models.Client) (storage.Store, error) {
 		return &stateStoreStub{}, nil
 	}
-	NewStateManager = func(storage.SessionStore, time.Duration, time.Duration) (*statemanager.Manager, error) {
+	NewStateManager = func(storage.Store, time.Duration, time.Duration) (*statemanager.Manager, error) {
 		return nil, expected
 	}
 	require.ErrorIs(t, core.ensureStateManager(), expected)

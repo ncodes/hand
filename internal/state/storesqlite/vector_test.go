@@ -930,13 +930,12 @@ func TestSQLiteStore_VectorStoreDeletesSessionVectors(t *testing.T) {
 		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
 			{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
 		}))
-		sourceID := vectorStore.upserts[0][0].SourceID
 
-		require.NoError(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}))
+		require.NoError(t, store.ClearMessages(context.Background(), testSessionA))
 
 		require.Equal(t, []search.VectorDeleteRequest{{
 			SourceKind: search.SourceKindSessionMessage,
-			SourceIDs:  []string{sourceID},
+			SessionID:  testSessionA,
 		}}, vectorStore.deletes)
 	})
 
@@ -946,35 +945,29 @@ func TestSQLiteStore_VectorStoreDeletesSessionVectors(t *testing.T) {
 		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
 			{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
 		}))
-		sourceID := vectorStore.upserts[0][0].SourceID
 
 		require.NoError(t, store.Delete(context.Background(), testSessionA))
 
 		require.Equal(t, []search.VectorDeleteRequest{{
 			SourceKind: search.SourceKindSessionMessage,
-			SourceIDs:  []string{sourceID},
+			SessionID:  testSessionA,
 		}}, vectorStore.deletes)
 	})
 
-	t.Run("archive session deletes source vectors", func(t *testing.T) {
+	t.Run("archive session keeps source vectors", func(t *testing.T) {
 		store, vectorStore := sqliteVectorStoreTestStore(t)
 		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
 		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
 			{Role: handmsg.RoleUser, Content: "hello", CreatedAt: now},
 		}))
-		sourceID := vectorStore.upserts[0][0].SourceID
 
-		require.NoError(t, store.CreateArchive(context.Background(), ArchivedSession{
-			ID:              testArchiveOne,
-			SourceSessionID: testSessionA,
-			ArchivedAt:      now,
-			ExpiresAt:       now.Add(time.Hour),
-		}))
+		_, err := store.Archive(context.Background(), testSessionA, base.SessionArchiveRequest{
+			ArchivedAt: now,
+			ExpiresAt:  now.Add(time.Hour),
+		})
+		require.NoError(t, err)
 
-		require.Equal(t, []search.VectorDeleteRequest{{
-			SourceKind: search.SourceKindSessionMessage,
-			SourceIDs:  []string{sourceID},
-		}}, vectorStore.deletes)
+		require.Empty(t, vectorStore.deletes)
 	})
 }
 
@@ -1023,7 +1016,7 @@ func TestSQLiteStore_VectorStoreUsesSharedSQLiteVectorStore(t *testing.T) {
 	require.Equal(t, search.SourceKindSessionMessage, result.Matches[0].Record.SourceKind)
 	require.Equal(t, search.VectorContentHash("shared sqlite vector"), result.Matches[0].Record.ContentHash)
 
-	require.NoError(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}))
+	require.NoError(t, store.ClearMessages(context.Background(), testSessionA))
 	result, err = vectorStore.Search(context.Background(), storagevectorsqlite.SearchRequest{
 		EmbeddingModel: "text-embedding-test",
 		Dimensions:     3,
@@ -1140,7 +1133,7 @@ func TestSQLiteStore_VectorStoreMutationDatabaseErrors(t *testing.T) {
 			})
 		require.NoError(t, err)
 
-		require.ErrorIs(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}), deleteErr)
+		require.ErrorIs(t, store.ClearMessages(context.Background(), testSessionA), deleteErr)
 	})
 }
 
@@ -1165,29 +1158,6 @@ func TestSQLiteStore_VectorStorePostMutationErrors(t *testing.T) {
 		require.ErrorIs(t, store.Delete(context.Background(), testSessionA), deleteErr)
 	})
 
-	t.Run("archive returns required vector delete error", func(t *testing.T) {
-		store, vectorStore := sqliteVectorStoreTestStore(t)
-		require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
-			Embedder:       &sqliteTestEmbeddingProvider{dimensions: 3},
-			VectorStore:    vectorStore,
-			EmbeddingModel: "text-embedding-test",
-			Required:       true,
-		}))
-		require.NoError(t, store.Save(context.Background(), Session{ID: testSessionA, UpdatedAt: now}))
-		require.NoError(t, store.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
-			{Role: handmsg.RoleUser, Content: "archive vector", CreatedAt: now},
-		}))
-
-		vectorStore.deleteErr = deleteErr
-		err := store.CreateArchive(context.Background(), ArchivedSession{
-			ID:              testArchiveOne,
-			SourceSessionID: testSessionA,
-			ArchivedAt:      now,
-			ExpiresAt:       now.Add(time.Hour),
-		})
-		require.ErrorIs(t, err, deleteErr)
-	})
-
 	t.Run("clear returns required vector delete error", func(t *testing.T) {
 		store, vectorStore := sqliteVectorStoreTestStore(t)
 		require.NoError(t, store.ConfigureVectorStore(VectorStoreOptions{
@@ -1202,7 +1172,7 @@ func TestSQLiteStore_VectorStorePostMutationErrors(t *testing.T) {
 		}))
 
 		vectorStore.deleteErr = deleteErr
-		require.ErrorIs(t, store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{}), deleteErr)
+		require.ErrorIs(t, store.ClearMessages(context.Background(), testSessionA), deleteErr)
 	})
 }
 

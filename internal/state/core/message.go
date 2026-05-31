@@ -14,12 +14,11 @@ const (
 
 // MessageQueryOptions controls message listing and counting filters.
 type MessageQueryOptions struct {
-	Archived bool
-	Limit    int
-	Name     string
-	Order    string
-	Offset   int
-	Role     handmsg.Role
+	Limit  int
+	Name   string
+	Order  string
+	Offset int
+	Role   handmsg.Role
 }
 
 // MessageRecord pairs a message with its sequence offset.

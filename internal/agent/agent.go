@@ -474,7 +474,7 @@ func (a *Agent) CurrentSession(ctx context.Context) (storage.Session, error) {
 		return storage.Session{}, err
 	}
 
-	session, ok, err := a.stateMgr.Get(ctx, id)
+	session, ok, err := a.stateMgr.Get(ctx, id, storage.SessionGetOptions{})
 	if err != nil {
 		return storage.Session{}, err
 	}
@@ -713,7 +713,7 @@ func (a *Agent) ensureStateManager() error {
 	}
 
 	manager, err := NewStateManager(
-		store.Session(),
+		store,
 		getDurationOrDefault(a.cfg.Session.DefaultIdleExpiry, 24*time.Hour),
 		getDurationOrDefault(a.cfg.Session.ArchiveRetention, 30*24*time.Hour),
 	)

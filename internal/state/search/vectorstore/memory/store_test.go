@@ -162,6 +162,23 @@ func TestStore_UpsertSearchDeleteAndMetadata(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, []string{"vec-a"}, matchIDs(result.Matches))
+
+	require.NoError(t, store.Delete(context.Background(), DeleteRequest{
+		SourceKind: SourceKindSessionMessage,
+		SessionID:  "ses-a",
+	}))
+
+	result, err = store.Search(context.Background(), SearchRequest{
+		EmbeddingModel: "text-embedding-test",
+		Dimensions:     3,
+		QueryVector:    []float64{1, 0, 0},
+		Limit:          10,
+		Filter: Filter{
+			SourceKind: SourceKindSessionMessage,
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, matchIDs(result.Matches))
 }
 
 func TestStore_SearchTagFilters(t *testing.T) {

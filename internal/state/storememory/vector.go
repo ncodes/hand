@@ -675,6 +675,38 @@ func (s *Store) deleteVectorRows(ctx context.Context, sourceIDs []string) error 
 	return nil
 }
 
+func (s *Store) deleteVectorRowsBySession(ctx context.Context, sessionID string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	if s == nil || s.vectors == nil || sessionID == "" {
+		return nil
+	}
+
+	req := search.VectorDeleteRequest{
+		SourceKind: search.SourceKindSessionMessage,
+		SessionID:  sessionID,
+	}
+
+	s.logVectorEvent("delete started").
+		Str("session_id", sessionID).
+		Str("source_kind", string(req.SourceKind)).
+		Msg("session vector delete started")
+
+	if err := s.vectors.Store.Delete(ctx, req); err != nil {
+		applySafeErrorLog(s.logVectorEvent("delete failed"), err).
+			Str("session_id", sessionID).
+			Str("source_kind", string(req.SourceKind)).
+			Msg("session vector delete failed")
+		return err
+	}
+
+	s.logVectorEvent("delete completed").
+		Str("session_id", sessionID).
+		Str("source_kind", string(req.SourceKind)).
+		Msg("session vector delete completed")
+
+	return nil
+}
+
 func (s *Store) handleVectorStoreError(err error) error {
 	if err == nil || s == nil || s.vectors == nil || !s.vectors.Required {
 		return nil

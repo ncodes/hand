@@ -40,7 +40,7 @@ func TestLiveSemanticMemoryCreatedByReflectionAndPromotion(t *testing.T) {
 	recordingModelClient := &recordingLiveModelClient{client: modelClient}
 
 	manager := loadLiveMemoryStateManager(t, cfg, summaryClient)
-	_, found, err := manager.Get(ctx, storage.DefaultSessionID)
+	_, found, err := manager.Get(ctx, storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	if !found {
 		_, err = manager.CreateSession(ctx, storage.DefaultSessionID)

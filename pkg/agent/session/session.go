@@ -50,12 +50,11 @@ type Compaction struct {
 }
 
 type MessageQuery struct {
-	Archived bool
-	Limit    int
-	Name     string
-	Order    string
-	Offset   int
-	Role     message.Role
+	Limit  int
+	Name   string
+	Order  string
+	Offset int
+	Role   message.Role
 }
 
 type Store interface {

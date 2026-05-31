@@ -170,7 +170,7 @@ func TestStore_ClearMessages(t *testing.T) {
 			Content: "needle",
 		}}))
 
-		err := store.ClearMessages(context.Background(), testSessionA, MessageQueryOptions{})
+		err := store.ClearMessages(context.Background(), testSessionA)
 		require.EqualError(t, err, "delete failed")
 	})
 }

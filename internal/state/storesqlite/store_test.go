@@ -26,17 +26,13 @@ func TestSQLiteStore_NewStoreValidationAndSchema(t *testing.T) {
 	store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
 	require.NoError(t, err)
 	require.Equal(t, "sessions", sessionModel{}.TableName())
-	require.Equal(t, "session_archives", archiveModel{}.TableName())
 	require.Equal(t, "session_state", stateModel{}.TableName())
 	require.Equal(t, "session_summaries", summaryModel{}.TableName())
 	require.Equal(t, "session_messages", messageModel{}.TableName())
-	require.Equal(t, "archived_session_messages", archivedMessageModel{}.TableName())
 	require.True(t, store.db.Migrator().HasTable(&sessionModel{}))
-	require.True(t, store.db.Migrator().HasTable(&archiveModel{}))
 	require.True(t, store.db.Migrator().HasTable(&stateModel{}))
 	require.True(t, store.db.Migrator().HasTable(&summaryModel{}))
 	require.True(t, store.db.Migrator().HasTable(&messageModel{}))
-	require.True(t, store.db.Migrator().HasTable(&archivedMessageModel{}))
 	require.True(t, store.db.Migrator().HasTable(&memoryItemModel{}))
 	require.True(t, store.db.Migrator().HasTable(&memoryItemTagModel{}))
 	require.True(t, store.db.Migrator().HasTable(&traceEventModel{}))
@@ -44,9 +40,38 @@ func TestSQLiteStore_NewStoreValidationAndSchema(t *testing.T) {
 	require.True(t, store.db.Migrator().HasColumn(&sessionModel{}, "reflection_checkpoint_offset"))
 	require.True(t, store.db.Migrator().HasColumn(&sessionModel{}, "title"))
 	require.True(t, store.db.Migrator().HasColumn(&sessionModel{}, "title_source"))
-	require.True(t, store.db.Migrator().HasColumn(&archiveModel{}, "title"))
-	require.True(t, store.db.Migrator().HasColumn(&archiveModel{}, "title_source"))
 	require.False(t, store.db.Migrator().HasColumn(&sessionModel{}, "messages"))
+}
+
+func TestSQLiteStore_AggregateCapabilities(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "session.db"))
+	require.NoError(t, err)
+
+	sessionStore := store.Session()
+	require.Same(t, store, sessionStore)
+
+	memoryStore, ok := store.Memory()
+	require.True(t, ok)
+	require.Same(t, store, memoryStore)
+
+	traceStore, ok := store.Trace()
+	require.True(t, ok)
+	require.Same(t, store, traceStore)
+	require.False(t, store.SupportsVectorSearch())
+
+	vectorStore, _ := sqliteVectorStoreTestStore(t)
+	require.True(t, vectorStore.SupportsVectorSearch())
+
+	var nilStore *Store
+	require.Nil(t, nilStore.Session())
+	memoryStore, ok = nilStore.Memory()
+	require.False(t, ok)
+	require.Nil(t, memoryStore)
+
+	traceStore, ok = nilStore.Trace()
+	require.False(t, ok)
+	require.Nil(t, traceStore)
+	require.False(t, nilStore.SupportsVectorSearch())
 }
 
 func TestSQLiteStore_MigrationFailsOnReadOnlyDatabase(t *testing.T) {
@@ -86,11 +111,9 @@ func TestSQLiteStore_StorageInitializationErrors(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, writableDB.AutoMigrate(
 			&sessionModel{},
-			&archiveModel{},
 			&stateModel{},
 			&summaryModel{},
 			&messageModel{},
-			&archivedMessageModel{},
 		))
 
 		readonlyDB, err := gorm.Open(sqlite.Open("file:"+path+"?mode=ro"), &gorm.Config{})
@@ -107,11 +130,9 @@ func TestSQLiteStore_StorageInitializationErrors(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, writableDB.AutoMigrate(
 			&sessionModel{},
-			&archiveModel{},
 			&stateModel{},
 			&summaryModel{},
 			&messageModel{},
-			&archivedMessageModel{},
 		))
 		require.NoError(t, ensureMemoryStorage(writableDB))
 

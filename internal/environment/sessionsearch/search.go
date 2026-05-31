@@ -59,7 +59,7 @@ func Search(
 
 	groupedResults := make([]SessionSearchResult, 0, len(results))
 	for _, result := range results {
-		session, found, err := manager.Get(ctx, result.SessionID)
+		session, found, err := manager.Get(ctx, result.SessionID, storage.SessionGetOptions{})
 		if err != nil {
 			return nil, err
 		}

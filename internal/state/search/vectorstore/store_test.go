@@ -178,6 +178,10 @@ func TestValidateDeleteRequest(t *testing.T) {
 		SourceKind: SourceKindSessionMessage,
 		SourceIDs:  []string{"msg-a", "msg-b"},
 	}))
+	require.NoError(t, ValidateDeleteRequest(DeleteRequest{
+		SourceKind: SourceKindSessionMessage,
+		SessionID:  "ses-a",
+	}))
 
 	err := ValidateDeleteRequest(DeleteRequest{})
 	require.EqualError(t, err, "source kind is required")
@@ -186,7 +190,7 @@ func TestValidateDeleteRequest(t *testing.T) {
 	require.EqualError(t, err, `source kind "unknown" is not supported`)
 
 	err = ValidateDeleteRequest(DeleteRequest{SourceKind: SourceKindSessionMessage})
-	require.EqualError(t, err, "source id is required")
+	require.EqualError(t, err, "source id or session id is required")
 
 	err = ValidateDeleteRequest(DeleteRequest{
 		SourceKind: SourceKindSessionMessage,
@@ -199,6 +203,12 @@ func TestValidateDeleteRequest(t *testing.T) {
 		SourceIDs:  []string{""},
 	})
 	require.EqualError(t, err, "source id is required")
+
+	err = ValidateDeleteRequest(DeleteRequest{
+		SourceKind: SourceKindSessionMessage,
+		SessionID:  " ses-a ",
+	})
+	require.EqualError(t, err, "session id must be trimmed")
 }
 
 func TestContentHash(t *testing.T) {

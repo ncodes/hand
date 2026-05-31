@@ -12,10 +12,6 @@ func TestSessionIDAndMessageOrderHelpers(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(sessionID, SessionIDPrefix))
 
-	archiveID, err := NewArchiveID()
-	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(archiveID, ArchiveIDPrefix))
-
 	order, err := NormalizeMessageQueryOrder("")
 	require.NoError(t, err)
 	require.Equal(t, MessageOrderAsc, order)

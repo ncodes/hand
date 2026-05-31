@@ -11,8 +11,11 @@ import (
 // Store records state-store calls for tests.
 type Store struct {
 	GetFunc                   func(context.Context, string) (storage.Session, bool, error)
+	GetWithOptionsFunc        func(context.Context, string, storage.SessionGetOptions) (storage.Session, bool, error)
 	GetSummaryFunc            func(context.Context, string) (storage.SessionSummary, bool, error)
 	ListFunc                  func(context.Context) ([]storage.Session, error)
+	ListWithOptionsFunc       func(context.Context, storage.SessionListOptions) ([]storage.Session, error)
+	RenameFunc                func(context.Context, storage.SessionRenameRequest) (storage.Session, error)
 	SaveFunc                  func(context.Context, storage.Session) error
 	SaveSummaryFunc           func(context.Context, storage.SessionSummary) error
 	DeleteFunc                func(context.Context, string) error
@@ -20,25 +23,45 @@ type Store struct {
 	UpdateCheckpointsFunc     func(context.Context, string, storage.CheckpointPatch) error
 	SetCurrentFunc            func(context.Context, string) error
 	CurrentFunc               func(context.Context) (string, bool, error)
+	ClearCurrentFunc          func(context.Context) error
 	AppendMessagesFunc        func(context.Context, string, []handmsg.Message) error
 	CountMessagesFunc         func(context.Context, string, storage.MessageQueryOptions) (int, error)
-	GetMessageFunc            func(context.Context, string, int, storage.MessageQueryOptions) (handmsg.Message, bool, error)
+	GetMessageFunc            func(context.Context, string, int) (handmsg.Message, bool, error)
 	GetMessagesFunc           func(context.Context, string, storage.MessageQueryOptions) ([]handmsg.Message, error)
 	GetMessagesByIDsFunc      func(context.Context, string, []uint) ([]storage.MessageRecord, error)
 	GetMessageWindowFunc      func(context.Context, string, uint, int, int) ([]storage.MessageRecord, error)
 	SearchMessagesFunc        func(context.Context, string, storage.SearchMessageOptions) ([]storage.SearchMessageResult, error)
-	ClearMessagesFunc         func(context.Context, string, storage.MessageQueryOptions) error
-	ArchiveFunc               func(context.Context, storage.SessionArchiveRequest) (storage.Session, error)
+	ClearMessagesFunc         func(context.Context, string) error
+	ArchiveFunc               func(context.Context, string, storage.SessionArchiveRequest) (storage.Session, error)
 	UnarchiveFunc             func(context.Context, string) (storage.Session, error)
-	CreateArchiveFunc         func(context.Context, storage.ArchivedSession) error
-	GetArchiveFunc            func(context.Context, string) (storage.ArchivedSession, bool, error)
-	ListArchivesFunc          func(context.Context, string) ([]storage.ArchivedSession, error)
-	DeleteArchiveFunc         func(context.Context, string) error
 	DeleteExpiredArchivesFunc func(context.Context, time.Time) error
+	MemoryStore               storage.MemoryStore
+	TraceStore                storage.TraceStore
+	VectorSearchSupported     bool
 }
 
 func (s *Store) Session() storage.SessionStore {
 	return s
+}
+
+func (s *Store) Memory() (storage.MemoryStore, bool) {
+	if s == nil || s.MemoryStore == nil {
+		return nil, false
+	}
+
+	return s.MemoryStore, true
+}
+
+func (s *Store) Trace() (storage.TraceStore, bool) {
+	if s == nil || s.TraceStore == nil {
+		return nil, false
+	}
+
+	return s.TraceStore, true
+}
+
+func (s *Store) SupportsVectorSearch() bool {
+	return s != nil && s.VectorSearchSupported
 }
 
 func (s *Store) Save(ctx context.Context, session storage.Session) error {
@@ -49,7 +72,10 @@ func (s *Store) Save(ctx context.Context, session storage.Session) error {
 	return nil
 }
 
-func (s *Store) Get(ctx context.Context, id string) (storage.Session, bool, error) {
+func (s *Store) Get(ctx context.Context, id string, opts storage.SessionGetOptions) (storage.Session, bool, error) {
+	if s.GetWithOptionsFunc != nil {
+		return s.GetWithOptionsFunc(ctx, id, opts)
+	}
 	if s.GetFunc != nil {
 		return s.GetFunc(ctx, id)
 	}
@@ -81,12 +107,23 @@ func (s *Store) DeleteSummary(ctx context.Context, sessionID string) error {
 	return nil
 }
 
-func (s *Store) List(ctx context.Context) ([]storage.Session, error) {
+func (s *Store) List(ctx context.Context, opts storage.SessionListOptions) ([]storage.Session, error) {
+	if s.ListWithOptionsFunc != nil {
+		return s.ListWithOptionsFunc(ctx, opts)
+	}
 	if s.ListFunc != nil {
 		return s.ListFunc(ctx)
 	}
 
 	return nil, nil
+}
+
+func (s *Store) Rename(ctx context.Context, req storage.SessionRenameRequest) (storage.Session, error) {
+	if s.RenameFunc != nil {
+		return s.RenameFunc(ctx, req)
+	}
+
+	return storage.Session{}, nil
 }
 
 func (s *Store) Delete(ctx context.Context, id string) error {
@@ -105,9 +142,9 @@ func (s *Store) UpdateCheckpoints(ctx context.Context, id string, patch storage.
 	return nil
 }
 
-func (s *Store) Archive(ctx context.Context, req storage.SessionArchiveRequest) (storage.Session, error) {
+func (s *Store) Archive(ctx context.Context, id string, req storage.SessionArchiveRequest) (storage.Session, error) {
 	if s.ArchiveFunc != nil {
-		return s.ArchiveFunc(ctx, req)
+		return s.ArchiveFunc(ctx, id, req)
 	}
 
 	return storage.Session{}, nil
@@ -119,38 +156,6 @@ func (s *Store) Unarchive(ctx context.Context, id string) (storage.Session, erro
 	}
 
 	return storage.Session{}, nil
-}
-
-func (s *Store) CreateArchive(ctx context.Context, archive storage.ArchivedSession) error {
-	if s.CreateArchiveFunc != nil {
-		return s.CreateArchiveFunc(ctx, archive)
-	}
-
-	return nil
-}
-
-func (s *Store) GetArchive(ctx context.Context, id string) (storage.ArchivedSession, bool, error) {
-	if s.GetArchiveFunc != nil {
-		return s.GetArchiveFunc(ctx, id)
-	}
-
-	return storage.ArchivedSession{}, false, nil
-}
-
-func (s *Store) ListArchives(ctx context.Context, sourceSessionID string) ([]storage.ArchivedSession, error) {
-	if s.ListArchivesFunc != nil {
-		return s.ListArchivesFunc(ctx, sourceSessionID)
-	}
-
-	return nil, nil
-}
-
-func (s *Store) DeleteArchive(ctx context.Context, archiveID string) error {
-	if s.DeleteArchiveFunc != nil {
-		return s.DeleteArchiveFunc(ctx, archiveID)
-	}
-
-	return nil
 }
 
 func (s *Store) DeleteExpiredArchives(ctx context.Context, now time.Time) error {
@@ -177,6 +182,14 @@ func (s *Store) Current(ctx context.Context) (string, bool, error) {
 	return "", false, nil
 }
 
+func (s *Store) ClearCurrent(ctx context.Context) error {
+	if s.ClearCurrentFunc != nil {
+		return s.ClearCurrentFunc(ctx)
+	}
+
+	return nil
+}
+
 func (s *Store) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
 	if s.AppendMessagesFunc != nil {
 		return s.AppendMessagesFunc(ctx, id, messages)
@@ -193,9 +206,9 @@ func (s *Store) CountMessages(ctx context.Context, id string, opts storage.Messa
 	return 0, nil
 }
 
-func (s *Store) GetMessage(ctx context.Context, id string, index int, opts storage.MessageQueryOptions) (handmsg.Message, bool, error) {
+func (s *Store) GetMessage(ctx context.Context, id string, index int) (handmsg.Message, bool, error) {
 	if s.GetMessageFunc != nil {
-		return s.GetMessageFunc(ctx, id, index, opts)
+		return s.GetMessageFunc(ctx, id, index)
 	}
 
 	return handmsg.Message{}, false, nil
@@ -233,9 +246,9 @@ func (s *Store) SearchMessages(ctx context.Context, id string, opts storage.Sear
 	return nil, nil
 }
 
-func (s *Store) ClearMessages(ctx context.Context, id string, opts storage.MessageQueryOptions) error {
+func (s *Store) ClearMessages(ctx context.Context, id string) error {
 	if s.ClearMessagesFunc != nil {
-		return s.ClearMessagesFunc(ctx, id, opts)
+		return s.ClearMessagesFunc(ctx, id)
 	}
 
 	return nil

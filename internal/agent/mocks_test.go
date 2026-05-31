@@ -43,7 +43,7 @@ type stateStoreStub struct {
 	messagesErr    error
 	summaryErr     error
 	appendErr      error
-	archive        storage.ArchivedSession
+	archive        storage.Session
 	archiveErr     error
 }
 
@@ -61,7 +61,7 @@ func (s *stateStoreStub) Save(_ context.Context, session storage.Session) error 
 	return nil
 }
 
-func (s *stateStoreStub) Get(_ context.Context, id string) (storage.Session, bool, error) {
+func (s *stateStoreStub) Get(_ context.Context, id string, _ storage.SessionGetOptions) (storage.Session, bool, error) {
 	if s.getErr != nil {
 		return storage.Session{}, false, s.getErr
 	}
@@ -77,7 +77,7 @@ func (s *stateStoreStub) Get(_ context.Context, id string) (storage.Session, boo
 	return s.session, true, nil
 }
 
-func (s *stateStoreStub) List(context.Context) ([]storage.Session, error) {
+func (s *stateStoreStub) List(_ context.Context, _ storage.SessionListOptions) ([]storage.Session, error) {
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
@@ -89,6 +89,10 @@ func (s *stateStoreStub) List(context.Context) ([]storage.Session, error) {
 		return sessions, nil
 	}
 	return []storage.Session{s.session}, nil
+}
+
+func (s *stateStoreStub) Rename(_ context.Context, req storage.SessionRenameRequest) (storage.Session, error) {
+	return storage.Session{ID: req.SessionID, Title: req.Title, TitleSource: req.TitleSource}, nil
 }
 
 func (s *stateStoreStub) Delete(context.Context, string) error { return nil }
@@ -112,6 +116,11 @@ func (s *stateStoreStub) Current(context.Context) (string, bool, error) {
 	return s.session.ID, s.session.ID != "", nil
 }
 
+func (s *stateStoreStub) ClearCurrent(context.Context) error {
+	s.current = ""
+	return nil
+}
+
 func (s *stateStoreStub) AppendMessages(context.Context, string, []handmsg.Message) error {
 	return s.appendErr
 }
@@ -127,7 +136,6 @@ func (s *stateStoreStub) GetMessage(
 	context.Context,
 	string,
 	int,
-	storage.MessageQueryOptions,
 ) (handmsg.Message, bool, error) {
 	return handmsg.Message{}, false, nil
 }
@@ -178,7 +186,7 @@ func (s *stateStoreStub) SearchMessages(
 	return nil, nil
 }
 
-func (s *stateStoreStub) ClearMessages(context.Context, string, storage.MessageQueryOptions) error {
+func (s *stateStoreStub) ClearMessages(context.Context, string) error {
 	return nil
 }
 
@@ -204,13 +212,15 @@ func (s *stateStoreStub) DeleteSummary(context.Context, string) error { return n
 
 func (s *stateStoreStub) Session() storage.SessionStore { return s }
 
-func (s *stateStoreStub) Archive(_ context.Context, req storage.SessionArchiveRequest) (storage.Session, error) {
-	s.archive = storage.ArchivedSession{
-		SourceSessionID: req.SessionID,
-		ArchivedAt:      req.ArchivedAt,
-		ExpiresAt:       req.ExpiresAt,
-	}
-	return storage.Session{ID: req.SessionID, Archived: true, ArchivedAt: req.ArchivedAt, ExpiresAt: req.ExpiresAt}, s.archiveErr
+func (s *stateStoreStub) Memory() (storage.MemoryStore, bool) { return nil, false }
+
+func (s *stateStoreStub) Trace() (storage.TraceStore, bool) { return s, true }
+
+func (s *stateStoreStub) SupportsVectorSearch() bool { return false }
+
+func (s *stateStoreStub) Archive(_ context.Context, id string, req storage.SessionArchiveRequest) (storage.Session, error) {
+	s.archive = storage.Session{ID: id, Archived: true, ArchivedAt: req.ArchivedAt, ExpiresAt: req.ExpiresAt}
+	return storage.Session{ID: id, Archived: true, ArchivedAt: req.ArchivedAt, ExpiresAt: req.ExpiresAt}, s.archiveErr
 }
 
 func (s *stateStoreStub) Unarchive(context.Context, string) (storage.Session, error) {
@@ -220,21 +230,6 @@ func (s *stateStoreStub) Unarchive(context.Context, string) (storage.Session, er
 func (s *stateStoreStub) DeleteExpiredArchives(context.Context, time.Time) error {
 	return nil
 }
-
-func (s *stateStoreStub) CreateArchive(_ context.Context, archive storage.ArchivedSession) error {
-	s.archive = archive
-	return s.archiveErr
-}
-
-func (s *stateStoreStub) GetArchive(context.Context, string) (storage.ArchivedSession, bool, error) {
-	return storage.ArchivedSession{}, false, nil
-}
-
-func (s *stateStoreStub) ListArchives(context.Context, string) ([]storage.ArchivedSession, error) {
-	return nil, nil
-}
-
-func (s *stateStoreStub) DeleteArchive(context.Context, string) error { return nil }
 
 func (s *stateStoreStub) AppendTraceEvent(context.Context, storage.TraceEvent) (storage.TraceEvent, error) {
 	if s.traceAppendErr != nil {

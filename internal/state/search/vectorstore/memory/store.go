@@ -117,16 +117,25 @@ func (s *Store) Delete(_ context.Context, req DeleteRequest) error {
 	}
 
 	sourceIDs := sourceIDsToSet(req.SourceIDs)
+	sessionID := strings.TrimSpace(req.SessionID)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	for id, record := range s.records {
-		if record.SourceKind == req.SourceKind {
-			if _, ok := sourceIDs[record.SourceID]; ok {
-				delete(s.records, id)
-				s.removeFromIndex(record)
+		if record.SourceKind != req.SourceKind {
+			continue
+		}
+		if len(sourceIDs) > 0 {
+			if _, ok := sourceIDs[record.SourceID]; !ok {
+				continue
 			}
 		}
+		if sessionID != "" && record.SessionID != sessionID {
+			continue
+		}
+
+		delete(s.records, id)
+		s.removeFromIndex(record)
 	}
 
 	return nil

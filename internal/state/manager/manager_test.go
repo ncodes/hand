@@ -20,9 +20,25 @@ import (
 var (
 	testSessionA       = nanoid.MustFromSeed(storage.SessionIDPrefix, "project-a", "SessionTestSeedValue123")
 	testMissingSession = nanoid.MustFromSeed(storage.SessionIDPrefix, "missing", "SessionTestSeedValue123")
-	testArchiveOne     = nanoid.MustFromSeed(storage.ArchiveIDPrefix, "archive-1", "SessionTestSeedValue123")
-	testArchiveTwo     = nanoid.MustFromSeed(storage.ArchiveIDPrefix, "archive-2", "SessionTestSeedValue123")
 )
+
+type storeWithoutSession struct{}
+
+func (storeWithoutSession) Session() storage.SessionStore {
+	return nil
+}
+
+func (storeWithoutSession) Memory() (storage.MemoryStore, bool) {
+	return nil, false
+}
+
+func (storeWithoutSession) Trace() (storage.TraceStore, bool) {
+	return nil, false
+}
+
+func (storeWithoutSession) SupportsVectorSearch() bool {
+	return false
+}
 
 func TestManager_ResolveChatSessionCreatesDefault(t *testing.T) {
 	manager, err := NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
@@ -49,6 +65,26 @@ func TestManager_MemoryStore(t *testing.T) {
 	memoryStore, ok = manager.MemoryStore()
 	require.False(t, ok)
 	require.Nil(t, memoryStore)
+}
+
+func TestManager_UsesAggregateStoreCapabilities(t *testing.T) {
+	memoryStore := storagememory.NewStore()
+	traceStore := storagememory.NewStore()
+	manager, err := NewManager(&storagemock.Store{
+		MemoryStore:           memoryStore,
+		TraceStore:            traceStore,
+		VectorSearchSupported: true,
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	gotMemoryStore, ok := manager.MemoryStore()
+	require.True(t, ok)
+	require.Same(t, memoryStore, gotMemoryStore)
+
+	gotTraceStore, ok := manager.TraceStore()
+	require.True(t, ok)
+	require.Same(t, traceStore, gotTraceStore)
+	require.True(t, manager.SupportsVectorSearch())
 }
 
 func TestManager_MemoryOperationsUseMemoryStore(t *testing.T) {
@@ -160,7 +196,7 @@ func TestManager_RunMaintenancePreservesExpiredDefaultMessages(t *testing.T) {
 	require.NoError(t, store.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{
 		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
 	}))
-	defaultSession, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+	defaultSession, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 
@@ -170,10 +206,6 @@ func TestManager_RunMaintenancePreservesExpiredDefaultMessages(t *testing.T) {
 
 	err = manager.runMaintenance(context.Background())
 	require.NoError(t, err)
-
-	archives, err := store.ListArchives(context.Background(), storage.DefaultSessionID)
-	require.NoError(t, err)
-	require.Empty(t, archives)
 
 	liveMessages, err := store.GetMessages(context.Background(), storage.DefaultSessionID, storage.MessageQueryOptions{})
 	require.NoError(t, err)
@@ -199,7 +231,7 @@ func TestManager_RunMaintenancePreservesDefaultSessionCompactionMetadata(t *test
 	require.NoError(t, store.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{
 		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
 	}))
-	defaultSession, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+	defaultSession, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 
@@ -209,7 +241,7 @@ func TestManager_RunMaintenancePreservesDefaultSessionCompactionMetadata(t *test
 
 	require.NoError(t, manager.runMaintenance(context.Background()))
 
-	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, storage.SessionCompaction{
@@ -239,7 +271,7 @@ func TestManager_StartResolvesDefaultSession(t *testing.T) {
 	err = manager.Start(context.Background())
 	require.NoError(t, err)
 
-	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, storage.DefaultSessionID, session.ID)
@@ -264,6 +296,9 @@ func TestNewManager_ValidationAndNilManagerErrors(t *testing.T) {
 	_, err := NewManager(nil, time.Hour, 24*time.Hour)
 	require.EqualError(t, err, "store is required")
 
+	_, err = NewManager(storeWithoutSession{}, time.Hour, 24*time.Hour)
+	require.EqualError(t, err, "session store is required")
+
 	_, err = NewManager(storagememory.NewStore(), 0, 24*time.Hour)
 	require.EqualError(t, err, "session default idle expiry must be greater than zero")
 
@@ -283,9 +318,9 @@ func TestNewManager_ValidationAndNilManagerErrors(t *testing.T) {
 	_, err = manager.SearchMessages(context.Background(), storage.DefaultSessionID, storage.SearchMessageOptions{})
 	require.EqualError(t, err, "state manager is required")
 	require.EqualError(t, manager.Save(context.Background(), storage.Session{}), "state manager is required")
-	_, _, err = manager.Get(context.Background(), storage.DefaultSessionID)
+	_, _, err = manager.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.EqualError(t, err, "state manager is required")
-	_, _, err = manager.GetMessage(context.Background(), storage.DefaultSessionID, 0, storage.MessageQueryOptions{})
+	_, _, err = manager.GetMessage(context.Background(), storage.DefaultSessionID, 0)
 	require.EqualError(t, err, "state manager is required")
 	_, err = manager.GetMessages(context.Background(), storage.DefaultSessionID, storage.MessageQueryOptions{})
 	require.EqualError(t, err, "state manager is required")
@@ -310,6 +345,15 @@ func TestNewManager_ValidationAndNilManagerErrors(t *testing.T) {
 	current, err := manager.CurrentSession(context.Background())
 	require.EqualError(t, err, "state manager is required")
 	require.Empty(t, current)
+
+	memoryStore, ok := manager.MemoryStore()
+	require.False(t, ok)
+	require.Nil(t, memoryStore)
+
+	traceStore, ok := manager.TraceStore()
+	require.False(t, ok)
+	require.Nil(t, traceStore)
+	require.False(t, manager.SupportsVectorSearch())
 }
 
 func TestManager_CountMessages_ForwardsToStore(t *testing.T) {
@@ -325,14 +369,13 @@ func TestManager_CountMessages_ForwardsToStore(t *testing.T) {
 	require.NoError(t, err)
 
 	count, err := manager.CountMessages(context.Background(), "  "+testSessionA+"  ", storage.MessageQueryOptions{
-		Archived: true,
-		Limit:    2,
-		Offset:   3,
+		Limit:  2,
+		Offset: 3,
 	})
 	require.NoError(t, err)
 	require.Equal(t, 7, count)
 	require.Equal(t, testSessionA, capturedID)
-	require.Equal(t, storage.MessageQueryOptions{Archived: true, Limit: 2, Offset: 3}, capturedOpts)
+	require.Equal(t, storage.MessageQueryOptions{Limit: 2, Offset: 3}, capturedOpts)
 }
 
 func TestManager_SearchMessages_ForwardsToStore(t *testing.T) {
@@ -489,11 +532,42 @@ func TestManager_Get_TrimsIDAndReturnsStoreResult(t *testing.T) {
 	}, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
-	session, ok, err := manager.Get(context.Background(), "  "+testSessionA+"  ")
+	session, ok, err := manager.Get(context.Background(), "  "+testSessionA+"  ", storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, expected, session)
 	require.Equal(t, testSessionA, capturedID)
+}
+
+func TestManager_Get_ForwardsSessionGetOptions(t *testing.T) {
+	archived := true
+	expected := storage.Session{ID: testSessionA, Archived: true}
+
+	var captured storage.SessionGetOptions
+	manager, err := NewManager(&storagemock.Store{
+		GetWithOptionsFunc: func(
+			_ context.Context,
+			id string,
+			opts storage.SessionGetOptions,
+		) (storage.Session, bool, error) {
+			require.Equal(t, testSessionA, id)
+			captured = opts
+
+			return expected, true, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	session, ok, err := manager.Get(
+		context.Background(),
+		"  "+testSessionA+"  ",
+		storage.SessionGetOptions{Archived: &archived},
+	)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, expected, session)
+	require.NotNil(t, captured.Archived)
+	require.True(t, *captured.Archived)
 }
 
 func TestManager_Get_ReturnsStoreError(t *testing.T) {
@@ -504,7 +578,7 @@ func TestManager_Get_ReturnsStoreError(t *testing.T) {
 	}, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
-	_, _, err = manager.Get(context.Background(), testSessionA)
+	_, _, err = manager.Get(context.Background(), testSessionA, storage.SessionGetOptions{})
 	require.EqualError(t, err, "get failed")
 }
 
@@ -530,7 +604,7 @@ func TestManager_CreateSaveListAndResolveNonDefaultSession(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	require.Equal(t, "hello", messages[0].Content)
-	message, ok, err := manager.GetMessage(context.Background(), testSessionA, 0, storage.MessageQueryOptions{})
+	message, ok, err := manager.GetMessage(context.Background(), testSessionA, 0)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "hello", message.Content)
@@ -560,7 +634,7 @@ func TestManager_RenameSessionUpdatesTitle(t *testing.T) {
 	require.Equal(t, storage.SessionTitleSourceManual, renamed.TitleSource)
 	require.False(t, renamed.UpdatedAt.IsZero())
 
-	persisted, ok, err := store.Get(context.Background(), testSessionA)
+	persisted, ok, err := store.Get(context.Background(), testSessionA, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "Project Planning", persisted.Title)
@@ -625,63 +699,45 @@ func TestManager_RenameSessionValidatesInputAndStoreErrors(t *testing.T) {
 	require.EqualError(t, err, "session not found")
 
 	manager, err = NewManager(&storagemock.Store{
-		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
-			return storage.Session{}, false, errors.New("get failed")
+		RenameFunc: func(context.Context, storage.SessionRenameRequest) (storage.Session, error) {
+			return storage.Session{}, errors.New("rename failed")
 		},
 	}, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
 	_, err = manager.RenameSession(context.Background(), testSessionA, "Title")
-	require.EqualError(t, err, "get failed")
+	require.EqualError(t, err, "rename failed")
 
 	manager, err = NewManager(&storagemock.Store{
 		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
-			return storage.Session{ID: testSessionA}, true, nil
-		},
-		SaveFunc: func(context.Context, storage.Session) error {
-			return errors.New("save failed")
-		},
-	}, time.Hour, 24*time.Hour)
-	require.NoError(t, err)
-
-	_, err = manager.RenameSession(context.Background(), testSessionA, "Title")
-	require.EqualError(t, err, "save failed")
-
-	getCalls := 0
-	manager, err = NewManager(&storagemock.Store{
-		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
-			getCalls++
-			if getCalls == 1 {
-				return storage.Session{ID: testSessionA}, true, nil
-			}
-			return storage.Session{}, false, errors.New("reload failed")
-		},
-		SaveFunc: func(context.Context, storage.Session) error {
-			return nil
-		},
-	}, time.Hour, 24*time.Hour)
-	require.NoError(t, err)
-
-	_, err = manager.RenameSession(context.Background(), testSessionA, "Title")
-	require.EqualError(t, err, "reload failed")
-
-	getCalls = 0
-	manager, err = NewManager(&storagemock.Store{
-		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
-			getCalls++
-			if getCalls == 1 {
-				return storage.Session{ID: testSessionA}, true, nil
-			}
 			return storage.Session{}, false, nil
 		},
 		SaveFunc: func(context.Context, storage.Session) error {
-			return nil
+			return errors.New("create default failed")
 		},
 	}, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
-	_, err = manager.RenameSession(context.Background(), testSessionA, "Title")
-	require.EqualError(t, err, "session not found")
+	_, err = manager.RenameSession(context.Background(), storage.DefaultSessionID, "Title")
+	require.EqualError(t, err, "create default failed")
+
+	var captured storage.SessionRenameRequest
+	manager, err = NewManager(&storagemock.Store{
+		RenameFunc: func(_ context.Context, req storage.SessionRenameRequest) (storage.Session, error) {
+			captured = req
+			return storage.Session{ID: req.SessionID, Title: req.Title, TitleSource: req.TitleSource}, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	renamed, err := manager.RenameSession(context.Background(), "  "+testSessionA+"  ", "  Title  ")
+	require.NoError(t, err)
+	require.Equal(t, testSessionA, renamed.ID)
+	require.Equal(t, "Title", renamed.Title)
+	require.Equal(t, testSessionA, captured.SessionID)
+	require.Equal(t, "Title", captured.Title)
+	require.Equal(t, storage.SessionTitleSourceManual, captured.TitleSource)
+	require.False(t, captured.RenamedAt.IsZero())
 }
 
 func TestManager_DeleteSessionRemovesArchivedSession(t *testing.T) {
@@ -694,21 +750,16 @@ func TestManager_DeleteSessionRemovesArchivedSession(t *testing.T) {
 	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
 		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)},
 	}))
-	require.NoError(t, store.CreateArchive(context.Background(), storage.ArchivedSession{
-		ID:              testArchiveOne,
-		SourceSessionID: testSessionA,
-		ArchivedAt:      time.Date(2026, 3, 30, 13, 0, 0, 0, time.UTC),
-		ExpiresAt:       time.Date(2026, 4, 1, 13, 0, 0, 0, time.UTC),
-	}))
-	require.NoError(t, manager.UseSession(context.Background(), testSessionA))
+	_, err = store.Archive(context.Background(), testSessionA, storage.SessionArchiveRequest{
+		ArchivedAt: time.Date(2026, 3, 30, 13, 0, 0, 0, time.UTC),
+		ExpiresAt:  time.Date(2026, 4, 1, 13, 0, 0, 0, time.UTC),
+	})
+	require.NoError(t, err)
 	require.NoError(t, manager.DeleteSession(context.Background(), testSessionA))
 
-	_, ok, err := store.Get(context.Background(), testSessionA)
+	_, ok, err := store.Get(context.Background(), testSessionA, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.False(t, ok)
-	archives, err := store.ListArchives(context.Background(), testSessionA)
-	require.NoError(t, err)
-	require.Empty(t, archives)
 	current, err := manager.CurrentSession(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, storage.DefaultSessionID, current)
@@ -730,16 +781,10 @@ func TestManager_ArchiveSessionMarksSessionArchived(t *testing.T) {
 
 	require.NoError(t, manager.ArchiveSession(context.Background(), testSessionA))
 
-	session, ok, err := store.Get(context.Background(), testSessionA)
+	session, ok, err := store.Get(context.Background(), testSessionA, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.True(t, session.Archived)
-	archives, err := store.ListArchives(context.Background(), testSessionA)
-	require.NoError(t, err)
-	require.Len(t, archives, 1)
-	require.Equal(t, testSessionA, archives[0].SourceSessionID)
-	require.Equal(t, now, archives[0].ArchivedAt)
-	require.Equal(t, now.Add(48*time.Hour), archives[0].ExpiresAt)
 	messages, err := store.GetMessages(context.Background(), testSessionA, storage.MessageQueryOptions{})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
@@ -784,9 +829,6 @@ func TestManager_ResolveDefaultSessionKeepsActiveMessagesBeforeExpiry(t *testing
 	require.Len(t, messages, 1)
 	require.Equal(t, "still-active", messages[0].Content)
 
-	archives, err := store.ListArchives(context.Background(), storage.DefaultSessionID)
-	require.NoError(t, err)
-	require.Empty(t, archives)
 }
 
 func TestManager_ResolveChatSessionDoesNotRunMaintenance(t *testing.T) {
@@ -810,9 +852,6 @@ func TestManager_ResolveChatSessionDoesNotRunMaintenance(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 
-	archives, err := store.ListArchives(context.Background(), storage.DefaultSessionID)
-	require.NoError(t, err)
-	require.Empty(t, archives)
 }
 
 func TestManager_StartRunsMaintenance(t *testing.T) {
@@ -826,7 +865,7 @@ func TestManager_StartRunsMaintenance(t *testing.T) {
 	require.NoError(t, store.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{
 		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: expiredAt.Add(-time.Minute)},
 	}))
-	defaultSession, ok, err := store.Get(context.Background(), storage.DefaultSessionID)
+	defaultSession, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 
@@ -842,9 +881,6 @@ func TestManager_StartRunsMaintenance(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 
-	archives, err := store.ListArchives(context.Background(), storage.DefaultSessionID)
-	require.NoError(t, err)
-	require.Empty(t, archives)
 }
 
 func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
@@ -1046,7 +1082,7 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 		require.EqualError(t, manager.ArchiveSession(context.Background(), "project-a"), "session id must be a valid ses_ nanoid")
 
 		manager, err = NewManager(&storagemock.Store{
-			ArchiveFunc: func(context.Context, storage.SessionArchiveRequest) (storage.Session, error) {
+			ArchiveFunc: func(context.Context, string, storage.SessionArchiveRequest) (storage.Session, error) {
 				return storage.Session{}, errors.New("archive failed")
 			},
 		}, time.Hour, 24*time.Hour)

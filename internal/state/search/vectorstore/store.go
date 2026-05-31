@@ -54,6 +54,7 @@ type Record struct {
 type DeleteRequest struct {
 	SourceKind SourceKind
 	SourceIDs  []string
+	SessionID  string
 }
 
 // SearchRequest contains vector search input, filters, and limits.
@@ -209,9 +210,7 @@ func ValidateDeleteRequest(req DeleteRequest) error {
 	if err := ValidateRequiredSourceKind(req.SourceKind, "source kind"); err != nil {
 		return err
 	}
-	if len(req.SourceIDs) == 0 {
-		return errors.New("source id is required")
-	}
+	sessionID := strings.TrimSpace(req.SessionID)
 	for _, sourceID := range req.SourceIDs {
 		if strings.TrimSpace(sourceID) == "" {
 			return errors.New("source id is required")
@@ -219,6 +218,12 @@ func ValidateDeleteRequest(req DeleteRequest) error {
 		if strings.TrimSpace(sourceID) != sourceID {
 			return errors.New("source id must be trimmed")
 		}
+	}
+	if sessionID != req.SessionID {
+		return errors.New("session id must be trimmed")
+	}
+	if len(req.SourceIDs) == 0 && sessionID == "" {
+		return errors.New("source id or session id is required")
 	}
 
 	return nil

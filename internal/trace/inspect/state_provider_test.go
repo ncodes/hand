@@ -45,7 +45,7 @@ func TestConfigureStateProvider_ReturnsManagerSetupError(t *testing.T) {
 	t.Cleanup(func() { newStateManager = originalNewStateManager })
 	expected := errors.New("manager setup failed")
 	newStateManager = func(
-		storage.SessionStore,
+		storage.Store,
 		time.Duration,
 		time.Duration,
 	) (*statemanager.Manager, error) {
@@ -236,6 +236,10 @@ type memorySearchStore struct {
 	query  storage.SessionMemoryQuery
 }
 
+func (s *memorySearchStore) Memory() (storage.MemoryStore, bool) {
+	return s, true
+}
+
 func (s memorySearchStore) SearchMemory(
 	context.Context,
 	storage.MemorySearchQuery,
@@ -270,6 +274,10 @@ func (s memorySearchStore) DeleteMemory(
 	storage.MemoryDeleteRequest,
 ) error {
 	return nil
+}
+
+func (s *memorySearchErrorStore) Memory() (storage.MemoryStore, bool) {
+	return s, true
 }
 
 func (s memorySearchErrorStore) SearchMemory(

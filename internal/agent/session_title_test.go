@@ -66,7 +66,7 @@ func TestAgent_MaybeGenerateSessionTitleUsesSummaryModel(t *testing.T) {
 
 	core.maybeGenerateSessionTitle(context.Background(), "default")
 
-	session, ok, err := store.Get(context.Background(), "default")
+	session, ok, err := store.Get(context.Background(), "default", storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "Useful Title", session.Title)
@@ -97,7 +97,7 @@ func TestAgent_MaybeGenerateSessionTitleFallsBackWhenModelTitleInvalid(t *testin
 
 	core.maybeGenerateSessionTitle(context.Background(), "default")
 
-	session, ok, err := store.Get(context.Background(), "default")
+	session, ok, err := store.Get(context.Background(), "default", storage.SessionGetOptions{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "fix memory flush before compaction please", session.Title)

@@ -23,9 +23,6 @@ const sessionMessageSearchTable = "session_message_search"
 // Session aliases base.Session at this package boundary.
 type Session = base.Session
 
-// ArchivedSession aliases base.ArchivedSession at this package boundary.
-type ArchivedSession = base.ArchivedSession
-
 // MessageQueryOptions aliases base.MessageQueryOptions at this package boundary.
 type MessageQueryOptions = base.MessageQueryOptions
 
@@ -57,6 +54,9 @@ type sessionModel struct {
 	TitleSource                  string
 	CreatedAt                    time.Time
 	UpdatedAt                    time.Time
+	Archived                     bool
+	ArchivedAt                   time.Time `gorm:"index"`
+	ExpiresAt                    time.Time `gorm:"index"`
 	LastPromptTokens             int
 	CompactionStatus             string
 	CompactionRequestedAt        time.Time
@@ -73,22 +73,6 @@ type sessionModel struct {
 // TableName returns the SQLite table used for active sessions.
 func (sessionModel) TableName() string {
 	return "sessions"
-}
-
-// archiveModel describes metadata for archived session message sets.
-type archiveModel struct {
-	ID              string `gorm:"primaryKey"`
-	SourceSessionID string `gorm:"index;not null"`
-	Title           string `gorm:"type:text"`
-	TitleSource     string
-	ArchivedAt      time.Time `gorm:"index"`
-	ExpiresAt       time.Time `gorm:"index"`
-	CreatedAt       time.Time
-}
-
-// TableName returns the SQLite table used for session archives.
-func (archiveModel) TableName() string {
-	return "session_archives"
 }
 
 // stateModel describes small named session state values such as the current session.
@@ -144,28 +128,6 @@ func (messageModel) TableName() string {
 	return "session_messages"
 }
 
-// archivedMessageModel describes messages moved out of an active session archive.
-type archivedMessageModel struct {
-	ID         uint `gorm:"primaryKey"`
-	ArchiveID  string
-	Sequence   int `gorm:"index;not null"`
-	Role       string
-	Name       string
-	Content    string
-	ToolCalls  string `gorm:"type:text"`
-	ToolCallID string
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-}
-
-// archivedMessageModels is a typed slice for archived message conversion helpers.
-type archivedMessageModels []archivedMessageModel
-
-// TableName returns the SQLite table used for archived session messages.
-func (archivedMessageModel) TableName() string {
-	return "archived_session_messages"
-}
-
 // searchSessionResultRow is the intermediate shape used to map ranked SQL rows to public search results.
 type searchSessionResultRow struct {
 	ID              uint
@@ -201,6 +163,11 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 
 	if err := s.db.WithContext(ctx).First(&existing, "id = ?", session.ID).Error; err == nil {
 		session.CreatedAt = existing.CreatedAt
+		if !session.Archived && session.ArchivedAt.IsZero() && session.ExpiresAt.IsZero() {
+			session.Archived = existing.Archived
+			session.ArchivedAt = existing.ArchivedAt
+			session.ExpiresAt = existing.ExpiresAt
+		}
 
 		if session.Compaction == (base.SessionCompaction{}) {
 			session.Compaction = base.SessionCompaction{
@@ -242,8 +209,16 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 	} else {
 		session.UpdatedAt = session.UpdatedAt.UTC()
 	}
+	if !session.ArchivedAt.IsZero() {
+		session.ArchivedAt = session.ArchivedAt.UTC()
+	}
+	if !session.ExpiresAt.IsZero() {
+		session.ExpiresAt = session.ExpiresAt.UTC()
+	}
 
 	record := sessionModel{
+		Archived:                     session.Archived,
+		ArchivedAt:                   session.ArchivedAt,
 		CreatedAt:                    session.CreatedAt,
 		CompactionCompletedAt:        session.Compaction.CompletedAt,
 		CompactionFailedAt:           session.Compaction.FailedAt,
@@ -254,6 +229,7 @@ func (s *Store) Save(ctx context.Context, session Session) error {
 		CompactionTargetMessageCount: session.Compaction.TargetMessageCount,
 		CompactionTargetOffset:       session.Compaction.TargetOffset,
 		EpisodicCheckpointOffset:     session.EpisodicCheckpointOffset,
+		ExpiresAt:                    session.ExpiresAt,
 		ID:                           session.ID,
 		LastPromptTokens:             session.LastPromptTokens,
 		ReflectionCheckpointOffset:   session.ReflectionCheckpointOffset,
@@ -321,8 +297,8 @@ func (s *Store) UpdateCheckpoints(ctx context.Context, id string, patch Checkpoi
 	})
 }
 
-// Get loads one active session by ID.
-func (s *Store) Get(ctx context.Context, id string) (Session, bool, error) {
+// Get loads one session by ID.
+func (s *Store) Get(ctx context.Context, id string, opts base.SessionGetOptions) (Session, bool, error) {
 	if s == nil || s.db == nil {
 		return Session{}, false, errors.New("store is required")
 	}
@@ -336,8 +312,13 @@ func (s *Store) Get(ctx context.Context, id string) (Session, bool, error) {
 		return Session{}, false, err
 	}
 
+	query := s.db.WithContext(ctx).Where("id = ?", id)
+	if opts.Archived != nil {
+		query = query.Where("archived = ?", *opts.Archived)
+	}
+
 	var record sessionModel
-	if err := s.db.WithContext(ctx).First(&record, "id = ?", id).Error; err != nil {
+	if err := query.First(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return Session{}, false, nil
 		}
@@ -352,14 +333,18 @@ func (s *Store) Get(ctx context.Context, id string) (Session, bool, error) {
 	return session, true, nil
 }
 
-// List returns active sessions ordered by most recently updated.
-func (s *Store) List(ctx context.Context) ([]Session, error) {
+// List returns sessions ordered by most recently updated.
+func (s *Store) List(ctx context.Context, opts base.SessionListOptions) ([]Session, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("store is required")
 	}
 
 	var records []sessionModel
-	if err := s.db.WithContext(ctx).Order("updated_at desc").Order("id asc").Find(&records).Error; err != nil {
+	query := s.db.WithContext(ctx).Order("updated_at desc").Order("id asc")
+	if opts.Archived != nil {
+		query = query.Where("archived = ?", *opts.Archived)
+	}
+	if err := query.Find(&records).Error; err != nil {
 		return nil, err
 	}
 
@@ -397,7 +382,6 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 		return errors.New("default session cannot be deleted")
 	}
 
-	var sourceIDs []string
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var session sessionModel
 
@@ -407,14 +391,6 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 			}
 			return err
 		}
-
-		var messageIDs []uint
-		if err := tx.Model(&messageModel{}).
-			Where("session_id = ?", id).
-			Pluck("id", &messageIDs).Error; err != nil {
-			return err
-		}
-		sourceIDs = messageIDsToSourceIDs(id, messageIDs)
 
 		if err := tx.Where("session_id = ?", id).Delete(&messageModel{}).Error; err != nil {
 			return err
@@ -441,7 +417,7 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 		return err
 	}
 
-	if err := s.deleteVectorRows(ctx, sourceIDs); err != nil {
+	if err := s.deleteVectorRowsBySession(ctx, id); err != nil {
 		return s.handleVectorStoreError(err)
 	}
 
@@ -504,7 +480,7 @@ func (s *Store) AppendMessages(ctx context.Context, id string, messages []handms
 	return nil
 }
 
-// GetMessages loads active or archived messages with role, name, order, offset, and limit filters.
+// GetMessages loads messages with role, name, order, offset, and limit filters.
 func (s *Store) GetMessages(
 	ctx context.Context,
 	id string,
@@ -523,30 +499,11 @@ func (s *Store) GetMessages(
 		return nil, nil
 	}
 
-	if !opts.Archived {
-		if err := base.ValidateSessionID(id); err != nil {
-			return nil, err
-		}
-	} else if err := base.ValidateArchiveID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return nil, err
 	}
 
 	offset := max(opts.Offset, 0)
-
-	if opts.Archived {
-		var records []archivedMessageModel
-		query := applyArchivedMessageFilters(s.db.WithContext(ctx), id, opts).
-			Order("sequence " + getMessageQueryOrder(opts)).
-			Offset(offset)
-		if opts.Limit > 0 {
-			query = query.Limit(opts.Limit)
-		}
-		if err := query.Find(&records).Error; err != nil {
-			return nil, err
-		}
-
-		return archivedMessageModels(records).messages(), nil
-	}
 
 	var records []messageModel
 	query := applySessionMessageFilters(s.db.WithContext(ctx), id, opts).
@@ -638,7 +595,7 @@ func (s *Store) GetMessageWindow(
 	return messageModels(records).records(), nil
 }
 
-// CountMessages counts active or archived messages matching the supplied filters.
+// CountMessages counts messages matching the supplied filters.
 func (s *Store) CountMessages(
 	ctx context.Context,
 	id string,
@@ -657,23 +614,11 @@ func (s *Store) CountMessages(
 		return 0, nil
 	}
 
-	if !opts.Archived {
-		if err := base.ValidateSessionID(id); err != nil {
-			return 0, err
-		}
-	} else if err := base.ValidateArchiveID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return 0, err
 	}
 
 	var count int64
-	if opts.Archived {
-		if err := applyArchivedMessageFilters(s.db.WithContext(ctx), id, opts).
-			Count(&count).Error; err != nil {
-			return 0, err
-		}
-		return int(count), nil
-	}
-
 	if err := applySessionMessageFilters(s.db.WithContext(ctx), id, opts).
 		Count(&count).Error; err != nil {
 		return 0, err
@@ -916,17 +861,6 @@ func applySessionMessageFilters(query *gorm.DB, id string, opts MessageQueryOpti
 	return query
 }
 
-func applyArchivedMessageFilters(query *gorm.DB, id string, opts MessageQueryOptions) *gorm.DB {
-	query = query.Model(&archivedMessageModel{}).Where("archive_id = ?", id)
-	if role := strings.TrimSpace(string(opts.Role)); role != "" {
-		query = query.Where("role = ?", role)
-	}
-	if name := strings.TrimSpace(opts.Name); name != "" {
-		query = query.Where("name = ?", name)
-	}
-	return query
-}
-
 func getMessageQueryOrder(opts MessageQueryOptions) string {
 	order, err := base.NormalizeMessageQueryOrder(opts.Order)
 	if err != nil {
@@ -936,12 +870,11 @@ func getMessageQueryOrder(opts MessageQueryOptions) string {
 	return order
 }
 
-// GetMessage loads one active or archived message by its sequence index.
+// GetMessage loads one message by its sequence index.
 func (s *Store) GetMessage(
 	ctx context.Context,
 	id string,
 	index int,
-	opts MessageQueryOptions,
 ) (handmsg.Message, bool, error) {
 	if s == nil || s.db == nil {
 		return handmsg.Message{}, false, errors.New("store is required")
@@ -952,25 +885,8 @@ func (s *Store) GetMessage(
 		return handmsg.Message{}, false, nil
 	}
 
-	if !opts.Archived {
-		if err := base.ValidateSessionID(id); err != nil {
-			return handmsg.Message{}, false, err
-		}
-	} else if err := base.ValidateArchiveID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return handmsg.Message{}, false, err
-	}
-
-	if opts.Archived {
-		var record archivedMessageModel
-		if err := s.db.WithContext(ctx).Where("archive_id = ? AND sequence = ?", id, index).
-			First(&record).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return handmsg.Message{}, false, nil
-			}
-			return handmsg.Message{}, false, err
-		}
-
-		return archivedMessageModels([]archivedMessageModel{record}).messages()[0], true, nil
 	}
 
 	var record messageModel
@@ -1067,190 +983,129 @@ func (s *Store) DeleteSummary(ctx context.Context, sessionID string) error {
 	return s.db.WithContext(ctx).Where("session_id = ?", sessionID).Delete(&summaryModel{}).Error
 }
 
-// CreateArchive moves active session messages into an archive and clears related indexes.
-func (s *Store) CreateArchive(ctx context.Context, archive ArchivedSession) error {
+func (s *Store) Archive(ctx context.Context, id string, req base.SessionArchiveRequest) (Session, error) {
 	if s == nil || s.db == nil {
-		return errors.New("store is required")
+		return Session{}, errors.New("store is required")
 	}
 
-	archive, err := base.NormalizeCreateArchive(archive)
-	if err != nil {
-		return err
+	id = strings.TrimSpace(id)
+	if err := base.ValidateSessionID(id); err != nil {
+		return Session{}, err
 	}
 
-	var sourceIDs []string
+	var session Session
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var sourceSession sessionModel
-		if err := tx.First(&sourceSession, "id = ?", archive.SourceSessionID).Error; err != nil {
-			return err
-		}
-		archive.Title, archive.TitleSource = base.NormalizeSessionTitleMetadata(
-			sourceSession.Title,
-			sourceSession.TitleSource,
-		)
-
-		var source []messageModel
-		if err := tx.Where("session_id = ?", archive.SourceSessionID).Order("sequence asc").
-			Find(&source).Error; err != nil {
+		var record sessionModel
+		if err := tx.First(&record, "id = ?", id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("session not found")
+			}
 			return err
 		}
 
-		if len(source) == 0 {
+		var count int64
+		if err := tx.Model(&messageModel{}).Where("session_id = ?", id).Count(&count).Error; err != nil {
+			return err
+		}
+		if count == 0 {
 			return errors.New("source session has no messages")
 		}
-		sourceIDs = messageModels(source).sourceIDs()
 
-		record := archiveModel{
-			ID:              archive.ID,
-			SourceSessionID: archive.SourceSessionID,
-			Title:           archive.Title,
-			TitleSource:     archive.TitleSource,
-			ArchivedAt:      archive.ArchivedAt,
-			ExpiresAt:       archive.ExpiresAt,
+		loaded, err := sessionModelToSession(record)
+		if err != nil {
+			return err
 		}
+		archived, err := base.MarkSessionArchived(loaded, req.ArchivedAt, req.ExpiresAt)
+		if err != nil {
+			return err
+		}
+
+		record.Archived = archived.Archived
+		record.ArchivedAt = archived.ArchivedAt
+		record.ExpiresAt = archived.ExpiresAt
+		session = archived
 
 		if err := tx.Save(&record).Error; err != nil {
 			return err
 		}
 
-		if err := tx.Where("archive_id = ?", archive.ID).Delete(&archivedMessageModel{}).Error; err != nil {
-			return err
-		}
-
-		records := messagesToArchivedMessageModels(archive.ID, messageModels(source).messages())
-		if err := tx.Create(&records).Error; err != nil {
-			return err
-		}
-
-		if err := tx.Where("session_id = ?", archive.SourceSessionID).Delete(&messageModel{}).Error; err != nil {
-			return err
-		}
-		if err := deleteSearchRows(tx, archive.SourceSessionID); err != nil {
-			return err
-		}
-
-		if err := tx.Where("session_id = ?", archive.SourceSessionID).Delete(&summaryModel{}).Error; err != nil {
-			return err
-		}
-
-		if archive.SourceSessionID == base.DefaultSessionID {
-			return tx.Model(&sessionModel{}).
-				Where("id = ?", archive.SourceSessionID).
-				Updates(map[string]any{
-					"compaction_completed_at":         time.Time{},
-					"compaction_failed_at":            time.Time{},
-					"compaction_last_error":           "",
-					"compaction_requested_at":         time.Time{},
-					"compaction_started_at":           time.Time{},
-					"compaction_status":               "",
-					"compaction_target_message_count": 0,
-					"compaction_target_offset":        0,
-					"title":                           "",
-					"title_source":                    "",
-				}).Error
-		}
-
-		if err := tx.Where("id = ?", archive.SourceSessionID).Delete(&sessionModel{}).Error; err != nil {
-			return err
-		}
-
-		return tx.Where("key = ? AND value = ?", currentSessionStateKey, archive.SourceSessionID).
-			Delete(&stateModel{}).Error
+		return tx.Where("key = ? AND value = ?", currentSessionStateKey, id).Delete(&stateModel{}).Error
 	}); err != nil {
-		return err
-	}
-
-	if err := s.deleteVectorRows(ctx, sourceIDs); err != nil {
-		return s.handleVectorStoreError(err)
-	}
-
-	return nil
-}
-
-func (s *Store) Archive(ctx context.Context, req base.SessionArchiveRequest) (Session, error) {
-	session, err := base.MarkSessionArchived(Session{ID: req.SessionID}, req.ArchivedAt, req.ExpiresAt)
-	if err != nil {
-		return Session{}, err
-	}
-
-	archiveID, err := base.NewArchiveID()
-	if err != nil {
-		return Session{}, err
-	}
-
-	err = s.CreateArchive(ctx, ArchivedSession{
-		ID:              archiveID,
-		SourceSessionID: session.ID,
-		ArchivedAt:      session.ArchivedAt,
-		ExpiresAt:       session.ExpiresAt,
-	})
-	if err != nil {
 		return Session{}, err
 	}
 
 	return session, nil
 }
 
-// GetArchive loads archive metadata by archive ID.
-func (s *Store) GetArchive(ctx context.Context, id string) (ArchivedSession, bool, error) {
+func (s *Store) Rename(ctx context.Context, req base.SessionRenameRequest) (Session, error) {
 	if s == nil || s.db == nil {
-		return ArchivedSession{}, false, errors.New("store is required")
+		return Session{}, errors.New("store is required")
 	}
 
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return ArchivedSession{}, false, nil
+	req.SessionID = strings.TrimSpace(req.SessionID)
+	if err := base.ValidateSessionID(req.SessionID); err != nil {
+		return Session{}, err
 	}
 
-	if err := base.ValidateArchiveID(id); err != nil {
-		return ArchivedSession{}, false, err
+	title, titleSource := base.NormalizeSessionTitleMetadata(req.Title, req.TitleSource)
+	if title == "" {
+		return Session{}, errors.New("session title is required")
 	}
 
-	var record archiveModel
-	if err := s.db.WithContext(ctx).First(&record, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ArchivedSession{}, false, nil
+	renamedAt := req.RenamedAt.UTC()
+	if renamedAt.IsZero() {
+		renamedAt = time.Now().UTC()
+	}
+
+	var session Session
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var record sessionModel
+		if err := tx.First(&record, "id = ?", req.SessionID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("session not found")
+			}
+
+			return err
 		}
-		return ArchivedSession{}, false, err
+
+		record.Title = title
+		record.TitleSource = titleSource
+		record.UpdatedAt = renamedAt
+
+		if err := tx.Model(&record).UpdateColumns(map[string]any{
+			"title":        title,
+			"title_source": titleSource,
+			"updated_at":   renamedAt,
+		}).Error; err != nil {
+			return err
+		}
+
+		loaded, err := sessionModelToSession(record)
+		if err != nil {
+			return err
+		}
+
+		session = loaded
+		return nil
+	}); err != nil {
+		return Session{}, err
 	}
 
-	archive, err := archiveModelToArchivedSession(record)
-	if err != nil {
-		return ArchivedSession{}, false, err
-	}
-
-	return archive, true, nil
+	return session, nil
 }
 
-// ClearMessages removes all messages for an active session or archive.
-func (s *Store) ClearMessages(ctx context.Context, id string, opts MessageQueryOptions) error {
+// ClearMessages removes all messages for a session.
+func (s *Store) ClearMessages(ctx context.Context, id string) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
 
 	id = strings.TrimSpace(id)
-	if !opts.Archived {
-		if err := base.ValidateSessionID(id); err != nil {
-			return err
-		}
-	} else if err := base.ValidateArchiveID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
 
-	var sourceIDs []string
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if opts.Archived {
-			var archive archiveModel
-			if err := tx.First(&archive, "id = ?", id).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return errors.New("archive not found")
-				}
-				return err
-			}
-
-			return tx.Where("archive_id = ?", id).Delete(&archivedMessageModel{}).Error
-		}
-
 		var session sessionModel
 		if err := tx.First(&session, "id = ?", id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1258,12 +1113,6 @@ func (s *Store) ClearMessages(ctx context.Context, id string, opts MessageQueryO
 			}
 			return err
 		}
-
-		var messageIDs []uint
-		if err := tx.Model(&messageModel{}).Where("session_id = ?", id).Pluck("id", &messageIDs).Error; err != nil {
-			return err
-		}
-		sourceIDs = messageIDsToSourceIDs(id, messageIDs)
 
 		if err := tx.Where("session_id = ?", id).Delete(&messageModel{}).Error; err != nil {
 			return err
@@ -1291,98 +1140,101 @@ func (s *Store) ClearMessages(ctx context.Context, id string, opts MessageQueryO
 		return err
 	}
 
-	if err := s.deleteVectorRows(ctx, sourceIDs); err != nil {
+	if err := s.deleteVectorRowsBySession(ctx, id); err != nil {
 		return s.handleVectorStoreError(err)
 	}
 
 	return nil
 }
 
-// ListArchives returns archives, optionally scoped to one source session.
-func (s *Store) ListArchives(ctx context.Context, sourceSessionID string) ([]ArchivedSession, error) {
-	if s == nil || s.db == nil {
-		return nil, errors.New("store is required")
-	}
-
-	query := s.db.WithContext(ctx).Order("archived_at desc").Order("id asc")
-	sourceSessionID = strings.TrimSpace(sourceSessionID)
-
-	if sourceSessionID != "" {
-		query = query.Where("source_session_id = ?", sourceSessionID)
-	}
-
-	var records []archiveModel
-	if err := query.Find(&records).Error; err != nil {
-		return nil, err
-	}
-
-	archives := make([]ArchivedSession, 0, len(records))
-	for _, record := range records {
-		archive, err := archiveModelToArchivedSession(record)
-		if err != nil {
-			return nil, err
-		}
-		archives = append(archives, archive)
-	}
-
-	return archives, nil
-}
-
-// DeleteArchive removes one archive and its archived messages.
-func (s *Store) DeleteArchive(ctx context.Context, archiveID string) error {
-	if s == nil || s.db == nil {
-		return errors.New("store is required")
-	}
-
-	archiveID = strings.TrimSpace(archiveID)
-	if err := base.ValidateArchiveID(archiveID); err != nil {
-		return err
-	}
-
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var archive archiveModel
-		if err := tx.First(&archive, "id = ?", archiveID).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return errors.New("archive not found")
-			}
-			return err
-		}
-
-		if err := tx.Where("archive_id = ?", archiveID).Delete(&archivedMessageModel{}).Error; err != nil {
-			return err
-		}
-
-		return tx.Delete(&archive).Error
-	})
-}
-
-// DeleteExpiredArchives removes archives whose expiration time is at or before now.
+// DeleteExpiredArchives removes archived sessions whose expiration time is at or before now.
 func (s *Store) DeleteExpiredArchives(ctx context.Context, now time.Time) error {
 	if s == nil || s.db == nil {
 		return errors.New("store is required")
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var ids []string
-		if err := tx.Model(&archiveModel{}).Where("expires_at <= ?", now.UTC()).
-			Pluck("id", &ids).Error; err != nil {
+	now = now.UTC()
+	var sessionIDs []string
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&sessionModel{}).
+			Where("archived = ? AND expires_at <= ?", true, now).
+			Pluck("id", &sessionIDs).Error; err != nil {
 			return err
 		}
-
-		if len(ids) == 0 {
+		if len(sessionIDs) == 0 {
 			return nil
 		}
 
-		if err := tx.Where("archive_id IN ?", ids).Delete(&archivedMessageModel{}).Error; err != nil {
+		for _, sessionID := range sessionIDs {
+			if err := tx.Where("session_id = ?", sessionID).Delete(&messageModel{}).Error; err != nil {
+				return err
+			}
+			if err := deleteSearchRows(tx, sessionID); err != nil {
+				return err
+			}
+			if err := tx.Where("session_id = ?", sessionID).Delete(&summaryModel{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("key = ? AND value = ?", currentSessionStateKey, sessionID).
+				Delete(&stateModel{}).Error; err != nil {
+				return err
+			}
+		}
+
+		return tx.Where("id IN ?", sessionIDs).Delete(&sessionModel{}).Error
+	}); err != nil {
+		return err
+	}
+
+	for _, sessionID := range sessionIDs {
+		if err := s.deleteVectorRowsBySession(ctx, sessionID); err != nil {
+			return s.handleVectorStoreError(err)
+		}
+	}
+
+	return nil
+}
+
+func (s *Store) Unarchive(ctx context.Context, id string) (Session, error) {
+	if s == nil || s.db == nil {
+		return Session{}, errors.New("store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if err := base.ValidateSessionID(id); err != nil {
+		return Session{}, err
+	}
+
+	var session Session
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var record sessionModel
+		if err := tx.First(&record, "id = ?", id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("session not found")
+			}
 			return err
 		}
 
-		return tx.Where("id IN ?", ids).Delete(&archiveModel{}).Error
-	})
-}
+		loaded, err := sessionModelToSession(record)
+		if err != nil {
+			return err
+		}
+		unarchived, err := base.ClearSessionArchive(loaded)
+		if err != nil {
+			return err
+		}
 
-func (s *Store) Unarchive(context.Context, string) (Session, error) {
-	return Session{}, errors.New("session unarchive is not supported")
+		record.Archived = false
+		record.ArchivedAt = time.Time{}
+		record.ExpiresAt = time.Time{}
+		session = unarchived
+
+		return tx.Save(&record).Error
+	}); err != nil {
+		return Session{}, err
+	}
+
+	return session, nil
 }
 
 // SetCurrent marks an existing session as the current session.
@@ -1396,7 +1248,8 @@ func (s *Store) SetCurrent(ctx context.Context, id string) error {
 		return err
 	}
 
-	_, ok, err := s.Get(ctx, id)
+	active := false
+	_, ok, err := s.Get(ctx, id, base.SessionGetOptions{Archived: &active})
 	if err != nil {
 		return err
 	}
@@ -1436,6 +1289,14 @@ func (s *Store) Current(ctx context.Context) (string, bool, error) {
 	return value, true, nil
 }
 
+func (s *Store) ClearCurrent(ctx context.Context) error {
+	if s == nil || s.db == nil {
+		return errors.New("store is required")
+	}
+
+	return s.db.WithContext(ctx).Where("key = ?", currentSessionStateKey).Delete(&stateModel{}).Error
+}
+
 func summaryModelToSessionSummary(record summaryModel) (SessionSummary, error) {
 	return base.NormalizeSessionSummary(SessionSummary{
 		SessionID:          record.SessionID,
@@ -1450,17 +1311,6 @@ func summaryModelToSessionSummary(record summaryModel) (SessionSummary, error) {
 	})
 }
 
-func archiveModelToArchivedSession(record archiveModel) (ArchivedSession, error) {
-	return base.NormalizeCreateArchive(ArchivedSession{
-		ID:              record.ID,
-		SourceSessionID: record.SourceSessionID,
-		Title:           record.Title,
-		TitleSource:     record.TitleSource,
-		ArchivedAt:      record.ArchivedAt,
-		ExpiresAt:       record.ExpiresAt,
-	})
-}
-
 func sessionModelToSession(record sessionModel) (Session, error) {
 	id := strings.TrimSpace(record.ID)
 	if id == "" {
@@ -1469,7 +1319,9 @@ func sessionModelToSession(record sessionModel) (Session, error) {
 
 	title, titleSource := base.NormalizeSessionTitleMetadata(record.Title, record.TitleSource)
 	session := Session{
-		CreatedAt: record.CreatedAt,
+		Archived:   record.Archived,
+		ArchivedAt: record.ArchivedAt,
+		CreatedAt:  record.CreatedAt,
 		Compaction: base.SessionCompaction{
 			CompletedAt:        record.CompactionCompletedAt,
 			FailedAt:           record.CompactionFailedAt,
@@ -1481,6 +1333,7 @@ func sessionModelToSession(record sessionModel) (Session, error) {
 			TargetOffset:       record.CompactionTargetOffset,
 		},
 		EpisodicCheckpointOffset:   record.EpisodicCheckpointOffset,
+		ExpiresAt:                  record.ExpiresAt,
 		ID:                         id,
 		LastPromptTokens:           record.LastPromptTokens,
 		ReflectionCheckpointOffset: record.ReflectionCheckpointOffset,
@@ -1494,6 +1347,12 @@ func sessionModelToSession(record sessionModel) (Session, error) {
 
 	if !record.UpdatedAt.IsZero() {
 		session.UpdatedAt = record.UpdatedAt.UTC()
+	}
+	if !record.ArchivedAt.IsZero() {
+		session.ArchivedAt = record.ArchivedAt.UTC()
+	}
+	if !record.ExpiresAt.IsZero() {
+		session.ExpiresAt = record.ExpiresAt.UTC()
 	}
 
 	return session, nil
@@ -1514,29 +1373,6 @@ func messagesToMessageModelsWithOffset(sessionID string, messages []handmsg.Mess
 			ID:         message.ID,
 			SessionID:  sessionID,
 			Sequence:   offset + i,
-			Role:       string(message.Role),
-			Name:       message.Name,
-			Content:    message.Content,
-			ToolCalls:  toolCallsToJSON(message.ToolCalls),
-			ToolCallID: message.ToolCallID,
-			CreatedAt:  message.CreatedAt,
-		})
-	}
-
-	return records
-}
-
-func messagesToArchivedMessageModels(archiveID string, messages []handmsg.Message) []archivedMessageModel {
-	if len(messages) == 0 {
-		return nil
-	}
-
-	records := make([]archivedMessageModel, 0, len(messages))
-	for i, message := range messages {
-		records = append(records, archivedMessageModel{
-			ID:         message.ID,
-			ArchiveID:  archiveID,
-			Sequence:   i,
 			Role:       string(message.Role),
 			Name:       message.Name,
 			Content:    message.Content,
@@ -1587,28 +1423,6 @@ func (records messageModels) records() []base.MessageRecord {
 	}
 
 	return messageRecords
-}
-
-// messages converts archived message models to domain messages.
-func (records archivedMessageModels) messages() []handmsg.Message {
-	if len(records) == 0 {
-		return nil
-	}
-
-	messages := make([]handmsg.Message, 0, len(records))
-	for _, record := range records {
-		messages = append(messages, handmsg.Message{
-			ID:         record.ID,
-			Role:       handmsg.Role(record.Role),
-			Name:       record.Name,
-			Content:    record.Content,
-			ToolCalls:  jsonToToolCalls(record.ToolCalls),
-			ToolCallID: record.ToolCallID,
-			CreatedAt:  record.CreatedAt,
-		})
-	}
-
-	return messages
 }
 
 func searchMessageResultRowsToResults(records []searchSessionResultRow) []base.SearchMessageResult {
