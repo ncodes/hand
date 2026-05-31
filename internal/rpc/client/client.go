@@ -74,6 +74,7 @@ type SessionAPI interface {
 	List(context.Context) ([]storage.Session, error)
 	Use(context.Context, string) error
 	Archive(context.Context, string) error
+	Rename(context.Context, string, string) (storage.Session, error)
 	Current(context.Context) (storage.Session, error)
 	Compact(context.Context, string) (CompactSessionResult, error)
 	Repair(context.Context, RepairSessionOptions) (RepairSessionResult, error)
@@ -305,6 +306,23 @@ func (s *SessionService) Archive(ctx context.Context, id string) error {
 
 	_, err = client.Archive(ctx, &handpb.ArchiveSessionRequest{Id: strings.TrimSpace(id)})
 	return err
+}
+
+func (s *SessionService) Rename(ctx context.Context, id string, title string) (storage.Session, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return storage.Session{}, err
+	}
+
+	resp, err := client.Rename(ctx, &handpb.RenameSessionRequest{
+		Id:    strings.TrimSpace(id),
+		Title: strings.TrimSpace(title),
+	})
+	if err != nil {
+		return storage.Session{}, err
+	}
+
+	return protoSessionSummaryToSession(resp.GetSession()), nil
 }
 
 func (s *SessionService) Current(ctx context.Context) (storage.Session, error) {

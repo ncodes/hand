@@ -911,6 +911,25 @@ func (s *Service) Archive(ctx context.Context, req *handpb.ArchiveSessionRequest
 	return &handpb.ArchiveSessionResponse{Id: req.GetId()}, nil
 }
 
+func (s *Service) Rename(ctx context.Context, req *handpb.RenameSessionRequest) (*handpb.RenameSessionResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return nil, status.Error(codes.Internal, "agent handler is required")
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "rename session request is required")
+	}
+
+	session, err := s.api.RenameSession(ctx, req.GetId(), req.GetTitle())
+	if err != nil {
+		return nil, getGRPCError(err)
+	}
+
+	return &handpb.RenameSessionResponse{Session: sessionToProtoSummary(session)}, nil
+}
+
 func (s *Service) Current(ctx context.Context, req *handpb.CurrentSessionRequest) (*handpb.CurrentSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")

@@ -1363,6 +1363,68 @@ func TestService_ArchiveSessionRejectsInvalidState(t *testing.T) {
 	})
 }
 
+func TestService_RenameSessionReturnsSummary(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{RenamedSession: storage.Session{
+		ID:          "project-a",
+		Title:       "Project Planning",
+		TitleSource: storage.SessionTitleSourceManual,
+	}}
+	svc := NewService(stub)
+
+	resp, err := svc.Rename(context.Background(), &handpb.RenameSessionRequest{
+		Id:    "project-a",
+		Title: "Project Planning",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "project-a", resp.GetSession().GetId())
+	require.Equal(t, "Project Planning", resp.GetSession().GetTitle())
+	require.Equal(t, storage.SessionTitleSourceManual, resp.GetSession().GetTitleSource())
+	require.Equal(t, "project-a", stub.RenamedSessionID)
+	require.Equal(t, "Project Planning", stub.RenamedSessionTitle)
+}
+
+func TestService_RenameSessionRejectsInvalidState(t *testing.T) {
+	t.Run("nil receiver", func(t *testing.T) {
+		var svc *Service
+
+		resp, err := svc.Rename(context.Background(), &handpb.RenameSessionRequest{})
+
+		requireStatusError(t, err, codes.Internal, "service is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("missing handler", func(t *testing.T) {
+		svc := NewService(nil)
+
+		resp, err := svc.Rename(context.Background(), &handpb.RenameSessionRequest{})
+
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("nil request", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{})
+
+		resp, err := svc.Rename(context.Background(), nil)
+
+		requireStatusError(t, err, codes.InvalidArgument, "rename session request is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("handler error", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{RenameSessionErr: errors.New("session title is required")})
+
+		resp, err := svc.Rename(context.Background(), &handpb.RenameSessionRequest{
+			Id:    "project-a",
+			Title: " ",
+		})
+
+		requireStatusError(t, err, codes.InvalidArgument, "session title is required")
+		require.Nil(t, resp)
+	})
+}
+
 func TestService_CompactSessionReturnsResult(t *testing.T) {
 	now := time.Unix(123, 0).UTC()
 	svc := NewService(&agentstub.AgentServiceStub{CompactResult: agent.CompactSessionResult{

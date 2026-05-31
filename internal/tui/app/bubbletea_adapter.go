@@ -110,6 +110,9 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case chatArchivedMsg:
 		next, cmd := m.updateCommandView(msg)
 		return next, cmd, true
+	case chatRenamedMsg:
+		next, cmd := m.updateCommandView(msg)
+		return next, cmd, true
 	case toolInvocationStartedMsg:
 		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})
 		return next, cmd, true
@@ -239,7 +242,7 @@ func (m model) handleKeyPressMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool)
 	}
 	if m.isCommandViewVisible() {
 		if msg.Keystroke() == "esc" {
-			if m.isChatsCommandView() && m.chatsArchiveConfirm {
+			if m.isChatsCommandView() && (m.chatsArchiveConfirm || m.chatsRenaming) {
 				next, cmd := m.updateCommandView(msg)
 				return next, cmd, true
 			}

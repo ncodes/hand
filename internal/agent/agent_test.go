@@ -261,12 +261,22 @@ func TestAgent_LifecycleBranchesForCloseCreateUseAndStatus(t *testing.T) {
 	require.Equal(t, otherID, store.archive.SourceSessionID)
 	require.NotEmpty(t, store.archive.ID)
 
+	renamed, err := core.RenameSession(context.Background(), otherID, "Renamed Chat")
+	require.NoError(t, err)
+	require.Equal(t, otherID, renamed.ID)
+	require.Equal(t, "Renamed Chat", renamed.Title)
+	require.Equal(t, storage.SessionTitleSourceManual, renamed.TitleSource)
+
 	store.current = storage.DefaultSessionID
 	core.env = &mocks.EnvironmentStub{TraceSession: &mocks.TraceSessionStub{SessionID: "trace"}}
 	require.NoError(t, core.UseSession(context.Background(), otherID))
 
 	require.EqualError(t, (*Agent)(nil).ArchiveSession(context.Background(), ""), "agent is required")
 	require.EqualError(t, (&Agent{}).ArchiveSession(context.Background(), ""), "environment has not been initialized")
+	_, err = (*Agent)(nil).RenameSession(context.Background(), "", "Title")
+	require.EqualError(t, err, "agent is required")
+	_, err = (&Agent{}).RenameSession(context.Background(), "", "Title")
+	require.EqualError(t, err, "environment has not been initialized")
 
 	_, err = (&Agent{}).RepairSession(context.Background(), search.VectorRepairOptions{})
 	require.EqualError(t, err, "environment has not been initialized")

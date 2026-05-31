@@ -186,6 +186,8 @@ func (action showCommandViewAction) apply(state *tuiState) {
 	state.commandViewItemSelected = 0
 	state.commandViewSelection = commandViewSelection{}
 	state.chatsArchiveConfirm = false
+	state.chatsRenaming = false
+	state.chatsRenameSessionID = ""
 }
 
 func (hideCommandViewAction) apply(state *tuiState) {
@@ -198,6 +200,8 @@ func (hideCommandViewAction) apply(state *tuiState) {
 	state.commandViewItemSelected = 0
 	state.commandViewSelection = commandViewSelection{}
 	state.chatsArchiveConfirm = false
+	state.chatsRenaming = false
+	state.chatsRenameSessionID = ""
 }
 
 func (action setRespondingAction) apply(state *tuiState) {

@@ -15,6 +15,7 @@ type ServiceAPI interface {
 	ListSessions(context.Context) ([]storage.Session, error)
 	UseSession(context.Context, string) error
 	ArchiveSession(context.Context, string) error
+	RenameSession(context.Context, string, string) (storage.Session, error)
 	CurrentSession(context.Context) (storage.Session, error)
 	RecallSessionSummary(context.Context, string) (storage.SessionSummary, error)
 	CompactSession(context.Context, string) (agentcore.CompactSessionResult, error)

@@ -3881,6 +3881,10 @@ type fakeTUIChatClient struct {
 	usedSessionID       string
 	archiveSessionErr   error
 	archivedSessionID   string
+	renamedSession      storage.Session
+	renameSessionErr    error
+	renamedSessionID    string
+	renamedSessionTitle string
 	timeline            rpcclient.SessionTimeline
 	timelineErr         error
 	timelineSessionID   string
@@ -3898,6 +3902,7 @@ type fakeTUIChatClient struct {
 	listSessionCalls    int
 	useSessionCalls     int
 	archiveSessionCalls int
+	renameSessionCalls  int
 	timelineCalls       int
 	currentSessionCalls int
 	contextCalls        int
@@ -3972,6 +3977,21 @@ func (c *fakeTUIChatClient) Archive(_ context.Context, id string) error {
 	c.archiveSessionCalls++
 	c.archivedSessionID = id
 	return c.archiveSessionErr
+}
+
+func (c *fakeTUIChatClient) Rename(_ context.Context, id string, title string) (storage.Session, error) {
+	c.renameSessionCalls++
+	c.renamedSessionID = id
+	c.renamedSessionTitle = title
+	if strings.TrimSpace(c.renamedSession.ID) != "" {
+		return c.renamedSession, c.renameSessionErr
+	}
+
+	return storage.Session{
+		ID:          id,
+		Title:       title,
+		TitleSource: storage.SessionTitleSourceManual,
+	}, c.renameSessionErr
 }
 
 func (c *fakeTUIChatClient) Timeline(

@@ -270,6 +270,46 @@ func TestClient_ArchiveSessionSendsSessionID(t *testing.T) {
 	require.Equal(t, "project-a", stub.ArchiveReq.GetId())
 }
 
+func TestClient_RenameSessionSendsTitle(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{
+		RenameResp: &handpb.RenameSessionResponse{
+			Session: &handpb.SessionSummary{
+				Id:          "project-a",
+				Title:       "Project Planning",
+				TitleSource: storage.SessionTitleSourceManual,
+			},
+		},
+	}
+	client := NewSessionService(stub)
+
+	session, err := client.Rename(context.Background(), " project-a ", " Project Planning ")
+
+	require.NoError(t, err)
+	require.Equal(t, "project-a", session.ID)
+	require.Equal(t, "Project Planning", session.Title)
+	require.Equal(t, storage.SessionTitleSourceManual, session.TitleSource)
+	require.Equal(t, "project-a", stub.RenameReq.GetId())
+	require.Equal(t, "Project Planning", stub.RenameReq.GetTitle())
+}
+
+func TestClient_RenameSessionRequiresClient(t *testing.T) {
+	_, err := (*SessionService)(nil).Rename(context.Background(), "project-a", "Title")
+
+	require.EqualError(t, err, "hand: session service client is required")
+}
+
+func TestClient_RenameSessionReturnsRPCError(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	client := NewSessionService(stub)
+
+	session, err := client.Rename(context.Background(), "project-a", "Title")
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, session.ID)
+	require.Equal(t, "project-a", stub.RenameReq.GetId())
+	require.Equal(t, "Title", stub.RenameReq.GetTitle())
+}
+
 func TestClient_ArchiveSessionRequiresClient(t *testing.T) {
 	err := (*SessionService)(nil).Archive(context.Background(), "project-a")
 

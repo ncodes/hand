@@ -446,6 +446,18 @@ func (a *Agent) ArchiveSession(ctx context.Context, id string) error {
 	return a.stateMgr.ArchiveSession(normalizeContext(ctx), id)
 }
 
+func (a *Agent) RenameSession(ctx context.Context, id string, title string) (storage.Session, error) {
+	if a == nil {
+		return storage.Session{}, errors.New("agent is required")
+	}
+
+	if !a.initialized || a.stateMgr == nil {
+		return storage.Session{}, errors.New("environment has not been initialized")
+	}
+
+	return a.stateMgr.RenameSession(normalizeContext(ctx), id, title)
+}
+
 // CurrentSession returns the full current session record.
 func (a *Agent) CurrentSession(ctx context.Context) (storage.Session, error) {
 	if a == nil {

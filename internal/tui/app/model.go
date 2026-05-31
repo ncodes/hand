@@ -25,6 +25,7 @@ type model struct {
 	transcript viewport.Model
 	input      textarea.Model
 	nameInput  textinput.Model
+	renameInput textinput.Model
 	tuiState
 	chatClient    rpcclient.ChatAPI
 	sessionClient rpcclient.SessionAPI
@@ -63,6 +64,7 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 		transcript: newTranscript(),
 		input:      newInputComposer(),
 		nameInput:  newNameInput(),
+		renameInput: newChatRenameInput(),
 		tuiState:   newTUIState(history, cfg.TUIThinkingComposerEnabled()),
 		chatClient: client,
 		chatCtx:    ctx,

@@ -48,7 +48,7 @@ func TestModel_UpdateHandlesChatsCommand(t *testing.T) {
 
 	require.True(t, runModel.isCommandViewVisible())
 	require.Equal(t, "Chats", runModel.commandView.TitleLeft)
-	require.Equal(t, "enter to open · d to archive · esc to close", runModel.commandView.TitleRight)
+	require.Equal(t, "enter to open · r to rename · d to archive · esc to close", runModel.commandView.TitleRight)
 	require.Equal(t, commandViewKindChats, runModel.commandView.Kind)
 	require.Zero(t, runModel.commandView.Height)
 	require.Len(t, runModel.commandView.Chats, 3)
@@ -201,6 +201,10 @@ func TestModel_UpdateChatsCommandIgnoresUnhandledMessagesAndEmptyList(t *testing
 	require.Nil(t, cmd)
 	require.Zero(t, updated.(model).commandViewItemSelected)
 
+	updated, cmd = runModel.updateChatsCommandView(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
+	require.Nil(t, cmd)
+	require.Equal(t, runModel.commandViewItemSelected, updated.(model).commandViewItemSelected)
+
 	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'x'}))
 	require.Nil(t, cmd)
 	require.Zero(t, updated.(model).commandViewItemSelected)
@@ -335,7 +339,7 @@ func TestModel_UpdateChatsCommandConfirmsAndCancelsArchive(t *testing.T) {
 
 	require.True(t, runModel.isCommandViewVisible())
 	require.False(t, runModel.chatsArchiveConfirm)
-	require.Equal(t, "enter to open · d to archive · esc to close", runModel.commandView.TitleRight)
+	require.Equal(t, "enter to open · r to rename · d to archive · esc to close", runModel.commandView.TitleRight)
 	require.Equal(t, "chat archive cancelled", runModel.status.Text())
 }
 
@@ -438,6 +442,236 @@ func TestModel_UpdateChatsCommandKeepsSessionOnArchiveFailure(t *testing.T) {
 	require.Equal(t, 1, runModel.commandViewItemSelected)
 }
 
+func TestModel_UpdateChatsCommandRenamesSelectedSession(t *testing.T) {
+	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
+	client := &fakeTUIChatClient{}
+	runModel := newModelWithClient(client)
+	runModel.width = 72
+	runModel.applyAction(setSessionAction{ID: "ses_current", Title: "Current Chat"})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats: []storage.Session{
+			{ID: "ses_current", Title: "Current Chat", UpdatedAt: now},
+			{ID: "ses_other", Title: "Other Chat", UpdatedAt: now},
+		},
+	})
+	runModel.commandViewItemSelected = 1
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'r'}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	require.True(t, runModel.chatsRenaming)
+	require.Equal(t, "ses_other", runModel.chatsRenameSessionID)
+	require.Equal(t, "Other Chat", runModel.renameInput.Value())
+	require.Equal(t, "enter to save · esc to cancel", runModel.commandView.TitleRight)
+	require.Contains(t, stripANSI(runModel.renderCommandView()), "Other Chat")
+
+	runModel.renameInput.SetValue(" Renamed Chat ")
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.True(t, runModel.chatsRenaming)
+	require.Equal(t, "renaming chat", runModel.status.Text())
+
+	msg := chatRenamedMessageFromBatch(t, cmd)
+	require.Equal(t, "ses_other", msg.Session.ID)
+	require.Equal(t, "Renamed Chat", msg.Session.Title)
+	require.Equal(t, storage.SessionTitleSourceManual, msg.Session.TitleSource)
+	require.Equal(t, "ses_other", client.renamedSessionID)
+	require.Equal(t, "Renamed Chat", client.renamedSessionTitle)
+	require.Equal(t, 1, client.renameSessionCalls)
+
+	updated, cmd = runModel.Update(msg)
+	runModel = updated.(model)
+
+	require.False(t, runModel.chatsRenaming)
+	require.Empty(t, runModel.chatsRenameSessionID)
+	require.Equal(t, "chat renamed", runModel.status.Text())
+	require.Equal(t, "Renamed Chat", runModel.commandView.Chats[1].Title)
+	require.Equal(t, "enter to open · r to rename · d to archive · esc to close", runModel.commandView.TitleRight)
+	_ = cmd
+}
+
+func TestModel_UpdateChatsCommandRenamesCurrentSessionTitle(t *testing.T) {
+	client := &fakeTUIChatClient{renamedSession: storage.Session{
+		ID:          "ses_current",
+		Title:       "Manual Current",
+		TitleSource: storage.SessionTitleSourceManual,
+	}}
+	runModel := newModelWithClient(client)
+	runModel.applyAction(setSessionAction{ID: "ses_current", Title: "Current Chat"})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_current", Title: "Current Chat"}},
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'r'}))
+	runModel = updated.(model)
+	runModel.renameInput.SetValue("Manual Current")
+	require.NotNil(t, cmd)
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	runModel = updated.(model)
+	msg := chatRenamedMessageFromBatch(t, cmd)
+	updated, cmd = runModel.Update(msg)
+	runModel = updated.(model)
+
+	require.Equal(t, "Manual Current", runModel.sessionTitle)
+	require.Equal(t, "Manual Current", runModel.commandView.Chats[0].Title)
+	_ = cmd
+}
+
+func TestModel_UpdateChatsCommandCancelsRename(t *testing.T) {
+	runModel := newModelWithClient(&fakeTUIChatClient{})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_other", Title: "Other Chat"}},
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'r'}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
+	runModel = updated.(model)
+
+	require.True(t, runModel.isCommandViewVisible())
+	require.False(t, runModel.chatsRenaming)
+	require.Equal(t, "chat rename cancelled", runModel.status.Text())
+	require.Equal(t, "enter to open · r to rename · d to archive · esc to close", runModel.commandView.TitleRight)
+	_ = cmd
+}
+
+func TestModel_UpdateChatsCommandEditsRenameInput(t *testing.T) {
+	runModel := newModelWithClient(&fakeTUIChatClient{})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_other", Title: "Other"}},
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'r'}))
+	runModel = updated.(model)
+	require.NotNil(t, cmd)
+
+	runModel.renameInput.SetValue("")
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'N', Text: "N"}))
+	runModel = updated.(model)
+
+	require.Equal(t, "N", runModel.renameInput.Value())
+	require.True(t, runModel.chatsRenaming)
+	_ = cmd
+}
+
+func TestModel_UpdateChatsCommandHandlesRenameValidationFailures(t *testing.T) {
+	runModel := newModel()
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{Title: "Missing ID"}},
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'r'}))
+	require.NotNil(t, cmd)
+	runModel = updated.(model)
+	require.False(t, runModel.chatsRenaming)
+	require.Equal(t, "chat rename unavailable", runModel.status.Text())
+
+	runModel = newModelWithClient(&fakeTUIChatClient{})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_other", Title: "Other"}},
+	})
+	runModel.chatsRenaming = true
+	runModel.chatsRenameSessionID = "ses_other"
+	runModel.commandView.TitleRight = getChatsRenameTitleRight()
+	runModel.renameInput.SetValue(" ")
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	runModel = updated.(model)
+	require.NotNil(t, cmd)
+	require.True(t, runModel.chatsRenaming)
+	require.Equal(t, "chat rename unavailable", runModel.status.Text())
+
+	runModel = newModel()
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_other", Title: "Other"}},
+	})
+	runModel.chatsRenaming = true
+	runModel.chatsRenameSessionID = "ses_other"
+	runModel.renameInput.SetValue("New Title")
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	runModel = updated.(model)
+	require.NotNil(t, cmd)
+	require.Equal(t, "chat rename unavailable", runModel.status.Text())
+
+	runModel = newModelWithClient(&fakeTUIChatClient{})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_other", Title: "Other"}},
+	})
+	runModel.chatsRenaming = true
+	runModel.renameInput.SetValue("New Title")
+
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	runModel = updated.(model)
+	require.NotNil(t, cmd)
+	require.Equal(t, "chat rename unavailable", runModel.status.Text())
+}
+
+func TestModel_UpdateChatsCommandKeepsRenameOpenOnRenameFailure(t *testing.T) {
+	expected := errors.New("rename failed")
+	client := &fakeTUIChatClient{renameSessionErr: expected}
+	runModel := newModelWithClient(client)
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_other", Title: "Other"}},
+	})
+
+	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: 'r'}))
+	runModel = updated.(model)
+	runModel.renameInput.SetValue("Renamed")
+	updated, cmd = runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	runModel = updated.(model)
+	msg := chatRenamedMessageFromBatch(t, cmd)
+	require.ErrorIs(t, msg.Err, expected)
+
+	updated, cmd = runModel.Update(msg)
+	runModel = updated.(model)
+
+	require.True(t, runModel.chatsRenaming)
+	require.Equal(t, "Renamed", runModel.renameInput.Value())
+	require.Equal(t, "chat rename unavailable", runModel.status.Text())
+	require.Equal(t, "Other", runModel.commandView.Chats[0].Title)
+	_ = cmd
+}
+
+func TestModel_UpdateChatsCommandRejectsMalformedRenameCompletion(t *testing.T) {
+	runModel := newModelWithClient(&fakeTUIChatClient{})
+	runModel.showCommandView(commandViewPayload{
+		TitleLeft: "Chats",
+		Kind:      commandViewKindChats,
+		Chats:     []storage.Session{{ID: "ses_other", Title: "Other"}},
+	})
+
+	updated, cmd := runModel.Update(chatRenamedMsg{Session: storage.Session{ID: " "}})
+	runModel = updated.(model)
+
+	require.Equal(t, "chat rename unavailable", runModel.status.Text())
+	require.Equal(t, "Other", runModel.commandView.Chats[0].Title)
+	_ = cmd
+}
+
 func TestModel_UpdateChatsCommandBlocksArchivingCurrentSession(t *testing.T) {
 	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
 	client := &fakeTUIChatClient{}
@@ -464,7 +698,7 @@ func TestModel_UpdateChatsCommandBlocksArchivingCurrentSession(t *testing.T) {
 	runModel = updated.(model)
 
 	require.False(t, runModel.chatsArchiveConfirm)
-	require.Equal(t, "enter to open · d to archive · esc to close", runModel.commandView.TitleRight)
+	require.Equal(t, "enter to open · r to rename · d to archive · esc to close", runModel.commandView.TitleRight)
 	require.Equal(t, "current chat cannot be archived", runModel.status.Text())
 	require.Zero(t, client.archiveSessionCalls)
 }
@@ -489,7 +723,7 @@ func TestModel_UpdateChatsCommandHandlesArchiveValidationFailures(t *testing.T) 
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.False(t, runModel.chatsArchiveConfirm)
-	require.Equal(t, "enter to open · d to archive · esc to close", runModel.commandView.TitleRight)
+	require.Equal(t, "enter to open · r to rename · d to archive · esc to close", runModel.commandView.TitleRight)
 	require.Equal(t, "chat archive unavailable", runModel.status.Text())
 
 	runModel = newModel()
@@ -505,7 +739,7 @@ func TestModel_UpdateChatsCommandHandlesArchiveValidationFailures(t *testing.T) 
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.False(t, runModel.chatsArchiveConfirm)
-	require.Equal(t, "enter to open · d to archive · esc to close", runModel.commandView.TitleRight)
+	require.Equal(t, "enter to open · r to rename · d to archive · esc to close", runModel.commandView.TitleRight)
 	require.Equal(t, "chat archive unavailable", runModel.status.Text())
 }
 
@@ -563,6 +797,31 @@ func TestArchiveChatSessionCmdHandlesValidationAndNilClient(t *testing.T) {
 	require.Equal(t, "ses_other", archived.ID)
 	require.Equal(t, "ses_other", client.archivedSessionID)
 	require.Equal(t, 1, client.archiveSessionCalls)
+}
+
+func TestRenameChatSessionCmdHandlesValidationAndNilClient(t *testing.T) {
+	require.Nil(t, renameChatSessionCmd(context.Background(), nil, "ses_other", "Title"))
+
+	msg := renameChatSessionCmd(context.Background(), &fakeTUIChatClient{}, " ", "Title")()
+	renamed, ok := msg.(chatRenamedMsg)
+	require.True(t, ok)
+	require.EqualError(t, renamed.Err, "chat id is required")
+
+	msg = renameChatSessionCmd(context.Background(), &fakeTUIChatClient{}, "ses_other", " ")()
+	renamed, ok = msg.(chatRenamedMsg)
+	require.True(t, ok)
+	require.EqualError(t, renamed.Err, "chat title is required")
+
+	client := &fakeTUIChatClient{}
+	msg = renameChatSessionCmd(nil, client, " ses_other ", " New Title ")()
+	renamed, ok = msg.(chatRenamedMsg)
+	require.True(t, ok)
+	require.NoError(t, renamed.Err)
+	require.Equal(t, "ses_other", renamed.Session.ID)
+	require.Equal(t, "New Title", renamed.Session.Title)
+	require.Equal(t, "ses_other", client.renamedSessionID)
+	require.Equal(t, "New Title", client.renamedSessionTitle)
+	require.Equal(t, 1, client.renameSessionCalls)
 }
 
 func TestModel_UpdateChatsCommandCancelsActiveResponseBeforeSwitching(t *testing.T) {
@@ -895,4 +1154,17 @@ func chatArchivedMessageFromBatch(t *testing.T, cmd tea.Cmd) chatArchivedMsg {
 
 	require.Fail(t, "archive completion message not found")
 	return chatArchivedMsg{}
+}
+
+func chatRenamedMessageFromBatch(t *testing.T, cmd tea.Cmd) chatRenamedMsg {
+	t.Helper()
+
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+	require.Len(t, batch, 2)
+
+	msg, ok := batch[1]().(chatRenamedMsg)
+	require.True(t, ok)
+
+	return msg
 }

@@ -56,6 +56,8 @@ type tuiState struct {
 	commandViewSelection       commandViewSelection
 	commandViewItemSelected    int
 	chatsArchiveConfirm        bool
+	chatsRenaming              bool
+	chatsRenameSessionID       string
 	exitAt                     time.Time
 	allowShell                 bool
 	selection                  transcriptSelection

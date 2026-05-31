@@ -21,6 +21,8 @@ type HandServiceClientStub struct {
 	ListReq      *handpb.ListSessionsRequest
 	UseReq       *handpb.UseSessionRequest
 	ArchiveReq   *handpb.ArchiveSessionRequest
+	RenameReq    *handpb.RenameSessionRequest
+	RenameResp   *handpb.RenameSessionResponse
 	CurrentResp  *handpb.CurrentSessionResponse
 	CompactResp  *handpb.CompactSessionResponse
 	CompactReq   *handpb.CompactSessionRequest
@@ -58,6 +60,11 @@ func (s *HandServiceClientStub) Use(_ context.Context, req *handpb.UseSessionReq
 func (s *HandServiceClientStub) Archive(_ context.Context, req *handpb.ArchiveSessionRequest, _ ...grpc.CallOption) (*handpb.ArchiveSessionResponse, error) {
 	s.ArchiveReq = req
 	return &handpb.ArchiveSessionResponse{Id: req.GetId()}, s.Err
+}
+
+func (s *HandServiceClientStub) Rename(_ context.Context, req *handpb.RenameSessionRequest, _ ...grpc.CallOption) (*handpb.RenameSessionResponse, error) {
+	s.RenameReq = req
+	return s.RenameResp, s.Err
 }
 
 func (s *HandServiceClientStub) Current(context.Context, *handpb.CurrentSessionRequest, ...grpc.CallOption) (*handpb.CurrentSessionResponse, error) {

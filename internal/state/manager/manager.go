@@ -533,6 +533,58 @@ func (m *Manager) ArchiveSession(ctx context.Context, id string) error {
 	})
 }
 
+func (m *Manager) RenameSession(ctx context.Context, id string, title string) (storage.Session, error) {
+	if m == nil {
+		return storage.Session{}, errors.New("state manager is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return storage.Session{}, errors.New("session id is required")
+	}
+
+	title = storage.NormalizeSessionTitle(title)
+	if title == "" {
+		return storage.Session{}, errors.New("session title is required")
+	}
+
+	now := m.now().UTC()
+	var session storage.Session
+	var err error
+	if id == storage.DefaultSessionID {
+		session, err = m.resolveDefaultSession(ctx, now)
+	} else {
+		if err := storage.ValidateSessionID(id); err != nil {
+			return storage.Session{}, err
+		}
+		var ok bool
+		session, ok, err = m.store.Get(ctx, id)
+		if err == nil && !ok {
+			err = errors.New("session not found")
+		}
+	}
+	if err != nil {
+		return storage.Session{}, err
+	}
+
+	session.Title = title
+	session.TitleSource = storage.SessionTitleSourceManual
+	session.UpdatedAt = now
+	if err := m.store.Save(ctx, session); err != nil {
+		return storage.Session{}, err
+	}
+
+	renamed, ok, err := m.store.Get(ctx, id)
+	if err != nil {
+		return storage.Session{}, err
+	}
+	if !ok {
+		return storage.Session{}, errors.New("session not found")
+	}
+
+	return renamed, nil
+}
+
 func (m *Manager) UseSession(ctx context.Context, id string) error {
 	if m == nil {
 		return errors.New("state manager is required")

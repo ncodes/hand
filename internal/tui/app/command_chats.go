@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -29,6 +30,10 @@ type sessionArchiver interface {
 	Archive(context.Context, string) error
 }
 
+type sessionRenamer interface {
+	Rename(context.Context, string, string) (storage.Session, error)
+}
+
 type chatsLoadedMsg struct {
 	Sessions []storage.Session
 	Err      error
@@ -37,6 +42,32 @@ type chatsLoadedMsg struct {
 type chatArchivedMsg struct {
 	ID  string
 	Err error
+}
+
+type chatRenamedMsg struct {
+	Session storage.Session
+	Err     error
+}
+
+func newChatRenameInput() textinput.Model {
+	input := textinput.New()
+	input.Prompt = ""
+	input.Placeholder = "Title"
+	input.CharLimit = 80
+	input.Focus()
+
+	styles := input.Styles()
+	styles.Focused.Text = styles.Focused.Text.
+		Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground)).
+		UnsetBackground()
+	styles.Focused.Placeholder = styles.Focused.Placeholder.
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		UnsetBackground()
+	styles.Focused.Prompt = styles.Focused.Prompt.
+		UnsetBackground()
+	input.SetStyles(styles)
+
+	return input
 }
 
 func (m *model) startChatsCommand() tea.Cmd {
@@ -156,8 +187,13 @@ func (m model) renderChatsCommandViewContent(content commandViewContent) string 
 	rows := make([]string, 0, end-offset)
 	now := chatsNow().UTC()
 	for index := offset; index < end; index++ {
-		row := renderChatsCommandRow(sessions[index], m.getCurrentSessionID(), content.Width, now)
 		isCurrent := isCurrentChatSession(sessions[index], m.getCurrentSessionID())
+		if m.chatsRenaming && strings.TrimSpace(sessions[index].ID) == m.chatsRenameSessionID {
+			rows = append(rows, m.renderChatsRenameRow(content.Width))
+			continue
+		}
+
+		row := renderChatsCommandRow(sessions[index], m.getCurrentSessionID(), content.Width, now)
 		if index == m.commandViewItemSelected {
 			row = renderSelectedChatsCommandRowWithForeground(
 				row,
@@ -177,6 +213,19 @@ func (m model) renderChatsCommandViewContent(content commandViewContent) string 
 	}
 
 	return strings.Join(rows, "\n")
+}
+
+func (m model) renderChatsRenameRow(width int) string {
+	width = max(width, 1)
+	contentWidth := max(width-2, 1)
+	input := m.renameInput
+	input.SetWidth(contentWidth)
+	row := input.View()
+	if width > 1 {
+		row = " " + truncateChatsCommandRow(row, contentWidth) + " "
+	}
+
+	return renderSelectedChatsCommandRow(row, width)
 }
 
 func renderSelectedChatsCommandRow(row string, width int) string {
@@ -230,6 +279,9 @@ func (m *model) updateChatsCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if archived, ok := msg.(chatArchivedMsg); ok {
 		return m.completeArchiveChatSession(archived)
 	}
+	if renamed, ok := msg.(chatRenamedMsg); ok {
+		return m.completeRenameChatSession(renamed)
+	}
 
 	if len(m.commandView.Chats) == 0 {
 		return *m, nil
@@ -238,6 +290,10 @@ func (m *model) updateChatsCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	selection := m.commandViewItemSelected
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
+		if m.chatsRenaming {
+			return m.updateChatsRenameInput(msg)
+		}
+
 		switch msg.Key().Code {
 		case tea.KeyUp:
 			selection--
@@ -263,6 +319,8 @@ func (m *model) updateChatsCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m.archiveSelectedChatSession()
 			}
 			return m.selectChatsCommandSession()
+		case 'r':
+			return m.startRenameSelectedChatSession()
 		case 'd':
 			return m.confirmArchiveSelectedChatSession()
 		default:
@@ -290,6 +348,7 @@ func (m *model) updateChatsCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	)
 	m.chatsArchiveConfirm = false
 	m.commandView.TitleRight = getChatsCommandTitleRight(false)
+	m.clearChatsRename()
 	m.clearCommandViewSelection()
 
 	return *m, nil
@@ -300,7 +359,122 @@ func getChatsCommandTitleRight(confirm bool) string {
 		return "enter to archive · esc to cancel"
 	}
 
-	return "enter to open · d to archive · esc to close"
+	return "enter to open · r to rename · d to archive · esc to close"
+}
+
+func getChatsRenameTitleRight() string {
+	return "enter to save · esc to cancel"
+}
+
+func (m *model) startRenameSelectedChatSession() (tea.Model, tea.Cmd) {
+	session := m.commandView.Chats[m.commandViewItemSelected]
+	sessionID := strings.TrimSpace(session.ID)
+	if sessionID == "" {
+		return *m, m.setStatus("chat rename unavailable")
+	}
+
+	m.chatsArchiveConfirm = false
+	m.chatsRenaming = true
+	m.chatsRenameSessionID = sessionID
+	m.renameInput = newChatRenameInput()
+	m.renameInput.SetValue(getSessionDisplayName(session))
+	m.commandView.TitleRight = getChatsRenameTitleRight()
+
+	return *m, m.setStatus("editing chat title")
+}
+
+func (m *model) updateChatsRenameInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.Key().Code {
+	case tea.KeyEsc:
+		m.clearChatsRename()
+		m.commandView.TitleRight = getChatsCommandTitleRight(false)
+		return *m, m.setStatus("chat rename cancelled")
+	case tea.KeyEnter:
+		return m.renameSelectedChatSession()
+	}
+
+	var cmd tea.Cmd
+	m.renameInput, cmd = m.renameInput.Update(msg)
+	return *m, cmd
+}
+
+func (m *model) clearChatsRename() {
+	m.chatsRenaming = false
+	m.chatsRenameSessionID = ""
+	m.renameInput.SetValue("")
+}
+
+func (m *model) renameSelectedChatSession() (tea.Model, tea.Cmd) {
+	sessionID := strings.TrimSpace(m.chatsRenameSessionID)
+	if sessionID == "" {
+		return *m, m.setStatus("chat rename unavailable")
+	}
+
+	title := strings.TrimSpace(m.renameInput.Value())
+	if title == "" {
+		return *m, m.setStatus("chat rename unavailable")
+	}
+
+	client, ok := m.sessionClient.(sessionRenamer)
+	if m.sessionClient == nil || !ok {
+		return *m, m.setStatus("chat rename unavailable")
+	}
+
+	return *m, tea.Batch(
+		m.setStatus("renaming chat"),
+		renameChatSessionCmd(m.chatCtx, client, sessionID, title),
+	)
+}
+
+func renameChatSessionCmd(ctx context.Context, client sessionRenamer, sessionID string, title string) tea.Cmd {
+	if client == nil {
+		return nil
+	}
+
+	return func() tea.Msg {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+
+		sessionID = strings.TrimSpace(sessionID)
+		if sessionID == "" {
+			return chatRenamedMsg{Err: errors.New("chat id is required")}
+		}
+
+		title = strings.TrimSpace(title)
+		if title == "" {
+			return chatRenamedMsg{Err: errors.New("chat title is required")}
+		}
+
+		session, err := client.Rename(ctx, sessionID, title)
+		return chatRenamedMsg{Session: session, Err: err}
+	}
+}
+
+func (m *model) completeRenameChatSession(msg chatRenamedMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		return *m, m.setStatus("chat rename unavailable")
+	}
+
+	sessionID := strings.TrimSpace(msg.Session.ID)
+	if sessionID == "" {
+		return *m, m.setStatus("chat rename unavailable")
+	}
+
+	for index, session := range m.commandView.Chats {
+		if strings.TrimSpace(session.ID) == sessionID {
+			m.commandView.Chats[index] = msg.Session
+			break
+		}
+	}
+
+	if isCurrentChatSession(msg.Session, m.getCurrentSessionID()) {
+		m.sessionTitle = getSessionDisplayName(msg.Session)
+	}
+
+	m.clearChatsRename()
+	m.commandView.TitleRight = getChatsCommandTitleRight(false)
+	return *m, m.setStatus("chat renamed")
 }
 
 func (m *model) confirmArchiveSelectedChatSession() (tea.Model, tea.Cmd) {

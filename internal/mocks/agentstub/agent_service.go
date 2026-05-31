@@ -30,6 +30,10 @@ type AgentServiceStub struct {
 	UseSessionErr        error
 	ArchivedSessionID    string
 	ArchiveSessionErr    error
+	RenamedSessionID     string
+	RenamedSessionTitle  string
+	RenamedSession       storage.Session
+	RenameSessionErr     error
 	CurrentSessionResult storage.Session
 	CompactResult        rpcclient.CompactSessionResult
 	RepairOptions        search.VectorRepairOptions
@@ -128,6 +132,22 @@ func (s *AgentServiceStub) ArchiveSession(_ context.Context, id string) error {
 		return s.ArchiveSessionErr
 	}
 	return s.Err
+}
+
+func (s *AgentServiceStub) Rename(ctx context.Context, id string, title string) (storage.Session, error) {
+	return s.RenameSession(ctx, id, title)
+}
+
+func (s *AgentServiceStub) RenameSession(_ context.Context, id string, title string) (storage.Session, error) {
+	s.RenamedSessionID = id
+	s.RenamedSessionTitle = title
+	if s.RenameSessionErr != nil {
+		return storage.Session{}, s.RenameSessionErr
+	}
+	if strings.TrimSpace(s.RenamedSession.ID) != "" {
+		return s.RenamedSession, s.Err
+	}
+	return storage.Session{ID: id, Title: title, TitleSource: storage.SessionTitleSourceManual}, s.Err
 }
 
 func (s *AgentServiceStub) Current(ctx context.Context) (storage.Session, error) {
