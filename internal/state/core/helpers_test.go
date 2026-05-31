@@ -147,6 +147,133 @@ func TestNormalizeCreateArchive(t *testing.T) {
 	})
 }
 
+func TestMarkSessionArchived(t *testing.T) {
+	now := time.Date(2026, 5, 30, 10, 0, 0, 0, time.UTC)
+	expiresAt := now.Add(24 * time.Hour)
+
+	t.Run("rejects missing session id", func(t *testing.T) {
+		session, err := MarkSessionArchived(Session{}, now, expiresAt)
+		require.EqualError(t, err, "session id is required")
+		require.Equal(t, Session{}, session)
+	})
+
+	t.Run("rejects invalid session id", func(t *testing.T) {
+		session, err := MarkSessionArchived(Session{ID: "ses_invalid"}, now, expiresAt)
+		require.EqualError(t, err, "session id must be a valid ses_ nanoid")
+		require.Equal(t, Session{}, session)
+	})
+
+	t.Run("rejects default session", func(t *testing.T) {
+		session, err := MarkSessionArchived(Session{ID: DefaultSessionID}, now, expiresAt)
+		require.EqualError(t, err, "default session cannot be archived")
+		require.Equal(t, Session{}, session)
+	})
+
+	t.Run("rejects missing expiry", func(t *testing.T) {
+		session, err := MarkSessionArchived(Session{ID: testSessionID}, now, time.Time{})
+		require.EqualError(t, err, "archive expiry is required")
+		require.Equal(t, Session{}, session)
+	})
+
+	t.Run("defaults archived at and trims session id", func(t *testing.T) {
+		session, err := MarkSessionArchived(Session{ID: "  " + testSessionID + "  "}, time.Time{}, expiresAt)
+		require.NoError(t, err)
+		require.Equal(t, testSessionID, session.ID)
+		require.True(t, session.Archived)
+		require.False(t, session.ArchivedAt.IsZero())
+		require.Equal(t, time.UTC, session.ArchivedAt.Location())
+		require.Equal(t, expiresAt, session.ExpiresAt)
+	})
+
+	t.Run("normalizes archive fields and preserves session data", func(t *testing.T) {
+		location := time.FixedZone("UTC+2", 2*60*60)
+		archivedAt := time.Date(2026, 5, 30, 14, 0, 0, 0, location)
+		localExpiresAt := time.Date(2026, 5, 31, 14, 0, 0, 0, location)
+		createdAt := now.Add(-time.Hour)
+		updatedAt := now.Add(-time.Minute)
+
+		session, err := MarkSessionArchived(Session{
+			CreatedAt:                  createdAt,
+			Compaction:                 SessionCompaction{Status: CompactionStatusSucceeded, TargetOffset: 7},
+			ID:                         testSessionID,
+			EpisodicCheckpointOffset:   2,
+			LastPromptTokens:           300,
+			ReflectionCheckpointOffset: 4,
+			Title:                      "  Planning  ",
+			TitleSource:                "  manual  ",
+			UpdatedAt:                  updatedAt,
+		}, archivedAt, localExpiresAt)
+		require.NoError(t, err)
+		require.True(t, session.Archived)
+		require.Equal(t, archivedAt.UTC(), session.ArchivedAt)
+		require.Equal(t, localExpiresAt.UTC(), session.ExpiresAt)
+		require.Equal(t, createdAt, session.CreatedAt)
+		require.Equal(t, updatedAt, session.UpdatedAt)
+		require.Equal(t, SessionCompaction{Status: CompactionStatusSucceeded, TargetOffset: 7}, session.Compaction)
+		require.Equal(t, 2, session.EpisodicCheckpointOffset)
+		require.Equal(t, 300, session.LastPromptTokens)
+		require.Equal(t, 4, session.ReflectionCheckpointOffset)
+		require.Equal(t, "Planning", session.Title)
+		require.Equal(t, SessionTitleSourceManual, session.TitleSource)
+	})
+}
+
+func TestClearSessionArchive(t *testing.T) {
+	now := time.Date(2026, 5, 30, 10, 0, 0, 0, time.UTC)
+	expiresAt := now.Add(24 * time.Hour)
+
+	t.Run("rejects missing session id", func(t *testing.T) {
+		session, err := ClearSessionArchive(Session{Archived: true})
+		require.EqualError(t, err, "session id is required")
+		require.Equal(t, Session{}, session)
+	})
+
+	t.Run("rejects invalid session id", func(t *testing.T) {
+		session, err := ClearSessionArchive(Session{ID: "ses_invalid", Archived: true})
+		require.EqualError(t, err, "session id must be a valid ses_ nanoid")
+		require.Equal(t, Session{}, session)
+	})
+
+	t.Run("rejects non archived session", func(t *testing.T) {
+		session, err := ClearSessionArchive(Session{ID: testSessionID})
+		require.EqualError(t, err, "session is not archived")
+		require.Equal(t, Session{}, session)
+	})
+
+	t.Run("clears archive fields and preserves session data", func(t *testing.T) {
+		createdAt := now.Add(-time.Hour)
+		updatedAt := now.Add(-time.Minute)
+
+		session, err := ClearSessionArchive(Session{
+			ArchivedAt:                 now,
+			CreatedAt:                  createdAt,
+			ExpiresAt:                  expiresAt,
+			Compaction:                 SessionCompaction{Status: CompactionStatusPending, TargetOffset: 6},
+			ID:                         "  " + testSessionID + "  ",
+			Archived:                   true,
+			EpisodicCheckpointOffset:   3,
+			LastPromptTokens:           250,
+			ReflectionCheckpointOffset: 5,
+			Title:                      "Planning",
+			TitleSource:                SessionTitleSourceManual,
+			UpdatedAt:                  updatedAt,
+		})
+		require.NoError(t, err)
+		require.False(t, session.Archived)
+		require.True(t, session.ArchivedAt.IsZero())
+		require.True(t, session.ExpiresAt.IsZero())
+		require.Equal(t, testSessionID, session.ID)
+		require.Equal(t, createdAt, session.CreatedAt)
+		require.Equal(t, updatedAt, session.UpdatedAt)
+		require.Equal(t, SessionCompaction{Status: CompactionStatusPending, TargetOffset: 6}, session.Compaction)
+		require.Equal(t, 3, session.EpisodicCheckpointOffset)
+		require.Equal(t, 250, session.LastPromptTokens)
+		require.Equal(t, 5, session.ReflectionCheckpointOffset)
+		require.Equal(t, "Planning", session.Title)
+		require.Equal(t, SessionTitleSourceManual, session.TitleSource)
+	})
+}
+
 func TestNormalizeSessionTitleMetadata(t *testing.T) {
 	title, source := NormalizeSessionTitleMetadata("  Planning Notes  ", "  manual  ")
 	require.Equal(t, "Planning Notes", title)

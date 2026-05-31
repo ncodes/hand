@@ -8,7 +8,6 @@ import (
 
 func agentSessionFromStorageSession(value storage.Session) agentsession.Session {
 	return agentsession.Session{
-		CreatedAt:                  value.CreatedAt,
 		Compaction:                 agentCompactionFromStorageCompaction(value.Compaction),
 		ID:                         value.ID,
 		EpisodicCheckpointOffset:   value.EpisodicCheckpointOffset,
@@ -16,7 +15,11 @@ func agentSessionFromStorageSession(value storage.Session) agentsession.Session 
 		ReflectionCheckpointOffset: value.ReflectionCheckpointOffset,
 		Title:                      value.Title,
 		TitleSource:                value.TitleSource,
+		Archived:                   value.Archived,
+		ArchivedAt:                 value.ArchivedAt,
+		CreatedAt:                  value.CreatedAt,
 		UpdatedAt:                  value.UpdatedAt,
+		ExpiresAt:                  value.ExpiresAt,
 	}
 }
 

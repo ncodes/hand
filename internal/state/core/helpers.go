@@ -72,6 +72,53 @@ func NormalizeCreateArchive(archive ArchivedSession) (ArchivedSession, error) {
 	return archive, nil
 }
 
+// MarkSessionArchived returns session with archive metadata applied.
+func MarkSessionArchived(session Session, archivedAt time.Time, expiresAt time.Time) (Session, error) {
+	session.ID = strings.TrimSpace(session.ID)
+	if err := ValidateSessionID(session.ID); err != nil {
+		return Session{}, err
+	}
+
+	if session.ID == DefaultSessionID {
+		return Session{}, errors.New("default session cannot be archived")
+	}
+
+	if archivedAt.IsZero() {
+		archivedAt = time.Now().UTC()
+	} else {
+		archivedAt = archivedAt.UTC()
+	}
+
+	if expiresAt.IsZero() {
+		return Session{}, errors.New("archive expiry is required")
+	}
+
+	session.Archived = true
+	session.ArchivedAt = archivedAt
+	session.ExpiresAt = expiresAt.UTC()
+	session.Title, session.TitleSource = NormalizeSessionTitleMetadata(session.Title, session.TitleSource)
+
+	return session, nil
+}
+
+// ClearSessionArchive returns session with archive metadata removed.
+func ClearSessionArchive(session Session) (Session, error) {
+	session.ID = strings.TrimSpace(session.ID)
+	if err := ValidateSessionID(session.ID); err != nil {
+		return Session{}, err
+	}
+
+	if !session.Archived {
+		return Session{}, errors.New("session is not archived")
+	}
+
+	session.Archived = false
+	session.ArchivedAt = time.Time{}
+	session.ExpiresAt = time.Time{}
+
+	return session, nil
+}
+
 // NormalizeSessionTitle normalizes session title.
 func NormalizeSessionTitle(title string) string {
 	return strings.TrimSpace(title)

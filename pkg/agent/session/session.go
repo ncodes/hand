@@ -24,7 +24,6 @@ const (
 )
 
 type Session struct {
-	CreatedAt                  time.Time
 	Compaction                 Compaction
 	ID                         string
 	EpisodicCheckpointOffset   int
@@ -32,7 +31,11 @@ type Session struct {
 	ReflectionCheckpointOffset int
 	Title                      string
 	TitleSource                string
+	Archived                   bool
+	ArchivedAt                 time.Time
+	CreatedAt                  time.Time
 	UpdatedAt                  time.Time
+	ExpiresAt                  time.Time
 }
 
 type Compaction struct {
