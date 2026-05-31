@@ -226,22 +226,42 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 		return errors.New("default session cannot be deleted")
 	}
 
-	s.mu.Lock()
-
-	if _, ok := s.sessions[id]; !ok {
-		s.mu.Unlock()
+	deletedSessionIDs, err := s.deleteSessions(ctx, []string{id})
+	if err != nil {
+		return err
+	}
+	if len(deletedSessionIDs) == 0 {
 		return errors.New("session not found")
 	}
 
-	delete(s.sessions, id)
-	delete(s.messages, id)
-	delete(s.summaries, id)
-	if s.currentSession == id {
-		s.currentSession = ""
+	return nil
+}
+
+func (s *Store) deleteSessions(ctx context.Context, ids []string) ([]string, error) {
+	s.mu.Lock()
+	deletedSessionIDs := make([]string, 0, len(ids))
+
+	for _, id := range ids {
+		if _, ok := s.sessions[id]; !ok {
+			continue
+		}
+		deletedSessionIDs = append(deletedSessionIDs, id)
+		delete(s.sessions, id)
+		delete(s.messages, id)
+		delete(s.summaries, id)
+		if s.currentSession == id {
+			s.currentSession = ""
+		}
 	}
 	s.mu.Unlock()
 
-	return s.handleVectorStoreError(s.deleteVectorRowsBySession(ctx, id))
+	for _, sessionID := range deletedSessionIDs {
+		if err := s.handleVectorStoreError(s.deleteVectorRowsBySession(ctx, sessionID)); err != nil {
+			return deletedSessionIDs, err
+		}
+	}
+
+	return deletedSessionIDs, nil
 }
 
 func (s *Store) AppendMessages(ctx context.Context, id string, messages []handmsg.Message) error {
@@ -681,29 +701,18 @@ func (s *Store) DeleteExpiredArchives(ctx context.Context, now time.Time) error 
 
 	now = now.UTC()
 
-	var expiredSessionIDs []string
+	expiredSessionIDs := make([]string, 0)
 	s.mu.Lock()
 
 	for id, session := range s.sessions {
 		if session.Archived && !session.ExpiresAt.IsZero() && !session.ExpiresAt.After(now) {
 			expiredSessionIDs = append(expiredSessionIDs, id)
-			delete(s.sessions, id)
-			delete(s.messages, id)
-			delete(s.summaries, id)
-			if s.currentSession == id {
-				s.currentSession = ""
-			}
 		}
 	}
 	s.mu.Unlock()
 
-	for _, sessionID := range expiredSessionIDs {
-		if err := s.handleVectorStoreError(s.deleteVectorRowsBySession(ctx, sessionID)); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	_, err := s.deleteSessions(ctx, expiredSessionIDs)
+	return err
 }
 
 func (s *Store) Unarchive(_ context.Context, id string) (Session, error) {

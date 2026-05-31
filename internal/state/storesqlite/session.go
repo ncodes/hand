@@ -382,46 +382,64 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 		return errors.New("default session cannot be deleted")
 	}
 
+	deletedSessionIDs, err := s.deleteSessions(ctx, []string{id})
+	if err != nil {
+		return err
+	}
+	if len(deletedSessionIDs) == 0 {
+		return errors.New("session not found")
+	}
+
+	return nil
+}
+
+func (s *Store) deleteSessions(ctx context.Context, ids []string) ([]string, error) {
+	deletedSessionIDs := make([]string, 0, len(ids))
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var session sessionModel
+		for _, id := range ids {
+			var session sessionModel
 
-		if err := tx.First(&session, "id = ?", id).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return errors.New("session not found")
+			if err := tx.First(&session, "id = ?", id).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					continue
+				}
+				return err
 			}
-			return err
-		}
 
-		if err := tx.Where("session_id = ?", id).Delete(&messageModel{}).Error; err != nil {
-			return err
-		}
-		if err := deleteSearchRows(tx, id); err != nil {
-			return err
-		}
+			if err := tx.Where("session_id = ?", id).Delete(&messageModel{}).Error; err != nil {
+				return err
+			}
+			if err := deleteSearchRows(tx, id); err != nil {
+				return err
+			}
 
-		if err := tx.Where("session_id = ?", id).Delete(&summaryModel{}).Error; err != nil {
-			return err
-		}
+			if err := tx.Where("session_id = ?", id).Delete(&summaryModel{}).Error; err != nil {
+				return err
+			}
 
-		if err := tx.Delete(&session).Error; err != nil {
-			return err
-		}
+			if err := tx.Delete(&session).Error; err != nil {
+				return err
+			}
 
-		if err := tx.Where("key = ? AND value = ?", currentSessionStateKey, id).
-			Delete(&stateModel{}).Error; err != nil {
-			return err
+			if err := tx.Where("key = ? AND value = ?", currentSessionStateKey, id).
+				Delete(&stateModel{}).Error; err != nil {
+				return err
+			}
+			deletedSessionIDs = append(deletedSessionIDs, id)
 		}
 
 		return nil
 	}); err != nil {
-		return err
+		return nil, err
 	}
 
-	if err := s.deleteVectorRowsBySession(ctx, id); err != nil {
-		return s.handleVectorStoreError(err)
+	for _, sessionID := range deletedSessionIDs {
+		if err := s.deleteVectorRowsBySession(ctx, sessionID); err != nil {
+			return deletedSessionIDs, s.handleVectorStoreError(err)
+		}
 	}
 
-	return nil
+	return deletedSessionIDs, nil
 }
 
 // AppendMessages appends messages to a session and updates lexical/vector search indexes.
@@ -1154,45 +1172,20 @@ func (s *Store) DeleteExpiredArchives(ctx context.Context, now time.Time) error 
 	}
 
 	now = now.UTC()
-	var sessionIDs []string
+	var expiredSessionIDs []string
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&sessionModel{}).
 			Where("archived = ? AND expires_at <= ?", true, now).
-			Pluck("id", &sessionIDs).Error; err != nil {
+			Pluck("id", &expiredSessionIDs).Error; err != nil {
 			return err
 		}
-		if len(sessionIDs) == 0 {
-			return nil
-		}
-
-		for _, sessionID := range sessionIDs {
-			if err := tx.Where("session_id = ?", sessionID).Delete(&messageModel{}).Error; err != nil {
-				return err
-			}
-			if err := deleteSearchRows(tx, sessionID); err != nil {
-				return err
-			}
-			if err := tx.Where("session_id = ?", sessionID).Delete(&summaryModel{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("key = ? AND value = ?", currentSessionStateKey, sessionID).
-				Delete(&stateModel{}).Error; err != nil {
-				return err
-			}
-		}
-
-		return tx.Where("id IN ?", sessionIDs).Delete(&sessionModel{}).Error
+		return nil
 	}); err != nil {
 		return err
 	}
 
-	for _, sessionID := range sessionIDs {
-		if err := s.deleteVectorRowsBySession(ctx, sessionID); err != nil {
-			return s.handleVectorStoreError(err)
-		}
-	}
-
-	return nil
+	_, err := s.deleteSessions(ctx, expiredSessionIDs)
+	return err
 }
 
 func (s *Store) Unarchive(ctx context.Context, id string) (Session, error) {
