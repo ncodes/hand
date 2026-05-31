@@ -85,6 +85,13 @@ type ArchivedSession struct {
 	ExpiresAt       time.Time
 }
 
+// SessionArchiveRequest describes a session archive state transition.
+type SessionArchiveRequest struct {
+	SessionID  string
+	ArchivedAt time.Time
+	ExpiresAt  time.Time
+}
+
 // SessionSummary summarizes session state.
 type SessionSummary struct {
 	SessionID          string

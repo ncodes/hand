@@ -140,8 +140,8 @@ func TestOpenStore_ConfiguresSQLiteVectorStore(t *testing.T) {
 
 	sessionID, err := storage.NewSessionID()
 	require.NoError(t, err)
-	require.NoError(t, store.Save(context.Background(), storage.Session{ID: sessionID}))
-	require.NoError(t, store.AppendMessages(context.Background(), sessionID, []handmsg.Message{{
+	require.NoError(t, store.Session().Save(context.Background(), storage.Session{ID: sessionID}))
+	require.NoError(t, store.Session().AppendMessages(context.Background(), sessionID, []handmsg.Message{{
 		Role:    handmsg.RoleUser,
 		Content: "semantic indexing text",
 	}}))
@@ -221,8 +221,8 @@ func TestOpenStore_ConfiguresMemoryVectorStore(t *testing.T) {
 
 	sessionID, err := storage.NewSessionID()
 	require.NoError(t, err)
-	require.NoError(t, store.Save(context.Background(), storage.Session{ID: sessionID}))
-	require.NoError(t, store.AppendMessages(context.Background(), sessionID, []handmsg.Message{{
+	require.NoError(t, store.Session().Save(context.Background(), storage.Session{ID: sessionID}))
+	require.NoError(t, store.Session().AppendMessages(context.Background(), sessionID, []handmsg.Message{{
 		Role:    handmsg.RoleUser,
 		Content: "semantic indexing text",
 	}}))
@@ -450,14 +450,14 @@ func TestOpenStore_VectorSearchEndToEnd(t *testing.T) {
 			store, lister := openStoreWithE2EVectorSearch(t, backend, &e2eVectorEmbeddingProvider{}, false)
 			sessionID := newStoreTestSessionID(t)
 
-			require.NoError(t, store.Save(ctx, storage.Session{ID: sessionID}))
-			require.NoError(t, store.AppendMessages(ctx, sessionID, []handmsg.Message{
+			require.NoError(t, store.Session().Save(ctx, storage.Session{ID: sessionID}))
+			require.NoError(t, store.Session().AppendMessages(ctx, sessionID, []handmsg.Message{
 				{Role: handmsg.RoleUser, Content: "semantic target document", CreatedAt: time.Now().UTC()},
 				{Role: handmsg.RoleUser, Content: "different reference document", CreatedAt: time.Now().UTC().Add(time.Second)},
 			}))
 			requireVectorRecordCount(t, lister, 2)
 
-			results, err := store.SearchMessages(ctx, sessionID, storage.SearchMessageOptions{
+			results, err := store.Session().SearchMessages(ctx, sessionID, storage.SearchMessageOptions{
 				Query:                 "related idea",
 				MaxSessions:           1,
 				MaxMessagesPerSession: 1,
@@ -471,25 +471,20 @@ func TestOpenStore_VectorSearchEndToEnd(t *testing.T) {
 	}
 }
 
-func TestOpenStore_RemovesVectorRowsEndToEnd(t *testing.T) {
+func TestOpenStore_VectorRowsLifecycleEndToEnd(t *testing.T) {
 	operations := map[string]func(context.Context, storage.Store, string) error{
 		"delete": func(ctx context.Context, store storage.Store, sessionID string) error {
-			return store.Delete(ctx, sessionID)
+			return store.Session().Delete(ctx, sessionID)
 		},
 		"clear": func(ctx context.Context, store storage.Store, sessionID string) error {
-			return store.ClearMessages(ctx, sessionID, storage.MessageQueryOptions{})
+			return store.Session().ClearMessages(ctx, sessionID, storage.MessageQueryOptions{})
 		},
 		"archive": func(ctx context.Context, store storage.Store, sessionID string) error {
-			archiveID, err := storage.NewArchiveID()
-			if err != nil {
-				return err
-			}
-
-			return store.CreateArchive(ctx, storage.ArchivedSession{
-				ID:              archiveID,
-				SourceSessionID: sessionID,
-				ExpiresAt:       time.Now().UTC().Add(time.Hour),
+			_, err := store.Session().Archive(ctx, storage.SessionArchiveRequest{
+				SessionID: sessionID,
+				ExpiresAt: time.Now().UTC().Add(time.Hour),
 			})
+			return err
 		},
 	}
 
@@ -500,8 +495,8 @@ func TestOpenStore_RemovesVectorRowsEndToEnd(t *testing.T) {
 				store, lister := openStoreWithE2EVectorSearch(t, backend, &e2eVectorEmbeddingProvider{}, false)
 				sessionID := newStoreTestSessionID(t)
 
-				require.NoError(t, store.Save(ctx, storage.Session{ID: sessionID}))
-				require.NoError(t, store.AppendMessages(ctx, sessionID, []handmsg.Message{{
+				require.NoError(t, store.Session().Save(ctx, storage.Session{ID: sessionID}))
+				require.NoError(t, store.Session().AppendMessages(ctx, sessionID, []handmsg.Message{{
 					Role:      handmsg.RoleUser,
 					Content:   "semantic target document",
 					CreatedAt: time.Now().UTC(),
@@ -509,7 +504,11 @@ func TestOpenStore_RemovesVectorRowsEndToEnd(t *testing.T) {
 				requireVectorRecordCount(t, lister, 1)
 
 				require.NoError(t, operation(ctx, store, sessionID))
-				requireVectorRecordCount(t, lister, 0)
+				expectedRecords := 0
+				if backend == "memory" && name == "archive" {
+					expectedRecords = 1
+				}
+				requireVectorRecordCount(t, lister, expectedRecords)
 			})
 		}
 	}
@@ -527,14 +526,14 @@ func TestOpenStore_BM25SearchWhenVectorDisabled(t *testing.T) {
 			require.NoError(t, err)
 
 			sessionID := newStoreTestSessionID(t)
-			require.NoError(t, store.Save(ctx, storage.Session{ID: sessionID}))
-			require.NoError(t, store.AppendMessages(ctx, sessionID, []handmsg.Message{{
+			require.NoError(t, store.Session().Save(ctx, storage.Session{ID: sessionID}))
+			require.NoError(t, store.Session().AppendMessages(ctx, sessionID, []handmsg.Message{{
 				Role:      handmsg.RoleUser,
 				Content:   "needle lexical result",
 				CreatedAt: time.Now().UTC(),
 			}}))
 
-			results, err := store.SearchMessages(ctx, sessionID, storage.SearchMessageOptions{Query: "needle"})
+			results, err := store.Session().SearchMessages(ctx, sessionID, storage.SearchMessageOptions{Query: "needle"})
 
 			require.NoError(t, err)
 			require.Len(t, results, 1)
@@ -558,8 +557,8 @@ func TestOpenStore_VectorErrorRequiredSemantics(t *testing.T) {
 				store, _ := openStoreWithE2EVectorSearch(t, backend, provider, required)
 				sessionID := newStoreTestSessionID(t)
 
-				require.NoError(t, store.Save(ctx, storage.Session{ID: sessionID}))
-				err := store.AppendMessages(ctx, sessionID, []handmsg.Message{{
+				require.NoError(t, store.Session().Save(ctx, storage.Session{ID: sessionID}))
+				err := store.Session().AppendMessages(ctx, sessionID, []handmsg.Message{{
 					Role:      handmsg.RoleUser,
 					Content:   "semantic target document",
 					CreatedAt: time.Now().UTC(),

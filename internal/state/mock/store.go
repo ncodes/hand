@@ -28,11 +28,17 @@ type Store struct {
 	GetMessageWindowFunc      func(context.Context, string, uint, int, int) ([]storage.MessageRecord, error)
 	SearchMessagesFunc        func(context.Context, string, storage.SearchMessageOptions) ([]storage.SearchMessageResult, error)
 	ClearMessagesFunc         func(context.Context, string, storage.MessageQueryOptions) error
+	ArchiveFunc               func(context.Context, storage.SessionArchiveRequest) (storage.Session, error)
+	UnarchiveFunc             func(context.Context, string) (storage.Session, error)
 	CreateArchiveFunc         func(context.Context, storage.ArchivedSession) error
 	GetArchiveFunc            func(context.Context, string) (storage.ArchivedSession, bool, error)
 	ListArchivesFunc          func(context.Context, string) ([]storage.ArchivedSession, error)
 	DeleteArchiveFunc         func(context.Context, string) error
 	DeleteExpiredArchivesFunc func(context.Context, time.Time) error
+}
+
+func (s *Store) Session() storage.SessionStore {
+	return s
 }
 
 func (s *Store) Save(ctx context.Context, session storage.Session) error {
@@ -97,6 +103,22 @@ func (s *Store) UpdateCheckpoints(ctx context.Context, id string, patch storage.
 	}
 
 	return nil
+}
+
+func (s *Store) Archive(ctx context.Context, req storage.SessionArchiveRequest) (storage.Session, error) {
+	if s.ArchiveFunc != nil {
+		return s.ArchiveFunc(ctx, req)
+	}
+
+	return storage.Session{}, nil
+}
+
+func (s *Store) Unarchive(ctx context.Context, id string) (storage.Session, error) {
+	if s.UnarchiveFunc != nil {
+		return s.UnarchiveFunc(ctx, id)
+	}
+
+	return storage.Session{}, nil
 }
 
 func (s *Store) CreateArchive(ctx context.Context, archive storage.ArchivedSession) error {

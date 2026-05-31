@@ -1004,6 +1004,85 @@ func TestMemoryStore_PatchMemoryDeletesVectorForDeletedStatus(t *testing.T) {
 	require.Equal(t, []string{search.StableMemoryItemID("mem_delete_vector")}, vectorStore.deleteRequests[0].SourceIDs)
 }
 
+func TestMemoryStore_MemoryVectorCoverageEdges(t *testing.T) {
+	t.Run("upsert returns required vector errors", func(t *testing.T) {
+		store := NewStore()
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+			Embedder:       semanticTestEmbedder{},
+			VectorStore:    &memoryTestVectorStore{upsertErr: errors.New("upsert failed")},
+			EmbeddingModel: "semantic-test",
+			Required:       true,
+		}))
+
+		item, err := store.UpsertMemory(context.Background(), statememory.MemoryItem{
+			ID:     "mem_required_vector",
+			Status: statememory.MemoryStatusActive,
+			Text:   "Vector-backed memory",
+		})
+
+		require.EqualError(t, err, "upsert failed")
+		require.Equal(t, statememory.MemoryItem{}, item)
+	})
+
+	t.Run("patch returns required vector errors", func(t *testing.T) {
+		vectorStore := &memoryTestVectorStore{}
+		store := NewStore()
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+			Embedder:       semanticTestEmbedder{},
+			VectorStore:    vectorStore,
+			EmbeddingModel: "semantic-test",
+			Required:       true,
+		}))
+		_, err := store.UpsertMemory(context.Background(), statememory.MemoryItem{
+			ID:     "mem_patch_vector",
+			Status: statememory.MemoryStatusActive,
+			Text:   "Original vector memory",
+		})
+		require.NoError(t, err)
+
+		vectorStore.upsertErr = errors.New("patch upsert failed")
+		text := "Updated vector memory"
+		item, err := store.PatchMemory(context.Background(), statememory.MemoryPatch{
+			ID:   "mem_patch_vector",
+			Text: &text,
+		})
+
+		require.EqualError(t, err, "patch upsert failed")
+		require.Equal(t, statememory.MemoryItem{}, item)
+	})
+
+	t.Run("helper branches", func(t *testing.T) {
+		store := NewStore()
+		now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+		for _, item := range []statememory.MemoryItem{
+			{ID: "mem_b", Status: statememory.MemoryStatusActive, Text: "plan", UpdatedAt: now},
+			{ID: "mem_a", Status: statememory.MemoryStatusActive, Text: "plan", UpdatedAt: now.Add(time.Second)},
+		} {
+			_, err := store.UpsertMemory(context.Background(), item)
+			require.NoError(t, err)
+		}
+
+		hits, reranker := store.memoryLexicalHits(statememory.MemorySearchQuery{Text: "plan"}, 1)
+		require.Len(t, hits, 1)
+		require.Equal(t, "mem_a", hits[0].Item.ID)
+		require.Nil(t, reranker)
+
+		sourceIDs, filtered := store.memoryVectorSourceIDs(statememory.MemorySearchQuery{
+			IDs: []string{"mem_a", "mem_b"},
+		}, 1)
+		require.True(t, filtered)
+		require.Len(t, sourceIDs, 1)
+
+		merged := mergeMemoryHitEvidence(
+			statememory.MemorySearchHit{Score: 0.1, LexicalScore: 0.1, VectorScore: 0.1},
+			statememory.MemorySearchHit{Score: 0.2, LexicalScore: 0.3, VectorScore: 0.4},
+		)
+		require.Equal(t, 0.2, merged.Score)
+		require.Equal(t, 0.3, merged.LexicalScore)
+		require.Equal(t, 0.4, merged.VectorScore)
+	})
+}
+
 func TestMemoryStore_NilReceiverAndValidationErrors(t *testing.T) {
 	var nilStore *Store
 

@@ -45,6 +45,11 @@ func (s *Store) Save(_ context.Context, session Session) error {
 
 	if existing, ok := s.sessions[session.ID]; ok {
 		session.CreatedAt = existing.CreatedAt
+		if !session.Archived && session.ArchivedAt.IsZero() && session.ExpiresAt.IsZero() {
+			session.Archived = existing.Archived
+			session.ArchivedAt = existing.ArchivedAt
+			session.ExpiresAt = existing.ExpiresAt
+		}
 		if session.Compaction == (base.SessionCompaction{}) {
 			session.Compaction = existing.Compaction
 		}
@@ -72,6 +77,12 @@ func (s *Store) Save(_ context.Context, session Session) error {
 		session.UpdatedAt = time.Now().UTC()
 	} else {
 		session.UpdatedAt = session.UpdatedAt.UTC()
+	}
+	if !session.ArchivedAt.IsZero() {
+		session.ArchivedAt = session.ArchivedAt.UTC()
+	}
+	if !session.ExpiresAt.IsZero() {
+		session.ExpiresAt = session.ExpiresAt.UTC()
 	}
 
 	s.sessions[session.ID] = session
@@ -247,7 +258,7 @@ func (s *Store) GetMessages(
 		if err := base.ValidateSessionID(id); err != nil {
 			return nil, err
 		}
-	} else if err := base.ValidateArchiveID(id); err != nil {
+	} else if err := base.ValidateSessionID(id); err != nil {
 		return nil, err
 	}
 
@@ -255,7 +266,10 @@ func (s *Store) GetMessages(
 	defer s.mu.RUnlock()
 
 	if opts.Archived {
-		return getMessagesForQuery(s.archiveMessages[id], opts), nil
+		if session, ok := s.sessions[id]; !ok || !session.Archived {
+			return nil, nil
+		}
+		return getMessagesForQuery(s.messages[id], opts), nil
 	}
 
 	return getMessagesForQuery(s.messages[id], opts), nil
@@ -561,7 +575,7 @@ func (s *Store) CountMessages(_ context.Context, id string, opts MessageQueryOpt
 		if err := base.ValidateSessionID(id); err != nil {
 			return 0, err
 		}
-	} else if err := base.ValidateArchiveID(id); err != nil {
+	} else if err := base.ValidateSessionID(id); err != nil {
 		return 0, err
 	}
 
@@ -569,7 +583,10 @@ func (s *Store) CountMessages(_ context.Context, id string, opts MessageQueryOpt
 	defer s.mu.RUnlock()
 
 	if opts.Archived {
-		return len(filterMessages(s.archiveMessages[id], opts)), nil
+		if session, ok := s.sessions[id]; !ok || !session.Archived {
+			return 0, nil
+		}
+		return len(filterMessages(s.messages[id], opts)), nil
 	}
 
 	return len(filterMessages(s.messages[id], opts)), nil
@@ -589,7 +606,7 @@ func (s *Store) GetMessage(_ context.Context, id string, index int, opts Message
 		if err := base.ValidateSessionID(id); err != nil {
 			return handmsg.Message{}, false, err
 		}
-	} else if err := base.ValidateArchiveID(id); err != nil {
+	} else if err := base.ValidateSessionID(id); err != nil {
 		return handmsg.Message{}, false, err
 	}
 
@@ -598,7 +615,10 @@ func (s *Store) GetMessage(_ context.Context, id string, index int, opts Message
 
 	var messages []handmsg.Message
 	if opts.Archived {
-		messages = s.archiveMessages[id]
+		if session, ok := s.sessions[id]; !ok || !session.Archived {
+			return handmsg.Message{}, false, nil
+		}
+		messages = s.messages[id]
 	} else {
 		messages = s.messages[id]
 	}
@@ -610,51 +630,38 @@ func (s *Store) GetMessage(_ context.Context, id string, index int, opts Message
 	return cloneMessages(messages[index : index+1])[0], true, nil
 }
 
-func (s *Store) CreateArchive(ctx context.Context, archive ArchivedSession) error {
+func (s *Store) Archive(_ context.Context, req base.SessionArchiveRequest) (Session, error) {
 	if s == nil {
-		return errors.New("store is required")
+		return Session{}, errors.New("store is required")
 	}
 
-	normalized, err := base.NormalizeCreateArchive(archive)
-	if err != nil {
-		return err
+	req.SessionID = strings.TrimSpace(req.SessionID)
+	if err := base.ValidateSessionID(req.SessionID); err != nil {
+		return Session{}, err
 	}
 
-	var sourceIDs []string
 	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	sourceMessages := s.messages[normalized.SourceSessionID]
+	source, ok := s.sessions[req.SessionID]
+	if !ok {
+		return Session{}, errors.New("session not found")
+	}
+	sourceMessages := s.messages[req.SessionID]
 	if len(sourceMessages) == 0 {
-		s.mu.Unlock()
-		return errors.New("source session has no messages")
+		return Session{}, errors.New("source session has no messages")
 	}
-	if source, ok := s.sessions[normalized.SourceSessionID]; ok {
-		normalized.Title, normalized.TitleSource = base.NormalizeSessionTitleMetadata(
-			source.Title,
-			source.TitleSource,
-		)
+
+	session, err := base.MarkSessionArchived(source, req.ArchivedAt, req.ExpiresAt)
+	if err != nil {
+		return Session{}, err
 	}
-	sourceIDs = search.SourceIDsFromMessages(normalized.SourceSessionID, sourceMessages)
-
-	s.archiveMessages[normalized.ID] = cloneMessages(sourceMessages)
-	s.archives[normalized.ID] = normalized
-
-	delete(s.messages, normalized.SourceSessionID)
-	delete(s.summaries, normalized.SourceSessionID)
-	if normalized.SourceSessionID != base.DefaultSessionID {
-		delete(s.sessions, normalized.SourceSessionID)
-		if s.currentSession == normalized.SourceSessionID {
-			s.currentSession = ""
-		}
-	} else if session, ok := s.sessions[normalized.SourceSessionID]; ok {
-		session.Compaction = base.SessionCompaction{}
-		session.Title = ""
-		session.TitleSource = ""
-		s.sessions[normalized.SourceSessionID] = session
+	s.sessions[session.ID] = session
+	if s.currentSession == req.SessionID {
+		s.currentSession = ""
 	}
-	s.mu.Unlock()
 
-	return s.handleVectorStoreError(s.deleteVectorRows(ctx, sourceIDs))
+	return session, nil
 }
 
 func (s *Store) GetArchive(_ context.Context, id string) (ArchivedSession, bool, error) {
@@ -666,19 +673,40 @@ func (s *Store) GetArchive(_ context.Context, id string) (ArchivedSession, bool,
 	if id == "" {
 		return ArchivedSession{}, false, nil
 	}
+	if err := base.ValidateSessionID(id); err != nil {
+		if archiveErr := base.ValidateArchiveID(id); archiveErr != nil {
+			return ArchivedSession{}, false, archiveErr
+		}
 
-	if err := base.ValidateArchiveID(id); err != nil {
-		return ArchivedSession{}, false, err
+		return ArchivedSession{}, false, nil
 	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	archive, ok := s.archives[id]
-	return archive, ok, nil
+	session, ok := s.sessions[id]
+	if !ok || !session.Archived {
+		return ArchivedSession{}, false, nil
+	}
+
+	return archivedSessionFromSession(session), true, nil
 }
 
 func (s *Store) ListArchives(_ context.Context, sourceSessionID string) ([]ArchivedSession, error) {
+	sessions, err := s.listArchivedSessions(sourceSessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	archives := make([]ArchivedSession, 0, len(sessions))
+	for _, session := range sessions {
+		archives = append(archives, archivedSessionFromSession(session))
+	}
+
+	return archives, nil
+}
+
+func (s *Store) listArchivedSessions(sourceSessionID string) ([]Session, error) {
 	if s == nil {
 		return nil, errors.New("store is required")
 	}
@@ -688,26 +716,29 @@ func (s *Store) ListArchives(_ context.Context, sourceSessionID string) ([]Archi
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	archives := make([]ArchivedSession, 0, len(s.archives))
-	for _, archive := range s.archives {
-		if sourceSessionID != "" && archive.SourceSessionID != sourceSessionID {
+	sessions := make([]Session, 0, len(s.sessions))
+	for _, session := range s.sessions {
+		if !session.Archived {
 			continue
 		}
-		archives = append(archives, archive)
+		if sourceSessionID != "" && session.ID != sourceSessionID {
+			continue
+		}
+		sessions = append(sessions, session)
 	}
 
-	sort.Slice(archives, func(i, j int) bool {
-		if archives[i].ArchivedAt.Equal(archives[j].ArchivedAt) {
-			return archives[i].ID < archives[j].ID
+	sort.Slice(sessions, func(i, j int) bool {
+		if sessions[i].ArchivedAt.Equal(sessions[j].ArchivedAt) {
+			return sessions[i].ID < sessions[j].ID
 		}
 
-		return archives[i].ArchivedAt.After(archives[j].ArchivedAt)
+		return sessions[i].ArchivedAt.After(sessions[j].ArchivedAt)
 	})
 
-	return archives, nil
+	return sessions, nil
 }
 
-func (s *Store) DeleteArchive(ctx context.Context, archiveID string) error {
+func (s *Store) DeleteArchive(_ context.Context, archiveID string) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
@@ -717,43 +748,70 @@ func (s *Store) DeleteArchive(ctx context.Context, archiveID string) error {
 		return err
 	}
 
-	var sourceIDs []string
 	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if _, ok := s.archives[archiveID]; !ok {
-		s.mu.Unlock()
-		return errors.New("archive not found")
-	}
-
-	archive := s.archives[archiveID]
-	sourceIDs = search.SourceIDsFromMessages(archive.SourceSessionID, s.archiveMessages[archiveID])
-	delete(s.archives, archiveID)
-	delete(s.archiveMessages, archiveID)
-	s.mu.Unlock()
-
-	return s.handleVectorStoreError(s.deleteVectorRows(ctx, sourceIDs))
+	return errors.New("archive not found")
 }
 
-func (s *Store) DeleteExpiredArchives(ctx context.Context, now time.Time) error {
+func (s *Store) DeleteExpiredArchives(_ context.Context, now time.Time) error {
 	if s == nil {
 		return errors.New("store is required")
 	}
 
 	now = now.UTC()
 
-	var sourceIDs []string
 	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	for id, archive := range s.archives {
-		if !archive.ExpiresAt.IsZero() && !archive.ExpiresAt.After(now) {
-			sourceIDs = append(sourceIDs, search.SourceIDsFromMessages(archive.SourceSessionID, s.archiveMessages[id])...)
-			delete(s.archives, id)
-			delete(s.archiveMessages, id)
+	for id, session := range s.sessions {
+		if session.Archived && !session.ExpiresAt.IsZero() && !session.ExpiresAt.After(now) {
+			session.Archived = false
+			session.ArchivedAt = time.Time{}
+			session.ExpiresAt = time.Time{}
+			s.sessions[id] = session
 		}
 	}
-	s.mu.Unlock()
 
-	return s.handleVectorStoreError(s.deleteVectorRows(ctx, sourceIDs))
+	return nil
+}
+
+func (s *Store) Unarchive(_ context.Context, id string) (Session, error) {
+	if s == nil {
+		return Session{}, errors.New("store is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if err := base.ValidateSessionID(id); err != nil {
+		return Session{}, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	session, ok := s.sessions[id]
+	if !ok {
+		return Session{}, errors.New("session not found")
+	}
+
+	session, err := base.ClearSessionArchive(session)
+	if err != nil {
+		return Session{}, err
+	}
+
+	s.sessions[id] = session
+	return session, nil
+}
+
+func archivedSessionFromSession(session Session) ArchivedSession {
+	return ArchivedSession{
+		ID:              session.ID,
+		SourceSessionID: session.ID,
+		Title:           session.Title,
+		TitleSource:     session.TitleSource,
+		ArchivedAt:      session.ArchivedAt,
+		ExpiresAt:       session.ExpiresAt,
+	}
 }
 
 func (s *Store) ClearMessages(ctx context.Context, id string, opts MessageQueryOptions) error {
@@ -762,11 +820,7 @@ func (s *Store) ClearMessages(ctx context.Context, id string, opts MessageQueryO
 	}
 
 	id = strings.TrimSpace(id)
-	if !opts.Archived {
-		if err := base.ValidateSessionID(id); err != nil {
-			return err
-		}
-	} else if err := base.ValidateArchiveID(id); err != nil {
+	if err := base.ValidateSessionID(id); err != nil {
 		return err
 	}
 
@@ -774,14 +828,8 @@ func (s *Store) ClearMessages(ctx context.Context, id string, opts MessageQueryO
 	s.mu.Lock()
 
 	if opts.Archived {
-		if _, ok := s.archives[id]; !ok {
-			s.mu.Unlock()
-			return errors.New("archive not found")
-		}
-		sourceIDs = search.SourceIDsFromMessages(s.archives[id].SourceSessionID, s.archiveMessages[id])
-		delete(s.archiveMessages, id)
 		s.mu.Unlock()
-		return s.handleVectorStoreError(s.deleteVectorRows(ctx, sourceIDs))
+		return errors.New("archive not found")
 	}
 
 	session, ok := s.sessions[id]

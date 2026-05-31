@@ -713,7 +713,7 @@ func (a *Agent) ensureStateManager() error {
 	}
 
 	manager, err := NewStateManager(
-		store,
+		store.Session(),
 		getDurationOrDefault(a.cfg.Session.DefaultIdleExpiry, 24*time.Hour),
 		getDurationOrDefault(a.cfg.Session.ArchiveRetention, 30*24*time.Hour),
 	)

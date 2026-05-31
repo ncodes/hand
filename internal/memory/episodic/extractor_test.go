@@ -1180,7 +1180,7 @@ func TestHelpersCoverEdgeBranches(t *testing.T) {
 func testManager(t *testing.T, store storage.Store) *statemanager.Manager {
 	t.Helper()
 
-	manager, err := statemanager.NewManager(store, time.Hour, 24*time.Hour)
+	manager, err := statemanager.NewManager(store.Session(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 	return manager
 }

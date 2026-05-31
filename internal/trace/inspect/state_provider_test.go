@@ -45,7 +45,7 @@ func TestConfigureStateProvider_ReturnsManagerSetupError(t *testing.T) {
 	t.Cleanup(func() { newStateManager = originalNewStateManager })
 	expected := errors.New("manager setup failed")
 	newStateManager = func(
-		storage.Store,
+		storage.SessionStore,
 		time.Duration,
 		time.Duration,
 	) (*statemanager.Manager, error) {

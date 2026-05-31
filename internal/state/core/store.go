@@ -7,14 +7,17 @@ import (
 	handmsg "github.com/wandxy/hand/pkg/agent/message"
 )
 
-// Store defines the persistence operations required by this package.
-type Store interface {
+// SessionStore defines the persistence operations for conversation sessions.
+type SessionStore interface {
 	// Session management
 	Save(ctx context.Context, session Session) error
 	Get(ctx context.Context, id string) (Session, bool, error)
 	List(ctx context.Context) ([]Session, error)
 	Delete(ctx context.Context, id string) error
 	UpdateCheckpoints(ctx context.Context, id string, patch CheckpointPatch) error
+	Archive(ctx context.Context, req SessionArchiveRequest) (Session, error)
+	Unarchive(ctx context.Context, id string) (Session, error)
+	DeleteExpiredArchives(ctx context.Context, now time.Time) error
 
 	// Current session tracking
 	SetCurrent(ctx context.Context, id string) error
@@ -34,11 +37,9 @@ type Store interface {
 	SaveSummary(ctx context.Context, summary SessionSummary) error
 	GetSummary(ctx context.Context, sessionID string) (SessionSummary, bool, error)
 	DeleteSummary(ctx context.Context, sessionID string) error
+}
 
-	// Archive management
-	CreateArchive(ctx context.Context, archive ArchivedSession) error
-	GetArchive(ctx context.Context, id string) (ArchivedSession, bool, error)
-	ListArchives(ctx context.Context, sourceSessionID string) ([]ArchivedSession, error)
-	DeleteArchive(ctx context.Context, archiveID string) error
-	DeleteExpiredArchives(ctx context.Context, now time.Time) error
+// Store defines the aggregate durable state store.
+type Store interface {
+	Session() SessionStore
 }

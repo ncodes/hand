@@ -254,7 +254,7 @@ func (h *Harness) Messages(ctx context.Context, sessionID string) ([]handmsg.Mes
 		sessionID = session.ID
 	}
 
-	return h.inspectStore.GetMessages(normalizeHarnessContext(ctx), sessionID, storage.MessageQueryOptions{})
+	return h.inspectStore.Session().GetMessages(normalizeHarnessContext(ctx), sessionID, storage.MessageQueryOptions{})
 }
 
 // TurnMessages returns the messages emitted by the most recent harness turn.

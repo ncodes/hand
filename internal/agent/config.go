@@ -14,7 +14,7 @@ type StateStoreOpener func(*config.Config, models.Client) (storage.Store, error)
 
 // StateManagerFactory wraps state manager construction so tests can inject
 // controlled stores and expiry settings.
-type StateManagerFactory func(storage.Store, time.Duration, time.Duration) (*statemanager.Manager, error)
+type StateManagerFactory func(storage.SessionStore, time.Duration, time.Duration) (*statemanager.Manager, error)
 
 // OpenStateStore is the production state-store opener used by Agent startup.
 var OpenStateStore StateStoreOpener = statemanager.OpenStoreWithRerankerClient

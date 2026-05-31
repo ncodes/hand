@@ -24,12 +24,14 @@ func TestStore_ConfigureVectorStore(t *testing.T) {
 	t.Run("rejects nil store", func(t *testing.T) {
 		var nilStore *Store
 		require.EqualError(t, nilStore.ConfigureVectorStore(search.VectorStoreOptions{}), "store is required")
+		require.False(t, nilStore.SupportsVectorSearch())
 	})
 
 	t.Run("clears vector config when options are empty", func(t *testing.T) {
 		store := NewStore()
 		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{}))
 		require.Nil(t, store.vectors)
+		require.False(t, store.SupportsVectorSearch())
 	})
 
 	t.Run("requires embedder", func(t *testing.T) {
@@ -74,6 +76,16 @@ func TestStore_ConfigureVectorStore(t *testing.T) {
 			VectorStore:    &memoryTestVectorStore{},
 			EmbeddingModel: "model",
 		}), "reranker must be one of: noop, deterministic, llm")
+	})
+
+	t.Run("reports vector support when configured", func(t *testing.T) {
+		store := NewStore()
+		require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+			Embedder:       semanticTestEmbedder{},
+			VectorStore:    &memoryTestVectorStore{},
+			EmbeddingModel: "model",
+		}))
+		require.True(t, store.SupportsVectorSearch())
 	})
 }
 
@@ -503,9 +515,27 @@ func TestStore_DeleteVectorRows(t *testing.T) {
 	})
 }
 
+func TestStore_UpsertVectorRecordsSkipsEmptyInputs(t *testing.T) {
+	require.NoError(t, (*Store)(nil).upsertVectorRecords(context.Background(), []search.VectorRecord{{
+		ID: "row",
+	}}))
+
+	store := NewStore()
+	require.NoError(t, store.upsertVectorRecords(context.Background(), []search.VectorRecord{{ID: "row"}}))
+
+	require.NoError(t, store.ConfigureVectorStore(search.VectorStoreOptions{
+		Embedder:       semanticTestEmbedder{},
+		VectorStore:    &memoryTestVectorStore{},
+		EmbeddingModel: "semantic-test",
+		Required:       true,
+	}))
+	require.NoError(t, store.upsertVectorRecords(context.Background(), nil))
+}
+
 func TestSearchCandidateSet_Merge(t *testing.T) {
 	t.Run("ignores nil candidates and adds vector only candidates", func(t *testing.T) {
 		candidates := searchCandidateSet{}
+		require.Empty(t, getSearchCandidateKey(nil))
 		candidates.Merge([]*searchCandidate{nil, {
 			CandidateMatch: search.CandidateMatch{SessionID: testSessionA},
 			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "vector"},
@@ -532,6 +562,23 @@ func TestSearchCandidateSet_Merge(t *testing.T) {
 		}}, getSearchCandidateKey)
 		require.Equal(t, "vector text", candidates[search.SourceIDForMessage(testSessionA, 1)].MatchedText)
 	})
+}
+
+func TestSearchCandidatesToSearchResults_LimitsSessions(t *testing.T) {
+	now := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+	results := searchCandidatesToSearchResults([]*searchCandidate{
+		{
+			CandidateMatch: search.CandidateMatch{SessionID: testSessionA, FusedScore: 0.9},
+			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "first", CreatedAt: now},
+		},
+		{
+			CandidateMatch: search.CandidateMatch{SessionID: testSessionB, FusedScore: 0.8},
+			Message:        handmsg.Message{ID: 1, Role: handmsg.RoleUser, Content: "second", CreatedAt: now.Add(time.Second)},
+		},
+	}, base.SearchMessageOptions{MaxSessions: 1})
+
+	require.Len(t, results, 1)
+	require.Equal(t, testSessionA, results[0].SessionID)
 }
 
 func TestStore_RerankSearchCandidates(t *testing.T) {

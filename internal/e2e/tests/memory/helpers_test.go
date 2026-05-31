@@ -23,6 +23,7 @@ import (
 
 type liveMemoryStore interface {
 	storage.Store
+	storage.SessionStore
 	storage.MemoryStore
 }
 
@@ -114,7 +115,7 @@ func loadLiveMemoryStateManager(
 	store, err := statemanager.OpenStoreWithRerankerClient(&inspectCfg, rerankerClient)
 	require.NoError(t, err)
 
-	manager, err := statemanager.NewManager(store, cfg.Session.DefaultIdleExpiry, cfg.Session.ArchiveRetention)
+	manager, err := statemanager.NewManager(store.Session(), cfg.Session.DefaultIdleExpiry, cfg.Session.ArchiveRetention)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Close())

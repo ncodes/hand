@@ -1167,6 +1167,30 @@ func (s *Store) CreateArchive(ctx context.Context, archive ArchivedSession) erro
 	return nil
 }
 
+func (s *Store) Archive(ctx context.Context, req base.SessionArchiveRequest) (Session, error) {
+	session, err := base.MarkSessionArchived(Session{ID: req.SessionID}, req.ArchivedAt, req.ExpiresAt)
+	if err != nil {
+		return Session{}, err
+	}
+
+	archiveID, err := base.NewArchiveID()
+	if err != nil {
+		return Session{}, err
+	}
+
+	err = s.CreateArchive(ctx, ArchivedSession{
+		ID:              archiveID,
+		SourceSessionID: session.ID,
+		ArchivedAt:      session.ArchivedAt,
+		ExpiresAt:       session.ExpiresAt,
+	})
+	if err != nil {
+		return Session{}, err
+	}
+
+	return session, nil
+}
+
 // GetArchive loads archive metadata by archive ID.
 func (s *Store) GetArchive(ctx context.Context, id string) (ArchivedSession, bool, error) {
 	if s == nil || s.db == nil {
@@ -1355,6 +1379,10 @@ func (s *Store) DeleteExpiredArchives(ctx context.Context, now time.Time) error 
 
 		return tx.Where("id IN ?", ids).Delete(&archiveModel{}).Error
 	})
+}
+
+func (s *Store) Unarchive(context.Context, string) (Session, error) {
+	return Session{}, errors.New("session unarchive is not supported")
 }
 
 // SetCurrent marks an existing session as the current session.

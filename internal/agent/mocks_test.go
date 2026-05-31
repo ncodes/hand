@@ -202,6 +202,25 @@ func (s *stateStoreStub) GetSummary(
 
 func (s *stateStoreStub) DeleteSummary(context.Context, string) error { return nil }
 
+func (s *stateStoreStub) Session() storage.SessionStore { return s }
+
+func (s *stateStoreStub) Archive(_ context.Context, req storage.SessionArchiveRequest) (storage.Session, error) {
+	s.archive = storage.ArchivedSession{
+		SourceSessionID: req.SessionID,
+		ArchivedAt:      req.ArchivedAt,
+		ExpiresAt:       req.ExpiresAt,
+	}
+	return storage.Session{ID: req.SessionID, Archived: true, ArchivedAt: req.ArchivedAt, ExpiresAt: req.ExpiresAt}, s.archiveErr
+}
+
+func (s *stateStoreStub) Unarchive(context.Context, string) (storage.Session, error) {
+	return storage.Session{}, nil
+}
+
+func (s *stateStoreStub) DeleteExpiredArchives(context.Context, time.Time) error {
+	return nil
+}
+
 func (s *stateStoreStub) CreateArchive(_ context.Context, archive storage.ArchivedSession) error {
 	s.archive = archive
 	return s.archiveErr
@@ -216,10 +235,6 @@ func (s *stateStoreStub) ListArchives(context.Context, string) ([]storage.Archiv
 }
 
 func (s *stateStoreStub) DeleteArchive(context.Context, string) error { return nil }
-
-func (s *stateStoreStub) DeleteExpiredArchives(context.Context, time.Time) error {
-	return nil
-}
 
 func (s *stateStoreStub) AppendTraceEvent(context.Context, storage.TraceEvent) (storage.TraceEvent, error) {
 	if s.traceAppendErr != nil {

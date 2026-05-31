@@ -2,7 +2,6 @@ package storememory
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -206,9 +205,6 @@ func (s *Store) indexMemoryVector(ctx context.Context, item statememory.MemoryIt
 	}
 	if err := search.ValidateEmbeddingResult(req, result); err != nil {
 		return err
-	}
-	if len(result.Items) != 1 {
-		return errors.New("memory embedding result count must be one")
 	}
 
 	embedding := result.Items[0]

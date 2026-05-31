@@ -25,7 +25,7 @@ func ConfigureStateProvider(cfg *config.Config, app *App) error {
 		return err
 	}
 
-	manager, err := newStateManager(store, stateCfg.Session.DefaultIdleExpiry, stateCfg.Session.ArchiveRetention)
+	manager, err := newStateManager(store.Session(), stateCfg.Session.DefaultIdleExpiry, stateCfg.Session.ArchiveRetention)
 	if err != nil {
 		return err
 	}

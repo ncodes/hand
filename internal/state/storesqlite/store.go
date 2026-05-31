@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	handdb "github.com/wandxy/hand/internal/db"
+	base "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -66,6 +67,10 @@ func NewStoreFromDB(db *gorm.DB) (*Store, error) {
 	}
 
 	return &Store{db: db}, nil
+}
+
+func (s *Store) Session() base.SessionStore {
+	return s
 }
 
 func (s *Store) Close() error {

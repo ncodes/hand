@@ -14,7 +14,7 @@ import (
 
 // Manager manages manager.
 type Manager struct {
-	store             storage.Store
+	store             storage.SessionStore
 	defaultIdleExpiry time.Duration
 	archiveRetention  time.Duration
 	now               func() time.Time
@@ -25,7 +25,7 @@ var generateSessionID = storage.NewSessionID
 var generateArchiveID = storage.NewArchiveID
 
 // NewManager returns a state manager backed by the supplied store.
-func NewManager(store storage.Store, defaultIdleExpiry, archiveRetention time.Duration) (*Manager, error) {
+func NewManager(store storage.SessionStore, defaultIdleExpiry, archiveRetention time.Duration) (*Manager, error) {
 	if store == nil {
 		return nil, errors.New("store is required")
 	}
@@ -220,7 +220,7 @@ func (m *Manager) runMaintenance(ctx context.Context) error {
 		return err
 	}
 
-	return m.clearIdleDefaultSession(ctx, now)
+	return nil
 }
 
 func (m *Manager) Start(ctx context.Context) error {
@@ -519,18 +519,13 @@ func (m *Manager) ArchiveSession(ctx context.Context, id string) error {
 		return err
 	}
 
-	archiveID, err := generateArchiveID()
-	if err != nil {
-		return err
-	}
-
 	now := m.now().UTC()
-	return m.store.CreateArchive(ctx, storage.ArchivedSession{
-		ID:              archiveID,
-		SourceSessionID: id,
-		ArchivedAt:      now,
-		ExpiresAt:       now.Add(m.archiveRetention),
+	_, err := m.store.Archive(ctx, storage.SessionArchiveRequest{
+		SessionID:  id,
+		ArchivedAt: now,
+		ExpiresAt:  now.Add(m.archiveRetention),
 	})
+	return err
 }
 
 func (m *Manager) RenameSession(ctx context.Context, id string, title string) (storage.Session, error) {
@@ -635,53 +630,4 @@ func (m *Manager) resolveDefaultSession(ctx context.Context, now time.Time) (sto
 	}
 
 	return session, nil
-}
-
-func (m *Manager) clearIdleDefaultSession(ctx context.Context, now time.Time) error {
-	session, ok, err := m.store.Get(ctx, storage.DefaultSessionID)
-	if err != nil {
-		return err
-	}
-
-	if !ok {
-		return nil
-	}
-
-	messages, err := m.store.GetMessages(ctx, session.ID, storage.MessageQueryOptions{})
-	if err != nil {
-		return err
-	}
-
-	if len(messages) > 0 && !session.UpdatedAt.IsZero() && !session.UpdatedAt.Add(m.defaultIdleExpiry).After(now) {
-		archiveID, err := generateArchiveID()
-		if err != nil {
-			return err
-		}
-
-		archive := storage.ArchivedSession{
-			ID:              archiveID,
-			SourceSessionID: session.ID,
-			ArchivedAt:      now,
-			ExpiresAt:       now.Add(m.archiveRetention),
-		}
-
-		if err := m.store.CreateArchive(ctx, archive); err != nil {
-			return err
-		}
-
-		if err := m.store.ClearMessages(ctx, session.ID, storage.MessageQueryOptions{}); err != nil {
-			return err
-		}
-
-		session.Compaction = storage.SessionCompaction{}
-		session.Title = ""
-		session.TitleSource = ""
-		session.UpdatedAt = now
-
-		if err := m.store.Save(ctx, session); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

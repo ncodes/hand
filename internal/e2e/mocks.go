@@ -111,6 +111,16 @@ func (s *storageStoreStub) GetSummary(context.Context, string) (storage.SessionS
 	return storage.SessionSummary{}, false, nil
 }
 func (s *storageStoreStub) DeleteSummary(context.Context, string) error { return nil }
+func (s *storageStoreStub) Session() storage.SessionStore               { return s }
+func (s *storageStoreStub) Archive(context.Context, storage.SessionArchiveRequest) (storage.Session, error) {
+	return storage.Session{}, nil
+}
+func (s *storageStoreStub) Unarchive(context.Context, string) (storage.Session, error) {
+	return storage.Session{}, nil
+}
+func (s *storageStoreStub) DeleteExpiredArchives(context.Context, time.Time) error {
+	return nil
+}
 func (s *storageStoreStub) CreateArchive(context.Context, storage.ArchivedSession) error {
 	return nil
 }
@@ -121,9 +131,6 @@ func (s *storageStoreStub) ListArchives(context.Context, string) ([]storage.Arch
 	return nil, nil
 }
 func (s *storageStoreStub) DeleteArchive(context.Context, string) error { return nil }
-func (s *storageStoreStub) DeleteExpiredArchives(context.Context, time.Time) error {
-	return nil
-}
 func (s *storageStoreStub) ClearMessages(context.Context, string, storage.MessageQueryOptions) error {
 	return nil
 }
