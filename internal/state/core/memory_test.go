@@ -28,7 +28,9 @@ func TestCheckMemoryMatchesQuery_AppliesStatusKindTagsAndText(t *testing.T) {
 		Reflected: new(true),
 	}))
 	require.True(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{Text: "PLAN"}))
+	require.True(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{Text: "go"}))
 	require.True(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{Text: "what is my prefrred plan"}))
+	require.True(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{Text: "what is my planning preference"}))
 	require.True(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{}))
 	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{SessionID: "other"}))
 	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{IDs: []string{"mem_other"}}))
@@ -37,6 +39,7 @@ func TestCheckMemoryMatchesQuery_AppliesStatusKindTagsAndText(t *testing.T) {
 	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{Tags: []string{"missing"}}))
 	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{Reflected: new(false)}))
 	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{Text: "missing"}))
+	require.False(t, CheckMemoryMatchesQuery(item, MemorySearchQuery{Text: "alpha beta gamma delta plan"}))
 	require.False(t, CheckMemoryMatchesQuery(MemoryItem{ID: "mem_candidate", Status: MemoryStatusCandidate}, MemorySearchQuery{}))
 }
 
@@ -280,16 +283,24 @@ func TestHasAllMemoryTags_TrimsLowercasesAndRequiresAllQueryTags(t *testing.T) {
 }
 
 func TestGetSimpleMemoryScore(t *testing.T) {
-	item := MemoryItem{
-		Title: "Plan preference",
-		Text:  "Use a plan for complex tasks",
-	}
+	item := MemoryItem{Title: "Plan preference", Text: "Use a plan for complex tasks"}
 
 	require.Equal(t, 0.0, GetSimpleMemoryScore(item, ""))
 	require.Equal(t, 2.0, GetSimpleMemoryScore(item, "preference"))
 	require.Equal(t, 1.0, GetSimpleMemoryScore(item, "complex"))
 	require.Equal(t, 3.0, GetSimpleMemoryScore(item, "plan"))
 	require.Greater(t, GetSimpleMemoryScore(item, "what is my prefrred plan"), 0.0)
+	require.InDelta(t, 2.0/3.0, GetMemorySearchCoverageScore(item, "what preferred plan"), 0.0001)
+	require.Equal(t, 0.0, GetMemorySearchTextCoverageScore("plan", "!!!"))
+	require.Equal(t, 1.0, GetMemorySearchCoverageScore(MemoryItem{
+		Metadata: map[string]string{"favorite_color": "blue"},
+	}, "favorite color blue"))
+	require.Equal(t, []string{"what", "planning", "preference"}, SearchTokens("what planning preference? planning"))
+	require.Nil(t, SearchTokens("!!!"))
+	require.Equal(t, "plann", GetMemorySearchTokenPrefix("planning"))
+	require.True(t, CheckMemorySearchCoveragePasses(1.0/3.0, 3))
+	require.False(t, CheckMemorySearchCoveragePasses(1.0/5.0, 5))
+	require.False(t, CheckMemorySearchCoveragePasses(1, 0))
 }
 
 func TestMemoryKindAndStatusStrings_FilterEmptyValues(t *testing.T) {

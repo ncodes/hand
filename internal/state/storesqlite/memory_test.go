@@ -1082,13 +1082,83 @@ func TestSQLiteMemoryStore_SearchMemoryRelaxesQuestionAndPreferenceTerms(t *test
 		Text:   "Ask whether color requests are about appearance, preferences, or themes.",
 	})
 	require.NoError(t, err)
+	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_color_only",
+		Kind:   statememory.MemoryKindSemantic,
+		Status: statememory.MemoryStatusActive,
+		Title:  "Color palette",
+		Text:   "Use green for status badges.",
+	})
+	require.NoError(t, err)
 
 	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text:  "what is my preferred color blue",
+		Limit: 3,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, result.Hits)
+	require.Equal(t, "mem_color_preference", result.Hits[0].Item.ID)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
 		Text:  "what is my prefrred color",
 		Limit: 3,
 	})
 	require.NoError(t, err)
 	require.Contains(t, sqliteMemoryHitIDs(result.Hits), "mem_color_preference")
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text:  "alpha beta gamma delta color",
+		Limit: 3,
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text: "go",
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text: "!!!",
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
+	require.Empty(t, buildRelaxedMemoryFTSSearchQuery("!!"))
+
+	ranked := getCoverageRankedMemorySearchRecords([]memorySearchRecord{
+		{ID: "mem_b", Title: "preferred color", Score: 1},
+		{ID: "mem_a", Title: "preferred color blue", Score: 1},
+		{ID: "mem_weak", Title: "color", Score: 1},
+	}, "preferred color blue shade tone", 0)
+	require.Equal(t, []string{"mem_a", "mem_b"}, sqliteMemorySearchRecordIDs(ranked))
+	require.InDelta(t, 1.6, ranked[0].Score, 0.0001)
+	require.InDelta(t, 1.4, ranked[1].Score, 0.0001)
+
+	ranked = getCoverageRankedMemorySearchRecords([]memorySearchRecord{
+		{ID: "mem_old", Title: "preferred color", Score: 1, UpdatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{ID: "mem_new", Title: "preferred color", Score: 1, UpdatedAt: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+		{ID: "mem_best", Title: "preferred color", Score: 2, UpdatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
+	}, "preferred color", 1)
+	require.Equal(t, []string{"mem_best"}, sqliteMemorySearchRecordIDs(ranked))
+
+	ranked = getCoverageRankedMemorySearchRecords([]memorySearchRecord{
+		{ID: "mem_old", Title: "preferred color", Score: 1, UpdatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{ID: "mem_new", Title: "preferred color", Score: 1, UpdatedAt: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+	}, "preferred color", 0)
+	require.Equal(t, []string{"mem_new", "mem_old"}, sqliteMemorySearchRecordIDs(ranked))
+
+	ranked = getCoverageRankedMemorySearchRecords([]memorySearchRecord{
+		{ID: "mem_b", Title: "preferred color", Score: 1},
+		{ID: "mem_a", Title: "preferred color", Score: 1},
+	}, "preferred color", 0)
+	require.Equal(t, []string{"mem_a", "mem_b"}, sqliteMemorySearchRecordIDs(ranked))
+
+	require.Empty(t, getCoverageRankedMemorySearchRecords(nil, "preferred color blue", 10))
+
+	require.Empty(t, getCoverageRankedMemorySearchRecords([]memorySearchRecord{
+		{ID: "mem_weak", Title: "color", Score: 1},
+	}, "alpha beta gamma delta color", 10))
 }
 
 func TestSQLiteMemoryStore_BM25RanksByLexicalRelevanceBeforeRecency(t *testing.T) {
@@ -1522,6 +1592,14 @@ func sqliteMemoryHitIDs(hits []statememory.MemorySearchHit) []string {
 	ids := make([]string, 0, len(hits))
 	for _, hit := range hits {
 		ids = append(ids, hit.Item.ID)
+	}
+	return ids
+}
+
+func sqliteMemorySearchRecordIDs(records []memorySearchRecord) []string {
+	ids := make([]string, 0, len(records))
+	for _, record := range records {
+		ids = append(ids, record.ID)
 	}
 	return ids
 }

@@ -333,18 +333,27 @@ func (s *Store) searchMemoryRecords(
 
 	text := strings.TrimSpace(query.Text)
 	if text != "" {
-		queryTexts := buildMemoryFTSSearchQueries(text)
-		if len(queryTexts) == 0 {
+		strictQuery := buildFTSSearchQuery(text)
+		if strictQuery == "" {
 			return nil, nil
 		}
-		for _, queryText := range queryTexts {
-			records, err := s.searchMemoryRecordsLexical(ctx, query, statuses, queryText, limit)
-			if err != nil || len(records) > 0 {
-				return records, err
-			}
+
+		records, err := s.searchMemoryRecordsLexical(ctx, query, statuses, strictQuery, limit)
+		if err != nil || len(records) > 0 {
+			return records, err
 		}
 
-		return nil, nil
+		relaxedQuery := buildRelaxedMemoryFTSSearchQuery(text)
+		if relaxedQuery == "" || relaxedQuery == strictQuery {
+			return nil, nil
+		}
+
+		records, err = s.searchMemoryRecordsLexical(ctx, query, statuses, relaxedQuery, limit)
+		if err != nil {
+			return nil, err
+		}
+
+		return getCoverageRankedMemorySearchRecords(records, text, limit), nil
 	}
 
 	db := s.db.WithContext(ctx).Model(&memoryItemModel{})
@@ -478,23 +487,6 @@ LIMIT ?`)
 	return records, nil
 }
 
-func buildMemoryFTSSearchQueries(text string) []string {
-	strict := buildFTSSearchQuery(text)
-	relaxed := buildRelaxedMemoryFTSSearchQuery(text)
-	if strict == "" {
-		if relaxed == "" {
-			return nil
-		}
-
-		return []string{relaxed}
-	}
-	if relaxed == "" || relaxed == strict {
-		return []string{strict}
-	}
-
-	return []string{strict, relaxed}
-}
-
 func buildRelaxedMemoryFTSSearchQuery(text string) string {
 	tokens := statememory.SearchTokens(text)
 	if len(tokens) == 0 {
@@ -503,13 +495,64 @@ func buildRelaxedMemoryFTSSearchQuery(text string) string {
 
 	terms := make([]string, 0, len(tokens))
 	for _, token := range tokens {
-		token = strings.TrimSpace(token)
-		if token != "" {
-			terms = append(terms, `"`+token+`"`)
+		prefix := statememory.GetMemorySearchTokenPrefix(token)
+		if prefix != "" {
+			terms = append(terms, prefix+`*`)
 		}
 	}
 
 	return strings.Join(terms, " OR ")
+}
+
+func getCoverageRankedMemorySearchRecords(records []memorySearchRecord, query string, limit int) []memorySearchRecord {
+	if len(records) == 0 {
+		return nil
+	}
+
+	tokenCount := len(statememory.SearchTokens(query))
+	ranked := make([]memorySearchRecord, 0, len(records))
+	for _, record := range records {
+		coverage := statememory.GetMemorySearchTextCoverageScore(getMemorySearchRecordText(record), query)
+		if !statememory.CheckMemorySearchCoveragePasses(coverage, tokenCount) {
+			continue
+		}
+		record.Score += coverage
+		ranked = append(ranked, record)
+	}
+	if len(ranked) == 0 {
+		return nil
+	}
+
+	sort.SliceStable(ranked, func(i, j int) bool {
+		leftCoverage := statememory.GetMemorySearchTextCoverageScore(getMemorySearchRecordText(ranked[i]), query)
+		rightCoverage := statememory.GetMemorySearchTextCoverageScore(getMemorySearchRecordText(ranked[j]), query)
+		if leftCoverage != rightCoverage {
+			return leftCoverage > rightCoverage
+		}
+		if ranked[i].Score != ranked[j].Score {
+			return ranked[i].Score > ranked[j].Score
+		}
+		if !ranked[i].UpdatedAt.Equal(ranked[j].UpdatedAt) {
+			return ranked[i].UpdatedAt.After(ranked[j].UpdatedAt)
+		}
+
+		return ranked[i].ID < ranked[j].ID
+	})
+	if limit > 0 && len(ranked) > limit {
+		return ranked[:limit]
+	}
+
+	return ranked
+}
+
+func getMemorySearchRecordText(record memorySearchRecord) string {
+	return strings.Join([]string{
+		record.Title,
+		record.Text,
+		record.Kind,
+		record.TagsJSON,
+		record.MetadataJSON,
+	}, " ")
 }
 
 func ensureMemoryStorage(db *gorm.DB) error {

@@ -135,13 +135,36 @@ func TestMemoryStore_SearchMemoryRelaxesQuestionAndPreferenceTerms(t *testing.T)
 		Text:   "Ask whether color requests are about appearance, preferences, or themes.",
 	})
 	require.NoError(t, err)
+	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_color_only",
+		Kind:   statememory.MemoryKindSemantic,
+		Status: statememory.MemoryStatusActive,
+		Title:  "Color palette",
+		Text:   "Use green for status badges.",
+	})
+	require.NoError(t, err)
 
 	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text:  "what is my preferred color blue",
+		Limit: 3,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, result.Hits)
+	require.Equal(t, "mem_color_preference", result.Hits[0].Item.ID)
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
 		Text:  "what is my prefrred color",
 		Limit: 3,
 	})
 	require.NoError(t, err)
 	require.Contains(t, memoryHitIDs(result.Hits), "mem_color_preference")
+
+	result, err = store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text:  "alpha beta gamma delta color",
+		Limit: 3,
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Hits)
 }
 
 func TestMemoryStore_DefaultsToCandidateAndActiveOnlySearch(t *testing.T) {

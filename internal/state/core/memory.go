@@ -257,15 +257,21 @@ func NormalizeMemoryIDs(ids []string) []string {
 
 // CheckMemoryMatchesQuery checks memory matches query.
 func CheckMemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
-	if sessionID := strings.TrimSpace(query.SessionID); sessionID != "" && !CheckMemoryBelongsToSession(item, sessionID) {
+	if sessionID := strings.TrimSpace(query.SessionID); sessionID != "" &&
+		!CheckMemoryBelongsToSession(item, sessionID) {
 		return false
 	}
-	if ids := NormalizeMemoryIDs(query.IDs); len(ids) > 0 && !slices.Contains(ids, strings.TrimSpace(item.ID)) {
+
+	if ids := NormalizeMemoryIDs(query.IDs); len(ids) > 0 &&
+		!slices.Contains(ids, strings.TrimSpace(item.ID)) {
 		return false
 	}
-	if len(query.Kinds) > 0 && !slices.Contains(query.Kinds, item.Kind) {
+
+	if len(query.Kinds) > 0 &&
+		!slices.Contains(query.Kinds, item.Kind) {
 		return false
 	}
+
 	if len(query.Statuses) > 0 {
 		if !slices.Contains(query.Statuses, item.Status) {
 			return false
@@ -273,30 +279,39 @@ func CheckMemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
 	} else if item.Status != MemoryStatusActive {
 		return false
 	}
-	if len(query.Tags) > 0 && !HasAllMemoryTags(item.Tags, query.Tags) {
+
+	if len(query.Tags) > 0 &&
+		!HasAllMemoryTags(item.Tags, query.Tags) {
 		return false
 	}
-	if query.Reflected != nil && item.Reflected != *query.Reflected {
+
+	if query.Reflected != nil &&
+		item.Reflected != *query.Reflected {
 		return false
 	}
+
 	if query.PromotionEvaluated != nil {
 		evaluated := !item.PromotionEvaluatedAt.IsZero()
 		if evaluated != *query.PromotionEvaluated {
 			return false
 		}
 	}
+
 	if !query.PromotionEvaluatedBefore.IsZero() {
-		if item.PromotionEvaluatedAt.IsZero() || !item.PromotionEvaluatedAt.Before(query.PromotionEvaluatedBefore) {
-			return false
-		}
-	}
-	if !query.PromotionEvaluatedAfter.IsZero() {
-		if item.PromotionEvaluatedAt.IsZero() || !item.PromotionEvaluatedAt.After(query.PromotionEvaluatedAfter) {
+		if item.PromotionEvaluatedAt.IsZero() ||
+			!item.PromotionEvaluatedAt.Before(query.PromotionEvaluatedBefore) {
 			return false
 		}
 	}
 
-	if CheckMemoryTextMatchesQuery(item.Title, item.Text, query.Text) {
+	if !query.PromotionEvaluatedAfter.IsZero() {
+		if item.PromotionEvaluatedAt.IsZero() ||
+			!item.PromotionEvaluatedAt.After(query.PromotionEvaluatedAfter) {
+			return false
+		}
+	}
+
+	if checkMemoryItemMatchesTextQuery(item, query.Text) {
 		return true
 	}
 
@@ -353,44 +368,99 @@ func GetSimpleMemoryScore(item MemoryItem, query string) float64 {
 		return score
 	}
 
-	return getMemoryTokenScore(item, query)
+	return GetMemorySearchCoverageScore(item, query)
 }
 
-// CheckMemoryTextMatchesQuery reports whether memory text matches a lexical query.
-func CheckMemoryTextMatchesQuery(title string, text string, query string) bool {
+func checkMemoryItemMatchesTextQuery(item MemoryItem, query string) bool {
 	query = strings.TrimSpace(strings.ToLower(query))
 	if query == "" {
 		return true
 	}
 
-	title = strings.ToLower(title)
-	text = strings.ToLower(text)
-	if strings.Contains(title, query) || strings.Contains(text, query) {
+	text := strings.ToLower(getMemorySearchText(item))
+	if strings.Contains(text, query) {
 		return true
 	}
 
-	return getMemoryTokenScore(MemoryItem{Title: title, Text: text}, query) > 0
+	return CheckMemorySearchCoveragePasses(
+		GetMemorySearchCoverageScore(item, query),
+		len(SearchTokens(query)),
+	)
 }
 
-func getMemoryTokenScore(item MemoryItem, query string) float64 {
+func GetMemorySearchCoverageScore(item MemoryItem, query string) float64 {
+	return GetMemorySearchTextCoverageScore(getMemorySearchText(item), query)
+}
+
+func GetMemorySearchTextCoverageScore(text string, query string) float64 {
 	tokens := SearchTokens(query)
 	if len(tokens) == 0 {
 		return 0
 	}
 
 	score := 0.0
-	title := strings.ToLower(item.Title)
-	text := strings.ToLower(item.Text)
+	text = strings.ToLower(text)
 	for _, token := range tokens {
-		if strings.Contains(title, token) {
-			score += 2
-		}
-		if strings.Contains(text, token) {
+		if checkMemorySearchTokenMatches(text, token) {
 			score++
 		}
 	}
 
 	return score / float64(len(tokens))
+}
+
+func CheckMemorySearchCoveragePasses(score float64, tokenCount int) bool {
+	if tokenCount == 0 {
+		return false
+	}
+	if tokenCount == 1 {
+		return score > 0
+	}
+
+	return score >= 0.25
+}
+
+func checkMemorySearchTokenMatches(text string, token string) bool {
+	if strings.Contains(text, token) {
+		return true
+	}
+
+	prefix := GetMemorySearchTokenPrefix(token)
+	return prefix != token && strings.Contains(text, prefix)
+}
+
+func getMemorySearchText(item MemoryItem) string {
+	parts := []string{
+		item.Title,
+		item.Text,
+		string(item.Kind),
+		strings.Join(item.Tags, " "),
+	}
+	if len(item.Metadata) > 0 {
+		keys := make([]string, 0, len(item.Metadata))
+		for key := range item.Metadata {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			parts = append(parts, key, item.Metadata[key])
+		}
+	}
+
+	return strings.Join(parts, " ")
+}
+
+func GetMemorySearchTokenPrefix(token string) string {
+	token = strings.TrimSpace(strings.ToLower(token))
+	runes := []rune(token)
+	if len(runes) <= 4 {
+		return token
+	}
+	if len(runes) <= 6 {
+		return string(runes[:4])
+	}
+
+	return string(runes[:5])
 }
 
 func SearchTokens(query string) []string {
@@ -405,9 +475,6 @@ func SearchTokens(query string) []string {
 	tokens := make([]string, 0, len(fields))
 	for _, field := range fields {
 		field = strings.TrimSpace(strings.ToLower(field))
-		if field == "" {
-			continue
-		}
 		if len([]rune(field)) < 3 {
 			continue
 		}
