@@ -19,11 +19,14 @@ var slashCommandDefinitions = []slashCommandDefinition{
 	{Name: "copy", Description: "Copy the transcript"},
 	{Name: "help", Description: "Show supported commands"},
 	{Name: "new-chat", Description: "Start a new chat session"},
+	{Name: "archive", Description: "Show archived chat sessions"},
 }
 
 func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 	var cmd tea.Cmd
 	switch input.Name {
+	case "archive":
+		cmd = m.startArchiveCommand()
 	case "changelog":
 		cmd = m.showChangelogCommand()
 	case "chats":
@@ -59,5 +62,5 @@ func getSlashCommandHelpText() string {
 		commands = append(commands, "/"+command.Name)
 	}
 
-	return "Commands: " + strings.Join(commands, ", ")
+	return "Commands:\n" + strings.Join(commands, "\n")
 }

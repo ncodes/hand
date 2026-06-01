@@ -243,11 +243,53 @@ func TestClient_ListSessionsReturnsItems(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, stub.ListReq)
+	require.False(t, stub.ListReq.GetArchived())
 	require.Len(t, sessions, 2)
 	require.Equal(t, "default", sessions[0].ID)
 	require.Equal(t, "Daily Planning", sessions[0].Title)
 	require.Equal(t, storage.SessionTitleSourceGenerated, sessions[0].TitleSource)
 	require.Equal(t, "project-a", sessions[1].ID)
+}
+
+func TestClient_ListSessionsWithArchivedOptionSendsArchivedFlagAndMarksItems(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{
+		ListResp: &handpb.ListSessionsResponse{
+			Sessions: []*handpb.SessionSummary{
+				{Id: "project-a", Title: "Archived Planning", UpdatedAtUnix: 20},
+			},
+		},
+	}
+	client := NewSessionService(stub)
+	archived := true
+
+	sessions, err := client.List(context.Background(), SessionListOptions{Archived: &archived})
+
+	require.NoError(t, err)
+	require.NotNil(t, stub.ListReq)
+	require.True(t, stub.ListReq.GetArchived())
+	require.Len(t, sessions, 1)
+	require.Equal(t, "project-a", sessions[0].ID)
+	require.True(t, sessions[0].Archived)
+}
+
+func TestClient_ListSessionsWithArchivedOptionRequiresClient(t *testing.T) {
+	archived := true
+
+	_, err := (*SessionService)(nil).List(context.Background(), SessionListOptions{Archived: &archived})
+
+	require.EqualError(t, err, "hand: session service client is required")
+}
+
+func TestClient_ListSessionsWithArchivedOptionReturnsRPCError(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	client := NewSessionService(stub)
+	archived := true
+
+	sessions, err := client.List(context.Background(), SessionListOptions{Archived: &archived})
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, sessions)
+	require.True(t, stub.ListReq.GetArchived())
 }
 
 func TestClient_UseSessionSendsSessionID(t *testing.T) {

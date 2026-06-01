@@ -74,7 +74,9 @@ message CreateSessionResponse {
   SessionSummary session = 1;
 }
 
-message ListSessionsRequest {}
+message ListSessionsRequest {
+  optional bool archived = 1;
+}
 
 message ListSessionsResponse {
   repeated SessionSummary sessions = 1;

@@ -107,7 +107,13 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case chatsLoadedMsg:
 		cmd := m.completeChatsCommand(msg)
 		return m, cmd, true
+	case archivedChatsLoadedMsg:
+		cmd := m.completeArchiveCommand(msg)
+		return m, cmd, true
 	case chatArchivedMsg:
+		next, cmd := m.updateCommandView(msg)
+		return next, cmd, true
+	case chatUnarchivedMsg:
 		next, cmd := m.updateCommandView(msg)
 		return next, cmd, true
 	case chatRenamedMsg:

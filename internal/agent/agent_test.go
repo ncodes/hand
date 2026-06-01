@@ -207,9 +207,25 @@ func TestAgent_LifecycleHelpersValidateAndUseStateManager(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{sessionID}, agentTestSessionIDs(sessions))
 
+	archivedSessionID, err := storage.NewSessionID()
+	require.NoError(t, err)
+	store.sessions[archivedSessionID] = storage.Session{ID: archivedSessionID, Archived: true}
+
+	archived := true
+	archivedSessions, err := core.ListSessions(
+		context.Background(),
+		storage.SessionListOptions{Archived: &archived},
+	)
+	require.NoError(t, err)
+	require.Equal(t, []string{archivedSessionID}, agentTestSessionIDs(archivedSessions))
+	require.NotNil(t, store.listOptions.Archived)
+	require.True(t, *store.listOptions.Archived)
+
 	_, err = (*Agent)(nil).CreateSession(context.Background(), "")
 	require.EqualError(t, err, "agent is required")
 	_, err = (&Agent{}).ListSessions(context.Background())
+	require.EqualError(t, err, "environment has not been initialized")
+	_, err = (&Agent{}).ListSessions(context.Background(), storage.SessionListOptions{Archived: &archived})
 	require.EqualError(t, err, "environment has not been initialized")
 	require.EqualError(t, (*Agent)(nil).UseSession(context.Background(), ""), "agent is required")
 	require.EqualError(t, (&Agent{}).UseSession(context.Background(), ""), "environment has not been initialized")
@@ -220,6 +236,8 @@ func TestAgent_LifecycleHelpersValidateAndUseStateManager(t *testing.T) {
 	_, err = (&Agent{}).ContextStatus(context.Background(), "")
 	require.EqualError(t, err, "config is required")
 	_, err = (*Agent)(nil).ListSessions(context.Background())
+	require.EqualError(t, err, "agent is required")
+	_, err = (*Agent)(nil).ListSessions(context.Background(), storage.SessionListOptions{Archived: &archived})
 	require.EqualError(t, err, "agent is required")
 	_, err = (*Agent)(nil).CurrentSession(context.Background())
 	require.EqualError(t, err, "agent is required")
@@ -276,8 +294,11 @@ func TestAgent_LifecycleBranchesForCloseCreateUseAndStatus(t *testing.T) {
 	require.Equal(t, storage.SessionTitleSourceManual, renamed.TitleSource)
 
 	store.current = storage.DefaultSessionID
-	core.env = &mocks.EnvironmentStub{TraceSession: &mocks.TraceSessionStub{SessionID: "trace"}}
+	traceSession := &mocks.TraceSessionStub{SessionID: "trace"}
+	core.env = &mocks.EnvironmentStub{TraceSession: traceSession}
 	require.NoError(t, core.UseSession(context.Background(), otherID))
+	require.Empty(t, traceSession.Events)
+	require.False(t, traceSession.Closed)
 
 	require.EqualError(t, (*Agent)(nil).ArchiveSession(context.Background(), ""), "agent is required")
 	require.EqualError(t, (&Agent{}).ArchiveSession(context.Background(), ""), "environment has not been initialized")
@@ -616,7 +637,7 @@ func TestAgent_TraceSessionAndFlushContextLossBranches(t *testing.T) {
 		env:         &mocks.EnvironmentStub{ToolRegistry: &environmentToolRegistryStub{}},
 	}
 	traceSession := &mocks.TraceSessionStub{}
-	core.maybeFlushMemoryBeforeContextLoss(context.Background(), "missing", memoryFlushTriggerSessionReset, traceSession)
+	core.maybeFlushMemoryBeforeContextLoss(context.Background(), "missing", memoryFlushTriggerControlledExit, traceSession)
 	require.Equal(t, trace.EvtMemoryFlushFailed, traceSession.Events[len(traceSession.Events)-1].Type)
 }
 

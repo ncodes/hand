@@ -65,7 +65,7 @@ type BackgroundSessionResult struct {
 // BackgroundStateManager exposes session and memory operations used by background extraction.
 type BackgroundStateManager interface {
 	StateManager
-	ListSessions(context.Context) ([]storage.Session, error)
+	ListSessions(context.Context, ...storage.SessionListOptions) ([]storage.Session, error)
 }
 
 // NormalizeBackgroundOptions keeps background extraction conservative even when

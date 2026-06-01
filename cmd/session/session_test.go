@@ -3,6 +3,7 @@ package session
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net"
 	"os"
@@ -158,6 +159,98 @@ func TestNewCommandSessionUseCallsRPC(t *testing.T) {
 	require.Equal(t, "project-a\n", output.String())
 }
 
+func TestNewCommandSessionUnarchiveCallsRPC(t *testing.T) {
+	setSessionTestProfile(t)
+	originalNewClient := newClient
+	originalOutput := sessionOutput
+	t.Cleanup(func() {
+		newClient = originalNewClient
+		sessionOutput = originalOutput
+	})
+
+	var output bytes.Buffer
+	sessionOutput = &output
+
+	stub := &agentstub.AgentServiceStub{}
+	newClient = func(context.Context, *config.Config) (sessionClient, error) {
+		return stub, nil
+	}
+
+	err := NewCommand().Run(context.Background(), []string{"session", "unarchive", "project-a"})
+
+	require.NoError(t, err)
+	require.Equal(t, "project-a", stub.UnarchivedSessionID)
+	require.Equal(t, "project-a\n", output.String())
+}
+
+func TestNewCommandSessionUnarchiveReturnsRPCErrors(t *testing.T) {
+	setSessionTestProfile(t)
+	originalNewClient := newClient
+	originalOutput := sessionOutput
+	t.Cleanup(func() {
+		newClient = originalNewClient
+		sessionOutput = originalOutput
+	})
+
+	expected := errors.New("unarchive failed")
+	sessionOutput = io.Discard
+
+	stub := &agentstub.AgentServiceStub{UnarchiveSessionErr: expected}
+	newClient = func(context.Context, *config.Config) (sessionClient, error) {
+		return stub, nil
+	}
+
+	err := NewCommand().Run(context.Background(), []string{"session", "unarchive", "project-a"})
+
+	require.ErrorIs(t, err, expected)
+	require.Equal(t, "project-a", stub.UnarchivedSessionID)
+	require.True(t, stub.Closed)
+}
+
+func TestNewCommandSessionUnarchiveReturnsClientErrors(t *testing.T) {
+	setSessionTestProfile(t)
+	originalNewClient := newClient
+	originalOutput := sessionOutput
+	t.Cleanup(func() {
+		newClient = originalNewClient
+		sessionOutput = originalOutput
+	})
+
+	expected := errors.New("client failed")
+	sessionOutput = io.Discard
+	newClient = func(context.Context, *config.Config) (sessionClient, error) {
+		return nil, expected
+	}
+
+	err := NewCommand().Run(context.Background(), []string{"session", "unarchive", "project-a"})
+
+	require.ErrorIs(t, err, expected)
+}
+
+func TestNewCommandSessionUnarchiveReturnsOutputErrors(t *testing.T) {
+	setSessionTestProfile(t)
+	originalNewClient := newClient
+	originalOutput := sessionOutput
+	t.Cleanup(func() {
+		newClient = originalNewClient
+		sessionOutput = originalOutput
+	})
+
+	expected := errors.New("write failed")
+	sessionOutput = failingSessionWriter{err: expected}
+
+	stub := &agentstub.AgentServiceStub{}
+	newClient = func(context.Context, *config.Config) (sessionClient, error) {
+		return stub, nil
+	}
+
+	err := NewCommand().Run(context.Background(), []string{"session", "unarchive", "project-a"})
+
+	require.ErrorIs(t, err, expected)
+	require.Equal(t, "project-a", stub.UnarchivedSessionID)
+	require.True(t, stub.Closed)
+}
+
 func TestNewCommandSessionCompactCallsRPC(t *testing.T) {
 	setSessionTestProfile(t)
 	originalNewClient := newClient
@@ -303,6 +396,14 @@ func TestFormatSessionTime(t *testing.T) {
 		"2024-05-01T07:00:00Z",
 		formatSessionTime(time.Date(2024, 5, 1, 8, 0, 0, 0, time.FixedZone("test", 3600))),
 	)
+}
+
+type failingSessionWriter struct {
+	err error
+}
+
+func (w failingSessionWriter) Write([]byte) (int, error) {
+	return 0, w.err
 }
 
 func setSessionTestProfile(t *testing.T) {

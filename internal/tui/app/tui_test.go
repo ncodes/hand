@@ -1412,14 +1412,28 @@ func TestModel_UpdateHandlesClearCommand(t *testing.T) {
 func TestModel_UpdateHandlesHelpCommand(t *testing.T) {
 	runModel := newModel()
 	runModel.input.SetValue("/help")
+	expectedHelp := strings.Join([]string{
+		"Commands:",
+		"/changelog",
+		"/chats",
+		"/clear",
+		"/compact",
+		"/copy",
+		"/help",
+		"/new-chat",
+		"/archive",
+	}, "\n")
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
-	require.Equal(t, []string{"Commands: /changelog, /chats, /clear, /compact, /copy, /help, /new-chat"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{expectedHelp}, transcriptCellPlainTexts(runModel.messages))
 	require.Empty(t, runModel.input.Value())
-	require.Contains(t, stripANSI(runModel.transcript.View()), "Commands: /changelog, /chats, /clear, /compact, /copy, /help, /new-chat")
+	transcript := stripANSI(runModel.transcript.View())
+	require.Contains(t, transcript, "Commands:")
+	require.Contains(t, transcript, "/archive")
+	require.NotContains(t, transcript, "/archi\nve")
 }
 
 func TestModel_UpdateSubmitsDefaultCommandMenuItemForBareSlash(t *testing.T) {
@@ -3277,13 +3291,24 @@ func TestModel_UpdateKeepsCommandsLocalDuringActiveResponse(t *testing.T) {
 	runModel := newModelWithClient(&fakeTUIChatClient{})
 	runModel.responding = true
 	runModel.input.SetValue("/help")
+	expectedHelp := strings.Join([]string{
+		"Commands:",
+		"/changelog",
+		"/chats",
+		"/clear",
+		"/compact",
+		"/copy",
+		"/help",
+		"/new-chat",
+		"/archive",
+	}, "\n")
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 
 	require.Nil(t, cmd)
 	runModel = updated.(model)
 	require.True(t, runModel.responding)
-	require.Equal(t, []string{"Commands: /changelog, /chats, /clear, /compact, /copy, /help, /new-chat"}, transcriptCellPlainTexts(runModel.messages))
+	require.Equal(t, []string{expectedHelp}, transcriptCellPlainTexts(runModel.messages))
 	require.Empty(t, runModel.input.Value())
 }
 
@@ -3876,11 +3901,16 @@ type fakeTUIChatClient struct {
 	createSessionErr    error
 	createSessionID     string
 	sessions            []storage.Session
+	archivedSessions    []storage.Session
 	listSessionsErr     error
+	listArchivedErr     error
 	useSessionErr       error
 	usedSessionID       string
 	archiveSessionErr   error
 	archivedSessionID   string
+	unarchiveSessionErr error
+	unarchivedSession   storage.Session
+	unarchivedSessionID string
 	renamedSession      storage.Session
 	renameSessionErr    error
 	renamedSessionID    string
@@ -3900,8 +3930,10 @@ type fakeTUIChatClient struct {
 	compactCalls        int
 	createSessionCalls  int
 	listSessionCalls    int
+	listArchivedCalls   int
 	useSessionCalls     int
 	archiveSessionCalls int
+	unarchiveCalls      int
 	renameSessionCalls  int
 	timelineCalls       int
 	currentSessionCalls int
@@ -3962,7 +3994,12 @@ func (c *fakeTUIChatClient) CreateWithOptions(
 	return c.createdSession, c.createSessionErr
 }
 
-func (c *fakeTUIChatClient) List(context.Context) ([]storage.Session, error) {
+func (c *fakeTUIChatClient) List(_ context.Context, opts ...rpcclient.SessionListOptions) ([]storage.Session, error) {
+	if len(opts) > 0 && opts[0].Archived != nil && *opts[0].Archived {
+		c.listArchivedCalls++
+		return c.archivedSessions, c.listArchivedErr
+	}
+
 	c.listSessionCalls++
 	return c.sessions, c.listSessionsErr
 }
@@ -3979,8 +4016,14 @@ func (c *fakeTUIChatClient) Archive(_ context.Context, id string) error {
 	return c.archiveSessionErr
 }
 
-func (c *fakeTUIChatClient) Unarchive(context.Context, string) (storage.Session, error) {
-	return storage.Session{}, nil
+func (c *fakeTUIChatClient) Unarchive(_ context.Context, id string) (storage.Session, error) {
+	c.unarchiveCalls++
+	c.unarchivedSessionID = id
+	if strings.TrimSpace(c.unarchivedSession.ID) != "" {
+		return c.unarchivedSession, c.unarchiveSessionErr
+	}
+
+	return storage.Session{ID: id}, c.unarchiveSessionErr
 }
 
 func (c *fakeTUIChatClient) Rename(_ context.Context, id string, title string) (storage.Session, error) {

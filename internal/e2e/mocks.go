@@ -179,7 +179,7 @@ func (s rpcAdapterClientStub) CreateWithOptions(context.Context, rpcclient.Creat
 	return storage.Session{}, nil
 }
 
-func (s rpcAdapterClientStub) List(context.Context) ([]storage.Session, error) {
+func (s rpcAdapterClientStub) List(context.Context, ...rpcclient.SessionListOptions) ([]storage.Session, error) {
 	return nil, nil
 }
 

@@ -862,7 +862,7 @@ func (s *Service) List(ctx context.Context, req *handpb.ListSessionsRequest) (*h
 		return nil, status.Error(codes.InvalidArgument, "list sessions request is required")
 	}
 
-	sessions, err := s.api.ListSessions(ctx)
+	sessions, err := s.api.ListSessions(ctx, storage.SessionListOptions{Archived: req.Archived})
 	if err != nil {
 		return nil, getGRPCError(err)
 	}

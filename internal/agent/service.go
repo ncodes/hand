@@ -12,7 +12,7 @@ import (
 type ServiceAPI interface {
 	Respond(context.Context, string, agentcore.RespondOptions) (string, error)
 	CreateSession(context.Context, string) (storage.Session, error)
-	ListSessions(context.Context) ([]storage.Session, error)
+	ListSessions(context.Context, ...storage.SessionListOptions) ([]storage.Session, error)
 	UseSession(context.Context, string) error
 	ArchiveSession(context.Context, string) error
 	UnarchiveSession(context.Context, string) (storage.Session, error)

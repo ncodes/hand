@@ -38,6 +38,7 @@ type stateStoreStub struct {
 	saveErr        error
 	getErr         error
 	listErr        error
+	listOptions    storage.SessionListOptions
 	currentErr     error
 	countErr       error
 	messagesErr    error
@@ -78,16 +79,23 @@ func (s *stateStoreStub) Get(_ context.Context, id string, _ storage.SessionGetO
 	return s.session, true, nil
 }
 
-func (s *stateStoreStub) List(_ context.Context, _ storage.SessionListOptions) ([]storage.Session, error) {
+func (s *stateStoreStub) List(_ context.Context, opts storage.SessionListOptions) ([]storage.Session, error) {
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
+	s.listOptions = opts
 	if len(s.sessions) > 0 {
 		sessions := make([]storage.Session, 0, len(s.sessions))
 		for _, session := range s.sessions {
+			if opts.Archived != nil && session.Archived != *opts.Archived {
+				continue
+			}
 			sessions = append(sessions, session)
 		}
 		return sessions, nil
+	}
+	if opts.Archived != nil && s.session.Archived != *opts.Archived {
+		return nil, nil
 	}
 	return []storage.Session{s.session}, nil
 }

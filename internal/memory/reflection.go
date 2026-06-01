@@ -308,7 +308,7 @@ type normalizedReflectionRequest struct {
 
 type reflectionBackgroundStateManager interface {
 	StateManager
-	ListSessions(context.Context) ([]statecore.Session, error)
+	ListSessions(context.Context, ...statecore.SessionListOptions) ([]statecore.Session, error)
 }
 
 func (p *MemoryProvider) isReflectionCheckpointComplete(

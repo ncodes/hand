@@ -16,7 +16,8 @@ const (
 	commandViewMaxHeight = 16
 	commandViewTitleGap  = 1
 
-	commandViewKindChats = "chats"
+	commandViewKindArchive = "archive"
+	commandViewKindChats   = "chats"
 )
 
 type commandViewPayload struct {
@@ -79,12 +80,17 @@ func (m model) renderCommandView() string {
 		})
 	}
 
+	height := frame.Height
+	if m.isSessionListCommandView() {
+		height++
+	}
+
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(frame.BorderColor)).
 		Padding(0, 1).
 		Width(frame.Width).
-		Height(frame.Height).
+		Height(height).
 		Render(lipgloss.JoinVertical(lipgloss.Left, frame.Title, "", content))
 }
 
@@ -109,8 +115,8 @@ func (m model) getCommandViewFrame() commandViewFrame {
 		Height: contentHeight,
 		Offset: m.commandViewOffset,
 	})
-	if m.isChatsCommandView() {
-		content = m.renderChatsCommandViewContent(commandViewContent{
+	if m.isSessionListCommandView() {
+		content = m.renderSessionListCommandViewContent(commandViewContent{
 			Width:  contentWidth,
 			Height: contentHeight,
 			Offset: m.commandViewOffset,
@@ -271,6 +277,9 @@ func defaultCommandViewTitle(value string) string {
 func (m *model) updateCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !m.isCommandViewVisible() {
 		return *m, nil
+	}
+	if m.isArchiveCommandView() {
+		return m.updateArchiveCommandView(msg)
 	}
 	if m.isChatsCommandView() {
 		return m.updateChatsCommandView(msg)
@@ -533,7 +542,7 @@ func (m model) commandViewSelectionScrollDirection(mouse tea.Mouse) int {
 }
 
 func (m model) getCommandViewMaxYOffset() int {
-	if m.isChatsCommandView() {
+	if m.isSessionListCommandView() {
 		return max(len(m.commandView.Chats)-m.getCommandViewContentHeight(), 0)
 	}
 

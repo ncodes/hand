@@ -677,6 +677,55 @@ func TestManager_ListSessionsRequestsActiveSessions(t *testing.T) {
 	require.False(t, *captured.Archived)
 }
 
+func TestManager_ListSessionsRequestsArchivedSessions(t *testing.T) {
+	var captured storage.SessionListOptions
+	defaultResolved := false
+	manager, err := NewManager(&storagemock.Store{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			defaultResolved = true
+			return storage.Session{}, false, nil
+		},
+		ListWithOptionsFunc: func(_ context.Context, opts storage.SessionListOptions) ([]storage.Session, error) {
+			captured = opts
+			return []storage.Session{{ID: testSessionA, Archived: true}}, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	archived := true
+
+	sessions, err := manager.ListSessions(context.Background(), storage.SessionListOptions{Archived: &archived})
+
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	require.Equal(t, testSessionA, sessions[0].ID)
+	require.NotNil(t, captured.Archived)
+	require.True(t, *captured.Archived)
+	require.False(t, defaultResolved)
+
+	_, err = (*Manager)(nil).ListSessions(context.Background(), storage.SessionListOptions{Archived: &archived})
+	require.EqualError(t, err, "state manager is required")
+}
+
+func TestManager_ListSessionsWithNilArchiveOptionDoesNotCreateDefaultSession(t *testing.T) {
+	defaultResolved := false
+	manager, err := NewManager(&storagemock.Store{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			defaultResolved = true
+			return storage.Session{}, false, nil
+		},
+		ListWithOptionsFunc: func(context.Context, storage.SessionListOptions) ([]storage.Session, error) {
+			return []storage.Session{{ID: testSessionA}}, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	sessions, err := manager.ListSessions(context.Background(), storage.SessionListOptions{})
+
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	require.False(t, defaultResolved)
+}
+
 func TestManager_AppendMessagesCreatesDefaultSession(t *testing.T) {
 	store := storagememory.NewStore()
 	manager, err := NewManager(store, time.Hour, 24*time.Hour)

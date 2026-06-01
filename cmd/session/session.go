@@ -116,6 +116,26 @@ func NewCommand() *cli.Command {
 				},
 			},
 			{
+				Name:      "unarchive",
+				Usage:     "Restore an archived session",
+				ArgsUsage: "<session-id>",
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					client, err := getSessionClient(ctx, cmd)
+					if err != nil {
+						return err
+					}
+					defer client.Close()
+					sessions := client.SessionAPI()
+
+					session, err := sessions.Unarchive(ctx, strings.TrimSpace(cmd.Args().First()))
+					if err != nil {
+						return err
+					}
+					_, err = fmt.Fprintln(sessionOutput, session.ID)
+					return err
+				},
+			},
+			{
 				Name:  "current",
 				Usage: "Show the current session selection",
 				Action: func(ctx context.Context, cmd *cli.Command) error {

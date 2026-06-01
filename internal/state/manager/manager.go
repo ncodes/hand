@@ -468,17 +468,28 @@ func (m *Manager) CreateSession(ctx context.Context, id string) (storage.Session
 	return session, nil
 }
 
-func (m *Manager) ListSessions(ctx context.Context) ([]storage.Session, error) {
+func (m *Manager) ListSessions(ctx context.Context, opts ...storage.SessionListOptions) ([]storage.Session, error) {
 	if m == nil {
 		return nil, errors.New("state manager is required")
 	}
 
-	if _, err := m.resolveDefaultSession(ctx, m.now().UTC()); err != nil {
-		return nil, err
+	listOpts := getSessionListOptions(opts...)
+	if listOpts.Archived != nil && !*listOpts.Archived {
+		if _, err := m.resolveDefaultSession(ctx, m.now().UTC()); err != nil {
+			return nil, err
+		}
 	}
 
-	active := false
-	return m.sessions().List(ctx, storage.SessionListOptions{Archived: &active})
+	return m.sessions().List(ctx, listOpts)
+}
+
+func getSessionListOptions(opts ...storage.SessionListOptions) storage.SessionListOptions {
+	if len(opts) == 0 {
+		active := false
+		return storage.SessionListOptions{Archived: &active}
+	}
+
+	return opts[0]
 }
 
 func (m *Manager) DeleteSession(ctx context.Context, id string) error {

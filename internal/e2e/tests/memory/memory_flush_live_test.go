@@ -80,7 +80,7 @@ func TestLiveMemoryFlushCanProduceMemoryBeforeCompaction(t *testing.T) {
 	require.Contains(t, strings.ToLower(getLiveMemorySearchableText(item)), "lighthouse-cohort")
 }
 
-func TestLiveMemoryFlushRunsBeforeSessionSwitch(t *testing.T) {
+func TestLiveMemoryFlushDoesNotRunBeforeSessionSwitch(t *testing.T) {
 	if strings.TrimSpace(os.Getenv("HAND_E2E_LIVE")) != "1" {
 		t.Skip("set HAND_E2E_LIVE=1 to run live LLM e2e tests")
 	}
@@ -103,8 +103,13 @@ func TestLiveMemoryFlushRunsBeforeSessionSwitch(t *testing.T) {
 
 	require.NoError(t, harness.UseSession(ctx, target.ID))
 
-	events := requireLiveMemoryFlushTrace(t, ctx, manager, sessionID, "session reset")
-	require.Contains(t, liveTraceEventTypes(events), trace.EvtMemoryFlushCompleted)
+	result, err := manager.ListTraceEvents(ctx, storage.TraceQuery{SessionID: sessionID, Limit: 50})
+	require.NoError(t, err)
+	for _, event := range result.Events {
+		require.NotEqual(t, trace.EvtMemoryFlushCompleted, event.Type)
+		require.NotEqual(t, trace.EvtMemoryFlushFailed, event.Type)
+		require.NotEqual(t, trace.EvtMemoryFlushSkipped, event.Type)
+	}
 }
 
 func TestLiveMemoryFlushRunsBeforeAgentClose(t *testing.T) {

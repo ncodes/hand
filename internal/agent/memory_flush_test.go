@@ -321,7 +321,7 @@ func TestAgent_MaybeFlushMemoryBeforeContextLossRecordsFlushError(t *testing.T) 
 	}
 	traceSession := &mocks.TraceSessionStub{}
 
-	core.maybeFlushMemoryBeforeContextLoss(context.Background(), storage.DefaultSessionID, memoryFlushTriggerSessionReset, traceSession)
+	core.maybeFlushMemoryBeforeContextLoss(context.Background(), storage.DefaultSessionID, memoryFlushTriggerControlledExit, traceSession)
 
 	require.Equal(t, trace.EvtMemoryFlushFailed, traceSession.Events[len(traceSession.Events)-1].Type)
 }

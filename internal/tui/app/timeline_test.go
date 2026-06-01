@@ -395,7 +395,7 @@ type startupTimelineFallbackClient struct {
 	timelineSessionIDs []string
 }
 
-func (c *startupTimelineFallbackClient) List(context.Context) ([]storage.Session, error) {
+func (c *startupTimelineFallbackClient) List(context.Context, ...client.SessionListOptions) ([]storage.Session, error) {
 	return c.sessions, nil
 }
 

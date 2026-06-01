@@ -17,7 +17,6 @@ import (
 )
 
 const memoryFlushTriggerCompression = "compression"
-const memoryFlushTriggerSessionReset = "session reset"
 const memoryFlushTriggerControlledExit = "controlled exit"
 
 var memoryFlushToolNames = map[string]struct{}{
@@ -41,7 +40,7 @@ func (t *Turn) maybeFlushMemoryBeforeCompaction(
 	}
 }
 
-// maybeFlushMemoryBeforeContextLoss preserves memory before session switches or shutdown.
+// maybeFlushMemoryBeforeContextLoss preserves memory before destructive context loss.
 func (a *Agent) maybeFlushMemoryBeforeContextLoss(
 	ctx context.Context,
 	sessionID string,

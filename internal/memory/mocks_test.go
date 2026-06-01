@@ -236,7 +236,7 @@ func (m *recordingMemoryManager) CountMessages(ctx context.Context, id string, o
 	return m.fakeMemoryManager.CountMessages(ctx, id, opts)
 }
 
-func (m *recordingMemoryManager) ListSessions(context.Context) ([]statecore.Session, error) {
+func (m *recordingMemoryManager) ListSessions(context.Context, ...statecore.SessionListOptions) ([]statecore.Session, error) {
 	if m.listSessionsErr != nil {
 		return nil, m.listSessionsErr
 	}

@@ -1229,6 +1229,36 @@ func TestService_ListSessionsReturnsItems(t *testing.T) {
 	require.Equal(t, "project-a", resp.GetSessions()[1].GetId())
 }
 
+func TestService_ListSessionsReturnsArchivedItems(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{ArchivedSessions: []storage.Session{
+		{ID: "project-a", Title: "Archived Planning", Archived: true},
+	}}
+	svc := NewService(stub)
+	archived := true
+
+	resp, err := svc.List(context.Background(), &handpb.ListSessionsRequest{Archived: &archived})
+
+	require.NoError(t, err)
+	require.Len(t, resp.GetSessions(), 1)
+	require.Equal(t, "project-a", resp.GetSessions()[0].GetId())
+	require.Equal(t, "Archived Planning", resp.GetSessions()[0].GetTitle())
+}
+
+func TestService_ListSessionsWithArchivedFalseReturnsActiveItems(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{
+		Sessions:         []storage.Session{{ID: "active-session"}},
+		ArchivedSessions: []storage.Session{{ID: "archived-session", Archived: true}},
+	}
+	svc := NewService(stub)
+	archived := false
+
+	resp, err := svc.List(context.Background(), &handpb.ListSessionsRequest{Archived: &archived})
+
+	require.NoError(t, err)
+	require.Len(t, resp.GetSessions(), 1)
+	require.Equal(t, "active-session", resp.GetSessions()[0].GetId())
+}
+
 func TestService_ListSessionsRejectsInvalidState(t *testing.T) {
 	t.Run("nil receiver", func(t *testing.T) {
 		var svc *Service

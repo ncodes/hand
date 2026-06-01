@@ -515,6 +515,7 @@ func (x *CreateSessionResponse) GetSession() *SessionSummary {
 
 type ListSessionsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Archived      *bool                  `protobuf:"varint,1,opt,name=archived,proto3,oneof" json:"archived,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -547,6 +548,13 @@ func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ListSessionsRequest.ProtoReflect.Descriptor instead.
 func (*ListSessionsRequest) Descriptor() ([]byte, []int) {
 	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ListSessionsRequest) GetArchived() bool {
+	if x != nil && x.Archived != nil {
+		return *x.Archived
+	}
+	return false
 }
 
 type ListSessionsResponse struct {
@@ -2169,8 +2177,10 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"autoSwitch\x88\x01\x01B\x0e\n" +
 	"\f_auto_switch\"J\n" +
 	"\x15CreateSessionResponse\x121\n" +
-	"\asession\x18\x01 \x01(\v2\x17.hand.v1.SessionSummaryR\asession\"\x15\n" +
-	"\x13ListSessionsRequest\"K\n" +
+	"\asession\x18\x01 \x01(\v2\x17.hand.v1.SessionSummaryR\asession\"C\n" +
+	"\x13ListSessionsRequest\x12\x1f\n" +
+	"\barchived\x18\x01 \x01(\bH\x00R\barchived\x88\x01\x01B\v\n" +
+	"\t_archived\"K\n" +
 	"\x14ListSessionsResponse\x123\n" +
 	"\bsessions\x18\x01 \x03(\v2\x17.hand.v1.SessionSummaryR\bsessions\"#\n" +
 	"\x11UseSessionRequest\x12\x0e\n" +
@@ -2417,6 +2427,7 @@ func file_internal_rpc_proto_hand_proto_init() {
 	}
 	file_internal_rpc_proto_hand_proto_msgTypes[0].OneofWrappers = []any{}
 	file_internal_rpc_proto_hand_proto_msgTypes[3].OneofWrappers = []any{}
+	file_internal_rpc_proto_hand_proto_msgTypes[5].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

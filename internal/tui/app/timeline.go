@@ -30,7 +30,7 @@ type sessionTitleLoader interface {
 
 type startupSessionLoader interface {
 	Current(context.Context) (storage.Session, error)
-	List(context.Context) ([]storage.Session, error)
+	List(context.Context, ...rpcclient.SessionListOptions) ([]storage.Session, error)
 	Use(context.Context, string) error
 	Timeline(context.Context, rpcclient.SessionTimelineOptions) (rpcclient.SessionTimeline, error)
 }

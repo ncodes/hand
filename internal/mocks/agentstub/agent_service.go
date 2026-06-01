@@ -26,6 +26,8 @@ type AgentServiceStub struct {
 	CreatedSessionID     string
 	CreateSessionOptions rpcclient.CreateSessionOptions
 	Sessions             []storage.Session
+	ArchivedSessions     []storage.Session
+	ListOptions          storage.SessionListOptions
 	UsedSessionID        string
 	UseSessionErr        error
 	ArchivedSessionID    string
@@ -105,11 +107,17 @@ func (s *AgentServiceStub) CreateSessionWithOptions(
 	return s.CreatedSession, s.Err
 }
 
-func (s *AgentServiceStub) List(ctx context.Context) ([]storage.Session, error) {
-	return s.ListSessions(ctx)
+func (s *AgentServiceStub) List(ctx context.Context, opts ...rpcclient.SessionListOptions) ([]storage.Session, error) {
+	return s.ListSessions(ctx, opts...)
 }
 
-func (s *AgentServiceStub) ListSessions(context.Context) ([]storage.Session, error) {
+func (s *AgentServiceStub) ListSessions(_ context.Context, opts ...storage.SessionListOptions) ([]storage.Session, error) {
+	if len(opts) > 0 {
+		s.ListOptions = opts[0]
+		if opts[0].Archived != nil && *opts[0].Archived {
+			return s.ArchivedSessions, s.Err
+		}
+	}
 	return s.Sessions, s.Err
 }
 

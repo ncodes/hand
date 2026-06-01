@@ -388,8 +388,8 @@ func (a *Agent) CreateSession(ctx context.Context, id string) (storage.Session, 
 	return a.stateMgr.CreateSession(normalizeContext(ctx), id)
 }
 
-// ListSessions returns all known sessions.
-func (a *Agent) ListSessions(ctx context.Context) ([]storage.Session, error) {
+// ListSessions returns known sessions.
+func (a *Agent) ListSessions(ctx context.Context, opts ...storage.SessionListOptions) ([]storage.Session, error) {
 	if a == nil {
 		return nil, errors.New("agent is required")
 	}
@@ -398,10 +398,10 @@ func (a *Agent) ListSessions(ctx context.Context) ([]storage.Session, error) {
 		return nil, errors.New("environment has not been initialized")
 	}
 
-	return a.stateMgr.ListSessions(normalizeContext(ctx))
+	return a.stateMgr.ListSessions(normalizeContext(ctx), opts...)
 }
 
-// UseSession switches the current session and flushes memory for the previous one when needed.
+// UseSession switches the current session.
 func (a *Agent) UseSession(ctx context.Context, id string) error {
 	if a == nil {
 		return errors.New("agent is required")
@@ -415,20 +415,6 @@ func (a *Agent) UseSession(ctx context.Context, id string) error {
 	targetSession, err := a.stateMgr.Resolve(ctx, id)
 	if err != nil {
 		return err
-	}
-
-	currentSessionID, currentErr := a.stateMgr.CurrentSession(ctx)
-	if currentErr == nil &&
-		strings.TrimSpace(currentSessionID) != "" &&
-		strings.TrimSpace(currentSessionID) != targetSession.ID {
-		// Switching sessions can leave useful recent context behind, so run the
-		// same memory preservation path used for shutdown/compaction.
-		traceSession := trace.NoopSession()
-		if a.env != nil {
-			traceSession = a.openTraceSessionForSession(currentSessionID)
-		}
-		a.maybeFlushMemoryBeforeContextLoss(ctx, currentSessionID, memoryFlushTriggerSessionReset, traceSession)
-		traceSession.Close()
 	}
 
 	return a.stateMgr.UseSession(ctx, targetSession.ID)

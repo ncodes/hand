@@ -284,7 +284,7 @@ func (c *fakeTUIChatClient) CreateWithOptions(
 	return storage.Session{}, nil
 }
 
-func (c *fakeTUIChatClient) List(context.Context) ([]storage.Session, error) {
+func (c *fakeTUIChatClient) List(context.Context, ...rpcclient.SessionListOptions) ([]storage.Session, error) {
 	return nil, nil
 }
 

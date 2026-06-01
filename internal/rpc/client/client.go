@@ -62,6 +62,8 @@ type CreateSessionOptions struct {
 	AutoSwitch *bool
 }
 
+type SessionListOptions = storage.SessionListOptions
+
 // ChatAPI is the chat surface exposed by local and RPC clients.
 type ChatAPI interface {
 	Respond(context.Context, string, RespondOptions) (string, error)
@@ -71,7 +73,7 @@ type ChatAPI interface {
 type SessionAPI interface {
 	Create(context.Context, string) (storage.Session, error)
 	CreateWithOptions(context.Context, CreateSessionOptions) (storage.Session, error)
-	List(context.Context) ([]storage.Session, error)
+	List(context.Context, ...SessionListOptions) ([]storage.Session, error)
 	Use(context.Context, string) error
 	Archive(context.Context, string) error
 	Unarchive(context.Context, string) (storage.Session, error)
@@ -270,23 +272,37 @@ func (s *SessionService) CreateWithOptions(ctx context.Context, opts CreateSessi
 	return protoSessionSummaryToSession(resp.GetSession()), nil
 }
 
-func (s *SessionService) List(ctx context.Context) ([]storage.Session, error) {
+func (s *SessionService) List(ctx context.Context, opts ...SessionListOptions) ([]storage.Session, error) {
 	client, err := s.getClient()
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := client.List(ctx, &handpb.ListSessionsRequest{})
+	listOpts := getSessionListOptions(opts...)
+	resp, err := client.List(ctx, &handpb.ListSessionsRequest{Archived: listOpts.Archived})
 	if err != nil {
 		return nil, err
 	}
 
 	items := make([]storage.Session, 0, len(resp.GetSessions()))
 	for _, session := range resp.GetSessions() {
-		items = append(items, protoSessionSummaryToSession(session))
+		item := protoSessionSummaryToSession(session)
+		if listOpts.Archived != nil {
+			item.Archived = *listOpts.Archived
+		}
+		items = append(items, item)
 	}
 
 	return items, nil
+}
+
+func getSessionListOptions(opts ...SessionListOptions) SessionListOptions {
+	if len(opts) == 0 {
+		active := false
+		return SessionListOptions{Archived: &active}
+	}
+
+	return opts[0]
 }
 
 func (s *SessionService) Use(ctx context.Context, id string) error {
