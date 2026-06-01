@@ -333,11 +333,18 @@ func (s *Store) searchMemoryRecords(
 
 	text := strings.TrimSpace(query.Text)
 	if text != "" {
-		queryText := buildFTSSearchQuery(text)
-		if queryText == "" {
+		queryTexts := buildMemoryFTSSearchQueries(text)
+		if len(queryTexts) == 0 {
 			return nil, nil
 		}
-		return s.searchMemoryRecordsLexical(ctx, query, statuses, queryText, limit)
+		for _, queryText := range queryTexts {
+			records, err := s.searchMemoryRecordsLexical(ctx, query, statuses, queryText, limit)
+			if err != nil || len(records) > 0 {
+				return records, err
+			}
+		}
+
+		return nil, nil
 	}
 
 	db := s.db.WithContext(ctx).Model(&memoryItemModel{})
@@ -469,6 +476,40 @@ LIMIT ?`)
 		return nil, err
 	}
 	return records, nil
+}
+
+func buildMemoryFTSSearchQueries(text string) []string {
+	strict := buildFTSSearchQuery(text)
+	relaxed := buildRelaxedMemoryFTSSearchQuery(text)
+	if strict == "" {
+		if relaxed == "" {
+			return nil
+		}
+
+		return []string{relaxed}
+	}
+	if relaxed == "" || relaxed == strict {
+		return []string{strict}
+	}
+
+	return []string{strict, relaxed}
+}
+
+func buildRelaxedMemoryFTSSearchQuery(text string) string {
+	tokens := statememory.SearchTokens(text)
+	if len(tokens) == 0 {
+		return ""
+	}
+
+	terms := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		token = strings.TrimSpace(token)
+		if token != "" {
+			terms = append(terms, `"`+token+`"`)
+		}
+	}
+
+	return strings.Join(terms, " OR ")
 }
 
 func ensureMemoryStorage(db *gorm.DB) error {

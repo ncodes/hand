@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // MemoryKind classifies stored memories by use and origin.
@@ -295,12 +296,11 @@ func CheckMemoryMatchesQuery(item MemoryItem, query MemorySearchQuery) bool {
 		}
 	}
 
-	text := strings.TrimSpace(strings.ToLower(query.Text))
-	if text == "" {
+	if CheckMemoryTextMatchesQuery(item.Title, item.Text, query.Text) {
 		return true
 	}
 
-	return strings.Contains(strings.ToLower(item.Title), text) || strings.Contains(strings.ToLower(item.Text), text)
+	return false
 }
 
 // CheckMemoryMatchesSessionQuery checks memory matches session query.
@@ -349,7 +349,76 @@ func GetSimpleMemoryScore(item MemoryItem, query string) float64 {
 	if strings.Contains(strings.ToLower(item.Text), query) {
 		score++
 	}
-	return score
+	if score > 0 {
+		return score
+	}
+
+	return getMemoryTokenScore(item, query)
+}
+
+// CheckMemoryTextMatchesQuery reports whether memory text matches a lexical query.
+func CheckMemoryTextMatchesQuery(title string, text string, query string) bool {
+	query = strings.TrimSpace(strings.ToLower(query))
+	if query == "" {
+		return true
+	}
+
+	title = strings.ToLower(title)
+	text = strings.ToLower(text)
+	if strings.Contains(title, query) || strings.Contains(text, query) {
+		return true
+	}
+
+	return getMemoryTokenScore(MemoryItem{Title: title, Text: text}, query) > 0
+}
+
+func getMemoryTokenScore(item MemoryItem, query string) float64 {
+	tokens := SearchTokens(query)
+	if len(tokens) == 0 {
+		return 0
+	}
+
+	score := 0.0
+	title := strings.ToLower(item.Title)
+	text := strings.ToLower(item.Text)
+	for _, token := range tokens {
+		if strings.Contains(title, token) {
+			score += 2
+		}
+		if strings.Contains(text, token) {
+			score++
+		}
+	}
+
+	return score / float64(len(tokens))
+}
+
+func SearchTokens(query string) []string {
+	fields := strings.FieldsFunc(strings.TrimSpace(query), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	if len(fields) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(fields))
+	tokens := make([]string, 0, len(fields))
+	for _, field := range fields {
+		field = strings.TrimSpace(strings.ToLower(field))
+		if field == "" {
+			continue
+		}
+		if len([]rune(field)) < 3 {
+			continue
+		}
+		if _, ok := seen[field]; ok {
+			continue
+		}
+		seen[field] = struct{}{}
+		tokens = append(tokens, field)
+	}
+
+	return tokens
 }
 
 // HasAllMemoryTags reports whether tags contain every required tag.

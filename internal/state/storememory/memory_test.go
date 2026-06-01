@@ -116,6 +116,34 @@ func TestMemoryStore_SearchWriteDeleteAndSourceLinks(t *testing.T) {
 	require.Equal(t, statememory.MemoryStatusDeleted, result.Hits[0].Item.Status)
 }
 
+func TestMemoryStore_SearchMemoryRelaxesQuestionAndPreferenceTerms(t *testing.T) {
+	store := NewStore()
+
+	_, err := store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_color_preference",
+		Kind:   statememory.MemoryKindSemantic,
+		Status: statememory.MemoryStatusActive,
+		Title:  "User color preference: blue",
+		Text:   "The user prefers blue as their best color.",
+	})
+	require.NoError(t, err)
+	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_color_clarification",
+		Kind:   statememory.MemoryKindProcedural,
+		Status: statememory.MemoryStatusActive,
+		Title:  "Clarify ambiguous color requests",
+		Text:   "Ask whether color requests are about appearance, preferences, or themes.",
+	})
+	require.NoError(t, err)
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text:  "what is my prefrred color",
+		Limit: 3,
+	})
+	require.NoError(t, err)
+	require.Contains(t, memoryHitIDs(result.Hits), "mem_color_preference")
+}
+
 func TestMemoryStore_DefaultsToCandidateAndActiveOnlySearch(t *testing.T) {
 	store := NewStore()
 

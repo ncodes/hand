@@ -1062,6 +1062,35 @@ func TestSQLiteMemoryStore_FTSIndexesMemoryFields(t *testing.T) {
 	assertMemorySearchIDs(t, store, "episodic", []string{"mem_tag"})
 }
 
+func TestSQLiteMemoryStore_SearchMemoryRelaxesQuestionAndPreferenceTerms(t *testing.T) {
+	store, err := NewStoreFromDB(openMemoryTestDB(t))
+	require.NoError(t, err)
+
+	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_color_preference",
+		Kind:   statememory.MemoryKindSemantic,
+		Status: statememory.MemoryStatusActive,
+		Title:  "User color preference: blue",
+		Text:   "The user prefers blue as their best color.",
+	})
+	require.NoError(t, err)
+	_, err = store.UpsertMemory(context.Background(), statememory.MemoryItem{
+		ID:     "mem_color_clarification",
+		Kind:   statememory.MemoryKindProcedural,
+		Status: statememory.MemoryStatusActive,
+		Title:  "Clarify ambiguous color requests",
+		Text:   "Ask whether color requests are about appearance, preferences, or themes.",
+	})
+	require.NoError(t, err)
+
+	result, err := store.SearchMemory(context.Background(), statememory.MemorySearchQuery{
+		Text:  "what is my prefrred color",
+		Limit: 3,
+	})
+	require.NoError(t, err)
+	require.Contains(t, sqliteMemoryHitIDs(result.Hits), "mem_color_preference")
+}
+
 func TestSQLiteMemoryStore_BM25RanksByLexicalRelevanceBeforeRecency(t *testing.T) {
 	store, err := NewStoreFromDB(openMemoryTestDB(t))
 	require.NoError(t, err)
