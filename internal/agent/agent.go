@@ -446,6 +446,18 @@ func (a *Agent) ArchiveSession(ctx context.Context, id string) error {
 	return a.stateMgr.ArchiveSession(normalizeContext(ctx), id)
 }
 
+func (a *Agent) UnarchiveSession(ctx context.Context, id string) (storage.Session, error) {
+	if a == nil {
+		return storage.Session{}, errors.New("agent is required")
+	}
+
+	if !a.initialized || a.stateMgr == nil {
+		return storage.Session{}, errors.New("environment has not been initialized")
+	}
+
+	return a.stateMgr.UnarchiveSession(normalizeContext(ctx), id)
+}
+
 func (a *Agent) RenameSession(ctx context.Context, id string, title string) (storage.Session, error) {
 	if a == nil {
 		return storage.Session{}, errors.New("agent is required")

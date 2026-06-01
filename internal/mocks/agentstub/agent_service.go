@@ -30,6 +30,9 @@ type AgentServiceStub struct {
 	UseSessionErr        error
 	ArchivedSessionID    string
 	ArchiveSessionErr    error
+	UnarchivedSessionID  string
+	UnarchivedSession    storage.Session
+	UnarchiveSessionErr  error
 	RenamedSessionID     string
 	RenamedSessionTitle  string
 	RenamedSession       storage.Session
@@ -132,6 +135,21 @@ func (s *AgentServiceStub) ArchiveSession(_ context.Context, id string) error {
 		return s.ArchiveSessionErr
 	}
 	return s.Err
+}
+
+func (s *AgentServiceStub) Unarchive(ctx context.Context, id string) (storage.Session, error) {
+	return s.UnarchiveSession(ctx, id)
+}
+
+func (s *AgentServiceStub) UnarchiveSession(_ context.Context, id string) (storage.Session, error) {
+	s.UnarchivedSessionID = id
+	if s.UnarchiveSessionErr != nil {
+		return storage.Session{}, s.UnarchiveSessionErr
+	}
+	if strings.TrimSpace(s.UnarchivedSession.ID) != "" {
+		return s.UnarchivedSession, s.Err
+	}
+	return storage.Session{ID: id}, s.Err
 }
 
 func (s *AgentServiceStub) Rename(ctx context.Context, id string, title string) (storage.Session, error) {

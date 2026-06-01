@@ -264,6 +264,43 @@ func TestOpenStore_ReturnsMemoryVectorConfigurationError(t *testing.T) {
 	require.EqualError(t, err, "embedding provider is required")
 }
 
+func TestOpenStore_ReturnsMemoryEmbeddingProviderError(t *testing.T) {
+	originalProvider := newStoreEmbeddingProvider
+	t.Cleanup(func() {
+		newStoreEmbeddingProvider = originalProvider
+	})
+	newStoreEmbeddingProvider = func(*config.Config) (search.Embedder, error) {
+		return nil, errors.New("embedding provider failed")
+	}
+
+	store, err := OpenStore(&config.Config{
+		Storage: config.StorageConfig{Backend: "memory"},
+		Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"}},
+		Search:  config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+	})
+
+	require.Nil(t, store)
+	require.EqualError(t, err, "embedding provider failed")
+}
+
+func TestOpenStore_ReturnsMemoryRerankerConstructionError(t *testing.T) {
+	provider := &storeTestEmbeddingProvider{}
+	vectorStore := &storeTestVectorStore{}
+	withStoreVectorHooks(t, provider, nil, vectorStore)
+
+	store, err := OpenStoreWithRerankerClient(&config.Config{
+		Storage: config.StorageConfig{Backend: "memory"},
+		Models:  config.ModelsConfig{Embedding: config.EmbeddingModelConfig{Name: "text-embedding-test", Provider: "openai"}},
+		Search:  config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+		Reranker: config.RerankerConfig{
+			Type: search.RerankerLLM,
+		},
+	}, nil)
+
+	require.Nil(t, store)
+	require.EqualError(t, err, "reranker model client is required")
+}
+
 func TestOpenStore_ValidatesVectorConfig(t *testing.T) {
 	tests := []struct {
 		name string
@@ -669,6 +706,19 @@ func TestStoreReranker_SelectsConfiguredReranker(t *testing.T) {
 			client:   &storeTestModelClient{},
 			wantName: search.RerankerDeterministic,
 			wantType: search.UseCaseReranker{},
+		},
+		{
+			name: "use case override construction error",
+			cfg: config.Config{
+				Search: config.SearchConfig{Vector: config.SearchVectorConfig{Enabled: true}},
+				Reranker: config.RerankerConfig{
+					Type: search.RerankerDeterministic,
+					Overrides: map[string]config.RerankerOverrideConfig{
+						"memory_reflection": {Type: search.RerankerLLM},
+					},
+				},
+			},
+			wantErr: "reranker model client is required",
 		},
 		{
 			name: "invalid reranker",

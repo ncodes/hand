@@ -1363,6 +1363,70 @@ func TestService_ArchiveSessionRejectsInvalidState(t *testing.T) {
 	})
 }
 
+func TestService_UnarchiveSessionReturnsSummary(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{UnarchivedSession: storage.Session{
+		ID:          "project-a",
+		Title:       "Project Planning",
+		TitleSource: storage.SessionTitleSourceManual,
+	}}
+	svc := NewService(stub)
+
+	resp, err := svc.Unarchive(context.Background(), &handpb.UnarchiveSessionRequest{Id: "project-a"})
+
+	require.NoError(t, err)
+	require.Equal(t, "project-a", stub.UnarchivedSessionID)
+	require.Equal(t, "project-a", resp.GetSession().GetId())
+	require.Equal(t, "Project Planning", resp.GetSession().GetTitle())
+	require.Equal(t, storage.SessionTitleSourceManual, resp.GetSession().GetTitleSource())
+}
+
+func TestService_UnarchiveSessionRejectsInvalidState(t *testing.T) {
+	t.Run("nil receiver", func(t *testing.T) {
+		var svc *Service
+
+		resp, err := svc.Unarchive(context.Background(), &handpb.UnarchiveSessionRequest{})
+
+		requireStatusError(t, err, codes.Internal, "service is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("missing handler", func(t *testing.T) {
+		svc := NewService(nil)
+
+		resp, err := svc.Unarchive(context.Background(), &handpb.UnarchiveSessionRequest{})
+
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("nil request", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{})
+
+		resp, err := svc.Unarchive(context.Background(), nil)
+
+		requireStatusError(t, err, codes.InvalidArgument, "unarchive session request is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("missing session", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{UnarchiveSessionErr: errors.New("session not found")})
+
+		resp, err := svc.Unarchive(context.Background(), &handpb.UnarchiveSessionRequest{Id: "project-a"})
+
+		requireStatusError(t, err, codes.NotFound, "session not found")
+		require.Nil(t, resp)
+	})
+
+	t.Run("non archived session", func(t *testing.T) {
+		svc := NewService(&agentstub.AgentServiceStub{UnarchiveSessionErr: errors.New("session is not archived")})
+
+		resp, err := svc.Unarchive(context.Background(), &handpb.UnarchiveSessionRequest{Id: "project-a"})
+
+		requireStatusError(t, err, codes.FailedPrecondition, "session is not archived")
+		require.Nil(t, resp)
+	})
+}
+
 func TestService_RenameSessionReturnsSummary(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{RenamedSession: storage.Session{
 		ID:          "project-a",
@@ -1901,6 +1965,8 @@ func TestService_MapsDomainErrorsToGRPCCodes(t *testing.T) {
 		{name: "already exists", err: errors.New("session already exists"), code: codes.AlreadyExists},
 		{name: "cannot be deleted", err: errors.New("default session cannot be deleted"), code: codes.InvalidArgument},
 		{name: "cannot be archived", err: errors.New("default session cannot be archived"), code: codes.InvalidArgument},
+		{name: "archived", err: errors.New("session is archived"), code: codes.FailedPrecondition},
+		{name: "not archived", err: errors.New("session is not archived"), code: codes.FailedPrecondition},
 		{name: "canceled", err: context.Canceled, code: codes.Canceled},
 		{name: "deadline", err: context.DeadlineExceeded, code: codes.DeadlineExceeded},
 	}

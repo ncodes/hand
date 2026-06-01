@@ -12,26 +12,28 @@ import (
 
 // HandServiceClientStub is a test stub for hand service client.
 type HandServiceClientStub struct {
-	Req          *handpb.RespondRequest
-	Events       []*handpb.RespondEvent
-	Err          error
-	CreateResp   *handpb.CreateSessionResponse
-	CreateReq    *handpb.CreateSessionRequest
-	ListResp     *handpb.ListSessionsResponse
-	ListReq      *handpb.ListSessionsRequest
-	UseReq       *handpb.UseSessionRequest
-	ArchiveReq   *handpb.ArchiveSessionRequest
-	RenameReq    *handpb.RenameSessionRequest
-	RenameResp   *handpb.RenameSessionResponse
-	CurrentResp  *handpb.CurrentSessionResponse
-	CompactResp  *handpb.CompactSessionResponse
-	CompactReq   *handpb.CompactSessionRequest
-	RepairResp   *handpb.RepairSessionResponse
-	RepairReq    *handpb.RepairSessionRequest
-	StatusResp   *handpb.GetSessionStatusResponse
-	StatusReq    *handpb.GetSessionStatusRequest
-	TimelineResp *handpb.GetSessionTimelineResponse
-	TimelineReq  *handpb.GetSessionTimelineRequest
+	Req           *handpb.RespondRequest
+	Events        []*handpb.RespondEvent
+	Err           error
+	CreateResp    *handpb.CreateSessionResponse
+	CreateReq     *handpb.CreateSessionRequest
+	ListResp      *handpb.ListSessionsResponse
+	ListReq       *handpb.ListSessionsRequest
+	UseReq        *handpb.UseSessionRequest
+	ArchiveReq    *handpb.ArchiveSessionRequest
+	UnarchiveReq  *handpb.UnarchiveSessionRequest
+	UnarchiveResp *handpb.UnarchiveSessionResponse
+	RenameReq     *handpb.RenameSessionRequest
+	RenameResp    *handpb.RenameSessionResponse
+	CurrentResp   *handpb.CurrentSessionResponse
+	CompactResp   *handpb.CompactSessionResponse
+	CompactReq    *handpb.CompactSessionRequest
+	RepairResp    *handpb.RepairSessionResponse
+	RepairReq     *handpb.RepairSessionRequest
+	StatusResp    *handpb.GetSessionStatusResponse
+	StatusReq     *handpb.GetSessionStatusRequest
+	TimelineResp  *handpb.GetSessionTimelineResponse
+	TimelineReq   *handpb.GetSessionTimelineRequest
 }
 
 func (s *HandServiceClientStub) Respond(_ context.Context, req *handpb.RespondRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[handpb.RespondEvent], error) {
@@ -60,6 +62,11 @@ func (s *HandServiceClientStub) Use(_ context.Context, req *handpb.UseSessionReq
 func (s *HandServiceClientStub) Archive(_ context.Context, req *handpb.ArchiveSessionRequest, _ ...grpc.CallOption) (*handpb.ArchiveSessionResponse, error) {
 	s.ArchiveReq = req
 	return &handpb.ArchiveSessionResponse{Id: req.GetId()}, s.Err
+}
+
+func (s *HandServiceClientStub) Unarchive(_ context.Context, req *handpb.UnarchiveSessionRequest, _ ...grpc.CallOption) (*handpb.UnarchiveSessionResponse, error) {
+	s.UnarchiveReq = req
+	return s.UnarchiveResp, s.Err
 }
 
 func (s *HandServiceClientStub) Rename(_ context.Context, req *handpb.RenameSessionRequest, _ ...grpc.CallOption) (*handpb.RenameSessionResponse, error) {

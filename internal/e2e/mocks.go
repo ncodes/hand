@@ -191,6 +191,10 @@ func (s rpcAdapterClientStub) Archive(context.Context, string) error {
 	return nil
 }
 
+func (s rpcAdapterClientStub) Unarchive(context.Context, string) (storage.Session, error) {
+	return storage.Session{}, nil
+}
+
 func (s rpcAdapterClientStub) Rename(context.Context, string, string) (storage.Session, error) {
 	return storage.Session{}, nil
 }

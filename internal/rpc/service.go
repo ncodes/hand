@@ -911,6 +911,28 @@ func (s *Service) Archive(ctx context.Context, req *handpb.ArchiveSessionRequest
 	return &handpb.ArchiveSessionResponse{Id: req.GetId()}, nil
 }
 
+func (s *Service) Unarchive(
+	ctx context.Context,
+	req *handpb.UnarchiveSessionRequest,
+) (*handpb.UnarchiveSessionResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return nil, status.Error(codes.Internal, "agent handler is required")
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "unarchive session request is required")
+	}
+
+	session, err := s.api.UnarchiveSession(ctx, req.GetId())
+	if err != nil {
+		return nil, getGRPCError(err)
+	}
+
+	return &handpb.UnarchiveSessionResponse{Session: sessionToProtoSummary(session)}, nil
+}
+
 func (s *Service) Rename(ctx context.Context, req *handpb.RenameSessionRequest) (*handpb.RenameSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
@@ -1113,6 +1135,9 @@ func getGRPCError(err error) error {
 		strings.Contains(message, "cannot be deleted"),
 		strings.Contains(message, "cannot be archived"):
 		return status.Error(codes.InvalidArgument, message)
+	case strings.Contains(message, "is archived"),
+		strings.Contains(message, "is not archived"):
+		return status.Error(codes.FailedPrecondition, message)
 	case strings.HasSuffix(message, "not found"):
 		return status.Error(codes.NotFound, message)
 	case strings.HasSuffix(message, "already exists"):

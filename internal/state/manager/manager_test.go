@@ -40,6 +40,17 @@ func (storeWithoutSession) SupportsVectorSearch() bool {
 	return false
 }
 
+type closableStore struct {
+	*storagemock.Store
+	closeErr error
+	closed   bool
+}
+
+func (s *closableStore) Close() error {
+	s.closed = true
+	return s.closeErr
+}
+
 func TestManager_ResolveChatSessionCreatesDefault(t *testing.T) {
 	manager, err := NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -48,6 +59,28 @@ func TestManager_ResolveChatSessionCreatesDefault(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, storage.DefaultSessionID, session.ID)
+}
+
+func TestManager_Close(t *testing.T) {
+	var nilManager *Manager
+	require.NoError(t, nilManager.Close())
+	require.NoError(t, (&Manager{}).Close())
+
+	manager, err := NewManager(&storagemock.Store{}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	require.NoError(t, manager.Close())
+
+	store := &closableStore{Store: &storagemock.Store{}}
+	manager, err = NewManager(store, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	require.NoError(t, manager.Close())
+	require.True(t, store.closed)
+
+	store = &closableStore{Store: &storagemock.Store{}, closeErr: errors.New("close failed")}
+	manager, err = NewManager(store, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	require.EqualError(t, manager.Close(), "close failed")
+	require.True(t, store.closed)
 }
 
 func TestManager_MemoryStore(t *testing.T) {
@@ -473,10 +506,16 @@ func TestManager_RepairVectorStore_ForwardsToStore(t *testing.T) {
 }
 
 func TestManager_RepairVectorStore_ReturnsUnsupportedStoreError(t *testing.T) {
+	var nilManager *Manager
+	result, err := nilManager.RepairVectorStore(context.Background(), search.VectorRepairOptions{})
+
+	require.EqualError(t, err, "state manager is required")
+	require.Equal(t, search.VectorRepairResult{}, result)
+
 	manager, err := NewManager(&storagemock.Store{}, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 
-	result, err := manager.RepairVectorStore(context.Background(), search.VectorRepairOptions{})
+	result, err = manager.RepairVectorStore(context.Background(), search.VectorRepairOptions{})
 
 	require.EqualError(t, err, "session vector repair is not supported")
 	require.Equal(t, search.VectorRepairResult{}, result)
@@ -616,6 +655,48 @@ func TestManager_CreateSaveListAndResolveNonDefaultSession(t *testing.T) {
 	require.Equal(t, testSessionA, sessions[1].ID)
 }
 
+func TestManager_ListSessionsRequestsActiveSessions(t *testing.T) {
+	var captured storage.SessionListOptions
+	manager, err := NewManager(&storagemock.Store{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: storage.DefaultSessionID}, true, nil
+		},
+		ListWithOptionsFunc: func(_ context.Context, opts storage.SessionListOptions) ([]storage.Session, error) {
+			captured = opts
+			return []storage.Session{{ID: testSessionA}}, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	sessions, err := manager.ListSessions(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	require.Equal(t, testSessionA, sessions[0].ID)
+	require.NotNil(t, captured.Archived)
+	require.False(t, *captured.Archived)
+}
+
+func TestManager_AppendMessagesCreatesDefaultSession(t *testing.T) {
+	store := storagememory.NewStore()
+	manager, err := NewManager(store, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	require.NoError(t, manager.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello default", CreatedAt: time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)},
+	}))
+
+	session, ok, err := store.Get(context.Background(), storage.DefaultSessionID, storage.SessionGetOptions{})
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, storage.DefaultSessionID, session.ID)
+
+	messages, err := store.GetMessages(context.Background(), storage.DefaultSessionID, storage.MessageQueryOptions{})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "hello default", messages[0].Content)
+}
+
 func TestManager_RenameSessionUpdatesTitle(t *testing.T) {
 	store := storagememory.NewStore()
 	manager, err := NewManager(store, time.Hour, 24*time.Hour)
@@ -680,6 +761,25 @@ func TestManager_CreateUseAndResolveErrors(t *testing.T) {
 
 	require.EqualError(t, manager.UseSession(context.Background(), "project-a"), "session id must be a valid ses_ nanoid")
 	require.EqualError(t, manager.UseSession(context.Background(), testMissingSession), "session not found")
+
+	manager, err = NewManager(&storagemock.Store{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: testSessionA, Archived: true}, true, nil
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	_, err = manager.Resolve(context.Background(), testSessionA)
+	require.EqualError(t, err, "session is archived")
+
+	manager, err = NewManager(&storagemock.Store{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{}, false, errors.New("get failed")
+		},
+	}, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	require.EqualError(t, manager.UseSession(context.Background(), testSessionA), "get failed")
 }
 
 func TestManager_RenameSessionValidatesInputAndStoreErrors(t *testing.T) {
@@ -699,6 +799,9 @@ func TestManager_RenameSessionValidatesInputAndStoreErrors(t *testing.T) {
 	require.EqualError(t, err, "session not found")
 
 	manager, err = NewManager(&storagemock.Store{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: testSessionA}, true, nil
+		},
 		RenameFunc: func(context.Context, storage.SessionRenameRequest) (storage.Session, error) {
 			return storage.Session{}, errors.New("rename failed")
 		},
@@ -723,6 +826,9 @@ func TestManager_RenameSessionValidatesInputAndStoreErrors(t *testing.T) {
 
 	var captured storage.SessionRenameRequest
 	manager, err = NewManager(&storagemock.Store{
+		GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+			return storage.Session{ID: testSessionA}, true, nil
+		},
 		RenameFunc: func(_ context.Context, req storage.SessionRenameRequest) (storage.Session, error) {
 			captured = req
 			return storage.Session{ID: req.SessionID, Title: req.Title, TitleSource: req.TitleSource}, nil
@@ -738,6 +844,46 @@ func TestManager_RenameSessionValidatesInputAndStoreErrors(t *testing.T) {
 	require.Equal(t, "Title", captured.Title)
 	require.Equal(t, storage.SessionTitleSourceManual, captured.TitleSource)
 	require.False(t, captured.RenamedAt.IsZero())
+}
+
+func TestManager_ArchivedSessionsRejectActiveOperationsAndUnarchiveRestores(t *testing.T) {
+	store := storagememory.NewStore()
+	manager, err := NewManager(store, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	_, err = manager.CreateSession(context.Background(), testSessionA)
+	require.NoError(t, err)
+	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "hello", CreatedAt: time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)},
+	}))
+	require.NoError(t, manager.ArchiveSession(context.Background(), testSessionA))
+
+	_, err = manager.Resolve(context.Background(), testSessionA)
+	require.EqualError(t, err, "session is archived")
+	require.EqualError(t, manager.UseSession(context.Background(), testSessionA), "session is archived")
+	require.EqualError(t, manager.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleUser, Content: "after archive"},
+	}), "session is archived")
+	_, err = manager.RenameSession(context.Background(), testSessionA, "Archived Rename")
+	require.EqualError(t, err, "session is archived")
+
+	restored, err := manager.UnarchiveSession(context.Background(), "  "+testSessionA+"  ")
+	require.NoError(t, err)
+	require.Equal(t, testSessionA, restored.ID)
+	require.False(t, restored.Archived)
+
+	require.NoError(t, manager.UseSession(context.Background(), testSessionA))
+	renamed, err := manager.RenameSession(context.Background(), testSessionA, "Restored")
+	require.NoError(t, err)
+	require.Equal(t, "Restored", renamed.Title)
+	require.NoError(t, manager.AppendMessages(context.Background(), testSessionA, []handmsg.Message{
+		{Role: handmsg.RoleAssistant, Content: "restored"},
+	}))
+
+	messages, err := manager.GetMessages(context.Background(), testSessionA, storage.MessageQueryOptions{})
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, "restored", messages[1].Content)
 }
 
 func TestManager_DeleteSessionRemovesArchivedSession(t *testing.T) {
@@ -1053,6 +1199,20 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 		require.EqualError(t, err, "get failed")
 	})
 
+	t.Run("append default resolve error", func(t *testing.T) {
+		manager, err := NewManager(&storagemock.Store{
+			GetFunc: func(context.Context, string) (storage.Session, bool, error) {
+				return storage.Session{}, false, errors.New("get failed")
+			},
+		}, time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		err = manager.AppendMessages(context.Background(), storage.DefaultSessionID, []handmsg.Message{
+			{Role: handmsg.RoleUser, Content: "hello"},
+		})
+		require.EqualError(t, err, "get failed")
+	})
+
 	t.Run("delete session validation and errors", func(t *testing.T) {
 		manager, err := NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
 		require.NoError(t, err)
@@ -1089,6 +1249,32 @@ func TestManager_ErrorBranchesAndWorkerTick(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EqualError(t, manager.ArchiveSession(context.Background(), testSessionA), "archive failed")
+	})
+
+	t.Run("unarchive session validation and errors", func(t *testing.T) {
+		var nilManager *Manager
+		_, err := nilManager.UnarchiveSession(context.Background(), testSessionA)
+		require.EqualError(t, err, "state manager is required")
+
+		manager, err := NewManager(storagememory.NewStore(), time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		_, err = manager.UnarchiveSession(context.Background(), "")
+		require.EqualError(t, err, "session id is required")
+		_, err = manager.UnarchiveSession(context.Background(), "project-a")
+		require.EqualError(t, err, "session id must be a valid ses_ nanoid")
+		_, err = manager.UnarchiveSession(context.Background(), testMissingSession)
+		require.EqualError(t, err, "session not found")
+
+		manager, err = NewManager(&storagemock.Store{
+			UnarchiveFunc: func(context.Context, string) (storage.Session, error) {
+				return storage.Session{}, errors.New("unarchive failed")
+			},
+		}, time.Hour, 24*time.Hour)
+		require.NoError(t, err)
+
+		_, err = manager.UnarchiveSession(context.Background(), testSessionA)
+		require.EqualError(t, err, "unarchive failed")
 	})
 
 	t.Run("current session error", func(t *testing.T) {

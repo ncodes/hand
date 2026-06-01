@@ -296,6 +296,10 @@ func (c *fakeTUIChatClient) Archive(context.Context, string) error {
 	return nil
 }
 
+func (c *fakeTUIChatClient) Unarchive(context.Context, string) (storage.Session, error) {
+	return storage.Session{}, nil
+}
+
 func (c *fakeTUIChatClient) Rename(context.Context, string, string) (storage.Session, error) {
 	return storage.Session{}, nil
 }

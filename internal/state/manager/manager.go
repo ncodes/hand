@@ -193,16 +193,7 @@ func (m *Manager) Resolve(ctx context.Context, id string) (storage.Session, erro
 		return storage.Session{}, err
 	}
 
-	session, ok, err := m.sessions().Get(ctx, id, storage.SessionGetOptions{})
-	if err != nil {
-		return storage.Session{}, err
-	}
-
-	if !ok {
-		return storage.Session{}, errors.New("session not found")
-	}
-
-	return session, nil
+	return m.getActiveSession(ctx, id)
 }
 
 func (m *Manager) runMaintenance(ctx context.Context) error {
@@ -270,6 +261,13 @@ func (m *Manager) AppendMessages(ctx context.Context, id string, messages []hand
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return errors.New("session id is required")
+	}
+	if id == storage.DefaultSessionID {
+		if _, err := m.resolveDefaultSession(ctx, m.now().UTC()); err != nil {
+			return err
+		}
+	} else if err := m.checkSessionActive(ctx, id); err != nil {
+		return err
 	}
 
 	return m.sessions().AppendMessages(ctx, id, storage.CloneMessages(messages))
@@ -479,7 +477,8 @@ func (m *Manager) ListSessions(ctx context.Context) ([]storage.Session, error) {
 		return nil, err
 	}
 
-	return m.sessions().List(ctx, storage.SessionListOptions{})
+	active := false
+	return m.sessions().List(ctx, storage.SessionListOptions{Archived: &active})
 }
 
 func (m *Manager) DeleteSession(ctx context.Context, id string) error {
@@ -521,6 +520,22 @@ func (m *Manager) ArchiveSession(ctx context.Context, id string) error {
 	return err
 }
 
+func (m *Manager) UnarchiveSession(ctx context.Context, id string) (storage.Session, error) {
+	if m == nil {
+		return storage.Session{}, errors.New("state manager is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return storage.Session{}, errors.New("session id is required")
+	}
+	if err := storage.ValidateSessionID(id); err != nil {
+		return storage.Session{}, err
+	}
+
+	return m.sessions().Unarchive(ctx, id)
+}
+
 func (m *Manager) RenameSession(ctx context.Context, id string, title string) (storage.Session, error) {
 	if m == nil {
 		return storage.Session{}, errors.New("state manager is required")
@@ -541,6 +556,8 @@ func (m *Manager) RenameSession(ctx context.Context, id string, title string) (s
 			return storage.Session{}, err
 		}
 	} else if err := storage.ValidateSessionID(id); err != nil {
+		return storage.Session{}, err
+	} else if err := m.checkSessionActive(ctx, id); err != nil {
 		return storage.Session{}, err
 	}
 
@@ -564,9 +581,31 @@ func (m *Manager) UseSession(ctx context.Context, id string) error {
 		}
 	} else if err := storage.ValidateSessionID(id); err != nil {
 		return err
+	} else if err := m.checkSessionActive(ctx, id); err != nil {
+		return err
 	}
 
 	return m.sessions().SetCurrent(ctx, id)
+}
+
+func (m *Manager) checkSessionActive(ctx context.Context, id string) error {
+	_, err := m.getActiveSession(ctx, strings.TrimSpace(id))
+	return err
+}
+
+func (m *Manager) getActiveSession(ctx context.Context, id string) (storage.Session, error) {
+	session, ok, err := m.sessions().Get(ctx, id, storage.SessionGetOptions{})
+	if err != nil {
+		return storage.Session{}, err
+	}
+	if !ok {
+		return storage.Session{}, errors.New("session not found")
+	}
+	if session.Archived {
+		return storage.Session{}, errors.New("session is archived")
+	}
+
+	return session, nil
 }
 
 func (m *Manager) CurrentSession(ctx context.Context) (string, error) {

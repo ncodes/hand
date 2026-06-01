@@ -261,6 +261,14 @@ func TestAgent_LifecycleBranchesForCloseCreateUseAndStatus(t *testing.T) {
 	require.Equal(t, otherID, store.archive.ID)
 	require.False(t, store.archive.ArchivedAt.IsZero())
 
+	unarchived, err := core.UnarchiveSession(context.Background(), otherID)
+	require.NoError(t, err)
+	require.Equal(t, otherID, unarchived.ID)
+	store.unarchiveErr = errors.New("session is not archived")
+	_, err = core.UnarchiveSession(context.Background(), otherID)
+	require.EqualError(t, err, "session is not archived")
+	store.unarchiveErr = nil
+
 	renamed, err := core.RenameSession(context.Background(), otherID, "Renamed Chat")
 	require.NoError(t, err)
 	require.Equal(t, otherID, renamed.ID)
@@ -273,6 +281,10 @@ func TestAgent_LifecycleBranchesForCloseCreateUseAndStatus(t *testing.T) {
 
 	require.EqualError(t, (*Agent)(nil).ArchiveSession(context.Background(), ""), "agent is required")
 	require.EqualError(t, (&Agent{}).ArchiveSession(context.Background(), ""), "environment has not been initialized")
+	_, err = (*Agent)(nil).UnarchiveSession(context.Background(), "")
+	require.EqualError(t, err, "agent is required")
+	_, err = (&Agent{}).UnarchiveSession(context.Background(), "")
+	require.EqualError(t, err, "environment has not been initialized")
 	_, err = (*Agent)(nil).RenameSession(context.Background(), "", "Title")
 	require.EqualError(t, err, "agent is required")
 	_, err = (&Agent{}).RenameSession(context.Background(), "", "Title")

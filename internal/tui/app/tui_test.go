@@ -3979,6 +3979,10 @@ func (c *fakeTUIChatClient) Archive(_ context.Context, id string) error {
 	return c.archiveSessionErr
 }
 
+func (c *fakeTUIChatClient) Unarchive(context.Context, string) (storage.Session, error) {
+	return storage.Session{}, nil
+}
+
 func (c *fakeTUIChatClient) Rename(_ context.Context, id string, title string) (storage.Session, error) {
 	c.renameSessionCalls++
 	c.renamedSessionID = id

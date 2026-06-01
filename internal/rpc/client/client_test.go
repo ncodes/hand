@@ -270,6 +270,44 @@ func TestClient_ArchiveSessionSendsSessionID(t *testing.T) {
 	require.Equal(t, "project-a", stub.ArchiveReq.GetId())
 }
 
+func TestClient_UnarchiveSessionSendsSessionIDAndReturnsSession(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{
+		UnarchiveResp: &handpb.UnarchiveSessionResponse{
+			Session: &handpb.SessionSummary{
+				Id:          "project-a",
+				Title:       "Project Planning",
+				TitleSource: storage.SessionTitleSourceManual,
+			},
+		},
+	}
+	client := NewSessionService(stub)
+
+	session, err := client.Unarchive(context.Background(), " project-a ")
+
+	require.NoError(t, err)
+	require.Equal(t, "project-a", session.ID)
+	require.Equal(t, "Project Planning", session.Title)
+	require.Equal(t, storage.SessionTitleSourceManual, session.TitleSource)
+	require.Equal(t, "project-a", stub.UnarchiveReq.GetId())
+}
+
+func TestClient_UnarchiveSessionRequiresClient(t *testing.T) {
+	_, err := (*SessionService)(nil).Unarchive(context.Background(), "project-a")
+
+	require.EqualError(t, err, "hand: session service client is required")
+}
+
+func TestClient_UnarchiveSessionReturnsRPCError(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	client := NewSessionService(stub)
+
+	session, err := client.Unarchive(context.Background(), "project-a")
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, session.ID)
+	require.Equal(t, "project-a", stub.UnarchiveReq.GetId())
+}
+
 func TestClient_RenameSessionSendsTitle(t *testing.T) {
 	stub := &protomock.HandServiceClientStub{
 		RenameResp: &handpb.RenameSessionResponse{

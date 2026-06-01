@@ -15,6 +15,7 @@ service SessionService {
   rpc List(ListSessionsRequest) returns (ListSessionsResponse);
   rpc Use(UseSessionRequest) returns (UseSessionResponse);
   rpc Archive(ArchiveSessionRequest) returns (ArchiveSessionResponse);
+  rpc Unarchive(UnarchiveSessionRequest) returns (UnarchiveSessionResponse);
   rpc Rename(RenameSessionRequest) returns (RenameSessionResponse);
   rpc Current(CurrentSessionRequest) returns (CurrentSessionResponse);
   rpc Compact(CompactSessionRequest) returns (CompactSessionResponse);
@@ -93,6 +94,14 @@ message ArchiveSessionRequest {
 
 message ArchiveSessionResponse {
   string id = 1;
+}
+
+message UnarchiveSessionRequest {
+  string id = 1;
+}
+
+message UnarchiveSessionResponse {
+  SessionSummary session = 1;
 }
 
 message RenameSessionRequest {

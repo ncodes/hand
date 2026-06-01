@@ -45,6 +45,7 @@ type stateStoreStub struct {
 	appendErr      error
 	archive        storage.Session
 	archiveErr     error
+	unarchiveErr   error
 }
 
 func (s *stateStoreStub) Save(_ context.Context, session storage.Session) error {
@@ -223,8 +224,12 @@ func (s *stateStoreStub) Archive(_ context.Context, id string, req storage.Sessi
 	return storage.Session{ID: id, Archived: true, ArchivedAt: req.ArchivedAt, ExpiresAt: req.ExpiresAt}, s.archiveErr
 }
 
-func (s *stateStoreStub) Unarchive(context.Context, string) (storage.Session, error) {
-	return storage.Session{}, nil
+func (s *stateStoreStub) Unarchive(_ context.Context, id string) (storage.Session, error) {
+	if s.unarchiveErr != nil {
+		return storage.Session{}, s.unarchiveErr
+	}
+
+	return storage.Session{ID: id}, nil
 }
 
 func (s *stateStoreStub) DeleteExpiredArchives(context.Context, time.Time) error {
