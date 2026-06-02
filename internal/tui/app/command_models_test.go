@@ -90,19 +90,29 @@ func TestModel_SelectModelCallsClientHidesCommandViewAndUpdatesChrome(t *testing
 		selectedModel: rpcclient.ModelOption{ID: "gpt-4o", Provider: "openai", Current: true},
 	}
 	runModel := newModelWithClient(client)
+	runModel.width = 180
 	runModel.showCommandView(commandViewPayload{
-		Kind: commandViewKindModels,
+		Kind:          commandViewKindModels,
+		ModelProvider: "openai",
 		Models: []rpcclient.ModelOption{
 			{ID: "gpt-5.4-mini", Current: true},
 			{ID: "gpt-4o"},
 		},
 	})
+	runModel.setTranscriptContent()
 	runModel.commandViewItemSelected = 1
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	require.NotNil(t, cmd)
 	runModel = updated.(model)
 	require.False(t, runModel.commandView.Visible)
+	require.Equal(t, "gpt-4o", runModel.runtimeInfo.Model)
+	require.Equal(t, "gpt-4o", runModel.runtimeInfo.SummaryModel)
+	require.Equal(t, "openai", runModel.runtimeInfo.Provider)
+	require.Contains(t, stripANSI(runModel.renderHeaderInfoPanel()), "model: gpt-4o")
+	require.Contains(t, stripANSI(runModel.renderHeaderInfoPanel()), "summary: gpt-4o")
+	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "model: gpt-4o")
+	require.Contains(t, stripANSI(runModel.transcript.GetContent()), "summary: gpt-4o")
 
 	msg := modelSelectedMessageFromBatch(t, cmd)
 	updated, cmd = runModel.Update(msg)
@@ -113,6 +123,7 @@ func TestModel_SelectModelCallsClientHidesCommandViewAndUpdatesChrome(t *testing
 	require.Equal(t, "gpt-4o", client.selectedModelID)
 	require.False(t, runModel.commandView.Visible)
 	require.Equal(t, "gpt-4o", runModel.runtimeInfo.Model)
+	require.Equal(t, "gpt-4o", runModel.runtimeInfo.SummaryModel)
 	require.Equal(t, "openai", runModel.runtimeInfo.Provider)
 	require.Equal(t, "model selected; daemon restarting", runModel.status.Text())
 }

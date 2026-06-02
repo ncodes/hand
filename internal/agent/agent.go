@@ -215,7 +215,11 @@ func saveMainModelSelection(envPath string, configPath string, id string) error 
 		return errors.New("profile config path is required")
 	}
 
-	if _, err := config.SetConfigValue(envPath, configPath, "models.main.name", strings.TrimSpace(id)); err != nil {
+	modelID := strings.TrimSpace(id)
+	if _, err := config.SetConfigValues(envPath, configPath, []config.ConfigUpdate{
+		{Path: "models.main.name", Value: modelID},
+		{Path: "models.summary.name", Value: modelID},
+	}); err != nil {
 		return err
 	}
 

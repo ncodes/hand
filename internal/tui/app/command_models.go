@@ -221,6 +221,7 @@ func (m *model) selectCurrentModelOption() (tea.Model, tea.Cmd) {
 		return *m, m.setStatus("model selection unavailable")
 	}
 
+	m.applySelectedModelToRuntime(model)
 	next := m.hideCommandView()
 	statusCmd := next.setStatus("selecting model")
 	return next, tea.Batch(
@@ -259,20 +260,33 @@ func (m *model) completeSelectModel(msg modelSelectedMsg) (tea.Model, tea.Cmd) {
 		return *m, m.setStatus("model selection unavailable")
 	}
 
+	m.applySelectedModelToRuntime(msg.Model)
 	for index := range m.commandView.Models {
 		m.commandView.Models[index].Current = strings.TrimSpace(m.commandView.Models[index].ID) == modelID
 	}
 	m.commandView.Models = orderModelsCommandOptions(m.commandView.Models)
 	m.commandViewItemSelected = 0
 	m.commandViewOffset = 0
-	m.modelName = getModelDisplayName(modelID)
-	m.runtimeInfo.Model = modelID
-	if provider := strings.TrimSpace(msg.Model.Provider); provider != "" {
-		m.runtimeInfo.Provider = provider
-	}
 
 	next := m.hideCommandView()
 	return next, next.setStatus("model selected; daemon restarting")
+}
+
+func (m *model) applySelectedModelToRuntime(option rpcclient.ModelOption) {
+	modelID := strings.TrimSpace(option.ID)
+	if modelID == "" {
+		return
+	}
+
+	m.modelName = getModelDisplayName(modelID)
+	m.runtimeInfo.Model = modelID
+	m.runtimeInfo.SummaryModel = modelID
+	if provider := strings.TrimSpace(option.Provider); provider != "" {
+		m.runtimeInfo.Provider = provider
+	} else if provider := strings.TrimSpace(m.commandView.ModelProvider); provider != "" {
+		m.runtimeInfo.Provider = provider
+	}
+	m.setTranscriptContentForActiveTurn()
 }
 
 func orderModelsCommandOptions(models []rpcclient.ModelOption) []rpcclient.ModelOption {

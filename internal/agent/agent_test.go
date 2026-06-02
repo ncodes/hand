@@ -808,6 +808,7 @@ func TestAgent_SelectModelWritesProfileConfig(t *testing.T) {
 	loaded, err := config.Load("", configPath)
 	require.NoError(t, err)
 	require.Equal(t, "gpt-4o", loaded.Models.Main.Name)
+	require.Equal(t, "gpt-4o", loaded.Models.Summary.Name)
 }
 
 func TestAgent_SelectModelRejectsUnavailableModel(t *testing.T) {
