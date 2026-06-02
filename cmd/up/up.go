@@ -8,10 +8,12 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/rs/zerolog/log"
 	cli "github.com/urfave/cli/v3"
 	"google.golang.org/grpc"
@@ -35,6 +37,10 @@ type agentRunner interface {
 	handagent.ServiceAPI
 }
 
+type closeableAgentRunner interface {
+	Close() error
+}
+
 const (
 	colorGray              = "\x1b[90m"
 	colorReset             = "\x1b[0m"
@@ -53,6 +59,20 @@ var startupLogoColors = []string{
 var handBadge = joinStartupBanner(brand.Mark, brand.Wordmark)
 
 var startupOutput io.Writer = os.Stdout
+
+var osStat = os.Stat
+
+var daemonConfigWatchDebounce = 200 * time.Millisecond
+
+var newConfigWatcher = newFSNotifyConfigWatcher
+
+var createFSNotifyWatcher = fsnotify.NewWatcher
+
+var mkdirAllConfigWatchDir = os.MkdirAll
+
+var addConfigWatchDir = func(watcher *fsnotify.Watcher, path string) error {
+	return watcher.Add(path)
+}
 
 func SetOutput(w io.Writer) io.Writer {
 	previous := startupOutput
@@ -366,6 +386,347 @@ func styleLabel(value string, noColor bool) string {
 	return colorGray + value + ":" + colorReset
 }
 
+type daemonConfigSnapshot struct {
+	cfg         *config.Config
+	inputs      handcli.ConfigInputs
+	fingerprint configFileFingerprint
+}
+
+type configFileFingerprint struct {
+	modTime time.Time
+	size    int64
+}
+
+func loadDaemonConfig(cmd *cli.Command) (daemonConfigSnapshot, error) {
+	cfg, inputs, err := handcli.LoadConfig(cmd)
+	if err != nil {
+		return daemonConfigSnapshot{}, err
+	}
+
+	handcli.ApplyConfigOverrides(cmd, cfg)
+	handcli.AddStartupFilesystemRoots(cfg, inputs)
+	report := diagnostics.Build(inputs.EnvPath, inputs.ConfigPath, cfg, nil)
+	if report.HasFailures() {
+		return daemonConfigSnapshot{}, errors.New(report.FirstFailure())
+	}
+
+	fingerprint, err := getConfigFileFingerprint(inputs.ConfigPath)
+	if err != nil {
+		return daemonConfigSnapshot{}, err
+	}
+
+	return daemonConfigSnapshot{
+		cfg:         cfg,
+		inputs:      inputs,
+		fingerprint: fingerprint,
+	}, nil
+}
+
+func getConfigFileFingerprint(path string) (configFileFingerprint, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return configFileFingerprint{}, errors.New("config path is required")
+	}
+
+	info, err := osStat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return configFileFingerprint{}, nil
+		}
+
+		return configFileFingerprint{}, err
+	}
+
+	return configFileFingerprint{modTime: info.ModTime(), size: info.Size()}, nil
+}
+
+func hasConfigFileChanged(path string, previous configFileFingerprint) (configFileFingerprint, bool, error) {
+	current, err := getConfigFileFingerprint(path)
+	if err != nil {
+		return configFileFingerprint{}, false, err
+	}
+
+	return current, current != previous, nil
+}
+
+type configWatcher struct {
+	events <-chan fsnotify.Event
+	errors <-chan error
+	close  func() error
+}
+
+func newFSNotifyConfigWatcher(configPath string) (configWatcher, error) {
+	configPath = strings.TrimSpace(configPath)
+	if configPath == "" {
+		return configWatcher{}, errors.New("config path is required")
+	}
+
+	watcher, err := createFSNotifyWatcher()
+	if err != nil {
+		return configWatcher{}, err
+	}
+
+	configDir := filepath.Dir(configPath)
+	if err := mkdirAllConfigWatchDir(configDir, 0o700); err != nil {
+		_ = watcher.Close()
+		return configWatcher{}, err
+	}
+	if err := addConfigWatchDir(watcher, configDir); err != nil {
+		_ = watcher.Close()
+		return configWatcher{}, err
+	}
+
+	return configWatcher{
+		events: watcher.Events,
+		errors: watcher.Errors,
+		close:  watcher.Close,
+	}, nil
+}
+
+func isConfigFileWatchEvent(event fsnotify.Event, configPath string) bool {
+	if strings.TrimSpace(event.Name) == "" {
+		return false
+	}
+
+	eventPath := filepath.Clean(event.Name)
+	targetPath := filepath.Clean(configPath)
+	if eventPath != targetPath {
+		return false
+	}
+
+	reloadOps := fsnotify.Write | fsnotify.Create | fsnotify.Rename | fsnotify.Remove
+	return event.Op&reloadOps != 0
+}
+
+func runDaemonWithConfigRestarts(ctx context.Context, cmd *cli.Command, debounce time.Duration) error {
+	if debounce <= 0 {
+		debounce = daemonConfigWatchDebounce
+	}
+
+	snapshot, err := loadDaemonConfig(cmd)
+	if err != nil {
+		return err
+	}
+
+	for {
+		next, restart, err := runDaemonUntilConfigChange(ctx, cmd, snapshot, debounce)
+		if err != nil || !restart {
+			return err
+		}
+
+		snapshot = next
+	}
+}
+
+func runDaemonUntilConfigChange(
+	ctx context.Context,
+	cmd *cli.Command,
+	snapshot daemonConfigSnapshot,
+	debounce time.Duration,
+) (daemonConfigSnapshot, bool, error) {
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runDaemonOnce(runCtx, snapshot.cfg)
+	}()
+
+	watcher, err := newConfigWatcher(snapshot.inputs.ConfigPath)
+	if err != nil {
+		cancel()
+		if runErr := <-done; runErr != nil {
+			return daemonConfigSnapshot{}, false, runErr
+		}
+
+		return daemonConfigSnapshot{}, false, err
+	}
+	defer watcher.close()
+
+	var reload <-chan time.Time
+	var timer *time.Timer
+	defer stopConfigReloadTimer(timer)
+
+	lastFingerprint := snapshot.fingerprint
+	lastInvalidFingerprint := configFileFingerprint{size: -1}
+	for {
+		select {
+		case err := <-done:
+			return daemonConfigSnapshot{}, false, err
+		case <-ctx.Done():
+			cancel()
+			err := <-done
+			if err != nil {
+				return daemonConfigSnapshot{}, false, err
+			}
+
+			return daemonConfigSnapshot{}, false, nil
+		case err, ok := <-watcher.errors:
+			if !ok {
+				watcher.errors = nil
+				continue
+			}
+			log.Error().Err(err).Msg("Config file watcher failed")
+		case event, ok := <-watcher.events:
+			if !ok {
+				watcher.events = nil
+				continue
+			}
+			if !isConfigFileWatchEvent(event, snapshot.inputs.ConfigPath) {
+				continue
+			}
+			timer, reload = resetConfigReloadTimer(timer, debounce)
+		case <-reload:
+			reload = nil
+			fingerprint, changed, err := hasConfigFileChanged(snapshot.inputs.ConfigPath, lastFingerprint)
+			if err != nil {
+				if fingerprint != lastInvalidFingerprint {
+					log.Error().Err(err).Msg("Config reload check failed")
+					lastInvalidFingerprint = fingerprint
+				}
+				continue
+			}
+			if !changed {
+				continue
+			}
+
+			next, err := loadDaemonConfig(cmd)
+			if err != nil {
+				if fingerprint != lastInvalidFingerprint {
+					log.Error().Err(err).Msg("Config reload validation failed")
+					lastInvalidFingerprint = fingerprint
+				}
+				lastFingerprint = fingerprint
+				continue
+			}
+
+			log.Info().Msg("Configuration changed; restarting Hand services")
+			cancel()
+			if err := <-done; err != nil {
+				return daemonConfigSnapshot{}, false, err
+			}
+
+			return next, true, nil
+		}
+	}
+}
+
+func resetConfigReloadTimer(timer *time.Timer, debounce time.Duration) (*time.Timer, <-chan time.Time) {
+	if debounce <= 0 {
+		debounce = daemonConfigWatchDebounce
+	}
+
+	if timer == nil {
+		timer = time.NewTimer(debounce)
+		return timer, timer.C
+	}
+
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
+		}
+	}
+	timer.Reset(debounce)
+
+	return timer, timer.C
+}
+
+func stopConfigReloadTimer(timer *time.Timer) {
+	if timer == nil {
+		return
+	}
+
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
+		}
+	}
+}
+
+func runDaemonOnce(ctx context.Context, cfg *config.Config) error {
+	auth, _ := cfg.ResolveModelAuth()
+
+	config.Set(cfg)
+	_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
+	logutils.SetLogLevel(cfg.Log.Level)
+
+	if _, err := fmt.Fprint(startupOutput, renderStartupPanel(cfg)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(startupOutput); err != nil {
+		return err
+	}
+
+	log.Info().Msg("Configuration loaded")
+	if cfg.Search.Vector.Enabled {
+		log.Info().Msg("Vector retrieval configured")
+	}
+
+	log.Info().Msg("Starting Hand services")
+
+	modelClient, err := modelClientFactory.NewClient(
+		modelClientRequest(
+			modelclient.ModelRoleMain,
+			cfg.Models.Main.Name,
+			auth,
+			cfg.ModelMaxRetriesEffective(),
+		),
+	)
+	if err != nil {
+		return err
+	}
+
+	summaryAuth, err := resolveSummaryAuth(cfg)
+	if err != nil {
+		return err
+	}
+
+	var summaryClient models.Client
+	if config.ModelAuthEqual(auth, summaryAuth) {
+		summaryClient = modelClient
+	} else {
+		summaryClient, err = modelClientFactory.NewClient(modelClientRequest(modelclient.ModelRoleSummary, cfg.SummaryModelEffective(), summaryAuth, cfg.ModelMaxRetriesEffective()))
+		if err != nil {
+			return err
+		}
+	}
+
+	rerankerClient := summaryClient
+	if rerankerModelClientRequired(cfg) {
+		rerankerAuth, err := resolveRerankerAuth(cfg)
+		if err != nil {
+			return err
+		}
+		switch {
+		case config.ModelAuthEqual(auth, rerankerAuth):
+			rerankerClient = modelClient
+		case config.ModelAuthEqual(summaryAuth, rerankerAuth):
+			rerankerClient = summaryClient
+		default:
+			rerankerClient, err = modelClientFactory.NewClient(modelClientRequest(modelclient.ModelRoleReranker, cfg.RerankerModelEffective(), rerankerAuth, cfg.ModelMaxRetriesEffective()))
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	agent := newAgentRunner(ctx, cfg, modelClient, summaryClient, rerankerClient)
+	if err := agent.Start(ctx); err != nil {
+		return err
+	}
+
+	err = serveRPC(ctx, cfg, agent)
+	if closer, ok := agent.(closeableAgentRunner); ok {
+		if closeErr := closer.Close(); err == nil {
+			err = closeErr
+		}
+	}
+
+	return err
+}
+
 var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) error {
 	lis, err := listenFunc("tcp", fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port))
 	if err != nil {
@@ -442,89 +803,7 @@ func NewCommand() *cli.Command {
 		Usage: "Start the agent runtime",
 		Flags: []cli.Flag{handcli.PersistentInstructFlag()},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			cfg, inputs, err := handcli.LoadConfig(cmd)
-			if err != nil {
-				return err
-			}
-
-			handcli.ApplyConfigOverrides(cmd, cfg)
-			handcli.AddStartupFilesystemRoots(cfg, inputs)
-			report := diagnostics.Build(inputs.EnvPath, inputs.ConfigPath, cfg, nil)
-			if report.HasFailures() {
-				return errors.New(report.FirstFailure())
-			}
-			auth, _ := cfg.ResolveModelAuth()
-
-			config.Set(cfg)
-			_ = logutils.ConfigureLogger("hand", cfg.Log.NoColor)
-			logutils.SetLogLevel(cfg.Log.Level)
-
-			if _, err := fmt.Fprint(startupOutput, renderStartupPanel(cfg)); err != nil {
-				return err
-			}
-			if _, err := fmt.Fprintln(startupOutput); err != nil {
-				return err
-			}
-
-			log.Info().Msg("Configuration loaded")
-			if cfg.Search.Vector.Enabled {
-				log.Info().Msg("Vector retrieval configured")
-			}
-
-			log.Info().Msg("Starting Hand services")
-
-			modelClient, err := modelClientFactory.NewClient(
-				modelClientRequest(
-					modelclient.ModelRoleMain,
-					cfg.Models.Main.Name,
-					auth,
-					cfg.ModelMaxRetriesEffective(),
-				),
-			)
-			if err != nil {
-				return err
-			}
-
-			summaryAuth, err := resolveSummaryAuth(cfg)
-			if err != nil {
-				return err
-			}
-
-			var summaryClient models.Client
-			if config.ModelAuthEqual(auth, summaryAuth) {
-				summaryClient = modelClient
-			} else {
-				summaryClient, err = modelClientFactory.NewClient(modelClientRequest(modelclient.ModelRoleSummary, cfg.SummaryModelEffective(), summaryAuth, cfg.ModelMaxRetriesEffective()))
-				if err != nil {
-					return err
-				}
-			}
-
-			rerankerClient := summaryClient
-			if rerankerModelClientRequired(cfg) {
-				rerankerAuth, err := resolveRerankerAuth(cfg)
-				if err != nil {
-					return err
-				}
-				switch {
-				case config.ModelAuthEqual(auth, rerankerAuth):
-					rerankerClient = modelClient
-				case config.ModelAuthEqual(summaryAuth, rerankerAuth):
-					rerankerClient = summaryClient
-				default:
-					rerankerClient, err = modelClientFactory.NewClient(modelClientRequest(modelclient.ModelRoleReranker, cfg.RerankerModelEffective(), rerankerAuth, cfg.ModelMaxRetriesEffective()))
-					if err != nil {
-						return err
-					}
-				}
-			}
-
-			agent := newAgentRunner(ctx, cfg, modelClient, summaryClient, rerankerClient)
-			if err := agent.Start(ctx); err != nil {
-				return err
-			}
-
-			return serveRPC(ctx, cfg, agent)
+			return runDaemonWithConfigRestarts(ctx, cmd, daemonConfigWatchDebounce)
 		},
 	}
 }
