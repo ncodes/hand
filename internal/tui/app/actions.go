@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 	tuistate "github.com/wandxy/hand/internal/tui/state"
 	tuitranscript "github.com/wandxy/hand/internal/tui/transcript"
@@ -61,6 +62,9 @@ type showCommandViewAction struct {
 	Height          int
 	Kind            string
 	Chats           []storage.Session
+	Models          []rpcclient.ModelOption
+	ModelProvider   string
+	ModelAuthType   string
 }
 
 type hideCommandViewAction struct{}
@@ -181,6 +185,9 @@ func (action showCommandViewAction) apply(state *tuiState) {
 		Content:         strings.TrimSpace(action.Content),
 		Height:          max(action.Height, 0),
 		Chats:           append([]storage.Session(nil), action.Chats...),
+		Models:          append([]rpcclient.ModelOption(nil), action.Models...),
+		ModelProvider:   strings.TrimSpace(action.ModelProvider),
+		ModelAuthType:   strings.TrimSpace(action.ModelAuthType),
 	}
 	state.commandViewOffset = 0
 	state.commandViewItemSelected = 0

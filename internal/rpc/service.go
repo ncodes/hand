@@ -11,6 +11,7 @@ import (
 
 	handagent "github.com/wandxy/hand/internal/agent"
 	"github.com/wandxy/hand/internal/guardrails"
+	models "github.com/wandxy/hand/internal/model"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
@@ -26,6 +27,7 @@ import (
 type Service struct {
 	handpb.UnimplementedHandServiceServer
 	handpb.UnimplementedSessionServiceServer
+	handpb.UnimplementedModelServiceServer
 	api handagent.ServiceAPI
 }
 
@@ -875,6 +877,48 @@ func (s *Service) List(ctx context.Context, req *handpb.ListSessionsRequest) (*h
 	return &handpb.ListSessionsResponse{Sessions: items}, nil
 }
 
+func (s *Service) ListModels(ctx context.Context, req *handpb.ListModelsRequest) (*handpb.ListModelsResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return nil, status.Error(codes.Internal, "agent handler is required")
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "list models request is required")
+	}
+
+	list, err := s.api.ListModels(ctx)
+	if err != nil {
+		return nil, getGRPCError(err)
+	}
+
+	return &handpb.ListModelsResponse{
+		Provider: strings.TrimSpace(list.Provider),
+		AuthType: strings.TrimSpace(list.AuthType),
+		Models:   modelOptionsToProto(list.Models),
+	}, nil
+}
+
+func (s *Service) SelectModel(ctx context.Context, req *handpb.SelectModelRequest) (*handpb.SelectModelResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return nil, status.Error(codes.Internal, "agent handler is required")
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "select model request is required")
+	}
+
+	model, err := s.api.SelectModel(ctx, req.GetId())
+	if err != nil {
+		return nil, getGRPCError(err)
+	}
+
+	return &handpb.SelectModelResponse{Model: modelOptionToProto(model)}, nil
+}
+
 func (s *Service) Use(ctx context.Context, req *handpb.UseSessionRequest) (*handpb.UseSessionResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
@@ -1153,6 +1197,30 @@ func sessionToProtoSummary(session storage.Session) *handpb.SessionSummary {
 		Title:         session.Title,
 		TitleSource:   session.TitleSource,
 		UpdatedAtUnix: session.UpdatedAt.Unix(),
+	}
+}
+
+func modelOptionsToProto(options []models.Option) []*handpb.ModelOption {
+	items := make([]*handpb.ModelOption, 0, len(options))
+	for _, option := range options {
+		items = append(items, modelOptionToProto(option))
+	}
+
+	return items
+}
+
+func modelOptionToProto(option models.Option) *handpb.ModelOption {
+	return &handpb.ModelOption{
+		Id:            option.ID,
+		Name:          option.Name,
+		Provider:      option.Provider,
+		Api:           option.API,
+		ContextWindow: int32(option.ContextWindow),
+		MaxTokens:     int32(option.MaxTokens),
+		Input:         append([]string(nil), option.Input...),
+		Reasoning:     option.Reasoning,
+		SupportsOauth: option.SupportsOAuth,
+		Current:       option.Current,
 	}
 }
 

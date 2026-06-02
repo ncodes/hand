@@ -16,6 +16,7 @@ import (
 
 	agentapi "github.com/wandxy/hand/internal/agent"
 	agentstub "github.com/wandxy/hand/internal/mocks/agentstub"
+	models "github.com/wandxy/hand/internal/model"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
@@ -1932,6 +1933,122 @@ func TestService_GetSessionTimelineSkipsNonDisplayTraceEvents(t *testing.T) {
 	require.Empty(t, resp.GetTraceEvents())
 	require.Zero(t, resp.GetFirstTraceSequence())
 	require.Zero(t, resp.GetLastTraceSequence())
+}
+
+func TestService_ListModelsReturnsProviderAuthAndOptions(t *testing.T) {
+	svc := NewService(&agentstub.AgentServiceStub{
+		ModelList: agentapi.ModelList{
+			Provider: "openai",
+			AuthType: "oauth",
+			Models: []models.Option{{
+				ID:            "gpt-5.4-mini",
+				Name:          "GPT 5.4 Mini",
+				Provider:      "openai",
+				API:           "openai-responses",
+				ContextWindow: 272000,
+				MaxTokens:     128000,
+				Input:         []string{"text", "image"},
+				Reasoning:     true,
+				SupportsOAuth: true,
+				Current:       true,
+			}},
+		},
+	})
+
+	resp, err := svc.ListModels(context.Background(), &handpb.ListModelsRequest{})
+
+	require.NoError(t, err)
+	require.Equal(t, "openai", resp.GetProvider())
+	require.Equal(t, "oauth", resp.GetAuthType())
+	require.Len(t, resp.GetModels(), 1)
+	require.Equal(t, "gpt-5.4-mini", resp.GetModels()[0].GetId())
+	require.Equal(t, "GPT 5.4 Mini", resp.GetModels()[0].GetName())
+	require.Equal(t, "openai", resp.GetModels()[0].GetProvider())
+	require.Equal(t, "openai-responses", resp.GetModels()[0].GetApi())
+	require.EqualValues(t, 272000, resp.GetModels()[0].GetContextWindow())
+	require.EqualValues(t, 128000, resp.GetModels()[0].GetMaxTokens())
+	require.Equal(t, []string{"text", "image"}, resp.GetModels()[0].GetInput())
+	require.True(t, resp.GetModels()[0].GetReasoning())
+	require.True(t, resp.GetModels()[0].GetSupportsOauth())
+	require.True(t, resp.GetModels()[0].GetCurrent())
+}
+
+func TestService_SelectModelReturnsSelectedOption(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{
+		SelectedModel: models.Option{ID: "gpt-4o", Current: true},
+	}
+	svc := NewService(stub)
+
+	resp, err := svc.SelectModel(context.Background(), &handpb.SelectModelRequest{Id: "gpt-4o"})
+
+	require.NoError(t, err)
+	require.Equal(t, "gpt-4o", stub.SelectedModelID)
+	require.Equal(t, "gpt-4o", resp.GetModel().GetId())
+	require.True(t, resp.GetModel().GetCurrent())
+}
+
+func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
+	t.Run("list nil receiver", func(t *testing.T) {
+		var svc *Service
+
+		resp, err := svc.ListModels(context.Background(), &handpb.ListModelsRequest{})
+
+		requireStatusError(t, err, codes.Internal, "service is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("list missing handler", func(t *testing.T) {
+		resp, err := NewService(nil).ListModels(context.Background(), &handpb.ListModelsRequest{})
+
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("list nil request", func(t *testing.T) {
+		resp, err := NewService(&agentstub.AgentServiceStub{}).ListModels(context.Background(), nil)
+
+		requireStatusError(t, err, codes.InvalidArgument, "list models request is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("select nil request", func(t *testing.T) {
+		resp, err := NewService(&agentstub.AgentServiceStub{}).SelectModel(context.Background(), nil)
+
+		requireStatusError(t, err, codes.InvalidArgument, "select model request is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("select nil receiver", func(t *testing.T) {
+		var svc *Service
+
+		resp, err := svc.SelectModel(context.Background(), &handpb.SelectModelRequest{})
+
+		requireStatusError(t, err, codes.Internal, "service is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("select missing handler", func(t *testing.T) {
+		resp, err := NewService(nil).SelectModel(context.Background(), &handpb.SelectModelRequest{})
+
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("list handler error", func(t *testing.T) {
+		resp, err := NewService(&agentstub.AgentServiceStub{Err: errors.New("config is required")}).
+			ListModels(context.Background(), &handpb.ListModelsRequest{})
+
+		requireStatusError(t, err, codes.InvalidArgument, "config is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("select error", func(t *testing.T) {
+		resp, err := NewService(&agentstub.AgentServiceStub{SelectModelErr: errors.New("model id is required")}).
+			SelectModel(context.Background(), &handpb.SelectModelRequest{})
+
+		requireStatusError(t, err, codes.InvalidArgument, "model id is required")
+		require.Nil(t, resp)
+	})
 }
 
 func TestTimelineTraceEventToProtoRejectsUnsafePayloadShapes(t *testing.T) {

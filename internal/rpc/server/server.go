@@ -20,6 +20,7 @@ func New(service handagent.ServiceAPI, opts Options) *grpc.Server {
 	rpcService := rpc.NewService(service)
 	handpb.RegisterHandServiceServer(server, rpcService)
 	handpb.RegisterSessionServiceServer(server, rpcService)
+	handpb.RegisterModelServiceServer(server, rpcService)
 
 	if opts.Health {
 		healthcheck := health.NewServer()

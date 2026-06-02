@@ -1,6 +1,10 @@
 package config
 
-import appcredential "github.com/wandxy/hand/internal/credential"
+import (
+	"strings"
+
+	appcredential "github.com/wandxy/hand/internal/credential"
+)
 
 type ModelCredentialSourceKind string
 
@@ -81,4 +85,18 @@ type ModelAuth struct {
 	BaseURL          string
 	Headers          map[string]string
 	CredentialSource ModelCredentialSource
+}
+
+func (auth ModelAuth) AuthType() string {
+	if value := strings.TrimSpace(auth.CredentialSource.Type); value != "" {
+		return strings.ToLower(value)
+	}
+	if strings.TrimSpace(auth.APIKey) != "" {
+		return "api-key"
+	}
+	if value := strings.TrimSpace(string(auth.CredentialSource.Kind)); value != "" {
+		return value
+	}
+
+	return "none"
 }

@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -10,11 +12,13 @@ import (
 
 	"github.com/wandxy/hand/internal/agent/context/summary"
 	"github.com/wandxy/hand/internal/config"
+	"github.com/wandxy/hand/internal/constants"
 	"github.com/wandxy/hand/internal/environment"
 	envbudget "github.com/wandxy/hand/internal/environment/budget"
 	"github.com/wandxy/hand/internal/guardrails"
 	"github.com/wandxy/hand/internal/mocks"
 	models "github.com/wandxy/hand/internal/model"
+	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/state/search"
@@ -760,4 +764,131 @@ func TestSanitizeToolOutputForModelRecordsSafety(t *testing.T) {
 	require.Equal(t, trace.EvtToolOutputSafetyApplied, recorder.Events[len(recorder.Events)-1].Type)
 	require.Equal(t, "blocked", recorder.Events[len(recorder.Events)-1].Payload.(trace.SafetyEventPayload).Action)
 	recordToolOutputSafety(context.Background(), "web", "secret", guardrails.UntrustedContentSafetyResult{Redacted: true})
+}
+
+func TestAgent_ListModelsReturnsCurrentProviderModels(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Name = "test"
+	cfg.Models.Main.Provider = constants.ModelProviderOpenAI
+	cfg.Models.Main.Name = constants.DefaultModel
+	cfg.Models.Main.APIKey = "key"
+	cfg.Models.Embedding.APIKey = "key"
+
+	list, err := NewAgent(context.Background(), cfg, nil).ListModels(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, constants.ModelProviderOpenAI, list.Provider)
+	require.Equal(t, "api-key", list.AuthType)
+	require.NotEmpty(t, list.Models)
+	require.Equal(t, constants.DefaultModel, list.Models[0].ID)
+	require.True(t, list.Models[0].Current)
+}
+
+func TestAgent_SelectModelWritesProfileConfig(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Name = "test"
+	cfg.Models.Main.Provider = constants.ModelProviderOpenAI
+	cfg.Models.Main.Name = constants.DefaultModel
+	cfg.Models.Main.APIKey = "key"
+	cfg.Models.Embedding.APIKey = "key"
+
+	home := t.TempDir()
+	configPath := filepath.Join(home, "config.yaml")
+	data, err := cfg.ToYAML()
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(configPath, data, 0o600))
+	original := profile.Active()
+	t.Cleanup(func() { profile.SetActive(original) })
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: "test", HomeDir: home, ConfigPath: configPath}))
+
+	selected, err := NewAgent(context.Background(), cfg, nil).SelectModel(context.Background(), "gpt-4o")
+	require.NoError(t, err)
+	require.Equal(t, "gpt-4o", selected.ID)
+	require.True(t, selected.Current)
+
+	loaded, err := config.Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, "gpt-4o", loaded.Models.Main.Name)
+}
+
+func TestAgent_SelectModelRejectsUnavailableModel(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Name = "test"
+	cfg.Models.Main.Provider = constants.ModelProviderOpenAI
+	cfg.Models.Main.Name = constants.DefaultModel
+	cfg.Models.Main.APIKey = "key"
+	cfg.Models.Embedding.APIKey = "key"
+
+	_, err := NewAgent(context.Background(), cfg, nil).SelectModel(context.Background(), "missing")
+	require.EqualError(t, err, `model "missing" is not available for provider "openai" with api-key auth`)
+}
+
+func TestAgent_SelectModelReturnsConfigWriteErrors(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Name = "test"
+	cfg.Models.Main.Provider = constants.ModelProviderOpenAI
+	cfg.Models.Main.Name = constants.DefaultModel
+	cfg.Models.Main.APIKey = "key"
+	cfg.Models.Embedding.APIKey = "key"
+
+	original := profile.Active()
+	t.Cleanup(func() { profile.SetActive(original) })
+	profile.SetActive(profile.Profile{Name: "test", HomeDir: t.TempDir(), ConfigPath: t.TempDir()})
+
+	_, err := NewAgent(context.Background(), cfg, nil).SelectModel(context.Background(), "gpt-4o")
+	require.ErrorContains(t, err, "read config file")
+}
+
+func TestAgent_ModelConfigValidationErrors(t *testing.T) {
+	_, err := (*Agent)(nil).ListModels(context.Background())
+	require.EqualError(t, err, "agent is required")
+
+	_, err = (&Agent{}).ListModels(context.Background())
+	require.EqualError(t, err, "config is required")
+
+	_, err = (*Agent)(nil).SelectModel(context.Background(), "gpt-4o")
+	require.EqualError(t, err, "agent is required")
+
+	_, err = (&Agent{}).SelectModel(context.Background(), "")
+	require.EqualError(t, err, "model id is required")
+
+	_, err = (&Agent{}).SelectModel(context.Background(), "gpt-4o")
+	require.EqualError(t, err, "config is required")
+
+	badConfig := config.NewDefaultConfig()
+	badConfig.Name = "test"
+	badConfig.Models.Main.Provider = "missing-provider"
+	badConfig.Models.Main.APIKey = ""
+	_, err = NewAgent(context.Background(), badConfig, nil).ListModels(context.Background())
+	require.ErrorContains(t, err, "model API key is required")
+}
+
+func TestAgent_SaveMainModelSelectionErrors(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Name = "test"
+	cfg.Models.Main.Provider = constants.ModelProviderOpenAI
+	cfg.Models.Main.Name = constants.DefaultModel
+	cfg.Models.Main.APIKey = "key"
+	cfg.Models.Embedding.APIKey = "key"
+
+	require.EqualError(t, saveMainModelSelection("", "", "gpt-4o"), "profile config path is required")
+
+	badConfigPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(badConfigPath, []byte(`
+name: test
+models:
+  main:
+    provider: openai
+    apiKey: key
+  embedding:
+    apiKey: key
+storage:
+  backend: postgres
+`), 0o600))
+	err := saveMainModelSelection("", badConfigPath, "gpt-4o")
+	require.EqualError(t, err, "storage backend must be one of: memory, sqlite")
+
+	parentFile := filepath.Join(t.TempDir(), "parent")
+	require.NoError(t, os.WriteFile(parentFile, []byte("not a dir"), 0o600))
+	err = saveMainModelSelection("", filepath.Join(parentFile, "config.yaml"), "gpt-4o")
+	require.ErrorContains(t, err, "read config file")
 }

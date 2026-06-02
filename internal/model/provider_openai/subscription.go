@@ -52,6 +52,7 @@ type OpenAISubscriptionProvider struct {
 
 func init() {
 	appcredential.RegisterSubscriptionProvider(constants.ModelProviderOpenAI, OpenAISubscriptionProvider{})
+	appcredential.RegisterSubscriptionProvider(constants.ModelProviderOpenAICodex, OpenAISubscriptionProvider{})
 }
 
 // Login completes the browser OAuth flow and returns a stored OAuth credential.

@@ -174,6 +174,26 @@ func (r *Registry) GetModel(providerID, modelID string) (ModelDefinition, bool) 
 	return model, true
 }
 
+// GetModels returns model definitions registered for a provider.
+func (r *Registry) GetModels(providerID string) []ModelDefinition {
+	if r == nil {
+		return nil
+	}
+
+	byProvider := r.models[normalizeID(providerID)]
+	if len(byProvider) == 0 {
+		return nil
+	}
+
+	models := make([]ModelDefinition, 0, len(byProvider))
+	for _, model := range byProvider {
+		model.Input = append([]InputKind(nil), model.Input...)
+		models = append(models, model)
+	}
+
+	return models
+}
+
 // GetProviderIDs returns the provider IDs registered in the registry.
 func (r *Registry) GetProviderIDs() []string {
 	if r == nil {
@@ -310,11 +330,20 @@ func defaultProviders() []ProviderDefinition {
 			APIKeyEnv:      []string{"OPENAI_API_KEY"},
 			SupportsModels: true,
 			SupportsAPIKey: true,
-			SupportsOAuth:  true,
 			BaseURLs: map[string]string{
 				APIOpenAICompletions: constants.DefaultOpenAIBaseURL,
 				APIOpenAIResponses:   constants.DefaultOpenAIBaseURL,
 				APIOpenAIEmbeddings:  constants.DefaultOpenAIEmbeddingsBaseURL,
+			},
+		},
+		{
+			ID:             constants.ModelProviderOpenAICodex,
+			DisplayName:    "OpenAI Codex",
+			DefaultAPI:     APIOpenAIResponses,
+			SupportsModels: true,
+			SupportsOAuth:  true,
+			BaseURLs: map[string]string{
+				APIOpenAIResponses: constants.DefaultOpenAISubscriptionBaseURL,
 			},
 		},
 		{

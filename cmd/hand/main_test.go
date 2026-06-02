@@ -553,7 +553,7 @@ models:
 		"--rpc.port", nextTestPort(t),
 		"up",
 	})
-	require.EqualError(t, err, "model provider must be one of: anthropic, github-copilot, openai, openrouter")
+	require.EqualError(t, err, "model provider must be one of: anthropic, github-copilot, openai, openai-codex, openrouter")
 }
 
 func TestNewCommand_UsesDirectClientWhenProviderIsOpenai(t *testing.T) {

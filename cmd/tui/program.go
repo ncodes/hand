@@ -25,6 +25,7 @@ var newProgram = func(model tea.Model) programRunner {
 type tuiClient interface {
 	rpcclient.ChatAPI
 	SessionAPI() rpcclient.SessionAPI
+	ModelAPI() rpcclient.ModelAPI
 	Close() error
 }
 

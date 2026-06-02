@@ -604,3 +604,143 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "internal/rpc/proto/hand.proto",
 }
+
+const (
+	ModelService_ListModels_FullMethodName  = "/hand.v1.ModelService/ListModels"
+	ModelService_SelectModel_FullMethodName = "/hand.v1.ModelService/SelectModel"
+)
+
+// ModelServiceClient is the client API for ModelService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type ModelServiceClient interface {
+	ListModels(ctx context.Context, in *ListModelsRequest, opts ...grpc.CallOption) (*ListModelsResponse, error)
+	SelectModel(ctx context.Context, in *SelectModelRequest, opts ...grpc.CallOption) (*SelectModelResponse, error)
+}
+
+type modelServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewModelServiceClient(cc grpc.ClientConnInterface) ModelServiceClient {
+	return &modelServiceClient{cc}
+}
+
+func (c *modelServiceClient) ListModels(ctx context.Context, in *ListModelsRequest, opts ...grpc.CallOption) (*ListModelsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListModelsResponse)
+	err := c.cc.Invoke(ctx, ModelService_ListModels_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *modelServiceClient) SelectModel(ctx context.Context, in *SelectModelRequest, opts ...grpc.CallOption) (*SelectModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SelectModelResponse)
+	err := c.cc.Invoke(ctx, ModelService_SelectModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ModelServiceServer is the server API for ModelService service.
+// All implementations must embed UnimplementedModelServiceServer
+// for forward compatibility.
+type ModelServiceServer interface {
+	ListModels(context.Context, *ListModelsRequest) (*ListModelsResponse, error)
+	SelectModel(context.Context, *SelectModelRequest) (*SelectModelResponse, error)
+	mustEmbedUnimplementedModelServiceServer()
+}
+
+// UnimplementedModelServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedModelServiceServer struct{}
+
+func (UnimplementedModelServiceServer) ListModels(context.Context, *ListModelsRequest) (*ListModelsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListModels not implemented")
+}
+func (UnimplementedModelServiceServer) SelectModel(context.Context, *SelectModelRequest) (*SelectModelResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SelectModel not implemented")
+}
+func (UnimplementedModelServiceServer) mustEmbedUnimplementedModelServiceServer() {}
+func (UnimplementedModelServiceServer) testEmbeddedByValue()                      {}
+
+// UnsafeModelServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ModelServiceServer will
+// result in compilation errors.
+type UnsafeModelServiceServer interface {
+	mustEmbedUnimplementedModelServiceServer()
+}
+
+func RegisterModelServiceServer(s grpc.ServiceRegistrar, srv ModelServiceServer) {
+	// If the following call panics, it indicates UnimplementedModelServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&ModelService_ServiceDesc, srv)
+}
+
+func _ModelService_ListModels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListModelsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ModelServiceServer).ListModels(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ModelService_ListModels_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ModelServiceServer).ListModels(ctx, req.(*ListModelsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ModelService_SelectModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SelectModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ModelServiceServer).SelectModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ModelService_SelectModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ModelServiceServer).SelectModel(ctx, req.(*SelectModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// ModelService_ServiceDesc is the grpc.ServiceDesc for ModelService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ModelService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "hand.v1.ModelService",
+	HandlerType: (*ModelServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListModels",
+			Handler:    _ModelService_ListModels_Handler,
+		},
+		{
+			MethodName: "SelectModel",
+			Handler:    _ModelService_SelectModel_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "internal/rpc/proto/hand.proto",
+}

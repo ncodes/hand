@@ -177,7 +177,7 @@ func TestConfig_ValidatePersonalitySettings(t *testing.T) {
 		{
 			name:          "invalid model provider",
 			personality:   PersonalityConfig{Model: MainModelConfig{Provider: "other"}},
-			expectedError: "personalities.researcher.model.provider must be one of: anthropic, github-copilot, openai, openrouter",
+			expectedError: "personalities.researcher.model.provider must be one of: anthropic, github-copilot, openai, openai-codex, openrouter",
 		},
 		{
 			name:          "invalid model api mode",

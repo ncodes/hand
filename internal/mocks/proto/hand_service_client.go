@@ -15,6 +15,7 @@ type HandServiceClientStub struct {
 	Req           *handpb.RespondRequest
 	Events        []*handpb.RespondEvent
 	Err           error
+	RecvErr       error
 	CreateResp    *handpb.CreateSessionResponse
 	CreateReq     *handpb.CreateSessionRequest
 	ListResp      *handpb.ListSessionsResponse
@@ -34,6 +35,10 @@ type HandServiceClientStub struct {
 	StatusReq     *handpb.GetSessionStatusRequest
 	TimelineResp  *handpb.GetSessionTimelineResponse
 	TimelineReq   *handpb.GetSessionTimelineRequest
+	ModelsResp    *handpb.ListModelsResponse
+	ModelsReq     *handpb.ListModelsRequest
+	SelectReq     *handpb.SelectModelRequest
+	SelectResp    *handpb.SelectModelResponse
 }
 
 func (s *HandServiceClientStub) Respond(_ context.Context, req *handpb.RespondRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[handpb.RespondEvent], error) {
@@ -41,7 +46,7 @@ func (s *HandServiceClientStub) Respond(_ context.Context, req *handpb.RespondRe
 	if s.Err != nil {
 		return nil, s.Err
 	}
-	return &respondStreamStub{events: s.Events}, nil
+	return &respondStreamStub{events: s.Events, err: s.RecvErr}, nil
 }
 
 func (s *HandServiceClientStub) Create(_ context.Context, req *handpb.CreateSessionRequest, _ ...grpc.CallOption) (*handpb.CreateSessionResponse, error) {
@@ -98,8 +103,19 @@ func (s *HandServiceClientStub) Timeline(_ context.Context, req *handpb.GetSessi
 	return s.TimelineResp, s.Err
 }
 
+func (s *HandServiceClientStub) ListModels(_ context.Context, req *handpb.ListModelsRequest, _ ...grpc.CallOption) (*handpb.ListModelsResponse, error) {
+	s.ModelsReq = req
+	return s.ModelsResp, s.Err
+}
+
+func (s *HandServiceClientStub) SelectModel(_ context.Context, req *handpb.SelectModelRequest, _ ...grpc.CallOption) (*handpb.SelectModelResponse, error) {
+	s.SelectReq = req
+	return s.SelectResp, s.Err
+}
+
 type respondStreamStub struct {
 	events []*handpb.RespondEvent
+	err    error
 	index  int
 }
 
@@ -129,6 +145,9 @@ func (s *respondStreamStub) RecvMsg(any) error {
 
 func (s *respondStreamStub) Recv() (*handpb.RespondEvent, error) {
 	if s.index >= len(s.events) {
+		if s.err != nil {
+			return nil, s.err
+		}
 		return nil, io.EOF
 	}
 	event := s.events[s.index]

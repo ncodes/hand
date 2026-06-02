@@ -1420,6 +1420,7 @@ func TestModel_UpdateHandlesHelpCommand(t *testing.T) {
 		"/compact",
 		"/copy",
 		"/help",
+		"/models",
 		"/new-chat",
 		"/archive",
 	}, "\n")
@@ -3299,6 +3300,7 @@ func TestModel_UpdateKeepsCommandsLocalDuringActiveResponse(t *testing.T) {
 		"/compact",
 		"/copy",
 		"/help",
+		"/models",
 		"/new-chat",
 		"/archive",
 	}, "\n")
@@ -3920,6 +3922,11 @@ type fakeTUIChatClient struct {
 	timelineSessionID   string
 	currentSession      storage.Session
 	currentSessionErr   error
+	modelList           rpcclient.ModelList
+	modelListErr        error
+	selectedModel       rpcclient.ModelOption
+	selectModelErr      error
+	selectedModelID     string
 	contextStatus       rpcclient.ContextStatus
 	contextErr          error
 	contextSessionID    string
@@ -3937,6 +3944,8 @@ type fakeTUIChatClient struct {
 	renameSessionCalls  int
 	timelineCalls       int
 	currentSessionCalls int
+	listModelCalls      int
+	selectModelCalls    int
 	contextCalls        int
 	closed              bool
 }
@@ -3964,6 +3973,25 @@ func (c *fakeTUIChatClient) Respond(
 
 func (c *fakeTUIChatClient) SessionAPI() rpcclient.SessionAPI {
 	return c
+}
+
+func (c *fakeTUIChatClient) ModelAPI() rpcclient.ModelAPI {
+	return c
+}
+
+func (c *fakeTUIChatClient) ListModels(context.Context) (rpcclient.ModelList, error) {
+	c.listModelCalls++
+	return c.modelList, c.modelListErr
+}
+
+func (c *fakeTUIChatClient) SelectModel(_ context.Context, id string) (rpcclient.ModelOption, error) {
+	c.selectModelCalls++
+	c.selectedModelID = id
+	if strings.TrimSpace(c.selectedModel.ID) != "" {
+		return c.selectedModel, c.selectModelErr
+	}
+
+	return rpcclient.ModelOption{ID: id, Current: true}, c.selectModelErr
 }
 
 func (c *fakeTUIChatClient) Compact(_ context.Context, id string) (rpcclient.CompactSessionResult, error) {

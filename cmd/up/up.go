@@ -117,6 +117,8 @@ var postShutdownServeErrHook = func(err error) error { return err }
 
 var writeRuntimeMetadata = handruntime.WriteActive
 
+var openRPCListener = openRPCListenerImpl
+
 type modelClientFactoryAPI interface {
 	NewClient(modelclient.ClientRequest) (models.Client, error)
 }
@@ -524,6 +526,12 @@ func runDaemonUntilConfigChange(
 	snapshot daemonConfigSnapshot,
 	debounce time.Duration,
 ) (daemonConfigSnapshot, bool, error) {
+	watcher, err := newConfigWatcher(snapshot.inputs.ConfigPath)
+	if err != nil {
+		return daemonConfigSnapshot{}, false, err
+	}
+	defer watcher.close()
+
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -531,17 +539,6 @@ func runDaemonUntilConfigChange(
 	go func() {
 		done <- runDaemonOnce(runCtx, snapshot.cfg)
 	}()
-
-	watcher, err := newConfigWatcher(snapshot.inputs.ConfigPath)
-	if err != nil {
-		cancel()
-		if runErr := <-done; runErr != nil {
-			return daemonConfigSnapshot{}, false, runErr
-		}
-
-		return daemonConfigSnapshot{}, false, err
-	}
-	defer watcher.close()
 
 	var reload <-chan time.Time
 	var timer *time.Timer
@@ -554,13 +551,8 @@ func runDaemonUntilConfigChange(
 		case err := <-done:
 			return daemonConfigSnapshot{}, false, err
 		case <-ctx.Done():
-			cancel()
-			err := <-done
-			if err != nil {
-				return daemonConfigSnapshot{}, false, err
-			}
-
-			return daemonConfigSnapshot{}, false, nil
+			err := waitForDaemonStop(cancel, done)
+			return daemonConfigSnapshot{}, false, err
 		case err, ok := <-watcher.errors:
 			if !ok {
 				watcher.errors = nil
@@ -609,6 +601,11 @@ func runDaemonUntilConfigChange(
 			return next, true, nil
 		}
 	}
+}
+
+func waitForDaemonStop(cancel context.CancelFunc, done <-chan error) error {
+	cancel()
+	return <-done
 }
 
 func resetConfigReloadTimer(timer *time.Timer, debounce time.Duration) (*time.Timer, <-chan time.Time) {
@@ -712,36 +709,61 @@ func runDaemonOnce(ctx context.Context, cfg *config.Config) error {
 		}
 	}
 
+	lis, err := openRPCListener(cfg)
+	if err != nil {
+		return err
+	}
+	defer lis.Close()
+
 	agent := newAgentRunner(ctx, cfg, modelClient, summaryClient, rerankerClient)
 	if err := agent.Start(ctx); err != nil {
+		_ = lis.Close()
 		return err
 	}
 
-	err = serveRPC(ctx, cfg, agent)
+	err = serveRPC(ctx, cfg, agent, lis)
 	if closer, ok := agent.(closeableAgentRunner); ok {
 		if closeErr := closer.Close(); err == nil {
-			err = closeErr
+			if isMissingCredentialLockError(closeErr) {
+				log.Debug().Err(closeErr).Msg("Ignoring missing credential lock during shutdown")
+			} else {
+				err = closeErr
+			}
 		}
 	}
 
 	return err
 }
 
-var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner) error {
+func isMissingCredentialLockError(err error) bool {
+	if err == nil || !os.IsNotExist(err) {
+		return false
+	}
+
+	return strings.Contains(err.Error(), "auth.json.lock")
+}
+
+func openRPCListenerImpl(cfg *config.Config) (net.Listener, error) {
 	lis, err := listenFunc("tcp", fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer lis.Close()
 
 	if tcpAddr, ok := lis.Addr().(*net.TCPAddr); ok {
 		cfg.RPC.Port = tcpAddr.Port
 	}
 	if active := profile.Active(); strings.TrimSpace(active.HomeDir) != "" || strings.TrimSpace(active.RuntimePath) != "" {
 		if _, err := writeRuntimeMetadata(cfg.RPC.Address, cfg.RPC.Port); err != nil {
-			return err
+			_ = lis.Close()
+			return nil, err
 		}
 	}
+
+	return lis, nil
+}
+
+var serveRPC = func(ctx context.Context, cfg *config.Config, agent agentRunner, lis net.Listener) error {
+	defer lis.Close()
 
 	grpcSrv := server.New(agent, server.Options{Health: true})
 

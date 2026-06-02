@@ -17,6 +17,8 @@ const (
 	ModelProviderOpenRouter = "openrouter"
 	// ModelProviderOpenAI identifies OpenAI-backed model access.
 	ModelProviderOpenAI = "openai"
+	// ModelProviderOpenAICodex identifies ChatGPT/Codex OAuth-backed OpenAI model access.
+	ModelProviderOpenAICodex = "openai-codex"
 	// ModelProviderAnthropic identifies Anthropic-backed model access.
 	ModelProviderAnthropic = "anthropic"
 	// ModelProviderGitHubCopilot identifies GitHub Copilot-backed model access.

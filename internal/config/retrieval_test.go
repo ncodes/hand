@@ -289,7 +289,7 @@ func TestConfig_ValidateRejectsInvalidSessionVectorSettings(t *testing.T) {
 			mutate: func(cfg *Config) {
 				cfg.Models.Embedding.Provider = "test"
 			},
-			err: "embedding provider must be one of: anthropic, github-copilot, openai, openrouter",
+			err: "embedding provider must be one of: anthropic, github-copilot, openai, openai-codex, openrouter",
 		},
 		{
 			name: "negative batch size",

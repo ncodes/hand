@@ -49,12 +49,14 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 	original := config.Get()
 	originalNewAgentRunner := newAgentRunner
 	originalServeGRPC := serveRPC
+	originalOpenRPCListener := openRPCListener
 	originalStartupOutput := startupOutput
 
 	t.Cleanup(func() {
 		config.Set(original)
 		newAgentRunner = originalNewAgentRunner
 		serveRPC = originalServeGRPC
+		openRPCListener = originalOpenRPCListener
 		startupOutput = originalStartupOutput
 		logutils.SetOutput(io.Discard)
 	})
@@ -78,12 +80,15 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 		}
 	}
 
-	serveRPC = func(ctx context.Context, cfg *config.Config, app agentRunner) error {
+	serveRPC = func(ctx context.Context, cfg *config.Config, app agentRunner, _ net.Listener) error {
 		serveCalled = true
 		require.Equal(t, "0.0.0.0", cfg.RPC.Address)
 		require.Equal(t, 6000, cfg.RPC.Port)
 		require.NotNil(t, app)
 		return nil
+	}
+	openRPCListener = func(*config.Config) (net.Listener, error) {
+		return noopListener{}, nil
 	}
 
 	cmd := newRootCommandForTest(&configFile)
@@ -213,7 +218,7 @@ func TestNewCommand_RestartsDaemonWhenConfigFileChanges(t *testing.T) {
 
 	servedNames := make(chan string, 2)
 	firstServeStarted := make(chan struct{})
-	serveRPC = func(ctx context.Context, cfg *config.Config, _ agentRunner) error {
+	serveRPC = func(ctx context.Context, cfg *config.Config, _ agentRunner, _ net.Listener) error {
 		servedNames <- cfg.Name
 		if cfg.Name == "first" {
 			close(firstServeStarted)
@@ -289,7 +294,7 @@ func TestNewCommand_KeepsRunningWhenChangedConfigIsInvalid(t *testing.T) {
 	serveStarted := make(chan struct{})
 	serveDone := make(chan struct{})
 	serveCalls := make(chan string, 2)
-	serveRPC = func(ctx context.Context, cfg *config.Config, _ agentRunner) error {
+	serveRPC = func(ctx context.Context, cfg *config.Config, _ agentRunner, _ net.Listener) error {
 		serveCalls <- cfg.Name
 		close(serveStarted)
 		<-ctx.Done()
@@ -489,7 +494,7 @@ func TestRenderStartupPanel_IncludesSummaryProviderAndAPIWhenDistinct(t *testing
 	require.Contains(t, out, "Summary API: openai-responses")
 }
 
-func TestServeRPC_ReturnsListenError(t *testing.T) {
+func TestOpenRPCListener_ReturnsListenError(t *testing.T) {
 	orig := listenFunc
 	t.Cleanup(func() { listenFunc = orig })
 
@@ -497,9 +502,9 @@ func TestServeRPC_ReturnsListenError(t *testing.T) {
 		return nil, errors.New("listen boom")
 	}
 
-	err := serveRPC(context.Background(), &config.Config{
+	_, err := openRPCListener(&config.Config{
 		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 50051},
-	}, &agentstub.AgentRunnerStub{})
+	})
 
 	require.EqualError(t, err, "listen boom")
 }
@@ -618,7 +623,7 @@ func TestRunDaemonWithConfigRestartsReturnsConfigFingerprintError(t *testing.T) 
 	require.EqualError(t, err, "stat failed")
 }
 
-func TestRunDaemonUntilConfigChangeReturnsWatcherSetupError(t *testing.T) {
+func TestRunDaemonUntilConfigChangeReturnsWatcherSetupErrorBeforeStartingDaemon(t *testing.T) {
 	restore := stubDaemonStartup(t)
 	defer restore()
 	originalWatcher := newConfigWatcher
@@ -627,8 +632,8 @@ func TestRunDaemonUntilConfigChangeReturnsWatcherSetupError(t *testing.T) {
 	newConfigWatcher = func(string) (configWatcher, error) {
 		return configWatcher{}, errors.New("watcher failed")
 	}
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner) error {
-		<-ctx.Done()
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+		t.Fatal("serveRPC should not run when config watcher setup fails")
 		return nil
 	}
 
@@ -642,36 +647,13 @@ func TestRunDaemonUntilConfigChangeReturnsWatcherSetupError(t *testing.T) {
 	require.EqualError(t, err, "watcher failed")
 }
 
-func TestRunDaemonUntilConfigChangeKeepsDaemonErrorWhenWatcherSetupFails(t *testing.T) {
-	restore := stubDaemonStartup(t)
-	defer restore()
-	originalWatcher := newConfigWatcher
-	t.Cleanup(func() { newConfigWatcher = originalWatcher })
-
-	newConfigWatcher = func(string) (configWatcher, error) {
-		return configWatcher{}, errors.New("watcher failed")
-	}
-	serveRPC = func(context.Context, *config.Config, agentRunner) error {
-		return errors.New("daemon failed")
-	}
-
-	snapshot := daemonConfigSnapshot{
-		cfg:    newUpTestConfig("daemon"),
-		inputs: handcli.ConfigInputs{ConfigPath: filepath.Join(t.TempDir(), "config.yaml")},
-	}
-	_, restart, err := runDaemonUntilConfigChange(context.Background(), nil, snapshot, 10*time.Millisecond)
-
-	require.False(t, restart)
-	require.EqualError(t, err, "daemon failed")
-}
-
 func TestRunDaemonUntilConfigChangeReturnsDaemonError(t *testing.T) {
 	restore := stubDaemonStartup(t)
 	defer restore()
 	_, _, restoreWatcher := stubConfigWatcher()
 	defer restoreWatcher()
 
-	serveRPC = func(context.Context, *config.Config, agentRunner) error {
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
 		return errors.New("serve failed")
 	}
 
@@ -692,7 +674,7 @@ func TestRunDaemonUntilConfigChangeReturnsStopErrorAfterContextCancel(t *testing
 	defer restoreWatcher()
 
 	serveStarted := make(chan struct{})
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner) error {
+	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener) error {
 		close(serveStarted)
 		<-ctx.Done()
 		return errors.New("stop failed")
@@ -737,7 +719,7 @@ func TestRunDaemonUntilConfigChangeIgnoresConfigStatError(t *testing.T) {
 	}
 
 	serveStarted := make(chan struct{})
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner) error {
+	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener) error {
 		close(serveStarted)
 		<-ctx.Done()
 		return nil
@@ -784,7 +766,7 @@ func TestRunDaemonUntilConfigChangeHandlesWatcherNoise(t *testing.T) {
 	require.NoError(t, err)
 
 	serveStarted := make(chan struct{})
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner) error {
+	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener) error {
 		close(serveStarted)
 		<-ctx.Done()
 		return nil
@@ -874,7 +856,7 @@ func TestRunDaemonUntilConfigChangeReturnsShutdownErrorOnRestart(t *testing.T) {
 	require.NoError(t, err)
 
 	serveStarted := make(chan struct{})
-	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner) error {
+	serveRPC = func(ctx context.Context, _ *config.Config, _ agentRunner, _ net.Listener) error {
 		close(serveStarted)
 		<-ctx.Done()
 		return errors.New("shutdown failed")
@@ -938,7 +920,7 @@ func TestRunDaemonOnceClosesAgentAndReturnsCloseError(t *testing.T) {
 	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
 		return runner
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner) error {
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
 		return nil
 	}
 
@@ -947,6 +929,87 @@ func TestRunDaemonOnceClosesAgentAndReturnsCloseError(t *testing.T) {
 
 	require.EqualError(t, err, "close failed")
 	require.True(t, runner.Closed)
+}
+
+func TestRunDaemonOnceIgnoresMissingCredentialLockCloseError(t *testing.T) {
+	isolateCommandProfile(t)
+	originalFactory := modelClientFactory
+	originalRunner := newAgentRunner
+	originalServe := serveRPC
+	originalOutput := startupOutput
+	t.Cleanup(func() {
+		modelClientFactory = originalFactory
+		newAgentRunner = originalRunner
+		serveRPC = originalServe
+		startupOutput = originalOutput
+	})
+
+	modelClientFactory = modelClientFactoryStub{
+		newClient: func(modelclient.ClientRequest) (models.Client, error) {
+			return &provider_openai.OpenAIClient{}, nil
+		},
+	}
+	startupOutput = io.Discard
+
+	runner := &agentstub.AgentRunnerStub{
+		AgentServiceStub: agentstub.AgentServiceStub{
+			CloseErr: &os.PathError{
+				Op:   "lstat",
+				Path: filepath.Join(t.TempDir(), "auth.json.lock"),
+				Err:  os.ErrNotExist,
+			},
+		},
+	}
+	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
+		return runner
+	}
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+		return nil
+	}
+
+	err := runDaemonOnce(context.Background(), newUpTestConfig("daemon"))
+
+	require.NoError(t, err)
+	require.True(t, runner.Closed)
+}
+
+func TestRunDaemonOnceReturnsRPCListenerErrorBeforeStartingAgent(t *testing.T) {
+	isolateCommandProfile(t)
+	originalFactory := modelClientFactory
+	originalRunner := newAgentRunner
+	originalOpenRPCListener := openRPCListener
+	originalServe := serveRPC
+	originalOutput := startupOutput
+	t.Cleanup(func() {
+		modelClientFactory = originalFactory
+		newAgentRunner = originalRunner
+		openRPCListener = originalOpenRPCListener
+		serveRPC = originalServe
+		startupOutput = originalOutput
+	})
+
+	modelClientFactory = modelClientFactoryStub{
+		newClient: func(modelclient.ClientRequest) (models.Client, error) {
+			return &provider_openai.OpenAIClient{}, nil
+		},
+	}
+	openRPCListener = func(*config.Config) (net.Listener, error) {
+		return nil, errors.New("listen failed")
+	}
+	startupOutput = io.Discard
+
+	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
+		t.Fatal("agent runner should not be created when RPC listener setup fails")
+		return nil
+	}
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
+		t.Fatal("serveRPC should not run when RPC listener setup fails")
+		return nil
+	}
+
+	err := runDaemonOnce(context.Background(), newUpTestConfig("daemon"))
+
+	require.EqualError(t, err, "listen failed")
 }
 
 func TestRunDaemonOnceKeepsServeErrorWhenCloseAlsoFails(t *testing.T) {
@@ -975,7 +1038,7 @@ func TestRunDaemonOnceKeepsServeErrorWhenCloseAlsoFails(t *testing.T) {
 	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
 		return runner
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner) error {
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
 		return errors.New("serve failed")
 	}
 
@@ -1008,7 +1071,7 @@ func TestRunDaemonOnceReturnsSummaryClientFactoryError(t *testing.T) {
 			return &provider_openai.OpenAIClient{}, nil
 		},
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner) error {
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
 		t.Fatal("serveRPC should not run")
 		return nil
 	}
@@ -1051,7 +1114,7 @@ func TestRunDaemonOnceReturnsRerankerClientFactoryError(t *testing.T) {
 	resolveRerankerAuth = func(*config.Config) (config.ModelAuth, error) {
 		return config.ModelAuth{Provider: "anthropic", API: modelprovider.APIAnthropicMessages, APIKey: "reranker-key"}, nil
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner) error {
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
 		t.Fatal("serveRPC should not run")
 		return nil
 	}
@@ -1089,7 +1152,7 @@ func TestRunDaemonOnceReturnsRerankerAuthError(t *testing.T) {
 	resolveRerankerAuth = func(*config.Config) (config.ModelAuth, error) {
 		return config.ModelAuth{}, errors.New("reranker auth failed")
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner) error {
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
 		t.Fatal("serveRPC should not run")
 		return nil
 	}
@@ -1118,9 +1181,8 @@ func TestServeRPC_ReturnsWhenGRPCServeFails(t *testing.T) {
 		return errors.New("serve boom")
 	}
 
-	err := serveRPC(context.Background(), &config.Config{
-		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0},
-	}, &agentstub.AgentRunnerStub{})
+	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
+	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg))
 
 	require.EqualError(t, err, "serve boom")
 }
@@ -1138,9 +1200,8 @@ func TestServeRPC_ReturnsNilWhenGRPCServeReturnsServerStopped(t *testing.T) {
 		return grpc.ErrServerStopped
 	}
 
-	err := serveRPC(context.Background(), &config.Config{
-		RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0},
-	}, &agentstub.AgentRunnerStub{})
+	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
+	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg))
 
 	require.NoError(t, err)
 }
@@ -1164,7 +1225,8 @@ func TestServeRPC_WritesRuntimeMetadataWithActualPort(t *testing.T) {
 	}
 
 	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
-	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{})
+	lis := openTestRPCListener(t, cfg)
+	err := serveRPC(context.Background(), cfg, &agentstub.AgentRunnerStub{}, lis)
 
 	require.NoError(t, err)
 	require.Greater(t, cfg.RPC.Port, 0)
@@ -1196,11 +1258,10 @@ func TestServeRPC_StopsWhenContextCancelled(t *testing.T) {
 	t.Cleanup(func() { listenFunc = orig })
 
 	ctx, cancel := context.WithCancel(context.Background())
+	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
 	done := make(chan error, 1)
 	go func() {
-		done <- serveRPC(ctx, &config.Config{
-			RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0},
-		}, &agentstub.AgentRunnerStub{})
+		done <- serveRPC(ctx, cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg))
 	}()
 
 	time.Sleep(150 * time.Millisecond)
@@ -1233,11 +1294,10 @@ func TestServeRPC_ReturnsPostShutdownServeError(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
 	done := make(chan error, 1)
 	go func() {
-		done <- serveRPC(ctx, &config.Config{
-			RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0},
-		}, &agentstub.AgentRunnerStub{})
+		done <- serveRPC(ctx, cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg))
 	}()
 
 	time.Sleep(150 * time.Millisecond)
@@ -1274,11 +1334,10 @@ func TestServeRPC_ForcesStopWhenGracefulShutdownSlow(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	cfg := &config.Config{RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0}}
 	done := make(chan error, 1)
 	go func() {
-		done <- serveRPC(ctx, &config.Config{
-			RPC: config.RPCConfig{Address: "127.0.0.1", Port: 0},
-		}, &agentstub.AgentRunnerStub{})
+		done <- serveRPC(ctx, cfg, &agentstub.AgentRunnerStub{}, openTestRPCListener(t, cfg))
 	}()
 
 	time.Sleep(150 * time.Millisecond)
@@ -1296,7 +1355,7 @@ func TestNewCommand_ReturnsConfigLoadError(t *testing.T) {
 	isolateCommandProfile(t)
 	origServe := serveRPC
 	t.Cleanup(func() { serveRPC = origServe })
-	serveRPC = func(context.Context, *config.Config, agentRunner) error {
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
 		t.Fatal("serveRPC should not run")
 		return nil
 	}
@@ -1309,6 +1368,29 @@ func TestNewCommand_ReturnsConfigLoadError(t *testing.T) {
 	err := cmd.Run(context.Background(), []string{"hand", "--config", badPath, "up"})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to parse config file")
+}
+
+func openTestRPCListener(t *testing.T, cfg *config.Config) net.Listener {
+	t.Helper()
+
+	lis, err := openRPCListener(cfg)
+	require.NoError(t, err)
+
+	return lis
+}
+
+type noopListener struct{}
+
+func (noopListener) Accept() (net.Conn, error) {
+	return nil, errors.New("listener closed")
+}
+
+func (noopListener) Close() error {
+	return nil
+}
+
+func (noopListener) Addr() net.Addr {
+	return &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0}
 }
 
 type startupWriteFailAlways struct{}
@@ -1338,7 +1420,7 @@ func TestNewCommand_ReturnsStartupOutputError(t *testing.T) {
 		serveRPC = origServe
 	})
 
-	serveRPC = func(context.Context, *config.Config, agentRunner) error { return nil }
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error { return nil }
 
 	configFile := ""
 	cmd := newRootCommandForTest(&configFile)
@@ -1371,7 +1453,7 @@ func TestNewCommand_ReturnsModelClientFactoryError(t *testing.T) {
 		serveRPC = origServe
 	})
 
-	serveRPC = func(context.Context, *config.Config, agentRunner) error { return nil }
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error { return nil }
 	modelClientFactory = modelClientFactoryStub{
 		newClient: func(modelclient.ClientRequest) (models.Client, error) {
 			return nil, errors.New("model factory boom")
@@ -1404,7 +1486,7 @@ func TestNewCommand_ReturnsResolveSummaryAuthError(t *testing.T) {
 		serveRPC = origServe
 	})
 
-	serveRPC = func(context.Context, *config.Config, agentRunner) error { return nil }
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error { return nil }
 	resolveSummaryAuth = func(*config.Config) (config.ModelAuth, error) {
 		return config.ModelAuth{}, errors.New("summary auth boom")
 	}
@@ -1436,7 +1518,7 @@ func TestNewCommand_ReturnsSecondModelClientFactoryError(t *testing.T) {
 		serveRPC = origServe
 	})
 
-	serveRPC = func(context.Context, *config.Config, agentRunner) error { return nil }
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error { return nil }
 
 	var n int
 	modelClientFactory = modelClientFactoryStub{
@@ -1492,7 +1574,7 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
 		return &agentstub.AgentRunnerStub{}
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner) error { return nil }
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error { return nil }
 	startupOutput = io.Discard
 
 	configFile := ""
@@ -1575,7 +1657,7 @@ func TestNewCommand_PassesSeparateRerankerClientWhenAuthDiffers(t *testing.T) {
 		require.NotSame(t, modelClient, rerankerClient)
 		return &agentstub.AgentRunnerStub{}
 	}
-	serveRPC = func(context.Context, *config.Config, agentRunner) error { return nil }
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error { return nil }
 	startupOutput = io.Discard
 
 	configFile := ""
@@ -1625,7 +1707,7 @@ func TestNewCommand_ReturnsAgentStartError(t *testing.T) {
 		serveRPC = origServe
 	})
 
-	serveRPC = func(context.Context, *config.Config, agentRunner) error {
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
 		t.Fatal("serveRPC should not run when Start fails")
 		return nil
 	}
@@ -1689,7 +1771,7 @@ func TestNewCommand_UsesSeparateSummaryClientWhenAuthDiffers(t *testing.T) {
 		}
 	}
 
-	serveRPC = func(context.Context, *config.Config, agentRunner) error {
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
 		serveCalled = true
 		return nil
 	}
@@ -1721,7 +1803,7 @@ func TestNewCommand_ReturnsValidationError(t *testing.T) {
 		serveRPC = originalServeGRPC
 	})
 
-	serveRPC = func(context.Context, *config.Config, agentRunner) error {
+	serveRPC = func(context.Context, *config.Config, agentRunner, net.Listener) error {
 		t.Fatal("serveGRPC should not be called on validation failure")
 		return nil
 	}
@@ -1813,6 +1895,7 @@ func stubDaemonStartup(t *testing.T) func() {
 	originalFactory := modelClientFactory
 	originalRunner := newAgentRunner
 	originalServe := serveRPC
+	originalOpenRPCListener := openRPCListener
 	originalOutput := startupOutput
 
 	modelClientFactory = modelClientFactoryStub{
@@ -1823,12 +1906,16 @@ func stubDaemonStartup(t *testing.T) func() {
 	newAgentRunner = func(context.Context, *config.Config, models.Client, models.Client, models.Client) agentRunner {
 		return &agentstub.AgentRunnerStub{}
 	}
+	openRPCListener = func(*config.Config) (net.Listener, error) {
+		return noopListener{}, nil
+	}
 	startupOutput = io.Discard
 
 	return func() {
 		modelClientFactory = originalFactory
 		newAgentRunner = originalRunner
 		serveRPC = originalServe
+		openRPCListener = originalOpenRPCListener
 		startupOutput = originalOutput
 	}
 }
@@ -1859,7 +1946,7 @@ func newUpTestConfig(name string) *config.Config {
 		"openrouter": {APIKey: "test-key"},
 	}
 	cfg.RPC.Address = "127.0.0.1"
-	cfg.RPC.Port = 50051
+	cfg.RPC.Port = 0
 	cfg.Log.NoColor = true
 	cfg.Normalize()
 

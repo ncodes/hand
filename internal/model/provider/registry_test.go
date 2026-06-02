@@ -56,7 +56,15 @@ func TestDefaultRegistry_RegistersBuiltInProviders(t *testing.T) {
 	require.Equal(t, constants.DefaultOpenAIBaseURL, registry.GetBaseURL("openai", APIOpenAIResponses))
 	require.Equal(t, constants.DefaultOpenAIEmbeddingsBaseURL, registry.GetBaseURL("openai", APIOpenAIEmbeddings))
 	require.Equal(t, []string{"OPENAI_API_KEY"}, openai.APIKeyEnv)
-	require.True(t, openai.SupportsOAuth)
+	require.False(t, openai.SupportsOAuth)
+
+	openaiCodex, ok := registry.GetProvider(constants.ModelProviderOpenAICodex)
+	require.True(t, ok)
+	require.Equal(t, APIOpenAIResponses, openaiCodex.DefaultAPI)
+	require.Equal(t, constants.DefaultOpenAISubscriptionBaseURL, registry.GetBaseURL("openai-codex", ""))
+	require.Equal(t, constants.DefaultOpenAISubscriptionBaseURL, registry.GetBaseURL("openai-codex", APIOpenAIResponses))
+	require.Empty(t, openaiCodex.APIKeyEnv)
+	require.True(t, openaiCodex.SupportsOAuth)
 
 	anthropic, ok := registry.GetProvider(constants.ModelProviderAnthropic)
 	require.True(t, ok)
@@ -80,6 +88,7 @@ func TestDefaultRegistry_RegistersBuiltInProviders(t *testing.T) {
 		constants.ModelProviderAnthropic,
 		constants.ModelProviderGitHubCopilot,
 		constants.ModelProviderOpenAI,
+		constants.ModelProviderOpenAICodex,
 		constants.ModelProviderOpenRouter,
 	}, registry.GetProviderIDs())
 }
@@ -95,26 +104,29 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	require.Equal(t, constants.DefaultContextLength, openAIModel.ContextWindow)
 	require.False(t, openAIModel.SupportsOAuth)
 
-	openAISubscriptionModel, ok := registry.GetModel("openai", "gpt-5.4-mini")
+	openAICodexModel, ok := registry.GetModel("openai-codex", "gpt-5.4")
 	require.True(t, ok)
-	require.Equal(t, constants.ModelProviderOpenAI, openAISubscriptionModel.Owner)
-	require.Equal(t, APIOpenAIResponses, openAISubscriptionModel.API)
-	require.True(t, openAISubscriptionModel.Reasoning)
-	require.True(t, openAISubscriptionModel.SupportsOAuth)
-	require.Equal(t, 272000, openAISubscriptionModel.ContextWindow)
-	require.Equal(t, 128000, openAISubscriptionModel.MaxTokens)
+	require.Equal(t, constants.ModelProviderOpenAI, openAICodexModel.Owner)
+	require.Equal(t, constants.ModelProviderOpenAICodex, openAICodexModel.Provider)
+	require.Equal(t, APIOpenAIResponses, openAICodexModel.API)
+	require.True(t, openAICodexModel.Reasoning)
+	require.True(t, openAICodexModel.SupportsOAuth)
+	require.Equal(t, 272000, openAICodexModel.ContextWindow)
+	require.Equal(t, 128000, openAICodexModel.MaxTokens)
 
 	for _, modelID := range []string{
-		"gpt-5.2",
-		"gpt-5.3-codex",
 		"gpt-5.3-codex-spark",
 		"gpt-5.4",
 		"gpt-5.4-mini",
 		"gpt-5.5",
 	} {
-		model, ok := registry.GetModel("openai", modelID)
+		model, ok := registry.GetModel("openai-codex", modelID)
 		require.True(t, ok)
 		require.True(t, model.SupportsOAuth)
+	}
+	for _, modelID := range []string{"gpt-5.2", "gpt-5.2-codex", "gpt-5.3-codex"} {
+		_, ok = registry.GetModel("openai-codex", modelID)
+		require.False(t, ok, modelID)
 	}
 
 	copilotResponsesModel, ok := registry.GetModel("github-copilot", "gpt-5.4-mini")
@@ -189,12 +201,18 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 		"gpt-5.1-codex",
 		"gpt-5.1-codex-max",
 		"gpt-5.1-codex-mini",
+		"gpt-5.2",
 		"gpt-5.2-chat-latest",
 		"gpt-5.2-codex",
 		"gpt-5.2-pro",
 		"gpt-5.3-chat-latest",
+		"gpt-5.3-codex",
+		"gpt-5.3-codex-spark",
+		"gpt-5.4",
+		"gpt-5.4-mini",
 		"gpt-5.4-nano",
 		"gpt-5.4-pro",
+		"gpt-5.5",
 		"gpt-5.5-pro",
 		"o1",
 		"o1-pro",
@@ -263,6 +281,20 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	haiku, ok := registry.GetModel("anthropic", "claude-3-haiku-20240307")
 	require.True(t, ok)
 	require.Equal(t, APIAnthropicMessages, haiku.API)
+}
+
+func TestRegistry_GetModelsReturnsClonedProviderModels(t *testing.T) {
+	registry := DefaultRegistry()
+
+	models := registry.GetModels(constants.ModelProviderOpenAI)
+	require.NotEmpty(t, models)
+
+	models[0].Input = append(models[0].Input, InputKind("mutated"))
+	fresh := registry.GetModels(constants.ModelProviderOpenAI)
+	require.NotContains(t, fresh[0].Input, InputKind("mutated"))
+
+	require.Empty(t, registry.GetModels("missing"))
+	require.Empty(t, (*Registry)(nil).GetModels(constants.ModelProviderOpenAI))
 }
 
 func TestRegistry_ReturnsCopies(t *testing.T) {
@@ -389,6 +421,7 @@ func TestRegistry_NormalizesDefinitionsAndSkipsIncompleteEntries(t *testing.T) {
 	require.True(t, ok)
 	require.Nil(t, blankMapsProvider.BaseURLs)
 	require.Nil(t, blankMapsProvider.Headers)
+	require.False(t, registry.SupportsProviderAPI("empty", ""))
 
 	model, ok := registry.GetModel("custom", "model-one")
 	require.True(t, ok)

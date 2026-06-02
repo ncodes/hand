@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	agentapi "github.com/wandxy/hand/internal/agent"
+	models "github.com/wandxy/hand/internal/model"
 	handpb "github.com/wandxy/hand/internal/rpc/proto"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
@@ -27,10 +28,15 @@ type Client struct {
 	conn    *grpc.ClientConn
 	client  handpb.HandServiceClient
 	Session *SessionService
+	Model   *ModelService
 }
 
 type SessionService struct {
 	client handpb.SessionServiceClient
+}
+
+type ModelService struct {
+	client handpb.ModelServiceClient
 }
 
 // RespondOptions mirrors agent response options at this package boundary.
@@ -64,6 +70,10 @@ type CreateSessionOptions struct {
 
 type SessionListOptions = storage.SessionListOptions
 
+type ModelOption = models.Option
+
+type ModelList = agentapi.ModelList
+
 // ChatAPI is the chat surface exposed by local and RPC clients.
 type ChatAPI interface {
 	Respond(context.Context, string, RespondOptions) (string, error)
@@ -85,10 +95,16 @@ type SessionAPI interface {
 	Timeline(context.Context, SessionTimelineOptions) (SessionTimeline, error)
 }
 
+type ModelAPI interface {
+	ListModels(context.Context) (ModelList, error)
+	SelectModel(context.Context, string) (ModelOption, error)
+}
+
 // ServiceAPI combines chat and session operations.
 type ServiceAPI interface {
 	ChatAPI
 	SessionAPI() SessionAPI
+	ModelAPI() ModelAPI
 }
 
 // ChatClient is a closable client that can run chat turns.
@@ -130,11 +146,16 @@ func NewClient(ctx context.Context, opts Options) (*Client, error) {
 		conn:    conn,
 		client:  handpb.NewHandServiceClient(conn),
 		Session: NewSessionService(handpb.NewSessionServiceClient(conn)),
+		Model:   NewModelService(handpb.NewModelServiceClient(conn)),
 	}, nil
 }
 
 func NewSessionService(client handpb.SessionServiceClient) *SessionService {
 	return &SessionService{client: client}
+}
+
+func NewModelService(client handpb.ModelServiceClient) *ModelService {
+	return &ModelService{client: client}
 }
 
 func (c *Client) Respond(ctx context.Context, message string, opts RespondOptions) (string, error) {
@@ -153,14 +174,10 @@ func (c *Client) Respond(ctx context.Context, message string, opts RespondOption
 	}
 
 	var builder strings.Builder
-	done := false
 	for {
 		event, recvErr := stream.Recv()
 		if recvErr != nil {
 			if recvErr == io.EOF {
-				if done {
-					break
-				}
 				return builder.String(), errors.New("respond stream ended before done event")
 			}
 			return builder.String(), recvErr
@@ -194,12 +211,9 @@ func (c *Client) Respond(ctx context.Context, message string, opts RespondOption
 			}
 			return builder.String(), errors.New(message)
 		case handpb.RespondEvent_DONE:
-			done = true
 			return builder.String(), nil
 		}
 	}
-
-	return builder.String(), nil
 }
 
 func protoRespondTraceEventToTraceEvent(event *handpb.RespondEvent) (trace.Event, bool) {
@@ -243,6 +257,51 @@ func (c *Client) SessionAPI() SessionAPI {
 	}
 
 	return c.Session
+}
+
+func (c *Client) ModelAPI() ModelAPI {
+	if c == nil {
+		return nil
+	}
+
+	return c.Model
+}
+
+func (s *ModelService) ListModels(ctx context.Context) (ModelList, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return ModelList{}, err
+	}
+
+	resp, err := client.ListModels(ctx, &handpb.ListModelsRequest{})
+	if err != nil {
+		return ModelList{}, err
+	}
+
+	models := make([]ModelOption, 0, len(resp.GetModels()))
+	for _, model := range resp.GetModels() {
+		models = append(models, protoModelOptionToModelOption(model))
+	}
+
+	return ModelList{
+		Provider: strings.TrimSpace(resp.GetProvider()),
+		AuthType: strings.TrimSpace(resp.GetAuthType()),
+		Models:   models,
+	}, nil
+}
+
+func (s *ModelService) SelectModel(ctx context.Context, id string) (ModelOption, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return ModelOption{}, err
+	}
+
+	resp, err := client.SelectModel(ctx, &handpb.SelectModelRequest{Id: strings.TrimSpace(id)})
+	if err != nil {
+		return ModelOption{}, err
+	}
+
+	return protoModelOptionToModelOption(resp.GetModel()), nil
 }
 
 func (s *SessionService) Create(ctx context.Context, id string) (storage.Session, error) {
@@ -492,6 +551,14 @@ func (s *SessionService) getClient() (handpb.SessionServiceClient, error) {
 	return nil, fmt.Errorf("hand: session service client is required")
 }
 
+func (s *ModelService) getClient() (handpb.ModelServiceClient, error) {
+	if s != nil && s.client != nil {
+		return s.client, nil
+	}
+
+	return nil, fmt.Errorf("hand: model service client is required")
+}
+
 func (c *Client) Close() error {
 	if c == nil || c.conn == nil {
 		return nil
@@ -592,6 +659,25 @@ func protoSessionSummaryToSession(summary *handpb.SessionSummary) storage.Sessio
 		Title:       summary.GetTitle(),
 		TitleSource: summary.GetTitleSource(),
 		UpdatedAt:   time.Unix(summary.GetUpdatedAtUnix(), 0).UTC(),
+	}
+}
+
+func protoModelOptionToModelOption(option *handpb.ModelOption) ModelOption {
+	if option == nil {
+		return ModelOption{}
+	}
+
+	return ModelOption{
+		ID:            strings.TrimSpace(option.GetId()),
+		Name:          strings.TrimSpace(option.GetName()),
+		Provider:      strings.TrimSpace(option.GetProvider()),
+		API:           strings.TrimSpace(option.GetApi()),
+		ContextWindow: int(option.GetContextWindow()),
+		MaxTokens:     int(option.GetMaxTokens()),
+		Input:         append([]string(nil), option.GetInput()...),
+		Reasoning:     option.GetReasoning(),
+		SupportsOAuth: option.GetSupportsOauth(),
+		Current:       option.GetCurrent(),
 	}
 }
 

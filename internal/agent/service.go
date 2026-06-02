@@ -3,14 +3,23 @@ package agent
 import (
 	"context"
 
+	models "github.com/wandxy/hand/internal/model"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
 	agentcore "github.com/wandxy/hand/pkg/agent"
 )
 
+type ModelList struct {
+	Provider string
+	AuthType string
+	Models   []models.Option
+}
+
 // ServiceAPI is the agent service surface consumed by RPC, CLI, and TUI adapters.
 type ServiceAPI interface {
 	Respond(context.Context, string, agentcore.RespondOptions) (string, error)
+	ListModels(context.Context) (ModelList, error)
+	SelectModel(context.Context, string) (models.Option, error)
 	CreateSession(context.Context, string) (storage.Session, error)
 	ListSessions(context.Context, ...storage.SessionListOptions) ([]storage.Session, error)
 	UseSession(context.Context, string) error

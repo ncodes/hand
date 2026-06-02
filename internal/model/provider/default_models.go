@@ -31,18 +31,18 @@ func defaultModels() []ModelDefinition {
 		openAIReasoningModel("gpt-5.1-codex", "GPT-5.1 Codex", []InputKind{InputText, InputImage}, 400000, 128000),
 		openAIReasoningModel("gpt-5.1-codex-max", "GPT-5.1 Codex Max", []InputKind{InputText, InputImage}, 400000, 128000),
 		openAIReasoningModel("gpt-5.1-codex-mini", "GPT-5.1 Codex Mini", []InputKind{InputText, InputImage}, 400000, 128000),
-		openAISubscriptionModel("gpt-5.2", "GPT-5.2", []InputKind{InputText, InputImage}, 272000, 128000),
+		openAIReasoningModel("gpt-5.2", "GPT-5.2", []InputKind{InputText, InputImage}, 272000, 128000),
 		openAIReasoningModel("gpt-5.2-chat-latest", "GPT-5.2 Chat Latest", []InputKind{InputText, InputImage}, 128000, 16384),
 		openAIReasoningModel("gpt-5.2-codex", "GPT-5.2 Codex", []InputKind{InputText, InputImage}, 400000, 128000),
 		openAIReasoningModel("gpt-5.2-pro", "GPT-5.2 pro", []InputKind{InputText, InputImage}, 400000, 128000),
 		openAIModel("gpt-5.3-chat-latest", "GPT-5.3 Chat Latest", []InputKind{InputText, InputImage}, 128000, 16384),
-		openAISubscriptionModel("gpt-5.3-codex", "GPT-5.3 Codex", []InputKind{InputText, InputImage}, 272000, 128000),
-		openAISubscriptionModel("gpt-5.3-codex-spark", "GPT-5.3 Codex Spark", []InputKind{InputText}, 272000, 128000),
-		openAISubscriptionModel("gpt-5.4", "GPT-5.4", []InputKind{InputText, InputImage}, 272000, 128000),
-		openAISubscriptionModel("gpt-5.4-mini", "GPT-5.4 mini", []InputKind{InputText, InputImage}, 272000, 128000),
+		openAIReasoningModel("gpt-5.3-codex", "GPT-5.3 Codex", []InputKind{InputText, InputImage}, 272000, 128000),
+		openAIReasoningModel("gpt-5.3-codex-spark", "GPT-5.3 Codex Spark", []InputKind{InputText}, 272000, 128000),
+		openAIReasoningModel("gpt-5.4", "GPT-5.4", []InputKind{InputText, InputImage}, 272000, 128000),
+		openAIReasoningModel("gpt-5.4-mini", "GPT-5.4 mini", []InputKind{InputText, InputImage}, 272000, 128000),
 		openAIReasoningModel("gpt-5.4-nano", "GPT-5.4 nano", []InputKind{InputText, InputImage}, 400000, 128000),
 		openAIReasoningModel("gpt-5.4-pro", "GPT-5.4 pro", []InputKind{InputText, InputImage}, 1050000, 128000),
-		openAISubscriptionModel("gpt-5.5", "GPT-5.5", []InputKind{InputText, InputImage}, 272000, 128000),
+		openAIReasoningModel("gpt-5.5", "GPT-5.5", []InputKind{InputText, InputImage}, 272000, 128000),
 		openAIReasoningModel("gpt-5.5-pro", "GPT-5.5 pro", []InputKind{InputText, InputImage}, 1050000, 128000),
 		openAIReasoningModel("o1", "o1", []InputKind{InputText, InputImage}, 200000, 100000),
 		openAIReasoningModel("o1-pro", "o1 pro", []InputKind{InputText, InputImage}, 200000, 100000),
@@ -61,6 +61,12 @@ func defaultModels() []ModelDefinition {
 			Input:         []InputKind{InputText},
 			ContextWindow: 8191,
 		},
+
+		// OpenAI Codex OAuth models
+		openAICodexModel("gpt-5.3-codex-spark", "GPT-5.3 Codex Spark", []InputKind{InputText}, 272000, 128000),
+		openAICodexModel("gpt-5.4", "GPT-5.4", []InputKind{InputText, InputImage}, 272000, 128000),
+		openAICodexModel("gpt-5.4-mini", "GPT-5.4 mini", []InputKind{InputText, InputImage}, 272000, 128000),
+		openAICodexModel("gpt-5.5", "GPT-5.5", []InputKind{InputText, InputImage}, 272000, 128000),
 
 		// GitHub Copilot models
 		gitHubCopilotAnthropicModel("claude-haiku-4.5", "Claude Haiku 4.5", []InputKind{InputText, InputImage}, 144000, 32000),
@@ -426,17 +432,25 @@ func openAIReasoningModel(
 	return model
 }
 
-func openAISubscriptionModel(
+func openAICodexModel(
 	id string,
 	name string,
 	input []InputKind,
 	contextWindow int,
 	maxTokens int,
 ) ModelDefinition {
-	model := openAIReasoningModel(id, name, input, contextWindow, maxTokens)
-	model.SupportsOAuth = true
-
-	return model
+	return ModelDefinition{
+		ID:            id,
+		Name:          name,
+		Owner:         constants.ModelProviderOpenAI,
+		Provider:      constants.ModelProviderOpenAICodex,
+		API:           APIOpenAIResponses,
+		Input:         input,
+		Reasoning:     true,
+		SupportsOAuth: true,
+		ContextWindow: contextWindow,
+		MaxTokens:     maxTokens,
+	}
 }
 
 func gitHubCopilotResponsesModel(

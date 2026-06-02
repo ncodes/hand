@@ -725,8 +725,11 @@ func checkOAuthModelSupported(
 
 	provider = strings.TrimSpace(strings.ToLower(provider))
 	providerDef, ok := modelRegistry.GetProvider(provider)
-	if !ok || !providerDef.SupportsOAuth {
+	if !ok {
 		return nil
+	}
+	if !providerDef.SupportsOAuth {
+		return fmt.Errorf("%s %q is not available through OAuth for provider %q", field, modelID, provider)
 	}
 
 	model, ok := modelRegistry.GetModel(provider, modelID)
@@ -745,7 +748,8 @@ func (auth *ModelAuth) applySubscriptionDefaults() {
 		auth.CredentialSource.Type != appcredential.TypeOAuth {
 		return
 	}
-	if strings.TrimSpace(strings.ToLower(auth.Provider)) != constants.ModelProviderOpenAI {
+	if strings.TrimSpace(strings.ToLower(auth.Provider)) != constants.ModelProviderOpenAI &&
+		strings.TrimSpace(strings.ToLower(auth.Provider)) != constants.ModelProviderOpenAICodex {
 		return
 	}
 	if !isProviderDefaultBaseURL(auth.BaseURL) {
@@ -763,7 +767,9 @@ func (auth ModelAuth) SupportsMaxOutputTokens() bool {
 		return true
 	}
 
-	return strings.TrimSpace(strings.ToLower(auth.Provider)) != constants.ModelProviderOpenAI
+	provider := strings.TrimSpace(strings.ToLower(auth.Provider))
+	return provider != constants.ModelProviderOpenAI &&
+		provider != constants.ModelProviderOpenAICodex
 }
 
 // SummaryModelSupportsMaxOutputTokens reports whether summary-model dependent
@@ -836,6 +842,7 @@ func refreshStoredModelCredential(provider string) (StoredModelCredential, bool,
 		return StoredModelCredential{}, false, nil
 	}
 
+	provider = strings.TrimSpace(strings.ToLower(provider))
 	return refreshStoredProviderToken(context.Background(), provider)
 }
 
@@ -844,6 +851,7 @@ func loadStoredModelCredential(provider string) (StoredModelCredential, error) {
 		return StoredModelCredential{}, nil
 	}
 
+	provider = strings.TrimSpace(strings.ToLower(provider))
 	credential, err := loadStoredProviderToken(provider)
 	if err != nil {
 		return StoredModelCredential{}, err

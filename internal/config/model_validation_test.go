@@ -133,7 +133,7 @@ func TestConfig_ValidateRejectsUnsupportedProvider(t *testing.T) {
 		},
 		Log: LogConfig{Level: "info"},
 	}).Validate()
-	require.EqualError(t, err, "model provider must be one of: anthropic, github-copilot, openai, openrouter")
+	require.EqualError(t, err, "model provider must be one of: anthropic, github-copilot, openai, openai-codex, openrouter")
 }
 
 func TestConfig_ValidateRejectsProviderAPIIncompatibilityWithoutNetwork(t *testing.T) {

@@ -165,7 +165,7 @@ func TestAgent_MaybeGenerateSessionTitleSkipsExistingMissingAndMessageErrors(t *
 
 func TestAgent_GenerateSessionTitleOmitsMaxOutputTokensForOpenAISubscription(t *testing.T) {
 	setSessionTitleTestProfileHome(t, t.TempDir())
-	require.NoError(t, appcredential.NewFileStore("").Set(constants.ModelProviderOpenAI, appcredential.StoredCredential{
+	require.NoError(t, appcredential.NewFileStore("").Set(constants.ModelProviderOpenAICodex, appcredential.StoredCredential{
 		Type:  appcredential.TypeOAuth,
 		Token: "subscription-token",
 	}))
@@ -174,8 +174,8 @@ func TestAgent_GenerateSessionTitleOmitsMaxOutputTokensForOpenAISubscription(t *
 	core := &Agent{
 		cfg: &config.Config{Models: config.ModelsConfig{
 			Main: config.MainModelConfig{
-				Name:     "gpt-5.4-mini",
-				Provider: constants.ModelProviderOpenAI,
+				Name:     "gpt-5.4",
+				Provider: constants.ModelProviderOpenAICodex,
 				API:      models.APIOpenAIResponses,
 			},
 		}},

@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/wandxy/hand/internal/constants"
+	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 )
 
@@ -75,6 +76,9 @@ type commandViewState struct {
 	Content         string
 	Height          int
 	Chats           []storage.Session
+	Models          []rpcclient.ModelOption
+	ModelProvider   string
+	ModelAuthType   string
 }
 
 type commandViewSelection struct {

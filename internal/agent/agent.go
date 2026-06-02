@@ -12,9 +12,11 @@ import (
 	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
+	appcredential "github.com/wandxy/hand/internal/credential"
 	"github.com/wandxy/hand/internal/environment"
 	"github.com/wandxy/hand/internal/guardrails"
 	models "github.com/wandxy/hand/internal/model"
+	"github.com/wandxy/hand/internal/profile"
 	storage "github.com/wandxy/hand/internal/state/core"
 	statemanager "github.com/wandxy/hand/internal/state/manager"
 	"github.com/wandxy/hand/internal/state/search"
@@ -140,6 +142,82 @@ func (a *Agent) Start(ctx context.Context) error {
 	a.initialized = true
 
 	agentLog.Info().Msg("agent started")
+
+	return nil
+}
+
+func (a *Agent) ListModels(context.Context) (ModelList, error) {
+	if a == nil {
+		return ModelList{}, errors.New("agent is required")
+	}
+	if a.cfg == nil {
+		return ModelList{}, errors.New("config is required")
+	}
+
+	auth, err := a.cfg.ResolveModelAuth()
+	if err != nil {
+		return ModelList{}, err
+	}
+
+	provider := strings.TrimSpace(auth.Provider)
+	authType := auth.AuthType()
+
+	return ModelList{
+		Provider: provider,
+		AuthType: authType,
+		Models: models.ListOptions(models.OptionQuery{
+			Provider:  provider,
+			Current:   a.cfg.Models.Main.Name,
+			OAuthOnly: authType == appcredential.TypeOAuth,
+		}),
+	}, nil
+}
+
+func (a *Agent) SelectModel(ctx context.Context, id string) (models.Option, error) {
+	if a == nil {
+		return models.Option{}, errors.New("agent is required")
+	}
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return models.Option{}, errors.New("model id is required")
+	}
+
+	list, err := a.ListModels(ctx)
+	if err != nil {
+		return models.Option{}, err
+	}
+
+	var selected models.Option
+	for _, option := range list.Models {
+		if strings.TrimSpace(option.ID) == id {
+			selected = option
+			selected.Current = true
+			break
+		}
+	}
+	if strings.TrimSpace(selected.ID) == "" {
+		return models.Option{}, fmt.Errorf("model %q is not available for provider %q with %s auth",
+			id, list.Provider, list.AuthType)
+	}
+
+	active := profile.WithMetadataPaths(profile.Active())
+	if err := saveMainModelSelection(active.EnvPath, active.ConfigPath, id); err != nil {
+		return models.Option{}, err
+	}
+
+	return selected, nil
+}
+
+func saveMainModelSelection(envPath string, configPath string, id string) error {
+	configPath = strings.TrimSpace(configPath)
+	if configPath == "" {
+		return errors.New("profile config path is required")
+	}
+
+	if _, err := config.SetConfigValue(envPath, configPath, "models.main.name", strings.TrimSpace(id)); err != nil {
+		return err
+	}
 
 	return nil
 }

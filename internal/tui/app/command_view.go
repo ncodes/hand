@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 )
 
@@ -18,6 +19,7 @@ const (
 
 	commandViewKindArchive = "archive"
 	commandViewKindChats   = "chats"
+	commandViewKindModels  = "models"
 )
 
 type commandViewPayload struct {
@@ -31,6 +33,9 @@ type commandViewPayload struct {
 	Height          int
 	Kind            string
 	Chats           []storage.Session
+	Models          []rpcclient.ModelOption
+	ModelProvider   string
+	ModelAuthType   string
 }
 
 type commandViewSelectionAutoScrollTickMsg struct{}
@@ -81,7 +86,7 @@ func (m model) renderCommandView() string {
 	}
 
 	height := frame.Height
-	if m.isSessionListCommandView() {
+	if m.isSessionListCommandView() || m.isModelsCommandView() {
 		height++
 	}
 
@@ -117,6 +122,13 @@ func (m model) getCommandViewFrame() commandViewFrame {
 	})
 	if m.isSessionListCommandView() {
 		content = m.renderSessionListCommandViewContent(commandViewContent{
+			Width:  contentWidth,
+			Height: contentHeight,
+			Offset: m.commandViewOffset,
+		})
+	}
+	if m.isModelsCommandView() {
+		content = m.renderModelsCommandViewContent(commandViewContent{
 			Width:  contentWidth,
 			Height: contentHeight,
 			Offset: m.commandViewOffset,
@@ -283,6 +295,9 @@ func (m *model) updateCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if m.isChatsCommandView() {
 		return m.updateChatsCommandView(msg)
+	}
+	if m.isModelsCommandView() {
+		return m.updateModelsCommandView(msg)
 	}
 
 	offset := m.commandViewOffset
@@ -544,6 +559,9 @@ func (m model) commandViewSelectionScrollDirection(mouse tea.Mouse) int {
 func (m model) getCommandViewMaxYOffset() int {
 	if m.isSessionListCommandView() {
 		return max(len(m.commandView.Chats)-m.getCommandViewContentHeight(), 0)
+	}
+	if m.isModelsCommandView() {
+		return max(len(m.commandView.Models)-m.getCommandViewContentHeight(), 0)
 	}
 
 	view := m.newCommandViewContentViewport(commandViewContent{

@@ -22,13 +22,14 @@ const (
 
 // model is the root Bubble Tea application state for the interactive shell.
 type model struct {
-	transcript viewport.Model
-	input      textarea.Model
-	nameInput  textinput.Model
+	transcript  viewport.Model
+	input       textarea.Model
+	nameInput   textinput.Model
 	renameInput textinput.Model
 	tuiState
 	chatClient    rpcclient.ChatAPI
 	sessionClient rpcclient.SessionAPI
+	modelClient   rpcclient.ModelAPI
 	timeline      sessionTimelineLoader
 	title         sessionTitleLoader
 	contextLoader sessionContextLoader
@@ -61,13 +62,13 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	userName, userNameSet, namePromptEnabled, userNameErr := loadProfileUserName()
 	runtimeInfo := runtimeInfoFromConfig(cfg)
 	appModel := model{
-		transcript: newTranscript(),
-		input:      newInputComposer(),
-		nameInput:  newNameInput(),
+		transcript:  newTranscript(),
+		input:       newInputComposer(),
+		nameInput:   newNameInput(),
 		renameInput: newChatRenameInput(),
-		tuiState:   newTUIState(history, cfg.TUIThinkingComposerEnabled()),
-		chatClient: client,
-		chatCtx:    ctx,
+		tuiState:    newTUIState(history, cfg.TUIThinkingComposerEnabled()),
+		chatClient:  client,
+		chatCtx:     ctx,
 	}
 	if userNameSet {
 		appModel.userName = userName
@@ -80,6 +81,12 @@ func newModelWithClientContextAndConfig(ctx context.Context, client rpcclient.Ch
 	}
 	if provider, ok := client.(interface{ SessionAPI() rpcclient.SessionAPI }); ok {
 		appModel.sessionClient = provider.SessionAPI()
+	}
+	if models, ok := client.(rpcclient.ModelAPI); ok {
+		appModel.modelClient = models
+	}
+	if provider, ok := client.(interface{ ModelAPI() rpcclient.ModelAPI }); ok {
+		appModel.modelClient = provider.ModelAPI()
 	}
 	if timeline, ok := appModel.sessionClient.(sessionTimelineLoader); ok {
 		appModel.timeline = timeline

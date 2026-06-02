@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	agentapi "github.com/wandxy/hand/internal/agent"
+	models "github.com/wandxy/hand/internal/model"
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 	storage "github.com/wandxy/hand/internal/state/core"
 	"github.com/wandxy/hand/internal/state/search"
@@ -47,6 +48,10 @@ type AgentServiceStub struct {
 	StatusResult         rpcclient.ContextStatus
 	TimelineOptions      agentapi.SessionTimelineOptions
 	TimelineResult       agentapi.SessionTimeline
+	ModelList            agentapi.ModelList
+	SelectedModel        models.Option
+	SelectedModelID      string
+	SelectModelErr       error
 }
 
 func (s *AgentServiceStub) Respond(_ context.Context, msg string, opts rpcclient.RespondOptions) (string, error) {
@@ -80,6 +85,26 @@ func (s *AgentServiceStub) Respond(_ context.Context, msg string, opts rpcclient
 
 func (s *AgentServiceStub) SessionAPI() rpcclient.SessionAPI {
 	return s
+}
+
+func (s *AgentServiceStub) ModelAPI() rpcclient.ModelAPI {
+	return s
+}
+
+func (s *AgentServiceStub) ListModels(context.Context) (agentapi.ModelList, error) {
+	return s.ModelList, s.Err
+}
+
+func (s *AgentServiceStub) SelectModel(_ context.Context, id string) (models.Option, error) {
+	s.SelectedModelID = id
+	if s.SelectModelErr != nil {
+		return models.Option{}, s.SelectModelErr
+	}
+	if strings.TrimSpace(s.SelectedModel.ID) != "" {
+		return s.SelectedModel, s.Err
+	}
+
+	return models.Option{ID: id, Current: true}, s.Err
 }
 
 func (s *AgentServiceStub) Create(ctx context.Context, id string) (storage.Session, error) {

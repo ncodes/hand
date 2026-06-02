@@ -262,6 +262,18 @@ func (c *fakeTUIChatClient) SessionAPI() rpcclient.SessionAPI {
 	return c
 }
 
+func (c *fakeTUIChatClient) ModelAPI() rpcclient.ModelAPI {
+	return c
+}
+
+func (c *fakeTUIChatClient) ListModels(context.Context) (rpcclient.ModelList, error) {
+	return rpcclient.ModelList{}, nil
+}
+
+func (c *fakeTUIChatClient) SelectModel(context.Context, string) (rpcclient.ModelOption, error) {
+	return rpcclient.ModelOption{}, nil
+}
+
 func (c *fakeTUIChatClient) Timeline(
 	context.Context,
 	rpcclient.SessionTimelineOptions,

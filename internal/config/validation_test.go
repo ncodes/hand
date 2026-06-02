@@ -92,7 +92,7 @@ func TestConfig_ValidateRejectsInvalidSummaryProvider(t *testing.T) {
 		Log: LogConfig{Level: "info"},
 	}).Validate()
 
-	require.EqualError(t, err, "summary model provider must be one of: anthropic, github-copilot, openai, openrouter")
+	require.EqualError(t, err, "summary model provider must be one of: anthropic, github-copilot, openai, openai-codex, openrouter")
 }
 
 func TestConfig_ValidateRejectsNegativeModelMaxRetries(t *testing.T) {

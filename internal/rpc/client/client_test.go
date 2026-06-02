@@ -43,6 +43,32 @@ func TestClient_RespondSendsSessionID(t *testing.T) {
 	require.Equal(t, "project-a", stub.Req.GetId())
 }
 
+func TestClient_RespondSendsStreamOption(t *testing.T) {
+	stream := false
+	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_DONE},
+	}}
+	client := &Client{client: stub}
+
+	reply, err := client.Respond(context.Background(), "hello", RespondOptions{Stream: &stream})
+
+	require.NoError(t, err)
+	require.Empty(t, reply)
+	require.NotNil(t, stub.Req.Stream)
+	require.False(t, stub.Req.GetStream())
+}
+
+func TestClient_RespondPropagatesRPCError(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	client := &Client{client: stub}
+
+	reply, err := client.Respond(context.Background(), "hello", RespondOptions{})
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, reply)
+	require.Equal(t, "hello", stub.Req.GetMessage())
+}
+
 func TestClient_RespondStreamsTextDeltas(t *testing.T) {
 	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
 		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "hello ", Channel: handpb.RespondEvent_ASSISTANT},
@@ -76,6 +102,46 @@ func TestClient_RespondRejectsStreamThatEndsBeforeDone(t *testing.T) {
 
 	require.Equal(t, "partial", reply)
 	require.EqualError(t, err, "respond stream ended before done event")
+}
+
+func TestClient_RespondPropagatesStreamReceiveError(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{
+		Events: []*handpb.RespondEvent{
+			{Type: handpb.RespondEvent_TEXT_DELTA, Text: "partial", Channel: handpb.RespondEvent_ASSISTANT},
+		},
+		RecvErr: context.Canceled,
+	}
+	client := &Client{client: stub}
+
+	reply, err := client.Respond(context.Background(), "hello", RespondOptions{})
+
+	require.Equal(t, "partial", reply)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestClient_RespondReturnsStreamErrorEvent(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "partial", Channel: handpb.RespondEvent_ASSISTANT},
+		{Type: handpb.RespondEvent_ERROR, Error: " model unavailable "},
+	}}
+	client := &Client{client: stub}
+
+	reply, err := client.Respond(context.Background(), "hello", RespondOptions{})
+
+	require.Equal(t, "partial", reply)
+	require.EqualError(t, err, "model unavailable")
+}
+
+func TestClient_RespondReturnsDefaultStreamErrorMessage(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_ERROR},
+	}}
+	client := &Client{client: stub}
+
+	reply, err := client.Respond(context.Background(), "hello", RespondOptions{})
+
+	require.Empty(t, reply)
+	require.EqualError(t, err, "respond stream failed")
 }
 
 func TestClient_RespondIgnoresReasoningForFinalReplyAndExposesEvents(t *testing.T) {
@@ -162,6 +228,26 @@ func TestClient_RespondIgnoresMalformedTraceEvents(t *testing.T) {
 	require.Equal(t, []Event{{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: "safe"}}, events)
 }
 
+func TestClient_RespondIgnoresTraceEventWithoutType(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Events: []*handpb.RespondEvent{
+		{Type: handpb.RespondEvent_TRACE_EVENT, TraceSessionId: "default"},
+		{Type: handpb.RespondEvent_TEXT_DELTA, Text: "safe", Channel: handpb.RespondEvent_ASSISTANT},
+		{Type: handpb.RespondEvent_DONE},
+	}}
+	client := &Client{client: stub}
+
+	var events []Event
+	reply, err := client.Respond(context.Background(), "hello", RespondOptions{
+		OnEvent: func(event Event) {
+			events = append(events, event)
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "safe", reply)
+	require.Equal(t, []Event{{Kind: agent.EventKindTextDelta, Channel: "assistant", Text: "safe"}}, events)
+}
+
 func TestClient_CreateSessionReturnsSummary(t *testing.T) {
 	stub := &protomock.HandServiceClientStub{
 		CreateResp: &handpb.CreateSessionResponse{
@@ -226,6 +312,12 @@ func TestClient_CreateSessionWithOptionsReturnsEmptySessionForMissingSummary(t *
 	require.NoError(t, err)
 	require.Empty(t, session.ID)
 	require.Equal(t, "project-a", stub.CreateReq.GetId())
+}
+
+func TestClient_CreateSessionWithOptionsRequiresClient(t *testing.T) {
+	_, err := (*SessionService)(nil).CreateWithOptions(context.Background(), CreateSessionOptions{})
+
+	require.EqualError(t, err, "hand: session service client is required")
 }
 
 func TestClient_ListSessionsReturnsItems(t *testing.T) {
@@ -299,6 +391,22 @@ func TestClient_UseSessionSendsSessionID(t *testing.T) {
 	err := client.Use(context.Background(), "project-a")
 
 	require.NoError(t, err)
+	require.Equal(t, "project-a", stub.UseReq.GetId())
+}
+
+func TestClient_UseSessionRequiresClient(t *testing.T) {
+	err := (*SessionService)(nil).Use(context.Background(), "project-a")
+
+	require.EqualError(t, err, "hand: session service client is required")
+}
+
+func TestClient_UseSessionReturnsRPCError(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	client := NewSessionService(stub)
+
+	err := client.Use(context.Background(), "project-a")
+
+	require.ErrorIs(t, err, context.Canceled)
 	require.Equal(t, "project-a", stub.UseReq.GetId())
 }
 
@@ -396,6 +504,16 @@ func TestClient_ArchiveSessionRequiresClient(t *testing.T) {
 	require.EqualError(t, err, "hand: session service client is required")
 }
 
+func TestClient_ArchiveSessionReturnsRPCError(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	client := NewSessionService(stub)
+
+	err := client.Archive(context.Background(), "project-a")
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, "project-a", stub.ArchiveReq.GetId())
+}
+
 func TestClient_CurrentSessionReturnsValue(t *testing.T) {
 	stub := &protomock.HandServiceClientStub{CurrentResp: &handpb.CurrentSessionResponse{
 		Id:          "project-a",
@@ -410,6 +528,22 @@ func TestClient_CurrentSessionReturnsValue(t *testing.T) {
 	require.Equal(t, "project-a", session.ID)
 	require.Equal(t, "Project Planning", session.Title)
 	require.Equal(t, storage.SessionTitleSourceGenerated, session.TitleSource)
+}
+
+func TestClient_CurrentSessionRequiresClient(t *testing.T) {
+	_, err := (*SessionService)(nil).Current(context.Background())
+
+	require.EqualError(t, err, "hand: session service client is required")
+}
+
+func TestClient_CurrentSessionReturnsRPCError(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	client := NewSessionService(stub)
+
+	session, err := client.Current(context.Background())
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, session.ID)
 }
 
 func TestClient_CompactSessionReturnsResult(t *testing.T) {
@@ -434,6 +568,23 @@ func TestClient_CompactSessionReturnsResult(t *testing.T) {
 	require.Equal(t, now, result.UpdatedAt)
 	require.Equal(t, 4000, result.CurrentContextLength)
 	require.Equal(t, 128000, result.TotalContextLength)
+}
+
+func TestClient_CompactSessionRequiresClient(t *testing.T) {
+	_, err := (*SessionService)(nil).Compact(context.Background(), "project-a")
+
+	require.EqualError(t, err, "hand: session service client is required")
+}
+
+func TestClient_CompactSessionReturnsRPCError(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	client := NewSessionService(stub)
+
+	result, err := client.Compact(context.Background(), "project-a")
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, result.SessionID)
+	require.Equal(t, "project-a", stub.CompactReq.GetId())
 }
 
 func TestClient_RepairSessionReturnsResult(t *testing.T) {
@@ -473,6 +624,23 @@ func TestClient_RepairSessionReturnsResult(t *testing.T) {
 	require.Equal(t, 10, result.Batches)
 }
 
+func TestClient_RepairSessionRequiresClient(t *testing.T) {
+	_, err := (*SessionService)(nil).Repair(context.Background(), RepairSessionOptions{})
+
+	require.EqualError(t, err, "hand: session service client is required")
+}
+
+func TestClient_RepairSessionReturnsRPCError(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	client := NewSessionService(stub)
+
+	result, err := client.Repair(context.Background(), RepairSessionOptions{SessionID: "project-a"})
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Zero(t, result)
+	require.Equal(t, "project-a", stub.RepairReq.GetVector().GetId())
+}
+
 func TestClient_GetSessionStatusReturnsResult(t *testing.T) {
 	created := time.Date(2024, 4, 1, 10, 0, 0, 0, time.UTC)
 	updated := time.Date(2024, 4, 2, 11, 0, 0, 0, time.UTC)
@@ -508,6 +676,33 @@ func TestClient_GetSessionStatusReturnsResult(t *testing.T) {
 	require.True(t, created.Equal(result.CreatedAt))
 	require.True(t, updated.Equal(result.UpdatedAt))
 	require.Equal(t, "pending", result.CompactionStatus)
+}
+
+func TestClient_GetSessionStatusRequiresClient(t *testing.T) {
+	_, err := (*SessionService)(nil).Status(context.Background(), "project-a")
+
+	require.EqualError(t, err, "hand: session service client is required")
+}
+
+func TestClient_GetSessionStatusReturnsRPCError(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{Err: context.Canceled}
+	client := NewSessionService(stub)
+
+	result, err := client.Status(context.Background(), "project-a")
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, result.SessionID)
+	require.Equal(t, "project-a", stub.StatusReq.GetContext().GetId())
+}
+
+func TestClient_GetSessionStatusRequiresResponseContext(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{StatusResp: &handpb.GetSessionStatusResponse{Id: "project-a"}}
+	client := NewSessionService(stub)
+
+	result, err := client.Status(context.Background(), "project-a")
+
+	require.EqualError(t, err, "hand: get session status response context is required")
+	require.Empty(t, result.SessionID)
 }
 
 func TestClient_GetSessionTimelineReturnsResult(t *testing.T) {
@@ -598,7 +793,7 @@ func TestClient_GetSessionTimelineReturnsDecodeErrors(t *testing.T) {
 		TraceEvents: []*handpb.SessionTimelineTraceEvent{{PayloadJson: "{"}},
 	}})
 	_, err = client.Timeline(context.Background(), SessionTimelineOptions{})
-	require.Error(t, err)
+	require.ErrorContains(t, err, "unexpected end of JSON input")
 }
 
 func TestClient_GetSessionTimelineReturnsRPCError(t *testing.T) {
@@ -610,13 +805,105 @@ func TestClient_GetSessionTimelineReturnsRPCError(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestClient_GetSessionTimelineRequiresClient(t *testing.T) {
+	_, err := (*SessionService)(nil).Timeline(context.Background(), SessionTimelineOptions{})
+
+	require.EqualError(t, err, "hand: session service client is required")
+}
+
+func TestModelService_ListModelsReturnsProviderAuthAndOptions(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{ModelsResp: &handpb.ListModelsResponse{
+		Provider: "openai",
+		AuthType: "oauth",
+		Models: []*handpb.ModelOption{{
+			Id:            " gpt-5.4-mini ",
+			Name:          " GPT 5.4 Mini ",
+			Provider:      " openai ",
+			Api:           " openai-responses ",
+			ContextWindow: 272000,
+			MaxTokens:     128000,
+			Input:         []string{"text", "image"},
+			Reasoning:     true,
+			SupportsOauth: true,
+			Current:       true,
+		}},
+	}}
+	client := NewModelService(stub)
+
+	list, err := client.ListModels(context.Background())
+
+	require.NoError(t, err)
+	require.NotNil(t, stub.ModelsReq)
+	require.Equal(t, "openai", list.Provider)
+	require.Equal(t, "oauth", list.AuthType)
+	require.Len(t, list.Models, 1)
+	require.Equal(t, "gpt-5.4-mini", list.Models[0].ID)
+	require.Equal(t, "GPT 5.4 Mini", list.Models[0].Name)
+	require.Equal(t, "openai", list.Models[0].Provider)
+	require.Equal(t, "openai-responses", list.Models[0].API)
+	require.Equal(t, 272000, list.Models[0].ContextWindow)
+	require.Equal(t, 128000, list.Models[0].MaxTokens)
+	require.Equal(t, []string{"text", "image"}, list.Models[0].Input)
+	require.True(t, list.Models[0].Reasoning)
+	require.True(t, list.Models[0].SupportsOAuth)
+	require.True(t, list.Models[0].Current)
+}
+
+func TestModelService_SelectModelSendsTrimmedID(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{SelectResp: &handpb.SelectModelResponse{
+		Model: &handpb.ModelOption{Id: "gpt-4o", Current: true},
+	}}
+	client := NewModelService(stub)
+
+	model, err := client.SelectModel(context.Background(), " gpt-4o ")
+
+	require.NoError(t, err)
+	require.Equal(t, "gpt-4o", stub.SelectReq.GetId())
+	require.Equal(t, "gpt-4o", model.ID)
+	require.True(t, model.Current)
+}
+
+func TestModelService_ReturnsClientErrors(t *testing.T) {
+	_, err := (*ModelService)(nil).ListModels(context.Background())
+	require.EqualError(t, err, "hand: model service client is required")
+
+	_, err = (*ModelService)(nil).SelectModel(context.Background(), "gpt-4o")
+	require.EqualError(t, err, "hand: model service client is required")
+
+	require.Nil(t, (*Client)(nil).ModelAPI())
+	wrapped := &Client{Model: NewModelService(&protomock.HandServiceClientStub{})}
+	require.NotNil(t, wrapped.ModelAPI())
+
+	client := NewModelService(&protomock.HandServiceClientStub{Err: context.Canceled})
+	list, err := client.ListModels(context.Background())
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, list.Provider)
+	require.Empty(t, list.Models)
+
+	model, err := client.SelectModel(context.Background(), "gpt-4o")
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, model.ID)
+}
+
 func TestTimelineProtoAdaptersHandleNilRecords(t *testing.T) {
+	traceEvent, ok := protoRespondTraceEventToTraceEvent(nil)
+	require.False(t, ok)
+	require.Zero(t, traceEvent)
+
 	message := timelineMessageFromProto(nil)
 	require.Zero(t, message)
+
+	model := protoModelOptionToModelOption(nil)
+	require.Zero(t, model)
 
 	event, err := timelineTraceEventFromProto(nil)
 	require.NoError(t, err)
 	require.Zero(t, event)
+
+	session := protoSessionSummaryToSession(nil)
+	require.Zero(t, session)
+
+	require.Zero(t, protoTimestampToTime(nil))
 }
 
 func TestNewClient_ValidatesOptions(t *testing.T) {
@@ -625,6 +912,9 @@ func TestNewClient_ValidatesOptions(t *testing.T) {
 
 	_, err = NewClient(context.Background(), Options{Address: "127.0.0.1"})
 	require.EqualError(t, err, "rpc port must be greater than zero")
+
+	_, err = NewClient(context.Background(), Options{Address: "\x00", Port: 1})
+	require.ErrorContains(t, err, "invalid control character")
 }
 
 func TestNewClient_CreatesConnection(t *testing.T) {
@@ -638,4 +928,18 @@ func TestNewClient_CreatesConnection(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, client.Close())
+}
+
+func TestClient_ServiceAPIsAndCloseHandleNilValues(t *testing.T) {
+	require.Nil(t, (*Client)(nil).SessionAPI())
+	require.Nil(t, (*Client)(nil).ModelAPI())
+	require.NoError(t, (*Client)(nil).Close())
+	require.NoError(t, (&Client{}).Close())
+
+	wrapped := &Client{
+		Session: NewSessionService(&protomock.HandServiceClientStub{}),
+		Model:   NewModelService(&protomock.HandServiceClientStub{}),
+	}
+	require.NotNil(t, wrapped.SessionAPI())
+	require.NotNil(t, wrapped.ModelAPI())
 }

@@ -24,6 +24,11 @@ service SessionService {
   rpc Timeline(GetSessionTimelineRequest) returns (GetSessionTimelineResponse);
 }
 
+service ModelService {
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+  rpc SelectModel(SelectModelRequest) returns (SelectModelResponse);
+}
+
 message RespondRequest {
   string message = 1;
   string instruct = 2;
@@ -238,4 +243,33 @@ message GetSessionTimelineResponse {
   int32 last_trace_sequence = 8;
   string title = 9;
   string title_source = 10;
+}
+
+message ListModelsRequest {}
+
+message ModelOption {
+  string id = 1;
+  string name = 2;
+  string provider = 3;
+  string api = 4;
+  int32 context_window = 5;
+  int32 max_tokens = 6;
+  repeated string input = 7;
+  bool reasoning = 8;
+  bool supports_oauth = 9;
+  bool current = 10;
+}
+
+message ListModelsResponse {
+  string provider = 1;
+  string auth_type = 2;
+  repeated ModelOption models = 3;
+}
+
+message SelectModelRequest {
+  string id = 1;
+}
+
+message SelectModelResponse {
+  ModelOption model = 1;
 }
