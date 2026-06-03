@@ -606,16 +606,20 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	ModelService_ListModels_FullMethodName  = "/hand.v1.ModelService/ListModels"
-	ModelService_SelectModel_FullMethodName = "/hand.v1.ModelService/SelectModel"
+	ModelService_ListProviders_FullMethodName     = "/hand.v1.ModelService/ListProviders"
+	ModelService_ListModels_FullMethodName        = "/hand.v1.ModelService/ListModels"
+	ModelService_SelectModel_FullMethodName       = "/hand.v1.ModelService/SelectModel"
+	ModelService_SetProviderAPIKey_FullMethodName = "/hand.v1.ModelService/SetProviderAPIKey"
 )
 
 // ModelServiceClient is the client API for ModelService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ModelServiceClient interface {
+	ListProviders(ctx context.Context, in *ListProvidersRequest, opts ...grpc.CallOption) (*ListProvidersResponse, error)
 	ListModels(ctx context.Context, in *ListModelsRequest, opts ...grpc.CallOption) (*ListModelsResponse, error)
 	SelectModel(ctx context.Context, in *SelectModelRequest, opts ...grpc.CallOption) (*SelectModelResponse, error)
+	SetProviderAPIKey(ctx context.Context, in *SetProviderAPIKeyRequest, opts ...grpc.CallOption) (*SetProviderAPIKeyResponse, error)
 }
 
 type modelServiceClient struct {
@@ -624,6 +628,16 @@ type modelServiceClient struct {
 
 func NewModelServiceClient(cc grpc.ClientConnInterface) ModelServiceClient {
 	return &modelServiceClient{cc}
+}
+
+func (c *modelServiceClient) ListProviders(ctx context.Context, in *ListProvidersRequest, opts ...grpc.CallOption) (*ListProvidersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListProvidersResponse)
+	err := c.cc.Invoke(ctx, ModelService_ListProviders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *modelServiceClient) ListModels(ctx context.Context, in *ListModelsRequest, opts ...grpc.CallOption) (*ListModelsResponse, error) {
@@ -646,12 +660,24 @@ func (c *modelServiceClient) SelectModel(ctx context.Context, in *SelectModelReq
 	return out, nil
 }
 
+func (c *modelServiceClient) SetProviderAPIKey(ctx context.Context, in *SetProviderAPIKeyRequest, opts ...grpc.CallOption) (*SetProviderAPIKeyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetProviderAPIKeyResponse)
+	err := c.cc.Invoke(ctx, ModelService_SetProviderAPIKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ModelServiceServer is the server API for ModelService service.
 // All implementations must embed UnimplementedModelServiceServer
 // for forward compatibility.
 type ModelServiceServer interface {
+	ListProviders(context.Context, *ListProvidersRequest) (*ListProvidersResponse, error)
 	ListModels(context.Context, *ListModelsRequest) (*ListModelsResponse, error)
 	SelectModel(context.Context, *SelectModelRequest) (*SelectModelResponse, error)
+	SetProviderAPIKey(context.Context, *SetProviderAPIKeyRequest) (*SetProviderAPIKeyResponse, error)
 	mustEmbedUnimplementedModelServiceServer()
 }
 
@@ -662,11 +688,17 @@ type ModelServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedModelServiceServer struct{}
 
+func (UnimplementedModelServiceServer) ListProviders(context.Context, *ListProvidersRequest) (*ListProvidersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListProviders not implemented")
+}
 func (UnimplementedModelServiceServer) ListModels(context.Context, *ListModelsRequest) (*ListModelsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListModels not implemented")
 }
 func (UnimplementedModelServiceServer) SelectModel(context.Context, *SelectModelRequest) (*SelectModelResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SelectModel not implemented")
+}
+func (UnimplementedModelServiceServer) SetProviderAPIKey(context.Context, *SetProviderAPIKeyRequest) (*SetProviderAPIKeyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetProviderAPIKey not implemented")
 }
 func (UnimplementedModelServiceServer) mustEmbedUnimplementedModelServiceServer() {}
 func (UnimplementedModelServiceServer) testEmbeddedByValue()                      {}
@@ -687,6 +719,24 @@ func RegisterModelServiceServer(s grpc.ServiceRegistrar, srv ModelServiceServer)
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&ModelService_ServiceDesc, srv)
+}
+
+func _ModelService_ListProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListProvidersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ModelServiceServer).ListProviders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ModelService_ListProviders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ModelServiceServer).ListProviders(ctx, req.(*ListProvidersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _ModelService_ListModels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -725,6 +775,24 @@ func _ModelService_SelectModel_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ModelService_SetProviderAPIKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetProviderAPIKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ModelServiceServer).SetProviderAPIKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ModelService_SetProviderAPIKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ModelServiceServer).SetProviderAPIKey(ctx, req.(*SetProviderAPIKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ModelService_ServiceDesc is the grpc.ServiceDesc for ModelService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -733,12 +801,20 @@ var ModelService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*ModelServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "ListProviders",
+			Handler:    _ModelService_ListProviders_Handler,
+		},
+		{
 			MethodName: "ListModels",
 			Handler:    _ModelService_ListModels_Handler,
 		},
 		{
 			MethodName: "SelectModel",
 			Handler:    _ModelService_SelectModel_Handler,
+		},
+		{
+			MethodName: "SetProviderAPIKey",
+			Handler:    _ModelService_SetProviderAPIKey_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -1936,7 +1936,7 @@ func TestService_GetSessionTimelineSkipsNonDisplayTraceEvents(t *testing.T) {
 }
 
 func TestService_ListModelsReturnsProviderAuthAndOptions(t *testing.T) {
-	svc := NewService(&agentstub.AgentServiceStub{
+	stub := &agentstub.AgentServiceStub{
 		ModelList: agentapi.ModelList{
 			Provider: "openai",
 			AuthType: "oauth",
@@ -1953,11 +1953,13 @@ func TestService_ListModelsReturnsProviderAuthAndOptions(t *testing.T) {
 				Current:       true,
 			}},
 		},
-	})
+	}
+	svc := NewService(stub)
 
-	resp, err := svc.ListModels(context.Background(), &handpb.ListModelsRequest{})
+	resp, err := svc.ListModels(context.Background(), &handpb.ListModelsRequest{Provider: "openai"})
 
 	require.NoError(t, err)
+	require.Equal(t, "openai", stub.ModelListOptions.Provider)
 	require.Equal(t, "openai", resp.GetProvider())
 	require.Equal(t, "oauth", resp.GetAuthType())
 	require.Len(t, resp.GetModels(), 1)
@@ -1973,18 +1975,63 @@ func TestService_ListModelsReturnsProviderAuthAndOptions(t *testing.T) {
 	require.True(t, resp.GetModels()[0].GetCurrent())
 }
 
+func TestService_ListProvidersReturnsOptions(t *testing.T) {
+	svc := NewService(&agentstub.AgentServiceStub{
+		ProviderList: agentapi.ProviderList{
+			Providers: []models.ProviderOption{{
+				ID:             "openrouter",
+				Name:           "OpenRouter",
+				Type:           "api-key",
+				ModelCount:     12,
+				SupportsAPIKey: true,
+				AuthType:       "api-key",
+				Current:        true,
+			}},
+		},
+	})
+
+	resp, err := svc.ListProviders(context.Background(), &handpb.ListProvidersRequest{})
+
+	require.NoError(t, err)
+	require.Len(t, resp.GetProviders(), 1)
+	require.Equal(t, "openrouter", resp.GetProviders()[0].GetId())
+	require.Equal(t, "OpenRouter", resp.GetProviders()[0].GetName())
+	require.Equal(t, "api-key", resp.GetProviders()[0].GetType())
+	require.EqualValues(t, 12, resp.GetProviders()[0].GetModelCount())
+	require.True(t, resp.GetProviders()[0].GetSupportsApiKey())
+	require.False(t, resp.GetProviders()[0].GetSupportsOauth())
+	require.Equal(t, "api-key", resp.GetProviders()[0].GetAuthType())
+	require.True(t, resp.GetProviders()[0].GetCurrent())
+}
+
 func TestService_SelectModelReturnsSelectedOption(t *testing.T) {
 	stub := &agentstub.AgentServiceStub{
 		SelectedModel: models.Option{ID: "gpt-4o", Current: true},
 	}
 	svc := NewService(stub)
 
-	resp, err := svc.SelectModel(context.Background(), &handpb.SelectModelRequest{Id: "gpt-4o"})
+	resp, err := svc.SelectModel(context.Background(), &handpb.SelectModelRequest{Id: "gpt-4o", Provider: "openai"})
 
 	require.NoError(t, err)
 	require.Equal(t, "gpt-4o", stub.SelectedModelID)
+	require.Equal(t, "openai", stub.SelectedModelOptions.Provider)
 	require.Equal(t, "gpt-4o", resp.GetModel().GetId())
 	require.True(t, resp.GetModel().GetCurrent())
+}
+
+func TestService_SetProviderAPIKeySendsProviderAndKey(t *testing.T) {
+	stub := &agentstub.AgentServiceStub{}
+	svc := NewService(stub)
+
+	resp, err := svc.SetProviderAPIKey(context.Background(), &handpb.SetProviderAPIKeyRequest{
+		Provider: "openrouter",
+		ApiKey:   "router-key",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "openrouter", resp.GetProvider())
+	require.Equal(t, "openrouter", stub.ProviderAPIKeyID)
+	require.Equal(t, "router-key", stub.ProviderAPIKey)
 }
 
 func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
@@ -1997,8 +2044,24 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 		require.Nil(t, resp)
 	})
 
+	t.Run("list providers nil receiver", func(t *testing.T) {
+		var svc *Service
+
+		resp, err := svc.ListProviders(context.Background(), &handpb.ListProvidersRequest{})
+
+		requireStatusError(t, err, codes.Internal, "service is required")
+		require.Nil(t, resp)
+	})
+
 	t.Run("list missing handler", func(t *testing.T) {
 		resp, err := NewService(nil).ListModels(context.Background(), &handpb.ListModelsRequest{})
+
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("list providers missing handler", func(t *testing.T) {
+		resp, err := NewService(nil).ListProviders(context.Background(), &handpb.ListProvidersRequest{})
 
 		requireStatusError(t, err, codes.Internal, "agent handler is required")
 		require.Nil(t, resp)
@@ -2011,10 +2074,24 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 		require.Nil(t, resp)
 	})
 
+	t.Run("list providers nil request", func(t *testing.T) {
+		resp, err := NewService(&agentstub.AgentServiceStub{}).ListProviders(context.Background(), nil)
+
+		requireStatusError(t, err, codes.InvalidArgument, "list providers request is required")
+		require.Nil(t, resp)
+	})
+
 	t.Run("select nil request", func(t *testing.T) {
 		resp, err := NewService(&agentstub.AgentServiceStub{}).SelectModel(context.Background(), nil)
 
 		requireStatusError(t, err, codes.InvalidArgument, "select model request is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("set provider api key nil request", func(t *testing.T) {
+		resp, err := NewService(&agentstub.AgentServiceStub{}).SetProviderAPIKey(context.Background(), nil)
+
+		requireStatusError(t, err, codes.InvalidArgument, "set provider API key request is required")
 		require.Nil(t, resp)
 	})
 
@@ -2034,9 +2111,33 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 		require.Nil(t, resp)
 	})
 
+	t.Run("set provider api key missing handler", func(t *testing.T) {
+		resp, err := NewService(nil).SetProviderAPIKey(context.Background(), &handpb.SetProviderAPIKeyRequest{})
+
+		requireStatusError(t, err, codes.Internal, "agent handler is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("set provider api key nil receiver", func(t *testing.T) {
+		var svc *Service
+
+		resp, err := svc.SetProviderAPIKey(context.Background(), &handpb.SetProviderAPIKeyRequest{})
+
+		requireStatusError(t, err, codes.Internal, "service is required")
+		require.Nil(t, resp)
+	})
+
 	t.Run("list handler error", func(t *testing.T) {
 		resp, err := NewService(&agentstub.AgentServiceStub{Err: errors.New("config is required")}).
 			ListModels(context.Background(), &handpb.ListModelsRequest{})
+
+		requireStatusError(t, err, codes.InvalidArgument, "config is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("list providers handler error", func(t *testing.T) {
+		resp, err := NewService(&agentstub.AgentServiceStub{Err: errors.New("config is required")}).
+			ListProviders(context.Background(), &handpb.ListProvidersRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "config is required")
 		require.Nil(t, resp)
@@ -2047,6 +2148,14 @@ func TestService_ModelOperationsRejectInvalidState(t *testing.T) {
 			SelectModel(context.Background(), &handpb.SelectModelRequest{})
 
 		requireStatusError(t, err, codes.InvalidArgument, "model id is required")
+		require.Nil(t, resp)
+	})
+
+	t.Run("set provider api key error", func(t *testing.T) {
+		resp, err := NewService(&agentstub.AgentServiceStub{SetProviderAPIKeyErr: errors.New("provider API key is required")}).
+			SetProviderAPIKey(context.Background(), &handpb.SetProviderAPIKeyRequest{})
+
+		requireStatusError(t, err, codes.InvalidArgument, "provider API key is required")
 		require.Nil(t, resp)
 	})
 }

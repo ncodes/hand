@@ -63,8 +63,10 @@ type showCommandViewAction struct {
 	Kind            string
 	Chats           []storage.Session
 	Models          []rpcclient.ModelOption
+	Providers       []rpcclient.ProviderOption
 	ModelProvider   string
 	ModelAuthType   string
+	PendingModelID  string
 }
 
 type hideCommandViewAction struct{}
@@ -186,8 +188,10 @@ func (action showCommandViewAction) apply(state *tuiState) {
 		Height:          max(action.Height, 0),
 		Chats:           append([]storage.Session(nil), action.Chats...),
 		Models:          append([]rpcclient.ModelOption(nil), action.Models...),
+		Providers:       append([]rpcclient.ProviderOption(nil), action.Providers...),
 		ModelProvider:   strings.TrimSpace(action.ModelProvider),
 		ModelAuthType:   strings.TrimSpace(action.ModelAuthType),
+		PendingModelID:  strings.TrimSpace(action.PendingModelID),
 	}
 	state.commandViewOffset = 0
 	state.commandViewItemSelected = 0

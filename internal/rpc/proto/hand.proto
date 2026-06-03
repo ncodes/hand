@@ -25,8 +25,10 @@ service SessionService {
 }
 
 service ModelService {
+  rpc ListProviders(ListProvidersRequest) returns (ListProvidersResponse);
   rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
   rpc SelectModel(SelectModelRequest) returns (SelectModelResponse);
+  rpc SetProviderAPIKey(SetProviderAPIKeyRequest) returns (SetProviderAPIKeyResponse);
 }
 
 message RespondRequest {
@@ -245,7 +247,26 @@ message GetSessionTimelineResponse {
   string title_source = 10;
 }
 
-message ListModelsRequest {}
+message ListProvidersRequest {}
+
+message ProviderOption {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  int32 model_count = 4;
+  bool supports_api_key = 5;
+  bool supports_oauth = 6;
+  string auth_type = 7;
+  bool current = 8;
+}
+
+message ListProvidersResponse {
+  repeated ProviderOption providers = 1;
+}
+
+message ListModelsRequest {
+  string provider = 1;
+}
 
 message ModelOption {
   string id = 1;
@@ -268,8 +289,18 @@ message ListModelsResponse {
 
 message SelectModelRequest {
   string id = 1;
+  string provider = 2;
 }
 
 message SelectModelResponse {
   ModelOption model = 1;
+}
+
+message SetProviderAPIKeyRequest {
+  string provider = 1;
+  string api_key = 2;
+}
+
+message SetProviderAPIKeyResponse {
+  string provider = 1;
 }

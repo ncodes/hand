@@ -877,6 +877,25 @@ func (s *Service) List(ctx context.Context, req *handpb.ListSessionsRequest) (*h
 	return &handpb.ListSessionsResponse{Sessions: items}, nil
 }
 
+func (s *Service) ListProviders(ctx context.Context, req *handpb.ListProvidersRequest) (*handpb.ListProvidersResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return nil, status.Error(codes.Internal, "agent handler is required")
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "list providers request is required")
+	}
+
+	list, err := s.api.ListProviders(ctx)
+	if err != nil {
+		return nil, getGRPCError(err)
+	}
+
+	return &handpb.ListProvidersResponse{Providers: providerOptionsToProto(list.Providers)}, nil
+}
+
 func (s *Service) ListModels(ctx context.Context, req *handpb.ListModelsRequest) (*handpb.ListModelsResponse, error) {
 	if s == nil {
 		return nil, status.Error(codes.Internal, "service is required")
@@ -888,7 +907,7 @@ func (s *Service) ListModels(ctx context.Context, req *handpb.ListModelsRequest)
 		return nil, status.Error(codes.InvalidArgument, "list models request is required")
 	}
 
-	list, err := s.api.ListModels(ctx)
+	list, err := s.api.ListModels(ctx, handagent.ModelListOptions{Provider: req.GetProvider()})
 	if err != nil {
 		return nil, getGRPCError(err)
 	}
@@ -911,12 +930,33 @@ func (s *Service) SelectModel(ctx context.Context, req *handpb.SelectModelReques
 		return nil, status.Error(codes.InvalidArgument, "select model request is required")
 	}
 
-	model, err := s.api.SelectModel(ctx, req.GetId())
+	model, err := s.api.SelectModel(ctx, req.GetId(), handagent.ModelSelectOptions{Provider: req.GetProvider()})
 	if err != nil {
 		return nil, getGRPCError(err)
 	}
 
 	return &handpb.SelectModelResponse{Model: modelOptionToProto(model)}, nil
+}
+
+func (s *Service) SetProviderAPIKey(
+	ctx context.Context,
+	req *handpb.SetProviderAPIKeyRequest,
+) (*handpb.SetProviderAPIKeyResponse, error) {
+	if s == nil {
+		return nil, status.Error(codes.Internal, "service is required")
+	}
+	if s.api == nil {
+		return nil, status.Error(codes.Internal, "agent handler is required")
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "set provider API key request is required")
+	}
+
+	if err := s.api.SetProviderAPIKey(ctx, req.GetProvider(), req.GetApiKey()); err != nil {
+		return nil, getGRPCError(err)
+	}
+
+	return &handpb.SetProviderAPIKeyResponse{Provider: strings.TrimSpace(req.GetProvider())}, nil
 }
 
 func (s *Service) Use(ctx context.Context, req *handpb.UseSessionRequest) (*handpb.UseSessionResponse, error) {
@@ -1174,6 +1214,7 @@ func getGRPCError(err error) error {
 	case errors.Is(err, context.DeadlineExceeded):
 		return status.Error(codes.DeadlineExceeded, message)
 	case strings.HasSuffix(message, "is required"),
+		strings.Contains(message, "API key is required"),
 		strings.Contains(message, "must be a valid"),
 		strings.Contains(message, "must be greater than or equal to"),
 		strings.Contains(message, "cannot be deleted"),
@@ -1197,6 +1238,28 @@ func sessionToProtoSummary(session storage.Session) *handpb.SessionSummary {
 		Title:         session.Title,
 		TitleSource:   session.TitleSource,
 		UpdatedAtUnix: session.UpdatedAt.Unix(),
+	}
+}
+
+func providerOptionsToProto(options []models.ProviderOption) []*handpb.ProviderOption {
+	items := make([]*handpb.ProviderOption, 0, len(options))
+	for _, option := range options {
+		items = append(items, providerOptionToProto(option))
+	}
+
+	return items
+}
+
+func providerOptionToProto(option models.ProviderOption) *handpb.ProviderOption {
+	return &handpb.ProviderOption{
+		Id:             option.ID,
+		Name:           option.Name,
+		Type:           option.Type,
+		ModelCount:     int32(option.ModelCount),
+		SupportsApiKey: option.SupportsAPIKey,
+		SupportsOauth:  option.SupportsOAuth,
+		AuthType:       option.AuthType,
+		Current:        option.Current,
 	}
 }
 

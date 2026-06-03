@@ -35,7 +35,7 @@ func (lipglossTranscriptRenderer) RenderCell(cell transcriptCell, ctx transcript
 	case safetyTranscriptCell:
 		return transcriptCellLabelStyle(transcriptCellSafety).Render("Safety:") + " " + value.safetyText()
 	case errorTranscriptCell:
-		return transcriptCellLabelStyle(transcriptCellError).Render("Error:") + " " + strings.TrimSpace(value.message)
+		return renderErrorTranscriptCell(value.message, ctx.Width)
 	case systemTranscriptCell:
 		return renderMarkdownForTranscript(value.text, ctx.Width)
 	case manualCompactionTranscriptCell:
@@ -340,6 +340,64 @@ func renderThoughtTranscriptCell(body string) string {
 	return lipgloss.NewStyle().
 		Foreground(lipgloss.Color(defaultTUITheme.ToolBranch)).
 		Render("Thought for " + duration)
+}
+
+func renderErrorTranscriptCell(message string, width int) string {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return ""
+	}
+
+	contentWidth := max(width, 1)
+	frameWidth := max(contentWidth-2, 1)
+	bodyWidth := max(frameWidth-2, 1)
+	background := lipgloss.Color(defaultTUITheme.InputFrameBackground)
+	titleStyle := transcriptCellLabelStyle(transcriptCellError).Background(background)
+	descriptionStyle := lipgloss.NewStyle().
+		Background(background).
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText))
+	bodyStyle := lipgloss.NewStyle().
+		Background(background).
+		Foreground(lipgloss.Color(defaultTUITheme.ToolDetail))
+	commandStyle := lipgloss.NewStyle().
+		Background(background).
+		Foreground(lipgloss.Color("15"))
+	title := titleStyle.Render("Error")
+	content := []string{title}
+	if command, description, instruction, ok := getErrorTranscriptCommandInstruction(message); ok {
+		content[0] = title + descriptionStyle.Render(" - "+description)
+		content = append(
+			content,
+			"",
+			commandStyle.Render(strings.TrimSpace(wordwrap.String(command, bodyWidth))),
+			"",
+			bodyStyle.Render(strings.TrimSpace(wordwrap.String(instruction, bodyWidth))),
+		)
+	} else {
+		content = append(content, "", bodyStyle.Render(strings.TrimSpace(wordwrap.String(message, bodyWidth))))
+	}
+
+	return lipgloss.NewStyle().
+		Width(frameWidth).
+		Background(background).
+		Padding(1, 1).
+		Render(strings.Join(content, "\n"))
+}
+
+func getErrorTranscriptCommandInstruction(message string) (string, string, string, bool) {
+	message = strings.TrimSpace(message)
+	const prefix = "run "
+	const suffix = " in a new terminal"
+	if !strings.HasPrefix(message, prefix) || !strings.HasSuffix(message, suffix) {
+		return "", "", "", false
+	}
+
+	command := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(message, prefix), suffix))
+	if command == "" {
+		return "", "", "", false
+	}
+
+	return command, "Model authentication is required.", "Run this command in a new terminal.", true
 }
 
 func transcriptCellLabelStyle(kind transcriptCellKind) lipgloss.Style {

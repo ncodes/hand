@@ -70,6 +70,14 @@ type CreateSessionOptions struct {
 
 type SessionListOptions = storage.SessionListOptions
 
+type ModelListOptions = agentapi.ModelListOptions
+
+type ModelSelectOptions = agentapi.ModelSelectOptions
+
+type ProviderOption = models.ProviderOption
+
+type ProviderList = agentapi.ProviderList
+
 type ModelOption = models.Option
 
 type ModelList = agentapi.ModelList
@@ -96,8 +104,10 @@ type SessionAPI interface {
 }
 
 type ModelAPI interface {
-	ListModels(context.Context) (ModelList, error)
-	SelectModel(context.Context, string) (ModelOption, error)
+	ListProviders(context.Context) (ProviderList, error)
+	ListModels(context.Context, ...ModelListOptions) (ModelList, error)
+	SelectModel(context.Context, string, ...agentapi.ModelSelectOptions) (ModelOption, error)
+	SetProviderAPIKey(context.Context, string, string) error
 }
 
 // ServiceAPI combines chat and session operations.
@@ -267,13 +277,33 @@ func (c *Client) ModelAPI() ModelAPI {
 	return c.Model
 }
 
-func (s *ModelService) ListModels(ctx context.Context) (ModelList, error) {
+func (s *ModelService) ListProviders(ctx context.Context) (ProviderList, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return ProviderList{}, err
+	}
+
+	resp, err := client.ListProviders(ctx, &handpb.ListProvidersRequest{})
+	if err != nil {
+		return ProviderList{}, err
+	}
+
+	providers := make([]ProviderOption, 0, len(resp.GetProviders()))
+	for _, provider := range resp.GetProviders() {
+		providers = append(providers, protoProviderOptionToProviderOption(provider))
+	}
+
+	return ProviderList{Providers: providers}, nil
+}
+
+func (s *ModelService) ListModels(ctx context.Context, opts ...ModelListOptions) (ModelList, error) {
 	client, err := s.getClient()
 	if err != nil {
 		return ModelList{}, err
 	}
 
-	resp, err := client.ListModels(ctx, &handpb.ListModelsRequest{})
+	listOpts := getModelListOptions(opts...)
+	resp, err := client.ListModels(ctx, &handpb.ListModelsRequest{Provider: strings.TrimSpace(listOpts.Provider)})
 	if err != nil {
 		return ModelList{}, err
 	}
@@ -290,18 +320,55 @@ func (s *ModelService) ListModels(ctx context.Context) (ModelList, error) {
 	}, nil
 }
 
-func (s *ModelService) SelectModel(ctx context.Context, id string) (ModelOption, error) {
+func getModelListOptions(opts ...ModelListOptions) ModelListOptions {
+	if len(opts) == 0 {
+		return ModelListOptions{}
+	}
+
+	return opts[0]
+}
+
+func getModelSelectOptions(opts ...agentapi.ModelSelectOptions) agentapi.ModelSelectOptions {
+	if len(opts) == 0 {
+		return agentapi.ModelSelectOptions{}
+	}
+
+	return opts[0]
+}
+
+func (s *ModelService) SelectModel(
+	ctx context.Context,
+	id string,
+	opts ...agentapi.ModelSelectOptions,
+) (ModelOption, error) {
 	client, err := s.getClient()
 	if err != nil {
 		return ModelOption{}, err
 	}
 
-	resp, err := client.SelectModel(ctx, &handpb.SelectModelRequest{Id: strings.TrimSpace(id)})
+	selectOpts := getModelSelectOptions(opts...)
+	resp, err := client.SelectModel(ctx, &handpb.SelectModelRequest{
+		Id:       strings.TrimSpace(id),
+		Provider: strings.TrimSpace(selectOpts.Provider),
+	})
 	if err != nil {
 		return ModelOption{}, err
 	}
 
 	return protoModelOptionToModelOption(resp.GetModel()), nil
+}
+
+func (s *ModelService) SetProviderAPIKey(ctx context.Context, provider string, apiKey string) error {
+	client, err := s.getClient()
+	if err != nil {
+		return err
+	}
+
+	_, err = client.SetProviderAPIKey(ctx, &handpb.SetProviderAPIKeyRequest{
+		Provider: strings.TrimSpace(provider),
+		ApiKey:   strings.TrimSpace(apiKey),
+	})
+	return err
 }
 
 func (s *SessionService) Create(ctx context.Context, id string) (storage.Session, error) {
@@ -659,6 +726,23 @@ func protoSessionSummaryToSession(summary *handpb.SessionSummary) storage.Sessio
 		Title:       summary.GetTitle(),
 		TitleSource: summary.GetTitleSource(),
 		UpdatedAt:   time.Unix(summary.GetUpdatedAtUnix(), 0).UTC(),
+	}
+}
+
+func protoProviderOptionToProviderOption(option *handpb.ProviderOption) ProviderOption {
+	if option == nil {
+		return ProviderOption{}
+	}
+
+	return ProviderOption{
+		ID:             strings.TrimSpace(option.GetId()),
+		Name:           strings.TrimSpace(option.GetName()),
+		Type:           strings.TrimSpace(option.GetType()),
+		ModelCount:     int(option.GetModelCount()),
+		SupportsAPIKey: option.GetSupportsApiKey(),
+		SupportsOAuth:  option.GetSupportsOauth(),
+		AuthType:       strings.TrimSpace(option.GetAuthType()),
+		Current:        option.GetCurrent(),
 	}
 }
 

@@ -152,6 +152,23 @@ func (r *Registry) GetProvider(id string) (ProviderDefinition, bool) {
 	return provider, true
 }
 
+// GetProviders returns all provider definitions registered in the registry.
+func (r *Registry) GetProviders() []ProviderDefinition {
+	if r == nil {
+		return nil
+	}
+
+	providers := make([]ProviderDefinition, 0, len(r.providers))
+	for _, provider := range r.providers {
+		provider.BaseURLs = cloneStringMap(provider.BaseURLs)
+		provider.Headers = cloneStringMap(provider.Headers)
+		provider.APIKeyEnv = append([]string(nil), provider.APIKeyEnv...)
+		providers = append(providers, provider)
+	}
+
+	return providers
+}
+
 // GetModel looks up a model definition by provider ID and model ID.
 func (r *Registry) GetModel(providerID, modelID string) (ModelDefinition, bool) {
 	if r == nil {

@@ -77,8 +77,10 @@ type commandViewState struct {
 	Height          int
 	Chats           []storage.Session
 	Models          []rpcclient.ModelOption
+	Providers       []rpcclient.ProviderOption
 	ModelProvider   string
 	ModelAuthType   string
+	PendingModelID  string
 }
 
 type commandViewSelection struct {

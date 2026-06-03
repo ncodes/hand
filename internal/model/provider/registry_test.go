@@ -152,6 +152,16 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	require.Equal(t, APIAnthropicMessages, copilotAnthropicModel.API)
 	require.True(t, copilotAnthropicModel.SupportsOAuth)
 
+	legacyAnthropicModel, ok := registry.GetModel("anthropic", "claude-3-5-sonnet-20241022")
+	require.True(t, ok)
+	require.Equal(t, APIAnthropicMessages, legacyAnthropicModel.API)
+	require.False(t, legacyAnthropicModel.SupportsOAuth)
+
+	anthropicOAuthModel, ok := registry.GetModel("anthropic", "claude-sonnet-4-6")
+	require.True(t, ok)
+	require.Equal(t, APIAnthropicMessages, anthropicOAuthModel.API)
+	require.True(t, anthropicOAuthModel.SupportsOAuth)
+
 	for modelID, api := range map[string]string{
 		"claude-haiku-4.5":       APIAnthropicMessages,
 		"claude-opus-4.5":        APIAnthropicMessages,
@@ -259,13 +269,13 @@ func TestDefaultRegistry_RegistersBuiltInModelsByProvider(t *testing.T) {
 	_, ok = registry.GetModel("openrouter", "openai/"+constants.DefaultProfileEmbeddingModel)
 	require.False(t, ok)
 
-	sonnet, ok := registry.GetModel("anthropic", "claude-sonnet-4-5")
+	sonnet, ok := registry.GetModel("anthropic", "claude-sonnet-4-6")
 	require.True(t, ok)
-	require.Equal(t, "Claude Sonnet 4.5 (latest)", sonnet.Name)
+	require.Equal(t, "Claude Sonnet 4.6", sonnet.Name)
 	require.Equal(t, APIAnthropicMessages, sonnet.API)
 	require.Equal(t, []InputKind{InputText, InputImage}, sonnet.Input)
 	require.True(t, sonnet.SupportsOAuth)
-	require.Equal(t, 200000, sonnet.ContextWindow)
+	require.Equal(t, 1000000, sonnet.ContextWindow)
 	require.Equal(t, 64000, sonnet.MaxTokens)
 
 	opus47, ok := registry.GetModel("anthropic", "claude-opus-4-7")

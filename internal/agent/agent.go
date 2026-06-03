@@ -12,7 +12,6 @@ import (
 	"github.com/wandxy/hand/internal/agent/runcontext"
 	"github.com/wandxy/hand/internal/config"
 	"github.com/wandxy/hand/internal/constants"
-	appcredential "github.com/wandxy/hand/internal/credential"
 	"github.com/wandxy/hand/internal/environment"
 	"github.com/wandxy/hand/internal/guardrails"
 	models "github.com/wandxy/hand/internal/model"
@@ -146,7 +145,34 @@ func (a *Agent) Start(ctx context.Context) error {
 	return nil
 }
 
-func (a *Agent) ListModels(context.Context) (ModelList, error) {
+func (a *Agent) ListProviders(context.Context) (ProviderList, error) {
+	if a == nil {
+		return ProviderList{}, errors.New("agent is required")
+	}
+	if a.cfg == nil {
+		return ProviderList{}, errors.New("config is required")
+	}
+
+	auth := make(map[string]string)
+	currentProviderModels := models.ListOptions(models.OptionQuery{Provider: a.cfg.Models.Main.Provider})
+	auth[a.cfg.Models.Main.Provider] = a.getProviderAuthTypeForModelList(a.cfg.Models.Main.Provider, currentProviderModels)
+	for _, provider := range models.ListProviders(models.ProviderQuery{Current: a.cfg.Models.Main.Provider}) {
+		if _, ok := auth[provider.ID]; ok {
+			continue
+		}
+		providerModels := models.ListOptions(models.OptionQuery{Provider: provider.ID})
+		auth[provider.ID] = a.getProviderAuthTypeForModelList(provider.ID, providerModels)
+	}
+
+	return ProviderList{
+		Providers: models.ListProviders(models.ProviderQuery{
+			Current: a.cfg.Models.Main.Provider,
+			Auth:    auth,
+		}),
+	}, nil
+}
+
+func (a *Agent) ListModels(_ context.Context, opts ...ModelListOptions) (ModelList, error) {
 	if a == nil {
 		return ModelList{}, errors.New("agent is required")
 	}
@@ -154,26 +180,111 @@ func (a *Agent) ListModels(context.Context) (ModelList, error) {
 		return ModelList{}, errors.New("config is required")
 	}
 
-	auth, err := a.cfg.ResolveModelAuth()
-	if err != nil {
-		return ModelList{}, err
+	provider := strings.TrimSpace(strings.ToLower(getModelListOptions(opts...).Provider))
+	if provider == "" {
+		provider = a.cfg.Models.Main.Provider
+	}
+	provider = strings.TrimSpace(strings.ToLower(provider))
+	if provider == "" {
+		return ModelList{}, errors.New("model provider is required")
 	}
 
-	provider := strings.TrimSpace(auth.Provider)
-	authType := auth.AuthType()
+	modelsForProvider := models.ListOptions(models.OptionQuery{
+		Provider: provider,
+		Current:  a.getCurrentModelForProvider(provider),
+	})
+	if len(modelsForProvider) == 0 {
+		return ModelList{}, fmt.Errorf("model provider %q is not available", provider)
+	}
+	authType := a.getProviderAuthTypeForModelList(provider, modelsForProvider)
+	if authType == "oauth" {
+		modelsForProvider = models.ListOptions(models.OptionQuery{
+			Provider:  provider,
+			Current:   a.getCurrentModelForProvider(provider),
+			OAuthOnly: true,
+		})
+	}
 
 	return ModelList{
 		Provider: provider,
 		AuthType: authType,
-		Models: models.ListOptions(models.OptionQuery{
-			Provider:  provider,
-			Current:   a.cfg.Models.Main.Name,
-			OAuthOnly: authType == appcredential.TypeOAuth,
-		}),
+		Models:   modelsForProvider,
 	}, nil
 }
 
-func (a *Agent) SelectModel(ctx context.Context, id string) (models.Option, error) {
+func getModelListOptions(opts ...ModelListOptions) ModelListOptions {
+	if len(opts) == 0 {
+		return ModelListOptions{}
+	}
+
+	return opts[0]
+}
+
+func getModelSelectOptions(opts ...ModelSelectOptions) ModelSelectOptions {
+	if len(opts) == 0 {
+		return ModelSelectOptions{}
+	}
+
+	return opts[0]
+}
+
+func (a *Agent) getProviderAuthTypeForModelList(provider string, options []models.Option) string {
+	for _, option := range options {
+		if authType := a.getProviderAuthType(provider, option.ID); authType != "none" {
+			return authType
+		}
+	}
+
+	return "none"
+}
+
+func (a *Agent) getProviderAuthType(provider string, modelID string) string {
+	if a == nil || a.cfg == nil {
+		return "none"
+	}
+
+	cfg := *a.cfg
+	cfg.Models.Providers = cloneAgentProviderModelConfigs(a.cfg.Models.Providers)
+	cfg.Models.Main.Provider = strings.TrimSpace(strings.ToLower(provider))
+	cfg.Models.Main.Name = strings.TrimSpace(modelID)
+	if cfg.Models.Main.Provider != strings.TrimSpace(strings.ToLower(a.cfg.Models.Main.Provider)) {
+		cfg.Models.Main.APIKey = ""
+	}
+
+	auth, err := cfg.ResolveModelAuth()
+	if err != nil {
+		return "none"
+	}
+
+	return auth.AuthType()
+}
+
+func (a *Agent) getCurrentModelForProvider(provider string) string {
+	if a == nil || a.cfg == nil {
+		return ""
+	}
+	if strings.TrimSpace(strings.ToLower(provider)) != strings.TrimSpace(strings.ToLower(a.cfg.Models.Main.Provider)) {
+		return ""
+	}
+
+	return a.cfg.Models.Main.Name
+}
+
+func cloneAgentProviderModelConfigs(values map[string]config.ProviderModelConfig) map[string]config.ProviderModelConfig {
+	if len(values) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string]config.ProviderModelConfig, len(values))
+	for key, value := range values {
+		value.APIKeyEnv = append([]string(nil), value.APIKeyEnv...)
+		cloned[key] = value
+	}
+
+	return cloned
+}
+
+func (a *Agent) SelectModel(ctx context.Context, id string, opts ...ModelSelectOptions) (models.Option, error) {
 	if a == nil {
 		return models.Option{}, errors.New("agent is required")
 	}
@@ -183,7 +294,8 @@ func (a *Agent) SelectModel(ctx context.Context, id string) (models.Option, erro
 		return models.Option{}, errors.New("model id is required")
 	}
 
-	list, err := a.ListModels(ctx)
+	provider := strings.TrimSpace(strings.ToLower(getModelSelectOptions(opts...).Provider))
+	list, err := a.ListModels(ctx, ModelListOptions{Provider: provider})
 	if err != nil {
 		return models.Option{}, err
 	}
@@ -200,30 +312,116 @@ func (a *Agent) SelectModel(ctx context.Context, id string) (models.Option, erro
 		return models.Option{}, fmt.Errorf("model %q is not available for provider %q with %s auth",
 			id, list.Provider, list.AuthType)
 	}
+	if err := a.checkModelSelectionAuth(list.Provider, selected); err != nil {
+		return models.Option{}, err
+	}
 
 	active := profile.WithMetadataPaths(profile.Active())
-	if err := saveMainModelSelection(active.EnvPath, active.ConfigPath, id); err != nil {
+	if err := saveMainModelSelection(active.EnvPath, active.ConfigPath, list.Provider, selected); err != nil {
 		return models.Option{}, err
 	}
 
 	return selected, nil
 }
 
-func saveMainModelSelection(envPath string, configPath string, id string) error {
+func (a *Agent) checkModelSelectionAuth(provider string, selected models.Option) error {
+	cfg := *a.cfg
+	cfg.Models.Providers = cloneAgentProviderModelConfigs(a.cfg.Models.Providers)
+	cfg.Models.Main.Provider = strings.TrimSpace(strings.ToLower(provider))
+	cfg.Models.Main.Name = strings.TrimSpace(selected.ID)
+	cfg.Models.Main.API = strings.TrimSpace(selected.API)
+	if cfg.Models.Main.Provider != strings.TrimSpace(strings.ToLower(a.cfg.Models.Main.Provider)) {
+		cfg.Models.Main.APIKey = ""
+	}
+
+	if _, err := cfg.ResolveModelAuth(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *Agent) SetProviderAPIKey(_ context.Context, provider string, apiKey string) error {
+	if a == nil {
+		return errors.New("agent is required")
+	}
+	if a.cfg == nil {
+		return errors.New("config is required")
+	}
+
+	provider = strings.TrimSpace(strings.ToLower(provider))
+	if provider == "" {
+		return errors.New("model provider is required")
+	}
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return errors.New("provider API key is required")
+	}
+
+	active := profile.WithMetadataPaths(profile.Active())
+	if err := saveProviderAPIKey(active.EnvPath, active.ConfigPath, provider, apiKey); err != nil {
+		return err
+	}
+
+	if a.cfg.Models.Providers == nil {
+		a.cfg.Models.Providers = make(map[string]config.ProviderModelConfig)
+	}
+	providerConfig := a.cfg.Models.Providers[provider]
+	providerConfig.APIKey = apiKey
+	a.cfg.Models.Providers[provider] = providerConfig
+
+	return nil
+}
+
+func saveMainModelSelection(envPath string, configPath string, provider string, option models.Option) error {
 	configPath = strings.TrimSpace(configPath)
 	if configPath == "" {
 		return errors.New("profile config path is required")
 	}
 
-	modelID := strings.TrimSpace(id)
+	provider = strings.TrimSpace(strings.ToLower(provider))
+	if provider == "" {
+		return errors.New("model provider is required")
+	}
+	modelID := strings.TrimSpace(option.ID)
+	if modelID == "" {
+		return errors.New("model id is required")
+	}
+	api := strings.TrimSpace(option.API)
 	if _, err := config.SetConfigValues(envPath, configPath, []config.ConfigUpdate{
+		{Path: "models.main.provider", Value: provider},
 		{Path: "models.main.name", Value: modelID},
+		{Path: "models.main.api", Value: api},
+		{Path: "models.summary.provider", Value: provider},
 		{Path: "models.summary.name", Value: modelID},
+		{Path: "models.summary.api", Value: api},
 	}); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func saveProviderAPIKey(envPath string, configPath string, provider string, apiKey string) error {
+	configPath = strings.TrimSpace(configPath)
+	if configPath == "" {
+		return errors.New("profile config path is required")
+	}
+
+	provider = strings.TrimSpace(strings.ToLower(provider))
+	if provider == "" {
+		return errors.New("model provider is required")
+	}
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return errors.New("provider API key is required")
+	}
+
+	_, err := config.SetConfigValues(envPath, configPath, []config.ConfigUpdate{
+		{Path: "models.providers." + provider + ".apiKey", Value: apiKey},
+	})
+
+	return err
 }
 
 func (a *Agent) buildCoreAgent() (*agentcore.Agent, error) {

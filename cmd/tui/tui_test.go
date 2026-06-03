@@ -266,12 +266,20 @@ func (c *fakeTUIChatClient) ModelAPI() rpcclient.ModelAPI {
 	return c
 }
 
-func (c *fakeTUIChatClient) ListModels(context.Context) (rpcclient.ModelList, error) {
+func (c *fakeTUIChatClient) ListProviders(context.Context) (rpcclient.ProviderList, error) {
+	return rpcclient.ProviderList{}, nil
+}
+
+func (c *fakeTUIChatClient) ListModels(context.Context, ...rpcclient.ModelListOptions) (rpcclient.ModelList, error) {
 	return rpcclient.ModelList{}, nil
 }
 
-func (c *fakeTUIChatClient) SelectModel(context.Context, string) (rpcclient.ModelOption, error) {
+func (c *fakeTUIChatClient) SelectModel(context.Context, string, ...rpcclient.ModelSelectOptions) (rpcclient.ModelOption, error) {
 	return rpcclient.ModelOption{}, nil
+}
+
+func (c *fakeTUIChatClient) SetProviderAPIKey(context.Context, string, string) error {
+	return nil
 }
 
 func (c *fakeTUIChatClient) Timeline(

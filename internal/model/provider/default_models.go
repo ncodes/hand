@@ -382,7 +382,7 @@ func defaultModels() []ModelDefinition {
 		anthropicModel("claude-3-haiku-20240307", "Claude Haiku 3", []InputKind{InputText, InputImage}, 200000, 4096),
 		anthropicModel("claude-3-opus-20240229", "Claude Opus 3", []InputKind{InputText, InputImage}, 200000, 4096),
 		anthropicModel("claude-3-sonnet-20240229", "Claude Sonnet 3", []InputKind{InputText, InputImage}, 200000, 4096),
-		anthropicReasoningModel("claude-haiku-4-5", "Claude Haiku 4.5 (latest)", []InputKind{InputText, InputImage}, 200000, 64000),
+		anthropicOAuthReasoningModel("claude-haiku-4-5", "Claude Haiku 4.5 (latest)", []InputKind{InputText, InputImage}, 200000, 64000),
 		anthropicReasoningModel("claude-haiku-4-5-20251001", "Claude Haiku 4.5", []InputKind{InputText, InputImage}, 200000, 64000),
 		anthropicReasoningModel("claude-opus-4-0", "Claude Opus 4 (latest)", []InputKind{InputText, InputImage}, 200000, 32000),
 		anthropicReasoningModel("claude-opus-4-1", "Claude Opus 4.1 (latest)", []InputKind{InputText, InputImage}, 200000, 32000),
@@ -391,12 +391,12 @@ func defaultModels() []ModelDefinition {
 		anthropicReasoningModel("claude-opus-4-5", "Claude Opus 4.5 (latest)", []InputKind{InputText, InputImage}, 200000, 64000),
 		anthropicReasoningModel("claude-opus-4-5-20251101", "Claude Opus 4.5", []InputKind{InputText, InputImage}, 200000, 64000),
 		anthropicReasoningModel("claude-opus-4-6", "Claude Opus 4.6", []InputKind{InputText, InputImage}, 1000000, 128000),
-		anthropicReasoningModel("claude-opus-4-7", "Claude Opus 4.7", []InputKind{InputText, InputImage}, 1000000, 128000),
+		anthropicOAuthReasoningModel("claude-opus-4-7", "Claude Opus 4.7", []InputKind{InputText, InputImage}, 1000000, 128000),
 		anthropicReasoningModel("claude-sonnet-4-0", "Claude Sonnet 4 (latest)", []InputKind{InputText, InputImage}, 200000, 64000),
 		anthropicReasoningModel("claude-sonnet-4-20250514", "Claude Sonnet 4", []InputKind{InputText, InputImage}, 200000, 64000),
 		anthropicReasoningModel("claude-sonnet-4-5", "Claude Sonnet 4.5 (latest)", []InputKind{InputText, InputImage}, 200000, 64000),
 		anthropicReasoningModel("claude-sonnet-4-5-20250929", "Claude Sonnet 4.5", []InputKind{InputText, InputImage}, 200000, 64000),
-		anthropicReasoningModel("claude-sonnet-4-6", "Claude Sonnet 4.6", []InputKind{InputText, InputImage}, 1000000, 64000),
+		anthropicOAuthReasoningModel("claude-sonnet-4-6", "Claude Sonnet 4.6", []InputKind{InputText, InputImage}, 1000000, 64000),
 	}
 }
 
@@ -553,10 +553,22 @@ func anthropicModel(
 		Provider:      constants.ModelProviderAnthropic,
 		API:           APIAnthropicMessages,
 		Input:         input,
-		SupportsOAuth: true,
 		ContextWindow: contextWindow,
 		MaxTokens:     maxTokens,
 	}
+}
+
+func anthropicOAuthModel(
+	id string,
+	name string,
+	input []InputKind,
+	contextWindow int,
+	maxTokens int,
+) ModelDefinition {
+	model := anthropicModel(id, name, input, contextWindow, maxTokens)
+	model.SupportsOAuth = true
+
+	return model
 }
 
 func anthropicReasoningModel(
@@ -567,6 +579,19 @@ func anthropicReasoningModel(
 	maxTokens int,
 ) ModelDefinition {
 	model := anthropicModel(id, name, input, contextWindow, maxTokens)
+	model.Reasoning = true
+
+	return model
+}
+
+func anthropicOAuthReasoningModel(
+	id string,
+	name string,
+	input []InputKind,
+	contextWindow int,
+	maxTokens int,
+) ModelDefinition {
+	model := anthropicOAuthModel(id, name, input, contextWindow, maxTokens)
 	model.Reasoning = true
 
 	return model

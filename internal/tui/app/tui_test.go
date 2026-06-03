@@ -1423,6 +1423,7 @@ func TestModel_UpdateHandlesHelpCommand(t *testing.T) {
 		"/models",
 		"/new-chat",
 		"/archive",
+		"/providers",
 	}, "\n")
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
@@ -3303,6 +3304,7 @@ func TestModel_UpdateKeepsCommandsLocalDuringActiveResponse(t *testing.T) {
 		"/models",
 		"/new-chat",
 		"/archive",
+		"/providers",
 	}, "\n")
 
 	updated, cmd := runModel.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
@@ -3892,62 +3894,71 @@ func responseMessageFromBatch(t *testing.T, cmd tea.Cmd) responseCompletedMsg {
 }
 
 type fakeTUIChatClient struct {
-	events              []rpcclient.Event
-	reply               string
-	err                 error
-	compactResult       rpcclient.CompactSessionResult
-	compactErr          error
-	compactID           string
-	respondSessionID    string
-	createdSession      storage.Session
-	createSessionErr    error
-	createSessionID     string
-	sessions            []storage.Session
-	archivedSessions    []storage.Session
-	listSessionsErr     error
-	listArchivedErr     error
-	useSessionErr       error
-	usedSessionID       string
-	archiveSessionErr   error
-	archivedSessionID   string
-	unarchiveSessionErr error
-	unarchivedSession   storage.Session
-	unarchivedSessionID string
-	renamedSession      storage.Session
-	renameSessionErr    error
-	renamedSessionID    string
-	renamedSessionTitle string
-	timeline            rpcclient.SessionTimeline
-	timelineErr         error
-	timelineSessionID   string
-	currentSession      storage.Session
-	currentSessionErr   error
-	modelList           rpcclient.ModelList
-	modelListErr        error
-	selectedModel       rpcclient.ModelOption
-	selectModelErr      error
-	selectedModelID     string
-	contextStatus       rpcclient.ContextStatus
-	contextErr          error
-	contextSessionID    string
-	message             string
-	stream              bool
-	streamSet           bool
-	calls               int
-	compactCalls        int
-	createSessionCalls  int
-	listSessionCalls    int
-	listArchivedCalls   int
-	useSessionCalls     int
-	archiveSessionCalls int
-	unarchiveCalls      int
-	renameSessionCalls  int
-	timelineCalls       int
-	currentSessionCalls int
-	listModelCalls      int
-	selectModelCalls    int
-	contextCalls        int
-	closed              bool
+	events                []rpcclient.Event
+	reply                 string
+	err                   error
+	compactResult         rpcclient.CompactSessionResult
+	compactErr            error
+	compactID             string
+	respondSessionID      string
+	createdSession        storage.Session
+	createSessionErr      error
+	createSessionID       string
+	sessions              []storage.Session
+	archivedSessions      []storage.Session
+	listSessionsErr       error
+	listArchivedErr       error
+	useSessionErr         error
+	usedSessionID         string
+	archiveSessionErr     error
+	archivedSessionID     string
+	unarchiveSessionErr   error
+	unarchivedSession     storage.Session
+	unarchivedSessionID   string
+	renamedSession        storage.Session
+	renameSessionErr      error
+	renamedSessionID      string
+	renamedSessionTitle   string
+	timeline              rpcclient.SessionTimeline
+	timelineErr           error
+	timelineSessionID     string
+	currentSession        storage.Session
+	currentSessionErr     error
+	providerList          rpcclient.ProviderList
+	providerListErr       error
+	modelList             rpcclient.ModelList
+	modelListErr          error
+	modelListProvider     string
+	selectedModel         rpcclient.ModelOption
+	selectModelErr        error
+	selectedModelID       string
+	selectedModelProvider string
+	providerAPIKey        string
+	providerAPIKeyID      string
+	providerAPIKeyErr     error
+	contextStatus         rpcclient.ContextStatus
+	contextErr            error
+	contextSessionID      string
+	message               string
+	stream                bool
+	streamSet             bool
+	calls                 int
+	compactCalls          int
+	createSessionCalls    int
+	listSessionCalls      int
+	listArchivedCalls     int
+	useSessionCalls       int
+	archiveSessionCalls   int
+	unarchiveCalls        int
+	renameSessionCalls    int
+	timelineCalls         int
+	currentSessionCalls   int
+	listProviderCalls     int
+	listModelCalls        int
+	selectModelCalls      int
+	setProviderKeyCalls   int
+	contextCalls          int
+	closed                bool
 }
 
 func (c *fakeTUIChatClient) Respond(
@@ -3979,19 +3990,38 @@ func (c *fakeTUIChatClient) ModelAPI() rpcclient.ModelAPI {
 	return c
 }
 
-func (c *fakeTUIChatClient) ListModels(context.Context) (rpcclient.ModelList, error) {
+func (c *fakeTUIChatClient) ListProviders(context.Context) (rpcclient.ProviderList, error) {
+	c.listProviderCalls++
+	return c.providerList, c.providerListErr
+}
+
+func (c *fakeTUIChatClient) ListModels(_ context.Context, opts ...rpcclient.ModelListOptions) (rpcclient.ModelList, error) {
 	c.listModelCalls++
+	if len(opts) > 0 {
+		c.modelListProvider = opts[0].Provider
+	}
 	return c.modelList, c.modelListErr
 }
 
-func (c *fakeTUIChatClient) SelectModel(_ context.Context, id string) (rpcclient.ModelOption, error) {
+func (c *fakeTUIChatClient) SelectModel(_ context.Context, id string, opts ...rpcclient.ModelSelectOptions) (rpcclient.ModelOption, error) {
 	c.selectModelCalls++
 	c.selectedModelID = id
+	if len(opts) > 0 {
+		c.selectedModelProvider = opts[0].Provider
+	}
 	if strings.TrimSpace(c.selectedModel.ID) != "" {
 		return c.selectedModel, c.selectModelErr
 	}
 
 	return rpcclient.ModelOption{ID: id, Current: true}, c.selectModelErr
+}
+
+func (c *fakeTUIChatClient) SetProviderAPIKey(_ context.Context, provider string, apiKey string) error {
+	c.setProviderKeyCalls++
+	c.providerAPIKeyID = provider
+	c.providerAPIKey = apiKey
+
+	return c.providerAPIKeyErr
 }
 
 func (c *fakeTUIChatClient) Compact(_ context.Context, id string) (rpcclient.CompactSessionResult, error) {

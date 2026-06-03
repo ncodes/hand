@@ -6,18 +6,32 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	rpcclient "github.com/wandxy/hand/internal/rpc/client"
 )
 
+type providerListLoader interface {
+	ListProviders(context.Context) (rpcclient.ProviderList, error)
+}
+
 type modelListLoader interface {
-	ListModels(context.Context) (rpcclient.ModelList, error)
+	ListModels(context.Context, ...rpcclient.ModelListOptions) (rpcclient.ModelList, error)
 }
 
 type modelSelector interface {
-	SelectModel(context.Context, string) (rpcclient.ModelOption, error)
+	SelectModel(context.Context, string, ...rpcclient.ModelSelectOptions) (rpcclient.ModelOption, error)
+}
+
+type providerAPIKeySetter interface {
+	SetProviderAPIKey(context.Context, string, string) error
+}
+
+type providersLoadedMsg struct {
+	List rpcclient.ProviderList
+	Err  error
 }
 
 type modelsLoadedMsg struct {
@@ -30,6 +44,73 @@ type modelSelectedMsg struct {
 	Err   error
 }
 
+type providerAPIKeySetMsg struct {
+	Provider string
+	ModelID  string
+	Err      error
+}
+
+func newProviderAPIKeyInput() textarea.Model {
+	input := textarea.New()
+	input.Prompt = ""
+	input.Placeholder = "API key"
+	input.CharLimit = 4096
+	input.SetHeight(1)
+	input.Focus()
+
+	styles := input.Styles()
+	styles.Focused.Text = styles.Focused.Text.
+		Foreground(lipgloss.Color(defaultTUITheme.NoticeForeground)).
+		UnsetBackground()
+	styles.Focused.Placeholder = styles.Focused.Placeholder.
+		Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+		UnsetBackground()
+	styles.Focused.Prompt = styles.Focused.Prompt.
+		UnsetBackground()
+	input.SetStyles(styles)
+
+	return input
+}
+
+func (m *model) startProvidersCommand() tea.Cmd {
+	client, ok := m.modelClient.(providerListLoader)
+	if m.modelClient == nil || !ok {
+		return m.setStatus("providers unavailable")
+	}
+
+	return tea.Batch(
+		m.setStatus("loading providers"),
+		loadProvidersCmd(m.chatCtx, client),
+	)
+}
+
+func loadProvidersCmd(ctx context.Context, client providerListLoader) tea.Cmd {
+	return func() tea.Msg {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+
+		list, err := client.ListProviders(ctx)
+		return providersLoadedMsg{List: list, Err: err}
+	}
+}
+
+func (m *model) completeProvidersCommand(msg providersLoadedMsg) tea.Cmd {
+	if msg.Err != nil {
+		return m.setStatus("providers unavailable")
+	}
+
+	m.showCommandView(commandViewPayload{
+		TitleLeft:       "Providers",
+		TitleRight:      getProvidersCommandTitleRight(),
+		TitleRightColor: defaultTUITheme.MutedText,
+		Kind:            commandViewKindProviders,
+		Providers:       msg.List.Providers,
+	})
+
+	return nil
+}
+
 func (m *model) startModelsCommand() tea.Cmd {
 	client, ok := m.modelClient.(modelListLoader)
 	if m.modelClient == nil || !ok {
@@ -38,17 +119,17 @@ func (m *model) startModelsCommand() tea.Cmd {
 
 	return tea.Batch(
 		m.setStatus("loading models"),
-		loadModelsCmd(m.chatCtx, client),
+		loadModelsCmd(m.chatCtx, client, ""),
 	)
 }
 
-func loadModelsCmd(ctx context.Context, client modelListLoader) tea.Cmd {
+func loadModelsCmd(ctx context.Context, client modelListLoader, provider string) tea.Cmd {
 	return func() tea.Msg {
 		if ctx == nil {
 			ctx = context.Background()
 		}
 
-		list, err := client.ListModels(ctx)
+		list, err := client.ListModels(ctx, rpcclient.ModelListOptions{Provider: provider})
 		return modelsLoadedMsg{List: list, Err: err}
 	}
 }
@@ -60,6 +141,7 @@ func (m *model) completeModelsCommand(msg modelsLoadedMsg) tea.Cmd {
 
 	m.showCommandView(commandViewPayload{
 		TitleLeft:       "Models",
+		TitleSubtext:    msg.List.Provider,
 		TitleRight:      getModelsCommandTitleRight(),
 		TitleRightColor: defaultTUITheme.MutedText,
 		Kind:            commandViewKindModels,
@@ -73,6 +155,86 @@ func (m *model) completeModelsCommand(msg modelsLoadedMsg) tea.Cmd {
 
 func (m model) isModelsCommandView() bool {
 	return m.commandView.Visible && m.commandView.Kind == commandViewKindModels
+}
+
+func (m model) isProvidersCommandView() bool {
+	return m.commandView.Visible && m.commandView.Kind == commandViewKindProviders
+}
+
+func (m model) isProviderAPIKeyCommandView() bool {
+	return m.commandView.Visible && m.commandView.Kind == commandViewKindProviderAPIKey
+}
+
+func (m model) renderProvidersCommandViewContent(content commandViewContent) string {
+	providers := m.commandView.Providers
+	if len(providers) == 0 {
+		return "No providers available."
+	}
+
+	offset := min(max(content.Offset, 0), max(len(providers)-1, 0))
+	height := max(content.Height, 1)
+	end := min(offset+height, len(providers))
+	rows := make([]string, 0, end-offset)
+	for index := offset; index < end; index++ {
+		row := renderProvidersCommandRow(providers[index], content.Width)
+		if index == m.commandViewItemSelected {
+			row = renderSelectedChatsCommandRow(row, content.Width)
+		} else if !providers[index].Current {
+			row = lipgloss.NewStyle().
+				Foreground(lipgloss.Color(defaultTUITheme.MutedText)).
+				Render(row)
+		}
+		rows = append(rows, row)
+	}
+
+	for len(rows) <= height+1 {
+		rows = append(rows, "")
+	}
+
+	return strings.Join(rows, "\n")
+}
+
+func renderProvidersCommandRow(provider rpcclient.ProviderOption, width int) string {
+	width = max(width, 1)
+	contentWidth := max(width-2, 1)
+	name := getProviderOptionDisplayName(provider)
+	detail := getProviderOptionDetail(provider)
+	detailWidth := lipgloss.Width(detail)
+	nameWidth := max(contentWidth-detailWidth-2, 1)
+	name = truncateCommandMenuText(name, nameWidth)
+	gap := max(contentWidth-lipgloss.Width(name)-detailWidth, 1)
+	row := name + strings.Repeat(" ", gap) + detail
+	if width <= 1 {
+		return truncateChatsCommandRow(row, width)
+	}
+
+	return " " + truncateChatsCommandRow(row, contentWidth) + " "
+}
+
+func getProviderOptionDisplayName(provider rpcclient.ProviderOption) string {
+	if strings.TrimSpace(provider.Name) != "" {
+		return strings.TrimSpace(provider.Name)
+	}
+
+	return strings.TrimSpace(provider.ID)
+}
+
+func getProviderOptionDetail(provider rpcclient.ProviderOption) string {
+	parts := make([]string, 0, 3)
+	if provider.Current {
+		parts = append(parts, "current")
+	}
+	if authType := strings.TrimSpace(provider.AuthType); authType != "" && authType != "none" {
+		parts = append(parts, authType)
+	}
+	if provider.ModelCount > 0 {
+		parts = append(parts, fmt.Sprintf("%d models", provider.ModelCount))
+	}
+	if len(parts) == 0 {
+		return strings.TrimSpace(provider.Type)
+	}
+
+	return strings.Join(parts, " · ")
 }
 
 func (m model) renderModelsCommandViewContent(content commandViewContent) string {
@@ -130,9 +292,12 @@ func getModelOptionDisplayName(model rpcclient.ModelOption) string {
 }
 
 func getModelOptionDetail(model rpcclient.ModelOption) string {
-	parts := make([]string, 0, 3)
+	parts := make([]string, 0, 4)
 	if model.Current {
 		parts = append(parts, "current")
+	}
+	if model.SupportsOAuth {
+		parts = append(parts, "oauth")
 	}
 	if model.Reasoning {
 		parts = append(parts, "reasoning")
@@ -145,6 +310,61 @@ func getModelOptionDetail(model rpcclient.ModelOption) string {
 	}
 
 	return strings.Join(parts, " · ")
+}
+
+func (m *model) updateProvidersCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if loaded, ok := msg.(modelsLoadedMsg); ok {
+		return *m, m.completeModelsCommand(loaded)
+	}
+
+	if len(m.commandView.Providers) == 0 {
+		return *m, nil
+	}
+
+	selection := m.commandViewItemSelected
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		switch msg.Key().Code {
+		case tea.KeyUp:
+			selection--
+		case tea.KeyDown:
+			selection++
+		case tea.KeyHome:
+			selection = 0
+		case tea.KeyEnd:
+			selection = len(m.commandView.Providers) - 1
+		case tea.KeyPgUp:
+			selection -= max(m.getCommandViewContentHeight(), 1)
+		case tea.KeyPgDown:
+			selection += max(m.getCommandViewContentHeight(), 1)
+		case tea.KeyEnter:
+			return m.selectCurrentProviderOption()
+		default:
+			return *m, nil
+		}
+	case tea.MouseWheelMsg:
+		switch msg.Mouse().Button {
+		case tea.MouseWheelUp:
+			selection--
+		case tea.MouseWheelDown:
+			selection++
+		default:
+			return *m, nil
+		}
+	default:
+		return *m, nil
+	}
+
+	m.commandViewItemSelected = min(max(selection, 0), len(m.commandView.Providers)-1)
+	m.commandViewOffset = getChatsCommandViewOffsetForSelection(
+		m.commandViewItemSelected,
+		m.commandViewOffset,
+		m.getCommandViewContentHeight(),
+		len(m.commandView.Providers),
+	)
+	m.clearCommandViewSelection()
+
+	return *m, nil
 }
 
 func (m *model) updateModelsCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -202,8 +422,51 @@ func (m *model) updateModelsCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return *m, nil
 }
 
+func (m *model) updateProviderAPIKeyCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if set, ok := msg.(providerAPIKeySetMsg); ok {
+		return m.completeProviderAPIKeySet(set)
+	}
+
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		switch msg.Key().Code {
+		case tea.KeyEsc:
+			next := m.hideCommandView()
+			return next, next.setStatus("provider API key cancelled")
+		case tea.KeyEnter:
+			return m.submitProviderAPIKey()
+		}
+	}
+
+	var cmd tea.Cmd
+	m.apiKeyInput, cmd = m.apiKeyInput.Update(msg)
+	return *m, cmd
+}
+
 func getModelsCommandTitleRight() string {
 	return "enter to select · esc to close"
+}
+
+func getProvidersCommandTitleRight() string {
+	return "enter to view models · esc to close"
+}
+
+func (m *model) selectCurrentProviderOption() (tea.Model, tea.Cmd) {
+	provider := m.commandView.Providers[m.commandViewItemSelected]
+	providerID := strings.TrimSpace(provider.ID)
+	if providerID == "" {
+		return *m, m.setStatus("provider selection unavailable")
+	}
+
+	client, ok := m.modelClient.(modelListLoader)
+	if m.modelClient == nil || !ok {
+		return *m, m.setStatus("models unavailable")
+	}
+
+	return *m, tea.Batch(
+		m.setStatus("loading models"),
+		loadModelsCmd(m.chatCtx, client, providerID),
+	)
 }
 
 func (m *model) selectCurrentModelOption() (tea.Model, tea.Cmd) {
@@ -214,6 +477,9 @@ func (m *model) selectCurrentModelOption() (tea.Model, tea.Cmd) {
 	}
 	if model.Current {
 		return *m, m.setStatus("model already selected")
+	}
+	if m.shouldPromptForProviderAPIKey(model) {
+		return m.showProviderAPIKeyPrompt(model)
 	}
 
 	client, ok := m.modelClient.(modelSelector)
@@ -226,11 +492,11 @@ func (m *model) selectCurrentModelOption() (tea.Model, tea.Cmd) {
 	statusCmd := next.setStatus("selecting model")
 	return next, tea.Batch(
 		statusCmd,
-		selectModelCmd(m.chatCtx, client, modelID),
+		selectModelCmd(m.chatCtx, client, m.commandView.ModelProvider, modelID),
 	)
 }
 
-func selectModelCmd(ctx context.Context, client modelSelector, modelID string) tea.Cmd {
+func selectModelCmd(ctx context.Context, client modelSelector, provider string, modelID string) tea.Cmd {
 	if client == nil {
 		return nil
 	}
@@ -245,13 +511,17 @@ func selectModelCmd(ctx context.Context, client modelSelector, modelID string) t
 			return modelSelectedMsg{Err: errors.New("model id is required")}
 		}
 
-		model, err := client.SelectModel(ctx, modelID)
+		model, err := client.SelectModel(ctx, modelID, rpcclient.ModelSelectOptions{Provider: provider})
 		return modelSelectedMsg{Model: model, Err: err}
 	}
 }
 
 func (m *model) completeSelectModel(msg modelSelectedMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
+		if getModelSelectionLoginCommand(msg.Err) != "" {
+			m.addTranscriptMessage(sessionErrorMsg{Message: getModelSelectionLoginCommand(msg.Err)})
+			return *m, m.setStatus("model authentication required")
+		}
 		return *m, m.setStatus("model selection unavailable")
 	}
 
@@ -270,6 +540,132 @@ func (m *model) completeSelectModel(msg modelSelectedMsg) (tea.Model, tea.Cmd) {
 
 	next := m.hideCommandView()
 	return next, next.setStatus("model selected; daemon restarting")
+}
+
+func getModelSelectionLoginCommand(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	message := err.Error()
+	index := strings.Index(message, "hand auth login ")
+	if index < 0 {
+		return ""
+	}
+
+	command := strings.TrimSpace(message[index:])
+	return "run " + command + " in a new terminal"
+}
+
+func (m model) shouldPromptForProviderAPIKey(option rpcclient.ModelOption) bool {
+	if option.SupportsOAuth {
+		return false
+	}
+	if strings.TrimSpace(m.commandView.ModelAuthType) != "" &&
+		strings.TrimSpace(m.commandView.ModelAuthType) != "none" {
+		return false
+	}
+
+	return strings.TrimSpace(m.commandView.ModelProvider) != ""
+}
+
+func (m *model) showProviderAPIKeyPrompt(option rpcclient.ModelOption) (tea.Model, tea.Cmd) {
+	provider := strings.TrimSpace(m.commandView.ModelProvider)
+	if provider == "" {
+		provider = strings.TrimSpace(option.Provider)
+	}
+	if provider == "" {
+		return *m, m.setStatus("model selection unavailable")
+	}
+
+	m.apiKeyInput = newProviderAPIKeyInput()
+	m.showCommandView(commandViewPayload{
+		TitleLeft:       "Provider API Key",
+		TitleSubtext:    provider,
+		TitleRight:      "enter to save · esc to cancel",
+		TitleRightColor: defaultTUITheme.MutedText,
+		Kind:            commandViewKindProviderAPIKey,
+		ModelProvider:   provider,
+		PendingModelID:  strings.TrimSpace(option.ID),
+		Height:          commandViewMinHeight,
+	})
+
+	return *m, m.setStatus("provider API key required")
+}
+
+func (m model) renderProviderAPIKeyCommandViewContent(content commandViewContent) string {
+	width := max(content.Width, 1)
+	input := m.apiKeyInput
+	input.SetWidth(width)
+
+	return strings.Join([]string{
+		"Enter API key for " + strings.TrimSpace(m.commandView.ModelProvider) + ".",
+		input.View(),
+	}, "\n")
+}
+
+func (m *model) submitProviderAPIKey() (tea.Model, tea.Cmd) {
+	provider := strings.TrimSpace(m.commandView.ModelProvider)
+	modelID := strings.TrimSpace(m.commandView.PendingModelID)
+	apiKey := strings.TrimSpace(m.apiKeyInput.Value())
+	if provider == "" || modelID == "" {
+		return *m, m.setStatus("provider API key unavailable")
+	}
+	if apiKey == "" {
+		return *m, m.setStatus("provider API key required")
+	}
+
+	client, ok := m.modelClient.(providerAPIKeySetter)
+	if m.modelClient == nil || !ok {
+		return *m, m.setStatus("provider API key unavailable")
+	}
+
+	return *m, tea.Batch(
+		m.setStatus("saving provider API key"),
+		setProviderAPIKeyCmd(m.chatCtx, client, provider, modelID, apiKey),
+	)
+}
+
+func setProviderAPIKeyCmd(
+	ctx context.Context,
+	client providerAPIKeySetter,
+	provider string,
+	modelID string,
+	apiKey string,
+) tea.Cmd {
+	if client == nil {
+		return nil
+	}
+
+	return func() tea.Msg {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+
+		err := client.SetProviderAPIKey(ctx, provider, apiKey)
+		return providerAPIKeySetMsg{
+			Provider: provider,
+			ModelID:  modelID,
+			Err:      err,
+		}
+	}
+}
+
+func (m *model) completeProviderAPIKeySet(msg providerAPIKeySetMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		return *m, m.setStatus("provider API key unavailable")
+	}
+
+	client, ok := m.modelClient.(modelSelector)
+	if m.modelClient == nil || !ok {
+		return *m, m.setStatus("model selection unavailable")
+	}
+
+	next := m.hideCommandView()
+	return next, tea.Batch(
+		next.setStatus("selecting model"),
+		selectModelCmd(m.chatCtx, client, msg.Provider, msg.ModelID),
+	)
 }
 
 func (m *model) applySelectedModelToRuntime(option rpcclient.ModelOption) {

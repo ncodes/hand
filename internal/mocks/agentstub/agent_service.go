@@ -48,10 +48,16 @@ type AgentServiceStub struct {
 	StatusResult         rpcclient.ContextStatus
 	TimelineOptions      agentapi.SessionTimelineOptions
 	TimelineResult       agentapi.SessionTimeline
+	ProviderList         agentapi.ProviderList
 	ModelList            agentapi.ModelList
+	ModelListOptions     agentapi.ModelListOptions
 	SelectedModel        models.Option
 	SelectedModelID      string
+	SelectedModelOptions agentapi.ModelSelectOptions
 	SelectModelErr       error
+	ProviderAPIKey       string
+	ProviderAPIKeyID     string
+	SetProviderAPIKeyErr error
 }
 
 func (s *AgentServiceStub) Respond(_ context.Context, msg string, opts rpcclient.RespondOptions) (string, error) {
@@ -91,12 +97,23 @@ func (s *AgentServiceStub) ModelAPI() rpcclient.ModelAPI {
 	return s
 }
 
-func (s *AgentServiceStub) ListModels(context.Context) (agentapi.ModelList, error) {
+func (s *AgentServiceStub) ListProviders(context.Context) (agentapi.ProviderList, error) {
+	return s.ProviderList, s.Err
+}
+
+func (s *AgentServiceStub) ListModels(_ context.Context, opts ...agentapi.ModelListOptions) (agentapi.ModelList, error) {
+	if len(opts) > 0 {
+		s.ModelListOptions = opts[0]
+	}
+
 	return s.ModelList, s.Err
 }
 
-func (s *AgentServiceStub) SelectModel(_ context.Context, id string) (models.Option, error) {
+func (s *AgentServiceStub) SelectModel(_ context.Context, id string, opts ...agentapi.ModelSelectOptions) (models.Option, error) {
 	s.SelectedModelID = id
+	if len(opts) > 0 {
+		s.SelectedModelOptions = opts[0]
+	}
 	if s.SelectModelErr != nil {
 		return models.Option{}, s.SelectModelErr
 	}
@@ -105,6 +122,13 @@ func (s *AgentServiceStub) SelectModel(_ context.Context, id string) (models.Opt
 	}
 
 	return models.Option{ID: id, Current: true}, s.Err
+}
+
+func (s *AgentServiceStub) SetProviderAPIKey(_ context.Context, provider string, apiKey string) error {
+	s.ProviderAPIKeyID = provider
+	s.ProviderAPIKey = apiKey
+
+	return s.SetProviderAPIKeyErr
 }
 
 func (s *AgentServiceStub) Create(ctx context.Context, id string) (storage.Session, error) {

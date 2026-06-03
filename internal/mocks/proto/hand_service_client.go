@@ -35,10 +35,14 @@ type HandServiceClientStub struct {
 	StatusReq     *handpb.GetSessionStatusRequest
 	TimelineResp  *handpb.GetSessionTimelineResponse
 	TimelineReq   *handpb.GetSessionTimelineRequest
+	ProvidersResp *handpb.ListProvidersResponse
+	ProvidersReq  *handpb.ListProvidersRequest
 	ModelsResp    *handpb.ListModelsResponse
 	ModelsReq     *handpb.ListModelsRequest
 	SelectReq     *handpb.SelectModelRequest
 	SelectResp    *handpb.SelectModelResponse
+	APIKeyReq     *handpb.SetProviderAPIKeyRequest
+	APIKeyResp    *handpb.SetProviderAPIKeyResponse
 }
 
 func (s *HandServiceClientStub) Respond(_ context.Context, req *handpb.RespondRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[handpb.RespondEvent], error) {
@@ -108,9 +112,19 @@ func (s *HandServiceClientStub) ListModels(_ context.Context, req *handpb.ListMo
 	return s.ModelsResp, s.Err
 }
 
+func (s *HandServiceClientStub) ListProviders(_ context.Context, req *handpb.ListProvidersRequest, _ ...grpc.CallOption) (*handpb.ListProvidersResponse, error) {
+	s.ProvidersReq = req
+	return s.ProvidersResp, s.Err
+}
+
 func (s *HandServiceClientStub) SelectModel(_ context.Context, req *handpb.SelectModelRequest, _ ...grpc.CallOption) (*handpb.SelectModelResponse, error) {
 	s.SelectReq = req
 	return s.SelectResp, s.Err
+}
+
+func (s *HandServiceClientStub) SetProviderAPIKey(_ context.Context, req *handpb.SetProviderAPIKeyRequest, _ ...grpc.CallOption) (*handpb.SetProviderAPIKeyResponse, error) {
+	s.APIKeyReq = req
+	return s.APIKeyResp, s.Err
 }
 
 type respondStreamStub struct {

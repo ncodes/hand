@@ -830,10 +830,11 @@ func TestModelService_ListModelsReturnsProviderAuthAndOptions(t *testing.T) {
 	}}
 	client := NewModelService(stub)
 
-	list, err := client.ListModels(context.Background())
+	list, err := client.ListModels(context.Background(), ModelListOptions{Provider: " openai "})
 
 	require.NoError(t, err)
 	require.NotNil(t, stub.ModelsReq)
+	require.Equal(t, "openai", stub.ModelsReq.GetProvider())
 	require.Equal(t, "openai", list.Provider)
 	require.Equal(t, "oauth", list.AuthType)
 	require.Len(t, list.Models, 1)
@@ -849,25 +850,72 @@ func TestModelService_ListModelsReturnsProviderAuthAndOptions(t *testing.T) {
 	require.True(t, list.Models[0].Current)
 }
 
-func TestModelService_SelectModelSendsTrimmedID(t *testing.T) {
+func TestModelService_ListProvidersReturnsOptions(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{ProvidersResp: &handpb.ListProvidersResponse{
+		Providers: []*handpb.ProviderOption{{
+			Id:             " openrouter ",
+			Name:           " OpenRouter ",
+			Type:           " api-key ",
+			ModelCount:     12,
+			SupportsApiKey: true,
+			AuthType:       " api-key ",
+			Current:        true,
+		}},
+	}}
+	client := NewModelService(stub)
+
+	list, err := client.ListProviders(context.Background())
+
+	require.NoError(t, err)
+	require.NotNil(t, stub.ProvidersReq)
+	require.Len(t, list.Providers, 1)
+	require.Equal(t, "openrouter", list.Providers[0].ID)
+	require.Equal(t, "OpenRouter", list.Providers[0].Name)
+	require.Equal(t, "api-key", list.Providers[0].Type)
+	require.Equal(t, 12, list.Providers[0].ModelCount)
+	require.True(t, list.Providers[0].SupportsAPIKey)
+	require.False(t, list.Providers[0].SupportsOAuth)
+	require.Equal(t, "api-key", list.Providers[0].AuthType)
+	require.True(t, list.Providers[0].Current)
+}
+
+func TestModelService_SelectModelSendsTrimmedIDAndProvider(t *testing.T) {
 	stub := &protomock.HandServiceClientStub{SelectResp: &handpb.SelectModelResponse{
 		Model: &handpb.ModelOption{Id: "gpt-4o", Current: true},
 	}}
 	client := NewModelService(stub)
 
-	model, err := client.SelectModel(context.Background(), " gpt-4o ")
+	model, err := client.SelectModel(context.Background(), " gpt-4o ", ModelSelectOptions{Provider: " openai "})
 
 	require.NoError(t, err)
 	require.Equal(t, "gpt-4o", stub.SelectReq.GetId())
+	require.Equal(t, "openai", stub.SelectReq.GetProvider())
 	require.Equal(t, "gpt-4o", model.ID)
 	require.True(t, model.Current)
+}
+
+func TestModelService_SetProviderAPIKeySendsTrimmedProviderAndKey(t *testing.T) {
+	stub := &protomock.HandServiceClientStub{APIKeyResp: &handpb.SetProviderAPIKeyResponse{Provider: "openrouter"}}
+	client := NewModelService(stub)
+
+	err := client.SetProviderAPIKey(context.Background(), " openrouter ", " key ")
+
+	require.NoError(t, err)
+	require.Equal(t, "openrouter", stub.APIKeyReq.GetProvider())
+	require.Equal(t, "key", stub.APIKeyReq.GetApiKey())
 }
 
 func TestModelService_ReturnsClientErrors(t *testing.T) {
 	_, err := (*ModelService)(nil).ListModels(context.Background())
 	require.EqualError(t, err, "hand: model service client is required")
 
+	_, err = (*ModelService)(nil).ListProviders(context.Background())
+	require.EqualError(t, err, "hand: model service client is required")
+
 	_, err = (*ModelService)(nil).SelectModel(context.Background(), "gpt-4o")
+	require.EqualError(t, err, "hand: model service client is required")
+
+	err = (*ModelService)(nil).SetProviderAPIKey(context.Background(), "openrouter", "key")
 	require.EqualError(t, err, "hand: model service client is required")
 
 	require.Nil(t, (*Client)(nil).ModelAPI())
@@ -875,6 +923,10 @@ func TestModelService_ReturnsClientErrors(t *testing.T) {
 	require.NotNil(t, wrapped.ModelAPI())
 
 	client := NewModelService(&protomock.HandServiceClientStub{Err: context.Canceled})
+	providers, err := client.ListProviders(context.Background())
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, providers.Providers)
+
 	list, err := client.ListModels(context.Background())
 	require.ErrorIs(t, err, context.Canceled)
 	require.Empty(t, list.Provider)
@@ -883,6 +935,9 @@ func TestModelService_ReturnsClientErrors(t *testing.T) {
 	model, err := client.SelectModel(context.Background(), "gpt-4o")
 	require.ErrorIs(t, err, context.Canceled)
 	require.Empty(t, model.ID)
+
+	err = client.SetProviderAPIKey(context.Background(), "openrouter", "key")
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestTimelineProtoAdaptersHandleNilRecords(t *testing.T) {
@@ -895,6 +950,9 @@ func TestTimelineProtoAdaptersHandleNilRecords(t *testing.T) {
 
 	model := protoModelOptionToModelOption(nil)
 	require.Zero(t, model)
+
+	provider := protoProviderOptionToProviderOption(nil)
+	require.Zero(t, provider)
 
 	event, err := timelineTraceEventFromProto(nil)
 	require.NoError(t, err)

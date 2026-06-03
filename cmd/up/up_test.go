@@ -180,6 +180,7 @@ func TestNewCommand_BuildsConfigFromFlags(t *testing.T) {
 
 func TestNewCommand_RestartsDaemonWhenConfigFileChanges(t *testing.T) {
 	isolateCommandProfile(t)
+	stubOpenRPCListener(t)
 	originalFactory := modelClientFactory
 	originalRunner := newAgentRunner
 	originalServe := serveRPC
@@ -262,6 +263,7 @@ func TestNewCommand_RestartsDaemonWhenConfigFileChanges(t *testing.T) {
 
 func TestNewCommand_KeepsRunningWhenChangedConfigIsInvalid(t *testing.T) {
 	isolateCommandProfile(t)
+	stubOpenRPCListener(t)
 	originalFactory := modelClientFactory
 	originalRunner := newAgentRunner
 	originalServe := serveRPC
@@ -896,6 +898,7 @@ func TestRunDaemonUntilConfigChangeReturnsShutdownErrorOnRestart(t *testing.T) {
 
 func TestRunDaemonOnceClosesAgentAndReturnsCloseError(t *testing.T) {
 	isolateCommandProfile(t)
+	stubOpenRPCListener(t)
 	originalFactory := modelClientFactory
 	originalRunner := newAgentRunner
 	originalServe := serveRPC
@@ -933,6 +936,7 @@ func TestRunDaemonOnceClosesAgentAndReturnsCloseError(t *testing.T) {
 
 func TestRunDaemonOnceIgnoresMissingCredentialLockCloseError(t *testing.T) {
 	isolateCommandProfile(t)
+	stubOpenRPCListener(t)
 	originalFactory := modelClientFactory
 	originalRunner := newAgentRunner
 	originalServe := serveRPC
@@ -1014,6 +1018,7 @@ func TestRunDaemonOnceReturnsRPCListenerErrorBeforeStartingAgent(t *testing.T) {
 
 func TestRunDaemonOnceKeepsServeErrorWhenCloseAlsoFails(t *testing.T) {
 	isolateCommandProfile(t)
+	stubOpenRPCListener(t)
 	originalFactory := modelClientFactory
 	originalRunner := newAgentRunner
 	originalServe := serveRPC
@@ -1379,6 +1384,18 @@ func openTestRPCListener(t *testing.T, cfg *config.Config) net.Listener {
 	return lis
 }
 
+func stubOpenRPCListener(t *testing.T) {
+	t.Helper()
+
+	original := openRPCListener
+	openRPCListener = func(*config.Config) (net.Listener, error) {
+		return noopListener{}, nil
+	}
+	t.Cleanup(func() {
+		openRPCListener = original
+	})
+}
+
 type noopListener struct{}
 
 func (noopListener) Accept() (net.Conn, error) {
@@ -1413,6 +1430,7 @@ func (w *startupWriteFailAfterFirst) Write(p []byte) (int, error) {
 
 func TestNewCommand_ReturnsStartupOutputError(t *testing.T) {
 	isolateCommandProfile(t)
+	stubOpenRPCListener(t)
 	origOut := startupOutput
 	origServe := serveRPC
 	t.Cleanup(func() {
@@ -1446,6 +1464,7 @@ func TestNewCommand_ReturnsStartupOutputError(t *testing.T) {
 
 func TestNewCommand_ReturnsModelClientFactoryError(t *testing.T) {
 	isolateCommandProfile(t)
+	stubOpenRPCListener(t)
 	origFactory := modelClientFactory
 	origServe := serveRPC
 	t.Cleanup(func() {
@@ -1479,6 +1498,7 @@ func TestNewCommand_ReturnsModelClientFactoryError(t *testing.T) {
 
 func TestNewCommand_ReturnsResolveSummaryAuthError(t *testing.T) {
 	isolateCommandProfile(t)
+	stubOpenRPCListener(t)
 	origResolve := resolveSummaryAuth
 	origServe := serveRPC
 	t.Cleanup(func() {
@@ -1510,6 +1530,7 @@ func TestNewCommand_ReturnsResolveSummaryAuthError(t *testing.T) {
 
 func TestNewCommand_ReturnsSecondModelClientFactoryError(t *testing.T) {
 	isolateCommandProfile(t)
+	stubOpenRPCListener(t)
 	t.Setenv("OPENAI_API_KEY", "openai-key")
 	origFactory := modelClientFactory
 	origServe := serveRPC
@@ -1552,6 +1573,7 @@ func TestNewCommand_ReturnsSecondModelClientFactoryError(t *testing.T) {
 
 func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 	isolateCommandProfile(t)
+	stubOpenRPCListener(t)
 	t.Setenv("OPENAI_API_KEY", "openai-key")
 	origFactory := modelClientFactory
 	origRunner := newAgentRunner
@@ -1618,6 +1640,7 @@ func TestNewCommand_PassesResolvedAuthToModelClientFactory(t *testing.T) {
 
 func TestNewCommand_PassesSeparateRerankerClientWhenAuthDiffers(t *testing.T) {
 	isolateCommandProfile(t)
+	stubOpenRPCListener(t)
 	t.Setenv("HAND_RERANKER_TYPE", constants.RerankerLLM)
 	origFactory := modelClientFactory
 	origRunner := newAgentRunner
@@ -1700,6 +1723,7 @@ func TestNewCommand_PassesSeparateRerankerClientWhenAuthDiffers(t *testing.T) {
 
 func TestNewCommand_ReturnsAgentStartError(t *testing.T) {
 	isolateCommandProfile(t)
+	stubOpenRPCListener(t)
 	origRunner := newAgentRunner
 	origServe := serveRPC
 	t.Cleanup(func() {
@@ -1739,6 +1763,7 @@ func TestNewCommand_ReturnsAgentStartError(t *testing.T) {
 
 func TestNewCommand_UsesSeparateSummaryClientWhenAuthDiffers(t *testing.T) {
 	isolateCommandProfile(t)
+	stubOpenRPCListener(t)
 	t.Setenv("OPENAI_API_KEY", "openai-key")
 	original := config.Get()
 	originalNewAgentRunner := newAgentRunner

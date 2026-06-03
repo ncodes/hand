@@ -2049,15 +2049,196 @@ func (x *GetSessionTimelineResponse) GetTitleSource() string {
 	return ""
 }
 
+type ListProvidersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListProvidersRequest) Reset() {
+	*x = ListProvidersRequest{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListProvidersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListProvidersRequest) ProtoMessage() {}
+
+func (x *ListProvidersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListProvidersRequest.ProtoReflect.Descriptor instead.
+func (*ListProvidersRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{31}
+}
+
+type ProviderOption struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name           string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Type           string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
+	ModelCount     int32                  `protobuf:"varint,4,opt,name=model_count,json=modelCount,proto3" json:"model_count,omitempty"`
+	SupportsApiKey bool                   `protobuf:"varint,5,opt,name=supports_api_key,json=supportsApiKey,proto3" json:"supports_api_key,omitempty"`
+	SupportsOauth  bool                   `protobuf:"varint,6,opt,name=supports_oauth,json=supportsOauth,proto3" json:"supports_oauth,omitempty"`
+	AuthType       string                 `protobuf:"bytes,7,opt,name=auth_type,json=authType,proto3" json:"auth_type,omitempty"`
+	Current        bool                   `protobuf:"varint,8,opt,name=current,proto3" json:"current,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ProviderOption) Reset() {
+	*x = ProviderOption{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProviderOption) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProviderOption) ProtoMessage() {}
+
+func (x *ProviderOption) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProviderOption.ProtoReflect.Descriptor instead.
+func (*ProviderOption) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *ProviderOption) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ProviderOption) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ProviderOption) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *ProviderOption) GetModelCount() int32 {
+	if x != nil {
+		return x.ModelCount
+	}
+	return 0
+}
+
+func (x *ProviderOption) GetSupportsApiKey() bool {
+	if x != nil {
+		return x.SupportsApiKey
+	}
+	return false
+}
+
+func (x *ProviderOption) GetSupportsOauth() bool {
+	if x != nil {
+		return x.SupportsOauth
+	}
+	return false
+}
+
+func (x *ProviderOption) GetAuthType() string {
+	if x != nil {
+		return x.AuthType
+	}
+	return ""
+}
+
+func (x *ProviderOption) GetCurrent() bool {
+	if x != nil {
+		return x.Current
+	}
+	return false
+}
+
+type ListProvidersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Providers     []*ProviderOption      `protobuf:"bytes,1,rep,name=providers,proto3" json:"providers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListProvidersResponse) Reset() {
+	*x = ListProvidersResponse{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListProvidersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListProvidersResponse) ProtoMessage() {}
+
+func (x *ListProvidersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListProvidersResponse.ProtoReflect.Descriptor instead.
+func (*ListProvidersResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *ListProvidersResponse) GetProviders() []*ProviderOption {
+	if x != nil {
+		return x.Providers
+	}
+	return nil
+}
+
 type ListModelsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Provider      string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListModelsRequest) Reset() {
 	*x = ListModelsRequest{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[31]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2069,7 +2250,7 @@ func (x *ListModelsRequest) String() string {
 func (*ListModelsRequest) ProtoMessage() {}
 
 func (x *ListModelsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[31]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2082,7 +2263,14 @@ func (x *ListModelsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelsRequest.ProtoReflect.Descriptor instead.
 func (*ListModelsRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{31}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *ListModelsRequest) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
 }
 
 type ModelOption struct {
@@ -2103,7 +2291,7 @@ type ModelOption struct {
 
 func (x *ModelOption) Reset() {
 	*x = ModelOption{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[32]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2115,7 +2303,7 @@ func (x *ModelOption) String() string {
 func (*ModelOption) ProtoMessage() {}
 
 func (x *ModelOption) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[32]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2128,7 +2316,7 @@ func (x *ModelOption) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelOption.ProtoReflect.Descriptor instead.
 func (*ModelOption) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{32}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ModelOption) GetId() string {
@@ -2212,7 +2400,7 @@ type ListModelsResponse struct {
 
 func (x *ListModelsResponse) Reset() {
 	*x = ListModelsResponse{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[33]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2224,7 +2412,7 @@ func (x *ListModelsResponse) String() string {
 func (*ListModelsResponse) ProtoMessage() {}
 
 func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[33]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2237,7 +2425,7 @@ func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelsResponse.ProtoReflect.Descriptor instead.
 func (*ListModelsResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{33}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ListModelsResponse) GetProvider() string {
@@ -2264,13 +2452,14 @@ func (x *ListModelsResponse) GetModels() []*ModelOption {
 type SelectModelRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Provider      string                 `protobuf:"bytes,2,opt,name=provider,proto3" json:"provider,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SelectModelRequest) Reset() {
 	*x = SelectModelRequest{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[34]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2282,7 +2471,7 @@ func (x *SelectModelRequest) String() string {
 func (*SelectModelRequest) ProtoMessage() {}
 
 func (x *SelectModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[34]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2295,12 +2484,19 @@ func (x *SelectModelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SelectModelRequest.ProtoReflect.Descriptor instead.
 func (*SelectModelRequest) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{34}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *SelectModelRequest) GetId() string {
 	if x != nil {
 		return x.Id
+	}
+	return ""
+}
+
+func (x *SelectModelRequest) GetProvider() string {
+	if x != nil {
+		return x.Provider
 	}
 	return ""
 }
@@ -2314,7 +2510,7 @@ type SelectModelResponse struct {
 
 func (x *SelectModelResponse) Reset() {
 	*x = SelectModelResponse{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[35]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2326,7 +2522,7 @@ func (x *SelectModelResponse) String() string {
 func (*SelectModelResponse) ProtoMessage() {}
 
 func (x *SelectModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[35]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2339,7 +2535,7 @@ func (x *SelectModelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SelectModelResponse.ProtoReflect.Descriptor instead.
 func (*SelectModelResponse) Descriptor() ([]byte, []int) {
-	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{35}
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *SelectModelResponse) GetModel() *ModelOption {
@@ -2347,6 +2543,102 @@ func (x *SelectModelResponse) GetModel() *ModelOption {
 		return x.Model
 	}
 	return nil
+}
+
+type SetProviderAPIKeyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Provider      string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
+	ApiKey        string                 `protobuf:"bytes,2,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetProviderAPIKeyRequest) Reset() {
+	*x = SetProviderAPIKeyRequest{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetProviderAPIKeyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetProviderAPIKeyRequest) ProtoMessage() {}
+
+func (x *SetProviderAPIKeyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetProviderAPIKeyRequest.ProtoReflect.Descriptor instead.
+func (*SetProviderAPIKeyRequest) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *SetProviderAPIKeyRequest) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *SetProviderAPIKeyRequest) GetApiKey() string {
+	if x != nil {
+		return x.ApiKey
+	}
+	return ""
+}
+
+type SetProviderAPIKeyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Provider      string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetProviderAPIKeyResponse) Reset() {
+	*x = SetProviderAPIKeyResponse{}
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetProviderAPIKeyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetProviderAPIKeyResponse) ProtoMessage() {}
+
+func (x *SetProviderAPIKeyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetProviderAPIKeyResponse.ProtoReflect.Descriptor instead.
+func (*SetProviderAPIKeyResponse) Descriptor() ([]byte, []int) {
+	return file_internal_rpc_proto_hand_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *SetProviderAPIKeyResponse) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
 }
 
 type GetSessionStatusResponse_Context struct {
@@ -2363,7 +2655,7 @@ type GetSessionStatusResponse_Context struct {
 
 func (x *GetSessionStatusResponse_Context) Reset() {
 	*x = GetSessionStatusResponse_Context{}
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[36]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2375,7 +2667,7 @@ func (x *GetSessionStatusResponse_Context) String() string {
 func (*GetSessionStatusResponse_Context) ProtoMessage() {}
 
 func (x *GetSessionStatusResponse_Context) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_rpc_proto_hand_proto_msgTypes[36]
+	mi := &file_internal_rpc_proto_hand_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2599,8 +2891,22 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\x13last_trace_sequence\x18\b \x01(\x05R\x11lastTraceSequence\x12\x14\n" +
 	"\x05title\x18\t \x01(\tR\x05title\x12!\n" +
 	"\ftitle_source\x18\n" +
-	" \x01(\tR\vtitleSource\"\x13\n" +
-	"\x11ListModelsRequest\"\x9a\x02\n" +
+	" \x01(\tR\vtitleSource\"\x16\n" +
+	"\x14ListProvidersRequest\"\xf1\x01\n" +
+	"\x0eProviderOption\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
+	"\x04type\x18\x03 \x01(\tR\x04type\x12\x1f\n" +
+	"\vmodel_count\x18\x04 \x01(\x05R\n" +
+	"modelCount\x12(\n" +
+	"\x10supports_api_key\x18\x05 \x01(\bR\x0esupportsApiKey\x12%\n" +
+	"\x0esupports_oauth\x18\x06 \x01(\bR\rsupportsOauth\x12\x1b\n" +
+	"\tauth_type\x18\a \x01(\tR\bauthType\x12\x18\n" +
+	"\acurrent\x18\b \x01(\bR\acurrent\"N\n" +
+	"\x15ListProvidersResponse\x125\n" +
+	"\tproviders\x18\x01 \x03(\v2\x17.hand.v1.ProviderOptionR\tproviders\"/\n" +
+	"\x11ListModelsRequest\x12\x1a\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider\"\x9a\x02\n" +
 	"\vModelOption\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -2617,11 +2923,17 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\x12ListModelsResponse\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x1b\n" +
 	"\tauth_type\x18\x02 \x01(\tR\bauthType\x12,\n" +
-	"\x06models\x18\x03 \x03(\v2\x14.hand.v1.ModelOptionR\x06models\"$\n" +
+	"\x06models\x18\x03 \x03(\v2\x14.hand.v1.ModelOptionR\x06models\"@\n" +
 	"\x12SelectModelRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"A\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\bprovider\x18\x02 \x01(\tR\bprovider\"A\n" +
 	"\x13SelectModelResponse\x12*\n" +
-	"\x05model\x18\x01 \x01(\v2\x14.hand.v1.ModelOptionR\x05model2J\n" +
+	"\x05model\x18\x01 \x01(\v2\x14.hand.v1.ModelOptionR\x05model\"O\n" +
+	"\x18SetProviderAPIKeyRequest\x12\x1a\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x17\n" +
+	"\aapi_key\x18\x02 \x01(\tR\x06apiKey\"7\n" +
+	"\x19SetProviderAPIKeyResponse\x12\x1a\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider2J\n" +
 	"\vHandService\x12;\n" +
 	"\aRespond\x12\x17.hand.v1.RespondRequest\x1a\x15.hand.v1.RespondEvent0\x012\xca\x06\n" +
 	"\x0eSessionService\x12G\n" +
@@ -2635,11 +2947,13 @@ const file_internal_rpc_proto_hand_proto_rawDesc = "" +
 	"\aCompact\x12\x1e.hand.v1.CompactSessionRequest\x1a\x1f.hand.v1.CompactSessionResponse\x12G\n" +
 	"\x06Repair\x12\x1d.hand.v1.RepairSessionRequest\x1a\x1e.hand.v1.RepairSessionResponse\x12M\n" +
 	"\x06Status\x12 .hand.v1.GetSessionStatusRequest\x1a!.hand.v1.GetSessionStatusResponse\x12S\n" +
-	"\bTimeline\x12\".hand.v1.GetSessionTimelineRequest\x1a#.hand.v1.GetSessionTimelineResponse2\x9f\x01\n" +
-	"\fModelService\x12E\n" +
+	"\bTimeline\x12\".hand.v1.GetSessionTimelineRequest\x1a#.hand.v1.GetSessionTimelineResponse2\xcb\x02\n" +
+	"\fModelService\x12N\n" +
+	"\rListProviders\x12\x1d.hand.v1.ListProvidersRequest\x1a\x1e.hand.v1.ListProvidersResponse\x12E\n" +
 	"\n" +
 	"ListModels\x12\x1a.hand.v1.ListModelsRequest\x1a\x1b.hand.v1.ListModelsResponse\x12H\n" +
-	"\vSelectModel\x12\x1b.hand.v1.SelectModelRequest\x1a\x1c.hand.v1.SelectModelResponseB2Z0github.com/wandxy/hand/internal/rpc/proto;handpbb\x06proto3"
+	"\vSelectModel\x12\x1b.hand.v1.SelectModelRequest\x1a\x1c.hand.v1.SelectModelResponse\x12Z\n" +
+	"\x11SetProviderAPIKey\x12!.hand.v1.SetProviderAPIKeyRequest\x1a\".hand.v1.SetProviderAPIKeyResponseB2Z0github.com/wandxy/hand/internal/rpc/proto;handpbb\x06proto3"
 
 var (
 	file_internal_rpc_proto_hand_proto_rawDescOnce sync.Once
@@ -2654,7 +2968,7 @@ func file_internal_rpc_proto_hand_proto_rawDescGZIP() []byte {
 }
 
 var file_internal_rpc_proto_hand_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_internal_rpc_proto_hand_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
+var file_internal_rpc_proto_hand_proto_msgTypes = make([]protoimpl.MessageInfo, 42)
 var file_internal_rpc_proto_hand_proto_goTypes = []any{
 	(RespondEvent_Type)(0),                   // 0: hand.v1.RespondEvent.Type
 	(RespondEvent_Channel)(0),                // 1: hand.v1.RespondEvent.Channel
@@ -2690,71 +3004,81 @@ var file_internal_rpc_proto_hand_proto_goTypes = []any{
 	(*SessionTimelineMessage)(nil),           // 31: hand.v1.SessionTimelineMessage
 	(*SessionTimelineTraceEvent)(nil),        // 32: hand.v1.SessionTimelineTraceEvent
 	(*GetSessionTimelineResponse)(nil),       // 33: hand.v1.GetSessionTimelineResponse
-	(*ListModelsRequest)(nil),                // 34: hand.v1.ListModelsRequest
-	(*ModelOption)(nil),                      // 35: hand.v1.ModelOption
-	(*ListModelsResponse)(nil),               // 36: hand.v1.ListModelsResponse
-	(*SelectModelRequest)(nil),               // 37: hand.v1.SelectModelRequest
-	(*SelectModelResponse)(nil),              // 38: hand.v1.SelectModelResponse
-	(*GetSessionStatusResponse_Context)(nil), // 39: hand.v1.GetSessionStatusResponse.Context
-	(*timestamppb.Timestamp)(nil),            // 40: google.protobuf.Timestamp
+	(*ListProvidersRequest)(nil),             // 34: hand.v1.ListProvidersRequest
+	(*ProviderOption)(nil),                   // 35: hand.v1.ProviderOption
+	(*ListProvidersResponse)(nil),            // 36: hand.v1.ListProvidersResponse
+	(*ListModelsRequest)(nil),                // 37: hand.v1.ListModelsRequest
+	(*ModelOption)(nil),                      // 38: hand.v1.ModelOption
+	(*ListModelsResponse)(nil),               // 39: hand.v1.ListModelsResponse
+	(*SelectModelRequest)(nil),               // 40: hand.v1.SelectModelRequest
+	(*SelectModelResponse)(nil),              // 41: hand.v1.SelectModelResponse
+	(*SetProviderAPIKeyRequest)(nil),         // 42: hand.v1.SetProviderAPIKeyRequest
+	(*SetProviderAPIKeyResponse)(nil),        // 43: hand.v1.SetProviderAPIKeyResponse
+	(*GetSessionStatusResponse_Context)(nil), // 44: hand.v1.GetSessionStatusResponse.Context
+	(*timestamppb.Timestamp)(nil),            // 45: google.protobuf.Timestamp
 }
 var file_internal_rpc_proto_hand_proto_depIdxs = []int32{
 	0,  // 0: hand.v1.RespondEvent.type:type_name -> hand.v1.RespondEvent.Type
 	1,  // 1: hand.v1.RespondEvent.channel:type_name -> hand.v1.RespondEvent.Channel
-	40, // 2: hand.v1.RespondEvent.timestamp:type_name -> google.protobuf.Timestamp
+	45, // 2: hand.v1.RespondEvent.timestamp:type_name -> google.protobuf.Timestamp
 	5,  // 3: hand.v1.CreateSessionResponse.session:type_name -> hand.v1.SessionSummary
 	5,  // 4: hand.v1.ListSessionsResponse.sessions:type_name -> hand.v1.SessionSummary
 	5,  // 5: hand.v1.UnarchiveSessionResponse.session:type_name -> hand.v1.SessionSummary
 	5,  // 6: hand.v1.RenameSessionResponse.session:type_name -> hand.v1.SessionSummary
-	40, // 7: hand.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
+	45, // 7: hand.v1.CompactSessionResponse.updated_at:type_name -> google.protobuf.Timestamp
 	2,  // 8: hand.v1.RepairSessionRequest.type:type_name -> hand.v1.RepairSessionRequest.Type
 	24, // 9: hand.v1.RepairSessionRequest.vector:type_name -> hand.v1.VectorRepairOption
 	2,  // 10: hand.v1.RepairSessionResponse.type:type_name -> hand.v1.RepairSessionRequest.Type
 	25, // 11: hand.v1.RepairSessionResponse.vector:type_name -> hand.v1.VectorRepairResponse
 	26, // 12: hand.v1.GetSessionStatusRequest.context:type_name -> hand.v1.GetSessionStatusRequestContext
-	39, // 13: hand.v1.GetSessionStatusResponse.context:type_name -> hand.v1.GetSessionStatusResponse.Context
-	40, // 14: hand.v1.GetSessionStatusResponse.created_at:type_name -> google.protobuf.Timestamp
-	40, // 15: hand.v1.GetSessionStatusResponse.updated_at:type_name -> google.protobuf.Timestamp
-	40, // 16: hand.v1.SessionTimelineMessage.created_at:type_name -> google.protobuf.Timestamp
+	44, // 13: hand.v1.GetSessionStatusResponse.context:type_name -> hand.v1.GetSessionStatusResponse.Context
+	45, // 14: hand.v1.GetSessionStatusResponse.created_at:type_name -> google.protobuf.Timestamp
+	45, // 15: hand.v1.GetSessionStatusResponse.updated_at:type_name -> google.protobuf.Timestamp
+	45, // 16: hand.v1.SessionTimelineMessage.created_at:type_name -> google.protobuf.Timestamp
 	30, // 17: hand.v1.SessionTimelineMessage.tool_calls:type_name -> hand.v1.SessionTimelineToolCall
-	40, // 18: hand.v1.SessionTimelineTraceEvent.timestamp:type_name -> google.protobuf.Timestamp
+	45, // 18: hand.v1.SessionTimelineTraceEvent.timestamp:type_name -> google.protobuf.Timestamp
 	31, // 19: hand.v1.GetSessionTimelineResponse.messages:type_name -> hand.v1.SessionTimelineMessage
 	32, // 20: hand.v1.GetSessionTimelineResponse.trace_events:type_name -> hand.v1.SessionTimelineTraceEvent
-	35, // 21: hand.v1.ListModelsResponse.models:type_name -> hand.v1.ModelOption
-	35, // 22: hand.v1.SelectModelResponse.model:type_name -> hand.v1.ModelOption
-	3,  // 23: hand.v1.HandService.Respond:input_type -> hand.v1.RespondRequest
-	6,  // 24: hand.v1.SessionService.Create:input_type -> hand.v1.CreateSessionRequest
-	8,  // 25: hand.v1.SessionService.List:input_type -> hand.v1.ListSessionsRequest
-	10, // 26: hand.v1.SessionService.Use:input_type -> hand.v1.UseSessionRequest
-	12, // 27: hand.v1.SessionService.Archive:input_type -> hand.v1.ArchiveSessionRequest
-	14, // 28: hand.v1.SessionService.Unarchive:input_type -> hand.v1.UnarchiveSessionRequest
-	16, // 29: hand.v1.SessionService.Rename:input_type -> hand.v1.RenameSessionRequest
-	18, // 30: hand.v1.SessionService.Current:input_type -> hand.v1.CurrentSessionRequest
-	20, // 31: hand.v1.SessionService.Compact:input_type -> hand.v1.CompactSessionRequest
-	22, // 32: hand.v1.SessionService.Repair:input_type -> hand.v1.RepairSessionRequest
-	27, // 33: hand.v1.SessionService.Status:input_type -> hand.v1.GetSessionStatusRequest
-	29, // 34: hand.v1.SessionService.Timeline:input_type -> hand.v1.GetSessionTimelineRequest
-	34, // 35: hand.v1.ModelService.ListModels:input_type -> hand.v1.ListModelsRequest
-	37, // 36: hand.v1.ModelService.SelectModel:input_type -> hand.v1.SelectModelRequest
-	4,  // 37: hand.v1.HandService.Respond:output_type -> hand.v1.RespondEvent
-	7,  // 38: hand.v1.SessionService.Create:output_type -> hand.v1.CreateSessionResponse
-	9,  // 39: hand.v1.SessionService.List:output_type -> hand.v1.ListSessionsResponse
-	11, // 40: hand.v1.SessionService.Use:output_type -> hand.v1.UseSessionResponse
-	13, // 41: hand.v1.SessionService.Archive:output_type -> hand.v1.ArchiveSessionResponse
-	15, // 42: hand.v1.SessionService.Unarchive:output_type -> hand.v1.UnarchiveSessionResponse
-	17, // 43: hand.v1.SessionService.Rename:output_type -> hand.v1.RenameSessionResponse
-	19, // 44: hand.v1.SessionService.Current:output_type -> hand.v1.CurrentSessionResponse
-	21, // 45: hand.v1.SessionService.Compact:output_type -> hand.v1.CompactSessionResponse
-	23, // 46: hand.v1.SessionService.Repair:output_type -> hand.v1.RepairSessionResponse
-	28, // 47: hand.v1.SessionService.Status:output_type -> hand.v1.GetSessionStatusResponse
-	33, // 48: hand.v1.SessionService.Timeline:output_type -> hand.v1.GetSessionTimelineResponse
-	36, // 49: hand.v1.ModelService.ListModels:output_type -> hand.v1.ListModelsResponse
-	38, // 50: hand.v1.ModelService.SelectModel:output_type -> hand.v1.SelectModelResponse
-	37, // [37:51] is the sub-list for method output_type
-	23, // [23:37] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	35, // 21: hand.v1.ListProvidersResponse.providers:type_name -> hand.v1.ProviderOption
+	38, // 22: hand.v1.ListModelsResponse.models:type_name -> hand.v1.ModelOption
+	38, // 23: hand.v1.SelectModelResponse.model:type_name -> hand.v1.ModelOption
+	3,  // 24: hand.v1.HandService.Respond:input_type -> hand.v1.RespondRequest
+	6,  // 25: hand.v1.SessionService.Create:input_type -> hand.v1.CreateSessionRequest
+	8,  // 26: hand.v1.SessionService.List:input_type -> hand.v1.ListSessionsRequest
+	10, // 27: hand.v1.SessionService.Use:input_type -> hand.v1.UseSessionRequest
+	12, // 28: hand.v1.SessionService.Archive:input_type -> hand.v1.ArchiveSessionRequest
+	14, // 29: hand.v1.SessionService.Unarchive:input_type -> hand.v1.UnarchiveSessionRequest
+	16, // 30: hand.v1.SessionService.Rename:input_type -> hand.v1.RenameSessionRequest
+	18, // 31: hand.v1.SessionService.Current:input_type -> hand.v1.CurrentSessionRequest
+	20, // 32: hand.v1.SessionService.Compact:input_type -> hand.v1.CompactSessionRequest
+	22, // 33: hand.v1.SessionService.Repair:input_type -> hand.v1.RepairSessionRequest
+	27, // 34: hand.v1.SessionService.Status:input_type -> hand.v1.GetSessionStatusRequest
+	29, // 35: hand.v1.SessionService.Timeline:input_type -> hand.v1.GetSessionTimelineRequest
+	34, // 36: hand.v1.ModelService.ListProviders:input_type -> hand.v1.ListProvidersRequest
+	37, // 37: hand.v1.ModelService.ListModels:input_type -> hand.v1.ListModelsRequest
+	40, // 38: hand.v1.ModelService.SelectModel:input_type -> hand.v1.SelectModelRequest
+	42, // 39: hand.v1.ModelService.SetProviderAPIKey:input_type -> hand.v1.SetProviderAPIKeyRequest
+	4,  // 40: hand.v1.HandService.Respond:output_type -> hand.v1.RespondEvent
+	7,  // 41: hand.v1.SessionService.Create:output_type -> hand.v1.CreateSessionResponse
+	9,  // 42: hand.v1.SessionService.List:output_type -> hand.v1.ListSessionsResponse
+	11, // 43: hand.v1.SessionService.Use:output_type -> hand.v1.UseSessionResponse
+	13, // 44: hand.v1.SessionService.Archive:output_type -> hand.v1.ArchiveSessionResponse
+	15, // 45: hand.v1.SessionService.Unarchive:output_type -> hand.v1.UnarchiveSessionResponse
+	17, // 46: hand.v1.SessionService.Rename:output_type -> hand.v1.RenameSessionResponse
+	19, // 47: hand.v1.SessionService.Current:output_type -> hand.v1.CurrentSessionResponse
+	21, // 48: hand.v1.SessionService.Compact:output_type -> hand.v1.CompactSessionResponse
+	23, // 49: hand.v1.SessionService.Repair:output_type -> hand.v1.RepairSessionResponse
+	28, // 50: hand.v1.SessionService.Status:output_type -> hand.v1.GetSessionStatusResponse
+	33, // 51: hand.v1.SessionService.Timeline:output_type -> hand.v1.GetSessionTimelineResponse
+	36, // 52: hand.v1.ModelService.ListProviders:output_type -> hand.v1.ListProvidersResponse
+	39, // 53: hand.v1.ModelService.ListModels:output_type -> hand.v1.ListModelsResponse
+	41, // 54: hand.v1.ModelService.SelectModel:output_type -> hand.v1.SelectModelResponse
+	43, // 55: hand.v1.ModelService.SetProviderAPIKey:output_type -> hand.v1.SetProviderAPIKeyResponse
+	40, // [40:56] is the sub-list for method output_type
+	24, // [24:40] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_internal_rpc_proto_hand_proto_init() }
@@ -2771,7 +3095,7 @@ func file_internal_rpc_proto_hand_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_rpc_proto_hand_proto_rawDesc), len(file_internal_rpc_proto_hand_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   37,
+			NumMessages:   42,
 			NumExtensions: 0,
 			NumServices:   3,
 		},

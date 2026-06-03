@@ -288,7 +288,7 @@ func TestConfig_ResolveModelAuthUsesAnthropicSubscriptionHeaders(t *testing.T) {
 
 	cfg := &Config{
 		Name:   "test-agent",
-		Models: ModelsConfig{Main: MainModelConfig{Name: "claude-sonnet-4-5", Provider: "anthropic"}},
+		Models: ModelsConfig{Main: MainModelConfig{Name: "claude-sonnet-4-6", Provider: "anthropic"}},
 	}
 
 	auth, err := cfg.ResolveModelAuth()
@@ -326,7 +326,7 @@ func TestConfig_ResolveModelAuthUsesAnthropicOAuthEnvBeforeAPIKeyEnv(t *testing.
 
 	cfg := &Config{
 		Name:   "test-agent",
-		Models: ModelsConfig{Main: MainModelConfig{Name: "claude-sonnet-4-5", Provider: "anthropic"}},
+		Models: ModelsConfig{Main: MainModelConfig{Name: "claude-sonnet-4-6", Provider: "anthropic"}},
 	}
 
 	auth, err := cfg.ResolveModelAuth()
@@ -1192,7 +1192,17 @@ func TestConfig_StoredCredentialHeaderHelpersCoverFallbackBranches(t *testing.T)
 func TestConfig_OAuthModelSupportAndSubscriptionDefaultsFallbacks(t *testing.T) {
 	require.NoError(t, checkOAuthModelSupported("", "openai", ""))
 	require.NoError(t, checkOAuthModelSupported("model", "missing", "gpt-4o-mini"))
-	require.NoError(t, checkOAuthModelSupported("model", "anthropic", "claude-sonnet-4-5"))
+	require.NoError(t, checkOAuthModelSupported("model", "anthropic", "claude-sonnet-4-6"))
+	require.EqualError(
+		t,
+		checkOAuthModelSupported("", "anthropic", "claude-sonnet-4-5"),
+		`model "claude-sonnet-4-5" is not available through OAuth for provider "anthropic"`,
+	)
+	require.EqualError(
+		t,
+		checkOAuthModelSupported("", "anthropic", "claude-3-5-sonnet-20241022"),
+		`model "claude-3-5-sonnet-20241022" is not available through OAuth for provider "anthropic"`,
+	)
 	require.EqualError(
 		t,
 		checkOAuthModelSupported("", "openai", constants.DefaultModel),

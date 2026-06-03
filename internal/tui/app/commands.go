@@ -21,6 +21,7 @@ var slashCommandDefinitions = []slashCommandDefinition{
 	{Name: "models", Description: "Show supported models"},
 	{Name: "new-chat", Description: "Start a new chat session"},
 	{Name: "archive", Description: "Show archived chat sessions"},
+	{Name: "providers", Description: "Show supported model providers"},
 }
 
 func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
@@ -41,6 +42,8 @@ func (m *model) handleSlashCommand(input composerInput) tea.Cmd {
 		m.applyAction(appendTranscriptCellAction{Cell: systemTranscriptCell{text: getSlashCommandHelpText()}})
 	case "models":
 		cmd = m.startModelsCommand()
+	case "providers":
+		cmd = m.startProvidersCommand()
 	case "copy":
 		cmd = m.copyTranscript()
 	case "new-chat":

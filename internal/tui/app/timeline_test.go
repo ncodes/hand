@@ -502,7 +502,7 @@ func TestTranscriptCells_ExposeTypedCellContract(t *testing.T) {
 			cell:       errorTranscriptCell{message: "failed"},
 			kind:       transcriptCellError,
 			plainText:  "Error: failed",
-			renderText: "Error: failed",
+			renderText: "Error",
 		},
 		{
 			name:       "system",
@@ -538,6 +538,11 @@ func TestTranscriptCells_ExposeTypedCellContract(t *testing.T) {
 				transcriptRenderContext{Width: 40, Now: completedAt},
 			)
 			require.Contains(t, stripANSI(rendered), tt.renderText)
+			if tt.kind == transcriptCellError {
+				require.Contains(t, stripANSI(rendered), "failed")
+				require.NotContains(t, stripANSI(rendered), "╭")
+				require.NotContains(t, stripANSI(rendered), "╰")
+			}
 			if tt.kind == transcriptCellCompaction {
 				require.Equal(t, 2, strings.Count(stripANSI(rendered), strings.Repeat("─", 40)))
 			}
@@ -581,7 +586,10 @@ func TestRenderTranscriptCell_StylesCanonicalCells(t *testing.T) {
 	require.Contains(t, plain, "● Read")
 	require.Contains(t, plain, "└ read_file")
 	require.Contains(t, plain, "Safety: blocked")
-	require.Contains(t, plain, "Error: failed")
+	require.Contains(t, plain, "Error")
+	require.Contains(t, plain, "failed")
+	require.NotContains(t, plain, "╭")
+	require.NotContains(t, plain, "╰")
 	require.Contains(t, rendered, "\x1b[")
 }
 

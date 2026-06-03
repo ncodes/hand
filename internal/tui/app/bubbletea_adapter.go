@@ -110,6 +110,9 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case archivedChatsLoadedMsg:
 		cmd := m.completeArchiveCommand(msg)
 		return m, cmd, true
+	case providersLoadedMsg:
+		cmd := m.completeProvidersCommand(msg)
+		return m, cmd, true
 	case modelsLoadedMsg:
 		cmd := m.completeModelsCommand(msg)
 		return m, cmd, true
@@ -124,6 +127,9 @@ func (m model) handleAsyncMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		return next, cmd, true
 	case modelSelectedMsg:
 		next, cmd := m.completeSelectModel(msg)
+		return next, cmd, true
+	case providerAPIKeySetMsg:
+		next, cmd := m.completeProviderAPIKeySet(msg)
 		return next, cmd, true
 	case toolInvocationStartedMsg:
 		next, cmd := m.handleAppEvent(applyTUIMessageEvent{Message: msg})

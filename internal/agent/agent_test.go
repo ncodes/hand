@@ -781,6 +781,82 @@ func TestAgent_ListModelsReturnsCurrentProviderModels(t *testing.T) {
 	require.NotEmpty(t, list.Models)
 	require.Equal(t, constants.DefaultModel, list.Models[0].ID)
 	require.True(t, list.Models[0].Current)
+
+	list, err = NewAgent(context.Background(), cfg, nil).ListModels(
+		context.Background(),
+		ModelListOptions{Provider: " "},
+	)
+	require.NoError(t, err)
+	require.Equal(t, constants.ModelProviderOpenAI, list.Provider)
+}
+
+func TestAgent_ListProvidersReturnsKnownProvidersWithAuth(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Name = "test"
+	cfg.Models.Main.Provider = constants.ModelProviderOpenAI
+	cfg.Models.Main.Name = constants.DefaultModel
+	cfg.Models.Main.APIKey = "key"
+	cfg.Models.Embedding.APIKey = "key"
+
+	list, err := NewAgent(context.Background(), cfg, nil).ListProviders(context.Background())
+	require.NoError(t, err)
+	require.NotEmpty(t, list.Providers)
+	require.Equal(t, constants.ModelProviderOpenAI, list.Providers[0].ID)
+	require.True(t, list.Providers[0].Current)
+	require.Equal(t, "api-key", list.Providers[0].AuthType)
+	require.Greater(t, list.Providers[0].ModelCount, 0)
+}
+
+func TestAgent_ListModelsFiltersAnthropicOAuthModels(t *testing.T) {
+	t.Setenv("ANTHROPIC_OAUTH_TOKEN", "oauth-token")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+
+	cfg := config.NewDefaultConfig()
+	cfg.Name = "test"
+	cfg.Models.Main.Provider = constants.ModelProviderAnthropic
+	cfg.Models.Main.Name = "claude-sonnet-4-6"
+	cfg.Models.Embedding.APIKey = "key"
+
+	list, err := NewAgent(context.Background(), cfg, nil).ListModels(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, constants.ModelProviderAnthropic, list.Provider)
+	require.Equal(t, "oauth", list.AuthType)
+	require.NotEmpty(t, list.Models)
+	require.Equal(t, "claude-sonnet-4-6", list.Models[0].ID)
+	require.Len(t, list.Models, 3)
+
+	ids := make(map[string]struct{}, len(list.Models))
+	for _, option := range list.Models {
+		require.True(t, option.SupportsOAuth, option.ID)
+		ids[option.ID] = struct{}{}
+	}
+	require.Contains(t, ids, "claude-haiku-4-5")
+	require.Contains(t, ids, "claude-opus-4-7")
+	require.Contains(t, ids, "claude-sonnet-4-6")
+	require.NotContains(t, ids, "claude-sonnet-4-5")
+	require.NotContains(t, ids, "claude-3-5-sonnet-20241022")
+}
+
+func TestAgent_ListModelsCanTargetProvider(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Name = "test"
+	cfg.Models.Main.Provider = constants.ModelProviderOpenAI
+	cfg.Models.Main.Name = constants.DefaultModel
+	cfg.Models.Main.APIKey = "key"
+	cfg.Models.Embedding.APIKey = "key"
+	cfg.Models.Providers = map[string]config.ProviderModelConfig{
+		constants.ModelProviderOpenRouter: {APIKey: "router-key"},
+	}
+
+	list, err := NewAgent(context.Background(), cfg, nil).ListModels(
+		context.Background(),
+		ModelListOptions{Provider: constants.ModelProviderOpenRouter},
+	)
+	require.NoError(t, err)
+	require.Equal(t, constants.ModelProviderOpenRouter, list.Provider)
+	require.Equal(t, "api-key", list.AuthType)
+	require.NotEmpty(t, list.Models)
+	require.False(t, list.Models[0].Current)
 }
 
 func TestAgent_SelectModelWritesProfileConfig(t *testing.T) {
@@ -809,6 +885,47 @@ func TestAgent_SelectModelWritesProfileConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "gpt-4o", loaded.Models.Main.Name)
 	require.Equal(t, "gpt-4o", loaded.Models.Summary.Name)
+	require.Equal(t, constants.ModelProviderOpenAI, loaded.Models.Main.Provider)
+	require.Equal(t, constants.ModelProviderOpenAI, loaded.Models.Summary.Provider)
+}
+
+func TestAgent_SelectModelWritesProviderScopedProfileConfig(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Name = "test"
+	cfg.Models.Main.Provider = constants.ModelProviderOpenAI
+	cfg.Models.Main.Name = constants.DefaultModel
+	cfg.Models.Main.APIKey = "key"
+	cfg.Models.Embedding.APIKey = "key"
+	cfg.Models.Providers = map[string]config.ProviderModelConfig{
+		constants.ModelProviderOpenRouter: {APIKey: "router-key"},
+	}
+
+	home := t.TempDir()
+	configPath := filepath.Join(home, "config.yaml")
+	data, err := cfg.ToYAML()
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(configPath, data, 0o600))
+	original := profile.Active()
+	t.Cleanup(func() { profile.SetActive(original) })
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: "test", HomeDir: home, ConfigPath: configPath}))
+
+	selected, err := NewAgent(context.Background(), cfg, nil).SelectModel(
+		context.Background(),
+		"openai/gpt-4o",
+		ModelSelectOptions{Provider: constants.ModelProviderOpenRouter},
+	)
+	require.NoError(t, err)
+	require.Equal(t, "openai/gpt-4o", selected.ID)
+	require.Equal(t, constants.ModelProviderOpenRouter, selected.Provider)
+
+	loaded, err := config.Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, constants.ModelProviderOpenRouter, loaded.Models.Main.Provider)
+	require.Equal(t, "openai/gpt-4o", loaded.Models.Main.Name)
+	require.Equal(t, constants.ModelProviderOpenRouter, loaded.Models.Summary.Provider)
+	require.Equal(t, "openai/gpt-4o", loaded.Models.Summary.Name)
+	require.Equal(t, selected.API, loaded.Models.Main.API)
+	require.Equal(t, selected.API, loaded.Models.Summary.API)
 }
 
 func TestAgent_SelectModelRejectsUnavailableModel(t *testing.T) {
@@ -840,7 +957,13 @@ func TestAgent_SelectModelReturnsConfigWriteErrors(t *testing.T) {
 }
 
 func TestAgent_ModelConfigValidationErrors(t *testing.T) {
-	_, err := (*Agent)(nil).ListModels(context.Background())
+	_, err := (*Agent)(nil).ListProviders(context.Background())
+	require.EqualError(t, err, "agent is required")
+
+	_, err = (&Agent{}).ListProviders(context.Background())
+	require.EqualError(t, err, "config is required")
+
+	_, err = (*Agent)(nil).ListModels(context.Background())
 	require.EqualError(t, err, "agent is required")
 
 	_, err = (&Agent{}).ListModels(context.Background())
@@ -855,12 +978,51 @@ func TestAgent_ModelConfigValidationErrors(t *testing.T) {
 	_, err = (&Agent{}).SelectModel(context.Background(), "gpt-4o")
 	require.EqualError(t, err, "config is required")
 
+	err = (*Agent)(nil).SetProviderAPIKey(context.Background(), "openrouter", "key")
+	require.EqualError(t, err, "agent is required")
+
+	err = (&Agent{}).SetProviderAPIKey(context.Background(), "openrouter", "key")
+	require.EqualError(t, err, "config is required")
+
+	err = NewAgent(context.Background(), config.NewDefaultConfig(), nil).
+		SetProviderAPIKey(context.Background(), "", "key")
+	require.EqualError(t, err, "model provider is required")
+
+	err = NewAgent(context.Background(), config.NewDefaultConfig(), nil).
+		SetProviderAPIKey(context.Background(), "openrouter", "")
+	require.EqualError(t, err, "provider API key is required")
+
+	blankProviderConfig := config.NewDefaultConfig()
+	blankProviderConfig.Models.Main.Provider = ""
+	_, err = NewAgent(context.Background(), blankProviderConfig, nil).ListModels(context.Background())
+	require.EqualError(t, err, "model provider is required")
+
 	badConfig := config.NewDefaultConfig()
 	badConfig.Name = "test"
 	badConfig.Models.Main.Provider = "missing-provider"
 	badConfig.Models.Main.APIKey = ""
 	_, err = NewAgent(context.Background(), badConfig, nil).ListModels(context.Background())
-	require.ErrorContains(t, err, "model API key is required")
+	require.ErrorContains(t, err, `model provider "missing-provider" is not available`)
+
+	require.Equal(t, "none", (*Agent)(nil).getProviderAuthType(constants.ModelProviderOpenAI, constants.DefaultModel))
+	require.Empty(t, (*Agent)(nil).getCurrentModelForProvider(constants.ModelProviderOpenAI))
+}
+
+func TestAgent_SelectModelRejectsProviderWithoutConfiguredAuth(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Name = "test"
+	cfg.Models.Main.Provider = constants.ModelProviderOpenAI
+	cfg.Models.Main.Name = constants.DefaultModel
+	cfg.Models.Main.APIKey = "key"
+	cfg.Models.Embedding.APIKey = "key"
+
+	_, err := NewAgent(context.Background(), cfg, nil).SelectModel(
+		context.Background(),
+		"openai/gpt-4o",
+		ModelSelectOptions{Provider: constants.ModelProviderOpenRouter},
+	)
+
+	require.ErrorContains(t, err, `model API key is required for provider "openrouter"`)
 }
 
 func TestAgent_SaveMainModelSelectionErrors(t *testing.T) {
@@ -871,7 +1033,13 @@ func TestAgent_SaveMainModelSelectionErrors(t *testing.T) {
 	cfg.Models.Main.APIKey = "key"
 	cfg.Models.Embedding.APIKey = "key"
 
-	require.EqualError(t, saveMainModelSelection("", "", "gpt-4o"), "profile config path is required")
+	option := models.Option{ID: "gpt-4o", API: "openai-responses"}
+	require.EqualError(t, saveMainModelSelection("", "", constants.ModelProviderOpenAI, option), "profile config path is required")
+	require.EqualError(t, saveMainModelSelection("", "config.yaml", "", option), "model provider is required")
+	require.EqualError(t, saveMainModelSelection("", "config.yaml", constants.ModelProviderOpenAI, models.Option{}), "model id is required")
+	require.EqualError(t, saveProviderAPIKey("", "", "openrouter", "key"), "profile config path is required")
+	require.EqualError(t, saveProviderAPIKey("", "config.yaml", "", "key"), "model provider is required")
+	require.EqualError(t, saveProviderAPIKey("", "config.yaml", "openrouter", ""), "provider API key is required")
 
 	badConfigPath := filepath.Join(t.TempDir(), "config.yaml")
 	require.NoError(t, os.WriteFile(badConfigPath, []byte(`
@@ -885,11 +1053,59 @@ models:
 storage:
   backend: postgres
 `), 0o600))
-	err := saveMainModelSelection("", badConfigPath, "gpt-4o")
+	err := saveMainModelSelection("", badConfigPath, constants.ModelProviderOpenAI, option)
 	require.EqualError(t, err, "storage backend must be one of: memory, sqlite")
 
 	parentFile := filepath.Join(t.TempDir(), "parent")
 	require.NoError(t, os.WriteFile(parentFile, []byte("not a dir"), 0o600))
-	err = saveMainModelSelection("", filepath.Join(parentFile, "config.yaml"), "gpt-4o")
+	err = saveMainModelSelection("", filepath.Join(parentFile, "config.yaml"), constants.ModelProviderOpenAI, option)
 	require.ErrorContains(t, err, "read config file")
+}
+
+func TestAgent_SetProviderAPIKeyWritesProfileConfig(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Name = "test"
+	cfg.Models.Main.Provider = constants.ModelProviderOpenAI
+	cfg.Models.Main.Name = constants.DefaultModel
+	cfg.Models.Main.APIKey = "key"
+	cfg.Models.Embedding.APIKey = "key"
+
+	home := t.TempDir()
+	configPath := filepath.Join(home, "config.yaml")
+	data, err := cfg.ToYAML()
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(configPath, data, 0o600))
+	original := profile.Active()
+	t.Cleanup(func() { profile.SetActive(original) })
+	profile.SetActive(profile.WithMetadataPaths(profile.Profile{Name: "test", HomeDir: home, ConfigPath: configPath}))
+
+	err = NewAgent(context.Background(), cfg, nil).SetProviderAPIKey(context.Background(), constants.ModelProviderOpenRouter, "router-key")
+	require.NoError(t, err)
+
+	loaded, err := config.Load("", configPath)
+	require.NoError(t, err)
+	require.Equal(t, "router-key", loaded.Models.Providers[constants.ModelProviderOpenRouter].APIKey)
+	require.Equal(t, "router-key", cfg.Models.Providers[constants.ModelProviderOpenRouter].APIKey)
+}
+
+func TestAgent_SetProviderAPIKeyReturnsConfigWriteErrors(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Name = "test"
+	cfg.Models.Main.Provider = constants.ModelProviderOpenAI
+	cfg.Models.Main.Name = constants.DefaultModel
+	cfg.Models.Main.APIKey = "key"
+	cfg.Models.Embedding.APIKey = "key"
+
+	original := profile.Active()
+	t.Cleanup(func() { profile.SetActive(original) })
+	profile.SetActive(profile.Profile{Name: "test", HomeDir: t.TempDir(), ConfigPath: t.TempDir()})
+
+	err := NewAgent(context.Background(), cfg, nil).SetProviderAPIKey(
+		context.Background(),
+		constants.ModelProviderOpenRouter,
+		"router-key",
+	)
+
+	require.ErrorContains(t, err, "read config file")
+	require.Empty(t, cfg.Models.Providers[constants.ModelProviderOpenRouter].APIKey)
 }

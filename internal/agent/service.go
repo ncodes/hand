@@ -15,11 +15,25 @@ type ModelList struct {
 	Models   []models.Option
 }
 
+type ModelListOptions struct {
+	Provider string
+}
+
+type ModelSelectOptions struct {
+	Provider string
+}
+
+type ProviderList struct {
+	Providers []models.ProviderOption
+}
+
 // ServiceAPI is the agent service surface consumed by RPC, CLI, and TUI adapters.
 type ServiceAPI interface {
 	Respond(context.Context, string, agentcore.RespondOptions) (string, error)
-	ListModels(context.Context) (ModelList, error)
-	SelectModel(context.Context, string) (models.Option, error)
+	ListProviders(context.Context) (ProviderList, error)
+	ListModels(context.Context, ...ModelListOptions) (ModelList, error)
+	SelectModel(context.Context, string, ...ModelSelectOptions) (models.Option, error)
+	SetProviderAPIKey(context.Context, string, string) error
 	CreateSession(context.Context, string) (storage.Session, error)
 	ListSessions(context.Context, ...storage.SessionListOptions) ([]storage.Session, error)
 	UseSession(context.Context, string) error

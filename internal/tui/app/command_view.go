@@ -17,9 +17,11 @@ const (
 	commandViewMaxHeight = 16
 	commandViewTitleGap  = 1
 
-	commandViewKindArchive = "archive"
-	commandViewKindChats   = "chats"
-	commandViewKindModels  = "models"
+	commandViewKindArchive        = "archive"
+	commandViewKindChats          = "chats"
+	commandViewKindModels         = "models"
+	commandViewKindProviderAPIKey = "provider-api-key"
+	commandViewKindProviders      = "providers"
 )
 
 type commandViewPayload struct {
@@ -34,8 +36,10 @@ type commandViewPayload struct {
 	Kind            string
 	Chats           []storage.Session
 	Models          []rpcclient.ModelOption
+	Providers       []rpcclient.ProviderOption
 	ModelProvider   string
 	ModelAuthType   string
+	PendingModelID  string
 }
 
 type commandViewSelectionAutoScrollTickMsg struct{}
@@ -86,7 +90,7 @@ func (m model) renderCommandView() string {
 	}
 
 	height := frame.Height
-	if m.isSessionListCommandView() || m.isModelsCommandView() {
+	if m.isSessionListCommandView() || m.isModelsCommandView() || m.isProvidersCommandView() {
 		height++
 	}
 
@@ -132,6 +136,19 @@ func (m model) getCommandViewFrame() commandViewFrame {
 			Width:  contentWidth,
 			Height: contentHeight,
 			Offset: m.commandViewOffset,
+		})
+	}
+	if m.isProvidersCommandView() {
+		content = m.renderProvidersCommandViewContent(commandViewContent{
+			Width:  contentWidth,
+			Height: contentHeight,
+			Offset: m.commandViewOffset,
+		})
+	}
+	if m.isProviderAPIKeyCommandView() {
+		content = m.renderProviderAPIKeyCommandViewContent(commandViewContent{
+			Width:  contentWidth,
+			Height: contentHeight,
 		})
 	}
 
@@ -298,6 +315,12 @@ func (m *model) updateCommandView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if m.isModelsCommandView() {
 		return m.updateModelsCommandView(msg)
+	}
+	if m.isProvidersCommandView() {
+		return m.updateProvidersCommandView(msg)
+	}
+	if m.isProviderAPIKeyCommandView() {
+		return m.updateProviderAPIKeyCommandView(msg)
 	}
 
 	offset := m.commandViewOffset
@@ -562,6 +585,9 @@ func (m model) getCommandViewMaxYOffset() int {
 	}
 	if m.isModelsCommandView() {
 		return max(len(m.commandView.Models)-m.getCommandViewContentHeight(), 0)
+	}
+	if m.isProvidersCommandView() {
+		return max(len(m.commandView.Providers)-m.getCommandViewContentHeight(), 0)
 	}
 
 	view := m.newCommandViewContentViewport(commandViewContent{
